@@ -10,6 +10,9 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
+  const STOCK_BUILD = '20260831-0905';
+  const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
+
   if (page === 'NEXUS-Inventaire-v1.html') {
     const scriptTest = document.createElement('script');
     scriptTest.src = 'nexus-inventaire-mode-test.js';
@@ -55,6 +58,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     document.head.appendChild(scriptReglesFinition);
   }
   if (page === 'NEXUS-Stock-Localise-v1.html') {
+    const scriptConditionnement = document.createElement('script');
+    scriptConditionnement.src = versionnerStock('nexus-inventaire-conditionnement.js');
+    scriptConditionnement.defer = true;
+    document.head.appendChild(scriptConditionnement);
+
     const scriptStockLocaliseUx = document.createElement('script');
     scriptStockLocaliseUx.src = 'nexus-inventaire-stock-localise-ux-v2.js';
     scriptStockLocaliseUx.defer = true;
@@ -74,6 +82,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptReassortBoutique.src = 'nexus-inventaire-reassort-boutique-v1.js';
     scriptReassortBoutique.defer = true;
     document.head.appendChild(scriptReassortBoutique);
+
+    const scriptConditionnementUi = document.createElement('script');
+    scriptConditionnementUi.src = versionnerStock('nexus-inventaire-conditionnement-stock-localise.js');
+    scriptConditionnementUi.defer = true;
+    document.head.appendChild(scriptConditionnementUi);
   }
 
   const pagesStockMoteur = [
@@ -85,7 +98,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   ];
   if (pagesStockMoteur.includes(page)) {
     const scriptStockMoteur = document.createElement('script');
-    scriptStockMoteur.src = 'nexus-stock-moteur.js';
+    scriptStockMoteur.src = versionnerStock('nexus-stock-moteur.js');
     scriptStockMoteur.defer = true;
     document.head.appendChild(scriptStockMoteur);
   }
@@ -93,31 +106,31 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   const pagesDecisionStock = ['NEXUS-App-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html'];
   if (pagesDecisionStock.includes(page)) {
     const scriptReappro = document.createElement('script');
-    scriptReappro.src = 'nexus-reappro-stock-v1.js';
+    scriptReappro.src = versionnerStock('nexus-reappro-stock-v1.js');
     scriptReappro.defer = true;
     document.head.appendChild(scriptReappro);
 
     const scriptConseillerStock = document.createElement('script');
-    scriptConseillerStock.src = 'nexus-conseiller-stock-v3.js';
+    scriptConseillerStock.src = versionnerStock('nexus-conseiller-stock-v3.js');
     scriptConseillerStock.defer = true;
     document.head.appendChild(scriptConseillerStock);
   }
 
   if (page === 'NEXUS-Cockpit-v2.html') {
     const scriptCockpitStock = document.createElement('script');
-    scriptCockpitStock.src = 'nexus-cockpit-stock-v3.js';
+    scriptCockpitStock.src = versionnerStock('nexus-cockpit-stock-v3.js');
     scriptCockpitStock.defer = true;
     document.head.appendChild(scriptCockpitStock);
   }
   if (page === 'NEXUS-Scanner-v1.html') {
     const scriptScannerStock = document.createElement('script');
-    scriptScannerStock.src = 'nexus-scanner-stock-v3.js';
+    scriptScannerStock.src = versionnerStock('nexus-scanner-stock-v3.js');
     scriptScannerStock.defer = true;
     document.head.appendChild(scriptScannerStock);
   }
   if (page === 'NEXUS-Radar-Manager-v1.html') {
     const scriptRadarStock = document.createElement('script');
-    scriptRadarStock.src = 'nexus-radar-stock-v3.js';
+    scriptRadarStock.src = versionnerStock('nexus-radar-stock-v3.js');
     scriptRadarStock.defer = true;
     document.head.appendChild(scriptRadarStock);
   }
