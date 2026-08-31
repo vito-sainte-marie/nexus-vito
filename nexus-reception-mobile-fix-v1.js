@@ -39,11 +39,38 @@
     return groupe.cuves.filter(Boolean);
   }
 
-  // Le select est parfois créé avant que config.cuvesOrdonnees soit exploitable.
-  // On le répare depuis station_config. IMPORTANT : la page métier écoute
-  // l'événement change pour écrire cuve_destination_id dans le compartiment ;
-  // toute valeur injectée ici doit donc déclencher change, même si elle vient
-  // d'une restauration ou d'une sélection automatique.
+  function appliquerValeurCuve(select,valeur){
+    if(!select) return;
+    select.value=String(valeur||'');
+    // L'écouteur métier historique écrit c.cuve_destination_id sur change.
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+
+  function injecterBoutonsCuves(select,cuves){
+    if(!select||!cuves||!cuves.length) return;
+    let zone=document.getElementById('nexusChoixCuveBoutons');
+    if(!zone){
+      zone=document.createElement('div');
+      zone.id='nexusChoixCuveBoutons';
+      zone.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:-4px 0 14px;';
+      select.insertAdjacentElement('afterend',zone);
+    }
+    const valeur=String(select.value||'');
+    zone.innerHTML=cuves.map(c=>{
+      const actif=valeur===String(c.id);
+      return `<button type="button" class="nexus-cuve-btn" data-cuve-id="${String(c.id).replace(/"/g,'&quot;')}" style="min-height:48px;border-radius:10px;border:1px solid ${actif?'var(--cyan)':'var(--hairline)'};background:${actif?'rgba(79,195,217,.14)':'var(--panel-raised)'};color:${actif?'var(--text)':'var(--text-mid)'};font:600 13px var(--sans);padding:10px 12px;cursor:pointer;">${c.label||c.id}</button>`;
+    }).join('');
+    zone.querySelectorAll('.nexus-cuve-btn').forEach(btn=>btn.addEventListener('click',()=>{
+      appliquerValeurCuve(select,btn.dataset.cuveId);
+      injecterBoutonsCuves(select,cuves);
+    }));
+
+    // Le select natif reste présent comme repli/accessibilité, mais il n'est
+    // plus la voie principale. Sur Safari iOS il était précisément la source
+    // du blocage : les boutons sont de simples contrôles tactiles fiables.
+    select.style.display='none';
+  }
+
   async function reparerSelectCuve(){
     if(correctionEnCours) return;
     const select=document.getElementById('fCuveCompartiment');
@@ -54,43 +81,24 @@
     const cuves=optionsAttendues(carb);
     if(!cuves.length) return;
 
-    const idsActuels=[...select.options].map(o=>String(o.value||'')).filter(Boolean);
-    const idsAttendus=cuves.map(c=>String(c.id));
-    const manque=idsAttendus.some(id=>!idsActuels.includes(id));
-    const optionsVides=idsActuels.length===0;
-    if(!manque&&!optionsVides){
-      if(select.disabled) select.disabled=false;
-      return;
-    }
-
     correctionEnCours=true;
     try{
       const valeurAvant=String(select.value||'');
+      const idsAttendus=cuves.map(c=>String(c.id));
       select.innerHTML='<option value="">— Choisir —</option>'+cuves.map(c=>`<option value="${String(c.id).replace(/"/g,'&quot;')}">${c.label||c.id}</option>`).join('');
       select.disabled=false;
-      if(valeurAvant&&idsAttendus.includes(valeurAvant)){
-        select.value=valeurAvant;
-        select.dispatchEvent(new Event('change',{bubbles:true}));
-      } else if(cuves.length===1){
-        select.value=String(cuves[0].id);
-        select.dispatchEvent(new Event('change',{bubbles:true}));
-      }
+      if(valeurAvant&&idsAttendus.includes(valeurAvant)) appliquerValeurCuve(select,valeurAvant);
+      else if(cuves.length===1) appliquerValeurCuve(select,cuves[0].id);
+      injecterBoutonsCuves(select,cuves);
     }finally{correctionEnCours=false;}
   }
 
-  // Filet de sécurité Safari : si un correctif tiers / le navigateur a
-  // remplacé les options du select après la pose de l'écouteur métier, on
-  // force un vrai événement change au choix utilisateur. Cela synchronise
-  // toujours l'affichage ET l'objet compartiment utilisé par tousAssignes.
   function synchroniserChoixCuve(e){
     const select=e.target&&e.target.closest?e.target.closest('#fCuveCompartiment'):null;
     if(!select||select.dataset.nexusSynchroEnCours==='1') return;
     select.dataset.nexusSynchroEnCours='1';
-    try{
-      select.dispatchEvent(new Event('change',{bubbles:true}));
-    }finally{
-      setTimeout(()=>{delete select.dataset.nexusSynchroEnCours;},0);
-    }
+    try{ select.dispatchEvent(new Event('change',{bubbles:true})); }
+    finally{ setTimeout(()=>{delete select.dataset.nexusSynchroEnCours;},0); }
   }
 
   function compartimentsVides(){
@@ -112,8 +120,7 @@
     const ids=['btnRetourJaugeage','btnRetourCompartiments','btnRetourReception','btnRetourCalcul'];
     ids.forEach(id=>{
       const btn=document.getElementById(id);
-      if(!btn) return;
-      if(btn.dataset.nexusRetourCorriger==='1') return;
+      if(!btn||btn.dataset.nexusRetourCorriger==='1') return;
       btn.dataset.nexusRetourCorriger='1';
       btn.textContent='← Corriger l’étape précédente';
       btn.setAttribute('aria-label','Retourner à l’étape précédente pour corriger une saisie sans annuler la réception');
@@ -130,11 +137,7 @@
     }
   }
 
-  function corriger(){
-    reparerSelectCuve();
-    corrigerMessageIncomplet();
-    rendreRetourExplicite();
-  }
+  function corriger(){ reparerSelectCuve(); corrigerMessageIncomplet(); rendreRetourExplicite(); }
 
   function init(){
     corriger();
@@ -143,10 +146,6 @@
     document.addEventListener('click',e=>{
       if(e.target&&e.target.closest&&e.target.closest('#btnToggleVideCompartiment,.carburant-chip')) setTimeout(corriger,0);
     },true);
-    // Safari iOS et desktop : input est émis lors d'un choix natif ; le
-    // listener métier historique reste sur change. On relaie donc input ->
-    // change pour éviter qu'une cuve visible à l'écran ne reste absente de
-    // l'état métier.
     document.addEventListener('input',synchroniserChoixCuve,true);
   }
 
