@@ -5,24 +5,20 @@
   'use strict';
   if((location.pathname.split('/').pop()||'')!=='NEXUS-Inventaire-Manager-v1.html') return;
 
-  const JOURS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   let enCours=false;
 
   function horizon(jours){
-    const n=Number(String(jours).replace(',','.'));
-    if(!Number.isFinite(n)||n<0)return null;
-    const d=new Date(Date.now()+n*86400000);
-    // L'affichage est volontairement opérationnel : une journée est découpée
-    // en deux quarts. Cette règle ne modifie aucun calcul de stock/réassort.
-    const quart=d.getHours()<12?'Quart 1':'Quart 2';
-    return `${JOURS[d.getDay()]} · ${quart}`;
+    if(window.NexusHorizonOperationnel){
+      const h=window.NexusHorizonOperationnel.horizonDepuisJours(jours);
+      return h ? h.label : null;
+    }
+    return null;
   }
 
   function convertirTexte(node){
     if(node.nodeType!==Node.TEXT_NODE)return;
     const original=node.nodeValue||'';
     let txt=original;
-    // « couverture 0.4 j » / « Couverture suffisante · 0.4 j »
     txt=txt.replace(/couverture\s+(\d+(?:[.,]\d+)?)\s*j\b/gi,(m,v)=>{
       const h=horizon(v);return h?`jusqu’à ${h}`:m;
     });
