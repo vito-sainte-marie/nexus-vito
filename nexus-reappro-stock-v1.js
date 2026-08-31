@@ -19,6 +19,12 @@
     return Number.isFinite(n) && n>0 ? n : null;
   }
 
+  function horizonCouverture(jours){
+    if(jours==null) return null;
+    const h=window.NexusHorizonOperationnel && window.NexusHorizonOperationnel.libelleJusqua(jours);
+    return h || null;
+  }
+
   async function fetchAll(builderFactory,pageSize=1000){
     let out=[];
     for(let from=0;;from+=pageSize){
@@ -125,7 +131,7 @@
       produit_id:etat.produit_id, article:etat.designation, categorie:etat.categorie,
       code_barres:etat.code_barres, stock_reel:reel.quantite, stock_reel_date:reel.date,
       stock_reference_nature:ref.nature, ventes_periode:vendu, jours_periode:jours,
-      ventes_par_jour:vitesse, couverture_jours:couverture, age_stock_heures:ageHeures,
+      ventes_par_jour:vitesse, couverture_jours:couverture, couverture_horizon:horizonCouverture(couverture), age_stock_heures:ageHeures,
       statut,action,rang, rapprochement_ventes:vente ? vente.rapprochement : null
     };
   }
@@ -156,13 +162,13 @@
         etat:a.statut==='rupture_reelle'?'📦 RUPTURE OBSERVÉE':a.statut==='couverture_critique'?'📦 COUVERTURE CRITIQUE':a.statut==='couverture_courte'?'📦 À SURVEILLER':'📦 DONNÉE À ACTUALISER',
         impact_eur:0, article:a.article, categorie:a.categorie, decision:a.action,
         pourquoi:a.couverture_jours!=null
-          ? `Stock réel ${Number(a.stock_reel)} · ventes moyennes ${a.ventes_par_jour.toFixed(2)}/jour · couverture estimée ${a.couverture_jours.toFixed(1)} jour${a.couverture_jours>=2?'s':''}.`
+          ? `Stock réel ${Number(a.stock_reel)} · ventes moyennes ${a.ventes_par_jour.toFixed(2)}/jour · stock estimé ${a.couverture_horizon || ('sur '+a.couverture_jours.toFixed(1)+' jour'+(a.couverture_jours>=2?'s':''))}.`
           : a.statut==='theorique_seul'
             ? 'NEXUS ne dispose que d’un stock théorique : aucune commande n’est proposée sans contrôle physique.'
             : 'La donnée physique disponible n’est pas assez récente pour décider d’un réassort.',
         impact:'Limiter le risque de rupture sans commander sur une donnée de stock incertaine.',
         confiance:a.statut==='rupture_reelle'||a.statut==='couverture_critique'||a.statut==='couverture_courte'?'B':'C',
-        validable:false, couverture_jours:a.couverture_jours, stock_source:a.stock_reference_nature
+        validable:false, couverture_jours:a.couverture_jours, couverture_horizon:a.couverture_horizon, stock_source:a.stock_reference_nature
       }));
   }
 
