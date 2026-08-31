@@ -81,7 +81,15 @@
       // exactement ce contrat et on ne touche pas à sa logique métier.
       input.dispatchEvent(new Event('input',{bubbles:true}));
     }
+    function validerGeste(){
+      synchroniser();
+      // L'ouverture Inventaire V2 écrit normalement le produit dès le blur.
+      // Comme l'input historique est désormais masqué, on relaie ce blur afin
+      // de conserver l'écriture immédiate et la résistance aux pertes réseau.
+      input.dispatchEvent(new Event('blur'));
+    }
     ip.addEventListener('input',synchroniser);ic.addEventListener('input',synchroniser);
+    ip.addEventListener('blur',validerGeste);ic.addEventListener('blur',validerGeste);
     ip.addEventListener('focus',()=>ip.select());ic.addEventListener('focus',()=>ic.select());
     synchroniser();
   }
