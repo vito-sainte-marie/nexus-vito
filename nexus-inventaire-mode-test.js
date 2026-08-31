@@ -238,3 +238,16 @@
   if (document.readyState === 'complete') setTimeout(demarrerInstallation, 0);
   else window.addEventListener('load', demarrerInstallation, { once: true });
 })();
+
+// Extension terrain commune (manager en test ET employés réels) : les références
+// cigarettes sont comptées en paquets + cartouches, puis converties en paquets
+// avant de rejoindre le moteur historique. Chargement depuis ce compagnon déjà
+// présent sur la page afin d'éviter une nouvelle dépendance dans le HTML principal.
+(function chargerComptageConditionnementCigarettes(){
+  if(document.querySelector('script[data-nexus-cigarettes-conditionnement]')) return;
+  const s=document.createElement('script');
+  s.src='nexus-inventaire-cigarettes-conditionnement-v1.js?v=20260831-1015';
+  s.defer=true;
+  s.dataset.nexusCigarettesConditionnement='1';
+  document.head.appendChild(s);
+})();
