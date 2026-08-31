@@ -10,266 +10,57 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-0905';
+  const STOCK_BUILD = '20260831-0932';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   if (page === 'NEXUS-Inventaire-v1.html') {
-    const scriptTest = document.createElement('script');
-    scriptTest.src = 'nexus-inventaire-mode-test.js';
-    scriptTest.defer = true;
-    document.head.appendChild(scriptTest);
-
-    const scriptTransferts = document.createElement('script');
-    scriptTransferts.src = 'nexus-inventaire-transferts-internes.js';
-    scriptTransferts.defer = true;
-    document.head.appendChild(scriptTransferts);
+    const scriptTest = document.createElement('script'); scriptTest.src = 'nexus-inventaire-mode-test.js'; scriptTest.defer = true; document.head.appendChild(scriptTest);
+    const scriptTransferts = document.createElement('script'); scriptTransferts.src = 'nexus-inventaire-transferts-internes.js'; scriptTransferts.defer = true; document.head.appendChild(scriptTransferts);
   }
   if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html'].includes(page)) {
-    const scriptStockEntry = document.createElement('script');
-    scriptStockEntry.src = 'nexus-inventaire-stock-localise-entry.js';
-    scriptStockEntry.defer = true;
-    document.head.appendChild(scriptStockEntry);
+    const s=document.createElement('script');s.src='nexus-inventaire-stock-localise-entry.js';s.defer=true;document.head.appendChild(s);
   }
-  if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html', 'NEXUS-Parametres-Inventaire-v1.html'].includes(page)) {
-    const scriptRotation = document.createElement('script');
-    scriptRotation.src = 'nexus-inventaire-rotation-intelligente.js';
-    scriptRotation.defer = true;
-    document.head.appendChild(scriptRotation);
+  if (['NEXUS-Inventaire-v1.html','NEXUS-Inventaire-Manager-v1.html','NEXUS-Parametres-Inventaire-v1.html'].includes(page)) {
+    const s=document.createElement('script');s.src='nexus-inventaire-rotation-intelligente.js';s.defer=true;document.head.appendChild(s);
   }
   if (page === 'NEXUS-Parametres-Inventaire-v1.html') {
-    const scriptReglages = document.createElement('script');
-    scriptReglages.src = 'nexus-inventaire-reglages-specifiques.js';
-    scriptReglages.defer = true;
-    document.head.appendChild(scriptReglages);
-
-    const scriptStockLocalise = document.createElement('script');
-    scriptStockLocalise.src = 'nexus-inventaire-parametres-stock-localise.js';
-    scriptStockLocalise.defer = true;
-    document.head.appendChild(scriptStockLocalise);
-
-    const scriptReglesUx = document.createElement('script');
-    scriptReglesUx.src = 'nexus-inventaire-regles-ux-v2.js';
-    scriptReglesUx.defer = true;
-    document.head.appendChild(scriptReglesUx);
-
-    const scriptReglesFinition = document.createElement('script');
-    scriptReglesFinition.src = 'nexus-inventaire-regles-finition-v2.js';
-    scriptReglesFinition.defer = true;
-    document.head.appendChild(scriptReglesFinition);
+    ['nexus-inventaire-reglages-specifiques.js','nexus-inventaire-parametres-stock-localise.js','nexus-inventaire-regles-ux-v2.js','nexus-inventaire-regles-finition-v2.js'].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
   }
   if (page === 'NEXUS-Stock-Localise-v1.html') {
-    const scriptConditionnement = document.createElement('script');
-    scriptConditionnement.src = versionnerStock('nexus-inventaire-conditionnement.js');
-    scriptConditionnement.defer = true;
-    document.head.appendChild(scriptConditionnement);
-
-    const scriptStockLocaliseUx = document.createElement('script');
-    scriptStockLocaliseUx.src = 'nexus-inventaire-stock-localise-ux-v2.js';
-    scriptStockLocaliseUx.defer = true;
-    document.head.appendChild(scriptStockLocaliseUx);
-
-    const scriptControleCible = document.createElement('script');
-    scriptControleCible.src = 'nexus-inventaire-stock-controle-cible-v2.js';
-    scriptControleCible.defer = true;
-    document.head.appendChild(scriptControleCible);
-
-    const scriptTransfertStock = document.createElement('script');
-    scriptTransfertStock.src = 'nexus-inventaire-stock-transfert-v2.js';
-    scriptTransfertStock.defer = true;
-    document.head.appendChild(scriptTransfertStock);
-
-    const scriptReassortBoutique = document.createElement('script');
-    scriptReassortBoutique.src = 'nexus-inventaire-reassort-boutique-v1.js';
-    scriptReassortBoutique.defer = true;
-    document.head.appendChild(scriptReassortBoutique);
-
-    const scriptConditionnementUi = document.createElement('script');
-    scriptConditionnementUi.src = versionnerStock('nexus-inventaire-conditionnement-stock-localise.js');
-    scriptConditionnementUi.defer = true;
-    document.head.appendChild(scriptConditionnementUi);
+    const scripts=[versionnerStock('nexus-inventaire-conditionnement.js'),'nexus-inventaire-stock-localise-ux-v2.js','nexus-inventaire-stock-controle-cible-v2.js','nexus-inventaire-stock-transfert-v2.js','nexus-inventaire-reassort-boutique-v1.js',versionnerStock('nexus-inventaire-conditionnement-stock-localise.js')];
+    scripts.forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
   }
 
-  const pagesStockMoteur = [
-    'NEXUS-App-v1.html',
-    'NEXUS-Cockpit-v2.html',
-    'NEXUS-Scanner-v1.html',
-    'NEXUS-Radar-Manager-v1.html',
-    'NEXUS-Centre-Intelligence-v1.html'
-  ];
-  if (pagesStockMoteur.includes(page)) {
-    const scriptStockMoteur = document.createElement('script');
-    scriptStockMoteur.src = versionnerStock('nexus-stock-moteur.js');
-    scriptStockMoteur.defer = true;
-    document.head.appendChild(scriptStockMoteur);
-  }
-
-  const pagesDecisionStock = ['NEXUS-App-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html'];
-  if (pagesDecisionStock.includes(page)) {
-    const scriptReappro = document.createElement('script');
-    scriptReappro.src = versionnerStock('nexus-reappro-stock-v1.js');
-    scriptReappro.defer = true;
-    document.head.appendChild(scriptReappro);
-
-    const scriptConseillerStock = document.createElement('script');
-    scriptConseillerStock.src = versionnerStock('nexus-conseiller-stock-v3.js');
-    scriptConseillerStock.defer = true;
-    document.head.appendChild(scriptConseillerStock);
-  }
-
-  if (page === 'NEXUS-Cockpit-v2.html') {
-    const scriptCockpitStock = document.createElement('script');
-    scriptCockpitStock.src = versionnerStock('nexus-cockpit-stock-v3.js');
-    scriptCockpitStock.defer = true;
-    document.head.appendChild(scriptCockpitStock);
-  }
-  if (page === 'NEXUS-Scanner-v1.html') {
-    const scriptScannerStock = document.createElement('script');
-    scriptScannerStock.src = versionnerStock('nexus-scanner-stock-v3.js');
-    scriptScannerStock.defer = true;
-    document.head.appendChild(scriptScannerStock);
-  }
-  if (page === 'NEXUS-Radar-Manager-v1.html') {
-    const scriptRadarStock = document.createElement('script');
-    scriptRadarStock.src = versionnerStock('nexus-radar-stock-v3.js');
-    scriptRadarStock.defer = true;
-    document.head.appendChild(scriptRadarStock);
-  }
-
-  if (page === 'NEXUS-FDJ-v1.html') {
-    const scriptCorrectionDepart = document.createElement('script');
-    scriptCorrectionDepart.src = 'nexus-fdj-correction-stock-depart.js';
-    scriptCorrectionDepart.defer = true;
-    document.head.appendChild(scriptCorrectionDepart);
-  }
-  if (page === 'NEXUS-FDJ-Manager-v1.html') {
-    const scriptFdjManagerStabilite = document.createElement('script');
-    scriptFdjManagerStabilite.src = 'nexus-fdj-manager-stabilite.js';
-    scriptFdjManagerStabilite.defer = true;
-    document.head.appendChild(scriptFdjManagerStabilite);
-  }
-  if (page === 'NEXUS-Inventaire-Manager-v1.html') {
-    const scriptManagerPremium = document.createElement('script');
-    scriptManagerPremium.src = 'nexus-inventaire-manager-premium-v2.js';
-    scriptManagerPremium.defer = true;
-    document.head.appendChild(scriptManagerPremium);
-
-    const scriptManagerFullwidth = document.createElement('script');
-    scriptManagerFullwidth.src = 'nexus-inventaire-manager-fullwidth-v2.js';
-    scriptManagerFullwidth.defer = true;
-    document.head.appendChild(scriptManagerFullwidth);
-  }
+  const pagesStockMoteur=['NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Scanner-v1.html','NEXUS-Radar-Manager-v1.html','NEXUS-Centre-Intelligence-v1.html'];
+  if(pagesStockMoteur.includes(page)){const s=document.createElement('script');s.src=versionnerStock('nexus-stock-moteur.js');s.defer=true;document.head.appendChild(s);}
+  const pagesDecisionStock=['NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Centre-Intelligence-v1.html'];
+  if(pagesDecisionStock.includes(page)) ['nexus-reappro-stock-v1.js','nexus-conseiller-stock-v3.js'].forEach(src=>{const s=document.createElement('script');s.src=versionnerStock(src);s.defer=true;document.head.appendChild(s);});
+  if(page==='NEXUS-Cockpit-v2.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-cockpit-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(page==='NEXUS-Scanner-v1.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-scanner-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(page==='NEXUS-Radar-Manager-v1.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-radar-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(page==='NEXUS-FDJ-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-correction-stock-depart.js';s.defer=true;document.head.appendChild(s);}
+  if(page==='NEXUS-FDJ-Manager-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-manager-stabilite.js';s.defer=true;document.head.appendChild(s);}
+  if(page==='NEXUS-Inventaire-Manager-v1.html') ['nexus-inventaire-manager-premium-v2.js','nexus-inventaire-manager-fullwidth-v2.js'].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
 })();
 
 async function nexusRequireAuth() {
   const { data: { session } } = await nexusClient.auth.getSession();
-  if (!session) {
-    window.location.href = "NEXUS-Login-v1.html";
-    return null;
-  }
-  const { data: employee, error } = await nexusClient
-    .from("employees")
-    .select("id, username, nom, role, est_createur, site_id")
-    .eq("id", session.user.id)
-    .single();
-  if (error || !employee) {
-    await nexusClient.auth.signOut();
-    window.location.href = "NEXUS-Login-v1.html";
-    return null;
-  }
-
-  if (!employee.site_id) {
-    console.error('nexusRequireAuth: employé sans site_id — configuration de compte incomplète. Refus de continuer avec un site déduit arbitrairement.');
-    await nexusClient.auth.signOut();
-    window.location.href = "NEXUS-Login-v1.html?erreur=site_manquant";
-    return null;
-  }
-  employee.consultation_externe = false;
-  if (employee.est_createur) {
-    const siteConsulte = localStorage.getItem('nexus_site_consulte_createur');
-    if (siteConsulte && siteConsulte !== employee.site_id) {
-      employee.site_id = siteConsulte;
-      employee.consultation_externe = true;
-    }
-  }
-
-  employee.role_reel = employee.role;
-
-  if (await nexusPriseDePosteManquante(employee)) {
-    const pageActuelle = (window.location.pathname.split('/').pop() || 'NEXUS-App-v1.html') + window.location.search;
-    window.location.href = `NEXUS-Prise-De-Poste-v1.html?retour=${encodeURIComponent(pageActuelle)}`;
-    return null;
-  }
-
-  if (await nexusPointageArriveeManquant(employee)) {
-    const pageActuelle = (window.location.pathname.split('/').pop() || 'NEXUS-App-v1.html') + window.location.search;
-    window.location.href = `NEXUS-Pointage-v1.html?retour=${encodeURIComponent(pageActuelle)}`;
-    return null;
-  }
-
-  const pageActuelleAuth = window.location.pathname.split('/').pop();
-  if (pageActuelleAuth === 'NEXUS-Inventaire-v1.html' && (employee.role_reel === 'manager' || employee.role_reel === 'gerant')) {
-    const roleTestDemande = new URLSearchParams(window.location.search).get('test_role');
-    const aliases = {
-      caissier: 'caissier', caissiere: 'caissier', 'caissière': 'caissier',
-      pompiste: 'pompiste', renfort: 'renfort'
-    };
-    const roleTest = roleTestDemande ? aliases[String(roleTestDemande).toLowerCase()] : null;
-    employee.role_test_inventaire = roleTest || null;
-    employee.mode_test_inventaire = !!roleTest;
-  }
-
+  if (!session) { window.location.href = "NEXUS-Login-v1.html"; return null; }
+  const { data: employee, error } = await nexusClient.from("employees").select("id, username, nom, role, est_createur, site_id").eq("id", session.user.id).single();
+  if (error || !employee) { await nexusClient.auth.signOut(); window.location.href = "NEXUS-Login-v1.html"; return null; }
+  if (!employee.site_id) { console.error('nexusRequireAuth: employé sans site_id — configuration de compte incomplète.'); await nexusClient.auth.signOut(); window.location.href = "NEXUS-Login-v1.html?erreur=site_manquant"; return null; }
+  employee.consultation_externe=false;
+  if(employee.est_createur){const siteConsulte=localStorage.getItem('nexus_site_consulte_createur');if(siteConsulte&&siteConsulte!==employee.site_id){employee.site_id=siteConsulte;employee.consultation_externe=true;}}
+  employee.role_reel=employee.role;
+  if(await nexusPriseDePosteManquante(employee)){const p=(window.location.pathname.split('/').pop()||'NEXUS-App-v1.html')+window.location.search;window.location.href=`NEXUS-Prise-De-Poste-v1.html?retour=${encodeURIComponent(p)}`;return null;}
+  if(await nexusPointageArriveeManquant(employee)){const p=(window.location.pathname.split('/').pop()||'NEXUS-App-v1.html')+window.location.search;window.location.href=`NEXUS-Pointage-v1.html?retour=${encodeURIComponent(p)}`;return null;}
+  const pageActuelleAuth=window.location.pathname.split('/').pop();
+  if(pageActuelleAuth==='NEXUS-Inventaire-v1.html'&&(employee.role_reel==='manager'||employee.role_reel==='gerant')){const r=new URLSearchParams(window.location.search).get('test_role');const a={caissier:'caissier',caissiere:'caissier','caissière':'caissier',pompiste:'pompiste',renfort:'renfort'};const rt=r?a[String(r).toLowerCase()]:null;employee.role_test_inventaire=rt||null;employee.mode_test_inventaire=!!rt;}
   return employee;
 }
 
-const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE = ['NEXUS-Pointage-v1.html', 'NEXUS-Prise-De-Poste-v1.html'];
-
-async function nexusPointageArriveeManquant(employee) {
-  const pageActuelle = window.location.pathname.split('/').pop();
-  if (NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(pageActuelle)) return false;
-  if (employee.consultation_externe) return false;
-
-  const siteId = employee.site_id;
-  const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
-
-  const { data: config } = await nexusClient
-    .from('station_config').select('pointage_actif, manager_pointage_requis').eq('site', siteId).maybeSingle();
-
-  if (config && config.pointage_actif === false) return false;
-
-  if (estNiveauManager) {
-    if (!config || !config.manager_pointage_requis) return false;
-  }
-
-  const d = new Date();
-  const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const { data: arrivee, error } = await nexusClient
-    .from('pointages').select('id').eq('employee_id', employee.id).eq('date', todayISO).eq('type', 'arrivee').maybeSingle();
-  if (error) { console.error('Vérification pointage arrivée:', error); return false; }
-  return !arrivee;
-}
-
-async function nexusPriseDePosteManquante(employee) {
-  const pageActuelle = window.location.pathname.split('/').pop();
-  if (NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(pageActuelle)) return false;
-  if (employee.consultation_externe) return false;
-
-  const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
-  if (estNiveauManager) return false;
-
-  const d = new Date();
-  const debutJourISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`;
-  const { data: shiftDuJour, error } = await nexusClient
-    .from('shifts').select('id').eq('employee_id', employee.id).gte('heure_debut', debutJourISO).limit(1).maybeSingle();
-  if (error) { console.error('Vérification prise de poste:', error); return false; }
-  return !shiftDuJour;
-}
-
-async function nexusLogout() {
-  await nexusClient.auth.signOut();
-  window.location.href = "index.html";
-}
-
-function nexusQuitterConsultation() {
-  localStorage.removeItem('nexus_site_consulte_createur');
-  window.location.href = "NEXUS-App-v1.html";
-}
+const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
+async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;const d=new Date();const debut=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00`;const {data:shiftDuJour,error}=await nexusClient.from('shifts').select('id').eq('employee_id',employee.id).gte('heure_debut',debut).limit(1).maybeSingle();if(error){console.error('Vérification prise de poste:',error);return false;}return !shiftDuJour;}
+async function nexusLogout(){await nexusClient.auth.signOut();window.location.href="index.html";}
+function nexusQuitterConsultation(){localStorage.removeItem('nexus_site_consulte_createur');window.location.href="NEXUS-App-v1.html";}
