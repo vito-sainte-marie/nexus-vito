@@ -1,7 +1,7 @@
 // NEXUS Réception carburant — correctif mobile ciblé
-// 31/08/2026 : sécurise le choix de la cuve destination sur Safari iOS et
-// supprime le faux message "Encore incomplet" pour les compartiments déjà
-// explicitement déclarés vides. Aucun calcul métier n'est modifié.
+// 31/08/2026 : sécurise le choix de la cuve destination sur Safari iOS,
+// supprime le faux message "Encore incomplet" pour les compartiments vides
+// et rend explicite la navigation arrière sans abandonner la visite.
 (function(){
   'use strict';
   if((location.pathname.split('/').pop()||'')!=='NEXUS-Carburant-Reception-v1.html') return;
@@ -82,15 +82,39 @@
     const vides=compartimentsVides();
     if(!vides.size) return;
     const texte=(box.textContent||'');
-    // Si le message ne cite QUE des compartiments déclarés vides, c'est un
-    // faux positif d'affichage : le moteur de poursuite reste inchangé.
     const nums=[...texte.matchAll(/compartiment\s+(\d+)/gi)].map(m=>m[1]);
     if(nums.length&&nums.every(n=>vides.has(String(n)))) box.style.display='none';
+  }
+
+  function rendreRetourExplicite(){
+    const ids=['btnRetourJaugeage','btnRetourCompartiments','btnRetourReception','btnRetourCalcul'];
+    ids.forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn) return;
+      if(btn.dataset.nexusRetourCorriger==='1') return;
+      btn.dataset.nexusRetourCorriger='1';
+      btn.textContent='← Corriger l’étape précédente';
+      btn.setAttribute('aria-label','Retourner à l’étape précédente pour corriger une saisie sans annuler la réception');
+      btn.style.borderColor='rgba(79,195,217,.35)';
+      btn.style.color='var(--cyan)';
+    });
+
+    // Aide courte : rassure l'utilisateur sur le fait que "Retour" n'est
+    // pas synonyme d'annulation. Ajoutée une seule fois sous le bouton actif.
+    const actif=ids.map(id=>document.getElementById(id)).find(Boolean);
+    if(actif && !document.getElementById('nexusRetourCorrectionNote')){
+      const note=document.createElement('div');
+      note.id='nexusRetourCorrectionNote';
+      note.style.cssText='font-size:11px;color:var(--text-dim);text-align:center;margin-top:-4px;margin-bottom:12px;line-height:1.45;';
+      note.textContent='Vos saisies restent dans la visite en cours. Seul « Annuler » recommence la réception.';
+      actif.insertAdjacentElement('afterend',note);
+    }
   }
 
   function corriger(){
     reparerSelectCuve();
     corrigerMessageIncomplet();
+    rendreRetourExplicite();
   }
 
   function init(){
