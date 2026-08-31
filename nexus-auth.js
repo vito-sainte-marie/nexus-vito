@@ -10,7 +10,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-1110';
+  const STOCK_BUILD = '20260831-1132';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   // Standard NEXUS : les moteurs conservent les durées décimales pour leurs
@@ -47,6 +47,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   if(page==='NEXUS-FDJ-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-correction-stock-depart.js';s.defer=true;document.head.appendChild(s);}
   if(page==='NEXUS-FDJ-Manager-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-manager-stabilite.js';s.defer=true;document.head.appendChild(s);}
   if(page==='NEXUS-Inventaire-Manager-v1.html') ['nexus-inventaire-manager-premium-v2.js','nexus-inventaire-manager-fullwidth-v2.js',versionnerStock('nexus-inventaire-manager-reassort-cigarettes-v3.js'),versionnerStock('nexus-inventaire-couverture-operationnelle-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
+  if(page==='NEXUS-Carburants-Pilotage-v1.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-carburant-demarrage-mois-v1.js');s.defer=true;document.head.appendChild(s);}
 })();
 
 async function nexusRequireAuth() {
