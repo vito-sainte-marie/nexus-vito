@@ -4,9 +4,9 @@
 // ("Voir : oui" en permanence) — "l'employé ne devrait pas pouvoir
 // rechercher la valeur attendue [...] NEXUS enregistrerait alors une caisse
 // apparemment parfaite sans connaître la première déclaration." Nouvelle
-// règle : "Voir : seulement après clôture. Corriger avant clôture : oui,
-// avec traçabilité. Modifier après clôture : non. Régulariser après
-// clôture : manager uniquement, sans effacer le constat d'origine."
+// règle : "Voir : seulement après clôture. Corriger avant clôture : oui.
+// Après clôture, la caissière peut corriger une erreur de monnaie ou de
+// comptage ; la correction est tracée sur une nouvelle version du relevé."
 //
 // nexus-fdj-moteur.js est un IIFE qui s'attache à globalThis.NexusFdjMoteur
 // dès qu'il est require()-é — aucun mock nécessaire, ce sont les vraies
@@ -28,13 +28,14 @@ assert.strictEqual(permsBrouillon.corrigerDirectement, true, 'Avant clôture, l\
 assert.strictEqual(permsBrouillon.demanderCorrection, false, 'Avant clôture, pas besoin de "demander" — on corrige directement');
 console.log('OK — quart brouillon : voir=false, corrigerDirectement=true, demanderCorrection=false.');
 
-// Quart clôturé (validé) : voit l'écart (Point de clôture révélé), demande
-// une correction, ne modifie plus jamais directement.
+// Quart clôturé (validé) : voit l'écart et peut corriger sa caisse réelle,
+// avec une trace obligatoire sur son relevé.
 let permsValide = M.permissionsEcartCaisseEmploye({ statut: 'valide' });
 assert.strictEqual(permsValide.voir, true, 'L\'écart devient visible une fois la caisse clôturée');
-assert.strictEqual(permsValide.corrigerDirectement, false, 'Après clôture : "Modifier après clôture : non"');
-assert.strictEqual(permsValide.demanderCorrection, true, 'Après clôture, seul recours : demander une correction');
-console.log('OK — quart clôturé : voir=true, corrigerDirectement=false, demanderCorrection=true.');
+assert.strictEqual(permsValide.corrigerDirectement, true, 'Après clôture, la caisse réelle peut être corrigée');
+assert.strictEqual(permsValide.correctionTracee, true, 'Après clôture, toute correction doit être tracée sur le relevé');
+assert.strictEqual(permsValide.demanderCorrection, false, 'La caissière n\'a plus à demander au manager pour un recomptage');
+console.log('OK — quart clôturé : correction directe autorisée et tracée.');
 
 // Absence de quart (shift null/undefined) — ne doit jamais planter, doit se
 // comporter comme "pas encore clôturé" (le plus sûr : rien à révéler tant
