@@ -9,18 +9,40 @@
     const s = document.createElement('style');
     s.id = 'nexus-carburants-ui-correctifs-20260901-css';
     s.textContent = `
+      /* Typographie : le mono reste réservé aux données chiffrées. */
+      .lien-relever,.relever-statut,.reference-certifiee-bandeau,.jauge-legende,
+      .historique-pz-titre,.historique-pz-source,.historique-pz-statut,
+      .historique-releve-preuve,.historique-releve-source,
+      .accordion-title,.accordion-subtitle,.section-titre,.section-note,
+      .commande-carte-titre,.commande-bandeau,.lecture-nexus-card,
+      .stock-mobile-titre,.carb-carte2-titre,.carb-stat-row .lbl,
+      button,a{font-family:var(--sans)!important;}
+
+      .reference-certifiee-bandeau{font-size:12.5px!important;font-weight:500!important;line-height:1.55!important;letter-spacing:0!important;}
+      .jauge-legende{font-size:10px!important;letter-spacing:0!important;}
+      .historique-pz-titre{letter-spacing:0!important;}
+      .historique-pz-source.nexus-source-info{font-family:var(--sans)!important;text-transform:none!important;letter-spacing:0!important;font-weight:600!important;}
+      .historique-releve-preuve{font-weight:600!important;letter-spacing:0!important;}
+      .historique-releve-source{letter-spacing:0!important;}
+
+      /* Lecture NEXUS : phrase de décision, pas sortie terminal. */
       #moteurZone .kpi-row.nexus-lecture-row{display:block!important;padding-top:12px!important;}
-      #moteurZone .nexus-lecture-row .kpi-label{display:block!important;margin:0 0 6px!important;font-family:var(--sans)!important;font-size:11px!important;font-weight:600!important;color:var(--text-mid)!important;}
+      #moteurZone .nexus-lecture-row .kpi-label{display:block!important;margin:0 0 6px!important;font-family:var(--sans)!important;font-size:11px!important;font-weight:600!important;color:var(--text-mid)!important;letter-spacing:.02em!important;}
       #moteurZone .nexus-lecture-row .kpi-valeur{display:block!important;width:100%!important;text-align:left!important;font-family:var(--sans)!important;font-size:12.5px!important;font-weight:500!important;line-height:1.55!important;letter-spacing:0!important;white-space:normal!important;overflow-wrap:normal!important;word-break:normal!important;}
-      .historique-pz-source.nexus-source-info{font-family:var(--sans)!important;text-transform:none!important;letter-spacing:0!important;}
+
+      /* La zone Situation doit toujours pouvoir afficher sa grille. */
+      #situationZone .situation-grid{display:grid!important;}
+      #situationZone .carb-carte2{display:block!important;}
+
       @media(max-width:430px){
         .stock-table{table-layout:fixed!important;width:100%!important;}
         .stock-table th,.stock-table td{padding-left:7px!important;padding-right:7px!important;}
         .stock-table th:nth-child(1),.stock-table td:nth-child(1){width:21%!important;}
         .stock-table th:nth-child(2),.stock-table td:nth-child(2),.stock-table th:nth-child(3),.stock-table td:nth-child(3),.stock-table th:nth-child(4),.stock-table td:nth-child(4){width:14%!important;white-space:nowrap!important;font-size:10.5px!important;}
         .stock-table th:nth-child(5),.stock-table td:nth-child(5){width:37%!important;}
-        .historique-releve-preuve{font-family:var(--sans)!important;font-size:9.5px!important;white-space:nowrap!important;padding:4px 7px!important;}
-        .historique-releve-source{font-family:var(--sans)!important;font-size:8px!important;line-height:1.25!important;}
+        .historique-releve-preuve{font-size:9.5px!important;white-space:nowrap!important;padding:4px 7px!important;}
+        .historique-releve-source{font-size:8px!important;line-height:1.25!important;}
+        .historique-pz-source{font-size:9px!important;}
       }
     `;
     document.head.appendChild(s);
@@ -34,18 +56,12 @@
       row.classList.add('nexus-lecture-row');
       label.textContent = 'Lecture NEXUS';
       const valeur = row.querySelector('.kpi-valeur');
-      if (valeur) {
-        // La phrase reste une phrase de lecture, pas une donnée technique monospace.
-        valeur.style.fontFamily = 'var(--sans)';
-      }
+      if (valeur) valeur.style.fontFamily = 'var(--sans)';
     });
   }
 
   function corrigerSourcePointZeroHistorique() {
-    // Correction historique ciblée et vérifiable : la référence certifiée du
-    // 01/09/2026 est enregistrée en base avec source=veeder_root. L'ancien
-    // renderer ne connaît que insite360/terrain et rabat toute autre source
-    // sur « Autre ».
+    // La référence active du 01/09/2026 est issue du Veeder-Root local.
     document.querySelectorAll('.historique-pz-carte').forEach(carte => {
       const texte = carte.textContent || '';
       if (!/1\s*sept/i.test(texte) || !/POINT\s+ZÉRO\s+ACTIF/i.test(texte)) return;
@@ -67,11 +83,43 @@
     select.insertBefore(option, terrain || null);
   }
 
+  let restaurationJaugeEnCours = false;
+  function restaurerJaugesSiAbsentes() {
+    if (restaurationJaugeEnCours) return;
+    const zone = document.getElementById('situationZone');
+    if (!zone || zone.querySelector('.carb-carte2,.carb-carte')) return;
+    if (!zone.querySelector('.situation-grid')) return;
+
+    // Le contrôle et la commande lisent la même station_config. Sur le point
+    // zéro du 01/09, le contrôle peut arriver avec cuvesConfig vide alors que
+    // le contexte Commande possède déjà les cuves valides : ne jamais faire
+    // disparaître toute la Situation pour cette seule incohérence de rendu.
+    try {
+      if (typeof CONTROLE_CTX === 'undefined' || !CONTROLE_CTX || CONTROLE_CTX.aucunReleve) return;
+      if (typeof COMMANDE_CTX === 'undefined' || !COMMANDE_CTX || !COMMANDE_CTX.cuves) return;
+      if (typeof renderSituation !== 'function') return;
+
+      const cuves = COMMANDE_CTX.cuves;
+      const M = window.NexusCarburantMoteur;
+      const cles = M && Array.isArray(M.CLES_CARBURANT) ? M.CLES_CARBURANT : ['go','sp95','gnr'];
+      const exploitable = cles.some(cle => CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle] && cuves[cle] && cuves[cle].actif && Array.isArray(cuves[cle].cuves) && cuves[cle].cuves.length);
+      if (!exploitable) return;
+
+      restaurationJaugeEnCours = true;
+      renderSituation(Object.assign({}, CONTROLE_CTX, { cuvesConfig: cuves }));
+    } catch (e) {
+      console.warn('NEXUS Carburants — restauration visuelle des jauges impossible:', e);
+    } finally {
+      restaurationJaugeEnCours = false;
+    }
+  }
+
   function appliquer() {
     css();
     corrigerLecture();
     corrigerSourcePointZeroHistorique();
     ajouterVeederRootAuSelecteur();
+    restaurerJaugesSiAbsentes();
   }
 
   let raf = 0;
