@@ -19,7 +19,7 @@
     if (!estPilotageCarburants()) return;
     if (document.querySelector('script[data-nexus-carburants-ui-correctifs="20260901"]')) return;
     var s = document.createElement('script');
-    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=20260901-0718';
+    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=20260901-0745';
     s.dataset.nexusCarburantsUiCorrectifs = '20260901';
     document.head.appendChild(s);
   }
