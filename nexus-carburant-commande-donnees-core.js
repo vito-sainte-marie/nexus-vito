@@ -557,7 +557,7 @@
       return { ok: false, motif: 'Aucun carburant actif configuré pour ce site.', etatGlobal: 'non_calculable' };
     }
 
-    const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours, historiqueQuart1, historiqueQuart2, avisVerifyJour] = await Promise.all([
+    const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours, historiqueQuart1, historiqueQuart2, avisVerifyJour, derniereReception] = await Promise.all([
       chargerHistoriqueVentesParJour(client, siteId, dateISO),
       chargerJoursFeries(client, siteId),
       chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, options && options.maintenant),
@@ -575,7 +575,19 @@
       // parallèle, jamais transmis à M.evaluerCarburant/detailQualiteDonneesCommande
       // (aucune dépendance artificielle Verify -> confiance carburant).
       chargerAvisVerifyJour(client, siteId, dateISO),
+      // La couverture physique doit repartir de la mesure la plus fraîche
+      // connue. Une réception terminée aujourd'hui fournit un jaugeage
+      // post-livraison par cuve, plus récent que l'ouverture, sans pour
+      // autant remplacer l'ouverture dans la chaîne de rapprochement.
+      (global.NexusReceptionDonnees && typeof global.NexusReceptionDonnees.chargerDerniereVisite === 'function')
+        ? global.NexusReceptionDonnees.chargerDerniereVisite(client, siteId)
+        : Promise.resolve(null),
     ]);
+
+    const receptionPhysiqueDuJour = derniereReception && derniereReception.date_visite === dateISO
+      && ['terminee', 'terminee_avec_derogation'].includes(derniereReception.statut)
+      ? derniereReception
+      : null;
 
     // Diagnostic contextuel de l'écart (28/08/2026, nouvelle demande de
     // Frédéric) — deux entrées calculées UNE fois, communes aux 3
@@ -608,6 +620,16 @@
       const stock = stockInfo.parCarburant[carburant] || { stockActuelL: null, stockFiable: false, stockAncreCommandeL: null, stockAncreCommandeFiable: false };
       const consommationMoyenneJour = M.moyenneRecente(historiqueParJour, carburant, dateISO, 14).moyenne;
       const commandeEnCours = commandesEnCours[carburant] || null;
+      const stockPostReceptionL = receptionPhysiqueDuJour && M.stockPhysiquePostLivraison
+        ? M.stockPhysiquePostLivraison(receptionPhysiqueDuJour, carburant)
+        : null;
+      // Deux vérités volontairement distinctes :
+      // - recommandation/rapprochement : ancre d'ouverture inchangée ;
+      // - autonomie physique : dernière mesure réelle, donc post-réception
+      //   lorsqu'elle existe pour ce carburant aujourd'hui.
+      const stockCouvertureL = stockPostReceptionL != null
+        ? Number(stockPostReceptionL)
+        : stock.stockAncreCommandeL;
 
       // 27/08/2026, règles 1+2 de Frédéric — la RECOMMANDATION s'ancre sur
       // `stockAncreCommandeL` (jaugeage du matin, jamais net des ventes déjà
@@ -677,9 +699,11 @@
         // `historiqueQuart2` déjà chargés ci-dessus (Article 11, aucune
         // requête supplémentaire).
         couvertureEstimeeParQuart: M.estimerCouvertureParQuart({
-          stockDisponibleL: stock.stockAncreCommandeL, dateDebutISO: dateISO, quartDepart: 'Q1',
+          stockDisponibleL: stockCouvertureL, dateDebutISO: dateISO, quartDepart: 'Q1',
           historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO,
         }),
+        stockCouvertureL,
+        sourceCouverture: stockPostReceptionL != null ? 'jaugeage_post_livraison' : 'ancre_ouverture',
       };
       capacitesDisponiblesL[carburant] = evaluation.scenarioMaintenant
         ? M.capaciteDisponibleLivraison(limiteRemplissageL, evaluation.scenarioMaintenant.stockPrevuLivraisonL)
