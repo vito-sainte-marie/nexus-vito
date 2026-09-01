@@ -172,22 +172,56 @@
   }
 })();
 
-// Branche P0 Carburants uniquement : charge des correctifs isolés sans
-// toucher aux gros moteurs. Ces modules sont temporaires et seront retirés
-// lorsque les correctifs validés auront été intégrés dans les fichiers
-// métier correspondants.
+// Branche P0 Carburants uniquement : charge les correctifs selon les moteurs
+// réellement présents sur la page, jamais selon son nom. Brief, Pilotage et
+// tout autre écran consommant les mêmes moteurs doivent recevoir exactement
+// la même vérité. Réception, qui ne charge volontairement pas le moteur pur
+// de Commande, reçoit uniquement le garde-fou de pont dont elle a besoin.
 (function () {
   'use strict';
-  var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
-  if (page.indexOf('nexus-carburant') !== 0) return;
 
-  ['nexus-carburants-p0-fixes.js', 'nexus-carburants-p0-performance.js', 'nexus-carburants-p0-ui.js'].forEach(function (src, index) {
-    var attr = 'nexus-carburants-p0-' + index;
-    if (document.querySelector('script[data-' + attr + ']')) return;
+  function injecter(src, cle) {
+    if (document.querySelector('script[data-nexus-carburants-p0="' + cle + '"]')) return;
     var script = document.createElement('script');
     script.src = src;
     script.async = false;
-    script.setAttribute('data-' + attr, '1');
+    script.setAttribute('data-nexus-carburants-p0', cle);
     document.head.appendChild(script);
-  });
+  }
+
+  function chargerCorrectifsCarburants() {
+    var aDonnees = !!window.NexusCarburantDonnees;
+    var aMoteur = !!window.NexusCarburantMoteur;
+    var aCommandeDonnees = !!window.NexusCarburantCommandeDonnees;
+    var aCommandeMoteur = !!window.NexusCarburantCommandeMoteur;
+    var aPeriodes = !!window.NexusPeriodes;
+
+    if (!aDonnees && !aMoteur && !aCommandeDonnees && !aCommandeMoteur) return;
+
+    // Le P0 métier Commande nécessite les quatre briques ; on ne le charge
+    // pas sur Réception où le moteur pur de commande est volontairement absent.
+    if (aDonnees && aMoteur && aCommandeDonnees && aCommandeMoteur) {
+      injecter('nexus-carburants-p0-fixes.js', 'fixes');
+    }
+
+    // Performance n'est utile que sur les pages qui disposent du moteur de
+    // périodes. Brief le charge aussi : même qualification, même vérité.
+    if (aDonnees && aMoteur && aPeriodes) {
+      injecter('nexus-carburants-p0-performance.js', 'performance');
+    }
+
+    // Le garde-fou Réception/UI ne dépend que de la couche Carburants. Il est
+    // donc chargé sur Réception même sans moteur Commande.
+    if (aDonnees) {
+      injecter('nexus-carburants-p0-ui.js', 'ui');
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(chargerCorrectifsCarburants, 0);
+    });
+  } else {
+    setTimeout(chargerCorrectifsCarburants, 0);
+  }
 })();
