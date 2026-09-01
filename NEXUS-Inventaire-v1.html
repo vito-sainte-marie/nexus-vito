@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 59624)
+Total output lines: 3979
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -651,14 +654,15 @@
     compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit, jamais une action ajoutée pour l'employé
     const transmis = dernierStock[p.id];
     const valeurTransmise = transmis ? transmis.quantite : 0;
+    const caisseUniquement = estCigaretteCaisseEmploye(p);
     const evtTransmis = await ecrireTransmisImmediat(p);
     const evtOuverture = await ecrireComptageImmediat({
       site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
       type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
       comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
       source: 'manuel', commentaire: saisie.justification || null,
-      quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
-      quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
+      quantite_depot: caisseUniquement ? null : (saisie.compteDepot !== undefined ? saisie.compteDepot : null),
+      quantite_boutique: caisseUniquement ? saisie.compte : (saisie.compteBoutique !== undefined ? saisie.compteBoutique : null),
     });
     const planItemId = planItemIdParProduit[p.id];
     if (planItemId && evtOuverture && typeof NexusInventairePlanDonnees !== 'undefined') {
@@ -735,6 +739,19 @@
       return ecrireProductionInitialeImmediat(p);
     }
     return ecrireOuvertureImmediat(p);
+  }
+
+  // Cigarettes — règle métier confirmée le 01/09/2026 : le produit existe
+  // physiquement au bureau et en caisse, mais l'employé ne relève QUE la
+  // caisse. Le bureau reste exclusivement dans le parcours manager (relevés
+  // localisés + transferts Bureau → Caisse). On conserve donc le paramètre
+  // global comptage_deux_lieux, utile au manager, sans l'exposer comme une
+  // double saisie dans l'écran employé.
+  function estCigaretteCaisseEmploye(p) {
+    return NexusInventaireMoteur.modeComptageLieuEmploye(p) === 'caisse_uniquement';
+  }
+  function estComptageDeuxLieuxEmploye(p) {
+    return NexusInventaireMoteur.modeComptageLieuEmploye(p) === 'deux_lieux';
   }
 
   // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
@@ -1367,7 +1384,7 @@
       const nomBase = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
       const ordreBase = p.inventaire_categories ? p.inventaire_categories.ordre_affichage : 99;
       if (!parCategorie[nomBase]) parCategorie[nomBase] = { nomBase, ordreBase, doubles: [], simples: [] };
-      (p.comptage_deux_lieux ? parCategorie[nomBase].doubles : parCategorie[nomBase].simples).push(p);
+      (estComptageDeuxLieuxEmploye(p) ? parCategorie[nomBase].doubles : parCategorie[nomBase].simples).push(p);
     }
     const groupes = [];
     Object.values(parCategorie).forEach(c => {
@@ -1393,8 +1410,8 @@
   // normales, sans dépôt) EN DERNIER — tri stable, l'ordre relatif interne
   // (ordre_affichage) de chaque groupe est conservé.
   function ordonnerParcoursDepotBoutiqueReste(groupes) {
-    const depot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
-    const reste = groupes.filter(g => !g.items.some(p => p.comptage_deux_lieux));
+    const depot = groupes.filter(g => g.items.some(estComptageDeuxLieuxEmploye));
+    const reste = groupes.filter(g => !g.items.some(estComptageDeuxLieuxEmploye));
     return [...depot, ...reste];
   }
 
@@ -1404,7 +1421,7 @@
   // regarde bien que la phase dépôt, jamais la boutique. `false` s'il n'y a
   // aucune catégorie dépôt sur cette zone (rien à rattraper).
   function depotEntierementTermine(groupes) {
-    const groupesDepot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
+    const groupesDepot = groupes.filter(g => g.items.some(estComptageDeuxLieuxEmploye));
     if (!groupesDepot.length) return false;
     return groupesDepot.every(g => categorieEstTerminee(g.items));
   }
@@ -1607,663 +1624,7 @@
     document.getElementById('btnJgRetour').addEventListener('click', renderAccueil);
 
     document.getElementById('btnJgValider').addEventListener('click', async () => {
-      const lire = id => { const el = document.getElementById(id); if (!el || el.value === '') return null; return parseFloat(el.value); };
-      const valeurs = {
-        sp95: sp95Actif ? lire('jg_sp95') : null,
-        go_cuve1: goCuves[0] ? lire('jg_go_cuve1') : null,
-        go_cuve2: goCuves[1] ? lire('jg_go_cuve2') : null,
-        gnr: gnrActif ? lire('jg_gnr') : null,
-      };
-      const auMoinsUne = Object.values(valeurs).some(v => v != null && !isNaN(v));
-      if (!auMoinsUne) { alert('Saisissez au moins une valeur de jaugeage.'); return; }
-
-      const btn = document.getElementById('btnJgValider');
-      btn.disabled = true;
-      btn.textContent = 'Enregistrement…';
-      const resultat = await NexusCarburantDonnees.enregistrerJaugeageOuverturePompiste(nexusClient, employeeCourant.site_id, {
-        date: dateISO(), employeeId: employeeCourant.id, valeurs,
-      });
-      if (!resultat.ok) {
-        btn.disabled = false;
-        btn.textContent = "Valider le jaugeage d'ouverture";
-        alert("Erreur d'enregistrement — réessayez. Si le problème persiste, utilisez \"Je ne peux pas faire le jaugeage\".");
-        return;
-      }
-      statutJaugeageJour = { statut: 'fait', cree_le: new Date().toISOString(), motif_impossible: null };
-      renderAccueil();
-    });
-
-    document.getElementById('btnJgImpossible').addEventListener('click', renderJaugeageImpossible);
-  }
-
-  function renderJaugeageImpossible() {
-    document.getElementById('titre').textContent = 'Jaugeage impossible';
-    document.getElementById('sousTitre').textContent = "Le contrôle carburant du jour restera provisoire jusqu'au prochain relevé.";
-    document.getElementById('content').innerHTML = `
-      <div class="mouv-card">
-        <select class="mouv-select" id="jgMotif" style="width:100%; margin-bottom:8px;">
-          <option value="equipement_indisponible">Équipement indisponible</option>
-          <option value="acces_impossible">Accès impossible</option>
-          <option value="autre">Autre</option>
-        </select>
-        <textarea class="mouv-justif" id="jgCommentaire" rows="2" placeholder="Précision (facultatif)" style="width:100%;"></textarea>
-        <button class="btn-primary" id="btnJgConfirmerImpossible" style="margin-top:8px;">Confirmer</button>
-      </div>
-      <button class="btn-text" id="btnJgRetourImpossible">← Retour</button>
-    `;
-    document.getElementById('btnJgRetourImpossible').addEventListener('click', () => demarrerJaugeageOuverture());
-    document.getElementById('btnJgConfirmerImpossible').addEventListener('click', async () => {
-      const motif = document.getElementById('jgMotif').value;
-      const commentaire = document.getElementById('jgCommentaire').value.trim();
-      const btn = document.getElementById('btnJgConfirmerImpossible');
-      btn.disabled = true;
-      const resultat = await NexusCarburantDonnees.enregistrerJaugeageImpossible(nexusClient, employeeCourant.site_id, {
-        date: dateISO(), employeeId: employeeCourant.id, motif, commentaire,
-      });
-      if (!resultat.ok) { btn.disabled = false; alert('Erreur — réessayez.'); return; }
-      statutJaugeageJour = { statut: 'impossible', motif_impossible: motif, cree_le: new Date().toISOString() };
-      renderAccueil();
-    });
-  }
-
-  function renderChoixZone() {
-    document.getElementById('titre').textContent = 'Quelle zone comptez-vous ?';
-    document.getElementById('sousTitre').textContent = 'Piste (carburant, gaz, glaçons, huiles, lave-glace) ou Boutique (le reste).';
-    document.getElementById('content').innerHTML = `
-      <div class="zone-choix">
-        <div class="zone-pill ${zoneActive==='piste'?'active':''}" data-zone="piste">🚗 Piste</div>
-        <div class="zone-pill ${zoneActive==='boutique'?'active':''}" data-zone="boutique">🏪 Boutique</div>
-      </div>
-      <button class="btn-primary" id="btnValiderZone">Continuer</button>
-    `;
-    document.querySelectorAll('.zone-pill').forEach(el => el.addEventListener('click', () => {
-      zoneActive = el.dataset.zone;
-      renderChoixZone();
-    }));
-    document.getElementById('btnValiderZone').addEventListener('click', async () => {
-      const zoneId = zonesMap[zoneActive];
-      if (zoneId && quartEmployeRow) {
-        const { error } = await nexusClient.from('inventaire_quart_employes').update({ zone_id: zoneId }).eq('id', quartEmployeRow.id);
-        if (error) console.error('Enregistrement zone:', error);
-        quartEmployeRow.zone_id = zoneId;
-      }
-      renderAccueil();
-    });
-  }
-
-  // 30/08/2026 (chantier "réglages fantômes", demande de Frédéric —
-  // "soit on le branche réellement à un moteur, soit on le retire") :
-  // `reapprovisionnable` (inventaire_regles_produit/inventaire_categories,
-  // libellé "Produit réapprovisionnable en cours de quart") était enregistré
-  // depuis toujours sans jamais restreindre quoi que ce soit. Construit la
-  // map produit_id -> booléen pour un catalogue donné (mouvementRapideProduits,
-  // jamais produitsZone) via le MÊME moteur de résolution produit>catégorie
-  // que partout ailleurs (NexusInventaireMoteur.construireReglesEffectivesParProduit,
-  // Article 11 — aucune deuxième cascade réécrite ici à la main). Un produit
-  // sans règle propre ET sans catégorie active retombe sur le défaut réel de
-  // la colonne (true) — jamais un false fabriqué par absence de donnée.
-  async function chargerReapprovisionnableParProduit(produits) {
-    const carte = {};
-    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
-    if (!M || !produits || !produits.length) return carte;
-    const site = employeeCourant.site_id;
-    const { data: regles, error } = await nexusClient.from('inventaire_regles_produit')
-      .select('produit_id, reapprovisionnable').eq('site', site).in('produit_id', produits.map(p => p.id));
-    if (error) console.error('Chargement reapprovisionnable par produit:', error);
-    const reglesParProduitId = {};
-    (regles || []).forEach(r => { reglesParProduitId[r.produit_id] = r; });
-    const reglesParCategorieId = {};
-    produits.forEach(p => {
-      if (p.categorie_id && p.inventaire_categories) reglesParCategorieId[p.categorie_id] = p.inventaire_categories;
-    });
-    const effectives = M.construireReglesEffectivesParProduit(produits, reglesParProduitId, reglesParCategorieId);
-    produits.forEach(p => {
-      const r = effectives[p.id];
-      carte[p.id] = !r || r.reapprovisionnable !== false;
-    });
-    return carte;
-  }
-
-  // ------------------------------------------------------------
-  // "+ AJOUTER UN MOUVEMENT" PENDANT LE QUART (18/08/2026, M3 — cahier
-  // "Audit Inventaire - Production, mouvements & réceptions" §5, MOV-04).
-  // Écran dédié, distinct du bloc "Mouvements pendant le quart" de la
-  // clôture (ajouterMouvement/renderListeMouvements ci-dessous, INCHANGÉ) :
-  // celui-ci écrit IMMÉDIATEMENT (idempotent, comme un comptage — voir
-  // ecrireMouvementImmediat) au lieu d'attendre la validation finale de
-  // clôture, pour qu'une "nouvelle fournée" déclarée à 10h ne soit jamais
-  // perdue si l'employé ne clôture qu'en fin d'après-midi. Les choix de
-  // type de mouvement proposés sont CONTEXTUELS par profil produit — via
-  // NexusInventaireMoteur.actionsMouvementPourProfil (registre unique,
-  // Article 11) — un produit production_journaliere ne voit jamais
-  // "Marchandise reçue" mais voit "Nouvelle préparation" (fournée), qu'aucun
-  // autre profil ne propose.
-  // ------------------------------------------------------------
-  async function demarrerAjoutMouvementRapide() {
-    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
-    // Catalogue complet de la zone, jamais restreint au plan tournant du
-    // jour (restreindreAuPlanQuart) : un mouvement (fournée, casse, retour…)
-    // doit pouvoir être déclaré sur n'importe quel produit de la zone, pas
-    // seulement ceux que NEXUS a sélectionnés aujourd'hui pour le comptage
-    // aveugle — deux mécanismes différents (Article 11 : ne pas confondre
-    // "quoi compter aujourd'hui" et "quoi peut recevoir un mouvement").
-    mouvementRapideProduits = await chargerProduitsZone(zoneActive);
-    reapprovisionnableParProduit = await chargerReapprovisionnableParProduit(mouvementRapideProduits);
-    renderAjoutMouvementRapide();
-  }
-
-  function renderAjoutMouvementRapide() {
-    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
-    document.getElementById('titre').textContent = 'Ajouter un mouvement';
-    document.getElementById('sousTitre').textContent = 'Nouvelle fournée, casse, retour, retrait — enregistré tout de suite.';
-    const optionsProduits = mouvementRapideProduits.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
-    document.getElementById('content').innerHTML = `
-      <div class="mouv-card">
-        <select class="mouv-select" id="mrProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
-        <div class="mouv-row">
-          <select class="mouv-select" id="mrType"></select>
-          <input type="number" inputmode="decimal" class="mouv-qte" id="mrQte" placeholder="Qté" onfocus="this.select()">
-        </div>
-        <input type="text" class="mouv-justif" id="mrJustif" placeholder="Justification (facultatif)">
-        <button class="btn-primary" id="btnMrEnregistrer" style="margin-top:8px;">Enregistrer ce mouvement</button>
-        <div class="mouv-liste" id="mrConfirmation"></div>
-      </div>
-      <button class="btn-text" id="btnMrRetour">← Retour</button>
-    `;
-
-    function repeuplerTypes() {
-      const produitId = document.getElementById('mrProduit').value;
-      const profil = profilParProduit[produitId] || null;
-      // reapprovisionnableParProduit[id] === false uniquement si une règle
-      // effective l'a explicitement réglé ainsi (voir
-      // chargerReapprovisionnableParProduit) — undefined/true laisse la
-      // liste intacte, comportement historique.
-      const reapprovisionnable = reapprovisionnableParProduit[produitId];
-      const actions = (M && M.actionsMouvementPourProfil) ? M.actionsMouvementPourProfil(profil || 'continu', reapprovisionnable) : [];
-      const select = document.getElementById('mrType');
-      select.innerHTML = actions.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
-    }
-    repeuplerTypes();
-    document.getElementById('mrProduit').addEventListener('change', repeuplerTypes);
-
-    document.getElementById('btnMrRetour').addEventListener('click', renderAccueil);
-    document.getElementById('btnMrEnregistrer').addEventListener('click', async () => {
-      const produitId = document.getElementById('mrProduit').value;
-      const type = document.getElementById('mrType').value;
-      const qteSaisie = parseFloat(document.getElementById('mrQte').value);
-      const justif = document.getElementById('mrJustif').value;
-      if (!produitId || !type || isNaN(qteSaisie) || qteSaisie <= 0) { alert('Choisissez un produit, un type de mouvement et une quantité positive.'); return; }
-      const produit = mouvementRapideProduits.find(p => p.id === produitId);
-      const infoType = M ? M.infoTypeMouvement(type) : null;
-      const qte = (infoType && infoType.sens === 'sortant') ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
-
-      const btn = document.getElementById('btnMrEnregistrer');
-      btn.disabled = true;
-      const idempotencyKey = cleIdempotenceMouvement(quartRow.id, produitId, type, qte);
-      const resultat = await ecrireMouvementImmediat({
-        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: produitId, type_mouvement: type,
-        quantite: qte, employee_id: employeeCourant.id, justification: justif || null, reason_code: type, statut_validation: 'valide',
-      });
-      btn.disabled = false;
-      document.getElementById('mrQte').value = '';
-      document.getElementById('mrJustif').value = '';
-      const conf = document.getElementById('mrConfirmation');
-      const libelle = infoType ? infoType.label : 'Mouvement';
-      // Que l'écriture réseau ait abouti tout de suite ou soit partie en
-      // file d'attente (voir ecrireMouvementImmediat), le geste de
-      // l'employé est déjà acquis dans les deux cas — jamais un message
-      // d'échec pour une donnée déjà en sécurité localement (même
-      // discipline que le reste de l'écran d'ouverture, Sprint 4bis).
-      conf.innerHTML = `<div class="mouv-item"><span>✓ ${libelle} · ${produit ? produit.designation : ''} · ${qte > 0 ? '+' : ''}${fmtNum(qte)} enregistré${resultat ? '' : ' (hors-ligne — en attente de connexion)'}</span></div>` + conf.innerHTML;
-    });
-  }
-
-  // ------------------------------------------------------------
-  // RÉCEPTION MARCHANDISE RAPIDE (18/08/2026, M4 — cahier §6 "nouvelle
-  // fournée / réception marchandise"). Une livraison arrive rarement produit
-  // par produit : c'est une pile de plusieurs références en une seule fois.
-  // Plutôt que de repasser CHAQUE produit dans l'écran "+ Ajouter un
-  // mouvement" (M3, un seul produit à la fois), cet écran compose une petite
-  // liste de lignes (produit + quantité) avant un seul geste de validation
-  // qui écrit chaque ligne comme un mouvement 'livraison' — même primitive
-  // d'écriture idempotente que M3 (ecrireMouvementImmediat, Article 11,
-  // jamais une deuxième implémentation de l'écriture réseau). Les produits
-  // production_journaliere sont exclus du choix (§5 : une pâtisserie n'est
-  // jamais "reçue", elle est préparée — voir l'écran Q1, M2).
-  // ------------------------------------------------------------
-  let receptionLignes = []; // { produit_id, designation, quantite }
-
-  async function demarrerReceptionRapide() {
-    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
-    const catalogueComplet = await chargerProduitsZone(zoneActive);
-    // 30/08/2026 (chantier "réglages fantômes") : un produit marqué
-    // explicitement "non réapprovisionnable" ne peut logiquement jamais
-    // recevoir de "Marchandise reçue" — même principe d'exclusion que
-    // production_journaliere ci-dessus (déjà établi le 18/08/2026), jamais
-    // une deuxième liste de règles d'exclusion réécrite ailleurs.
-    reapprovisionnableParProduit = await chargerReapprovisionnableParProduit(catalogueComplet);
-    mouvementRapideProduits = catalogueComplet.filter(p => profilParProduit[p.id] !== 'production_journaliere' && reapprovisionnableParProduit[p.id] !== false);
-    receptionLignes = [];
-    renderReceptionRapide();
-  }
-
-  function renderReceptionRapide() {
-    document.getElementById('titre').textContent = 'Réception marchandise';
-    document.getElementById('sousTitre').textContent = 'Ajoutez chaque produit reçu, puis validez la livraison en un seul geste.';
-    if (!mouvementRapideProduits.length) {
-      document.getElementById('content').innerHTML = `
-        <div class="mouv-card">Aucun produit de cette zone ne peut recevoir de livraison directe (produits en préparation journalière exclus — voir l'écran d'ouverture du matin).</div>
-        <button class="btn-text" id="btnRrRetour">← Retour</button>
-      `;
-      document.getElementById('btnRrRetour').addEventListener('click', renderAccueil);
-      return;
-    }
-    const optionsProduits = mouvementRapideProduits.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
-    document.getElementById('content').innerHTML = `
-      <div class="mouv-card">
-        <div class="mouv-titre">Produits reçus</div>
-        <select class="mouv-select" id="rrProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
-        <div class="mouv-row">
-          <input type="number" inputmode="decimal" class="mouv-qte" id="rrQte" placeholder="Qté reçue" onfocus="this.select()">
-          <button class="btn-ghost" id="btnRrAjouterLigne" style="margin-top:0;">+ Ajouter à la liste</button>
-        </div>
-        <div class="mouv-liste" id="rrListeLignes"></div>
-      </div>
-      <div class="mouv-card">
-        <input type="text" class="mouv-justif" id="rrJustif" placeholder="Référence livraison / fournisseur (facultatif, appliqué à toute la réception)">
-        <button class="btn-primary" id="btnRrValider" style="margin-top:8px;">Valider la réception (<span id="rrCompteur">0</span> produit(s))</button>
-      </div>
-      <button class="btn-text" id="btnRrRetour">← Retour</button>
-    `;
-
-    function rafraichirListe() {
-      const el = document.getElementById('rrListeLignes');
-      el.innerHTML = receptionLignes.map((l, i) => `
-        <div class="mouv-item">
-          <span>${l.designation} · +${fmtNum(l.quantite)}</span>
-          <span class="rm" data-idx="${i}">✕</span>
-        </div>
-      `).join('');
-      el.querySelectorAll('.rm').forEach(rm => rm.addEventListener('click', () => {
-        receptionLignes.splice(parseInt(rm.dataset.idx), 1);
-        rafraichirListe();
-      }));
-      document.getElementById('rrCompteur').textContent = receptionLignes.length;
-    }
-    rafraichirListe();
-
-    document.getElementById('btnRrAjouterLigne').addEventListener('click', () => {
-      const produitId = document.getElementById('rrProduit').value;
-      const qte = parseFloat(document.getElementById('rrQte').value);
-      if (!produitId || isNaN(qte) || qte <= 0) { alert('Choisissez un produit et une quantité positive.'); return; }
-      const produit = mouvementRapideProduits.find(p => p.id === produitId);
-      // Une même ligne (produit déjà ajouté à cette réception) s'additionne
-      // plutôt que de dupliquer la ligne — deux cartons du même produit
-      // dans la même livraison sont une seule quantité reçue, pas deux
-      // mouvements séparés à écrire.
-      const existante = receptionLignes.find(l => l.produit_id === produitId);
-      if (existante) existante.quantite += qte;
-      else receptionLignes.push({ produit_id: produitId, designation: produit ? produit.designation : '', quantite: qte });
-      document.getElementById('rrQte').value = '';
-      rafraichirListe();
-    });
-
-    document.getElementById('btnRrRetour').addEventListener('click', renderAccueil);
-
-    document.getElementById('btnRrValider').addEventListener('click', async () => {
-      if (!receptionLignes.length) { alert('Ajoutez au moins un produit à la réception avant de valider.'); return; }
-      const justif = document.getElementById('rrJustif').value || null;
-      const btn = document.getElementById('btnRrValider');
-      btn.disabled = true;
-      btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-      let horsLigne = 0;
-      for (const ligne of receptionLignes) {
-        const resultat = await ecrireMouvementImmediat({
-          site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: ligne.produit_id, type_mouvement: 'livraison',
-          quantite: Math.abs(ligne.quantite), employee_id: employeeCourant.id, justification: justif, reason_code: 'livraison', statut_validation: 'valide',
-        });
-        if (!resultat) horsLigne++;
-      }
-      const nb = receptionLignes.length;
-      receptionLignes = [];
-      document.getElementById('content').innerHTML = `
-        <div class="resume-card">
-          <div class="checkmark">✓</div>
-          <div class="final-greet">Réception enregistrée</div>
-          <div class="stat-row"><span class="stat-label">Produits reçus</span><span class="stat-value">${nb}</span></div>
-        </div>
-        ${horsLigne ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${horsLigne} ligne${horsLigne > 1 ? 's' : ''} en attente de connexion — sauvegardée${horsLigne > 1 ? 's' : ''} sur cet appareil, envoyée${horsLigne > 1 ? 's' : ''} dès que le réseau revient.</div>` : ''}
-        <button class="btn-primary" id="btnRrTerminer">Retour</button>
-      `;
-      document.getElementById('btnRrTerminer').addEventListener('click', renderAccueil);
-    });
-  }
-
-  // ------------------------------------------------------------
-  // OUVERTURE (prise de poste)
-  // ------------------------------------------------------------
-  // Message pré-comptage (10/08/2026, demande de Frédéric) : "le bon moment
-  // serait juste avant le premier comptage, une seule fois par inventaire"
-  // — jamais une notification répétitive qu'on finit par ignorer. Gardé
-  // volontairement fixe pour l'instant (le message adaptatif selon les
-  // anomalies récentes est un lot séparé, à venir). Règle non négociable
-  // rappelée par Frédéric : aucun chiffre financier inventé — ce texte ne
-  // parle donc que de conséquence (écarts, contrôles, temps), jamais d'un
-  // montant en euros que NEXUS ne peut pas démontrer.
-  //
-  // "Une fois par inventaire" = une fois par ligne inventaire_quart_employes
-  // (l'unité de session déjà utilisée par a_valide_ouverture/a_valide_cloture
-  // pour cet écran), mémorisé en localStorage (device), même convention que
-  // nexus_pointage_tentative_en_cours dans NEXUS-Pointage-v1.html.
-  function clePrecomptageVu() { return `nexus_inventaire_precomptage_vu_${quartEmployeRow.id}`; }
-  function precomptageDejaVu() {
-    try { return localStorage.getItem(clePrecomptageVu()) === '1'; } catch (e) { return false; }
-  }
-  function marquerPrecomptageVu() {
-    try { localStorage.setItem(clePrecomptageVu(), '1'); } catch (e) {}
-  }
-  function demarrerOuverture() {
-    if (precomptageDejaVu()) { demarrerOuvertureComptage(); return; }
-    document.getElementById('content').innerHTML = `
-      <div class="precomptage-card">
-        <div class="precomptage-emoji">🎯</div>
-        <div class="precomptage-titre">Un comptage juste fait gagner du temps à toute l'équipe.</div>
-        <div class="precomptage-texte">Une erreur fausse les écarts, déclenche des contrôles inutiles et peut masquer une perte réelle.</div>
-        <div class="precomptage-regle">Comptez le réel, ne recopiez jamais le stock précédent.</div>
-        <button class="btn-primary" id="btnCommencerPrecomptage">✓ Je commence mon inventaire</button>
-      </div>
-    `;
-    document.getElementById('btnCommencerPrecomptage').addEventListener('click', () => {
-      marquerPrecomptageVu();
-      demarrerOuvertureComptage();
-    });
-  }
-  async function demarrerOuvertureComptage() {
-    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
-    await chargerEtAppliquerPlanQuart();
-    produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
-    const ids = produitsZone.map(p => p.id);
-    dernierStock = await chargerDerniersStocks(ids);
-    // Masquage réel, pas seulement visuel (17/08/2026, Sprint 1 — point de
-    // vigilance noté lors du cadrage) : les produits sélectionnés par le
-    // plan du jour ne doivent JAMAIS transporter leur stock/vente transmis
-    // jusqu'au navigateur de l'employé, pas uniquement être masqués à
-    // l'affichage. On retire donc ces entrées de dernierStock lui-même —
-    // estMasquePourProduit continue de piloter l'affichage (calcBarreHtml,
-    // bouton "Identique") mais n'a plus de valeur réelle à révéler par erreur
-    // pour ces produits-là.
-    Object.keys(dernierStock).forEach(produitId => {
-      if (produitsPlanIds.has(produitId)) delete dernierStock[produitId];
-    });
-    modesAveugle = await chargerModesAveugle();
-    modeJaugeageActif = await chargerModeJaugeageActif();
-    await chargerRecommandationsProduction();
-    // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
-    // demande de Frédéric) — reprend la saisie déjà notée plutôt que de
-    // repartir de zéro après un retour arrière accidentel ou un rechargement.
-    const draft = chargerDraft('ouverture');
-    comptagesSaisie = (draft && draft.comptagesSaisie) ? draft.comptagesSaisie : {};
-    boutiqueRattrapageIgnore = false;
-
-    // Reprise exacte après interruption (17/08/2026, Sprint 4, INV2-16 —
-    // cahier §10 "Reprise exacte après interruption client") : si le
-    // brouillon indique une position en cours dans une catégorie pas
-    // encore terminée, on y saute directement plutôt que de repasser par
-    // la grille de choix manuel. Dégradation gracieuse : toute position
-    // introuvable, périmée (catégorie déjà finie, plan changé) ou absente
-    // retombe simplement sur la grille des catégories — jamais d'erreur
-    // bloquante pour l'employé.
-    const position = draft && draft.positionCourante;
-    if (position && position.categorieNom) {
-      const { groupesPourParcours } = groupesParcoursOuverture();
-      const groupe = groupesPourParcours.find(g => g.nom === position.categorieNom);
-      if (groupe && !categorieEstTerminee(groupe.items)) {
-        compteurInterruptionsSession++; // Sprint 8, INV2-19 : reprise réelle détectée automatiquement (même mécanisme que la reprise INV2-16 ci-dessus)
-        categorieActive = groupe.nom;
-        carrouselModeCorrection = false;
-        if (groupe.items.length > CARROUSEL_SEUIL) {
-          carrouselIndex = (typeof position.carrouselIndex === 'number' && position.carrouselIndex >= 0 && position.carrouselIndex < groupe.items.length)
-            ? position.carrouselIndex
-            : groupe.items.findIndex(p => !produitEstCompte(p));
-          if (carrouselIndex === -1) carrouselIndex = 0;
-          renderCarrousel(groupe);
-        } else {
-          renderCategorieListe(groupe);
-        }
-        return;
-      }
-    }
-    renderCategoriesOuverture();
-  }
-
-  // ------------------------------------------------------------
-  // Progression (02/08/2026, demande de Frédéric) — helpers partagés par
-  // l'écran catégories et l'écran carrousel.
-  // ------------------------------------------------------------
-  // Message d'écart d'ouverture (03/08/2026, demande de Frédéric — "ce
-  // n'est pas totalement juste car il y a les ventes à prendre en compte
-  // après inventaire") : le stock transmis (dernier comptage connu) et le
-  // stock compté à l'ouverture peuvent légitimement différer sans qu'il y
-  // ait une vraie anomalie — des ventes ont pu avoir lieu depuis le dernier
-  // comptage, ou une livraison est arrivée entre-temps. On nomme donc
-  // l'hypothèse la plus probable plutôt qu'un simple "écart" alarmant : un
-  // manque devient "Ventes potentielles", un surplus devient "Réassort
-  // potentiel" — toujours présenté comme une hypothèse, jamais un fait
-  // (même discipline de langage que le reste de NEXUS). Les seuils de
-  // couleur (conforme / à surveiller / à vérifier) restent inchangés, seul
-  // le libellé change — un écart important reste visuellement signalé.
-  function classeEcartOuverture(ecart) {
-    return 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
-  }
-  // Qualification simple de l'écart (04/08/2026, audit fonctionnel §5) : dès
-  // qu'un écart est saisi, NEXUS demande "pourquoi" avec une liste courte
-  // plutôt qu'un champ libre — le texte reste possible en complément
-  // facultatif, jamais à la place. Stocké dans comptagesSaisie[id].motifEcart,
-  // reporté sur inventaire_alertes.resolution à la validation.
-  const MOTIFS_ECART = [
-    { value: '', label: 'Choisir un motif…' },
-    { value: 'erreur_quart_precedent', label: 'Erreur probable du quart précédent' },
-    { value: 'produit_deplace', label: 'Produit déplacé ou retrouvé ailleurs' },
-    { value: 'entree_non_enregistree', label: 'Entrée non enregistrée' },
-    { value: 'reassort_non_enregistre', label: 'Réassort non enregistré' },
-    { value: 'casse', label: 'Casse' },
-    { value: 'produit_abime', label: 'Produit abîmé' },
-    { value: 'perime', label: 'Produit périmé' },
-    { value: 'retour_fournisseur', label: 'Retour fournisseur' },
-    { value: 'retrait_interne', label: 'Retrait interne' },
-    { value: 'transfert_zones', label: 'Transfert entre zones' },
-    { value: 'ne_sais_pas', label: 'Je ne sais pas' },
-    { value: 'autre', label: 'Autre raison' },
-  ];
-  function libelleMotifEcart(value) {
-    const m = MOTIFS_ECART.find(x => x.value === value);
-    return m ? m.label : null;
-  }
-  function renderSelectMotif(produitId, valeurActuelle, visible) {
-    return `<select class="justif-input motif-ecart-select" data-produit-motif="${produitId}" style="${visible ? '' : 'display:none;'} -webkit-appearance:none; appearance:none;">
-      ${MOTIFS_ECART.map(m => `<option value="${m.value}" ${m.value === valeurActuelle ? 'selected' : ''}>${m.label}</option>`).join('')}
-    </select>`;
-  }
-  function texteEcartOuverture(ecart) {
-    if (ecart === 0) return 'Conforme';
-    if (ecart < 0) return `Ventes potentielles ${fmtNum(ecart)}`;
-    return `Réassort potentiel +${fmtNum(ecart)}`;
-  }
-
-  // Déclaration rapide d'une livraison (03/08/2026, demande de Frédéric —
-  // "comment il peut l'intégrer facilement et rapidement ?") : un surplus
-  // détecté à l'ouverture ("Réassort potentiel +20") peut être confirmé en
-  // UN geste, sans aucune saisie supplémentaire — NEXUS connaît déjà le
-  // produit et la quantité. Ça pousse un vrai mouvement structuré
-  // (type='livraison') dans mouvementsSaisie, exactement comme le formulaire
-  // "Mouvements pendant le quart" de la clôture, pour que le manager en
-  // profite dans ses rapprochements (écoulement Decenium, écoulement
-  // journalier) — jamais juste une note texte qui reste invisible pour ces
-  // calculs. Ré-déclarable si l'employé corrige son comptage ensuite (on
-  // retire l'ancienne déclaration marquée `origineOuvertureRapide` avant
-  // d'ajouter la nouvelle, jamais de doublon).
-  function livraisonRapideDeclaree(produitId, quantite) {
-    return mouvementsSaisie.some(m => m.produit_id === produitId && m.origineOuvertureRapide && Math.abs(m.quantite - quantite) < 0.001);
-  }
-  function declarerLivraisonRapide(produitId, quantite) {
-    const produit = produitsZone.find(p => p.id === produitId);
-    mouvementsSaisie = mouvementsSaisie.filter(m => !(m.produit_id === produitId && m.origineOuvertureRapide));
-    mouvementsSaisie.push({
-      produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: 'livraison',
-      quantite: quantite, justification: 'Réassort déclaré directement depuis le comptage d\'ouverture.',
-      origineOuvertureRapide: true,
-    });
-    sauvegarderDraft('ouverture');
-  }
-  // Bloc HTML de la pastille d'écart, réutilisé partout où elle s'affiche
-  // (liste, carrousel) — inclut le bouton de déclaration rapide quand
-  // pertinent (ecart > 0 uniquement : une vente potentielle ne se
-  // "déclare" pas, elle est déjà tracée côté caisse/Decenium).
-  function rendreContenuEcart(produitId, ecart) {
-    if (ecart === 0) return 'Conforme';
-    if (ecart < 0) return texteEcartOuverture(ecart);
-    if (livraisonRapideDeclaree(produitId, ecart)) {
-      return `${texteEcartOuverture(ecart)} <span class="livraison-declaree">✓ Livraison déclarée</span>`;
-    }
-    return `${texteEcartOuverture(ecart)} <button type="button" class="btn-declarer-livraison" data-produit="${produitId}" data-qte="${ecart}">Déclarer cette livraison</button>`;
-  }
-
-  function produitEstCompte(p) {
-    const s = comptagesSaisie[p.id];
-    if (!s) return false;
-    // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
-    // reste au dépôt jusqu'à avoir fini, puis se déplace en boutique ; il
-    // ne peut pas remplir les deux cases au même instant) : la phase 1
-    // (dépôt) suffit à considérer le produit "compté" pour la progression
-    // de l'inventaire — la phase 2 (boutique) est rattrapée automatiquement
-    // à la toute fin, voir renderFinalisationDoubleLieu.
-    if (p.comptage_deux_lieux) return s.compteDepot !== undefined && s.compteDepot !== null;
-    return s.compte !== undefined;
-  }
-  function categorieEstTerminee(items) { return items.every(produitEstCompte); }
-  function categorieEstCommencee(items) { return items.some(produitEstCompte); }
-  function categorieEstPrioritaire(items) { return items.some(p => p.sensible); }
-
-  function estimationTempsTexte(nbRestants) {
-    if (nbRestants <= 0) return null;
-    const minutes = Math.round((nbRestants * SECONDES_PAR_PRODUIT) / 60);
-    if (minutes < 1) return "Moins d'une minute restante";
-    return `Environ ${minutes} minute${minutes > 1 ? 's' : ''} restante${minutes > 1 ? 's' : ''}`;
-  }
-
-  // Feedback immédiat après validation d'un produit (02/08/2026, demande de
-  // Frédéric — "Pain Choco validé — 10 produits restants") : un simple toast
-  // discret, pas de gamification excessive. Le compteur de "restants" est
-  // local à la catégorie en cours, cohérent avec le compteur de progression.
-  let toastValidationTimer = null;
-  function afficherFeedbackValidation(nomProduit, restants) {
-    let toast = document.getElementById('toastValidation');
-    if (toast) toast.remove();
-    if (toastValidationTimer) clearTimeout(toastValidationTimer);
-    toast = document.createElement('div');
-    toast.id = 'toastValidation';
-    toast.className = 'toast-validation';
-    const suite = restants > 0
-      ? `${restants} produit${restants > 1 ? 's' : ''} restant${restants > 1 ? 's' : ''}`
-      : 'catégorie terminée';
-    toast.innerHTML = `<span class="toast-check">✓</span><span>${nomProduit} validé — ${suite}</span>`;
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.add('toast-visible'));
-    toastValidationTimer = setTimeout(() => {
-      toast.classList.remove('toast-visible');
-      setTimeout(() => toast.remove(), 200);
-    }, 900);
-  }
-
-  // Affichage visible du quart (02/08/2026, demande de Frédéric — "le
-  // quart actif est par défaut en fonction de l'horodateur mais permet à
-  // l'employé ou au manager de cliquer pour choisir son quart") : le quart
-  // détecté automatiquement (quartDuMoment()) reste la valeur par défaut,
-  // mais cliquer sur Matin/Soir permet de la corriger manuellement — utile
-  // par exemple pour un vacataire qui termine un quart matin après l'heure
-  // de bascule. Utilisé sur l'accueil, l'écran catégories et la clôture.
-  function renderQuartVisuel() {
-    return `
-      <div class="quart-visuel">
-        <div class="quart-visuel-item ${quartActuel === 'matin' ? 'actif' : ''}" data-quart="matin">☀️ Matin</div>
-        <div class="quart-visuel-item ${quartActuel === 'soir' ? 'actif' : ''}" data-quart="soir">🌙 Soir</div>
-      </div>
-    `;
-  }
-  function wireQuartVisuel() {
-    document.querySelectorAll('.quart-visuel-item').forEach(el => {
-      el.addEventListener('click', () => changerQuart(el.dataset.quart));
-    });
-  }
-
-  // Changement manuel de quart : abandonne toute saisie non enregistrée en
-  // cours (avec confirmation), recharge/crée le quart+quart-employé
-  // correspondant, et revient à l'accueil (ou au choix de zone si cette
-  // zone n'a pas encore été choisie pour ce quart-ci).
-  async function changerQuart(nouveauQuart) {
-    if (nouveauQuart === quartActuel) return;
-    const enCours = Object.values(comptagesSaisie).some(s => s && s.compte !== undefined) || mouvementsSaisie.length > 0;
-    if (enCours && !confirm('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?')) return;
-
-    quartActuel = nouveauQuart;
-    comptagesSaisie = {};
-    mouvementsSaisie = [];
-    document.getElementById('content').innerHTML = '<div class="loading">Changement de quart…</div>';
-
-    quartRow = await obtenirOuCreerQuart();
-    if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger ce quart. Réessayez.</div>'; return; }
-    quartEmployeRow = await obtenirOuCreerQuartEmploye();
-
-    // Inventaire V2 Sprint 3 (29/08/2026) — le plan et les missions sont
-    // scopés par quart : un changement de quart (matin↔soir) doit les
-    // recharger, sinon "Mes missions" resterait figé sur l'ancien quart.
-    await chargerEtAppliquerPlanQuart();
-    await chargerMissionsDuJour();
-
-    if (quartEmployeRow && quartEmployeRow.zone_id) {
-      const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);
-      if (codeConnu) zoneActive = codeConnu;
-    }
-
-    if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
-      renderChoixZone();
-    } else {
-      renderAccueil();
-    }
-  }
-
-  // Compteur local à la catégorie (02/08/2026, demande de Frédéric —
-  // "0 produit sur 87 n'aide pas, l'utilisateur doit surtout voir qu'il n'a
-  // que 11 produits à terminer dans cette étape") : à l'intérieur d'une
-  // catégorie (liste ou carrousel), la progression AFFICHÉE EN AVANT porte
-  // sur cette seule catégorie ; le total général reste visible mais en
-  // petit, en dessous. Sans argument `groupe` (écran des catégories), le
-  // comportement global d'origine est inchangé.
-  function renderBarreProgression(groupe) {
-    const cibleGlobale = produitsRequis(produitsZoneOuverturePourQuart());
-    const totalGlobal = cibleGlobale.length;
-    const comptesGlobal = cibleGlobale.filter(produitEstCompte).length;
-
-    if (groupe) {
-      const cibleLocale = produitsRequis(groupe.items);
-      const totalLocal = cibleLocale.length;
-      const comptesLocal = cibleLocale.filter(produitEstCompte).length;
-      const pctLocal = totalLocal ? Math.round((comptesLocal / totalLocal) * 100) : 100;
-      const tempsTexteLocal = estimationTempsTexte(totalLocal - comptesLocal);
-      return `
-        <div class="progression-bloc">
-          <div class="progression-haut">
-            <span><b>${groupe.nom}</b> — ${comptesLocal} sur ${totalLocal}</span>
-            <span class="progression-temps">${tempsTexteLocal || 'Catégorie terminée ✓'}</span>
-          </div>
-          <div class="progression-barre"><div class="progression-remplie" style="width:${pctLocal}%"></div></div>
-          <div class="progression-globale">Inventaire global : ${comptesGlobal} sur ${totalGlobal}</div>
-        </div>
-      `;
-    }
-
-    const pct = totalGlobal ? Math.round((comptesGlobal / totalGlobal) * 100) : 0;
-    const tempsTexte = estimationTempsTexte(totalGlobal - comptesGlobal);
+      const lire = id => { const el = document.getElementById(id); if (!el || el.value === '') return null; return parseFloat(el.value); …9624 tokens truncated…obal);
     return `
       <div class="progression-bloc">
         <div class="progression-haut">
@@ -2571,8 +1932,8 @@
       // sans une validation explicite produit par produit) — exclus de ce
       // raccourci, toujours saisis individuellement ci-dessus.
       const production = groupe.items.filter(p => quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere');
-      const simples = groupe.items.filter(p => !p.comptage_deux_lieux && !production.includes(p));
-      const doubles = groupe.items.filter(p => p.comptage_deux_lieux);
+      const simples = groupe.items.filter(p => !estComptageDeuxLieuxEmploye(p) && !production.includes(p));
+      const doubles = groupe.items.filter(estComptageDeuxLieuxEmploye);
       if (!simples.length) { alert('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
       const message = (doubles.length || production.length)
         ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length + production.length} produit${(doubles.length + production.length) > 1 ? 's' : ''} à saisir individuellement ci-dessus)`
@@ -2623,7 +1984,7 @@
     // pas d'écart tant que le total (dépôt + boutique) n'est pas connu, la
     // boutique étant rattrapée à la fin de l'inventaire. Cette ligne n'a ni
     // pastille d'écart ni champ justification (voir renderLigneOuverture).
-    if (p && p.comptage_deux_lieux) {
+    if (p && estComptageDeuxLieuxEmploye(p)) {
       comptagesSaisie[produitId] = (val === null || isNaN(val)) ? undefined : { compteDepot: val };
       sauvegarderDraft('ouverture');
       return;
@@ -2696,7 +2057,7 @@
     // Identique" — le transmis est un total unique, on ne sait pas quelle
     // part revenait au dépôt et quelle part à la boutique. L'employé passe
     // toujours par la saisie manuelle des deux cases.
-    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige && !p.comptage_deux_lieux;
+    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige && !estComptageDeuxLieuxEmploye(p);
     const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined) ? dejaSaisi.compte : (masque || pasDHistorique ? '' : valeurTransmise);
 
     document.getElementById('content').innerHTML = `
@@ -2715,7 +2076,7 @@
             <button class="btn-primary" id="btnConforme">✓ Identique — valider</button>
             <button class="btn-ghost" id="btnCorriger">Corriger</button>
           </div>
-        ` : p.comptage_deux_lieux ? `
+        ` : estComptageDeuxLieuxEmploye(p) ? `
           <div class="badge-double-lieu">📍 Dépôt — boutique demandée en fin d'inventaire</div>
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
@@ -2786,7 +2147,7 @@
       // phase "Dépôt" ; la boutique est rattrapée à la toute fin de
       // l'inventaire (voir renderFinalisationDoubleLieu). Pas de calcul
       // d'écart tant que le total réel n'est pas connu.
-      if (p.comptage_deux_lieux) {
+      if (estComptageDeuxLieuxEmploye(p)) {
         const input = document.getElementById('carrouselInput');
         let vDepot = input.value === '' ? null : evaluerAdditionChainee(input.value);
         if (vDepot === null || isNaN(vDepot)) {
@@ -3030,7 +2391,7 @@
     // la boutique est rattrapée automatiquement à la toute fin de
     // l'inventaire (voir renderFinalisationDoubleLieu). Pas d'écart ni de
     // bouton "Identique" tant que le total réel n'est pas connu.
-    const valeurAffichee = p.comptage_deux_lieux
+    const valeurAffichee = estComptageDeuxLieuxEmploye(p)
       ? (saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '')
       : (saisie && saisie.compte !== undefined ? saisie.compte : '');
     return `
@@ -3038,18 +2399,18 @@
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
-          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
+          ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
         <div class="produit-transmis">${transmisTexte}</div>
         <div class="produit-controls" style="margin-top:8px;">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
-                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Votre comptage'}" value="${valeurAffichee}" onfocus="this.select()">
+                   placeholder="${estComptageDeuxLieuxEmploye(p) ? 'Comptage dépôt' : (estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Votre comptage')}" value="${valeurAffichee}" onfocus="this.select()">
             ${calcBarreHtml()}
           </div>
-          ${p.comptage_deux_lieux ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
+          ${estComptageDeuxLieuxEmploye(p) ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
         </div>
-        ${p.comptage_deux_lieux ? '' : `
+        ${estComptageDeuxLieuxEmploye(p) ? '' : `
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
         ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul)}
         <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">`}
@@ -3383,7 +2744,7 @@
         // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
         // reste au dépôt jusqu'à avoir fini) : phase "Dépôt" uniquement ici,
         // la boutique est rattrapée à la fin (voir renderFinalisationDoubleLieu).
-        if (p && p.comptage_deux_lieux) {
+        if (p && estComptageDeuxLieuxEmploye(p)) {
           comptagesSaisie[el.dataset.produit] = (v === null || isNaN(v)) ? undefined : { compteDepot: v };
         } else {
           comptagesSaisie[el.dataset.produit] = { compte: v === null ? undefined : v };
@@ -3412,18 +2773,18 @@
 
   function renderLigneCloture(p, desactive) {
     const saisie = comptagesSaisie[p.id];
-    const valeurAffichee = p.comptage_deux_lieux && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
+    const valeurAffichee = estComptageDeuxLieuxEmploye(p) && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
     return `
       <div class="produit-row">
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
-          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
+          ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
         <div class="produit-controls">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
-                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Stock final'}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
+                   placeholder="${estComptageDeuxLieuxEmploye(p) ? 'Comptage dépôt' : (estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Stock final')}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
             ${desactive ? '' : calcBarreHtml()}
           </div>
         </div>
@@ -3440,7 +2801,7 @@
   function produitsDoubleLieuEnAttenteBoutique() {
     return produitsZone.filter(p => {
       const s = comptagesSaisie[p.id];
-      return p.comptage_deux_lieux && s && s.compteDepot !== undefined && s.compteDepot !== null && s.compte === undefined;
+      return estComptageDeuxLieuxEmploye(p) && s && s.compteDepot !== undefined && s.compteDepot !== null && s.compte === undefined;
     });
   }
 
@@ -3629,12 +2990,13 @@
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;
       nbClotures++;
+      const caisseUniquement = estCigaretteCaisseEmploye(p);
       compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit (clôture), même logique que l'ouverture
       const { error } = await nexusClient.from('inventaire_comptages').insert({
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
-        quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
-        quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
+        quantite_depot: caisseUniquement ? null : (saisie.compteDepot !== undefined ? saisie.compteDepot : null),
+        quantite_boutique: caisseUniquement ? saisie.compte : (saisie.compteBoutique !== undefined ? saisie.compteBoutique : null),
       });
       if (error) console.error('Comptage clôture:', error);
     }
