@@ -651,14 +651,15 @@
     compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit, jamais une action ajoutée pour l'employé
     const transmis = dernierStock[p.id];
     const valeurTransmise = transmis ? transmis.quantite : 0;
+    const caisseUniquement = estCigaretteCaisseEmploye(p);
     const evtTransmis = await ecrireTransmisImmediat(p);
     const evtOuverture = await ecrireComptageImmediat({
       site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
       type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
       comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
       source: 'manuel', commentaire: saisie.justification || null,
-      quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
-      quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
+      quantite_depot: caisseUniquement ? null : (saisie.compteDepot !== undefined ? saisie.compteDepot : null),
+      quantite_boutique: caisseUniquement ? saisie.compte : (saisie.compteBoutique !== undefined ? saisie.compteBoutique : null),
     });
     const planItemId = planItemIdParProduit[p.id];
     if (planItemId && evtOuverture && typeof NexusInventairePlanDonnees !== 'undefined') {
@@ -735,6 +736,19 @@
       return ecrireProductionInitialeImmediat(p);
     }
     return ecrireOuvertureImmediat(p);
+  }
+
+  // Cigarettes — règle métier confirmée le 01/09/2026 : le produit existe
+  // physiquement au bureau et en caisse, mais l'employé ne relève QUE la
+  // caisse. Le bureau reste exclusivement dans le parcours manager (relevés
+  // localisés + transferts Bureau → Caisse). On conserve donc le paramètre
+  // global comptage_deux_lieux, utile au manager, sans l'exposer comme une
+  // double saisie dans l'écran employé.
+  function estCigaretteCaisseEmploye(p) {
+    return NexusInventaireMoteur.modeComptageLieuEmploye(p) === 'caisse_uniquement';
+  }
+  function estComptageDeuxLieuxEmploye(p) {
+    return NexusInventaireMoteur.modeComptageLieuEmploye(p) === 'deux_lieux';
   }
 
   // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
@@ -1367,7 +1381,7 @@
       const nomBase = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
       const ordreBase = p.inventaire_categories ? p.inventaire_categories.ordre_affichage : 99;
       if (!parCategorie[nomBase]) parCategorie[nomBase] = { nomBase, ordreBase, doubles: [], simples: [] };
-      (p.comptage_deux_lieux ? parCategorie[nomBase].doubles : parCategorie[nomBase].simples).push(p);
+      (estComptageDeuxLieuxEmploye(p) ? parCategorie[nomBase].doubles : parCategorie[nomBase].simples).push(p);
     }
     const groupes = [];
     Object.values(parCategorie).forEach(c => {
@@ -1393,8 +1407,8 @@
   // normales, sans dépôt) EN DERNIER — tri stable, l'ordre relatif interne
   // (ordre_affichage) de chaque groupe est conservé.
   function ordonnerParcoursDepotBoutiqueReste(groupes) {
-    const depot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
-    const reste = groupes.filter(g => !g.items.some(p => p.comptage_deux_lieux));
+    const depot = groupes.filter(g => g.items.some(estComptageDeuxLieuxEmploye));
+    const reste = groupes.filter(g => !g.items.some(estComptageDeuxLieuxEmploye));
     return [...depot, ...reste];
   }
 
@@ -1404,7 +1418,7 @@
   // regarde bien que la phase dépôt, jamais la boutique. `false` s'il n'y a
   // aucune catégorie dépôt sur cette zone (rien à rattraper).
   function depotEntierementTermine(groupes) {
-    const groupesDepot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
+    const groupesDepot = groupes.filter(g => g.items.some(estComptageDeuxLieuxEmploye));
     if (!groupesDepot.length) return false;
     return groupesDepot.every(g => categorieEstTerminee(g.items));
   }
@@ -2137,7 +2151,7 @@
     // (dépôt) suffit à considérer le produit "compté" pour la progression
     // de l'inventaire — la phase 2 (boutique) est rattrapée automatiquement
     // à la toute fin, voir renderFinalisationDoubleLieu.
-    if (p.comptage_deux_lieux) return s.compteDepot !== undefined && s.compteDepot !== null;
+    if (estComptageDeuxLieuxEmploye(p)) return s.compteDepot !== undefined && s.compteDepot !== null;
     return s.compte !== undefined;
   }
   function categorieEstTerminee(items) { return items.every(produitEstCompte); }
@@ -2571,8 +2585,8 @@
       // sans une validation explicite produit par produit) — exclus de ce
       // raccourci, toujours saisis individuellement ci-dessus.
       const production = groupe.items.filter(p => quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere');
-      const simples = groupe.items.filter(p => !p.comptage_deux_lieux && !production.includes(p));
-      const doubles = groupe.items.filter(p => p.comptage_deux_lieux);
+      const simples = groupe.items.filter(p => !estComptageDeuxLieuxEmploye(p) && !production.includes(p));
+      const doubles = groupe.items.filter(estComptageDeuxLieuxEmploye);
       if (!simples.length) { alert('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
       const message = (doubles.length || production.length)
         ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length + production.length} produit${(doubles.length + production.length) > 1 ? 's' : ''} à saisir individuellement ci-dessus)`
@@ -2623,7 +2637,7 @@
     // pas d'écart tant que le total (dépôt + boutique) n'est pas connu, la
     // boutique étant rattrapée à la fin de l'inventaire. Cette ligne n'a ni
     // pastille d'écart ni champ justification (voir renderLigneOuverture).
-    if (p && p.comptage_deux_lieux) {
+    if (p && estComptageDeuxLieuxEmploye(p)) {
       comptagesSaisie[produitId] = (val === null || isNaN(val)) ? undefined : { compteDepot: val };
       sauvegarderDraft('ouverture');
       return;
@@ -2696,7 +2710,7 @@
     // Identique" — le transmis est un total unique, on ne sait pas quelle
     // part revenait au dépôt et quelle part à la boutique. L'employé passe
     // toujours par la saisie manuelle des deux cases.
-    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige && !p.comptage_deux_lieux;
+    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige && !estComptageDeuxLieuxEmploye(p);
     const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined) ? dejaSaisi.compte : (masque || pasDHistorique ? '' : valeurTransmise);
 
     document.getElementById('content').innerHTML = `
@@ -2715,7 +2729,7 @@
             <button class="btn-primary" id="btnConforme">✓ Identique — valider</button>
             <button class="btn-ghost" id="btnCorriger">Corriger</button>
           </div>
-        ` : p.comptage_deux_lieux ? `
+        ` : estComptageDeuxLieuxEmploye(p) ? `
           <div class="badge-double-lieu">📍 Dépôt — boutique demandée en fin d'inventaire</div>
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
@@ -2786,7 +2800,7 @@
       // phase "Dépôt" ; la boutique est rattrapée à la toute fin de
       // l'inventaire (voir renderFinalisationDoubleLieu). Pas de calcul
       // d'écart tant que le total réel n'est pas connu.
-      if (p.comptage_deux_lieux) {
+      if (estComptageDeuxLieuxEmploye(p)) {
         const input = document.getElementById('carrouselInput');
         let vDepot = input.value === '' ? null : evaluerAdditionChainee(input.value);
         if (vDepot === null || isNaN(vDepot)) {
@@ -3030,7 +3044,7 @@
     // la boutique est rattrapée automatiquement à la toute fin de
     // l'inventaire (voir renderFinalisationDoubleLieu). Pas d'écart ni de
     // bouton "Identique" tant que le total réel n'est pas connu.
-    const valeurAffichee = p.comptage_deux_lieux
+    const valeurAffichee = estComptageDeuxLieuxEmploye(p)
       ? (saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '')
       : (saisie && saisie.compte !== undefined ? saisie.compte : '');
     return `
@@ -3038,18 +3052,18 @@
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
-          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
+          ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
         <div class="produit-transmis">${transmisTexte}</div>
         <div class="produit-controls" style="margin-top:8px;">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
-                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Votre comptage'}" value="${valeurAffichee}" onfocus="this.select()">
+                   placeholder="${estComptageDeuxLieuxEmploye(p) ? 'Comptage dépôt' : (estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Votre comptage')}" value="${valeurAffichee}" onfocus="this.select()">
             ${calcBarreHtml()}
           </div>
-          ${p.comptage_deux_lieux ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
+          ${estComptageDeuxLieuxEmploye(p) ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
         </div>
-        ${p.comptage_deux_lieux ? '' : `
+        ${estComptageDeuxLieuxEmploye(p) ? '' : `
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
         ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul)}
         <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">`}
@@ -3383,7 +3397,7 @@
         // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
         // reste au dépôt jusqu'à avoir fini) : phase "Dépôt" uniquement ici,
         // la boutique est rattrapée à la fin (voir renderFinalisationDoubleLieu).
-        if (p && p.comptage_deux_lieux) {
+        if (p && estComptageDeuxLieuxEmploye(p)) {
           comptagesSaisie[el.dataset.produit] = (v === null || isNaN(v)) ? undefined : { compteDepot: v };
         } else {
           comptagesSaisie[el.dataset.produit] = { compte: v === null ? undefined : v };
@@ -3412,18 +3426,18 @@
 
   function renderLigneCloture(p, desactive) {
     const saisie = comptagesSaisie[p.id];
-    const valeurAffichee = p.comptage_deux_lieux && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
+    const valeurAffichee = estComptageDeuxLieuxEmploye(p) && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
     return `
       <div class="produit-row">
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
-          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
+          ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
         <div class="produit-controls">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
-                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Stock final'}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
+                   placeholder="${estComptageDeuxLieuxEmploye(p) ? 'Comptage dépôt' : (estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Stock final')}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
             ${desactive ? '' : calcBarreHtml()}
           </div>
         </div>
@@ -3440,7 +3454,7 @@
   function produitsDoubleLieuEnAttenteBoutique() {
     return produitsZone.filter(p => {
       const s = comptagesSaisie[p.id];
-      return p.comptage_deux_lieux && s && s.compteDepot !== undefined && s.compteDepot !== null && s.compte === undefined;
+      return estComptageDeuxLieuxEmploye(p) && s && s.compteDepot !== undefined && s.compteDepot !== null && s.compte === undefined;
     });
   }
 
@@ -3629,12 +3643,13 @@
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;
       nbClotures++;
+      const caisseUniquement = estCigaretteCaisseEmploye(p);
       compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit (clôture), même logique que l'ouverture
       const { error } = await nexusClient.from('inventaire_comptages').insert({
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
-        quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
-        quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
+        quantite_depot: caisseUniquement ? null : (saisie.compteDepot !== undefined ? saisie.compteDepot : null),
+        quantite_boutique: caisseUniquement ? saisie.compte : (saisie.compteBoutique !== undefined ? saisie.compteBoutique : null),
       });
       if (error) console.error('Comptage clôture:', error);
     }
