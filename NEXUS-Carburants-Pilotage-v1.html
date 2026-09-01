@@ -524,6 +524,13 @@
   .carb-autonomie-bloc .val{font-weight:700; color:var(--text); font-size:11.5px;}
   .carb-fiab-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding-top:8px; margin-top:2px; border-top:1px solid var(--hairline); font-size:10.5px; font-weight:600;}
   .carb-fiab-badge{width:19px; height:19px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
+  .carb-rapprochement-libelle{display:flex; align-items:center; gap:6px; min-width:0;}
+  .carb-info-btn{appearance:none; border:1px solid var(--hairline); border-radius:999px; background:var(--panel-raised); color:var(--text-mid); padding:2px 7px; font:600 9.5px/1.25 var(--sans); cursor:pointer; white-space:nowrap;}
+  .carb-info-btn:hover,.carb-info-btn:focus-visible{color:var(--cyan); border-color:var(--cyan); outline:none;}
+  .carb-rapprochement-info{margin-top:6px; padding:8px 9px; border:1px solid var(--hairline); border-radius:8px; background:var(--panel-raised); color:var(--text-mid); font-size:10px; line-height:1.45;}
+  .carb-rapprochement-info b{color:var(--text);}
+  .carb-rapprochement-info ul{margin:5px 0 0; padding-left:16px;}
+  .carb-rapprochement-info li + li{margin-top:3px;}
 </style>
 </head>
 <body>
@@ -1134,6 +1141,47 @@
     return { texte: 'Réception à confirmer', niveau: 'attente' };
   }
 
+  // L'explication métier reste volontairement repliée : la carte montre
+  // d'abord les faits. Le panneau distingue toujours le constat enregistré
+  // des causes seulement possibles, faute de température produit / volume
+  // compensé à 15 °C et de météo de réception historisée dans NEXUS.
+  function construireInfoRapprochement(cle) {
+    const ligne = ligneReceptionDuJour(cle);
+    const nom = COURT_CARBURANT[cle] || cle;
+    if (!ligne) return `<b>${nom} — aucune réception enregistrée aujourd'hui.</b><br>Le rapprochement de livraison ne peut donc pas être qualifié sur cette carte.`;
+
+    const bl = Number(ligne.quantite_bl_l);
+    const mesure = Number(ligne.quantite_mesuree_l);
+    const delta = Number(ligne.delta_l);
+    const ratio = Number(ligne.delta_ratio);
+    const fait = `${Number.isFinite(bl) ? fmtL(bl) : 'BL non renseigné'} au BL, ${Number.isFinite(mesure) ? fmtL(mesure) : 'mesure non renseignée'} mesurés${Number.isFinite(delta) ? `, soit ${delta >= 0 ? '+' : ''}${fmtL(delta)}` : ''}${Number.isFinite(ratio) ? ` (${ratio >= 0 ? '+' : ''}${(ratio * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %)` : ''}.`;
+    if (ligne.statut === 'coherente') {
+      return `<b>Constat enregistré :</b> ${fait}<br>Écart dans la tolérance de réception ; aucune anomalie n'est déduite. De faibles variations peuvent venir de la précision de jauge, de la stabilisation du produit ou de la température.`;
+    }
+
+    const surplus = Number.isFinite(delta) && delta > 0;
+    const hypotheses = [
+      'stabilisation ou turbulence lors du jaugeage après dépotage',
+      'décalage entre les heures des jaugeages, du dépotage et des ventes',
+      ...(cle === 'GO' ? ['répartition du GO entre ses deux cuves / collecteur'] : []),
+      'litres ambiants du BL comparés à un volume influencé par la température',
+      'cohérence de la saisie du BL, des compartiments et des jaugeages'
+    ];
+    return `<b>Constat enregistré :</b> ${fait}`
+      + `${surplus ? '<br><b>Lecture NEXUS :</b> les ventes pendant la fenêtre ne peuvent pas expliquer ce surplus : elles réduiraient le volume mesuré.' : ''}`
+      + `<br><b>Pistes à contrôler — pas des causes affirmées :</b><ul>${hypotheses.map(h => `<li>${h}</li>`).join('')}</ul>`
+      + `<b>Limite actuelle :</b> NEXUS conserve les heures et l'historique de livraison, mais pas encore la température produit / le volume compensé à 15 °C ni la météo rattachée à cette réception.`;
+  }
+
+  function toggleInfoRapprochement(cle, bouton) {
+    const panel = document.getElementById(`rapprochementInfo_${cle}`);
+    if (!panel) return;
+    const ouvrir = panel.style.display === 'none';
+    if (ouvrir) panel.innerHTML = construireInfoRapprochement(cle);
+    panel.style.display = ouvrir ? 'block' : 'none';
+    if (bouton) bouton.setAttribute('aria-expanded', ouvrir ? 'true' : 'false');
+  }
+
   // 01/09/2026 — l'autonomie est une échéance opérationnelle, pas un
   // nombre décimal de jours. Une seule présentation pour les cartes du
   // haut et le tableau Stock & autonomie, fondée sur la projection par
@@ -1456,7 +1504,8 @@
           <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || '?'}</span></div>
-          <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row"><span class="carb-rapprochement-libelle"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><button type="button" class="carb-info-btn" data-rapprochement-info="${cle}" aria-expanded="false" aria-controls="rapprochementInfo_${cle}">ⓘ Infos</button></span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
+          <div class="carb-rapprochement-info" id="rapprochementInfo_${cle}" style="display:none;"></div>
         </div>`;
     }).join('');
 
@@ -1511,6 +1560,12 @@
       const ouvrir = (e) => { e.stopPropagation(); toggleDiagnosticEcart(el.dataset.ecartDiag); };
       el.addEventListener('click', ouvrir);
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(e); } });
+    });
+    zone.querySelectorAll('[data-rapprochement-info]').forEach(bouton => {
+      bouton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleInfoRapprochement(bouton.dataset.rapprochementInfo, bouton);
+      });
     });
     // Anime le remplissage après le premier paint (transition CSS déjà
     // posée sur height, mais partir de 0% puis appliquer la vraie valeur
