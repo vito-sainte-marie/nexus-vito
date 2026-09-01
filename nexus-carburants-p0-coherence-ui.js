@@ -7,11 +7,12 @@
   function frDate(iso){var p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
   function fmtL(v){return v==null||!Number.isFinite(Number(v))?'—':Math.round(Number(v)).toLocaleString('fr-FR')+' L';}
   function aujourdhuiLocal(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function clientNexus(){try{return typeof nexusClient!=='undefined'?nexusClient:(global.nexusClient||null);}catch(e){return global.nexusClient||null;}}
 
   async function siteCourant(){
-    if(siteCache)return siteCache;if(!global.nexusClient)return null;
-    var s=await global.nexusClient.auth.getSession(),uid=s&&s.data&&s.data.session&&s.data.session.user?s.data.session.user.id:null;if(!uid)return null;
-    var q=await global.nexusClient.from('employees').select('site_id,est_createur').eq('id',uid).maybeSingle();if(q.error||!q.data)return null;
+    if(siteCache)return siteCache;var client=clientNexus();if(!client)return null;
+    var s=await client.auth.getSession(),uid=s&&s.data&&s.data.session&&s.data.session.user?s.data.session.user.id:null;if(!uid)return null;
+    var q=await client.from('employees').select('site_id,est_createur').eq('id',uid).maybeSingle();if(q.error||!q.data)return null;
     var site=q.data.site_id;
     if(q.data.est_createur){var consulte=localStorage.getItem('nexus_site_consulte_createur');if(consulte)site=consulte;}
     siteCache=site;return site;
@@ -35,6 +36,8 @@
     Object.keys(resultat.parCarburant).forEach(function(cle){
       var ev=resultat.parCarburant[cle],d=ev&&ev.detailConfiance,causes=d&&Array.isArray(d.causes)?d.causes.slice():[];
       if(!correspondAuP0(p0,cle,ev)||!causes.includes('anomalie_majeure'))return;
+      // Toute réception documentaire du jour est un fait postérieur potentiel :
+      // elle conserve sa propre réserve de fiabilité et n'est jamais effacée.
       if(Number(ev.livraisonDocumentaireAujourdhuiL||0)>0||ev.livraisonDocumentaireAmbigue)return;
       causes=causes.filter(function(c){return c!=='anomalie_majeure';});
       if(d&&d.facteurs)d.facteurs.aucune_anomalie_majeure=true;
@@ -48,7 +51,12 @@
   }
 
   function installerCommande(){
-    var CMD=global.NexusCarburantCommandeDonnees;if(!CMD||!CMD.evaluerCommandeCarburantSite||CMD.__p0CoherenceUI)return false;
+    // Doit rester la couche la plus externe : on attend que les correctifs P0
+    // (réceptions/BL/journal) soient eux-mêmes installés avant d'envelopper
+    // l'évaluation finale, sinon un wrapper chargé après nous pourrait
+    // réintroduire l'ancienne anomalie.
+    var CMD=global.NexusCarburantCommandeDonnees;
+    if(!global.NexusCarburantsP0UI||!global.NexusCarburantsP0UI.actif||!CMD||!CMD.evaluerCommandeCarburantSite||CMD.__p0CoherenceUI)return false;
     var original=CMD.evaluerCommandeCarburantSite;
     CMD.evaluerCommandeCarburantSite=async function(client,site,options){var r=await original.apply(this,arguments);if(!r||r.ok===false||!r.dateISO)return r;try{return neutraliserAncienneAnomalie(r,await chargerP0(client,site,r.dateISO));}catch(e){console.error('Carburants cohérence post-P0:',e);return r;}};
     CMD.__p0CoherenceUI=true;return true;
@@ -73,14 +81,14 @@
   function corrigerSituations(){document.querySelectorAll('.carb-carte').forEach(function(c){var t=c.textContent||'';if(/Situation stock\s*:\s*Non évaluable/i.test(t)&&(/\bGO\b/.test(t)||/\bSP95\b/.test(t))&&/Autonomie[\s\S]*?\d+[\.,]?\d*\s*j/i.test(t)&&/Écart[\s\S]*?[+−-]?0\s*L/i.test(t))remplacer(c,/Situation stock\s*:\s*Non évaluable/gi,'Situation stock : Référence certifiée');});}
 
   async function corrigerP0EtReception(){
-    var site=await siteCourant();if(!site||!global.nexusClient)return;var auj=aujourdhuiLocal(),p0=await chargerP0(global.nexusClient,site,auj);
+    var client=clientNexus(),site=await siteCourant();if(!site||!client)return;var auj=aujourdhuiLocal(),p0=await chargerP0(client,site,auj);
     if(p0&&p0.reference.date===auj){document.querySelectorAll('.section-note').forEach(function(el){if(/Écart calculé depuis le dernier relevé du/i.test(el.textContent||''))el.textContent=(el.textContent||'').replace(/Écart calculé depuis le dernier relevé du [0-9/]+\./i,'Écart courant calculé depuis la référence certifiée du '+frDate(p0.reference.date)+'.');});var src=document.querySelector('.historique-pz-source');if(src){var card=src.closest('[class*="historique-pz"],.card')||src.parentElement;if(card&&/1\s*sept/i.test(card.textContent||'')){src.textContent='Ouvrir le relevé source ↗';src.title='Référence certifiée du '+frDate(p0.reference.date);}}}
-    var r=await chargerReception(global.nexusClient,site);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
+    var r=await chargerReception(client,site);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
     var carte=document.querySelector('#livraisonZone .livraison-carte');if(carte&&!carte.querySelector('.nexus-p0-reception-note')){var note=document.createElement('div');note.className='nexus-p0-reception-note';note.innerHTML='Quantité documentaire BL : <b>'+fmtL(r.totalBl)+'</b>'+(r.totalMesure?' · Variation physique mesurée par jauge : <b>+'+fmtL(r.totalMesure)+'</b>':'')+(r.aRapprocher?' · <span style="color:var(--amber);font-weight:600">Rapprochement à confirmer</span>':'');carte.insertBefore(note,carte.firstChild.nextSibling);var total=carte.querySelector('.livraison-total');if(total){var sp=total.querySelectorAll('span');if(sp[0])sp[0].textContent='Total BL documentaire';if(sp[1])sp[1].textContent=fmtL(r.totalBl);}}
   }
 
   function corrigerUI(){remplacer(document.body,/marge après livraison/gi,'marge avant livraison');corrigerSituations();corrigerP0EtReception();}
   function installerUI(){injecterCSS();corrigerUI();if(!observer){var raf=null;observer=new MutationObserver(function(){if(raf)return;raf=requestAnimationFrame(function(){raf=null;corrigerUI();});});observer.observe(document.body,{childList:true,subtree:true});}}
-  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0645'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
-  if(!installer()){var n=0,t=setInterval(function(){n++;if(installer()||n>300)clearInterval(t);},20);}
+  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0650'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
+  if(!installer()){var n=0,t=setInterval(function(){n++;if(installer()||n>750)clearInterval(t);},20);}
 })(typeof window!=='undefined'?window:globalThis);
