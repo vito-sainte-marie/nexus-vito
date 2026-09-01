@@ -58,7 +58,7 @@
 
   async function chargerReception(client,site){
     if(cacheReception[site])return cacheReception[site];
-    var qv=await client.from('carburant_reception_visites').select('id,date_visite,heure_fin,statut,numero_bl').eq('site',site).neq('statut','en_cours').order('date_visite',{ascending:false}).order('heure_fin',{ascending:false}).limit(1).maybeSingle();
+    var qv=await client.from('carburant_reception_visites').select('id,date_visite,heure_fin,statut,numero_bl').eq('site',site).neq('statut','en_cours').neq('statut','annulee_doublon').order('date_visite',{ascending:false}).order('heure_fin',{ascending:false}).limit(1).maybeSingle();
     if(qv.error||!qv.data)return null;
     var ql=await client.from('carburant_reception_visite_lignes').select('quantite_bl_l,quantite_mesuree_l,statut').eq('visite_id',qv.data.id);if(ql.error)return null;
     var bl=0,mes=0,rap=false;(ql.data||[]).forEach(function(l){bl+=Number(l.quantite_bl_l)||0;mes+=Number(l.quantite_mesuree_l)||0;if(l.statut==='a_rapprocher')rap=true;});
