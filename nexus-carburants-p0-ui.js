@@ -5,7 +5,9 @@
 // 2. le stock physique post-réception peut être affiché sans remplacer le
 //    contrôle dérivé par `theorique = physique`, `ecart = 0` ;
 // 3. l'évaluation P0 ne doit jamais laisser l'ancienne recommandation
-//    intermédiaire polluer le journal avant l'écriture du résultat corrigé.
+//    intermédiaire polluer le journal avant l'écriture du résultat corrigé ;
+// 4. l'interface ne doit jamais dire que l'ÉCART est calculé depuis le
+//    jaugeage post-livraison : seul le stock physique affiché vient de lui.
 //
 // Doctrine verrouillée tant que les ventes ne sont pas horodatées par
 // Insite360 : ouverture = ancre métier ; BL = mouvement documentaire ;
@@ -18,6 +20,7 @@
   var pontReceptionInstalle = false;
   var uiInstallee = false;
   var journalCommandeInstalle = false;
+  var observateurLibelle = null;
 
   function proteger(obj, cle) {
     if (!obj || !Object.prototype.hasOwnProperty.call(obj, cle)) return;
@@ -70,9 +73,6 @@
     return true;
   }
 
-  // Client de lecture/calcul identique au vrai client Supabase, sauf pour le
-  // journal des recommandations. L'évaluation d'origine et l'évaluation P0
-  // peuvent ainsi calculer librement sans écrire de snapshot intermédiaire.
   function clientSansJournalRecommandation(client) {
     var proxy = Object.create(client);
     proxy.from = function (table) {
@@ -89,11 +89,6 @@
     return proxy;
   }
 
-  // Le P0 principal réutilise l'évaluation historique pour récupérer tout le
-  // contexte de l'écran, puis recalcule la décision. L'ancienne fonction
-  // journalise cependant en arrière-plan avant ce recalcul. Ce wrapper fait
-  // tourner toute l'évaluation avec un journal neutralisé puis écrit UNE
-  // SEULE FOIS la recommandation finale avec le vrai client.
   function installerJournalCommande() {
     if (journalCommandeInstalle) return true;
     var CMD = global.NexusCarburantCommandeDonnees;
@@ -122,8 +117,6 @@
         });
         await Promise.all(ecritures);
       } catch (e) {
-        // La journalisation reste secondaire : la décision calculée ne doit
-        // jamais disparaître parce que son historique n'a pas pu s'écrire.
         console.error('NEXUS Carburants P0 — journal final non écrit:', e);
       }
       return resultat;
@@ -131,6 +124,32 @@
 
     journalCommandeInstalle = true;
     console.info('NEXUS Carburants P0 Journal installé — un seul snapshot final par évaluation.');
+    return true;
+  }
+
+  // L'ancien HTML construit encore une phrase héritée de la tentative
+  // d'ancrage intrajournalier : « Écart calculé depuis le jaugeage
+  // post-livraison... ». Les valeurs sont déjà protégées ci-dessus ; ce
+  // correctif ne touche qu'au texte pour distinguer clairement mesure
+  // physique récente et ancre du contrôle.
+  function corrigerLibelleReference() {
+    if (!global.document) return;
+    var elements = document.querySelectorAll('.section-note');
+    elements.forEach(function (el) {
+      var texte = el.textContent || '';
+      if (texte.indexOf('Écart calculé depuis le jaugeage post-livraison') === -1) return;
+      el.textContent = texte.replace(
+        /Écart calculé depuis le jaugeage post-livraison du [^.]+\./,
+        "Stock physique actualisé après réception. Le contrôle reste ancré sur le relevé d'ouverture."
+      );
+    });
+  }
+
+  function installerLibelleReference() {
+    if (!global.document || observateurLibelle) return true;
+    corrigerLibelleReference();
+    observateurLibelle = new MutationObserver(function () { corrigerLibelleReference(); });
+    observateurLibelle.observe(document.body, { childList: true, subtree: true });
     return true;
   }
 
@@ -145,6 +164,7 @@
       return verrouillerControle(controle);
     };
 
+    installerLibelleReference();
     global.NexusCarburantsP0UI = {
       actif: true,
       pontReceptionActif: pontReceptionInstalle,
@@ -168,9 +188,6 @@
   if (!pontReceptionInstalle || !journalCommandeInstalle || !uiInstallee) {
     timer = setInterval(function () {
       installer();
-      // Réception n'a volontairement pas le moteur Commande : dans ce cas le
-      // pont est le seul garde-fou requis. Sur les pages avec le P0 principal,
-      // journal + UI doivent tous les deux finir par s'installer.
       var p0CompletAttendu = !!global.NexusCarburantsP0;
       if (pontReceptionInstalle && (!p0CompletAttendu || (journalCommandeInstalle && uiInstallee))) {
         clearInterval(timer);
