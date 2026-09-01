@@ -3,9 +3,19 @@
   'use strict';
   if ((location.pathname.split('/').pop() || '').toLowerCase() !== 'nexus-carburants-pilotage-v1.html') return;
 
-  var cacheP0 = {}, cacheReception = {}, observer = null;
+  var cacheP0 = {}, cacheReception = {}, observer = null, siteCache = null;
   function frDate(iso){var p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
   function fmtL(v){return v==null||!Number.isFinite(Number(v))?'—':Math.round(Number(v)).toLocaleString('fr-FR')+' L';}
+  function aujourdhuiLocal(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+  async function siteCourant(){
+    if(siteCache)return siteCache;if(!global.nexusClient)return null;
+    var s=await global.nexusClient.auth.getSession(),uid=s&&s.data&&s.data.session&&s.data.session.user?s.data.session.user.id:null;if(!uid)return null;
+    var q=await global.nexusClient.from('employees').select('site_id,est_createur').eq('id',uid).maybeSingle();if(q.error||!q.data)return null;
+    var site=q.data.site_id;
+    if(q.data.est_createur){var consulte=localStorage.getItem('nexus_site_consulte_createur');if(consulte)site=consulte;}
+    siteCache=site;return site;
+  }
 
   async function chargerP0(client,site,dateISO){
     var k=site+':'+dateISO;if(cacheP0[k])return cacheP0[k];
@@ -25,7 +35,6 @@
     Object.keys(resultat.parCarburant).forEach(function(cle){
       var ev=resultat.parCarburant[cle],d=ev&&ev.detailConfiance,causes=d&&Array.isArray(d.causes)?d.causes.slice():[];
       if(!correspondAuP0(p0,cle,ev)||!causes.includes('anomalie_majeure'))return;
-      // Une réception postérieure au point zéro constitue un nouveau fait et reste à rapprocher.
       if(Number(ev.livraisonDocumentaireAujourdhuiL||0)>0||ev.livraisonDocumentaireAmbigue)return;
       causes=causes.filter(function(c){return c!=='anomalie_majeure';});
       if(d&&d.facteurs)d.facteurs.aucune_anomalie_majeure=true;
@@ -60,18 +69,18 @@
     .nexus-p0-reception-note{margin-top:7px;padding:8px 10px;border-radius:9px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.22);font-family:var(--sans);font-size:11px;line-height:1.5;color:var(--text-mid)}.nexus-p0-reception-note b{color:var(--text);font-family:var(--mono);font-weight:600}@media(max-width:430px){.commande-carte-tete{align-items:flex-start!important;gap:10px!important}.commande-carte-badge{font-size:9.5px!important;line-height:1.35;white-space:normal!important;text-align:center}.commande-reco-principale{font-size:15px!important}}
   `;document.head.appendChild(s);}
 
-  function remplacer(root,re,txt){if(!root)return;var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),n;while((n=w.nextNode()))if(n.nodeValue&&re.test(n.nodeValue)){re.lastIndex=0;n.nodeValue=n.nodeValue.replace(re,txt);}}
-  function corrigerSituations(){document.querySelectorAll('.situation-card,.situation-carte,[class*="situation-"]').forEach(function(c){var t=c.textContent||'';if(/Situation stock\s*:\s*Non évaluable/i.test(t)&&(/\bGO\b/.test(t)||/\bSP95\b/.test(t))&&/Autonomie[\s\S]*?\d+[\.,]?\d*\s*j/i.test(t)&&/Écart[\s\S]*?[+−-]?0\s*L/i.test(t))remplacer(c,/Situation stock\s*:\s*Non évaluable/gi,'Situation stock : Référence certifiée');});}
+  function remplacer(root,re,txt){if(!root)return;var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),n;while((n=w.nextNode())){re.lastIndex=0;if(n.nodeValue&&re.test(n.nodeValue)){re.lastIndex=0;n.nodeValue=n.nodeValue.replace(re,txt);}}}
+  function corrigerSituations(){document.querySelectorAll('.carb-carte').forEach(function(c){var t=c.textContent||'';if(/Situation stock\s*:\s*Non évaluable/i.test(t)&&(/\bGO\b/.test(t)||/\bSP95\b/.test(t))&&/Autonomie[\s\S]*?\d+[\.,]?\d*\s*j/i.test(t)&&/Écart[\s\S]*?[+−-]?0\s*L/i.test(t))remplacer(c,/Situation stock\s*:\s*Non évaluable/gi,'Situation stock : Référence certifiée');});}
 
   async function corrigerP0EtReception(){
-    if(!global.SITE_ID||!global.nexusClient)return;var auj=typeof global.todayISO==='function'?global.todayISO():new Date().toISOString().slice(0,10),p0=await chargerP0(global.nexusClient,global.SITE_ID,auj);
+    var site=await siteCourant();if(!site||!global.nexusClient)return;var auj=aujourdhuiLocal(),p0=await chargerP0(global.nexusClient,site,auj);
     if(p0&&p0.reference.date===auj){document.querySelectorAll('.section-note').forEach(function(el){if(/Écart calculé depuis le dernier relevé du/i.test(el.textContent||''))el.textContent=(el.textContent||'').replace(/Écart calculé depuis le dernier relevé du [0-9/]+\./i,'Écart courant calculé depuis la référence certifiée du '+frDate(p0.reference.date)+'.');});var src=document.querySelector('.historique-pz-source');if(src){var card=src.closest('[class*="historique-pz"],.card')||src.parentElement;if(card&&/1\s*sept/i.test(card.textContent||'')){src.textContent='Ouvrir le relevé source ↗';src.title='Référence certifiée du '+frDate(p0.reference.date);}}}
-    var r=await chargerReception(global.nexusClient,global.SITE_ID);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
+    var r=await chargerReception(global.nexusClient,site);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
     var carte=document.querySelector('#livraisonZone .livraison-carte');if(carte&&!carte.querySelector('.nexus-p0-reception-note')){var note=document.createElement('div');note.className='nexus-p0-reception-note';note.innerHTML='Quantité documentaire BL : <b>'+fmtL(r.totalBl)+'</b>'+(r.totalMesure?' · Variation physique mesurée par jauge : <b>+'+fmtL(r.totalMesure)+'</b>':'')+(r.aRapprocher?' · <span style="color:var(--amber);font-weight:600">Rapprochement à confirmer</span>':'');carte.insertBefore(note,carte.firstChild.nextSibling);var total=carte.querySelector('.livraison-total');if(total){var sp=total.querySelectorAll('span');if(sp[0])sp[0].textContent='Total BL documentaire';if(sp[1])sp[1].textContent=fmtL(r.totalBl);}}
   }
 
   function corrigerUI(){remplacer(document.body,/marge après livraison/gi,'marge avant livraison');corrigerSituations();corrigerP0EtReception();}
   function installerUI(){injecterCSS();corrigerUI();if(!observer){var raf=null;observer=new MutationObserver(function(){if(raf)return;raf=requestAnimationFrame(function(){raf=null;corrigerUI();});});observer.observe(document.body,{childList:true,subtree:true});}}
-  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0639'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
+  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0645'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
   if(!installer()){var n=0,t=setInterval(function(){n++;if(installer()||n>300)clearInterval(t);},20);}
 })(typeof window!=='undefined'?window:globalThis);
