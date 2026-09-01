@@ -5,6 +5,14 @@
 (function () {
   'use strict';
 
+  // Compatibilité des tests Node : le navigateur conserve le chargement
+  // synchrone historique ci-dessous ; hors navigateur, on charge directement
+  // le cœur CommonJS-compatible sans simuler un DOM.
+  if (typeof document === 'undefined') {
+    if (typeof require === 'function') require('./nexus-carburant-commande-donnees-core.js');
+    return;
+  }
+
   function estPilotageCarburants() {
     return (location.pathname.split('/').pop() || '').toLowerCase() === 'nexus-carburants-pilotage-v1.html';
   }
@@ -13,7 +21,7 @@
   // document.write conserve volontairement l'ordre synchrone historique :
   // NexusCarburantCommandeDonnees est donc disponible exactement au même
   // moment qu'avant pour les scripts et le bootstrap de la page.
-  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260901-1030"><\/script>');
+  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260901-1130"><\/script>');
 
   // Le correctif de cohérence charge lui-même le polish mobile. On le force
   // ici avec une version neuve AVANT le rendu de la page afin qu'un ancien

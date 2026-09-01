@@ -34,7 +34,7 @@
      INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
      être chargé avant nexus-carburant-commande-donnees.js. -->
 <script src="nexus-verify-moteur.js"></script>
-<script src="nexus-carburant-commande-donnees.js?v=20260901-1030"></script>
+<script src="nexus-carburant-commande-donnees.js?v=20260901-1130"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
@@ -1114,6 +1114,26 @@
     return { couvre, icone: couvre ? '🟢' : '🔴', texte: `Couverture estimée : ${formaterCouvertureEstimeeTexte(evCommande.couvertureEstimeeParQuart)}` };
   }
 
+  // La réception terrain est la source de vérité du rapprochement BL ↔
+  // jaugeage. Le contrôle journalier physique/théorique répond à une autre
+  // question et ne doit jamais masquer un écart de réception.
+  function ligneReceptionDuJour(cle) {
+    if (!DERNIERE_VISITE || DERNIERE_VISITE.date_visite !== todayISO()) return null;
+    return (DERNIERE_VISITE.lignes || []).find(l => l.carburant === cle) || null;
+  }
+
+  function qualiteReceptionDuJour(cle) {
+    const ligne = ligneReceptionDuJour(cle);
+    if (!ligne) return null;
+    const delta = Number(ligne.delta_l);
+    if (ligne.statut === 'coherente') return { texte: 'Réception cohérente', niveau: 'ok' };
+    if (ligne.statut === 'a_rapprocher') {
+      const deltaTxt = Number.isFinite(delta) ? ` (${delta >= 0 ? '+' : ''}${Math.round(delta).toLocaleString('fr-FR')} L)` : '';
+      return { texte: `À rapprocher${deltaTxt}`, niveau: 'attention' };
+    }
+    return { texte: 'Réception à confirmer', niveau: 'attente' };
+  }
+
   // 01/09/2026 — l'autonomie est une échéance opérationnelle, pas un
   // nombre décimal de jours. Une seule présentation pour les cartes du
   // haut et le tableau Stock & autonomie, fondée sur la projection par
@@ -1397,7 +1417,8 @@
       // vs l'évaluabilité de l'écart DU JOUR). La cause est transmise pour
       // distinguer "Historique insuffisant" (aucune référence antérieure) de
       // "Comparaison partielle" (référence connue, mesure du jour manquante).
-      const qualite = M.libelleQualiteControle(controleJour ? controleJour.qualite : null, controleJour ? controleJour.cause : null);
+      const qualite = qualiteReceptionDuJour(cle)
+        || M.libelleQualiteControle(controleJour ? controleJour.qualite : null, controleJour ? controleJour.cause : null);
       const couleurQualite = NIVEAU_COULEUR[qualite.niveau] || NIVEAU_COULEUR.attente;
       // T12 (cahier recette UI/UX, 17/08/2026) : un écart chiffré (Statut =
       // Sous contrôle/À surveiller/À corriger, calculé indépendamment sur
@@ -1641,18 +1662,16 @@
   }
 
   function ligneLectureRapprochement() {
-    const M = NexusCarburantMoteur;
-    if (!CONTROLE_CTX || !CONTROLE_CTX.releveDuJour) return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
-    const livres = M.CLES_CARBURANT.filter(cle => Number(CONTROLE_CTX.releveDuJour[`livraison_${cle}`]) > 0);
-    if (!livres.length) return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
-    let pire = null;
-    livres.forEach(cle => {
-      const st = CONTROLE_CTX.parCarburant[cle] ? CONTROLE_CTX.parCarburant[cle].statut : null;
-      const libelle = M.libelleRapprochementLivraison(st);
-      if (!pire || PRIORITE_NIVEAU_LECTURE[libelle.niveau] > PRIORITE_NIVEAU_LECTURE[pire.niveau]) pire = libelle;
-    });
-    if (!pire || pire.niveau === 'ok') return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
-    return { niveau: pire.niveau, texte: `Rapprochement livraison à confirmer (${pire.texte.toLowerCase()}).` };
+    const lignes = (DERNIERE_VISITE && DERNIERE_VISITE.date_visite === todayISO()) ? (DERNIERE_VISITE.lignes || []) : [];
+    if (!lignes.length) return { niveau: 'ok', texte: 'Aucune réception à rapprocher aujourd’hui.' };
+    const aRapprocher = lignes.filter(l => l.statut === 'a_rapprocher');
+    if (!aRapprocher.length) return { niveau: 'ok', texte: 'Réception du jour cohérente avec le jaugeage.' };
+    const details = aRapprocher.map(l => {
+      const delta = Number(l.delta_l);
+      const deltaTxt = Number.isFinite(delta) ? ` ${delta >= 0 ? '+' : ''}${Math.round(delta).toLocaleString('fr-FR')} L` : '';
+      return `${COURT_CARBURANT[l.carburant] || l.carburant}${deltaTxt}`;
+    }).join(', ');
+    return { niveau: 'attention', texte: `Réception à rapprocher : ${details}.` };
   }
 
   function ligneLectureAutonomie() {
@@ -1673,7 +1692,11 @@
       return { niveau: 'alerte', texte: `${COURT_CARBURANT[pire.cle]} : ${pire.jours.toFixed(1)} j — ${pire.diag.texte.charAt(0).toLowerCase()}${pire.diag.texte.slice(1)}.` };
     }
     if (diags.every(d => !d.diag)) return { niveau: 'attente', texte: 'Autonomie : couverture du prochain créneau en cours de calcul.' };
-    return { niveau: 'ok', texte: 'Tous les carburants couvrent le prochain créneau de livraison.' };
+    const couverts = diags.filter(d => d.diag && d.diag.couvre).map(d => COURT_CARBURANT[d.cle]);
+    const nonCalculables = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif && CONTROLE_CTX.autonomiesParCarburant[cle] == null).map(cle => COURT_CARBURANT[cle]);
+    const couvertureTxt = couverts.length ? `${couverts.join(' et ')} couvrent le prochain créneau de livraison.` : '';
+    const nonCalculableTxt = nonCalculables.length ? ` ${nonCalculables.join(' et ')} : autonomie non calculable (aucune vente récente).` : '';
+    return { niveau: nonCalculables.length ? 'attente' : 'ok', texte: `${couvertureTxt}${nonCalculableTxt}`.trim() };
   }
 
   function ligneLectureCommerce() {
@@ -2803,9 +2826,11 @@
       // est simplement que le théorique n'est pas encore calculable —
       // libellé désormais tri-état (Intégrée / Écart détecté / Rapprochement
       // à confirmer), jamais les deux derniers confondus.
-      if (estAujourdhui && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) {
-        const st = CONTROLE_CTX.parCarburant[cle].statut;
-        const libelle = NexusCarburantMoteur.libelleRapprochementLivraison(st);
+      if (estAujourdhui) {
+        const qualiteTerrain = qualiteReceptionDuJour(cle);
+        const st = CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]
+          ? CONTROLE_CTX.parCarburant[cle].statut : null;
+        const libelle = qualiteTerrain || NexusCarburantMoteur.libelleRapprochementLivraison(st);
         const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
         statutHTML = `<span class="livraison-statut" style="color:${c.c}; background:${c.f};">${libelle.texte}</span>`;
       }
