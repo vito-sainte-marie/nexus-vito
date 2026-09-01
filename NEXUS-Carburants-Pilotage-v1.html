@@ -34,7 +34,7 @@
      INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
      être chargé avant nexus-carburant-commande-donnees.js. -->
 <script src="nexus-verify-moteur.js"></script>
-<script src="nexus-carburant-commande-donnees.js"></script>
+<script src="nexus-carburant-commande-donnees.js?v=20260901-1030"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
@@ -1119,6 +1119,10 @@
   // haut et le tableau Stock & autonomie, fondée sur la projection par
   // quart déjà calculée par le moteur de commande.
   function formaterAutonomieOperationnelle(cle) {
+    const autonomieJours = (typeof CONTROLE_CTX !== 'undefined' && CONTROLE_CTX && CONTROLE_CTX.autonomiesParCarburant)
+      ? CONTROLE_CTX.autonomiesParCarburant[cle]
+      : null;
+    if (autonomieJours == null) return 'Non calculable — aucune vente récente';
     const ev = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant)
       ? COMMANDE_CTX.parCarburant[cle]
       : null;
@@ -1354,7 +1358,10 @@
         dernierReleveExiste: !!ctx.dernierReleve, dernierReel: r.dernierReel,
         releveDuJourExiste: !!ctx.releveDuJour, ventes: r.ventesDepuis,
       });
-      const couleurFiab = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
+      const referencePhysiqueReception = r.referencePhysiqueSource === 'reception';
+      const couleurFiab = referencePhysiqueReception
+        ? NIVEAU_COULEUR.ok
+        : (NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente);
       // Correctif recette UI/UX (17/08/2026, CAR-UX-04) : "conserver %,
       // physique, théorique, écart, autonomie ; détails secondaires au
       // niveau suivant" — quand le théorique n'est pas calculable,
@@ -1364,9 +1371,12 @@
       // plusieurs lignes. Le badge affiche désormais toujours un statut
       // court ; la phrase complète reste disponible en title (survol /
       // appui long) et dans "Lecture NEXUS" (niveau 2), jamais perdue.
-      const statutCourt = ['Sous contrôle', 'À surveiller', 'À corriger'].includes(fiabilite.texte)
-        ? { texte: fiabilite.texte, titre: '' }
-        : { texte: 'Non évaluable', titre: fiabilite.texte };
+      const statutCourt = referencePhysiqueReception
+        ? { texte: 'Référence physique (réception)', titre: '' }
+        : (['Sous contrôle', 'À surveiller', 'À corriger'].includes(fiabilite.texte)
+          ? { texte: fiabilite.texte, titre: '' }
+          : { texte: 'Non évaluable', titre: fiabilite.texte });
+      const niveauFiabiliteAffiche = referencePhysiqueReception ? 'ok' : fiabilite.niveau;
       const couleurCarb = COULEUR_JAUGE_CARBURANT[cle];
       // Sprint C6 (audit §10, "Situation aujourd'hui — Badge de qualité par
       // carburant : référence fiable, contrôle provisoire, non comparable")
@@ -1424,7 +1434,7 @@
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${r.ecart != null ? ` <span class="ecart-caveat" data-ecart-diag="${cle}" role="button" tabindex="0" title="${ecartNonFiabilise ? "Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée. Cliquer pour le diagnostic complet." : 'Cliquer pour voir le diagnostic de cet écart'}">ⓘ</span>` : ''}</span></div>
           <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
-          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || '?'}</span></div>
           <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
     }).join('');
@@ -1791,6 +1801,11 @@
     if (typeof CONTROLE_CTX !== 'undefined' && CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
       renderSituation(CONTROLE_CTX);
       renderLectureNexus();
+      // Le tableau Stock & autonomie est construit par le rendu de période.
+      // Au chargement initial, celui-ci peut finir avant COMMANDE_CTX et
+      // afficher « calcul indisponible ». On le rejoue une fois le contexte
+      // de projection prêt afin que cartes et tableau restent synchronisés.
+      await chargerEtRendrePeriode();
     }
   }
 
