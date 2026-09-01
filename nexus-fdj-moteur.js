@@ -73,14 +73,14 @@
   // "Clôture" = le quart lui-même clôturé (transmis) par l'employé
   // (fdj_shifts.statut === 'valide') — l'action "CLÔTURER MA CAISSE", pas
   // la validation manager de la caisse. Une fois clôturé, l'employé ne
-  // touche plus rien directement, il ne peut plus que demander une
-  // correction (voir NEXUS-FDJ-v1.html::soumettreDemandeCorrection, alerte
-  // tracée type 'correction_caisse_demandee'). Source unique consommée par
+  // peut corriger uniquement sa caisse réellement comptée après avoir vu
+  // l'écart. La première déclaration reste immuable et chaque correction
+  // produit une nouvelle version de son relevé. Source unique consommée par
   // les deux écrans (Article 11) plutôt que deux implémentations du même
   // bout de phrase.
   function permissionsEcartCaisseEmploye(shift) {
     const valide = !!(shift && shift.statut === 'valide');
-    return { voir: valide, corrigerDirectement: !valide, demanderCorrection: valide };
+    return { voir: valide, corrigerDirectement: true, correctionTracee: valide, demanderCorrection: false };
   }
 
   // ------------------------------------------------------------
