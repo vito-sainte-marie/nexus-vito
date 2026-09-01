@@ -464,6 +464,17 @@
     return `Dépôt ${d} + Boutique ${b} = Total ${comptage.quantite}`;
   }
 
+  // Responsabilité de comptage par lieu — les cigarettes existent au
+  // bureau et en caisse, mais l'employé relève uniquement la caisse. Le
+  // bureau reste au manager via le stock localisé et les transferts.
+  function modeComptageLieuEmploye(produit) {
+    if (!produit) return 'un_lieu';
+    const categorie = produit.categorie || produit.categorie_nom
+      || (produit.inventaire_categories && produit.inventaire_categories.nom) || '';
+    if (String(categorie).trim().toLocaleLowerCase('fr-FR') === 'cigarettes') return 'caisse_uniquement';
+    return produit.comptage_deux_lieux ? 'deux_lieux' : 'un_lieu';
+  }
+
   // ============================================================
   // Sprint 5 — Decenium sans API : rapprochement différé + couverture
   // (cahier §8, §11, INV2-12, INV2-18). Reprend l'écoulement physique déjà
@@ -1724,7 +1735,7 @@
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
     regleEffectiveProduit, construireReglesEffectivesParProduit, seuilEcartEffectif,
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
-    construirePlanComptage, libelleTotalProduit,
+    construirePlanComptage, libelleTotalProduit, modeComptageLieuEmploye,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
     reconciliationAlertesDemarque, syntheseQualiteRapprochements,
     dureeSessionAutomatiqueMinutes, syntheseComparaisonAdoption, moyenneSyntheseAdoption,
