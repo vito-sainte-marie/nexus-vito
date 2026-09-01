@@ -146,3 +146,15 @@
     installerConfigurationDefautNexus,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+// Sprint Fluidité Inventaire (31/08/2026) — charge uniquement l'assistance
+// de saisie employé sur la page Inventaire. Le fichier de données reste
+// inchangé sur les écrans Manager/Paramètres et le moteur métier n'est pas
+// modifié : l'assistance ne fait qu'écrire une expression dans le champ que
+// le parcours existant sait déjà évaluer (+, -, ×, ÷) puis enregistrer.
+if (typeof document !== 'undefined' && /NEXUS-Inventaire-v1\.html$/i.test(location.pathname)) {
+  const fluidite = document.createElement('script');
+  fluidite.src = 'nexus-inventaire-fluidite.js';
+  fluidite.defer = true;
+  document.head.appendChild(fluidite);
+}
