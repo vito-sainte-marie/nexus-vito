@@ -68,27 +68,11 @@
     var style = document.createElement('style');
     style.id = 'nexus-retour-css';
     style.textContent =
-      // display:inline-flex (pas flex) : le bouton doit rester de la
-      // largeur de son contenu ("‹ Précédent"), pas s'étirer sur toute la
-      // largeur du header une fois sorti du positionnement absolu ci-dessous.
       '.nexus-retour-btn{display:inline-flex; align-items:center; gap:6px; font-family:\'IBM Plex Mono\',monospace; ' +
       'font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:#8A96A5; ' +
       'background:rgba(138,150,165,0.10); border:1px solid rgba(138,150,165,0.28); border-radius:20px; ' +
       'padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;}' +
       '.nexus-retour-btn:active{background:rgba(138,150,165,0.22);}' +
-      // 21/08/2026 (retour de Frédéric — "PRÉCÉDENT est confondu avec
-      // NEXUS PARAMÈTRES INVENTAIRE") : `position:absolute; top:18px;
-      // left:18px` chevauchait l'eyebrow (".eyebrow", lui-même en flux
-      // normal au tout début du header) sur tous les écrans à header
-      // "bloc" — le miroir du bouton Menu (à droite, où rien d'autre ne
-      // démarre au même endroit) ne fonctionnait pas à gauche, où
-      // l'eyebrow démarre exactement là. Remplacé par un positionnement en
-      // flux normal (premier enfant du header, comme avant), qui pousse
-      // naturellement l'eyebrow/titre/sous-titre en dessous au lieu de se
-      // superposer — plus besoin de deviner une valeur de padding qui
-      // marcherait sur tous les headers du site (paddings différents d'un
-      // écran à l'autre). Toujours inséré en premier enfant du header
-      // (voir injecterDans ci-dessous), donc toujours au-dessus du reste.
       '.nexus-retour-btn--absolu{display:inline-flex; margin:0 0 10px;}' +
       '.nexus-retour-btn--absolu-bas{position:absolute; top:58px; left:18px;}' +
       '.nexus-retour-btn--flex{flex-shrink:0;}' +
@@ -97,10 +81,6 @@
   }
 
   function retourner() {
-    // Un vrai retour navigateur : dépile l'historique si la page a été
-    // atteinte depuis une autre page NEXUS ; sinon (lien direct, onglet
-    // ouvert depuis un favori, etc.) repli explicite sur l'accueil — jamais
-    // un bouton qui ne réagit pas au clic.
     if (window.history.length > 1) {
       window.history.back();
     } else {
@@ -137,11 +117,6 @@
   function surveillerHeader(header) {
     if (dejaConnecte(header)) return;
     injecterDans(header);
-    // Certains écrans réécrivent header.innerHTML en bloc une fois l'auth
-    // résolue (ex. NEXUS-Cockpit-v2.html) — ce qui efface le bouton déjà
-    // inséré. On observe ce header précis (pas tout le document, coût
-    // négligeable : un seul élément par header réel de la page) pour le
-    // réinjecter aussitôt après toute réécriture.
     var mo = new MutationObserver(function () { injecterDans(header); });
     mo.observe(header, { childList: true });
   }
@@ -151,9 +126,6 @@
     trouves.forEach(surveillerHeader);
     if (trouves.length) return;
 
-    // Filet de sécurité : header entièrement construit en JS, absent au
-    // chargement initial. On observe le document le temps qu'il apparaisse
-    // puis on arrête (jamais un observer qui tourne indéfiniment en fond).
     var bodyObserver = new MutationObserver(function () {
       var nouveaux = document.querySelectorAll('.header, .topbar');
       if (nouveaux.length) {
@@ -172,11 +144,11 @@
   }
 })();
 
-// Branche P0 Carburants uniquement : charge les correctifs selon les moteurs
-// réellement présents sur la page, jamais selon son nom. Brief, Pilotage et
-// tout autre écran consommant les mêmes moteurs doivent recevoir exactement
-// la même vérité. Réception, qui ne charge volontairement pas le moteur pur
-// de Commande, reçoit uniquement le garde-fou de pont dont elle a besoin.
+// Branche P0 Carburants uniquement. Les trois écrans critiques sont
+// préchargés dès la lecture du header afin qu'aucun calcul métier ne puisse
+// démarrer avant le garde-fou. Les modules P0 savent eux-mêmes attendre leurs
+// dépendances. Pour les autres écrans, un second passage détecte les moteurs
+// réellement présents et charge uniquement ce qui est utile.
 (function () {
   'use strict';
 
@@ -189,29 +161,32 @@
     document.head.appendChild(script);
   }
 
-  function chargerCorrectifsCarburants() {
+  var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
+  var estPilotage = page === 'nexus-carburants-pilotage-v1.html';
+  var estBrief = page === 'nexus-brief-v1.html';
+  var estReception = page === 'nexus-carburant-reception-v1.html';
+
+  if (estPilotage || estBrief) {
+    injecter('nexus-carburants-p0-fixes.js', 'fixes');
+    injecter('nexus-carburants-p0-performance.js', 'performance');
+    injecter('nexus-carburants-p0-ui.js', 'ui');
+  } else if (estReception) {
+    injecter('nexus-carburants-p0-ui.js', 'ui');
+  }
+
+  function chargerSelonMoteurs() {
     var aDonnees = !!window.NexusCarburantDonnees;
     var aMoteur = !!window.NexusCarburantMoteur;
     var aCommandeDonnees = !!window.NexusCarburantCommandeDonnees;
     var aCommandeMoteur = !!window.NexusCarburantCommandeMoteur;
     var aPeriodes = !!window.NexusPeriodes;
 
-    if (!aDonnees && !aMoteur && !aCommandeDonnees && !aCommandeMoteur) return;
-
-    // Le P0 métier Commande nécessite les quatre briques ; on ne le charge
-    // pas sur Réception où le moteur pur de commande est volontairement absent.
     if (aDonnees && aMoteur && aCommandeDonnees && aCommandeMoteur) {
       injecter('nexus-carburants-p0-fixes.js', 'fixes');
     }
-
-    // Performance n'est utile que sur les pages qui disposent du moteur de
-    // périodes. Brief le charge aussi : même qualification, même vérité.
     if (aDonnees && aMoteur && aPeriodes) {
       injecter('nexus-carburants-p0-performance.js', 'performance');
     }
-
-    // Le garde-fou Réception/UI ne dépend que de la couche Carburants. Il est
-    // donc chargé sur Réception même sans moteur Commande.
     if (aDonnees) {
       injecter('nexus-carburants-p0-ui.js', 'ui');
     }
@@ -219,9 +194,9 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
-      setTimeout(chargerCorrectifsCarburants, 0);
+      setTimeout(chargerSelonMoteurs, 0);
     });
   } else {
-    setTimeout(chargerCorrectifsCarburants, 0);
+    setTimeout(chargerSelonMoteurs, 0);
   }
 })();
