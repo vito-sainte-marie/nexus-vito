@@ -44,3 +44,16 @@
   }
   installer();
 })(typeof window!=='undefined'?window:globalThis);
+
+// 01/09/2026 — couche isolée de cohérence post point-zéro et finition UI.
+// Chargée ici parce que ce compagnon est déjà limité à Carburants Pilotage :
+// aucune dépendance supplémentaire n'est ajoutée aux autres écrans NEXUS.
+(function(){
+  if((location.pathname.split('/').pop()||'').toLowerCase()!=='nexus-carburants-pilotage-v1.html') return;
+  if(document.querySelector('script[data-nexus-carburants-p0-coherence-ui]')) return;
+  const s=document.createElement('script');
+  s.src='nexus-carburants-p0-coherence-ui.js?v=20260901-0639';
+  s.defer=true;
+  s.dataset.nexusCarburantsP0CoherenceUi='1';
+  document.head.appendChild(s);
+})();
