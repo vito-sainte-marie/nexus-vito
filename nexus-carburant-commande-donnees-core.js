@@ -201,7 +201,7 @@
   async function chargerCommandeEnCoursParCarburant(client, siteId) {
     const { data, error } = await client.from('carburant_commandes')
       .select('id, carburants, livraison_prevue_le, statut')
-      .eq('site', siteId).in('statut', ['validee', 'modifiee'])
+      .eq('site', siteId).in('statut', ['validee', 'modifiee', 'confirmee_fournisseur', 'hors_nexus'])
       .order('proposee_le', { ascending: false });
     if (error) { console.error('Chargement commandes en cours (Commande Carburant):', error); return {}; }
     const parCarburant = {};
@@ -623,13 +623,47 @@
       const stockPostReceptionL = receptionPhysiqueDuJour && M.stockPhysiquePostLivraison
         ? M.stockPhysiquePostLivraison(receptionPhysiqueDuJour, carburant)
         : null;
-      // Deux vérités volontairement distinctes :
-      // - recommandation/rapprochement : ancre d'ouverture inchangée ;
-      // - autonomie physique : dernière mesure réelle, donc post-réception
-      //   lorsqu'elle existe pour ce carburant aujourd'hui.
-      const stockCouvertureL = stockPostReceptionL != null
-        ? Number(stockPostReceptionL)
-        : stock.stockAncreCommandeL;
+      // Couverture opérationnelle à deux scénarios (01/09/2026, retour de
+      // Frédéric après la réception réelle du jour). Le jaugeage d'ouverture
+      // reste l'unique point de départ commun :
+      //   1. sans livraison — ce que le stock du matin aurait couvert seul ;
+      //   2. avec livraison — ouverture + quantité réellement mesurée lors
+      //      de la réception du jour, ou volume commandé si la livraison est
+      //      encore attendue aujourd'hui (projection alors conditionnelle).
+      //
+      // Cette construction évite le mélange temporel précédent : partir du
+      // jaugeage post-livraison pris en cours de Q1 puis soustraire un Q1
+      // complet revenait à rapprocher deux fenêtres différentes. Ici les
+      // deux scénarios partent tous deux de l'ouverture et consomment les
+      // mêmes prévisions prudentes par quart (moyenne haute contextuelle du
+      // moteur). Le jaugeage post-livraison reste affiché comme dernière
+      // vérité physique, mais n'est plus utilisé comme une fausse ouverture.
+      const ligneReception = receptionPhysiqueDuJour
+        ? (receptionPhysiqueDuJour.lignes || []).find(l => l.carburant === carburant)
+        : null;
+      const livraisonMesureeAujourdhuiL = ligneReception && ligneReception.quantite_mesuree_l != null
+        ? Number(ligneReception.quantite_mesuree_l)
+        : null;
+      const commandeAttendAujourdHui = !!(commandeEnCours
+        && commandeEnCours.livraisonPrevueLe === dateISO
+        && commandeEnCours.volumeL != null);
+      const livraisonProjeteeAujourdhuiL = livraisonMesureeAujourdhuiL != null
+        ? livraisonMesureeAujourdhuiL
+        : (commandeAttendAujourdHui ? Number(commandeEnCours.volumeL) : 0);
+      const stockCouvertureSansLivraisonL = stock.stockAncreCommandeL;
+      const stockCouvertureAvecLivraisonL = stockCouvertureSansLivraisonL != null
+        ? Number(stockCouvertureSansLivraisonL) + livraisonProjeteeAujourdhuiL
+        : null;
+      const couvertureSansLivraison = M.estimerCouvertureParQuart({
+        stockDisponibleL: stockCouvertureSansLivraisonL, dateDebutISO: dateISO, quartDepart: 'Q1',
+        historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO,
+      });
+      const couvertureAvecLivraison = livraisonProjeteeAujourdhuiL > 0
+        ? M.estimerCouvertureParQuart({
+            stockDisponibleL: stockCouvertureAvecLivraisonL, dateDebutISO: dateISO, quartDepart: 'Q1',
+            historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO,
+          })
+        : null;
 
       // 27/08/2026, règles 1+2 de Frédéric — la RECOMMANDATION s'ancre sur
       // `stockAncreCommandeL` (jaugeage du matin, jamais net des ventes déjà
@@ -698,12 +732,22 @@
         // avec l'ancre unique de la carte). `historiqueQuart1`/
         // `historiqueQuart2` déjà chargés ci-dessus (Article 11, aucune
         // requête supplémentaire).
-        couvertureEstimeeParQuart: M.estimerCouvertureParQuart({
-          stockDisponibleL: stockCouvertureL, dateDebutISO: dateISO, quartDepart: 'Q1',
-          historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO,
-        }),
-        stockCouvertureL,
-        sourceCouverture: stockPostReceptionL != null ? 'jaugeage_post_livraison' : 'ancre_ouverture',
+        couvertureEstimeeSansLivraison: couvertureSansLivraison,
+        couvertureEstimeeAvecLivraison: couvertureAvecLivraison,
+        // Compatibilité : tous les consommateurs historiques continuent de
+        // lire couvertureEstimeeParQuart, désormais alignée sur le scénario
+        // opérationnel pertinent (avec livraison quand elle existe).
+        couvertureEstimeeParQuart: couvertureAvecLivraison || couvertureSansLivraison,
+        stockCouvertureL: stockCouvertureAvecLivraisonL,
+        stockCouvertureSansLivraisonL,
+        livraisonCouvertureL: livraisonProjeteeAujourdhuiL,
+        livraisonCouvertureStatut: livraisonMesureeAujourdhuiL != null
+          ? 'effectuee'
+          : (commandeAttendAujourdHui ? 'attendue' : 'aucune'),
+        sourceCouverture: livraisonMesureeAujourdhuiL != null
+          ? 'ouverture_plus_livraison_mesuree'
+          : (commandeAttendAujourdHui ? 'ouverture_plus_commande_attendue' : 'ancre_ouverture'),
+        stockPhysiquePostLivraisonL: stockPostReceptionL,
       };
       capacitesDisponiblesL[carburant] = evaluation.scenarioMaintenant
         ? M.capaciteDisponibleLivraison(limiteRemplissageL, evaluation.scenarioMaintenant.stockPrevuLivraisonL)
