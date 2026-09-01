@@ -82,7 +82,7 @@
   }
 
   function corrigerUI(){remplacer(document.body,/marge après livraison/gi,'marge avant livraison');corrigerSituations();corrigerP0EtReception();}
-  function installerUI(){injecterCSS();corrigerUI();if(!observer){var raf=null;observer=new MutationObserver(function(){if(raf)return;raf=requestAnimationFrame(function(){raf=null;corrigerUI();});});observer.observe(document.body,{childList:true,subtree:true});}}
+  function installerUI(){if(!document.body){document.addEventListener('DOMContentLoaded',installerUI,{once:true});return;}injecterCSS();corrigerUI();if(!observer){var raf=null;observer=new MutationObserver(function(){if(raf)return;raf=requestAnimationFrame(function(){raf=null;corrigerUI();});});observer.observe(document.body,{childList:true,subtree:true});}}
   function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0655'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
   if(!installer()){var n=0,t=setInterval(function(){n++;if(installer()||n>750)clearInterval(t);},20);}
 })(typeof window!=='undefined'?window:globalThis);

@@ -175,7 +175,16 @@
     raf = requestAnimationFrame(() => { raf = null; appliquer(); });
   }
 
-  appliquer();
-  observer = new MutationObserver(programmer);
-  observer.observe(document.body, { childList: true, subtree: true });
+  function demarrer() {
+    if (!document.body) {
+      document.addEventListener('DOMContentLoaded', demarrer, { once: true });
+      return;
+    }
+    appliquer();
+    if (!observer) {
+      observer = new MutationObserver(programmer);
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  demarrer();
 })(typeof window !== 'undefined' ? window : globalThis);
