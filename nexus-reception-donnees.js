@@ -176,7 +176,7 @@
   // son statut final n'a pas été confirmé.
   async function chargerDerniereVisite(client, siteId) {
     const { data: visite, error: e1 } = await client.from('carburant_reception_visites')
-      .select('*').eq('site', siteId).neq('statut', 'en_cours')
+      .select('*').eq('site', siteId).neq('statut', 'en_cours').neq('statut', 'annulee_doublon')
       .order('date_visite', { ascending: false }).order('created_at', { ascending: false })
       .limit(1).maybeSingle();
     if (e1) { console.error('Chargement dernière visite réception carburant:', e1); return null; }
@@ -196,7 +196,7 @@
   // (Sprint C5), même raison que chargerDerniereVisite ci-dessus.
   async function chargerHistoriqueVisites(client, siteId, limite) {
     const { data, error } = await client.from('carburant_reception_visites')
-      .select('*').eq('site', siteId).neq('statut', 'en_cours')
+      .select('*').eq('site', siteId).neq('statut', 'en_cours').neq('statut', 'annulee_doublon')
       .order('date_visite', { ascending: false }).order('created_at', { ascending: false })
       .limit(limite || 10);
     if (error) { console.error('Chargement historique visites réception carburant:', error); return []; }
