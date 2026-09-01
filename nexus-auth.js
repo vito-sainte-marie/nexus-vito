@@ -17,7 +17,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   if(pagesHorizon.includes(page)){const s=document.createElement('script');s.src=versionnerStock('nexus-horizon-operationnel.js');s.defer=true;document.head.appendChild(s);}
 
   if (page === 'NEXUS-Inventaire-v1.html') {
-    const scriptTest = document.createElement('script'); scriptTest.src = 'nexus-inventaire-mode-test.js'; scriptTest.defer = true; document.head.appendChild(scriptTest);
+    const scriptTest = document.createElement('script'); scriptTest.src = 'nexus-inventaire-mode-test.js?v=20260831-2200'; scriptTest.defer = true; scriptTest.dataset.nexusInventaireModeTest='1'; document.head.appendChild(scriptTest);
     const scriptTransferts = document.createElement('script'); scriptTransferts.src = 'nexus-inventaire-transferts-internes.js'; scriptTransferts.defer = true; document.head.appendChild(scriptTransferts);
     const scriptCond = document.createElement('script'); scriptCond.src = versionnerStock('nexus-inventaire-cigarettes-conditionnement-v1.js'); scriptCond.defer = true; document.head.appendChild(scriptCond);
   }
@@ -51,6 +51,16 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   if(page==='NEXUS-Carburant-Reception-v1.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-reception-mobile-fix-v1.js');s.defer=true;document.head.appendChild(s);}
 })();
 
+async function nexusAttendreGardeModeTestInventaire() {
+  if (window.NEXUS_INVENTAIRE_MODE_TEST_READY) return true;
+  for (let i = 0; i < 120; i++) {
+    await new Promise(resolve => setTimeout(resolve, 25));
+    if (window.NEXUS_INVENTAIRE_MODE_TEST_READY) return true;
+  }
+  console.error('Mode test Inventaire : garde de simulation non prête, test annulé par sécurité.');
+  return false;
+}
+
 async function nexusRequireAuth() {
   const { data: { session } } = await nexusClient.auth.getSession();
   if (!session) { window.location.href = "NEXUS-Login-v1.html"; return null; }
@@ -63,7 +73,29 @@ async function nexusRequireAuth() {
   if(await nexusPriseDePosteManquante(employee)){const p=(window.location.pathname.split('/').pop()||'NEXUS-App-v1.html')+window.location.search;window.location.href=`NEXUS-Prise-De-Poste-v1.html?retour=${encodeURIComponent(p)}`;return null;}
   if(await nexusPointageArriveeManquant(employee)){const p=(window.location.pathname.split('/').pop()||'NEXUS-App-v1.html')+window.location.search;window.location.href=`NEXUS-Pointage-v1.html?retour=${encodeURIComponent(p)}`;return null;}
   const pageActuelleAuth=window.location.pathname.split('/').pop();
-  if(pageActuelleAuth==='NEXUS-Inventaire-v1.html'&&(employee.role_reel==='manager'||employee.role_reel==='gerant')){const r=new URLSearchParams(window.location.search).get('test_role');const a={caissier:'caissier',caissiere:'caissier','caissière':'caissier',pompiste:'pompiste',renfort:'renfort'};const rt=r?a[String(r).toLowerCase()]:null;employee.role_test_inventaire=rt||null;employee.mode_test_inventaire=!!rt;}
+  if(pageActuelleAuth==='NEXUS-Inventaire-v1.html'&&(employee.role_reel==='manager'||employee.role_reel==='gerant')){
+    const r=new URLSearchParams(window.location.search).get('test_role');
+    const a={caissier:'caissier',caissiere:'caissier','caissière':'caissier',pompiste:'pompiste',renfort:'renfort'};
+    const rt=r?a[String(r).toLowerCase()]:null;
+    employee.role_test_inventaire=rt||null;
+    employee.mode_test_inventaire=!!rt;
+    // Sécurité P0 : si un rôle de test est demandé, l'authentification ne
+    // rend la main à l'écran Inventaire qu'une fois les no-op d'écriture et
+    // le quart virtuel installés. Si la garde ne charge pas, on retire le
+    // paramètre de test plutôt que d'exécuter une simulation potentiellement
+    // écrivante sur les données officielles.
+    if (employee.mode_test_inventaire) {
+      const gardePrete = await nexusAttendreGardeModeTestInventaire();
+      if (!gardePrete) {
+        employee.role_test_inventaire = null;
+        employee.mode_test_inventaire = false;
+        const u = new URL(window.location.href);
+        u.searchParams.delete('test_role');
+        window.location.replace(u.pathname.split('/').pop() + u.search + u.hash);
+        return null;
+      }
+    }
+  }
   return employee;
 }
 
