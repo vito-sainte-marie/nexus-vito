@@ -80,16 +80,30 @@
     const style = document.createElement('style');
     style.id = 'nexus-carburants-mobile-polish-v2-css';
     style.textContent = `
+      /* Lecture : Sans. Données et valeurs : Mono. */
+      .section-titre,.section-note,.reference-certifiee-bandeau,.lien-historique-neutralise,
+      .lecture-nexus-card,.lecture-nexus-titre,.lecture-nexus-ligne,.commande-carte,
+      .commande-carte-titre,.commande-bandeau,.carb-ref-physique,.carb-stat-row .lbl,
+      .carb-autonomie-bloc .lbl,.carb-fiab-row,.historique-pz-carte,.historique-recep-carte{
+        font-family:var(--sans)!important;
+      }
+      .carb-pct2,.carb-stat-row .val,.carb-autonomie-bloc .val,
+      .stock-table td:not(:first-child),.historique-pz-valeurs{
+        font-family:var(--mono)!important;
+      }
+      .reference-certifiee-bandeau{font-size:12px!important;line-height:1.55!important;font-weight:500!important;}
+      .lecture-nexus-titre{font-size:10px!important;font-weight:700!important;letter-spacing:.06em!important;}
+      .lecture-nexus-badge-signalements{font-family:var(--sans)!important;font-weight:600!important;letter-spacing:0!important;}
       .commande-carte .section-note{color:var(--text-mid)!important;}
       #btnPreparerCommande{font-family:var(--sans)!important;font-weight:700!important;letter-spacing:.01em!important;}
       #moteurZone .kpi-row{gap:12px;align-items:flex-start;}
-      #moteurZone .kpi-label{flex:1;min-width:0;}
+      #moteurZone .kpi-label{flex:1;min-width:0;font-family:var(--sans)!important;}
       #moteurZone .kpi-valeur{text-align:right;flex-shrink:0;}
       #moteurZone .kpi-row:last-child{display:block;padding-top:11px;}
-      #moteurZone .kpi-row:last-child .kpi-label{display:block;margin-bottom:6px;font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;}
+      #moteurZone .kpi-row:last-child .kpi-label{display:block;margin-bottom:6px;font-size:10px;font-family:var(--sans)!important;text-transform:uppercase;letter-spacing:.06em;}
       #moteurZone .kpi-row:last-child .kpi-valeur{display:block;text-align:left;font-family:var(--sans)!important;font-size:12.5px!important;font-weight:600!important;line-height:1.55;letter-spacing:0!important;overflow-wrap:anywhere;}
-      .lecture-nexus-ligne{font-family:var(--sans)!important;}
       .lecture-nexus-ligne > span:last-child{min-width:0;}
+      .situation-grid{display:grid!important;}
       @media(max-width:430px){
         #moteurZone .kpi-card{padding:14px 13px;}
         #moteurZone .kpi-row:not(:last-child){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;}
@@ -118,25 +132,26 @@
     const p0 = await dernierPointZero();
     if (!p0 || p0.date !== aujourdhuiLocal()) return;
 
-    // Le point zéro certifie le stock, indépendamment de la capacité à calculer
-    // une autonomie. Ne pas appeler le stock « non évaluable » quand l'écart
-    // physique/théorique courant est nul et la nouvelle référence est active.
-    document.querySelectorAll('.carb-carte').forEach(carte => {
+    // Les cartes v2 sont .carb-carte2. On ne touche jamais à leur parent.
+    document.querySelectorAll('.carb-carte2').forEach(carte => {
       const txt = carte.textContent || '';
       if (!/Écart[\s\S]*?\+?0\s*L/i.test(txt)) return;
       remplacerTexte(carte, /Situation stock\s*:\s*Non évaluable/gi, 'Situation stock : Référence certifiée');
     });
 
-    // Bandeau : date métier lisible et formulation plus concise.
-    document.querySelectorAll('div').forEach(el => {
-      const txt = (el.textContent || '').trim();
-      if (!/^Nouvelle référence carburants certifiée le \d{4}-\d{2}-\d{2}\./i.test(txt)) return;
-      el.textContent = `Nouvelle référence certifiée — ${dateFrLisible(p0.date)}. Les écarts antérieurs restent archivés mais ne sont plus propagés. Les prochains contrôles repartent de cette référence.`;
-    });
+    // CRITIQUE : ne jamais parcourir tous les <div>. situationZone contient
+    // lui aussi le texte du bandeau ; lui affecter textContent détruit les
+    // jauges enfants. La correction est strictement limitée au bandeau.
+    const bandeau = document.querySelector('#situationZone > .reference-certifiee-bandeau, .reference-certifiee-bandeau');
+    if (bandeau) {
+      const txt = (bandeau.textContent || '').trim();
+      if (/^Nouvelle référence carburants certifiée le \d{4}-\d{2}-\d{2}\./i.test(txt) || /^Nouvelle référence certifiée/i.test(txt)) {
+        bandeau.textContent = `Nouvelle référence certifiée — ${dateFrLisible(p0.date)}. Les écarts antérieurs restent archivés mais ne sont plus propagés. Les prochains contrôles repartent de cette référence.`;
+      }
+    }
 
     // Historique : la source est informative, jamais un faux bouton.
-    const cartesP0 = document.querySelectorAll('.historique-pz-carte');
-    cartesP0.forEach(carte => {
+    document.querySelectorAll('.historique-pz-carte').forEach(carte => {
       if (!/POINT\s+ZÉRO\s+ACTIF/i.test(carte.textContent || '')) return;
       const source = carte.querySelector('.historique-pz-source');
       if (!source) return;
