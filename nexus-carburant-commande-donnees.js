@@ -21,7 +21,7 @@
   // document.write conserve volontairement l'ordre synchrone historique :
   // NexusCarburantCommandeDonnees est donc disponible exactement au même
   // moment qu'avant pour les scripts et le bootstrap de la page.
-  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260901-1130"><\/script>');
+  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260901-1915"><\/script>');
 
   // Le correctif de cohérence charge lui-même le polish mobile. On le force
   // ici avec une version neuve AVANT le rendu de la page afin qu'un ancien
