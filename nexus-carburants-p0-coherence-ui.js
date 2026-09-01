@@ -36,8 +36,6 @@
     Object.keys(resultat.parCarburant).forEach(function(cle){
       var ev=resultat.parCarburant[cle],d=ev&&ev.detailConfiance,causes=d&&Array.isArray(d.causes)?d.causes.slice():[];
       if(!correspondAuP0(p0,cle,ev)||!causes.includes('anomalie_majeure'))return;
-      // Toute réception documentaire du jour est un fait postérieur potentiel :
-      // elle conserve sa propre réserve de fiabilité et n'est jamais effacée.
       if(Number(ev.livraisonDocumentaireAujourdhuiL||0)>0||ev.livraisonDocumentaireAmbigue)return;
       causes=causes.filter(function(c){return c!=='anomalie_majeure';});
       if(d&&d.facteurs)d.facteurs.aucune_anomalie_majeure=true;
@@ -51,10 +49,6 @@
   }
 
   function installerCommande(){
-    // Doit rester la couche la plus externe : on attend que les correctifs P0
-    // (réceptions/BL/journal) soient eux-mêmes installés avant d'envelopper
-    // l'évaluation finale, sinon un wrapper chargé après nous pourrait
-    // réintroduire l'ancienne anomalie.
     var CMD=global.NexusCarburantCommandeDonnees;
     if(!global.NexusCarburantsP0UI||!global.NexusCarburantsP0UI.actif||!CMD||!CMD.evaluerCommandeCarburantSite||CMD.__p0CoherenceUI)return false;
     var original=CMD.evaluerCommandeCarburantSite;
@@ -82,13 +76,13 @@
 
   async function corrigerP0EtReception(){
     var client=clientNexus(),site=await siteCourant();if(!site||!client)return;var auj=aujourdhuiLocal(),p0=await chargerP0(client,site,auj);
-    if(p0&&p0.reference.date===auj){document.querySelectorAll('.section-note').forEach(function(el){if(/Écart calculé depuis le dernier relevé du/i.test(el.textContent||''))el.textContent=(el.textContent||'').replace(/Écart calculé depuis le dernier relevé du [0-9/]+\./i,'Écart courant calculé depuis la référence certifiée du '+frDate(p0.reference.date)+'.');});var src=document.querySelector('.historique-pz-source');if(src){var card=src.closest('[class*="historique-pz"],.card')||src.parentElement;if(card&&/1\s*sept/i.test(card.textContent||'')){src.textContent='Ouvrir le relevé source ↗';src.title='Référence certifiée du '+frDate(p0.reference.date);}}}
+    if(p0&&p0.reference.date===auj){document.querySelectorAll('.section-note').forEach(function(el){if(/Écart calculé depuis le dernier relevé du/i.test(el.textContent||''))el.textContent=(el.textContent||'').replace(/Écart calculé depuis le dernier relevé du [0-9/]+\./i,'Écart courant calculé depuis la référence certifiée du '+frDate(p0.reference.date)+'.');});var src=document.querySelector('.historique-pz-source');if(src){var card=src.closest('[class*="historique-pz"],.card')||src.parentElement;if(card&&/1\s*sept/i.test(card.textContent||'')){src.textContent='Source : Veeder-Root';src.title='Référence certifiée du '+frDate(p0.reference.date)+' à partir du relevé Veeder-Root.';}}}
     var r=await chargerReception(client,site);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
     var carte=document.querySelector('#livraisonZone .livraison-carte');if(carte&&!carte.querySelector('.nexus-p0-reception-note')){var note=document.createElement('div');note.className='nexus-p0-reception-note';note.innerHTML='Quantité documentaire BL : <b>'+fmtL(r.totalBl)+'</b>'+(r.totalMesure?' · Variation physique mesurée par jauge : <b>+'+fmtL(r.totalMesure)+'</b>':'')+(r.aRapprocher?' · <span style="color:var(--amber);font-weight:600">Rapprochement à confirmer</span>':'');carte.insertBefore(note,carte.firstChild.nextSibling);var total=carte.querySelector('.livraison-total');if(total){var sp=total.querySelectorAll('span');if(sp[0])sp[0].textContent='Total BL documentaire';if(sp[1])sp[1].textContent=fmtL(r.totalBl);}}
   }
 
   function corrigerUI(){remplacer(document.body,/marge après livraison/gi,'marge avant livraison');corrigerSituations();corrigerP0EtReception();}
   function installerUI(){injecterCSS();corrigerUI();if(!observer){var raf=null;observer=new MutationObserver(function(){if(raf)return;raf=requestAnimationFrame(function(){raf=null;corrigerUI();});});observer.observe(document.body,{childList:true,subtree:true});}}
-  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0650'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
+  function installer(){var ok=installerCommande();installerUI();if(ok){global.NexusCarburantsP0CoherenceUI={actif:true,version:'20260901-0655'};console.info('NEXUS Carburants — cohérence P0 + finition UI installées.');}return ok;}
   if(!installer()){var n=0,t=setInterval(function(){n++;if(installer()||n>750)clearInterval(t);},20);}
 })(typeof window!=='undefined'?window:globalThis);
