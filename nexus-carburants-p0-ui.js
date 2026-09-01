@@ -1,12 +1,11 @@
 // NEXUS Carburants — garde-fous P0 temporaires (31/08/2026)
 //
-// Deux protections volontairement indépendantes :
-// 1. le pont Réception ne doit jamais écraser le relevé d'ouverture ; cette
-//    règle doit fonctionner même sur NEXUS-Carburant-Reception-v1.html, qui
-//    ne charge pas le moteur pur de Commande Carburant ;
-// 2. sur Pilotage, le dernier stock physique post-réception peut être affiché
-//    sans autoriser l'ancien écran à remplacer le contrôle dérivé par
-//    `theorique = physique`, `ecart = 0`.
+// Protections indépendantes :
+// 1. la réception ne doit jamais écraser le relevé d'ouverture ;
+// 2. le stock physique post-réception peut être affiché sans remplacer le
+//    contrôle dérivé par `theorique = physique`, `ecart = 0` ;
+// 3. l'évaluation P0 ne doit jamais laisser l'ancienne recommandation
+//    intermédiaire polluer le journal avant l'écriture du résultat corrigé.
 //
 // Doctrine verrouillée tant que les ventes ne sont pas horodatées par
 // Insite360 : ouverture = ancre métier ; BL = mouvement documentaire ;
@@ -18,6 +17,7 @@
   var timer = null;
   var pontReceptionInstalle = false;
   var uiInstallee = false;
+  var journalCommandeInstalle = false;
 
   function proteger(obj, cle) {
     if (!obj || !Object.prototype.hasOwnProperty.call(obj, cle)) return;
@@ -26,9 +26,6 @@
       configurable: true,
       enumerable: true,
       get: function () { return valeur; },
-      // L'écran historique peut tenter une réécriture de présentation ; elle
-      // est ignorée. Toute vraie nouvelle interprétation doit repasser par le
-      // moteur/chargeur et produire un nouvel objet de contrôle.
       set: function () { return valeur; },
     });
   }
@@ -50,11 +47,6 @@
     return controle;
   }
 
-  // Garde-fou autonome : l'écran Réception charge NexusCarburantDonnees mais
-  // pas NexusCarburantCommandeMoteur. Le correctif ne doit donc dépendre que
-  // de la couche Carburants elle-même. La réception reste entièrement
-  // enregistrée dans ses tables dédiées ; ce pont devient volontairement un
-  // no-op côté carburant_releves afin de préserver l'ouverture du jour.
   function installerPontReception() {
     if (pontReceptionInstalle) return true;
     var ND = global.NexusCarburantDonnees;
@@ -78,9 +70,70 @@
     return true;
   }
 
-  // Protection complémentaire de Pilotage. Elle attend le correctif métier
-  // P0 principal afin d'envelopper sa version de chargerControleJour, jamais
-  // l'ancienne fonction d'origine.
+  // Client de lecture/calcul identique au vrai client Supabase, sauf pour le
+  // journal des recommandations. L'évaluation d'origine et l'évaluation P0
+  // peuvent ainsi calculer librement sans écrire de snapshot intermédiaire.
+  function clientSansJournalRecommandation(client) {
+    var proxy = Object.create(client);
+    proxy.from = function (table) {
+      if (table !== 'carburant_recommandation_journal') return client.from(table);
+
+      var chain = {};
+      ['select', 'eq', 'insert', 'update', 'order', 'limit'].forEach(function (methode) {
+        chain[methode] = function () { return chain; };
+      });
+      chain.maybeSingle = async function () { return { data: null, error: null }; };
+      chain.single = async function () { return { data: null, error: null }; };
+      return chain;
+    };
+    return proxy;
+  }
+
+  // Le P0 principal réutilise l'évaluation historique pour récupérer tout le
+  // contexte de l'écran, puis recalcule la décision. L'ancienne fonction
+  // journalise cependant en arrière-plan avant ce recalcul. Ce wrapper fait
+  // tourner toute l'évaluation avec un journal neutralisé puis écrit UNE
+  // SEULE FOIS la recommandation finale avec le vrai client.
+  function installerJournalCommande() {
+    if (journalCommandeInstalle) return true;
+    var CMD = global.NexusCarburantCommandeDonnees;
+    if (!CMD || !global.NexusCarburantsP0 || !global.NexusCarburantsP0.actif ||
+        !CMD.evaluerCommandeCarburantSite || !CMD.enregistrerRecommandationCarburant) return false;
+
+    var evaluationP0 = CMD.evaluerCommandeCarburantSite;
+    CMD.evaluerCommandeCarburantSite = async function (client, siteId, options) {
+      var resultat = await evaluationP0.call(this, clientSansJournalRecommandation(client), siteId, options);
+      if (!resultat || resultat.ok === false || !resultat.parCarburant) return resultat;
+
+      try {
+        var ecritures = [];
+        Object.keys(resultat.parCarburant).forEach(function (cle) {
+          var ev = resultat.parCarburant[cle];
+          if (!ev || ev.etat === 'non_calculable') return;
+          var recommandationL = resultat.commandeRecommandee && resultat.commandeRecommandee.volumes &&
+            resultat.commandeRecommandee.volumes[cle] != null
+            ? resultat.commandeRecommandee.volumes[cle] : 0;
+          ecritures.push(CMD.enregistrerRecommandationCarburant(client, siteId, cle, {
+            recommandationL: recommandationL,
+            etat: ev.etat,
+            ventesPrevuesL: ev.scenarioMaintenant ? ev.scenarioMaintenant.ventesPrevuesL : null,
+            stockAncreCommandeL: ev.stockAncreCommandeL,
+          }));
+        });
+        await Promise.all(ecritures);
+      } catch (e) {
+        // La journalisation reste secondaire : la décision calculée ne doit
+        // jamais disparaître parce que son historique n'a pas pu s'écrire.
+        console.error('NEXUS Carburants P0 — journal final non écrit:', e);
+      }
+      return resultat;
+    };
+
+    journalCommandeInstalle = true;
+    console.info('NEXUS Carburants P0 Journal installé — un seul snapshot final par évaluation.');
+    return true;
+  }
+
   function installerUI() {
     if (uiInstallee) return true;
     var ND = global.NexusCarburantDonnees;
@@ -95,6 +148,7 @@
     global.NexusCarburantsP0UI = {
       actif: true,
       pontReceptionActif: pontReceptionInstalle,
+      journalCommandeActif: journalCommandeInstalle,
       verrouillerControle: verrouillerControle,
       doctrine: 'physique_post_reception_distinct_du_controle',
     };
@@ -104,18 +158,21 @@
   }
 
   function installer() {
-    var pontOk = installerPontReception();
-    var uiOk = installerUI();
-    // Sur l'écran Réception, `uiOk` peut légitimement rester faux car le
-    // moteur Commande n'est pas chargé. Le garde-fou critique est le pont.
-    return pontOk && (uiOk || !global.NexusCarburantsP0);
+    installerPontReception();
+    installerJournalCommande();
+    installerUI();
+    return pontReceptionInstalle;
   }
 
   installer();
-  if (!pontReceptionInstalle || (!uiInstallee && global.NexusCarburantsP0)) {
+  if (!pontReceptionInstalle || !journalCommandeInstalle || !uiInstallee) {
     timer = setInterval(function () {
       installer();
-      if (pontReceptionInstalle && (uiInstallee || !global.NexusCarburantsP0)) {
+      // Réception n'a volontairement pas le moteur Commande : dans ce cas le
+      // pont est le seul garde-fou requis. Sur les pages avec le P0 principal,
+      // journal + UI doivent tous les deux finir par s'installer.
+      var p0CompletAttendu = !!global.NexusCarburantsP0;
+      if (pontReceptionInstalle && (!p0CompletAttendu || (journalCommandeInstalle && uiInstallee))) {
         clearInterval(timer);
         timer = null;
       }
@@ -125,6 +182,7 @@
         clearInterval(timer);
         timer = null;
         if (!pontReceptionInstalle) console.error('NEXUS Carburants P0 Réception non installé après 15 s.');
+        if (global.NexusCarburantsP0 && !journalCommandeInstalle) console.error('NEXUS Carburants P0 Journal non installé après 15 s.');
       }
     }, 15000);
   }
