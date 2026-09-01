@@ -34,7 +34,7 @@
      INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
      être chargé avant nexus-carburant-commande-donnees.js. -->
 <script src="nexus-verify-moteur.js"></script>
-<script src="nexus-carburant-commande-donnees.js?v=20260901-1130"></script>
+<script src="nexus-carburant-commande-donnees.js?v=20260901-1915"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
@@ -1196,10 +1196,27 @@
       : null;
     const cq = ev ? ev.couvertureEstimeeParQuart : null;
     if (!cq || cq.confiance === 'non_calculable') return 'Calcul par quart indisponible';
-    if (cq.epuise) return 'Stock déjà épuisé';
-    if (cq.auDela) return 'Au-delà de 21 jours';
-    if (cq.dateISO && cq.quart) return `Jusqu’à ${formaterDateFrAvecJour(cq.dateISO)} · ${cq.quart}`;
-    return 'Calcul par quart indisponible';
+    const echeance = c => {
+      if (!c || c.confiance === 'non_calculable') return 'calcul indisponible';
+      if (c.epuise) return 'stock déjà épuisé';
+      if (c.auDela) return 'au-delà de 21 jours';
+      if (c.dateISO && c.quart) return `jusqu’à ${formaterDateFrAvecJour(c.dateISO)} · ${c.quart}`;
+      return 'calcul indisponible';
+    };
+    // Lorsqu'une livraison du jour existe, montrer les deux scénarios rend
+    // immédiatement visible son effet et empêche l'ancien résultat « mardi
+    // Q2 » d'être lu comme l'autonomie après réception. Une commande encore
+    // attendue reste explicitement conditionnelle : NEXUS l'intègre pour
+    // décider, mais ne la présente jamais comme du stock acquis.
+    if (ev && ev.livraisonCouvertureL > 0 && ev.couvertureEstimeeAvecLivraison) {
+      const libelleLivraison = ev.livraisonCouvertureStatut === 'effectuee'
+        ? `Avec livraison reçue (+${fmtL(ev.livraisonCouvertureL)})`
+        : `Si livraison reçue (+${fmtL(ev.livraisonCouvertureL)})`;
+      const avertissement = ev.livraisonCouvertureStatut === 'attendue'
+        ? '<span style="color:var(--amber);"> · non encore réceptionnée</span>' : '';
+      return `<span class="autonomie-scenarios"><span style="display:block;font-weight:650;">${libelleLivraison} : ${echeance(ev.couvertureEstimeeAvecLivraison)}${avertissement}</span><span style="display:block;margin-top:2px;color:var(--text-dim);font-size:10px;">Sans cette livraison : ${echeance(ev.couvertureEstimeeSansLivraison)}</span></span>`;
+    }
+    return echeance(cq).replace(/^jusqu’à/, 'Jusqu’à').replace(/^stock/, 'Stock').replace(/^au-delà/, 'Au-delà').replace(/^calcul/, 'Calcul');
   }
 
   // 25/08/2026, retour de Frédéric ("Correction à apporter au moteur
@@ -2296,9 +2313,17 @@
       // formatage que diagnosticCouvertureCarburant (Article 11), affichée
       // ici pour CE carburant précisément (le badge "Situation aujourd'hui"
       // ne montre qu'un résumé global).
-      const couvertureTxt = !donneesInsuffisantes
-        ? `Couverture estimée : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeParQuart)}`
-        : null;
+      let couvertureTxt = null;
+      if (!donneesInsuffisantes) {
+        if (ev.livraisonCouvertureL > 0 && ev.couvertureEstimeeAvecLivraison) {
+          const livraisonAcquise = ev.livraisonCouvertureStatut === 'effectuee';
+          couvertureTxt = `${livraisonAcquise ? 'Après livraison reçue' : 'Si la livraison est reçue'} (+${fmtL(ev.livraisonCouvertureL)}) : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeAvecLivraison)}`
+            + `${livraisonAcquise ? '' : ' · ⚠️ volume non encore réceptionné'}`
+            + ` · sans livraison : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeSansLivraison)}`;
+        } else {
+          couvertureTxt = `Couverture estimée : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeParQuart)}`;
+        }
+      }
 
       // Fiabilité PAR CARBURANT (28/08/2026, point 6 — mockup "Commande de
       // transition" : bloc fiabilité avec raisons+CTA à côté de chaque
