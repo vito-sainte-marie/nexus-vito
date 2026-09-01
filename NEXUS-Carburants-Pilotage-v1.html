@@ -1114,6 +1114,22 @@
     return { couvre, icone: couvre ? '🟢' : '🔴', texte: `Couverture estimée : ${formaterCouvertureEstimeeTexte(evCommande.couvertureEstimeeParQuart)}` };
   }
 
+  // 01/09/2026 — l'autonomie est une échéance opérationnelle, pas un
+  // nombre décimal de jours. Une seule présentation pour les cartes du
+  // haut et le tableau Stock & autonomie, fondée sur la projection par
+  // quart déjà calculée par le moteur de commande.
+  function formaterAutonomieOperationnelle(cle) {
+    const ev = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant)
+      ? COMMANDE_CTX.parCarburant[cle]
+      : null;
+    const cq = ev ? ev.couvertureEstimeeParQuart : null;
+    if (!cq || cq.confiance === 'non_calculable') return 'Calcul par quart indisponible';
+    if (cq.epuise) return 'Stock déjà épuisé';
+    if (cq.auDela) return 'Au-delà de 21 jours';
+    if (cq.dateISO && cq.quart) return `Jusqu’à ${formaterDateFrAvecJour(cq.dateISO)} · ${cq.quart}`;
+    return 'Calcul par quart indisponible';
+  }
+
   // 25/08/2026, retour de Frédéric ("Correction à apporter au moteur
   // 'Prochaine commande'") : "À commander mardi 25 août avant 11h" / "Livraison
   // prévue mercredi 26 août" plutôt qu'une date seule, jamais ambiguë sur QUEL
@@ -1407,8 +1423,7 @@
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${r.ecart != null ? ` <span class="ecart-caveat" data-ecart-diag="${cle}" role="button" tabindex="0" title="${ecartNonFiabilise ? "Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée. Cliquer pour le diagnostic complet." : 'Cliquer pour voir le diagnostic de cet écart'}">ⓘ</span>` : ''}</span></div>
           <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
-          <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</span></div>
-          ${autonomie != null ? `<div class="carb-fiab-row"><span>${diagCouverture ? diagCouverture.texte : 'Couverture du prochain créneau : calcul en cours…'}</span>${diagCouverture ? `<span class="carb-fiab-badge" style="background:${diagCouverture.couvre ? 'var(--green-dim)' : 'var(--red-dim)'}; color:${diagCouverture.couvre ? 'var(--green)' : 'var(--red)'};">${diagCouverture.icone}</span>` : ''}</div>` : ''}
+          <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
           <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
@@ -3656,7 +3671,7 @@
         // (Article 11 : un seul endroit décide "couvre/ne couvre pas",
         // jamais un second calcul par seuil de jours fixe recopié ici).
         const diagCouv = diagnosticCouvertureCarburant(cle);
-        const autonomieTxt = autonomie != null ? `${autonomie.toFixed(1)} j${diagCouv ? ` — ${diagCouv.icone} ${diagCouv.texte}` : ''}` : '—';
+        const autonomieTxt = formaterAutonomieOperationnelle(cle);
         const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
         const ecartCouleur = r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)');
         return {
