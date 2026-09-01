@@ -455,7 +455,7 @@
       </div>
       <div id="detailEcartCaisse" style="display:none;">${detailEcartCaisseHTML(d)}</div>
       <button type="button" class="btn-ghost" id="btnComprendreEcart">Comprendre mon écart</button>
-      ${!conforme && !o.masquerCorrection ? `<button type="button" class="btn-ghost" id="btnDemanderCorrectionPDC">Demander une correction</button>` : ''}
+      ${!conforme && !o.masquerCorrection ? `<button type="button" class="btn-ghost" id="btnDemanderCorrectionPDC">Recompter et corriger ma caisse</button>` : ''}
     `;
   }
   function detailEcartCaisseHTML(d) {
@@ -468,8 +468,7 @@
       </div>
     `;
   }
-  // Câblage commun (bouton "Comprendre mon écart" + éventuel "Demander une
-  // correction") — appelé après insertion du HTML par les deux écrans.
+  // Câblage commun du point de clôture et de la correction tracée.
   function wirePointDeCloture() {
     const btnComprendre = document.getElementById('btnComprendreEcart');
     if (btnComprendre) {
@@ -482,7 +481,7 @@
       });
     }
     const btnCorrection = document.getElementById('btnDemanderCorrectionPDC');
-    if (btnCorrection) btnCorrection.addEventListener('click', demarrerDemandeCorrection);
+    if (btnCorrection) btnCorrection.addEventListener('click', demarrerCorrectionCaisse);
   }
 
   // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
@@ -798,23 +797,18 @@
   }
 
   // ------------------------------------------------------------
-  // DEMANDER UNE CORRECTION — 16/08/2026, demande de Frédéric : une fois
-  // le quart validé (transmis), l'employé ne corrige plus rien lui-même
-  // ("Modifier après validation : non"). Il peut seulement demander une
-  // correction — une alerte tracée qui prévient le manager, seul habilité à
-  // régulariser ("Régulariser après validation : manager uniquement, sans
-  // effacer le constat d'origine"). Même schéma que
-  // demarrerExceptionCarnet/MOTIFS_EXCEPTION_CARNET plus haut : une grille
-  // de motifs plutôt qu'un confirm() générique invisible au manager.
+  // CORRECTION DE CAISSE APRÈS CLÔTURE — la caissière peut rectifier une
+  // erreur de monnaie ou de comptage. Elle ne saisit jamais l'écart : NEXUS
+  // le recalcule. Le constat initial reste protégé et le RPC crée une
+  // nouvelle version immuable du relevé avec avant/après, motif et auteur.
   // ------------------------------------------------------------
   const MOTIFS_CORRECTION_CAISSE = [
-    { value: 'caisse_reelle_erronee', label: 'Caisse réelle mal comptée' },
-    { value: 'lots_payes_ou_tirages_errones', label: 'Lots payés / caisse tirages mal recopiés' },
-    { value: 'grattage_erronee', label: 'Comptage grattage à revoir' },
+    { value: 'erreur_comptage', label: 'Erreur de comptage' },
+    { value: 'erreur_monnaie', label: 'Erreur de monnaie rendue' },
     { value: 'autre', label: 'Autre' },
   ];
 
-  function demarrerDemandeCorrection() {
+  function demarrerCorrectionCaisse() {
     demandeCorrectionMotifChoisi = null;
     phase = 'demande-correction';
     renderDemandeCorrection();
@@ -824,7 +818,11 @@
     document.getElementById('titre').textContent = 'Signaler une erreur';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
-      <div class="etat-banner">Ce quart est déjà transmis, vous ne pouvez plus le modifier vous-même. Indiquez ce qui doit être revu — le manager sera prévenu et corrigera depuis FDJ Opérations.</div>
+      <div class="etat-banner">⚠️ Vous pouvez corriger votre caisse si vous soupçonnez une erreur de monnaie ou de comptage. <strong>Votre première déclaration restera conservée.</strong> Ce changement, son motif, la date et l'heure seront notés et transmis sur votre relevé de clôture.</div>
+      <label class="champ-label">Nouvelle caisse réellement comptée (€)</label>
+      <input class="champ-input" id="champNouvelleCaisse" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+      <div class="aide-champ">L'écart sera recalculé automatiquement. Vous ne pouvez pas le modifier directement.</div>
+      <label class="champ-label">Pourquoi corrigez-vous ?</label>
       <div class="motif-grid" id="grilleMotifsCorrection">
         ${MOTIFS_CORRECTION_CAISSE.map(m => `
           <div class="motif-item" data-motif="${m.value}">
@@ -835,7 +833,7 @@
       </div>
       <label class="champ-label">Précisez (optionnel)</label>
       <textarea class="champ-input" id="champDetailCorrection" rows="3" style="text-align:left; font-family:var(--sans); font-size:14px; resize:vertical;" placeholder="Ex : j'ai compté 320€ et non 302€, erreur de lecture au comptage."></textarea>
-      <button class="btn-primary" id="btnEnvoyerDemandeCorrection" disabled style="margin-top:12px;">Envoyer au manager</button>
+      <button class="btn-primary" id="btnEnvoyerDemandeCorrection" disabled style="margin-top:12px;">Corriger et inscrire sur mon relevé</button>
       <button class="btn-ghost" id="btnAnnulerDemandeCorrection">Annuler</button>
     `;
     document.querySelectorAll('#grilleMotifsCorrection .motif-item').forEach(el => {
@@ -845,39 +843,36 @@
         document.getElementById('btnEnvoyerDemandeCorrection').disabled = false;
       });
     });
-    document.getElementById('btnEnvoyerDemandeCorrection').addEventListener('click', soumettreDemandeCorrection);
+    document.getElementById('btnEnvoyerDemandeCorrection').addEventListener('click', soumettreCorrectionCaisse);
     document.getElementById('btnAnnulerDemandeCorrection').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
   }
 
-  async function soumettreDemandeCorrection() {
+  async function soumettreCorrectionCaisse() {
     const btn = document.getElementById('btnEnvoyerDemandeCorrection');
     btn.disabled = true;
     btn.innerHTML = 'Envoi<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
     const detail = (document.getElementById('champDetailCorrection').value || '').trim();
+    const nouvelleCaisse = Number(document.getElementById('champNouvelleCaisse').value);
+    if (!Number.isFinite(nouvelleCaisse) || nouvelleCaisse < 0) {
+      btn.disabled = false; btn.textContent = 'Corriger et inscrire sur mon relevé';
+      alert('Saisissez un montant de caisse valide.'); return;
+    }
     const cash = await chargerCashControlDuQuart(shiftRow.id);
-
-    // Alerte tracée (jamais une modification directe de fdj_cash_controls —
-    // c'est exactement la limite posée par "Modifier après validation :
-    // non") : le manager voit la demande dans son panneau d'alertes et
-    // corrige lui-même depuis Contrôle FDJ.
-    const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert({
-      site: siteId, type: 'correction_caisse_demandee', shift_id: shiftRow.id, shift_precedent_id: null,
-      game_id: null, valeur_quart_precedent: null, valeur_saisie: cash ? cash.ecart : null,
-      employee_id: employeeCourant.id, motif: demandeCorrectionMotifChoisi,
+    if (!cash || Number(cash.caisse_reelle) === nouvelleCaisse) {
+      btn.disabled = false; btn.textContent = 'Corriger et inscrire sur mon relevé';
+      alert('Le nouveau montant doit être différent de la caisse déjà déclarée.'); return;
+    }
+    const { error } = await nexusClient.rpc('fdj_corriger_caisse_employe', {
+      p_shift_id: shiftRow.id, p_nouvelle_caisse: nouvelleCaisse,
+      p_motif: demandeCorrectionMotifChoisi, p_commentaire: detail || null,
     });
-    if (eAlerte) {
-      console.error('Enregistrement demande de correction caisse FDJ:', eAlerte);
-      btn.disabled = false; btn.textContent = 'Envoyer au manager';
-      alert("Erreur d'enregistrement de la demande. Réessayez.");
+    if (error) {
+      console.error('Correction caisse FDJ employée:', error);
+      btn.disabled = false; btn.textContent = 'Corriger et inscrire sur mon relevé';
+      alert("La correction n'a pas pu être enregistrée. Réessayez.");
       return;
     }
-
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_cash_control', entite_id: shiftRow.id,
-      action: 'fdj_correction_caisse_demandee', acteur_id: employeeCourant.id, motif: demandeCorrectionMotifChoisi,
-      nouvelle_valeur: { detail: detail || null, ecart_constate: cash ? cash.ecart : null },
-    });
-
+    alert('Correction enregistrée. La première déclaration est conservée et ce changement figure maintenant sur votre relevé de clôture.');
     phase = 'accueil';
     renderAccueil();
   }
@@ -908,7 +903,6 @@
     // revient plus tard sur l'accueil doit voir exactement la même chose,
     // reconstruite ici depuis fdj_cash_controls (heure = valide_le).
     let blocCaisse = '';
-    let demandeCorrectionEnCours = null;
     if (clotureFaite) {
       const cash = await chargerCashControlDuQuart(shiftRow.id);
       if (cash) {
@@ -917,8 +911,7 @@
           heureLabel, attendue: cash.caisse_attendue, reelle: cash.caisse_reelle, ecart: cash.ecart,
           ventesGrattage: cash.ventes_grattage_valeur, lotsPayes: cash.lots_payes_grattage,
           caisseTirages: cash.caisse_tirages, regularisations: cash.regularisations,
-        }, { masquerCorrection: true }); // le bouton de correction existe déjà plus bas, avec son état "déjà envoyée"
-        demandeCorrectionEnCours = await chargerDemandeCorrectionEnCours(shiftRow.id);
+        }, { masquerCorrection: true }); // action de correction affichée juste sous le relevé
       }
     }
 
@@ -951,12 +944,8 @@
         </div>
       </div>
       ${blocCaisse}
-      ${clotureFaite ? (
-        demandeCorrectionEnCours
-          ? `<div class="etat-banner">🟡 Demande de correction envoyée le ${new Date(demandeCorrectionEnCours.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — en attente du manager.</div>`
-          : `<div class="etat-banner">Ce quart a déjà été transmis. Vous ne pouvez plus le modifier directement.</div>
-             <button type="button" class="btn-ghost" id="btnDemanderCorrection" style="margin-top:0;">Signaler une erreur sur ce quart</button>`
-      ) : ''}
+      ${clotureFaite ? `<div class="etat-banner">Votre clôture est transmise. Si votre recomptage révèle une erreur, vous pouvez corriger la caisse : la déclaration d'origine restera conservée et le changement sera inscrit sur votre relevé.</div>
+        <button type="button" class="btn-ghost" id="btnDemanderCorrection" style="margin-top:0;">Recompter et corriger ma caisse</button>` : ''}
     `;
     wireQuartVisuel();
     if (!ouvertureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
@@ -964,7 +953,7 @@
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
     if (clotureFaite) wirePointDeCloture(); // bouton "Comprendre mon écart" du bloc pointDeClotureHTML ci-dessus
     const btnDemanderCorrection = document.getElementById('btnDemanderCorrection');
-    if (btnDemanderCorrection) btnDemanderCorrection.addEventListener('click', demarrerDemandeCorrection);
+    if (btnDemanderCorrection) btnDemanderCorrection.addEventListener('click', demarrerCorrectionCaisse);
   }
 
   // 13/08/2026 — décision d'accès pour un quart donné, déléguée au moteur
