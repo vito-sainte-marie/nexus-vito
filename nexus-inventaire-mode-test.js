@@ -1,5 +1,7 @@
-// NEXUS Inventaire V2 — mode test terrain manager.
-// Chargé uniquement par nexus-auth.js sur NEXUS-Inventaire-v1.html.
+// NEXUS Inventaire V2 — simulation terrain manager.
+// Un manager/gerant peut éprouver le parcours d'un rôle sans écrire de donnée
+// opérationnelle. Le rôle réel reste l'identité de sécurité ; test_role ne sert
+// qu'à projeter le parcours et les missions visibles.
 (function () {
   'use strict';
 
@@ -8,6 +10,8 @@
     { code: 'pompiste', label: 'Pompiste', icon: '⛽' },
     { code: 'renfort', label: 'Renfort', icon: '📦' },
   ];
+  const UUID_QUART_SIMULATION = '00000000-0000-4000-8000-000000000101';
+  const UUID_EMPLOYE_SIMULATION = '00000000-0000-4000-8000-000000000102';
   let momentMissionTest = 'debut';
   let surchargesInstallees = false;
   let initialisationTestFaite = false;
@@ -61,15 +65,14 @@
     const boutons = ROLES_TEST.map(r => `
       <button type="button" data-nexus-test-role="${r.code}" style="${styleBouton(actif === r.code)}">
         ${r.icon} ${actif === r.code ? 'Test ' : ''}${r.label}
-      </button>
-    `).join('');
+      </button>`).join('');
     const statut = actif
       ? `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
            Vous restez connecté comme <b style="color:var(--text);">manager</b>. NEXUS reproduit le parcours terrain <b style="color:var(--cyan);">${libelleRole(actif)}</b>.
-           <div style="margin-top:6px;color:var(--green);font-weight:700;">Simulation sécurisée · aucun comptage, mouvement, statut de quart ni mesure d'adoption n'est enregistré.</div>
+           <div style="margin-top:6px;color:var(--green);font-weight:700;">Simulation sécurisée · aucune donnée opérationnelle n'est enregistrée.</div>
          </div>`
       : `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
-           Choisissez un rôle pour éprouver exactement son parcours Inventaire sans polluer les données réelles.
+           Choisissez un rôle pour tester exactement son parcours Inventaire sans polluer les données réelles.
          </div>`;
     return `
       <div id="nexusModeTestManager" class="etat-banner" style="border-color:rgba(79,195,217,.35);">
@@ -100,18 +103,15 @@
     brancherSelecteur();
 
     const actif = roleTestActif();
-    if (!actif) return;
-    const ids = idsMissionsTest();
-    if (!ids.size) {
-      const selecteur = document.getElementById('nexusModeTestManager');
-      if (selecteur) selecteur.insertAdjacentHTML('afterend', `
-        <div class="etat-banner" style="border-color:var(--amber);">
-          <b>Aucune mission V2 applicable pour ce test.</b><br>
-          NEXUS ne bascule pas vers le catalogue complet. Vérifiez les règles de mission ou changez de rôle/quart.
-        </div>`);
-      const carte = document.getElementById('carteOuverture');
-      if (carte) carte.classList.add('disabled');
-    }
+    if (!actif || idsMissionsTest().size) return;
+    const selecteur = document.getElementById('nexusModeTestManager');
+    if (selecteur) selecteur.insertAdjacentHTML('afterend', `
+      <div class="etat-banner" style="border-color:var(--amber);">
+        <b>Aucune mission applicable pour ce test.</b><br>
+        NEXUS ne remplace pas un périmètre vide par le catalogue complet.
+      </div>`);
+    const carte = document.getElementById('carteOuverture');
+    if (carte) carte.classList.add('disabled');
   }
 
   function signalerMissionMomentAbsente(moment) {
@@ -122,75 +122,89 @@
     selecteur.insertAdjacentHTML('afterend', `
       <div class="etat-banner" style="border-color:var(--amber);">
         <b>Aucune mission ${label} applicable.</b><br>
-        NEXUS ne remplace pas ce périmètre vide par le catalogue ou par une mission d'un autre moment.
+        NEXUS conserve un périmètre vide plutôt que d'inventer une mission.
       </div>`);
   }
 
   function afficherFinSimulation(phase) {
     const role = roleTestActif();
     const titre = phase === 'cloture' ? 'Simulation de clôture terminée' : "Simulation d'ouverture terminée";
-    if (typeof document === 'undefined') return;
     const titreEl = document.getElementById('titre');
     const sousTitreEl = document.getElementById('sousTitre');
     const content = document.getElementById('content');
     if (titreEl) titreEl.textContent = titre;
     if (sousTitreEl) sousTitreEl.textContent = 'Aucune donnée officielle n’a été modifiée.';
-    if (content) content.innerHTML = `
+    if (!content) return;
+    content.innerHTML = `
       <div class="resume-card">
         <div class="checkmark">✓</div>
         <div class="final-greet">Test ${libelleRole(role)} terminé</div>
         <div style="font-size:12.5px;color:var(--text-mid);line-height:1.55;margin-top:10px;">
-          Le parcours a été exécuté en simulation. Les saisies sont restées locales à ce test : aucun comptage, mouvement, statut de quart ou indicateur d'adoption n'a été enregistré.
+          Les saisies sont restées locales à cette simulation : aucun comptage, mouvement, statut de quart, alerte ou indicateur d'adoption n'a été enregistré.
         </div>
       </div>
       <button class="btn-primary" id="btnRetourSimulation">Retour à l'inventaire</button>`;
-    const retour = document.getElementById('btnRetourSimulation');
-    if (retour) retour.addEventListener('click', () => { window.location.href = urlPourRole(role); });
+    document.getElementById('btnRetourSimulation')?.addEventListener('click', () => { window.location.href = urlPourRole(role); });
   }
 
   function neutraliserEcrituresTerrain() {
-    const noOpAsync = async () => ({ simulation: true, data: null, error: null });
-    ['ecrireTransmisImmediat', 'ecrireOuvertureImmediat', 'ecrireProductionInitialeImmediat', 'ecrireMouvementImmediat'].forEach(nom => {
-      try {
-        if (typeof globalThis[nom] === 'function') {
-          const original = globalThis[nom];
-          globalThis[nom] = async function (...args) {
-            if (!roleTestActif()) return original.apply(this, args);
-            return noOpAsync();
-          };
-        }
-      } catch (_) {}
-    });
+    function remplacerFonctionGlobale(nom, valeurSimulation) {
+      if (typeof globalThis[nom] !== 'function') return;
+      const original = globalThis[nom];
+      globalThis[nom] = async function (...args) {
+        if (!roleTestActif()) return original.apply(this, args);
+        return typeof valeurSimulation === 'function' ? valeurSimulation(...args) : valeurSimulation;
+      };
+    }
 
-    try {
-      if (typeof flusherMesuresAdoption === 'function') {
-        const original = flusherMesuresAdoption;
-        flusherMesuresAdoption = async function (...args) {
-          if (roleTestActif()) return;
-          return original.apply(this, args);
-        };
-      }
-    } catch (_) {}
+    remplacerFonctionGlobale('ecrireTransmisImmediat', { simulation: true });
+    remplacerFonctionGlobale('ecrireOuvertureImmediat', { simulation: true });
+    remplacerFonctionGlobale('ecrireProductionInitialeImmediat', { simulation: true });
+    remplacerFonctionGlobale('ecrireMouvementImmediat', { simulation: true });
 
-    try {
-      if (typeof validerOuverture === 'function') {
-        const original = validerOuverture;
-        validerOuverture = async function (...args) {
-          if (roleTestActif()) { afficherFinSimulation('ouverture'); return; }
-          return original.apply(this, args);
-        };
-      }
-    } catch (_) {}
+    // Le test possède son quart virtuel : aucune création de quart ou de
+    // présence manager dans les tables opérationnelles, même si aucun quart
+    // réel n'existe encore au moment du test.
+    remplacerFonctionGlobale('obtenirOuCreerQuart', () => ({
+      id: UUID_QUART_SIMULATION,
+      site: employeeCourant.site_id,
+      date: dateISO(),
+      quart: quartActuel,
+      statut: 'simulation',
+      ouvert_le: new Date().toISOString(),
+    }));
+    remplacerFonctionGlobale('obtenirOuCreerQuartEmploye', () => ({
+      id: UUID_EMPLOYE_SIMULATION,
+      quart_id: UUID_QUART_SIMULATION,
+      employee_id: employeeCourant.id,
+      role: roleTestActif(),
+      a_valide_ouverture: false,
+      a_valide_cloture: false,
+      heure_arrivee: new Date().toISOString(),
+    }));
 
-    try {
-      if (typeof validerCloture === 'function') {
-        const original = validerCloture;
-        validerCloture = async function (...args) {
-          if (roleTestActif()) { afficherFinSimulation('cloture'); return; }
-          return original.apply(this, args);
-        };
-      }
-    } catch (_) {}
+    if (typeof flusherMesuresAdoption === 'function') {
+      const original = flusherMesuresAdoption;
+      flusherMesuresAdoption = async function (...args) {
+        if (roleTestActif()) return;
+        return original.apply(this, args);
+      };
+    }
+
+    if (typeof validerOuverture === 'function') {
+      const original = validerOuverture;
+      validerOuverture = async function (...args) {
+        if (roleTestActif()) { afficherFinSimulation('ouverture'); return; }
+        return original.apply(this, args);
+      };
+    }
+    if (typeof validerCloture === 'function') {
+      const original = validerCloture;
+      validerCloture = async function (...args) {
+        if (roleTestActif()) { afficherFinSimulation('cloture'); return; }
+        return original.apply(this, args);
+      };
+    }
   }
 
   function installerSurcharges() {
@@ -206,8 +220,8 @@
         const D = typeof NexusInventaireMissionsDonnees !== 'undefined' ? NexusInventaireMissionsDonnees : null;
         if (!D) { missionsDuJour = []; return; }
         try {
-          // Correction P0 : en mode test on charge les missions DU RÔLE SIMULÉ,
-          // jamais celles du rôle réel manager/gerant.
+          // Rôle simulé = vérité du test. Le rôle réel manager ne doit jamais
+          // décider du périmètre affiché pendant cette projection.
           missionsDuJour = await D.chargerMissionsPourRole(
             nexusClient, employeeCourant.site_id, dateISO(), quartActuel, actif
           );
@@ -215,6 +229,20 @@
           console.error('Projection missions manager test:', e);
           missionsDuJour = [];
         }
+      };
+    }
+
+    // En simulation, le périmètre vient exclusivement des missions du rôle
+    // simulé. On ne crée/ne modifie donc aucun plan de comptage officiel.
+    if (typeof chargerEtAppliquerPlanQuart === 'function') {
+      const original = chargerEtAppliquerPlanQuart;
+      chargerEtAppliquerPlanQuart = async function (...args) {
+        if (!roleTestActif()) return original.apply(this, args);
+        if (typeof chargerMissionsDuJour === 'function') await chargerMissionsDuJour();
+        produitsPlanIds = idsMissionsTest(momentMissionTest);
+        planQuartActif = null;
+        planItemIdParProduit = {};
+        regleSnapshotParProduit = {};
       };
     }
 
@@ -237,7 +265,7 @@
       return `
         <div class="etat-banner">
           <div class="progression-bloc" style="margin:0;">
-            <div class="progression-haut"><span><b>🧪 Périmètre test V2 · ${libelleRole(actif)}</b></span><span>${phase}</span></div>
+            <div class="progression-haut"><span><b>🧪 Test ${libelleRole(actif)}</b></span><span>${phase}</span></div>
             <div class="progression-barre"><div class="progression-remplie" style="width:${jauge.pct}%"></div></div>
             <div class="progression-globale">${jauge.faits} sur ${jauge.total} références prévues</div>
           </div>
@@ -254,13 +282,13 @@
     };
 
     if (typeof demarrerCloture === 'function') {
-      const demarrerClotureOriginal = demarrerCloture;
+      const original = demarrerCloture;
       demarrerCloture = async function () {
-        if (!roleTestActif()) return demarrerClotureOriginal();
+        if (!roleTestActif()) return original();
         momentMissionTest = 'fin';
         if (!idsMissionsTest('fin').size) { signalerMissionMomentAbsente('fin'); return; }
         produitsZone = [];
-        return demarrerClotureOriginal();
+        return original();
       };
     }
 
@@ -272,18 +300,25 @@
     };
 
     neutraliserEcrituresTerrain();
+    window.NEXUS_INVENTAIRE_MODE_TEST_READY = true;
     return true;
   }
 
   async function appliquerModeTestInitial() {
     if (initialisationTestFaite || !estManagerReel()) return false;
     const actif = roleTestActif();
-    if (!actif) { injecterSelecteur(); initialisationTestFaite = true; return true; }
+    if (!actif) {
+      injecterSelecteur();
+      initialisationTestFaite = true;
+      return true;
+    }
 
     if (actif === 'caissier') {
-      zonesAutorisees = ['boutique']; zoneActive = 'boutique';
+      zonesAutorisees = ['boutique'];
+      zoneActive = 'boutique';
     } else if (actif === 'pompiste') {
-      zonesAutorisees = ['piste']; zoneActive = 'piste';
+      zonesAutorisees = ['piste'];
+      zoneActive = 'piste';
     } else {
       zonesAutorisees = ['piste', 'boutique'];
       if (!zoneActive || !zonesAutorisees.includes(zoneActive)) zoneActive = 'boutique';
@@ -306,26 +341,26 @@
     }
   }
 
-  // Ne plus attendre window.load : les surcharges d'écriture doivent être
-  // installées dès que les fonctions du parcours existent, idéalement avant
-  // que la promesse d'authentification ait fini son aller-retour réseau.
+  // Installer les gardes au plus tôt ; nexusRequireAuth attend le drapeau READY
+  // lorsqu'un test_role est demandé, ce qui garantit que le quart virtuel et
+  // les no-op d'écriture sont en place avant l'initialisation opérationnelle.
   if (!tenterInstallation()) {
-    let essais = 0;
-    const timer = setInterval(() => {
-      essais++;
-      const ok = tenterInstallation();
-      if ((ok && initialisationTestFaite) || essais > 80) clearInterval(timer);
-    }, 50);
-  } else {
-    const timer = setInterval(() => {
-      if (appliquerModeTestInitial() || ++initialisationTestFaite > 20) clearInterval(timer);
-    }, 50);
+    let essaisInstallation = 0;
+    const timerInstallation = setInterval(() => {
+      essaisInstallation++;
+      if (tenterInstallation() || essaisInstallation > 100) clearInterval(timerInstallation);
+    }, 25);
   }
+
+  let essaisInitialisation = 0;
+  const timerInitialisation = setInterval(async () => {
+    essaisInitialisation++;
+    if (await appliquerModeTestInitial() || essaisInitialisation > 120) clearInterval(timerInitialisation);
+  }, 50);
 })();
 
 // Extension terrain commune (manager en test ET employés réels) : les références
-// cigarettes sont comptées en paquets + cartouches, puis converties en paquets
-// avant de rejoindre le moteur historique.
+// cigarettes restent comptées en paquets + cartouches puis converties en paquets.
 (function chargerComptageConditionnementCigarettes(){
   if(document.querySelector('script[data-nexus-cigarettes-conditionnement]')) return;
   const s=document.createElement('script');
