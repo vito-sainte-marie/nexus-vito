@@ -49,5 +49,5 @@
     document.head.appendChild(s);
   }
   injecter('nexus-carburants-p0-coherence-ui.js?v=20260901-0655','p0');
-  injecter('nexus-carburants-mobile-polish-v2.js?v=20260901-0702','mobile-v2');
+  injecter('nexus-carburants-mobile-polish-v2.js?v=20260901-0758','mobile-v2');
 })();
