@@ -65,6 +65,7 @@
       .gte('date_visite', dateDebutIncluse)
       .lt('date_visite', dateFinExclue)
       .neq('statut', 'en_cours')
+      .neq('statut', 'annulee_doublon')
       .order('date_visite', { ascending: true })
       .order('heure_debut', { ascending: true });
     if (qVisites.error) {
