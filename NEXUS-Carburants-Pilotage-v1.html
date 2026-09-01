@@ -3470,7 +3470,16 @@
     if (evolMoteur != null) phrase += ` : ${evolMoteur >= 0 ? '+' : ''}${(evolMoteur * 100).toFixed(1)} %`;
     phrase += '.';
 
-    const autres = NexusCarburantMoteur.CLES_CARBURANT.filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c]);
+    // Un carburant sans activité sur les deux périodes (ex. GNR à 0 L
+    // depuis plusieurs mois) est neutre : il ne touche ni ne compense le
+    // mouvement. Même exclusion pour une variation inférieure à 1 L,
+    // simple bruit d'arrondi sans portée commerciale.
+    const autres = NexusCarburantMoteur.CLES_CARBURANT.filter(c => {
+      if (c === moteurEvolution.cle) return false;
+      const d = decomposition.parCarburant[c];
+      return !!(d && Math.abs(Number(d.delta) || 0) >= 1
+        && ((Number(d.actuel) || 0) > 0 || (Number(d.reference) || 0) > 0));
+    });
     if (autres.length) {
       const detailsAutres = autres.map(c => {
         const d = decomposition.parCarburant[c];
@@ -3536,7 +3545,16 @@
     // par carburant, présent avant, est retiré d'ici ; il reste consultable
     // dans "Répartition des ventes" (Article 11, une seule vérité par
     // information, pas de duplication de la même donnée à deux endroits).
-    const autres = M.CLES_CARBURANT.filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c]);
+    // Ne jamais attribuer un rôle explicatif à un carburant inactif. Une
+    // ligne à 0 L sur les deux périodes est une absence de mouvement, pas
+    // une compensation. Le seuil de 1 L écarte également le bruit
+    // d'arrondi sans incidence opérationnelle.
+    const autres = M.CLES_CARBURANT.filter(c => {
+      if (c === moteurEvolution.cle) return false;
+      const d = decomposition.parCarburant[c];
+      return !!(d && Math.abs(Number(d.delta) || 0) >= 1
+        && ((Number(d.actuel) || 0) > 0 || (Number(d.reference) || 0) > 0));
+    });
 
     let synthese;
     if (!autres.length) {
