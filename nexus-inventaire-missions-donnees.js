@@ -51,6 +51,26 @@
     return { M, MR, missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit };
   }
 
+  // Projection manager strictement en lecture seule. Le mode test ne doit
+  // jamais appeler chargerOuGenererPlan : cette fonction persiste un plan et
+  // ses items lorsqu'aucun plan officiel n'existe encore. Pour une
+  // simulation, le catalogue actif chargé par chargerIngredientsSelection
+  // suffit au même moteur de missions ; les règles de catégorie/zone restent
+  // donc entièrement configurables par site, sans écrire de vérité métier.
+  async function chargerContexteProjectionTest(client, site, dateISO, quart) {
+    const M = global.NexusInventaireMoteur;
+    const MR = global.NexusInventaireMissionRulesDonnees;
+    const PD = global.NexusInventairePlanDonnees;
+    if (!M || !MR || !PD) return null;
+    const [missionRules, rolesPresents, ingredients, surprisesRecentesParProduit] = await Promise.all([
+      MR.chargerMissionRules(client, site),
+      MR.chargerRolesPresentsQuart(client, site, dateISO, quart),
+      PD.chargerIngredientsSelection(client, site, dateISO),
+      typeof PD.chargerSurprisesRecentes === 'function' ? PD.chargerSurprisesRecentes(client, site, dateISO) : Promise.resolve([]),
+    ]);
+    return { M, MR, missionRules, rolesPresents, ingredients, surprisesRecentesParProduit };
+  }
+
   function contexteSelection(ctx, site, dateISO, quart) {
     return {
       quart, dateISO,
@@ -132,10 +152,12 @@
   // inventaire_quart_employes. Ainsi les essais du manager ne peuvent pas
   // créer de fausse obligation opérationnelle pour un futur quart réel.
   async function genererProjectionTestManager(client, site, dateISO, quart, roleTest) {
-    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
+    const ctx = await chargerContexteProjectionTest(client, site, dateISO, quart);
     if (!ctx) return [];
     const rolesProjection = Array.from(new Set([...(ctx.rolesPresents || []), roleTest]));
-    const produitsDuPlan = produitsDepuisPlan(ctx.plan);
+    const produitsDuPlan = ctx.ingredients.produits || [];
+    const regleParId = {};
+    (ctx.missionRules || []).forEach(r => { regleParId[r.id] = r; });
     const calculees = ctx.M.genererMissionsPourContexte({
       missionRules: ctx.missionRules,
       rolesPresents: rolesProjection,
@@ -151,7 +173,9 @@
     });
     return calculees
       .filter(m => m.statut === 'affectee' && normaliserRole(ctx.MR, m.roleAffecte) === roleTest)
-      .map(m => ({
+      .map(m => {
+        const regle = regleParId[m.missionRuleId] || {};
+        return ({
         id: `test:${m.missionRuleId}:${m.momentCode}`,
         site, date: dateISO, quart,
         moment_code: m.momentCode,
@@ -162,8 +186,11 @@
         statut: m.statut,
         strategie_appliquee: 'test_manager_non_persistant',
         produit_ids: m.produitIds || [],
+        zone_ids: regle.zone_ids || [],
+        mode_selection: regle.mode_selection || 'complet',
         mode_test_manager: true,
-      }));
+        });
+      });
   }
 
   async function chargerMissionsPourRole(client, site, dateISO, quart, roleCode) {

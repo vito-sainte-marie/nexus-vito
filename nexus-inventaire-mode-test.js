@@ -13,6 +13,7 @@
   const UUID_QUART_SIMULATION = '00000000-0000-4000-8000-000000000101';
   const UUID_EMPLOYE_SIMULATION = '00000000-0000-4000-8000-000000000102';
   let momentMissionTest = 'debut';
+  let demarrerMissionPendantTest = null;
   let surchargesInstallees = false;
   let initialisationTestFaite = false;
 
@@ -74,6 +75,11 @@
       : `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
            Choisissez un rôle pour tester exactement son parcours Inventaire sans polluer les données réelles.
          </div>`;
+    const boutonMissionPendant = actif && idsMissionsTest('pendant').size
+      ? `<button type="button" id="nexusTesterMissionPendant" class="btn-primary" style="margin-top:12px;">
+           Tester le contrôle ciblé pendant le quart
+         </button>`
+      : '';
     return `
       <div id="nexusModeTestManager" class="etat-banner" style="border-color:rgba(79,195,217,.35);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -82,6 +88,7 @@
         </div>
         ${statut}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">${boutons}</div>
+        ${boutonMissionPendant}
       </div>`;
   }
 
@@ -91,6 +98,10 @@
     });
     const quitter = document.getElementById('nexusQuitterModeTest');
     if (quitter) quitter.addEventListener('click', () => { window.location.href = urlPourRole(null); });
+    const pendant = document.getElementById('nexusTesterMissionPendant');
+    if (pendant) pendant.addEventListener('click', () => {
+      if (typeof demarrerMissionPendantTest === 'function') demarrerMissionPendantTest();
+    });
   }
 
   function injecterSelecteur() {
@@ -118,7 +129,7 @@
     injecterSelecteur();
     const selecteur = document.getElementById('nexusModeTestManager');
     if (!selecteur) return;
-    const label = moment === 'fin' ? 'de fin de quart' : 'de début de quart';
+    const label = moment === 'fin' ? 'de fin de quart' : (moment === 'pendant' ? 'pendant le quart' : 'de début de quart');
     selecteur.insertAdjacentHTML('afterend', `
       <div class="etat-banner" style="border-color:var(--amber);">
         <b>Aucune mission ${label} applicable.</b><br>
@@ -128,7 +139,9 @@
 
   function afficherFinSimulation(phase) {
     const role = roleTestActif();
-    const titre = phase === 'cloture' ? 'Simulation de clôture terminée' : "Simulation d'ouverture terminée";
+    const titre = phase === 'cloture'
+      ? 'Simulation de clôture terminée'
+      : (phase === 'mission' ? 'Contrôle ciblé simulé terminé' : "Simulation d'ouverture terminée");
     const titreEl = document.getElementById('titre');
     const sousTitreEl = document.getElementById('sousTitre');
     const content = document.getElementById('content');
@@ -261,7 +274,7 @@
       const ids = idsMissionsTest(momentMissionTest);
       if (!ids.size || typeof NexusInventaireMoteur === 'undefined') return '';
       const jauge = NexusInventaireMoteur.jaugePerimetre(Array.from(ids), comptesFaitsDuPlan());
-      const phase = momentMissionTest === 'fin' ? 'Fin de quart' : 'Début de quart';
+      const phase = momentMissionTest === 'fin' ? 'Fin de quart' : (momentMissionTest === 'pendant' ? 'Pendant le quart' : 'Début de quart');
       return `
         <div class="etat-banner">
           <div class="progression-bloc" style="margin:0;">
@@ -273,6 +286,13 @@
     };
 
     const demarrerOriginal = demarrerOuverture;
+    demarrerMissionPendantTest = async function () {
+      if (!roleTestActif()) return;
+      momentMissionTest = 'pendant';
+      if (!idsMissionsTest('pendant').size) { signalerMissionMomentAbsente('pendant'); return; }
+      produitsZone = [];
+      return demarrerOriginal();
+    };
     demarrerOuverture = async function () {
       if (!roleTestActif()) return demarrerOriginal();
       momentMissionTest = 'debut';
@@ -319,12 +339,22 @@
     } else if (actif === 'pompiste') {
       zonesAutorisees = ['piste'];
       zoneActive = 'piste';
-    } else {
-      zonesAutorisees = ['piste', 'boutique'];
-      if (!zoneActive || !zonesAutorisees.includes(zoneActive)) zoneActive = 'boutique';
     }
 
     if (typeof chargerMissionsDuJour === 'function') await chargerMissionsDuJour();
+    if (actif === 'renfort') {
+      // La zone du Renfort vient exclusivement des règles de mission du
+      // site. Une mission Boutique n'affiche donc plus un choix Piste vide ;
+      // si le manager configure demain Dépôt + Boutique, les deux zones
+      // seront reprises sans code spécifique à Sainte-Marie.
+      const zoneIds = Array.from(new Set((missionsDuJour || []).flatMap(m => m.zone_ids || [])));
+      if (zoneIds.length) {
+        const { data, error } = await nexusClient.from('inventaire_zones').select('id, code').in('id', zoneIds);
+        if (!error && data && data.length) zonesAutorisees = data.map(z => z.code).filter(Boolean);
+      }
+      if (!zonesAutorisees.length) zonesAutorisees = ['boutique'];
+      zoneActive = zonesAutorisees.includes('boutique') ? 'boutique' : zonesAutorisees[0];
+    }
     if (typeof renderAccueil === 'function') await renderAccueil();
     initialisationTestFaite = true;
     return true;
@@ -340,6 +370,12 @@
       return false;
     }
   }
+
+  window.NexusInventaireModeTest = {
+    moment: () => momentMissionTest,
+    terminer: afficherFinSimulation,
+    actif: roleTestActif,
+  };
 
   // Installer les gardes au plus tôt ; nexusRequireAuth attend le drapeau READY
   // lorsqu'un test_role est demandé, ce qui garantit que le quart virtuel et
