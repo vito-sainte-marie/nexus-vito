@@ -99,14 +99,16 @@
   .indispo-del{background:none; border:none; color:var(--rouge); cursor:pointer; font-family:var(--mono); font-size:11px;}
 
   .saved-note{margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:8px; text-align:center; font-size:12px; display:none;}
+  .source-link{display:inline-block; margin-top:10px; color:var(--green); font:600 11px var(--mono); text-decoration:none;}
+  #contenu.source-google .planning-nexus-card{display:none;}
   .reserve{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260902-1823"></script>
-<script src="nexus-desktop.js?v=20260902-1823"></script>
-<script src="nexus-forfait.js?v=20260902-1823"></script>
+<script src="nexus-auth.js?v=20260902-1905"></script>
+<script src="nexus-desktop.js?v=20260902-1905"></script>
+<script src="nexus-forfait.js?v=20260902-1905"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -121,7 +123,14 @@
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
   <div class="section desktop-grid" id="contenu">
-    <div class="card">
+    <div class="card" id="sourcePlanningCard">
+      <div class="section-label">Planning officiel</div>
+      <div class="note" id="sourcePlanningResume">Chargement de la source officielle…</div>
+      <a class="source-link" id="planningGoogleOpen" href="#" target="_blank" rel="noopener" style="display:none;">Ouvrir le planning Google Sheets ↗</a>
+      <a class="btn btn-secondary" href="NEXUS-Parametres-Station-v1.html#cardPlanningOfficiel">Modifier dans Paramètres Station</a>
+    </div>
+
+    <div class="card planning-nexus-card">
       <div class="section-label">Génération</div>
       <div class="mois-nav">
         <button id="moisPrec">← Mois préc.</button>
@@ -135,13 +144,13 @@
       <div id="resultatDepassements" class="gap-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card planning-nexus-card">
       <div class="section-label">Historique des générations</div>
       <div class="note">Mémoire des dernières générations sur ce site — plage réellement générée, trous rencontrés, qui et quand. Sert de repère pour que les prochaines générations restent cohérentes.</div>
       <div id="historiqueGenerations"><div class="note">Chargement…</div></div>
     </div>
 
-    <div class="card">
+    <div class="card planning-nexus-card">
       <div class="section-label">Effectif minimum par quart</div>
       <div class="note">Valeur de départ 2/2 proposée le 20/07 — ajustez si besoin. S'applique tous les jours de la semaine dans cette version.</div>
       <div class="row"><label>Quart 1</label><input type="number" id="effectifQ1" min="0" style="width:70px;"></div>
@@ -162,12 +171,12 @@
       <div id="exceptionsListe" style="margin-top:10px;"></div>
     </div>
 
-    <div class="card" id="cardPlanning">
+    <div class="card planning-nexus-card" id="cardPlanning">
       <div class="section-label">Planning du mois</div>
       <div id="planningGrille"><div class="note">Chargement…</div></div>
     </div>
 
-    <div class="card">
+    <div class="card planning-nexus-card">
       <div class="section-label">Contraintes équipe</div>
       <div class="note">Les jours de repos cochés ci-dessous ne servent plus que de préférence pour la première semaine du mois généré — NEXUS varie ensuite automatiquement, en restant juste (rotation équitable) et sans jamais dépasser 6 jours de travail d'affilée. Le sexe sert uniquement à la règle sécurité "jamais deux femmes sur quart2". "Ne fait pas la caisse" est enregistré mais pas encore appliqué par le générateur (v1 ne distingue pas les tâches à l'intérieur d'un quart). Un employé au rôle "vacataire" n'est jamais intégré à la rotation régulière — NEXUS ne le sollicite qu'en dernier recours, uniquement en piste, quand aucun autre collaborateur ne peut combler un trou.</div>
       <div id="contraintesListe"><div class="note">Chargement…</div></div>
@@ -175,7 +184,7 @@
       <div class="saved-note" id="savedContraintes">✓ Enregistré</div>
     </div>
 
-    <div class="card">
+    <div class="card planning-nexus-card">
       <div class="section-label">Congés / indisponibilités</div>
       <div class="row"><label>Employé</label><select id="indispoEmploye" style="flex:1;"></select></div>
       <div class="row"><label>Du</label><input type="date" id="indispoDebut"></div>
@@ -227,6 +236,34 @@
     let MOIS_COURANT = premierJourMois(new Date());
     let EMPLOYES = [];
     let CONTRAINTES = {}; // employee_id -> { heures_contrat_semaine, jours_repos_habituels, peut_faire_renfort }
+
+    function normaliserUrlPlanningGoogle(valeur) {
+      const texte = String(valeur || '').trim();
+      const match = texte.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+      const id = match ? match[1] : (/^[a-zA-Z0-9_-]{20,}$/.test(texte) ? texte : '');
+      return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : '';
+    }
+
+    function appliquerSourcePlanning(source, url) {
+      const valeur = source === 'google_sheets' ? 'google_sheets' : 'nexus';
+      document.getElementById('contenu').classList.toggle('source-google', valeur === 'google_sheets');
+      document.getElementById('sourcePlanningResume').textContent = valeur === 'google_sheets'
+        ? 'Google Sheets est la source officielle présentée à l’équipe. Les outils de génération NEXUS sont masqués pour éviter deux plannings concurrents.'
+        : 'NEXUS Planning est la source officielle. Vous pouvez générer, publier et consulter le planning ci-dessous.';
+      const lien = document.getElementById('planningGoogleOpen');
+      lien.style.display = valeur === 'google_sheets' && url ? 'inline-block' : 'none';
+      if (url) lien.href = url;
+    }
+
+    async function chargerSourcePlanning() {
+      const { data, error } = await nexusClient.from('station_config')
+        .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
+        .eq('site', siteId).maybeSingle();
+      if (error) throw error;
+      const source = (data && data.planning_source) || 'nexus';
+      const url = normaliserUrlPlanningGoogle((data && data.planning_google_sheet_url) || ((data && data.planning_google_sheet_id) ? data.planning_google_sheet_id : ''));
+      appliquerSourcePlanning(source, url);
+    }
 
     // ------------------------------------------------------------
     // Chargement initial des employés + de leurs contraintes.
@@ -618,6 +655,7 @@
     // ------------------------------------------------------------
     // Initialisation
     // ------------------------------------------------------------
+    await chargerSourcePlanning();
     await chargerEquipe();
     renderContraintes();
     remplirSelectEmployes();

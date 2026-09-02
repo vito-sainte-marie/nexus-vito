@@ -25,7 +25,7 @@
 //
 // Inclure après nexus-carburant-moteur.js, nexus-carburant-donnees.js et
 // nexus-carburant-commande-moteur.js :
-// <script src="nexus-carburant-commande-donnees.js?v=20260902-1823"></script>
+// <script src="nexus-carburant-commande-donnees.js?v=20260902-1905"></script>
 // ------------------------------------------------------------
 
 (function (global) {

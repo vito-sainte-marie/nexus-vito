@@ -1144,6 +1144,14 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Paye-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="NEXUS Paye"></div>
+        <div class="nav-body">
+          <div class="nav-title">Paye <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Variables mensuelles fiabilisées pour la comptable</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
     </nav>
   </div>
 
@@ -1281,27 +1289,27 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260902-1823"></script>
-<script src="nexus-desktop.js?v=20260902-1823"></script>
-<script src="nexus-periodes.js?v=20260902-1823"></script>
-<script src="nexus-indice.js?v=20260902-1823"></script>
-<script src="nexus-marge.js?v=20260902-1823"></script>
-<script src="nexus-tempo.js?v=20260902-1823"></script>
-<script src="nexus-boussole-moteur.js?v=20260902-1823"></script>
-<script src="nexus-carburant-moteur.js?v=20260902-1823"></script>
-<script src="nexus-carburant-donnees.js?v=20260902-1823"></script>
-<script src="nexus-conseiller.js?v=20260902-1823"></script>
-<script src="nexus-conseiller-donnees.js?v=20260902-1823"></script>
+<script src="nexus-auth.js?v=20260902-1905"></script>
+<script src="nexus-desktop.js?v=20260902-1905"></script>
+<script src="nexus-periodes.js?v=20260902-1905"></script>
+<script src="nexus-indice.js?v=20260902-1905"></script>
+<script src="nexus-marge.js?v=20260902-1905"></script>
+<script src="nexus-tempo.js?v=20260902-1905"></script>
+<script src="nexus-boussole-moteur.js?v=20260902-1905"></script>
+<script src="nexus-carburant-moteur.js?v=20260902-1905"></script>
+<script src="nexus-carburant-donnees.js?v=20260902-1905"></script>
+<script src="nexus-conseiller.js?v=20260902-1905"></script>
+<script src="nexus-conseiller-donnees.js?v=20260902-1905"></script>
 <!-- nexus-brief-donnees.js (23/08/2026, v2.224, correctif "règle anti-
      divergence") : nécessaire pour que chargerStatutCarburantsHome
      (nexus-app-donnees.js) délègue à chargerCarburantsBriefAvecFallback,
      exactement la même fonction que Brief — jamais une deuxième formule
      Carburants qui ignorerait le fallback temporel. Aucune autre fonction
      de ce fichier n'est appelée depuis cet écran. -->
-<script src="nexus-brief-donnees.js?v=20260902-1823"></script>
-<script src="nexus-app-donnees.js?v=20260902-1823"></script>
-<script src="nexus-forfait.js?v=20260902-1823"></script>
-<script src="nexus-raccourcis-catalogue.js?v=20260902-1823"></script>
+<script src="nexus-brief-donnees.js?v=20260902-1905"></script>
+<script src="nexus-app-donnees.js?v=20260902-1905"></script>
+<script src="nexus-forfait.js?v=20260902-1905"></script>
+<script src="nexus-raccourcis-catalogue.js?v=20260902-1905"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -2444,6 +2452,7 @@
     { label: 'Inventaire', desc: "Comptages d'ouverture et de clôture de quart", href: 'NEXUS-Inventaire-v1.html', role: 'all' },
     { label: 'Assignations', desc: 'Assigner, suivre, valider une mission', href: 'NEXUS-Assignations-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Planning', desc: 'Le bon collaborateur, au bon endroit, au bon moment', href: 'NEXUS-Planning-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Paye', desc: 'Variables mensuelles fiabilisées pour la comptable', href: 'NEXUS-Paye-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Évaluations', desc: 'Contrôle tenue + grille de prime', href: 'NEXUS-Evaluation-Employe-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Résultats', desc: 'Progression réelle par employé', href: 'NEXUS-Resultats-Equipe-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Imports', desc: 'Ventes, catalogue ou stock instantané', href: 'NEXUS-Import-v1.html', role: 'manager' },

@@ -60,12 +60,17 @@
   .chip small{opacity:0.7; margin-left:4px;}
   .chip-vide{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
   .chip-moi{box-shadow:0 0 0 2px var(--cyan) inset;}
+  .google-planning{padding:6px 0 2px; text-align:center;}
+  .google-mark{width:46px; height:46px; margin:0 auto 12px; border-radius:12px; display:grid; place-items:center; background:rgba(52,211,153,.12); color:var(--green); font:700 20px var(--mono);}
+  .google-planning h2{font-size:16px; margin-bottom:7px;}
+  .google-planning p{font-size:12px; line-height:1.55; color:var(--text-mid); margin-bottom:14px;}
+  .google-btn{display:block; width:100%; padding:12px; border-radius:8px; background:var(--green); color:#06150f; text-decoration:none; font-weight:700; font-size:13px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260902-1823"></script>
+<script src="nexus-auth.js?v=20260902-1905"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -118,6 +123,13 @@
   function moisPrecedent(d) { return new Date(d.getFullYear(), d.getMonth() - 1, 1); }
   function finMoisISO(d) { return moisSuivant(d).toISOString().slice(0, 10); }
   function heureCourte(t) { return t ? t.slice(0, 5) : ''; }
+  function lienPlanningGoogleSecurise(config) {
+    const brut = (config && config.planning_google_sheet_url) || ((config && config.planning_google_sheet_id) ? `https://docs.google.com/spreadsheets/d/${config.planning_google_sheet_id}/edit` : '');
+    try {
+      const url = new URL(brut);
+      return url.protocol === 'https:' && url.hostname === 'docs.google.com' && url.pathname.startsWith('/spreadsheets/d/') ? url.href : '';
+    } catch (_) { return ''; }
+  }
 
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
@@ -126,6 +138,16 @@
     let MOIS_COURANT = premierJourMois(new Date());
 
     document.getElementById('sousTitre').textContent = `Bonjour ${employee.nom}`;
+
+    const { data: sourcePlanning, error: sourceError } = await nexusClient.from('station_config')
+      .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
+      .eq('site', siteId).maybeSingle();
+    if (sourceError) console.error('Chargement source planning:', sourceError);
+    if (sourcePlanning && sourcePlanning.planning_source === 'google_sheets') {
+      const url = lienPlanningGoogleSecurise(sourcePlanning);
+      document.querySelector('.section').innerHTML = `<div class="card"><div class="section-label">Planning officiel</div><div class="google-planning"><div class="google-mark">G</div><h2>Votre planning est sur Google Sheets</h2><p>Ce classeur est la source officielle choisie par votre manager. Il s'ouvre en lecture selon les droits Google accordés à votre compte.</p>${url ? `<a class="google-btn" href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">Consulter mon planning ↗</a>` : '<div class="note">Le lien doit encore être renseigné par le manager.</div>'}</div></div>`;
+      return;
+    }
 
     const TACHE_LABEL = { piste: 'Piste', caisse: 'Caisse' };
     function chip(ps, estMoi) {

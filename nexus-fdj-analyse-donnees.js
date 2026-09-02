@@ -55,7 +55,7 @@
 // l'utilitaire `dateISO()` propre à la page.
 //
 // Inclure après nexus-auth.js (nexusClient) :
-// <script src="nexus-fdj-analyse-donnees.js?v=20260902-1823"></script>
+// <script src="nexus-fdj-analyse-donnees.js?v=20260902-1905"></script>
 // ------------------------------------------------------------
 
 (function (global) {

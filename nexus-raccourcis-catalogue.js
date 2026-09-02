@@ -27,7 +27,7 @@
 // ce fichier ne fait AUCUN calcul, aucun accès Supabase (comme tout
 // moteur NEXUS).
 //
-// Inclure dans une page : <script src="nexus-raccourcis-catalogue.js?v=20260902-1823"></script>
+// Inclure dans une page : <script src="nexus-raccourcis-catalogue.js?v=20260902-1905"></script>
 // ------------------------------------------------------------
 
 (function (global) {

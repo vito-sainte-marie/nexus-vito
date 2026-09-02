@@ -30,8 +30,8 @@
 // Dépend de nexus-ecarts-moteur.js (deriverStatutEcart, arrondiCentimes,
 // calculerMontantRetenuLigne, roleCaisseInhabituelle) — DOIT être chargé
 // avant ce fichier :
-//   <script src="nexus-ecarts-moteur.js?v=20260902-1823"></script>
-//   <script src="nexus-ecarts-donnees.js?v=20260902-1823"></script>
+//   <script src="nexus-ecarts-moteur.js?v=20260902-1905"></script>
+//   <script src="nexus-ecarts-donnees.js?v=20260902-1905"></script>
 // ------------------------------------------------------------
 
 (function (global) {
@@ -70,6 +70,9 @@
     ];
     lignes.forEach(l => {
       l.qualification = qualifParCle[`${l.sourceModule}-${l.sourceControlId}-${l.activite}-activite_inhabituelle`] || null;
+      // PAYE lit cette qualification sans recalculer ni recopier l'écart.
+      // Une contestation ouverte ou en réexamen bloque toujours la transmission.
+      l.contestation = qualifParCle[`${l.sourceModule}-${l.sourceControlId}-${l.activite}-contestation`] || null;
     });
 
     return appliquerFiltresEcarts(lignes, filtres);

@@ -20,7 +20,7 @@
 // "Analyse des écarts".
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
-// Inclure : <script src="nexus-ecarts-moteur.js?v=20260902-1823"></script>
+// Inclure : <script src="nexus-ecarts-moteur.js?v=20260902-1905"></script>
 // ------------------------------------------------------------
 
 (function (global) {

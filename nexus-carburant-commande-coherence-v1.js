@@ -48,6 +48,6 @@
     s.dataset.nexusCarburantsPolish=cle;
     document.head.appendChild(s);
   }
-  injecter('nexus-carburants-p0-coherence-ui.js?v=20260902-1823','p0');
-  injecter('nexus-carburants-mobile-polish-v2.js?v=20260902-1823','mobile-v2');
+  injecter('nexus-carburants-p0-coherence-ui.js?v=20260902-1905','p0');
+  injecter('nexus-carburants-mobile-polish-v2.js?v=20260902-1905','mobile-v2');
 })();

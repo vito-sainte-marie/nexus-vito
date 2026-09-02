@@ -188,18 +188,27 @@
   .psec-body{display:none; padding:14px 2px 2px;}
   .psec.open .psec-body{display:block;}
   .psec-subgroup-label{font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--cyan); margin:4px 0 8px; padding-left:2px;}
+  .planning-source-options{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 12px;}
+  .planning-source-option{display:flex; align-items:flex-start; gap:8px; padding:11px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; cursor:pointer;}
+  .planning-source-option:has(input:checked){border-color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,.2) inset;}
+  .planning-source-option input{margin-top:2px; accent-color:var(--cyan);}
+  .planning-source-option b{display:block; font-size:12px; margin-bottom:3px;}
+  .planning-source-option small{display:block; color:var(--text-dim); font:9.5px/1.4 var(--mono);}
+  .planning-source-fields{display:none; padding-top:4px;}
+  .planning-source-fields.visible{display:block;}
+  .planning-source-link{display:inline-block; margin-top:9px; color:var(--green); font:600 11px var(--mono); text-decoration:none;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260902-1823"></script>
-<script src="nexus-header-nav.js?v=20260902-1823"></script>
-<script src="nexus-desktop.js?v=20260902-1823"></script>
-<script src="nexus-forfait.js?v=20260902-1823"></script>
-<script src="nexus-raccourcis-catalogue.js?v=20260902-1823"></script>
-<script src="nexus-carburant-moteur.js?v=20260902-1823"></script>
-<script src="nexus-carburant-donnees.js?v=20260902-1823"></script>
-<script src="nexus-reception-moteur.js?v=20260902-1823"></script>
-<script src="nexus-progression.js?v=20260902-1823"></script>
+<script src="nexus-auth.js?v=20260902-1905"></script>
+<script src="nexus-header-nav.js?v=20260902-1905"></script>
+<script src="nexus-desktop.js?v=20260902-1905"></script>
+<script src="nexus-forfait.js?v=20260902-1905"></script>
+<script src="nexus-raccourcis-catalogue.js?v=20260902-1905"></script>
+<script src="nexus-carburant-moteur.js?v=20260902-1905"></script>
+<script src="nexus-carburant-donnees.js?v=20260902-1905"></script>
+<script src="nexus-reception-moteur.js?v=20260902-1905"></script>
+<script src="nexus-progression.js?v=20260902-1905"></script>
 </head>
 <body>
 <div class="phone">
@@ -744,6 +753,23 @@
       </button>
       <div class="psec-body">
 
+    <div class="card" id="cardPlanningOfficiel">
+      <div class="section-label">Planning officiel de l’équipe</div>
+      <div class="note">Choisissez l’unique planning présenté aux employés. Ce réglage est distinct du Google Sheet de recettes utilisé par Verify.</div>
+      <div class="planning-source-options">
+        <label class="planning-source-option"><input type="radio" name="planningSource" value="nexus"><span><b>NEXUS Planning</b><small>Génération, publication et consultation dans NEXUS.</small></span></label>
+        <label class="planning-source-option"><input type="radio" name="planningSource" value="google_sheets"><span><b>Google Sheets</b><small>Le classeur partagé devient la référence officielle.</small></span></label>
+      </div>
+      <div class="planning-source-fields" id="planningGoogleFields">
+        <label style="font-size:12.5px; color:var(--text-mid); display:block; margin-bottom:6px;">Lien du Google Sheet de planning</label>
+        <input type="text" id="planningGoogleLien" class="champ-recherche" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
+        <div class="note" style="margin:8px 0 0;">Partagez le classeur en lecture avec les employés concernés. Leur page ouvre ce lien sans modifier le fichier.</div>
+        <a class="planning-source-link" id="planningGoogleOuvrir" href="#" target="_blank" rel="noopener" style="display:none;">Ouvrir le planning Google Sheets ↗</a>
+      </div>
+      <button class="btn btn-primary" id="planningSourceEnregistrer">Enregistrer la source officielle</button>
+      <div class="gs-resultat" id="planningSourceResultat"></div>
+    </div>
+
     <div class="card" id="cardExceptionsMarge">
       <div class="section-label">Exceptions de marge (Scanner)</div>
       <div class="note">Le Scanner propose des ajustements de marge en comparant chaque article à des articles similaires. Certains articles ont un prix imposé par le fabricant (ex. paquets de cigarettes) et ne doivent jamais être comparés — recherchez-les ici pour les exclure définitivement de ces recommandations.</div>
@@ -810,6 +836,12 @@
         if (morePanel && morePanel.contains(chip)) fermerPanneauPlus();
       });
     });
+    const cibleHash = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    if (cibleHash) {
+      const sec = cibleHash.closest('.psec');
+      if (sec) definirEtat(sec, true);
+      requestAnimationFrame(() => cibleHash.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
   })();
 
   nexusRequireAuth().then(async employee => {
@@ -819,6 +851,77 @@
       return;
     }
     const session = { prenom: employee.nom, role: employee.role };
+
+  // La source officielle du planning est un réglage de station. Le Google
+  // Sheet de planning reste volontairement séparé de google_sheet_id, réservé
+  // à la synchronisation des recettes Verify.
+  function extraireIdPlanningGoogle(valeur) {
+    const texte = String(valeur || '').trim();
+    const match = texte.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : (/^[a-zA-Z0-9_-]{20,}$/.test(texte) ? texte : '');
+  }
+
+  function normaliserUrlPlanningGoogle(valeur) {
+    const id = extraireIdPlanningGoogle(valeur);
+    return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : '';
+  }
+
+  function afficherChoixSourcePlanning(source, url) {
+    const valeur = source === 'google_sheets' ? 'google_sheets' : 'nexus';
+    const radio = document.querySelector(`input[name="planningSource"][value="${valeur}"]`);
+    if (radio) radio.checked = true;
+    document.getElementById('planningGoogleFields').classList.toggle('visible', valeur === 'google_sheets');
+    const lien = document.getElementById('planningGoogleOuvrir');
+    lien.style.display = valeur === 'google_sheets' && url ? 'inline-block' : 'none';
+    if (url) lien.href = url;
+  }
+
+  (async function initSourcePlanning() {
+    const { data, error } = await nexusClient.from('station_config')
+      .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
+      .eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement source planning:', error); return; }
+    const source = (data && data.planning_source) || 'nexus';
+    const url = normaliserUrlPlanningGoogle((data && data.planning_google_sheet_url) || ((data && data.planning_google_sheet_id) ? data.planning_google_sheet_id : ''));
+    document.getElementById('planningGoogleLien').value = url;
+    afficherChoixSourcePlanning(source, url);
+  })();
+
+  document.querySelectorAll('input[name="planningSource"]').forEach(radio => radio.addEventListener('change', () => {
+    afficherChoixSourcePlanning(radio.value, normaliserUrlPlanningGoogle(document.getElementById('planningGoogleLien').value));
+  }));
+
+  document.getElementById('planningSourceEnregistrer').addEventListener('click', async () => {
+    const btn = document.getElementById('planningSourceEnregistrer');
+    const resultat = document.getElementById('planningSourceResultat');
+    const source = document.querySelector('input[name="planningSource"]:checked').value;
+    const saisie = document.getElementById('planningGoogleLien').value;
+    const id = extraireIdPlanningGoogle(saisie);
+    const url = normaliserUrlPlanningGoogle(saisie);
+    if (source === 'google_sheets' && (!id || !url)) {
+      resultat.className = 'gs-resultat err';
+      resultat.textContent = 'Collez un lien Google Sheets valide avant de le définir comme planning officiel.';
+      return;
+    }
+    btn.disabled = true;
+    const { error } = await nexusClient.from('station_config').update({
+      planning_source: source,
+      planning_google_sheet_id: source === 'google_sheets' ? id : null,
+      planning_google_sheet_url: source === 'google_sheets' ? url : null,
+      updated_at: new Date().toISOString(),
+    }).eq('site', employee.site_id);
+    btn.disabled = false;
+    if (error) {
+      console.error('Sauvegarde source planning:', error);
+      resultat.className = 'gs-resultat err';
+      resultat.textContent = "Erreur d'enregistrement — réessayez.";
+      return;
+    }
+    document.getElementById('planningGoogleLien').value = url;
+    afficherChoixSourcePlanning(source, url);
+    resultat.className = 'gs-resultat ok';
+    resultat.textContent = source === 'google_sheets' ? '✓ Google Sheets est maintenant le planning officiel.' : '✓ NEXUS Planning est maintenant le planning officiel.';
+  });
 
 
   // Valeurs par défaut Vito Sainte-Marie Usine. Les fins de quart

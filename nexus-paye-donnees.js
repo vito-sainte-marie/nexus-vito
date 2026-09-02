@@ -1,0 +1,81 @@
+// NEXUS PAYE — accès aux sources canoniques et persistance des seuls arbitrages.
+(function (global) {
+  async function chargerRapport(client, siteId, periode) {
+    const M = global.NexusPayeMoteur;
+    if (!M) throw new Error('Moteur PAYE indisponible');
+    const debut = M.moisISO(periode);
+    const fin = M.finMoisISO(periode);
+    const [emp, settings, planning, pointages, indispos, audits, items, periodeRes, configRes, ecarts] = await Promise.all([
+      client.from('employees').select('id, username, nom, role, actif, site_id').eq('site_id', siteId).eq('actif', true).order('nom'),
+      client.from('nexus_paye_employee_settings').select('*').eq('site_id', siteId),
+      client.from('planning_shifts').select('id, employee_id, date, quart, statut, duree_heures, heure_debut, heure_fin, tache').eq('site_id', siteId).gte('date', debut).lt('date', fin),
+      client.from('pointages').select('id, employee_id, date, type, heure, quart, retard_min, anomalie_signalee').eq('site', siteId).gte('date', debut).lt('date', fin),
+      client.from('employee_indisponibilites').select('id, employee_id, date_debut, date_fin, type, commentaire').eq('site_id', siteId).lte('date_debut', fin).gte('date_fin', debut),
+      client.from('audits_caisse').select('id, date, quart, statut, employes_piste, employes_boutique').eq('site', siteId).gte('date', debut).lt('date', fin),
+      client.from('nexus_paye_items').select('*').eq('site_id', siteId).eq('periode', debut),
+      client.from('nexus_paye_periodes').select('*').eq('site_id', siteId).eq('periode', debut).maybeSingle(),
+      client.from('station_config').select('paye_config,planning_source,planning_google_sheet_url,planning_google_sheet_id').eq('site', siteId).maybeSingle(),
+      global.NexusEcartsDonnees.chargerEcartsConsolides(client, siteId, { dateDebut: debut, dateFin: fin }),
+    ]);
+    [emp, settings, planning, pointages, indispos, audits, items, periodeRes, configRes].forEach(r => { if (r.error) throw r.error; });
+    const rapport = M.construireRapport({
+      periode: debut, employees: emp.data || [], settings: settings.data || [], planning: planning.data || [],
+      pointages: pointages.data || [], indisponibilites: indispos.data || [], audits: audits.data || [],
+      items: items.data || [], config: (configRes.data && configRes.data.paye_config) || {}, ecarts: ecarts || [],
+    });
+    rapport.periodeEnregistree = periodeRes.data || null;
+    rapport.config = (configRes.data && configRes.data.paye_config) || {};
+    rapport.planningOfficiel = {
+      source: (configRes.data && configRes.data.planning_source) || 'nexus',
+      url: (configRes.data && configRes.data.planning_google_sheet_url) || null,
+    };
+    return rapport;
+  }
+
+  async function enregistrerReglageEmploye(client, payload) {
+    const ligne = {
+      employee_id: payload.employeeId, site_id: payload.siteId,
+      inclus_paye: !!payload.inclusPaye, mode_presence: payload.modePresence,
+      commentaire: payload.commentaire || null, updated_at: new Date().toISOString(), updated_by: payload.actorId,
+    };
+    const { error } = await client.from('nexus_paye_employee_settings').upsert(ligne, { onConflict: 'employee_id' });
+    if (error) throw error;
+  }
+
+  async function enregistrerDecision(client, payload) {
+    const ligne = {
+      site_id: payload.siteId, employee_id: payload.employeeId, periode: payload.periode,
+      date_evenement: payload.item.date || null, type_item: payload.item.typeItem,
+      origine: payload.item.origine || 'manuel', source_cle: payload.item.sourceCle,
+      libelle: payload.item.libelle, quantite_minutes: payload.quantiteMinutes == null ? (payload.item.quantiteMinutes ?? null) : payload.quantiteMinutes,
+      montant_centimes: payload.montantCentimes == null ? null : payload.montantCentimes,
+      statut: payload.statut, impact_paye: !!payload.impactPaye, note: payload.note || null,
+      cree_par: payload.actorId, modifie_par: payload.actorId, modifie_le: new Date().toISOString(),
+    };
+    const { error } = await client.from('nexus_paye_items').upsert(ligne, { onConflict: 'site_id,periode,employee_id,source_cle' });
+    if (error) throw error;
+  }
+
+  async function ajouterItemManuel(client, payload) {
+    const sourceCle = `manuel:${global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : Date.now()}`;
+    return enregistrerDecision(client, Object.assign({}, payload, {
+      statut: 'valide', impactPaye: !!payload.impactPaye,
+      item: {
+        date: payload.date, typeItem: payload.typeItem, origine: 'manuel', sourceCle,
+        libelle: payload.libelle,
+      },
+    }));
+  }
+
+  async function enregistrerPeriode(client, { siteId, periode, statut, snapshot, actorId }) {
+    const maintenant = new Date().toISOString();
+    const ligne = { site_id: siteId, periode, statut, snapshot: snapshot || null, updated_at: maintenant };
+    if (statut === 'verifie') { ligne.verifie_par = actorId; ligne.verifie_le = maintenant; }
+    if (statut === 'transmis') { ligne.transmis_par = actorId; ligne.transmis_le = maintenant; }
+    if (statut === 'brouillon') { ligne.snapshot = null; ligne.verifie_par = null; ligne.verifie_le = null; ligne.transmis_par = null; ligne.transmis_le = null; }
+    const { error } = await client.from('nexus_paye_periodes').upsert(ligne, { onConflict: 'site_id,periode' });
+    if (error) throw error;
+  }
+
+  global.NexusPayeDonnees = { chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, enregistrerPeriode };
+})(typeof window !== 'undefined' ? window : globalThis);

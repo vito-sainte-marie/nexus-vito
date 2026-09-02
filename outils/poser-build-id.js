@@ -104,6 +104,23 @@ if (VERIFIER) {
   process.exit(manquants.length ? 1 : 0);
 }
 
+// Chaque écran chargeant des scripts doit aussi charger nexus-build.js, qui
+// expose NEXUS_BUILD et estampille le pied de page. Posé ici plutôt qu'à la
+// main : un écran ajouté demain l'obtient sans que personne y pense.
+{
+  let ajoutes = 0;
+  for (const f of fichiers.filter(x => x.endsWith('.html'))) {
+    const chemin = path.join(RACINE, f);
+    const s = fs.readFileSync(chemin, 'utf8');
+    if (s.includes('nexus-build.js')) continue;
+    const m = /<script src="(?!https?:)[A-Za-z0-9._/-]+\.js\?v=/.exec(s);
+    if (!m) continue;
+    fs.writeFileSync(chemin, s.slice(0, m.index) + '<script src="nexus-build.js"></script>\n' + s.slice(m.index));
+    ajoutes++;
+  }
+  if (ajoutes) console.log(`nexus-build.js ajouté dans ${ajoutes} écran(s).`);
+}
+
 const commit = commitCourt();
 fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/poser-build-id.js — ne pas éditer à la main.
 // Identifiant unique de la génération déployée. Toutes les ressources

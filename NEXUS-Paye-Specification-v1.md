@@ -1,6 +1,6 @@
 # NEXUS Paye — Spécification de cadrage v1
 
-**Statut de ce document : cadrage, rien n'est construit.** Il documente une cible d'architecture pour un futur chantier, à l'image de `Audit_NEXUS_Analyse_des_Ecarts_Verify_FDJ_PAYE.pdf` qui avait déjà anticipé une partie de ce besoin (§13). Aucune ligne de code de ce document n'est encore livrée. Il sert de référence pour cadrer les lots futurs quand le module PAYE sera réellement construit.
+**Statut au 02/09/2026 : socle v1 construit.** L'écran `NEXUS-Paye-v1.html`, son moteur pur, son chargeur de données et son schéma Supabase réalisent désormais la préparation mensuelle. PAYE reste volontairement un préparateur de variables pour la comptable : il ne fabrique aucun bulletin et n'applique aucune retenue automatiquement.
 
 Origine : demande de Frédéric le 29/08/2026, après la correction du P0 v2.285 (attribution des écarts Verify), posant la question « les employés voient-ils exactement les mêmes écarts que le manager ? » et proposant, si ce n'est pas le cas, une architecture "une seule vérité, plusieurs vues" avec `discrepancy_id`, statut `CONTESTÉ`, verrou PAYE et contrôle de cohérence automatique.
 
@@ -71,8 +71,8 @@ Aucun changement requis par cette spécification — c'est déjà le modèle cib
 
 Ce point n'est PAS traité dans ce document au-delà du cadrage : c'est un chantier de refonte à part entière (au minimum : ré-écrire `construireServicesCaisse`/`ecartsAttribuables`/`serviceEstPropre` pour consommer le moteur central, vérifier l'impact sur toutes les métriques qui en dérivent — séries, tendances, axes de progression — et rejouer les tests existants de Progression qui encodent aujourd'hui l'ancien comportement).
 
-### 4.3 NEXUS Paye (n'existe pas encore)
-Quand ce module sera construit, il ne devra JAMAIS recalculer un écart : il consomme uniquement `montantRetenu` (jamais `ecartInitial` — règle déjà actée depuis le v2.269, "Écart de caisse ≠ dette employé ≠ retenue sur paie") et le `statut` final d'un écart déjà clos. Le champ `impactPaye`, posé à `null` depuis le v2.269 comme réservation explicite, est le point d'entrée déjà prévu pour ce branchement futur.
+### 4.3 NEXUS Paye (socle v1 construit)
+Le module ne recalcule jamais un écart : il consomme `montantRetenu` et le `statut` final produits par le moteur central. Ce montant reste une référence affichée ; le manager doit saisir explicitement le montant à transmettre avant que `impact_paye` ne puisse devenir vrai dans l'arbitrage PAYE.
 
 ---
 
@@ -98,9 +98,9 @@ Champs à prévoir pour une contestation (réutilisation de la table générique
 
 ---
 
-## 6. Verrou PAYE
+## 6. Verrou PAYE (construit en v1)
 
-Règle à faire respecter par le futur module (pas de code aujourd'hui, PAYE n'existe pas) : un écart dont la qualification `contestation` est ouverte (pas encore résolue) ne peut jamais être transmis en `montantRetenu` définitif à PAYE. PAYE afficherait un état explicite ("écart en cours de réexamen, non intégré") plutôt que d'ignorer silencieusement la contestation ou de intégrer un montant qui pourrait changer.
+Un écart dont la qualification `contestation` est ouverte ou en réexamen ne peut jamais être transmis à PAYE. L'écran affiche cet état explicitement et conserve ce verrou même si un ancien arbitrage PAYE existe.
 
 ## 7. Contrôle de cohérence automatique
 
@@ -115,11 +115,11 @@ Proposition retenue comme test de non-régression à écrire dès que Progressio
 
 ---
 
-## 9. Prochaines étapes suggérées (non engagées, à confirmer par Frédéric)
+## 9. Suites restant à engager
 
 1. Refondre `nexus-progression.js` pour consommer `nexus-ecarts-moteur.js`/`nexus-ecarts-donnees.js` au lieu de recalculer indépendamment (§4.2) — le seul chantier qui corrige réellement le risque de divergence aujourd'hui, indépendamment de tout le reste.
 2. Étendre `nexus_ecarts_qualifications` avec `type_qualification = 'contestation'` + écran employé "Signaler un écart" dans Progression, et son pendant manager dans Analyse des écarts (§5).
 3. Écrire le contrôle de cohérence automatique (§7) comme test de non-régression, une fois (1) fait.
-4. NEXUS Paye lui-même (§4.3, §6) : à cadrer en détail seulement quand ce module sera mis au calendrier — ce document pose les règles qu'il devra respecter dès sa conception, pas son plan d'implémentation.
+4. Faire valider le premier dossier mensuel réel dans l'écran PAYE, puis compléter le calendrier des jours fériés du site avant toute clôture comptable.
 
 Chacun de ces points est un lot à part entière, à traiter et tester séparément (même discipline que tous les correctifs précédents de cet historique) — pas un chantier unique.
