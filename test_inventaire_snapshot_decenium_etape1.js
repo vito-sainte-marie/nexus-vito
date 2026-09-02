@@ -262,9 +262,9 @@ function lireSource(fichier) { return fs.readFileSync(path.join(ROOT, fichier), 
 
 testSync('NEXUS-Inventaire-Manager-v1.html — les 2 scripts Snapshot sont inclus après le moteur inventaire (ordre de chargement)', () => {
   const src = lireSource('NEXUS-Inventaire-Manager-v1.html');
-  const iMoteur = src.indexOf('<script src="nexus-inventaire-moteur.js"></script>');
-  const iSnapMoteur = src.indexOf('<script src="nexus-inventaire-snapshot-moteur.js"></script>');
-  const iSnapDonnees = src.indexOf('<script src="nexus-inventaire-snapshot-donnees.js"></script>');
+  const iMoteur = src.search(/<script src="nexus\-inventaire\-moteur\.js(?:\?v=[0-9A-Za-z_-]+)?"><\/script>/);
+  const iSnapMoteur = src.search(/<script src="nexus\-inventaire\-snapshot\-moteur\.js(?:\?v=[0-9A-Za-z_-]+)?"><\/script>/);
+  const iSnapDonnees = src.search(/<script src="nexus\-inventaire\-snapshot\-donnees\.js(?:\?v=[0-9A-Za-z_-]+)?"><\/script>/);
   assert.ok(iMoteur > -1 && iSnapMoteur > iMoteur && iSnapDonnees > iSnapMoteur, 'ordre ou présence des <script> incorrect');
 });
 
