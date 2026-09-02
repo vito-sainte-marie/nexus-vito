@@ -420,6 +420,19 @@
   let compteurTapsSession = 0;
   let compteurInterruptionsSession = 0;
 
+  // La simulation manager conserve l'identité réelle et ne crée aucune
+  // donnée opérationnelle. Cette garde vit dans l'écran lui-même (et non
+  // seulement dans une extension chargée après coup) afin que chaque chemin
+  // d'écriture reste sûr même si l'ordre de chargement des scripts varie.
+  function modeTestInventaireActif() {
+    return !!(employeeCourant && employeeCourant.mode_test_inventaire && employeeCourant.role_test_inventaire);
+  }
+
+  function terminerModeTestInventaire(phase) {
+    const api = typeof window !== 'undefined' ? window.NexusInventaireModeTest : null;
+    if (api && typeof api.terminer === 'function') api.terminer(phase);
+  }
+
   // ------------------------------------------------------------
   // BROUILLON LOCAL (02/08/2026, demande de Frédéric — "si un employé fait
   // exprès [sans faire exprès] retourne en arrière, garder en mémoire les
@@ -550,6 +563,7 @@
   // le cas avant ce lot, inchangé).
   async function ecrireComptageImmediat(payload) {
     const idempotencyKey = cleIdempotenceComptage(payload.quart_id, payload.produit_id, payload.type_comptage, payload.quantite);
+    if (modeTestInventaireActif()) return { id: `simulation:${idempotencyKey}`, simulation: true };
     try {
       const { data, error } = await nexusClient
         .from('inventaire_comptages')
@@ -575,6 +589,7 @@
   // la validation finale (voir validerOuverture) — renvoie false s'il reste
   // au moins un élément non synchronisé après la tentative.
   async function tenterSynchronisationFileAttente() {
+    if (modeTestInventaireActif()) return true;
     const file = chargerFileSync();
     if (!file.length) return true;
     let toutSynchronise = true;
@@ -609,6 +624,7 @@
   // simplement inclus dans la prochaine tentative (prochaine catégorie
   // ouverte ou validation finale), plutôt que perdus silencieusement.
   async function flusherMesuresAdoption() {
+    if (modeTestInventaireActif()) return;
     if (!quartRow || (compteurTapsSession === 0 && compteurInterruptionsSession === 0)) return;
     try {
       const nouveauxTaps = (quartRow.nexus_taps_total || 0) + compteurTapsSession;
@@ -699,6 +715,7 @@
 
   async function ecrireMouvementImmediat(payload) {
     const idempotencyKey = cleIdempotenceMouvement(payload.quart_id, payload.produit_id, payload.type_mouvement, payload.quantite);
+    if (modeTestInventaireActif()) return { id: `simulation:${idempotencyKey}`, simulation: true };
     try {
       const { data, error } = await nexusClient
         .from('inventaire_mouvements')
@@ -900,6 +917,11 @@
 
   async function obtenirOuCreerQuart() {
     const site = employeeCourant.site_id;
+    if (modeTestInventaireActif()) return {
+      id: '00000000-0000-4000-8000-000000000101', site,
+      date: dateISO(), quart: quartActuel, statut: 'simulation',
+      ouvert_le: new Date().toISOString(), is_simulation: true,
+    };
     const { data: existant, error: e1 } = await nexusClient
       .from('inventaire_quarts').select('*').eq('site', site).eq('date', dateISO()).eq('quart', quartActuel).maybeSingle();
     if (e1) { console.error('Lecture quart:', e1); }
@@ -913,6 +935,12 @@
   }
 
   async function obtenirOuCreerQuartEmploye() {
+    if (modeTestInventaireActif()) return {
+      id: '00000000-0000-4000-8000-000000000102', quart_id: quartRow.id,
+      employee_id: employeeCourant.id, role: employeeCourant.role_test_inventaire,
+      a_valide_ouverture: false, a_valide_cloture: false,
+      heure_arrivee: new Date().toISOString(),
+    };
     const { data: existant, error: e1 } = await nexusClient
       .from('inventaire_quart_employes').select('*').eq('quart_id', quartRow.id).eq('employee_id', employeeCourant.id).maybeSingle();
     if (e1) { console.error('Lecture quart-employé:', e1); }
@@ -1159,6 +1187,13 @@
     // une référence nue lèverait un ReferenceError avant même le if.
     const P = typeof NexusInventairePlanDonnees !== 'undefined' ? NexusInventairePlanDonnees : null;
     if (!P) { console.error('NexusInventairePlanDonnees non chargé — plan de comptage indisponible.'); planQuartActif = null; produitsPlanIds = new Set(); planItemIdParProduit = {}; regleSnapshotParProduit = {}; return; }
+    if (modeTestInventaireActif()) {
+      planQuartActif = null;
+      produitsPlanIds = new Set();
+      planItemIdParProduit = {};
+      regleSnapshotParProduit = {};
+      return;
+    }
     const site = employeeCourant.site_id;
     // Options lues à chaque appel plutôt que mises en cache (19/08/2026) :
     // n'a d'effet réel que si aucun plan n'existe encore pour (site, date,
@@ -2024,7 +2059,10 @@
     });
     modesAveugle = await chargerModesAveugle();
     modeJaugeageActif = await chargerModeJaugeageActif();
-    await chargerRecommandationsProduction();
+    // Une projection terrain ne génère pas de recommandation officielle :
+    // ce chargeur peut persister une recommandation absente. Le contrôle
+    // ciblé simulé n'en a pas besoin.
+    if (!modeTestInventaireActif()) await chargerRecommandationsProduction();
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
     // demande de Frédéric) — reprend la saisie déjà notée plutôt que de
     // repartir de zéro après un retour arrière accidentel ou un rechargement.
@@ -2345,7 +2383,8 @@
       return;
     }
 
-    document.getElementById('titre').textContent = "Inventaire d'ouverture";
+    const testPendant = modeTestInventaireActif() && typeof window !== 'undefined' && window.NexusInventaireModeTest && window.NexusInventaireModeTest.moment() === 'pendant';
+    document.getElementById('titre').textContent = testPendant ? 'Contrôle ciblé Renfort' : "Inventaire d'ouverture";
     document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
 
     const groupes = groupesPourParcours;
@@ -3086,6 +3125,12 @@
   }
 
   async function validerOuverture() {
+    if (modeTestInventaireActif()) {
+      const moment = typeof window !== 'undefined' && window.NexusInventaireModeTest
+        ? window.NexusInventaireModeTest.moment() : 'debut';
+      terminerModeTestInventaire(moment === 'pendant' ? 'mission' : 'ouverture');
+      return;
+    }
     // Confirmation systématique avant validation (02/08/2026, demande de
     // Frédéric) — quel que soit le compte connecté, l'action est
     // irréversible une fois enregistrée en base.
@@ -3600,6 +3645,10 @@
   }
 
   async function validerCloture() {
+    if (modeTestInventaireActif()) {
+      terminerModeTestInventaire('cloture');
+      return;
+    }
     const requis = produitsRequis(produitsZone, { excludeJaugeage: true });
     const manquants = requis.filter(p => !comptagesSaisie[p.id] || comptagesSaisie[p.id].compte === undefined);
     // Avertissement renforcé (02/08/2026, demande de Frédéric — suite à un
@@ -3954,7 +4003,9 @@
     employeeCourant = employee;
     demarrerHorloge();
     quartActuel = await quartDuMoment(employee.site_id);
-    roleDuJour = await chargerRoleDuJour();
+    roleDuJour = employee.mode_test_inventaire
+      ? employee.role_test_inventaire
+      : await chargerRoleDuJour();
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
     // condition d'affichage dépend de la zone (piste), pas du rôle ; elle
@@ -3976,6 +4027,20 @@
     // recharger, sinon "Mes missions" resterait figé sur l'ancien quart.
     await chargerEtAppliquerPlanQuart();
     await chargerMissionsDuJour();
+
+    // En test Renfort, la zone suit la mission configurée et non le rôle
+    // générique. Cela évite de proposer une Piste vide lorsque la règle du
+    // site cible uniquement la Boutique, tout en restant compatible avec
+    // plusieurs emplacements configurés demain.
+    if (modeTestInventaireActif() && roleDuJour === 'renfort') {
+      const zoneIdsMission = new Set((missionsDuJour || []).flatMap(m => m.zone_ids || []));
+      const codesMission = Object.entries(zonesMap)
+        .filter(([, id]) => zoneIdsMission.has(id))
+        .map(([code]) => code);
+      if (codesMission.length) zonesAutorisees = codesMission;
+      if (!zonesAutorisees.length) zonesAutorisees = ['boutique'];
+      zoneActive = zonesAutorisees.includes('boutique') ? 'boutique' : zonesAutorisees[0];
+    }
 
     if (quartEmployeRow && quartEmployeRow.zone_id) {
       const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);
