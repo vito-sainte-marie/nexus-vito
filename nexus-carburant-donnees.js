@@ -35,13 +35,32 @@
   // litrage renseigné" plutôt que de laisser croire à une mesure complète.
   async function chargerVentesPeriode(client, siteId, debut, fin) {
     const { data, error } = await client.from('audits_caisse')
-      .select('litrage_gazole,litrage_sp95,litrage_gnr')
+      .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
       .eq('site', siteId).gte('date', debut).lte('date', fin);
-    if (error) { console.error('Chargement ventes carburant (période):', error); return { ventes: { go: null, sp95: null, gnr: null }, nbQuartsTotal: 0, nbQuartsAvecLitrage: 0 }; }
+    if (error) { console.error('Chargement ventes carburant (période):', error); return { ventes: { go: null, sp95: null, gnr: null }, nbQuartsTotal: 0, nbQuartsAvecLitrage: 0, lignes: [] }; }
     const lignes = data || [];
     const ventes = global.NexusCarburantMoteur.sommerVentesPeriode(lignes);
     const nbQuartsAvecLitrage = lignes.filter(l => l.litrage_gazole != null || l.litrage_sp95 != null || l.litrage_gnr != null).length;
-    return { ventes, nbQuartsTotal: lignes.length, nbQuartsAvecLitrage };
+    return { ventes, nbQuartsTotal: lignes.length, nbQuartsAvecLitrage, lignes };
+  }
+
+  // Aligne une référence sur les mêmes positions commerciales réellement
+  // présentes dans la période courante (ex. lundi Q1/Q2 + mardi Q1). Cela
+  // interdit de comparer 3 quarts courants à 4 ou 6 quarts historiques.
+  function alignerQuartsComparables(lignesActuelles, debutActuel, lignesReference, debutReference) {
+    const jour = 86400000;
+    const origineActuelle = Date.parse(`${debutActuel}T00:00:00Z`);
+    const origineReference = Date.parse(`${debutReference}T00:00:00Z`);
+    const aDuLitrage = l => l && (l.litrage_gazole != null || l.litrage_sp95 != null || l.litrage_gnr != null);
+    const signatures = new Set((lignesActuelles || []).filter(aDuLitrage).map(l => {
+      const offset = Math.round((Date.parse(`${l.date}T00:00:00Z`) - origineActuelle) / jour);
+      return `${offset}:${String(l.quart || '').toUpperCase()}`;
+    }));
+    return (lignesReference || []).filter(l => {
+      if (!aDuLitrage(l)) return false;
+      const offset = Math.round((Date.parse(`${l.date}T00:00:00Z`) - origineReference) / jour);
+      return signatures.has(`${offset}:${String(l.quart || '').toUpperCase()}`);
+    });
   }
 
   // Dernier "point zéro carburants" valide, à date <= dateLimite ou sans
@@ -92,6 +111,54 @@
     const parCarburant = { go: null, sp95: null, gnr: null };
     (lignes || []).forEach(l => { parCarburant[l.carburant] = Number(l.stock_reel); });
     return { ...ref, lignes: parCarburant };
+  }
+
+  // Dernière mesure physique issue d'une réception terminée, par
+  // carburant. Une réception est une vraie ancre temporelle : son stock
+  // après livraison incorpore déjà la livraison et ne doit jamais être
+  // additionné une seconde fois au relevé d'ouverture du même jour.
+  async function chargerDernieresAncresReception(client, siteId, instantLimite) {
+    const vide = { go: null, sp95: null, gnr: null };
+    if (!instantLimite) return vide;
+    const { data: visites, error: e1 } = await client.from('carburant_reception_visites')
+      .select('id,date_visite,heure_fin,statut')
+      .eq('site', siteId).neq('statut', 'en_cours').neq('statut', 'annulee_doublon')
+      .not('heure_fin', 'is', null).lt('heure_fin', instantLimite.toISOString())
+      .order('heure_fin', { ascending: false }).limit(20);
+    if (e1) { console.error('Chargement ancres de réception carburant:', e1); return vide; }
+    if (!visites || !visites.length) return vide;
+    const ids = visites.map(v => v.id);
+    const { data: mesures, error: e2 } = await client.from('carburant_reception_mesures')
+      .select('visite_id,carburant,jaugeage_apres_l,jaugeage_apres_le')
+      .in('visite_id', ids).not('jaugeage_apres_l', 'is', null);
+    if (e2) { console.error('Chargement mesures post-livraison carburant:', e2); return vide; }
+
+    const visiteParId = Object.fromEntries(visites.map(v => [v.id, v]));
+    const groupes = {};
+    (mesures || []).forEach(m => {
+      if (!Object.prototype.hasOwnProperty.call(vide, m.carburant)) return;
+      const cle = `${m.visite_id}:${m.carburant}`;
+      if (!groupes[cle]) groupes[cle] = { stockReel: 0, mesureLe: null };
+      groupes[cle].stockReel += Number(m.jaugeage_apres_l) || 0;
+      if (m.jaugeage_apres_le && (!groupes[cle].mesureLe || m.jaugeage_apres_le > groupes[cle].mesureLe)) {
+        groupes[cle].mesureLe = m.jaugeage_apres_le;
+      }
+    });
+    const resultat = { ...vide };
+    visites.forEach(v => {
+      ['go', 'sp95', 'gnr'].forEach(cle => {
+        if (resultat[cle]) return;
+        const g = groupes[`${v.id}:${cle}`];
+        if (!g) return;
+        const mesureLe = g.mesureLe || v.heure_fin;
+        if (!mesureLe) return;
+        resultat[cle] = {
+          visiteId: v.id, date: v.date_visite, mesureLe,
+          stockReel: g.stockReel, source: 'reception', visite: visiteParId[v.id],
+        };
+      });
+    });
+    return resultat;
   }
 
   // Reprend exactement la chaîne de NEXUS-Carburants-v1.html : dernier
@@ -235,6 +302,30 @@
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     }
 
+    // Une réception terminée entre l'ancienne ancre et la mesure courante
+    // devient l'ancre de calcul pour les seuls carburants effectivement
+    // livrés. Les ventes sont alors résolues depuis son horodatage réel.
+    // Si un quart chevauche cet instant, le théorique reste volontairement
+    // non calculé : NEXUS ne ventile jamais au hasard un quart agrégé.
+    const instantCible = releveDuJour ? M.instantFenetreReleve(releveDuJour, fuseau) : new Date();
+    const instantAncreBase = ancreEstPointZero
+      ? M.instantLocalVersUTC(pointZero.date, String(pointZero.heure || '00:00').slice(0, 5), fuseau)
+      : (dernierReleve ? M.instantFenetreReleve(dernierReleve, fuseau) : null);
+    const receptions = await chargerDernieresAncresReception(client, siteId, instantCible);
+    const fenetresParCarburant = {};
+    await Promise.all(CARBURANTS_INFO.map(async ({ cle }) => {
+      const reception = receptions[cle];
+      if (!reception || !instantAncreBase || new Date(reception.mesureLe) <= instantAncreBase) return;
+      const debut = new Date(reception.mesureLe);
+      const dateDebut = reception.date || dateAncre;
+      const { data: lignesQuarts, error: e3 } = await client.from('audits_caisse')
+        .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+        .eq('site', siteId).gte('date', dateDebut).lte('date', date);
+      if (e3) console.error('Chargement ventes depuis réception (contrôle):', e3);
+      const resolu = M.resoudreVentesFenetre(lignesQuarts || [], horaires, debut, instantCible, fuseau);
+      fenetresParCarburant[cle] = { reception, debut, fin: instantCible, resolu };
+    }));
+
     const parCarburant = {};
     CARBURANTS_INFO.forEach(({ cle }) => {
       let reelDuJour = cle === 'go'
@@ -244,9 +335,11 @@
       // carburant (pas de détail par cuve, contrairement à un relevé réel
       // GO qui somme 2 cuves) — d'où la lecture directe de pointZero.lignes
       // quand l'ancre est le point zéro, sans passer par stockReelGoTotal.
-      const dernierReel = ancreEstPointZero
+      let dernierReel = ancreEstPointZero
         ? (pointZero.lignes ? pointZero.lignes[cle] : null)
         : (cle === 'go' ? M.stockReelGoTotal(dernierReleve) : (dernierReleve ? dernierReleve[`stock_reel_${cle}`] : null));
+      const fenetreCarburant = fenetresParCarburant[cle];
+      if (fenetreCarburant) dernierReel = fenetreCarburant.reception.stockReel;
       // Jour de la référence sans jaugeage séparé saisi ce jour-là (le cas
       // normal — un point zéro n'est pas un relevé) : le stock physique
       // AFFICHÉ est le stock certifié lui-même, jamais une case vide le
@@ -271,14 +364,15 @@
       // de ne jamais rejouer un mouvement daté du jour même de la
       // certification, symétriquement à ventesDepuis déjà mis à 0 plus
       // haut pour ce même jour.
-      const livraison = referenceCertifieeCeJour ? 0 : (releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0);
+      const livraison = (referenceCertifieeCeJour || fenetreCarburant) ? 0 : (releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0);
       const mouvement = referenceCertifieeCeJour ? 0 : (releveDuJour ? (releveDuJour[`mouvement_${cle}`] || 0) : 0);
       // 13/08/2026, audit Carburants Pilotage : la page a besoin d'afficher
       // le "stock physique" en toutes lettres (jauge + tableau), pas
       // seulement l'écart déjà calculé — reelDuJour/dernierReel sont donc
       // remontés tels quels en plus du résultat de calculerCarburant,
       // jamais recalculés une seconde fois côté HTML.
-      const resultat = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventesDepuis[cle] });
+      const ventesCarburant = fenetreCarburant ? fenetreCarburant.resolu.ventes[cle] : ventesDepuis[cle];
+      const resultat = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventesCarburant });
       // Le jour de la certification, statutCarburant() renverrait "Données
       // insuffisantes" (ecartRatio null car ventes=0 → division évitée par
       // calculerEcartRatio) — faux : l'écart EST connu, il vaut 0 par
@@ -293,7 +387,12 @@
         // (NexusCarburantMoteur.motifTheoriqueIndisponible) plutôt que
         // d'afficher juste "Données insuffisantes" — jamais recalculé une
         // seconde fois côté HTML, seulement transmis.
-        ventesDepuis: ventesDepuis[cle],
+        ventesDepuis: ventesCarburant,
+        fenetreIsolable: fenetreCarburant ? fenetreCarburant.resolu.isolable : fenetreIsolable,
+        quartsChevauchants: fenetreCarburant ? fenetreCarburant.resolu.quartsChevauchants : quartsChevauchants,
+        ancreCalculSource: fenetreCarburant ? 'reception' : (ancreEstPointZero ? 'point_zero' : 'ouverture'),
+        ancreCalculHeure: fenetreCarburant ? fenetreCarburant.reception.mesureLe : (instantAncreBase ? instantAncreBase.toISOString() : null),
+        ancreCalculDate: fenetreCarburant ? fenetreCarburant.reception.date : dateAncre,
         // Stock physique "actuel" à afficher : la dernière mesure RÉELLE
         // connue, que ce soit celle du jour (si le jaugeage est déjà fait)
         // ou la précédente sinon — jamais une valeur théorique présentée
@@ -334,7 +433,8 @@
       // alimente le bloc "Comment cet écart est calculé" (preuve auditable,
       // demande de Frédéric) sans que l'écran ait à recalculer quoi que ce
       // soit lui-même.
-      fenetreIsolable, fenetreDebut, fenetreFin, quartsChevauchants,
+      fenetreIsolable: CARBURANTS_INFO.every(({ cle }) => parCarburant[cle].fenetreIsolable !== false),
+      fenetreDebut, fenetreFin, quartsChevauchants,
     };
   }
 
@@ -1150,7 +1250,7 @@
   }
 
   global.NexusCarburantDonnees = {
-    CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
+    CARBURANTS_INFO, chargerVentesPeriode, alignerQuartsComparables, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
