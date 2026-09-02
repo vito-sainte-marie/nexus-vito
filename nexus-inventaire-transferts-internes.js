@@ -62,11 +62,10 @@
   }
 
   function creerUI(ctx) {
-    if (document.getElementById('nexusTransfertInterneBtn')) return;
+    if (document.getElementById('nexusTransfertInterneModal')) return;
 
     const style = document.createElement('style');
     style.textContent = `
-      #nexusTransfertInterneBtn{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:180;border:1px solid rgba(79,195,217,.45);background:#14232a;color:#4FC3D9;border-radius:22px;padding:10px 14px;font:600 11px 'IBM Plex Mono',monospace;box-shadow:0 8px 24px rgba(0,0,0,.35)}
       #nexusTransfertInterneModal{position:fixed;inset:0;z-index:500;background:rgba(5,9,13,.78);display:none;align-items:flex-end;justify-content:center;padding:12px}
       #nexusTransfertInterneModal.actif{display:flex}
       .nti-card{width:100%;max-width:460px;background:#141B22;border:1px solid #242E38;border-radius:16px;padding:18px;max-height:88vh;overflow:auto;color:#EDF1F5}
@@ -79,11 +78,10 @@
     `;
     document.head.appendChild(style);
 
-    const btn = document.createElement('button');
-    btn.id = 'nexusTransfertInterneBtn';
-    btn.type = 'button';
-    btn.textContent = '↔ Transfert interne';
-    document.body.appendChild(btn);
+    const btn = document.getElementById('nexusTransfertInterneBtn');
+    const outils = document.getElementById('nexusOutilsStock');
+    if (!btn || !outils) return;
+    outils.hidden = false;
 
     const modal = document.createElement('div');
     modal.id = 'nexusTransfertInterneModal';
@@ -213,6 +211,7 @@
 
   async function installer() {
     if (!global.location || global.location.pathname.split('/').pop() !== PAGE) return;
+    if (new URLSearchParams(global.location.search).has('test_role')) return;
     try {
       const ctx = await contexte();
       if (!ctx || ctx.zones.length < 2 || !ctx.produits.length) return;
