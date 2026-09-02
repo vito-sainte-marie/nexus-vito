@@ -310,25 +310,42 @@
       // temps déjà écoulé, plutôt que d'afficher un blocage total. Le
       // résultat reste marqué `estimeParHistorique` pour que l'écran
       // affiche honnêtement "estimation" et non une mesure certaine.
-      let estimeParHistorique = false;
-      const estimationsL = { go: 0, sp95: 0, gnr: 0 };
-      if (resolu.isolable !== false) {
-        const quartsAEstimer = M.quartsAEstimerDansFenetre(lignesQuartsJour || [], horaires, dateISO, t0, t1, fuseau);
-        for (const q of quartsAEstimer) {
-          if (q.fraction <= 0) continue;
-          const historiqueQuart = await chargerHistoriqueVentesParQuart(client, siteId, q.quart, dateISO);
-          ['go', 'sp95', 'gnr'].forEach(carb => {
-            const moy = MC ? MC.moyenneRecente(historiqueQuart, carb, dateISO, 14).moyenne : null;
-            if (moy != null) {
-              estimationsL[carb] += moy * q.fraction;
-              estimeParHistorique = true;
-            }
-          });
-        }
+      // 02/09/2026 — doctrine de Frédéric : « un quart manquant doit être
+      // remplacé par une estimation ; dès qu'on voit que le quart manquant
+      // est intégré, il prend la place de l'estimation comme vérité ».
+      //
+      // Avant ce lot, l'estimation était conditionnée à `resolu.isolable`.
+      // Or le jaugeage d'ouverture (05:55) tombe À L'INTÉRIEUR du quart 1
+      // (05:45-13:45) : ce quart chevauche donc systématiquement l'ancre,
+      // `isolable` était toujours faux, aucune estimation n'était produite,
+      // `ventes` restait null et la couverture par quart retombait à
+      // "Calcul par quart indisponible" — l'autonomie opérationnelle
+      // disparaissait alors qu'elle est justement ce que le manager lit en
+      // premier.
+      //
+      // La ventilation traite les deux cas d'un seul geste : un quart à
+      // cheval voit sa part interne estimée au prorata de la durée
+      // recouverte, un quart absent est estimé entier, et un quart saisi et
+      // entièrement dans la fenêtre reste une vérité mesurée intouchée.
+      const moyennesQuart = {};
+      for (const num of ['1', '2']) {
+        const historiqueQuart = await chargerHistoriqueVentesParQuart(client, siteId, num, dateISO);
+        moyennesQuart[num] = {};
+        ['go', 'sp95', 'gnr'].forEach(carb => {
+          moyennesQuart[num][carb] = MC ? MC.moyenneRecente(historiqueQuart, carb, dateISO, 14).moyenne : null;
+        });
       }
+      const ventil = M.ventilerFenetreAvecEstimation(
+        lignesQuartsJour || [], horaires, t0, t1, fuseau, moyennesQuart, [dateISO]);
+      const estimeParHistorique = !!ventil.estime;
+      const estimationsL = {
+        go: ventil.ventesEstimees.go || 0,
+        sp95: ventil.ventesEstimees.sp95 || 0,
+        gnr: ventil.ventesEstimees.gnr || 0,
+      };
 
       Object.entries(controle.parCarburant).forEach(([cle, r]) => {
-        const venteReelle = resolu.ventes[cle];
+        const venteReelle = ventil.ventesReelles[cle];
         const estimee = estimationsL[cle] || 0;
         // `ventes` combine la part réellement close (venteReelle, jamais
         // altérée) et l'estimation du quart encore ouvert — mais seulement

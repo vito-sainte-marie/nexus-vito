@@ -1561,7 +1561,7 @@
     const refJour = ctx.referencePhysiqueDuJour;
     const ancreReception = Object.values(ctx.parCarburant || {}).find(r => r.ancreCalculSource === 'reception');
     const libelleReference = ancreReception && ancreReception.ancreCalculHeure
-      ? `Référence de calcul : jaugeage post-livraison du ${formaterDateHeureFr(ancreReception.ancreCalculHeure)}. Les ventes d'un quart chevauchant cette mesure ne sont jamais estimées.`
+      ? `Référence de calcul : jaugeage post-livraison du ${formaterDateHeureFr(ancreReception.ancreCalculHeure)}. Le quart chevauchant la livraison est ventilé à titre estimatif — cette estimation n'est jamais enregistrée comme un écart constaté.`
       : (refJour && refJour.source === 'reception' && refJour.heure)
       ? `Écart calculé depuis le jaugeage post-livraison du ${formaterDateHeureFr(refJour.heure)}.`
       : (ctx.dateDernierReleve ? `Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}.` : '');
