@@ -309,6 +309,15 @@
       return resultat;
     };
 
+    if (typeof renderChoixZone === 'function') {
+      const renderChoixZoneOriginal = renderChoixZone;
+      renderChoixZone = function () {
+        const resultat = renderChoixZoneOriginal();
+        injecterSelecteur();
+        return resultat;
+      };
+    }
+
     neutraliserEcrituresTerrain();
     window.NEXUS_INVENTAIRE_MODE_TEST_READY = true;
     return true;
@@ -327,6 +336,7 @@
     moment: () => momentMissionTest,
     terminer: afficherFinSimulation,
     actif: roleTestActif,
+    rafraichir: injecterSelecteur,
   };
 
   // Installer les gardes au plus tôt ; nexusRequireAuth attend le drapeau READY

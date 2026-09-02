@@ -59,11 +59,13 @@ global.NexusInventairePlanDonnees = {
 
   // Stabilité de l'état visuel : la garde est statique et ne lance jamais un
   // second rendu concurrent après l'initialisation principale.
-  assert.ok(html.includes('<script data-nexus-inventaire-mode-test>') && html.includes('// NEXUS Inventaire V2 — simulation terrain manager.'), 'garde Simulation intégrée juste avant le cœur de l’écran');
+  assert.ok(html.includes('<script src="nexus-inventaire-mode-test.js?v=20260902-2440"></script>\n<script>'), 'garde Simulation chargée juste avant le cœur de l’écran');
   assert.ok(!authJs.includes("scriptTest = document.createElement('script')"), 'aucun chargement dynamique tardif de la garde');
   assert.ok(!testJs.includes('appliquerModeTestInitial'), 'aucune seconde initialisation concurrente');
   assert.ok(!testJs.includes('timerInitialisation'), 'aucun rendu différé susceptible de remplacer l’écran');
   assert.ok(testJs.includes('Mode simulation') && testJs.includes('Aucune donnée réelle n’est enregistrée'), 'état Simulation explicite et durable');
+  assert.ok(testJs.includes('renderChoixZoneOriginal') && html.includes('window.NexusInventaireModeTest.rafraichir()'), 'bandeau Simulation injecté après tous les rendus, y compris le choix de zone');
+  assert.ok(html.includes("zonesAutorisees = codesMission.length ? codesMission : ['boutique']"), 'Renfort ne conserve jamais les zones génériques hors mission');
 
   // Les outils manager sont intégrés au flux normal et ne sont jamais
   // exposés dans une URL de simulation.
