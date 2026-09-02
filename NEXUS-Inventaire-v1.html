@@ -24,9 +24,6 @@
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-mission-rules-donnees.js"></script>
 <script src="nexus-inventaire-missions-donnees.js"></script>
-<!-- La garde Simulation est chargée statiquement : elle est ainsi toujours
-     installée avant que l'initialisation authentifiée puisse rendre l'écran. -->
-<script src="nexus-inventaire-mode-test.js?v=20260902-2355" defer></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
@@ -343,6 +340,9 @@
   <footer>NEXUS Inventaire v1 · Registre numérique des comptages de quart · Vito Sainte-Marie Usine</footer>
 </div>
 
+<!-- Chargée ici sans defer : la garde démarre avant le cœur de l'écran et
+     termine son installation dès que les fonctions ci-dessous sont prêtes. -->
+<script src="nexus-inventaire-mode-test.js?v=20260902-2415"></script>
 <script>
   // ------------------------------------------------------------
   // NEXUS Inventaire v1 (02/08/2026) — construit avec Frédéric à partir
