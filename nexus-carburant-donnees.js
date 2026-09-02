@@ -113,6 +113,94 @@
     return { ...ref, lignes: parCarburant };
   }
 
+  // Consigne le contexte de ventilation d'un calcul (doctrine du 02/09/2026 :
+  // « mémoriser le contexte estimation, sans enregistrer cette estimation
+  // comme une vérité métier »). Une ligne par quart entrant dans la fenêtre.
+  //
+  // Table append-only : un recalcul écrit un NOUVEAU calcul_id plutôt que de
+  // réécrire l'ancien, pour qu'on puisse toujours répondre plus tard à « sur
+  // quoi reposait ce chiffre ce jour-là ». Rien n'est jamais écrit dans
+  // carburant_controles depuis ici — c'est précisément la séparation
+  // demandée.
+  //
+  // Best-effort : une erreur d'écriture ici ne doit jamais empêcher le
+  // contrôle lui-même d'aboutir (même principe que journal_fraicheur_secteurs).
+  async function enregistrerContexteVentilation(client, siteId, date, ventilation, methode) {
+    if (!ventilation || !ventilation.contexte || !ventilation.contexte.length) return { ok: true, lignes: 0 };
+    const calculId = (globalThis.crypto && globalThis.crypto.randomUUID)
+      ? globalThis.crypto.randomUUID() : null;
+    if (!calculId) return { ok: false, lignes: 0, raison: 'uuid_indisponible' };
+    const lignes = ventilation.contexte.map(c => ({
+      site: siteId, date, calcul_id: calculId,
+      fenetre_debut: ventilation.fenetreDebut || null,
+      fenetre_fin: ventilation.fenetreFin || null,
+      quart_date: c.date, quart: String(c.quart), nature: c.nature,
+      fraction: c.fraction,
+      volume_go: c.volumes ? c.volumes.go : null,
+      volume_sp95: c.volumes ? c.volumes.sp95 : null,
+      volume_gnr: c.volumes ? c.volumes.gnr : null,
+      methode: c.nature === 'reel' ? null : (methode || 'moyenne_recente_14j'),
+      estimable: c.estimable !== false,
+    }));
+    const { error } = await client.from('carburant_ventilation_contexte').insert(lignes);
+    if (error) { console.error('Enregistrement contexte de ventilation carburant:', error); return { ok: false, lignes: 0 }; }
+    return { ok: true, lignes: lignes.length, calculId };
+  }
+
+  // Moyennes de litrage par quart sur les N derniers jours, pour estimer la
+  // part d'une fenêtre qui n'est pas mesurable (doctrine du 02/09/2026).
+  // Retourne { '1': {go, sp95, gnr}, '2': {...} } — un carburant sans aucun
+  // point d'historique reste `null`, jamais un zéro fabriqué (Article 5).
+  async function chargerMoyennesParQuart(client, siteId, dateFinExclusiveISO, joursHistorique) {
+    const jours = joursHistorique || 14;
+    const fin = new Date(`${dateFinExclusiveISO}T00:00:00`);
+    const debut = new Date(fin);
+    debut.setDate(debut.getDate() - jours);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const { data, error } = await client.from('audits_caisse')
+      .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+      .eq('site', siteId).gte('date', iso(debut)).lt('date', dateFinExclusiveISO);
+    if (error) { console.error('Chargement moyennes par quart (ventilation carburant):', error); return {}; }
+    const champs = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
+    const cumul = { '1': {}, '2': {} };
+    (data || []).forEach(l => {
+      const num = String(l.quart) === '2' ? '2' : '1';
+      Object.entries(champs).forEach(([carb, champ]) => {
+        if (l[champ] == null) return;
+        if (!cumul[num][carb]) cumul[num][carb] = { somme: 0, n: 0 };
+        cumul[num][carb].somme += Number(l[champ]);
+        cumul[num][carb].n += 1;
+      });
+    });
+    const moyennes = {};
+    ['1', '2'].forEach(num => {
+      moyennes[num] = {};
+      ['go', 'sp95', 'gnr'].forEach(carb => {
+        const c = cumul[num][carb];
+        moyennes[num][carb] = c && c.n ? c.somme / c.n : null;
+      });
+    });
+    return moyennes;
+  }
+
+  // Dates civiles (fuseau du site) couvertes par [t0, t1], bornes incluses.
+  function datesDeLaFenetre(t0, t1, fuseau) {
+    if (!t0 || !t1) return [];
+    const jour = d => new Intl.DateTimeFormat('en-CA', { timeZone: fuseau || 'UTC' }).format(d);
+    const dates = [];
+    let curseur = new Date(t0.getTime());
+    let garde = 0;
+    while (curseur <= t1 && garde < 40) {
+      const j = jour(curseur);
+      if (!dates.includes(j)) dates.push(j);
+      curseur = new Date(curseur.getTime() + 12 * 3600 * 1000);
+      garde += 1;
+    }
+    const dernier = jour(t1);
+    if (!dates.includes(dernier)) dates.push(dernier);
+    return dates;
+  }
+
   // Dernière mesure physique issue d'une réception terminée, par
   // carburant. Une réception est une vraie ancre temporelle : son stock
   // après livraison incorpore déjà la livraison et ne doit jamais être
@@ -326,6 +414,30 @@
       fenetresParCarburant[cle] = { reception, debut, fin: instantCible, resolu };
     }));
 
+    // Ventilation avec estimation (02/09/2026, doctrine de Frédéric). Calculée
+    // À CÔTÉ de la résolution stricte ci-dessus, jamais à sa place : les
+    // champs existants (ventes, theorique, ecart, fenetreIsolable) gardent
+    // exactement leur sens mesuré, et carburant_controles n'en voit rien.
+    // Ce bloc ne sert qu'à pouvoir AFFICHER et TRACER un ordre de grandeur
+    // là où la chaîne se taisait — jamais à le promouvoir en écart constaté.
+    let ventilation = null;
+    {
+      const debutVentilation = Object.values(fenetresParCarburant).length
+        ? new Date(Math.min(...Object.values(fenetresParCarburant).map(f => f.debut.getTime())))
+        : instantAncreBase;
+      if (debutVentilation && instantCible && horaires) {
+        const dates = datesDeLaFenetre(debutVentilation, instantCible, fuseau);
+        const moyennes = await chargerMoyennesParQuart(client, siteId, date, 14);
+        const { data: lignesVentil } = await client.from('audits_caisse')
+          .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+          .eq('site', siteId).gte('date', dates[0]).lte('date', dates[dates.length - 1]);
+        ventilation = M.ventilerFenetreAvecEstimation(
+          lignesVentil || [], horaires, debutVentilation, instantCible, fuseau, moyennes, dates);
+        ventilation.fenetreDebut = debutVentilation.toISOString();
+        ventilation.fenetreFin = instantCible.toISOString();
+      }
+    }
+
     const parCarburant = {};
     CARBURANTS_INFO.forEach(({ cle }) => {
       let reelDuJour = cle === 'go'
@@ -435,6 +547,7 @@
       // soit lui-même.
       fenetreIsolable: CARBURANTS_INFO.every(({ cle }) => parCarburant[cle].fenetreIsolable !== false),
       fenetreDebut, fenetreFin, quartsChevauchants,
+      ventilation,
     };
   }
 
@@ -1250,7 +1363,8 @@
   }
 
   global.NexusCarburantDonnees = {
-    CARBURANTS_INFO, chargerVentesPeriode, alignerQuartsComparables, chargerControleJour, chargerJoursSansReleve,
+    CARBURANTS_INFO, chargerVentesPeriode, alignerQuartsComparables, chargerControleJour,
+    enregistrerContexteVentilation, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,

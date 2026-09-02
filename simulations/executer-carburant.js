@@ -68,6 +68,52 @@ function verifier(libelle, condition) {
   const gainFantome = ['sp95', 'go'].some(cle => Number(d.parCarburant[cle].ecart) > 5000);
   verifier("aucun gain fantôme de l'ordre de la livraison (+33 957 L le 02/09/2026)", !gainFantome);
 
+  // ---------------------------------------------------------------
+  // E — La ventilation avec estimation, branchée à côté du calcul mesuré.
+  // Le contrôle continue de se taire (aucun écart), mais un ordre de
+  // grandeur estimé devient disponible pour l'écran et pour la trace.
+  // ---------------------------------------------------------------
+  const { creerFauxClient } = require('./faux-client-supabase.js');
+  const { creerContexte } = require('./banc.js');
+
+  // Historique de ventes pour que l'estimation ait de quoi s'appuyer.
+  const histo = [];
+  for (let j = 20; j >= 3; j--) {
+    const d = new Date(Date.UTC(2026, 8, 2) - j * 86400000).toISOString().slice(0, 10);
+    histo.push({ site: S.SITE, date: d, quart: '1', litrage_sp95: 1400, litrage_gazole: 1200, litrage_gnr: 0 });
+    histo.push({ site: S.SITE, date: d, quart: '2', litrage_sp95: 1000, litrage_gazole: 1500, litrage_gnr: 0 });
+  }
+  const tablesE = S.base({ audits_caisse: histo.concat([S.QUART1_01]) });
+  const ctxE = creerContexte(S.MODULES_ECRAN);
+  if (ctxE.NexusCarburantsP0Fixes && ctxE.NexusCarburantsP0Fixes.installer) ctxE.NexusCarburantsP0Fixes.installer();
+  const clientE = creerFauxClient(tablesE);
+  const e = await ctxE.NexusCarburantDonnees.chargerControleJour(clientE, S.SITE, '2026-09-02');
+
+  console.log('\n### E · Ventilation estimée disponible à côté du calcul mesuré');
+  const nb = v => (v == null ? '—' : Math.round(v).toLocaleString('fr-FR'));
+  console.log(`  ventes estimées  go ${nb(e.ventilation && e.ventilation.ventes.go)} · sp95 ${nb(e.ventilation && e.ventilation.ventes.sp95)}`);
+  console.log('  contexte         ' + (e.ventilation ? e.ventilation.contexte
+    .map(c => `${c.date.slice(5)} q${c.quart} ${c.nature}`).join(' · ') : '—'));
+
+  verifier('une ventilation estimée est produite', !!(e.ventilation && e.ventilation.estime));
+  verifier("l'écart mesuré reste tu : rien d'estimé n'est promu en écart",
+    e.parCarburant.sp95.ecart == null && e.parCarburant.go.ecart == null);
+  verifier("les ventes du contrôle (celles qui alimenteraient carburant_controles) restent non mesurées",
+    e.parCarburant.sp95.ventes == null);
+  verifier('le quart 1 à cheval sur la livraison est bien identifié comme estimé',
+    e.ventilation.contexte.some(c => c.quart === '1' && c.nature === 'estime_chevauchement'));
+
+  // F — Le contexte est consigné, et un recalcul empile au lieu d'écraser.
+  const r1 = await ctxE.NexusCarburantDonnees.enregistrerContexteVentilation(clientE, S.SITE, '2026-09-02', e.ventilation);
+  const r2 = await ctxE.NexusCarburantDonnees.enregistrerContexteVentilation(clientE, S.SITE, '2026-09-02', e.ventilation);
+  const consignes = clientE._tables.carburant_ventilation_contexte || [];
+  console.log(`\n### F · Trace du contexte\n  ${consignes.length} lignes consignées sur 2 calculs`);
+  verifier('le contexte est consigné ligne par quart', r1.ok && r1.lignes === e.ventilation.contexte.length);
+  verifier('un recalcul empile un nouveau calcul_id au lieu d’écraser',
+    r2.ok && new Set(consignes.map(l => l.calcul_id)).size === 2);
+  verifier('aucune ligne de contrôle métier n’a été écrite au passage',
+    !(clientE._tables.carburant_controles || []).length);
+
   console.log(`\n${echecs === 0 ? 'Tous les scénarios passent.' : echecs + ' scénario(s) en échec.'}`);
   process.exit(echecs ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

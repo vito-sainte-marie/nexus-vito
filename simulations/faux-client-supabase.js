@@ -44,6 +44,20 @@ function creerFauxClient(tables) {
           }
           return chaine;
         },
+        insert(payload) {
+          const rangees = Array.isArray(payload) ? payload : [payload];
+          rangees.forEach(r => donnees[nom].push({ ...r }));
+          const inserees = rangees.map(r => ({ ...r }));
+          // PostgREST rend l'insert "thenable" et chaînable avec select() /
+          // maybeSingle() : on reproduit les deux formes réellement utilisées.
+          const apres = {
+            select() { return apres; },
+            maybeSingle() { return Promise.resolve({ data: inserees[0] || null, error: null }); },
+            single() { return Promise.resolve({ data: inserees[0] || null, error: null }); },
+            then(res, rej) { return Promise.resolve({ data: inserees, error: null }).then(res, rej); },
+          };
+          return apres;
+        },
         eq(col, v) { const f = lignes.filter(l => { const c = comparer(l[col], v); return String(c.valeur) === String(c.cible); }); lignes = f; return chaine; },
         neq(col, v) { lignes = lignes.filter(l => String(l[col]) !== String(v)); return chaine; },
         lt(col, v) { lignes = lignes.filter(l => { const c = comparer(l[col], v); return l[col] != null && c.valeur < c.cible; }); return chaine; },

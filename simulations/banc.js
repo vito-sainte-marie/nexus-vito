@@ -13,7 +13,8 @@ const vm = require('vm');
 const RACINE = path.join(__dirname, '..');
 
 function creerContexte(fichiers) {
-  const ctx = { console, setTimeout, clearTimeout, Promise, Date, JSON, Math, Object, Array, Number, String };
+  const ctx = { console, setTimeout, clearTimeout, Promise, Date, JSON, Math, Object, Array,
+                Number, String, Intl, isFinite, Set, Map, crypto: require('crypto').webcrypto };
   ctx.window = ctx;
   ctx.globalThis = ctx;
   ctx.self = ctx;
