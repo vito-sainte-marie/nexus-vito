@@ -140,7 +140,7 @@ const DATE = '2026-08-25';
     }),
   };
   charger(sandbox, 'nexus-carburant-commande-moteur.js');
-  charger(sandbox, 'nexus-carburant-commande-donnees.js');
+  charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
   const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
   // Historique quart1 SP95 : 4 jours antérieurs, moyenne simple 750 L
@@ -206,7 +206,7 @@ const DATE = '2026-08-25';
     }),
   };
   charger(sandbox, 'nexus-carburant-commande-moteur.js');
-  charger(sandbox, 'nexus-carburant-commande-donnees.js');
+  charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
   const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
   const client = creerClientMockVide();

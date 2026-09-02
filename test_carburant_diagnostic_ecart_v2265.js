@@ -178,7 +178,7 @@ function creerClientAuditsCaisseVide() {
         parCarburant: { go: { reelDuJour: 10496, dernierReel: 13250, statut: 'À corriger', ecart: -1195 } },
       }),
     };
-    chargerModule(sandbox, 'nexus-carburant-commande-donnees.js');
+    chargerModule(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
     const r = await Donnees.chargerStockEtFiabiliteParCarburant(creerClientAuditsCaisseVide(), 'vito-sainte-marie', '2026-08-28', HORAIRES, FUSEAU, '2026-08-28T12:00:00.000Z');
     assert.strictEqual(r.parCarburant.go.statut, 'À corriger', 'statut brut désormais exposé (nécessaire au diagnostic d\'écart) : ' + JSON.stringify(r.parCarburant.go));
@@ -241,7 +241,7 @@ function creerClientAuditsCaisseVide() {
     // dépendances Supabase (carburant_releves) sont déjà couvertes ailleurs
     // — ce test se concentre sur le NOUVEAU câblage diagnosticEcart.
     sandbox.NexusCarburantDonnees = { chargerControleJour: async () => fixtureControleJour };
-    chargerModule(sandbox, 'nexus-carburant-commande-donnees.js');
+    chargerModule(sandbox, 'nexus-carburant-commande-donnees-core.js');
     return sandbox.NexusCarburantCommandeDonnees;
   }
 

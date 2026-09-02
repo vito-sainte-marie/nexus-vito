@@ -141,7 +141,7 @@ function creerClientEvaluation() {
     }),
   };
   charger(sandbox, 'nexus-carburant-commande-moteur.js');
-  charger(sandbox, 'nexus-carburant-commande-donnees.js');
+  charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
   const Donnees = sandbox.NexusCarburantCommandeDonnees;
   const M = sandbox.NexusCarburantCommandeMoteur;
 

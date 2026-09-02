@@ -114,7 +114,7 @@ const HISTORIQUE_REEL = [
   vm.createContext(sandbox2);
   sandbox2.window = sandbox2;
   charger(sandbox2, 'nexus-carburant-commande-moteur.js');
-  charger(sandbox2, 'nexus-carburant-commande-donnees.js');
+  charger(sandbox2, 'nexus-carburant-commande-donnees-core.js');
 
   let appels = 0;
   const client = {

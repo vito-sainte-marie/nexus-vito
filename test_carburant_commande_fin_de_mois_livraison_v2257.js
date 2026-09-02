@@ -116,7 +116,7 @@ function creerClientEvaluation() {
   // calendaire et calculé indépendamment de la qualité du stock).
   sandbox.NexusCarburantDonnees = { chargerControleJour: async () => ({ aucunReleve: true }) };
   charger(sandbox, 'nexus-carburant-commande-moteur.js');
-  charger(sandbox, 'nexus-carburant-commande-donnees.js');
+  charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
   const Donnees = sandbox.NexusCarburantCommandeDonnees;
   const M = sandbox.NexusCarburantCommandeMoteur;
 

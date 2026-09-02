@@ -129,7 +129,7 @@ function creerClientAuditsCaisseVide() {
         parCarburant: { go: { reelDuJour: 10496, dernierReel: 13250, statut: 'À corriger', ecart: -1195 } },
       }),
     };
-    chargerModule(sandbox, 'nexus-carburant-commande-donnees.js');
+    chargerModule(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
     const client = creerClientAuditsCaisseVide();
     const r = await Donnees.chargerStockEtFiabiliteParCarburant(client, 'vito-sainte-marie', '2026-08-28', HORAIRES, FUSEAU, '2026-08-28T12:00:00.000Z');
@@ -160,7 +160,7 @@ function creerClientAuditsCaisseVide() {
         parCarburant: { go: { dernierReel: 13250, ventesDepuis: 2754, statut: 'Sous contrôle', ecart: null } },
       }),
     };
-    chargerModule(sandbox, 'nexus-carburant-commande-donnees.js');
+    chargerModule(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
     const client = creerClientAuditsCaisseVide();
     const r = await Donnees.chargerStockEtFiabiliteParCarburant(client, 'vito-sainte-marie', '2026-08-28', HORAIRES, FUSEAU, '2026-08-28T12:00:00.000Z');

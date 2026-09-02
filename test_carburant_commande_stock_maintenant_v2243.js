@@ -80,7 +80,7 @@ function ok(label) { n++; console.log('OK —', label); }
         },
       }),
     };
-    charger(sandbox, 'nexus-carburant-commande-donnees.js');
+    charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
     const client = creerClientAuditsCaisse([
@@ -121,7 +121,7 @@ function ok(label) { n++; console.log('OK —', label); }
         parCarburant: { sp95: { reelDuJour: 12000, dernierReel: 11000, statut: 'Sous contrôle' } },
       }),
     };
-    charger(sandbox, 'nexus-carburant-commande-donnees.js');
+    charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
     const client = creerClientAuditsCaisse([
@@ -157,7 +157,7 @@ function ok(label) { n++; console.log('OK —', label); }
         parCarburant: { sp95: { reelDuJour: 12000, dernierReel: 11000, statut: 'Sous contrôle' } },
       }),
     };
-    charger(sandbox, 'nexus-carburant-commande-donnees.js');
+    charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
     const client = creerClientAuditsCaisse([
@@ -191,7 +191,7 @@ function ok(label) { n++; console.log('OK —', label); }
         },
       }),
     };
-    charger(sandbox, 'nexus-carburant-commande-donnees.js');
+    charger(sandbox, 'nexus-carburant-commande-donnees-core.js');
     const Donnees = sandbox.NexusCarburantCommandeDonnees;
 
     const client = { from() { appelsAuditsCaisse++; throw new Error('Cas B ne doit jamais requêter audits_caisse — ventesDepuis déjà calculée par chargerControleJour'); } };

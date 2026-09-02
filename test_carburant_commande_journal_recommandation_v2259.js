@@ -192,7 +192,7 @@ const M = sandboxA.NexusCarburantCommandeMoteur;
     }),
   };
   charger(sandboxB, 'nexus-carburant-commande-moteur.js');
-  charger(sandboxB, 'nexus-carburant-commande-donnees.js');
+  charger(sandboxB, 'nexus-carburant-commande-donnees-core.js');
   const Donnees = sandboxB.NexusCarburantCommandeDonnees;
 
   const journalStore = {};
