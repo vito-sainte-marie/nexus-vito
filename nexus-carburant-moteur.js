@@ -382,11 +382,15 @@
   // causes possibles d'un théorique null (voir calculerTheorique) — une
   // seule sortie normalisée, jamais reconstruite différemment par chaque
   // écran (Article 11).
-  function motifTheoriqueIndisponible({ dernierReleveExiste, dernierReel, releveDuJourExiste, ventes }) {
+  function motifTheoriqueIndisponible({ dernierReleveExiste, dernierReel, releveDuJourExiste, ventes, fenetreIsolable, quartsChevauchants }) {
     if (!dernierReleveExiste) return 'Aucun relevé antérieur — première mesure, pas encore de référence pour calculer un théorique.';
     if (dernierReel == null) return 'Dernier relevé incomplet pour ce carburant (cuve non renseignée) — théorique non calculable.';
     if (!releveDuJourExiste) return 'Jaugeage du jour manquant.';
-    if (ventes == null) return 'Ventes depuis le dernier relevé non disponibles — aucun quart avec litrage capté sur cette période.';
+    if (fenetreIsolable === false) {
+      const quarts = (quartsChevauchants || []).map(q => `${q.quart || 'quart'} du ${q.date || ''}`.trim()).join(', ');
+      return `Écart non calculable : ${quarts || 'un quart de ventes'} chevauche la mesure physique de référence. NEXUS ne répartit pas des ventes qu'il ne peut pas isoler ; le prochain jaugeage d'ouverture rétablira automatiquement le contrôle.`;
+    }
+    if (ventes == null) return 'Ventes depuis la mesure physique de référence non disponibles — aucun quart avec litrage capté sur cette période.';
     return null;
   }
 
