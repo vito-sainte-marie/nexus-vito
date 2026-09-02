@@ -25,7 +25,7 @@
 // plutôt qu'une copie locale.
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
-// Inclure : <script src="nexus-boussole-moteur.js"></script>
+// Inclure : <script src="nexus-boussole-moteur.js?v=20260902-1823"></script>
 // ------------------------------------------------------------
 
 (function (global) {

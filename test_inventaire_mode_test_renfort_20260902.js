@@ -59,7 +59,12 @@ global.NexusInventairePlanDonnees = {
 
   // Stabilité de l'état visuel : la garde est statique et ne lance jamais un
   // second rendu concurrent après l'initialisation principale.
-  assert.ok(html.includes('<script src="nexus-inventaire-mode-test.js?v=20260902-2440"></script>\n<script>'), 'garde Simulation chargée juste avant le cœur de l’écran');
+  // L'identifiant de build est posé automatiquement par
+  // outils/poser-build-id.js et change à chaque déploiement : on vérifie
+  // l'ORDRE de chargement, qui est la vraie règle, et non la génération du
+  // jour, qui rendrait ce test faux dès le prochain déploiement.
+  assert.ok(/<script src="nexus-inventaire-mode-test\.js\?v=[0-9A-Za-z_-]+"><\/script>\n<script>/.test(html),
+    'garde Simulation chargée juste avant le cœur de l’écran');
   assert.ok(!authJs.includes("scriptTest = document.createElement('script')"), 'aucun chargement dynamique tardif de la garde');
   assert.ok(!testJs.includes('appliquerModeTestInitial'), 'aucune seconde initialisation concurrente');
   assert.ok(!testJs.includes('timerInitialisation'), 'aucun rendu différé susceptible de remplacer l’écran');
