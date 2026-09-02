@@ -662,14 +662,26 @@
     // « mémoriser le contexte estimation, sans enregistrer cette estimation
     // comme une vérité métier »). Écrit UNE fois par génération de contrôle,
     // jamais à chaque affichage — et jamais dans carburant_controles, qui
-    // reste réservé aux comparaisons entièrement mesurées. Best-effort : une
-    // erreur ici ne doit pas empêcher le contrôle d'aboutir.
-    if (ctx && ctx.ventilation && ctx.ventilation.estime) {
-      try {
-        await NexusCarburantDonnees.enregistrerContexteVentilation(nexusClient, siteId, date, ctx.ventilation);
-      } catch (e) {
-        console.error('Trace du contexte de ventilation carburant :', e);
+    // reste réservé aux comparaisons entièrement mesurées.
+    //
+    // La ventilation est relue via chargerControleJour plutôt que prise dans
+    // `ctx` : ce dernier est composé à partir des variables déjà en mémoire
+    // de l'écran (DERNIER_RELEVE, VENTES_DEPUIS...) et ne porte pas la
+    // ventilation. La relire ici coûte une requête au moment de la
+    // génération d'un contrôle — événement rare — plutôt que de dupliquer
+    // le calcul dans l'écran (Article 11, une seule vérité pour "comment
+    // cette fenêtre a été ventilée").
+    //
+    // Best-effort : une erreur ici ne doit jamais empêcher le contrôle
+    // d'aboutir, la preuve principale reste carburant_releves.
+    try {
+      const ctrlVentilation = await NexusCarburantDonnees.chargerControleJour(nexusClient, siteId, date);
+      if (ctrlVentilation && ctrlVentilation.ventilation && ctrlVentilation.ventilation.estime) {
+        await NexusCarburantDonnees.enregistrerContexteVentilation(
+          nexusClient, siteId, date, ctrlVentilation.ventilation);
       }
+    } catch (e) {
+      console.error('Trace du contexte de ventilation carburant :', e);
     }
     const referenceType = ctx.ancreEstPointZero ? 'point_zero' : 'releve';
     const referenceDate = ctx.ancreEstPointZero ? (ctx.pointZero ? ctx.pointZero.date : null) : (ctx.dernierReleve ? ctx.dernierReleve.date : null);
