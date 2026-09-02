@@ -1432,6 +1432,14 @@
       // rechargement de page.
       const diagCouverture = diagnosticCouvertureCarburant(cle);
       const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
+      // Estimation (02/09/2026, doctrine de Frédéric). Ne s'affiche QUE là où
+      // la chaîne mesurée se tait : elle remplit un silence, elle ne vient
+      // jamais concurrencer un écart réellement calculé. Composition faite
+      // par le moteur, jamais reconstruite ici (Article 11).
+      const estim = M.estimationControleCarburant(r, ctx.ventilation, cle);
+      const estimTxt = estim.disponible && estim.ecartEstime != null
+        ? `≈ ${estim.ecartEstime >= 0 ? '+' : ''}${Math.round(estim.ecartEstime).toLocaleString('fr-FR')} L`
+        : null;
       const detailCuves = cfg.cuves.length > 1 ? cfg.cuves.map(cv => cv.label).join(' + ') : cfg.cuves[0].label;
       // 14/08/2026, retour de Frédéric : "Fiabilité du contrôle" remplace le
       // badge générique "Données insuffisantes" — motif précis (jaugeage
@@ -1519,6 +1527,7 @@
           <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${r.ecart != null ? ` <span class="ecart-caveat" data-ecart-diag="${cle}" role="button" tabindex="0" title="${ecartNonFiabilise ? "Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée. Cliquer pour le diagnostic complet." : 'Cliquer pour voir le diagnostic de cet écart'}">ⓘ</span>` : ''}</span></div>
+          ${estimTxt ? `<div class="carb-stat-row" title="${estim.phrase}"><span class="lbl" style="font-style:italic;">Écart estimé</span><span class="val" style="color:var(--text-dim); font-style:italic;">${estimTxt} <span class="ecart-caveat" data-estimation-info="${cle}" role="button" tabindex="0" title="Voir ce qui a été estimé">ⓘ</span></span></div><div class="carb-estimation-info" id="estimationInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;">${estim.phrase}</div>` : ''}
           <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || '?'}</span></div>
@@ -1581,6 +1590,15 @@
       const ouvrir = (e) => { e.stopPropagation(); toggleDiagnosticEcart(el.dataset.ecartDiag); };
       el.addEventListener('click', ouvrir);
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(e); } });
+    });
+    zone.querySelectorAll('[data-estimation-info]').forEach(el => {
+      const basculer = (e) => {
+        e.stopPropagation();
+        const bloc = document.getElementById(`estimationInfo_${el.dataset.estimationInfo}`);
+        if (bloc) bloc.style.display = bloc.style.display === 'none' ? 'block' : 'none';
+      };
+      el.addEventListener('click', basculer);
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); basculer(e); } });
     });
     zone.querySelectorAll('[data-rapprochement-info]').forEach(bouton => {
       bouton.addEventListener('click', (e) => {

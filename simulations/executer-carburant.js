@@ -114,6 +114,29 @@ function verifier(libelle, condition) {
   verifier('aucune ligne de contrôle métier n’a été écrite au passage',
     !(clientE._tables.carburant_controles || []).length);
 
+  // ---------------------------------------------------------------
+  // G — Ce que la carte Pilotage affichera. L'estimation remplit le silence,
+  // et s'efface dès qu'un écart mesuré existe.
+  // ---------------------------------------------------------------
+  const Mg = ctxE.NexusCarburantMoteur;
+  const estimSp95 = Mg.estimationControleCarburant(e.parCarburant.sp95, e.ventilation, 'sp95');
+  console.log('\n### G · Composition de l’affichage');
+  console.log(`  écart estimé sp95 : ${estimSp95.ecartEstime == null ? '—' : Math.round(estimSp95.ecartEstime).toLocaleString('fr-FR') + ' L'}`);
+  console.log('  phrase            : ' + (estimSp95.phrase || '—').slice(0, 120) + '…');
+
+  verifier('une estimation est composée là où le contrôle se tait', estimSp95.disponible === true);
+  verifier("la phrase nomme les quarts estimés et dit que ce n'est pas un écart constaté",
+    /quart 1 du 01\/09 \(coupé par la livraison\)/.test(estimSp95.phrase || '')
+    && /pas un écart constaté/.test(estimSp95.phrase || ''));
+  verifier("l'estimation reste un ordre de grandeur, pas le gain fantôme d'hier",
+    Math.abs(estimSp95.ecartEstime) < 5000);
+
+  // Dès qu'un théorique mesuré existe, l'estimation s'efface : elle ne vient
+  // jamais concurrencer un chiffre réel.
+  const avecMesure = Object.assign({}, e.parCarburant.sp95, { theorique: 20000, ecart: -120 });
+  const estimEffacee = Mg.estimationControleCarburant(avecMesure, e.ventilation, 'sp95');
+  verifier("l'estimation s'efface dès qu'un théorique mesuré existe", estimEffacee.disponible === false);
+
   console.log(`\n${echecs === 0 ? 'Tous les scénarios passent.' : echecs + ' scénario(s) en échec.'}`);
   process.exit(echecs ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

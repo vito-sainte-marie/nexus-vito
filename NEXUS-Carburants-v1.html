@@ -658,6 +658,19 @@
   // même discipline que fdj_shifts.releve_cloture_statut) plutôt qu'un
   // simple console.error invisible et non rejouable.
   async function enregistrerControleDate(siteId, date, releve, ctx) {
+    // Trace du contexte de ventilation (02/09/2026, doctrine de Frédéric :
+    // « mémoriser le contexte estimation, sans enregistrer cette estimation
+    // comme une vérité métier »). Écrit UNE fois par génération de contrôle,
+    // jamais à chaque affichage — et jamais dans carburant_controles, qui
+    // reste réservé aux comparaisons entièrement mesurées. Best-effort : une
+    // erreur ici ne doit pas empêcher le contrôle d'aboutir.
+    if (ctx && ctx.ventilation && ctx.ventilation.estime) {
+      try {
+        await NexusCarburantDonnees.enregistrerContexteVentilation(nexusClient, siteId, date, ctx.ventilation);
+      } catch (e) {
+        console.error('Trace du contexte de ventilation carburant :', e);
+      }
+    }
     const referenceType = ctx.ancreEstPointZero ? 'point_zero' : 'releve';
     const referenceDate = ctx.ancreEstPointZero ? (ctx.pointZero ? ctx.pointZero.date : null) : (ctx.dernierReleve ? ctx.dernierReleve.date : null);
     const referenceExiste = ctx.ancreEstPointZero ? !!ctx.pointZero : !!ctx.dernierReleve;

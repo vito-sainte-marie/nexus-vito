@@ -1088,6 +1088,32 @@
     };
   }
 
+  // Traduit une ventilation estimée en théorique/écart ESTIMÉS pour un
+  // carburant, avec la phrase qui dit d'où ça vient (02/09/2026).
+  //
+  // Ne s'active que là où la chaîne mesurée se tait (`theorique == null`) :
+  // une estimation ne vient jamais concurrencer un écart réellement calculé,
+  // elle ne fait que remplir un silence. Le résultat porte `estime: true` et
+  // n'a pas vocation à être enregistré dans carburant_controles — c'est la
+  // règle posée par Frédéric : mémoriser le contexte, jamais promouvoir
+  // l'estimation en vérité métier.
+  function estimationControleCarburant(r, ventilation, cle) {
+    const vide = { disponible: false, ventesEstimees: null, theoriqueEstime: null, ecartEstime: null, phrase: null, quarts: [] };
+    if (!r || !ventilation || !ventilation.estime) return vide;
+    if (r.theorique != null) return vide; // la mesure prime toujours
+    const ventes = ventilation.ventes ? ventilation.ventes[cle] : null;
+    if (ventes == null || r.dernierReel == null) return vide;
+    const theorique = Number(r.dernierReel) + (Number(r.livraison) || 0) + (Number(r.mouvement) || 0) - Number(ventes);
+    const ecart = r.reelDuJour != null ? Number(r.reelDuJour) - theorique : null;
+    const quarts = (ventilation.contexte || []).filter(c => c.nature !== 'reel');
+    const dire = c => `quart ${c.quart} du ${String(c.date).slice(8, 10)}/${String(c.date).slice(5, 7)}`
+      + (c.nature === 'estime_chevauchement' ? ' (coupé par la livraison)' : ' (non saisi)');
+    const phrase = quarts.length
+      ? `Estimation — ${quarts.map(dire).join(', ')}. Part reconstituée à partir de la moyenne du même créneau sur 14 jours, au prorata du temps concerné. Ordre de grandeur pour situer la journée : ce n'est pas un écart constaté et rien n'est enregistré comme tel.`
+      : null;
+    return { disponible: true, ventesEstimees: Number(ventes), theoriqueEstime: theorique, ecartEstime: ecart, phrase, quarts };
+  }
+
   // Sprint C6 "Pilotage" (17/08/2026, audit §10 : "Situation aujourd'hui —
   // Badge de qualité par carburant : référence fiable, contrôle provisoire,
   // non comparable"). Traduit une `qualite` de carburant_controles (posée
@@ -1712,6 +1738,7 @@
     quartsAEstimerDansFenetre,
     fractionRecouvrementQuart,
     ventilerFenetreAvecEstimation,
+    estimationControleCarburant,
     libelleQualiteControle, diagnosticAbsenceControle, diagnostiquerEcartCarburant,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
