@@ -57,14 +57,42 @@
   }
 
   async function ajouterItemManuel(client, payload) {
-    const sourceCle = `manuel:${global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : Date.now()}`;
-    return enregistrerDecision(client, Object.assign({}, payload, {
-      statut: 'valide', impactPaye: !!payload.impactPaye,
-      item: {
-        date: payload.date, typeItem: payload.typeItem, origine: 'manuel', sourceCle,
-        libelle: payload.libelle,
-      },
+    return ajouterItemsManuels(client, Object.assign({}, payload, { dates: [payload.date] }));
+  }
+
+  function datesInclusives(dateDebut, dateFin) {
+    const debut = String(dateDebut || '');
+    const fin = String(dateFin || dateDebut || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(debut) || !/^\d{4}-\d{2}-\d{2}$/.test(fin)) throw new Error('Période invalide');
+    const courant = new Date(`${debut}T00:00:00Z`);
+    const dernier = new Date(`${fin}T00:00:00Z`);
+    if (Number.isNaN(courant.getTime()) || Number.isNaN(dernier.getTime()) || courant.toISOString().slice(0, 10) !== debut || dernier.toISOString().slice(0, 10) !== fin) throw new Error('Période invalide');
+    if (dernier < courant) throw new Error('La date de fin précède la date de début');
+    const dates = [];
+    while (courant <= dernier) {
+      dates.push(courant.toISOString().slice(0, 10));
+      courant.setUTCDate(courant.getUTCDate() + 1);
+      if (dates.length > 62) throw new Error('Période trop longue');
+    }
+    return dates;
+  }
+
+  async function ajouterItemsManuels(client, payload) {
+    const dates = Array.isArray(payload.dates) ? payload.dates : datesInclusives(payload.dateDebut, payload.dateFin);
+    if (!dates.length) throw new Error('Aucune date à enregistrer');
+    const groupe = global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const maintenant = new Date().toISOString();
+    const lignes = dates.map(date => ({
+      site_id: payload.siteId, employee_id: payload.employeeId, periode: payload.periode,
+      date_evenement: date, type_item: payload.typeItem, origine: 'manuel',
+      source_cle: `manuel:${groupe}:${date}`, libelle: payload.libelle,
+      quantite_minutes: payload.quantiteMinutes == null ? null : payload.quantiteMinutes,
+      montant_centimes: payload.montantCentimes == null ? null : payload.montantCentimes,
+      statut: 'valide', impact_paye: !!payload.impactPaye, note: payload.note || null,
+      cree_par: payload.actorId, modifie_par: payload.actorId, modifie_le: maintenant,
     }));
+    const { error } = await client.from('nexus_paye_items').upsert(lignes, { onConflict: 'site_id,periode,employee_id,source_cle' });
+    if (error) throw error;
   }
 
   async function enregistrerPeriode(client, { siteId, periode, statut, snapshot, actorId }) {
@@ -77,5 +105,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, enregistrerPeriode };
+  global.NexusPayeDonnees = { chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
 })(typeof window !== 'undefined' ? window : globalThis);

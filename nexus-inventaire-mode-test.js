@@ -357,7 +357,7 @@
 (function chargerComptageConditionnementCigarettes(){
   if(document.querySelector('script[data-nexus-cigarettes-conditionnement]')) return;
   const s=document.createElement('script');
-  s.src='nexus-inventaire-cigarettes-conditionnement-v1.js?v=20260902-1905';
+  s.src='nexus-inventaire-cigarettes-conditionnement-v1.js?v=20260902-2341';
   s.defer=true;
   s.dataset.nexusCigarettesConditionnement='1';
   document.head.appendChild(s);

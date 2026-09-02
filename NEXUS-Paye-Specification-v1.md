@@ -123,3 +123,25 @@ Proposition retenue comme test de non-régression à écrire dès que Progressio
 4. Faire valider le premier dossier mensuel réel dans l'écran PAYE, puis compléter le calendrier des jours fériés du site avant toute clôture comptable.
 
 Chacun de ces points est un lot à part entière, à traiter et tester séparément (même discipline que tous les correctifs précédents de cet historique) — pas un chantier unique.
+
+---
+
+## 10. Interface guidée de préparation mensuelle (02/09/2026)
+
+L'écran PAYE est organisé comme un parcours de contrôle destiné à un manager non spécialiste de la paie :
+
+1. **À vérifier** rassemble les seules décisions encore nécessaires.
+2. **Salariés** présente une synthèse nominative puis le détail repliable.
+3. **Dossier comptable** guide les étapes `Marquer prêt` → `Exporter` → `Marquer transmis`.
+
+Les écarts Verify et FDJ sont tous conservés dans la lecture PAYE :
+
+- un écart positif reste visible comme information sans impact paie ;
+- un écart négatif est proposé à arbitrage, sans jamais devenir automatiquement une retenue ;
+- un écart associé à plusieurs employés reste visible sous « Employé à identifier » et renvoie vers le contrôle source ;
+- l'écart initial, l'écart final validé, le motif, le statut et le lien source restent lisibles ;
+- une contestation ouverte conserve son verrou de transmission.
+
+Les boutons `(i)` expliquent les notions sensibles : rôle du planning, preuves de présence, arbitrage, écart de caisse, impact paie, saisie sur une période et contenu de l'export comptable.
+
+La saisie manuelle accepte une période inclusive `Du / Au`. NEXUS crée une ligne datée par journée en une seule écriture groupée. Tout montant en euros reste limité à une journée afin d'empêcher une duplication accidentelle.

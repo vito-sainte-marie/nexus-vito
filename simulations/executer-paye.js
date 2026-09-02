@@ -58,6 +58,14 @@ scenario('écart ne devient jamais retenue automatiquement',()=>{
  const r=run({ecarts:[{id:'verify-a-piste',employeeId:'e1',date:'2026-08-12',activite:'piste',sourceModule:'verify',montantRetenu:-36.65}]});
  const i=r.items.find(x=>x.typeItem==='ecart_caisse'); assert.strictEqual(i.impactPaye,false);assert.strictEqual(i.montantCentimes,null);
 });
+scenario('écart positif reste visible sans bloquer la paie',()=>{
+ const r=run({ecarts:[{id:'verify-plus',employeeId:'e1',date:'2026-08-12',activite:'boutique',sourceModule:'verify',ecartInitial:3.01,ecartFinal:.31,montantRetenu:.31}]});
+ const i=r.items.find(x=>x.typeItem==='ecart_caisse');assert.strictEqual(i.statut,'information');assert.strictEqual(i.impactPaye,false);assert.ok(!r.bloqueurs.some(b=>b.sourceCle===i.sourceCle));
+});
+scenario('écart non attribué reste visible et bloque si négatif',()=>{
+ const r=run({ecarts:[{id:'verify-partage',employeeId:null,date:'2026-08-12',activite:'piste',sourceModule:'verify',montantRetenu:-12.5}]});
+ assert.strictEqual(r.ecartsNonAttribues.length,1);assert.ok(r.bloqueurs.some(b=>b.type==='ecart_non_attribue'));
+});
 scenario('contestation ouverte bloque malgré un ancien arbitrage',()=>{
  const r=run({ecarts:[{id:'verify-a-piste',employeeId:'e1',date:'2026-08-12',activite:'piste',sourceModule:'verify',montantRetenu:-36.65,contestation:{statut_contestation:'ouverte'}}],items:[{id:'i',employee_id:'e1',periode:'2026-08-01',origine:'verify',source_cle:'ecart:verify-a-piste',statut:'valide',impact_paye:true,montant_centimes:3665}]});
  assert.ok(r.bloqueurs.some(b=>b.type==='ecart_caisse'));

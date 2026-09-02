@@ -19,7 +19,7 @@
 //   - NEXUS-Carburants-Pilotage-v1.html (sous-bloc "Qualité des réceptions")
 //
 // Inclure après nexus-reception-moteur.js :
-// <script src="nexus-reception-donnees.js?v=20260902-1905"></script>
+// <script src="nexus-reception-donnees.js?v=20260902-2341"></script>
 // ------------------------------------------------------------
 
 (function (global) {

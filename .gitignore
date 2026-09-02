@@ -25,3 +25,4 @@ npm-debug.log*
 # Environnement
 .env
 .env.local
+*.tgz

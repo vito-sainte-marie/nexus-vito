@@ -13,8 +13,8 @@
 // l'Indice NEXUS.
 //
 // Dépend de nexus-periodes.js — l'inclure AVANT ce fichier dans la page :
-//   <script src="nexus-periodes.js?v=20260902-1905"></script>
-//   <script src="nexus-indice.js?v=20260902-1905"></script>
+//   <script src="nexus-periodes.js?v=20260902-2341"></script>
+//   <script src="nexus-indice.js?v=20260902-2341"></script>
 // ============================================================
 
 (function (global) {

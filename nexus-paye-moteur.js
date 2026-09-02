@@ -225,13 +225,20 @@
         }
       });
 
-      (entree.ecarts || []).filter(e => e.employeeId === employee.id && dateDansMois(e.date, periode) && e.montantRetenu < 0).forEach(e => {
+      (entree.ecarts || []).filter(e => e.employeeId === employee.id && dateDansMois(e.date, periode) && Number.isFinite(Number(e.montantRetenu)) && Number(e.montantRetenu) !== 0).forEach(e => {
+        const montantRetenu = Number(e.montantRetenu);
+        const negatif = montantRetenu < 0;
         const contestationOuverte = e.contestation && ['ouverte', 'en_reexamen'].includes(e.contestation.statut_contestation);
         fiche.items.push({
           sourceCle: `ecart:${e.id}`, typeItem: 'ecart_caisse', origine: e.sourceModule,
-          date: e.date, libelle: `Écart ${e.activite} — référence ${(Math.abs(e.montantRetenu)).toFixed(2)} €`,
-          montantReferenceCentimes: Math.round(Math.abs(e.montantRetenu) * 100), montantCentimes: null,
-          statut: 'a_verifier', impactPaye: false, contestationOuverte: !!contestationOuverte,
+          date: e.date, quart: e.quart || null, activite: e.activite || null,
+          libelle: `Écart ${e.activite} ${montantRetenu > 0 ? 'positif' : 'négatif'} — ${montantRetenu > 0 ? '+' : ''}${montantRetenu.toFixed(2)} €`,
+          ecartInitialCentimes: e.ecartInitial == null ? null : Math.round(Number(e.ecartInitial) * 100),
+          ecartFinalCentimes: e.ecartFinal == null ? Math.round(montantRetenu * 100) : Math.round(Number(e.ecartFinal) * 100),
+          ecartSigneCentimes: Math.round(montantRetenu * 100),
+          montantReferenceCentimes: Math.round(Math.abs(montantRetenu) * 100), montantCentimes: null,
+          statutEcart: e.statut || null, causeCode: e.causeCode || null, deepLink: e.deepLink || null,
+          statut: negatif ? 'a_verifier' : 'information', impactPaye: false, contestationOuverte: !!contestationOuverte,
           bloquantTechnique: !!contestationOuverte,
         });
       });
@@ -248,14 +255,30 @@
       employes.push(fiche);
     });
 
+    const ecartsNonAttribues = (entree.ecarts || []).filter(e => !e.employeeId && dateDansMois(e.date, periode) && Number.isFinite(Number(e.montantRetenu)) && Number(e.montantRetenu) !== 0).map(e => {
+      const montantRetenu = Number(e.montantRetenu);
+      return {
+        sourceCle: `ecart:${e.id}`, typeItem: 'ecart_caisse', origine: e.sourceModule,
+        employeeId: null, employeeNom: 'Employé à identifier', date: e.date, quart: e.quart || null,
+        activite: e.activite || null, libelle: `Écart ${e.activite} non attribué — ${montantRetenu > 0 ? '+' : ''}${montantRetenu.toFixed(2)} €`,
+        ecartInitialCentimes: e.ecartInitial == null ? null : Math.round(Number(e.ecartInitial) * 100),
+        ecartFinalCentimes: e.ecartFinal == null ? Math.round(montantRetenu * 100) : Math.round(Number(e.ecartFinal) * 100),
+        ecartSigneCentimes: Math.round(montantRetenu * 100), montantReferenceCentimes: Math.round(Math.abs(montantRetenu) * 100),
+        montantCentimes: null, statutEcart: e.statut || null, causeCode: e.causeCode || null, deepLink: e.deepLink || null,
+        statut: montantRetenu < 0 ? 'a_verifier' : 'information', impactPaye: false, attributionRequise: true,
+      };
+    });
+    itemsGlobaux.push(...ecartsNonAttribues);
+
     const bloqueurs = [];
     employes.forEach(f => {
       if (!f.reglage.confirme) bloqueurs.push({ type: 'configuration_employe', employeeId: f.employee.id, libelle: `${f.employee.nom} : rattachement paie à confirmer` });
       if (f.reglage.inclus && f.reglage.modePresence === 'manuel' && !f.items.some(i => i.origine === 'manuel' && i.statut === 'valide' && i.quantiteMinutes > 0)) {
         bloqueurs.push({ type: 'heures_manuelles', employeeId: f.employee.id, libelle: `${f.employee.nom} : heures mensuelles à confirmer manuellement` });
       }
-      f.items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte).forEach(i => bloqueurs.push({ type: i.typeItem, employeeId: f.employee.id, libelle: `${f.employee.nom} : ${i.libelle}` }));
+      f.items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte).forEach(i => bloqueurs.push({ type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
     });
+    ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
 
     return {
       periode,
@@ -266,22 +289,26 @@
         salariesInclus: employes.filter(f => f.reglage.inclus).length,
         heuresConfirmees: Math.round(employes.reduce((s, f) => s + f.heuresConfirmees, 0) * 100) / 100,
         variablesValidees: itemsGlobaux.filter(i => i.statut === 'valide').length,
+        informations: itemsGlobaux.filter(i => i.statut === 'information').length,
         aVerifier: bloqueurs.length,
       },
+      ecartsNonAttribues,
     };
   }
 
   function lignesExport(rapport) {
     const lignes = [];
     rapport.employes.filter(f => f.reglage.inclus).forEach(f => {
-      const valides = f.items.filter(i => i.statut === 'valide');
+      const valides = f.items.filter(i => i.statut === 'valide' || i.statut === 'information');
       lignes.push({
         employe: f.employee.nom, type: 'presence_confirmee', date: '',
         quantite_minutes: Math.round(f.heuresConfirmees * 60), montant_euros: '',
         impact_paye: 'information', commentaire: `${f.joursConfirmes.size} jour(s) confirmé(s)`,
       });
       valides.forEach(i => lignes.push({
-        employe: f.employee.nom, type: i.typeItem, date: i.date || '',
+        employe: f.employee.nom, type: i.typeItem, date: i.date || '', source: i.origine || '',
+        ecart_initial: i.ecartInitialCentimes == null ? '' : (i.ecartInitialCentimes / 100).toFixed(2),
+        ecart_final: i.ecartFinalCentimes == null ? '' : (i.ecartFinalCentimes / 100).toFixed(2), statut: i.statut,
         quantite_minutes: i.quantiteMinutes == null ? '' : i.quantiteMinutes,
         montant_euros: i.montantCentimes == null ? '' : (i.montantCentimes / 100).toFixed(2),
         impact_paye: i.impactPaye ? 'oui' : 'information', commentaire: i.note || i.libelle,
