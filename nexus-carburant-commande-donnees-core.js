@@ -368,7 +368,12 @@
           // disponible et stable toute la journée dès que le jaugeage du
           // matin est saisi, conformément à la règle 2.
           stockAncreCommandeL: jaugeageL,
-          stockAncreCommandeFiable: r.statut !== 'Données insuffisantes' && jaugeageL != null,
+          // La qualité du rapprochement veille → aujourd'hui ne remet pas
+          // en cause la mesure physique d'ouverture utilisée pour projeter
+          // une commande. Un quart chevauchant une livraison peut rendre
+          // l'ÉCART non calculable tout en laissant le stock d'ouverture
+          // parfaitement exploitable pour la recommandation.
+          stockAncreCommandeFiable: jaugeageL != null,
           // 27/08/2026, point 15 (fiabilité à 6 facteurs) — signaux
           // supplémentaires transmis tels quels au moteur, jamais recalculés
           // une 2ᵉ fois (Article 11) : `pointZeroExiste` réutilise le
