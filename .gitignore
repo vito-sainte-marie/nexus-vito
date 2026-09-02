@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Doublons créés par la synchronisation iCloud / Finder
+*copie*
+* 2.html
+* 3.html
+* 4.html
+* 2.md
+* 3.md
+*.zip
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environnement
+.env
+.env.local
