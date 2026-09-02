@@ -401,6 +401,10 @@
   // absente ou incohérente (catégorie déjà terminée, etc.), le parcours
   // retombe simplement sur l'écran catégories, jamais une erreur bloquante.
   let positionCourante = null;
+  // Au premier accueil seulement, un brouillon interrompu reprend directement
+  // au produit mémorisé. Le drapeau évite de piéger l'employé dans le parcours
+  // lorsqu'il choisit volontairement de revenir au menu pendant la session.
+  let repriseAutomatiquePremierAccueil = true;
 
   // Compteurs de mesures d'adoption (18/08/2026, Sprint 8 — cahier §16,
   // INV2-19 "Les mesures de temps/taps sont enregistrées sans action
@@ -1433,6 +1437,15 @@
 
     const ouvertureFaite = quartEmployeRow && quartEmployeRow.a_valide_ouverture;
     const clotureFaite = quartEmployeRow && quartEmployeRow.a_valide_cloture;
+    if (repriseAutomatiquePremierAccueil) {
+      repriseAutomatiquePremierAccueil = false;
+      const draftOuverture = !ouvertureFaite ? chargerDraft('ouverture') : null;
+      const positionReprise = draftOuverture && draftOuverture.positionCourante;
+      if (positionReprise && positionReprise.categorieNom) {
+        await demarrerOuvertureComptage();
+        return;
+      }
+    }
     // "+ Ajouter un mouvement" pendant le quart (18/08/2026, M3 — cahier
     // §5, MOV-04 "l'employé peut déclarer une nouvelle fournée à tout
     // moment pendant le quart") : n'a de sens qu'une fois l'ouverture
@@ -2738,9 +2751,10 @@
           </div>
           <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
         ` : `
+          ${estCigaretteCaisseEmploye(p) ? '<div class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</div>' : ''}
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
-                   placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
+                   placeholder="${estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Votre comptage'}" value="${valeurDepart}" onfocus="this.select()">
             ${calcBarreHtml()}
           </div>
           <div class="ecart-tag" id="ecartCarrousel"></div>
