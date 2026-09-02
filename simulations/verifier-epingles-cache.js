@@ -40,7 +40,13 @@ for (const [servi, { stamp, depuis }] of [...epingles].sort()) {
   }
   const commit = execFileSync('git', ['log', '-1', '--format=%ad', '--date=format:%Y%m%d-%H%M', '--', servi],
     { cwd: RACINE }).toString().trim();
-  const ok = !commit || commit <= stamp;
+  // Comparaison au JOUR et non à la minute : bumper un injecteur change sa
+  // propre date de commit, ce qui périmerait aussitôt l'épingle qui le sert
+  // ailleurs — le contrôle ne convergerait jamais. Le vrai défaut à
+  // attraper est « épingle d'hier, fichier corrigé aujourd'hui ».
+  const jourEpingle = stamp.slice(0, 8);
+  const jourCommit = commit ? commit.slice(0, 8) : '';
+  const ok = !jourCommit || jourCommit <= jourEpingle;
   console.log(`  ${ok ? '✔' : '✘'} ${servi.padEnd(46)} épingle ${stamp} · dernier commit ${commit || '(inconnu)'}`);
   if (!ok) {
     console.log(`      → épingle périmée, injectée depuis ${depuis} : le navigateur resservira l'ancienne copie`);

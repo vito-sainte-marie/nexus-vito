@@ -28,7 +28,7 @@
   // exemplaire mis en cache par Safari ne puisse pas réinjecter le script
   // destructif qui effaçait situationZone.
   if (estPilotageCarburants()) {
-    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=20260901-1955"><\/script>');
+    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=20260902-1815"><\/script>');
   }
 
   function chargerCorrectifUI() {
