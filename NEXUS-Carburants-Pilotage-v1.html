@@ -1442,6 +1442,7 @@
       const fiabilite = M.fiabiliteControle(r, {
         dernierReleveExiste: !!ctx.dernierReleve, dernierReel: r.dernierReel,
         releveDuJourExiste: !!ctx.releveDuJour, ventes: r.ventesDepuis,
+        fenetreIsolable: r.fenetreIsolable, quartsChevauchants: r.quartsChevauchants,
       });
       const referencePhysiqueReception = r.referencePhysiqueSource === 'reception';
       const couleurFiab = referencePhysiqueReception
@@ -1549,7 +1550,10 @@
     // laisser croire que le calcul part encore du relevé de la veille alors
     // qu'il repart du jaugeage post-livraison d'aujourd'hui.
     const refJour = ctx.referencePhysiqueDuJour;
-    const libelleReference = (refJour && refJour.source === 'reception' && refJour.heure)
+    const ancreReception = Object.values(ctx.parCarburant || {}).find(r => r.ancreCalculSource === 'reception');
+    const libelleReference = ancreReception && ancreReception.ancreCalculHeure
+      ? `Référence de calcul : jaugeage post-livraison du ${formaterDateHeureFr(ancreReception.ancreCalculHeure)}. Les ventes d'un quart chevauchant cette mesure ne sont jamais estimées.`
+      : (refJour && refJour.source === 'reception' && refJour.heure)
       ? `Écart calculé depuis le jaugeage post-livraison du ${formaterDateHeureFr(refJour.heure)}.`
       : (ctx.dateDernierReleve ? `Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}.` : '');
     zone.innerHTML = `${bandeauReference}<div class="situation-grid">${cartes}</div>${lienNeutralisation}${libelleReference ? `<div class="section-note">${libelleReference} Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
@@ -2831,8 +2835,12 @@
     const stSim = ETAT_COMMANDE_STYLE[simulation.etatGlobal] || ETAT_COMMANDE_STYLE.non_calculable;
     const stReel = COMMANDE_CTX ? (ETAT_COMMANDE_STYLE[COMMANDE_CTX.etatGlobal] || ETAT_COMMANDE_STYLE.non_calculable) : null;
     const lignes = Object.keys(simulation.parCarburant || {}).map(cle => {
-      const simVol = simulation.commandeRecommandee && simulation.commandeRecommandee.volumes[cle] != null ? fmtL(simulation.commandeRecommandee.volumes[cle]) : '—';
-      const reelVol = COMMANDE_CTX && COMMANDE_CTX.commandeRecommandee && COMMANDE_CTX.commandeRecommandee.volumes[cle] != null ? fmtL(COMMANDE_CTX.commandeRecommandee.volumes[cle]) : '—';
+      const simVol = simulation.commandeRecommandee && simulation.commandeRecommandee.volumes[cle] != null
+        ? fmtL(simulation.commandeRecommandee.volumes[cle])
+        : (simulation.etatGlobal === 'non_calculable' ? 'non calculable' : 'aucune commande recommandée');
+      const reelVol = COMMANDE_CTX && COMMANDE_CTX.commandeRecommandee && COMMANDE_CTX.commandeRecommandee.volumes[cle] != null
+        ? fmtL(COMMANDE_CTX.commandeRecommandee.volumes[cle])
+        : (COMMANDE_CTX && COMMANDE_CTX.etatGlobal === 'non_calculable' ? 'non calculable' : 'aucune commande recommandée');
       return `<div class="controle-ligne"><span>${COURT_CARBURANT[cle] || cle}</span><span class="commande-ligne-detail">simulé ${simVol} · recommandation du jour ${reelVol}</span></div>`;
     }).join('');
     zone.innerHTML = `
@@ -3565,12 +3573,22 @@
   // par NexusPeriodes.resoudrePeriodesReference) et s'arrête à la première
   // qui a au moins un quart avec litrage — jamais une moyenne bricolée
   // entre plusieurs références, jamais une référence choisie au hasard.
-  async function chargerVentesReferenceAvecRepli(candidates) {
+  async function chargerVentesReferenceAvecRepli(candidates, actuel, periodeActuelle) {
     for (const c of candidates) {
       const resultat = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, c.debut, c.fin);
-      if (resultat.nbQuartsAvecLitrage > 0) return { ...resultat, periodeUtilisee: c };
+      const lignesComparables = NexusCarburantDonnees.alignerQuartsComparables(
+        actuel.lignes || [], periodeActuelle.debut, resultat.lignes || [], c.debut
+      );
+      if (lignesComparables.length > 0) {
+        return {
+          ...resultat,
+          ventes: NexusCarburantMoteur.sommerVentesPeriode(lignesComparables),
+          nbQuartsComparables: lignesComparables.length,
+          periodeUtilisee: c,
+        };
+      }
     }
-    return { ventes: { go: null, sp95: null, gnr: null }, nbQuartsTotal: 0, nbQuartsAvecLitrage: 0, periodeUtilisee: null };
+    return { ventes: { go: null, sp95: null, gnr: null }, nbQuartsTotal: 0, nbQuartsAvecLitrage: 0, nbQuartsComparables: 0, periodeUtilisee: null };
   }
 
   // Phrase de synthèse enrichie (audit §11) : ne se limite plus au seul
@@ -3705,10 +3723,8 @@
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})${enCours ? ' — en cours' : ''}`;
     const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
-    const [actuel, reference] = await Promise.all([
-      NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin),
-      chargerVentesReferenceAvecRepli(referencesCandidates),
-    ]);
+    const actuel = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin);
+    const reference = await chargerVentesReferenceAvecRepli(referencesCandidates, actuel, periode);
 
     const M = NexusCarburantMoteur;
     const mix = M.calculerMixCarburant(actuel.ventes);
@@ -3761,7 +3777,7 @@
           ${lignes}
         </div>
         <div class="section-note">${couvertureTxt}${refUtilisee
-          ? ` Comparé à : ${refUtilisee.label}${refUtilisee.tronquee ? ` — mêmes jours écoulés (${formaterDateFrCourt(refUtilisee.debut)} → ${formaterDateFrCourt(refUtilisee.fin)}).` : '.'}`
+          ? ` Comparé à : ${refUtilisee.label} — ${reference.nbQuartsComparables || 0} quart${reference.nbQuartsComparables > 1 ? 's' : ''} strictement comparable${reference.nbQuartsComparables > 1 ? 's' : ''}${refUtilisee.tronquee ? ` (${formaterDateFrCourt(refUtilisee.debut)} → ${formaterDateFrCourt(refUtilisee.fin)})` : ''}.`
           : ' Aucune période de référence avec des données disponibles.'}${caveatEnCours}</div>
       `;
     }
@@ -4068,6 +4084,14 @@
       NexusCarburantDonnees.chargerHistoriqueReleves(nexusClient, SITE_ID, 30),
       global_NexusReceptionDonnees_disponible() ? NexusReceptionDonnees.chargerHistoriqueVisites(nexusClient, SITE_ID, 15) : Promise.resolve([]),
     ]);
+    // La première ligne de l'historique doit raconter exactement la même
+    // vérité que les cartes du jour. Elle réutilise donc le contrôle déjà
+    // chargé (qui connaît l'ancre post-livraison), au lieu de laisser une
+    // reconstruction historique plus ancienne réafficher les faux écarts.
+    const ligneAujourdhui = releves.find(r => r.date === todayISO());
+    if (ligneAujourdhui && CONTROLE_CTX && CONTROLE_CTX.parCarburant) {
+      ligneAujourdhui.parCarburant = CONTROLE_CTX.parCarburant;
+    }
     renderHistorique(pointsZero, releves, visites);
   }
 
