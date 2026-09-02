@@ -963,6 +963,131 @@
     return resultat;
   }
 
+  // Part de la durée d'un quart réellement comprise dans [t0, t1]. Sert aussi
+  // bien à un quart à cheval sur une borne qu'à un quart entièrement dedans.
+  function fractionRecouvrementQuart(fenetreQuart, t0, t1) {
+    if (!fenetreQuart || !t0 || !t1) return 0;
+    const debutQ = fenetreQuart.debut.getTime();
+    const finQ = fenetreQuart.fin.getTime();
+    const duree = finQ - debutQ;
+    if (!(duree > 0)) return 0;
+    const debut = Math.max(debutQ, t0.getTime());
+    const fin = Math.min(finQ, t1.getTime());
+    return Math.max(0, Math.min(1, (fin - debut) / duree));
+  }
+
+  // Ventilation d'une fenêtre de contrôle AVEC estimation des parts non
+  // mesurables (02/09/2026, doctrine posée par Frédéric : "un quart manquant
+  // doit être remplacé par une estimation ; dès qu'on voit que le quart
+  // manquant est intégré, il prend la place de l'estimation comme vérité").
+  //
+  // Trois natures de quart, jamais confondues dans le résultat :
+  //   - entièrement DANS la fenêtre et saisi  -> vérité mesurée, telle quelle
+  //   - saisi mais À CHEVAL sur une borne     -> la part interne est estimée
+  //     (moyenne du même créneau x fraction de durée recouverte). Saisir
+  //     davantage ne résoudra jamais ce cas : un litrage agrégé par quart
+  //     n'est pas ventilable à l'intérieur du quart.
+  //   - ABSENT alors que sa fenêtre touche    -> estimé de la même façon.
+  //     Celui-là disparaît tout seul le jour où le quart est saisi : il
+  //     bascule alors dans la première catégorie, sans rien à recalculer.
+  //
+  // Fonction PURE : les moyennes historiques sont fournies par l'appelant
+  // (`moyennesParQuart` = { '1': {go, sp95, gnr}, '2': {...} }, litres pour
+  // un quart complet), jamais lues ici — le moteur ne fait aucune requête.
+  //
+  // `contexte` est le journal de ce qui a été estimé et comment. Il existe
+  // pour être affiché et tracé, jamais pour être promu en vérité métier :
+  // une part estimée ne doit pas entrer dans carburant_controles comme un
+  // écart constaté (décision de Frédéric, 02/09/2026).
+  function ventilerFenetreAvecEstimation(lignesQuarts, horaires, t0, t1, fuseau, moyennesParQuart, datesFenetre) {
+    const champs = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
+    const carbs = ['go', 'sp95', 'gnr'];
+    const reelles = { go: 0, sp95: 0, gnr: 0 };
+    const estimees = { go: 0, sp95: 0, gnr: 0 };
+    const trouve = { go: false, sp95: false, gnr: false };
+    const estime = { go: false, sp95: false, gnr: false };
+    const contexte = [];
+    const moyennes = moyennesParQuart || {};
+    let bloque = null;
+
+    function moyenneQuart(num, carb) {
+      const m = moyennes[String(num)];
+      const v = m ? m[carb] : null;
+      return (v == null || !isFinite(Number(v))) ? null : Number(v);
+    }
+
+    function estimerPart(dateISO, num, quartCle, nature) {
+      const fenetreQuart = fenetreQuartLarge(horaires, quartCle, dateISO, fuseau);
+      if (!fenetreQuart) return;
+      const fraction = fractionRecouvrementQuart(fenetreQuart, t0, t1);
+      if (fraction <= 0) return;
+      const volumes = {};
+      let auMoinsUn = false;
+      carbs.forEach(carb => {
+        const moy = moyenneQuart(num, carb);
+        if (moy == null) { volumes[carb] = null; return; }
+        const v = moy * fraction;
+        volumes[carb] = v;
+        estimees[carb] += v;
+        estime[carb] = true;
+        auMoinsUn = true;
+      });
+      contexte.push({ date: dateISO, quart: String(num), nature, fraction, volumes,
+                      estimable: auMoinsUn });
+    }
+
+    (lignesQuarts || []).forEach(ligne => {
+      const num = String(ligne.quart) === '2' ? '2' : '1';
+      const quartCle = num === '2' ? 'quart2' : 'quart1';
+      const fenetreQuart = fenetreQuartLarge(horaires, quartCle, ligne.date, fuseau);
+      const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
+      if (position === 'inconnu' || position === 'instant_non_disponible') {
+        // Ni mesure ni estimation possibles : la fenêtre du quart elle-même
+        // n'est pas calculable. On ne fabrique rien (Article 5).
+        bloque = position === 'inconnu' ? 'horaires_non_configures' : 'instant_ancre_ou_mesure_non_calculable';
+        return;
+      }
+      if (position === 'avant' || position === 'apres') return;
+      if (position === 'dans') {
+        contexte.push({ date: ligne.date, quart: num, nature: 'reel', fraction: 1, volumes: null, estimable: true });
+        carbs.forEach(carb => {
+          const v = ligne[champs[carb]];
+          if (v != null) { reelles[carb] += Number(v); trouve[carb] = true; }
+        });
+        return;
+      }
+      estimerPart(ligne.date, num, quartCle, 'estime_chevauchement');
+    });
+
+    // Quarts sans aucune ligne dont la fenêtre touche [t0, t1].
+    const saisis = new Set((lignesQuarts || []).map(l => `${l.date}:${String(l.quart)}`));
+    (datesFenetre || []).forEach(dateISO => {
+      [['1', 'quart1'], ['2', 'quart2']].forEach(([num, quartCle]) => {
+        if (saisis.has(`${dateISO}:${num}`)) return;
+        estimerPart(dateISO, num, quartCle, 'estime_absent');
+      });
+    });
+
+    if (bloque) {
+      return { ventes: { go: null, sp95: null, gnr: null }, ventesReelles: { go: null, sp95: null, gnr: null },
+               ventesEstimees: { go: null, sp95: null, gnr: null }, estime: false, bloque, contexte };
+    }
+
+    const ventes = {};
+    carbs.forEach(carb => {
+      if (!trouve[carb] && !estime[carb]) { ventes[carb] = null; return; }
+      ventes[carb] = (trouve[carb] ? reelles[carb] : 0) + (estime[carb] ? estimees[carb] : 0);
+    });
+    return {
+      ventes,
+      ventesReelles: { go: trouve.go ? reelles.go : null, sp95: trouve.sp95 ? reelles.sp95 : null, gnr: trouve.gnr ? reelles.gnr : null },
+      ventesEstimees: { go: estime.go ? estimees.go : null, sp95: estime.sp95 ? estimees.sp95 : null, gnr: estime.gnr ? estimees.gnr : null },
+      estime: carbs.some(c => estime[c]),
+      bloque: null,
+      contexte,
+    };
+  }
+
   // Sprint C6 "Pilotage" (17/08/2026, audit §10 : "Situation aujourd'hui —
   // Badge de qualité par carburant : référence fiable, contrôle provisoire,
   // non comparable"). Traduit une `qualite` de carburant_controles (posée
@@ -1585,6 +1710,8 @@
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     instantLocalVersUTC, instantFenetreReleve, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     quartsAEstimerDansFenetre,
+    fractionRecouvrementQuart,
+    ventilerFenetreAvecEstimation,
     libelleQualiteControle, diagnosticAbsenceControle, diagnostiquerEcartCarburant,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,

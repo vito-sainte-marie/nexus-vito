@@ -3,7 +3,7 @@
   "private": true,
   "description": "NEXUS OS — plateforme d'exploitation ViTO Sainte-Marie. Application sans étape de build : les écrans HTML/JS sont servis tels quels. Ce package.json n'existe que pour lancer la suite de non-régression.",
   "scripts": {
-    "test": "node run-tests.js && node simulations/executer-carburant.js",
-    "simulations": "node simulations/executer-carburant.js"
+    "test": "node run-tests.js && npm run simulations --silent",
+    "simulations": "node simulations/executer-carburant.js && node simulations/executer-ventilation.js"
   }
 }
