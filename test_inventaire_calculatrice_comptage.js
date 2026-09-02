@@ -5,7 +5,8 @@
 // Deux briques testées ici, extraites du VRAI fichier via regex (jamais
 // réécrites à la main — même discipline que les autres suites de tests de
 // ce module) :
-//   1) evaluerAdditionChainee() — parseur d'addition en chaîne ("6+6+12"),
+//   1) evaluerAdditionChainee() — parseur d'expression en chaîne
+//      ("3×24+5"),
 //      qui remplace parseFloat() partout où un comptage est lu.
 //   2) Le moteur de la calculatrice pop-up (+ − × ÷) : calcApplique,
 //      calcAppuiChiffre, calcAppuiOperateur, calcAppuiEgal.
@@ -47,7 +48,8 @@ const casChaine = [
   ['0', 0],
   ['', NaN],                     // champ vide
   ['6+', NaN],                   // chaîne incomplète (en cours de frappe) — jamais bloquant
-  ['6*2', NaN],                  // opérateur non supporté ici -> calculatrice pop-up
+  ['6*2', 12],                   // multiplication utilisée par les conditionnements
+  ['3x24+5', 77],                // saisie métier cartons × pièces + unités libres
   ['abc', NaN],                  // texte
   ['6++6', NaN],                 // deux opérateurs à la suite, jamais interprété au hasard
 ];
