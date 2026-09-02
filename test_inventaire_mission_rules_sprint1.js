@@ -153,7 +153,19 @@ function ok(label) { n++; console.log('OK —', label); }
       const chain = {
         select(...a) { capture.calls.push(['select', a]); return chain; },
         eq(...a) { capture.calls.push(['eq', a]); return chain; },
-        order(...a) { capture.calls.push(['order', a]); return Promise.resolve({ data: [{ id: 'm1' }], error: null }); },
+        order(...a) {
+          capture.calls.push(['order', a]);
+          // Deux lignes volontairement "sales" : accent + casse + alias sur la
+          // première, rôles absents sur la seconde. Elles servent à prouver la
+          // normalisation, pas seulement le passe-plat.
+          return Promise.resolve({
+            data: [
+              { id: 'm1', role_code: '  Caissière ', role_repli: 'PISTE' },
+              { id: 'm2', role_code: null },
+            ],
+            error: null,
+          });
+        },
         insert(payload) { capture.insertPayload = payload; return chain; },
         update(patch) { capture.updatePayload = patch; return chain; },
         maybeSingle() { return Promise.resolve({ data: { id: 'm1', ...capture.insertPayload, ...capture.updatePayload }, error: null }); },
@@ -164,7 +176,14 @@ function ok(label) { n++; console.log('OK —', label); }
 
   const rules = await D.chargerMissionRules(client, 'vito-sainte-marie');
   assert.strictEqual(capture.table, 'inventaire_mission_rules');
-  assert.deepStrictEqual(rules, [{ id: 'm1' }]);
+  // chargerMissionRules normalise toujours les codes rôle depuis 218b4f5
+  // ("Inventaire V2: normaliser les codes rôle pour les missions") : accents,
+  // casse et alias sont résolus à la lecture, et un rôle absent ressort à null
+  // — jamais undefined, pour qu'un appelant n'ait pas à distinguer les deux.
+  assert.deepStrictEqual(rules, [
+    { id: 'm1', role_code: 'caissier', role_repli: 'pompiste' },
+    { id: 'm2', role_code: null, role_repli: null },
+  ], 'les codes rôle sont normalisés à la lecture, jamais restitués bruts');
 
   const cree = await D.creerMissionRule(client, 'vito-sainte-marie', { nom: 'Test' });
   assert.strictEqual(capture.insertPayload.site, 'vito-sainte-marie', 'le site est toujours injecté par le chargeur, jamais laissé à l\'appelant');
