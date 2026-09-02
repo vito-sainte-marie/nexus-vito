@@ -6,7 +6,29 @@
 (function () {
   'use strict';
 
-  if (!/NEXUS-Inventaire-v1\.html$/i.test(location.pathname)) return;
+  // Le bouton transforme immédiatement le nombre de conditionnements en
+  // unités. Ainsi « 2 » puis « ×8P » donne directement « 16 » : l'appui
+  // suivant sur Entrée valide le produit, sans étape de calcul intermédiaire.
+  function quantiteApresConditionnement(valeur, facteur) {
+    const brut = String(valeur == null ? '' : valeur).trim();
+    if (!brut) return String(facteur);
+
+    let quantiteConditionnements = Number(brut.replace(',', '.'));
+    if (typeof evaluerAdditionChainee === 'function') {
+      const calculee = evaluerAdditionChainee(brut);
+      if (Number.isFinite(calculee)) quantiteConditionnements = calculee;
+    }
+    if (!Number.isFinite(quantiteConditionnements)) return brut;
+    return String(Math.round(quantiteConditionnements * facteur * 1000) / 1000);
+  }
+
+  // Export minimal pour les tests de régression Node ; aucun effet dans le
+  // navigateur, où le script reste autonome comme auparavant.
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { quantiteApresConditionnement };
+  }
+
+  if (typeof location === 'undefined' || !/NEXUS-Inventaire-v1\.html$/i.test(location.pathname)) return;
 
   const STYLE_ID = 'nexus-inventaire-fluidite-style';
   const ATTR = 'data-nexus-conditionnement';
@@ -52,22 +74,15 @@
     document.head.appendChild(style);
   }
 
-  function expressionAvecConditionnement(valeur, facteur) {
-    const brut = String(valeur == null ? '' : valeur).trim();
-    if (!brut) return String(facteur);
-    if (/[+\-*/]$/.test(brut)) return brut + String(facteur);
-    return brut + '*' + String(facteur);
-  }
-
   function brancherBouton(btn, input, facteur) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       input.focus();
-      input.value = expressionAvecConditionnement(input.value, facteur);
+      input.value = quantiteApresConditionnement(input.value, facteur);
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      // Le clavier reste sur le champ : l'employé peut immédiatement faire
-      // "+ unités libres" puis Entrée, sans sortir du flux de comptage.
+      // Le clavier reste sur le champ : Entrée valide immédiatement ;
+      // l'employé peut toujours ajouter quelques unités libres auparavant.
       try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
     });
   }
