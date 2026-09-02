@@ -15,7 +15,6 @@
   let momentMissionTest = 'debut';
   let demarrerMissionPendantTest = null;
   let surchargesInstallees = false;
-  let initialisationTestFaite = false;
 
   function estManagerReel() {
     if (typeof employeeCourant === 'undefined' || !employeeCourant) return false;
@@ -50,44 +49,34 @@
     return url.pathname.split('/').pop() + url.search + url.hash;
   }
 
-  function styleBouton(actif) {
-    return [
-      'flex:1', 'min-width:105px', 'border-radius:10px', 'padding:10px 8px',
-      'font-family:var(--sans)', 'font-size:12px', 'font-weight:600', 'cursor:pointer',
-      actif
-        ? 'border:1px solid var(--cyan);background:rgba(79,195,217,.14);color:var(--cyan)'
-        : 'border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text-mid)'
-    ].join(';');
-  }
-
   function htmlSelecteurTest() {
     if (!estManagerReel()) return '';
     const actif = roleTestActif();
     const boutons = ROLES_TEST.map(r => `
-      <button type="button" data-nexus-test-role="${r.code}" style="${styleBouton(actif === r.code)}">
-        ${r.icon} ${actif === r.code ? 'Test ' : ''}${r.label}
+      <button type="button" data-nexus-test-role="${r.code}" class="nexus-mode-test-role${actif === r.code ? ' actif' : ''}">
+        ${r.label}
       </button>`).join('');
-    const statut = actif
-      ? `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
-           Vous restez connecté comme <b style="color:var(--text);">manager</b>. NEXUS reproduit le parcours terrain <b style="color:var(--cyan);">${libelleRole(actif)}</b>.
-           <div style="margin-top:6px;color:var(--green);font-weight:700;">Simulation sécurisée · aucune donnée opérationnelle n'est enregistrée.</div>
-         </div>`
-      : `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
-           Choisissez un rôle pour tester exactement son parcours Inventaire sans polluer les données réelles.
-         </div>`;
+    const titre = actif ? `Simulation ${libelleRole(actif)}` : 'Tester un parcours terrain';
+    const copie = actif
+      ? `Vous restez connecté comme manager et visualisez le parcours ${libelleRole(actif)}.`
+      : 'Choisissez un rôle pour vérifier son parcours sans toucher aux données officielles.';
     const boutonMissionPendant = actif && idsMissionsTest('pendant').size
       ? `<button type="button" id="nexusTesterMissionPendant" class="btn-primary" style="margin-top:12px;">
            Tester le contrôle ciblé pendant le quart
          </button>`
       : '';
     return `
-      <div id="nexusModeTestManager" class="etat-banner" style="border-color:rgba(79,195,217,.35);">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-          <div style="font-weight:700;color:var(--text);">🧪 Mode test terrain</div>
-          ${actif ? '<button type="button" id="nexusQuitterModeTest" style="border:0;background:none;color:var(--text-dim);font-size:11px;cursor:pointer;">Quitter le test</button>' : ''}
+      <div id="nexusModeTestManager" class="nexus-mode-test-card">
+        <div class="nexus-mode-test-head">
+          <div>
+            <div class="nexus-mode-test-kicker">Mode simulation</div>
+            <div class="nexus-mode-test-title">${titre}</div>
+          </div>
+          ${actif ? '<button type="button" id="nexusQuitterModeTest" class="nexus-mode-test-exit">Quitter le test</button>' : ''}
         </div>
-        ${statut}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">${boutons}</div>
+        <div class="nexus-mode-test-copy">${copie}</div>
+        ${actif ? '<div class="nexus-mode-test-proof">Aucune donnée réelle n’est enregistrée</div>' : ''}
+        <div class="nexus-mode-test-roles">${boutons}</div>
         ${boutonMissionPendant}
       </div>`;
   }
@@ -106,6 +95,7 @@
 
   function injecterSelecteur() {
     if (!estManagerReel()) return;
+    document.body.classList.toggle('nexus-mode-test-actif', !!roleTestActif());
     const content = document.getElementById('content');
     if (!content) return;
     const ancien = document.getElementById('nexusModeTestManager');
@@ -324,47 +314,9 @@
     return true;
   }
 
-  async function appliquerModeTestInitial() {
-    if (initialisationTestFaite || !estManagerReel()) return false;
-    const actif = roleTestActif();
-    if (!actif) {
-      injecterSelecteur();
-      initialisationTestFaite = true;
-      return true;
-    }
-
-    if (actif === 'caissier') {
-      zonesAutorisees = ['boutique'];
-      zoneActive = 'boutique';
-    } else if (actif === 'pompiste') {
-      zonesAutorisees = ['piste'];
-      zoneActive = 'piste';
-    }
-
-    if (typeof chargerMissionsDuJour === 'function') await chargerMissionsDuJour();
-    if (actif === 'renfort') {
-      // La zone du Renfort vient exclusivement des règles de mission du
-      // site. Une mission Boutique n'affiche donc plus un choix Piste vide ;
-      // si le manager configure demain Dépôt + Boutique, les deux zones
-      // seront reprises sans code spécifique à Sainte-Marie.
-      const zoneIds = Array.from(new Set((missionsDuJour || []).flatMap(m => m.zone_ids || [])));
-      if (zoneIds.length) {
-        const { data, error } = await nexusClient.from('inventaire_zones').select('id, code').in('id', zoneIds);
-        if (!error && data && data.length) zonesAutorisees = data.map(z => z.code).filter(Boolean);
-      }
-      if (!zonesAutorisees.length) zonesAutorisees = ['boutique'];
-      zoneActive = zonesAutorisees.includes('boutique') ? 'boutique' : zonesAutorisees[0];
-    }
-    if (typeof renderAccueil === 'function') await renderAccueil();
-    initialisationTestFaite = true;
-    return true;
-  }
-
   function tenterInstallation() {
     try {
-      const ok = installerSurcharges();
-      if (ok) appliquerModeTestInitial();
-      return ok;
+      return installerSurcharges();
     } catch (e) {
       console.error('Initialisation mode test terrain Inventaire V2:', e);
       return false;
@@ -388,11 +340,6 @@
     }, 25);
   }
 
-  let essaisInitialisation = 0;
-  const timerInitialisation = setInterval(async () => {
-    essaisInitialisation++;
-    if (await appliquerModeTestInitial() || essaisInitialisation > 120) clearInterval(timerInitialisation);
-  }, 50);
 })();
 
 // Extension terrain commune (manager en test ET employés réels) : les références

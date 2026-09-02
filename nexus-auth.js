@@ -17,7 +17,6 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   if(pagesHorizon.includes(page)){const s=document.createElement('script');s.src=versionnerStock('nexus-horizon-operationnel.js');s.defer=true;document.head.appendChild(s);}
 
   if (page === 'NEXUS-Inventaire-v1.html') {
-    const scriptTest = document.createElement('script'); scriptTest.src = 'nexus-inventaire-mode-test.js?v=20260902-2315'; scriptTest.defer = true; scriptTest.dataset.nexusInventaireModeTest='1'; document.head.appendChild(scriptTest);
     const scriptTransferts = document.createElement('script'); scriptTransferts.src = 'nexus-inventaire-transferts-internes.js'; scriptTransferts.defer = true; document.head.appendChild(scriptTransferts);
     const scriptCond = document.createElement('script'); scriptCond.src = versionnerStock('nexus-inventaire-cigarettes-conditionnement-v1.js'); scriptCond.defer = true; document.head.appendChild(scriptCond);
   }
