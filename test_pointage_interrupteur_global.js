@@ -12,7 +12,7 @@ const fs = require('fs');
 const assert = require('assert');
 const vm = require('vm');
 
-const src = fs.readFileSync('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-auth.js', 'utf8');
+const src = fs.readFileSync(__dirname + '/nexus-auth.js', 'utf8');
 
 function extraire(nomFonction) {
   let debut = src.indexOf(`async function ${nomFonction}(`);

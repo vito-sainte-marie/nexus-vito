@@ -10,7 +10,7 @@ const fs = require('fs');
 const assert = require('assert');
 const vm = require('vm');
 
-const html = fs.readFileSync('/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-Inventaire-v1.html', 'utf8');
+const html = fs.readFileSync(__dirname + '/NEXUS-Inventaire-v1.html', 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 function extraire(nomFonction) {

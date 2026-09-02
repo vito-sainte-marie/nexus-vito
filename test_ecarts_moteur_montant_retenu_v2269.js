@@ -5,7 +5,7 @@
 
 const path = require('path');
 const assert = require('assert');
-require(path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-ecarts-moteur.js'));
+require(path.join(__dirname, 'nexus-ecarts-moteur.js'));
 const M = globalThis.NexusEcartsMoteur;
 
 let n = 0;

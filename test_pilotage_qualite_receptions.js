@@ -7,7 +7,7 @@
 // nouveau sous-accordéon (pas seulement l'absence d'exception).
 const fs = require('fs');
 const assert = require('assert');
-const path = '/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-Carburants-Pilotage-v1.html';
+const path = __dirname + '/NEXUS-Carburants-Pilotage-v1.html';
 const html = fs.readFileSync(path, 'utf-8');
 const script = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
 
@@ -60,11 +60,11 @@ const RECEPTION_MESURES = [
 ];
 
 global.window = global;
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-carburant-moteur.js');
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-carburant-donnees.js');
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-periodes.js');
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-reception-moteur.js');
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-reception-donnees.js');
+require(__dirname + '/nexus-carburant-moteur.js');
+require(__dirname + '/nexus-carburant-donnees.js');
+require(__dirname + '/nexus-periodes.js');
+require(__dirname + '/nexus-reception-moteur.js');
+require(__dirname + '/nexus-reception-donnees.js');
 
 global.document = documentStub;
 

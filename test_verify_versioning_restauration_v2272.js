@@ -7,7 +7,7 @@
 
 const path = require('path');
 const assert = require('assert');
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 require(path.join(DIR, 'nexus-verify-moteur.js'));
 const M = globalThis.NexusVerifyMoteur;
 

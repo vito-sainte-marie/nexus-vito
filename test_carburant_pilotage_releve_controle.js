@@ -13,7 +13,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 const html = fs.readFileSync(path.join(DIR, 'NEXUS-Carburants-Pilotage-v1.html'), 'utf8');
 const moteurCarburantSrc = fs.readFileSync(path.join(DIR, 'nexus-carburant-moteur.js'), 'utf8');
 const moteurReceptionSrc = fs.readFileSync(path.join(DIR, 'nexus-reception-moteur.js'), 'utf8');

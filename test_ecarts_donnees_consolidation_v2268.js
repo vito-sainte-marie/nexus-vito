@@ -9,7 +9,7 @@
 const path = require('path');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 require(path.join(DIR, 'nexus-ecarts-moteur.js'));
 require(path.join(DIR, 'nexus-ecarts-donnees.js'));
 const D = globalThis.NexusEcartsDonnees;

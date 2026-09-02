@@ -17,7 +17,7 @@
 global.window = global;
 const path = require('path');
 const assert = require('assert');
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 require(path.join(DIR, 'nexus-inventaire-moteur.js'));
 require(path.join(DIR, 'nexus-inventaire-mission-rules-donnees.js'));
 require(path.join(DIR, 'nexus-inventaire-missions-donnees.js'));

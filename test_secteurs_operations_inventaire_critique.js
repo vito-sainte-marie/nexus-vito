@@ -11,8 +11,8 @@ const path = require('path');
 const assert = require('assert');
 
 global.window = global;
-require(path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-boussole-moteur.js'));
-require(path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-secteurs-moteur.js'));
+require(path.join(__dirname, 'nexus-boussole-moteur.js'));
+require(path.join(__dirname, 'nexus-secteurs-moteur.js'));
 const S = global.NexusSecteursMoteur;
 
 function testSync(nom, fn) {

@@ -10,7 +10,7 @@
 const assert = require('assert');
 const path = require('path');
 
-const PROJET = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const PROJET = __dirname;
 
 global.window = global;
 require(path.join(PROJET, 'nexus-inventaire-moteur.js'));

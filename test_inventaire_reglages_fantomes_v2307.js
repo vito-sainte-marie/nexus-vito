@@ -55,7 +55,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const ROOT = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const ROOT = __dirname;
 
 global.window = global;
 require(path.join(ROOT, 'nexus-inventaire-moteur.js'));

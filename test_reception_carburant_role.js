@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 
 function extraire(source, nomFonction) {
   const re = new RegExp(`async function ${nomFonction}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`);

@@ -8,8 +8,8 @@ const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
-const OUT = '/sessions/dazzling-compassionate-ride/mnt/outputs';
+const DIR = __dirname;
+const OUT = __dirname;
 
 const moteurSrc = fs.readFileSync(`${OUT}/nexus-reception-moteur.js`, 'utf-8');
 const donneesSrc = fs.readFileSync(`${OUT}/nexus-reception-donnees.js`, 'utf-8');

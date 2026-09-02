@@ -9,7 +9,7 @@
 const path = require('path');
 const assert = require('assert');
 
-const MOTEUR_PATH = path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-fdj-moteur.js');
+const MOTEUR_PATH = path.join(__dirname, 'nexus-fdj-moteur.js');
 require(MOTEUR_PATH);
 const M = globalThis.NexusFdjMoteur;
 assert.ok(M, 'NexusFdjMoteur non chargé');

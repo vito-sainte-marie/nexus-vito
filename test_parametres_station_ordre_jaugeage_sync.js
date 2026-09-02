@@ -17,10 +17,10 @@ const fs = require('fs');
 const assert = require('assert');
 const vm = require('vm');
 
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-reception-moteur.js');
+require(__dirname + '/nexus-reception-moteur.js');
 const NexusReceptionMoteur = global.NexusReceptionMoteur;
 
-const html = fs.readFileSync('/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-Parametres-Station-v1.html', 'utf8');
+const html = fs.readFileSync(__dirname + '/NEXUS-Parametres-Station-v1.html', 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 function extraire(nomFonction) {

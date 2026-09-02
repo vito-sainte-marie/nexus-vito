@@ -17,7 +17,7 @@ const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
 
-const PROJET = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const PROJET = __dirname;
 
 // ------------------------------------------------------------
 // PARTIE 1 — dernierMouvementParType (fichier .js standalone, require direct)

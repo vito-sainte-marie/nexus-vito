@@ -5,7 +5,7 @@
 const path = require('path');
 const assert = require('assert');
 
-const MOTEUR_PATH = path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-inventaire-moteur.js');
+const MOTEUR_PATH = path.join(__dirname, 'nexus-inventaire-moteur.js');
 require(MOTEUR_PATH);
 const M = globalThis.NexusInventaireMoteur;
 assert.ok(M, 'NexusInventaireMoteur non chargé');

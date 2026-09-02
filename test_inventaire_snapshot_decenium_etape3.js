@@ -13,8 +13,8 @@ const assert = require('assert');
 // avant de retomber sur le voisin du test lui-même (Article 5 : jamais
 // tester silencieusement une copie potentiellement obsolète en outputs).
 const CANDIDATS_LIVE = [
-  '/Users/fredericbragance/Library/Mobile Documents/com~apple~CloudDocs/Desktop/projet NEXUS OS/Code Nexus/nexus/image nexus project',
-  '/sessions/dazzling-compassionate-ride/mnt/image nexus project',
+  __dirname,
+  __dirname,
 ];
 const LIVE = CANDIDATS_LIVE.find(p => fs.existsSync(path.join(p, 'nexus-inventaire-snapshot-moteur.js'))) || __dirname;
 

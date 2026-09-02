@@ -9,7 +9,7 @@
 // `window` avant de le requérir, comme documenté dans le fichier lui-même.
 
 global.window = global;
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-progression.js');
+require(__dirname + '/nexus-progression.js');
 const assert = require('assert');
 const N = global.NexusProgression;
 

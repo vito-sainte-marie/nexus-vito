@@ -23,7 +23,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 const html = fs.readFileSync(path.join(DIR, 'NEXUS-Analyse-Ecarts-v1.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const ecartsMoteurSrc = fs.readFileSync(path.join(DIR, 'nexus-ecarts-moteur.js'), 'utf8');

@@ -34,8 +34,8 @@ const assert = require('assert');
 const fs = require('fs');
 
 const CANDIDATS_DIR = [
-  '/sessions/dazzling-compassionate-ride/mnt/image nexus project',
-  '/Users/fredericbragance/Library/Mobile Documents/com~apple~CloudDocs/Desktop/projet NEXUS OS/Code Nexus/nexus/image nexus project',
+  __dirname,
+  __dirname,
 ];
 const DIR = CANDIDATS_DIR.find(d => fs.existsSync(path.join(d, 'nexus-inventaire-moteur.js')));
 if (!DIR) throw new Error('nexus-inventaire-moteur.js introuvable (ni chemin bash, ni chemin macOS)');

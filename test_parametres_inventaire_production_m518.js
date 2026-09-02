@@ -21,7 +21,7 @@ const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
 
-const PROJET = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const PROJET = __dirname;
 
 function testSync(nom, fn) {
   try { fn(); console.log(`OK — ${nom}`); }

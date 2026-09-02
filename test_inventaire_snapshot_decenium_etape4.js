@@ -7,8 +7,8 @@ const path = require('path');
 const assert = require('assert');
 
 const CANDIDATS_LIVE = [
-  '/Users/fredericbragance/Library/Mobile Documents/com~apple~CloudDocs/Desktop/projet NEXUS OS/Code Nexus/nexus/image nexus project',
-  '/sessions/dazzling-compassionate-ride/mnt/image nexus project',
+  __dirname,
+  __dirname,
 ];
 const LIVE = CANDIDATS_LIVE.find(p => fs.existsSync(path.join(p, 'nexus-inventaire-snapshot-moteur.js'))) || __dirname;
 
