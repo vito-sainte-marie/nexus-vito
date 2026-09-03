@@ -13,13 +13,13 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260903-1206"></script>
-<script src="nexus-header-nav.js?v=20260903-1206"></script>
-<script src="nexus-desktop.js?v=20260903-1206"></script>
-<script src="nexus-ecarts-moteur.js?v=20260903-1206"></script>
-<script src="nexus-ecarts-donnees.js?v=20260903-1206"></script>
-<script src="nexus-paye-moteur.js?v=20260903-1206"></script>
-<script src="nexus-paye-donnees.js?v=20260903-1206"></script>
+<script src="nexus-auth.js?v=20260903-1221"></script>
+<script src="nexus-header-nav.js?v=20260903-1221"></script>
+<script src="nexus-desktop.js?v=20260903-1221"></script>
+<script src="nexus-ecarts-moteur.js?v=20260903-1221"></script>
+<script src="nexus-ecarts-donnees.js?v=20260903-1221"></script>
+<script src="nexus-paye-moteur.js?v=20260903-1221"></script>
+<script src="nexus-paye-donnees.js?v=20260903-1221"></script>
 </head>
 <body><div class="phone">
 <header class="header"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><div class="eyebrow">NEXUS · Manager</div><h1>Paye</h1><div class="subtitle">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div></header>
@@ -100,13 +100,27 @@ function blocQualification(i){
   </div>
   <div style="font-size:10px;opacity:.6">Une seule confirmation couvre toute la période, y compris les mois suivants.</div>
  </div>`}
-function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
+function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}${i.heuresAttribuees!=null?` <button class="h-edit" data-key="${ECHAPPE(i.sourceCle)}" title="Corriger les heures retenues" aria-label="Corriger les heures retenues" style="background:none;border:0;color:inherit;opacity:.7;cursor:pointer;padding:0 2px">✎</button>`:''}</div>`:''}${i.heuresAttribuees!=null?`<div class="h-box" data-key="${ECHAPPE(i.sourceCle)}" hidden style="display:flex;align-items:center;gap:6px;margin:2px 0 6px"><input class="h-val" type="number" min="0" max="24" step="0.25" value="${i.heuresAttribuees}" style="width:72px;padding:6px;border-radius:8px"><span style="font-size:11px;opacity:.7">h retenues</span><button class="btn h-save" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Enregistrer</button></div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
 async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 function bind(){
  document.getElementById('prev').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()-1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.getElementById('next').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()+1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.jump).scrollIntoView({behavior:'smooth',block:'start'}));
+ document.querySelectorAll('.h-edit').forEach(b=>b.onclick=()=>{
+  const box=document.querySelector(`.h-box[data-key="${b.dataset.key}"]`);
+  if(!box)return; box.hidden=!box.hidden; if(!box.hidden)box.querySelector('.h-val').focus();});
+ document.querySelectorAll('.h-save').forEach(b=>b.onclick=async()=>{
+  const key=b.dataset.key, box=document.querySelector(`.h-box[data-key="${key}"]`);
+  const item=trouver(b.dataset.emp,key); if(!item)return;
+  const h=Number(String(box.querySelector('.h-val').value).replace(',','.'));
+  if(!Number.isFinite(h)||h<0||h>24){alert('Nombre d’heures invalide (0 à 24).');return;}
+  b.disabled=true;
+  try{await NexusPayeDonnees.enregistrerDecision(nexusClient,{siteId:SITE,employeeId:b.dataset.emp,periode:MOIS,
+    item,statut:'valide',impactPaye:true,quantiteMinutes:Math.round(h*60),montantCentimes:null,
+    note:`Heures corrigées manuellement : ${h} h (barème NEXUS : ${item.heuresAttribuees} h)`,actorId:EMPLOYEE.id});await reload();}
+  catch(e){console.error('NEXUS PAYE — correction des heures :',e);b.disabled=false;
+   alert("NEXUS n'a pas pu enregistrer ces heures : "+(e&&e.message?e.message:e)+"\n\nRien n'a été modifié.");}});
  document.querySelectorAll('.rh-declarer').forEach(b=>b.onclick=async()=>{
   const key=b.dataset.key;
   const motif=(document.querySelector(`.rh-motif-new[data-key="${key}"]`)||{}).value||'';

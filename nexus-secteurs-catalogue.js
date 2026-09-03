@@ -28,7 +28,7 @@
 // v2.30) : NULL = utilise le preset par défaut du métier, jamais un écran
 // vide silencieux.
 //
-// Inclure dans une page : <script src="nexus-secteurs-catalogue.js?v=20260903-1206"></script>
+// Inclure dans une page : <script src="nexus-secteurs-catalogue.js?v=20260903-1221"></script>
 // ------------------------------------------------------------
 
 (function (global) {
