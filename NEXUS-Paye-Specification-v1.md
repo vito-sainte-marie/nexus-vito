@@ -145,3 +145,76 @@ Les écarts Verify et FDJ sont tous conservés dans la lecture PAYE :
 Les boutons `(i)` expliquent les notions sensibles : rôle du planning, preuves de présence, arbitrage, écart de caisse, impact paie, saisie sur une période et contenu de l'export comptable.
 
 La saisie manuelle accepte une période inclusive `Du / Au`. NEXUS crée une ligne datée par journée en une seule écriture groupée. Tout montant en euros reste limité à une journée afin d'empêcher une duplication accidentelle.
+
+> **Révisé le 03/09/2026 (voir §11).** Deux points de cette section ne valent plus : les libellés du parcours comptable sont désormais `Valider le mois` → `Générer le dossier comptable` → `Marquer transmis`, et la saisie journée par journée est **refusée** pour les congés, absences longues, maladie, maternité, paternité et formation — ce sont des événements RH, portés par une période unique.
+
+---
+
+## 11. Dernier kilomètre : d'un moteur de contrôle à un produit comptable (03/09/2026)
+
+Retour de Frédéric après recette : le moteur métier est jugé proche de la validation, la gestion des absences longues va dans la bonne direction, mais l'interface reste à simplifier et **la sortie destinée à la comptable n'est pas validée, parce que le résultat principal du module est encore un CSV**. Le moteur existant est conservé — aucune reprise à zéro.
+
+### 11.1 Un événement RH est une période, jamais une collection de journées (P0)
+
+Absence longue, congé, congé maternité, congé paternité, formation et arrêt maladie sont portés par `employee_indisponibilites` : `date_debut`, `date_fin`, éventuellement `fin_indeterminee` et `date_reprise`. Le moteur produisait déjà un item unique par événement depuis le 03/09/2026 ; ce qui manquait, c'était le **raccordement de l'interface manuelle au bon modèle de données** : l'écran proposait encore « congé payé » et « arrêt maladie » comme des variables saisissables jour par jour, ce qui recréait à la main le dépliage que le moteur venait d'abolir.
+
+Désormais :
+
+- l'écran expose **« Déclarer un événement RH »** — salarié, motif, période, retour éventuellement non daté — qui écrit une ligne dans `employee_indisponibilites`, et une période qui déborde du mois affiché est le cas normal, pas une erreur ;
+- `nexus-paye-donnees.js` **refuse** tout `nexus_paye_item` portant un type d'événement RH (`refuserEvenementRHParJournee`, liste dans `NexusPayeMoteur.TYPES_ITEM_EVENEMENT_RH`). Le garde-fou est dans la couche de données, pas seulement dans la discipline de l'écran : aucun chemin de code ne peut plus produire une ligne par journée ;
+- l'affichage se lit en trois lignes — nom, motif, période couverte, jours couverts :
+
+```
+Vanessa Ribe
+Congé maternité
+01/08/2026 → 31/08/2026
+31 jours couverts
+```
+
+### 11.2 Le dossier comptable devient la sortie principale (P0)
+
+Le CSV reste disponible, explicitement présenté comme **export technique** destiné à un import logiciel. La sortie principale est **« Générer le dossier comptable »**, un PDF composé de :
+
+- une **synthèse mensuelle** : état du dossier (prêts / à vérifier / donnée manquante), totaux du mois, récapitulatif par salarié ;
+- une **fiche par salarié** : variables du mois, événements RH couvrant le mois avec leur période réelle, éléments financiers datés, et les réserves éventuelles.
+
+Répartition des responsabilités, conforme à l'Article 11 : `NexusPayeMoteur.dossierComptable()` agrège (calcul), `nexus-paye-dossier-pdf.js` met en page (aucune règle métier), `nexus-pdf-moteur.js` fournit les primitives génériques déjà partagées par les autres modules. Le PDF est régénéré depuis l'**instantané figé** à la validation du mois quand il existe : deux générations successives donnent le même document.
+
+### 11.3 Carte salarié : les variables d'abord, les sources ensuite (P1)
+
+La carte affiche directement les variables comptables agrégées — présence, absence, congés payés, maladie/maternité, retards, heures supplémentaires, jours fériés, éléments financiers. Les événements journaliers et leurs sources passent derrière **« Voir le détail »**. L'écran et le PDF consomment la même fonction `variablesComptables()` : ils ne peuvent pas diverger.
+
+Un élément encore `a_verifier` n'est **jamais** fondu dans un total : il est compté à part et signalé, à l'écran comme dans le PDF.
+
+### 11.4 Statut par salarié, statut du mois (P1)
+
+Trois statuts, et trois seulement :
+
+| Statut | Signification |
+| --- | --- |
+| **Prêt** | Plus rien à décider ; le salarié peut partir en paie. |
+| **À vérifier** | Les données sont là, un arbitrage reste à rendre. |
+| **Donnée manquante** | Il manque un paramétrage (rattachement non confirmé, heures manuelles absentes) ou toute donnée du mois. |
+
+Le statut du mois est celui du salarié **le plus en retard**, jamais une moyenne. Un salarié proposé d'office par son rôle mais dont le rattachement n'a jamais été confirmé figure au dossier en « donnée manquante » : la comptable doit le voir, pas le découvrir absent.
+
+### 11.5 Modales NEXUS à la place des boîtes du navigateur (P1)
+
+`prompt()`, `alert()` et `confirm()` ont disparu de l'écran PAYE (13 appels supprimés, aucun restant). Toutes les saisies — date de reprise, montant transmis à la comptable, rattachement d'un salarié, réouverture du dossier, messages d'erreur — passent par une modale graphique à champs typés, avec validation avant fermeture. Motif : ces boîtes ne portent ni le vocabulaire ni les garde-fous de NEXUS, et sur iOS en PWA elles sont parfois purement ignorées — un manager pouvait croire avoir répondu à une question qui ne lui avait jamais été posée.
+
+### 11.6 Vocabulaire (P2)
+
+| Avant | Après |
+| --- | --- |
+| `Marquer prêt` | `Valider le mois` |
+| `Exporter le dossier` | `Générer le dossier comptable` |
+| statut `vérifié` | `prêt pour comptabilité` |
+
+### 11.7 Recette : août 2026
+
+Le mois de référence est encodé dans deux tests rejouables :
+
+- `test_nexus_paye_dossier_comptable.js` — 35 vérifications : l'événement RH reste unique et borné au mois, chaque salarié retrouve les variables réellement communiquées à la comptable, les statuts se déduisent correctement et la synthèse est la somme exacte des fiches ;
+- `test_nexus_paye_ecran_rendu.js` — 27 vérifications : l'écran est **réellement exécuté** sur un DOM minimal, ce qu'aucun test ne faisait jusqu'ici. Un gabarit peut contenir tous les bons mots et lever une exception à l'exécution ; le manager voit alors un écran vide, sans le moindre message.
+
+Ces deux tests s'ajoutent à `test_nexus_paye_evenement_rh.js` (44 vérifications, dont le refus du dépliage par journée) et à `test_nexus_paye_periode_manuelle.js`, dont le scénario encodait l'ancien comportement — un congé saisi jour par jour — et encode désormais son refus.

@@ -27,14 +27,32 @@ assert.throws(() => D.datesInclusives('2026-02-30', '2026-03-02'), /invalide/);
       };
     },
   };
+  // Une variable du mois (ici des heures supplémentaires) reste saisissable
+  // sur plusieurs journées : c'est bien un fait par jour.
   await D.ajouterItemsManuels(client, {
     siteId: 'site-test', employeeId: 'employe-1', periode: '2026-09-01',
     dates: D.datesInclusives('2026-09-02', '2026-09-04'),
-    typeItem: 'conge_paye', libelle: 'Congé validé', impactPaye: true, actorId: 'manager-1',
+    typeItem: 'heure_supplementaire', libelle: 'Heures supplémentaires validées', impactPaye: true, actorId: 'manager-1',
   });
   assert.strictEqual(lignes.length, 3);
   assert.deepStrictEqual(lignes.map(l => l.date_evenement), ['2026-09-02', '2026-09-03', '2026-09-04']);
   assert.ok(lignes.every(l => l.statut === 'valide' && l.impact_paye === true));
   assert.strictEqual(new Set(lignes.map(l => l.source_cle)).size, 3);
-  console.log('Période manuelle PAYE : génération inclusive et écriture groupée validées.');
+
+  // En revanche, un congé ne se saisit PLUS journée par journée (03/09/2026) :
+  // c'est un événement RH unique, porté par employee_indisponibilites. Ce
+  // test encodait auparavant le comportement inverse — il encode désormais
+  // le refus, sur tous les motifs concernés.
+  for (const type of ['conge_paye', 'arret_maladie', 'conge_maternite', 'formation']) {
+    let refuse = false;
+    try {
+      await D.ajouterItemsManuels(client, {
+        siteId: 'site-test', employeeId: 'employe-1', periode: '2026-09-01',
+        dates: ['2026-09-02'], typeItem: type, libelle: 'x', impactPaye: true, actorId: 'manager-1',
+      });
+    } catch (e) { refuse = /événement RH unique/.test(e.message); }
+    assert.ok(refuse, `${type} doit être refusé en saisie journalière`);
+  }
+
+  console.log('Période manuelle PAYE : saisie inclusive validée, événements RH refusés par journée.');
 })().catch(error => { console.error(error); process.exit(1); });

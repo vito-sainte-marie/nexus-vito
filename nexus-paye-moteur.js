@@ -54,6 +54,17 @@
     arret_maladie: 'Arrêt maladie', conge_paternite: 'Congé paternité',
     formation: 'Formation', autre: 'Absence qualifiée' };
 
+  // Types d'item qui NE DOIVENT PLUS être créés journée par journée
+  // (03/09/2026). Une absence longue, un congé, une maternité, une
+  // paternité, une formation ou un arrêt maladie est UN événement porté par
+  // `employee_indisponibilites` — avec date_debut, date_fin, éventuellement
+  // fin_indeterminee et date_reprise — jamais N lignes `nexus_paye_items`.
+  // La couche de données s'appuie sur cette liste pour refuser la saisie
+  // manuelle par journée : le garde-fou est dans le code, pas seulement
+  // dans la discipline de l'écran.
+  const TYPES_ITEM_EVENEMENT_RH = ['conge_paye', 'arret_maladie', 'conge_maternite',
+    'conge_paternite', 'formation', 'absence_a_verifier', 'absence_a_qualifier', 'absence_qualifiee'];
+
   // Barème d'heures par défaut, quand aucun planning ne donne de durée
   // (03/09/2026, règle de Frédéric). Deux principes :
   //
@@ -436,6 +447,11 @@
           evenementDebut: indispo.date_debut,
           evenementFin: indispo.date_fin,
           motif: motif || null,
+          // Le motif seul, sans les dates : l'écran affiche l'événement en
+          // trois lignes (nom, motif, période couverte) plutôt qu'en une
+          // phrase, et n'a pas à découper le libellé pour y arriver.
+          motifLibelle: libelleMotif,
+          evenementRH: true,
           joursMois: joursTries.length,
           joursPlanifiesMois: joursPlanifies,
           joursAvecPreuve,
@@ -495,6 +511,12 @@
     });
     ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
 
+    // Statut par salarié, puis statut du mois (03/09/2026). Le mois n'est
+    // « prêt » que si chaque salarié l'est : le manager voit d'où vient le
+    // blocage sans avoir à ouvrir les fiches une par une.
+    employes.forEach(f => { f.statut = statutSalarie(f); });
+    const statutsInclus = employes.filter(f => f.reglage.inclus).map(f => f.statut);
+
     return {
       periode,
       employes,
@@ -502,6 +524,10 @@
       bloqueurs,
       synthese: {
         salariesInclus: employes.filter(f => f.reglage.inclus).length,
+        statutMois: statutGlobal(statutsInclus),
+        salariesPrets: statutsInclus.filter(s => s === 'pret').length,
+        salariesAVerifier: statutsInclus.filter(s => s === 'a_verifier').length,
+        salariesDonneeManquante: statutsInclus.filter(s => s === 'donnee_manquante').length,
         heuresConfirmees: Math.round(employes.reduce((s, f) => s + f.heuresConfirmees, 0) * 100) / 100,
         variablesValidees: itemsGlobaux.filter(i => i.statut === 'valide').length,
         informations: itemsGlobaux.filter(i => i.statut === 'information').length,
@@ -535,5 +561,173 @@
     return lignes;
   }
 
-  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport };
+  // ───────────────────────────────────────────────────────────────────────
+  // Variables comptables agrégées (03/09/2026, « dernier kilomètre »
+  // demandé par Frédéric). La comptable ne lit pas des événements
+  // journaliers : elle lit, salarié par salarié, un petit nombre de
+  // variables. Ce bloc en est la SEULE source — la carte salarié à
+  // l'écran et le dossier comptable PDF consomment le même calcul, jamais
+  // deux agrégations parallèles qui finiraient par diverger (Article 11).
+  //
+  // Ne sont agrégés que les éléments arbitrés : `valide` (le manager a
+  // tranché) et `information` (fait établi, sans impact paie). Ce qui
+  // reste `a_verifier` est compté À PART, jamais fondu dans le total :
+  // NEXUS ne transmet pas une variable que personne n'a regardée.
+  const MOTIFS_MALADIE = ['arret_maladie', 'conge_maternite', 'conge_paternite'];
+  const STATUTS_RETENUS = ['valide', 'information'];
+
+  function enHeures(minutes) { return Math.round((Number(minutes || 0) / 60) * 100) / 100; }
+  function sommeMinutes(liste) { return liste.reduce((s, i) => s + Number(i.quantiteMinutes || 0), 0); }
+  function sommeCentimes(liste) { return liste.reduce((s, i) => s + Number(i.montantCentimes || 0), 0); }
+
+  function variablesComptables(fiche) {
+    const items = fiche.items || [];
+    const retenus = items.filter(i => STATUTS_RETENUS.includes(i.statut));
+    const attente = items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte);
+    const enAttente = type => attente.filter(i => i.typeItem === type).length;
+
+    // Un événement RH compte ses JOURS COUVERTS DANS LE MOIS, pas son
+    // nombre de lignes : c'est ce que la comptable reporte.
+    const groupeEvenements = filtre => {
+      const evts = retenus.filter(i => i.evenementRH && filtre(i));
+      return {
+        jours: evts.reduce((s, i) => s + Number(i.joursMois || 0), 0),
+        evenements: evts.length,
+        detail: evts.map(i => ({
+          motif: i.motif || null, libelle: i.motifLibelle || i.libelle,
+          debut: i.date, fin: i.dateFin, jours: Number(i.joursMois || 0),
+          evenementDebut: i.evenementDebut || null, evenementFin: i.evenementFin || null,
+          finIndeterminee: !!i.finIndeterminee, dateReprise: i.dateReprise || null,
+        })),
+      };
+    };
+
+    const retards = retenus.filter(i => i.typeItem === 'retard');
+    const supp = retenus.filter(i => i.typeItem === 'heure_supplementaire');
+    const feries = retenus.filter(i => i.typeItem === 'jour_ferie');
+    const absencesNonDeclarees = retenus.filter(i => i.typeItem === 'absence_a_verifier');
+    const acomptes = retenus.filter(i => i.typeItem === 'acompte');
+    const dettes = retenus.filter(i => i.typeItem === 'dette');
+    const ecartsRetenus = retenus.filter(i => i.typeItem === 'ecart_caisse' && i.impactPaye && i.montantCentimes != null);
+    const ecartsInformatifs = retenus.filter(i => i.typeItem === 'ecart_caisse' && !i.impactPaye);
+
+    return {
+      presence: {
+        jours: fiche.joursConfirmes ? fiche.joursConfirmes.size : 0,
+        heures: Math.round(Number(fiche.heuresConfirmees || 0) * 100) / 100,
+        joursMesures: fiche.presencesMesurees || 0,
+        joursReconstitues: fiche.presencesReconstituees || 0,
+        heuresParDefaut: Math.round(Number(fiche.heuresParDefaut || 0) * 100) / 100,
+      },
+      absence: {
+        jours: absencesNonDeclarees.reduce((s, i) => s + Number(i.joursMois || 1), 0),
+        occurrences: absencesNonDeclarees.length,
+        enAttente: enAttente('absence_a_verifier'),
+      },
+      congesPayes: groupeEvenements(i => i.motif === 'conge'),
+      maladieMaternite: groupeEvenements(i => MOTIFS_MALADIE.includes(i.motif)),
+      autresAbsences: groupeEvenements(i => i.motif && i.motif !== 'conge' && !MOTIFS_MALADIE.includes(i.motif)),
+      retards: { minutes: sommeMinutes(retards), occurrences: retards.length, enAttente: enAttente('retard') + enAttente('retard_incoherent') },
+      heuresSupplementaires: {
+        heures: enHeures(sommeMinutes(supp)), minutes: sommeMinutes(supp), occurrences: supp.length,
+        // Les heures supplémentaires du barème par défaut sont DÉJÀ dans
+        // les heures confirmées : les afficher à part évite de les compter
+        // deux fois tout en gardant l'information visible.
+        heuresDejaIncluses: Math.round(Number(fiche.heuresSupplementairesParDefaut || 0) * 100) / 100,
+        enAttente: enAttente('heure_supplementaire'),
+      },
+      joursFeries: { jours: feries.length, enAttente: enAttente('jour_ferie') },
+      financier: {
+        acompteCentimes: sommeCentimes(acomptes),
+        detteCentimes: sommeCentimes(dettes),
+        retenueEcartCentimes: sommeCentimes(ecartsRetenus),
+        ecartsInformatifs: ecartsInformatifs.length,
+        enAttente: enAttente('acompte') + enAttente('dette') + attente.filter(i => i.typeItem === 'ecart_caisse').length,
+        lignes: [...acomptes, ...dettes, ...ecartsRetenus].map(i => ({
+          type: i.typeItem, date: i.date || null, libelle: i.libelle,
+          montantCentimes: i.montantCentimes == null ? null : Number(i.montantCentimes),
+        })),
+      },
+      elementsEnAttente: attente.length,
+    };
+  }
+
+  // Statut par salarié (03/09/2026). Trois états seulement, dans un ordre
+  // de gravité strict — le statut du mois est celui du salarié le plus
+  // en retard, jamais une moyenne :
+  //   donnee_manquante : il manque un paramétrage ou toute donnée du mois ;
+  //   a_verifier       : les données sont là, un arbitrage reste à rendre ;
+  //   pret             : rien à décider, le salarié peut partir en paie.
+  function statutSalarie(fiche) {
+    if (!fiche.reglage.inclus) return 'hors_paie';
+    if (!fiche.reglage.confirme) return 'donnee_manquante';
+    const heuresManuelles = (fiche.items || []).some(i => i.origine === 'manuel' && i.statut === 'valide' && Number(i.quantiteMinutes || 0) > 0);
+    if (fiche.reglage.modePresence === 'manuel' && !heuresManuelles) return 'donnee_manquante';
+    const aDesElements = (fiche.items || []).length > 0;
+    if (!Number(fiche.heuresConfirmees || 0) && !(fiche.joursConfirmes && fiche.joursConfirmes.size) && !aDesElements) return 'donnee_manquante';
+    if ((fiche.items || []).some(i => i.statut === 'a_verifier' || i.contestationOuverte)) return 'a_verifier';
+    return 'pret';
+  }
+
+  const ORDRE_STATUT = ['donnee_manquante', 'a_verifier', 'pret'];
+  function statutGlobal(statuts) {
+    const retenus = statuts.filter(s => s !== 'hors_paie');
+    if (!retenus.length) return 'donnee_manquante';
+    return ORDRE_STATUT.find(s => retenus.includes(s)) || 'pret';
+  }
+
+  const LIBELLE_STATUT_SALARIE = { pret: 'Prêt', a_verifier: 'À vérifier', donnee_manquante: 'Donnée manquante', hors_paie: 'Hors paie' };
+
+  /**
+   * Dossier comptable : la sortie PRINCIPALE de NEXUS PAYE (03/09/2026).
+   * Une synthèse mensuelle + une fiche par salarié, composées des seules
+   * variables agrégées. Le CSV existant reste disponible comme export
+   * technique, mais ce n'est plus lui le résultat du module.
+   */
+  function dossierComptable(rapport, options) {
+    const opts = options || {};
+    const salaries = rapport.employes
+      .filter(f => f.reglage.inclus)
+      .map(f => ({
+        employeeId: f.employee.id,
+        nom: f.employee.nom || '',
+        role: f.employee.role || '',
+        statut: statutSalarie(f),
+        statutLibelle: LIBELLE_STATUT_SALARIE[statutSalarie(f)],
+        variables: variablesComptables(f),
+      }))
+      .sort((a, b) => String(a.nom).localeCompare(String(b.nom), 'fr'));
+
+    const total = extraire => salaries.reduce((s, x) => s + Number(extraire(x.variables) || 0), 0);
+    return {
+      periode: rapport.periode,
+      genereLe: opts.genereLe || new Date().toISOString(),
+      statutPeriode: (rapport.periodeEnregistree && rapport.periodeEnregistree.statut) || 'brouillon',
+      statutGlobal: statutGlobal(salaries.map(s => s.statut)),
+      salaries,
+      synthese: {
+        salaries: salaries.length,
+        prets: salaries.filter(s => s.statut === 'pret').length,
+        aVerifier: salaries.filter(s => s.statut === 'a_verifier').length,
+        donneeManquante: salaries.filter(s => s.statut === 'donnee_manquante').length,
+        joursTravailles: total(v => v.presence.jours),
+        heuresConfirmees: Math.round(total(v => v.presence.heures) * 100) / 100,
+        joursCongesPayes: total(v => v.congesPayes.jours),
+        joursMaladieMaternite: total(v => v.maladieMaternite.jours),
+        joursAutresAbsences: total(v => v.autresAbsences.jours),
+        joursAbsenceNonDeclaree: total(v => v.absence.jours),
+        retardsMinutes: total(v => v.retards.minutes),
+        heuresSupplementaires: Math.round(total(v => v.heuresSupplementaires.heures) * 100) / 100,
+        joursFeries: total(v => v.joursFeries.jours),
+        acompteCentimes: total(v => v.financier.acompteCentimes),
+        detteCentimes: total(v => v.financier.detteCentimes),
+        retenueEcartCentimes: total(v => v.financier.retenueEcartCentimes),
+        elementsEnAttente: total(v => v.elementsEnAttente),
+      },
+      ecartsNonAttribues: (rapport.ecartsNonAttribues || []).length,
+    };
+  }
+
+  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
+    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
 })(typeof window !== 'undefined' ? window : globalThis);

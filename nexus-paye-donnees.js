@@ -77,7 +77,21 @@
     return dates;
   }
 
+  // Garde-fou de modèle de données (03/09/2026). Une absence longue, un
+  // congé, une maternité, une paternité, une formation ou un arrêt maladie
+  // est UN événement porté par `employee_indisponibilites` — pas N lignes
+  // `nexus_paye_items`. Ce refus est ici, dans la couche de données, et pas
+  // seulement dans l'écran : aucun chemin de code ne peut plus recréer le
+  // dépliage par journée que le moteur vient précisément d'abolir.
+  function refuserEvenementRHParJournee(typeItem) {
+    const interdits = (global.NexusPayeMoteur && global.NexusPayeMoteur.TYPES_ITEM_EVENEMENT_RH) || [];
+    if (interdits.includes(typeItem)) {
+      throw new Error('Un congé, une maladie, une maternité, une paternité, une formation ou une absence longue se déclare comme un événement RH unique (date de début et de fin), jamais journée par journée. Utilisez « Déclarer un événement RH ».');
+    }
+  }
+
   async function ajouterItemsManuels(client, payload) {
+    refuserEvenementRHParJournee(payload.typeItem);
     const dates = Array.isArray(payload.dates) ? payload.dates : datesInclusives(payload.dateDebut, payload.dateFin);
     if (!dates.length) throw new Error('Aucune date à enregistrer');
     const groupe = global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -124,6 +138,9 @@
   async function declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin, motif, finIndeterminee, commentaire, actorId }) {
     if (!employeeId || !dateDebut) throw new Error('Employé et date de début requis.');
     if (!motif) throw new Error('Un motif est requis : NEXUS ne qualifie jamais une absence à votre place.');
+    const motifsConnus = (global.NexusPayeMoteur && global.NexusPayeMoteur.MOTIFS_INDISPO) || null;
+    if (motifsConnus && !motifsConnus[motif]) throw new Error(`Motif inconnu : « ${motif} ».`);
+    if (dateFin && dateFin < dateDebut) throw new Error('La date de fin précède la date de début.');
     const ligne = {
       site_id: siteId, employee_id: employeeId,
       date_debut: dateDebut, date_fin: dateFin || dateDebut,
@@ -161,5 +178,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
+  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee };
 })(typeof window !== 'undefined' ? window : globalThis);

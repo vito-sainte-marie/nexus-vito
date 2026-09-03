@@ -171,4 +171,39 @@ const seule = isolee.employes[0].items.find(i => i.typeItem === 'absence_a_verif
 verifier('une absence d’un seul jour garde son libellé simple',
   seule.libelle === 'Présence prévue sans preuve Verify/Pointage' && seule.dateFin === null);
 
-console.log(`\n${ok} vérifications passées.`);
+// 13) Garde-fou de modèle (03/09/2026). L'écran proposait encore « congé
+//     payé » et « arrêt maladie » comme des variables saisissables JOUR PAR
+//     JOUR : la couche de données les refuse désormais, quel que soit le
+//     chemin de code emprunté. Un congé est un événement, pas une collection
+//     de journées.
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-donnees.js'), 'utf8'), ctx);
+const D = ctx.NexusPayeDonnees;
+
+['conge_paye', 'arret_maladie', 'conge_maternite', 'conge_paternite', 'formation', 'absence_a_verifier'].forEach(type => {
+  let refuse = false;
+  try { D.refuserEvenementRHParJournee(type); } catch (e) { refuse = /événement RH unique/.test(e.message); }
+  verifier(`« ${type} » ne peut plus être créé journée par journée`, refuse);
+});
+
+['acompte', 'dette', 'heure_supplementaire', 'jour_ferie', 'presence_exceptionnelle', 'autre'].forEach(type => {
+  let passe = true;
+  try { D.refuserEvenementRHParJournee(type); } catch (e) { passe = false; }
+  verifier(`« ${type} » reste une variable du mois, saisissable normalement`, passe);
+});
+
+// La déclaration d'un événement RH, elle, exige un motif connu et une
+// période cohérente — sans jamais qualifier à la place du manager.
+const clientMuet = { from: () => ({ insert: () => ({ select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) };
+async function echoue(promesse, motifAttendu) {
+  try { await promesse; return false; } catch (e) { return motifAttendu.test(e.message); }
+}
+Promise.all([
+  echoue(D.declarerIndisponibilite(clientMuet, { employeeId: 'e1', dateDebut: '2026-08-01' }), /motif est requis/),
+  echoue(D.declarerIndisponibilite(clientMuet, { employeeId: 'e1', dateDebut: '2026-08-01', motif: 'vacances' }), /Motif inconnu/),
+  echoue(D.declarerIndisponibilite(clientMuet, { employeeId: 'e1', dateDebut: '2026-08-10', dateFin: '2026-08-01', motif: 'conge' }), /précède la date de début/),
+]).then(([sansMotif, motifInconnu, finAvantDebut]) => {
+  verifier('un événement RH sans motif est refusé', sansMotif);
+  verifier('un motif inventé est refusé', motifInconnu);
+  verifier('une fin antérieure au début est refusée', finAvantDebut);
+  console.log(`\n${ok} vérifications passées.`);
+});
