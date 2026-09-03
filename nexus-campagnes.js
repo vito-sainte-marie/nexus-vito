@@ -27,7 +27,7 @@
 // arriveront dès que cette donnée existera (voir NEXUS-Campagne-v1.html
 // pour le message affiché à l'utilisateur à ce sujet).
 //
-// Inclure dans une page : <script src="nexus-campagnes.js?v=20260902-2341"></script>
+// Inclure dans une page : <script src="nexus-campagnes.js?v=20260903-1136"></script>
 // (même mécanisme que nexus-auth.js, nexus-vocabulaire.js, nexus-tempo.js)
 // ============================================================
 

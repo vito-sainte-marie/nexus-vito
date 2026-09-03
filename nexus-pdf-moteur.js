@@ -23,7 +23,7 @@
  * payante) — génère un vrai fichier PDF (Blob), indépendant du moteur
  * d'impression du navigateur. Charger AVANT ce script :
  *   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
- *   <script src="nexus-pdf-moteur.js?v=20260902-2341"></script>
+ *   <script src="nexus-pdf-moteur.js?v=20260903-1136"></script>
  *
  * Diffusion du PDF généré — audit "developpeur" du 09/08/2026 sur les
  * limites d'impression des PWA iOS en mode standalone (bug WebKit

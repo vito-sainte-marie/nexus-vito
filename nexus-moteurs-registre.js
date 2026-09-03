@@ -42,7 +42,7 @@
 // — ce serait une précision que le code ne mesure pas réellement. Un seul
 // moteur public "Contrôles" représente cette contribution agrégée.
 //
-// Inclure : <script src="nexus-moteurs-registre.js?v=20260902-2341"></script>
+// Inclure : <script src="nexus-moteurs-registre.js?v=20260903-1136"></script>
 // (après nexus-secteurs-catalogue.js)
 // ------------------------------------------------------------
 

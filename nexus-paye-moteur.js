@@ -48,6 +48,17 @@
     };
   }
 
+  // Motifs qualifiés reconnus. Un événement dont le motif est ici n'est
+  // plus une décision à prendre : c'est une information à reporter.
+  const MOTIFS_INDISPO = { conge: 'Congé', conge_maternite: 'Congé maternité',
+    arret_maladie: 'Arrêt maladie', conge_paternite: 'Congé paternité',
+    formation: 'Formation', autre: 'Absence qualifiée' };
+
+  function jjmmaaaa(iso) {
+    const p = String(iso || '').slice(0, 10).split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso || '');
+  }
+
   function cleJour(employeeId, date) { return `${employeeId}|${date}`; }
   function cleQuart(employeeId, date, quart) { return `${employeeId}|${date}|${quart || ''}`; }
 
@@ -123,12 +134,26 @@
     });
 
     const indispoParJour = new Map();
+    // Un événement RH est une PÉRIODE, jamais une collection de journées
+    // (03/09/2026, retour de Frédéric sur le congé maternité de Vanessa :
+    // une seule ligne du 21/07/2026 au 03/01/2027 produisait 30 cartes en
+    // septembre, 31 en octobre, et ainsi de suite — soit 167 arbitrages pour
+    // une information déjà connue en une fois). On garde donc l'index par
+    // jour, nécessaire pour neutraliser les alertes de présence, ET
+    // l'événement lui-même avec les jours qu'il couvre dans le mois.
+    const evenementsIndispo = new Map(); // employeeId -> Map(indispoId -> { indispo, jours:Set })
     (entree.indisponibilites || []).forEach(i => {
       let d = new Date(`${i.date_debut}T12:00:00`);
       const fin = new Date(`${i.date_fin}T12:00:00`);
       while (d <= fin) {
         const iso = d.toISOString().slice(0, 10);
-        if (dateDansMois(iso, periode)) indispoParJour.set(cleJour(i.employee_id, iso), i);
+        if (dateDansMois(iso, periode)) {
+          indispoParJour.set(cleJour(i.employee_id, iso), i);
+          if (!evenementsIndispo.has(i.employee_id)) evenementsIndispo.set(i.employee_id, new Map());
+          const parEmploye = evenementsIndispo.get(i.employee_id);
+          if (!parEmploye.has(i.id)) parEmploye.set(i.id, { indispo: i, jours: new Set() });
+          parEmploye.get(i.id).jours.add(iso);
+        }
         d.setDate(d.getDate() + 1);
       }
     });
@@ -163,7 +188,11 @@
           fiche.heuresConfirmees += shiftsTravail.reduce((s, p) => s + Number(p.duree_heures || 0), 0);
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
-        } else if (shiftsTravail.length && !preuve) {
+        } else if (shiftsTravail.length && !preuve && !indispo) {
+          // `!indispo` : une absence déjà expliquée par un événement RH
+          // déclaré n'est pas une anomalie. NEXUS neutralise l'alerte plutôt
+          // que de demander au manager d'arbitrer une journée dont la cause
+          // est connue et couverte par la période.
           fiche.items.push({
             sourceCle: `absence:${employee.id}:${date}`, typeItem: 'absence_a_verifier', origine: 'planning',
             date, libelle: 'Présence prévue sans preuve Verify/Pointage', statut: 'a_verifier', impactPaye: false,
@@ -174,15 +203,6 @@
           fiche.items.push({
             sourceCle: `presence-exceptionnelle:${employee.id}:${date}`, typeItem: 'presence_exceptionnelle', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
             date, libelle: 'Présence constatée hors planning de travail', statut: 'a_verifier', impactPaye: false,
-          });
-        }
-
-        if (indispo && !preuve) {
-          const typeItem = indispo.type === 'conge' ? 'conge_paye' : 'absence_a_verifier';
-          fiche.items.push({
-            sourceCle: `indispo:${indispo.id}:${date}`, typeItem, origine: 'indisponibilite', date,
-            libelle: indispo.type === 'conge' ? 'Congé déclaré' : 'Indisponibilité déclarée',
-            statut: 'a_verifier', impactPaye: false,
           });
         }
 
@@ -244,6 +264,59 @@
       });
 
       fiche.items = fiche.items.map(i => appliquerArbitrage(i, arbitrages));
+      // Un événement RH = une décision, qu'il couvre 1, 30 ou 167 jours.
+      // Émis APRÈS la boucle des jours, une seule fois par événement.
+      (evenementsIndispo.get(employee.id) || new Map()).forEach(({ indispo, jours }) => {
+        const joursTries = [...jours].sort();
+        const joursPlanifies = joursTries.filter(d => {
+          const shifts = planningParEmployeJour.get(cleJour(employee.id, d)) || [];
+          return shifts.some(sh => STATUTS_TRAVAIL.includes(sh.statut));
+        }).length;
+        const joursAvecPreuve = joursTries.filter(d => preuveJour.has(cleJour(employee.id, d)));
+        // Qualifier n'est pas déclarer. Un `type` posé depuis le Planning
+        // (« conge ») dit ce qui a été saisi ; il ne dit pas qu'un manager a
+        // arbitré cette période pour la paie. La qualification exige donc un
+        // motif ET une confirmation explicite — c'est elle, et elle seule,
+        // qui fait passer l'événement du statut « décision à prendre » à
+        // « information à reporter », y compris les mois suivants.
+        const motif = indispo.motif || null;
+        const qualifie = !!(motif && MOTIFS_INDISPO[motif] && indispo.confirme_le);
+        const libelleMotif = motif && MOTIFS_INDISPO[motif] ? MOTIFS_INDISPO[motif]
+          : (indispo.type === 'conge' ? 'Congé déclaré' : 'Indisponibilité déclarée');
+        // Une présence constatée PENDANT une absence déclarée est la seule
+        // vraie contradiction : celle-là doit être signalée (Article 5).
+        const contradiction = joursAvecPreuve.length > 0;
+        fiche.items.push({
+          // La clé ne porte plus la date : un arbitrage posé une fois vaut
+          // pour toute la période, et le mois suivant retrouve le même
+          // événement au lieu d'en découvrir trente nouveaux.
+          sourceCle: `indispo:${indispo.id}`,
+          // `conge_paye` conservé pour ne pas rompre les consommateurs
+          // existants (export, simulations) : seule la granularité change.
+          typeItem: qualifie ? 'absence_qualifiee'
+            : (indispo.type === 'conge' ? 'conge_paye' : 'absence_a_qualifier'),
+          origine: 'indisponibilite',
+          date: joursTries[0] || null,
+          dateFin: joursTries[joursTries.length - 1] || null,
+          evenementId: indispo.id,
+          evenementDebut: indispo.date_debut,
+          evenementFin: indispo.date_fin,
+          motif: motif || null,
+          joursMois: joursTries.length,
+          joursPlanifiesMois: joursPlanifies,
+          joursAvecPreuve,
+          libelle: `${libelleMotif} du ${jjmmaaaa(indispo.date_debut)} au ${jjmmaaaa(indispo.date_fin)}`,
+          detail: `${joursTries.length} jour${joursTries.length > 1 ? 's' : ''} sur la période de paie`
+            + (joursPlanifies ? ` · ${joursPlanifies} normalement travaillé${joursPlanifies > 1 ? 's' : ''}` : '')
+            + (contradiction ? ` · ${joursAvecPreuve.length} jour(s) avec présence constatée` : ''),
+          contradiction,
+          // Qualifié et sans contradiction : information, plus jamais une
+          // décision à reprendre. Le manager ne revalide que ce qui change.
+          statut: (qualifie && !contradiction) ? 'information' : 'a_verifier',
+          impactPaye: false,
+        });
+      });
+
       const manuels = (entree.items || []).filter(i => i.origine === 'manuel' && i.employee_id === employee.id && i.periode === periode).map(i => ({
         id: i.id, sourceCle: i.source_cle, typeItem: i.type_item, origine: 'manuel', date: i.date_evenement,
         libelle: i.libelle, quantiteMinutes: i.quantite_minutes, montantCentimes: i.montant_centimes,
@@ -270,15 +343,19 @@
     });
     itemsGlobaux.push(...ecartsNonAttribues);
 
+    // Deux natures de blocage, jamais mélangées à l'écran : un paramétrage
+    // permanent à compléter n'est pas un arbitrage du mois (03/09/2026,
+    // retour de Frédéric). `categorie` permet à l'écran de les séparer sans
+    // avoir à deviner à partir de l'absence de sourceCle.
     const bloqueurs = [];
     employes.forEach(f => {
-      if (!f.reglage.confirme) bloqueurs.push({ type: 'configuration_employe', employeeId: f.employee.id, libelle: `${f.employee.nom} : rattachement paie à confirmer` });
+      if (!f.reglage.confirme) bloqueurs.push({ categorie: 'configuration', type: 'configuration_employe', employeeId: f.employee.id, libelle: `${f.employee.nom} : rattachement paie à confirmer` });
       if (f.reglage.inclus && f.reglage.modePresence === 'manuel' && !f.items.some(i => i.origine === 'manuel' && i.statut === 'valide' && i.quantiteMinutes > 0)) {
-        bloqueurs.push({ type: 'heures_manuelles', employeeId: f.employee.id, libelle: `${f.employee.nom} : heures mensuelles à confirmer manuellement` });
+        bloqueurs.push({ categorie: 'configuration', type: 'heures_manuelles', employeeId: f.employee.id, libelle: `${f.employee.nom} : heures mensuelles à confirmer manuellement` });
       }
-      f.items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte).forEach(i => bloqueurs.push({ type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
+      f.items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte).forEach(i => bloqueurs.push({ categorie: 'element', type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
     });
-    ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
+    ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
 
     return {
       periode,
@@ -290,7 +367,10 @@
         heuresConfirmees: Math.round(employes.reduce((s, f) => s + f.heuresConfirmees, 0) * 100) / 100,
         variablesValidees: itemsGlobaux.filter(i => i.statut === 'valide').length,
         informations: itemsGlobaux.filter(i => i.statut === 'information').length,
-        aVerifier: bloqueurs.length,
+        // On compte des DÉCISIONS, pas des lignes techniques : le manager
+        // doit voir le nombre de choses qu'il a réellement à trancher.
+        aVerifier: bloqueurs.filter(b => b.categorie === 'element').length,
+        configurationRequise: bloqueurs.filter(b => b.categorie === 'configuration').length,
       },
       ecartsNonAttribues,
     };

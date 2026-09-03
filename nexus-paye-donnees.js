@@ -10,7 +10,7 @@
       client.from('nexus_paye_employee_settings').select('*').eq('site_id', siteId),
       client.from('planning_shifts').select('id, employee_id, date, quart, statut, duree_heures, heure_debut, heure_fin, tache').eq('site_id', siteId).gte('date', debut).lt('date', fin),
       client.from('pointages').select('id, employee_id, date, type, heure, quart, retard_min, anomalie_signalee').eq('site', siteId).gte('date', debut).lt('date', fin),
-      client.from('employee_indisponibilites').select('id, employee_id, date_debut, date_fin, type, commentaire').eq('site_id', siteId).lte('date_debut', fin).gte('date_fin', debut),
+      client.from('employee_indisponibilites').select('id, employee_id, date_debut, date_fin, type, commentaire, motif, confirme_le, fin_indeterminee, date_reprise').eq('site_id', siteId).lte('date_debut', fin).gte('date_fin', debut),
       client.from('audits_caisse').select('id, date, quart, statut, employes_piste, employes_boutique').eq('site', siteId).gte('date', debut).lt('date', fin),
       client.from('nexus_paye_items').select('*').eq('site_id', siteId).eq('periode', debut),
       client.from('nexus_paye_periodes').select('*').eq('site_id', siteId).eq('periode', debut).maybeSingle(),
