@@ -84,8 +84,17 @@
   // seulement dans l'écran : aucun chemin de code ne peut plus recréer le
   // dépliage par journée que le moteur vient précisément d'abolir.
   function refuserEvenementRHParJournee(typeItem) {
-    const interdits = (global.NexusPayeMoteur && global.NexusPayeMoteur.TYPES_ITEM_EVENEMENT_RH) || [];
-    if (interdits.includes(typeItem)) {
+    // Le moteur porte la liste de référence. S'il n'est pas chargé, on
+    // ÉCHOUE — on ne laisse jamais passer « par défaut ». Une première
+    // version repliait sur une liste vide : le garde-fou s'ouvrait alors en
+    // grand au lieu de se fermer, exactement le contraire de son rôle, et
+    // sans le moindre signal. Un refus silencieusement désactivé coûte plus
+    // cher qu'une erreur franche (même discipline que chargerRapport).
+    const M = global.NexusPayeMoteur;
+    if (!M || !Array.isArray(M.TYPES_ITEM_EVENEMENT_RH)) {
+      throw new Error('Moteur PAYE indisponible : impossible de vérifier le type d’élément avant écriture.');
+    }
+    if (M.TYPES_ITEM_EVENEMENT_RH.includes(typeItem)) {
       throw new Error('Un congé, une maladie, une maternité, une paternité, une formation ou une absence longue se déclare comme un événement RH unique (date de début et de fin), jamais journée par journée. Utilisez « Déclarer un événement RH ».');
     }
   }

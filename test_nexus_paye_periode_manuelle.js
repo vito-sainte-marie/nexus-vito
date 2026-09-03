@@ -1,6 +1,10 @@
 const assert = require('assert');
 const fs = require('fs');
 
+// Le moteur porte la liste des types réservés aux événements RH : la couche
+// de données s'appuie dessus, il doit donc être chargé — comme dans l'écran,
+// où les deux scripts sont servis ensemble.
+require('./nexus-paye-moteur.js');
 require('./nexus-paye-donnees.js');
 
 const D = globalThis.NexusPayeDonnees;
@@ -53,6 +57,17 @@ assert.throws(() => D.datesInclusives('2026-02-30', '2026-03-02'), /invalide/);
     } catch (e) { refuse = /événement RH unique/.test(e.message); }
     assert.ok(refuse, `${type} doit être refusé en saisie journalière`);
   }
+
+  // Et si le moteur venait à manquer, le garde-fou ÉCHOUE : il ne se
+  // désactive jamais en silence, ce qui rouvrirait la saisie journalière
+  // sans que personne s'en aperçoive.
+  const moteur = globalThis.NexusPayeMoteur;
+  delete globalThis.NexusPayeMoteur;
+  let echoueFranchement = false;
+  try { D.refuserEvenementRHParJournee('acompte'); }
+  catch (e) { echoueFranchement = /Moteur PAYE indisponible/.test(e.message); }
+  globalThis.NexusPayeMoteur = moteur;
+  assert.ok(echoueFranchement, 'sans moteur, le garde-fou doit échouer, jamais laisser passer');
 
   console.log('Période manuelle PAYE : saisie inclusive validée, événements RH refusés par journée.');
 })().catch(error => { console.error(error); process.exit(1); });
