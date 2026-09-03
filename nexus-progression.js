@@ -30,7 +30,7 @@
 // pour créditer un bon résultat), mais jamais comme preuve d'un écart
 // individuel.
 //
-// Inclure dans une page : <script src="nexus-progression.js?v=20260903-1221"></script>
+// Inclure dans une page : <script src="nexus-progression.js?v=20260903-1247"></script>
 // (même mécanisme que nexus-auth.js, nexus-marge.js, nexus-tempo.js)
 //
 // v2.286 (29/08/2026, demande de Frédéric) : la classification "conforme /
@@ -40,8 +40,8 @@
 // (nexus-ecarts-donnees.js), au lieu d'un second calcul local par seuil.
 // Voir le commentaire détaillé au-dessus de statutEcartActiviteVerify.
 // DOIT donc être chargé dans cet ordre :
-//   <script src="nexus-ecarts-moteur.js?v=20260903-1221"></script>
-//   <script src="nexus-progression.js?v=20260903-1221"></script>
+//   <script src="nexus-ecarts-moteur.js?v=20260903-1247"></script>
+//   <script src="nexus-progression.js?v=20260903-1247"></script>
 // ============================================================
 
 (function (global) {

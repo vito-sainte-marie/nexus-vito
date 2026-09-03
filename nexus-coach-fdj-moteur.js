@@ -20,7 +20,7 @@
 // suivantes de l'audit (§27, items 10 à 14), pas celle-ci.
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
-// Inclure : <script src="nexus-coach-fdj-moteur.js?v=20260903-1221"></script>
+// Inclure : <script src="nexus-coach-fdj-moteur.js?v=20260903-1247"></script>
 // ------------------------------------------------------------
 
 (function (global) {

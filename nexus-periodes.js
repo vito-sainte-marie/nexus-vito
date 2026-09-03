@@ -18,7 +18,7 @@
 // d'historique) de "paire comparable" (utilisée uniquement pour calculer
 // une évolution).
 //
-// Inclure dans une page : <script src="nexus-periodes.js?v=20260903-1221"></script>
+// Inclure dans une page : <script src="nexus-periodes.js?v=20260903-1247"></script>
 // (même mécanisme que nexus-auth.js et nexus-vocabulaire.js).
 // ============================================================
 
