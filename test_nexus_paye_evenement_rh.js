@@ -129,4 +129,46 @@ const apres = M.construireRapport({
 verifier('le mois suivant la reprise ne rouvre aucune décision',
   !apres.employes[0].items.some(i => i.origine === 'indisponibilite'));
 
+// 10) Le mécanisme vaut pour TOUT LE MONDE, y compris sans déclaration
+//     préalable : une absence simplement constatée se regroupe aussi.
+const KARINE = { id: 'emp-karine', nom: 'karine', actif: true };
+const REGLAGE_K = [{ employee_id: KARINE.id, inclus_paye: true, mode_presence: 'automatique' }];
+const planningK = [];
+for (let j = 1; j <= 12; j++) {
+  planningK.push({ employee_id: KARINE.id, date: `2026-09-${String(j).padStart(2, '0')}`, statut: 'travail_normal', duree_heures: 7 });
+}
+const constatee = M.construireRapport({
+  periode: '2026-09', employees: [KARINE], settings: REGLAGE_K,
+  indisponibilites: [], planning: planningK, audits: [], pointages: [], items: [], config: {},
+});
+const serie = constatee.employes[0].items.filter(i => i.typeItem === 'absence_a_verifier');
+verifier('12 jours d’absence non déclarée donnent une seule carte', serie.length === 1);
+verifier('la carte annonce la période constatée',
+  serie[0].libelle === 'Absence non déclarée du 01/09/2026 au 12/09/2026');
+verifier('elle porte ses bornes, exploitables pour déclarer l’événement',
+  serie[0].date === '2026-09-01' && serie[0].dateFin === '2026-09-12' && serie[0].serieAbsence === true);
+verifier('« À vérifier » compte 1, pas 12', constatee.synthese.aVerifier === 1);
+
+// 11) Une présence constatée au milieu rompt la série : deux faits distincts,
+//     jamais une période fusionnée qui enjamberait un jour travaillé.
+const coupee = M.construireRapport({
+  periode: '2026-09', employees: [KARINE], settings: REGLAGE_K,
+  indisponibilites: [], planning: planningK,
+  audits: [{ date: '2026-09-06', quart: '1', employes_piste: [KARINE.id], site: 'vito-sainte-marie' }],
+  pointages: [], items: [], config: {},
+});
+const deux = coupee.employes[0].items.filter(i => i.typeItem === 'absence_a_verifier');
+verifier('un jour de présence au milieu coupe la série en deux', deux.length === 2);
+verifier('la première série s’arrête la veille de la présence',
+  deux[0].dateFin === '2026-09-05' || deux[0].date === '2026-09-01');
+
+// 12) Une journée isolée reste une journée, pas une fausse « période ».
+const isolee = M.construireRapport({
+  periode: '2026-09', employees: [KARINE], settings: REGLAGE_K,
+  indisponibilites: [], planning: [planningK[0]], audits: [], pointages: [], items: [], config: {},
+});
+const seule = isolee.employes[0].items.find(i => i.typeItem === 'absence_a_verifier');
+verifier('une absence d’un seul jour garde son libellé simple',
+  seule.libelle === 'Présence prévue sans preuve Verify/Pointage' && seule.dateFin === null);
+
 console.log(`\n${ok} vérifications passées.`);

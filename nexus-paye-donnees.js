@@ -115,6 +115,29 @@
     if (error) throw error;
   }
 
+  // Transforme une série d'absences DÉTECTÉE en événement RH déclaré
+  // (03/09/2026). C'est le chaînon qui rend le mécanisme général : sans lui,
+  // seules les absences saisies à l'avance dans le Planning bénéficiaient du
+  // regroupement et de la mémoire. Désormais, une absence constatée après
+  // coup suit exactement le même chemin — déclarée une fois, plus jamais
+  // redemandée.
+  async function declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin, motif, finIndeterminee, commentaire, actorId }) {
+    if (!employeeId || !dateDebut) throw new Error('Employé et date de début requis.');
+    if (!motif) throw new Error('Un motif est requis : NEXUS ne qualifie jamais une absence à votre place.');
+    const ligne = {
+      site_id: siteId, employee_id: employeeId,
+      date_debut: dateDebut, date_fin: dateFin || dateDebut,
+      type: motif === 'conge' ? 'conge' : 'indisponible',
+      motif, fin_indeterminee: !!finIndeterminee,
+      commentaire: commentaire || null,
+      confirme_le: new Date().toISOString(), confirme_par: actorId || null,
+      cree_par: actorId || null,
+    };
+    const { data, error } = await client.from('employee_indisponibilites').insert(ligne).select().maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
   // Clôture : le salarié a repris. La date de reprise prime sur date_fin et
   // referme la période — on ne réécrit jamais l'événement d'origine, on le
   // borne (même discipline que partout ailleurs dans NEXUS).
@@ -138,5 +161,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
+  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
 })(typeof window !== 'undefined' ? window : globalThis);

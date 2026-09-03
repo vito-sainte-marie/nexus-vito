@@ -186,6 +186,7 @@
         return;
       }
 
+      const absencesSansPreuve = [];
       const cles = new Set();
       planning.forEach(p => { if (p.employee_id === employee.id) cles.add(cleJour(employee.id, p.date)); });
       preuveJour.forEach((_, cle) => { if (cle.startsWith(`${employee.id}|`)) cles.add(cle); });
@@ -208,10 +209,13 @@
           // déclaré n'est pas une anomalie. NEXUS neutralise l'alerte plutôt
           // que de demander au manager d'arbitrer une journée dont la cause
           // est connue et couverte par la période.
-          fiche.items.push({
-            sourceCle: `absence:${employee.id}:${date}`, typeItem: 'absence_a_verifier', origine: 'planning',
-            date, libelle: 'Présence prévue sans preuve Verify/Pointage', statut: 'a_verifier', impactPaye: false,
-          });
+          //
+          // Collecté ici, groupé après la boucle : une absence non déclarée
+          // qui dure est un seul fait — « untel n'est pas venu du X au Y » —
+          // pas une anomalie par jour (03/09/2026, généralisation demandée
+          // par Frédéric : le mécanisme de Vanessa doit valoir pour tout le
+          // monde, y compris quand rien n'a été déclaré à l'avance).
+          absencesSansPreuve.push(date);
         } else if (!shiftsTravail.length && preuve) {
           fiche.joursConfirmes.add(date);
           fiche.presencesReconstituees += 1;
@@ -279,6 +283,44 @@
       });
 
       fiche.items = fiche.items.map(i => appliquerArbitrage(i, arbitrages));
+      // Séries d'absences non déclarées. Une journée avec preuve de présence
+      // rompt la série : « absent du X au Y sans aucune présence constatée
+      // entre les deux » est un fait vérifiable, contrairement à une fusion
+      // qui enjamberait un jour où l'employé était là (Article 5).
+      const seriesAbsence = [];
+      absencesSansPreuve.sort().forEach(date => {
+        const serie = seriesAbsence[seriesAbsence.length - 1];
+        if (serie) {
+          let rompue = false;
+          const curseur = new Date(`${serie.fin}T12:00:00`);
+          const cible = new Date(`${date}T12:00:00`);
+          curseur.setDate(curseur.getDate() + 1);
+          while (curseur < cible) {
+            if (preuveJour.has(cleJour(employee.id, curseur.toISOString().slice(0, 10)))) { rompue = true; break; }
+            curseur.setDate(curseur.getDate() + 1);
+          }
+          if (!rompue) { serie.fin = date; serie.jours.push(date); return; }
+        }
+        seriesAbsence.push({ debut: date, fin: date, jours: [date] });
+      });
+      seriesAbsence.forEach(serie => {
+        const multi = serie.jours.length > 1;
+        fiche.items.push({
+          sourceCle: `absence:${employee.id}:${serie.debut}${multi ? `:${serie.fin}` : ''}`,
+          typeItem: 'absence_a_verifier', origine: 'planning',
+          date: serie.debut, dateFin: multi ? serie.fin : null,
+          joursMois: serie.jours.length, joursPlanifiesMois: serie.jours.length,
+          serieAbsence: true, jours: serie.jours,
+          libelle: multi
+            ? `Absence non déclarée du ${jjmmaaaa(serie.debut)} au ${jjmmaaaa(serie.fin)}`
+            : 'Présence prévue sans preuve Verify/Pointage',
+          detail: multi
+            ? `${serie.jours.length} jours planifiés sans aucune preuve de présence · à déclarer comme événement RH pour ne plus la revoir chaque mois`
+            : null,
+          statut: 'a_verifier', impactPaye: false,
+        });
+      });
+
       // Un événement RH = une décision, qu'il couvre 1, 30 ou 167 jours.
       // Émis APRÈS la boucle des jours, une seule fois par événement.
       (evenementsIndispo.get(employee.id) || new Map()).forEach(({ indispo, jours }) => {

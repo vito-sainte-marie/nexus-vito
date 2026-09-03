@@ -27,7 +27,7 @@
 //      après nexusRequireAuth() — un lien direct copié/collé ne suffit
 //      donc pas à contourner la restriction.
 //
-// Inclure dans une page : <script src="nexus-forfait.js?v=20260903-1148"></script>
+// Inclure dans une page : <script src="nexus-forfait.js?v=20260903-1156"></script>
 // (même mécanisme que nexus-auth.js, nexus-tempo.js, nexus-campagnes.js)
 // ============================================================
 

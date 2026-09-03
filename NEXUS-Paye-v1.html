@@ -13,13 +13,13 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260903-1148"></script>
-<script src="nexus-header-nav.js?v=20260903-1148"></script>
-<script src="nexus-desktop.js?v=20260903-1148"></script>
-<script src="nexus-ecarts-moteur.js?v=20260903-1148"></script>
-<script src="nexus-ecarts-donnees.js?v=20260903-1148"></script>
-<script src="nexus-paye-moteur.js?v=20260903-1148"></script>
-<script src="nexus-paye-donnees.js?v=20260903-1148"></script>
+<script src="nexus-auth.js?v=20260903-1156"></script>
+<script src="nexus-header-nav.js?v=20260903-1156"></script>
+<script src="nexus-desktop.js?v=20260903-1156"></script>
+<script src="nexus-ecarts-moteur.js?v=20260903-1156"></script>
+<script src="nexus-ecarts-donnees.js?v=20260903-1156"></script>
+<script src="nexus-paye-moteur.js?v=20260903-1156"></script>
+<script src="nexus-paye-donnees.js?v=20260903-1156"></script>
 </head>
 <body><div class="phone">
 <header class="header"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><div class="eyebrow">NEXUS · Manager</div><h1>Paye</h1><div class="subtitle">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div></header>
@@ -68,6 +68,24 @@ const MOTIFS_RH=[['conge_maternite','Congé maternité'],['arret_maladie','Arrê
 // Qualifier une période une seule fois. Le manager choisit un motif puis
 // confirme ; NEXUS écrit sur l'ÉVÉNEMENT, ce qui vaut pour tous les mois
 // suivants. « Date de retour non connue » évite de forcer une date inventée.
+// Déclarer une absence CONSTATÉE comme événement RH. Même formulaire que la
+// qualification : le manager ne doit pas apprendre deux vocabulaires selon
+// que l'absence a été prévue ou découverte après coup.
+function blocDeclaration(i,emp){
+ const sel=MOTIFS_RH.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+ return `<div class="item-actions" style="flex-direction:column;align-items:stretch;gap:8px">
+  <label style="font-size:11px;opacity:.75">Motif de l'absence
+   <select class="rh-motif-new" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
+    <option value="">— à qualifier —</option>${sel}</select></label>
+  <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
+   <input type="checkbox" class="rh-indetermine-new" data-key="${ECHAPPE(i.sourceCle)}"> Date de retour non connue</label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="btn primary rh-declarer" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}"
+     data-debut="${ECHAPPE(i.date||'')}" data-fin="${ECHAPPE(i.dateFin||i.date||'')}">Déclarer l'absence</button>
+   <button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Ignorer cette détection</button>
+  </div>
+  <div style="font-size:10px;opacity:.6">Déclarée une fois, cette absence ne vous sera plus redemandée les mois suivants.</div>
+ </div>`}
 function blocQualification(i){
  const sel=MOTIFS_RH.map(([v,l])=>`<option value="${v}"${i.motif===v?' selected':''}>${l}</option>`).join('');
  return `<div class="item-actions" style="flex-direction:column;align-items:stretch;gap:8px">
@@ -82,13 +100,23 @@ function blocQualification(i){
   </div>
   <div style="font-size:10px;opacity:.6">Une seule confirmation couvre toute la période, y compris les mois suivants.</div>
  </div>`}
-function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
+function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
 async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 function bind(){
  document.getElementById('prev').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()-1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.getElementById('next').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()+1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.jump).scrollIntoView({behavior:'smooth',block:'start'}));
+ document.querySelectorAll('.rh-declarer').forEach(b=>b.onclick=async()=>{
+  const key=b.dataset.key;
+  const motif=(document.querySelector(`.rh-motif-new[data-key="${key}"]`)||{}).value||'';
+  if(!motif){alert('Choisissez d’abord un motif : NEXUS ne qualifie jamais une absence à votre place.');return;}
+  const indet=(document.querySelector(`.rh-indetermine-new[data-key="${key}"]`)||{}).checked;
+  b.disabled=true;
+  try{await NexusPayeDonnees.declarerIndisponibilite(nexusClient,{siteId:SITE,employeeId:b.dataset.emp,
+    dateDebut:b.dataset.debut,dateFin:b.dataset.fin,motif,finIndeterminee:indet,actorId:EMPLOYEE.id});await reload();}
+  catch(e){console.error('NEXUS PAYE — déclaration d’absence :',e);b.disabled=false;
+   alert("NEXUS n'a pas pu déclarer cette absence : "+(e&&e.message?e.message:e)+"\n\nRien n'a été modifié.");}});
  document.querySelectorAll('.rh-confirmer').forEach(b=>b.onclick=async()=>{
   const ev=b.dataset.ev;
   const motif=(document.querySelector(`.rh-motif[data-ev="${ev}"]`)||{}).value||'';
