@@ -54,6 +54,48 @@
     arret_maladie: 'Arrêt maladie', conge_paternite: 'Congé paternité',
     formation: 'Formation', autre: 'Absence qualifiée' };
 
+  // Barème d'heures par défaut, quand aucun planning ne donne de durée
+  // (03/09/2026, règle de Frédéric). Deux principes :
+  //
+  //   1. C'est le POSTE RÉELLEMENT TENU qui compte, pas le rôle général
+  //      inscrit dans NEXUS. Angélique est « renfort » dans la fiche, mais si
+  //      Verify la place en boutique un mardi, elle est payée comme une
+  //      caissière ce jour-là. Le rôle NEXUS n'est qu'un repli quand aucune
+  //      preuve ne dit où la personne a travaillé.
+  //   2. Piste et boutique font 7 h du dimanche au mercredi, 8 h du jeudi au
+  //      samedi (7 h + 1 h supplémentaire). Le renfort fait 7 h tous les
+  //      jours, sans heure supplémentaire automatique.
+  const JOURS_HUIT_HEURES = [4, 5, 6]; // jeudi, vendredi, samedi
+  function heuresParDefautJour(poste, dateISO) {
+    if (!poste || !dateISO) return null;
+    if (poste === 'renfort') return { heures: 7, heuresSupplementaires: 0, poste };
+    if (poste !== 'pompiste' && poste !== 'caissier') return null;
+    const jour = new Date(`${dateISO}T12:00:00`).getDay();
+    const supp = JOURS_HUIT_HEURES.includes(jour) ? 1 : 0;
+    return { heures: 7 + supp, heuresSupplementaires: supp, poste };
+  }
+
+  // Poste réellement tenu ce jour-là, dans l'ordre de fiabilité : ce que
+  // Verify a constaté, puis ce que le planning prévoyait, puis le rôle
+  // général. On ne devine jamais au-delà (Article 5).
+  function posteDuJour(employeeId, preuve, shifts, employee) {
+    const ligne = preuve && preuve.ligne;
+    if (ligne) {
+      if (extraireEmployeeIds(ligne.employes_piste).includes(employeeId)) return 'pompiste';
+      if (extraireEmployeeIds(ligne.employes_boutique).includes(employeeId)) return 'caissier';
+    }
+    const shiftRenfort = (shifts || []).find(sh => sh.statut === 'renfort');
+    if (shiftRenfort) return 'renfort';
+    const role = String((employee && employee.role) || '').toLowerCase();
+    if (role === 'pompiste') return 'pompiste';
+    if (role === 'caissier' || role === 'caissiere') return 'caissier';
+    if (role === 'renfort') return 'renfort';
+    return null;
+  }
+
+  const LIBELLE_POSTE = { pompiste: 'piste', caissier: 'boutique', renfort: 'renfort' };
+  const NOM_JOUR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
   function jjmmaaaa(iso) {
     const p = String(iso || '').slice(0, 10).split('-');
     return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso || '');
@@ -201,7 +243,19 @@
 
         if (shiftsTravail.length && preuve) {
           fiche.joursConfirmes.add(date);
-          fiche.heuresConfirmees += shiftsTravail.reduce((s, p) => s + Number(p.duree_heures || 0), 0);
+          const heuresPlanning = shiftsTravail.reduce((s, p) => s + Number(p.duree_heures || 0), 0);
+          // Un planning sans durée ne vaut pas zéro heure travaillée : le
+          // barème par poste prend le relais, et le fait est tracé.
+          let heuresJour = heuresPlanning;
+          if (!(heuresPlanning > 0)) {
+            const bareme = heuresParDefautJour(posteDuJour(employee.id, preuve, shifts, employee), date);
+            if (bareme) {
+              heuresJour = bareme.heures;
+              fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
+              fiche.heuresSupplementairesParDefaut = (fiche.heuresSupplementairesParDefaut || 0) + bareme.heuresSupplementaires;
+            }
+          }
+          fiche.heuresConfirmees += heuresJour;
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
         } else if (shiftsTravail.length && !preuve && !indispo) {
@@ -219,9 +273,32 @@
         } else if (!shiftsTravail.length && preuve) {
           fiche.joursConfirmes.add(date);
           fiche.presencesReconstituees += 1;
+          // Aucun planning ne dit combien d'heures : le poste réellement tenu
+          // ce jour-là, lu dans Verify, décide du barème. Le rôle général de
+          // la fiche n'est qu'un repli — une renfort placée en boutique est
+          // payée comme une caissière ce jour-là.
+          const poste = posteDuJour(employee.id, preuve, shifts, employee);
+          const bareme = heuresParDefautJour(poste, date);
+          if (bareme) {
+            fiche.heuresConfirmees += bareme.heures;
+            fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
+            fiche.heuresSupplementairesParDefaut = (fiche.heuresSupplementairesParDefaut || 0) + bareme.heuresSupplementaires;
+          }
+          const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
           fiche.items.push({
             sourceCle: `presence-exceptionnelle:${employee.id}:${date}`, typeItem: 'presence_exceptionnelle', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
-            date, libelle: 'Présence constatée hors planning de travail', statut: 'a_verifier', impactPaye: false,
+            date, libelle: 'Présence constatée hors planning de travail',
+            poste: poste || null, heuresAttribuees: bareme ? bareme.heures : null,
+            // Portées en minutes pour que « Confirmer » enregistre vraiment
+            // la durée retenue, et non une décision sans quantité.
+            quantiteMinutes: bareme ? Math.round(bareme.heures * 60) : null,
+            heuresSupplementaires: bareme ? bareme.heuresSupplementaires : 0,
+            detail: bareme
+              ? `${bareme.heures} h attribuées — ${LIBELLE_POSTE[poste] || poste} le ${jourNom}`
+                + (bareme.heuresSupplementaires ? ` (7 h + ${bareme.heuresSupplementaires} h supplémentaire)` : '')
+                + (poste !== String(employee.role || '').toLowerCase() ? ` · poste constaté dans Verify, différent du rôle « ${employee.role || '—'} »` : '')
+              : `Aucun barème applicable : poste du jour inconnu, heures à saisir manuellement`,
+            statut: 'a_verifier', impactPaye: false,
           });
         }
 
@@ -458,5 +535,5 @@
     return lignes;
   }
 
-  global.NexusPayeMoteur = { moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport };
+  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport };
 })(typeof window !== 'undefined' ? window : globalThis);

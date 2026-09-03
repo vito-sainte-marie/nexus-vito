@@ -23,9 +23,9 @@
 //    lectures, alimentent nexus-risques-moteur.js.
 //
 // Dépendances de script (ordre requis) :
-// <script src="nexus-verify-moteur.js?v=20260903-1156"></script>   (pour Caisse)
-// <script src="nexus-risques-moteur.js?v=20260903-1156"></script>
-// <script src="nexus-risques-donnees.js?v=20260903-1156"></script>
+// <script src="nexus-verify-moteur.js?v=20260903-1206"></script>   (pour Caisse)
+// <script src="nexus-risques-moteur.js?v=20260903-1206"></script>
+// <script src="nexus-risques-donnees.js?v=20260903-1206"></script>
 // ------------------------------------------------------------
 
 (function (global) {
