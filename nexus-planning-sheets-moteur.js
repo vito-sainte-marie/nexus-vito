@@ -31,6 +31,27 @@
   const CODES_SITE_DEFAUT = ['T', 'SME', 'SMU', 'TRINITE', 'UNION'];
   const HEURES_AUTRE_SITE = 7;
 
+  // ------------------------------------------------------------
+  // Nom de l'onglet du mois — règle unique (article 11)
+  // Un onglet par site et par mois : <préfixe><mois sur 2 chiffres>.
+  // Le préfixe (SMU pour Sainte-Marie Usine) est DÉCLARÉ dans
+  // station_config.planning_onglet_prefixe, jamais déduit du nom du site :
+  // c'est une convention de classeur, pas une donnée NEXUS (article 5).
+  // L'écran de paramétrage et le futur lecteur de planning appellent tous
+  // deux cette fonction, pour ne jamais diverger d'un caractère.
+  // ------------------------------------------------------------
+  function normaliserPrefixeOnglet(valeur) {
+    return String(valeur == null ? '' : valeur).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12);
+  }
+
+  function ongletDuMois(prefixe, date) {
+    const p = normaliserPrefixeOnglet(prefixe);
+    if (!p) return '';
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return p + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
   function normaliser(nom) {
     return String(nom || '').trim().toLowerCase()
       .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -243,5 +264,5 @@
     };
   }
 
-  global.NexusPlanningSheets = { resumerParEmploye, analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser };
+  global.NexusPlanningSheets = { resumerParEmploye, analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser, ongletDuMois, normaliserPrefixeOnglet };
 })(typeof window !== 'undefined' ? window : globalThis);

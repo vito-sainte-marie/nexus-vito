@@ -118,6 +118,13 @@
   .gs-resultat.ok{display:block; background:var(--green-dim); color:var(--green);}
   .gs-resultat.err{display:block; background:var(--amber-dim); color:var(--amber);}
   .gs-resultat.loading{display:block; background:var(--panel-raised); color:var(--text-mid);}
+  .plg-onglets{margin-top:10px; display:none;}
+  .plg-onglets.visible{display:block;}
+  .plg-onglet{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; background:var(--panel-raised); font-family:var(--mono); font-size:11px; margin-top:6px;}
+  .plg-onglet .plg-etat{font-size:13px; line-height:1; width:14px; text-align:center;}
+  .plg-onglet.ok .plg-etat{color:var(--green);}
+  .plg-onglet.abs .plg-etat{color:var(--amber);}
+  .plg-onglet .plg-mois{color:var(--text-dim);}
 
   /* Raccourcis configurables (10/08/2026) — voir nexus-raccourcis-catalogue.js */
   .raccourci-item{display:flex; align-items:center; gap:10px; padding:10px; background:var(--panel-raised); border-radius:8px; margin-top:8px; cursor:pointer; border:1px solid var(--hairline);}
@@ -200,15 +207,16 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260903-1303"></script>
-<script src="nexus-header-nav.js?v=20260903-1303"></script>
-<script src="nexus-desktop.js?v=20260903-1303"></script>
-<script src="nexus-forfait.js?v=20260903-1303"></script>
-<script src="nexus-raccourcis-catalogue.js?v=20260903-1303"></script>
-<script src="nexus-carburant-moteur.js?v=20260903-1303"></script>
-<script src="nexus-carburant-donnees.js?v=20260903-1303"></script>
-<script src="nexus-reception-moteur.js?v=20260903-1303"></script>
-<script src="nexus-progression.js?v=20260903-1303"></script>
+<script src="nexus-auth.js?v=20260903-1321"></script>
+<script src="nexus-header-nav.js?v=20260903-1321"></script>
+<script src="nexus-desktop.js?v=20260903-1321"></script>
+<script src="nexus-forfait.js?v=20260903-1321"></script>
+<script src="nexus-raccourcis-catalogue.js?v=20260903-1321"></script>
+<script src="nexus-carburant-moteur.js?v=20260903-1321"></script>
+<script src="nexus-carburant-donnees.js?v=20260903-1321"></script>
+<script src="nexus-reception-moteur.js?v=20260903-1321"></script>
+<script src="nexus-progression.js?v=20260903-1321"></script>
+<script src="nexus-planning-sheets-moteur.js?v=20260903-1321"></script>
 </head>
 <body>
 <div class="phone">
@@ -739,6 +747,36 @@
       <button class="btn btn-secondary" id="gsTester">Tester la connexion</button>
       <div class="gs-resultat" id="gsResultat"></div>
     </div>
+
+    <!-- ------------------------------------------------------------
+         Synchronisation du planning (03/09/2026, demande de Frederic) —
+         classeur DISTINCT de celui des recettes. Un onglet par site et par
+         mois : <prefixe><mois sur 2 chiffres>, ex. SMU09 pour septembre.
+         Le prefixe est declare ici et jamais devine (article 5) : sans lui,
+         aucune synchronisation n'est proposee. NEXUS ne reaffiche jamais la
+         grille brute — illisible sur un telephone — il en tire, par employe,
+         ses jours travailles, ses repos, son quart et son binome.
+         Cette carte est le SEUL endroit ou le classeur de planning se
+         declare (article 11) : la carte « Planning officiel » ne fait plus
+         que choisir qui fait reference, elle ne ressaisit plus le lien.
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardPlanningSheets">
+      <div class="section-label">Synchronisation du planning</div>
+      <div class="note" style="margin-top:0;">Relie NEXUS au classeur Google Sheets ou le planning mensuel est saisi. Lecture seule : NEXUS n'ecrit jamais dans ce classeur, il en tire pour chaque employe ses jours travailles, ses repos, son quart et son binome.</div>
+
+      <label style="font-size:12.5px; color:var(--text-mid); display:block; margin:14px 0 6px;">Lien ou identifiant du classeur de planning</label>
+      <input type="text" id="plgLien" class="champ-recherche" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
+
+      <label style="font-size:12.5px; color:var(--text-mid); display:block; margin:14px 0 6px;">Prefixe des onglets mensuels</label>
+      <input type="text" id="plgPrefixe" class="champ-recherche" placeholder="ex. SMU" autocomplete="off" maxlength="12" style="text-transform:uppercase;">
+      <div class="note" id="plgApercu" style="margin:8px 0 0;">Un onglet par mois : prefixe + mois sur 2 chiffres.</div>
+
+      <div class="note" style="margin:8px 0 0;">Le classeur doit etre partage (en lecteur) avec : <b style="color:var(--text);">nexus-sheets-reader@nexus-connector-504214.iam.gserviceaccount.com</b></div>
+      <button class="btn btn-primary" id="plgEnregistrer">Enregistrer</button>
+      <button class="btn btn-secondary" id="plgTester">Tester la connexion</button>
+      <div class="gs-resultat" id="plgResultat"></div>
+      <div class="plg-onglets" id="plgOnglets"></div>
+    </div>
       </div>
     </section>
 
@@ -761,9 +799,7 @@
         <label class="planning-source-option"><input type="radio" name="planningSource" value="google_sheets"><span><b>Google Sheets</b><small>Le classeur partagé devient la référence officielle.</small></span></label>
       </div>
       <div class="planning-source-fields" id="planningGoogleFields">
-        <label style="font-size:12.5px; color:var(--text-mid); display:block; margin-bottom:6px;">Lien du Google Sheet de planning</label>
-        <input type="text" id="planningGoogleLien" class="champ-recherche" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
-        <div class="note" style="margin:8px 0 0;">Partagez le classeur en lecture avec les employés concernés. Leur page ouvre ce lien sans modifier le fichier.</div>
+        <div class="note" style="margin-top:0;" id="planningGoogleClasseur"></div>
         <a class="planning-source-link" id="planningGoogleOuvrir" href="#" target="_blank" rel="noopener" style="display:none;">Ouvrir le planning Google Sheets ↗</a>
       </div>
       <button class="btn btn-primary" id="planningSourceEnregistrer">Enregistrer la source officielle</button>
@@ -852,9 +888,19 @@
     }
     const session = { prenom: employee.nom, role: employee.role };
 
-  // La source officielle du planning est un réglage de station. Le Google
-  // Sheet de planning reste volontairement séparé de google_sheet_id, réservé
-  // à la synchronisation des recettes Verify.
+  // ------------------------------------------------------------
+  // Planning Google Sheets — une seule vérité (article 11)
+  // Le classeur et le préfixe d'onglet se déclarent UNIQUEMENT dans
+  // Intégrations › Synchronisation du planning (station_config :
+  // planning_google_sheet_id / _url / planning_onglet_prefixe).
+  // La carte « Planning officiel » ne fait plus que choisir qui fait
+  // référence (planning_source) : elle lit ce classeur, ne l'écrit jamais.
+  // Il reste volontairement distinct de google_sheet_id, réservé aux
+  // recettes Verify.
+  // ------------------------------------------------------------
+  const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let configPlanning = { id: '', url: '', prefixe: '', source: 'nexus' };
+
   function extraireIdPlanningGoogle(valeur) {
     const texte = String(valeur || '').trim();
     const match = texte.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -866,61 +912,208 @@
     return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : '';
   }
 
-  function afficherChoixSourcePlanning(source, url) {
-    const valeur = source === 'google_sheets' ? 'google_sheets' : 'nexus';
+  // La règle « mois -> onglet » n'est écrite qu'une fois, dans
+  // nexus-planning-sheets-moteur.js (article 11) : cet écran la déclare,
+  // le lecteur de planning l'applique, tous deux via la même fonction.
+  // Elle réduit aussi le préfixe aux caractères d'un nom d'onglet, ce qui
+  // le rend sûr à réafficher dans l'aperçu et la liste des onglets.
+  const ongletDuMois = window.NexusPlanningSheets.ongletDuMois;
+  const normaliserPrefixeOnglet = window.NexusPlanningSheets.normaliserPrefixeOnglet;
+
+  function moisSuivant(date) { return new Date(date.getFullYear(), date.getMonth() + 1, 1); }
+
+  function afficherChoixSourcePlanning() {
+    const valeur = configPlanning.source === 'google_sheets' ? 'google_sheets' : 'nexus';
     const radio = document.querySelector(`input[name="planningSource"][value="${valeur}"]`);
     if (radio) radio.checked = true;
     document.getElementById('planningGoogleFields').classList.toggle('visible', valeur === 'google_sheets');
+    const info = document.getElementById('planningGoogleClasseur');
     const lien = document.getElementById('planningGoogleOuvrir');
-    lien.style.display = valeur === 'google_sheets' && url ? 'inline-block' : 'none';
-    if (url) lien.href = url;
+    if (configPlanning.url) {
+      info.innerHTML = 'Classeur d\u2019équipe déclaré dans <b style="color:var(--text);">Intégrations › Synchronisation du planning</b>. Les employés ouvrent ce lien sans pouvoir modifier le fichier.';
+      lien.href = configPlanning.url;
+      lien.style.display = valeur === 'google_sheets' ? 'inline-block' : 'none';
+    } else {
+      info.innerHTML = 'Aucun classeur de planning déclaré — renseignez-le d\u2019abord dans <b style="color:var(--text);">Intégrations › Synchronisation du planning</b>.';
+      lien.style.display = 'none';
+    }
   }
 
-  (async function initSourcePlanning() {
+  function rafraichirApercuPlanning() {
+    const prefixe = normaliserPrefixeOnglet(document.getElementById('plgPrefixe').value);
+    const apercu = document.getElementById('plgApercu');
+    if (!prefixe) {
+      apercu.textContent = 'Un onglet par mois : préfixe + mois sur 2 chiffres (ex. SMU → SMU09 en septembre).';
+      return;
+    }
+    const maintenant = new Date();
+    const suivant = moisSuivant(maintenant);
+    apercu.innerHTML = `NEXUS lira l\u2019onglet <b style="color:var(--text);">${ongletDuMois(prefixe, maintenant)}</b> en ${MOIS_FR[maintenant.getMonth()]}, puis <b style="color:var(--text);">${ongletDuMois(prefixe, suivant)}</b> en ${MOIS_FR[suivant.getMonth()]}.`;
+  }
+
+  function afficherOngletsPlanning(sheets, prefixe) {
+    const box = document.getElementById('plgOnglets');
+    const maintenant = new Date();
+    const attendus = [maintenant, moisSuivant(maintenant)].map(d => ({
+      nom: ongletDuMois(prefixe, d),
+      mois: MOIS_FR[d.getMonth()],
+      annee: d.getFullYear(),
+    }));
+    const presents = new Set((sheets || []).map(x => String(x).trim().toUpperCase()));
+    box.className = 'plg-onglets visible';
+    box.innerHTML = attendus.map(a => {
+      const ok = presents.has(a.nom.toUpperCase());
+      return `<div class="plg-onglet ${ok ? 'ok' : 'abs'}"><span class="plg-etat">${ok ? '✓' : '○'}</span><span>${a.nom}</span><span class="plg-mois">${a.mois} ${a.annee}${ok ? '' : ' \u2014 pas encore créé dans le classeur'}</span></div>`;
+    }).join('') + `<div class="note" style="margin-top:8px;">${(sheets || []).length} onglet(s) dans le classeur — NEXUS ne lit que celui du mois.</div>`;
+  }
+
+  async function chargerConfigPlanning() {
     const { data, error } = await nexusClient.from('station_config')
-      .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
+      .select('planning_source,planning_google_sheet_url,planning_google_sheet_id,planning_onglet_prefixe')
       .eq('site', employee.site_id).maybeSingle();
-    if (error) { console.error('Chargement source planning:', error); return; }
-    const source = (data && data.planning_source) || 'nexus';
-    const url = normaliserUrlPlanningGoogle((data && data.planning_google_sheet_url) || ((data && data.planning_google_sheet_id) ? data.planning_google_sheet_id : ''));
-    document.getElementById('planningGoogleLien').value = url;
-    afficherChoixSourcePlanning(source, url);
+    if (error) { console.error('Chargement planning:', error); return false; }
+    const id = extraireIdPlanningGoogle((data && data.planning_google_sheet_url) || (data && data.planning_google_sheet_id) || '');
+    configPlanning = {
+      id,
+      url: id ? normaliserUrlPlanningGoogle(id) : '',
+      prefixe: normaliserPrefixeOnglet(data && data.planning_onglet_prefixe),
+      source: (data && data.planning_source) || 'nexus',
+    };
+    return true;
+  }
+
+  (async function initPlanning() {
+    if (!(await chargerConfigPlanning())) return;
+    document.getElementById('plgLien').value = configPlanning.url;
+    document.getElementById('plgPrefixe').value = configPlanning.prefixe;
+    rafraichirApercuPlanning();
+    afficherChoixSourcePlanning();
   })();
 
+  document.getElementById('plgPrefixe').addEventListener('input', rafraichirApercuPlanning);
+
   document.querySelectorAll('input[name="planningSource"]').forEach(radio => radio.addEventListener('change', () => {
-    afficherChoixSourcePlanning(radio.value, normaliserUrlPlanningGoogle(document.getElementById('planningGoogleLien').value));
+    configPlanning.source = radio.value;
+    afficherChoixSourcePlanning();
   }));
 
   document.getElementById('planningSourceEnregistrer').addEventListener('click', async () => {
     const btn = document.getElementById('planningSourceEnregistrer');
     const resultat = document.getElementById('planningSourceResultat');
     const source = document.querySelector('input[name="planningSource"]:checked').value;
-    const saisie = document.getElementById('planningGoogleLien').value;
-    const id = extraireIdPlanningGoogle(saisie);
-    const url = normaliserUrlPlanningGoogle(saisie);
-    if (source === 'google_sheets' && (!id || !url)) {
+    if (source === 'google_sheets' && !configPlanning.id) {
       resultat.className = 'gs-resultat err';
-      resultat.textContent = 'Collez un lien Google Sheets valide avant de le définir comme planning officiel.';
+      resultat.textContent = 'Déclarez d\u2019abord le classeur dans Intégrations › Synchronisation du planning.';
       return;
     }
     btn.disabled = true;
-    const { error } = await nexusClient.from('station_config').update({
-      planning_source: source,
-      planning_google_sheet_id: source === 'google_sheets' ? id : null,
-      planning_google_sheet_url: source === 'google_sheets' ? url : null,
-      updated_at: new Date().toISOString(),
-    }).eq('site', employee.site_id);
+    const { data: maj, error } = await nexusClient.from('station_config')
+      .update({ planning_source: source, updated_at: new Date().toISOString() })
+      .eq('site', employee.site_id).select('site');
     btn.disabled = false;
     if (error) {
       console.error('Sauvegarde source planning:', error);
       resultat.className = 'gs-resultat err';
-      resultat.textContent = "Erreur d'enregistrement — réessayez.";
+      resultat.textContent = "Erreur d'enregistrement \u2014 réessayez.";
       return;
     }
-    document.getElementById('planningGoogleLien').value = url;
-    afficherChoixSourcePlanning(source, url);
+    // Un update qui ne touche aucune ligne n'est pas un succès : sans
+    // configuration de station pour ce site, il faut le dire (article 5).
+    if (!maj || !maj.length) {
+      resultat.className = 'gs-resultat err';
+      resultat.textContent = "Aucune configuration de station pour ce site \u2014 enregistrez d'abord les horaires.";
+      return;
+    }
+    configPlanning.source = source;
+    afficherChoixSourcePlanning();
     resultat.className = 'gs-resultat ok';
     resultat.textContent = source === 'google_sheets' ? '✓ Google Sheets est maintenant le planning officiel.' : '✓ NEXUS Planning est maintenant le planning officiel.';
+  });
+
+  // --- Synchronisation du planning : enregistrement, puis test ---
+  // L'Edge Function ne fait jamais confiance à un identifiant fourni par le
+  // client : elle relit toujours station_config côté serveur. Le test
+  // enregistre donc avant de tester, exactement comme pour Verify.
+  async function enregistrerPlanningSheets() {
+    const saisie = document.getElementById('plgLien').value;
+    const id = extraireIdPlanningGoogle(saisie);
+    const prefixe = normaliserPrefixeOnglet(document.getElementById('plgPrefixe').value);
+    const vide = !String(saisie).trim() && !prefixe;
+    if (!vide && !id) return { erreur: 'Collez un lien Google Sheets valide (ou son identifiant).' };
+    if (!vide && !prefixe) return { erreur: 'Déclarez le préfixe des onglets (ex. SMU) \u2014 NEXUS ne le devine jamais.' };
+    const { data: maj, error } = await nexusClient.from('station_config').update({
+      planning_google_sheet_id: vide ? null : id,
+      planning_google_sheet_url: vide ? null : normaliserUrlPlanningGoogle(id),
+      planning_onglet_prefixe: vide ? null : prefixe,
+      updated_at: new Date().toISOString(),
+    }).eq('site', employee.site_id).select('site');
+    if (error) { console.error('Enregistrement planning Google Sheets:', error); return { erreur: "Erreur d'enregistrement \u2014 réessayez." }; }
+    if (!maj || !maj.length) return { erreur: "Aucune configuration de station pour ce site \u2014 enregistrez d'abord les horaires." };
+    configPlanning.id = vide ? '' : id;
+    configPlanning.url = vide ? '' : normaliserUrlPlanningGoogle(id);
+    configPlanning.prefixe = vide ? '' : prefixe;
+    document.getElementById('plgLien').value = configPlanning.url;
+    document.getElementById('plgPrefixe').value = configPlanning.prefixe;
+    rafraichirApercuPlanning();
+    afficherChoixSourcePlanning();
+    return { vide };
+  }
+
+  document.getElementById('plgEnregistrer').addEventListener('click', async () => {
+    const btn = document.getElementById('plgEnregistrer');
+    const resEl = document.getElementById('plgResultat');
+    btn.disabled = true;
+    const r = await enregistrerPlanningSheets();
+    btn.disabled = false;
+    if (r.erreur) { resEl.className = 'gs-resultat err'; resEl.textContent = r.erreur; return; }
+    resEl.className = 'gs-resultat ok';
+    resEl.textContent = r.vide ? '✓ Enregistré \u2014 synchronisation du planning désactivée.' : '✓ Enregistré \u2014 classeur et préfixe d\u2019onglet à jour.';
+  });
+
+  document.getElementById('plgTester').addEventListener('click', async () => {
+    const btn = document.getElementById('plgTester');
+    const resEl = document.getElementById('plgResultat');
+    const boxOnglets = document.getElementById('plgOnglets');
+    boxOnglets.className = 'plg-onglets';
+    boxOnglets.innerHTML = '';
+    btn.disabled = true;
+    resEl.className = 'gs-resultat loading';
+    resEl.textContent = 'Enregistrement puis test de la connexion\u2026';
+    const r = await enregistrerPlanningSheets();
+    if (r.erreur || r.vide) {
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = r.erreur || 'Renseignez le classeur et le préfixe avant de tester.';
+      return;
+    }
+    const { data: sessionData } = await nexusClient.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    if (!token) {
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = 'Session expirée \u2014 reconnectez-vous.';
+      return;
+    }
+    try {
+      const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/google-sheets-sync?source=planning&sheet=__list__`, {
+        headers: { Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+      });
+      const data = await resp.json();
+      btn.disabled = false;
+      if (!resp.ok) {
+        resEl.className = 'gs-resultat err';
+        resEl.textContent = '✗ ' + ((data && data.error && data.error.message) || 'Erreur de connexion.');
+        return;
+      }
+      resEl.className = 'gs-resultat ok';
+      resEl.textContent = `✓ Connexion réussie \u2014 classeur « ${data.classeur || '?'} ».`;
+      afficherOngletsPlanning(data.sheets || [], configPlanning.prefixe);
+    } catch (e) {
+      console.error('Test connexion planning Google Sheets:', e);
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = '✗ Erreur réseau \u2014 réessayez.';
+    }
   });
 
 

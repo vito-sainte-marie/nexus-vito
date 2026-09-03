@@ -1,19 +1,31 @@
-// NEXUS — google-sheets-sync
-// Lit, en lecture seule, le Google Sheet de recettes journalières configuré
-// pour le site de l'appelant (station_config.google_sheet_id), pour éviter
-// la ressaisie manuelle dans NEXUS Verify (demande de Frédéric, 01/08/2026).
+// NEXUS — google-sheets-sync (v6)
+// Lit, en lecture seule, un Google Sheet configuré pour le site de
+// l'appelant. Deux sources, deux classeurs distincts :
+//   • source=recettes (défaut) → station_config.google_sheet_id
+//     Recettes journalières, pour éviter la ressaisie dans NEXUS Verify
+//     (demande de Frédéric, 01/08/2026).
+//   • source=planning            → station_config.planning_google_sheet_id
+//     Planning mensuel de l'équipe (03/09/2026). Onglet par site et par
+//     mois : <planning_onglet_prefixe><mois sur 2 chiffres>, ex. SMU09.
 //
 // Authentification : session NEXUS (JWT Supabase) réservée aux managers et
 // gérants — pas de clé API externe ici, contrairement à api-v1/admin-api.
-// L'identifiant du Google Sheet vient de la base (par site), jamais du
-// client : impossible de faire lire à cette fonction un autre Sheet que
-// celui configuré pour le site de l'appelant.
+// L'identifiant du Google Sheet vient TOUJOURS de la base (par site), jamais
+// du client : impossible de faire lire à cette fonction un autre classeur
+// que celui configuré pour le site de l'appelant.
 //
 // Accès Google via compte de service (JWT RS256 signé ici, échangé contre un
 // jeton OAuth2 auprès de Google) — scope 'spreadsheets.readonly' strict,
 // jamais d'écriture vers Google. La clé privée du compte de service vit
 // uniquement dans le secret GOOGLE_SERVICE_ACCOUNT_KEY (jamais dans ce
 // fichier, jamais dans le dépôt Git).
+//
+// Historique des correctifs :
+//   31/08/2026 — lecture bornée (A1:AZ300) + délais réseau bornés et retry,
+//     afin qu'une lenteur Google ne laisse jamais l'interface attendre
+//     indéfiniment.
+//   03/09/2026 — paramètre `source`. Sans lui, comportement Verify
+//     strictement inchangé.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -30,8 +42,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 // nexusClient.functions.invoke) avec un en-tête Authorization personnalisé,
 // ce qui déclenche systématiquement une requête de pré-vérification OPTIONS
 // côté navigateur. Sans ces en-têtes sur CHAQUE réponse (y compris OPTIONS),
-// le navigateur bloque l'appel avant même qu'il n'atteigne cette fonction —
-// même convention que clever-endpoint (voir supabase/functions/clever-endpoint).
+// le navigateur bloque l'appel avant même qu'il n'atteigne cette fonction.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -40,7 +51,7 @@ const corsHeaders = {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
 
@@ -75,6 +86,34 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   );
 }
 
+// Tout appel sortant vers Google est borné dans le temps et retenté une
+// fois : sans cela, une lenteur Google laissait l'interface tourner sans
+// fin, sans message ni possibilité d'abandon (correctif 31/08/2026).
+async function fetchGoogle(url: string, init: RequestInit = {}, timeoutMs = 12000, retries = 1): Promise<Response> {
+  let lastError: unknown = null;
+  for (let tentative = 0; tentative <= retries; tentative++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timer);
+      if (resp.status >= 500 && tentative < retries) continue;
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      lastError = e;
+      if (tentative >= retries) throw e;
+    }
+  }
+  throw lastError || new Error("Google Sheets indisponible.");
+}
+
+function messageDelai(e: unknown, defaut: string): string {
+  return e instanceof DOMException && e.name === "AbortError"
+    ? defaut
+    : String(e instanceof Error ? e.message : e);
+}
+
 let accessTokenCache: { token: string; expireLe: number } | null = null;
 
 async function obtenirTokenGoogle(): Promise<string> {
@@ -105,19 +144,19 @@ async function obtenirTokenGoogle(): Promise<string> {
   );
   const assertion = `${signingInput}.${base64url(new Uint8Array(signature))}`;
 
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
+  const resp = await fetchGoogle("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
-  });
+  }, 10000, 1);
   const data = await resp.json();
   if (!resp.ok) {
     throw new Error(`Échec d'authentification Google : ${JSON.stringify(data)}`);
   }
-  accessTokenCache = { token: data.access_token, expireLe: now * 1000 + data.expires_in * 1000 };
+  accessTokenCache = { token: data.access_token, expireLe: Date.now() + data.expires_in * 1000 };
   return data.access_token;
 }
 
@@ -158,22 +197,31 @@ Deno.serve(async (req: Request) => {
       return errorResponse("FORBIDDEN", "Réservé aux managers et gérants.", 403);
     }
 
-    // ---- Google Sheet configuré pour CE site (jamais fourni par le client) ----
+    const url = new URL(req.url);
+    const source = (url.searchParams.get("source") || "recettes").toLowerCase();
+    if (source !== "recettes" && source !== "planning") {
+      return errorResponse("BAD_REQUEST", "Paramètre 'source' invalide : attendu 'recettes' ou 'planning'.", 400);
+    }
+
+    // ---- Classeur configuré pour CE site (jamais fourni par le client) ----
     const { data: config, error: cfgErr } = await sb
       .from("station_config")
-      .select("google_sheet_id")
+      .select("google_sheet_id, planning_google_sheet_id, planning_onglet_prefixe")
       .eq("site", employee.site_id)
       .maybeSingle();
     if (cfgErr) return errorResponse("INTERNAL_ERROR", cfgErr.message, 500);
-    if (!config?.google_sheet_id) {
+
+    const sheetId = source === "planning" ? config?.planning_google_sheet_id : config?.google_sheet_id;
+    if (!sheetId) {
       return errorResponse(
         "NOT_CONFIGURED",
-        "Aucun Google Sheet configuré pour ce site — à renseigner dans Paramètres Station.",
+        source === "planning"
+          ? "Aucun classeur de planning configuré pour ce site — à renseigner dans Paramètres Station."
+          : "Aucun Google Sheet configuré pour ce site — à renseigner dans Paramètres Station.",
         400,
       );
     }
 
-    const url = new URL(req.url);
     const sheetParam = url.searchParams.get("sheet");
     if (!sheetParam) {
       return errorResponse("MISSING_FIELD", "Paramètre 'sheet' manquant (nom de la feuille, ou '__list__').", 400);
@@ -183,47 +231,66 @@ Deno.serve(async (req: Request) => {
     try {
       accessToken = await obtenirTokenGoogle();
     } catch (e) {
-      return errorResponse("GOOGLE_AUTH_ERROR", String(e instanceof Error ? e.message : e), 502);
+      return errorResponse("GOOGLE_AUTH_ERROR", messageDelai(e, "Google met trop de temps à répondre. Réessayez dans quelques secondes."), 502);
     }
 
     // ---- Mode liste : renvoie les noms des feuilles du classeur ----
+    // Le préfixe d'onglet de planning est renvoyé tel qu'il est enregistré,
+    // pour que l'écran de paramétrage puisse cocher lui-même l'onglet du
+    // mois — NEXUS ne devine jamais ce préfixe (article 5).
     if (sheetParam === "__list__") {
-      const metaResp = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(config.google_sheet_id)}?fields=properties.title,sheets.properties.title`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      const metaData = await metaResp.json();
-      if (!metaResp.ok) {
-        return errorResponse(
-          "GOOGLE_API_ERROR",
-          metaData?.error?.message || "Erreur Google Sheets API — vérifiez que le Sheet est bien partagé avec le compte de service.",
-          502,
+      try {
+        const metaResp = await fetchGoogle(
+          `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=properties.title,sheets.properties.title`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          12000,
+          1,
         );
+        const metaData = await metaResp.json();
+        if (!metaResp.ok) {
+          return errorResponse(
+            "GOOGLE_API_ERROR",
+            metaData?.error?.message || "Erreur Google Sheets API — vérifiez que le classeur est bien partagé avec le compte de service.",
+            502,
+          );
+        }
+        return jsonResponse({
+          classeur: metaData.properties?.title || null,
+          sheets: (metaData.sheets || []).map((s: { properties: { title: string } }) => s.properties.title),
+          prefixePlanning: config?.planning_onglet_prefixe || null,
+        });
+      } catch (e) {
+        return errorResponse("GOOGLE_TIMEOUT", messageDelai(e, "Google Sheets met trop de temps à répondre. Réessayez dans quelques secondes."), 504);
       }
-      const sheets = (metaData.sheets || []).map((s: { properties: { title: string } }) => s.properties.title);
-      return jsonResponse({ classeur: metaData.properties?.title || null, sheets });
     }
 
-    // ---- Mode lecture d'une feuille : valeurs brutes (non formatées) ----
-    const range = encodeURIComponent(sheetParam);
-    const valuesResp = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(config.google_sheet_id)}/values/${range}?valueRenderOption=UNFORMATTED_VALUE`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    const valuesData = await valuesResp.json();
-    if (!valuesResp.ok) {
-      return errorResponse(
-        "GOOGLE_API_ERROR",
-        valuesData?.error?.message || "Erreur Google Sheets API.",
-        502,
+    // ---- Mode lecture d'une feuille ----
+    // Lecture bornée : un onglet mal formé ou très large ne doit jamais
+    // faire exploser le temps de réponse (correctif 31/08/2026).
+    const escapedSheet = sheetParam.replace(/'/g, "''");
+    const boundedRange = `'${escapedSheet}'!A1:AZ300`;
+    // Recettes : valeurs BRUTES. Les dates reviennent en numéro de série
+    // (jours depuis le 30/12/1899) ; c'est NEXUS Verify, côté client, qui
+    // sait quelle colonne est la date grâce à l'en-tête et qui convertit.
+    // Planning : valeurs FORMATÉES. Les dates y sont écrites à la main
+    // ("1/9/2026") et doivent rester lisibles telles quelles — le lecteur
+    // de planning ne saurait pas réinterpréter un numéro de série.
+    const renderOption = source === "planning" ? "FORMATTED_VALUE" : "UNFORMATTED_VALUE";
+    try {
+      const valuesResp = await fetchGoogle(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(boundedRange)}?valueRenderOption=${renderOption}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+        12000,
+        1,
       );
+      const valuesData = await valuesResp.json();
+      if (!valuesResp.ok) {
+        return errorResponse("GOOGLE_API_ERROR", valuesData?.error?.message || "Erreur Google Sheets API.", 502);
+      }
+      return jsonResponse({ values: valuesData.values || [], range: boundedRange, source });
+    } catch (e) {
+      return errorResponse("GOOGLE_TIMEOUT", messageDelai(e, "Google Sheets met trop de temps à répondre. Réessayez dans quelques secondes."), 504);
     }
-    // Les dates reviennent en numéro de série (système de dates Google
-    // Sheets = jours depuis le 30/12/1899) car UNFORMATTED_VALUE ne permet
-    // pas de distinguer un nombre d'une date — c'est NEXUS Verify, côté
-    // client, qui sait quelle colonne est la date grâce à l'en-tête, et qui
-    // convertit ce numéro de série en calendrier (année/mois/jour) lui-même.
-    return jsonResponse({ values: valuesData.values || [] });
   } catch (e) {
     return errorResponse("INTERNAL_ERROR", String(e instanceof Error ? e.message : e), 500);
   }
