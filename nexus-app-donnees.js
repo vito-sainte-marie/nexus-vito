@@ -33,8 +33,8 @@
 // si Frédéric confirme vouloir harmoniser les deux affichages.
 //
 // Inclure après nexus-conseiller.js ET nexus-conseiller-donnees.js :
-// <script src="nexus-conseiller-donnees.js?v=20260903-1143"></script>
-// <script src="nexus-app-donnees.js?v=20260903-1143"></script>
+// <script src="nexus-conseiller-donnees.js?v=20260903-1148"></script>
+// <script src="nexus-app-donnees.js?v=20260903-1148"></script>
 // ------------------------------------------------------------
 
 (function (global) {

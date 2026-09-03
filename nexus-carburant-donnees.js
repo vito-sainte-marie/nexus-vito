@@ -19,7 +19,7 @@
 //    tel quel par Brief NEXUS et Carburants Pilotage.
 //
 // Inclure après nexus-carburant-moteur.js :
-// <script src="nexus-carburant-donnees.js?v=20260903-1143"></script>
+// <script src="nexus-carburant-donnees.js?v=20260903-1148"></script>
 // ------------------------------------------------------------
 
 (function (global) {

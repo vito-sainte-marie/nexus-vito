@@ -15,7 +15,7 @@
 // attendue 276,70 €, caisse réelle comptée 276,80 € → écart +0,10 €.
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
-// Inclure : <script src="nexus-fdj-moteur.js?v=20260903-1143"></script>
+// Inclure : <script src="nexus-fdj-moteur.js?v=20260903-1148"></script>
 // ------------------------------------------------------------
 
 (function (global) {
