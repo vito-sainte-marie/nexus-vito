@@ -5,7 +5,7 @@
 // générations.
 (function (global) {
   'use strict';
-  global.NEXUS_BUILD = { id: '20260903-1247', commit: 'b2dd0a9' };
+  global.NEXUS_BUILD = { id: '20260903-1258', commit: 'd4c6d08' };
   // Estampille discrète en pied de page, pour savoir d'un coup d'œil si le
   // téléphone, le Mac et le serveur exécutent la même version.
   function estampiller() {
@@ -14,7 +14,7 @@
     var s = document.createElement('span');
     s.className = 'nexus-build-estampille';
     s.style.cssText = 'display:block; margin-top:4px; font-size:10px; opacity:.55;';
-    s.textContent = 'NEXUS build 20260903-1247 · commit b2dd0a9';
+    s.textContent = 'NEXUS build 20260903-1258 · commit d4c6d08';
     pied.appendChild(s);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', estampiller, { once: true });

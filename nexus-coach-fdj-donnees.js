@@ -12,9 +12,9 @@
 //
 // Dépend de nexus-fdj-moteur.js (état du stock) et nexus-coach-fdj-moteur.js
 // (sélection + formulations) — les inclure AVANT ce fichier :
-//   <script src="nexus-fdj-moteur.js?v=20260903-1247"></script>
-//   <script src="nexus-coach-fdj-moteur.js?v=20260903-1247"></script>
-//   <script src="nexus-coach-fdj-donnees.js?v=20260903-1247"></script>
+//   <script src="nexus-fdj-moteur.js?v=20260903-1258"></script>
+//   <script src="nexus-coach-fdj-moteur.js?v=20260903-1258"></script>
+//   <script src="nexus-coach-fdj-donnees.js?v=20260903-1258"></script>
 //
 // Limites honnêtes (documentées ici plutôt que cachées) :
 //  - "Retard de clôture" (fdj_report_late) n'a PAS d'heure de fin de quart

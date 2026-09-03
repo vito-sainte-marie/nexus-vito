@@ -18,7 +18,7 @@
 // la variété entre rayons différents, pas un texte qui change à chaque
 // rechargement pour le même rayon.
 //
-// Inclure dans une page : <script src="nexus-vocabulaire.js?v=20260903-1247"></script>
+// Inclure dans une page : <script src="nexus-vocabulaire.js?v=20260903-1258"></script>
 // (même mécanisme que nexus-auth.js, chargé une fois par page).
 // ============================================================
 

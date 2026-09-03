@@ -1,7 +1,7 @@
 // NEXUS — nexus-auth.js
 // À inclure sur CHAQUE page qui nécessite une connexion (Cockpit, Missions, Plan d'action, etc.)
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-// <script src="nexus-auth.js?v=20260903-1247"></script>
+// <script src="nexus-auth.js?v=20260903-1258"></script>
 
 const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
 const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";

@@ -80,4 +80,37 @@ verifier('02/09 : une présence non prévue est nommée, pas noyée',
 verifier('et les prévus absents le sont aussi',
   rap[1].prevusAbsents.includes('samantha') && rap[1].prevusAbsents.includes('angelique'));
 
+// --- Vue par employé : ce que l'employé lit sur son téléphone.
+const vue = P.resumerParEmploye(r, { employesNexus: EMP, periode: '2026-09' });
+const parNom = n => vue.employes.find(e => e.nom === n);
+
+verifier('seules les journées réellement planifiées sont retenues',
+  vue.joursPlanifies.join(',') === '2026-09-01,2026-09-02,2026-09-03');
+
+const ang = parNom('angelique');
+verifier('angelique : 3 jours travaillés en septembre', ang.joursTravailles === 3);
+verifier('ses heures prévues sont la somme du fichier (7+7+8)', ang.heuresPrevues === 22);
+verifier('son binôme du 01/09 quart 1 est nommé',
+  ang.journees.find(j => j.date === '2026-09-01').binome.includes('nadine'));
+verifier('son quart est annoncé', ang.quartsDominants.includes('Quart 1'));
+
+const dylan = parNom('Dylan');
+verifier('Dylan est signalé hors barème le jeudi, sans que NEXUS tranche',
+  dylan.journees.some(j => j.date === '2026-09-03' && j.renfortProbable === true
+    && /renfort ou autre site/.test(j.note)));
+
+const audrey = parNom('Audrey');
+verifier('Audrey est sur un autre site les 02 et 03, jamais comptée en heures ici',
+  audrey.surAutreSite.length === 2 && audrey.heuresPrevues === 0);
+
+const samantha = parNom('samantha');
+verifier('samantha est au repos le 01 et le 03 — journées planifiées où elle n’apparaît pas',
+  samantha.repos.join(',') === '2026-09-01,2026-09-03');
+verifier('aucun repos n’est annoncé sur une journée non planifiée',
+  vue.employes.every(e => e.repos.every(d => vue.joursPlanifies.includes(d))));
+
+const madeleine = parNom('Madeleine');
+verifier('une personne jamais planifiée n’a ni heures ni faux repos inventés',
+  madeleine.joursTravailles === 0 && madeleine.repos.length === 3);
+
 console.log(`\n${ok} vérifications passées.`);

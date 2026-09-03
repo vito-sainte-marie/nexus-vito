@@ -29,7 +29,7 @@
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul, même
 // discipline que nexus-carburant-moteur.js et nexus-fdj-moteur.js.
-// Inclure : <script src="nexus-reception-moteur.js?v=20260903-1247"></script>
+// Inclure : <script src="nexus-reception-moteur.js?v=20260903-1258"></script>
 // ------------------------------------------------------------
 
 (function (global) {

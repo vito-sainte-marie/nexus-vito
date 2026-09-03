@@ -61,7 +61,7 @@
 //     soumise — elle doit être saisie sur le relevé SUIVANT.
 //
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
-// Inclure : <script src="nexus-carburant-moteur.js?v=20260903-1247"></script>
+// Inclure : <script src="nexus-carburant-moteur.js?v=20260903-1258"></script>
 // ------------------------------------------------------------
 
 (function (global) {

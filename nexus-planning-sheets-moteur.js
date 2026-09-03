@@ -136,5 +136,87 @@
     return resultat;
   }
 
-  global.NexusPlanningSheets = { analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser };
+  // Vue par employé (03/09/2026, demande de Frédéric : « je ne veux pas que
+  // NEXUS affiche le fichier, trop de cases à lire sur un portable — fais-le
+  // par employé avec ses jours travaillés, ses jours de repos, qui est en
+  // renfort, son binôme, et s'il est quart 1 ou quart 2 »).
+  //
+  // Règle décisive posée le même jour : UNE CASE VIDE VEUT DIRE « PAS ENCORE
+  // PLANIFIÉ », pas « repos ». On ne peut donc conclure au repos que sur une
+  // journée où l'équipe A ÉTÉ planifiée — c'est-à-dire où au moins une
+  // affectation existe. Sur une journée entièrement vide, NEXUS se tait
+  // (Article 5) : dire « repos » à quelqu'un qui n'a simplement pas encore
+  // été planifié serait une information fausse, et il organiserait sa vie
+  // dessus.
+  function resumerParEmploye(analyse, { employesNexus, periode } = {}) {
+    const shifts = (analyse && analyse.shifts) || [];
+    const codes = (analyse && analyse.codes) || [];
+    const noms = new Map((employesNexus || []).map(e => [e.id, e]));
+
+    // Journées réellement planifiées : au moins une affectation, quelle
+    // qu'elle soit (heures OU code de site).
+    const joursPlanifies = new Set([...shifts, ...codes].map(x => x.date));
+
+    // Qui est sur quel créneau, pour retrouver les binômes.
+    const parCreneau = new Map();
+    shifts.forEach(s => {
+      const cle = `${s.date}|${s.quart}`;
+      if (!parCreneau.has(cle)) parCreneau.set(cle, []);
+      parCreneau.get(cle).push(s);
+    });
+
+    const resultat = [];
+    noms.forEach(employe => {
+      const siens = shifts.filter(s => s.employeeId === employe.id)
+        .sort((a, b) => (a.date === b.date ? a.quart.localeCompare(b.quart) : a.date.localeCompare(b.date)));
+      const ailleurs = codes.filter(c => c.employeeId === employe.id);
+      const datesTravail = new Set(siens.map(s => s.date));
+      const datesAilleurs = new Set(ailleurs.map(c => c.date));
+
+      const journees = siens.map(s => {
+        const binome = (parCreneau.get(`${s.date}|${s.quart}`) || [])
+          .filter(x => x.employeeId !== employe.id)
+          .map(x => (noms.get(x.employeeId) || {}).nom || x.nomFeuille);
+        // 7 h un jeudi, vendredi ou samedi, alors que le créneau tourne à
+        // 8 h : la personne n'est pas sur le barème piste/boutique du jour.
+        // Renfort ou autre site — le fichier ne le dit pas en clair, donc
+        // NEXUS le signale sans trancher.
+        const jour = new Date(`${s.date}T12:00:00`).getDay();
+        const creneauHuit = (parCreneau.get(`${s.date}|${s.quart}`) || []).some(x => x.heures === 8);
+        const horsBareme = [4, 5, 6].includes(jour) && s.heures === 7 && creneauHuit;
+        return {
+          date: s.date, quart: s.quart, heures: s.heures, binome,
+          renfortProbable: horsBareme,
+          note: horsBareme ? '7 h un jour à 8 h — renfort ou autre site, à confirmer' : null,
+        };
+      });
+
+      // Repos : uniquement sur une journée planifiée pour l'équipe.
+      const repos = [...joursPlanifies].sort()
+        .filter(d => !datesTravail.has(d) && !datesAilleurs.has(d));
+
+      resultat.push({
+        employeeId: employe.id, nom: employe.nom, role: employe.role || null,
+        periode: periode || null,
+        journees,
+        joursTravailles: datesTravail.size,
+        heuresPrevues: siens.reduce((t, s) => t + s.heures, 0),
+        quartsDominants: siens.length
+          ? [...new Set(siens.map(s => s.quart))].sort().map(q => `Quart ${q}`)
+          : [],
+        repos,
+        surAutreSite: ailleurs.map(c => ({ date: c.date, quart: c.quart, code: c.valeur })),
+        // Ce que NEXUS ne sait PAS, dit explicitement plutôt que tu.
+        joursNonPlanifies: null,
+      });
+    });
+
+    return {
+      periode: periode || null,
+      joursPlanifies: [...joursPlanifies].sort(),
+      employes: resultat.sort((a, b) => String(a.nom).localeCompare(String(b.nom))),
+    };
+  }
+
+  global.NexusPlanningSheets = { resumerParEmploye, analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser };
 })(typeof window !== 'undefined' ? window : globalThis);
