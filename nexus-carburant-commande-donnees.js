@@ -21,21 +21,21 @@
   // document.write conserve volontairement l'ordre synchrone historique :
   // NexusCarburantCommandeDonnees est donc disponible exactement au même
   // moment qu'avant pour les scripts et le bootstrap de la page.
-  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260903-1321"><\/script>');
+  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260903-2159"><\/script>');
 
   // Le correctif de cohérence charge lui-même le polish mobile. On le force
   // ici avec une version neuve AVANT le rendu de la page afin qu'un ancien
   // exemplaire mis en cache par Safari ne puisse pas réinjecter le script
   // destructif qui effaçait situationZone.
   if (estPilotageCarburants()) {
-    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=20260903-1321"><\/script>');
+    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=20260903-2159"><\/script>');
   }
 
   function chargerCorrectifUI() {
     if (!estPilotageCarburants()) return;
     if (document.querySelector('script[data-nexus-carburants-ui-correctifs="20260901"]')) return;
     var s = document.createElement('script');
-    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=20260903-1321';
+    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=20260903-2159';
     s.dataset.nexusCarburantsUiCorrectifs = '20260901';
     document.head.appendChild(s);
   }
