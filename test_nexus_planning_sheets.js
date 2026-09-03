@@ -53,13 +53,17 @@ verifier('les alias déclarés rapprochent LOANNE et FREDERIC',
 verifier('Camille reste inconnue — elle n’est pas dans NEXUS', r.inconnus.includes('Camille'));
 verifier('le 31/08 est exclu : le filtre porte sur la date, pas sur le nom de l’onglet',
   r.shifts.every(s => s.date >= '2026-09-01'));
-verifier('les codes de site ne deviennent jamais des heures',
-  r.codes.length === 2 && r.codes.every(c => c.valeur === 'SMU') && r.shifts.every(s => s.heures > 0));
+verifier('un code de site vaut 7 h travaillées, pas une absence',
+  r.shifts.filter(s => s.horsSite).length === 2
+  && r.shifts.filter(s => s.horsSite).every(s => s.heures === 7 && s.siteTravail === 'SMU'));
+verifier('aucune valeur non interprétable ne reste en suspens ici', r.codes.length === 0);
 
 // --- Le barème du fichier correspond-il à la règle NEXUS ?
 const mardi = r.shifts.filter(s => s.date === '2026-09-01');
 verifier('mardi 01/09 : 4 affectations, 7 h pour tout le monde',
   mardi.length === 4 && mardi.every(s => s.heures === 7));
+verifier('un code de site vaut 7 h même un jeudi, jour à 8 h',
+  r.shifts.some(s => s.date === '2026-09-03' && s.horsSite && s.heures === 7));
 const jeudi = r.shifts.filter(s => s.date === '2026-09-03');
 verifier('jeudi 03/09 : 8 h pour piste et boutique (4 affectations)',
   jeudi.filter(s => s.heures === 8).length === 4);
@@ -100,8 +104,10 @@ verifier('Dylan est signalé hors barème le jeudi, sans que NEXUS tranche',
     && /renfort ou autre site/.test(j.note)));
 
 const audrey = parNom('Audrey');
-verifier('Audrey est sur un autre site les 02 et 03, jamais comptée en heures ici',
-  audrey.surAutreSite.length === 2 && audrey.heuresPrevues === 0);
+verifier('Audrey travaille sur un autre site les 02 et 03 — 7 h chacun, comptées',
+  audrey.surAutreSite.length === 2 && audrey.heuresAutreSite === 14 && audrey.heuresPrevues === 14);
+verifier('un jour sur un autre site n’est pas un repos',
+  !audrey.repos.includes('2026-09-02') && !audrey.repos.includes('2026-09-03'));
 
 const samantha = parNom('samantha');
 verifier('samantha est au repos le 01 et le 03 — journées planifiées où elle n’apparaît pas',

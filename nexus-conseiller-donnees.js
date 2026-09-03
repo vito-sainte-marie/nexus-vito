@@ -25,7 +25,7 @@
 // Inclure après nexus-stock.js et nexus-conseiller.js, et AVANT tout
 // fichier `-donnees.js` de page qui en dépend (nexus-brief-donnees.js,
 // nexus-app-donnees.js) :
-// <script src="nexus-conseiller-donnees.js?v=20260903-1258"></script>
+// <script src="nexus-conseiller-donnees.js?v=20260903-1303"></script>
 // ------------------------------------------------------------
 
 (function (global) {

@@ -30,8 +30,8 @@
 // Dépend de nexus-ecarts-moteur.js (deriverStatutEcart, arrondiCentimes,
 // calculerMontantRetenuLigne, roleCaisseInhabituelle) — DOIT être chargé
 // avant ce fichier :
-//   <script src="nexus-ecarts-moteur.js?v=20260903-1258"></script>
-//   <script src="nexus-ecarts-donnees.js?v=20260903-1258"></script>
+//   <script src="nexus-ecarts-moteur.js?v=20260903-1303"></script>
+//   <script src="nexus-ecarts-donnees.js?v=20260903-1303"></script>
 // ------------------------------------------------------------
 
 (function (global) {

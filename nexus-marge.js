@@ -21,7 +21,7 @@
 // qu'une famille n'est pas listée en exception, elle est comparée à
 // l'intérieur de sa `categorie` — par défaut, jamais entre catégories.
 //
-// Inclure dans une page : <script src="nexus-marge.js?v=20260903-1258"></script>
+// Inclure dans une page : <script src="nexus-marge.js?v=20260903-1303"></script>
 // (même mécanisme que nexus-auth.js, nexus-vocabulaire.js, nexus-periodes.js)
 // ============================================================
 

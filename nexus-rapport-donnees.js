@@ -51,8 +51,8 @@
 // Supabase, aucun calcul de bornes de date ici (Article 11).
 //
 // Inclure dans une page :
-//   <script src="nexus-periodes.js?v=20260903-1258"></script>
-//   <script src="nexus-rapport-donnees.js?v=20260903-1258"></script>
+//   <script src="nexus-periodes.js?v=20260903-1303"></script>
+//   <script src="nexus-rapport-donnees.js?v=20260903-1303"></script>
 // ------------------------------------------------------------
 
 (function (global) {

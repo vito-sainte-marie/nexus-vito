@@ -21,6 +21,16 @@
 
   const QUART = { 'QUART A': '1', 'QUART B': '2' };
 
+  // Codes de site (03/09/2026, règle de Frédéric : « Dylan est rattaché à
+  // Vito Sainte-Marie même s'il est sur un autre site — si tu vois T ou SME
+  // c'est 7 heures peu importe le jour »).
+  //
+  // Un code n'exclut donc PAS la personne de la paie du site : elle a
+  // travaillé, 7 h, ailleurs. C'est une information de lieu, pas une absence.
+  // Le barème 7/8 selon le jour ne s'applique qu'au travail sur place.
+  const CODES_SITE_DEFAUT = ['T', 'SME', 'SMU', 'TRINITE', 'UNION'];
+  const HEURES_AUTRE_SITE = 7;
+
   function normaliser(nom) {
     return String(nom || '').trim().toLowerCase()
       .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -56,7 +66,8 @@
   // l'orthographe de la feuille diffère de celle de NEXUS. Jamais de
   // rapprochement approximatif : deux prénoms proches peuvent être deux
   // personnes (même doctrine que import_product_aliases).
-  function analyserFeuillePlanning(csv, { periode, employesNexus, alias } = {}) {
+  function analyserFeuillePlanning(csv, { periode, employesNexus, alias, codesSite } = {}) {
+    const CODES = new Set((codesSite || CODES_SITE_DEFAUT).map(c => normaliser(c)));
     const lignes = lignesCSV(csv).filter(l => l.some(c => String(c).trim() !== ''));
     if (!lignes.length) return { shifts: [], colonnes: [], inconnus: [], codes: [], anomalies: ['feuille vide'] };
 
@@ -97,10 +108,18 @@
         const heures = Number(brut.replace(',', '.'));
         if (Number.isFinite(heures) && heures > 0 && heures <= 24) {
           shifts.push({ employeeId: employe.id, nomFeuille: nom, date: jour, quart, heures, statut: 'travail_normal' });
+        } else if (CODES.has(normaliser(brut))) {
+          // Code de site : la personne a travaillé 7 h, ailleurs. Elle reste
+          // rattachée à ce site pour la paie, donc ces heures comptent.
+          shifts.push({
+            employeeId: employe.id, nomFeuille: nom, date: jour, quart,
+            heures: HEURES_AUTRE_SITE, statut: 'travail_normal',
+            siteTravail: brut.toUpperCase(), horsSite: true,
+          });
         } else {
-          // Ni un nombre ni rien : un code de site ou un prénom écrit à la
-          // main. On ne l'interprète pas — on le remonte pour que le manager
-          // tranche, plutôt que d'inventer des heures (Article 5).
+          // Ni un nombre, ni un code connu : le plus souvent un prénom écrit
+          // à la main. On ne l'interprète pas — on le remonte pour que le
+          // manager tranche, plutôt que d'inventer des heures (Article 5).
           codes.push({ employeeId: employe.id, nomFeuille: nom, date: jour, quart, valeur: brut });
         }
       });
@@ -170,6 +189,7 @@
       const siens = shifts.filter(s => s.employeeId === employe.id)
         .sort((a, b) => (a.date === b.date ? a.quart.localeCompare(b.quart) : a.date.localeCompare(b.date)));
       const ailleurs = codes.filter(c => c.employeeId === employe.id);
+      const horsSite = siens.filter(s => s.horsSite);
       const datesTravail = new Set(siens.map(s => s.date));
       const datesAilleurs = new Set(ailleurs.map(c => c.date));
 
@@ -183,7 +203,7 @@
         // NEXUS le signale sans trancher.
         const jour = new Date(`${s.date}T12:00:00`).getDay();
         const creneauHuit = (parCreneau.get(`${s.date}|${s.quart}`) || []).some(x => x.heures === 8);
-        const horsBareme = [4, 5, 6].includes(jour) && s.heures === 7 && creneauHuit;
+        const horsBareme = !s.horsSite && [4, 5, 6].includes(jour) && s.heures === 7 && creneauHuit;
         return {
           date: s.date, quart: s.quart, heures: s.heures, binome,
           renfortProbable: horsBareme,
@@ -205,7 +225,12 @@
           ? [...new Set(siens.map(s => s.quart))].sort().map(q => `Quart ${q}`)
           : [],
         repos,
-        surAutreSite: ailleurs.map(c => ({ date: c.date, quart: c.quart, code: c.valeur })),
+        // Travail sur un autre site : les heures comptent quand même, la
+        // personne restant rattachée à ce site pour la paie.
+        surAutreSite: horsSite.map(s => ({ date: s.date, quart: s.quart, code: s.siteTravail, heures: s.heures })),
+        heuresAutreSite: horsSite.reduce((t, s) => t + s.heures, 0),
+        // Valeurs non interprétables (un prénom écrit à la main, par exemple).
+        aArbitrer: ailleurs.map(c => ({ date: c.date, quart: c.quart, valeur: c.valeur })),
         // Ce que NEXUS ne sait PAS, dit explicitement plutôt que tu.
         joursNonPlanifies: null,
       });
