@@ -95,6 +95,39 @@
     if (error) throw error;
   }
 
+  // Qualification d'un événement RH (03/09/2026). Écrit sur l'événement
+  // lui-même, jamais sur un item de période : c'est ce qui fait qu'octobre
+  // n'aura pas à redemander ce que le manager a tranché en septembre.
+  //
+  // `finIndeterminee` couvre le retour dont la date n'est pas connue :
+  // date_fin reste alors un horizon provisoire, et NEXUS maintient
+  // l'indisponibilité sans réafficher le salarié chaque mois.
+  async function qualifierIndisponibilite(client, { id, motif, dateFin, finIndeterminee, commentaire, actorId }) {
+    const patch = {
+      motif: motif || null,
+      confirme_le: motif ? new Date().toISOString() : null,
+      confirme_par: motif ? (actorId || null) : null,
+    };
+    if (finIndeterminee != null) patch.fin_indeterminee = !!finIndeterminee;
+    if (dateFin) patch.date_fin = dateFin;
+    if (commentaire !== undefined) patch.commentaire = commentaire || null;
+    const { error } = await client.from('employee_indisponibilites').update(patch).eq('id', id);
+    if (error) throw error;
+  }
+
+  // Clôture : le salarié a repris. La date de reprise prime sur date_fin et
+  // referme la période — on ne réécrit jamais l'événement d'origine, on le
+  // borne (même discipline que partout ailleurs dans NEXUS).
+  async function cloturerIndisponibilite(client, { id, dateReprise }) {
+    if (!dateReprise) throw new Error('Date de reprise requise pour clôturer une indisponibilité.');
+    const veille = new Date(`${dateReprise}T12:00:00`);
+    veille.setDate(veille.getDate() - 1);
+    const finISO = veille.toISOString().slice(0, 10);
+    const { error } = await client.from('employee_indisponibilites')
+      .update({ date_reprise: dateReprise, date_fin: finISO, fin_indeterminee: false }).eq('id', id);
+    if (error) throw error;
+  }
+
   async function enregistrerPeriode(client, { siteId, periode, statut, snapshot, actorId }) {
     const maintenant = new Date().toISOString();
     const ligne = { site_id: siteId, periode, statut, snapshot: snapshot || null, updated_at: maintenant };
@@ -105,5 +138,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
+  global.NexusPayeDonnees = { qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode };
 })(typeof window !== 'undefined' ? window : globalThis);

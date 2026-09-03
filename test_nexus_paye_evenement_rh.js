@@ -97,4 +97,36 @@ verifier('un paramétrage à compléter est classé « configuration »',
 verifier('et compté séparément des éléments de paie',
   nonConfirme.synthese.configurationRequise >= 1);
 
+// 7) Retour sans date connue : l'absence ne disparaît pas à l'horizon.
+const sansFin = M.construireRapport({
+  periode: '2027-03', employees: [VANESSA], settings: REGLAGE,
+  indisponibilites: [Object.assign({}, INDISPO, { fin_indeterminee: true })],
+  planning: [], audits: [], pointages: [], items: [], config: {},
+});
+const itemSansFin = sansFin.employes[0].items.find(i => i.origine === 'indisponibilite');
+verifier('une fin indéterminée couvre encore un mois postérieur à date_fin',
+  !!itemSansFin && itemSansFin.joursMois === 31);
+verifier('le libellé dit franchement que le retour n’est pas daté',
+  /— retour non daté$/.test(itemSansFin.libelle));
+
+// 8) Reprise : la période se referme, elle n'est jamais réécrite.
+const reprise = M.construireRapport({
+  periode: '2026-09', employees: [VANESSA], settings: REGLAGE,
+  indisponibilites: [Object.assign({}, INDISPO, { date_reprise: '2026-09-15' })],
+  planning: [], audits: [], pointages: [], items: [], config: {},
+});
+const itemReprise = reprise.employes[0].items.find(i => i.origine === 'indisponibilite');
+verifier('la reprise borne la période à la veille du retour', itemReprise.joursMois === 14);
+verifier('le libellé annonce la reprise', /au 15\/09\/2026 \(reprise\)$/.test(itemReprise.libelle));
+verifier('la date de début d’origine n’est jamais réécrite', itemReprise.evenementDebut === '2026-07-21');
+
+// 9) Après la reprise, le salarié sort de « À vérifier ».
+const apres = M.construireRapport({
+  periode: '2026-10', employees: [VANESSA], settings: REGLAGE,
+  indisponibilites: [Object.assign({}, INDISPO, { date_reprise: '2026-09-15' })],
+  planning: [], audits: [], pointages: [], items: [], config: {},
+});
+verifier('le mois suivant la reprise ne rouvre aucune décision',
+  !apres.employes[0].items.some(i => i.origine === 'indisponibilite'));
+
 console.log(`\n${ok} vérifications passées.`);

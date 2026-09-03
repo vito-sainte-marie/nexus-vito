@@ -13,13 +13,13 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260903-1136"></script>
-<script src="nexus-header-nav.js?v=20260903-1136"></script>
-<script src="nexus-desktop.js?v=20260903-1136"></script>
-<script src="nexus-ecarts-moteur.js?v=20260903-1136"></script>
-<script src="nexus-ecarts-donnees.js?v=20260903-1136"></script>
-<script src="nexus-paye-moteur.js?v=20260903-1136"></script>
-<script src="nexus-paye-donnees.js?v=20260903-1136"></script>
+<script src="nexus-auth.js?v=20260903-1143"></script>
+<script src="nexus-header-nav.js?v=20260903-1143"></script>
+<script src="nexus-desktop.js?v=20260903-1143"></script>
+<script src="nexus-ecarts-moteur.js?v=20260903-1143"></script>
+<script src="nexus-ecarts-donnees.js?v=20260903-1143"></script>
+<script src="nexus-paye-moteur.js?v=20260903-1143"></script>
+<script src="nexus-paye-donnees.js?v=20260903-1143"></script>
 </head>
 <body><div class="phone">
 <header class="header"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><div class="eyebrow">NEXUS · Manager</div><h1>Paye</h1><div class="subtitle">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div></header>
@@ -64,13 +64,47 @@ function render(){
  bind();
 }
 function renderEmployee(f){const inclus=f.reglage.inclus,retards=f.items.filter(i=>i.typeItem==='retard').reduce((s,i)=>s+Number(i.quantiteMinutes||0),0),conges=f.items.filter(i=>i.typeItem==='conge_paye'&&i.statut!=='exclu').length,ecarts=f.items.filter(i=>i.typeItem==='ecart_caisse').length,config=!f.reglage.confirme?'<span class="pill amber">à confirmer</span>':inclus?'<span class="pill green">inclus</span>':'<span class="pill">hors paie</span>';return `<article class="employee" data-employee="${f.employee.id}"><div class="employee-head"><div><div class="employee-name">${ECHAPPE(f.employee.nom)}</div><div class="meta">${ECHAPPE(f.employee.role||'')} · ${f.heuresConfirmees.toFixed(2)} h confirmées</div>${inclus?`<div class="summary-chips"><span class="summary-chip">${f.joursConfirmes.size} présence(s)</span><span class="summary-chip">${retards} min retard</span><span class="summary-chip">${conges} congé(s)</span><span class="summary-chip">${ecarts} écart(s)</span></div>`:''}</div>${config}</div><div class="employee-body"><div class="actions" style="margin-bottom:10px"><button class="btn configure" data-id="${f.employee.id}">Configurer le rattachement</button></div>${!inclus?`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`:f.items.length?f.items.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucune variable particulière détectée sur ce mois.</div>'}</div></article>`}
-function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':(periode?'Ignorer cette détection':'Ne pas retenir')}</button><button class="btn ${ecart||periode?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':(periode?'Confirmer la période':'Confirmer')}</button></div>`:'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
+const MOTIFS_RH=[['conge_maternite','Congé maternité'],['arret_maladie','Arrêt maladie'],['conge','Congé'],['conge_paternite','Congé paternité'],['formation','Formation'],['autre','Autre']];
+// Qualifier une période une seule fois. Le manager choisit un motif puis
+// confirme ; NEXUS écrit sur l'ÉVÉNEMENT, ce qui vaut pour tous les mois
+// suivants. « Date de retour non connue » évite de forcer une date inventée.
+function blocQualification(i){
+ const sel=MOTIFS_RH.map(([v,l])=>`<option value="${v}"${i.motif===v?' selected':''}>${l}</option>`).join('');
+ return `<div class="item-actions" style="flex-direction:column;align-items:stretch;gap:8px">
+  <label style="font-size:11px;opacity:.75">Motif de l'absence
+   <select class="rh-motif" data-ev="${ECHAPPE(i.evenementId)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
+    <option value="">— à qualifier —</option>${sel}</select></label>
+  <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
+   <input type="checkbox" class="rh-indetermine" data-ev="${ECHAPPE(i.evenementId)}"${i.finIndeterminee?' checked':''}> Date de retour non connue</label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="btn primary rh-confirmer" data-ev="${ECHAPPE(i.evenementId)}">Confirmer la période</button>
+   <button class="btn rh-reprise" data-ev="${ECHAPPE(i.evenementId)}">Salarié revenu…</button>
+  </div>
+  <div style="font-size:10px;opacity:.6">Une seule confirmation couvre toute la période, y compris les mois suivants.</div>
+ </div>`}
+function renderItem(f,i){const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',ecart=i.typeItem==='ecart_caisse',actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?`${i.joursMois} jour${i.joursMois>1?'s':''} sur ce mois`:(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`}
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
 async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 function bind(){
  document.getElementById('prev').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()-1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.getElementById('next').onclick=()=>{const d=new Date(`${MOIS}T12:00:00`);d.setMonth(d.getMonth()+1);MOIS=NexusPayeMoteur.moisISO(d);reload()};
  document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.jump).scrollIntoView({behavior:'smooth',block:'start'}));
+ document.querySelectorAll('.rh-confirmer').forEach(b=>b.onclick=async()=>{
+  const ev=b.dataset.ev;
+  const motif=(document.querySelector(`.rh-motif[data-ev="${ev}"]`)||{}).value||'';
+  if(!motif){alert('Choisissez d’abord un motif : NEXUS ne qualifie jamais une absence à votre place.');return;}
+  const indet=(document.querySelector(`.rh-indetermine[data-ev="${ev}"]`)||{}).checked;
+  b.disabled=true;
+  try{await NexusPayeDonnees.qualifierIndisponibilite(nexusClient,{id:ev,motif,finIndeterminee:indet,actorId:EMPLOYEE.id});reload();}
+  catch(e){b.disabled=false;alert('Qualification impossible : '+(e.message||e));}});
+ document.querySelectorAll('.rh-reprise').forEach(b=>b.onclick=async()=>{
+  const ev=b.dataset.ev;
+  const d=prompt('Date de reprise du salarié (AAAA-MM-JJ) :');
+  if(!d)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){alert('Format attendu : AAAA-MM-JJ');return;}
+  b.disabled=true;
+  try{await NexusPayeDonnees.cloturerIndisponibilite(nexusClient,{id:ev,dateReprise:d});reload();}
+  catch(e){b.disabled=false;alert('Clôture impossible : '+(e.message||e));}});
  document.querySelectorAll('.jump-review').forEach(b=>b.onclick=()=>document.getElementById('reviewSection').scrollIntoView({behavior:'smooth',block:'start'}));
  document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>document.getElementById('employeesSection').scrollIntoView({behavior:'smooth',block:'start'}));
  document.querySelectorAll('.info-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();const info=INFOS[b.dataset.info];if(!info)return;document.getElementById('infoTitle').textContent=info[0];document.getElementById('infoText').textContent=info[1];document.getElementById('infoModal').hidden=false});

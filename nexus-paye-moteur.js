@@ -144,7 +144,22 @@
     const evenementsIndispo = new Map(); // employeeId -> Map(indispoId -> { indispo, jours:Set })
     (entree.indisponibilites || []).forEach(i => {
       let d = new Date(`${i.date_debut}T12:00:00`);
-      const fin = new Date(`${i.date_fin}T12:00:00`);
+      // Fin effective de l'événement :
+      //   - une date de reprise borne la période à la veille du retour ;
+      //   - une fin indéterminée court au moins jusqu'à la fin du mois
+      //     calculé, sinon l'absence disparaîtrait silencieusement dès que
+      //     l'horizon provisoire est dépassé (Article 5) ;
+      //   - sinon, la date de fin déclarée.
+      let finISO = i.date_fin;
+      if (i.date_reprise) {
+        const veille = new Date(`${i.date_reprise}T12:00:00`);
+        veille.setDate(veille.getDate() - 1);
+        finISO = veille.toISOString().slice(0, 10);
+      } else if (i.fin_indeterminee) {
+        const finMois = finMoisISO(periode);
+        if (finMois > finISO) finISO = finMois;
+      }
+      const fin = new Date(`${finISO}T12:00:00`);
       while (d <= fin) {
         const iso = d.toISOString().slice(0, 10);
         if (dateDansMois(iso, periode)) {
@@ -305,7 +320,11 @@
           joursMois: joursTries.length,
           joursPlanifiesMois: joursPlanifies,
           joursAvecPreuve,
-          libelle: `${libelleMotif} du ${jjmmaaaa(indispo.date_debut)} au ${jjmmaaaa(indispo.date_fin)}`,
+          finIndeterminee: !!indispo.fin_indeterminee,
+          dateReprise: indispo.date_reprise || null,
+          libelle: `${libelleMotif} du ${jjmmaaaa(indispo.date_debut)} `
+            + (indispo.date_reprise ? `au ${jjmmaaaa(indispo.date_reprise)} (reprise)`
+              : (indispo.fin_indeterminee ? '— retour non daté' : `au ${jjmmaaaa(indispo.date_fin)}`)),
           detail: `${joursTries.length} jour${joursTries.length > 1 ? 's' : ''} sur la période de paie`
             + (joursPlanifies ? ` · ${joursPlanifies} normalement travaillé${joursPlanifies > 1 ? 's' : ''}` : '')
             + (contradiction ? ` · ${joursAvecPreuve.length} jour(s) avec présence constatée` : ''),
