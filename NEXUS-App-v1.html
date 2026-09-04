@@ -343,6 +343,15 @@
   .outil-quart-desc{font-size:10px; color:var(--text-mid); margin-top:3px; line-height:1.35;}
   body.nexus-desktop .outils-quart-grid{grid-template-columns:repeat(4,1fr);}
 
+  .service-cloture{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px;
+    padding:12px 14px; background:var(--surface, #141B22); border:1px solid rgba(79,195,217,.22); border-radius:12px;}
+  .service-cloture-titre{font-size:12.5px; font-weight:600;}
+  .service-cloture-detail{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+  .service-cloture-btn{border:1px solid rgba(52,211,153,.4); background:rgba(52,211,153,.12); color:var(--green,#34D399);
+    border-radius:9px; padding:9px 13px; font-family:var(--mono); font-size:10.5px; font-weight:600; cursor:pointer; flex-shrink:0;}
+  .service-cloture-btn.confirmer{border-color:rgba(245,166,35,.45); background:rgba(245,166,35,.14); color:var(--amber,#F5A623);}
+  .service-cloture-btn:disabled{opacity:.4; cursor:not-allowed;}
+
   /* Ma progression — teaser léger uniquement (points du jour, lecture
      seule) : le calcul réel des séries/paliers, qui écrit des badges,
      reste exclusivement sur NEXUS-Progression-v1.html (Article 11 — une
@@ -787,6 +796,19 @@
       </div>
       <span class="ma-progression-mini-lien">Voir mes séries →<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></span>
     </a>
+
+    <!-- Clôture du service (04/09/2026). Jusqu'ici, rien ne terminait
+         jamais un service : les 227 prises de poste en base étaient toutes
+         « en cours ». Le pointage étant désactivé à la station, c'est
+         l'employé lui-même qui clôt — un geste explicite, jamais une
+         déduction de l'horloge. -->
+    <div class="service-cloture" id="serviceCloture" style="display:none;">
+      <div class="service-cloture-texte">
+        <div class="service-cloture-titre">Service en cours</div>
+        <div class="service-cloture-detail" id="serviceClotureDetail">—</div>
+      </div>
+      <button class="service-cloture-btn" id="btnTerminerService">Terminer mon service</button>
+    </div>
   </div>
 
   <!-- Recherche NEXUS (27/07/2026, demande de Frédéric) : remplace la
@@ -1310,6 +1332,8 @@
 <script src="nexus-app-donnees.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
+<script src="nexus-services-moteur.js?v=20260904-0104"></script>
+<script src="nexus-services-donnees.js?v=20260904-0104"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -2178,8 +2202,59 @@
   // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
   // lectures Supabase partent en parallèle (Promise.all) : la page reste
   // aussi rapide qu'avant malgré le calcul plus riche.
+  // Clôture du service par l'employé (04/09/2026). Deux temps : le
+  // premier clic affiche l'heure exacte qui sera enregistrée, le second
+  // confirme. Aucune boîte de dialogue du navigateur, et surtout aucune
+  // clôture qui partirait sur un geste involontaire.
+  async function initClotureService(employee) {
+    const bloc = document.getElementById('serviceCloture');
+    const detail = document.getElementById('serviceClotureDetail');
+    const btn = document.getElementById('btnTerminerService');
+    if (!bloc || !btn || employee.consultation_externe) return;
+
+    let ouvert = null;
+    try { ouvert = (await NexusServicesDonnees.chargerServiceOuvert(nexusClient, employee.id)).service; }
+    catch (e) { console.error('Chargement du service ouvert :', e); return; }
+    if (!ouvert) return;
+
+    const debut = new Date(ouvert.heure_debut);
+    const heure = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    detail.textContent = `Ouvert depuis ${heure(debut)}${ouvert.quart ? ` · quart du ${ouvert.quart}` : ''}`;
+    bloc.style.display = '';
+
+    let confirme = false;
+    btn.addEventListener('click', async () => {
+      const maintenant = new Date();
+      if (!confirme) {
+        confirme = true;
+        btn.classList.add('confirmer');
+        btn.textContent = `Confirmer la fin à ${heure(maintenant)}`;
+        detail.textContent = `L’heure enregistrée sera celle de votre confirmation.`;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Clôture…';
+      const r = await NexusServicesDonnees.cloturerService(nexusClient, ouvert, {
+        source: 'employe', heureFin: maintenant.toISOString(), actorId: employee.id,
+        maintenant: maintenant.toISOString(),
+      });
+      if (!r.ok) {
+        btn.disabled = false;
+        btn.classList.remove('confirmer');
+        btn.textContent = 'Terminer mon service';
+        confirme = false;
+        detail.textContent = r.erreur;
+        return;
+      }
+      btn.style.display = 'none';
+      document.querySelector('.service-cloture-titre').textContent = 'Service terminé';
+      detail.textContent = `Fin enregistrée à ${heure(maintenant)}. Bonne fin de journée.`;
+    });
+  }
+
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
+    initClotureService(employee);
 
     const d = new Date();
     const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -2651,6 +2726,10 @@
         .from('shifts')
         .select('id, role, quart')
         .eq('employee_id', employee.id)
+        // Un service CLOS n'est plus le service en cours (04/09/2026).
+        // Sans ce filtre, clôturer n'aurait aucun effet : l'écran aurait
+        // continué de travailler sur un service terminé, legacy ou de test.
+        .eq('statut', 'en_cours')
         .gte('heure_debut', aujourdISO + 'T00:00:00')
         .lte('heure_debut', aujourdISO + 'T23:59:59')
         .order('heure_debut', { ascending: false })

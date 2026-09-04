@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="favicon.ico">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Services</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --cyan:#4FC3D9; --amber:#F5A623; --rouge:#F0575A;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:760px; min-height:100vh; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{position:absolute; top:18px; right:18px; font:600 10.5px var(--mono); letter-spacing:.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,.1); border:1px solid rgba(79,195,217,.3); border-radius:20px; padding:7px 12px; text-decoration:none;}
+  .eyebrow{font:600 11px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font:11px/1.55 var(--mono); color:var(--text-dim); margin-top:5px; max-width:620px;}
+  .divider{height:1px; background:var(--hairline);}
+  .section{padding:16px 20px 28px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:15px; margin-bottom:14px;}
+  .section-label{font:600 10.5px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:11px;}
+  .note{font:11px/1.55 var(--mono); color:var(--text-dim); margin:0 0 10px;}
+  .alerte{background:rgba(245,166,35,.1); border:1px solid rgba(245,166,35,.3); border-radius:9px; padding:11px 12px; color:var(--amber); font-size:12px; line-height:1.5; margin-bottom:10px;}
+  .ok{color:var(--green); font-size:12px;}
+  .svc{background:var(--raised); border:1px solid var(--hairline); border-radius:10px; padding:11px; margin-bottom:8px;}
+  .svc.ouvert-trop-longtemps{border-color:rgba(245,166,35,.4);}
+  .svc-haut{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .svc-nom{font-size:13px; font-weight:700; text-transform:capitalize;}
+  .svc-meta{font:10.5px/1.5 var(--mono); color:var(--text-mid); margin-top:3px;}
+  .svc-journal{font:10px/1.5 var(--mono); color:var(--text-dim); margin-top:5px;}
+  .pill{font:700 9px var(--mono); padding:4px 7px; border-radius:9px; background:var(--raised); color:var(--text-mid); white-space:nowrap; border:1px solid var(--hairline);}
+  .pill.ouvert{color:var(--cyan); background:rgba(79,195,217,.12);}
+  .pill.termine{color:var(--green); background:rgba(52,211,153,.12);}
+  .pill.sansfin{color:var(--amber); background:rgba(245,166,35,.12);}
+  .pill.legacy,.pill.test{color:var(--text-dim);}
+  .actions{display:flex; gap:7px; flex-wrap:wrap; margin-top:9px;}
+  .btn{border:1px solid var(--hairline); background:var(--raised); color:var(--text); border-radius:8px; padding:8px 11px; cursor:pointer; font:600 10px var(--mono);}
+  .btn.primary{background:var(--cyan); border-color:var(--cyan); color:#071217;}
+  .btn:disabled{opacity:.35; cursor:not-allowed;}
+  .modal{position:fixed; inset:0; background:rgba(3,8,12,.78); display:flex; align-items:center; justify-content:center; padding:22px; z-index:50;}
+  .modal[hidden]{display:none;}
+  .modal-card{width:min(460px,100%); background:var(--panel); border:1px solid rgba(79,195,217,.35); border-radius:14px; padding:18px;}
+  .modal-card h3{font-size:15px; margin-bottom:6px;}
+  .modal-card p{font:11px/1.6 var(--mono); color:var(--text-mid); white-space:pre-line;}
+  .champ{margin-top:12px;}
+  .champ label{display:block; font:9.5px var(--mono); text-transform:uppercase; color:var(--text-dim); margin-bottom:4px;}
+  .champ input,.champ select,.champ textarea{width:100%; background:var(--raised); border:1px solid var(--hairline); border-radius:7px; color:var(--text); padding:9px; font:12px var(--sans);}
+  .champ .aide{font:10px/1.5 var(--mono); color:var(--text-dim); margin-top:4px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;}
+  .modal-erreur{color:var(--rouge); font:10.5px/1.5 var(--mono); margin-top:10px;}
+  .modal-erreur[hidden]{display:none;}
+  .loading{text-align:center; padding:44px 10px; color:var(--text-dim); font:11px var(--mono);}
+  footer{padding:18px; text-align:center; border-top:1px solid var(--hairline); color:var(--text-dim); font:10px var(--mono);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-services-moteur.js?v=20260904-0104"></script>
+<script src="nexus-services-donnees.js?v=20260904-0104"></script>
+</head>
+<body><div class="phone">
+<header class="header">
+  <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+  <div class="eyebrow">NEXUS · Manager</div>
+  <div class="title">Services</div>
+  <div class="subtitle">Qui est en service, qui a terminé, et ce qui est resté ouvert. NEXUS n’invente jamais une heure de départ : un service dont la fin est inconnue le dit.</div>
+</header>
+<div class="divider"></div>
+<main class="section" id="app"><div class="loading">Chargement des services…</div></main>
+<footer>Une clôture ne découle jamais de la seule heure courante</footer>
+</div>
+
+<div class="modal" id="dlg" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dlgTitre">
+  <h3 id="dlgTitre"></h3><p id="dlgTexte"></p><div id="dlgChamps"></div>
+  <div class="modal-erreur" id="dlgErreur" hidden></div>
+  <div class="modal-actions" id="dlgActions"></div>
+</div></div>
+
+<script>
+// NEXUS Services (04/09/2026) — vue manager de la clôture des services.
+//
+// Constat qui a rendu cet écran nécessaire : les 227 prises de poste en
+// base étaient toutes « en cours », aucune avec heure de fin, de juillet à
+// septembre 2026. Rien ne clôturait jamais un service, et personne ne
+// pouvait donc voir ce qui restait ouvert.
+//
+// Deux règles gouvernent cet écran, l'une comme l'autre posées par
+// Frédéric :
+//   — aucune clôture automatique fondée sur la seule heure courante.
+//     L'horloge SIGNALE un service resté ouvert ; c'est le manager qui
+//     tranche, et sa décision est journalisée ;
+//   — jamais d'heure de départ inventée. Un service dont on sait qu'il est
+//     fini mais dont on ignore la fin se clôt « sans heure de fin ».
+let EMPLOYEE, SITE, SERVICES = [], NOMS = {};
+const SEUIL_ALERTE_HEURES = 14;
+
+const ECHAPPE = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const M = () => window.NexusServicesMoteur;
+
+function heureCourte(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function duree(min) {
+  const h = Math.floor(min / 60);
+  return h ? `${h} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+}
+const CLASSE_PILL = { en_cours: 'ouvert', termine: 'termine', clos_sans_pointage: 'sansfin', legacy: 'legacy', test: 'test' };
+
+// ── Modale NEXUS : aucune boîte du navigateur sur cet écran ──
+function ouvrirDialogue(opts) {
+  const d = document.getElementById('dlg'), champs = opts.champs || [];
+  document.getElementById('dlgTitre').textContent = opts.titre || '';
+  const p = document.getElementById('dlgTexte'); p.textContent = opts.texte || ''; p.hidden = !opts.texte;
+  const err = document.getElementById('dlgErreur'); err.hidden = true; err.textContent = '';
+  const zone = document.getElementById('dlgChamps');
+  zone.innerHTML = champs.map(c => {
+    const id = `dlg_${c.cle}`;
+    let ctrl;
+    if (c.type === 'select') ctrl = `<select id="${id}" name="${ECHAPPE(c.cle)}">${(c.options || []).map(([v, l]) => `<option value="${ECHAPPE(v)}"${String(c.valeur) === String(v) ? ' selected' : ''}>${ECHAPPE(l)}</option>`).join('')}</select>`;
+    else if (c.type === 'textarea') ctrl = `<textarea id="${id}" name="${ECHAPPE(c.cle)}" rows="2" placeholder="${ECHAPPE(c.placeholder || '')}"></textarea>`;
+    else ctrl = `<input id="${id}" name="${ECHAPPE(c.cle)}" type="${ECHAPPE(c.type || 'text')}" value="${ECHAPPE(c.valeur == null ? '' : c.valeur)}">`;
+    return `<div class="champ"><label for="${id}">${ECHAPPE(c.label)}</label>${ctrl}${c.aide ? `<div class="aide">${ECHAPPE(c.aide)}</div>` : ''}</div>`;
+  }).join('');
+  const actions = document.getElementById('dlgActions');
+  actions.innerHTML = `<button class="btn" data-d="annuler">Annuler</button><button class="btn primary" data-d="valider">${ECHAPPE(opts.libelleValider || 'Confirmer')}</button>`;
+  d.hidden = false;
+  return new Promise(resolve => {
+    const touche = e => { if (e.key === 'Escape') fin(null); };
+    const fin = v => { d.hidden = true; d.onclick = null; document.removeEventListener('keydown', touche); resolve(v); };
+    const lire = () => { const o = {}; champs.forEach(c => { const el = zone.querySelector(`[name="${c.cle}"]`); if (el) o[c.cle] = el.value; }); return o; };
+    actions.querySelector('[data-d="valider"]').onclick = () => {
+      const v = lire(), e = opts.verifier ? opts.verifier(v) : null;
+      if (e) { err.textContent = e; err.hidden = false; return; }
+      fin(v);
+    };
+    actions.querySelector('[data-d="annuler"]').onclick = () => fin(null);
+    d.onclick = e => { if (e.target === d) fin(null); };
+    document.addEventListener('keydown', touche);
+  });
+}
+const erreurModale = (titre, texte) => ouvrirDialogue({ titre, texte, libelleValider: 'Fermer', champs: [] });
+
+// ── Rendu ──
+function carteService(s, alerteMin) {
+  const ouvert = M().estOuvert(s);
+  const journal = M().journalCloture(s, NOMS);
+  const depuis = alerteMin != null ? ` · ouvert depuis ${duree(alerteMin)}` : '';
+  return `<div class="svc ${alerteMin != null ? 'ouvert-trop-longtemps' : ''}">
+    <div class="svc-haut">
+      <div>
+        <div class="svc-nom">${ECHAPPE(NOMS[s.employee_id] || 'Employé')}</div>
+        <div class="svc-meta">${ECHAPPE(s.role || '—')}${s.quart ? ` · quart du ${ECHAPPE(s.quart)}` : ''} · début ${heureCourte(s.heure_debut)}${s.heure_fin ? ` → fin ${heureCourte(s.heure_fin)}` : ''}${depuis}</div>
+      </div>
+      <span class="pill ${CLASSE_PILL[s.statut] || ''}">${ECHAPPE(M().LIBELLE_STATUT[s.statut] || s.statut)}</span>
+    </div>
+    ${journal ? `<div class="svc-journal">${ECHAPPE(journal)}</div>` : ''}
+    ${ouvert ? `<div class="actions">
+      <button class="btn primary cloturer" data-id="${ECHAPPE(s.id)}">Clôturer avec une heure</button>
+      <button class="btn sansfin" data-id="${ECHAPPE(s.id)}">Clore sans heure connue</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function render() {
+  const restes = M().servicesRestesOuverts(SERVICES, { seuilHeures: SEUIL_ALERTE_HEURES });
+  const minutesParId = new Map(restes.map(r => [r.shift.id, r.ouvertDepuisMin]));
+  const ouverts = SERVICES.filter(M().estOuvert);
+  const clos = SERVICES.filter(s => !M().estOuvert(s));
+
+  document.getElementById('app').innerHTML = `
+    ${restes.length ? `<div class="alerte"><b>${restes.length} service(s) ouverts depuis plus de ${SEUIL_ALERTE_HEURES} h.</b><br>
+      NEXUS ne les clôture pas tout seul : l’heure qui passe ne prouve pas qu’un service est fini. À vous de trancher, service par service.</div>` : ''}
+
+    <div class="card">
+      <div class="section-label">Services en cours · ${ouverts.length}</div>
+      ${ouverts.length ? ouverts.map(s => carteService(s, minutesParId.get(s.id) ?? null)).join('') : '<div class="ok">✓ Aucun service ouvert.</div>'}
+    </div>
+
+    <div class="card">
+      <div class="section-label">Services clos · ${clos.length}</div>
+      <div class="note">« Clos sans heure de fin » signifie que le service est terminé mais que personne ne sait quand. NEXUS ne comble pas ce trou.</div>
+      ${clos.length ? clos.slice(0, 40).map(s => carteService(s, null)).join('') : '<div class="note">Aucun service clos sur la période.</div>'}
+      ${clos.length > 40 ? `<div class="note">${clos.length - 40} service(s) plus anciens non affichés.</div>` : ''}
+    </div>`;
+  bind();
+}
+
+function trouver(id) { return SERVICES.find(s => s.id === id); }
+
+async function appliquer(service, options) {
+  const r = await NexusServicesDonnees.cloturerService(nexusClient, service, options);
+  if (!r.ok) { await erreurModale('Clôture impossible', r.erreur); return; }
+  await recharger();
+}
+
+function bind() {
+  document.querySelectorAll('.cloturer').forEach(b => b.onclick = async () => {
+    const s = trouver(b.dataset.id); if (!s) return;
+    const maintenant = new Date();
+    const local = new Date(maintenant.getTime() - maintenant.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const rep = await ouvrirDialogue({
+      titre: `Clôturer le service de ${NOMS[s.employee_id] || 'cet employé'}`,
+      texte: `Début : ${heureCourte(s.heure_debut)}\n\nIndiquez l’heure de fin RÉELLE. Si vous ne la connaissez pas, utilisez plutôt « Clore sans heure connue » — ne devinez pas.`,
+      champs: [
+        { cle: 'fin', label: 'Heure de fin réelle', type: 'datetime-local', valeur: local },
+        { cle: 'motif', label: 'Motif de la correction', type: 'textarea', placeholder: 'Ce qui vous permet de l’affirmer' },
+      ],
+      libelleValider: 'Clôturer',
+      verifier: v => {
+        if (!v.fin) return 'Indiquez une heure de fin.';
+        if (!v.motif || !v.motif.trim()) return 'Un motif est requis : une correction manager doit dire pourquoi.';
+        const iso = new Date(v.fin).toISOString();
+        if (iso < s.heure_debut) return 'L’heure de fin précède le début du service.';
+        if (iso > new Date().toISOString()) return 'L’heure de fin est dans le futur.';
+        return null;
+      },
+    });
+    if (!rep) return;
+    await appliquer(s, {
+      source: 'manager', statut: 'termine', heureFin: new Date(rep.fin).toISOString(),
+      actorId: EMPLOYEE.id, motif: rep.motif.trim(), maintenant: new Date().toISOString(),
+    });
+  });
+
+  document.querySelectorAll('.sansfin').forEach(b => b.onclick = async () => {
+    const s = trouver(b.dataset.id); if (!s) return;
+    const rep = await ouvrirDialogue({
+      titre: 'Clore sans heure de fin connue',
+      texte: `Le service de ${NOMS[s.employee_id] || 'cet employé'} sera marqué terminé, SANS heure de fin.\n\nC’est le choix honnête quand personne ne sait quand il s’est achevé : NEXUS n’inventera pas cette heure.`,
+      champs: [{ cle: 'motif', label: 'Motif', type: 'textarea', placeholder: 'Pourquoi l’heure de fin est inconnue' }],
+      libelleValider: 'Clore sans heure',
+      verifier: v => (v.motif && v.motif.trim()) ? null : 'Un motif est requis : une correction manager doit dire pourquoi.',
+    });
+    if (!rep) return;
+    await appliquer(s, {
+      source: 'manager', statut: 'clos_sans_pointage', actorId: EMPLOYEE.id,
+      motif: rep.motif.trim(), maintenant: new Date().toISOString(),
+    });
+  });
+}
+
+async function recharger() {
+  const depuis = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  SERVICES = await NexusServicesDonnees.chargerServicesSite(nexusClient, SITE, { depuis });
+  const ids = [...new Set(SERVICES.map(s => s.employee_id))];
+  if (ids.length) {
+    const { data } = await nexusClient.from('employees').select('id, nom').in('id', ids);
+    NOMS = Object.fromEntries((data || []).map(e => [e.id, e.nom]));
+  }
+  render();
+}
+
+nexusRequireAuth().then(async employee => {
+  if (!employee) return;
+  if (!['manager', 'gerant'].includes(employee.role)) {
+    document.getElementById('app').innerHTML = '<div class="alerte">NEXUS Services est réservé aux managers et gérants.</div>';
+    return;
+  }
+  EMPLOYEE = employee; SITE = employee.site_id;
+  try { await recharger(); }
+  catch (e) {
+    console.error('NEXUS Services :', e);
+    document.getElementById('app').innerHTML = `<div class="alerte">Chargement impossible : ${ECHAPPE(e.message || e)}</div>`;
+  }
+}).catch(e => {
+  document.getElementById('app').innerHTML = `<div class="alerte">Session indisponible : ${ECHAPPE(e.message || e)}</div>`;
+});
+</script></body></html>

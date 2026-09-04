@@ -980,6 +980,7 @@
     const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await nexusClient
       .from('shifts').select('role').eq('employee_id', employeeId)
+      .eq('statut', 'en_cours')
       .gte('heure_debut', il24h).order('heure_debut', { ascending: false }).limit(1);
     if (error) { console.error('Chargement rôle du jour (activité):', error); return null; }
     return (data && data[0]) ? data[0].role : null;

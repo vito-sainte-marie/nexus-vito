@@ -51,6 +51,7 @@
     'NEXUS-Centre-Intelligence-v1.html': { label: "Centre d'Intelligence", emoji: '🧠', desc: 'Que détecte NEXUS dans mon commerce ?' },
     'NEXUS-Inventaire-Manager-v1.html': { label: 'Contrôle inventaire', emoji: '🧮', desc: 'Écarts, comptages manquants', forfait: 'professional' },
     'NEXUS-Import-v1.html': { label: 'Import', emoji: '⬆️', desc: 'Ventes, catalogue ou stock instantané' },
+    'NEXUS-Services-v1.html': { label: 'Services', emoji: '🕒', desc: 'Qui est en service, ce qui est resté ouvert' },
   };
 
   const RACCOURCIS_DEFAUT = ['NEXUS-Cockpit-v2.html', 'NEXUS-Verify-v1.html', 'NEXUS-Tempo-v1.html', 'NEXUS-Produits-v1.html'];

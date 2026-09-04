@@ -377,6 +377,9 @@
       // rattache, donc un nouveau service repart forcément décoché.
       .select('id, role, quart')
       .eq('employee_id', employeeId)
+      // Seul un service OUVERT porte des coches (04/09/2026) : sinon
+      // elles se rattacheraient à un service clos, legacy ou de test.
+      .eq('statut', 'en_cours')
       .gte('heure_debut', il24h)
       .order('heure_debut', { ascending: false })
       .limit(1);
@@ -399,6 +402,9 @@
       .eq('employee_id', employeeId)
       .eq('role', role)
       .eq('quart', quart)
+      // Une prise de poste de test n'est pas un service réel : elle ne peut
+      // pas servir de référence de comparaison (04/09/2026).
+      .neq('statut', 'test')
       .order('heure_debut', { ascending: false })
       .limit(10);
     if (error) { console.error('Chargement dernier service comparable:', error); return null; }

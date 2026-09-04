@@ -20,6 +20,8 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-services-moteur.js?v=20260904-0104"></script>
+<script src="nexus-services-donnees.js?v=20260904-0104"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -288,26 +290,33 @@
     btn.textContent = 'Confirmation…';
 
     const quart = quartDuMoment();
-    const { error } = await nexusClient.from('shifts').insert({
-      employee_id: employeeCourant.id,
+    // Ouvrir un service clôt d'abord celui qui serait resté ouvert
+    // (04/09/2026). C'est un fait réel — on ne peut pas être en service
+    // deux fois — mais il ne dit pas à quelle heure le précédent s'est
+    // terminé : il est donc clos SANS heure de fin, jamais avec une heure
+    // inventée. Si cette clôture échoue, on n'ouvre pas : mieux vaut un
+    // refus explicite que deux services ouverts en même temps.
+    const resultat = await NexusServicesDonnees.ouvrirService(nexusClient, {
+      employeeId: employeeCourant.id,
+      siteId: employeeCourant.site_id,
       role: roleChoisi,
-      role_prevu: employeeCourant.role,
-      confirmed_by: 'employe',
+      rolePrevu: employeeCourant.role,
       quart,
-      site: employeeCourant.site_id,
-      statut: 'en_cours',
     });
 
-    if (error) {
-      console.error('Confirmation prise de poste:', error);
-      alert('Un problème est survenu, réessayez.');
+    if (!resultat.ok) {
+      console.error('Confirmation prise de poste:', resultat.erreur);
+      alert(`La prise de poste n'a pas pu être enregistrée : ${resultat.erreur}`);
       btn.disabled = false;
       btn.textContent = 'Confirmer ma prise de poste';
       return;
     }
 
+    servicesPrecedentsClos = resultat.precedentsClos || 0;
     renderFinal();
   }
+
+  let servicesPrecedentsClos = 0;
 
   function renderFinal() {
     document.getElementById('dot3').classList.add('done');
@@ -330,6 +339,7 @@
         <div class="final-line"><span>Missions prévues</span><b>${nbMissions}</b></div>
         <div class="final-line"><span>Priorités</span><b>${prioritaires} avant votre pause</b></div>
         <div class="final-line"><span>Temps estimé</span><b>${tempsTotal} minutes</b></div>
+        ${servicesPrecedentsClos ? `<div class="final-line"><span>Service précédent</span><b>clos sans heure de fin</b></div>` : ''}
         <button class="btn-primary" id="btnDashboard">${estNiveauManagerCourant() ? 'Ouvrir mon poste de pilotage' : 'Ouvrir mon tableau de bord'}</button>
       </div>
     `;

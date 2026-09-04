@@ -965,6 +965,7 @@
     const debutJourISO = `${dateISO()}T00:00:00`;
     const { data, error } = await nexusClient
       .from('shifts').select('role').eq('employee_id', employeeCourant.id)
+      .eq('statut', 'en_cours')
       .gte('heure_debut', debutJourISO).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
     if (error) { console.error('Rôle du jour:', error); return employeeCourant.role; }
     return (data && data.role) || employeeCourant.role;
