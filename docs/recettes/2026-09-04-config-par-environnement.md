@@ -99,9 +99,9 @@ recette : les deux seules écritures du jour portent sur le site réel, à
 |---|---|---|---|
 | B1 | `nexus_stock_lire_etat_json({p_site})` et `nexus_stock_lire_etat({p_site})` : `SECURITY DEFINER` + `row_security=off` + `EXECUTE` à `anon`, site pris dans le paramètre. **119 lignes de stock d'un autre site rendues à un visiteur anonyme.** | `outils/verifier-isolation-supabase.mjs` | **corrigé** — migration `20260904175723`, appliquée sur Test, preuve rejouée : refus 401 |
 | B2 | `employees_public` lisible par `anon` sans filtre de site : **annuaire complet des employés, tous sites confondus.** Couplé à une connexion prénom + PIN, l'espace à deviner tombe à un PIN. | idem | **partiellement corrigé** — migration `20260904175747`, appliquée sur Test, preuve rejouée : refus 401. **Mesure provisoire**, voir ci-dessous |
-| B3 | Aucun bandeau d'environnement : la recette était visuellement identique à la production. `NEXUS_ENVIRONNEMENT` existait dans `nexus-auth.js` et n'était lu nulle part. | lecture d'écran | **corrigé** — `nexus-bandeau-environnement.js`, non encore déployé |
-| B4 | `robots.txt` de la recette en `Allow: /` : environnement public et indexable, portant une copie des données métier de la station. | `GET /robots.txt` | **corrigé** — réécrit au build pour le test, non encore déployé |
-| B5 | `nexus-config.js` servi en `max-age=0, must-revalidate` au lieu de `no-store` — un exemplaire conservé fait parler un écran à la mauvaise base. Constaté en séance : un navigateur a continué de servir la configuration « test » après passage du build en « production ». | `_headers` absent | **corrigé** — `_headers` + vérification en échec fermé au build, non encore déployé |
+| B3 | Aucun bandeau d'environnement : la recette était visuellement identique à la production. `NEXUS_ENVIRONNEMENT` existait dans `nexus-auth.js` et n'était lu nulle part. | lecture d'écran | **corrigé et déployé** — `nexus-bandeau-environnement.js` ; une régression de hauteur découverte à la vérification du déploiement a été corrigée dans la foulée, voir ci-dessous |
+| B4 | `robots.txt` de la recette en `Allow: /` : environnement public et indexable, portant une copie des données métier de la station. | `GET /robots.txt` | **corrigé et déployé** — réécrit au build pour le test ; vérifié sur la recette : `Disallow: /` |
+| B5 | `nexus-config.js` servi en `max-age=0, must-revalidate` au lieu de `no-store` — un exemplaire conservé fait parler un écran à la mauvaise base. Constaté en séance : un navigateur a continué de servir la configuration « test » après passage du build en « production ». | `_headers` absent | **corrigé et déployé** — vérifié sur la recette : `cache-control: no-store` sur `nexus-config.js` |
 
 ### B2 — pourquoi la correction n'est que provisoire
 
@@ -169,6 +169,39 @@ branche qui doit s'aligner, pas la base.
 | `site-fantome-test` et 5 comptes `compte_test` vivant dans la base de PRODUCTION | Comptes réels dans la base réelle, sans usage depuis le 19/08 | `docs/plans/2026-09-04-nettoyage-comptes-test-production.md` |
 | Aucune fonction Edge déployée sur `nexus-test` | 4 fonctionnalités hors recette | à ouvrir |
 | Protection contre les mots de passe compromis désactivée (Supabase Auth) | Faible : les secrets sont des PIN numériques | à arbitrer |
+
+## État du déploiement — 04/09/2026
+
+| | |
+|---|---|
+| SHA du lot correctif | `95cc92a4ffc00f76b76c02fda020d3dd1c6a5877` |
+| SHA correctif de suivi | `f3526ada0f0662f73b79648257aaf1562ca40c2c` |
+| Branche | `config-par-environnement` — **non fusionnée**, `main` et `production` figées sur `501c0c7` |
+| CI GitHub Actions | ✅ succès sur les deux SHA — épingles de cache, suite de non-régression comparée aux 9 échecs connus, simulations métier |
+| Déploiement Cloudflare Pages | ✅ https://nexus-test-ddf.pages.dev |
+
+Vérifié sur le site déployé, pas seulement en local :
+
+- `nexus-config.js` → `environnement: "test"`, `https://udljdqxerrbbbajxubfn.supabase.co`, en-tête `cache-control: no-store` et `x-robots-tag: noindex` ;
+- `robots.txt` → `Disallow: /` ;
+- ordre des balises sur les écrans servis : `nexus-config.js`, puis `nexus-bandeau-environnement.js`, puis `nexus-auth.js` ;
+- écran de connexion : plus aucune référence à `employees_public`, appel à `nexus_identifiant_de_connexion` ;
+- bandeau MODE TEST affiché, marge de compensation à 30 px ;
+- `outils/verifier-isolation-supabase.mjs` rejoué contre la recette déployée : aucune porte ouverte, sortie 0.
+
+### Régression trouvée à la vérification du déploiement, et corrigée
+
+Le bandeau posait sa compensation de hauteur d'après une mesure prise une
+seule fois. Sur une page chargée sans largeur de fenêtre — onglet en
+arrière-plan, page préchargée, démarrage à froid d'une PWA — le texte
+s'enroulait sur une vingtaine de lignes et la marge valait **306 px au lieu
+de 30**, définitivement : rien ne remesurait ensuite. Constaté sur la
+recette déployée, invisible en local.
+
+Corrigé par `f3526ad` : une hauteur hors de [1, 120] px retombe sur 30, et la
+mesure est refaite sur `load` et sur `resize`. Quatre vérifications ajoutées,
+dont la régression elle-même. C'est la démonstration que vérifier le déployé
+et non le local n'était pas une formalité.
 
 ## Points explicitement NON VALIDÉS
 
