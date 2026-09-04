@@ -44,8 +44,8 @@
 // Voir Data Dictionary v2.41.
 //
 // Inclure après nexus-conseiller.js ET nexus-conseiller-donnees.js :
-// <script src="nexus-conseiller-donnees.js?v=20260903-2159"></script>
-// <script src="nexus-brief-donnees.js?v=20260903-2159"></script>
+// <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+// <script src="nexus-brief-donnees.js?v=20260904-0104"></script>
 // ------------------------------------------------------------
 
 (function (global) {

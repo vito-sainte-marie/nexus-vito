@@ -6,7 +6,7 @@
 //
 // PILOTE (02/08/2026) : n'est inclus pour l'instant QUE sur NEXUS-Verify-v1
 // (écran choisi avec Frédéric pour valider le style avant de généraliser à
-// tout NEXUS). À inclure sur une nouvelle page : <script src="nexus-desktop.js?v=20260903-2159"></script>
+// tout NEXUS). À inclure sur une nouvelle page : <script src="nexus-desktop.js?v=20260904-0104"></script>
 // après nexus-auth.js, plus un peu de CSS spécifique à l'écran (voir le
 // bloc "Vue bureau" dans le <style> de NEXUS-Verify-v1.html) pour que son
 // contenu se réorganise en plusieurs colonnes — ce fichier pose la coquille

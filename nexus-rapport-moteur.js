@@ -22,7 +22,7 @@
 //
 // Inclure (après nexus-boussole-moteur.js si les statuts textuels sont
 // réutilisés côté appelant — ce fichier ne l'importe pas lui-même) :
-//   <script src="nexus-rapport-moteur.js?v=20260903-2159"></script>
+//   <script src="nexus-rapport-moteur.js?v=20260904-0104"></script>
 // ------------------------------------------------------------
 
 (function (global) {
