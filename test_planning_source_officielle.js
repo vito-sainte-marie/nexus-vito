@@ -5,7 +5,14 @@ const manager = fs.readFileSync('NEXUS-Planning-v1.html', 'utf8');
 const parametres = fs.readFileSync('NEXUS-Parametres-Station-v1.html', 'utf8');
 const employe = fs.readFileSync('NEXUS-Mon-Planning-v1.html', 'utf8');
 const paye = fs.readFileSync('NEXUS-Paye-v1.html', 'utf8');
-const migration = fs.readFileSync('supabase/migrations/20260902201000_ajouter_source_planning_officiel.sql', 'utf8');
+// Retrouvée par son NOM : depuis la récupération de l'historique complet
+// (04/09/2026), les numéros de version sont ceux enregistrés par Supabase.
+const migration = (() => {
+  const d = 'supabase/migrations';
+  const f = fs.readdirSync(d).filter(x => x.includes('ajouter_source_planning_officiel') && x.endsWith('.sql')).sort().pop();
+  if (!f) throw new Error('migration ajouter_source_planning_officiel introuvable');
+  return fs.readFileSync(`${d}/${f}`, 'utf8');
+})();
 
 assert.ok(parametres.includes('id="cardPlanningOfficiel"') && parametres.includes('name="planningSource"'));
 assert.ok(parametres.includes('planning_google_sheet_url') && parametres.includes('location.hash'));

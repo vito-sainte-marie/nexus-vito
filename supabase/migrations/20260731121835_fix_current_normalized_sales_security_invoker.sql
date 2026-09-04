@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731121835 · fix_current_normalized_sales_security_invoker
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- Corrige un risque réel détecté par l'audit de sécurité Supabase :
 -- une vue sans security_invoker s'exécute avec les droits de son
 -- créateur, ce qui peut contourner le RLS deny-all de normalized_sales.

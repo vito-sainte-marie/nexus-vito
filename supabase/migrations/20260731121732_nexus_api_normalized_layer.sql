@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731121732 · nexus_api_normalized_layer
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- ============================================================
 -- NEXUS API — Couche normalisée
 -- Reprend les corrections déjà actées dans NEXUS-API-Specification-v4 :
@@ -21,7 +28,6 @@ create table if not exists public.normalized_products (
   unique(site, external_product_id)
 );
 comment on table public.normalized_products is 'Produits harmonisés vers le format interne NEXUS. Rapprochement par external_product_id/barcode, jamais par label.';
-
 create table if not exists public.normalized_sales (
   id                      uuid primary key default gen_random_uuid(),
   raw_sale_id             uuid references public.raw_sales(id),
@@ -53,11 +59,9 @@ comment on table public.normalized_sales is 'Ventes harmonisées, source unique 
 create index if not exists idx_normalized_sales_site_current on public.normalized_sales(site, is_current);
 create index if not exists idx_normalized_sales_ticket on public.normalized_sales(ticket_id, product_id);
 create index if not exists idx_normalized_sales_sold_at on public.normalized_sales(sold_at);
-
 create or replace view public.current_normalized_sales as
   select * from public.normalized_sales where is_current = true;
 comment on view public.current_normalized_sales is 'Point d''entrée unique pour tout calcul agrégé (CA, marge, volumes) — ne compte jamais deux versions d''une même vente.';
-
 create table if not exists public.normalized_stock (
   id                      uuid primary key default gen_random_uuid(),
   raw_stock_movement_id   uuid references public.raw_stock_movements(id),
@@ -74,7 +78,6 @@ create table if not exists public.normalized_stock (
 );
 comment on table public.normalized_stock is 'Mouvements de stock harmonisés, issus de raw_stock_movements.';
 create index if not exists idx_normalized_stock_site_current on public.normalized_stock(site, is_current);
-
 create table if not exists public.normalized_cash_sessions (
   id                      uuid primary key default gen_random_uuid(),
   raw_cash_session_id     uuid references public.raw_cash_sessions(id),
@@ -89,10 +92,9 @@ create table if not exists public.normalized_cash_sessions (
   normalise_le            timestamptz not null default now()
 );
 comment on table public.normalized_cash_sessions is 'Sessions de caisse harmonisées, issues de raw_cash_sessions.';
-
 alter table public.normalized_products enable row level security;
 alter table public.normalized_sales enable row level security;
 alter table public.normalized_stock enable row level security;
 alter table public.normalized_cash_sessions enable row level security;
 -- Aucune policy permissive : accès exclusif via service_role (Edge Functions).
--- La vue current_normalized_sales hérite du RLS de normalized_sales (security_invoker par défaut sur les vues récentes de Postgres/Supabase).
+-- La vue current_normalized_sales hérite du RLS de normalized_sales (security_invoker par défaut sur les vues récentes de Postgres/Supabase).;

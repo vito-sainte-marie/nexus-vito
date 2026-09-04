@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260725160808 · ajouter_role_vacataire_planner
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- NEXUS Planner — introduction du rôle "vacataire"
 -- Demande Frédéric (25/07/2026) : un vacataire n'est jamais dans la
 -- rotation régulière. Il ne doit être placé par le générateur QUE si
@@ -8,7 +15,6 @@
 alter table employees drop constraint employees_role_check;
 alter table employees add constraint employees_role_check
   check (role = any (array['caissier'::text, 'pompiste'::text, 'renfort'::text, 'manager'::text, 'gerant'::text, 'vacataire'::text]));
-
 -- 2) Réécriture du générateur mensuel avec la règle vacataire.
 CREATE OR REPLACE FUNCTION public.generer_planning_mensuel(p_site text, p_mois date, p_genere_par uuid DEFAULT NULL::uuid)
  RETURNS TABLE(date_gap date, quart_gap text, effectif_attendu integer, effectif_obtenu integer)

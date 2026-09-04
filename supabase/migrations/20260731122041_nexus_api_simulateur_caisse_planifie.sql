@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731122041 · nexus_api_simulateur_caisse_planifie
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- ============================================================
 -- Simulateur de caisse — tâche planifiée automatique (pg_cron)
 -- Génère une vente de test, la fait transiter par le pipeline complet
@@ -7,7 +14,6 @@
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
-
 create or replace function public.nexus_simulate_cash_sale(p_site text default 'vito-sainte-marie')
 returns uuid
 language plpgsql
@@ -130,18 +136,14 @@ begin
   return v_normalized_id;
 end;
 $$;
-
 comment on function public.nexus_simulate_cash_sale is 'Simulateur de caisse : génère une vente de test et la fait transiter par tout le pipeline RAW→normalisation, exactement comme un vrai connecteur. À désactiver/remplacer une fois le connecteur Decenium réel en service.';
-
 -- Source "simulateur" ajoutée au catalogue des intégrations
 insert into public.integration_sources (code, nom, type, description) values
   ('simulateur', 'Simulateur de caisse NEXUS', 'caisse', 'Connecteur de test interne — génère des ventes fictives pour valider toute la chaîne avant l''arrivée du connecteur Decenium réel.')
 on conflict (code) do nothing;
-
 insert into public.integration_status (site, source_code, statut, message) values
   ('vito-sainte-marie', 'simulateur', 'connecte', 'Simulateur actif — génère des ventes de test toutes les 15 minutes.')
 on conflict (site, source_code) do update set statut = excluded.statut, message = excluded.message, maj_le = now();
-
 -- Planification automatique : toutes les 15 minutes
 select cron.schedule(
   'nexus-simulateur-caisse',

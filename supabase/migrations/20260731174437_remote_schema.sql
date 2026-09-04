@@ -1,9 +1,13 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731174437 · remote_schema
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 drop view if exists "public"."v_caisse_ecart_a_traiter";
-
 drop view if exists "public"."v_caisse_ecart_non_justifie";
-
 drop view if exists "public"."v_caisse_ecart_recurrent";
-
 create or replace view "public"."v_caisse_ecart_a_traiter" as  SELECT ac.id AS audit_id,
     ac.site,
     ac.date,
@@ -34,8 +38,6 @@ create or replace view "public"."v_caisse_ecart_a_traiter" as  SELECT ac.id AS a
             END
         END)))
   WHERE ((ac.statut = ANY (ARRAY['anomalie'::text, 'critique'::text])) AND ((ac.commentaire IS NULL) OR (btrim(ac.commentaire) = ''::text)) AND (ac.date >= (CURRENT_DATE - '14 days'::interval)));
-
-
 create or replace view "public"."v_caisse_ecart_non_justifie" as  SELECT id AS audit_id,
     site,
     date,
@@ -49,8 +51,6 @@ create or replace view "public"."v_caisse_ecart_non_justifie" as  SELECT id AS a
     'A'::text AS confiance_calculee
    FROM public.audits_caisse
   WHERE ((statut IS NOT NULL) AND (statut <> 'conforme'::text) AND ((commentaire IS NULL) OR (btrim(commentaire) = ''::text)) AND (date >= (CURRENT_DATE - '14 days'::interval)));
-
-
 create or replace view "public"."v_caisse_ecart_recurrent" as  WITH fenetre AS (
          SELECT audits_caisse.site,
             count(*) FILTER (WHERE (audits_caisse.statut = ANY (ARRAY['anomalie'::text, 'critique'::text]))) AS nb_anomalies,
@@ -77,6 +77,3 @@ create or replace view "public"."v_caisse_ecart_recurrent" as  WITH fenetre AS (
         END AS confiance_calculee
    FROM fenetre
   WHERE (nb_anomalies >= 2);
-
-
-

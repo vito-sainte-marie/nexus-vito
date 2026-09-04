@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731121603 · nexus_api_auth_integrations_layer
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- ============================================================
 -- NEXUS API — Couche authentification & intégrations
 -- Master prompt : Déploiement de l'infrastructure API NEXUS
@@ -26,7 +33,6 @@ create table if not exists public.api_keys (
   unique (cle_prefix)
 );
 comment on table public.api_keys is 'Clés API émises par NEXUS pour les déclarations terrain (écriture) et pour les connecteurs caisse en lecture. Jamais la clé en clair, uniquement le hash. Gérées via l''écran d''administration NEXUS-Admin-API-v1.html.';
-
 create table if not exists public.api_logs (
   id              uuid primary key default gen_random_uuid(),
   api_key_id      uuid references public.api_keys(id),
@@ -42,7 +48,6 @@ create table if not exists public.api_logs (
 comment on table public.api_logs is 'Journal d''audit de chaque appel authentifié à l''API NEXUS — indépendant des logs applicatifs génériques.';
 create index if not exists idx_api_logs_site_date on public.api_logs(site, cree_le desc);
 create index if not exists idx_api_logs_key on public.api_logs(api_key_id, cree_le desc);
-
 create table if not exists public.integration_sources (
   id                uuid primary key default gen_random_uuid(),
   code              text not null unique,             -- 'decenium' | 'pennylane' | 'worldline' | 'nepting' | 'excel' | 'csv'
@@ -53,7 +58,6 @@ create table if not exists public.integration_sources (
   cree_le           timestamptz not null default now()
 );
 comment on table public.integration_sources is 'Catalogue des logiciels/formats pouvant s''intégrer à NEXUS. Alimente l''interface Intégrations.';
-
 create table if not exists public.integration_status (
   id                  uuid primary key default gen_random_uuid(),
   site                text not null references public.sites(site_id),
@@ -66,7 +70,6 @@ create table if not exists public.integration_status (
   unique(site, source_code)
 );
 comment on table public.integration_status is 'État de connexion par établissement et par source, affiché sur l''écran d''administration et sur la page publique (panneau illustratif).';
-
 alter table public.api_keys enable row level security;
 alter table public.api_logs enable row level security;
 alter table public.integration_sources enable row level security;
@@ -81,7 +84,6 @@ insert into public.integration_sources (code, nom, type, description) values
   ('excel',     'Excel',     'import_manuel',   'Export manuel — chemin actuel tant que le connecteur caisse n''est pas en service.'),
   ('csv',       'CSV',       'import_manuel',   'Import manuel générique.')
 on conflict (code) do nothing;
-
 insert into public.integration_status (site, source_code, statut, message) values
   ('vito-sainte-marie', 'decenium',  'en_attente',    'Clé API demandée à Decenium — connecteur prêt côté NEXUS, en attente de mise à disposition.'),
   ('vito-sainte-marie', 'pennylane', 'non_connecte',  null),

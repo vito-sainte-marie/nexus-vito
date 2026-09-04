@@ -1,15 +1,17 @@
--- NEXUS — préfixe des onglets mensuels du classeur de planning
--- 03/09/2026, demande de Frédéric.
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260903130746 · station_config_planning_onglet_prefixe
 --
--- Le classeur « PLANNING ENERGY 2026 » porte un onglet par site ET par mois :
--- SMU09 pour septembre à Vito Sainte-Marie Usine, SMU10 pour octobre, etc.
--- NEXUS ne devine JAMAIS ce préfixe (article 5 : vérité avant certitude) :
--- il est déclaré une fois dans Paramètres Station, et l'onglet lu est
--- exactement <prefixe> || <mois sur 2 chiffres>. Sans préfixe déclaré,
--- aucune synchronisation de planning n'est proposée.
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
 
+-- Convention de nommage des onglets du classeur de planning (03/09/2026).
+-- Le classeur « Planning Energy 2026 » contient un onglet par site ET par
+-- mois : SMU09 pour Sainte-Marie Usine en septembre, SMU10 en octobre. Le
+-- préfixe désigne le site, les deux chiffres le mois. NEXUS dérive donc le
+-- nom de l'onglet du mois affiché, sans que personne ait à le ressaisir.
 alter table public.station_config
   add column if not exists planning_onglet_prefixe text;
 
 comment on column public.station_config.planning_onglet_prefixe is
-  'Préfixe des onglets mensuels du classeur de planning (ex. "SMU" -> SMU09, SMU10). L''onglet lu est <prefixe><mois sur 2 chiffres>, jamais deviné.';
+'Préfixe des onglets de planning dans le classeur Google (ex. "SMU"). L''onglet lu est <prefixe><mois sur 2 chiffres> : SMU09, SMU10… Le classeur mélangeant plusieurs sites, ce préfixe est ce qui garantit qu''on lit la bonne équipe — il n''est jamais deviné.';

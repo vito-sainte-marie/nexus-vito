@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260728222354 · creer_vue_caisse_ecart_a_traiter
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- Vue Cockpit (28/07/2026, demande de Frédéric — "le Cockpit doit distribuer
 -- du travail, pas seulement parler produits") : identifie, pour chaque audit
 -- de caisse en anomalie/critique et non justifié (pas de commentaire, 14
@@ -36,5 +43,4 @@ left join public.employees e on e.id = (
 where ac.statut in ('anomalie','critique')
   and (ac.commentaire is null or btrim(ac.commentaire) = '')
   and ac.date >= current_date - interval '14 days';
-
 comment on view public.v_caisse_ecart_a_traiter is 'Écarts de caisse anomalie/critique non justifiés (14 derniers jours), avec le côté dominant et l''employé unique attribuable (NULL si ambigu). Source du candidat "caisse par personne" du Conseiller NEXUS/Cockpit (nexus-conseiller.js).';

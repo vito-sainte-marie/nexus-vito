@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260728140501 · add_missing_foreign_key_indexes
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 create index if not exists idx_advisor_feedback_advisor_message_id on public.advisor_feedback(advisor_message_id);
 create index if not exists idx_advisor_feedback_manager_id on public.advisor_feedback(manager_id);
 create index if not exists idx_advisor_feedback_site_id on public.advisor_feedback(site_id);

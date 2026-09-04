@@ -1,0 +1,23 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260821040538 · inventaire_plan_items_regle_snapshot
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
+-- 20/08/2026, Sprint 4 "Snapshot complet du plan" (demande de Frédéric :
+-- "le périmètre d'un quart d'inventaire doit être figé dès l'ouverture...
+-- même si le manager modifie ensuite les paramètres de catégorie [...] le
+-- quart déjà commencé ne change pas"). inventaire_plan_items figeait déjà
+-- la LISTE de produit_id (jamais recalculée, Sprint 2) mais pas la règle
+-- effective (profil, quarts_comptage, comptage_masque...) appliquée à
+-- chaque produit — celle-ci était relue en LIVE (chargerPlanExistant fait
+-- un JOIN sur inventaire_zone_produit à chaque lecture), donc une catégorie
+-- modifiée en cours de quart pouvait faire disparaître ou changer de
+-- comportement un produit déjà retenu dans le plan.
+-- regle_snapshot capture la règle EFFECTIVE (NexusInventaireMoteur.
+-- regleEffectiveProduit — même cascade Site → Catégorie → Produit que
+-- partout ailleurs, jamais une deuxième logique) au moment précis de la
+-- génération du plan. NULL = comportement par défaut (aucune règle
+-- applicable à ce moment-là), pas "non renseigné" — voir NEXUS-Inventaire-v1.html.
+alter table inventaire_plan_items add column regle_snapshot jsonb;

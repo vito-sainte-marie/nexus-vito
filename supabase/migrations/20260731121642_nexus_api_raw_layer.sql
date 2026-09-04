@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260731121642 · nexus_api_raw_layer
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- ============================================================
 -- NEXUS API — Couche RAW (données brutes, immuables, insert-only)
 -- Une ligne brute n'est jamais modifiée après réception, seulement
@@ -16,7 +23,6 @@ create table if not exists public.raw_sales (
   unique(site, source, external_id, external_updated_at)
 );
 comment on table public.raw_sales is 'Ventes reçues du connecteur caisse, conservées exactement telles quelles. Insert-only.';
-
 create table if not exists public.raw_products (
   id                    uuid primary key default gen_random_uuid(),
   site                  text not null references public.sites(site_id),
@@ -28,7 +34,6 @@ create table if not exists public.raw_products (
   unique(site, source, external_id, external_updated_at)
 );
 comment on table public.raw_products is 'Catalogue produit reçu du connecteur caisse, conservé tel quel. Insert-only.';
-
 create table if not exists public.raw_stock_movements (
   id                    uuid primary key default gen_random_uuid(),
   site                  text not null references public.sites(site_id),
@@ -40,7 +45,6 @@ create table if not exists public.raw_stock_movements (
   unique(site, source, external_id, external_updated_at)
 );
 comment on table public.raw_stock_movements is 'Mouvements de stock reçus du connecteur caisse, conservés tels quels. Insert-only.';
-
 create table if not exists public.raw_cash_sessions (
   id                    uuid primary key default gen_random_uuid(),
   site                  text not null references public.sites(site_id),
@@ -52,7 +56,6 @@ create table if not exists public.raw_cash_sessions (
   unique(site, source, external_id, external_updated_at)
 );
 comment on table public.raw_cash_sessions is 'Sessions de caisse (ouverture/fermeture) reçues du connecteur, conservées telles quelles. Insert-only.';
-
 create table if not exists public.normalization_state (
   id            uuid primary key default gen_random_uuid(),
   raw_table     text not null check (raw_table in ('raw_sales','raw_products','raw_stock_movements','raw_cash_sessions')),
@@ -63,7 +66,6 @@ create table if not exists public.normalization_state (
   unique(raw_table, raw_id)
 );
 comment on table public.normalization_state is 'Suivi de l''état de normalisation d''une ligne brute, séparé de la couche RAW pour préserver son immutabilité stricte.';
-
 create table if not exists public.integration_errors (
   id            uuid primary key default gen_random_uuid(),
   site          text not null,
@@ -78,7 +80,6 @@ create table if not exists public.integration_errors (
 );
 comment on table public.integration_errors is 'Anomalies détectées à la réception ou à la normalisation — rejet explicite, jamais de valeur inventée.';
 create index if not exists idx_integration_errors_site_date on public.integration_errors(site, cree_le desc);
-
 create table if not exists public.synchronization_history (
   id              uuid primary key default gen_random_uuid(),
   site            text not null references public.sites(site_id),
@@ -94,7 +95,6 @@ create table if not exists public.synchronization_history (
 );
 comment on table public.synchronization_history is 'Historique des synchronisations différentielles — sert aussi de source du dernier curseur réussi par (site, source, domaine).';
 create index if not exists idx_sync_history_lookup on public.synchronization_history(site, source, domaine, termine_le desc);
-
 alter table public.raw_sales enable row level security;
 alter table public.raw_products enable row level security;
 alter table public.raw_stock_movements enable row level security;
@@ -102,4 +102,4 @@ alter table public.raw_cash_sessions enable row level security;
 alter table public.normalization_state enable row level security;
 alter table public.integration_errors enable row level security;
 alter table public.synchronization_history enable row level security;
--- Aucune policy permissive : accès exclusif via service_role (Edge Functions).
+-- Aucune policy permissive : accès exclusif via service_role (Edge Functions).;

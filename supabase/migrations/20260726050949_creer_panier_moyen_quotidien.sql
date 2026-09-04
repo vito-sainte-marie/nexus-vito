@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260726050949 · creer_panier_moyen_quotidien
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- ------------------------------------------------------------
 -- Panier moyen quotidien (25/07/2026) — export Decenium "Panier Moyen"
 -- (menu Compta > Panier Moyen). Une ligne par jour calendaire : nombre
@@ -20,22 +27,17 @@ create table if not exists panier_moyen_quotidien (
   importe_le timestamptz not null default now(),
   unique (site, date)
 );
-
 comment on table panier_moyen_quotidien is 'Panier moyen et nombre de tickets BOUTIQUE (hors carburant) par jour, importé depuis Decenium (menu Compta > Panier Moyen).';
-
 alter table panier_moyen_quotidien enable row level security;
-
 create policy "lecture_meme_site" on panier_moyen_quotidien
   for select
   using (site = current_employee_site_id());
-
 create policy "ecriture_manager_meme_site" on panier_moyen_quotidien
   for insert
   with check (
     current_employee_role() = any (array['manager', 'gerant'])
     and site = current_employee_site_id()
   );
-
 create policy "modification_manager_meme_site" on panier_moyen_quotidien
   for update
   using (
@@ -46,14 +48,12 @@ create policy "modification_manager_meme_site" on panier_moyen_quotidien
     current_employee_role() = any (array['manager', 'gerant'])
     and site = current_employee_site_id()
   );
-
 create policy "suppression_manager_meme_site" on panier_moyen_quotidien
   for delete
   using (
     current_employee_role() = any (array['manager', 'gerant'])
     and site = current_employee_site_id()
   );
-
 create policy "createur_lit_si_autorise" on panier_moyen_quotidien
   for select
   using (

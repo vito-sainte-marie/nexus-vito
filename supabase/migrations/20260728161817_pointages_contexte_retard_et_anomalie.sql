@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260728161817 · pointages_contexte_retard_et_anomalie
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 -- Contexte du retard + signalement d'anomalie (28/07/2026, demande de
 -- Frédéric) : l'employé voyait un simple "+84 min" sans savoir d'où ça
 -- sortait, ce qui pouvait passer pour un bug. On enregistre maintenant

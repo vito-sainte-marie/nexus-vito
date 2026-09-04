@@ -1,3 +1,10 @@
+-- Récupérée depuis supabase_migrations.schema_migrations du projet de production
+-- le 04/09/2026. Version 20260728135643 · fix_function_search_path_mutable
+--
+-- Ces migrations avaient été appliquées via le tableau de bord ou l'API et
+-- n'existaient dans AUCUN fichier du dépôt : c'est ce qui empêchait toute
+-- reconstruction complète du schéma.
+
 alter function public.assigner_controles_tenue_depuis_message(uuid, uuid) set search_path = public;
 alter function public.assigner_justifications_caisse_depuis_message(uuid, uuid) set search_path = public;
 alter function public.calculer_caisse_sante(text, date) set search_path = public;

@@ -20,6 +20,17 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+// Les migrations sont retrouvées par leur NOM, pas par leur numéro de
+// version : depuis la récupération de l'historique complet (04/09/2026), les
+// versions sont celles enregistrées par Supabase et non des horodatages
+// choisis à la main. Coder un numéro en dur casserait au premier réalignement.
+function migrationParNom(fragment) {
+  const dossier = path.join(__dirname, 'supabase', 'migrations');
+  const f = fs.readdirSync(dossier).filter(x => x.includes(fragment) && x.endsWith('.sql')).sort().pop();
+  assert.ok(f, `aucune migration ne correspond à « ${fragment} »`);
+  return fs.readFileSync(path.join(dossier, f), 'utf8');
+}
+
 const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Missions-v1.html'), 'utf8');
 
 // Extraction par bornes de fonction — on rejoue le vrai code de l'écran.
@@ -171,8 +182,7 @@ const BALAYER = 'balayer-nettoyer-piste';
     Object.keys(vide.checkState).length === 0);
 
   // ── 5. L'historique archivé reste lisible par le manager ───────────────
-  const migration = fs.readFileSync(
-    path.join(__dirname, 'supabase', 'migrations', '20260904010000_mission_progress_isolation_prise_de_poste.sql'), 'utf8');
+  const migration = migrationParNom('mission_progress_isolation_prise_de_poste');
   verifier('la migration archive avant de supprimer, et compare les deux comptes',
     /insert into public\.mission_progress_archive_2026_09/.test(migration)
     && /Archivage incomplet/.test(migration) && /Écart archivage\/suppression/.test(migration));
