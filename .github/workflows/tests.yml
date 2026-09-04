@@ -1,0 +1,76 @@
+# NEXUS — suite de non-régression (04/09/2026).
+#
+# CE WORKFLOW NE DÉPLOIE RIEN. Il exécute uniquement les tests, à chaque
+# push et sur chaque pull request. C'est la première marche de
+# l'architecture Test/Production : avoir un filet AVANT d'automatiser quoi
+# que ce soit.
+#
+# Contexte : jusqu'ici il n'existait aucun workflow, et GitHub Pages servait
+# `main` directement — pousser revenait donc à déployer en production sans
+# qu'aucun test n'ait été exécuté ailleurs que sur le poste du développeur.
+#
+# Attention en lisant le résultat : 9 tests échouent déjà indépendamment de
+# toute modification (inventaire ×5, réception ×2, carburant ×1, pilotage
+# ×1). Ils sont listés ci-dessous et tolérés tant qu'ils ne sont pas repris.
+# Le workflow échoue si un AUTRE test casse, ou si l'un de ces 9 est réparé
+# sans mettre la liste à jour — un garde-fou volontairement strict, pour que
+# la dette reste visible plutôt que de s'installer.
+name: Tests
+
+# Aucun secret n'est référencé, et le jeton n'a que la lecture du dépôt :
+# ce workflow ne peut ni écrire dans le dépôt, ni publier, ni atteindre quoi
+# que ce soit hors de la machine de build. Les tests sont purement locaux —
+# aucun n'ouvre de connexion réseau ni ne parle à Supabase (vérifié).
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  non-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Cohérence des épingles de cache
+        run: node outils/poser-build-id.js --verifier
+
+      - name: Suite de non-régression
+        id: suite
+        run: node run-tests.js | tee /tmp/sortie.txt
+        continue-on-error: true
+
+      - name: Comparer aux échecs connus
+        run: |
+          set -euo pipefail
+          CONNUS="test_chaine_temporelle_carburant_20260821.js
+          test_inventaire_categorie_mixte_deux_lieux.js
+          test_inventaire_parcours_depot_boutique_reste.js
+          test_inventaire_production_journaliere_q1.js
+          test_inventaire_sprint4_ux_flash.js
+          test_inventaire_sprint4bis_ecriture_immediate.js
+          test_pilotage_qualite_receptions.js
+          test_reception_moteur.js
+          test_reception_v1_dom.js"
+          ACTUELS=$(grep -oE 'test_[a-z0-9_]+\.js' /tmp/sortie.txt | sort -u || true)
+          ATTENDUS=$(echo "$CONNUS" | sed 's/^ *//' | sort -u)
+          NOUVEAUX=$(comm -13 <(echo "$ATTENDUS") <(echo "$ACTUELS") || true)
+          REPARES=$(comm -23 <(echo "$ATTENDUS") <(echo "$ACTUELS") || true)
+          if [ -n "$NOUVEAUX" ]; then
+            echo "::error::Nouveaux tests en échec :"; echo "$NOUVEAUX"; exit 1
+          fi
+          if [ -n "$REPARES" ]; then
+            echo "::error::Ces tests ne sont plus en échec — retirez-les de la liste des échecs connus :"; echo "$REPARES"; exit 1
+          fi
+          echo "Aucune régression : seuls les 9 échecs connus subsistent."
+
+      - name: Simulations métier
+        run: npm run simulations --silent
