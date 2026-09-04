@@ -1,7 +1,7 @@
 // NEXUS Inventaire V2 — Transfert interne directement depuis Stock par emplacement
 (function () {
   'use strict';
-  if ((window.location.pathname.split('/').pop() || '') !== 'NEXUS-Stock-Localise-v1.html') return;
+  if(!NexusPage.est('NEXUS-Stock-Localise-v1.html')) return;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   let ctx = null;

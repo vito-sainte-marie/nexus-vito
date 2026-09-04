@@ -11,7 +11,7 @@
 // artificiellement de la place en cuve.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Carburants-Pilotage-v1.html') return;
+  if(!NexusPage.est('NEXUS-Carburants-Pilotage-v1.html')) return;
 
   const PAS=1000;
   const NOM={sp95:'SP95',go:'GO',gnr:'GNR'};

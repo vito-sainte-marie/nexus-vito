@@ -2,7 +2,7 @@
 // sur Stock par emplacement, Contrôle ciblé et Transfert interne.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Stock-Localise-v1.html') return;
+  if(!NexusPage.est('NEXUS-Stock-Localise-v1.html')) return;
 
   const facteursParProduit=new Map();
   const attendre=()=>new Promise(resolve=>{

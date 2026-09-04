@@ -279,6 +279,70 @@ Données réparées : 1 ligne `shifts`, 89 lignes `mission_catalog`.
 déployé l'écrit encore. Cible décrite dans
 `docs/plans/2026-09-04-site-source-unique.md`.
 
+## A8 — boucle de redirection infinie sous Cloudflare *(bloquant, corrigé)*
+
+| | |
+|---|---|
+| **Écran** | `NEXUS-Prise-De-Poste-v1`, puis `NEXUS-Pointage-v1` |
+| **Action** | Ouverture de session Employé Test A, chargement de n'importe quel écran |
+| **Rôle** | Caissier — et tout rôle non-manager. Manager Test n'est pas touché : son garde de prise de poste rend la main avant |
+| **Requête** | 68 chargements en chaîne de `/NEXUS-Prise-De-Poste-v1`, chacun ajoutant un niveau de `?retour=` ré-encodé |
+| **Attendu** | L'écran de prise de poste s'affiche et propose les rôles |
+| **Obtenu** | Écran bloqué sur « Chargement… », URL de plusieurs milliers de caractères, boucle sans fin, **aucune erreur console** |
+
+**Cause.** Le code identifiait la page en comparant le dernier segment de
+l'URL à des noms de fichiers avec extension. GitHub Pages sert
+`/NEXUS-Prise-De-Poste-v1.html` ; **Cloudflare Pages répond 308 vers la forme
+sans extension**. La page ne se reconnaissait plus dans
+`NEXUS_PAGES_SEQUENCE_OBLIGATOIRE`, concluait que la prise de poste manquait,
+et redirigeait vers elle-même.
+
+**Ce n'est pas un bug latent : c'est une différence d'environnement.** Sur
+GitHub Pages, qui sert la production, le garde fonctionne. Le défaut n'existe
+que sur Cloudflare — l'hébergeur vers lequel la production doit migrer. La
+production ne pouvait pas le révéler ; la recette, si.
+
+**Portée réelle, au-delà de la boucle.** L'inventaire a trouvé **21
+comparaisons** de ce type. Outre les 2 gardes, **17 aiguillages de chargement
+de scripts** dans `nexus-auth.js` et **13 gardes d'auto-désactivation** dans
+les satellites Inventaire et Carburants : sous Cloudflare, une quinzaine de
+scripts ne se chargeaient pas et treize fonctionnalités sortaient
+immédiatement — **absentes, en silence**. Les écrans s'affichaient, amputés.
+
+**Non concerné, vérifié plutôt que supposé :** le verrou de forfait
+(`nexus-forfait.js`) reçoit un nom de fichier en dur depuis chaque écran
+Professional, jamais l'URL. Il n'est pas cassé. `NEXUS-App-v1.html:2303`
+compare un `href` du catalogue interne, pas l'URL : consigné, non modifié.
+
+**Correction.** Une couche unique, `nexus-page.js` : `NexusPage.identifiant()`
+retire fragment, query et extension ; `NexusPage.est()` normalise **les deux
+côtés** de la comparaison. Les littéraux restent écrits comme des noms de
+fichiers. Posée au build sur les 53 écrans, entre `nexus-config.js` et le
+bandeau, donc avant `nexus-auth.js` et avant les scripts qu'il injecte.
+`nexus-auth.js` refuse de démarrer avec un message explicite si elle manque.
+
+L'URL de retour n'est **pas** normalisée, délibérément : elle doit conserver
+l'extension telle que l'hébergeur la sert — sur GitHub Pages, un nom sans
+`.html` ne résout pas. Un test le verrouille.
+
+**Preuve.** `test_identification_page_20260904.js`, 33 vérifications. Avant :
+`/NEXUS-Prise-De-Poste-v1` non reconnue → boucle. Après : reconnue sous les
+deux hébergeurs, avec ou sans query, avec ou sans fragment ; boucle mesurée à
+**0 tour**.
+
+## A7 — l'accueil public ne porte pas le bandeau MODE TEST
+
+| | |
+|---|---|
+| **Écran** | `index.html` — page vitrine, sur laquelle la déconnexion renvoie |
+| **Attendu** | Savoir qu'on est sur la recette |
+| **Obtenu** | Aucun bandeau, aucune configuration chargée : la page est identique à celle de production |
+
+Elle n'est pas dans les 53 écrans traités par le build — elle ne charge ni
+`nexus-auth.js` ni la configuration. Sévérité faible : page vitrine, aucune
+donnée. Mais son bouton « Voir l'app en direct » mène à la recette sans que
+rien ne le dise. Même famille qu'A3.
+
 ## A3 à A6 — hors correctif A2
 
 | # | Anomalie | Portée | Suivi |
@@ -286,7 +350,7 @@ déployé l'écrit encore. Cible décrite dans
 | **A3** | « Vito Sainte-Marie Usine », nom du commerce de production, **écrit en dur dans 39 écrans** (46 occurrences). S'affiche en pied de page de la Prise de poste alors que la session est sur `nexus-station-test`. L'en-tête, lui, lit la base. | Défaut multi-tenant : tout client verrait ce nom | à ouvrir |
 | **A4** | Deux `console.error` sur l'écran d'accueil (« Chargement products (accueil) : aucune ligne exploitable », « (marge accueil): null »). Cause bénigne — base de recette vide — mais le contrôle « aucune erreur console » ne passait pas tel qu'énoncé. | Contrôle final 3 en échec | **corrigé** — lot séparé : le contrôle n'est PAS assoupli, c'est la journalisation qui est corrigée. Une absence de données est un état métier normal (`console.info`) ; `console.error` reste réservé aux erreurs de la base. Les deux cas, jusque-là confondus dans la même condition, sont séparés. |
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
-| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5`, alors que le commit déployé est `f3526ad`. | **Traçabilité** : on ne peut pas savoir depuis l'écran quelle version on éprouve | **bloquant avant validation finale de la recette** |
+| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5`, alors que le commit déployé est `f3526ad`. Et les épingles de cache `?v=` ne sont pas régénérées au déploiement : un fichier modifié est servi sous une épingle inchangée, donc potentiellement depuis le cache du navigateur. Constaté sur le correctif A4 — Chrome a pris la nouvelle version, mais rien ne le garantissait. | **Traçabilité** : on ne peut savoir ni depuis l'écran, ni depuis le cache, quelle version du code on éprouve | **bloquant avant validation finale de la recette** |
 
 ## Défense en profondeur — requêtes sans filtre de site
 

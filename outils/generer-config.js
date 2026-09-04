@@ -106,6 +106,18 @@ const BALISE_CONFIG = '<script src="nexus-config.js"></script>';
 // nexus-auth.js et l'écran de connexion qui avait ouvert le défaut d'origine.
 const BALISE_BANDEAU = '<script src="nexus-bandeau-environnement.js"></script>';
 
+// `nexus-page.js` identifie la page courante indépendamment de l'hébergeur.
+// Il doit précéder nexus-auth.js, qui l'utilise pour ses gardes de séquence
+// obligatoire, ET les scripts que nexus-auth.js injecte ensuite. Sans lui,
+// Cloudflare retirant l'extension `.html` des URL, l'écran de prise de poste
+// ne se reconnaissait plus lui-même et bouclait indéfiniment.
+const BALISE_PAGE = '<script src="nexus-page.js"></script>';
+
+// Les balises sont posées dans cet ordre, chacune une seule fois : la
+// configuration d'abord (les deux autres la lisent ou en dépendent), puis
+// l'identification de page, puis le bandeau.
+const BALISES_ORDONNEES = [BALISE_CONFIG, BALISE_PAGE, BALISE_BANDEAU];
+
 function poserBalises(contenu, ancre) {
   let sortie = contenu;
   if (!sortie.includes(BALISE_CONFIG)) {
@@ -113,8 +125,12 @@ function poserBalises(contenu, ancre) {
     if (remplace === sortie) return null;
     sortie = remplace;
   }
-  if (!sortie.includes(BALISE_BANDEAU)) {
-    sortie = sortie.replace(BALISE_CONFIG, `${BALISE_CONFIG}\n${BALISE_BANDEAU}`);
+  let precedente = BALISE_CONFIG;
+  for (const balise of BALISES_ORDONNEES.slice(1)) {
+    if (!sortie.includes(balise)) {
+      sortie = sortie.replace(precedente, `${precedente}\n${balise}`);
+    }
+    precedente = balise;
   }
   return sortie;
 }
