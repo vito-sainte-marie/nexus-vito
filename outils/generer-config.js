@@ -96,32 +96,88 @@ fs.writeFileSync(CIBLE, contenu);
 // juste AVANT lui : la configuration doit exister quand nexus-auth.js
 // s'exécute. La balise ne porte pas d'épingle `?v=` — ce fichier ne doit
 // jamais être mis en cache, puisqu'il distingue les environnements.
-const BALISE = '<script src="nexus-config.js"></script>';
+const BALISE_CONFIG = '<script src="nexus-config.js"></script>';
+
+// Le bandeau d'environnement suit immédiatement la configuration : il la lit,
+// et il doit être posé sur EXACTEMENT les mêmes écrans — sinon il resterait
+// des pages de recette impossibles à distinguer de la production. Une seule
+// implémentation, `nexus-bandeau-environnement.js`, plutôt qu'un extrait
+// recopié écran par écran : c'est la duplication de la configuration entre
+// nexus-auth.js et l'écran de connexion qui avait ouvert le défaut d'origine.
+const BALISE_BANDEAU = '<script src="nexus-bandeau-environnement.js"></script>';
+
+function poserBalises(contenu, ancre) {
+  let sortie = contenu;
+  if (!sortie.includes(BALISE_CONFIG)) {
+    const remplace = sortie.replace(ancre, `${BALISE_CONFIG}\n$&`);
+    if (remplace === sortie) return null;
+    sortie = remplace;
+  }
+  if (!sortie.includes(BALISE_BANDEAU)) {
+    sortie = sortie.replace(BALISE_CONFIG, `${BALISE_CONFIG}\n${BALISE_BANDEAU}`);
+  }
+  return sortie;
+}
+
 let poses = 0, deja = 0;
 for (const f of fs.readdirSync(RACINE).filter(x => x.endsWith('.html'))) {
   const chemin = path.join(RACINE, f);
   const avant = fs.readFileSync(chemin, 'utf8');
   if (!/<script src="nexus-auth\.js/.test(avant)) continue;
-  if (avant.includes(BALISE)) { deja++; continue; }
-  const apres = avant.replace(/(<script src="nexus-auth\.js)/, `${BALISE}\n$1`);
+  const apres = poserBalises(avant, /<script src="nexus-auth\.js/);
+  if (apres === null) echouer(`Impossible d’insérer la configuration dans ${f}.`);
+  if (apres === avant) { deja++; continue; }
   fs.writeFileSync(chemin, apres);
   poses++;
 }
 
 // L'écran de connexion n'inclut pas nexus-auth.js — il a pourtant besoin de
-// la configuration. Il est traité explicitement plutôt qu'oublié.
+// la configuration, et c'est l'écran où savoir à quelle base on parle compte
+// le plus. Il est traité explicitement plutôt qu'oublié.
 const LOGIN = path.join(RACINE, 'NEXUS-Login-v1.html');
 if (fs.existsSync(LOGIN)) {
   const avant = fs.readFileSync(LOGIN, 'utf8');
-  if (!avant.includes(BALISE)) {
-    const apres = avant.replace(/(<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2"><\/script>)/,
-      `$1\n${BALISE}`);
-    if (apres === avant) echouer('Impossible d’insérer la configuration dans NEXUS-Login-v1.html.');
-    fs.writeFileSync(LOGIN, apres);
-    poses++;
-  } else deja++;
+  const apres = poserBalises(avant, /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2"><\/script>/);
+  if (apres === null) echouer('Impossible d’insérer la configuration dans NEXUS-Login-v1.html.');
+  if (apres === avant) deja++; else { fs.writeFileSync(LOGIN, apres); poses++; }
+}
+
+// 6. `robots.txt` — l'environnement de test ne doit pas être indexable.
+//
+// Le fichier versionné est celui de la PRODUCTION (`Allow: /`). Le laisser
+// tel quel sur la recette revenait à publier, ouvert aux moteurs, une copie
+// des données métier de la station sous une URL devinable. Il est donc
+// réécrit au build pour le test, et laissé intact pour la production —
+// exactement la même logique que nexus-config.js : c'est le build, jamais le
+// dépôt, qui décide de ce qui distingue les deux environnements.
+const ROBOTS = path.join(RACINE, 'robots.txt');
+if (env === 'test') {
+  fs.writeFileSync(ROBOTS, [
+    '# Environnement de RECETTE — écrit au build par outils/generer-config.js.',
+    '# Ne pas indexer : cette copie ne fait autorité sur rien.',
+    'User-agent: *',
+    'Disallow: /',
+    ''
+  ].join('\n'));
+}
+
+// 7. `_headers` — Cloudflare Pages. `nexus-config.js` désigne l'environnement :
+// un exemplaire gardé en cache, c'est un écran de recette qui parle à la
+// production ou l'inverse. `no-store` est la seule directive qui interdise
+// la conservation ; `max-age=0, must-revalidate` autorise encore un stockage
+// suivi d'une revalidation, donc une fenêtre de service depuis le cache.
+// Vérifié ici, en échec fermé : un build ne doit pas pouvoir publier sans.
+const ENTETES = path.join(RACINE, '_headers');
+if (!fs.existsSync(ENTETES)) {
+  echouer('Le fichier `_headers` est absent : `nexus-config.js` serait servi sans `no-store`.');
+}
+const entetes = fs.readFileSync(ENTETES, 'utf8');
+if (!/^\/nexus-config\.js\s*$/m.test(entetes) || !/Cache-Control:\s*no-store/i.test(entetes)) {
+  echouer('`_headers` ne porte pas la règle `Cache-Control: no-store` pour /nexus-config.js.');
 }
 
 console.log(`Configuration NEXUS générée — environnement « ${env} ».`);
 console.log(`  nexus-config.js écrit à la racine publiée.`);
-console.log(`  balise posée sur ${poses} écran(s), déjà présente sur ${deja}.`);
+console.log(`  balises posées sur ${poses} écran(s), déjà présentes sur ${deja}.`);
+console.log(`  robots.txt : ${env === 'test' ? 'réécrit en Disallow (recette)' : 'laissé tel quel (production)'}.`);
+console.log(`  _headers : règle no-store vérifiée pour nexus-config.js.`);

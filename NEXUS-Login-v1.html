@@ -108,6 +108,13 @@
     if (session) window.location.href = "NEXUS-App-v1.html";
   });
 
+  // Message unique pour tous les refus d'identification — prénom inconnu,
+  // PIN incorrect, compte désactivé. Distinguer les deux premiers revenait à
+  // confirmer, sans PIN, qu'un prénom donné correspond à un compte : l'écran
+  // devenait un oracle d'énumération, un prénom à la fois. Exigence posée par
+  // .github/recettes/CADRAGE-nexus-test.md.
+  const REFUS = "Prénom ou code PIN incorrect.";
+
   const prenomInput = document.getElementById("prenom");
   const pinInput = document.getElementById("pin");
   const btn = document.getElementById("connexion");
@@ -127,14 +134,16 @@
     btn.disabled = true;
     btn.textContent = "Connexion...";
 
-    // On retrouve le username (identifiant technique) à partir du prénom affiché
-    let employee, lookupError;
+    // On retrouve le username (identifiant technique) à partir du prénom
+    // affiché. Passer par une fonction et non par une vue lisible en
+    // anonyme : une vue accepte aussi une requête SANS filtre, et rendait
+    // donc l'annuaire complet — tous sites confondus — à un visiteur muni de
+    // la seule clé publiable. La fonction ne répond qu'à ce prénom-là, et
+    // renvoie NULL s'il est inconnu ou porté par plusieurs comptes.
+    let identifiant, lookupError;
     try {
-      ({ data: employee, error: lookupError } = await client
-        .from("employees_public")
-        .select("username")
-        .ilike("nom", prenom)
-        .maybeSingle());
+      ({ data: identifiant, error: lookupError } = await client
+        .rpc("nexus_identifiant_de_connexion", { p_prenom: prenom }));
     } catch (networkError) {
       lookupError = networkError;
     }
@@ -147,8 +156,8 @@
       return;
     }
 
-    if (!employee) {
-      errBox.textContent = "Prénom non reconnu. Vérifiez l'orthographe ou contactez le manager.";
+    if (!identifiant) {
+      errBox.textContent = REFUS;
       errBox.style.display = "block";
       btn.disabled = false;
       btn.textContent = "Se connecter";
@@ -158,7 +167,7 @@
     let authError;
     try {
       ({ error: authError } = await client.auth.signInWithPassword({
-        email: `${employee.username}@vito-nexus.local`,
+        email: `${identifiant}@vito-nexus.local`,
         password: pin
       }));
     } catch (networkError) {
@@ -170,7 +179,7 @@
     }
 
     if (authError) {
-      errBox.textContent = "Code PIN incorrect.";
+      errBox.textContent = REFUS;
       errBox.style.display = "block";
       pinInput.value = "";
       btn.disabled = false;
