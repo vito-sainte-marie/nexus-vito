@@ -3,8 +3,36 @@
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 // <script src="nexus-auth.js?v=20260904-0104"></script>
 
-const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
-const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
+// Configuration d'environnement (04/09/2026). L'URL et la clé ne sont plus
+// écrites ici : elles viennent de `nexus-config.js`, généré au build depuis
+// les variables d'environnement. Un même code source sert donc la recette et
+// la production, et c'est le build — jamais le dépôt — qui décide de la base
+// visée.
+//
+// ÉCHEC FERMÉ : sans configuration valide, NEXUS refuse de démarrer et le
+// dit. Il ne retombe sur aucune valeur par défaut — une valeur par défaut
+// serait forcément celle d'un environnement, et ferait écrire la recette
+// dans la base de l'autre.
+const NEXUS_CFG = (typeof window !== 'undefined' && window.NEXUS_CONFIG) || null;
+if (!NEXUS_CFG || !NEXUS_CFG.supabaseUrl || !NEXUS_CFG.supabaseCle || !NEXUS_CFG.environnement) {
+  const manquant = !NEXUS_CFG ? 'nexus-config.js n’a pas été chargé'
+    : 'nexus-config.js est incomplet (' + ['environnement','supabaseUrl','supabaseCle'].filter(c => !NEXUS_CFG[c]).join(', ') + ')';
+  const message = 'NEXUS ne peut pas démarrer : ' + manquant
+    + '. Ce fichier est produit au moment du build par outils/generer-config.js ; '
+    + 'sans lui, l’application ignore à quelle base elle doit parler et refuse de deviner.';
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.innerHTML = '<div style="max-width:640px;margin:14vh auto;padding:22px;'
+      + 'font:14px/1.6 system-ui,sans-serif;color:#EDF1F5;background:#141B22;'
+      + 'border:1px solid #F0546B;border-radius:12px">'
+      + '<strong style="color:#F0546B">Configuration absente</strong><br><br>'
+      + message.replace(/</g, '&lt;') + '</div>';
+  }, { once: true });
+  throw new Error(message);
+}
+
+const NEXUS_SUPABASE_URL = NEXUS_CFG.supabaseUrl;
+const NEXUS_SUPABASE_ANON_KEY = NEXUS_CFG.supabaseCle;
+const NEXUS_ENVIRONNEMENT = NEXUS_CFG.environnement;
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 

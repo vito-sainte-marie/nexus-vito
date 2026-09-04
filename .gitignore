@@ -27,3 +27,6 @@ npm-debug.log*
 .env.local
 *.tgz
 supabase/.temp/
+
+# Configuration d'environnement, générée au build — jamais versionnée.
+nexus-config.js

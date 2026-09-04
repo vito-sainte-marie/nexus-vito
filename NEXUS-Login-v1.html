@@ -84,8 +84,23 @@
 </div>
 
 <script>
-  const SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
+  // L'écran de connexion partage la configuration commune (04/09/2026). Il
+  // redéclarait auparavant sa propre URL et sa propre clé : rien n'empêchait
+  // alors la page de connexion de viser un projet Supabase différent du
+  // reste de l'application — une recette authentifiée sur la production, par
+  // exemple. Il n'existe plus qu'une seule source.
+  if (!window.NEXUS_CONFIG || !window.NEXUS_CONFIG.supabaseUrl || !window.NEXUS_CONFIG.supabaseCle) {
+    document.body.innerHTML = '<div style="max-width:640px;margin:14vh auto;padding:22px;'
+      + 'font:14px/1.6 system-ui,sans-serif;color:#EDF1F5;background:#141B22;'
+      + 'border:1px solid #F0546B;border-radius:12px">'
+      + '<strong style="color:#F0546B">Configuration absente</strong><br><br>'
+      + 'NEXUS ne peut pas démarrer : nexus-config.js n’a pas été chargé ou est incomplet. '
+      + 'Ce fichier est produit au moment du build ; sans lui, l’application ignore à quelle '
+      + 'base elle doit parler et refuse de deviner.</div>';
+    throw new Error('nexus-config.js absent ou incomplet');
+  }
+  const SUPABASE_URL = window.NEXUS_CONFIG.supabaseUrl;
+  const SUPABASE_ANON_KEY = window.NEXUS_CONFIG.supabaseCle;
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // Si déjà connecté, on saute directement l'écran de login
