@@ -37,8 +37,9 @@ function verifier(libelle, condition) {
 // dans un DOM simulé, pour les deux environnements.
 const SOURCE_BANDEAU = fs.readFileSync(path.join(RACINE, 'nexus-bandeau-environnement.js'), 'utf8');
 
-function executerBandeau(environnement) {
+function executerBandeau(environnement, hauteurMesuree = 30) {
   const cree = [];
+  const ecoutes = [];
   const racine = { style: {} };
   const corps = { appendChild(n) { cree.push(n); } };
   const faux = {
@@ -48,23 +49,41 @@ function executerBandeau(environnement) {
     getElementById: () => null,
     addEventListener: () => {},
     createElement: () => ({
-      style: {}, setAttribute() {}, textContent: '', offsetHeight: 28
+      style: {}, setAttribute() {}, textContent: '',
+      getBoundingClientRect: () => ({ height: hauteurMesuree })
     })
   };
   const fenetre = {
     NEXUS_CONFIG: environnement ? { environnement } : null,
-    getComputedStyle: () => ({ paddingTop: '0px' })
+    getComputedStyle: () => ({ paddingTop: '0px' }),
+    addEventListener: (nom) => ecoutes.push(nom)
   };
   fenetre.window = fenetre;
   new Function('window', 'document', SOURCE_BANDEAU)(fenetre, faux);
-  return { cree, margeHtml: racine.style.marginTop };
+  return { cree, ecoutes, margeHtml: racine.style.marginTop };
 }
 
 const enTest = executerBandeau('test');
 verifier('bandeau posé en environnement « test »', enTest.cree.length === 1);
 verifier('le bandeau annonce le MODE TEST',
   /MODE TEST/.test(enTest.cree[0].textContent));
-verifier('la page est décalée sous le bandeau', enTest.margeHtml === '28px');
+verifier('la page est décalée sous le bandeau', enTest.margeHtml === '30px');
+
+// Régression du 04/09 constatée sur la recette : mesuré dans un onglet sans
+// largeur, le bandeau s'enroulait sur vingt lignes et la marge posée sur
+// <html> valait 306 px — un vide permanent en haut de chaque écran, que rien
+// ne venait corriger ensuite.
+const mesureAberrante = executerBandeau('test', 306);
+verifier('une hauteur invraisemblable retombe sur le repli',
+  mesureAberrante.margeHtml === '30px');
+const mesureNulle = executerBandeau('test', 0);
+verifier('une hauteur nulle retombe sur le repli',
+  mesureNulle.margeHtml === '30px');
+const deuxLignes = executerBandeau('test', 48);
+verifier('une hauteur plausible est conservée telle quelle',
+  deuxLignes.margeHtml === '48px');
+verifier('la hauteur est remesurée au chargement et au redimensionnement',
+  enTest.ecoutes.includes('load') && enTest.ecoutes.includes('resize'));
 
 for (const env of ['production', 'preproduction', 'TEST', '', null]) {
   const r = executerBandeau(env);

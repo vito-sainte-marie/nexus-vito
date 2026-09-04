@@ -23,6 +23,24 @@
 
   var ID = 'nexus-bandeau-environnement';
 
+  // Hauteur d'une barre d'une ligne, bordure comprise. Sert de repli quand la
+  // mesure n'est pas croyable.
+  var REPLI = 30;
+
+  function ajuster(bandeau) {
+    var h = bandeau.getBoundingClientRect().height;
+
+    // Une barre d'une à trois lignes ne dépasse jamais 120 px. Au-delà, la
+    // mesure a été prise alors que la page n'avait pas encore de largeur —
+    // onglet ouvert en arrière-plan, page préchargée, démarrage à froid d'une
+    // PWA. Le texte s'enroule alors sur une vingtaine de lignes et la marge
+    // resterait fausse pour de bon : constaté sur la recette, 306 px de vide
+    // en haut de l'écran, pour un bandeau qui en fait 30.
+    if (!(h > 0 && h <= 120)) h = REPLI;
+
+    document.documentElement.style.marginTop = Math.round(h) + 'px';
+  }
+
   function poser() {
     if (!document.body || document.getElementById(ID)) return;
 
@@ -45,16 +63,17 @@
     document.body.appendChild(bandeau);
 
     // Le bandeau est en `fixed` : sans compensation il recouvrirait le haut
-    // de l'écran. On mesure sa hauteur réelle plutôt que de la supposer —
-    // elle dépend de l'encoche et du retour à la ligne sur mobile.
-    //
-    // La compensation est posée sur <html>, jamais sur <body>. Écrire un
-    // `padding-top` en style inline sur le body écraserait les règles
-    // responsives des 53 écrans — le padding calculé sur un grand écran
-    // resterait figé sur mobile. La marge de <html> n'est stylée nulle part
-    // dans NEXUS : elle décale la page sans rien recouvrir ni rien contredire.
-    var hauteur = bandeau.offsetHeight || 28;
-    document.documentElement.style.marginTop = hauteur + 'px';
+    // de l'écran. La compensation est posée sur <html>, jamais sur <body> —
+    // un `padding-top` en style inline sur le body écraserait les règles
+    // responsives des 53 écrans, et le padding calculé sur grand écran
+    // resterait figé sur mobile.
+    ajuster(bandeau);
+
+    // Et on remesure : la première mesure peut être prise trop tôt, et la
+    // hauteur change quand le texte s'enroule sur un écran étroit.
+    var remesurer = function () { ajuster(bandeau); };
+    window.addEventListener('load', remesurer);
+    window.addEventListener('resize', remesurer);
   }
 
   if (document.readyState === 'loading') {
