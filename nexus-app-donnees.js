@@ -44,7 +44,11 @@
   // l'accueil.
   async function calculerCandidatsHome(client, siteId) {
     const rowsBrut = await global.NexusConseillerDonnees.chargerProduitsBrut(client, siteId);
-    if (!rowsBrut.length) { console.error('Chargement products (accueil) : aucune ligne exploitable.'); return { candidats: [], facteurs: null }; }
+    // Aucune ligne n'est un ÉTAT MÉTIER NORMAL — commerce dont les ventes ne
+    // sont pas encore importées, base de recette vide. Ce n'est pas une erreur
+    // technique, et le journaliser comme telle rendait le contrôle « aucune
+    // erreur console » impossible à passer sur un environnement neuf.
+    if (!rowsBrut.length) { console.info('Chargement products (accueil) : aucune ligne exploitable.'); return { candidats: [], facteurs: null }; }
     const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut);
     const candidats = global.NexusConseiller.calculerCandidatsProduits(rowsBrut).map(global.NexusConseiller.normaliserProduit);
     return { candidats, facteurs };
@@ -163,7 +167,11 @@
       client.from('marge_exceptions').select('article').eq('site', siteId),
       client.from('journal_decisions').select('candidate_id').eq('site', siteId).eq('rule_id', 'R5-MARGE-ECART'),
     ]);
-    if (error || !data || !data.length) { console.error('Chargement products (marge accueil):', error); return null; }
+    // Deux situations étaient confondues sous le même `console.error` : une
+    // erreur de la base, qui doit se voir, et une absence de données, qui est
+    // normale. On les sépare.
+    if (error) { console.error('Chargement products (marge accueil):', error); return null; }
+    if (!data || !data.length) { console.info('Chargement products (marge accueil) : aucune ligne pour ce site.'); return null; }
 
     const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
