@@ -18,10 +18,10 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20260903-2159"></script>
-<script src="nexus-desktop.js?v=20260903-2159"></script>
-<script src="nexus-periodes.js?v=20260903-2159"></script>
-<script src="nexus-conseiller.js?v=20260903-2159"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-periodes.js?v=20260904-0104"></script>
+<script src="nexus-conseiller.js?v=20260904-0104"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -295,6 +295,11 @@
 <script>
   let catalogue = [];
   let roleDuJour = null;
+  // Prise de poste en cours. Toute coche de checklist est rattachée à CE
+  // service : c'est ce qui empêche l'héritage d'un service précédent
+  // (04/09/2026, test réel de Nadine — voir la migration
+  // 20260904010000_mission_progress_isolation_prise_de_poste.sql).
+  let shiftIdActif = null;
   // "quart" (matin/soir) du service en cours + service comparable précédent
   // (03/08/2026, demande de Frédéric) — voir chargerDernierServiceComparable.
   let quartDuJour = null;
@@ -367,7 +372,10 @@
       // "quart" (03/08/2026, demande de Frédéric) : récupéré en plus de
       // "role" pour permettre la comparaison au dernier service comparable
       // (même rôle ET même quart) — voir chargerDernierServiceComparable.
-      .select('role, quart')
+      // "id" (04/09/2026) : c'est LUI qui isole la progression des coches.
+      // Une prise de poste = une ligne shifts = un id ; toute coche s'y
+      // rattache, donc un nouveau service repart forcément décoché.
+      .select('id, role, quart')
       .eq('employee_id', employeeId)
       .gte('heure_debut', il24h)
       .order('heure_debut', { ascending: false })
@@ -1120,11 +1128,18 @@
   // Retourne { checkState, photoState } (27/07/2026, ajout photo_url) —
   // deux maps distinctes plutôt qu'un seul objet mélangé, pour que le
   // reste du code garde exactement la même forme qu'avant sur checkState.
-  async function chargerProgressionSupabase(empId) {
+  // Lue pour la PRISE DE POSTE en cours, plus pour l'employé (04/09/2026).
+  // Auparavant, une coche posée un jour restait vraie pour tous les
+  // services suivants : Nadine, caissière du soir, ouvrait « Balayer et
+  // nettoyer la piste » déjà entièrement cochée. Sans prise de poste
+  // (consultation externe), il n'y a rien à afficher — jamais l'historique
+  // d'un autre service.
+  async function chargerProgressionSupabase(shiftId) {
+    if (!shiftId) return { checkState: {}, photoState: {} };
     const { data, error } = await nexusClient
       .from('mission_progress')
       .select('mission_id, checklist_index, checked, photo_url')
-      .eq('employee_id', empId);
+      .eq('shift_id', shiftId);
     if (error) { console.error('Chargement progression:', error); return { checkState: {}, photoState: {} }; }
     const checkStateChargee = {};
     const photoStateChargee = {};
@@ -1140,14 +1155,37 @@
   // pour les missions mission_catalog.photo_par_action = true. `null`
   // efface explicitement une photo existante (cas d'un item décoché pour
   // recommencer) plutôt que de laisser une preuve périmée en base.
+  // La coche est rattachée à la prise de poste en cours (04/09/2026) :
+  // `shift_id` est NOT NULL en base, donc aucune coche ne peut plus exister
+  // hors d'un service identifiable.
+  //
+  // Retourne true/false plutôt que d'avaler l'erreur. Avant, un échec
+  // n'était que consigné dans la console : l'employé voyait sa case cochée
+  // à l'écran alors que rien n'était enregistré. C'est précisément ce qu'il
+  // ne faut pas laisser passer sur un écran dont on vient de corriger la
+  // confiance dans l'état affiché.
   async function sauvegarderProgressionItem(empId, missionId, index, checked, photoUrl) {
+    if (!shiftIdActif) { console.error('Sauvegarde progression : aucune prise de poste active.'); return false; }
     const { error } = await nexusClient
       .from('mission_progress')
       .upsert(
-        { employee_id: empId, mission_id: missionId, checklist_index: index, checked, photo_url: photoUrl || null, updated_at: new Date().toISOString() },
-        { onConflict: 'employee_id,mission_id,checklist_index' }
+        { employee_id: empId, shift_id: shiftIdActif, site_id: SITE_ACTUEL, mission_id: missionId, checklist_index: index, checked, photo_url: photoUrl || null, updated_at: new Date().toISOString() },
+        { onConflict: 'shift_id,mission_id,checklist_index' }
       );
-    if (error) console.error('Sauvegarde progression:', error);
+    if (error) { console.error('Sauvegarde progression:', error); return false; }
+    return true;
+  }
+
+  // Coche optimiste : l'écran réagit tout de suite, mais si l'enregistrement
+  // échoue on REVIENT à l'état réel plutôt que de laisser une coche qui
+  // n'existe pas en base.
+  async function cocherEtEnregistrer(key, missionId, index, checked, photoUrl) {
+    const ok = await sauvegarderProgressionItem(employeeId, missionId, index, checked, photoUrl);
+    if (ok) return true;
+    if (checked) { delete checkState[key]; delete itemPhotoState[key]; }
+    else { checkState[key] = true; }
+    render();
+    return false;
   }
 
   function priorityBadge(p) {
@@ -2131,7 +2169,7 @@
           checkState[key] = false;
           delete itemPhotoState[key];
           render();
-          sauvegarderProgressionItem(employeeId, missionId, idx, false, null);
+          cocherEtEnregistrer(key, missionId, idx, false, null);
           return;
         }
         // Anti-rebond (05/08/2026) : ignore tout nouveau tapotement tant
@@ -2154,7 +2192,7 @@
         checkState[key] = true;
         itemPhotoState[key] = url;
         render();
-        sauvegarderProgressionItem(employeeId, missionId, idx, true, url);
+        cocherEtEnregistrer(key, missionId, idx, true, url);
       });
     });
     document.querySelectorAll('.check-item:not([data-photo="1"])').forEach(el => {
@@ -2167,7 +2205,7 @@
         const lastUnderscore = key.lastIndexOf('_');
         const missionId = key.slice(0, lastUnderscore);
         const idx = parseInt(key.slice(lastUnderscore + 1), 10);
-        sauvegarderProgressionItem(employeeId, missionId, idx, checkState[key]);
+        cocherEtEnregistrer(key, missionId, idx, checkState[key]);
       });
     });
     document.querySelectorAll('.presence-item').forEach(el => {
@@ -2324,6 +2362,7 @@
       }
       roleDuJour = shiftDuJour.role;
       quartDuJour = shiftDuJour.quart || null;
+      shiftIdActif = shiftDuJour.id;
     } else {
       roleDuJour = 'manager'; // vue d'ensemble par defaut pour une consultation externe
     }
@@ -2341,7 +2380,7 @@
     }
 
     catalogue = await chargerCatalogue();
-    const progression = await chargerProgressionSupabase(employeeId);
+    const progression = await chargerProgressionSupabase(shiftIdActif);
     checkState = progression.checkState;
     itemPhotoState = progression.photoState;
     completionsCache = await chargerCompletionsSupabase(employeeId);
