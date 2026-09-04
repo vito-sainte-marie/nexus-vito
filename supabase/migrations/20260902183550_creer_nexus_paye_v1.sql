@@ -128,18 +128,10 @@ create policy paye_periodes_manager_site on public.nexus_paye_periodes
 
 -- Décisions déjà actées : Fred et Lydie ne sont pas rattachés à la paie
 -- de cette station ; Audrey reste incluse mais ses heures sont arbitrées.
-insert into public.nexus_paye_employee_settings
-  (employee_id, site_id, inclus_paye, mode_presence, commentaire)
-select id, site_id, false, 'exclu',
-  case when lower(username) = 'fred' then 'Indépendant — hors paie salarié NEXUS.'
-       else 'Rattachée à un autre employeur — présence utile au planning seulement.' end
-from public.employees
-where site_id = 'vito-sainte-marie' and lower(username) in ('fred','lydie')
-on conflict (employee_id) do nothing;
+-- Correction de données historiques propre à la production —
+-- volontairement non rejouée dans les environnements reconstruits.
+--
+-- L'instruction d'origine visait des salariés nommément désignés (rattachement à la paie). Elle a été retirée du dépôt public
+-- le 04/09/2026 : une migration doit reconstruire le système, pas
+-- transporter les corrections nominatives de l'exploitation passée.
 
-insert into public.nexus_paye_employee_settings
-  (employee_id, site_id, inclus_paye, mode_presence, commentaire)
-select id, site_id, true, 'manuel', 'Heures à confirmer par le manager.'
-from public.employees
-where site_id = 'vito-sainte-marie' and lower(username) = 'audrey'
-on conflict (employee_id) do nothing;

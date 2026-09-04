@@ -34,12 +34,12 @@ alter table public.shifts add constraint shifts_journal_cloture check (
   or (cloture_source is not null and cloture_le is not null)
 );
 
-update public.shifts
-set statut = 'test',
-    cloture_source = 'test',
-    cloture_le = now(),
-    cloture_motif = 'Prise de poste de test du 04/09/2026 (contrôle de l''isolation des missions) — hors résultats de l''employé.'
-where id = 'cef4fd7b-3430-4e5d-b6bb-07b26e9b83fd';
+-- Correction de données historiques propre à la production —
+-- volontairement non rejouée dans les environnements reconstruits.
+--
+-- L'instruction d'origine visait une prise de poste de test précise, par son identifiant. Elle a été retirée du dépôt public
+-- le 04/09/2026 : une migration doit reconstruire le système, pas
+-- transporter les corrections nominatives de l'exploitation passée.
 
 update public.shifts
 set statut = 'legacy',

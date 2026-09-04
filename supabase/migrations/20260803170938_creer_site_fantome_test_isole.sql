@@ -49,5 +49,9 @@ where zp.site = 'vito-sainte-marie';
 
 -- Bascule le compte fantôme existant ("employe", pompiste, actuellement
 -- inactif) vers ce site isolé, et le réactive.
-update employees set site_id = 'site-fantome-test', actif = true
-where id = '32ef8323-9209-4d75-8eac-1e9fc7c47ead';
+-- Correction de données historiques propre à la production —
+-- volontairement non rejouée dans les environnements reconstruits.
+--
+-- L'instruction d'origine visait un employé précis, par son identifiant. Elle a été retirée du dépôt public
+-- le 04/09/2026 : une migration doit reconstruire le système, pas
+-- transporter les corrections nominatives de l'exploitation passée.

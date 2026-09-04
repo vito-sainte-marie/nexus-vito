@@ -17,5 +17,5 @@ alter table client_comptes_parametres
   add column adresse_expedition_email text,
   add column mot_de_passe_app_email text;
 
-comment on column client_comptes_parametres.adresse_expedition_email is 'Adresse Gmail utilisée pour envoyer les factures aux clients (ex: vito.saintemarie2@gmail.com).';
+comment on column client_comptes_parametres.adresse_expedition_email is 'Adresse Gmail utilisée pour envoyer les factures aux clients (ex: exemple@example.com).';
 comment on column client_comptes_parametres.mot_de_passe_app_email is 'Mot de passe d''application Gmail (pas le mot de passe du compte) — utilisé uniquement côté serveur (Edge Function nexus-envoyer-facture), jamais affiché en clair après saisie côté client.';
