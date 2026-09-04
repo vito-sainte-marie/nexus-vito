@@ -203,6 +203,110 @@ mesure est refaite sur `load` et sur `resize`. Quatre vérifications ajoutées,
 dont la régression elle-même. C'est la démonstration que vérifier le déployé
 et non le local n'était pas une formalité.
 
+## Passe navigateur du 04/09/2026 — étape 1 sur 5
+
+Menée dans Chrome, session réelle, sur `https://nexus-test-ddf.pages.dev`.
+**Interrompue après l'étape 1** sur décision de Frédéric : l'anomalie A2 est
+bloquante et doit être traitée avant de poursuivre.
+
+### Bloquant préalable — A1, levé
+
+| | |
+|---|---|
+| Écran / action | `NEXUS-Login-v1` — saisie prénom + PIN |
+| Rôle | les trois comptes |
+| Requête | `POST /auth/v1/token?grant_type=password`, `email: manager-test@vito-nexus.local` |
+| Attendu | session ouverte |
+| Obtenu | `400 Invalid login credentials` |
+| Cause | Comptes créés en `@nexus-test.local`, écran construisant `@vito-nexus.local`. Deux conventions dans deux fichiers qui ne se rencontraient pas : `NEXUS-Login-v1.html:170` et `outils/reinitialiser-scenario-test.sh:63`. **Aucune connexion n'avait jamais pu aboutir sur la recette** — d'où des contrôles 7 et 8 jamais passés. |
+| Correction | Alignement des trois identités sur `nexus-test` (`id`, PIN, `created_at` inchangés) + constante `DOMAINE_LOGIN` et garde-fou bloquant dans le script de réinitialisation |
+| Preuve | `last_sign_in_at` = 18:46:16, session active |
+
+### Étape 1 — Manager Test
+
+| Contrôle | Résultat |
+|---|---|
+| Ouverture de session | ✅ |
+| Rôle affiché | ✅ Manager, quart Soir |
+| Site affiché (en-tête) | ✅ NEXUS STATION TEST |
+| Écrans accessibles | ✅ Prise de poste → App → Radar du Manager |
+| Trafic réseau | ✅ 42 appels REST, tous vers `udljdqxerrbbbajxubfn` |
+| Requête vers Supabase production | ✅ aucune |
+| Fonction Edge production | ✅ aucune |
+| Données d'un autre site | ✅ 40 requêtes site-scopées, toutes sur `nexus-station-test` |
+
+### Étapes 2 à 5 — non menées
+
+Employé Test A, Employé Test B, isolation croisée à l'écran et contrôles
+finaux : **reportés** après le lot A2.
+
+## A2 — deux identités de site sur une même ligne *(bloquant, corrigé)*
+
+| | |
+|---|---|
+| **Écran** | `NEXUS-Prise-De-Poste-v1` |
+| **Action** | Sélection du rôle Manager, « Confirmer ma prise de poste » |
+| **Requête** | `POST /rest/v1/shifts` → 201 |
+| **Rôle** | Manager, puis reproduit pour un caissier |
+| **Attendu** | La ligne porte le site du compte sur toutes ses colonnes de site |
+| **Obtenu** | `site = 'nexus-station-test'`, **`site_id = 'vito-sainte-marie'`** |
+
+**Cause.** `shifts` et `mission_catalog` portent chacune `site` et `site_id`,
+`text`, `NOT NULL`, avec le même `DEFAULT 'vito-sainte-marie'`. Les 7
+politiques RLS des deux tables s'appuient **toutes** sur `site_id` ; aucune sur
+`site`. L'application, elle, écrit l'une ou l'autre selon l'écran — `site` en
+Prise de poste, `site_id` au Scanner, les deux dans Tempo. La colonne omise
+prenait le défaut, c'est-à-dire la production, et la politique d'insertion de
+`shifts` ne contrôlait ni l'un ni l'autre : seulement `employee_id` et le rôle.
+
+**Portée réelle.** `mission_catalog` portait déjà **89 lignes sur 208** avec
+deux sites différents. En multi-site, `select_shifts` filtrant sur `site_id`,
+un manager n'aurait pas vu les services de son équipe, et un manager de
+`vito-sainte-marie` aurait vu ceux de tous les autres commerces.
+
+**Pourquoi trois passes SQL ne l'avaient pas vue.** Elles portaient sur des
+tables à colonne de site unique — `inventaire_zones` notamment. Seule une
+écriture réelle par l'écran pouvait la révéler. C'est l'argument de cette
+recette navigateur.
+
+**Correction** — migration `20260904193000`, trois verrous indépendants :
+contrainte `site = site_id` ; déclencheur imposant le site du compte et
+refusant toute valeur divergente fournie par le client ; RLS d'insertion
+vérifiant enfin le site. Défauts de production retirés des quatre colonnes.
+Données réparées : 1 ligne `shifts`, 89 lignes `mission_catalog`.
+
+**Non fait, volontairement.** La colonne `site` n'est pas supprimée : le code
+déployé l'écrit encore. Cible décrite dans
+`docs/plans/2026-09-04-site-source-unique.md`.
+
+## A3 à A6 — hors correctif A2
+
+| # | Anomalie | Portée | Suivi |
+|---|---|---|---|
+| **A3** | « Vito Sainte-Marie Usine », nom du commerce de production, **écrit en dur dans 39 écrans** (46 occurrences). S'affiche en pied de page de la Prise de poste alors que la session est sur `nexus-station-test`. L'en-tête, lui, lit la base. | Défaut multi-tenant : tout client verrait ce nom | à ouvrir |
+| **A4** | Deux `console.error` sur l'écran d'accueil (« Chargement products (accueil) : aucune ligne exploitable », « (marge accueil): null »). Cause bénigne — base de recette vide — mais le contrôle « aucune erreur console » **ne passe pas** tel qu'énoncé. | Contrôle final 3 en échec | à arbitrer : corriger le niveau de journalisation, ou reformuler le contrôle |
+| **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
+| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5`, alors que le commit déployé est `f3526ad`. | **Traçabilité** : on ne peut pas savoir depuis l'écran quelle version on éprouve | **bloquant avant validation finale de la recette** |
+
+## Défense en profondeur — requêtes sans filtre de site
+
+Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
+RLS les cadre correctement aujourd'hui ; elles ne portent aucun filtre propre.
+
+| Requête | Table | Filtre de site |
+|---|---|---|
+| `GET /rest/v1/mission_completions?select=points` | `mission_completions` | aucun — RLS seule (`select_mission_completions` sur `site_id`) |
+| `GET /rest/v1/pointages?select=employee_id,retard_min&type=eq.arrivee&retard_min=gt.0` | `pointages` | aucun — RLS seule (`select_pointages` sur `site`) |
+
+Aucune correction demandée dans A2. À traiter comme question d'architecture :
+une requête qui ne dit pas ce qu'elle veut dépend entièrement d'une politique
+qu'elle ne nomme pas.
+
+À noter au passage : les politiques d'insertion de `mission_completions` et
+`mission_progress` ne vérifient **ni site ni site_id** — même forme que le trou
+de `shifts` corrigé par A2, sur des tables où la colonne unique rend l'anomalie
+moins visible.
+
 ## Points explicitement NON VALIDÉS
 
 Ces deux points ne sont pas des anomalies à corriger : ce sont des **trous de
