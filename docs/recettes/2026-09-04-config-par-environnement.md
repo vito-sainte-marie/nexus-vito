@@ -933,6 +933,42 @@ Le défaut n'est pas dans le code applicatif : **le référentiel Advisor n'a
 jamais été chargé dans la base de recette**. À arbitrer — charger les données
 de référence dans `nexus-test`, ou constater que l'Advisor restera non éprouvé.
 
+## A16 — 17 tables avec RLS active et aucune politique *(non bloquant, non corrigé)*
+
+Relevée le 05/09/2026 pendant le rejeu C1 client, sur Rapport :
+
+```
+[ERROR] nexus-rapport-donnees.js:127
+Rapport NEXUS — chargement marge (normalized_sales): Object
+```
+
+**Ce n'est pas une régression C1** : la ligne ne concerne pas le fuseau, et
+sa garde est déjà pure. Elle journalise une vraie panne — la lecture est
+refusée.
+
+Dix-sept tables de `nexus-test` ont `rowsecurity = true` et **zéro politique**,
+donc refusent toute lecture cliente :
+
+`advisor_inputs`, `advisor_logs`, `api_keys`, `api_logs`,
+`integration_errors`, `integration_sources`, `integration_status`,
+`normalization_state`, `normalized_cash_sessions`, `normalized_products`,
+`normalized_sales`, `normalized_stock`, `raw_cash_sessions`, `raw_products`,
+`raw_sales`, `raw_stock_movements`, `synchronization_history`.
+
+C'est une posture **deny-all** cohérente si ces tables ne sont écrites et lues
+que par des fonctions Edge en `service_role`. Mais **`nexus-test` n'héberge
+aucune fonction Edge** (déjà consigné) : toute cette couche
+d'intégration/normalisation est donc inerte dans l'environnement de recette,
+et `nexus-rapport-donnees.js` l'interroge malgré tout depuis le client.
+
+Deux questions à arbitrer, dans cet ordre :
+1. le client **doit-il** lire `normalized_sales` directement, ou cette lecture
+   est-elle un reliquat d'avant la couche Edge ?
+2. si oui, il manque des politiques ; si non, c'est l'appel qu'il faut retirer.
+
+Tant que ce n'est pas tranché, l'écran Rapport affiche deux erreurs console à
+chaque chargement — correctement journalisées, mais sans issue.
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
