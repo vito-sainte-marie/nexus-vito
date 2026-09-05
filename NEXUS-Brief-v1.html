@@ -394,6 +394,21 @@
   // nexus-boussole-moteur.js (Article 11) et simplement relus ici.
   const { SEUIL_ECART_OPERATIONS_EUR, SEUIL_MIN_POINTAGES_EQUIPE } = NexusBoussoleMoteur;
 
+
+  // Poste du jour = rôle du SERVICE en cours. Lecture explicite, locale et
+  // sans repli : tant que la primitive NexusRole n'est pas arbitrée (audit
+  // A11), chaque écran nomme ce qu'il consomme plutôt que d'hériter d'une
+  // fonction qui déciderait à sa place.
+  async function lirePosteDuJour(employeeId) {
+    const d = new Date();
+    const debut = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`;
+    const { data, error } = await nexusClient
+      .from('shifts').select('role').eq('employee_id', employeeId)
+      .gte('heure_debut', debut).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.info('Poste du jour indisponible pour le badge :', error.message); return null; }
+    return (data && data.role) || null;
+  }
+
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let employeeCourantId = null;
   let VALIDEES_SITE = new Set();
@@ -1800,7 +1815,14 @@
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
     STATION_CONFIG.manager_prenom = employee.nom;
-    STATION_CONFIG.manager_role = employee.role;
+    // Ce badge décrit l'ACTIVITÉ EN COURS, pas le statut administratif : il
+    // affiche donc le poste du jour, celui que la prise de poste a fixé.
+    // Audit A11 (05/09/2026) : un employé habituellement caissier ayant pris
+    // un poste de pompiste s'y voyait annoncé « CAISSIER », alors que
+    // l'Accueil et Missions disaient « pompiste ». Aucune permission ne
+    // dépend de ce badge — les habilitations restent lues sur la fiche.
+    // À défaut de service du jour, on n'invente rien : le badge reste vide.
+    STATION_CONFIG.manager_role = await lirePosteDuJour(employee.id) || '';
     const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url, type_commerce, secteurs').eq('site_id', SITE_ACTUEL).maybeSingle();
     if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
     if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;

@@ -961,15 +961,60 @@
   // Le rôle du quart en cours (shifts.role) prime sur employees.role : un
   // "renfort" ou "vacataire" peut être affecté piste ou boutique selon le
   // jour, employees.role ne suffit pas à trancher.
+  // Le rôle du jour vient du SERVICE en cours, jamais de la fiche employé.
+  //
+  // Cette fonction retombait sur `employeeCourant.role` en cas d'erreur réseau
+  // ou d'absence de service. Conséquence, découverte par l'audit A11 du
+  // 05/09/2026 : `zonesPourRole` en déduisait la zone, et un pompiste du jour
+  // se retrouvait à compter la BOUTIQUE au lieu de la PISTE — un inventaire
+  // faux, produit par une panne réseau, sans que rien ne le signale à
+  // l'employé. Le rôle était en outre écrit tel quel dans
+  // `inventaire_quart_employes`.
+  //
+  // Une panne réseau ne doit jamais devenir une décision métier. Il n'y a donc
+  // AUCUN repli : ni la fiche, ni une zone par défaut, ni un choix implicite.
+  // Le rôle est établi, ou il ne l'est pas — et dans ce cas le workflow qui en
+  // dépend s'arrête et le dit.
   async function chargerRoleDuJour() {
     const debutJourISO = `${dateISO()}T00:00:00`;
     const { data, error } = await nexusClient
       .from('shifts').select('role').eq('employee_id', employeeCourant.id)
       .gte('heure_debut', debutJourISO).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
-    if (error) { console.error('Rôle du jour:', error); return employeeCourant.role; }
-    return (data && data.role) || employeeCourant.role;
+    if (error) {
+      console.error('Rôle du jour — lecture du service impossible :', error);
+      return { indetermine: 'reseau' };
+    }
+    if (!data || !data.role) return { indetermine: 'absent' };
+    return { role: data.role };
   }
 
+  // Écran d'arrêt : on explique ce qui manque, on propose de réessayer, et on
+  // ne propose surtout pas de continuer « quand même ».
+  function bloquerFauteDeRoleDuJour(cause) {
+    const explication = cause === 'reseau'
+      ? 'Votre poste du jour n’a pas pu être vérifié : la connexion au serveur a échoué.'
+      : 'Aucune prise de poste n’a été trouvée pour vous aujourd’hui.';
+    const suite = cause === 'reseau'
+      ? 'Vérifiez votre connexion, puis réessayez.'
+      : 'Prenez votre poste, puis revenez sur l’inventaire.';
+    document.getElementById('content').innerHTML = `
+      <div class="loading" style="text-align:left; max-width:520px; margin:12vh auto; line-height:1.55;">
+        <strong>Poste du jour indéterminé</strong><br><br>
+        ${explication}<br><br>
+        L’inventaire dépend de votre poste : il détermine la zone que vous comptez,
+        la piste ou la boutique. NEXUS ne le devine pas — un comptage attribué à la
+        mauvaise zone serait pire qu’un comptage retardé.<br><br>
+        ${suite}<br><br>
+        <button id="reessayerRoleDuJour" class="btn">Réessayer</button>
+        ${cause === 'absent' ? '<a href="NEXUS-Prise-De-Poste-v1.html" class="btn" style="margin-left:8px;">Prendre mon poste</a>' : ''}
+      </div>`;
+    const bouton = document.getElementById('reessayerRoleDuJour');
+    if (bouton) bouton.addEventListener('click', () => window.location.reload());
+  }
+
+  // `caissier` (fiche) et `caissiere` (service) désignent le même poste sous
+  // deux orthographes : la dette de vocabulaire relevée par l'audit A11, à
+  // traiter dans un chantier séparé. Les deux sont acceptées ici en attendant.
   function zonesPourRole(role) {
     if (role === 'pompiste') return ['piste'];
     if (role === 'caissier' || role === 'caissiere') return ['boutique'];
@@ -4064,9 +4109,13 @@
     employeeCourant = employee;
     demarrerHorloge();
     quartActuel = await quartDuMoment(employee.site_id);
-    roleDuJour = employee.mode_test_inventaire
-      ? employee.role_test_inventaire
-      : await chargerRoleDuJour();
+    if (employee.mode_test_inventaire) {
+      roleDuJour = employee.role_test_inventaire;
+    } else {
+      const resolution = await chargerRoleDuJour();
+      if (resolution.indetermine) { bloquerFauteDeRoleDuJour(resolution.indetermine); return; }
+      roleDuJour = resolution.role;
+    }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
     // condition d'affichage dépend de la zone (piste), pas du rôle ; elle

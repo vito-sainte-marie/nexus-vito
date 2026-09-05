@@ -533,6 +533,109 @@ rien ne le dise. Même famille qu'A3.
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
 | **A6 — FERMÉ le 05/09/2026** | Le pied de page annonçait `build 20260904-0104 · commit b219da5` alors que neuf commits avaient été déployés depuis. L'identifiant est un horodatage posé **à la main** avant de committer : il porte donc le commit *précédent*, et se fige dès que personne ne relance l'outil. La CI vérifiait que tous les actifs partageaient le même identifiant, **jamais que cet identifiant correspondait au code servi** : elle est passée au vert neuf fois de suite. | **Défaut de traçabilité de version.** Voir la précision ci-dessous sur le cache | **corrigé et prouvé sur le déploiement réel** — `outils/build.sh`, empreinte de contenu, `CF_PAGES_COMMIT_SHA`, `nexus-build.js` non versionné, échec fermé au build, contrôle d'exécution |
 
+## A11 — rôle habituel, rôle du jour, permissions *(corrigé le 05/09/2026)*
+
+Audit transversal : **162 occurrences applicatives + 137 politiques RLS**, soit
+299 points de décision. Trois notions que NEXUS confondait implicitement :
+
+- **rôle habituel** = `employees.role` — ce que l'employé **est** ;
+- **rôle du jour** = `shifts.role` — ce qu'il **fait** aujourd'hui ;
+- **permissions** = dérivées de la fiche, **jamais** du rôle du jour.
+
+### Répartition des 87 usages de `employees.role`
+
+| | Catégorie | Nombre |
+|---|---|---|
+| C | Permission — correct sur la fiche | **57** |
+| A | Rôle administratif — correct | 16 |
+| B | Devrait lire le rôle du jour | 8 |
+| D | Ambigu | 6 |
+
+### Pourquoi l'audit dit 57 et le test 55
+
+Les deux chiffres sont justes ; ils ne mesurent pas la même chose.
+
+- **55** est le nombre de **lignes** portant à la fois `employee.role` et un
+  littéral `'manager'` ou `'gerant'`. C'est ce que compte le test, qui
+  travaille ligne par ligne.
+- **57** est le nombre de **décisions de permission**. Deux d'entre elles
+  déclarent leur ensemble de rôles sur une ligne — `const ROLES_AUTORISES =
+  new Set(['manager','gerant'])` — et l'appliquent sur une **autre** :
+  `ROLES_AUTORISES.has(employee.role)`. La ligne d'usage ne contient aucun
+  littéral, elle échappe donc au comptage par ligne.
+
+  - `nexus-inventaire-transferts-internes.js` : déclaration ligne 8, usage ligne 26
+  - `nexus-inventaire-stock-controle-cible-v2.js` : déclaration ligne 8, usage ligne 14
+
+Le test vérifie **les deux** : le décompte de 55 lignes, **et** que les deux
+ensembles de constantes valent toujours `{manager, gerant}` et restent lus sur
+la fiche. Aucune des 57 décisions n'a été modifiée par ce lot.
+
+### Anomalies corrigées
+
+| # | Anomalie | Nature | Correction |
+|---|---|---|---|
+| A11-a | Cockpit et Brief affichaient le rôle **habituel** dans un badge décrivant l'activité en cours | affichage | badge sur le rôle du service ; **vide** si aucun service fiable, plutôt que faux |
+| A11-b | L'Inventaire retombait silencieusement sur la fiche en cas d'erreur réseau ou d'absence de service, et `zonesPourRole` en déduisait la zone : **un pompiste du jour comptait la boutique** | **métier** | plus aucun repli. Le poste est établi, ou le workflow s'arrête et l'explique |
+
+**Comportement de l'Inventaire quand le poste est indéterminé** — aucune zone
+sélectionnée, aucune écriture, écran d'arrêt distinguant panne réseau et
+absence de prise de poste, bouton **Réessayer**, lien **Prendre mon poste**, et
+l'erreur technique en console. Le principe posé : *un comptage retardé vaut
+mieux qu'un comptage attribué à la mauvaise zone.*
+
+### A11-c — FDJ : non corrigé, et c'est délibéré
+
+La signature de clôture persiste le rôle habituel. L'arbitrage de principe est
+pris — la trace doit porter le rôle **exercé au moment de l'acte** — mais le
+rattachement au service n'est **pas fiable** : la signature porte
+`quart_id = fdj_shifts.id`, qui identifie le quart FDJ et non le service
+employé ; aucune clé étrangère ne relie les deux ; `fdj_shifts.employee_id` est
+nullable ; une clôture peut être saisie après la fin du service et corrigée
+ensuite par un manager, qui n'est pas le titulaire du quart.
+
+Remplacer par « le rôle du service actif maintenant » serait **faux plus
+souvent qu'aujourd'hui**. Lot séparé avec migration :
+`docs/plans/2026-09-05-fdj-role-exerce.md`.
+
+### Ce qui n'était pas une anomalie
+
+Les **137 politiques RLS** et les 57 contrôles applicatifs lisent la fiche —
+correct, et à ne pas toucher. Une **seule** politique dérive du rôle du jour,
+`select_mission_assignments`, et c'est légitime : un travail confié au pompiste
+doit s'afficher chez qui est pompiste ce jour-là. Le test attendait zéro ;
+**l'attente était fausse et a été corrigée** à un, nommée et justifiée, avec
+échec si ce nombre augmente sans relecture.
+
+Missions et Accueil filtraient déjà sur le rôle du jour. La **paye** est
+exemplaire : barème sur le poste constaté, fiche pour l'inclusion salariale, et
+la divergence **nommée** dans le bulletin — « poste constaté dans Verify,
+différent du rôle "caissier" ».
+
+Vérifié en base : un non-manager ne peut pas prendre un service `manager`
+(refus `42501`) ; `current_employee_role()` reste `caissier` pour un employé
+pompiste du jour ; le manager conserve rôle et vue d'équipe.
+
+### Contrat `NexusRole` — validé architecturalement, non généralisé
+
+```
+NexusRole.habituel()       employees.role — identité administrative
+await NexusRole.duJour()   { role } ou { indetermine } — jamais de repli
+NexusRole.peut(capacite)   habilitation, dérivée de la FICHE
+```
+
+`roleEffectif()` est **écarté** : avec 57 permissions sur 87 usages, une API au
+nom neutre finirait tôt ou tard dans un contrôle d'accès. Le code doit dire ce
+qu'il veut.
+
+### A11-5 — dette structurelle, non traitée
+
+Trois vocabulaires pour la même notion : `employees.role` ∈ {caissier,
+pompiste, renfort, manager, gerant, vacataire}, `shifts.role` ∈ {pompiste,
+**caissiere**, renfort, manager, **polyvalent**}. `caissier` ≠ `caissiere` :
+toute comparaison directe échoue silencieusement, et chaque écran bricole son
+propre pont. **C'est la cause profonde d'A11.** Chantier séparé, avec migration.
+
 ## A9 à A12 — relevées pendant la passe navigateur
 
 ### A9 — le pointage exige une photo *(contrainte normale, pas une anomalie)*
