@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <style>
   :root{
@@ -90,7 +91,7 @@
 </div>
 
 <script>
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // A3 : jamais un site par défaut — posé par employee.site_id une fois connecté
 
   // Compare sans tenir compte des accents/majuscules — "Frédéric", "Frederic",
   // "FREDERIC" doivent tous matcher la meme entree.
@@ -719,7 +720,11 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    // A3 (05/09/2026) : Debug agit directement sur Supabase — un site
+    // deviné y serait la pire des substitutions silencieuses.
+    SITE_ACTUEL = NexusStation.exigerSite(employee,
+      'Votre compte n’est rattaché à aucun commerce. Debug agit directement sur les données : il ne peut pas travailler sur un site supposé.');
+    if (!SITE_ACTUEL) return;
     renderRoot();
   });
 </script>

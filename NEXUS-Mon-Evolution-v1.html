@@ -108,6 +108,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script>
   function classifierEcart(montantAbs) {
@@ -124,7 +125,12 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     document.getElementById('empName').textContent = employee.nom;
 
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    // A3 (05/09/2026) : plus de repli vers Sainte-Marie. Un employé
+    // authentifié sans site est un état impossible — on bloque au lieu de
+    // lui montrer la progression d'un autre commerce.
+    const siteId = NexusStation.exigerSite(employee,
+      'Votre fiche ne rattache votre compte à aucun commerce. Votre progression ne peut donc pas être calculée.');
+    if (!siteId) return;
 
     // ------------------------------------------------------------
     // Progression des missions — remplace le 21/07/2026 l'ancienne
