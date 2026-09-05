@@ -144,4 +144,52 @@ verifier('Paramètres Station montre l’absence sans bloquer, et n’écrit plu
     'le fuseau doit être affiché comme une propriété du site, pas comme un réglage');
 });
 
+// Ajouté le 05/09/2026 APRÈS un défaut trouvé seulement sur le déploiement
+// réel : NEXUS-Brief-v1.html appelait chargerCarburantsBriefAvecFallback avec
+// trois arguments au lieu de quatre. Aucun test unitaire ne pouvait le voir —
+// les tests stubbent ces fonctions, et un stub accepte n'importe quelle arité.
+// Ce contrôle lit les APPELS, pas les définitions.
+const ARITE_ATTENDUE = {
+  chargerControleJour: 4,
+  chargerVentesPeriode: 5,
+  chargerCarburantsBrief: 4,
+  chargerCarburantsBriefAvecFallback: 4,
+  chargerCandidatCommandeCarburant: 3,
+  chargerStatutCarburantsHome: 3,
+};
+
+function argumentsDeNiveau1(texte, iParenthese) {
+  let profondeur = 0, courant = '', args = [];
+  for (const c of texte.slice(iParenthese)) {
+    if ('([{'.includes(c)) profondeur++;
+    if (')]}'.includes(c)) { profondeur--; if (profondeur === 0) { args.push(courant); break; } }
+    if (profondeur === 1 && c === ',') { args.push(courant); courant = ''; continue; }
+    if (profondeur >= 1 && !(profondeur === 1 && c === '(')) courant += c;
+  }
+  return args.map(a => a.trim()).filter(a => a !== '');
+}
+
+verifier('aucun appel ne prive une fonction de son fuseau', () => {
+  const t = [];
+  for (const f of APPLICATIF) {
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+    for (const [nom, attendu] of Object.entries(ARITE_ATTENDUE)) {
+      const motif = new RegExp('(?<![\\w.])(?:[\\w.]+\\.)?' + nom + '\\(', 'g');
+      let m;
+      while ((m = motif.exec(src))) {
+        // la définition elle-même n'est pas un appel
+        if (/\s*(async\s+)?function\s*$/.test(src.slice(Math.max(0, m.index - 30), m.index))) continue;
+        const i = src.indexOf('(', m.index + nom.length - 1);
+        const args = argumentsDeNiveau1(src, i);
+        if (args.length > 0 && args.length < attendu) {
+          t.push(`${f}:${src.slice(0, m.index).split('\n').length}  ${nom} -> ${args.length} arg(s), ${attendu} attendus`);
+        }
+      }
+    }
+  }
+  assert.strictEqual(t.length, 0,
+    'Un appelant qui omet le fuseau le rend « undefined » : la fonction lève à ' +
+    'l’exécution, jamais au test.\n  ' + t.join('\n  '));
+});
+
 console.log(`\n${passes} vérifications passées — le fuseau est un contexte explicite.`);

@@ -566,7 +566,7 @@
       // ventes pas encore captés), affiche le dernier jour fiable plutôt
       // qu'un score dégradé artificiellement par une donnée simplement pas
       // encore fraîche.
-      NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10)).then(onCarburantsResolue),
+      NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10), FUSEAU_STATION).then(onCarburantsResolue),
       NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
       // Notification Commande Carburant (24/08/2026, cahier §24-25) —
       // réutilise l'évaluation déjà construite par NexusCarburantCommandeDonnees
