@@ -607,6 +607,53 @@ vraies gardes. Il n'existe que comme plancher contre une extinction massive des
 journaux, et ne doit jamais devenir un seuil qu'on ajuste à chaque ajout
 légitime.
 
+### Rejeu final sur le déploiement réel — 05/09/2026, commit `270a1a9`
+
+Session **Manager Test**, base `nexus-test` à **0 ligne dans `products`** :
+l'expérience naturelle exacte que demandait le contrôle.
+
+| Écran | Ligne | Niveau observé |
+|---|---|---|
+| Cockpit | `NEXUS-Cockpit-v2:751` | `INFO` |
+| Produits | `NEXUS-Produits-v1:278` | `INFO` |
+| Scanner | `NEXUS-Scanner-v1:527` | `INFO` |
+| Radar Manager | `NEXUS-Radar-Manager-v1:166` | `INFO` |
+| Rayon | `NEXUS-Rayon-v1:218` | `INFO` |
+| Centre Intelligence | `NEXUS-Centre-Intelligence-v1:236` | `INFO` |
+
+Sur les six : aucun `console.error` sur l'absence de `products`, aucun message
+`Chargement products: null`, `NEXUS_BUILD.coherent = true`, commit `270a1a9`,
+génération unique `553f09d5d7d0`, et **une seule origine Supabase**
+(`udljdqxerrbbbajxubfn`) — aucune requête vers la production.
+
+Les 4 `console.warn` ne sont **pas** observables sur cette base : trois
+supposent que des lignes existent, le quatrième qu'aucune prise de poste
+n'est active. Ils sont vérifiés sur le **code réellement servi** par
+Cloudflare, pas à l'exécution. Aucune donnée incohérente n'a été créée pour
+les forcer.
+
+**A4-bis est fermé.**
+
+Gain de couverture obtenu au passage : le rôle du jour `pompiste` a été
+**réellement exercé** par Employé Test, et le contrôle d'accès l'a correctement
+écarté des cinq écrans manager (« Cet écran est réservé aux managers »). Ce
+rôle quitte donc la liste des points non éprouvés, au moins pour ce qui est des
+contrôles d'accès manager.
+
+### Reste une condition mixte, volontairement non corrigée
+
+`NEXUS-Missions-v1.html:842` porte la même forme que les sept corrigées :
+
+```js
+if (error || !data || !data.length) { if (error) console.error('Chargement products (plans action):', error); return []; }
+```
+
+Elle n'a jamais été un défaut : l'appel est déjà gouverné par un `if (error)`
+imbriqué, elle ne journalise donc jamais une erreur nulle, et elle se tait sur
+l'absence — ce que la règle cible autorise. C'est une **variation de style acceptable**, pas une
+dette fonctionnelle : arbitrée comme telle le 05/09/2026, elle est laissée en
+l'état et ne figure dans aucune liste de dettes.
+
 ## A11 — rôle habituel, rôle du jour, permissions *(corrigé le 05/09/2026)*
 
 Audit transversal : **162 occurrences applicatives + 137 politiques RLS**, soit
@@ -852,6 +899,39 @@ page. Ce n'est pas la preuve qu'un ancien fichier était servi depuis le cache.
 Le risque de cache reste réel ailleurs, et c'est pourquoi l'épinglage garde
 son sens : sur **GitHub Pages**, qui sert la production avec un `max-age` de
 dix minutes, et dans le cache mémoire d'un onglet déjà ouvert.
+
+## A15 — `nexus-test` n'a aucune donnée de référence Advisor *(non bloquant, non corrigé)*
+
+Relevée le 05/09/2026 pendant le rejeu A4-bis, sur Centre Intelligence :
+
+```
+[ERROR] NEXUS-Centre-Intelligence-v1:771
+Génération generer_message_controle_tenue_absent: Object
+```
+
+**Ce n'est pas une régression A4-bis** : la ligne 771 n'a pas été touchée par
+le lot, et sa garde est déjà pure (`if (error)`). Elle journalise une **vraie**
+panne technique — elle se comporte exactement comme la règle cible l'exige.
+
+Mécanisme, établi en lecture seule :
+
+| Table | Lignes dans `nexus-test` |
+|---|---|
+| `advisor_rules` | **0** |
+| `nexus_language_templates` | **0** |
+| `v_qualite_controle_absent` | 3 employés concernés |
+
+La RPC trouve 3 personnes à signaler, ne trouve donc pas de sortie anticipée,
+puis lit un `body_template` inexistant : `v_body` vaut `NULL`, et
+`advisor_messages.message_text` est `NOT NULL`. L'insertion échoue.
+
+Les deux autres générateurs de la liste ne remontent pas d'erreur parce que
+leurs vues ne renvoient rien : ils sortent avant l'insertion. L'anomalie est
+donc **latente sur les trois**, visible sur un seul.
+
+Le défaut n'est pas dans le code applicatif : **le référentiel Advisor n'a
+jamais été chargé dans la base de recette**. À arbitrer — charger les données
+de référence dans `nexus-test`, ou constater que l'Advisor restera non éprouvé.
 
 ## Défense en profondeur — requêtes sans filtre de site
 
