@@ -17,6 +17,101 @@
 | Date de recette | 04/09/2026 — passe 1 |
 | Recette menée par | Frédéric Bragance, assisté de Claude |
 
+## Bilan final — VALIDÉ / BLOQUANT / NON BLOQUANT / NON ÉPROUVÉ
+
+Consolidé le 04/09/2026 sur l'état réellement déployé. Le détail de chaque
+anomalie et de chaque étape figure plus bas.
+
+### Les faits
+
+| | |
+|---|---|
+| `config-par-environnement` (déployé) | `58e394b9b6f853207b65e176ec08411f23db46f8` |
+| `main` | `501c0c744c3327dd5693a2bddc45d064045ca474` |
+| `production` | `501c0c744c3327dd5693a2bddc45d064045ca474` |
+| CI | verte sur les 8 commits de la recette, dont `58e394b` |
+| Cloudflare | déployé — `environnement: "test"`, base `udljdqxerrbbbajxubfn`, `cache-control: no-store`, `x-robots-tag: noindex`, `robots.txt` en `Disallow: /`, balises `config → page → bandeau → auth` |
+
+**Migrations présentes uniquement sur `nexus-test`** — 242 côté test, 240 côté
+production :
+
+| Migration | Test | Production |
+|---|---|---|
+| `20260904175723_verrouiller_rpc_stock_par_site` | ✅ | absente |
+| `20260904175747_login_non_enumerable` | ✅ | absente |
+| `20260904190027_site_unique_shifts_mission_catalog` | ✅ | absente |
+
+**Production — confirmation.** 0 migration de la recette, 0 contrainte A2,
+0 fonction créée pendant la recette, 0 ligne sur un site de test, 0 écriture
+pendant la fenêtre de recette : la dernière écriture de production date de
+13:40 locale, sur le site réel, par l'exploitation ; les premières écritures
+de recette sont à 16:52 locale, sur `nexus-test`.
+
+**Tests automatiques ajoutés pendant la recette**
+
+| Fichier | Rôle |
+|---|---|
+| `test_config_environnement.js` | 17 vérifications : aucune URL ni clé Supabase en dur dans les 166 fichiers applicatifs |
+| `test_securite_lot_isolation_20260904.js` | 35 vérifications : bandeau jamais hors « test », connexion non énumérable, message unique, `no-store`, `robots.txt` par environnement |
+| `test_site_unique_20260904.js` | 23 vérifications : les trois verrous d'A2, réparation avant contrainte, `site` non supprimée |
+| `test_identification_page_20260904.js` | 33 vérifications : identification de page avec et sans `.html`, query, fragment, boucle `?retour=` à 0 tour, 13 satellites |
+| `test_journalisation_donnees_absentes_20260904.js` | 5 vérifications : absence de données en `info`, erreur de base restée en `error` |
+| `outils/verifier-isolation-supabase.mjs` | Rejoue les deux fuites anonymes contre une vraie base. Hors suite : celle-ci n'ouvre aucune connexion réseau |
+| `outils/verifier-site-unique.sql` | Rejoue A2 en 7 scénarios, transaction close par `rollback`, refuse de tourner sur une base ressemblant à la production |
+
+### VALIDÉ
+
+| # | Objet | Preuve |
+|---|---|---|
+| 1 | Séparation `nexus-test` / production | 3 migrations et 0 écriture de recette en prod ; 0 requête vers `uzhjpqpctpvxytxpxoqz` |
+| 2 | Configuration TEST | `environnement: "test"`, `no-store`, `Disallow: /`, bandeau sur les 53 écrans |
+| 3 | Aucun appel Supabase production | 0 sur 10 écrans × 3 comptes |
+| 4 | Aucune Edge Function production | 0 — **réserve en NON ÉPROUVÉ** |
+| 5 | Manager Test | session, rôle, site, 42 appels REST tous sur le site de test |
+| 6 | Employé Test A | session, rôle CAISSIER, site, 6 écrans |
+| 7 | Employé Test B | session, rôle Pompiste, site, 4 écrans |
+| 8 | Prise de poste | 3 services, 3 rôles distincts, rappel de sécurité pompiste affiché |
+| 9 | Pointage | 2 arrivées avec photo, horaire et retard enregistrés, site correct |
+| 10 | **A2 `site = site_id`** | les 3 services portent `nexus-station-test` des deux côtés ; 0 ligne à deux sites dans `shifts` et `mission_catalog` |
+| 11 | Isolation inter-site | 0 donnée de `vito-sainte-marie` ni de `site-fantome-test`, en base comme à l'écran |
+| 12 | **Isolation A ↔ B** | 12 tentatives croisées : chacun ne voit que lui, ne modifie ni ne supprime rien de l'autre |
+| 13 | Visibilité manager → équipe | 3 services de son site, 0 hors site |
+| 14 | Protections d'écrans manager | Radar et Carburants Pilotage : refus affiché, aucune donnée |
+| 15 | **A8 avec et sans `.html`** | reconnu sous les deux formes, avec query et fragment |
+| 16 | Scripts et satellites attendus | 8/8 chargés ; aucun ne l'était avant A8 |
+| 17 | Absence de boucle de navigation | URL entre 45 et 80 caractères sur tous les écrans |
+
+### BLOQUANT
+
+**A6 — on ne peut pas savoir quelle version est réellement éprouvée.** Voir la
+fiche détaillée plus bas. Tant que ce point tient, aucun résultat de recette
+n'est rattachable de façon certaine à un commit.
+
+### NON BLOQUANT
+
+| # | Anomalie | Nature |
+|---|---|---|
+| A3 | Libellés « Vito Sainte-Marie Usine » codés en dur — 39 écrans, 46 occurrences | Défaut multi-site de présentation |
+| A4-bis | `console.error` sur absence normale de données, `NEXUS-Cockpit-v2:736` | Hygiène de console |
+| A5 | Deux `HEAD` en 503 intermittents, non reproduits | En observation |
+| A11 | Le Cockpit affiche le rôle habituel (`employees.role`) au lieu du rôle du jour (`shifts.role`) | **Modèle métier** |
+| A7 | L'accueil public ne porte pas le bandeau MODE TEST | Présentation |
+| A10 | Aucun lien de déconnexion sur le Pointage une fois l'arrivée enregistrée | Exploitation |
+| A12 | Renommage de migration désaligné avec la production | **Sécurité de la promotion** |
+
+### NON ÉPROUVÉ
+
+Section complète plus bas. En résumé : aucune fonction Edge n'est déployée sur
+`nexus-test`, donc « 0 appel Edge production » **ne prouve pas** l'isolation
+des fonctionnalités Edge ; les rôles renfort et créateur n'ont aucun compte ;
+la simultanéité de deux sessions n'a pas été testée.
+
+### Ordre des lots arbitré
+
+**A6 → A12 → A11 → A4-bis → A3**, puis couverture des éléments non éprouvés.
+A12 passe avant A11 : il touche à la sécurité de la future promotion de la
+base, quand A11 touche à la logique métier.
+
 ## Migrations
 
 Aucune migration n'accompagnait `3efbf1c`. Deux migrations ont été appliquées
@@ -235,10 +330,84 @@ bloquante et doit être traitée avant de poursuivre.
 | Fonction Edge production | ✅ aucune |
 | Données d'un autre site | ✅ 40 requêtes site-scopées, toutes sur `nexus-station-test` |
 
-### Étapes 2 à 5 — non menées
+### Étape 2 — Employé Test A (caissière)
 
-Employé Test A, Employé Test B, isolation croisée à l'écran et contrôles
-finaux : **reportés** après le lot A2.
+Menée après les lots A2, A4 et A8. Session propre, prise de poste, pointage
+avec photo, six écrans visités.
+
+| Contrôle | Résultat |
+|---|---|
+| Boucle de redirection | ✅ aucune |
+| URL stable | ✅ 70 à 80 caractères, un seul `?retour=` |
+| Prise de poste | ✅ trois rôles proposés, **pas Manager** |
+| Pointage | ✅ arrivée 23:10, photo, retard 7 min |
+| Rôle affiché | ✅ CAISSIER |
+| Site affiché | ✅ NEXUS STATION TEST |
+| Écriture du service | ✅ `site = site_id = nexus-station-test` |
+| Requête vers production | ✅ 0 sur 6 écrans |
+| Fonction Edge production | ✅ 0 |
+| Donnée d'un autre site | ✅ 0 |
+| Scripts débloqués par A8 | ✅ 4/4 sur l'accueil, 4/4 sur l'Inventaire |
+
+Écrans manager en saisissant l'adresse : Radar du Manager et Carburants
+Pilotage s'ouvrent puis affichent « Cet écran est réservé aux managers » —
+aucune donnée. Le Cockpit s'ouvre normalement, et c'est correct : il figure
+dans l'offre Essential. **Nuance à retenir : l'écran n'est pas refusé, il
+s'ouvre et se vide. La barrière est dans l'écran, pas dans la navigation.**
+
+Isolation éprouvée en base sous l'identité de A : voit son service et lui
+seul, ne voit ni le service ni les données du manager, ne peut ni les
+modifier ni les supprimer (0 ligne), ne peut ni écrire au nom d'un autre ni
+prendre un poste manager (refus `42501`).
+
+### Étape 3 — Employé Test B (pompiste)
+
+| Contrôle | Résultat |
+|---|---|
+| Boucle de navigation | ✅ aucune |
+| URL stable | ✅ 45 à 76 caractères |
+| Prise de poste | ✅ rôle Pompiste, rappel de sécurité propre au poste affiché |
+| Pointage | ✅ validé, seconde photo |
+| Écriture du service | ✅ `site = site_id = nexus-station-test` |
+| Requête vers production / Edge | ✅ 0 / 0 |
+| Donnée d'un autre site | ✅ 0 |
+| Satellites A8 sur Inventaire | ✅ 4/4 |
+| Trace de A ou du Manager à l'écran | ✅ **aucune** — recherche explicite des chaînes « Test A », « employe-test-a », « Manager Test », « manager-test » dans le texte rendu de chaque écran |
+
+### Étape 4 — Isolation croisée A ↔ B
+
+| Tentative | Résultat |
+|---|---|
+| B voit **son** service | 1 ✅ |
+| B voit le service de A | **0** ✅ |
+| B voit le **pointage** de A | **0** ✅ |
+| B voit le service du Manager | **0** ✅ |
+| B voit les autres employés | 1 — lui seul ✅ |
+| B **modifie** le service de A | **0 ligne** ✅ |
+| B **supprime** le pointage de A | **0 ligne** ✅ |
+| A voit **son** service | 1 ✅ |
+| A voit le service de B | **0** ✅ |
+| A voit les pointages de B | **0** ✅ |
+| A **modifie** le service de B | **0 ligne** ✅ |
+| Manager voit l'équipe | **3 services** ✅ |
+| …dont hors de son site | **0** ✅ |
+
+Deux employés du même site sont cloisonnés **dans les deux sens**, en lecture
+comme en écriture, et le manager voit toujours son équipe : le cloisonnement
+n'a pas été obtenu en cassant la hiérarchie prévue.
+
+**Note de méthode, à conserver.** La première sonde résolvait les
+identifiants de référence *sans identité*, donc à `NULL` : tous les compteurs
+valaient zéro, y compris « B voit son propre service ». Elle ressemblait à
+une isolation parfaite alors qu'elle ne mesurait rien. La sonde retenue
+vérifie d'abord que les services et le pointage de référence existent, et
+échoue sinon. Un test d'isolation qui ne peut pas distinguer « rien n'est
+visible » de « rien n'a été cherché » ne prouve rien.
+
+### Étape 5 — Contrôles finaux
+
+Collectés en continu sur les trois comptes et dix écrans. Résultats repris
+dans le bilan en tête de fiche.
 
 ## A2 — deux identités de site sur une même ligne *(bloquant, corrigé)*
 
@@ -352,6 +521,53 @@ rien ne le dise. Même famille qu'A3.
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
 | **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5`, alors que le commit déployé est `f3526ad`. Et les épingles de cache `?v=` ne sont pas régénérées au déploiement : un fichier modifié est servi sous une épingle inchangée, donc potentiellement depuis le cache du navigateur. Constaté sur le correctif A4 — Chrome a pris la nouvelle version, mais rien ne le garantissait. | **Traçabilité** : on ne peut savoir ni depuis l'écran, ni depuis le cache, quelle version du code on éprouve | **bloquant avant validation finale de la recette** |
 
+## A9 à A12 — relevées pendant la passe navigateur
+
+### A9 — le pointage exige une photo *(contrainte normale, pas une anomalie)*
+
+L'écran de Pointage demande une photo pour valider l'arrivée, et tant qu'elle
+n'est pas prise, aucun autre écran n'est atteignable. C'est le parcours
+employé prévu, pas un défaut : consigné pour que la contrainte soit connue de
+qui reprend la recette. Les deux arrivées ont été pointées avec photo par
+Frédéric ; aucune capture n'a été déclenchée automatiquement.
+
+### A10 — pas de déconnexion depuis le Pointage
+
+Une fois l'arrivée enregistrée, l'écran de Pointage ne propose aucun lien de
+déconnexion. Sur un poste partagé au comptoir d'une station, l'employé qui
+termine laisse la session ouverte sous son identité. Sévérité faible, mais
+réelle en exploitation. Contourné pendant la recette en appelant la
+déconnexion du client applicatif.
+
+### A11 — le Cockpit affiche le rôle habituel, pas le rôle du jour
+
+| | |
+|---|---|
+| **Écran** | `NEXUS-Cockpit-v2` |
+| **Action** | Prise de poste en **Pompiste**, puis ouverture du Cockpit |
+| **Rôle** | Employé Test B |
+| **Attendu** | « POMPISTE » — le rôle du jour, que la prise de poste vient de fixer |
+| **Obtenu** | « **CAISSIER** » — la valeur de `employees.role`, le rôle habituel |
+
+L'accueil affiche « Pompiste · Votre service est en cours » et Missions
+affiche « Rôle du jour : pompiste » : ces deux écrans lisent le service. Le
+Cockpit lit la fiche employé.
+
+Aucune donnée ne fuit, mais cela contredit la doctrine du rôle du jour, qui
+est la raison d'être de la prise de poste. **Invisible avec A**, dont le rôle
+du jour coïncidait avec le rôle habituel : c'est B qui l'a révélé — la raison
+d'être d'un second employé de recette.
+
+### A12 — un renommage de migration désaligné avec la production
+
+| | |
+|---|---|
+| **Origine** | Commit `95cc92a`, pendant le lot A2 |
+| **Action** | `20260904130807_fermer_lecture_anonyme_sites.sql` renommé en `20260904140000_…` pour s'aligner sur la version enregistrée par `nexus-test` |
+| **Problème** | **La production a enregistré cette migration sous `20260904130807`.** Le fichier suivait la production avant ce renommage ; il ne la suit plus |
+| **Risque** | À la promotion, l'outillage Supabase peut voir `20260904140000` comme une migration **nouvelle** et la rejouer sur une base où elle est déjà appliquée |
+| **Statut** | Erreur introduite pendant la recette, assumée. **Aucun renommage de migration ne sera plus fait avant arbitrage.** Plan séparé : `docs/plans/2026-09-04-alignement-migrations.md` |
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
@@ -371,12 +587,38 @@ qu'elle ne nomme pas.
 de `shifts` corrigé par A2, sur des tables où la colonne unique rend l'anomalie
 moins visible.
 
-## Points explicitement NON VALIDÉS
+## NON ÉPROUVÉ
 
-Ces deux points ne sont pas des anomalies à corriger : ce sont des **trous de
-couverture de la recette elle-même**. Ils restent NON VALIDÉS quel que soit le
-résultat des dix contrôles, et doivent être relus à chaque fiche tant qu'ils
-subsistent.
+Ce ne sont pas des anomalies : ce sont les **trous de couverture de la recette
+elle-même**. Ils restent NON ÉPROUVÉS quel que soit le résultat des contrôles,
+et doivent être relus à chaque fiche tant qu'ils subsistent. Cette section est
+la plus importante à ne pas laisser se périmer : une recette qui ne dit pas ce
+qu'elle n'a pas testé se lit comme une recette complète.
+
+### Ce qui n'a pas été exercé
+
+- **Rôles** : pompiste et caissière l'ont été — par la prise de poste de B et
+  de A, pas par des comptes dédiés. **Renfort** est proposé à l'écran et
+  jamais exercé. **Créateur** n'a aucun compte : c'est le seul profil qui
+  traverse les sites par conception, et la branche créateur de la garde
+  `nexus_site_autorise` ajoutée par A2 **n'est parcourue par aucun test**.
+  Le profil « authentifié sans ligne `employees` » n'a pas été éprouvé.
+- **Simultanéité** : le scénario I1 demande deux employés connectés *en même
+  temps*. A et B ont été éprouvés **successivement**. Le cloisonnement est
+  prouvé en base dans les deux sens ; deux sessions navigateur ouvertes
+  simultanément ne l'ont pas été.
+- **Reprise de poste (I2)** : chaque compte n'a pris qu'un seul service. Le
+  cas d'un second service pour le même employé, et la non-reprise de l'état
+  du service précédent, n'ont pas été joués.
+- **Parcours** : cycle de pointage complet (début et fin de pause, départ),
+  comptage d'inventaire réel, complétion de mission, FDJ, Progression.
+- **Écrans jamais ouverts** : Scanner, Tempo, Campagne, Capital, Planning,
+  Journal, Assignations, Résultats Équipe, Évaluation Employé, Traçabilité,
+  Paramètres Station, Paramètres Inventaire, Admin Sites.
+- **Procédures de retour** : les migrations de la recette ont une procédure de
+  restauration rédigée, **non essayée** — la rejouer rouvrirait volontairement
+  une fuite. La restauration d'une sauvegarde n'a jamais été testée sur ce
+  projet.
 
 ### NV1 — trois profils n'ont aucun compte de test
 
@@ -416,22 +658,27 @@ pas couvertes par la recette**.
 | | |
 |---|---|
 | Recette validée le | **— NON VALIDÉE** |
+| Motif | **A6 BLOQUANT** |
 | Mise en production autorisée par | **— PERSONNE. Promotion interdite en l'état.** |
 | SHA promu en production | **aucun** |
+| SHA éprouvé par cette passe | `58e394b9b6f853207b65e176ec08411f23db46f8` — sous la réserve d'A6, qui empêche précisément de le garantir depuis un écran |
 | Non-régression en production vérifiée le | sans objet |
-| Retour arrière possible vers | `production` reste figée sur `501c0c7` — inchangée, non touchée |
+| Retour arrière possible vers | `production` figée sur `501c0c7`, inchangée et non touchée |
 
-**Motif du blocage :** cinq anomalies bloquantes constatées, dont deux fuites
-de données réelles atteignables sans authentification. Toutes corrigées sur
-la branche `config-par-environnement` et sur la base de recette, aucune
-encore déployée ni promue.
+**Motif du blocage.** Huit anomalies bloquantes ont été constatées et sept
+corrigées pendant cette recette — deux fuites de données atteignables sans
+authentification, une double identité de site en base, une boucle de
+redirection rendant l'application inutilisable pour tout compte non-manager,
+et l'impossibilité de se connecter. La huitième, **A6**, reste ouverte : tant
+que le commit et le build servis ne sont pas identifiables depuis un écran, et
+tant qu'un fichier modifié peut être servi sous une épingle de cache
+inchangée, **aucun résultat de recette n'est rattachable de façon certaine à
+une version**. Valider dans ces conditions reviendrait à valider une version
+qu'on ne sait pas nommer.
 
-**Ce qu'il reste à faire avant une passe 2 :** déployer le lot correctif sur
-la recette, puis reprendre les dix contrôles avec une vraie session
-navigateur — Manager Test, Employé Test A, Employé Test B, observation des
-requêtes réseau, absence d'URL Supabase de production, absence d'appel de
-fonction Edge de production, et isolation croisée éprouvée à l'écran autant
-qu'en base.
+**Ce qu'il reste avant de pouvoir valider :** corriger A6, puis rejouer de
+façon ciblée les contrôles qui en dépendent — c'est-à-dire vérifier depuis un
+écran que le commit affiché est bien celui qui sert la page.
 
-> Sans nom ni date dans le bloc de décision, la version n'est pas autorisée
-> en production. Ce bloc est vide : elle ne l'est pas.
+> Sans nom ni date dans ce bloc de décision, la version n'est pas autorisée en
+> production. Ce bloc est vide : elle ne l'est pas.
