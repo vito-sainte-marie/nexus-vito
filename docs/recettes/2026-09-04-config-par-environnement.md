@@ -568,6 +568,57 @@ d'être d'un second employé de recette.
 | **Risque** | À la promotion, l'outillage Supabase peut voir `20260904140000` comme une migration **nouvelle** et la rejouer sur une base où elle est déjà appliquée |
 | **Statut** | Erreur introduite pendant la recette, assumée. **Aucun renommage de migration ne sera plus fait avant arbitrage.** Plan séparé : `docs/plans/2026-09-04-alignement-migrations.md` |
 
+### A14 — une seconde chaîne de versionnement, révélée par le contrôle d'A6
+
+**À conserver dans l'histoire de NEXUS.** Le mécanisme de traçabilité posé par
+A6 n'a pas seulement corrigé un pied de page : quelques minutes après sa mise
+en service, son contrôle d'exécution a signalé sur le **déploiement réel** un
+mélange de générations vieux de cinq jours, que ni la CI, ni la recette, ni
+aucune relecture n'avaient jamais vu.
+
+```
+NEXUS — mélange de générations détecté (attendu 6573b1de07fa) :
+  nexus-horizon-operationnel.js → 20260831-1408
+  nexus-stock-moteur.js         → 20260831-1408
+  nexus-reappro-stock-v1.js     → 20260831-1408
+  nexus-conseiller-stock-v3.js  → 20260831-1408
+  nexus-cockpit-stock-v3.js     → 20260831-1408
+```
+
+`nexus-auth.js` entretenait sa propre constante de génération, figée au
+31 août. Le Cockpit chargeait donc cinq fichiers vieux de cinq jours pendant
+que le reste de l'écran était à jour — exactement le scénario « nouvel écran,
+ancien moteur » que l'épinglage sert à rendre impossible. Invisible à tous les
+contrôles antérieurs : l'URL était construite par interpolation, il n'existait
+aucun littéral à inspecter.
+
+**L'inventaire s'est élargi en quatre vagues**, et c'est la leçon la plus
+utile :
+
+| Vague | Découverte | Portée |
+|---|---|---|
+| 1 | Contrôle runtime, Cockpit déployé | 5 scripts |
+| 2 | Littéraux + boucles `forEach` dans `nexus-auth.js` | **18** |
+| 3 | Scripts injectés **sans aucune épingle**, même fichier | **32** |
+| 4 | Contrôle runtime, Inventaire déployé, **après** le premier correctif | **4 de plus**, dans deux autres fichiers |
+
+La quatrième vague est la plus instructive : `nexus-header-nav.js` et
+`nexus-inventaire-mission-rules-donnees.js` injectaient quatre scripts sans
+épingle. Invisibles au contrôle d'exécution — il n'inspecte que les balises
+présentes au chargement, or ceux-là sont ajoutés plus tard — et invisibles au
+premier correctif, qui ne regardait qu'un fichier. **J'avais corrigé un
+fichier ; le défaut était une pratique.**
+
+**Correction.** La constante disparaît. Une primitive unique,
+`NexusBuild.versionner()`, portée par le fichier qui porte déjà l'identité,
+devient le seul moyen de construire une URL épinglée — sans repli d'aucune
+sorte, car une valeur de repli serait une seconde génération, c'est-à-dire le
+défaut qu'on retire. Les vérifications portent désormais sur **tous** les
+fichiers applicatifs.
+
+C'est le genre de dette qu'un système de build fiable doit rendre impossible,
+et non pas seulement signaler.
+
 ### A6 — précision sur le cache, à ne pas laisser déformée
 
 J'ai d'abord écrit qu'un fichier modifié servi sous une épingle inchangée
