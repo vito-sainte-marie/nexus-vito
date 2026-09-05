@@ -914,7 +914,13 @@
     // l'heure du téléphone : au même instant, un appareil réglé sur Paris
     // plaçait un employé de Martinique quatre heures plus tard, donc
     // souvent dans le mauvais quart.
-    return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(timezone), bascule);
+    // Vocabulaire : Inventaire nomme ses quarts « matin » / « soir » — c'est
+    // ce que la contrainte inventaire_plans_comptage_quart_check exige. FDJ
+    // les nomme « 1 » / « 2 ». Deux notations pour la même notion, dette de
+    // vocabulaire de la même famille qu'A11-5 ; la primitive reste neutre et
+    // chaque appelant traduit, plutôt que d'imposer un choix ici.
+    const quart = NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(timezone), bascule);
+    return quart === '1' ? 'matin' : quart === '2' ? 'soir' : null;
   }
 
   function dateISO() {

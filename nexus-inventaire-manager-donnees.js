@@ -63,7 +63,13 @@
       console.warn('Quart du moment : aucun horaire de bascule configuré pour ce commerce.');
       return null;
     }
-    return global.NexusStation.quartDepuisMinutes(global.NexusStation.minutesLocalesStation(timezone), bascule);
+    // Vocabulaire : Inventaire Manager nomme ses quarts « matin » / « soir » — c'est
+    // ce que la contrainte inventaire_plans_comptage_quart_check exige. FDJ
+    // les nomme « 1 » / « 2 ». Deux notations pour la même notion, dette de
+    // vocabulaire de la même famille qu'A11-5 ; la primitive reste neutre et
+    // chaque appelant traduit, plutôt que d'imposer un choix ici.
+    const quart = global.NexusStation.quartDepuisMinutes(global.NexusStation.minutesLocalesStation(timezone), bascule);
+    return quart === '1' ? 'matin' : quart === '2' ? 'soir' : null;
   }
 
 

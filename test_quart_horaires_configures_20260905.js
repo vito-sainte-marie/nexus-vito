@@ -126,4 +126,38 @@ verifier('les six chemins passent par la primitive de fuseau de la station', () 
   }
 });
 
+// Ajouté le 05/09/2026 après une régression trouvée sur le déploiement réel :
+// la réécriture C2-2 avait remplacé le vocabulaire d'Inventaire ('matin' /
+// 'soir') par celui de la primitive ('1' / '2'), et la contrainte
+// inventaire_plans_comptage_quart_check rejetait alors tout plan de comptage.
+// Aucun test ne gardait ce vocabulaire — d'où celui-ci.
+verifier('chaque écran conserve SON vocabulaire de quart', () => {
+  // La primitive est neutre : elle rend '1' / '2'. Les écrans qui écrivent en
+  // base dans le vocabulaire « matin » / « soir » doivent donc TRADUIRE ;
+  // ceux qui parlent déjà '1' / '2' laissent passer.
+  const TRADUISENT = ['NEXUS-Inventaire-v1.html', 'nexus-inventaire-manager-donnees.js',
+                      'NEXUS-Prise-De-Poste-v1.html'];
+  const LAISSENT_PASSER = ['NEXUS-FDJ-v1.html'];
+  const corpsDe = (fichier) => {
+    const src = fs.readFileSync(path.join(RACINE, fichier), 'utf8');
+    const i = src.indexOf('function quartDuMoment');
+    assert.ok(i !== -1, 'quartDuMoment introuvable dans ' + fichier);
+    return src.slice(i, i + 1800);
+  };
+  for (const f of TRADUISENT) {
+    const corps = corpsDe(f);
+    assert.ok(/'matin'/.test(corps) && /'soir'/.test(corps),
+      `${f} : quartDuMoment doit traduire en 'matin' / 'soir' — la contrainte en base l’exige`);
+    assert.ok(/quart === '1' \? 'matin'/.test(corps),
+      `${f} : la traduction doit être explicite depuis la primitive`);
+  }
+  for (const f of LAISSENT_PASSER) {
+    const corps = corpsDe(f);
+    assert.ok(!/'matin'|'soir'/.test(corps),
+      `${f} : cet écran parle '1' / '2', il ne doit pas traduire`);
+    assert.ok(/quartDepuisMinutes\(/.test(corps),
+      `${f} : le quart doit venir de la primitive`);
+  }
+});
+
 console.log(`\n${passes} vérifications passées — le quart vient de la station, pas de l'appareil.`);
