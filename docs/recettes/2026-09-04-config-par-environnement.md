@@ -1053,6 +1053,84 @@ donnée avec.
 | Colonne `horaire_bascule_quart2_repli` | non — plus lue ni écrite |
 | A15 / A16 | **hors A3**, à arbitrer séparément |
 
+## RECETTE TRANSVERSALE FINALE — 05/09/2026
+
+Déploiement éprouvé : commit **`16db38b`**, génération **`0d8c69533224`**,
+environnement `test`, `coherent = true`. Base : `nexus-test`
+(`udljdqxerrbbbajxubfn`). Aucun appel Supabase production sur aucun écran.
+
+### PROUVÉ
+
+| Domaine | Preuve |
+|---|---|
+| Environnement | `NEXUS_ENV = test`, URL et clé du projet de recette, `nexus-config.js` servi sans épingle avant l'auth |
+| Build | génération **unique** `0d8c69533224` sur chaque page ; seuls `nexus-build.js` et `nexus-config.js` sans épingle (exceptions A6) |
+| Bandeau MODE TEST | affiché sur tous les écrans, y compris la connexion |
+| Auth | Manager Test, Employé Test A, Employé Test B |
+| Isolation site | aucune lecture ni écriture hors `nexus-station-test` ; site sentinelle invisible |
+| Isolation employés | B ne voit ni les fiches, ni les services, ni les pointages d'autrui ; 5 écritures hors périmètre refusées |
+| Rôles | `caissiere`, `pompiste`, **`renfort`** (première fois), `manager` — rôle du jour distinct du rôle habituel |
+| Quart | déterminé par l'heure de la station et le seuil configuré (13:00), vérifié à la bascule réelle |
+| Pointage | cycle **complet** : arrivée (photo), début et fin de pause, départ (photo) — pauses éprouvées pour la première fois |
+| Deuxième service | nouveau service réellement distinct, aucune réutilisation du précédent |
+| Écriture métier | audit Verify créé par l'écran : site, date, quart, employé, montants, écarts, statut — tout correct |
+| Fail-closed | site, fuseau et horaires absents produisent un refus ou un blocage explicite, jamais un repli |
+| Identité commerce | « NEXUS STATION TEST » en en-tête et en pied de page ; **aucune occurrence de Sainte-Marie**, toutes graphies confondues |
+| Carburants | capacités du site de recette (SP95 25 000, GO 15 000 + 8 000), aucun repli |
+| Centre Intelligence | 3 générateurs sans erreur, référentiel versionné |
+| Rapport | plus aucune lecture de `current_normalized_sales`, cascade `products` fonctionnelle |
+| Console | aucune erreur inexpliquée sur les parcours validés |
+
+### BLOQUANT PRODUCTION — deux défauts
+
+**1 · Cycle de vie et traçabilité des services (`shifts`)**
+
+- le service précédent n'est pas fermé à la prise de poste suivante, alors que
+  `cloture_source = 'prise_de_poste_suivante'` existe au modèle ;
+- aucune protection contre les doublons — deux services identiques créés à
+  **7 secondes** d'intervalle ;
+- `shift_id` prévu mais jamais renseigné dans `inventaire_quart_employes`,
+  qui porte pourtant une clé étrangère vers `shifts` ;
+- **le pointage de départ ne clôture pas le service** — prouvé le 05/09/2026 :
+  départ pointé à 14:47 avec photo de mise en alarme, service toujours
+  `en_cours`, `heure_fin` null, `cloture_source` null.
+
+État constaté : **6 services `en_cours`, aucun clôturé**. Aucune durée
+réellement travaillée n'est calculable à partir de `shifts` — ce qui touche
+directement NEXUS PAYE et toute mesure de présence.
+
+**2 · Verify propose un quart par défaut incompatible avec l'heure de la station**
+
+À 14:33 heure station, seuil configuré 13:00, l'écran proposait **Quart 1**
+alors que le quart réel était 2. Verify ne suit pas le contrat posé en C2 pour
+Prise de poste, Inventaire et FDJ. Le sélecteur reste modifiable, mais un
+manager conserve normalement une valeur préremplie qu'il croit fiable.
+
+### HORS COUVERTURE — motif explicite
+
+| Sujet | Motif |
+|---|---|
+| Edge Functions | non déployées dans `nexus-test` (`admin-api`, `api-v1`, `google-sheets-sync` existent au dépôt) |
+| Rôle Créateur | aucun compte de recette |
+| Parcours Missions | `mission_catalog = 0` pour le site de recette ; aucun seed créé pendant la recette |
+| Sessions simultanées A/B | non éprouvé, utile plus tard |
+| Restauration de sauvegarde | relève de la recette de promotion, pas de la recette fonctionnelle |
+
+### DETTES ACCEPTÉES
+
+Verify tire son `quart` du choix écran et non d'un service de référence
+(traçabilité) · A17 horloge appareil hors quart (Missions, Rappels) · A15
+défense « référentiel absent » dans les RPC · 13 colonnes `shift_id` FDJ sans
+clé étrangère · backtest latent · colonne `horaire_bascule_quart2_repli`
+conservée en base · B2, E1, E2 · A11-c, A11-5 · vues SECURITY DEFINER
+restantes · comptes de test en production.
+
+### Nuance à conserver en non-régression
+
+Un `update` refusé par RLS **ne lève aucune erreur** : il retourne **zéro
+ligne**. Un client qui ne compte pas les lignes prendra un refus pour une
+réussite. Les insertions refusées, elles, lèvent bien `42501`.
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
