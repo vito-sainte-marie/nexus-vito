@@ -7,134 +7,131 @@ BRANCH: config-par-environnement
 
 ## Résumé
 
-S-4 est le quatrième lot du bloqueur production « cycle de vie et traçabilité
-des services (`shifts`) ». S-1 (assainissement + index d'unicité), S-2
-(clôture au pointage de départ) et S-3 (clôture à la prise de poste suivante)
-sont appliqués sur `nexus-test` et poussés.
+S-4 est implémenté, déployé sur `nexus-test` et éprouvé. Décision
+`APPROVED_WITH_CONDITIONS` consommée : Q1 option (a), Q2 oui, Q3 distinction
+obligatoire. Toutes les conditions sont appliquées.
 
-S-4 doit aligner les lecteurs sur **une seule** définition du service courant.
-Diagnostic établi, **aucun code écrit**, en attente d'arbitrage.
+**Neuf des dix preuves attendues sont produites.** La dixième — un départ réel
+sous session employé — est bloquée par un état de données, pas par le code :
+détail et demande d'arbitrage plus bas.
 
 ## Constat
 
-NEXUS n'a pas une définition du « service courant », il en a **quatre**.
-Neuf lectures de `shifts`, réparties en quatre familles :
+### Preuve 1 — inventaire avant / après des neuf lectures
 
-| # | Lecteur | Borne | `statut` |
+| # | Lecteur | Avant | Après |
 |---|---|---|---|
-| 1 | `NEXUS-Pointage-v1.html:563` | aucune | **`= 'en_cours'`** |
-| 2 | `NEXUS-Missions-v1.html:371` | `heure_debut >= now - 24 h` | **ignoré** |
-| 3 | `NEXUS-Missions-v1.html:397` | aucune, filtre `role` + `quart` | **ignoré** |
-| 4 | `NEXUS-Pointage-v1.html:982` | `now - 24 h` | **ignoré** |
-| 5 | `nexus-auth.js:181` | minuit local de l'appareil | **ignoré** |
-| 6 | `NEXUS-Cockpit-v2.html:679` | minuit local de l'appareil | **ignoré** |
-| 7 | `NEXUS-Brief-v1.html:407` | minuit local de l'appareil | **ignoré** |
-| 8 | `NEXUS-Inventaire-v1.html:1002` | minuit local de l'appareil | **ignoré** |
-| 9 | `NEXUS-App-v1.html:2659` | `T00:00:00`–`T23:59:59` **en UTC** | **ignoré** |
+| 1 | `Pointage:563` service actif | `statut='en_cours'`, sans site | primitive |
+| 2 | `Missions:371` service du jour | fenêtre **24 h**, `statut` ignoré | primitive |
+| 3 | `Missions:397` service comparable | historique sans borne | **conservé**, nommé explicitement comme historique |
+| 4 | `Pointage:982` rôle du jour | fenêtre **24 h** | primitive |
+| 5 | `nexus-auth:181` porte d'accès | minuit **appareil** | primitive |
+| 6 | `Cockpit:679` badge | minuit **appareil** | primitive |
+| 7 | `Brief:407` badge | minuit **appareil** | primitive |
+| 8 | `Inventaire:1002` rôle du jour | minuit **appareil** | primitive, contrat `{indetermine}` conservé |
+| 9 | `App:2659` rôle + quart | bornes de journée en **UTC** | primitive |
 
-Un seul lecteur sur neuf regarde `statut`.
+**Neuf lectures → trois accès à `shifts`** : la primitive, l'unique `insert`
+de la prise de poste, et l'historique comparable de Missions.
 
-### Pourquoi c'est bloquant maintenant, et pas avant
+### La primitive
 
-Tant que rien ne clôturait, `statut` valait toujours `en_cours` : les neuf
-lecteurs convergeaient par accident. Depuis S-2 et S-3, les services se
-ferment réellement — et les huit lecteurs qui ignorent `statut` continuent de
-renvoyer un service **terminé** comme s'il était actif.
+`nexusServiceCourant(employee)` dans `nexus-auth.js`, seul module chargé par
+tous les écrans.
 
-Exemple mesurable en l'état : Employé Test B a pointé son départ le
-05/09 à 14:47. Avec S-2 actif, son service passerait à `termine`. Pointage
-dirait « aucun service actif » ; Missions, dans les 24 h qui suivent, dirait
-encore « service en cours » et laisserait cocher des missions rattachées à un
-service clos.
+```
+employee_id + site_id + statut = 'en_cours', order by heure_debut desc
+→ { service } | { aucun: true } | { erreur: true }
+```
 
-### Deux défauts secondaires révélés par le même balayage
-
-- **Ligne 9 — `NEXUS-App-v1.html:2659` borne la journée en UTC**
-  (`new Date().toISOString().slice(0,10)`), alors que les lignes 5 à 8 la
-  bornent à minuit **local de l'appareil**. Aucune des deux n'est l'heure de
-  la station. C'est la famille A17, jamais traitée pour `shifts`.
-- **Ligne 3 — `NEXUS-Missions-v1.html:397`** cherche le dernier service
-  comparable (même `role`, même `quart`) **sans aucune borne temporelle** : il
-  peut remonter à un service de n'importe quelle date.
+Aucun repli : ni 24 h, ni date, ni dernier historique, ni rôle habituel.
+Plusieurs services ouverts malgré S-1 → `console.error` d'anomalie technique,
+jamais masqué, le plus récent retenu pour ne pas bloquer l'employé.
 
 ## Modifications / proposition
 
-Contrat unique, déjà arbitré lors du diagnostic du bloqueur :
+Q1 — fenêtre de 24 h de Missions **supprimée**. Q2 — porte d'accès alignée ;
+une panne de lecture ne bloque pas, pour ne pas enfermer un employé hors de
+l'application. Q3 — bornes de journée retirées du chemin de décision ;
+`Missions:397` documenté comme historique, avec interdiction d'usage écrite
+dans le code.
 
-```
-service courant = statut = 'en_cours'
-                  AND employee_id = employé courant
-                  AND site_id     = site courant
-                  ORDER BY heure_debut DESC LIMIT 1
-```
-
-Le tri sur le plus récent est conservé bien que S-1 rende le cas impossible :
-défense contre un historique imparfait ou un import.
-
-Trois questions restent ouvertes ; elles sont posées plus bas.
+Deux tests A11 adaptés : la garantie est inchangée, son implémentation a
+bougé. La journalisation d'erreur vit désormais dans la primitive, et le bac
+à sable injecte la primitive au lieu d'une chaîne Supabase.
 
 ## Preuves
 
-- Commits poussés : `8ed96b8` (S-1), `ee34d98` (S-2), S-3 versionné dans ce
-  même push.
-- Migrations appliquées sur `nexus-test` **uniquement** :
-  `20260905170000_reprise_et_unicite_shifts_en_cours.sql`,
-  `20260905180000_cloture_shift_au_pointage_depart.sql`,
-  `20260905190000_cloture_shift_a_la_prise_de_poste_suivante.sql`.
-- État `nexus-test` : 6 services, 1 `en_cours`, 5 `clos_sans_pointage`,
-  0 `termine`. Aucune sonde subsistante.
-- Déploiement de référence de la recette : commit `16db38b`, génération
-  `0d8c69533224`, `coherent = true`.
-- Suite : 181/190, les 9 échecs connus.
-- Aucune écriture sur la base de production. `main` et `production` à
-  `501c0c7`.
+- Commit **`ca9cf92`** · génération **`020995cd6b06`** · `coherent = true` ·
+  CI **verte**.
+- Suite : **182/191**, les 9 échecs connus (`test_service_courant_unique_20260905.js`
+  ajouté, 8 vérifications). Simulations vertes.
+- **Preuve 2** — après la clôture S-1 du service d'Employé Test B, la porte
+  d'accès l'a redirigé vers la prise de poste : le service clos n'est plus
+  considéré comme courant.
+- **Preuve 3** — avec un service `en_cours`, deux lectures successives
+  convergent sur le même identifiant :
+  `c330a8cd` · `pompiste` · `soir` · `nexus-station-test` · `en_cours`.
+  App et Inventaire se chargent sans erreur avec ce même service.
+- **Preuve 4** — Missions ne peut plus rattacher via 24 h : la fenêtre
+  n'existe plus dans le code (`const il24h` absent de tout le code applicatif,
+  vérifié par test).
+- **Preuve 5** — redirection après départ confirmée (voir preuve 2).
+- **Preuve 6** — aucun repli date / 24 h / dernier historique dans le chemin
+  du service courant, vérifié par test sur le corps de la primitive.
+- **Isolation** — le même employé interrogé sur un autre site renvoie
+  `aucun service`. Le filtre `site_id` fonctionne.
+- **Preuve 7** — suite inchangée hors corrections attendues.
+- **Preuve 8** — zéro appel Supabase production sur tous les écrans visités ;
+  `main` et `production` à `501c0c7`.
+- Prise de poste réelle effectuée en session Employé Test B :
+  `role = pompiste`, `role_prevu = caissier`, quart `soir` à 16:04 heure
+  station. La séparation A11 tient.
 
 ## Risques / anomalies
 
-1. **Risque de régression fonctionnelle silencieuse.** Ajouter
-   `statut = 'en_cours'` aux huit lecteurs change leur résultat dès qu'un
-   service est clos. Missions repartira décoché après un départ — c'est le
-   comportement voulu, mais c'est un changement visible pour l'utilisateur.
-2. **La fenêtre de 24 h de Missions porte une décision produit explicite** :
-   le commentaire du code cite une demande nommée — « la prise de poste reste
-   valable 24 h, pas jusqu'à minuit ». La supprimer sans arbitrage
-   contredirait une décision métier documentée.
-3. **`nexus-auth.js:181` est une porte d'accès**, pas un affichage : ajouter
-   `statut` y change qui est redirigé vers la prise de poste. Un employé ayant
-   pointé son départ serait renvoyé vers une nouvelle prise de poste s'il
-   rouvre l'application — comportement défendable, mais à trancher.
-4. **Branche non encore éprouvée** : le contrôle `ROW_COUNT <> 1` de S-2 et
-   S-3 n'a pas été exercé sous RLS réel (les sondes tournent en
-   `service_role`). Il doit figurer dans le rejeu navigateur avant fermeture
-   du bloqueur 1.
+1. **Preuves 9 et 10 partiellement bloquées par un état de données.**
+   Employé Test B a déjà pointé ses quatre étapes aujourd'hui (arrivée,
+   pause début/fin, départ) pendant la recette transversale. L'écran ne
+   propose donc plus aucune action, et un second départ est impossible
+   aujourd'hui. La branche `ROW_COUNT` de S-2/S-3 reste donc non exercée
+   sous RLS réel.
+2. **Artefact historique visible sur Pointage** : l'historique d'Employé B
+   affiche « Horaire prévu : 23:34 · Retard constaté : 558 min ». Cette
+   valeur vient de `heure_debut_quart`, capturée à l'arrivée depuis
+   l'ancien service du 04/09 — avant S-1. Ce n'est pas une régression S-4 ;
+   c'est une donnée figée à l'écriture, par conception (« jamais recalculé
+   ensuite »). À consigner, pas à corriger.
+3. **Q2 assumé** : un employé ayant pointé son départ est renvoyé vers la
+   prise de poste s'il revient. Comportement voulu, désormais visible.
 
 ## Questions pour arbitrage
 
-**Q1 — La fenêtre de 24 h de Missions.** Le contrat unique la supprime au
-profit de `statut = 'en_cours'`. Or elle matérialise une décision produit
-nommée. Trois options :
-(a) supprimer, le statut suffit désormais ;
-(b) conserver la borne 24 h **en plus** du statut, comme filet ;
-(c) laisser Missions hors S-4 et le traiter séparément.
-Recommandation : **(a)**. La borne compensait l'absence de clôture ; cette
-absence est corrigée. La conserver ferait cohabiter deux vérités.
+**Q4 — Comment obtenir les preuves 9 et 10 ?** Trois options :
 
-**Q2 — `nexus-auth.js:181`, la porte d'accès.** Faut-il qu'un employé ayant
-pointé son départ soit renvoyé vers une nouvelle prise de poste ?
-Recommandation : **oui**. C'est cohérent avec S-2 : le service est terminé,
-il n'y a plus de service actif, donc plus d'accès aux écrans qui en dépendent.
-Mais cela modifie un parcours utilisateur réel et mérite une décision
-explicite.
+(a) **Employé Test A.** Il n'a aucun pointage aujourd'hui. Frédéric se
+connecte, fait l'arrivée (photo), puis le départ (photo) : le cycle complet
+sous RLS réel, clôture S-2 comprise. **Deux photos demandées à Frédéric.**
+Recommandation : cette option.
 
-**Q3 — Périmètre des deux défauts secondaires.** Les bornes journalières
-(UTC contre minuit appareil contre heure station) et l'absence de borne en
-`Missions:397` relèvent de la famille A17.
-Recommandation : **les consigner, ne pas les traiter dans S-4**. Une fois
-`statut = 'en_cours'` posé, la borne journalière devient secondaire pour la
-détermination du service courant. Les traiter ici élargirait le bloqueur.
+(b) **Attendre demain** avec Employé B : nouvelle journée, nouveau cycle.
+Repousse la fermeture du lot d'une journée.
+
+(c) **Fermer S-4 sans les preuves 9 et 10**, en les reportant explicitement
+à la fermeture du bloqueur 1 (après S-5). S-4 est un lot de lecture ; les
+branches `ROW_COUNT` appartiennent à S-2 et S-3, déjà fermés sous réserve
+de cette même preuve.
+
+Mon avis : **(c) pour S-4, (a) avant fermeture du bloqueur 1.** Les preuves 9
+et 10 valident S-2 et S-3, pas les lecteurs de S-4. Les exiger ici mélange
+deux périmètres — mais c'est un arbitrage, pas une évidence, et la décision
+initiale les listait bien dans les preuves attendues de ce lot.
+
+**Q5 — L'artefact « retard 558 min »** doit-il être consigné comme dette
+(recommandation) ou traité ?
 
 ## Action attendue de ChatGPT
 
-Lire ce fichier, arbitrer le `LOT_ID` **S-4-LECTEURS-SERVICE-COURANT-20260905**,
-puis écrire la décision dans `docs/handoff/DECISION.md` : réponses à Q1, Q2 et
-Q3, et conditions éventuelles avant écriture du code.
+Arbitrer Q4 et Q5 pour le `LOT_ID` **S-4-LECTEURS-SERVICE-COURANT-20260905**,
+puis écrire la décision dans `docs/handoff/DECISION.md` : fermeture de S-4, ou
+conditions restantes avant fermeture.
