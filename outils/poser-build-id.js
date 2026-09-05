@@ -247,6 +247,30 @@ fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/p
     coherent: true,
   };
 
+  // LA primitive d'épinglage. Tout module qui charge un script à l'exécution
+  // passe par ici — il n'existe aucune autre façon de construire une épingle.
+  //
+  // Pourquoi cette centralisation : nexus-auth.js entretenait sa PROPRE
+  // constante de génération, \`STOCK_BUILD = '20260831-1408'\`, qui gouvernait
+  // dix-huit scripts. Le Cockpit chargeait donc cinq fichiers d'une génération
+  // vieille de cinq jours pendant que le reste de l'écran était à jour :
+  // exactement le mélange que l'épinglage sert à rendre impossible. Il a
+  // survécu à tous les contrôles parce qu'aucun littéral \`….js?v=…\` n'apparaît
+  // dans le fichier — l'URL était construite par interpolation.
+  //
+  // ÉCHEC FERMÉ, sans repli d'aucune sorte. Pas de constante de substitution,
+  // pas d'horodatage, pas de valeur par défaut : une valeur de repli serait une
+  // seconde génération, c'est-à-dire le défaut qu'on vient de retirer.
+  function versionner(src) {
+    if (!IDENTITE.id) {
+      throw new Error('NEXUS ne peut pas charger « ' + src + ' » : identité de '
+        + 'génération absente. Charger nexus-build.js avant tout module qui '
+        + 'épingle une ressource — il n’existe aucune valeur de repli, et c’est '
+        + 'voulu : une seconde génération est précisément le défaut à éviter.');
+    }
+    return src + '?v=' + IDENTITE.id;
+  }
+
   // Contrôle à l'exécution : les scripts de CETTE page portent-ils bien
   // l'épingle de la génération annoncée ? Sans ce contrôle, un mélange de
   // générations — page fraîche, moteur ancien resté en cache — resterait
@@ -282,7 +306,11 @@ fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/p
 
   function demarrer() { verifierCoherence(); estampiller(); }
 
+  IDENTITE.versionner = versionner;
   global.NEXUS_BUILD = IDENTITE;
+  // NexusBuild est le nom par lequel les modules appellent la primitive ;
+  // NEXUS_BUILD reste le nom historique de l'identité. Même objet.
+  global.NexusBuild = IDENTITE;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer, { once: true });
   else demarrer();
 })(typeof window !== 'undefined' ? window : globalThis);

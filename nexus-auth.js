@@ -33,6 +33,19 @@ if (!NEXUS_CFG || !NEXUS_CFG.supabaseUrl || !NEXUS_CFG.supabaseCle || !NEXUS_CFG
 // `nexus-page.js` est posé par le même build que `nexus-config.js`, juste
 // avant ce fichier. Son absence ne doit pas se manifester par une
 // `ReferenceError` au milieu d'un garde de navigation : on le dit.
+// `nexus-build.js` porte l'identité de la génération ET la primitive qui
+// épingle les ressources chargées à l'exécution. Sans lui, ce fichier ne peut
+// pas construire une URL versionnée — et il ne doit surtout pas en inventer
+// une : c'est exactement ce qu'il faisait jusqu'au 05/09/2026 avec sa propre
+// constante de génération, figée au 31 août, qui gouvernait dix-huit scripts
+// et faisait charger au Cockpit des fichiers vieux de cinq jours.
+if (typeof NexusBuild === 'undefined' || typeof NexusBuild.versionner !== 'function') {
+  throw new Error('NEXUS ne peut pas démarrer : nexus-build.js n’a pas été chargé. '
+    + 'Il porte l’identité de la génération et la seule primitive autorisée à '
+    + 'épingler une ressource. Aucune valeur de repli n’est prévue : une seconde '
+    + 'génération est précisément le défaut que ce garde-fou empêche.');
+}
+
 if (typeof NexusPage === 'undefined' || typeof NexusPage.est !== 'function') {
   throw new Error('NEXUS ne peut pas démarrer : nexus-page.js n’a pas été chargé. '
     + 'Ce fichier identifie la page courante indépendamment de l’hébergeur ; '
@@ -47,44 +60,42 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = NexusPage.identifiant();
-  const STOCK_BUILD = '20260831-1408';
-  const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   const pagesHorizon=['NEXUS-Inventaire-Manager-v1.html','NEXUS-Carburants-Pilotage-v1.html','NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Scanner-v1.html','NEXUS-Radar-Manager-v1.html','NEXUS-Centre-Intelligence-v1.html'];
-  if(NexusPage.est(pagesHorizon)){const s=document.createElement('script');s.src=versionnerStock('nexus-horizon-operationnel.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est(pagesHorizon)){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-horizon-operationnel.js');s.defer=true;document.head.appendChild(s);}
 
   if (NexusPage.est('NEXUS-Inventaire-v1.html')) {
-    const scriptTransferts = document.createElement('script'); scriptTransferts.src = 'nexus-inventaire-transferts-internes.js'; scriptTransferts.defer = true; document.head.appendChild(scriptTransferts);
-    const scriptCond = document.createElement('script'); scriptCond.src = versionnerStock('nexus-inventaire-cigarettes-conditionnement-v1.js'); scriptCond.defer = true; document.head.appendChild(scriptCond);
+    const scriptTransferts = document.createElement('script'); scriptTransferts.src = NexusBuild.versionner('nexus-inventaire-transferts-internes.js'); scriptTransferts.defer = true; document.head.appendChild(scriptTransferts);
+    const scriptCond = document.createElement('script'); scriptCond.src = NexusBuild.versionner('nexus-inventaire-cigarettes-conditionnement-v1.js'); scriptCond.defer = true; document.head.appendChild(scriptCond);
   }
   if (NexusPage.est(['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html'])) {
-    const s=document.createElement('script');s.src='nexus-inventaire-stock-localise-entry.js';s.defer=true;document.head.appendChild(s);
+    const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-inventaire-stock-localise-entry.js');s.defer=true;document.head.appendChild(s);
   }
   if (NexusPage.est(['NEXUS-Inventaire-v1.html','NEXUS-Inventaire-Manager-v1.html','NEXUS-Parametres-Inventaire-v1.html'])) {
-    const s=document.createElement('script');s.src='nexus-inventaire-rotation-intelligente.js';s.defer=true;document.head.appendChild(s);
+    const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-inventaire-rotation-intelligente.js');s.defer=true;document.head.appendChild(s);
   }
   if (NexusPage.est('NEXUS-Parametres-Inventaire-v1.html')) {
-    ['nexus-inventaire-reglages-specifiques.js','nexus-inventaire-parametres-stock-localise.js','nexus-inventaire-regles-ux-v2.js','nexus-inventaire-regles-finition-v2.js',versionnerStock('nexus-inventaire-parametres-reassort-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
+    [NexusBuild.versionner('nexus-inventaire-reglages-specifiques.js'),NexusBuild.versionner('nexus-inventaire-parametres-stock-localise.js'),NexusBuild.versionner('nexus-inventaire-regles-ux-v2.js'),NexusBuild.versionner('nexus-inventaire-regles-finition-v2.js'),NexusBuild.versionner('nexus-inventaire-parametres-reassort-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
   }
   if (NexusPage.est('NEXUS-Stock-Localise-v1.html')) {
-    const scripts=[versionnerStock('nexus-inventaire-conditionnement.js'),'nexus-inventaire-stock-localise-ux-v2.js','nexus-inventaire-stock-controle-cible-v2.js','nexus-inventaire-stock-transfert-v2.js',versionnerStock('nexus-inventaire-reassort-boutique-v1.js'),versionnerStock('nexus-inventaire-conditionnement-stock-localise.js'),versionnerStock('nexus-inventaire-stock-transfert-deeplink-v1.js')];
+    const scripts=[NexusBuild.versionner('nexus-inventaire-conditionnement.js'),NexusBuild.versionner('nexus-inventaire-stock-localise-ux-v2.js'),NexusBuild.versionner('nexus-inventaire-stock-controle-cible-v2.js'),NexusBuild.versionner('nexus-inventaire-stock-transfert-v2.js'),NexusBuild.versionner('nexus-inventaire-reassort-boutique-v1.js'),NexusBuild.versionner('nexus-inventaire-conditionnement-stock-localise.js'),NexusBuild.versionner('nexus-inventaire-stock-transfert-deeplink-v1.js')];
     scripts.forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
   }
 
   const pagesStockMoteur=['NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Scanner-v1.html','NEXUS-Radar-Manager-v1.html','NEXUS-Centre-Intelligence-v1.html'];
-  if(NexusPage.est(pagesStockMoteur)){const s=document.createElement('script');s.src=versionnerStock('nexus-stock-moteur.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est(pagesStockMoteur)){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-stock-moteur.js');s.defer=true;document.head.appendChild(s);}
   const pagesDecisionStock=['NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Centre-Intelligence-v1.html'];
-  if(NexusPage.est(pagesDecisionStock)) ['nexus-reappro-stock-v1.js','nexus-conseiller-stock-v3.js'].forEach(src=>{const s=document.createElement('script');s.src=versionnerStock(src);s.defer=true;document.head.appendChild(s);});
-  if(NexusPage.est('NEXUS-Cockpit-v2.html')){const s=document.createElement('script');s.src=versionnerStock('nexus-cockpit-stock-v3.js');s.defer=true;document.head.appendChild(s);}
-  if(NexusPage.est('NEXUS-Scanner-v1.html')){const s=document.createElement('script');s.src=versionnerStock('nexus-scanner-stock-v3.js');s.defer=true;document.head.appendChild(s);}
-  if(NexusPage.est('NEXUS-Radar-Manager-v1.html')){const s=document.createElement('script');s.src=versionnerStock('nexus-radar-stock-v3.js');s.defer=true;document.head.appendChild(s);}
-  if(NexusPage.est('NEXUS-FDJ-v1.html')){const s=document.createElement('script');s.src='nexus-fdj-correction-stock-depart.js';s.defer=true;document.head.appendChild(s);}
-  if(NexusPage.est('NEXUS-FDJ-Manager-v1.html')){const s=document.createElement('script');s.src='nexus-fdj-manager-stabilite.js';s.defer=true;document.head.appendChild(s);}
-  if(NexusPage.est('NEXUS-Inventaire-Manager-v1.html')) ['nexus-inventaire-manager-premium-v2.js','nexus-inventaire-manager-fullwidth-v2.js',versionnerStock('nexus-inventaire-manager-reassort-cigarettes-v3.js'),versionnerStock('nexus-inventaire-couverture-operationnelle-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
+  if(NexusPage.est(pagesDecisionStock)) ['nexus-reappro-stock-v1.js','nexus-conseiller-stock-v3.js'].forEach(src=>{const s=document.createElement('script');s.src=NexusBuild.versionner(src);s.defer=true;document.head.appendChild(s);});
+  if(NexusPage.est('NEXUS-Cockpit-v2.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-cockpit-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-Scanner-v1.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-scanner-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-Radar-Manager-v1.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-radar-stock-v3.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-FDJ-v1.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-fdj-correction-stock-depart.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-FDJ-Manager-v1.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-fdj-manager-stabilite.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-Inventaire-Manager-v1.html')) [NexusBuild.versionner('nexus-inventaire-manager-premium-v2.js'),NexusBuild.versionner('nexus-inventaire-manager-fullwidth-v2.js'),NexusBuild.versionner('nexus-inventaire-manager-reassort-cigarettes-v3.js'),NexusBuild.versionner('nexus-inventaire-couverture-operationnelle-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
   if(NexusPage.est('NEXUS-Carburants-Pilotage-v1.html')){
-    ['nexus-carburant-commande-coherence-v1.js','nexus-carburant-demarrage-mois-v1.js'].forEach(src=>{const s=document.createElement('script');s.src=versionnerStock(src);s.defer=true;document.head.appendChild(s);});
+    ['nexus-carburant-commande-coherence-v1.js','nexus-carburant-demarrage-mois-v1.js'].forEach(src=>{const s=document.createElement('script');s.src=NexusBuild.versionner(src);s.defer=true;document.head.appendChild(s);});
   }
-  if(NexusPage.est('NEXUS-Carburant-Reception-v1.html')){const s=document.createElement('script');s.src=versionnerStock('nexus-reception-mobile-fix-v1.js');s.defer=true;document.head.appendChild(s);}
+  if(NexusPage.est('NEXUS-Carburant-Reception-v1.html')){const s=document.createElement('script');s.src=NexusBuild.versionner('nexus-reception-mobile-fix-v1.js');s.defer=true;document.head.appendChild(s);}
 })();
 
 async function nexusAttendreGardeModeTestInventaire() {

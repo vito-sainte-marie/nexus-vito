@@ -210,6 +210,106 @@ verifier('un actif référencé mais absent fait échouer la vérification',
   !absent.ok && /absent du dépôt/.test(absent.sortie));
 fs.rmSync(dirE, { recursive: true, force: true });
 
+// ── 6 bis. Une seconde génération ne doit pas pouvoir réapparaître ──────
+// A14, découvert par le contrôle runtime SUR LE DÉPLOIEMENT RÉEL : nexus-auth.js
+// entretenait sa propre constante, `STOCK_BUILD = '20260831-1408'`, qui
+// gouvernait DIX-HUIT scripts — quatorze nommés en clair, quatre atteints par
+// des boucles `forEach`. Le Cockpit chargeait donc cinq fichiers d'une
+// génération vieille de cinq jours pendant que le reste de l'écran était à
+// jour. Aucun contrôle antérieur ne pouvait le voir : l'URL était construite
+// par interpolation, il n'existait aucun littéral `….js?v=…` à inspecter.
+const AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
+const AUTH_CODE = AUTH.split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+
+verifier('STOCK_BUILD n’existe plus dans le code', !/STOCK_BUILD/.test(AUTH_CODE));
+verifier('aucune indirection locale de versionnement ne subsiste',
+  !/versionnerStock/.test(AUTH_CODE));
+
+// Toute constante ressemblant à une génération et servant à bâtir une URL.
+const CONSTANTE_GENERATION = /const\s+[A-Za-z_$][\w$]*\s*=\s*['"`]\d{6,8}[-_]?\d*['"`]/;
+verifier('aucune constante de génération/date n’est déclarée',
+  !CONSTANTE_GENERATION.test(AUTH_CODE));
+verifier('aucune épingle n’est construite par interpolation',
+  !/\$\{[^}]*\}\?v=|\?v=\$\{/.test(AUTH_CODE));
+verifier('aucune épingle littérale n’est affectée à un src dynamique',
+  !/\.src\s*=\s*['"][a-z0-9.-]+\.js\?v=/.test(AUTH_CODE));
+
+// Les scripts chargés dynamiquement passent tous par l'unique primitive.
+const parPrimitive = (AUTH_CODE.match(/NexusBuild\.versionner\(/g) || []).length;
+verifier(`les chargements versionnés passent par la primitive (${parPrimitive} appels)`,
+  parPrimitive >= 16);
+
+// Inventaire exhaustif : les littéraux ET ceux atteints par une boucle.
+const litteraux = [...AUTH_CODE.matchAll(/NexusBuild\.versionner\('([a-z0-9.-]+\.js)'\)/g)].map(m => m[1]);
+const parBoucle = [...AUTH_CODE.matchAll(/\[([^\]]*\.js'[^\]]*)\]\.forEach\(src\s*=>\s*\{[^}]*NexusBuild\.versionner\(src\)/g)]
+  .flatMap(m => [...m[1].matchAll(/'([a-z0-9.-]+\.js)'/g)].map(x => x[1]));
+const inventaire = [...new Set([...litteraux, ...parBoucle])];
+verifier(`l’inventaire couvre les 32 scripts injectés, boucles comprises (${inventaire.length})`,
+  inventaire.length === 32);
+
+// AUCUN script injecté dynamiquement ne doit rester sans épingle : un actif
+// hors génération est hors génération, qu'il porte une vieille épingle ou
+// aucune. Les quatorze découverts en corrigeant A14 étaient dans ce second
+// cas — invisibles au premier contrôle, qui ne cherchait que les épingles
+// périmées.
+const litterauxNus = [...AUTH_CODE.matchAll(/(?<!versionner\()'([a-z0-9.-]+\.js)'/g)]
+  .map(m => m[1])
+  .filter(f => !['nexus-auth.js', 'nexus-build.js', 'nexus-config.js',
+                 'nexus-page.js', 'nexus-bandeau-environnement.js'].includes(f))
+  .filter(f => !parBoucle.includes(f));
+verifier(`aucun script injecté ne reste sans épingle (${litterauxNus.length} nu(s))`,
+  litterauxNus.length === 0);
+verifier('les scripts révélés par le Cockpit sont bien du lot',
+  ['nexus-horizon-operationnel.js', 'nexus-stock-moteur.js', 'nexus-reappro-stock-v1.js',
+   'nexus-conseiller-stock-v3.js', 'nexus-cockpit-stock-v3.js'].every(f => inventaire.includes(f)));
+verifier('les quatre scripts atteints par boucle sont couverts',
+  ['nexus-reappro-stock-v1.js', 'nexus-conseiller-stock-v3.js',
+   'nexus-carburant-commande-coherence-v1.js', 'nexus-carburant-demarrage-mois-v1.js']
+    .every(f => parBoucle.includes(f)));
+verifier('chaque script inventorié existe dans le dépôt',
+  inventaire.every(f => fs.existsSync(path.join(RACINE, f))));
+
+// nexus-auth.js refuse de démarrer sans l'identité — pas de repli.
+verifier('nexus-auth.js exige NexusBuild.versionner avant tout',
+  /typeof NexusBuild === 'undefined' \|\| typeof NexusBuild\.versionner !== 'function'/.test(AUTH_CODE));
+verifier('le refus est explicite et nomme l’absence de repli',
+  /Aucune valeur de repli/.test(AUTH));
+
+// La primitive elle-même : échec fermé si l'identité n'a pas d'ID.
+function primitiveAvecId(valeurId) {
+  const source = identite.replace(/id: '[^']*'/, `id: ${JSON.stringify(valeurId)}`);
+  const faux = { readyState: 'complete', querySelector: () => null,
+    querySelectorAll: () => [], createElement: () => ({ style: {} }), addEventListener: () => {} };
+  const fenetre = { console: { error: () => {} } };
+  fenetre.window = fenetre;
+  new Function('window', 'globalThis', 'document', 'console', source)(fenetre, fenetre, faux, fenetre.console);
+  return fenetre.NexusBuild;
+}
+const primitive = primitiveAvecId(id);
+verifier('la primitive épingle sur l’identité officielle',
+  primitive.versionner('x.js') === `x.js?v=${id}`);
+// Les deux noms doivent pointer le MÊME objet : si `coherent` bascule à false,
+// un module qui lit NexusBuild et un autre qui lit NEXUS_BUILD doivent voir la
+// même chose, sans quoi le diagnostic dépendrait du nom employé.
+const deuxNoms = (() => {
+  const faux = { readyState: 'complete', querySelector: () => null,
+    querySelectorAll: () => [], createElement: () => ({ style: {} }), addEventListener: () => {} };
+  const fenetre = { console: { error: () => {} } };
+  fenetre.window = fenetre;
+  new Function('window', 'globalThis', 'document', 'console', identite)(fenetre, fenetre, faux, fenetre.console);
+  return fenetre;
+})();
+verifier('NEXUS_BUILD et NexusBuild désignent le même objet',
+  deuxNoms.NexusBuild === deuxNoms.NEXUS_BUILD
+  && typeof deuxNoms.NEXUS_BUILD.versionner === 'function');
+
+let refus = null;
+try { primitiveAvecId('').versionner('x.js'); } catch (e) { refus = e.message; }
+verifier('sans identifiant de génération, la primitive REFUSE de construire une URL',
+  refus !== null && /identité de génération absente/.test(refus));
+verifier('le refus dit qu’il n’existe aucune valeur de repli',
+  refus !== null && /aucune valeur de repli/i.test(refus));
+
 // ── 7. La chaîne de build est dans le dépôt, pas dans un tableau de bord ─
 const SH = fs.readFileSync(path.join(RACINE, 'outils', 'build.sh'), 'utf8');
 verifier('build.sh enchaîne configuration, identité, vérification',
