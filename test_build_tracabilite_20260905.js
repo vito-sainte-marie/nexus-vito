@@ -310,6 +310,35 @@ verifier('sans identifiant de génération, la primitive REFUSE de construire un
 verifier('le refus dit qu’il n’existe aucune valeur de repli',
   refus !== null && /aucune valeur de repli/i.test(refus));
 
+// ── 6 ter. Le balayage porte sur TOUT le dépôt, pas sur nexus-auth.js seul ─
+// La chaîne de versionnement parallèle dépassait nexus-auth.js : trois scripts
+// injectés par nexus-header-nav.js et un par nexus-inventaire-mission-rules-
+// donnees.js se chargeaient sans aucune épingle. Découverts sur le
+// déploiement, écran Inventaire, après le premier correctif — vérifier un
+// seul fichier ne suffit pas.
+const APPLICATIFS = fs.readdirSync(RACINE)
+  .filter(f => (f.endsWith('.js') || f.endsWith('.html')) && !f.startsWith('test_') && f !== 'nexus-build.js');
+
+const injectionsNues = [];
+for (const f of APPLICATIFS) {
+  const code = fs.readFileSync(path.join(RACINE, f), 'utf8')
+    .split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+  for (const m of code.matchAll(/\.src\s*=\s*(['"])([a-z0-9.-]+\.js)(\?v=[^'"]*)?\1/g)) {
+    if (!m[3]) injectionsNues.push(`${f} → ${m[2]}`);
+  }
+}
+verifier(`aucune injection dynamique sans épingle dans tout le dépôt (${injectionsNues.length})`,
+  injectionsNues.length === 0);
+
+// Et aucune constante de génération ne doit subsister ailleurs non plus.
+const constantesAilleurs = APPLICATIFS.filter(f => {
+  const code = fs.readFileSync(path.join(RACINE, f), 'utf8')
+    .split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+  return /const\s+[A-Za-z_$][\w$]*\s*=\s*['"`]\d{8}-\d{4}['"`]/.test(code);
+});
+verifier(`aucune constante de génération ailleurs dans le dépôt (${constantesAilleurs.length})`,
+  constantesAilleurs.length === 0);
+
 // ── 7. La chaîne de build est dans le dépôt, pas dans un tableau de bord ─
 const SH = fs.readFileSync(path.join(RACINE, 'outils', 'build.sh'), 'utf8');
 verifier('build.sh enchaîne configuration, identité, vérification',
