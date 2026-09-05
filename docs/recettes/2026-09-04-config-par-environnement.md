@@ -80,12 +80,23 @@ de recette sont à 16:52 locale, sur `nexus-test`.
 | 15 | **A8 avec et sans `.html`** | reconnu sous les deux formes, avec query et fragment |
 | 16 | Scripts et satellites attendus | 8/8 chargés ; aucun ne l'était avant A8 |
 | 17 | Absence de boucle de navigation | URL entre 45 et 80 caractères sur tous les écrans |
+| 18 | **A6 — traçabilité de la version servie** | `NEXUS_BUILD.commit` = SHA Cloudflare exact, sur quatre déploiements successifs ; empreinte identique en local et chez Cloudflare ; commit documentation-only → génération inchangée ; modification d'actif → génération modifiée |
+| 19 | **A14 — génération unique, sans échappatoire** | `coherent = true` sur Cockpit et Inventaire ; 32 scripts dynamiques sur la génération officielle ; 0 occurrence de `20260831-1408` ni de `20260904-0104` ; 0 script dynamique sans épingle |
 
 ### BLOQUANT
 
-**A6 — on ne peut pas savoir quelle version est réellement éprouvée.** Voir la
-fiche détaillée plus bas. Tant que ce point tient, aucun résultat de recette
-n'est rattachable de façon certaine à un commit.
+**Aucun.** A6 et A14 sont **fermés le 05/09/2026**, sur preuves faites contre
+le déploiement Cloudflare réel et non contre un arbre local — c'est
+précisément la distinction qu'A6 existait pour imposer.
+
+A6 était : « on ne peut pas savoir quelle version est réellement éprouvée ».
+La question a désormais une réponse vérifiable depuis n'importe quel écran, et
+une version incapable de la fournir ne peut plus être publiée : le build
+échoue.
+
+**Reste à traiter avant un verdict global**, aucun n'étant bloquant au sens
+d'A6 mais A12 touchant à la sûreté d'une future promotion de schéma :
+**A12 → A11 → A4-bis → A3**, puis la couverture des points non éprouvés.
 
 ### NON BLOQUANT
 
@@ -97,7 +108,8 @@ n'est rattachable de façon certaine à un commit.
 | A11 | Le Cockpit affiche le rôle habituel (`employees.role`) au lieu du rôle du jour (`shifts.role`) | **Modèle métier** |
 | A7 | L'accueil public ne porte pas le bandeau MODE TEST | Présentation |
 | A10 | Aucun lien de déconnexion sur le Pointage une fois l'arrivée enregistrée | Exploitation |
-| A12 | Renommage de migration désaligné avec la production | **Sécurité de la promotion** |
+| A12 | Renommage de migration désaligné avec la production | **Sécurité de la promotion** — prochain lot |
+| A13 | Cloudflare Pages renvoie `200` et du HTML pour un actif absent, jamais `404` | Observation : rien à l'exécution ne signale un fichier manquant. Renforce la nécessité d'un échec au build |
 
 ### NON ÉPROUVÉ
 
@@ -519,7 +531,7 @@ rien ne le dise. Même famille qu'A3.
 | **A3** | « Vito Sainte-Marie Usine », nom du commerce de production, **écrit en dur dans 39 écrans** (46 occurrences). S'affiche en pied de page de la Prise de poste alors que la session est sur `nexus-station-test`. L'en-tête, lui, lit la base. | Défaut multi-tenant : tout client verrait ce nom | à ouvrir |
 | **A4** | Deux `console.error` sur l'écran d'accueil (« Chargement products (accueil) : aucune ligne exploitable », « (marge accueil): null »). Cause bénigne — base de recette vide — mais le contrôle « aucune erreur console » ne passait pas tel qu'énoncé. | Contrôle final 3 en échec | **corrigé** — lot séparé : le contrôle n'est PAS assoupli, c'est la journalisation qui est corrigée. Une absence de données est un état métier normal (`console.info`) ; `console.error` reste réservé aux erreurs de la base. Les deux cas, jusque-là confondus dans la même condition, sont séparés. |
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
-| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5` alors que neuf commits ont été déployés depuis. L'identifiant est un horodatage posé **à la main** avant de committer : il porte donc le commit *précédent*, et se fige dès que personne ne relance l'outil. La CI vérifiait que tous les actifs partageaient le même identifiant, **jamais que cet identifiant correspondait au code servi** : elle est passée au vert neuf fois de suite. | **Défaut de traçabilité de version.** Voir la précision ci-dessous sur le cache | **bloquant avant validation finale de la recette** |
+| **A6 — FERMÉ le 05/09/2026** | Le pied de page annonçait `build 20260904-0104 · commit b219da5` alors que neuf commits avaient été déployés depuis. L'identifiant est un horodatage posé **à la main** avant de committer : il porte donc le commit *précédent*, et se fige dès que personne ne relance l'outil. La CI vérifiait que tous les actifs partageaient le même identifiant, **jamais que cet identifiant correspondait au code servi** : elle est passée au vert neuf fois de suite. | **Défaut de traçabilité de version.** Voir la précision ci-dessous sur le cache | **corrigé et prouvé sur le déploiement réel** — `outils/build.sh`, empreinte de contenu, `CF_PAGES_COMMIT_SHA`, `nexus-build.js` non versionné, échec fermé au build, contrôle d'exécution |
 
 ## A9 à A12 — relevées pendant la passe navigateur
 
@@ -568,7 +580,7 @@ d'être d'un second employé de recette.
 | **Risque** | À la promotion, l'outillage Supabase peut voir `20260904140000` comme une migration **nouvelle** et la rejouer sur une base où elle est déjà appliquée |
 | **Statut** | Erreur introduite pendant la recette, assumée. **Aucun renommage de migration ne sera plus fait avant arbitrage.** Plan séparé : `docs/plans/2026-09-04-alignement-migrations.md` |
 
-### A14 — une seconde chaîne de versionnement, révélée par le contrôle d'A6
+### A14 — une seconde chaîne de versionnement, révélée par le contrôle d'A6 *(FERMÉ le 05/09/2026)*
 
 **À conserver dans l'histoire de NEXUS.** Le mécanisme de traçabilité posé par
 A6 n'a pas seulement corrigé un pied de page : quelques minutes après sa mise
@@ -618,6 +630,34 @@ fichiers applicatifs.
 
 C'est le genre de dette qu'un système de build fiable doit rendre impossible,
 et non pas seulement signaler.
+
+**Preuves de fermeture, sur le déploiement Cloudflare réel :**
+
+| Déploiement | Génération | Ce qu'il démontre |
+|---|---|---|
+| `bd5bd60` | `6573b1de07fa` | chaîne A6 en service ; le contrôle révèle A14 |
+| `04dbcd4` | `b9cd40a00ba4` | `nexus-auth.js` modifié → génération modifiée |
+| `0af560d` | `e6febf4cb905` | 3 fichiers modifiés → génération modifiée |
+| `9f4188e` | `e6febf4cb905` | **documentation seule → génération INCHANGÉE** |
+
+Chaque génération calculée par Cloudflare est **identique à celle calculée en
+local** : le déterminisme n'est pas une intention, il est mesuré.
+
+Sur Cockpit et Inventaire : `coherent = true`, 20 et 21 scripts chargés, **0
+hors génération**, **0 occurrence** de `20260831-1408` ni de `20260904-0104`,
+**0 script dynamique sans épingle** hors les deux exceptions prévues
+(`nexus-build.js`, qui porte l'identité, et `nexus-config.js`, servi en
+`no-store`). 0 appel Supabase production, 0 fonction Edge. Ordre
+`build → config → page → bandeau → auth` vérifié sur les quatre écrans
+authentifiés.
+
+Rejeu A8/login : URL à 70 caractères, aucune boucle, aucune erreur console.
+
+**Nuance conservée par exactitude** : l'écran de connexion porte
+`config → build → page → bandeau` — la configuration avant l'identité. Sans
+conséquence, il ne charge pas `nexus-auth.js` et le bandeau, seul consommateur
+de la configuration, vient après elle. Reliquat de la balise committée à la
+main dans ce fichier.
 
 ### A6 — précision sur le cache, à ne pas laisser déformée
 
@@ -726,27 +766,34 @@ pas couvertes par la recette**.
 | | |
 |---|---|
 | Recette validée le | **— NON VALIDÉE** |
-| Motif | **A6 BLOQUANT** |
+| Motif | **A6 fermé le 05/09. Reste A12, A11, A4-bis, A3 et la couverture des points non éprouvés.** |
 | Mise en production autorisée par | **— PERSONNE. Promotion interdite en l'état.** |
 | SHA promu en production | **aucun** |
 | SHA éprouvé par cette passe | `58e394b9b6f853207b65e176ec08411f23db46f8` — sous la réserve d'A6, qui empêche précisément de le garantir depuis un écran |
 | Non-régression en production vérifiée le | sans objet |
 | Retour arrière possible vers | `production` figée sur `501c0c7`, inchangée et non touchée |
 
-**Motif du blocage.** Huit anomalies bloquantes ont été constatées et sept
-corrigées pendant cette recette — deux fuites de données atteignables sans
+**Où en est le verdict.** Huit anomalies bloquantes ont été constatées et
+**toutes corrigées** — deux fuites de données atteignables sans
 authentification, une double identité de site en base, une boucle de
 redirection rendant l'application inutilisable pour tout compte non-manager,
-et l'impossibilité de se connecter. La huitième, **A6**, reste ouverte : tant
-que le commit et le build servis ne sont pas identifiables depuis un écran, et
-tant qu'un fichier modifié peut être servi sous une épingle de cache
-inchangée, **aucun résultat de recette n'est rattachable de façon certaine à
-une version**. Valider dans ces conditions reviendrait à valider une version
-qu'on ne sait pas nommer.
+et l'impossibilité de se connecter. La huitième, **A6**, a été fermée le
+05/09/2026 avec **A14** qu'elle a elle-même révélée — sur preuves faites
+contre le déploiement réel.
 
-**Ce qu'il reste avant de pouvoir valider :** corriger A6, puis rejouer de
-façon ciblée les contrôles qui en dépendent — c'est-à-dire vérifier depuis un
-écran que le commit affiché est bien celui qui sert la page.
+**Ce qu'il reste avant de pouvoir valider**, dans l'ordre arbitré :
+
+1. **A12** — l'écart de numérotation de migration, qui touche à la sûreté
+   d'une future promotion de schéma ;
+2. **A11** — le Cockpit doit lire le rôle du jour ;
+3. **A4-bis** — balayage global de la journalisation ;
+4. **A3** — chantier multi-site des libellés ;
+5. la **couverture des points non éprouvés**, en particulier les fonctions
+   Edge absentes de `nexus-test`, les rôles sans compte de recette et la
+   simultanéité de deux sessions.
+
+Aucun de ces points n'empêche la recette de progresser ; A12 empêche en
+revanche une promotion sereine du schéma.
 
 > Sans nom ni date dans ce bloc de décision, la version n'est pas autorisée en
 > production. Ce bloc est vide : elle ne l'est pas.
