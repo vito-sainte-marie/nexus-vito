@@ -34,7 +34,15 @@ jobs:
   non-regression:
     runs-on: ubuntu-latest
     steps:
+      # `fetch-depth: 0` récupère tout l'historique, branche `production`
+      # comprise : le contrôle d'immuabilité des migrations la compare à la
+      # branche courante. Sans elle, il ne peut pas savoir quelles migrations
+      # sont déjà appliquées en production — et il échoue plutôt que de se
+      # taire.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -45,6 +53,13 @@ jobs:
       # une copie jetable, puis éprouve chaque condition d'échec — commit
       # indéterminable, épingle falsifiée, actif modifié après le build. Il
       # échoue si le build accepte de publier une version non identifiable.
+      # Barrière avant promotion : une migration appliquée en production est
+      # immuable dans son identité. Ce contrôle ne dépend d'aucun secret — il
+      # compare la branche `production` à la branche courante — et il aurait
+      # arrêté le renommage du 04/09 (commit 95cc92a) avant le push.
+      - name: Immuabilité des migrations déjà en production
+        run: node test_migrations_immuables_20260905.js
+
       - name: Traçabilité de la génération (chaîne de build complète)
         run: node test_build_tracabilite_20260905.js
 

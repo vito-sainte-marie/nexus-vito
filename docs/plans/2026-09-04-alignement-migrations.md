@@ -1,4 +1,55 @@
-# Plan — aligner l'historique des migrations avant toute promotion (A12)
+# A12 — aligner l'historique des migrations *(TRAITÉ le 05/09/2026)*
+
+> **Statut : corrigé.** Dépôt, `nexus-test` et production portent désormais le
+> même numéro pour la migration concernée, et une barrière CI empêche la
+> récidive. Ce document garde le diagnostic, parce que la leçon vaut plus que
+> le correctif.
+>
+> **La règle retenue pour NEXUS :** une migration appliquée en production
+> devient **immuable dans son identité**. Son nom et son contenu ne se
+> « nettoient » plus a posteriori ; toute évolution passe par une nouvelle
+> migration.
+
+## Ce qui a été fait
+
+| Source | Avant | Après |
+|---|---|---|
+| Dépôt | `20260904140000_fermer_lecture_anonyme_sites.sql` | **`20260904130807_…`** — `git mv`, contenu inchangé (md5 `894bda59…`) |
+| `nexus-test` | version `20260904140000` | **`20260904130807`** — réparation d'historique, migration **non rejouée** |
+| Production | `20260904130807` | **inchangée** — jamais touchée |
+
+La réparation de `nexus-test` a été faite sous préconditions vérifiées :
+`140000` présent exactement une fois, `130807` absent, nom conforme, et
+abandon si plus d'une ligne était concernée. Contrôle après coup : total
+inchangé (243), aucun nom modifié, une seule version changée, instructions
+intactes.
+
+## La barrière : `test_migrations_immuables_20260905.js`
+
+Compare la branche `production` à la branche courante. Ne dépend d'aucun
+secret ni d'aucun accès base. Échoue si :
+
+1. un fichier de migration présent dans `production` **disparaît** ;
+2. son **contenu réapparaît sous un autre nom** — le renommage exact est le
+   cas principal, mais un copier-coller sous un nouveau timestamp
+   contournerait un contrôle purement nominal ;
+3. le **contenu** d'une migration déjà en production est **modifié**.
+
+Message : « Cette migration est déjà enregistrée en production sous ce nom. La
+renommer ou la dupliquer sous un nouveau numéro peut provoquer une
+réapplication ou un historique incohérent. »
+
+Vérifié contre l'histoire réelle :
+
+    501c0c7  → passe
+    95cc92a  → BLOQUE   disparue : 20260904130807_…
+                        réapparue sous : 20260904140000_…
+
+Le contrôle aurait arrêté le renommage avant le push, par les deux voies.
+
+---
+
+# Diagnostic d'origine (conservé)
 
 Lot séparé. **Priorité : qu'aucune migration déjà appliquée en production ne
 soit un jour interprétée comme nouvelle.** Rien ne se renomme avant arbitrage.
