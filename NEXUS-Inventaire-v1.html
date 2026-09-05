@@ -365,6 +365,11 @@
 
   let employeeCourant = null;
   let roleDuJour = null;
+  // S-5 (05/09/2026) — identifiant du service NEXUS réellement actif, résolu
+  // une seule fois à l'initialisation par nexusServiceCourant(). Il n'est pas
+  // une seconde notion de service courant : c'est la même réponse, conservée
+  // au lieu d'être jetée après en avoir extrait le rôle.
+  let serviceCourantId = null;
   let zonesAutorisees = [];      // ['piste'] | ['boutique'] | ['piste','boutique']
   let zoneActive = null;         // zone choisie pour la session en cours
   let quartActuel = null;        // 'matin' | 'soir'
@@ -1004,7 +1009,9 @@
     const r = await nexusServiceCourant(employeeCourant);
     if (r.erreur) return { indetermine: 'reseau' };
     if (r.aucun || !r.service.role) return { indetermine: 'absent' };
-    return { role: r.service.role };
+    // S-5 : l'identifiant du service voyage avec le rôle. Aucune requête
+    // supplémentaire — nexusServiceCourant() a déjà lu la ligne entière.
+    return { role: r.service.role, serviceId: r.service.id };
   }
 
 
@@ -1090,9 +1097,19 @@
     if (e1) { console.error('Lecture quart-employé:', e1); }
     if (existant) return existant;
 
+    // S-5 (05/09/2026) — toute ligne réelle créée par le parcours NEXUS est
+    // rattachée au service réellement actif. Sans service, on ne crée pas :
+    // l'écran s'arrête déjà en amont (bloquerFauteDeRoleDuJour), ce garde
+    // interdit qu'un autre chemin contourne un jour ce fail-closed.
+    // Les lignes d'avant S-5 restent à shift_id NULL et ne sont pas reprises.
+    if (!serviceCourantId) {
+      console.error('Quart-employé : aucun service courant résolu — création refusée pour ne pas produire de ligne sans rattachement.');
+      return null;
+    }
     const { data: cree, error: e2 } = await nexusClient
       .from('inventaire_quart_employes').insert({
         quart_id: quartRow.id, employee_id: employeeCourant.id, role: roleDuJour,
+        shift_id: serviceCourantId,
         heure_arrivee: new Date().toISOString(),
       }).select().single();
     if (e2) { console.error('Création quart-employé:', e2); return null; }
@@ -4164,6 +4181,7 @@
       const resolution = await chargerRoleDuJour();
       if (resolution.indetermine) { bloquerFauteDeRoleDuJour(resolution.indetermine); return; }
       roleDuJour = resolution.role;
+      serviceCourantId = resolution.serviceId;
     }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
