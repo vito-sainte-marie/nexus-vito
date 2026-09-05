@@ -7,130 +7,147 @@ BRANCH: config-par-environnement
 
 ## Résumé
 
-S-4 est fermé (`APPROVED_CLOSED`, commit `ca9cf92`). La dette **A18** est
-consignée dans la fiche de recette, avec l'interdiction de correction
-rétroactive sans règle métier validée.
+S-5 est **implémenté et déployé sur `nexus-test`** (commit `3b795ff`).
+Sept des neuf preuves attendues sont produites. **Les deux qui manquent — la
+création réelle (preuve 2) et l'absence de création sans service (preuve 5) —
+exigent une session employé avec saisie de PIN**, que je ne fais pas. Elles
+sont exactement les deux premiers pas du rejeu navigateur que la décision
+programme elle-même après S-5.
 
-S-5 est la dernière facette du bloqueur 1 : écrire le véritable `shift_id`
-dans `inventaire_quart_employes`. **Diagnostic établi, aucun code écrit.**
+## Modifications
 
-## Constat
+### Client — `NEXUS-Inventaire-v1.html`
 
-### Un seul chemin d'écriture, et il n'écrit pas `shift_id`
+`chargerRoleDuJour()` rend désormais l'identifiant du service en plus du rôle.
+C'est **la même lecture** : `nexusServiceCourant()` retournait déjà la ligne
+entière, l'écran en extrayait le rôle et jetait l'identifiant.
 
-```
-NEXUS-Inventaire-v1.html:1094   obtenirOuCreerQuartEmploye()
-  insert { quart_id, employee_id, role, heure_arrivee }
-```
-
-C'est **le seul `insert`** de toute l'application. `NEXUS-Inventaire-Manager-v1.html:1124`
-ne fait que des `update` (`a_valide_cloture`, `heure_depart`), et les autres
-occurrences sont des lectures.
-
-État en base : **6 lignes, 0 avec `shift_id`**. La colonne existe, elle porte
-une clé étrangère vers `shifts(id)`, et elle n'a **jamais** été renseignée.
-
-### La donnée est déjà là, à trois lignes de distance
-
-Le même écran résout déjà le service courant à l'initialisation :
-
-```
-NEXUS-Inventaire-v1.html:4164   const resolution = await chargerRoleDuJour();
-                                roleDuJour = resolution.role;
+```js
+return { role: r.service.role, serviceId: r.service.id };
 ```
 
-Depuis S-4, `chargerRoleDuJour()` délègue à `nexusServiceCourant()`, qui
-retourne **le service complet** — dont son `id`. Aujourd'hui l'écran n'en
-garde que le `role` et jette l'identifiant. Il n'y a donc **aucune requête
-supplémentaire à faire** : seulement à cesser de perdre ce qu'on a déjà lu.
+L'initialisation le conserve dans `serviceCourantId`. Ce n'est pas une seconde
+notion de service courant — c'est la réponse de la primitive unique, gardée au
+lieu d'être perdue. Aucune requête ajoutée, et l'écran ne lit toujours pas
+`shifts` lui-même (vérifié par test).
 
-### Aucun lecteur de `shift_id` aujourd'hui
+À la création, la ligne porte le rattachement, et sans service elle n'est pas
+créée :
 
-Balayage complet : **aucun code applicatif ne lit
-`inventaire_quart_employes.shift_id`**. Le remplir n'a donc aucun effet
-immédiat sur un écran — c'est de la traçabilité, pas du comportement. C'est
-précisément ce qui a permis à l'oubli de durer.
-
-### Le mode test
-
-`obtenirOuCreerQuartEmploye()` court-circuite l'insert quand
-`modeTestInventaireActif()` : il retourne un objet synthétique avec un `id`
-fixe `00000000-…-000000000102`. Ce chemin ne touche pas la base et ne doit pas
-recevoir de `shift_id` réel.
-
-### RLS
-
+```js
+if (!serviceCourantId) {
+  console.error('Quart-employé : aucun service courant résolu — création refusée…');
+  return null;
+}
+… .insert({ quart_id, employee_id, role: roleDuJour, shift_id: serviceCourantId, heure_arrivee })
 ```
-insert_inventaire_quart_employes : le quart appartient au site de l'employé
-```
-La politique ne contrôle **ni** `employee_id` **ni** `shift_id`. Écrire un
-`shift_id` n'ouvre aucun droit nouveau, mais rien en base ne garantira que le
-service référencé appartient bien à cet employé — la clé étrangère vérifie
-l'existence, pas l'appartenance.
 
-## Modifications / proposition
+Le mode test garde son objet synthétique, sans `shift_id`, et son
+court-circuit reste en tête de fonction.
 
-Contrat proposé :
+### Base — `20260905200000_rattachement_shift_du_quart_employe.sql`
 
-1. `obtenirOuCreerQuartEmploye()` écrit `shift_id` à la création, depuis le
-   service déjà résolu à l'initialisation de l'écran.
-2. **Sans service courant, aucune ligne n'est créée.** L'écran s'arrête déjà
-   dans ce cas — `bloquerFauteDeRoleDuJour()` — puisque `chargerRoleDuJour()`
-   renvoie `indetermine`. Le contrat est donc déjà fail-closed en amont ; il
-   n'y a rien à ajouter, seulement à ne pas le contourner.
-3. **Aucune reprise rétroactive** des 6 lignes existantes : leur service
-   d'origine n'est pas connu de façon certaine, et S-1 a fermé plusieurs
-   services le même jour. Même règle qu'A18 — on ne reconstitue pas un
-   rattachement plausible.
-4. Le mode test conserve son objet synthétique, `shift_id` absent.
-5. Facultatif, à arbitrer : une contrainte en base garantissant que le
-   `shift_id` référencé appartient au même employé (trigger `before insert`).
+Trigger `before insert or update of shift_id, employee_id, quart_id`,
+`security invoker`, qui refuse un service appartenant à un autre employé ou à
+un autre site. `shift_id NULL` reste accepté.
+
+Deux raisons de couvrir aussi l'`UPDATE` : la politique RLS de mise à jour est
+ouverte aux managers et gérants **sur des lignes qui ne sont pas les leurs**,
+et le Manager fait déjà des mises à jour en masse par `quart_id`.
+
+`inventaire_quarts.site` et `shifts.site_id` sont tous deux `text NOT NULL` :
+le site est déterminable avec certitude, la condition 3 de Q6 s'applique donc
+pleinement, sans clause d'exception.
+
+La migration se termine par un contrôle fail-closed : si une ligne existante
+violait déjà l'invariant, elle s'interrompt au lieu de poser un garde vrai
+seulement pour l'avenir.
 
 ## Preuves
 
-- Décision S-4 consommée : `APPROVED_CLOSED`, `LOT_ID`
-  S-4-LECTEURS-SERVICE-COURANT-20260905.
-- A18 consignée dans `docs/recettes/2026-09-04-config-par-environnement.md`.
-- Balayage : 1 `insert`, 0 lecteur de `shift_id`, 6 lignes toutes à `null`.
-- État `nexus-test` : 2 services `en_cours` (Manager Test renfort, Employé
-  Test B pompiste), aucun service clos par erreur.
-- `main` et `production` à `501c0c7`. Aucune écriture production.
+**1. Un seul chemin de création, et il écrit le rattachement.** Vérifié par
+test automatisé qui balaye tous les écrans. Le détecteur borne sa fenêtre au
+`.from(` suivant — sans cette borne il accusait
+`NEXUS-Inventaire-Manager-v1.html`, dont le seul `insert` proche est celui
+d'`inventaire_audit_log` quatre lignes plus bas. Le Manager ne fait que des
+`update`.
+
+**3 et 4. Preuves négatives, en base réelle, transaction annulée :**
+
+```
+1. INSERT service d'un autre employe : REFUSÉ — le service 1ed2c152… appartient
+   à l'employé 28810f30…, pas à 755a2dc5…
+2a. INSERT son propre service        : ACCEPTÉ, ligne 8557dd93…
+2b. UPDATE vers un autre employe     : REFUSÉ — même motif
+3. INSERT sans rattachement (NULL)   : ACCEPTÉ — historique préservé
+4. UPDATE service d'un autre site    : REFUSÉ — le service est au site
+   site-fantome-test, le quart d'inventaire au site nexus-station-test
+```
+
+Premier essai écarté et refait : le couple `(quart, employé)` que j'avais
+choisi portait déjà une ligne, et la contrainte d'unicité
+`(quart_id, employee_id)` aurait refusé l'insertion **à la place de mon
+garde** — la preuve aurait été fausse.
+
+**6. Les 6 lignes historiques sont intactes** : `6 lignes, 6 sans
+rattachement, 0 shift fantôme créé, 7 shifts au total`. Aucun backfill.
+
+**7. Mode test** : court-circuit avant toute requête, objet synthétique sans
+`shift_id` — vérifié par test.
+
+**8. Suite** : `183/192`, les 9 échecs historiques connus. Simulations
+carburant et Paye (15/15) au vert. Le total passe de 191 à 192 : le test S-5.
+
+Vérification anti-cosmétique — six mutations introduites une à une, **les six
+détectées** : rattachement retiré de l'insert, garde fail-closed neutralisé,
+identifiant jeté par `chargerRoleDuJour`, garde base réduit à l'insertion,
+concordance employé supprimée, `NULL` refusé.
+
+**9. Aucune écriture production.** `main` et `production` à `501c0c7`.
+Migration appliquée à `nexus-test` seul.
+
+**Déploiement réel** : `commit: '3b795ff80c94df84cb94b691d74667d44256adcc'`,
+`environnement: 'test'`, `coherent: true`, construit le `2026-09-05T23:30:21Z`.
+La page servie contient bien les trois marqueurs S-5 (lignes 1017, 1108, 1115).
+
+L'identifiant de génération reste `020995cd6b06` : l'empreinte porte sur les
+actifs épinglés, et `NEXUS-Inventaire-v1.html` est une page, pas un actif
+épinglé. Le commit a changé, la génération non — c'est le comportement attendu
+de la distinction posée en A2, pas un déploiement manqué.
 
 ## Risques / anomalies
 
-1. **Le remplissage n'a aucun effet observable** faute de lecteur. La preuve
-   de S-5 sera donc une preuve de données, pas de comportement — un comptage
-   d'inventaire créé après S-5 devra porter un `shift_id` égal au service
-   actif de l'employé.
-2. **La clé étrangère ne vérifie pas l'appartenance.** Un `shift_id` d'un
-   autre employé serait accepté par la base. Le code ne le fera pas, mais
-   rien ne l'interdit structurellement — d'où la proposition 5.
-3. **Les 6 lignes existantes resteront à `null`.** L'écart entre lignes
-   anciennes et nouvelles sera visible et devra être assumé.
+1. **`serviceCourantId` est résolu une fois, à l'initialisation.** Au
+   changement de quart en cours de session (matin→soir), une nouvelle ligne
+   est créée avec cet identifiant. Si le service de l'employé avait changé
+   entre-temps, la valeur serait périmée. La décision interdisant une seconde
+   requête, c'est le comportement prescrit — je le consigne comme frontière
+   connue, pas comme un défaut caché.
+2. **Frontière de traçabilité assumée** : avant S-5, `shift_id` peut être
+   `NULL` ; après S-5, toute ligne réelle le porte. L'écart entre lignes
+   anciennes et nouvelles sera visible en base.
+3. **Anomalie repérée hors périmètre** : `inventaire_quarts` contient une
+   ligne du 05/09 avec `quart = '1'` (id `a96325e7`), au lieu de
+   `matin`/`soir`. C'est un résidu de la régression de vocabulaire corrigée en
+   C2-2. Elle ne gêne rien aujourd'hui et **je ne l'ai pas touchée** — la
+   signaler relève de la recette, la corriger serait réécrire une donnée
+   historique sans arbitrage.
 
 ## Questions pour arbitrage
 
-**Q6 — La contrainte d'appartenance (proposition 5).** Faut-il un trigger
-`before insert` vérifiant que `shift_id` appartient au même `employee_id` ?
-Recommandation : **oui**. Le bloqueur 1 a montré qu'un contrat non gardé en
-base finit par ne pas être respecté — `cloture_source` existait depuis
-l'origine sans aucun écrivain. Une clé étrangère qui vérifie l'existence mais
-pas l'appartenance est le même genre de garantie incomplète.
+**Q9 — Les preuves 2 et 5.** Elles exigent une session employé réelle avec
+PIN. Employé Test A est le seul compte utilisable : aucun service en cours,
+aucune ligne sur le quart courant — donc l'ouverture d'Inventaire sous A
+**avant** prise de poste donne la preuve 5 (écran d'arrêt, aucune ligne), et
+**après** prise de poste donne la preuve 2 (ligne créée portant le `shift_id`
+du service tout juste ouvert). Ce sont les deux premiers pas du rejeu que la
+décision programme déjà pour le bloqueur 1.
 
-**Q7 — Les 6 lignes existantes.** Confirmer qu'aucune reprise rétroactive
-n'est faite, même quand un rattachement paraît plausible. Recommandation :
-**aucune reprise**, alignée sur A18 et sur la règle S-1 (« ne pas inventer
-une heure de fin » devient ici « ne pas inventer un rattachement »).
-
-**Q8 — Faut-il un lecteur ?** `shift_id` sans consommateur restera une
-colonne morte, et c'est ce qui a permis l'oubli. Faut-il, dans S-5, brancher
-au moins une lecture — par exemple afficher le rôle du service dans le
-contrôle manager — ou laisser la traçabilité sans usage jusqu'à un besoin
-métier réel ? Recommandation : **laisser sans usage**. Créer un lecteur pour
-justifier une colonne serait inverser l'ordre des raisons ; la traçabilité
-vaut pour l'audit, pas pour l'écran.
+Recommandation : **fermer S-5 sous condition de ces deux preuves, produites au
+début du rejeu bloqueur 1**, plutôt que d'organiser une session séparée qui
+consommerait le seul compte de test encore vierge pour la refaire ensuite.
 
 ## Action attendue de ChatGPT
 
-Arbitrer Q6, Q7 et Q8 pour le `LOT_ID` **S-5-SHIFT-ID-INVENTAIRE-20260905**,
-puis écrire la décision dans `docs/handoff/DECISION.md`.
+Arbitrer Q9 pour le `LOT_ID` **S-5-SHIFT-ID-INVENTAIRE-20260905** et écrire la
+décision dans `docs/handoff/DECISION.md`.
