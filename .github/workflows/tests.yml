@@ -40,8 +40,13 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Cohérence des épingles de cache
-        run: node outils/poser-build-id.js --verifier
+      # `nexus-build.js` n'est plus versionné : le vérifier sur le dépôt brut
+      # n'aurait plus de sens. Ce test exécute la VRAIE chaîne de build dans
+      # une copie jetable, puis éprouve chaque condition d'échec — commit
+      # indéterminable, épingle falsifiée, actif modifié après le build. Il
+      # échoue si le build accepte de publier une version non identifiable.
+      - name: Traçabilité de la génération (chaîne de build complète)
+        run: node test_build_tracabilite_20260905.js
 
       - name: Suite de non-régression
         id: suite

@@ -30,3 +30,8 @@ supabase/.temp/
 
 # Configuration d'environnement, générée au build — jamais versionnée.
 nexus-config.js
+
+# Identité de la génération, écrite au build par outils/poser-build-id.js.
+# Jamais versionnée : une identité committée peut être périmée — c’est
+# exactement le défaut A6 — une identité générée ne le peut pas.
+nexus-build.js

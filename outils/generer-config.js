@@ -118,17 +118,28 @@ const BALISE_PAGE = '<script src="nexus-page.js"></script>';
 // l'identification de page, puis le bandeau.
 const BALISES_ORDONNEES = [BALISE_CONFIG, BALISE_PAGE, BALISE_BANDEAU];
 
+// Une balise peut déjà porter une épingle `?v=…` posée par un build
+// précédent : on la reconnaît par son nom de fichier, jamais par la chaîne
+// exacte. Sans cela, relancer le build dupliquerait les balises.
+function dejaPresente(contenu, balise) {
+  const fichier = /src="([^"?]+)/.exec(balise)[1].replace(/[.]/g, '\\.');
+  return new RegExp(`<script src="${fichier}(\\?[^"]*)?"></script>`).test(contenu);
+}
+
 function poserBalises(contenu, ancre) {
   let sortie = contenu;
-  if (!sortie.includes(BALISE_CONFIG)) {
+  if (!dejaPresente(sortie, BALISE_CONFIG)) {
     const remplace = sortie.replace(ancre, `${BALISE_CONFIG}\n$&`);
     if (remplace === sortie) return null;
     sortie = remplace;
   }
   let precedente = BALISE_CONFIG;
   for (const balise of BALISES_ORDONNEES.slice(1)) {
-    if (!sortie.includes(balise)) {
-      sortie = sortie.replace(precedente, `${precedente}\n${balise}`);
+    if (!dejaPresente(sortie, balise)) {
+      const apres = sortie.replace(
+        new RegExp(`<script src="${/src="([^"?]+)/.exec(precedente)[1].replace(/[.]/g, '\\.')}(\\?[^"]*)?"></script>`),
+        m => `${m}\n${balise}`);
+      sortie = apres;
     }
     precedente = balise;
   }

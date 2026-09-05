@@ -519,7 +519,7 @@ rien ne le dise. Même famille qu'A3.
 | **A3** | « Vito Sainte-Marie Usine », nom du commerce de production, **écrit en dur dans 39 écrans** (46 occurrences). S'affiche en pied de page de la Prise de poste alors que la session est sur `nexus-station-test`. L'en-tête, lui, lit la base. | Défaut multi-tenant : tout client verrait ce nom | à ouvrir |
 | **A4** | Deux `console.error` sur l'écran d'accueil (« Chargement products (accueil) : aucune ligne exploitable », « (marge accueil): null »). Cause bénigne — base de recette vide — mais le contrôle « aucune erreur console » ne passait pas tel qu'énoncé. | Contrôle final 3 en échec | **corrigé** — lot séparé : le contrôle n'est PAS assoupli, c'est la journalisation qui est corrigée. Une absence de données est un état métier normal (`console.info`) ; `console.error` reste réservé aux erreurs de la base. Les deux cas, jusque-là confondus dans la même condition, sont séparés. |
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
-| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5`, alors que le commit déployé est `f3526ad`. Et les épingles de cache `?v=` ne sont pas régénérées au déploiement : un fichier modifié est servi sous une épingle inchangée, donc potentiellement depuis le cache du navigateur. Constaté sur le correctif A4 — Chrome a pris la nouvelle version, mais rien ne le garantissait. | **Traçabilité** : on ne peut savoir ni depuis l'écran, ni depuis le cache, quelle version du code on éprouve | **bloquant avant validation finale de la recette** |
+| **A6** | Le pied de page annonce `build 20260904-0104 · commit b219da5` alors que neuf commits ont été déployés depuis. L'identifiant est un horodatage posé **à la main** avant de committer : il porte donc le commit *précédent*, et se fige dès que personne ne relance l'outil. La CI vérifiait que tous les actifs partageaient le même identifiant, **jamais que cet identifiant correspondait au code servi** : elle est passée au vert neuf fois de suite. | **Défaut de traçabilité de version.** Voir la précision ci-dessous sur le cache | **bloquant avant validation finale de la recette** |
 
 ## A9 à A12 — relevées pendant la passe navigateur
 
@@ -567,6 +567,23 @@ d'être d'un second employé de recette.
 | **Problème** | **La production a enregistré cette migration sous `20260904130807`.** Le fichier suivait la production avant ce renommage ; il ne la suit plus |
 | **Risque** | À la promotion, l'outillage Supabase peut voir `20260904140000` comme une migration **nouvelle** et la rejouer sur une base où elle est déjà appliquée |
 | **Statut** | Erreur introduite pendant la recette, assumée. **Aucun renommage de migration ne sera plus fait avant arbitrage.** Plan séparé : `docs/plans/2026-09-04-alignement-migrations.md` |
+
+### A6 — précision sur le cache, à ne pas laisser déformée
+
+J'ai d'abord écrit qu'un fichier modifié servi sous une épingle inchangée
+était « potentiellement servi depuis le cache ». C'est **trop fort pour
+Cloudflare** : Pages sert tout en `cache-control: public, max-age=0,
+must-revalidate`, donc le navigateur revalide à chaque chargement et reçoit la
+version courante. C'est pourquoi le correctif A4 est passé sans que l'épingle
+bouge.
+
+Le défaut A6 est donc **d'abord et principalement un défaut de traçabilité de
+version** : depuis un écran, on ne pouvait pas savoir quel commit servait la
+page. Ce n'est pas la preuve qu'un ancien fichier était servi depuis le cache.
+
+Le risque de cache reste réel ailleurs, et c'est pourquoi l'épinglage garde
+son sens : sur **GitHub Pages**, qui sert la production avec un `max-age` de
+dix minutes, et dans le cache mémoire d'un onglet déjà ouvert.
 
 ## Défense en profondeur — requêtes sans filtre de site
 

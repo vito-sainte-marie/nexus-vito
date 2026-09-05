@@ -1,63 +1,152 @@
 #!/usr/bin/env node
-// Pose un identifiant de build unique sur toutes les ressources fonctionnelles.
+// NEXUS — identité de la génération déployée (05/09/2026).
 //
-// Problème résolu (02/09/2026) : les `?v=` étaient saisis à la main, fichier
-// par fichier. Deux correctifs livrés le même jour sont restés invisibles en
-// production parce que leur épingle portait encore la date de la veille. Pire,
-// des épingles différentes ouvrent la porte au scénario dangereux — nouvel
-// écran HTML + ancien moteur en cache + nouveau fichier de données — qui
-// produit un fonctionnement hybride impossible à reproduire en test.
+// CE QUE CET OUTIL GARANTIT : qu'un écran servi permette de dire, sans
+// ambiguïté, quel commit l'a produit, quelle génération d'actifs il exécute,
+// dans quel environnement, et à quelle heure il a été construit. Et qu'une
+// version incapable de répondre à ces questions ne puisse pas être publiée.
 //
-// Règle posée : une seule génération pour tout le déploiement. Chaque écran
-// référence exactement un build, donc même servi depuis le cache il charge un
-// ensemble COHÉRENT. Le mélange de générations devient structurellement
-// impossible, indépendamment de la fraîcheur du HTML.
+// HISTOIRE. L'outil posait déjà une épingle `?v=` unique sur tous les actifs,
+// pour interdire le mélange de générations — nouvel écran, ancien moteur en
+// cache. Cette partie tenait. Ce qui ne tenait pas, c'était l'IDENTITÉ :
+//
+//   * l'identifiant était un HORODATAGE calculé au lancement, sans rapport
+//     avec le contenu ni avec le commit ;
+//   * l'outil se lançait À LA MAIN avant de committer, donc le commit inscrit
+//     était celui d'AVANT le commit qu'il servait à produire ;
+//   * `nexus-build.js` était versionné : si personne ne relançait l'outil,
+//     l'identité restait figée pendant que le code avançait.
+//
+// Constaté en recette le 04/09/2026 : le pied de page annonçait le commit
+// `b2190e5` alors que neuf commits avaient été déployés depuis. La CI passait
+// au vert à chaque fois — elle vérifiait que tous les actifs portaient LE MÊME
+// identifiant, jamais que cet identifiant correspondait au code servi.
+//
+// CE QUI CHANGE :
+//
+//   1. L'identifiant est une EMPREINTE DE CONTENU, déterministe : même code,
+//      même identifiant, quel que soit l'hébergeur et l'heure. Un horodatage
+//      changeait à chaque build même sans modification, invalidant tous les
+//      caches pour rien ; une empreinte ne change que si un actif change.
+//   2. Le commit vient de l'environnement de build — `CF_PAGES_COMMIT_SHA`
+//      chez Cloudflare — ou de git. S'il est indéterminable, LE BUILD ÉCHOUE.
+//   3. `nexus-build.js` n'est plus versionné : on ne peut plus committer une
+//      identité périmée, puisqu'on ne peut plus la committer du tout.
+//   4. L'écran vérifie lui-même, à l'exécution, que ses scripts portent bien
+//      l'épingle de la génération annoncée.
 //
 // Usage :
-//   node outils/poser-build-id.js            pose un nouvel identifiant
-//   node outils/poser-build-id.js --verifier  échoue si quelque chose diverge
+//   node outils/poser-build-id.js             pose l'identité (appelé par build.sh)
+//   node outils/poser-build-id.js --verifier   échoue si l'arbre n'est pas cohérent
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const RACINE = path.join(__dirname, '..');
 const VERIFIER = process.argv.includes('--verifier');
 
-// Fichiers servis SANS version, volontairement : ce sont des points d'entrée
-// que le navigateur doit pouvoir revalider seul, ou des ressources hors
-// application.
-const SANS_VERSION = new Set(['nexus-build.js']);
+// Servis SANS épingle, chacun pour une raison distincte :
+//   nexus-build.js  — il PORTE l'identité ; l'épingler avec elle serait
+//                     circulaire, et il doit rester revalidable seul.
+//   nexus-config.js — il distingue les environnements et est servi en
+//                     `no-store` ; une épingle lui donnerait une durée de vie.
+const SANS_EPINGLE = new Set(['nexus-build.js', 'nexus-config.js']);
 
-function horodatageUTC() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+function echouer(message, detail) {
+  console.error('\n  ÉCHEC — identité de génération NEXUS\n');
+  console.error('  ' + message);
+  if (detail) console.error('\n' + detail);
+  console.error('');
+  process.exit(1);
 }
 
-function commitCourt() {
-  try { return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: RACINE }).toString().trim(); }
-  catch (e) { return 'inconnu'; }
+// ── Le commit : une seule source de vérité, jamais devinée ───────────────
+function commitDeploye() {
+  // Cloudflare Pages expose le SHA du commit RÉELLEMENT déployé. C'est la
+  // seule valeur qui ne peut pas mentir : ni l'heure du lancement, ni l'état
+  // du poste de développement n'entrent en jeu.
+  const cf = (process.env.CF_PAGES_COMMIT_SHA || '').trim();
+  if (/^[0-9a-f]{7,40}$/.test(cf)) return cf;
+  try {
+    const g = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: RACINE, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim();
+    if (/^[0-9a-f]{40}$/.test(g)) return g;
+  } catch (e) { /* pas de git : traité ci-dessous */ }
+  return null;
 }
 
-function buildIdExistant() {
-  const f = path.join(RACINE, 'nexus-build.js');
-  if (!fs.existsSync(f)) return null;
-  const m = fs.readFileSync(f, 'utf8').match(/id:\s*'([^']+)'/);
-  return m ? m[1] : null;
+// ── L'empreinte : dérivée du contenu, donc reproductible ─────────────────
+// Chaque actif épinglé contribue son nom ET son contenu. Le nom compte :
+// renommer un fichier change la génération, ce qui est correct — les écrans
+// ne référencent plus les mêmes ressources.
+//
+// LES ÉPINGLES SONT RETIRÉES AVANT DE HACHER, et c'est indispensable :
+// certains actifs — nexus-auth.js le premier — injectent eux-mêmes des scripts
+// épinglés. Hacher leur contenu épinglé rendrait l'empreinte dépendante d'une
+// valeur qu'elle sert à produire : le calcul ne convergerait jamais, et le
+// contrôle final échouerait à chaque build. On hache donc la forme CANONIQUE,
+// sans épingle. Une vraie modification du fichier change toujours l'empreinte ;
+// le seul fait de le réépingler, non.
+function canoniser(contenu) {
+  return contenu.replace(/\?v=[0-9A-Za-z_-]+/g, '');
 }
 
-const BUILD = VERIFIER ? buildIdExistant() : horodatageUTC();
-if (VERIFIER && !BUILD) { console.error('Aucun nexus-build.js — lancer d\'abord `npm run build-id`.'); process.exit(1); }
+function empreinte(actifs) {
+  const h = crypto.createHash('sha256');
+  for (const nom of [...actifs].sort()) {
+    h.update(nom, 'utf8');
+    h.update('\0');
+    const contenu = canoniser(fs.readFileSync(path.join(RACINE, nom), 'utf8'));
+    h.update(crypto.createHash('sha256').update(contenu, 'utf8').digest('hex'));
+    h.update('\n');
+  }
+  return h.digest('hex').slice(0, 12);
+}
 
 // (src|href)="chemin-local.js|css" avec ou sans ?v=… — jamais une URL externe.
 const BALISE = /\b(src|href)="(?!https?:|\/\/)([A-Za-z0-9._/-]+\.(?:js|css))(\?[^"]*)?"/g;
-// Injections dynamiques : document.write('<script src="x.js?v=…"') et el.src = 'x.js?v=…'
+// Injections dynamiques : el.src = 'x.js?v=…'
 const INJECTION = /(['"])((?:[A-Za-z0-9._/-]+)\.(?:js|css))(\?v=[0-9A-Za-z_-]+)?\1/g;
 
 const fichiers = fs.readdirSync(RACINE).filter(f => /\.(html|js)$/.test(f) && !f.startsWith('test_'));
-let poses = 0, divergents = [], manquants = [];
+
+// ── 1. Recenser ce qui est référencé, avant de décider de quoi que ce soit ─
+const references = new Set();
+const manquants = [];
+for (const f of fichiers) {
+  const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+  let m;
+  BALISE.lastIndex = 0;
+  while ((m = BALISE.exec(src))) {
+    const cible = m[2];
+    if (SANS_EPINGLE.has(cible)) continue;
+    if (!fs.existsSync(path.join(RACINE, cible))) { manquants.push(`${f} → ${cible}`); continue; }
+    references.add(cible);
+  }
+  INJECTION.lastIndex = 0;
+  while ((m = INJECTION.exec(src))) {
+    const cible = m[2];
+    if (!m[3] || SANS_EPINGLE.has(cible)) continue;
+    if (!fs.existsSync(path.join(RACINE, cible))) { manquants.push(`${f} → ${cible} (injection)`); continue; }
+    references.add(cible);
+  }
+}
+if (manquants.length) {
+  echouer(`${manquants.length} référence(s) vers un fichier absent du dépôt.`,
+    manquants.map(m => '    ✘ ' + m).join('\n'));
+}
+if (!references.size) {
+  echouer('Aucun actif à épingler : l’arbre ne ressemble pas à un déploiement NEXUS.');
+}
+
+const ID = empreinte(references);
+
+// ── 2. Poser ou vérifier l'épingle sur chaque référence ──────────────────
+let poses = 0;
+const divergents = [];
 
 for (const f of fichiers) {
   const chemin = path.join(RACINE, f);
@@ -65,48 +154,52 @@ for (const f of fichiers) {
   let apres = avant;
 
   apres = apres.replace(BALISE, (tout, attr, cible, q) => {
-    if (SANS_VERSION.has(cible)) return `${attr}="${cible}"`;
-    if (!fs.existsSync(path.join(RACINE, cible))) { manquants.push(`${f} → ${cible}`); return tout; }
+    if (SANS_EPINGLE.has(cible)) return `${attr}="${cible}"`;
+    if (!references.has(cible)) return tout;
     const actuel = q && /\?v=([0-9A-Za-z_-]+)/.exec(q);
-    if (VERIFIER && (!actuel || actuel[1] !== BUILD)) divergents.push(`${f} → ${cible} (${actuel ? actuel[1] : 'aucune version'})`);
+    if (VERIFIER && (!actuel || actuel[1] !== ID)) {
+      divergents.push(`${f} → ${cible} (${actuel ? actuel[1] : 'aucune épingle'})`);
+    }
     poses++;
-    return `${attr}="${cible}?v=${BUILD}"`;
+    return `${attr}="${cible}?v=${ID}"`;
   });
 
   // Les injections dynamiques ne sont réécrites que si elles portaient DÉJÀ
-  // une version : on ne devine jamais qu'une chaîne quelconque est une URL.
+  // une épingle : on ne devine jamais qu'une chaîne quelconque est une URL.
   apres = apres.replace(INJECTION, (tout, guillemet, cible, v) => {
-    if (!v || SANS_VERSION.has(cible)) return tout;
+    if (!v || SANS_EPINGLE.has(cible) || !references.has(cible)) return tout;
     const actuel = /\?v=([0-9A-Za-z_-]+)/.exec(v);
-    if (VERIFIER && actuel[1] !== BUILD) divergents.push(`${f} → ${cible} (${actuel[1]}, injection dynamique)`);
+    if (VERIFIER && actuel[1] !== ID) divergents.push(`${f} → ${cible} (${actuel[1]}, injection)`);
     poses++;
-    return `${guillemet}${cible}?v=${BUILD}${guillemet}`;
+    return `${guillemet}${cible}?v=${ID}${guillemet}`;
   });
 
   if (!VERIFIER && apres !== avant) fs.writeFileSync(chemin, apres);
 }
 
-if (manquants.length) {
-  console.error(`\n${manquants.length} référence(s) vers un fichier absent du dépôt :`);
-  manquants.forEach(m => console.error('  ✘ ' + m));
-}
-
+// ── 3. Vérification : l'arbre est-il un déploiement identifiable ? ───────
 if (VERIFIER) {
-  if (divergents.length) {
-    console.error(`\nBuild attendu : ${BUILD}`);
-    console.error(`${divergents.length} ressource(s) hors génération :`);
-    divergents.slice(0, 20).forEach(d => console.error('  ✘ ' + d));
-    if (divergents.length > 20) console.error(`  … et ${divergents.length - 20} autre(s)`);
-    console.error('\nLancer `npm run build-id` avant de déployer.');
-    process.exit(1);
+  const f = path.join(RACINE, 'nexus-build.js');
+  if (!fs.existsSync(f)) {
+    echouer('`nexus-build.js` est absent : cet arbre n’a pas été construit.\n'
+      + '  Lancer `outils/build.sh` — il n’est plus versionné, et c’est voulu :\n'
+      + '  une identité committée peut être périmée, une identité générée non.');
   }
-  console.log(`Build ${BUILD} — ${poses} ressource(s), toutes sur la même génération.`);
-  process.exit(manquants.length ? 1 : 0);
+  const declare = (fs.readFileSync(f, 'utf8').match(/id:\s*'([^']+)'/) || [])[1];
+  if (declare !== ID) {
+    echouer(`\`nexus-build.js\` annonce la génération « ${declare} », le contenu servi vaut « ${ID} ».`,
+      '    Un actif a changé après la construction, ou le fichier a été édité à la main.');
+  }
+  if (divergents.length) {
+    echouer(`${divergents.length} ressource(s) hors de la génération ${ID}.`,
+      divergents.slice(0, 20).map(d => '    ✘ ' + d).join('\n')
+      + (divergents.length > 20 ? `\n    … et ${divergents.length - 20} autre(s)` : ''));
+  }
+  console.log(`Génération ${ID} — ${poses} référence(s) épinglée(s), toutes cohérentes.`);
+  process.exit(0);
 }
 
-// Chaque écran chargeant des scripts doit aussi charger nexus-build.js, qui
-// expose NEXUS_BUILD et estampille le pied de page. Posé ici plutôt qu'à la
-// main : un écran ajouté demain l'obtient sans que personne y pense.
+// ── 4. Chaque écran qui charge des scripts charge aussi nexus-build.js ───
 {
   let ajoutes = 0;
   for (const f of fichiers.filter(x => x.endsWith('.html'))) {
@@ -118,33 +211,82 @@ if (VERIFIER) {
     fs.writeFileSync(chemin, s.slice(0, m.index) + '<script src="nexus-build.js"></script>\n' + s.slice(m.index));
     ajoutes++;
   }
-  if (ajoutes) console.log(`nexus-build.js ajouté dans ${ajoutes} écran(s).`);
+  if (ajoutes) console.log(`  nexus-build.js ajouté dans ${ajoutes} écran(s).`);
 }
 
-const commit = commitCourt();
-fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/poser-build-id.js — ne pas éditer à la main.
-// Identifiant unique de la génération déployée. Toutes les ressources
-// fonctionnelles de ce déploiement portent ?v=<id> : un écran servi depuis le
-// cache charge donc forcément un ensemble cohérent, jamais un mélange de
-// générations.
+// ── 5. Écrire l'identité — et échouer plutôt que d'en inventer une ───────
+const commit = commitDeploye();
+if (!commit) {
+  echouer('Commit indéterminable : ni CF_PAGES_COMMIT_SHA, ni dépôt git exploitable.',
+    '    Publier ici produirait une version que personne ne saurait rattacher\n'
+    + '    à un état du code. C’est exactement ce qu’A6 interdit.');
+}
+const env = (process.env.NEXUS_ENV || '').trim() || 'inconnu';
+const construitLe = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/poser-build-id.js — NON VERSIONNÉ, ne pas éditer.
+//
+// Identité de cette génération. Quatre informations distinctes, parce que
+// quatre questions distinctes se posent devant un écran qui se comporte mal :
+//   commit          — quel état du code a produit ce déploiement ;
+//   id              — quelle génération d'actifs l'écran exécute réellement ;
+//   environnement   — à quelle base il parle ;
+//   construitLe     — quand cette génération a été fabriquée.
+//
+// L'identifiant est une empreinte du CONTENU des actifs épinglés : même code,
+// même identifiant, quel que soit l'hébergeur ou l'heure.
 (function (global) {
   'use strict';
-  global.NEXUS_BUILD = { id: '${BUILD}', commit: '${commit}' };
-  // Estampille discrète en pied de page, pour savoir d'un coup d'œil si le
-  // téléphone, le Mac et le serveur exécutent la même version.
+
+  var IDENTITE = {
+    commit: '${commit}',
+    commitCourt: '${commit.slice(0, 7)}',
+    id: '${ID}',
+    environnement: '${env}',
+    construitLe: '${construitLe}',
+    coherent: true,
+  };
+
+  // Contrôle à l'exécution : les scripts de CETTE page portent-ils bien
+  // l'épingle de la génération annoncée ? Sans ce contrôle, un mélange de
+  // générations — page fraîche, moteur ancien resté en cache — resterait
+  // silencieux. C'est le scénario que l'épinglage sert à rendre impossible ;
+  // encore faut-il le constater plutôt que l'espérer.
+  function verifierCoherence() {
+    var hors = [];
+    var scripts = document.querySelectorAll('script[src]');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].getAttribute('src') || '';
+      if (/^https?:|^\\/\\//.test(src)) continue;
+      var nom = src.split('?')[0];
+      if (nom === 'nexus-build.js' || nom === 'nexus-config.js') continue;
+      var m = /[?&]v=([0-9A-Za-z_-]+)/.exec(src);
+      if (!m || m[1] !== IDENTITE.id) hors.push(nom + ' → ' + (m ? m[1] : 'aucune épingle'));
+    }
+    if (!hors.length) return;
+    IDENTITE.coherent = false;
+    console.error('NEXUS — mélange de générations détecté (attendu ' + IDENTITE.id + ') : ' + hors.join(', '));
+  }
+
   function estampiller() {
     var pied = document.querySelector('footer');
     if (!pied || pied.querySelector('.nexus-build-estampille')) return;
     var s = document.createElement('span');
     s.className = 'nexus-build-estampille';
     s.style.cssText = 'display:block; margin-top:4px; font-size:10px; opacity:.55;';
-    s.textContent = 'NEXUS build ${BUILD} · commit ${commit}';
+    s.textContent = 'NEXUS ' + IDENTITE.environnement + ' · commit ' + IDENTITE.commitCourt
+      + ' · génération ' + IDENTITE.id + ' · construit le ' + IDENTITE.construitLe
+      + (IDENTITE.coherent ? '' : ' · ⚠ GÉNÉRATIONS MÉLANGÉES');
     pied.appendChild(s);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', estampiller, { once: true });
-  else estampiller();
+
+  function demarrer() { verifierCoherence(); estampiller(); }
+
+  global.NEXUS_BUILD = IDENTITE;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer, { once: true });
+  else demarrer();
 })(typeof window !== 'undefined' ? window : globalThis);
 `);
 
-console.log(`Build ${BUILD} (commit ${commit}) posé sur ${poses} ressource(s).`);
-if (manquants.length) process.exit(1);
+console.log(`  Génération ${ID} — commit ${commit.slice(0, 7)} — environnement « ${env} ».`);
+console.log(`  ${poses} référence(s) épinglée(s).`);
