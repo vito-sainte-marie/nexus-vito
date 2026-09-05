@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -803,7 +804,10 @@
   // 'America/Martinique' n'est qu'un repli si la ligne station_config
   // n'existe pas encore pour ce site (jamais 'Europe/Paris' — voir
   // nexus-carburant-donnees.js pour le même repli côté chargement moteur).
-  let FUSEAU_STATION = 'America/Martinique';
+  // A3 / C1c-2 (05/09/2026) : null tant que le fuseau du commerce n'a pas
+  // été résolu. Les quatre formatages ci-dessous affichent « — » plutôt
+  // qu'une heure calculée dans le fuseau d'une autre station.
+  let FUSEAU_STATION = null;
   let TYPE_PERIODE = 'semaine';
   // Contexte "aujourd'hui" (indépendant de la période sélectionnée),
   // chargé une seule fois à l'initialisation et réutilisé par le bloc
@@ -990,6 +994,7 @@
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
+    if (!FUSEAU_STATION) return '—'; // fuseau du commerce non résolu : pas d'heure inventée
     const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: FUSEAU_STATION });
     const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
@@ -1243,6 +1248,7 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
+    if (!FUSEAU_STATION) return '—'; // fuseau du commerce non résolu : pas d'heure inventée
     const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: FUSEAU_STATION });
     const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
@@ -1286,7 +1292,7 @@
   async function chargerControleEtAutonomie() {
     const [{ config }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
       NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
-      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO()),
+      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO(), FUSEAU_STATION),
       NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
       // Sprint C6 (audit §10) : badge de qualité par carburant — lit la
       // preuve déjà posée dans carburant_controles, jamais une deuxième
@@ -1897,7 +1903,7 @@
     if (!zone) return;
     if (!global_NexusCommandeCarburantDonnees_disponible()) { zone.innerHTML = ''; return; }
     try {
-      COMMANDE_CTX = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID);
+      COMMANDE_CTX = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { timezone: FUSEAU_STATION });
     } catch (e) {
       console.error('Évaluation Commande Carburant:', e);
       COMMANDE_CTX = null;
@@ -2843,7 +2849,7 @@
     zone.innerHTML = '<div class="loading">Calcul…</div>';
     let simulation = null;
     try {
-      simulation = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { dateISO: dateVal, heureHHMM: heureVal });
+      simulation = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { dateISO: dateVal, heureHHMM: heureVal, timezone: FUSEAU_STATION });
     } catch (e) {
       console.error('Simulation Commande Carburant:', e);
     }
@@ -3594,7 +3600,7 @@
   // entre plusieurs références, jamais une référence choisie au hasard.
   async function chargerVentesReferenceAvecRepli(candidates, actuel, periodeActuelle) {
     for (const c of candidates) {
-      const resultat = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, c.debut, c.fin);
+      const resultat = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, c.debut, c.fin, FUSEAU_STATION);
       const lignesComparables = NexusCarburantDonnees.alignerQuartsComparables(
         actuel.lignes || [], periodeActuelle.debut, resultat.lignes || [], c.debut
       );
@@ -3742,7 +3748,7 @@
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})${enCours ? ' — en cours' : ''}`;
     const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
-    const actuel = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin);
+    const actuel = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin, FUSEAU_STATION);
     const reference = await chargerVentesReferenceAvecRepli(referencesCandidates, actuel, periode);
 
     const M = NexusCarburantMoteur;
@@ -4561,9 +4567,9 @@
     // en dépendent. Requête minimale, dédiée : station_config.horaires
     // n'est pas utile ici (déjà géré par nexus-carburant-donnees.js).
     {
-      const { data: stationConfig, error: eFuseau } = await nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ID).maybeSingle();
-      if (eFuseau) console.error('Chargement fuseau_horaire station:', eFuseau);
-      if (stationConfig && stationConfig.fuseau_horaire) FUSEAU_STATION = stationConfig.fuseau_horaire;
+      // A3 / C1c-2 : source unique sites.timezone, plus station_config.
+      const fuseauPilotage = await NexusStation.fuseauDeLaStation(SITE_ID);
+      FUSEAU_STATION = fuseauPilotage.timezone || null;
     }
 
     initAccordions();

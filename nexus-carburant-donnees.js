@@ -33,7 +33,12 @@
   // une mesure de couverture honnête : nbQuartsAvecLitrage / nbQuartsTotal
   // sur la période — pour que l'écran puisse dire "sur 4 quarts, 3 ont un
   // litrage renseigné" plutôt que de laisser croire à une mesure complète.
-  async function chargerVentesPeriode(client, siteId, debut, fin) {
+  // A3 / C1c-4b (05/09/2026) — `timezone` reçu, jamais résolu ici.
+  // Cette version de base ne s'en sert pas ; le correctif P0 qui la remplace
+  // (nexus-carburants-p0-performance.js) en a besoin pour dater le jour
+  // courant. Le paramètre figure donc dans le contrat des DEUX, sinon le
+  // patch redeviendrait un résolveur.
+  async function chargerVentesPeriode(client, siteId, debut, fin, timezone) {
     const { data, error } = await client.from('audits_caisse')
       .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
       .eq('site', siteId).gte('date', debut).lte('date', fin);
@@ -273,27 +278,31 @@
   // disqualifiée). Un relevé réel POSTÉRIEUR au point zéro redevient une
   // ancre normale pour les dates encore plus tardives : le point zéro n'est
   // qu'un plancher, pas une ancre permanente.
-  async function chargerControleJour(client, siteId, date) {
+  // A3 / C1c-5 (05/09/2026) — `timezone` en 4ᵉ paramètre positionnel, et non
+  // dans un objet d'options : cette fonction n'en a pas, et lui en inventer un
+  // pour une seule donnée créerait deux conventions dans le même module.
+  //
+  // Il est OBLIGATOIRE. Cette couche de données est appelée par du code,
+  // jamais par un utilisateur : son absence est une erreur de contrat, pas un
+  // état à afficher. Aucune valeur n'est substituée.
+  async function chargerControleJour(client, siteId, date, timezone) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('chargerControleJour : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation avant d’appeler.');
+    }
     const M = global.NexusCarburantMoteur;
     const [{ data: releveDuJour, error: e1 }, { data: dernierReleve, error: e2 }, pointZero, { data: stationConfig, error: e5 }] = await Promise.all([
       client.from('carburant_releves').select('*').eq('site', siteId).eq('date', date).maybeSingle(),
       client.from('carburant_releves').select('*').eq('site', siteId).lt('date', date).order('date', { ascending: false }).limit(1).maybeSingle(),
       chargerDernierPointZero(client, siteId, date),
-      client.from('station_config').select('horaires,fuseau_horaire').eq('site', siteId).maybeSingle(),
+      client.from('station_config').select('horaires').eq('site', siteId).maybeSingle(),
     ]);
     if (e1) console.error('Chargement relevé carburant du jour (contrôle):', e1);
     if (e2) console.error('Chargement dernier relevé carburant (contrôle):', e2);
     if (e5) console.error('Chargement horaires site (fenêtre ventes horodatée):', e5);
     const horaires = (stationConfig && stationConfig.horaires) || null;
-    // Fuseau de la station (24/08/2026, v2.232, anomalie signalée par
-    // Frédéric : heures carburant fausses en Martinique) — station_config.
-    // fuseau_horaire est NOT NULL avec un défaut 'America/Martinique' en
-    // base, mais si le site n'a encore AUCUNE ligne station_config
-    // (`stationConfig` null, cas déjà géré ailleurs sur `horaires`), on
-    // retombe explicitement sur la seule station réelle connue de NEXUS
-    // aujourd'hui plutôt que sur 'Europe/Paris' — jamais un fuseau
-    // métropolitain par défaut pour une station ultramarine.
-    const fuseau = (stationConfig && stationConfig.fuseau_horaire) || 'America/Martinique';
+    // A3 / C1c-5 : le fuseau vient de l'appelant (paramètre `timezone`).
+    // Il était lu ici dans station_config, avec repli sur Sainte-Marie.
+    const fuseau = timezone;
 
     if (!releveDuJour && !dernierReleve && !pointZero) {
       return { parCarburant: null, aucunReleve: true };

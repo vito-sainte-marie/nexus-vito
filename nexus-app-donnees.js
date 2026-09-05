@@ -136,9 +136,10 @@
   // additif, non consommé par `renderEntrepriseAujourdhui` aujourd'hui,
   // disponible si un badge de fraîcheur devait être ajouté à cette carte
   // plus tard).
-  async function chargerStatutCarburantsHome(client, siteId) {
+  // A3 / C1c-4b : couche de données — `timezone` traverse, jamais résolu ici.
+  async function chargerStatutCarburantsHome(client, siteId, timezone) {
     const aujourdhui = new Date().toISOString().slice(0, 10);
-    const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui);
+    const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui, timezone);
     const { parCarburant, aucunReleve } = carburants.controle;
     const statut = global.NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);
     const detail = global.NexusCarburantMoteur.texteControleJour(parCarburant, aucunReleve);

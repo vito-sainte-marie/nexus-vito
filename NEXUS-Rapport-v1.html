@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -175,6 +176,10 @@
   // (Article 11 : jamais deux calculs séparés de la même chose).
   // ------------------------------------------------------------
 
+  // A3 / C1c-4b : Rapport devient résolveur explicite. Il n'avait aucune
+  // résolution de fuseau : ses volumes carburant étaient datés dans le fuseau
+  // que la couche de données trouvait elle-même.
+  let FUSEAU_STATION = null;
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let NOM_ENTREPRISE = null;
   let MANAGER_COURANT = null;
@@ -235,7 +240,7 @@
   // exactement les primitives déjà utilisées par Carburants Pilotage,
   // jamais un second calcul de volume/mix (Article 11).
   async function chargerCarburantsPeriode(client, site, periode) {
-    const donnees = await NexusCarburantDonnees.chargerVentesPeriode(client, site, periode.debut, periode.fin);
+    const donnees = await NexusCarburantDonnees.chargerVentesPeriode(client, site, periode.debut, periode.fin, FUSEAU_STATION);
     const mix = NexusCarburantMoteur.calculerMixCarburant(donnees.ventes);
     if (!mix || !mix.total) return { disponible: false, raison: `Aucune vente carburant ne couvre la période ${periode.debut} → ${periode.fin}.` };
     return {
@@ -370,7 +375,7 @@
       // dérivé de carbActuel/carbRef qui portent la période du rapport.
       const aujourdhuiEco = new Date().toISOString().slice(0, 10);
       const [controleJourEco, cuvesConfigEco, prixVenteEco] = await Promise.all([
-        NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, aujourdhuiEco),
+        NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, aujourdhuiEco, FUSEAU_STATION),
         NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
         NexusCarburantDonnees.chargerPrixCarburantsCourant(nexusClient, SITE_ID),
       ]);
@@ -938,6 +943,9 @@
     }
     MANAGER_COURANT = employee;
     SITE_ID = employee.site_id;
+    // Résolu une fois, avant tout chargement de données.
+    const fuseauRapport = await NexusStation.fuseauDeLaStation(SITE_ID);
+    FUSEAU_STATION = fuseauRapport.timezone || null;
     const { data: siteRow } = await nexusClient.from('sites').select('nom_entreprise').eq('site_id', SITE_ID).maybeSingle();
     NOM_ENTREPRISE = (siteRow && siteRow.nom_entreprise) || SITE_ID;
 

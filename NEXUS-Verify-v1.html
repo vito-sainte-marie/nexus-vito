@@ -457,6 +457,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -820,7 +821,9 @@
   // — même mécanisme que Carburants Pilotage, réutilisé ici pour formater
   // l'heure de validation dans le badge de statut par quart (24/08/2026).
   // Martinique par défaut tant que station_config n'a pas répondu.
-  let FUSEAU_STATION = 'America/Martinique';
+  // A3 / C1c-2 (05/09/2026) : null tant que le fuseau du commerce n'a pas
+  // été résolu. Aucune heure n'est formatée avant.
+  let FUSEAU_STATION = null;
 
   // Classification d'écart extraite le 11/08/2026 dans nexus-verify-moteur.js
   // (module partagé, Article 11) — pour que le nouveau chapitre "Opérations"
@@ -864,6 +867,8 @@
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
+    // Sans fuseau résolu, on n'affiche pas une heure fausse — on n'affiche rien.
+    if (!FUSEAU_STATION) return '—';
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
   }
 
@@ -1312,12 +1317,16 @@
     majContexteSticky(); // v2.273 (§1) — affiche le contexte dès l'arrivée sur "Nouvel audit"
     chargerReprendreQuart(); // v2.273 (§9) — "Reprendre Q2" : propose le dernier quart non clôturé sans que le manager ait à le retrouver dans l'historique
 
-    // Fuseau horaire de la station (v2.232) — pour l'heure affichée dans le
-    // badge de statut de validation par quart (Historique). Non bloquant :
-    // FUSEAU_STATION garde son défaut Martinique en cas d'erreur.
-    nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ACTUEL).maybeSingle()
-      .then(({ data }) => { if (data && data.fuseau_horaire) FUSEAU_STATION = data.fuseau_horaire; })
-      .catch(() => {});
+    // Fuseau horaire de la station — pour l'heure affichée dans le badge de
+    // statut de validation par quart (Historique).
+    //
+    // A3 / C1c-2 (05/09/2026) : c'était un `.then()` NON ATTENDU. Le premier
+    // rendu pouvait donc se faire à l'heure de Martinique, puis être corrigé
+    // en silence — une heure fausse affichée, même une seconde, sans que rien
+    // ne le signale. L'`await` supprime la course ; l'absence de fuseau
+    // laisse les heures à « — » plutôt que de les inventer.
+    const fuseauVerify = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+    FUSEAU_STATION = fuseauVerify.timezone || null;
 
     // ------------------------------------------------------------
     // Import classeur recettes (.xlsx) — évite de ressaisir les drops et les

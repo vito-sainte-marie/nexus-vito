@@ -329,7 +329,7 @@ const CUVES = {
         carburant_stock_references: [{ data: null, error: null }],
         carburant_commandes: [{ data: [], error: null }],
       });
-      const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM: '09:00' });
+      const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-27', heureHHMM: '09:00' });
       assert.strictEqual(r.ok, true);
       assert.ok('couvertureEstimeeParQuart' in r.parCarburant.sp95, 'couvertureEstimeeParQuart doit être exposé sur chaque carburant actif, même sans historique (réponse honnête non_calculable)');
       assert.strictEqual(r.parCarburant.sp95.couvertureEstimeeParQuart.confiance, 'non_calculable', 'aucun historique par quart mocké ici -> non_calculable, jamais un chiffre fabriqué');
@@ -380,7 +380,7 @@ const CUVES = {
         carburant_stock_references: [{ data: null, error: null }],
         carburant_commandes: [{ data: [], error: null }],
       });
-      const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM: '18:00' });
+      const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-27', heureHHMM: '18:00' });
       assert.strictEqual(r.ok, true);
       assert.strictEqual(r.avisVerifyJour.length, 1, 'seul le quart 2 (non validé) doit produire un avis, jamais le quart 1 déjà validé');
       assert.strictEqual(r.avisVerifyJour[0].quart, '2');

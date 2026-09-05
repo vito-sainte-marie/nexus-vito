@@ -67,7 +67,23 @@
 
   // Le fuseau de la station — source unique `sites.timezone` (A3-3).
   //
-  // Il n'y a pas de repli, et c'est le cœur du correctif : un fuseau ne
+  // CONTRAT (arbitré le 05/09/2026) :
+  //     await NexusStation.fuseauDeLaStation(siteId)
+  //       -> { timezone: 'America/Martinique' }
+  //       -> { indetermine: 'configuration' }
+  //       -> { indetermine: 'reseau' }
+  //
+  // Pas de paramètre `client` : le client Supabase est un global posé par
+  // nexus-auth.js, et le passer en argument inviterait à en passer un autre.
+  // Le mot `timezone` est celui de la colonne : un synonyme serait une
+  // invitation à diverger.
+  //
+  // Un `siteId` absent LÈVE au lieu de renvoyer un état : ce n'est pas une
+  // situation du commerce, c'est une erreur de contrat entre deux morceaux
+  // de code. La confondre avec « pas de configuration » ferait passer un
+  // bogue pour une donnée manquante.
+  //
+  // Il n'y a aucun repli, et c'est le cœur du correctif : un fuseau ne
   // s'affiche pas, il DÉCOUPE LES JOURNÉES. Calculer un quart, un retard ou
   // une date de clôture dans l'heure d'une autre station produit un résultat
   // faux sans le moindre message d'erreur. Mieux vaut refuser de calculer.
@@ -75,20 +91,26 @@
   // `sites` a toujours une ligne par site — contrairement à station_config,
   // qui peut ne pas en avoir. C'est la raison du choix de table : le cas
   // « pas de configuration » ne peut plus se confondre avec « pas de fuseau ».
-  async function fuseauDeLaStation(client, siteId) {
-    if (!siteId) { console.error('Fuseau de la station : aucun site fourni.'); return { indetermine: 'site' }; }
-    const { data, error } = await client.from('sites').select('timezone').eq('site_id', siteId).maybeSingle();
-    if (error) { console.error('Fuseau de la station : lecture impossible —', error); return { indetermine: 'reseau' }; }
+  async function fuseauDeLaStation(siteId) {
+    if (typeof siteId !== 'string' || !siteId.trim()) {
+      throw new TypeError('NexusStation.fuseauDeLaStation : siteId manquant ou invalide. Résolvez le site avant d’appeler (NexusStation.exigerSite).');
+    }
+    const { data, error } = await nexusClient
+      .from('sites').select('timezone').eq('site_id', siteId.trim()).maybeSingle();
+    if (error) {
+      console.error('Fuseau de la station : lecture impossible —', error);
+      return { indetermine: 'reseau' };
+    }
     // La requête a RÉUSSI et ne rapporte aucun fuseau exploitable : ce n'est
     // pas une panne technique, c'est une configuration incomplète. Règle
-    // A4-bis — `error` est réservé à l'échec de la requête, qui est traité
-    // au-dessus. Règle A3 — l'absence est visible (ce journal) et bloquante
-    // (l'appelant reçoit `indetermine` et ne calculera rien).
+    // A4-bis — `error` est réservé à l'échec de la requête, traité au-dessus.
+    // Règle A3 — l'absence est visible (ce journal) et bloquante (l'appelant
+    // reçoit `indetermine` et ne calculera rien).
     if (!data || !data.timezone) {
       console.warn('Fuseau de la station : aucun fuseau exploitable pour « ' + siteId + ' » — configuration incomplète. Aucun découpage de journée ne sera calculé ; NEXUS ne substitue pas le fuseau d’une autre station.');
-      return { indetermine: 'absent' };
+      return { indetermine: 'configuration' };
     }
-    return { fuseau: data.timezone };
+    return { timezone: data.timezone };
   }
 
   global.NexusStation = { siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation };

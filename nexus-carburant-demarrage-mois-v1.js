@@ -133,11 +133,15 @@
 
   async function run(){
     if(done)return;
-    if(!window.NexusCarburantCommandeDonnees||!window.NexusCarburantCommandeMoteur)return;
+    if(!window.NexusCarburantCommandeDonnees||!window.NexusCarburantCommandeMoteur||!window.NexusStation)return;
     done=true;
     try{
       const D=window.NexusCarburantCommandeDonnees;
-      const ctx=await D.evaluerCommandeCarburantSite(nexusClient,site);
+      // A3 / C1c-4a : module d'amorçage, il possède déjà `site` — il résout
+      // le fuseau une fois, comme un écran, et le transmet.
+      const fuseauSite=await NexusStation.fuseauDeLaStation(site);
+      if(!fuseauSite.timezone)return; // pas de fuseau : aucune date de commande n'est calculable
+      const ctx=await D.evaluerCommandeCarburantSite(nexusClient,site,{timezone:fuseauSite.timezone});
       if(!ctx||ctx.ok===false)return;
       const joursFeriesISO=D.chargerJoursFeries?await D.chargerJoursFeries(nexusClient,site):[];
       const M=window.NexusCarburantCommandeMoteur;

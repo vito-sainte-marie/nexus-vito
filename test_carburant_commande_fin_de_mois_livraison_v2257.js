@@ -129,7 +129,7 @@ function creerClientEvaluation() {
   // ------------------------------------------------------------
   {
     const client = creerClientEvaluation();
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-31', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-31', heureHHMM: '09:00' });
     assert.strictEqual(r.ok, true);
     // Vérifie d'abord, sans dépendre du résultat, que le scénario calcule
     // bien mardi 1er septembre comme prochain créneau (sinon le test ne
@@ -150,7 +150,7 @@ function creerClientEvaluation() {
   // ------------------------------------------------------------
   {
     const client = creerClientEvaluation();
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-27', heureHHMM: '09:00' });
     assert.strictEqual(r.ok, true);
     const fenetre = M.calculerFenetreLivraison({ dateCommandeISO: '2026-08-27', heureCommandeHHMM: '09:00', config: CONFIG_COMMANDE, joursFeriesISO: [] });
     assert.strictEqual(fenetre.livraisonISO, '2026-08-28', 'prémisse du test : la livraison doit rester dans le même mois (28 août, vendredi)');

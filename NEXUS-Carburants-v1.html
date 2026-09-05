@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -170,6 +171,9 @@
   // Frédéric, 10/08/2026).
   // ------------------------------------------------------------
 
+  // A3 / C1c-5 : Carburants devient résolveur explicite. Il enregistrait des
+  // contrôles datés dans le fuseau que la couche de données trouvait seule.
+  let FUSEAU_STATION = null;
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let MANAGER_COURANT = null;
   // Rattrapage (13/08/2026, demande de Frédéric : "ça fait 2-3 jours que le
@@ -676,7 +680,7 @@
     // Best-effort : une erreur ici ne doit jamais empêcher le contrôle
     // d'aboutir, la preuve principale reste carburant_releves.
     try {
-      const ctrlVentilation = await NexusCarburantDonnees.chargerControleJour(nexusClient, siteId, date);
+      const ctrlVentilation = await NexusCarburantDonnees.chargerControleJour(nexusClient, siteId, date, FUSEAU_STATION);
       if (ctrlVentilation && ctrlVentilation.ventilation && ctrlVentilation.ventilation.estime) {
         await NexusCarburantDonnees.enregistrerContexteVentilation(
           nexusClient, siteId, date, ctrlVentilation.ventilation);
@@ -1087,6 +1091,9 @@
     }
     MANAGER_COURANT = employee;
     SITE_ID = employee.site_id;
+    // Résolu une fois, avant tout enregistrement de contrôle.
+    const fuseauCarburants = await NexusStation.fuseauDeLaStation(SITE_ID);
+    FUSEAU_STATION = fuseauCarburants.timezone || null;
 
     DATE_CIBLE = dateCibleDepuisURL() || todayISO();
     EST_AUJOURDHUI = DATE_CIBLE === todayISO();

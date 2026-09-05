@@ -78,7 +78,7 @@ async function executer(nom, tables, modules) {
     ctx.NexusCarburantsP0Fixes.installer();
   }
   const client = creerFauxClient(tables);
-  const res = await ctx.NexusCarburantDonnees.chargerControleJour(client, SITE, '2026-09-02');
+  const res = await ctx.NexusCarburantDonnees.chargerControleJour(client, SITE, '2026-09-02', 'America/Martinique');
   console.log(`\n### ${nom}`);
   console.log(formaterControle(res));
   return res;

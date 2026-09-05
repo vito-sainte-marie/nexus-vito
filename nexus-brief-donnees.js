@@ -151,7 +151,9 @@
   // calcul (contrôle du jour + volumes 7 jours + effet prix) ancré sur une
   // date PASSÉE, avec les mêmes fonctions que pour "aujourd'hui" — jamais
   // une deuxième formule pour "le score d'un jour" (Article 11).
-  async function chargerCarburantsBrief(client, siteId, dateReference) {
+  // A3 / C1c-4b + C1c-5 : `timezone` traverse cette couche, elle ne la résout
+  // pas. Elle le passe à chargerControleJour et à chargerVentesPeriode.
+  async function chargerCarburantsBrief(client, siteId, dateReference, timezone) {
     const aujourdhui = dateReference || new Date().toISOString().slice(0, 10);
     // 7 derniers jours glissants vs les 7 jours précédents — PAS la semaine
     // calendaire, même convention que chargerCandidatsFdj() ci-dessous :
@@ -165,9 +167,9 @@
     const iso = d => d.toISOString().slice(0, 10);
 
     const [controle, actuel, reference] = await Promise.all([
-      global.NexusCarburantDonnees.chargerControleJour(client, siteId, aujourdhui),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutActuelle), iso(finActuelle)),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutPrecedente), iso(finPrecedente)),
+      global.NexusCarburantDonnees.chargerControleJour(client, siteId, aujourdhui, timezone),
+      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutActuelle), iso(finActuelle), timezone),
+      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutPrecedente), iso(finPrecedente), timezone),
     ]);
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
@@ -305,11 +307,11 @@
     }
   }
 
-  async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui) {
+  async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui, timezone) {
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
     const aujourdhui = dateAujourdhui || new Date().toISOString().slice(0, 10);
-    const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui);
+    const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui, timezone);
     // Écriture best-effort du journal de traçabilité (v2.222) — jamais
     // attendue (pas de `await`), jamais bloquante : un incident d'écriture
     // ne doit avoir aucun effet sur ce que Brief affiche.
@@ -338,7 +340,7 @@
     // construction — jamais une donnée fabriquée pour combler le silence
     // (Article 5). Coût : une requête légère déjà utilisée ailleurs pour la
     // couverture par quart (nbQuartsAvecLitrage/nbQuartsTotal).
-    const ventesJour = await D.chargerVentesPeriode(client, siteId, aujourdhui, aujourdhui);
+    const ventesJour = await D.chargerVentesPeriode(client, siteId, aujourdhui, aujourdhui, timezone);
     const enCours = M.construireBlocEnCours({
       nbQuartsAvecLitrage: ventesJour.nbQuartsAvecLitrage, nbQuartsTotal: ventesJour.nbQuartsTotal,
       releveDuJourExiste: !!carburantsJour.controle.releveDuJour,
@@ -366,7 +368,7 @@
     let fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
     let carburantsFallback = null;
     while (fraicheur.mode === 'fallback') {
-      carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
+      carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference, timezone);
       if (M.jourCarburantEstComplet(carburantsFallback.controle.parCarburant, carburantsFallback.controle.aucunReleve)) break;
       datesExclues.push(fraicheur.dateReference);
       carburantsFallback = null;
@@ -567,9 +569,12 @@
   // du stock/de la fenêtre de commande ici). Retourne un tableau de 0 ou 1
   // élément — jamais plus, `calculerCandidatCommande` ne produit qu'un seul
   // candidat par appel (voir son commentaire).
-  async function chargerCandidatCommandeCarburant(client, siteId) {
+  // A3 / C1c-4a : `timezone` traverse cette couche de données, elle ne la
+  // résout pas. Son unique appelant est un écran (NEXUS-Brief-v1.html), qui
+  // l'a déjà résolu une fois — c'est là que s'arrête la chaîne.
+  async function chargerCandidatCommandeCarburant(client, siteId, timezone) {
     if (typeof global.NexusCarburantCommandeDonnees === 'undefined' || typeof global.NexusCarburantCommandeMoteur === 'undefined') return [];
-    const evaluation = await global.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(client, siteId);
+    const evaluation = await global.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(client, siteId, { timezone });
     const candidat = global.NexusCarburantCommandeMoteur.calculerCandidatCommande(evaluation);
     if (!candidat) return [];
     return [global.NexusConseiller.normaliserCommandeCarburant(candidat)];

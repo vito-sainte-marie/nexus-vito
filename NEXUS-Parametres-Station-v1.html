@@ -207,6 +207,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -315,26 +316,23 @@
              NEXUS convertissait les horaires ci-dessous en instants réels
              en supposant 'Europe/Paris' codé en dur (nexus-carburant-
              moteur.js), quel que soit le site. Ce champ rend le fuseau
-             réellement paramétrable par station (station_config.
-             fuseau_horaire), au lieu d'une hypothèse invisible. Placé
-             avant les heures de quart car il détermine comment CES heures
-             sont interprétées. -->
+             réellement paramétrable par station, au lieu d'une hypothèse
+             invisible. Placé avant les heures de quart car il détermine
+             comment CES heures sont interprétées.
+             A3 / C1c-3 (05/09/2026) : la source est désormais
+             sites.timezone, et non plus station_config.fuseau_horaire.
+             Affiché en lecture seule ici — seul le compte créateur peut
+             modifier l'identité d'un site. Volontairement PAS un <select>
+             désactivé : un contrôle de saisie inerte invite à réessayer. -->
         <div class="card">
           <div class="section-label">Fuseau horaire de la station</div>
           <div class="note">Détermine comment NEXUS convertit les heures de quart ci-dessous en instants réels (calcul des fenêtres carburant, horodatage des relevés). Une station en métropole et une station en Martinique n'ont pas la même heure locale au même instant.</div>
           <div class="row">
             <label>Fuseau</label>
-            <select id="fuseau_horaire">
-              <option value="America/Martinique">Martinique (UTC-4, sans heure d'été)</option>
-              <option value="America/Guadeloupe">Guadeloupe / Saint-Martin (UTC-4, sans heure d'été)</option>
-              <option value="America/Cayenne">Guyane (UTC-3, sans heure d'été)</option>
-              <option value="Indian/Reunion">La Réunion (UTC+4, sans heure d'été)</option>
-              <option value="Indian/Mayotte">Mayotte (UTC+3, sans heure d'été)</option>
-              <option value="Pacific/Noumea">Nouvelle-Calédonie (UTC+11, sans heure d'été)</option>
-              <option value="Pacific/Tahiti">Polynésie française (UTC-10, sans heure d'été)</option>
-              <option value="Europe/Paris">France métropolitaine (UTC+1/+2, heure d'été)</option>
-            </select>
+            <span id="fuseauValeur" style="font-family:var(--mono, monospace); font-weight:600;">…</span>
           </div>
+          <div class="note" id="noteFuseauEtat">Lecture du fuseau du commerce…</div>
+          <div class="note">Propriété du site, modifiable par le compte créateur.</div>
         </div>
 
         <div class="card">
@@ -1128,11 +1126,11 @@
     temps_habillage_min: 15,
   };
 
-  // Fuseau par défaut si station_config n'a encore aucune ligne pour ce
-  // site — la seule station réelle connue de NEXUS aujourd'hui (24/08/2026,
-  // v2.232), jamais 'Europe/Paris'. Cohérent avec le défaut posé en base
-  // par la migration ajouter_fuseau_horaire_station_config.
-  const FUSEAU_DEFAUT = 'America/Martinique';
+  // A3 / C1c-3 (05/09/2026) : il n'y a plus de fuseau par défaut. Le fuseau
+  // du commerce est une propriété d'identité du site (sites.timezone), pas
+  // un réglage d'exploitation. Cet écran l'AFFICHE ; il ne le devine pas et
+  // ne l'invente pas. C'est le seul des huit points C1 où l'absence n'est
+  // pas bloquante : cet écran existe pour montrer ce qui est configuré.
 
   // Table Supabase station_config — remplace localStorage('nexus_config_horaires'),
   // qui ne s'appliquait qu'a l'appareil sur lequel un manager l'avait modifie
@@ -1142,12 +1140,12 @@
   // même requête (Article 11 — pas un second appel réseau pour un champ
   // du même écran/même section).
   async function chargerConfig() {
-    const { data, error } = await nexusClient.from('station_config').select('horaires,fuseau_horaire').eq('site', employee.site_id).maybeSingle();
-    if (error) { console.error('Chargement station_config:', error); return { horaires: HORAIRES_DEFAUT, fuseau: FUSEAU_DEFAUT }; }
-    return {
-      horaires: (data && data.horaires) || HORAIRES_DEFAUT,
-      fuseau: (data && data.fuseau_horaire) || FUSEAU_DEFAUT,
-    };
+    // A3 / C1c-3 : le fuseau ne vient plus d'ici. station_config reste la
+    // source des horaires ; le fuseau est lu séparément dans sites.timezone
+    // par le contrat NexusStation.
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement station_config:', error); return { horaires: HORAIRES_DEFAUT }; }
+    return { horaires: (data && data.horaires) || HORAIRES_DEFAUT };
   }
 
   function remplirFormulaire(config) {
@@ -1170,9 +1168,33 @@
   // est NOT NULL en base, donc tout upsert qui ne le fournirait pas (ex. un
   // enregistrement de prix carburants seul) echouerait si la ligne n'existe
   // pas encore pour ce site (23502 — null value in column "horaires").
-  let { horaires: CONFIG_HORAIRES_ACTUEL, fuseau: FUSEAU_ACTUEL } = await chargerConfig();
+  let { horaires: CONFIG_HORAIRES_ACTUEL } = await chargerConfig();
+
+  // A3 / C1c-3 — le fuseau, lu à sa source unique. Absence VISIBLE mais NON
+  // BLOQUANTE : c'est l'écran de configuration, il doit montrer le trou.
+  const fuseauStation = await NexusStation.fuseauDeLaStation(employee.site_id);
+  let FUSEAU_ACTUEL = fuseauStation.timezone || '';
   remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
-  document.getElementById('fuseau_horaire').value = FUSEAU_ACTUEL;
+  // A3 / C1c-3 — affichage informatif, pas un sélecteur désactivé.
+  //
+  // Un `<select disabled>` reste un contrôle de saisie : il suggère qu'on
+  // pourrait le rendre modifiable, et invite à réessayer. Le fuseau n'est
+  // pas un réglage d'exploitation qu'un manager aurait le droit de changer
+  // — c'est une propriété d'identité du commerce (politique RLS
+  // createur_update_sites). L'écran l'AFFICHE, il ne prétend pas l'éditer.
+  {
+    const valeur = document.getElementById('fuseauValeur');
+    const noteFuseau = document.getElementById('noteFuseauEtat');
+    if (FUSEAU_ACTUEL) {
+      valeur.textContent = FUSEAU_ACTUEL;
+      noteFuseau.textContent = 'Les heures de quart ci-dessous sont interprétées dans ce fuseau.';
+    } else {
+      valeur.textContent = 'Non configuré';
+      valeur.style.color = 'var(--amber, #d29922)';
+      noteFuseau.textContent = 'Aucun fuseau n’est déclaré pour ce commerce. Les heures de quart ci-dessous ne peuvent pas être converties en instants réels tant qu’il manque.';
+      noteFuseau.style.color = 'var(--amber, #d29922)';
+    }
+  }
 
   // Forfait NEXUS (26/07/2026) — affichage lecture seule uniquement.
   // La colonne sites.forfait reste la seule source de vérité, modifiable
@@ -1314,18 +1336,16 @@
       },
       temps_habillage_min: parseInt(document.getElementById('temps_habillage').value, 10) || 0,
     };
-    // fuseau_horaire (24/08/2026, v2.232) — enregistré avec les horaires
-    // dans le même upsert : il gouverne directement comment ces heures
-    // sont interprétées, pas une notion séparée.
-    const fuseauSelectionne = document.getElementById('fuseau_horaire').value || FUSEAU_DEFAUT;
+    // A3 / C1c-3 : l'enregistrement n'écrit PLUS fuseau_horaire. Continuer à
+    // l'écrire dans une colonne que plus personne ne lit ferait croire au
+    // manager qu'il a changé quelque chose — la pire des sauvegardes.
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, horaires: config, fuseau_horaire: fuseauSelectionne, updated_at: new Date().toISOString() },
+      { site: employee.site_id, horaires: config, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
     if (error) { console.error('Enregistrement station_config:', error); alert('Erreur — réessayez.'); return; }
     CONFIG_HORAIRES_ACTUEL = config;
-    FUSEAU_ACTUEL = fuseauSelectionne;
     const note = document.getElementById('savedNote');
     note.textContent = '✓ Horaires enregistrés — pris en compte sur tous les appareils au prochain pointage';
     note.style.display = 'block';

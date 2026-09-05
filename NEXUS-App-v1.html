@@ -1289,6 +1289,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
@@ -1392,6 +1393,9 @@
   // `opportunites`).
   const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
+  // A3 / C1c-4b : l'Accueil devient résolveur explicite — il délègue le
+  // statut carburants à la chaîne Brief, qui date ses journées.
+  let FUSEAU_STATION = null;
   let SITE_HOME = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_HOME_ID = null;
 
@@ -1739,6 +1743,9 @@
 
   async function initPosteManager(employee) {
     SITE_HOME = employee.site_id;
+    // A3 / C1c-4b : fuseau du commerce résolu une fois, puis transmis.
+    const fuseauAccueil = await NexusStation.fuseauDeLaStation(SITE_HOME);
+    FUSEAU_STATION = fuseauAccueil.timezone || null;
     EMPLOYEE_HOME_ID = employee.id;
 
     const [
@@ -1761,7 +1768,7 @@
       NexusConseillerDonnees.chargerConstatTempo(nexusClient, SITE_HOME),
       NexusConseillerDonnees.chargerMessagesAdvisor(nexusClient, SITE_HOME),
       chargerRaccourcisHome(SITE_HOME),
-      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME, FUSEAU_STATION),
       NexusAppDonnees.chargerAlertesFdjNonVuesHome(nexusClient, SITE_HOME),
     ]);
     afficherHeureRecalcul();

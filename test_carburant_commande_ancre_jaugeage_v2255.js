@@ -176,7 +176,7 @@ function creerClientEvaluation() {
     const maintenant = '2026-08-27T15:00:00.000Z';
     const heureHHMM = '09:00'; // avant cutoff 11:00 -> commande possible aujourd'hui même
 
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM, maintenant });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'UTC', dateISO: '2026-08-27', heureHHMM, maintenant });
     assert.strictEqual(r.ok, true);
     const goReel = r.parCarburant.go;
     assert.ok(goReel.scenarioMaintenant, 'scenarioMaintenant doit être calculé pour go');

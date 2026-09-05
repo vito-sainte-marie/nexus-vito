@@ -304,6 +304,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -409,6 +410,9 @@
     return (data && data.role) || null;
   }
 
+  // A3 / C1c-4a : fuseau du commerce, résolu une fois après authentification
+  // puis transmis. Jamais lu par une couche de données.
+  let FUSEAU_STATION = null;
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let employeeCourantId = null;
   let VALIDEES_SITE = new Set();
@@ -570,7 +574,7 @@
       // d'1 candidat retourné (plafond "2 notifications max" du cahier
       // trivialement respecté, ce moteur ne contribuant jamais qu'à lui
       // seul dans le tri fusionné ci-dessous).
-      NexusBriefDonnees.chargerCandidatCommandeCarburant(nexusClient, SITE_ACTUEL).then(onCarburantsResolue),
+      NexusBriefDonnees.chargerCandidatCommandeCarburant(nexusClient, SITE_ACTUEL, FUSEAU_STATION).then(onCarburantsResolue),
     ]);
     // Fin de l'interrogation réelle des moteurs — bascule sur la séquence de
     // pacing pour la phase de synthèse elle-même (voir demarrerAnimationChargement).
@@ -1814,6 +1818,11 @@
     employeeCourantId = employee.id;
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
+    // A3 / C1c-4a — Brief devient résolveur explicite : il lit le fuseau du
+    // commerce UNE FOIS et le transmet aux couches de données. Aucune d'elles
+    // ne va le chercher elle-même.
+    const fuseauBrief = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+    FUSEAU_STATION = fuseauBrief.timezone || null;
     STATION_CONFIG.manager_prenom = employee.nom;
     // Ce badge décrit l'ACTIVITÉ EN COURS, pas le statut administratif : il
     // affiche donc le poste du jour, celui que la prise de poste a fixé.

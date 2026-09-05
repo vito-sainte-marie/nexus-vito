@@ -87,7 +87,7 @@ const CUVES_VITO = {
   // ------------------------------------------------------------
   // 1) chargerConfigEtCuves — lecture directe, repli explicite si absent.
   // ------------------------------------------------------------
-  await testAsync('chargerConfigEtCuves : lit carburant_commande_config + cuves_carburants + fuseau en une seule requête', async () => {
+  await testAsync('chargerConfigEtCuves : lit carburant_commande_config + cuves_carburants en une seule requête, et aucun fuseau', async () => {
     const client = creerClientMock({
       station_config: [{ data: { carburant_commande_config: CONFIG_COMMANDE, cuves_carburants: CUVES_VITO, fuseau_horaire: 'America/Martinique' }, error: null }],
     });
@@ -102,7 +102,11 @@ const CUVES_VITO = {
     const r = await Donnees.chargerConfigEtCuves(client, 'site-inconnu');
     assert.strictEqual(r.config, null);
     assert.strictEqual(r.cuves, null);
-    assert.strictEqual(r.fuseau, 'America/Martinique', 'repli fuseau Martinique, jamais un fuseau métropolitain par défaut');
+    // A3 / C1c-4a (05/09/2026) : cette assertion vérifiait le repli qu'on
+    // vient de supprimer. `chargerConfigEtCuves` ne fournit plus de fuseau du
+    // tout — c'est le contrat, pas un oubli.
+    assert.strictEqual(r.fuseau, undefined, 'le fuseau ne fait plus partie du contrat de chargerConfigEtCuves');
+    assert.ok(!('timezone' in r), 'cette couche de données ne résout aucun fuseau');
   });
 
   // ------------------------------------------------------------
@@ -157,7 +161,7 @@ const CUVES_VITO = {
   // ------------------------------------------------------------
   await testAsync('evaluerCommandeCarburantSite : config absente -> ok=false explicite, jamais une évaluation inventée', async () => {
     const client = creerClientMock({ station_config: [{ data: null, error: null }] });
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'site-sans-config', { dateISO: '2026-08-21' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'site-sans-config', { timezone: 'America/Martinique', dateISO: '2026-08-21' });
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.etatGlobal, 'non_calculable');
   });
@@ -171,7 +175,7 @@ const CUVES_VITO = {
       carburant_stock_references: [{ data: null, error: null }],
       carburant_commandes: [{ data: [], error: null }],
     });
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-21', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-21', heureHHMM: '09:00' });
     assert.strictEqual(r.ok, true);
     assert.ok(!('gnr' in r.parCarburant), 'GNR (actif=false) ne doit jamais apparaître dans l\'évaluation');
     assert.ok('sp95' in r.parCarburant && 'go' in r.parCarburant);
