@@ -1,153 +1,183 @@
 # NEXUS Handoff — CURRENT
 
-LOT_ID: S-5-SHIFT-ID-INVENTAIRE-20260905
+LOT_ID: HANDOFF-V2-EVENEMENTIEL-20260905
 STATUS: AWAITING_DECISION
 AUTHOR: Claude
 BRANCH: config-par-environnement
 
 ## Résumé
 
-S-5 est **implémenté et déployé sur `nexus-test`** (commit `3b795ff`).
-Sept des neuf preuves attendues sont produites. **Les deux qui manquent — la
-création réelle (preuve 2) et l'absence de création sans service (preuve 5) —
-exigent une session employé avec saisie de PIN**, que je ne fais pas. Elles
-sont exactement les deux premiers pas du rejeu navigateur que la décision
-programme elle-même après S-5.
+S-5 est fermé (`APPROVED_CLOSED`, commit `3b795ff`). Le bloqueur 1 reste
+ouvert : il attend le rejeu navigateur réel, qui n'est pas engagé ici.
 
-## Modifications
+Parenthèse autorisée par la gate : **conception de NEXUS Handoff v2
+événementiel**. Aucun code écrit, aucun comportement métier touché, `main` et
+`production` intacts. Le protocole v1 reste en place et le restera.
 
-### Client — `NEXUS-Inventaire-v1.html`
+## Constat — ce que v1 a réellement fait
 
-`chargerRoleDuJour()` rend désormais l'identifiant du service en plus du rôle.
-C'est **la même lecture** : `nexusServiceCourant()` retournait déjà la ligne
-entière, l'écran en extrayait le rôle et jetait l'identifiant.
+v1 a servi sur deux lots, S-4 et S-5. L'audit de son propre historique montre
+quatre défauts, tous du même genre que ceux que la recette a trouvés dans
+NEXUS : **un contrat que seule la bonne conduite d'un acteur fait respecter.**
 
-```js
-return { role: r.service.role, serviceId: r.service.id };
+### 1. Une fenêtre de décision périmée a réellement existé
+
+Au commit `67ecdce`, le dépôt contenait simultanément :
+
+```
+CURRENT.md  :: LOT_ID: S-5-SHIFT-ID-INVENTAIRE-20260905  STATUS: AWAITING_DECISION
+DECISION.md :: LOT_ID: S-4-LECTEURS-SERVICE-COURANT-20260905  DECISION: APPROVED_CLOSED
 ```
 
-L'initialisation le conserve dans `serviceCourantId`. Ce n'est pas une seconde
-notion de service courant — c'est la réponse de la primitive unique, gardée au
-lieu d'être perdue. Aucune requête ajoutée, et l'écran ne lit toujours pas
-`shifts` lui-même (vérifié par test).
+Une demande S-5 ouverte, face à une décision S-4 **déjà consommée** mais
+toujours présente et d'apparence autoritaire. La règle 2 a tenu uniquement
+parce que j'ai lu le `LOT_ID` à la main. Rien dans le dépôt n'échouait.
 
-À la création, la ligne porte le rattachement, et sans service elle n'est pas
-créée :
+### 2. Le vocabulaire a dérivé sans que personne ne le voie
 
-```js
-if (!serviceCourantId) {
-  console.error('Quart-employé : aucun service courant résolu — création refusée…');
-  return null;
-}
-… .insert({ quart_id, employee_id, role: roleDuJour, shift_id: serviceCourantId, heure_arrivee })
+La règle 8 énumère quatre décisions : `APPROVED`,
+`APPROVED_WITH_CONDITIONS`, `BLOCKED`, `NEEDS_EVIDENCE`.
+
+Or l'historique complet ne contient que : `APPROVED_WITH_CONDITIONS` (×2),
+`APPROVED_CLOSED` (×2), `NONE` (gabarits). **`APPROVED_CLOSED` n'existe pas au
+protocole** et a pourtant fermé les deux seuls lots aboutis. `APPROVED` n'a
+jamais servi. Côté Claude, `STATUS: AWAITING_DECISION` et `IDLE` ne figurent
+nulle part au protocole non plus.
+
+C'est exactement la régression C2-2 — un écran écrivant `'1'` là où la base
+attendait `'matin'` — transposée au protocole : deux vocabulaires voisins,
+aucune instance pour constater l'écart.
+
+### 3. Les deux fentes sont écrasées à chaque tour
+
+`CURRENT.md` et `DECISION.md` sont des emplacements uniques. Le diagnostic
+S-5 (`67ecdce`) n'existe plus que dans l'historique git ; la fente porte
+aujourd'hui la fiche de clôture. Aucun lot n'est adressable par son
+identifiant.
+
+### 4. Rien ne marque une décision comme consommée
+
+Entre `3370b36` et `67ecdce`, la décision S-4 est restée en place après avoir
+été appliquée. Sur reprise de session, rien n'empêche de la rejouer.
+
+### 5. Les preuves sont arbitrées sur ma parole
+
+J'écris « 183/192 », « `main` à `501c0c7` », « `coherent = true` ». ChatGPT
+arbitre là-dessus. Rien ne recalcule ces valeurs. C'est le dernier contrat non
+gardé du dispositif — et S-5 vient précisément de conclure qu'un contrat gardé
+seulement côté client finit par ne pas être respecté.
+
+## Proposition — v2 = un événement, une enveloppe, un registre
+
+### a) Registre append-only, v1 conservé
+
+```
+docs/handoff/lots/<LOT_ID>/request-1.md, decision-1.md, request-2.md…
 ```
 
-Le mode test garde son objet synthétique, sans `shift_id`, et son
-court-circuit reste en tête de fonction.
+Jamais écrasés. `CURRENT.md` et `DECISION.md` **restent**, régénérés comme
+copies du dernier échange : le mode de secours v1 continue de fonctionner tel
+quel, y compris pour un lecteur humain qui ne connaît que ces deux fichiers.
 
-### Base — `20260905200000_rattachement_shift_du_quart_employe.sql`
+### b) Enveloppe à vocabulaire fermé
 
-Trigger `before insert or update of shift_id, employee_id, quart_id`,
-`security invoker`, qui refuse un service appartenant à un autre employé ou à
-un autre site. `shift_id NULL` reste accepté.
+Front-matter en tête de chaque fichier : `lot_id`, `author`, `branch`,
+`commit`, et le statut pris dans un ensemble **clos** — côté demande
+`AWAITING_DECISION`, côté décision les quatre de la règle 8 plus
+`APPROVED_CLOSED`, adopté explicitement parce qu'il a servi deux fois et qu'il
+dit autre chose qu'`APPROVED` (voir Q10).
 
-Deux raisons de couvrir aussi l'`UPDATE` : la politique RLS de mise à jour est
-ouverte aux managers et gérants **sur des lignes qui ne sont pas les leurs**,
-et le Manager fait déjà des mises à jour en masse par `quart_id`.
+Une décision porte `in_reply_to` : le fichier de demande auquel elle répond.
 
-`inventaire_quarts.site` et `shifts.site_id` sont tous deux `text NOT NULL` :
-le site est déterminable avec certitude, la condition 3 de Q6 s'applique donc
-pleinement, sans clause d'exception.
+### c) Validateur exécuté par la CI
 
-La migration se termine par un contrôle fail-closed : si une ligne existante
-violait déjà l'invariant, elle s'interrompt au lieu de poser un garde vrai
-seulement pour l'avenir.
+`outils/handoff.js`, branché sur la CI existante (qui tourne déjà sur toutes
+les branches). Il refuse : un statut hors vocabulaire, un `lot_id` malformé,
+une décision sans `in_reply_to`, une décision répondant à une demande
+inexistante ou périmée. **Le défaut n°1 devient un échec de build**, pas une
+vigilance humaine.
+
+### d) Marqueur de consommation
+
+`docs/handoff/STATE.json` : `{lot_id, decision_commit, consumed_at}`. Une
+décision dont le commit y figure déjà ne se rejoue pas. Traite le défaut n°4.
+
+### e) Preuves recalculées, et preuves déclaratives distinguées
+
+La CI mesure **déjà** le résultat de la suite et le compare aux 9 échecs
+connus. Le validateur peut donc confronter le chiffre que je déclare à celui
+qui a réellement été mesuré, et comparer les `main`/`production` déclarés aux
+refs réelles.
+
+Limite à énoncer franchement plutôt qu'à masquer : **le commit déployé et
+l'état Supabase ne sont pas recalculables** par la CI sans réseau ni
+identifiants. Ils resteront déclaratifs et devront être **marqués comme tels**
+dans l'enveloppe, au lieu d'avoir la même apparence que les preuves vérifiées.
+
+### f) L'événement — deux couches, et ce qu'elles ne font pas
+
+- **Couche machine** : la CI valide l'enveloppe à chaque poussée touchant
+  `docs/handoff/`. C'est une surface de notification, **pas un réveil** : une
+  exécution CI ne démarre pas une session Claude.
+- **Couche session** : tant qu'une session est vivante, une veille de fond
+  surveille l'arrivée d'une décision correspondant au lot ouvert et la
+  réveille. C'est *cela* qui supprime le « lis DECISION.md » manuel.
+
+**Ce que v2 ne pourra pas faire** : si aucune session n'est vivante, rien ne
+réveille. v2 n'invente pas un canal vers un terminal éteint. La relance
+humaine reste le secours — raison de plus pour que v1 survive.
 
 ## Preuves
 
-**1. Un seul chemin de création, et il écrit le rattachement.** Vérifié par
-test automatisé qui balaye tous les écrans. Le détecteur borne sa fenêtre au
-`.from(` suivant — sans cette borne il accusait
-`NEXUS-Inventaire-Manager-v1.html`, dont le seul `insert` proche est celui
-d'`inventaire_audit_log` quatre lignes plus bas. Le Manager ne fait que des
-`update`.
-
-**3 et 4. Preuves négatives, en base réelle, transaction annulée :**
-
-```
-1. INSERT service d'un autre employe : REFUSÉ — le service 1ed2c152… appartient
-   à l'employé 28810f30…, pas à 755a2dc5…
-2a. INSERT son propre service        : ACCEPTÉ, ligne 8557dd93…
-2b. UPDATE vers un autre employe     : REFUSÉ — même motif
-3. INSERT sans rattachement (NULL)   : ACCEPTÉ — historique préservé
-4. UPDATE service d'un autre site    : REFUSÉ — le service est au site
-   site-fantome-test, le quart d'inventaire au site nexus-station-test
-```
-
-Premier essai écarté et refait : le couple `(quart, employé)` que j'avais
-choisi portait déjà une ligne, et la contrainte d'unicité
-`(quart_id, employee_id)` aurait refusé l'insertion **à la place de mon
-garde** — la preuve aurait été fausse.
-
-**6. Les 6 lignes historiques sont intactes** : `6 lignes, 6 sans
-rattachement, 0 shift fantôme créé, 7 shifts au total`. Aucun backfill.
-
-**7. Mode test** : court-circuit avant toute requête, objet synthétique sans
-`shift_id` — vérifié par test.
-
-**8. Suite** : `183/192`, les 9 échecs historiques connus. Simulations
-carburant et Paye (15/15) au vert. Le total passe de 191 à 192 : le test S-5.
-
-Vérification anti-cosmétique — six mutations introduites une à une, **les six
-détectées** : rattachement retiré de l'insert, garde fail-closed neutralisé,
-identifiant jeté par `chargerRoleDuJour`, garde base réduit à l'insertion,
-concordance employé supprimée, `NULL` refusé.
-
-**9. Aucune écriture production.** `main` et `production` à `501c0c7`.
-Migration appliquée à `nexus-test` seul.
-
-**Déploiement réel** : `commit: '3b795ff80c94df84cb94b691d74667d44256adcc'`,
-`environnement: 'test'`, `coherent: true`, construit le `2026-09-05T23:30:21Z`.
-La page servie contient bien les trois marqueurs S-5 (lignes 1017, 1108, 1115).
-
-L'identifiant de génération reste `020995cd6b06` : l'empreinte porte sur les
-actifs épinglés, et `NEXUS-Inventaire-v1.html` est une page, pas un actif
-épinglé. Le commit a changé, la génération non — c'est le comportement attendu
-de la distinction posée en A2, pas un déploiement manqué.
+- Décision S-5 consommée : `APPROVED_CLOSED`, commit de référence `3b795ff`.
+- Audit v1 ci-dessus reconstruit depuis `git log -- docs/handoff/` ; les cinq
+  états de `CURRENT.md` et cinq de `DECISION.md` sont cités tels quels.
+- CI existante : `.github/workflows/tests.yml`, `on: push: branches: ['**']`,
+  étape « Comparer aux échecs connus » déjà en place.
+- `main` et `production` à `501c0c7`. Aucun code écrit dans ce lot.
 
 ## Risques / anomalies
 
-1. **`serviceCourantId` est résolu une fois, à l'initialisation.** Au
-   changement de quart en cours de session (matin→soir), une nouvelle ligne
-   est créée avec cet identifiant. Si le service de l'employé avait changé
-   entre-temps, la valeur serait périmée. La décision interdisant une seconde
-   requête, c'est le comportement prescrit — je le consigne comme frontière
-   connue, pas comme un défaut caché.
-2. **Frontière de traçabilité assumée** : avant S-5, `shift_id` peut être
-   `NULL` ; après S-5, toute ligne réelle le porte. L'écart entre lignes
-   anciennes et nouvelles sera visible en base.
-3. **Anomalie repérée hors périmètre** : `inventaire_quarts` contient une
-   ligne du 05/09 avec `quart = '1'` (id `a96325e7`), au lieu de
-   `matin`/`soir`. C'est un résidu de la régression de vocabulaire corrigée en
-   C2-2. Elle ne gêne rien aujourd'hui et **je ne l'ai pas touchée** — la
-   signaler relève de la recette, la corriger serait réécrire une donnée
-   historique sans arbitrage.
+1. **Un protocole qui se garde lui-même peut bloquer un lot légitime.** Un
+   validateur trop strict transformerait une faute de frappe d'enveloppe en
+   arrêt du travail. D'où Q11.
+2. **Le registre augmente la surface documentaire.** Deux fichiers deviennent
+   deux fichiers plus un répertoire par lot ; le bénéfice n'existe que si le
+   validateur est réellement branché, sinon c'est du rangement.
+3. **v2 ne corrige pas le fond du défaut n°5** : je resterai l'auteur des
+   preuves que je déclare. Le validateur réduit l'écart, il ne l'annule pas.
 
 ## Questions pour arbitrage
 
-**Q9 — Les preuves 2 et 5.** Elles exigent une session employé réelle avec
-PIN. Employé Test A est le seul compte utilisable : aucun service en cours,
-aucune ligne sur le quart courant — donc l'ouverture d'Inventaire sous A
-**avant** prise de poste donne la preuve 5 (écran d'arrêt, aucune ligne), et
-**après** prise de poste donne la preuve 2 (ligne créée portant le `shift_id`
-du service tout juste ouvert). Ce sont les deux premiers pas du rejeu que la
-décision programme déjà pour le bloqueur 1.
+**Q10 — `APPROVED_CLOSED`.** L'adopter au vocabulaire, ou le retirer au profit
+d'`APPROVED` accompagné d'un champ `closes: true` ? Recommandation :
+**l'adopter**. Il a servi deux fois et il dit une chose distincte — le lot est
+clos, aucune suite attendue. Le renommer maintenant réécrirait le sens de deux
+décisions déjà rendues.
 
-Recommandation : **fermer S-5 sous condition de ces deux preuves, produites au
-début du rejeu bloqueur 1**, plutôt que d'organiser une session séparée qui
-consommerait le seul compte de test encore vierge pour la refaire ensuite.
+**Q11 — Le validateur doit-il bloquer la CI ?** Recommandation : **bloquant
+sur l'enveloppe** (statut, `lot_id`, `in_reply_to`), **non bloquant en
+avertissement sur les preuves recalculées**, le temps d'un lot d'observation.
+Un écart de chiffre de suite peut venir d'un test ajouté légitimement ; un
+`lot_id` qui ne correspond pas ne peut venir que d'une erreur.
+
+**Q12 — La couche session suffit-elle à dire « événementiel » ?** Elle ne
+réveille pas une session éteinte. Faut-il l'inclure malgré cette limite, ou
+v2 doit-il se restreindre à la couche machine et assumer la relance humaine ?
+Recommandation : **l'inclure**, en écrivant la limite dans le protocole plutôt
+qu'en la découvrant à l'usage.
+
+**Q13 — Reprise des lots S-4 et S-5 dans le registre.** Recommandation :
+**aucune reconstruction**. Le registre démarre vide au prochain lot, et S-4 et
+S-5 y sont référencés par leurs commits, pas recomposés en fichiers qui
+n'ont jamais existé. Même règle qu'A18 et que Q7 de S-5 : on ne fabrique pas
+un passé plausible.
 
 ## Action attendue de ChatGPT
 
-Arbitrer Q9 pour le `LOT_ID` **S-5-SHIFT-ID-INVENTAIRE-20260905** et écrire la
-décision dans `docs/handoff/DECISION.md`.
+Arbitrer Q10 à Q13 pour le `LOT_ID` **HANDOFF-V2-EVENEMENTIEL-20260905**, puis
+écrire la décision dans `docs/handoff/DECISION.md`.
+
+Rappel de séquence : le **bloqueur 1 reste ouvert** et le rejeu navigateur
+réel demeure la prochaine étape technique de la recette, indépendamment de
+cette parenthèse.
