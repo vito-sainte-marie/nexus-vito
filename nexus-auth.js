@@ -143,7 +143,37 @@ async function nexusRequireAuth() {
       }
     }
   }
+  // A3 / A3-6 (05/09/2026) — le nom du commerce dans les pieds de page.
+  //
+  // Trente écrans affichaient « Vito Sainte-Marie Usine » en pied de page.
+  // Aucune décision n'en dépendait — c'est pourquoi ce lot est venu en
+  // dernier — mais un produit multi-site ne peut pas signer chaque écran du
+  // nom d'un autre client.
+  //
+  // Un seul mécanisme, ici, plutôt que trente lectures : cette fonction est
+  // le seul endroit qui tourne sur TOUS les écrans. Elle remplit les
+  // `<span class="nexus-nom-commerce">` et ne bloque rien — le rendu n'attend
+  // pas le réseau. Même doctrine qu'en B1 : nom réel, sinon identifiant du
+  // commerce, sinon libellé neutre. Jamais le nom d'un autre.
+  nexusRemplirNomDuCommerce(employee);
   return employee;
+}
+
+let NEXUS_NOM_COMMERCE_PROMESSE = null;
+async function nexusRemplirNomDuCommerce(employee) {
+  const cibles = document.querySelectorAll('.nexus-nom-commerce');
+  if (!cibles.length) return;
+  const siteId = employee && employee.site_id;
+  if (!NEXUS_NOM_COMMERCE_PROMESSE) {
+    NEXUS_NOM_COMMERCE_PROMESSE = (async () => {
+      const { data, error } = await nexusClient.from('sites').select('nom_entreprise').eq('site_id', siteId).maybeSingle();
+      if (error) { console.error('Lecture identité du commerce :', error); return siteId || 'Commerce non identifié'; }
+      if (!data || !data.nom_entreprise) { console.warn('Identité du commerce non configurée — pied de page neutre.'); return siteId || 'Commerce non identifié'; }
+      return data.nom_entreprise;
+    })();
+  }
+  const nom = await NEXUS_NOM_COMMERCE_PROMESSE;
+  document.querySelectorAll('.nexus-nom-commerce').forEach(el => { el.textContent = nom; });
 }
 
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];

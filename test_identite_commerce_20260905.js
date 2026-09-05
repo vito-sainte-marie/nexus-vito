@@ -86,14 +86,37 @@ verifier('Cockpit observe désormais l’erreur de lecture', () => {
 verifier('B1 ne touche ni aux identifiants, ni aux pieds de page, ni aux exemples', () => {
   // Périmètre volontairement étroit : ce test échoue si un lot ultérieur
   // aspire ces trois familles dans B1 sans arbitrage.
+  // A3-6 (05/09/2026) : les 30 pieds de page ont été traités depuis. Ce
+  // contrôle vérifie désormais l'inverse — aucun ne porte plus de nom en dur,
+  // et 29 passent par le mécanisme unique de nexus-auth.js. Le trentième est
+  // la maquette Home Concept, qui ne charge pas nexus-auth : libellé neutre
+  // statique, seul traitement possible pour une page sans données.
   const pieds = APPLICATIF.filter(f => /<footer>[^<]*Vito Sainte-Marie/.test(lire(f)));
-  assert.strictEqual(pieds.length, 30, 'les 30 pieds de page relèvent d’A3-6, pas de B1');
+  assert.strictEqual(pieds.length, 0, 'aucun pied de page ne doit porter le nom d’un commerce');
+  const dynamiques = APPLICATIF.filter(f => /<footer>[\s\S]{0,200}?class="nexus-nom-commerce"[\s\S]{0,200}?<\/footer>/.test(lire(f)));
+  assert.strictEqual(dynamiques.length, 29, '29 pieds de page alimentés par le mécanisme unique');
+  const maquette = lire('NEXUS-Home-Concept-v1.html');
+  assert.ok(!/Vito|ViTO|VITO/.test(maquette), 'la maquette porte un libellé neutre');
   const comptes = lire('NEXUS-Parametres-Comptes-Clients-v1.html');
   assert.ok(/placeholder="Ex : Vito Sainte Marie Usine"/.test(comptes),
     'le placeholder est un exemple de saisie, il doit le rester');
   const app = lire('NEXUS-App-v1.html');
   assert.ok(!/site_id\s*=\s*['"]/.test(app.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')),
     'aucun identifiant de site ne doit être écrit en dur');
+});
+
+verifier('le pied de page est alimenté par un mécanisme UNIQUE, pas trente lectures', () => {
+  const auth = lire('nexus-auth.js');
+  assert.ok(/function nexusRemplirNomDuCommerce/.test(auth),
+    'le remplissage doit vivre dans le seul module chargé par tous les écrans');
+  assert.ok(/NEXUS_NOM_COMMERCE_PROMESSE/.test(auth),
+    'la lecture doit être mémorisée : un écran qui affiche déjà le nom en en-tête ne doit pas le relire pour son pied de page');
+  assert.ok(/console\.error\('Lecture identité du commerce :'/.test(auth), 'panne technique -> error');
+  assert.ok(/console\.warn\('Identité du commerce non configurée/.test(auth), 'nom absent -> warn');
+  assert.ok(/'Commerce non identifié'/.test(auth), 'ultime repli neutre');
+  // Aucun écran ne doit refaire ce travail dans son coin.
+  const doublons = APPLICATIF.filter(f => f !== 'nexus-auth.js' && /nexus-nom-commerce'\)/.test(lire(f)));
+  assert.deepStrictEqual(doublons, [], 'un seul mécanisme : ' + doublons.join(', '));
 });
 
 console.log(`\n${passes} vérifications passées — l'identité affichée est celle du commerce, ou rien.`);

@@ -989,6 +989,70 @@ un autre fuseau verra « fin de service » ou « nuit tombée » au mauvais mome
 Correctif prévisible : les mêmes primitives que C2-3
 (`NexusStation.minutesLocalesStation`), sans nouvelle conception.
 
+## A3 — FERMÉ le 05/09/2026
+
+NEXUS était une application « Sainte-Marie généralisée » : quand il ne savait
+pas de quel commerce il parlait, il prenait celui qu'il connaissait.
+
+Le constat qui a fait basculer le lot : **`station_config` était vide pour les
+trois sites de `nexus-test`**. Les replis n'étaient pas une précaution
+théorique, ils étaient le régime de fonctionnement réel de la recette.
+
+| Lot | Objet | Commit |
+|---|---|---|
+| C4 | 5 replis d'identifiant de site, fail-closed | `1df1f3e` |
+| A3-3 | `sites.timezone` NOT NULL, trigger IANA, migration serveur | `1df1f3e` |
+| C1 client | 9 lecteurs de fuseau, 4 écrans devenus résolveurs | `bb56cea` |
+| C2-1/2/3 | horaires devinés, seuil `12:40`, horloge de l'appareil | `835a85d` |
+| C2-4 | 2 réglages morts retirés | `d1262de` |
+| C3 | `CUVES_PAR_DEFAUT` et son faux commentaire | `33f011b` |
+| B1 | identité client dans l'interface **et** dans un document exporté | `6b28f2f` |
+| A3-6 | 30 pieds de page, mécanisme unique | *(ce lot)* |
+
+**Plus aucune décision métier active** — quart, retard, autonomie,
+recommandation de commande, jaugeage, identité client, dossier comptable — ne
+fonctionne grâce à une valeur implicite héritée de Sainte-Marie.
+
+### Ce que le lot a appris
+
+**Le nom n'était presque jamais le problème.** 592 occurrences de
+`vito-sainte-marie` : 278 en migrations, 171 en tests, 89 en documentation,
+44 dans le code applicatif — dont 26 commentaires documentant une correction
+déjà faite. **Six occurrences vivantes.**
+
+**Le vrai risque ne contenait pas le mot « Vito ».** Fuseau, horaires,
+capacités de cuves : aucune de ces occurrences n'aurait été trouvée par un
+balayage du nom de station.
+
+**Deux commentaires affirmaient le contraire de ce qu'ils décrivaient.**
+`CUVES_PAR_DEFAUT` se réclamait des « valeurs réelles connues de Vito
+Sainte-Marie Usine » alors qu'il reproduisait mot pour mot celles du site
+fantôme. `HORAIRES_DEFAUT` était faux de 25 minutes. Dans les deux cas, le
+commentaire a été corrigé **dans le même lot que la valeur**.
+
+**Un signal émis et ignoré est pire qu'une valeur fausse.**
+`chargerCuvesConfig` renvoyait `parDefaut: true` : écrit trois fois, lu zéro,
+et trois appelants sur cinq l'écartaient à la ligne même où il arrivait. Le
+contrat a été refait pour que le signal ne puisse plus être jeté sans jeter la
+donnée avec.
+
+**Une graphie a suffi à échapper au diagnostic.** Le balayage B1 cherchait
+« Vito » et « VITO » ; le nom imprimé sur le dossier comptable PDF s'écrivait
+« ViTO ». Les garde-fous normalisent désormais au lieu d'énumérer.
+
+### Dettes sorties d'A3 — arbitrage du 05/09/2026
+
+| Dette | Bloquant avant production ? |
+|---|---|
+| **A3-6** — 30 pieds de page | **oui** — défaut de marque, corrigé dans ce lot |
+| B2 — prix d'abonnement | non — modèle tarifaire à définir |
+| E1 — codes planning `SME/SMU/T` | non — latent, aucun appelant |
+| E2 — GPS et fuseau météo | non — source de vérité par site à créer |
+| A17 — horloge appareil hors quart | non |
+| Backtest latent | non — module non appelé |
+| Colonne `horaire_bascule_quart2_repli` | non — plus lue ni écrite |
+| A15 / A16 | **hors A3**, à arbitrer séparément |
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
