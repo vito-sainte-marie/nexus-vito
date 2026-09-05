@@ -1290,7 +1290,7 @@
   // période sélectionnée (toujours "aujourd'hui"), chargé une seule fois.
   // ------------------------------------------------------------
   async function chargerControleEtAutonomie() {
-    const [{ config }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
+    const [{ config, etat: etatCuves }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
       NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
       NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO(), FUSEAU_STATION),
       NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
@@ -1377,6 +1377,12 @@
         autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
       });
     }
+    // A3 / C3 : usage DÉCISIONNEL — capacité totale, autonomie, capacité
+    // disponible à la livraison. Sans cuves déclarées, on ne calcule pas.
+    if (!config) {
+      console.warn('Carburants Performance : aucune capacité de cuve déclarée pour ce commerce — autonomies et recommandations suspendues.');
+      return { ...controle, cuvesConfig: null, cuvesIndeterminees: etatCuves, autonomiesParCarburant: null, derniersControles, statutJaugeageJour, referencePhysiqueDuJour: refDuJour };
+    }
     return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles, statutJaugeageJour, referencePhysiqueDuJour: refDuJour };
   }
 
@@ -1420,6 +1426,9 @@
       return;
     }
     const M = NexusCarburantMoteur;
+    if (!ctx.cuvesConfig) {
+      return '<div class="controle-vide">Capacités de cuves non configurées pour ce commerce — un manager doit les renseigner dans Paramètres Station. NEXUS ne calcule pas une autonomie sur les cuves d’une autre station.</div>';
+    }
     const cartes = M.CLES_CARBURANT.filter(cle => ctx.cuvesConfig[cle] && ctx.cuvesConfig[cle].actif).map(cle => {
       const cfg = ctx.cuvesConfig[cle];
       const r = ctx.parCarburant[cle];

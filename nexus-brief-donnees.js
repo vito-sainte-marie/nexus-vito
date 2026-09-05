@@ -187,7 +187,13 @@
     // — jamais une deuxième mesure de stock. Réduit à UN SEUL carburant à
     // mettre en avant via resumerEffetPrixCarburants (une carte Brief n'a
     // la place que pour une ligne).
+    // A3 / C3 : usage DESCRIPTIF — les cuves ne servent ici qu'à savoir quels
+    // carburants sont actifs. Sans configuration, on ne bloque pas : on les
+    // retient tous, et l'état est journalisé pour que l'absence se voie.
     const cuvesConfig = await D.chargerCuvesConfig(client, siteId);
+    if (cuvesConfig.etat !== 'configure') {
+      console.info('Brief carburants : aucune configuration de cuves — tous les carburants sont retenus, aucun n’est filtré.');
+    }
     const clesActives = M.CLES_CARBURANT.filter(cle => !cuvesConfig.config || !cuvesConfig.config[cle] || cuvesConfig.config[cle].actif);
     const prixVente = await D.chargerPrixCarburantsCourant(client, siteId);
     const effetsParCarburant = {};

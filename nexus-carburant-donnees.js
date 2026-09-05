@@ -562,23 +562,42 @@
 
   // Configuration des cuves par carburant (13/08/2026, audit Carburants
   // Pilotage : "rends moi paramétrable le type de carburant et répartition
-  // dans les cuves"). Lit station_config.cuves_carburants — repli explicite
-  // sur les valeurs réelles connues de Vito Sainte-Marie Usine si la
-  // config n'existe pas encore pour un site (jamais un écran vide avant le
-  // premier passage en Paramètres), mais seulement comme valeur par
-  // défaut affichée : la vraie source, éditable, reste
-  // station_config.cuves_carburants.
-  const CUVES_PAR_DEFAUT = {
-    go: { actif: true, label: 'Gasoil (GO)', cuves: [{ id: 'cuve1', label: 'Cuve 1', capacite: 20000 }, { id: 'cuve2', label: 'Cuve 2', capacite: 10000 }] },
-    sp95: { actif: true, label: 'Sans plomb (SP95)', cuves: [{ id: 'unique', label: 'Cuve unique', capacite: 30000 }] },
-    gnr: { actif: true, label: 'Gasoil non routier (GNR)', cuves: [{ id: 'unique', label: 'Cuve unique', capacite: 30000 }] },
-  };
+  // dans les cuves"). Source unique : station_config.cuves_carburants.
+  //
+  // A3 / C3 (05/09/2026) — LE REPLI EST SUPPRIMÉ, ET LE COMMENTAIRE QUI LE
+  // JUSTIFIAIT ÉTAIT FAUX.
+  //
+  // Il annonçait « un repli explicite sur les valeurs réelles connues de Vito
+  // Sainte-Marie Usine ». La lecture de la base de production le 05/09/2026
+  // dit autre chose :
+  //
+  //     repli          SP95 30 000  ·  GO 20 000 + 10 000  ·  GNR 30 000
+  //     Sainte-Marie   SP95 30 276  ·  GO 20 020 + 10 036  ·  GNR 32 092
+  //                    (avec limites de remplissage, absentes du repli)
+  //
+  // Aucune capacité ne correspondait, aucun libellé non plus (« Cuve 1 »
+  // contre « Rés. 3 »). Ces valeurs sont en réalité, mot pour mot, celles de
+  // `site-fantome-test` — le site de test. Le repli n'héritait donc pas de la
+  // vraie station : il héritait d'une fixture, sous un commentaire qui
+  // affirmait le contraire pendant vingt-trois jours.
+  //
+  // Une capacité de cuve est une grandeur PHYSIQUE du commerce. Elle se
+  // mesure, elle ne se devine pas : s'en remettre à celle d'un autre site
+  // fabrique des autonomies et des recommandations de livraison fausses,
+  // sans le moindre message.
+  //
+  // CONTRAT : { config, etat } où `etat` vaut 'configure', 'absente' ou
+  // 'erreur'. `config` est null dans les deux derniers cas — un appelant ne
+  // peut plus jeter le signal sans jeter la donnée avec, ce qui était
+  // exactement le défaut de `parDefaut: true` : écrit trois fois, lu zéro.
   async function chargerCuvesConfig(client, siteId) {
     const { data, error } = await client.from('station_config').select('cuves_carburants').eq('site', siteId).maybeSingle();
-    if (error) { console.error('Chargement cuves_carburants:', error); return { config: CUVES_PAR_DEFAUT, parDefaut: true }; }
-    if (data && data.cuves_carburants) return { config: data.cuves_carburants, parDefaut: false };
-    return { config: CUVES_PAR_DEFAUT, parDefaut: true };
+    if (error) { console.error('Chargement cuves_carburants :', error); return { config: null, etat: 'erreur' }; }
+    if (data && data.cuves_carburants) return { config: data.cuves_carburants, etat: 'configure' };
+    console.warn('Cuves carburants : aucune configuration pour ce commerce — aucune capacité n’est supposée. Les décisions qui en dépendent sont suspendues.');
+    return { config: null, etat: 'absente' };
   }
+
 
   // Consommation journalière moyenne récente, par carburant — base de
   // calcul de l'autonomie (audit §7). Moyenne sur les jours RÉELLEMENT
@@ -1374,7 +1393,7 @@
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, alignerQuartsComparables, chargerControleJour,
     enregistrerContexteVentilation, chargerJoursSansReleve,
-    chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
+    chargerCuvesConfig, chargerConsommationJournaliereMoyenne,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
     chargerReleveDuJour, chargerStatutJaugeageJour,

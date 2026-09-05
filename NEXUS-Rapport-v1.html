@@ -379,6 +379,10 @@
         NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
         NexusCarburantDonnees.chargerPrixCarburantsCourant(nexusClient, SITE_ID),
       ]);
+      // A3 / C3 : usage DESCRIPTIF — filtrage d'affichage seulement.
+      if (cuvesConfigEco.etat !== 'configure') {
+        console.info('Rapport carburants : aucune configuration de cuves — tous les carburants sont retenus, aucun n’est filtré.');
+      }
       const clesActivesEco = NexusCarburantMoteur.CLES_CARBURANT.filter(cle => !cuvesConfigEco.config || !cuvesConfigEco.config[cle] || cuvesConfigEco.config[cle].actif);
       const effetsParCarburantEco = {};
       await Promise.all(clesActivesEco.map(async cle => {

@@ -553,6 +553,7 @@
     <div class="card" id="cardCuvesCarburants">
       <div class="section-label">Cuves & capacités carburants</div>
       <div class="note">Ces capacités dimensionnent les jauges de stock affichées dans Carburants Performance. Désactivez un carburant que la station ne vend pas — ses jauges disparaissent sans perdre sa configuration.</div>
+      <div class="note" id="noteCuvesEtat" style="display:none;"></div>
       <div id="cuvesCarburantsListe"><div class="note">Chargement…</div></div>
       <button class="btn btn-primary" id="sauvegarderCuves">Enregistrer les cuves</button>
       <div class="saved-note" id="savedNoteCuves">✓ Configuration des cuves enregistrée</div>
@@ -1719,17 +1720,34 @@
   // Cuves & capacités carburants (13/08/2026, audit Carburants Pilotage) —
   // même pattern que Prix carburants ci-dessus : station_config.cuves_
   // carburants (jsonb), jamais une deuxième copie des valeurs par défaut
-  // (NexusCarburantDonnees.CUVES_PAR_DEFAUT, chargé via nexus-carburant-
-  // donnees.js, Article 11 — une seule vérité). Ordre volontairement
-  // GO/SP95/GNR, identique partout ailleurs dans NEXUS Carburants.
+  // Ordre volontairement GO/SP95/GNR, identique partout ailleurs dans NEXUS
+  // Carburants.
+  //
+  // A3 / C3 (05/09/2026) — CUVES_MODELE remplace l'ancien
+  // NexusCarburantDonnees.CUVES_PAR_DEFAUT, retiré de la couche de données.
+  //
+  // Ce n'est plus un repli : plus aucun écran ne calcule à partir de ces
+  // valeurs. C'est une ossature de FORMULAIRE — quels carburants, combien de
+  // réservoirs, quels libellés proposer — pour qu'un commerce qui n'a encore
+  // rien configuré ait des champs à remplir plutôt qu'une page vide.
+  //
+  // Les capacités y sont volontairement à null : une capacité est une
+  // grandeur physique du site. Proposer un nombre ferait accepter par
+  // inadvertance la cuve d'une autre station, ce que faisait exactement
+  // l'ancien repli.
   // ------------------------------------------------------------
   const ORDRE_CARBURANTS = ['go', 'sp95', 'gnr'];
+  const CUVES_MODELE = {
+    go:   { actif: true, label: 'Gasoil (GO)', cuves: [{ id: 'cuve1', label: 'Réservoir 1', capacite: null }, { id: 'cuve2', label: 'Réservoir 2', capacite: null }] },
+    sp95: { actif: true, label: 'Sans plomb (SP95)', cuves: [{ id: 'unique', label: 'Réservoir unique', capacite: null }] },
+    gnr:  { actif: true, label: 'Gasoil non routier (GNR)', cuves: [{ id: 'unique', label: 'Réservoir unique', capacite: null }] },
+  };
   let CUVES_CONFIG_ACTUELLE = null;
 
   function renderCuvesCarburants(config) {
     const zone = document.getElementById('cuvesCarburantsListe');
     zone.innerHTML = ORDRE_CARBURANTS.map(cle => {
-      const c = config[cle] || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const c = (config && config[cle]) || CUVES_MODELE[cle];
       const cuvesHTML = c.cuves.map((cuve, i) => `
         <div class="row">
           <label>Nom du réservoir</label>
@@ -1796,7 +1814,7 @@
   function lireConfigCuvesFormulaire() {
     const config = {};
     ORDRE_CARBURANTS.forEach(cle => {
-      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || CUVES_MODELE[cle];
       const chkActif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`);
       const actif = chkActif ? chkActif.checked : base.actif;
       const cuves = base.cuves.map(cuve => {
@@ -1813,7 +1831,17 @@
   }
 
   (async function initCuvesCarburants() {
-    const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employee.site_id);
+    // A3 / C3 : `etat` est LU, pas jeté. L'écran de configuration est le seul
+    // endroit où « absente » n'est pas bloquant — c'est sa raison d'être.
+    const { config, etat } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employee.site_id);
+    const noteCuves = document.getElementById('noteCuvesEtat');
+    if (noteCuves) {
+      noteCuves.textContent = etat === 'configure'
+        ? ''
+        : 'Non configuré — aucune capacité de cuve n’est déclarée pour ce commerce. Les autonomies et les recommandations de commande restent suspendues tant qu’elles manquent.';
+      noteCuves.style.color = 'var(--amber, #d29922)';
+      noteCuves.style.display = etat === 'configure' ? 'none' : 'block';
+    }
     CUVES_CONFIG_ACTUELLE = config;
     renderCuvesCarburants(config);
   })();
@@ -1823,7 +1851,7 @@
     const config = {};
     let erreur = false;
     ORDRE_CARBURANTS.forEach(cle => {
-      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || CUVES_MODELE[cle];
       const actif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`).checked;
       const cuves = base.cuves.map(cuve => {
         const val = document.getElementById(`cuve_${cle}_${cuve.id}`).value;

@@ -1778,7 +1778,16 @@
 
   async function demarrerJaugeageOuverture() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    // A3 / C3 : le jaugeage demande une valeur PAR RÉSERVOIR. Sans cuves
+    // déclarées, l'écran afficherait les réservoirs d'une autre station et
+    // l'employé saisirait des relevés rattachés à des cuves qui n'existent
+    // pas ici. On ne devine pas la plomberie d'un commerce.
     const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employeeCourant.site_id);
+    if (!config) {
+      document.getElementById('titre').textContent = 'Jaugeage carburants — ouverture';
+      document.getElementById('content').innerHTML = '<div class="loading" style="text-align:left; max-width:520px; margin:8vh auto; line-height:1.55;"><strong>Cuves non configurées</strong><br><br>Aucune capacité de cuve n’est déclarée pour ce commerce. NEXUS ne peut pas vous demander de jauger des réservoirs qu’il ne connaît pas.<br><br>Un manager doit les renseigner dans <b>Paramètres Station</b>.</div>';
+      return;
+    }
     renderJaugeageOuverture(config);
   }
 
