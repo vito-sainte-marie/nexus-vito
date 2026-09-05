@@ -230,7 +230,8 @@
         .order('article', { ascending: true })),
       chargerProduitsAppel(),
     ]);
-    if (error || !data || !data.length) { console.error('Chargement products:', error); return []; }
+    if (error) { console.error('Chargement products : erreur technique', error); return []; }
+    if (!data || !data.length) { console.info('Chargement products : aucune donnée disponible pour ce site.'); return []; }
 
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
 

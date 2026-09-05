@@ -533,6 +533,80 @@ rien ne le dise. Même famille qu'A3.
 | **A5** | Deux requêtes `HEAD` en **503** : comptage `pointages`, comptage `fdj_alertes`. Non reproduites au rechargement. | Intermittent, cause non établie | à surveiller |
 | **A6 — FERMÉ le 05/09/2026** | Le pied de page annonçait `build 20260904-0104 · commit b219da5` alors que neuf commits avaient été déployés depuis. L'identifiant est un horodatage posé **à la main** avant de committer : il porte donc le commit *précédent*, et se fige dès que personne ne relance l'outil. La CI vérifiait que tous les actifs partageaient le même identifiant, **jamais que cet identifiant correspondait au code servi** : elle est passée au vert neuf fois de suite. | **Défaut de traçabilité de version.** Voir la précision ci-dessous sur le cache | **corrigé et prouvé sur le déploiement réel** — `outils/build.sh`, empreinte de contenu, `CF_PAGES_COMMIT_SHA`, `nexus-build.js` non versionné, échec fermé au build, contrôle d'exécution |
 
+## A4-bis — trois états, un seul niveau de gravité *(corrigé le 05/09/2026)*
+
+Balayage global : **928 `console.error`** dans le code applicatif, sur 97
+fichiers — contre **8 `console.warn`** et **10 `console.info`**. NEXUS n'avait
+pratiquement qu'un seul niveau de gravité.
+
+Ce n'était pas un problème de propreté de console. Un système qui ne distingue
+pas « aucune donnée », « donnée incohérente » et « requête échouée » perd sa
+capacité de diagnostic.
+
+### Répartition
+
+| | Catégorie | Avant | Après |
+|---|---|---|---|
+| C | Erreur technique — correcte | 916 | 923 |
+| D | Condition mixte : erreur **et** absence confondues | **7** | **0** |
+| B | Anomalie métier | **4** | 0 (passées en `warn`) |
+| A | Absence normale traitée en erreur | **1** | 0 (passée en `info`) |
+
+**916 sur 928 étaient déjà corrects.** C'est le constat principal, et il faut
+le dire : l'écrasante majorité des gardes est saine.
+
+### Le motif qui coûtait le plus
+
+```js
+if (error || !data || !data.length) { console.error('Chargement products:', error); return []; }
+```
+
+Sept occurrences. Une base tombée et une table vide produisaient **la même
+ligne** — et quand c'était l'absence qui déclenchait, `error` valait `null` :
+la console affichait « Chargement products: null ». Devant cela, personne ne
+peut dire si Supabase est en panne ou si le commerce n'a pas encore importé
+ses ventes. Le diagnostic était perdu **dans les deux sens**.
+
+### Règle retenue
+
+| État | Niveau |
+|---|---|
+| Requête échouée, exception, module absent | `console.error` |
+| Requête réussie, 0 donnée, état normal | `console.info` ou silence |
+| Données présentes mais incohérentes, précondition métier absente | `console.warn` |
+
+Les quatre anomalies métier passées en `warn` disent désormais ce qu'elles
+constatent : « des lignes existent mais aucune période exploitable n'a pu être
+déterminée — données incohérentes, pas une absence », et « aucune prise de
+poste active — incohérence de contexte métier, pas une panne technique ».
+
+### Note de méthode — l'instrument était faux avant le code
+
+Le premier passage d'audit a annoncé **909 C / 20 D / 0 A**. Le second, après
+correction du motif de détection, a donné **916 C / 7 D / 1 A / 4 B**.
+
+**Les deux chiffres venaient du même code : c'est l'outil de mesure qui était
+faux.** Le premier classificateur regardait toute la ligne d'appel, où une
+variable d'erreur figure presque toujours ; le second regarde la **condition
+qui gouverne** l'appel. Et il a fallu un troisième passage pour reconnaître le
+vocabulaire d'erreur francophone de NEXUS — `erreurUpload`, `errSeuil`,
+`eSnap`, `e10`, `sourceError` — que les deux premiers classaient comme « non
+classés », soit 195 appels parfaitement corrects.
+
+Le premier chiffre aurait fait chercher treize problèmes inexistants et
+manquer les quatre anomalies métier. C'est le risque propre à l'audit outillé,
+et la raison pour laquelle le test de non-régression reconnaît explicitement
+ces alias.
+
+### Le test garde le motif, pas les chiffres
+
+Deux règles sémantiques : aucun `console.error` sous une garde de vacuité
+seule, aucune condition mêlant erreur et vacuité. Le compteur d'erreurs
+techniques n'est **pas** une cible — il a vocation à croître quand on ajoute de
+vraies gardes. Il n'existe que comme plancher contre une extinction massive des
+journaux, et ne doit jamais devenir un seuil qu'on ajuste à chaque ajout
+légitime.
+
 ## A11 — rôle habituel, rôle du jour, permissions *(corrigé le 05/09/2026)*
 
 Audit transversal : **162 occurrences applicatives + 137 politiques RLS**, soit

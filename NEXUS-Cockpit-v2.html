@@ -746,7 +746,7 @@
       // NEXUS-Brief-v1.html, extrait le 11/08/2026 dans
       // NexusConseillerDonnees.chargerProduitsBrut (Article 11).
       const rowsBrut = await NexusConseillerDonnees.chargerProduitsBrut(nexusClient, SITE_ACTUEL);
-      if (!rowsBrut.length) { console.error('Chargement products (plans action) : aucune ligne exploitable.'); return []; }
+      if (!rowsBrut.length) { console.info('Chargement products (plans action) : aucune donnée disponible pour ce site.'); return []; }
       // ------------------------------------------------------------
       // CORRECTIF 23/07/2026 (audit général NEXUS) : comparer aveuglément
       // les deux périodes les plus récentes fabrique des évolutions fausses
@@ -764,7 +764,7 @@
       // pour la même règle de comparaison de durées.)
       // ------------------------------------------------------------
       const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
-      if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+      if (!periodeAffichage) { console.warn('products : des lignes existent mais aucune période exploitable n’a pu être déterminée — données incohérentes, pas une absence.'); return []; }
       TENDANCE_DISPONIBLE = !!paire;
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
       PIRE_RISQUE = null;

@@ -212,7 +212,8 @@ async function construireRayons() {
     .eq('site', SITE_ACTUEL)
     .order('periode_debut', { ascending: false })
     .order('article', { ascending: true }));
-  if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
+  if (error) { console.error('Chargement products : erreur technique', error); return { rayons: {}, magasin: null }; }
+  if (!data || !data.length) { console.info('Chargement products : aucune donnée disponible pour ce site.'); return { rayons: {}, magasin: null }; }
   return NexusRayonMoteur.construireRayonsDepuisLignes(data);
 }
 

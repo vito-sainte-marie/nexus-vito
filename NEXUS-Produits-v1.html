@@ -272,7 +272,8 @@ nexusRequireAuth().then(async employee => {
       .eq('site', SITE_ACTUEL)
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
-    if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
+    if (error) { console.error('Chargement products (fiche produit) : erreur technique', error); return []; }
+    if (!data || !data.length) { console.info('Chargement products (fiche produit) : aucune donnée disponible pour ce site.'); return []; }
 
     // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
     // pas une succession de pages") — cette page comparait aveuglément les deux
@@ -284,7 +285,7 @@ nexusRequireAuth().then(async employee => {
     // même si elle est encore en cours) de "paire comparable" (utilisée
     // uniquement pour calculer une évolution T1→T2).
     const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
-    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+    if (!periodeAffichage) { console.warn('products (fiche produit) : des lignes existent mais aucune période exploitable n’a pu être déterminée — données incohérentes, pas une absence.'); return []; }
 
     // CORRECTIF 24/07/2026 (incohérence signalée par Frédéric : "pourquoi T1
     // apparaît dans Rayon mais pas dans Produits, avec les mêmes données ?")

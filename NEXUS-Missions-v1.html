@@ -1165,7 +1165,7 @@
   // ne faut pas laisser passer sur un écran dont on vient de corriger la
   // confiance dans l'état affiché.
   async function sauvegarderProgressionItem(empId, missionId, index, checked, photoUrl) {
-    if (!shiftIdActif) { console.error('Sauvegarde progression : aucune prise de poste active.'); return false; }
+    if (!shiftIdActif) { console.warn('Sauvegarde progression : aucune prise de poste active — incohérence de contexte métier, pas une panne technique. La coche n’est rattachée à aucun service.'); return false; }
     const { error } = await nexusClient
       .from('mission_progress')
       .upsert(

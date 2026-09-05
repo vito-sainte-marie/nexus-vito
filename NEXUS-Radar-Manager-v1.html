@@ -160,7 +160,8 @@
       .eq('site', SITE_ACTUEL)
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
-    if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice Marge):', error); return null; }
+    if (error) { console.error('Chargement products (Indice Marge) : erreur technique', error); return null; }
+    if (!rowsBrut || !rowsBrut.length) { console.info('Chargement products (Indice Marge) : aucune donnée disponible pour ce site.'); return null; }
     return NexusIndice.calculerFacteurs(rowsBrut);
   }
 

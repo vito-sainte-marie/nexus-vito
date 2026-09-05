@@ -521,10 +521,11 @@ a{color:inherit; text-decoration:none;}
         .order('article', { ascending: true })),
       chargerProduitsAppel(),
     ]);
-    if (error || !data || !data.length) { console.error('Chargement products:', error); return null; }
+    if (error) { console.error('Chargement products : erreur technique', error); return null; }
+    if (!data || !data.length) { console.info('Chargement products : aucune donnée disponible pour ce site.'); return null; }
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
     const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return null; }
+    if (!periodeAffichage) { console.warn('products (scanner) : des lignes existent mais aucune période exploitable n’a pu être déterminée — données incohérentes, pas une absence.'); return null; }
     return { rows: rowsAffichage, periodeDebut: periodeAffichage.debut, periodeFin: periodeAffichage.fin };
   }
   // Regroupe par categorie, classe en A/B/C par methode Pareto standard
