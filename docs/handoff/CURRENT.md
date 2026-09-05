@@ -1,137 +1,136 @@
 # NEXUS Handoff — CURRENT
 
-LOT_ID: S-4-LECTEURS-SERVICE-COURANT-20260905
+LOT_ID: S-5-SHIFT-ID-INVENTAIRE-20260905
 STATUS: AWAITING_DECISION
 AUTHOR: Claude
 BRANCH: config-par-environnement
 
 ## Résumé
 
-S-4 est implémenté, déployé sur `nexus-test` et éprouvé. Décision
-`APPROVED_WITH_CONDITIONS` consommée : Q1 option (a), Q2 oui, Q3 distinction
-obligatoire. Toutes les conditions sont appliquées.
+S-4 est fermé (`APPROVED_CLOSED`, commit `ca9cf92`). La dette **A18** est
+consignée dans la fiche de recette, avec l'interdiction de correction
+rétroactive sans règle métier validée.
 
-**Neuf des dix preuves attendues sont produites.** La dixième — un départ réel
-sous session employé — est bloquée par un état de données, pas par le code :
-détail et demande d'arbitrage plus bas.
+S-5 est la dernière facette du bloqueur 1 : écrire le véritable `shift_id`
+dans `inventaire_quart_employes`. **Diagnostic établi, aucun code écrit.**
 
 ## Constat
 
-### Preuve 1 — inventaire avant / après des neuf lectures
-
-| # | Lecteur | Avant | Après |
-|---|---|---|---|
-| 1 | `Pointage:563` service actif | `statut='en_cours'`, sans site | primitive |
-| 2 | `Missions:371` service du jour | fenêtre **24 h**, `statut` ignoré | primitive |
-| 3 | `Missions:397` service comparable | historique sans borne | **conservé**, nommé explicitement comme historique |
-| 4 | `Pointage:982` rôle du jour | fenêtre **24 h** | primitive |
-| 5 | `nexus-auth:181` porte d'accès | minuit **appareil** | primitive |
-| 6 | `Cockpit:679` badge | minuit **appareil** | primitive |
-| 7 | `Brief:407` badge | minuit **appareil** | primitive |
-| 8 | `Inventaire:1002` rôle du jour | minuit **appareil** | primitive, contrat `{indetermine}` conservé |
-| 9 | `App:2659` rôle + quart | bornes de journée en **UTC** | primitive |
-
-**Neuf lectures → trois accès à `shifts`** : la primitive, l'unique `insert`
-de la prise de poste, et l'historique comparable de Missions.
-
-### La primitive
-
-`nexusServiceCourant(employee)` dans `nexus-auth.js`, seul module chargé par
-tous les écrans.
+### Un seul chemin d'écriture, et il n'écrit pas `shift_id`
 
 ```
-employee_id + site_id + statut = 'en_cours', order by heure_debut desc
-→ { service } | { aucun: true } | { erreur: true }
+NEXUS-Inventaire-v1.html:1094   obtenirOuCreerQuartEmploye()
+  insert { quart_id, employee_id, role, heure_arrivee }
 ```
 
-Aucun repli : ni 24 h, ni date, ni dernier historique, ni rôle habituel.
-Plusieurs services ouverts malgré S-1 → `console.error` d'anomalie technique,
-jamais masqué, le plus récent retenu pour ne pas bloquer l'employé.
+C'est **le seul `insert`** de toute l'application. `NEXUS-Inventaire-Manager-v1.html:1124`
+ne fait que des `update` (`a_valide_cloture`, `heure_depart`), et les autres
+occurrences sont des lectures.
+
+État en base : **6 lignes, 0 avec `shift_id`**. La colonne existe, elle porte
+une clé étrangère vers `shifts(id)`, et elle n'a **jamais** été renseignée.
+
+### La donnée est déjà là, à trois lignes de distance
+
+Le même écran résout déjà le service courant à l'initialisation :
+
+```
+NEXUS-Inventaire-v1.html:4164   const resolution = await chargerRoleDuJour();
+                                roleDuJour = resolution.role;
+```
+
+Depuis S-4, `chargerRoleDuJour()` délègue à `nexusServiceCourant()`, qui
+retourne **le service complet** — dont son `id`. Aujourd'hui l'écran n'en
+garde que le `role` et jette l'identifiant. Il n'y a donc **aucune requête
+supplémentaire à faire** : seulement à cesser de perdre ce qu'on a déjà lu.
+
+### Aucun lecteur de `shift_id` aujourd'hui
+
+Balayage complet : **aucun code applicatif ne lit
+`inventaire_quart_employes.shift_id`**. Le remplir n'a donc aucun effet
+immédiat sur un écran — c'est de la traçabilité, pas du comportement. C'est
+précisément ce qui a permis à l'oubli de durer.
+
+### Le mode test
+
+`obtenirOuCreerQuartEmploye()` court-circuite l'insert quand
+`modeTestInventaireActif()` : il retourne un objet synthétique avec un `id`
+fixe `00000000-…-000000000102`. Ce chemin ne touche pas la base et ne doit pas
+recevoir de `shift_id` réel.
+
+### RLS
+
+```
+insert_inventaire_quart_employes : le quart appartient au site de l'employé
+```
+La politique ne contrôle **ni** `employee_id` **ni** `shift_id`. Écrire un
+`shift_id` n'ouvre aucun droit nouveau, mais rien en base ne garantira que le
+service référencé appartient bien à cet employé — la clé étrangère vérifie
+l'existence, pas l'appartenance.
 
 ## Modifications / proposition
 
-Q1 — fenêtre de 24 h de Missions **supprimée**. Q2 — porte d'accès alignée ;
-une panne de lecture ne bloque pas, pour ne pas enfermer un employé hors de
-l'application. Q3 — bornes de journée retirées du chemin de décision ;
-`Missions:397` documenté comme historique, avec interdiction d'usage écrite
-dans le code.
+Contrat proposé :
 
-Deux tests A11 adaptés : la garantie est inchangée, son implémentation a
-bougé. La journalisation d'erreur vit désormais dans la primitive, et le bac
-à sable injecte la primitive au lieu d'une chaîne Supabase.
+1. `obtenirOuCreerQuartEmploye()` écrit `shift_id` à la création, depuis le
+   service déjà résolu à l'initialisation de l'écran.
+2. **Sans service courant, aucune ligne n'est créée.** L'écran s'arrête déjà
+   dans ce cas — `bloquerFauteDeRoleDuJour()` — puisque `chargerRoleDuJour()`
+   renvoie `indetermine`. Le contrat est donc déjà fail-closed en amont ; il
+   n'y a rien à ajouter, seulement à ne pas le contourner.
+3. **Aucune reprise rétroactive** des 6 lignes existantes : leur service
+   d'origine n'est pas connu de façon certaine, et S-1 a fermé plusieurs
+   services le même jour. Même règle qu'A18 — on ne reconstitue pas un
+   rattachement plausible.
+4. Le mode test conserve son objet synthétique, `shift_id` absent.
+5. Facultatif, à arbitrer : une contrainte en base garantissant que le
+   `shift_id` référencé appartient au même employé (trigger `before insert`).
 
 ## Preuves
 
-- Commit **`ca9cf92`** · génération **`020995cd6b06`** · `coherent = true` ·
-  CI **verte**.
-- Suite : **182/191**, les 9 échecs connus (`test_service_courant_unique_20260905.js`
-  ajouté, 8 vérifications). Simulations vertes.
-- **Preuve 2** — après la clôture S-1 du service d'Employé Test B, la porte
-  d'accès l'a redirigé vers la prise de poste : le service clos n'est plus
-  considéré comme courant.
-- **Preuve 3** — avec un service `en_cours`, deux lectures successives
-  convergent sur le même identifiant :
-  `c330a8cd` · `pompiste` · `soir` · `nexus-station-test` · `en_cours`.
-  App et Inventaire se chargent sans erreur avec ce même service.
-- **Preuve 4** — Missions ne peut plus rattacher via 24 h : la fenêtre
-  n'existe plus dans le code (`const il24h` absent de tout le code applicatif,
-  vérifié par test).
-- **Preuve 5** — redirection après départ confirmée (voir preuve 2).
-- **Preuve 6** — aucun repli date / 24 h / dernier historique dans le chemin
-  du service courant, vérifié par test sur le corps de la primitive.
-- **Isolation** — le même employé interrogé sur un autre site renvoie
-  `aucun service`. Le filtre `site_id` fonctionne.
-- **Preuve 7** — suite inchangée hors corrections attendues.
-- **Preuve 8** — zéro appel Supabase production sur tous les écrans visités ;
-  `main` et `production` à `501c0c7`.
-- Prise de poste réelle effectuée en session Employé Test B :
-  `role = pompiste`, `role_prevu = caissier`, quart `soir` à 16:04 heure
-  station. La séparation A11 tient.
+- Décision S-4 consommée : `APPROVED_CLOSED`, `LOT_ID`
+  S-4-LECTEURS-SERVICE-COURANT-20260905.
+- A18 consignée dans `docs/recettes/2026-09-04-config-par-environnement.md`.
+- Balayage : 1 `insert`, 0 lecteur de `shift_id`, 6 lignes toutes à `null`.
+- État `nexus-test` : 2 services `en_cours` (Manager Test renfort, Employé
+  Test B pompiste), aucun service clos par erreur.
+- `main` et `production` à `501c0c7`. Aucune écriture production.
 
 ## Risques / anomalies
 
-1. **Preuves 9 et 10 partiellement bloquées par un état de données.**
-   Employé Test B a déjà pointé ses quatre étapes aujourd'hui (arrivée,
-   pause début/fin, départ) pendant la recette transversale. L'écran ne
-   propose donc plus aucune action, et un second départ est impossible
-   aujourd'hui. La branche `ROW_COUNT` de S-2/S-3 reste donc non exercée
-   sous RLS réel.
-2. **Artefact historique visible sur Pointage** : l'historique d'Employé B
-   affiche « Horaire prévu : 23:34 · Retard constaté : 558 min ». Cette
-   valeur vient de `heure_debut_quart`, capturée à l'arrivée depuis
-   l'ancien service du 04/09 — avant S-1. Ce n'est pas une régression S-4 ;
-   c'est une donnée figée à l'écriture, par conception (« jamais recalculé
-   ensuite »). À consigner, pas à corriger.
-3. **Q2 assumé** : un employé ayant pointé son départ est renvoyé vers la
-   prise de poste s'il revient. Comportement voulu, désormais visible.
+1. **Le remplissage n'a aucun effet observable** faute de lecteur. La preuve
+   de S-5 sera donc une preuve de données, pas de comportement — un comptage
+   d'inventaire créé après S-5 devra porter un `shift_id` égal au service
+   actif de l'employé.
+2. **La clé étrangère ne vérifie pas l'appartenance.** Un `shift_id` d'un
+   autre employé serait accepté par la base. Le code ne le fera pas, mais
+   rien ne l'interdit structurellement — d'où la proposition 5.
+3. **Les 6 lignes existantes resteront à `null`.** L'écart entre lignes
+   anciennes et nouvelles sera visible et devra être assumé.
 
 ## Questions pour arbitrage
 
-**Q4 — Comment obtenir les preuves 9 et 10 ?** Trois options :
+**Q6 — La contrainte d'appartenance (proposition 5).** Faut-il un trigger
+`before insert` vérifiant que `shift_id` appartient au même `employee_id` ?
+Recommandation : **oui**. Le bloqueur 1 a montré qu'un contrat non gardé en
+base finit par ne pas être respecté — `cloture_source` existait depuis
+l'origine sans aucun écrivain. Une clé étrangère qui vérifie l'existence mais
+pas l'appartenance est le même genre de garantie incomplète.
 
-(a) **Employé Test A.** Il n'a aucun pointage aujourd'hui. Frédéric se
-connecte, fait l'arrivée (photo), puis le départ (photo) : le cycle complet
-sous RLS réel, clôture S-2 comprise. **Deux photos demandées à Frédéric.**
-Recommandation : cette option.
+**Q7 — Les 6 lignes existantes.** Confirmer qu'aucune reprise rétroactive
+n'est faite, même quand un rattachement paraît plausible. Recommandation :
+**aucune reprise**, alignée sur A18 et sur la règle S-1 (« ne pas inventer
+une heure de fin » devient ici « ne pas inventer un rattachement »).
 
-(b) **Attendre demain** avec Employé B : nouvelle journée, nouveau cycle.
-Repousse la fermeture du lot d'une journée.
-
-(c) **Fermer S-4 sans les preuves 9 et 10**, en les reportant explicitement
-à la fermeture du bloqueur 1 (après S-5). S-4 est un lot de lecture ; les
-branches `ROW_COUNT` appartiennent à S-2 et S-3, déjà fermés sous réserve
-de cette même preuve.
-
-Mon avis : **(c) pour S-4, (a) avant fermeture du bloqueur 1.** Les preuves 9
-et 10 valident S-2 et S-3, pas les lecteurs de S-4. Les exiger ici mélange
-deux périmètres — mais c'est un arbitrage, pas une évidence, et la décision
-initiale les listait bien dans les preuves attendues de ce lot.
-
-**Q5 — L'artefact « retard 558 min »** doit-il être consigné comme dette
-(recommandation) ou traité ?
+**Q8 — Faut-il un lecteur ?** `shift_id` sans consommateur restera une
+colonne morte, et c'est ce qui a permis l'oubli. Faut-il, dans S-5, brancher
+au moins une lecture — par exemple afficher le rôle du service dans le
+contrôle manager — ou laisser la traçabilité sans usage jusqu'à un besoin
+métier réel ? Recommandation : **laisser sans usage**. Créer un lecteur pour
+justifier une colonne serait inverser l'ordre des raisons ; la traçabilité
+vaut pour l'audit, pas pour l'écran.
 
 ## Action attendue de ChatGPT
 
-Arbitrer Q4 et Q5 pour le `LOT_ID` **S-4-LECTEURS-SERVICE-COURANT-20260905**,
-puis écrire la décision dans `docs/handoff/DECISION.md` : fermeture de S-4, ou
-conditions restantes avant fermeture.
+Arbitrer Q6, Q7 et Q8 pour le `LOT_ID` **S-5-SHIFT-ID-INVENTAIRE-20260905**,
+puis écrire la décision dans `docs/handoff/DECISION.md`.

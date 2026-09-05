@@ -1131,6 +1131,31 @@ Un `update` refusé par RLS **ne lève aucune erreur** : il retourne **zéro
 ligne**. Un client qui ne compte pas les lignes prendra un refus pour une
 réussite. Les insertions refusées, elles, lèvent bien `42501`.
 
+## A18 — données historiques de pointage héritées d'avant l'assainissement *(dette, non corrigée)*
+
+Consignée le 05/09/2026 sur arbitrage, pendant le lot S-4.
+
+L'historique d'Employé Test B affiche « Horaire prévu : 23:34 · Retard
+constaté : 558 min » alors que son arrivée du 05/09 est à 08:44.
+
+La valeur vient de `pointages.heure_debut_quart`, capturée **au moment du
+pointage** depuis le service actif de l'époque — celui du 04/09 à 23:34, qui
+n'avait jamais été clôturé faute de mécanisme (le défaut corrigé par S-1 à
+S-3). Elle n'est jamais recalculée ensuite, **et c'est voulu** : le
+commentaire du code le dit — « capturé ici, au moment du pointage, et jamais
+recalculé ensuite ; c'est ce qui permet à l'historique d'afficher *Horaire
+prévu* sans jamais inventer ou réestimer une valeur après coup ».
+
+Ce n'est donc **pas une régression** : c'est une donnée figée avant
+l'assainissement, exacte au moment où elle a été écrite, devenue trompeuse
+parce que le service auquel elle se rapportait n'aurait pas dû être actif.
+
+**Aucune correction rétroactive ne doit être appliquée sans règle métier
+validée.** Recalculer ces retards reviendrait à réécrire l'historique de
+pointage — exactement ce que le principe de capture-à-l'écriture cherche à
+empêcher. Toute reprise éventuelle devra être une décision produit explicite,
+pas un nettoyage technique.
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
