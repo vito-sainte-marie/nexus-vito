@@ -336,6 +336,7 @@
         </div>
 
         <div class="card">
+      <div class="note" id="noteHorairesEtat" style="display:none;"></div>
       <div class="section-label">Quart 1 — Début de service attendu</div>
       <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q1_normal"></div>
       <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q1_etendu"></div>
@@ -375,7 +376,7 @@
     </div>
 
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
-    <button class="btn btn-secondary" id="reinitialiser">Réinitialiser aux valeurs Vito Sainte-Marie Usine</button>
+    <button class="btn btn-secondary" id="reinitialiser">Pré-remplir avec les valeurs de référence</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
 
         <div class="psec-subgroup-label" style="margin-top:20px;">Pointage</div>
@@ -1119,7 +1120,18 @@
   // reprennent l'ancienne règle devinée (+7h dim-mer, +8h jeu-sam)
   // comme point de départ raisonnable — modifiable librement une
   // fois que les vraies heures de fermeture sont connues.
-  const HORAIRES_DEFAUT = {
+  // A3 / C2-1 (05/09/2026) — ce n'est plus un REPLI, c'est un MODÈLE.
+  //
+  // Ces valeurs ne sont pas celles de Vito Sainte-Marie : la lecture de la
+  // production le 05/09/2026 donne quart2 fin_normal 20:05 et fin_etendu
+  // 22:05, contre 19:40 et 21:40 ici. Le commentaire d'origine le disait
+  // déjà — « l'ancienne règle devinée, +7 h dim-mer, +8 h jeu-sam » : 12:40
+  // + 7 h = 19:40. C'est une règle arithmétique, pas une observation.
+  //
+  // Elles ne sont donc plus JAMAIS substituées en silence. Elles ne
+  // s'écrivent que si un manager clique « Pré-remplir », les voit dans le
+  // formulaire, et les enregistre lui-même.
+  const HORAIRES_MODELE = {
     quart1: { normal: "05:45", etendu: "05:45", fin_normal: "12:45", fin_etendu: "13:45" },
     quart2: { normal: "12:40", etendu: "13:40", fin_normal: "19:40", fin_etendu: "21:40" },
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
@@ -1144,24 +1156,56 @@
     // source des horaires ; le fuseau est lu séparément dans sites.timezone
     // par le contrat NexusStation.
     const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
-    if (error) { console.error('Chargement station_config:', error); return { horaires: HORAIRES_DEFAUT }; }
-    return { horaires: (data && data.horaires) || HORAIRES_DEFAUT };
+    // A3 / C2-1 : plus de substitution. `null` dit « pas configuré », et
+    // l'écran le montre — c'est sa raison d'être.
+    if (error) { console.error('Chargement station_config:', error); return { horaires: null }; }
+    return { horaires: (data && data.horaires) || null };
   }
 
+  // A3 / C2-1 : un champ sans valeur configurée reste VIDE. Il n'emprunte
+  // plus la valeur d'une autre station — un `<input type="time">` pré-rempli
+  // est indiscernable d'un réglage choisi, et c'est ainsi qu'un horaire
+  // deviné finissait enregistré comme une décision du commerce.
   function remplirFormulaire(config) {
-    document.getElementById('q1_normal').value = config.quart1.normal;
-    document.getElementById('q1_etendu').value = config.quart1.etendu;
-    document.getElementById('q1_fin_normal').value = config.quart1.fin_normal || HORAIRES_DEFAUT.quart1.fin_normal;
-    document.getElementById('q1_fin_etendu').value = config.quart1.fin_etendu || HORAIRES_DEFAUT.quart1.fin_etendu;
-    document.getElementById('q2_normal').value = config.quart2.normal;
-    document.getElementById('q2_etendu').value = config.quart2.etendu;
-    document.getElementById('q2_fin_normal').value = config.quart2.fin_normal || HORAIRES_DEFAUT.quart2.fin_normal;
-    document.getElementById('q2_fin_etendu').value = config.quart2.fin_etendu || HORAIRES_DEFAUT.quart2.fin_etendu;
-    document.getElementById('r_debut').value = config.renfort.debut;
-    document.getElementById('r_pause_debut').value = config.renfort.pause_debut;
-    document.getElementById('r_pause_fin').value = config.renfort.pause_fin;
-    document.getElementById('r_fin').value = config.renfort.fin;
-    document.getElementById('temps_habillage').value = (config.temps_habillage_min != null) ? config.temps_habillage_min : HORAIRES_DEFAUT.temps_habillage_min;
+    const c = config || {};
+    const q1 = c.quart1 || {}, q2 = c.quart2 || {}, r = c.renfort || {};
+    const poser = (id, valeur) => { document.getElementById(id).value = (valeur != null && valeur !== '') ? valeur : ''; };
+    poser('q1_normal', q1.normal);   poser('q1_etendu', q1.etendu);
+    poser('q1_fin_normal', q1.fin_normal); poser('q1_fin_etendu', q1.fin_etendu);
+    poser('q2_normal', q2.normal);   poser('q2_etendu', q2.etendu);
+    poser('q2_fin_normal', q2.fin_normal); poser('q2_fin_etendu', q2.fin_etendu);
+    poser('r_debut', r.debut);       poser('r_pause_debut', r.pause_debut);
+    poser('r_pause_fin', r.pause_fin); poser('r_fin', r.fin);
+    poser('temps_habillage', c.temps_habillage_min);
+    const etat = document.getElementById('noteHorairesEtat');
+    if (etat) {
+      const configure = !!(c.quart1 && c.quart1.normal);
+      etat.textContent = configure ? '' : 'Non configuré — aucun horaire de quart n’est déclaré pour ce commerce. Tant qu’il en manque, NEXUS ne peut pas dire à quel quart appartient un pointage, un comptage ou un relevé.';
+      etat.style.color = 'var(--amber, #d29922)';
+      etat.style.display = configure ? 'none' : 'block';
+    }
+  }
+
+
+  // A3 / C2-1 — `station_config.horaires` est NOT NULL : tous les
+  // enregistrements de cet écran (prix, raccourcis, drapeaux, Sheets…)
+  // renvoient les horaires courants pour ne pas violer la contrainte quand
+  // la ligne du site n'existe pas encore.
+  //
+  // Depuis C2-1, ces horaires peuvent légitimement être ABSENTS. On ne les
+  // remplace pas par ceux d'une autre station : on refuse l'enregistrement
+  // et on dit quoi faire. Un seul point de contrôle, pour que les
+  // enregistrements concernés ne divergent pas.
+  //
+  // L'enregistrement des horaires eux-mêmes n'appelle PAS cette garde : il
+  // écrit `horaires: config`, c'est-à-dire précisément ce qui manque.
+  function horairesObligatoires() {
+    if (CONFIG_HORAIRES_ACTUEL) return CONFIG_HORAIRES_ACTUEL;
+    alert('Horaires de quart non configurés pour ce commerce.\n\n'
+      + 'NEXUS ne peut pas créer la configuration de ce site sans eux, et il ne '
+      + 'reprendra pas ceux d’une autre station. Renseignez les horaires de quart, '
+      + 'enregistrez-les, puis recommencez.');
+    return null;
   }
 
   // Garde les horaires actuellement charges en memoire : station_config.horaires
@@ -1296,8 +1340,10 @@
     document.getElementById('sauvegarderRaccourcis').addEventListener('click', async () => {
       const btn = document.getElementById('sauvegarderRaccourcis');
       btn.disabled = true;
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       btn.disabled = false;
@@ -1308,8 +1354,10 @@
     });
 
     document.getElementById('reinitialiserRaccourcis').addEventListener('click', async () => {
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       if (error) { console.error('Réinitialisation raccourcis:', error); alert('Erreur — réessayez.'); return; }
@@ -1352,14 +1400,20 @@
     setTimeout(() => note.style.display = 'none', 3000);
   });
 
-  document.getElementById('reinitialiser').addEventListener('click', async () => {
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() },
-      { onConflict: 'site' }
-    );
-    if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
-    CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
-    remplirFormulaire(HORAIRES_DEFAUT);
+  // A3 / B3 (05/09/2026) — le bouton PRÉ-REMPLIT, il n'enregistre plus.
+  //
+  // Il faisait un upsert direct : un clic suffisait à inscrire dans la
+  // configuration du site des horaires devinés, faux de 25 minutes, sans que
+  // personne ne les ait lus. Après cet upsert, plus rien ne distinguait
+  // « valeurs de référence » de « horaires déclarés par le commerce ».
+  //
+  // Désormais il remplit le formulaire et s'arrête là. Le manager voit les
+  // valeurs, les ajuste, et c'est SON clic sur Enregistrer qui décide.
+  document.getElementById('reinitialiser').addEventListener('click', () => {
+    remplirFormulaire(HORAIRES_MODELE);
+    const note = document.getElementById('savedNote');
+    note.textContent = 'Valeurs de référence proposées — vérifiez-les puis enregistrez. Rien n’est encore écrit.';
+    note.style.display = 'block';
   });
 
   // ------------------------------------------------------------
@@ -1391,8 +1445,10 @@
   document.getElementById('pointageActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, pointage_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, pointage_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1433,8 +1489,10 @@
   document.getElementById('managerPointageRequis').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, manager_pointage_requis: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1480,8 +1538,10 @@
   document.getElementById('jaugeageCarburantActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1639,8 +1699,10 @@
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, prix_carburants, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1777,11 +1839,13 @@
     // Même précaution que Prix carburants : on renvoie aussi horaires et
     // prix_carburants déjà connus pour ne jamais les vider par inadvertance
     // via l'upsert (station_config n'a qu'une ligne par site).
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants').eq('site', employee.site_id).maybeSingle();
     const { error } = await nexusClient.from('station_config').upsert(
       {
         site: employee.site_id, cuves_carburants: config,
-        horaires: (existant && existant.horaires) || CONFIG_HORAIRES_ACTUEL,
+        horaires: (existant && existant.horaires) || horairesUpsert,
         prix_carburants: existant ? existant.prix_carburants : null,
         updated_at: new Date().toISOString(),
       },
@@ -1839,11 +1903,13 @@
       const precedente = document.querySelector('#cardReceptionCarburantRole .role-chip.actif');
       const valeurPrecedente = precedente ? precedente.dataset.valeur : 'employe';
       majChipsReceptionCarburantRole(valeur); // optimiste, annulé ci-dessous en cas d'erreur
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants,cuves_carburants').eq('site', employee.site_id).maybeSingle();
       const { error } = await nexusClient.from('station_config').upsert(
         {
           site: employee.site_id, reception_carburant_role: valeur,
-          horaires: (existant && existant.horaires) || CONFIG_HORAIRES_ACTUEL,
+          horaires: (existant && existant.horaires) || horairesUpsert,
           prix_carburants: existant ? existant.prix_carburants : null,
           cuves_carburants: existant ? existant.cuves_carburants : null,
           updated_at: new Date().toISOString(),
@@ -2177,8 +2243,10 @@
     }
     btn.disabled = true;
     const google_sheet_id = actif ? idSaisi : null;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2210,8 +2278,10 @@
     // serveur. On enregistre donc d'abord l'identifiant saisi (même si la
     // synchronisation n'est pas encore activée) pour que le test porte
     // bien sur CE classeur.
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error: saveErr } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id: idSaisi, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (saveErr) {

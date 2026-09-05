@@ -113,5 +113,57 @@
     return { timezone: data.timezone };
   }
 
-  global.NexusStation = { siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation };
+  // ────────────────────────────────────────────────────────────────
+  // Le quart du moment (A3 / C2, 05/09/2026)
+  //
+  // NEXUS déterminait le quart avec `new Date().getHours()` — l'heure de
+  // l'APPAREIL — comparée à un seuil écrit en dur : '12:40' dans Inventaire
+  // et FDJ, 13 dans Prise de poste, 12 dans l'horizon opérationnel. Quatre
+  // valeurs, aucune venant de la configuration du site, et une heure qui
+  // dépend du téléphone de celui qui regarde.
+  //
+  // La règle est désormais : un quart ne peut être déterminé que par
+  // l'heure locale de la STATION et le seuil CONFIGURÉ du site.
+  //
+  // Ces trois fonctions sont PURES — aucune n'accède au réseau, à
+  // localStorage ni à `nexusClient`. Elles rendent la détermination du quart
+  // testable, y compris le cas « appareil dans un fuseau différent de la
+  // station », qui était jusqu'ici impossible à éprouver.
+  // ────────────────────────────────────────────────────────────────
+
+  // "12:40" -> 760. Null si l'entrée n'est pas une heure exploitable : on ne
+  // devine pas, et surtout on ne renvoie pas 0 — minuit est une heure valide,
+  // la confondre avec « absent » ferait basculer toute la journée.
+  function minutesDepuisMinuit(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm == null ? '' : hhmm).trim());
+    if (!m) return null;
+    const h = Number(m[1]), min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return h * 60 + min;
+  }
+
+  // L'heure locale de la station, en minutes depuis minuit. `instant` permet
+  // de tester un moment précis sans dépendre de l'horloge de la machine.
+  function minutesLocalesStation(timezone, instant) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('minutesLocalesStation : timezone obligatoire. L’heure de l’appareil ne détermine jamais un quart.');
+    }
+    const d = instant instanceof Date ? instant : new Date();
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+    return Number(parts.hour) * 60 + Number(parts.minute);
+  }
+
+  // Le quart, ou null si l'un des deux ingrédients manque. Null n'est pas un
+  // repli : c'est un refus, et l'appelant doit le traiter.
+  function quartDepuisMinutes(minutesMaintenant, minutesBascule) {
+    if (!Number.isFinite(minutesMaintenant) || !Number.isFinite(minutesBascule)) return null;
+    return minutesMaintenant < minutesBascule ? '1' : '2';
+  }
+
+  global.NexusStation = {
+    siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
+    minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
+  };
 })(window);

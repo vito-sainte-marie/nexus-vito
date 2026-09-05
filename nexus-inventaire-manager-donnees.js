@@ -47,20 +47,25 @@
 // ------------------------------------------------------------
 
 (function (global) {
-  async function quartDuMoment(client, site, horaireDefautDebutQuart2) {
-    let debutQuart2 = horaireDefautDebutQuart2;
+  // A3 / C2-2 : plus de seuil par défaut reçu en argument. Cette couche de
+  // données lit la configuration du site et refuse de deviner sans elle.
+  // Limite connue, traitée en C2-3 : l'heure comparée est encore celle de
+  // l'appareil.
+  // A3 / C2-3 : `timezone` reçu de l'écran résolveur, jamais résolu ici —
+  // cette couche de données ne va pas chercher sites.timezone (règle C1).
+  async function quartDuMoment(client, site, timezone) {
+    if (!timezone) { console.warn('Quart du moment : fuseau du commerce non résolu — aucun quart n’est déterminé.'); return null; }
     const { data, error } = await client
       .from('station_config').select('horaires').eq('site', site).maybeSingle();
-    if (error) console.error('Chargement horaires station (quart par défaut):', error);
-    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
-      debutQuart2 = data.horaires.quart2.normal;
+    if (error) { console.error('Chargement horaires station (quart du moment) :', error); return null; }
+    const bascule = global.NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    if (bascule === null) {
+      console.warn('Quart du moment : aucun horaire de bascule configuré pour ce commerce.');
+      return null;
     }
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
-    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
-    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
-    return minutesMaintenant < minutesQ2 ? 'matin' : 'soir';
+    return global.NexusStation.quartDepuisMinutes(global.NexusStation.minutesLocalesStation(timezone), bascule);
   }
+
 
   async function chargerQuart(client, site, date, quart) {
     const { data, error } = await client.from('inventaire_quarts').select('*').eq('site', site).eq('date', date).eq('quart', quart).maybeSingle();

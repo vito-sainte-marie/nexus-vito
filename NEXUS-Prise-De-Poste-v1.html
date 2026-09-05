@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <style>
@@ -193,9 +194,43 @@
     return estManager ? ROLES : ROLES.filter(r => r.value !== 'manager');
   }
 
+  // A3 / C2-3 (05/09/2026) — le cas le plus lourd de conséquences des six :
+  // cette valeur est ÉCRITE dans shifts.quart, donc dans le rôle du jour.
+  //
+  // Elle valait :
+  //     const h = new Date().getHours(); return h < 13 ? 'matin' : 'soir';
+  //
+  // Ni configuration, ni fuseau, et un 13 h qui ne venait de nulle part —
+  // ni de station_config (12:40 en production), ni de la fixture de recette
+  // (13:00, coïncidence). L'heure était celle du téléphone : un employé de
+  // Martinique dont l'appareil est réglé sur Paris enregistrait « soir »
+  // dès 9 h du matin.
+  //
+  // Désormais : heure locale de la station, seuil configuré du site, et
+  // aucun quart si l'un des deux manque.
+  let FUSEAU_STATION_PDP = null;
+  let BASCULE_QUART2_PDP = null;
+
   function quartDuMoment() {
-    const h = new Date().getHours();
-    return h < 13 ? 'matin' : 'soir';
+    if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) return null;
+    const quart = NexusStation.quartDepuisMinutes(
+      NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP), BASCULE_QUART2_PDP);
+    return quart === '1' ? 'matin' : quart === '2' ? 'soir' : null;
+  }
+
+  async function resoudreContexteQuart(employee) {
+    const fuseau = await NexusStation.fuseauDeLaStation(employee.site_id);
+    FUSEAU_STATION_PDP = fuseau.timezone || null;
+    const { data, error } = await nexusClient
+      .from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement horaires station (prise de poste) :', error); return false; }
+    BASCULE_QUART2_PDP = NexusStation.minutesDepuisMinuit(
+      data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
+      console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');
+      return false;
+    }
+    return true;
   }
 
   async function chargerCatalogue() {
@@ -362,6 +397,19 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
+    // A3 / C2-3 : sans fuseau ni horaires, la prise de poste écrirait un
+    // quart deviné dans shifts — donc dans le rôle du jour. On s'arrête.
+    if (!(await resoudreContexteQuart(employee))) {
+      document.getElementById('content').innerHTML =
+        '<div class="loading" style="text-align:left; max-width:520px; margin:12vh auto; line-height:1.55;">'
+        + '<strong>Prise de poste impossible</strong><br><br>'
+        + 'Il manque le fuseau horaire du commerce ou ses horaires de quart.<br><br>'
+        + 'Votre prise de poste enregistre le quart travaillé : sans ces deux '
+        + 'informations, NEXUS ne peut pas savoir si vous prenez le matin ou le '
+        + 'soir, et il ne le devinera pas.<br><br>'
+        + 'Un manager doit les renseigner dans <b>Paramètres Station</b>.</div>';
+      return;
+    }
     catalogue = await chargerCatalogue();
     renderChoixRole();
   });

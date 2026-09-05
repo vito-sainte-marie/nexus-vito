@@ -969,6 +969,26 @@ Deux questions à arbitrer, dans cet ordre :
 Tant que ce n'est pas tranché, l'écran Rapport affiche deux erreurs console à
 chaque chargement — correctement journalisées, mais sans issue.
 
+## A17 — dette temporelle hors quart *(non bloquante, non corrigée)*
+
+Relevée le 05/09/2026 pendant C2-3. Deux logiques d'heure du jour lisent
+l'horloge de l'**appareil** et non celle de la station :
+
+| Fichier | Ligne | Décision |
+|---|---|---|
+| `NEXUS-Missions-v1.html` | 1616 | fin de service à partir de 16 h |
+| `NEXUS-Missions-v1.html` | 1618 | tombée de la nuit |
+| `NEXUS-Parametres-Rappels-v1.html` | 619 | rappel avant 11 h |
+
+**Elles ne déterminent aucun quart** — c'est ce qui les distingue des six
+chemins corrigés en C2-3, et la raison pour laquelle elles restent hors de C2.
+Les aspirer dans le lot reviendrait à élargir indéfiniment le périmètre.
+
+Le défaut est réel malgré tout : un employé dont le téléphone est réglé sur
+un autre fuseau verra « fin de service » ou « nuit tombée » au mauvais moment.
+Correctif prévisible : les mêmes primitives que C2-3
+(`NexusStation.minutesLocalesStation`), sans nouvelle conception.
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La

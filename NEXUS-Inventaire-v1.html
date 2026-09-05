@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -887,21 +888,35 @@
   // valeur par défaut que NEXUS-Parametres-Station-v1.html si rien n'a
   // encore été enregistré pour ce site). Avant cette heure : quart du matin,
   // à partir de cette heure : quart du soir.
-  const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
-  async function quartDuMoment(siteId) {
-    let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
+  // A3 / C2-2 (05/09/2026) — le seuil de bascule vient de la CONFIGURATION
+  // du site, jamais d'une constante. Il valait '12:40' en dur ici, alors que
+  // la production déclare 12:40 mais le site de recette 13:00 : entre les
+  // deux, un comptage était rattaché au mauvais quart sans que rien ne le
+  // signale.
+  //
+  // Sans horaires configurés, cette fonction renvoie `null` — un refus, pas
+  // un repli. L'appelant doit le traiter.
+  //
+  // LIMITE CONNUE, traitée en C2-3 : l'heure comparée au seuil est encore
+  // celle de l'APPAREIL. Le seuil est juste, l'horloge ne l'est pas encore.
+  async function quartDuMoment(siteId, timezone) {
+    if (!timezone) { console.warn('Quart du moment : fuseau du commerce non résolu — aucun quart n’est déterminé.'); return null; }
     const { data, error } = await nexusClient
       .from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-    if (error) console.error('Chargement horaires station (quart par défaut):', error);
-    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
-      debutQuart2 = data.horaires.quart2.normal;
+    if (error) { console.error('Chargement horaires station (quart du moment) :', error); return null; }
+    const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    if (bascule === null) {
+      console.warn('Quart du moment : aucun horaire de bascule configuré pour ce commerce — NEXUS ne devine pas à quel quart appartient ce comptage.');
+      return null;
     }
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
-    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
-    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
-    return minutesMaintenant < minutesQ2 ? 'matin' : 'soir';
+    // A3 / C2-3 (05/09/2026) : l'heure comparée au seuil est celle de la
+    // STATION, plus celle de l'appareil. `new Date().getHours()` renvoyait
+    // l'heure du téléphone : au même instant, un appareil réglé sur Paris
+    // plaçait un employé de Martinique quatre heures plus tard, donc
+    // souvent dans le mauvais quart.
+    return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(timezone), bascule);
   }
+
   function dateISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -990,6 +1005,24 @@
 
   // Écran d'arrêt : on explique ce qui manque, on propose de réessayer, et on
   // ne propose surtout pas de continuer « quand même ».
+  // A3 / C2-2 — même forme que l'arrêt sur rôle du jour ci-dessous : dire ce
+  // qui manque, dire pourquoi NEXUS refuse de deviner, offrir une sortie.
+  function bloquerFauteDHorairesDeQuart() {
+    console.error('Inventaire bloqué : horaires de quart non configurés pour ce commerce.');
+    document.getElementById('content').innerHTML = `
+      <div class="loading" style="text-align:left; max-width:520px; margin:12vh auto; line-height:1.55;">
+        <strong>Quart indéterminable</strong><br><br>
+        Il manque le fuseau horaire du commerce ou ses horaires de quart.<br><br>
+        L’inventaire est rattaché à un quart : sans l’heure de bascule, NEXUS ne
+        peut pas dire si ce comptage appartient au matin ou au soir. Un comptage
+        attribué au mauvais quart serait pire qu’un comptage retardé.<br><br>
+        Un manager doit renseigner les horaires dans <b>Paramètres Station</b>.<br><br>
+        <button id="reessayerHorairesQuart" class="btn">Réessayer</button>
+      </div>`;
+    const b = document.getElementById('reessayerHorairesQuart');
+    if (b) b.addEventListener('click', () => window.location.reload());
+  }
+
   function bloquerFauteDeRoleDuJour(cause) {
     const explication = cause === 'reseau'
       ? 'Votre poste du jour n’a pas pu être vérifié : la connexion au serveur a échoué.'
@@ -4108,7 +4141,9 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
     demarrerHorloge();
-    quartActuel = await quartDuMoment(employee.site_id);
+    const fuseauInventaire = await NexusStation.fuseauDeLaStation(employee.site_id);
+    quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone);
+    if (!quartActuel) { bloquerFauteDHorairesDeQuart(); return; }
     if (employee.mode_test_inventaire) {
       roleDuJour = employee.role_test_inventaire;
     } else {

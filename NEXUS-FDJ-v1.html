@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -263,6 +264,8 @@
   // ------------------------------------------------------------
 
   let employeeCourant = null;
+  // A3 / C2-3 : fuseau du commerce, résolu une fois après authentification.
+  let FUSEAU_STATION_FDJ = null;
   let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let quartActuel = null;      // '1' | '2'
   let shiftRow = null;         // ligne fdj_shifts
@@ -506,18 +509,30 @@
   // ("Quart : 1" / "Quart : 2"). Repli FDJ (si station_config est vide) lu
   // depuis fdj_site_settings.horaire_bascule_quart2_repli, plus jamais une
   // constante JS figée pour tous les sites.
+  // A3 / C2-2 (05/09/2026) — le seuil de bascule vient de la CONFIGURATION
+  // du site, jamais d'une constante. Il valait '12:40' en dur ici, alors que
+  // la production déclare 12:40 mais le site de recette 13:00 : entre les
+  // deux, un contrôle FDJ était rattaché au mauvais quart sans que rien ne le
+  // signale.
+  //
+  // Sans horaires configurés, cette fonction renvoie `null` — un refus, pas
+  // un repli. L'appelant doit le traiter.
+  //
+  // LIMITE CONNUE, traitée en C2-3 : l'heure comparée au seuil est encore
+  // celle de l'APPAREIL. Le seuil est juste, l'horloge ne l'est pas encore.
   async function quartDuMoment() {
-    const parametresSite = await chargerParametresFdjSite();
-    let debutQuart2 = parametresSite.horaire_bascule_quart2_repli || '12:40';
     const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-    if (error) console.error('Chargement horaires station (quart FDJ par défaut):', error);
-    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) debutQuart2 = data.horaires.quart2.normal;
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
-    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
-    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
-    return minutesMaintenant < minutesQ2 ? '1' : '2';
+    if (error) { console.error('Chargement horaires station (quart FDJ) :', error); return null; }
+    const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    if (bascule === null) {
+      console.warn('Quart FDJ : aucun horaire de bascule configuré pour ce commerce — le repli fdj_site_settings.horaire_bascule_quart2_repli n’est plus utilisé (A3 / C2-2).');
+      return null;
+    }
+    // A3 / C2-3 : heure de la STATION, plus celle de l'appareil.
+    if (!FUSEAU_STATION_FDJ) { console.warn('Quart FDJ : fuseau du commerce non résolu — aucun quart n’est déterminé.'); return null; }
+    return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(FUSEAU_STATION_FDJ), bascule);
   }
+
 
   // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" : horaires de DÉBUT des
   // deux quarts, pour la fenêtre d'accès de 30 min (NexusFdjMoteur.evaluerAccesQuart).
@@ -963,8 +978,11 @@
   // (verrouillé sur l'autre quart / verrouillé sur celui-ci / pas de verrou
   // encore, dépend juste de la fenêtre horaire).
   function accesQuart(quart) {
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    // A3 / C2-3 : la fenêtre d'accès se juge à l'heure de la station. Avec
+    // l'heure de l'appareil, un employé pouvait ouvrir un quart trop tôt ou
+    // se le voir refuser, selon le réglage de son téléphone.
+    if (!FUSEAU_STATION_FDJ) return { accessible: false, motif: 'fuseau_indetermine' };
+    const minutesMaintenant = NexusStation.minutesLocalesStation(FUSEAU_STATION_FDJ);
     const horaire = horairesQuartsSite['quart' + quart];
     // FDJ Fiabilisation Étape 7 (18/08/2026) : fenêtre configurable par site
     // (fdj_site_settings.fenetre_acces_quart_min, repli 30) au lieu d'une
@@ -2239,7 +2257,14 @@
     let parametresFdjSiteInit;
     [horairesQuartsSite, verrouJour, parametresFdjSiteInit] = await Promise.all([chargerHorairesQuartsSite(), chargerVerrouJour(), chargerParametresFdjSite()]);
     fenetreAccesQuartMin = (parametresFdjSiteInit && parametresFdjSiteInit.fenetre_acces_quart_min !== null && parametresFdjSiteInit.fenetre_acces_quart_min !== undefined) ? Number(parametresFdjSiteInit.fenetre_acces_quart_min) : 30;
+    const fuseauFdj = await NexusStation.fuseauDeLaStation(siteId);
+    FUSEAU_STATION_FDJ = fuseauFdj.timezone || null;
     quartActuel = verrouJour ? verrouJour.quart : await quartDuMoment();
+    if (!quartActuel) {
+      console.error('FDJ bloqué : horaires de quart non configurés pour ce commerce.');
+      document.getElementById('content').innerHTML = '<div class="loading">Quart indéterminable — il manque le fuseau horaire du commerce ou ses horaires de quart. NEXUS ne devine pas à quel quart rattacher un contrôle FDJ.</div>';
+      return;
+    }
     jeux = await chargerJeux();
     shiftRow = await obtenirOuCreerShift();
     if (!shiftRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger le quart FDJ. Réessayez.</div>'; return; }
