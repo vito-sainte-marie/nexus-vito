@@ -160,4 +160,25 @@ verifier('chaque écran conserve SON vocabulaire de quart', () => {
   }
 });
 
+// C2-4 — un réglage qu'on retire du code doit disparaître de PARTOUT :
+// lecteur, formulaire, écriture. Sinon on a fait du cosmétique.
+verifier('les réglages horaires retirés ne sont plus lus, ni affichés, ni écrits', () => {
+  const RETIRES = ['horaire_bascule_quart2_repli', 'HORAIRES_DEFAUT_RAPPEL', 'paramHoraireRepli'];
+  const survivants = [];
+  const APPLICATIF = fs.readdirSync(RACINE)
+    .filter(f => /^(NEXUS-.*\.html|nexus-.*\.js)$/.test(f));
+  for (const f of APPLICATIF) {
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+    src.split('\n').forEach((ligne, i) => {
+      // Les commentaires gardent la mémoire du retrait : c'est voulu.
+      if (/^\s*(\/\/|\*|<!--)/.test(ligne)) return;
+      for (const mot of RETIRES) {
+        if (ligne.includes(mot)) survivants.push(`${f}:${i + 1}  ${mot}`);
+      }
+    });
+  }
+  assert.deepStrictEqual(survivants, [],
+    'Un réglage retiré du code ne doit subsister nulle part :\n  ' + survivants.join('\n  '));
+});
+
 console.log(`\n${passes} vérifications passées — le quart vient de la station, pas de l'appareil.`);

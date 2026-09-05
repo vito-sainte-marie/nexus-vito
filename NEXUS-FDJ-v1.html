@@ -499,7 +499,9 @@
     if (parametresFdjSiteCache !== undefined) return parametresFdjSiteCache;
     const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', siteId).maybeSingle();
     if (error) console.error('Chargement paramètres FDJ site:', error);
-    parametresFdjSiteCache = data || { horaire_bascule_quart2_repli: '12:40', fenetre_acces_quart_min: 30 };
+    // A3 / C2-4 : `horaire_bascule_quart2_repli` retiré de ce repli — la
+    // bascule vient de station_config.horaires depuis C2-2, plus jamais d'ici.
+    parametresFdjSiteCache = data || { fenetre_acces_quart_min: 30 };
     return parametresFdjSiteCache;
   }
 
@@ -507,7 +509,7 @@
   // que NEXUS Inventaire — station_config.horaires.quart2.normal), converti
   // en '1'/'2' pour coller au vocabulaire des feuilles FDJ papier réelles
   // ("Quart : 1" / "Quart : 2"). Repli FDJ (si station_config est vide) lu
-  // depuis fdj_site_settings.horaire_bascule_quart2_repli, plus jamais une
+  // depuis station_config.horaires (A3 / C2-2), plus jamais une
   // constante JS figée pour tous les sites.
   // A3 / C2-2 (05/09/2026) — le seuil de bascule vient de la CONFIGURATION
   // du site, jamais d'une constante. Il valait '12:40' en dur ici, alors que
@@ -525,7 +527,7 @@
     if (error) { console.error('Chargement horaires station (quart FDJ) :', error); return null; }
     const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
     if (bascule === null) {
-      console.warn('Quart FDJ : aucun horaire de bascule configuré pour ce commerce — le repli fdj_site_settings.horaire_bascule_quart2_repli n’est plus utilisé (A3 / C2-2).');
+      console.warn('Quart FDJ : aucun horaire de bascule configuré pour ce commerce — aucun quart n’est déterminé.');
       return null;
     }
     // A3 / C2-3 : heure de la STATION, plus celle de l'appareil.

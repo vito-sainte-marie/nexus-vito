@@ -2781,15 +2781,19 @@
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
-      const HORAIRES_DEFAUT_RAPPEL = {
-        quart1: { normal: "05:45", etendu: "05:45" },
-        quart2: { normal: "12:40", etendu: "13:40" },
-        renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
-      };
+      // A3 / C2-4 (05/09/2026) — HORAIRES_DEFAUT_RAPPEL supprimé.
+      //
+      // C'était un TROISIÈME jeu d'horaires, incomplet (ni fin_normal ni
+      // fin_etendu), servant à satisfaire la contrainte NOT NULL de
+      // station_config.horaires lors d'un upsert de PRIX carburants. Un écran
+      // qui enregistre des prix n'a aucune raison de décider des horaires
+      // d'un commerce — et encore moins de ceux d'une autre station.
+      //
+      // Sans horaires configurés, l'enregistrement est refusé et dit pourquoi.
       async function chargerHorairesPourUpsert() {
         const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-        if (error) { console.error('Chargement horaires (rappel prix):', error); return HORAIRES_DEFAUT_RAPPEL; }
-        return (data && data.horaires) || HORAIRES_DEFAUT_RAPPEL;
+        if (error) { console.error('Chargement horaires (rappel prix) :', error); return null; }
+        return (data && data.horaires) || null;
       }
 
       async function chargerPrixCarburantsRappel() {
@@ -2833,6 +2837,14 @@
           btn.disabled = true;
           const prix_carburants = { mois: moisCourant, sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
           const horaires = await chargerHorairesPourUpsert();
+          if (!horaires) {
+            btn.disabled = false;
+            alert('Horaires de quart non configurés pour ce commerce.\n\n'
+              + 'NEXUS ne peut pas créer la configuration de ce site à partir d’un '
+              + 'enregistrement de prix, et il ne reprendra pas les horaires d’une '
+              + 'autre station. Un manager doit les renseigner dans Paramètres Station.');
+            return;
+          }
           const { error } = await nexusClient.from('station_config').upsert(
             { site: siteId, prix_carburants, horaires, updated_at: new Date().toISOString() },
             { onConflict: 'site' }
