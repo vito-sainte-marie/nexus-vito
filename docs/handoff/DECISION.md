@@ -1,94 +1,63 @@
 # NEXUS Handoff — DECISION
 
 LOT_ID: S-5-SHIFT-ID-INVENTAIRE-20260905
-DECISION: APPROVED_WITH_CONDITIONS
+DECISION: APPROVED_CLOSED
 AUTHOR: ChatGPT
 BRANCH: config-par-environnement
 
 ## Décision
 
-S-5 est **approuvé avec conditions**.
+S-5 est **fermé**.
 
-Le diagnostic confirme que `inventaire_quart_employes.shift_id` est aujourd'hui une trace structurelle non alimentée : un seul chemin applicatif crée ces lignes, le service courant est déjà résolu depuis S-4, et son identifiant peut être conservé sans nouvelle requête Supabase.
+Les preuves produites suffisent pour valider l'implémentation structurelle S-5. Le chemin applicatif conserve désormais l'identifiant du service déjà résolu par `nexusServiceCourant()` et écrit ce véritable `shift_id` lors de la création réelle de `inventaire_quart_employes`, sans seconde définition ni seconde requête du service courant.
 
-Le principe S-5 est donc validé : toute nouvelle ligne réelle `inventaire_quart_employes` créée dans le parcours NEXUS doit être rattachée au **service courant réellement actif** de l'employé au moment de la création.
+Le garde base protège l'invariant lors des INSERT et des UPDATE concernés : le shift doit appartenir au même employé et au même site que le quart d'inventaire. Les preuves négatives en base montrent le refus des associations inter-employé et inter-site. Les six lignes historiques restent volontairement à `shift_id IS NULL`, sans backfill.
 
-## Arbitrages
+Commit de référence déclaré : `3b795ff80c94df84cb94b691d74667d44256adcc`, environnement `test`, `coherent = true`. Suite déclarée : 183/192, avec uniquement les 9 échecs historiques connus. `main` et `production` restent à `501c0c7` et aucune écriture production n'est déclarée.
 
-### Q6 — contrainte d'appartenance en base
+## Arbitrage Q9 — preuves navigateur 2 et 5
 
-Décision : **oui, obligatoire**, avec une précision : la base doit protéger l'invariant, pas seulement le code client.
+Décision : **report contrôlé à la gate de fermeture du bloqueur 1**.
 
-Le garde doit vérifier, pour toute nouvelle ligne réelle portant un `shift_id`, que le shift référencé :
+Ne pas consommer Employé Test A dans une session séparée uniquement pour S-5. Les deux preuves manquantes sont précisément les premières étapes du rejeu navigateur réel déjà obligatoire pour fermer le bloqueur 1.
 
-1. existe ;
-2. appartient au même `employee_id` ;
-3. appartient au même site que le contexte d'inventaire lorsque ce site est déterminable de manière certaine depuis les relations existantes.
+S-5 peut donc être fermé maintenant, mais **le bloqueur 1 reste ouvert** tant que le rejeu réel n'a pas produit ces preuves.
 
-Le minimum non négociable est donc `shift_id -> shifts.id` **et** concordance `shifts.employee_id = inventaire_quart_employes.employee_id`.
+Le rejeu doit commencer avec Employé Test A, ou un compte test équivalent réellement vierge pour la journée, et doit prouver dans cet ordre :
 
-Ne pas limiter la protection au seul `BEFORE INSERT` si une mise à jour ultérieure de `shift_id` ou `employee_id` pourrait créer une incohérence. Le contrat doit rester vrai après `UPDATE` également. Une solution trigger `BEFORE INSERT OR UPDATE` est acceptable si elle reste simple, déterministe et sans élévation de privilèges inutile.
+1. avant toute prise de poste, ouvrir le parcours Inventaire et confirmer l'état fail-closed : aucun service courant, aucune création réelle de `inventaire_quart_employes` ;
+2. effectuer une prise de poste réelle ;
+3. ouvrir Inventaire et créer le rattachement réel attendu ; vérifier en base que la nouvelle ligne porte exactement le `shift_id` du service qui vient d'être ouvert ;
+4. effectuer le pointage d'arrivée si le parcours normal l'exige ;
+5. effectuer le départ réel avec les preuves normales du parcours ;
+6. confirmer que S-2 clôt le shift sous RLS réel et qu'aucun service courant ne subsiste ;
+7. vérifier la cohérence pointage/shift et l'absence de refus silencieux ou d'écriture partielle ;
+8. effectuer une nouvelle prise de poste réelle afin d'exercer S-3 sous session employé ;
+9. confirmer que l'ancien service est clos et que le nouveau est l'unique service `en_cours` ;
+10. contrôler autant que possible les branches `ROW_COUNT` de S-2/S-3 sous RLS réel.
 
-Les 6 lignes historiques à `shift_id IS NULL` doivent rester valides. En revanche, pour les **nouvelles créations réelles** après S-5, l'absence de `shift_id` ne doit pas être silencieusement acceptée par le chemin applicatif. Le mode test synthétique reste hors base et n'est pas concerné.
+Si une étape échoue, **ne pas fermer le bloqueur 1** et ne pas masquer l'échec par une correction manuelle en base.
 
-### Q7 — reprise des 6 lignes existantes
+## Anomalies / dettes consignées
 
-Décision : **aucune reprise rétroactive**.
-
-Même lorsqu'un rattachement semble plausible, il ne doit pas être inventé. Les 6 lignes existantes restent `NULL` et constituent de l'historique pré-S-5. Ne pas reconstruire un lien à partir d'horaires, rôles, quarts ou proximité temporelle.
-
-Cette absence de reprise doit être documentée explicitement comme frontière de traçabilité :
-
-- avant S-5 : `shift_id` peut être `NULL` ;
-- après S-5 : les nouvelles lignes réelles issues du parcours NEXUS doivent porter le vrai `shift_id`.
-
-### Q8 — faut-il créer un lecteur de `shift_id` ?
-
-Décision : **non**.
-
-S-5 est un lot de traçabilité, pas un prétexte pour créer une nouvelle fonctionnalité d'affichage. Le fait qu'aucun écran ne consomme encore cette colonne ne rend pas la trace inutile : elle prépare l'audit, la preuve de rattachement et les futurs rapprochements sans modifier artificiellement le produit.
-
-Aucun lecteur ne doit être ajouté uniquement pour « justifier » la colonne.
-
-## Conditions / exigences d'implémentation
-
-- Réutiliser le `service` déjà retourné par `nexusServiceCourant()` ; ne pas ajouter une seconde requête pour retrouver le shift.
-- Conserver l'objet/service courant résolu suffisamment longtemps pour transmettre son `id` à `obtenirOuCreerQuartEmploye()`.
-- À la création réelle de `inventaire_quart_employes`, écrire `shift_id = serviceCourant.id`.
-- Si aucun service courant valide n'est disponible, ne pas créer la ligne réelle ; conserver le comportement fail-closed existant.
-- Le mode test inventaire reste synthétique et ne reçoit pas de vrai `shift_id`.
-- Le garde base doit empêcher une association `shift_id` / `employee_id` incohérente, y compris lors d'une modification ultérieure susceptible de casser l'invariant.
-- Ne pas toucher aux 13 `shift_id` FDJ : ils réfèrent à `fdj_shifts`, concept distinct.
-- Ne pas ajouter de lecteur produit de `shift_id` dans S-5.
-- Ne pas modifier les 6 lignes historiques existantes.
-
-## Preuves attendues pour fermer S-5
-
-1. Diff ciblé montrant qu'il n'existe toujours qu'un seul chemin de création applicative de `inventaire_quart_employes` et qu'il écrit désormais le `shift_id` déjà résolu.
-2. Création réelle en `nexus-test` avec un employé ayant un shift `en_cours` : la nouvelle ligne doit porter exactement le même `shift_id` que le service courant.
-3. Preuve négative : tentative d'association avec le `shift_id` d'un autre employé refusée par la base.
-4. Preuve de mise à jour : une modification qui créerait une discordance `employee_id` / `shift_id` doit également être refusée, ou démonstration structurelle équivalente si une autre contrainte est choisie.
-5. Aucun service courant : aucune nouvelle ligne réelle créée.
-6. Les 6 lignes historiques restent inchangées à `shift_id = NULL`.
-7. Mode test : aucun accès/écriture DB supplémentaire, objet synthétique conservé.
-8. Suite automatisée inchangée hors tests S-5 ; seuls les 9 échecs historiques connus peuvent rester.
-9. Zéro appel/écriture production ; `main` et `production` inchangés.
+- Le résidu historique `inventaire_quarts.quart = '1'` signalé par Claude reste une donnée historique hors S-5. Ne pas la corriger rétroactivement sans arbitrage métier.
+- La valeur `serviceCourantId` conservée pendant la session constitue une frontière connue : S-5 ne doit pas être élargi maintenant. Si un futur parcours permet réellement de changer de service sans recharger/réinitialiser le contexte Inventaire, ce comportement devra être traité comme un lot distinct.
+- La frontière de traçabilité reste explicite : avant S-5, `shift_id` peut être NULL ; après S-5, les nouvelles lignes réelles créées par le parcours NEXUS doivent porter le vrai shift actif.
 
 ## Interdictions
 
 - Ne jamais modifier `main` ou `production` sans autorisation humaine explicite.
-- Ne jamais interpréter cette décision comme une autorisation de production.
-- Ne pas effectuer de backfill des 6 lignes historiques.
-- Ne pas deviner un shift à partir d'une date, d'un rôle, d'un quart ou d'une proximité horaire.
-- Ne pas introduire un second concept de service courant en dehors de `nexusServiceCourant()`.
-- Ne pas élargir S-5 aux colonnes FDJ homonymes ni à d'autres modules.
+- Cette décision n'est pas une autorisation de production.
+- Ne pas backfiller les six lignes historiques.
+- Ne pas corriger le quart historique `1` dans ce lot.
+- Ne pas toucher aux colonnes `shift_id` FDJ.
+- Ne pas fermer le bloqueur 1 avant le rejeu navigateur réel ci-dessus.
+- Ne pas commencer le bloqueur Verify tant que la gate bloqueur 1 n'est pas arbitrée, sauf nouvelle décision explicite.
 
 ## Prochaine gate
 
-Claude peut implémenter S-5 sur `config-par-environnement`, déployer uniquement sur `nexus-test`, produire les preuves ci-dessus, puis réécrire `docs/handoff/CURRENT.md` avec le même `LOT_ID` et `STATUS: AWAITING_DECISION`.
+S-5 étant fermé, la prochaine étape technique de la recette est la **gate de fermeture du bloqueur 1**, avec le rejeu navigateur réel ci-dessus.
 
-Après fermeture de S-5, **ne pas encore fermer le bloqueur 1**. Il restera le rejeu navigateur réel sous session employé demandé à la fermeture de S-4 afin de prouver S-2/S-3 sous RLS réel et le parcours complet prise de poste -> départ -> absence de service courant -> nouvelle prise de poste.
+Conformément à la décision humaine prise dans la conversation, une courte parenthèse peut maintenant être consacrée à la conception de **NEXUS Handoff v2 événementiel**, mais elle ne doit ni modifier le comportement métier NEXUS, ni toucher `main`/`production`, ni faire disparaître le protocole v1 `CURRENT.md` / `DECISION.md` qui reste le mode de secours.
 
-## Règle de consommation
-
-Claude ne doit consommer cette décision que si le `LOT_ID` correspond exactement à celui de `docs/handoff/CURRENT.md`.
+Claude doit consommer cette décision uniquement si le `LOT_ID` correspond exactement à `S-5-SHIFT-ID-INVENTAIRE-20260905`.
