@@ -1448,7 +1448,7 @@
     const STATION_CONFIG = {
       manager_prenom: "",
       manager_role: "",
-      station_nom: "VITO SAINTE-MARIE USINE",
+      station_nom: 'Ma station',   // A3 / B1 : libellé neutre, jamais le nom d'un commerce
       logo_url: ""
     };
     // ------------------------------------------------------------
@@ -1519,8 +1519,29 @@
       // dépend de ce badge — les habilitations restent lues sur la fiche.
       // À défaut de service du jour, on n'invente rien : le badge reste vide.
       STATION_CONFIG.manager_role = await lirePosteDuJour(employee.id) || '';
-      const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
-      if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+      // A3 / B1 (05/09/2026) — le nom d'un autre commerce ne sert plus de
+      // valeur de secours.
+      //
+      // Le libellé « VITO SAINTE-MARIE USINE » était écrit en dur et n'était
+      // remplacé que si la lecture RÉUSSISSAIT et rapportait un nom. Sur
+      // échec réseau, ou sur un site sans nom_entreprise, un client voyait le
+      // nom d'un autre client en en-tête. Le mécanisme était présentationnel,
+      // le mode de défaillance ne l'était pas.
+      //
+      // Trois branches, selon la règle A4-bis : l'échec de la requête est une
+      // panne technique (error) ; une lecture réussie sans nom est une
+      // configuration incomplète (warn). Le repli est l'identifiant du
+      // commerce COURANT — jamais celui d'un autre, jamais une chaîne vide.
+      const { data: siteActuel, error: erreurSite } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
+      if (erreurSite) {
+        console.error('Lecture identité du commerce :', erreurSite);
+        STATION_CONFIG.station_nom = SITE_ACTUEL || 'Commerce non identifié';
+      } else if (!siteActuel || !siteActuel.nom_entreprise) {
+        console.warn('Identité du commerce non configurée — en-tête neutre.');
+        STATION_CONFIG.station_nom = SITE_ACTUEL || 'Commerce non identifié';
+      } else {
+        STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+      }
       if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
       const header = document.getElementById('nexus-header');
       header.innerHTML = `

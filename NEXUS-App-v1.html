@@ -570,7 +570,8 @@
         <span class="header-divider"></span>
         <span class="header-sitewrap">
           <span id="logoFrameHote"></span>
-          <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
+          <!-- A3 / B1 : libellé neutre. chargerMarqueSite() y met le nom réel du commerce, ou son identifiant. Jamais le nom d'un autre. -->
+          <span class="header-sitename" id="stationTitle">Ma station</span>
         </span>
       </div>
     </div>
@@ -2759,9 +2760,31 @@
     (async function chargerMarqueSite() {
       const siteId = employee.site_id;
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
-      if (error || !site) return;
       const titre = document.getElementById('stationTitle');
-      if (titre && site.nom_entreprise) titre.textContent = site.nom_entreprise;
+      // A3 / B1 (05/09/2026) — le nom d'un autre commerce ne sert plus de
+      // valeur de secours.
+      //
+      // Le libellé « Vito Sainte-Marie Usine » était écrit en dur et n'était
+      // remplacé que si la lecture RÉUSSISSAIT et rapportait un nom. Sur
+      // échec réseau, ou sur un site sans nom_entreprise, un client voyait le
+      // nom d'un autre client en en-tête. Le mécanisme était présentationnel,
+      // le mode de défaillance ne l'était pas.
+      //
+      // Trois branches, selon la règle A4-bis : l'échec de la requête est une
+      // panne technique (error) ; une lecture réussie sans nom est une
+      // configuration incomplète (warn). Le repli est l'identifiant du
+      // commerce COURANT — jamais celui d'un autre, jamais une chaîne vide.
+      if (error) {
+        console.error('Lecture identité du commerce :', error);
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      if (!site || !site.nom_entreprise) {
+        console.warn('Identité du commerce non configurée — en-tête neutre.');
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      titre.textContent = site.nom_entreprise;
       if (site.logo_url) {
         const hote = document.getElementById('logoFrameHote');
         if (hote) {
