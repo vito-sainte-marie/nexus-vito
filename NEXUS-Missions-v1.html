@@ -365,24 +365,24 @@
   // avec des bornes ISO completes (avec "Z", donc UTC sans ambiguite) —
   // en plus de corriger ce risque, ca correspond exactement a la demande
   // de Frederic : la prise de poste reste valable 24h, pas jusqu'a minuit.
-  async function chargerShiftAujourdhui(employeeId) {
-    const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await nexusClient
-      .from('shifts')
-      // "quart" (03/08/2026, demande de Frédéric) : récupéré en plus de
-      // "role" pour permettre la comparaison au dernier service comparable
-      // (même rôle ET même quart) — voir chargerDernierServiceComparable.
-      // "id" (04/09/2026) : c'est LUI qui isole la progression des coches.
-      // Une prise de poste = une ligne shifts = un id ; toute coche s'y
-      // rattache, donc un nouveau service repart forcément décoché.
-      .select('id, role, quart')
-      .eq('employee_id', employeeId)
-      .gte('heure_debut', il24h)
-      .order('heure_debut', { ascending: false })
-      .limit(1);
-    if (error) { console.error('Chargement shift du jour:', error); return null; }
-    return (data && data[0]) ? data[0] : null;
+  // S-4 / Q1 (05/09/2026) — la fenêtre de 24 h est SUPPRIMÉE.
+  //
+  // Elle portait une décision produit nommée : « la prise de poste reste
+  // valable 24 h, pas jusqu'à minuit ». Cette borne compensait l'absence de
+  // cycle de vie réel des services — rien ne clôturait, il fallait bien une
+  // limite. Depuis S-2 et S-3, la base porte une vérité explicite :
+  // `en_cours` ou clos. Garder 24 h en parallèle ferait cohabiter deux
+  // vérités concurrentes, et laisserait cocher des missions rattachées à un
+  // service déjà terminé.
+  //
+  // `employeeId` n'est plus le paramètre : la primitive exige l'employé ET
+  // son site, car l'invariant est « le service actif de cet employé sur ce
+  // site ».
+  async function chargerShiftAujourdhui(employee) {
+    const r = await nexusServiceCourant(employee);
+    return r.service || null;
   }
+
 
   // Évolution vs le dernier service comparable (03/08/2026, demande de
   // Frédéric) : "comparable" = même rôle ET même quart (matin/soir) — les
@@ -391,6 +391,13 @@
   // récent dans les mêmes conditions (avant aujourd'hui), et son total de
   // points gagnés ce jour-là (validés + en attente, comme le score du jour
   // actuel — on compare deux choses de même nature).
+  // S-4 (05/09/2026) — CE LECTEUR NE DÉTERMINE PAS LE SERVICE COURANT.
+  //
+  // Il cherche un service PASSÉ comparable (même rôle, même quart, jamais
+  // aujourd'hui) pour afficher une comparaison de points. Il ne sert ni à
+  // autoriser une action, ni à rattacher une coche : ces deux usages
+  // passent exclusivement par nexusServiceCourant(). Son absence de borne
+  // temporelle est donc voulue — c'est un historique, pas un état.
   async function chargerDernierServiceComparable(employeeId, role, quart) {
     if (!role || !quart) return null;
     const { data, error } = await nexusClient
@@ -2355,7 +2362,7 @@
     SITE_ACTUEL = employee.site_id;
 
     if (!employee.consultation_externe) {
-      const shiftDuJour = await chargerShiftAujourdhui(employeeId);
+      const shiftDuJour = await chargerShiftAujourdhui(employeeCourant || { id: employeeId, site_id: SITE_ACTUEL });
       if (!shiftDuJour) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;

@@ -558,9 +558,14 @@
 
   async function afficherFormulairePointage(employee, siteId) {
     const today = dateISOLocale();
-    const [{ data: pointagesJour, error: erreurPointages }, { data: shiftActif }] = await Promise.all([
+    // S-4 (05/09/2026) : le service courant vient de la primitive unique
+    // (nexus-auth.js). Ce lecteur avait sa propre définition ; depuis que
+    // S-2 et S-3 clôturent réellement, elle aurait renvoyé un service
+    // terminé comme s'il était actif.
+    const resultatService = await nexusServiceCourant(employee);
+    const shiftActif = resultatService.service || null;
+    const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
       nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
-      nexusClient.from('shifts').select('id, quart, heure_debut').eq('employee_id', employee.id).eq('statut', 'en_cours').order('heure_debut', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
 
@@ -976,14 +981,15 @@
   // les missions récurrentes du rôle du jour non encore faites aujourd'hui.
   // Si aucun quart n'est identifiable (roleDuJour introuvable), on omet ce
   // chiffre plutôt que d'en inventer un — jamais un chiffre inventé.
-  async function chargerRoleDuJour(employeeId) {
-    const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await nexusClient
-      .from('shifts').select('role').eq('employee_id', employeeId)
-      .gte('heure_debut', il24h).order('heure_debut', { ascending: false }).limit(1);
-    if (error) { console.error('Chargement rôle du jour (activité):', error); return null; }
-    return (data && data[0]) ? data[0].role : null;
+  async function chargerRoleDuJour(employee) {
+    // S-4 (05/09/2026) : le rôle du jour vient du service RÉELLEMENT actif,
+    // via la primitive unique de nexus-auth.js. Ce lecteur avait sa propre
+    // borne temporelle ; depuis que S-2 et S-3 clôturent, elle aurait
+    // renvoyé le rôle d'un service terminé.
+    const r = await nexusServiceCourant(employee);
+    return r.service ? r.service.role : null;
   }
+
 
   async function chargerActiviteJour(employee, siteId) {
     const zone = document.getElementById('activiteJour');
@@ -992,7 +998,7 @@
     const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
-      chargerRoleDuJour(employee.id),
+      chargerRoleDuJour(employee),
       nexusClient.from('mission_catalog').select('mission_id, role_required, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
     ]);
     if (erreurTerminees) console.error('Activité du jour (terminées):', erreurTerminees);

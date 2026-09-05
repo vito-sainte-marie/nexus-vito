@@ -2652,26 +2652,29 @@
     // recalculé ici — un 4e calcul de quart existe déjà entre Prise de
     // Poste/Inventaire/FDJ (12:40 vs 13:00 selon l'écran, incohérence
     // connue et non résolue), inutile d'en ajouter un 5e (Article 11).
+    // S-4 (05/09/2026) : le service courant vient de la primitive unique
+    // (nexus-auth.js). Ce lecteur bornait la journée en UTC
+    // (`new Date().toISOString()`) — ni l'heure de la station, ni même
+    // l'heure de l'appareil. Depuis que S-2 et S-3 clôturent réellement,
+    // cette borne aurait renvoyé un service terminé comme s'il était actif.
+    //
+    // La borne de journée disparaît du chemin de décision « quel est le
+    // service courant ? ». Les autres dettes de journée (UTC contre heure
+    // appareil contre heure station) restent consignées en A17 et ne sont
+    // pas traitées ici.
     let quartDuJour = null;
-    const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
-      const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
-        .from('shifts')
-        .select('id, role, quart')
-        .eq('employee_id', employee.id)
-        .gte('heure_debut', aujourdISO + 'T00:00:00')
-        .lte('heure_debut', aujourdISO + 'T23:59:59')
-        .order('heure_debut', { ascending: false })
-        .limit(1);
-
-      if (!erreurShift && (!shiftsAujourdhui || shiftsAujourdhui.length === 0)) {
+      const r = await nexusServiceCourant(employee);
+      if (r.aucun) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;
       }
-      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) {
-        roleDuJour = shiftsAujourdhui[0].role;
-        quartDuJour = shiftsAujourdhui[0].quart;
+      if (r.service) {
+        roleDuJour = r.service.role;
+        quartDuJour = r.service.quart;
       }
+      // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
+      // renvoyer un employé vers la prise de poste alors qu'il en a une.
     }
 
     document.getElementById('sessionInfo').innerHTML =

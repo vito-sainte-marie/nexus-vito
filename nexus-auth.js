@@ -178,6 +178,70 @@ async function nexusRemplirNomDuCommerce(employee) {
 
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
 async function nexusPointageArriveeManquant(employee){if(NexusPage.est(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
-async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;const d=new Date();const debut=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00`;const {data:shiftDuJour,error}=await nexusClient.from('shifts').select('id').eq('employee_id',employee.id).gte('heure_debut',debut).limit(1).maybeSingle();if(error){console.error('Vérification prise de poste:',error);return false;}return !shiftDuJour;}
+// ────────────────────────────────────────────────────────────────────
+// S-4 (05/09/2026) — LE service courant. Une seule définition.
+//
+// NEXUS en avait QUATRE, réparties sur neuf lectures de `shifts` : une
+// fenêtre de 24 h, une borne à minuit local de l'appareil, une borne de
+// journée en UTC, et un seul lecteur — Pointage — qui regardait `statut`.
+//
+// Tant que rien ne clôturait un service, `statut` valait toujours
+// 'en_cours' : les neuf convergeaient PAR ACCIDENT. Depuis S-2 (clôture au
+// pointage de départ) et S-3 (clôture à la prise de poste suivante), les
+// services se ferment réellement — et les huit lecteurs qui ignoraient
+// `statut` renverraient un service TERMINÉ comme s'il était actif.
+//
+// Contrat, arbitré le 05/09/2026 :
+//     employee_id = employé courant
+//     site_id     = site courant
+//     statut      = 'en_cours'
+//     order by heure_debut desc limit 1
+//
+// AUCUN repli : ni fenêtre de 24 h, ni date du jour, ni dernier service
+// historique, ni rôle habituel. Sans service actif, l'appelant reçoit
+// `aucun: true` et applique son propre comportement métier — le refus est
+// une réponse, pas un trou à combler.
+//
+// Le tri sur le plus récent subsiste bien que S-1 rende le cas impossible :
+// défense de lecture contre un historique imparfait ou un import.
+//
+// Retour : { service } | { aucun: true } | { erreur: true }
+async function nexusServiceCourant(employee){
+  if(!employee||!employee.id||!employee.site_id){
+    console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
+    return { erreur: true };
+  }
+  const { data, error } = await nexusClient
+    .from('shifts')
+    .select('id, role, quart, heure_debut, site_id, statut')
+    .eq('employee_id', employee.id)
+    .eq('site_id', employee.site_id)
+    .eq('statut', 'en_cours')
+    .order('heure_debut', { ascending: false })
+    .limit(2);
+  if(error){ console.error('Service courant : lecture impossible \u2014', error); return { erreur: true }; }
+  const services = data || [];
+  if(!services.length) return { aucun: true };
+  // S-1 pose un index unique partiel : plus d\u2019un service ouvert est
+  // devenu impossible. Si cela se produit malgré tout, c\u2019est une anomalie
+  // technique — on la signale, on ne la masque pas, et on retient le plus
+  // récent pour ne pas bloquer l\u2019employé.
+  if(services.length > 1){
+    console.error('Service courant : ' + services.length + ' services ouverts pour cet employé alors que l\u2019unicité est garantie en base. Anomalie technique — le plus récent est retenu.');
+  }
+  return { service: services[0] };
+}
+
+async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
+  // l'existence d'un service dans la journée de l'appareil. Après un
+  // pointage de départ, l'employé n'a plus de service courant : s'il
+  // revient sur un parcours qui en exige un, il est renvoyé vers la prise
+  // de poste. C'est une conséquence voulue du contrat, pas un effet de bord.
+  //
+  // En cas d'erreur technique, on ne bloque pas : une panne de lecture ne
+  // doit pas enfermer un employé hors de l'application.
+  const r=await nexusServiceCourant(employee);
+  if(r.erreur)return false;
+  return !!r.aucun;}
 async function nexusLogout(){await nexusClient.auth.signOut();window.location.href="index.html";}
 function nexusQuitterConsultation(){localStorage.removeItem('nexus_site_consulte_createur');window.location.href="NEXUS-App-v1.html";}

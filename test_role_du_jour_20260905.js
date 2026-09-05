@@ -45,24 +45,30 @@ function extraire(source, nom) {
 const INV = lire('NEXUS-Inventaire-v1.html');
 const INV_CODE = sansCommentaires(INV);
 
-async function resoudreRole(reponse) {
-  const client = { from: () => ({ select: () => ({ eq: () => ({ gte: () => ({ order: () => ({
-    limit: () => ({ maybeSingle: async () => reponse }) }) }) }) }) }) };
+// S-4 (05/09/2026) : `chargerRoleDuJour` ne lit plus `shifts` lui-même — il
+// délègue à la primitive unique `nexusServiceCourant` (nexus-auth.js). Le
+// bac à sable injecte donc la primitive, et non plus une chaîne Supabase.
+//
+// Les garanties A11 vérifiées ci-dessous sont INCHANGÉES : c'est
+// l'implémentation qui a bougé, pas le contrat. La fiche employé ne doit
+// jamais servir de repli au poste du jour.
+async function resoudreRole(reponseService) {
   const contexte = {
-    nexusClient: client,
-    employeeCourant: { id: 'emp-1', role: 'caissier' },   // fiche : caissier
+    nexusServiceCourant: async () => reponseService,
+    employeeCourant: { id: 'emp-1', role: 'caissier', site_id: 'site-1' },  // fiche : caissier
     dateISO: () => '2026-09-05',
     console: { error: () => {}, info: () => {} },
   };
   const src = extraire(INV, 'chargerRoleDuJour');
-  const fn = new Function('nexusClient', 'employeeCourant', 'dateISO', 'console',
+  const fn = new Function('nexusServiceCourant', 'employeeCourant', 'dateISO', 'console',
     `${src}; return chargerRoleDuJour();`);
-  return fn(contexte.nexusClient, contexte.employeeCourant, contexte.dateISO, contexte.console);
+  return fn(contexte.nexusServiceCourant, contexte.employeeCourant, contexte.dateISO, contexte.console);
 }
 
-const erreurReseau = { data: null, error: { message: 'network failure' } };
-const aucunService = { data: null, error: null };
-const servicePompiste = { data: { role: 'pompiste' }, error: null };
+// Les trois réponses possibles de la primitive.
+const erreurReseau = { erreur: true };
+const aucunService = { aucun: true };
+const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin', site_id: 'site-1' } };
 
 (async () => {
   const surErreur = await resoudreRole(erreurReseau);
@@ -89,19 +95,32 @@ const servicePompiste = { data: { role: 'pompiste' }, error: null };
   verifier('l’arrêt distingue panne réseau et absence de prise de poste',
     /connexion au serveur a échoué/.test(bloc) && /Aucune prise de poste/.test(bloc));
   verifier('l’arrêt permet de réessayer', /reessayerRoleDuJour/.test(bloc) && /reload\(\)/.test(bloc));
-  verifier('l’erreur technique est journalisée', /console\.error\('Rôle du jour/.test(INV_CODE));
+  // S-4 : la journalisation a suivi la lecture. Elle vit désormais dans la
+  // primitive unique — c'est elle qui interroge `shifts`. La garantie est
+  // la même : une panne technique se journalise en `error`, jamais en
+  // silence, et l'écran la traduit en `indetermine: 'reseau'`.
+  const AUTH_CODE = sansCommentaires(lire('nexus-auth.js'));
+  verifier('l’erreur technique est journalisée par la primitive',
+    /console\.error\('Service courant : lecture impossible/.test(AUTH_CODE));
+  verifier('l’écran traduit l’erreur de la primitive en poste indéterminé',
+    /r\.erreur/.test(INV_CODE) && /indetermine: 'reseau'/.test(INV_CODE));
   verifier('aucun repli vers la fiche ne subsiste dans la résolution du poste',
     !/return employeeCourant\.role/.test(INV_CODE));
 
   // ── 3. Cockpit et Brief : le badge décrit l'activité, pas le statut ─────
   for (const f of ['NEXUS-Cockpit-v2.html', 'NEXUS-Brief-v1.html']) {
     const code = sansCommentaires(lire(f));
+    // S-4 : `lirePosteDuJour` reçoit désormais l'employé complet — la
+    // primitive exige l'employé ET son site — et lit le service réellement
+    // actif au lieu de borner à minuit local de l'appareil.
     verifier(`${f} : le badge lit le poste du jour`,
-      /manager_role = await lirePosteDuJour\(employee\.id\) \|\| ''/.test(code));
+      /manager_role = await lirePosteDuJour\(employee\) \|\| ''/.test(code));
     verifier(`${f} : le badge ne lit plus la fiche`,
       !/manager_role = employee\.role/.test(code));
-    verifier(`${f} : sans service, le badge reste vide plutôt qu’inventé`,
-      /return \(data && data\.role\) \|\| null/.test(code));
+    verifier(`${f} : le badge passe par la primitive unique`,
+      /await nexusServiceCourant\(employee\)/.test(code));
+    verifier(`${f} : sans service actif, le badge reste vide plutôt qu’inventé`,
+      /return r\.service \? r\.service\.role : null/.test(code));
   }
 
   // ── 4. Les permissions n'ont pas bougé ─────────────────────────────────

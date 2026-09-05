@@ -400,15 +400,16 @@
   // sans repli : tant que la primitive NexusRole n'est pas arbitrée (audit
   // A11), chaque écran nomme ce qu'il consomme plutôt que d'hériter d'une
   // fonction qui déciderait à sa place.
-  async function lirePosteDuJour(employeeId) {
+  async function lirePosteDuJour(employee) {
     const d = new Date();
-    const debut = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`;
-    const { data, error } = await nexusClient
-      .from('shifts').select('role').eq('employee_id', employeeId)
-      .gte('heure_debut', debut).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
-    if (error) { console.info('Poste du jour indisponible pour le badge :', error.message); return null; }
-    return (data && data.role) || null;
+    // S-4 (05/09/2026) : le rôle du jour vient du service RÉELLEMENT actif,
+    // via la primitive unique de nexus-auth.js. Ce lecteur bornait à minuit
+    // local de l'APPAREIL ; depuis que S-2 et S-3 clôturent, cette borne
+    // aurait renvoyé le rôle d'un service terminé.
+    const r = await nexusServiceCourant(employee);
+    return r.service ? r.service.role : null;
   }
+
 
   // A3 / C1c-4a : fuseau du commerce, résolu une fois après authentification
   // puis transmis. Jamais lu par une couche de données.
@@ -1831,7 +1832,7 @@
     // l'Accueil et Missions disaient « pompiste ». Aucune permission ne
     // dépend de ce badge — les habilitations restent lues sur la fiche.
     // À défaut de service du jour, on n'invente rien : le badge reste vide.
-    STATION_CONFIG.manager_role = await lirePosteDuJour(employee.id) || '';
+    STATION_CONFIG.manager_role = await lirePosteDuJour(employee) || '';
     const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url, type_commerce, secteurs').eq('site_id', SITE_ACTUEL).maybeSingle();
     if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
     if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;

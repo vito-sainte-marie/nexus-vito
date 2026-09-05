@@ -997,17 +997,16 @@
   // Le rôle est établi, ou il ne l'est pas — et dans ce cas le workflow qui en
   // dépend s'arrête et le dit.
   async function chargerRoleDuJour() {
-    const debutJourISO = `${dateISO()}T00:00:00`;
-    const { data, error } = await nexusClient
-      .from('shifts').select('role').eq('employee_id', employeeCourant.id)
-      .gte('heure_debut', debutJourISO).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
-    if (error) {
-      console.error('Rôle du jour — lecture du service impossible :', error);
-      return { indetermine: 'reseau' };
-    }
-    if (!data || !data.role) return { indetermine: 'absent' };
-    return { role: data.role };
+    // S-4 (05/09/2026) : le rôle du jour vient du service RÉELLEMENT actif,
+    // via la primitive unique de nexus-auth.js. Ce lecteur bornait à minuit
+    // local de l'APPAREIL. Le contrat de retour est conservé — l'écran
+    // d'arrêt A11 distingue toujours « réseau » et « absent ».
+    const r = await nexusServiceCourant(employeeCourant);
+    if (r.erreur) return { indetermine: 'reseau' };
+    if (r.aucun || !r.service.role) return { indetermine: 'absent' };
+    return { role: r.service.role };
   }
+
 
   // Écran d'arrêt : on explique ce qui manque, on propose de réessayer, et on
   // ne propose surtout pas de continuer « quand même ».
