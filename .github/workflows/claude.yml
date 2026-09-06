@@ -18,8 +18,14 @@
 # visibilité en lecture sur les refs protégées, jamais une autorisation d'écrire
 # dessus.
 #
-# Aucun secret applicatif n'est exposé : ni Supabase, ni service_role. Le seul
-# secret référencé est le jeton d'authentification Claude.
+# Accès Supabase Claude : TEST uniquement, lecture seule.
+# Le workflow ne reçoit qu'un secret GitHub dédié : SUPABASE_TEST_DB_URL_READONLY.
+# Cette URL doit pointer exclusivement vers le projet Supabase Test et vers un
+# rôle PostgreSQL en lecture seule. Aucun token Management API, service_role,
+# mot de passe Production ou URL Production ne doit être stocké sous ce nom.
+# Si le secret est absent, Claude continue de fonctionner mais doit considérer
+# toute preuve Supabase live comme indisponible et rester fail-closed lorsqu'une
+# décision dépend de cette preuve.
 name: Claude
 
 on:
@@ -58,7 +64,10 @@ jobs:
         run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/production:refs/remotes/origin/production +refs/heads/config-par-environnement:refs/remotes/origin/config-par-environnement
 
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        env:
+          SUPABASE_TEST_DB_URL_READONLY: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
+          NEXUS_SUPABASE_SCOPE: TEST_READ_ONLY
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*)
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*)
