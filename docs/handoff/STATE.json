@@ -48,8 +48,12 @@
       "consomme_le": "2026-09-06T01:38:51.440Z"
     },
     "NEXUS-BASELINE-1-20260905": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "8ef548e62772e32e180c21669e81327b29ac67b8",
+      "consomme_le": "2026-09-06T01:56:32.038Z"
     }
   },
   "derogations": [
