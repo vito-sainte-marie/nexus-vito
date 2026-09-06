@@ -11,17 +11,45 @@ requested_by: Frederic Bragance
 
 Concevoir le Centre de contrôle des agents NEXUS permettant d'observer la progression du travail automatisé en temps réel sans rendre Frédéric responsable de la surveillance ni de l'avancement nominal du système.
 
+Nom produit provisoire dans l'interface : **NEXUS LIVE DÉVELOPPEMENT**.
+
 Principe cardinal : **autonomie sans opacité**.
 
 Le système doit travailler de manière autonome ; l'observabilité doit permettre de comprendre instantanément l'état du travail lorsqu'un humain choisit de regarder, sans exiger de clics ou d'actions pour faire avancer les agents.
 
-## Accès — invariant créateur uniquement
+## Séparation structurelle Créateur / Manager
+
+NEXUS doit désormais distinguer explicitement deux niveaux qui ne doivent plus être confondus :
+
+### Créateur NEXUS
+
+Rôle système interne, actuellement réservé à Frédéric Bragance.
+
+Responsabilités et droits spécifiques :
+- administration du produit NEXUS lui-même ;
+- accès aux outils de développement, orchestration, agents, Guardians, CI et observabilité système ;
+- accès à **NEXUS LIVE DÉVELOPPEMENT** ;
+- accès aux fonctions de gouvernance produit qui ne concernent pas l'exploitation quotidienne d'une entreprise cliente.
+
+Ce rôle n'est pas un rôle métier client et ne doit pas être représenté comme un niveau supérieur de `manager` dans une hiérarchie d'entreprise cliente.
+
+### Manager NEXUS
+
+Rôle métier d'une structure cliente. Le manager peut conserver les droits opérationnels larges actuellement nécessaires dans NEXUS pour administrer son ou ses sites, mais ces droits s'arrêtent au périmètre fonctionnel de la structure cliente.
+
+Un manager ne doit jamais obtenir par héritage, configuration multisite, rôle large ou raccourci technique les capacités internes du Créateur.
+
+Principe : **Manager administre son exploitation ; Créateur administre NEXUS.**
+
+Cette séparation doit devenir une frontière d'autorisation explicite et durable avant l'industrialisation multi-client.
+
+## Accès — invariant Créateur uniquement
 
 Cette fonctionnalité est **strictement réservée au Créateur NEXUS**, actuellement Frédéric Bragance.
 
 Conséquences obligatoires :
 - aucun manager client, employé, administrateur de station, responsable multisite ou entreprise cliente ne doit pouvoir voir, appeler ou deviner cette interface ;
-- le droit d'accès ne doit jamais être dérivé d'un rôle métier client comme `manager`, `admin_site`, `owner_company` ou équivalent ;
+- le droit d'accès ne doit jamais être dérivé d'un rôle métier client comme `manager`, `admin_site`, `owner_company`, `multi_site_manager` ou équivalent ;
 - l'autorisation doit reposer sur une capacité système distincte de type `nexus_creator_control_center` (nom final à figer dans la conception) ;
 - fail closed si l'identité ou la capacité Créateur n'est pas explicitement prouvée ;
 - aucun fallback vers un rôle plus large ;
@@ -33,6 +61,22 @@ Conséquences obligatoires :
 Principe de séparation : **supervision du système NEXUS ≠ accès aux données clientes**.
 
 Le Guardian Security & Isolation doit disposer d'un veto explicite sur tout mécanisme d'accès ou toute donnée exposée par ce Centre de contrôle.
+
+## Positionnement dans l'interface NEXUS
+
+**NEXUS LIVE DÉVELOPPEMENT** doit faire partie de l'interface NEXUS utilisée par le Créateur, et non d'un outil externe séparé réservé aux développeurs.
+
+Contraintes UX et sécurité :
+- le point d'entrée n'est rendu que pour une session authentifiée disposant explicitement de la capacité Créateur ;
+- il peut être placé dans une zone système / Créateur distincte de la navigation métier normale ;
+- pour toute session manager, employé, admin station, responsable ou administrateur multisite client, le point d'entrée est absent de l'interface ;
+- l'URL/API sous-jacente reste protégée serveur : masquer le menu ne constitue jamais le contrôle d'accès ;
+- un accès direct à l'URL par un utilisateur non Créateur doit être refusé ;
+- le mode multisite client ne doit contenir aucun droit, case à cocher, permission ou rôle permettant d'activer NEXUS LIVE DÉVELOPPEMENT ;
+- un manager d'une autre structure ne doit même pas pouvoir s'auto-attribuer ou déléguer cette capacité ;
+- la capacité Créateur appartient à l'espace système NEXUS, jamais à la matrice de droits d'une entreprise cliente.
+
+Principe d'interface : **visible dans NEXUS pour le Créateur, inexistant pour le client.**
 
 ## Philosophie obligatoire
 
@@ -153,7 +197,11 @@ Le MVP doit d'abord exploiter les sources déjà présentes dans GitHub / Handof
 10. UX cohérente avec NEXUS : sobre, claire, directionnelle, explicite.
 11. Accès strictement Créateur, fail closed, avec capacité système dédiée distincte de tout rôle client.
 12. La supervision du système ne donne jamais, par effet de bord, accès aux données métier clientes.
-13. Les contrôles d'accès doivent être testés négativement : manager client, employé, admin station et propriétaire d'entreprise cliente refusés.
+13. Les contrôles d'accès doivent être testés négativement : manager client, employé, admin station, responsable multisite et propriétaire d'entreprise cliente refusés.
+14. Le rôle `manager` conserve ses droits métier actuels mais n'hérite jamais des droits système Créateur.
+15. `NEXUS LIVE DÉVELOPPEMENT` est visible dans l'interface NEXUS uniquement pour la session Créateur.
+16. Aucun écran de gestion des droits multisite client ne peut attribuer la capacité Créateur ou rendre visible NEXUS LIVE DÉVELOPPEMENT.
+17. Un accès direct URL/API par un non-Créateur est refusé côté serveur, même si l'URL est connue.
 
 ## Contraintes
 
@@ -165,6 +213,6 @@ Le MVP doit d'abord exploiter les sources déjà présentes dans GitHub / Handof
 
 ## Retour attendu
 
-Audit d'architecture + spécification produit/UX + schéma d'événements/statuts + proposition MVP + modèle d'autorisation Créateur + tests négatifs d'accès + points d'intégration avec le rail event-driven une fois celui-ci validé.
+Audit d'architecture + spécification produit/UX + schéma d'événements/statuts + proposition MVP + modèle d'autorisation Créateur/Manager + tests négatifs d'accès + points d'intégration avec le rail event-driven une fois celui-ci validé.
 
 Ne demander une décision à Frédéric que s'il existe un vrai choix stratégique non tranché par la Bible ou les décisions canoniques existantes.
