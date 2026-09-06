@@ -92,5 +92,19 @@ jobs:
           fi
           echo "Aucune régression : seuls les 9 échecs connus subsistent."
 
+      # Le protocole de handoff est le dernier contrat du dispositif qui ne
+      # tenait que par la discipline de ses acteurs. Il est désormais validé
+      # ici, comme le reste. `fetch-depth: 0` ci-dessus rend `origin/main` et
+      # `origin/production` lisibles : sans elles, l'invariant de protection
+      # des refs serait invérifiable, ce que le validateur traite comme un
+      # échec et non comme une tolérance.
+      - name: Protocole Handoff v2
+        env:
+          NEXUS_SORTIE_SUITE: /tmp/sortie.txt
+        run: node outils/handoff.js verifier
+
+      - name: Épreuves mutationnelles du validateur Handoff
+        run: node test_handoff_v2_20260905.js
+
       - name: Simulations métier
         run: npm run simulations --silent
