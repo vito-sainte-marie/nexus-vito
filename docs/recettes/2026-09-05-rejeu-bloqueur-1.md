@@ -77,16 +77,58 @@ l'inverse.
 ouvert et l'échec est consigné tel quel. Réparer en base masquerait
 précisément ce que le rejeu cherche à établir.
 
-## Journal du rejeu
+## Journal du rejeu — exécuté le 05/09/2026 de 20:38 à 20:52 (heure station)
 
-*(rempli au fur et à mesure ; aucune étape encore exécutée)*
+Déploiement éprouvé : commit `c2b28c3`, génération `020995cd6b06`, `test`.
 
 | # | Résultat | Constaté en base |
 |---|---|---|
-| 1 | en attente | — |
-| 2 | en attente | — |
-| 3 | en attente | — |
-| 4 | en attente | — |
-| 5 | en attente | — |
-| 6 | en attente | — |
-| 7 | en attente | — |
+| 1 | **PROUVÉ**, par un autre mécanisme qu'annoncé | Aucune ligne créée (6 → 6). La porte d'accès a redirigé vers Prise de poste **avant** qu'Inventaire ne s'initialise : l'écran d'arrêt A11 n'a pas été atteint. Fail-closed réel, prédiction inexacte. |
+| 2 | **PROUVÉ** | Service `d73ff4cf`, `en_cours`, `caissiere`, quart `soir`, début 20:39:11. Écran affichant « Quart du soir » sans indication de ma part — contrat C2 vérifié en session réelle. |
+| 4 *(avant 3)* | **PROUVÉ** | L'application **exige** le pointage d'arrivée avant Inventaire. Arrivée 20:43:35 avec photo ; `heure_debut_quart` = 20:39:10, soit le début du service courant. |
+| 3 | **PROUVÉ — preuve 2 de S-5, en suspens depuis sa fermeture** | Ligne `68e1ee3b` créée avec `shift_id = d73ff4cf`, identique au service courant. Première ligne de l'histoire de la base à porter un rattachement. |
+| 5 | **PROUVÉ** | Départ 20:47:37 avec photo. |
+| 6 | **PROUVÉ** | S-2 sous RLS réelle : `termine`, `heure_fin` = 20:47:37 **exactement** l'heure du pointage, `cloture_source = pointage_depart`. Aucun service en cours ensuite. |
+| 7 | **PROUVÉ** | 0 clôture incomplète, 0 service terminé sans `heure_fin` sur toute la table. Aucune écriture partielle. |
+| 8 | **PROUVÉ, et S-3 non sollicité — comme annoncé** | Service `41c935d4` (pompiste, 20:49:20). Le précédent était déjà clos par S-2 ; son `cloture_source` reste `pointage_depart`. |
+| 9 | **PROUVÉ** | `41c935d4` unique `en_cours`. |
+| 10 | **PARTIEL** | Branches `ROW_COUNT` de S-2 : jamais déclenchées, aucune écriture partielle. Celles de S-3 : **jamais atteintes**, voir ci-dessous. |
+| 11 | **ÉCHEC — BLOQUANT PRODUCTION** | Troisième prise de poste refusée : `23505 duplicate key value violates unique constraint "shifts_un_seul_service_en_cours"`. **S-3 n'a pas clôturé le service précédent.** |
+
+## Échec 11 — S-3 n'a jamais fonctionné depuis l'application
+
+L'écran de prise de poste insère `site`, **jamais `site_id`**
+([NEXUS-Prise-De-Poste-v1.html:332](../../NEXUS-Prise-De-Poste-v1.html)).
+C'est le trigger `shifts_site_unique` qui remplit `site_id`.
+
+Or les triggers `BEFORE` d'un même événement se déclenchent **par ordre
+alphabétique de nom**, et `nexus_cloturer_shift_precedent` précède
+`shifts_site_unique`. Quand S-3 s'exécute, `new.site_id` vaut donc encore
+`NULL`. Sa recherche du service actif porte sur
+`sh.site_id = new.site_id` : elle ne trouve rien, conclut « première prise de
+poste : rien à clôturer », et rend la main. L'index d'unicité de S-1 refuse
+alors l'insertion.
+
+Isolation de la cause, en transaction annulée, hors RLS :
+
+```
+A. insert avec site seul (ce que fait l'écran)  : REFUSE — duplicate key … shifts_un_seul_service_en_cours
+B. insert avec site_id explicite (mes tests S-3) : ACCEPTE — S-3 a cloture le precedent
+```
+
+**Ma validation de S-3 était invalide.** Mes essais fournissaient `site_id`
+explicitement — une forme de données que l'application n'envoie jamais. Le
+défaut est resté invisible aux étapes 2 et 8 parce qu'aucun service n'y était
+ouvert : S-3 n'avait rien à clôturer. Il fallait une véritable prise de poste
+*suivante* pour le révéler, c'est-à-dire exactement l'étape que l'ordre de la
+décision S-5 ne prévoyait pas d'atteindre.
+
+**Aucune correction n'a été appliquée.** Le service `41c935d4` reste ouvert,
+`clotures_par_S3 = 0`, et le bloqueur 1 reste **ouvert**.
+
+## Effet de bord opérationnel
+
+Tant que le défaut subsiste, un employé ayant un service ouvert **ne peut pas
+prendre un nouveau poste** : l'insertion est refusée par l'index. Le seul
+moyen de repartir est le pointage de départ, qui déclenche S-2. Ce n'est pas
+un blocage total, mais c'est un chemin métier légitime aujourd'hui impossible.
