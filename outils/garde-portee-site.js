@@ -30,8 +30,37 @@ const FORMES_PORTEE = [
   /current_employee_site_id\s*\(/i,                        // via la fonction
   /site(_id)?\s*(=|in)\s*\(?\s*select[\s\S]{0,200}?site_id[\s\S]{0,200}?employees/i, // via sous-requête
   /\b\w+\.site(_id)?\s*=\s*\w+\.site(_id)?/i,               // jointure de portée entre deux tables
-  /nexus_clients_ecriture_ok\s*\(/i,                        // aide nommée : rôle ET site du compte
 ];
+
+// Les aides nommées ne sont plus codées en dur : elles vivent dans un registre
+// versionné. Une aide inconnue rend UNKNOWN — jamais SAFE — et une aide
+// déclarée sans preuve de son contrat ne suffit pas non plus. Sans cette
+// règle, chaque refactorisation bien intentionnée rendrait la garde un peu
+// plus aveugle.
+function aidesDeclarees(racine) {
+  const f = path.join(racine, 'docs', 'gouvernance', 'garde-portee-site-aides.json');
+  if (!fs.existsSync(f)) return [];
+  const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+  return (d.aides || []).filter(a => {
+    if (!a.nom) throw new Error('Aide sans nom dans le registre.');
+    if (!a.preuve || !String(a.preuve).trim()) {
+      throw new Error(`Aide « ${a.nom} » déclarée sans preuve de son contrat : elle ne peut pas rendre une policy SAFE.`);
+    }
+    return true;
+  }).map(a => a.nom);
+}
+
+// Ce qu'une expression RLS peut appeler sans que ce soit une aide de portée.
+const APPELS_NEUTRES = new Set([
+  // fonctions et constructions sans rapport avec la portée
+  'select','exists','any','all','array','count','coalesce','auth.uid','uid',
+  'current_employee_role','je_suis_createur','lower','upper','now','btrim',
+  // mots-clés SQL suivis d'une parenthèse — `and (`, `or (` ne sont pas des
+  // appels de fonction. Les compter comme des aides inconnues faisait sortir
+  // en UNKNOWN une policy parfaitement lisible.
+  'and','or','not','in','is','case','when','then','else','end','values',
+  'from','where','join','on','as','distinct','order','by','limit','using','check',
+]);
 
 // Quatrième forme, apprise au tri des UNKNOWN : `nexus_clients_ecriture_ok(site)`
 // est une aide nommée qui vérifie `role IN (manager,gerant) AND site = site du
@@ -160,7 +189,15 @@ function controleEffectif(p) {
   return p.withCheck !== null ? p.withCheck : p.using;
 }
 
-function classer(p, colonnesSite) {
+function appelsInconnus(ctrl, aides) {
+  const connus = new Set([...APPELS_NEUTRES, ...aides.map(a => a.toLowerCase())]);
+  const trouves = [...String(ctrl).matchAll(/([a-z_][a-z0-9_.]*)\s*\(/gi)]
+    .map(m => m[1].toLowerCase().replace(/^public\./, ''));
+  return [...new Set(trouves.filter(f => !connus.has(f)))];
+}
+
+function classer(p, colonnesSite, aides) {
+  aides = aides || [];
   if (!['insert', 'update', 'delete', 'all'].includes(p.cmd)) {
     return { classe: 'NOT_APPLICABLE', motif: 'policy de lecture' };
   }
@@ -179,7 +216,20 @@ function classer(p, colonnesSite) {
   if (ctrl === null || ctrl === undefined) {
     return { classe: 'UNKNOWN', motif: 'aucun contrôle lisible pour la nouvelle ligne' };
   }
-  if (contient(ctrl, FORMES_PORTEE)) return { classe: 'SAFE', motif: 'la portée est contrôlée' };
+  const parAide = aides.some(a => new RegExp('\\b' + a + '\\s*\\(', 'i').test(ctrl));
+  if (parAide || contient(ctrl, FORMES_PORTEE)) {
+    // Même reconnue, une expression qui appelle une aide NON déclarée reste
+    // douteuse : on ne sait pas ce que cette aide vérifie.
+    const inconnues = appelsInconnus(ctrl, aides);
+    if (inconnues.length) {
+      return { classe: 'UNKNOWN', motif: 'aide non déclarée au registre : ' + inconnues.join(', ') };
+    }
+    return { classe: 'SAFE', motif: parAide ? 'portée contrôlée par une aide déclarée' : 'la portée est contrôlée' };
+  }
+  const inconnues = appelsInconnus(ctrl, aides);
+  if (inconnues.length) {
+    return { classe: 'UNKNOWN', motif: 'aide non déclarée au registre : ' + inconnues.join(', ') };
+  }
   if (FORME_CREATEUR.test(ctrl)) {
     // Capacité transverse assumée : ce n'est ni sûr ni vulnérable au sens de
     // l'ADR, c'est une décision métier qui doit être relue.
@@ -215,9 +265,13 @@ function incoherences(resultats) {
 function analyser(racine) {
   const { policies, colonnesSite, nonCompris } = rejouerMigrations(path.join(racine, 'supabase', 'migrations'));
   const derogations = lireDerogations(racine);
+  const aides = aidesDeclarees(racine);
   const resultats = policies.map(p => {
-    const c = classer(p, colonnesSite);
+    const c = classer(p, colonnesSite, aides);
     const d = derogations.find(x => x.table === p.table && x.policy === p.policy);
+    // Une dérogation vise une policy nommée sur une table nommée. Elle ne vaut
+    // que si la classe observée est bien celle qui a été autorisée : si la
+    // policy se dégradait, l'autorisation cesserait de la couvrir.
     return { ...p, ...c,
       derogation: d && d.classe_attendue === c.classe ? d : null,
       classeEffective: (d && d.classe_attendue === c.classe) ? 'SAFE_DEROGE' : c.classe };
@@ -239,7 +293,7 @@ function lireDerogations(racine) {
   return d.derogations || [];
 }
 
-module.exports = { analyser, classer, controleEffectif, rejouerMigrations, extraireClause, CLASSES };
+module.exports = { analyser, classer, controleEffectif, rejouerMigrations, extraireClause, extraireRoles, appelsInconnus, CLASSES };
 
 if (require.main === module) {
   const { resultats, incoherences: inc, nonCompris, tablesPortantes } = analyser(path.resolve(__dirname, '..'));

@@ -9,12 +9,18 @@
 // toute promotion en CI, et savoir répondre UNKNOWN plutôt que de conclure.
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
-const { classer, controleEffectif, extraireClause, analyser } = require('./outils/garde-portee-site');
+const { classer, controleEffectif, extraireClause, extraireRoles, appelsInconnus, analyser } = require('./outils/garde-portee-site');
 
 const SITE = new Set(['t']);
+// Les épreuves unitaires lisent LE registre réel : une garde testée avec une
+// configuration différente de celle qu'elle exécute ne prouve pas grand-chose.
+const AIDES = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'docs', 'gouvernance', 'garde-portee-site-aides.json'), 'utf8')
+).aides.map(a => a.nom);
 const p = (cmd, using, withCheck) => ({ table: 't', policy: 'p', cmd, using, withCheck });
-const classe = (cmd, using, withCheck, tables = SITE) => classer(p(cmd, using, withCheck), tables).classe;
+const classe = (cmd, using, withCheck, tables = SITE) => classer(p(cmd, using, withCheck), tables, AIDES).classe;
 
 let passes = 0;
 function verifier(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
@@ -91,9 +97,9 @@ verifier('une policy réservée à service_role est hors identité utilisateur',
   // service, et le tri doit le documenter.
   const { classer } = require('./outils/garde-portee-site');
   const p = { table: 't', policy: 'p', cmd: 'all', using: 'true', withCheck: 'true', roles: ['service_role'] };
-  assert.strictEqual(classer(p, SITE).classe, 'NOT_APPLICABLE');
+  assert.strictEqual(classer(p, SITE, AIDES).classe, 'NOT_APPLICABLE');
   const q = { ...p, roles: ['authenticated'] };
-  assert.notStrictEqual(classer(q, SITE).classe, 'NOT_APPLICABLE',
+  assert.notStrictEqual(classer(q, SITE, AIDES).classe, 'NOT_APPLICABLE',
     'une policy ouverte à authenticated ne bénéficie pas de cette frontière');
 });
 
@@ -109,6 +115,75 @@ verifier('un test de sécurité doit distinguer 42501 des erreurs de contrainte'
   for (const code of NON_CONCLUANTS) {
     assert.notStrictEqual(code, REFUS_RLS,
       `${code} est une erreur de schéma ou de donnée : la RLS n’a pas été atteinte`);
+  }
+});
+
+verifier('une aide NON déclarée au registre rend UNKNOWN, jamais SAFE', () => {
+  // Sans cette règle, chaque refactorisation qui encapsule un contrôle dans
+  // une nouvelle fonction rendrait la garde un peu plus aveugle sans que
+  // personne ne s'en aperçoive.
+  const { classer } = require('./outils/garde-portee-site');
+  const p = { table: 't', policy: 'p', cmd: 'insert', using: null,
+              withCheck: 'ma_nouvelle_aide(site_id)' };
+  const r = classer(p, SITE, ['nexus_clients_ecriture_ok']);
+  assert.strictEqual(r.classe, 'UNKNOWN');
+  // Vérifier la classe ne suffit pas : UNKNOWN est aussi la réponse par
+  // défaut quand rien ne correspond. Le motif doit NOMMER l'aide inconnue,
+  // sinon la garde ne dit pas ce qu'elle a vu.
+  assert.ok(/aide non déclarée au registre : ma_nouvelle_aide/.test(r.motif),
+    'le motif doit nommer l’aide inconnue, sinon UNKNOWN ne distingue rien : ' + r.motif);
+  assert.strictEqual(classer(p, SITE, ['ma_nouvelle_aide']).classe, 'SAFE');
+});
+
+verifier('la clause TO est réellement extraite du DDL', () => {
+  // Lacune trouvée par mutation : j'éprouvais `classer` en lui passant des
+  // rôles à la main, donc jamais l'ANALYSEUR qui les lit. Retirer l'extraction
+  // ne faisait échouer aucun test.
+  assert.deepStrictEqual(extraireRoles('for all to service_role using (true)'), ['service_role']);
+  assert.deepStrictEqual(extraireRoles('for insert to authenticated with check (a)'), ['authenticated']);
+  assert.deepStrictEqual(extraireRoles('for update using (a)'), [],
+    'sans clause TO, aucun rôle ne doit être inventé');
+
+  // Et surtout : que l'analyseur la CÂBLE réellement. Tester la fonction sans
+  // son branchement laissait passer sa suppression pure et simple.
+  const { rejouerMigrations } = require('./outils/garde-portee-site');
+  const { policies } = rejouerMigrations(path.join(__dirname, 'supabase', 'migrations'));
+  assert.ok(policies.some(p => Array.isArray(p.roles) && p.roles.length),
+    'le rejeu doit renseigner les rôles d’au moins une policy — sinon la clause TO n’est pas lue');
+});
+
+verifier('un appel inconnu est repéré quelle que soit la branche', () => {
+  // Seconde lacune : ma mutation ne visait qu'une des deux sorties du
+  // classement. L'invariant doit tenir des deux côtés.
+  assert.deepStrictEqual(appelsInconnus('ma_nouvelle_aide(site_id)', []), ['ma_nouvelle_aide']);
+  assert.deepStrictEqual(appelsInconnus('site_id = current_employee_site_id()', ['current_employee_site_id']), []);
+  assert.deepStrictEqual(appelsInconnus('a and (b or c)', []), [],
+    'les mots-clés SQL ne sont pas des appels de fonction');
+});
+
+verifier('une aide déclarée SANS preuve fait échouer la lecture du registre', () => {
+  // Le registre exige une preuve du contrat : une aide qu'on déclare sûre
+  // sans rien pour l'étayer ne vaut pas mieux qu'une aide inconnue.
+  const registre = JSON.parse(fs.readFileSync(
+    path.join(__dirname, 'docs', 'gouvernance', 'garde-portee-site-aides.json'), 'utf8'));
+  assert.ok(registre.aides.length >= 3, 'le registre doit être peuplé');
+  for (const a of registre.aides) {
+    assert.ok(a.preuve && a.preuve.trim(), `l’aide ${a.nom} doit porter une preuve de son contrat`);
+    assert.ok(a.contrat && a.portee_controlee, `l’aide ${a.nom} doit décrire ce qu’elle contrôle`);
+  }
+});
+
+verifier('chaque dérogation nomme un humain', () => {
+  // `autorise_par` ne peut pas être un agent : une dérogation qu'un outil
+  // s'accorde lui-même est une exclusion silencieuse.
+  const registre = JSON.parse(fs.readFileSync(
+    path.join(__dirname, 'docs', 'gouvernance', 'garde-portee-site-derogations.json'), 'utf8'));
+  for (const d of registre.derogations) {
+    for (const champ of ['table', 'policy', 'classe_attendue', 'motif', 'autorise_par', 'le']) {
+      assert.ok(d[champ], `dérogation ${d.policy || '(sans nom)'} : ${champ} manquant`);
+    }
+    assert.ok(/Frédéric/.test(d.autorise_par),
+      `la dérogation ${d.policy} doit être autorisée par un humain nommé`);
   }
 });
 

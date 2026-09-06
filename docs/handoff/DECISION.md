@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS-20260906
+lot_id: SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,90 +12,90 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Static Guard Findings
+# Décision — SITE-EXPLICITE-1 Static Guard UNKNOWN Triage
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — les trois findings sont considérés fermés en Test. Le tri des 27 UNKNOWN devient la prochaine étape obligatoire. ADR-0001 doit être enrichie de la distinction USING / WITH CHECK.**
+**APPROVED_WITH_CONDITIONS — le tri 27 → 3 est accepté. Les deux protections incidentes `sites` doivent devenir explicites. Le registre d'aides nommées est autorisé. La dérogation `createur_insert_sites` reste soumise à la gate humaine. La frontière `service_role` doit désormais être conçue en tenant compte de NEXUS Connector.**
 
-Le lot boucle correctement le cycle instrument → constat → correction → vérification : la garde passe de 3 VULNERABLE à 0 et de 1 incohérence à 0, sans uniformiser artificiellement le schéma ni élargir les privilèges.
+Le lot a réduit le bruit sans maquiller l'incertitude. La découverte de `nexus_clients_ecriture_ok`, de la frontière `TO service_role` et de la dépendance incidente entre SELECT et mutation montre que la garde commence à raisonner sur les contrats plutôt que sur de simples motifs syntaxiques.
 
-## Q53 — trier les 27 UNKNOWN
-
-**OUI, immédiatement.**
-
-Ouvrir `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` avant toute activation bloquante et avant toute ouverture de la classe D.
-
-Le tri est une phase de connaissance, pas de correction opportuniste. Pour chaque UNKNOWN, produire :
-- table ;
-- policy/opération ;
-- type d'acteur ;
-- mécanisme de portée réel ;
-- frontière de confiance ;
-- verdict proposé parmi `SAFE`, `VULNERABLE`, `NOT_APPLICABLE`, `DEROGATION` ;
-- preuve ou raison d'incertitude.
-
-Règles :
-1. aucune policy n'est modifiée dans ce lot sauf nouvelle gate après découverte d'une vulnérabilité ;
-2. une `VULNERABLE` confirmée revient immédiatement au Handoff avant correction ;
-3. une `DEROGATION` doit être minimale, datée, attribuée, motivée et révisable ;
-4. `service_role` ne vaut pas automatiquement `SAFE` : documenter pourquoi ce chemin est hors identité utilisateur et quelles couches le contrôlent ;
-5. ne pas convertir artificiellement les UNKNOWN en NOT_APPLICABLE pour obtenir zéro bruit.
-
-Objectif de sortie : zéro UNKNOWN non expliqué dans le périmètre actuel de la garde.
-
-## Q54 — ADR-0001 et USING / WITH CHECK
+## Q55 — `createur_update_sites` / `createur_delete_sites`
 
 **OUI. APPROVED.**
 
-Ajouter explicitement à ADR-0001 :
+Ouvrir un sous-lot `SITE-EXPLICITE-1-CREATEUR-SITES-GUARD` limité à rendre explicite la condition de portée déjà imposée indirectement aujourd'hui :
+- UPDATE d'un site par créateur uniquement lorsque le contrat d'accès créateur du site l'autorise ;
+- DELETE idem, avec preuve spécifique car l'opération est destructive ;
+- aucune extension de visibilité ;
+- aucun changement de comportement légitime attendu ;
+- preuves avant/après et rollback.
 
-> Pour une policy `UPDATE`, `USING` borne les lignes que l'acteur peut cibler ; `WITH CHECK` borne l'état final de la ligne après mutation. Quand une colonne ou une clé de portée peut changer, contrôler seulement la ligne visible ne suffit pas : la nouvelle portée doit être vérifiée explicitement.
+La correction ne doit pas dépendre uniquement de `select_sites`. Chaque mutation sensible porte sa propre condition.
 
-Préciser également que PostgreSQL peut réutiliser `USING` comme contrôle effectif lorsque `WITH CHECK` est absent, mais que NEXUS préfère un `WITH CHECK` explicite lorsqu'une portée mutable ou une identité structurante est en jeu, afin que le contrat soit lisible et auditable.
+## Q56 — dérogation `createur_insert_sites`
 
-Cette règle ne doit pas devenir une obligation mécanique de dupliquer `USING` partout : certaines policies peuvent avoir des contrats différents entre visibilité de l'ancienne ligne et validité de la nouvelle ligne.
+**CONTRAT APPROUVÉ EN PRINCIPE, DÉROGATION NON ENCORE AUTORISÉE.**
 
-## Findings fermés
+Créer un nouveau commerce peut être une capacité constitutive du rôle créateur et n'a, par définition, aucun site préexistant auquel rattacher la création. Une exception à la règle de portée est donc architecturalement plausible.
 
-Accepté comme état Test :
-- `progression_badge_awards` INSERT protégé par auteur + site ;
-- `progression_points_ledger` INSERT protégé par auteur + site ;
-- `inventaire_quart_employes` UPDATE protégé par portée indirecte du quart dans `USING` et `WITH CHECK` ;
-- aucune colonne site ajoutée à `inventaire_quart_employes` ;
-- chemins légitimes conservés ;
-- aucune donnée réattribuée ;
-- garde actuelle à 0 VULNERABLE / 0 incohérence.
+Mais le registre exige une autorisation humaine nominative. **ChatGPT ne doit pas écrire `autorise_par: Frédéric Bragance` à la place de Frédéric.** La dérogation reste en attente de sa confirmation explicite. Jusqu'à cette confirmation, `createur_insert_sites` reste un cas ouvert et la garde ne devient pas bloquante.
 
-## Point méthodologique QA
+La future demande à la gate humaine doit être formulée simplement : autoriser ou refuser que le rôle créateur puisse créer un nouveau site sans site préexistant, sous audit et sans capacité implicite de modifier/supprimer un site qui lui refuse ensuite l'accès.
 
-Le faux signal P3/P5 est utile : les futurs tests comportementaux de sécurité doivent distinguer explicitement les erreurs RLS (`42501`) des erreurs de contrainte/schéma (`23502`, `23503`, `23514`, etc.). Un test ne doit pas conclure « sécurité OK » parce que l'écriture a échoué pour une autre raison.
+## Q57 — registre des aides nommées
 
-Cette exigence doit entrer dans le corpus de test de la garde ou dans le futur lot CI connecté.
+**OUI. APPROVED.**
 
-## Activation bloquante
+Créer un registre versionné des aides qui encapsulent un contrôle de portée. Chaque entrée doit au minimum documenter :
+- nom de l'aide ;
+- type de portée contrôlée ;
+- acteurs concernés ;
+- contrat attendu ;
+- preuve/test qui démontre le contrat ;
+- propriétaire de maintenance ou domaine ;
+- date/revision.
 
-**PAS ENCORE.**
+Une aide déclarée sans test de son contrat ne peut pas suffire seule à classer une policy `SAFE`. La garde doit retourner `UNKNOWN/REVIEW` si une aide inconnue apparaît dans une policy de portée.
 
-Après le tri des 27 UNKNOWN, revenir au Handoff avec :
-- répartition finale SAFE / VULNERABLE / NOT_APPLICABLE / DEROGATION ;
-- justification de chaque dérogation ;
-- garde exécutée sur l'état final ;
-- test volontaire montrant qu'une régression connue fait réellement échouer la CI ;
-- avis séparés Architecture / Security & Isolation / QA ;
-- coût d'exécution et procédure de désactivation/rollback.
+## NEXUS Connector — frontière à préserver dès maintenant
+
+Le constat `TO service_role` devient particulièrement important pour **NEXUS Connector**, qui doit à terme ingérer/synchroniser des sources externes (Excel, PDF, CSV, API, photos et connecteurs métier) sans affaiblir l'isolation multi-site.
+
+Décision d'architecture : **NEXUS Connector ne doit jamais transformer `service_role` en passe-partout métier.**
+
+Avant toute activation réelle du Connector, son contrat devra imposer :
+1. exécution serveur uniquement ; jamais de clé `service_role` dans le navigateur ou le client ;
+2. site cible explicite dans chaque job/import/synchronisation ; absence ou contradiction de site = fail closed ;
+3. identité machine/connector et provenance de l'opération traçables ;
+4. permissions minimales par fonction plutôt qu'un service_role générique lorsque l'architecture le permet ;
+5. séparation claire entre import de données, validation métier et écriture finale ;
+6. idempotence, journal d'import, erreurs et rollback/rejeu ;
+7. aucune déduction silencieuse de Sainte-Marie ou d'un site par défaut ;
+8. tests multi-site positifs et négatifs ;
+9. secrets hors dépôt/logs et rotation possible ;
+10. les policies `TO service_role` ne sont `NOT_APPLICABLE` pour la garde utilisateur que si leur frontière machine est explicitement inventoriée et auditée.
+
+**Aucune implémentation NEXUS Connector n'est autorisée par ce lot.** Cette décision inscrit seulement sa frontière de sécurité afin que le chantier actuel ne crée pas aujourd'hui une exception dangereuse que le Connector exploiterait demain.
+
+## Activation bloquante de la garde
+
+**PAS ENCORE.** Il reste :
+- fermer les deux protections incidentes ;
+- décision humaine sur `createur_insert_sites` ;
+- enregistrer/tester les aides nommées ;
+- obtenir 0 UNKNOWN non arbitré et 0 VULNERABLE non accepté ;
+- prouver que la CI échoue sur une mutation volontaire et passe sur l'état accepté.
 
 ## Classe D
 
-**TOUJOURS FERMÉE.**
-
-Aucun retrait de default, aucune correction des 9 écritures classe D et aucune généralisation de trigger n'est autorisé par cette décision.
+**TOUJOURS FERMÉE.** Aucun retrait de default, aucune correction des 9 écritures classe D, aucune généralisation de trigger.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` en Test / gouvernance uniquement et mettre à jour ADR-0001 conformément à Q54.
+Claude peut exécuter `SITE-EXPLICITE-1-CREATEUR-SITES-GUARD` en Test et mettre en place le registre versionné des aides nommées. Il doit également inscrire dans la documentation de gouvernance la frontière future NEXUS Connector / `service_role`, sans développer le Connector dans ce lot.
 
-Retour Handoff obligatoire avant toute correction découverte, activation bloquante ou ouverture de la classe D.
+Retour Handoff obligatoire avant activation bloquante et avant classe D.
 
 ## Gate Production
 

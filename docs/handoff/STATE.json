@@ -136,8 +136,12 @@
       "consomme_le": "2026-09-06T04:02:53.097Z"
     },
     "SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "fc2534169eb5c84b230ca58f76aa75bd960ed0db",
+      "consomme_le": "2026-09-06T04:18:53.315Z"
     }
   },
   "derogations": [
