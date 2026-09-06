@@ -1,63 +1,183 @@
 # NEXUS Handoff — DECISION
 
-LOT_ID: S-5-SHIFT-ID-INVENTAIRE-20260905
-DECISION: APPROVED_CLOSED
+LOT_ID: HANDOFF-V2-EVENEMENTIEL-20260905
+DECISION: APPROVED_WITH_CONDITIONS
 AUTHOR: ChatGPT
 BRANCH: config-par-environnement
 
 ## Décision
 
-S-5 est **fermé**.
+La conception générale de **NEXUS Handoff v2 événementiel** est approuvée avec conditions.
 
-Les preuves produites suffisent pour valider l'implémentation structurelle S-5. Le chemin applicatif conserve désormais l'identifiant du service déjà résolu par `nexusServiceCourant()` et écrit ce véritable `shift_id` lors de la création réelle de `inventaire_quart_employes`, sans seconde définition ni seconde requête du service courant.
+Le diagnostic v1 est pertinent : le protocole actuel repose encore trop sur la discipline des acteurs, écrase l'état courant, ne matérialise pas la consommation d'une décision et ne distingue pas suffisamment les preuves recalculables des affirmations déclaratives. v2 doit donc devenir un protocole **adressable, append-only, validable par machine et compatible avec v1**.
 
-Le garde base protège l'invariant lors des INSERT et des UPDATE concernés : le shift doit appartenir au même employé et au même site que le quart d'inventaire. Les preuves négatives en base montrent le refus des associations inter-employé et inter-site. Les six lignes historiques restent volontairement à `shift_id IS NULL`, sans backfill.
+Le bloqueur 1 reste ouvert. Ce lot ne doit modifier aucun comportement métier NEXUS et ne constitue aucune autorisation Production.
 
-Commit de référence déclaré : `3b795ff80c94df84cb94b691d74667d44256adcc`, environnement `test`, `coherent = true`. Suite déclarée : 183/192, avec uniquement les 9 échecs historiques connus. `main` et `production` restent à `501c0c7` et aucune écriture production n'est déclarée.
+## Q10 — `APPROVED_CLOSED`
 
-## Arbitrage Q9 — preuves navigateur 2 et 5
+Décision : **ne pas en faire un nouveau statut canonique de v2**.
 
-Décision : **report contrôlé à la gate de fermeture du bloqueur 1**.
+Le problème observé vient précisément du mélange entre deux concepts :
 
-Ne pas consommer Employé Test A dans une session séparée uniquement pour S-5. Les deux preuves manquantes sont précisément les premières étapes du rejeu navigateur réel déjà obligatoire pour fermer le bloqueur 1.
+- la décision d'arbitrage ;
+- l'état de cycle de vie du lot.
 
-S-5 peut donc être fermé maintenant, mais **le bloqueur 1 reste ouvert** tant que le rejeu réel n'a pas produit ces preuves.
+Le vocabulaire canonique futur reste :
 
-Le rejeu doit commencer avec Employé Test A, ou un compte test équivalent réellement vierge pour la journée, et doit prouver dans cet ordre :
+- `APPROVED`
+- `APPROVED_WITH_CONDITIONS`
+- `BLOCKED`
+- `NEEDS_EVIDENCE`
 
-1. avant toute prise de poste, ouvrir le parcours Inventaire et confirmer l'état fail-closed : aucun service courant, aucune création réelle de `inventaire_quart_employes` ;
-2. effectuer une prise de poste réelle ;
-3. ouvrir Inventaire et créer le rattachement réel attendu ; vérifier en base que la nouvelle ligne porte exactement le `shift_id` du service qui vient d'être ouvert ;
-4. effectuer le pointage d'arrivée si le parcours normal l'exige ;
-5. effectuer le départ réel avec les preuves normales du parcours ;
-6. confirmer que S-2 clôt le shift sous RLS réel et qu'aucun service courant ne subsiste ;
-7. vérifier la cohérence pointage/shift et l'absence de refus silencieux ou d'écriture partielle ;
-8. effectuer une nouvelle prise de poste réelle afin d'exercer S-3 sous session employé ;
-9. confirmer que l'ancien service est clos et que le nouveau est l'unique service `en_cours` ;
-10. contrôler autant que possible les branches `ROW_COUNT` de S-2/S-3 sous RLS réel.
+Ajouter un champ séparé, par exemple `closes: true|false`, afin d'exprimer qu'une décision ferme ou non le lot.
 
-Si une étape échoue, **ne pas fermer le bloqueur 1** et ne pas masquer l'échec par une correction manuelle en base.
+`APPROVED_CLOSED` doit néanmoins rester **accepté en lecture comme valeur legacy** pour les décisions S-4 et S-5 déjà rendues. Ne pas réécrire l'historique et ne pas modifier leur sens. Le validateur peut normaliser cette ancienne valeur en mémoire comme `decision=APPROVED`, `closes=true`, mais les fichiers historiques restent tels quels.
 
-## Anomalies / dettes consignées
+Principe : **compatibilité ascendante sans perpétuer une ambiguïté de modèle**.
 
-- Le résidu historique `inventaire_quarts.quart = '1'` signalé par Claude reste une donnée historique hors S-5. Ne pas la corriger rétroactivement sans arbitrage métier.
-- La valeur `serviceCourantId` conservée pendant la session constitue une frontière connue : S-5 ne doit pas être élargi maintenant. Si un futur parcours permet réellement de changer de service sans recharger/réinitialiser le contexte Inventaire, ce comportement devra être traité comme un lot distinct.
-- La frontière de traçabilité reste explicite : avant S-5, `shift_id` peut être NULL ; après S-5, les nouvelles lignes réelles créées par le parcours NEXUS doivent porter le vrai shift actif.
+## Q11 — caractère bloquant du validateur
 
-## Interdictions
+Décision : **oui, bloquant sur les invariants protocolaires ; observation contrôlée sur les preuves recalculées**.
 
-- Ne jamais modifier `main` ou `production` sans autorisation humaine explicite.
-- Cette décision n'est pas une autorisation de production.
-- Ne pas backfiller les six lignes historiques.
-- Ne pas corriger le quart historique `1` dans ce lot.
-- Ne pas toucher aux colonnes `shift_id` FDJ.
-- Ne pas fermer le bloqueur 1 avant le rejeu navigateur réel ci-dessus.
-- Ne pas commencer le bloqueur Verify tant que la gate bloqueur 1 n'est pas arbitrée, sauf nouvelle décision explicite.
+Blocage CI immédiat pour :
+
+- `lot_id` absent, invalide ou incohérent ;
+- statut/décision hors vocabulaire canonique ou legacy explicitement autorisé ;
+- `in_reply_to` absent, inexistant ou ne correspondant pas au lot ;
+- décision répondant à une demande qui n'est plus la demande active attendue ;
+- tentative de réutilisation d'une décision déjà marquée consommée ;
+- branche déclarée incompatible avec le contexte d'exécution du handoff ;
+- structure du registre ou de `STATE.json` invalide.
+
+Pendant **un lot d'observation**, les écarts entre preuves déclarées et preuves recalculées peuvent être des avertissements, afin de calibrer le dispositif sans bloquer un lot légitime à cause d'une métrique encore mal définie.
+
+Exception : une contradiction machine-vérifiable qui toucherait un invariant de sécurité ou de protection Production ne doit jamais être réduite à un simple avertissement. Par exemple, si la branche ou les refs protégées déclarées ne correspondent pas à ce que la CI constate, le handoff doit échouer.
+
+À la fin du lot d'observation, Claude doit proposer l'arbitrage permettant de décider quelles preuves recalculées deviennent bloquantes.
+
+## Q12 — couche événementielle / session
+
+Décision : **inclure les deux couches**, avec vocabulaire précis.
+
+1. **Couche événement GitHub/CI** : valide et publie un événement exploitable lorsqu'une demande ou une décision valide arrive.
+2. **Couche session** : une session Claude encore vivante peut surveiller l'événement correspondant au lot qu'elle attend et reprendre automatiquement.
+
+Cette architecture peut être appelée « événementielle », mais elle ne doit jamais être présentée comme une autonomie 24/7 tant qu'aucun runner/orchestrateur externe n'est capable de démarrer une session éteinte.
+
+Le protocole doit distinguer explicitement :
+
+- `event detected` ;
+- `session resumed` ;
+- `session unavailable`.
+
+Le mode v1 reste le secours humain lorsque la session n'est plus vivante.
+
+Le futur **NEXUS Orchestrator** pourra ultérieurement fournir le réveil externe. Ne pas simuler cette capacité dans v2 avant qu'elle existe réellement.
+
+## Q13 — reprise historique S-4 / S-5
+
+Décision : **aucune reconstruction rétroactive**.
+
+Le registre append-only démarre avec les nouveaux échanges v2. S-4 et S-5 restent référencés par leurs commits Git existants. Ne pas fabriquer après coup des `request-n.md` ou `decision-n.md` qui n'ont jamais existé.
+
+Le validateur et la documentation peuvent mentionner un `legacy_before_v2` ou équivalent, mais sans créer un faux historique v2.
+
+## Architecture v2 approuvée
+
+Structure cible :
+
+```text
+docs/handoff/
+  CURRENT.md                 # compatibilité v1 / miroir dernier échange
+  DECISION.md                # compatibilité v1 / miroir dernière décision
+  STATE.json                 # état machine minimal
+  lots/
+    <LOT_ID>/
+      request-1.md
+      decision-1.md
+      request-2.md
+      decision-2.md
+```
+
+Les fichiers du registre sont append-only. Une correction produit un nouvel événement ; elle ne modifie pas silencieusement un ancien événement.
+
+`CURRENT.md` et `DECISION.md` restent des **miroirs de compatibilité**, jamais la source canonique v2.
+
+## Consommation d'une décision
+
+`STATE.json` est approuvé sous réserve d'un contrat déterministe.
+
+Il doit au minimum permettre d'identifier :
+
+- le lot actif ;
+- la dernière demande valide ;
+- la dernière décision valide ;
+- le commit de la décision ;
+- si cette décision a été consommée ;
+- quand elle a été consommée.
+
+Éviter un modèle global qui empêcherait plusieurs lots indépendants à terme. Pour cette première version, un seul lot actif peut rester la règle si elle est explicite et validée par la CI ; le format ne doit toutefois pas rendre impossible une extension ultérieure vers plusieurs lots.
+
+## Provenance des preuves
+
+Chaque preuve importante doit être classée explicitement :
+
+- `VERIFIED` : recalculée ou constatée directement par CI/outillage ;
+- `DECLARED` : fournie par l'agent mais non revérifiable automatiquement dans le contexte courant ;
+- `HUMAN` : dépend d'une action ou observation humaine réelle ;
+- `NOT_APPLICABLE` si la preuve n'est pas pertinente pour le lot.
+
+Ne jamais présenter une preuve `DECLARED` comme équivalente à une preuve `VERIFIED`.
+
+Le commit déployé, l'état Supabase et toute preuve nécessitant des secrets/réseaux non disponibles restent déclaratifs tant qu'un contrôleur indépendant n'existe pas.
+
+## Gestion des tokens / profondeur de travail
+
+Intégrer dès v2 le mode de raisonnement convenu pour les agents NEXUS. L'enveloppe d'une demande peut porter un champ canonique `token_mode` avec trois valeurs :
+
+- `LEAN` : tâche simple, locale et déterministe ;
+- `STANDARD` : mode par défaut pour implémentation + vérification ;
+- `DEEP` : sécurité, architecture, RLS, migration, concurrence, intégrité des données, multi-site, anomalie non résolue ou impact Production.
+
+Règle : partir du niveau le plus faible **compatible avec la sécurité de la tâche** et escalader si le diagnostic révèle davantage de complexité.
+
+Le mode ne doit jamais réduire la qualité des preuves. Principe : **économiser les tokens sur la prose, jamais sur les vérifications**.
+
+Le validateur doit seulement vérifier le vocabulaire de `token_mode`, pas tenter de juger automatiquement si Claude « a assez réfléchi ».
+
+## Conditions d'implémentation
+
+Claude peut maintenant implémenter v2 uniquement sur `config-par-environnement` :
+
+- créer le registre append-only ;
+- créer le schéma/enveloppe déterministe ;
+- créer `outils/handoff.js` ;
+- intégrer le validateur à la CI existante ;
+- créer `STATE.json` avec règles de consommation ;
+- conserver et régénérer les miroirs v1 ;
+- documenter clairement la limite des sessions éteintes ;
+- ajouter les tests mutationnels du validateur ;
+- ne toucher à aucun comportement métier NEXUS ;
+- ne modifier ni `main` ni `production` ;
+- ne pas implémenter encore l'organisation complète des agents IA dans ce lot.
+
+## Preuves attendues avant fermeture
+
+1. Un nouveau lot v2 complet peut être créé, validé et adressé par `LOT_ID` sans écraser son historique.
+2. Un `lot_id` incohérent fait échouer la validation.
+3. Un statut hors vocabulaire fait échouer la validation.
+4. Une décision sans `in_reply_to`, ou vers une demande inexistante/périmée, échoue.
+5. Une décision consommée ne peut pas être rejouée silencieusement.
+6. `CURRENT.md` et `DECISION.md` restent utilisables comme secours v1 mais ne sont plus la source canonique.
+7. `APPROVED_CLOSED` legacy reste lisible sans devenir une valeur canonique des nouveaux fichiers.
+8. Les catégories `VERIFIED` / `DECLARED` / `HUMAN` sont distinguées.
+9. `token_mode` refuse une valeur inconnue et accepte `LEAN|STANDARD|DEEP`.
+10. Les tests mutationnels démontrent que le validateur détecte réellement les corruptions ciblées.
+11. La CI NEXUS existante reste au même niveau hors tests v2 ; seuls les échecs historiques déjà acceptés peuvent subsister.
+12. Zéro modification `main`/`production`, zéro écriture Production.
 
 ## Prochaine gate
 
-S-5 étant fermé, la prochaine étape technique de la recette est la **gate de fermeture du bloqueur 1**, avec le rejeu navigateur réel ci-dessus.
+Après implémentation, Claude doit déposer un nouveau handoff **avec le même LOT_ID `HANDOFF-V2-EVENEMENTIEL-20260905`** et attendre arbitrage.
 
-Conformément à la décision humaine prise dans la conversation, une courte parenthèse peut maintenant être consacrée à la conception de **NEXUS Handoff v2 événementiel**, mais elle ne doit ni modifier le comportement métier NEXUS, ni toucher `main`/`production`, ni faire disparaître le protocole v1 `CURRENT.md` / `DECISION.md` qui reste le mode de secours.
-
-Claude doit consommer cette décision uniquement si le `LOT_ID` correspond exactement à `S-5-SHIFT-ID-INVENTAIRE-20260905`.
+L'organisation complète des agents IA NEXUS viendra **après fermeture de ce lot Handoff v2**, afin que cette organisation soit construite directement sur un protocole stabilisé plutôt que sur une mécanique encore en mouvement.
