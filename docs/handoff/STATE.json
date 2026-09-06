@@ -177,11 +177,11 @@
     },
     "CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md",
-      "derniere_decision": "decision-2.md",
+      "derniere_demande": "request-3.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "82117349ec5857153261ae2b38be22477661b3ef",
-      "consomme_le": "2026-09-06T17:31:42.358Z"
+      "commit_decision": "b101fb29200a1f07bb812801546f47a01f573497",
+      "consomme_le": "2026-09-06T19:12:39.661Z"
     }
   },
   "artefacts_hors_registre": [
