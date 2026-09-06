@@ -1,5 +1,3 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906/request-2.md
-     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
