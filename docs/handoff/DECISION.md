@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-CREATEUR-SITES-GUARD-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906
+lot_id: SITE-EXPLICITE-1-CREATEUR-SITES-GUARD-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,90 +12,82 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Static Guard UNKNOWN Triage
+# Décision — SITE-EXPLICITE-1 Créateur Sites Guard
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — le tri 27 → 3 est accepté. Les deux protections incidentes `sites` doivent devenir explicites. Le registre d'aides nommées est autorisé. La dérogation `createur_insert_sites` reste soumise à la gate humaine. La frontière `service_role` doit désormais être conçue en tenant compte de NEXUS Connector.**
+**APPROVED_WITH_CONDITIONS — la distinction plateforme / données client est acceptée, les gardes explicites sont validées en Test, et la garde statique est prête pour sa dernière preuve avant activation bloquante.**
 
-Le lot a réduit le bruit sans maquiller l'incertitude. La découverte de `nexus_clients_ecriture_ok`, de la frontière `TO service_role` et de la dépendance incidente entre SELECT et mutation montre que la garde commence à raisonner sur les contrats plutôt que sur de simples motifs syntaxiques.
+La résolution de la tension Q55/doctrine est approuvée : le créateur conserve l'autorité d'administration de la plateforme NEXUS ; le client conserve le contrôle sur l'usage et le partage de ses données métier.
 
-## Q55 — `createur_update_sites` / `createur_delete_sites`
+## Q58 — dérogations `createur_update_sites` et `createur_delete_sites`
 
-**OUI. APPROVED.**
+**OUI. Elles sont correctement fondées par la doctrine explicitement confirmée par Frédéric.**
 
-Ouvrir un sous-lot `SITE-EXPLICITE-1-CREATEUR-SITES-GUARD` limité à rendre explicite la condition de portée déjà imposée indirectement aujourd'hui :
-- UPDATE d'un site par créateur uniquement lorsque le contrat d'accès créateur du site l'autorise ;
-- DELETE idem, avec preuve spécifique car l'opération est destructive ;
-- aucune extension de visibilité ;
-- aucun changement de comportement légitime attendu ;
-- preuves avant/après et rollback.
+Frédéric a précisé : « NEXUS est la propriété du créateur donc il a tous les droits sauf utiliser, partager les données d'un site (d'une entreprise cliente). » Cette gate humaine couvre l'autorité d'administration structurelle de la plateforme, donc INSERT / UPDATE / DELETE de la structure `sites`, sous les protections destinées à empêcher l'appropriation ou la destruction abusive des données clientes.
 
-La correction ne doit pas dépendre uniquement de `select_sites`. Chaque mutation sensible porte sa propre condition.
+Les trois dérogations peuvent donc nommer **Frédéric Bragance** comme autorité humaine, avec cette doctrine comme fondement.
 
-## Q56 — dérogation `createur_insert_sites`
+Conditions permanentes :
+- l'autorité plateforme n'est jamais assimilée à un droit d'exploiter les données métier du client ;
+- `acces_createur_autorise` reste un contrôle client et ne peut être contourné par une mutation authentifiée ordinaire ;
+- supprimer une structure NEXUS ne doit pas supprimer implicitement les données d'une entreprise cliente ;
+- les opérations structurelles sensibles doivent rester auditables et réversibles lorsque le contrat le permet.
 
-**CONTRAT APPROUVÉ EN PRINCIPE, DÉROGATION NON ENCORE AUTORISÉE.**
+## Q59 — preuve comportementale de `est_pompiste_du_jour`
 
-Créer un nouveau commerce peut être une capacité constitutive du rôle créateur et n'a, par définition, aucun site préexistant auquel rattacher la création. Une exception à la règle de portée est donc architecturalement plausible.
+**OUI. OBLIGATOIRE avant activation bloquante.**
 
-Mais le registre exige une autorisation humaine nominative. **ChatGPT ne doit pas écrire `autorise_par: Frédéric Bragance` à la place de Frédéric.** La dérogation reste en attente de sa confirmation explicite. Jusqu'à cette confirmation, `createur_insert_sites` reste un cas ouvert et la garde ne devient pas bloquante.
+Ouvrir un sous-lot court `SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF`.
 
-La future demande à la gate humaine doit être formulée simplement : autoriser ou refuser que le rôle créateur puisse créer un nouveau site sans site préexistant, sous audit et sans capacité implicite de modifier/supprimer un site qui lui refuse ensuite l'accès.
+Éprouver au minimum `est_pompiste_du_jour(p_site)` avec des identités et services Test réels/synthétiques transactionnels :
+1. pompiste du jour sur son site : autorisé selon le contrat métier ;
+2. même acteur sur autre site : refusé ;
+3. acteur sans service pompiste ouvert ce jour : refusé ;
+4. service pompiste fermé : refusé ;
+5. renfort/caissier ne doit pas devenir pompiste par simple appartenance au site ;
+6. distinguer les codes d'erreur de sécurité des erreurs de données/schéma.
 
-## Q57 — registre des aides nommées
+Éprouver également `est_receptionniste_livraison_du_jour(p_site,p_date)` si le coût reste faible dans ce même lot, car elle a été découverte par le même mécanisme et doit éviter de devenir une dette immédiatement après la première preuve. Si son contrat nécessite des fixtures métier trop lourdes, revenir Handoff avec justification plutôt que fabriquer un faux scénario.
 
-**OUI. APPROVED.**
+Aucune correction opportuniste pendant la mesure : une anomalie revient au Handoff avant correction.
 
-Créer un registre versionné des aides qui encapsulent un contrôle de portée. Chaque entrée doit au minimum documenter :
-- nom de l'aide ;
-- type de portée contrôlée ;
-- acteurs concernés ;
-- contrat attendu ;
-- preuve/test qui démontre le contrat ;
-- propriétaire de maintenance ou domaine ;
-- date/revision.
+## Q60 — activation bloquante
 
-Une aide déclarée sans test de son contrat ne peut pas suffire seule à classer une policy `SAFE`. La garde doit retourner `UNKNOWN/REVIEW` si une aide inconnue apparaît dans une policy de portée.
+**OUI EN CIBLE, MAIS APRÈS Q59.**
 
-## NEXUS Connector — frontière à préserver dès maintenant
+Une fois les aides nommées éprouvées conformément au lot précédent, Claude est autorisé à préparer l'activation bloquante de la garde, sous réserve d'une démonstration explicite :
+- état accepté : workflow vert ;
+- mutation volontaire connue : workflow rouge ;
+- restauration : workflow vert ;
+- aucune dépendance à un secret Production ;
+- temps CI mesuré et raisonnable ;
+- mécanisme de désactivation/rollback documenté ;
+- Architecture, Security & Isolation et QA rendent chacun un avis séparé.
 
-Le constat `TO service_role` devient particulièrement important pour **NEXUS Connector**, qui doit à terme ingérer/synchroniser des sources externes (Excel, PDF, CSV, API, photos et connecteurs métier) sans affaiblir l'isolation multi-site.
+Le rapport de garde ne devient bloquant qu'après cette preuve. Le test propre de la garde reste bloquant.
 
-Décision d'architecture : **NEXUS Connector ne doit jamais transformer `service_role` en passe-partout métier.**
+## NEXUS Connector
 
-Avant toute activation réelle du Connector, son contrat devra imposer :
-1. exécution serveur uniquement ; jamais de clé `service_role` dans le navigateur ou le client ;
-2. site cible explicite dans chaque job/import/synchronisation ; absence ou contradiction de site = fail closed ;
-3. identité machine/connector et provenance de l'opération traçables ;
-4. permissions minimales par fonction plutôt qu'un service_role générique lorsque l'architecture le permet ;
-5. séparation claire entre import de données, validation métier et écriture finale ;
-6. idempotence, journal d'import, erreurs et rollback/rejeu ;
-7. aucune déduction silencieuse de Sainte-Marie ou d'un site par défaut ;
-8. tests multi-site positifs et négatifs ;
-9. secrets hors dépôt/logs et rotation possible ;
-10. les policies `TO service_role` ne sont `NOT_APPLICABLE` pour la garde utilisateur que si leur frontière machine est explicitement inventoriée et auditée.
+La frontière inscrite est confirmée et devient une dépendance d'architecture future de **NEXUS Connector**.
 
-**Aucune implémentation NEXUS Connector n'est autorisée par ce lot.** Cette décision inscrit seulement sa frontière de sécurité afin que le chantier actuel ne crée pas aujourd'hui une exception dangereuse que le Connector exploiterait demain.
+Doctrine : **une identité machine peut disposer de droits techniques étendus pour exécuter une opération autorisée, mais ces droits ne lui confèrent aucun droit de réutilisation, mutualisation ou partage des données d'une entreprise cliente.**
 
-## Activation bloquante de la garde
+Quand Connector sera implémenté, les exigences déjà inscrites restent obligatoires : site explicite, provenance, identité machine, journalisation, idempotence, fail closed, secrets serveur, isolation multi-site, permissions minimales et séparation import / validation / écriture.
 
-**PAS ENCORE.** Il reste :
-- fermer les deux protections incidentes ;
-- décision humaine sur `createur_insert_sites` ;
-- enregistrer/tester les aides nommées ;
-- obtenir 0 UNKNOWN non arbitré et 0 VULNERABLE non accepté ;
-- prouver que la CI échoue sur une mutation volontaire et passe sur l'état accepté.
+Aucune implémentation Connector n'est autorisée dans ce lot.
 
 ## Classe D
 
-**TOUJOURS FERMÉE.** Aucun retrait de default, aucune correction des 9 écritures classe D, aucune généralisation de trigger.
+**TOUJOURS FERMÉE.**
+
+Après la preuve des aides et l'activation bloquante réussie, revenir au Handoff. La prochaine décision pourra alors arbitrer l'ouverture du travail préparatoire Architecture + Security sur le mécanisme classe D/defaults. Cela ne vaut pas autorisation automatique de supprimer les defaults.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-CREATEUR-SITES-GUARD` en Test et mettre en place le registre versionné des aides nommées. Il doit également inscrire dans la documentation de gouvernance la frontière future NEXUS Connector / `service_role`, sans développer le Connector dans ce lot.
+Claude peut exécuter `SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF` en Test uniquement puis, si et seulement si les preuves sont conformes, préparer/démontrer l'activation bloquante de la garde dans le même cycle sans corriger d'anomalie nouvelle.
 
-Retour Handoff obligatoire avant activation bloquante et avant classe D.
+Retour Handoff obligatoire avant classe D.
 
 ## Gate Production
 

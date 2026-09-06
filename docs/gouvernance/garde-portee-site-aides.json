@@ -33,16 +33,23 @@
       "portee_controlee": "lie l'ACTEUR au site demandé : il doit avoir un service de pompiste ouvert ce jour sur ce site",
       "acteurs": "pompiste du jour",
       "contrat": "exists(select 1 from shifts where employee_id = auth.uid() and site = p_site and role='pompiste' and heure_debut::date = current_date)",
-      "preuve": "définition relue en base le 06/09/2026 ; liaison acteur↔site plus spécifique qu'une comparaison au site du compte — à éprouver par comportement lors du futur lot CI connecté",
+      "preuve": "Éprouvée par comportement le 06/09/2026, 5 cas — site correct, autre site, renfort du même site, employé sans service, service clos. ANOMALIE CONFIRMÉE : la fonction date le service par heure_debut::date, c'est-à-dire en UTC, alors que la journée de la station est en America/Martinique. Un service de soirée est daté du lendemain, et l'acteur conserve ses droits de pompiste toute la journée-station suivante. Non corrigée : retour Handoff avant correction.",
       "domaine": "carburant — relevés et jaugeage",
-      "revision": "2026-09-06"
+      "revision": "2026-09-06",
+      "anomalie": {
+        "constatee_le": "2026-09-06",
+        "nature": "frontière de journée calculée en UTC et non au fuseau de la station",
+        "consequence": "droits de pompiste conservés au-delà de la journée-station du service",
+        "statut": "remontée au Handoff, non corrigée",
+        "famille": "même que C2 et A17 — dette temporelle"
+      }
     },
     {
       "nom": "est_receptionniste_livraison_du_jour",
       "portee_controlee": "lie l'ACTEUR au site et à la date : il doit avoir mené une visite de réception terminée sur ce site ce jour",
       "acteurs": "réceptionnaire de livraison",
       "contrat": "exists(select 1 from carburant_reception_visites v where v.employe_id = auth.uid() and v.site = p_site and v.date_visite = p_date and v.statut in ('terminee','terminee_avec_derogation'))",
-      "preuve": "définition relue en base le 06/09/2026 ; même réserve : liaison éprouvée par lecture, pas encore par comportement",
+      "preuve": "Éprouvée par comportement le 06/09/2026, 6 cas — site correct, autre site, autre jour, visite non terminée, visite de la veille, acteur sans visite. CONFORME : compare deux colonnes date, donc aucune ambiguïté d'horloge, et exige le statut terminé.",
       "domaine": "carburant — réception de livraison",
       "revision": "2026-09-06"
     }

@@ -144,8 +144,12 @@
       "consomme_le": "2026-09-06T04:18:53.315Z"
     },
     "SITE-EXPLICITE-1-CREATEUR-SITES-GUARD-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "542c20c453408810c80017745ec2415988af0f3f",
+      "consomme_le": "2026-09-06T04:33:23.573Z"
     }
   },
   "derogations": [
