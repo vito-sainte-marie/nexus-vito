@@ -1527,6 +1527,68 @@
           }
         }
       }
+      // CARB-004 (06/09/2026, decision-4.md) — RÉCUPÉRATION DU RELIQUAT
+      // D'ARRONDI. Ce qui plafonnait la recommandation à 35 000 L n'était
+      // AUCUNE garde métier : c'était l'arrondi ci-dessus.
+      //
+      // `optimiserCommandeMultiCarburant` atteint réellement le maximum
+      // camion — cas de référence mesuré : sp95 28 761 + go 7 239 = 36 000 L.
+      // L'arrondi au millier INFÉRIEUR, appliqué carburant par carburant,
+      // rabote chacun et fait retomber le total à 35 000 L. Le filet de
+      // rattrapage existant ne regardait que le `minimum_camion_litres` :
+      // au-dessus du minimum, le reliquat était perdu en silence.
+      //
+      // `maximum_camion_litres` est une CIBLE d'optimisation, pas un volume
+      // obligatoire : on ne remonte donc un pas que s'il est à la fois
+      // physiquement sûr et absorbable, et jamais au-delà de ce que
+      // l'optimiseur avait lui-même jugé nécessaire (`optim.total`) — on
+      // récupère ce que l'arrondi a retiré, on n'invente pas un besoin.
+      //
+      // Les gardes ne sont pas réécrites, elles sont réutilisées : plafond de
+      // capacité déjà arrondi au millier inférieur, et plafond d'autonomie
+      // `SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION` — le même que celui de
+      // `completerVersCamionPlein`.
+      //
+      // Différence assumée avec `plafondAdditionnelL` : lorsqu'une donnée
+      // d'absorption manque, cette phase-ci NE complète PAS. La décision est
+      // explicite — « si les données nécessaires à cette absorption sont
+      // insuffisantes, le moteur n'invente pas de ventes futures ». Une
+      // récupération d'arrondi est un gain marginal : elle ne justifie pas
+      // d'être permissive sur une donnée absente.
+      const reliquatArrondi = { recupereL: 0, parCarburant: {}, motifs: {} };
+      if (viserCamionComplet && optim && optim.decision === 'commander') {
+        const cibleRecuperation = Math.min(
+          (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES,
+          Math.floor((optim.total || 0) / pasArrondi) * pasArrondi
+        );
+        const ordre = ordrePrioriteCarburants(evaluationsParCarburant)
+          .filter(c => Object.prototype.hasOwnProperty.call(volumesArrondis, c));
+        for (const c of ordre) {
+          if (totalArrondi + pasArrondi > cibleRecuperation) break;
+          const ev = evaluationsParCarburant[c] || {};
+          const capacite = (capacitesDisponiblesL && capacitesDisponiblesL[c] != null)
+            ? Math.floor(capacitesDisponiblesL[c] / pasArrondi) * pasArrondi : Infinity;
+          const vise = (volumesArrondis[c] || 0) + pasArrondi;
+          if (vise > capacite) {
+            reliquatArrondi.motifs[c] = 'Capacité disponible à la livraison insuffisante pour un compartiment de plus.';
+            continue;
+          }
+          if (!ev.consommationMoyenneJour || ev.stockPrevuLivraisonL == null) {
+            reliquatArrondi.motifs[c] = 'Rotation prévisionnelle inconnue — aucun complément proposé plutôt qu\'une absorption supposée.';
+            continue;
+          }
+          const stockApresReception = ev.stockPrevuLivraisonL + vise;
+          if (stockApresReception > ev.consommationMoyenneJour * SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION) {
+            reliquatArrondi.motifs[c] = `Non absorbable : ${Math.round(stockApresReception / ev.consommationMoyenneJour)} j de stock après réception, au-delà du plafond de ${SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION} j.`;
+            continue;
+          }
+          volumesArrondis[c] = vise;
+          totalArrondi += pasArrondi;
+          reliquatArrondi.recupereL += pasArrondi;
+          reliquatArrondi.parCarburant[c] = (reliquatArrondi.parCarburant[c] || 0) + pasArrondi;
+        }
+      }
+
       // Plafond camion (§3/§15-16 du cahier développeur : "Camion recommandé
       // 38 000 L -> Refus : maximum 36 000 L. Recomposition obligatoire.") —
       // aucune recommandation ne peut dépasser la capacité maximale du
@@ -1550,7 +1612,7 @@
           exces -= retrait;
         }
       }
-      commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi };
+      commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi, reliquatArrondi };
     }
 
     // Commandabilité du créneau (06/09/2026, decision-2.md) — un seul
