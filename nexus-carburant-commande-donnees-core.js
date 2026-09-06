@@ -850,6 +850,12 @@
     return {
       ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer,
       etatConfirmationCommande: etatConfirmation,
+      // 06/09/2026 — créneau réellement commandable AUJOURD'HUI (décision-2,
+      // lot CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE) : DISTINCT de
+      // `modeFinDeMois`/de la fenêtre de livraison ci-dessus. Déjà calculé
+      // par `fenetreCommandeAujourdhui` (Article 11, aucun second calcul),
+      // simplement relayé pour piloter le CTA (Préparer/Simuler) côté écran.
+      commandePossibleAujourdhui: fenetreCommandeAujourdhui.commandePossibleAujourdhui,
       // 28/08/2026, point 4 — source de l'ancre utilisée pour TOUT le
       // calcul de commande (même décision pour les 3 carburants, un seul
       // objet — Article 11). Déjà calculée par chargerStockEtFiabiliteParCarburant

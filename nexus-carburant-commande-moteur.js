@@ -85,6 +85,30 @@
     return true;
   }
 
+  // Créneau réellement COMMANDABLE (06/09/2026, précision humaine de
+  // Frédéric relayée par décision-2 du lot CARBURANTS-PERFORMANCE-
+  // CORRECTION-COMMANDE) — DISTINCT du jour de LIVRAISON ci-dessus
+  // (`estJourLivraisonPossible`) : l'audit avait identifié une recommandation
+  // affichée comme directement actionnable un samedi ("calendrier
+  // samedi→lundi"), alors qu'aucune commande ne peut réellement être
+  // engagée ce jour-là. Règle exacte de Frédéric : "commandes uniquement du
+  // lundi au vendredi avant 11h [...] Samedi : aucune nouvelle commande
+  // possible." — jamais un `if (samedi)` codé en dur : configurable par site
+  // via `config.jours_commande_iso` (même pattern ISO 1=lundi...7=dimanche
+  // que `jours_livraison_iso`). Compatibilité ascendante explicite (aucune
+  // régression pour un site qui n'a pas encore ce champ) : à défaut, reprend
+  // `jours_livraison_iso` tel quel — comportement historique inchangé.
+  // N'exclut PAS les jours fériés ici (à la différence de la livraison) :
+  // Frédéric ne mentionne que le samedi, jamais un jour férié en semaine —
+  // celui-ci reste un jour de commande valide, seule la LIVRAISON qui en
+  // découle est décalée par `prochainJourLivraisonPossible`.
+  function estJourCommandePossible(dateISO, config) {
+    if (!config) return false;
+    const joursCommande = config.jours_commande_iso || config.jours_livraison_iso;
+    if (!joursCommande) return false;
+    return joursCommande.includes(jourSemaineIso(dateISO));
+  }
+
   // Premier jour de livraison possible STRICTEMENT après `dateDepartISO` —
   // jamais le jour même (le camion n'arrive jamais le jour de la commande,
   // §4 : "commande avant 11h -> livraison le PROCHAIN jour de livraison
@@ -131,11 +155,20 @@
   // jour de délai supplémentaire), modélisation explicite en l'absence de
   // règle plus précise dans le cahier pour ce cas.
   function calculerFenetreLivraison({ dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO }) {
-    if (!config) return { avantCutoff: null, dateEffective: null, livraisonISO: null };
-    const avantCutoff = (heureCommandeHHMM || '00:00') < (config.cutoff_heure || '11:00');
+    if (!config) return { avantCutoff: null, dateEffective: null, livraisonISO: null, commandePossibleAujourdhui: false };
+    // 06/09/2026 — un jour hors `jours_commande_iso` (ex. samedi) n'est
+    // jamais "avant cutoff", quelle que soit l'heure simulée : aucune
+    // commande n'y est réellement engageable (voir estJourCommandePossible
+    // ci-dessus). La recherche de fenêtre continue néanmoins à partir du
+    // lendemain — même comportement de projection qu'un jour ouvré après
+    // cutoff, jamais un blocage du calcul lui-même (Article 5 : NEXUS
+    // continue de PROJETER le prochain créneau réel, il cesse seulement de
+    // présenter CE jour comme directement actionnable).
+    const commandePossibleAujourdhui = estJourCommandePossible(dateCommandeISO, config);
+    const avantCutoff = commandePossibleAujourdhui && (heureCommandeHHMM || '00:00') < (config.cutoff_heure || '11:00');
     const dateEffective = avantCutoff ? dateCommandeISO : ajouterJoursISO(dateCommandeISO, 1);
     const livraisonISO = prochainJourLivraisonPossible(dateEffective, config, joursFeriesISO);
-    return { avantCutoff, dateEffective, livraisonISO };
+    return { avantCutoff, dateEffective, livraisonISO, commandePossibleAujourdhui };
   }
 
   // ============================================================
@@ -1663,7 +1696,7 @@
   global.NexusCarburantCommandeMoteur = {
     // Calendrier
     ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
-    prochainJourLivraisonPossible, calculerFenetreLivraison,
+    estJourCommandePossible, prochainJourLivraisonPossible, calculerFenetreLivraison,
     JOURS_FIN_MOIS, estFinDeMois,
     // Prévision
     SEUIL_POINTS_JOUR_SEMAINE_FIABLE,

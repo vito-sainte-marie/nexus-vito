@@ -2373,8 +2373,18 @@
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
+    // 06/09/2026 (décision-2, lot CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE) —
+    // `commandePossibleAujourdhui === false` (ex. samedi, cf. règle exacte de
+    // Frédéric) : la recommandation reste affichée telle quelle, mais n'est
+    // plus directement actionnable aujourd'hui — le CTA redirige vers le
+    // simulateur déjà existant (§30, "Simuler une commande") plutôt que
+    // d'ouvrir la fiche "Préparer ma commande" (Valider/Reporter), jamais un
+    // second CTA de simulation dupliqué (Article 11 : un seul simulateur).
+    const commandableAujourdhui = ctx.commandePossibleAujourdhui !== false;
     const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      ? (commandableAujourdhui
+          ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+          : `<button type="button" class="commande-cta-btn" id="btnSimulerCommandeDepuisCarte" style="background:${stAffiche.c}; color:var(--bg);">🔍 Simuler ma commande →</button>`)
       : '';
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
@@ -2573,6 +2583,21 @@
 
     const btn = document.getElementById('btnPreparerCommande');
     if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    const btnSim = document.getElementById('btnSimulerCommandeDepuisCarte');
+    if (btnSim) btnSim.addEventListener('click', ouvrirSimulateurDepuisCarte);
+  }
+
+  // "🔍 Simuler ma commande →" (06/09/2026, décision-2) — ouvre le
+  // simulateur déjà existant (§30) plutôt qu'une seconde logique : jour non
+  // commandable aujourd'hui (ex. samedi), donc jamais de fiche "Valider/
+  // Reporter" ouverte pour une action qui ne peut réellement pas être
+  // engagée (aucune activation bloquante, Article 5/11).
+  function ouvrirSimulateurDepuisCarte() {
+    SIMULATEUR_COMMANDE_OUVERT = true;
+    const panel = document.getElementById('simulateurCommandePanel');
+    renderSimulateurCommandePanel();
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   // ------------------------------------------------------------
