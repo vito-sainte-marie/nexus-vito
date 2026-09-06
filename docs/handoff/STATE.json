@@ -96,8 +96,12 @@
       "consomme_le": "2026-09-06T03:19:57.480Z"
     },
     "SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "a6dc3afd88df76f83a3eea1959e4f48c4c94f8f3",
+      "consomme_le": "2026-09-06T03:28:32.056Z"
     }
   },
   "derogations": [

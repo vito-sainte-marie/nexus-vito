@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906
+lot_id: SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,81 +12,82 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 RLS Matrix Proof
+# Décision — SITE-EXPLICITE-1 RLS UPDATE Matrix Proof
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — matrice INSERT validée et lot clos.**
+**APPROVED_WITH_CONDITIONS — matrice UPDATE validée, deux anomalies confirmées, correction dédiée autorisée.**
 
-Le résultat est satisfaisant : aucune écriture inter-site n'a été acceptée sur les 54 tables sondées, et l'isolation est prouvée par comportement sur 51/54. Le sondeur a correctement distingué « refus lié au site », « refus pour une autre contrainte » et `NOT_APPLICABLE`, ce qui évite de transformer un refus général en faux sentiment de sécurité.
+La gate a fonctionné comme prévu : les anomalies ont été découvertes et conservées sans correction opportuniste. Le fait que le classificateur ait produit deux lectures intermédiaires erronées avant d'être corrigé confirme également qu'aucun outil d'audit ne doit devenir une autorité sans tests propres.
 
-## Q40 — sonder les UPDATE
+## Q43 — corriger les deux anomalies
 
-**OUI, prioritaire avant toute ouverture de la classe D.**
+**OUI. APPROVED_WITH_CONDITIONS.**
 
-Autoriser un lot séparé `SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF` dont l'objectif est de vérifier qu'une ligne correctement créée ne peut ensuite être déplacée, réattribuée ou rendue incohérente vers un autre site par `UPDATE`.
+Ouvrir un sous-lot `SITE-EXPLICITE-1-MUTATION-SITE-GUARD` limité à :
 
-Règles du lot :
-- phase de mesure d'abord, aucune correction opportuniste ;
-- cibler toutes les tables exposant une policy `UPDATE` ou un chemin applicatif d'update pertinent ;
-- pour chaque table, partir d'une ligne légitimement visible/modifiable par l'identité testée, puis tenter de modifier le site ou une identité structurante liée au site ;
-- distinguer `WITH CHECK`, `USING`, triggers et contraintes métier ;
-- tester au minimum profil ordinaire et manager lorsque les contrats diffèrent ;
-- marquer `NOT_APPLICABLE` les tables sans update légitime au lieu de créer un faux chemin ;
-- tout update inter-site accepté revient au Handoff avant correction.
+1. `advisor_rules` : fermer les mutations inter-site sur `UPDATE` et `DELETE` en conservant le contrôle de rôle existant ;
+2. `apprentissage_snapshots` : empêcher un employé de déplacer sa ligne vers un autre site lors d'un `UPDATE` ;
+3. vérifier les chemins légitimes sur le site autorisé ;
+4. rejouer les deux preuves comportementales avant/après ;
+5. vérifier qu'aucun privilège créateur/manager/employé n'est élargi par la correction.
 
-La matrice attendue doit inclure : `table / opération / identité / état initial / mutation tentée / attendu / observé / mécanisme de garde / preuve`.
+`advisor_rules` est prioritaire parce qu'elle porte le référentiel de décision de l'Advisor et cumule UPDATE + DELETE sans garde de site.
 
-## Extension de périmètre utile
+Condition métier importante : les 31 règles Advisor actuellement globales (`site_id IS NULL`) ne doivent pas être rendues involontairement impossibles à administrer par une policy conçue uniquement pour les règles locales. Avant migration, Claude doit expliciter séparément le contrat de mutation d'une règle globale et celui d'une règle rattachée à un site. Une règle globale ne doit pas pouvoir devenir locale sur un site arbitraire par simple UPDATE, et une règle locale ne doit pas pouvoir changer de site sans autorisation métier explicite.
 
-Dans ce même lot, Claude peut relever **sans l'ouvrir comme correction** les policies `DELETE` portant une contrainte de site. Elles doivent être inventoriées comme angle mort résiduel. Ne pas transformer le lot UPDATE en audit exhaustif CRUD : l'objectif principal reste la mutation après création, car c'est là qu'un défaut réel a déjà été trouvé.
+Aucune donnée existante ne doit être réattribuée pour satisfaire la nouvelle policy.
 
-## Profil créateur
+## Q44 — ADR + migrations
 
-Le profil créateur n'a pas été sondé en écriture dans la matrice INSERT. Ne pas élargir maintenant la capacité d'écriture du créateur pour « tester ». Sa capacité transverse reste une capacité à prouver selon son contrat métier, pas un privilège à supposer.
+**OUI AUX DEUX, avec formulation plus précise.**
 
-Dans le lot UPDATE, le créateur ne doit être testé que sur les tables où une policy existante lui accorde déjà explicitement un droit d'update. Sinon : `NOT_APPLICABLE`.
+ADR acceptée comme principe :
 
-## Q41 — ouvrir la classe D
+> Toute mutation d'une donnée à portée site doit contrôler à la fois l'acteur autorisé et la cohérence de portée métier de la nouvelle ligne. Lorsque la donnée est globale, locale ou porte une identité plus précise (service, employé, caisse, inventaire, etc.), la policy doit préserver explicitement cette portée et ne jamais la déduire d'un rôle seul.
 
-**PAS ENCORE.**
+Cette formulation évite une règle trop simpliste « auteur + site » qui serait fausse pour les données globales ou les contrats plus précis.
 
-Après la matrice UPDATE, si aucun nouveau défaut de sécurité n'est découvert ou si les défauts découverts sont corrigés puis arbitrés, la classe D pourra être ouverte comme chantier de fiabilité.
+L'ADR ne remplace pas les migrations. Elle doit avoir une incarnation vérifiable : test statique/CI ou autre invariant automatisé.
 
-L'ouverture de la classe D restera conditionnée à la démonstration Architecture + Security du mécanisme de normalisation/site explicite déjà demandée : aucune omission de site ne doit être transformée silencieusement en rattachement implicite.
+## Q45 — 52 policies de classe A
 
-## Q42 — versionner le sondeur
+**NON à un sondage comportemental exhaustif maintenant. OUI à une garde statique testée, puis échantillonnage ciblé.**
 
-**OUI, mais dans le futur lot CI connecté / environnement reproductible.**
+Le futur contrôle doit :
+- être versionné et testé par mutation avant d'être considéré comme preuve ;
+- analyser le contrôle effectif `coalesce(with_check, using)` pour les UPDATE ;
+- reconnaître au moins les deux formes de garde déjà observées (fonction et sous-requête employees) sans réduire la sécurité à une recherche de chaîne ;
+- distinguer données globales, tables sans site, archives et policies réellement NOT_APPLICABLE ;
+- signaler `UNKNOWN/REVIEW` lorsqu'il ne sait pas conclure plutôt que classer automatiquement sûr ;
+- inclure DELETE dans le même raisonnement de mutation lorsque pertinent.
 
-Le sondeur a démontré sa valeur, mais le versionner sans mécanisme d'exécution répétable créerait une preuve ponctuelle, pas une protection continue.
+Le classificateur actuel n'est **pas** accepté comme contrôle CI tant qu'il n'a pas ses propres tests de mutation.
 
-Le lot CI devra traiter simultanément :
-- environnement d'exécution reproductible ;
-- secrets minimaux ;
-- fixtures transactionnelles ;
-- concurrence/état partagé ;
-- résultat bloquant ou non selon la classe de contrôle ;
-- conservation lisible des preuves ;
-- comportement en cas d'indisponibilité de Supabase Test.
+Après construction de cette garde, QA choisira un petit échantillon comportemental adversarial pour vérifier que le modèle statique correspond à la réalité.
 
-## État retenu après ce lot
+## Angle mort triggers
 
-Sont acceptés comme faits établis pour Test :
-- 0 écriture inter-site acceptée sur la matrice INSERT des 54 tables ;
-- isolation prouvée par comportement sur 51/54 ;
-- 2 résultats non concluants dus aux limites du sondeur, pas déclarés sûrs par défaut ;
-- 1 table `NOT_APPLICABLE` à l'INSERT ;
-- aucune policy modifiée pendant ce lot ;
-- les UPDATE restent un angle mort structurel non clos ;
-- les Edge Functions et la protection CI persistante restent hors couverture.
+Avant d'ouvrir la classe D, ajouter une cartographie ciblée des triggers susceptibles de modifier `site`/`site_id` sur INSERT ou UPDATE. Aucun trigger général ne doit pouvoir contourner une policy ou transformer silencieusement une portée absente/contradictoire en site arbitraire.
+
+Cette cartographie peut être préparée dans le sous-lot, mais toute nouvelle anomalie doit revenir au Handoff avant correction hors des deux anomalies autorisées.
+
+## Classe D
+
+**TOUJOURS FERMÉE.**
+
+Les 9 écritures classe D, les 54 defaults et toute extension générale de mécanisme de normalisation restent hors autorisation. Leur ouverture dépendra de :
+- correction prouvée des deux anomalies de mutation ;
+- garde statique testée ou plan CI crédible ;
+- cartographie des triggers site ;
+- démonstration Architecture + Security du contrat de normalisation/fail-closed.
 
 ## Gate suivante
 
-Claude peut ouvrir/exécuter `SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF` en Test selon les règles ci-dessus.
+Claude peut exécuter `SITE-EXPLICITE-1-MUTATION-SITE-GUARD` en Test uniquement.
 
-Retour Handoff obligatoire avant toute correction d'un défaut découvert et avant toute ouverture de la classe D.
+Retour Handoff obligatoire avec : contrat global/local `advisor_rules`, policies avant/après, preuves UPDATE/DELETE et `apprentissage_snapshots`, chemins légitimes, tests de non-régression, avis Architecture/Security/QA, ADR proposée, état du classificateur et cartographie triggers, rollback.
 
 ## Gate Production
 
-**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration, policy, donnée, compte ou configuration Production n'est autorisé par cette décision.
+**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration, policy, donnée ou configuration Production n'est autorisé.
