@@ -2795,20 +2795,14 @@
     //
     // `null` est un refus, pas un repli : sans fuseau ou sans seuil, Verify
     // laisse le sélecteur vide plutôt que de proposer un quart inventé.
+    // Verify (05/09/2026) — la règle du quart n'appartient pas à Verify. Elle
+    // vit dans NexusStation, une seule fois, et quatre autres écrans
+    // l'appellent. Une fonction locale ici aurait été la cinquième copie, donc
+    // un cinquième endroit où la règle peut diverger le jour où le seuil du
+    // site change.
     async function quartDuMomentVerify() {
-      const { data, error } = await nexusClient
-        .from('station_config').select('horaires').eq('site', SITE_ACTUEL).maybeSingle();
-      if (error) { console.error('Chargement horaires station (quart Verify) :', error); return null; }
-      const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
-      if (bascule === null) {
-        console.warn('Quart Verify : aucun horaire de bascule configuré pour ce commerce — aucun quart n’est déterminé.');
-        return null;
-      }
-      if (!FUSEAU_STATION) {
-        console.warn('Quart Verify : fuseau du commerce non résolu — aucun quart n’est déterminé.');
-        return null;
-      }
-      return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(FUSEAU_STATION), bascule);
+      const r = await NexusStation.quartConfigureDuMoment(SITE_ACTUEL, FUSEAU_STATION);
+      return r.indetermine ? null : r.quart;
     }
 
     // La date du jour de la STATION. Sans fuseau, on ne la devine pas : le

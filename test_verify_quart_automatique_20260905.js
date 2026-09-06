@@ -39,33 +39,25 @@ verifier('le sélecteur n’a plus de quart plausible en première position', ()
     'la première option est celle que le navigateur choisit seul : elle ne doit désigner aucun quart');
 });
 
-verifier('le quart vient des primitives partagées, pas d’une règle locale', () => {
+verifier('Verify n’a AUCUNE règle de quart à lui', () => {
+  // Le point de la consigne : corriger Verify par une fonction locale aurait
+  // été la cinquième copie de la règle, donc un cinquième endroit où elle
+  // peut diverger le jour où le seuil du site change.
   const corps = corpsDe('quartDuMomentVerify');
-  assert.ok(/NexusStation\.quartDepuisMinutes\(/.test(corps), 'la décision du quart appartient à la primitive');
-  assert.ok(/NexusStation\.minutesLocalesStation\(FUSEAU_STATION/.test(corps),
-    'l’heure comparée est celle de la STATION, jamais celle de l’appareil');
-  assert.ok(/NexusStation\.minutesDepuisMinuit\(/.test(corps), 'le seuil passe par la primitive');
+  assert.ok(/NexusStation\.quartConfigureDuMoment\(SITE_ACTUEL, FUSEAU_STATION\)/.test(corps),
+    'Verify délègue à la règle commune, avec SON site et SON fuseau');
+  assert.ok(!/select\('horaires'\)/.test(CODE), 'Verify ne relit pas le seuil lui-même');
+  assert.ok(!/quartDepuisMinutes\(|minutesDepuisMinuit\(/.test(CODE),
+    'Verify ne réassemble pas la règle à partir des primitives');
   assert.ok(!/getHours\(\)|getMinutes\(\)/.test(corps),
     'lire l’horloge de l’appareil rétablirait le défaut que C2 a corrigé partout ailleurs');
-});
-
-verifier('le seuil est celui configuré pour le site', () => {
-  const corps = corpsDe('quartDuMomentVerify');
-  assert.ok(/from\('station_config'\)\.select\('horaires'\)/.test(corps), 'le seuil est lu en configuration');
-  assert.ok(/\.eq\('site', SITE_ACTUEL\)/.test(corps), 'le seuil est celui de CE site');
-  assert.ok(/horaires\.quart2 && data\.horaires\.quart2\.normal/.test(corps),
-    'même source de seuil que les autres écrans');
   assert.ok(!/'12:40'|'13:00'/.test(corps), 'aucun seuil en dur');
 });
 
-verifier('sans fuseau ou sans seuil, Verify refuse au lieu de proposer', () => {
+verifier('un refus de la règle commune ne devient pas un quart', () => {
   const corps = corpsDe('quartDuMomentVerify');
-  assert.ok(/if \(bascule === null\)[\s\S]{0,220}?return null;/.test(corps), 'seuil absent → refus');
-  assert.ok(/if \(!FUSEAU_STATION\)[\s\S]{0,220}?return null;/.test(corps), 'fuseau absent → refus');
-  // Sémantique A4-bis : une configuration manquante est une incohérence
-  // métier, pas une panne technique.
-  assert.ok(/console\.warn\('Quart Verify : aucun horaire/.test(CODE), 'seuil manquant = warn');
-  assert.ok(/console\.warn\('Quart Verify : fuseau/.test(CODE), 'fuseau manquant = warn');
+  assert.ok(/r\.indetermine \? null : r\.quart/.test(corps),
+    'indéterminé doit rester indéterminé, jamais retomber sur un quart plausible');
 });
 
 verifier('aucun quart n’est écrit en dur dans le formulaire', () => {

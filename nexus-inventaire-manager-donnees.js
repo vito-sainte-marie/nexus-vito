@@ -54,22 +54,16 @@
   // A3 / C2-3 : `timezone` reçu de l'écran résolveur, jamais résolu ici —
   // cette couche de données ne va pas chercher sites.timezone (règle C1).
   async function quartDuMoment(client, site, timezone) {
-    if (!timezone) { console.warn('Quart du moment : fuseau du commerce non résolu — aucun quart n’est déterminé.'); return null; }
-    const { data, error } = await client
-      .from('station_config').select('horaires').eq('site', site).maybeSingle();
-    if (error) { console.error('Chargement horaires station (quart du moment) :', error); return null; }
-    const bascule = global.NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
-    if (bascule === null) {
-      console.warn('Quart du moment : aucun horaire de bascule configuré pour ce commerce.');
-      return null;
-    }
-    // Vocabulaire : Inventaire Manager nomme ses quarts « matin » / « soir » — c'est
-    // ce que la contrainte inventaire_plans_comptage_quart_check exige. FDJ
-    // les nomme « 1 » / « 2 ». Deux notations pour la même notion, dette de
-    // vocabulaire de la même famille qu'A11-5 ; la primitive reste neutre et
-    // chaque appelant traduit, plutôt que d'imposer un choix ici.
-    const quart = global.NexusStation.quartDepuisMinutes(global.NexusStation.minutesLocalesStation(timezone), bascule);
-    return quart === '1' ? 'matin' : quart === '2' ? 'soir' : null;
+    // Verify (05/09/2026) — l'assemblage de la règle vit dans NexusStation,
+    // une seule fois. Le client reste injecté : c'est ce qui rend cette couche
+    // éprouvable sans réseau, et la règle commune l'accepte pour cette raison.
+    //
+    // Vocabulaire : Inventaire Manager nomme ses quarts « matin » / « soir »,
+    // ce qu'exige inventaire_plans_comptage_quart_check. La primitive reste
+    // neutre et c'est ici qu'on traduit.
+    const r = await global.NexusStation.quartConfigureDuMoment(site, timezone, undefined, client);
+    if (r.indetermine) return null;
+    return r.quart === '1' ? 'matin' : r.quart === '2' ? 'soir' : null;
   }
 
 

@@ -117,13 +117,47 @@ verifier('aucune horloge d’appareil ne décide plus d’un quart', () => {
     'L’heure de l’appareil ne détermine jamais un quart :\n  ' + coupables.join('\n  '));
 });
 
-verifier('les six chemins passent par la primitive de fuseau de la station', () => {
+verifier('tous les chemins passent par l’heure de la station', () => {
+  // Mis à jour le 05/09/2026, lot Verify : l'assemblage de la règle a été
+  // réuni dans NexusStation.quartConfigureDuMoment. Un écran satisfait donc
+  // l'exigence soit en appelant l'heure de la station lui-même, soit en
+  // déléguant à la règle commune — mais pas autrement.
+  const ADMIS = /minutesLocalesStation\(|quartConfigureDuMoment\(/;
   for (const f of ['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html',
                    'nexus-inventaire-manager-donnees.js', 'NEXUS-FDJ-v1.html',
-                   'NEXUS-Prise-De-Poste-v1.html']) {
+                   'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-Verify-v1.html']) {
     const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
-    assert.ok(/minutesLocalesStation\(/.test(src), f + ' n’utilise pas l’heure de la station');
+    assert.ok(ADMIS.test(src), f + ' ne passe ni par l’heure de la station ni par la règle commune');
   }
+  // Et la règle commune, elle, doit bien s'appuyer sur l'heure de la station :
+  // sans cette assertion, déléguer suffirait à satisfaire le test sans que
+  // personne ne lise jamais l'heure du bon fuseau.
+  const regle = fs.readFileSync(path.join(RACINE, 'nexus-station.js'), 'utf8');
+  const i = regle.indexOf('async function quartConfigureDuMoment');
+  assert.ok(i !== -1, 'la règle commune doit exister');
+  const corps = regle.slice(i);
+  assert.ok(/minutesLocalesStation\(timezone, instant\)/.test(corps),
+    'la règle commune compare l’heure de la STATION au seuil');
+  assert.ok(/from\('station_config'\)\.select\('horaires'\)/.test(corps),
+    'la règle commune lit le seuil CONFIGURÉ');
+  assert.ok(!/getHours\(\)|getMinutes\(\)|['"]\d{1,2}:\d{2}['"]/.test(corps),
+    'ni horloge d’appareil ni seuil en dur dans la règle commune');
+});
+
+verifier('la règle du quart n’existe qu’en un seul exemplaire', () => {
+  // Verify proposait le premier `<option>` de son DOM faute de règle, et
+  // quatre écrans en portaient chacun une copie. Corriger Verify par une
+  // cinquième copie aurait ajouté un endroit de plus où la règle peut
+  // diverger le jour où le seuil du site change.
+  const COPIES = [];
+  for (const f of fs.readdirSync(RACINE).filter(x => /^(NEXUS-.*\.html|nexus-.*\.js)$/.test(x))) {
+    if (f === 'nexus-station.js') continue;
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+    // Un assemblage local, c'est lire le seuil configuré ET décider soi-même.
+    if (/select\('horaires'\)/.test(src) && /quartDepuisMinutes\(/.test(src)) COPIES.push(f);
+  }
+  assert.deepStrictEqual(COPIES, [],
+    'ces fichiers réassemblent la règle au lieu d’appeler NexusStation :\n  ' + COPIES.join('\n  '));
 });
 
 // Ajouté le 05/09/2026 après une régression trouvée sur le déploiement réel :
@@ -155,8 +189,11 @@ verifier('chaque écran conserve SON vocabulaire de quart', () => {
     const corps = corpsDe(f);
     assert.ok(!/'matin'|'soir'/.test(corps),
       `${f} : cet écran parle '1' / '2', il ne doit pas traduire`);
-    assert.ok(/quartDepuisMinutes\(/.test(corps),
-      `${f} : le quart doit venir de la primitive`);
+    // Depuis le lot Verify, un écran peut décider lui-même avec la primitive
+    // pure OU déléguer à la règle commune. Ce qu'il ne peut pas faire, c'est
+    // trancher par un moyen à lui — et c'est ce que cette assertion garde.
+    assert.ok(/quartDepuisMinutes\(|quartConfigureDuMoment\(/.test(corps),
+      `${f} : le quart doit venir de la primitive ou de la règle commune`);
   }
 });
 

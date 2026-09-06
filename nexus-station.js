@@ -162,8 +162,71 @@
     return minutesMaintenant < minutesBascule ? '1' : '2';
   }
 
+  // ────────────────────────────────────────────────────────────────
+  // LA règle complète du quart (Verify, 05/09/2026)
+  //
+  // Les trois primitives ci-dessus sont pures ; il restait à chaque écran de
+  // les assembler avec la lecture du seuil. Quatre écrans le faisaient, en
+  // quatre copies quasi identiques — Inventaire, Inventaire Manager, FDJ, et
+  // les données du manager. Verify, lui, ne le faisait NULLE PART : son
+  // sélecteur proposait le premier `<option>` de son DOM.
+  //
+  // Corriger Verify par une cinquième copie aurait ajouté un endroit de plus
+  // où la règle peut diverger le jour où le seuil change. L'assemblage vit
+  // donc ici, une seule fois.
+  //
+  // Le vocabulaire reste NEUTRE — « 1 » / « 2 ». Inventaire nomme ses quarts
+  // « matin » / « soir » parce que sa contrainte de base l'exige ; il
+  // traduit. Imposer un vocabulaire ici obligerait tous les autres à
+  // détraduire.
+  //
+  // Contrat de retour identique à fuseauDeLaStation : un objet qui dit
+  // pourquoi il ne sait pas, jamais un repli silencieux.
+  //
+  // `client` est optionnel : la couche de données du manager reçoit le sien
+  // par injection, ce qui la rend testable sans réseau. Lui imposer le client
+  // global aurait cassé cette injection — ou laissé une quatrième copie de la
+  // règle vivre à côté de celle-ci.
+  async function quartConfigureDuMoment(siteId, timezone, instant, client) {
+    if (typeof siteId !== 'string' || !siteId.trim()) {
+      throw new TypeError('NexusStation.quartConfigureDuMoment : siteId manquant ou invalide.');
+    }
+    if (!timezone) {
+      console.warn('Quart du moment : fuseau du commerce non résolu — aucun quart n’est déterminé.');
+      return { indetermine: 'fuseau' };
+    }
+    const r = await seuilDeBascule(siteId, client);
+    if (r.indetermine) return r;
+    return { quart: quartDepuisMinutes(minutesLocalesStation(timezone, instant), r.minutes) };
+  }
+
+  // Le seuil configuré du site, en minutes depuis minuit. Extrait pour les
+  // écrans qui résolvent le contexte UNE fois puis décident plusieurs fois
+  // sans réseau — Prise de poste tranche à trois endroits, la rendre
+  // asynchrone partout aurait été un recul. Ils ne réassemblent donc pas la
+  // règle : ils lisent le même seuil, par le même chemin.
+  async function seuilDeBascule(siteId, client) {
+    if (typeof siteId !== 'string' || !siteId.trim()) {
+      throw new TypeError('NexusStation.seuilDeBascule : siteId manquant ou invalide.');
+    }
+    const { data, error } = await (client || nexusClient)
+      .from('station_config').select('horaires').eq('site', siteId.trim()).maybeSingle();
+    if (error) {
+      console.error('Seuil de bascule : lecture des horaires impossible —', error);
+      return { indetermine: 'reseau' };
+    }
+    // Règle A4-bis : la requête a réussi, c'est la configuration qui manque.
+    const minutes = minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    if (minutes === null) {
+      console.warn('Seuil de bascule : aucun horaire configuré pour « ' + siteId + ' » — NEXUS ne devine pas à quel quart appartient ce moment.');
+      return { indetermine: 'configuration' };
+    }
+    return { minutes };
+  }
+
   global.NexusStation = {
     siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
+    quartConfigureDuMoment, seuilDeBascule,
   };
 })(window);

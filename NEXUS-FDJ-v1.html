@@ -522,17 +522,12 @@
   //
   // LIMITE CONNUE, traitée en C2-3 : l'heure comparée au seuil est encore
   // celle de l'APPAREIL. Le seuil est juste, l'horloge ne l'est pas encore.
+  // Verify (05/09/2026) — l'assemblage de la règle a rejoint NexusStation, où
+  // il ne s'écrit qu'une fois. FDJ garde son vocabulaire « 1 » / « 2 », qui
+  // est déjà celui de la primitive : rien à traduire ici.
   async function quartDuMoment() {
-    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-    if (error) { console.error('Chargement horaires station (quart FDJ) :', error); return null; }
-    const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
-    if (bascule === null) {
-      console.warn('Quart FDJ : aucun horaire de bascule configuré pour ce commerce — aucun quart n’est déterminé.');
-      return null;
-    }
-    // A3 / C2-3 : heure de la STATION, plus celle de l'appareil.
-    if (!FUSEAU_STATION_FDJ) { console.warn('Quart FDJ : fuseau du commerce non résolu — aucun quart n’est déterminé.'); return null; }
-    return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(FUSEAU_STATION_FDJ), bascule);
+    const r = await NexusStation.quartConfigureDuMoment(siteId, FUSEAU_STATION_FDJ);
+    return r.indetermine ? null : r.quart;
   }
 
 

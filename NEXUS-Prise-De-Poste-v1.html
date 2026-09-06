@@ -221,11 +221,12 @@
   async function resoudreContexteQuart(employee) {
     const fuseau = await NexusStation.fuseauDeLaStation(employee.site_id);
     FUSEAU_STATION_PDP = fuseau.timezone || null;
-    const { data, error } = await nexusClient
-      .from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
-    if (error) { console.error('Chargement horaires station (prise de poste) :', error); return false; }
-    BASCULE_QUART2_PDP = NexusStation.minutesDepuisMinuit(
-      data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    // Verify (05/09/2026) — le seuil vient de NexusStation, comme partout
+    // ailleurs. Cet écran garde sa résolution en deux temps — lire une fois,
+    // trancher à trois endroits sans réseau — mais il ne réassemble plus la
+    // règle : il lit le même seuil, par le même chemin.
+    const seuil = await NexusStation.seuilDeBascule(employee.site_id);
+    BASCULE_QUART2_PDP = seuil.indetermine ? null : seuil.minutes;
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
       console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');
       return false;
