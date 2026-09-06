@@ -13,6 +13,11 @@
 # n'autorise une action à lui seul ; STATE + Handoff + décision canonique restent
 # obligatoires et aucune promotion Production n'est permise implicitement.
 #
+# Le checkout conserve tout l'historique Git afin que le validateur Handoff
+# puisse résoudre et vérifier origin/main et origin/production. Cela donne une
+# visibilité en lecture sur les refs protégées, jamais une autorisation d'écrire
+# dessus.
+#
 # Aucun secret applicatif n'est exposé : ni Supabase, ni service_role. Le seul
 # secret référencé est le jeton d'authentification Claude.
 name: Claude
@@ -47,10 +52,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: config-par-environnement
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Rendre les refs protégées vérifiables par Handoff
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/production:refs/remotes/origin/production +refs/heads/config-par-environnement:refs/remotes/origin/config-par-environnement
 
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*)
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*)
