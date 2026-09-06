@@ -206,6 +206,87 @@ verifier('une décision déjà consommée ne se rejoue pas', () => {
     'un refus ne doit rien écrire');
 });
 
+function ecrireEtat(dir, muter) {
+  const p = path.join(dir, 'STATE.json');
+  const e = JSON.parse(fs.readFileSync(p, 'utf8'));
+  muter(e);
+  fs.writeFileSync(p, JSON.stringify(e, null, 2) + '\n');
+}
+
+verifier('un in_reply_to donné en chemin complet est normalisé', () => {
+  // La forme attendue est le nom nu. Un chemin qui désigne le même fichier
+  // relève de la manipulation de chemin, pas du vocabulaire : le refuser
+  // serait de la pédanterie, l'accepter n'ouvre aucune ambiguïté.
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md',
+    `in_reply_to: docs/handoff/lots/${LOT}/request-1.md`);
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'le chemin doit être accepté : ' + r.sortie);
+});
+
+verifier('une dérogation nommée transforme la violation visée en avertissement', () => {
+  const dir = registreSain();
+  fs.renameSync(path.join(dir, 'lots', LOT, 'decision-1.md'), path.join(dir, 'lots', LOT, 'decision-2.md'));
+  remplacer(dir, 'decision-2.md', 'seq: 1', 'seq: 2');
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
+  assert.notStrictEqual(valider(dir).code, 0, 'sans dérogation, la violation doit bloquer');
+  ecrireEtat(dir, e => {
+    e.derogations = [{ fichier: 'decision-2.md', regle: 'SEQUENCE_NON_CONTIGUE',
+      motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
+  });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'avec dérogation, elle doit passer en avertissement : ' + r.sortie);
+  assert.ok(/DÉROGATION SEQUENCE_NON_CONTIGUE/.test(r.sortie),
+    'la dérogation doit rester bruyante à chaque exécution, pas silencieuse');
+});
+
+verifier('une dérogation ne couvre que la règle et le fichier qu’elle nomme', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, e => {
+    e.derogations = [{ fichier: 'decision-1.md', regle: 'SEQUENCE_NON_CONTIGUE',
+      motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
+  });
+  remplacer(dir, 'decision-1.md', 'decision: APPROVED', 'decision: VALIDE');
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'une autre violation du même fichier doit rester bloquante');
+  assert.ok(/hors vocabulaire/.test(r.sortie));
+});
+
+verifier('aucune dérogation n’est recevable sur un invariant de sécurité', () => {
+  const dir = registreSain();
+  remplacer(dir, 'request-1.md', 'branch: config-par-environnement', 'branch: production');
+  ecrireEtat(dir, e => {
+    e.derogations = [{ fichier: 'request-1.md', regle: 'BRANCHE_PROTEGEE',
+      motif: 'tentative de contournement', autorise_par: 'test', le: '2026-09-05' }];
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'une ref protégée ne se déroge pas');
+  assert.ok(/invariant de sécurité/.test(r.sortie), r.sortie);
+});
+
+verifier('une dérogation incomplète est refusée', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, e => { e.derogations = [{ fichier: 'decision-1.md', regle: 'SEQUENCE_NON_CONTIGUE' }]; });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'une exception sans motif ni auteur n’est pas auditable');
+  assert.ok(/dérogation incomplète/.test(r.sortie));
+});
+
+verifier('consommer refuse un registre qui ne valide pas', () => {
+  // Le trou de la v2 initiale : `consommer` n'appelait pas le validateur, donc
+  // une décision refusée par le protocole pouvait être enregistrée comme
+  // consommée — le silence exact que ce protocole existe pour supprimer.
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'decision: APPROVED', 'decision: VALIDE');
+  let code = 0, sortie = '';
+  try {
+    execFileSync('node', [OUTIL, 'consommer', LOT],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
+  assert.notStrictEqual(code, 0);
+  assert.ok(/aucune décision ne peut être consommée dans cet état/.test(sortie), sortie);
+});
+
 verifier('APPROVED_CLOSED reste lisible comme valeur legacy', () => {
   const mod = fs.readFileSync(OUTIL, 'utf8');
   assert.ok(/APPROVED_CLOSED/.test(mod), 'la valeur legacy doit rester connue du validateur');

@@ -20,16 +20,25 @@
   },
   "lots": {
     "HANDOFF-V2-EVENEMENTIEL-20260905": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "derniere_decision": null,
-      "source_decision": "legacy",
-      "commit_decision": "c85eb0443ff9acfe109ed7d2afff9f3f19f7fbff",
-      "consomme_le": "2026-09-06T00:16:51.823Z",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "e76713f483c7ce664deb54f8c31e45fd1ef976b5",
+      "consomme_le": "2026-09-06T00:33:03.708Z",
       "legacy_before_v2": {
         "demande": "db50d40",
         "decision": "docs/handoff/DECISION.md (v1)"
       }
     }
-  }
+  },
+  "derogations": [
+    {
+      "fichier": "decision-2.md",
+      "regle": "SEQUENCE_NON_CONTIGUE",
+      "motif": "Le dépôt est numéroté 2 alors qu'il est la première décision du registre, parce que la demande request-1.md écrite par Claude demandait littéralement « déposer decision-2.md ». L'auteur de la décision a suivi l'instruction reçue. Le fichier n'est ni renommé ni réécrit : renommer le dépôt d'un tiers violerait l'append-only, et assouplir la règle la viderait de son sens. L'écart est donc assumé ici, visible à chaque exécution.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-05"
+    }
+  ]
 }

@@ -50,8 +50,16 @@ const LOT_ID_VALIDE = /^[A-Z0-9][A-Z0-9-]{2,63}$/;
 // ── Journal ─────────────────────────────────────────────────────────────
 const erreurs = [];
 const avertissements = [];
-const bloquant = (m) => erreurs.push(m);
+// Chaque violation porte un CODE et le fichier concerné : c'est ce qui permet
+// à une dérogation de viser exactement une règle sur exactement un fichier,
+// au lieu de désactiver un contrôle entier.
+const bloquant = (m, code, fichier) => erreurs.push({ message: m, code: code || 'AUTRE', fichier: fichier || null });
 const avertir = (m) => avertissements.push(m);
+
+// Une dérogation ne peut JAMAIS porter sur un invariant de sécurité. Sans
+// cette liste, le mécanisme d'exception deviendrait la porte de sortie qu'il
+// est censé ne pas être.
+const CODES_NON_DEROGEABLES = ['BRANCHE_PROTEGEE', 'BRANCHE_INATTENDUE', 'REFS_PROTEGEES', 'REFS_ILLISIBLES'];
 
 function git(...args) {
   return execFileSync('git', args, { cwd: RACINE, encoding: 'utf8' }).trim();
@@ -135,8 +143,8 @@ function validerCommuns(lot, e, env, genre) {
   // Invariant de sécurité : jamais un avertissement. Une enveloppe qui
   // déclare travailler sur une ref protégée est refusée, quoi qu'elle dise
   // par ailleurs.
-  if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`);
-  else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`);
+  if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', e.fichier);
+  else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', e.fichier);
 }
 
 function validerPreuves(ou, preuves) {
@@ -158,11 +166,11 @@ function verifierRefsProtegees(ou, valeur) {
   try {
     reelles = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' ');
   } catch (err) {
-    bloquant(`${ou} : impossible de lire les refs protégées (${REFS_PROTEGEES.join(', ')}) — un invariant de sécurité invérifiable est un échec, pas un avertissement.`);
+    bloquant(`${ou} : impossible de lire les refs protégées (${REFS_PROTEGEES.join(', ')}) — un invariant de sécurité invérifiable est un échec, pas un avertissement.`, 'REFS_ILLISIBLES');
     return;
   }
   if (valeur.trim() !== reelles) {
-    bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(valeur.trim())}, constatées ${JSON.stringify(reelles)}`);
+    bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(valeur.trim())}, constatées ${JSON.stringify(reelles)}`, 'REFS_PROTEGEES');
   }
 }
 
@@ -176,8 +184,8 @@ function validerRegistre() {
 
     // Séquence contiguë : un trou signalerait un échange effacé, ce que le
     // registre append-only est censé rendre impossible.
-    demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`); });
-    decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`); });
+    demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
+    decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
 
     for (const e of demandes) {
       const ou = `${lot}/${e.fichier}`;
@@ -210,12 +218,18 @@ function validerRegistre() {
 
       // Le défaut n°1 de v1 : une décision qui répond à une demande qui n'est
       // plus la demande active.
-      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`);
+      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier);
       else {
-        const cible = demandes.find(d => d.fichier === env.in_reply_to);
-        if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`);
+        // La forme attendue est le nom de fichier nu (`request-N.md`). Un
+        // chemin qui désigne le même fichier est normalisé : c'est de la
+        // manipulation de chemin, pas du vocabulaire — l'accepter n'ouvre
+        // aucune ambiguïté de modèle. PROTOCOL.md ne le disait pas ; il le dit
+        // désormais.
+        const vise = path.basename(String(env.in_reply_to).trim());
+        const cible = demandes.find(d => d.fichier === vise);
+        if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier);
         else if (cible.seq !== dernier(demandes).seq) {
-          bloquant(`${ou} : in_reply_to désigne ${env.in_reply_to}, qui n'est plus la demande active (${dernier(demandes).fichier})`);
+          bloquant(`${ou} : in_reply_to désigne ${vise}, qui n'est plus la demande active (${dernier(demandes).fichier})`, 'IN_REPLY_TO_PERIME', e.fichier);
         }
       }
     }
@@ -254,6 +268,17 @@ function validerEtat() {
     if (v.consomme_le && !v.commit_decision) bloquant(`STATE.json : ${lot} marqué consommé sans commit_decision`);
     if (!['ATTENTE_DECISION', 'DECISION_CONSOMMEE', 'CLOS'].includes(v.statut)) bloquant(`STATE.json : ${lot}.statut ${JSON.stringify(v.statut)} hors vocabulaire`);
   }
+  if (etat.derogations !== undefined) {
+    if (!Array.isArray(etat.derogations)) bloquant('STATE.json : derogations doit être une liste');
+    else for (const d of etat.derogations) {
+      for (const champ of ['fichier', 'regle', 'motif', 'autorise_par', 'le']) {
+        if (!d[champ]) bloquant(`STATE.json : dérogation incomplète — ${champ} manquant`);
+      }
+      if (CODES_NON_DEROGEABLES.includes(d.regle)) {
+        bloquant(`STATE.json : ${d.regle} est un invariant de sécurité — aucune dérogation n'est recevable`);
+      }
+    }
+  }
   return etat;
 }
 
@@ -286,6 +311,13 @@ function regenererMiroirs() {
 
 // ── Consommation ────────────────────────────────────────────────────────
 function consommer(lot) {
+  // v2 initiale : `consommer` n'appelait pas le validateur. On pouvait donc
+  // enregistrer la consommation d'une décision que le protocole refuse — soit
+  // exactement le silence que ce protocole existe pour supprimer.
+  if (verifier() !== 0) {
+    console.error('\nREFUS — le registre ne valide pas ; aucune décision ne peut être consommée dans cet état.');
+    process.exit(1);
+  }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8'));
   const v = etat.lots[lot];
   if (!v) { console.error(`Lot ${lot} inconnu.`); process.exit(1); }
@@ -389,19 +421,35 @@ function verifier() {
     }
   }
 
-  for (const a of avertissements) console.log(`AVERTISSEMENT — ${a}`);
-  if (erreurs.length) {
-    for (const e of erreurs) console.error(`ÉCHEC — ${e}`);
-    console.error(`\n${erreurs.length} violation(s) du protocole Handoff v2.`);
-    process.exit(1);
+  // Dérogations : une violation nommément couverte devient un avertissement
+  // PERMANENT et bruyant. Elle n'est pas effacée — elle est assumée, datée et
+  // attribuée. C'est la différence entre une exception auditable et un
+  // contrôle qu'on aurait discrètement désactivé.
+  const derogations = (etat && Array.isArray(etat.derogations)) ? etat.derogations : [];
+  const restantes = [];
+  for (const e of erreurs) {
+    const d = derogations.find(x => x.fichier === e.fichier && x.regle === e.code);
+    if (d && CODES_NON_DEROGEABLES.includes(e.code)) {
+      restantes.push({ ...e, message: `${e.message}\n         (une dérogation existe mais ${e.code} est un invariant de sécurité : elle ne s'applique pas)` });
+    } else if (d) {
+      avertir(`DÉROGATION ${d.regle} sur ${d.fichier} — ${e.message}\n         motif : ${d.motif}\n         autorisée par ${d.autorise_par}, le ${d.le}`);
+    } else restantes.push(e);
   }
-  console.log(`Handoff v2 : registre, enveloppes et STATE.json conformes (${lots().length} lot(s), ${avertissements.length} avertissement(s)).`);
+
+  for (const a of avertissements) console.log(`AVERTISSEMENT — ${a}`);
+  if (restantes.length) {
+    for (const e of restantes) console.error(`ÉCHEC — ${e.message}`);
+    console.error(`\n${restantes.length} violation(s) du protocole Handoff v2.`);
+    return 1;
+  }
+  console.log(`Handoff v2 : registre, enveloppes et STATE.json conformes (${lots().length} lot(s), ${avertissements.length} avertissement(s), ${derogations.length} dérogation(s)).`);
+  return 0;
 }
 
 const [, , commande, arg1, arg2] = process.argv;
 switch (commande) {
   case undefined:
-  case 'verifier': verifier(); break;
+  case 'verifier': process.exit(verifier()); break;
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
   case 'consommer': consommer(arg1); break;
   case 'demande': {

@@ -116,6 +116,52 @@ mesuré est un simple avertissement, le temps de calibrer. À la fin de ce lot,
 Claude doit proposer l'arbitrage décidant quelles preuves recalculées
 deviennent bloquantes.
 
+## Format de `in_reply_to`
+
+La forme attendue est le **nom de fichier nu** : `in_reply_to: request-N.md`.
+Un chemin complet désignant le même fichier est normalisé par son nom de base
+plutôt que refusé — c'est de la manipulation de chemin, pas du vocabulaire, et
+l'accepter n'ouvre aucune ambiguïté de modèle. La cible doit toujours être la
+demande **active** du lot.
+
+## Numérotation
+
+`request-N.md` et `decision-N.md` sont numérotés par **ordre d'arrivée dans le
+registre**, à partir de 1, sans trou. La première décision déposée est
+`decision-1.md`, quel que soit ce qui a précédé le registre sous v1. La
+contiguïté est ce qui permet de détecter un échange supprimé — c'est la
+garantie d'append-only elle-même, et elle ne se déroge pas à la légère.
+
+## Dérogations
+
+Un dépôt non conforme n'est ni renommé ni réécrit : renommer le dépôt d'un
+tiers violerait l'append-only, et assouplir la règle la viderait de son sens.
+Quand la gate humaine estime l'écart acceptable, il est inscrit dans
+`STATE.json` :
+
+```json
+"derogations": [
+  { "fichier": "…", "regle": "CODE", "motif": "…", "autorise_par": "…", "le": "…" }
+]
+```
+
+La violation visée devient alors un **avertissement permanent et bruyant**,
+réaffiché à chaque exécution. Elle n'est pas effacée : elle est assumée, datée
+et attribuée. Une dérogation ne couvre que la règle et le fichier qu'elle
+nomme ; les champs sont tous obligatoires, faute de quoi elle n'est pas
+auditable et le validateur la refuse.
+
+**Aucune dérogation n'est recevable sur un invariant de sécurité** —
+`BRANCHE_PROTEGEE`, `BRANCHE_INATTENDUE`, `REFS_PROTEGEES`,
+`REFS_ILLISIBLES`. Sans cette exclusion, le mécanisme d'exception deviendrait
+la porte de sortie qu'il est précisément censé ne pas être.
+
+## Consommation
+
+`consommer` **valide le registre avant d'écrire quoi que ce soit**. Enregistrer
+la consommation d'une décision que le protocole refuse serait exactement le
+silence que ce protocole existe pour supprimer.
+
 ## Couche événementielle — et sa limite
 
 - `event detected` — la CI a validé une demande ou une décision.
