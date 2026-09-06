@@ -32,27 +32,37 @@ la journée, et la contrainte d'unicité `(quart_id, employee_id)` fait qu'un
 compte déjà présent sur le quart ne créerait aucune ligne — donc ne prouverait
 rien de S-5.
 
-## Ordre des étapes — et pourquoi il diffère de la liste initiale
+## Ordre des étapes — celui de la décision S-5
 
-La décision S-5 énumère : départ (étape 5), puis nouvelle prise de poste pour
-exercer S-3 (étape 8). **Cet ordre n'exerce pas S-3.** Le déclencheur ne
-clôture un service qu'à l'insertion d'un service alors qu'un autre est encore
-ouvert ; après le départ, A n'a plus de service en cours, et l'étape 8 ne
-serait qu'une insertion ordinaire. S-3 resterait non éprouvé sous RLS réelle.
+Arbitrage du 05/09/2026 : le rejeu suit **l'ordre littéral de la décision
+S-5**. J'avais proposé d'avancer la seconde prise de poste avant le départ ;
+cet ordre n'est pas retenu.
 
-La deuxième prise de poste est donc placée **avant** le départ. Toutes les
-étapes demandées sont conservées, aucune n'est retirée ; seule leur position
-change, pour que chaque déclencheur soit réellement sollicité.
+Conséquence à consigner d'avance, pour qu'elle ne soit pas découverte après
+coup : l'étape 8 de la décision demande une nouvelle prise de poste « afin
+d'exercer S-3 ». **Dans cet ordre, elle ne l'exercera pas.** Le déclencheur
+S-3 ne clôture un service qu'à l'insertion d'un service alors qu'un autre est
+encore ouvert ; après le départ de l'étape 5, Employé Test A n'a plus de
+service en cours, et l'étape 8 sera une insertion ordinaire. C'est un fait
+mécanique, pas une opinion — il sera constaté et rapporté tel quel.
+
+Une **étape 11**, ajoutée à la fin, exerce donc S-3 pour de bon : une
+troisième prise de poste alors que le service de l'étape 8 est encore ouvert.
+Elle n'altère aucune étape de la décision ; elle vient après.
 
 | # | Étape | Qui | Ce que je vérifie ensuite |
 |---|---|---|---|
-| 1 | Ouvrir Inventaire sous A **avant toute prise de poste** | Frédéric (PIN) | Écran d'arrêt, motif « absent » ; **aucune ligne créée** en base |
-| 2 | Prise de poste réelle sous A | Frédéric (PIN) | Un service `en_cours`, site et rôle attendus |
-| 3 | Ouvrir Inventaire | Frédéric | Une ligne créée portant **exactement** le `shift_id` du service ouvert à l'étape 2 |
+| 1 | Ouvrir Inventaire **avant toute prise de poste** | Frédéric (PIN) | Écran d'arrêt, motif « absent » ; **aucune ligne créée** |
+| 2 | Prise de poste réelle | Frédéric (PIN) | Un service `en_cours`, site et rôle attendus |
+| 3 | Ouvrir Inventaire | moi | Ligne créée portant **exactement** le `shift_id` de l'étape 2 |
 | 4 | Pointage d'arrivée si le parcours l'exige | Frédéric | Cohérence `pointages` / `shifts` |
-| 5 | **Deuxième prise de poste, sans départ** | Frédéric (PIN) | S-3 : le premier service passe à `termine`, `cloture_source = prise_de_poste_suivante`, `heure_fin` = début du second ; le second est l'unique `en_cours` |
-| 6 | Départ réel, avec photo | Frédéric (PIN) | S-2 : le second service se clôt, `cloture_source = pointage_depart`, `heure_fin` cohérente avec l'heure du pointage |
-| 7 | Contrôle final | moi | Aucun service `en_cours` pour A ; aucun refus silencieux ; aucune écriture partielle |
+| 5 | Départ réel, avec photo | Frédéric | Pointage `depart` enregistré |
+| 6 | — | moi | S-2 : service clos, `cloture_source = pointage_depart` ; **aucun service en cours** |
+| 7 | — | moi | Cohérence pointage/shift ; aucun refus silencieux ; aucune écriture partielle |
+| 8 | Nouvelle prise de poste | Frédéric (PIN) | Nouveau service ; **S-3 non sollicité** — à constater, pas à masquer |
+| 9 | — | moi | Ancien service clos, nouveau seul `en_cours` |
+| 10 | — | moi | Branches `ROW_COUNT` de S-2/S-3 sous RLS réelle |
+| 11 | Troisième prise de poste, service de l'étape 8 **encore ouvert** | Frédéric (PIN) | S-3 réellement exercé : `cloture_source = prise_de_poste_suivante`, `heure_fin` = début du nouveau |
 
 ## Points de vigilance
 
