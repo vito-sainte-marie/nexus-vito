@@ -201,6 +201,7 @@ function validerRegistre() {
       if (refs) verifierRefsProtegees(ou, refs.valeur || '');
     }
 
+    const reponses = [];
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`;
       const r = lireEnveloppe(path.join(LOTS, lot, e.fichier));
@@ -228,9 +229,30 @@ function validerRegistre() {
         const vise = path.basename(String(env.in_reply_to).trim());
         const cible = demandes.find(d => d.fichier === vise);
         if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier);
-        else if (cible.seq !== dernier(demandes).seq) {
-          bloquant(`${ou} : in_reply_to désigne ${vise}, qui n'est plus la demande active (${dernier(demandes).fichier})`, 'IN_REPLY_TO_PERIME', e.fichier);
+        else {
+          // Corrigé le 05/09/2026. La règle exigeait que TOUTE décision vise
+          // la demande la plus récente. Elle rendait fausse, rétroactivement,
+          // une décision légitimement rendue sur une demande antérieure : au
+          // dépôt de request-2, decision-1 devenait « périmée » alors qu'elle
+          // avait répondu à ce qui était alors la demande active.
+          //
+          // Ce qu'on peut vérifier depuis les fichiers seuls : une décision ne
+          // répond jamais à une demande PLUS ANCIENNE que son propre rang, et
+          // deux décisions ne répondent pas à la même demande. La fraîcheur,
+          // elle, ne se contrôle qu'au moment de consommer — c'est là qu'elle
+          // compte.
+          reponses.push({ decision: e, viseSeq: cible.seq });
+          if (cible.seq < e.seq) {
+            bloquant(`${ou} : in_reply_to désigne ${vise} (rang ${cible.seq}), antérieur au rang de la décision (${e.seq})`, 'IN_REPLY_TO_ANTERIEUR', e.fichier);
+          }
         }
+      }
+    }
+
+    for (let i = 1; i < reponses.length; i++) {
+      if (reponses[i].viseSeq <= reponses[i - 1].viseSeq) {
+        bloquant(`lots/${lot} : ${reponses[i].decision.fichier} répond à une demande déjà arbitrée par ${reponses[i - 1].decision.fichier}`,
+          'DEMANDE_DEJA_ARBITREE', reponses[i].decision.fichier);
       }
     }
 
@@ -323,6 +345,19 @@ function consommer(lot) {
   if (!v) { console.error(`Lot ${lot} inconnu.`); process.exit(1); }
 
   const dec = dernier(echanges(lot, 'decision'));
+  // C'est ICI que la fraîcheur compte : consommer une décision qui ne répond
+  // pas à la demande active, c'est exactement la fenêtre du commit 67ecdce.
+  if (dec) {
+    const demandes = echanges(lot, 'request');
+    const r = lireEnveloppe(path.join(LOTS, lot, dec.fichier));
+    const vise = r.env && r.env.in_reply_to ? path.basename(String(r.env.in_reply_to).trim()) : null;
+    const active = dernier(demandes);
+    if (active && vise !== active.fichier) {
+      console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`);
+      console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.');
+      process.exit(1);
+    }
+  }
   const source = dec ? 'registre' : 'legacy';
   const cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION);
   let commit;

@@ -47,6 +47,13 @@
       "motif": "Le dépôt est numéroté 2 alors qu'il est la première décision du registre, parce que la demande request-1.md écrite par Claude demandait littéralement « déposer decision-2.md ». L'auteur de la décision a suivi l'instruction reçue. Le fichier n'est ni renommé ni réécrit : renommer le dépôt d'un tiers violerait l'append-only, et assouplir la règle la viderait de son sens. L'écart est donc assumé ici, visible à chaque exécution.",
       "autorise_par": "Frédéric Bragance (gate humaine)",
       "le": "2026-09-05"
+    },
+    {
+      "fichier": "decision-2.md",
+      "regle": "IN_REPLY_TO_ANTERIEUR",
+      "motif": "Second symptôme de la MÊME déviation que SEQUENCE_NON_CONTIGUE : le dépôt porte le rang 2 alors qu'il répond à request-1, parce que ma demande réclamait littéralement « déposer decision-2.md ». Une seule cause, deux contrôles la voient. Le fichier n'est toujours ni renommé ni réécrit.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-05"
     }
   ]
 }

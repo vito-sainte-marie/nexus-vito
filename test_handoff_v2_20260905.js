@@ -90,15 +90,11 @@ const epreuves = [
   ['un in_reply_to vers une demande inexistante échoue',
    d => remplacer(d, 'decision-1.md', 'in_reply_to: request-1.md', 'in_reply_to: request-9.md'), /ne désigne aucune demande/],
 
-  ['une décision répondant à une demande périmée échoue',
-   d => {
-     // C'est exactement la fenêtre observée au commit 67ecdce : une décision
-     // encore en place alors qu'une nouvelle demande a été déposée.
-     const lot = path.join(d, 'lots', LOT);
-     const nouvelle = fs.readFileSync(path.join(lot, 'request-1.md'), 'utf8').replace('seq: 1', 'seq: 2');
-     fs.writeFileSync(path.join(lot, 'request-2.md'), nouvelle);
-     remplacer(d, 'STATE.json', '"derniere_demande": "request-1.md"', '"derniere_demande": "request-2.md"');
-   }, /n'est plus la demande active/],
+  // Retirée le 05/09/2026 : cette épreuve exigeait qu'une décision devienne
+  // invalide dès qu'une demande plus récente arrive, ce qui réécrivait
+  // rétroactivement le statut d'un arbitrage légitime. La fenêtre du commit
+  // 67ecdce est désormais gardée là où elle compte — à la consommation —
+  // et trois épreuves plus bas la couvrent.
 
   ['un token_mode inconnu échoue',
    d => remplacer(d, 'request-1.md', 'token_mode: STANDARD', 'token_mode: RAPIDE'), /token_mode.*hors vocabulaire/],
@@ -201,7 +197,11 @@ verifier('une décision déjà consommée ne se rejoue pas', () => {
   try { execFileSync('node', [OUTIL, 'consommer', lot], { cwd: RACINE, encoding: 'utf8' }); }
   catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0, 'le rejeu d’une décision consommée doit être refusé');
-  assert.ok(/déjà marquée consommée/.test(sortie), 'le refus doit nommer sa raison : ' + sortie);
+  // Deux refus sont légitimes selon l'état du registre : la décision est déjà
+  // consommée, ou elle ne répond plus à la demande active. Exiger l'un des
+  // deux seulement rendrait le test dépendant du moment où on le lance.
+  assert.ok(/déjà marquée consommée|mais la demande active est/.test(sortie),
+    'le refus doit nommer sa raison : ' + sortie);
   assert.strictEqual(fs.readFileSync(path.join(RACINE, 'docs/handoff/STATE.json'), 'utf8'), avant,
     'un refus ne doit rien écrire');
 });
@@ -231,8 +231,14 @@ verifier('une dérogation nommée transforme la violation visée en avertissemen
   ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
   assert.notStrictEqual(valider(dir).code, 0, 'sans dérogation, la violation doit bloquer');
   ecrireEtat(dir, e => {
-    e.derogations = [{ fichier: 'decision-2.md', regle: 'SEQUENCE_NON_CONTIGUE',
-      motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
+    // Le mauvais numéro produit DEUX symptômes — séquence trouée et décision
+    // répondant à une demande de rang inférieur. Une cause, deux contrôles :
+    // la dérogation doit nommer chacun, elle ne couvre pas « tout ce qui vient
+    // de cette déviation ».
+    e.derogations = [
+      { fichier: 'decision-2.md', regle: 'SEQUENCE_NON_CONTIGUE', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
+      { fichier: 'decision-2.md', regle: 'IN_REPLY_TO_ANTERIEUR', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
+    ];
   });
   const r = valider(dir);
   assert.strictEqual(r.code, 0, 'avec dérogation, elle doit passer en avertissement : ' + r.sortie);
@@ -285,6 +291,64 @@ verifier('consommer refuse un registre qui ne valide pas', () => {
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0);
   assert.ok(/aucune décision ne peut être consommée dans cet état/.test(sortie), sortie);
+});
+
+verifier('une décision reste valide quand une demande plus récente arrive', () => {
+  // Régression corrigée le 05/09/2026 : la règle exigeait que TOUTE décision
+  // vise la demande la plus récente, ce qui rendait fausse rétroactivement une
+  // décision légitimement rendue. Déposer request-2 ne périme pas decision-1.
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'request-2.md'),
+    fs.readFileSync(path.join(lot, 'request-1.md'), 'utf8').replace('seq: 1', 'seq: 2'));
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_demande = 'request-2.md'; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'l’historique ne doit pas devenir invalide après coup : ' + r.sortie);
+});
+
+verifier('une décision ne peut pas répondre à une demande antérieure à son rang', () => {
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.renameSync(path.join(lot, 'decision-1.md'), path.join(lot, 'decision-2.md'));
+  remplacer(dir, 'decision-2.md', 'seq: 1', 'seq: 2');
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0);
+  assert.ok(/antérieur au rang de la décision/.test(r.sortie), r.sortie);
+});
+
+verifier('deux décisions ne peuvent pas arbitrer la même demande', () => {
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'request-2.md'),
+    fs.readFileSync(path.join(lot, 'request-1.md'), 'utf8').replace('seq: 1', 'seq: 2'));
+  fs.writeFileSync(path.join(lot, 'decision-2.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8').replace('seq: 1', 'seq: 2'));
+  ecrireEtat(dir, e => {
+    e.lots[LOT].derniere_demande = 'request-2.md';
+    e.lots[LOT].derniere_decision = 'decision-2.md';
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'decision-2 vise encore request-1');
+  assert.ok(/déjà arbitrée par/.test(r.sortie), r.sortie);
+});
+
+verifier('consommer refuse une décision qui ne répond pas à la demande active', () => {
+  // La fraîcheur ne se contrôle plus en permanence, mais au moment qui
+  // compte : c'est la fenêtre exacte du commit 67ecdce, où une décision
+  // consommée voisinait avec une demande ouverte.
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'request-2.md'),
+    fs.readFileSync(path.join(lot, 'request-1.md'), 'utf8').replace('seq: 1', 'seq: 2'));
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_demande = 'request-2.md'; });
+  let code = 0, sortie = '';
+  try {
+    execFileSync('node', [OUTIL, 'consommer', LOT],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
+  assert.notStrictEqual(code, 0);
+  assert.ok(/mais la demande active est request-2\.md/.test(sortie), sortie);
 });
 
 verifier('APPROVED_CLOSED reste lisible comme valeur legacy', () => {
