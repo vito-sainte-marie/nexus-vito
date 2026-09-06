@@ -2382,14 +2382,35 @@
         ${fiabiliteCarburantHTML}`;
     }).join('');
 
+    // Motif structuré de non-complétion camion (06/09/2026, audit E2 :
+    // "exposer une raison structurée" au lieu de laisser un total sous
+    // 36 000 L sans explication) — relit `ctx.optimisation.motifsNonCompletion`
+    // déjà calculé par le moteur, jamais un second diagnostic ici (Article 11).
+    const MOTIF_NON_COMPLETION_TXT = { capacite_insuffisante: 'capacité disponible insuffisante', plafond_anti_surstock: 'plafond anti-surstock atteint' };
+    const motifsNonCompletion = (ctx.optimisation && ctx.optimisation.motifsNonCompletion) || {};
+    const motifsNonCompletionTxt = Object.entries(motifsNonCompletion)
+      .map(([c, motif]) => `${COURT_CARBURANT[c] || c} : ${MOTIF_NON_COMPLETION_TXT[motif] || motif}`).join(' · ');
+
     const totalHTML = ctx.commandeRecommandee
       ? `<div class="commande-total"><span>Total</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
+        + (motifsNonCompletionTxt ? `<div class="section-note" style="margin:4px 0 0; padding:0; font-size:10.5px;">Camion non complété au maximum — ${motifsNonCompletionTxt}.</div>` : '')
       : (ctx.optimisation && ctx.optimisation.decision === 'insuffisant_meme_optimise'
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
+    // CTA piloté par l'état structuré du moteur (06/09/2026, decision-2.md
+    // condition 6 + audit E3) — `ctx.cta` vient déjà de construireEvaluationGlobale
+    // (Article 11, jamais un second calcul de commandabilité/arbitrage ici) :
+    // "Préparer ma commande" seulement si `ctx.cta.action === 'preparer'`
+    // (créneau réellement commandable ET aucun arbitrage quantité résiduel),
+    // sinon "Simuler ma commande" qui ouvre le simulateur déjà existant —
+    // un seul bouton rendu ici, jamais les deux (pas de doublon, point 8 de
+    // request-1.md).
+    const ctaSimulation = ctx.commandeRecommandee && ctx.cta && ctx.cta.action === 'simuler';
     const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      ? (ctaSimulation
+        ? `<button type="button" class="commande-cta-btn" id="btnSimulerCommandeCta" style="background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);">🧪 Simuler ma commande →</button>`
+        : `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`)
       : '';
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
@@ -2588,6 +2609,20 @@
 
     const btn = document.getElementById('btnPreparerCommande');
     if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    const btnSimuler = document.getElementById('btnSimulerCommandeCta');
+    if (btnSimuler) btnSimuler.addEventListener('click', () => ouvrirSimulateurCommande());
+  }
+
+  // Ouvre le simulateur de commande déjà existant (§30, même panneau que le
+  // bouton toggle indépendant "🧪 Simuler une commande") — jamais un second
+  // mécanisme de simulation créé pour ce CTA (Article 11, point 8 de
+  // request-1.md : un seul CTA de simulation, sans doublon).
+  function ouvrirSimulateurCommande() {
+    SIMULATEUR_COMMANDE_OUVERT = true;
+    const panel = document.getElementById('simulateurCommandePanel');
+    renderSimulateurCommandePanel();
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // ------------------------------------------------------------
