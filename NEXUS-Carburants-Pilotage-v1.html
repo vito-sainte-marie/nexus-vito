@@ -2367,15 +2367,27 @@
         ${fiabiliteCarburantHTML}`;
     }).join('');
 
+    // 06/09/2026, décision CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906
+    // (condition 4/E2) — `motifCamionIncomplet` est un texte DÉJÀ construit
+    // par le moteur (construireEvaluationGlobale) quand le camion n'atteint
+    // pas le maximum configuré ; jamais un second calcul ici, seulement un
+    // affichage du motif tel quel.
+    const motifCamionHTML = (ctx.commandeRecommandee && ctx.motifCamionIncomplet)
+      ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.motifCamionIncomplet.detail}</div>`
+      : '';
     const totalHTML = ctx.commandeRecommandee
-      ? `<div class="commande-total"><span>Total</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
+      ? `<div class="commande-total"><span>Total</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>${motifCamionHTML}`
       : (ctx.optimisation && ctx.optimisation.decision === 'insuffisant_meme_optimise'
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
-    const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
-      : '';
+    // Condition 4/6/E3 de la même décision — le CTA traduit l'état structuré
+    // `ctx.ctaCommande` (calculerEtatCTA), jamais un second calcul "camion
+    // plein ?"/"créneau commandable ?" ici. Repli sur le comportement
+    // historique si `ctaCommande` est absent (ancien contexte non encore
+    // recalculé par le moteur mis à jour).
+    const ctaAction = ctx.ctaCommande ? ctx.ctaCommande.action : (ctx.commandeRecommandee ? 'preparer' : 'aucune');
+    const boutonHTML = ctaAction === 'aucune' ? '' : `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">${ctaAction === 'preparer' ? '🚚 Préparer ma commande →' : '🧪 Simuler ma commande'}</button>`;
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
     // de Frédéric : "un manager n'a pas besoin de refaire mentalement la

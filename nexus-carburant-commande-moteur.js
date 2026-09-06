@@ -124,18 +124,65 @@
     return jourDuMois > dernierJour - jours;
   }
 
+  // Créneau réellement COMMANDABLE (audit CARBURANTS-PERFORMANCE-AUDIT-
+  // COMMANDE-20260906, écart E1/D confirmé le 06/09/2026 : "le moteur sait
+  // chercher le prochain jour de livraison autorisé, mais ne modélise pas
+  // séparément les jours où une commande peut être passée") — notion
+  // DISTINCTE de `jours_livraison_iso` (§4, jour où le camion PEUT livrer).
+  // `config.jours_commande_iso` (optionnel, mêmes conventions ISO 1=lundi
+  // ... 7=dimanche que `jours_livraison_iso`) modélise les jours où la
+  // ligne de commande fournisseur est réellement ouverte (ex. jamais le
+  // week-end, même si la livraison, elle, tombe un lundi). Rétrocompatible
+  // à dessein (décision CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-
+  // 20260906, condition 3) : configuration ABSENTE -> tout jour reste
+  // commandable, comportement historique strictement inchangé pour tout
+  // site qui n'a pas encore ce champ. Jamais un `if (samedi)` codé en dur
+  // (condition 2) : seule la config décide des jours fermés.
+  function estJourCommandePossible(dateISO, config) {
+    if (!config || !config.jours_commande_iso) return true;
+    return config.jours_commande_iso.includes(jourSemaineIso(dateISO));
+  }
+
+  // Premier jour commandable à partir de `dateISO` INCLUS (contrairement à
+  // `prochainJourLivraisonPossible`, qui cherche STRICTEMENT après son point
+  // de départ — ici `dateISO` est déjà la date à laquelle on tente de
+  // déposer la commande, elle est éligible si la ligne fournisseur y est
+  // ouverte). Borné à 21 jours, même garde-fou qu'ailleurs dans ce fichier
+  // (config incohérente -> null, jamais une boucle longue pour rien).
+  function premierJourCommandePossibleAPartirDe(dateISO, config) {
+    let cursor = dateISO;
+    for (let i = 0; i < 21; i++) {
+      if (estJourCommandePossible(cursor, config)) return cursor;
+      cursor = ajouterJoursISO(cursor, 1);
+    }
+    return null;
+  }
+
   // Fenêtre de livraison si une commande est passée à `dateCommandeISO`
   // `heureCommandeHHMM` (§4, exemple vendredi §13) : avant le cutoff, la
   // recherche part du jour de commande lui-même ; après le cutoff, la
   // commande est traitée comme si elle avait été passée le lendemain (un
   // jour de délai supplémentaire), modélisation explicite en l'absence de
   // règle plus précise dans le cahier pour ce cas.
+  //
+  // `dateSouhaiteeISO` = date à laquelle le manager tente réellement de
+  // commander (après cutoff) ; `dateEffective` = premier jour où cette
+  // tentative peut réellement être déposée auprès du fournisseur
+  // (`jours_commande_iso`, ci-dessus) — les deux sont identiques tant
+  // qu'aucune restriction n'est configurée. `commandeDirecte` (false dès que
+  // `dateEffective` a dû être décalée) distingue "le créneau proposé est
+  // directement commandable maintenant" de "il faut d'abord attendre la
+  // prochaine ouverture de commande" — condition 4 de la décision : un
+  // samedi (ligne fournisseur fermée) ne doit plus jamais ressortir comme
+  // un lundi directement préparable.
   function calculerFenetreLivraison({ dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO }) {
-    if (!config) return { avantCutoff: null, dateEffective: null, livraisonISO: null };
+    if (!config) return { avantCutoff: null, dateEffective: null, dateSouhaiteeISO: null, commandeDirecte: null, livraisonISO: null };
     const avantCutoff = (heureCommandeHHMM || '00:00') < (config.cutoff_heure || '11:00');
-    const dateEffective = avantCutoff ? dateCommandeISO : ajouterJoursISO(dateCommandeISO, 1);
-    const livraisonISO = prochainJourLivraisonPossible(dateEffective, config, joursFeriesISO);
-    return { avantCutoff, dateEffective, livraisonISO };
+    const dateSouhaiteeISO = avantCutoff ? dateCommandeISO : ajouterJoursISO(dateCommandeISO, 1);
+    const dateEffective = premierJourCommandePossibleAPartirDe(dateSouhaiteeISO, config);
+    const commandeDirecte = dateEffective === dateSouhaiteeISO;
+    const livraisonISO = dateEffective ? prochainJourLivraisonPossible(dateEffective, config, joursFeriesISO) : null;
+    return { avantCutoff, dateEffective, dateSouhaiteeISO, commandeDirecte, livraisonISO };
   }
 
   // ============================================================
@@ -840,17 +887,19 @@
     // Phase "camion complet" (mode normal uniquement, opt-in) — cf.
     // commentaire de la fonction ci-dessus.
     let carburantsCompletes = [];
+    let carburantsLimitants = [];
     if (viserCamionComplet) {
       const complement = completerVersCamionPlein({ parCarburant, volumesRetenus, total, cles, maximumCamionL, capacitesDisponiblesL });
       total = complement.total;
       carburantsCompletes = complement.carburantsCompletes;
+      carburantsLimitants = complement.carburantsLimitants;
       if (carburantsCompletes.length) {
         optimise = true;
         motif = `Camion complété vers ${Math.round(total).toLocaleString('fr-FR')} L (${carburantsCompletes.join(', ')}), au prorata de la consommation, sans dépasser la capacité disponible ni un stock immobilisé disproportionné.`;
       }
     }
 
-    return { decision: 'commander', optimise, carburantsAnticipes, carburantsCompletes, volumesRetenus, total, motif };
+    return { decision: 'commander', optimise, carburantsAnticipes, carburantsCompletes, carburantsLimitants, volumesRetenus, total, motif };
   }
 
   // Phase de complétion "camion complet" (25/08/2026, retour de Frédéric ;
@@ -883,20 +932,31 @@
     // Article 5 — mais jamais non plus servi en priorité si sa consommation
     // est inconnue : `ordrePrioriteCarburants` le classe naturellement en
     // dernier).
+    // 06/09/2026 — retourne aussi la CAUSE du plafond (condition 3/E2 de la
+    // décision CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906, "exposer
+    // depuis le moteur le motif de non-complétion du camion") : jamais un
+    // second calcul, seulement la même formule ci-dessus qui expose en plus
+    // laquelle des deux bornes (capacité physique restante / plafond
+    // anti-surstock) est la plus contraignante pour ce carburant.
     function plafondAdditionnelL(c) {
       const ev = parCarburant[c] || {};
       const capaciteRestante = Math.max(0, ((capacitesDisponiblesL && capacitesDisponiblesL[c] != null) ? capacitesDisponiblesL[c] : 0) - (volumesRetenus[c] || 0));
-      if (!ev.consommationMoyenneJour || ev.stockPrevuLivraisonL == null) return capaciteRestante;
+      if (!ev.consommationMoyenneJour || ev.stockPrevuLivraisonL == null) {
+        return { plafond: capaciteRestante, cause: 'CAPACITE_PHYSIQUE' };
+      }
       const stockMaxAutorise = ev.consommationMoyenneJour * SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION;
       const margeAutonomie = Math.max(0, stockMaxAutorise - (ev.stockPrevuLivraisonL + (volumesRetenus[c] || 0)));
-      return Math.min(capaciteRestante, margeAutonomie);
+      return margeAutonomie <= capaciteRestante
+        ? { plafond: margeAutonomie, cause: 'PLAFOND_ANTI_SURSTOCK' }
+        : { plafond: capaciteRestante, cause: 'CAPACITE_PHYSIQUE' };
     }
 
     let restant = cible - total;
     const ordre = ordrePrioriteCarburants(parCarburant).filter(c => cles.includes(c));
     ordre.forEach(c => {
       if (restant <= 0.01) return;
-      const ajout = Math.min(restant, plafondAdditionnelL(c));
+      const { plafond } = plafondAdditionnelL(c);
+      const ajout = Math.min(restant, plafond);
       if (ajout <= 0) return;
       volumesRetenus[c] = (volumesRetenus[c] || 0) + ajout;
       total += ajout;
@@ -904,7 +964,16 @@
     });
 
     const carburantsCompletes = cles.filter(c => (volumesRetenus[c] || 0) > (besoinInitial[c] || 0) + 0.01);
-    return { total, carburantsCompletes };
+    // Camion toujours pas complété (`restant` résiduel) malgré la phase de
+    // complétion : identifie, pour les carburants éligibles, ce qui les
+    // bloque encore — capacité physique ou plafond anti-surstock — plutôt
+    // que de laisser l'écran deviner (cas 2/3 de la matrice audit-1.md :
+    // "35 000 L maximum sûr à cause capacité SP95" / "... plafond anti-
+    // surstock GO").
+    const carburantsLimitants = restant > 0.01
+      ? ordre.map(c => ({ carburant: c, cause: plafondAdditionnelL(c).cause }))
+      : [];
+    return { total, carburantsCompletes, carburantsLimitants };
   }
 
   // ============================================================
@@ -1331,6 +1400,61 @@
   // (couche données, via `estFinDeMois`), ce moteur reste pur et ne connaît
   // pas la date du jour par lui-même (Article 11, même discipline que
   // `maintenantISO` déjà injecté partout ailleurs dans ce fichier).
+  // Motif structuré de non-complétion du camion (condition 3/E2 de la
+  // décision CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906) — ne
+  // recalcule RIEN (Article 11) : classe uniquement ce que
+  // `optimiserCommandeMultiCarburant`/`completerVersCamionPlein` ont déjà
+  // établi, pour que l'écran n'ait jamais à deviner pourquoi une
+  // recommandation s'arrête sous le maximum configuré (ex. 35 000/36 000 L).
+  function calculerMotifCamionIncomplet({ optim, commandeRecommandee, maximumCamionL, viserCamionComplet }) {
+    if (!commandeRecommandee || commandeRecommandee.total == null) return null;
+    if (commandeRecommandee.total >= maximumCamionL) return null; // camion plein, rien à expliquer
+    if (!viserCamionComplet) {
+      return {
+        code: 'MODE_MINIMUM_SEULEMENT',
+        detail: "Camion non complété au maximum : NEXUS vise uniquement le minimum de commande dans ce régime (fin de mois — viserCamionComplet=false), jamais un camion plein forcé.",
+      };
+    }
+    if (optim.carburantsLimitants && optim.carburantsLimitants.length) {
+      const parCause = optim.carburantsLimitants.reduce((acc, x) => {
+        (acc[x.cause] = acc[x.cause] || []).push(x.carburant);
+        return acc;
+      }, {});
+      const codes = Object.keys(parCause);
+      const detail = codes.map(cause => {
+        const libelle = cause === 'PLAFOND_ANTI_SURSTOCK' ? 'plafond anti-surstock atteint' : 'capacité disponible atteinte';
+        return `${parCause[cause].join(', ')} : ${libelle}`;
+      }).join(' ; ');
+      return { code: codes.length === 1 ? codes[0] : 'PLAFONDS_MULTIPLES', detail, carburants: optim.carburantsLimitants };
+    }
+    if (optim.motif) return { code: 'DETAIL_DISPONIBLE', detail: optim.motif };
+    return {
+      code: 'BESOIN_COUVERT',
+      detail: "Camion non complété au maximum : aucun carburant éligible n'avait de besoin supplémentaire à couvrir dans cette fenêtre.",
+    };
+  }
+
+  // État CTA structuré (condition 4/E3 de la décision — "l'UI ne recalcule
+  // aucune règle métier, elle traduit uniquement ces états structurés") :
+  // 'preparer' seulement si le créneau proposé est directement commandable
+  // ET que le camion est effectivement complet ; 'simuler' dès qu'un
+  // arbitrage quantité/calendrier demeure ; 'aucune' si aucune commande n'a
+  // pu être établie. `commandeDirecte` vient de `calculerFenetreLivraison`
+  // (undefined/true si aucune restriction de jours de commande n'est
+  // configurée pour le site — comportement historique, jamais un blocage
+  // par défaut).
+  function calculerEtatCTA({ commandeRecommandee, maximumCamionL, commandeDirecte }) {
+    if (!commandeRecommandee) return { action: 'aucune' };
+    const camionComplet = commandeRecommandee.total != null && maximumCamionL != null && commandeRecommandee.total >= maximumCamionL;
+    if (camionComplet && commandeDirecte !== false) return { action: 'preparer' };
+    return {
+      action: 'simuler',
+      motif: !camionComplet
+        ? "Quantité à arbitrer — le camion n'est pas complété au maximum configuré."
+        : "Créneau proposé pas encore directement commandable — le calendrier reste à confirmer.",
+    };
+  }
+
   function construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL, viserCamionComplet }) {
     const pourOptimisation = {};
     Object.entries(evaluationsParCarburant || {}).forEach(([c, ev]) => {
@@ -1344,10 +1468,11 @@
       };
     });
 
+    const maximumCamionL = (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES;
     const optim = optimiserCommandeMultiCarburant({
       parCarburant: pourOptimisation,
       minimumCamionL: config ? config.minimum_camion_litres : null,
-      maximumCamionL: (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES,
+      maximumCamionL,
       capacitesDisponiblesL,
       viserCamionComplet,
     });
@@ -1428,7 +1553,6 @@
       // 1000 L le volume le plus élevé jusqu'à repasser sous le plafond —
       // jamais un simple refus silencieux (le manager doit voir un volume
       // réellement livrable, quitte à ce qu'il soit incomplet).
-      const maximumCamionL = (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES;
       if (totalArrondi > maximumCamionL) {
         let exces = totalArrondi - maximumCamionL;
         while (exces > 0) {
@@ -1445,6 +1569,15 @@
       commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi };
     }
 
+    // Créneau directement commandable — partagé par tous les carburants du
+    // site (même config/calendrier pour cet appel), lu sur la première
+    // évaluation disponible ; `undefined` (aucune évaluation/scénario) est
+    // traité comme "non restreint", jamais comme un blocage par défaut
+    // (Article 5, rétrocompatible avec tout appelant antérieur à ce lot).
+    const premiereEvaluation = Object.values(evaluationsParCarburant || {})[0];
+    const commandeDirecte = premiereEvaluation && premiereEvaluation.scenarioMaintenant
+      ? premiereEvaluation.scenarioMaintenant.commandeDirecte : true;
+
     return {
       parCarburant: evaluationsParCarburant, optimisation: optim, commandeRecommandee,
       etatGlobal: determinerEtatGlobal(evaluationsParCarburant),
@@ -1452,6 +1585,11 @@
       // reformuler "pourquoi un carburant n'est pas inclus" selon le mode
       // réellement appliqué, jamais un texte qui suppose le mauvais mode.
       viserCamionComplet: !!viserCamionComplet,
+      // 06/09/2026 — décision CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-
+      // 20260906 : motif structuré de non-complétion + état CTA, pour que
+      // l'écran traduise sans jamais recalculer de règle métier lui-même.
+      motifCamionIncomplet: calculerMotifCamionIncomplet({ optim, commandeRecommandee, maximumCamionL, viserCamionComplet }),
+      ctaCommande: calculerEtatCTA({ commandeRecommandee, maximumCamionL, commandeDirecte }),
     };
   }
 
@@ -1664,6 +1802,7 @@
     // Calendrier
     ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
     prochainJourLivraisonPossible, calculerFenetreLivraison,
+    estJourCommandePossible, premierJourCommandePossibleAPartirDe,
     JOURS_FIN_MOIS, estFinDeMois,
     // Prévision
     SEUIL_POINTS_JOUR_SEMAINE_FIABLE,
@@ -1689,6 +1828,7 @@
     SEUIL_JAUGEAGE_FRAIS_JOURS, jaugeageEstFrais, livraisonEnCoursCoherente,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
+    calculerMotifCamionIncomplet, calculerEtatCTA,
     // Journal horodaté des recommandations
     resoudreEntreeJournalRecommandation,
     // Notification Cockpit/Brief
