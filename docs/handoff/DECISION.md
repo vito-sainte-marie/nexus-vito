@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906
+lot_id: SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,70 +12,81 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Mutation Site Guard
+# Décision — SITE-EXPLICITE-1 Insert Site Guard
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — les deux anomalies UPDATE/DELETE sont considérées fermées en Test. Deux anomalies INSERT deviennent prioritaires avant toute ouverture de la classe D.**
+**APPROVED_WITH_CONDITIONS — les deux anomalies INSERT sont considérées fermées en Test. ADR-0001 acceptée. La garde statique devient la prochaine étape obligatoire avant la classe D.**
 
-Le lot respecte la gate : contrat global/local explicité, aucune donnée existante réattribuée, aucun privilège élargi, chemins légitimes conservés et cartographie des triggers produite.
+Le contrat est désormais cohérent sur les trois faces INSERT / UPDATE / DELETE pour les occurrences traitées : un acteur local ne peut créer ni administrer une portée qu'il n'est pas autorisé à gouverner.
 
-## Q46 — contrat global `advisor_rules`
+## Q49 — garde statique ou classe D
 
-**APPROVED.**
+**GARDE STATIQUE D'ABORD. APPROVED.**
 
-Un manager de site ne doit pas pouvoir créer, modifier ou supprimer une règle globale qui influence plusieurs commerces. Le rôle `manager` exprime une responsabilité locale, pas une portée transverse.
+Ouvrir un lot `SITE-EXPLICITE-1-STATIC-SITE-GUARD` avant toute ouverture de la classe D.
 
-Contrat retenu :
-- règle globale (`site_id IS NULL`) : administration uniquement par un mécanisme explicitement transverse et audité ; dans l'état actuel, les migrations constituent ce mécanisme ;
-- règle locale : administration uniquement par un acteur autorisé pour ce site ;
-- une règle ne change pas de portée globale/local ni de site par mutation ordinaire.
+L'objectif n'est pas de créer un nouveau scanner spectaculaire. Il est de transformer ADR-0001 en invariant automatisé suffisamment fiable pour empêcher la réintroduction du motif « acteur contrôlé, portée oubliée » pendant les futurs changements.
 
-Si une future interface d'administration globale est créée, elle fera l'objet d'un contrat, d'un rôle/capability transverse explicite et d'un lot sécurité dédié. Ne pas réutiliser implicitement le rôle manager ou créateur.
+## Contrat minimal de la garde
 
-## Q47 — fermer les deux INSERT restants
+La garde doit couvrir au minimum les policies `INSERT`, `UPDATE` et `DELETE` sur les tables portant une portée `site`/`site_id` et :
 
-**APPROVED — priorité immédiate, avant classe D.**
+1. raisonner sur le contrôle effectif de la nouvelle ligne, notamment `coalesce(with_check, using)` pour UPDATE ;
+2. reconnaître les formes de contrôle de portée déjà observées sans se limiter à une recherche naïve de chaîne ;
+3. distinguer explicitement les données globales (`site_id IS NULL`) des données locales ;
+4. distinguer tables sans portée site, archives et cas réellement `NOT_APPLICABLE` ;
+5. produire `UNKNOWN/REVIEW` quand l'analyse ne permet pas une conclusion fiable ;
+6. ne jamais classer `SAFE` uniquement parce qu'une policy refuse tout ;
+7. vérifier la cohérence des faces INSERT/UPDATE/DELETE lorsqu'elles portent le même contrat métier ;
+8. détecter le motif rôle/auteur contrôlé mais site/portée non contrôlé ;
+9. inclure les exceptions dans un registre explicite, justifié et révisable plutôt que dans des exclusions silencieuses.
 
-Ouvrir `SITE-EXPLICITE-1-INSERT-SITE-GUARD`, limité à :
-1. `advisor_rules.manager_insert_advisor_rules` : un manager ne peut créer qu'une règle locale sur son propre site ; il ne peut créer ni une règle globale ni une règle pour un autre site ;
-2. `apprentissage_snapshots.employee_own_snapshot_upsert` : un employé ne peut créer/upsert qu'un snapshot pour lui-même sur son propre site ;
-3. chemins légitimes sur le bon site ;
-4. preuves comportementales avant/après sous identités réelles ;
-5. aucun élargissement de privilège, aucune réattribution de données ;
-6. rollback complet.
+## Test du contrôleur
 
-Pour `advisor_rules`, le contrat INSERT doit être cohérent avec le contrat UPDATE/DELETE déjà retenu : un manager local ne peut pas créer une portée qu'il n'aurait pas le droit d'administrer ensuite.
+**Obligatoire avant promotion CI.**
 
-## Q48 — ADR-0001
+Le classificateur doit être testé par mutation avec au minimum des fixtures représentant :
+- policy sûre par fonction de site ;
+- policy sûre par sous-requête employé/site ;
+- policy vulnérable rôle seul ;
+- policy vulnérable auteur seul ;
+- UPDATE avec `USING` sans `WITH CHECK` mais garde effective ;
+- donnée globale légitime ;
+- archive / NOT_APPLICABLE ;
+- cas volontairement ambigu devant retourner `UNKNOWN/REVIEW`.
 
-**APPROVED_WITH_CONDITIONS — adopter maintenant, avec incarnation automatisée à suivre.**
+Les six occurrences historiques d'ADR-0001 doivent servir de corpus de régression lorsque possible.
 
-L'ADR peut passer de PROPOSÉE à ACCEPTÉE avec le principe formulé dans ce lot. Son acceptation documentaire ne signifie pas que le risque de régression est fermé.
+## CI
 
-Condition : ouvrir ensuite un lot de garde statique/CI qui transforme l'ADR en invariant vérifiable. Le contrôle devra lui-même être testé par mutation et savoir produire `UNKNOWN/REVIEW` lorsqu'il ne sait pas conclure.
+La garde peut devenir bloquante dans la CI uniquement lorsque ses tests propres sont verts et que ses résultats sur l'état actuel ont été revus par Architecture, Security & Isolation et QA.
 
-L'ADR doit référencer au minimum les occurrences connues qui ont motivé la règle : `mission_progress`, `advisor_rules`, `apprentissage_snapshots`, ainsi que les deux INSERT encore ouverts au moment de son adoption.
+Elle ne doit nécessiter aucun secret Production. Si une interrogation de schéma vivant est nécessaire, le lot doit proposer séparément le mode d'exécution reproductible/éphémère ou Test et son modèle de secrets avant de l'activer dans GitHub Actions.
 
-## Triggers
+Une première version statique basée sur les migrations/schema versionnés est préférable si elle permet une preuve suffisante et reproductible.
 
-La cartographie des trois triggers écrivant le site est acceptée comme état actuel de Test. Leur existence ne doit toutefois pas être interprétée comme une autorisation à généraliser la normalisation par trigger aux classes D/defaults.
+## Limite importante
+
+La garde statique n'a pas vocation à « prouver toute la sécurité RLS ». Elle protège un invariant précis issu d'ADR-0001. Les preuves comportementales adversariales restent nécessaires pour les chemins à risque et les changements sensibles.
 
 ## Classe D
 
 **TOUJOURS FERMÉE.**
 
-Après `INSERT-SITE-GUARD`, la prochaine gate devra décider entre :
-- construire d'abord la garde statique/CI de l'ADR ;
-- ou ouvrir la démonstration Architecture + Security du mécanisme classe D.
+Elle ne pourra revenir à l'arbitrage qu'après :
+- garde statique testée ;
+- résultats sur l'état actuel expliqués, faux positifs/UNKNOWN traités explicitement ;
+- avis séparés Architecture/Security/QA ;
+- proposition du contrat de normalisation/fail-closed pour les 9 écritures classe D et les defaults concernés.
 
-Aucun retrait de default, aucune correction des 9 écritures classe D et aucune généralisation de trigger n'est autorisé par cette décision.
+Aucun retrait de default, aucune correction classe D et aucune généralisation de trigger n'est autorisé par cette décision.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-INSERT-SITE-GUARD` en Test uniquement et adopter ADR-0001 conformément aux conditions ci-dessus.
+Claude peut exécuter `SITE-EXPLICITE-1-STATIC-SITE-GUARD` en Test / code de gouvernance uniquement.
 
-Retour Handoff obligatoire avec policies avant/après, preuves des deux INSERT illégitimes et des chemins légitimes, état ADR, suite, avis Architecture/Security/QA et rollback.
+Retour Handoff attendu avec : conception de la garde, corpus de mutation, résultats exacts SAFE/VULNERABLE/UNKNOWN/NOT_APPLICABLE, traitement des exceptions, mode CI proposé ou activé selon preuves, avis Architecture/Security/QA, impact sur temps de CI et rollback/désactivation.
 
 ## Gate Production
 

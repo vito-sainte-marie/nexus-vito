@@ -106,5 +106,13 @@ jobs:
       - name: Épreuves mutationnelles du validateur Handoff
         run: node test_handoff_v2_20260905.js
 
+      # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
+      # l'arbitrage conditionne son activation à la revue de ses résultats par
+      # Architecture, Security et QA. Elle rapporte donc sans arrêter la CI,
+      # et son test propre (ci-dessus, dans la suite) reste bloquant : la
+      # garde peut se taire, elle ne peut pas mentir sans qu'on le voie.
+      - name: Garde de portée site (ADR-0001) — rapport
+        run: node outils/garde-portee-site.js || true
+
       - name: Simulations métier
         run: npm run simulations --silent

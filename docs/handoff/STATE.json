@@ -112,8 +112,12 @@
       "consomme_le": "2026-09-06T03:39:11.191Z"
     },
     "SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "d4195e396e1bcc88ee5bd33ae9951f3c371956ed",
+      "consomme_le": "2026-09-06T03:44:56.716Z"
     }
   },
   "derogations": [

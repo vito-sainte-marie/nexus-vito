@@ -1,0 +1,4 @@
+{
+  "commentaire": "Registre EXPLICITE des écarts tolérés par la garde ADR-0001. Chaque entrée est nommée, motivée, datée et attribuée. Une exclusion silencieuse serait un contrôle désactivé — c'est la règle posée pour les dérogations du Handoff v2, appliquée ici. Vide à ce jour : aucun écart n'a été jugé nécessaire.",
+  "derogations": []
+}
