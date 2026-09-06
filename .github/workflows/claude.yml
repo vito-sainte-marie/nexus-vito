@@ -3,6 +3,10 @@
 # Ce workflow ne déploie rien. Il réagit uniquement à une mention explicite
 # `@claude` dans une issue, un commentaire ou une revue.
 #
+# Garde de sécurité : seul le compte GitHub `vito-sainte-marie` peut déclencher
+# un job Claude disposant de droits d'écriture. Une mention `@claude` par tout
+# autre acteur est ignorée par le job, même sur un dépôt public.
+#
 # La branche de travail présentée à Claude reste explicitement
 # `config-par-environnement`. Le workflow vit sur `main` uniquement parce que
 # GitHub écoute les événements d'issues/commentaires depuis la branche par défaut.
@@ -41,10 +45,12 @@ on:
 jobs:
   claude:
     if: >-
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.actor == 'vito-sainte-marie' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     runs-on: ubuntu-latest
 
     permissions:
