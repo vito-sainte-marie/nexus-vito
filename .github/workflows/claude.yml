@@ -19,13 +19,13 @@
 # dessus.
 #
 # Accès Supabase Claude : TEST uniquement, lecture seule.
-# Le workflow ne reçoit qu'un secret GitHub dédié : SUPABASE_TEST_DB_URL_READONLY.
-# Cette URL doit pointer exclusivement vers le projet Supabase Test et vers un
-# rôle PostgreSQL en lecture seule. Aucun token Management API, service_role,
-# mot de passe Production ou URL Production ne doit être stocké sous ce nom.
-# Si le secret est absent, Claude continue de fonctionner mais doit considérer
-# toute preuve Supabase live comme indisponible et rester fail-closed lorsqu'une
-# décision dépend de cette preuve.
+# Le secret GitHub SUPABASE_TEST_DB_URL_READONLY est décomposé par le runner
+# GitHub AVANT l'appel à Claude en variables PostgreSQL standards PGHOST/PGPORT/
+# PGDATABASE/PGUSER/PGPASSWORD. Claude n'a donc jamais besoin d'expanser l'URL
+# secrète dans une ligne de commande : `psql` peut être lancé sans argument de
+# connexion. Le mot de passe est explicitement masqué dans les logs GitHub.
+# Aucun token Management API, service_role, mot de passe Production ou URL
+# Production ne doit être stocké sous ce nom.
 name: Claude
 
 on:
@@ -63,10 +63,41 @@ jobs:
       - name: Rendre les refs protégées vérifiables par Handoff
         run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/production:refs/remotes/origin/production +refs/heads/config-par-environnement:refs/remotes/origin/config-par-environnement
 
-      - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+      - name: Préparer connexion PostgreSQL Test read-only sans URL en ligne de commande
+        if: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY != '' }}
         env:
-          SUPABASE_TEST_DB_URL_READONLY: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
-          NEXUS_SUPABASE_SCOPE: TEST_READ_ONLY
+          NEXUS_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, unquote
+
+          raw = os.environ['NEXUS_TEST_DB_URL']
+          u = urlparse(raw)
+          if u.scheme not in ('postgresql', 'postgres'):
+              raise SystemExit('Invalid PostgreSQL URL scheme')
+          if not all((u.hostname, u.username, u.password, u.path)):
+              raise SystemExit('Incomplete PostgreSQL Test URL')
+
+          values = {
+              'PGHOST': u.hostname,
+              'PGPORT': str(u.port or 5432),
+              'PGDATABASE': u.path.lstrip('/') or 'postgres',
+              'PGUSER': unquote(u.username),
+              'PGPASSWORD': unquote(u.password),
+              'PGSSLMODE': 'require',
+              'NEXUS_SUPABASE_SCOPE': 'TEST_READ_ONLY',
+          }
+
+          print(f"::add-mask::{values['PGPASSWORD']}")
+          env_path = os.environ['GITHUB_ENV']
+          with open(env_path, 'a', encoding='utf-8') as f:
+              for key, value in values.items():
+                  f.write(f'{key}={value}\n')
+          PY
+
+      - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
