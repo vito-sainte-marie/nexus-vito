@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "SITE-EXPLICITE-1-POMPISTE-DU-JOUR-TIMEZONE-GUARD-20260906",
+  "lot_actif": "CARBURANTS-PERFORMANCE-AUDIT-COMMANDE-20260906",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -26,7 +26,8 @@
     "SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906": {"statut":"DECISION_CONSOMMEE","derniere_demande":"request-1.md","derniere_decision":"decision-1.md","source_decision":"registre","commit_decision":"fc2534169eb5c84b230ca58f76aa75bd960ed0db","consomme_le":"2026-09-06T04:18:53.315Z"},
     "SITE-EXPLICITE-1-CREATEUR-SITES-GUARD-20260906": {"statut":"DECISION_CONSOMMEE","derniere_demande":"request-1.md","derniere_decision":"decision-1.md","source_decision":"registre","commit_decision":"542c20c453408810c80017745ec2415988af0f3f","consomme_le":"2026-09-06T04:33:23.573Z"},
     "SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF-20260906": {"statut":"DECISION_CONSOMMEE","derniere_demande":"request-1.md","derniere_decision":"decision-1.md","source_decision":"registre","commit_decision":"fb572700f446d6a643a237ff47f87c748938604c","consomme_le":"2026-09-06T12:34:05.000Z"},
-    "SITE-EXPLICITE-1-POMPISTE-DU-JOUR-TIMEZONE-GUARD-20260906": {"statut":"DECISION_CONSOMMEE","derniere_demande":"request-1.md","derniere_decision":"decision-1.md","source_decision":"registre","commit_decision":"c8a2c128ab702d77456b3446d05cd42f3a7a3e35","consomme_le":"2026-09-06T12:34:05.000Z"}
+    "SITE-EXPLICITE-1-POMPISTE-DU-JOUR-TIMEZONE-GUARD-20260906": {"statut":"DECISION_CONSOMMEE","derniere_demande":"request-1.md","derniere_decision":"decision-1.md","source_decision":"registre","commit_decision":"c8a2c128ab702d77456b3446d05cd42f3a7a3e35","consomme_le":"2026-09-06T12:34:05.000Z"},
+    "CARBURANTS-PERFORMANCE-AUDIT-COMMANDE-20260906": {"statut":"ATTENTE_DECISION","derniere_demande":"request-1.md"}
   },
   "derogations": [
     {"fichier":"decision-2.md","regle":"SEQUENCE_NON_CONTIGUE","motif":"Le dépôt est numéroté 2 alors qu'il est la première décision du registre, parce que la demande request-1.md écrite par Claude demandait littéralement « déposer decision-2.md ». L'auteur de la décision a suivi l'instruction reçue. Le fichier n'est ni renommé ni réécrit : renommer le dépôt d'un tiers violerait l'append-only, et assouplir la règle la viderait de son sens. L'écart est donc assumé ici, visible à chaque exécution.","autorise_par":"Frédéric Bragance (gate humaine)","le":"2026-09-05"},
