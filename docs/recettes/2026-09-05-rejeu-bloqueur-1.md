@@ -132,3 +132,26 @@ Tant que le défaut subsiste, un employé ayant un service ouvert **ne peut pas
 prendre un nouveau poste** : l'insertion est refusée par l'index. Le seul
 moyen de repartir est le pointage de départ, qui déclenche S-2. Ce n'est pas
 un blocage total, mais c'est un chemin métier légitime aujourd'hui impossible.
+
+## Rejeu correctif — 05/09/2026, 21:02 (heure station)
+
+Migration `20260905213000_prise_de_poste_contrat_unique.sql` appliquée en Test.
+Déploiement : commit `bd30c7a`, génération `020995cd6b06`, `coherent = true`.
+
+Le service `41c935d4`, laissé ouvert comme l'exigeait Q18, a servi de
+précondition. Troisième prise de poste sous Employé Test A, en session réelle,
+par le même parcours qui avait échoué :
+
+| | Avant | Après |
+|---|---|---|
+| `41c935d4` (pompiste) | `en_cours`, `heure_fin` NULL | **`termine`**, `heure_fin` 21:02:12, `cloture_source = prise_de_poste_suivante` |
+| `6f336e94` (renfort) | — | `en_cours`, début 21:02:12, `site` et `site_id` = `nexus-station-test` |
+
+`heure_fin` de l'ancien = `heure_debut` du nouveau, à la seconde. Un seul
+service en cours pour A. Sur toute la table : 0 clôture incomplète, 0 service
+terminé sans `heure_fin`, 0 incohérence `site`/`site_id`, 0 clôture débordant
+sur un autre employé. `clotures_par_S3 = 1`, `clotures_par_S2 = 1`.
+
+**S-3 fonctionne pour la première fois depuis l'application.** Rien n'a été
+corrigé à la main : le défaut a été réparé par migration, puis le même geste
+qui échouait a été rejoué.
