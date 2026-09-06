@@ -14,7 +14,7 @@ Ce fichier est la mémoire durable des observations terrain, anomalies, besoins 
 | ID | État | Priorité | Sujet | Critère de sortie |
 |---|---|---:|---|---|
 | CONT-001 | PRET_POUR_DEV | P0 | Continuité NEXUS indépendante des conversations/sessions | Reprise possible depuis dépôt canonique uniquement |
-| SEC-001 | PRET_POUR_DEV | P0 | Fermer `est_pompiste_du_jour` timezone + `en_cours` et les 7 policies dépendantes | Preuves comportementales Test vertes, registre aide conforme |
+| SEC-001 | TERMINE | P0 | Fermer `est_pompiste_du_jour` timezone + `en_cours` et les 7 policies dépendantes | Preuves comportementales Test vertes, registre aide conforme |
 | ARCH-001 | A_ETUDIER | P0 | Terminer isolation multisite/site explicite | Aucun chemin actif ne peut dériver silencieusement un site ou croiser les données clients |
 | SHIFT-001 | A_ETUDIER | P0 | Lifecycle des prises de poste et clôture des services | Un service courant est unique, borné et clôturé selon contrat métier |
 
@@ -31,6 +31,11 @@ Ce fichier est la mémoire durable des observations terrain, anomalies, besoins 
 | CARB-001 | TERRAIN | P0 | Carburants Performance | Après livraison, une estimation ancienne comme « mardi Q2 » peut rester affichée | Projection recalculée avec livraison effectuée ou attendue explicitement distinguée |
 | CARB-002 | TERRAIN | P0 | Carburants Performance | Couverture doit être lisible en jour/semaine/quart plutôt qu'en jours décimaux | Affichage métier cohérent sur tous les écrans concernés |
 | CARB-003 | TERRAIN | P1 | Carburants / Verify | Les états contrôle caisse / jaugeage doivent rester visibles et cohérents | Bandeaux et liens Verify présents selon état réel |
+| CARB-004 | PRET_POUR_DEV | P0 | Carburants Performance / Commande | La recommandation terrain peut proposer un total inférieur à 36 000 L et afficher une préparation de commande le samedi pour une livraison lundi impossible | Le moteur respecte les contraintes opérationnelles de commande/livraison de la station ; aucune recommandation impossible n'est présentée comme action directe |
+| CARB-005 | PRET_POUR_DEV | P0 | Carburants Performance / Commande | Dans ce contexte, Frédéric préfère explorer la quantité avant de préparer une commande ; le bouton inférieur « Simuler une commande » fait doublon avec l'action attendue | L'action principale devient « Simuler ma commande » lorsque la recommandation doit être ajustée ; le second bouton redondant est supprimé ou contextualisé sans double action |
+| FDJ-001 | PRET_POUR_DEV | P0 | FDJ Opérations / Réception | Le champ actuel « Provenance » est ambigu et optionnel alors que le numéro de colis FDJ est la référence attendue (ex. 169720001) | Champ renommé « Numéro de colis », obligatoire ; validation impossible s'il est vide ; erreur claire et focus/retour sur le champ |
+| FDJ-002 | PRET_POUR_DEV | P0 | FDJ Opérations / Réception | Cliquer sur « Réceptionner » ne doit pas enregistrer immédiatement sans contrôle visuel des carnets saisis | Avant validation définitive, afficher un récapitulatif des carnets livrés par jeu et quantités, avec possibilité de revenir corriger ; aucune écriture définitive avant confirmation |
+| FDJ-003 | PRET_POUR_DEV | P1 | FDJ / Relevé de clôture PDF | Le PDF tronque « Stock par jeu » avec « +19 autres » et place la synthèse caisse en bas à gauche | Le PDF affiche l'intégralité du stock par jeu ; colonne droite : Synthèse caisse en haut, Historique des versions en bas ; mise en page lisible sur une ou plusieurs pages si nécessaire |
 | EMP-001 | TERRAIN | P0 | Employés / Shift | Prise de poste doit être séparée par date/quart/site | Aucun service d'un autre quart/site/date ne peut être réutilisé par erreur |
 | EMP-002 | TERRAIN | P0 | Employés / Shift | Services historiques restent `en_cours` faute de clôture fiable | Mécanisme de clôture conforme au lifecycle validé |
 
