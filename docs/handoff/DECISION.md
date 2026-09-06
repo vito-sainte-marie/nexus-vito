@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906
+lot_id: SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,81 +12,81 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Insert Site Guard
+# Décision — SITE-EXPLICITE-1 Static Site Guard
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — les deux anomalies INSERT sont considérées fermées en Test. ADR-0001 acceptée. La garde statique devient la prochaine étape obligatoire avant la classe D.**
+**APPROVED_WITH_CONDITIONS — la garde statique est acceptée comme instrument de gouvernance non bloquant. Les trois VULNERABLE doivent être fermés avant activation bloquante et avant la classe D. Les 27 UNKNOWN doivent être triés.**
 
-Le contrat est désormais cohérent sur les trois faces INSERT / UPDATE / DELETE pour les occurrences traitées : un acteur local ne peut créer ni administrer une portée qu'il n'est pas autorisé à gouverner.
+Le lot apporte la première incarnation automatisée crédible d'ADR-0001 : reproductible, sans secret ni réseau, testée par mutation, calibrée contre la base et capable de refuser de conclure. La découverte de trois nouvelles occurrences confirme sa valeur.
 
-## Q49 — garde statique ou classe D
+## Q50 — corriger les trois VULNERABLE
 
-**GARDE STATIQUE D'ABORD. APPROVED.**
+**OUI, priorité immédiate.**
 
-Ouvrir un lot `SITE-EXPLICITE-1-STATIC-SITE-GUARD` avant toute ouverture de la classe D.
+Ouvrir `SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS` limité à :
+1. `progression_badge_awards` INSERT : conserver le contrôle auteur et ajouter la cohérence du site autorisé ;
+2. `progression_points_ledger` INSERT : même exigence, après vérification du contrat métier propre à la table ;
+3. `inventaire_quart_employes` UPDATE : préserver la portée indirecte `quart_id -> inventaire_quarts.site` et empêcher toute mutation qui permettrait de rattacher la ligne à un quart d'un autre site ;
+4. rejouer les chemins illégitimes avant/après et les chemins légitimes ;
+5. aucun élargissement de privilège, aucune réattribution de données ;
+6. rollback complet.
 
-L'objectif n'est pas de créer un nouveau scanner spectaculaire. Il est de transformer ADR-0001 en invariant automatisé suffisamment fiable pour empêcher la réintroduction du motif « acteur contrôlé, portée oubliée » pendant les futurs changements.
+Condition importante : pour `inventaire_quart_employes`, ne pas ajouter artificiellement une colonne site si la portée indirecte par `quart_id` constitue le contrat normal. La correction doit protéger le contrat métier, pas uniformiser le schéma.
 
-## Contrat minimal de la garde
+Toute autre vulnérabilité découverte pendant ce sous-lot revient au Handoff avant correction.
 
-La garde doit couvrir au minimum les policies `INSERT`, `UPDATE` et `DELETE` sur les tables portant une portée `site`/`site_id` et :
+## Q51 — rendre la garde bloquante
 
-1. raisonner sur le contrôle effectif de la nouvelle ligne, notamment `coalesce(with_check, using)` pour UPDATE ;
-2. reconnaître les formes de contrôle de portée déjà observées sans se limiter à une recherche naïve de chaîne ;
-3. distinguer explicitement les données globales (`site_id IS NULL`) des données locales ;
-4. distinguer tables sans portée site, archives et cas réellement `NOT_APPLICABLE` ;
-5. produire `UNKNOWN/REVIEW` quand l'analyse ne permet pas une conclusion fiable ;
-6. ne jamais classer `SAFE` uniquement parce qu'une policy refuse tout ;
-7. vérifier la cohérence des faces INSERT/UPDATE/DELETE lorsqu'elles portent le même contrat métier ;
-8. détecter le motif rôle/auteur contrôlé mais site/portée non contrôlé ;
-9. inclure les exceptions dans un registre explicite, justifié et révisable plutôt que dans des exclusions silencieuses.
+**OUI EN CIBLE, PAS ENCORE.**
 
-## Test du contrôleur
+Activation bloquante autorisable seulement après :
+- fermeture prouvée des trois VULNERABLE ;
+- tri des 27 UNKNOWN ;
+- aucune dérogation silencieuse ;
+- résultats courants sans VULNERABLE non explicitement acceptée ;
+- avis final séparé Architecture / Security & Isolation / QA ;
+- démonstration que le workflow échoue réellement sur une mutation volontaire et passe sur l'état accepté.
 
-**Obligatoire avant promotion CI.**
+Le test propre de la garde reste bloquant dès maintenant. Le rapport de la garde reste non bloquant jusqu'à cette gate.
 
-Le classificateur doit être testé par mutation avec au minimum des fixtures représentant :
-- policy sûre par fonction de site ;
-- policy sûre par sous-requête employé/site ;
-- policy vulnérable rôle seul ;
-- policy vulnérable auteur seul ;
-- UPDATE avec `USING` sans `WITH CHECK` mais garde effective ;
-- donnée globale légitime ;
-- archive / NOT_APPLICABLE ;
-- cas volontairement ambigu devant retourner `UNKNOWN/REVIEW`.
+## Q52 — 27 UNKNOWN
 
-Les six occurrences historiques d'ADR-0001 doivent servir de corpus de régression lorsque possible.
+**OUI, tri obligatoire avant activation bloquante et avant classe D.**
 
-## CI
+Créer un lot `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` après les trois corrections, ou le traiter dans le même cycle uniquement si le périmètre reste documentaire/classification sans correction opportuniste.
 
-La garde peut devenir bloquante dans la CI uniquement lorsque ses tests propres sont verts et que ses résultats sur l'état actuel ont été revus par Architecture, Security & Isolation et QA.
+Chaque UNKNOWN doit devenir exactement l'un de :
+- `SAFE` avec mécanisme de portée expliqué ;
+- `VULNERABLE` avec constat et retour Handoff avant correction ;
+- `NOT_APPLICABLE` avec raison contractuelle ;
+- dérogation explicite, datée, attribuée, motivée et révisable.
 
-Elle ne doit nécessiter aucun secret Production. Si une interrogation de schéma vivant est nécessaire, le lot doit proposer séparément le mode d'exécution reproductible/éphémère ou Test et son modèle de secrets avant de l'activer dans GitHub Actions.
+Un UNKNOWN ne peut pas être supprimé uniquement pour obtenir une CI verte. Les cas service_role / configuration doivent être distingués des écritures utilisateur ordinaires et leur frontière de confiance documentée.
 
-Une première version statique basée sur les migrations/schema versionnés est préférable si elle permet une preuve suffisante et reproductible.
+## Garde et dérive schéma vivant
 
-## Limite importante
+Architecture a raison : la garde reconstruit l'état depuis les migrations. Cette hypothèse devient une précondition explicite : **toute modification persistante de policies/RLS doit être versionnée par migration**. Une modification hors migration constitue une dérive et invalide la complétude de la garde.
 
-La garde statique n'a pas vocation à « prouver toute la sécurité RLS ». Elle protège un invariant précis issu d'ADR-0001. Les preuves comportementales adversariales restent nécessaires pour les chemins à risque et les changements sensibles.
+Ne pas ajouter maintenant de dépendance réseau uniquement pour contrôler cette dérive. La comparaison schéma vivant / migrations pourra être traitée dans le futur lot CI connecté déjà identifié.
 
 ## Classe D
 
 **TOUJOURS FERMÉE.**
 
-Elle ne pourra revenir à l'arbitrage qu'après :
-- garde statique testée ;
-- résultats sur l'état actuel expliqués, faux positifs/UNKNOWN traités explicitement ;
-- avis séparés Architecture/Security/QA ;
-- proposition du contrat de normalisation/fail-closed pour les 9 écritures classe D et les defaults concernés.
+La classe D ne revient à l'arbitrage qu'après :
+1. trois findings fermés ;
+2. 27 UNKNOWN triés ;
+3. garde statique prête à devenir bloquante et test de blocage prouvé ;
+4. proposition Architecture + Security du contrat de normalisation/fail-closed pour les 9 écritures et les defaults concernés.
 
-Aucun retrait de default, aucune correction classe D et aucune généralisation de trigger n'est autorisé par cette décision.
+Aucun retrait de default, aucune correction classe D et aucune généralisation de trigger n'est autorisé.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-STATIC-SITE-GUARD` en Test / code de gouvernance uniquement.
+Claude peut exécuter `SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS` en Test uniquement.
 
-Retour Handoff attendu avec : conception de la garde, corpus de mutation, résultats exacts SAFE/VULNERABLE/UNKNOWN/NOT_APPLICABLE, traitement des exceptions, mode CI proposé ou activé selon preuves, avis Architecture/Security/QA, impact sur temps de CI et rollback/désactivation.
+Retour Handoff attendu avec policies/contrats avant-après, preuves comportementales, sortie de la garde après correction, suite, avis Guardians et rollback. Ensuite, tri des UNKNOWN avant demande d'activation bloquante.
 
 ## Gate Production
 

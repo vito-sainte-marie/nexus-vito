@@ -120,8 +120,12 @@
       "consomme_le": "2026-09-06T03:44:56.716Z"
     },
     "SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "046f10a92da3bb1fb959e0e714398249837f5fd0",
+      "consomme_le": "2026-09-06T03:56:11.920Z"
     }
   },
   "derogations": [
