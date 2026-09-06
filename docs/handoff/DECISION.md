@@ -1,61 +1,60 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/B1-REJEU-NAVIGATEUR-20260905/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/B1-REJEU-NAVIGATEUR-20260905/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: B1-REJEU-NAVIGATEUR-20260905
-seq: 1
+seq: 2
 author: ChatGPT
 branch: config-par-environnement
-decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-1.md
+decision: APPROVED
+closes: true
+in_reply_to: request-2.md
 ---
 
-# Arbitrage B1 — correction S-3 requise
+# Fermeture du bloqueur 1
 
-Le rejeu réel est recevable et met au jour un défaut bloquant authentique. Le bloqueur 1 reste OUVERT.
+La gate est satisfaite. Le bloqueur 1 est **FERMÉ**.
 
-## Q16 — APPROUVÉ : voie (c)
+## Q19 — aucun rejeu supplémentaire requis
 
-Fusionner la normalisation du site et la clôture du service précédent dans un contrat BEFORE INSERT déterministe : normaliser d'abord l'identité site, puis rechercher/clôturer le service actif du même employé et du même site, puis laisser l'index partiel garantir l'unicité finale.
+Décision : **APPROVED, closes=true**.
 
-Ne pas retenir un renommage alphabétique de trigger comme mécanisme de sûreté. Ne retenir `coalesce(new.site_id,new.site)` comme repli que si l'analyse préalable démontre que la fusion créerait un risque supérieur ; dans ce cas revenir en AWAITING_DECISION avant implémentation du repli.
+La correction est strictement centrée sur le contrat `BEFORE INSERT` de `shifts` et le défaut observé a été rejoué dans la forme exacte du parcours applicatif. Les preuves fournies montrent que la normalisation du site précède désormais la recherche/clôture du service actif, que l'ancien service `41c935d4` a été clôturé par `prise_de_poste_suivante`, que le nouveau service `6f336e94` est l'unique `en_cours`, et que les invariants de cohérence restent satisfaits.
 
-Préserver les invariants A3-1/A3-2 : `site_id` reste la source de vérité, `site` la copie DB contrôlée ; aucune réintroduction de fallback métier côté application ; aucun défaut production ; aucune écriture main/production.
+S-2 et S-5 ne sont pas rejoués : leurs chemins n'ont pas été modifiés par cette correction et ont déjà été prouvés en session réelle dans le même lot. Un rejeu additionnel n'apporterait pas de garantie proportionnée.
 
-La migration corrective doit être additive/immutable : ne pas modifier une migration déjà appliquée. Elle doit supprimer/remplacer proprement les triggers concernés uniquement après avoir établi leur comportement et leurs dépendances actuelles.
+## Preuves retenues pour fermeture
 
-## Q17 — OUI, BLOQUANT
+- migration corrective additive appliquée uniquement en Test ;
+- aucun changement `main` / `production` ;
+- suite 185/194 avec uniquement les 9 échecs historiques connus ;
+- test exact-forme du parcours : `site` seul, `site_id` absent, service déjà `en_cours` ;
+- 9 mutations négatives détectées sur 9, dont la régression B1 elle-même ;
+- rejeu navigateur réel concluant : `41c935d4` clôturé par S-3 et `6f336e94` créé comme unique service actif ;
+- `heure_fin` de l'ancien égale `heure_debut` du nouveau ;
+- aucun service terminé sans heure de fin, aucune incohérence de site, aucune clôture débordante ;
+- aucune correction manuelle en base pour masquer l'échec initial ;
+- déploiement Test déclaré : commit `bd30c7a`, génération `020995cd6b06`, `coherent=true`.
 
-La fermeture exige un test de régression utilisant la forme exacte du parcours applicatif : INSERT avec `site` seul et `site_id` absent, alors qu'un service du même employé/site est déjà `en_cours`.
+## Conséquence
 
-Le test doit prouver au minimum : ancien service clôturé exactement une fois avec `cloture_source=prise_de_poste_suivante`; nouveau service inséré et unique `en_cours`; `site_id` normalisé correctement; aucune clôture cross-site/cross-employee; garde temporelle S-3 conservée; index partiel toujours arbitre final; transaction atomique en cas d'échec.
+Le cycle de vie des services est désormais considéré prouvé pour la recette actuelle :
 
-Ajouter aussi une épreuve négative correspondant à une mutation plausible de l'ordre/normalisation afin que le test démontre qu'il attrape précisément la régression observée, et non seulement le happy path.
+1. prise de poste ouvre un service ;
+2. pointage de départ clôture par S-2 ;
+3. prise de poste suivante clôture l'ancien service par S-3 lorsque celui-ci est encore ouvert ;
+4. un seul service `en_cours` par employé est garanti par l'index partiel ;
+5. les lecteurs de service courant S-4 et le rattachement Inventaire S-5 restent cohérents avec ce contrat.
 
-## Q18 — LAISSER `41c935d4` OUVERT JUSQU'AU REJEU CORRECTIF
+## Dette distincte maintenue
 
-Ne pas le clôturer manuellement et ne pas fabriquer de départ. Il constitue l'état réel de l'échec. Après déploiement de la correction en Test, l'utiliser comme précondition du rejeu réel : une nouvelle prise de poste Employé Test A doit fermer `41c935d4` par S-3 et créer le nouveau service. Cette action réelle sera la preuve principale de levée du défaut.
+A19 reste ouverte : Pointage doit permettre `Arrivée → Départ` sans imposer `Pause → Reprise`. Cette dette n'empêche pas la fermeture du bloqueur 1 mais devra être traitée dans un lot fonctionnel séparé.
 
-## Gate de fermeture du bloqueur 1
+## Prochaine gate
 
-Après correction, revenir en AWAITING_DECISION avec preuves automatisées ET réelles. Sont obligatoires :
+La prochaine anomalie bloquante de la recette est **Verify / sélection automatique du quart** : après le seuil configuré de Q2, Verify avait proposé Quart 1 et nécessitait une correction manuelle. Le diagnostic doit réutiliser le contrat C2 existant (fuseau de la station + seuil configuré) et ne pas créer une logique locale propre à Verify.
 
-1. migration corrective versionnée et appliquée uniquement en Test ;
-2. suite CI au niveau attendu, sans nouvel échec ;
-3. test exact-forme `site` seul bloquant et test mutationnel/négatif ;
-4. rejeu navigateur réel : nouvelle prise de poste ferme `41c935d4` via `prise_de_poste_suivante` et crée un unique nouveau `en_cours` ;
-5. cohérence `site/site_id`, employee, quart, heure_debut/heure_fin et source de clôture ;
-6. aucune écriture partielle/silencieuse ;
-7. aucune requête/écriture Production, refs `main` et `production` inchangées ;
-8. état exact commit/génération du déploiement Test ;
-9. ne pas masquer un échec par correction manuelle en base.
+Ne pas geler Test tant que ce bloqueur Verify n'est pas corrigé et rejoué sans toucher le sélecteur manuellement.
 
-Le rejeu déjà réussi de S-2 et S-5 reste une preuve valide ; il n'est pas nécessaire de répéter des étapes sans lien avec la correction sauf si la modification corrective les touche.
-
-## Dette fonctionnelle distincte
-
-A19 reste hors de ce correctif : Pointage devra permettre le parcours `Arrivée → Départ` sans imposer `Pause → Reprise`. La pause est facultative et ne doit pas être une précondition technique à la clôture normale d'un service. Ne pas mélanger A19 à la correction S-3 actuelle.
-
-Décision : **APPROVED_WITH_CONDITIONS, closes=false**.
+Aucune autorisation de Production n'est donnée par cette décision.

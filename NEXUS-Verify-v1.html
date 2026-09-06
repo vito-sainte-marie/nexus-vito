@@ -527,7 +527,15 @@
                sélecteur, même logique que le champ Date juste à côté : on
                choisit 1 ou 2, on ne tape plus (donc plus de "01", " 2" ou
                toute autre valeur qui ne correspondrait à aucun audit). -->
+          <!-- Verify (05/09/2026) — l'option vide est PREMIÈRE et sélectionnée
+               tant que le quart n'est pas déterminé. Auparavant « Quart 1 »
+               occupait cette place : le navigateur la choisissait par simple
+               position dans le DOM, et Verify proposait donc Q1 même à 21h,
+               sans que rien ne signale qu'aucune détermination n'avait eu
+               lieu. Une valeur par défaut plausible est plus dangereuse
+               qu'une absence de valeur. -->
           <select id="v_quart">
+            <option value="">Quart —</option>
             <option value="1">Quart 1</option>
             <option value="2">Quart 2</option>
           </select>
@@ -824,6 +832,9 @@
   // A3 / C1c-2 (05/09/2026) : null tant que le fuseau du commerce n'a pas
   // été résolu. Aucune heure n'est formatée avant.
   let FUSEAU_STATION = null;
+  // Le quart déterminé par le contrat C2 au chargement. `null` tant qu'il
+  // n'est pas résolu, et il le reste si l'un des ingrédients manque.
+  let QUART_DU_MOMENT = null;
 
   // Classification d'écart extraite le 11/08/2026 dans nexus-verify-moteur.js
   // (module partagé, Article 11) — pour que le nouveau chapitre "Opérations"
@@ -1115,7 +1126,10 @@
     document.getElementById('btnRegenererRapportVerify').addEventListener('click', lancerGenerationRapportVerify);
   }
 
-  document.getElementById('v_date').valueAsDate = new Date();
+  // La date et le quart de départ sont posés par appliquerContexteDuMoment(),
+  // une fois le fuseau de la station connu. Les poser ici, depuis l'horloge de
+  // l'appareil, produirait une date de téléphone à côté d'un quart de station :
+  // à 21:00 en Martinique, un appareil réglé sur Paris est déjà au lendemain.
 
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
@@ -1327,6 +1341,12 @@
     // laisse les heures à « — » plutôt que de les inventer.
     const fuseauVerify = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
     FUSEAU_STATION = fuseauVerify.timezone || null;
+
+    // Verify (05/09/2026) — le quart proposé vient enfin du contrat C2 :
+    // heure locale de la STATION et seuil CONFIGURÉ du site. Verify n'avait
+    // aucune détermination du tout ; il affichait le premier `<option>`.
+    QUART_DU_MOMENT = await quartDuMomentVerify();
+    appliquerContexteDuMoment();
 
     // ------------------------------------------------------------
     // Import classeur recettes (.xlsx) — évite de ressaisir les drops et les
@@ -2624,9 +2644,10 @@
     // l'onglet.
     function reinitialiserFormulaireNouveau() {
       CONTEXTE_EN_MODIFICATION = false; // v2.273 (§1) — repart sur un contexte "nouvelle saisie", jamais un reliquat de correction
-      document.getElementById('v_date').valueAsDate = new Date();
-      document.getElementById('v_quart').value = '1';
-      majContexteSticky();
+      // Repart du contexte de la STATION, pas de l'horloge de l'appareil ni
+      // d'un Quart 1 écrit en dur — sinon un second audit saisi dans la foulée
+      // retombait dans le défaut que le premier venait d'éviter.
+      appliquerContexteDuMoment();
 
       [
         'v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_piste', 'v_vente_boutique', 'v_transfert',
@@ -2766,10 +2787,57 @@
       carte.classList.add('show');
     }
 
+    // Verify (05/09/2026) — REPRISE STRICTE du contrat C2, dans la forme
+    // qu'utilise déjà FDJ : même lecture du seuil configuré, mêmes primitives
+    // de nexus-station.js, même vocabulaire « 1 » / « 2 ». Aucune règle propre
+    // à Verify : c'est précisément une logique locale qui aurait redonné un
+    // quart faux le jour où le seuil du site change.
+    //
+    // `null` est un refus, pas un repli : sans fuseau ou sans seuil, Verify
+    // laisse le sélecteur vide plutôt que de proposer un quart inventé.
+    async function quartDuMomentVerify() {
+      const { data, error } = await nexusClient
+        .from('station_config').select('horaires').eq('site', SITE_ACTUEL).maybeSingle();
+      if (error) { console.error('Chargement horaires station (quart Verify) :', error); return null; }
+      const bascule = NexusStation.minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+      if (bascule === null) {
+        console.warn('Quart Verify : aucun horaire de bascule configuré pour ce commerce — aucun quart n’est déterminé.');
+        return null;
+      }
+      if (!FUSEAU_STATION) {
+        console.warn('Quart Verify : fuseau du commerce non résolu — aucun quart n’est déterminé.');
+        return null;
+      }
+      return NexusStation.quartDepuisMinutes(NexusStation.minutesLocalesStation(FUSEAU_STATION), bascule);
+    }
+
+    // La date du jour de la STATION. Sans fuseau, on ne la devine pas : le
+    // champ reste vide et « Calculer » refuse, plutôt que d'enregistrer un
+    // audit daté de l'appareil.
+    function dateDuJourStation() {
+      if (!FUSEAU_STATION) return '';
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: FUSEAU_STATION, year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date());
+    }
+
+    // Le contexte de départ d'une saisie : la date et le quart de la station.
+    // Un seul endroit le pose, pour que le premier chargement et la
+    // réinitialisation après enregistrement ne puissent pas diverger.
+    function appliquerContexteDuMoment() {
+      document.getElementById('v_date').value = dateDuJourStation();
+      document.getElementById('v_quart').value = QUART_DU_MOMENT || '';
+      majContexteSticky();
+    }
+
     document.getElementById('btnCalculer').addEventListener('click', async () => {
       const date = document.getElementById('v_date').value;
-      const quart = document.getElementById('v_quart').value.trim() || '1';
+      // Le `|| '1'` d'avant transformait une absence de quart en Quart 1 au
+      // moment même de l'écriture : l'audit partait dans le mauvais quart sans
+      // que personne ne l'ait choisi.
+      const quart = document.getElementById('v_quart').value.trim();
       if (!date) { alert('Renseignez une date.'); return; }
+      if (!quart) { alert("Le quart n'a pas pu être déterminé automatiquement — choisissez-le avant d'enregistrer."); return; }
 
       const ventePisteResultat = calculerVentePiste();
       if (ventePisteResultat.bloque) {

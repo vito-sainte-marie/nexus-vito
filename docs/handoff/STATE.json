@@ -32,12 +32,12 @@
       }
     },
     "B1-REJEU-NAVIGATEUR-20260905": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "2aa463f2f3f8f6f24e21faba39f542f4adef7960",
-      "consomme_le": "2026-09-06T00:56:29.398Z"
+      "commit_decision": "1840dbcd28cc28e2830e39bab152e7114bb7618d",
+      "consomme_le": "2026-09-06T01:09:23.675Z"
     }
   },
   "derogations": [
