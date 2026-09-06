@@ -1,0 +1,62 @@
+{
+  "commentaire": "Registre versionné des aides nommées qui encapsulent un contrôle de portée site. La garde ADR-0001 ne reconnaît QUE les aides déclarées ici : une aide inconnue apparaissant dans une policy de portée fait retourner UNKNOWN, jamais SAFE. Une aide déclarée sans preuve de son contrat ne suffit pas non plus à classer SAFE — le champ `preuve` est obligatoire et non vide. Depuis Q63 (arbitrage SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF-20260906), le champ `statut` est également obligatoire et fait partie du vocabulaire clos CONFORME | NON_EPROUVEE | DEFAILLANTE (outils/garde-portee-site.js, STATUTS_AIDES) : une aide DEFAILLANTE ne peut plus laisser SAFE les policies qui l'utilisent, et une aide NON_EPROUVEE (préuve comportementale requise et absente ou obsolète) rend UNKNOWN, jamais SAFE. Seule une aide CONFORME avec preuve courante peut contribuer à SAFE.",
+  "aides": [
+    {
+      "nom": "nexus_clients_ecriture_ok",
+      "statut": "CONFORME",
+      "portee_controlee": "site du compte, ET rôle manager ou gérant",
+      "acteurs": "manager, gerant",
+      "contrat": "select current_employee_role() = any(array['manager','gerant']) and p_site = current_employee_site_id()",
+      "preuve": "test_garde_portee_site_20260906.js — « l'aide nommée de portée est reconnue » ; définition relue en base le 06/09/2026 lors du tri des UNKNOWN",
+      "domaine": "clients, facturation, paramètres de site",
+      "revision": "2026-09-06"
+    },
+    {
+      "nom": "current_employee_site_id",
+      "statut": "CONFORME",
+      "portee_controlee": "site du compte authentifié",
+      "acteurs": "toute identité authentifiée portant une ligne employees",
+      "contrat": "select site_id from employees where id = auth.uid()",
+      "preuve": "test_garde_portee_site_20260906.js — « policy sûre par fonction de site » ; éprouvée sous identité réelle dans les lots 2B, MUTATION et INSERT-SITE-GUARD",
+      "domaine": "socle RLS",
+      "revision": "2026-09-06"
+    },
+    {
+      "nom": "nexus_site_autorise",
+      "statut": "CONFORME",
+      "portee_controlee": "site demandé, avec branche créateur conditionnée à acces_createur_autorise",
+      "acteurs": "employé du site, créateur sur site ouvert",
+      "contrat": "fail-closed : refus sans compte, sans site, ou site étranger",
+      "preuve": "Phase 2A familles F4/F5/F7 — autorisée sur site ouvert, refusée sur site fermé, refusée sur site null/vide/inexistant",
+      "domaine": "lecture de stock, garde transverse",
+      "revision": "2026-09-06"
+    },
+    {
+      "nom": "est_pompiste_du_jour",
+      "statut": "NON_EPROUVEE",
+      "portee_controlee": "lie l'ACTEUR au site demandé : il doit avoir un service de pompiste EN COURS sur ce site, dans la journée-station courante",
+      "acteurs": "pompiste du jour",
+      "contrat": "exists(select 1 from shifts sh where sh.employee_id = auth.uid() and sh.site = p_site and sh.role='pompiste' and sh.statut='en_cours' and (sh.heure_debut at time zone v_fuseau)::date = (now() at time zone v_fuseau)::date), v_fuseau = sites.timezone du site demandé, fail closed si absent/vide/inconnu de PostgreSQL",
+      "preuve": "Comportement pré-correction éprouvé le 06/09/2026, 5 cas (lot NAMED-HELPERS-BEHAVIOR-PROOF) : anomalie confirmée, frontière de journée en UTC, service clos comptant encore. Correction RÉDIGÉE le 06/09/2026 dans supabase/migrations/20260906120000_pompiste_du_jour_fuseau_station.sql (fuseau sites.timezone, fail closed, statut en_cours exigé) conformément à decision-1.md (Q61/Q62), mais NON REJOUÉE : le canal qui l'a rédigée (déclenchement @claude sur GitHub Issue, workflow .github/workflows/claude.yml) n'a ni réseau ni identifiant Supabase — voir outils/reconstruire-base-test.sh, dont le mot de passe Test vit dans un trousseau local, jamais en variable d'environnement CI. La preuve comportementale post-correction sur les sept policies dépendantes (soirée, minuit station, service à cheval, autre site/fuseau) reste à exécuter par une session disposant de cet accès avant tout passage à CONFORME.",
+      "domaine": "carburant — relevés et jaugeage",
+      "revision": "2026-09-06",
+      "anomalie": {
+        "constatee_le": "2026-09-06",
+        "nature": "frontière de journée calculée en UTC et non au fuseau de la station ; absence de lecture de shifts.statut",
+        "consequence": "droits de pompiste conservés au-delà de la journée-station du service, y compris après clôture du service",
+        "statut": "correction rédigée le 06/09/2026 (migration 20260906120000), NON REJOUÉE — preuve comportementale en attente d'une session avec accès Test",
+        "famille": "même que C2 et A17 — dette temporelle"
+      }
+    },
+    {
+      "nom": "est_receptionniste_livraison_du_jour",
+      "statut": "CONFORME",
+      "portee_controlee": "lie l'ACTEUR au site et à la date : il doit avoir mené une visite de réception terminée sur ce site ce jour",
+      "acteurs": "réceptionnaire de livraison",
+      "contrat": "exists(select 1 from carburant_reception_visites v where v.employe_id = auth.uid() and v.site = p_site and v.date_visite = p_date and v.statut in ('terminee','terminee_avec_derogation'))",
+      "preuve": "Éprouvée par comportement le 06/09/2026, 6 cas — site correct, autre site, autre jour, visite non terminée, visite de la veille, acteur sans visite. CONFORME : compare deux colonnes date, donc aucune ambiguïté d'horloge, et exige le statut terminé.",
+      "domaine": "carburant — réception de livraison",
+      "revision": "2026-09-06"
+    }
+  ]
+}
