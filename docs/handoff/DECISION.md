@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906
+lot_id: SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,81 +12,70 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 RLS UPDATE Matrix Proof
+# Décision — SITE-EXPLICITE-1 Mutation Site Guard
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — matrice UPDATE validée, deux anomalies confirmées, correction dédiée autorisée.**
+**APPROVED_WITH_CONDITIONS — les deux anomalies UPDATE/DELETE sont considérées fermées en Test. Deux anomalies INSERT deviennent prioritaires avant toute ouverture de la classe D.**
 
-La gate a fonctionné comme prévu : les anomalies ont été découvertes et conservées sans correction opportuniste. Le fait que le classificateur ait produit deux lectures intermédiaires erronées avant d'être corrigé confirme également qu'aucun outil d'audit ne doit devenir une autorité sans tests propres.
+Le lot respecte la gate : contrat global/local explicité, aucune donnée existante réattribuée, aucun privilège élargi, chemins légitimes conservés et cartographie des triggers produite.
 
-## Q43 — corriger les deux anomalies
+## Q46 — contrat global `advisor_rules`
 
-**OUI. APPROVED_WITH_CONDITIONS.**
+**APPROVED.**
 
-Ouvrir un sous-lot `SITE-EXPLICITE-1-MUTATION-SITE-GUARD` limité à :
+Un manager de site ne doit pas pouvoir créer, modifier ou supprimer une règle globale qui influence plusieurs commerces. Le rôle `manager` exprime une responsabilité locale, pas une portée transverse.
 
-1. `advisor_rules` : fermer les mutations inter-site sur `UPDATE` et `DELETE` en conservant le contrôle de rôle existant ;
-2. `apprentissage_snapshots` : empêcher un employé de déplacer sa ligne vers un autre site lors d'un `UPDATE` ;
-3. vérifier les chemins légitimes sur le site autorisé ;
-4. rejouer les deux preuves comportementales avant/après ;
-5. vérifier qu'aucun privilège créateur/manager/employé n'est élargi par la correction.
+Contrat retenu :
+- règle globale (`site_id IS NULL`) : administration uniquement par un mécanisme explicitement transverse et audité ; dans l'état actuel, les migrations constituent ce mécanisme ;
+- règle locale : administration uniquement par un acteur autorisé pour ce site ;
+- une règle ne change pas de portée globale/local ni de site par mutation ordinaire.
 
-`advisor_rules` est prioritaire parce qu'elle porte le référentiel de décision de l'Advisor et cumule UPDATE + DELETE sans garde de site.
+Si une future interface d'administration globale est créée, elle fera l'objet d'un contrat, d'un rôle/capability transverse explicite et d'un lot sécurité dédié. Ne pas réutiliser implicitement le rôle manager ou créateur.
 
-Condition métier importante : les 31 règles Advisor actuellement globales (`site_id IS NULL`) ne doivent pas être rendues involontairement impossibles à administrer par une policy conçue uniquement pour les règles locales. Avant migration, Claude doit expliciter séparément le contrat de mutation d'une règle globale et celui d'une règle rattachée à un site. Une règle globale ne doit pas pouvoir devenir locale sur un site arbitraire par simple UPDATE, et une règle locale ne doit pas pouvoir changer de site sans autorisation métier explicite.
+## Q47 — fermer les deux INSERT restants
 
-Aucune donnée existante ne doit être réattribuée pour satisfaire la nouvelle policy.
+**APPROVED — priorité immédiate, avant classe D.**
 
-## Q44 — ADR + migrations
+Ouvrir `SITE-EXPLICITE-1-INSERT-SITE-GUARD`, limité à :
+1. `advisor_rules.manager_insert_advisor_rules` : un manager ne peut créer qu'une règle locale sur son propre site ; il ne peut créer ni une règle globale ni une règle pour un autre site ;
+2. `apprentissage_snapshots.employee_own_snapshot_upsert` : un employé ne peut créer/upsert qu'un snapshot pour lui-même sur son propre site ;
+3. chemins légitimes sur le bon site ;
+4. preuves comportementales avant/après sous identités réelles ;
+5. aucun élargissement de privilège, aucune réattribution de données ;
+6. rollback complet.
 
-**OUI AUX DEUX, avec formulation plus précise.**
+Pour `advisor_rules`, le contrat INSERT doit être cohérent avec le contrat UPDATE/DELETE déjà retenu : un manager local ne peut pas créer une portée qu'il n'aurait pas le droit d'administrer ensuite.
 
-ADR acceptée comme principe :
+## Q48 — ADR-0001
 
-> Toute mutation d'une donnée à portée site doit contrôler à la fois l'acteur autorisé et la cohérence de portée métier de la nouvelle ligne. Lorsque la donnée est globale, locale ou porte une identité plus précise (service, employé, caisse, inventaire, etc.), la policy doit préserver explicitement cette portée et ne jamais la déduire d'un rôle seul.
+**APPROVED_WITH_CONDITIONS — adopter maintenant, avec incarnation automatisée à suivre.**
 
-Cette formulation évite une règle trop simpliste « auteur + site » qui serait fausse pour les données globales ou les contrats plus précis.
+L'ADR peut passer de PROPOSÉE à ACCEPTÉE avec le principe formulé dans ce lot. Son acceptation documentaire ne signifie pas que le risque de régression est fermé.
 
-L'ADR ne remplace pas les migrations. Elle doit avoir une incarnation vérifiable : test statique/CI ou autre invariant automatisé.
+Condition : ouvrir ensuite un lot de garde statique/CI qui transforme l'ADR en invariant vérifiable. Le contrôle devra lui-même être testé par mutation et savoir produire `UNKNOWN/REVIEW` lorsqu'il ne sait pas conclure.
 
-## Q45 — 52 policies de classe A
+L'ADR doit référencer au minimum les occurrences connues qui ont motivé la règle : `mission_progress`, `advisor_rules`, `apprentissage_snapshots`, ainsi que les deux INSERT encore ouverts au moment de son adoption.
 
-**NON à un sondage comportemental exhaustif maintenant. OUI à une garde statique testée, puis échantillonnage ciblé.**
+## Triggers
 
-Le futur contrôle doit :
-- être versionné et testé par mutation avant d'être considéré comme preuve ;
-- analyser le contrôle effectif `coalesce(with_check, using)` pour les UPDATE ;
-- reconnaître au moins les deux formes de garde déjà observées (fonction et sous-requête employees) sans réduire la sécurité à une recherche de chaîne ;
-- distinguer données globales, tables sans site, archives et policies réellement NOT_APPLICABLE ;
-- signaler `UNKNOWN/REVIEW` lorsqu'il ne sait pas conclure plutôt que classer automatiquement sûr ;
-- inclure DELETE dans le même raisonnement de mutation lorsque pertinent.
-
-Le classificateur actuel n'est **pas** accepté comme contrôle CI tant qu'il n'a pas ses propres tests de mutation.
-
-Après construction de cette garde, QA choisira un petit échantillon comportemental adversarial pour vérifier que le modèle statique correspond à la réalité.
-
-## Angle mort triggers
-
-Avant d'ouvrir la classe D, ajouter une cartographie ciblée des triggers susceptibles de modifier `site`/`site_id` sur INSERT ou UPDATE. Aucun trigger général ne doit pouvoir contourner une policy ou transformer silencieusement une portée absente/contradictoire en site arbitraire.
-
-Cette cartographie peut être préparée dans le sous-lot, mais toute nouvelle anomalie doit revenir au Handoff avant correction hors des deux anomalies autorisées.
+La cartographie des trois triggers écrivant le site est acceptée comme état actuel de Test. Leur existence ne doit toutefois pas être interprétée comme une autorisation à généraliser la normalisation par trigger aux classes D/defaults.
 
 ## Classe D
 
 **TOUJOURS FERMÉE.**
 
-Les 9 écritures classe D, les 54 defaults et toute extension générale de mécanisme de normalisation restent hors autorisation. Leur ouverture dépendra de :
-- correction prouvée des deux anomalies de mutation ;
-- garde statique testée ou plan CI crédible ;
-- cartographie des triggers site ;
-- démonstration Architecture + Security du contrat de normalisation/fail-closed.
+Après `INSERT-SITE-GUARD`, la prochaine gate devra décider entre :
+- construire d'abord la garde statique/CI de l'ADR ;
+- ou ouvrir la démonstration Architecture + Security du mécanisme classe D.
+
+Aucun retrait de default, aucune correction des 9 écritures classe D et aucune généralisation de trigger n'est autorisé par cette décision.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-MUTATION-SITE-GUARD` en Test uniquement.
+Claude peut exécuter `SITE-EXPLICITE-1-INSERT-SITE-GUARD` en Test uniquement et adopter ADR-0001 conformément aux conditions ci-dessus.
 
-Retour Handoff obligatoire avec : contrat global/local `advisor_rules`, policies avant/après, preuves UPDATE/DELETE et `apprentissage_snapshots`, chemins légitimes, tests de non-régression, avis Architecture/Security/QA, ADR proposée, état du classificateur et cartographie triggers, rollback.
+Retour Handoff obligatoire avec policies avant/après, preuves des deux INSERT illégitimes et des chemins légitimes, état ADR, suite, avis Architecture/Security/QA et rollback.
 
 ## Gate Production
 

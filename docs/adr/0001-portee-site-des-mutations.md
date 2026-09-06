@@ -1,8 +1,18 @@
 # ADR-0001 — Toute mutation d'une donnée à portée site contrôle l'acteur **et** la portée
 
-**État** : PROPOSÉE — en attente d'arbitrage
+**État** : **ACCEPTÉE** le 06/09/2026
+**Arbitrage** : lot `SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906`, Q48 —
+`APPROVED_WITH_CONDITIONS`
 **Date** : 06/09/2026
-**Lot** : `SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906`
+**Lots** : `SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906`,
+`SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906`
+
+> **Condition d'acceptation, posée par l'arbitrage** : « Son acceptation
+> documentaire ne signifie pas que le risque de régression est fermé. » Un lot
+> de garde statique/CI doit transformer cette ADR en invariant vérifiable, et
+> ce contrôle devra lui-même être éprouvé par mutation et savoir produire
+> `UNKNOWN/REVIEW` quand il ne sait pas conclure. **Tant que ce lot n'existe
+> pas, cette ADR est une règle écrite, pas une garantie.**
 
 ## Contexte
 
@@ -76,10 +86,30 @@ Governance Core dit de ne pas faire.
 
 ## Statut des occurrences
 
-| Occurrence | État |
-|---|---|
-| `mission_progress` | **corrigée** — lot 2B-SECURITY-WRITE-GUARD |
-| `apprentissage_snapshots` | **corrigée** — ce lot |
-| `advisor_rules` UPDATE + DELETE | **corrigée** — ce lot |
-| `advisor_rules` INSERT | **ouverte** — hors périmètre, signalée |
-| `apprentissage_snapshots` INSERT | **ouverte** — hors périmètre, signalée |
+Les cinq occurrences qui ont motivé cette règle, et leur état au moment de
+son adoption :
+
+| # | Occurrence | Face | État |
+|---|---|---|---|
+| 1 | `mission_progress.employee_own_progress_update` | UPDATE | **corrigée** — 2B-SECURITY-WRITE-GUARD |
+| 2 | `apprentissage_snapshots.employee_own_snapshot_update` | UPDATE | **corrigée** — MUTATION-SITE-GUARD |
+| 3 | `advisor_rules.manager_update_advisor_rules` | UPDATE | **corrigée** — MUTATION-SITE-GUARD |
+| 3b | `advisor_rules.manager_delete_advisor_rules` | DELETE | **corrigée** — MUTATION-SITE-GUARD |
+| 4 | `advisor_rules.manager_insert_advisor_rules` | INSERT | **corrigée** — INSERT-SITE-GUARD |
+| 5 | `apprentissage_snapshots.employee_own_snapshot_upsert` | INSERT | **corrigée** — INSERT-SITE-GUARD |
+
+**Toutes fermées en Test.** Ce qui reste ouvert n'est pas une occurrence
+connue, c'est la possibilité d'une sixième : rien n'empêche aujourd'hui
+qu'une nouvelle policy naisse avec le même oubli. C'est l'objet du lot de
+garde statique.
+
+## Ce que l'adoption a appris
+
+Les trois premières occurrences ont été trouvées **une par une, par hasard** —
+une régression, un rejeu, une matrice. Les deux dernières ont été trouvées
+**parce qu'on cherchait le motif**, en lisant les faces `INSERT` des tables
+dont les faces `UPDATE` venaient d'être corrigées.
+
+Nommer le motif a donc changé le rendement de la recherche. C'est le principal
+argument en faveur des ADR : elles ne corrigent rien, elles disent où
+regarder.

@@ -70,10 +70,11 @@ verifier('une règle globale sort du périmètre du manager sans clause spécial
     'aucune clause ne doit rattraper le null : la comparaison le fait déjà, fail-closed');
 });
 
-verifier('aucune policy INSERT n’est touchée', () => {
-  // Elles présentent la même faiblesse, mais sont hors du périmètre autorisé :
-  // signalées au Handoff, pas corrigées ici.
-  assert.ok(!/for insert/.test(SQL), 'ce lot ne modifie aucune policy d’insertion');
+verifier('ce lot-ci ne touche aucune policy INSERT', () => {
+  // Elles présentaient la même faiblesse, mais étaient hors du périmètre
+  // autorisé de CE lot : signalées au Handoff, puis fermées par le lot
+  // INSERT-SITE-GUARD, dont le SQL est gardé par son propre test.
+  assert.ok(!/for insert/.test(SQL), 'cette migration ne modifie aucune policy d’insertion');
 });
 
 verifier('aucune donnée n’est réattribuée', () => {

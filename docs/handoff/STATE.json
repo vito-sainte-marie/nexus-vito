@@ -104,8 +104,12 @@
       "consomme_le": "2026-09-06T03:28:32.056Z"
     },
     "SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "130bab57f3e3340092bcc9e0877a7a9dd2bc9d35",
+      "consomme_le": "2026-09-06T03:39:11.191Z"
     }
   },
   "derogations": [
