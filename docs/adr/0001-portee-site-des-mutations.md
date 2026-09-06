@@ -50,6 +50,29 @@ Trois corollaires, tirés de ce que la campagne a montré :
    est rattachée à un service, vérifier le site du compte ne suffit pas :
    `mission_progress` acceptait une progression rattachée au service d'autrui.
 
+## `USING` et `WITH CHECK` ne disent pas la même chose
+
+Ajouté le 06/09/2026 sur arbitrage, après avoir redécouvert la distinction
+**trois fois** — sur `mission_progress`, sur `apprentissage_snapshots`, puis
+sur `inventaire_quart_employes`.
+
+> Pour une policy `UPDATE`, `USING` borne les lignes que l'acteur peut
+> **cibler** ; `WITH CHECK` borne l'**état final** de la ligne après mutation.
+> Quand une colonne ou une clé de portée peut changer, contrôler seulement la
+> ligne visible ne suffit pas : la nouvelle portée doit être vérifiée
+> explicitement.
+
+PostgreSQL réutilise `USING` comme contrôle effectif lorsque `WITH CHECK` est
+absent — ignorer ce repli a failli faire compter 42 trous imaginaires. Mais
+**NEXUS préfère un `WITH CHECK` explicite** dès qu'une portée mutable ou une
+identité structurante est en jeu, pour que le contrat se lise au lieu de se
+déduire.
+
+Ce n'est **pas** une obligation mécanique de recopier `USING` partout :
+certaines policies ont légitimement des contrats différents entre la
+visibilité de l'ancienne ligne et la validité de la nouvelle. La règle est de
+se poser la question, pas d'appliquer une formule.
+
 ## Ce que cette ADR n'impose pas
 
 Elle ne prescrit **pas** une formule unique. Trois policies écrites à

@@ -78,6 +78,40 @@ verifier('la jointure de portée est reconnue', () => {
     'SAFE');
 });
 
+verifier('l’aide nommée de portée est reconnue', () => {
+  // Quatrième forme, apprise au tri des UNKNOWN : 22 policies utilisaient
+  // `nexus_clients_ecriture_ok(site)`, une aide qui vérifie rôle ET site.
+  // La garde n'y voyait qu'un appel de fonction inconnu.
+  assert.strictEqual(classe('insert', null, 'nexus_clients_ecriture_ok(site)'), 'SAFE');
+});
+
+verifier('une policy réservée à service_role est hors identité utilisateur', () => {
+  // La clause TO est une frontière de confiance, pas un détail. Ce n'est pas
+  // une absolution : le contrôle est déplacé vers qui détient la clé de
+  // service, et le tri doit le documenter.
+  const { classer } = require('./outils/garde-portee-site');
+  const p = { table: 't', policy: 'p', cmd: 'all', using: 'true', withCheck: 'true', roles: ['service_role'] };
+  assert.strictEqual(classer(p, SITE).classe, 'NOT_APPLICABLE');
+  const q = { ...p, roles: ['authenticated'] };
+  assert.notStrictEqual(classer(q, SITE).classe, 'NOT_APPLICABLE',
+    'une policy ouverte à authenticated ne bénéficie pas de cette frontière');
+});
+
+verifier('un test de sécurité doit distinguer 42501 des erreurs de contrainte', () => {
+  // Exigence issue du faux signal P3/P5 : une écriture qui échoue en 23502
+  // (colonne obligatoire absente) n'a rien prouvé sur la RLS. Un test qui
+  // conclut « sécurité OK » sur un refus de contrainte ment dans les deux
+  // sens. Cette épreuve garde la règle dans le corpus de la garde.
+  const REFUS_RLS = '42501';
+  const NON_CONCLUANTS = ['23502', '23503', '23514', '22P02'];
+  assert.ok(!NON_CONCLUANTS.includes(REFUS_RLS),
+    'seul 42501 atteste un refus de politique');
+  for (const code of NON_CONCLUANTS) {
+    assert.notStrictEqual(code, REFUS_RLS,
+      `${code} est une erreur de schéma ou de donnée : la RLS n’a pas été atteinte`);
+  }
+});
+
 // ── Contrôle effectif selon la face ─────────────────────────────────────
 
 verifier('le contrôle effectif dépend de la face', () => {

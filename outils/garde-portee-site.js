@@ -30,8 +30,16 @@ const FORMES_PORTEE = [
   /current_employee_site_id\s*\(/i,                        // via la fonction
   /site(_id)?\s*(=|in)\s*\(?\s*select[\s\S]{0,200}?site_id[\s\S]{0,200}?employees/i, // via sous-requête
   /\b\w+\.site(_id)?\s*=\s*\w+\.site(_id)?/i,               // jointure de portée entre deux tables
+  /nexus_clients_ecriture_ok\s*\(/i,                        // aide nommée : rôle ET site du compte
 ];
 
+// Quatrième forme, apprise au tri des UNKNOWN : `nexus_clients_ecriture_ok(site)`
+// est une aide nommée qui vérifie `role IN (manager,gerant) AND site = site du
+// compte`. Vingt-deux policies l'utilisaient, et la garde ne voyait qu'un
+// appel de fonction inconnu. Une aide bien nommée est plus lisible qu'une
+// expression recopiée — mais elle est invisible à qui ne cherche que des
+// motifs syntaxiques.
+//
 // Troisième forme, apprise à la calibration du 06/09/2026 :
 // `advisor_message_evidence` contrôlait bien la portée, par une jointure
 // `e.site_id = m.site_id` entre l'employé et le message. La garde la
@@ -58,6 +66,15 @@ const contient = (txt, formes) => !!txt && formes.some(f => f.test(txt));
 const RE_CREATE = /create\s+policy\s+"?([\w]+)"?\s+on\s+(?:public\.)?"?([\w]+)"?([\s\S]*?);/gi;
 const RE_DROP = /drop\s+policy\s+(?:if\s+exists\s+)?"?([\w]+)"?\s+on\s+(?:public\.)?"?([\w]+)"?/gi;
 const RE_ALTER = /alter\s+policy\s+"?([\w]+)"?\s+on\s+(?:public\.)?"?([\w]+)"?([\s\S]*?);/gi;
+
+// La clause `TO` est une frontière de confiance, pas un détail : une policy
+// réservée à `service_role` n'est jamais empruntée par une identité
+// utilisateur. La garde l'ignorait et classait ces policies comme des trous
+// potentiels.
+function extraireRoles(corps) {
+  const m = /\bto\s+([\w,\s]+?)(?:\s+using|\s+with\s+check|$)/i.exec(corps);
+  return m ? m[1].split(',').map(r => r.trim().toLowerCase()).filter(Boolean) : [];
+}
 
 function extraireCommande(corps) {
   const m = /\bfor\s+(all|select|insert|update|delete)\b/i.exec(corps);
@@ -110,7 +127,7 @@ function rejouerMigrations(dossier) {
     for (const m of sql.matchAll(RE_CREATE)) {
       const [, policy, table, corps] = m;
       etat.set(`${table}.${policy}`, {
-        table, policy, cmd: extraireCommande(corps),
+        table, policy, cmd: extraireCommande(corps), roles: extraireRoles(corps),
         using: extraireClause(corps, 'using'),
         withCheck: extraireClause(corps, 'with\\s+check'),
         source: f,
@@ -149,6 +166,14 @@ function classer(p, colonnesSite) {
   }
   if (!colonnesSite.has(p.table)) {
     return { classe: 'NOT_APPLICABLE', motif: 'aucune portée site visible sur cette table' };
+  }
+  // Frontière de confiance explicite : `service_role` n'est pas une identité
+  // utilisateur. Ce n'est PAS une absolution — c'est un déplacement du
+  // contrôle vers la couche qui détient la clé de service, et le tri doit le
+  // documenter comme tel.
+  const roles = p.roles || [];
+  if (roles.length && roles.every(r => r === 'service_role')) {
+    return { classe: 'NOT_APPLICABLE', motif: 'réservée à service_role — hors identité utilisateur' };
   }
   const ctrl = controleEffectif(p);
   if (ctrl === null || ctrl === undefined) {

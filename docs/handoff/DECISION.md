@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906
+lot_id: SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,81 +12,90 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Static Site Guard
+# Décision — SITE-EXPLICITE-1 Static Guard Findings
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — la garde statique est acceptée comme instrument de gouvernance non bloquant. Les trois VULNERABLE doivent être fermés avant activation bloquante et avant la classe D. Les 27 UNKNOWN doivent être triés.**
+**APPROVED_WITH_CONDITIONS — les trois findings sont considérés fermés en Test. Le tri des 27 UNKNOWN devient la prochaine étape obligatoire. ADR-0001 doit être enrichie de la distinction USING / WITH CHECK.**
 
-Le lot apporte la première incarnation automatisée crédible d'ADR-0001 : reproductible, sans secret ni réseau, testée par mutation, calibrée contre la base et capable de refuser de conclure. La découverte de trois nouvelles occurrences confirme sa valeur.
+Le lot boucle correctement le cycle instrument → constat → correction → vérification : la garde passe de 3 VULNERABLE à 0 et de 1 incohérence à 0, sans uniformiser artificiellement le schéma ni élargir les privilèges.
 
-## Q50 — corriger les trois VULNERABLE
+## Q53 — trier les 27 UNKNOWN
 
-**OUI, priorité immédiate.**
+**OUI, immédiatement.**
 
-Ouvrir `SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS` limité à :
-1. `progression_badge_awards` INSERT : conserver le contrôle auteur et ajouter la cohérence du site autorisé ;
-2. `progression_points_ledger` INSERT : même exigence, après vérification du contrat métier propre à la table ;
-3. `inventaire_quart_employes` UPDATE : préserver la portée indirecte `quart_id -> inventaire_quarts.site` et empêcher toute mutation qui permettrait de rattacher la ligne à un quart d'un autre site ;
-4. rejouer les chemins illégitimes avant/après et les chemins légitimes ;
-5. aucun élargissement de privilège, aucune réattribution de données ;
-6. rollback complet.
+Ouvrir `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` avant toute activation bloquante et avant toute ouverture de la classe D.
 
-Condition importante : pour `inventaire_quart_employes`, ne pas ajouter artificiellement une colonne site si la portée indirecte par `quart_id` constitue le contrat normal. La correction doit protéger le contrat métier, pas uniformiser le schéma.
+Le tri est une phase de connaissance, pas de correction opportuniste. Pour chaque UNKNOWN, produire :
+- table ;
+- policy/opération ;
+- type d'acteur ;
+- mécanisme de portée réel ;
+- frontière de confiance ;
+- verdict proposé parmi `SAFE`, `VULNERABLE`, `NOT_APPLICABLE`, `DEROGATION` ;
+- preuve ou raison d'incertitude.
 
-Toute autre vulnérabilité découverte pendant ce sous-lot revient au Handoff avant correction.
+Règles :
+1. aucune policy n'est modifiée dans ce lot sauf nouvelle gate après découverte d'une vulnérabilité ;
+2. une `VULNERABLE` confirmée revient immédiatement au Handoff avant correction ;
+3. une `DEROGATION` doit être minimale, datée, attribuée, motivée et révisable ;
+4. `service_role` ne vaut pas automatiquement `SAFE` : documenter pourquoi ce chemin est hors identité utilisateur et quelles couches le contrôlent ;
+5. ne pas convertir artificiellement les UNKNOWN en NOT_APPLICABLE pour obtenir zéro bruit.
 
-## Q51 — rendre la garde bloquante
+Objectif de sortie : zéro UNKNOWN non expliqué dans le périmètre actuel de la garde.
 
-**OUI EN CIBLE, PAS ENCORE.**
+## Q54 — ADR-0001 et USING / WITH CHECK
 
-Activation bloquante autorisable seulement après :
-- fermeture prouvée des trois VULNERABLE ;
-- tri des 27 UNKNOWN ;
-- aucune dérogation silencieuse ;
-- résultats courants sans VULNERABLE non explicitement acceptée ;
-- avis final séparé Architecture / Security & Isolation / QA ;
-- démonstration que le workflow échoue réellement sur une mutation volontaire et passe sur l'état accepté.
+**OUI. APPROVED.**
 
-Le test propre de la garde reste bloquant dès maintenant. Le rapport de la garde reste non bloquant jusqu'à cette gate.
+Ajouter explicitement à ADR-0001 :
 
-## Q52 — 27 UNKNOWN
+> Pour une policy `UPDATE`, `USING` borne les lignes que l'acteur peut cibler ; `WITH CHECK` borne l'état final de la ligne après mutation. Quand une colonne ou une clé de portée peut changer, contrôler seulement la ligne visible ne suffit pas : la nouvelle portée doit être vérifiée explicitement.
 
-**OUI, tri obligatoire avant activation bloquante et avant classe D.**
+Préciser également que PostgreSQL peut réutiliser `USING` comme contrôle effectif lorsque `WITH CHECK` est absent, mais que NEXUS préfère un `WITH CHECK` explicite lorsqu'une portée mutable ou une identité structurante est en jeu, afin que le contrat soit lisible et auditable.
 
-Créer un lot `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` après les trois corrections, ou le traiter dans le même cycle uniquement si le périmètre reste documentaire/classification sans correction opportuniste.
+Cette règle ne doit pas devenir une obligation mécanique de dupliquer `USING` partout : certaines policies peuvent avoir des contrats différents entre visibilité de l'ancienne ligne et validité de la nouvelle ligne.
 
-Chaque UNKNOWN doit devenir exactement l'un de :
-- `SAFE` avec mécanisme de portée expliqué ;
-- `VULNERABLE` avec constat et retour Handoff avant correction ;
-- `NOT_APPLICABLE` avec raison contractuelle ;
-- dérogation explicite, datée, attribuée, motivée et révisable.
+## Findings fermés
 
-Un UNKNOWN ne peut pas être supprimé uniquement pour obtenir une CI verte. Les cas service_role / configuration doivent être distingués des écritures utilisateur ordinaires et leur frontière de confiance documentée.
+Accepté comme état Test :
+- `progression_badge_awards` INSERT protégé par auteur + site ;
+- `progression_points_ledger` INSERT protégé par auteur + site ;
+- `inventaire_quart_employes` UPDATE protégé par portée indirecte du quart dans `USING` et `WITH CHECK` ;
+- aucune colonne site ajoutée à `inventaire_quart_employes` ;
+- chemins légitimes conservés ;
+- aucune donnée réattribuée ;
+- garde actuelle à 0 VULNERABLE / 0 incohérence.
 
-## Garde et dérive schéma vivant
+## Point méthodologique QA
 
-Architecture a raison : la garde reconstruit l'état depuis les migrations. Cette hypothèse devient une précondition explicite : **toute modification persistante de policies/RLS doit être versionnée par migration**. Une modification hors migration constitue une dérive et invalide la complétude de la garde.
+Le faux signal P3/P5 est utile : les futurs tests comportementaux de sécurité doivent distinguer explicitement les erreurs RLS (`42501`) des erreurs de contrainte/schéma (`23502`, `23503`, `23514`, etc.). Un test ne doit pas conclure « sécurité OK » parce que l'écriture a échoué pour une autre raison.
 
-Ne pas ajouter maintenant de dépendance réseau uniquement pour contrôler cette dérive. La comparaison schéma vivant / migrations pourra être traitée dans le futur lot CI connecté déjà identifié.
+Cette exigence doit entrer dans le corpus de test de la garde ou dans le futur lot CI connecté.
+
+## Activation bloquante
+
+**PAS ENCORE.**
+
+Après le tri des 27 UNKNOWN, revenir au Handoff avec :
+- répartition finale SAFE / VULNERABLE / NOT_APPLICABLE / DEROGATION ;
+- justification de chaque dérogation ;
+- garde exécutée sur l'état final ;
+- test volontaire montrant qu'une régression connue fait réellement échouer la CI ;
+- avis séparés Architecture / Security & Isolation / QA ;
+- coût d'exécution et procédure de désactivation/rollback.
 
 ## Classe D
 
 **TOUJOURS FERMÉE.**
 
-La classe D ne revient à l'arbitrage qu'après :
-1. trois findings fermés ;
-2. 27 UNKNOWN triés ;
-3. garde statique prête à devenir bloquante et test de blocage prouvé ;
-4. proposition Architecture + Security du contrat de normalisation/fail-closed pour les 9 écritures et les defaults concernés.
-
-Aucun retrait de default, aucune correction classe D et aucune généralisation de trigger n'est autorisé.
+Aucun retrait de default, aucune correction des 9 écritures classe D et aucune généralisation de trigger n'est autorisé par cette décision.
 
 ## Gate suivante
 
-Claude peut exécuter `SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS` en Test uniquement.
+Claude peut exécuter `SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE` en Test / gouvernance uniquement et mettre à jour ADR-0001 conformément à Q54.
 
-Retour Handoff attendu avec policies/contrats avant-après, preuves comportementales, sortie de la garde après correction, suite, avis Guardians et rollback. Ensuite, tri des UNKNOWN avant demande d'activation bloquante.
+Retour Handoff obligatoire avant toute correction découverte, activation bloquante ou ouverture de la classe D.
 
 ## Gate Production
 
