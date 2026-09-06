@@ -15,6 +15,25 @@ Principe cardinal : **autonomie sans opacité**.
 
 Le système doit travailler de manière autonome ; l'observabilité doit permettre de comprendre instantanément l'état du travail lorsqu'un humain choisit de regarder, sans exiger de clics ou d'actions pour faire avancer les agents.
 
+## Accès — invariant créateur uniquement
+
+Cette fonctionnalité est **strictement réservée au Créateur NEXUS**, actuellement Frédéric Bragance.
+
+Conséquences obligatoires :
+- aucun manager client, employé, administrateur de station, responsable multisite ou entreprise cliente ne doit pouvoir voir, appeler ou deviner cette interface ;
+- le droit d'accès ne doit jamais être dérivé d'un rôle métier client comme `manager`, `admin_site`, `owner_company` ou équivalent ;
+- l'autorisation doit reposer sur une capacité système distincte de type `nexus_creator_control_center` (nom final à figer dans la conception) ;
+- fail closed si l'identité ou la capacité Créateur n'est pas explicitement prouvée ;
+- aucun fallback vers un rôle plus large ;
+- ne jamais exposer dans cette vue des secrets, tokens, `service_role`, variables sensibles, données clientes brutes ou logs techniques contenant des données non nécessaires ;
+- les événements affichés doivent être minimisés et orientés exécution/gouvernance : agent, lot, état, preuve, commit/run, gate, blocage, prochaine étape ;
+- l'existence du Centre de contrôle ne doit créer aucun nouveau droit d'accès aux données opérationnelles des clients ;
+- le Créateur peut observer le fonctionnement du système sans que cela lui confère automatiquement un droit de lecture des données métier d'une entreprise cliente.
+
+Principe de séparation : **supervision du système NEXUS ≠ accès aux données clientes**.
+
+Le Guardian Security & Isolation doit disposer d'un veto explicite sur tout mécanisme d'accès ou toute donnée exposée par ce Centre de contrôle.
+
 ## Philosophie obligatoire
 
 - automatisation par défaut, humain par exception ;
@@ -132,6 +151,9 @@ Le MVP doit d'abord exploiter les sources déjà présentes dans GitHub / Handof
 8. Aucun secret exposé.
 9. Pas de duplication des décisions ou calculs des moteurs/agents.
 10. UX cohérente avec NEXUS : sobre, claire, directionnelle, explicite.
+11. Accès strictement Créateur, fail closed, avec capacité système dédiée distincte de tout rôle client.
+12. La supervision du système ne donne jamais, par effet de bord, accès aux données métier clientes.
+13. Les contrôles d'accès doivent être testés négativement : manager client, employé, admin station et propriétaire d'entreprise cliente refusés.
 
 ## Contraintes
 
@@ -143,6 +165,6 @@ Le MVP doit d'abord exploiter les sources déjà présentes dans GitHub / Handof
 
 ## Retour attendu
 
-Audit d'architecture + spécification produit/UX + schéma d'événements/statuts + proposition MVP + points d'intégration avec le rail event-driven une fois celui-ci validé.
+Audit d'architecture + spécification produit/UX + schéma d'événements/statuts + proposition MVP + modèle d'autorisation Créateur + tests négatifs d'accès + points d'intégration avec le rail event-driven une fois celui-ci validé.
 
 Ne demander une décision à Frédéric que s'il existe un vrai choix stratégique non tranché par la Bible ou les décisions canoniques existantes.
