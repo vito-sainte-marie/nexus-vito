@@ -2147,7 +2147,21 @@
     const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
     const motifPrincipal = evRef && evRef.attente && evRef.attente.motif ? evRef.attente.motif : null;
     const motifOptim = ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : null;
-    const pourquoiTxt = [motifPrincipal, motifOptim].filter(Boolean).join(' ')
+    // Motif structuré de non-complétion camion (audit CARBURANTS-PERFORMANCE-
+    // AUDIT-COMMANDE-20260906, decision-1.md, écart E2 — "l'écran ne dit pas
+    // pourquoi [le camion s'arrête sous 36 000 L]") : `ctx.commandeRecommandee.
+    // motifNonCompletion.raison` est une prose DÉJÀ construite par le moteur
+    // (NexusCarburantCommandeMoteur.formaterRaisonNonCompletion) — ce bloc ne fait
+    // que la lire, jamais un second calcul métier ici (Article 11).
+    const motifNonCompletionTxt = ctx.commandeRecommandee && ctx.commandeRecommandee.motifNonCompletion
+      ? ctx.commandeRecommandee.motifNonCompletion.raison : null;
+    // Créneau non directement commandable aujourd'hui (écart E1 du même audit —
+    // confusion "jour de livraison autorisé" / "créneau encore commandable").
+    // `ctx.prochaineDateCommandePossibleISO` est déjà calculé par le moteur.
+    const creneauNonCommandableTxt = (ctx.commandeDirectementPossible === false)
+      ? `Créneau non directement commandable aujourd'hui${ctx.prochaineDateCommandePossibleISO ? ` — prochaine date commandable : ${formaterDateFrAvecJour(ctx.prochaineDateCommandePossibleISO)}` : ''}.`
+      : null;
+    const pourquoiTxt = [motifPrincipal, motifOptim, motifNonCompletionTxt, creneauNonCommandableTxt].filter(Boolean).join(' ')
       || (ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.');
 
     // Décision lisible en une seconde (25/08/2026, retour de Frédéric) —
@@ -2373,9 +2387,19 @@
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
-    const boutonHTML = ctx.commandeRecommandee
+    // CTA piloté par l'état structuré du moteur (audit CARBURANTS-PERFORMANCE-
+    // AUDIT-COMMANDE-20260906, decision-1.md, conclusion 5 — "le CTA doit
+    // refléter l'état réel") : `ctx.ctaEtat` ('preparer'/'simuler'/'aucune') vient
+    // de NexusCarburantCommandeMoteur.etatCTA, jamais recalculé ici (Article 11).
+    // UN SEUL bouton (id `btnPreparerCommande` conservé pour ne rien changer au
+    // câblage `ouvrirFicheCommande` déjà en place, Article 11) — jamais un
+    // second CTA de simulation redondant (E3).
+    const ctaEtat = ctx.ctaEtat || (ctx.commandeRecommandee ? 'preparer' : 'aucune');
+    const boutonHTML = ctaEtat === 'preparer'
       ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
-      : '';
+      : (ctaEtat === 'simuler'
+        ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🧮 Simuler ma commande →</button>`
+        : '');
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
     // de Frédéric : "un manager n'a pas besoin de refaire mentalement la
@@ -2606,7 +2630,16 @@
     const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
     const motifPrincipal = evRef && evRef.attente && evRef.attente.motif ? evRef.attente.motif : null;
     const motifOptim = ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : null;
-    return [motifPrincipal, motifOptim].filter(Boolean).join(' ')
+    // Même motifs structurés E1/E2 que la carte (voir pourquoiTxt plus haut) —
+    // repris ici car `raison` alimente aussi la proposition enregistrée
+    // (creerPropositionCommande, ligne ~2758), qui doit rester honnête sur un
+    // éventuel arbitrage encore ouvert (Article 11, une seule formulation).
+    const motifNonCompletionTxt = ctx.commandeRecommandee && ctx.commandeRecommandee.motifNonCompletion
+      ? ctx.commandeRecommandee.motifNonCompletion.raison : null;
+    const creneauNonCommandableTxt = (ctx.commandeDirectementPossible === false)
+      ? `Créneau non directement commandable aujourd'hui${ctx.prochaineDateCommandePossibleISO ? ` — prochaine date commandable : ${formaterDateFrAvecJour(ctx.prochaineDateCommandePossibleISO)}` : ''}.`
+      : null;
+    return [motifPrincipal, motifOptim, motifNonCompletionTxt, creneauNonCommandableTxt].filter(Boolean).join(' ')
       || 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.';
   }
 
