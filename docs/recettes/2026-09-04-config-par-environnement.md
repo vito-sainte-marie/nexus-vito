@@ -1156,6 +1156,27 @@ pointage — exactement ce que le principe de capture-à-l'écriture cherche à
 empêcher. Toute reprise éventuelle devra être une décision produit explicite,
 pas un nettoyage technique.
 
+## A19 — le départ impose un passage par la pause *(dette, non corrigée)*
+
+Constatée le 05/09/2026 pendant le rejeu du bloqueur 1, consignée ici parce
+qu'elle ne vivait jusque-là que dans des décisions d'arbitrage.
+
+L'écran Pointage n'autorise pas le parcours direct `Arrivée → Départ` : il
+faut passer par `Début pause` puis `Fin pause`. La pause est pourtant
+facultative dans le métier, et rien ne justifie qu'elle soit une précondition
+**technique** à la clôture normale d'un service.
+
+Ce n'est pas un bloqueur : le départ finit par être enregistré, S-2 clôture
+correctement, et le rejeu du bloqueur 1 l'a prouvé — les pointages
+`pause_debut` et `pause_fin` du 05/09 à 20:47 sont exactement cette
+contrainte, subie puis contournée en trois secondes.
+
+**Non corrigée, et volontairement hors du gel.** Corriger le parcours de
+pointage est un lot fonctionnel : il touche l'enchaînement des états du
+pointage, pas le cycle de vie des services que S-1 à S-5 viennent d'établir.
+Le mélanger au correctif S-3 aurait élargi un lot dont l'objet était la
+clôture des services.
+
 ## Défense en profondeur — requêtes sans filtre de site
 
 Relevées pendant l'étape 1, à verser à l'audit de défense en profondeur. La
