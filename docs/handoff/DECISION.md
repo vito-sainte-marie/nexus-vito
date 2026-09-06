@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-PHASE2A-20260905/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-PHASE2A-20260905
+lot_id: SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,75 +12,79 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 Phase 2A
+# Décision — SITE-EXPLICITE-1 2B Security Write Guard
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — Phase 2A validée. Phase 2B partiellement autorisée.**
+**APPROVED_WITH_CONDITIONS — sous-lot Security Write Guard validé et clos.**
 
-Le Governance Core apporte ici sa première preuve de valeur concrète : le harnais QA a découvert F2, un défaut de sécurité plus grave que l'hypothèse issue de la cartographie seule. L'ordre Architecture → Security → QA → arbitrage a donc empêché une correction applicative incomplète qui aurait donné une fausse impression de sécurité.
+Le chemin d'écriture inter-site prouvé ouvert sur `pointages` est désormais fermé en Test, sans extension de privilège et sans affaiblissement RLS. La découverte du `UPDATE` sans `WITH CHECK` sur `mission_progress` confirme une seconde fois la valeur du contrôle Guardian : le chantier a fermé un chemin qui n'était pas dans l'hypothèse initiale.
 
-## Q34 — F2 change-t-elle l'ordre ?
+## Q37 — étendre F2 aux 41 tables de classe RLS
 
-**OUI. APPROVED.**
+**OUI, mais comme lot de preuve séparé et sans correction opportuniste.**
 
-Pour `pointages`, fermer d'abord le chemin serveur/RLS est obligatoire. Corriger seulement le client serait insuffisant puisqu'un client modifié ou un appel API direct pourrait encore choisir un autre site.
+Autoriser un lot `SITE-EXPLICITE-1-RLS-MATRIX-PROOF` dont l'objectif est de vérifier, table par table ou par groupes contractuellement homogènes, qu'une identité ordinaire ne peut écrire sur un site non autorisé.
 
-Autorisation Phase 2B limitée au sous-lot **2B-SECURITY-WRITE-GUARD** :
+Règles :
+- aucune policy ne doit être modifiée pendant la phase de mesure ;
+- un échec inattendu ou une écriture inter-site acceptée devient un constat, pas une correction immédiate ;
+- les tables sans chemin d'écriture légitime doivent être marquées NOT_APPLICABLE plutôt que forcées artificiellement ;
+- les fixtures synthétiques doivent rester minimales, transactionnelles et supprimables ;
+- le résultat doit produire une matrice `table / opération / identité / site / attendu / observé / preuve` ;
+- tout défaut de sécurité découvert revient au Handoff avant correction.
 
-1. concevoir puis appliquer en **Test uniquement** un contrôle `WITH CHECK`/contrat équivalent garantissant que les écritures ordinaires ne peuvent viser qu'un site autorisé ;
-2. couvrir en priorité `pointages`, puis `mission_completions` et `mission_progress` après vérification de leurs contrats métier respectifs ;
-3. corriger ensuite les écritures applicatives de classe E afin qu'elles transmettent explicitement le site correct ;
-4. rejouer F1b/F2 et ajouter les tests de non-régression pertinents ;
-5. produire les avis séparés Architecture, Security & Isolation et QA avant de demander l'autorisation de poursuivre vers les classes D/defaults.
+Ce lot passe avant l'ouverture des classes D.
 
-Condition majeure : **ne pas appliquer mécaniquement la même policy aux trois tables**. Claude doit vérifier pour chacune qui est autorisé à écrire, dans quel contexte, et si la branche créateur ou un flux manager légitime exige une règle distincte. Le résultat attendu est l'isolation correcte, pas l'uniformité syntaxique.
+## Q38 — contrat renforcé de mission_progress comme modèle
 
-Aucun retrait de default n'est encore autorisé. Aucun affaiblissement RLS n'est autorisé.
+**OUI sur le principe, NON comme patron à copier.**
 
-## Q35 — second site pour le créateur
+Règle d'architecture retenue : lorsqu'une écriture porte une identité plus précise que le seul site (service, employé, caisse, inventaire, livraison, etc.), la policy/contrainte doit vérifier la cohérence de cette identité avec le site et l'acteur autorisé lorsque le contrat métier l'exige.
 
-**OUI, mais lot dédié comme recommandé.**
+Cette règle doit être appliquée table par table. Aucun générateur ou remplacement massif n'est autorisé à partir du SQL de `mission_progress`.
 
-Ne pas bloquer 2B-SECURITY-WRITE-GUARD pour cela. Ouvrir ultérieurement un lot de fixture multi-site Test dédié, avec données synthétiques minimales et supprimables, afin de prouver lecture autorisée/refusée du profil créateur sur au moins deux sites réellement peuplés.
+## Q39 — ouvrir la classe D
 
-Ce lot ne doit utiliser aucune donnée Production et ne doit pas transformer durablement la base Test en jeu de données opaque.
+**NON pour l'instant.**
 
-## Q36 — harnais CI connecté à Supabase Test
+Avant de corriger les 9 écritures de classe D ou de retirer des defaults, Architecture + Security doivent démontrer le mécanisme de normalisation proposé et répondre explicitement à ces questions :
+1. Quelle est la source d'identité de site autorisée pour chaque type d'écriture ?
+2. Que se passe-t-il si le site est absent ?
+3. Que se passe-t-il si le site fourni contredit l'identité authentifiée ?
+4. Un trigger peut-il transformer une omission en rattachement implicite ? Si oui, il est rejeté pour ce contrat.
+5. Comment les chemins manager/créateur/service-role sont-ils distingués sans élargir les privilèges ?
+6. Comment le mécanisme interagit-il avec RLS, triggers existants et contraintes métier plus précises ?
+7. Comment prouver le fail-closed et le rollback avant retrait d'un default ?
 
-**OUI sur l'objectif, PAS ENCORE sur l'implémentation.**
+La démonstration doit être fondée sur des contrats concrets, pas sur une généralisation des 54 tables.
 
-Les sept familles doivent devenir une protection répétable. Mais connecter la CI à Supabase Test introduit des sujets de secrets, disponibilité réseau, état partagé, concurrence et reproductibilité.
+## Points validés du sous-lot
 
-Décision : ouvrir après le sous-lot sécurité un lot d'architecture CI dédié. Il devra comparer au minimum :
-- CI contre Supabase Test partagé ;
-- environnement éphémère/local reproductible ;
-- fixtures transactionnelles ;
-- gestion des secrets et permissions minimales ;
-- comportement si Supabase Test est indisponible.
+Sont acceptés comme état Test du lot :
+- 4 policies renforcées sur les trois tables ;
+- F1b et F2 désormais refusées ;
+- chemins légitimes éprouvés ;
+- aucune écriture transverse accordée au créateur ;
+- correction applicative classe E dans le périmètre autorisé ;
+- 54 defaults laissés intacts ;
+- classe D laissée intacte ;
+- rollback complet du sous-lot documenté.
 
-Aucun secret Supabase ne doit être ajouté au dépôt ni exposé dans les logs pour satisfaire ce besoin.
+Le chiffre `47/36` du détecteur est un indicateur de cartographie, pas une métrique de sécurité suffisante à lui seul.
 
-## Statut des agents / Guardians
+## Régression / CI
 
-La Phase 2A constitue **une première mise en pratique de leurs rôles**, mais pas encore un système d'agents autonomes persistants.
-
-Les sections Architecture Guardian, Security & Isolation Guardian et QA / Regression Guardian ont produit des analyses distinctes et contradictoires lorsque nécessaire ; leurs constats ont effectivement changé le plan. C'est exactement le comportement attendu du Governance Core.
-
-Cependant, ces Guardians sont encore orchestrés dans le travail de Claude et dans le Handoff. Il ne faut pas déclarer qu'une flotte d'agents indépendants tourne en permanence : l'Orchestrator événementiel et l'isolation d'exécution restent à construire.
-
-## Preuve de valeur Governance Core
-
-Le fait important à conserver comme métrique : **sans QA préalable, la Phase 2B aurait probablement corrigé le client avant la policy et laissé F2 ouvert.**
-
-Le Core a donc déjà évité une correction trompeuse. C'est une justification concrète de sa présence, sous réserve qu'il continue à réduire les erreurs et le temps humain plutôt qu'à ajouter de la bureaucratie.
+La réserve QA reste ouverte : les preuves RLS en transaction ne sont pas encore une protection CI persistante. Le futur lot CI connecté/éphémère reste nécessaire. Ne pas déclarer ce risque clos sur la seule base de la suite hors réseau.
 
 ## Gate suivante
 
-Claude peut ouvrir/exécuter le sous-lot `SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD` dans Test, limité au périmètre ci-dessus.
+Claude peut ouvrir le lot de preuve `SITE-EXPLICITE-1-RLS-MATRIX-PROOF` et l'exécuter en Test selon les règles ci-dessus.
 
-À la fin, retour Handoff obligatoire avec : policies avant/après, contrats métier des trois tables, tests F1b/F2 avant/après, preuve qu'un utilisateur ordinaire ne peut écrire sur un autre site, preuve des chemins légitimes manager/créateur concernés, avis distincts des trois Guardians, CI/suite, rollback, et liste des défauts/classes D restant intacts.
+En parallèle conceptuel uniquement, Architecture et Security peuvent préparer la démonstration du mécanisme de normalisation pour la classe D, mais **aucune correction classe D, aucun retrait de default et aucune extension générale de trigger ne sont autorisés avant nouvel arbitrage.**
+
+Retour Handoff attendu avec la matrice RLS, anomalies découvertes, couverture réelle/non applicable, avis séparés Architecture/Security/QA et proposition de priorité suivante.
 
 ## Gate Production
 
-**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration, policy, donnée ou configuration Production n'est autorisé par cette décision.
+**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration, policy, donnée, compte ou configuration Production n'est autorisé par cette décision.
