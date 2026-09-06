@@ -124,7 +124,15 @@ function validerRegistre(etat, artefactsValides) {
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
       const env = r.env; validerCommuns(lot, e, env, 'decision'); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', e.fichier); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
-      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier); else { const vise = path.basename(String(env.in_reply_to).trim()), cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier); else { reponses.push({ decision: e, viseSeq: cible.seq, env }); if (cible.seq < e.seq) bloquant(`${ou} : in_reply_to désigne ${vise} (rang ${cible.seq}), antérieur au rang de la décision (${e.seq})`, 'IN_REPLY_TO_ANTERIEUR', e.fichier); } }
+      // La validité d'une décision dépend de la demande qu'elle référence (elle
+      // doit exister dans CE lot) et de sa relation éventuelle de supersession
+      // avec une décision précédente — jamais d'une comparaison numérique entre
+      // le rang de la décision et celui de la demande visée. Plusieurs décisions
+      // successives peuvent légitimement répondre à la même demande, et une
+      // décision peut tout aussi légitimement répondre à une demande plus
+      // récente que la précédente décision du lot (cf. decision-3 -> request-2
+      // du lot CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906).
+      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier); else { const brut = String(env.in_reply_to).trim(), segments = brut.split('/').filter(Boolean), vise = segments[segments.length - 1], dossierCible = segments.length > 1 ? segments[segments.length - 2] : lot; if (dossierCible !== lot) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} désigne le lot ${dossierCible}, incohérent avec ${lot}`, 'IN_REPLY_TO_AUTRE_LOT', e.fichier); else { const cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier); else reponses.push({ decision: e, viseSeq: cible.seq, env }); } }
     }
     let supersessionsLegitimes = 0;
     for (let i = 1; i < reponses.length; i++) {

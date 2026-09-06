@@ -101,11 +101,11 @@ si un agent « a assez réfléchi » n'est pas une question qu'une machine tranc
 
 Immédiatement, sans exception : `lot_id` absent, malformé ou incohérent ;
 statut ou décision hors vocabulaire ; `APPROVED_CLOSED` dans un fichier v2 ;
-`in_reply_to` absent, inexistant, ou désignant une demande qui n'est plus
-active ; séquence trouée ; enveloppe illisible ; `STATE.json` invalide ou en
-désaccord avec le registre ; plus d'un lot actif ; consommation sans commit ;
-**branche déclarée protégée ou différente de la branche autorisée** ; **refs
-protégées déclarées différentes de celles constatées**.
+`in_reply_to` absent, inexistant, ou désignant un autre lot ; séquence
+trouée ; enveloppe illisible ; `STATE.json` invalide ou en désaccord avec le
+registre ; plus d'un lot actif ; consommation sans commit ; **branche
+déclarée protégée ou différente de la branche autorisée** ; **refs protégées
+déclarées différentes de celles constatées**.
 
 Ces deux derniers points sont des invariants de sécurité : ils ne sont jamais
 ramenés à un avertissement, et une ref protégée illisible est un échec, pas
@@ -119,18 +119,42 @@ deviennent bloquantes.
 ## Format de `in_reply_to`
 
 La forme attendue est le **nom de fichier nu** : `in_reply_to: request-N.md`.
-Un chemin complet désignant le même fichier est normalisé par son nom de base
-plutôt que refusé — c'est de la manipulation de chemin, pas du vocabulaire, et
-l'accepter n'ouvre aucune ambiguïté de modèle. La cible doit toujours être la
-demande **active** du lot.
+Un chemin complet désignant le même fichier du même lot est normalisé par son
+nom de base plutôt que refusé — c'est de la manipulation de chemin, pas du
+vocabulaire, et l'accepter n'ouvre aucune ambiguïté de modèle. Un chemin qui
+désigne un `lot_id` différent de celui du répertoire courant est en revanche
+toujours refusé (`IN_REPLY_TO_AUTRE_LOT`) : une décision n'arbitre que les
+demandes de son propre lot.
+
+La validité d'une décision dépend de la demande qu'elle référence
+(`in_reply_to` doit exister dans ce même lot) et, si une décision antérieure a
+déjà répondu à la même demande, de la relation de supersession explicite
+portée par un champ `supersedes_..._of` — **jamais** d'une comparaison
+numérique entre le rang de la décision (`decision-N`) et celui de la demande
+visée (`request-N`). Ces deux séries sont numérotées indépendamment (voir
+« Numérotation » ci-dessous) ; les comparer pour juger une relation a produit
+un faux blocage sur `decision-3.md` répondant légitimement à `request-2.md`
+du lot `CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906`, corrigé le
+2026-09-06. Concrètement, sont légitimes sans dérogation : plusieurs décisions
+successives répondant à la même demande tant que chacune au-delà de la
+première porte un `supersedes_..._of` vers la précédente ; et une décision
+répondant à une demande plus récente que celle visée par la décision
+précédente, quel que soit l'écart entre les deux rangs de décision.
+
+Seule la consommation (`handoff.js consommer`) exige que la dernière décision
+réponde à la demande **active** (la plus récente du lot) : c'est là, et
+seulement là, que la fraîcheur est vérifiée — pas à chaque validation du
+registre, où une décision plus ancienne reste un fait historique légitime.
 
 ## Numérotation
 
 `request-N.md` et `decision-N.md` sont numérotés par **ordre d'arrivée dans le
-registre**, à partir de 1, sans trou. La première décision déposée est
-`decision-1.md`, quel que soit ce qui a précédé le registre sous v1. La
-contiguïté est ce qui permet de détecter un échange supprimé — c'est la
-garantie d'append-only elle-même, et elle ne se déroge pas à la légère.
+registre**, à partir de 1, sans trou, **chacun dans sa propre série**. La
+première décision déposée est `decision-1.md`, quel que soit ce qui a précédé
+le registre sous v1. La contiguïté est ce qui permet de détecter un échange
+supprimé — c'est la garantie d'append-only elle-même, et elle ne se déroge
+pas à la légère. Les deux séries ne sont jamais comparées entre elles pour
+juger de la validité d'une relation `in_reply_to` (voir ci-dessus).
 
 ## Dérogations
 

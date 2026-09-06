@@ -223,25 +223,25 @@ verifier('une consommation dont le commit est introuvable est refusée', () => {
 
 verifier('une décision déjà consommée ne se rejoue pas', () => {
   // Éprouvé sur le registre RÉEL : c'est le seul endroit où les commits
-  // existent vraiment. `consommer` refuse avant toute écriture, donc ce test
-  // ne modifie rien — et il prouve la garde qui manquait à v1, où une
-  // décision consommée restait en place, d'apparence autoritaire.
-  const etat = JSON.parse(fs.readFileSync(path.join(RACINE, 'docs/handoff/STATE.json'), 'utf8'));
-  const lot = etat.lot_actif;
-  const v = etat.lots[lot];
-  if (!v || !v.consomme_le) { console.log('   (aucune décision consommée au registre — épreuve sans objet)'); return; }
-  const avant = fs.readFileSync(path.join(RACINE, 'docs/handoff/STATE.json'), 'utf8');
+  // existent vraiment. On choisit délibérément un lot déjà DECISION_CONSOMMEE
+  // avec un commit_decision vérifiable — jamais lot_actif, dont la décision
+  // la plus récente peut être légitimement fraîche et donc réellement
+  // consommable (c'est précisément ce que la correction structurelle du
+  // 2026-09-06 restaure pour decision-3.md du lot Carburants : la tester ici
+  // la consommerait pour de vrai au lieu de prouver un refus). Le fichier réel
+  // est sauvegardé puis restauré dans le `finally`, quel que soit le résultat.
+  const cheminEtat = path.join(RACINE, 'docs/handoff/STATE.json');
+  const avant = fs.readFileSync(cheminEtat, 'utf8');
+  const etat = JSON.parse(avant);
+  const dejaConsomme = Object.entries(etat.lots).find(([, v]) => v.statut === 'DECISION_CONSOMMEE' && v.consomme_le && v.commit_decision);
+  if (!dejaConsomme) { console.log('   (aucun lot déjà consommé au registre — épreuve sans objet)'); return; }
+  const [lot] = dejaConsomme;
   let code = 0, sortie = '';
   try { execFileSync('node', [OUTIL, 'consommer', lot], { cwd: RACINE, encoding: 'utf8' }); }
   catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
-  assert.notStrictEqual(code, 0, 'le rejeu d’une décision consommée doit être refusé');
-  // Deux refus sont légitimes selon l'état du registre : la décision est déjà
-  // consommée, ou elle ne répond plus à la demande active. Exiger l'un des
-  // deux seulement rendrait le test dépendant du moment où on le lance.
-  assert.ok(/déjà marquée consommée|mais la demande active est/.test(sortie),
-    'le refus doit nommer sa raison : ' + sortie);
-  assert.strictEqual(fs.readFileSync(path.join(RACINE, 'docs/handoff/STATE.json'), 'utf8'), avant,
-    'un refus ne doit rien écrire');
+  finally { fs.writeFileSync(cheminEtat, avant); }
+  assert.notStrictEqual(code, 0, 'le rejeu d’une décision déjà consommée doit être refusé (fichier réel restauré) : ' + sortie);
+  assert.ok(/déjà marquée consommée/.test(sortie), 'le refus doit nommer sa raison : ' + sortie);
 });
 
 function ecrireEtat(dir, muter) {
@@ -269,13 +269,12 @@ verifier('une dérogation nommée transforme la violation visée en avertissemen
   ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
   assert.notStrictEqual(valider(dir).code, 0, 'sans dérogation, la violation doit bloquer');
   ecrireEtat(dir, e => {
-    // Le mauvais numéro produit DEUX symptômes — séquence trouée et décision
-    // répondant à une demande de rang inférieur. Une cause, deux contrôles :
-    // la dérogation doit nommer chacun, elle ne couvre pas « tout ce qui vient
-    // de cette déviation ».
+    // Depuis la correction structurelle du 2026-09-06, le mauvais numéro ne
+    // produit plus qu'UN symptôme — la séquence trouée. Répondre à request-1
+    // depuis un fichier numéroté 2 n'est plus, à lui seul, une violation
+    // distincte : la validité de in_reply_to ne dépend plus du rang.
     e.derogations = [
       { fichier: 'decision-2.md', regle: 'SEQUENCE_NON_CONTIGUE', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
-      { fichier: 'decision-2.md', regle: 'IN_REPLY_TO_ANTERIEUR', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
     ];
   });
   const r = valider(dir);
@@ -400,15 +399,69 @@ verifier('une décision reste valide quand une demande plus récente arrive', ()
   assert.strictEqual(r.code, 0, 'l’historique ne doit pas devenir invalide après coup : ' + r.sortie);
 });
 
-verifier('une décision ne peut pas répondre à une demande antérieure à son rang', () => {
+verifier('une décision peut répondre à une demande de rang inférieur au sien, sans que ce soit à lui seul un motif de refus', () => {
+  // Correction structurelle du 2026-09-06 : la validité d'une décision dépend
+  // de la demande qu'elle référence (via in_reply_to) et de sa relation
+  // éventuelle de supersession avec une décision précédente — jamais d'une
+  // comparaison numérique entre le rang de la décision et celui de la
+  // demande visée. decision-2 répondant à request-1 (rang 1 < 2) est ici la
+  // toute première décision du lot : aucun doublon, donc aucun refus.
   const dir = registreSain();
   const lot = path.join(dir, 'lots', LOT);
   fs.renameSync(path.join(lot, 'decision-1.md'), path.join(lot, 'decision-2.md'));
   remplacer(dir, 'decision-2.md', 'seq: 1', 'seq: 2');
   ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
   const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'la séquence des décisions reste trouée (decision-1.md manquant) : ' + r.sortie);
+  assert.ok(/non contiguë/.test(r.sortie), r.sortie);
+  assert.ok(!/IN_REPLY_TO_ANTERIEUR|antérieur au rang de la décision/.test(r.sortie),
+    'ce code n’existe plus : le rang de la décision ne conditionne plus la validité de in_reply_to : ' + r.sortie);
+});
+
+verifier('request-2 -> decision-3 est valide sans dérogation, même après une supersession sur request-1', () => {
+  // Reproduit la forme exacte du lot réel
+  // CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906 : decision-1 et
+  // decision-2 répondent toutes deux à request-1 (supersession structurée),
+  // puis request-2 arrive et decision-3 y répond. Le rang de decision-3 (3)
+  // dépasse celui de request-2 (2) : ce n'est plus, depuis la correction
+  // structurelle, un motif de refus.
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'decision-1.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8').replace('closes: true', 'closes: false'));
+  fs.writeFileSync(path.join(lot, 'decision-2.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8')
+      .replace('seq: 1', 'seq: 2')
+      .replace('in_reply_to: request-1.md', 'in_reply_to: request-1.md\nsupersedes_regle_of: decision-1.md'));
+  fs.writeFileSync(path.join(lot, 'request-2.md'),
+    fs.readFileSync(path.join(lot, 'request-1.md'), 'utf8').replace('seq: 1', 'seq: 2'));
+  fs.writeFileSync(path.join(lot, 'decision-3.md'),
+    fs.readFileSync(path.join(lot, 'decision-2.md'), 'utf8')
+      .replace('seq: 2', 'seq: 3')
+      .replace('in_reply_to: request-1.md\nsupersedes_regle_of: decision-1.md', 'in_reply_to: request-2.md')
+      .replace('closes: false', 'closes: true'));
+  ecrireEtat(dir, e => {
+    e.lots[LOT].derniere_demande = 'request-2.md';
+    e.lots[LOT].derniere_decision = 'decision-3.md';
+  });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'decision-3 répondant à request-2 doit être valide sans dérogation : ' + r.sortie);
+});
+
+verifier('un in_reply_to désignant un autre lot est refusé', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md', 'in_reply_to: AUTRE-LOT-20260905/request-1.md');
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'une décision ne doit jamais pouvoir référencer la demande d’un autre lot');
+  assert.ok(/désigne le lot AUTRE-LOT-20260905, incohérent avec/.test(r.sortie), r.sortie);
+});
+
+verifier('un in_reply_to vers une demande future ou inexistante échoue de la même façon, sans comparaison de rang', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md', 'in_reply_to: request-99.md');
+  const r = valider(dir);
   assert.notStrictEqual(r.code, 0);
-  assert.ok(/antérieur au rang de la décision/.test(r.sortie), r.sortie);
+  assert.ok(/ne désigne aucune demande de ce lot/.test(r.sortie), r.sortie);
 });
 
 verifier('deux décisions ne peuvent pas arbitrer la même demande', () => {
@@ -438,13 +491,9 @@ verifier('une décision peut superséder la précédente sur la même demande vi
       .replace('in_reply_to: request-1.md', 'in_reply_to: request-1.md\nsupersedes_regle_of: decision-1.md'));
   ecrireEtat(dir, e => {
     e.lots[LOT].derniere_decision = 'decision-2.md'; e.lots[LOT].statut = 'ATTENTE_CONSOMMATION_DECISION'; delete e.lots[LOT].consomme_le;
-    // Même déviation de numérotation que le lot réel Carburants (decision-2
-    // répond à request-1) : couverte par la dérogation dédiée, pas par la
-    // supersession, qui ne traite que le doublon d'arbitrage.
-    e.derogations = [{ fichier: 'decision-2.md', regle: 'IN_REPLY_TO_ANTERIEUR', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-06' }];
   });
   const r = valider(dir);
-  assert.strictEqual(r.code, 0, 'une supersession structurée doit être acceptée : ' + r.sortie);
+  assert.strictEqual(r.code, 0, 'une supersession structurée doit être acceptée sans dérogation, y compris quand decision-2 répond à un rang inférieur (request-1) : ' + r.sortie);
   assert.ok(/supersède decision-1\.md via supersedes_regle_of/.test(r.sortie), r.sortie);
 });
 
