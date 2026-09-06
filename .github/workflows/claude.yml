@@ -64,11 +64,14 @@ jobs:
         run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/production:refs/remotes/origin/production +refs/heads/config-par-environnement:refs/remotes/origin/config-par-environnement
 
       - name: Préparer connexion PostgreSQL Test read-only sans URL en ligne de commande
-        if: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY != '' }}
         env:
           NEXUS_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
         shell: bash
         run: |
+          if [ -z "$NEXUS_TEST_DB_URL" ]; then
+            echo "Supabase Test read-only secret absent; live DB proof unavailable."
+            exit 0
+          fi
           python3 - <<'PY'
           import os
           from urllib.parse import urlparse, unquote
