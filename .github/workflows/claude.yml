@@ -11,6 +11,10 @@
 #     gates humaines du protocole de handoff restent donc entières. Élargir à
 #     `contents: write` est une décision humaine, pas un réglage de confort.
 #
+#   - la source de travail est explicitement `config-par-environnement` : le
+#     workflow vit sur `main` parce que GitHub y écoute les évènements, mais
+#     Claude lit le rail Test/Handoff, jamais `main` comme source métier.
+#
 #   - aucun secret applicatif n'est exposé : ni Supabase, ni clé de service.
 #     Le seul secret référencé est le jeton d'authentification de Claude.
 #
@@ -47,26 +51,22 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
 
-    # Permissions déclarées au niveau du job et non du workflow : si un second
-    # job est ajouté un jour, il devra déclarer les siennes plutôt que d'hériter
-    # de celles-ci.
     permissions:
       contents: read
       issues: read
       pull-requests: read
-      actions: read # lecture des logs CI, pour que Claude puisse expliquer un échec de la suite
-      id-token: write # OIDC exigé par l'action pour son authentification
+      actions: read
+      id-token: write
 
     steps:
-      # `fetch-depth: 1` suffit : ce workflow ne compare aucune branche,
-      # contrairement à `tests.yml` qui a besoin de tout l'historique.
+      # Le workflow est chargé depuis `main`, branche par défaut requise par
+      # GitHub pour les évènements d'issues. Le contenu réellement présenté à
+      # Claude vient explicitement du rail Test canonique.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: config-par-environnement
           fetch-depth: 1
 
-      # Action épinglée par SHA, comme les autres actions du dépôt : un tag
-      # mobile tel que `v1` peut être redirigé vers n'importe quel commit.
-      # SHA ci-dessous = commit du tag `v1` au 06/09/2026.
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
