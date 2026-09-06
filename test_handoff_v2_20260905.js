@@ -152,6 +152,44 @@ for (const [nom, corrompre, motif] of epreuves) {
   });
 }
 
+verifier('un lot au statut ATTENTE_CONSOMMATION_DECISION est accepté', () => {
+  // Le statut intermédiaire entre une décision rendue et sa consommation via
+  // `consommer` n'existait pas au vocabulaire de STATE.json : un registre par
+  // ailleurs sain était rejeté comme « hors vocabulaire ».
+  const dir = registreSain();
+  ecrireEtat(dir, e => { e.lots[LOT].statut = 'ATTENTE_CONSOMMATION_DECISION'; delete e.lots[LOT].consomme_le; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'ATTENTE_CONSOMMATION_DECISION doit appartenir au vocabulaire des statuts : ' + r.sortie);
+});
+
+verifier('ATTENTE_CONSOMMATION_DECISION compte comme lot actif pour la règle « un seul lot actif »', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, e => {
+    e.lots[LOT].statut = 'ATTENTE_CONSOMMATION_DECISION';
+    delete e.lots[LOT].consomme_le;
+    e.lots['AUTRE-LOT-20260905'] = { statut: 'ATTENTE_DECISION' };
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'un lot ATTENTE_CONSOMMATION_DECISION et un lot ATTENTE_DECISION doivent compter comme deux lots actifs');
+  assert.ok(/un seul lot actif/.test(r.sortie), r.sortie);
+});
+
+verifier('ouvrir un lot est refusé si un autre lot attend la consommation de sa décision', () => {
+  // Symétrique de l'épreuve ATTENTE_DECISION plus bas : le même garde doit
+  // s'appliquer que le lot précédent attende une décision ou sa consommation.
+  const dir = registreSain();
+  ecrireEtat(dir, e => { e.lots[LOT].statut = 'ATTENTE_CONSOMMATION_DECISION'; delete e.lots[LOT].consomme_le; });
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '\n# Corps\n');
+  let code = 0, sortie = '';
+  try {
+    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN'],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
+  assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');
+  assert.ok(/n’est pas consommée|n'est pas consommée/.test(sortie), sortie);
+});
+
 verifier('les miroirs v1 restent produits et signalés comme non canoniques', () => {
   const dir = registreSain();
   execFileSync('node', [OUTIL, 'miroirs'], { cwd: RACINE, env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
