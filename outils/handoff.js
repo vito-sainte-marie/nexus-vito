@@ -143,7 +143,13 @@ function validerCommuns(lot, e, env, genre) {
   // Invariant de sécurité : jamais un avertissement. Une enveloppe qui
   // déclare travailler sur une ref protégée est refusée, quoi qu'elle dise
   // par ailleurs.
+  // Trois cas distincts, et non deux. Le garde confondait « branche absente »
+  // et « branche inattendue », donc il traitait une OMISSION comme une
+  // revendication de travailler sur une ref protégée — et la rendait
+  // indérogeable. Déclarer `production` reste absolument bloqué ; ne rien
+  // déclarer est un défaut de forme.
   if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', e.fichier);
+  else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${BRANCHE_AUTORISEE}`, 'BRANCHE_ABSENTE', e.fichier);
   else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', e.fichier);
 }
 
@@ -213,7 +219,7 @@ function validerRegistre() {
       if (DECISIONS_LEGACY.includes(env.decision)) {
         bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`);
       } else if (!DECISIONS_CANONIQUES.includes(env.decision)) {
-        bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`);
+        bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', e.fichier);
       }
       if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
 

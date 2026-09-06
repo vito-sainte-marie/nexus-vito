@@ -40,8 +40,12 @@
       "consomme_le": "2026-09-06T01:09:23.675Z"
     },
     "VERIFY-QUART-AUTOMATIQUE-20260905": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c0fb0df55b31e75403f912bb902f02dc96182fe7",
+      "consomme_le": "2026-09-06T01:38:51.440Z"
     }
   },
   "derogations": [
@@ -57,6 +61,20 @@
       "regle": "IN_REPLY_TO_ANTERIEUR",
       "motif": "Second symptôme de la MÊME déviation que SEQUENCE_NON_CONTIGUE : le dépôt porte le rang 2 alors qu'il répond à request-1, parce que ma demande réclamait littéralement « déposer decision-2.md ». Une seule cause, deux contrôles la voient. Le fichier n'est toujours ni renommé ni réécrit.",
       "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-05"
+    },
+    {
+      "fichier": "decision-1.md",
+      "regle": "BRANCHE_ABSENTE",
+      "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
+      "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
+      "le": "2026-09-05"
+    },
+    {
+      "fichier": "decision-1.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
+      "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
       "le": "2026-09-05"
     }
   ]

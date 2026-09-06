@@ -258,6 +258,21 @@ verifier('une dérogation ne couvre que la règle et le fichier qu’elle nomme'
   assert.ok(/hors vocabulaire/.test(r.sortie));
 });
 
+verifier('une branche ABSENTE se déroge, une ref protégée jamais', () => {
+  // Le garde confondait les deux : il traitait une omission comme une
+  // revendication de travailler sur main ou production, et la rendait donc
+  // indérogeable. Déclarer une ref protégée reste absolument bloqué.
+  const absente = registreSain();
+  remplacer(absente, 'decision-1.md', 'branch: config-par-environnement\n', '');
+  assert.notStrictEqual(valider(absente).code, 0, 'une branche absente reste une violation');
+  ecrireEtat(absente, e => {
+    e.derogations = [{ fichier: 'decision-1.md', regle: 'BRANCHE_ABSENTE',
+      motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
+  });
+  const r = valider(absente);
+  assert.strictEqual(r.code, 0, 'une omission de forme doit pouvoir être dérogée : ' + r.sortie);
+});
+
 verifier('aucune dérogation n’est recevable sur un invariant de sécurité', () => {
   const dir = registreSain();
   remplacer(dir, 'request-1.md', 'branch: config-par-environnement', 'branch: production');

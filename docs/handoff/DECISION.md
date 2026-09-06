@@ -1,60 +1,64 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/B1-REJEU-NAVIGATEUR-20260905/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/VERIFY-QUART-AUTOMATIQUE-20260905/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: B1-REJEU-NAVIGATEUR-20260905
-seq: 2
+lot_id: VERIFY-QUART-AUTOMATIQUE-20260905
+seq: 1
 author: ChatGPT
-branch: config-par-environnement
-decision: APPROVED
+in_reply_to: request-1.md
+status: APPROVED
 closes: true
-in_reply_to: request-2.md
+token_mode: STANDARD
 ---
 
-# Fermeture du bloqueur 1
+# Décision — Bloqueur Verify / sélection automatique du quart
 
-La gate est satisfaite. Le bloqueur 1 est **FERMÉ**.
+## Verdict
 
-## Q19 — aucun rejeu supplémentaire requis
+**APPROVED — bloqueur Verify fermé.**
 
-Décision : **APPROVED, closes=true**.
+La gate demandée est satisfaite sur les preuves fournies : le défaut initial est correctement diagnostiqué comme une absence de détermination métier du quart dans Verify, les replis implicites vers Quart 1 sont supprimés, et la décision du quart est désormais portée par le contrat commun `NexusStation` plutôt que par une règle locale Verify.
 
-La correction est strictement centrée sur le contrat `BEFORE INSERT` de `shifts` et le défaut observé a été rejoué dans la forme exacte du parcours applicatif. Les preuves fournies montrent que la normalisation du site précède désormais la recherche/clôture du service actif, que l'ancien service `41c935d4` a été clôturé par `prise_de_poste_suivante`, que le nouveau service `6f336e94` est l'unique `en_cours`, et que les invariants de cohérence restent satisfaits.
+Le rejeu réel après seuil est décisif pour ce bloqueur : Quart 2 est proposé automatiquement, sans toucher le sélecteur, avec la date dans le fuseau station. La convergence des cinq consommateurs évite de recréer la dérive architecturale que ce chantier cherche précisément à éliminer.
 
-S-2 et S-5 ne sont pas rejoués : leurs chemins n'ont pas été modifiés par cette correction et ont déjà été prouvés en session réelle dans le même lot. Un rejeu additionnel n'apporterait pas de garantie proportionnée.
+## Q20 — Rejeu Verify avant le seuil
 
-## Preuves retenues pour fermeture
+**Décision : NON requis pour fermer le bloqueur.**
 
-- migration corrective additive appliquée uniquement en Test ;
-- aucun changement `main` / `production` ;
-- suite 185/194 avec uniquement les 9 échecs historiques connus ;
-- test exact-forme du parcours : `site` seul, `site_id` absent, service déjà `en_cours` ;
-- 9 mutations négatives détectées sur 9, dont la régression B1 elle-même ;
-- rejeu navigateur réel concluant : `41c935d4` clôturé par S-3 et `6f336e94` créé comme unique service actif ;
-- `heure_fin` de l'ancien égale `heure_debut` du nouveau ;
-- aucun service terminé sans heure de fin, aucune incohérence de site, aucune clôture débordante ;
-- aucune correction manuelle en base pour masquer l'échec initial ;
-- déploiement Test déclaré : commit `bd30c7a`, génération `020995cd6b06`, `coherent=true`.
+Le comportement spécifique à Verify qui devait être prouvé était sa capacité à recevoir et appliquer automatiquement le résultat du contrat commun. Le chemin après seuil a été rejoué réellement. La décision de frontière avant/après seuil reste dans la primitive C2 déjà couverte par ses tests de bornes et n'a pas été réimplémentée dans Verify.
 
-## Conséquence
+Un rejeu matinal réel peut rester une preuve complémentaire future, mais il ne doit pas retarder le gel Test.
 
-Le cycle de vie des services est désormais considéré prouvé pour la recette actuelle :
+## Q21 — Dette de duplication
 
-1. prise de poste ouvre un service ;
-2. pointage de départ clôture par S-2 ;
-3. prise de poste suivante clôture l'ancien service par S-3 lorsque celui-ci est encore ouvert ;
-4. un seul service `en_cours` par employé est garanti par l'index partiel ;
-5. les lecteurs de service courant S-4 et le rattachement Inventaire S-5 restent cohérents avec ce contrat.
+**Décision : CLOSE pour la détermination du quart.**
 
-## Dette distincte maintenue
+Les cinq écrans qui décident effectivement d'un quart convergent vers le contrat commun. Les usages restants de `minutesLocalesStation` dans Inventaire Manager et Horizon opérationnel ne constituent pas, d'après la demande, des décisions de quart. Ils ne doivent donc pas être artificiellement absorbés dans ce lot.
 
-A19 reste ouverte : Pointage doit permettre `Arrivée → Départ` sans imposer `Pause → Reprise`. Cette dette n'empêche pas la fermeture du bloqueur 1 mais devra être traitée dans un lot fonctionnel séparé.
+## Extension date Verify
 
-## Prochaine gate
+**Acceptée.**
 
-La prochaine anomalie bloquante de la recette est **Verify / sélection automatique du quart** : après le seuil configuré de Q2, Verify avait proposé Quart 1 et nécessitait une correction manuelle. Le diagnostic doit réutiliser le contrat C2 existant (fuseau de la station + seuil configuré) et ne pas créer une logique locale propre à Verify.
+Faire dériver le quart de l'heure station tout en conservant la date issue de l'horloge appareil aurait créé un état incohérent aux frontières de date. Le rattachement de la date au fuseau station est cohérent avec C2 et avec la doctrine multi-site. Cette extension reste dans le périmètre causal du correctif.
 
-Ne pas geler Test tant que ce bloqueur Verify n'est pas corrigé et rejoué sans toucher le sélecteur manuellement.
+## Conditions constatées
 
-Aucune autorisation de Production n'est donnée par cette décision.
+- branche de travail : `config-par-environnement` ;
+- refs `main` et `production` déclarées inchangées à `501c0c7` ;
+- suite déclarée/recalculée dans le lot : `186/195`, mêmes 9 échecs historiques ;
+- épreuve négative : 7/7 mutations détectées ;
+- simulations Carburant/Paye : 15/15 ;
+- rejeu réel après seuil : Quart 2 automatique, sélecteur non touché ;
+- déploiement Test déclaré : commit `9907039`, génération `daad2a1c0038`, `coherent=true` ;
+- aucune migration ni écriture Production déclarée.
+
+## Suite autorisée
+
+Le **bloqueur 2 Verify est fermé**. Avec le bloqueur 1 déjà fermé, les deux bloqueurs issus de la recette transverse sont maintenant levés.
+
+La prochaine étape n'est pas une nouvelle fonctionnalité métier : préparer la **matrice finale de recette** (`PROUVÉ / CORRIGÉ / DETTE ACCEPTÉE / HORS COUVERTURE`) puis proposer le **gel NEXUS BASELINE 1** sur un commit/génération Test exacts. Le gel doit enregistrer explicitement les dettes acceptées et ne doit entraîner aucune promotion Production.
+
+A19 (départ direct sans pause) reste une dette fonctionnelle distincte et ne doit pas être mélangée au gel de ce bloqueur.
+
+**Aucune autorisation de merge ou de déploiement Production n'est accordée par cette décision.**
