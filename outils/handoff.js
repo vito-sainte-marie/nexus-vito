@@ -280,7 +280,7 @@ function validerEtat() {
   // format reste une table par lot_id : ouvrir plusieurs lots plus tard ne
   // demandera pas de changer la forme du fichier.
   const actifs = Object.entries(etat.lots).filter(([, v]) => v.statut === 'ATTENTE_DECISION').map(([k]) => k);
-  if (actifs.length > 1) bloquant(`STATE.json : ${actifs.length} lots en attente (${actifs.join(', ')}) — un seul lot actif dans cette version`);
+  if (actifs.length > 1) bloquant(`STATE.json : ${actifs.length} lots en attente (${actifs.join(', ')}) — un seul lot actif dans cette version`, 'PLUSIEURS_LOTS_ACTIFS');
   if (etat.lot_actif && !etat.lots[etat.lot_actif]) bloquant(`STATE.json : lot_actif ${etat.lot_actif} absent de lots`);
 
   for (const [lot, v] of Object.entries(etat.lots)) {
@@ -342,7 +342,12 @@ function consommer(lot) {
   // v2 initiale : `consommer` n'appelait pas le validateur. On pouvait donc
   // enregistrer la consommation d'une décision que le protocole refuse — soit
   // exactement le silence que ce protocole existe pour supprimer.
-  if (verifier() !== 0) {
+  // `PLUSIEURS_LOTS_ACTIFS` est exclu de ce contrôle : consommer une décision
+  // est précisément l'opération qui fait retomber le nombre de lots actifs.
+  // L'inclure créait une impasse — le registre refusait la consommation qui
+  // l'aurait rendu valide. Le contrôle reste bloquant dans `verifier`, donc
+  // en CI.
+  if (verifier(['PLUSIEURS_LOTS_ACTIFS']) !== 0) {
     console.error('\nREFUS — le registre ne valide pas ; aucune décision ne peut être consommée dans cet état.');
     process.exit(1);
   }
@@ -396,6 +401,21 @@ function nouvelleDemande(lot, corpsFichier, options) {
   const mode = options.tokenMode || 'STANDARD';
   if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
 
+  // La cause de l'impasse : une demande avait été ouverte alors que la
+  // décision du lot précédent n'était pas consommée. Le protocole dit « un
+  // seul lot actif » ; c'est ici qu'il faut le faire respecter, pas au moment
+  // de consommer.
+  const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} };
+  for (const [autre, v] of Object.entries(etatAvant.lots || {})) {
+    if (autre === lot || v.statut !== 'ATTENTE_DECISION') continue;
+    const d = dernier(echanges(autre, 'decision'));
+    if (d) {
+      console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`);
+      console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.');
+      process.exit(1);
+    }
+  }
+
   const dir = path.join(LOTS, lot);
   fs.mkdirSync(dir, { recursive: true });
   const seq = (dernier(echanges(lot, 'request')) || { seq: 0 }).seq + 1;
@@ -442,7 +462,7 @@ function veiller(lot, intervalle) {
 }
 
 // ── Entrée ──────────────────────────────────────────────────────────────
-function verifier() {
+function verifier(ignorer) {
   validerRegistre();
   const etat = validerEtat();
 
@@ -474,6 +494,8 @@ function verifier() {
       restantes.push({ ...e, message: `${e.message}\n         (une dérogation existe mais ${e.code} est un invariant de sécurité : elle ne s'applique pas)` });
     } else if (d) {
       avertir(`DÉROGATION ${d.regle} sur ${d.fichier} — ${e.message}\n         motif : ${d.motif}\n         autorisée par ${d.autorise_par}, le ${d.le}`);
+    } else if (ignorer && ignorer.includes(e.code)) {
+      avertir(`${e.code} toléré le temps de l'opération en cours — ${e.message}`);
     } else restantes.push(e);
   }
 

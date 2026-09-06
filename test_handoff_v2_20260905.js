@@ -293,6 +293,47 @@ verifier('une dérogation incomplète est refusée', () => {
   assert.ok(/dérogation incomplète/.test(r.sortie));
 });
 
+verifier('ouvrir un lot est refusé si une décision attend d’être consommée', () => {
+  // La cause de l'impasse du 05/09/2026 : une demande avait été ouverte alors
+  // que la décision du lot précédent n'était pas consommée. Le registre
+  // devenait alors invalide, et `consommer` — qui valide d'abord — refusait
+  // la seule opération qui l'aurait rendu valide.
+  const dir = registreSain();
+  ecrireEtat(dir, e => { e.lots[LOT].statut = 'ATTENTE_DECISION'; });
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '\n# Corps\n');
+  let code = 0, sortie = '';
+  try {
+    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN'],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
+  assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');
+  assert.ok(/n’est pas consommée|n'est pas consommée/.test(sortie), sortie);
+});
+
+verifier('consommer n’est pas bloqué par la règle qu’il va lui-même résoudre', () => {
+  // Symétrique de l'épreuve précédente : une fois l'impasse créée, la
+  // consommation doit rester possible, sinon le registre est mort.
+  const dir = registreSain();
+  const lot2 = path.join(dir, 'lots', 'AUTRE-LOT-20260905');
+  fs.mkdirSync(lot2, { recursive: true });
+  fs.writeFileSync(path.join(lot2, 'request-1.md'),
+    fs.readFileSync(path.join(dir, 'lots', LOT, 'request-1.md'), 'utf8')
+      .replace(new RegExp(LOT, 'g'), 'AUTRE-LOT-20260905'));
+  ecrireEtat(dir, e => {
+    e.lots[LOT].statut = 'ATTENTE_DECISION';
+    e.lots['AUTRE-LOT-20260905'] = { statut: 'ATTENTE_DECISION', derniere_demande: 'request-1.md' };
+  });
+  assert.notStrictEqual(valider(dir).code, 0, 'deux lots actifs restent invalides pour la CI');
+  let sortie = '';
+  try {
+    sortie = execFileSync('node', [OUTIL, 'consommer', LOT],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  } catch (e) { sortie = (e.stdout || '') + (e.stderr || ''); }
+  assert.ok(!/aucune décision ne peut être consommée/.test(sortie),
+    'la consommation ne doit pas être bloquée par PLUSIEURS_LOTS_ACTIFS : ' + sortie);
+});
+
 verifier('consommer refuse un registre qui ne valide pas', () => {
   // Le trou de la v2 initiale : `consommer` n'appelait pas le validateur, donc
   // une décision refusée par le protocole pouvait être enregistrée comme
