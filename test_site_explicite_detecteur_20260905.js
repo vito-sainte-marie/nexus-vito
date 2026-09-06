@@ -88,13 +88,26 @@ verifier('plusieurs écritures fautives sont toutes rapportées', () => {
   assert.notStrictEqual(t[0].ligne, t[1].ligne, 'chaque occurrence porte sa propre ligne');
 });
 
+verifier('une écriture dont l’objet est une variable reste signalée', () => {
+  // Limite assumée, pas défaut : `insert(lot)` ne permet pas de vérifier
+  // statiquement que le site est fourni. Le détecteur signale donc « site non
+  // vérifiable », ce qui est la bonne réponse — le taire serait prétendre
+  // avoir contrôlé ce qu'on n'a pas lu.
+  const t = analyserSource("await c.from('pointages').insert(lot);");
+  assert.strictEqual(t.length, 1, 'un objet non littéral doit rester signalé');
+});
+
 verifier('le dépôt réel donne le chiffre annoncé', () => {
   // Le chiffre cité dans la cartographie doit rester vérifiable, et bouger
   // le jour où le code bouge — pas rester figé dans un document.
+  //
+  // 06/09/2026, 2B-SECURITY-WRITE-GUARD : 48 → 47 et 37 → 36, après que
+  // `mission_completions` a reçu son `site_id`. Le pointage du Debug reste
+  // compté — son insert reçoit une variable, voir l'épreuve ci-dessus.
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
-  assert.strictEqual(t.length, 48, `48 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
-  assert.strictEqual(tables.size, 37, `37 tables attendues, ${tables.size} trouvées`);
+  assert.strictEqual(t.length, 47, `47 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
+  assert.strictEqual(tables.size, 36, `36 tables attendues, ${tables.size} trouvées`);
 });
 
 console.log(`\n${passes} vérifications passées — le détecteur est éprouvé, pas cru sur parole.`);

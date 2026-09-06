@@ -1267,6 +1267,10 @@
     const { error } = await nexusClient
       .from('mission_completions')
       .insert({
+        // 2B-SECURITY-WRITE-GUARD (06/09/2026) — le site est DIT, plus déduit
+        // du défaut de colonne. La policy l'exige désormais ; sans lui,
+        // l'insertion partait silencieusement sur « vito-sainte-marie ».
+        site_id: SITE_ACTUEL,
         employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,

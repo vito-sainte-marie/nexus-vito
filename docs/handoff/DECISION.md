@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-GOVERNANCE-CORE-1-20260905/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-PHASE2A-20260905/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-GOVERNANCE-CORE-1-20260905
+lot_id: SITE-EXPLICITE-1-PHASE2A-20260905
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,100 +12,75 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — NEXUS Governance Core v1
+# Décision — SITE-EXPLICITE-1 Phase 2A
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — constitution Governance Core v1 acceptée et lot documentaire clos.**
+**APPROVED_WITH_CONDITIONS — Phase 2A validée. Phase 2B partiellement autorisée.**
 
-La proposition est suffisamment simple, directement reliée aux défauts réellement observés et cohérente avec l'objectif premier : rendre du temps à Frédéric tout en augmentant la fiabilité de NEXUS.
+Le Governance Core apporte ici sa première preuve de valeur concrète : le harnais QA a découvert F2, un défaut de sécurité plus grave que l'hypothèse issue de la cartographie seule. L'ordre Architecture → Security → QA → arbitrage a donc empêché une correction applicative incomplète qui aurait donné une fausse impression de sécurité.
 
-## Q28 — nombre de Guardians
+## Q34 — F2 change-t-elle l'ordre ?
 
-**APPROVED : cinq Guardians maximum pour le Core initial.**
+**OUI. APPROVED.**
 
-Architecture, Security & Isolation, Business Rules, QA / Regression et NEXUS Bible sont retenus. Aucun Guardian supplémentaire ne doit être créé sans défaut concret non couvert par ces cinq rôles et sans gain mesurable.
+Pour `pointages`, fermer d'abord le chemin serveur/RLS est obligatoire. Corriger seulement le client serait insuffisant puisqu'un client modifié ou un appel API direct pourrait encore choisir un autre site.
 
-Le retrait d'un Guardian devenu stérile est explicitement autorisé après arbitrage. L'organisation n'est pas un organigramme à préserver : c'est un outil au service du produit.
+Autorisation Phase 2B limitée au sous-lot **2B-SECURITY-WRITE-GUARD** :
 
-## Q29 — premier chantier
+1. concevoir puis appliquer en **Test uniquement** un contrôle `WITH CHECK`/contrat équivalent garantissant que les écritures ordinaires ne peuvent viser qu'un site autorisé ;
+2. couvrir en priorité `pointages`, puis `mission_completions` et `mission_progress` après vérification de leurs contrats métier respectifs ;
+3. corriger ensuite les écritures applicatives de classe E afin qu'elles transmettent explicitement le site correct ;
+4. rejouer F1b/F2 et ajouter les tests de non-régression pertinents ;
+5. produire les avis séparés Architecture, Security & Isolation et QA avant de demander l'autorisation de poursuivre vers les classes D/defaults.
 
-**APPROVED_WITH_CONDITIONS.**
+Condition majeure : **ne pas appliquer mécaniquement la même policy aux trois tables**. Claude doit vérifier pour chacune qui est autorisé à écrire, dans quel contexte, et si la branche créateur ou un flux manager légitime exige une règle distincte. Le résultat attendu est l'isolation correcte, pas l'uniformité syntaxique.
 
-Le premier chantier réel sera la racine commune : **« le site doit être exigé, jamais déduit implicitement »**.
+Aucun retrait de default n'est encore autorisé. Aucun affaiblissement RLS n'est autorisé.
 
-Il regroupe dans une même mission de sécurisation :
-1. les defaults de site encore présents ;
-2. les insertions applicatives sans `site_id` ;
-3. la branche créateur non éprouvée.
+## Q35 — second site pour le créateur
 
-Condition essentielle : ne pas corriger les 58 defaults en masse par recherche/remplacement. Le lot doit d'abord cartographier les contrats, usages réels, tables concernées, écritures applicatives, RLS et dépendances. Toute modification doit être précédée d'une preuve de comportement attendu et suivie de tests négatifs multi-site.
+**OUI, mais lot dédié comme recommandé.**
 
-Ce premier chantier servira aussi de **preuve grandeur nature du Governance Core** : Claude Builder propose/implémente ; les Guardians requis produisent des avis séparés ; la CI apporte les preuves mécaniques ; ChatGPT arbitre. Aucun acteur ne valide son propre travail.
+Ne pas bloquer 2B-SECURITY-WRITE-GUARD pour cela. Ouvrir ultérieurement un lot de fixture multi-site Test dédié, avec données synthétiques minimales et supprimables, afin de prouver lecture autorisée/refusée du profil créateur sur au moins deux sites réellement peuplés.
 
-## Q30 — contrat anti-dérive
+Ce lot ne doit utiliser aucune donnée Production et ne doit pas transformer durablement la base Test en jeu de données opaque.
 
-**APPROVED avec règle de proportionnalité.**
+## Q36 — harnais CI connecté à Supabase Test
 
-Les six champs sont obligatoires pour tous les lots :
-- `objectif_metier`
-- `gain_attendu`
-- `contrats_touches`
-- `guardians_requis`
-- `preuves_exigees`
-- `definition_de_termine`
+**OUI sur l'objectif, PAS ENCORE sur l'implémentation.**
 
-Mais ils peuvent tenir sur six lignes pour un changement simple. La qualité du contrôle ne doit jamais être confondue avec la longueur de la documentation.
+Les sept familles doivent devenir une protection répétable. Mais connecter la CI à Supabase Test introduit des sujets de secrets, disponibilité réseau, état partagé, concurrence et reproductibilité.
 
-Un lot purement technique peut déclarer qu'il ne contribue directement à aucun segment de l'Horizon, mais il doit alors expliquer quelle dette, quel risque ou quelle condition de fiabilité il réduit.
+Décision : ouvrir après le sous-lot sécurité un lot d'architecture CI dédié. Il devra comparer au minimum :
+- CI contre Supabase Test partagé ;
+- environnement éphémère/local reproductible ;
+- fixtures transactionnelles ;
+- gestion des secrets et permissions minimales ;
+- comportement si Supabase Test est indisponible.
 
-## Ajustement de gouvernance important
+Aucun secret Supabase ne doit être ajouté au dépôt ni exposé dans les logs pour satisfaire ce besoin.
 
-La phrase « Security Guardian bloque seul ; seul Frédéric lève » est retenue avec une précision : **Frédéric peut autoriser la poursuite après avoir reçu explicitement le risque et ses conséquences, mais aucun agent ne doit techniquement affaiblir une protection de sécurité uniquement pour satisfaire cette décision sans un lot dédié, traçable et une preuve de mitigation.**
+## Statut des agents / Guardians
 
-Une gate humaine n'efface pas le risque ; elle en accepte explicitement la responsabilité.
+La Phase 2A constitue **une première mise en pratique de leurs rôles**, mais pas encore un système d'agents autonomes persistants.
 
-## ADR
+Les sections Architecture Guardian, Security & Isolation Guardian et QA / Regression Guardian ont produit des analyses distinctes et contradictoires lorsque nécessaire ; leurs constats ont effectivement changé le plan. C'est exactement le comportement attendu du Governance Core.
 
-Architecture ADR acceptée en principe. Les premières ADR doivent documenter des décisions déjà établies avant d'introduire de nouvelles conventions.
+Cependant, ces Guardians sont encore orchestrés dans le travail de Claude et dans le Handoff. Il ne faut pas déclarer qu'une flotte d'agents indépendants tourne en permanence : l'Orchestrator événementiel et l'isolation d'exécution restent à construire.
 
-Condition : ne pas imposer artificiellement « un test ou une migration » lorsqu'une ADR est purement organisationnelle. Une ADR acceptée doit avoir **au moins une preuve d'incarnation pertinente** : test, migration, contrôle CI, outil, invariant vérifiable ou procédure de gate selon sa nature. L'objectif est la vérifiabilité, pas une catégorie de fichier particulière.
+## Preuve de valeur Governance Core
 
-## Horizon
+Le fait important à conserver comme métrique : **sans QA préalable, la Phase 2B aurait probablement corrigé le client avant la policy et laissé F2 ouvert.**
 
-APPROVED. La promesse persistante reste :
+Le Core a donc déjà évité une correction trompeuse. C'est une justification concrète de sa présence, sous réserve qu'il continue à réduire les erreurs et le temps humain plutôt qu'à ajouter de la bureaucratie.
 
-**La nuit NEXUS travaille. Le matin NEXUS explique. La journée NEXUS accompagne. Frédéric manage.**
+## Gate suivante
 
-Le signal prioritaire de dérive reste l'augmentation de la charge cognitive ou du temps consacré par Frédéric à la construction de NEXUS.
+Claude peut ouvrir/exécuter le sous-lot `SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD` dans Test, limité au périmètre ci-dessus.
 
-## Démontabilité
-
-APPROVED. Le Governance Core ne doit jamais devenir une dépendance runtime du produit NEXUS en station. L'indisponibilité de l'Orchestrator, d'un Guardian ou de ChatGPT ne doit pas empêcher l'application métier de fonctionner.
-
-## Orchestrator
-
-Architecture cible APPROVED, mais aucune capacité de réveil automatique ne doit être déclarée avant preuve réelle d'un runner externe événementiel.
-
-La première implémentation doit viser le **minimum utile** : supprimer progressivement le rôle de messager de Frédéric, journaliser les transitions, supporter explicitement `session unavailable`, rester idempotente et ne jamais posséder de droit de décision ou de Production.
-
-## Étape suivante autorisée
-
-Le prochain lot peut être ouvert pour le premier chantier réel du Governance Core : **SITE-EXPLICITE-1** (nom libre mais périmètre équivalent).
-
-Avant toute modification applicative, sa première demande doit fournir :
-- la cartographie factuelle des defaults de site et des écritures sans `site_id` ;
-- les contrats/RLS concernés ;
-- le comportement du profil créateur ;
-- les tests négatifs multi-site prévus ;
-- les avis distincts Architecture, Security & Isolation et QA ;
-- le plan de modification par étapes avec rollback ;
-- l'impact attendu sur la fiabilité et la future généralisation multi-site.
-
-**Ne pas corriger dans la phase de cartographie.** L'arbitrage doit précéder la modification.
-
-En parallèle, un lot distinct et léger pourra ensuite implémenter le gabarit Handoff pré-rempli et préparer l'Orchestrator, mais il ne doit pas concurrencer le lot « Maintenant » : un seul chantier Maintenant à la fois.
+À la fin, retour Handoff obligatoire avec : policies avant/après, contrats métier des trois tables, tests F1b/F2 avant/après, preuve qu'un utilisateur ordinaire ne peut écrire sur un autre site, preuve des chemins légitimes manager/créateur concernés, avis distincts des trois Guardians, CI/suite, rollback, et liste des défauts/classes D restant intacts.
 
 ## Gate Production
 
-**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration Production, aucun déploiement Production et aucune modification des données Production ne sont autorisés par cette décision.
+**AUCUNE AUTORISATION PRODUCTION.** Aucun merge `main`/`production`, aucune migration, policy, donnée ou configuration Production n'est autorisé par cette décision.

@@ -72,8 +72,12 @@
       "consomme_le": "2026-09-06T02:55:02.279Z"
     },
     "SITE-EXPLICITE-1-PHASE2A-20260905": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "9a2ed8f88e33b8d1d5636076a47a4e43d8d5a5be",
+      "consomme_le": "2026-09-06T03:01:43.615Z"
     }
   },
   "derogations": [

@@ -195,7 +195,12 @@
 
     let inseres = 0, erreurs = 0;
     for (let i = 0; i < nouveauxSeuls.length; i += 200) {
-      const lot = nouveauxSeuls.slice(i, i + 200);
+      // 2B-SECURITY-WRITE-GUARD (06/09/2026) — chaque ligne migrée déclare
+      // son site. Le lot venait d'un stockage local qui ne le portait pas :
+      // sans cette ligne, la migration rattachait tout l'historique au site
+      // du défaut de colonne, quel que soit le commerce d'origine.
+      const lot = nouveauxSeuls.slice(i, i + 200)
+        .map(p => ({ ...p, site: p.site || SITE_ACTUEL }));
       const { error } = await nexusClient.from('pointages').insert(lot);
       if (error) { console.error('Insertion migration:', error); erreurs += lot.length; }
       else inseres += lot.length;
