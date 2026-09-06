@@ -185,7 +185,10 @@
     },
     "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "ddd18bc8a89f7b9e789c67dd9bf83805ec122159"
     }
   },
   "artefacts_hors_registre": [
