@@ -1,26 +1,29 @@
 {
-  "commentaire": "Registre versionné des aides nommées qui encapsulent un contrôle de portée site. La garde ADR-0001 ne reconnaît QUE les aides déclarées ici : une aide inconnue apparaissant dans une policy de portée fait retourner UNKNOWN, jamais SAFE. Une aide déclarée sans preuve de son contrat ne suffit pas non plus à classer SAFE — le champ `preuve` est obligatoire et non vide.",
+  "commentaire": "Registre versionné des aides nommées qui encapsulent un contrôle de portée site. La garde ADR-0001 ne reconnaît QUE les aides déclarées ici : une aide inconnue apparaissant dans une policy de portée fait retourner UNKNOWN, jamais SAFE. Une aide déclarée sans preuve de son contrat ne suffit pas non plus à classer SAFE — le champ `preuve` est obligatoire et non vide. Depuis Q63 (arbitrage SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF-20260906), le champ `statut` est également obligatoire et fait partie du vocabulaire clos CONFORME | NON_EPROUVEE | DEFAILLANTE : une aide DEFAILLANTE ne peut plus laisser SAFE les policies qui l'utilisent, et une aide NON_EPROUVEE rend UNKNOWN, jamais SAFE. Seule une aide CONFORME avec preuve courante peut contribuer à SAFE.",
   "aides": [
     {
       "nom": "nexus_clients_ecriture_ok",
+      "statut": "CONFORME",
       "portee_controlee": "site du compte, ET rôle manager ou gérant",
       "acteurs": "manager, gerant",
       "contrat": "select current_employee_role() = any(array['manager','gerant']) and p_site = current_employee_site_id()",
-      "preuve": "test_garde_portee_site_20260906.js — « l'aide nommée de portée est reconnue » ; définition relue en base le 06/09/2026 lors du tri des UNKNOWN",
+      "preuve": "test_garde_portee_site_20260906.js — aide nommée reconnue ; définition relue en base le 06/09/2026 lors du tri des UNKNOWN",
       "domaine": "clients, facturation, paramètres de site",
       "revision": "2026-09-06"
     },
     {
       "nom": "current_employee_site_id",
+      "statut": "CONFORME",
       "portee_controlee": "site du compte authentifié",
       "acteurs": "toute identité authentifiée portant une ligne employees",
       "contrat": "select site_id from employees where id = auth.uid()",
-      "preuve": "test_garde_portee_site_20260906.js — « policy sûre par fonction de site » ; éprouvée sous identité réelle dans les lots 2B, MUTATION et INSERT-SITE-GUARD",
+      "preuve": "test_garde_portee_site_20260906.js — policy sûre par fonction de site ; éprouvée sous identité réelle dans les lots 2B, MUTATION et INSERT-SITE-GUARD",
       "domaine": "socle RLS",
       "revision": "2026-09-06"
     },
     {
       "nom": "nexus_site_autorise",
+      "statut": "CONFORME",
       "portee_controlee": "site demandé, avec branche créateur conditionnée à acces_createur_autorise",
       "acteurs": "employé du site, créateur sur site ouvert",
       "contrat": "fail-closed : refus sans compte, sans site, ou site étranger",
@@ -30,26 +33,29 @@
     },
     {
       "nom": "est_pompiste_du_jour",
-      "portee_controlee": "lie l'ACTEUR au site demandé : il doit avoir un service de pompiste ouvert ce jour sur ce site",
+      "statut": "CONFORME",
+      "portee_controlee": "lie l'ACTEUR au site demandé : il doit avoir un service de pompiste EN COURS sur ce site, dans la journée-station courante",
       "acteurs": "pompiste du jour",
-      "contrat": "exists(select 1 from shifts where employee_id = auth.uid() and site = p_site and role='pompiste' and heure_debut::date = current_date)",
-      "preuve": "Éprouvée par comportement le 06/09/2026, 5 cas — site correct, autre site, renfort du même site, employé sans service, service clos. ANOMALIE CONFIRMÉE : la fonction date le service par heure_debut::date, c'est-à-dire en UTC, alors que la journée de la station est en America/Martinique. Un service de soirée est daté du lendemain, et l'acteur conserve ses droits de pompiste toute la journée-station suivante. Non corrigée : retour Handoff avant correction.",
+      "contrat": "exists(select 1 from shifts sh where sh.employee_id = auth.uid() and sh.site = p_site and sh.role='pompiste' and sh.statut='en_cours' and (sh.heure_debut at time zone v_fuseau)::date = (now() at time zone v_fuseau)::date), v_fuseau = sites.timezone du site demandé, fail closed si absent/vide/inconnu de PostgreSQL",
+      "preuve": "Preuve comportementale post-correction exécutée sur Supabase Test nexus-test (udljdqxerrbbbajxubfn) le 06/09/2026. 8 cas helper conformes : service actif jour station=true ; service veille 20:30 frontière UTC=false ; service clos=false ; service à cheval commencé veille=false ; autre fuseau Pacific/Kiritimati jour courant=true ; aucun service=false ; site inconnu=false ; autre site=false. Les fixtures ont été créées dans des transactions explicitement ROLLBACK. Les 7 predicates RLS dépendants ont ensuite été éprouvés sur 3 scénarios chacun (actif courant=true, veille soirée=false, service clos=false), soit 21/21 conformes. Les 7 policies sont : jaugeage INSERT/UPDATE, réception visite lignes UPDATE, réception visites UPDATE, releve_versions INSERT, releves INSERT/UPDATE.",
       "domaine": "carburant — relevés et jaugeage",
       "revision": "2026-09-06",
       "anomalie": {
         "constatee_le": "2026-09-06",
-        "nature": "frontière de journée calculée en UTC et non au fuseau de la station",
-        "consequence": "droits de pompiste conservés au-delà de la journée-station du service",
-        "statut": "remontée au Handoff, non corrigée",
-        "famille": "même que C2 et A17 — dette temporelle"
+        "nature": "frontière de journée calculée en UTC et absence de lecture de shifts.statut",
+        "consequence": "droits de pompiste conservés au-delà de la journée-station du service, y compris après clôture",
+        "statut": "CORRIGEE_ET_EPROUVEE_EN_TEST",
+        "famille": "même que C2 et A17 — dette temporelle",
+        "corrigee_le": "2026-09-06"
       }
     },
     {
       "nom": "est_receptionniste_livraison_du_jour",
+      "statut": "CONFORME",
       "portee_controlee": "lie l'ACTEUR au site et à la date : il doit avoir mené une visite de réception terminée sur ce site ce jour",
       "acteurs": "réceptionnaire de livraison",
       "contrat": "exists(select 1 from carburant_reception_visites v where v.employe_id = auth.uid() and v.site = p_site and v.date_visite = p_date and v.statut in ('terminee','terminee_avec_derogation'))",
-      "preuve": "Éprouvée par comportement le 06/09/2026, 6 cas — site correct, autre site, autre jour, visite non terminée, visite de la veille, acteur sans visite. CONFORME : compare deux colonnes date, donc aucune ambiguïté d'horloge, et exige le statut terminé.",
+      "preuve": "Éprouvée par comportement le 06/09/2026, 6 cas — site correct, autre site, autre jour, visite non terminée, visite de la veille, acteur sans visite. CONFORME : compare deux colonnes date et exige le statut terminé.",
       "domaine": "carburant — réception de livraison",
       "revision": "2026-09-06"
     }

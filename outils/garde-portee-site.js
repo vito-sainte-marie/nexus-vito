@@ -21,6 +21,15 @@ const path = require('path');
 
 const CLASSES = ['SAFE', 'VULNERABLE', 'UNKNOWN', 'NOT_APPLICABLE'];
 
+// Q63 (arbitrage SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF-20260906) — le
+// registre des aides devient une dépendance SÉMANTIQUE de la garde, pas
+// seulement documentaire. Une policy ne peut pas être SAFE si l'aide qui la
+// couvre est marquée défaillante, ou si elle n'a pas (ou plus) de preuve
+// comportementale courante : `est_pompiste_du_jour` s'est révélée limpide à
+// la lecture et fausse au comportement, et la garde continuait pourtant de
+// classer SAFE les sept policies qui s'appuient sur elle.
+const STATUTS_AIDES = ['CONFORME', 'NON_EPROUVEE', 'DEFAILLANTE'];
+
 // ── Formes de contrôle de portée réellement observées ───────────────────
 // Deux écritures pour la même chose. Ne reconnaître que la première a déjà
 // produit cinq fausses alertes pendant la matrice UPDATE : la garde doit
@@ -46,8 +55,11 @@ function aidesDeclarees(racine) {
     if (!a.preuve || !String(a.preuve).trim()) {
       throw new Error(`Aide « ${a.nom} » déclarée sans preuve de son contrat : elle ne peut pas rendre une policy SAFE.`);
     }
+    if (!STATUTS_AIDES.includes(a.statut)) {
+      throw new Error(`Aide « ${a.nom} » — statut ${JSON.stringify(a.statut)} hors vocabulaire (${STATUTS_AIDES.join('|')}) : le câblage Q63 ne peut pas juger si elle couvre une policy.`);
+    }
     return true;
-  }).map(a => a.nom);
+  }).map(a => ({ nom: a.nom, statut: a.statut }));
 }
 
 // Ce qu'une expression RLS peut appeler sans que ce soit une aide de portée.
@@ -216,17 +228,32 @@ function classer(p, colonnesSite, aides) {
   if (ctrl === null || ctrl === undefined) {
     return { classe: 'UNKNOWN', motif: 'aucun contrôle lisible pour la nouvelle ligne' };
   }
-  const parAide = aides.some(a => new RegExp('\\b' + a + '\\s*\\(', 'i').test(ctrl));
+  const noms = aides.map(a => a.nom);
+  const aidesUtilisees = aides.filter(a => new RegExp('\\b' + a.nom + '\\s*\\(', 'i').test(ctrl));
+  const parAide = aidesUtilisees.length > 0;
   if (parAide || contient(ctrl, FORMES_PORTEE)) {
     // Même reconnue, une expression qui appelle une aide NON déclarée reste
     // douteuse : on ne sait pas ce que cette aide vérifie.
-    const inconnues = appelsInconnus(ctrl, aides);
+    const inconnues = appelsInconnus(ctrl, noms);
     if (inconnues.length) {
       return { classe: 'UNKNOWN', motif: 'aide non déclarée au registre : ' + inconnues.join(', ') };
     }
-    return { classe: 'SAFE', motif: parAide ? 'portée contrôlée par une aide déclarée' : 'la portée est contrôlée' };
+    // Q63 — le registre est une dépendance sémantique, pas un décor. La
+    // policy n'est jamais plus sûre que l'aide la plus faible qu'elle
+    // combine par OR : une seule branche défaillante suffit à ouvrir l'accès.
+    if (parAide) {
+      const defaillantes = aidesUtilisees.filter(a => a.statut === 'DEFAILLANTE');
+      if (defaillantes.length) {
+        return { classe: 'VULNERABLE', motif: 'aide déclarée DEFAILLANTE au registre : ' + defaillantes.map(a => a.nom).join(', ') + ' — le registre dit que son contrat n’est pas tenu, la policy ne peut pas être crue SAFE sur sa seule forme SQL' };
+      }
+      const nonEprouvees = aidesUtilisees.filter(a => a.statut !== 'CONFORME');
+      if (nonEprouvees.length) {
+        return { classe: 'UNKNOWN', motif: 'aide sans statut CONFORME courant au registre : ' + nonEprouvees.map(a => a.nom).join(', ') };
+      }
+    }
+    return { classe: 'SAFE', motif: parAide ? 'portée contrôlée par une aide déclarée conforme' : 'la portée est contrôlée' };
   }
-  const inconnues = appelsInconnus(ctrl, aides);
+  const inconnues = appelsInconnus(ctrl, noms);
   if (inconnues.length) {
     return { classe: 'UNKNOWN', motif: 'aide non déclarée au registre : ' + inconnues.join(', ') };
   }
@@ -293,7 +320,7 @@ function lireDerogations(racine) {
   return d.derogations || [];
 }
 
-module.exports = { analyser, classer, controleEffectif, rejouerMigrations, extraireClause, extraireRoles, appelsInconnus, CLASSES };
+module.exports = { analyser, classer, controleEffectif, rejouerMigrations, extraireClause, extraireRoles, appelsInconnus, aidesDeclarees, CLASSES, STATUTS_AIDES };
 
 if (require.main === module) {
   const { resultats, incoherences: inc, nonCompris, tablesPortantes } = analyser(path.resolve(__dirname, '..'));
