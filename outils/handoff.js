@@ -79,9 +79,40 @@ function verifierRefsProtegees(ou, valeur) {
     catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — ${ref} historique ${attendues[ref]} n'est pas ancêtre de la ref actuelle ${courant.slice(0, 7)}`, 'REFS_PROTEGEES'); }
   }
 }
-function validerRegistre() {
+// Une décision peut légitimement en superséder une autre répondant à la même
+// demande — mais seulement si un champ d'enveloppe `supersedes_..._of` désigne
+// explicitement la décision immédiatement précédente sur cette même demande.
+// Sans ce champ, un second arbitrage sur la même demande reste un doublon.
+function supersessionValide(env, fichierPrecedent) {
+  for (const cle of Object.keys(env)) {
+    if (/^supersedes_[a-z0-9_]+_of$/.test(cle) && path.basename(String(env[cle]).trim()) === fichierPrecedent) return cle;
+  }
+  return null;
+}
+// Un répertoire hors registre n'est toléré que s'il figure, complet et sans
+// ambiguïté, dans STATE.json.artefacts_hors_registre — jamais par défaut.
+function artefactsHorsRegistreValides(etat) {
+  const valides = new Map();
+  if (!etat || etat.artefacts_hors_registre === undefined) return valides;
+  if (!Array.isArray(etat.artefacts_hors_registre)) { bloquant('STATE.json : artefacts_hors_registre doit être une liste'); return valides; }
+  const vus = new Set();
+  for (const a of etat.artefacts_hors_registre) {
+    const id = a && a.lot_id; const manquants = ['lot_id', 'motif', 'autorise_par', 'le'].filter(c => !a || !a[c]);
+    if (manquants.length) { bloquant(`STATE.json : artefacts_hors_registre incomplet${id ? ` (${id})` : ''} — ${manquants.join(', ')} manquant(s)`); continue; }
+    if (vus.has(id)) { bloquant(`STATE.json : artefacts_hors_registre — lot_id ${id} déclaré plusieurs fois`); continue; }
+    vus.add(id);
+    if (etat.lots && etat.lots[id]) { bloquant(`STATE.json : artefacts_hors_registre — ${id} est aussi un lot enregistré ; un lot est soit canonique soit hors registre, jamais les deux`); continue; }
+    if (!fs.existsSync(path.join(LOTS, id))) { bloquant(`STATE.json : artefacts_hors_registre — ${id} ne correspond à aucun répertoire sous docs/handoff/lots/`); continue; }
+    valides.set(id, a);
+  }
+  return valides;
+}
+function validerRegistre(etat, artefactsValides) {
+  const registreLots = etat && etat.lots && typeof etat.lots === 'object' ? etat.lots : {};
   for (const lot of lots()) {
     if (!LOT_ID_VALIDE.test(lot)) { bloquant(`lots/${lot} : LOT_ID malformé`); continue; }
+    if (artefactsValides.has(lot)) { const a = artefactsValides.get(lot); avertir(`lots/${lot} est un artefact historique hors registre, toléré (motif : ${a.motif} — autorisé par ${a.autorise_par}, le ${a.le}). Aucune validation d'enveloppe request/decision n'est appliquée à ce répertoire.`); continue; }
+    if (!registreLots[lot]) { bloquant(`lots/${lot} : répertoire présent sous docs/handoff/lots/ mais absent de STATE.json.lots et non déclaré dans artefacts_hors_registre`, 'LOT_HORS_REGISTRE', null); continue; }
     const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (!demandes.length) bloquant(`lots/${lot} : aucun request-N.md`);
     demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
     decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
@@ -93,14 +124,21 @@ function validerRegistre() {
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
       const env = r.env; validerCommuns(lot, e, env, 'decision'); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', e.fichier); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
-      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier); else { const vise = path.basename(String(env.in_reply_to).trim()), cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier); else { reponses.push({ decision: e, viseSeq: cible.seq }); if (cible.seq < e.seq) bloquant(`${ou} : in_reply_to désigne ${vise} (rang ${cible.seq}), antérieur au rang de la décision (${e.seq})`, 'IN_REPLY_TO_ANTERIEUR', e.fichier); } }
+      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier); else { const vise = path.basename(String(env.in_reply_to).trim()), cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier); else { reponses.push({ decision: e, viseSeq: cible.seq, env }); if (cible.seq < e.seq) bloquant(`${ou} : in_reply_to désigne ${vise} (rang ${cible.seq}), antérieur au rang de la décision (${e.seq})`, 'IN_REPLY_TO_ANTERIEUR', e.fichier); } }
     }
-    for (let i = 1; i < reponses.length; i++) if (reponses[i].viseSeq <= reponses[i - 1].viseSeq) bloquant(`lots/${lot} : ${reponses[i].decision.fichier} répond à une demande déjà arbitrée par ${reponses[i - 1].decision.fichier}`, 'DEMANDE_DEJA_ARBITREE', reponses[i].decision.fichier);
-    if (decisions.length > demandes.length) bloquant(`lots/${lot} : plus de décisions que de demandes`);
+    let supersessionsLegitimes = 0;
+    for (let i = 1; i < reponses.length; i++) {
+      if (reponses[i].viseSeq <= reponses[i - 1].viseSeq) {
+        const champ = supersessionValide(reponses[i].env, reponses[i - 1].decision.fichier);
+        if (champ) { supersessionsLegitimes++; avertir(`lots/${lot} : ${reponses[i].decision.fichier} supersède ${reponses[i - 1].decision.fichier} via ${champ} — arbitrage successif légitime sur la même demande.`); }
+        else bloquant(`lots/${lot} : ${reponses[i].decision.fichier} répond à une demande déjà arbitrée par ${reponses[i - 1].decision.fichier}`, 'DEMANDE_DEJA_ARBITREE', reponses[i].decision.fichier);
+      }
+    }
+    if (decisions.length - supersessionsLegitimes > demandes.length) bloquant(`lots/${lot} : plus de décisions que de demandes`);
   }
 }
-function validerEtat() {
-  if (!fs.existsSync(ETAT)) { bloquant('docs/handoff/STATE.json absent'); return null; } let etat; try { etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); } catch (e) { bloquant(`STATE.json illisible : ${e.message}`); return null; }
+function validerEtatContenu(etat) {
+  if (!etat) return etat;
   if (etat.protocol !== PROTOCOLE) bloquant(`STATE.json : protocol doit valoir ${PROTOCOLE}`); if (!etat.lots || typeof etat.lots !== 'object') { bloquant('STATE.json : lots manquant'); return etat; }
   const actifs = Object.entries(etat.lots).filter(([, v]) => STATUTS_LOT_ACTIFS.includes(v.statut)).map(([k]) => k); if (actifs.length > 1) bloquant(`STATE.json : ${actifs.length} lots en attente (${actifs.join(', ')}) — un seul lot actif dans cette version`, 'PLUSIEURS_LOTS_ACTIFS'); if (etat.lot_actif && !etat.lots[etat.lot_actif]) bloquant(`STATE.json : lot_actif ${etat.lot_actif} absent de lots`);
   for (const [lot, v] of Object.entries(etat.lots)) { const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (v.derniere_demande) { if (!demandes.find(d => d.fichier === v.derniere_demande)) bloquant(`STATE.json : ${lot}.derniere_demande ${v.derniere_demande} absente du registre`); else if (v.derniere_demande !== dernier(demandes).fichier) bloquant(`STATE.json : ${lot}.derniere_demande ${v.derniere_demande} n'est pas la plus récente (${dernier(demandes).fichier})`); } if (v.derniere_decision && v.source_decision === 'registre' && !decisions.find(d => d.fichier === v.derniere_decision)) bloquant(`STATE.json : ${lot}.derniere_decision ${v.derniere_decision} absente du registre`); if (v.consomme_le && !v.commit_decision) bloquant(`STATE.json : ${lot} marqué consommé sans commit_decision`); if (!STATUTS_LOT.includes(v.statut)) bloquant(`STATE.json : ${lot}.statut ${JSON.stringify(v.statut)} hors vocabulaire`); }
@@ -110,7 +148,12 @@ function validerEtat() {
 function enTeteMiroir(source) { return `<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/${source}\n     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->\n`; }
 function regenererMiroirs() { const etat = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }, lot = etat.lot_actif; if (!lot) return; const d = dernier(echanges(lot, 'request')); if (d) { const src = path.join('lots', lot, d.fichier); fs.writeFileSync(MIROIR_DEMANDE, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, d.fichier), 'utf8')); } const dec = dernier(echanges(lot, 'decision')); if (dec) { const src = path.join('lots', lot, dec.fichier); fs.writeFileSync(MIROIR_DECISION, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, dec.fichier), 'utf8')); } }
 function verifier(ignorer) {
-  erreurs.length = 0; avertissements.length = 0; validerRegistre(); const etat = validerEtat();
+  erreurs.length = 0; avertissements.length = 0;
+  let etat = null;
+  if (!fs.existsSync(ETAT)) bloquant('docs/handoff/STATE.json absent');
+  else { try { etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); } catch (e) { bloquant(`STATE.json illisible : ${e.message}`); } }
+  const artefactsValides = artefactsHorsRegistreValides(etat);
+  validerRegistre(etat, artefactsValides); validerEtatContenu(etat);
   if (etat && etat.lot_actif) { const d = dernier(echanges(etat.lot_actif, 'request')); if (d) { const r = lireEnveloppe(path.join(LOTS, etat.lot_actif, d.fichier)), p = ((r.env && r.env.preuves) || []).find(x => x.id === 'suite'), sortie = process.env.NEXUS_SORTIE_SUITE; if (p && sortie && fs.existsSync(sortie)) { const m = fs.readFileSync(sortie, 'utf8').match(/(\d+)\/(\d+) tests passent/); if (m && p.valeur.trim() !== `${m[1]}/${m[2]}`) avertir(`suite déclarée ${p.valeur.trim()}, mesurée ${m[1]}/${m[2]} — lot d'observation : avertissement, pas blocage.`); } } }
   const derogations = etat && Array.isArray(etat.derogations) ? etat.derogations : [], restantes = [];
   for (const e of erreurs) { const d = derogations.find(x => x.fichier === e.fichier && x.regle === e.code); if (d && CODES_NON_DEROGEABLES.includes(e.code)) restantes.push({ ...e, message: `${e.message}\n         (une dérogation existe mais ${e.code} est un invariant de sécurité : elle ne s'applique pas)` }); else if (d) avertir(`DÉROGATION ${d.regle} sur ${d.fichier} — ${e.message}\n         motif : ${d.motif}\n         autorisée par ${d.autorise_par}, le ${d.le}`); else if (ignorer && ignorer.includes(e.code)) avertir(`${e.code} toléré le temps de l'opération en cours — ${e.message}`); else restantes.push(e); }

@@ -427,6 +427,42 @@ verifier('deux décisions ne peuvent pas arbitrer la même demande', () => {
   assert.ok(/déjà arbitrée par/.test(r.sortie), r.sortie);
 });
 
+verifier('une décision peut superséder la précédente sur la même demande via supersedes_..._of', () => {
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'decision-1.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8').replace('closes: true', 'closes: false'));
+  fs.writeFileSync(path.join(lot, 'decision-2.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8')
+      .replace('seq: 1', 'seq: 2')
+      .replace('in_reply_to: request-1.md', 'in_reply_to: request-1.md\nsupersedes_regle_of: decision-1.md'));
+  ecrireEtat(dir, e => {
+    e.lots[LOT].derniere_decision = 'decision-2.md'; e.lots[LOT].statut = 'ATTENTE_CONSOMMATION_DECISION'; delete e.lots[LOT].consomme_le;
+    // Même déviation de numérotation que le lot réel Carburants (decision-2
+    // répond à request-1) : couverte par la dérogation dédiée, pas par la
+    // supersession, qui ne traite que le doublon d'arbitrage.
+    e.derogations = [{ fichier: 'decision-2.md', regle: 'IN_REPLY_TO_ANTERIEUR', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-06' }];
+  });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'une supersession structurée doit être acceptée : ' + r.sortie);
+  assert.ok(/supersède decision-1\.md via supersedes_regle_of/.test(r.sortie), r.sortie);
+});
+
+verifier('un champ supersedes_..._of qui ne désigne pas la décision précédente ne supprime pas le doublon', () => {
+  const dir = registreSain();
+  const lot = path.join(dir, 'lots', LOT);
+  fs.writeFileSync(path.join(lot, 'decision-1.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8').replace('closes: true', 'closes: false'));
+  fs.writeFileSync(path.join(lot, 'decision-2.md'),
+    fs.readFileSync(path.join(lot, 'decision-1.md'), 'utf8')
+      .replace('seq: 1', 'seq: 2')
+      .replace('in_reply_to: request-1.md', 'in_reply_to: request-1.md\nsupersedes_regle_of: decision-9.md'));
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_decision = 'decision-2.md'; });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'un champ de supersession qui désigne une décision inexistante ou étrangère ne doit rien exempter');
+  assert.ok(/déjà arbitrée par/.test(r.sortie), r.sortie);
+});
+
 verifier('consommer refuse une décision qui ne répond pas à la demande active', () => {
   // La fraîcheur ne se contrôle plus en permanence, mais au moment qui
   // compte : c'est la fenêtre exacte du commit 67ecdce, où une décision
@@ -443,6 +479,65 @@ verifier('consommer refuse une décision qui ne répond pas à la demande active
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0);
   assert.ok(/mais la demande active est request-2\.md/.test(sortie), sortie);
+});
+
+function creerRepertoireHorsRegistre(dir, lotId, corps) {
+  const rep = path.join(dir, 'lots', lotId);
+  fs.mkdirSync(rep, { recursive: true });
+  fs.writeFileSync(path.join(rep, 'request-1.md'), corps || '# Dossier de conception, sans enveloppe v2\n');
+  return rep;
+}
+
+verifier('un répertoire sans enveloppe déclaré dans artefacts_hors_registre est toléré', () => {
+  const dir = registreSain();
+  creerRepertoireHorsRegistre(dir, 'ARTEFACT-HISTORIQUE-20260906');
+  ecrireEtat(dir, e => {
+    e.artefacts_hors_registre = [{ lot_id: 'ARTEFACT-HISTORIQUE-20260906', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-06' }];
+  });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, 'un artefact déclaré, complet et sans conflit doit passer : ' + r.sortie);
+  assert.ok(/artefact historique hors registre, toléré/.test(r.sortie), r.sortie);
+});
+
+verifier('un répertoire hors registre non déclaré reste bloquant', () => {
+  const dir = registreSain();
+  creerRepertoireHorsRegistre(dir, 'ARTEFACT-NON-DECLARE-20260906');
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'un répertoire ni enregistré ni déclaré hors registre doit rester fail-closed');
+  assert.ok(/absent de STATE\.json\.lots et non déclaré/.test(r.sortie), r.sortie);
+});
+
+verifier('une entrée artefacts_hors_registre incomplète est refusée', () => {
+  const dir = registreSain();
+  creerRepertoireHorsRegistre(dir, 'ARTEFACT-INCOMPLET-20260906');
+  ecrireEtat(dir, e => {
+    e.artefacts_hors_registre = [{ lot_id: 'ARTEFACT-INCOMPLET-20260906', motif: 'éprouvette' }];
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'une entrée sans autorise_par/le n’est pas auditable');
+  assert.ok(/artefacts_hors_registre incomplet/.test(r.sortie), r.sortie);
+  assert.ok(/absent de STATE\.json\.lots et non déclaré/.test(r.sortie),
+    'une entrée invalide ne doit exempter aucun répertoire : ' + r.sortie);
+});
+
+verifier('un lot_id à la fois enregistré et déclaré hors registre est refusé', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, e => {
+    e.artefacts_hors_registre = [{ lot_id: LOT, motif: 'éprouvette', autorise_par: 'test', le: '2026-09-06' }];
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'un lot ne peut pas être à la fois canonique et hors registre');
+  assert.ok(/est aussi un lot enregistré/.test(r.sortie), r.sortie);
+});
+
+verifier('un artefact hors registre qui pointe vers un répertoire absent est refusé', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, e => {
+    e.artefacts_hors_registre = [{ lot_id: 'ARTEFACT-FANTOME-20260906', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-06' }];
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'déclarer un lot_id sans répertoire réel ne doit rien exempter');
+  assert.ok(/ne correspond à aucun répertoire/.test(r.sortie), r.sortie);
 });
 
 verifier('APPROVED_CLOSED reste lisible comme valeur legacy', () => {
