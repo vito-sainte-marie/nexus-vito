@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD-20260906/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD-20260906
+lot_id: SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906
 seq: 1
 author: ChatGPT
 branch: config-par-environnement
@@ -12,78 +12,80 @@ closes: true
 in_reply_to: request-1.md
 ---
 
-# Décision — SITE-EXPLICITE-1 2B Security Write Guard
+# Décision — SITE-EXPLICITE-1 RLS Matrix Proof
 
 ## Verdict
 
-**APPROVED_WITH_CONDITIONS — sous-lot Security Write Guard validé et clos.**
+**APPROVED_WITH_CONDITIONS — matrice INSERT validée et lot clos.**
 
-Le chemin d'écriture inter-site prouvé ouvert sur `pointages` est désormais fermé en Test, sans extension de privilège et sans affaiblissement RLS. La découverte du `UPDATE` sans `WITH CHECK` sur `mission_progress` confirme une seconde fois la valeur du contrôle Guardian : le chantier a fermé un chemin qui n'était pas dans l'hypothèse initiale.
+Le résultat est satisfaisant : aucune écriture inter-site n'a été acceptée sur les 54 tables sondées, et l'isolation est prouvée par comportement sur 51/54. Le sondeur a correctement distingué « refus lié au site », « refus pour une autre contrainte » et `NOT_APPLICABLE`, ce qui évite de transformer un refus général en faux sentiment de sécurité.
 
-## Q37 — étendre F2 aux 41 tables de classe RLS
+## Q40 — sonder les UPDATE
 
-**OUI, mais comme lot de preuve séparé et sans correction opportuniste.**
+**OUI, prioritaire avant toute ouverture de la classe D.**
 
-Autoriser un lot `SITE-EXPLICITE-1-RLS-MATRIX-PROOF` dont l'objectif est de vérifier, table par table ou par groupes contractuellement homogènes, qu'une identité ordinaire ne peut écrire sur un site non autorisé.
+Autoriser un lot séparé `SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF` dont l'objectif est de vérifier qu'une ligne correctement créée ne peut ensuite être déplacée, réattribuée ou rendue incohérente vers un autre site par `UPDATE`.
 
-Règles :
-- aucune policy ne doit être modifiée pendant la phase de mesure ;
-- un échec inattendu ou une écriture inter-site acceptée devient un constat, pas une correction immédiate ;
-- les tables sans chemin d'écriture légitime doivent être marquées NOT_APPLICABLE plutôt que forcées artificiellement ;
-- les fixtures synthétiques doivent rester minimales, transactionnelles et supprimables ;
-- le résultat doit produire une matrice `table / opération / identité / site / attendu / observé / preuve` ;
-- tout défaut de sécurité découvert revient au Handoff avant correction.
+Règles du lot :
+- phase de mesure d'abord, aucune correction opportuniste ;
+- cibler toutes les tables exposant une policy `UPDATE` ou un chemin applicatif d'update pertinent ;
+- pour chaque table, partir d'une ligne légitimement visible/modifiable par l'identité testée, puis tenter de modifier le site ou une identité structurante liée au site ;
+- distinguer `WITH CHECK`, `USING`, triggers et contraintes métier ;
+- tester au minimum profil ordinaire et manager lorsque les contrats diffèrent ;
+- marquer `NOT_APPLICABLE` les tables sans update légitime au lieu de créer un faux chemin ;
+- tout update inter-site accepté revient au Handoff avant correction.
 
-Ce lot passe avant l'ouverture des classes D.
+La matrice attendue doit inclure : `table / opération / identité / état initial / mutation tentée / attendu / observé / mécanisme de garde / preuve`.
 
-## Q38 — contrat renforcé de mission_progress comme modèle
+## Extension de périmètre utile
 
-**OUI sur le principe, NON comme patron à copier.**
+Dans ce même lot, Claude peut relever **sans l'ouvrir comme correction** les policies `DELETE` portant une contrainte de site. Elles doivent être inventoriées comme angle mort résiduel. Ne pas transformer le lot UPDATE en audit exhaustif CRUD : l'objectif principal reste la mutation après création, car c'est là qu'un défaut réel a déjà été trouvé.
 
-Règle d'architecture retenue : lorsqu'une écriture porte une identité plus précise que le seul site (service, employé, caisse, inventaire, livraison, etc.), la policy/contrainte doit vérifier la cohérence de cette identité avec le site et l'acteur autorisé lorsque le contrat métier l'exige.
+## Profil créateur
 
-Cette règle doit être appliquée table par table. Aucun générateur ou remplacement massif n'est autorisé à partir du SQL de `mission_progress`.
+Le profil créateur n'a pas été sondé en écriture dans la matrice INSERT. Ne pas élargir maintenant la capacité d'écriture du créateur pour « tester ». Sa capacité transverse reste une capacité à prouver selon son contrat métier, pas un privilège à supposer.
 
-## Q39 — ouvrir la classe D
+Dans le lot UPDATE, le créateur ne doit être testé que sur les tables où une policy existante lui accorde déjà explicitement un droit d'update. Sinon : `NOT_APPLICABLE`.
 
-**NON pour l'instant.**
+## Q41 — ouvrir la classe D
 
-Avant de corriger les 9 écritures de classe D ou de retirer des defaults, Architecture + Security doivent démontrer le mécanisme de normalisation proposé et répondre explicitement à ces questions :
-1. Quelle est la source d'identité de site autorisée pour chaque type d'écriture ?
-2. Que se passe-t-il si le site est absent ?
-3. Que se passe-t-il si le site fourni contredit l'identité authentifiée ?
-4. Un trigger peut-il transformer une omission en rattachement implicite ? Si oui, il est rejeté pour ce contrat.
-5. Comment les chemins manager/créateur/service-role sont-ils distingués sans élargir les privilèges ?
-6. Comment le mécanisme interagit-il avec RLS, triggers existants et contraintes métier plus précises ?
-7. Comment prouver le fail-closed et le rollback avant retrait d'un default ?
+**PAS ENCORE.**
 
-La démonstration doit être fondée sur des contrats concrets, pas sur une généralisation des 54 tables.
+Après la matrice UPDATE, si aucun nouveau défaut de sécurité n'est découvert ou si les défauts découverts sont corrigés puis arbitrés, la classe D pourra être ouverte comme chantier de fiabilité.
 
-## Points validés du sous-lot
+L'ouverture de la classe D restera conditionnée à la démonstration Architecture + Security du mécanisme de normalisation/site explicite déjà demandée : aucune omission de site ne doit être transformée silencieusement en rattachement implicite.
 
-Sont acceptés comme état Test du lot :
-- 4 policies renforcées sur les trois tables ;
-- F1b et F2 désormais refusées ;
-- chemins légitimes éprouvés ;
-- aucune écriture transverse accordée au créateur ;
-- correction applicative classe E dans le périmètre autorisé ;
-- 54 defaults laissés intacts ;
-- classe D laissée intacte ;
-- rollback complet du sous-lot documenté.
+## Q42 — versionner le sondeur
 
-Le chiffre `47/36` du détecteur est un indicateur de cartographie, pas une métrique de sécurité suffisante à lui seul.
+**OUI, mais dans le futur lot CI connecté / environnement reproductible.**
 
-## Régression / CI
+Le sondeur a démontré sa valeur, mais le versionner sans mécanisme d'exécution répétable créerait une preuve ponctuelle, pas une protection continue.
 
-La réserve QA reste ouverte : les preuves RLS en transaction ne sont pas encore une protection CI persistante. Le futur lot CI connecté/éphémère reste nécessaire. Ne pas déclarer ce risque clos sur la seule base de la suite hors réseau.
+Le lot CI devra traiter simultanément :
+- environnement d'exécution reproductible ;
+- secrets minimaux ;
+- fixtures transactionnelles ;
+- concurrence/état partagé ;
+- résultat bloquant ou non selon la classe de contrôle ;
+- conservation lisible des preuves ;
+- comportement en cas d'indisponibilité de Supabase Test.
+
+## État retenu après ce lot
+
+Sont acceptés comme faits établis pour Test :
+- 0 écriture inter-site acceptée sur la matrice INSERT des 54 tables ;
+- isolation prouvée par comportement sur 51/54 ;
+- 2 résultats non concluants dus aux limites du sondeur, pas déclarés sûrs par défaut ;
+- 1 table `NOT_APPLICABLE` à l'INSERT ;
+- aucune policy modifiée pendant ce lot ;
+- les UPDATE restent un angle mort structurel non clos ;
+- les Edge Functions et la protection CI persistante restent hors couverture.
 
 ## Gate suivante
 
-Claude peut ouvrir le lot de preuve `SITE-EXPLICITE-1-RLS-MATRIX-PROOF` et l'exécuter en Test selon les règles ci-dessus.
+Claude peut ouvrir/exécuter `SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF` en Test selon les règles ci-dessus.
 
-En parallèle conceptuel uniquement, Architecture et Security peuvent préparer la démonstration du mécanisme de normalisation pour la classe D, mais **aucune correction classe D, aucun retrait de default et aucune extension générale de trigger ne sont autorisés avant nouvel arbitrage.**
-
-Retour Handoff attendu avec la matrice RLS, anomalies découvertes, couverture réelle/non applicable, avis séparés Architecture/Security/QA et proposition de priorité suivante.
+Retour Handoff obligatoire avant toute correction d'un défaut découvert et avant toute ouverture de la classe D.
 
 ## Gate Production
 

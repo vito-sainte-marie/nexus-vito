@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906",
+  "lot_actif": "SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -88,6 +88,14 @@
       "consomme_le": "2026-09-06T03:10:44.535Z"
     },
     "SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "129b153eb59417ff33b59c229c13128151c4f997",
+      "consomme_le": "2026-09-06T03:19:57.480Z"
+    },
+    "SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906": {
       "statut": "ATTENTE_DECISION",
       "derniere_demande": "request-1.md"
     }
