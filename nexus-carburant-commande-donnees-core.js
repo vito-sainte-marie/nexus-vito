@@ -35,13 +35,23 @@
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  function heureHHMMAujourdhui(fuseau) {
-    try {
-      return new Intl.DateTimeFormat('fr-FR', { timeZone: fuseau || 'America/Martinique', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
-    } catch (e) {
-      const d = new Date();
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  // A3 / C1c-1 (05/09/2026) — fonction PURE : `timezone` est obligatoire.
+  //
+  // Elle avait deux replis, et le second était le pire. `|| 'America/
+  // Martinique'` donnait l'heure d'une autre station ; le `catch` retombait
+  // sur `d.getHours()`, c'est-à-dire l'heure DU NAVIGATEUR — donc une valeur
+  // différente pour chaque utilisateur selon l'endroit où il se trouve. Un
+  // manager en métropole voyait l'heure de son téléphone présentée comme
+  // celle de la station.
+  //
+  // Une fonction pure n'a pas à décider quoi faire d'une absence : elle lève,
+  // et c'est à l'appelant — qui, lui, connaît le contexte — de ne pas
+  // l'appeler sans fuseau.
+  function heureHHMMAujourdhui(timezone) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('heureHHMMAujourdhui : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation avant d’appeler.');
     }
+    return new Intl.DateTimeFormat('fr-FR', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
   }
 
   // Config carburant_commande_config + cuves_carburants (avec
@@ -60,13 +70,12 @@
     // ligne station_config déjà lue ici, jamais une deuxième requête pour
     // une seule colonne supplémentaire (Article 11).
     const { data, error } = await client.from('station_config')
-      .select('carburant_commande_config, cuves_carburants, fuseau_horaire, horaires')
+      .select('carburant_commande_config, cuves_carburants, horaires')
       .eq('site', siteId).maybeSingle();
-    if (error) { console.error('Chargement config Commande Carburant:', error); return { config: null, cuves: null, fuseau: 'America/Martinique', horaires: null }; }
+    if (error) { console.error('Chargement config Commande Carburant:', error); return { config: null, cuves: null, horaires: null }; }
     return {
       config: (data && data.carburant_commande_config) || null,
       cuves: (data && data.cuves_carburants) || null,
-      fuseau: (data && data.fuseau_horaire) || 'America/Martinique',
       horaires: (data && data.horaires) || null,
     };
   }
@@ -275,7 +284,7 @@
   // injectable pour les tests (jamais `new Date()` en dur dans la logique,
   // même précédent que `construireContextePlausibilite`), défaut = instant
   // réel en production.
-  async function chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, maintenant) {
+  async function chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, timezone, maintenant) {
     const NCD = global.NexusCarburantDonnees;
     const M = global.NexusCarburantMoteur;
     // MC (Commande Carburant, distinct du moteur générique M ci-dessus) —
@@ -284,7 +293,7 @@
     // de moyenne (Article 11).
     const MC = global.NexusCarburantCommandeMoteur;
     if (!NCD || !M) { console.error('NexusCarburantDonnees/NexusCarburantMoteur non chargés — impossible de lire le stock physique.'); return { parCarburant: {}, aucunReleve: true }; }
-    const controle = await NCD.chargerControleJour(client, siteId, dateISO);
+    const controle = await NCD.chargerControleJour(client, siteId, dateISO, timezone);
     if (controle.aucunReleve || !controle.parCarburant) return { parCarburant: {}, aucunReleve: true };
 
     const resultat = {};
@@ -295,9 +304,9 @@
         .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).eq('date', dateISO);
       if (error) console.error('Chargement quarts du jour (stock estimé maintenant):', error);
-      const t0 = M.instantFenetreReleve(controle.releveDuJour, fuseau);
+      const t0 = M.instantFenetreReleve(controle.releveDuJour, timezone);
       const t1 = maintenant ? new Date(maintenant) : new Date();
-      const resolu = M.resoudreVentesFenetre(lignesQuartsJour || [], horaires, t0, t1, fuseau);
+      const resolu = M.resoudreVentesFenetre(lignesQuartsJour || [], horaires, t0, t1, timezone);
 
       // Estimation historique des quarts encore ouverts (25/08/2026, retour
       // de Frédéric : "nexus doit faire une estimation des ventes en
@@ -336,7 +345,7 @@
         });
       }
       const ventil = M.ventilerFenetreAvecEstimation(
-        lignesQuartsJour || [], horaires, t0, t1, fuseau, moyennesQuart, [dateISO]);
+        lignesQuartsJour || [], horaires, t0, t1, timezone, moyennesQuart, [dateISO]);
       const estimeParHistorique = !!ventil.estime;
       const estimationsL = {
         go: ventil.ventesEstimees.go || 0,
@@ -567,12 +576,26 @@
     const MB = global.NexusCarburantMoteur;
     if (!M) { console.error('NexusCarburantCommandeMoteur non chargé — évaluation Commande Carburant impossible.'); return null; }
 
+    // A3 / C1c-4a (05/09/2026) — le fuseau est une donnée de CONTEXTE, reçue,
+    // jamais résolue ici. Cette couche de données ne connaît pas sites.timezone :
+    // c'est le résolveur d'écran qui le lit une fois et le transmet.
+    //
+    // L'échec passe par le vocabulaire que cette fonction possède déjà
+    // (`ok:false` + `motif`), et non par une exception : ses six appelants
+    // savent afficher ce motif. Lever ici les obligerait à apprendre un second
+    // mode d'échec pour la même famille de cause.
+    const timezone = options && options.timezone;
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      return { ok: false, etatGlobal: 'non_calculable',
+        motif: "Fuseau du commerce non résolu — aucune recommandation de commande ne peut être datée. Résolvez sites.timezone avant d'évaluer." };
+    }
+
     const dateISO = (options && options.dateISO) || dateISOAujourdhui();
-    const { config, cuves, fuseau, horaires } = await chargerConfigEtCuves(client, siteId);
+    const { config, cuves, horaires } = await chargerConfigEtCuves(client, siteId);
     if (!config || !cuves) {
       return { ok: false, motif: "Configuration Commande Carburant absente pour ce site (station_config.carburant_commande_config / cuves_carburants).", etatGlobal: 'non_calculable' };
     }
-    const heureMaintenantHHMM = (options && options.heureHHMM) || heureHHMMAujourdhui(fuseau);
+    const heureMaintenantHHMM = (options && options.heureHHMM) || heureHHMMAujourdhui(timezone);
 
     const carburantsActifs = Object.keys(cuves).filter(c => cuves[c] && cuves[c].actif);
     if (!carburantsActifs.length) {
@@ -582,7 +605,7 @@
     const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours, historiqueQuart1, historiqueQuart2, avisVerifyJour, derniereReception] = await Promise.all([
       chargerHistoriqueVentesParJour(client, siteId, dateISO),
       chargerJoursFeries(client, siteId),
-      chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, options && options.maintenant),
+      chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, timezone, options && options.maintenant),
       chargerCommandeEnCoursParCarburant(client, siteId),
       // Couverture estimée par quart (28/08/2026, retour de Frédéric sur
       // v2.259 — "Couverture estimée : mardi Q2" plutôt qu'un nombre de
@@ -848,7 +871,7 @@
     const etatConfirmation = M.etatConfirmationCommande({ commandeRecommandee: global_.commandeRecommandee, causesAConfirmer });
 
     return {
-      ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer,
+      ok: true, dateISO, heureMaintenantHHMM, timezone, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer,
       etatConfirmationCommande: etatConfirmation,
       // 28/08/2026, point 4 — source de l'ancre utilisée pour TOUT le
       // calcul de commande (même décision pour les 3 carburants, un seul

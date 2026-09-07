@@ -277,7 +277,7 @@ const M = sandboxA.NexusCarburantCommandeMoteur;
 
   // --- Premier appel : crée la ligne de journal pour GO et SP95, aucune pour GNR ---
   const client1 = creerClient();
-  const r1 = await Donnees.evaluerCommandeCarburantSite(client1, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM: '09:00' });
+  const r1 = await Donnees.evaluerCommandeCarburantSite(client1, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-27', heureHHMM: '09:00' });
   assert.strictEqual(r1.ok, true);
   // Laisse les écritures best-effort (non attendues par evaluerCommandeCarburantSite
   // lui-même) se terminer avant de vérifier le store.
@@ -295,7 +295,7 @@ const M = sandboxA.NexusCarburantCommandeMoteur;
 
   // --- Deuxième appel, mêmes données -> aucune nouvelle ligne d'historique (pas de bruit) ---
   const client2 = creerClient();
-  await Donnees.evaluerCommandeCarburantSite(client2, 'vito-sainte-marie', { dateISO: '2026-08-27', heureHHMM: '09:05' });
+  await Donnees.evaluerCommandeCarburantSite(client2, 'vito-sainte-marie', { timezone: 'America/Martinique', dateISO: '2026-08-27', heureHHMM: '09:05' });
   await new Promise(resolve => setImmediate(resolve));
   await new Promise(resolve => setImmediate(resolve));
   assert.strictEqual(journalStore['vito-sainte-marie|go'].historique.length, 1, 'mêmes données -> aucune nouvelle ligne (le journal ne grossit pas à chaque rafraîchissement identique)');
