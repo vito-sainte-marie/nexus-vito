@@ -230,12 +230,49 @@ function filtrer(candidats) {
   return { evenements, rejetes };
 }
 
-module.exports = { produire, filtrer, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, GARDES };
+
+// ── Ingestion ───────────────────────────────────────────────────────────
+// La correspondance entre la FORME de l'événement (`actor: {id, role}`) et
+// les COLONNES de la table (`actor_id`, `actor_role`) vit ici, à un seul
+// endroit. La laisser à chaque appelant garantirait qu'un jour deux
+// correspondances divergent, et l'écran afficherait des rôles faux sans que
+// rien ne le signale.
+//
+// Ce mode rend du SQL, il ne l'exécute PAS : la RLS réserve l'écriture au
+// Créateur, et donner des identifiants à cet outil reviendrait à créer la
+// capacité que la migration a délibérément refusée. Quelqu'un qui a le droit
+// d'écrire pipe cette sortie ; le producteur reste sans pouvoir.
+//
+// `on conflict (event_id) do nothing` : combiné aux identifiants
+// déterministes, rejouer l'ingestion entière est sans effet.
+function litteral(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'object') return '\'' + JSON.stringify(v).replace(/'/g, "''") + '\'::jsonb';
+  return '\'' + String(v).replace(/'/g, "''") + '\'';
+}
+
+function sqlIngestion(evenements) {
+  if (!evenements.length) return '-- aucun événement à ingérer\n';
+  const valeurs = evenements.map(e => '  (' + [
+    litteral(e.event_id), litteral(e.occurred_at), litteral(e.lot_id), litteral(e.run_id),
+    litteral(e.actor.id), litteral(e.actor.role), litteral(e.phase), litteral(e.status),
+    litteral(e.summary), litteral(e.evidence || null), litteral(e.next_step || null),
+    litteral(e.human_gate || null), litteral(e.source || null),
+  ].join(', ') + ')').join(',\n');
+  return 'insert into public.nexus_live_events\n'
+    + '  (event_id, occurred_at, lot_id, run_id, actor_id, actor_role, phase, status,\n'
+    + '   summary, evidence, next_step, human_gate, source)\nvalues\n'
+    + valeurs + '\non conflict (event_id) do nothing;\n';
+}
+
+module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, GARDES };
 
 if (require.main === module) {
   const r = produire();
   if (r.erreur) { console.error('Producteur indisponible : ' + r.erreur); process.exit(1); }
-  if (process.argv.includes('--resume')) {
+  if (process.argv.includes('--sql')) {
+    console.log(sqlIngestion(r.evenements));
+  } else if (process.argv.includes('--resume')) {
     console.log(`${r.evenements.length} événement(s) produit(s), ${r.rejetes.length} rejeté(s).`);
     for (const e of r.evenements) console.log(`  [${e.phase}/${e.status}] ${e.actor.id} — ${e.summary}`);
     for (const x of r.rejetes) console.error(`  REJETÉ ${x.event_id} : ${x.erreurs.join(', ')}`);

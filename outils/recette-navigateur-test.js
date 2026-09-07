@@ -39,8 +39,9 @@
 
 const path = require('path');
 
-const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_PIN'];
+const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_PIN'];
 const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
+const ECRAN_LIVE = 'NEXUS-Live-Developpement-v1.html';
 
 function secretsManquants(env) {
   return SECRETS_REQUIS.filter(n => !env[n] || !String(env[n]).trim());
@@ -171,6 +172,49 @@ function verifier(vu) {
   return echecs;
 }
 
+
+// ── NEXUS Live : les deux moitiés de la preuve d'accès ──────────────────
+//
+// Le MVP n'avait qu'une recette NÉGATIVE : on savait prouver qu'un manager
+// n'entre pas. C'est la moitié rassurante et la moins utile — un écran cassé
+// qui refuse tout le monde la passerait aussi. La preuve qui manquait est la
+// POSITIVE : que le Créateur entre, et qu'il VOIT quelque chose. Les deux sont
+// donc exigées ici, dans la même exécution, avec des sessions distinctes.
+async function observerLive(navigateur, base, nom, pin) {
+  const contexte = await navigateur.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await contexte.newPage();
+  try {
+    await connecter(page, base, nom, pin);
+    await page.goto(new URL(ECRAN_LIVE, base).href, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => {
+      const r = document.getElementById('root');
+      return r && r.innerText.trim().length > 0;
+    }, null, { timeout: 30000 });
+    return page.evaluate(() => {
+      const texte = document.getElementById('root').innerText;
+      return {
+        texte: texte.slice(0, 400),
+        refuse: /refus|acc[eè]s|non autoris/i.test(texte) && !/Timeline/i.test(texte),
+        evenementsAffiches: (document.querySelectorAll('[data-evenement], .timeline-item, .card').length),
+        contientTimeline: /Timeline/i.test(texte),
+      };
+    });
+  } finally {
+    await contexte.close();
+  }
+}
+
+function verifierLive(createur, manager) {
+  const echecs = [];
+  if (createur.refuse || !createur.contientTimeline) {
+    echecs.push('Le Créateur doit ENTRER et voir la timeline. Vu : ' + createur.texte.replace(/\s+/g, ' ').slice(0, 200));
+  }
+  if (!manager.refuse) {
+    echecs.push('Un manager ne doit PAS accéder à NEXUS Live. Vu : ' + manager.texte.replace(/\s+/g, ' ').slice(0, 200));
+  }
+  return echecs;
+}
+
 async function executer(env = process.env) {
   const manquants = secretsManquants(env);
   if (manquants.length) {
@@ -206,13 +250,20 @@ async function executer(env = process.env) {
     await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
     const vu = await lireRecommandation(page, base);
     const echecs = verifier(vu);
-    return { executee: true, bloquant: echecs.length > 0, vu, echecs };
+
+    // NEXUS Live — accès positif Créateur, puis refus manager.
+    const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
+    const createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_PIN);
+    const echecsLive = verifierLive(createur, manager);
+
+    return { executee: true, bloquant: (echecs.length + echecsLive.length) > 0,
+      vu, echecs: echecs.concat(echecsLive), live: { createur, manager } };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { SECRETS_REQUIS, secretsManquants, verifier, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, secretsManquants, verifier, verifierLive, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {

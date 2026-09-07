@@ -278,6 +278,11 @@ jobs:
           # Le NOM, pas le username : nexus_identifiant_de_connexion résout sur
           # employees.nom. 'manager-test' rend NULL, 'Manager Test' rend le compte.
           NEXUS_TEST_MANAGER_NOM: Manager Test
+          # Le compte Créateur de recette, pour la preuve d'accès POSITIVE à
+          # NEXUS Live. Le MVP n'avait qu'une recette négative — la moitié
+          # rassurante et la moins utile : un écran cassé qui refuse tout le
+          # monde la passerait aussi.
+          NEXUS_TEST_CREATEUR_NOM: Créateur Test
           NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
           # Attend que NEXUS Test serve RÉELLEMENT le commit testé avant de
           # juger quoi que ce soit. Cloudflare déploie de façon asynchrone, et

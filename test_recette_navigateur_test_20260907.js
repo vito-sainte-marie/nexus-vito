@@ -16,7 +16,7 @@ const path = require('path');
 const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
-const { verifier, secretsManquants, extraireCommitServi, SECRETS_REQUIS } = require(OUTIL);
+const { verifier, verifierLive, secretsManquants, extraireCommitServi, SECRETS_REQUIS } = require(OUTIL);
 
 let passes = 0;
 function epreuve(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
@@ -99,7 +99,8 @@ epreuve('une absence de recommandation renvoie vers le jeu de données, pas vers
 epreuve('les secrets manquants sont nommés un par un', () => {
   assert.deepStrictEqual(secretsManquants({}), SECRETS_REQUIS);
   assert.deepStrictEqual(
-    secretsManquants({ NEXUS_TEST_URL: 'https://x', NEXUS_TEST_MANAGER_NOM: 'Manager Test', NEXUS_TEST_PIN: '  ' }),
+    secretsManquants({ NEXUS_TEST_URL: 'https://x', NEXUS_TEST_MANAGER_NOM: 'Manager Test',
+      NEXUS_TEST_CREATEUR_NOM: 'Créateur Test', NEXUS_TEST_PIN: '  ' }),
     ['NEXUS_TEST_PIN'], 'un secret vide ou blanc est un secret manquant');
 });
 
@@ -130,12 +131,56 @@ epreuve('le PIN n’apparaît dans aucune sortie ni aucun message d’erreur', (
   const source = fs.readFileSync(OUTIL, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
-  const autorisees = [/^\s*async function connecter\(page, base, identifiant, pin\) \{$/, /\.fill\(pin\)/];
+  // Liste NOMMÉE, pas un motif large : chaque endroit où la valeur transite
+  // est déclaré ici un par un. Ajouter une fonction qui reçoit le PIN oblige
+  // donc à venir l'inscrire — c'est-à-dire à se demander si elle a une raison
+  // de le toucher. Un motif générique aurait laissé passer la suivante sans
+  // que personne y pense. (Ce contrat a refusé `observerLive` à sa création,
+  // et c'était le comportement voulu.)
+  const autorisees = [
+    'async function connecter(page, base, identifiant, pin) {',
+    'await page.locator(\'input[type="password"]\').first().fill(pin);',
+    'async function observerLive(navigateur, base, nom, pin) {',
+    'await connecter(page, base, nom, pin);',
+  ].map(l => l.trim());
   const fautives = source.split('\n')
     .filter(l => /\bpin\b/.test(l))
-    .filter(l => !autorisees.some(m => m.test(l)));
+    .filter(l => !autorisees.includes(l.trim()));
   assert.deepStrictEqual(fautives, [],
     'la valeur du PIN ne doit aller que dans le champ du formulaire ; lignes fautives :\n' + fautives.join('\n'));
+});
+
+
+// ── NEXUS Live : le jugement d'accès ────────────────────────────────────
+// Le MVP n'avait qu'une recette NÉGATIVE. C'est la moitié rassurante et la
+// moins utile : un écran cassé, qui refuse absolument tout le monde, la
+// passerait aussi. Les deux moitiés sont donc exigées ensemble.
+
+epreuve('le Créateur doit ENTRER, pas seulement les autres être refusés', () => {
+  const createurEntre = { texte: 'NEXUS LIVE DÉVELOPPEMENT\nTimeline\n…', refuse: false, contientTimeline: true };
+  const managerRefuse = { texte: 'Accès refusé — capacite_createur_absente', refuse: true, contientTimeline: false };
+  assert.deepStrictEqual(verifierLive(createurEntre, managerRefuse), [],
+    'la situation conforme doit passer, sinon les épreuves suivantes ne prouvent rien');
+
+  const e = verifierLive({ texte: 'Accès refusé', refuse: true, contientTimeline: false }, managerRefuse);
+  assert.ok(e.length, 'un écran qui refuse AUSSI le Créateur doit échouer');
+  assert.ok(/doit ENTRER/.test(e.join(' ')), e.join(' | '));
+});
+
+epreuve('un manager qui ENTRE dans Live est un échec, pas un détail', () => {
+  const createurEntre = { texte: 'Timeline', refuse: false, contientTimeline: true };
+  const managerEntre = { texte: 'Timeline', refuse: false, contientTimeline: true };
+  const e = verifierLive(createurEntre, managerEntre);
+  assert.ok(e.length, 'la fuite d’accès doit être détectée');
+  assert.ok(/ne doit PAS accéder/.test(e.join(' ')), e.join(' | '));
+});
+
+epreuve('un Créateur qui entre sur un écran VIDE ne prouve rien', () => {
+  // Entrer ne suffit pas : si la timeline est absente, l'écran n'a rien à
+  // montrer et le « succès » ne dit rien de la chaîne d'événements.
+  const e = verifierLive({ texte: 'NEXUS LIVE', refuse: false, contientTimeline: false },
+    { texte: 'Accès refusé', refuse: true, contientTimeline: false });
+  assert.ok(e.length, 'un écran sans timeline ne vaut pas preuve d’accès');
 });
 
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
