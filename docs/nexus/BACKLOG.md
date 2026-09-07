@@ -18,7 +18,8 @@ Ce fichier est la mémoire durable des observations terrain, anomalies, besoins 
 | ARCH-001 | A_ETUDIER | P0 | Terminer isolation multisite/site explicite | Aucun chemin actif ne peut dériver silencieusement un site ou croiser les données clients |
 | SHIFT-001 | A_ETUDIER | P0 | Lifecycle des prises de poste et clôture des services | Un service courant est unique, borné et clôturé selon contrat métier |
 | ORCH-001 | PRET_POUR_DEV | P0 | Réveil Handoff autonome sans modification de `main` | Un control-plane externe auditable lit `config-par-environnement`, ne déclenche Claude que sur décision fraîche non consommée, respecte GOV-001/GOV-004, n'expose aucun secret et ne touche pas Production |
-| ORCH-002 | PRET_POUR_DEV | P0 | Guardians backend + apprentissage intégrés canoniquement | Outils présents sur `config-par-environnement`, tests ciblés + mutation négative verts, CI réellement câblée, régression complète sans nouvel échec, aucun secret ni accès Production |
+| ORCH-002 | TERMINE | P0 | Guardians backend + apprentissage intégrés canoniquement | Outils présents sur `config-par-environnement`, tests ciblés + mutation négative verts, CI réellement câblée, régression complète sans nouvel échec, aucun secret ni accès Production |
+| ARCH-002 | PRET_POUR_DEV | P1 | Résoudre la collision d'identité globale `NexusStock` (`nexus-stock.js` vs `nexus-stock-moteur.js`) avant activation bloquante du routeur Architecture | Propriétaire unique déterminé, collision supprimée/renommée sans logique parallèle, consommateurs prouvés, aucune régression |
 
 ## Observations terrain à traiter
 
@@ -41,6 +42,10 @@ Ce fichier est la mémoire durable des observations terrain, anomalies, besoins 
 | FDJ-003 | PRET_POUR_DEV | P1 | FDJ / Relevé de clôture PDF | Le PDF tronque « Stock par jeu » avec « +19 autres » et place la synthèse caisse en bas à gauche | Le PDF affiche l'intégralité du stock par jeu ; colonne droite : Synthèse caisse en haut, Historique des versions en bas ; mise en page lisible sur une ou plusieurs pages si nécessaire |
 | EMP-001 | TERRAIN | P0 | Employés / Shift | Prise de poste doit être séparée par date/quart/site | Aucun service d'un autre quart/site/date ne peut être réutilisé par erreur |
 | EMP-002 | TERRAIN | P0 | Employés / Shift | Services historiques restent `en_cours` faute de clôture fiable | Mécanisme de clôture conforme au lifecycle validé |
+| EVAL-001 | PRET_POUR_DEV | P0 | Évaluation Employé | `NEXUS-Evaluation-Employe-v1.html:487-488` affiche `0.0 / 5` et `0 %` quand aucune évaluation n'existe — le salarié lit une sanction là où il n'y a pas de donnée | Absence d'évaluation affiche un état neutre explicite, jamais une note/pourcentage chiffré |
+| DEBUG-001 | PRET_POUR_DEV | P0 | Debug Créateur | `NEXUS-Debug-v1.html:560` : un écart de caisse jamais mesuré vaut `0`, s'affiche `+0 €` et se peint en vert — l'absence de mesure se lit comme une conformité parfaite | Une mesure absente ne peut jamais s'afficher comme `+0 €` vert ; état neutre distinct exigé |
+| COACH-001 | PRET_POUR_DEV | P0 | Coach FDJ | `nexus-coach-fdj-moteur.js:85` : « conformes sur 0 % de vos quarts » — un reproche fabriqué à partir d'une absence de donnée | Aucune absence de donnée ne peut produire un pourcentage de non-conformité ; état neutre explicite |
+| CARB-007 | PRET_POUR_DEV | P0 | Carburants Performance / Rappels | `NEXUS-Parametres-Rappels-v1.html:608` réimplémente un moteur carburant parallèle complet (`CAPACITE_CUVE`, `CAMION_CAPACITE=36000`, calcul de moyenne propre) au lieu du moteur canonique (`MAXIMUM_CAMION_LITRES`) — même famille de défaut que CARB-004 | L'écran consomme la vérité unique du moteur canonique, aucune réimplémentation locale du calcul |
 
 ## Règle d'entrée
 
