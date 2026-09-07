@@ -66,7 +66,10 @@ verifier('une branche coupée depuis le HEAD canonique est conforme', () => {
   t.commit('travail de Claude', 'correctif.js', 'delta');
   const r = lancer(t.dir);
   assert.strictEqual(r.code, 0, 'doit passer : ' + r.sortie);
-  assert.ok(/OK/.test(r.sortie), r.sortie);
+  // Ancré : `/OK/` nu matcherait n'importe où dans une sortie qui réécho les
+  // entrées — noms de branches, chemins. Même défaut que le `/2/` qui matchait
+  // « issue-28 ». Trouvé par outils/guardian-qa.js, pas par moi.
+  assert.ok(/^ENV-001 : OK/m.test(r.sortie), r.sortie);
   assert.ok(/1 commit\(s\) propre\(s\)/.test(r.sortie), 'doit compter le travail réel : ' + r.sortie);
 });
 
