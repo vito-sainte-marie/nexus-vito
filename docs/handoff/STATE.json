@@ -184,12 +184,12 @@
       "consomme_le": "2026-09-06T22:25:48.094Z"
     },
     "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-4.md",
-      "derniere_decision": "decision-3.md",
+      "derniere_decision": "decision-4.md",
       "source_decision": "registre",
-      "commit_decision": "587ecd785f5ebb1ae685befe00b4b9fa6010b5c5",
-      "consomme_le": "2026-09-07T14:41:18.759Z"
+      "commit_decision": "96c0a698a5cc06179c6a810f8f601e44fb6dd13f",
+      "consomme_le": "2026-09-07T16:10:04.952Z"
     },
     "NEXUS-ORCHESTRATION-REPAIR-1-20260907": {
       "statut": "DECISION_CONSOMMEE",

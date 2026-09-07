@@ -1,60 +1,59 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
-seq: 3
+seq: 4
 author: ChatGPT
 branch: config-par-environnement
-decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-3.md
+decision: APPROVED
+closes: true
+in_reply_to: request-4.md
 ---
 
-# Décision — preuve technique acceptée, intégration bloquée par le rail d'écriture
+# Décision 4 — CARB-004 optimisation camion
 
-Le `request-3.md` est accepté comme preuve technique de la correction : mutation négative puis positive, 56/56 assertions sur le sous-ensemble ciblé, moteur propriétaire unique, aucune duplication P0/UI, aucune heure de livraison inventée, aucune double intégration, aucune opération Production.
+## Verdict
 
-Le lot ne peut pas être clos : le delta applicatif n'est toujours pas présent sur `config-par-environnement` et la preuve UI NEXUS Test de la version corrigée n'existe donc pas.
+`APPROVED`, `closes: true`.
 
-## Classification du blocage
+Les conditions de `decision-3.md` sont satisfaites par les preuves canoniques disponibles : le delta utile est intégré sur `config-par-environnement`, la mutation négative démontre le défaut 35 000 → 36 000, la suite conserve uniquement les 9 échecs historiques connus, NEXUS Test sert l'actif corrigé, et la recette navigateur de bout en bout montre 36 000 L avec récupération de 1 000 L sur GO et refus SP95 motivé par la capacité.
 
-Ce n'est pas un échec métier ni un nouveau bug applicatif. C'est un **incident de rail d'intégration** : le workflow `issue_comment` exécute Claude sur une branche dérivée de `main` et le mécanisme de push fourni à Claude est limité à sa branche `claude/issue-28-*`. Claude peut lire et tester le HEAD canonique, mais ne peut pas écrire le delta prouvé sur `config-par-environnement`.
+Le lot CARB-004 peut donc être clos. Cette décision n'autorise aucune promotion Production.
 
-## Règle de réveil
+## Q67 — clôture du lot
 
-**Ne pas réveiller Claude une nouvelle fois pour `decision-2.md` ni pour refaire les mêmes tests.** Le run correspondant a terminé avec succès et a produit `request-3.md`. GOV-001 s'applique : une nouvelle relance identique masquerait le défaut structurel du rail au lieu de le résoudre. GOV-004 ne s'applique pas car le run n'a pas échoué.
+Oui. Le mécanisme demandé est prouvé sur le moteur propriétaire et sur NEXUS Test. La différence de géométrie entre les cuves Test et ViTO ne remet pas en cause la preuve du mécanisme ; elle interdit seulement de présenter les volumes Test comme une reproduction des volumes terrain.
 
-## Plus petite correction sûre attendue
+## Q68 — dette capacité avec stock projeté négatif
 
-1. Transporter mécaniquement sur `config-par-environnement` uniquement le delta déjà écrit et prouvé par Claude :
-   - le correctif local `stockPrevuLivraisonL` dans `nexus-carburant-commande-moteur.js` ;
-   - `test_carburant_commande_p0_traversee_reliquat_20260907.js`.
-2. Ne reprendre aucun autre fichier de la branche Claude divergente.
-3. Rejouer le test de contrat et la régression Carburants sur le HEAD canonique après transport.
-4. Déployer/servir ensuite cette version sur NEXUS Test.
-5. Produire alors seulement la preuve navigateur exigée par `decision-2.md`.
-6. Revenir par un nouveau `request-4.md` avec commit canonique, tests, preuve UI et Production=`NOT_APPLICABLE`.
+Oui, ouvrir un lot distinct. Le comportement observé est préexistant et hors périmètre CARB-004 : lorsque `stockPrevuLivraisonL < 0`, `capaciteDisponibleLivraison(limite, stockPrevu) = limite - stockPrevu` peut dépasser la limite physique de remplissage et produire une recommandation non livrable. Il ne doit pas être corrigé opportunément dans CARB-004.
 
-Le transport doit rester une intégration exacte du code Claude déjà validé, sans nouvelle logique applicative ajoutée par Orchestrator.
+Critères minimaux du futur lot :
+- capacité réceptionnable toujours bornée par la limite physique de la cuve ;
+- cas stock projeté négatif explicitement testé ;
+- aucune régression sur réserve, rotation, arrondi, GNR et double intégration de livraison ;
+- moteur seul propriétaire de la vérité ;
+- preuve Test avant toute promotion.
 
-## Guardians / invariants
+## Q69 — automatisation de la recette Carburants Test
 
-- Architecture & Cohérence : PASS sur le delta prouvé ; moteur seul propriétaire.
-- Security & Isolation : PASS ; Test uniquement, aucun secret/service_role côté navigateur/logs.
-- Business Rules : PASS ; 36 000 L reste une cible seulement si sûr et absorbable.
-- QA/Regression : preuve ciblée recevable mais clôture impossible avant exécution sur le HEAD effectivement intégré.
-- Continuité : l'incident de rail est maintenant matérialisé dans Handoff ; aucune branche Claude isolée ne vaut intégration canonique.
+Oui comme objectif de gouvernance/QA, mais pas dans CARB-004. Elle doit rejoindre le futur lot d'orchestration qui reprendra proprement la dette de REPAIR-1 (Guardians/CI et recette navigateur), depuis le HEAD canonique courant. Une recette dépendant d'un PIN humain ne doit jamais conduire à exposer ce PIN, un secret ou un `service_role` dans le dépôt, le navigateur ou les logs.
+
+## Point de gouvernance constaté
+
+`request-4.md` documente qu'une modification du workflow sur `main` a été effectuée antérieurement avec autorisation humaine pour réparer le rail. L'invariant opérationnel courant donné à l'Orchestrator est désormais plus strict : aucune nouvelle modification de `main`. Cette décision ne crée donc aucun précédent d'écriture sur `main`.
+
+## Apprentissage
+
+La dette de capacité découverte par la recette doit être matérialisée au Backlog avant ouverture de son lot. La dette d'automatisation de recette reste rattachée au futur lot d'orchestration/QA. La commande `handoff.js decision` ajoutée au rail doit devenir le chemin normal de dépôt des décisions afin d'empêcher une nouvelle enveloppe hors vocabulaire.
 
 ## Interdictions
 
-- aucun changement `main` ;
-- aucun changement `production` ;
-- aucun Supabase Production ni NEXUS Production ;
-- aucun merge/cherry-pick global de `claude/issue-28-20260907-1232` ;
-- aucune nouvelle relance Claude pour répéter `decision-2.md` ;
-- aucune preuve UI sur une version qui ne contient pas le correctif ;
-- aucune promotion Production sans validation explicite de Frédéric.
-
-Verdict : **CORRECTIF TECHNIQUEMENT PROUVÉ — LOT OUVERT, BLOQUÉ UNIQUEMENT PAR L'INTÉGRATION CANONIQUE ET LA PREUVE NEXUS TEST.**
+- aucun `main` ;
+- aucun `production` ;
+- aucune opération Supabase Production ;
+- aucun NEXUS Production ;
+- aucune promotion Production sans validation explicite de Frédéric ;
+- aucun secret/PIN/service_role dans dépôt, navigateur ou logs.
