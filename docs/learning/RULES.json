@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-09-06",
+  "updated_at": "2026-09-07",
   "rules": [
     {
       "id": "ENV-001",
@@ -89,8 +89,17 @@
       "trigger": "decision_available",
       "module": "all",
       "severity": "blocking",
-      "rule": "Never wake Claude twice for the same canonical decision; verify issue #28 and canonical state first.",
+      "rule": "Never wake Claude twice for the same canonical decision while the first wake is active, successful, or its outcome is unknown; verify issue #28, workflow state and canonical Handoff first.",
       "source": "REPRISE.md"
+    },
+    {
+      "id": "GOV-004",
+      "scope": ["orchestrator", "handoff", "github"],
+      "trigger": "claude_wake_failed",
+      "module": "orchestration",
+      "severity": "blocking",
+      "rule": "If the first Claude wake for a canonical decision has objectively ended unsuccessfully and the decision remains unconsumed, no request return exists, and no equivalent Claude run is active, Orchestrator may issue exactly one controlled retry for the same decision. A second failed retry must not loop; record the incident and escalate the rail failure to Orchestrator for diagnosis before any further wake.",
+      "source": "REPRISE.md; Frederic arbitration 2026-09-07"
     },
     {
       "id": "GOV-002",
