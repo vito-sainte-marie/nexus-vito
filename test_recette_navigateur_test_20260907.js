@@ -99,7 +99,7 @@ epreuve('une absence de recommandation renvoie vers le jeu de données, pas vers
 epreuve('les secrets manquants sont nommés un par un', () => {
   assert.deepStrictEqual(secretsManquants({}), SECRETS_REQUIS);
   assert.deepStrictEqual(
-    secretsManquants({ NEXUS_TEST_URL: 'https://x', NEXUS_TEST_MANAGER_USERNAME: 'm', NEXUS_TEST_PIN: '  ' }),
+    secretsManquants({ NEXUS_TEST_URL: 'https://x', NEXUS_TEST_MANAGER_NOM: 'Manager Test', NEXUS_TEST_PIN: '  ' }),
     ['NEXUS_TEST_PIN'], 'un secret vide ou blanc est un secret manquant');
 });
 

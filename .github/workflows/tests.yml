@@ -219,7 +219,9 @@ jobs:
         if: github.ref == 'refs/heads/config-par-environnement'
         env:
           NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
-          NEXUS_TEST_MANAGER_USERNAME: manager-test
+          # Le NOM, pas le username : nexus_identifiant_de_connexion résout sur
+          # employees.nom. 'manager-test' rend NULL, 'Manager Test' rend le compte.
+          NEXUS_TEST_MANAGER_NOM: Manager Test
           NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
           # Attend que NEXUS Test serve RÉELLEMENT le commit testé avant de
           # juger quoi que ce soit. Cloudflare déploie de façon asynchrone, et

@@ -26,12 +26,20 @@
 //
 // Environnement attendu :
 //   NEXUS_TEST_URL                 (ex. https://nexus-test-ddf.pages.dev)
-//   NEXUS_TEST_MANAGER_USERNAME    (ex. manager-test)
+//   NEXUS_TEST_MANAGER_NOM         le NOM de l'employé, pas son username.
+//                                  Le champ est étiqueté « Prénom » à l'écran,
+//                                  mais la fonction `nexus_identifiant_de_connexion`
+//                                  résout sur `employees.nom` — vérifié en base
+//                                  le 07/09/2026 : 'manager-test' rend NULL,
+//                                  'Manager Test' rend 'manager-test'.
+//                                  Le rail passait un username : la recette
+//                                  échouait sur « Prénom ou code PIN incorrect »
+//                                  et le PIN était soupçonné à tort.
 //   NEXUS_TEST_PIN                 secret — jamais affiché
 
 const path = require('path');
 
-const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_USERNAME', 'NEXUS_TEST_PIN'];
+const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_PIN'];
 const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
 
 function secretsManquants(env) {
@@ -195,7 +203,7 @@ async function executer(env = process.env) {
   const navigateur = await chromium.launch();
   try {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
-    await connecter(page, base, env.NEXUS_TEST_MANAGER_USERNAME, env.NEXUS_TEST_PIN);
+    await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
     const vu = await lireRecommandation(page, base);
     const echecs = verifier(vu);
     return { executee: true, bloquant: echecs.length > 0, vu, echecs };
