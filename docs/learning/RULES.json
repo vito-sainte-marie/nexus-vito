@@ -21,6 +21,15 @@
       "source": "ADR-0002"
     },
     {
+      "id": "ENV-003",
+      "scope": ["orchestrator", "test", "availability"],
+      "trigger": "optional_test_capability_unavailable",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "An optional Test capability that is unavailable must degrade explicitly instead of preventing Claude from starting; any proof that actually requires that capability remains unsatisfied and fail-closed.",
+      "source": "ADR-0003"
+    },
+    {
       "id": "SEC-001",
       "scope": ["security", "supabase", "connector"],
       "trigger": "service_role",
@@ -44,8 +53,17 @@
       "trigger": "production_promotion",
       "module": "all",
       "severity": "human_gate",
-      "rule": "No change to main, production, Supabase Production or NEXUS Production without Frederic's explicit production approval.",
-      "source": "ADR-0002"
+      "rule": "No application or Production change to main, production, Supabase Production or NEXUS Production without Frederic's explicit approval; the only main exception is the human-authorized orchestration control-plane defined by ADR-0003.",
+      "source": "ADR-0002, ADR-0003"
+    },
+    {
+      "id": "GOV-003",
+      "scope": ["github", "orchestrator", "control_plane"],
+      "trigger": "main_workflow_change",
+      "module": "orchestration",
+      "severity": "human_gate",
+      "rule": "A main-branch workflow change is allowed only for the orchestration control-plane, with Frederic's explicit authorization, no application files, no Production access expansion and no cleartext secret.",
+      "source": "ADR-0003"
     },
     {
       "id": "ARCH-001",
