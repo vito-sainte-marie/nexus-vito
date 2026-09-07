@@ -1,0 +1,96 @@
+{
+  "schema": "nexus-rules/1",
+  "updated_at": "2026-09-06",
+  "rules": [
+    {
+      "id": "ENV-001",
+      "scope": ["development", "github", "architecture"],
+      "trigger": "start_code_lot",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Claude must work from the expected canonical HEAD of config-par-environnement; stale-main derived execution is blocked before coding.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "ENV-002",
+      "scope": ["test", "security"],
+      "trigger": "test_execution",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Autonomous code/test/fix loops are allowed in NEXUS Test within the approved lot; Production access is not implied.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "SEC-001",
+      "scope": ["security", "supabase", "connector"],
+      "trigger": "service_role",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "service_role is allowed only behind a trusted server or NEXUS Connector and is forbidden in repository, browser and public workflow logs.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "SEC-002",
+      "scope": ["security", "data"],
+      "trigger": "client_data_access",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "The creator administers NEXUS but the client company controls use and sharing of its data; company/site context must be explicit and isolated.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "PROD-001",
+      "scope": ["production", "release"],
+      "trigger": "production_promotion",
+      "module": "all",
+      "severity": "human_gate",
+      "rule": "No change to main, production, Supabase Production or NEXUS Production without Frederic's explicit production approval.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "ARCH-001",
+      "scope": ["architecture"],
+      "trigger": "business_logic_change",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A business truth has one logical owner; wrappers, CIN and UI consume it and do not rebuild a parallel calculation.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "QA-001",
+      "scope": ["qa", "regression"],
+      "trigger": "executable_change",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Claude fixes and retests failures inside the authorized lot without opening a new decision cycle; escalate only when the fix changes scope or doctrine.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "GOV-001",
+      "scope": ["orchestrator", "handoff"],
+      "trigger": "decision_available",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Never wake Claude twice for the same canonical decision; verify issue #28 and canonical state first.",
+      "source": "REPRISE.md"
+    },
+    {
+      "id": "GOV-002",
+      "scope": ["orchestrator", "learning"],
+      "trigger": "post_lot",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "After each lot, promote durable knowledge to rules/ADR/Bible and recurring incidents to automatic checks so a twice-solved problem does not require a third identical human analysis.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "CARB-001",
+      "scope": ["business_rules", "carburants"],
+      "trigger": "truck_completion",
+      "module": "carburants-performance",
+      "severity": "business",
+      "rule": "Maximum truck volume is an optimization target, never an obligation; complement only when physically safe and absorbable by forecast rotation without inventing future sales.",
+      "source": "CARB-004 canonical decisions"
+    }
+  ]
+}
