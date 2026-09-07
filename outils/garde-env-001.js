@@ -43,8 +43,13 @@ const DEPOT = process.env.NEXUS_DEPOT ? path.resolve(process.env.NEXUS_DEPOT) : 
 const CANONIQUE = process.env.NEXUS_BRANCHE_CANONIQUE || 'config-par-environnement';
 const DEFAUT = process.env.NEXUS_BRANCHE_DEFAUT || 'main';
 
+// stderr ignoré : `resoudre` et `estAncetre` interrogent des refs qui peuvent
+// légitimement ne pas exister, et chaque essai manqué imprimait « fatal:
+// Needed a single revision ». Un journal de CI plein de « fatal » anodins est
+// un journal dans lequel on ne voit plus la vraie erreur. L'échec reste
+// détecté — il remonte par l'exception, pas par le bruit.
 function git(...args) {
-  return execFileSync('git', args, { cwd: DEPOT, encoding: 'utf8' }).trim();
+  return execFileSync('git', args, { cwd: DEPOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
 // Une ref peut exister localement, sous origin/, ou pas du tout. On préfère
@@ -65,11 +70,17 @@ function estAncetre(ancetre, descendant) {
 
 function court(sha) { return sha.slice(0, 7); }
 
-function controler(refExaminee) {
-  const canonique = resoudre(CANONIQUE);
+// `options.canonique` permet à un appelant (le routeur Guardians) de viser une
+// autre branche sans passer par l'environnement : une variable lue au
+// chargement du module serait ignorée par tout appel ultérieur, `require`
+// mettant le module en cache. Le défaut reste la constante, donc rien ne change
+// pour l'usage en ligne de commande.
+function controler(refExaminee, options) {
+  const nomCanonique = (options && options.canonique) || CANONIQUE;
+  const canonique = resoudre(nomCanonique);
   if (!canonique) {
     return { ok: false, code: 'CANONIQUE_INTROUVABLE',
-      message: `La branche canonique ${CANONIQUE} est introuvable (ni locale, ni sous origin/).\n` +
+      message: `La branche canonique ${nomCanonique} est introuvable (ni locale, ni sous origin/).\n` +
         'Un contrôle ENV-001 qui ne trouve pas sa référence ne conclut pas « conforme » : il échoue.' };
   }
 
@@ -108,9 +119,9 @@ function controler(refExaminee) {
 
   if (racineSurDefaut) {
     message += `\n\n  DÉFAUT DE RAIL — la base ${court(base)} est un ancêtre de ${defaut.ref} :\n` +
-      `  cette référence est racinée sur la branche par défaut, pas sur ${CANONIQUE}.\n` +
+      `  cette référence est racinée sur la branche par défaut, pas sur ${nomCanonique}.\n` +
       '  C\'est le défaut du 07/09/2026. Vérifier que .github/workflows/claude.yml\n' +
-      `  porte toujours « base_branch: ${CANONIQUE} » sur ${DEFAUT} : sans cette entrée,\n` +
+      `  porte toujours « base_branch: ${nomCanonique} » sur ${DEFAUT} : sans cette entrée,\n` +
       '  claude-code-action recoupe sa branche depuis la branche par défaut, et le\n' +
       `  \`ref:\` du checkout n'y change rien.`;
   } else {

@@ -134,6 +134,42 @@ jobs:
       - name: Garde de portée site (ADR-0001) — rapport
         run: node outils/garde-portee-site.js || true
 
+      # ── Guardians backend (ORCH-002) ───────────────────────────────────
+      # Deux contrôles, deux régimes, et la différence n'est pas cosmétique.
+      #
+      # `verifier-apprentissage.js` est BLOQUANT : il ne juge que l'intégrité
+      # de RULES.json / EXPERIENCE.jsonl, qui est verte sur le canon et le
+      # reste tant que personne ne casse le registre. Un rouge y est donc
+      # toujours une régression réelle, jamais une dette héritée.
+      #
+      # `guardians-router.js` RAPPORTE sans arrêter la CI. Après calibration
+      # il ne rend plus qu'un seul finding sur le canon — la collision
+      # `NexusStock` entre nexus-stock.js et nexus-stock-moteur.js — et c'est
+      # une dette PRÉ-EXISTANTE que l'audit du 07/09 (§12.5) demande de
+      # trancher avant toute suppression ou renommage. Le rendre bloquant
+      # aujourd'hui mettrait la CI au rouge dès le premier run pour une chose
+      # que ce lot n'a pas le droit de corriger, et la leçon de Q71 est
+      # explicite : une garde dont le premier verdict est rouge se fait
+      # retirer, et emporte avec elle les findings qu'elle aurait trouvés
+      # ensuite. Même régime que la garde de portée site, pour la même raison.
+      #
+      # Ses épreuves, elles, restent bloquantes : le garde peut se taire, il
+      # ne peut pas mentir sans qu'on le voie.
+      - name: Vérification de l'apprentissage (RULES.json / EXPERIENCE.jsonl)
+        run: node outils/verifier-apprentissage.js
+
+      - name: Guardians backend — rapport
+        env:
+          NEXUS_GUARDIANS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          NEXUS_GUARDIANS_HEAD_REF: HEAD
+        run: node outils/guardians-router.js || true
+
+      - name: Épreuves du routeur Guardians
+        run: node test_guardians_router_20260907.js
+
+      - name: Épreuves de la vérification d'apprentissage
+        run: node test_verifier_apprentissage_20260907.js
+
       - name: Simulations métier
         run: npm run simulations --silent
 
