@@ -136,3 +136,94 @@ jobs:
 
       - name: Simulations métier
         run: npm run simulations --silent
+
+      - name: Épreuves du réveil automatique
+        run: node test_reveil_handoff_20260907.js
+
+      - name: Épreuves du jugement de la recette navigateur
+        run: node test_recette_navigateur_test_20260907.js
+
+      # ------------------------------------------------------------------
+      # Recette navigateur NEXUS Test — la preuve UI, sans saisie humaine.
+      #
+      # Uniquement sur la branche canonique : c'est la seule dont NEXUS Test
+      # sert le contenu. Lancer la recette depuis une branche de travail
+      # testerait une version déployée qui n'est pas la sienne, et rendrait un
+      # vert ou un rouge également faux.
+      # ------------------------------------------------------------------
+
+      # Semis du jeu de données de recette. Idempotent (`on conflict`) et non
+      # destructeur : il ne met à jour que les litrages, et laisse intacts les
+      # montants et statuts des lignes appartenant à d'autres recettes.
+      # Sans le secret d'écriture, l'étape se déclare indisponible et passe —
+      # c'est la recette suivante qui dira alors, elle, que la preuve manque.
+      - name: Préparer la connexion PostgreSQL Test en écriture
+        if: github.ref == 'refs/heads/config-par-environnement'
+        env:
+          NEXUS_TEST_DB_URL_WRITE: ${{ secrets.SUPABASE_TEST_DB_URL_WRITE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NEXUS_TEST_DB_URL_WRITE:-}" ]; then
+            echo "::notice::SUPABASE_TEST_DB_URL_WRITE absent — jeu de données de recette non semé (ENV-003, non bloquant)."
+            echo "NEXUS_SEMIS_DISPONIBLE=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "NEXUS_SEMIS_DISPONIBLE=1" >> "$GITHUB_ENV"
+          # Même décomposition que .github/workflows/claude.yml : le mot de
+          # passe est masqué AVANT d'exister ailleurs, et `psql` se lance sans
+          # aucun argument de connexion — donc jamais de secret sur une ligne
+          # de commande, visible dans la liste des processus.
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, unquote
+
+          u = urlparse(os.environ['NEXUS_TEST_DB_URL_WRITE'])
+          if u.scheme not in ('postgresql', 'postgres'):
+              raise SystemExit('Schéma d\'URL PostgreSQL invalide')
+          if not all((u.hostname, u.username, u.password, u.path)):
+              raise SystemExit('URL PostgreSQL Test incomplète')
+
+          values = {
+              'PGHOST': u.hostname,
+              'PGPORT': str(u.port or 5432),
+              'PGDATABASE': u.path.lstrip('/') or 'postgres',
+              'PGUSER': unquote(u.username),
+              'PGPASSWORD': unquote(u.password),
+              'PGSSLMODE': 'require',
+          }
+          print(f"::add-mask::{values['PGPASSWORD']}")
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              for cle, valeur in values.items():
+                  f.write(f'{cle}={valeur}\n')
+          PY
+
+      # Étape distincte, et non la suite de la précédente : les variables
+      # écrites dans $GITHUB_ENV ne prennent effet qu'au step SUIVANT. Les
+      # laisser dans le même step aurait lancé `psql` sans aucune connexion —
+      # le genre d'erreur qui rend un rouge incompréhensible.
+      - name: Semer le scénario Carburants sur Supabase Test
+        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        run: |
+          psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql
+          echo "Scénario de recette Carburants semé sur Supabase Test."
+
+      - name: Installer Playwright
+        if: github.ref == 'refs/heads/config-par-environnement'
+        run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
+
+      # Bloquante quand les secrets sont là : une preuve qui s'excuse ne prouve
+      # rien. Non bloquante quand ils manquent (ENV-003) — et elle le DIT,
+      # plutôt que de laisser croire que la preuve UI existe.
+      - name: Recette navigateur NEXUS Test
+        if: github.ref == 'refs/heads/config-par-environnement'
+        env:
+          NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
+          NEXUS_TEST_MANAGER_USERNAME: manager-test
+          NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
+          # Attend que NEXUS Test serve RÉELLEMENT le commit testé avant de
+          # juger quoi que ce soit. Cloudflare déploie de façon asynchrone, et
+          # une recette lancée trop tôt prouverait la version précédente —
+          # ce que decision-2.md du lot CARB-004 interdit explicitement.
+          NEXUS_COMMIT_ATTENDU: ${{ github.sha }}
+        run: node outils/recette-navigateur-test.js

@@ -246,6 +246,14 @@ function nouvelleDemande(lot, corpsFichier, options) {
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
 function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot] || {}, avant = dernier(echanges(lot, 'decision')); try { git('fetch', '-q', 'origin', BRANCHE_AUTORISEE); } catch (e) {} const apres = dernier(echanges(lot, 'decision')); if (apres && (!avant || apres.seq > avant.seq)) { console.log(`event detected — ${lot}/${apres.fichier}`); return 0; } if (v.statut === 'ATTENTE_DECISION') { console.log(`session unavailable — aucune décision pour ${lot} ; relance humaine (secours v1) requise après extinction.`); return 0; } console.log(`session resumed — ${lot} au statut ${v.statut}`); return 0; }
+// Lecture du registre exposée aux autres outils (ARCH-001 : une vérité métier,
+// un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
+// s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
+// ferait diverger deux idées de ce qu'est « une décision en attente ».
+module.exports = { lots, echanges, dernier, lireEnveloppe, CHEMINS: { HANDOFF, LOTS, ETAT } };
+
+if (require.main !== module) return;
+
 const [, , commande, arg1, arg2] = process.argv;
 switch (commande) {
   case undefined: case 'verifier': process.exit(verifier()); break;
