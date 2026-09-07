@@ -98,6 +98,26 @@ jobs:
       # `origin/production` lisibles : sans elles, l'invariant de protection
       # des refs serait invérifiable, ce que le validateur traite comme un
       # échec et non comme une tolérance.
+      # ENV-001 — « Claude doit partir du HEAD canonique attendu de
+      # config-par-environnement ». Le 07/09/2026, trois runs ont terminé « avec
+      # succès » sur des branches racinées sur main, et rien ne l'a dit. La cause
+      # est corrigée (base_branch sur claude-code-action) ; cette étape surveille
+      # que la correction tienne, comme l'audit du 07/09 le demande au §12.1.
+      #
+      # Exclue sur main et production : ces branches ne descendent pas du canon
+      # et ne sont pas censées le faire. Un contrôle qui échouerait là serait un
+      # faux positif permanent, donc une étape qu'on finirait par retirer.
+      #
+      # `--tolerer-retard` : un travail dépassé par le canon pendant son
+      # exécution est signalé, pas bloqué. La racine sur la branche par défaut,
+      # elle, bloque toujours — c'est le défaut que cette garde existe pour voir.
+      - name: ENV-001 — la branche part-elle du HEAD canonique
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/production'
+        run: node outils/garde-env-001.js --tolerer-retard
+
+      - name: Épreuves mutationnelles de la garde ENV-001
+        run: node test_garde_env_001_20260907.js
+
       - name: Protocole Handoff v2
         env:
           NEXUS_SORTIE_SUITE: /tmp/sortie.txt
