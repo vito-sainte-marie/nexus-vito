@@ -65,6 +65,31 @@ Il vérifie notamment :
 
 Il peut opposer un veto architectural et demander une correction avant intégration.
 
+## Gouvernance des agents — autonomie utile
+
+La gouvernance NEXUS applique la même philosophie que le produit : automatiser ce qui peut l'être de façon fiable et réserver l'humain aux exceptions utiles.
+
+- Claude est le développeur principal : dans un lot Test autorisé, il diagnostique, code, teste, corrige et reteste sans ouvrir une nouvelle boucle d'arbitrage pour chaque bug local.
+- NEXUS Orchestrator dirige le programme, reconstruit l'état canonique, arbitre tout ce que les sources permettent de trancher et ne remplace pas Claude dans le codage applicatif.
+- Les Guardians fonctionnent en backend : ils ne sont pas interrogés manuellement ; ils restent silencieux sans anomalie et interviennent uniquement lorsqu'un contrôle détecte un risque, une contradiction ou une non-conformité.
+- Frédéric n'est sollicité que pour une vraie décision de fondateur ou pour la gate Production.
+- La vitesse est recherchée à l'intérieur de Test ; la barrière Test → Production reste volontairement forte.
+
+La gouvernance détaillée est définie dans `docs/gouvernance/2026-09-06-governance-autonome-v2.md` et ADR-0002.
+
+## Apprentissage opérationnel
+
+NEXUS Orchestrator doit capitaliser l'expérience terrain et de développement afin que les problèmes déjà rencontrés coûtent moins cher et moins de temps lors des occurrences suivantes.
+
+L'apprentissage n'est jamais une mémoire implicite d'un modèle. Il est matérialisé dans les sources canoniques :
+- doctrine et principes : Bible / gouvernance ;
+- décisions structurantes : ADR ;
+- règles actives compactes : `docs/learning/RULES.json` ;
+- incidents et apprentissages : `docs/learning/EXPERIENCE.jsonl` ;
+- contexte temporaire : Handoff.
+
+Un problème résolu deux fois doit déclencher une tentative de transformation en règle, contrôle automatique, test ou runbook avant qu'une troisième analyse humaine identique soit nécessaire.
+
 ## Invariant données clients
 
 **Le créateur administre NEXUS mais l'entreprise cliente contrôle l'usage et le partage de ses données.**
