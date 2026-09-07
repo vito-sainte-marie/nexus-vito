@@ -164,6 +164,26 @@ jobs:
           NEXUS_GUARDIANS_HEAD_REF: HEAD
         run: node outils/guardians-router.js || true
 
+      # Guardian QA — BLOQUANT, et c'est le seul des trois qui peut l'être :
+      # il rend 0 finding sur les 212 fichiers d'épreuves du canon. Tout rouge
+      # y sera donc une régression réelle, jamais une dette héritée. Il cherche
+      # les épreuves qui ne peuvent pas échouer — motif trop permissif, capture
+      # de flux partielle, assertion avalée par un catch — la famille de défaut
+      # qui a produit trois faux « vert » dans la seule journée du 07/09.
+      - name: Guardian QA — épreuves qui ne peuvent pas échouer
+        run: node outils/guardian-qa.js
+
+      # Les deux suivants RAPPORTENT sans arrêter la CI : leurs findings sont
+      # des dettes pré-existantes qu'aucun de ces lots n'a le droit de corriger.
+      # Bloquer aujourd'hui mettrait la CI au rouge pour de l'histoire, et une
+      # garde rouge au premier run se fait retirer — avec tout ce qu'elle aurait
+      # trouvé ensuite.
+      - name: Guardian Business Rules — rapport
+        run: node outils/guardian-regles-metier.js || true
+
+      - name: Guardian Bible — chiffres inventés — rapport
+        run: node outils/guardian-bible.js || true
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
