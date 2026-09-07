@@ -1573,11 +1573,24 @@
             reliquatArrondi.motifs[c] = 'Capacité disponible à la livraison insuffisante pour un compartiment de plus.';
             continue;
           }
-          if (!ev.consommationMoyenneJour || ev.stockPrevuLivraisonL == null) {
+          // CARB-004 / Q65 (07/09/2026, traversée P0 exigée par decision-1.md
+          // de CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906) — bug
+          // trouvé en écrivant le test de contrat : `evaluerCarburant` ne
+          // pose JAMAIS `stockPrevuLivraisonL` au niveau racine de l'objet
+          // qu'il retourne, seulement sous `scenarioMaintenant.stockPrevuLivraisonL`
+          // (cf. ligne ~1451 ci-dessus, où `pourOptimisation` fait déjà ce
+          // même aplatissement pour `optimiserCommandeMultiCarburant`). Cette
+          // phase de récupération lisait `ev.stockPrevuLivraisonL` au niveau
+          // racine — absent pour toute évaluation réelle — et tombait donc
+          // TOUJOURS sur "rotation inconnue", jamais observé par le test
+          // moteur isolé (fixture déjà plate, sans `scenarioMaintenant`).
+          // Même repli que `pourOptimisation`, jamais un second calcul.
+          const stockPrevuLivraisonL = ev.scenarioMaintenant ? ev.scenarioMaintenant.stockPrevuLivraisonL : ev.stockPrevuLivraisonL;
+          if (!ev.consommationMoyenneJour || stockPrevuLivraisonL == null) {
             reliquatArrondi.motifs[c] = 'Rotation prévisionnelle inconnue — aucun complément proposé plutôt qu\'une absorption supposée.';
             continue;
           }
-          const stockApresReception = ev.stockPrevuLivraisonL + vise;
+          const stockApresReception = stockPrevuLivraisonL + vise;
           if (stockApresReception > ev.consommationMoyenneJour * SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION) {
             reliquatArrondi.motifs[c] = `Non absorbable : ${Math.round(stockApresReception / ev.consommationMoyenneJour)} j de stock après réception, au-delà du plafond de ${SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION} j.`;
             continue;
