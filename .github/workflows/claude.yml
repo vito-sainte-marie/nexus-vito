@@ -34,6 +34,12 @@
 # connexion. Le mot de passe est explicitement masqué dans les logs GitHub.
 # Aucun token Management API, service_role, mot de passe Production ou URL
 # Production ne doit être stocké sous ce nom.
+#
+# Recette navigateur NEXUS Test : le PIN commun des comptes de recette est stocké
+# uniquement dans le secret GitHub NEXUS_TEST_PIN et injecté au step Claude comme
+# variable d'environnement. Sa valeur ne doit jamais être affichée, journalisée,
+# commitée ou recopiée dans un commentaire. Les identifiants et l'URL ci-dessous
+# ne concernent que NEXUS Test.
 name: Claude
 
 on:
@@ -124,6 +130,12 @@ jobs:
           fi
 
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        env:
+          NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
+          NEXUS_TEST_MANAGER_USERNAME: manager-test
+          NEXUS_TEST_EMPLOYEE_A_USERNAME: employe-test-a
+          NEXUS_TEST_EMPLOYEE_B_USERNAME: employe-test-b
+          NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
