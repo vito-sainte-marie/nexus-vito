@@ -83,15 +83,23 @@ async function connecter(page, base, identifiant, pin) {
   // l'écran de connexion expose un champ texte puis un champ mot de passe.
   await page.locator('input[type="text"], input:not([type])').first().fill(identifiant);
   await page.locator('input[type="password"]').first().fill(pin);
-  await Promise.all([
-    page.waitForLoadState('networkidle'),
-    page.getByRole('button', { name: /se connecter/i }).click(),
-  ]);
-  const url = page.url();
-  if (/NEXUS-Login/i.test(url)) {
-    // Message volontairement muet sur la valeur saisie.
-    throw new Error('Connexion refusée : toujours sur l\'écran de login après validation. ' +
-      'Identifiant inconnu, PIN incorrect, ou compte de recette désactivé.');
+  await page.getByRole('button', { name: /se connecter/i }).click();
+
+  // Première version : `Promise.all([waitForLoadState('networkidle'), click()])`
+  // puis lecture de l'URL. C'était une course, pas une attente — `networkidle`
+  // se résout avant que l'aller-retour d'authentification ait abouti, et
+  // l'échec remontait « connexion refusée » trois secondes après le clic, en
+  // accusant le PIN pour un simple retard. On attend maintenant l'événement
+  // qu'on veut réellement : quitter l'écran de connexion.
+  try {
+    await page.waitForURL(u => !/NEXUS-Login/i.test(u.href), { timeout: 30000 });
+  } catch (e) {
+    // `innerText` ne contient jamais la valeur d'un champ de saisie : le
+    // message rapporté ici ne peut pas transporter le PIN.
+    const visible = (await page.locator('body').innerText().catch(() => '') || '')
+      .split('\n').map(l => l.trim()).filter(Boolean).slice(0, 12).join(' / ');
+    throw new Error('Connexion refusée : toujours sur l\'écran de login 30 s après validation. ' +
+      'Identifiant inconnu, secret de recette périmé, ou compte désactivé.\n  Écran : ' + visible);
   }
 }
 
