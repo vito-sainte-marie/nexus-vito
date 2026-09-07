@@ -17,6 +17,10 @@
 # n'autorise une action à lui seul ; STATE + Handoff + décision canonique restent
 # obligatoires et aucune promotion Production n'est permise implicitement.
 #
+# Gouvernance autonome v2 : une capacité Test optionnelle indisponible ne doit
+# plus tuer Claude avant son démarrage. Le rail continue en mode dégradé et la
+# preuve concernée reste explicitement indisponible. Aucune ouverture Production.
+#
 # Le checkout conserve tout l'historique Git afin que le validateur Handoff
 # puisse résoudre et vérifier origin/main et origin/production. Cela donne une
 # visibilité en lecture sur les refs protégées, jamais une autorisation d'écrire
@@ -74,10 +78,14 @@ jobs:
           NEXUS_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
         shell: bash
         run: |
+          set -euo pipefail
           if [ -z "$NEXUS_TEST_DB_URL" ]; then
-            echo "Supabase Test read-only secret absent; live DB proof unavailable."
+            echo "Supabase Test read-only secret absent; live DB proof unavailable. Claude continues without DB access."
+            echo "NEXUS_TEST_DB_AVAILABLE=0" >> "$GITHUB_ENV"
             exit 0
           fi
+
+          set +e
           python3 - <<'PY'
           import os
           from urllib.parse import urlparse, unquote
@@ -97,6 +105,7 @@ jobs:
               'PGPASSWORD': unquote(u.password),
               'PGSSLMODE': 'require',
               'NEXUS_SUPABASE_SCOPE': 'TEST_READ_ONLY',
+              'NEXUS_TEST_DB_AVAILABLE': '1',
           }
 
           print(f"::add-mask::{values['PGPASSWORD']}")
@@ -105,6 +114,14 @@ jobs:
               for key, value in values.items():
                   f.write(f'{key}={value}\n')
           PY
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Supabase Test read-only configuration is invalid; live DB proof unavailable. Claude continues without DB access."
+            echo "NEXUS_TEST_DB_AVAILABLE=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
 
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
