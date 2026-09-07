@@ -21,6 +21,26 @@ leur raison d'être.
 
 ---
 
+## Lancer un agent — la mémoire d'abord
+
+Tout agent lancé sur ce dépôt reçoit **en préambule** le briefing rendu par :
+
+```
+node outils/briefing-agent.js --portee <portées séparées par des virgules>
+```
+
+Ce n'est pas une formalité. Le 07/09/2026, trois agents ont bien travaillé
+parce que leurs consignes contenaient, recopiées à la main, les leçons de la
+journée — calibrer un détecteur sur le vrai dépôt, vérifier qu'une mutation a
+mordu avant de lire son résultat. L'un d'eux a appliqué la seconde à une
+hypothèse de Claude et a évité d'optimiser le mauvais endroit. Ces leçons
+vivaient déjà dans `docs/learning/RULES.json` ; simplement, personne ne les
+lisait au démarrage.
+
+Une leçon qui mérite d'être transmise se **promeut dans `RULES.json` et
+`EXPERIENCE.jsonl`** (GOV-002), jamais dans un prompt. Un prompt se perd avec
+sa session ; le registre reste, et `outils/verifier-apprentissage.js` le garde.
+
 ## Pré-autorisations — ce que Claude décide seul
 
 **En vigueur depuis le 07/09/2026, sur décision de Frédéric.**

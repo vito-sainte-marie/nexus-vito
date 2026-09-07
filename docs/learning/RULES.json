@@ -118,6 +118,33 @@
       "severity": "business",
       "rule": "Maximum truck volume is an optimization target, never an obligation; complement only when physically safe and absorbable by forecast rotation without inventing future sales.",
       "source": "CARB-004 canonical decisions"
+    },
+    {
+      "id": "QA-002",
+      "scope": ["qa", "regression", "development"],
+      "trigger": "before_wiring_detector",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "A detector must be calibrated against the real repository before being wired into CI, and its finding count reported before and after. A guard that emits dozens of false positives is disabled within a week, taking with it the real findings it would have caught later. Noise is a failure mode, not an inconvenience.",
+      "source": "garde-portee-site 78->48, guardians-router 13->1, guardian-regles-metier 8887->2, guardian-bible 638->17, guardian-qa 14->1"
+    },
+    {
+      "id": "QA-003",
+      "scope": ["qa", "regression", "development"],
+      "trigger": "mutation_testing",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "A mutation must be proven to have actually modified the source before its result is read, and a hypothesis must be measured before it is acted upon. A sed that matches nothing returns a meaningless 'survived'; an unmeasured hypothesis sends the fix to the wrong place.",
+      "source": "3 silent seds on 2026-09-07; pilesParPosition hypothesis measured at 0.0% of profile"
+    },
+    {
+      "id": "QA-004",
+      "scope": ["qa", "regression"],
+      "trigger": "write_test",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "An assertion must be able to fail. Anchor patterns or quote the expected phrase; capture every stream the program under test writes to; never let a catch swallow the signal. Mechanised by outils/guardian-qa.js.",
+      "source": "/2/ matching issue-28, /OK/ unanchored, stdout-only helper on stderr output"
     }
   ]
 }
