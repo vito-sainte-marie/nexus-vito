@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906",
+  "lot_actif": "NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -199,6 +199,10 @@
       "commit_decision": "ff6a2d9361a4f94030b83a9a4c0466c2e4bbbb0e",
       "note": "Enregistré le 07/09/2026 depuis une session ayant droit d'écriture sur config-par-environnement. Le répertoire existait sous docs/handoff/lots/ depuis a2e31cf sans jamais figurer ici : les runs Claude qui l'ont alimenté étaient racinés sur main et n'avaient donc pas le STATE.json canonique sous la main pour l'y inscrire. Aucun consomme_le n'est posé : personne n'a jamais enregistré la consommation de decision-1.md par outils/handoff.js, et l'inventer daterait un acte qui n'a pas eu lieu.",
       "consomme_le": "2026-09-07T15:34:42.461Z"
+    },
+    "NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md"
     }
   },
   "artefacts_hors_registre": [
