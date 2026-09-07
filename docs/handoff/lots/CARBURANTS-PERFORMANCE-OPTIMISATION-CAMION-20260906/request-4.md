@@ -1,10 +1,32 @@
-<!-- DEMANDE PRÉPARÉE, NON PUBLIÉE. Ce fichier n'est PAS dans le registre :
-     docs/handoff/lots/ seul fait foi, et outils/handoff.js ne lit pas ce
-     répertoire. `handoff.js demande` a refusé la publication le 07/09/2026 —
-     NEXUS-ORCHESTRATION-REPAIR-1-20260907 est encore ouvert et le protocole ne
-     tient qu'un lot actif. Déposer le fichier à la main dans lots/ contournerait
-     précisément la garde qui a raison. À publier PAR L'OUTIL, sans réécriture,
-     dès que REPAIR-1 aura reçu sa decision-2. -->
+---
+protocol: nexus-handoff/2
+kind: request
+lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
+seq: 4
+author: Claude
+branch: config-par-environnement
+status: AWAITING_DECISION
+token_mode: DEEP
+preuves:
+  - id: refs-protegees
+    classe: VERIFIED
+    valeur: main=10c65d0 production=501c0c7
+  - id: transport
+    classe: VERIFIED
+    valeur: cc572f6 — deux fichiers repris octet pour octet (sha256 identiques a la branche Claude)
+  - id: rail
+    classe: VERIFIED
+    valeur: main 10c65d0 — base_branch ajoute ; garde ENV-001 en CI ; production inchangee 501c0c7
+  - id: suite
+    classe: VERIFIED
+    valeur: 196/205
+  - id: preuve-ui
+    classe: VERIFIED
+    valeur: ecran NEXUS Test — total 36 000 L, reliquat 1 000 L sur go, refus motive sur sp95
+  - id: production
+    classe: NOT_APPLICABLE
+    valeur: aucune requete, aucun merge, aucun deploiement
+---
 
 # Request-4 — delta transporté, rail réparé, preuve UI obtenue
 

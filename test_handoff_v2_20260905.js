@@ -274,7 +274,7 @@ verifier('une dérogation nommée transforme la violation visée en avertissemen
     // depuis un fichier numéroté 2 n'est plus, à lui seul, une violation
     // distincte : la validité de in_reply_to ne dépend plus du rang.
     e.derogations = [
-      { fichier: 'decision-2.md', regle: 'SEQUENCE_NON_CONTIGUE', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
+      { fichier: `${LOT}/decision-2.md`, regle: 'SEQUENCE_NON_CONTIGUE', motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' },
     ];
   });
   const r = valider(dir);
@@ -286,7 +286,7 @@ verifier('une dérogation nommée transforme la violation visée en avertissemen
 verifier('une dérogation ne couvre que la règle et le fichier qu’elle nomme', () => {
   const dir = registreSain();
   ecrireEtat(dir, e => {
-    e.derogations = [{ fichier: 'decision-1.md', regle: 'SEQUENCE_NON_CONTIGUE',
+    e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'SEQUENCE_NON_CONTIGUE',
       motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
   });
   remplacer(dir, 'decision-1.md', 'decision: APPROVED', 'decision: VALIDE');
@@ -303,11 +303,81 @@ verifier('une branche ABSENTE se déroge, une ref protégée jamais', () => {
   remplacer(absente, 'decision-1.md', 'branch: config-par-environnement\n', '');
   assert.notStrictEqual(valider(absente).code, 0, 'une branche absente reste une violation');
   ecrireEtat(absente, e => {
-    e.derogations = [{ fichier: 'decision-1.md', regle: 'BRANCHE_ABSENTE',
+    e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'BRANCHE_ABSENTE',
       motif: 'éprouvette', autorise_par: 'test', le: '2026-09-05' }];
   });
   const r = valider(absente);
   assert.strictEqual(r.code, 0, 'une omission de forme doit pouvoir être dérogée : ' + r.sortie);
+});
+
+// Ajoute une demande conforme au registre jetable, pour les épreuves qui ont
+// besoin d'une demande ENCORE À ARBITRER — le registre sain n'en a pas.
+function deposerDemande(dir, seq) {
+  fs.writeFileSync(path.join(dir, 'lots', LOT, `request-${seq}.md`),
+    ['---', 'protocol: nexus-handoff/2', 'kind: request', `lot_id: ${LOT}`, `seq: ${seq}`,
+     'author: Claude', 'branch: config-par-environnement', 'status: AWAITING_DECISION',
+     'token_mode: STANDARD', 'preuves:',
+     '  - id: refs-protegees', '    classe: VERIFIED', `    valeur: ${refsReelles()}`,
+     '---', '', 'Corps de la demande.', ''].join('\n'));
+}
+
+function outil(dir, args) {
+  try {
+    const sortie = execFileSync('node', [OUTIL].concat(args),
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+    return { code: 0, sortie };
+  } catch (e) {
+    return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') };
+  }
+}
+
+verifier('handoff.js decision produit une enveloppe conforme par construction', () => {
+  // Quatre écarts d'enveloppe consécutifs, tous dérogés. La cause n'était pas
+  // l'inattention mais l'absence d'outil côté décision : `demande` existait,
+  // rien pour les décisions. On vérifie donc que l'outil existe ET que ce
+  // qu'il écrit passe le validateur SANS dérogation.
+  const dir = registreSain();
+  // Le registre sain a déjà décidé de request-1 : décider une seconde fois de
+  // la même demande serait une supersession, légitimement refusée. On dépose
+  // donc une demande à arbitrer, comme dans la vraie vie.
+  deposerDemande(dir, 2);
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '# Verdict\n\nCorps de la décision.\n');
+  const r = outil(dir, ['decision', LOT, corps, '--decision', 'BLOCKED', '--closes', 'true']);
+  assert.strictEqual(r.code, 0, 'la commande doit réussir : ' + r.sortie);
+  const ecrit = fs.readFileSync(path.join(dir, 'lots', LOT, 'decision-2.md'), 'utf8');
+  assert.ok(/^decision: BLOCKED$/m.test(ecrit), 'verdict posé par l’outil : ' + ecrit);
+  assert.ok(/^branch: config-par-environnement$/m.test(ecrit), 'branche posée par l’outil, jamais retapée : ' + ecrit);
+  assert.ok(/^in_reply_to: request-2\.md$/m.test(ecrit), 'in_reply_to résolu seul sur la demande active : ' + ecrit);
+  ecrireEtat(dir, e => { e.lots[LOT].derniere_demande = 'request-2.md'; e.lots[LOT].derniere_decision = 'decision-2.md'; });
+  const v = valider(dir);
+  assert.strictEqual(v.code, 0, 'ce que l’outil écrit doit passer le validateur sans dérogation : ' + v.sortie);
+});
+
+verifier('handoff.js decision refuse un verdict hors vocabulaire AVANT d’écrire', () => {
+  // Le cas réel du 07/09 : `decision: REJECTED`. L'outil doit refuser à la
+  // source et ne rien laisser derrière lui — un fichier à demi déposé dans un
+  // registre append-only ne se rattrape pas.
+  const dir = registreSain();
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '# Verdict\n');
+  const r = outil(dir, ['decision', LOT, corps, '--decision', 'REJECTED', '--closes', 'true']);
+  assert.notStrictEqual(r.code, 0, 'REJECTED doit être refusé');
+  assert.ok(/hors vocabulaire/.test(r.sortie), r.sortie);
+  assert.ok(/BLOCKED/.test(r.sortie), 'et proposer le terme canonique : ' + r.sortie);
+  assert.ok(!fs.existsSync(path.join(dir, 'lots', LOT, 'decision-2.md')),
+    'aucun fichier ne doit avoir été déposé');
+});
+
+verifier('handoff.js decision refuse un in_reply_to qui ne désigne aucune demande du lot', () => {
+  const dir = registreSain();
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '# Verdict\n');
+  const r = outil(dir, ['decision', LOT, corps, '--decision', 'APPROVED', '--closes', 'false',
+    '--en-reponse-a', 'request-9.md']);
+  assert.notStrictEqual(r.code, 0);
+  assert.ok(/ne désigne aucune demande/.test(r.sortie), r.sortie);
+  assert.ok(!fs.existsSync(path.join(dir, 'lots', LOT, 'decision-2.md')));
 });
 
 verifier('une enveloppe de DEMANDE incomplète se déroge, comme celle d’une décision', () => {
@@ -333,10 +403,12 @@ verifier('une enveloppe de DEMANDE incomplète se déroge, comme celle d’une d
 });
 
 verifier('une dérogation d’enveloppe de demande ne fuit pas sur les homonymes d’un autre lot', () => {
-  // La faiblesse des dérogations historiques : elles nomment un basename, si
-  // bien qu'une exception accordée sur le decision-1.md d'un lot couvrirait
-  // le decision-1.md de tous les autres. Les deux codes ajoutés le 07/09/2026
-  // sont qualifiés par le LOT ; un nom nu ne doit donc rien couvrir.
+  // La faiblesse des dérogations historiques : elles nommaient un basename,
+  // si bien qu'une exception accordée sur le decision-1.md d'un lot couvrait
+  // le decision-1.md de tous les autres. Depuis le 07/09/2026 tous les codes
+  // dérogeables sont qualifiés par le LOT ; un nom nu ne doit donc plus rien
+  // couvrir. Le `fichier` ci-dessous reste volontairement NU : c'est l'objet
+  // même de l'épreuve, et le qualifier la viderait de son sens.
   const dir = registreSain();
   remplacer(dir, 'request-1.md', 'token_mode: STANDARD\n', '');
   ecrireEtat(dir, e => {
@@ -352,7 +424,7 @@ verifier('aucune dérogation n’est recevable sur un invariant de sécurité', 
   const dir = registreSain();
   remplacer(dir, 'request-1.md', 'branch: config-par-environnement', 'branch: production');
   ecrireEtat(dir, e => {
-    e.derogations = [{ fichier: 'request-1.md', regle: 'BRANCHE_PROTEGEE',
+    e.derogations = [{ fichier: `${LOT}/request-1.md`, regle: 'BRANCHE_PROTEGEE',
       motif: 'tentative de contournement', autorise_par: 'test', le: '2026-09-05' }];
   });
   const r = valider(dir);
@@ -362,7 +434,7 @@ verifier('aucune dérogation n’est recevable sur un invariant de sécurité', 
 
 verifier('une dérogation incomplète est refusée', () => {
   const dir = registreSain();
-  ecrireEtat(dir, e => { e.derogations = [{ fichier: 'decision-1.md', regle: 'SEQUENCE_NON_CONTIGUE' }]; });
+  ecrireEtat(dir, e => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'SEQUENCE_NON_CONTIGUE' }]; });
   const r = valider(dir);
   assert.notStrictEqual(r.code, 0, 'une exception sans motif ni auteur n’est pas auditable');
   assert.ok(/dérogation incomplète/.test(r.sortie));

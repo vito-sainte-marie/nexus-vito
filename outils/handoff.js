@@ -56,9 +56,9 @@ function validerCommuns(lot, e, env, genre) {
   if (env.lot_id !== lot) bloquant(`${ou} : lot_id ${JSON.stringify(env.lot_id)} ne correspond pas au répertoire ${lot}`);
   if (String(env.seq) !== String(e.seq)) bloquant(`${ou} : seq ${JSON.stringify(env.seq)} ne correspond pas au nom de fichier`);
   if (!env.author) bloquant(`${ou} : author manquant`);
-  if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', e.fichier);
-  else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${BRANCHE_AUTORISEE}`, 'BRANCHE_ABSENTE', e.fichier);
-  else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', e.fichier);
+  if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', ou);
+  else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${BRANCHE_AUTORISEE}`, 'BRANCHE_ABSENTE', ou);
+  else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', ou);
 }
 function validerPreuves(ou, preuves) {
   if (!preuves) return; if (!Array.isArray(preuves)) { bloquant(`${ou} : preuves doit être une liste`); return; }
@@ -114,8 +114,8 @@ function validerRegistre(etat, artefactsValides) {
     if (artefactsValides.has(lot)) { const a = artefactsValides.get(lot); avertir(`lots/${lot} est un artefact historique hors registre, toléré (motif : ${a.motif} — autorisé par ${a.autorise_par}, le ${a.le}). Aucune validation d'enveloppe request/decision n'est appliquée à ce répertoire.`); continue; }
     if (!registreLots[lot]) { bloquant(`lots/${lot} : répertoire présent sous docs/handoff/lots/ mais absent de STATE.json.lots et non déclaré dans artefacts_hors_registre`, 'LOT_HORS_REGISTRE', null); continue; }
     const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (!demandes.length) bloquant(`lots/${lot} : aucun request-N.md`);
-    demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
-    decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
+    demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', `${lot}/${e.fichier}`); });
+    decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', `${lot}/${e.fichier}`); });
     // 07/09/2026 — les deux défauts d'enveloppe d'une DEMANDE portent
     // désormais un code et un fichier, comme ceux d'une DÉCISION en portent
     // depuis l'origine (BRANCHE_ABSENTE, DECISION_HORS_VOCABULAIRE). Sans
@@ -139,7 +139,7 @@ function validerRegistre(etat, artefactsValides) {
     const reponses = [];
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
-      const env = r.env; validerCommuns(lot, e, env, 'decision'); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', e.fichier); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
+      const env = r.env; validerCommuns(lot, e, env, 'decision'); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', ou); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
       // La validité d'une décision dépend de la demande qu'elle référence (elle
       // doit exister dans CE lot) et de sa relation éventuelle de supersession
       // avec une décision précédente — jamais d'une comparaison numérique entre
@@ -148,14 +148,14 @@ function validerRegistre(etat, artefactsValides) {
       // décision peut tout aussi légitimement répondre à une demande plus
       // récente que la précédente décision du lot (cf. decision-3 -> request-2
       // du lot CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906).
-      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', e.fichier); else { const brut = String(env.in_reply_to).trim(), segments = brut.split('/').filter(Boolean), vise = segments[segments.length - 1], dossierCible = segments.length > 1 ? segments[segments.length - 2] : lot; if (dossierCible !== lot) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} désigne le lot ${dossierCible}, incohérent avec ${lot}`, 'IN_REPLY_TO_AUTRE_LOT', e.fichier); else { const cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', e.fichier); else reponses.push({ decision: e, viseSeq: cible.seq, env }); } }
+      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', ou); else { const brut = String(env.in_reply_to).trim(), segments = brut.split('/').filter(Boolean), vise = segments[segments.length - 1], dossierCible = segments.length > 1 ? segments[segments.length - 2] : lot; if (dossierCible !== lot) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} désigne le lot ${dossierCible}, incohérent avec ${lot}`, 'IN_REPLY_TO_AUTRE_LOT', ou); else { const cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', ou); else reponses.push({ decision: e, viseSeq: cible.seq, env }); } }
     }
     let supersessionsLegitimes = 0;
     for (let i = 1; i < reponses.length; i++) {
       if (reponses[i].viseSeq <= reponses[i - 1].viseSeq) {
         const champ = supersessionValide(reponses[i].env, reponses[i - 1].decision.fichier);
         if (champ) { supersessionsLegitimes++; avertir(`lots/${lot} : ${reponses[i].decision.fichier} supersède ${reponses[i - 1].decision.fichier} via ${champ} — arbitrage successif légitime sur la même demande.`); }
-        else bloquant(`lots/${lot} : ${reponses[i].decision.fichier} répond à une demande déjà arbitrée par ${reponses[i - 1].decision.fichier}`, 'DEMANDE_DEJA_ARBITREE', reponses[i].decision.fichier);
+        else bloquant(`lots/${lot} : ${reponses[i].decision.fichier} répond à une demande déjà arbitrée par ${reponses[i - 1].decision.fichier}`, 'DEMANDE_DEJA_ARBITREE', `${lot}/${reponses[i].decision.fichier}`);
       }
     }
     if (decisions.length - supersessionsLegitimes > demandes.length) bloquant(`lots/${lot} : plus de décisions que de demandes`);
@@ -191,6 +191,53 @@ function consommer(lot) {
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
   v.statut = 'DECISION_CONSOMMEE'; v.derniere_decision = dec ? dec.fichier : null; v.source_decision = source; v.commit_decision = commit; v.consomme_le = new Date().toISOString(); fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}.`);
 }
+// Dépose une DÉCISION avec une enveloppe conforme par construction.
+//
+// POURQUOI CETTE COMMANDE EXISTE. Quatre dépôts consécutifs ont présenté un
+// écart d'enveloppe : `status:` au lieu de `decision:`, `branch:` absent,
+// `status`/`token_mode` manquants, `decision: REJECTED` hors vocabulaire.
+// Chacun a été dérogé plutôt que réécrit, et la note du troisième disait déjà
+// que le contrat n'était « manifestement pas assez découvrable ». C'était
+// exact, et la raison est simple : `handoff.js demande` existait pour les
+// demandes, et RIEN pour les décisions. L'auteur d'une décision devait donc
+// écrire son en-tête à la main, de mémoire, à chaque fois.
+//
+// Une cinquième dérogation aurait traité le symptôme. Cette commande traite
+// la cause : le vocabulaire est vérifié AVANT écriture, la séquence est
+// calculée, `in_reply_to` doit désigner une demande réellement existante du
+// lot, et la branche est posée par l'outil — jamais retapée.
+function nouvelleDecision(lot, corpsFichier, options) {
+  if (!fs.existsSync(path.join(LOTS, lot))) { console.error(`Lot inconnu : ${lot}`); process.exit(1); }
+  if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); }
+  const verdict = options.decision;
+  if (!DECISIONS_CANONIQUES.includes(verdict)) {
+    console.error(`REFUS — decision ${JSON.stringify(verdict)} hors vocabulaire.`);
+    console.error(`Valeurs admises : ${DECISIONS_CANONIQUES.join(' | ')}`);
+    if (verdict) console.error('Un verdict de refus se dit BLOCKED ; « closes: true » dit qu\'il ferme le lot.');
+    process.exit(1);
+  }
+  if (!['true', 'false'].includes(String(options.closes))) { console.error('--closes doit valoir true ou false.'); process.exit(1); }
+  const demandes = echanges(lot, 'request');
+  if (!demandes.length) { console.error(`Le lot ${lot} n'a aucune demande : une décision ne répond à rien.`); process.exit(1); }
+  const vise = options.enReponseA || dernier(demandes).fichier;
+  if (!demandes.find(d => d.fichier === vise)) {
+    console.error(`REFUS — in_reply_to ${vise} ne désigne aucune demande de ${lot}.`);
+    console.error(`Demandes existantes : ${demandes.map(d => d.fichier).join(', ')}`);
+    process.exit(1);
+  }
+  const seq = (dernier(echanges(lot, 'decision')) || { seq: 0 }).seq + 1;
+  const fichier = `decision-${seq}.md`, cible = path.join(LOTS, lot, fichier);
+  if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
+  const auteur = options.auteur || 'NEXUS Orchestrator';
+  let env = '---\n';
+  env += `protocol: ${PROTOCOLE}\nkind: decision\nlot_id: ${lot}\nseq: ${seq}\n`;
+  env += `author: ${auteur}\nbranch: ${BRANCHE_AUTORISEE}\ndecision: ${verdict}\ncloses: ${options.closes}\n`;
+  env += `in_reply_to: ${vise}\n---\n`;
+  fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
+  console.log(`${lot}/${fichier} créé (${verdict}, closes=${options.closes}, en réponse à ${vise}).`);
+  console.log('Enveloppe conforme par construction — à commiter, puis à consommer par `handoff.js consommer`.');
+}
+
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
   const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`); console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.'); process.exit(1); } }
@@ -205,6 +252,7 @@ switch (commande) {
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
   case 'consommer': consommer(arg1); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode }); break; }
+  case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
 }
