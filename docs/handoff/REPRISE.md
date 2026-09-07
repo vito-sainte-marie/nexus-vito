@@ -20,9 +20,10 @@ Elle doit alors exécuter la séquence ci-dessous avant toute recommandation ou 
 6. Lire `docs/nexus/CONTINUITY.md`.
 7. Lire les sections pertinentes de `docs/nexus/BIBLE.md`.
 8. Lire `docs/nexus/BACKLOG.md` si la demande concerne une observation terrain, une priorité ou un futur lot.
-9. Si Claude est impliqué, lire les commentaires récents de l'issue #28 avant de le réveiller.
-10. Ne jamais réveiller Claude deux fois pour la même décision canonique.
-11. Ne jamais conclure qu'une décision est consommée depuis un commentaire seul : vérifier `STATE.json` et les fichiers canoniques.
+9. Charger uniquement les entrées pertinentes de `docs/learning/RULES.json` ; ne pas charger tout l'historique d'expérience par défaut.
+10. Si Claude est impliqué, lire les commentaires récents de l'issue #28 avant de le réveiller.
+11. Ne jamais réveiller Claude deux fois pour la même décision canonique.
+12. Ne jamais conclure qu'une décision est consommée depuis un commentaire seul : vérifier `STATE.json` et les fichiers canoniques.
 
 ## Résolution des contradictions
 
@@ -32,26 +33,50 @@ Ordre de priorité :
 2. invariants de sécurité et de données clients ;
 3. `STATE.json` + fichiers canoniques du lot ;
 4. Bible / gouvernance / ADR ;
-5. Backlog ;
-6. issue #28 et commentaires d'exécution ;
-7. mémoire de conversation.
+5. règles opérationnelles actives de `docs/learning/RULES.json` ;
+6. Backlog ;
+7. issue #28 et commentaires d'exécution ;
+8. expérience historique ;
+9. mémoire de conversation.
 
 Si deux sources canoniques se contredisent, ne pas choisir silencieusement : enregistrer l'écart et rester fail closed.
 
-## Règle Claude
+## Règle Claude — développeur autonome en Test
 
-Claude est un exécutant stateless.
+Claude est le développeur principal de NEXUS et reste stateless entre exécutions.
 
 Avant exécution, son ordre de travail doit préciser au minimum :
 - `LOT_ID` ;
-- branche autorisée ;
+- branche autorisée et HEAD canonique attendu ;
 - décision canonique à consommer ;
 - périmètre exact ;
 - tests/preuves exigés ;
 - interdictions ;
 - format de retour Handoff.
 
+Une fois le lot autorisé, Claude peut en Test : diagnostiquer, coder, tester, naviguer avec les comptes/PIN Test fournis de manière sûre, corriger un défaut local et retester autant de fois que nécessaire sans demander une nouvelle décision.
+
+Il doit remonter avant la fin uniquement lorsqu'une vraie décision métier/produit non couverte est nécessaire, que les sources se contredisent, que le périmètre doit s'élargir de façon significative, qu'un Guardian produit un blocage non résoluble de manière déterministe, ou qu'une action Production serait requise.
+
 Pendant les périodes de quota contraint, ne réveiller Claude que pour du code ou une opération qu'il est réellement nécessaire de lui déléguer. Les analyses, arbitrages, spécifications et préparations de lots restent du ressort de l'Orchestrator.
+
+## Règle Orchestrator
+
+Orchestrator arbitre seul toute question dont la réponse est déterminable depuis Bible, ADR, gouvernance, Backlog, règles actives, preuves ou décisions précédentes. Il ne remplace pas Claude dans le codage applicatif.
+
+Frédéric n'est sollicité que lorsqu'une véritable décision de fondateur demeure ou pour la gate Production.
+
+## Guardians backend
+
+Les Guardians ne sont pas interrogés manuellement par Claude ou Orchestrator.
+
+Ils sont déclenchés automatiquement par les scopes touchés :
+- sans finding : silence ;
+- finding déterministe : prescription directe à Claude ;
+- finding ambigu ou transverse : escalation Orchestrator ;
+- décision de fondateur : escalation Frédéric par Orchestrator.
+
+Un échec de test ou une prescription Guardian dans le périmètre autorisé ne crée pas automatiquement un nouveau Handoff ; Claude corrige puis reteste.
 
 ## Invariants environnement
 
@@ -60,12 +85,23 @@ Pendant les périodes de quota contraint, ne réveiller Claude que pour du code 
 - Aucune opération Supabase Production sans gate humaine explicite.
 - Aucun secret `service_role` dans le dépôt, le navigateur ou les logs de workflow.
 - Test d'abord, preuves ensuite, promotion séparée.
+- Le checkout Claude doit correspondre au HEAD canonique attendu de `config-par-environnement` avant codage ; sinon blocage immédiat.
+
+## Apprentissage de fin de lot
+
+Avant de clore un cycle :
+1. règle durable nouvelle ? → Rules/Bible/gouvernance ;
+2. décision structurante ? → ADR ;
+3. incident ou friction réutilisable ? → `EXPERIENCE.jsonl` ;
+4. problème déjà résolu deux fois ? → chercher une garde/test/runbook automatique ;
+5. contexte seulement temporaire ? → Handoff.
 
 ## Check de fin de session
 
 Avant de considérer une session terminée, vérifier que toute connaissance nécessaire à la reprise a été matérialisée dans au moins une source canonique :
 - Handoff pour le travail courant ;
 - Backlog pour le travail futur ;
-- Bible/gouvernance/ADR pour une règle durable.
+- Bible/gouvernance/ADR/Rules pour une règle durable ;
+- Experience pour un apprentissage réutilisable.
 
 Si ce n'est pas le cas, la continuité n'est pas acquise.
