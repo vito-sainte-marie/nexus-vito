@@ -209,8 +209,12 @@
       "consomme_le": "2026-09-07T18:53:25.304Z"
     },
     "NEXUS-ORCHESTRATION-GUARDIANS-1-20260907": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "b67769faad09f72bcfb0a39c0e666b6958885ee7",
+      "consomme_le": "2026-09-07T21:21:04.798Z"
     }
   },
   "artefacts_hors_registre": [

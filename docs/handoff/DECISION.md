@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-GUARDIANS-1-20260907/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907
+lot_id: NEXUS-ORCHESTRATION-GUARDIANS-1-20260907
 seq: 1
 author: NEXUS Orchestrator
 branch: config-par-environnement
@@ -11,80 +11,96 @@ decision: APPROVED_WITH_CONDITIONS
 closes: true
 in_reply_to: request-2.md
 ---
-
-# Décision — autonomie Test validée, réveil externe et Guardians séparés
+# Décision — Guardians calibrés, activation partielle, dettes produit ouvertes
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: true`.
+`APPROVED_WITH_CONDITIONS`, `closes: true`, en réponse à `request-2.md`.
 
-Les preuves de `request-2.md` suffisent pour clore le présent lot sur son périmètre effectivement démontré : la recette navigateur NEXUS Test a tourné de bout en bout en CI sur `config-par-environnement`, a attendu la version servie correcte, a validé le mécanisme Carburants attendu et n'a nécessité aucune saisie humaine. La suite reste à 198/207 avec les 9 échecs historiques connus. Aucun accès Production n'est déclaré.
+Le lot a atteint son objectif d'intégration/câblage/calibration des Guardians
+backend. Les points restants sont soit des dettes produit distinctes (Q74),
+soit des extensions de gouvernance séparées (Q75/Q76) : ils ne doivent pas
+maintenir ce lot artificiellement ouvert.
 
-Cette clôture ne signifie pas que l'autonomie complète 24/7 est acquise : le déclencheur temporel externe et les Guardians exécutables restent des travaux distincts.
+## Q73 — activation bloquante
 
-## Q70 — réveil automatique
+**NON pour l'instant** pour `guardians-router` (Architecture), Business Rules
+et Bible. Ils restent en mode rapport (non bloquants en CI) tant que leurs
+dettes préexistantes ne sont pas tranchées : la collision `NexusStock` pour
+Architecture, les 2 findings restants pour Business Rules, les 17 findings
+restants pour Bible.
 
-Aucune nouvelle modification de `main` n'est autorisée.
+`verifier-apprentissage` et le Guardian QA/Regression restent bloquants : ils
+sont à zéro finding canonique après calibration mesurée (14 → 1, le seul
+finding restant étant dans notre propre code, déjà corrigé).
 
-Le `schedule` GitHub Actions proposé sur la branche par défaut est donc refusé dans l'architecture courante, même s'il ne porte que quelques lignes. L'invariant de reprise et l'instruction humaine actuelle sont plus stricts que l'ancienne exception de control-plane : `main` reste fermée à l'Orchestrator.
+Le passage au blocage des autres gardes se fera après extinction de leur
+dette respective, avec une preuve verte mesurée sur le HEAD canonique — sans
+nouvel arbitrage produit si la doctrine, le scope et l'environnement de la
+garde ne changent pas.
 
-Le futur réveil automatique doit utiliser un control-plane externe ou un mécanisme équivalent qui :
+## Q74 — défauts produit trouvés
 
-- n'exige aucune modification de `main` ;
-- lit l'état canonique de `config-par-environnement` ;
-- ne réveille Claude que pour une décision canonique non consommée et fraîche ;
-- respecte GOV-001/GOV-004 et empêche les doublons ;
-- n'embarque aucun `service_role`, PIN ou secret client dans le dépôt ou les logs ;
-- reste auditable et révocable ;
-- ne consomme ni ne modifie le Handoff à la place de Claude/Orchestrator.
+**OUI, ouvrir des lots distincts et déterministes**, par gravité humaine puis
+risque métier :
 
-`repository_dispatch` peut être étudié comme moyen technique, mais aucun token dédié ni nouvelle capacité d'écriture n'est autorisé par cette décision. Le choix du transport du réveil appartient au futur lot de control-plane.
+1. `NEXUS-Evaluation-Employe-v1.html` — ne jamais afficher `0.0 / 5` / `0 %`
+   lorsqu'aucune évaluation n'existe ; afficher un état neutre explicite.
+2. `NEXUS-Debug-v1.html` — une absence de mesure ne doit jamais devenir
+   `+0 €` vert / conformité parfaite.
+3. `nexus-coach-fdj-moteur.js` — aucune absence de donnée ne doit devenir un
+   reproche `0 %`.
+4. Moteur carburant parallèle dans `NEXUS-Parametres-Rappels-v1.html` —
+   rétablir une source de vérité unique issue du moteur canonique
+   (`MAXIMUM_CAMION_LITRES`), jamais une réimplémentation locale.
 
-## Q71 — recette navigateur
+La collision `NexusStock` (déjà matérialisée comme `ARCH-002` au Backlog par
+`NEXUS-ORCHESTRATION-GUARDIANS-1-20260907/decision-1.md`) reste également un
+lot séparé, préalable au blocage du routeur Architecture.
 
-La recette peut désormais être bloquante en CI sur `config-par-environnement`.
+Aucun de ces défauts n'est corrigé dans ce lot.
 
-Le premier run réel est vert et a déjà permis de détecter puis corriger deux défauts d'outillage : mauvaise attente d'authentification et identifiant technique inutilisable par l'écran. La preuve n'est donc plus hypothétique.
+## Q75 — relecteur Philosophie
 
-Conditions permanentes :
+**OUI, uniquement en consultatif.** Jamais bloquant tant qu'il dépend d'un
+jugement de modèle ; hors CI bloquante. Il peut produire des findings et des
+recommandations traçables, mais aucune conclusion automatique de conformité
+sur les principes non mécanisables.
 
-- attendre explicitement la version NEXUS Test correspondant au commit testé ;
-- ne jamais journaliser le PIN ;
-- échouer fermé sur une preuve métier fausse ;
-- distinguer une indisponibilité d'outillage d'un résultat métier négatif conformément à ENV-003 ;
-- aucune utilisation de `service_role` dans le navigateur ou le workflow.
+## Q76 — arbitrage a posteriori outillage/QA
 
-Le défaut historique des variables `*_USERNAME` encore présentes sur `main` est documenté mais n'est pas corrigé ici, puisque `main` est hors périmètre.
+**APPROUVÉ avec frontière stricte.** Claude peut exécuter puis faire arbitrer
+a posteriori un lot uniquement si les quatre conditions suivantes sont
+simultanément vraies :
 
-## Q72 — Guardians
+1. aucun choix métier/produit ;
+2. aucun secret, rotation/lecture de secret, ni dépendance/harnais tiers
+   élargissant la surface de sécurité ;
+3. aucune action Production/Supabase Production/NEXUS Production ;
+4. aucune modification de `main`.
 
-Le rapatriement et l'activation des Guardians restent dans un lot P0 séparé.
+Dès qu'une seule condition tombe, retour immédiat au régime normal
+(arbitrage préalable). Cette pré-autorisation couvre l'outillage, les
+gardes, les tests, les mutations, la calibration et le câblage CI sur
+`config-par-environnement` — elle n'autorise jamais une correction
+applicative hors lot ni un élargissement silencieux de périmètre.
 
-Ce futur lot reprend les critères non satisfaits de REPAIR-1 : présence canonique des outils Guardians/apprentissage sur `config-par-environnement`, tests ciblés, mutation négative, câblage réel dans la CI, régression complète, absence de secrets et absence d'accès Production.
+## Conditions permanentes
 
-Séparer ce travail évite de transformer une clôture de recette navigateur déjà prouvée en chantier transversal non borné.
+- les Guardians doivent être calibrés sur le dépôt réel avant blocage ;
+- toute mutation doit prouver qu'elle a réellement modifié la cible avant de
+  conclure ;
+- toute assertion doit pouvoir échouer ;
+- la mémoire servie par `briefing-agent.js` doit rester dérivée de
+  `RULES.json`, sans seconde vérité paraphrasée ;
+- aucun finding préexistant ne doit être maquillé pour rendre une garde
+  verte : il reste une dette tracée jusqu'à correction ;
+- aucun changement `main`/`production`, aucune opération Supabase
+  Production/NEXUS Production, aucun secret/PIN/service_role dans dépôt ou
+  logs.
 
-## Frontière données / secrets
+## Après consommation
 
-La doctrine reste inchangée : le créateur administre NEXUS mais l'entreprise cliente contrôle l'usage et le partage de ses données. Aucun mécanisme d'orchestration ne crée un droit supplémentaire sur les données clientes.
-
-Tout accès privilégié futur doit rester derrière un composant serveur/NEXUS Connector de confiance, avec contexte entreprise/site explicite et moindre privilège. `service_role` reste interdit dans dépôt, navigateur et logs.
-
-## Suite
-
-Aucun nouveau code n'est requis dans ce lot après consommation de la présente décision.
-
-Les travaux futurs à matérialiser séparément sont :
-
-1. control-plane de réveil externe sans modification de `main` ;
-2. Guardians backend + vérification d'apprentissage intégrés canoniquement ;
-3. dette Carburants `CARB-006`, déjà séparée au Backlog.
-
-## Interdictions
-
-- aucun changement `main` ;
-- aucun changement `production` ;
-- aucune opération Supabase Production ;
-- aucun NEXUS Production ;
-- aucune promotion Production sans validation explicite de Frédéric ;
-- aucun secret/PIN/service_role dans dépôt, navigateur ou logs.
+Ne pas corriger les défauts produit dans ce lot. Matérialiser uniquement les
+futurs lots/backlog nécessaires (Q74), puis retourner l'état canonique final
+et les prochains lots prêts à ouvrir.
