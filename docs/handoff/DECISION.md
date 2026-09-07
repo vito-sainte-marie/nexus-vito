@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906
-seq: 4
+lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
+seq: 3
 author: ChatGPT
 branch: config-par-environnement
 decision: APPROVED_WITH_CONDITIONS
@@ -12,82 +12,49 @@ closes: false
 in_reply_to: request-3.md
 ---
 
-# Décision — calendrier/CTA validés, optimisation camion à finaliser avant clôture
+# Décision — preuve technique acceptée, intégration bloquée par le rail d'écriture
 
-Le retour `request-3.md` est accepté pour ce qu'il prouve réellement : la correction calendrier/CTA est validée au niveau moteur/configuration Test, les tests ciblés sont verts, aucune heure de livraison fixe n'est inventée, le GNR non inclus ne bloque pas GO/SP95 et la non-double-intégration d'une livraison reste couverte.
+Le `request-3.md` est accepté comme preuve technique de la correction : mutation négative puis positive, 56/56 assertions sur le sous-ensemble ciblé, moteur propriétaire unique, aucune duplication P0/UI, aucune heure de livraison inventée, aucune double intégration, aucune opération Production.
 
-Le lot n'est cependant pas clos.
+Le lot ne peut pas être clos : le delta applicatif n'est toujours pas présent sur `config-par-environnement` et la preuve UI NEXUS Test de la version corrigée n'existe donc pas.
 
-## Motif de maintien ouvert
+## Classification du blocage
 
-Deux éléments empêchent une clôture complète de Carburants Performance :
+Ce n'est pas un échec métier ni un nouveau bug applicatif. C'est un **incident de rail d'intégration** : le workflow `issue_comment` exécute Claude sur une branche dérivée de `main` et le mécanisme de push fourni à Claude est limité à sa branche `claude/issue-28-*`. Claude peut lire et tester le HEAD canonique, mais ne peut pas écrire le delta prouvé sur `config-par-environnement`.
 
-1. la preuve UI/navigateur runtime annoncée dans `request-3.md` n'a pas été apportée ;
-2. le besoin canonique `CARB-004` du Backlog reste à terminer : une recommandation inférieure à la capacité camion maximale ne doit pas être conservée mécaniquement lorsqu'un complément est réellement sûr et absorbable.
+## Règle de réveil
 
-La protection existante contre le surstock doit rester une garde métier, pas devenir un plafond artificiel à 35 000 L.
+**Ne pas réveiller Claude une nouvelle fois pour `decision-2.md` ni pour refaire les mêmes tests.** Le run correspondant a terminé avec succès et a produit `request-3.md`. GOV-001 s'applique : une nouvelle relance identique masquerait le défaut structurel du rail au lieu de le résoudre. GOV-004 ne s'applique pas car le run n'a pas échoué.
 
-## Règle métier à implémenter
+## Plus petite correction sûre attendue
 
-`maximum_camion_litres` est une **cible d'optimisation**, jamais un volume obligatoire.
+1. Transporter mécaniquement sur `config-par-environnement` uniquement le delta déjà écrit et prouvé par Claude :
+   - le correctif local `stockPrevuLivraisonL` dans `nexus-carburant-commande-moteur.js` ;
+   - `test_carburant_commande_p0_traversee_reliquat_20260907.js`.
+2. Ne reprendre aucun autre fichier de la branche Claude divergente.
+3. Rejouer le test de contrat et la régression Carburants sur le HEAD canonique après transport.
+4. Déployer/servir ensuite cette version sur NEXUS Test.
+5. Produire alors seulement la preuve navigateur exigée par `decision-2.md`.
+6. Revenir par un nouveau `request-4.md` avec commit canonique, tests, preuve UI et Production=`NOT_APPLICABLE`.
 
-Après calcul du besoin principal :
+Le transport doit rester une intégration exacte du code Claude déjà validé, sans nouvelle logique applicative ajoutée par Orchestrator.
 
-- si la commande proposée laisse une capacité camion résiduelle, le moteur tente un complément marginal sur les carburants éligibles ;
-- le complément n'est autorisé que s'il respecte les gardes NEXUS existantes : capacité physique/réception sûre des cuves au moment de la livraison, stock prévisionnel pertinent, livraison déjà enregistrée, contraintes de compartiments/incréments configurées, stock de sécurité et mécanismes anti-surstock ;
-- le complément doit en plus être **absorbable par la rotation prévisionnelle** selon les données et horizons métier déjà disponibles dans NEXUS ;
-- si les données nécessaires à cette absorption sont insuffisantes, le moteur n'invente pas de ventes futures : il reste prudent et expose l'arbitrage ;
-- aucune règle Sainte-Marie ne doit être codée en dur : la logique reste déterministe, configurable et multi-site.
+## Guardians / invariants
 
-### Cas de référence obligatoire
-
-Si le moteur obtient `21 000 L SP + 14 000 L GO = 35 000 L`, et que `1 000 L GO` supplémentaire :
-
-- rentre physiquement en sécurité à la livraison ;
-- respecte les bornes existantes ;
-- est absorbable par la rotation prévisionnelle disponible ;
-
-alors la recommandation attendue devient `21 000 L SP + 15 000 L GO = 36 000 L`.
-
-À l'inverse :
-
-- complément physiquement impossible → rester à 35 000 L avec motif exact ;
-- complément physiquement possible mais non absorbable → rester à 35 000 L avec motif exact ;
-- données de rotation insuffisantes → ne rien inventer, rester prudent et expliciter l'incertitude.
-
-## Travail d'exécution exigé
-
-Avant modification, identifier précisément la fonction/règle qui limite aujourd'hui le complément de 1 000 L dans le cas de référence.
-
-Puis modifier le minimum de code nécessaire dans le moteur propriétaire de la vérité métier, sans recréer de calcul parallèle dans l'UI.
-
-Tests minimums à produire :
-
-1. `21k SP + 14k GO`, +1k sûr et absorbable → `21k + 15k` ;
-2. +1k physiquement impossible → 35k ;
-3. +1k physiquement possible mais non absorbable → 35k ;
-4. rotation insuffisamment prouvée → comportement prudent explicite ;
-5. 36k réellement atteignable + créneau commandable + aucun arbitrage → CTA cohérent ;
-6. aucune régression calendrier/cutoff/fériés ;
-7. aucune régression GNR ;
-8. aucune double intégration de livraison ;
-9. validation UI/navigateur Test de la carte « Prochaine commande » après correction.
-
-## Guardians
-
-- **Architecture** : le moteur de commande reste propriétaire unique de la recommandation ; aucun calcul métier parallèle dans l'UI.
-- **Security & Isolation** : aucune écriture Production ; aucune dépendance à un site implicite ; aucune exposition de secret.
-- **Business Rules** : 36 000 L est recherché seulement lorsqu'il est sûr et absorbable ; jamais forcé.
-- **QA/Regression** : tout nouvel échec imputable au lot bloque la clôture.
-- **Bible/Philosophie** : ne jamais inventer une consommation future pour remplir le camion ; une limite réelle doit être expliquée, pas masquée.
+- Architecture & Cohérence : PASS sur le delta prouvé ; moteur seul propriétaire.
+- Security & Isolation : PASS ; Test uniquement, aucun secret/service_role côté navigateur/logs.
+- Business Rules : PASS ; 36 000 L reste une cible seulement si sûr et absorbable.
+- QA/Regression : preuve ciblée recevable mais clôture impossible avant exécution sur le HEAD effectivement intégré.
+- Continuité : l'incident de rail est maintenant matérialisé dans Handoff ; aucune branche Claude isolée ne vaut intégration canonique.
 
 ## Interdictions
 
-- Aucun changement `main`.
-- Aucun changement `production`.
-- Aucun Supabase Production.
-- Aucune promotion NEXUS Production.
-- Aucun secret/service_role.
-- Aucun refactor large hors périmètre.
+- aucun changement `main` ;
+- aucun changement `production` ;
+- aucun Supabase Production ni NEXUS Production ;
+- aucun merge/cherry-pick global de `claude/issue-28-20260907-1232` ;
+- aucune nouvelle relance Claude pour répéter `decision-2.md` ;
+- aucune preuve UI sur une version qui ne contient pas le correctif ;
+- aucune promotion Production sans validation explicite de Frédéric.
 
-Verdict : **CORRECTION CALENDRIER/CTA VALIDÉE EN TEST — OPTIMISATION CAMION 36 000 L À FINALISER AVANT CLÔTURE DU LOT.**
+Verdict : **CORRECTIF TECHNIQUEMENT PROUVÉ — LOT OUVERT, BLOQUÉ UNIQUEMENT PAR L'INTÉGRATION CANONIQUE ET LA PREUVE NEXUS TEST.**

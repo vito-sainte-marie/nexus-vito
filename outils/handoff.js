@@ -116,9 +116,25 @@ function validerRegistre(etat, artefactsValides) {
     const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (!demandes.length) bloquant(`lots/${lot} : aucun request-N.md`);
     demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
     decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', e.fichier); });
+    // 07/09/2026 — les deux défauts d'enveloppe d'une DEMANDE portent
+    // désormais un code et un fichier, comme ceux d'une DÉCISION en portent
+    // depuis l'origine (BRANCHE_ABSENTE, DECISION_HORS_VOCABULAIRE). Sans
+    // code, aucune dérogation ne pouvait les viser : le registre n'offrait
+    // que « réécrire le fichier » — c'est-à-dire fabriquer après coup une
+    // enveloppe qui n'a jamais existé, exactement ce que le protocole
+    // interdit. Ce n'est pas un assouplissement : une dérogation reste un
+    // acte humain nommé, daté, motivé, et réimprimé à chaque exécution.
+    //
+    // Ces deux codes sont volontairement qualifiés par le LOT
+    // (`<LOT_ID>/request-N.md`) et non par le seul nom de fichier. Les
+    // dérogations historiques visent un basename : « decision-1.md »
+    // s'applique au decision-1.md de N'IMPORTE quel lot portant le même code.
+    // Une dérogation doit couvrir le fichier qu'un humain a lu, pas ses
+    // homonymes futurs. Une dérogation sur ces deux codes doit donc nommer
+    // le chemin qualifié ; un basename seul ne les couvre pas.
     for (const e of demandes) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
-      const env = r.env; validerCommuns(lot, e, env, 'request'); if (!STATUTS_DEMANDE.includes(env.status)) bloquant(`${ou} : status ${JSON.stringify(env.status)} hors vocabulaire (${STATUTS_DEMANDE.join('|')})`); if (!TOKEN_MODES.includes(env.token_mode)) bloquant(`${ou} : token_mode ${JSON.stringify(env.token_mode)} hors vocabulaire (${TOKEN_MODES.join('|')})`); validerPreuves(ou, env.preuves); const refs = (env.preuves || []).find(p => p.id === 'refs-protegees'); if (refs) verifierRefsProtegees(ou, refs.valeur || '');
+      const env = r.env; validerCommuns(lot, e, env, 'request'); if (!STATUTS_DEMANDE.includes(env.status)) bloquant(`${ou} : status ${JSON.stringify(env.status)} hors vocabulaire (${STATUTS_DEMANDE.join('|')})`, 'STATUT_HORS_VOCABULAIRE', ou); if (!TOKEN_MODES.includes(env.token_mode)) bloquant(`${ou} : token_mode ${JSON.stringify(env.token_mode)} hors vocabulaire (${TOKEN_MODES.join('|')})`, 'TOKEN_MODE_HORS_VOCABULAIRE', ou); validerPreuves(ou, env.preuves); const refs = (env.preuves || []).find(p => p.id === 'refs-protegees'); if (refs) verifierRefsProtegees(ou, refs.valeur || '');
     }
     const reponses = [];
     for (const e of decisions) {

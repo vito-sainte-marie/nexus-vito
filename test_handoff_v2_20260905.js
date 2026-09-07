@@ -310,6 +310,44 @@ verifier('une branche ABSENTE se déroge, une ref protégée jamais', () => {
   assert.strictEqual(r.code, 0, 'une omission de forme doit pouvoir être dérogée : ' + r.sortie);
 });
 
+verifier('une enveloppe de DEMANDE incomplète se déroge, comme celle d’une décision', () => {
+  // 07/09/2026 — CARBURANTS-.../request-3.md a été déposée par un run Claude
+  // raciné sur main : sans STATE.json ni outils/handoff.js dans son arbre, il
+  // ne pouvait pas passer par `handoff.js demande`, et l'enveloppe est sortie
+  // sans status ni token_mode. Ces deux défauts ne portaient aucun code : le
+  // registre n'offrait donc que « réécrire le fichier », c'est-à-dire lui
+  // fabriquer après coup une enveloppe qu'il n'a jamais eue.
+  for (const [champ, code] of [['status: AWAITING_DECISION', 'STATUT_HORS_VOCABULAIRE'], ['token_mode: STANDARD', 'TOKEN_MODE_HORS_VOCABULAIRE']]) {
+    const dir = registreSain();
+    remplacer(dir, 'request-1.md', champ + '\n', '');
+    assert.notStrictEqual(valider(dir).code, 0, `sans ${champ}, la demande doit rester en violation`);
+    ecrireEtat(dir, e => {
+      e.derogations = [{ fichier: `${LOT}/request-1.md`, regle: code,
+        motif: 'éprouvette', autorise_par: 'test', le: '2026-09-07' }];
+    });
+    const r = valider(dir);
+    assert.strictEqual(r.code, 0, `${code} doit pouvoir être dérogé : ` + r.sortie);
+    assert.ok(new RegExp('DÉROGATION ' + code).test(r.sortie),
+      'la dérogation doit rester bruyante à chaque exécution, pas silencieuse');
+  }
+});
+
+verifier('une dérogation d’enveloppe de demande ne fuit pas sur les homonymes d’un autre lot', () => {
+  // La faiblesse des dérogations historiques : elles nomment un basename, si
+  // bien qu'une exception accordée sur le decision-1.md d'un lot couvrirait
+  // le decision-1.md de tous les autres. Les deux codes ajoutés le 07/09/2026
+  // sont qualifiés par le LOT ; un nom nu ne doit donc rien couvrir.
+  const dir = registreSain();
+  remplacer(dir, 'request-1.md', 'token_mode: STANDARD\n', '');
+  ecrireEtat(dir, e => {
+    e.derogations = [{ fichier: 'request-1.md', regle: 'TOKEN_MODE_HORS_VOCABULAIRE',
+      motif: 'éprouvette — nom nu, volontairement non qualifié', autorise_par: 'test', le: '2026-09-07' }];
+  });
+  const r = valider(dir);
+  assert.notStrictEqual(r.code, 0, 'un nom nu ne doit couvrir le fichier d’aucun lot');
+  assert.ok(/token_mode undefined hors vocabulaire/.test(r.sortie), r.sortie);
+});
+
 verifier('aucune dérogation n’est recevable sur un invariant de sécurité', () => {
   const dir = registreSain();
   remplacer(dir, 'request-1.md', 'branch: config-par-environnement', 'branch: production');

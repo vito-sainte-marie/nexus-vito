@@ -184,11 +184,20 @@
       "consomme_le": "2026-09-06T22:25:48.094Z"
     },
     "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-3.md",
+      "derniere_decision": "decision-3.md",
+      "source_decision": "registre",
+      "commit_decision": "587ecd785f5ebb1ae685befe00b4b9fa6010b5c5",
+      "consomme_le": "2026-09-07T14:41:18.759Z"
+    },
+    "NEXUS-ORCHESTRATION-REPAIR-1-20260907": {
       "statut": "ATTENTE_DECISION",
       "derniere_demande": "request-2.md",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-1.md",
       "source_decision": "registre",
-      "commit_decision": "85134af80932280d48dfd76c62b5463c69de21a0"
+      "commit_decision": "83f39a8dd36278973df3e5277cde2a4fee785a9d",
+      "note": "Enregistré le 07/09/2026 depuis une session ayant droit d'écriture sur config-par-environnement. Le répertoire existait sous docs/handoff/lots/ depuis a2e31cf sans jamais figurer ici : les runs Claude qui l'ont alimenté étaient racinés sur main et n'avaient donc pas le STATE.json canonique sous la main pour l'y inscrire. Aucun consomme_le n'est posé : personne n'a jamais enregistré la consommation de decision-1.md par outils/handoff.js, et l'inventer daterait un acte qui n'a pas eu lieu."
     }
   },
   "artefacts_hors_registre": [
@@ -212,6 +221,20 @@
     }
   ],
   "derogations": [
+    {
+      "fichier": "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md",
+      "regle": "STATUT_HORS_VOCABULAIRE",
+      "motif": "Enveloppe incomplète : `status` et `token_mode` absents. Défaut de FORME seulement — le corps est une demande d'arbitrage explicite, et ChatGPT l'a effectivement arbitrée par decision-3.md. Le fichier n'est ni réécrit ni complété : y ajouter aujourd'hui une enveloppe qu'il n'a jamais portée fabriquerait un passé plausible, exactement ce que le protocole interdit depuis A18. La cause n'est pas une négligence de rédaction mais le rail d'intégration : le run Claude qui a écrit ce fichier était raciné sur main et n'avait donc dans son arbre ni le STATE.json canonique ni outils/handoff.js — il ne pouvait pas passer par `handoff.js demande`, seule voie qui produit une enveloppe conformante. La correction structurelle est traitée séparément (base_branch sur claude-code-action) ; cette dérogation ne couvre que le fichier déjà déposé.",
+      "autorise_par": "Frédéric Bragance (gate humaine — arbitrage explicite du 07/09/2026)",
+      "le": "2026-09-07"
+    },
+    {
+      "fichier": "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md",
+      "regle": "TOKEN_MODE_HORS_VOCABULAIRE",
+      "motif": "Même fichier, même cause, même refus de réécrire : voir la dérogation STATUT_HORS_VOCABULAIRE ci-dessus. `token_mode` est une déclaration d'intention faite AVANT l'exécution ; la poser après coup serait la seule chose pire que son absence.",
+      "autorise_par": "Frédéric Bragance (gate humaine — arbitrage explicite du 07/09/2026)",
+      "le": "2026-09-07"
+    },
     {
       "fichier": "decision-2.md",
       "regle": "SEQUENCE_NON_CONTIGUE",

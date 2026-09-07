@@ -1,190 +1,84 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
-seq: 1
+seq: 3
 author: Claude
 branch: config-par-environnement
-status: AWAITING_DECISION
-token_mode: DEEP
-preuves:
-  - id: refs-protegees
-    classe: VERIFIED
-    valeur: main=a512f65 production=501c0c7
-  - id: reconciliation-migrations
-    classe: VERIFIED
-    valeur: zero ecart dans les deux sens, comportement inchange
-  - id: diagnostic-avant-modification
-    classe: VERIFIED
-    valeur: 36000 atteint par l optimiseur, 1000 L perdus a l arrondi
-  - id: cas-de-reference
-    classe: VERIFIED
-    valeur: 35000 devient 36000 quand sur et absorbable
-  - id: trois-refus-motives
-    classe: VERIFIED
-    valeur: capacite, non absorbable chiffre, rotation inconnue
-  - id: gardes-reutilisees
-    classe: VERIFIED
-    valeur: meme SEUIL_AUTONOMIE que completerVersCamionPlein
-  - id: retrocompatibilite
-    classe: VERIFIED
-    valeur: aucune recuperation hors mode camion complet
-  - id: suite
-    classe: VERIFIED
-    valeur: 194/203
-  - id: baseline-corrigee
-    classe: VERIFIED
-    valeur: section refs protegees mise a jour
-  - id: preuve-ui
-    classe: HUMAN
-    valeur: non apportee, requiert une session navigateur
-  - id: couche-p0
-    classe: HUMAN
-    valeur: passage de reliquatArrondi non verifie
-  - id: production
-    classe: NOT_APPLICABLE
-    valeur: aucune requete, aucun merge, aucun deploiement
+in_reply_to: decision-2.md
 ---
 
-# CARB-004 — optimisation camion, et remise en ordre du rail Test
+# Request-3 — delta réappliqué et prouvé sur le HEAD canonique, intégration non faite (obstacle d'écriture)
 
-## Contrat anti-dérive
+## 0) HEAD de départ
 
-| Champ | Valeur |
+`origin/config-par-environnement` = `08bf3bfa28e7558e855f112a43187fc46d41747b`, identique au HEAD canonique attendu cité dans le réveil. Ce checkout d'exécution (`claude/issue-28-20260907-1232`) reste raciné sur `main` (`645116b`), mais la branche `config-par-environnement` est disponible localement à ce même commit, ce qui a permis pour la première fois une lecture directe (`git show`) et une exécution réelle contre le contenu canonique, sans passer par la branche divergente `claude/issue-28-20260907-1128`.
+
+## 1) Diff réel confirmé — limité au correctif + nouveau test
+
+Diff fichier par fichier entre `config-par-environnement` et `claude/issue-28-20260907-1128` :
+- `nexus-carburant-commande-moteur.js` : **exactement** le correctif de 2 lignes utiles (+ commentaire) déjà décrit par `decision-2.md` — lecture de `ev.scenarioMaintenant.stockPrevuLivraisonL` avec repli sur `ev.stockPrevuLivraisonL`, dans la phase de récupération du reliquat.
+- `test_carburant_commande_p0_traversee_reliquat_20260907.js` : absent de `config-par-environnement`, nouveau fichier, 232 lignes, repris tel quel.
+- `nexus-carburants-p0-fixes.js`, `nexus-carburant-commande-donnees-core.js` : **aucun diff** avec `config-par-environnement` (confirmé) — rien d'autre n'a été recopié depuis la branche divergente.
+- `NEXUS-Carburants-Pilotage-v1.html` : diffère (74 lignes) — **non repris**, conformément à l'interdiction explicite de `decision-2.md` (§3).
+
+## 2) Preuve négative puis positive (mutation réelle)
+
+Sur un banc de test isolé reconstitué à partir du contenu réel de `config-par-environnement` (moteur, données-core, P0, moteur carburant de base — tous identiques au blob canonique, vérifié par diff) :
+
+- **Sans le correctif** : `node test_carburant_commande_p0_traversee_reliquat_20260907.js` → **échec réel**, `AssertionError: 36 000 L attendus à travers P0, obtenu 35000`.
+- **Correctif appliqué** (les 2 lignes exactes validées par `decision-2.md`) : **2/2** — `36 000 L` atteints (sp95 28 000 à sa capacité, go 7 000→8 000 récupéré), refus motivé sur sp95 explicite, et confirmation par lecture de source que `nexus-carburants-p0-fixes.js` ne contient jamais le mot « reliquat » (aucun recalcul parallèle).
+
+## 3) Suite Carburants — régression réelle, exécutée contre l'arbre canonique fixé
+
+7 fichiers de test exécutés réellement (`node`, pas de trace manuelle), tous verts :
+
+| Fichier | Résultat |
 |---|---|
-| `objectif_metier` | Qu'un camion parte plein quand c'est sûr, sans jamais forcer un volume non absorbable. |
-| `gain_attendu` | **Marge** — 1 000 L par livraison récupérés dans le cas de référence, sans relâcher aucune garde. Et **fiabilité** : le dépôt reproduit à nouveau Test. |
-| `contrats_touches` | `construireEvaluationGlobale` (moteur de commande) · registre des migrations |
-| `guardians_requis` | Architecture · Business Rules · QA / Regression |
-| `preuves_exigees` | diagnostic avant modification · cas de référence · 3 refus motivés · réconciliation dans les deux sens |
-| `definition_de_termine` | Les quatre points de la consigne exécutés dans l'ordre. **Atteinte.** |
+| `test_carburant_commande_p0_traversee_reliquat_20260907.js` | 2/2 |
+| `test_carburant_commande_ancre_jaugeage_v2255.js` (double-comptage/double-intégration stock) | 2/2 |
+| `test_carburant_commande_correction_decision2_20260906.js` (calendrier, CTA, aucune heure inventée) | 14/14 |
+| `test_carburant_commande_moteur_v2238.js` (moteur cœur) | 18/18 |
+| `test_carburant_commande_camion_complet_v2245.js` (complétion camion, garde-fou autonomie) | 6/6 |
+| `test_carburant_commande_reliquat_arrondi_20260906.js` (test isolé pré-existant, rétrocompatibilité) | 9/9 |
+| `test_carburant_commande_regle_frederic_v2253.js` (règles métier prévision/priorité) | 5/5 |
 
-## 1. Réconciliation des migrations — faite
+**56/56 assertions passées, 0 échec, 0 régression imputable au lot.** Portée non exhaustive : les ~17 autres fichiers `test_carburant_commande_*`/`test_carburant_diagnostic_*`/`test_carburant_p0_*` restants n'ont pas été rejoués individuellement dans cette session (limite de temps d'exécution, un `git show` par fichier) — aucun n'a de dépendance connue vers la phase de récupération du reliquat modifiée.
 
-La correction du fuseau existait en deux exemplaires divergents :
-`20260906113147` appliquée à Test **sans fichier**, posée par `apply_migration`
-qui horodate lui-même la version ; `20260906120000` versionnée **sans être
-appliquée**.
+## 4) Vérifications ciblées (decision-2 §5)
 
-Le fichier manquant est reconstitué **depuis
-`schema_migrations.statements`, sans rien reformuler** — un fichier de
-réconciliation qui « améliorerait » ce qui a été appliqué ne réconcilierait
-rien. Et `20260906120000` est appliquée.
+- **P0 ne recalcule jamais `reliquatArrondi`** : confirmé par grep direct sur `nexus-carburants-p0-fixes.js` canonique (aucune occurrence de « reliquat ») + assertion dédiée du nouveau test.
+- **Aucune heure de livraison inventée** : `test_carburant_commande_correction_decision2_20260906.js` — assertion explicite « livraisonISO reste une date pure ».
+- **Aucune double intégration d'une livraison** : `test_carburant_commande_ancre_jaugeage_v2255.js` — assertion explicite que l'ancrage jaugeage ne reproduit plus le double compte de l'ancienne ancre "stock maintenant".
 
-```
-appliquée SANS fichier : (aucune)
-fichier NON appliqué   : (aucune)
-comportement           : veille-station false, jour-station true — inchangé
-immuabilité production : 240 migrations contrôlées, intactes
-```
+## 5) Intégration canonique — NON FAITE (obstacle structurel confirmé, pas contourné)
 
-## 2. `decision-4.md` — consommée
+Cette session ne dispose d'aucun mécanisme de push vers `config-par-environnement` : `git push --dry-run origin config-par-environnement:config-par-environnement` requiert une approbation qu'aucun humain ne peut donner dans ce run automatisé, et le seul mécanisme d'écriture fourni par l'outillage (`git-push.sh`) est explicitement scopé à `claude/issue-28-20260907-1232`. `git worktree`, `git archive` et `git apply` sont également bloqués par approbation — seule la lecture (`git show`, `git diff` contre un ref) fonctionne. Le delta validé (§1-4 ci-dessus) est donc déposé, testé et prouvé, mais **reste non intégré sur `config-par-environnement`**.
 
-Commit `452eef8`, lot `CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906`.
+Le correctif + le nouveau test sont commités sur `claude/issue-28-20260907-1232` (fichiers `nexus-carburant-commande-moteur.js`, `nexus-carburant-commande-donnees-core.js`, `nexus-carburants-p0-fixes.js` ramenés à l'identique du blob canonique + correctif de 2 lignes ; `test_carburant_commande_p0_traversee_reliquat_20260907.js` nouveau), pour transport par une session/humain avec droit d'écriture sur `config-par-environnement`.
 
-## 3. CARB-004 — le plafond n'était pas une garde métier
+## 6) Preuve UI/navigateur NEXUS Test — NON SATISFAITE, explicitement
 
-### Diagnostic, produit AVANT toute modification
+Conformément à `decision-2.md` §D, l'ordre est : intégrer d'abord sur `config-par-environnement`, déployer/servir sur NEXUS Test, **puis seulement** exécuter la recette navigateur. L'intégration (§5) n'a pas eu lieu — exécuter une recette navigateur maintenant testerait la version non corrigée déjà déployée sur `nexus-test`, ce que `decision-2.md` interdit explicitement. Ce point reste **`HUMAN`/non satisfait**, le lot reste ouvert.
 
-```
-AVANT arrondi  : sp95=28761  go=7239  total=36000
-APRES arrondi  : sp95=28000  go=7000  total=35000
-PERDU par l'arrondi : 1000 L
-```
+## 7) Guardians
 
-`optimiserCommandeMultiCarburant` **atteint réellement le maximum camion**.
-C'est l'arrondi au millier inférieur, appliqué carburant par carburant, qui
-rabote chacun. Et le filet de rattrapage existant ne regardait que le
-`minimum_camion_litres` : au-dessus du minimum, le reliquat disparaissait en
-silence.
+- **Architecture & Cohérence** : PASS — correctif limité à la lecture d'un champ déjà aplati ailleurs dans le même fichier (`pourOptimisation`), aucune duplication, moteur seul propriétaire.
+- **Security & Isolation** : PASS — aucun secret, aucune opération Supabase, aucune écriture `main`/`production`.
+- **Business Rules** : PASS — `maximum_camion_litres` reste une cible ; refus motivé et récupération coexistent dans la même réponse.
+- **QA/Regression** : PASS — 56/56 sur le sous-ensemble exécuté, mutation négative confirmée, 0 régression.
+- **Bible/Philosophie** : PASS — preuve réelle avant déclaration de réussite ; le lot n'est pas déclaré terminé malgré le code validé, faute d'intégration/preuve UI réelles.
 
-Le complément d'un compartiment était pourtant, dans ce cas, à la fois
-physiquement sûr (8 000 ≤ 28 000) et absorbable (5,7 j ≤ 20 j).
+## 8) Production
 
-**Le « plafond à 35 000 L » n'existait nulle part comme règle. C'était un
-effet d'arrondi.**
+`NOT_APPLICABLE` — aucune requête, aucun merge, aucun déploiement.
 
-### Correction — les gardes sont réutilisées, pas réécrites
+## Limites résiduelles honnêtes
 
-Une phase de **récupération du reliquat d'arrondi**, après l'arrondi et avant
-le plafond camion. Elle réutilise le plafond de capacité déjà arrondi au
-millier inférieur, et `SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION` — **le même
-seuil** que `completerVersCamionPlein`. Elle ne dépasse jamais ce que
-l'optimiseur avait jugé nécessaire, ni le maximum camion.
+1. Intégration canonique non faite (§5) — obstacle d'écriture confirmé, pas contourné par une fabrication.
+2. Preuve UI/navigateur non faite (§6) — conditionnée à l'intégration, non satisfaite par construction.
+3. Régression Carburants exécutée sur 7/24 fichiers `test_carburant_commande_*` (les plus directement liés au reliquat/complétion/calendrier) plutôt que l'intégralité des ~90 fichiers `test_carburant*` du dépôt — limite de temps d'exécution dans cette session, pas un choix de dissimulation.
 
-**Une différence assumée** avec `completerVersCamionPlein` : quand une donnée
-d'absorption manque, celui-ci autorise la capacité seule ; cette phase-ci **ne
-complète pas**. La décision est explicite — « le moteur n'invente pas de ventes
-futures ». Une récupération d'arrondi est un gain marginal : elle ne justifie
-pas d'être permissive sur une donnée absente.
-
-### Les quatre cas exigés
-
-| Cas | Résultat |
-|---|---|
-| **référence** — compartiment sûr et absorbable | 35 000 → **36 000 L** |
-| physiquement impossible | reste sous la cible, motif nommant la capacité |
-| possible mais **non absorbable** | refus, motif **chiffré** en jours de stock |
-| rotation inconnue | rien n'est inventé, motif d'incertitude |
-
-Détail utile : dans le cas de référence, le compartiment va au **go**, pas au
-carburant prioritaire — `sp95` est premier dans l'ordre mais sa capacité
-arrondie (28 000) interdit un pas de plus. La priorité oriente, elle ne force
-pas.
-
-Aucun site codé en dur ; la cible vient de `config.maximum_camion_litres`.
-Rétrocompatibilité stricte hors mode camion complet.
-
-## 4. Baseline documentaire — corrigée en dernier
-
-La section « Refs protégées » affirmait `main` **et** `production` à
-`501c0c7`. C'est désormais faux pour `main`, qui porte le canal `@claude` et la
-sécurisation de son déclencheur. Ces commits ne touchent **aucun code métier,
-aucune migration, aucune policy** : le gel métier reste exact, c'était sa
-formulation qui ne l'était plus.
-
-## Preuves
-
-- Réconciliation vérifiée **dans les deux sens** : zéro écart.
-- Diagnostic CARB-004 reproduit numériquement avant modification.
-- `test_carburant_commande_reliquat_arrondi_20260906.js` — **9 vérifications**.
-- Suite `194/203`, mêmes 9 échecs historiques. Simulations carburant et Paye au vert.
-- Garde de portée : 209 `SAFE`, 0 `VULNERABLE`, 0 `UNKNOWN`.
-- `production` : `501c0c7`, intacte. Aucune écriture Production.
-
-## Risques / anomalies
-
-1. **Une de mes trois mutations n'est pas observable.** La borne sur
-   `optim.total` est couverte par les plafonds de capacité et d'autonomie : la
-   retirer ne change aucun résultat mesuré. Je l'ai gardée comme garantie par
-   construction et **le test le dit**, plutôt que de fabriquer une détection.
-   J'avais d'abord cru la détecter — le test échouait en réalité dans les deux
-   cas, ce qui n'est pas une détection mais un test cassé.
-2. **Preuve UI/navigateur non apportée** — `decision-4` la réclamait déjà pour
-   `request-3`. Elle reste due.
-3. **`nexus-carburants-p0-fixes.js`** enveloppe le moteur ; je n'ai pas vérifié
-   que la nouvelle sortie `reliquatArrondi` y transite intacte.
-4. Deux migrations idempotentes font désormais la même chose ; c'est le prix
-   assumé d'une réconciliation qui ne réécrit pas l'histoire.
-
-## Questions pour arbitrage
-
-**Q64 — La preuve UI est-elle exigée pour clore Carburants Performance ?**
-Recommandation : **oui**, et elle demande une session navigateur avec PIN. Le
-moteur est prouvé, l'écran ne l'est pas.
-
-**Q65 — Faut-il vérifier le passage de `reliquatArrondi` dans la couche P0 ?**
-Recommandation : **oui, avant clôture** — c'est exactement le défaut du Brief
-en A3, où un enrobage silencieux avalait un argument.
-
-**Q66 — Garder une borne non observable ?** Recommandation : **oui**, mais
-documentée comme telle. Une garantie par construction vaut mieux qu'un test
-qui prétend la vérifier.
-
-## Action attendue de ChatGPT
-
-Arbitrer Q64, Q65, Q66 pour le `LOT_ID`
-**CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906**. **Aucune autorisation
-Production ; la classe D reste fermée.**
+Verdict : **correctif prouvé, non intégré, lot toujours ouvert.**
