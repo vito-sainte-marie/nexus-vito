@@ -22,7 +22,7 @@ Elle doit alors exécuter la séquence ci-dessous avant toute recommandation ou 
 8. Lire `docs/nexus/BACKLOG.md` si la demande concerne une observation terrain, une priorité ou un futur lot.
 9. Charger uniquement les entrées pertinentes de `docs/learning/RULES.json` ; ne pas charger tout l'historique d'expérience par défaut.
 10. Si Claude est impliqué, lire les commentaires récents de l'issue #28 avant de le réveiller.
-11. Ne jamais réveiller Claude deux fois pour la même décision canonique.
+11. Ne jamais réveiller Claude deux fois pour la même décision canonique tant que le premier déclenchement est actif, réussi ou d'issue inconnue. Appliquer la règle de rejeu contrôlé ci-dessous uniquement en cas d'échec objectivement établi.
 12. Ne jamais conclure qu'une décision est consommée depuis un commentaire seul : vérifier `STATE.json` et les fichiers canoniques.
 
 ## Résolution des contradictions
@@ -59,6 +59,26 @@ Une fois le lot autorisé, Claude peut en Test : diagnostiquer, coder, tester, n
 Il doit remonter avant la fin uniquement lorsqu'une vraie décision métier/produit non couverte est nécessaire, que les sources se contredisent, que le périmètre doit s'élargir de façon significative, qu'un Guardian produit un blocage non résoluble de manière déterministe, ou qu'une action Production serait requise.
 
 Pendant les périodes de quota contraint, ne réveiller Claude que pour du code ou une opération qu'il est réellement nécessaire de lui déléguer. Les analyses, arbitrages, spécifications et préparations de lots restent du ressort de l'Orchestrator.
+
+## Rejeu contrôlé d'un réveil Claude échoué
+
+La règle anti-double-réveil protège contre deux exécutions concurrentes du même lot. Elle ne doit pas transformer un échec technique de déclenchement en blocage permanent.
+
+Un second réveil pour la même décision canonique est autorisé **une seule fois** lorsque les quatre conditions suivantes sont toutes vérifiées :
+1. le premier workflow/run Claude est terminé avec un état objectivement non réussi (`failure`, `cancelled`, `timed_out`, ou équivalent démontré) ;
+2. `STATE.json` montre toujours la décision non consommée ;
+3. aucun nouveau `request-N.md` correspondant au travail attendu n'existe ;
+4. aucun autre run Claude équivalent n'est `queued` ou `in_progress`.
+
+Avant ce rejeu, Orchestrator relit le commentaire de réveil initial, conserve exactement le même `LOT_ID`, la même décision canonique et le même périmètre, puis marque le commentaire comme **RETRY 1/1 après échec du premier déclenchement**. Un retry ne constitue pas une nouvelle décision et ne doit jamais élargir le scope.
+
+Si ce retry échoue lui aussi, **aucun troisième réveil automatique n'est autorisé**. Orchestrator doit alors :
+- enregistrer l'incident de rail ;
+- diagnostiquer le mécanisme de déclenchement/checkout/permissions ;
+- corriger le rail de façon déterministe si possible ;
+- ne solliciter Frédéric que si une vraie décision de fondateur ou une gate de risque demeure.
+
+Un run terminé en succès mais sans consommation canonique n'est pas automatiquement classé comme « échec de déclenchement » : il faut d'abord déterminer si Claude a volontairement refusé l'exécution pour une contradiction, un HEAD non canonique, une permission manquante ou un autre blocage explicite. Cette distinction évite de masquer un problème structurel par des relances répétées.
 
 ## Règle Orchestrator
 
