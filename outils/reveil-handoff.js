@@ -12,9 +12,19 @@
 //
 // Cet outil ne décide rien et ne réveille personne : il RÉPOND à une question,
 // « reste-t-il une décision déposée que personne n'a consommée ? ». Un
-// workflow planifié l'appelle et n'ouvre une session que si la réponse est
-// oui. C'est ce qui sépare une horloge utile d'un réveil toutes les heures
-// pour rien.
+// déclencheur l'appellera et n'ouvrira une session que si la réponse est oui.
+// C'est ce qui sépare une horloge utile d'un réveil toutes les heures pour
+// rien.
+//
+// ÉTAT RÉEL AU 07/09/2026 : OUTIL PRÊT, AUCUN DÉCLENCHEUR ACTIF.
+// Rien n'appelle ce fichier automatiquement aujourd'hui. Le `schedule` GitHub
+// envisagé a été REFUSÉ par `decision-1.md` du lot
+// NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907 : il ne peut vivre que sur la
+// branche par défaut, et `main` reste fermée. Le déclencheur relève du lot
+// ORCH-001 au Backlog — un control-plane externe, auditable et révocable, sans
+// modification de `main` ni nouveau secret. Tant qu'il n'existe pas, cet outil
+// ne doit être présenté nulle part comme « un réveil autonome » : il s'appelle
+// à la main, ou depuis un run déjà déclenché autrement.
 //
 // CE QU'IL NE FAIT PAS. Il ne consomme pas, n'écrit pas dans STATE.json, ne
 // pousse rien, ne touche à aucune branche. Il lit et il conclut.
