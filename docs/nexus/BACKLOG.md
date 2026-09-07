@@ -55,3 +55,5 @@ Un item ne passe à `TERMINE` que si :
 3. la preuve est enregistrée ;
 4. aucun invariant NEXUS n'a été cassé ;
 5. lorsqu'une validation terrain est nécessaire, Frédéric l'a confirmée.
+| SEC-010 | ATTENTE_FREDERIC | P0 | Secret `SUPABASE_TEST_DB_URL_WRITE` à créer | Rôle Supabase Test en écriture au moindre privilège, jamais `service_role` ; l'étape CI de semis cesse de se déclarer indisponible |
+| SEC-011 | ATTENTE_FREDERIC | P0 | PIN de recette à changer | `NEXUS_TEST_PIN` a été écrit en clair en conversation le 07/09/2026, sur un dépôt public dont les noms de connexion sont lisibles ; secret renouvelé après cette date |

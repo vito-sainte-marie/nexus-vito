@@ -22,11 +22,13 @@
 // sa lecture rapide.
 //
 // LE CONSTAT QUI DOIT ACCOMPAGNER CET ÉTAT. Un bouton d'autorisation n'a de
-// sens que si l'on ne peut pas passer à côté. Au 07/09/2026, `production`
-// n'avait AUCUNE protection : pas de branche protégée, pas d'environnement
-// GitHub, pas d'approbation requise. Cet outil le vérifie et le dit à chaque
-// exécution, parce qu'un tableau de bord qui affiche « autorisation requise »
-// devant une porte ouverte est pire qu'un tableau de bord absent : il rassure.
+// sens que si l'on ne peut pas passer à côté. Au matin du 07/09/2026,
+// `production` n'avait AUCUNE protection ; un ruleset a été posé le soir même
+// et vérifié par une tentative de push réellement refusée. Cet outil relit
+// cette barrière à CHAQUE exécution plutôt que de la tenir pour acquise : une
+// règle se désactive aussi vite qu'elle se pose, et un tableau de bord qui
+// affiche « autorisation requise » devant une porte rouverte est pire qu'un
+// tableau de bord absent — il rassure.
 //
 //   node outils/etat-deploiement.js            # lisible
 //   node outils/etat-deploiement.js --json     # pour NEXUS Live
@@ -103,11 +105,23 @@ function barrieresProduction() {
   const m = depot && depot.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
   if (!m) return barrieres;
   const slug = `${m[1]}/${m[2]}`;
+  // `rules/branches/<b>` et non `branches/<b>/protection` : le second est
+  // l'API des protections CLASSIQUES et rend 404 quand la branche est
+  // protégée par un ruleset — ce qui est le cas ici depuis le 07/09/2026.
+  // Première version de cette fonction : elle annonçait « NON protégée » sur
+  // une branche qui l'était. Un tableau de bord qui sous-estime une protection
+  // est moins dangereux qu'un qui la surestime, mais il reste faux, et un
+  // chiffre faux dans un tableau de bord ne se discute pas : il se croit.
+  // `rules/branches` rend les règles EFFECTIVES, quelle qu'en soit la source.
   try {
-    execFileSync('gh', ['api', `repos/${slug}/branches/${PRODUCTION}/protection`],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    barrieres.brancheProtegee = true;
-  } catch (e) { barrieres.brancheProtegee = false; }
+    const regles = JSON.parse(execFileSync('gh', ['api', `repos/${slug}/rules/branches/${PRODUCTION}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    const types = new Set((regles || []).map(r => r.type));
+    barrieres.brancheProtegee = types.has('pull_request') || types.has('non_fast_forward');
+    barrieres.reglesEffectives = [...types].sort();
+    barrieres.prObligatoire = types.has('pull_request');
+    barrieres.ciExigee = types.has('required_status_checks');
+  } catch (e) { barrieres.brancheProtegee = false; barrieres.reglesEffectives = []; }
   try {
     const envs = JSON.parse(execFileSync('gh', ['api', `repos/${slug}/environments`],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
@@ -116,6 +130,54 @@ function barrieresProduction() {
   } catch (e) { barrieres.environnementApprobation = false; }
   barrieres.lu = true;
   return barrieres;
+}
+
+// Les gestes que Claude ne peut pas faire, et dont l'oubli ne se voit nulle
+// part. Un secret manquant ne casse rien : l'étape CI se déclare simplement
+// indisponible et passe. Un PIN compromis ne casse rien non plus — jusqu'au
+// jour où quelqu'un s'en sert. Ces deux dettes sont donc silencieuses par
+// nature, et c'est exactement pourquoi elles méritent d'être répétées à chaque
+// lecture de l'état plutôt que confiées à la mémoire de quiconque.
+//
+// AUCUNE VALEUR DE SECRET N'EST LUE ICI. `gh secret list` ne rend que des NOMS
+// et des DATES ; GitHub ne restitue jamais une valeur, y compris à son
+// propriétaire. Cet outil s'en tient à « ce nom existe-t-il » et « depuis
+// quand », ce qui suffit à savoir si le geste a été fait.
+const PIN_DIVULGUE_LE = '2026-09-07T12:00:00Z';
+
+function gestesHumains() {
+  const gestes = [];
+  let secrets = null;
+  try {
+    secrets = JSON.parse(execFileSync('gh', ['secret', 'list', '--json', 'name,updatedAt'],
+      { cwd: RACINE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+  } catch (e) {
+    return [{ code: 'SECRETS_ILLISIBLES', fait: null,
+      texte: 'Secrets non lisibles depuis cette machine — ne pas conclure que les gestes sont faits.' }];
+  }
+  const par = new Map(secrets.map(s => [s.name, s.updatedAt]));
+
+  gestes.push({
+    code: 'SECRET_ECRITURE_TEST',
+    fait: par.has('SUPABASE_TEST_DB_URL_WRITE'),
+    texte: par.has('SUPABASE_TEST_DB_URL_WRITE')
+      ? 'Secret d\'écriture Test présent — la CI peut semer le jeu de recette seule.'
+      : 'Créer le secret SUPABASE_TEST_DB_URL_WRITE (rôle Test en écriture, jamais service_role). '
+        + 'Sans lui, l\'étape de semis se déclare indisponible et la recette part sur des données absentes.',
+  });
+
+  const pin = par.get('NEXUS_TEST_PIN');
+  const rotate = pin ? pin > PIN_DIVULGUE_LE : null;
+  gestes.push({
+    code: 'PIN_RECETTE',
+    fait: rotate,
+    texte: rotate
+      ? 'PIN de recette renouvelé après sa divulgation.'
+      : 'Changer le PIN de recette : il a été écrit en clair dans une conversation le 07/09/2026, '
+        + 'le dépôt est public et les noms de connexion y figurent. Le secret n\'a pas bougé depuis. '
+        + 'Aucune donnée de production n\'est exposée, mais une recette en cours peut être corrompue.',
+  });
+  return gestes;
 }
 
 function analyser() {
@@ -166,6 +228,7 @@ function analyser() {
     ecart,
     dette: detteOuverte(),
     barrieres: barrieresProduction(),
+    gestes: gestesHumains(),
     lotActif: etat.lot_actif || null,
   };
 }
@@ -207,22 +270,44 @@ function rendre(e) {
   if (!e.barrieres.lu) {
     l.push('  · non lisibles depuis cette machine — ne pas conclure qu\'elles existent.');
   } else {
-    l.push(`  · branche \`production\` protégée : ${e.barrieres.brancheProtegee ? 'oui' : 'NON'}`);
+    l.push(`  · branche \`production\` protégée : ${e.barrieres.brancheProtegee ? 'oui' : 'NON'}` +
+      (e.barrieres.reglesEffectives && e.barrieres.reglesEffectives.length
+        ? ` (${e.barrieres.reglesEffectives.join(', ')})` : ''));
     l.push(`  · environnement GitHub avec approbation requise : ${e.barrieres.environnementApprobation ? 'oui' : 'NON'}`);
-    if (!e.barrieres.brancheProtegee || !e.barrieres.environnementApprobation) {
+    // Deux absences très différentes, à ne pas confondre dans le même
+    // avertissement : la branche non protégée est une porte ouverte, tandis
+    // que l'environnement manquant n'est une lacune QUE lorsqu'un job de
+    // déploiement existe. Les dire d'une seule voix ferait crier au danger
+    // devant une barrière déjà posée — et un tableau de bord qui crie à tort
+    // cesse d'être lu.
+    if (!e.barrieres.brancheProtegee) {
       l.push('');
       l.push('  Aucun bouton d\'autorisation n\'a de sens tant qu\'on peut passer à côté :');
       l.push('  en l\'état, un simple `git push` atteint Production sans franchir aucune gate.');
+    } else if (!e.barrieres.environnementApprobation) {
+      l.push('');
+      l.push('  La branche est tenue : aucun push direct, PR obligatoire' +
+        (e.barrieres.ciExigee ? ', CI verte exigée.' : '.'));
+      l.push('  L\'environnement d\'approbation reste à créer — il ne mordra toutefois');
+      l.push('  que le jour où un job de workflow déclarera `environment: production`.');
+      l.push('  Aujourd\'hui aucun ne le fait : le déploiement passe par Cloudflare,');
+      l.push('  hors Actions. C\'est donc la règle de branche qui protège réellement.');
     }
   }
   l.push('');
+  const restants = (e.gestes || []).filter(g => g.fait !== true);
+  if (restants.length) {
+    l.push('Gestes qui n\'appartiennent qu\'à Frédéric :');
+    for (const g of restants) l.push(`  · ${g.texte}`);
+    l.push('');
+  }
   l.push('« Prêt pour Production » resterait une PROPOSITION : aucune décision de');
   l.push('recette ne vaut autorisation de production. Cet outil ne déploie rien,');
   l.push('ne fusionne rien et n\'autorise rien — il calcule et il rend.');
   return l.join('\n');
 }
 
-module.exports = { analyser, rendre, classer, fermePar, detteOuverte, barrieresProduction };
+module.exports = { analyser, rendre, classer, fermePar, detteOuverte, barrieresProduction, gestesHumains };
 
 if (require.main === module) {
   const e = analyser();
