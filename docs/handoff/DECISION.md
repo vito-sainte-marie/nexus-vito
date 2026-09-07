@@ -1,90 +1,44 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-GUARDIANS-1-20260907/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907
+lot_id: NEXUS-ORCHESTRATION-GUARDIANS-1-20260907
 seq: 1
 author: NEXUS Orchestrator
 branch: config-par-environnement
 decision: APPROVED_WITH_CONDITIONS
 closes: true
-in_reply_to: request-2.md
+in_reply_to: request-1.md
 ---
-
-# Décision — autonomie Test validée, réveil externe et Guardians séparés
+# Décision — Guardians backend : promotion différée, NexusStock isolé, portée Security conservée
 
 ## Verdict
 
 `APPROVED_WITH_CONDITIONS`, `closes: true`.
 
-Les preuves de `request-2.md` suffisent pour clore le présent lot sur son périmètre effectivement démontré : la recette navigateur NEXUS Test a tourné de bout en bout en CI sur `config-par-environnement`, a attendu la version servie correcte, a validé le mécanisme Carburants attendu et n'a nécessité aucune saisie humaine. La suite reste à 198/207 avec les 9 échecs historiques connus. Aucun accès Production n'est déclaré.
+Le périmètre démontré par `request-1.md` (rapatriement sélectif de 4 fichiers, calibration du Guardian Security 13 findings → 1 finding réel, 13/13 + 10/10 tests ciblés, 7/7 mutations détectées, régression 200/209 avec les 9 échecs historiques inchangés, aucun accès Production) est accepté tel quel. Ce lot est clos ; les prolongements identifiés ci-dessous appartiennent à des lots séparés.
 
-Cette clôture ne signifie pas que l'autonomie complète 24/7 est acquise : le déclencheur temporel externe et les Guardians exécutables restent des travaux distincts.
+## Q73 — blocage CI de `guardians-router.js`
 
-## Q70 — réveil automatique
+NON à une garde bloquante tant que la collision d'identité globale `NexusStock` (`nexus-stock.js` vs `nexus-stock-moteur.js`, déjà notée par l'audit Guardian Architecture du 06/09/2026) subsiste : la rendre bloquante aujourd'hui reviendrait à bloquer la CI sur une dette déjà connue et déjà classée, pas sur une régression nouvelle.
 
-Aucune nouvelle modification de `main` n'est autorisée.
+Après résolution canonique de cette dette dans le lot `NexusStock` (Q74) : un premier verdict propre du routeur + une mutation négative réelle + une régression sans nouvel échec suffisent à promouvoir la garde en bloquant, **sans nouvel arbitrage produit**, à condition que la doctrine, le scope et l'environnement Guardian n'aient pas changé entre-temps. Si l'un de ces trois change, un nouvel arbitrage reste requis.
 
-Le `schedule` GitHub Actions proposé sur la branche par défaut est donc refusé dans l'architecture courante, même s'il ne porte que quelques lignes. L'invariant de reprise et l'instruction humaine actuelle sont plus stricts que l'ancienne exception de control-plane : `main` reste fermée à l'Orchestrator.
+## Q74 — lot déterministe distinct `NexusStock`
 
-Le futur réveil automatique doit utiliser un control-plane externe ou un mécanisme équivalent qui :
+OUI. Un futur lot dédié doit : déterminer le propriétaire logique unique de la vérité `NexusStock` (lequel de `nexus-stock.js` / `nexus-stock-moteur.js` est vivant, lequel est mort) ; supprimer ou renommer la collision sans introduire de logique métier parallèle ; prouver l'ensemble des consommateurs réels (pages `<script src>`) et l'absence de régression sur chacun. Aucun cherry-pick ni renommage aveugle. **Ce lot Guardians ne corrige pas NexusStock** — la correction est explicitement hors périmètre ici.
 
-- n'exige aucune modification de `main` ;
-- lit l'état canonique de `config-par-environnement` ;
-- ne réveille Claude que pour une décision canonique non consommée et fraîche ;
-- respecte GOV-001/GOV-004 et empêche les doublons ;
-- n'embarque aucun `service_role`, PIN ou secret client dans le dépôt ou les logs ;
-- reste auditable et révocable ;
-- ne consomme ni ne modifie le Handoff à la place de Claude/Orchestrator.
+## Q75 — portée du Guardian Security
 
-`repository_dispatch` peut être étudié comme moyen technique, mais aucun token dédié ni nouvelle capacité d'écriture n'est autorisé par cette décision. Le choix du transport du réveil appartient au futur lot de control-plane.
+Conserver la portée actuelle (détection de secret littéral dans les fichiers changés du diff). Aucun scan systématique de l'ensemble du dépôt dans ce lot. Toute extension de portée doit d'abord être mesurée, puis justifiée par la preuve d'un trou réel (un cas concret non couvert), avec une calibration anti-faux-positifs équivalente à celle qui a fait passer le signal de 13 findings à 1 finding réel.
 
-## Q71 — recette navigateur
+La réduction 13 → 1 est actée comme une **amélioration du signal** (élimination de faux positifs), pas comme un affaiblissement du contrôle — le finding réel restant (la collision `NexusStock`) demeure identifié et tracé, il n'a pas disparu du radar, il est simplement redirigé vers son propre lot (Q74).
 
-La recette peut désormais être bloquante en CI sur `config-par-environnement`.
+## Disposition ORCH-002
 
-Le premier run réel est vert et a déjà permis de détecter puis corriger deux défauts d'outillage : mauvaise attente d'authentification et identifiant technique inutilisable par l'écran. La preuve n'est donc plus hypothétique.
+`ORCH-002` est considéré réalisé dans son périmètre propre et passe à `TERMINE` après consommation canonique de cette décision. La dette `NexusStock` est matérialisée au Backlog comme futur lot, à prioriser selon l'impact démontré (aucune urgence artificielle créée par cette clôture).
 
-Conditions permanentes :
+## Invariants
 
-- attendre explicitement la version NEXUS Test correspondant au commit testé ;
-- ne jamais journaliser le PIN ;
-- échouer fermé sur une preuve métier fausse ;
-- distinguer une indisponibilité d'outillage d'un résultat métier négatif conformément à ENV-003 ;
-- aucune utilisation de `service_role` dans le navigateur ou le workflow.
-
-Le défaut historique des variables `*_USERNAME` encore présentes sur `main` est documenté mais n'est pas corrigé ici, puisque `main` est hors périmètre.
-
-## Q72 — Guardians
-
-Le rapatriement et l'activation des Guardians restent dans un lot P0 séparé.
-
-Ce futur lot reprend les critères non satisfaits de REPAIR-1 : présence canonique des outils Guardians/apprentissage sur `config-par-environnement`, tests ciblés, mutation négative, câblage réel dans la CI, régression complète, absence de secrets et absence d'accès Production.
-
-Séparer ce travail évite de transformer une clôture de recette navigateur déjà prouvée en chantier transversal non borné.
-
-## Frontière données / secrets
-
-La doctrine reste inchangée : le créateur administre NEXUS mais l'entreprise cliente contrôle l'usage et le partage de ses données. Aucun mécanisme d'orchestration ne crée un droit supplémentaire sur les données clientes.
-
-Tout accès privilégié futur doit rester derrière un composant serveur/NEXUS Connector de confiance, avec contexte entreprise/site explicite et moindre privilège. `service_role` reste interdit dans dépôt, navigateur et logs.
-
-## Suite
-
-Aucun nouveau code n'est requis dans ce lot après consommation de la présente décision.
-
-Les travaux futurs à matérialiser séparément sont :
-
-1. control-plane de réveil externe sans modification de `main` ;
-2. Guardians backend + vérification d'apprentissage intégrés canoniquement ;
-3. dette Carburants `CARB-006`, déjà séparée au Backlog.
-
-## Interdictions
-
-- aucun changement `main` ;
-- aucun changement `production` ;
-- aucune opération Supabase Production ;
-- aucun NEXUS Production ;
-- aucune promotion Production sans validation explicite de Frédéric ;
-- aucun secret/PIN/service_role dans dépôt, navigateur ou logs.
+Aucun changement `main`/`production`, aucune opération Supabase Production/NEXUS Production, aucun secret dans dépôt/navigateur/logs, aucun élargissement opportuniste du scope Security au-delà de Q75, aucune correction de `NexusStock` matérialisée dans ce lot.
