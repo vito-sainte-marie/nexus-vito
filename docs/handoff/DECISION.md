@@ -1,60 +1,90 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
-seq: 3
-author: ChatGPT
+lot_id: NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907
+seq: 1
+author: NEXUS Orchestrator
 branch: config-par-environnement
 decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-3.md
+closes: true
+in_reply_to: request-2.md
 ---
 
-# Décision — preuve technique acceptée, intégration bloquée par le rail d'écriture
+# Décision — autonomie Test validée, réveil externe et Guardians séparés
 
-Le `request-3.md` est accepté comme preuve technique de la correction : mutation négative puis positive, 56/56 assertions sur le sous-ensemble ciblé, moteur propriétaire unique, aucune duplication P0/UI, aucune heure de livraison inventée, aucune double intégration, aucune opération Production.
+## Verdict
 
-Le lot ne peut pas être clos : le delta applicatif n'est toujours pas présent sur `config-par-environnement` et la preuve UI NEXUS Test de la version corrigée n'existe donc pas.
+`APPROVED_WITH_CONDITIONS`, `closes: true`.
 
-## Classification du blocage
+Les preuves de `request-2.md` suffisent pour clore le présent lot sur son périmètre effectivement démontré : la recette navigateur NEXUS Test a tourné de bout en bout en CI sur `config-par-environnement`, a attendu la version servie correcte, a validé le mécanisme Carburants attendu et n'a nécessité aucune saisie humaine. La suite reste à 198/207 avec les 9 échecs historiques connus. Aucun accès Production n'est déclaré.
 
-Ce n'est pas un échec métier ni un nouveau bug applicatif. C'est un **incident de rail d'intégration** : le workflow `issue_comment` exécute Claude sur une branche dérivée de `main` et le mécanisme de push fourni à Claude est limité à sa branche `claude/issue-28-*`. Claude peut lire et tester le HEAD canonique, mais ne peut pas écrire le delta prouvé sur `config-par-environnement`.
+Cette clôture ne signifie pas que l'autonomie complète 24/7 est acquise : le déclencheur temporel externe et les Guardians exécutables restent des travaux distincts.
 
-## Règle de réveil
+## Q70 — réveil automatique
 
-**Ne pas réveiller Claude une nouvelle fois pour `decision-2.md` ni pour refaire les mêmes tests.** Le run correspondant a terminé avec succès et a produit `request-3.md`. GOV-001 s'applique : une nouvelle relance identique masquerait le défaut structurel du rail au lieu de le résoudre. GOV-004 ne s'applique pas car le run n'a pas échoué.
+Aucune nouvelle modification de `main` n'est autorisée.
 
-## Plus petite correction sûre attendue
+Le `schedule` GitHub Actions proposé sur la branche par défaut est donc refusé dans l'architecture courante, même s'il ne porte que quelques lignes. L'invariant de reprise et l'instruction humaine actuelle sont plus stricts que l'ancienne exception de control-plane : `main` reste fermée à l'Orchestrator.
 
-1. Transporter mécaniquement sur `config-par-environnement` uniquement le delta déjà écrit et prouvé par Claude :
-   - le correctif local `stockPrevuLivraisonL` dans `nexus-carburant-commande-moteur.js` ;
-   - `test_carburant_commande_p0_traversee_reliquat_20260907.js`.
-2. Ne reprendre aucun autre fichier de la branche Claude divergente.
-3. Rejouer le test de contrat et la régression Carburants sur le HEAD canonique après transport.
-4. Déployer/servir ensuite cette version sur NEXUS Test.
-5. Produire alors seulement la preuve navigateur exigée par `decision-2.md`.
-6. Revenir par un nouveau `request-4.md` avec commit canonique, tests, preuve UI et Production=`NOT_APPLICABLE`.
+Le futur réveil automatique doit utiliser un control-plane externe ou un mécanisme équivalent qui :
 
-Le transport doit rester une intégration exacte du code Claude déjà validé, sans nouvelle logique applicative ajoutée par Orchestrator.
+- n'exige aucune modification de `main` ;
+- lit l'état canonique de `config-par-environnement` ;
+- ne réveille Claude que pour une décision canonique non consommée et fraîche ;
+- respecte GOV-001/GOV-004 et empêche les doublons ;
+- n'embarque aucun `service_role`, PIN ou secret client dans le dépôt ou les logs ;
+- reste auditable et révocable ;
+- ne consomme ni ne modifie le Handoff à la place de Claude/Orchestrator.
 
-## Guardians / invariants
+`repository_dispatch` peut être étudié comme moyen technique, mais aucun token dédié ni nouvelle capacité d'écriture n'est autorisé par cette décision. Le choix du transport du réveil appartient au futur lot de control-plane.
 
-- Architecture & Cohérence : PASS sur le delta prouvé ; moteur seul propriétaire.
-- Security & Isolation : PASS ; Test uniquement, aucun secret/service_role côté navigateur/logs.
-- Business Rules : PASS ; 36 000 L reste une cible seulement si sûr et absorbable.
-- QA/Regression : preuve ciblée recevable mais clôture impossible avant exécution sur le HEAD effectivement intégré.
-- Continuité : l'incident de rail est maintenant matérialisé dans Handoff ; aucune branche Claude isolée ne vaut intégration canonique.
+## Q71 — recette navigateur
+
+La recette peut désormais être bloquante en CI sur `config-par-environnement`.
+
+Le premier run réel est vert et a déjà permis de détecter puis corriger deux défauts d'outillage : mauvaise attente d'authentification et identifiant technique inutilisable par l'écran. La preuve n'est donc plus hypothétique.
+
+Conditions permanentes :
+
+- attendre explicitement la version NEXUS Test correspondant au commit testé ;
+- ne jamais journaliser le PIN ;
+- échouer fermé sur une preuve métier fausse ;
+- distinguer une indisponibilité d'outillage d'un résultat métier négatif conformément à ENV-003 ;
+- aucune utilisation de `service_role` dans le navigateur ou le workflow.
+
+Le défaut historique des variables `*_USERNAME` encore présentes sur `main` est documenté mais n'est pas corrigé ici, puisque `main` est hors périmètre.
+
+## Q72 — Guardians
+
+Le rapatriement et l'activation des Guardians restent dans un lot P0 séparé.
+
+Ce futur lot reprend les critères non satisfaits de REPAIR-1 : présence canonique des outils Guardians/apprentissage sur `config-par-environnement`, tests ciblés, mutation négative, câblage réel dans la CI, régression complète, absence de secrets et absence d'accès Production.
+
+Séparer ce travail évite de transformer une clôture de recette navigateur déjà prouvée en chantier transversal non borné.
+
+## Frontière données / secrets
+
+La doctrine reste inchangée : le créateur administre NEXUS mais l'entreprise cliente contrôle l'usage et le partage de ses données. Aucun mécanisme d'orchestration ne crée un droit supplémentaire sur les données clientes.
+
+Tout accès privilégié futur doit rester derrière un composant serveur/NEXUS Connector de confiance, avec contexte entreprise/site explicite et moindre privilège. `service_role` reste interdit dans dépôt, navigateur et logs.
+
+## Suite
+
+Aucun nouveau code n'est requis dans ce lot après consommation de la présente décision.
+
+Les travaux futurs à matérialiser séparément sont :
+
+1. control-plane de réveil externe sans modification de `main` ;
+2. Guardians backend + vérification d'apprentissage intégrés canoniquement ;
+3. dette Carburants `CARB-006`, déjà séparée au Backlog.
 
 ## Interdictions
 
 - aucun changement `main` ;
 - aucun changement `production` ;
-- aucun Supabase Production ni NEXUS Production ;
-- aucun merge/cherry-pick global de `claude/issue-28-20260907-1232` ;
-- aucune nouvelle relance Claude pour répéter `decision-2.md` ;
-- aucune preuve UI sur une version qui ne contient pas le correctif ;
-- aucune promotion Production sans validation explicite de Frédéric.
-
-Verdict : **CORRECTIF TECHNIQUEMENT PROUVÉ — LOT OUVERT, BLOQUÉ UNIQUEMENT PAR L'INTÉGRATION CANONIQUE ET LA PREUVE NEXUS TEST.**
+- aucune opération Supabase Production ;
+- aucun NEXUS Production ;
+- aucune promotion Production sans validation explicite de Frédéric ;
+- aucun secret/PIN/service_role dans dépôt, navigateur ou logs.

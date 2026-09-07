@@ -201,8 +201,12 @@
       "consomme_le": "2026-09-07T15:34:42.461Z"
     },
     "NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "12d32e4f7cdd705f0a537349770cd7350c434c08",
+      "consomme_le": "2026-09-07T18:43:24.852Z"
     }
   },
   "artefacts_hors_registre": [
