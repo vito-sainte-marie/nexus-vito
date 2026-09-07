@@ -158,11 +158,14 @@ epreuve('le PIN n’apparaît dans aucune sortie ni aucun message d’erreur', (
 
 epreuve('le Créateur doit ENTRER, pas seulement les autres être refusés', () => {
   const createurEntre = { texte: 'NEXUS LIVE DÉVELOPPEMENT\nTimeline\n…', refuse: false, contientTimeline: true };
-  const managerRefuse = { texte: 'Accès refusé — capacite_createur_absente', refuse: true, contientTimeline: false };
+  // Texte RÉEL de l'écran, relevé en CI le 07/09 — et non une prose inventée
+  // qui contiendrait commodément le mot « refusé ». C'est précisément l'écart
+  // entre les deux qui a produit une fausse accusation de fuite d'accès.
+  const managerRefuse = { texte: 'Cet écran est réservé au Créateur NEXUS. (capacite_createur_absente)', refuse: true, contientTimeline: false };
   assert.deepStrictEqual(verifierLive(createurEntre, managerRefuse), [],
     'la situation conforme doit passer, sinon les épreuves suivantes ne prouvent rien');
 
-  const e = verifierLive({ texte: 'Accès refusé', refuse: true, contientTimeline: false }, managerRefuse);
+  const e = verifierLive({ texte: 'Cet écran est réservé au Créateur NEXUS. (capacite_createur_absente)', refuse: true, contientTimeline: false }, managerRefuse);
   assert.ok(e.length, 'un écran qui refuse AUSSI le Créateur doit échouer');
   assert.ok(/doit ENTRER/.test(e.join(' ')), e.join(' | '));
 });
@@ -179,7 +182,7 @@ epreuve('un Créateur qui entre sur un écran VIDE ne prouve rien', () => {
   // Entrer ne suffit pas : si la timeline est absente, l'écran n'a rien à
   // montrer et le « succès » ne dit rien de la chaîne d'événements.
   const e = verifierLive({ texte: 'NEXUS LIVE', refuse: false, contientTimeline: false },
-    { texte: 'Accès refusé', refuse: true, contientTimeline: false });
+    { texte: 'Cet écran est réservé au Créateur NEXUS. (capacite_createur_absente)', refuse: true, contientTimeline: false });
   assert.ok(e.length, 'un écran sans timeline ne vaut pas preuve d’accès');
 });
 
@@ -189,7 +192,7 @@ epreuve('un Créateur NON OBSERVÉ n’accuse pas l’écran', () => {
   // refuse le Créateur sont opposés. Les confondre accuserait le contrôle
   // d'accès d'un défaut qu'il n'a pas — et masquerait le vrai, qui est
   // l'absence de compte.
-  const managerRefuse = { texte: 'Accès refusé', refuse: true, contientTimeline: false };
+  const managerRefuse = { texte: 'Cet écran est réservé au Créateur NEXUS. (capacite_createur_absente)', refuse: true, contientTimeline: false };
   assert.deepStrictEqual(verifierLive(null, managerRefuse), [],
     'aucune observation ne doit produire aucune accusation');
   // Le refus manager, lui, reste jugé même sans observation du Créateur.

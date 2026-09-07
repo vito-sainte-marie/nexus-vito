@@ -194,7 +194,14 @@ async function observerLive(navigateur, base, nom, pin) {
       const texte = document.getElementById('root').innerText;
       return {
         texte: texte.slice(0, 400),
-        refuse: /refus|acc[eè]s|non autoris/i.test(texte) && !/Timeline/i.test(texte),
+        // Détecté sur le CODE de refus, jamais sur la prose. Première
+        // version : chercher « refus », « accès », « non autorisé ». L'écran
+        // dit en réalité « Cet écran est réservé au Créateur NEXUS » — aucun
+        // de ces mots — et la recette a donc accusé d'une fuite d'accès un
+        // contrôle qui fonctionnait parfaitement. Un juge qui lit la prose
+        // juge le vocabulaire ; les codes de `motifRefusLive` sont un
+        // contrat, et ils ne changeront pas au gré d'une reformulation.
+        refuse: /capacite_createur_absente|session_absente|module_acces_indisponible/.test(texte),
         evenementsAffiches: (document.querySelectorAll('[data-evenement], .timeline-item, .card').length),
         contientTimeline: /Timeline/i.test(texte),
       };
