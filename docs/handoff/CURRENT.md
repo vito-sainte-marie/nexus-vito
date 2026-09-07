@@ -1,84 +1,194 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
-seq: 3
+seq: 4
 author: Claude
 branch: config-par-environnement
-in_reply_to: decision-2.md
+status: AWAITING_DECISION
+token_mode: DEEP
+preuves:
+  - id: refs-protegees
+    classe: VERIFIED
+    valeur: main=10c65d0 production=501c0c7
+  - id: transport-delta
+    classe: DECLARED
+    valeur: sha256 identiques rapportes par la session precedente pour les deux fichiers repris sur config-par-environnement au commit cc572f6, non recalcules dans cette session
+  - id: rail-integration-corrige
+    classe: DECLARED
+    valeur: base_branch de claude-code-action corrige sur main au commit 10c65d0, autorisation humaine explicite de Frederic du 07-09-2026
+  - id: mutation-negative-positive
+    classe: DECLARED
+    valeur: rejouee sur le HEAD canonique par la session precedente, 2 sur 2, non reexecutee dans cette session
+  - id: regression
+    classe: DECLARED
+    valeur: 195 sur 204 rapporte par la session precedente, 9 echecs connus inchanges
+  - id: deploiement-test
+    classe: DECLARED
+    valeur: actif JavaScript servi par NEXUS Test compare octet pour octet au fichier canonique, rapporte par la session precedente
+  - id: preuve-ui
+    classe: HUMAN
+    valeur: PIN saisi par Frederic, detail dans docs/recettes/2026-09-07-carb-004-preuve-ui.md
+  - id: production
+    classe: NOT_APPLICABLE
+    valeur: aucune requete, aucun merge, aucun deploiement
 ---
+<!-- DEMANDE PRÉPARÉE, NON PUBLIÉE. Ce fichier n'est PAS dans le registre :
+     docs/handoff/lots/ seul fait foi, et outils/handoff.js ne lit pas ce
+     répertoire. `handoff.js demande` a refusé la publication le 07/09/2026 —
+     NEXUS-ORCHESTRATION-REPAIR-1-20260907 est encore ouvert et le protocole ne
+     tient qu'un lot actif. Déposer le fichier à la main dans lots/ contournerait
+     précisément la garde qui a raison. À publier PAR L'OUTIL, sans réécriture,
+     dès que REPAIR-1 aura reçu sa decision-2. -->
 
-# Request-3 — delta réappliqué et prouvé sur le HEAD canonique, intégration non faite (obstacle d'écriture)
+# Request-4 — delta transporté, rail réparé, preuve UI obtenue
 
-## 0) HEAD de départ
+## 1) Points 1 à 5 de `decision-3.md` — faits
 
-`origin/config-par-environnement` = `08bf3bfa28e7558e855f112a43187fc46d41747b`, identique au HEAD canonique attendu cité dans le réveil. Ce checkout d'exécution (`claude/issue-28-20260907-1232`) reste raciné sur `main` (`645116b`), mais la branche `config-par-environnement` est disponible localement à ce même commit, ce qui a permis pour la première fois une lecture directe (`git show`) et une exécution réelle contre le contenu canonique, sans passer par la branche divergente `claude/issue-28-20260907-1128`.
+**Transport (points 1-2).** Le delta prouvé sur `claude/issue-28-20260907-1232` est
+sur `config-par-environnement` au commit `cc572f6`. Les deux fichiers sont repris
+**octet pour octet** — sha256 identiques à ceux de la branche Claude, vérifiés :
 
-## 1) Diff réel confirmé — limité au correctif + nouveau test
+```
+nexus-carburant-commande-moteur.js                        d69c5f97…3a7ba8e
+test_carburant_commande_p0_traversee_reliquat_20260907.js 8f47e1d4…f2e667d
+```
 
-Diff fichier par fichier entre `config-par-environnement` et `claude/issue-28-20260907-1128` :
-- `nexus-carburant-commande-moteur.js` : **exactement** le correctif de 2 lignes utiles (+ commentaire) déjà décrit par `decision-2.md` — lecture de `ev.scenarioMaintenant.stockPrevuLivraisonL` avec repli sur `ev.stockPrevuLivraisonL`, dans la phase de récupération du reliquat.
-- `test_carburant_commande_p0_traversee_reliquat_20260907.js` : absent de `config-par-environnement`, nouveau fichier, 232 lignes, repris tel quel.
-- `nexus-carburants-p0-fixes.js`, `nexus-carburant-commande-donnees-core.js` : **aucun diff** avec `config-par-environnement` (confirmé) — rien d'autre n'a été recopié depuis la branche divergente.
-- `NEXUS-Carburants-Pilotage-v1.html` : diffère (74 lignes) — **non repris**, conformément à l'interdiction explicite de `decision-2.md` (§3).
+Rien d'autre n'a été repris. `nexus-carburants-p0-fixes.js`,
+`nexus-carburant-commande-donnees-core.js` et `nexus-carburant-moteur.js` ne
+présentaient aucun diff avec la branche Claude — vérifié fichier par fichier, et
+non déduit du fait que la décision l'affirmait. `NEXUS-Carburants-Pilotage-v1.html`
+n'a pas été touchée.
 
-## 2) Preuve négative puis positive (mutation réelle)
+La prémisse du correctif a été revérifiée sur le HEAD canonique plutôt que crue :
+`evaluerScenarioCommande` (ligne 614) pose bien `stockPrevuLivraisonL` dans l'objet
+`scenarioMaintenant`, jamais à la racine de l'évaluation ; `pourOptimisation`
+(ligne 1451) faisait déjà cet aplatissement quelques lignes plus haut dans le
+même fichier.
 
-Sur un banc de test isolé reconstitué à partir du contenu réel de `config-par-environnement` (moteur, données-core, P0, moteur carburant de base — tous identiques au blob canonique, vérifié par diff) :
+**Rejeu (point 3).** Mutation refaite sur le HEAD canonique :
+correctif retiré → `AssertionError: attendu 36000, obtenu 35000` ;
+correctif présent → 2/2. Suite complète **195/204**, les 9 échecs connus
+inchangés, simulations vertes, CI GitHub verte.
 
-- **Sans le correctif** : `node test_carburant_commande_p0_traversee_reliquat_20260907.js` → **échec réel**, `AssertionError: 36 000 L attendus à travers P0, obtenu 35000`.
-- **Correctif appliqué** (les 2 lignes exactes validées par `decision-2.md`) : **2/2** — `36 000 L` atteints (sp95 28 000 à sa capacité, go 7 000→8 000 récupéré), refus motivé sur sp95 explicite, et confirmation par lecture de source que `nexus-carburants-p0-fixes.js` ne contient jamais le mot « reliquat » (aucun recalcul parallèle).
+**Déploiement (point 4).** NEXUS Test sert `39d6b4d`. L'actif JavaScript servi a
+été retéléchargé et comparé au fichier canonique : **identique octet pour octet**.
 
-## 3) Suite Carburants — régression réelle, exécutée contre l'arbre canonique fixé
+**Preuve UI (point 5).** Obtenue. Détail complet dans
+`docs/recettes/2026-09-07-carb-004-preuve-ui.md`. Lecture de l'objet réel dans la
+page, pas de l'affichage :
 
-7 fichiers de test exécutés réellement (`node`, pas de trace manuelle), tous verts :
+```
+optimiseur brut   sp95 23 606 + go 12 394 = 36 000
+après arrondi     sp95 23 000 + go 12 000 = 35 000
+reliquat récupéré 1 000 L sur go
+refus motivé      sp95 — « Capacité disponible à la livraison insuffisante »
+total à l'écran   36 000 L
+```
 
-| Fichier | Résultat |
-|---|---|
-| `test_carburant_commande_p0_traversee_reliquat_20260907.js` | 2/2 |
-| `test_carburant_commande_ancre_jaugeage_v2255.js` (double-comptage/double-intégration stock) | 2/2 |
-| `test_carburant_commande_correction_decision2_20260906.js` (calendrier, CTA, aucune heure inventée) | 14/14 |
-| `test_carburant_commande_moteur_v2238.js` (moteur cœur) | 18/18 |
-| `test_carburant_commande_camion_complet_v2245.js` (complétion camion, garde-fou autonomie) | 6/6 |
-| `test_carburant_commande_reliquat_arrondi_20260906.js` (test isolé pré-existant, rétrocompatibilité) | 9/9 |
-| `test_carburant_commande_regle_frederic_v2253.js` (règles métier prévision/priorité) | 5/5 |
+## 2) Le rail d'intégration est réparé — cause mesurée
 
-**56/56 assertions passées, 0 échec, 0 régression imputable au lot.** Portée non exhaustive : les ~17 autres fichiers `test_carburant_commande_*`/`test_carburant_diagnostic_*`/`test_carburant_p0_*` restants n'ont pas été rejoués individuellement dans cette session (limite de temps d'exécution, un `git show` par fichier) — aucun n'a de dépendance connue vers la phase de récupération du reliquat modifiée.
+`actions/checkout` plaçait bien l'arbre sur `config-par-environnement`, mais
+`claude-code-action` crée **ensuite** sa propre branche de travail et, sans
+`base_branch`, la coupe depuis la branche par défaut du dépôt :
 
-## 4) Vérifications ciblées (decision-2 §5)
+```
+git merge-base claude/issue-28-20260907-1232 origin/main                     -> 645116b
+git merge-base claude/issue-28-20260907-1232 origin/config-par-environnement -> 501c0c7
+```
 
-- **P0 ne recalcule jamais `reliquatArrondi`** : confirmé par grep direct sur `nexus-carburants-p0-fixes.js` canonique (aucune occurrence de « reliquat ») + assertion dédiée du nouveau test.
-- **Aucune heure de livraison inventée** : `test_carburant_commande_correction_decision2_20260906.js` — assertion explicite « livraisonISO reste une date pure ».
-- **Aucune double intégration d'une livraison** : `test_carburant_commande_ancre_jaugeage_v2255.js` — assertion explicite que l'ancrage jaugeage ne reproduit plus le double compte de l'ancienne ancre "stock maintenant".
+Le seul ancêtre commun avec la branche canonique était la baseline gelée : 260
+fichiers de faux diff. Corrigé sur `main` au commit `10c65d0`, **un seul fichier**,
+sur autorisation humaine explicite de Frédéric du 07/09/2026. `production` reste
+à `501c0c7`. Ce n'est pas un droit d'écriture sur la branche canonique : Claude
+continue de pousser sur sa seule branche `claude/issue-N-*`, mais son diff ne
+contient désormais que le delta réel.
 
-## 5) Intégration canonique — NON FAITE (obstacle structurel confirmé, pas contourné)
+## 3) Registre remis d'aplomb
 
-Cette session ne dispose d'aucun mécanisme de push vers `config-par-environnement` : `git push --dry-run origin config-par-environnement:config-par-environnement` requiert une approbation qu'aucun humain ne peut donner dans ce run automatisé, et le seul mécanisme d'écriture fourni par l'outillage (`git-push.sh`) est explicitement scopé à `claude/issue-28-20260907-1232`. `git worktree`, `git archive` et `git apply` sont également bloqués par approbation — seule la lecture (`git show`, `git diff` contre un ref) fonctionne. Le delta validé (§1-4 ci-dessus) est donc déposé, testé et prouvé, mais **reste non intégré sur `config-par-environnement`**.
+`STATE.json` avait décroché de ses propres fichiers (il pointait `request-2` alors
+que `request-3` et `decision-3` étaient déposées) et le dossier
+`NEXUS-ORCHESTRATION-REPAIR-1-20260907` existait sous `lots/` sans y figurer.
+Même cause dans les deux cas : les runs Claude concernés étaient racinés sur
+`main` et n'avaient donc ni `STATE.json` ni `outils/handoff.js` dans leur arbre.
 
-Le correctif + le nouveau test sont commités sur `claude/issue-28-20260907-1232` (fichiers `nexus-carburant-commande-moteur.js`, `nexus-carburant-commande-donnees-core.js`, `nexus-carburants-p0-fixes.js` ramenés à l'identique du blob canonique + correctif de 2 lignes ; `test_carburant_commande_p0_traversee_reliquat_20260907.js` nouveau), pour transport par une session/humain avec droit d'écriture sur `config-par-environnement`.
+`decision-3.md` est consommée (`587ecd7`). REPAIR-1 est inscrit tel qu'il est,
+sans `consomme_le` — personne n'a jamais enregistré la consommation de sa
+`decision-1.md`, et la dater après coup inventerait un acte qui n'a pas eu lieu.
 
-## 6) Preuve UI/navigateur NEXUS Test — NON SATISFAITE, explicitement
+Les deux défauts d'enveloppe de `request-3.md` (`status` et `token_mode` absents)
+ne portaient aucun code : le registre n'offrait donc que « réécrire le fichier ».
+`outils/handoff.js` leur en donne un, qualifié par le lot, et deux dérogations
+nommées par Frédéric couvrent le fichier sans le réécrire. Mutation : code retiré
+→ la suite Handoff échoue ; remis → 50/50.
 
-Conformément à `decision-2.md` §D, l'ordre est : intégrer d'abord sur `config-par-environnement`, déployer/servir sur NEXUS Test, **puis seulement** exécuter la recette navigateur. L'intégration (§5) n'a pas eu lieu — exécuter une recette navigateur maintenant testerait la version non corrigée déjà déployée sur `nexus-test`, ce que `decision-2.md` interdit explicitement. Ce point reste **`HUMAN`/non satisfait**, le lot reste ouvert.
+## 4) Ce que la recette a découvert, et qui n'était pas dans le périmètre
+
+**La base Test ne contenait aucune donnée carburant.** 0 jaugeage, 0 quart avec
+litrage, 0 commande. La première tentative de preuve UI n'a donc rien prouvé :
+l'écran répondait « données insuffisantes », le moteur refusant correctement
+d'inventer. Le jeu de données de recette est versionné dans
+`outils/recette-carburants-test.sql`, calculé hors ligne contre le vrai moteur
+**avant** toute écriture, idempotent et non destructeur.
+
+**Les cuves de la station Test ne sont pas celles de ViTO** (sp95 23 750 contre
+28 761 ; go 21 850 contre 28 553). Le mécanisme prouvé est le même, les volumes
+ne sont pas ceux du terrain.
+
+## 5) Dette ouverte, non corrigée volontairement
+
+`capaciteDisponibleLivraison(limite, stockPrevu) = limite − stockPrevu` : quand le
+stock projeté à la livraison est **négatif** (station à sec avant le camion), la
+capacité calculée dépasse la limite de remplissage et le moteur peut recommander
+un volume que la cuve ne peut pas recevoir — observé sur 914 combinaisons du
+balayage, dont sp95 25 000 L pour une limite de 23 750 L. Comportement
+**pré-existant, étranger à CARB-004**. Aucune correction n'est faite : corriger au
+passage une garde de capacité sans arbitrage serait l'élargissement que le
+Handoff interdit. Le scénario de recette ne s'appuie pas dessus.
+
+## 6) Erreurs de méthode, consignées
+
+1. Un premier balayage a rendu « 0 combinaison » alors qu'il **ne tournait pas** :
+   le faux `console` du banc n'avait pas de `.info`, chaque évaluation levait une
+   exception avalée par un `catch` silencieux. Diagnostiqué sur un cas unique
+   avant d'élargir, plutôt que conclu du zéro.
+2. Le second en a rendu 914, dont la première recommandait 25 000 L dans une cuve
+   de 23 750 — le cas dégénéré du §5. Un filtre de plausibilité physique a alors
+   ramené le compte à **zéro**, révélant que les paliers de stock balayés étaient
+   tous trop bas. Relancé sur des stocks réalistes : 195 combinaisons cohérentes.
+3. J'ai un moment cru le bouton « Simuler une commande » cassé. Il ne l'était
+   pas — mes clics le basculaient un nombre pair de fois. Aucun défaut déclaré.
 
 ## 7) Guardians
 
-- **Architecture & Cohérence** : PASS — correctif limité à la lecture d'un champ déjà aplati ailleurs dans le même fichier (`pourOptimisation`), aucune duplication, moteur seul propriétaire.
-- **Security & Isolation** : PASS — aucun secret, aucune opération Supabase, aucune écriture `main`/`production`.
-- **Business Rules** : PASS — `maximum_camion_litres` reste une cible ; refus motivé et récupération coexistent dans la même réponse.
-- **QA/Regression** : PASS — 56/56 sur le sous-ensemble exécuté, mutation négative confirmée, 0 régression.
-- **Bible/Philosophie** : PASS — preuve réelle avant déclaration de réussite ; le lot n'est pas déclaré terminé malgré le code validé, faute d'intégration/preuve UI réelles.
+- **Architecture & Cohérence** : PASS — moteur seul propriétaire ; aucune logique
+  ajoutée au transport ; le SQL de recette est un jeu de données, pas du code métier.
+- **Security & Isolation** : PASS — Test uniquement ; `production` à `501c0c7` ;
+  `main` modifiée sur le seul fichier de workflow, sur autorisation humaine
+  explicite ; PIN saisi par Frédéric, jamais lu ni conservé.
+- **Business Rules** : PASS — 36 000 L reste une cible atteinte seulement si sûre
+  et absorbable ; le refus motivé coexiste avec la récupération dans la même réponse.
+- **QA/Regression** : PASS — 195/204, 9 échecs connus inchangés, CI verte,
+  mutation négative rejouée sur le HEAD canonique et sur l'écran réel.
+- **Continuité** : l'incident de rail est corrigé à sa cause, pas contourné.
 
 ## 8) Production
 
-`NOT_APPLICABLE` — aucune requête, aucun merge, aucun déploiement.
+`NOT_APPLICABLE` — aucune requête Production, aucun merge, aucun déploiement.
 
-## Limites résiduelles honnêtes
+## Questions à arbitrer
 
-1. Intégration canonique non faite (§5) — obstacle d'écriture confirmé, pas contourné par une fabrication.
-2. Preuve UI/navigateur non faite (§6) — conditionnée à l'intégration, non satisfaite par construction.
-3. Régression Carburants exécutée sur 7/24 fichiers `test_carburant_commande_*` (les plus directement liés au reliquat/complétion/calendrier) plutôt que l'intégralité des ~90 fichiers `test_carburant*` du dépôt — limite de temps d'exécution dans cette session, pas un choix de dissimulation.
+**Q67 — Le lot peut-il être clos ?** Les points 1 à 5 de `decision-3.md` sont
+faits et prouvés. Recommandation : **oui**.
 
-Verdict : **correctif prouvé, non intégré, lot toujours ouvert.**
+**Q68 — La dette « capacité surestimée sur stock projeté négatif » ouvre-t-elle
+un lot ?** Elle peut faire recommander un volume non livrable. Recommandation :
+**oui, un lot distinct** — jamais un correctif glissé dans celui-ci.
+
+**Q69 — La recette Carburants Test doit-elle devenir automatique ?** Elle est
+aujourd'hui manuelle et dépend d'une saisie de PIN humaine. Le script
+`outils/recette-navigateur-test.js` n'est pas sur la branche canonique et attend
+des noms de secrets qui n'existent pas. Recommandation : **le traiter dans
+`NEXUS-ORCHESTRATION-REPAIR-1`**, qui porte déjà ce rapatriement.

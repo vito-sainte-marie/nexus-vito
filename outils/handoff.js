@@ -198,6 +198,49 @@ function nouvelleDemande(lot, corpsFichier, options) {
   const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${BRANCHE_AUTORISEE}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
+// 07/09/2026 — NEXUS-ORCHESTRATION-REPAIR-1-20260907/decision-2.md a porté
+// `decision: REJECTED` jusque sur le disque : `verifier` l'a détecté, mais
+// seulement après coup, et n'a pu être débloqué que par une dérogation
+// humaine ciblée. Cette commande traite la cause plutôt que le symptôme —
+// elle valide l'enveloppe canonique d'une décision AVANT toute écriture, pour
+// qu'un vocabulaire hors norme n'atteigne plus jamais le registre. Elle ne
+// dispense pas `verifier` d'exister : elle réduit seulement le nombre de fois
+// où son verdict arrive trop tard.
+function nouvelleDecision(lot, corpsFichier, options) {
+  if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); }
+  if (!fs.existsSync(path.join(LOTS, lot))) { console.error(`Refus — lot introuvable : ${lot}. Une décision répond à une demande d'un lot déjà ouvert. Aucune écriture.`); process.exit(1); }
+  if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); }
+  const decision = options.decision;
+  if (DECISIONS_LEGACY.includes(decision)) { console.error(`Refus — decision ${JSON.stringify(decision)} est une valeur legacy, interdite dans le registre v2 (employer decision + closes). Aucune écriture.`); process.exit(1); }
+  if (!DECISIONS_CANONIQUES.includes(decision)) { console.error(`Refus — decision ${JSON.stringify(decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')}). Aucune écriture.`); process.exit(1); }
+  if (!['true', 'false'].includes(String(options.closes))) { console.error('Refus — closes doit valoir true ou false. Aucune écriture.'); process.exit(1); }
+  const branche = options.branch || BRANCHE_AUTORISEE;
+  if (REFS_PROTEGEES.includes(branche)) { console.error(`Refus — branch ${branche} est une ref protégée. Aucune écriture.`); process.exit(1); }
+  if (branche !== BRANCHE_AUTORISEE) { console.error(`Refus — branch doit valoir ${BRANCHE_AUTORISEE}, reçu ${JSON.stringify(branche)}. Aucune écriture.`); process.exit(1); }
+  if (!options.inReplyTo) { console.error('Refus — --in-reply-to est obligatoire. Aucune écriture.'); process.exit(1); }
+  const vise = path.basename(String(options.inReplyTo).trim());
+  const demandes = echanges(lot, 'request'), cibleNouvelle = demandes.find(d => d.fichier === vise);
+  if (!cibleNouvelle) { console.error(`Refus — in_reply_to ${vise} ne désigne aucune demande de ${lot}. Aucune écriture.`); process.exit(1); }
+  const decisionsExistantes = echanges(lot, 'decision'), derniereDecision = dernier(decisionsExistantes);
+  if (derniereDecision) {
+    // Miroir de la règle de `validerRegistre` : répondre à une demande déjà
+    // arbitrée (ou plus ancienne que la dernière arbitrée) sans supersession
+    // explicite est un doublon, pas un second avis. Ici, on le refuse AVANT
+    // l'écriture plutôt que de laisser `verifier` le découvrir après coup.
+    const rPrec = lireEnveloppe(path.join(LOTS, lot, derniereDecision.fichier));
+    const visePrec = rPrec.env && rPrec.env.in_reply_to ? path.basename(String(rPrec.env.in_reply_to).trim()) : null;
+    const ciblePrec = demandes.find(d => d.fichier === visePrec);
+    if (ciblePrec && cibleNouvelle.seq <= ciblePrec.seq) {
+      const supersede = options.supersedes && path.basename(String(options.supersedes.valeur).trim()) === derniereDecision.fichier;
+      if (!supersede) { console.error(`Refus — cette décision répondrait à ${vise}, déjà arbitrée par ${derniereDecision.fichier}. Un arbitrage successif légitime exige --supersedes <champ> ${derniereDecision.fichier}. Aucune écriture.`); process.exit(1); }
+    }
+  }
+  const seq = (derniereDecision || { seq: 0 }).seq + 1, fichier = `decision-${seq}.md`, cible = path.join(LOTS, lot, fichier);
+  if (fs.existsSync(cible)) { console.error(`Refus — ${fichier} existe déjà, le registre est append-only. Aucune écriture.`); process.exit(1); }
+  let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: decision\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: ${options.author || 'ChatGPT'}\nbranch: ${branche}\ndecision: ${decision}\ncloses: ${options.closes}\nin_reply_to: ${vise}\n`; if (options.supersedes) env += `${options.supersedes.champ}: ${options.supersedes.valeur}\n`; env += '---\n';
+  fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8')); regenererMiroirs();
+  console.log(`${lot}/${fichier} créé (decision ${decision}, closes=${options.closes}, in_reply_to=${vise}).`);
+}
 function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot] || {}, avant = dernier(echanges(lot, 'decision')); try { git('fetch', '-q', 'origin', BRANCHE_AUTORISEE); } catch (e) {} const apres = dernier(echanges(lot, 'decision')); if (apres && (!avant || apres.seq > avant.seq)) { console.log(`event detected — ${lot}/${apres.fichier}`); return 0; } if (v.statut === 'ATTENTE_DECISION') { console.log(`session unavailable — aucune décision pour ${lot} ; relance humaine (secours v1) requise après extinction.`); return 0; } console.log(`session resumed — ${lot} au statut ${v.statut}`); return 0; }
 const [, , commande, arg1, arg2] = process.argv;
 switch (commande) {
@@ -205,6 +248,7 @@ switch (commande) {
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
   case 'consommer': consommer(arg1); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode }); break; }
+  case 'decision': { const args = process.argv.slice(5), options = {}; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') options.decision = args[++i]; else if (args[i] === '--closes') options.closes = args[++i]; else if (args[i] === '--in-reply-to') options.inReplyTo = args[++i]; else if (args[i] === '--author') options.author = args[++i]; else if (args[i] === '--branch') options.branch = args[++i]; else if (args[i] === '--supersedes') { options.supersedes = { champ: args[++i], valeur: args[++i] }; } else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, options); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision D --closes true|false --in-reply-to request-N.md [--author A] [--branch B] [--supersedes champ fichier]|veiller <LOT_ID>]'); process.exit(1);
 }

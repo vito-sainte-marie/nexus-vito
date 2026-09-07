@@ -1,3 +1,38 @@
+---
+protocol: nexus-handoff/2
+kind: request
+lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
+seq: 4
+author: Claude
+branch: config-par-environnement
+status: AWAITING_DECISION
+token_mode: DEEP
+preuves:
+  - id: refs-protegees
+    classe: VERIFIED
+    valeur: main=10c65d0 production=501c0c7
+  - id: transport-delta
+    classe: DECLARED
+    valeur: sha256 identiques rapportes par la session precedente pour les deux fichiers repris sur config-par-environnement au commit cc572f6, non recalcules dans cette session
+  - id: rail-integration-corrige
+    classe: DECLARED
+    valeur: base_branch de claude-code-action corrige sur main au commit 10c65d0, autorisation humaine explicite de Frederic du 07-09-2026
+  - id: mutation-negative-positive
+    classe: DECLARED
+    valeur: rejouee sur le HEAD canonique par la session precedente, 2 sur 2, non reexecutee dans cette session
+  - id: regression
+    classe: DECLARED
+    valeur: 195 sur 204 rapporte par la session precedente, 9 echecs connus inchanges
+  - id: deploiement-test
+    classe: DECLARED
+    valeur: actif JavaScript servi par NEXUS Test compare octet pour octet au fichier canonique, rapporte par la session precedente
+  - id: preuve-ui
+    classe: HUMAN
+    valeur: PIN saisi par Frederic, detail dans docs/recettes/2026-09-07-carb-004-preuve-ui.md
+  - id: production
+    classe: NOT_APPLICABLE
+    valeur: aucune requete, aucun merge, aucun deploiement
+---
 <!-- DEMANDE PRÉPARÉE, NON PUBLIÉE. Ce fichier n'est PAS dans le registre :
      docs/handoff/lots/ seul fait foi, et outils/handoff.js ne lit pas ce
      répertoire. `handoff.js demande` a refusé la publication le 07/09/2026 —

@@ -184,20 +184,21 @@
       "consomme_le": "2026-09-06T22:25:48.094Z"
     },
     "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-3.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-4.md",
       "derniere_decision": "decision-3.md",
       "source_decision": "registre",
       "commit_decision": "587ecd785f5ebb1ae685befe00b4b9fa6010b5c5",
       "consomme_le": "2026-09-07T14:41:18.759Z"
     },
     "NEXUS-ORCHESTRATION-REPAIR-1-20260907": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "83f39a8dd36278973df3e5277cde2a4fee785a9d",
-      "note": "Enregistré le 07/09/2026 depuis une session ayant droit d'écriture sur config-par-environnement. Le répertoire existait sous docs/handoff/lots/ depuis a2e31cf sans jamais figurer ici : les runs Claude qui l'ont alimenté étaient racinés sur main et n'avaient donc pas le STATE.json canonique sous la main pour l'y inscrire. Aucun consomme_le n'est posé : personne n'a jamais enregistré la consommation de decision-1.md par outils/handoff.js, et l'inventer daterait un acte qui n'a pas eu lieu."
+      "commit_decision": "ff6a2d9361a4f94030b83a9a4c0466c2e4bbbb0e",
+      "note": "Enregistré le 07/09/2026 depuis une session ayant droit d'écriture sur config-par-environnement. Le répertoire existait sous docs/handoff/lots/ depuis a2e31cf sans jamais figurer ici : les runs Claude qui l'ont alimenté étaient racinés sur main et n'avaient donc pas le STATE.json canonique sous la main pour l'y inscrire. Aucun consomme_le n'est posé : personne n'a jamais enregistré la consommation de decision-1.md par outils/handoff.js, et l'inventer daterait un acte qui n'a pas eu lieu.",
+      "consomme_le": "2026-09-07T15:32:55.049Z"
     }
   },
   "artefacts_hors_registre": [
@@ -255,6 +256,13 @@
       "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
       "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
       "le": "2026-09-05"
+    },
+    {
+      "fichier": "decision-2.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "NEXUS-ORCHESTRATION-REPAIR-1-20260907/decision-2.md porte `decision: REJECTED`, hors du vocabulaire canonique (APPROVED|APPROVED_WITH_CONDITIONS|BLOCKED|NEEDS_EVIDENCE). REJECTED n'est PAS ajouté au vocabulaire et le fichier n'est ni renommé ni réécrit : l'append-only reste intact. Sens canonique retenu pour cet arbitrage : REPAIR-1 n'est pas validé comme réparation réussie ; son cycle est clos pour libérer le rail à lot actif unique, sans requalifier le travail en TERMINE. Le validateur qualifie ce code par le seul basename du fichier (voir le commentaire dans outils/handoff.js au-dessus de validerRegistre) : cette dérogation couvrirait donc mécaniquement tout futur `decision-2.md` d'un autre lot portant la même valeur hors vocabulaire. Elle n'autorise REJECTED nulle part ailleurs et ne constitue pas un précédent ; ce risque de portée est traité à sa cause dans ce même lot par l'ajout de la commande `handoff.js decision`, qui valide l'enveloppe canonique d'une décision avant tout dépôt futur.",
+      "autorise_par": "NEXUS Orchestrator (issue #28, commentaire du 07/09/2026 — arbitrage explicite ; les dérogations précédentes de ce registre nomment Frédéric Bragance directement, celle-ci est enregistrée telle que signée)",
+      "le": "2026-09-07"
     }
   ]
 }
