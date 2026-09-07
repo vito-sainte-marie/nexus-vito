@@ -206,7 +206,10 @@ async function observerLive(navigateur, base, nom, pin) {
 
 function verifierLive(createur, manager) {
   const echecs = [];
-  if (createur.refuse || !createur.contientTimeline) {
+  // `createur === null` signifie « pas d'observation », pas « refusé ». On ne
+  // porte alors aucun jugement sur l'écran : l'indisponibilité est rapportée
+  // ailleurs, en clair.
+  if (createur && (createur.refuse || !createur.contientTimeline)) {
     echecs.push('Le Créateur doit ENTRER et voir la timeline. Vu : ' + createur.texte.replace(/\s+/g, ' ').slice(0, 200));
   }
   if (!manager.refuse) {
@@ -252,12 +255,33 @@ async function executer(env = process.env) {
     const echecs = verifier(vu);
 
     // NEXUS Live — accès positif Créateur, puis refus manager.
+    //
+    // Un compte de recette INCONNECTABLE et un écran qui REFUSE le Créateur
+    // sont deux choses opposées, et les confondre serait grave dans les deux
+    // sens. Le 07/09/2026, `test-createur` existait dans `employees` mais
+    // n'avait aucune identité `auth.users` : la connexion échouait avant même
+    // d'atteindre l'écran. Traiter cela comme « accès refusé » accuserait le
+    // contrôle d'accès d'un défaut qu'il n'a pas ; le traiter comme un succès
+    // serait pire encore. C'est une capacité Test indisponible au sens
+    // ENV-003 : non bloquante, mais la preuve positive est alors déclarée
+    // MANQUANTE — jamais satisfaite par défaut.
     const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
-    const createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_PIN);
-    const echecsLive = verifierLive(createur, manager);
+    let createur = null;
+    let createurIndisponible = null;
+    try {
+      createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_PIN);
+    } catch (e) {
+      createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
+        + 'il existe dans `employees` mais sans identité `auth.users`. '
+        + 'La PREUVE D\'ACCÈS POSITIVE À NEXUS LIVE RESTE NON SATISFAITE. '
+        + 'Créer ce compte demande de fixer un PIN — geste humain, hors périmètre de Claude.';
+    }
+    const echecsLive = createur ? verifierLive(createur, manager) : verifierLive(null, manager);
 
     return { executee: true, bloquant: (echecs.length + echecsLive.length) > 0,
-      vu, echecs: echecs.concat(echecsLive), live: { createur, manager } };
+      vu, echecs: echecs.concat(echecsLive),
+      indisponibilites: createurIndisponible ? [createurIndisponible] : [],
+      live: { createur, manager } };
   } finally {
     await navigateur.close();
   }
@@ -273,7 +297,13 @@ if (require.main === module) {
     console.log(`  optimiseur brut : ${JSON.stringify(r.vu.optimiseurBrut)}`);
     console.log(`  après arrondi   : ${JSON.stringify(r.vu.volumes)} = ${r.vu.total} L`);
     console.log(`  reliquat        : ${JSON.stringify(r.vu.reliquatArrondi)}`);
-    if (!r.bloquant) { console.log('\nPreuve UI satisfaite.'); process.exit(0); }
+    for (const i of r.indisponibilites || []) console.log('\n  INDISPONIBLE — ' + i);
+    if (!r.bloquant) {
+      console.log((r.indisponibilites || []).length
+        ? '\nPreuve UI Carburants satisfaite ; preuve d\'accès Live POSITIVE non satisfaite (voir ci-dessus).'
+        : '\nPreuve UI satisfaite.');
+      process.exit(0);
+    }
     console.error('\nÉCHEC de la recette navigateur :');
     for (const e of r.echecs) console.error('  - ' + e);
     process.exit(1);

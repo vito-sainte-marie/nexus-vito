@@ -183,4 +183,18 @@ epreuve('un Créateur qui entre sur un écran VIDE ne prouve rien', () => {
   assert.ok(e.length, 'un écran sans timeline ne vaut pas preuve d’accès');
 });
 
+
+epreuve('un Créateur NON OBSERVÉ n’accuse pas l’écran', () => {
+  // Distinction décisive : un compte de recette inconnectable et un écran qui
+  // refuse le Créateur sont opposés. Les confondre accuserait le contrôle
+  // d'accès d'un défaut qu'il n'a pas — et masquerait le vrai, qui est
+  // l'absence de compte.
+  const managerRefuse = { texte: 'Accès refusé', refuse: true, contientTimeline: false };
+  assert.deepStrictEqual(verifierLive(null, managerRefuse), [],
+    'aucune observation ne doit produire aucune accusation');
+  // Le refus manager, lui, reste jugé même sans observation du Créateur.
+  const e = verifierLive(null, { texte: 'Timeline', refuse: false, contientTimeline: true });
+  assert.ok(e.length, 'une fuite d’accès manager doit rester détectée');
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
