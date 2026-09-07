@@ -1,60 +1,38 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906
-seq: 3
-author: ChatGPT
+lot_id: NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907
+seq: 1
+author: NEXUS Orchestrator
 branch: config-par-environnement
 decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-3.md
+closes: true
+in_reply_to: request-2.md
 ---
+# Décision — clôture du périmètre démontrable (autonomie CI + garde recette qualifiée)
 
-# Décision — preuve technique acceptée, intégration bloquée par le rail d'écriture
+## Verdict
 
-Le `request-3.md` est accepté comme preuve technique de la correction : mutation négative puis positive, 56/56 assertions sur le sous-ensemble ciblé, moteur propriétaire unique, aucune duplication P0/UI, aucune heure de livraison inventée, aucune double intégration, aucune opération Production.
+`APPROVED_WITH_CONDITIONS`, `closes: true`, en réponse à `request-2.md`.
 
-Le lot ne peut pas être clos : le delta applicatif n'est toujours pas présent sur `config-par-environnement` et la preuve UI NEXUS Test de la version corrigée n'existe donc pas.
+## Q70 — déclenchement automatique
 
-## Classification du blocage
+NON à toute nouvelle modification de `main`. L'invariant actuel « aucun changement automatique sur main » reste prioritaire et cette décision n'y crée aucune exception. Le déclencheur autonome résiduel (ex. `repository_dispatch`) devra être traité dans un futur lot de control-plane externe sécurisé/auditable, sans `service_role`, sans donnée cliente et sans élargissement Production.
 
-Ce n'est pas un échec métier ni un nouveau bug applicatif. C'est un **incident de rail d'intégration** : le workflow `issue_comment` exécute Claude sur une branche dérivée de `main` et le mécanisme de push fourni à Claude est limité à sa branche `claude/issue-28-*`. Claude peut lire et tester le HEAD canonique, mais ne peut pas écrire le delta prouvé sur `config-par-environnement`.
+## Q71 — recette navigateur
 
-## Règle de réveil
+La recette navigateur est désormais autorisée comme garde CI **bloquante** sur `config-par-environnement`, car le premier run bout-en-bout réel est vert (`34143652065`) et le PIN est resté masqué. Conserver l'attente de version servie, l'erreur d'authentification explicite et l'absence de secret dans les logs.
 
-**Ne pas réveiller Claude une nouvelle fois pour `decision-2.md` ni pour refaire les mêmes tests.** Le run correspondant a terminé avec succès et a produit `request-3.md`. GOV-001 s'applique : une nouvelle relance identique masquerait le défaut structurel du rail au lieu de le résoudre. GOV-004 ne s'applique pas car le run n'a pas échoué.
+## Q72 — Guardians
 
-## Plus petite correction sûre attendue
+Les Guardians ne rejoignent pas ce lot. Ils restent un sous-lot séquentiel distinct, ouvert après clôture de ce lot, reprenant les conditions résiduelles de REPAIR-1.
 
-1. Transporter mécaniquement sur `config-par-environnement` uniquement le delta déjà écrit et prouvé par Claude :
-   - le correctif local `stockPrevuLivraisonL` dans `nexus-carburant-commande-moteur.js` ;
-   - `test_carburant_commande_p0_traversee_reliquat_20260907.js`.
-2. Ne reprendre aucun autre fichier de la branche Claude divergente.
-3. Rejouer le test de contrat et la régression Carburants sur le HEAD canonique après transport.
-4. Déployer/servir ensuite cette version sur NEXUS Test.
-5. Produire alors seulement la preuve navigateur exigée par `decision-2.md`.
-6. Revenir par un nouveau `request-4.md` avec commit canonique, tests, preuve UI et Production=`NOT_APPLICABLE`.
+## Pourquoi closes=true
 
-Le transport doit rester une intégration exacte du code Claude déjà validé, sans nouvelle logique applicative ajoutée par Orchestrator.
+Le périmètre démontrable sur `config-par-environnement` est accompli : recette autonome CI verte et garde qualifiée. Le réveil temporel externe et les Guardians sont des lots séparés ; ils ne doivent pas maintenir ce registre actif artificiellement.
 
-## Guardians / invariants
+## Invariants
 
-- Architecture & Cohérence : PASS sur le delta prouvé ; moteur seul propriétaire.
-- Security & Isolation : PASS ; Test uniquement, aucun secret/service_role côté navigateur/logs.
-- Business Rules : PASS ; 36 000 L reste une cible seulement si sûr et absorbable.
-- QA/Regression : preuve ciblée recevable mais clôture impossible avant exécution sur le HEAD effectivement intégré.
-- Continuité : l'incident de rail est maintenant matérialisé dans Handoff ; aucune branche Claude isolée ne vaut intégration canonique.
-
-## Interdictions
-
-- aucun changement `main` ;
-- aucun changement `production` ;
-- aucun Supabase Production ni NEXUS Production ;
-- aucun merge/cherry-pick global de `claude/issue-28-20260907-1232` ;
-- aucune nouvelle relance Claude pour répéter `decision-2.md` ;
-- aucune preuve UI sur une version qui ne contient pas le correctif ;
-- aucune promotion Production sans validation explicite de Frédéric.
-
-Verdict : **CORRECTIF TECHNIQUEMENT PROUVÉ — LOT OUVERT, BLOQUÉ UNIQUEMENT PAR L'INTÉGRATION CANONIQUE ET LA PREUVE NEXUS TEST.**
+Aucun `main`, aucun `production`, aucun Supabase Production, aucun NEXUS Production, aucun secret en clair, aucune promotion Production sans validation explicite de Frédéric.
