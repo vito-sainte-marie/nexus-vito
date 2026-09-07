@@ -17,6 +17,8 @@ Ce fichier est la mémoire durable des observations terrain, anomalies, besoins 
 | SEC-001 | TERMINE | P0 | Fermer `est_pompiste_du_jour` timezone + `en_cours` et les 7 policies dépendantes | Preuves comportementales Test vertes, registre aide conforme |
 | ARCH-001 | A_ETUDIER | P0 | Terminer isolation multisite/site explicite | Aucun chemin actif ne peut dériver silencieusement un site ou croiser les données clients |
 | SHIFT-001 | A_ETUDIER | P0 | Lifecycle des prises de poste et clôture des services | Un service courant est unique, borné et clôturé selon contrat métier |
+| ORCH-001 | PRET_POUR_DEV | P0 | Réveil Handoff autonome sans modification de `main` | Un control-plane externe auditable lit `config-par-environnement`, ne déclenche Claude que sur décision fraîche non consommée, respecte GOV-001/GOV-004, n'expose aucun secret et ne touche pas Production |
+| ORCH-002 | PRET_POUR_DEV | P0 | Guardians backend + apprentissage intégrés canoniquement | Outils présents sur `config-par-environnement`, tests ciblés + mutation négative verts, CI réellement câblée, régression complète sans nouvel échec, aucun secret ni accès Production |
 
 ## Observations terrain à traiter
 
