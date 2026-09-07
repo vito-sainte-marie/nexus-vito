@@ -137,6 +137,29 @@ jobs:
           NEXUS_TEST_EMPLOYEE_B_USERNAME: employe-test-b
           NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
         with:
+          # 07/09/2026 — correction du rail d'intégration.
+          #
+          # `actions/checkout` ci-dessus place bien l'arbre sur
+          # config-par-environnement, mais claude-code-action crée ENSUITE sa
+          # propre branche de travail, et sans cette entrée elle la coupe depuis
+          # la branche PAR DÉFAUT du dépôt, c'est-à-dire `main`. Le `ref:` du
+          # checkout n'y change rien.
+          #
+          # Conséquence observée le 07/09/2026 :
+          # `claude/issue-28-20260907-1232` était racinée sur main (645116b) et
+          # son seul ancêtre commun avec config-par-environnement était 501c0c7 —
+          # 260 fichiers de faux diff. Claude pouvait lire le HEAD canonique
+          # (`git show`) mais tout travail réel en sortait intransportable
+          # autrement qu'à la main, fichier par fichier.
+          #
+          # Avec base_branch, la branche Claude part du HEAD canonique : son diff
+          # ne contient plus que le delta réel, et sa réintégration dans
+          # config-par-environnement est une avance rapide.
+          #
+          # Ce n'est PAS une autorisation d'écrire sur config-par-environnement :
+          # Claude continue de pousser sur sa seule branche `claude/issue-N-*`.
+          # La gate humaine de réintégration reste entière.
+          base_branch: config-par-environnement
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*)
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*),Bash(git show:*),Bash(git checkout:*)
