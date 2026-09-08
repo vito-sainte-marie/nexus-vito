@@ -191,6 +191,20 @@ jobs:
       # première réaction serait de désactiver la garde. Elle nomme donc, sans
       # arrêter. Son épreuve propre, elle, reste bloquante : la garde peut se
       # taire, elle ne peut pas mentir sans qu'on le voie.
+      # Répétition de la recette Carburants — BLOQUANTE, et sans base.
+      #
+      # Elle rejoue le scénario à travers la vraie chaîne du moteur en lisant
+      # ses hypothèses dans l'instantané de la station Test, sur les SEPT jours
+      # de la semaine. Elle répond en 0,2 seconde à la question qui coûtait un
+      # cycle de CI de six minutes — c'est elle qu'il faut lancer AVANT de
+      # pousser. Ici elle sert de filet : si elle échoue, inutile d'aller plus
+      # loin, la recette navigateur trouverait la même chose bien plus tard.
+      - name: Répétition de la recette Carburants (7 jours)
+        run: node outils/repetition-recette-carburants.js
+
+      - name: Épreuves de la répétition
+        run: node test_repetition_recette_carburants_20260908.js
+
       - name: Branches de travail en rade — rapport
         run: node outils/garde-branches-en-rade.js || true
 
@@ -351,6 +365,14 @@ jobs:
             *) echo "FUITE DE LECTURE : le rôle CI voit $lignes ligne(s) dans sites, il ne doit en voir aucune."; exit 1 ;;
           esac
           echo "Isolation vérifiée : le rôle CI est refusé hors du site de recette, et ne voit aucune ligne de sites."
+          # L'instantané contre lequel le scénario est calibré doit correspondre
+          # à la station Test. S'il dérive, la recette cherchera un défaut
+          # imaginaire dans le moteur — c'est exactement ce qui est arrivé le
+          # 07/09, avec un scénario calculé pour les cuves d'une autre station.
+          if ! psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" \
+               | node outils/repetition-recette-carburants.js --comparer; then
+            exit 1
+          fi
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 

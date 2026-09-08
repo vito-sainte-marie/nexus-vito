@@ -211,6 +211,18 @@
       "severity": "advisory",
       "rule": "Work is not delivered because it exists on a branch. A cloud run pushes a branch and nothing merges it: the silence looks exactly like success. Every work branch must end either merged into the canonical branch or recorded in docs/handoff/BRANCHES-CLASSEES.json with a sort, a motive and the exact sha covered. Mechanised by outils/garde-branches-en-rade.js and surfaced in NEXUS Live.",
       "source": "three branches carrying an already-rendered arbitration waited unnoticed on 2026-09-08; the Live MVP and the CARB-004 fix had the same fate earlier"
+    },
+    {
+      "id": "QA-005",
+      "scope": [
+        "qa",
+        "environnement"
+      ],
+      "trigger": "before_push",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A local bench must share its assumptions with the real environment, and be runnable before pushing. A scenario calibrated against one station's configuration and seeded into another is proven locally and false in reality. Snapshot the real configuration, calibrate against that snapshot, and let CI verify the snapshot has not drifted. Mechanised by outils/repetition-recette-carburants.js.",
+      "source": "2026-09-08: four commits and four six-minute CI cycles to make one seed work, because CI was the only place the real environment could be exercised and it reveals one obstacle at a time; the scenario itself had been calibrated with another station tanks"
     }
   ]
 }
