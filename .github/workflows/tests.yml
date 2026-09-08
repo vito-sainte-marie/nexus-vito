@@ -438,22 +438,32 @@ jobs:
           # imaginaire dans le moteur — c'est exactement ce qui est arrivé le
           # 07/09, avec un scénario calculé pour les cuves d'une autre station.
           #
-          # ENV-003 ASSUMÉ : aucun rôle de CONNEXION ne peut lire
-          # `station_config`. Ses trois politiques ne visent que `authenticated`
-          # et aucun rôle n'a BYPASSRLS — vérifié le 08/09/2026. Rendre cette
-          # lecture possible élargirait un droit, ce qui demande une décision
-          # humaine (SEC-018). Tant qu'elle n'est pas prise, l'absence de
-          # lecture est DÉCLARÉE, jamais transformée en « instantané conforme ».
+          # SEC-018 ACCORDÉ par Frédéric Bragance le 08/09/2026 : la politique
+          # `lecture_recette_station_test` ouvre au rôle CI la seule ligne
+          # `nexus-station-test`, et le `grant` ne porte que sur les colonnes
+          # comparées. Aucune station cliente n'entre dans cette portée, aucune
+          # écriture n'est accordée.
           #
-          # Le filet reste réel : une dérive de configuration ferait échouer la
-          # recette navigateur, qui est bloquante. Cette comparaison n'est pas
-          # le seul garde — elle est celle qui NOMME la cause au lieu de
-          # laisser chercher.
+          # CONSÉQUENCE : un « permission denied » n'est PLUS une limite
+          # d'environnement, c'est une RÉGRESSION — le droit existe, donc son
+          # refus veut dire qu'on l'a retiré. Il devient bloquant. Les autres
+          # échecs de lecture restent tolérés (ENV-003) et DÉCLARÉS, jamais
+          # transformés en « instantané conforme » : ne pas savoir n'est pas
+          # une conformité.
+          #
+          # Le filet reste réel par ailleurs : une dérive ferait échouer la
+          # recette navigateur, qui est bloquante. Cette comparaison est celle
+          # qui NOMME la cause au lieu de laisser chercher.
           # `|| true`, même raison : sans lui, `-e` a tué ce step en silence au
           # run 34227764396 — aucun message, seulement « exit code 1 ».
           vivant=$(psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" 2>&1) || true
-          if [ -z "${vivant// /}" ] || printf '%s' "$vivant" | grep -qiE 'permission denied|error'; then
-            echo "::warning::ENV-003 — instantané de la station NON vérifié : la configuration vivante n'est pas lisible par le rôle CI ($vivant). Une dérive resterait invisible ici ; elle ferait échouer la recette navigateur, sans en nommer la cause. Décision attendue : SEC-018."
+          if printf '%s' "$vivant" | grep -qiE 'permission denied|permission refus'; then
+            echo "Le rôle CI ne peut plus lire station_config alors que SEC-018 le lui accorde depuis le 08/09/2026."
+            echo "Le droit a donc été retiré ou la politique supprimée — ce n'est pas une limite d'environnement."
+            printf '%s\n' "$vivant"
+            exit 1
+          elif [ -z "${vivant// /}" ] || printf '%s' "$vivant" | grep -qiE 'error'; then
+            echo "::warning::ENV-003 — instantané de la station NON vérifié : la configuration vivante n'est pas lisible ($vivant). Une dérive resterait invisible ici ; elle ferait échouer la recette navigateur, sans en nommer la cause."
           elif ! printf '%s' "$vivant" | node outils/repetition-recette-carburants.js --comparer; then
             exit 1
           fi
