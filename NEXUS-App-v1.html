@@ -1282,6 +1282,23 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- NEXUS Live (08/09/2026). Le MVP du 07/09 n'avait aucune entrée de
+           navigation : l'écran n'était atteignable qu'en tapant son URL, ce que
+           l'audit du lot listait déjà comme un manque. Le masquage n'a jamais
+           été la protection — celle-ci est la policy `select_nexus_live_events`
+           (`je_suis_createur()`) plus `NexusLiveAcces.nexusLiveAutorise` : un
+           non-Créateur qui atteint l'URL charge la page et n'obtient aucune
+           donnée. Rendre l'entrée visible au Créateur ne change donc rien à la
+           sécurité, seulement à l'accessibilité pour celui à qui l'écran est
+           destiné. -->
+      <a class="nav-item" data-role="createur" href="NEXUS-Live-Developpement-v1.html">
+        <div class="nav-icon">📡</div>
+        <div class="nav-body">
+          <div class="nav-title">NEXUS Live</div>
+          <div class="nav-desc">Déploiements, Guardians et arbitrages en attente — environnement Test</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
     </nav>
   </div>
 
@@ -2468,6 +2485,7 @@
     { label: 'Rappels', desc: 'Commandes fournisseurs, carburant', href: 'NEXUS-Parametres-Rappels-v1.html', role: 'manager' },
     { label: 'Administration multi-site', desc: 'Nom, logo et création de nouveaux sites', href: 'NEXUS-Admin-Sites-v1.html', role: 'createur' },
     { label: 'Debug créateur', desc: 'Outils techniques multi-site — agit directement sur Supabase', href: 'NEXUS-Debug-Createur-v1.html', role: 'createur', danger: true },
+    { label: 'NEXUS Live', desc: 'Déploiements, Guardians et arbitrages en attente — environnement Test', href: 'NEXUS-Live-Developpement-v1.html', role: 'createur' },
     { label: 'Pointage', desc: 'Arrivée, pause, départ', href: 'NEXUS-Pointage-v1.html', role: 'all' },
     { label: 'Mon Planning', desc: 'Vos jours de travail, votre rôle, vos repos', href: 'NEXUS-Mon-Planning-v1.html', role: 'all' },
     // Ma Progression (27/07/2026, demande de Frédéric) : role 'all' — sans
