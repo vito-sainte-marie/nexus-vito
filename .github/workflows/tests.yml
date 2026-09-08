@@ -306,10 +306,19 @@ jobs:
           # premier jet l'a oublié et une erreur SQL sortait en vert — le
           # défaut même que ce bloc existe pour empêcher, retrouvé par l'essai
           # à faux `psql` plutôt qu'en production.
-          if ! psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql; then
-            echo "Le semis a échoué alors que la base RÉPONDAIT — défaut réel, pas une indisponibilité."
-            exit 1
-          fi
+          # DEUX FOIS, délibérément. Le fichier promet l'idempotence dans son
+          # en-tête depuis le début, et ne la tenait pas : son second insert
+          # n'avait pas de `on conflict`. Le défaut est resté invisible tant
+          # que le semis n'avait jamais réussi à s'exécuter deux fois. Une
+          # promesse que rien n'exerce n'est pas une garantie, c'est une
+          # intention — alors on l'exerce à chaque passage.
+          for passage in 1 2; do
+            if ! psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql; then
+              echo "Le semis a échoué au passage $passage alors que la base RÉPONDAIT — défaut réel, pas une indisponibilité."
+              [ "$passage" = 2 ] && echo "Un échec au SECOND passage seulement est une rupture d'idempotence."
+              exit 1
+            fi
+          done
           # LA MOITIÉ NÉGATIVE. Le rôle CI vient d'obtenir une politique RLS
           # bornée au site de recette (migration 20260908033743). Vérifier
           # seulement qu'il écrit là où il doit ne prouve pas qu'il est borné :

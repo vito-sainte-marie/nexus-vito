@@ -85,4 +85,24 @@ on conflict (site, date, quart) do update
 insert into carburant_releves
   (site, date, stock_reel_sp95, stock_reel_go_cuve1, stock_reel_go_cuve2, stock_reel_gnr, origine, mesure_le, controle_statut)
 values
-  ('nexus-station-test', '2026-09-07', 3000, 3000, 800, NULL, 'manager', '2026-09-07T13:30:00Z', 'en_attente');
+  ('nexus-station-test', '2026-09-07', 3000, 3000, 800, NULL, 'manager', '2026-09-07T13:30:00Z', 'en_attente')
+-- Ce `on conflict` manquait, et l'en-tête de ce fichier promettait pourtant
+-- l'idempotence depuis le début. Le défaut est resté invisible tant que le
+-- semis n'avait jamais réussi à s'exécuter deux fois : le 08/09/2026, dès que
+-- la connexion et la RLS ont cessé de bloquer, la seconde exécution a heurté
+-- `carburant_releves_site_date_key`. Une promesse d'en-tête que rien n'exerce
+-- n'est pas une garantie, c'est une intention.
+--
+-- L'écrasement est VOULU : la recette doit repartir du même jaugeage à chaque
+-- passage, sinon elle jugerait un état dérivé et ses chiffres attendus
+-- n'auraient plus de sens. Le seul déclencheur de cette table ne s'arme que
+-- sur `origine = 'reception_livraison'` — vérifié le 08/09/2026 — et ce semis
+-- écrit `'manager'` : la mise à jour n'a donc aucun effet de bord.
+on conflict (site, date) do update
+  set stock_reel_sp95 = excluded.stock_reel_sp95,
+      stock_reel_go_cuve1 = excluded.stock_reel_go_cuve1,
+      stock_reel_go_cuve2 = excluded.stock_reel_go_cuve2,
+      stock_reel_gnr = excluded.stock_reel_gnr,
+      origine = excluded.origine,
+      mesure_le = excluded.mesure_le,
+      controle_statut = excluded.controle_statut;
