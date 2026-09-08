@@ -36,6 +36,10 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+// Source unique des PIN à surveiller : la recette elle-même. Cet import ne
+// charge pas Playwright — la recette ne le requiert qu'à l'intérieur de son
+// exécution réelle.
+const { SECRETS_REQUIS } = require(path.join(__dirname, 'recette-navigateur-test.js'));
 
 const RACINE = process.env.NEXUS_DEPOT ? path.resolve(process.env.NEXUS_DEPOT) : path.resolve(__dirname, '..');
 const ETAT = path.join(RACINE, 'docs', 'handoff', 'STATE.json');
@@ -145,12 +149,18 @@ function barrieresProduction() {
 // quand », ce qui suffit à savoir si le geste a été fait.
 const PIN_DIVULGUE_LE = '2026-09-07T12:00:00Z';
 
-function gestesHumains() {
+// `lireSecrets` est injectable pour que ce jugement soit éprouvable sans
+// dépendre du dépôt réel ni d'un `gh` authentifié. Sans cela, la seule partie
+// de cet outil qui décide s'il faut déranger Frédéric serait la seule à
+// n'avoir aucune épreuve.
+function gestesHumains(options = {}) {
   const gestes = [];
+  const lireSecrets = options.lireSecrets || (() => JSON.parse(execFileSync(
+    'gh', ['secret', 'list', '--json', 'name,updatedAt'],
+    { cwd: RACINE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })));
   let secrets = null;
   try {
-    secrets = JSON.parse(execFileSync('gh', ['secret', 'list', '--json', 'name,updatedAt'],
-      { cwd: RACINE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    secrets = lireSecrets();
   } catch (e) {
     return [{ code: 'SECRETS_ILLISIBLES', fait: null,
       texte: 'Secrets non lisibles depuis cette machine — ne pas conclure que les gestes sont faits.' }];
@@ -166,16 +176,46 @@ function gestesHumains() {
         + 'Sans lui, l\'étape de semis se déclare indisponible et la recette part sur des données absentes.',
   });
 
-  const pin = par.get('NEXUS_TEST_PIN');
-  const rotate = pin ? pin > PIN_DIVULGUE_LE : null;
+  // La divulgation du 07/09 portait sur le secret PARTAGÉ `NEXUS_TEST_PIN`.
+  // Frédéric ne l'a pas fait tourner : il a fait mieux, en donnant à chaque
+  // compte de recette son propre PIN. Un contrôle resté braqué sur l'ancien
+  // nom aurait réclamé sans fin un geste déjà accompli — et un rappel qui a
+  // tort une fois cesse d'être lu, emportant avec lui ceux qui ont raison.
+  //
+  // Les PIN surveillés ne sont donc PAS listés ici : ils sont lus dans la
+  // recette canonique. Ajouter un profil à la recette l'ajoute à ce contrôle
+  // sans que personne ait à y penser ; en retirer un l'en retire.
+  // `secretsRequis` n'est injectable que pour éprouver le cas « la recette
+  // n'exige plus aucun PIN » — un état qu'on ne peut pas fabriquer autrement
+  // sans mutiler la recette réelle. Par défaut, la seule source est elle.
+  const pinsExiges = (options.secretsRequis || SECRETS_REQUIS).filter(n => /_PIN$/.test(n));
+  const perimes = pinsExiges.filter(n => !par.has(n) || par.get(n) <= PIN_DIVULGUE_LE);
   gestes.push({
     code: 'PIN_RECETTE',
-    fait: rotate,
-    texte: rotate
-      ? 'PIN de recette renouvelé après sa divulgation.'
-      : 'Changer le PIN de recette : il a été écrit en clair dans une conversation le 07/09/2026, '
-        + 'le dépôt est public et les noms de connexion y figurent. Le secret n\'a pas bougé depuis. '
-        + 'Aucune donnée de production n\'est exposée, mais une recette en cours peut être corrompue.',
+    // Une recette qui n'exige aucun PIN ne prouve pas que le geste est fait :
+    // elle prouve qu'on ne sait plus quoi surveiller. On ne conclut pas.
+    fait: pinsExiges.length === 0 ? null : perimes.length === 0,
+    texte: pinsExiges.length === 0
+      ? 'La recette canonique n\'exige plus aucun PIN — ne rien conclure : ce contrôle n\'a plus d\'objet à surveiller.'
+      : perimes.length === 0
+        ? `PIN de recette renouvelés après la divulgation, un par profil (${pinsExiges.join(', ')}).`
+        : 'Changer le PIN de recette : il a été écrit en clair dans une conversation le 07/09/2026, '
+          + 'le dépôt est public et les noms de connexion y figurent. '
+          + `Secret(s) absent(s) ou antérieur(s) à la divulgation : ${perimes.join(', ')}. `
+          + 'Aucune donnée de production n\'est exposée, mais une recette en cours peut être corrompue.',
+  });
+
+  // Le secret partagé n'a plus aucun usage actif dans la recette canonique,
+  // mais tant qu'il existe il reste injectable dans un workflow — et sa valeur
+  // est celle qui a été divulguée. Le supprimer est un geste sur un secret :
+  // il n'appartient qu'à Frédéric.
+  gestes.push({
+    code: 'PIN_PARTAGE_RESIDUEL',
+    fait: !par.has('NEXUS_TEST_PIN'),
+    texte: par.has('NEXUS_TEST_PIN')
+      ? 'Supprimer le secret NEXUS_TEST_PIN : plus aucun usage actif depuis le passage à un PIN par profil, '
+        + 'mais il porte encore la valeur divulguée et reste injectable dans n\'importe quel workflow.'
+      : 'Le secret partagé NEXUS_TEST_PIN a été supprimé.',
   });
   return gestes;
 }
