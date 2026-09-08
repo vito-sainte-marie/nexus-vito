@@ -354,7 +354,13 @@ jobs:
           # Cette affirmation ne reste pas un commentaire : si une politique
           # `TO PUBLIC` était un jour ajoutée sur `sites`, la lecture cesserait
           # d'être vide et on l'apprendrait le jour même, pas à l'incident.
-          lignes=$(psql -tAc "select count(*) from public.sites" 2>&1)
+          # `|| true` INDISPENSABLE : GitHub lance `shell: bash` avec `-e`, que
+          # `set -uo pipefail` ne désactive pas. Sans lui, une affectation dont
+          # la commande échoue tue le step AVANT le moindre message — et les
+          # trois issues distinguées plus bas (vide / fuite / invérifiable)
+          # deviennent inatteignables précisément dans le cas qu'elles
+          # existent pour nommer.
+          lignes=$(psql -tAc "select count(*) from public.sites" 2>&1) || true
           # Un compte non numérique n'est pas une fuite, c'est une erreur : les
           # confondre nommerait un fait pour un autre, et enverrait chercher le
           # défaut au mauvais endroit. Les deux bloquent, mais pas sous le même
@@ -381,7 +387,9 @@ jobs:
           # recette navigateur, qui est bloquante. Cette comparaison n'est pas
           # le seul garde — elle est celle qui NOMME la cause au lieu de
           # laisser chercher.
-          vivant=$(psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" 2>&1)
+          # `|| true`, même raison : sans lui, `-e` a tué ce step en silence au
+          # run 34227764396 — aucun message, seulement « exit code 1 ».
+          vivant=$(psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" 2>&1) || true
           if [ -z "${vivant// /}" ] || printf '%s' "$vivant" | grep -qiE 'permission denied|error'; then
             echo "::warning::ENV-003 — instantané de la station NON vérifié : la configuration vivante n'est pas lisible par le rôle CI ($vivant). Une dérive resterait invisible ici ; elle ferait échouer la recette navigateur, sans en nommer la cause. Décision attendue : SEC-018."
           elif ! printf '%s' "$vivant" | node outils/repetition-recette-carburants.js --comparer; then

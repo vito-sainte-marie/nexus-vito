@@ -221,8 +221,8 @@
       "trigger": "before_push",
       "module": "all",
       "severity": "blocking",
-      "rule": "A local bench must share its assumptions with the real environment, and be runnable before pushing. A scenario calibrated against one station's configuration and seeded into another is proven locally and false in reality. Snapshot the real configuration, calibrate against that snapshot, and let CI verify the snapshot has not drifted. Mechanised by outils/repetition-recette-carburants.js.",
-      "source": "2026-09-08: four commits and four six-minute CI cycles to make one seed work, because CI was the only place the real environment could be exercised and it reveals one obstacle at a time; the scenario itself had been calibrated with another station tanks"
+      "rule": "A local bench must share its assumptions with the real environment, and be runnable before pushing. A scenario calibrated against one station's configuration and seeded into another is proven locally and false in reality. Snapshot the real configuration, calibrate against that snapshot, and let CI verify the snapshot has not drifted. Mechanised by outils/repetition-recette-carburants.js. The same applies to shell: reproduce the runner exact flags. GitHub `shell: bash` runs with `-e`, which `set -uo pipefail` does not disable — a bare `var=$(cmd)` whose command fails kills the step before any message, making the very branches written to name that failure unreachable. Test with `bash --noprofile --norc -e -o pipefail`.",
+      "source": "2026-09-08: four commits and four six-minute CI cycles to make one seed work, because CI was the only place the real environment could be exercised and it reveals one obstacle at a time; the scenario itself had been calibrated with another station tanks; and 2026-09-08: four CI-visible cases proven locally with plain `bash script` passed, then died silently in CI under -e"
     }
   ]
 }
