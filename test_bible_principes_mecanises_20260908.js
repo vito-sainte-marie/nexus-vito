@@ -133,4 +133,24 @@ t('la dette de propagation annoncée par la note est réellement suivie', () => 
     'et les DEUX agents : un remplacement global par un seul serait pire que la dette');
 });
 
+t('aucun renvoi de la Bible ne pointe dans le vide', () => {
+  // Le renvoi vers la doctrine du langage a été REFUSÉ deux fois avant d'être
+  // ajouté, parce que sa cible n'existait pas encore : un renvoi vers un
+  // fichier absent donne l'apparence d'une doctrine adossée à un texte, et une
+  // lecture rapide ne voit pas ce vide. La règle vaut pour tous les renvois,
+  // pas seulement celui-là.
+  const src = fs.readFileSync(BIBLE, 'utf8');
+  const cibles = [...src.matchAll(/`(docs\/[A-Za-z0-9\/_.-]+\.(?:md|json))`/g)].map(m => m[1])
+    .concat([...src.matchAll(/`([A-Za-z0-9_.-]+\.js)`/g)].map(m => m[1]));
+  assert.ok(cibles.length > 0, 'la Bible doit citer au moins une cible');
+  for (const c of new Set(cibles)) {
+    assert.ok(fs.existsSync(path.join(__dirname, c)), `renvoi de la Bible vers un fichier absent : ${c}`);
+  }
+
+  // Et celui-ci en particulier, puisqu'il a été arbitré.
+  const agents = src.slice(src.indexOf('## Agents NEXUS'), src.indexOf('### NEXUS Guardian'));
+  assert.ok(/DOCTRINE-LANGAGE-VOCABULAIRE\.md/.test(agents),
+    'le renvoi vers la doctrine du langage doit vivre dans la section « Agents NEXUS »');
+});
+
 console.log(`\n${n}/${n} vérifications passées — une ligne de Bible que rien ne tient n’est pas une règle.`);

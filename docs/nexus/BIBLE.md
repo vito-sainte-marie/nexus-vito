@@ -53,6 +53,8 @@ S'adresse prioritairement aux employés. Il transforme objectifs, écarts, rappe
 
 Ces deux agents sont distincts dans leur destinataire, leur ton et leur responsabilité.
 
+Le vocabulaire officiel et le ton par destinataire sont définis dans `docs/nexus/DOCTRINE-LANGAGE-VOCABULAIRE.md`.
+
 ### NEXUS Guardian Architecture & Cohérence
 
 Examine les évolutions de structure, moteurs, contrats, flux et responsabilités avant validation. Son objectif n'est pas de simplifier pour simplifier : il protège la productivité globale, la cohérence du système et la permanence des décisions déjà prises.
