@@ -90,6 +90,23 @@
   .evt.ok .evt-titre{color:#7ee2b0;}
   .evt.inconnu .evt-titre{font-style:italic; color:var(--text-dim);}
   .masques{font-size:11px; color:var(--text-dim); margin-top:12px; font-style:italic;}
+  /* LE FLUX. La chaîne existait dans l'infrastructure sans être visible à
+     l'écran. Chaque étape porte son état, et deux d'entre elles ne peuvent
+     jamais se cocher toutes seules. */
+  .flux{display:flex; flex-direction:column; gap:0;}
+  .flux-etape{display:flex; gap:12px; align-items:flex-start; padding:7px 0;}
+  .flux-puce{flex:0 0 18px; height:18px; border-radius:50%; margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;}
+  .flux-etape.faite .flux-puce{background:#0d3a24; color:#7ee2b0;}
+  .flux-etape.courante .flux-puce{background:#f0d27a; color:#2a2410;}
+  .flux-etape.a_venir .flux-puce{background:#2a2f36; color:#7b848f;}
+  .flux-etape.bloquee .flux-puce{background:#4a1d1d; color:#ffb4b4;}
+  .flux-etape.inconnue .flux-puce{background:#333; color:#bbb;}
+  .flux-nom{font-size:13px; font-weight:600;}
+  .flux-etape.courante .flux-nom{color:#f0d27a;}
+  .flux-etape.bloquee .flux-nom{color:#ffb4b4;}
+  .flux-etape.a_venir .flux-nom,.flux-etape.inconnue .flux-nom{color:var(--text-dim); font-weight:500;}
+  .flux-qui{font-size:11px; color:var(--text-dim); line-height:1.45; margin-top:1px;}
+  .flux-inconnu{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; font-style:italic;}
   details.journal{margin-top:12px;}
   details.journal summary{font-size:11.5px; color:var(--text-dim); cursor:pointer;}
   details.journal .timeline-item{margin-top:8px;}
@@ -228,7 +245,34 @@
       la transmet ; il ne la fabrique pas, et personne d'autre ne peut l'écrire à ta place.</div></div>`;
   }
 
-  function renderProjection(projection, evenements, fraicheur, deploiements, verdict) {
+  // LE FLUX vers Production. « La chaîne existe dans l'infrastructure, mais
+  // elle n'est pas visible dans l'interface. »
+  //
+  // L'étape courante est DÉDUITE des faits ; quand ils ne permettent pas de la
+  // situer, l'écran le dit au lieu d'en désigner une au hasard.
+  const PUCE = { faite: '✓', courante: '●', a_venir: '', bloquee: '!', inconnue: '?' };
+
+  function blocFlux(flux) {
+    const inconnu = flux.inconnue
+      ? '<div class="flux-inconnu">Les événements reçus ne permettent pas de situer l’étape en cours. '
+        + 'Aucune étape n’est désignée : mieux vaut ne pas savoir que désigner au hasard.</div>'
+      : '';
+    return `<div class="card">
+      <div class="section-label">Où en est la chaîne</div>
+      ${inconnu}
+      <div class="flux">
+        ${flux.etapes.map(e => `<div class="flux-etape ${e.etat}">
+          <div class="flux-puce">${PUCE[e.etat] || ''}</div>
+          <div>
+            <div class="flux-nom">${e.libelle}</div>
+            <div class="flux-qui">${e.qui}</div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  function renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux) {
     const f = fraicheur || { niveau: 'INCONNU', ageMinutes: null };
     // « Je ne sais pas immédiatement ce que signifie cette durée. Dernière
     // synchronisation ? Dernier événement ? » — on nomme donc ce qu'elle mesure.
@@ -288,6 +332,7 @@
       ${blocVerdict(verdict)}
       ${blocRisques(verdict.risques)}
       ${blocAttente(projection.human_gate)}
+      ${blocFlux(flux)}
       <div class="card">
         <div class="section-label">Détail technique</div>
         <span class="statut-badge statut-${projection.system_status}">${libelleStatut(projection.system_status)}</span>
@@ -416,7 +461,8 @@
     const fraicheur = P.fraicheurJournal(evenements, new Date().toISOString());
     const deploiements = P.extraireDeploiements(evenements);
     const verdict = P.verdictLive({ events: evenements, projection, deploiements, fraicheur });
-    renderProjection(projection, evenements, fraicheur, deploiements, verdict);
+    const flux = P.fluxLive({ events: evenements, projection, deploiements });
+    renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux);
     const bouton = document.getElementById('btnAutoriser');
     if (bouton && projection.human_gate) {
       bouton.addEventListener('click', () => transmettreAutorisation(employee, projection.human_gate));

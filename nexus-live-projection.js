@@ -448,7 +448,99 @@
     return { entrees, masques };
   }
 
+  // ── LE FLUX VERS PRODUCTION (08/09/2026) ────────────────────────────
+  //
+  // Frédéric : « je voudrais voir Demande → Orchestrator → Claude → Guardians
+  // → Test → Prêt Production → Frédéric → Production, avec l'étape courante
+  // visuellement mise en évidence. C'est particulièrement important parce que
+  // NEXUS Live est justement censé matérialiser cette chaîne que nous avons
+  // construite. Aujourd'hui, la chaîne existe dans l'infrastructure, mais elle
+  // n'est pas visible dans l'interface. »
+  //
+  // L'ÉTAPE COURANTE SE DÉDUIT DES FAITS, elle ne se déclare pas. Et quand les
+  // faits ne permettent pas de la situer, on le DIT — une chaîne qui désigne
+  // une étape au hasard vaut moins qu'une chaîne qui admet ne pas savoir.
+  //
+  // DEUX ÉTAPES NE SONT JAMAIS MARQUÉES « FAITE » AUTOMATIQUEMENT : celle de
+  // Frédéric et celle de Production. Aucune décision de recette ne vaut
+  // autorisation de production ; laisser l'écran cocher ces cases tout seul
+  // serait fabriquer l'autorisation qu'il a mission de seulement transmettre.
+  const ETAPES = [
+    { cle: 'DEMANDE', libelle: 'Demande', qui: 'Un besoin est formulé' },
+    { cle: 'ORCHESTRATOR', libelle: 'Arbitrage', qui: 'L’Orchestrator tranche la conception' },
+    { cle: 'CLAUDE', libelle: 'Développement', qui: 'Claude écrit et prouve' },
+    { cle: 'GUARDIANS', libelle: 'Contrôles', qui: 'Les Guardians relisent automatiquement' },
+    { cle: 'TEST', libelle: 'Test', qui: 'La recette juge sur l’environnement réel' },
+    { cle: 'PRET_PRODUCTION', libelle: 'Prêt pour Production', qui: 'Une proposition, jamais une autorisation' },
+    { cle: 'FREDERIC', libelle: 'Ton autorisation', qui: 'Toi seul' },
+    { cle: 'PRODUCTION', libelle: 'Production', qui: 'Mise en service' },
+  ];
+
+  // AUCUNE phase ne désigne « Ton autorisation » ni « Production », et c'est
+  // l'invariant qui compte dans tout ce flux : ces deux étapes appartiennent à
+  // un humain et à une mise en service réelle. Un événement d'exécution ne
+  // peut donc jamais les rendre « courantes », ni marquer comme « faites »
+  // celles qui les précèdent au-delà de ce que les faits permettent.
+  //
+  // Une première version portait un garde explicite (`if (FREDERIC ||
+  // PRODUCTION) etat = 'a_venir'`). Une mutation l'a supprimé sans qu'aucune
+  // épreuve ne bronche : il était INATTEIGNABLE, puisque aucune phase ne mène
+  // à ces étapes. Une protection qu'aucun cas ne peut atteindre n'est pas une
+  // protection, c'est un décor. L'invariant est donc porté par cette table —
+  // vérifiable, et éprouvé par un contrat de source.
+  const PHASE_VERS_ETAPE = {
+    ANALYSE: 'CLAUDE', EXECUTION: 'CLAUDE', TEST: 'TEST',
+    GUARDIAN_REVIEW: 'GUARDIANS', CI: 'TEST',
+  };
+  const ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT = ['FREDERIC', 'PRODUCTION'];
+
+  function etapeCourante(events, projection) {
+    const proj = projection || projectionVide();
+    // Ce qui attend un humain situe la chaîne mieux que tout le reste.
+    if (proj.human_gate) {
+      const qui = String(proj.human_gate.who || '').toLowerCase();
+      if (qui === 'frederic') return 'FREDERIC';
+      return 'ORCHESTRATOR';
+    }
+    if (!Array.isArray(events) || !events.length) return null;
+    let dernier = null, t0 = -Infinity;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (!Number.isFinite(t) || t < t0) continue;
+      dernier = e; t0 = t;
+    }
+    if (!dernier) return null;
+    // Un GATE sans human_gate exploitable ne situe rien : on ne devine pas.
+    return PHASE_VERS_ETAPE[dernier.phase] || null;
+  }
+
+  function fluxLive({ events, projection, deploiements }) {
+    const courante = etapeCourante(events, projection);
+    const iCourante = ETAPES.findIndex(e => e.cle === courante);
+    const bloquees = new Set();
+    // Une garde en échec bloque l'étape des contrôles, pas les autres.
+    const gardes = Object.values((projection && projection.guardians) || {});
+    if (gardes.includes('FAILED')) bloquees.add('GUARDIANS');
+    // Un risque structurel de Production marque l'étape Production.
+    if (risquesStructurels(events).length) bloquees.add('PRODUCTION');
+
+    return {
+      inconnue: iCourante < 0,
+      etapes: ETAPES.map((e, i) => {
+        let etat;
+        if (bloquees.has(e.cle)) etat = 'bloquee';
+        else if (iCourante < 0) etat = 'inconnue';
+        else if (i < iCourante) etat = 'faite';
+        else if (i === iCourante) etat = 'courante';
+        else etat = 'a_venir';
+        return { ...e, etat };
+      }),
+    };
+  }
+
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    fluxLive, etapeCourante, ETAPES_FLUX: ETAPES, PHASE_VERS_ETAPE,
+    ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT,
     resumerTimeline,
     VERDICT, verdictLive, risquesStructurels, libelleStatutGarde,
     fraicheurJournal, extraireDeploiements, SEUIL_TIEDE_MIN, SEUIL_FROID_MIN };

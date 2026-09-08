@@ -546,4 +546,131 @@ t('CONTRAT — l’écran montre le RÉSUMÉ, et garde le journal brut derrière
     'les relevés écartés doivent être dits, pas escamotés');
 });
 
+
+// ── LE FLUX VERS PRODUCTION (08/09/2026) ────────────────────────────────
+// « La chaîne existe dans l'infrastructure, mais elle n'est pas visible dans
+// l'interface. »
+
+const evtPhase = (phase, t, extra) => Object.assign({ occurred_at: t, lot_id: 'L', run_id: 'r',
+  actor: { id: 'x', role: 'ci' }, phase, status: 'PASSED', summary: 's' }, extra || {});
+const etatDe = (flux, cle) => flux.etapes.find(e => e.cle === cle).etat;
+
+t('l’étape courante se déduit de la phase du dernier événement', () => {
+  const f = P.fluxLive({ events: [evtPhase('GUARDIAN_REVIEW', '2026-09-08T12:00:00Z')],
+    projection: { guardians: { a: 'PASSED' } } });
+  assert.strictEqual(etatDe(f, 'GUARDIANS'), 'courante');
+  assert.strictEqual(etatDe(f, 'CLAUDE'), 'faite');
+  assert.strictEqual(etatDe(f, 'TEST'), 'a_venir');
+  assert.strictEqual(f.inconnue, false);
+});
+
+t('le DERNIER événement fait foi, quel que soit l’ordre de la liste', () => {
+  const f = P.fluxLive({
+    events: [evtPhase('CI', '2026-09-08T14:00:00Z'), evtPhase('EXECUTION', '2026-09-08T09:00:00Z')],
+    projection: { guardians: {} } });
+  assert.strictEqual(etatDe(f, 'TEST'), 'courante', 'CI est plus récent qu’EXECUTION');
+});
+
+t('ce qui attend un humain situe la chaîne mieux que la phase', () => {
+  const pourFrederic = P.fluxLive({ events: [evtPhase('EXECUTION', '2026-09-08T12:00:00Z')],
+    projection: { guardians: {}, human_gate: { who: 'frederic', question: 'Autoriser ?' } } });
+  assert.strictEqual(etatDe(pourFrederic, 'FREDERIC'), 'courante');
+
+  const pourOrchestrator = P.fluxLive({ events: [evtPhase('EXECUTION', '2026-09-08T12:00:00Z')],
+    projection: { guardians: {}, human_gate: { who: 'orchestrator', question: 'Arbitrer ?' } } });
+  assert.strictEqual(etatDe(pourOrchestrator, 'ORCHESTRATOR'), 'courante');
+});
+
+t('AUCUNE phase d’exécution ne peut désigner ton autorisation ni Production', () => {
+  // L'invariant central de ce flux, et il a failli n'être qu'un décor.
+  //
+  // Une première version le portait par un garde explicite dans le rendu. Une
+  // mutation l'a supprimé sans qu'aucune épreuve ne bronche : il était
+  // INATTEIGNABLE, puisque aucune phase ne mène à ces étapes. Une protection
+  // qu'aucun cas ne peut atteindre n'est pas une protection.
+  //
+  // L'invariant est donc vérifié là où il vit réellement : dans la table de
+  // correspondance. Un événement d'exécution ne doit JAMAIS pouvoir rendre
+  // courante l'étape qui appartient à Frédéric, ni celle de la mise en
+  // service.
+  for (const etape of P.ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT) {
+    assert.ok(!Object.values(P.PHASE_VERS_ETAPE).includes(etape),
+      `aucune phase ne doit mener à ${etape} : ` + JSON.stringify(P.PHASE_VERS_ETAPE));
+  }
+  // Et aucune phase du contrat, même future, ne doit y mener par accident.
+  for (const phase of ['ANALYSE', 'EXECUTION', 'TEST', 'GUARDIAN_REVIEW', 'CI', 'GATE', 'DONE']) {
+    const cle = P.etapeCourante([evtPhase(phase, '2026-09-08T12:00:00Z')], { guardians: {} });
+    assert.ok(!P.ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT.includes(cle),
+      `la phase ${phase} ne doit pas désigner ${cle}`);
+  }
+});
+
+t('TON AUTORISATION et PRODUCTION ne se cochent JAMAIS toutes seules', () => {
+  // Le point le plus important de ce flux. Aucune décision de recette ne vaut
+  // autorisation de production : laisser l'écran marquer ces étapes « faites »
+  // reviendrait à fabriquer l'autorisation qu'il a mission de seulement
+  // transmettre.
+  //
+  // Le cas est réel : quand un gate attend Frédéric, toutes les étapes
+  // antérieures sont « faites » — mais la sienne reste à venir, et Production
+  // aussi.
+  const f = P.fluxLive({ events: [], projection: { guardians: {}, human_gate: { who: 'frederic', question: '?' } } });
+  assert.strictEqual(etatDe(f, 'FREDERIC'), 'courante');
+  assert.strictEqual(etatDe(f, 'PRODUCTION'), 'a_venir');
+  for (const e of f.etapes) {
+    if (e.cle === 'FREDERIC' || e.cle === 'PRODUCTION') {
+      assert.notStrictEqual(e.etat, 'faite', `${e.cle} ne doit jamais être marquée faite par l’écran`);
+    }
+  }
+});
+
+t('une garde en échec BLOQUE l’étape des contrôles, pas les autres', () => {
+  const f = P.fluxLive({ events: [evtPhase('CI', '2026-09-08T12:00:00Z')],
+    projection: { guardians: { a: 'FAILED', b: 'PASSED' } } });
+  assert.strictEqual(etatDe(f, 'GUARDIANS'), 'bloquee');
+  assert.notStrictEqual(etatDe(f, 'CLAUDE'), 'bloquee');
+});
+
+t('un risque structurel BLOQUE l’étape Production', () => {
+  const barriere = { occurred_at: '2026-09-08T12:00:00Z', lot_id: 'L', status: 'BLOCKED',
+    phase: 'GATE', evidence: { type: 'protection', ref: 'refs/heads/production' } };
+  const f = P.fluxLive({ events: [barriere], projection: { guardians: {} } });
+  assert.strictEqual(etatDe(f, 'PRODUCTION'), 'bloquee');
+});
+
+t('sans fait exploitable, le flux DIT qu’il ne sait pas', () => {
+  // Une chaîne qui désigne une étape au hasard vaut moins qu'une chaîne qui
+  // admet ne pas savoir — critère 8 de la doctrine Philosophie.
+  for (const cas of [{ events: [], projection: { guardians: {} } },
+    { events: null, projection: null },
+    { events: [evtPhase('DONE', '2026-09-08T12:00:00Z')], projection: { guardians: {} } }]) {
+    const f = P.fluxLive(cas);
+    assert.strictEqual(f.inconnue, true, JSON.stringify(cas));
+    assert.ok(f.etapes.every(e => e.etat === 'inconnue' || e.etat === 'bloquee'),
+      'aucune étape ne doit être déclarée faite au hasard');
+  }
+});
+
+t('les huit étapes de la chaîne sont là, dans l’ordre', () => {
+  assert.strictEqual(P.ETAPES_FLUX.map(e => e.cle).join(' → '),
+    'DEMANDE → ORCHESTRATOR → CLAUDE → GUARDIANS → TEST → PRET_PRODUCTION → FREDERIC → PRODUCTION');
+  // « Prêt pour Production » est une PROPOSITION : son libellé doit le dire.
+  const pret = P.ETAPES_FLUX.find(e => e.cle === 'PRET_PRODUCTION');
+  assert.ok(/jamais une autorisation/.test(pret.qui), pret.qui);
+});
+
+t('CONTRAT — l’écran rend le flux, et dit quand il ne sait pas situer l’étape', () => {
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  assert.ok(/\$\{blocFlux\(flux\)\}/.test(ecran), 'le flux doit être rendu');
+  assert.ok(/Où en est la chaîne/.test(ecran), 'et titré en langage d’exploitant');
+  assert.ok(/mieux vaut ne pas savoir que désigner au hasard/.test(ecran),
+    'l’écran doit DIRE qu’il ne sait pas situer l’étape, plutôt qu’en désigner une');
+  // Le flux vient après « ce qui t'attend » et avant le détail technique.
+  const iAttente = ecran.indexOf('${blocAttente(projection.human_gate)}');
+  const iFlux = ecran.indexOf('${blocFlux(flux)}');
+  const iDetail = ecran.indexOf('<div class="section-label">Détail technique</div>');
+  assert.ok(iAttente < iFlux && iFlux < iDetail,
+    'ordre attendu : ce qui t’attend, puis le flux, puis le détail technique');
+});
+
 console.log(`\n${n} assertions Live-Projection passées.`);
