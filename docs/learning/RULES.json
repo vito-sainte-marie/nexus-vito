@@ -223,6 +223,18 @@
       "severity": "blocking",
       "rule": "A local bench must share its assumptions with the real environment, and be runnable before pushing. A scenario calibrated against one station's configuration and seeded into another is proven locally and false in reality. Snapshot the real configuration, calibrate against that snapshot, and let CI verify the snapshot has not drifted. Mechanised by outils/repetition-recette-carburants.js. The same applies to shell: reproduce the runner exact flags. GitHub `shell: bash` runs with `-e`, which `set -uo pipefail` does not disable — a bare `var=$(cmd)` whose command fails kills the step before any message, making the very branches written to name that failure unreachable. Test with `bash --noprofile --norc -e -o pipefail`.",
       "source": "2026-09-08: four commits and four six-minute CI cycles to make one seed work, because CI was the only place the real environment could be exercised and it reveals one obstacle at a time; the scenario itself had been calibrated with another station tanks; and 2026-09-08: four CI-visible cases proven locally with plain `bash script` passed, then died silently in CI under -e"
+    },
+    {
+      "id": "SEC-003",
+      "scope": [
+        "securite",
+        "privileges"
+      ],
+      "trigger": "blocked_by_permission",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "When a permission blocks an automated step, find the exact mechanism by EXPERIMENT before choosing a fix, then prefer the fix that PRESERVES least privilege over the convenient one. Widening a read or write capability to satisfy a SQL convenience is a permanent cost paid for a temporary comfort; reshaping the statement is usually free.",
+      "source": "2026-09-08: publishing the NEXUS Live journal was refused under RLS. Four hypotheses failed in a row — the table grant, the write policy, the emitted actor roles, then a conflict with an invisible row — before an experiment showed the `ON CONFLICT` clause itself requires a read POLICY under RLS, which a table grant does not provide. Granting the CI role read access to the Creator execution journal would have worked; publishing row by row without `ON CONFLICT`, and treating a duplicate key as the expected fact it is, kept the role write-only and needed no new privilege."
     }
   ]
 }

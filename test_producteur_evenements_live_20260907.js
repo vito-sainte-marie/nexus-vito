@@ -258,8 +258,13 @@ t('l’ingestion unitaire nomme chaque événement avant de l’écrire', () => 
   assert.ok(sql.includes('\\echo EVENEMENT evt-2 role=ci'), sql);
   assert.strictEqual((sql.match(/insert into public\.nexus_live_events/g) || []).length, 2,
     'une instruction par événement, sinon on ne peut pas isoler la fautive');
-  assert.strictEqual((sql.match(/on conflict \(event_id\) do nothing;/g) || []).length, 2,
-    'chaque ligne reste rejouable sans doublon');
+  // PAS de `on conflict` : sous RLS, cette clause exige de pouvoir LIRE la
+  // table, et le rôle CI est volontairement gardé en écriture seule. Le
+  // doublon est traité comme un fait attendu, reconnaissable à son erreur
+  // propre, plutôt qu'en ouvrant le journal du Créateur à un rôle technique.
+  assert.ok(!/on conflict/.test(sql),
+    'la publication ne doit pas exiger de lecture : le rôle CI publie, il ne lit pas');
+  assert.strictEqual((sql.match(/;\n/g) || []).length, 2, 'chaque instruction est close');
 });
 
 t('sans événement, l’ingestion unitaire n’invente pas d’instruction', () => {

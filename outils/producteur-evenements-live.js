@@ -367,7 +367,29 @@ function sqlIngestion(evenements) {
     + valeurs + '\non conflict (event_id) do nothing;\n';
 }
 
-// Ingestion UNE LIGNE À LA FOIS, pour isoler celle qui est refusée.
+// Ingestion UNE LIGNE À LA FOIS, SANS `on conflict` — et c'est un choix de
+// sécurité, pas une commodité.
+//
+// Le 08/09/2026, la publication du journal Live était refusée par
+// « new row violates row-level security policy » alors que le droit
+// d'insertion était accordé, la policy permissive et bien portée, le rôle
+// confirmé par la base et toutes les valeurs conformes. Quatre hypothèses
+// sont tombées avant qu'un essai ne tranche : la MÊME insertion sans la
+// clause `on conflict` passe (« INSERT 0 1 »), et les identifiants déjà
+// présents ressortent en « duplicate key », c'est-à-dire normalement.
+//
+// Sous RLS, `on conflict` exige de pouvoir LIRE la table pour arbitrer le
+// conflit. Le rôle CI a le droit de table mais aucune policy de lecture.
+//
+// DEUX CORRECTIFS ÉTAIENT POSSIBLES, et le plus simple était le moins bon :
+// donner au rôle CI une policy de lecture aurait ouvert le journal
+// d'exécution du Créateur à un rôle technique, pour la seule commodité d'une
+// clause SQL. On garde donc le rôle strictement EN ÉCRITURE — il publie, il
+// ne lit pas — et le doublon est traité pour ce qu'il est : un fait attendu
+// lors d'une republication, reconnaissable à son erreur propre
+// (`nexus_live_events_event_id_key`), jamais confondu avec un vrai défaut.
+//
+// L'obstacle aura donc amélioré la posture au lieu de la relâcher.
 //
 // Le 08/09/2026, la base a refusé un lot entier par
 // « new row violates row-level security policy » alors que les huit
@@ -389,7 +411,7 @@ function sqlIngestionUnitaire(evenements) {
        litteral(e.actor.id), litteral(e.actor.role), litteral(e.phase), litteral(e.status),
        litteral(e.summary), litteral(e.evidence || null), litteral(e.next_step || null),
        litteral(e.human_gate || null), litteral(e.source || null)].join(', ')
-    + ')\non conflict (event_id) do nothing;\n').join('\n');
+    + ');\n').join('\n');
 }
 
 module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES };
