@@ -367,12 +367,39 @@ function sqlIngestion(evenements) {
     + valeurs + '\non conflict (event_id) do nothing;\n';
 }
 
-module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES };
+// Ingestion UNE LIGNE À LA FOIS, pour isoler celle qui est refusée.
+//
+// Le 08/09/2026, la base a refusé un lot entier par
+// « new row violates row-level security policy » alors que les huit
+// événements portaient tous un rôle autorisé. Un lot refusé en bloc ne dit
+// pas QUELLE ligne pose problème : trois hypothèses successives sont tombées
+// à côté faute de pouvoir désigner la coupable.
+//
+// Chaque instruction est précédée d'un `\echo` : avec `ON_ERROR_STOP=1`, le
+// dernier écho affiché avant l'erreur nomme l'événement fautif, son rôle et
+// sa phase. On lit un fait au lieu de déduire.
+function sqlIngestionUnitaire(evenements) {
+  if (!evenements.length) return '-- aucun événement à ingérer\n';
+  return evenements.map(e =>
+    `\\echo EVENEMENT ${e.event_id} role=${e.actor.role} phase=${e.phase} statut=${e.status}\n`
+    + 'insert into public.nexus_live_events\n'
+    + '  (event_id, occurred_at, lot_id, run_id, actor_id, actor_role, phase, status,\n'
+    + '   summary, evidence, next_step, human_gate, source)\nvalues\n  ('
+    + [litteral(e.event_id), litteral(e.occurred_at), litteral(e.lot_id), litteral(e.run_id),
+       litteral(e.actor.id), litteral(e.actor.role), litteral(e.phase), litteral(e.status),
+       litteral(e.summary), litteral(e.evidence || null), litteral(e.next_step || null),
+       litteral(e.human_gate || null), litteral(e.source || null)].join(', ')
+    + ')\non conflict (event_id) do nothing;\n').join('\n');
+}
+
+module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES };
 
 if (require.main === module) {
   const r = produire();
   if (r.erreur) { console.error('Producteur indisponible : ' + r.erreur); process.exit(1); }
-  if (process.argv.includes('--sql')) {
+  if (process.argv.includes('--sql-unitaire')) {
+    console.log(sqlIngestionUnitaire(r.evenements));
+  } else if (process.argv.includes('--sql')) {
     console.log(sqlIngestion(r.evenements));
   } else if (process.argv.includes('--resume')) {
     console.log(`${r.evenements.length} événement(s) produit(s), ${r.rejetes.length} rejeté(s).`);

@@ -247,4 +247,24 @@ t('un doublon exact est écarté, pas publié deux fois', () => {
   assert.deepStrictEqual(r.rejetes[0].erreurs, ['doublon']);
 });
 
+t('l’ingestion unitaire nomme chaque événement avant de l’écrire', () => {
+  // Un lot refusé en bloc ne dit pas laquelle des lignes pose problème. Le
+  // 08/09/2026, trois hypothèses successives sont tombées à côté faute de
+  // pouvoir désigner la coupable.
+  const e = P.evenement({ lot: 'A', run: 'r', acteur: 'garde-x', role: 'guardian',
+    phase: 'GUARDIAN_REVIEW', statut: 'PASSED', resume: 'ok', occurredAt: T0 });
+  const sql = P.sqlIngestionUnitaire([e, { ...e, event_id: 'evt-2', actor: { id: 'y', role: 'ci' } }]);
+  assert.ok(sql.includes(`\\echo EVENEMENT ${e.event_id} role=guardian phase=GUARDIAN_REVIEW`), sql);
+  assert.ok(sql.includes('\\echo EVENEMENT evt-2 role=ci'), sql);
+  assert.strictEqual((sql.match(/insert into public\.nexus_live_events/g) || []).length, 2,
+    'une instruction par événement, sinon on ne peut pas isoler la fautive');
+  assert.strictEqual((sql.match(/on conflict \(event_id\) do nothing;/g) || []).length, 2,
+    'chaque ligne reste rejouable sans doublon');
+});
+
+t('sans événement, l’ingestion unitaire n’invente pas d’instruction', () => {
+  assert.ok(/aucun événement/.test(P.sqlIngestionUnitaire([])));
+  assert.ok(!/insert into/.test(P.sqlIngestionUnitaire([])));
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — le producteur se tait sur ce qu’il ignore.`);
