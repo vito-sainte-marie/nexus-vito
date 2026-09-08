@@ -162,6 +162,35 @@ epreuve('le PIN n’apparaît dans aucune sortie ni aucun message d’erreur', (
 });
 
 
+epreuve('CONTRAT — dans observerLive, ce qui est rendu depuis le try est ATTENDU', () => {
+  // Le 08/09/2026, la recette a échoué sur « Target page, context or browser
+  // has been closed ». La cause n'était pas l'écran : `return page.evaluate(…)`
+  // dans un `try`/`finally` déclenche le `finally` AU MOMENT du return, pas
+  // après. La fermeture du contexte et l'évaluation dans la page partaient en
+  // course, et la recette gagnait cette course la plupart du temps — donc le
+  // vert des jours précédents ne prouvait pas ce qu'on croyait. Une preuve qui
+  // dépend d'un ordonnancement n'est pas une preuve.
+  //
+  // Ce contrat ne se relit pas à l'œil : il se vérifie ici, parce que la
+  // version fautive est plus courte et plus naturelle à écrire que la bonne.
+  const source = fs.readFileSync(OUTIL, 'utf8');
+  const debut = source.indexOf('async function observerLive(');
+  assert.ok(debut > 0, 'observerLive introuvable — le contrat a perdu son objet');
+  const finallyPos = source.indexOf('} finally {', debut);
+  assert.ok(finallyPos > debut, 'observerLive doit fermer son contexte dans un finally');
+  const corpsTry = source.slice(debut, finallyPos);
+  // Exactement quatre espaces : les `return` du code exécuté DANS le
+  // navigateur (callbacks de waitForFunction/evaluate) sont plus indentés et
+  // ne concernent pas ce contrat — ils s'exécutent dans la page, pas ici.
+  const retours = corpsTry.split('\n').filter(l => /^ {4}return\s+\S/.test(l));
+  assert.ok(retours.length > 0, 'le try doit rendre quelque chose');
+  for (const r of retours) {
+    assert.ok(/^\s*return\s+await\s/.test(r),
+      'un return non attendu dans un try/finally ferme la ressource avant de lire : ' + r.trim());
+  }
+});
+
+
 // ── NEXUS Live : le jugement d'accès ────────────────────────────────────
 // Le MVP n'avait qu'une recette NÉGATIVE. C'est la moitié rassurante et la
 // moins utile : un écran cassé, qui refuse absolument tout le monde, la

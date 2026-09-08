@@ -206,7 +206,13 @@ async function observerLive(navigateur, base, nom, pin) {
       const r = document.getElementById('root');
       return r && r.innerText.trim().length > 0;
     }, null, { timeout: 30000 });
-    return page.evaluate(() => {
+    // `return await`, et non `return` : dans un `try`/`finally`, le `finally`
+    // s'exécute AU MOMENT du return, pas après. Sans `await`, la fermeture du
+    // contexte et l'évaluation dans la page partaient en course — et la
+    // recette gagnait cette course la plupart du temps. Le 08/09/2026 elle
+    // l'a perdue : « Target page, context or browser has been closed ». Une
+    // preuve qui dépend d'un ordonnancement n'est pas une preuve.
+    return await page.evaluate(() => {
       const texte = document.getElementById('root').innerText;
       return {
         texte: texte.slice(0, 400),
