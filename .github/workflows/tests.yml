@@ -21,8 +21,23 @@ name: Tests
 # ce workflow ne peut ni écrire dans le dépôt, ni publier, ni atteindre quoi
 # que ce soit hors de la machine de build. Les tests sont purement locaux —
 # aucun n'ouvre de connexion réseau ni ne parle à Supabase (vérifié).
+# `actions: read` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 08/09/2026, à sa demande
+# explicite. C'est un élargissement de la surface du jeton du workflow, donc un
+# geste humain (CLAUDE.md) : Claude ne pouvait pas se l'accorder.
+#
+# Ce qu'il ouvre exactement : la LECTURE des métadonnées de runs GitHub Actions
+# de ce dépôt. Aucune écriture, aucun accès à un secret. Le dépôt étant public,
+# ces métadonnées sont déjà lisibles publiquement ; ce que la permission change
+# est que le jeton du workflow peut les demander, ce qu'il ne pouvait pas faire.
+#
+# Pourquoi elle est nécessaire : `evenementsAgentGithub` interroge les runs du
+# workflow `claude.yml` pour combler l'angle mort entre le déclenchement de
+# Claude depuis une issue et son apparition dans le Handoff. Sans ce droit,
+# `gh run list` échoue et la fonction se tait — comportement volontaire, mais
+# NEXUS Live restait aveugle pendant cet intervalle, parfois des heures.
 permissions:
   contents: read
+  actions: read
 
 on:
   push:
@@ -243,6 +258,11 @@ jobs:
       # source, et c'est toujours la copie qu'on oublie de mettre à jour.
       - name: La doctrine du langage tient-elle ses promesses ?
         run: node test_doctrine_langage_20260908.js
+
+      # Une permission accordée une fois a tendance à s'élargir ensuite, et
+      # personne ne relit un YAML pour vérifier une ligne qui n'a pas bougé.
+      - name: La surface du jeton de CI est-elle restée celle autorisée ?
+        run: node test_permissions_workflow_20260908.js
 
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
@@ -467,6 +487,12 @@ jobs:
       - name: Publier le journal NEXUS Live
         if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
         shell: bash
+        # GH_TOKEN n'est donné qu'ICI, la seule étape qui exécute le producteur.
+        # Le poser au niveau du job l'exposerait à toutes les autres, dont celles
+        # qui lancent du code d'épreuve : une permission accordée sert ce qui en
+        # a besoin, pas tout ce qui passe.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
           sql=$(node outils/producteur-evenements-live.js --sql-unitaire 2>&1) || true
