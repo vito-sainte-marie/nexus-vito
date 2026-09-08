@@ -451,6 +451,18 @@ jobs:
             echo "— Rejeu ligne par ligne, verdict de chacune :"
             node outils/producteur-evenements-live.js --sql-unitaire 2>/dev/null \
               | psql -v ON_ERROR_STOP=0 2>&1 | tail -30 || true
+            # ESSAI DÉCISIF : la MÊME insertion, sans la clause `on conflict`.
+            # Les identifiants neufs échouent eux aussi, donc ce n'est pas un
+            # conflit avec une ligne invisible. Il reste que, sous RLS, la
+            # clause `on conflict` exige elle-même de pouvoir LIRE — le rôle
+            # ayant le droit de table mais aucune policy de lecture.
+            #   · si l'insertion passe sans la clause -> c'est bien elle ;
+            #   · si elle échoue encore en RLS -> la policy d'écriture ne
+            #     s'applique pas, et mon explication tombe aussi.
+            echo "— Même insertion SANS on conflict :"
+            node outils/producteur-evenements-live.js --sql-unitaire 2>/dev/null \
+              | sed 's/^on conflict (event_id) do nothing;/;/' \
+              | psql -v ON_ERROR_STOP=0 2>&1 | tail -20 || true
             echo "::warning::ENV-003 — journal Live NON publié. Réponse de la base : $(printf '%s' "$retour" | tr '\n' ' ' | cut -c1-400)"
             echo "Réponse complète de la base :"
             printf '%s\n' "$retour"
