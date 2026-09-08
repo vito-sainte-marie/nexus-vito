@@ -269,6 +269,10 @@ jobs:
       - name: LANG-004 — le nom des agents NEXUS
         run: node test_vocabulaire_agents_20260908.js
 
+      # Une gravité d'écart de caisse, un seul propriétaire (ARCH-003).
+      - name: Épreuves de la classification unique des écarts
+        run: node test_classification_ecart_unique_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
