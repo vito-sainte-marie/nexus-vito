@@ -369,8 +369,22 @@ jobs:
           # à la station Test. S'il dérive, la recette cherchera un défaut
           # imaginaire dans le moteur — c'est exactement ce qui est arrivé le
           # 07/09, avec un scénario calculé pour les cuves d'une autre station.
-          if ! psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" \
-               | node outils/repetition-recette-carburants.js --comparer; then
+          #
+          # ENV-003 ASSUMÉ : aucun rôle de CONNEXION ne peut lire
+          # `station_config`. Ses trois politiques ne visent que `authenticated`
+          # et aucun rôle n'a BYPASSRLS — vérifié le 08/09/2026. Rendre cette
+          # lecture possible élargirait un droit, ce qui demande une décision
+          # humaine (SEC-018). Tant qu'elle n'est pas prise, l'absence de
+          # lecture est DÉCLARÉE, jamais transformée en « instantané conforme ».
+          #
+          # Le filet reste réel : une dérive de configuration ferait échouer la
+          # recette navigateur, qui est bloquante. Cette comparaison n'est pas
+          # le seul garde — elle est celle qui NOMME la cause au lieu de
+          # laisser chercher.
+          vivant=$(psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" 2>&1)
+          if [ -z "${vivant// /}" ] || printf '%s' "$vivant" | grep -qiE 'permission denied|error'; then
+            echo "::warning::ENV-003 — instantané de la station NON vérifié : la configuration vivante n'est pas lisible par le rôle CI ($vivant). Une dérive resterait invisible ici ; elle ferait échouer la recette navigateur, sans en nommer la cause. Décision attendue : SEC-018."
+          elif ! printf '%s' "$vivant" | node outils/repetition-recette-carburants.js --comparer; then
             exit 1
           fi
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
