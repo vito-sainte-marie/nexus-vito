@@ -223,6 +223,17 @@ jobs:
       - name: Épreuves de la garde des branches en rade
         run: node test_garde_branches_en_rade_20260908.js
 
+      # BLOQUANTE, contrairement aux Guardians consultatifs. La règle est
+      # arbitrée (portée 1, décision de Frédéric du 08/09/2026) et la garde est
+      # calibrée : 0 signalement sur le dépôt en l'état. Une garde qui ne crie
+      # pas peut se permettre d'arrêter la chaîne — c'est celle qui hurle au
+      # premier run qu'on désactive (QA-002).
+      - name: LANG-003 — le tiret cadratin dans ce que NEXUS dit
+        run: node outils/garde-langage-nexus.js
+
+      - name: Épreuves de la garde LANG-003
+        run: node test_garde_langage_nexus_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

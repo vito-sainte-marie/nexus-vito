@@ -240,6 +240,12 @@ function extraireNumeroIssue(headBranch) {
 
 function evenementsAgentGithub(horodatage, { lister } = {}) {
   const executer = lister || (() => {
+    // NEXUS_SANS_RESEAU : sortie explicite pour les épreuves, qui ne doivent
+    // dépendre ni d'un jeton ni d'une latence. Se taire faute de réseau est
+    // déjà le comportement normal de cette fonction — cette variable rend ce
+    // cas ATTEIGNABLE sans couper la machine. Elle ne dégrade rien en CI :
+    // sans elle, le comportement est inchangé.
+    if (process.env.NEXUS_SANS_RESEAU === '1') return null;
     try {
       return JSON.parse(execFileSync('gh',
         ['run', 'list', '--workflow', 'claude.yml', '--limit', '5',

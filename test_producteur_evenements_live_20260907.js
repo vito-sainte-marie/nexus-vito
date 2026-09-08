@@ -200,7 +200,11 @@ t('un état de déploiement ABSENT ou en erreur ne produit aucun bloc', () => {
 });
 
 t('le CLI rend du JSONL relisible, une ligne par événement', () => {
-  const r = spawnSync('node', [OUTIL], { encoding: 'utf8', cwd: __dirname });
+  // Sans réseau : depuis la fusion du 08/09, le CLI interroge l'API GitHub.
+  // Une épreuve qui attend un appel réseau mesure la latence d'un tiers, pas
+  // le producteur — et frôlait ici les 30 s du lanceur.
+  const r = spawnSync('node', [OUTIL], { encoding: 'utf8', cwd: __dirname,
+    env: Object.assign({}, process.env, { NEXUS_SANS_RESEAU: '1' }) });
   assert.strictEqual(r.status, 0, r.stderr);
   const lignes = r.stdout.split('\n').filter(Boolean);
   assert.ok(lignes.length > 0, 'le CLI doit produire quelque chose');
@@ -315,7 +319,16 @@ t('un rôle interdit est NOMMÉ, pas seulement rejeté', () => {
 t('TOUT ce que le producteur émet réellement est publiable par la CI', () => {
   // L'épreuve qui compte : non pas un cas fabriqué, mais la production réelle
   // sur ce dépôt. C'est elle qui aurait vu le défaut du 08/09.
-  const r = P.produire();
+  // `listerRunsClaude` est neutralisé : depuis la fusion du 08/09, `produire()`
+  // interroge l'API GitHub, et une épreuve qui dépend du réseau n'est pas une
+  // épreuve — celle-ci dépassait les 30 s du lanceur et échouait dans la suite
+  // tout en passant seule. Le reste de la production (registre, gardes,
+  // barrières, déploiement) reste RÉEL : c'est lui qu'on veut mesurer.
+  // `executerGarde` est neutralisé pour la même raison : réexécuter tous les
+  // Guardians ici coûtait 27 s pour une limite de 30 — une épreuve qui aurait
+  // fini par échouer au hasard de la charge, et qu'on aurait crue instable
+  // plutôt que mal écrite. Les rôles ne dépendent pas de leur verdict.
+  const r = P.produire({ listerRunsClaude: () => null, executerGarde: () => 0 });
   if (r.erreur) return; // producteur indisponible ici : ne rien conclure
   assert.ok(r.evenements.length, 'la production réelle ne doit pas être vide');
   assert.deepStrictEqual(P.rolesInterdits(r.evenements), [],

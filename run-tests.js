@@ -21,7 +21,14 @@ if (!fichiers.length) {
 const echecs = [];
 for (const f of fichiers) {
   try {
-    execFileSync('node', [f], { cwd: __dirname, timeout: 30000, stdio: 'pipe' });
+    // 30 s suffisaient tant qu'aucune épreuve ne lisait le vrai dépôt. Le
+    // 08/09/2026, `test_producteur_evenements_live` est monté à 25 s : cinq
+    // appels à `produire()` et deux lancements du CLI, chacun parcourant l'état
+    // git de 22 branches et 250 commits. Une épreuve à 25 s d'une limite de 30
+    // n'échoue pas : elle échoue UN JOUR, au hasard de la charge, et on la
+    // croit instable plutôt que mal calibrée. La limite reste franche — elle
+    // arrête toujours une épreuve qui boucle.
+    execFileSync('node', [f], { cwd: __dirname, timeout: 90000, stdio: 'pipe' });
     process.stdout.write('.');
   } catch (e) {
     const sortie = `${e.stdout || ''}${e.stderr || ''}`;
