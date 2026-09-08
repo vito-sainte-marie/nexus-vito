@@ -51,38 +51,50 @@ t('une cuve sans limite déclarée ne fabrique pas de capacité', () => {
   assert.strictEqual(M.limiteRemplissageTotale([{ limite_remplissage: 'abc' }]), 0);
 });
 
-t('CONTRAT — l’écran Rappels n’écrit plus aucune capacité en dur', () => {
+t('CONTRAT — l’écran Rappels ne contient PLUS de moteur carburant parallèle', () => {
+  // Décision de Frédéric du 08/09/2026 : « le simulateur dans Rappels n'a
+  // plus de sens ». Il tenait ses propres capacités, sa propre logique de
+  // commande et son propre historique de jaugeage en localStorage — deux
+  // écrans répondaient donc différemment à la même question.
+  //
+  // Ce contrat empêche sa réapparition, sous ce nom ou sous un autre : ce
+  // n'est pas le nom des fonctions qui compte, c'est qu'aucune décision de
+  // commande ne se recalcule ici.
   const brut = fs.readFileSync(ECRAN, 'utf8');
   const code = brut
     .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
-  for (const motif of [/CAPACITE_CUVE\s*=\s*\{\s*sp:\s*\d/, /CAMION_CAPACITE\s*=\s*\d/]) {
-    assert.ok(!motif.test(code), 'capacité codée en dur retrouvée : ' + motif);
+  const interdits = [
+    [/CAPACITE_CUVE/, 'capacité de cuve locale'],
+    [/CAMION_CAPACITE|maximum_camion/, 'capacité camion locale'],
+    [/calculerRecommandationCombinee|CAMION_COMPLET|COMPLEMENT/, 'logique de recommandation locale'],
+    [/estJourOuvrable|prochainOuvrableApres|JOURS_FERIES/, 'calendrier de livraison local'],
+    [/CONSO_MOYENNE|calculerConsoMoyenne/, 'moyenne de consommation locale'],
+    [/nexus_jaugeage_historique/, 'historique de jaugeage local'],
+  ];
+  for (const [motif, quoi] of interdits) {
+    assert.ok(!motif.test(code), `${quoi} retrouvée dans l’écran Rappels : ${motif}`);
   }
-  assert.ok(/chargerConfigEtCuves/.test(code), 'l’écran doit lire station_config par le chargeur canonique');
-  assert.ok(/limiteRemplissageTotale/.test(code), 'et sommer les limites par le propriétaire unique du calcul');
 });
 
-t('CONTRAT — sans configuration lue, l’écran ne recommande RIEN', () => {
-  // Fail closed. Retomber sur des nombres supposés serait exactement le
-  // défaut qu'on corrige : une recommandation fausse coûte plus cher qu'une
-  // absence de recommandation.
+t('CONTRAT — l’écran renvoie vers le propriétaire de cette vérité', () => {
+  // Retirer sans rediriger laisserait le manager sans réponse : le besoin
+  // existe toujours, c'est l'endroit qui change.
   const brut = fs.readFileSync(ECRAN, 'utf8');
-  // Le motif `if (!CONFIG_CARBURANT_LUE)` apparaît DEUX fois dans le fichier :
-  // ici pour le garde, et plus haut pour renseigner le motif d'absence. Un
-  // premier jet visait le motif nu et validait donc la mauvaise ligne — une
-  // mutation supprimant le vrai garde y survivait. On vise la forme exacte du
-  // bloc, avec son accolade.
-  const GARDE = 'if (!CONFIG_CARBURANT_LUE) {';
-  assert.strictEqual(brut.split(GARDE).length - 1, 1, 'le garde doit exister, une seule fois');
-  assert.ok(/Recommandation indisponible/.test(brut), 'et l’écran doit le DIRE');
-  const i = brut.indexOf(GARDE);
-  const j = brut.indexOf('calculerRecommandationCombinee(\n', i);
-  assert.ok(j > i, 'le garde doit venir AVANT l’appel au calcul');
-  const entre = brut.slice(i, j);
-  assert.ok(/\n\s*return;/.test(entre),
-    'et SORTIR, pas seulement afficher un avertissement avant de calculer quand même');
-  assert.ok(entre.length < 1200, 'le garde doit être juste avant l’appel, pas perdu à l’autre bout du fichier');
+  assert.ok(/NEXUS-Carburants-Pilotage-v1\.html/.test(brut),
+    'l’écran doit pointer vers NEXUS Carburants');
+  assert.ok(fs.existsSync(path.join(__dirname, 'NEXUS-Carburants-Pilotage-v1.html')),
+    'et cette page doit exister — un renvoi vers une page absente est une porte peinte sur un mur');
+});
+
+t('l’écran ne charge plus les moteurs dont il ne se sert pas', () => {
+  const brut = fs.readFileSync(ECRAN, 'utf8');
+  for (const moteur of ['nexus-carburant-moteur.js', 'nexus-carburant-commande-moteur.js',
+    'nexus-carburant-commande-donnees-core.js']) {
+    assert.ok(!new RegExp('<script src="' + moteur.replace('.', '\\.')).test(brut),
+      `${moteur} chargé pour rien : chaque ouverture paierait le coût d’une chaîne inutilisée`);
+  }
 });
 
 t('CONTRAT — le calcul de la limite n’a qu’un propriétaire', () => {

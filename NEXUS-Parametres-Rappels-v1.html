@@ -72,37 +72,19 @@
 
   .fuel-header{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
   .fuel-header-icon{font-size:26px;}
-  .cuves-wrap{display:flex; gap:16px; justify-content:center; margin:16px 0;}
-  .cuve-block{text-align:center;}
-  .cuve-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; text-transform:uppercase; letter-spacing:0.05em;}
-  .cuve-pct{font-family:var(--mono); font-size:15px; font-weight:700; margin-top:2px;}
-  .fuel-result-card{border-radius:14px; padding:16px; margin-top:12px; position:relative; overflow:hidden;}
-  .fuel-result-head{display:flex; align-items:center; gap:10px;}
-  .fuel-result-icon{font-size:22px;}
-  .fuel-result-title{font-size:14px; font-weight:700;}
-  .fuel-caveat{font-size:10px; color:var(--text-dim); margin-top:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08);}
-
-  .fuel-block{border-radius:12px; padding:14px; margin-bottom:14px;}
-  .fuel-block.sp{background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3);}
-  .fuel-block.go{background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.3);}
-  .fuel-block-title{font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:6px;}
-  .fuel-block.sp .fuel-block-title{color:var(--green);}
-  .fuel-block.go .fuel-block-title{color:var(--amber);}
-  .fuel-block input{margin-bottom:8px;}
+  /* Le CSS du simulateur carburant (cuves dessinées, blocs de saisie, carte
+     de résultat) a été retiré avec lui le 08/09/2026 — CARB-007. Seul
+     `.fuel-header` reste : il titre encore le renvoi vers NEXUS Carburants. */
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
-<!-- CARB-007 (08/09/2026) : cet écran gardait sa PROPRE vérité carburant —
-     capacités de cuve codées en dur (28 500 / 27 000, fausses pour la
-     station réelle qui est à 28 761 / 28 553) et son propre camion de
-     36 000 L. Il consomme désormais la configuration canonique, lue par le
-     même chargeur que NEXUS Carburants. -->
-<script src="nexus-carburant-moteur.js?v=20260908"></script>
-<script src="nexus-carburant-commande-moteur.js?v=20260908"></script>
-<script src="nexus-carburant-commande-donnees-core.js?v=20260908"></script>
+<!-- Les trois moteurs carburant étaient chargés ici pour alimenter un
+     simulateur qui n'existe plus (CARB-007, retiré le 08/09/2026). Les
+     charger encore ferait payer à chaque ouverture de cet écran le coût
+     d'une chaîne dont il ne se sert pas. -->
 </head>
 <body>
 <div class="phone">
@@ -129,30 +111,29 @@
       <div id="fournisseursListe" style="max-height:380px; overflow-y:auto;"></div>
     </div>
 
+    <!-- CARB-007 (08/09/2026). Ce bloc contenait un SIMULATEUR carburant
+         complet : formulaire de jaugeage, historique en localStorage,
+         moyenne glissante, et une logique de recommandation entièrement
+         parallèle à NEXUS Carburants — sécurité à 3 jours contre 2, règle de
+         fin de mois différente, découpe du camion au prorata de la place,
+         cutoff 11 h en dur, capacités de cuve fausses pour la station réelle.
+         Deux écrans répondaient donc différemment à la même question.
+
+         Retiré sur décision de Frédéric du 08/09/2026 : « le simulateur dans
+         Rappels n'a plus de sens ». Une vérité métier n'a qu'un propriétaire
+         logique (Bible, « Architecture de vérité ») — celui du carburant est
+         NEXUS Carburants, qui lit le jaugeage réel, la configuration de la
+         station et l'historique des ventes plutôt qu'une saisie manuelle
+         conservée dans le navigateur. -->
     <div class="card">
-      <div class="fuel-header"><span class="fuel-header-icon">⛽</span><div class="section-label" style="margin:0; border:none;">Jaugeage carburant du jour</div></div>
-      <div style="font-size:11px; color:var(--text-mid); margin-bottom:14px;">Saisie manuelle quotidienne — remplace la photo. Écart tampon de 1 500 L appliqué par cuve : Sans Plomb 28 500 L utiles (sur 30 000 L), Gasoil 27 000 L utiles au total (18 500 + 8 500 L, tampon sur chaque cuve). Stock de sécurité minimal : <b style="color:var(--text);">3 jours de consommation</b>, à tout moment — les livraisons ne se faisant que les jours ouvrables, le calcul recule automatiquement la commande avant un week-end ou un jour férié pour ne jamais descendre sous ce seuil.</div>
-      <div class="info-box" style="margin-bottom:14px;">💰 <b style="color:var(--text);">Pourquoi le stock minimal, pas un camion complet :</b> le carburant est payé au comptant — chaque litre stocké immobilise de la trésorerie. Le prix étant indexé par la préfecture de Martinique (identique pour toutes les stations, concurrentes comprises), il n'y a aucun avantage commercial à sur-stocker. La seule règle non négociable : ne jamais tomber en rupture.</div>
-
-      <div class="fuel-block sp">
-        <div class="fuel-block-title">🟢 Sans Plomb — cuve unique 30 000 L</div>
-        <input type="number" id="j_sp" placeholder="Jaugeage (litres) — ex: 22656">
-        <input type="number" id="j_sp_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
+      <div class="fuel-header"><span class="fuel-header-icon">⛽</span><div class="section-label" style="margin:0; border:none;">Commande carburant</div></div>
+      <div style="font-size:11.5px; color:var(--text-mid); line-height:1.6;">
+        La recommandation de commande carburant vit dans <b style="color:var(--text);">NEXUS Carburants</b>,
+        qui travaille sur le jaugeage réel, la configuration de vos cuves et votre historique de ventes.
+        Le simulateur qui se trouvait ici tenait ses propres capacités et sa propre logique : il pouvait
+        donc répondre autrement, sur les mêmes données.
       </div>
-
-      <div class="fuel-block go">
-        <div class="fuel-block-title">🟡 Gasoil — deux cuves distinctes</div>
-        <input type="number" id="j_go1" placeholder="Cuve 20 000 L — ex: 14161">
-        <input type="number" id="j_go2" placeholder="Cuve 10 000 L — ex: 6524">
-        <input type="number" id="j_go_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
-        <div style="font-size:10px; color:var(--text-dim);">NEXUS additionne automatiquement les deux pour le calcul global.</div>
-      </div>
-
-      <input type="number" id="j_gnr" placeholder="GNR (litres, optionnel)">
-      <button class="btn" id="calculerCarburant">Calculer la recommandation</button>
-      <div id="venteTheoriqueBox"></div>
-      <div class="cuves-wrap" id="cuvesVisuel"></div>
-      <div id="resultCarburant"></div>
+      <a class="btn" href="NEXUS-Carburants-Pilotage-v1.html" style="display:block; text-align:center; margin-top:14px; text-decoration:none;">Ouvrir NEXUS Carburants</a>
     </div>
 
     <div class="card">
@@ -582,263 +563,18 @@
   }
   afficherFournisseurs();
 
-  // --- Carburant : jaugeage quotidien + recommandation de commande ---
-  const JOURS_FERIES_MARTINIQUE_2026 = ["2026-01-01","2026-04-06","2026-05-01","2026-05-08",
-    "2026-05-14","2026-05-22","2026-05-25","2026-07-14","2026-07-21","2026-08-15",
-    "2026-11-01","2026-11-11","2026-12-25"];
-  function estJourOuvrable(d) {
-    const iso = d.toISOString().slice(0,10);
-    return d.getDay() !== 0 && d.getDay() !== 6 && !JOURS_FERIES_MARTINIQUE_2026.includes(iso);
-  }
-  const CONSO_MOYENNE_HISTORIQUE = { sp: 3138.92, go: 2810.10 }; // valeurs de secours, calculees sur l'historique du fichier fourni au depart
-
-  // Calcule la vente theorique du jour : stock d'hier + livraison recue - stock d'aujourd'hui.
-  // Le champ livraison evite une valeur negative artificielle quand une
-  // livraison a eu lieu entre les deux releves.
-  function calculerVenteTheorique(historique, cle, stockActuel, livraisonRecue) {
-    if (historique.length === 0) return null;
-    const hier = historique[historique.length - 1];
-    const stockHier = hier[cle];
-    if (stockHier === null || stockHier === undefined || isNaN(stockHier)) return null;
-    return (stockHier + (livraisonRecue || 0)) - stockActuel;
-  }
-
-  // Moyenne glissante sur toutes les ventes theoriques reellement calculees
-  // jusqu'ici. Sous 2 points, on retombe sur l'historique de secours —
-  // une moyenne sur 1 seul jour n'est pas fiable.
-  function calculerConsoMoyenneReelle(historique, cle) {
-    const ventes = historique.map(h => h['vente_'+cle]).filter(v => v !== null && v !== undefined && !isNaN(v) && v >= 0);
-    if (ventes.length < 2) return { valeur: CONSO_MOYENNE_HISTORIQUE[cle], source: 'historique_fichier', nbJours: ventes.length };
-    const moyenne = ventes.reduce((s,v)=>s+v,0) / ventes.length;
-    return { valeur: moyenne, source: 'calculee', nbJours: ventes.length };
-  }
-  // CARB-007. Ces trois nombres étaient écrits en dur ici : capacités de cuve
-  // (28 500 / 27 000) et camion (36 000). Les deux premiers étaient FAUX pour
-  // la station réelle — 28 761 et 28 553 — donc cet écran et NEXUS Carburants
-  // ne pouvaient pas donner la même réponse à la même question.
+  // --- Carburant ---
+  // Le simulateur qui vivait ici a été retiré le 08/09/2026 (CARB-007) : il
+  // dupliquait la logique de commande de NEXUS Carburants en en divergeant, et
+  // tenait ses propres capacités de cuve, fausses pour la station réelle.
+  // Rien ne le remplace ici — l'écran renvoie désormais vers le propriétaire
+  // unique de cette vérité.
   //
-  // Ils sont désormais LUS dans `station_config`, par le même chargeur que le
-  // moteur canonique, et la somme des limites de remplissage est calculée par
-  // son propriétaire unique (`NexusCarburantMoteur.limiteRemplissageTotale`).
-  //
-  // FAIL CLOSED : tant que la configuration n'est pas lue, ces valeurs sont
-  // nulles et aucune recommandation n'est produite. Retomber sur des nombres
-  // inventés serait exactement le défaut qu'on corrige.
-  let CAPACITE_CUVE = { sp: null, go: null };
-  let CAMION_CAPACITE = null;
-  let CONFIG_CARBURANT_LUE = false;
-  let MOTIF_CONFIG_ABSENTE = null;
-
-  async function chargerCapacitesStation() {
-    const D = window.NexusCarburantCommandeDonnees, M = window.NexusCarburantMoteur;
-    if (!D || !M) { MOTIF_CONFIG_ABSENTE = 'moteur carburant non chargé'; return; }
-    try {
-      const { config, cuves } = await D.chargerConfigEtCuves(nexusClient, employee.site);
-      if (!config || !cuves || !cuves.sp95 || !cuves.go) {
-        MOTIF_CONFIG_ABSENTE = 'configuration carburant absente pour ce site';
-        return;
-      }
-      CAPACITE_CUVE = {
-        sp: M.limiteRemplissageTotale(cuves.sp95.cuves),
-        go: M.limiteRemplissageTotale(cuves.go.cuves),
-      };
-      CAMION_CAPACITE = Number(config.maximum_camion_litres) || null;
-      CONFIG_CARBURANT_LUE = !!(CAPACITE_CUVE.sp && CAPACITE_CUVE.go && CAMION_CAPACITE);
-      if (!CONFIG_CARBURANT_LUE) MOTIF_CONFIG_ABSENTE = 'capacités ou maximum camion non renseignés';
-    } catch (e) {
-      MOTIF_CONFIG_ABSENTE = e.message;
-    }
-  }
-
-  function prochainOuvrableApres(d) {
-    let candidat = new Date(d.getTime() + 86400000);
-    while (!estJourOuvrable(candidat)) candidat = new Date(candidat.getTime() + 86400000);
-    return candidat;
-  }
-
-  function calculerRecommandationCombinee(stockSP, stockGO, consoSP, consoGO, capSP, capGO, camion) {
-    const maintenant = new Date();
-    const aujourdhui = new Date(); aujourdhui.setHours(0,0,0,0);
-    const avant11h = maintenant.getHours() < 11;
-    const seuilSP = consoSP*3, seuilGO = consoGO*3;
-
-    // Commande 1 : aujourd'hui si jour ouvrable ET avant 11h (coupure fournisseur),
-    // sinon le prochain jour ouvrable.
-    const commande1 = (estJourOuvrable(aujourdhui) && avant11h) ? aujourdhui : prochainOuvrableApres(aujourdhui);
-    // Livraison = jour ouvrable suivant la commande — la commande, elle, ne
-    // recule JAMAIS pour eviter un ferie : c'est la livraison qui glisse en avant.
-    const dl = prochainOuvrableApres(commande1);
-    const dc = commande1;
-    const joursAvantLivraison = Math.round((dl-aujourdhui)/86400000);
-
-    const stockSPaLivraison = stockSP !== null ? stockSP - consoSP*joursAvantLivraison : null;
-    const stockGOaLivraison = stockGO !== null ? stockGO - consoGO*joursAvantLivraison : null;
-
-    // Cycle suivant : commande 2 = prochain jour ouvrable APRES cette
-    // livraison (pas apres la commande) — c'est le vrai rythme operationnel,
-    // confirme le 09/07/2026 sur le cas reel du 14 juillet ferie.
-    const commande2 = prochainOuvrableApres(dl);
-    const livraison2 = prochainOuvrableApres(commande2);
-    const joursACouvrir = Math.round((livraison2-dl)/86400000);
-
-    const besoinSP = seuilSP + consoSP*joursACouvrir;
-    const besoinGO = seuilGO + consoGO*joursACouvrir;
-    const spUrgent = stockSPaLivraison !== null && stockSPaLivraison < besoinSP;
-    const goUrgent = stockGOaLivraison !== null && stockGOaLivraison < besoinGO;
-
-    if (!spUrgent && !goUrgent) {
-      return { action: 'ATTENDRE',
-        message: `Stock suffisant pour couvrir jusqu'à la prochaine livraison possible (${livraison2.toLocaleDateString('fr-FR')}) avec 3 jours de marge. Aucune commande nécessaire.` };
-    }
-
-    // Quantite MINIMALE (plancher de securite absolu, jamais en dessous)
-    let qSPmin = spUrgent ? Math.max(0, Math.min(besoinSP-stockSPaLivraison, capSP-stockSPaLivraison)) : 0;
-    let qGOmin = goUrgent ? Math.max(0, Math.min(besoinGO-stockGOaLivraison, capGO-stockGOaLivraison)) : 0;
-
-    // Quantite CAMION COMPLET (par defaut vise) — remplir au max les cuves,
-    // 36 000L combines SP+GO.
-    const espaceSP = Math.max(0, capSP-stockSPaLivraison), espaceGO = Math.max(0, capGO-stockGOaLivraison);
-    const espaceTotal = espaceSP+espaceGO;
-    const totalCamion = Math.min(espaceTotal, camion);
-    let qSPcamion = espaceTotal>0 ? totalCamion*(espaceSP/espaceTotal) : 0;
-    let qGOcamion = totalCamion-qSPcamion;
-
-    // Regle fin de mois : le camion complet ne doit jamais laisser un
-    // surstock a la fin du mois (au-dela de 2x le seuil de securite, soit
-    // 6 jours de conso) — sinon on retombe sur le complement minimal.
-    const finMois = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth()+1, 0);
-    const joursLivraisonAFinMois = Math.max(0, Math.round((finMois-dl)/86400000));
-    const projSPfinMois = (stockSPaLivraison+qSPcamion) - consoSP*joursLivraisonAFinMois;
-    const projGOfinMois = (stockGOaLivraison+qGOcamion) - consoGO*joursLivraisonAFinMois;
-    const surstock = (projSPfinMois > seuilSP*2) || (projGOfinMois > seuilGO*2);
-
-    let qSP, qGO, mode;
-    if (!surstock) { qSP = qSPcamion; qGO = qGOcamion; mode = 'CAMION_COMPLET'; }
-    else { qSP = qSPmin; qGO = qGOmin; mode = 'COMPLEMENT'; }
-
-    const totalBrut = qSP + qGO;
-    if (totalBrut > camion) { const ratio = camion/totalBrut; qSP *= ratio; qGO *= ratio; }
-    if (mode === 'CAMION_COMPLET') {
-      // Arrondi vers le BAS pour les deux — un camion complet ne peut
-      // physiquement jamais depasser 36 000L, deux arrondis vers le haut
-      // separement pourraient sinon donner 37 000L (bug reel corrige le 09/07).
-      qSP = Math.floor(qSP/1000)*1000;
-      qGO = Math.floor(qGO/1000)*1000;
-    } else {
-      // Complement de securite : arrondi vers le HAUT — sous-estimer serait risquer la rupture
-      qSP = Math.ceil(qSP/1000)*1000;
-      qGO = Math.ceil(qGO/1000)*1000;
-    }
-
-    return {
-      action: 'COMMANDER', mode,
-      dateCommande: dc.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}),
-      dateLivraison: dl.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}),
-      qSP, qGO,
-      message: mode === 'CAMION_COMPLET'
-        ? `Camion complet visé (${(qSP+qGO).toLocaleString('fr-FR')} L), réparti selon la place disponible — vérifié : ceci ne crée pas de surstock en fin de mois (${finMois.toLocaleDateString('fr-FR')}).`
-        : `Complément minimal uniquement — un camion complet laisserait un surstock en fin de mois. Prochaine livraison possible : ${livraison2.toLocaleDateString('fr-FR')} (${joursACouvrir} jours d'écart) si besoin de recommander avant la fin du mois.`,
-    };
-  }
-
-  function dessinerCuve(nom, stock, capacite, couleur) {
-    const pct = Math.max(0, Math.min(100, (stock/capacite)*100));
-    const hautLiquide = 130 * (pct/100);
-    return `
-      <div class="cuve-block">
-        <svg width="70" height="150" viewBox="0 0 70 150">
-          <rect x="5" y="10" width="60" height="130" rx="10" fill="#1A222C" stroke="#242E38" stroke-width="2"/>
-          <clipPath id="clip-${nom}"><rect x="7" y="12" width="56" height="126" rx="8"/></clipPath>
-          <rect x="7" y="${142-hautLiquide}" width="56" height="${hautLiquide}" fill="${couleur}" opacity="0.85" clip-path="url(#clip-${nom})"/>
-          <rect x="20" y="0" width="30" height="12" rx="3" fill="#242E38"/>
-        </svg>
-        <div class="cuve-label">${nom}</div>
-        <div class="cuve-pct" style="color:${couleur};">${Math.round(pct)}%</div>
-      </div>`;
-  }
-
-  // Lecture lancée dès l'ouverture, et ATTENDUE au clic : sans cela, un clic
-  // rapide passerait avant la configuration et tomberait sur le refus
-  // « indisponible » alors que tout allait bien.
-  const capacitesPretes = chargerCapacitesStation();
-
-  document.getElementById('calculerCarburant').addEventListener('click', async () => {
-    await capacitesPretes;
-    const sp = parseFloat(document.getElementById('j_sp').value);
-    const go1 = parseFloat(document.getElementById('j_go1').value);
-    const go2 = parseFloat(document.getElementById('j_go2').value);
-    const goSaisi = !isNaN(go1) || !isNaN(go2);
-    const go = goSaisi ? (isNaN(go1)?0:go1) + (isNaN(go2)?0:go2) : null;
-    const spSaisi = !isNaN(sp);
-    const livraisonSP = parseFloat(document.getElementById('j_sp_livraison').value) || 0;
-    const livraisonGO = parseFloat(document.getElementById('j_go_livraison').value) || 0;
-    const box = document.getElementById('resultCarburant');
-    if (!spSaisi && !goSaisi) { box.innerHTML = '<div style="color:var(--red); font-size:12px; margin-top:10px;">Saisissez au moins un jaugeage.</div>'; return; }
-
-    let cuvesHtml = '';
-    if (spSaisi) cuvesHtml += dessinerCuve('SP', sp, CAPACITE_CUVE.sp, '#34D399');
-    if (!isNaN(go1)) cuvesHtml += dessinerCuve('GO 20K', go1, 20000, '#F5A623');
-    if (!isNaN(go2)) cuvesHtml += dessinerCuve('GO 10K', go2, 10000, '#F5A623');
-    document.getElementById('cuvesVisuel').innerHTML = cuvesHtml;
-
-    const historique = JSON.parse(localStorage.getItem('nexus_jaugeage_historique') || '[]');
-
-    // Vente theorique du jour = stock d'hier + livraison recue - stock d'aujourd'hui
-    const venteSP = spSaisi ? calculerVenteTheorique(historique, 'sp', sp, livraisonSP) : null;
-    const venteGO = goSaisi ? calculerVenteTheorique(historique, 'go', go, livraisonGO) : null;
-
-    historique.push({
-      date: new Date().toISOString().slice(0,10), sp, go, go1, go2,
-      livraison_sp: livraisonSP || null, livraison_go: livraisonGO || null,
-      vente_sp: venteSP, vente_go: venteGO,
-      gnr: parseFloat(document.getElementById('j_gnr').value)||null,
-    });
-    localStorage.setItem('nexus_jaugeage_historique', JSON.stringify(historique));
-
-    // Affichage de la vente du jour + moyenne glissante
-    const consoSPinfo = calculerConsoMoyenneReelle(historique, 'sp');
-    const consoGOinfo = calculerConsoMoyenneReelle(historique, 'go');
-    let venteHtml = '<div class="info-box" style="margin-bottom:14px;">';
-    if (venteSP !== null) venteHtml += `🟢 Vente théorique SP aujourd'hui : <b style="color:var(--text);">${Math.round(venteSP).toLocaleString('fr-FR')} L</b>${livraisonSP>0?` (livraison de ${livraisonSP.toLocaleString('fr-FR')} L déduite)`:''}<br>`;
-    if (venteGO !== null) venteHtml += `🟡 Vente théorique GO aujourd'hui : <b style="color:var(--text);">${Math.round(venteGO).toLocaleString('fr-FR')} L</b>${livraisonGO>0?` (livraison de ${livraisonGO.toLocaleString('fr-FR')} L déduite)`:''}<br>`;
-    venteHtml += `<span style="font-size:10px; color:var(--text-dim);">Moyenne utilisée pour les calculs : SP ${Math.round(consoSPinfo.valeur).toLocaleString('fr-FR')} L/j (${consoSPinfo.source==='calculee'?`calculée sur ${consoSPinfo.nbJours} jours réels`:'historique de départ, pas encore assez de jours saisis'}), GO ${Math.round(consoGOinfo.valeur).toLocaleString('fr-FR')} L/j (${consoGOinfo.source==='calculee'?`calculée sur ${consoGOinfo.nbJours} jours réels`:'historique de départ'}).</span></div>`;
-    document.getElementById('venteTheoriqueBox').innerHTML = (venteSP!==null || venteGO!==null) ? venteHtml : '';
-
-    if (!CONFIG_CARBURANT_LUE) {
-      // Ne rien recommander plutôt que recommander sur des capacités
-      // inventées : une recommandation fausse coûte plus qu'une absence de
-      // recommandation.
-      box.innerHTML = `<div class="fuel-result-card" style="background:var(--panel); color:var(--text-dim);">
-        <div class="fuel-result-head"><span class="fuel-result-icon">⏸</span>
-        <span class="fuel-result-title">Recommandation indisponible</span></div>
-        <div style="font-size:11.5px; margin-top:8px;">Les capacités de cuve et le maximum camion n'ont pas pu être lus
-        dans la configuration de la station (${MOTIF_CONFIG_ABSENTE || 'cause inconnue'}).
-        Aucune quantité n'est proposée : mieux vaut pas de recommandation qu'une recommandation calculée sur des capacités supposées.</div></div>`;
-      return;
-    }
-    const r = calculerRecommandationCombinee(
-      spSaisi ? sp : null, goSaisi ? go : null,
-      consoSPinfo.valeur, consoGOinfo.valeur, CAPACITE_CUVE.sp, CAPACITE_CUVE.go, CAMION_CAPACITE
-    );
-
-    const couleur = r.action === 'COMMANDER' ? 'var(--amber-dim)' : 'var(--green-dim)';
-    const texteCouleur = r.action === 'COMMANDER' ? 'var(--amber)' : 'var(--green)';
-    let html = `<div class="fuel-result-card" style="background:${couleur}; color:${texteCouleur};">
-      <div class="fuel-result-head">
-        <span class="fuel-result-icon">${r.action === 'COMMANDER' ? '🚛' : '✅'}</span>
-        <span class="fuel-result-title">${r.action === 'COMMANDER' ? 'Commander' : 'Attendre'}</span>
-      </div>
-      <div style="font-size:11.5px; margin-top:8px;">${r.message}</div>`;
-    if (r.action === 'COMMANDER') {
-      html += `<div style="font-family:var(--mono); font-size:12px; margin-top:8px; font-weight:700;">📅 ${r.dateCommande} → livraison ${r.dateLivraison}<br>`;
-      if (r.qSP > 0) html += `🟢 Sans Plomb : ~${r.qSP.toLocaleString('fr-FR')} L<br>`;
-      if (r.qGO > 0) html += `🟡 Gasoil : ~${r.qGO.toLocaleString('fr-FR')} L<br>`;
-      html += `Total : ~${(r.qSP+r.qGO).toLocaleString('fr-FR')} L</div>
-      <div class="fuel-caveat">Répartition exacte en compartiments à confirmer avec le fournisseur selon le camion disponible ce jour-là.</div>`;
-    }
-    html += `</div>`;
-    box.innerHTML = html;
-  });
+  // NOTE pour la reprise : l'ancien simulateur conservait un historique de
+  // jaugeage manuel dans localStorage sous la clé `nexus_jaugeage_historique`.
+  // Cette clé n'est plus lue ni écrite. Elle n'est pas non plus supprimée :
+  // effacer une donnée saisie par quelqu'un sans le lui demander n'appartient
+  // pas à un nettoyage de code.
 
 });
 </script>
