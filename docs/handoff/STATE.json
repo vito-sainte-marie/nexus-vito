@@ -218,7 +218,11 @@
     },
     "NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "4dfc883fd7d7c48f4e611d44eee9e6cb30308368",
+      "consomme_le": "2026-09-08T19:46:42.917Z"
     }
   },
   "artefacts_hors_registre": [

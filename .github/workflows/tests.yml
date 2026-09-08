@@ -234,6 +234,11 @@ jobs:
       - name: Épreuves de la garde LANG-003
         run: node test_garde_langage_nexus_20260908.js
 
+      # Une ligne de Bible que rien ne mécanise est une décoration : elle se met
+      # à mentir le jour où le code s'en écarte, sans que personne ne le voie.
+      - name: Les principes de la Bible sont-ils TENUS ?
+        run: node test_bible_principes_mecanises_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

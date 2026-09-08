@@ -15,6 +15,8 @@ Le pilote initial est Vito Sainte-Marie Usine, mais l'architecture doit rester c
 - Les preuves réelles du terrain priment sur les hypothèses.
 - Une anomalie ne doit jamais être masquée par un affichage rassurant.
 - NEXUS automatise tout ce qui peut être détecté, vérifié, transmis ou exécuté de manière fiable ; l'attention humaine est réservée aux exceptions, arbitrages et décisions où le jugement humain crée réellement de la valeur.
+- Une donnée absente n'est jamais transformée en zéro, conformité ou conclusion positive ; une donnée réellement mesurée à zéro reste dite comme telle.
+- Une décision humaine sensible envers un individu (évaluation, sanction, jugement de performance) n'est jamais déduite automatiquement d'une absence de donnée.
 
 ## Architecture de vérité et productivité
 

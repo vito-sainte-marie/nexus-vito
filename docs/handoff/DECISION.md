@@ -1,93 +1,56 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ORCHESTRATION-GUARDIANS-1-20260907/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-ORCHESTRATION-GUARDIANS-1-20260907
+lot_id: NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908
 seq: 1
-author: NEXUS Orchestrator
+author: Frédéric Bragance
 branch: config-par-environnement
 decision: APPROVED_WITH_CONDITIONS
-closes: true
-in_reply_to: request-2.md
+closes: false
+in_reply_to: request-1.md
 ---
-# Décision — trois Guardians de plus, deux bloquants, deux dettes produit ouvertes
+# LANG-003 — portée arbitrée : le contenu lu par l'utilisateur
 
-## Verdict
+## Ce qui est tranché
 
-`APPROVED_WITH_CONDITIONS`, `closes: true`.
+Frédéric Bragance arbitre la **portée 1** proposée en `§4.1` de
+`docs/nexus/AUDIT-PHILOSOPHIE-LANGAGE-RESULTATS-20260908.md` :
 
-## Q73 — activation bloquante
+> l'interdiction du tiret cadratin s'applique au **contenu produit par NEXUS et
+> lu par l'utilisateur final**, et à lui seul.
 
-**NON pour l'instant** pour `guardians-router`, Business Rules et Bible. Ils
-restent en mode rapport tant que leurs dettes préexistantes ne sont pas
-tranchées. `verifier-apprentissage` et le Guardian QA restent bloquants
-puisqu'ils sont à zéro finding canonique. Le passage au blocage des autres
-gardes devra se faire après extinction de leur dette, avec preuve verte sur
-le HEAD canonique.
+Sont donc **hors portée** : les commentaires de développement, la documentation
+doctrinale, de gouvernance et de Handoff — y compris les échanges Claude ↔
+Orchestrator — ainsi que les moteurs, tant que leur sortie n'est pas affichée.
 
-## Q74 — défauts produit trouvés
+## Pourquoi cette portée change tout mécaniquement
 
-**OUI, ouvrir des lots distincts et déterministes**, par gravité humaine puis
-risque métier :
+La mesure réelle du dépôt donnait 4 810 occurrences dans 62 écrans, 305 dans la
+doctrine et 108 dans les moteurs. Câbler la règle sur la portée 3 aurait produit
+plusieurs milliers de signalements d'un coup, et QA-002 prévoit exactement ce qui
+serait arrivé ensuite : la garde aurait été désactivée avant d'avoir servi, et
+elle aurait emporté ses vraies trouvailles avec elle.
 
-1. `NEXUS-Evaluation-Employe-v1.html` — ne jamais afficher `0.0 / 5` / `0 %`
-   lorsqu'aucune évaluation n'existe ; afficher un état neutre explicite.
-2. `NEXUS-Debug-v1.html` — une absence de mesure ne doit jamais devenir
-   `+0 €` vert / conformité parfaite.
-3. `nexus-coach-fdj-moteur.js` — aucune absence de donnée ne doit devenir
-   reproche `0 %`.
-4. moteur carburant parallèle dans `NEXUS-Parametres-Rappels-v1.html` —
-   rétablir une source de vérité unique issue du moteur canonique.
+La portée 1 réduit la cible à ce que NEXUS **dit**, pas à ce qu'il contient.
+C'est aussi la seule des trois portées qui exprime une intention de produit
+plutôt qu'une préférence typographique.
 
-La collision `NexusStock` reste également un lot séparé avant blocage du
-routeur Architecture.
+## Ce que cette décision n'arbitre PAS
 
-## Q75 — relecteur Philosophie
+Les deux ajouts à `BIBLE.md` proposés en `§5.1` (« une mesure absente n'est pas
+une mesure nulle », « une décision humaine sensible ne s'automatise pas ») et la
+note de révision de `NEXUS-Constitution-v1.md` Art.12/13 proposée en `§4.2` **ne
+sont pas tranchés ici**. Ils n'ont pas été soumis à Frédéric dans les mêmes
+termes, et rien dans son arbitrage ne les mentionne. Les inscrire au motif
+qu'ils étaient dans la même demande fabriquerait une approbation qui n'a pas eu
+lieu. Ils restent ouverts.
 
-**OUI uniquement en consultatif.** Jamais bloquant tant qu'il dépend d'un
-jugement de modèle ; hors CI bloquante. Il peut produire des
-findings/recommandations traçables, mais aucune conclusion automatique de
-conformité sur les principes non mécanisables.
+## Ce qui est attendu de Claude
 
-## Q76 — arbitrage a posteriori outillage/QA
-
-**APPROUVÉ avec frontière stricte.** Claude peut exécuter puis faire arbitrer
-a posteriori un lot uniquement si les quatre conditions sont simultanément
-vraies :
-
-1. aucun choix métier/produit ;
-2. aucun secret, rotation/lecture de secret, ni dépendance/harnais tiers
-   élargissant la surface de sécurité ;
-3. aucune action Production/Supabase Production/NEXUS Production ;
-4. aucune modification de `main`.
-
-Dès qu'une seule condition tombe, retour immédiat au régime normal avec
-arbitrage préalable. Cette pré-autorisation couvre l'outillage, les gardes,
-les tests, mutations, calibration et câblage CI sur `config-par-environnement`,
-mais n'autorise jamais une correction applicative hors lot ni un
-élargissement silencieux de périmètre.
-
-## Conditions permanentes
-
-- les Guardians doivent être calibrés sur le dépôt réel avant blocage ;
-- toute mutation doit prouver qu'elle a réellement modifié la cible avant de
-  conclure ;
-- toute assertion doit pouvoir échouer ;
-- la mémoire servie par `briefing-agent.js` doit rester dérivée de
-  `RULES.json`, sans seconde vérité paraphrasée ;
-- aucun finding préexistant ne doit être maquillé pour rendre une garde
-  verte : il reste une dette tracée jusqu'à correction ;
-- aucun changement `main`/`production`, aucune opération Supabase
-  Production/NEXUS Production, aucun secret/PIN/service_role dans dépôt ou
-  logs.
-
-## Pourquoi `closes: true`
-
-Le lot Guardians a atteint son objectif d'intégration/câblage/calibration et
-les décisions restantes sont soit des dettes produit séparées, soit des
-extensions de gouvernance distinctes. Elles ne doivent pas maintenir ce lot
-artificiellement ouvert.
-
-Après consommation : ne pas corriger les défauts produit dans ce lot.
-Matérialiser seulement les futurs lots/backlog nécessaires.
+1. Mesurer la portée 1 avant de câbler quoi que ce soit (QA-002) : identifier le
+   contenu réellement affiché, et non l'estimer.
+2. Corriger les occurrences trouvées dans ce périmètre.
+3. Ne câbler la règle en CI que si la mesure le permet — et le dire si elle ne
+   le permet pas, plutôt que de câbler une garde qui sera désactivée.
