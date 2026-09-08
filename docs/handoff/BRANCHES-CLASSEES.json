@@ -1,0 +1,140 @@
+{
+  "commentaire": "Registre des branches de travail classées — voir outils/garde-branches-en-rade.js. Une branche non fusionnee et non inscrite ici est signalee EN RADE. Un classement ne couvre que le sha  qu il a vu : si la branche recoit de nouveaux commits, elle reapparait. Vocabulaire repris de docs/gouvernance/2026-09-07-audit-travaux-claude-branches-isolees.md.",
+  "classees": [
+    {
+      "branche": "claude/issue-28-20260906-0604",
+      "tete": "93852f8c83dbc8f593316ce8328aca47d9890bf4",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §1 : lot pompiste/fuseau déjà DECISION_CONSOMMEE par une autre voie ; la migration 20260906120000, la garde et ses tests sont canoniques. PR #29 fermée.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1314",
+      "tete": "4ffeb5183eb2027d3f55101a2c5bc05fad6042a5",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §2 : première implémentation du créneau commandable, supersédée par les décisions Carburants ultérieures. Conservée comme preuve historique ; 1314/1315/1323 sont des itérations concurrentes qui ne se cumulent pas.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1315",
+      "tete": "0b49a868890587d5c156c58f46891bfb9018b902",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §3 : variante concurrente de la même correction Carburants.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1323",
+      "tete": "72cec144f0f03aea8c3ef0573eb403ed98538e17",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §4 : créneau lundi-vendredi avant 11h repris ensuite dans le rail canonique. Conservée comme preuve historique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1405",
+      "tete": "7a5d329676e3b99b48d1a1a296f865f74ced1bb3",
+      "sort": "A_REPRENDRE",
+      "motif": "Audit du 07/09/2026 §5 : le Guardian Philosophie NEXUS (docs/gouvernance/GUARDIAN-PHILOSOPHIE-NEXUS.md) et l audit event-driven n existent QUE sur cette branche. Vérifié le 08/09/2026 : absents du canonique.",
+      "le": "2026-09-08",
+      "renvoi": "GOV-002"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1412",
+      "tete": "157316e2805774e34a53530b7939f720d099141f",
+      "sort": "A_REPRENDRE",
+      "motif": "Audit du 07/09/2026 §6 : audit-1.md du lot GUARDIAN-ARCHITECTURE-COHERENCE absent du canonique alors que le répertoire du lot existe. La collision NexusStock est suivie en ARCH-002 ; les trois autres findings ne le sont nulle part.",
+      "le": "2026-09-08",
+      "renvoi": "ARCH-003"
+    },
+    {
+      "branche": "claude/issue-28-20260906-2014",
+      "tete": "821310cecfcbf23f59ca26a09e51f9abe8614c73",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §7 : décision-4 Carburants, partiellement supersédée. Le lot CARBURANTS-PERFORMANCE a sa propre correction canonique, prouvée par la traversée P0 et la recette UI.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-0028",
+      "tete": "4ecccc85bea94c15ddda468e246bf12fcdea2cf7",
+      "sort": "INTEGREE",
+      "motif": "Gouvernance Autonome v2 : guardians-router.js et verifier-apprentissage.js rapatriés sélectivement sur le HEAD canonique, éprouvés et calibrés (audit §8, ordre de réconciliation n°2).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-0044",
+      "tete": "990a0f1191468a7dc469049807c05e757b2e2294",
+      "sort": "INTEGREE",
+      "motif": "MVP NEXUS Live rapatrié sur le HEAD canonique le 07/09/2026 : page, contrat, projection, migration Test renumérotée en 20260907222249, producteur d événements, preuves d accès positive et négative (audit §9, ordre n°3).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1112",
+      "tete": "49b85197f0e0ae1035d6264f6995f18d5efc0f93",
+      "sort": "INTEGREE",
+      "motif": "Rapatriement Guardians backend + vérification apprentissage (repair-1) : contenu présent au canonique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1128",
+      "tete": "c6a21c21ec83d26fe6be04ec997115f1bbe266c0",
+      "sort": "INTEGREE",
+      "motif": "Correctif CARB-004 de la traversée reliquatArrondi : transporté à l identique et prouvé par test_carburant_commande_p0_traversee_reliquat_20260907.js.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1232",
+      "tete": "e880e71062db8de2387587cbc55901eca0cc9f27",
+      "sort": "INTEGREE",
+      "motif": "Réapplication et preuve du correctif reliquatArrondi (decision-2) : contenu présent au canonique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1527",
+      "tete": "cc8de5ea1184daa3e87f907cd1f21007d36ff472",
+      "sort": "INTEGREE",
+      "motif": "Commande handoff.js decision : reprise au canonique, y compris le refus de REJECTED AVANT écriture, éprouvé dans test_handoff_v2_20260905.js (lignes 346-376).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1609",
+      "tete": "2ced922439299bb98aee33886c8ef743abf4ac98",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-4, clôture CARB-004 : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1647",
+      "tete": "a50e9650f3bca47aadc8230444ec88e9a7c5f4bf",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1, clôture ORCHESTRATION-AUTONOMIE-1 : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1810",
+      "tete": "59a6a0ba37b144ca4695e64a658ed5bfb0bdde8c",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1 (APPROVED_WITH_CONDITIONS) : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1842",
+      "tete": "c05e6e17906e85a93ada2af58f1d3a60f87a069e",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1 (closes:true) : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-2047",
+      "tete": "47d51012bd33a4984d30c92ee8f9320411e136d7",
+      "sort": "SUPERSEDEE",
+      "motif": "Décision périmée : elle répond à request-1.md alors que la demande active était request-2.md. outils/handoff.js refuse de consommer une décision qui ne répond pas à la demande active.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-2119",
+      "tete": "6f8f5bfe8c89208a2ab5baee9de82ed806a41db5",
+      "sort": "SUPERSEDEE",
+      "motif": "Porte le même arbitrage Q73-Q76 que la branche 20260908-0213, qui a été fusionnée. Ses entrées Backlog Q74 (EVAL-001, DEBUG-001, COACH-001, CARB-007, ARCH-002) ont été transportées le 08/09/2026.",
+      "le": "2026-09-08"
+    }
+  ]
+}

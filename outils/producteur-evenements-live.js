@@ -189,8 +189,57 @@ function evenementBarriere(lot, etatDep, horodatage) {
   })];
 }
 
+// ── Branches de travail en rade ─────────────────────────────────────────
+//
+// Le signal qui manquait le plus, parce qu'il est fait de silence : un run
+// infonuagique pousse sa branche, écrit « Create PR » dans l'issue, et
+// personne ne clique. Le 08/09/2026, trois branches attendaient ainsi, dont
+// une portant une décision d'arbitrage — Frédéric croyait sa demande jamais
+// traitée alors qu'elle l'avait été trois fois.
+//
+// Une ligne dans un journal de CI se rate aussi bien qu'une branche. Cet
+// événement l'amène là où Frédéric regarde.
+//
+// PAS de human_gate quand tout est classé : le compteur « en attente de ton
+// arbitrage » ne doit s'allumer que quand quelque chose l'attend réellement.
+// Quand des branches sont en rade, en revanche, c'est bien à lui de trancher
+// ce qu'on en fait — la garde, elle, ne fusionne rien.
+function evenementBranchesEnRade(lot, horodatage, options = {}) {
+  const controler = options.controler || (() => require(path.join(__dirname, 'garde-branches-en-rade.js')).controler());
+  let r;
+  try { r = controler(); } catch (e) { r = { indisponible: e.message }; }
+  // Ne pas savoir n'est pas une information à afficher — et surtout pas un
+  // « aucune branche en rade » qui se lirait « tout va bien ».
+  if (!r || r.indisponible) return [];
+  const enRade = (r.signalements || []).filter(s => s.bloquant);
+  if (!enRade.length) {
+    return [evenement({
+      lot, run: 'branches', acteur: 'garde-branches-en-rade', role: 'guardian',
+      phase: 'GUARDIAN_REVIEW', statut: 'PASSED',
+      resume: `Aucune branche de travail en rade (${r.total} examinée(s)).`,
+      preuve: { type: 'garde', ref: 'outils/garde-branches-en-rade.js' },
+      occurredAt: horodatage,
+    })];
+  }
+  const noms = enRade.map(s => s.branche).join(', ');
+  return [evenement({
+    lot, run: 'branches', acteur: 'garde-branches-en-rade', role: 'guardian',
+    phase: 'GATE', statut: 'WAITING',
+    resume: `${enRade.length} branche(s) de travail non rapatriée(s) et non classée(s) : ${noms}.`,
+    preuve: { type: 'garde', ref: 'outils/garde-branches-en-rade.js' },
+    // `gate`, et non `humanGate` : le premier jet employait l'autre nom, que
+    // `evenement()` ignore en silence — l'événement partait sans son gate, et
+    // le compteur de Frédéric serait resté éteint sur la seule chose qui
+    // l'attendait vraiment.
+    gate: { required: true, who: 'frederic',
+      question: `Que fait-on de ${noms} — rapatrier, ou inscrire le sort au registre ?` },
+    occurredAt: horodatage,
+  })];
+}
+
 // ── Assemblage ──────────────────────────────────────────────────────────
-function produire({ maintenant, etatDep, executerGarde } = {}) {
+function produire(options = {}) {
+  const { maintenant, etatDep, executerGarde } = options;
   const horodatage = (maintenant || new Date()).toISOString();
   const etat = etatDep || deploiement.analyser();
   if (etat.erreur) {
@@ -202,7 +251,8 @@ function produire({ maintenant, etatDep, executerGarde } = {}) {
     .concat(evenementsRegistre(etat, horodatage))
     .concat(evenementsGardes(lotCourant, horodatage, { executer: executerGarde }))
     .concat(evenementsCI(lotCourant, horodatage))
-    .concat(evenementBarriere(lotCourant, etat, horodatage));
+    .concat(evenementBarriere(lotCourant, etat, horodatage))
+    .concat(evenementBranchesEnRade(lotCourant, horodatage, { controler: options.controlerBranches }));
 
   const { evenements, rejetes } = filtrer(candidats);
   return { erreur: null, evenements, rejetes };
@@ -265,7 +315,7 @@ function sqlIngestion(evenements) {
     + valeurs + '\non conflict (event_id) do nothing;\n';
 }
 
-module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, GARDES };
+module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, GARDES };
 
 if (require.main === module) {
   const r = produire();

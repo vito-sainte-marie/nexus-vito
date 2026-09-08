@@ -184,6 +184,19 @@ jobs:
       - name: Guardian Bible — chiffres inventés — rapport
         run: node outils/guardian-bible.js || true
 
+      # Branches en rade — RAPPORT, et ce choix est délibéré.
+      #
+      # Une branche non rapatriée n'est pas un défaut du commit qu'on teste :
+      # rendre la CI rouge pour elle punirait le mauvais changement, et la
+      # première réaction serait de désactiver la garde. Elle nomme donc, sans
+      # arrêter. Son épreuve propre, elle, reste bloquante : la garde peut se
+      # taire, elle ne peut pas mentir sans qu'on le voie.
+      - name: Branches de travail en rade — rapport
+        run: node outils/garde-branches-en-rade.js || true
+
+      - name: Épreuves de la garde des branches en rade
+        run: node test_garde_branches_en_rade_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

@@ -116,6 +116,49 @@ t('une branche Production sans protection est signalée BLOCKED', () => {
   assert.ok(/push direct/.test(evts[0].summary), evts[0].summary);
 });
 
+t('des branches en rade allument un gate qui NOMME les branches', () => {
+  // Le signal fait de silence. « Il y a des branches en rade » ne se traite
+  // pas : il faut savoir lesquelles, sinon on les relit toutes à chaque fois.
+  const evts = P.evenementBranchesEnRade('LOT-X', T0, { controler: () => ({
+    total: 20,
+    signalements: [
+      { code: 'EN_RADE', bloquant: true, branche: 'claude/a', texte: '…' },
+      { code: 'CLASSEMENT_INUTILE', bloquant: false, branche: 'claude/b', texte: '…' },
+    ],
+  }) });
+  assert.strictEqual(evts.length, 1);
+  assert.strictEqual(evts[0].phase, 'GATE');
+  assert.strictEqual(evts[0].status, 'WAITING');
+  assert.ok(/claude\/a/.test(evts[0].summary), evts[0].summary);
+  assert.ok(!/claude\/b/.test(evts[0].summary),
+    'un avertissement de rangement n’est pas une branche en rade : ' + evts[0].summary);
+  assert.ok(evts[0].human_gate && evts[0].human_gate.required === true);
+  assert.ok(/claude\/a/.test(evts[0].human_gate.question), evts[0].human_gate.question);
+  assert.deepStrictEqual(contrat.validerEvenementLive(evts[0]), []);
+});
+
+t('aucune branche en rade ne pose PAS de gate', () => {
+  // Sinon le compteur « en attente de ton arbitrage » clignoterait en
+  // permanence, et cesserait de vouloir dire quelque chose.
+  const evts = P.evenementBranchesEnRade('LOT-X', T0, { controler: () => ({ total: 20, signalements: [] }) });
+  assert.strictEqual(evts.length, 1);
+  assert.strictEqual(evts[0].status, 'PASSED');
+  assert.ok(!evts[0].human_gate, 'rien n’attend personne');
+  assert.deepStrictEqual(contrat.validerEvenementLive(evts[0]), []);
+});
+
+t('une garde INDISPONIBLE ne produit AUCUN événement, surtout pas rassurant', () => {
+  // Ne pas savoir doit se lire « je ne sais pas ». Un « aucune branche en
+  // rade » produit par une garde qui n'a rien pu regarder serait exactement
+  // le mensonge tranquille que ce fichier existe pour empêcher.
+  for (const r of [{ indisponible: 'clone superficiel' }, null,
+    () => { throw new Error('git absent'); }]) {
+    const evts = P.evenementBranchesEnRade('LOT-X', T0,
+      { controler: typeof r === 'function' ? r : () => r });
+    assert.deepStrictEqual(evts, [], JSON.stringify(r));
+  }
+});
+
 t('le CLI rend du JSONL relisible, une ligne par événement', () => {
   const r = spawnSync('node', [OUTIL], { encoding: 'utf8', cwd: __dirname });
   assert.strictEqual(r.status, 0, r.stderr);
