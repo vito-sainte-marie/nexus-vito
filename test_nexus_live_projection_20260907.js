@@ -788,4 +788,109 @@ t('CONTRAT — l’écran dit ce que fait l’équipe, plus « Agent actif : …
     'les zones doivent se suivre dans l’ordre demandé : ' + JSON.stringify(ordre));
 });
 
+// ——— Le vocabulaire du cockpit ————————————————————————————————————————
+// Frédéric, 08/09/2026 : « "Dette", "entrée(s)", "P0" … je les comprends, mais
+// pas comme langage principal du cockpit. Les SHA doivent être du niveau
+// expert. »
+
+t('VOCABULAIRE — la dette se dit en sujets à traiter, pas en dette ni en P0', () => {
+  const f = P.formulerDeploiements({
+    compteurs: { en_developpement: 1, attente_arbitrage: 0, clos: 12 },
+    dette: { total: 29, p0: 18 },
+  });
+  const texte = f.phrases.join(' ');
+  assert.ok(/29 sujets restent à traiter/.test(texte), 'le total se dit en sujets : ' + texte);
+  assert.ok(/18 prioritaires/.test(texte), 'les P0 se disent « prioritaires » : ' + texte);
+  assert.ok(!/dette/i.test(texte), '« dette » ne doit plus être le langage principal : ' + texte);
+  assert.ok(!/\bP0\b/.test(texte), '« P0 » ne doit plus être le langage principal : ' + texte);
+  assert.ok(!/entrée/i.test(texte), '« entrée(s) » ne doit plus être le langage principal : ' + texte);
+});
+
+t('VOCABULAIRE — l’écart entre Production et le travail se dit en retard, pas en SHA', () => {
+  const f = P.formulerDeploiements({
+    compteurs: { en_developpement: 1, attente_arbitrage: 0, clos: 12 },
+    ecart: { production: 'a1b2c3d', canonique: '9f8e7d6', commits: 242, fichiers: 87 },
+  });
+  const texte = f.phrases.join(' ');
+  assert.ok(/Production est en retard sur la version de travail/.test(texte), texte);
+  assert.ok(/242 évolutions séparent les deux états/.test(texte), texte);
+  assert.ok(!texte.includes('a1b2c3d') && !texte.includes('9f8e7d6'),
+    'aucune empreinte de commit dans le langage principal : ' + texte);
+
+  // Elles ne disparaissent pas : elles descendent d'un étage.
+  const tech = f.technique.map(x => `${x.libelle}=${x.valeur}`).join(' ');
+  assert.ok(tech.includes('a1b2c3d') && tech.includes('9f8e7d6'),
+    'les empreintes restent accessibles au niveau expert : ' + tech);
+});
+
+t('VOCABULAIRE — « Lots clos » devient « Terminés »', () => {
+  const f = P.formulerDeploiements({ compteurs: { en_developpement: 2, attente_arbitrage: 0, clos: 12 } });
+  const libelles = f.compteurs.map(c => c.libelle);
+  assert.ok(libelles.includes('Terminés'), JSON.stringify(libelles));
+  assert.ok(!libelles.some(l => /clos/i.test(l)), '« clos » se lisait comme un classement : ' + JSON.stringify(libelles));
+  assert.ok(libelles.includes('En attente de ton arbitrage'), JSON.stringify(libelles));
+  assert.strictEqual(f.compteurs[2].n, 12, 'le chiffre est relevé, pas recalculé');
+});
+
+t('VOCABULAIRE — l’accord singulier/pluriel suit le nombre', () => {
+  const un = P.formulerDeploiements({
+    compteurs: { en_developpement: 0, attente_arbitrage: 0, clos: 0 },
+    dette: { total: 1, p0: 1 },
+    ecart: { commits: 1, fichiers: 1 },
+  }).phrases.join(' ');
+  assert.ok(/1 sujet reste à traiter, dont 1 prioritaire\./.test(un), un);
+  assert.ok(/1 évolution sépare les deux états \(1 fichier concerné\)\./.test(un), un);
+});
+
+t('VOCABULAIRE — zéro se dit, absence se tait', () => {
+  const zero = P.formulerDeploiements({
+    compteurs: { en_developpement: 0, attente_arbitrage: 0, clos: 0 },
+    dette: { total: 0, p0: 0 },
+    ecart: { commits: 0 },
+  }).phrases.join(' ');
+  assert.ok(/Aucun sujet en attente de traitement\./.test(zero), zero);
+  assert.ok(/Production est à jour avec la version de travail\./.test(zero), zero);
+
+  // Une mesure ABSENTE n'est pas une mesure nulle : ne rien annoncer plutôt
+  // qu'un « aucun sujet » rassurant et faux.
+  const sans = P.formulerDeploiements({ compteurs: { en_developpement: 0, attente_arbitrage: 0, clos: 0 } });
+  assert.strictEqual(sans.phrases.length, 0, 'sans mesure, aucune phrase : ' + JSON.stringify(sans.phrases));
+  assert.strictEqual(sans.technique.length, 0, 'et rien à afficher au niveau expert');
+
+  const nul = P.formulerDeploiements({
+    compteurs: { en_developpement: 0, attente_arbitrage: 0, clos: 0 },
+    dette: { total: null, p0: null },
+  });
+  assert.strictEqual(nul.phrases.length, 0, 'un total à null n’est pas un total à zéro');
+});
+
+t('VOCABULAIRE — sans relevé de déploiement, on le dit', () => {
+  assert.strictEqual(P.formulerDeploiements(null).inconnu, true);
+  assert.strictEqual(P.formulerDeploiements({}).inconnu, true, 'un objet sans compteurs reste inconnu');
+});
+
+t('CONTRAT — l’écran ne réintroduit pas le vocabulaire technique', () => {
+  const brut = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const code = brut.split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n');
+
+  assert.ok(/NexusLiveProjection\.formulerDeploiements\(dep\)/.test(code),
+    'l’écran doit prendre son vocabulaire dans la projection, éprouvée, plutôt que le réécrire');
+
+  // Ces mots ne sont pas interdits dans NEXUS : ils sont interdits comme
+  // libellé fabriqué par l'écran, hors du détail replié.
+  assert.ok(!/Dette ouverte au Backlog/.test(code), '« Dette ouverte au Backlog » ne doit plus être écrit par l’écran');
+  assert.ok(!/>Lots clos</.test(code), '« Lots clos » ne doit plus être écrit par l’écran');
+  assert.ok(!/canonique <code>/.test(code), 'les SHA ne doivent plus être affichés au premier niveau');
+  // Constater que le texte EXISTE dans le fichier ne prouve pas qu'il est
+  // AFFICHÉ : supprimer `${technique}` du gabarit laissait sa définition en
+  // place, et l'épreuve passait toujours. On regarde donc dans le bloc rendu.
+  const iBloc = code.indexOf('function blocDeploiements');
+  const bloc = code.slice(iBloc, code.indexOf('\n  function ', iBloc + 1));
+  assert.ok(/<summary>Repères techniques<\/summary>/.test(bloc),
+    'mais ils doivent rester accessibles, repliés');
+  assert.ok(/\$\{technique\}/.test(bloc),
+    'et le niveau expert doit être réellement inséré dans le gabarit, pas seulement défini');
+  assert.ok(/\$\{phrases\}/.test(bloc), 'comme les phrases en langage clair');
+});
+
 console.log(`\n${n} assertions Live-Projection passées.`);

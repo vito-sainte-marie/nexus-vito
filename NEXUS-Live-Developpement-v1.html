@@ -182,19 +182,23 @@
       return `<div class="card"><div class="section-label">Déploiements</div>
         <div class="empty-note">Aucun état de déploiement reçu — ne rien conclure de cette absence.</div></div>`;
     }
-    const c = dep.compteurs;
-    const dette = dep.dette && dep.dette.total != null
-      ? `<div class="proposition">Dette ouverte au Backlog : <strong>${dep.dette.total}</strong> entrée(s), dont ${dep.dette.p0} en P0.</div>` : '';
-    const ecart = dep.ecart
-      ? `<div class="proposition">Production <code>${dep.ecart.production}</code> · canonique <code>${dep.ecart.canonique}</code> — écart ${dep.ecart.commits} commit(s), ${dep.ecart.fichiers} fichier(s).</div>` : '';
+    // Le VOCABULAIRE est décidé et éprouvé dans la projection, pas ici : « Dette,
+    // entrée(s), P0 … pas comme langage principal du cockpit. Les SHA doivent
+    // être du niveau expert. » (Frédéric, 08/09/2026)
+    const dit = NexusLiveProjection.formulerDeploiements(dep);
+    const compteurs = dit.compteurs.map(x =>
+      `<div class="compteur"><div class="n">${x.n}</div><div class="l">${x.libelle}</div></div>`).join('');
+    const phrases = dit.phrases.map(x => `<div class="proposition">${x}</div>`).join('');
+    // Les empreintes de commit ne DISPARAISSENT pas : elles descendent d'un
+    // étage, repliées, consultables quand on les cherche.
+    const technique = dit.technique.length
+      ? `<details class="journal"><summary>Repères techniques</summary>`
+        + dit.technique.map(x => `<div class="technique" style="margin-top:6px;">${x.libelle} : ${x.valeur}</div>`).join('')
+        + `</details>` : '';
     return `<div class="card">
       <div class="section-label">Déploiements</div>
-      <div class="compteurs">
-        <div class="compteur"><div class="n">${c.en_developpement}</div><div class="l">En développement</div></div>
-        <div class="compteur"><div class="n">${c.attente_arbitrage}</div><div class="l">En attente de ton arbitrage</div></div>
-        <div class="compteur"><div class="n">${c.clos}</div><div class="l">Lots clos</div></div>
-      </div>
-      ${dette}${ecart}
+      <div class="compteurs">${compteurs}</div>
+      ${phrases}${technique}
       <div class="proposition">« Prêt pour Production » reste une <strong>proposition</strong> : aucune décision de
       recette ne vaut autorisation de production. Cet écran présente et transmet ; il ne fabrique aucune autorisation.</div>
     </div>`;

@@ -613,8 +613,81 @@
     };
   }
 
+  // ——— Le vocabulaire du cockpit ————————————————————————————————————————
+  // Retour de Frédéric du 08/09/2026 : « "Dette", "entrée(s)", "P0" … je les
+  // comprends, mais pas comme langage principal du cockpit. Les SHA doivent
+  // être du niveau expert. » Ces mots ne DISPARAISSENT pas — ils descendent
+  // d'un étage. Ici on ne fabrique aucun chiffre : on ne fait que nommer, en
+  // français, des mesures relevées ailleurs.
+
+  // Un nombre absent n'est pas un nombre nul (RULES QA/DATA) : sans mesure, on
+  // ne dit rien plutôt que d'annoncer un zéro rassurant qui serait faux.
+  function mesureAbsente(v) {
+    return typeof v !== 'number' || !Number.isFinite(v);
+  }
+
+  function accord(n, singulier, pluriel) {
+    return `${n} ${Math.abs(n) > 1 ? pluriel : singulier}`;
+  }
+
+  function formulerDeploiements(dep) {
+    if (!dep || !dep.compteurs) {
+      return { inconnu: true, compteurs: [], phrases: [], technique: [] };
+    }
+    const c = dep.compteurs;
+    const compteurs = [
+      { n: c.en_developpement, libelle: 'En développement' },
+      { n: c.attente_arbitrage, libelle: 'En attente de ton arbitrage' },
+      // « Lots clos » se lisait comme un classement administratif. Ce sont des
+      // travaux terminés : c'est ce mot-là qui dit ce qui s'est passé.
+      { n: c.clos, libelle: 'Terminés' },
+    ];
+
+    const phrases = [];
+
+    // « 29 dettes dont 18 P0 » devient « 29 sujets restent à traiter, dont 18
+    // prioritaires ». Le mot « dette » n'apprend rien à qui ne le connaît pas ;
+    // « reste à traiter » se comprend sans glossaire.
+    const d = dep.dette;
+    if (d && !mesureAbsente(d.total)) {
+      if (d.total === 0) {
+        phrases.push('Aucun sujet en attente de traitement.');
+      } else {
+        const p0 = !mesureAbsente(d.p0) && d.p0 > 0
+          ? `, dont ${accord(d.p0, 'prioritaire', 'prioritaires')}`
+          : '';
+        phrases.push(`${accord(d.total, 'sujet reste', 'sujets restent')} à traiter${p0}.`);
+      }
+    }
+
+    // Deux empreintes de commit ne disent pas à un humain que Production est en
+    // retard. Le retard, lui, se dit. Les empreintes descendent au détail.
+    const e = dep.ecart;
+    if (e && !mesureAbsente(e.commits)) {
+      if (e.commits === 0) {
+        phrases.push('Production est à jour avec la version de travail.');
+      } else {
+        const f = !mesureAbsente(e.fichiers) && e.fichiers > 0
+          ? ` (${accord(e.fichiers, 'fichier concerné', 'fichiers concernés')})`
+          : '';
+        phrases.push('Production est en retard sur la version de travail : '
+          + `${accord(e.commits, 'évolution sépare', 'évolutions séparent')} les deux états${f}.`);
+      }
+    }
+
+    const technique = [];
+    if (e && e.production) technique.push({ libelle: 'Production', valeur: e.production });
+    if (e && e.canonique) technique.push({ libelle: 'Version de travail', valeur: e.canonique });
+    if (d && !mesureAbsente(d.total)) {
+      technique.push({ libelle: 'Backlog', valeur: `${d.total} entrée(s)`
+        + (mesureAbsente(d.p0) ? '' : `, ${d.p0} en P0`) });
+    }
+
+    return { inconnu: false, compteurs, phrases, technique };
+  }
+
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
-    travailVivant, nommerLot,
+    travailVivant, nommerLot, formulerDeploiements,
     fluxLive, etapeCourante, ETAPES_FLUX: ETAPES, PHASE_VERS_ETAPE,
     ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT,
     resumerTimeline,
