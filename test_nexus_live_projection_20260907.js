@@ -238,4 +238,165 @@ t('le gate transporte l’identifiant de l’événement qui l’a posé', () =>
   assert.strictEqual(sans.human_gate.event_id, null);
 });
 
+
+// `vide(x)` plutôt que `deepStrictEqual(x, [])` : le module est chargé dans
+// un contexte `vm`, donc ses tableaux portent le prototype Array de CE
+// contexte-là. `deepStrictEqual` compare aussi les prototypes et échoue en
+// affichant « [] » contre « [] » — un message qui ne veut rien dire tant
+// qu'on n'a pas identifié la frontière de realm. Piège rencontré deux fois
+// le 08/09/2026 ; il vaut mieux un helper qu'un rattrapage à chaque ligne.
+function vide(x, message) { assert.strictEqual(x.length, 0, message + ' — obtenu : ' + JSON.stringify(x)); }
+function memesElements(x, attendu, message) {
+  assert.deepStrictEqual([...x].sort(), attendu.slice().sort(), message);
+}
+
+// ── LE VERDICT (08/09/2026) ─────────────────────────────────────────────
+// « On lit SYSTÈME AUTONOME, puis deux Guardians BLOCKED. Pour un humain, ces
+// éléments réunis créent une question immédiate : est-ce que ça fonctionne ou
+// est-ce que c'est bloqué ? Un système NEXUS ne devrait jamais laisser cette
+// ambiguïté. » — Frédéric, 08/09/2026.
+
+const barriereCassee = { occurred_at: '2026-09-08T15:00:00Z', lot_id: 'L', status: 'BLOCKED',
+  evidence: { type: 'protection', ref: 'refs/heads/production' } };
+const barriereTenue = { ...barriereCassee, status: 'WAITING' };
+
+t('rien à signaler se DIT, au lieu de laisser une page muette', () => {
+  const v = P.verdictLive({ events: [barriereTenue], projection: { guardians: { g: 'PASSED' } },
+    fraicheur: { niveau: 'FRAIS', ageMinutes: 2 } });
+  assert.strictEqual(v.niveau, P.VERDICT.NORMAL);
+  assert.strictEqual(v.decisions, 0);
+  assert.ok(/fonctionne normalement/.test(v.titre), v.titre);
+  vide(v.risques, 'aucun risque structurel attendu');
+});
+
+t('ce qui attend Frédéric l’emporte sur TOUT le reste', () => {
+  // Un gate en attente doit passer devant une garde en échec ET devant un
+  // risque structurel : c'est la seule chose qui réclame une personne.
+  const v = P.verdictLive({
+    events: [barriereCassee],
+    projection: { guardians: { a: 'FAILED', b: 'BLOCKED' }, human_gate: { question: 'Autoriser la promotion ?' } },
+  });
+  assert.strictEqual(v.niveau, P.VERDICT.INTERVENTION);
+  assert.strictEqual(v.decisions, 1);
+  assert.strictEqual(v.explication, 'Autoriser la promotion ?', 'la question posée doit être LA phrase affichée');
+  assert.ok(/décision t’attend/.test(v.titre), v.titre);
+});
+
+t('une garde en ÉCHEC arrête la chaîne, et les gardes sont nommées', () => {
+  const v = P.verdictLive({ events: [barriereTenue], projection: { guardians: { 'guardian-qa': 'FAILED', b: 'PASSED' } } });
+  assert.strictEqual(v.niveau, P.VERDICT.INTERVENTION);
+  assert.ok(/guardian-qa/.test(v.explication), v.explication);
+  assert.strictEqual(v.decisions, 0, 'une garde en échec n’est pas une décision à prendre, c’est un travail à faire');
+});
+
+t('un invariant NON GARANTI interdit de dire « tout va bien »', () => {
+  // Le point le plus important du retour de Frédéric : « le statut global ne
+  // devrait pas être vert "système autonome" tant qu'un invariant aussi
+  // important n'est pas garanti ». Le verdict dit donc littéralement
+  // « Autonome en Test ».
+  const v = P.verdictLive({ events: [barriereCassee], projection: { guardians: { g: 'PASSED' } } });
+  assert.strictEqual(v.niveau, P.VERDICT.VIGILANCE);
+  assert.strictEqual(v.titre, 'Autonome en Test');
+  assert.ok(/Production/.test(v.explication), v.explication);
+  assert.strictEqual(v.risques.length, 1);
+  assert.strictEqual(v.risques[0].code, 'PRODUCTION_NON_PROTEGEE');
+  assert.ok(/push direct/.test(v.risques[0].texte), 'le risque doit être expliqué, pas seulement nommé');
+});
+
+t('des signalements sans blocage ne se lisent pas comme un arrêt', () => {
+  const v = P.verdictLive({ events: [barriereTenue], projection: { guardians: { a: 'BLOCKED', b: 'BLOCKED', c: 'PASSED' } } });
+  assert.strictEqual(v.niveau, P.VERDICT.VIGILANCE);
+  assert.ok(/sans rien bloquer/.test(v.explication), v.explication);
+  assert.ok(/Aucune décision ne t’est demandée/.test(v.explication), v.explication);
+  memesElements(v.aSurveiller, ['a', 'b'], 'les gardes signalant doivent être nommées');
+});
+
+t('le risque de Production est lu sur l’événement le PLUS RÉCENT', () => {
+  // Une barrière réparée ne doit pas rester affichée comme cassée à cause
+  // d'un événement plus ancien resté dans le journal.
+  const ancien = { ...barriereCassee, occurred_at: '2026-09-07T10:00:00Z' };
+  const recent = { ...barriereTenue, occurred_at: '2026-09-08T10:00:00Z' };
+  vide(P.risquesStructurels([ancien, recent]), 'barrière réparée');
+  vide(P.risquesStructurels([recent, ancien]), 'quel que soit l’ordre de la liste');
+  assert.strictEqual(P.risquesStructurels([recent, { ...barriereCassee, occurred_at: '2026-09-08T11:00:00Z' }]).length, 1);
+});
+
+t('sans aucun événement de barrière, aucun risque n’est INVENTÉ', () => {
+  // Ne pas savoir n'est pas « tout va bien », mais ce n'est pas non plus une
+  // alerte : on ne fabrique pas un risque faute d'information.
+  vide(P.risquesStructurels([]), 'aucun événement');
+  vide(P.risquesStructurels(null), 'journal absent');
+  vide(P.risquesStructurels([{ occurred_at: '2026-09-08T10:00:00Z', evidence: { type: 'ci' } }]), 'preuve d’un autre type');
+});
+
+t('BLOCKED est traduit en langage d’exploitant, et n’est plus un arrêt', () => {
+  // « BLOCKED est beaucoup trop violent et trop ambigu » — le producteur
+  // l'emploie pour une garde de RAPPORT qui a trouvé quelque chose : elle n'a
+  // rien bloqué du tout.
+  assert.strictEqual(P.libelleStatutGarde({ status: 'BLOCKED' }).texte, 'À surveiller');
+  assert.strictEqual(P.libelleStatutGarde({ status: 'PASSED' }).texte, 'Conforme');
+  assert.strictEqual(P.libelleStatutGarde({ status: 'FAILED' }).texte, 'Action requise');
+  assert.strictEqual(P.libelleStatutGarde({ status: 'FAILED' }).ton, 'grave');
+  assert.strictEqual(P.libelleStatutGarde({ status: 'WAITING' }).texte, 'En attente');
+  // Un statut qu'on ne comprend pas n'est pas traduit à tout hasard.
+  assert.strictEqual(P.libelleStatutGarde({ status: 'ZORGLUB' }).texte, 'État non interprété');
+  assert.strictEqual(P.libelleStatutGarde(null).texte, 'État non interprété');
+});
+
+
+// ── CONTRAT D'ÉCRAN (08/09/2026) ────────────────────────────────────────
+
+t('CONTRAT — l’écran rend le verdict AVANT toute donnée', () => {
+  // « Quand tu ouvres NEXUS Live, il devrait être possible de répondre en
+  // moins de cinq secondes à : est-ce que NEXUS travaille normalement ? y
+  // a-t-il quelque chose qui bloque ? est-ce que je dois intervenir ? »
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const iVerdict = ecran.indexOf('${blocVerdict(verdict)}');
+  const iDetail = ecran.indexOf('Détail technique');
+  const iTimeline = ecran.indexOf('<div class="section-label">Timeline</div>');
+  assert.ok(iVerdict > 0, 'le verdict doit être rendu');
+  assert.ok(iDetail > iVerdict, 'le détail technique vient APRÈS le verdict');
+  assert.ok(iTimeline > iVerdict, 'la timeline aussi');
+});
+
+t('CONTRAT — le risque de Production sort du journal et monte en haut', () => {
+  // « Ce message ne doit absolument pas être enfoui dans la timeline. C'est
+  // un risque structurel majeur. »
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const iRisques = ecran.indexOf('${blocRisques(verdict.risques)}');
+  const iDetail = ecran.indexOf('Détail technique');
+  assert.ok(iRisques > 0 && iRisques < iDetail, 'les risques passent avant le détail technique');
+});
+
+t('CONTRAT — « ce qui t’attend » est TOUJOURS rendu, même vide', () => {
+  // Le Guardian Philosophie signalait cet écran : la carte disparaissait quand
+  // aucun arbitrage n'attendait. On ne pouvait pas distinguer « vérifié, rien
+  // à faire » de « pas vérifié ». Critères 4 et 8 de sa doctrine.
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  assert.ok(/\$\{blocAttente\(projection\.human_gate\)\}/.test(ecran),
+    'le bloc doit être appelé sans condition');
+  assert.ok(/Rien ne t’attend/.test(ecran), 'et dire explicitement qu’il n’y a rien');
+  assert.ok(/Vérifié à l’instant/.test(ecran),
+    'en précisant que l’absence a été VÉRIFIÉE, pas seulement constatée');
+  // Et le guardian lui-même ne doit plus signaler cet écran.
+  const G = require(path.join(__dirname, 'outils', 'guardian-philosophie.js'));
+  const findings = G.analyserSource(ecran, 'NEXUS-Live-Developpement-v1.html');
+  assert.strictEqual(findings.length, 0,
+    'aucune section de cet écran ne doit plus disparaître en silence : ' + JSON.stringify(findings));
+});
+
+t('CONTRAT — l’âge affiché dit CE QU’IL MESURE', () => {
+  // « Environnement Test — IL Y A 1 H 51 : je ne sais pas immédiatement ce que
+  // signifie cette durée. Dernière synchronisation ? Dernier événement ? »
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  assert.ok(/dernière analyse/i.test(ecran), 'la durée doit être nommée');
+});
+
+t('CONTRAT — l’écran ne montre plus de statut brut de garde', () => {
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  assert.ok(/libelleStatutGarde/.test(ecran), 'les statuts doivent être traduits');
+  assert.ok(!/<span>\$\{statut\}<\/span>/.test(ecran),
+    'le statut brut ne doit plus être affiché tel quel');
+});
+
 console.log(`\n${n} assertions Live-Projection passées.`);

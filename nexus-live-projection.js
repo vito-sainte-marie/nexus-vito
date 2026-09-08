@@ -169,7 +169,128 @@
     };
   }
 
+  // ── LE VERDICT (08/09/2026) ─────────────────────────────────────────
+  //
+  // Retour de Frédéric en regardant l'écran : « on lit SYSTÈME AUTONOME, puis
+  // juste dessous "Prochaine étape automatique : —", puis 0 en développement,
+  // puis deux Guardians BLOCKED. Pour un humain, ces quatre éléments réunis
+  // créent une question immédiate : est-ce que ça fonctionne réellement ou
+  // est-ce que c'est bloqué ? Un système NEXUS ne devrait jamais laisser cette
+  // ambiguïté. »
+  //
+  // Le bloc du haut doit donc rendre un JUGEMENT, pas des données. Et ce
+  // jugement se CALCULE à partir des faits — un verdict affirmé serait
+  // exactement le « chiffre inventé » que la Bible interdit ailleurs.
+  //
+  // Trois niveaux, et l'ordre compte : ce qui attend Frédéric l'emporte sur
+  // tout le reste, puis un invariant non garanti, puis une simple vigilance.
+  const VERDICT = { NORMAL: 'NORMAL', VIGILANCE: 'VIGILANCE', INTERVENTION: 'INTERVENTION' };
+
+  // Traduction des statuts d'événement en langage d'exploitant.
+  //
+  // `BLOCKED` est le mot le plus trompeur du vocabulaire : le producteur
+  // l'emploie pour une garde de RAPPORT qui a trouvé quelque chose — elle n'a
+  // rien bloqué du tout. Frédéric l'a relevé : « BLOCKED est beaucoup trop
+  // violent et trop ambigu ; cela peut signifier qu'ils ont découvert une
+  // violation, qu'ils ne sont pas exécutables, qu'ils attendent, ou qu'ils ont
+  // bloqué le pipeline. Ces situations sont radicalement différentes. »
+  //
+  // La traduction se fait ici et pas dans le producteur : changer le
+  // vocabulaire du contrat demanderait une migration de la contrainte
+  // `status` en base (même famille que LIVE-001). L'information, elle, est
+  // déjà portée par le résumé de l'événement.
+  function libelleStatutGarde(evt) {
+    const s = evt && evt.status;
+    if (s === 'PASSED') return { texte: 'Conforme', ton: 'ok' };
+    if (s === 'FAILED') return { texte: 'Action requise', ton: 'grave' };
+    if (s === 'BLOCKED') return { texte: 'À surveiller', ton: 'vigilance' };
+    if (s === 'WAITING') return { texte: 'En attente', ton: 'attente' };
+    if (s === 'STARTED' || s === 'PROGRESS') return { texte: 'En cours', ton: 'attente' };
+    // Statut inconnu : on ne traduit pas ce qu'on ne comprend pas.
+    return { texte: 'État non interprété', ton: 'inconnu' };
+  }
+
+  // Risques STRUCTURELS — ceux qui ne doivent jamais rester enfouis dans un
+  // journal. Frédéric : « ce message ne doit absolument pas être enfoui dans
+  // la timeline. C'est un risque structurel majeur. »
+  function risquesStructurels(events) {
+    const risques = [];
+    if (!Array.isArray(events)) return risques;
+    let barriere = null, tBarriere = -Infinity;
+    for (const e of events) {
+      const ev = e && e.evidence;
+      if (!ev || ev.type !== 'protection') continue;
+      const t = Date.parse(e.occurred_at);
+      if (!Number.isFinite(t) || t < tBarriere) continue;
+      barriere = e; tBarriere = t;
+    }
+    if (barriere && barriere.status === 'BLOCKED') {
+      risques.push({
+        code: 'PRODUCTION_NON_PROTEGEE',
+        titre: 'Protection Production incomplète',
+        texte: 'Un push direct vers la branche Production reste techniquement possible. '
+          + 'Aucun passage en Production ne peut être garanti tant que cette protection n’est pas en place.',
+      });
+    }
+    return risques;
+  }
+
+  // `events` : journal validé. `projection` : sortie de construireProjectionLive.
+  // `deploiements` : sortie de extraireDeploiements (peut être null).
+  function verdictLive({ events, projection, deploiements, fraicheur }) {
+    const proj = projection || projectionVide();
+    const risques = risquesStructurels(events);
+    const gardes = Object.entries((proj.guardians) || {});
+    const enEchec = gardes.filter(([, s]) => s === 'FAILED').map(([id]) => id);
+    const aSurveiller = gardes.filter(([, s]) => s === 'BLOCKED').map(([id]) => id);
+    const attend = proj.human_gate || null;
+
+    // 1. Ce qui attend Frédéric passe avant tout.
+    if (attend) {
+      return { niveau: VERDICT.INTERVENTION, risques, enEchec, aSurveiller,
+        titre: 'Une décision t’attend',
+        explication: attend.question,
+        decisions: 1 };
+    }
+    // 2. Une garde réellement en échec bloque la chaîne.
+    if (enEchec.length) {
+      return { niveau: VERDICT.INTERVENTION, risques, enEchec, aSurveiller,
+        titre: 'La chaîne est arrêtée',
+        explication: `${enEchec.length} contrôle(s) en échec : ${enEchec.join(', ')}. `
+          + 'Rien ne progresse tant qu’ils ne sont pas corrigés.',
+        decisions: 0 };
+    }
+    // 3. Un invariant non garanti interdit de dire « tout va bien ».
+    //
+    // Frédéric : « le statut global ne devrait probablement pas être vert
+    // "système autonome" tant qu'un invariant aussi important n'est pas
+    // garanti ». Le verdict le dit donc littéralement : autonome EN TEST.
+    if (risques.length) {
+      return { niveau: VERDICT.VIGILANCE, risques, enEchec, aSurveiller,
+        titre: 'Autonome en Test',
+        explication: 'La chaîne travaille seule sur Test. Mais un invariant de Production n’est pas garanti : '
+          + risques.map(r => r.titre.toLowerCase()).join(', ') + '.',
+        decisions: 0 };
+    }
+    // 4. Des signalements sans blocage : à surveiller, pas à craindre.
+    if (aSurveiller.length) {
+      return { niveau: VERDICT.VIGILANCE, risques, enEchec, aSurveiller,
+        titre: 'La chaîne avance, avec des points à surveiller',
+        explication: `${aSurveiller.length} contrôle(s) ont signalé quelque chose sans rien bloquer. `
+          + 'Aucune décision ne t’est demandée.',
+        decisions: 0 };
+    }
+    // 5. Rien à signaler — et on le DIT, plutôt que de laisser une page vide.
+    const age = fraicheur && fraicheur.niveau !== 'INCONNU' ? fraicheur : null;
+    return { niveau: VERDICT.NORMAL, risques, enEchec, aSurveiller,
+      titre: 'La chaîne fonctionne normalement',
+      explication: 'Claude et les Guardians poursuivent sans intervention.'
+        + (age ? '' : ' L’âge du journal n’a pas pu être déterminé.'),
+      decisions: 0 };
+  }
+
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    VERDICT, verdictLive, risquesStructurels, libelleStatutGarde,
     fraicheurJournal, extraireDeploiements, SEUIL_TIEDE_MIN, SEUIL_FROID_MIN };
 
   global.NexusLiveProjection = api;

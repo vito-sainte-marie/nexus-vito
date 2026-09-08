@@ -55,6 +55,29 @@
   .compteur .n{font-size:22px; font-weight:700;}
   .compteur .l{font-size:10.5px; color:var(--text-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em; margin-top:4px;}
   .proposition{font-size:11.5px; color:var(--text-dim); margin-top:10px; line-height:1.5;}
+  /* LE VERDICT. Hiérarchie typographique volontairement forte : verdict très
+     lisible, explication courte, preuve secondaire discrète. Le monospace est
+     réservé aux identifiants techniques — il donnait à toute la page un air
+     de console d'observabilité. */
+  .verdict{border-radius:16px; padding:20px; margin-bottom:14px; border:1px solid var(--hairline);}
+  .verdict.NORMAL{background:#0d2a1d; border-color:#1f6b47;}
+  .verdict.VIGILANCE{background:#2e2712; border-color:#7a6420;}
+  .verdict.INTERVENTION{background:#3a1618; border-color:#8d3238;}
+  .verdict-pastille{font-size:20px; line-height:1;}
+  .verdict-titre{font-size:19px; font-weight:700; line-height:1.25; margin-top:10px;}
+  .verdict-explication{font-size:13px; line-height:1.55; margin-top:8px; opacity:.92;}
+  .verdict-decisions{margin-top:14px; font-size:12.5px; font-weight:600;}
+  .risque{border-radius:14px; padding:16px; margin-bottom:14px; background:#3a1618; border:1px solid #8d3238;}
+  .risque-titre{font-size:14.5px; font-weight:700;}
+  .risque-texte{font-size:12.5px; line-height:1.55; margin-top:6px; opacity:.92;}
+  .attente-rien{border-radius:14px; padding:18px; margin-bottom:14px; background:#0d2a1d; border:1px solid #1f6b47; text-align:center;}
+  .attente-rien .grand{font-size:17px; font-weight:700;}
+  .attente-rien .petit{font-size:12px; opacity:.85; margin-top:6px;}
+  .garde-etat{font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;}
+  .garde-etat.ok{background:#0d3a24; color:#7ee2b0;}
+  .garde-etat.vigilance{background:#3d3410; color:#f0d27a;}
+  .garde-etat.grave{background:#4a1d1d; color:#ffb4b4;}
+  .garde-etat.attente,.garde-etat.inconnu{background:#333; color:#bbb;}
   .btn-autoriser{margin-top:14px; width:100%; padding:12px; border-radius:10px; border:1px solid #2f7d55; background:#124a30; color:#c8f3dc; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; cursor:pointer;}
   .btn-autoriser:disabled{opacity:.5; cursor:default;}
   .retour-gate{margin-top:10px; font-size:12px; line-height:1.5;}
@@ -134,21 +157,77 @@
     </div>`;
   }
 
-  function renderProjection(projection, evenements, fraicheur, deploiements) {
+  // Le VERDICT, en haut, avant toute donnée. Retour de Frédéric du 08/09/2026 :
+  // « le bloc MAINTENANT devrait donner un verdict, et non seulement des
+  // données ». Et il se calcule (`NexusLiveProjection.verdictLive`) — un
+  // verdict affirmé serait le « chiffre inventé » que la Bible interdit
+  // ailleurs.
+  const PASTILLE = { NORMAL: '🟢', VIGILANCE: '🟠', INTERVENTION: '🔴' };
+
+  function blocVerdict(v) {
+    return `<div class="verdict ${v.niveau}">
+      <div class="verdict-pastille">${PASTILLE[v.niveau] || '⚪'}</div>
+      <div class="verdict-titre">${v.titre}</div>
+      <div class="verdict-explication">${v.explication}</div>
+      <div class="verdict-decisions">${v.decisions === 0
+        ? 'Aucune décision pour toi.'
+        : `${v.decisions} décision t’attend.`}</div>
+    </div>`;
+  }
+
+  // Les risques STRUCTURELS sortent du journal et montent en haut de page.
+  // « Ce message ne doit absolument pas être enfoui dans la timeline. C'est un
+  // risque structurel majeur. »
+  function blocRisques(risques) {
+    return (risques || []).map(r => `<div class="risque">
+      <div class="risque-titre">⚠️ ${r.titre}</div>
+      <div class="risque-texte">${r.texte}</div>
+    </div>`).join('');
+  }
+
+  // CE QUI T'ATTEND — carte TOUJOURS rendue, même vide.
+  //
+  // Le Guardian Philosophie signalait cet écran : la carte « Intervention »
+  // disparaissait quand aucun arbitrage n'attendait, si bien qu'on ne pouvait
+  // pas distinguer « vérifié, rien à faire » de « pas vérifié ». Critères 4 et
+  // 8 de sa doctrine. Une absence se DIT.
+  function blocAttente(gate) {
+    if (!gate) {
+      return `<div class="attente-rien">
+        <div class="grand">Rien ne t’attend</div>
+        <div class="petit">Vérifié à l’instant : aucun arbitrage n’est en attente de ta décision.</div>
+      </div>`;
+    }
+    return `<div class="card"><div class="section-label">Ce qui t’attend</div>
+      <div>${gate.question}</div>
+      <button class="btn-autoriser" id="btnAutoriser">J'autorise</button>
+      <div class="retour-gate" id="retourGate"></div>
+      <div class="proposition">Cette autorisation est écrite au nom de ta session Créateur. NEXUS Live
+      la transmet ; il ne la fabrique pas, et personne d'autre ne peut l'écrire à ta place.</div></div>`;
+  }
+
+  function renderProjection(projection, evenements, fraicheur, deploiements, verdict) {
     const f = fraicheur || { niveau: 'INCONNU', ageMinutes: null };
+    // « Je ne sais pas immédiatement ce que signifie cette durée. Dernière
+    // synchronisation ? Dernier événement ? » — on nomme donc ce qu'elle mesure.
     document.getElementById('sousTitre').innerHTML =
-      `Environnement Test<span class="fraicheur ${f.niveau}">${texteFraicheur(f)}</span>`;
+      `Environnement Test · dernière analyse <span class="fraicheur ${f.niveau}">${texteFraicheur(f)}</span>`;
     const root = document.getElementById('root');
     if (!evenements.length) {
-      root.innerHTML = '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>'
+      root.innerHTML = blocVerdict(verdict) + blocRisques(verdict.risques)
+        + '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>'
         + blocDeploiements(deploiements);
       return;
     }
 
     const dernier = evenements[evenements.length - 1];
     const guardiansHtml = Object.keys(projection.guardians).length
-      ? Object.entries(projection.guardians).map(([id, statut]) =>
-          `<div class="guardian-row"><span>${id}</span><span>${statut}</span></div>`).join('')
+      ? Object.entries(projection.guardians).map(([id, statut]) => {
+          // « BLOCKED est beaucoup trop violent et trop ambigu. » Traduit en
+          // langage d'exploitant par le module de projection.
+          const l = window.NexusLiveProjection.libelleStatutGarde({ status: statut });
+          return `<div class="guardian-row"><span>${id}</span><span class="garde-etat ${l.ton}">${l.texte}</span></div>`;
+        }).join('')
       : '<div class="empty-note">Aucun Guardian actif sur ce lot.</div>';
 
     const timelineHtml = evenements.slice(-8).reverse().map(evt =>
@@ -157,8 +236,11 @@
       </div>`).join('');
 
     root.innerHTML = `
+      ${blocVerdict(verdict)}
+      ${blocRisques(verdict.risques)}
+      ${blocAttente(projection.human_gate)}
       <div class="card">
-        <div class="section-label">Maintenant</div>
+        <div class="section-label">Détail technique</div>
         <span class="statut-badge statut-${projection.system_status}">${libelleStatut(projection.system_status)}</span>
         <div style="margin-top:10px;">Lot actif : <strong>${projection.active_lots.join(', ') || '—'}</strong></div>
         <div>Agent actif : ${projection.active_actor || '—'}</div>
@@ -166,12 +248,6 @@
         <div>Prochaine étape automatique : ${projection.next_automatic_step || '—'}</div>
       </div>
       ${blocDeploiements(deploiements)}
-      ${projection.human_gate ? `<div class="card"><div class="section-label">Intervention</div>
-        <div>${projection.human_gate.question}</div>
-        <button class="btn-autoriser" id="btnAutoriser">J'autorise</button>
-        <div class="retour-gate" id="retourGate"></div>
-        <div class="proposition">Cette autorisation est écrite au nom de ta session Créateur. NEXUS Live
-        la transmet ; il ne la fabrique pas, et personne d'autre ne peut l'écrire à ta place.</div></div>` : ''}
       <div class="card">
         <div class="section-label">Guardians</div>
         ${guardiansHtml}
@@ -285,7 +361,8 @@
     const projection = P.construireProjectionLive(evenements);
     const fraicheur = P.fraicheurJournal(evenements, new Date().toISOString());
     const deploiements = P.extraireDeploiements(evenements);
-    renderProjection(projection, evenements, fraicheur, deploiements);
+    const verdict = P.verdictLive({ events: evenements, projection, deploiements, fraicheur });
+    renderProjection(projection, evenements, fraicheur, deploiements, verdict);
     const bouton = document.getElementById('btnAutoriser');
     if (bouton && projection.human_gate) {
       bouton.addEventListener('click', () => transmettreAutorisation(employee, projection.human_gate));
