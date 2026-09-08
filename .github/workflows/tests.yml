@@ -443,9 +443,14 @@ jobs:
             # affiché nomme l'événement fautif, son rôle et sa phase. Trois
             # hypothèses successives sont tombées à côté faute de pouvoir
             # désigner la coupable.
-            echo "— Rejeu ligne par ligne, pour désigner la coupable :"
+            # ON_ERROR_STOP=0 : on veut le verdict de CHAQUE ligne, pas
+            # seulement de la première. Si les événements déjà présents
+            # échouent et les nouveaux passent, la cause n'est pas le contenu
+            # mais le `on conflict` qui bute sur une ligne INVISIBLE au rôle —
+            # la policy de lecture exigeant `je_suis_createur()`.
+            echo "— Rejeu ligne par ligne, verdict de chacune :"
             node outils/producteur-evenements-live.js --sql-unitaire 2>/dev/null \
-              | psql -v ON_ERROR_STOP=1 2>&1 | tail -8 || true
+              | psql -v ON_ERROR_STOP=0 2>&1 | tail -30 || true
             echo "::warning::ENV-003 — journal Live NON publié. Réponse de la base : $(printf '%s' "$retour" | tr '\n' ' ' | cut -c1-400)"
             echo "Réponse complète de la base :"
             printf '%s\n' "$retour"
