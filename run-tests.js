@@ -4,7 +4,7 @@
 //   node run-tests.js carburant    → seulement les tests dont le nom contient "carburant"
 // Chaque fichier test_*.js est un script autonome : il réussit s'il sort en code 0.
 
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -37,7 +37,11 @@ function verdictNonRegression({ fichiers, echecs, connus }) {
 
 if (require.main !== module) { module.exports = { verdictNonRegression }; return; }
 
-const filtre = process.argv[2] || '';
+// Un drapeau n'est pas un filtre. `--sequentiel` était pris pour le motif de
+// sélection : la suite ne lançait AUCUNE épreuve et s'annonçait terminée. Une
+// commande qui ne fait rien mais sort proprement est plus dangereuse qu'une
+// commande qui échoue.
+const filtre = process.argv.slice(2).find(a => !a.startsWith('--')) || '';
 const fichiers = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js'))
   .filter(f => f.includes(filtre))
@@ -48,25 +52,55 @@ if (!fichiers.length) {
   process.exit(1);
 }
 
-const echecs = [];
-for (const f of fichiers) {
-  try {
-    // 30 s suffisaient tant qu'aucune épreuve ne lisait le vrai dépôt. Le
-    // 08/09/2026, `test_producteur_evenements_live` est monté à 25 s : cinq
-    // appels à `produire()` et deux lancements du CLI, chacun parcourant l'état
-    // git de 22 branches et 250 commits. Une épreuve à 25 s d'une limite de 30
-    // n'échoue pas : elle échoue UN JOUR, au hasard de la charge, et on la
-    // croit instable plutôt que mal calibrée. La limite reste franche — elle
-    // arrête toujours une épreuve qui boucle.
-    execFileSync('node', [f], { cwd: __dirname, timeout: 90000, stdio: 'pipe' });
-    process.stdout.write('.');
-  } catch (e) {
-    const sortie = `${e.stdout || ''}${e.stderr || ''}`;
-    const cause = (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || ['sortie non nulle'])[0];
-    echecs.push({ f, cause });
-    process.stdout.write('x');
-  }
+// ── Exécution ────────────────────────────────────────────────────────
+//
+// EN PARALLÈLE par défaut. Les épreuves sont des processus indépendants ; les
+// lancer une par une laissait la moitié des cœurs inoccupés (74 % de CPU sur
+// 59 s le 08/09/2026). `--sequentiel` reste disponible, et sert à PROUVER que
+// les deux modes rendent le même verdict : si une épreuve dépendait d'une
+// autre, la comparaison le dirait au lieu de le laisser deviner.
+//
+// L'ordre d'AFFICHAGE reste celui des fichiers, jamais celui d'arrivée : un
+// rapport dont les lignes changent de place à chaque exécution ne se compare
+// plus d'un run à l'autre.
+const sequentiel = process.argv.includes('--sequentiel');
+const PARALLELE = Math.max(1, Math.min(8, require('os').cpus().length));
+
+function lancer(f) {
+  return new Promise((resolve) => {
+    execFile('node', [f], { cwd: __dirname, timeout: 90000 }, (err, stdout, stderr) => {
+      if (!err) return resolve({ f, ok: true });
+      const sortie = `${stdout || ''}${stderr || ''}`;
+      const cause = (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || ['sortie non nulle'])[0];
+      resolve({ f, ok: false, cause });
+    });
+  });
 }
+
+async function executer() {
+  const resultats = new Map();
+  const file = fichiers.slice();
+  const largeur = sequentiel ? 1 : PARALLELE;
+  // Le mode est DÉCLARÉ, pas deviné. Sans cette ligne, rien ne distinguait un
+  // `--sequentiel` réellement séquentiel d'un `--sequentiel` ignoré : la
+  // comparaison entre les deux modes comparait alors deux fois le même, et la
+  // mutation qui supprimait le mode séquentiel survivait.
+  console.log(`${fichiers.length} épreuve(s), ${largeur === 1 ? 'en séquentiel' : largeur + ' en parallèle'}.`);
+  await Promise.all(Array.from({ length: largeur }, async () => {
+    for (;;) {
+      const f = file.shift();
+      if (!f) return;
+      const r = await lancer(f);
+      resultats.set(f, r);
+      process.stdout.write(r.ok ? '.' : 'x');
+    }
+  }));
+  // Rendu dans l'ordre des FICHIERS, pas dans celui des retours.
+  return fichiers.filter(f => !resultats.get(f).ok)
+    .map(f => ({ f, cause: resultats.get(f).cause }));
+}
+
+executer().then((echecs) => {
 
 const total = fichiers.length;
 console.log(`\n\n${total - echecs.length}/${total} tests passent.`);
@@ -128,3 +162,4 @@ switch (v.code) {
     console.log(`\nAucune régression : seuls les ${connus.length} échecs connus subsistent.`);
     process.exit(0);
 }
+});

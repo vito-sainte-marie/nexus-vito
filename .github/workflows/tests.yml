@@ -93,6 +93,13 @@ jobs:
       - name: Suite de non-régression et verdict
         run: node run-tests.js
 
+      # La parallélisation a fait passer la suite de 60 s à 25 s. Le gain ne
+      # vaut que si les deux modes disent la même chose : cette épreuve le
+      # vérifie sur un sous-ensemble rapide, plutôt que de rejouer la suite
+      # entière deux fois — une garde trop chère finit par être retirée.
+      - name: Le lanceur parallèle rend-il le même verdict ?
+        run: node test_lanceur_parallele_20260908.js
+
       # Le protocole de handoff est le dernier contrat du dispositif qui ne
       # tenait que par la discipline de ses acteurs. Il est désormais validé
       # ici, comme le reste. `fetch-depth: 0` ci-dessus rend `origin/main` et
