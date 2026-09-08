@@ -424,8 +424,15 @@ jobs:
             exit 0
           fi
           retour=$(printf '%s' "$sql" | psql -v ON_ERROR_STOP=1 2>&1) || true
+          # RAPPORTER CE QUE LA BASE A RÉPONDU, pas ce qu'on suppose. Le premier
+          # jet affirmait « le rôle CI n'a pas le droit » sans citer l'erreur :
+          # une fois le droit accordé, le même message continuait de s'afficher
+          # et envoyait chercher au mauvais endroit. Un avertissement qui
+          # nomme une cause au lieu du fait est un avertissement qui ment.
           if printf '%s' "$retour" | grep -qiE 'permission denied|violates row-level security'; then
-            echo "::warning::ENV-003 — journal Live NON publié : le rôle CI n'a pas le droit d'insérer dans nexus_live_events. L'écran continuera d'afficher l'état précédent, et il en indiquera l'âge. Geste attendu : SEC-019."
+            echo "::warning::ENV-003 — journal Live NON publié. Réponse de la base : $(printf '%s' "$retour" | tr '\n' ' ' | cut -c1-400)"
+            echo "Réponse complète de la base :"
+            printf '%s\n' "$retour"
             exit 0
           fi
           if printf '%s' "$retour" | grep -qiE '^ERROR|error:'; then
