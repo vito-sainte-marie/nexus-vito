@@ -78,6 +78,21 @@
   .garde-etat.vigilance{background:#3d3410; color:#f0d27a;}
   .garde-etat.grave{background:#4a1d1d; color:#ffb4b4;}
   .garde-etat.attente,.garde-etat.inconnu{background:#333; color:#bbb;}
+  /* La timeline résumée. Le monospace est réservé à l'heure — un identifiant
+     technique ; le texte, lui, se lit dans la typographie principale. */
+  .evt{display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--hairline);}
+  .evt:first-child{border-top:none;}
+  .evt-heure{font-family:var(--mono); font-size:11px; color:var(--text-dim); flex:0 0 42px; padding-top:2px;}
+  .evt-titre{font-size:13px; font-weight:600; line-height:1.4;}
+  .evt-detail{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-top:2px;}
+  .evt.grave .evt-titre{color:#ffb4b4;}
+  .evt.vigilance .evt-titre{color:#f0d27a;}
+  .evt.ok .evt-titre{color:#7ee2b0;}
+  .evt.inconnu .evt-titre{font-style:italic; color:var(--text-dim);}
+  .masques{font-size:11px; color:var(--text-dim); margin-top:12px; font-style:italic;}
+  details.journal{margin-top:12px;}
+  details.journal summary{font-size:11.5px; color:var(--text-dim); cursor:pointer;}
+  details.journal .timeline-item{margin-top:8px;}
   .btn-autoriser{margin-top:14px; width:100%; padding:12px; border-radius:10px; border:1px solid #2f7d55; background:#124a30; color:#c8f3dc; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; cursor:pointer;}
   .btn-autoriser:disabled{opacity:.5; cursor:default;}
   .retour-gate{margin-top:10px; font-size:12px; line-height:1.5;}
@@ -230,7 +245,31 @@
         }).join('')
       : '<div class="empty-note">Aucun Guardian actif sur ce lot.</div>';
 
-    const timelineHtml = evenements.slice(-8).reverse().map(evt =>
+    // CE QUI S'EST PASSÉ — résumé, pas journal brut.
+    //
+    // « Ce n'est pas vraiment une timeline. C'est un journal système brut. »
+    // Les relevés identiques sont écartés, mais COMPTÉS et dits : escamoter en
+    // silence serait la faute que ce résumé corrige, retournée.
+    const resume = window.NexusLiveProjection.resumerTimeline(evenements);
+    const heure = (iso) => {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const resumeHtml = resume.entrees.slice(-12).reverse().map(e =>
+      `<div class="evt ${e.ton}">
+        <div class="evt-heure">${heure(e.occurredAt)}</div>
+        <div>
+          <div class="evt-titre">${e.titre}</div>
+          ${e.detail ? `<div class="evt-detail">${e.detail}</div>` : ''}
+        </div>
+      </div>`).join('') || '<div class="empty-note">Aucun événement à résumer.</div>';
+    const masquesHtml = resume.masques
+      ? `<div class="masques">${resume.masques} relevé(s) identique(s) écarté(s) — répéter le même état n’apprend rien. Le journal technique les conserve.</div>`
+      : '';
+
+    // Le journal brut reste accessible, replié : « le détail technique complet
+    // pourrait exister derrière "Voir le journal technique" ».
+    const journalHtml = evenements.slice(-15).reverse().map(evt =>
       `<div class="timeline-item">${evt.summary}
         <div class="timeline-meta">${evt.phase} · ${evt.status} · ${evt.actor.id} · ${evt.occurred_at}</div>
       </div>`).join('');
@@ -253,8 +292,13 @@
         ${guardiansHtml}
       </div>
       <div class="card">
-        <div class="section-label">Timeline</div>
-        ${timelineHtml}
+        <div class="section-label">Ce qui s’est passé</div>
+        ${resumeHtml}
+        ${masquesHtml}
+        <details class="journal">
+          <summary>Voir le journal technique (${evenements.length} événement(s))</summary>
+          ${journalHtml}
+        </details>
       </div>
     `;
   }

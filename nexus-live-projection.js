@@ -289,7 +289,167 @@
       decisions: 0 };
   }
 
+  // ── LA TIMELINE RÉSUMÉE (08/09/2026) ────────────────────────────────
+  //
+  // Retour de Frédéric : « la timeline est le point le moins NEXUS de la page.
+  // Elle montre plusieurs fois "Déploiements — 0 en développement, 24 clos,
+  // 29 dettes", puis 30, puis 30 dont 20 P0, puis 31 dont 21 P0. Techniquement
+  // je comprends : ce sont des snapshots successifs. Mais pour moi, cela
+  // ressemble à du bruit. Ce n'est d'ailleurs pas vraiment une timeline, c'est
+  // un journal système brut. »
+  //
+  // Ce que fait ce résumé :
+  //   · il groupe les contrôles d'un même instant en UNE ligne ;
+  //   · il ne montre un état de déploiement que s'il a CHANGÉ, et décrit
+  //     alors le changement plutôt que de répéter l'état ;
+  //   · il traduit chaque type d'événement en langage d'exploitant.
+  //
+  // CE QU'IL NE FAIT PAS : perdre de l'information en silence. Les répétitions
+  // écartées sont COMPTÉES et rendues avec le résumé (`masques`), et le
+  // journal technique complet reste accessible. Un résumé qui escamote sans
+  // le dire serait la même faute que les cartes qui disparaissaient.
+  //
+  // Un type d'événement inconnu n'est jamais écarté : il est rendu tel quel et
+  // marqué comme non interprété — on ne cache pas ce qu'on ne comprend pas.
+
+  function compteursIdentiques(a, b) {
+    if (!a || !b) return false;
+    return a.en_developpement === b.en_developpement
+      && a.attente_arbitrage === b.attente_arbitrage
+      && a.clos === b.clos;
+  }
+
+  function detteIdentique(a, b) {
+    const va = a && a.total, vb = b && b.total;
+    const pa = a && a.p0, pb = b && b.p0;
+    return va === vb && pa === pb;
+  }
+
+  function phraseChangement(avant, apres) {
+    const morceaux = [];
+    const d = (x, y) => (Number(y) || 0) - (Number(x) || 0);
+    const dDette = avant && avant.dette && apres.dette ? d(avant.dette.total, apres.dette.total) : null;
+    const dP0 = avant && avant.dette && apres.dette ? d(avant.dette.p0, apres.dette.p0) : null;
+    if (dDette) {
+      morceaux.push(`${Math.abs(dDette)} sujet${Math.abs(dDette) > 1 ? 's' : ''} `
+        + `${dDette > 0 ? 'ajouté' : 'retiré'}${Math.abs(dDette) > 1 ? 's' : ''} au suivi`
+        + (dP0 ? ` (dont ${Math.abs(dP0)} prioritaire${Math.abs(dP0) > 1 ? 's' : ''})` : ''));
+    }
+    const dDev = avant ? d(avant.compteurs.en_developpement, apres.compteurs.en_developpement) : null;
+    const dArb = avant ? d(avant.compteurs.attente_arbitrage, apres.compteurs.attente_arbitrage) : null;
+    const dClos = avant ? d(avant.compteurs.clos, apres.compteurs.clos) : null;
+    if (dArb) morceaux.push(`${Math.abs(dArb)} arbitrage${Math.abs(dArb) > 1 ? 's' : ''} ${dArb > 0 ? 'en attente de plus' : 'de moins'}`);
+    if (dClos) morceaux.push(`${Math.abs(dClos)} lot${Math.abs(dClos) > 1 ? 's' : ''} ${dClos > 0 ? 'terminé' : 'rouvert'}${Math.abs(dClos) > 1 ? 's' : ''}`);
+    if (dDev) morceaux.push(`${Math.abs(dDev)} lot${Math.abs(dDev) > 1 ? 's' : ''} ${dDev > 0 ? 'ouvert' : 'refermé'}${Math.abs(dDev) > 1 ? 's' : ''}`);
+    return morceaux.join(', ');
+  }
+
+  function resumerTimeline(events) {
+    if (!Array.isArray(events) || !events.length) return { entrees: [], masques: 0 };
+    const tries = events.slice().sort(parAntecedenceOccurredAt);
+    const entrees = [];
+    let masques = 0;
+    let dernierDeploiement = null;
+    let gardesEnCours = null;
+
+    const viderGardes = () => {
+      if (!gardesEnCours) return;
+      const { moment, ok, surveiller, echec } = gardesEnCours;
+      const parts = [];
+      if (ok) parts.push(`${ok} conforme${ok > 1 ? 's' : ''}`);
+      if (surveiller) parts.push(`${surveiller} à surveiller`);
+      if (echec) parts.push(`${echec} en échec`);
+      entrees.push({
+        occurredAt: moment,
+        titre: `Contrôles automatiques — ${parts.join(', ')}`,
+        detail: echec ? 'La chaîne est arrêtée tant qu’ils ne passent pas.'
+          : surveiller ? 'Signalements sans blocage : rien n’est arrêté.'
+          : 'Aucun signalement.',
+        ton: echec ? 'grave' : surveiller ? 'vigilance' : 'ok',
+      });
+      gardesEnCours = null;
+    };
+
+    for (const e of tries) {
+      const ev = (e && e.evidence) || {};
+      const type = ev.type;
+
+      // Les contrôles d'un même instant forment UNE ligne.
+      if (type === 'garde') {
+        if (gardesEnCours && gardesEnCours.moment !== e.occurred_at) viderGardes();
+        if (!gardesEnCours) gardesEnCours = { moment: e.occurred_at, ok: 0, surveiller: 0, echec: 0 };
+        if (e.status === 'FAILED') gardesEnCours.echec++;
+        else if (e.status === 'BLOCKED') gardesEnCours.surveiller++;
+        else gardesEnCours.ok++;
+        continue;
+      }
+      viderGardes();
+
+      if (type === 'deploiement') {
+        const apres = { compteurs: ev.compteurs, dette: ev.dette };
+        if (dernierDeploiement
+          && compteursIdentiques(dernierDeploiement.compteurs, apres.compteurs)
+          && detteIdentique(dernierDeploiement.dette, apres.dette)) {
+          masques++; // relevé identique : répéter l'état n'apprend rien
+          continue;
+        }
+        const changement = dernierDeploiement ? phraseChangement(dernierDeploiement, apres) : '';
+        entrees.push({
+          occurredAt: e.occurred_at,
+          titre: dernierDeploiement
+            ? (changement || 'État des lots mis à jour')
+            : 'État des lots relevé',
+          detail: `${apres.compteurs.en_developpement} en développement, `
+            + `${apres.compteurs.attente_arbitrage} en attente d’arbitrage, `
+            + `${apres.compteurs.clos} terminés.`,
+          ton: 'neutre',
+        });
+        dernierDeploiement = apres;
+        continue;
+      }
+
+      if (type === 'protection') {
+        entrees.push({
+          occurredAt: e.occurred_at,
+          titre: e.status === 'BLOCKED' ? 'Risque Production détecté' : 'Protection de Production vérifiée',
+          detail: e.status === 'BLOCKED'
+            ? 'Un push direct vers la branche Production reste possible.'
+            : 'La branche est tenue : aucun passage direct.',
+          ton: e.status === 'BLOCKED' ? 'grave' : 'ok',
+        });
+        continue;
+      }
+
+      if (type === 'ci') {
+        const t = { PASSED: ['Intégration continue réussie', 'ok'], FAILED: ['Intégration continue en échec', 'grave'] }[e.status]
+          || ['Intégration continue en cours', 'attente'];
+        entrees.push({ occurredAt: e.occurred_at, titre: t[0], detail: e.summary, ton: t[1] });
+        continue;
+      }
+
+      if (type === 'autorisation') {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Autorisation accordée',
+          detail: e.summary, ton: 'ok' });
+        continue;
+      }
+
+      if (e.human_gate && e.human_gate.required) {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Arbitrage demandé',
+          detail: e.human_gate.question, ton: 'vigilance' });
+        continue;
+      }
+
+      // Type non interprété : rendu tel quel, et DIT comme tel. On ne cache
+      // pas ce qu'on ne comprend pas.
+      entrees.push({ occurredAt: e.occurred_at, titre: e.summary || 'Événement sans résumé',
+        detail: null, ton: 'inconnu', nonInterprete: true });
+    }
+    viderGardes();
+    return { entrees, masques };
+  }
+
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    resumerTimeline,
     VERDICT, verdictLive, risquesStructurels, libelleStatutGarde,
     fraicheurJournal, extraireDeploiements, SEUIL_TIEDE_MIN, SEUIL_FROID_MIN };
 

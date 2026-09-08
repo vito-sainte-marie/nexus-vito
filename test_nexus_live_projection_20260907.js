@@ -353,10 +353,13 @@ t('CONTRAT — l’écran rend le verdict AVANT toute donnée', () => {
   const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
   const iVerdict = ecran.indexOf('${blocVerdict(verdict)}');
   const iDetail = ecran.indexOf('Détail technique');
-  const iTimeline = ecran.indexOf('<div class="section-label">Timeline</div>');
+  // Le titre a changé le 08/09 : « Timeline » est devenu « Ce qui s’est
+  // passé », parce que ce n'en était pas une. Ce contrat suit le libellé
+  // réel plutôt que d'être contourné.
+  const iHistorique = ecran.indexOf('Ce qui s’est passé');
   assert.ok(iVerdict > 0, 'le verdict doit être rendu');
   assert.ok(iDetail > iVerdict, 'le détail technique vient APRÈS le verdict');
-  assert.ok(iTimeline > iVerdict, 'la timeline aussi');
+  assert.ok(iHistorique > iVerdict, 'l’historique aussi');
 });
 
 t('CONTRAT — le risque de Production sort du journal et monte en haut', () => {
@@ -397,6 +400,150 @@ t('CONTRAT — l’écran ne montre plus de statut brut de garde', () => {
   assert.ok(/libelleStatutGarde/.test(ecran), 'les statuts doivent être traduits');
   assert.ok(!/<span>\$\{statut\}<\/span>/.test(ecran),
     'le statut brut ne doit plus être affiché tel quel');
+});
+
+
+// ── LA TIMELINE RÉSUMÉE (08/09/2026) ────────────────────────────────────
+// « Ce n'est pas vraiment une timeline. C'est un journal système brut. »
+
+const garde = (id, statut, t) => ({ occurred_at: t, lot_id: 'L', run_id: 'gardes',
+  actor: { id, role: 'guardian' }, phase: 'GUARDIAN_REVIEW', status: statut,
+  summary: `${id} : …`, evidence: { type: 'garde', ref: `outils/${id}.js` } });
+const depl = (t, dette, compteurs) => ({ occurred_at: t, lot_id: 'L', run_id: 'deploiement',
+  actor: { id: 'etat-deploiement', role: 'ci' }, phase: 'ANALYSE', status: 'PASSED', summary: 'Déploiements — …',
+  evidence: { type: 'deploiement', ref: 'outils/etat-deploiement.js',
+    compteurs: compteurs || { en_developpement: 0, attente_arbitrage: 0, clos: 24 }, dette } });
+
+t('les contrôles d’un même instant tiennent en UNE ligne', () => {
+  // Cinq gardes au même horodatage produisaient cinq lignes identiques en
+  // apparence. Le lecteur veut savoir combien passent, pas les lire une à une.
+  const r = P.resumerTimeline([
+    garde('guardian-qa', 'PASSED', '2026-09-08T12:00:00Z'),
+    garde('verifier-apprentissage', 'PASSED', '2026-09-08T12:00:00Z'),
+    garde('guardian-bible', 'BLOCKED', '2026-09-08T12:00:00Z'),
+    garde('guardians-router', 'BLOCKED', '2026-09-08T12:00:00Z'),
+  ]);
+  assert.strictEqual(r.entrees.length, 1, JSON.stringify(r.entrees));
+  assert.ok(/2 conformes, 2 à surveiller/.test(r.entrees[0].titre), r.entrees[0].titre);
+  assert.strictEqual(r.entrees[0].ton, 'vigilance');
+  assert.ok(/rien n’est arrêté/.test(r.entrees[0].detail), 'et dire que rien n’est bloqué');
+});
+
+t('une garde en ÉCHEC change le ton de la ligne entière', () => {
+  const r = P.resumerTimeline([
+    garde('a', 'PASSED', '2026-09-08T12:00:00Z'),
+    garde('b', 'FAILED', '2026-09-08T12:00:00Z'),
+  ]);
+  assert.strictEqual(r.entrees[0].ton, 'grave');
+  assert.ok(/1 en échec/.test(r.entrees[0].titre), r.entrees[0].titre);
+  assert.ok(/arrêtée/.test(r.entrees[0].detail), r.entrees[0].detail);
+});
+
+t('des contrôles à DES INSTANTS différents ne sont pas fondus ensemble', () => {
+  // Grouper au-delà de l'instant effacerait la chronologie, qui est le seul
+  // intérêt d'une timeline.
+  const r = P.resumerTimeline([
+    garde('a', 'PASSED', '2026-09-08T12:00:00Z'),
+    garde('b', 'PASSED', '2026-09-08T13:00:00Z'),
+  ]);
+  assert.strictEqual(r.entrees.length, 2);
+});
+
+t('un relevé de déploiement IDENTIQUE est écarté — et COMPTÉ', () => {
+  // Le cœur du bruit signalé par Frédéric. Mais écarter en silence serait la
+  // même faute que les cartes qui disparaissaient : le nombre d'écartés est
+  // rendu avec le résumé.
+  const r = P.resumerTimeline([
+    depl('2026-09-08T12:00:00Z', { total: 29, p0: 18 }),
+    depl('2026-09-08T12:30:00Z', { total: 29, p0: 18 }),
+    depl('2026-09-08T13:00:00Z', { total: 29, p0: 18 }),
+  ]);
+  assert.strictEqual(r.entrees.length, 1, 'un seul relevé conservé');
+  assert.strictEqual(r.masques, 2, 'et les deux répétitions sont comptées, pas escamotées');
+});
+
+t('un relevé qui CHANGE décrit le changement, pas l’état', () => {
+  // « 12:35 — 2 nouveaux sujets prioritaires détectés » plutôt que la
+  // répétition d'un tableau de compteurs.
+  const r = P.resumerTimeline([
+    depl('2026-09-08T12:00:00Z', { total: 29, p0: 18 }),
+    depl('2026-09-08T13:00:00Z', { total: 31, p0: 20 }),
+  ]);
+  assert.strictEqual(r.entrees.length, 2);
+  assert.ok(/2 sujets ajoutés au suivi/.test(r.entrees[1].titre), r.entrees[1].titre);
+  assert.ok(/2 prioritaires/.test(r.entrees[1].titre), r.entrees[1].titre);
+  assert.strictEqual(r.masques, 0);
+});
+
+t('un lot terminé ou un arbitrage qui arrive sont dits en clair', () => {
+  const r = P.resumerTimeline([
+    depl('2026-09-08T12:00:00Z', { total: 29, p0: 18 }, { en_developpement: 1, attente_arbitrage: 0, clos: 24 }),
+    depl('2026-09-08T13:00:00Z', { total: 29, p0: 18 }, { en_developpement: 0, attente_arbitrage: 1, clos: 25 }),
+  ]);
+  const titre = r.entrees[1].titre;
+  assert.ok(/arbitrage/.test(titre), titre);
+  assert.ok(/1 lot terminé/.test(titre), titre);
+});
+
+t('le risque Production et la CI sont traduits', () => {
+  const r = P.resumerTimeline([
+    { occurred_at: '2026-09-08T14:00:00Z', lot_id: 'L', run_id: 'r', actor: { id: 'gh', role: 'ci' },
+      phase: 'CI', status: 'FAILED', summary: 'CI sur abc : failure', evidence: { type: 'ci', ref: '1' } },
+    { occurred_at: '2026-09-08T14:35:00Z', lot_id: 'L', run_id: 'production', actor: { id: 'gh', role: 'ci' },
+      phase: 'GATE', status: 'BLOCKED', summary: 'x', evidence: { type: 'protection', ref: 'refs/heads/production' } },
+  ]);
+  assert.strictEqual(r.entrees[0].titre, 'Intégration continue en échec');
+  assert.strictEqual(r.entrees[1].titre, 'Risque Production détecté');
+  assert.ok(/push direct/.test(r.entrees[1].detail), r.entrees[1].detail);
+  assert.strictEqual(r.entrees[1].ton, 'grave');
+});
+
+t('un type d’événement INCONNU est rendu tel quel, et marqué comme tel', () => {
+  // On ne cache pas ce qu'on ne comprend pas. L'écarter serait exactement la
+  // faute que ce résumé existe pour corriger, retournée.
+  const r = P.resumerTimeline([{ occurred_at: '2026-09-08T15:00:00Z', lot_id: 'L', run_id: 'r',
+    actor: { id: 'x', role: 'ci' }, phase: 'TEST', status: 'PASSED',
+    summary: 'Quelque chose de nouveau', evidence: { type: 'type-futur', ref: 'z' } }]);
+  assert.strictEqual(r.entrees.length, 1);
+  assert.strictEqual(r.entrees[0].titre, 'Quelque chose de nouveau');
+  assert.strictEqual(r.entrees[0].nonInterprete, true);
+  assert.strictEqual(r.masques, 0, 'un inconnu n’est jamais masqué');
+});
+
+t('un journal vide ou absent ne fabrique aucune entrée', () => {
+  for (const cas of [[], null, undefined]) {
+    const r = P.resumerTimeline(cas);
+    vide(r.entrees, 'journal ' + JSON.stringify(cas));
+    assert.strictEqual(r.masques, 0);
+  }
+});
+
+t('le résumé respecte la chronologie même si le journal ne l’est pas', () => {
+  const r = P.resumerTimeline([
+    { occurred_at: '2026-09-08T16:00:00Z', lot_id: 'L', run_id: 'r', actor: { id: 'x', role: 'ci' },
+      phase: 'CI', status: 'PASSED', summary: 'tard', evidence: { type: 'ci', ref: '2' } },
+    { occurred_at: '2026-09-08T09:00:00Z', lot_id: 'L', run_id: 'r', actor: { id: 'x', role: 'ci' },
+      phase: 'CI', status: 'PASSED', summary: 'tôt', evidence: { type: 'ci', ref: '1' } },
+  ]);
+  // `.join()` plutôt que `deepStrictEqual` sur un tableau : frontière de realm,
+  // troisième rencontre du même piège aujourd'hui. Comparer des chaînes le
+  // contourne sans y penser.
+  assert.strictEqual(r.entrees.map(e => e.detail).join(' → '), 'tôt → tard');
+});
+
+t('CONTRAT — l’écran montre le RÉSUMÉ, et garde le journal brut derrière un dépli', () => {
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  assert.ok(/resumerTimeline\(evenements\)/.test(ecran), 'l’écran doit consommer le résumé');
+  assert.ok(/Ce qui s’est passé/.test(ecran), 'et le titrer en langage d’exploitant');
+  assert.ok(!/<div class="section-label">Timeline<\/div>/.test(ecran),
+    'le titre « Timeline » disparaît : ce n’en était pas une');
+  // Le journal brut reste ACCESSIBLE — le résumé ne doit pas être le seul
+  // accès à la vérité.
+  assert.ok(/<details class="journal">/.test(ecran), 'le journal technique doit rester consultable');
+  assert.ok(/Voir le journal technique/.test(ecran), 'et être nommé');
+  // Et le nombre d'écartés est AFFICHÉ, jamais silencieux.
+  assert.ok(/resume\.masques/.test(ecran) && /écarté\(s\)/.test(ecran),
+    'les relevés écartés doivent être dits, pas escamotés');
 });
 
 console.log(`\n${n} assertions Live-Projection passées.`);
