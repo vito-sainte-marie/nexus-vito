@@ -430,6 +430,14 @@ jobs:
           # et envoyait chercher au mauvais endroit. Un avertissement qui
           # nomme une cause au lieu du fait est un avertissement qui ment.
           if printf '%s' "$retour" | grep -qiE 'permission denied|violates row-level security'; then
+            # DIAGNOSTIC, parce que trois hypothèses successives se sont
+            # révélées fausses : le droit, puis la policy, puis le rôle émis.
+            # On demande à la base QUI elle croit avoir en face et ce qu'on lui
+            # a présenté, au lieu de le déduire du dépôt.
+            echo "— Qui écrit, vu par la base :"
+            psql -tAc "select 'current_user=' || current_user || ' session_user=' || session_user" 2>&1 || true
+            echo "— Rôles d'acteur présentés dans ce lot d'événements :"
+            printf '%s' "$sql" | grep -oE "', '(execution|orchestrator|guardian|ci|human)', '" | sort | uniq -c || true
             echo "::warning::ENV-003 — journal Live NON publié. Réponse de la base : $(printf '%s' "$retour" | tr '\n' ' ' | cut -c1-400)"
             echo "Réponse complète de la base :"
             printf '%s\n' "$retour"
