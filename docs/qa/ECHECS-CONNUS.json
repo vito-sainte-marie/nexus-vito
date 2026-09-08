@@ -1,0 +1,61 @@
+{
+  "note": "Propriétaire UNIQUE des échecs tolérés de la suite. Cette liste vivait en deux exemplaires — figée dans .github/workflows/tests.yml, et reconstruite à la main dans un fichier temporaire à chaque session. Deux copies d'une même vérité : c'est toujours celle qu'on oublie qui se met à mentir. `run-tests.js` en est désormais le seul lecteur, en local comme en CI.",
+  "regle": "Un échec absent de cette liste est une RÉGRESSION et arrête la chaîne. Un fichier de cette liste qui repasse au vert l'arrête AUSSI : il doit en être retiré, sinon la liste autorise silencieusement un retour en arrière. Le contrôle qui compte n'est pas le compte, c'est la liste (QA-006).",
+  "mesure_le": "2026-09-08",
+  "echecs": [
+    {
+      "fichier": "test_chaine_temporelle_carburant_20260821.js",
+      "cause_observee": "TypeError: chargerControleJour : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_inventaire_categorie_mixte_deux_lieux.js",
+      "cause_observee": "ReferenceError: estComptageDeuxLieuxEmploye is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_inventaire_parcours_depot_boutique_reste.js",
+      "cause_observee": "ReferenceError: NexusStation is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_inventaire_production_journaliere_q1.js",
+      "cause_observee": "ReferenceError: modeTestInventaireActif is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_inventaire_sprint4_ux_flash.js",
+      "cause_observee": "ReferenceError: estComptageDeuxLieuxEmploye is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_inventaire_sprint4bis_ecriture_immediate.js",
+      "cause_observee": "ReferenceError: modeTestInventaireActif is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_pilotage_qualite_receptions.js",
+      "cause_observee": "TypeError: document.addEventListener is not a function",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_reception_moteur.js",
+      "cause_observee": "TypeError: Mod.calculerReceptionCorrigee is not a function",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    },
+    {
+      "fichier": "test_reception_v1_dom.js",
+      "cause_observee": "ReferenceError: demarrerReception is not defined",
+      "motif": "NON DOCUMENTÉ",
+      "commentaire": "Toléré depuis avant le 08/09/2026. La cause observée est relevée telle quelle, sans interprétation : écrire un motif que personne n'a établi fabriquerait une explication. Suivi en QA-007."
+    }
+  ]
+}
