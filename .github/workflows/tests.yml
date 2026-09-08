@@ -239,6 +239,11 @@ jobs:
       - name: Les principes de la Bible sont-ils TENUS ?
         run: node test_bible_principes_mecanises_20260908.js
 
+      # Une doctrine qui recopie une vérité vivant ailleurs devient une seconde
+      # source, et c'est toujours la copie qu'on oublie de mettre à jour.
+      - name: La doctrine du langage tient-elle ses promesses ?
+        run: node test_doctrine_langage_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
