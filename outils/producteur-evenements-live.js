@@ -208,6 +208,69 @@ function evenementBarriere(lot, etatDep, horodatage) {
   })];
 }
 
+// ── Faits : le travail Claude en cours dans GitHub, avant le Handoff ────
+//
+// LE TROU QU'IL COMBLE. Le 08/09/2026, l'audit Philosophie était démarré et
+// documenté dans l'issue #28 depuis plusieurs minutes, mais Live ne montrait
+// rien : `evenementsRegistre` ne voit que ce qui est déjà matérialisé dans
+// `docs/handoff/STATE.json` sur `config-par-environnement`, et un travail
+// lancé depuis une issue GitHub commence toujours sur une branche isolée,
+// avant tout rapatriement. Entre le déclenchement et le retour Handoff, Live
+// restait aveugle — exactement l'angle mort que Frédéric a nommé.
+//
+// LE FAIT SOURCE reste un run GitHub Actions réel du workflow `claude.yml`
+// (celui qui répond à `@claude`), interrogé par `gh run list` — jamais un
+// contenu de log ni un commentaire relu comme une preuve (QA-002 : une
+// preuve ne juge pas une prose). Un run non terminé (`in_progress` /
+// `queued`) EST le fait « Claude travaille » ; rien de plus n'est inféré, et
+// un run déjà `completed` ne produit rien ici : son sort est déjà visible
+// ailleurs (Handoff, CI, gardes).
+//
+// PAS DE `lot_id` HANDOFF ICI, PAR CONSTRUCTION. Ce travail n'a, par
+// définition, pas encore de lot matérialisé — sinon `evenementsRegistre`
+// l'aurait déjà vu. Lui attribuer un `lot_id` de lot existant romprait
+// l'idempotence par lot et attribuerait faussement l'activité à un autre
+// sujet. Le lot_id est donc dérivé du seul fait disponible : le numéro
+// d'issue porté par le nom de la branche que Claude crée systématiquement
+// (`claude/issue-<n>-...`).
+function extraireNumeroIssue(headBranch) {
+  const m = /^claude\/issue-(\d+)-/.exec(String(headBranch || ''));
+  return m ? m[1] : null;
+}
+
+function evenementsAgentGithub(horodatage, { lister } = {}) {
+  const executer = lister || (() => {
+    try {
+      return JSON.parse(execFileSync('gh',
+        ['run', 'list', '--workflow', 'claude.yml', '--limit', '5',
+          '--json', 'databaseId,status,event,headBranch'],
+        { cwd: RACINE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    } catch (e) { return null; } // pas de réseau, pas de `gh` : on se tait
+  });
+  const runs = executer();
+  if (!Array.isArray(runs)) return [];
+  const evts = [];
+  for (const r of runs) {
+    if (!r || r.status === 'completed') continue; // déjà un fait visible ailleurs
+    const issue = extraireNumeroIssue(r.headBranch);
+    if (!issue) continue; // pas une branche Claude reconnaissable : on ne devine pas
+    evts.push(evenement({
+      lot: `GITHUB-ISSUE-${issue}`, run: String(r.databaseId),
+      // `ci`, et non `execution` : la CI CONSTATE qu'un run Claude tourne, elle
+      // n'est pas Claude. Signer `execution` serait exactement l'usurpation que
+      // `publication_ci` interdit — et que la base a refusée le 08/09/2026.
+      // L'acteur nomme quand même ce qui est observé, pour ne rien perdre.
+      acteur: 'claude-code-action', role: 'ci',
+      phase: 'EXECUTION', statut: r.status === 'queued' ? 'STARTED' : 'PROGRESS',
+      resume: `Claude travaille sur l'issue #${issue} (run ${r.databaseId}), `
+        + 'pas encore matérialisé dans le Handoff.',
+      preuve: { type: 'github_run', ref: String(r.databaseId) },
+      occurredAt: horodatage,
+    }));
+  }
+  return evts;
+}
+
 // ── Le bloc « Déploiements » demandé par Frédéric ───────────────────────
 //
 // Trois compteurs — en développement, prêt pour Production, en attente de ton
@@ -323,7 +386,8 @@ function produire(options = {}) {
     .concat(evenementsCI(lotCourant, horodatage))
     .concat(evenementBarriere(lotCourant, etat, horodatage))
     .concat(evenementBranchesEnRade(lotCourant, horodatage, { controler: options.controlerBranches }))
-    .concat(evenementDeploiement(lotCourant, etat, horodatage));
+    .concat(evenementDeploiement(lotCourant, etat, horodatage))
+    .concat(evenementsAgentGithub(horodatage, { lister: options.listerRunsClaude }));
 
   const { evenements, rejetes } = filtrer(candidats);
   return { erreur: null, evenements, rejetes };
@@ -443,7 +507,7 @@ function rolesInterdits(evenements) {
     .map(e => ({ event_id: e.event_id, role: e.actor.role }));
 }
 
-module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES, ROLES_PUBLIABLES_PAR_LA_CI, rolesInterdits };
+module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, evenementsAgentGithub, extraireNumeroIssue, GARDES, ROLES_PUBLIABLES_PAR_LA_CI, rolesInterdits };
 
 if (require.main === module) {
   const r = produire();
