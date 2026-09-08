@@ -409,6 +409,16 @@ if (require.main === module) {
       console.log('  · Accès Live REFUSÉ au manager : satisfaite');
       console.log('  · Accès Live ACCORDÉ au Créateur : '
         + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
+      // Ce que l'écran annonce et ce qu'il propose. Sans cette ligne, la preuve
+      // existait dans le code mais restait invisible dans le rapport que
+      // Frédéric lit — et une preuve qu'on ne lit pas ne rassure personne.
+      const c = r.live && r.live.createur;
+      console.log('  · Cohérence question/bouton dans Live : '
+        + (!c ? 'NON SATISFAITE — Créateur non observé'
+          : !c.attente ? 'NON SATISFAITE — l’écran ne déclare pas ce qu’il attend'
+          : c.attente === 'arbitrage'
+            ? `un arbitrage est annoncé, bouton ${c.boutonAutoriser ? 'présent' : 'ABSENT'}`
+            : `aucun arbitrage en attente, bouton ${c.boutonAutoriser ? 'PRÉSENT À TORT' : 'absent'}`));
       process.exit(0);
     }
     console.error('\nÉCHEC de la recette navigateur :');
