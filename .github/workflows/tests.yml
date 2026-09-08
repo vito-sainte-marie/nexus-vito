@@ -310,6 +310,21 @@ jobs:
             echo "Le semis a échoué alors que la base RÉPONDAIT — défaut réel, pas une indisponibilité."
             exit 1
           fi
+          # LA MOITIÉ NÉGATIVE. Le rôle CI vient d'obtenir une politique RLS
+          # bornée au site de recette (migration 20260908033743). Vérifier
+          # seulement qu'il écrit là où il doit ne prouve pas qu'il est borné :
+          # un rôle en BYPASSRLS passerait exactement la même épreuve. On exige
+          # donc aussi qu'il ÉCHOUE ailleurs.
+          #
+          # `begin; … ; rollback;` : si l'écriture est refusée, psql sort non
+          # nul et on l'attend ; si elle est acceptée, le rollback garantit que
+          # rien n'est écrit sur l'autre site — la fuite est détectée sans
+          # jamais être commise.
+          if psql -v ON_ERROR_STOP=1 -c "begin; insert into public.audits_caisse (site, date, quart, litrage_sp95, litrage_gazole, litrage_gnr) values ('site-fantome-test','2026-09-08','9',1,1,null); rollback;" >/dev/null 2>&1; then
+            echo "FUITE D'ISOLATION : le rôle CI a écrit sur site-fantome-test. La politique RLS ne borne pas ce qu'elle prétend borner."
+            exit 1
+          fi
+          echo "Isolation vérifiée : le rôle CI est refusé hors du site de recette."
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 
