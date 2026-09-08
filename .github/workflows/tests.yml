@@ -205,6 +205,18 @@ jobs:
       - name: Épreuves de la répétition
         run: node test_repetition_recette_carburants_20260908.js
 
+      # Guardian Philosophie NEXUS — RAPPORT, et c'est sa doctrine qui le veut.
+      # `decision-1.md` (Q75) l'a arbitré consultatif : jamais bloquant tant
+      # qu'il dépend d'un jugement de modèle. Il ne note personne — il nomme
+      # les silences ambigus et rappelle les neuf critères au relecteur. Son
+      # épreuve propre, elle, reste bloquante : il peut se taire, il ne peut
+      # pas mentir sans qu'on le voie.
+      - name: Guardian Philosophie NEXUS — rapport
+        run: node outils/guardian-philosophie.js || true
+
+      - name: Épreuves du Guardian Philosophie
+        run: node test_guardian_philosophie_20260908.js
+
       - name: Branches de travail en rade — rapport
         run: node outils/garde-branches-en-rade.js || true
 
