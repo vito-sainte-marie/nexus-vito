@@ -438,6 +438,14 @@ jobs:
             psql -tAc "select 'current_user=' || current_user || ' session_user=' || session_user" 2>&1 || true
             echo "— Rôles d'acteur présentés dans ce lot d'événements :"
             printf '%s' "$sql" | grep -oE "', '(execution|orchestrator|guardian|ci|human)', '" | sort | uniq -c || true
+            # Rejeu UNE LIGNE À LA FOIS : un lot refusé en bloc ne dit pas
+            # laquelle pose problème. Avec ON_ERROR_STOP, le dernier `\echo`
+            # affiché nomme l'événement fautif, son rôle et sa phase. Trois
+            # hypothèses successives sont tombées à côté faute de pouvoir
+            # désigner la coupable.
+            echo "— Rejeu ligne par ligne, pour désigner la coupable :"
+            node outils/producteur-evenements-live.js --sql-unitaire 2>/dev/null \
+              | psql -v ON_ERROR_STOP=1 2>&1 | tail -8 || true
             echo "::warning::ENV-003 — journal Live NON publié. Réponse de la base : $(printf '%s' "$retour" | tr '\n' ' ' | cut -c1-400)"
             echo "Réponse complète de la base :"
             printf '%s\n' "$retour"
