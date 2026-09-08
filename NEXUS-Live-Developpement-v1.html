@@ -239,13 +239,18 @@
   // pas distinguer « vérifié, rien à faire » de « pas vérifié ». Critères 4 et
   // 8 de sa doctrine. Une absence se DIT.
   function blocAttente(gate) {
+    // `data-attente` est un MARQUEUR DE CONTRAT, pas un libellé : la recette
+    // doit pouvoir constater la COHÉRENCE entre ce que l'écran annonce et le
+    // bouton qu'il propose, sans jamais lire la prose — deux preuves ont déjà
+    // été cassées par une reformulation (« Timeline », « Cet écran est réservé
+    // au Créateur NEXUS »).
     if (!gate) {
-      return `<div class="attente-rien">
+      return `<div class="attente-rien" data-attente="rien">
         <div class="grand">Rien ne t’attend</div>
         <div class="petit">Vérifié à l’instant : aucun arbitrage n’est en attente de ta décision.</div>
       </div>`;
     }
-    return `<div class="card"><div class="section-label">Ce qui t’attend</div>
+    return `<div class="card" data-attente="arbitrage"><div class="section-label">Ce qui t’attend</div>
       <div>${gate.question}</div>
       <button class="btn-autoriser" id="btnAutoriser">J'autorise</button>
       <div class="retour-gate" id="retourGate"></div>

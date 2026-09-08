@@ -265,6 +265,13 @@ async function observerLive(navigateur, base, nom, pin) {
         // exactement comme le refus d'accès jugé sur ses mots le 07/09.
         contientTimeline: document.getElementById('root')
           && document.getElementById('root').dataset.nexusLive === 'rendu',
+        // Ce que l'écran ANNONCE, et ce qu'il PROPOSE. Les deux sont relevés
+        // séparément pour qu'on puisse juger leur cohérence : un écran qui dit
+        // « un arbitrage t'attend » sans offrir de quoi répondre laisse
+        // Frédéric devant une question sans bouton — le défaut exact qu'il a
+        // signalé le 08/09/2026.
+        attente: (document.querySelector('[data-attente]') || { dataset: {} }).dataset.attente || null,
+        boutonAutoriser: !!document.getElementById('btnAutoriser'),
       };
     });
   } finally {
@@ -282,6 +289,25 @@ function verifierLive(createur, manager) {
   }
   if (!manager.refuse) {
     echecs.push('Un manager ne doit PAS accéder à NEXUS Live. Vu : ' + manager.texte.replace(/\s+/g, ' ').slice(0, 200));
+  }
+  // COHÉRENCE entre ce qui est annoncé et ce qui est proposé. On ne décrète
+  // pas qu'un arbitrage doit être ouvert — cela dépend du journal du moment,
+  // et une preuve qui exige un état du monde se met à mentir dès que le monde
+  // change. On exige seulement que les deux moitiés de l'écran s'accordent.
+  if (createur && !createur.refuse) {
+    // `!createur.attente` et non `=== null` : une observation qui ne porte pas
+    // du tout le champ vaut `undefined`, et `undefined === null` est faux. Le
+    // relevé muet passait donc sans être jugé — exactement le silence que ce
+    // contrôle est censé interdire.
+    if (!createur.attente) {
+      echecs.push('L’écran Live ne déclare pas ce qu’il attend de Frédéric (marqueur `data-attente` absent).');
+    }
+    if (createur.attente === 'arbitrage' && !createur.boutonAutoriser) {
+      echecs.push('Un arbitrage est annoncé mais AUCUN bouton ne permet d’y répondre.');
+    }
+    if (createur.attente === 'rien' && createur.boutonAutoriser) {
+      echecs.push('L’écran annonce que rien n’attend Frédéric, mais propose quand même d’autoriser.');
+    }
   }
   return echecs;
 }

@@ -254,7 +254,7 @@ epreuve('un succès sur données non semées reste une observation vraie', () =>
 // passerait aussi. Les deux moitiés sont donc exigées ensemble.
 
 epreuve('le Créateur doit ENTRER, pas seulement les autres être refusés', () => {
-  const createurEntre = { texte: 'NEXUS LIVE DÉVELOPPEMENT\nTimeline\n…', refuse: false, contientTimeline: true };
+  const createurEntre = { texte: 'NEXUS LIVE DÉVELOPPEMENT\nTimeline\n…', refuse: false, contientTimeline: true, attente: 'rien', boutonAutoriser: false };
   // Texte RÉEL de l'écran, relevé en CI le 07/09 — et non une prose inventée
   // qui contiendrait commodément le mot « refusé ». C'est précisément l'écart
   // entre les deux qui a produit une fausse accusation de fuite d'accès.
@@ -268,8 +268,8 @@ epreuve('le Créateur doit ENTRER, pas seulement les autres être refusés', () 
 });
 
 epreuve('un manager qui ENTRE dans Live est un échec, pas un détail', () => {
-  const createurEntre = { texte: 'Timeline', refuse: false, contientTimeline: true };
-  const managerEntre = { texte: 'Timeline', refuse: false, contientTimeline: true };
+  const createurEntre = { texte: 'Timeline', refuse: false, contientTimeline: true, attente: 'rien', boutonAutoriser: false };
+  const managerEntre = { texte: 'Timeline', refuse: false, contientTimeline: true, attente: 'rien', boutonAutoriser: false };
   const e = verifierLive(createurEntre, managerEntre);
   assert.ok(e.length, 'la fuite d’accès doit être détectée');
   assert.ok(/ne doit PAS accéder/.test(e.join(' ')), e.join(' | '));
@@ -295,6 +295,50 @@ epreuve('un Créateur NON OBSERVÉ n’accuse pas l’écran', () => {
   // Le refus manager, lui, reste jugé même sans observation du Créateur.
   const e = verifierLive(null, { texte: 'Timeline', refuse: false, contientTimeline: true });
   assert.ok(e.length, 'une fuite d’accès manager doit rester détectée');
+});
+
+// ——— Le bouton qui manquait ———————————————————————————————————————————
+// Frédéric, 08/09/2026 : « pourquoi le bouton J'autorise n'est pas présent ? »
+// La question ne pouvait pas être tranchée : rien ne regardait ce bouton. On
+// ne décrète pas ici qu'un arbitrage DOIT être ouvert — cela dépend du journal
+// du moment, et une preuve qui exige un état du monde ment dès que le monde
+// change. On exige que les deux moitiés de l'écran s'accordent.
+
+epreuve('un arbitrage annoncé SANS bouton pour y répondre est un échec', () => {
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  const e = verifierLive({ texte: 'Ce qui t’attend', refuse: false, contientTimeline: true,
+    attente: 'arbitrage', boutonAutoriser: false }, manager);
+  assert.ok(e.length, 'une question posée sans moyen de répondre doit être vue');
+  assert.ok(/AUCUN bouton/.test(e.join(' ')), e.join(' | '));
+
+  // Et la situation conforme passe, sinon l'épreuve ci-dessus ne prouve rien.
+  assert.deepStrictEqual(verifierLive({ texte: 'Ce qui t’attend', refuse: false,
+    contientTimeline: true, attente: 'arbitrage', boutonAutoriser: true }, manager), []);
+});
+
+epreuve('un bouton d’autorisation SANS question à laquelle il répond est un échec', () => {
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  const e = verifierLive({ texte: 'Rien ne t’attend', refuse: false, contientTimeline: true,
+    attente: 'rien', boutonAutoriser: true }, manager);
+  assert.ok(/propose quand même d’autoriser/.test(e.join(' ')), e.join(' | '));
+});
+
+epreuve('un écran qui ne dit pas ce qu’il attend est un échec, pas un silence', () => {
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  // `undefined`, et non `null` : une observation qui ne porte pas du tout le
+  // champ échappait au jugement, parce que `undefined === null` est faux.
+  const muet = verifierLive({ texte: 'x', refuse: false, contientTimeline: true }, manager);
+  assert.ok(/ne déclare pas ce qu’il attend/.test(muet.join(' ')), muet.join(' | '));
+  const nul = verifierLive({ texte: 'x', refuse: false, contientTimeline: true, attente: null }, manager);
+  assert.ok(/ne déclare pas ce qu’il attend/.test(nul.join(' ')), nul.join(' | '));
+});
+
+epreuve('un Créateur REFUSÉ n’est pas jugé sur un bouton qu’il ne peut pas voir', () => {
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  const e = verifierLive({ texte: '(capacite_createur_absente)', refuse: true,
+    contientTimeline: false }, manager);
+  assert.ok(!/bouton|déclare pas ce qu’il attend/.test(e.join(' ')),
+    'le vrai défaut est le refus, pas l’absence de bouton : ' + e.join(' | '));
 });
 
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
