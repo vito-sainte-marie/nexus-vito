@@ -346,29 +346,40 @@ t('BLOCKED est traduit en langage d’exploitant, et n’est plus un arrêt', ()
 
 // ── CONTRAT D'ÉCRAN (08/09/2026) ────────────────────────────────────────
 
+// Le GABARIT rendu, et non tout le fichier : les fonctions sont DÉFINIES plus
+// haut que l'endroit où elles sont appelées, donc comparer des positions dans
+// le fichier entier mesurait la mauvaise chose. L'ordre qui compte est celui
+// des blocs dans le template.
+function gabaritRendu() {
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const i = ecran.indexOf('root.innerHTML = `');
+  assert.ok(i > 0, 'le gabarit de rendu doit être trouvable');
+  return ecran.slice(i, ecran.indexOf('`;', i));
+}
+
 t('CONTRAT — l’écran rend le verdict AVANT toute donnée', () => {
   // « Quand tu ouvres NEXUS Live, il devrait être possible de répondre en
   // moins de cinq secondes à : est-ce que NEXUS travaille normalement ? y
   // a-t-il quelque chose qui bloque ? est-ce que je dois intervenir ? »
-  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const ecran = gabaritRendu();
   const iVerdict = ecran.indexOf('${blocVerdict(verdict)}');
-  const iDetail = ecran.indexOf('Détail technique');
+  const iDetail = ecran.indexOf('${blocEnCours(travail, projection)}');
   // Le titre a changé le 08/09 : « Timeline » est devenu « Ce qui s’est
   // passé », parce que ce n'en était pas une. Ce contrat suit le libellé
   // réel plutôt que d'être contourné.
   const iHistorique = ecran.indexOf('Ce qui s’est passé');
   assert.ok(iVerdict > 0, 'le verdict doit être rendu');
-  assert.ok(iDetail > iVerdict, 'le détail technique vient APRÈS le verdict');
+  assert.ok(iDetail > iVerdict, 'le bloc « En cours » vient APRÈS le verdict');
   assert.ok(iHistorique > iVerdict, 'l’historique aussi');
 });
 
 t('CONTRAT — le risque de Production sort du journal et monte en haut', () => {
   // « Ce message ne doit absolument pas être enfoui dans la timeline. C'est
   // un risque structurel majeur. »
-  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const ecran = gabaritRendu();
   const iRisques = ecran.indexOf('${blocRisques(verdict.risques)}');
-  const iDetail = ecran.indexOf('Détail technique');
-  assert.ok(iRisques > 0 && iRisques < iDetail, 'les risques passent avant le détail technique');
+  const iEnCours = ecran.indexOf('${blocEnCours(travail, projection)}');
+  assert.ok(iRisques > 0 && iRisques < iEnCours, 'les risques passent avant le reste');
 });
 
 t('CONTRAT — « ce qui t’attend » est TOUJOURS rendu, même vide', () => {
@@ -666,11 +677,115 @@ t('CONTRAT — l’écran rend le flux, et dit quand il ne sait pas situer l’�
   assert.ok(/mieux vaut ne pas savoir que désigner au hasard/.test(ecran),
     'l’écran doit DIRE qu’il ne sait pas situer l’étape, plutôt qu’en désigner une');
   // Le flux vient après « ce qui t'attend » et avant le détail technique.
-  const iAttente = ecran.indexOf('${blocAttente(projection.human_gate)}');
-  const iFlux = ecran.indexOf('${blocFlux(flux)}');
-  const iDetail = ecran.indexOf('<div class="section-label">Détail technique</div>');
-  assert.ok(iAttente < iFlux && iFlux < iDetail,
-    'ordre attendu : ce qui t’attend, puis le flux, puis le détail technique');
+  const g = gabaritRendu();
+  const iAttente = g.indexOf('${blocAttente(projection.human_gate)}');
+  const iFlux = g.indexOf('${blocFlux(flux)}');
+  const iHisto = g.indexOf('Ce qui s’est passé');
+  assert.ok(iAttente > 0 && iAttente < iFlux && iFlux < iHisto,
+    'ordre attendu : ce qui t’attend, puis le flux, puis l’historique');
+});
+
+
+// ── LE TRAVAIL VIVANT (08/09/2026) ──────────────────────────────────────
+// « Ton écran affiche "Agent actif : etat-deploiement", mais ce n'est pas ce
+// que toi tu veux savoir. Tu veux savoir : que fait actuellement l'équipe ? »
+
+const acteur = (role, id, t, lot) => ({ occurred_at: t, lot_id: lot || 'NEXUS-LIVE-CONTROL-CENTER-1-20260906',
+  run_id: 'r', actor: { id, role }, phase: 'GUARDIAN_REVIEW', status: 'PASSED', summary: 's' });
+
+t('le nom du lot est transformé MÉCANIQUEMENT, jamais réécrit', () => {
+  // Inventer un joli titre raconterait autre chose que ce que le registre
+  // contient. La transformation est prévisible, et l'identifiant technique
+  // reste disponible à côté.
+  assert.strictEqual(P.nommerLot('NEXUS-ORCHESTRATION-GUARDIANS-1-20260907'), 'Orchestration Guardians');
+  assert.strictEqual(P.nommerLot('CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906'),
+    'Carburants Performance Optimisation Camion');
+  assert.strictEqual(P.nommerLot('NEXUS-LIVE-CONTROL-CENTER-1-20260906'), 'Live Control Center');
+});
+
+t('un identifiant vide ou illisible ne fabrique pas de titre', () => {
+  for (const cas of [null, undefined, '', '   ', 42, {}]) {
+    assert.strictEqual(P.nommerLot(cas), null, JSON.stringify(cas));
+  }
+});
+
+t('le travail est décrit par RÔLE, en langage d’équipe', () => {
+  const r = P.travailVivant({
+    events: [acteur('guardian', 'qa', '2026-09-08T12:00:00Z'),
+      acteur('guardian', 'bible', '2026-09-08T12:00:00Z'),
+      acteur('execution', 'claude', '2026-09-08T12:00:00Z')],
+    projection: { active_lots: ['NEXUS-LIVE-CONTROL-CENTER-1-20260906'] } });
+  assert.strictEqual(r.titre, 'Live Control Center');
+  assert.ok(r.lignes.includes('Claude développe'), JSON.stringify(r.lignes));
+  assert.ok(r.lignes.some(l => /2 Guardians contrôlent/.test(l)), JSON.stringify(r.lignes));
+  // Le nom technique reste accessible, il ne disparaît pas.
+  assert.strictEqual(r.lotTechnique, 'NEXUS-LIVE-CONTROL-CENTER-1-20260906');
+  memesElements(r.acteursTechniques, ['bible', 'claude', 'qa'], 'les acteurs techniques restent listés');
+});
+
+t('seul le DERNIER relevé compte, pas tout l’historique', () => {
+  // Découper autrement (« les 10 derniers », « depuis 5 minutes ») ferait
+  // dépendre l'affichage d'un réglage arbitraire, et montrerait comme « en
+  // cours » un travail terminé depuis longtemps.
+  const r = P.travailVivant({
+    events: [acteur('execution', 'claude', '2026-09-08T09:00:00Z'),
+      acteur('guardian', 'qa', '2026-09-08T12:00:00Z')],
+    projection: {} });
+  assert.ok(!r.lignes.includes('Claude développe'), 'le travail d’il y a trois heures n’est pas « en cours »');
+  assert.ok(r.lignes.some(l => /1 Guardian contrôle/.test(l)), JSON.stringify(r.lignes));
+});
+
+t('ce qui attend un humain est dit en premier', () => {
+  const pourToi = P.travailVivant({ events: [acteur('guardian', 'qa', '2026-09-08T12:00:00Z')],
+    projection: { human_gate: { who: 'frederic', question: '?' } } });
+  assert.strictEqual(pourToi.lignes[0], 'En attente de ta décision');
+
+  const pourOrch = P.travailVivant({ events: [acteur('guardian', 'qa', '2026-09-08T12:00:00Z')],
+    projection: { human_gate: { who: 'orchestrator', question: '?' } } });
+  assert.strictEqual(pourOrch.lignes[0], 'L’Orchestrator arbitre');
+});
+
+t('aucune activité reconnue se DIT, au lieu de laisser un bloc vide', () => {
+  // Un bloc vide se lit « rien ne fonctionne ». Ne pas reconnaître une
+  // activité n'est pas la même chose que constater qu'il n'y en a pas.
+  const r = P.travailVivant({
+    events: [{ occurred_at: '2026-09-08T12:00:00Z', lot_id: 'L', run_id: 'r',
+      actor: { id: 'x', role: 'inconnu-futur' }, phase: 'TEST', status: 'PASSED', summary: 's' }],
+    projection: {} });
+  assert.strictEqual(r.lignes.length, 1);
+  assert.ok(/Aucune activité reconnue/.test(r.lignes[0]), r.lignes[0]);
+  assert.strictEqual(r.inconnu, false, 'on a bien lu un relevé — c’est l’activité qui n’est pas reconnue');
+});
+
+t('sans aucun événement, le travail est INCONNU — pas « rien en cours »', () => {
+  for (const cas of [[], null, undefined]) {
+    const r = P.travailVivant({ events: cas, projection: {} });
+    assert.strictEqual(r.inconnu, true, JSON.stringify(cas));
+    vide(r.lignes, 'aucune ligne inventée');
+    assert.strictEqual(r.titre, null);
+  }
+});
+
+t('CONTRAT — l’écran dit ce que fait l’équipe, plus « Agent actif : … »', () => {
+  const brut = fs.readFileSync(path.join(__dirname, 'NEXUS-Live-Developpement-v1.html'), 'utf8');
+  const code = brut.split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n');
+  assert.ok(gabaritRendu().includes('${blocEnCours(travail, projection)}'), 'le bloc « En cours » doit être rendu');
+  assert.ok(!/Agent actif\s*:/.test(code), 'le nom technique ne doit plus être la première information');
+  assert.ok(/Noms techniques/.test(code), 'mais il doit rester accessible, replié');
+
+  // « Pas de "—" pour une prochaine étape sans explication. » Un tiret ne dit
+  // pas s'il n'y a rien, ou si personne n'a regardé.
+  assert.ok(!/\|\|\s*'—'/.test(code), 'aucun tiret muet ne doit subsister');
+  assert.ok(/non renseignée par le dernier événement/.test(code),
+    'une information absente doit dire POURQUOI elle l’est');
+
+  // L'ordre des zones demandé : verdict, risques, en cours, ce qui t’attend, flux.
+  const g = gabaritRendu();
+  const ordre = ['${blocVerdict(verdict)}', '${blocRisques(verdict.risques)}',
+    '${blocEnCours(travail, projection)}', '${blocAttente(projection.human_gate)}', '${blocFlux(flux)}']
+    .map(m => g.indexOf(m));
+  assert.ok(ordre.every((v, i) => v > 0 && (i === 0 || v > ordre[i - 1])),
+    'les zones doivent se suivre dans l’ordre demandé : ' + JSON.stringify(ordre));
 });
 
 console.log(`\n${n} assertions Live-Projection passées.`);

@@ -538,7 +538,83 @@
     };
   }
 
+  // ── LE TRAVAIL VIVANT (08/09/2026) ──────────────────────────────────
+  //
+  // Frédéric : « ton écran affiche "Agent actif : etat-deploiement", mais ce
+  // n'est pas ce que toi tu veux savoir. Tu veux savoir : que fait
+  // actuellement l'équipe IA ? Le nom technique de l'agent peut rester
+  // accessible en détail. »
+  //
+  // Le nom du lot est transformé MÉCANIQUEMENT, jamais réécrit à la main :
+  // « NEXUS-ORCHESTRATION-GUARDIANS-1-20260907 » devient « Orchestration
+  // Guardians ». Inventer un joli titre reviendrait à raconter autre chose que
+  // ce que le registre contient ; l'identifiant technique reste rendu à côté.
+  function nommerLot(lotId) {
+    if (typeof lotId !== 'string' || !lotId.trim()) return null;
+    const sansDate = lotId.trim()
+      .replace(/^NEXUS[-_]/i, '')
+      .replace(/[-_]\d+[-_]\d{8}$/, '')   // « -1-20260907 »
+      .replace(/[-_]\d{8}$/, '');          // « -20260907 »
+    const mots = sansDate.split(/[-_]+/).filter(Boolean);
+    if (!mots.length) return null;
+    return mots.map(m => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()).join(' ');
+  }
+
+  function travailVivant({ events, projection }) {
+    const proj = projection || projectionVide();
+    if (!Array.isArray(events) || !events.length) {
+      return { inconnu: true, titre: null, lignes: [], acteursTechniques: [] };
+    }
+    // Le dernier lot d'événements — ceux qui partagent l'horodatage le plus
+    // récent. Découper autrement (« les 10 derniers », « depuis 5 minutes »)
+    // ferait dépendre l'affichage d'un réglage arbitraire.
+    let dernier = -Infinity;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (Number.isFinite(t) && t > dernier) dernier = t;
+    }
+    if (!Number.isFinite(dernier)) return { inconnu: true, titre: null, lignes: [], acteursTechniques: [] };
+    const lot = events.filter(e => Date.parse(e && e.occurred_at) === dernier);
+
+    const roles = {};
+    const acteurs = new Set();
+    for (const e of lot) {
+      const r = e.actor && e.actor.role;
+      if (!r) continue;
+      roles[r] = (roles[r] || 0) + 1;
+      if (e.actor.id) acteurs.add(e.actor.id);
+    }
+
+    const lignes = [];
+    if (proj.human_gate) {
+      const qui = String(proj.human_gate.who || '').toLowerCase();
+      lignes.push(qui === 'frederic' ? 'En attente de ta décision' : 'L’Orchestrator arbitre');
+    }
+    if (roles.execution) lignes.push('Claude développe');
+    if (roles.guardian) {
+      lignes.push(`${roles.guardian} Guardian${roles.guardian > 1 ? 's' : ''} contrôlent automatiquement`);
+    }
+    if (roles.ci) lignes.push('L’intégration continue vérifie');
+    if (roles.orchestrator && !proj.human_gate) lignes.push('L’Orchestrator suit le registre');
+
+    // Aucune activité reconnue : on le DIT, plutôt que de laisser un bloc vide
+    // qui se lirait « rien ne fonctionne ».
+    if (!lignes.length) {
+      lignes.push('Aucune activité reconnue dans le dernier relevé');
+    }
+
+    const lotActif = (proj.active_lots && proj.active_lots[0]) || (lot[0] && lot[0].lot_id) || null;
+    return {
+      inconnu: false,
+      titre: nommerLot(lotActif),
+      lotTechnique: lotActif,
+      lignes,
+      acteursTechniques: [...acteurs].sort(),
+    };
+  }
+
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    travailVivant, nommerLot,
     fluxLive, etapeCourante, ETAPES_FLUX: ETAPES, PHASE_VERS_ETAPE,
     ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT,
     resumerTimeline,

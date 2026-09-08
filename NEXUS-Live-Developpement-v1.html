@@ -107,6 +107,10 @@
   .flux-etape.a_venir .flux-nom,.flux-etape.inconnue .flux-nom{color:var(--text-dim); font-weight:500;}
   .flux-qui{font-size:11px; color:var(--text-dim); line-height:1.45; margin-top:1px;}
   .flux-inconnu{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; font-style:italic;}
+  .encours-titre{font-size:16px; font-weight:700; line-height:1.3;}
+  .encours-ligne{font-size:13px; line-height:1.6; margin-top:6px; display:flex; gap:8px;}
+  .encours-ligne::before{content:'·'; color:var(--text-dim);}
+  .technique{font-family:var(--mono); font-size:11px; color:var(--text-dim); line-height:1.6;}
   details.journal{margin-top:12px;}
   details.journal summary{font-size:11.5px; color:var(--text-dim); cursor:pointer;}
   details.journal .timeline-item{margin-top:8px;}
@@ -272,7 +276,36 @@
     </div>`;
   }
 
-  function renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux) {
+  // CE QUI SE PASSE MAINTENANT, en langage d'équipe.
+  //
+  // « Ton écran affiche "Agent actif : etat-deploiement", mais ce n'est pas ce
+  // que toi tu veux savoir. Tu veux savoir : que fait actuellement l'équipe ? »
+  // Le nom technique reste accessible, replié.
+  function blocEnCours(travail, projection) {
+    if (travail.inconnu) {
+      return `<div class="card"><div class="section-label">En cours</div>
+        <div class="empty-note">Aucun relevé d’activité reçu — ne rien conclure de cette absence.</div></div>`;
+    }
+    // « Pas de "—" pour une prochaine étape sans explication. » Un tiret ne
+    // dit pas s'il n'y a rien ou si personne n'a regardé.
+    const ouRien = (v, quand) => v || `<span class="technique">${quand}</span>`;
+    return `<div class="card">
+      <div class="section-label">En cours</div>
+      <div class="encours-titre">${travail.titre || 'Travail sans lot identifié'}</div>
+      ${travail.lignes.map(l => `<div class="encours-ligne">${l}</div>`).join('')}
+      <details class="journal">
+        <summary>Noms techniques</summary>
+        <div class="technique" style="margin-top:8px;">
+          Lot : ${ouRien(travail.lotTechnique, 'aucun lot déclaré dans les événements reçus')}<br>
+          Agents : ${ouRien(travail.acteursTechniques.join(', '), 'aucun acteur déclaré')}<br>
+          Étape du contrat : ${ouRien(projection.current_phase, 'non renseignée par le dernier événement')}<br>
+          Prochaine étape automatique : ${ouRien(projection.next_automatic_step, 'non annoncée par le dernier événement')}
+        </div>
+      </details>
+    </div>`;
+  }
+
+  function renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux, travail) {
     const f = fraicheur || { niveau: 'INCONNU', ageMinutes: null };
     // « Je ne sais pas immédiatement ce que signifie cette durée. Dernière
     // synchronisation ? Dernier événement ? » — on nomme donc ce qu'elle mesure.
@@ -331,16 +364,9 @@
     root.innerHTML = `
       ${blocVerdict(verdict)}
       ${blocRisques(verdict.risques)}
+      ${blocEnCours(travail, projection)}
       ${blocAttente(projection.human_gate)}
       ${blocFlux(flux)}
-      <div class="card">
-        <div class="section-label">Détail technique</div>
-        <span class="statut-badge statut-${projection.system_status}">${libelleStatut(projection.system_status)}</span>
-        <div style="margin-top:10px;">Lot actif : <strong>${projection.active_lots.join(', ') || '—'}</strong></div>
-        <div>Agent actif : ${projection.active_actor || '—'}</div>
-        <div>Étape : ${projection.current_phase || '—'}</div>
-        <div>Prochaine étape automatique : ${projection.next_automatic_step || '—'}</div>
-      </div>
       ${blocDeploiements(deploiements)}
       <div class="card">
         <div class="section-label">Guardians</div>
@@ -462,7 +488,8 @@
     const deploiements = P.extraireDeploiements(evenements);
     const verdict = P.verdictLive({ events: evenements, projection, deploiements, fraicheur });
     const flux = P.fluxLive({ events: evenements, projection, deploiements });
-    renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux);
+    const travail = P.travailVivant({ events: evenements, projection });
+    renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux, travail);
     const bouton = document.getElementById('btnAutoriser');
     if (bouton && projection.human_gate) {
       bouton.addEventListener('click', () => transmettreAutorisation(employee, projection.human_gate));
