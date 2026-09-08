@@ -264,6 +264,11 @@ jobs:
       - name: La surface du jeton de CI est-elle restée celle autorisée ?
         run: node test_permissions_workflow_20260908.js
 
+      # Les agents portent leur nom devant l'utilisateur ; les commentaires
+      # datés gardent le leur, parce qu'ils datent une demande.
+      - name: LANG-004 — le nom des agents NEXUS
+        run: node test_vocabulaire_agents_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

@@ -247,8 +247,8 @@
     const prenom = vueManager ? cible.nom : cible.nom.split(' ')[0];
     const nbServices = services.length;
     const accueil = nbServices > 0
-      ? `${vueManager ? `Après ${nbServices} services, voici ce que le Coach NEXUS a appris sur ${prenom}.` : `Après ${nbServices} service${nbServices > 1 ? 's' : ''}, voici ce que j'ai appris sur vous.`}`
-      : `${vueManager ? `Le Coach NEXUS n'a pas encore assez de recul sur ${prenom} pour dresser ce portrait.` : 'Je n\'ai pas encore assez de recul sur vous pour dresser ce portrait — chaque service que vous enregistrez m\'aide à mieux vous connaître.'}`;
+      ? `${vueManager ? `Après ${nbServices} services, voici ce que NEXUS Coach Terrain a appris sur ${prenom}.` : `Après ${nbServices} service${nbServices > 1 ? 's' : ''}, voici ce que j'ai appris sur vous.`}`
+      : `${vueManager ? `NEXUS Coach Terrain n'a pas encore assez de recul sur ${prenom} pour dresser ce portrait.` : 'Je n\'ai pas encore assez de recul sur vous pour dresser ce portrait — chaque service que vous enregistrez m\'aide à mieux vous connaître.'}`;
 
     const listeOuVide = (liste, videTexte) => liste.length
       ? `<ul class="obs-list">${liste.map(l => `<li class="obs-item"><span class="dot">🟢</span>${l}</li>`).join('')}</ul>`
@@ -262,9 +262,9 @@
         </div>` : ''}
       <div class="coach-card">
         <div class="coach-head">
-          <img class="coach-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <img class="coach-avatar" src="assets/nexus-avatar.png" alt="NEXUS Coach Terrain">
           <div>
-            <div class="coach-nom">COACH NEXUS</div>
+            <div class="coach-nom">NEXUS COACH TERRAIN</div>
             <div class="coach-sous-nom">${vueManager ? 'Coach personnel de ' + cible.nom : 'Votre coach personnel'}</div>
           </div>
         </div>

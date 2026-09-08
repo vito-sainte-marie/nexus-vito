@@ -36,7 +36,9 @@ S'adresse prioritairement aux **employés**. Il transforme objectifs, écarts, r
 
 **Ces deux agents ne sont pas deux tons du même agent.** Confondre leurs noms revient à attribuer à l'un des propos destinés à l'autre, ce qui est plus grave que l'ancien nom conservé.
 
-État réel au 08/09/2026 : le code porte encore **69 occurrences de « Conseiller NEXUS » dans 29 fichiers de produit**. C'est une dette de propagation, suivie en `LANG-004` au Backlog, et non un arbitrage en attente. `NEXUS-Constitution-v1.md` porte une note de révision du même jour marquant ses articles 12 et 13 comme partiellement historiques sur ce point, sans les réécrire.
+État réel au 08/09/2026, après propagation : **aucune ligne de code n'affiche plus l'ancien nom**. Les 69 occurrences ont été remplacées par l'agent réellement concerné, en suivant la règle que `NEXUS-Missions-v1.html` appliquait déjà depuis le 27/07/2026 : le rôle du jour décide, pas l'écran.
+
+Il subsiste **32 occurrences dans 18 fichiers, toutes en commentaire**, et elles y restent. Beaucoup datent une demande de Frédéric ; les réécrire ferait dire à un texte d'août des mots qui n'existaient pas encore. C'est le même refus que pour les articles 12 et 13 de la Constitution : un document se marque, il ne se corrige pas. `NEXUS-Constitution-v1.md` porte une note de révision du même jour marquant ses articles 12 et 13 comme partiellement historiques sur ce point, sans les réécrire.
 
 ## 2. Vocabulaire canonique
 

@@ -1766,9 +1766,9 @@
     el.innerHTML = `
       <div class="conseiller-perso">
         <div class="conseiller-perso-head">
-          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="${estCoach ? 'Coach NEXUS' : 'Conseiller NEXUS'}">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="${estCoach ? 'NEXUS Coach Terrain' : 'NEXUS Directeur d’Exploitation'}">
           <div>
-            <div class="conseiller-perso-nom">${estCoach ? 'COACH NEXUS' : 'CONSEILLER NEXUS'}</div>
+            <div class="conseiller-perso-nom">${estCoach ? 'NEXUS COACH TERRAIN' : 'NEXUS DIRECTEUR D’EXPLOITATION'}</div>
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>
@@ -1830,9 +1830,9 @@
     el.innerHTML = `
       <div class="conseiller-perso">
         <div class="conseiller-perso-head">
-          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="NEXUS Coach Terrain">
           <div>
-            <div class="conseiller-perso-nom">COACH NEXUS</div>
+            <div class="conseiller-perso-nom">NEXUS COACH TERRAIN</div>
             <div class="conseiller-perso-sous">Prise de poste</div>
           </div>
         </div>
@@ -1952,7 +1952,7 @@
             <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min · ${m.points || 5} pts${baremeNote}${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
             ${m.disponibilite === 'conditionnelle' ? `<div class="mission-conditionnelle-badge">À réaliser uniquement si nécessaire</div>` : ''}
           </div>
-          ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
+          ${isAuto ? '<span class="badge badge-auto">NEXUS Directeur d’Exploitation</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
         </div>
         <div class="mission-body ${missionsOuvertes.has(m.mission_id)?'open':''}" id="body-${m.mission_id}">
           ${controle ? `<div class="controle-banner">🔍 Mode contrôle manager — vous vérifiez que l'équipe a bien réalisé ces points, vous ne les faites pas vous-même.</div>` : ''}
@@ -2012,7 +2012,7 @@
     // Les recommandations du Conseiller NEXUS s'adressent au manager, pas aux employés —
     // c'est lui qui décide ensuite de déléguer une mission.
     if (!q && roleDuJour === 'manager') {
-      htmlObligatoires += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
+      htmlObligatoires += `<div class="section-label">Aujourd'hui — recommandé par NEXUS Directeur d’Exploitation</div>`;
       htmlObligatoires += `<div id="plansActionMissions"></div>`;
     }
 

@@ -78,13 +78,15 @@ t('la portée ARBITRÉE est celle qui est écrite, pas celle du cadrage', () => 
 });
 
 t('l’état du produit annoncé par le document est encore vrai', () => {
-  // Le document affirme deux mesures. Une doctrine qui garde un chiffre périmé
-  // se met à mentir doucement, et personne ne relit un document pour vérifier
-  // un nombre.
-  const m = texte.match(/(\d+) occurrences de « Conseiller NEXUS » dans (\d+) fichiers de produit/);
-  assert.ok(m, 'la dette de renommage doit être chiffrée dans le document');
+  // Le document affirme une mesure. Une doctrine qui garde un chiffre périmé se
+  // met à mentir doucement, et personne ne relit un document pour vérifier un
+  // nombre. Cette épreuve a d'ailleurs échoué au moment de la propagation
+  // LANG-004 : elle a signalé que le texte annonçait encore une dette qui
+  // venait d'être réglée. C'est exactement ce qu'on attend d'elle.
+  const m = texte.match(/\*\*(\d+) occurrences dans (\d+) fichiers, toutes en commentaire\*\*/);
+  assert.ok(m, 'le reliquat en commentaire doit être chiffré dans le document');
 
-  const compte = {};
+  let occurrences = 0; const fichiers = new Set();
   const parcourir = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       if (e.name === '.git' || e.name === 'node_modules') continue;
@@ -93,16 +95,18 @@ t('l’état du produit annoncé par le document est encore vrai', () => {
       if (!/\.(html|js)$/.test(e.name)) continue;
       const rel = path.relative(__dirname, p);
       if (rel.startsWith('test_') || rel.startsWith('outils/')) continue;
-      const c = (fs.readFileSync(p, 'utf8').match(/Conseiller NEXUS/g) || []).length;
-      if (c) compte[rel] = c;
+      const c = (fs.readFileSync(p, 'utf8').match(/Conseiller NEXUS|Coach NEXUS/g) || []).length;
+      if (c) { occurrences += c; fichiers.add(rel); }
     }
   };
   parcourir(__dirname);
-  const total = Object.values(compte).reduce((a, b) => a + b, 0);
-  assert.strictEqual(total, Number(m[1]),
-    `le document annonce ${m[1]} occurrences, la mesure en trouve ${total}`);
-  assert.strictEqual(Object.keys(compte).length, Number(m[2]),
-    `le document annonce ${m[2]} fichiers, la mesure en trouve ${Object.keys(compte).length}`);
+  assert.strictEqual(occurrences, Number(m[1]),
+    `le document annonce ${m[1]} occurrences, la mesure en trouve ${occurrences}`);
+  assert.strictEqual(fichiers.size, Number(m[2]),
+    `le document annonce ${m[2]} fichiers, la mesure en trouve ${fichiers.size}`);
+
+  assert.ok(/aucune ligne de code n'affiche plus l'ancien nom/.test(texte),
+    'le document doit dire que la propagation est faite');
 });
 
 t('les termes prescrits mais NON employés sont annoncés comme tels', () => {

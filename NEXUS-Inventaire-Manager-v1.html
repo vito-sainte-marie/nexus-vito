@@ -1854,7 +1854,7 @@
         remarques.push(`Écart <b>récurrent sur les 14 derniers jours</b> pour : ${noms.join(', ')} — à surveiller de près.`);
       }
     } catch (e) {
-      console.error('Conseiller NEXUS Inventaire — récurrence:', e);
+      console.error('NEXUS Directeur d’Exploitation Inventaire — récurrence:', e);
     }
 
     if (modesAveugleActifs.length) {
@@ -1876,7 +1876,7 @@
         remarques.push(`⚠️ Traçabilité : ${parties.join(' et ')} sur les lots suivis (SDD, presse).<br><button class="btn-conseiller-action" id="btnOuvrirTracabilite">Ouvrir NEXUS Traçabilité</button>`);
       }
     } catch (e) {
-      console.error('Conseiller NEXUS — traçabilité:', e);
+      console.error('NEXUS Directeur d’Exploitation — traçabilité:', e);
     }
 
     corps.innerHTML = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`).join('');
@@ -2977,9 +2977,9 @@
 
       <div class="conseiller-card" id="conseillerCard">
         <div class="conseiller-head">
-          <img class="conseiller-avatar" src="nexus-avatar.png" alt="Conseiller NEXUS">
+          <img class="conseiller-avatar" src="nexus-avatar.png" alt="NEXUS Directeur d’Exploitation">
           <div>
-            <div class="conseiller-name">CONSEILLER NEXUS</div>
+            <div class="conseiller-name">NEXUS DIRECTEUR D’EXPLOITATION</div>
             <div class="conseiller-sub">Ce que je remarque sur ce quart</div>
           </div>
         </div>
