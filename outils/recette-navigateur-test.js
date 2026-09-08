@@ -189,6 +189,40 @@ function verifier(vu) {
 }
 
 
+// Un ÉCHEC sur données non semées ne s'impute pas au moteur.
+//
+// Distinction de la même famille que « compte inconnectable » contre « accès
+// refusé ». Le 08/09/2026 le semis n'a pas pu s'exécuter — base Test
+// injoignable en IPv6 depuis le runner — et la recette a jugé des données
+// dérivées, puis conclu que CARB-004 n'était pas prouvé. L'accusation était
+// fausse : le fait réel est qu'on n'a pas maîtrisé l'entrée.
+//
+// La preuve est alors déclarée MANQUANTE — jamais satisfaite par défaut, et
+// jamais transformée en régression. Un SUCCÈS sur données non semées reste en
+// revanche une observation vraie : l'écran a bel et bien produit ces chiffres.
+// « Le semis a-t-il eu lieu ? » est une question à laquelle on répond OUI
+// seulement sur une affirmation explicite. Toute autre valeur — absente, vide,
+// « 0 », « true », un héritage d'un run précédent — vaut NON. Fonction séparée
+// et exportée : la lire depuis `executer()` la rendait inéprouvable, et une
+// mutation la remplaçant par `true` y a survécu sans que rien ne bronche.
+function semisEffectue(env) {
+  return (env || {}).NEXUS_SEMIS_FAIT === '1';
+}
+
+function jugerCarburants(echecsCarburants, semisFait) {
+  if (semisFait || echecsCarburants.length === 0) {
+    return { echecs: echecsCarburants, indisponibilite: null };
+  }
+  return {
+    echecs: [],
+    indisponibilite: 'Jeu de recette NON semé (ENV-003) : la base Test n\'a pas pu être préparée avant ce '
+      + 'passage. L\'écran a donc été jugé sur des données dérivées, et il s\'en écarte — '
+      + `${echecsCarburants.length} écart(s) : ${echecsCarburants.join(' ; ')} `
+      + 'Cet écart n\'est PAS imputable au moteur et ne vaut pas régression. '
+      + 'LA PREUVE UI CARBURANTS RESTE NON SATISFAITE. Correctif : SEC-014 au Backlog.',
+  };
+}
+
 // ── NEXUS Live : les deux moitiés de la preuve d'accès ──────────────────
 //
 // Le MVP n'avait qu'une recette NÉGATIVE : on savait prouver qu'un manager
@@ -281,7 +315,12 @@ async function executer(env = process.env) {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
     await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
     const vu = await lireRecommandation(page, base);
-    const echecs = verifier(vu);
+    const echecsCarburants = verifier(vu);
+
+    const semisFait = semisEffectue(env);
+    const jugement = jugerCarburants(echecsCarburants, semisFait);
+    const echecs = jugement.echecs;
+    const carburantsNonAttribuable = jugement.indisponibilite;
 
     // NEXUS Live — accès positif Créateur, puis refus manager.
     //
@@ -307,16 +346,16 @@ async function executer(env = process.env) {
     }
     const echecsLive = createur ? verifierLive(createur, manager) : verifierLive(null, manager);
 
+    const indisponibilites = [carburantsNonAttribuable, createurIndisponible].filter(Boolean);
     return { executee: true, bloquant: (echecs.length + echecsLive.length) > 0,
-      vu, echecs: echecs.concat(echecsLive),
-      indisponibilites: createurIndisponible ? [createurIndisponible] : [],
+      vu, echecs: echecs.concat(echecsLive), semisFait, indisponibilites,
       live: { createur, manager } };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { SECRETS_REQUIS, secretsManquants, verifier, verifierLive, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, secretsManquants, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -328,9 +367,17 @@ if (require.main === module) {
     console.log(`  reliquat        : ${JSON.stringify(r.vu.reliquatArrondi)}`);
     for (const i of r.indisponibilites || []) console.log('\n  INDISPONIBLE — ' + i);
     if (!r.bloquant) {
-      console.log((r.indisponibilites || []).length
-        ? '\nPreuve UI Carburants satisfaite ; preuve d\'accès Live POSITIVE non satisfaite (voir ci-dessus).'
-        : '\nPreuve UI satisfaite.');
+      // Énumérer ce qui est prouvé ET ce qui ne l'est pas. Une ligne unique
+      // « preuve satisfaite » se lit comme un quitus général, alors qu'il peut
+      // manquer la moitié de la démonstration.
+      console.log('\nCe qui est prouvé, et ce qui ne l\'est pas :');
+      console.log('  · UI Carburants (CARB-004) : '
+        + (r.semisFait === false && (r.indisponibilites || []).some(i => /Jeu de recette NON semé/.test(i))
+          ? 'NON SATISFAITE — jeu de recette non semé'
+          : 'satisfaite'));
+      console.log('  · Accès Live REFUSÉ au manager : satisfaite');
+      console.log('  · Accès Live ACCORDÉ au Créateur : '
+        + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
       process.exit(0);
     }
     console.error('\nÉCHEC de la recette navigateur :');

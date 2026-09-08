@@ -16,7 +16,7 @@ const path = require('path');
 const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
-const { verifier, verifierLive, secretsManquants, extraireCommitServi, SECRETS_REQUIS } = require(OUTIL);
+const { verifier, verifierLive, jugerCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS } = require(OUTIL);
 
 let passes = 0;
 function epreuve(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
@@ -188,6 +188,63 @@ epreuve('CONTRAT — dans observerLive, ce qui est rendu depuis le try est ATTEN
     assert.ok(/^\s*return\s+await\s/.test(r),
       'un return non attendu dans un try/finally ferme la ressource avant de lire : ' + r.trim());
   }
+});
+
+
+// ── Semis absent : ne pas accuser le moteur de ce qu'on n'a pas maîtrisé ──
+
+epreuve('le semis n’est réputé fait que sur un OUI explicite', () => {
+  // Survivante de mutation : remplacer cette lecture par `true` ne cassait
+  // aucune épreuve, parce qu'elle vivait dans `executer()`, hors d'atteinte.
+  // Un « je ne sais pas » doit valoir NON — sinon un run sans préparation
+  // s'attribuerait la preuve d'un run qui l'avait faite.
+  assert.strictEqual(semisEffectue({ NEXUS_SEMIS_FAIT: '1' }), true);
+  for (const cas of [{}, { NEXUS_SEMIS_FAIT: '0' }, { NEXUS_SEMIS_FAIT: '' },
+    { NEXUS_SEMIS_FAIT: 'true' }, { NEXUS_SEMIS_FAIT: 1 }, undefined]) {
+    assert.strictEqual(semisEffectue(cas), false,
+      'doit valoir NON : ' + JSON.stringify(cas));
+  }
+});
+
+epreuve('CONTRAT — executer interroge semisEffectue, il ne décrète pas', () => {
+  // `executer()` exige un vrai navigateur : aucune épreuve ne peut l'exercer,
+  // et une mutation y remplaçant l'appel par `true` survit donc en silence.
+  // Ce que l'exécution ne peut pas couvrir, la source le fixe.
+  const source = fs.readFileSync(OUTIL, 'utf8');
+  const assignations = source.split('\n').filter(l => /const\s+semisFait\s*=/.test(l));
+  assert.strictEqual(assignations.length, 1, 'une seule origine : ' + assignations.join(' | '));
+  assert.ok(/const\s+semisFait\s*=\s*semisEffectue\(env\);/.test(assignations[0]),
+    'le semis doit être LU dans l’environnement, jamais décrété : ' + assignations[0].trim());
+});
+
+epreuve('un écart sur données NON semées ne devient jamais une régression', () => {
+  // Le 08/09/2026, le semis n'a pas pu s'exécuter et la recette a conclu que
+  // CARB-004 n'était pas prouvé. Elle jugeait des données dérivées : le fait
+  // réel n'était pas « le moteur a régressé » mais « je n'ai pas maîtrisé
+  // l'entrée ». Les deux exigent des actions opposées, d'où cette séparation.
+  const j = jugerCarburants(['reliquat récupéré 0 L, attendu 1000 L'], false);
+  assert.deepStrictEqual(j.echecs, [], 'aucun échec imputé au moteur');
+  assert.ok(j.indisponibilite, 'mais la situation doit être DITE');
+  assert.ok(/NON SATISFAITE/.test(j.indisponibilite),
+    'et la preuve déclarée non satisfaite, jamais passée sous silence : ' + j.indisponibilite);
+  assert.ok(/reliquat récupéré 0 L/.test(j.indisponibilite),
+    'l’écart observé doit rester lisible, pas être avalé : ' + j.indisponibilite);
+});
+
+epreuve('le même écart sur données SEMÉES reste un échec bloquant', () => {
+  // La moitié qui donne son sens à la précédente. Sans elle, on aurait
+  // simplement cessé de juger les carburants.
+  const j = jugerCarburants(['reliquat récupéré 0 L, attendu 1000 L'], true);
+  assert.strictEqual(j.echecs.length, 1, 'le moteur reste jugé quand l’entrée est maîtrisée');
+  assert.strictEqual(j.indisponibilite, null);
+});
+
+epreuve('un succès sur données non semées reste une observation vraie', () => {
+  // L'écran a réellement produit ces chiffres : il n'y a rien à excuser.
+  const j = jugerCarburants([], false);
+  assert.deepStrictEqual(j.echecs, []);
+  assert.strictEqual(j.indisponibilite, null,
+    'ne pas fabriquer une indisponibilité là où la preuve est faite');
 });
 
 
