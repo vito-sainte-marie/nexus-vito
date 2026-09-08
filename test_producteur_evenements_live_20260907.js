@@ -159,6 +159,35 @@ t('une garde INDISPONIBLE ne produit AUCUN événement, surtout pas rassurant', 
   }
 });
 
+t('le bloc Déploiements porte ses chiffres dans la PREUVE, pas dans la phrase', () => {
+  // Un écran qui devrait relire un résumé pour retrouver un nombre finirait par
+  // recalculer, et NEXUS n'admet qu'un propriétaire logique par vérité métier.
+  const etat = { compteurs: { en_developpement: 2, attente_arbitrage: 1, clos: 24 },
+    dette: { total: 30, p0: 20 },
+    ecart: { production: '501c0c7', canonique: 'abc1234', commits: 228, fichiers: 313 } };
+  const evts = P.evenementDeploiement('LOT-X', etat, T0);
+  assert.strictEqual(evts.length, 1);
+  const e = evts[0];
+  assert.deepStrictEqual(contrat.validerEvenementLive(e), [], JSON.stringify(e));
+  assert.strictEqual(e.evidence.type, 'deploiement');
+  assert.ok(e.evidence.ref, 'des chiffres sans source ne sont pas une preuve');
+  assert.deepStrictEqual(e.evidence.compteurs, { en_developpement: 2, attente_arbitrage: 1, clos: 24 });
+  assert.deepStrictEqual(e.evidence.dette, { total: 30, p0: 20 });
+  assert.strictEqual(e.evidence.ecart.commits, 228);
+  // « Prêt pour Production » ne se calcule pas : aucune décision de recette ne
+  // vaut autorisation de production.
+  assert.strictEqual(e.evidence.pret_production_est_une_proposition, true);
+  assert.ok(!e.human_gate, 'décrire un état n’est pas proposer une promotion');
+});
+
+t('un état de déploiement ABSENT ou en erreur ne produit aucun bloc', () => {
+  // Ne pas savoir n'est pas « zéro lot en développement » : un tableau de bord
+  // qui affiche des zéros faute de données ment plus qu'un tableau vide.
+  for (const etat of [null, undefined, { erreur: 'STATE.json illisible' }, {}]) {
+    assert.deepStrictEqual(P.evenementDeploiement('LOT-X', etat, T0), [], JSON.stringify(etat));
+  }
+});
+
 t('le CLI rend du JSONL relisible, une ligne par événement', () => {
   const r = spawnSync('node', [OUTIL], { encoding: 'utf8', cwd: __dirname });
   assert.strictEqual(r.status, 0, r.stderr);

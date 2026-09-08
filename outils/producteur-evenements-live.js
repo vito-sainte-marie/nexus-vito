@@ -189,6 +189,53 @@ function evenementBarriere(lot, etatDep, horodatage) {
   })];
 }
 
+// ── Le bloc « Déploiements » demandé par Frédéric ───────────────────────
+//
+// Trois compteurs — en développement, prêt pour Production, en attente de ton
+// arbitrage — plus la dette ouverte et l'écart avec Production. Ils étaient
+// calculés par `outils/etat-deploiement.js` depuis le 07/09 et n'arrivaient
+// nulle part : l'écran Live ne les a jamais affichés faute d'un événement pour
+// les porter.
+//
+// Les chiffres voyagent dans `evidence`, JAMAIS seulement dans le résumé.
+// Un écran qui devrait relire une phrase pour retrouver un nombre finirait par
+// recalculer — et NEXUS n'a qu'un propriétaire logique par vérité métier
+// (Bible, « Architecture de vérité »).
+//
+// AUCUN human_gate ici, et c'est délibéré : décrire un état n'est pas proposer
+// une promotion. Le compteur « en attente de ton arbitrage » s'allume à partir
+// des lots eux-mêmes (`evenementsRegistre`), pas de ce résumé.
+function evenementDeploiement(lot, etatDep, horodatage) {
+  if (!etatDep || etatDep.erreur || !etatDep.compteurs) return [];
+  const c = etatDep.compteurs;
+  const dette = etatDep.dette || {};
+  const ecart = etatDep.ecart || null;
+  const morceaux = [`${c.en_developpement} en développement`,
+    `${c.attente_arbitrage} en attente d'arbitrage`, `${c.clos} clos`];
+  if (dette.total != null) morceaux.push(`${dette.total} dette(s) ouverte(s) dont ${dette.p0} en P0`);
+  return [evenement({
+    lot, run: 'deploiement', acteur: 'etat-deploiement', role: 'ci',
+    phase: 'DONE', statut: 'PASSED',
+    resume: `Déploiements — ${morceaux.join(', ')}.`,
+    preuve: {
+      type: 'deploiement',
+      // `ref` exigé par le contrat, et il a raison : des chiffres sans source
+      // ne sont pas une preuve. Le premier jet l'avait omis et l'événement a
+      // été rejeté — le contrat a fait son travail avant l'écran.
+      ref: 'outils/etat-deploiement.js',
+      compteurs: { en_developpement: c.en_developpement, attente_arbitrage: c.attente_arbitrage, clos: c.clos },
+      dette: { total: dette.total == null ? null : dette.total, p0: dette.p0 == null ? null : dette.p0 },
+      ecart: ecart ? { production: ecart.production, canonique: ecart.canonique, commits: ecart.commits, fichiers: ecart.fichiers } : null,
+      // « Prêt pour Production » n'est PAS un compteur calculé : aucune décision
+      // de recette ne vaut autorisation de production. L'écran doit l'afficher
+      // comme une PROPOSITION, et ce champ le dit explicitement plutôt que de
+      // laisser l'écran l'inventer.
+      pret_production_est_une_proposition: true,
+    },
+    occurredAt: horodatage,
+  })];
+}
+
 // ── Branches de travail en rade ─────────────────────────────────────────
 //
 // Le signal qui manquait le plus, parce qu'il est fait de silence : un run
@@ -252,7 +299,8 @@ function produire(options = {}) {
     .concat(evenementsGardes(lotCourant, horodatage, { executer: executerGarde }))
     .concat(evenementsCI(lotCourant, horodatage))
     .concat(evenementBarriere(lotCourant, etat, horodatage))
-    .concat(evenementBranchesEnRade(lotCourant, horodatage, { controler: options.controlerBranches }));
+    .concat(evenementBranchesEnRade(lotCourant, horodatage, { controler: options.controlerBranches }))
+    .concat(evenementDeploiement(lotCourant, etat, horodatage));
 
   const { evenements, rejetes } = filtrer(candidats);
   return { erreur: null, evenements, rejetes };
@@ -315,7 +363,7 @@ function sqlIngestion(evenements) {
     + valeurs + '\non conflict (event_id) do nothing;\n';
 }
 
-module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, GARDES };
+module.exports = { produire, filtrer, sqlIngestion, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES };
 
 if (require.main === module) {
   const r = produire();

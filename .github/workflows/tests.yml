@@ -398,6 +398,44 @@ jobs:
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 
+      # PUBLICATION DU JOURNAL LIVE.
+      #
+      # Le producteur et l'écran existaient depuis le 07/09 sans rien entre
+      # eux : NEXUS Live affichait un instantané figé de treize heures, et rien
+      # ne le disait. Un tableau de bord qui n'est pas alimenté n'est pas un
+      # tableau de bord, c'est une capture d'écran.
+      #
+      # `|| true` sur les affectations : GitHub lance `shell: bash` avec `-e`,
+      # et sans lui une commande qui échoue tue le step avant tout message
+      # (leçon QA-005, apprise deux fois aujourd'hui).
+      #
+      # ENV-003 : tant que le rôle CI n'a pas le droit d'insérer dans
+      # `nexus_live_events`, l'absence de publication est DÉCLARÉE. Elle n'est
+      # jamais transformée en succès silencieux — sinon l'écran continuerait
+      # d'afficher du vieux en donnant l'impression d'être alimenté.
+      - name: Publier le journal NEXUS Live
+        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        run: |
+          set -uo pipefail
+          sql=$(node outils/producteur-evenements-live.js --sql 2>&1) || true
+          if [ -z "${sql// /}" ] || ! printf '%s' "$sql" | grep -q 'insert into public.nexus_live_events'; then
+            echo "::warning::ENV-003 — aucun événement Live produit : $sql"
+            exit 0
+          fi
+          retour=$(printf '%s' "$sql" | psql -v ON_ERROR_STOP=1 2>&1) || true
+          if printf '%s' "$retour" | grep -qiE 'permission denied|violates row-level security'; then
+            echo "::warning::ENV-003 — journal Live NON publié : le rôle CI n'a pas le droit d'insérer dans nexus_live_events. L'écran continuera d'afficher l'état précédent, et il en indiquera l'âge. Geste attendu : SEC-019."
+            exit 0
+          fi
+          if printf '%s' "$retour" | grep -qiE '^ERROR|error:'; then
+            echo "La publication a été REFUSÉE pour une autre raison que le droit — défaut réel :"
+            printf '%s\n' "$retour"
+            exit 1
+          fi
+          printf '%s\n' "$retour"
+          echo "Journal NEXUS Live publié."
+
       - name: Installer Playwright
         if: github.ref == 'refs/heads/config-par-environnement'
         run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium

@@ -103,4 +103,88 @@ proj = P.construireProjectionLive([
 assert.strictEqual(Array.prototype.sort.call(proj.active_lots).join(','), 'LOT-A,LOT-B');
 ok('plusieurs lots actifs listés sans perte');
 
+
+// Pont vers le style du fichier : `ok(nom)` compte, `t(nom, fn)` exécute
+// puis compte. Les épreuves ajoutées le 08/09 sont écrites ainsi.
+function t(nom, fn) { fn(); ok(nom); }
+
+// ── Fraîcheur du journal (08/09/2026) ───────────────────────────────────
+// L'écran a affiché huit événements vieux de treize heures sans le dire.
+// Un journal mort ressemblait exactement à un journal vivant.
+
+t('la fraîcheur est lue sur l’événement le PLUS RÉCENT, pas le dernier de la liste', () => {
+  // Un journal n'arrive pas toujours trié. Prendre le dernier élément du
+  // tableau ferait dépendre l'honnêteté de l'écran d'un ordre non garanti.
+  const evts = [
+    { occurred_at: '2026-09-08T12:00:00.000Z' },
+    { occurred_at: '2026-09-08T09:00:00.000Z' },
+  ];
+  const f = P.fraicheurJournal(evts, '2026-09-08T12:10:00.000Z');
+  assert.strictEqual(f.niveau, 'FRAIS');
+  assert.strictEqual(f.ageMinutes, 10);
+});
+
+t('un journal vieux de treize heures est FROID, pas « frais »', () => {
+  const f = P.fraicheurJournal([{ occurred_at: '2026-09-07T22:37:00.000Z' }], '2026-09-08T12:29:00.000Z');
+  assert.strictEqual(f.niveau, 'FROID');
+  assert.ok(f.ageMinutes > 800, String(f.ageMinutes));
+});
+
+t('les trois seuils sont exercés, bornes comprises', () => {
+  const a = (min) => P.fraicheurJournal([{ occurred_at: '2026-09-08T00:00:00.000Z' }],
+    new Date(Date.parse('2026-09-08T00:00:00.000Z') + min * 60000).toISOString()).niveau;
+  assert.strictEqual(a(0), 'FRAIS');
+  assert.strictEqual(a(P.SEUIL_TIEDE_MIN - 1), 'FRAIS');
+  assert.strictEqual(a(P.SEUIL_TIEDE_MIN), 'TIEDE');
+  assert.strictEqual(a(P.SEUIL_FROID_MIN - 1), 'TIEDE');
+  assert.strictEqual(a(P.SEUIL_FROID_MIN), 'FROID');
+});
+
+t('sans horodatage exploitable, la fraîcheur est INCONNUE — jamais « fraîche »', () => {
+  for (const cas of [[], null, undefined,
+    [{ occurred_at: 'pas une date' }], [{}], [{ occurred_at: null }]]) {
+    const f = P.fraicheurJournal(cas, '2026-09-08T12:00:00.000Z');
+    assert.strictEqual(f.niveau, 'INCONNU', JSON.stringify(cas));
+    assert.strictEqual(f.ageMinutes, null);
+  }
+  assert.strictEqual(P.fraicheurJournal([{ occurred_at: '2026-09-08T12:00:00.000Z' }], 'horloge cassée').niveau,
+    'INCONNU', 'une horloge illisible ne rend pas un journal frais');
+});
+
+// ── Bloc « Déploiements » ───────────────────────────────────────────────
+
+t('les compteurs sont LUS dans la preuve, et le plus récent gagne', () => {
+  const evt = (iso, n) => ({ occurred_at: iso, evidence: { type: 'deploiement', ref: 'outils/etat-deploiement.js',
+    compteurs: { en_developpement: n, attente_arbitrage: 0, clos: 24 }, dette: { total: 30, p0: 20 } } });
+  // DÉSORDONNÉ volontairement : le plus récent est placé en PREMIER. Une liste
+  // déjà triée ferait coïncider « le dernier » et « le plus récent », et une
+  // mutation supprimant la comparaison y survivrait sans être vue.
+  const d = P.extraireDeploiements([evt('2026-09-08T12:00:00.000Z', 5), evt('2026-09-08T09:00:00.000Z', 1)]);
+  assert.strictEqual(d.compteurs.en_developpement, 5, 'le plus récent fait foi, quel que soit l’ordre');
+  const inverse = P.extraireDeploiements([evt('2026-09-08T09:00:00.000Z', 1), evt('2026-09-08T12:00:00.000Z', 5)]);
+  assert.strictEqual(inverse.compteurs.en_developpement, 5, 'et dans l’autre ordre aussi');
+  assert.strictEqual(d.dette.total, 30);
+  assert.strictEqual(d.source, 'outils/etat-deploiement.js');
+});
+
+t('sans événement de déploiement, on rend null — jamais trois zéros', () => {
+  // Un tableau de bord qui affiche des zéros faute de données ment plus qu'un
+  // tableau vide : le zéro se lit « rien en cours », pas « je ne sais pas ».
+  assert.strictEqual(P.extraireDeploiements([]), null);
+  assert.strictEqual(P.extraireDeploiements(null), null);
+  assert.strictEqual(P.extraireDeploiements([{ occurred_at: '2026-09-08T12:00:00.000Z' }]), null);
+  assert.strictEqual(P.extraireDeploiements([{ occurred_at: '2026-09-08T12:00:00.000Z',
+    evidence: { type: 'ci', ref: 'x' } }]), null, 'un autre type de preuve n’est pas un état de déploiement');
+  assert.strictEqual(P.extraireDeploiements([{ occurred_at: '2026-09-08T12:00:00.000Z',
+    evidence: { type: 'deploiement', ref: 'x' } }]), null, 'sans compteurs, il n’y a rien à afficher');
+});
+
+t('« prêt pour Production » reste une proposition, sauf démenti explicite', () => {
+  const base = (extra) => [{ occurred_at: '2026-09-08T12:00:00.000Z',
+    evidence: Object.assign({ type: 'deploiement', ref: 'x', compteurs: { en_developpement: 0, attente_arbitrage: 0, clos: 1 } }, extra) }];
+  assert.strictEqual(P.extraireDeploiements(base({})).pretProductionEstUneProposition, true,
+    'par défaut, c’est une proposition — aucune décision de recette ne vaut autorisation de production');
+  assert.strictEqual(P.extraireDeploiements(base({ pret_production_est_une_proposition: true })).pretProductionEstUneProposition, true);
+});
+
 console.log(`\n${n} assertions Live-Projection passées.`);

@@ -45,6 +45,16 @@
   .timeline-meta{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:2px;}
   .guardian-row{display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12.5px;}
   .empty-note{color:var(--text-dim); font-size:12px; font-family:var(--mono);}
+  .fraicheur{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-radius:20px; padding:3px 9px; margin-left:8px;}
+  .fraicheur.FRAIS{background:#0d3a24; color:#7ee2b0;}
+  .fraicheur.TIEDE{background:#3d3410; color:#f0d27a;}
+  .fraicheur.FROID{background:#4a1d1d; color:#ffb4b4;}
+  .fraicheur.INCONNU{background:#333; color:#bbb;}
+  .compteurs{display:flex; gap:10px; flex-wrap:wrap;}
+  .compteur{flex:1 1 90px; background:rgba(255,255,255,.03); border:1px solid var(--hairline); border-radius:10px; padding:12px;}
+  .compteur .n{font-size:22px; font-weight:700;}
+  .compteur .l{font-size:10.5px; color:var(--text-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em; margin-top:4px;}
+  .proposition{font-size:11.5px; color:var(--text-dim); margin-top:10px; line-height:1.5;}
 </style>
 </head>
 <body>
@@ -83,11 +93,51 @@
     return L[statut] || statut;
   }
 
-  function renderProjection(projection, evenements) {
-    document.getElementById('sousTitre').textContent = 'Environnement Test';
+  // L'ÂGE DU JOURNAL, avant tout le reste. Le 08/09/2026 cet écran a affiché
+  // huit événements vieux de treize heures sans le dire : un journal mort
+  // ressemblait exactement à un journal vivant. « Une anomalie ne doit jamais
+  // être masquée par un affichage rassurant » (Bible).
+  function texteFraicheur(f) {
+    if (f.niveau === 'INCONNU') return 'âge inconnu';
+    if (f.ageMinutes < 1) return 'à l\'instant';
+    if (f.ageMinutes < 60) return `il y a ${f.ageMinutes} min`;
+    const h = Math.floor(f.ageMinutes / 60), m = f.ageMinutes % 60;
+    return `il y a ${h} h${m ? ' ' + String(m).padStart(2, '0') : ''}`;
+  }
+
+  function blocDeploiements(dep) {
+    // Pas d'événement de déploiement : on le DIT. Trois zéros faute de données
+    // mentiraient plus qu'un bloc vide.
+    if (!dep) {
+      return `<div class="card"><div class="section-label">Déploiements</div>
+        <div class="empty-note">Aucun état de déploiement reçu — ne rien conclure de cette absence.</div></div>`;
+    }
+    const c = dep.compteurs;
+    const dette = dep.dette && dep.dette.total != null
+      ? `<div class="proposition">Dette ouverte au Backlog : <strong>${dep.dette.total}</strong> entrée(s), dont ${dep.dette.p0} en P0.</div>` : '';
+    const ecart = dep.ecart
+      ? `<div class="proposition">Production <code>${dep.ecart.production}</code> · canonique <code>${dep.ecart.canonique}</code> — écart ${dep.ecart.commits} commit(s), ${dep.ecart.fichiers} fichier(s).</div>` : '';
+    return `<div class="card">
+      <div class="section-label">Déploiements</div>
+      <div class="compteurs">
+        <div class="compteur"><div class="n">${c.en_developpement}</div><div class="l">En développement</div></div>
+        <div class="compteur"><div class="n">${c.attente_arbitrage}</div><div class="l">En attente de ton arbitrage</div></div>
+        <div class="compteur"><div class="n">${c.clos}</div><div class="l">Lots clos</div></div>
+      </div>
+      ${dette}${ecart}
+      <div class="proposition">« Prêt pour Production » reste une <strong>proposition</strong> : aucune décision de
+      recette ne vaut autorisation de production. Cet écran présente et transmet ; il ne fabrique aucune autorisation.</div>
+    </div>`;
+  }
+
+  function renderProjection(projection, evenements, fraicheur, deploiements) {
+    const f = fraicheur || { niveau: 'INCONNU', ageMinutes: null };
+    document.getElementById('sousTitre').innerHTML =
+      `Environnement Test<span class="fraicheur ${f.niveau}">${texteFraicheur(f)}</span>`;
     const root = document.getElementById('root');
     if (!evenements.length) {
-      root.innerHTML = '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>';
+      root.innerHTML = '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>'
+        + blocDeploiements(deploiements);
       return;
     }
 
@@ -111,6 +161,7 @@
         <div>Étape : ${projection.current_phase || '—'}</div>
         <div>Prochaine étape automatique : ${projection.next_automatic_step || '—'}</div>
       </div>
+      ${blocDeploiements(deploiements)}
       ${projection.human_gate ? `<div class="card"><div class="section-label">Intervention</div>
         <div>${projection.human_gate.question}</div></div>` : ''}
       <div class="card">
@@ -154,8 +205,11 @@
       human_gate: row.human_gate,
       source: row.source,
     })).filter(window.NexusLiveEvenement.evenementValide);
-    const projection = window.NexusLiveProjection.construireProjectionLive(evenements);
-    renderProjection(projection, evenements);
+    const P = window.NexusLiveProjection;
+    const projection = P.construireProjectionLive(evenements);
+    const fraicheur = P.fraicheurJournal(evenements, new Date().toISOString());
+    const deploiements = P.extraireDeploiements(evenements);
+    renderProjection(projection, evenements, fraicheur, deploiements);
   });
 </script>
 </body>

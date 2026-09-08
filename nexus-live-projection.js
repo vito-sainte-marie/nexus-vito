@@ -95,7 +95,73 @@
     return projection;
   }
 
-  const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive };
+  // ── Fraîcheur du journal ────────────────────────────────────────────
+  //
+  // Le 08/09/2026, l'écran Live affichait huit événements vieux de treize
+  // heures sans le dire : un journal mort ressemblait exactement à un journal
+  // vivant. C'est le mode de défaillance que NEXUS combat partout ailleurs —
+  // « une anomalie ne doit jamais être masquée par un affichage rassurant »
+  // (Bible, Philosophie).
+  //
+  // Cette fonction ne décide de rien : elle rend l'âge et un niveau, l'écran
+  // choisit comment le montrer. Sans horodatage exploitable, elle rend
+  // `INCONNU` — jamais « frais ».
+  const SEUIL_TIEDE_MIN = 30;
+  const SEUIL_FROID_MIN = 180;
+
+  function fraicheurJournal(events, maintenantISO) {
+    const t1 = Date.parse(maintenantISO);
+    if (!Array.isArray(events) || !events.length || !Number.isFinite(t1)) {
+      return { niveau: 'INCONNU', ageMinutes: null, dernierISO: null };
+    }
+    let dernier = null;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (!Number.isFinite(t)) continue;
+      if (dernier === null || t > dernier) dernier = t;
+    }
+    if (dernier === null) return { niveau: 'INCONNU', ageMinutes: null, dernierISO: null };
+    const ageMinutes = Math.max(0, Math.round((t1 - dernier) / 60000));
+    const niveau = ageMinutes >= SEUIL_FROID_MIN ? 'FROID'
+      : ageMinutes >= SEUIL_TIEDE_MIN ? 'TIEDE' : 'FRAIS';
+    return { niveau, ageMinutes, dernierISO: new Date(dernier).toISOString() };
+  }
+
+  // ── Bloc « Déploiements » ───────────────────────────────────────────
+  //
+  // Les trois compteurs demandés par Frédéric. Ils sont LUS dans la preuve du
+  // dernier événement de type `deploiement`, jamais recalculés ici : leur
+  // propriétaire logique est `outils/etat-deploiement.js` (Bible,
+  // « Architecture de vérité »).
+  //
+  // En l'absence d'un tel événement, on rend `null` — et l'écran doit alors
+  // dire qu'il ne sait pas, jamais afficher trois zéros. Un tableau de bord
+  // qui montre des zéros faute de données ment plus qu'un tableau vide.
+  function extraireDeploiements(events) {
+    if (!Array.isArray(events)) return null;
+    let retenu = null, tRetenu = -Infinity;
+    for (const e of events) {
+      const ev = e && e.evidence;
+      if (!ev || ev.type !== 'deploiement' || !ev.compteurs) continue;
+      const t = Date.parse(e.occurred_at);
+      if (!Number.isFinite(t) || t < tRetenu) continue;
+      retenu = e; tRetenu = t;
+    }
+    if (!retenu) return null;
+    const ev = retenu.evidence;
+    return {
+      compteurs: ev.compteurs,
+      dette: ev.dette || null,
+      ecart: ev.ecart || null,
+      // Jamais un fait : l'écran doit l'afficher comme une proposition.
+      pretProductionEstUneProposition: ev.pret_production_est_une_proposition !== false,
+      occurredAt: retenu.occurred_at,
+      source: ev.ref || null,
+    };
+  }
+
+  const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    fraicheurJournal, extraireDeploiements, SEUIL_TIEDE_MIN, SEUIL_FROID_MIN };
 
   global.NexusLiveProjection = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
