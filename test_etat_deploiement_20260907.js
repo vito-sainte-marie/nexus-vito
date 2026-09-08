@@ -18,7 +18,7 @@ const assert = require('assert');
 const { spawnSync } = require('child_process');
 
 const OUTIL = path.join(__dirname, 'outils', 'etat-deploiement.js');
-const { analyser, classer, fermePar, gestesHumains } = require(OUTIL);
+const { analyser, rendre, classer, fermePar, gestesHumains } = require(OUTIL);
 
 let passes = 0;
 function t(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
@@ -204,6 +204,28 @@ t('le secret partagé résiduel est signalé tant qu’il existe, puis se tait',
     { name: 'NEXUS_TEST_CREATEUR_PIN', updatedAt: APRES },
   ] });
   assert.strictEqual(geste(sans, 'PIN_PARTAGE_RESIDUEL').fait, true);
+});
+
+t('tout accompli se DIT, au lieu de disparaître de l’écran', () => {
+  // Le 08/09/2026, le dernier geste a été fait et la section a purement
+  // disparu du rendu. « Rien en attente » devenait indistinguable de « cet
+  // outil ne suit plus rien » — la même famille de silence trompeur que les
+  // gardes qui répondent « aucun signalement » sans avoir regardé.
+  const etat = { compteurs: { enDeveloppement: 0, attenteArbitrage: 0, clos: 0 }, lots: [],
+    dette: { total: null, p0: null }, barrieres: { lu: false }, ecart: null,
+    gestes: [{ code: 'X', fait: true, texte: 'Secret présent.' }] };
+  const rendu = rendre(etat);
+  assert.ok(/aucun en attente/.test(rendu), 'l’absence de geste doit être DITE : ' + rendu);
+  assert.ok(/Secret présent\./.test(rendu), 'et ce qui a été contrôlé doit rester lisible');
+
+  // Et un geste restant reste rendu comme tel, sans la mention rassurante.
+  const avecRestant = rendre({ ...etat, gestes: [{ code: 'X', fait: false, texte: 'À faire.' }] });
+  assert.ok(/À faire\./.test(avecRestant));
+  assert.ok(!/aucun en attente/.test(avecRestant), avecRestant);
+
+  // Un geste INCONNU (secrets illisibles) compte comme restant, jamais comme fait.
+  const inconnu = rendre({ ...etat, gestes: [{ code: 'X', fait: null, texte: 'Illisible.' }] });
+  assert.ok(!/aucun en attente/.test(inconnu), 'ne pas savoir n’est pas « rien en attente » : ' + inconnu);
 });
 
 t('des secrets illisibles ne concluent RIEN — surtout pas que les gestes sont faits', () => {

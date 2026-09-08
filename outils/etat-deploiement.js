@@ -335,10 +335,20 @@ function rendre(e) {
     }
   }
   l.push('');
-  const restants = (e.gestes || []).filter(g => g.fait !== true);
+  // Un rendu qui se tait quand tout est fait rend « aucun geste en attente »
+  // indistinguable de « cet outil ne suit plus rien ». Le 08/09/2026, le
+  // dernier geste a été accompli et la section a purement disparu : le silence
+  // se lisait comme une absence de contrôle. On dit donc les deux — ce qui
+  // reste, ou explicitement qu'il ne reste rien, en nommant ce qui a été vu.
+  const gestes = e.gestes || [];
+  const restants = gestes.filter(g => g.fait !== true);
   if (restants.length) {
     l.push('Gestes qui n\'appartiennent qu\'à Frédéric :');
     for (const g of restants) l.push(`  · ${g.texte}`);
+    l.push('');
+  } else if (gestes.length) {
+    l.push(`Gestes qui n'appartiennent qu'à Frédéric : aucun en attente (${gestes.length} contrôlé(s)).`);
+    for (const g of gestes) l.push(`  · ${g.texte}`);
     l.push('');
   }
   l.push('« Prêt pour Production » resterait une PROPOSITION : aucune décision de');
