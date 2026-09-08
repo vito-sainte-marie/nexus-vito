@@ -8,9 +8,16 @@
 // a pu vivre un lot entier en étant mort à l'écran : le moteur était prouvé,
 // l'écran ne l'était pas.
 //
-// Le PIN existe déjà là où il faut : dans le secret GitHub NEXUS_TEST_PIN,
-// injecté au runner et illisible ailleurs. Ce qui manquait n'était pas
-// l'accès, c'était ce fichier.
+// Le PIN existe déjà là où il faut : dans des secrets GitHub dédiés par
+// profil, injectés au runner et illisibles ailleurs. Ce qui manquait n'était
+// pas l'accès, c'était ce fichier.
+//
+// Jusqu'au 08/09/2026, les quatre comptes de recette (Manager, Créateur,
+// Employé A, Employé B) partageaient un seul secret NEXUS_TEST_PIN. Frédéric
+// a depuis attribué un PIN distinct à chaque compte : partager un secret
+// entre profils qui n'ont pas la même autorisation (Créateur vs Manager) est
+// une friction de moindre-privilège inutile dès qu'on peut l'éviter. Chaque
+// profil consomme désormais son propre secret, par son NOM.
 //
 // LE PIN NE DOIT JAMAIS SORTIR D'ICI. Il n'est ni journalisé, ni inclus dans
 // un message d'erreur, ni écrit dans une capture. Playwright reçoit la valeur
@@ -35,11 +42,20 @@
 //                                  Le rail passait un username : la recette
 //                                  échouait sur « Prénom ou code PIN incorrect »
 //                                  et le PIN était soupçonné à tort.
-//   NEXUS_TEST_PIN                 secret — jamais affiché
+//   NEXUS_TEST_MANAGER_PIN         secret dédié au compte Manager Test — jamais affiché.
+//   NEXUS_TEST_CREATEUR_NOM        le NOM du compte Créateur de recette.
+//   NEXUS_TEST_CREATEUR_PIN        secret dédié au compte Créateur Test — jamais affiché.
+//
+// Deux secrets supplémentaires existent côté GitHub mais ne sont PAS encore
+// consommés par cette recette : NEXUS_TEST_EMPLOYEE_A_PIN et
+// NEXUS_TEST_EMPLOYEE_B_PIN. Aucun scénario de ce fichier n'exerce
+// aujourd'hui un compte Employé — les ajouter à SECRETS_REQUIS sans
+// scénario derrière fabriquerait une preuve vide. Ils attendent le lot qui
+// écrira ce scénario.
 
 const path = require('path');
 
-const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_PIN'];
+const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
 const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
 const ECRAN_LIVE = 'NEXUS-Live-Developpement-v1.html';
 
@@ -257,7 +273,7 @@ async function executer(env = process.env) {
   const navigateur = await chromium.launch();
   try {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
-    await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
+    await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
     const vu = await lireRecommandation(page, base);
     const echecs = verifier(vu);
 
@@ -272,11 +288,11 @@ async function executer(env = process.env) {
     // serait pire encore. C'est une capacité Test indisponible au sens
     // ENV-003 : non bloquante, mais la preuve positive est alors déclarée
     // MANQUANTE — jamais satisfaite par défaut.
-    const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_PIN);
+    const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
     let createur = null;
     let createurIndisponible = null;
     try {
-      createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_PIN);
+      createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_CREATEUR_PIN);
     } catch (e) {
       createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
         + 'il existe dans `employees` mais sans identité `auth.users`. '

@@ -100,8 +100,19 @@ epreuve('les secrets manquants sont nommés un par un', () => {
   assert.deepStrictEqual(secretsManquants({}), SECRETS_REQUIS);
   assert.deepStrictEqual(
     secretsManquants({ NEXUS_TEST_URL: 'https://x', NEXUS_TEST_MANAGER_NOM: 'Manager Test',
-      NEXUS_TEST_CREATEUR_NOM: 'Créateur Test', NEXUS_TEST_PIN: '  ' }),
-    ['NEXUS_TEST_PIN'], 'un secret vide ou blanc est un secret manquant');
+      NEXUS_TEST_CREATEUR_NOM: 'Créateur Test', NEXUS_TEST_MANAGER_PIN: 'x', NEXUS_TEST_CREATEUR_PIN: '  ' }),
+    ['NEXUS_TEST_CREATEUR_PIN'], 'un secret vide ou blanc est un secret manquant');
+});
+
+epreuve('chaque profil exigé porte désormais son propre secret PIN, plus de secret partagé', () => {
+  // Le 08/09/2026, Frédéric a créé un PIN distinct par compte de recette
+  // (Manager/Créateur/Employé A/Employé B) : partager NEXUS_TEST_PIN entre
+  // des profils qui n'ont pas la même autorisation (Créateur vs Manager)
+  // était une friction de moindre-privilège évitable.
+  assert.ok(SECRETS_REQUIS.includes('NEXUS_TEST_MANAGER_PIN'), 'Manager doit exiger son propre PIN');
+  assert.ok(SECRETS_REQUIS.includes('NEXUS_TEST_CREATEUR_PIN'), 'Créateur doit exiger son propre PIN');
+  assert.ok(!SECRETS_REQUIS.includes('NEXUS_TEST_PIN'),
+    'le secret partagé ne doit plus être une dépendance active de la recette canonique');
 });
 
 epreuve('l’identité de la version servie est lue dans nexus-build.js', () => {
