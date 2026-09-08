@@ -95,6 +95,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<!-- CARB-007 (08/09/2026) : cet écran gardait sa PROPRE vérité carburant —
+     capacités de cuve codées en dur (28 500 / 27 000, fausses pour la
+     station réelle qui est à 28 761 / 28 553) et son propre camion de
+     36 000 L. Il consomme désormais la configuration canonique, lue par le
+     même chargeur que NEXUS Carburants. -->
+<script src="nexus-carburant-moteur.js?v=20260908"></script>
+<script src="nexus-carburant-commande-moteur.js?v=20260908"></script>
+<script src="nexus-carburant-commande-donnees-core.js?v=20260908"></script>
 </head>
 <body>
 <div class="phone">
@@ -604,8 +612,43 @@
     const moyenne = ventes.reduce((s,v)=>s+v,0) / ventes.length;
     return { valeur: moyenne, source: 'calculee', nbJours: ventes.length };
   }
-  const CAPACITE_CUVE = { sp: 28500, go: 27000 }; // SP: cuve unique 30000L - 1500L tampon. GO: (20000-1500) + (10000-1500) = 18500+8500 = 27000L, tampon applique separement par cuve
-  const CAMION_CAPACITE = 36000;
+  // CARB-007. Ces trois nombres étaient écrits en dur ici : capacités de cuve
+  // (28 500 / 27 000) et camion (36 000). Les deux premiers étaient FAUX pour
+  // la station réelle — 28 761 et 28 553 — donc cet écran et NEXUS Carburants
+  // ne pouvaient pas donner la même réponse à la même question.
+  //
+  // Ils sont désormais LUS dans `station_config`, par le même chargeur que le
+  // moteur canonique, et la somme des limites de remplissage est calculée par
+  // son propriétaire unique (`NexusCarburantMoteur.limiteRemplissageTotale`).
+  //
+  // FAIL CLOSED : tant que la configuration n'est pas lue, ces valeurs sont
+  // nulles et aucune recommandation n'est produite. Retomber sur des nombres
+  // inventés serait exactement le défaut qu'on corrige.
+  let CAPACITE_CUVE = { sp: null, go: null };
+  let CAMION_CAPACITE = null;
+  let CONFIG_CARBURANT_LUE = false;
+  let MOTIF_CONFIG_ABSENTE = null;
+
+  async function chargerCapacitesStation() {
+    const D = window.NexusCarburantCommandeDonnees, M = window.NexusCarburantMoteur;
+    if (!D || !M) { MOTIF_CONFIG_ABSENTE = 'moteur carburant non chargé'; return; }
+    try {
+      const { config, cuves } = await D.chargerConfigEtCuves(nexusClient, employee.site);
+      if (!config || !cuves || !cuves.sp95 || !cuves.go) {
+        MOTIF_CONFIG_ABSENTE = 'configuration carburant absente pour ce site';
+        return;
+      }
+      CAPACITE_CUVE = {
+        sp: M.limiteRemplissageTotale(cuves.sp95.cuves),
+        go: M.limiteRemplissageTotale(cuves.go.cuves),
+      };
+      CAMION_CAPACITE = Number(config.maximum_camion_litres) || null;
+      CONFIG_CARBURANT_LUE = !!(CAPACITE_CUVE.sp && CAPACITE_CUVE.go && CAMION_CAPACITE);
+      if (!CONFIG_CARBURANT_LUE) MOTIF_CONFIG_ABSENTE = 'capacités ou maximum camion non renseignés';
+    } catch (e) {
+      MOTIF_CONFIG_ABSENTE = e.message;
+    }
+  }
 
   function prochainOuvrableApres(d) {
     let candidat = new Date(d.getTime() + 86400000);
@@ -714,7 +757,13 @@
       </div>`;
   }
 
-  document.getElementById('calculerCarburant').addEventListener('click', () => {
+  // Lecture lancée dès l'ouverture, et ATTENDUE au clic : sans cela, un clic
+  // rapide passerait avant la configuration et tomberait sur le refus
+  // « indisponible » alors que tout allait bien.
+  const capacitesPretes = chargerCapacitesStation();
+
+  document.getElementById('calculerCarburant').addEventListener('click', async () => {
+    await capacitesPretes;
     const sp = parseFloat(document.getElementById('j_sp').value);
     const go1 = parseFloat(document.getElementById('j_go1').value);
     const go2 = parseFloat(document.getElementById('j_go2').value);
@@ -755,6 +804,18 @@
     venteHtml += `<span style="font-size:10px; color:var(--text-dim);">Moyenne utilisée pour les calculs : SP ${Math.round(consoSPinfo.valeur).toLocaleString('fr-FR')} L/j (${consoSPinfo.source==='calculee'?`calculée sur ${consoSPinfo.nbJours} jours réels`:'historique de départ, pas encore assez de jours saisis'}), GO ${Math.round(consoGOinfo.valeur).toLocaleString('fr-FR')} L/j (${consoGOinfo.source==='calculee'?`calculée sur ${consoGOinfo.nbJours} jours réels`:'historique de départ'}).</span></div>`;
     document.getElementById('venteTheoriqueBox').innerHTML = (venteSP!==null || venteGO!==null) ? venteHtml : '';
 
+    if (!CONFIG_CARBURANT_LUE) {
+      // Ne rien recommander plutôt que recommander sur des capacités
+      // inventées : une recommandation fausse coûte plus qu'une absence de
+      // recommandation.
+      box.innerHTML = `<div class="fuel-result-card" style="background:var(--panel); color:var(--text-dim);">
+        <div class="fuel-result-head"><span class="fuel-result-icon">⏸</span>
+        <span class="fuel-result-title">Recommandation indisponible</span></div>
+        <div style="font-size:11.5px; margin-top:8px;">Les capacités de cuve et le maximum camion n'ont pas pu être lus
+        dans la configuration de la station (${MOTIF_CONFIG_ABSENTE || 'cause inconnue'}).
+        Aucune quantité n'est proposée : mieux vaut pas de recommandation qu'une recommandation calculée sur des capacités supposées.</div></div>`;
+      return;
+    }
     const r = calculerRecommandationCombinee(
       spSaisi ? sp : null, goSaisi ? go : null,
       consoSPinfo.valeur, consoGOinfo.valeur, CAPACITE_CUVE.sp, CAPACITE_CUVE.go, CAMION_CAPACITE

@@ -661,7 +661,8 @@
     const capacitesDisponiblesL = {};
     carburantsActifs.forEach(carburant => {
       const cuvesCarburant = cuves[carburant].cuves || [];
-      const limiteRemplissageL = cuvesCarburant.reduce((s, c) => s + (Number(c.limite_remplissage) || 0), 0);
+      // Propriétaire unique de ce calcul : NexusCarburantMoteur (CARB-007).
+      const limiteRemplissageL = global.NexusCarburantMoteur.limiteRemplissageTotale(cuvesCarburant);
       const stock = stockInfo.parCarburant[carburant] || { stockActuelL: null, stockFiable: false, stockAncreCommandeL: null, stockAncreCommandeFiable: false };
       const consommationMoyenneJour = M.moyenneRecente(historiqueParJour, carburant, dateISO, 14).moyenne;
       const commandeEnCours = commandesEnCours[carburant] || null;
