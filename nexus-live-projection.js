@@ -75,8 +75,17 @@
     let gateActif = null;
     for (const evt of tries) {
       if (evt.human_gate && evt.human_gate.required) {
-        gateActif = { lot_id: evt.lot_id, reason_code: evt.human_gate.reason_code || null, question: evt.human_gate.question };
-      } else if (gateActif && (evt.phase === 'DONE' || (evt.human_gate && evt.human_gate.required === false))) {
+        // `event_id` transporté : une autorisation doit pouvoir DÉSIGNER la
+        // question à laquelle elle répond. Sans cette référence, elle flotte
+        // sans objet et rien ne permet de rapprocher la réponse du gate.
+        gateActif = { event_id: evt.event_id || null, lot_id: evt.lot_id,
+          reason_code: evt.human_gate.reason_code || null, question: evt.human_gate.question };
+      // `evt.lot_id === gateActif.lot_id` : le commentaire ci-dessus promettait
+      // « du même lot » depuis le premier jour, le code ne le vérifiait pas.
+      // N'importe quel événement DONE, même d'un autre lot, éteignait donc le
+      // gate — et avec lui le compteur « en attente de ton arbitrage ».
+      } else if (gateActif && evt.lot_id === gateActif.lot_id
+        && (evt.phase === 'DONE' || (evt.human_gate && evt.human_gate.required === false))) {
         gateActif = null;
       }
     }

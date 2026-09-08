@@ -187,4 +187,55 @@ t('« prêt pour Production » reste une proposition, sauf démenti explicite', 
   assert.strictEqual(P.extraireDeploiements(base({ pret_production_est_une_proposition: true })).pretProductionEstUneProposition, true);
 });
 
+
+// ── Le gate ne s'éteint que par un événement DE SON LOT (08/09/2026) ────
+
+const gateWaiting = (lot) => ({ occurred_at: '2026-09-08T10:00:00Z', lot_id: lot, run_id: 'r',
+  actor: { id: 'orchestrator', role: 'orchestrator' }, phase: 'GATE', status: 'WAITING',
+  summary: 'Arbitrage attendu', human_gate: { required: true, question: 'Autoriser la promotion ?' } });
+const evtLot = (lot, phase, extra) => Object.assign({ occurred_at: '2026-09-08T11:00:00Z', lot_id: lot,
+  run_id: 'r', actor: { id: 'x', role: 'ci' }, phase, status: 'PASSED', summary: 's' }, extra || {});
+
+t('un DONE d’un AUTRE lot n’éteint pas le gate', () => {
+  // Le commentaire du code promettait « du même lot » depuis le premier jour ;
+  // la condition ne le vérifiait pas. N'importe quel événement terminé
+  // éteignait donc le compteur « en attente de ton arbitrage » — celui qui
+  // porte la seule chose qui attend réellement Frédéric.
+  const p = P.construireProjectionLive([gateWaiting('LOT-A'), evtLot('LOT-B', 'DONE')]);
+  assert.ok(p.human_gate, 'le gate de LOT-A ne regarde pas LOT-B');
+  assert.strictEqual(p.human_gate.lot_id, 'LOT-A');
+  assert.strictEqual(p.system_status, P.STATUT_SYSTEME_LIVE.HUMAIN_REQUIS);
+});
+
+t('un état de déploiement n’éteint pas le gate de son propre lot', () => {
+  // Le bloc « Déploiements » portait `DONE` dans son premier jet : il aurait
+  // éteint le gate à chaque passage de CI, en silence. Un état observe, il ne
+  // termine rien.
+  const p = P.construireProjectionLive([gateWaiting('LOT-A'), evtLot('LOT-A', 'ANALYSE')]);
+  assert.ok(p.human_gate, 'observer un état n’est pas répondre à une question');
+});
+
+t('un DONE du MÊME lot éteint bien le gate — sinon on ne fermerait jamais rien', () => {
+  // La moitié qui donne son sens à la précédente.
+  assert.ok(!P.construireProjectionLive([gateWaiting('LOT-A'), evtLot('LOT-A', 'DONE')]).human_gate);
+  assert.ok(!P.construireProjectionLive([gateWaiting('LOT-A'),
+    evtLot('LOT-A', 'GATE', { human_gate: { required: false } })]).human_gate,
+    'une réponse explicite ferme aussi');
+});
+
+
+t('le gate transporte l’identifiant de l’événement qui l’a posé', () => {
+  // Une autorisation doit pouvoir DÉSIGNER la question à laquelle elle répond.
+  // Sans cette référence, elle flotte sans objet et rien ne permet de
+  // rapprocher la réponse du gate.
+  const g = Object.assign(gateWaiting('LOT-A'), { event_id: 'evt-gate-42' });
+  const p = P.construireProjectionLive([g]);
+  assert.strictEqual(p.human_gate.event_id, 'evt-gate-42');
+  assert.strictEqual(p.human_gate.lot_id, 'LOT-A');
+  assert.strictEqual(p.human_gate.question, 'Autoriser la promotion ?');
+  // Sans identifiant, on rend null plutôt qu'une valeur inventée.
+  const sans = P.construireProjectionLive([gateWaiting('LOT-A')]);
+  assert.strictEqual(sans.human_gate.event_id, null);
+});
+
 console.log(`\n${n} assertions Live-Projection passées.`);

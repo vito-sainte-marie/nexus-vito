@@ -215,7 +215,11 @@ function evenementDeploiement(lot, etatDep, horodatage) {
   if (dette.total != null) morceaux.push(`${dette.total} dette(s) ouverte(s) dont ${dette.p0} en P0`);
   return [evenement({
     lot, run: 'deploiement', acteur: 'etat-deploiement', role: 'ci',
-    phase: 'DONE', statut: 'PASSED',
+    // `ANALYSE`, et surtout PAS `DONE`. Un état de déploiement observe, il ne
+    // termine rien — et un événement `DONE` referme le gate humain de son lot.
+    // Le premier jet portait `DONE` : il aurait éteint le compteur « en attente
+    // de ton arbitrage » à chaque passage de CI, silencieusement.
+    phase: 'ANALYSE', statut: 'PASSED',
     resume: `Déploiements — ${morceaux.join(', ')}.`,
     preuve: {
       type: 'deploiement',

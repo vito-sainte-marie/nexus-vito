@@ -178,6 +178,17 @@ t('le bloc Déploiements porte ses chiffres dans la PREUVE, pas dans la phrase',
   // vaut autorisation de production.
   assert.strictEqual(e.evidence.pret_production_est_une_proposition, true);
   assert.ok(!e.human_gate, 'décrire un état n’est pas proposer une promotion');
+
+  // ET SURTOUT : il ne doit pas ÉTEINDRE le gate de son lot. Éprouvé par sa
+  // conséquence, pas par sa forme — le premier jet portait `DONE`, ce qui
+  // referme un gate dans la projection : le compteur « en attente de ton
+  // arbitrage » se serait éteint à chaque passage de CI, en silence.
+  const projection = require(path.join(__dirname, 'nexus-live-projection.js'));
+  const gate = { occurred_at: '2026-09-07T22:00:00.000Z', lot_id: 'LOT-X', run_id: 'handoff',
+    actor: { id: 'orchestrator', role: 'orchestrator' }, phase: 'GATE', status: 'WAITING',
+    summary: 'Arbitrage attendu', human_gate: { required: true, question: 'Autoriser ?' } };
+  const p = projection.construireProjectionLive([gate, e]);
+  assert.ok(p.human_gate, 'le bloc Déploiements ne doit pas refermer un gate : ' + e.phase);
 });
 
 t('un état de déploiement ABSENT ou en erreur ne produit aucun bloc', () => {

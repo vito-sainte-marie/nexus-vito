@@ -55,6 +55,10 @@
   .compteur .n{font-size:22px; font-weight:700;}
   .compteur .l{font-size:10.5px; color:var(--text-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em; margin-top:4px;}
   .proposition{font-size:11.5px; color:var(--text-dim); margin-top:10px; line-height:1.5;}
+  .btn-autoriser{margin-top:14px; width:100%; padding:12px; border-radius:10px; border:1px solid #2f7d55; background:#124a30; color:#c8f3dc; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; cursor:pointer;}
+  .btn-autoriser:disabled{opacity:.5; cursor:default;}
+  .retour-gate{margin-top:10px; font-size:12px; line-height:1.5;}
+  .retour-gate.erreur{color:#ffb4b4;}
 </style>
 </head>
 <body>
@@ -163,7 +167,11 @@
       </div>
       ${blocDeploiements(deploiements)}
       ${projection.human_gate ? `<div class="card"><div class="section-label">Intervention</div>
-        <div>${projection.human_gate.question}</div></div>` : ''}
+        <div>${projection.human_gate.question}</div>
+        <button class="btn-autoriser" id="btnAutoriser">J'autorise</button>
+        <div class="retour-gate" id="retourGate"></div>
+        <div class="proposition">Cette autorisation est écrite au nom de ta session Créateur. NEXUS Live
+        la transmet ; il ne la fabrique pas, et personne d'autre ne peut l'écrire à ta place.</div></div>` : ''}
       <div class="card">
         <div class="section-label">Guardians</div>
         ${guardiansHtml}
@@ -173,6 +181,74 @@
         ${timelineHtml}
       </div>
     `;
+  }
+
+  // ── Transmettre l'autorisation ──────────────────────────────────────
+  //
+  // Décision de Frédéric du 08/09/2026 : un bouton simple, sur la session
+  // Créateur déjà authentifiée, sans ressaisie de PIN.
+  //
+  // Ce que ce bouton NE FAIT PAS : il ne décide rien, il ne promeut rien, il
+  // ne touche ni `main` ni Production. Il écrit UN fait — « le Créateur a
+  // autorisé, à cette heure, en réponse à cette question-là » — et ce fait est
+  // ensuite lu par le rail. La séparation posée par Frédéric tient :
+  // « NEXUS Live peut présenter et transmettre ton autorisation, mais il ne
+  // doit jamais fabriquer cette autorisation lui-même. »
+  //
+  // La politique RLS `insert_nexus_live_events` exige `je_suis_createur()` :
+  // un manager qui atteindrait cette page ne pourrait rien écrire. Et la
+  // politique `publication_ci` borne la CI à `actor_role in ('ci','guardian')`
+  // — elle ne peut donc pas signer une autorisation humaine.
+  async function transmettreAutorisation(employee, gate) {
+    const retour = document.getElementById('retourGate');
+    const bouton = document.getElementById('btnAutoriser');
+    bouton.disabled = true;
+    retour.className = 'retour-gate';
+    retour.textContent = 'Transmission…';
+
+    const evenement = {
+      protocol: 'nexus-execution-event/1',
+      event_id: 'evt-autorisation-' + (gate.event_id || gate.lot_id) + '-' + Date.now().toString(36),
+      occurred_at: new Date().toISOString(),
+      lot_id: gate.lot_id,
+      run_id: 'live',
+      actor: { id: employee.nom || employee.id || 'Créateur', role: 'human' },
+      phase: 'GATE',
+      status: 'PASSED',
+      summary: 'Autorisation accordée par le Créateur — ' + gate.question,
+      // La question à laquelle cette autorisation répond, désignée et non
+      // devinée : sans cette référence, l'autorisation flotterait sans objet.
+      evidence: { type: 'autorisation', ref: gate.event_id || gate.lot_id },
+      human_gate: { required: false },
+    };
+
+    // Le contrat a le dernier mot, ici comme ailleurs. Un événement refusé
+    // n'est pas corrigé pour passer : il n'est pas envoyé.
+    const erreurs = window.NexusLiveEvenement.validerEvenementLive(evenement);
+    if (erreurs.length) {
+      retour.className = 'retour-gate erreur';
+      retour.textContent = 'Autorisation NON transmise — le contrat la refuse : ' + erreurs.join(', ');
+      bouton.disabled = false;
+      return;
+    }
+
+    const { error } = await nexusClient.from('nexus_live_events').insert({
+      event_id: evenement.event_id, occurred_at: evenement.occurred_at,
+      lot_id: evenement.lot_id, run_id: evenement.run_id,
+      actor_id: evenement.actor.id, actor_role: evenement.actor.role,
+      phase: evenement.phase, status: evenement.status, summary: evenement.summary,
+      evidence: evenement.evidence, next_step: null, human_gate: evenement.human_gate, source: null,
+    });
+    if (error) {
+      // Dire l'échec. Une autorisation qu'on croit transmise et qui ne l'est
+      // pas est pire que pas de bouton du tout.
+      retour.className = 'retour-gate erreur';
+      retour.textContent = 'Autorisation NON transmise : ' + error.message;
+      bouton.disabled = false;
+      return;
+    }
+    retour.textContent = 'Autorisation transmise. Rechargement…';
+    setTimeout(() => window.location.reload(), 900);
   }
 
   nexusRequireAuth().then(async employee => {
@@ -210,6 +286,10 @@
     const fraicheur = P.fraicheurJournal(evenements, new Date().toISOString());
     const deploiements = P.extraireDeploiements(evenements);
     renderProjection(projection, evenements, fraicheur, deploiements);
+    const bouton = document.getElementById('btnAutoriser');
+    if (bouton && projection.human_gate) {
+      bouton.addEventListener('click', () => transmettreAutorisation(employee, projection.human_gate));
+    }
   });
 </script>
 </body>

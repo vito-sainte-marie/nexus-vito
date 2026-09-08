@@ -13,7 +13,13 @@
 
   const PHASES = ['ANALYSE', 'EXECUTION', 'TEST', 'GUARDIAN_REVIEW', 'CI', 'GATE', 'DONE'];
   const STATUTS = ['STARTED', 'PROGRESS', 'PASSED', 'FAILED', 'BLOCKED', 'WAITING'];
-  const ROLES_ACTEUR = ['execution', 'orchestrator', 'guardian', 'ci'];
+  // `human` ajouté le 08/09/2026 : une autorisation accordée par Frédéric est
+  // un fait de premier ordre. La faire passer pour un événement `orchestrator`
+  // falsifierait la provenance de la seule décision qui n'appartient qu'à lui.
+  // Ce rôle est aussi ce qui rend utile la borne de la politique RLS
+  // `publication_ci` (`actor_role in ('ci','guardian')`) : la CI ne peut pas
+  // écrire une autorisation humaine, même si elle le voulait.
+  const ROLES_ACTEUR = ['execution', 'orchestrator', 'guardian', 'ci', 'human'];
 
   function estChaineNonVide(v) {
     return typeof v === 'string' && v.trim().length > 0;

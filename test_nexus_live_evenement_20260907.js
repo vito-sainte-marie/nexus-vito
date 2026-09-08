@@ -83,4 +83,34 @@ assert.strictEqual(resultat.accepte, false);
 assert.strictEqual(resultat.journal.length, 0);
 ok('événement invalide non journalisé');
 
+
+// ── Le rôle `human` (08/09/2026) ────────────────────────────────────────
+
+{
+  // Une autorisation accordée par Frédéric est un fait de premier ordre. La
+  // faire passer pour un événement `orchestrator` falsifierait la provenance
+  // de la seule décision qui n'appartient qu'à lui.
+  const autorisation = {
+    protocol: 'nexus-execution-event/1', event_id: 'evt-humain-1',
+    occurred_at: '2026-09-08T13:00:00.000Z', lot_id: 'LOT-A', run_id: 'live',
+    actor: { id: 'Créateur Test', role: 'human' }, phase: 'GATE', status: 'PASSED',
+    summary: 'Autorisation accordée par le Créateur : Autoriser la promotion ?',
+    evidence: { type: 'autorisation', ref: 'evt-gate-1' },
+    human_gate: { required: false },
+  };
+  // `.length`, pas `deepStrictEqual([])` : le module est chargé dans un
+  // contexte `vm`, donc ses tableaux ont le prototype Array de CE contexte-là.
+  // `deepStrictEqual` compare les prototypes et échoue en affichant
+  // « actual: [] / expected: [] » — un message qui ne veut rien dire tant
+  // qu'on n'a pas identifié la frontière de realm.
+  assert.strictEqual(M.validerEvenementLive(autorisation).length, 0,
+    'refusé à tort : ' + JSON.stringify(M.validerEvenementLive(autorisation)));
+  ok('un événement d’autorisation signé `human` est accepté');
+
+  const inconnu = Object.assign({}, autorisation, { actor: { id: 'x', role: 'humain' } });
+  assert.ok(M.validerEvenementLive(inconnu).includes('actor_invalide'),
+    'le vocabulaire reste fermé : « humain » n’est pas « human »');
+  ok('un rôle hors vocabulaire reste refusé');
+}
+
 console.log(`\n${n} assertions Live-Événement passées.`);

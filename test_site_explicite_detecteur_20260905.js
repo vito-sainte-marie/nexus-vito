@@ -104,10 +104,22 @@ verifier('le dépôt réel donne le chiffre annoncé', () => {
   // 06/09/2026, 2B-SECURITY-WRITE-GUARD : 48 → 47 et 37 → 36, après que
   // `mission_completions` a reçu son `site_id`. Le pointage du Debug reste
   // compté — son insert reçoit une variable, voir l'épreuve ci-dessus.
+  //
+  // 08/09/2026 : 47 → 48 et 36 → 37. NEXUS Live gagne un bouton
+  // « J'autorise » qui écrit dans `nexus_live_events`
+  // (NEXUS-Live-Developpement-v1.html). Cette écriture est légitimement SANS
+  // portée de site : la table n'a pas de colonne `site` — c'est le journal
+  // d'exécution du Créateur, pas une donnée de commerce. Son isolation n'est
+  // donc pas un scope site mais `je_suis_createur()`, exigé par la policy
+  // `insert_nexus_live_events` — un manager qui atteindrait cette page ne
+  // pourrait rien écrire. Le garde de policies le confirme : 0 VULNERABLE.
+  //
+  // Ce chiffre n'est pas une formalité : il a rattrapé cette écriture le jour
+  // même où elle a été ajoutée, avant qu'elle n'entre dans le paysage.
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
-  assert.strictEqual(t.length, 47, `47 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
-  assert.strictEqual(tables.size, 36, `36 tables attendues, ${tables.size} trouvées`);
+  assert.strictEqual(t.length, 48, `48 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
+  assert.strictEqual(tables.size, 37, `37 tables attendues, ${tables.size} trouvées`);
 });
 
 console.log(`\n${passes} vérifications passées — le détecteur est éprouvé, pas cru sur parole.`);
