@@ -125,7 +125,19 @@ function barrieresProduction() {
     barrieres.reglesEffectives = [...types].sort();
     barrieres.prObligatoire = types.has('pull_request');
     barrieres.ciExigee = types.has('required_status_checks');
-  } catch (e) { barrieres.brancheProtegee = false; barrieres.reglesEffectives = []; }
+  } catch (e) {
+    // `null`, et non `false`. Une question qu'on n'a PAS PU POSER n'est pas une
+    // réponse négative. Cette ligne écrivait « non protégée » chaque fois que
+    // `gh` échouait — sans jeton en CI, par exemple — et le journal Live a donc
+    // annoncé deux fois le 08/09/2026 que Production était ouverte à tous les
+    // vents, alors qu'un ruleset actif la tenait. Une alarme qui se déclenche
+    // sans raison finit par ne plus être lue, et ne sera pas crue le jour où
+    // elle aura raison. C'est le défaut symétrique de ceux corrigés le même
+    // jour côté écrans (EVAL-001, DEBUG-001), et il est aussi grave.
+    barrieres.brancheProtegee = null;
+    barrieres.reglesEffectives = null;
+    barrieres.motifNonVerifie = String((e && e.message) || e).split('\n')[0].slice(0, 160);
+  }
   try {
     const envs = JSON.parse(execFileSync('gh', ['api', `repos/${slug}/environments`],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
@@ -310,7 +322,7 @@ function rendre(e) {
   if (!e.barrieres.lu) {
     l.push('  · non lisibles depuis cette machine — ne pas conclure qu\'elles existent.');
   } else {
-    l.push(`  · branche \`production\` protégée : ${e.barrieres.brancheProtegee ? 'oui' : 'NON'}` +
+    l.push(`  · branche \`production\` protégée : ${e.barrieres.brancheProtegee === null ? 'NON VÉRIFIÉE (' + (e.barrieres.motifNonVerifie || 'raison inconnue') + ')' : e.barrieres.brancheProtegee ? 'oui' : 'NON'}` +
       (e.barrieres.reglesEffectives && e.barrieres.reglesEffectives.length
         ? ` (${e.barrieres.reglesEffectives.join(', ')})` : ''));
     l.push(`  · environnement GitHub avec approbation requise : ${e.barrieres.environnementApprobation ? 'oui' : 'NON'}`);

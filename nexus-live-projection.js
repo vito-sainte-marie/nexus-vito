@@ -302,6 +302,20 @@
         texte: 'Un push direct vers la branche Production reste techniquement possible. '
           + 'Aucun passage en Production ne peut être garanti tant que cette protection n’est pas en place.',
       });
+    // NE PAS SAVOIR N'EST PAS UN RISQUE STRUCTUREL, et ce n'est pas non plus
+    // une conformité. Le 08/09/2026, une lecture impossible était devenue
+    // « Production sans protection » : l'écran a crié au feu six heures durant
+    // pendant qu'un ruleset actif tenait la branche. Une alarme qui se
+    // déclenche sans raison finit par ne plus être lue — et ne sera pas crue le
+    // jour où elle aura raison. L'ignorance se dit, elle ne s'accuse pas.
+    } else if (barriere && /NON VÉRIFIÉE/.test(barriere.summary || '')) {
+      risques.push({
+        code: 'PROTECTION_NON_VERIFIEE',
+        titre: 'Protection Production non vérifiée',
+        texte: 'NEXUS n’a pas pu interroger GitHub sur la protection de la branche Production. '
+          + 'Il ne conclut donc rien : ni qu’elle est tenue, ni qu’elle ne l’est pas. '
+          + 'La dernière lecture réussie fait foi jusqu’à la prochaine.',
+      });
     }
     return risques;
   }

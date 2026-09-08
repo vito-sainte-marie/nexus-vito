@@ -189,6 +189,21 @@ function evenementsCI(lot, horodatage) {
 function evenementBarriere(lot, etatDep, horodatage) {
   const b = etatDep.barrieres || {};
   if (!b.lu) return []; // barrières illisibles : on ne conclut pas
+  // TROIS états, pas deux. `null` signifie « je n'ai pas pu poser la question »
+  // et ne doit jamais devenir une accusation : le 08/09/2026, `gh` sans jeton
+  // a fait annoncer deux fois que Production était sans protection alors qu'un
+  // ruleset actif la tenait. Une alarme qui crie sans raison cesse d'être lue.
+  if (b.brancheProtegee === null || b.brancheProtegee === undefined) {
+    return [evenement({
+      lot, run: 'production', acteur: 'github', role: 'ci',
+      phase: 'GATE', statut: 'WAITING',
+      resume: 'Protection de la branche production NON VÉRIFIÉE'
+        + (b.motifNonVerifie ? ` (${b.motifNonVerifie})` : '')
+        + '. Ne rien conclure de cette absence : ni qu\'elle est tenue, ni qu\'elle ne l\'est pas.',
+      preuve: { type: 'protection', ref: 'refs/heads/production' },
+      occurredAt: horodatage,
+    })];
+  }
   const tenue = !!b.brancheProtegee;
   return [evenement({
     lot, run: 'production', acteur: 'github', role: 'ci',

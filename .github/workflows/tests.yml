@@ -273,6 +273,10 @@ jobs:
       - name: Épreuves de la classification unique des écarts
         run: node test_classification_ecart_unique_20260908.js
 
+      # « Je n'ai pas pu demander » n'est ni une faute ni une conformité.
+      - name: La protection Production a-t-elle bien TROIS états ?
+        run: node test_barriere_production_trois_etats_20260908.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
