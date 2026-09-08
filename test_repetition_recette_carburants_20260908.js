@@ -25,19 +25,42 @@ function config() { return JSON.parse(fs.readFileSync(R.CONFIG, 'utf8')); }
 
 (async () => {
 
-await t('le scénario tient les SEPT jours sur la configuration réelle de la station', async () => {
+await t('le scénario tient les 14 cas sur la configuration réelle de la station', async () => {
   // Sans cette épreuve, toutes les suivantes passeraient avec un outil qui
   // refuse tout. Et sept jours, pas un : la fenêtre de vente avant livraison
   // dépend du jour, et c'est ce qui avait périmé la version précédente.
   const jours = await R.repeter(config());
-  assert.strictEqual(jours.length, 7);
+  assert.strictEqual(jours.length, 14, 'sept jours × deux côtés du cutoff');
   for (const j of jours) {
     assert.deepStrictEqual(j.echecs, [], `${j.dateISO} : ${j.echecs.join(' | ')}`);
     assert.strictEqual(j.reliquatL, R.ATTENDU.reliquatL);
     assert.ok(j.stockPrevuSp95 >= R.BANDE_SP95.min && j.stockPrevuSp95 <= R.BANDE_SP95.max);
   }
-  assert.deepStrictEqual([...new Set(jours.map(j => j.fenetre))].sort(), [1, 2, 3],
-    'les trois fenêtres doivent être réellement exercées, sinon deux jours sur trois ne prouvent rien');
+  assert.strictEqual([...new Set(jours.map(j => j.fenetre))].sort().join(','), '1,2,3,4',
+    'les QUATRE fenêtres doivent être réellement exercées, cutoff compris');
+});
+
+await t('la fenêtre dépend du jour ET du cutoff — la moitié qui manquait', async () => {
+  // Le 08/09/2026, le scénario a été validé sur sept jours mais UNE seule
+  // heure. Il a cassé à 13 h 25 : après le cutoff de 11 h, la commande part le
+  // lendemain, la fenêtre de vente s'allonge, le stock projeté passe de +400 à
+  // −1000 et la recommandation redevient physiquement impossible.
+  //
+  // Sept jours à une heure, c'était la moitié du domaine. Ces valeurs sont
+  // MESURÉES au banc, jamais déduites — le jeudi après 11 h saute à quatre
+  // jours (commande vendredi, livraison lundi), ce qu'aucun raisonnement
+  // simple ne donne.
+  assert.strictEqual(R.CUTOFF_HEURE, 11);
+  const attendu = {
+    1: [1, 2], 2: [1, 2], 3: [1, 2], 4: [1, 4], 5: [3, 4], 6: [3, 3], 7: [2, 2],
+  };
+  for (const [dow, [avant, apres]] of Object.entries(attendu)) {
+    assert.strictEqual(R.fenetreDeVente(Number(dow), '09:00'), avant, `jour ${dow} avant cutoff`);
+    assert.strictEqual(R.fenetreDeVente(Number(dow), '15:00'), apres, `jour ${dow} après cutoff`);
+  }
+  // La bascule se fait À 11 h pile, pas à 11 h 01.
+  assert.strictEqual(R.fenetreDeVente(4, '10:59'), 1);
+  assert.strictEqual(R.fenetreDeVente(4, '11:00'), 4, 'le cutoff est inclusif');
 });
 
 await t('LE DÉFAUT DU 07/09 — des cuves d’une AUTRE station sont détectées', async () => {

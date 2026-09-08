@@ -51,7 +51,29 @@ const ATTENDU = { total: 36000, sp95: 23000, go: 13000, reliquatL: 1000, credite
 // (22 000 + 13 000, aucun reliquat) ; au-dessous de 0 on entre dans le cas
 // dégénéré CARB-006 où la capacité dépasse la limite physique de la cuve.
 const BANDE_SP95 = { min: 1, max: 750 };
-const FENETRE_PAR_JOUR = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 3, 6: 3, 7: 2 };
+// Fenêtre de vente avant livraison, MESURÉE sur le banc — et elle dépend de
+// deux choses, pas d'une. Le jour de la semaine, et le CUTOFF de 11 h : avant,
+// la commande part aujourd'hui et la livraison est au prochain jour ouvrable ;
+// après, la commande part demain et tout glisse d'un cran.
+//
+// Le 08/09/2026, le scénario n'a été validé qu'à 9 h. La recette a cassé à
+// 13 h 25 : le stock projeté passait de +400 à −1000, et la recommandation
+// redevenait physiquement impossible (24 000 L dans une cuve qui en accepte
+// 23 750). Sept jours validés, une seule heure — la moitié du domaine.
+//
+// Le jeudi après 11 h saute à QUATRE jours : commande vendredi, livraison
+// lundi. Ce n'est pas déductible, c'est mesuré.
+const CUTOFF_HEURE = 11;
+const FENETRE = {
+  1: { avant: 1, apres: 2 }, 2: { avant: 1, apres: 2 }, 3: { avant: 1, apres: 2 },
+  4: { avant: 1, apres: 4 }, 5: { avant: 3, apres: 4 },
+  6: { avant: 3, apres: 3 }, 7: { avant: 2, apres: 2 },
+};
+function fenetreDeVente(isoDow, heureHHMM) {
+  const h = Number(String(heureHHMM || '09:00').slice(0, 2));
+  const f = FENETRE[isoDow];
+  return h >= CUTOFF_HEURE ? f.apres : f.avant;
+}
 
 function charger(sandbox, fichier) {
   vm.runInContext(fs.readFileSync(path.join(RACINE, fichier), 'utf8'), sandbox);
@@ -140,9 +162,16 @@ function verifierJour({ commande, capaciteSp95, config }) {
   return echecs;
 }
 
-async function repeterUnJour(config, dateISO) {
+// `heure` paramétrable : la recette réelle tourne à l'heure où la CI se
+// déclenche, pas à 9 h. Le 08/09/2026 le scénario a été validé sur sept jours
+// mais UNE heure, et il a cassé à 13 h 25 — la recommandation redevenait
+// physiquement impossible. Une première tentative de mesure a d'ailleurs
+// rendu sept lignes identiques parce que l'heure n'était pas un paramètre :
+// je mesurais une variable qui ne variait pas.
+async function repeterUnJour(config, dateISO, heureHHMM) {
+  const heure = heureHHMM || '09:00';
   const isoDow = ((new Date(dateISO + 'T00:00:00Z').getUTCDay() + 6) % 7) + 1;
-  const fenetre = FENETRE_PAR_JOUR[isoDow];
+  const fenetre = fenetreDeVente(isoDow, heure);
   const consoSp = SCENARIO.consoSp95Q1 + SCENARIO.consoSp95Q2;
   const consoGo = SCENARIO.consoGoQ1 + SCENARIO.consoGoQ2;
   const jaugeSp95 = consoSp * fenetre + SCENARIO.margeSp95L;
@@ -178,7 +207,9 @@ async function repeterUnJour(config, dateISO) {
 
   const r = await sandbox.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(
     faireClient(config, histo, quart1), config.site,
-    { timezone: config.fuseau_horaire, dateISO, heureHHMM: '09:00', maintenant: dateISO + 'T13:00:00.000Z' });
+    { timezone: config.fuseau_horaire, dateISO, heureHHMM: heure,
+      // `maintenant` en UTC pour l'heure locale demandée (Martinique = UTC-4).
+      maintenant: dateISO + 'T' + String(Number(heure.slice(0, 2)) + 4).padStart(2, '0') + heure.slice(2) + ':00.000Z' });
 
   const echecs = verifierJour({ commande: r && r.commandeRecommandee,
     capaciteSp95: r && r.parCarburant && r.parCarburant.sp95 ? r.parCarburant.sp95.capaciteDisponibleL : null,
@@ -188,15 +219,21 @@ async function repeterUnJour(config, dateISO) {
   const capaSp95 = r && r.parCarburant && r.parCarburant.sp95 ? r.parCarburant.sp95.capaciteDisponibleL : null;
   const stockPrevuSp95 = capaSp95 == null ? null : limiteSp95 - capaSp95;
   if (!c) return { dateISO, fenetre, echecs };
-  return { dateISO, fenetre, stockPrevuSp95: stockPrevuSp95 == null ? null : Math.round(stockPrevuSp95),
+  return { dateISO, heure, fenetre, stockPrevuSp95: stockPrevuSp95 == null ? null : Math.round(stockPrevuSp95),
     volumes: c.volumes, reliquatL: (c.reliquatArrondi || {}).recupereL, echecs };
 }
 
 // Les sept jours, à partir d'un lundi connu.
 const LUNDI_REFERENCE = '2026-09-07';
+// QUATORZE cas, pas sept : chaque jour est rejoué de part et d'autre du
+// cutoff. Valider sept jours à une seule heure ne couvrait que la moitié du
+// domaine, et c'est cette moitié manquante qui a cassé la recette.
 async function repeter(config) {
   const jours = [];
-  for (let i = 0; i < 7; i++) jours.push(await repeterUnJour(config, jourDecale(LUNDI_REFERENCE, i)));
+  for (let i = 0; i < 7; i++) {
+    jours.push(await repeterUnJour(config, jourDecale(LUNDI_REFERENCE, i), '09:00'));
+    jours.push(await repeterUnJour(config, jourDecale(LUNDI_REFERENCE, i), '15:00'));
+  }
   return jours;
 }
 
@@ -246,7 +283,7 @@ function lireConfig() {
   catch (e) { return { erreur: `${path.relative(RACINE, CONFIG)} illisible : ${e.message}` }; }
 }
 
-module.exports = { repeter, repeterUnJour, verifierJour, limiteTotale, comparerInstantane, trier, CHAMPS_SUIVIS, lireConfig, SCENARIO, ATTENDU, BANDE_SP95, FENETRE_PAR_JOUR, CONFIG };
+module.exports = { repeter, repeterUnJour, verifierJour, limiteTotale, comparerInstantane, trier, CHAMPS_SUIVIS, lireConfig, SCENARIO, ATTENDU, BANDE_SP95, FENETRE, CUTOFF_HEURE, fenetreDeVente, CONFIG };
 
 if (require.main === module && process.argv.includes('--comparer')) {
   // Mode comparaison : la configuration vivante arrive sur l'entrée standard,
@@ -274,7 +311,8 @@ if (require.main === module && process.argv.includes('--comparer')) {
     process.exit(0);
   });
 } else if (require.main === module) {
-  const NOMS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+  const NOMS = ['lundi', 'lundi', 'mardi', 'mardi', 'mercredi', 'mercredi', 'jeudi', 'jeudi',
+    'vendredi', 'vendredi', 'samedi', 'samedi', 'dimanche', 'dimanche'];
   const { config, erreur } = lireConfig();
   if (erreur) { console.error('Répétition INDISPONIBLE — ' + erreur); process.exit(1); }
   repeter(config).then(jours => {
@@ -282,18 +320,18 @@ if (require.main === module && process.argv.includes('--comparer')) {
     jours.forEach((j, i) => {
       if (j.echecs.length) {
         mauvais++;
-        console.error(`${NOMS[i].padEnd(10)} fenêtre ${j.fenetre} j — ÉCHEC`);
+        console.error(`${NOMS[i].padEnd(10)} ${j.heure} fenêtre ${j.fenetre} j — ÉCHEC`);
         for (const e of j.echecs) console.error('    · ' + e);
       } else {
-        console.log(`${NOMS[i].padEnd(10)} fenêtre ${j.fenetre} j — ${j.volumes.sp95} + ${j.volumes.go} = 36 000 L,`
+        console.log(`${NOMS[i].padEnd(10)} ${j.heure} fenêtre ${j.fenetre} j — ${j.volumes.sp95} + ${j.volumes.go} = 36 000 L,`
           + ` reliquat ${j.reliquatL} L, stock sp95 projeté ${j.stockPrevuSp95} L`);
       }
     });
     if (mauvais) {
-      console.error(`\n${mauvais} jour(s) sur 7 en échec — ne pas pousser : la CI trouverait la même chose six minutes plus tard.`);
+      console.error(`\n${mauvais} cas sur 14 en échec — ne pas pousser : la CI trouverait la même chose six minutes plus tard.`);
       process.exit(1);
     }
-    console.log('\n7/7 jours conformes — scénario cohérent avec la configuration connue de la station Test.');
+    console.log('\n14/14 cas conformes — scénario cohérent avec la configuration connue de la station Test.');
     console.log('Ceci n\'est PAS la preuve UI : seule la recette navigateur juge l\'écran et la base réelle.');
     process.exit(0);
   }).catch(e => { console.error('Répétition INDISPONIBLE — ' + e.message); process.exit(1); });

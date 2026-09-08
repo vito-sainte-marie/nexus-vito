@@ -108,14 +108,31 @@ on conflict (site, date, quart) do update
 --          laquelle la récupération du reliquat ne serait jamais exercée.
 -- Le GNR reste NULL : la cuve D est déclarée inactive dans station_config, et
 -- un relevé sur un carburant inactif serait une donnée qui n'existe pas.
-with reperes as (
+with maintenant as (
+  select (now() at time zone 'America/Martinique') as t
+), reperes as (
   select
-    (now() at time zone 'America/Martinique')::date as aujourdhui,
+    t::date as aujourdhui,
+    -- Fenêtre de vente avant livraison. Elle dépend de DEUX choses, et le
+    -- 08/09/2026 le semis n'en modélisait qu'une.
+    --
+    -- Le jour de la semaine, et le CUTOFF de 11 h : avant, la commande part
+    -- aujourd'hui et la livraison est au prochain jour ouvrable ; après, tout
+    -- glisse d'un cran. La recette est passée à 9 h puis a cassé à 13 h 25 —
+    -- le stock projeté tombait de +400 à −1000 et la recommandation redevenait
+    -- physiquement impossible.
+    --
+    -- Le jeudi après 11 h saute à QUATRE jours : commande vendredi, livraison
+    -- lundi. Ces valeurs sont MESURÉES au banc
+    -- (`outils/repetition-recette-carburants.js`, 14 cas), jamais déduites.
     case
-      when extract(isodow from (now() at time zone 'America/Martinique')::date) between 1 and 4 then 1
-      when extract(isodow from (now() at time zone 'America/Martinique')::date) in (5, 6) then 3
+      when extract(isodow from t) between 1 and 3 then (case when extract(hour from t) >= 11 then 2 else 1 end)
+      when extract(isodow from t) = 4            then (case when extract(hour from t) >= 11 then 4 else 1 end)
+      when extract(isodow from t) = 5            then (case when extract(hour from t) >= 11 then 4 else 3 end)
+      when extract(isodow from t) = 6            then 3
       else 2
     end::int as fenetre
+  from maintenant
 )
 insert into carburant_releves
   (site, date, stock_reel_sp95, stock_reel_go_cuve1, stock_reel_go_cuve2, stock_reel_gnr, origine, mesure_le, controle_statut)

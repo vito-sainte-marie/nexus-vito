@@ -107,7 +107,13 @@
     <div class="subtitle" id="sousTitre">Chargement…</div>
   </div>
   <div class="divider"></div>
-  <div class="section" id="root"><div class="empty-note">Chargement…</div></div>
+  <!-- `data-nexus-live` est un MARQUEUR DE CONTRAT, pas un libellé. La recette
+     navigateur prouvait l'accès Créateur en cherchant le mot « Timeline » à
+     l'écran ; renommer cette section en « Ce qui s'est passé » a cassé la
+     preuve. Une preuve qui juge une prose juge un vocabulaire — même défaut
+     que le refus d'accès jugé sur ses mots le 07/09. Ce marqueur ne change
+     pas quand on réécrit un titre. -->
+<div class="section" id="root" data-nexus-live="chargement"><div class="empty-note">Chargement…</div></div>
 </div>
 <script>
   // NEXUS LIVE DÉVELOPPEMENT — MVP (07/09/2026), lot
@@ -122,6 +128,7 @@
   // utilisateur non Créateur charge la page mais n'obtient aucune donnée.
 
   function afficherRefus(motif) {
+    document.getElementById('root').dataset.nexusLive = 'refuse';
     document.getElementById('sousTitre').textContent = 'Accès refusé';
     document.getElementById('root').innerHTML =
       `<div class="locked">Cet écran est réservé au Créateur NEXUS.<br>(${motif})</div>`;
@@ -228,6 +235,9 @@
     document.getElementById('sousTitre').innerHTML =
       `Environnement Test · dernière analyse <span class="fraicheur ${f.niveau}">${texteFraicheur(f)}</span>`;
     const root = document.getElementById('root');
+    // Le Créateur est entré ET l'écran a rendu quelque chose : c'est CE fait
+    // que la recette doit pouvoir constater, pas un libellé.
+    root.dataset.nexusLive = 'rendu';
     if (!evenements.length) {
       root.innerHTML = blocVerdict(verdict) + blocRisques(verdict.risques)
         + '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>'

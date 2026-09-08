@@ -259,7 +259,12 @@ async function observerLive(navigateur, base, nom, pin) {
         // contrat, et ils ne changeront pas au gré d'une reformulation.
         refuse: /capacite_createur_absente|session_absente|module_acces_indisponible/.test(texte),
         evenementsAffiches: (document.querySelectorAll('[data-evenement], .timeline-item, .card').length),
-        contientTimeline: /Timeline/i.test(texte),
+        // MARQUEUR DE CONTRAT, pas un libellé. Chercher le mot « Timeline »
+        // a cassé la preuve le jour où cette section a été renommée « Ce qui
+        // s'est passé » — une preuve qui juge une prose juge un vocabulaire,
+        // exactement comme le refus d'accès jugé sur ses mots le 07/09.
+        contientTimeline: document.getElementById('root')
+          && document.getElementById('root').dataset.nexusLive === 'rendu',
       };
     });
   } finally {
