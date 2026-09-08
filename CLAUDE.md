@@ -100,13 +100,28 @@ elle les vrais findings qu'elle aurait trouvés ensuite.
 Aller plus vite, ce n'est pas prouver moins. C'est cesser de demander la
 permission pour ce qui est déjà écrit.
 
-## En attente d'arbitrage — pas en vigueur
+## Arbitrage a posteriori — EN VIGUEUR depuis le 08/09/2026
 
-Proposé le 07/09/2026 : qu'un lot purement outillage, garde ou QA — sans
-changement métier, sans secret, sans Production, sans `main` — puisse se publier
-et s'arbitrer **a posteriori**. Les six lots du 07/09 auraient tenu en deux
-arbitrages. Cela modifie le contrat du Handoff : à trancher entre Frédéric et
-l'Orchestrator, jamais par Claude seul.
+Un lot purement **outillage, garde, test, mutation, calibration ou câblage CI**
+peut être exécuté puis arbitré **a posteriori**, sans attendre une décision
+préalable. Accordé par l'Orchestrator (Q76, `decision-1.md` du lot
+NEXUS-ORCHESTRATION-GUARDIANS-1-20260907) et validé par Frédéric le 08/09/2026.
+
+Les quatre conditions doivent être **simultanément** vraies :
+
+1. aucun choix métier ou produit ;
+2. aucun secret — ni lecture, ni rotation, ni création — et aucune dépendance
+   ou harnais tiers élargissant la surface de sécurité ;
+3. aucune action Production, Supabase Production ou NEXUS Production ;
+4. aucune modification de `main`.
+
+Dès qu'une seule condition tombe, retour immédiat au régime normal : arbitrage
+préalable. Cette pré-autorisation ne couvre jamais une correction applicative
+hors lot, ni un élargissement silencieux de périmètre.
+
+Elle ne change rien aux preuves. Un lot arbitré a posteriori se publie avec le
+même `request-N.md`, les mêmes preuves mesurées, les mêmes mutations, la même
+régression. Ce qui change, c'est le moment de la question — pas son exigence.
 
 ---
 

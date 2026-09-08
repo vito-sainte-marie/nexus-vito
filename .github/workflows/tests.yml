@@ -333,7 +333,24 @@ jobs:
             echo "FUITE D'ISOLATION : le rôle CI a écrit sur site-fantome-test. La politique RLS ne borne pas ce qu'elle prétend borner."
             exit 1
           fi
-          echo "Isolation vérifiée : le rôle CI est refusé hors du site de recette."
+          # Le droit de LECTURE sur `sites` ne doit rien montrer. Il n'existe que
+          # pour laisser s'évaluer la sous-requête d'une politique `TO PUBLIC`
+          # de `carburant_releves` ; RLS est active sur `sites` et toutes ses
+          # politiques visent `authenticated`, dont ce rôle n'est pas membre.
+          # Cette affirmation ne reste pas un commentaire : si une politique
+          # `TO PUBLIC` était un jour ajoutée sur `sites`, la lecture cesserait
+          # d'être vide et on l'apprendrait le jour même, pas à l'incident.
+          lignes=$(psql -tAc "select count(*) from public.sites" 2>&1)
+          # Un compte non numérique n'est pas une fuite, c'est une erreur : les
+          # confondre nommerait un fait pour un autre, et enverrait chercher le
+          # défaut au mauvais endroit. Les deux bloquent, mais pas sous le même
+          # nom.
+          case "$lignes" in
+            0) : ;;
+            ''|*[!0-9]*) echo "LECTURE INVÉRIFIABLE sur sites — ne rien conclure : $lignes"; exit 1 ;;
+            *) echo "FUITE DE LECTURE : le rôle CI voit $lignes ligne(s) dans sites, il ne doit en voir aucune."; exit 1 ;;
+          esac
+          echo "Isolation vérifiée : le rôle CI est refusé hors du site de recette, et ne voit aucune ligne de sites."
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 
