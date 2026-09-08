@@ -375,12 +375,25 @@ muter('reRivale accepte n\'importe quelle occurrence', (s) =>
 // Une garde calibrée sur le dépôt doit rester vérifiable CONTRE lui : c'est
 // le seul endroit où « 3 findings » veut dire quelque chose.
 
-t('sur le dépôt réel : le défaut canonique 36000 est bien vu', () => {
-  const r = garde.analyser({ racine: __dirname });
-  const camion = r.findings.filter((f) => f.constante === 'MAXIMUM_CAMION_LITRES');
-  assert.ok(camion.length >= 1, 'la capacité camion recopiée hors du moteur doit rester visible');
-  assert.ok(camion.some((f) => f.fichier.endsWith('.html')),
-    'dont au moins une copie dans un écran — le cas cité par ARCH-001');
+t('sur le dépôt réel : la capacité camion n’est plus recopiée nulle part', () => {
+  // CETTE ÉPREUVE A ÉTÉ RETOURNÉE le 08/09/2026, et le retournement mérite
+  // d'être expliqué.
+  //
+  // Elle exigeait auparavant que le défaut EXISTE : « la capacité camion
+  // recopiée hors du moteur doit rester visible », avec au moins une copie
+  // dans un écran. C'était utile tant que le défaut était là — cela prouvait
+  // que la garde le voyait. Mais une épreuve qui exige la présence d'un bug
+  // le VERROUILLE : le jour où on le corrige, c'est elle qui casse, et la CI
+  // désigne le correctif comme une régression. C'est exactement ce qui s'est
+  // produit en fermant CARB-007.
+  //
+  // La capacité de DÉTECTION reste prouvée, mais par des cas synthétiques
+  // (plus haut dans ce fichier) : c'est leur rôle. Le dépôt réel, lui, sert à
+  // vérifier que le défaut ne revient pas.
+  const camion = garde.analyser({ racine: __dirname }).findings
+    .filter((f) => f.constante === 'MAXIMUM_CAMION_LITRES');
+  assert.deepStrictEqual(camion.map((f) => `${f.fichier}:${f.ligne}`), [],
+    'la capacité camion doit rester la propriété du moteur — aucune copie, ni dans un écran, ni ailleurs');
 });
 
 t('sur le dépôt réel : le volume de findings reste lisible', () => {
@@ -389,6 +402,10 @@ t('sur le dépôt réel : le volume de findings reste lisible', () => {
   // légitime le fait franchir, c'est la calibration qu'il faut rouvrir —
   // avec la même méthode : lire les findings un par un.
   const r = garde.analyser({ racine: __dirname });
+  // Le plancher a disparu volontairement : le dépôt est à zéro finding depuis
+  // le 08/09/2026, et exiger un minimum reviendrait à exiger qu'un défaut
+  // subsiste. Seul le plafond reste : il dit que la garde n'a pas recommencé
+  // à hurler, pas que le dépôt est sain.
   assert.ok(r.findings.length <= 8,
     `${r.findings.length} findings : au-delà de ~8 la garde redevient du bruit, il faut la recalibrer.\n`
     + r.findings.map((f) => `  ${f.fichier}:${f.ligne} ${f.constante}`).join('\n'));

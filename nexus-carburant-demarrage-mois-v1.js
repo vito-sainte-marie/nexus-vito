@@ -58,8 +58,19 @@
     const livraison=fenetre&&fenetre.livraisonISO;
     if(!livraison || livraison.slice(0,7)===ctx.dateISO.slice(0,7)) return null;
 
-    const maximum=Number(ctx.config.maximum_camion_litres)||36000;
-    const minimum=Number(ctx.config.minimum_camion_litres)||3000;
+    // FAIL CLOSED plutôt que valeurs de repli (08/09/2026, même famille que
+    // CARB-007). Avant : `Number(...)||36000` et `||3000`. Une configuration
+    // absente produisait donc une suggestion calculée sur des constantes
+    // supposées — et 36 000 n'est vrai que pour cette station-ci. Le `||`
+    // transformait une donnée manquante en fait, exactement comme
+    // `valeur || 0` transformait une absence de mesure en zéro ailleurs
+    // aujourd'hui.
+    //
+    // La fonction sait déjà se taire (deux `return null` plus haut) : ne rien
+    // suggérer coûte moins qu'une suggestion fausse.
+    const maximum=Number(ctx.config.maximum_camion_litres);
+    const minimum=Number(ctx.config.minimum_camion_litres);
+    if(!Number.isFinite(maximum)||maximum<=0||!Number.isFinite(minimum)||minimum<=0) return null;
     const deja=volumesEngagesParCarburant(engages);
     const candidats=[];
 

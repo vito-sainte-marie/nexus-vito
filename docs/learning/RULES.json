@@ -235,6 +235,18 @@
       "severity": "blocking",
       "rule": "When a permission blocks an automated step, find the exact mechanism by EXPERIMENT before choosing a fix, then prefer the fix that PRESERVES least privilege over the convenient one. Widening a read or write capability to satisfy a SQL convenience is a permanent cost paid for a temporary comfort; reshaping the statement is usually free.",
       "source": "2026-09-08: publishing the NEXUS Live journal was refused under RLS. Four hypotheses failed in a row — the table grant, the write policy, the emitted actor roles, then a conflict with an invisible row — before an experiment showed the `ON CONFLICT` clause itself requires a read POLICY under RLS, which a table grant does not provide. Granting the CI role read access to the Creator execution journal would have worked; publishing row by row without `ON CONFLICT`, and treating a duplicate key as the expected fact it is, kept the role write-only and needed no new privilege."
+    },
+    {
+      "id": "QA-006",
+      "scope": [
+        "qa",
+        "regression"
+      ],
+      "trigger": "write_test",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A test must never require a known defect to be PRESENT. Asserting that the repository still contains the bug locks it in: the day it is fixed, that test breaks and CI reports the fix as a regression. Prove the detector with synthetic fixtures; use the real repository to check the defect does not COME BACK.",
+      "source": "2026-09-08: closing CARB-007 removed the copied truck capacity from a screen, and test_guardian_regles_metier failed with « la capacité camion recopiée hors du moteur doit rester visible » — the fix was flagged as a new failing test"
     }
   ]
 }
