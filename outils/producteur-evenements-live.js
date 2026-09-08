@@ -77,13 +77,32 @@ function evenement({ lot, run, acteur, role, phase, statut, resume, preuve, gate
   return e;
 }
 
+// ── Qui la CI a le droit d'être ─────────────────────────────────────────
+//
+// La politique `publication_ci` n'autorise au rôle technique de la CI que les
+// acteurs `ci` et `guardian`. Ce n'est pas une contrainte administrative :
+// elle empêche la CI de PARLER AU NOM d'un humain, de l'Orchestrator ou de
+// Claude. Un journal où n'importe quel automate peut signer « orchestrator »
+// ne prouve plus rien de ce qu'il raconte.
+//
+// Le 08/09/2026 la CI émettait pourtant, depuis le registre Handoff, un
+// événement signé `orchestrator` et un autre signé `execution`. Personne ne
+// s'en apercevait : les identifiants étant déterministes, ces lignes existaient
+// déjà en base et l'ingestion les écartait comme doublons. Le premier lot neuf
+// a produit un identifiant neuf, et la base a refusé — correctement.
+//
+// La CI est l'OBSERVATEUR du registre, pas son auteur. C'est ce que ces
+// événements disent désormais ; `human_gate.who` continue de nommer celui qui
+// doit décider.
+const ROLES_PUBLIABLES_PAR_LA_CI = ['ci', 'guardian'];
+
 // ── Faits : le registre Handoff ─────────────────────────────────────────
 function evenementsRegistre(etatDep, horodatage) {
   const evts = [];
   for (const l of etatDep.lots || []) {
     if (l.etat === 'attente_arbitrage') {
       evts.push(evenement({
-        lot: l.lot, run: 'handoff', acteur: 'orchestrator', role: 'orchestrator',
+        lot: l.lot, run: 'handoff', acteur: 'handoff-registre', role: 'ci',
         phase: 'GATE', statut: 'WAITING',
         resume: `Demande ${l.derniereDemande} publiée, en attente d'arbitrage.`,
         preuve: { type: 'handoff', ref: `docs/handoff/lots/${l.lot}/${l.derniereDemande}` },
@@ -95,7 +114,7 @@ function evenementsRegistre(etatDep, horodatage) {
       }));
     } else if (l.etat === 'en_developpement') {
       evts.push(evenement({
-        lot: l.lot, run: 'handoff', acteur: 'claude', role: 'execution',
+        lot: l.lot, run: 'handoff', acteur: 'handoff-registre', role: 'ci',
         phase: 'EXECUTION', statut: 'PROGRESS',
         resume: `Décision déposée, non consommée — le lot attend Claude, pas un arbitrage.`,
         preuve: { type: 'handoff', ref: `docs/handoff/lots/${l.lot}` },
@@ -414,7 +433,17 @@ function sqlIngestionUnitaire(evenements) {
     + ');\n').join('\n');
 }
 
-module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES };
+// Rejette AVANT l'envoi tout événement que la CI n'a pas le droit de signer.
+// La base finirait par le refuser de toute façon — mais des heures plus tard,
+// dans un run rouge dont le message parle de RLS et pas d'usurpation. Ici,
+// l'erreur nomme la cause.
+function rolesInterdits(evenements) {
+  return (evenements || [])
+    .filter(e => e && e.actor && !ROLES_PUBLIABLES_PAR_LA_CI.includes(e.actor.role))
+    .map(e => ({ event_id: e.event_id, role: e.actor.role }));
+}
+
+module.exports = { produire, filtrer, sqlIngestion, sqlIngestionUnitaire, litteral, evenement, identifiant, evenementsRegistre, evenementsGardes, evenementBarriere, evenementBranchesEnRade, evenementDeploiement, GARDES, ROLES_PUBLIABLES_PAR_LA_CI, rolesInterdits };
 
 if (require.main === module) {
   const r = produire();

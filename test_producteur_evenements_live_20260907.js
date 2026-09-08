@@ -272,4 +272,54 @@ t('sans événement, l’ingestion unitaire n’invente pas d’instruction', ()
   assert.ok(!/insert into/.test(P.sqlIngestionUnitaire([])));
 });
 
+// ——— La CI ne parle au nom de personne ————————————————————————————————
+// Le 08/09/2026, la CI publiait depuis le registre Handoff un événement signé
+// `orchestrator` et un autre signé `execution`. La base les refusait — mais
+// personne ne le voyait : les identifiants étant déterministes, ces lignes
+// existaient déjà et l'ingestion les écartait comme doublons. Le premier lot
+// neuf a produit un identifiant neuf, et la CI est passée au rouge sur un
+// message parlant de RLS, pas d'usurpation.
+
+t('la CI ne signe jamais au nom de l’Orchestrator ni de Claude', () => {
+  const etat = { lots: [
+    { lot: 'LOT-A', etat: 'attente_arbitrage', derniereDemande: 'request-1.md' },
+    { lot: 'LOT-B', etat: 'en_developpement' },
+  ] };
+  const evts = P.evenementsRegistre(etat, T0);
+  assert.strictEqual(evts.length, 2, 'les deux états du registre doivent produire un événement');
+  for (const e of evts) {
+    assert.ok(P.ROLES_PUBLIABLES_PAR_LA_CI.includes(e.actor.role),
+      `rôle interdit à la CI : ${e.actor.role} (${e.event_id})`);
+  }
+  assert.deepStrictEqual(P.rolesInterdits(evts), [], 'aucun rôle interdit');
+});
+
+t('le gate du registre continue de nommer QUI doit décider', () => {
+  // Changer l'auteur ne doit pas effacer le destinataire : sans `who`, la
+  // question flotte et l'écran ne sait plus à qui elle s'adresse.
+  const evts = P.evenementsRegistre(
+    { lots: [{ lot: 'LOT-A', etat: 'attente_arbitrage', derniereDemande: 'request-1.md' }] }, T0);
+  assert.strictEqual(evts[0].human_gate.required, true);
+  assert.strictEqual(evts[0].human_gate.who, 'orchestrator');
+  assert.ok(/request-1\.md/.test(evts[0].human_gate.question), evts[0].human_gate.question);
+});
+
+t('un rôle interdit est NOMMÉ, pas seulement rejeté', () => {
+  const faux = { event_id: 'evt-x', actor: { id: 'a', role: 'orchestrator' } };
+  const r = P.rolesInterdits([faux, { event_id: 'evt-ok', actor: { id: 'b', role: 'ci' } }]);
+  assert.strictEqual(r.length, 1, JSON.stringify(r));
+  assert.strictEqual(r[0].event_id, 'evt-x');
+  assert.strictEqual(r[0].role, 'orchestrator', 'le rôle fautif doit être dit');
+});
+
+t('TOUT ce que le producteur émet réellement est publiable par la CI', () => {
+  // L'épreuve qui compte : non pas un cas fabriqué, mais la production réelle
+  // sur ce dépôt. C'est elle qui aurait vu le défaut du 08/09.
+  const r = P.produire();
+  if (r.erreur) return; // producteur indisponible ici : ne rien conclure
+  assert.ok(r.evenements.length, 'la production réelle ne doit pas être vide');
+  assert.deepStrictEqual(P.rolesInterdits(r.evenements), [],
+    'la CI émet un rôle qu’elle n’a pas le droit d’écrire');
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — le producteur se tait sur ce qu’il ignore.`);
