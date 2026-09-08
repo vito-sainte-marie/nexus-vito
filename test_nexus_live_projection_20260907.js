@@ -529,6 +529,22 @@ t('un journal vide ou absent ne fabrique aucune entrée', () => {
   }
 });
 
+t('un travail Claude vu depuis GitHub, avant tout retour Handoff, apparaît dans le résumé au ton « attente »', () => {
+  // Cf. `evenementsAgentGithub` (producteur) : le fait le plus tôt que Live
+  // puisse montrer, avant toute confirmation côté registre. Le ton ne doit
+  // jamais être « ok » — rien n'est encore confirmé.
+  const r = P.resumerTimeline([
+    { occurred_at: '2026-09-08T18:00:00Z', lot_id: 'GITHUB-ISSUE-28', run_id: '115',
+      actor: { id: 'claude-code-action', role: 'execution' }, phase: 'EXECUTION', status: 'PROGRESS',
+      summary: 'Claude travaille sur l\'issue #28 (run 115), pas encore matérialisé dans le Handoff.',
+      evidence: { type: 'github_run', ref: '115' } },
+  ]);
+  assert.strictEqual(r.entrees.length, 1);
+  assert.strictEqual(r.entrees[0].titre, 'Claude travaille');
+  assert.strictEqual(r.entrees[0].ton, 'attente');
+  assert.ok(!r.entrees[0].nonInterprete, 'ce type est désormais interprété, pas relégué en type inconnu');
+});
+
 t('le résumé respecte la chronologie même si le journal ne l’est pas', () => {
   const r = P.resumerTimeline([
     { occurred_at: '2026-09-08T16:00:00Z', lot_id: 'L', run_id: 'r', actor: { id: 'x', role: 'ci' },

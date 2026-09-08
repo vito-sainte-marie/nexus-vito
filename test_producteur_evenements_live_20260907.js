@@ -272,4 +272,70 @@ t('sans événement, l’ingestion unitaire n’invente pas d’instruction', ()
   assert.ok(!/insert into/.test(P.sqlIngestionUnitaire([])));
 });
 
+// ── evenementsAgentGithub : combler l'angle mort issue → Handoff ──────────
+// Le 08/09/2026, l'audit Philosophie tournait dans l'issue #28 sans que Live
+// n'en dise rien : aucun lot Handoff n'existait encore. Ces épreuves
+// défendent que le seul fait disponible à ce moment — un run GitHub Actions
+// du workflow `claude.yml` non terminé — devient un événement visible, sans
+// jamais inventer ce qu'on ne sait pas.
+
+t('un run Claude en cours sur une issue devient un événement visible', () => {
+  const evts = P.evenementsAgentGithub(T0, { lister: () => ([
+    { databaseId: 111, status: 'in_progress', event: 'issue_comment', headBranch: 'claude/issue-28-20260908-1806' },
+  ]) });
+  assert.strictEqual(evts.length, 1);
+  assert.strictEqual(evts[0].lot_id, 'GITHUB-ISSUE-28');
+  assert.strictEqual(evts[0].phase, 'EXECUTION');
+  assert.strictEqual(evts[0].status, 'PROGRESS');
+  assert.strictEqual(evts[0].actor.role, 'execution');
+  assert.ok(/issue #28/.test(evts[0].summary), evts[0].summary);
+  assert.deepStrictEqual(contrat.validerEvenementLive(evts[0]), []);
+});
+
+t('un run en file d’attente est STARTED, pas PROGRESS — on ne prétend pas qu’il travaille déjà', () => {
+  const evts = P.evenementsAgentGithub(T0, { lister: () => ([
+    { databaseId: 112, status: 'queued', event: 'issue_comment', headBranch: 'claude/issue-9-20260908-0000' },
+  ]) });
+  assert.strictEqual(evts[0].status, 'STARTED');
+});
+
+t('un run déjà completed ne produit RIEN — son sort est déjà visible ailleurs (Handoff/CI/gardes)', () => {
+  const evts = P.evenementsAgentGithub(T0, { lister: () => ([
+    { databaseId: 113, status: 'completed', event: 'issue_comment', headBranch: 'claude/issue-28-20260908-1806' },
+  ]) });
+  assert.deepStrictEqual(evts, []);
+});
+
+t('une branche qui n’est pas de la forme claude/issue-<n>- ne produit rien — on ne devine pas le numéro', () => {
+  const evts = P.evenementsAgentGithub(T0, { lister: () => ([
+    { databaseId: 114, status: 'in_progress', event: 'issue_comment', headBranch: 'config-par-environnement' },
+  ]) });
+  assert.deepStrictEqual(evts, []);
+});
+
+t('pas de réseau / `gh` absent : aucun événement inventé, jamais une exception', () => {
+  const evts = P.evenementsAgentGithub(T0, { lister: () => null });
+  assert.deepStrictEqual(evts, []);
+});
+
+t('extraireNumeroIssue lit le numéro porté par la convention de nommage des branches Claude', () => {
+  assert.strictEqual(P.extraireNumeroIssue('claude/issue-28-20260908-1806'), '28');
+  assert.strictEqual(P.extraireNumeroIssue('claude/issue-1234-x'), '1234');
+  assert.strictEqual(P.extraireNumeroIssue('main'), null);
+  assert.strictEqual(P.extraireNumeroIssue(undefined), null);
+});
+
+t('produire() assemble bien ce nouveau fait, et le contrat l’accepte', () => {
+  const r = P.produire({
+    maintenant: new Date(T0), executerGarde: () => 0,
+    listerRunsClaude: () => ([
+      { databaseId: 115, status: 'in_progress', event: 'issue_comment', headBranch: 'claude/issue-28-20260908-1806' },
+    ]),
+  });
+  assert.strictEqual(r.erreur, null);
+  const trouve = r.evenements.find(e => e.lot_id === 'GITHUB-ISSUE-28');
+  assert.ok(trouve, 'l’événement GitHub doit figurer dans le flux assemblé');
+  assert.deepStrictEqual(contrat.validerEvenementLive(trouve), []);
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — le producteur se tait sur ce qu’il ignore.`);

@@ -433,6 +433,16 @@
         continue;
       }
 
+      // Le travail Claude vu depuis GitHub, avant tout retour Handoff — cf.
+      // `evenementsAgentGithub` (producteur). C'est le fait le plus tôt que
+      // Live puisse montrer : rien ne l'a encore confirmé côté registre, donc
+      // le ton reste « attente », jamais « ok ».
+      if (type === 'github_run') {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Claude travaille',
+          detail: e.summary, ton: 'attente' });
+        continue;
+      }
+
       if (e.human_gate && e.human_gate.required) {
         entrees.push({ occurredAt: e.occurred_at, titre: 'Arbitrage demandé',
           detail: e.human_gate.question, ton: 'vigilance' });
