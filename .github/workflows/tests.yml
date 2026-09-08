@@ -258,10 +258,46 @@ jobs:
       # écrites dans $GITHUB_ENV ne prennent effet qu'au step SUIVANT. Les
       # laisser dans le même step aurait lancé `psql` sans aucune connexion —
       # le genre d'erreur qui rend un rouge incompréhensible.
+      # Une base INJOIGNABLE et une base qui REFUSE ne sont pas le même fait, et
+      # les confondre coûte les deux fois. Le 08/09/2026, l'hôte direct de
+      # Supabase (`db.<ref>.supabase.co`) ne publie plus qu'une adresse IPv6 ;
+      # les runners GitHub n'ont pas d'IPv6. Le semis est donc devenu rouge le
+      # jour même où le secret d'écriture a enfin été créé — et ce rouge a
+      # emporté avec lui la recette navigateur, seule preuve que l'écran
+      # Carburants et NEXUS Live fonctionnent réellement. Une capacité Test
+      # absente ne doit jamais faire perdre les preuves qui, elles, tiennent.
+      #
+      # La tolérance est donc STRICTEMENT limitée à l'injoignabilité réseau.
+      # Un refus d'authentification, un droit manquant, une erreur SQL : tout
+      # cela reste bloquant. C'est la différence entre « je n'ai pas pu
+      # demander » et « on m'a répondu non » — la seconde est un vrai défaut.
       - name: Semer le scénario Carburants sur Supabase Test
         if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
         run: |
-          psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql
+          set -uo pipefail
+          if ! sonde=$(psql -v ON_ERROR_STOP=1 -c 'select 1' 2>&1 >/dev/null); then
+            if grep -qiE 'network is unreachable|could not translate host name|connection timed out|no route to host' <<<"$sonde"; then
+              echo "::warning::ENV-003 — base Test INJOIGNABLE depuis le runner : $sonde"
+              echo "::warning::Le jeu de recette n'a PAS été semé. La recette navigateur juge des données déjà présentes ; si elles ont dérivé, elle échouera — elle ne rendra pas un vert de complaisance."
+              echo "::warning::Cause connue : l'hôte direct Supabase ne publie qu'une adresse IPv6, absente des runners GitHub. Correctif = pointer SUPABASE_TEST_DB_URL_WRITE sur le pooler de session (IPv4). Geste humain : c'est un secret."
+              echo "NEXUS_SEMIS_FAIT=0" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "La base Test a RÉPONDU, et elle a refusé — ce n'est pas une indisponibilité :"
+            echo "$sonde"
+            exit 1
+          fi
+          # `set -e` est absent (la sonde ci-dessus doit pouvoir échouer sans
+          # tuer le step) : l'échec du semis se vérifie donc À LA MAIN. Un
+          # premier jet l'a oublié et une erreur SQL sortait en vert — le
+          # défaut même que ce bloc existe pour empêcher, retrouvé par l'essai
+          # à faux `psql` plutôt qu'en production.
+          if ! psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql; then
+            echo "Le semis a échoué alors que la base RÉPONDAIT — défaut réel, pas une indisponibilité."
+            exit 1
+          fi
+          echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 
       - name: Installer Playwright
