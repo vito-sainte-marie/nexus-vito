@@ -28,22 +28,14 @@
 
   const NON_EVALUE = 'Non évalué';
 
-  // `null`, `undefined`, chaîne vide ou non numérique, NaN, et TOUT type qu'on
-  // ne sait pas lire -> absent. Le nombre 0 -> présent.
-  //
-  // Le premier jet faisait `Number(v)` sur n'importe quoi. Or `Number([])`
-  // vaut 0 : un tableau vide devenait une note de zéro, c'est-à-dire
-  // exactement le défaut qu'on corrige, par une autre porte. On n'accepte donc
-  // qu'un nombre fini ou une chaîne qui en est un — le reste est illisible, et
-  // ne pas savoir lire n'autorise pas à inventer.
-  function estAbsent(v) {
-    if (typeof v === 'number') return !Number.isFinite(v);
-    if (typeof v === 'string') {
-      const s = v.trim();
-      return s === '' || !Number.isFinite(Number(s));
-    }
-    return true;
-  }
+  // « Une mesure absente n'est pas une mesure nulle » a UN propriétaire
+  // logique : `nexus-mesure.js`. Le même défaut ayant été trouvé à trois
+  // endroits en une journée (EVAL-001, DEBUG-001, COACH-001), en garder une
+  // copie ici aurait garanti qu'elles divergent un jour.
+  const mesure = (typeof require === 'function' && typeof module !== 'undefined')
+    ? require('./nexus-mesure.js')
+    : global.NexusMesure;
+  const estAbsent = (v) => mesure.estAbsente(v);
 
   // `evenement` : { kind, total, prime_pct, points }
   // Rend TOUJOURS une chaîne : soit une mesure réelle, soit l'état neutre.

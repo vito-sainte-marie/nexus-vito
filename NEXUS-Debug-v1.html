@@ -9,6 +9,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-station.js"></script>
+<script src="nexus-mesure.js?v=20260908"></script>
+<script src="nexus-ecart-affichage.js?v=20260908"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <style>
   :root{
@@ -53,6 +55,12 @@
   .btn{width:100%; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
   .btn-primary{background:var(--cyan); color:#04141a;}
   .btn-danger{background:transparent; color:var(--red); border:1px solid var(--red);}
+  /* DEBUG-001 : l'absence de mesure n'est ni conforme ni anormale. Elle ne
+     doit donc emprunter ni le vert ni le rouge — sans quoi un contrôle qui
+     n'a pas eu lieu se lit comme un contrôle réussi. */
+  .ecart-conforme{color:var(--green);}
+  .ecart-anomalie{color:var(--red);}
+  .ecart-neutre{color:var(--text-dim, #8b96a5); font-style:italic; font-weight:500;}
   .btn:disabled{opacity:0.35; cursor:not-allowed;}
 
   .msg{font-size:12px; margin-top:12px; padding:10px; border-radius:8px; text-align:center; display:none;}
@@ -557,9 +565,15 @@
       <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;">
         <div style="display:flex; justify-content:space-between;">
           <span class="kv-key">Quart ${a.quart} · statut ${a.statut || '—'}</span>
-          <span class="kv-val" style="color:${(a.ecart_total||0)===0?'var(--green)':'var(--red)'};">${(a.ecart_total||0)>=0?'+':''}${Math.round(a.ecart_total||0)} €</span>
+          <!-- DEBUG-001 (08/09/2026). Avant, la couleur et le texte étaient
+               calculés sur `a.ecart_total || 0` : un écart JAMAIS MESURÉ
+               s'affichait « +0 € » en VERT, c'est-à-dire comme une conformité
+               parfaite. Trois signaux mentaient ensemble. La règle vit
+               désormais dans `nexus-ecart-affichage.js`, éprouvée, et cet
+               écran la consomme sans la reconstruire. -->
+          <span class="kv-val ecart-${window.NexusEcartAffichage.classeEcart(a.ecart_total)}">${window.NexusEcartAffichage.libelleEcart(a.ecart_total)}</span>
         </div>
-        <div class="kv-names">Piste ${(a.ecart_piste||0)>=0?'+':''}${Math.round(a.ecart_piste||0)} € · Boutique ${(a.ecart_boutique||0)>=0?'+':''}${Math.round(a.ecart_boutique||0)} €${a.commentaire ? ' · ' + a.commentaire : ''}</div>
+        <div class="kv-names">${window.NexusEcartAffichage.libelleDetail(a.ecart_piste, a.ecart_boutique)}${a.commentaire ? ' · ' + a.commentaire : ''}</div>
         <button class="btn btn-danger" data-id="${a.id}" data-date="${a.date}" onclick="supprimerAuditCaisse(this)">Supprimer cet audit</button>
       </div>`).join('');
 
