@@ -82,4 +82,55 @@ t('MÉCANISME — aucune évaluation d’une personne n’est déduite d’une a
   assert.strictEqual(ev.libelleScore({ kind: 'Évaluation Renfort', total: 0 }), '0.0 / 5');
 });
 
+// ── La note de révision de la Constitution (08/09/2026) ──────────────
+// Même exigence : une note qui déclare deux articles partiellement historiques
+// affirme trois choses. Que la scission a bien eu lieu ailleurs, que la note
+// existe, et que la dette qu'elle annonce est réellement suivie. Une note qui
+// renvoie à un Backlog où rien n'est inscrit est un classement sans suite.
+
+const CONSTITUTION = path.join(__dirname, 'NEXUS-Constitution-v1.md');
+const BACKLOG = path.join(__dirname, 'docs', 'nexus', 'BACKLOG.md');
+
+t('la Constitution marque les articles 12 et 13 comme partiellement historiques', () => {
+  const src = fs.readFileSync(CONSTITUTION, 'utf8');
+  const i = src.indexOf('## Note de révision (08/09/2026)');
+  assert.ok(i > 0, 'la note de révision du 08/09/2026 doit exister');
+  const note = src.slice(i);
+  assert.ok(/Articles 12 et 13/.test(note), 'elle doit nommer les articles visés');
+  assert.ok(/Directeur d’Exploitation|Directeur d'Exploitation/.test(note));
+  assert.ok(/Coach Terrain/.test(note));
+
+  // Les articles eux-mêmes ne sont PAS réécrits : réécrire un texte fondateur
+  // pour le faire coïncider avec le présent efface la trace de la décision qui
+  // a changé les choses.
+  // Chaque article est vérifié SÉPARÉMENT. Les balayer ensemble laissait passer
+  // la réécriture de l'un, masquée par l'autre : la mutation survivait.
+  const art12 = src.slice(src.indexOf('## Article 12'), src.indexOf('## Article 13'));
+  const art13 = src.slice(src.indexOf('## Article 13'), src.indexOf('## Article 14'));
+  assert.ok(/Le Conseiller NEXUS possède un langage unique/.test(art12),
+    'l’article 12 garde son texte d’origine : la note marque, elle ne corrige pas');
+  assert.ok(/Le Conseiller NEXUS peut-il expliquer sa valeur/.test(art13),
+    'l’article 13 aussi');
+});
+
+t('la scission que la note invoque existe VRAIMENT dans la Bible', () => {
+  // Sans cela, la note renverrait à une décision qui n'a pas été prise.
+  const bible = fs.readFileSync(BIBLE, 'utf8');
+  const agents = bible.slice(bible.indexOf('## Agents NEXUS'), bible.indexOf('## Gouvernance'));
+  assert.ok(/NEXUS Directeur d’Exploitation|NEXUS Directeur d'Exploitation/.test(agents));
+  assert.ok(/NEXUS Coach Terrain/.test(agents));
+  assert.ok(/distincts/.test(agents), 'la Bible doit poser les deux agents comme distincts');
+});
+
+t('la dette de propagation annoncée par la note est réellement suivie', () => {
+  // La note dit que le renommage « se traite au Backlog ». Un renvoi vers un
+  // Backlog où rien n'est inscrit serait un classement sans suite.
+  const b = fs.readFileSync(BACKLOG, 'utf8');
+  assert.ok(/\| LANG-004 \|/.test(b), 'LANG-004 doit exister au Backlog');
+  const ligne = b.split('\n').find(l => l.includes('| LANG-004 |'));
+  assert.ok(/Conseiller NEXUS/.test(ligne), 'l’item doit nommer le terme à propager');
+  assert.ok(/Coach Terrain/.test(ligne) && /Directeur d/.test(ligne),
+    'et les DEUX agents : un remplacement global par un seul serait pire que la dette');
+});
+
 console.log(`\n${n}/${n} vérifications passées — une ligne de Bible que rien ne tient n’est pas une règle.`);
