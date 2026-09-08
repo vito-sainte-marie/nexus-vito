@@ -341,4 +341,24 @@ epreuve('un Créateur REFUSÉ n’est pas jugé sur un bouton qu’il ne peut pa
     'le vrai défaut est le refus, pas l’absence de bouton : ' + e.join(' | '));
 });
 
+epreuve('une question déjà répondue ne doit pas reproposer le bouton', () => {
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  const e = verifierLive({ texte: 'Tu as répondu', refuse: false, contientTimeline: true,
+    attente: 'repondu', boutonAutoriser: true }, manager);
+  assert.ok(/déjà répondue/.test(e.join(' ')), e.join(' | '));
+
+  assert.deepStrictEqual(verifierLive({ texte: 'Tu as répondu', refuse: false,
+    contientTimeline: true, attente: 'repondu', boutonAutoriser: false }, manager), [],
+    'l’état conforme doit passer, sinon l’épreuve ci-dessus ne prouve rien');
+});
+
+epreuve('un état d’attente INCONNU n’est pas jugé conforme par défaut', () => {
+  // C'est ainsi qu'un écran modifié cesse silencieusement d'être jugé : la
+  // recette ne reconnaît plus rien, donc elle ne reproche plus rien.
+  const manager = { texte: '(capacite_createur_absente)', refuse: true, contientTimeline: false };
+  const e = verifierLive({ texte: 'x', refuse: false, contientTimeline: true,
+    attente: 'en-cours-de-reflexion', boutonAutoriser: false }, manager);
+  assert.ok(/état d’attente inconnu/.test(e.join(' ')), e.join(' | '));
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);

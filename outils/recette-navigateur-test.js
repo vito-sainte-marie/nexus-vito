@@ -279,6 +279,11 @@ async function observerLive(navigateur, base, nom, pin) {
   }
 }
 
+// Vocabulaire FERMÉ. Un état d'attente que la recette ne connaît pas ne doit
+// pas passer pour conforme : c'est ainsi qu'un écran modifié cesse silencieuse-
+// ment d'être jugé.
+const ATTENTES_CONNUES = ['rien', 'arbitrage', 'repondu'];
+
 function verifierLive(createur, manager) {
   const echecs = [];
   // `createur === null` signifie « pas d'observation », pas « refusé ». On ne
@@ -307,6 +312,16 @@ function verifierLive(createur, manager) {
     }
     if (createur.attente === 'rien' && createur.boutonAutoriser) {
       echecs.push('L’écran annonce que rien n’attend Frédéric, mais propose quand même d’autoriser.');
+    }
+    // Répondre n'est pas résoudre : une question déjà répondue ne doit pas
+    // reproposer le même bouton. Cliquer deux fois n'apprendrait rien de plus
+    // et fabriquerait une seconde décision identique.
+    if (createur.attente === 'repondu' && createur.boutonAutoriser) {
+      echecs.push('La question est déjà répondue, mais l’écran repropose d’autoriser.');
+    }
+    if (!ATTENTES_CONNUES.includes(createur.attente)) {
+      echecs.push(`L’écran déclare un état d’attente inconnu : « ${createur.attente} ». `
+        + 'Un état non prévu ne doit pas être jugé conforme par défaut.');
     }
   }
   return echecs;
@@ -418,6 +433,8 @@ if (require.main === module) {
           : !c.attente ? 'NON SATISFAITE — l’écran ne déclare pas ce qu’il attend'
           : c.attente === 'arbitrage'
             ? `un arbitrage est annoncé, bouton ${c.boutonAutoriser ? 'présent' : 'ABSENT'}`
+          : c.attente === 'repondu'
+            ? `question répondue mais cause non levée, bouton ${c.boutonAutoriser ? 'REPROPOSÉ À TORT' : 'retiré'}`
             : `aucun arbitrage en attente, bouton ${c.boutonAutoriser ? 'PRÉSENT À TORT' : 'absent'}`));
       process.exit(0);
     }

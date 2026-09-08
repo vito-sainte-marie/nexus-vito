@@ -69,7 +69,9 @@ proj = P.construireProjectionLive([
   evt({ event_id: 'e2', occurred_at: '2026-09-07T00:10:00.000Z', phase: 'EXECUTION', status: 'PROGRESS', human_gate: { required: false } }),
 ]);
 assert.strictEqual(proj.system_status, 'AUTONOMOUS');
-assert.strictEqual(proj.human_gate, undefined);
+// `null` et non `undefined` depuis le 08/09/2026 : « rien ne t'attend » et
+// « je n'ai pas regardé » rendaient la même valeur absente.
+assert.strictEqual(proj.human_gate, null);
 ok('gate refermé par un événement postérieur -> AUTONOMOUS');
 
 // 7) Guardians : dernier statut connu par acteur, pas un historique complet.
@@ -891,6 +893,105 @@ t('CONTRAT — l’écran ne réintroduit pas le vocabulaire technique', () => {
   assert.ok(/\$\{technique\}/.test(bloc),
     'et le niveau expert doit être réellement inséré dans le gabarit, pas seulement défini');
   assert.ok(/\$\{phrases\}/.test(bloc), 'comme les phrases en langage clair');
+});
+
+// ——— Répondre n'est pas résoudre ——————————————————————————————————————
+// Le 08/09/2026, Frédéric a cliqué « J'autorise » sur un gate signalant des
+// branches en rade. Le gate s'est refermé ; les branches sont restées en rade.
+// Et comme les `event_id` sont déterministes sur la cause, le signalement
+// suivant de la garde était un doublon écarté à l'ingestion : un clic éteignait
+// une alarme qui restait vraie, définitivement.
+
+const GARDE = 'outils/garde-branches-en-rade.js';
+function evtGate(id, at, q) {
+  return { protocol: 'nexus-execution-event/1', event_id: id, occurred_at: at,
+    lot_id: 'L', run_id: 'branches', actor: { id: 'garde', role: 'guardian' },
+    phase: 'GATE', status: 'WAITING', summary: 's',
+    evidence: { type: 'garde', ref: GARDE },
+    human_gate: { who: 'frederic', question: q, required: true } };
+}
+function evtAutorisation(id, at, refGate) {
+  return { protocol: 'nexus-execution-event/1', event_id: id, occurred_at: at,
+    lot_id: 'L', run_id: 'live', actor: { id: 'Créateur Test', role: 'human' },
+    phase: 'GATE', status: 'PASSED', summary: 'Autorisation accordée',
+    evidence: { type: 'autorisation', ref: refGate },
+    human_gate: { required: false } };
+}
+function evtGardeVerte(id, at, ref) {
+  return { protocol: 'nexus-execution-event/1', event_id: id, occurred_at: at,
+    lot_id: 'L', run_id: 'branches', actor: { id: 'garde', role: 'guardian' },
+    phase: 'GUARDIAN_REVIEW', status: 'PASSED', summary: 'Aucune branche en rade',
+    evidence: { type: 'garde', ref: ref || GARDE }, human_gate: null };
+}
+
+t('GATE — une autorisation ne referme pas un gate dont la cause tient toujours', () => {
+  const proj = P.construireProjectionLive([
+    evtGate('g1', '2026-09-08T18:19:53Z', 'Que fait-on des branches ?'),
+    evtAutorisation('a1', '2026-09-08T18:33:39Z', 'g1'),
+  ]);
+  assert.ok(proj.human_gate, 'le gate doit rester connu : la cause n’a pas été levée');
+  assert.strictEqual(proj.human_gate.event_id, 'g1');
+  assert.ok(proj.human_gate.repondu, 'mais il doit porter la trace de la réponse');
+  assert.strictEqual(proj.human_gate.repondu.par, 'Créateur Test');
+  assert.strictEqual(proj.human_gate.repondu.occurredAt, '2026-09-08T18:33:39Z');
+});
+
+t('GATE — la garde qui a signalé est la seule à pouvoir lever sa cause', () => {
+  const leve = P.construireProjectionLive([
+    evtGate('g1', '2026-09-08T18:19:53Z', 'Q ?'),
+    evtAutorisation('a1', '2026-09-08T18:33:39Z', 'g1'),
+    evtGardeVerte('v1', '2026-09-08T19:00:00Z'),
+  ]);
+  assert.strictEqual(leve.human_gate, null, 'la même garde repassée au vert lève le gate');
+
+  // Une AUTRE garde au vert ne dit rien de cette cause-là.
+  const autre = P.construireProjectionLive([
+    evtGate('g1', '2026-09-08T18:19:53Z', 'Q ?'),
+    evtGardeVerte('v2', '2026-09-08T19:00:00Z', 'outils/guardian-qa.js'),
+  ]);
+  assert.ok(autre.human_gate, 'une garde étrangère ne doit pas lever le gate');
+});
+
+t('GATE — une autorisation qui ne DÉSIGNE pas ce gate ne le marque pas répondu', () => {
+  const proj = P.construireProjectionLive([
+    evtGate('g1', '2026-09-08T18:19:53Z', 'Q ?'),
+    evtAutorisation('a1', '2026-09-08T18:33:39Z', 'un-autre-gate'),
+  ]);
+  assert.ok(proj.human_gate, 'le gate reste ouvert');
+  assert.strictEqual(proj.human_gate.repondu, null,
+    'une autorisation qui répond à autre chose ne doit pas éteindre celle-ci');
+});
+
+t('GATE — un gate SANS source identifiable garde une sortie', () => {
+  // Sinon il resterait ouvert pour toujours et Frédéric n'aurait aucune issue.
+  const g = evtGate('g1', '2026-09-08T18:19:53Z', 'Q ?');
+  g.evidence = { type: 'handoff', ref: '' };
+  const proj = P.construireProjectionLive([g, evtAutorisation('a1', '2026-09-08T18:33:39Z', 'g1')]);
+  assert.strictEqual(proj.human_gate, null,
+    'faute de cause identifiable, la règle historique s’applique et le gate se referme');
+});
+
+t('GATE — un nouveau gate de la même garde remplace le précédent', () => {
+  const proj = P.construireProjectionLive([
+    evtGate('g1', '2026-09-08T18:19:53Z', 'Deux branches ?'),
+    evtAutorisation('a1', '2026-09-08T18:33:39Z', 'g1'),
+    evtGate('g2', '2026-09-08T19:30:00Z', 'Une branche ?'),
+  ]);
+  assert.strictEqual(proj.human_gate.event_id, 'g2');
+  assert.strictEqual(proj.human_gate.repondu, null, 'la nouvelle question n’a pas été répondue');
+  assert.strictEqual(proj.human_gate.question, 'Une branche ?');
+});
+
+t('GATE — même sans le moindre événement, l’écran sait dire qu’il n’attend rien', () => {
+  // La projection vide est le cas « je n'ai rien reçu ». Si `human_gate` y est
+  // absent au lieu d'être nul, « rien ne t'attend » et « je n'ai pas regardé »
+  // redeviennent indiscernables — et rien ne l'aurait signalé, faute d'épreuve
+  // sur ce chemin-là.
+  assert.strictEqual(P.projectionVide().human_gate, null,
+    'human_gate doit être DÉCLARÉ nul, pas absent');
+  assert.ok('human_gate' in P.projectionVide(), 'le champ doit exister');
+  assert.strictEqual(P.construireProjectionLive([]).human_gate, null,
+    'un journal vide déclare lui aussi qu’aucune question n’attend');
 });
 
 console.log(`\n${n} assertions Live-Projection passées.`);

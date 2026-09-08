@@ -238,6 +238,15 @@
   // disparaissait quand aucun arbitrage n'attendait, si bien qu'on ne pouvait
   // pas distinguer « vérifié, rien à faire » de « pas vérifié ». Critères 4 et
   // 8 de sa doctrine. Une absence se DIT.
+  // Rend `null` — et non un tiret — quand l'horodatage n'est pas exploitable :
+  // l'appelant décide alors de ne rien écrire plutôt que d'écrire « le — ».
+  function horodatage(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit',
+      hour: '2-digit', minute: '2-digit' });
+  }
+
   function blocAttente(gate) {
     // `data-attente` est un MARQUEUR DE CONTRAT, pas un libellé : la recette
     // doit pouvoir constater la COHÉRENCE entre ce que l'écran annonce et le
@@ -249,6 +258,19 @@
         <div class="grand">Rien ne t’attend</div>
         <div class="petit">Vérifié à l’instant : aucun arbitrage n’est en attente de ta décision.</div>
       </div>`;
+    }
+    // RÉPONDRE N'EST PAS RÉSOUDRE. Tant que la garde qui a posé la question
+    // n'a pas constaté que sa cause a disparu, l'écran ne dit pas « rien ne
+    // t'attend » — il dit que la réponse est donnée et que la cause tient.
+    // Et il ne represente pas le bouton : cliquer deux fois n'apprendrait rien
+    // de plus et fabriquerait une seconde décision identique.
+    if (gate.repondu) {
+      const quand = horodatage(gate.repondu.occurredAt);
+      return `<div class="card" data-attente="repondu"><div class="section-label">Ce qui t’attend</div>
+        <div>${gate.question}</div>
+        <div class="proposition">Tu as répondu${gate.repondu.par ? ' (' + gate.repondu.par + ')' : ''}
+        ${quand ? 'le ' + quand : ''} — mais la cause n’a pas encore disparu. La garde qui a posé
+        cette question la refermera d’elle-même quand elle constatera qu’elle est levée.</div></div>`;
     }
     return `<div class="card" data-attente="arbitrage"><div class="section-label">Ce qui t’attend</div>
       <div>${gate.question}</div>

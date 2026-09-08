@@ -26,6 +26,12 @@
       next_automatic_step: null,
       last_event_id: null,
       updated_at: null,
+      // DÉCLARÉ, et non simplement absent. `human_gate` n'existait dans la
+      // projection que lorsqu'un gate était ouvert : « rien ne t'attend » et
+      // « je n'ai pas regardé » rendaient tous deux `undefined`. Un champ
+      // tantôt présent tantôt absent est exactement l'ambiguïté que NEXUS
+      // combat ailleurs.
+      human_gate: null,
     };
   }
 
@@ -78,8 +84,36 @@
         // `event_id` transporté : une autorisation doit pouvoir DÉSIGNER la
         // question à laquelle elle répond. Sans cette référence, elle flotte
         // sans objet et rien ne permet de rapprocher la réponse du gate.
+        //
+        // `source` : QUI pose la question. C'est par elle, et par elle seule,
+        // qu'on saura plus tard si la cause a disparu.
         gateActif = { event_id: evt.event_id || null, lot_id: evt.lot_id,
-          reason_code: evt.human_gate.reason_code || null, question: evt.human_gate.question };
+          reason_code: evt.human_gate.reason_code || null, question: evt.human_gate.question,
+          source: sourceDe(evt), repondu: null };
+      } else if (gateActif && causeLevee(evt, gateActif)) {
+        // La cause a disparu, constatée par la garde qui l'avait signalée.
+        gateActif = null;
+      } else if (gateActif && estAutorisation(evt)) {
+        // Une autorisation n'agit QUE sur la question qu'elle désigne. Sans
+        // cette clause, une réponse à un autre gate refermait celui-ci par la
+        // règle historique (`human_gate.required === false`), qu'elle porte
+        // elle aussi. Répondre à une question n'a jamais éteint une autre.
+        if (!estAutorisationDe(evt, gateActif)) continue;
+        // Un gate sans cause observable n'a pas d'autre issue que la réponse :
+        // faute de garde pouvant le lever, on s'en remet à la parole humaine.
+        if (!gateActif.source) { gateActif = null; continue; }
+        // RÉPONDRE N'EST PAS RÉSOUDRE. Le 08/09/2026, Frédéric a autorisé un
+        // gate sur des branches en rade : le gate s'est refermé, les branches
+        // sont restées en rade, et la garde n'a plus rien pu dire — les
+        // `event_id` étant déterministes sur la cause, son signalement suivant
+        // était un doublon écarté à l'ingestion. Un clic éteignait donc
+        // définitivement une alarme qui restait vraie. C'est exactement le
+        // silence rassurant que NEXUS combat partout ailleurs.
+        gateActif = Object.assign({}, gateActif, {
+          repondu: { occurredAt: evt.occurred_at,
+            par: (evt.actor && evt.actor.id) || null,
+            event_id: evt.event_id || null },
+        });
       // `evt.lot_id === gateActif.lot_id` : le commentaire ci-dessus promettait
       // « du même lot » depuis le premier jour, le code ne le vérifiait pas.
       // N'importe quel événement DONE, même d'un autre lot, éteignait donc le
@@ -90,11 +124,12 @@
       }
     }
 
+    projection.human_gate = gateActif;
+
     if (dernier.status === 'BLOCKED' && !gateActif) {
       projection.system_status = STATUT_SYSTEME.BLOQUE;
     } else if (gateActif) {
       projection.system_status = STATUT_SYSTEME.HUMAIN_REQUIS;
-      projection.human_gate = gateActif;
     } else if (dernier.phase === 'DONE' && dernier.status === 'PASSED') {
       projection.system_status = STATUT_SYSTEME.REPOS;
     } else {
@@ -102,6 +137,42 @@
     }
 
     return projection;
+  }
+
+  // ── Répondre n'est pas résoudre ─────────────────────────────────────
+  //
+  // Un gate est posé par une GARDE, identifiée par la référence de sa preuve
+  // (`evidence.ref`). C'est cette référence — et non le lot, ni la phase — qui
+  // désigne la CAUSE. Une garde qui a signalé un problème est la seule à
+  // pouvoir déclarer qu'il a disparu.
+
+  function sourceDe(evt) {
+    const e = evt && evt.evidence;
+    return e && e.ref ? String(e.ref) : null;
+  }
+
+  // La cause est levée quand la MÊME garde repasse au vert. Un gate sans source
+  // identifiable ne peut pas être résolu de cette façon : il reste soumis à la
+  // règle historique (DONE du même lot, ou human_gate.required=false), faute de
+  // quoi il resterait ouvert pour toujours et Frédéric n'aurait aucune sortie.
+  function causeLevee(evt, gate) {
+    if (!gate || !gate.source) return false;
+    return sourceDe(evt) === gate.source
+      && evt.status === 'PASSED'
+      && !(evt.human_gate && evt.human_gate.required);
+  }
+
+  // Une autorisation DÉSIGNE la question à laquelle elle répond. On ne la
+  // reconnaît pas à ses mots — un résumé se reformule — mais à cette
+  // désignation, qui est un contrat.
+  function estAutorisation(evt) {
+    const e = evt && evt.evidence;
+    return !!(e && e.type === 'autorisation');
+  }
+
+  function estAutorisationDe(evt, gate) {
+    if (!estAutorisation(evt) || !gate || !gate.event_id) return false;
+    return String(evt.evidence.ref) === String(gate.event_id);
   }
 
   // ── Fraîcheur du journal ────────────────────────────────────────────
@@ -688,6 +759,7 @@
 
   const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
     travailVivant, nommerLot, formulerDeploiements,
+    sourceDe, causeLevee, estAutorisation, estAutorisationDe,
     fluxLive, etapeCourante, ETAPES_FLUX: ETAPES, PHASE_VERS_ETAPE,
     ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT,
     resumerTimeline,
