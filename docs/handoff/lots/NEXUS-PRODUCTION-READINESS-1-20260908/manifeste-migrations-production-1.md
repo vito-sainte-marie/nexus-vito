@@ -127,3 +127,31 @@ Production pour `nexus_live_events`, et n'exécute rien contre Production. Il
 fixe seulement le périmètre de la prochaine promotion, déterministe pour
 16/17/19/20, conditionnée (mesure temporelle à rafraîchir) pour 5/6, exclue
 en permanence pour cette release pour 21.
+
+## Ajouts du 09/09/2026 — toutes EXCLUES (Test/CI uniquement)
+
+Cinq migrations écrites pendant la répétition PREPROD-équivalente. Toutes
+répondent au même constat : **un droit ou un état accordé à chaud vivait en
+base sans exister au dépôt**, et la reconstruction depuis zéro l'a perdu. Elles
+n'accordent rien de nouveau ; elles rendent reproductible ce qui était déjà
+décidé.
+
+Aucune ne va en Production : le rôle `nexus_ci_recette`, le site
+`nexus-station-test`, la table `nexus_live_events` et la notion même de mode de
+répétition n'y existent pas. Les promouvoir échouerait sur un rôle absent — ou,
+pire, créerait en Production des objets qui n'y ont aucun sens.
+
+| # | Migration | Sort | Motif |
+|---|---|---|---|
+| 22 | `20260909110000_lecture_station_config_test_pour_derive_recette` | **EXCLUE — Test/CI** | SEC-018 : lecture de `station_config` par le rôle CI, bornée à la station de recette, pour constater la dérive de l'instantané |
+| 23 | `20260909140000_droits_table_role_ci_recette_semis` | **EXCLUE — Test/CI** | SEC-020 : droits de table du semis. Une politique RLS sans droit de table ne s'applique à rien, et PostgreSQL répond « relation does not exist » |
+| 24 | `20260909150000_usage_schema_public_role_ci_recette` | **EXCLUE — Test/CI** | SEC-021 : `usage` sur le schéma, en amont de tous les autres droits. Sans lui, un grant de table est inerte |
+| 25 | `20260909160000_publication_journal_live_par_la_ci` | **EXCLUE — Test/CI** | SEC-022 : publication du journal Live, avec sa clause `actor_role in ('ci','guardian')` reprise à l'identique — c'est elle qui a refusé une usurpation le 08/09 |
+| 26 | `20260909170000_mode_environnement_test_preprod` | **EXCLUE — Test/CI** | Mode `TEST_NORMAL` / `PREPROD_REHEARSAL`. La question « suis-je en répétition ? » n'a pas de sens en Production, et y répondre serait déjà une ambiguïté |
+
+`test_manifeste_migrations_complet_20260909.js` vérifie désormais que CHAQUE
+migration postérieure à l'état Production est classée ici, et qu'aucune
+migration Test/CI n'échappe à l'exclusion. Le contrôle partait d'une
+vérification faite à la main le matin même du 09/09 : 21 migrations, 21 citées.
+Cinq heures plus tard il y en avait 26, et le manifeste ne le savait pas. Un
+contrôle refait à la main ne se refait pas.

@@ -306,6 +306,10 @@ jobs:
       - name: Le jeu PREPROD reproduit-il les cas mesurés ?
         run: node test_jeu_preprod_cas_production_20260909.js
 
+      # Un manifeste qui vieillit en silence promeut ce qu'il ignore.
+      - name: Toute migration de la promotion est-elle classée ?
+        run: node test_manifeste_migrations_complet_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

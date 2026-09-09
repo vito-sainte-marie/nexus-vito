@@ -1,3 +1,13 @@
+-- TEST/CI UNIQUEMENT — à ne PAS appliquer en Production : le rôle
+-- `nexus_ci_recette` n'y existe pas, et l'y promouvoir échouerait.
+--
+-- Déclaration ajoutée le 09/09/2026. Le manifeste de promotion excluait bien
+-- cette migration, mais le FICHIER était muet : qui l'ouvrait seul n'avait
+-- aucun moyen de savoir qu'elle ne va pas en Production. Une exclusion qui ne
+-- vit que dans un document se perd le jour où l'on regarde le code plutôt que
+-- le document. Ni le nom ni l'effet de la migration ne changent — elle n'est
+-- pas appliquée en Production, l'invariant d'immuabilité n'est pas touché.
+
 -- Droit de LECTURE sur `sites` pour le rôle CI de recette — et rien de plus.
 --
 -- POURQUOI C'EST NÉCESSAIRE. Les politiques de `carburant_releves` sont

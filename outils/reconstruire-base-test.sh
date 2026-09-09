@@ -130,13 +130,30 @@ end $$;
 REINIT
 fi
 
-echo "Reconstruction de $REF depuis $(ls "$RACINE"/supabase/migrations/*.sql | wc -l | tr -d ' ') migrations."
+n_total=$(ls "$RACINE"/supabase/migrations/*.sql | wc -l | tr -d ' ')
+echo "Reconstruction de $REF depuis $n_total migrations."
 echo
 
 n=0
+# JUSQUA — s'arrêter à une version donnée, incluse. Sans cette borne, la seule
+# reconstruction possible mène à l'état le plus récent, et une répétition de
+# release ne peut PAS commencer : elle a besoin de l'état d'AVANT, celui que
+# Production sert aujourd'hui, pour que les migrations de promotion rencontrent
+# les mêmes formes qu'elles rencontreront là-bas.
+# Vide = tout appliquer, comportement inchangé.
+JUSQUA="${JUSQUA:-}"
+if [ -n "$JUSQUA" ]; then
+  echo "Borne demandée : arrêt APRÈS la migration $JUSQUA."
+fi
+
 for f in "$RACINE"/supabase/migrations/*.sql; do
   n=$((n+1))
   nom="$(basename "$f")"
+  version="${nom%%_*}"
+  if [ -n "$JUSQUA" ] && [ "$version" \> "$JUSQUA" ]; then
+    echo "  Borne atteinte : $((n_total - n + 1)) migration(s) NON appliquée(s), à partir de $nom."
+    break
+  fi
   printf "  [%02d] %-72s " "$n" "$nom"
   if sortie="$(psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
     v="${nom%%_*}"; libelle="${nom#*_}"; libelle="${libelle%.sql}"
