@@ -1,0 +1,7 @@
+{
+  "commentaire": "Registre du cycle de vie des environnements PREPROD. Arbitrage de Frédéric Bragance du 09/09/2026 : un PREPROD est DÉTRUIT après chaque release. Une copie de production qui traîne est l'endroit où les fuites se logent — celle du 04/09/2026 était de cette famille. Voir outils/garde-preprod-ephemere.js.",
+  "regle": "Toute construction de PREPROD s'inscrit ici AVANT d'exister, et se ferme par `detruit_le` dès la release terminée. Une entrée ouverte au-delà de FENETRE_HEURES bloque la chaîne : ce n'est pas un rappel, c'est un refus. Une entrée sans date de destruction n'est pas une entrée en attente, c'est un environnement qui contient les identités d'une équipe et que personne ne surveille.",
+  "fenetre_heures": 48,
+  "pourquoi_48": "Une répétition de release se compte en heures, pas en jours. 48 h laisse la place à un incident et à une reprise le lendemain, sans laisser un mois s'écouler. Un seuil plus large reviendrait à tolérer ce que l'arbitrage interdit.",
+  "cycles": []
+}

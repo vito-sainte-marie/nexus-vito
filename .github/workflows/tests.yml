@@ -290,6 +290,15 @@ jobs:
       - name: La preuve d'absence de donnée personnelle cherche-t-elle partout ?
         run: node test_preuve_absence_donnee_personnelle_20260909.js
 
+      # Un PREPROD est détruit après sa release (arbitrage du 09/09/2026).
+      # BLOQUANTE : une copie de production oubliée est l'endroit où les
+      # fuites se logent.
+      - name: Un PREPROD survit-il à sa release ?
+        run: node outils/garde-preprod-ephemere.js
+
+      - name: Épreuves de la garde PREPROD éphémère
+        run: node test_garde_preprod_ephemere_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
