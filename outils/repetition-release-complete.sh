@@ -240,6 +240,14 @@ node "$RACINE/outils/garde-mode-environnement.js" \
   "$(psql "$URL" --quiet --no-psqlrc -tAc 'select mode from public.nexus_environnement_mode')"
 echo
 
+# CE QUI COMPTE POUR L'ÉQUIPE, AVANT CE QUI COMPTE POUR LE RAPPORT.
+# Les migrations sont passées ; reste à savoir si le geste quotidien fonctionne
+# encore. On le REJOUE plutôt que de le déduire du code.
+echo "[6/8] Parcours employé : prise de poste après un quart laissé ouvert…"
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
+  -f "$RACINE/outils/verifier-prise-de-poste-apres-migrations.sql"
+echo
+
 echo "[6/8] MESURE APRÈS" | tee -a "$RAPPORT"
 mesurer | tee -a "$RAPPORT"
 echo | tee -a "$RAPPORT"
