@@ -270,6 +270,11 @@ jobs:
       - name: La protection Production a-t-elle bien TROIS états ?
         run: node test_barriere_production_trois_etats_20260908.js
 
+      # La répétition PREPROD-équivalente fait `drop schema public cascade`.
+      # Elle ne doit jamais emporter une décision humaine avec elle.
+      - name: La répétition préserve-t-elle le journal Live ?
+        run: node test_repetition_preserve_journal_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 

@@ -12,9 +12,17 @@
 # localement — pas par ce canal.
 #
 # CE QU'IL FAIT, dans l'ordre, et rien de plus :
-#   1. capture la ligne de recette actuelle (sites/station_config/employees
-#      de nexus-station-test) AVANT toute écriture — seule fenêtre où elle
-#      existe encore ;
+#   1. capture AVANT toute écriture — seule fenêtre où elles existent encore —
+#      la ligne de recette (sites/station_config/employees de
+#      nexus-station-test) ET LA TOTALITÉ DU JOURNAL LIVE
+#      (public.nexus_live_events). Ce dernier point a été ajouté le
+#      09/09/2026 : la reconstruction fait `drop schema public cascade`, donc
+#      la table revient VIDE, recréée par sa migration. La CI republiera ses
+#      propres événements au run suivant ; elle ne republiera JAMAIS les
+#      quatre autorisations accordées par Frédéric en personne
+#      (`actor_role = 'human'`). Les perdre n'aurait pas été une remise à
+#      zéro, mais l'effacement d'une décision humaine — ce que le registre
+#      Handoff interdit en étant append-only ;
 #   2. reconstruit nexus-test depuis zéro avec l'outil existant, inchangé
 #      (outils/reconstruire-base-test.sh) — remise à zéro FIDÈLE du schéma
 #      public, rejeu de la TOTALITÉ des migrations versionnées, y compris
@@ -90,7 +98,7 @@ URL="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
 CAPTURE="$(mktemp -t nexus-baseline-recette-test.XXXXXX.sql)"
 trap 'rm -f "$CAPTURE"' EXIT
 
-echo "[1/4] Capture de la ligne de recette (sites/station_config/employees) avant reconstruction…"
+echo "[1/4] Capture de la ligne de recette ET du journal Live avant reconstruction…"
 if ! psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseline-recette-test.sql")" > "$CAPTURE" 2>&1; then
   echo "ÉCHEC de la capture — arrêt AVANT toute écriture (voir $CAPTURE)." >&2
   cat "$CAPTURE" >&2
@@ -106,7 +114,7 @@ echo "[2/4] Reconstruction complète (outils/reconstruire-base-test.sh, inchang�
 "$RACINE/outils/reconstruire-base-test.sh" "$REF"
 echo
 
-echo "[3/4] Réensemencement sites/station_config/employees depuis la capture…"
+echo "[3/4] Réensemencement (recette + journal Live) depuis la capture…"
 psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$CAPTURE"
 echo "Réensemencement appliqué."
 echo
