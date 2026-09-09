@@ -38,7 +38,12 @@ function extraire(nom, source) {
 }
 
 function faireElement() {
-  return { textContent: '', style: {}, innerHTML: '' };
+  const attrs = {};
+  return {
+    textContent: '', style: {}, innerHTML: '',
+    setAttribute: (k, v) => { attrs[k] = v; },
+    getAttribute: (k) => (k in attrs ? attrs[k] : null),
+  };
 }
 
 // Monte la fonction réelle dans un bac à sable complet.
@@ -137,46 +142,66 @@ t('sans rôle du jour, aucune invitation', async () => {
   assert.strictEqual(m.els.participationInventaire.style.display, 'none');
 });
 
-t('MUTATION : sans le refus explicite, on sort par une ERREUR au lieu du calme', async () => {
-  // Le try/catch absorbe la mutation : sans `if (!p) return`, l'accès à
-  // `p.mission` lève, l'erreur est attrapée, et la carte reste masquée. Le
-  // résultat visible est IDENTIQUE — c'est le CHEMIN qui diffère, et c'est lui
-  // qu'il faut mesurer. Sortir proprement ne journalise rien ; sortir par une
-  // exception journalise un avertissement. Un accueil qui se tait en écrivant
-  // « lecture impossible » dans la console n'est pas un accueil sain, et le
-  // jour où le catch disparaîtra, la page cassera.
-  const construire = (source, proposition) => {
-    const els = { participationInventaire: faireElement(), participationTexte: faireElement(),
-                  participationTag: faireElement() };
-    els.participationInventaire.style.display = 'none';
-    const avertissements = [];
-    const ctx = { console: { warn: (...a) => avertissements.push(a), error() {} },
-      Promise, Object, Array, String, Number, JSON,
-      document: { getElementById: (id) => els[id] || null }, nexusClient: {},
-      NexusStation: { quartConfigureDuMoment: async () => ({ quart: '1' }),
-                      dateLocaleStation: () => '2026-09-09' },
-      window: { NexusInventaireMoteur: { propositionParticipationDuJour: () => proposition },
-                NexusInventaireMissionRulesDonnees: { chargerMissionRules: async () => [],
-                  chargerRolesPresentsQuart: async () => [], normaliserRoleCode: r => r } } };
-    ctx.globalThis = ctx; vm.createContext(ctx);
-    vm.runInContext(extraire('afficherParticipationInventaire', source)
-      + '\nglobalThis.__f = afficherParticipationInventaire;', ctx);
-    return { appeler: () => ctx.__f('s', 'renfort', 'America/Martinique'), els, avertissements };
-  };
+t('la carte ÉCRIT ce qu’elle a décidé — trois états, jamais deux', async () => {
+  // Sans cette trace, une carte absente est indistinguable : rien n'attendait,
+  // ou quelque chose a cassé ? La recette navigateur ne pourrait alors ni la
+  // juger conforme ni la juger fautive.
+  const proposee = monter({ proposition: PROPOSITION, quart: { quart: '1' } });
+  await proposee.appeler('s', 'renfort', 'America/Martinique');
+  assert.strictEqual(proposee.els.participationInventaire.getAttribute('data-etat'), 'proposee');
 
-  const sain = construire(SCRIPT, null);
-  await sain.appeler();
-  assert.strictEqual(sain.avertissements.length, 0,
-    'le chemin normal ne doit RIEN journaliser : ne rien avoir à proposer est banal');
+  const aucune = monter({ proposition: null, quart: { quart: '1' } });
+  await aucune.appeler('s', 'renfort', 'America/Martinique');
+  assert.strictEqual(aucune.els.participationInventaire.getAttribute('data-etat'), 'aucune',
+    'rien n’attend : l’absence de carte est JUSTE et doit être dite comme telle');
 
-  const mute = SCRIPT.replace('      if (!p) return;', '');
+  const casse = monter({ proposition: PROPOSITION, quart: { quart: '1' }, erreur: true });
+  await casse.appeler('s', 'renfort', 'America/Martinique');
+  assert.strictEqual(casse.els.participationInventaire.getAttribute('data-etat'), 'indisponible',
+    'ne pas avoir pu savoir n’est pas « rien n’attend »');
+});
+
+t('« aucune » et « indisponible » ne se confondent JAMAIS', async () => {
+  // C'est toute la différence entre « tout va bien » et « je n'ai pas pu
+  // vérifier ». Les confondre laisserait une panne passer pour un calme.
+  const quartInconnu = monter({ proposition: PROPOSITION, quart: { indetermine: 'configuration' } });
+  await quartInconnu.appeler('s', 'renfort', 'America/Martinique');
+  assert.strictEqual(quartInconnu.els.participationInventaire.getAttribute('data-etat'), 'indisponible');
+
+  const sansMoteur = monter({ proposition: PROPOSITION, quart: { quart: '1' }, sansMoteur: true });
+  await sansMoteur.appeler('s', 'renfort', 'America/Martinique');
+  assert.strictEqual(sansMoteur.els.participationInventaire.getAttribute('data-etat'), 'indisponible');
+});
+
+t('MUTATION : sans la note « aucune », un calme passe pour une panne', async () => {
+  // La carte part d'« indisponible » et ne descend à « aucune » qu'après avoir
+  // RÉELLEMENT su qu'il n'y avait rien. Retirer cette descente laisse une
+  // journée parfaitement normale déclarée « je n'ai pas pu vérifier » — et la
+  // recette navigateur signalerait une panne qui n'existe pas, tous les jours,
+  // jusqu'à ce que plus personne ne la lise.
+  const mute = SCRIPT.replace("if (!p) { noter('aucune'); return; }", 'if (!p) { return; }');
   assert.notStrictEqual(mute, SCRIPT, 'la mutation n’a rien changé : elle ne prouve rien');
-  const casse = construire(mute, null);
-  await casse.appeler();
-  assert.strictEqual(casse.els.participationInventaire.style.display, 'none',
+
+  const els = { participationInventaire: faireElement(), participationTexte: faireElement(),
+                participationTag: faireElement() };
+  els.participationInventaire.style.display = 'none';
+  const ctx = { console: { warn() {}, error() {} }, Promise, Object, Array, String, Number, JSON,
+    document: { getElementById: (id) => els[id] || null }, nexusClient: {},
+    NexusStation: { quartConfigureDuMoment: async () => ({ quart: '1' }),
+                    dateLocaleStation: () => '2026-09-09' },
+    window: { NexusInventaireMoteur: { propositionParticipationDuJour: () => null },
+              NexusInventaireMissionRulesDonnees: { chargerMissionRules: async () => [],
+                chargerRolesPresentsQuart: async () => [], normaliserRoleCode: r => r } } };
+  ctx.globalThis = ctx; vm.createContext(ctx);
+  vm.runInContext(extraire('afficherParticipationInventaire', mute)
+    + '\nglobalThis.__f = afficherParticipationInventaire;', ctx);
+  await ctx.__f('s', 'renfort', 'America/Martinique');
+
+  assert.strictEqual(els.participationInventaire.getAttribute('data-etat'), 'indisponible',
+    'le code muté devait rester « indisponible » sur une journée calme ; ' +
+    'l’épreuve ne distingue donc pas les deux états');
+  assert.strictEqual(els.participationInventaire.style.display, 'none',
     'même mutée, la carte ne doit jamais s’afficher vide');
-  assert.ok(casse.avertissements.length > 0,
-    'le code muté devait sortir par le catch ; l’épreuve ne distingue donc pas les deux chemins');
 });
 
 (async () => {

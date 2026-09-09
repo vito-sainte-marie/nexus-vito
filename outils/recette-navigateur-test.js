@@ -447,10 +447,79 @@ async function observerEmploye(navigateur, base, nom, pin) {
     await connecter(page, base, nom, pin);
     const premiere = await prendreLePoste(page, base);
     const seconde = await prendreLePoste(page, base);
-    return { premiere, seconde };
+    // L'invitation se juge APRÈS la prise de poste, parce que c'est là qu'elle
+    // vit : « sur l'accueil employé après la prise de poste ».
+    const invitation = await observerInvitationInventaire(page, base);
+    return { premiere, seconde, invitation };
   } finally {
     await page.close();
   }
+}
+
+
+// L'INVITATION À L'INVENTAIRE, jugée à l'écran (09/09/2026).
+//
+// LE PIÈGE QUE CETTE ÉPREUVE ÉVITE. La carte peut être LÉGITIMEMENT absente :
+// quand rien n'attend ce rôle, ne rien afficher est le comportement juste. Une
+// épreuve qui exigerait sa présence serait rouge les jours calmes ; une épreuve
+// qui accepterait son absence ne prouverait rien du tout.
+//
+// La carte écrit donc sa décision sur elle-même, en trois états — `aucune`,
+// `proposee`, `indisponible` — et l'on juge la COHÉRENCE entre ce qu'elle a
+// décidé et ce qu'elle montre. C'est vérifiable tous les jours, calmes compris.
+
+const ECRAN_ACCUEIL = 'NEXUS-App-v1.html';
+
+async function observerInvitationInventaire(page, base) {
+  await page.goto(new URL(ECRAN_ACCUEIL, base).href, { waitUntil: 'domcontentloaded' });
+  const carte = page.locator('#participationInventaire');
+  try {
+    await carte.waitFor({ state: 'attached', timeout: 30000 });
+  } catch (e) {
+    return { presente: false, etat: null, visible: false, texte: '' };
+  }
+  // La carte part d'« indisponible » et se décide ensuite. On attend un état
+  // TRANCHÉ, sans jamais l'exiger : rester « indisponible » est une réponse,
+  // et l'attente bornée est ce qui la distingue d'une lenteur.
+  try {
+    await page.waitForFunction(() => {
+      const el = document.getElementById('participationInventaire');
+      const e = el && el.getAttribute('data-etat');
+      return e === 'aucune' || e === 'proposee';
+    }, { timeout: 20000 });
+  } catch (e) { /* reste indisponible : c'est une réponse, pas un échec */ }
+  const etat = await carte.getAttribute('data-etat');
+  const visible = await carte.isVisible();
+  const texte = (await page.locator('#participationTexte').innerText().catch(() => '') || '').trim();
+  return { presente: true, etat, visible, texte };
+}
+
+// VERDICT PUR — éprouvable sans navigateur.
+function verifierInvitation(vue) {
+  const echecs = [];
+  if (!vue) { echecs.push('Invitation inventaire : aucune observation.'); return echecs; }
+  if (!vue.presente) {
+    echecs.push('La carte d’invitation à l’inventaire est ABSENTE de l’accueil employé. '
+      + 'Un employé ne peut donc jamais se voir proposer une mission que personne n’a prise.');
+    return echecs;
+  }
+  if (vue.etat === 'proposee') {
+    if (!vue.visible) {
+      echecs.push('L’accueil a décidé qu’une mission d’inventaire attendait, et ne l’a PAS montrée. '
+        + 'C’est exactement le défaut mesuré : 36 services pris en renfort, zéro participation.');
+    } else if (!vue.texte) {
+      echecs.push('La carte est visible mais VIDE : elle invite sans dire à quoi.');
+    }
+  } else if (vue.etat === 'aucune') {
+    if (vue.visible) {
+      echecs.push('La carte s’affiche alors que RIEN n’attend ce rôle. '
+        + 'Un « 0 mission en attente » ajoute du bruit à un outil qu’on reproche déjà d’en faire trop.');
+    }
+  }
+  // `indisponible` n'est pas un échec : c'est un refus de conclure, remonté
+  // comme indisponibilité par l'appelant. Le confondre avec « aucune » ferait
+  // passer une panne pour un calme.
+  return echecs;
 }
 
 async function executer(env = process.env) {
@@ -530,6 +599,11 @@ async function executer(env = process.env) {
         employe = await observerEmploye(navigateur, base,
           env.NEXUS_TEST_EMPLOYEE_A_NOM, env.NEXUS_TEST_EMPLOYEE_A_PIN);
         echecsEmploye = verifierEmploye(employe.premiere, employe.seconde);
+        if (employe.invitation && employe.invitation.etat === 'indisponible') {
+          employeIndisponible = 'Invitation inventaire NON JUGÉE : l’accueil n’a pas pu décider '
+            + '(fuseau, quart ou lecture des règles). Ne pas lire cette absence comme « rien n’attendait ».';
+        }
+        echecsEmploye = echecsEmploye.concat(verifierInvitation(employe.invitation));
       } catch (e) {
         // Un compte inconnectable et un écran qui refuse sont deux choses
         // opposées — même distinction que pour le Créateur le 07/09. On ne
@@ -548,7 +622,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -590,6 +664,13 @@ if (require.main === module) {
       console.log('  · Prise de poste employé : '
         + (!e ? 'NON EXÉCUTÉE — voir indisponibilités'
           : e.premiere.atteint === 'confirme' ? 'satisfaite' : 'NON SATISFAITE'));
+      console.log('  · Invitation à l’inventaire sur l’accueil : '
+        + (!e || !e.invitation ? 'NON EXÉCUTÉE'
+          : !e.invitation.presente ? 'NON SATISFAITE — carte absente de l’accueil'
+          : e.invitation.etat === 'indisponible' ? 'NON JUGÉE — l’accueil n’a pas pu décider'
+          : e.invitation.etat === 'proposee'
+            ? (e.invitation.visible ? `satisfaite — « ${e.invitation.texte} »` : 'NON SATISFAITE — décidée puis non montrée')
+            : (e.invitation.visible ? 'NON SATISFAITE — affichée alors que rien n’attend' : 'satisfaite — rien n’attendait, rien n’est montré')));
       console.log('  · Prise de poste avec un quart DÉJÀ OUVERT : '
         + (!e ? 'NON EXÉCUTÉE — le cas ordinaire de l’équipe reste non éprouvé à l’écran'
           : e.seconde.atteint === 'confirme' ? 'satisfaite — le quart précédent s’est fermé seul'

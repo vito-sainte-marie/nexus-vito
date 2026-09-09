@@ -2692,6 +2692,16 @@
     if (!carte) return;
     const M = window.NexusInventaireMoteur;
     const MR = window.NexusInventaireMissionRulesDonnees;
+    // CE QUE LA CARTE A DÉCIDÉ, écrit sur elle-même. Sans cette trace, une
+    // carte absente est indistinguable : rien n'attendait, ou quelque chose a
+    // cassé ? La recette navigateur ne pourrait alors ni la juger conforme ni
+    // la juger fautive, et se contenterait de ne rien prouver.
+    //   'aucune'       — rien n'attend ce rôle, l'absence est JUSTE ;
+    //   'proposee'     — une mission attend, la carte DOIT être visible ;
+    //   'indisponible' — on n'a pas pu savoir, et l'on ne conclut pas.
+    // Trois états, jamais deux.
+    const noter = (etat) => { carte.setAttribute('data-etat', etat); };
+    noter('indisponible');
     if (!M || !MR || !site || !role || !fuseau) return;
     if (typeof M.propositionParticipationDuJour !== 'function') return;
     try {
@@ -2708,7 +2718,8 @@
       const p = M.propositionParticipationDuJour({
         missionRules, quart: session, rolesPresents, role: roleCanonique,
       });
-      if (!p) return;
+      if (!p) { noter('aucune'); return; }
+      noter('proposee');
       // Le texte dit CE QUI ATTEND, pas un décompte de corvées. Et quand
       // l'employé vient en soutien d'un rôle absent, on le lui dit : venir en
       // renfort d'un collègue n'est pas la même chose que sa propre mission.

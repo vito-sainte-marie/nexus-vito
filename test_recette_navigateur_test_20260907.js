@@ -434,4 +434,61 @@ epreuve('les secrets employé sont HORS des secrets requis', () => {
       `${n} est dans SECRETS_REQUIS : son absence ferait tomber toute la recette`);
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// L'INVITATION À L'INVENTAIRE — le verdict, sans navigateur.
+//
+// Le piège que ce verdict évite : la carte peut être LÉGITIMEMENT absente
+// quand rien n'attend. Une épreuve qui exigerait sa présence serait rouge les
+// jours calmes ; une qui accepterait son absence ne prouverait rien. On juge
+// donc la COHÉRENCE entre ce que l'accueil a DÉCIDÉ et ce qu'il MONTRE.
+
+const { verifierInvitation } = require('./outils/recette-navigateur-test.js');
+
+epreuve('rien n’attend et rien n’est montré : conforme', () => {
+  assert.deepStrictEqual(
+    verifierInvitation({ presente: true, etat: 'aucune', visible: false, texte: '' }), [],
+    'l’état conforme doit passer, sinon les épreuves suivantes ne prouvent rien');
+});
+
+epreuve('une mission attend et est montrée : conforme', () => {
+  assert.deepStrictEqual(
+    verifierInvitation({ presente: true, etat: 'proposee', visible: true, texte: 'Contrôle sensibles' }), []);
+});
+
+epreuve('DÉCIDÉE puis NON MONTRÉE est dénoncé — c’est le défaut mesuré', () => {
+  const e = verifierInvitation({ presente: true, etat: 'proposee', visible: false, texte: '' }).join(' | ');
+  assert.ok(/décidé.*attendait.*PAS montrée/i.test(e) || /non montr/i.test(e), e);
+  assert.ok(/36 services|zéro participation/.test(e),
+    'le rapport doit rappeler la mesure qui justifie cette carte');
+});
+
+epreuve('une carte VIDE qui invite sans dire à quoi est refusée', () => {
+  const e = verifierInvitation({ presente: true, etat: 'proposee', visible: true, texte: '' }).join(' | ');
+  assert.ok(/VIDE/.test(e), e);
+});
+
+epreuve('s’afficher alors que RIEN n’attend est refusé', () => {
+  const e = verifierInvitation({ presente: true, etat: 'aucune', visible: true, texte: 'x' }).join(' | ');
+  assert.ok(/rien n’attend|bruit/i.test(e), e);
+});
+
+epreuve('« indisponible » n’est PAS un échec — c’est un refus de conclure', () => {
+  // Le confondre avec « aucune » ferait passer une panne pour un calme ; le
+  // compter comme un échec rendrait la recette rouge sur une simple lenteur.
+  assert.deepStrictEqual(
+    verifierInvitation({ presente: true, etat: 'indisponible', visible: false, texte: '' }), [],
+    'l’indisponibilité se rapporte à part, elle ne fait pas échouer la recette');
+});
+
+epreuve('une carte ABSENTE de l’accueil est un vrai échec', () => {
+  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '' }).join(' | ');
+  assert.ok(/ABSENTE/.test(e), e);
+  assert.ok(/jamais se voir proposer/.test(e),
+    'le rapport doit dire ce que cette absence COÛTE, pas seulement qu’elle existe');
+});
+
+epreuve('aucune observation ne vaut pas conforme', () => {
+  assert.ok(verifierInvitation(null).length > 0, 'null doit produire un refus');
+});
+
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
