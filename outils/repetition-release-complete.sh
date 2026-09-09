@@ -43,13 +43,35 @@ if [ "$REF" = "$PROD_REF" ]; then
   exit 3
 fi
 
+# LE TROUSSEAU N'EST EXIGÉ QUE S'IL EST LE SEUL RECOURS.
+#
+# Constat canonisé le 09/09/2026 (request-5) : le trousseau macOS était réclamé
+# AVANT même de regarder si `NEXUS_TEST_DB_URL` était fournie. Sur un runner
+# Linux il n'existe pas — la reconstruction mourait donc en `exit 4` alors
+# qu'une URL Test parfaitement valide était disponible. Le script refusait de
+# travailler faute d'un moyen dont il n'avait pas besoin.
+#
+# L'ordre est donc inversé : on ne réclame un credential que si l'on doit
+# FABRIQUER l'URL soi-même. Quand elle est fournie, elle porte son propre moyen
+# d'authentification, ou `PGPASSWORD` est déjà dans l'environnement.
+#
+# CE QUI N'EST PAS ASSOUPLI : le refus de la référence Production reste AVANT
+# toute tentative de connexion, et une connexion qui échoue échoue — on ne
+# devine aucun mot de passe et on n'en fabrique aucun.
 MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-[ -z "$MDP" ] && MDP="${NEXUS_TEST_DB_PASSWORD:-}"
 if [ -z "$MDP" ]; then
-  echo "Mot de passe introuvable. Ce script ne devine ni ne fabrique de credential." >&2
+  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+fi
+if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
+  echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe." >&2
+  echo "Fournir l'URL, ou déposer le mot de passe avec :" >&2
+  echo "  security add-generic-password -a nexus -s nexus-test-db -w" >&2
   exit 4
 fi
-export PGPASSWORD="$MDP"; unset MDP
+if [ -n "$MDP" ]; then
+  export PGPASSWORD="$MDP"
+fi
+unset MDP
 
 POOLER="aws-0-us-east-1.pooler.supabase.com"
 URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
