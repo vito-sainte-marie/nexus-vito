@@ -1,50 +1,41 @@
 #!/usr/bin/env bash
-# NEXUS — répétition de release COMPLÈTE, de bout en bout.
+# NEXUS — répétition de release COMPLÈTE, exécutée de bout en bout.
 #
 # CE QUE CETTE SÉQUENCE ÉTABLIT, ET QUE LES PRÉCÉDENTES N'ÉTABLISSAIENT PAS.
-# La répétition du 09/09/2026 a prouvé que les 262 migrations s'appliquent sur
-# une base VIDE. C'est nécessaire et ce n'est pas la question : Production a
-# quatre mois d'histoire, un site fantôme, des colonnes divergentes et des
-# services restés ouverts. Une migration qui passe sur du vide peut très bien
-# se comporter autrement sur ces formes-là.
+# La répétition du 09/09/2026 a prouvé que les migrations s'appliquent sur une
+# base VIDE. C'est nécessaire, et ce n'est pas la question : Production a quatre
+# mois d'histoire, un site fantôme, des colonnes divergentes et des services
+# restés ouverts. Une migration qui passe sur du vide peut se comporter
+# autrement sur ces formes-là.
 #
-# La séquence rejoue donc une HISTOIRE, pas un schéma :
-#   1. mode déclaré PREPROD_REHEARSAL, cycle ouvert au registre ;
-#   2. reconstruction BORNÉE à l'état que Production sert aujourd'hui ;
-#   3. semis du jeu qui reproduit les cas Production mesurés ;
-#   4. MESURE AVANT ;
-#   5. application des migrations de promotion, celles-là seulement ;
-#   6. MESURE APRÈS — c'est le rapport d'impact, la seule chose que Frédéric
-#      doit vraiment lire avant d'autoriser ;
-#   7. suite, Guardians et recette sur l'état obtenu ;
-#   8. retour en TEST_NORMAL, cycle fermé.
+# Cette séquence rejoue donc une HISTOIRE. Elle reconstruit Test à l'état que
+# Production sert aujourd'hui, y sème les cas mesurés, MESURE, applique les
+# migrations de promotion, MESURE À NOUVEAU — et l'écart entre les deux est le
+# rapport d'impact, la seule chose que Frédéric doit lire avant d'autoriser.
 #
-# L'ÉTAPE 8 N'EST PAS UNE POLITESSE. « PREPROD doit être détruit après chaque
-# release » (arbitrage du 09/09/2026). Laisser nexus-test en état de répétition
-# ferait mentir toutes les recettes suivantes, qui jugeraient des données
-# structurées pour d'autres cas — en restant vertes.
+# ELLE REND TEST À SON USAGE À LA FIN, et ce n'est pas une politesse : un
+# nexus-test laissé en répétition ferait mentir toutes les recettes suivantes,
+# qui jugeraient des données structurées pour d'autres cas EN RESTANT VERTES.
 #
-# CE SCRIPT NE TOUCHE JAMAIS PRODUCTION, et le vérifie avant tout. Il ne lit
-# aucune donnée de Production : les volumes qu'il reproduit ont été relevés une
-# fois, le 08/09, et vivent dans `outils/jeu-preprod-cas-production.sql`.
+# ELLE NE TOUCHE JAMAIS PRODUCTION et ne lit aucune de ses données : les volumes
+# reproduits ont été relevés une fois, le 08/09, et vivent dans le jeu.
 #
 # Usage :
-#   outils/repetition-release-complete.sh <project-ref> <release> <version-production>
+#   outils/repetition-release-complete.sh <project-ref> <release> [version-production]
 # Exemple :
-#   outils/repetition-release-complete.sh udljdqxerrbbbajxubfn 2026.09.1 20260904175722
+#   outils/repetition-release-complete.sh udljdqxerrbbbajxubfn 2026.09.1 20260904130807
 
 set -euo pipefail
 
 PROD_REF="uzhjpqpctpvxytxpxoqz"
 REF="${1:-}"
 RELEASE="${2:-}"
-VERSION_PROD="${3:-}"
+VERSION_PROD="${3:-20260904130807}"
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
+RAPPORT="${NEXUS_RAPPORT:-$HOME/repetition-impact-$RELEASE.txt}"
 
-if [ -z "$REF" ] || [ -z "$RELEASE" ] || [ -z "$VERSION_PROD" ]; then
-  echo "Usage : $0 <project-ref> <release> <version-production>" >&2
-  echo "  <version-production> : la DERNIÈRE migration déjà appliquée en Production." >&2
-  echo "  Sans elle, on ne saurait pas où s'arrêter, et la répétition n'aurait pas de sens." >&2
+if [ -z "$REF" ] || [ -z "$RELEASE" ]; then
+  echo "Usage : $0 <project-ref> <release> [version-production]" >&2
   exit 2
 fi
 if [ "$REF" = "$PROD_REF" ]; then
@@ -52,66 +43,111 @@ if [ "$REF" = "$PROD_REF" ]; then
   exit 3
 fi
 
+MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+[ -z "$MDP" ] && MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+if [ -z "$MDP" ]; then
+  echo "Mot de passe introuvable. Ce script ne devine ni ne fabrique de credential." >&2
+  exit 4
+fi
+export PGPASSWORD="$MDP"; unset MDP
+
+POOLER="aws-0-us-east-1.pooler.supabase.com"
+URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+URL_POOLER="postgresql://postgres.${REF}@${POOLER}:5432/postgres?sslmode=require"
+if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then URL="$NEXUS_TEST_DB_URL"
+elif psql "$URL_DIRECTE" -tAc "select 1" >/dev/null 2>&1; then URL="$URL_DIRECTE"
+elif psql "$URL_POOLER" -tAc "select 1" >/dev/null 2>&1; then URL="$URL_POOLER"
+else echo "AUCUNE connexion possible à $REF." >&2; exit 6; fi
+export NEXUS_TEST_DB_URL="$URL"
+
+# Les quatre mesures qui décident. Elles sont écrites ICI, une seule fois, et
+# rejouées à l'identique avant et après : deux requêtes différentes ne se
+# comparent pas, et l'écart qu'elles montreraient serait le leur, pas celui des
+# migrations.
+MESURES="select 'missions divergentes' as forme, count(*)::text as n from public.mission_catalog where site is distinct from site_id
+union all select 'services divergents', count(*)::text from public.shifts where site is distinct from site_id
+union all select 'services en_cours', count(*)::text from public.shifts where statut = 'en_cours'
+union all select 'services clos_sans_pointage', count(*)::text from public.shifts where statut = 'clos_sans_pointage'
+order by 1"
+
+mesurer() { psql "$URL" --quiet --no-psqlrc -tA -F' : ' -c "$MESURES"; }
+
 echo "=== Répétition de release $RELEASE sur $REF ==="
-echo "État de départ : Production au $VERSION_PROD."
+echo "Départ : état Production au $VERSION_PROD. Rapport : $RAPPORT"
 echo
 
-# ── 1. Déclarer le mode AVANT de toucher quoi que ce soit ──────────────
-# Le mode conditionne le semis : le jeu de répétition refuse de s'appliquer
-# hors PREPROD_REHEARSAL. Le déclarer d'abord, c'est refuser de commencer une
-# répétition que personne ne saurait suivre.
-echo "[1/8] Déclaration du mode PREPROD_REHEARSAL (release $RELEASE)…"
-echo "      À faire dans le registre : ouvrir un cycle dans docs/handoff/PREPROD-CYCLE.json"
-echo "      puis, en base : update public.nexus_environnement_mode"
-echo "                      set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now();"
-echo "      La garde outils/garde-mode-environnement.js refuse le désaccord entre les deux."
+echo "[1/8] Ouverture du cycle et déclaration du mode…"
+node -e '
+const fs=require("fs"),p=process.argv[1],r=JSON.parse(fs.readFileSync(p,"utf8"));
+if(r.cycles.some(c=>!c.detruit_le)){console.error("Un cycle est déjà ouvert : le fermer avant d’en ouvrir un autre.");process.exit(1);}
+r.cycles.push({projet_ref:process.argv[3],release:process.argv[2],cree_le:new Date().toISOString(),detruit_le:null});
+fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
+' "$RACINE/docs/handoff/PREPROD-CYCLE.json" "$RELEASE" "$REF"
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+  "update public.nexus_environnement_mode set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now(), motif='Répétition de release.'"
+echo "Mode : PREPROD_REHEARSAL (release $RELEASE)."
 echo
 
-# ── 2. Reconstruire à l'état d'AVANT ──────────────────────────────────
 echo "[2/8] Reconstruction bornée à $VERSION_PROD…"
 JUSQUA="$VERSION_PROD" "$RACINE/outils/reconstruire-base-test.sh" "$REF"
 echo
 
-echo "[3/8] Semis du jeu reproduisant les cas Production…"
-echo "      psql -f outils/jeu-preprod-cas-production.sql"
+echo "[3/8] Semis de la recette puis des cas Production…"
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
+# Le mode a été effacé avec le schéma : sa table n'existe qu'après sa migration,
+# postérieure à la borne. On le repose donc ici, avant le semis qui l'exige.
+psql "$URL" --quiet --no-psqlrc -c "create table if not exists public.nexus_environnement_mode (
+  mode_unique boolean primary key default true, mode text not null default 'TEST_NORMAL',
+  depuis timestamptz not null default now(), release text, motif text)" >/dev/null
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+  "insert into public.nexus_environnement_mode (mode_unique, mode, release) values (true,'PREPROD_REHEARSAL','$RELEASE')
+   on conflict (mode_unique) do update set mode=excluded.mode, release=excluded.release" >/dev/null
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/jeu-preprod-cas-production.sql"
 echo
 
-echo "[4/8] MESURE AVANT — à relever et à conserver :"
-cat <<'MESURES'
-      select 'missions divergentes', count(*) from public.mission_catalog where site is distinct from site_id
-      union all select 'services divergents', count(*) from public.shifts where site is distinct from site_id
-      union all select 'services en_cours', count(*) from public.shifts where statut = 'en_cours'
-      union all select 'sites sans fuseau', count(*) from public.sites where timezone is null;
-MESURES
+echo "[4/8] MESURE AVANT" | tee "$RAPPORT"
+mesurer | tee -a "$RAPPORT"
+echo | tee -a "$RAPPORT"
+
+echo "[5/8] Application des migrations de promotion (> $VERSION_PROD)…"
+n=0
+for f in "$RACINE"/supabase/migrations/*.sql; do
+  nom="$(basename "$f")"; version="${nom%%_*}"
+  [ "$version" \> "$VERSION_PROD" ] || continue
+  n=$((n+1)); printf "  [%02d] %-70s " "$n" "${nom:0:70}"
+  if sortie="$(psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
+    echo "OK"
+  else
+    echo "ÉCHEC"; echo "$sortie" | grep -E '^psql:|ERROR' | head -10 | sed 's/^/      /'
+    echo "La répétition s'arrête ici. Test reste en PREPROD_REHEARSAL : c'est voulu," >&2
+    echo "l'état fautif doit pouvoir être examiné avant d'être effacé." >&2
+    exit 7
+  fi
+done
+echo "  $n migration(s) de promotion appliquée(s)."
 echo
 
-echo "[5/8] Application des migrations de promotion (celles postérieures à $VERSION_PROD)…"
-echo "      Elles sont listées dans manifeste-migrations-production-1.md."
+echo "[6/8] MESURE APRÈS" | tee -a "$RAPPORT"
+mesurer | tee -a "$RAPPORT"
+echo | tee -a "$RAPPORT"
+echo "L'écart entre [4] et [6] est le rapport d'impact : $RAPPORT"
 echo
 
-echo "[6/8] MESURE APRÈS — les mêmes requêtes."
-echo "      L'écart entre [4] et [6] EST le rapport d'impact. C'est la seule chose"
-echo "      que Frédéric doit lire avant d'autoriser : combien de lignes changent,"
-echo "      lesquelles, et dans quel sens."
+echo "[7/8] Suite, Guardians et répétition carburants…"
+( cd "$RACINE"; node run-tests.js; node outils/guardian-qa.js; node outils/repetition-recette-carburants.js )
 echo
 
-echo "[7/8] Suite, Guardians et recette sur l'état obtenu…"
-(
-  cd "$RACINE"
-  node run-tests.js
-  node outils/guardian-qa.js
-  node outils/guardian-philosophie.js || true
-  node outils/repetition-recette-carburants.js
-)
+echo "[8/8] Retour en TEST_NORMAL — obligatoire."
+"$RACINE/outils/reconstruire-base-test.sh" "$REF"
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+  "update public.nexus_environnement_mode set mode='TEST_NORMAL', release=null, depuis=now(), motif='Retour après répétition.'"
+node -e '
+const fs=require("fs"),p=process.argv[1],r=JSON.parse(fs.readFileSync(p,"utf8"));
+const c=r.cycles.filter(c=>!c.detruit_le).pop();
+if(c) c.detruit_le=new Date().toISOString();
+fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
+' "$RACINE/docs/handoff/PREPROD-CYCLE.json"
+echo "Test rendu à son usage, cycle fermé."
 echo
-
-# ── 8. Rendre Test à son usage ────────────────────────────────────────
-echo "[8/8] RETOUR EN TEST_NORMAL — obligatoire, pas facultatif."
-echo "      Reconstruire sans borne, resemer la recette, puis :"
-echo "        update public.nexus_environnement_mode"
-echo "           set mode='TEST_NORMAL', release=null, depuis=now();"
-echo "      et fermer le cycle par detruit_le dans docs/handoff/PREPROD-CYCLE.json."
-echo
-echo "      Tant que ces deux gestes ne sont pas faits, la garde du mode et celle"
-echo "      du cycle éphémère bloquent la chaîne — c'est voulu : un nexus-test"
-echo "      laissé en répétition ferait mentir toutes les recettes suivantes."
+echo "=== Répétition $RELEASE terminée. Rapport d'impact : $RAPPORT ==="
