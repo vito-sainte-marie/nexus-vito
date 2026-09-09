@@ -27,15 +27,47 @@
 
 set -euo pipefail
 
+# S'EXÉCUTER DEPUIS UNE COPIE FIGÉE — ajouté le 09/09/2026, après l'avoir cassé.
+#
+# CE QUI S'EST PASSÉ. Bash ne charge pas un script en entier : il le relit au
+# fil de l'exécution, à la position d'octet où il en est. Une reconstruction
+# dure dix minutes ; pendant celle de Frédéric, j'ai modifié ce fichier deux
+# fois. Les octets se sont décalés, et bash a repris sa lecture au milieu d'un
+# mot :
+#
+#   repetition-release-complete.sh: line 164: syntax error near unexpected token `('
+#
+# Le fichier était syntaxiquement bon. C'est l'exécution EN COURS que mes
+# éditions ont corrompue, et Frédéric a repayé dix minutes de migrations pour
+# une faute qui n'avait rien à voir avec sa release.
+#
+# La promesse de « faire attention » ne vaut rien face à une séquence qui dure
+# assez longtemps pour donner envie de travailler pendant. Le script se recopie
+# donc dans un fichier temporaire et s'y relance : à partir de là, éditer
+# l'original est sans effet sur la course en cours.
+if [ -z "${NEXUS_REPETITION_FIGEE:-}" ]; then
+  COPIE="$(mktemp -t repetition-release)" || exit 1
+  cat "$0" > "$COPIE"
+  # L'original est transmis : `dirname $0` pointerait sinon vers /var/folders,
+  # et RACINE — donc TOUS les chemins du dépôt — serait faux.
+  NEXUS_REPETITION_FIGEE="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  export NEXUS_REPETITION_FIGEE
+  trap 'rm -f "$COPIE"' EXIT
+  bash "$COPIE" "$@"
+  exit $?
+fi
+
+ORIGINE="$NEXUS_REPETITION_FIGEE"
+
 PROD_REF="uzhjpqpctpvxytxpxoqz"
 REF="${1:-}"
 RELEASE="${2:-}"
 VERSION_PROD="${3:-20260904130807}"
-RACINE="$(cd "$(dirname "$0")/.." && pwd)"
+RACINE="$(cd "$(dirname "$ORIGINE")/.." && pwd)"
 RAPPORT="${NEXUS_RAPPORT:-$HOME/repetition-impact-$RELEASE.txt}"
 
 if [ -z "$REF" ] || [ -z "$RELEASE" ]; then
-  echo "Usage : $0 <project-ref> <release> [version-production]" >&2
+  echo "Usage : $ORIGINE <project-ref> <release> [version-production]" >&2
   exit 2
 fi
 if [ "$REF" = "$PROD_REF" ]; then
@@ -120,7 +152,7 @@ sortie_anormale() {
   echo "restant verte. Pour rendre Test à son usage :" >&2
   echo >&2
   echo "  NEXUS_TEST_DB_URL=\"\$NEXUS_TEST_DB_URL\" DEPUIS_ETAPE=8 \\" >&2
-  echo "    $0 $REF $RELEASE" >&2
+  echo "    $ORIGINE $REF $RELEASE" >&2
   echo >&2
   echo "Pour reprendre la répétition après correctif, sans repayer la" >&2
   echo "reconstruction : DEPUIS_ETAPE=3. Avec reconstruction : DEPUIS_ETAPE=2." >&2
