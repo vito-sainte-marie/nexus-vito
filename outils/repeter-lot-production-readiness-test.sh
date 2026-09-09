@@ -131,10 +131,25 @@ CAPTURE="$(mktemp -t nexus-baseline-recette-test.XXXXXX.sql)"
 trap 'rm -f "$CAPTURE"' EXIT
 
 echo "[1/4] Capture de la ligne de recette ET du journal Live avant reconstruction…"
-if ! psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseline-recette-test.sql")" > "$CAPTURE" 2>&1; then
-  echo "ÉCHEC de la capture — arrêt AVANT toute écriture (voir $CAPTURE)." >&2
-  cat "$CAPTURE" >&2
-  exit 5
+# Les tables peuvent ne pas exister : une reconstruction interrompue, ou une
+# remise à zéro faite à part, laisse le schéma nu. PostgreSQL refuse alors la
+# requête ENTIÈRE à l'analyse — une table absente n'est pas une valeur nulle,
+# c'est une erreur de compilation. Sans cette vérification, le script devient
+# irrelançable exactement dans le cas où il est le plus utile. Le 09/09/2026,
+# la leçon a dû être apprise DEUX fois : d'abord sur `nexus_live_events`,
+# puis sur `sites` elle-même.
+BASE_PRESENTE="$(psql "$URL" --quiet --no-psqlrc -tAc \
+  "select to_regclass('public.sites') is not null and to_regclass('public.station_config') is not null and to_regclass('public.employees') is not null" 2>/dev/null)"
+if [ "$BASE_PRESENTE" = "t" ]; then
+  if ! psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseline-recette-test.sql")" > "$CAPTURE" 2>&1; then
+    echo "ÉCHEC de la capture — arrêt AVANT toute écriture (voir $CAPTURE)." >&2
+    cat "$CAPTURE" >&2
+    exit 5
+  fi
+else
+  echo "AVERTISSEMENT : sites/station_config/employees ABSENTES — rien à capturer."
+  echo "  Le semis déterministe prendra le relais à l'étape [3/4]."
+  : > "$CAPTURE"
 fi
 # Le journal Live n'est capturé que s'il EXISTE. Une reconstruction
 # interrompue laisse sa table absente : exiger sa présence rendait le script

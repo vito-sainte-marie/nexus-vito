@@ -46,6 +46,18 @@ t('la capture du journal est SÉPARÉE, pour rester sautable', () => {
     'le script doit VÉRIFIER l’existence de la table avant de la capturer');
 });
 
+t('un schéma NU ne fait pas échouer la capture', () => {
+  // Leçon apprise deux fois le 09/09/2026 : d'abord sur `nexus_live_events`,
+  // puis sur `sites` elle-même après une remise à zéro. Une table absente
+  // n'est pas une valeur nulle, c'est une erreur de compilation — et le script
+  // devenait irrelançable précisément quand il était le plus utile.
+  assert.ok(/to_regclass\('public\.sites'\)/.test(SCRIPT),
+    'l’existence des tables de recette doit être vérifiée avant la capture');
+  const iVerif = SCRIPT.indexOf("to_regclass('public.sites')");
+  const iCapture = SCRIPT.indexOf('capturer-baseline-recette-test.sql');
+  assert.ok(iVerif > 0 && iVerif < iCapture, 'la vérification doit précéder la capture');
+});
+
 t('une capture sans ligne de recette déclenche le semis de secours', () => {
   // Une reconstruction interrompue laisse Test sans rien à capturer. Sans
   // cette sortie, la relance du script réensemencerait le vide.
@@ -99,7 +111,10 @@ t('les instants sont repris tels quels, jamais recalculés', () => {
 t('le script CAPTURE avant de détruire, jamais l’inverse', () => {
   const iCapture = SCRIPT.indexOf('[1/4] Capture');
   const iDetruit = SCRIPT.indexOf('reconstruire-base-test.sh" "$REF"');
-  const iRejeu = SCRIPT.indexOf('[3/4]');
+  // Ancré sur la LIGNE d'étape, pas sur « [3/4] » : un message d'avertissement
+  // cite désormais cette étape bien avant qu'elle arrive, et l'assertion
+  // attrapait cette mention-là.
+  const iRejeu = SCRIPT.indexOf('echo "[3/4] Réensemencement');
   assert.ok(iCapture > 0 && iDetruit > iCapture, 'la capture doit précéder la reconstruction');
   assert.ok(iRejeu > iDetruit, 'le réensemencement doit suivre la reconstruction');
   assert.ok(/ÉCHEC de la capture — arrêt AVANT toute écriture/.test(SCRIPT),
