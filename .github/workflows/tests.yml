@@ -302,6 +302,10 @@ jobs:
       - name: Épreuves de la garde du mode d'environnement
         run: node test_garde_mode_environnement_20260909.js
 
+      # Le jeu de répétition porte les FORMES de Production, jamais ses données.
+      - name: Le jeu PREPROD reproduit-il les cas mesurés ?
+        run: node test_jeu_preprod_cas_production_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
