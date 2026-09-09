@@ -37,16 +37,14 @@ if [ "$REF" = "$PROD_REF" ]; then
   exit 3
 fi
 
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  echo "Mot de passe introuvable dans le trousseau (compte « nexus », service « nexus-test-db »)." >&2
-  echo "Le déposer avec :  security add-generic-password -a nexus -s nexus-test-db -w" >&2
-  exit 4
-fi
-
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
-export PGPASSWORD="$MDP"; unset MDP
-# CONNEXION : direct d'abord, pooler en REPLI.
+# CONNEXION : direct d'abord, pooler en REPLI — et le trousseau macOS n'est
+# requis QUE s'il n'y a pas déjà une URL exploitable. Découvert le 09/09/2026
+# (decision-5.md, lot NEXUS-PRODUCTION-READINESS-1-20260908) : la recherche
+# du trousseau était inconditionnelle et s'arrêtait (exit 4) avant même de
+# regarder si `NEXUS_TEST_DB_URL` suffisait déjà — sur un runner sans macOS
+# (CI Linux), le script échouait donc AVANT de pouvoir consommer un secret Test
+# déjà fourni tel quel.
 #
 # L'hôte direct `db.<ref>.supabase.co` se déduit de la seule référence du
 # projet — d'où ce choix d'origine — mais il ne publie QU'UNE ADRESSE IPv6.
@@ -66,17 +64,27 @@ URL_POOLER="postgresql://postgres.${REF}@${POOLER_HOTE}:5432/postgres?sslmode=re
 if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
   URL="$NEXUS_TEST_DB_URL"
   echo "Connexion : URL fournie par NEXUS_TEST_DB_URL."
-elif psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
-  URL="$URL_DIRECTE"
-  echo "Connexion : hôte direct."
-elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
-  URL="$URL_POOLER"
-  echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
 else
-  echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
-  echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
-  echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
-  exit 6
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    echo "Mot de passe introuvable dans le trousseau (compte « nexus », service « nexus-test-db »)." >&2
+    echo "Le déposer avec :  security add-generic-password -a nexus -s nexus-test-db -w" >&2
+    echo "Ou fournir NEXUS_TEST_DB_URL directement (mot de passe déjà inclus dans l'URL)." >&2
+    exit 4
+  fi
+  export PGPASSWORD="$MDP"; unset MDP
+  if psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+    URL="$URL_DIRECTE"
+    echo "Connexion : hôte direct."
+  elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+    URL="$URL_POOLER"
+    echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
+  else
+    echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
+    echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
+    echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
+    exit 6
+  fi
 fi
 export NEXUS_TEST_DB_URL="$URL"
 
