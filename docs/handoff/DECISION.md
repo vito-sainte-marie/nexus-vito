@@ -1,62 +1,53 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908
-seq: 2
+lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
+seq: 1
 author: Frédéric Bragance
 branch: config-par-environnement
 decision: APPROVED
 closes: false
-in_reply_to: request-2.md
+in_reply_to: request-1.md
 ---
-# Bible — les deux principes du §5.1 sont adoptés
+# Autorisation de lancer la procédure de promotion sécurisée
 
-## Ce qui est tranché
+Frédéric Bragance autorise le lancement de la procédure de promotion du travail validé vers le vrai NEXUS, sous contrôle du rail NEXUS Orchestrator.
 
-Frédéric Bragance fait ajouter à la section « Philosophie » de
-`docs/nexus/BIBLE.md` les deux lignes proposées en `§5.1` de
-`docs/nexus/AUDIT-PHILOSOPHIE-LANGAGE-RESULTATS-20260908.md`, sans
-reformulation :
+## Périmètre autorisé maintenant
 
-> - Une donnée absente n'est jamais transformée en zéro, conformité ou conclusion positive ; une donnée réellement mesurée à zéro reste dite comme telle.
-> - Une décision humaine sensible envers un individu (évaluation, sanction, jugement de performance) n'est jamais déduite automatiquement d'une absence de donnée.
+- figer une candidate à partir du HEAD canonique validé de `config-par-environnement` au démarrage du lot ;
+- auditer Production en lecture seule pour mesurer l'impact réel ;
+- inventorier les migrations non encore vues par Production et classifier leurs effets ;
+- produire le Production Readiness Report ;
+- concevoir et, si les contrôles de confidentialité sont prouvés, préparer un PREPROD anonymisé mais structurellement fidèle à Production ;
+- exécuter les répétitions de migrations et recettes hors Production ;
+- construire les preuves Guardians, CI, plan de réparation en avant, rollback code et dernier recours base ;
+- déterminer une fenêtre de déploiement sûre à partir de l'activité métier réelle ;
+- préparer NEXUS Live pour présenter une release précise, ses mesures horodatées et son impact réel.
 
-Ces deux principes étaient déjà vrais en pratique. Ils n'étaient pas écrits.
-L'écart entre les deux est précisément ce qu'une Bible sert à fermer.
+## Arbitrages déjà tranchés
 
-## Ce qui N'EST PAS adopté ici
+- PREPROD anonymisé par défaut. Une copie contenant des données personnelles réelles est interdite sans nouvel arbitrage explicite.
+- Les impacts sont classés `supprimées`, `écrasées`, `complétées`, `corrigées`.
+- Tout chiffre de readiness doit être mesuré, horodaté et rattaché à la candidate. Une mesure antérieure à la candidate ne peut pas autoriser l'affichage `Prêt pour Production`.
+- Le rollback code et le rollback données sont distincts. Pour les données, privilégier une migration compensatrice ou une réparation ciblée ; une restauration globale n'est qu'un dernier recours car elle peut perdre des écritures métier postérieures au déploiement.
+- Si l'activité métier en cours rend le rollback destructeur ou augmente fortement le risque, NEXUS doit refuser ou déconseiller la fenêtre de déploiement.
+- En cas d'information manquante, le verdict est `INCONNU`, jamais `CONFORME`.
 
-La troisième proposition du même `§5.1` — une phrase de renvoi vers
-`docs/nexus/DOCTRINE-LANGAGE-VOCABULAIRE.md` — n'est PAS appliquée. Ce document
-n'existe pas encore (`§5.2`, non traité). Un renvoi vers un fichier absent ne
-documente rien : il donne l'apparence d'une doctrine adossée à un texte, et
-c'est exactement le genre de vide qu'une lecture rapide ne voit pas.
+## Gate Production maintenue
 
-Elle reste ouverte, et redeviendra pertinente le jour où `§5.2` sera traité.
+Cette décision **n'autorise pas encore** :
 
-## Pourquoi ces lignes ne sont pas des vœux
+- une écriture dans Supabase Production ;
+- un merge ou push sur `production` ou `main` ;
+- un déploiement du vrai NEXUS ;
+- une migration Production ;
+- un rollback Production.
 
-Une ligne de doctrine que rien ne mécanise est une décoration. Chacune est donc
-rattachée à un mécanisme vivant, et une épreuve le vérifie
-(`test_bible_principes_mecanises_20260908.js`, câblée en CI) :
+Lorsque le rapport de readiness est complet et les preuves conformes, le rail doit revenir avec une proposition de release précise. Le passage effectif en Production restera soumis à une autorisation finale explicite de Frédéric pour cette release et cet impact.
 
-- « absence ≠ zéro » : `nexus-mesure.js` est le propriétaire unique de la
-  distinction, et `outils/guardian-bible.js` surveille les replis silencieux
-  vers zéro sur des montants affichés (9 signalements ouverts au 08/09/2026).
-- « aucun jugement déduit d'une absence » : `nexus-evaluation-affichage.js`
-  (EVAL-001) refuse de rendre un verdict faute de mesure — tout en continuant
-  d'afficher un zéro RÉELLEMENT mesuré, car taire une mauvaise note serait
-  l'erreur symétrique.
+## Continuité du rail
 
-L'épreuve échoue si l'une des lignes disparaît, si le Guardian Bible sort de la
-CI, ou si l'un des deux mécanismes cesse de tenir sa promesse. Les cinq
-mutations correspondantes ont été tentées et détectées.
-
-## Ce que ce lot laisse ouvert
-
-`§4.2` (note de révision de `NEXUS-Constitution-v1.md` Art.12/13), `§5.2` (le
-document de doctrine langage), et le chantier de réécriture des 1 481
-occurrences de tiret cadratin dans le contenu affiché, dont le plafond par
-fichier posé en 4dfc883 empêche désormais l'aggravation.
+Avant d'ouvrir ce lot, le rail doit d'abord consommer proprement `decision-3.md` du lot `NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908` et réconcilier `STATE.json`, actuellement en retard sur ce fichier. Aucun deuxième lot actif ne doit être fabriqué silencieusement.

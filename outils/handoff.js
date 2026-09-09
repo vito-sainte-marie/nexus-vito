@@ -107,12 +107,12 @@ function artefactsHorsRegistreValides(etat) {
   }
   return valides;
 }
-function validerRegistre(etat, artefactsValides) {
-  const registreLots = etat && etat.lots && typeof etat.lots === 'object' ? etat.lots : {};
-  for (const lot of lots()) {
-    if (!LOT_ID_VALIDE.test(lot)) { bloquant(`lots/${lot} : LOT_ID malformé`); continue; }
-    if (artefactsValides.has(lot)) { const a = artefactsValides.get(lot); avertir(`lots/${lot} est un artefact historique hors registre, toléré (motif : ${a.motif} — autorisé par ${a.autorise_par}, le ${a.le}). Aucune validation d'enveloppe request/decision n'est appliquée à ce répertoire.`); continue; }
-    if (!registreLots[lot]) { bloquant(`lots/${lot} : répertoire présent sous docs/handoff/lots/ mais absent de STATE.json.lots et non déclaré dans artefacts_hors_registre`, 'LOT_HORS_REGISTRE', null); continue; }
+// Valide les enveloppes request/decision d'UN lot déjà connu du registre
+// (ou sur le point de l'être — voir `enregistrerLot`). Extrait de
+// `validerRegistre` pour que `enregistrer-lot` puisse rejouer exactement la
+// même exigence AVANT d'ajouter un lot à STATE.json.lots, plutôt que
+// d'inventer une seconde vérité plus laxiste.
+function validerEnveloppesLot(lot) {
     const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (!demandes.length) bloquant(`lots/${lot} : aucun request-N.md`);
     demandes.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des demandes non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', `${lot}/${e.fichier}`); });
     decisions.forEach((e, i) => { if (e.seq !== i + 1) bloquant(`lots/${lot} : séquence des décisions non contiguë (${e.fichier})`, 'SEQUENCE_NON_CONTIGUE', `${lot}/${e.fichier}`); });
@@ -159,6 +159,14 @@ function validerRegistre(etat, artefactsValides) {
       }
     }
     if (decisions.length - supersessionsLegitimes > demandes.length) bloquant(`lots/${lot} : plus de décisions que de demandes`);
+}
+function validerRegistre(etat, artefactsValides) {
+  const registreLots = etat && etat.lots && typeof etat.lots === 'object' ? etat.lots : {};
+  for (const lot of lots()) {
+    if (!LOT_ID_VALIDE.test(lot)) { bloquant(`lots/${lot} : LOT_ID malformé`); continue; }
+    if (artefactsValides.has(lot)) { const a = artefactsValides.get(lot); avertir(`lots/${lot} est un artefact historique hors registre, toléré (motif : ${a.motif} — autorisé par ${a.autorise_par}, le ${a.le}). Aucune validation d'enveloppe request/decision n'est appliquée à ce répertoire.`); continue; }
+    if (!registreLots[lot]) { bloquant(`lots/${lot} : répertoire présent sous docs/handoff/lots/ mais absent de STATE.json.lots et non déclaré dans artefacts_hors_registre`, 'LOT_HORS_REGISTRE', null); continue; }
+    validerEnveloppesLot(lot);
   }
 }
 function validerEtatContenu(etat) {
@@ -238,6 +246,44 @@ function nouvelleDecision(lot, corpsFichier, options) {
   console.log('Enveloppe conforme par construction — à commiter, puis à consommer par `handoff.js consommer`.');
 }
 
+// Enregistre dans STATE.json.lots un lot déjà présent sous docs/handoff/lots/
+// avec des enveloppes request/decision déjà conformes, mais jamais inscrit —
+// parce qu'il a été déposé par un commit direct (Frédéric ou l'Orchestrator),
+// pas via `demande`/`decision`. Découvert le 09/09/2026 sur
+// NEXUS-PRODUCTION-READINESS-1-20260908 : ses deux fichiers sont conformes
+// par construction (auteur, branche, vocabulaire, in_reply_to — tout y est),
+// seul STATE.json.lots ignorait son existence, ce qui bloque `verifier` et
+// donc `consommer` pour TOUT le registre, pas seulement ce lot.
+//
+// Ce n'est PAS une dérogation : aucune règle n'est assouplie, aucun fichier
+// n'est réécrit, rien n'est toléré malgré un défaut. Cette commande rejoue
+// exactement les mêmes contrôles que `verifier` sur ce lot AVANT de
+// l'enregistrer, et refuse s'ils échouent — un lot mal formé ne devient
+// jamais un lot enregistré parce qu'on l'a demandé. `artefacts_hors_registre`
+// reste le mécanisme réservé aux répertoires qui n'ont jamais porté
+// d'enveloppe et n'en porteront jamais rétroactivement ; celui-ci est pour
+// les lots dont l'enveloppe a toujours été correcte.
+function enregistrerLot(lot) {
+  if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); }
+  if (!fs.existsSync(path.join(LOTS, lot))) { console.error(`Lot inconnu : aucun répertoire lots/${lot}`); process.exit(1); }
+  if (!fs.existsSync(ETAT)) { console.error('docs/handoff/STATE.json absent.'); process.exit(1); }
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8'));
+  etat.lots = etat.lots || {};
+  if (etat.lots[lot]) { console.error(`REFUS — ${lot} est déjà enregistré dans STATE.json.lots.`); process.exit(1); }
+  const horsRegistre = Array.isArray(etat.artefacts_hors_registre) ? etat.artefacts_hors_registre : [];
+  if (horsRegistre.some(a => a && a.lot_id === lot)) { console.error(`REFUS — ${lot} est déclaré dans artefacts_hors_registre : un lot est soit canonique soit hors registre, jamais les deux.`); process.exit(1); }
+  erreurs.length = 0; avertissements.length = 0;
+  validerEnveloppesLot(lot);
+  if (erreurs.length) {
+    console.error(`REFUS — les enveloppes de ${lot} ne sont pas conformes ; aucun enregistrement n'est fait.`);
+    for (const e of erreurs) console.error(`ÉCHEC — ${e.message}`);
+    process.exit(1);
+  }
+  const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'), derniereDemande = dernier(demandes);
+  etat.lots[lot] = { statut: 'ATTENTE_DECISION', derniere_demande: derniereDemande.fichier };
+  fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n');
+  console.log(`${lot} enregistré dans STATE.json.lots (derniere_demande ${derniereDemande.fichier}${decisions.length ? `, ${decisions.length} décision(s) déjà déposée(s) — à consommer via handoff.js consommer` : ', aucune décision déposée'}).`);
+}
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
   const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`); console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.'); process.exit(1); } }
@@ -259,8 +305,9 @@ switch (commande) {
   case undefined: case 'verifier': process.exit(verifier()); break;
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
   case 'consommer': consommer(arg1); break;
+  case 'enregistrer-lot': enregistrerLot(arg1); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
 }

@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908",
+  "lot_actif": "NEXUS-PRODUCTION-READINESS-1-20260908",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -217,12 +217,20 @@
       "consomme_le": "2026-09-08T02:14:48.446Z"
     },
     "NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-3.md",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "b9c3bf4015a26fab1ff8b6d06c4a3f2334b2d8e1",
-      "consomme_le": "2026-09-08T20:11:34.380Z"
+      "commit_decision": "90276b4221b36a5e8d5f1444ac540e3e5c1e329d",
+      "consomme_le": "2026-09-09T00:26:04.412Z"
+    },
+    "NEXUS-PRODUCTION-READINESS-1-20260908": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "ba1eed0e833c354f556128dc0ee4b0619725ed1a",
+      "consomme_le": "2026-09-09T00:26:09.818Z"
     }
   },
   "artefacts_hors_registre": [
