@@ -442,7 +442,7 @@ epreuve('les secrets employé sont HORS des secrets requis', () => {
 // jours calmes ; une qui accepterait son absence ne prouverait rien. On juge
 // donc la COHÉRENCE entre ce que l'accueil a DÉCIDÉ et ce qu'il MONTRE.
 
-const { verifierInvitation } = require('./outils/recette-navigateur-test.js');
+const { verifierInvitation, indisponibiliteInvitation } = require('./outils/recette-navigateur-test.js');
 
 epreuve('rien n’attend et rien n’est montré : conforme', () => {
   assert.deepStrictEqual(
@@ -487,16 +487,37 @@ epreuve('une carte ABSENTE de l’accueil est un vrai échec', () => {
     'le rapport doit dire ce que cette absence COÛTE, pas seulement qu’elle existe');
 });
 
+epreuve('MUTATION : ranger « non jugée » dans les échecs rend la recette rouge à tort', () => {
+  // Le défaut du 09/09, reproduit. La recette annonçait « ÉCHEC » puis, dans la
+  // même phrase, « ce n'est pas un défaut de la carte ». Une recette qui se
+  // contredit en une ligne n'apprend rien à qui la lit — et une séquence métier
+  // normale, le pointage exigé avant l'accueil, la rendait rouge tous les jours.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const mute = src.replace('if (NON_JUGEABLE.test(vue.motif || \'\')) return echecs;',
+    "if (NON_JUGEABLE.test(vue.motif || '')) { echecs.push('NON JUGÉE'); return echecs; }");
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process };
+  ctx.exports = ctx.module.exports;
+  require('vm').runInNewContext(mute, ctx);
+  const V = { presente: false, etat: null, visible: false, texte: '',
+              motif: 'le pointage d’arrivée est exigé avant l’accueil' };
+  assert.ok(ctx.module.exports.verifierInvitation(V).length > 0,
+    'le code muté devait rendre un échec ; l’épreuve ne détecte donc pas ce défaut');
+});
+
 epreuve('une REDIRECTION n’est pas accusée sur le dos de la carte', () => {
   // L'accueil redirige vers la prise de poste quand il ne trouve aucun service
   // actif. La carte est alors absente pour une raison qui n'a rien à voir avec
   // elle. L'accuser masquerait la vraie cause, et enverrait chercher un défaut
   // là où il n'y en a pas.
-  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
-    motif: 'l’accueil a redirigé vers la prise de poste : aucun service actif' }).join(' | ');
-  assert.ok(/NON JUGÉE/.test(e), e);
-  assert.ok(/pas un défaut de la carte/.test(e), e);
-  assert.ok(!/ABSENTE de l’accueil/.test(e),
+  const vue = { presente: false, etat: null, visible: false, texte: '',
+    motif: 'l’accueil a redirigé vers la prise de poste : aucun service actif' };
+  assert.deepStrictEqual(verifierInvitation(vue), [],
+    'une redirection n’est PAS un échec : le jugement n’a pas eu lieu');
+  const i = indisponibiliteInvitation(vue) || '';
+  assert.ok(/NON JUGÉE/.test(i), i);
+  assert.ok(/pas un défaut de la carte/.test(i), i);
+  assert.ok(!/ABSENTE de l’accueil/.test(i),
     'une redirection ne doit pas être rapportée comme une carte manquante');
 });
 
@@ -505,11 +526,14 @@ epreuve('le POINTAGE exigé avant l’accueil n’est pas un défaut de la carte
   // et seulement ensuite l’accueil. Un scénario qui va droit à l’accueil est
   // renvoyé pointer, et la carte n’est jamais atteinte. L’accuser reviendrait
   // à signaler un défaut inexistant à chaque exécution.
-  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
-    motif: 'le pointage d’arrivée est exigé avant l’accueil (NEXUS-Pointage-v1) — séquence obligatoire' }).join(' | ');
-  assert.ok(/NON JUGÉE/.test(e), e);
-  assert.ok(/pointage/i.test(e), 'le rapport doit nommer l’étape qui s’est interposée');
-  assert.ok(!/ABSENTE de l’accueil/.test(e));
+  const vue = { presente: false, etat: null, visible: false, texte: '',
+    motif: 'le pointage d’arrivée est exigé avant l’accueil (NEXUS-Pointage-v1) — séquence obligatoire' };
+  assert.deepStrictEqual(verifierInvitation(vue), [],
+    'le pointage exigé n’est PAS un échec de la recette : c’est la séquence métier');
+  const i = indisponibiliteInvitation(vue) || '';
+  assert.ok(/NON JUGÉE/.test(i), i);
+  assert.ok(/pointage/i.test(i), 'le rapport doit nommer l’étape qui s’est interposée');
+  assert.ok(!/ABSENTE de l’accueil/.test(i));
 });
 
 epreuve('une chaîne de requête n’est pas une destination', () => {
@@ -526,9 +550,11 @@ epreuve('une chaîne de requête n’est pas une destination', () => {
 epreuve('une carte VRAIMENT absente reste dénoncée, elle', () => {
   // Sans cette épreuve, la précédente pourrait être satisfaite par un code qui
   // ne dénonce plus jamais rien.
-  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
-    motif: 'carte absente du document' }).join(' | ');
+  const vue = { presente: false, etat: null, visible: false, texte: '', motif: 'carte absente du document' };
+  const e = verifierInvitation(vue).join(' | ');
   assert.ok(/ABSENTE de l’accueil/.test(e), e);
+  assert.strictEqual(indisponibiliteInvitation(vue), null,
+    'une vraie absence n’est pas une indisponibilité : elle doit rester un ÉCHEC');
 });
 
 epreuve('aucune observation ne vaut pas conforme', () => {

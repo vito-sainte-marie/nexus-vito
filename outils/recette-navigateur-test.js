@@ -550,6 +550,23 @@ async function observerInvitationInventaire(page, base) {
   return { presente: true, etat: vue.etat, visible: !!vue.visible, texte: vue.texte || '' };
 }
 
+// Les situations où l'accueil n'a jamais été affiché : le jugement n'a pas eu
+// lieu, ni dans un sens ni dans l'autre.
+const NON_JUGEABLE = /redirig|inatteignable|inattendue|pointage/i;
+
+// L'INDISPONIBILITÉ, rendue SÉPARÉMENT du verdict.
+//
+// Trois états, jamais deux : conforme, fautif, ou non jugé. Ranger le troisième
+// avec le deuxième transforme une séquence métier normale — le pointage exigé
+// avant l'accueil — en défaut rouge, tous les jours, jusqu'à ce que plus
+// personne ne lise la recette.
+function indisponibiliteInvitation(vue) {
+  if (!vue || vue.presente) return null;
+  if (!NON_JUGEABLE.test(vue.motif || '')) return null;
+  return 'Invitation à l’inventaire NON JUGÉE : ' + vue.motif + '. '
+    + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.';
+}
+
 // VERDICT PUR — éprouvable sans navigateur.
 function verifierInvitation(vue) {
   const echecs = [];
@@ -557,14 +574,12 @@ function verifierInvitation(vue) {
   if (!vue.presente) {
     // Une redirection vers la prise de poste n'est pas un défaut de la carte :
     // l'accueil n'a jamais été affiché. L'accuser masquerait la vraie cause.
-    // Le pointage d'arrivée et les redirections ne sont pas des défauts de la
-    // carte : l'accueil n'a jamais été affiché. Les compter comme tels
-    // masquerait la vraie cause et enverrait chercher ailleurs.
-    if (vue.motif && /redirig|inatteignable|inattendue|pointage/i.test(vue.motif)) {
-      echecs.push('Invitation NON JUGÉE : ' + vue.motif + '. '
-        + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.');
-      return echecs;
-    }
+    // NON JUGÉE N'EST PAS UN ÉCHEC, et ma première version l'y rangeait quand
+    // même : le rapport disait « ÉCHEC de la recette » puis, dans la même
+    // ligne, « ce n'est pas un défaut de la carte ». Une recette qui se
+    // contredit en une phrase n'apprend rien à qui la lit.
+    // L'indisponibilité se rend par `indisponibiliteInvitation`, à part.
+    if (NON_JUGEABLE.test(vue.motif || '')) return echecs;
     echecs.push('La carte d’invitation à l’inventaire est ABSENTE de l’accueil employé'
       + (vue.motif ? ` — ${vue.motif}` : '') + '. '
       + 'Un employé ne peut donc jamais se voir proposer une mission que personne n’a prise.');
@@ -671,6 +686,8 @@ async function executer(env = process.env) {
             + '(fuseau, quart ou lecture des règles). Ne pas lire cette absence comme « rien n’attendait ».';
         }
         echecsEmploye = echecsEmploye.concat(verifierInvitation(employe.invitation));
+        const nonJugee = indisponibiliteInvitation(employe.invitation);
+        if (nonJugee) employeIndisponible = (employeIndisponible ? employeIndisponible + ' ' : '') + nonJugee;
       } catch (e) {
         // Un compte inconnectable et un écran qui refuse sont deux choses
         // opposées — même distinction que pour le Créateur le 07/09. On ne
@@ -689,7 +706,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
