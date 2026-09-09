@@ -153,6 +153,13 @@ epreuve('le PIN n’apparaît dans aucune sortie ni aucun message d’erreur', (
     'await page.locator(\'input[type="password"]\').first().fill(pin);',
     'async function observerLive(navigateur, base, nom, pin) {',
     'await connecter(page, base, nom, pin);',
+    // Inscrite le 09/09/2026, après que ce contrat l'a refusée — comportement
+    // voulu. La question qu'il force : `observerEmploye` a-t-elle une raison de
+    // recevoir le PIN ? Oui, elle connecte un compte employé, et elle ne fait
+    // que le transmettre à `connecter`, seule fonction qui le saisit. Elle ne
+    // le journalise pas, ne le met dans aucun message et n'écrit aucune
+    // capture. Aucune ligne nouvelle ne s'ajoute donc ci-dessous.
+    'async function observerEmploye(navigateur, base, nom, pin) {',
   ].map(l => l.trim());
   const fautives = source.split('\n')
     .filter(l => /\bpin\b/.test(l))
@@ -359,6 +366,72 @@ epreuve('un état d’attente INCONNU n’est pas jugé conforme par défaut', (
   const e = verifierLive({ texte: 'x', refuse: false, contientTimeline: true,
     attente: 'en-cours-de-reflexion', boutonAutoriser: false }, manager);
   assert.ok(/état d’attente inconnu/.test(e.join(' ')), e.join(' | '));
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// SCÉNARIO EMPLOYÉ — le verdict, éprouvé sans navigateur.
+//
+// Ce qui décide ici n'est pas la première prise de poste mais la SECONDE :
+// celle de l'employé qui n'a pas fermé son quart de la veille, comportement
+// ordinaire de l'équipe selon Frédéric (09/09/2026). C'est elle que l'index
+// d'unicité de la release 2026.09.1 pourrait refuser.
+
+const { verifierEmploye, SECRETS_EMPLOYE } = require('./outils/recette-navigateur-test.js');
+
+const CONFIRME = { atteint: 'confirme', alertes: [], role: 'caissiere' };
+
+epreuve('les deux prises de poste abouties : rien à reprocher', () => {
+  assert.deepStrictEqual(verifierEmploye(CONFIRME, CONFIRME), [],
+    'l’état conforme doit passer, sinon les épreuves suivantes ne prouvent rien');
+});
+
+epreuve('la SECONDE prise de poste refusée est dénoncée, avec ce que l’employé a lu', () => {
+  const bloque = { atteint: 'bloque', role: 'caissiere',
+                   alertes: ['Un problème est survenu, réessayez.'] };
+  const e = verifierEmploye(CONFIRME, bloque).join(' | ');
+  assert.ok(/QUART DÉJÀ OUVERT REFUSÉE/.test(e), e);
+  assert.ok(/Un problème est survenu/.test(e),
+    'le message RÉELLEMENT vu par l’employé doit être rapporté, pas résumé');
+  assert.ok(/réessayez.*ne marchera jamais|jamais/.test(e),
+    'le rapport doit dire que réessayer est vain — sinon on croit à un incident passager');
+});
+
+epreuve('une alerte à la seconde prise est signalée MÊME si l’écran aboutit', () => {
+  // Un écran qui finit par marcher après avoir affiché une erreur reste un
+  // écran qui a affiché une erreur. Pour une équipe qui pense déjà que NEXUS
+  // ne fonctionne pas, c'est le message vu qui compte, pas l'issue technique.
+  const avecAlerte = { atteint: 'confirme', role: 'caissiere', alertes: ['Erreur réseau'] };
+  const e = verifierEmploye(CONFIRME, avecAlerte).join(' | ');
+  assert.ok(/alerte est apparue/.test(e), e);
+});
+
+epreuve('la PREMIÈRE prise refusée arrête le jugement — le reste n’a plus de sens', () => {
+  const bloque = { atteint: 'bloque', role: 'caissiere', alertes: [] };
+  const e = verifierEmploye(bloque, CONFIRME);
+  assert.strictEqual(e.length, 1, 'un seul reproche : le premier échec explique tout');
+  assert.ok(/initiale REFUSÉE/.test(e[0]), e[0]);
+});
+
+epreuve('aucun rôle proposé est un défaut NOMMÉ, pas un succès', () => {
+  const e = verifierEmploye({ atteint: 'aucun_role', alertes: [] }, CONFIRME).join(' | ');
+  assert.ok(/aucun rôle proposé/.test(e), e);
+});
+
+epreuve('une observation MANQUANTE ne vaut pas conforme', () => {
+  // Trois états, jamais deux : ne pas avoir pu observer n'est pas « ça marche ».
+  assert.ok(verifierEmploye(null, null).length > 0, 'null doit produire un refus');
+  assert.ok(/on ne conclut pas/.test(verifierEmploye(CONFIRME, null).join(' ')),
+    'une seconde observation absente doit refuser de conclure');
+});
+
+epreuve('les secrets employé sont HORS des secrets requis', () => {
+  // Les y mettre ferait dégrader la recette entière le jour où ils manquent :
+  // on perdrait la preuve UI Carburants et les deux preuves d'accès Live,
+  // acquises le 09/09, pour un scénario sans rapport.
+  const { SECRETS_REQUIS } = require('./outils/recette-navigateur-test.js');
+  for (const n of SECRETS_EMPLOYE)
+    assert.ok(!SECRETS_REQUIS.includes(n),
+      `${n} est dans SECRETS_REQUIS : son absence ferait tomber toute la recette`);
 });
 
 console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);

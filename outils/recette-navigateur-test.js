@@ -46,16 +46,29 @@
 //   NEXUS_TEST_CREATEUR_NOM        le NOM du compte Créateur de recette.
 //   NEXUS_TEST_CREATEUR_PIN        secret dédié au compte Créateur Test — jamais affiché.
 //
-// Deux secrets supplémentaires existent côté GitHub mais ne sont PAS encore
-// consommés par cette recette : NEXUS_TEST_EMPLOYEE_A_PIN et
-// NEXUS_TEST_EMPLOYEE_B_PIN. Aucun scénario de ce fichier n'exerce
-// aujourd'hui un compte Employé — les ajouter à SECRETS_REQUIS sans
-// scénario derrière fabriquerait une preuve vide. Ils attendent le lot qui
-// écrira ce scénario.
+// LE COMPTE EMPLOYÉ A EST DÉSORMAIS EXERCÉ (09/09/2026). Ce fichier disait
+// jusqu'ici que NEXUS_TEST_EMPLOYEE_A_PIN et _B_PIN existaient sans usage, et
+// qu'ils attendaient « le lot qui écrira ce scénario » — les injecter sans
+// scénario derrière aurait fabriqué une preuve vide. Le scénario existe :
+//   NEXUS_TEST_EMPLOYEE_A_NOM   le NOM du compte employé de recette.
+//   NEXUS_TEST_EMPLOYEE_A_PIN   son secret dédié — jamais affiché.
+// Ils restent HORS de SECRETS_REQUIS : leur absence ne doit pas faire tomber
+// les preuves déjà acquises (voir SECRETS_EMPLOYE).
+//
+// NEXUS_TEST_EMPLOYEE_B_PIN attend toujours : aucun scénario n'exerce un
+// second employé, et la règle qui valait hier vaut encore aujourd'hui.
 
 const path = require('path');
 
 const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
+
+// Le scénario EMPLOYÉ a ses propres secrets, et ils sont VOLONTAIREMENT hors
+// de SECRETS_REQUIS. Les y ajouter ferait dégrader la recette ENTIÈRE le jour
+// où ils manqueraient : on perdrait la preuve UI Carburants et les deux preuves
+// d'accès Live, déjà acquises le 09/09/2026, pour un scénario qui n'a rien à
+// voir. Une capacité optionnelle absente dégrade CE QU'ELLE COUVRE, pas le
+// reste (ENV-003).
+const SECRETS_EMPLOYE = ['NEXUS_TEST_EMPLOYEE_A_NOM', 'NEXUS_TEST_EMPLOYEE_A_PIN'];
 const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
 const ECRAN_LIVE = 'NEXUS-Live-Developpement-v1.html';
 
@@ -327,6 +340,119 @@ function verifierLive(createur, manager) {
   return echecs;
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// SCÉNARIO EMPLOYÉ — prendre son poste, y compris avec un quart déjà ouvert.
+//
+// POURQUOI IL MANQUAIT, ET POURQUOI IL COMPTE PLUS QUE LES AUTRES.
+// Frédéric Bragance, 09/09/2026 : « les employés utilisent NEXUS au
+// compte-gouttes […] il ouvre un quart, commence la journée, parfois il ne fait
+// rien — ni inventaire, ni missions — et ne referme même pas le quart, car pour
+// eux NEXUS ne fonctionne pas correctement. »
+//
+// Le quart laissé ouvert est donc le comportement ORDINAIRE, pas un accident.
+// Or la release 2026.09.1 installe `shifts_un_seul_service_en_cours`, un index
+// unique qui interdit deux services ouverts pour un même employé. Un filet
+// existe — le déclencheur `nexus_shifts_avant_insertion` clôt le précédent —
+// et il a été éprouvé en SQL le 09/09. MAIS PAS À L'ÉCRAN.
+//
+// C'est la différence qui décide. `NEXUS-Prise-De-Poste-v1.html` insère sans
+// rattraper la moindre erreur d'unicité : en cas de refus, l'employé lit
+// « Un problème est survenu, réessayez », et réessayer échouera toujours. Une
+// preuve SQL ne dit rien de ce que la personne voit ; et ce que la personne
+// voit est précisément ce qui décide de l'adoption.
+//
+// LE SCÉNARIO PREND DONC LE POSTE DEUX FOIS DE SUITE. La première ouvre un
+// service ; la seconde est le lendemain de l'employé qui n'a pas fermé. C'est
+// la seconde qui prouve quelque chose — la première n'est que sa condition.
+
+const ECRAN_PRISE_DE_POSTE = 'NEXUS-Prise-De-Poste-v1.html';
+
+// Une seule prise de poste, du choix du rôle à l'écran final. Rend un objet
+// FACTUEL — jamais un verdict : le jugement est rendu par une fonction pure,
+// pour qu'il soit éprouvable sans navigateur.
+async function prendreLePoste(page, base) {
+  const alertes = [];
+  const surDialogue = async (d) => { alertes.push(d.message()); await d.dismiss().catch(() => {}); };
+  page.on('dialog', surDialogue);
+  try {
+    await page.goto(new URL(ECRAN_PRISE_DE_POSTE, base).href, { waitUntil: 'domcontentloaded' });
+
+    const cartes = page.locator('.role-card');
+    await cartes.first().waitFor({ timeout: 30000 });
+    const nbRoles = await cartes.count();
+    if (!nbRoles) return { atteint: 'aucun_role', alertes, role: null };
+    // On prend le premier rôle proposé plutôt qu'un rôle codé en dur : le rôle
+    // n'est pas le sujet, et l'épingler casserait le scénario au premier
+    // changement de catalogue.
+    const role = await cartes.first().getAttribute('data-role');
+    await cartes.first().click();
+
+    await page.locator('#btnVoirMissions').click();
+    const confirmer = page.locator('#btnConfirmer');
+    await confirmer.waitFor({ timeout: 30000 });
+    await confirmer.click();
+
+    // On attend l'ÉVÉNEMENT voulu — le titre de l'écran final — et non un
+    // délai. Un `waitForTimeout` transformerait une lenteur en échec, et c'est
+    // exactement l'erreur déjà commise sur `connecter` le 07/09.
+    try {
+      await page.locator('#titre').filter({ hasText: /Prise de poste confirmée/i })
+        .waitFor({ timeout: 30000 });
+      return { atteint: 'confirme', alertes, role };
+    } catch (e) {
+      const titre = (await page.locator('#titre').innerText().catch(() => '') || '').trim();
+      return { atteint: 'bloque', alertes, role, titre };
+    }
+  } finally {
+    page.off('dialog', surDialogue);
+  }
+}
+
+// VERDICT PUR — éprouvable sans navigateur, mutable en microsecondes.
+// `premiere` et `seconde` sont les objets rendus par `prendreLePoste`.
+function verifierEmploye(premiere, seconde) {
+  const echecs = [];
+  if (!premiere || !seconde) {
+    echecs.push('Scénario employé : observation manquante — on ne conclut pas.');
+    return echecs;
+  }
+  if (premiere.atteint === 'aucun_role') {
+    echecs.push('Prise de poste : aucun rôle proposé à l’employé. L’écran ne permet pas de commencer.');
+    return echecs;
+  }
+  if (premiere.atteint !== 'confirme') {
+    echecs.push('Prise de poste initiale REFUSÉE' +
+      (premiere.alertes.length ? ` — l’écran dit : « ${premiere.alertes[0]} »` : '') +
+      '. Un employé ne peut pas commencer sa journée.');
+    return echecs;
+  }
+  // LE POINT QUI COMPTE.
+  if (seconde.atteint !== 'confirme') {
+    echecs.push('PRISE DE POSTE AVEC UN QUART DÉJÀ OUVERT REFUSÉE' +
+      (seconde.alertes.length ? ` — l’écran dit : « ${seconde.alertes[0]} »` : '') +
+      '. C’est le comportement ordinaire de l’équipe : la release la mettrait dehors, ' +
+      'et « réessayez » ne marchera jamais.');
+  }
+  if (seconde.alertes.length) {
+    echecs.push(`Une alerte est apparue à la seconde prise de poste : « ${seconde.alertes[0]} ». ` +
+      'Même si l’écran finit par aboutir, l’employé a vu une erreur.');
+  }
+  return echecs;
+}
+
+async function observerEmploye(navigateur, base, nom, pin) {
+  const page = await navigateur.newPage({ viewport: { width: 420, height: 900 } });
+  try {
+    await connecter(page, base, nom, pin);
+    const premiere = await prendreLePoste(page, base);
+    const seconde = await prendreLePoste(page, base);
+    return { premiere, seconde };
+  } finally {
+    await page.close();
+  }
+}
+
 async function executer(env = process.env) {
   const manquants = secretsManquants(env);
   if (manquants.length) {
@@ -392,16 +518,37 @@ async function executer(env = process.env) {
     }
     const echecsLive = createur ? verifierLive(createur, manager) : verifierLive(null, manager);
 
-    const indisponibilites = [carburantsNonAttribuable, createurIndisponible].filter(Boolean);
-    return { executee: true, bloquant: (echecs.length + echecsLive.length) > 0,
-      vu, echecs: echecs.concat(echecsLive), semisFait, indisponibilites,
-      live: { createur, manager } };
+    // Scénario employé — optionnel, et sa propre dégradation.
+    let employe = null, echecsEmploye = [], employeIndisponible = null;
+    const manquantsEmploye = SECRETS_EMPLOYE.filter(n => !env[n] || !String(env[n]).trim());
+    if (manquantsEmploye.length) {
+      employeIndisponible = `Scénario employé NON EXÉCUTÉ — absents du runner : ${manquantsEmploye.join(', ')}. `
+        + 'La prise de poste n’est donc éprouvée qu’en SQL, jamais à l’écran. '
+        + 'Or c’est l’écran que l’équipe voit, et c’est lui qui décide de l’adoption.';
+    } else {
+      try {
+        employe = await observerEmploye(navigateur, base,
+          env.NEXUS_TEST_EMPLOYEE_A_NOM, env.NEXUS_TEST_EMPLOYEE_A_PIN);
+        echecsEmploye = verifierEmploye(employe.premiere, employe.seconde);
+      } catch (e) {
+        // Un compte inconnectable et un écran qui refuse sont deux choses
+        // opposées — même distinction que pour le Créateur le 07/09. On ne
+        // convertit pas l'un en l'autre : la preuve est déclarée manquante.
+        employeIndisponible = `Compte employé « ${env.NEXUS_TEST_EMPLOYEE_A_NOM} » non exploitable : ${e.message.split('\n')[0]} `
+          + 'LA PREUVE DU PARCOURS EMPLOYÉ RESTE NON SATISFAITE.';
+      }
+    }
+
+    const indisponibilites = [carburantsNonAttribuable, createurIndisponible, employeIndisponible].filter(Boolean);
+    return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
+      vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
+      live: { createur, manager }, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { SECRETS_REQUIS, secretsManquants, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -436,6 +583,17 @@ if (require.main === module) {
           : c.attente === 'repondu'
             ? `question répondue mais cause non levée, bouton ${c.boutonAutoriser ? 'REPROPOSÉ À TORT' : 'retiré'}`
             : `aucun arbitrage en attente, bouton ${c.boutonAutoriser ? 'PRÉSENT À TORT' : 'absent'}`));
+      // Le parcours EMPLOYÉ, dit séparément et sans ambiguïté. « Non exécuté »
+      // n'est pas « satisfait » : la confusion des deux est exactement ce qui a
+      // laissé croire pendant un lot entier que la preuve UI existait.
+      const e = r.employe;
+      console.log('  · Prise de poste employé : '
+        + (!e ? 'NON EXÉCUTÉE — voir indisponibilités'
+          : e.premiere.atteint === 'confirme' ? 'satisfaite' : 'NON SATISFAITE'));
+      console.log('  · Prise de poste avec un quart DÉJÀ OUVERT : '
+        + (!e ? 'NON EXÉCUTÉE — le cas ordinaire de l’équipe reste non éprouvé à l’écran'
+          : e.seconde.atteint === 'confirme' ? 'satisfaite — le quart précédent s’est fermé seul'
+          : 'NON SATISFAITE'));
       process.exit(0);
     }
     console.error('\nÉCHEC de la recette navigateur :');

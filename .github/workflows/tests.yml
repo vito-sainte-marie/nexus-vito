@@ -603,6 +603,18 @@ jobs:
           # injecté sans usage fabrique une preuve vide.
           NEXUS_TEST_MANAGER_PIN: ${{ secrets.NEXUS_TEST_MANAGER_PIN }}
           NEXUS_TEST_CREATEUR_PIN: ${{ secrets.NEXUS_TEST_CREATEUR_PIN }}
+          # Compte EMPLOYÉ, injecté depuis le 09/09/2026 à la demande de
+          # Frédéric. Le secret existait déjà et dormait : la règle « un secret
+          # injecté sans usage fabrique une preuve vide » interdisait de le
+          # câbler tant qu'aucun scénario ne l'exerçait. Le scénario existe
+          # maintenant — prise de poste, puis prise de poste AVEC un quart déjà
+          # ouvert, le cas ordinaire de l'équipe que l'index d'unicité de la
+          # release pourrait refuser.
+          #
+          # Son absence ne fait PAS tomber la recette : ces deux variables sont
+          # hors de SECRETS_REQUIS, et le scénario employé dégrade seul.
+          NEXUS_TEST_EMPLOYEE_A_NOM: Employé Test A
+          NEXUS_TEST_EMPLOYEE_A_PIN: ${{ secrets.NEXUS_TEST_EMPLOYEE_A_PIN }}
           # Attend que NEXUS Test serve RÉELLEMENT le commit testé avant de
           # juger quoi que ce soit. Cloudflare déploie de façon asynchrone, et
           # une recette lancée trop tôt prouverait la version précédente —
