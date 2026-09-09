@@ -97,9 +97,36 @@ cette phrase ne peut être ni affichée ni vérifiée.
 tombe exactement juste. Faut-il lire 20 h 10 et 22 h 10, ou la durée
 est-elle nominale ?
 
-**Le renfort.** La configuration porte un renfort 9 h 00 – 17 h 00 avec pause
-13 h 00 – 14 h 00, absent du tableau canonique. Toujours d'actualité, ou
-périmé ?
+**Le renfort — TRANCHÉ le 09/09/2026 par Frédéric Bragance : les horaires sont
+bons.** Renfort 9 h 00 – 17 h 00, pause 13 h 00 – 14 h 00. Rien à corriger, et
+la mise à jour de Production laisse ce bloc intact.
+
+### Mais cette confirmation en révèle un quatrième
+
+**Le planning connaît TROIS quarts, l'exécution n'en connaît que deux.**
+
+`planning_shifts.quart` et `planning_regles_effectif.quart` acceptent tous deux
+`quart1`, `quart2` et **`renfort`**. L'écran Planning lui donne son libellé et
+sa couleur. Le renfort est donc un quart de plein droit côté planification.
+
+Côté exécution, `quartDepuisMinutes` ne sait rendre que `'1'` ou `'2'`. La
+prise de poste écrit cette valeur dans `shifts.quart` : **un renfort est
+enregistré « matin » ou « soir », jamais « renfort »**.
+
+Ce n'est pas théorique. Sur les deux seuls quarts engagés de la station depuis
+le 04/09, **celui qui a validé 64 missions le 08/09 est un renfort.** L'employé
+le plus engagé de la mesure travaille dans le régime que l'exécution ne sait pas
+nommer.
+
+**Et ça touche directement le parcours.** Un renfort arrive à 9 h, après la
+prise en main du quart 1, et part à 17 h, avant le relais du quart 2. Les
+moments `ouverture` et `relais` ne lui vont ni l'un ni l'autre. Le vocabulaire
+des moments doit donc valoir pour un service qui n'est ni Q1 ni Q2 — sinon le
+renfort recevra les missions d'ouverture à 9 h du matin.
+
+**À trancher :** `shifts.quart` doit-il accepter `renfort`, et la prise de poste
+doit-elle le proposer quand l'employé est planifié comme tel ? Je ne l'ai pas
+fait : c'est un changement de schéma et de parcours, pas une correction.
 
 ---
 

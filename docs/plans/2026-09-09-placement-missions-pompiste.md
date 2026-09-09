@@ -36,6 +36,14 @@ quand elles décrivent vraiment l'horloge.
 `ouverture` et `prise-en-main` se confondent pour le Q1 du matin et se
 séparent pour le Q2 : c'est justement pourquoi ils sont distincts.
 
+**Et ils doivent valoir pour le RENFORT**, confirmé le 09/09/2026 comme
+travaillant de 9 h à 17 h avec pause. Il arrive après la prise en main du Q1 et
+part avant le relais du Q2 : `ouverture` ne le concerne jamais, et son
+`prise-en-main` tombe à 9 h. Un vocabulaire de moments attaché aux horaires du
+quart 1 lui enverrait les missions d'ouverture en milieu de matinée. Ce n'est
+pas un cas marginal : l'employé le plus engagé de toute la mesure, 64 missions
+le 08/09, est un renfort.
+
 **À trancher :** ce vocabulaire te convient-il, ou faut-il d'autres moments ?
 
 ---
