@@ -39,22 +39,30 @@ fi
 
 # LE TROUSSEAU N'EST EXIGÉ QUE S'IL EST LE SEUL RECOURS.
 #
-# Constat canonisé le 09/09/2026 (request-5) : le trousseau macOS était réclamé
-# AVANT même de regarder si `NEXUS_TEST_DB_URL` était fournie. Sur un runner
-# Linux il n'existe pas — la reconstruction mourait donc en `exit 4` alors
-# qu'une URL Test parfaitement valide était disponible. Le script refusait de
-# travailler faute d'un moyen dont il n'avait pas besoin.
+# Constat canonisé le 09/09/2026 (request-5), puis RECONFIRMÉ le même jour :
+# un premier correctif avait ajouté le repli sur `NEXUS_TEST_DB_URL`/
+# `NEXUS_TEST_DB_PASSWORD` mais laissait `security find-generic-password`
+# s'EXÉCUTER quand même en premier, inconditionnellement — seul son résultat
+# était ignoré ensuite. Le commentaire promettait un ordre que le code ne
+# tenait pas. Sur un runner sans trousseau, l'appel ne fait certes pas
+# échouer le script (capturé par `|| true`), mais il reste un appel inutile
+# à un mécanisme dont ce rail n'a pas besoin — et un défaut d'ordre qui aurait
+# pu, ailleurs, en cacher un vrai.
 #
-# L'ordre est donc inversé : on ne réclame un credential que si l'on doit
-# FABRIQUER l'URL soi-même. Quand elle est fournie, elle porte son propre moyen
-# d'authentification, ou `PGPASSWORD` est déjà dans l'environnement.
+# L'ordre est donc RÉELLEMENT inversé cette fois : le trousseau n'est même
+# tenté que si `NEXUS_TEST_DB_URL` est absente. Quand elle est fournie, elle
+# porte son propre moyen d'authentification, ou `PGPASSWORD` est déjà dans
+# l'environnement — `security` n'est jamais invoquée.
 #
 # CE QUI N'EST PAS ASSOUPLI : le refus de la référence Production reste AVANT
 # toute tentative de connexion, et une connexion qui échoue échoue — on ne
 # devine aucun mot de passe et on n'en fabrique aucun.
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+MDP=""
+if [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
 fi
 if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
   echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe." >&2
