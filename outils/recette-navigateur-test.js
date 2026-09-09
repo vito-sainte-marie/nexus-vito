@@ -525,11 +525,19 @@ async function observerInvitationInventaire(page, base) {
   // actif. La carte est alors absente pour une raison qui n'a rien à voir avec
   // elle : on le DIT, plutôt que de le compter comme un défaut de la carte.
   if (!vue) {
+    // LE MOTIF PORTE L'URL RÉELLE. Ma première version disait « carte absente
+    // du document » sans dire DE QUEL document : la carte est pourtant bien
+    // servie — vérifié par une requête directe sur nexus-test — et le message
+    // envoyait donc chercher un défaut là où il n'y en avait pas. Un
+    // diagnostic qui ne nomme pas ce qu'il a regardé ne diagnostique rien.
     const url = page.url();
-    const redirige = /Prise-De-Poste/i.test(url);
-    return { presente: false, etat: null, visible: false, texte: '',
-      motif: redirige ? 'l’accueil a redirigé vers la prise de poste : aucun service actif'
-                      : 'carte absente du document' };
+    const page_ = url.split('/').pop() || url;
+    const motif =
+      /Prise-De-Poste/i.test(url) ? `l’accueil a redirigé vers la prise de poste (${page_}) : aucun service actif`
+      : /Login/i.test(url) ? `l’accueil a redirigé vers la connexion (${page_}) : session perdue`
+      : /App-v1/i.test(url) ? `carte absente alors que l’accueil est bien affiché (${page_})`
+      : `page inattendue après navigation : ${page_}`;
+    return { presente: false, etat: null, visible: false, texte: '', motif };
   }
   return { presente: true, etat: vue.etat, visible: !!vue.visible, texte: vue.texte || '' };
 }
@@ -541,12 +549,13 @@ function verifierInvitation(vue) {
   if (!vue.presente) {
     // Une redirection vers la prise de poste n'est pas un défaut de la carte :
     // l'accueil n'a jamais été affiché. L'accuser masquerait la vraie cause.
-    if (vue.motif && /redirig|inatteignable/i.test(vue.motif)) {
+    if (vue.motif && /redirig|inatteignable|inattendue/i.test(vue.motif)) {
       echecs.push('Invitation NON JUGÉE : ' + vue.motif + '. '
         + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.');
       return echecs;
     }
-    echecs.push('La carte d’invitation à l’inventaire est ABSENTE de l’accueil employé. '
+    echecs.push('La carte d’invitation à l’inventaire est ABSENTE de l’accueil employé'
+      + (vue.motif ? ` — ${vue.motif}` : '') + '. '
       + 'Un employé ne peut donc jamais se voir proposer une mission que personne n’a prise.');
     return echecs;
   }
