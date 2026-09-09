@@ -135,6 +135,27 @@
       "sort": "SUPERSEDEE",
       "motif": "Porte le même arbitrage Q73-Q76 que la branche 20260908-0213, qui a été fusionnée. Ses entrées Backlog Q74 (EVAL-001, DEBUG-001, COACH-001, CARB-007, ARCH-002) ont été transportées le 08/09/2026.",
       "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0019",
+      "tete": "bf40b9aed756cf91fa343b503786045d018b4291",
+      "sort": "INTEGREE",
+      "motif": "Réconciliation du rail, `handoff.js enregistrer-lot` et premier inventaire des migrations Readiness. INTÉGRÉE : aucun des 7 fichiers touchés n'est absent du canonique, `enregistrer-lot` est présent dans `outils/handoff.js` et `test_handoff_enregistrer_lot_20260909.js` est canonique. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées. Les lignes non retrouvées telles quelles sont les miroirs régénérés et `inventaire-migrations-1.md`, RÉVISÉ depuis : le canonique couvre toujours les migrations 3 et 6 et porte la mesure des 13 services.",
+      "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0100",
+      "tete": "a43534a14a38b1707285a0aaf7f22a07a1057aed",
+      "sort": "INTEGREE",
+      "motif": "Manifeste des migrations Production, plans PREPROD/rollback/release et critères Live (request-3). INTÉGRÉE : les 16 fichiers touchés existent au canonique, dont `criteres-pret-pour-production-1.md`, `manifeste-migrations-production-1.md`, `plan-preprod-anonymise-1.md`, `plan-reparation-rollback-1.md` et `procedure-release-production-1.md`. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées. Les écarts résiduels portent sur des documents révisés après reprise, pas sur du contenu perdu.",
+      "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0234",
+      "tete": "a5484290f4f9fb94f66d659844f5a2b13315d9d2",
+      "sort": "INTEGREE",
+      "motif": "Poursuite de la readiness Production (decision-2). INTÉGRÉE : 15 fichiers touchés, aucun absent, 81 % des lignes ajoutées littéralement présentes au canonique hors miroirs ; le reste a été révisé par 2ddd01f puis 4ca914e. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées.",
+      "le": "2026-09-09"
     }
   ]
 }
