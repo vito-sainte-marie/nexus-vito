@@ -57,11 +57,41 @@ entre profils rendait impossible à prouver avant le 08/09.
 Saisis par personne. Injectés au runner depuis des secrets GitHub dédiés par
 profil, masqués dans le journal (`***`), jamais lus ni conservés par Claude.
 
+## Le parcours employé — ajouté et exécuté le même jour
+
+Run `34379171491`, commit `d16ccb4aeee557bef2bf3848aa7add77182b7edd`.
+
+| Point | Verdict |
+|---|---|
+| Prise de poste employé | **satisfaite** |
+| Prise de poste avec un quart DÉJÀ OUVERT | **satisfaite — le quart précédent s'est fermé seul** |
+
+**Pourquoi le second point est le seul qui compte vraiment.** Frédéric,
+09/09/2026 : « il ouvre un quart, commence la journée, parfois il ne fait rien
+[…] et ne referme même pas le quart, car pour eux NEXUS ne fonctionne pas
+correctement. » Le quart laissé ouvert est le comportement ORDINAIRE. Or la
+release installe `shifts_un_seul_service_en_cours`, et
+`NEXUS-Prise-De-Poste-v1.html` insère sans rattraper la moindre erreur
+d'unicité : en cas de refus, l'employé lit « Un problème est survenu,
+réessayez » — et réessayer échouerait toujours.
+
+**La condition qui donne son sens à cette preuve** : `nexus-test` porte ses 266
+migrations depuis le retour en `TEST_NORMAL` du 09/09 à 16:33, index d'unicité
+et déclencheur de clôture compris. L'écran a donc été jugé sur le schéma
+D'APRÈS la release, pas avant. Jugé avant, le scénario aurait passé sans rien
+prouver.
+
+Le verdict est rendu par une fonction pure (`verifierEmploye`), éprouvée par 7
+épreuves sans navigateur — dont l'état conforme, sans lequel les autres ne
+prouveraient rien, et le refus de conclure sur une observation manquante.
+
 ## Ce que cette preuve NE couvre PAS
 
-- Aucun compte **Employé** n'est exercé : `NEXUS_TEST_EMPLOYEE_A_PIN` et
-  `NEXUS_TEST_EMPLOYEE_B_PIN` existent mais aucun scénario ne les utilise. Or
-  c'est le parcours employé qui décide de l'adoption. La prise de poste après
-  un quart laissé ouvert n'est éprouvée qu'en SQL
-  (`verifier-prise-de-poste-apres-migrations.sql`), jamais à l'écran.
+- **Aucun second employé.** `NEXUS_TEST_EMPLOYEE_B_PIN` existe et dort : aucun
+  scénario ne l'exerce, et l'injecter sans usage fabriquerait une preuve vide.
+- **Le scénario s'arrête à la prise de poste.** Ce que Frédéric décrit ensuite
+  — « parfois il ne fait rien, ni inventaire, ni missions » — n'est pas éprouvé
+  : ni la validation d'une mission, ni un comptage d'inventaire, ni la clôture
+  du quart par pointage de départ. C'est le prochain trou, et il est plus large
+  que celui qui vient d'être comblé.
 - Aucune opération Production n'est autorisée par cette preuve.
