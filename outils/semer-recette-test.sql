@@ -27,8 +27,14 @@
 
 -- 1) Le site de recette. `on conflict do nothing` : s'il existe déjà avec des
 --    réglages ajustés à la main, on ne les écrase pas.
-insert into public.sites (site_id, nom_entreprise, acces_createur_autorise)
-values ('nexus-station-test', 'NEXUS Station Test', true)
+-- `timezone` est OBLIGATOIRE et sans valeur par défaut : le déclencheur
+-- `nexus_valider_fuseau_site()` refuse une ligne sans fuseau IANA. La première
+-- version de ce semis l'omettait — elle avait été écrite en regardant un Test à
+-- moitié reconstruit, où la colonne n'existait pas encore. Une observation
+-- faite sur un schéma incomplet décrit un monde qui n'existe pas.
+-- Valeur reprise de `docs/recettes/config-station-test.json`, pas choisie ici.
+insert into public.sites (site_id, nom_entreprise, acces_createur_autorise, timezone)
+values ('nexus-station-test', 'NEXUS Station Test', true, 'America/Martinique')
 on conflict (site_id) do nothing;
 
 -- 2) Les quatre comptes de recette, reliés à auth.users PAR L'ADRESSE.
@@ -69,10 +75,15 @@ on conflict (id) do update
 --    garantit que le semis et la comparaison de dérive parlent de la MÊME
 --    station — c'est précisément l'écart qui avait fait chercher, le
 --    07/09/2026, un défaut imaginaire dans le moteur carburant.
-insert into public.station_config (site, fuseau_horaire, cuves_carburants, carburant_commande_config)
+--    `horaires` est OBLIGATOIRE et sans valeur par défaut. Sa valeur vient du
+--    même instantané, section `horaires` : deux quarts, 06:00-13:00 et
+--    13:00-20:00. La première version de ce semis l'omettait et la
+--    reconstruction du 09/09/2026 s'est arrêtée dessus.
+insert into public.station_config (site, fuseau_horaire, horaires, cuves_carburants, carburant_commande_config)
 values (
   'nexus-station-test',
   'America/Martinique',
+  '{"quart1":{"normal":"06:00","fin_normal":"13:00"},"quart2":{"normal":"13:00","fin_normal":"20:00"}}'::jsonb,
   '{"go": {"actif": true, "label": "Gasoil (GO)", "cuves": [
        {"id": "cuve1", "label": "Cuve B", "capacite": 15000, "limite_remplissage": 14250},
        {"id": "cuve2", "label": "Cuve C", "capacite": 8000,  "limite_remplissage": 7600}]},
@@ -91,5 +102,6 @@ values (
 )
 on conflict (site) do update
   set fuseau_horaire = excluded.fuseau_horaire,
+      horaires = excluded.horaires,
       cuves_carburants = excluded.cuves_carburants,
       carburant_commande_config = excluded.carburant_commande_config;
