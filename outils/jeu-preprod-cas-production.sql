@@ -66,9 +66,30 @@ $$;
 
 -- Le site fantôme est le pendant de `site-fantome-test`, qui existe en
 -- Production depuis le 03/08/2026 et porte des données de test.
-insert into public.sites (site_id, nom_entreprise, acces_createur_autorise, timezone)
-values ('site-fantome-test', 'Site Test (fantôme)', true, 'America/Martinique')
-on conflict (site_id) do nothing;
+-- ADAPTATIF AU SCHÉMA DU JOUR, pour la même raison que `semer-recette-test.sql`.
+-- `sites.timezone` est ajoutée par 20260905131500_fuseau_horaire_par_site.sql,
+-- POSTÉRIEURE à la borne : sur l'état d'avant la release, que ce jeu est fait
+-- pour peupler, la colonne n'existe pas encore.
+--
+-- Semer le site fantôme SANS fuseau est d'ailleurs plus fidèle : en Production
+-- il n'en a pas non plus, puisque la colonne n'y existe pas davantage. C'est
+-- précisément la ligne que la migration de fuseau devra savoir traiter.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'sites'
+                and column_name = 'timezone') then
+    insert into public.sites (site_id, nom_entreprise, acces_createur_autorise, timezone)
+    values ('site-fantome-test', 'Site Test (fantôme)', true, 'America/Martinique')
+    on conflict (site_id) do nothing;
+  else
+    raise notice 'sites.timezone absente à cet état du schéma : site fantôme semé sans fuseau.';
+    insert into public.sites (site_id, nom_entreprise, acces_createur_autorise)
+    values ('site-fantome-test', 'Site Test (fantôme)', true)
+    on conflict (site_id) do nothing;
+  end if;
+end
+$$;
 
 -- 1) 89 missions divergentes : `site` = la station, `site_id` = le fantôme.
 --    En Production, les 89 portent un titre qui existe AUSSI côté station :
