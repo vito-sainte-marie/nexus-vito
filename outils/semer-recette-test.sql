@@ -33,9 +33,62 @@
 -- moitié reconstruit, où la colonne n'existait pas encore. Une observation
 -- faite sur un schéma incomplet décrit un monde qui n'existe pas.
 -- Valeur reprise de `docs/recettes/config-station-test.json`, pas choisie ici.
-insert into public.sites (site_id, nom_entreprise, acces_createur_autorise, timezone)
-values ('nexus-station-test', 'NEXUS Station Test', true, 'America/Martinique')
-on conflict (site_id) do nothing;
+
+-- ADAPTATIF AU SCHÉMA DU JOUR — ajouté le 09/09/2026.
+--
+-- La répétition de release reconstruit Test à l'ÉTAT D'AVANT la promotion, puis
+-- sème, puis applique les migrations. Sur cet état historique, des colonnes que
+-- la release apporte n'existent pas encore : `sites.timezone` est ajoutée par
+-- `20260905131500_fuseau_horaire_par_site.sql`, POSTÉRIEURE à la borne. Le
+-- semis s'arrêtait dessus — « column "timezone" of relation "sites" does not
+-- exist ».
+--
+-- Exiger une colonne que la release est justement en train d'apporter est une
+-- contradiction. Chaque insertion ne pose donc que les colonnes RÉELLEMENT
+-- présentes, lues dans `information_schema`.
+--
+-- ET C'EST PLUS SÉVÈRE, PAS MOINS. Semer des lignes sans fuseau puis laisser la
+-- migration ajouter la colonne, c'est exactement l'épreuve qui compte : une
+-- migration qui poserait un NOT NULL sans valeur par défaut ni remplissage
+-- échouerait ici, pendant la répétition, au lieu d'échouer en Production. Le
+-- semis précédent, en refusant de démarrer, empêchait cette épreuve d'avoir
+-- lieu.
+--
+-- Une colonne obligatoire ABSENTE du semis reste une vraie erreur : elle
+-- remonte telle quelle, non masquée.
+
+create or replace function pg_temp.semer(
+  p_table text, p_cols text[], p_vals text[], p_conflit text, p_maj boolean
+) returns void language plpgsql as $fn$
+declare lc text := ''; lv text := ''; lm text := ''; i int;
+begin
+  for i in 1 .. array_length(p_cols, 1) loop
+    if exists (select 1 from information_schema.columns
+                where table_schema = 'public' and table_name = p_table
+                  and column_name = p_cols[i]) then
+      lc := lc || case when lc = '' then '' else ', ' end || quote_ident(p_cols[i]);
+      lv := lv || case when lv = '' then '' else ', ' end || p_vals[i];
+      if p_cols[i] <> p_conflit then
+        lm := lm || case when lm = '' then '' else ', ' end
+              || quote_ident(p_cols[i]) || ' = excluded.' || quote_ident(p_cols[i]);
+      end if;
+    else
+      raise notice 'Semis : %.% absente à cet état du schéma, ignorée.', p_table, p_cols[i];
+    end if;
+  end loop;
+  if lc = '' then
+    raise exception 'Semis : aucune colonne de % ne existe. Schéma inattendu, on refuse de deviner.', p_table;
+  end if;
+  execute format('insert into public.%I (%s) values (%s) on conflict (%I) do %s',
+    p_table, lc, lv, p_conflit,
+    case when p_maj and lm <> '' then 'update set ' || lm else 'nothing' end);
+end
+$fn$;
+
+select pg_temp.semer('sites',
+  array['site_id','nom_entreprise','acces_createur_autorise','timezone'],
+  array['''nexus-station-test''', '''NEXUS Station Test''', 'true', '''America/Martinique'''],
+  'site_id', false);
 
 -- 2) Les quatre comptes de recette, reliés à auth.users PAR L'ADRESSE.
 --    `nexus_identifiant_de_connexion` résout sur `employees.nom` : les deux
@@ -79,29 +132,26 @@ on conflict (id) do update
 --    même instantané, section `horaires` : deux quarts, 06:00-13:00 et
 --    13:00-20:00. La première version de ce semis l'omettait et la
 --    reconstruction du 09/09/2026 s'est arrêtée dessus.
-insert into public.station_config (site, fuseau_horaire, horaires, cuves_carburants, carburant_commande_config)
-values (
-  'nexus-station-test',
-  'America/Martinique',
-  '{"quart1":{"normal":"06:00","fin_normal":"13:00"},"quart2":{"normal":"13:00","fin_normal":"20:00"}}'::jsonb,
-  '{"go": {"actif": true, "label": "Gasoil (GO)", "cuves": [
+select pg_temp.semer('station_config',
+  array['site','fuseau_horaire','horaires','cuves_carburants','carburant_commande_config'],
+  array[
+    $sem$'nexus-station-test'$sem$,
+    $sem$'America/Martinique'$sem$,
+    $sem$'{"quart1":{"normal":"06:00","fin_normal":"13:00"},"quart2":{"normal":"13:00","fin_normal":"20:00"}}'::jsonb$sem$,
+    $sem$'{"go": {"actif": true, "label": "Gasoil (GO)", "cuves": [
        {"id": "cuve1", "label": "Cuve B", "capacite": 15000, "limite_remplissage": 14250},
        {"id": "cuve2", "label": "Cuve C", "capacite": 8000,  "limite_remplissage": 7600}]},
     "gnr": {"actif": false, "label": "Gasoil non routier (GNR)", "cuves": [
        {"id": "unique", "label": "Cuve D", "capacite": 10000, "limite_remplissage": 9500}]},
     "sp95": {"actif": true, "label": "Sans plomb (SP95)", "cuves": [
-       {"id": "unique", "label": "Cuve A", "capacite": 25000, "limite_remplissage": 23750}]}}'::jsonb,
-  '{"cutoff_heure": "11:00",
+       {"id": "unique", "label": "Cuve A", "capacite": 25000, "limite_remplissage": 23750}]}}'::jsonb$sem$,
+    $sem$'{"cutoff_heure": "11:00",
     "jours_commande_iso": [1, 2, 3, 4, 5],
     "jours_livraison_iso": [1, 2, 3, 4, 5],
     "maximum_camion_litres": 36000,
     "minimum_camion_litres": 3000,
     "stock_securite_jours_normal": 2,
     "stock_securite_jours_fin_mois": 1,
-    "compartiments_disponibles_litres": [2000, 5000, 7000]}'::jsonb
-)
-on conflict (site) do update
-  set fuseau_horaire = excluded.fuseau_horaire,
-      horaires = excluded.horaires,
-      cuves_carburants = excluded.cuves_carburants,
-      carburant_commande_config = excluded.carburant_commande_config;
+    "compartiments_disponibles_litres": [2000, 5000, 7000]}'::jsonb$sem$
+  ],
+  'site', true);

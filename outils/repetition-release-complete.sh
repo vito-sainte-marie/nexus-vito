@@ -94,36 +94,74 @@ order by 1"
 
 mesurer() { psql "$URL" --quiet --no-psqlrc -tA -F' : ' -c "$MESURES"; }
 
+# REPRISE À L'ÉTAPE — `DEPUIS_ETAPE=3` saute tout ce qui précède.
+#
+# L'étape 2 rejoue 241 migrations et prend une dizaine de minutes. Le 09/09/2026,
+# quatre tentatives se sont arrêtées APRÈS elle — sur un point de suspension
+# collé à une variable, puis sur une colonne que la release apporte — et chacune
+# a fait repayer la reconstruction pour un défaut situé ailleurs.
+#
+# Reprendre à 3 est SÛR parce que l'étape 2 est déterministe et laisse toujours
+# la base au même état : la borne, rien de plus. On ne saute donc pas un travail
+# incertain, on évite de refaire à l'identique un travail déjà fait.
+#
+# On ne reprend PAS à 5 ou plus : le semis et la mesure AVANT sont ce qui donne
+# un sens à la mesure APRÈS. Sauter l'un des deux produirait un rapport d'impact
+# comparant deux états sans rapport.
+DEPUIS="${DEPUIS_ETAPE:-1}"
+case "$DEPUIS" in
+  1|2|3|4) ;;
+  *) echo "DEPUIS_ETAPE doit valoir 1 à 4 (lu : $DEPUIS)." >&2
+     echo "Au-delà, la mesure AVANT manquerait et le rapport d'impact ne voudrait rien dire." >&2
+     exit 5 ;;
+esac
+faire() { [ "$1" -ge "$DEPUIS" ]; }
+if [ "$DEPUIS" -gt 1 ]; then
+  echo "REPRISE demandée à l'étape $DEPUIS — les étapes précédentes sont sautées."
+  echo "La base est supposée déjà reconstruite à la borne $VERSION_PROD."
+  echo
+fi
+
 echo "=== Répétition de release $RELEASE sur $REF ==="
 echo "Départ : état Production au $VERSION_PROD. Rapport : $RAPPORT"
 echo
 
-echo "[1/8] Ouverture du cycle et déclaration du mode…"
-# REPRENABLE. Un cycle déjà ouvert POUR LA MÊME RELEASE n'est pas une faute :
-# c'est une tentative précédente interrompue, et il y en a eu quatre le
-# 09/09/2026. On le reprend. Un cycle ouvert pour une AUTRE release, en
-# revanche, est un vrai conflit : deux répétitions ne partagent pas une base.
-node -e '
-const fs=require("fs"),p=process.argv[1],r=JSON.parse(fs.readFileSync(p,"utf8"));
-const rel=process.argv[2], ouvert=r.cycles.find(c=>!c.detruit_le);
-if(ouvert && ouvert.release!==rel){
-  console.error(`Un cycle est ouvert pour une AUTRE release (${ouvert.release}) : le fermer d abord.`);
-  process.exit(1);
-}
-if(ouvert){ console.log(`Cycle déjà ouvert pour ${rel} — reprise d une tentative interrompue.`); }
-else {
-  r.cycles.push({projet_ref:process.argv[3],release:rel,cree_le:new Date().toISOString(),detruit_le:null});
-  fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
-}
-' "$RACINE/docs/handoff/PREPROD-CYCLE.json" "$RELEASE" "$REF"
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
-  "update public.nexus_environnement_mode set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now(), motif='Répétition de release.'"
-echo "Mode : PREPROD_REHEARSAL (release $RELEASE)."
-echo
+if faire 1; then
+  echo "[1/8] Ouverture du cycle et déclaration du mode…"
+  # REPRENABLE. Un cycle déjà ouvert POUR LA MÊME RELEASE n'est pas une faute :
+  # c'est une tentative précédente interrompue, et il y en a eu quatre le
+  # 09/09/2026. On le reprend. Un cycle ouvert pour une AUTRE release, en
+  # revanche, est un vrai conflit : deux répétitions ne partagent pas une base.
+  node -e '
+  const fs=require("fs"),p=process.argv[1],r=JSON.parse(fs.readFileSync(p,"utf8"));
+  const rel=process.argv[2], ouvert=r.cycles.find(c=>!c.detruit_le);
+  if(ouvert && ouvert.release!==rel){
+    console.error(`Un cycle est ouvert pour une AUTRE release (${ouvert.release}) : le fermer d abord.`);
+    process.exit(1);
+  }
+  if(ouvert){ console.log(`Cycle déjà ouvert pour ${rel} — reprise d une tentative interrompue.`); }
+  else {
+    r.cycles.push({projet_ref:process.argv[3],release:rel,cree_le:new Date().toISOString(),detruit_le:null});
+    fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
+  }
+  ' "$RACINE/docs/handoff/PREPROD-CYCLE.json" "$RELEASE" "$REF"
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+    "update public.nexus_environnement_mode set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now(), motif='Répétition de release.'"
+  echo "Mode : PREPROD_REHEARSAL (release $RELEASE)."
+  echo
+else
+  echo "[1/8] sauté (reprise)."
+fi
 
-echo "[2/8] Reconstruction bornée à ${VERSION_PROD}…"
-JUSQUA="$VERSION_PROD" "$RACINE/outils/reconstruire-base-test.sh" "$REF"
-echo
+
+if faire 2; then
+  echo "[2/8] Reconstruction bornée à ${VERSION_PROD}…"
+  JUSQUA="$VERSION_PROD" "$RACINE/outils/reconstruire-base-test.sh" "$REF"
+  echo
+else
+  echo "[2/8] sauté (reprise)."
+fi
+
 
 echo "[3/8] Semis de la recette puis des cas Production…"
 psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
