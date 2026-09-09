@@ -104,17 +104,47 @@ select 'preprod-mission-' || i,
 from generate_series(1, 89) as i
 on conflict (mission_id) do nothing;
 
+-- IDEMPOTENT SANS RIEN SUPPRIMER — corrigé le 09/09/2026.
+--
+-- `DEPUIS_ETAPE=3` rejoue ce fichier. Les 89 missions étaient protégées par
+-- `on conflict do nothing` ; les services ne l'étaient pas. Une deuxième passe
+-- aurait produit 34 services divergents au lieu de 17, et le rapport d'impact
+-- aurait mesuré ma reprise au lieu de la release — en restant vert.
+--
+-- MA PREMIÈRE CORRECTION SUPPRIMAIT LES LIGNES AVANT DE LES REPOSER, et la
+-- garde `test_jeu_preprod_cas_production` l'a refusée : « un jeu de données
+-- ajoute ; il ne corrige ni ne supprime ». Elle a raison, et sa version est
+-- meilleure — un jeu qui efface pour se rendre rejouable peut effacer autre
+-- chose le jour où son prédicat dérape.
+--
+-- On ne pose donc que ce qui MANQUE, et la vérification finale refuse si le
+-- compte est faux. Un état partiel n'est pas réparé en douce : il est signalé.
+
 -- 2) 17 services divergents, dans le SENS INVERSE : `site` = le fantôme,
 --    `site_id` = la station. En Production ils appartiennent à des employés du
 --    site fantôme. On les rattache donc au compte de recette destiné à cet
 --    usage, jamais à une identité réelle.
-insert into public.shifts (employee_id, site, site_id, role, heure_debut, statut)
+--
+--    UN SERVICE « TERMINE » DOIT ÊTRE COMPLET. Deux contraintes le disent, et
+--    la première version de ce jeu les ignorait toutes les deux :
+--      · shifts_heure_fin_coherente — 'termine' exige une heure de fin ;
+--      · shifts_journal_cloture     — hors 'en_cours', la source et la date de
+--        clôture sont obligatoires.
+--    Ces deux règles précèdent la borne : elles s'appliquent donc déjà à l'état
+--    d'avant la release. Un service clos par le pointage de départ de l'employé
+--    est le cas ordinaire, d'où `pointage_depart`.
+insert into public.shifts (employee_id, site, site_id, role, heure_debut, heure_fin,
+                           statut, cloture_source, cloture_le)
 select e.id, 'site-fantome-test', 'nexus-station-test', 'caissier',
-       (now() - (i || ' days')::interval), 'termine'
+       (now() - (i || ' days')::interval),
+       (now() - (i || ' days')::interval + interval '7 hours'),
+       'termine', 'pointage_depart',
+       (now() - (i || ' days')::interval + interval '7 hours')
 from generate_series(1, 17) as i
 cross join lateral (
   select id from public.employees where site_id = 'nexus-station-test' order by id limit 1
-) e;
+) e
+where not exists (select 1 from public.shifts where site = 'site-fantome-test');
 
 -- 3) 13 services restés OUVERTS sur 3 employés, du plus ancien au plus récent.
 --    C'est le cas que la migration de reprise clôturera en écrivant
@@ -130,4 +160,34 @@ cross join lateral (
   select id from public.employees
    where site_id = 'nexus-station-test' and compte_test = true
    order by id offset (i % 3) limit 1
-) e;
+) e
+where not exists (
+  select 1 from public.shifts
+   where statut = 'en_cours' and site = 'nexus-station-test' and role = 'pompiste');
+
+-- CE JEU VÉRIFIE CE QU'IL A POSÉ.
+--
+-- Les trois insertions dépendent de comptes de recette résolus par jointure sur
+-- `auth.users`. Si ces comptes manquent, la jointure ne trouve rien et les
+-- insertions posent ZÉRO ligne — sans erreur. La répétition mesurerait alors
+-- 0/0/0 avant ET après, ne verrait aucun écart, et conclurait que les
+-- migrations n'ont rien changé. Un rapport d'impact vide qui se croit vert est
+-- le pire résultat possible : il autoriserait une promotion sur du vent.
+--
+-- On refuse donc de rendre la main sur un jeu incomplet. Les trois nombres sont
+-- ceux relevés en lecture seule sur Production le 08/09/2026.
+do $$
+declare m int; d int; o int;
+begin
+  select count(*) into m from public.mission_catalog where site is distinct from site_id;
+  select count(*) into d from public.shifts where site is distinct from site_id;
+  select count(*) into o from public.shifts where statut = 'en_cours';
+  if m <> 89 or d <> 17 or o <> 13 then
+    raise exception 'JEU INCOMPLET — missions divergentes % (attendu 89), services divergents % (attendu 17), services ouverts % (attendu 13). '
+      'Cause la plus probable : les comptes de recette sont absents de auth.users, donc la jointure ne pose aucune ligne. '
+      'On refuse de continuer : une répétition sur un jeu vide ne mesurerait aucun écart et conclurait à tort que les migrations sont sans effet.',
+      m, d, o;
+  end if;
+  raise notice 'Jeu PREPROD conforme : 89 missions divergentes, 17 services divergents, 13 services ouverts.';
+end
+$$;
