@@ -38,7 +38,13 @@ const DROITS_ATTENDUS = [
 // pas la table, et PostgreSQL répond « relation does not exist » — un message
 // qui fait chercher une table manquante là où le problème est un privilège
 // absent. C'est ce qui a fait échouer la CI le 09/09/2026 après reconstruction.
-const TABLES_ECRITES_PAR_LA_CI = ['audits_caisse', 'carburant_releves'];
+const TABLES_ECRITES_PAR_LA_CI = ['audits_caisse', 'carburant_releves', 'nexus_live_events'];
+
+// EN AMONT DE TOUT : sans `usage` sur le schéma, un droit de table est inerte
+// et une politique RLS ne s'applique à rien. La reconstruction du 09/09/2026 a
+// recréé le schéma en n'accordant `usage` qu'aux rôles que Supabase pose à la
+// création d'un projet — jamais à `nexus_ci_recette`, créé plus tard.
+const DROIT_RACINE = /grant usage on schema public to nexus_ci_recette/i;
 
 t('chaque droit attendu par la CI est créé par une migration', () => {
   for (const d of DROITS_ATTENDUS) {
@@ -46,6 +52,12 @@ t('chaque droit attendu par la CI est créé par une migration', () => {
     assert.ok(trouvees.length > 0,
       `aucune migration ne crée « ${d.nom} » (${d.pourquoi}) : une reconstruction ne le recréerait pas`);
   }
+});
+
+t('le droit d’ENTRER dans le schéma existe dans une migration', () => {
+  assert.ok(migrations.some(m => DROIT_RACINE.test(m.sql)),
+    'sans `usage` sur public, PostgreSQL répond « relation does not exist » — '
+    + 'un message qui fait chercher une table manquante là où manque un privilège');
 });
 
 t('toute table que la CI ÉCRIT reçoit aussi un droit de table', () => {
@@ -85,6 +97,18 @@ t('elle est REJOUABLE — une reconstruction la repasse sans échouer', () => {
     'sans le drop préalable, un second passage échouerait sur une politique existante');
   assert.ok(/pg_roles where rolname = 'nexus_ci_recette'/.test(m.sql),
     'le rôle peut ne pas exister : la migration doit le constater, pas le supposer');
+});
+
+t('la CI ne peut pas signer au nom d’un humain', () => {
+  // `publication_ci` a REFUSÉ une vraie usurpation le 08/09/2026. La
+  // reproduire sans sa clause rendrait le journal incapable de prouver ce
+  // qu'il raconte.
+  const m = migrations.find(x => /create policy publication_ci/.test(x.sql));
+  assert.ok(m, 'la politique de publication doit vivre dans une migration');
+  assert.ok(/array\['ci', 'guardian'\]/.test(m.sql),
+    'la limite aux acteurs ci et guardian doit être reproduite à l’identique');
+  assert.ok(!/grant [^;]*select[^;]*on public\.nexus_live_events to nexus_ci_recette/i.test(m.sql),
+    'le rôle CI publie, il ne lit pas (SEC-003)');
 });
 
 console.log(`\n${n}/${n} vérifications passées — un droit accordé en base existe aussi dans le dépôt.`);
