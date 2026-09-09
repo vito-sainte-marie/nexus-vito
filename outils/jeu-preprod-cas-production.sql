@@ -133,9 +133,14 @@ on conflict (mission_id) do nothing;
 --    Ces deux règles précèdent la borne : elles s'appliquent donc déjà à l'état
 --    d'avant la release. Un service clos par le pointage de départ de l'employé
 --    est le cas ordinaire, d'où `pointage_depart`.
+--
+--    ET LE RÔLE S'ÉCRIT « caissiere », avec un e. `shifts_role_check`, héritée
+--    de la baseline, n'admet que pompiste, caissiere, renfort, manager et
+--    polyvalent. J'avais écrit « caissier » — la répétition l'a refusé, comme
+--    Production l'aurait refusé.
 insert into public.shifts (employee_id, site, site_id, role, heure_debut, heure_fin,
                            statut, cloture_source, cloture_le)
-select e.id, 'site-fantome-test', 'nexus-station-test', 'caissier',
+select e.id, 'site-fantome-test', 'nexus-station-test', 'caissiere',
        (now() - (i || ' days')::interval),
        (now() - (i || ' days')::interval + interval '7 hours'),
        'termine', 'pointage_depart',
