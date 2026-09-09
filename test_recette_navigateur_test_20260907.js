@@ -496,7 +496,11 @@ epreuve('MUTATION : ranger « non jugée » dans les échecs rend la recette rou
   const mute = src.replace('if (NON_JUGEABLE.test(vue.motif || \'\')) return echecs;',
     "if (NON_JUGEABLE.test(vue.motif || '')) { echecs.push('NON JUGÉE'); return echecs; }");
   assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
-  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process };
+  // Le bac à sable doit ressembler à un MODULE, sinon il éprouve autre chose
+  // que ce que Node exécute : `__dirname` manquait, et le fichier a cessé de
+  // se charger dès qu'il a servi à résoudre un chemin de fixture.
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process,
+                __dirname: path.join(__dirname, 'outils'), __filename: path.join(__dirname, 'outils', 'recette-navigateur-test.js') };
   ctx.exports = ctx.module.exports;
   require('vm').runInNewContext(mute, ctx);
   const V = { presente: false, etat: null, visible: false, texte: '',
@@ -547,6 +551,41 @@ epreuve('une chaîne de requête n’est pas une destination', () => {
     'le motif doit se décider sur le CHEMIN, jamais sur l’URL complète');
 });
 
+epreuve('la photo de recette est INCONFONDABLE avec une vraie', () => {
+  // Elle est déposée dans le stockage de Test sous le compte de recette. Elle
+  // doit être reconnaissable au premier regard ET dans son propre fichier :
+  // une image de test qui ressemble à une photo de parking finirait un jour
+  // par être prise pour une preuve de présence.
+  const f = path.join(__dirname, 'outils', 'fixtures', 'photo-pointage-recette.png');
+  assert.ok(fs.existsSync(f), 'la photo de recette doit être versionnée avec le dépôt');
+  const b = fs.readFileSync(f);
+  assert.ok(b.length < 20000, `photo de ${b.length} octets : une fixture doit rester minuscule`);
+  assert.strictEqual(b.slice(1, 4).toString('ascii'), 'PNG', 'un PNG valide, pas un fichier vide renommé');
+  const texte = b.toString('latin1');
+  assert.ok(/PHOTO DE TEST NEXUS/.test(texte),
+    'le fichier doit se déclarer comme photo de test dans ses propres métadonnées');
+  assert.ok(/Ne jamais utiliser comme preuve de presence/.test(texte),
+    'et dire explicitement ce qu’elle ne doit pas servir à prouver');
+});
+
+epreuve('le franchissement emprunte le repli PRÉVU par l’écran, pas une porte dérobée', () => {
+  // L'écran de pointage capture par getUserMedia et prévoit DÉJÀ un champ
+  // fichier « si getUserMedia est indisponible ou refusé ». Un navigateur sans
+  // caméra est exactement ce cas. Si la recette se mettait à simuler la caméra
+  // ou à écrire directement en base, elle prouverait un chemin qu'aucun
+  // employé n'emprunte.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('async function franchirPointageArrivee'),
+                         src.indexOf('const ECRAN_ACCUEIL'));
+  assert.ok(/setInputFiles/.test(bloc), 'le franchissement doit passer par le champ fichier de repli');
+  assert.ok(!/getUserMedia|mediaDevices|from\('pointages'\)|\.insert\(/.test(bloc),
+    'ni caméra simulée, ni écriture directe en base : la recette emprunte le chemin de l’employé');
+
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Pointage-v1.html'), 'utf8');
+  assert.ok(/id="\$\{inputId\}"[^>]*type="file"|type="file" id="\$\{inputId\}"/.test(ecran),
+    'le repli par champ fichier doit exister dans l’écran — sinon la recette prouve un chemin mort');
+});
+
 epreuve('le RÉSUMÉ ne contredit jamais l’indisponibilité', () => {
   // Le 09/09, le rapport disait « NON JUGÉE : le pointage est exigé » puis,
   // deux lignes plus bas, « NON SATISFAITE — carte absente ». Deux expressions
@@ -586,7 +625,11 @@ epreuve('MUTATION : un résumé qui ignore le motif accuse la carte à tort', ()
       : 'NON SATISFAITE — carte absente de l’accueil';`,
     "    return 'NON SATISFAITE — carte absente de l’accueil';");
   assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
-  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process };
+  // Le bac à sable doit ressembler à un MODULE, sinon il éprouve autre chose
+  // que ce que Node exécute : `__dirname` manquait, et le fichier a cessé de
+  // se charger dès qu'il a servi à résoudre un chemin de fixture.
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process,
+                __dirname: path.join(__dirname, 'outils'), __filename: path.join(__dirname, 'outils', 'recette-navigateur-test.js') };
   ctx.exports = ctx.module.exports;
   require('vm').runInNewContext(mute, ctx);
   const r = ctx.module.exports.resumeInvitation({ presente: false,

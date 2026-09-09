@@ -447,6 +447,10 @@ async function observerEmploye(navigateur, base, nom, pin) {
     await connecter(page, base, nom, pin);
     const premiere = await prendreLePoste(page, base);
     const seconde = await prendreLePoste(page, base);
+    // Le pointage d'arrivée s'intercale avant l'accueil : on le franchit par le
+    // repli prévu par l'écran, sinon l'invitation reste éternellement NON JUGÉE.
+    const pointage = await franchirPointageArrivee(page, base).catch(
+      (e) => ({ franchi: false, motif: String(e && e.message).split('\n')[0] }));
     // L'invitation se juge APRÈS la prise de poste, parce que c'est là qu'elle
     // vit : « sur l'accueil employé après la prise de poste ».
     // ISOLÉE. L'invitation est le dernier maillon et le plus récent ; une
@@ -460,7 +464,7 @@ async function observerEmploye(navigateur, base, nom, pin) {
       invitation = { presente: false, etat: null, visible: false, texte: '',
         motif: 'observation impossible : ' + String(e && e.message).split('\n')[0] };
     }
-    return { premiere, seconde, invitation };
+    return { premiere, seconde, invitation, pointage };
   } finally {
     await page.close();
   }
@@ -477,6 +481,63 @@ async function observerEmploye(navigateur, base, nom, pin) {
 // La carte écrit donc sa décision sur elle-même, en trois états — `aucune`,
 // `proposee`, `indisponible` — et l'on juge la COHÉRENCE entre ce qu'elle a
 // décidé et ce qu'elle montre. C'est vérifiable tous les jours, calmes compris.
+
+
+// FRANCHIR LE POINTAGE D'ARRIVÉE (09/09/2026)
+//
+// `nexus-auth.js` impose une séquence : prise de poste, PUIS pointage
+// d'arrivée, et seulement ensuite l'accueil. La recette allait droit à
+// l'accueil et se faisait renvoyer pointer ; l'invitation à l'inventaire
+// restait donc éternellement NON JUGÉE.
+//
+// ON N'INVENTE AUCUN CONTOURNEMENT. L'écran capture normalement la photo par
+// `getUserMedia`, et prévoit DÉJÀ un repli par champ fichier « si getUserMedia
+// est indisponible ou refusé — jamais un employé totalement bloqué faute de
+// caméra en page ». Un navigateur sans caméra est exactement ce cas. La
+// recette emprunte donc le chemin de repli prévu par l'écran, pas une porte
+// dérobée.
+//
+// LA PHOTO EST INCONFONDABLE. `outils/fixtures/photo-pointage-recette.png` est
+// un damier rouge et noir de 240x160 portant, dans ses métadonnées, « PHOTO DE
+// TEST NEXUS - recette navigateur automatisee. Ne represente aucun lieu reel.
+// Ne jamais utiliser comme preuve de presence. » Elle ne ressemble à aucun
+// parking et le dit dans son propre fichier.
+//
+// ELLE N'ÉCRIT QUE SUR TEST, sous le compte de recette. Le pointage réel d'un
+// employé n'est jamais touché.
+
+const PHOTO_RECETTE = path.join(__dirname, 'fixtures', 'photo-pointage-recette.png');
+
+async function franchirPointageArrivee(page, base) {
+  const url = page.url();
+  if (!/Pointage/i.test(url)) {
+    await page.goto(new URL('NEXUS-Pointage-v1.html', base).href, { waitUntil: 'domcontentloaded' })
+      .catch(() => {});
+  }
+  const champ = page.locator('#photoInput-arrivee');
+  try {
+    await champ.waitFor({ state: 'attached', timeout: 20000 });
+  } catch (e) {
+    // Déjà pointé, ou écran différent : ce n'est pas un échec en soi, l'appelant
+    // le verra à la redirection suivante.
+    return { franchi: false, motif: 'champ photo d’arrivée absent' };
+  }
+  try {
+    await champ.setInputFiles(PHOTO_RECETTE);
+  } catch (e) {
+    return { franchi: false, motif: 'dépôt de la photo refusé : ' + String(e && e.message).split('\n')[0] };
+  }
+  // L'écran téléverse puis réaffiche l'état. On attend l'ÉVÉNEMENT voulu —
+  // l'arrivée enregistrée — et non un délai : l'upload peut prendre plus d'une
+  // minute sur le réseau de la station, l'écran le dit lui-même.
+  try {
+    await page.waitForFunction(() => /Arriv[ée]/i.test(document.body.innerText || ''),
+      { timeout: 90000 });
+    return { franchi: true, motif: null };
+  } catch (e) {
+    return { franchi: false, motif: 'arrivée non confirmée après dépôt de la photo' };
+  }
+}
 
 const ECRAN_ACCUEIL = 'NEXUS-App-v1.html';
 
