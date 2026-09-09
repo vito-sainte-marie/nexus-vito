@@ -24,6 +24,24 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// L'ENVIRONNEMENT DE LA RÉPÉTITION NE DOIT PAS FUIR DANS SES ÉPREUVES.
+//
+// Le 09/09/2026, l'étape 7 de la répétition — qui lance cette suite — tournait
+// avec `DEPUIS_ETAPE=3` exporté. Le cas « sans DEPUIS_ETAPE » de cette épreuve
+// passait un environnement vide, donc HÉRITÉ : il recevait 3, et vérifiait
+// l'inverse de ce qu'il annonçait. L'épreuve héritait de l'environnement de la
+// chose qu'elle testait.
+//
+// Même famille que les gardes qui exigent un état du monde : ce qui est
+// implicite finit par mentir. Les variables de la répétition sont donc
+// explicitement retirées.
+function envPropre(ajouts) {
+  const e = { ...process.env };
+  for (const v of ['DEPUIS_ETAPE', 'NEXUS_REPETITION_FIGEE', 'NEXUS_RAPPORT',
+                   'NEXUS_TEST_DB_URL', 'NEXUS_TEST_DB_PASSWORD']) delete e[v];
+  return { ...e, ...ajouts };
+}
+
 let passes = 0;
 function t(nom, fn) {
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
@@ -68,8 +86,8 @@ function lancer(script, env, args) {
       fs.writeFileSync(CYCLE, JSON.stringify(vide, null, 2) + '\n');
     }
     return spawnSync('bash', [path.join(RACINE, script), ...(args || [REF_BIDON, '2026.09.0'])], {
-      env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
-             NEXUS_TEST_DB_PASSWORD: '', ...env },
+      env: envPropre({ PATH: `${leurre}:${process.env.PATH}`,
+             NEXUS_TEST_DB_PASSWORD: '', ...env }),
       encoding: 'utf8', timeout: 60000, cwd: RACINE,
     });
   } finally {
@@ -133,8 +151,8 @@ t('MUTATION : le fichier d’AVANT correctif échoue bien à cette épreuve', ()
     const tmp = path.join(leurre, 'mute.sh');
     fs.writeFileSync(tmp, mute); fs.chmodSync(tmp, 0o755);
     const r = spawnSync('bash', [tmp, REF_BIDON], {
-      env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
-             NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE },
+      env: envPropre({ PATH: `${leurre}:${process.env.PATH}`,
+             NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE }),
       encoding: 'utf8', timeout: 60000, cwd: RACINE });
     assert.strictEqual(r.status, 4,
       `le script muté aurait dû mourir en exit 4 ; il a rendu ${r.status}. ` +
@@ -142,8 +160,8 @@ t('MUTATION : le fichier d’AVANT correctif échoue bien à cette épreuve', ()
     return;
   }
   const r = spawnSync('bash', [avant, REF_BIDON], {
-    env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
-           NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE },
+    env: envPropre({ PATH: `${leurre}:${process.env.PATH}`,
+           NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE }),
     encoding: 'utf8', timeout: 60000, cwd: RACINE });
   assert.strictEqual(r.status, 4,
     `le fichier d’avant correctif aurait dû mourir en exit 4 ; il a rendu ${r.status}`);

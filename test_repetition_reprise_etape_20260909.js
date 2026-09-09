@@ -20,6 +20,24 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// L'ENVIRONNEMENT DE LA RÉPÉTITION NE DOIT PAS FUIR DANS SES ÉPREUVES.
+//
+// Le 09/09/2026, l'étape 7 de la répétition — qui lance cette suite — tournait
+// avec `DEPUIS_ETAPE=3` exporté. Le cas « sans DEPUIS_ETAPE » de cette épreuve
+// passait un environnement vide, donc HÉRITÉ : il recevait 3, et vérifiait
+// l'inverse de ce qu'il annonçait. L'épreuve héritait de l'environnement de la
+// chose qu'elle testait.
+//
+// Même famille que les gardes qui exigent un état du monde : ce qui est
+// implicite finit par mentir. Les variables de la répétition sont donc
+// explicitement retirées.
+function envPropre(ajouts) {
+  const e = { ...process.env };
+  for (const v of ['DEPUIS_ETAPE', 'NEXUS_REPETITION_FIGEE', 'NEXUS_RAPPORT',
+                   'NEXUS_TEST_DB_URL', 'NEXUS_TEST_DB_PASSWORD']) delete e[v];
+  return { ...e, ...ajouts };
+}
+
 let passes = 0;
 function t(nom, fn) {
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
@@ -39,9 +57,9 @@ function lancer(depuis) {
   const sauvegarde = fs.readFileSync(CYCLE, 'utf8');
   try {
     const r = spawnSync('bash', [SCRIPT, 'zzzzrefdetest', '2026.09.1'], {
-      env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
+      env: envPropre({ PATH: `${leurre}:${process.env.PATH}`,
              NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE,
-             ...(depuis === null ? {} : { DEPUIS_ETAPE: String(depuis) }) },
+             ...(depuis === null ? {} : { DEPUIS_ETAPE: String(depuis) }) }),
       encoding: 'utf8', timeout: 90000, cwd: RACINE,
     });
     return { ...r, tout: (r.stdout || '') + (r.stderr || '') };
@@ -101,7 +119,7 @@ t('un arrêt AVANT toute répétition ne promet pas un état où l’on n’est 
   // simple erreur d'usage, la base n'y est jamais passée : l'afficher
   // décrirait un monde faux, et lirait des variables non définies.
   const r = spawnSync('bash', [SCRIPT], {
-    env: { ...process.env, PATH: `${leurre}:${process.env.PATH}` },
+    env: envPropre({ PATH: `${leurre}:${process.env.PATH}` }),
     encoding: 'utf8', timeout: 60000, cwd: RACINE });
   const tout = (r.stdout || '') + (r.stderr || '');
   assert.ok(/Usage :/.test(tout), 'une invocation sans argument doit rappeler l’usage');
@@ -121,8 +139,8 @@ t('MUTATION : sans la garde, l’étape 2 se rejouerait malgré la reprise', () 
   let tout;
   try {
     const r = spawnSync('bash', [tmp, 'zzzzrefdetest', '2026.09.1'], {
-      env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
-             NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE, DEPUIS_ETAPE: '3' },
+      env: envPropre({ PATH: `${leurre}:${process.env.PATH}`,
+             NEXUS_TEST_DB_PASSWORD: '', NEXUS_TEST_DB_URL: URL_MORTE, DEPUIS_ETAPE: '3' }),
       encoding: 'utf8', timeout: 90000, cwd: RACINE });
     tout = (r.stdout || '') + (r.stderr || '');
   } finally { fs.writeFileSync(CYCLE, sauvegarde); }
@@ -131,4 +149,15 @@ t('MUTATION : sans la garde, l’étape 2 se rejouerait malgré la reprise', () 
 });
 
 fs.rmSync(leurre, { recursive: true, force: true });
-console.log(`\n${passes}/8 vérifications passées — la répétition reprend sans repayer la reconstruction.`);
+t('aucun lancement n’hérite de l’environnement de la répétition', () => {
+  // Vérifier le comportement ne suffit pas ici : une fuite ne se voit que si la
+  // variable fuyante est justement posée au moment où l'on regarde. On exige
+  // donc la propriété structurelle — tout lancement passe par `envPropre`.
+  const src = fs.readFileSync(__filename, 'utf8');
+  const lancements = [...src.matchAll(/env:\s*\{\s*\.\.\.process\.env/g)];
+  assert.strictEqual(lancements.length, 0,
+    `${lancements.length} lancement(s) héritent encore de l’environnement complet`);
+  assert.ok(/delete e\[v\]/.test(src), 'envPropre doit réellement retirer les variables');
+});
+
+console.log(`\n${passes}/9 vérifications passées — la répétition reprend sans repayer la reconstruction.`);
