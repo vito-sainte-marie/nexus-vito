@@ -61,6 +61,17 @@ rejouée). `gate_humaine_frederic` est également `INCONNU` — aucune gate n'a
 `NON_AUTORISEE`, cohérent avec le fait qu'aucune promotion n'a été demandée
 ni autorisée dans ce lot.
 
+**Précision sur `preprod_anonymise_ou_equivalent` (09/09/2026)** : ce lot a
+identifié `nexus-test` comme la répétition équivalente cherchée en premier
+par `decision-3.md` avant tout PREPROD construit depuis un dump Production —
+voir `plan-repetition-preprod-test-1.md`. Ce projet ne contient par
+construction aucune donnée personnelle (comptes `compte_test=true`
+uniquement), ce qui ferme ce critère sans anonymisation à condition que la
+reconstruction (`outils/reconstruire-base-test.sh`) et la recette associée
+soient réellement rejouées et réussies — pas seulement proposées. Tant que
+cette exécution n'a pas eu lieu, le critère reste `INCONNU`, jamais `OK` par
+anticipation.
+
 ## Intégration à NEXUS Live — non faite dans ce lot, par précaution
 
 `nexus-live-projection.js` (le calcul du verdict global de l'écran Live,

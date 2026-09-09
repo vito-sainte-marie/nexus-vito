@@ -47,43 +47,83 @@ Reclasser l'une de ces quatre migrations comme Production nécessite une
 preuve d'un besoin Production réel (par ex. la CI s'exécutant un jour contre
 un projet Production distinct) — pas seulement l'absence de risque connu.
 
-## Bloquée / exclue de cette release — dépendance non satisfaite (1 migration)
+## Exclue en permanence de cette release — aucune dépendance Production réelle (1 migration)
 
 | # | Migration | Statut | Motif |
 |---|---|---|---|
-| 21 | `20260908200000_actor_role_human_pour_autorisation_frederic` | **BLOQUÉE/EXCLUE** | `alter table public.nexus_live_events add constraint ...` — cette instruction échoue si la table n'existe pas. La table est créée **uniquement** par la migration 18, elle-même Test-only et exclue ci-dessus. Aucune migration de ce dépôt ne crée `nexus_live_events` pour Production. Appliquer #21 seule en Production échouerait à l'exécution (table absente) ; l'appliquer après avoir promu #18 par erreur créerait en Production une table explicitement documentée « Test uniquement ». |
+| 21 | `20260908200000_actor_role_human_pour_autorisation_frederic` | **EXCLUE (permanente pour cette release)** | `alter table public.nexus_live_events add constraint ...` — cette instruction échoue si la table n'existe pas. La table est créée **uniquement** par la migration 18, elle-même Test-only et exclue ci-dessus. Aucune migration de ce dépôt ne crée `nexus_live_events` pour Production. Appliquer #21 seule en Production échouerait à l'exécution (table absente) ; l'appliquer après avoir promu #18 par erreur créerait en Production une table explicitement documentée « Test uniquement ». |
 
-**Condition de déblocage** (l'une des deux, pas une préférence) :
+### Vérification de la dépendance applicative réelle (09/09/2026)
+
+`decision-3.md` demande de vérifier si le code applicatif de la candidate
+exige réellement `nexus_live_events` en Production avant de matérialiser
+l'exclusion. Vérifié par lecture de code (pas supposé) :
+
+- `grep -rl "nexus_live_events"` sur le dépôt ne retourne, côté application,
+  que `NEXUS-App-v1.html` (l'entrée de navigation) et
+  `NEXUS-Live-Developpement-v1.html` (l'écran lui-même) — aucun moteur, RPC
+  ni chemin serveur n'en dépend.
+- `NEXUS-App-v1.html:1294` ajoute bien un lien de navigation vers NEXUS Live,
+  visible uniquement `data-role="createur"`, avec sa propre description
+  explicite : « Déploiements, Guardians et arbitrages en attente —
+  **environnement Test** ». Ce lien fait partie du code candidat et serait
+  donc déployé, mais sa description dit lui-même qu'il pointe vers Test.
+- `NEXUS-Live-Developpement-v1.html:489-496` : la lecture de
+  `nexus_live_events` est encadrée par un `if (error) { ... "Lecture du
+  journal Live impossible : " + error.message ... }` — une table absente
+  produit un message d'erreur explicite sur cet écran précis, jamais un
+  plantage de l'application ni d'une autre page.
+- `outils/producteur-evenements-live.js:26-29` documente et confirme
+  n'écrire **jamais** en base lui-même (RLS réservée à `je_suis_createur()`,
+  aucun `service_role`) : il n'existe donc aucun processus CI/cron qui
+  écrirait automatiquement dans `nexus_live_events` en Production.
+- L'audit du lot `NEXUS-LIVE-CONTROL-CENTER-1-20260906` qualifie lui-même le
+  dispositif de MVP Test, jamais promu.
+
+**Conclusion** : aucune dépendance fonctionnelle Production n'existe. Le pire
+effet d'une candidate déployée sans `nexus_live_events` est un message
+d'erreur lisible sur un seul écran réservé au Créateur, jamais une panne
+applicative. La migration 21 est donc **exclue en permanence pour cette
+release**, sans attendre une preuve supplémentaire — fail closed par défaut,
+confirmé par la lecture de code plutôt que supposé.
+
+**Condition de déblocage pour une future release** (l'une des deux, pas une
+préférence) :
 1. une migration Production dédiée crée `nexus_live_events` avec un contrat
    RLS revu pour un contexte Production (le rôle `je_suis_createur()` utilisé
    par la table Test reste valide en Production, mais cela doit être vérifié
    explicitement, pas supposé identique) — puis #21 s'applique après elle ; ou
-2. un besoin Production réel de NEXUS Live est démontré (le chantier
-   `NEXUS-LIVE-CONTROL-CENTER-1-20260906` reste, à ce jour, un MVP Test selon
-   son propre `audit-1.md`) et une décision canonique explicite promeut le
-   dispositif Live en Production, migration dédiée à l'appui.
-
-Sans l'une de ces deux preuves, #21 reste **exclue** de la présente release —
-fail closed, pas une décision de convenance.
+2. un besoin Production réel de NEXUS Live est démontré et une décision
+   canonique explicite promeut le dispositif Live en Production, migration
+   dédiée à l'appui.
 
 ## Conditions portées par la release, pas des risques nouveaux
 
-- **#5** (`seed_referentiel_advisor`) : exécuter
-  `comparaison-seed-referentiel-advisor.sql` (même répertoire, strictement
-  `SELECT`) contre Production avant application, et lire le nombre de lignes
-  `ECRASEE` qu'il rapporte. Zéro ligne `ECRASEE` → application sans réserve.
-  Une ou plusieurs lignes `ECRASEE` → chaque champ divergent listé doit être
-  examiné avant de confirmer que l'écrasement est voulu (mise à jour d'un
-  gabarit) ou qu'il écraserait une retouche manuelle à préserver.
+- **#5** (`seed_referentiel_advisor`) : `comparaison-seed-referentiel-advisor.sql`
+  a été exécuté en lecture seule contre Production le 09/09/2026
+  (`mesures-advisor-production-lecture-seule-1.md`) : **0 ligne `ECRASEE`**
+  sur 37 lignes versionnées (6 gabarits + 31 règles, toutes identiques).
+  Condition satisfaite pour l'état mesuré — cette mesure est **temporelle**
+  et doit être rejouée juste avant la gate finale si les lignes concernées
+  ont pu évoluer depuis (voir « Re-mesure finale » ci-dessous).
 - **#6** (`reprise_et_unicite_shifts_en_cours`) : à exécuter uniquement dans
   la fenêtre de déploiement mesurée à faible activité (voir
   `plan-reparation-rollback-1.md`, section fenêtre) — 13 services seraient
   requalifiés `clos_sans_pointage` de façon visible pour les employés
-  concernés.
+  concernés. La mesure du 08-09/09/2026 (16 services `en_cours`) est
+  également temporelle et doit être rafraîchie avant la gate.
+
+## Re-mesure finale avant la gate
+
+Les deux conditions ci-dessus (#5 et #6) reposent sur des mesures ponctuelles.
+`re-mesure-finale-gate-1.md` (même répertoire) consolide les requêtes
+`SELECT` exactes à rejouer immédiatement avant la soumission à Frédéric, pour
+qu'aucune des deux ne soit acceptée sur la foi d'une mesure vieillissante.
 
 ## Ce que ce manifeste ne fait pas
 
 Il ne modifie aucune migration existante, ne crée aucune migration
 Production pour `nexus_live_events`, et n'exécute rien contre Production. Il
 fixe seulement le périmètre de la prochaine promotion, déterministe pour
-16/17/19/20, conditionnée pour 5/6, bloquée pour 21.
+16/17/19/20, conditionnée (mesure temporelle à rafraîchir) pour 5/6, exclue
+en permanence pour cette release pour 21.
