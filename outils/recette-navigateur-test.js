@@ -567,6 +567,35 @@ function indisponibiliteInvitation(vue) {
     + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.';
 }
 
+// LE RÉSUMÉ, RENDU PAR LA MÊME SOURCE QUE LE VERDICT.
+//
+// Le 09/09/2026, le rapport se contredisait en deux lignes : l'indisponibilité
+// disait « NON JUGÉE : le pointage est exigé », et le résumé, juste en dessous,
+// « NON SATISFAITE — carte absente de l'accueil ». Deux expressions décidaient
+// séparément du même fait, et l'une ignorait le motif.
+//
+// Corriger l'expression du résumé n'aurait rien réglé sur le fond : deux
+// endroits qui jugent la même chose divergeront de nouveau. Le résumé est donc
+// rendu ICI, à côté du verdict et de l'indisponibilité, et l'affichage se
+// contente de l'imprimer.
+function resumeInvitation(invitation) {
+  if (!invitation) return 'NON EXÉCUTÉE';
+  if (!invitation.presente) {
+    return NON_JUGEABLE.test(invitation.motif || '')
+      ? `NON JUGÉE — ${invitation.motif}`
+      : 'NON SATISFAITE — carte absente de l’accueil';
+  }
+  if (invitation.etat === 'indisponible') return 'NON JUGÉE — l’accueil n’a pas pu décider';
+  if (invitation.etat === 'proposee') {
+    return invitation.visible
+      ? `satisfaite — « ${invitation.texte} »`
+      : 'NON SATISFAITE — décidée puis non montrée';
+  }
+  return invitation.visible
+    ? 'NON SATISFAITE — affichée alors que rien n’attend'
+    : 'satisfaite — rien n’attendait, rien n’est montré';
+}
+
 // VERDICT PUR — éprouvable sans navigateur.
 function verifierInvitation(vue) {
   const echecs = [];
@@ -706,7 +735,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -749,12 +778,7 @@ if (require.main === module) {
         + (!e ? 'NON EXÉCUTÉE — voir indisponibilités'
           : e.premiere.atteint === 'confirme' ? 'satisfaite' : 'NON SATISFAITE'));
       console.log('  · Invitation à l’inventaire sur l’accueil : '
-        + (!e || !e.invitation ? 'NON EXÉCUTÉE'
-          : !e.invitation.presente ? 'NON SATISFAITE — carte absente de l’accueil'
-          : e.invitation.etat === 'indisponible' ? 'NON JUGÉE — l’accueil n’a pas pu décider'
-          : e.invitation.etat === 'proposee'
-            ? (e.invitation.visible ? `satisfaite — « ${e.invitation.texte} »` : 'NON SATISFAITE — décidée puis non montrée')
-            : (e.invitation.visible ? 'NON SATISFAITE — affichée alors que rien n’attend' : 'satisfaite — rien n’attendait, rien n’est montré')));
+        + resumeInvitation(e && e.invitation));
       console.log('  · Prise de poste avec un quart DÉJÀ OUVERT : '
         + (!e ? 'NON EXÉCUTÉE — le cas ordinaire de l’équipe reste non éprouvé à l’écran'
           : e.seconde.atteint === 'confirme' ? 'satisfaite — le quart précédent s’est fermé seul'

@@ -442,7 +442,7 @@ epreuve('les secrets employé sont HORS des secrets requis', () => {
 // jours calmes ; une qui accepterait son absence ne prouverait rien. On juge
 // donc la COHÉRENCE entre ce que l'accueil a DÉCIDÉ et ce qu'il MONTRE.
 
-const { verifierInvitation, indisponibiliteInvitation } = require('./outils/recette-navigateur-test.js');
+const { verifierInvitation, indisponibiliteInvitation, resumeInvitation } = require('./outils/recette-navigateur-test.js');
 
 epreuve('rien n’attend et rien n’est montré : conforme', () => {
   assert.deepStrictEqual(
@@ -545,6 +545,54 @@ epreuve('une chaîne de requête n’est pas une destination', () => {
                          src.indexOf('function verifierInvitation'));
   assert.ok(/new URL\(url\)\.pathname/.test(bloc),
     'le motif doit se décider sur le CHEMIN, jamais sur l’URL complète');
+});
+
+epreuve('le RÉSUMÉ ne contredit jamais l’indisponibilité', () => {
+  // Le 09/09, le rapport disait « NON JUGÉE : le pointage est exigé » puis,
+  // deux lignes plus bas, « NON SATISFAITE — carte absente ». Deux expressions
+  // décidaient du même fait, et l’une ignorait le motif.
+  const vue = { presente: false, etat: null, visible: false, texte: '',
+    motif: 'le pointage d’arrivée est exigé avant l’accueil (NEXUS-Pointage-v1)' };
+  const resume = resumeInvitation(vue);
+  const indispo = indisponibiliteInvitation(vue) || '';
+  assert.ok(/NON JUGÉE/.test(resume), resume);
+  assert.ok(/NON JUGÉE/.test(indispo), indispo);
+  assert.ok(!/carte absente/.test(resume),
+    'le résumé accuse la carte alors que l’indisponibilité dit l’inverse');
+  assert.deepStrictEqual(verifierInvitation(vue), [],
+    'et ce n’est toujours pas un échec');
+});
+
+epreuve('le résumé rend chacun des cinq états, sans en confondre deux', () => {
+  const cas = [
+    [null, /NON EXÉCUTÉE/],
+    [{ presente: false, motif: 'carte absente du document' }, /NON SATISFAITE — carte absente/],
+    [{ presente: true, etat: 'indisponible' }, /NON JUGÉE/],
+    [{ presente: true, etat: 'proposee', visible: true, texte: 'Contrôle' }, /satisfaite — « Contrôle »/],
+    [{ presente: true, etat: 'proposee', visible: false, texte: '' }, /décidée puis non montrée/],
+    [{ presente: true, etat: 'aucune', visible: false }, /rien n’attendait/],
+    [{ presente: true, etat: 'aucune', visible: true }, /affichée alors que rien n’attend/],
+  ];
+  for (const [v, attendu] of cas) {
+    const r = resumeInvitation(v);
+    assert.ok(attendu.test(r), `${JSON.stringify(v)} → « ${r} »`);
+  }
+});
+
+epreuve('MUTATION : un résumé qui ignore le motif accuse la carte à tort', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const mute = src.replace(`    return NON_JUGEABLE.test(invitation.motif || '')
+      ? \`NON JUGÉE — \${invitation.motif}\`
+      : 'NON SATISFAITE — carte absente de l’accueil';`,
+    "    return 'NON SATISFAITE — carte absente de l’accueil';");
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process };
+  ctx.exports = ctx.module.exports;
+  require('vm').runInNewContext(mute, ctx);
+  const r = ctx.module.exports.resumeInvitation({ presente: false,
+    motif: 'le pointage d’arrivée est exigé avant l’accueil' });
+  assert.ok(/carte absente/.test(r),
+    'le code muté devait accuser la carte ; l’épreuve ne détecte donc pas ce défaut');
 });
 
 epreuve('une carte VRAIMENT absente reste dénoncée, elle', () => {
