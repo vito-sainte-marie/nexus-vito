@@ -71,7 +71,18 @@ function lancer(f) {
     execFile('node', [f], { cwd: __dirname, timeout: 90000 }, (err, stdout, stderr) => {
       if (!err) return resolve({ f, ok: true });
       const sortie = `${stdout || ''}${stderr || ''}`;
-      const cause = (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || ['sortie non nulle'])[0];
+      // « sortie non nulle » ne dit rien à personne. Le 09/09/2026, deux
+      // épreuves ont cassé sur le runner Linux en passant sur macOS, et le log
+      // CI n'offrait que ces trois mots : diagnostiquer depuis GitHub était
+      // impossible, il a fallu deviner. Une exception porte « Error » et se
+      // laisse attraper ; les épreuves qui rapportent elles-mêmes leurs échecs
+      // — la moitié de cette suite — n'écrivent jamais ce mot. On lit donc
+      // aussi leur ligne de refus, et à défaut la dernière ligne écrite.
+      const cause =
+        (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || [])[0] ||
+        (sortie.match(/^\s*✗[^\n]{0,110}/m) || [])[0]?.trim() ||
+        sortie.split('\n').filter(l => l.trim()).pop()?.slice(0, 110) ||
+        'aucune sortie';
       resolve({ f, ok: false, cause });
     });
   });

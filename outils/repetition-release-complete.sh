@@ -46,7 +46,12 @@ set -euo pipefail
 # donc dans un fichier temporaire et s'y relance : à partir de là, éditer
 # l'original est sans effet sur la course en cours.
 if [ -z "${NEXUS_REPETITION_FIGEE:-}" ]; then
-  COPIE="$(mktemp -t repetition-release)" || exit 1
+  # `mktemp -t nom` fonctionne sur macOS mais GNU refuse un gabarit sans
+  # XXXXXX (« too few X's in template ») : le script mourait au démarrage sur
+  # le runner Linux, en passant sur le poste de Frédéric. Gabarit explicite,
+  # accepté par les deux.
+  COPIE="$(mktemp "${TMPDIR:-/tmp}/repetition-release.XXXXXX")" || {
+    echo "Impossible de créer la copie figée du script." >&2; exit 1; }
   cat "$0" > "$COPIE"
   # L'original est transmis : `dirname $0` pointerait sinon vers /var/folders,
   # et RACINE — donc TOUS les chemins du dépôt — serait faux.
