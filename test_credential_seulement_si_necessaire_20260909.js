@@ -45,12 +45,36 @@ fs.chmodSync(path.join(leurre, 'security'), 0o755);
 const URL_MORTE = 'postgresql://personne@127.0.0.1:1/postgres?sslmode=disable';
 const REF_BIDON = 'zzzzrefdetestinexistante';
 
+// LE REGISTRE RÉEL EST SAUVEGARDÉ PUIS RESTAURÉ.
+//
+// `repetition-release-complete.sh` ouvre un cycle dans
+// `docs/handoff/PREPROD-CYCLE.json` — un vrai fichier versionné. Sans
+// précaution, cette épreuve y écrirait, ou bien échouerait parce qu'un cycle
+// réel est ouvert pour une autre release. Elle exigerait alors un ÉTAT DU
+// MONDE, et se mettrait à mentir dès que le monde change : c'est exactement le
+// défaut corrigé ce matin sur `test_garde_mode_environnement`. On applique donc
+// l'idiome déjà en usage dans `test_handoff_v2` — snapshot, exécution,
+// restauration inconditionnelle.
+const CYCLE = path.join(RACINE, 'docs', 'handoff', 'PREPROD-CYCLE.json');
+
 function lancer(script, env, args) {
-  return spawnSync('bash', [path.join(RACINE, script), ...(args || [REF_BIDON, '2026.09.0'])], {
-    env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
-           NEXUS_TEST_DB_PASSWORD: '', ...env },
-    encoding: 'utf8', timeout: 60000, cwd: RACINE,
-  });
+  const sauvegarde = fs.existsSync(CYCLE) ? fs.readFileSync(CYCLE, 'utf8') : null;
+  try {
+    if (sauvegarde !== null) {
+      // Registre vierge : aucun cycle ouvert, donc l'étape 1 ne refuse pas et
+      // le script avance jusqu'à la connexion, seule chose qu'on mesure ici.
+      const vide = JSON.parse(sauvegarde);
+      vide.cycles = [];
+      fs.writeFileSync(CYCLE, JSON.stringify(vide, null, 2) + '\n');
+    }
+    return spawnSync('bash', [path.join(RACINE, script), ...(args || [REF_BIDON, '2026.09.0'])], {
+      env: { ...process.env, PATH: `${leurre}:${process.env.PATH}`,
+             NEXUS_TEST_DB_PASSWORD: '', ...env },
+      encoding: 'utf8', timeout: 60000, cwd: RACINE,
+    });
+  } finally {
+    if (sauvegarde !== null) fs.writeFileSync(CYCLE, sauvegarde);
+  }
 }
 
 for (const s of SCRIPTS) {
@@ -67,6 +91,19 @@ for (const s of SCRIPTS) {
     const tout = (r.stdout || '') + (r.stderr || '');
     assert.ok(!/Mot de passe introuvable|Aucun moyen de se connecter/.test(tout),
       `refus de credential alors qu’une URL est fournie : ${tout.slice(0, 300)}`);
+
+    // ET IL DOIT AVOIR AVANCÉ, pas seulement évité l'exit 4.
+    //
+    // La première version de cette épreuve s'arrêtait aux deux lignes ci-dessus,
+    // et elle est PASSÉE sur un script qui plantait en « MDP: unbound variable »
+    // — un exit 1 satisfaisait « pas 4 » et ne contenait aucun message de refus.
+    // Elle mesurait l'absence d'un symptôme au lieu de la présence du
+    // comportement. C'est le septième cas du genre en deux jours ; on le corrige
+    // ici en exigeant une preuve POSITIVE de franchissement.
+    assert.ok(!/unbound variable|command not found|syntax error|: line \d+:/.test(tout),
+      `le script a planté au niveau bash au lieu d’avancer : ${tout.slice(0, 300)}`);
+    assert.ok(/NEXUS_TEST_DB_URL|[Cc]onnexion|connection|could not connect|psql/.test(tout),
+      `aucune trace d’une tentative de connexion : le script s’est arrêté avant. ${tout.slice(0, 300)}`);
   });
 
   t(`${path.basename(s)} : la référence PRODUCTION reste refusée AVANT tout`, () => {

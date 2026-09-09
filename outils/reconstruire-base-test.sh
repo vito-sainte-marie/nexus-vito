@@ -68,7 +68,6 @@ fi
 unset MDP
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
-export PGPASSWORD="$MDP"; unset MDP
 # CONNEXION : direct d'abord, pooler en REPLI.
 #
 # L'hôte direct `db.<ref>.supabase.co` se déduit de la seule référence du
