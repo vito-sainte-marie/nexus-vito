@@ -1,62 +1,64 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
-seq: 3
+seq: 4
 author: NEXUS Orchestrator
 decision: APPROVED
 closes: false
-in_reply_to: request-3.md
+in_reply_to: request-4.md
 branch: config-par-environnement
 ---
-# Poursuite déterministe vers un package de readiness complet
+# Poursuite déterministe : exécuter la répétition Test et préparer la gate finale
 
-Aucun arbitrage Frédéric supplémentaire n'est requis à ce stade. Le retour `request-3.md`, les preuves canoniques et l'autorisation initiale permettent de poursuivre hors Production.
+Aucun arbitrage Frédéric supplémentaire n'est requis. `request-4.md` est conforme aux décisions déjà prises et son travail a été intégré canoniquement par la PR #32, sans divergence (`ahead 2`, `behind 0` avant fusion). La CI du HEAD intégré `2ddd01f56c3df8edc07db51cac8bbcbdf278fc9f` est verte : job `non-regression` terminé en succès, y compris Handoff, Guardians, Bible, Philosophie, règles métier, architecture et simulations. Les étapes nécessitant une connexion Test ont été explicitement `skipped`, donc elles ne constituent pas encore une preuve de répétition.
 
-## 1. Référentiel Advisor : inconnu fermé par mesure Production
+## 1. Migration 21
 
-Le comparateur en lecture seule préparé dans ce lot a été exécuté par l'Orchestrator via le connecteur Supabase déjà autorisé. Aucun rôle, secret, jeton ou accès supplémentaire n'a été créé et aucune écriture Production n'a été faite.
+L'exclusion est retenue pour cette release. Aucune dépendance fonctionnelle Production à `nexus_live_events` n'est démontrée. Ne pas créer de table ou migration Production pour satisfaire artificiellement une migration Test-only.
 
-Résultat rattaché à la candidate `ba1eed0e833c354f556128dc0ee4b0619725ed1a` :
+## 2. Répétition PREPROD-équivalente
 
-- `nexus_language_templates` : 0 complétée, 0 écrasée, 6 identiques sur 6 ;
-- `advisor_rules` : 0 complétée, 0 écrasée, 31 identiques sur 31.
+La ressource existante `nexus-test` est retenue comme support de répétition équivalente pour cette release, sous les conditions suivantes :
 
-La migration `20260905161500_seed_referentiel_advisor.sql` est donc un no-op matériel sur l'état Production mesuré. La preuve est enregistrée dans `mesures-advisor-production-lecture-seule-1.md` et devra être rafraîchie avant la gate finale si nécessaire.
+- aucune donnée personnelle Production n'y est copiée ;
+- aucune nouvelle ressource facturable n'est créée ;
+- aucune extension de privilège durable n'est accordée pour faciliter la répétition ;
+- les comptes et données de recette Test nécessaires sont restaurés ou ressemés de façon déterministe après reconstruction ;
+- l'absence de `auth.users` après reconstruction doit être traitée explicitement avant la recette navigateur ;
+- la répétition doit exécuter les migrations retenues dans leur ordre réel, puis les tests et la recette sur l'état reconstruit ;
+- un échec Test se corrige et se rejoue dans ce lot sans nouvelle gate humaine tant que le périmètre ne change pas.
 
-## 2. Manifeste des migrations
+Utilise en priorité les moyens Test déjà autorisés : outillage du dépôt, secrets Test existants côté CI si accessibles dans un contexte sûr, ou mécanisme équivalent à moindre privilège. Si le canal Claude ne peut matériellement pas exécuter la répétition, ne fabrique pas une preuve : produis le mécanisme exécutable minimal qui permet au rail autorisé de la lancer, sans exposer de secret et sans élargir Production.
 
-La fermeture de dépendances de `request-3.md` est retenue :
+## 3. Re-mesures Production
 
-- migrations 16, 18, 19 et 20 : exclues de la release Production par défaut car explicitement Test/CI et sans dépendance Production démontrée ;
-- migration 21 : exclue et bloquée tant qu'aucune table `nexus_live_events` de portée Production n'existe. Ne pas promouvoir la migration Test 18 uniquement pour rendre la 21 applicable.
+Les requêtes `SELECT` de `re-mesure-finale-gate-1.md` sont validées comme préparation. Ne pas les considérer fraîches avant exécution réelle. L'Orchestrator dispose de l'autorisation de lecture seule Production et les exécutera au plus près de la gate finale.
 
-Vérifier maintenant si le code applicatif de la candidate exige réellement `nexus_live_events` en Production. S'il n'existe aucune dépendance fonctionnelle Production, matérialiser l'exclusion permanente de 21 pour cette release. Si une dépendance Production est démontrée, proposer une migration Production dédiée et minimale, sans l'appliquer.
+La mesure de fenêtre doit distinguer :
+- services réellement actifs au moment de la gate ;
+- services historiques `en_cours` que la migration reprendrait ;
+- écritures métier concurrentes récentes pouvant rendre un rollback données destructeur.
 
-## 3. PREPROD anonymisé
+## 4. Package de readiness attendu
 
-Poursuivre sans données personnelles réelles. Vérifier d'abord si les ressources Test déjà existantes permettent une répétition équivalente sans créer de projet ou branche payante.
+Poursuis jusqu'à obtenir, avec preuve réelle :
 
-Ne pas créer une nouvelle ressource facturable sans la gate de coût prévue par l'outil. Si aucune ressource existante ne peut fournir la preuve nécessaire, retourner uniquement avec le besoin exact de ressource et son coût vérifiable.
+1. répétition des migrations retenues sur `nexus-test` ou preuve technique explicite qu'elle est impossible sans nouvelle ressource ;
+2. comptes/données de recette Test disponibles après reconstruction ;
+3. suite complète et Guardians sans nouvelle régression ;
+4. recette navigateur réelle ;
+5. manifeste final de migrations ;
+6. plan de réparation en avant et rollback code ;
+7. critères `Prêt pour Production` calculés fail-closed ;
+8. liste exacte des seules re-mesures Production restant à rafraîchir juste avant la gate.
 
-La preuve PREPROD doit rester fail-closed : `INCONNU` tant que construction, anti-fuite et répétition ne sont pas réellement exécutées.
-
-## 4. Suite de la préparation
-
-Dans le périmètre hors Production :
-
-1. finaliser le manifeste de release en tenant compte de la mesure Advisor ;
-2. produire les scripts ou procédures exécutables de construction/anonymisation PREPROD sans données personnelles ;
-3. répéter les migrations retenues et la recette sur une ressource autorisée dès qu'elle existe ;
-4. vérifier les critères `Prêt pour Production` avec preuves réelles, pas déclaratives ;
-5. préparer les requêtes de re-mesure finale des impacts DML et de l'activité métier ;
-6. conserver le rollback code séparé de la réparation en avant des données ;
-7. revenir par Handoff uniquement si une vraie décision non déterministe apparaît ou lorsque le package est complet pour la gate finale Frédéric.
+Ne sollicite Frédéric que si une vraie décision de fondateur apparaît, si une ressource facturable nouvelle devient indispensable, si des données personnelles réelles deviennent nécessaires pour PREPROD, si une contradiction canonique non résoluble apparaît, ou lorsque le package est complet pour la gate finale d'une release précise.
 
 ## 5. Gate inchangée
 
-Toujours interdit : toute écriture Supabase Production, migration Production, push ou merge vers `main` ou `production`, déploiement du vrai NEXUS, rollback Production, ou PREPROD contenant des données personnelles réelles.
+Toujours interdit : écriture ou migration Supabase Production, push/merge `main` ou `production`, déploiement du vrai NEXUS, rollback Production, copie non anonymisée de données Production, ou élargissement de droits Production.
 
-`Prêt pour Production` reste un verdict de préparation. Il ne vaut jamais autorisation de Production.
+`Prêt pour Production` reste un verdict de préparation et ne vaut jamais autorisation de Production.
