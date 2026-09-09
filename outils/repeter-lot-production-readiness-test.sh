@@ -7,9 +7,11 @@
 # outils/reconstruire-base-test.sh, ni identifiant réseau vers nexus-test,
 # ni la moindre variable d'environnement lisible (constat inchangé depuis
 # le 06/09/2026, reconfirmé le 09/09/2026 : toute expansion de variable
-# d'environnement y est refusée par la sandbox). Ce script est donc écrit
-# pour être lancé par le rail autorisé — l'Orchestrator ou Frédéric,
-# localement — pas par ce canal.
+# d'environnement y est refusée par la sandbox). Ce script accepte donc
+# deux façons d'obtenir une connexion — voir outils/resoudre-connexion-test.sh
+# pour le détail — afin de pouvoir être lancé soit localement (Frédéric,
+# trousseau macOS), soit par le rail GitHub Actions lui-même (mode
+# --url-env, secret Test existant, ni nouveau secret ni service_role).
 #
 # CE QU'IL FAIT, dans l'ordre, et rien de plus :
 #   1. capture AVANT toute écriture — seule fenêtre où elles existent encore —
@@ -19,11 +21,11 @@
 #      09/09/2026 : la reconstruction fait `drop schema public cascade`, donc
 #      la table revient VIDE, recréée par sa migration. La CI republiera ses
 #      propres événements au run suivant ; elle ne republiera JAMAIS les
-#      quatre autorisations accordées par Frédéric en personne
+#      autorisations accordées par Frédéric en personne
 #      (`actor_role = 'human'`). Les perdre n'aurait pas été une remise à
 #      zéro, mais l'effacement d'une décision humaine — ce que le registre
 #      Handoff interdit en étant append-only ;
-#   2. reconstruit nexus-test depuis zéro avec l'outil existant, inchangé
+#   2. reconstruit nexus-test depuis zéro avec l'outil existant
 #      (outils/reconstruire-base-test.sh) — remise à zéro FIDÈLE du schéma
 #      public, rejeu de la TOTALITÉ des migrations versionnées, y compris
 #      les 4 migrations Test/CI qui n'ont de sens que sur ce projet
@@ -39,7 +41,7 @@
 #      auth.users déjà existants — aucune API d'administration, aucun
 #      service_role, aucune extension de privilège durable ;
 #   4. exécute la suite complète, les Guardians bloquants/consultatifs, et
-#      la recette navigateur réelle contre l'URL Test servie.
+#      la répétition de la recette Carburants.
 #
 # CE QU'IL NE FAIT PAS :
 #   - il ne filtre PAS les migrations par le manifeste de promotion
@@ -49,57 +51,44 @@
 #     Filtrer ici romprait la recette navigateur et les Guardians CI, qui
 #     dépendent des migrations Test/CI (rôle nexus_ci_recette, table
 #     nexus_live_events) ;
-#   - il ne crée ni ne rotationne aucun secret : le mot de passe existant
-#     est LU exactement comme dans reconstruire-base-test.sh (trousseau
-#     macOS), avec un repli explicite sur une variable d'environnement
-#     PORTABLE si le trousseau est absent — ce n'est PAS un nouveau secret,
-#     c'est une seconde façon de fournir le MÊME mot de passe existant à un
-#     rail qui n'a pas de trousseau macOS (ex. un futur job CI Linux) ;
+#   - il ne crée ni ne rotationne aucun secret. En mode historique, le mot
+#     de passe existant est LU exactement comme dans
+#     reconstruire-base-test.sh (trousseau macOS). En mode --url-env, il
+#     consomme une URL DÉJÀ fournie par l'appelant sous le nom de variable
+#     de son choix — la même valeur que le secret Test existant, jamais une
+#     nouvelle ;
 #   - il ne touche jamais Production : même refus que
-#     reconstruire-base-test.sh (PROD_REF codé en dur, comparé avant toute
-#     opération).
+#     reconstruire-base-test.sh (PROD_REF codé en dur dans
+#     outils/resoudre-connexion-test.sh, comparé avant toute opération, dans
+#     les DEUX modes).
 #
 # Usage :
 #   outils/repeter-lot-production-readiness-test.sh <project-ref>
+#   outils/repeter-lot-production-readiness-test.sh <project-ref> --url-env NOM_VARIABLE
 #
-# Exemple :
+# Exemples :
 #   outils/repeter-lot-production-readiness-test.sh udljdqxerrbbbajxubfn
+#   outils/repeter-lot-production-readiness-test.sh udljdqxerrbbbajxubfn --url-env NEXUS_TEST_DB_URL_WRITE
 
 set -euo pipefail
 
-PROD_REF="uzhjpqpctpvxytxpxoqz"
 REF="${1:-}"
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=./resoudre-connexion-test.sh
+source "$RACINE/outils/resoudre-connexion-test.sh"
 
 if [ -z "$REF" ]; then
-  echo "Usage : $0 <project-ref>" >&2
+  echo "Usage : $0 <project-ref> [--url-env NOM_VARIABLE]" >&2
   exit 2
 fi
-if [ "$REF" = "$PROD_REF" ]; then
-  echo "REFUS : $REF est le projet de PRODUCTION. Ce script ne s'exécute que contre nexus-test." >&2
-  exit 3
-fi
 
-# Même résolution que reconstruire-base-test.sh, avec repli portable —
-# jamais un nouveau secret, la même valeur fournie autrement.
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
-fi
-if [ -z "$MDP" ]; then
-  echo "Mot de passe introuvable (ni trousseau macOS « nexus »/« nexus-test-db », ni NEXUS_TEST_DB_PASSWORD)." >&2
-  echo "Ce script s'arrête ici : il ne devine ni ne fabrique de credential." >&2
-  exit 4
-fi
-
-export PGPASSWORD="$MDP"; unset MDP
-URL="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+nexus_resoudre_connexion_test "$REF" "${2:-}" "${3:-}"
 
 CAPTURE="$(mktemp -t nexus-baseline-recette-test.XXXXXX.sql)"
 trap 'rm -f "$CAPTURE"' EXIT
 
 echo "[1/4] Capture de la ligne de recette ET du journal Live avant reconstruction…"
-if ! psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseline-recette-test.sql")" > "$CAPTURE" 2>&1; then
+if ! psql --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseline-recette-test.sql")" > "$CAPTURE" 2>&1; then
   echo "ÉCHEC de la capture — arrêt AVANT toute écriture (voir $CAPTURE)." >&2
   cat "$CAPTURE" >&2
   exit 5
@@ -110,12 +99,12 @@ fi
 echo "Capture écrite ($(wc -l < "$CAPTURE" | tr -d ' ') ligne(s))."
 echo
 
-echo "[2/4] Reconstruction complète (outils/reconstruire-base-test.sh, inchangé)…"
-"$RACINE/outils/reconstruire-base-test.sh" "$REF"
+echo "[2/4] Reconstruction complète (outils/reconstruire-base-test.sh)…"
+"$RACINE/outils/reconstruire-base-test.sh" "$REF" "${2:-}" "${3:-}"
 echo
 
 echo "[3/4] Réensemencement (recette + journal Live) depuis la capture…"
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$CAPTURE"
+psql --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$CAPTURE"
 echo "Réensemencement appliqué."
 echo
 

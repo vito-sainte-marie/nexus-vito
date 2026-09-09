@@ -20,6 +20,7 @@ const assert = require('assert');
 const CAPTURE = fs.readFileSync(path.join(__dirname, 'outils', 'capturer-baseline-recette-test.sql'), 'utf8');
 const SCRIPT = fs.readFileSync(path.join(__dirname, 'outils', 'repeter-lot-production-readiness-test.sh'), 'utf8');
 const RECONSTRUIRE = fs.readFileSync(path.join(__dirname, 'outils', 'reconstruire-base-test.sh'), 'utf8');
+const RESOUDRE = fs.readFileSync(path.join(__dirname, 'outils', 'resoudre-connexion-test.sh'), 'utf8');
 
 let n = 0;
 function t(nom, fn) { fn(); n++; console.log('OK — ' + nom); }
@@ -88,9 +89,15 @@ t('le script décrit ce qu’il fait RÉELLEMENT', () => {
 });
 
 t('PRODUCTION reste refusée par construction', () => {
-  assert.ok(/PROD_REF="uzhjpqpctpvxytxpxoqz"/.test(SCRIPT));
-  assert.ok(/REFUS : .* projet de PRODUCTION/.test(SCRIPT),
+  // Depuis le 09/09/2026, les DEUX scripts partagent une résolution de
+  // connexion unique (outils/resoudre-connexion-test.sh) plutôt que de
+  // dupliquer chacun leur propre garde PROD_REF — la vérification porte
+  // donc sur la source unique, pas sur repeter-lot lui-même.
+  assert.ok(/PROD_REF="uzhjpqpctpvxytxpxoqz"/.test(RESOUDRE));
+  assert.ok(/REFUS : .* projet de PRODUCTION/.test(RESOUDRE),
     'le refus doit être explicite, comparé avant toute opération');
+  assert.ok(!/PROD_REF=/.test(SCRIPT) && !/PROD_REF=/.test(RECONSTRUIRE),
+    'la garde ne doit plus être dupliquée dans les scripts appelants — une seule vérité');
 });
 
 console.log(`\n${n}/${n} vérifications passées — une remise à zéro n’efface pas une décision humaine.`);
