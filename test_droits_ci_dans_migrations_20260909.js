@@ -30,13 +30,32 @@ const DROITS_ATTENDUS = [
     pourquoi: 'SEC-018 — la CI constate la dérive de l’instantané de recette' },
   { nom: 'publication_ci', table: 'nexus_live_events',
     pourquoi: 'SEC-019 — la CI publie le journal Live' },
+  { nom: 'recette_ci_site_test', table: 'audits_caisse',
+    pourquoi: 'SEC-019 — la CI sème le scénario Carburants' },
 ];
+
+// UNE POLITIQUE SANS DROIT DE TABLE NE S'APPLIQUE À RIEN. Le rôle ne voit même
+// pas la table, et PostgreSQL répond « relation does not exist » — un message
+// qui fait chercher une table manquante là où le problème est un privilège
+// absent. C'est ce qui a fait échouer la CI le 09/09/2026 après reconstruction.
+const TABLES_ECRITES_PAR_LA_CI = ['audits_caisse', 'carburant_releves'];
 
 t('chaque droit attendu par la CI est créé par une migration', () => {
   for (const d of DROITS_ATTENDUS) {
     const trouvees = migrations.filter(m => m.sql.includes(d.nom));
     assert.ok(trouvees.length > 0,
       `aucune migration ne crée « ${d.nom} » (${d.pourquoi}) : une reconstruction ne le recréerait pas`);
+  }
+});
+
+t('toute table que la CI ÉCRIT reçoit aussi un droit de table', () => {
+  for (const table of TABLES_ECRITES_PAR_LA_CI) {
+    const m = migrations.find(x =>
+      new RegExp(`grant [^;]*on public\\.${table} to nexus_ci_recette`, 'i').test(x.sql));
+    assert.ok(m, `aucune migration n’accorde de droit de table sur ${table} : `
+      + 'la politique RLS existe mais ne s’applique à rien, et PostgreSQL dira « relation does not exist »');
+    assert.ok(!/grant [^;]*delete[^;]*on public\.(audits_caisse|carburant_releves)/i.test(m.sql),
+      `${table} : la CI ne doit pas pouvoir supprimer`);
   }
 });
 
