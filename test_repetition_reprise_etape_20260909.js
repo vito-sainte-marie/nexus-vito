@@ -84,6 +84,31 @@ t('une valeur d’étape absurde est refusée, pas ignorée', () => {
   assert.strictEqual(r.status, 5, `une valeur non numérique doit être refusée, obtenu ${r.status}`);
 });
 
+t('DEPUIS_ETAPE=8 démonte la répétition sans rien mesurer', () => {
+  // Le RETOUR SEUL. Quand la séquence casse entre 3 et 7, Test reste en
+  // PREPROD_REHEARSAL — voulu, pour examiner l'état fautif — et il faut un
+  // chemin pour l'en sortir sans tout rejouer. Sauter 5 à 7 reste interdit
+  // pour une répétition ; 8 n'est pas une reprise, c'est son démontage.
+  const r = lancer(8);
+  assert.ok(/\[3\/8\] sauté \(retour seul\)/.test(r.tout), 'le semis devait être sauté');
+  assert.ok(/\[4-7\/8\] sautées/.test(r.tout), 'aucune mesure ne doit être prise');
+  assert.ok(!/MESURE AVANT|MESURE APRÈS/.test(r.tout),
+    'un retour seul ne produit AUCUN rapport : un rapport sans mesure avant serait un faux');
+});
+
+t('un arrêt AVANT toute répétition ne promet pas un état où l’on n’est jamais entré', () => {
+  // Le message de secours annonce « Test reste en PREPROD_REHEARSAL ». Sur une
+  // simple erreur d'usage, la base n'y est jamais passée : l'afficher
+  // décrirait un monde faux, et lirait des variables non définies.
+  const r = spawnSync('bash', [SCRIPT], {
+    env: { ...process.env, PATH: `${leurre}:${process.env.PATH}` },
+    encoding: 'utf8', timeout: 60000, cwd: RACINE });
+  const tout = (r.stdout || '') + (r.stderr || '');
+  assert.ok(/Usage :/.test(tout), 'une invocation sans argument doit rappeler l’usage');
+  assert.ok(!/TEST RESTE EN PREPROD_REHEARSAL/.test(tout),
+    'le message de secours s’affiche alors que la répétition n’a jamais commencé');
+});
+
 // MUTATION : sans la garde `faire`, la reprise ne sauterait rien. On retire la
 // condition et l'on vérifie que la première épreuve tomberait.
 t('MUTATION : sans la garde, l’étape 2 se rejouerait malgré la reprise', () => {
@@ -106,4 +131,4 @@ t('MUTATION : sans la garde, l’étape 2 se rejouerait malgré la reprise', () 
 });
 
 fs.rmSync(leurre, { recursive: true, force: true });
-console.log(`\n${passes}/6 vérifications passées — la répétition reprend sans repayer la reconstruction.`);
+console.log(`\n${passes}/8 vérifications passées — la répétition reprend sans repayer la reconstruction.`);

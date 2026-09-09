@@ -94,6 +94,40 @@ order by 1"
 
 mesurer() { psql "$URL" --quiet --no-psqlrc -tA -F' : ' -c "$MESURES"; }
 
+# SORTIR DE LA RÉPÉTITION, QUOI QU'IL ARRIVE.
+#
+# Quand la séquence s'arrête entre les étapes 3 et 7, Test RESTE en
+# `PREPROD_REHEARSAL` avec des données de répétition. C'est voulu : l'état
+# fautif doit pouvoir être examiné avant d'être effacé. Mais tant qu'il dure,
+# toute recette lancée sur cette base juge des données structurées pour
+# reproduire des cas Production — et resterait verte en le faisant.
+#
+# Le laisser sans dire comment en sortir, c'est laisser un piège. On imprime
+# donc la manœuvre à chaque arrêt anormal, et une seule fois.
+# Le drapeau n'est levé QUE lorsque la base est réellement passée en
+# répétition. Sans lui, ce message s'afficherait sur une simple erreur d'usage
+# — en lisant au passage des variables non encore définies — et annoncerait un
+# état où Test n'est jamais entré.
+EN_REPETITION=0
+sortie_anormale() {
+  local code=$?
+  [ "$code" -eq 0 ] && return 0
+  [ "${EN_REPETITION:-0}" -eq 1 ] || return 0
+  echo >&2
+  echo "──────────────────────────────────────────────────────────────" >&2
+  echo "TEST RESTE EN PREPROD_REHEARSAL. Ce n'est pas un état où le laisser." >&2
+  echo "Tant qu'il dure, toute recette juge des données de répétition — en" >&2
+  echo "restant verte. Pour rendre Test à son usage :" >&2
+  echo >&2
+  echo "  NEXUS_TEST_DB_URL=\"\$NEXUS_TEST_DB_URL\" DEPUIS_ETAPE=8 \\" >&2
+  echo "    $0 $REF $RELEASE" >&2
+  echo >&2
+  echo "Pour reprendre la répétition après correctif, sans repayer la" >&2
+  echo "reconstruction : DEPUIS_ETAPE=3. Avec reconstruction : DEPUIS_ETAPE=2." >&2
+  echo "──────────────────────────────────────────────────────────────" >&2
+}
+trap sortie_anormale EXIT
+
 # REPRISE À L'ÉTAPE — `DEPUIS_ETAPE=3` saute tout ce qui précède.
 #
 # L'étape 2 rejoue 241 migrations et prend une dizaine de minutes. Le 09/09/2026,
@@ -111,8 +145,11 @@ mesurer() { psql "$URL" --quiet --no-psqlrc -tA -F' : ' -c "$MESURES"; }
 DEPUIS="${DEPUIS_ETAPE:-1}"
 case "$DEPUIS" in
   1|2|3|4) ;;
-  *) echo "DEPUIS_ETAPE doit valoir 1 à 4 (lu : $DEPUIS)." >&2
-     echo "Au-delà, la mesure AVANT manquerait et le rapport d'impact ne voudrait rien dire." >&2
+  # 8 est le RETOUR SEUL : rendre Test à son usage sans rien répéter. Ce n'est
+  # pas une reprise de répétition, c'est son démontage — d'où l'exception.
+  8) ;;
+  *) echo "DEPUIS_ETAPE doit valoir 1 à 4, ou 8 pour le seul retour en TEST_NORMAL (lu : $DEPUIS)." >&2
+     echo "Entre 5 et 7, la mesure AVANT manquerait et le rapport d'impact ne voudrait rien dire." >&2
      exit 5 ;;
 esac
 faire() { [ "$1" -ge "$DEPUIS" ]; }
@@ -147,6 +184,7 @@ if faire 1; then
   ' "$RACINE/docs/handoff/PREPROD-CYCLE.json" "$RELEASE" "$REF"
   psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
     "update public.nexus_environnement_mode set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now(), motif='Répétition de release.'"
+  EN_REPETITION=1
   echo "Mode : PREPROD_REHEARSAL (release $RELEASE)."
   echo
 else
@@ -163,100 +201,109 @@ else
 fi
 
 
-echo "[3/8] Semis de la recette puis des cas Production…"
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
-# Le mode a été effacé avec le schéma : sa table n'existe qu'après sa migration,
-# postérieure à la borne. On le repose donc ici, avant le semis qui l'exige.
-psql "$URL" --quiet --no-psqlrc -c "create table if not exists public.nexus_environnement_mode (
-  mode_unique boolean primary key default true, mode text not null default 'TEST_NORMAL',
-  depuis timestamptz not null default now(), release text, motif text)" >/dev/null
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
-  "insert into public.nexus_environnement_mode (mode_unique, mode, release) values (true,'PREPROD_REHEARSAL','$RELEASE')
-   on conflict (mode_unique) do update set mode=excluded.mode, release=excluded.release" >/dev/null
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/jeu-preprod-cas-production.sql"
+if faire 3; then
+  echo "[3/8] Semis de la recette puis des cas Production…"
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
+  # Le mode a été effacé avec le schéma : sa table n'existe qu'après sa migration,
+  # postérieure à la borne. On le repose donc ici, avant le semis qui l'exige.
+  psql "$URL" --quiet --no-psqlrc -c "create table if not exists public.nexus_environnement_mode (
+    mode_unique boolean primary key default true, mode text not null default 'TEST_NORMAL',
+    depuis timestamptz not null default now(), release text, motif text)" >/dev/null
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+    "insert into public.nexus_environnement_mode (mode_unique, mode, release) values (true,'PREPROD_REHEARSAL','$RELEASE')
+     on conflict (mode_unique) do update set mode=excluded.mode, release=excluded.release" >/dev/null
+  EN_REPETITION=1
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/jeu-preprod-cas-production.sql"
 
-# ET ON RETIRE L'ÉCHAFAUDAGE. La table ci-dessus n'était qu'un appui pour semer :
-# la laisser en place ferait tomber la migration [5/8] qui la crée sur un
-# `create table if not exists` déjà satisfait. Elle afficherait OK sans rien
-# faire, et ses deux contraintes — mode contraint à deux valeurs, release
-# obligatoire en répétition — ne seraient jamais éprouvées. Une répétition qui
-# valide une migration inerte est précisément le défaut qu'elle sert à trouver.
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
-  -c "drop table if exists public.nexus_environnement_mode" >/dev/null
-echo "  Échafaudage du mode retiré : sa migration devra le créer pour de vrai."
-echo
+  # ET ON RETIRE L'ÉCHAFAUDAGE. La table ci-dessus n'était qu'un appui pour semer :
+  # la laisser en place ferait tomber la migration [5/8] qui la crée sur un
+  # `create table if not exists` déjà satisfait. Elle afficherait OK sans rien
+  # faire, et ses deux contraintes — mode contraint à deux valeurs, release
+  # obligatoire en répétition — ne seraient jamais éprouvées. Une répétition qui
+  # valide une migration inerte est précisément le défaut qu'elle sert à trouver.
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
+    -c "drop table if exists public.nexus_environnement_mode" >/dev/null
+  echo "  Échafaudage du mode retiré : sa migration devra le créer pour de vrai."
+  echo
 
-# LA MESURE DE RÉFÉRENCE DOIT ÊTRE FRAÎCHE.
-#
-# Le 09/09/2026, `services_ouverts` valait 13 la veille et 17 le jour même :
-# Production en accumule deux à quatre par jour. Un jeu semé d'après un
-# instantané périmé mesure l'impact d'hier, et le rapport reste vert en le
-# disant. On refuse donc au-delà de trois jours — la fenêtre courte est le
-# principe, pas une commodité : une répétition sert à décider MAINTENANT.
-node -e '
-const fs=require("fs"), m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-const jours=Math.floor((Date.now()-Date.parse(m.mesure_le))/86400000);
-if(!Number.isFinite(jours)){console.error("Mesure sans date lisible : on refuse de conclure.");process.exit(1);}
-if(jours>3){
-  console.error(`REFUS — volumes Production mesurés le ${m.mesure_le}, il y a ${jours} jours.`);
-  console.error("Production est vivante : ces nombres ont bougé. Re-mesurer en lecture seule avant de répéter.");
-  process.exit(1);
-}
-console.log(`Volumes de référence : mesurés le ${m.mesure_le} (il y a ${jours} jour(s)).`);
-' "$RACINE/docs/recettes/volumes-production-mesures.json"
-echo
+  # LA MESURE DE RÉFÉRENCE DOIT ÊTRE FRAÎCHE.
+  #
+  # Le 09/09/2026, `services_ouverts` valait 13 la veille et 17 le jour même :
+  # Production en accumule deux à quatre par jour. Un jeu semé d'après un
+  # instantané périmé mesure l'impact d'hier, et le rapport reste vert en le
+  # disant. On refuse donc au-delà de trois jours — la fenêtre courte est le
+  # principe, pas une commodité : une répétition sert à décider MAINTENANT.
+  node -e '
+  const fs=require("fs"), m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+  const jours=Math.floor((Date.now()-Date.parse(m.mesure_le))/86400000);
+  if(!Number.isFinite(jours)){console.error("Mesure sans date lisible : on refuse de conclure.");process.exit(1);}
+  if(jours>3){
+    console.error(`REFUS — volumes Production mesurés le ${m.mesure_le}, il y a ${jours} jours.`);
+    console.error("Production est vivante : ces nombres ont bougé. Re-mesurer en lecture seule avant de répéter.");
+    process.exit(1);
+  }
+  console.log(`Volumes de référence : mesurés le ${m.mesure_le} (il y a ${jours} jour(s)).`);
+  ' "$RACINE/docs/recettes/volumes-production-mesures.json"
+  echo
+else
+  echo "[3/8] sauté (retour seul)."
+fi
 
-echo "[4/8] MESURE AVANT" | tee "$RAPPORT"
-mesurer | tee -a "$RAPPORT"
-echo | tee -a "$RAPPORT"
+if faire 4; then
+  echo "[4/8] MESURE AVANT" | tee "$RAPPORT"
+  mesurer | tee -a "$RAPPORT"
+  echo | tee -a "$RAPPORT"
 
-echo "[5/8] Application des migrations de promotion (> $VERSION_PROD)…"
-n=0
-for f in "$RACINE"/supabase/migrations/*.sql; do
-  nom="$(basename "$f")"; version="${nom%%_*}"
-  [ "$version" \> "$VERSION_PROD" ] || continue
-  n=$((n+1)); printf "  [%02d] %-70s " "$n" "${nom:0:70}"
-  if sortie="$(psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
-    echo "OK"
-  else
-    echo "ÉCHEC"; echo "$sortie" | grep -E '^psql:|ERROR' | head -10 | sed 's/^/      /'
-    echo "La répétition s'arrête ici. Test reste en PREPROD_REHEARSAL : c'est voulu," >&2
-    echo "l'état fautif doit pouvoir être examiné avant d'être effacé." >&2
-    exit 7
-  fi
-done
-echo "  ${n} migration(s) de promotion appliquée(s)."
+  echo "[5/8] Application des migrations de promotion (> $VERSION_PROD)…"
+  n=0
+  for f in "$RACINE"/supabase/migrations/*.sql; do
+    nom="$(basename "$f")"; version="${nom%%_*}"
+    [ "$version" \> "$VERSION_PROD" ] || continue
+    n=$((n+1)); printf "  [%02d] %-70s " "$n" "${nom:0:70}"
+    if sortie="$(psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
+      echo "OK"
+    else
+      echo "ÉCHEC"; echo "$sortie" | grep -E '^psql:|ERROR' | head -10 | sed 's/^/      /'
+      echo "La répétition s'arrête ici. Test reste en PREPROD_REHEARSAL : c'est voulu," >&2
+      echo "l'état fautif doit pouvoir être examiné avant d'être effacé." >&2
+      exit 7
+    fi
+  done
+  echo "  ${n} migration(s) de promotion appliquée(s)."
 
-# La migration du mode vient de reposer la table à son état par défaut,
-# TEST_NORMAL. On est pourtant toujours en répétition, et un cycle est ouvert :
-# laisser ça mentirait à la garde, qui verrait un cycle orphelin. On redéclare —
-# et si les contraintes de la migration sont bonnes, cette écriture passe ; si
-# elles sont mauvaises, elle échoue ICI, ce qui est le but.
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
-  "update public.nexus_environnement_mode
-      set mode='PREPROD_REHEARSAL', release='${RELEASE}', depuis=now(),
-          motif='Répétition en cours, mode reposé après migration.'" >/dev/null
-node "$RACINE/outils/garde-mode-environnement.js" \
-  "$(psql "$URL" --quiet --no-psqlrc -tAc 'select mode from public.nexus_environnement_mode')"
-echo
+  # La migration du mode vient de reposer la table à son état par défaut,
+  # TEST_NORMAL. On est pourtant toujours en répétition, et un cycle est ouvert :
+  # laisser ça mentirait à la garde, qui verrait un cycle orphelin. On redéclare —
+  # et si les contraintes de la migration sont bonnes, cette écriture passe ; si
+  # elles sont mauvaises, elle échoue ICI, ce qui est le but.
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+    "update public.nexus_environnement_mode
+        set mode='PREPROD_REHEARSAL', release='${RELEASE}', depuis=now(),
+            motif='Répétition en cours, mode reposé après migration.'" >/dev/null
+  node "$RACINE/outils/garde-mode-environnement.js" \
+    "$(psql "$URL" --quiet --no-psqlrc -tAc 'select mode from public.nexus_environnement_mode')"
+  echo
 
-# CE QUI COMPTE POUR L'ÉQUIPE, AVANT CE QUI COMPTE POUR LE RAPPORT.
-# Les migrations sont passées ; reste à savoir si le geste quotidien fonctionne
-# encore. On le REJOUE plutôt que de le déduire du code.
-echo "[6/8] Parcours employé : prise de poste après un quart laissé ouvert…"
-psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
-  -f "$RACINE/outils/verifier-prise-de-poste-apres-migrations.sql"
-echo
+  # CE QUI COMPTE POUR L'ÉQUIPE, AVANT CE QUI COMPTE POUR LE RAPPORT.
+  # Les migrations sont passées ; reste à savoir si le geste quotidien fonctionne
+  # encore. On le REJOUE plutôt que de le déduire du code.
+  echo "[6/8] Parcours employé : prise de poste après un quart laissé ouvert…"
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
+    -f "$RACINE/outils/verifier-prise-de-poste-apres-migrations.sql"
+  echo
 
-echo "[6/8] MESURE APRÈS" | tee -a "$RAPPORT"
-mesurer | tee -a "$RAPPORT"
-echo | tee -a "$RAPPORT"
-echo "L'écart entre [4] et [6] est le rapport d'impact : $RAPPORT"
-echo
+  echo "[6/8] MESURE APRÈS" | tee -a "$RAPPORT"
+  mesurer | tee -a "$RAPPORT"
+  echo | tee -a "$RAPPORT"
+  echo "L'écart entre [4] et [6] est le rapport d'impact : $RAPPORT"
+  echo
 
-echo "[7/8] Suite, Guardians et répétition carburants…"
-( cd "$RACINE"; node run-tests.js; node outils/guardian-qa.js; node outils/repetition-recette-carburants.js )
-echo
+  echo "[7/8] Suite, Guardians et répétition carburants…"
+  ( cd "$RACINE"; node run-tests.js; node outils/guardian-qa.js; node outils/repetition-recette-carburants.js )
+  echo
+else
+  echo "[4-7/8] sautées (retour seul) : aucune mesure, aucun rapport."
+fi
 
 echo "[8/8] Retour en TEST_NORMAL — obligatoire."
 "$RACINE/outils/reconstruire-base-test.sh" "$REF"
