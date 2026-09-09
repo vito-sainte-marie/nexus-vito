@@ -515,12 +515,19 @@ async function franchirPointageArrivee(page, base) {
       .catch(() => {});
   }
   const champ = page.locator('#photoInput-arrivee');
+  // Le motif porte la page ET ce que l'écran affiche : sans eux, « champ
+  // absent » ne localise rien et la session suivante recommence l'enquête.
+  const situer = async () => {
+    let chemin = page.url();
+    try { chemin = new URL(page.url()).pathname.split('/').pop() || chemin; } catch (e) { /* url exotique */ }
+    const vu = (await page.locator('body').innerText().catch(() => '') || '')
+      .split('\n').map(l => l.trim()).filter(Boolean).slice(0, 6).join(' / ');
+    return `page ${chemin} — écran : ${vu.slice(0, 220)}`;
+  };
   try {
     await champ.waitFor({ state: 'attached', timeout: 20000 });
   } catch (e) {
-    // Déjà pointé, ou écran différent : ce n'est pas un échec en soi, l'appelant
-    // le verra à la redirection suivante.
-    return { franchi: false, motif: 'champ photo d’arrivée absent' };
+    return { franchi: false, motif: 'champ photo d’arrivée absent — ' + (await situer()) };
   }
   try {
     await champ.setInputFiles(PHOTO_RECETTE);
@@ -535,7 +542,7 @@ async function franchirPointageArrivee(page, base) {
       { timeout: 90000 });
     return { franchi: true, motif: null };
   } catch (e) {
-    return { franchi: false, motif: 'arrivée non confirmée après dépôt de la photo' };
+    return { franchi: false, motif: 'arrivée non confirmée après dépôt de la photo — ' + (await situer()) };
   }
 }
 
@@ -778,6 +785,14 @@ async function executer(env = process.env) {
         echecsEmploye = echecsEmploye.concat(verifierInvitation(employe.invitation));
         const nonJugee = indisponibiliteInvitation(employe.invitation);
         if (nonJugee) employeIndisponible = (employeIndisponible ? employeIndisponible + ' ' : '') + nonJugee;
+        // INSTRUMENTATION (09/09/2026) — le franchissement du pointage rendait
+        // déjà son motif, et personne ne l'imprimait. Une observation qu'on ne
+        // regarde pas ne sert à rien : le rapport le dit désormais, qu'il ait
+        // réussi ou échoué.
+        if (employe.pointage && !employe.pointage.franchi) {
+          employeIndisponible = (employeIndisponible ? employeIndisponible + ' ' : '')
+            + `Pointage d’arrivée NON FRANCHI par la recette : ${employe.pointage.motif || 'motif non rendu'}.`;
+        }
       } catch (e) {
         // Un compte inconnectable et un écran qui refuse sont deux choses
         // opposées — même distinction que pour le Créateur le 07/09. On ne
@@ -838,6 +853,10 @@ if (require.main === module) {
       console.log('  · Prise de poste employé : '
         + (!e ? 'NON EXÉCUTÉE — voir indisponibilités'
           : e.premiere.atteint === 'confirme' ? 'satisfaite' : 'NON SATISFAITE'));
+      console.log('  · Pointage d’arrivée franchi par la recette : '
+        + (!e || !e.pointage ? 'NON EXÉCUTÉ'
+          : e.pointage.franchi ? 'oui'
+          : `NON — ${e.pointage.motif || 'motif non rendu'}`));
       console.log('  · Invitation à l’inventaire sur l’accueil : '
         + resumeInvitation(e && e.invitation));
       console.log('  · Prise de poste avec un quart DÉJÀ OUVERT : '
