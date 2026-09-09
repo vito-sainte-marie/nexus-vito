@@ -67,19 +67,50 @@ même employé). Le nombre de lignes concernées en Production est inconnu sans
 lecture : c'est la seconde mesure prioritaire, avec le détail des employés et
 services touchés, avant toute promotion.
 
-## Candidates dont la portée Production reste à trancher (pas une décision technique)
+## Migrations Test/CI — exclues par défaut (décision Orchestrator déterministe, 09/09/2026)
 
 Quatre migrations (16, 18, 19, 20) sont scopées Test/CI par leur propre
 contenu (rôle `nexus_ci_recette`, table `nexus_live_events` explicitement
-« Test uniquement »). Les promouvoir en Production ne casserait rien
-(schéma additif, RLS restrictive par défaut), mais leur utilité en Production
-n'est pas évidente si CI ne s'exécute jamais contre ce projet. Ce n'est pas
-une décision technique déterministe — je la signale sans trancher :
-`NEXUS-PRODUCTION-READINESS-1-20260908` peut soit les promouvoir (elles sont
-sans risque connu), soit les exclure explicitement de la procédure de
-promotion et les documenter comme « Test/CI only » de façon permanente dans
-`docs/nexus/`. Les deux choix sont défendables ; le choisir est un jugement de
-fondateur.
+« Test uniquement »). Elles ne sont **pas** promues aveuglément en Production
+— conformément au principe d'isolation Test/Production et à la portée que
+chacune se donne elle-même dans son propre en-tête. Détail, et statut de la
+migration #21 qui en dépend, dans `manifeste-migrations-production-1.md`
+(même répertoire).
+
+## Mesures Production déclarées par l'Orchestrator (08/09/2026 ~20:57, heure Martinique)
+
+Ces chiffres ont été transmis dans le réveil du 09/09/2026, comme mesurés en
+lecture seule contre Production par l'Orchestrator, sur la candidate figée
+`ba1eed0e833c354f556128dc0ee4b0619725ed1a`. Cette session GitHub Issue n'a
+elle-même aucun accès Production (inchangé, voir plus bas) : ces valeurs sont
+donc classées **DECLARED**, pas **VERIFIED** par Claude — reprises ici comme
+valides pour l'analyse, jamais comme un fait que cette session aurait
+elle-même constaté. Elles répondent exactement aux deux points d'attention
+posés dans la version précédente de cet inventaire.
+
+| Fait mesuré | Valeur | Migration concernée |
+|---|---|---|
+| `sites.timezone` | colonne absente en Production ; 2 sites présents ; les 2 ont `station_config.fuseau_horaire = America/Martinique` | #4 — confirme une population **complétées** sans divergence : les deux sites recevraient la même valeur, aucun écrasement possible faute de colonne existante |
+| `shifts` où `site_id IS DISTINCT FROM site` | 17 lignes | #3 — nombre exact de lignes que `shifts.site_id := site` corrigerait |
+| `mission_catalog` où `site IS DISTINCT FROM site_id` | 89 lignes | #3 — nombre exact de lignes que `mission_catalog.site := site_id` corrigerait |
+| Services que `20260905170000_reprise_et_unicite_shifts_en_cours` clôturerait selon son prédicat exact | 13 | #6 |
+| Services `en_cours` au moment de la mesure | 16 | contexte de #6 — 13 des 16 services actuellement `en_cours` seraient clos par la reprise ; les 3 restants ne correspondent pas au prédicat de blocage et resteraient `en_cours` |
+
+**Lecture** : migration #4 ne présente plus de risque d'écrasement identifié
+(les deux sites Production partagent déjà la même valeur de fuseau côté
+`station_config`, donc `complétées` sans ambiguïté). Migration #3 a désormais
+un impact chiffré (17 + 89 lignes corrigées, jamais supprimées). Migration #6
+reste la plus sensible : sur 16 services actuellement en cours, 13 seraient
+requalifiés `clos_sans_pointage` — c'est une bascule de statut visible
+immédiatement pour les employés concernés, à ne pas déclencher pendant une
+plage de forte activité (voir fenêtre de déploiement, `request-2.md`).
+
+**Ce que cette mesure ne couvre toujours pas** : le point d'attention n°1
+(`seed_referentiel_advisor`, complétées vs écrasées **champ par champ**) n'a
+pas été chiffré par cette mesure — c'est précisément l'objet du fichier
+`comparaison-seed-referentiel-advisor.sql` (même répertoire), une requête
+strictement `SELECT` à exécuter contre Production pour obtenir ce chiffre
+sans supposer de résultat.
 
 ## Ce que cet inventaire NE fait PAS
 
