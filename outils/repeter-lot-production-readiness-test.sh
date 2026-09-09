@@ -82,14 +82,20 @@ fi
 
 # Même résolution que reconstruire-base-test.sh, avec repli portable —
 # jamais un nouveau secret, la même valeur fournie autrement.
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+#
+# Le credential n'est exigé (et `security` jamais invoqué) que s'il est le
+# SEUL recours : quand `NEXUS_TEST_DB_URL` est fournie, elle porte son propre
+# moyen. Sans cette nuance, un runner Linux — qui n'a pas de trousseau macOS —
+# mourait en exit 4 avec une URL Test valide sous la main (request-5,
+# 09/09/2026).
+if [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
+else
+  MDP=""
 fi
-# Le credential n'est exigé que s'il est le SEUL recours : quand
-# `NEXUS_TEST_DB_URL` est fournie, elle porte son propre moyen. Sans cette
-# nuance, un runner Linux — qui n'a pas de trousseau macOS — mourait en exit 4
-# avec une URL Test valide sous la main (request-5, 09/09/2026).
 if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
   echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe" >&2
   echo "(trousseau macOS « nexus »/« nexus-test-db », ou NEXUS_TEST_DB_PASSWORD)." >&2

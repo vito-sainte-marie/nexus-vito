@@ -52,9 +52,13 @@ fi
 # CE QUI N'EST PAS ASSOUPLI : le refus de la référence Production reste AVANT
 # toute tentative de connexion, et une connexion qui échoue échoue — on ne
 # devine aucun mot de passe et on n'en fabrique aucun.
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+if [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
+else
+  MDP=""
 fi
 if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
   echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe." >&2
