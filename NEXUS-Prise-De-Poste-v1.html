@@ -208,14 +208,29 @@
   //
   // Désormais : heure locale de la station, seuil configuré du site, et
   // aucun quart si l'un des deux manque.
+  //
+  // 09/09/2026 — LE PLANNING DÉCIDE, L'HORLOGE EST LE REPLI. Arbitrage de
+  // Frédéric Bragance : le renfort est un quart de plein droit. Aucune heure ne
+  // permet de le reconnaître — à 10 h, un pompiste du quart 1 et un renfort
+  // travaillent tous les deux. On lit donc le quart PLANIFIÉ, et l'on ne
+  // retombe sur l'horloge que si le planning ne dit rien.
   let FUSEAU_STATION_PDP = null;
   let BASCULE_QUART2_PDP = null;
+  let QUART_PLANIFIE_PDP = null;
 
   function quartDuMoment() {
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) return null;
-    const quart = NexusStation.quartDepuisMinutes(
-      NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP), BASCULE_QUART2_PDP);
-    return quart === '1' ? 'matin' : quart === '2' ? 'soir' : null;
+    const r = NexusStation.quartDuJour({
+      planifie: QUART_PLANIFIE_PDP,
+      minutesMaintenant: NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP),
+      minutesBascule: BASCULE_QUART2_PDP,
+    });
+    if (!r) return null;
+    // Le vocabulaire de CET écran ne change pas pour les deux quarts
+    // existants : « matin » et « soir » sont déjà écrits dans l'historique de
+    // shifts.quart, et les renommer réécrirait le passé sans rien gagner.
+    // « renfort » s'ajoute, il ne remplace rien.
+    return r.quart === 'quart1' ? 'matin' : r.quart === 'quart2' ? 'soir' : 'renfort';
   }
 
   async function resoudreContexteQuart(employee) {
@@ -230,6 +245,13 @@
     // resterait invisible.
     const seuil = await NexusStation.seuilDeBascule(employee.site_id, undefined, FUSEAU_STATION_PDP);
     BASCULE_QUART2_PDP = seuil.indetermine ? null : seuil.minutes;
+    // Le quart planifié, lu UNE fois comme le reste du contexte. Son absence
+    // n'est pas une erreur : elle ramène au comportement d'avant. Une panne de
+    // planning ne doit jamais empêcher quelqu'un de prendre son poste.
+    if (FUSEAU_STATION_PDP) {
+      QUART_PLANIFIE_PDP = await NexusStation.quartPlanifie(
+        employee.id, NexusStation.dateLocaleStation(FUSEAU_STATION_PDP));
+    }
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
       console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');
       return false;

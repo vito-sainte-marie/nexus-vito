@@ -112,4 +112,80 @@ t('MUTATION : sans les jours étendus, le jeudi retombe sur le quart 2', () => {
     'le code muté devait redonner le défaut du 09/09 ; l’épreuve ne le détecte donc pas');
 });
 
-console.log(`\n${passes}/10 vérifications passées — le jeudi à 13 h, c’est le quart 1.`);
+// ─────────────────────────────────────────────────────────────────────────
+// LE RENFORT — un quart de plein droit, que l'horloge ne peut pas deviner.
+//
+// Arbitrage de Frédéric Bragance, 09/09/2026. Le planning connaissait trois
+// quarts depuis toujours ; l'exécution n'en rendait que deux, et un renfort
+// était enregistré « matin » ou « soir ». Sur les deux seuls quarts engagés de
+// la station depuis le 04/09, celui qui a validé 64 missions est un renfort :
+// l'employé le plus engagé travaillait dans le régime que l'exécution ne
+// savait pas nommer.
+
+t('un renfort PLANIFIÉ est un renfort, quelle que soit l’heure', () => {
+  for (const minutes of [9 * 60, 12 * 60, 16 * 60]) {
+    const r = S.quartDuJour({ planifie: 'renfort', minutesMaintenant: minutes, minutesBascule: 12 * 60 + 40 });
+    assert.strictEqual(r.quart, 'renfort', `à ${minutes / 60} h`);
+    assert.strictEqual(r.source, 'planning');
+  }
+});
+
+t('AUCUNE heure ne permet de deviner un renfort — d’où le planning', () => {
+  // À 10 h, un pompiste du quart 1 et un renfort travaillent tous les deux.
+  // Sans planning, l'horloge ne peut que dire « quart 1 » : c'est exact pour
+  // l'un et faux pour l'autre, et c'est précisément pourquoi le planning
+  // décide.
+  const sansPlanning = S.quartDuJour({ planifie: null, minutesMaintenant: 10 * 60, minutesBascule: 12 * 60 + 40 });
+  assert.strictEqual(sansPlanning.quart, 'quart1');
+  assert.strictEqual(sansPlanning.source, 'horloge');
+});
+
+t('le planning PRIME sur l’horloge, y compris quand ils divergent', () => {
+  // 16 h : l'horloge dirait quart 2. Le planning dit quart 1 — un employé qui
+  // finit tard reste sur son quart. Sans cette priorité, le planning ne
+  // servirait à rien.
+  const r = S.quartDuJour({ planifie: 'quart1', minutesMaintenant: 16 * 60, minutesBascule: 12 * 60 + 40 });
+  assert.strictEqual(r.quart, 'quart1');
+  assert.strictEqual(r.source, 'planning');
+});
+
+t('un quart planifié HORS VOCABULAIRE est ignoré, pas propagé', () => {
+  // Une valeur inconnue en base ne doit pas traverser jusqu'à shifts.quart.
+  const r = S.quartDuJour({ planifie: 'nuit', minutesMaintenant: 10 * 60, minutesBascule: 12 * 60 + 40 });
+  assert.strictEqual(r.quart, 'quart1', 'le repli horloge doit reprendre la main');
+  assert.strictEqual(r.source, 'horloge');
+});
+
+t('sans horloge exploitable NI planning, on ne rend rien', () => {
+  assert.strictEqual(S.quartDuJour({ planifie: null, minutesMaintenant: null, minutesBascule: 760 }), null,
+    'ne pas savoir n’est pas « quart 1 »');
+});
+
+t('la source est TOUJOURS rendue — sans elle on ne peut rien expliquer', () => {
+  for (const cas of [{ planifie: 'renfort', minutesMaintenant: 600, minutesBascule: 760 },
+                     { planifie: null, minutesMaintenant: 600, minutesBascule: 760 }]) {
+    assert.ok(['planning', 'horloge'].includes(S.quartDuJour(cas).source));
+  }
+});
+
+t('la date du planning est celle de la STATION, pas de l’appareil', () => {
+  // 2 h UTC le 10/09 : encore le 9 en Martinique, déjà le 10 à Paris. Lire le
+  // planning au mauvais jour donnerait le quart de la veille ou du lendemain.
+  const instant = new Date('2026-09-10T02:00:00Z');
+  assert.strictEqual(S.dateLocaleStation('America/Martinique', instant), '2026-09-09');
+  assert.strictEqual(S.dateLocaleStation('Europe/Paris', instant), '2026-09-10');
+  assert.throws(() => S.dateLocaleStation('', instant), /timezone obligatoire/);
+});
+
+t('MUTATION : sans la priorité au planning, le renfort disparaît', () => {
+  const mute = SRC.replace(
+    /if \(typeof planifie === 'string' && QUARTS_PLANIFIABLES\.includes\(planifie\)\) \{/,
+    'if (false) {');
+  assert.notStrictEqual(mute, SRC, 'la mutation n’a rien changé : elle ne prouve rien');
+  const M = charger(mute);
+  const r = M.quartDuJour({ planifie: 'renfort', minutesMaintenant: 10 * 60, minutesBascule: 12 * 60 + 40 });
+  assert.strictEqual(r.quart, 'quart1',
+    'le code muté devait retomber sur l’horloge ; l’épreuve ne détecte donc pas le défaut');
+});
+
+console.log(`\n${passes}/18 vérifications passées — le jeudi à 13 h, c’est le quart 1.`);

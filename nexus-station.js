@@ -163,6 +163,83 @@
   }
 
   // ────────────────────────────────────────────────────────────────
+  // LE RENFORT NE SE DÉDUIT PAS DE L'HORLOGE (09/09/2026)
+  //
+  // Arbitrage de Frédéric Bragance : le renfort est un quart de plein droit.
+  // Le planning le sait depuis toujours — `planning_shifts.quart` et
+  // `planning_regles_effectif.quart` acceptent `quart1`, `quart2` ET
+  // `renfort`, et l'écran Planning lui donne son libellé. L'exécution, elle,
+  // ne rendait que « 1 » ou « 2 » : un renfort était enregistré « matin » ou
+  // « soir », jamais « renfort ».
+  //
+  // ET IL EST IMPOSSIBLE DE LE DEVINER. À 10 h, un pompiste du quart 1 et un
+  // renfort travaillent tous les deux ; aucune heure ne les distingue. Le
+  // renfort est une décision de PLANIFICATION, pas un moment de la journée.
+  // C'est pourquoi le planning décide et l'horloge n'est que le repli.
+  //
+  // Ce n'est pas un détail de vocabulaire : sur les deux seuls quarts engagés
+  // de la station depuis le 04/09/2026, celui qui a validé 64 missions est un
+  // renfort. L'employé le plus engagé de la mesure travaillait dans le régime
+  // que l'exécution ne savait pas nommer.
+  const QUARTS_PLANIFIABLES = ['quart1', 'quart2', 'renfort'];
+
+  // Les statuts de planning qui décrivent quelqu'un AU TRAVAIL. Un repos ou un
+  // congé ne porte pas de quart exploitable : si la personne prend son poste
+  // malgré tout, on ne lui oppose pas son planning, on retombe sur l'horloge.
+  const STATUTS_AU_TRAVAIL = ['travail_normal', 'manager', 'renfort', 'transfert_site'];
+
+  // PURE. `planifie` vient du planning (ou null), les deux minutes de
+  // l'horloge de la station. Rend le quart ET sa source — sans la source, on ne
+  // saurait pas si « quart2 » est une décision ou une déduction, et l'on ne
+  // pourrait ni l'expliquer à l'employé ni la corriger.
+  function quartDuJour({ planifie, minutesMaintenant, minutesBascule }) {
+    if (typeof planifie === 'string' && QUARTS_PLANIFIABLES.includes(planifie)) {
+      return { quart: planifie, source: 'planning' };
+    }
+    const q = quartDepuisMinutes(minutesMaintenant, minutesBascule);
+    if (q === null) return null;
+    return { quart: q === '1' ? 'quart1' : 'quart2', source: 'horloge' };
+  }
+
+  // Le quart PLANIFIÉ d'un employé pour une date. Rend null quand rien n'est
+  // publié, quand le statut n'est pas un statut de travail, ou quand la lecture
+  // échoue : dans les trois cas l'appelant retombera sur l'horloge, ce qui est
+  // le comportement d'avant. Une panne de planning ne doit jamais empêcher
+  // quelqu'un de prendre son poste.
+  async function quartPlanifie(employeeId, dateLocaleISO, client) {
+    if (typeof employeeId !== 'string' || !employeeId.trim()) return null;
+    if (typeof dateLocaleISO !== 'string' || !dateLocaleISO.trim()) return null;
+    try {
+      const { data, error } = await (client || nexusClient)
+        .from('planning_shifts')
+        .select('quart, statut, publie')
+        .eq('employee_id', employeeId).eq('date', dateLocaleISO)
+        .eq('publie', true)
+        .maybeSingle();
+      if (error || !data) return null;
+      if (!STATUTS_AU_TRAVAIL.includes(data.statut)) return null;
+      return QUARTS_PLANIFIABLES.includes(data.quart) ? data.quart : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // La date locale de la station, au format ISO. Même raison que
+  // `minutesLocalesStation` : la date de l'appareil ne dit pas quel jour il est
+  // à la station, et un employé qui prend son poste à 23 h en métropole n'est
+  // pas le lendemain en Martinique.
+  function dateLocaleStation(timezone, instant) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('dateLocaleStation : timezone obligatoire. La date de l’appareil ne détermine jamais un jour de planning.');
+    }
+    const d = instant instanceof Date ? instant : new Date();
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+
+  // ────────────────────────────────────────────────────────────────
   // LA règle complète du quart (Verify, 05/09/2026)
   //
   // Les trois primitives ci-dessus sont pures ; il restait à chaque écran de
@@ -276,6 +353,8 @@
     siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
     cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS,
+    quartDuJour, quartPlanifie, dateLocaleStation,
+    QUARTS_PLANIFIABLES, STATUTS_AU_TRAVAIL,
     quartConfigureDuMoment, seuilDeBascule,
   };
 })(window);

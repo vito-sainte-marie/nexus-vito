@@ -169,8 +169,19 @@ verifier('chaque écran conserve SON vocabulaire de quart', () => {
   // La primitive est neutre : elle rend '1' / '2'. Les écrans qui écrivent en
   // base dans le vocabulaire « matin » / « soir » doivent donc TRADUIRE ;
   // ceux qui parlent déjà '1' / '2' laissent passer.
-  const TRADUISENT = ['NEXUS-Inventaire-v1.html', 'nexus-inventaire-manager-donnees.js',
-                      'NEXUS-Prise-De-Poste-v1.html'];
+    // 09/09/2026 — LA LISTE SE SÉPARE EN DEUX, parce que les deux cas ne
+    // couraient pas le même risque et que les confondre affaiblissait la garde.
+    //
+    // `inventaire_plans_comptage_quart_check`, `inventaire_mission_rules` et
+    // `inventaire_missions` contraignent leur quart à ('matin','soir'). Ces
+    // écrans-là ne peuvent produire QUE ces deux mots : une troisième valeur
+    // ferait rejeter l'écriture, exactement la régression du 05/09.
+    //
+    // `shifts.quart`, lui, n'a AUCUNE contrainte — vérifié dans la baseline.
+    // La prise de poste peut donc porter le renfort, devenu un quart de plein
+    // droit le 09/09 sur arbitrage de Frédéric Bragance.
+    const CONTRAINTS_MATIN_SOIR = ['NEXUS-Inventaire-v1.html', 'nexus-inventaire-manager-donnees.js'];
+    const TRADUISENT = CONTRAINTS_MATIN_SOIR.concat(['NEXUS-Prise-De-Poste-v1.html']);
   const LAISSENT_PASSER = ['NEXUS-FDJ-v1.html'];
   const corpsDe = (fichier) => {
     const src = fs.readFileSync(path.join(RACINE, fichier), 'utf8');
@@ -178,11 +189,34 @@ verifier('chaque écran conserve SON vocabulaire de quart', () => {
     assert.ok(i !== -1, 'quartDuMoment introuvable dans ' + fichier);
     return src.slice(i, i + 1800);
   };
+  // LA VRAIE PROTECTION, ajoutée le 09/09/2026 : aucun écran écrivant dans une
+  // table contrainte ne doit pouvoir produire « renfort ». Sans elle, câbler
+  // ces écrans sur `quartDuJour` un jour de distraction ferait rejeter tous les
+  // plans de comptage — la régression du 05/09, à l'identique.
+  //
+  // PORTÉE : le corps qui PRODUIT le quart, pas le fichier entier. Ma première
+  // version cherchait « renfort » partout et accusait NEXUS-Inventaire, qui le
+  // mentionne comme RÔLE — `shifts_role_check` accepte pompiste, caissiere,
+  // renfort, manager, polyvalent. Chercher un mot dans un fichier n'est pas
+  // mesurer ce qu'une fonction rend.
+  for (const f of CONTRAINTS_MATIN_SOIR) {
+    const corps = corpsDe(f);
+    assert.ok(!/'renfort'/.test(corps),
+      `${f} : son quartDuMoment peut produire « renfort », que la contrainte ('matin','soir') rejettera`);
+    assert.ok(!/quartDuJour\(/.test(corps),
+      `${f} : son quartDuMoment passe par quartDuJour, qui sait rendre « renfort » — la contrainte le rejettera`);
+  }
+
   for (const f of TRADUISENT) {
     const corps = corpsDe(f);
     assert.ok(/'matin'/.test(corps) && /'soir'/.test(corps),
       `${f} : quartDuMoment doit traduire en 'matin' / 'soir' — la contrainte en base l’exige`);
-    assert.ok(/quart === '1' \? 'matin'/.test(corps),
+    // L'épreuve portait sur une expression LITTÉRALE. Elle a refusé la prise
+    // de poste le 09/09 pour une réécriture qui traduit pourtant tout aussi
+    // explicitement, depuis `quartDuJour`. Ce qui compte n'est pas la forme de
+    // l'expression mais qu'une valeur de la primitive soit nommée en face de
+    // chaque mot de l'écran.
+    assert.ok(/(quart === '1'|quart === 'quart1') \? 'matin'/.test(corps),
       `${f} : la traduction doit être explicite depuis la primitive`);
   }
   for (const f of LAISSENT_PASSER) {
