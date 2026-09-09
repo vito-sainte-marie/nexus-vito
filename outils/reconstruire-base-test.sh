@@ -46,11 +46,39 @@ fi
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
 export PGPASSWORD="$MDP"; unset MDP
-# Connexion DIRECTE plutôt que par le pooler : le nom d'hôte du pooler
-# dépend de la région ET de l'instance (aws-0, aws-1…), et une erreur dessus
-# produit un « tenant not found » qu'on prend à tort pour un mauvais mot de
-# passe. L'hôte direct, lui, se déduit de la seule référence du projet.
-URL="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+# CONNEXION : direct d'abord, pooler en REPLI.
+#
+# L'hôte direct `db.<ref>.supabase.co` se déduit de la seule référence du
+# projet — d'où ce choix d'origine — mais il ne publie QU'UNE ADRESSE IPv6.
+# Le 09/09/2026, il est devenu injoignable en pleine répétition : « Operation
+# timed out » sur 2600:1f18:…, après avoir fonctionné le matin même. Une
+# reconstruction qui dépend d'une IPv6 disponible n'est pas reproductible.
+#
+# Le pooler, lui, répond en IPv4. Son nom d'hôte dépend de la région ET de
+# l'instance (aws-0, aws-1…), et une erreur dessus produit un « tenant not
+# found » qu'on prend à tort pour un mauvais mot de passe : il n'est donc
+# JAMAIS deviné. On utilise exactement l'hôte que la CI emploie déjà tous les
+# jours, et `NEXUS_TEST_DB_URL` permet de le remplacer sans toucher au code.
+POOLER_HOTE="aws-0-us-east-1.pooler.supabase.com"
+URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+URL_POOLER="postgresql://postgres.${REF}@${POOLER_HOTE}:5432/postgres?sslmode=require"
+
+if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
+  URL="$NEXUS_TEST_DB_URL"
+  echo "Connexion : URL fournie par NEXUS_TEST_DB_URL."
+elif psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+  URL="$URL_DIRECTE"
+  echo "Connexion : hôte direct."
+elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+  URL="$URL_POOLER"
+  echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
+else
+  echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
+  echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
+  echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
+  exit 6
+fi
+export NEXUS_TEST_DB_URL="$URL"
 
 # Remise à zéro FIDÈLE. Deux pièges découverts le 04/09/2026 :
 #

@@ -280,6 +280,11 @@ jobs:
       - name: Les droits CI vivent-ils dans une migration ?
         run: node test_droits_ci_dans_migrations_20260909.js
 
+      # L'hôte direct de Supabase ne publie qu'une adresse IPv6. Une
+      # reconstruction ne doit pas dépendre de sa disponibilité.
+      - name: La reconstruction survit-elle à une IPv6 absente ?
+        run: node test_connexion_test_repli_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
