@@ -225,7 +225,10 @@
     // ailleurs. Cet écran garde sa résolution en deux temps — lire une fois,
     // trancher à trois endroits sans réseau — mais il ne réassemble plus la
     // règle : il lit le même seuil, par le même chemin.
-    const seuil = await NexusStation.seuilDeBascule(employee.site_id);
+    // Le fuseau est passé depuis le 09/09/2026 : sans lui, le seuil ne peut
+    // pas savoir quel jour il est CHEZ LA STATION, et le régime jeudi–samedi
+    // resterait invisible.
+    const seuil = await NexusStation.seuilDeBascule(employee.site_id, undefined, FUSEAU_STATION_PDP);
     BASCULE_QUART2_PDP = seuil.indetermine ? null : seuil.minutes;
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
       console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');

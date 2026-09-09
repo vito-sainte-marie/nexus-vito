@@ -195,19 +195,66 @@
       console.warn('Quart du moment : fuseau du commerce non résolu — aucun quart n’est déterminé.');
       return { indetermine: 'fuseau' };
     }
-    const r = await seuilDeBascule(siteId, client);
+    const r = await seuilDeBascule(siteId, client, timezone, instant);
     if (r.indetermine) return r;
     return { quart: quartDepuisMinutes(minutesLocalesStation(timezone, instant), r.minutes) };
   }
 
-  // Le seuil configuré du site, en minutes depuis minuit. Extrait pour les
-  // écrans qui résolvent le contexte UNE fois puis décident plusieurs fois
-  // sans réseau — Prise de poste tranche à trois endroits, la rendre
-  // asynchrone partout aurait été un recul. Ils ne réassemblent donc pas la
-  // règle : ils lisent le même seuil, par le même chemin.
-  async function seuilDeBascule(siteId, client) {
+  // LE JOUR DÉCIDE DE L'HORAIRE — corrigé le 09/09/2026.
+  //
+  // Vito Sainte-Marie a deux régimes, et `station_config.horaires` les porte
+  // depuis toujours sous les noms `normal` et `etendu` — l'écran Paramètres
+  // Station les étiquette d'ailleurs « Dimanche à Mercredi » et « Jeudi à
+  // Samedi » en toutes lettres. Ce n'est donc pas une convention inventée ici :
+  // elle était déjà déclarée à l'écran, et seul le code l'ignorait.
+  //
+  // CE QUE ÇA CASSAIT. Le seuil lisait `quart2.normal` — 12:40 — tous les
+  // jours. Or du jeudi au samedi le quart 2 commence à 13:40 et le quart 1
+  // court jusqu'à 14:15. Un employé prenant son poste un jeudi à 13 h était
+  // enregistré sur le QUART 2 alors qu'il faisait le quart 1. Une heure, trois
+  // jours par semaine. Arbitrage de Frédéric Bragance, 09/09/2026 : « le jeudi
+  // à 13 h, nous sommes toujours sur le quart 1 ».
+  const JOURS_ETENDUS = ['Thu', 'Fri', 'Sat'];
+
+  // PURE. Rendue séparément pour être éprouvable sans réseau ni horloge.
+  function cleHoraireDuJour(timezone, instant) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('cleHoraireDuJour : timezone obligatoire. Le jour de l’appareil ne détermine jamais un quart.');
+    }
+    const d = instant instanceof Date ? instant : new Date();
+    const jour = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(d);
+    return JOURS_ETENDUS.includes(jour) ? 'etendu' : 'normal';
+  }
+
+  // PURE. `horaires` = station_config.horaires ; `cle` = 'etendu' | 'normal'.
+  // Le repli sur `normal` quand `etendu` est absent sert les commerces à
+  // horaire uniforme — il ne masque pas une configuration incomplète, puisque
+  // l'absence des DEUX rend le seuil indéterminé.
+  function seuilDepuisHoraires(horaires, cle) {
+    const q2 = horaires && horaires.quart2;
+    if (!q2) return null;
+    const brut = (cle === 'etendu' ? q2.etendu : q2.normal) || q2.normal;
+    return minutesDepuisMinuit(brut);
+  }
+
+  // Le seuil configuré du site, en minutes depuis minuit, POUR LE JOUR DONNÉ.
+  // Extrait pour les écrans qui résolvent le contexte UNE fois puis décident
+  // plusieurs fois sans réseau — Prise de poste tranche à trois endroits, la
+  // rendre asynchrone partout aurait été un recul. Ils ne réassemblent donc
+  // pas la règle : ils lisent le même seuil, par le même chemin.
+  //
+  // `timezone` est OBLIGATOIRE depuis le 09/09/2026 : sans lui, on ne sait pas
+  // quel jour il est CHEZ LA STATION, et prendre le jour de l'appareil
+  // reproduirait à l'échelle du jour l'erreur que `minutesLocalesStation`
+  // interdit déjà à l'échelle de l'heure. Son absence est un refus, pas un
+  // repli.
+  async function seuilDeBascule(siteId, client, timezone, instant) {
     if (typeof siteId !== 'string' || !siteId.trim()) {
       throw new TypeError('NexusStation.seuilDeBascule : siteId manquant ou invalide.');
+    }
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      console.warn('Seuil de bascule : fuseau du commerce non fourni. Le jour local est indéterminable, aucun seuil rendu.');
+      return { indetermine: 'fuseau' };
     }
     const { data, error } = await (client || nexusClient)
       .from('station_config').select('horaires').eq('site', siteId.trim()).maybeSingle();
@@ -216,17 +263,19 @@
       return { indetermine: 'reseau' };
     }
     // Règle A4-bis : la requête a réussi, c'est la configuration qui manque.
-    const minutes = minutesDepuisMinuit(data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal);
+    const cle = cleHoraireDuJour(timezone, instant);
+    const minutes = seuilDepuisHoraires(data && data.horaires, cle);
     if (minutes === null) {
       console.warn('Seuil de bascule : aucun horaire configuré pour « ' + siteId + ' » — NEXUS ne devine pas à quel quart appartient ce moment.');
       return { indetermine: 'configuration' };
     }
-    return { minutes };
+    return { minutes, regime: cle };
   }
 
   global.NexusStation = {
     siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
+    cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS,
     quartConfigureDuMoment, seuilDeBascule,
   };
 })(window);
