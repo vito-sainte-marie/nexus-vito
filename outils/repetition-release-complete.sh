@@ -77,18 +77,29 @@ echo "Départ : état Production au $VERSION_PROD. Rapport : $RAPPORT"
 echo
 
 echo "[1/8] Ouverture du cycle et déclaration du mode…"
+# REPRENABLE. Un cycle déjà ouvert POUR LA MÊME RELEASE n'est pas une faute :
+# c'est une tentative précédente interrompue, et il y en a eu quatre le
+# 09/09/2026. On le reprend. Un cycle ouvert pour une AUTRE release, en
+# revanche, est un vrai conflit : deux répétitions ne partagent pas une base.
 node -e '
 const fs=require("fs"),p=process.argv[1],r=JSON.parse(fs.readFileSync(p,"utf8"));
-if(r.cycles.some(c=>!c.detruit_le)){console.error("Un cycle est déjà ouvert : le fermer avant d’en ouvrir un autre.");process.exit(1);}
-r.cycles.push({projet_ref:process.argv[3],release:process.argv[2],cree_le:new Date().toISOString(),detruit_le:null});
-fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
+const rel=process.argv[2], ouvert=r.cycles.find(c=>!c.detruit_le);
+if(ouvert && ouvert.release!==rel){
+  console.error(`Un cycle est ouvert pour une AUTRE release (${ouvert.release}) : le fermer d abord.`);
+  process.exit(1);
+}
+if(ouvert){ console.log(`Cycle déjà ouvert pour ${rel} — reprise d une tentative interrompue.`); }
+else {
+  r.cycles.push({projet_ref:process.argv[3],release:rel,cree_le:new Date().toISOString(),detruit_le:null});
+  fs.writeFileSync(p,JSON.stringify(r,null,2)+"\n");
+}
 ' "$RACINE/docs/handoff/PREPROD-CYCLE.json" "$RELEASE" "$REF"
 psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
   "update public.nexus_environnement_mode set mode='PREPROD_REHEARSAL', release='$RELEASE', depuis=now(), motif='Répétition de release.'"
 echo "Mode : PREPROD_REHEARSAL (release $RELEASE)."
 echo
 
-echo "[2/8] Reconstruction bornée à $VERSION_PROD…"
+echo "[2/8] Reconstruction bornée à ${VERSION_PROD}…"
 JUSQUA="$VERSION_PROD" "$RACINE/outils/reconstruire-base-test.sh" "$REF"
 echo
 

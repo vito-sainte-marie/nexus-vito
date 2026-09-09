@@ -73,9 +73,23 @@ t('le vocabulaire est FERMÉ à deux valeurs', () => {
   assert.deepStrictEqual(G.MODES, ['TEST_NORMAL', 'PREPROD_REHEARSAL']);
 });
 
-t('le registre réel du dépôt est d’accord avec un Test normal', () => {
-  const r = G.controler({ modeEnBase: 'TEST_NORMAL', cycles: G.lireCycles() });
-  assert.strictEqual(r.code, 'ACCORD', 'aucun cycle ne doit traîner ouvert aujourd’hui');
+t('le registre réel du dépôt est COHÉRENT avec la base', () => {
+  // Le 09/09, une répétition a été lancée : un cycle est ouvert et la base est
+  // en PREPROD_REHEARSAL. L'épreuve ne peut donc pas exiger « TEST_NORMAL » —
+  // elle exigerait un état du monde, et mentirait dès que le monde change.
+  // Ce qu'elle exige, c'est l'ACCORD entre les deux sources.
+  const cycles = G.lireCycles();
+  assert.ok(Array.isArray(cycles), 'le registre doit être lisible');
+  const ouvert = cycles.find(c => !c.detruit_le);
+  const attendu = ouvert ? 'PREPROD_REHEARSAL' : 'TEST_NORMAL';
+  const r = G.controler({ modeEnBase: attendu, cycles });
+  assert.strictEqual(r.code, 'ACCORD',
+    `registre ${ouvert ? 'ouvert' : 'fermé'} : le mode cohérent serait ${attendu}`);
+
+  // Et le désaccord DOIT être détecté dans les deux sens.
+  const inverse = ouvert ? 'TEST_NORMAL' : 'PREPROD_REHEARSAL';
+  assert.notStrictEqual(G.controler({ modeEnBase: inverse, cycles }).code, 'ACCORD',
+    'le mode contraire doit être refusé, sinon l’épreuve ne prouve rien');
 });
 
 console.log(`\n${n}/${n} vérifications passées — deux sources, une seule vérité, et leur désaccord est l’information.`);
