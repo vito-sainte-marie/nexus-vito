@@ -114,6 +114,16 @@ psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
   "insert into public.nexus_environnement_mode (mode_unique, mode, release) values (true,'PREPROD_REHEARSAL','$RELEASE')
    on conflict (mode_unique) do update set mode=excluded.mode, release=excluded.release" >/dev/null
 psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/jeu-preprod-cas-production.sql"
+
+# ET ON RETIRE L'ÉCHAFAUDAGE. La table ci-dessus n'était qu'un appui pour semer :
+# la laisser en place ferait tomber la migration [5/8] qui la crée sur un
+# `create table if not exists` déjà satisfait. Elle afficherait OK sans rien
+# faire, et ses deux contraintes — mode contraint à deux valeurs, release
+# obligatoire en répétition — ne seraient jamais éprouvées. Une répétition qui
+# valide une migration inerte est précisément le défaut qu'elle sert à trouver.
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
+  -c "drop table if exists public.nexus_environnement_mode" >/dev/null
+echo "  Échafaudage du mode retiré : sa migration devra le créer pour de vrai."
 echo
 
 echo "[4/8] MESURE AVANT" | tee "$RAPPORT"
@@ -135,7 +145,19 @@ for f in "$RACINE"/supabase/migrations/*.sql; do
     exit 7
   fi
 done
-echo "  $n migration(s) de promotion appliquée(s)."
+echo "  ${n} migration(s) de promotion appliquée(s)."
+
+# La migration du mode vient de reposer la table à son état par défaut,
+# TEST_NORMAL. On est pourtant toujours en répétition, et un cycle est ouvert :
+# laisser ça mentirait à la garde, qui verrait un cycle orphelin. On redéclare —
+# et si les contraintes de la migration sont bonnes, cette écriture passe ; si
+# elles sont mauvaises, elle échoue ICI, ce qui est le but.
+psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -c \
+  "update public.nexus_environnement_mode
+      set mode='PREPROD_REHEARSAL', release='${RELEASE}', depuis=now(),
+          motif='Répétition en cours, mode reposé après migration.'" >/dev/null
+node "$RACINE/outils/garde-mode-environnement.js" \
+  "$(psql "$URL" --quiet --no-psqlrc -tAc 'select mode from public.nexus_environnement_mode')"
 echo
 
 echo "[6/8] MESURE APRÈS" | tee -a "$RAPPORT"
