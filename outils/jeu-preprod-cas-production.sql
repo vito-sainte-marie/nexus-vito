@@ -111,13 +111,40 @@ $$;
 --    ce sont des copies du catalogue faites pour le site de test, dont la
 --    colonne `site` est restée sur la station. La migration les recale vers le
 --    fantôme — une correction, pas une perte. Le jeu reproduit ce doublonnage.
-insert into public.mission_catalog (mission_id, titre, site, site_id)
-select 'preprod-mission-' || i,
-       'Mission de répétition ' || i,
-       'nexus-station-test',
-       'site-fantome-test'
-from generate_series(1, 89) as i
-on conflict (mission_id) do nothing;
+-- CONVERGENCE, PAS ADDITION — corrigé le 09/09/2026.
+--
+-- La reconstruction bornée produit DÉJÀ des missions divergentes : l'histoire
+-- versionnée du 03/08/2026 clone le catalogue vers le site fantôme, et la suite
+-- des migrations en fait diverger 89. Mon jeu en ajoutait 89 de plus, en
+-- aveugle : la vérification a compté 178 et refusé de continuer.
+--
+-- Le jeu ne pose donc plus un NOMBRE, il vise un ÉTAT : il complète ce qui
+-- manque pour atteindre le volume mesuré en Production, et ne pose rien s'il
+-- est déjà atteint. S'il y en a TROP, il ne supprime pas — il laisse la
+-- vérification finale refuser. Réparer en douce serait pire que s'arrêter.
+do $$
+declare v_manque int; v_base int; k int;
+begin
+  select 89 - count(*) into v_manque
+    from public.mission_catalog where site is distinct from site_id;
+  if v_manque <= 0 then
+    raise notice 'Missions divergentes : cible déjà atteinte ou dépassée (manque %), rien ajouté.', v_manque;
+    return;
+  end if;
+  select coalesce(max((substring(mission_id from 'preprod-mission-([0-9]+)$'))::int), 0)
+    into v_base
+    from public.mission_catalog where mission_id like 'preprod-mission-%';
+  for k in 1 .. v_manque loop
+    insert into public.mission_catalog (mission_id, titre, site, site_id)
+    values ('preprod-mission-' || (v_base + k),
+            'Mission de répétition ' || (v_base + k),
+            'nexus-station-test',
+            'site-fantome-test')
+    on conflict (mission_id) do nothing;
+  end loop;
+  raise notice 'Missions divergentes : % ajoutée(s) pour atteindre 89.', v_manque;
+end
+$$;
 
 -- IDEMPOTENT SANS RIEN SUPPRIMER — corrigé le 09/09/2026.
 --
@@ -160,11 +187,11 @@ select e.id, 'site-fantome-test', 'nexus-station-test', 'caissiere',
        (now() - (i || ' days')::interval + interval '7 hours'),
        'termine', 'pointage_depart',
        (now() - (i || ' days')::interval + interval '7 hours')
-from generate_series(1, 17) as i
+from generate_series(1, greatest(0,
+       17 - (select count(*) from public.shifts where site is distinct from site_id))) as i
 cross join lateral (
   select id from public.employees where site_id = 'nexus-station-test' order by id limit 1
-) e
-where not exists (select 1 from public.shifts where site = 'site-fantome-test');
+) e;
 
 -- 3) 17 services restés OUVERTS, du plus ancien au plus récent, répartis de
 --    façon à ce que PLUSIEURS employés en aient deux : c'est cette forme-là,
@@ -177,15 +204,13 @@ insert into public.shifts (employee_id, site, site_id, role, heure_debut, statut
 select e.id, 'nexus-station-test', 'nexus-station-test', 'pompiste',
        (now() - ((5 - (i % 5)) || ' days')::interval - (i || ' hours')::interval),
        'en_cours'
-from generate_series(1, 17) as i
+from generate_series(1, greatest(0,
+       17 - (select count(*) from public.shifts where statut = 'en_cours'))) as i
 cross join lateral (
   select id from public.employees
    where site_id = 'nexus-station-test' and compte_test = true
    order by id offset (i % 3) limit 1
-) e
-where not exists (
-  select 1 from public.shifts
-   where statut = 'en_cours' and site = 'nexus-station-test' and role = 'pompiste');
+) e;
 
 -- CE JEU VÉRIFIE CE QU'IL A POSÉ.
 --
@@ -206,7 +231,8 @@ begin
   select count(*) into o from public.shifts where statut = 'en_cours';
   if m <> 89 or d <> 17 or o <> 17 then
     raise exception 'JEU INCOMPLET — missions divergentes % (attendu 89), services divergents % (attendu 17), services ouverts % (attendu 17). '
-      'Cause la plus probable : les comptes de recette sont absents de auth.users, donc la jointure ne pose aucune ligne. '
+      'EN DESSOUS de la cible : les comptes de recette sont probablement absents de auth.users, la jointure ne pose alors aucune ligne. '
+      'AU DESSUS : la base porte des lignes d''une passe précédente, et ce jeu ne supprime rien — reconstruire (DEPUIS_ETAPE=2). '
       'On refuse de continuer : une répétition sur un jeu vide ne mesurerait aucun écart et conclurait à tort que les migrations sont sans effet.',
       m, d, o;
   end if;

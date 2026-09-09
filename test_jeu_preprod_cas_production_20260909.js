@@ -33,15 +33,29 @@ t('la mesure versionnée est complète et datée', () => {
       `volume ${k} absent ou nul : la répétition sèmerait du vide`);
 });
 
-t('les VOLUMES du jeu sont ceux de la mesure versionnée', () => {
-  // On COMPTE les occurrences plutôt que d'en chercher une seule : deux volumes
-  // valent 17 aujourd'hui, et un simple « le nombre apparaît » serait satisfait
-  // par une seule des deux insertions.
-  const attendus = Object.values(MESURE.volumes).filter(n => n !== MESURE.volumes.missions_divergentes || true);
-  const trouves = [...JEU.matchAll(/generate_series\(1, (\d+)\)/g)].map(m => Number(m[1])).sort((a, b) => a - b);
+t('le jeu VISE les volumes mesurés, il ne pose plus un nombre fixe', () => {
+  // Le jeu ajoutait 89 missions en aveugle ; la reconstruction bornée en
+  // produisait déjà 89 par l'histoire versionnée, et le total montait à 178.
+  // Il vise désormais un ÉTAT : il complète ce qui manque, et ne pose rien si
+  // la cible est atteinte. L'épreuve porte donc sur les CIBLES, pas sur des
+  // `generate_series(1, N)` littéraux qui n'existent plus.
+  const cibles = [...JEU.matchAll(/(\d+)\s*-\s*(?:count\(\*\)|\(select count)/g)]
+    .map(m => Number(m[1])).sort((a, b) => a - b);
   const voulus = Object.values(MESURE.volumes).slice().sort((a, b) => a - b);
-  assert.deepStrictEqual(trouves, voulus,
-    `le jeu sème ${JSON.stringify(trouves)} alors que la mesure du ${MESURE.mesure_le} dit ${JSON.stringify(voulus)}`);
+  assert.deepStrictEqual(cibles, voulus,
+    `le jeu vise ${JSON.stringify(cibles)} alors que la mesure du ${MESURE.mesure_le} dit ${JSON.stringify(voulus)}`);
+});
+
+t('le jeu NE SUPPRIME toujours rien pour converger', () => {
+  // La tentation, en visant un état, est de retirer le surplus. Interdit : un
+  // jeu qui efface pour se rendre rejouable peut effacer autre chose le jour où
+  // son prédicat dérape. Trop de lignes doit ARRÊTER la répétition, pas être
+  // rattrapé en douce.
+  const code = JEU.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
+  assert.ok(!/\b(delete from|truncate|drop table)\b/i.test(code),
+    'le jeu supprime pour converger : un état de trop doit arrêter, jamais être rattrapé');
+  assert.ok(/greatest\(0,|v_manque <= 0/.test(JEU),
+    'la convergence doit être bornée à zéro, sinon un dépassement produirait un compte négatif');
 });
 
 t('la VÉRIFICATION FINALE du jeu attend les mêmes nombres', () => {
@@ -71,7 +85,11 @@ t('le jeu est SYNTHÉTIQUE — aucune identité, aucun libellé réel', () => {
   assert.ok(/from public\.employees/.test(JEU), 'les employés doivent être lus, pas écrits en dur');
   assert.ok(/compte_test = true/.test(JEU), 'et pris parmi les comptes de recette');
   assert.ok(!/insert into public\.employees/i.test(JEU), 'aucun employé créé par ce jeu');
-  assert.ok(/'Mission de répétition ' \|\| i/.test(JEU), 'les libellés sont générés, pas recopiés');
+  // Le nom de la variable de génération a changé quand le jeu s'est mis à
+  // converger (`i` d'une série est devenu `v_base + k`). Ce qui compte n'est
+  // pas ce nom mais le fait que le libellé soit CONSTRUIT : on exige donc la
+  // concaténation, sans épingler l'expression qui l'alimente.
+  assert.ok(/'Mission de répétition ' \|\|/.test(JEU), 'les libellés sont générés, pas recopiés');
   // Un UUID en dur serait une identité venue d'ailleurs.
   assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(JEU),
     'aucun identifiant réel ne doit figurer dans le jeu');
