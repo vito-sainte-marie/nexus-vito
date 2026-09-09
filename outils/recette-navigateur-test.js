@@ -449,7 +449,17 @@ async function observerEmploye(navigateur, base, nom, pin) {
     const seconde = await prendreLePoste(page, base);
     // L'invitation se juge APRÈS la prise de poste, parce que c'est là qu'elle
     // vit : « sur l'accueil employé après la prise de poste ».
-    const invitation = await observerInvitationInventaire(page, base);
+    // ISOLÉE. L'invitation est le dernier maillon et le plus récent ; une
+    // panne chez elle ne doit pas effacer les deux preuves qui précèdent. La
+    // leçon du 09/09/2026 : j'avais isolé le scénario employé du reste de la
+    // recette, et oublié d'isoler l'invitation du scénario employé.
+    let invitation = null;
+    try {
+      invitation = await observerInvitationInventaire(page, base);
+    } catch (e) {
+      invitation = { presente: false, etat: null, visible: false, texte: '',
+        motif: 'observation impossible : ' + String(e && e.message).split('\n')[0] };
+    }
     return { premiere, seconde, invitation };
   } finally {
     await page.close();
@@ -470,28 +480,58 @@ async function observerEmploye(navigateur, base, nom, pin) {
 
 const ECRAN_ACCUEIL = 'NEXUS-App-v1.html';
 
+// TOUT EST LU DANS LA PAGE, EN UNE FOIS, ET RIEN N'ATTEND UN ÉLÉMENT.
+//
+// Ma première version enchaînait `locator.getAttribute()` et `isVisible()`.
+// Playwright attend qu'un élément soit attaché avant de répondre : quand
+// l'accueil redirige vers la prise de poste — ce qu'il fait dès qu'il ne
+// trouve pas de service actif — la carte disparaît et l'attente court jusqu'au
+// bout de son délai. Trente secondes plus tard, l'exception remontait et
+// emportait TOUT LE SCÉNARIO EMPLOYÉ avec elle : les deux preuves acquises la
+// veille, prise de poste et quart déjà ouvert, sont repassées en « NON
+// EXÉCUTÉE ».
+//
+// On lit donc l'état par une évaluation unique, qui rend un objet ou null et
+// n'attend jamais rien.
 async function observerInvitationInventaire(page, base) {
-  await page.goto(new URL(ECRAN_ACCUEIL, base).href, { waitUntil: 'domcontentloaded' });
-  const carte = page.locator('#participationInventaire');
   try {
-    await carte.waitFor({ state: 'attached', timeout: 30000 });
+    await page.goto(new URL(ECRAN_ACCUEIL, base).href, { waitUntil: 'domcontentloaded' });
   } catch (e) {
-    return { presente: false, etat: null, visible: false, texte: '' };
+    return { presente: false, etat: null, visible: false, texte: '', motif: 'accueil inatteignable' };
   }
   // La carte part d'« indisponible » et se décide ensuite. On attend un état
-  // TRANCHÉ, sans jamais l'exiger : rester « indisponible » est une réponse,
-  // et l'attente bornée est ce qui la distingue d'une lenteur.
-  try {
-    await page.waitForFunction(() => {
-      const el = document.getElementById('participationInventaire');
-      const e = el && el.getAttribute('data-etat');
-      return e === 'aucune' || e === 'proposee';
-    }, { timeout: 20000 });
-  } catch (e) { /* reste indisponible : c'est une réponse, pas un échec */ }
-  const etat = await carte.getAttribute('data-etat');
-  const visible = await carte.isVisible();
-  const texte = (await page.locator('#participationTexte').innerText().catch(() => '') || '').trim();
-  return { presente: true, etat, visible, texte };
+  // TRANCHÉ sans jamais l'exiger : rester « indisponible » est une réponse, et
+  // la borne est ce qui la distingue d'une lenteur.
+  const lire = () => page.evaluate(() => {
+    const el = document.getElementById('participationInventaire');
+    if (!el) return null;
+    return {
+      etat: el.getAttribute('data-etat'),
+      visible: el.offsetParent !== null || el.style.display !== 'none',
+      texte: ((document.getElementById('participationTexte') || {}).textContent || '').trim(),
+    };
+  }).catch(() => null);
+
+  let vue = null;
+  const limite = Date.now() + 20000;
+  do {
+    vue = await lire();
+    if (vue && (vue.etat === 'aucune' || vue.etat === 'proposee')) break;
+    if (Date.now() >= limite) break;
+    await page.waitForTimeout(500).catch(() => {});
+  } while (true);
+
+  // L'accueil redirige vers la prise de poste quand il ne trouve aucun service
+  // actif. La carte est alors absente pour une raison qui n'a rien à voir avec
+  // elle : on le DIT, plutôt que de le compter comme un défaut de la carte.
+  if (!vue) {
+    const url = page.url();
+    const redirige = /Prise-De-Poste/i.test(url);
+    return { presente: false, etat: null, visible: false, texte: '',
+      motif: redirige ? 'l’accueil a redirigé vers la prise de poste : aucun service actif'
+                      : 'carte absente du document' };
+  }
+  return { presente: true, etat: vue.etat, visible: !!vue.visible, texte: vue.texte || '' };
 }
 
 // VERDICT PUR — éprouvable sans navigateur.
@@ -499,6 +539,13 @@ function verifierInvitation(vue) {
   const echecs = [];
   if (!vue) { echecs.push('Invitation inventaire : aucune observation.'); return echecs; }
   if (!vue.presente) {
+    // Une redirection vers la prise de poste n'est pas un défaut de la carte :
+    // l'accueil n'a jamais été affiché. L'accuser masquerait la vraie cause.
+    if (vue.motif && /redirig|inatteignable/i.test(vue.motif)) {
+      echecs.push('Invitation NON JUGÉE : ' + vue.motif + '. '
+        + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.');
+      return echecs;
+    }
     echecs.push('La carte d’invitation à l’inventaire est ABSENTE de l’accueil employé. '
       + 'Un employé ne peut donc jamais se voir proposer une mission que personne n’a prise.');
     return echecs;

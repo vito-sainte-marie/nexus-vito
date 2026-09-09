@@ -487,6 +487,27 @@ epreuve('une carte ABSENTE de l’accueil est un vrai échec', () => {
     'le rapport doit dire ce que cette absence COÛTE, pas seulement qu’elle existe');
 });
 
+epreuve('une REDIRECTION n’est pas accusée sur le dos de la carte', () => {
+  // L'accueil redirige vers la prise de poste quand il ne trouve aucun service
+  // actif. La carte est alors absente pour une raison qui n'a rien à voir avec
+  // elle. L'accuser masquerait la vraie cause, et enverrait chercher un défaut
+  // là où il n'y en a pas.
+  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
+    motif: 'l’accueil a redirigé vers la prise de poste : aucun service actif' }).join(' | ');
+  assert.ok(/NON JUGÉE/.test(e), e);
+  assert.ok(/pas un défaut de la carte/.test(e), e);
+  assert.ok(!/ABSENTE de l’accueil/.test(e),
+    'une redirection ne doit pas être rapportée comme une carte manquante');
+});
+
+epreuve('une carte VRAIMENT absente reste dénoncée, elle', () => {
+  // Sans cette épreuve, la précédente pourrait être satisfaite par un code qui
+  // ne dénonce plus jamais rien.
+  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
+    motif: 'carte absente du document' }).join(' | ');
+  assert.ok(/ABSENTE de l’accueil/.test(e), e);
+});
+
 epreuve('aucune observation ne vaut pas conforme', () => {
   assert.ok(verifierInvitation(null).length > 0, 'null doit produire un refus');
 });
