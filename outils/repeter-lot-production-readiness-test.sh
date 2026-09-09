@@ -104,6 +104,18 @@ if ! psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-baseli
   cat "$CAPTURE" >&2
   exit 5
 fi
+# Le journal Live n'est capturé que s'il EXISTE. Une reconstruction
+# interrompue laisse sa table absente : exiger sa présence rendait le script
+# impossible à relancer précisément dans ce cas-là.
+if [ "$(psql "$URL" --quiet --no-psqlrc -tAc "select to_regclass('public.nexus_live_events') is not null" 2>/dev/null)" = "t" ]; then
+  psql "$URL" --quiet --no-psqlrc -tAc "$(cat "$RACINE/outils/capturer-journal-live-test.sql")" >> "$CAPTURE" 2>&1 \
+    || { echo "ÉCHEC de la capture du journal Live — arrêt AVANT toute écriture." >&2; exit 5; }
+  echo "Journal Live capturé."
+else
+  echo "AVERTISSEMENT : public.nexus_live_events est ABSENTE — rien à préserver de ce côté."
+  echo "  Si une reconstruction précédente a été interrompue, le journal doit être restauré séparément."
+fi
+
 if ! grep -q 'insert into public.employees' "$CAPTURE"; then
   echo "AVERTISSEMENT : aucune ligne employees capturée pour nexus-station-test — la reconstruction videra la recette sans rien à réensemencer. Vérifier $CAPTURE avant de continuer." >&2
 fi
@@ -116,6 +128,14 @@ echo
 
 echo "[3/4] Réensemencement (recette + journal Live) depuis la capture…"
 psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$CAPTURE"
+# Sortie de secours : si la capture n'avait AUCUNE ligne de recette à
+# préserver — cas d'une reconstruction précédente interrompue — on resème
+# depuis les sources qui ont survécu : l'instantané VERSIONNÉ du dépôt et les
+# comptes auth.users. Jamais de mémoire, jamais d'invention.
+if ! grep -q 'insert into public.employees' "$CAPTURE"; then
+  echo "Capture sans ligne de recette : semis déterministe depuis le dépôt et auth.users…"
+  psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$RACINE/outils/semer-recette-test.sql"
+fi
 echo "Réensemencement appliqué."
 echo
 

@@ -17,7 +17,14 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const CAPTURE = fs.readFileSync(path.join(__dirname, 'outils', 'capturer-baseline-recette-test.sql'), 'utf8');
+const BASELINE = fs.readFileSync(path.join(__dirname, 'outils', 'capturer-baseline-recette-test.sql'), 'utf8');
+const JOURNAL = fs.readFileSync(path.join(__dirname, 'outils', 'capturer-journal-live-test.sql'), 'utf8');
+// Les deux fichiers sont SÉPARÉS depuis le 09/09/2026 : une reconstruction
+// interrompue laisse `nexus_live_events` absente, et PostgreSQL refuse alors la
+// requête entière à l'analyse — une table inexistante n'est pas une valeur
+// nulle, c'est une erreur de compilation. Capturer la recette devenait
+// impossible, donc le script irrelançable au pire moment.
+const CAPTURE = BASELINE + JOURNAL;
 const SCRIPT = fs.readFileSync(path.join(__dirname, 'outils', 'repeter-lot-production-readiness-test.sh'), 'utf8');
 const RECONSTRUIRE = fs.readFileSync(path.join(__dirname, 'outils', 'reconstruire-base-test.sh'), 'utf8');
 
@@ -29,6 +36,26 @@ t('la reconstruction détruit bien le schéma — c’est la prémisse', () => {
   // cette épreuve devrait être revue plutôt que laissée à tourner à vide.
   assert.ok(/drop schema if exists public cascade/.test(RECONSTRUIRE),
     'la prémisse de cette épreuve n’est plus vraie : vérifier ce que la reconstruction détruit');
+});
+
+t('la capture du journal est SÉPARÉE, pour rester sautable', () => {
+  assert.ok(!/nexus_live_events/.test(BASELINE),
+    'la capture de recette ne doit pas référencer une table qui peut être absente');
+  assert.ok(/nexus_live_events/.test(JOURNAL), 'le journal a son propre fichier');
+  assert.ok(/to_regclass\('public\.nexus_live_events'\)/.test(SCRIPT),
+    'le script doit VÉRIFIER l’existence de la table avant de la capturer');
+});
+
+t('une capture sans ligne de recette déclenche le semis de secours', () => {
+  // Une reconstruction interrompue laisse Test sans rien à capturer. Sans
+  // cette sortie, la relance du script réensemencerait le vide.
+  assert.ok(/semer-recette-test\.sql/.test(SCRIPT), 'le semis de secours doit être appelé');
+  const semis = fs.readFileSync(path.join(__dirname, 'outils', 'semer-recette-test.sql'), 'utf8');
+  assert.ok(/from auth\.users u/.test(semis),
+    'les comptes doivent être LUS dans auth.users, jamais fabriqués');
+  assert.ok(!/insert into auth\.users/i.test(semis), 'aucun compte ne doit être créé');
+  assert.ok(/nexus-station-test/.test(semis) && !/vito-sainte-marie/.test(semis),
+    'le semis ne doit toucher que la station de recette');
 });
 
 t('la capture couvre les QUATRE tables irremplaçables', () => {

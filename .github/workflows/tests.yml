@@ -275,6 +275,11 @@ jobs:
       - name: La répétition préserve-t-elle le journal Live ?
         run: node test_repetition_preserve_journal_20260909.js
 
+      # Un droit accordé en base doit exister dans le dépôt, sinon une
+      # reconstruction le perd sans que rien ne le dise.
+      - name: Les droits CI vivent-ils dans une migration ?
+        run: node test_droits_ci_dans_migrations_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
