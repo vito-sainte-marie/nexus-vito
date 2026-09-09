@@ -19,6 +19,16 @@
 #
 # (la commande demande le mot de passe sans l'afficher)
 #
+# Le trousseau n'est PAS la seule voie : quand un appelant (CI, ou
+# outils/repeter-lot-production-readiness-test.sh) a déjà résolu une URL de
+# connexion valide et l'exporte via NEXUS_TEST_DB_URL, ce script ne doit pas
+# exiger un trousseau macOS qui n'existe pas sur un runner Linux — sans quoi
+# la répétition échouait à l'étape [2/4] même après avoir déjà prouvé, à
+# l'étape [1/4], qu'elle savait se connecter. `NEXUS_TEST_DB_PASSWORD` reste
+# un second repli pour le seul cas où ni l'un ni l'autre n'est fourni : ce
+# n'est jamais un nouveau secret, seulement une autre façon de porter le même
+# mot de passe existant vers un rail sans trousseau.
+#
 # Usage :
 #   outils/reconstruire-base-test.sh <project-ref>
 #
@@ -37,16 +47,10 @@ if [ "$REF" = "$PROD_REF" ]; then
   exit 3
 fi
 
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  echo "Mot de passe introuvable dans le trousseau (compte « nexus », service « nexus-test-db »)." >&2
-  echo "Le déposer avec :  security add-generic-password -a nexus -s nexus-test-db -w" >&2
-  exit 4
-fi
-
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
-export PGPASSWORD="$MDP"; unset MDP
-# CONNEXION : direct d'abord, pooler en REPLI.
+
+# CONNEXION : URL déjà résolue par l'appelant en premier, sinon trousseau
+# (ou son repli portable) puis direct d'abord / pooler en REPLI.
 #
 # L'hôte direct `db.<ref>.supabase.co` se déduit de la seule référence du
 # projet — d'où ce choix d'origine — mais il ne publie QU'UNE ADRESSE IPv6.
@@ -59,24 +63,37 @@ export PGPASSWORD="$MDP"; unset MDP
 # found » qu'on prend à tort pour un mauvais mot de passe : il n'est donc
 # JAMAIS deviné. On utilise exactement l'hôte que la CI emploie déjà tous les
 # jours, et `NEXUS_TEST_DB_URL` permet de le remplacer sans toucher au code.
-POOLER_HOTE="aws-0-us-east-1.pooler.supabase.com"
-URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
-URL_POOLER="postgresql://postgres.${REF}@${POOLER_HOTE}:5432/postgres?sslmode=require"
-
 if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
   URL="$NEXUS_TEST_DB_URL"
-  echo "Connexion : URL fournie par NEXUS_TEST_DB_URL."
-elif psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
-  URL="$URL_DIRECTE"
-  echo "Connexion : hôte direct."
-elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
-  URL="$URL_POOLER"
-  echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
+  echo "Connexion : URL fournie par NEXUS_TEST_DB_URL (résolue par l'appelant)."
 else
-  echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
-  echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
-  echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
-  exit 6
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
+  if [ -z "$MDP" ]; then
+    echo "Mot de passe introuvable (ni trousseau macOS « nexus »/« nexus-test-db », ni NEXUS_TEST_DB_PASSWORD, ni NEXUS_TEST_DB_URL)." >&2
+    echo "Le déposer avec :  security add-generic-password -a nexus -s nexus-test-db -w" >&2
+    exit 4
+  fi
+  export PGPASSWORD="$MDP"; unset MDP
+
+  POOLER_HOTE="aws-0-us-east-1.pooler.supabase.com"
+  URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+  URL_POOLER="postgresql://postgres.${REF}@${POOLER_HOTE}:5432/postgres?sslmode=require"
+
+  if psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+    URL="$URL_DIRECTE"
+    echo "Connexion : hôte direct."
+  elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+    URL="$URL_POOLER"
+    echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
+  else
+    echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
+    echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
+    echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
+    exit 6
+  fi
 fi
 export NEXUS_TEST_DB_URL="$URL"
 
