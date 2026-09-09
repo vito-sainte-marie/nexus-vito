@@ -285,6 +285,11 @@ jobs:
       - name: La reconstruction survit-elle à une IPv6 absente ?
         run: node test_connexion_test_repli_20260909.js
 
+      # Un PREPROD contient les identités d'une vraie équipe. La preuve qui
+      # autorise l'accès à cet environnement est la pièce la plus sensible.
+      - name: La preuve d'absence de donnée personnelle cherche-t-elle partout ?
+        run: node test_preuve_absence_donnee_personnelle_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
