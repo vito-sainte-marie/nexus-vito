@@ -7,6 +7,7 @@ author: Frédéric Bragance
 branch: config-par-environnement
 decision: APPROVED
 closes: false
+in_reply_to: request-1.md
 ---
 # Autorisation de lancer la procédure de promotion sécurisée
 
