@@ -299,6 +299,9 @@ jobs:
       - name: Épreuves de la garde PREPROD éphémère
         run: node test_garde_preprod_ephemere_20260909.js
 
+      - name: Épreuves de la garde du mode d'environnement
+        run: node test_garde_mode_environnement_20260909.js
+
       - name: Épreuves du routeur Guardians
         run: node test_guardians_router_20260907.js
 
@@ -493,6 +496,13 @@ jobs:
           elif ! printf '%s' "$vivant" | node outils/repetition-recette-carburants.js --comparer; then
             exit 1
           fi
+          # DEUX SOURCES, UNE SEULE VÉRITÉ. La base porte le mode
+          # d'environnement, le dépôt porte le cycle PREPROD : leur désaccord
+          # est l'information. Une recette exécutée pendant une répétition
+          # jugerait des données structurées pour reproduire des cas
+          # Production, pas le jeu de recette normal — et resterait verte.
+          mode=$(psql -tAc "select mode from public.nexus_environnement_mode" 2>/dev/null | tr -d '[:space:]') || true
+          node outils/garde-mode-environnement.js "$mode"
           echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
           echo "Scénario de recette Carburants semé sur Supabase Test."
 
