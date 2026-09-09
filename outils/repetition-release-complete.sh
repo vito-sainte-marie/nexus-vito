@@ -186,6 +186,26 @@ psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 \
 echo "  Échafaudage du mode retiré : sa migration devra le créer pour de vrai."
 echo
 
+# LA MESURE DE RÉFÉRENCE DOIT ÊTRE FRAÎCHE.
+#
+# Le 09/09/2026, `services_ouverts` valait 13 la veille et 17 le jour même :
+# Production en accumule deux à quatre par jour. Un jeu semé d'après un
+# instantané périmé mesure l'impact d'hier, et le rapport reste vert en le
+# disant. On refuse donc au-delà de trois jours — la fenêtre courte est le
+# principe, pas une commodité : une répétition sert à décider MAINTENANT.
+node -e '
+const fs=require("fs"), m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+const jours=Math.floor((Date.now()-Date.parse(m.mesure_le))/86400000);
+if(!Number.isFinite(jours)){console.error("Mesure sans date lisible : on refuse de conclure.");process.exit(1);}
+if(jours>3){
+  console.error(`REFUS — volumes Production mesurés le ${m.mesure_le}, il y a ${jours} jours.`);
+  console.error("Production est vivante : ces nombres ont bougé. Re-mesurer en lecture seule avant de répéter.");
+  process.exit(1);
+}
+console.log(`Volumes de référence : mesurés le ${m.mesure_le} (il y a ${jours} jour(s)).`);
+' "$RACINE/docs/recettes/volumes-production-mesures.json"
+echo
+
 echo "[4/8] MESURE AVANT" | tee "$RAPPORT"
 mesurer | tee -a "$RAPPORT"
 echo | tee -a "$RAPPORT"

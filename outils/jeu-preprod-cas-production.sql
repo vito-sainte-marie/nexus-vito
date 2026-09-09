@@ -11,7 +11,22 @@
 --   · 89 lignes de `mission_catalog` où `site` et `site_id` DIVERGENT ;
 --   · 17 lignes de `shifts` où ces deux colonnes divergent également, mais
 --     dans l'autre sens ;
---   · 13 services restés `en_cours`, répartis sur 3 employés, du 04 au 08/09.
+--   · 17 services restés `en_cours`, du 04 au 09/09/2026.
+--
+-- CES NOMBRES VIEILLISSENT, et le troisième a déjà bougé. Relevé à 13 le
+-- 08/09, il valait 17 le lendemain : Production est vivante et en accumule
+-- deux à quatre par jour. Une répétition qui s'appuie sur un instantané périmé
+-- mesure l'impact d'hier. Les trois volumes DOIVENT être re-mesurés au plus
+-- près de l'autorisation, jamais repris de confiance.
+--
+-- ET LE TROISIÈME CAS N'EST PAS CE QUE JE CROYAIS. Requête Production en
+-- lecture seule du 09/09/2026, autorisée par Frédéric : les 17 services ouverts
+-- portent `site` = `site_id` = la VRAIE station, sur des employés dont
+-- `compte_test` vaut false. Ce ne sont donc pas des restes du site fantôme,
+-- contrairement aux deux premiers cas : c'est l'historique réel de l'équipe.
+-- Au moins deux employés ont DEUX services ouverts le même jour — la forme
+-- exacte que l'index d'unicité viendra interdire, et donc la seule qui éprouve
+-- vraiment la migration de reprise.
 --
 -- POURQUOI CES TROIS CAS ET PAS D'AUTRES. Ce sont exactement ceux que les trois
 -- migrations DML de la promotion rencontreront. Une répétition sur une base
@@ -151,7 +166,9 @@ cross join lateral (
 ) e
 where not exists (select 1 from public.shifts where site = 'site-fantome-test');
 
--- 3) 13 services restés OUVERTS sur 3 employés, du plus ancien au plus récent.
+-- 3) 17 services restés OUVERTS, du plus ancien au plus récent, répartis de
+--    façon à ce que PLUSIEURS employés en aient deux : c'est cette forme-là,
+--    pas le nombre, qui met l'index d'unicité à l'épreuve.
 --    C'est le cas que la migration de reprise clôturera en écrivant
 --    `clos_sans_pointage` et en laissant `heure_fin` NULL — « inconnue, jamais
 --    inventée ». C'est la seule des trois migrations qui touche vraiment un
@@ -160,7 +177,7 @@ insert into public.shifts (employee_id, site, site_id, role, heure_debut, statut
 select e.id, 'nexus-station-test', 'nexus-station-test', 'pompiste',
        (now() - ((5 - (i % 5)) || ' days')::interval - (i || ' hours')::interval),
        'en_cours'
-from generate_series(1, 13) as i
+from generate_series(1, 17) as i
 cross join lateral (
   select id from public.employees
    where site_id = 'nexus-station-test' and compte_test = true
@@ -187,12 +204,12 @@ begin
   select count(*) into m from public.mission_catalog where site is distinct from site_id;
   select count(*) into d from public.shifts where site is distinct from site_id;
   select count(*) into o from public.shifts where statut = 'en_cours';
-  if m <> 89 or d <> 17 or o <> 13 then
-    raise exception 'JEU INCOMPLET — missions divergentes % (attendu 89), services divergents % (attendu 17), services ouverts % (attendu 13). '
+  if m <> 89 or d <> 17 or o <> 17 then
+    raise exception 'JEU INCOMPLET — missions divergentes % (attendu 89), services divergents % (attendu 17), services ouverts % (attendu 17). '
       'Cause la plus probable : les comptes de recette sont absents de auth.users, donc la jointure ne pose aucune ligne. '
       'On refuse de continuer : une répétition sur un jeu vide ne mesurerait aucun écart et conclurait à tort que les migrations sont sans effet.',
       m, d, o;
   end if;
-  raise notice 'Jeu PREPROD conforme : 89 missions divergentes, 17 services divergents, 13 services ouverts.';
+  raise notice 'Jeu PREPROD conforme : 89 missions divergentes, 17 services divergents, 17 services ouverts (volumes du 09/09/2026).';
 end
 $$;

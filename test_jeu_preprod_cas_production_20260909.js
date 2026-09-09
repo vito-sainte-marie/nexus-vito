@@ -17,15 +17,40 @@ const JEU = fs.readFileSync(path.join(__dirname, 'outils', 'jeu-preprod-cas-prod
 let n = 0;
 function t(nom, fn) { fn(); n++; console.log('OK — ' + nom); }
 
-// Volumes MESURÉS en Production le 08/09/2026, en lecture seule. Ils sont ici
-// pour que le jeu et la mesure ne puissent pas diverger en silence.
-const MESURES = { missionsDivergentes: 89, servicesDivergents: 17, servicesOuverts: 13 };
+// Les volumes vivaient ICI, en dur, avec la date de leur mesure en commentaire.
+// Le 09/09/2026 l'un d'eux a bougé — 13 services ouverts la veille, 17 le
+// lendemain — et rien ne reliait ce nombre à sa date autrement qu'un
+// commentaire. Ils vivent désormais dans un fichier daté, lisible par la
+// répétition elle-même.
+const MESURE = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'docs', 'recettes', 'volumes-production-mesures.json'), 'utf8'));
 
-t('les VOLUMES du jeu sont ceux mesurés en Production', () => {
-  for (const [quoi, n] of Object.entries(MESURES)) {
-    assert.ok(new RegExp(`generate_series\\(1, ${n}\\)`).test(JEU),
-      `volume ${n} absent du jeu (${quoi}) — le jeu et la mesure ont divergé`);
-  }
+t('la mesure versionnée est complète et datée', () => {
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(MESURE.mesure_le),
+    'une mesure sans date ne peut pas être jugée fraîche ou périmée');
+  for (const k of ['missions_divergentes', 'services_divergents', 'services_ouverts'])
+    assert.ok(Number.isInteger(MESURE.volumes[k]) && MESURE.volumes[k] > 0,
+      `volume ${k} absent ou nul : la répétition sèmerait du vide`);
+});
+
+t('les VOLUMES du jeu sont ceux de la mesure versionnée', () => {
+  // On COMPTE les occurrences plutôt que d'en chercher une seule : deux volumes
+  // valent 17 aujourd'hui, et un simple « le nombre apparaît » serait satisfait
+  // par une seule des deux insertions.
+  const attendus = Object.values(MESURE.volumes).filter(n => n !== MESURE.volumes.missions_divergentes || true);
+  const trouves = [...JEU.matchAll(/generate_series\(1, (\d+)\)/g)].map(m => Number(m[1])).sort((a, b) => a - b);
+  const voulus = Object.values(MESURE.volumes).slice().sort((a, b) => a - b);
+  assert.deepStrictEqual(trouves, voulus,
+    `le jeu sème ${JSON.stringify(trouves)} alors que la mesure du ${MESURE.mesure_le} dit ${JSON.stringify(voulus)}`);
+});
+
+t('la VÉRIFICATION FINALE du jeu attend les mêmes nombres', () => {
+  // Le jeu refuse de rendre la main s'il n'a pas posé ces volumes. Si ce
+  // contrôle et la mesure divergeaient, le jeu se validerait contre un chiffre
+  // périmé — exactement le silence que ce fichier existe pour empêcher.
+  const v = MESURE.volumes;
+  assert.ok(new RegExp(`m <> ${v.missions_divergentes} or d <> ${v.services_divergents} or o <> ${v.services_ouverts}`).test(JEU),
+    'le contrôle final du jeu ne porte pas sur les volumes mesurés');
 });
 
 t('la divergence est reproduite dans les DEUX SENS', () => {
