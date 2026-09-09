@@ -530,13 +530,21 @@ async function observerInvitationInventaire(page, base) {
     // servie — vérifié par une requête directe sur nexus-test — et le message
     // envoyait donc chercher un défaut là où il n'y en avait pas. Un
     // diagnostic qui ne nomme pas ce qu'il a regardé ne diagnostique rien.
+    // LE CHEMIN, PAS L'URL ENTIÈRE. Ma version précédente testait l'URL
+    // complète et voyait « App-v1 » dans le paramètre `retour=NEXUS-App-v1`
+    // d'une redirection vers le pointage : elle concluait « l'accueil est bien
+    // affiché, c'est la carte qui manque », et accusait la carte d'un défaut
+    // qui n'existait pas. Une chaîne de requête n'est pas une destination.
     const url = page.url();
-    const page_ = url.split('/').pop() || url;
+    let chemin = url;
+    try { chemin = new URL(url).pathname.split('/').pop() || url; } catch (e) { /* url exotique */ }
     const motif =
-      /Prise-De-Poste/i.test(url) ? `l’accueil a redirigé vers la prise de poste (${page_}) : aucun service actif`
-      : /Login/i.test(url) ? `l’accueil a redirigé vers la connexion (${page_}) : session perdue`
-      : /App-v1/i.test(url) ? `carte absente alors que l’accueil est bien affiché (${page_})`
-      : `page inattendue après navigation : ${page_}`;
+      /Pointage/i.test(chemin)
+        ? `le pointage d’arrivée est exigé avant l’accueil (${chemin}) — séquence obligatoire de nexus-auth, et il réclame une photo`
+      : /Prise-De-Poste/i.test(chemin) ? `l’accueil a redirigé vers la prise de poste (${chemin}) : aucun service actif`
+      : /Login/i.test(chemin) ? `l’accueil a redirigé vers la connexion (${chemin}) : session perdue`
+      : /App-v1/i.test(chemin) ? `carte absente alors que l’accueil est bien affiché (${chemin})`
+      : `page inattendue après navigation : ${chemin}`;
     return { presente: false, etat: null, visible: false, texte: '', motif };
   }
   return { presente: true, etat: vue.etat, visible: !!vue.visible, texte: vue.texte || '' };
@@ -549,7 +557,10 @@ function verifierInvitation(vue) {
   if (!vue.presente) {
     // Une redirection vers la prise de poste n'est pas un défaut de la carte :
     // l'accueil n'a jamais été affiché. L'accuser masquerait la vraie cause.
-    if (vue.motif && /redirig|inatteignable|inattendue/i.test(vue.motif)) {
+    // Le pointage d'arrivée et les redirections ne sont pas des défauts de la
+    // carte : l'accueil n'a jamais été affiché. Les compter comme tels
+    // masquerait la vraie cause et enverrait chercher ailleurs.
+    if (vue.motif && /redirig|inatteignable|inattendue|pointage/i.test(vue.motif)) {
       echecs.push('Invitation NON JUGÉE : ' + vue.motif + '. '
         + 'Ce n’est pas un défaut de la carte, et ce n’est pas non plus une preuve.');
       return echecs;

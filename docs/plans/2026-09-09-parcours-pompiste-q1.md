@@ -105,6 +105,23 @@ parcours : c'est le seul moment où l'employé n'est pas encore sur la piste.
 **Passage.** Automatique vers le Moment 2. Pas de menu intermédiaire — c'est
 précisément là que 16 quarts sur 18 s'arrêtent aujourd'hui.
 
+**UNE ÉTAPE IMPOSÉE S'INTERCALE, découverte le 09/09/2026 par la recette
+navigateur.** `nexus-auth.js` applique une séquence obligatoire : prise de
+poste, **puis pointage d'arrivée**, et seulement ensuite l'accueil. Un employé
+qui vient de confirmer son poste est renvoyé sur `NEXUS-Pointage-v1`, avec
+retour vers l'accueil.
+
+Et **le pointage d'arrivée exige une photo** (`photoRequise: true`, « photo
+extérieure du parking suffisante »).
+
+La séquence réelle est donc : **prise de poste → photo du parking → accueil**.
+Ce n'est pas un défaut, c'est une règle métier. Mais elle change le cadrage :
+entre le moment où l'employé dit « je prends mon poste » et celui où NEXUS peut
+lui dire quoi que ce soit d'utile, il y a une photo à prendre. Pour une équipe
+qui pense déjà que l'outil ne fonctionne pas, c'est une friction qui mérite
+d'être regardée en face — la garder, la déplacer, ou l'assumer comme le premier
+geste du parcours plutôt que comme un péage avant lui.
+
 **Progression.** Aucune. Prendre son poste n'est pas une performance.
 
 ---

@@ -500,6 +500,29 @@ epreuve('une REDIRECTION n’est pas accusée sur le dos de la carte', () => {
     'une redirection ne doit pas être rapportée comme une carte manquante');
 });
 
+epreuve('le POINTAGE exigé avant l’accueil n’est pas un défaut de la carte', () => {
+  // nexus-auth impose une séquence : prise de poste, PUIS pointage d’arrivée,
+  // et seulement ensuite l’accueil. Un scénario qui va droit à l’accueil est
+  // renvoyé pointer, et la carte n’est jamais atteinte. L’accuser reviendrait
+  // à signaler un défaut inexistant à chaque exécution.
+  const e = verifierInvitation({ presente: false, etat: null, visible: false, texte: '',
+    motif: 'le pointage d’arrivée est exigé avant l’accueil (NEXUS-Pointage-v1) — séquence obligatoire' }).join(' | ');
+  assert.ok(/NON JUGÉE/.test(e), e);
+  assert.ok(/pointage/i.test(e), 'le rapport doit nommer l’étape qui s’est interposée');
+  assert.ok(!/ABSENTE de l’accueil/.test(e));
+});
+
+epreuve('une chaîne de requête n’est pas une destination', () => {
+  // L’URL réelle du 09/09 était « NEXUS-Pointage-v1?retour=NEXUS-App-v1 ». Un
+  // test sur l’URL entière y voit « App-v1 » et conclut que l’accueil était
+  // affiché — c’est exactement l’erreur qui a fait accuser la carte.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('async function observerInvitationInventaire'),
+                         src.indexOf('function verifierInvitation'));
+  assert.ok(/new URL\(url\)\.pathname/.test(bloc),
+    'le motif doit se décider sur le CHEMIN, jamais sur l’URL complète');
+});
+
 epreuve('une carte VRAIMENT absente reste dénoncée, elle', () => {
   // Sans cette épreuve, la précédente pourrait être satisfaite par un code qui
   // ne dénonce plus jamais rien.
