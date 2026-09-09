@@ -770,6 +770,29 @@
       </a>
     </div>
 
+      <!-- L'inventaire vous attend (09/09/2026) — demande de Frédéric :
+           « soumettre au renfort sa participation à l'inventaire », placée ici,
+           « sur l'accueil employé après la prise de poste ».
+
+           POURQUOI CETTE CARTE EXISTE. Rien ne bloquait le renfort : le rôle est
+           proposé à la prise de poste, la présence s'écrit, une règle le vise
+           déjà en base. Et sur Production au 09/09/2026 : 36 services pris en
+           renfort depuis le 18/07, ZÉRO présence en renfort sur une session
+           d'inventaire, 56 missions restées sans personne. Rien ne le bloquait,
+           rien ne l'invitait.
+
+           Elle reste MASQUÉE tant qu'il n'y a rien à proposer : un « 0 mission
+           en attente » ajouterait du bruit à un outil qu'on reproche déjà d'en
+           faire trop. -->
+      <div class="prochaine-action-card" id="participationInventaire" style="display:none;">
+        <div class="prochaine-action-tag" id="participationTag">L’inventaire vous attend</div>
+        <div class="prochaine-action-titre" id="participationTexte"></div>
+        <a class="prochaine-action-btn" href="NEXUS-Inventaire-v1.html">
+          <img src="assets/icons/icon-fleche-droite-24.png" alt="">
+          <span>Y participer →</span>
+        </a>
+      </div>
+
     <!-- Mes outils du quart — jusqu'à 4 tuiles, choisies parmi Missions /
          Inventaire / FDJ / Réception carburant / Progression selon ce qui
          s'applique réellement (rôle du jour, forfait, réglage réception
@@ -1315,6 +1338,11 @@
 <script src="nexus-marge.js?v=20260904-0104"></script>
 <script src="nexus-tempo.js?v=20260904-0104"></script>
 <script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+<!-- Ajoutés le 09/09/2026 pour l'invitation à l'inventaire : le moteur rend les
+     règles qui n'ont trouvé personne, la couche de règles lit le catalogue et
+     les rôles présents. Aucun autre usage sur cet écran. -->
+<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
@@ -2642,6 +2670,63 @@
     toggle.classList.toggle('open', ouvert);
   });
 
+
+  // L'INVITATION À L'INVENTAIRE (09/09/2026)
+  //
+  // Elle ne redistribue rien et ne décide rien : elle montre à l'employé les
+  // missions d'inventaire que PERSONNE n'a prises et qu'il pourrait prendre.
+  // Le moteur (`propositionParticipationDuJour`) est pur et éprouvé à part ;
+  // ici, on lit et l'on affiche.
+  //
+  // LA SESSION N'EST PAS LE QUART DE L'EMPLOYÉ. `inventaire_quarts.quart` vaut
+  // « matin » ou « soir » : c'est la session de comptage. Depuis que le renfort
+  // est un quart de plein droit, `service.quart` peut valoir « renfort », qui
+  // ne désigne aucune session. On résout donc la session par l'horloge de la
+  // station, comme le fait l'écran Inventaire lui-même.
+  //
+  // ELLE SE TAIT PLUTÔT QUE DE SE TROMPER : sans moteur chargé, sans fuseau,
+  // sans rôle, ou à la moindre erreur de lecture, la carte reste masquée. Une
+  // invitation fausse coûterait plus cher que pas d'invitation.
+  async function afficherParticipationInventaire(site, role, fuseau) {
+    const carte = document.getElementById('participationInventaire');
+    if (!carte) return;
+    const M = window.NexusInventaireMoteur;
+    const MR = window.NexusInventaireMissionRulesDonnees;
+    if (!M || !MR || !site || !role || !fuseau) return;
+    if (typeof M.propositionParticipationDuJour !== 'function') return;
+    try {
+      const q = await NexusStation.quartConfigureDuMoment(site, fuseau, undefined, nexusClient);
+      if (!q || q.indetermine || !q.quart) return;
+      const session = q.quart === '1' ? 'matin' : 'soir';
+      const dateISO = NexusStation.dateLocaleStation(fuseau);
+      const [missionRules, rolesPresents] = await Promise.all([
+        MR.chargerMissionRules(nexusClient, site),
+        MR.chargerRolesPresentsQuart(nexusClient, site, dateISO, session),
+      ]);
+      const roleCanonique = typeof MR.normaliserRoleCode === 'function'
+        ? MR.normaliserRoleCode(role) : role;
+      const p = M.propositionParticipationDuJour({
+        missionRules, quart: session, rolesPresents, role: roleCanonique,
+      });
+      if (!p) return;
+      // Le texte dit CE QUI ATTEND, pas un décompte de corvées. Et quand
+      // l'employé vient en soutien d'un rôle absent, on le lui dit : venir en
+      // renfort d'un collègue n'est pas la même chose que sa propre mission.
+      const nom = (p.mission && p.mission.nom) || 'Un contrôle d’inventaire';
+      const autres = p.nombreEnAttente - 1;
+      const reste = autres > 0
+        ? ` · ${autres} autre${autres > 1 ? 's' : ''} attend${autres > 1 ? 'ent' : ''}`
+        : '';
+      document.getElementById('participationTexte').textContent =
+        (p.viaRepli ? `En soutien : ${nom}` : nom) + reste;
+      document.getElementById('participationTag').textContent =
+        p.viaRepli ? 'L’équipe a besoin de vous' : 'L’inventaire vous attend';
+      carte.style.display = '';
+    } catch (e) {
+      console.warn('Invitation inventaire : lecture impossible, carte masquée.', e);
+    }
+  }
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
@@ -2693,6 +2778,15 @@
       }
       // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
       // renvoyer un employé vers la prise de poste alors qu'il en a une.
+    }
+
+    // L'invitation à l'inventaire, une fois le rôle du jour connu. Jamais
+    // attendue : elle s'affiche quand elle a sa réponse, et l'accueil ne
+    // ralentit pas pour elle.
+    if (roleDuJour) {
+      NexusStation.fuseauDeLaStation(SITE_HOME)
+        .then(f => afficherParticipationInventaire(SITE_HOME, roleDuJour, f && f.timezone))
+        .catch(() => {});
     }
 
     document.getElementById('sessionInfo').innerHTML =

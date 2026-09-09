@@ -1309,6 +1309,24 @@
   }
 
 
+  // Les trois moments d'une session, dans l'ordre où ils arrivent. Proposer
+  // une mission de fin de session à quelqu'un qui vient d'arriver serait exact
+  // et inutile : on balaie donc dans l'ordre et l'on s'arrête au premier
+  // moment qui attend quelqu'un.
+  const MOMENTS_ORDONNES = ['debut', 'pendant', 'fin'];
+
+  // L'invitation complète pour un rôle, sur une session : on cherche moment
+  // par moment, du plus tôt au plus tard, et l'on rend la PREMIÈRE proposition
+  // trouvée. Null si rien n'attend ce rôle nulle part.
+  function propositionParticipationDuJour({ missionRules, quart, rolesPresents, role }) {
+    for (const moment of MOMENTS_ORDONNES) {
+      const attendues = reglesQuiAttendent({ missionRules, quart, moment, rolesPresents, role });
+      const p = propositionParticipation({ attendues, role });
+      if (p) return { ...p, moment };
+    }
+    return null;
+  }
+
   // Résout TOUTES les mission_rules applicables à un contexte (site déjà
   // filtré en amont par le chargeur — Article 11, jamais un second filtre
   // de site ici). Retourne une ligne de résolution par règle applicable,
@@ -1818,7 +1836,8 @@
     agregerAnomaliesParProduit, appliquerCutoverControles,
     MOMENTS_QUART, libelleMoment, STRATEGIES_REPLI, libelleStrategieRepli,
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
-    reglesQuiAttendent, propositionParticipation,
+    reglesQuiAttendent, propositionParticipation, propositionParticipationDuJour,
+    MOMENTS_ORDONNES,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
     perimetreProduitsMission, selectionnerPerimetreMission, selectionnerPerimetreIntelligent,
     genererMissionsPourContexte, couvertureMissions,
