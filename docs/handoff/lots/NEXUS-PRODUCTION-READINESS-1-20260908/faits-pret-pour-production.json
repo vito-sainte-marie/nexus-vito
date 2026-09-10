@@ -5,7 +5,7 @@
   "faits": {
     "guardiansRequisConformes": {
       "valeur": true,
-      "preuve": "run 34485358493 — Guardians backend, QA (0 finding / 259 épreuves), Business Rules, Bible, Philosophie, LANG-003 et LANG-004 tous au vert"
+      "preuve": "run 34525903638 (workflow_dispatch, c405c75) — Guardian QA 0 finding sur 264 épreuves, plus Guardians backend, Business Rules, Bible, Philosophie, LANG-003 et LANG-004, tous au vert"
     },
     "railHandoffConforme": {
       "valeur": true,
@@ -29,7 +29,7 @@
     },
     "repetitionMigrationsRecetteReussie": {
       "valeur": true,
-      "preuve": "preuve-repetition-executee-1.md (8/8 étapes) et preuve-recette-navigateur-1.md (recette navigateur verte, run 34485358493)"
+      "preuve": "preuve-repetition-executee-1.md (8/8 étapes) et run 34525903638 — recette navigateur verte, connexion Manager Test comprise, six points satisfaits et un sans objet (arrivée déjà pointée)"
     },
     "planReparationRollbackDocumente": {
       "valeur": true,
@@ -41,7 +41,7 @@
     },
     "aucunBlocageNonResolu": {
       "valeur": null,
-      "preuve": "blocages-ouverts-1.md. FERMÉS : §8 et §9 le 10/09 (course sur PREPROD-CYCLE.json et cycle zzzzrefdetestinexistante, voie 2, preuve-serialisation-registre-preprod-1.md, 11/11 + 8 exécutions consécutives) ; §10 le 10/09 (fixtures Guardians hors du dépôt, racine optionnelle sur guardianSecurity/guardianArchitectureCollisions/guardianArchitectureDependances, test_fixtures_hors_depot_20260910.js : mutation + 20 exécutions parallèles réelles, 0 ENOENT/orphelin/salissure Git) ; §12 le 10/09 (test_handoff_v2_20260905.js au vert sur les deux événements du candidat e6c7948 — pull_request 34508020759, push 34508015447 — non reproduit sur le candidat lui-même, lu par gh run view, aucun secret consulté). OUVERTS : §7 épreuve `security` sur ea561f6 — cause TOUJOURS non isolée ; verte de nouveau sur les deux événements du candidat e6c7948, un point de non-reproduction de plus, pas une fermeture ; §11 RÉOUVERT sous le numéro §13 le 10/09 17 h 24 — même symptôme (Manager Test, PIN incorrect) que le défaut fermé à 15 h 55 sur 4f26a37, réapparu sur le run push du candidat e6c7948 lui-même (34508015447, étape « Recette navigateur NEXUS Test »), 46 étapes précédentes vertes (suite complète, Protocole Handoff v2, sept Guardians, PREPROD, semis, journal Live) ; isolation par élimination (10/09 19h15) : disponibilité secret runner écartée (secretsManquants aurait court-circuité avant toute tentative de connexion, or un login réel a été tenté puis a timeout) ; défaut fixture/recette écarté (diff nul 4f26a37→e6c7948 sur recette-navigateur-test.js/nexus-auth.js/NEXUS-App-v1.html/supabase, même script vert puis rouge sans changement) ; défaut applicatif écarté par le même diff nul ; seule cause candidate restante non confirmée sans lecture de secret : PIN Manager Test désaligné sur Supabase Test. Aucun run push plus récent sur config-par-environnement ne contredit ce constat. `node outils/evaluer-pret-pour-production.js --sha e6c7948769c8e1aa6a2690d1c6e5b782f56f7ea9` → ci_et_guardians_conformes BLOQUE, VERDICT NON_PRET. Déclaration finale : Frédéric Bragance."
+      "preuve": "blocages-ouverts-1.md, état au 10/09/2026 22 h UTC. FERMÉS : §8 et §9 (course sur PREPROD-CYCLE.json, cycle zzzzrefdetestinexistante) par la voie 2 ; §10 (fixtures transitoires à la racine) — la reproduction opère désormais hors du dépôt, avec deux contrôles de non-nuisance ; §11 (connexion de recette) — PIN réaligné par Frédéric Bragance, run 34523206197 vert de bout en bout ; §12 (test_handoff_v2). RESTE OUVERT : §7 seulement — l'épreuve `security` sur ea561f6, UNE occurrence jamais reproduite depuis, cause non isolée, instrumentée. La CI est verte sur les trois événements du candidat c405c75. Déclarer ce critère revient à dire que §7 n'empêche pas cette release : c'est un jugement, pas une mesure, et il appartient à Frédéric Bragance."
     },
     "gateHumaineFrederic": {
       "valeur": null,
