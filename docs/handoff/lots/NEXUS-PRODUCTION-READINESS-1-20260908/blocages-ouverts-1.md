@@ -392,3 +392,91 @@ compte et une empreinte.
 `Manager Test` sur Supabase **Test** a été changé vers 14 h 45, et si oui
 remettre `NEXUS_TEST_MANAGER_PIN` en accord avec lui. Aucune autre étape du
 workflow n'est en cause.
+
+---
+
+## FERMÉ le 10/09/2026 — défaut 10
+
+**Cause déjà démontrée, corrigée et éprouvée.** `guardianSecurity`,
+`guardianArchitectureCollisions` et `guardianArchitectureDependances`
+(`outils/guardians-router.js`) acceptent désormais un paramètre `racine`
+optionnel — défaut inchangé (`RACINE` du dépôt), aucun changement de
+comportement en CI. Les quatre fixtures de
+`test_guardians_router_20260907.js` vivent maintenant dans des répertoires
+`os.tmpdir()`, jamais sous `__dirname` : le fichier qui les créait à la
+racine réelle et les supprimait aussitôt — la ressource que
+`test_build_tracabilite_20260905.js` liste puis copie — ne la touche plus.
+
+**Preuves** (`test_fixtures_hors_depot_20260910.js`, nouveau) :
+- **mutation** : un second PROCESSUS (pas un thread unique — un seul thread
+  ne peut jamais entrelacer write/scan/unlink dans cet ordre) qui écrit et
+  supprime un `.js` à la racine réelle pendant qu'un balayage
+  lister-puis-copier la traite reproduit l'`ENOENT` du défaut, de façon
+  indépendante des deux fichiers réels ; la contre-épreuve confirme que sans
+  cette écriture, le même balayage ne peut jamais échouer ainsi ;
+- **comportemental** : 20 exécutions parallèles complètes (5 rounds × 2
+  exemplaires des deux vrais fichiers) — 0 échec, 0 `ENOENT`, 0 fixture
+  orpheline, arbre Git rendu exactement dans le même état qu'avant.
+
+Suite complète : aucune régression (les 9 échecs historiques inchangés).
+
+## Défaut 7 — nouvel élément, la cause reste NON ISOLÉE
+
+**Le statut ne change pas : `cause non isolée`.** Trois tentatives de
+reproduction du symptôme EXACT (le marqueur `security` existant alors que
+`NEXUS_TEST_DB_URL` est fournie) — en standalone répété, en course délibérée
+contre les cinq autres épreuves qui touchent `PREPROD-CYCLE.json`, et via
+`run-tests.js` lui-même sur plusieurs exécutions complètes — n'ont **jamais**
+reproduit ce symptôme précis sur ce runner.
+
+**Ce qui a été trouvé à la place, et qui reste utile.** En cherchant à courir
+cette épreuve contre ses cinq soeurs du registre PREPROD, une corruption
+accidentelle de `docs/handoff/PREPROD-CYCLE.json` (fichier vidé, 0 octet) a
+fait échouer `test_security_jamais_invoque_si_url_20260910.js` de façon
+**parfaitement déterministe** — mais avec un `e.message` différent
+(`Unexpected end of JSON input`, une `SyntaxError` de `JSON.parse` dans le
+harnais du test lui-même, pas le refus métier attendu).
+
+**Le vrai défaut trouvé, mécanique et corrigé** : `run-tests.js` ne
+rapportait, pour tout échec, qu'UNE ligne tronquée à 110 caractères — le
+premier `✗ …` de la sortie, QUEL QU'EN SOIT LE MOTIF. Un `AssertionError`
+métier (« security a été invoqué ») et une `SyntaxError` sans rapport
+produisent tous deux une sortie qui commence par la même ligne `✗ nom du
+test` : le lecteur ne pouvait pas les distinguer depuis le log CI seul.
+L'instrumentation posée le 10/09/2026 sur ce test précis (marqueur, code de
+sortie, stdout, stderr) n'atteignait donc **jamais** le log CI — seule cette
+ligne tronquée y arrivait. C'est très probablement ce qui a empêché
+d'isoler la cause exacte du run `34485839396` : l'information existait dans
+le process enfant, mais `run-tests.js` ne la faisait jamais remonter.
+
+**Corrigé, sans toucher à un seul garde ni script de release :**
+`run-tests.js` affiche désormais la sortie complète (bornée à 4000
+caractères) de chaque échec, en plus de la ligne courte. Les deux fichiers
+`test_security_jamais_invoque_si_url_2026090{9,10}.js` impriment désormais
+`e.name` avant `e.message`, pour que `SyntaxError`/`TypeError`/… restent
+visibles même sans race — vérifié : rejouer la même corruption affiche
+maintenant `SyntaxError: Unexpected end of JSON input` dans la ligne courte
+ELLE-MÊME (le motif `[A-Za-z]*Error` de `run-tests.js` la capture
+directement), plus le détail complet en dessous.
+
+**Ce que cela ne prouve PAS** : que le défaut 7 original avait cette même
+cause. Le symptôme reproduit ici (`SyntaxError`) diffère du symptôme
+rapporté (`security` réellement invoqué). Les deux restent possibles :
+soit le rapport `34485839396` était lui-même cette même ambiguïté mal lue,
+soit un défaut distinct, toujours réel, reste à isoler.
+
+**Prochain discriminant mesurable, si le défaut revient** : le prochain échec
+de cette famille en CI portera désormais, dans le log lui-même, soit
+`AssertionError: security a été invoqué alors que…` (le vrai défaut, à
+corriger alors avec la preuve enfin en main), soit `SyntaxError: Unexpected
+end of JSON input` ou toute autre exception nommée (un défaut d'une autre
+famille, déjà connue). Le statut `cause non isolée` reste donc EXACTEMENT
+ce qu'il était — seul l'outil pour la voir la prochaine fois a changé.
+
+## Défaut 11 — inchangé
+
+Statut **`BLOCKED_HUMAN_SECRET`** confirmé, inchangé. Aucune lecture,
+rotation ni exécution de secret n'a eu lieu dans cette session. L'action
+minimale demandée à Frédéric reste exactement celle du 10/09/2026
+ci-dessus : vérifier si le PIN de `Manager Test` a changé vers 14 h 45 et,
+si oui, réaligner `NEXUS_TEST_MANAGER_PIN`.

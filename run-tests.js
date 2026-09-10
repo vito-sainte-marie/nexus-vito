@@ -152,7 +152,21 @@ function lancer(f) {
         (sortie.match(/^\s*✗[^\n]{0,110}/m) || [])[0]?.trim() ||
         sortie.split('\n').filter(l => l.trim()).pop()?.slice(0, 110) ||
         'aucune sortie';
-      resolve({ f, ok: false, cause });
+      // `cause` reste une ligne, pour le triage à l'œil. Mais elle est
+      // AMBIGUË par construction : une épreuve qui rapporte elle-même ses
+      // échecs (via son propre « ✗ nom ») et une épreuve qui plante sur une
+      // exception SANS le mot « Error » dans son message (ex. SyntaxError de
+      // JSON.parse : « Unexpected end of JSON input » ne contient jamais
+      // « Error ») produisent la MÊME première ligne « ✗ … » — le lecteur ne
+      // peut pas distinguer un refus légitime d'un crash non lié. Constaté le
+      // 10/09/2026 en reproduisant le défaut §7 (blocages-ouverts-1.md) :
+      // l'instrumentation déjà posée sur test_security_jamais_invoque_si_url
+      // (marqueur, code de sortie, stdout, stderr) existe bel et bien dans la
+      // sortie du fichier, mais `run-tests.js` ne l'affichait JAMAIS — seule
+      // cette ligne tronquée à 110 caractères atteignait le log CI. `detail`
+      // porte donc la sortie complète (bornée pour ne pas noyer le log),
+      // affichée UNIQUEMENT pour les fichiers en échec.
+      resolve({ f, ok: false, cause, detail: sortie.slice(-4000) });
     });
   });
 }
@@ -208,7 +222,7 @@ async function executer() {
   }
   // Rendu dans l'ordre des FICHIERS, pas dans celui des retours.
   return fichiers.filter(f => !resultats.get(f).ok)
-    .map(f => ({ f, cause: resultats.get(f).cause }));
+    .map(f => ({ f, cause: resultats.get(f).cause, detail: resultats.get(f).detail }));
 }
 
 executer().then((echecs) => {
@@ -217,7 +231,16 @@ const total = fichiers.length;
 console.log(`\n\n${total - echecs.length}/${total} tests passent.`);
 if (echecs.length) {
   console.log(`\n${echecs.length} en échec :`);
-  for (const { f, cause } of echecs) console.log(`  ${f}\n    ${cause}`);
+  // La ligne `cause` reste affichée pour le triage à l'œil, mais `detail`
+  // (sortie complète bornée) l'accompagne désormais TOUJOURS : c'est elle qui
+  // manquait au log CI pour distinguer un refus légitime d'un crash sans
+  // rapport (défaut §7 du 10/09/2026, voir le commentaire dans lancer()).
+  for (const { f, cause, detail } of echecs) {
+    console.log(`  ${f}\n    ${cause}`);
+    if (detail && detail.trim() && detail.trim() !== cause.trim()) {
+      console.log(`    --- sortie complète (bornée) ---\n${detail.trim().split('\n').map(l => `    ${l}`).join('\n')}\n    --- fin de sortie ---`);
+    }
+  }
 }
 
 // ── Le verdict, rendu ICI ────────────────────────────────────────────
