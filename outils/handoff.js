@@ -284,6 +284,42 @@ function enregistrerLot(lot) {
   fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n');
   console.log(`${lot} enregistré dans STATE.json.lots (derniere_demande ${derniereDemande.fichier}${decisions.length ? `, ${decisions.length} décision(s) déjà déposée(s) — à consommer via handoff.js consommer` : ', aucune décision déposée'}).`);
 }
+// Rattrape `STATE.json.lots[lot].derniere_demande` quand un request-N.md a
+// été déposé DIRECTEMENT (commit humain/Orchestrator, pas `handoff.js
+// demande`) sur un lot déjà enregistré. Découvert le 09/09/2026 sur
+// NEXUS-PRODUCTION-READINESS-1-20260908 : request-5.md/decision-5.md étaient
+// des enveloppes conformes, mais STATE.json pointait encore vers
+// request-4.md — `verifier` bloque (« derniere_demande n'est pas la plus
+// récente ») et donc `consommer` refuse pour TOUT le registre.
+//
+// Distinct de `enregistrer-lot` : celui-ci initialise un lot totalement
+// absent de STATE.json.lots ; celui-ci rattrape un lot déjà présent mais en
+// retard sur le disque. Même garde-fou : les enveloppes du lot sont
+// revalidées avant tout rattrapage, et seul `derniere_demande`/`statut`
+// bouge — jamais `derniere_decision`/`commit_decision`/`consomme_le`, qui ne
+// se posent que par `consommer`.
+function rattraperDemande(lot) {
+  if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); }
+  if (!fs.existsSync(path.join(LOTS, lot))) { console.error(`Lot inconnu : aucun répertoire lots/${lot}`); process.exit(1); }
+  if (!fs.existsSync(ETAT)) { console.error('docs/handoff/STATE.json absent.'); process.exit(1); }
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8'));
+  etat.lots = etat.lots || {};
+  if (!etat.lots[lot]) { console.error(`REFUS — ${lot} n'est pas encore enregistré dans STATE.json.lots ; utilisez enregistrer-lot.`); process.exit(1); }
+  erreurs.length = 0; avertissements.length = 0;
+  validerEnveloppesLot(lot);
+  if (erreurs.length) {
+    console.error(`REFUS — les enveloppes de ${lot} ne sont pas conformes ; aucun rattrapage n'est fait.`);
+    for (const e of erreurs) console.error(`ÉCHEC — ${e.message}`);
+    process.exit(1);
+  }
+  const derniereDemande = dernier(echanges(lot, 'request'));
+  if (!derniereDemande) { console.error(`REFUS — ${lot} n'a aucune demande déposée.`); process.exit(1); }
+  if (etat.lots[lot].derniere_demande === derniereDemande.fichier) { console.error(`REFUS — ${lot}.derniere_demande est déjà à jour (${derniereDemande.fichier}) ; rien à rattraper.`); process.exit(1); }
+  etat.lots[lot].statut = 'ATTENTE_DECISION';
+  etat.lots[lot].derniere_demande = derniereDemande.fichier;
+  fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n');
+  console.log(`${lot}.derniere_demande rattrapé à ${derniereDemande.fichier} (statut ATTENTE_DECISION).`);
+}
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
   const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`); console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.'); process.exit(1); } }
@@ -306,8 +342,9 @@ switch (commande) {
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
   case 'consommer': consommer(arg1); break;
   case 'enregistrer-lot': enregistrerLot(arg1); break;
+  case 'rattraper-demande': rattraperDemande(arg1); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID>|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
 }
