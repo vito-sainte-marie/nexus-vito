@@ -579,6 +579,29 @@ epreuve('le succès du pointage se mesure sur le STATUT, pas sur un libellé', (
     'un employé ne la voit jamais, et l’attendre ne prouverait rien');
 });
 
+epreuve('le pré-contrôle ÉCOUTE LES DEUX ISSUES, il n’en attend pas une seule', () => {
+  // Le compteur « Service en cours depuis … » est posé APRÈS le chargement, par
+  // majServiceLive. Un pré-contrôle qui lit l’écran une fois, tout de suite, ne
+  // le voit pas : sur le run 34485358493, l’arrivée datait de 1 h 48 et la
+  // recette a conclu « champ photo absent » — alors que le message d’échec
+  // capturait un écran affichant « Service en cours depuis 1 heure et
+  // 48 minutes ». La preuve était dans le message.
+  //
+  // Deux issues, la première qui survient tranche : le champ photo signifie
+  // « il reste à pointer », le compteur signifie « c’est déjà fait ».
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('async function franchirPointageArrivee'),
+                         src.indexOf('const ECRAN_ACCUEIL'));
+  assert.ok(/Promise\.race\(/.test(bloc),
+    'le pré-contrôle doit courir les deux issues, sinon il attend une réponse que l’écran ne donnera pas');
+  const iRace = bloc.indexOf('Promise.race(');
+  const iDeja = bloc.indexOf("issue === 'deja'");
+  assert.ok(iRace > 0 && iDeja > iRace,
+    'la décision « déjà pointée » doit suivre la course, pas la précéder');
+  assert.ok(/timeout: 25000/.test(bloc.slice(iRace, iRace + 500)),
+    'les deux attentes doivent être bornées : une course sans borne ne rend jamais la main');
+});
+
 epreuve('une arrivée DÉJÀ pointée n’est pas un champ manquant', () => {
   // Le champ photo n’est rendu que `if (!fait && !bloque && info.photoRequise)`.
   // Une fois l’arrivée enregistrée il disparaît, légitimement. Le run

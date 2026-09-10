@@ -558,7 +558,32 @@ async function franchirPointageArrivee(page, base) {
     return { franchi: true, motif: null, dejaFait: true };
   }
 
-  const champ = page.locator('#photoInput-arrivee');
+  // LE PRÉ-CONTRÔLE LIT TROP TÔT, corrigé le 10/09/2026.
+  //
+  // `texteVerrou` est lu juste après `domcontentloaded`, alors que le compteur
+  // « Service en cours depuis … » est posé plus tard par `majServiceLive`,
+  // une fois les pointages du jour chargés. Sur le run 34485358493, l'arrivée
+  // datait de 1 h 48 : le pré-contrôle ne voyait rien, l'attente du champ
+  // courait 20 s pour rien, et le motif final capturait un écran qui affichait
+  // pourtant « Service en cours depuis 1 heure et 48 minutes ». La preuve que
+  // l'arrivée existait était DANS le message d'échec.
+  //
+  // On laisse donc l'écran se décider : deux issues, la première qui survient
+  // tranche. Le champ photo signifie « il reste à pointer », le compteur
+  // signifie « c'est déjà fait ». Attendre l'un sans l'autre revenait à
+  // n'écouter qu'une moitié de la réponse.
+  const champPhoto = page.locator('#photoInput-arrivee');
+  const issue = await Promise.race([
+    champPhoto.waitFor({ state: 'attached', timeout: 25000 }).then(() => 'champ', () => 'rien'),
+    page.waitForFunction(
+      () => /Service en cours depuis/i.test(document.body.innerText || ''),
+      { timeout: 25000 }).then(() => 'deja', () => 'rien'),
+  ]);
+  if (issue === 'deja') {
+    return { franchi: true, motif: null, dejaFait: true };
+  }
+
+  const champ = champPhoto;
   // Le motif porte la page ET ce que l'écran affiche : sans eux, « champ
   // absent » ne localise rien et la session suivante recommence l'enquête.
   const situer = async () => {
