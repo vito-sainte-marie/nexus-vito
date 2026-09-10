@@ -855,3 +855,31 @@ reproduit, sur 4 balayages en 4 s. Le couple exact
 `test_fixtures_hors_depot` × `test_build_tracabilite` lancé **6 fois en
 parallèle** : zéro échec, zéro ENOENT. Suite complète **4 fois** : 255/264,
 registre intact, arbre propre. Guardian QA : **0 finding sur 264**.
+
+---
+
+## DÉCLARÉ le 10/09/2026 — `aucun_blocage_non_resolu = true`
+
+**Déclaration de Frédéric Bragance.** Ce critère ne se mesure pas, il se
+déclare — ce document le pose ainsi depuis le début. Elle porte sur le
+**défaut 7** et sur lui seul.
+
+Motifs retenus, tels que formulés :
+
+- une seule occurrence, sur l'ancien candidat `ea561f6` ;
+- aucune reproduction depuis ;
+- cause non isolée, donc **aucun correctif hypothétique autorisé** ;
+- instrumentation en place pour capturer une éventuelle nouvelle occurrence ;
+- CI verte sur les événements du candidat contrôlé ;
+- aucun fichier de la release identifié comme défaillant par cette occurrence.
+
+**Ce que cette déclaration ne fait pas.** Elle ferme le critère, pas le défaut.
+Le défaut 7 **reste ouvert au suivi**, instrumenté, non corrigé. Elle ne vaut
+pas gate finale de déploiement et n'autorise aucune opération sur `main`,
+Supabase Production ou NEXUS Production.
+
+**Les dettes hors périmètre restent tracées** — ni supprimées, ni présentées
+comme corrigées : ARCH-002, ARCH-006, QA-007, les 9 findings Guardian Bible,
+LANG-003 (1 481 tirets), le placement temporel des 23 missions du pompiste, le
+vocabulaire du renfort face aux trois tables Inventaire, et la transmission au
+quart suivant.

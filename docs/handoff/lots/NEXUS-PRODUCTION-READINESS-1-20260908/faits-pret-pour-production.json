@@ -40,8 +40,21 @@
       "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
     },
     "aucunBlocageNonResolu": {
-      "valeur": null,
-      "preuve": "blocages-ouverts-1.md, état au 10/09/2026 22 h UTC. FERMÉS : §8 et §9 (course sur PREPROD-CYCLE.json, cycle zzzzrefdetestinexistante) par la voie 2 ; §10 (fixtures transitoires à la racine) — la reproduction opère désormais hors du dépôt, avec deux contrôles de non-nuisance ; §11 (connexion de recette) — PIN réaligné par Frédéric Bragance, run 34523206197 vert de bout en bout ; §12 (test_handoff_v2). RESTE OUVERT : §7 seulement — l'épreuve `security` sur ea561f6, UNE occurrence jamais reproduite depuis, cause non isolée, instrumentée. La CI est verte sur les trois événements du candidat c405c75. Déclarer ce critère revient à dire que §7 n'empêche pas cette release : c'est un jugement, pas une mesure, et il appartient à Frédéric Bragance."
+      "valeur": true,
+      "declare_par": "Frédéric Bragance",
+      "declare_le": "2026-09-10",
+      "porte_sur": "le défaut 7 — épreuve `security` sur l'ancien candidat ea561f6",
+      "motifs": [
+        "une seule occurrence, sur l'ancien candidat ea561f6",
+        "aucune reproduction depuis",
+        "cause non isolée, donc aucun correctif hypothétique autorisé",
+        "instrumentation en place pour capturer une éventuelle nouvelle occurrence",
+        "CI verte sur les événements du candidat contrôlé",
+        "aucun fichier de la release identifié comme défaillant par cette occurrence"
+      ],
+      "preuve": "Déclaration de Frédéric Bragance du 10/09/2026. Ce critère ne se mesure pas, il se déclare — blocages-ouverts-1.md le pose ainsi depuis le 10/09. Les faits qui la fondent sont mesurés et datés : 40 exécutions CI de l'épreuve depuis l'échec, 40 passages, zéro reproduction (dont 5 à conditions d'ordonnancement identiques, avant la sérialisation) ; les trois scripts couverts sont de l'outillage Test, hors artefact de release, et leur refus de la référence Production est un contrôle distinct couvert par six autres épreuves.",
+      "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
+      "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
     },
     "gateHumaineFrederic": {
       "valeur": null,
