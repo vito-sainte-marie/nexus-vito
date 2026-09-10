@@ -598,3 +598,166 @@ processus écrivain avant de nettoyer (`await finEcrivain`), au lieu de
 nettoyer sur la foi d'un `kill()` qui vient d'être envoyé. Cinq exécutions
 de la suite complète après ce correctif : cinq fois vert, y compris
 `test_fixtures_hors_depot_20260910.js`.
+
+---
+
+## FERMÉ le 10/09/2026 — défaut 12
+
+**Preuve directe, lue via `gh run list`/`gh run view` sur le candidat exact
+`e6c7948`, jamais un secret.** Le SHA porte deux exécutions :
+
+| run | événement | verdict |
+|---|---|---|
+| `34508020759` | `pull_request` | `success` |
+| `34508015447` | `push` | `failure` (voir défaut 13 ci-dessous — un autre point) |
+
+Le défaut 12 nommait précisément `test_handoff_v2_20260905.js`, dans l'étape
+« Suite de non-régression et verdict ». Cette étape est **au vert dans les
+deux runs**, `pull_request` et `push` — y compris l'étape « Protocole Handoff
+v2 » (dédiée, distincte). Le défaut spécifique décrit par §12 (le refus
+d'une décision déjà consommée qui ne nomme pas sa raison) **ne s'est
+reproduit dans aucun des deux événements** sur le candidat lui-même.
+
+**Défaut 12 fermé sur cette base : cause toujours non isolée, mais non
+reproduite sur le candidat, sur les deux événements CI qui l'exercent.**
+Aucun secret lu pour arriver à cette conclusion — uniquement des verdicts de
+run et la liste de leurs étapes.
+
+**Ce que cette fermeture NE dit PAS.** Le run `push` du même SHA a échoué —
+pas sur `test_handoff_v2_20260905.js`, sur une étape entièrement différente.
+Fermer §12 ne rend donc PAS la CI verte sur le candidat : voir défaut 13,
+ouvert dans la foulée de cette même vérification.
+
+## Défaut 7 — un nouveau point de non-reproduction, statut inchangé
+
+Même méthode, même prudence : les deux runs du candidat `e6c7948` exercent
+aussi `test_security_jamais_invoque_si_url_20260910.js` (dans la même étape
+« Suite de non-régression et verdict »), et il est vert dans les deux. C'est
+un point de non-reproduction de plus, pas une preuve d'absence — le défaut a
+déjà une histoire de reproduction majoritairement verte (voir plus haut :
+7/7 puis instrumentation, puis 8/9 exécutions locales). Je ne ferme pas §7
+sur cette seule base : la cause n'est toujours pas isolée, et ce mandat
+demande explicitement de ne pas corriger par analogie. **§7 reste ouvert,
+statut inchangé : `cause non isolée`.**
+
+## OUVERT le 10/09/2026 — défaut 13, la CI n'est PAS verte sur le candidat
+
+**Constat qui corrige une lecture incomplète du run cité dans le réveil.**
+Le run `pull_request` (`34508020759`) sur `e6c7948` est bien vert de bout en
+bout, mais **son étape « Recette navigateur NEXUS Test » est `skipped`**,
+comme pour tout `pull_request` de ce workflow (aucun accès Test/secret n'y
+est exposé, par conception). Il ne dit donc rien de l'état réel de la
+connexion navigateur.
+
+Le run `push` du **même SHA** (`34508015447`, seul run `push` connecté
+existant sur ce candidat) a lui réellement exécuté la chaîne connectée
+complète, jusqu'à son terme :
+
+| étape | verdict |
+|---|---|
+| … (46 étapes précédentes, dont « Suite de non-régression et verdict », « Protocole Handoff v2 », les sept Guardians, la garde PREPROD, la répétition Carburants) | `success` |
+| Préparer la connexion PostgreSQL Test en écriture | `success` |
+| Semer le scénario Carburants sur Supabase Test | `success` |
+| Publier le journal NEXUS Live | `success` |
+| Installer Playwright | `success` |
+| **Recette navigateur NEXUS Test** | **`failure`** |
+
+Log lu par `gh run view --log --job` (aucun secret, `PGPASSWORD`/PINs
+masqués par GitHub Actions comme toujours) :
+
+```
+Version servie confirmée : e6c7948769c8e1aa6a2690d1c6e5b782f56f7ea9
+ÉCHEC de la recette navigateur : Connexion refusée : toujours sur l'écran de
+login 30 s après validation. Identifiant inconnu, secret de recette périmé,
+ou compte désactivé.
+  Écran : […] Prénom ou code PIN incorrect. […]
+```
+
+**Symptôme identique au défaut 11, sur le même point d'entrée** :
+`outils/recette-navigateur-test.js` tente `NEXUS_TEST_MANAGER_NOM` en
+premier — c'est ce compte qui échoue en premier, comme le 10/09 au matin.
+Le défaut 11 avait été fermé sur la preuve d'un run `push` vert de bout en
+bout (`34498775844`, commit `4f26a37`, 15 h 55) ; ce run `push`
+(`34508015447`, commit `e6c7948`, 17 h 24) rouvre exactement le même
+symptôme, **une heure et demie plus tard**, sur le candidat lui-même.
+
+**Aucun run `push` plus récent sur `config-par-environnement` n'existe pour
+contredire ce constat** (revérifié dans cette session : `gh run list
+--branch config-par-environnement --limit 10` ne montre aucune exécution
+postérieure à `34508015447`/`34508020759`). Un run plus récent
+(`34509760412`, 17 h 41) est vert, mais sur une branche
+`claude/issue-28-20260910-1727` distincte, **avec la chaîne connectée
+entière `skipped`** (elle ne s'exécute que sur `config-par-environnement`) —
+il ne prouve rien sur la recette.
+
+**Isolation demandée du 10/09 19 h 15 — quatre causes candidates, trois
+écartées par des faits, pas par supposition :**
+
+1. **Disponibilité du secret dans le runner — ÉCARTÉE.**
+   `outils/recette-navigateur-test.js` (`secretsManquants`, appelée en tête
+   d'`executer()`) court-circuite *avant* toute tentative de connexion si
+   `NEXUS_TEST_MANAGER_PIN` (ou tout autre secret de `SECRETS_REQUIS`) est
+   absent ou vide côté runner, avec un message distinct et non bloquant :
+   « Recette navigateur Test non exécutée — absents du runner : … »
+   (dégradation ENV-003). Le log du run `34508015447` ne montre PAS ce
+   message : il montre un login Playwright réellement tenté, un écran
+   observé après 30 s, puis le refus applicatif. La valeur était donc
+   **présente et non vide** dans ce runner — sans qu'aucune valeur n'ait été
+   lue pour l'établir, seul le chemin de code emprunté le prouve.
+
+2. **Défaut de la fixture/recette (script) — ÉCARTÉE.**
+   `git diff 4f26a3723b77…e6c7948769c8…` (dernier run `push` connecté vert,
+   15 h 55, contre le candidat, 17 h 24) sur `outils/recette-navigateur-test.js`,
+   `nexus-auth.js`, `NEXUS-App-v1.html` et tout `supabase/` : **zéro
+   différence**. Le script qui a réussi à 15 h 55 est exactement, au
+   caractère près, celui qui échoue à 17 h 24. Un script inchangé qui réussit
+   puis échoue sur le même chemin de code n'est pas un défaut du script — un
+   état externe (côté Supabase Test) a changé entre les deux.
+
+3. **Défaut applicatif (écran de connexion, `nexus-auth.js`) — ÉCARTÉE par
+   le même diff.** Le même argument s'applique : aucun fichier applicatif
+   touchant l'authentification n'a changé entre le dernier succès et cet
+   échec. Une régression de code ne peut pas expliquer un écart de
+   comportement sans changement de code.
+
+4. **Compte Manager Test / PIN sur Supabase Test — SEULE CAUSE RESTANTE,
+   NON CONFIRMÉE SANS LECTURE DE SECRET.** Par élimination des trois autres,
+   et par similarité exacte avec le défaut 11 (même symptôme, même point
+   d'entrée, même mécanisme de résolution déjà observé : une relance sans
+   aucun changement de code a suffi après réalignement humain du PIN), la
+   cause la plus probable reste un désaccord entre `NEXUS_TEST_MANAGER_PIN`
+   (secret GitHub) et le code PIN réellement actif pour `Manager Test` sur
+   Supabase Auth **Test**. Confirmer ce point demanderait de lire ou de faire
+   rejouer une valeur de secret — gate humaine, non franchie ici.
+
+**Cause non isolée au sens strict (aucune preuve positive du mécanisme
+exact), mais réduite par élimination factuelle à une seule cause candidate
+plausible.** Je ne corrige rien par analogie : aucun changement de code n'est
+proposé, parce qu'aucun défaut de code n'a été trouvé — au contraire, le
+code est démontré inchangé et innocent.
+
+**Conséquence directe et mesurée pour la gate — recalculée, pas racontée** :
+
+```
+node outils/evaluer-pret-pour-production.js --sha e6c7948769c8e1aa6a2690d1c6e5b782f56f7ea9
+  CI       : pull_request:success · push:failure
+  ✗ BLOQUE   ci_et_guardians_conformes
+  VERDICT               : NON_PRET
+  autorisation           : NON_AUTORISEE
+  run(s) en échec sur le candidat : push 34508015447
+```
+
+`ci_et_guardians_conformes` reste **BLOQUE** sur le candidat courant — pas
+pour la raison énoncée dans le réveil précédent (§7/§12, désormais non
+reproduits sur ce SHA), mais pour ce défaut 13, constaté par une lecture
+directe de la seconde exécution du même SHA. **Le verdict global reste
+`NON_PRET`.**
+
+**Ce que cela demande, et de Frédéric seul** : la même action que pour le
+défaut 11 — vérifier si le code PIN de `Manager Test` sur Supabase Test a de
+nouveau changé vers 17 h 24, et si oui réaligner `NEXUS_TEST_MANAGER_PIN`
+avec lui. Rien d'autre dans la chaîne connectée n'est en cause : les 46
+étapes qui précèdent (y compris le semis et la publication du journal Live)
+sont vertes. Ce n'est pas une décision de fondateur : c'est une opération de
+recette Test déjà pré-autorisée (§1 des pré-autorisations, `CLAUDE.md`) —
+transmise ici comme blocage externe précis, pas comme arbitrage métier.
