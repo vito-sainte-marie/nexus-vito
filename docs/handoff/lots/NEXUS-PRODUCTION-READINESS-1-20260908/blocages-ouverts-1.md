@@ -826,3 +826,39 @@ aucune autre épreuve n'est atteinte.
 **C'est le seul point qui garde la CI rouge sur le candidat.** Le run `push`
 `34522377670` échoue là-dessus ; le `workflow_dispatch` relancé passe. La
 différence entre les deux n'est pas le code, c'est l'ordonnancement.
+
+---
+
+## FERMÉ le 10/09/2026, pour de bon cette fois — défaut 10
+
+**La correction proposée ci-dessus a été appliquée, exactement telle que
+décrite** (`decision-9.md`) : `test_fixtures_hors_depot_20260910.js` écrit et
+efface désormais `__fixture_race_repro_20260910__.js` dans un répertoire
+temporaire dédié (`fs.mkdtempSync(os.tmpdir())`), et `listerPuisCopier`
+balaie ce même répertoire — jamais plus la racine réelle du dépôt. Le
+mécanisme prouvé (lister-puis-copier contre write-puis-unlink) est identique ;
+seule la ressource qu'il touche a changé.
+
+**Preuve que le mécanisme reste réel dans son bac à sable** : la mutation
+reproduit toujours l'`ENOENT` (2650 balayages observés sur une fenêtre de
+4 s), et la contre-épreuve confirme que sans écriture concurrente, le même
+balayage ne lève jamais cette erreur.
+
+**Preuve que la ressource partagée n'est plus touchée** : 12 exécutions
+complètes et réelles (3 rounds × 4) de `test_fixtures_hors_depot_20260910.js`
+et `test_build_tracabilite_20260905.js` lancés en parallèle par des
+processus distincts — 0 échec, 0 `ENOENT`, sur les deux fichiers.
+
+**Suite complète** : 254/263, les 9 échecs historiques inchangés, 0
+régression. **Guardians** : 1 finding, la collision `NexusStock` déjà connue
+et tracée (ARCH-002, non bloquante par arbitrage Q73/Q74) — 0 nouveau
+finding. **Handoff** : `verifier` conforme (29 lots, 10 avertissements
+préexistants, 0 nouvelle erreur).
+
+**Différence avec la fermeture précédente, prématurée** : celle-ci ne
+change pas seulement l'ordonnancement (comme le `workflow_dispatch` qui
+« passait par chance » face au `push` qui échouait) — elle supprime la
+ressource partagée elle-même. Il n'existe donc plus de fenêtre
+d'ordonnancement où la course puisse se reproduire contre un vrai fichier de
+test, quel que soit le nombre de fichiers exécutés en parallèle par
+`run-tests.js`.
