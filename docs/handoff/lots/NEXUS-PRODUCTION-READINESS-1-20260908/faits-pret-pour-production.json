@@ -41,7 +41,7 @@
     },
     "aucunBlocageNonResolu": {
       "valeur": null,
-      "preuve": "blocages-ouverts-1.md §7 à §9. La CI est rouge sur le candidat, sur DEUX SHA consécutifs (34485839396 et 34488844379, tous deux `push`). §9 en démontre la cause pour le semis : les épreuves inscrivent un cycle PREPROD bidon (`zzzzrefdetestinexistante`) dans un fichier suivi du dépôt et ne le retirent pas toujours, six épreuves se restaurant en parallèle. §7 (épreuve `security`) reste cause non isolée. La correction demande un arbitrage — la voie la plus simple élargirait la surface de deux gardes de sécurité. Déclaration finale : Frédéric Bragance."
+      "preuve": "blocages-ouverts-1.md. FERMÉS le 10/09 : §8 et §9 (course sur PREPROD-CYCLE.json et cycle zzzzrefdetestinexistante) — voie 2 appliquée, preuve-serialisation-registre-preprod-1.md, 11/11 sur l'épreuve dédiée et 8 exécutions consécutives de la suite sans échec ni registre modifié. OUVERTS : §7 épreuve `security` sur ea561f6 (cause non isolée, instrumentée) ; §10 fixtures transitoires à la racine du dépôt (cause démontrée, hors périmètre arbitré) ; §11 la recette navigateur ne se connecte plus (cause non isolée, touche un secret de recette — gate humaine). Déclaration finale : Frédéric Bragance."
     },
     "gateHumaineFrederic": {
       "valeur": null,
