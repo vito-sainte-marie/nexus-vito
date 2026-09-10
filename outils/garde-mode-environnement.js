@@ -86,10 +86,30 @@ if (require.main === module) {
       console.error('La base est en PREPROD_REHEARSAL, mais AUCUN cycle n’est ouvert au registre.');
       console.error('Une répétition que personne ne suit est une répétition que personne ne nettoiera.');
       process.exit(1);
-    case 'CYCLE_ORPHELIN':
+    case 'CYCLE_ORPHELIN': {
       console.error(`La base est en TEST_NORMAL, mais ${r.ouverts.length} cycle(s) restent ouverts : ${r.ouverts.join(', ')}.`);
       console.error('On croit une répétition en cours ; elle ne l’est plus. Fermer le cycle par `detruit_le`.');
+      // INSTRUMENTATION (10/09/2026), distincte de toute correction.
+      //
+      // Le 10/09, ce refus a arrêté la CI sur un cycle ouvert au nom de
+      // `zzzzrefdetestinexistante`, une référence de FIXTURE employée par trois
+      // épreuves qui lancent les scripts de répétition. Le registre versionné
+      // est pourtant propre, et la pollution n'a pas pu être reproduite en
+      // local : ni la suite complète deux fois, ni les cinq épreuves
+      // concernées en parallèle huit fois, ni la suite à largeur 4 comme le
+      // runner. CAUSE NON ISOLEE.
+      //
+      // Le message ne disait que le `projet_ref`. Il dit désormais l'entrée
+      // entière et la date de dernière écriture du fichier : de quoi savoir,
+      // à la prochaine occurrence, si le registre a été écrit PENDANT le job
+      // et par quoi. Sans cela, chaque occurrence recommence l'enquête.
+      try {
+        const detail = (lireCycles() || []).filter(c => c && !c.detruit_le);
+        for (const c of detail) console.error(`  cycle ouvert : ${JSON.stringify(c)}`);
+        console.error(`  registre modifie le : ${fs.statSync(CYCLE).mtime.toISOString()}`);
+      } catch (e) { console.error('  detail du registre illisible.'); }
       process.exit(1);
+    }
     case 'CYCLES_MULTIPLES':
       console.error(`Plusieurs cycles ouverts pour une seule base : ${r.ouverts.join(', ')}.`);
       process.exit(1);
