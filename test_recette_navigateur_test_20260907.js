@@ -579,6 +579,38 @@ epreuve('le succès du pointage se mesure sur le STATUT, pas sur un libellé', (
     'un employé ne la voit jamais, et l’attendre ne prouverait rien');
 });
 
+epreuve('une arrivée DÉJÀ pointée n’est pas un champ manquant', () => {
+  // Le champ photo n’est rendu que `if (!fait && !bloque && info.photoRequise)`.
+  // Une fois l’arrivée enregistrée il disparaît, légitimement. Le run
+  // 34475062826 l’a rapporté comme « champ photo absent » quatre minutes après
+  // le run qui venait de pointer : un défaut apparent qui n’était que la trace
+  // du succès précédent.
+  const ecran = fs.readFileSync(path.join(__dirname, 'NEXUS-Pointage-v1.html'), 'utf8');
+  assert.ok(/if \(!fait && !bloque && info\.photoRequise\)/.test(ecran),
+    'la condition de rendu du champ doit rester lisible : c’est elle qui explique l’absence');
+
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('async function franchirPointageArrivee'),
+                         src.indexOf('const ECRAN_ACCUEIL'));
+  // On compare des positions de CODE, pas de commentaires : « #photoInput-arrivee »
+  // apparaît d’abord dans une explication, bien avant la ligne qui l’utilise.
+  // Ma première version comparait ces deux occurrences et échouait sur un texte.
+  const iDeja = bloc.indexOf('dejaFait: true');
+  const iChamp = bloc.indexOf("page.locator('#photoInput-arrivee')");
+  assert.ok(iDeja !== -1, 'le cas « déjà pointée » doit exister');
+  assert.ok(iChamp !== -1, 'la ligne qui cherche le champ doit rester repérable');
+  assert.ok(iDeja < iChamp,
+    'il doit être tranché AVANT d’attendre le champ, sinon on court jusqu’au délai pour conclure à tort');
+});
+
+epreuve('« l’arrivée existe » a UNE seule expression, pas deux', () => {
+  // Deux expressions séparées divergent : c’est arrivé ce soir entre le verdict
+  // et le résumé de l’invitation.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  assert.ok(/const ARRIVEE_ENREGISTREE = /.test(src),
+    'le marqueur d’arrivée doit être nommé une fois et réutilisé');
+});
+
 epreuve('« franchi » et « désactivé » ne se confondent pas dans le rapport', () => {
   // Le pointage effectué est une PREUVE ; le pointage désactivé sur le site est
   // une DISPENSE. Les afficher pareil effacerait la différence.

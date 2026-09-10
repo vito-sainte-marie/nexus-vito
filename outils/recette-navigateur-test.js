@@ -516,6 +516,15 @@ async function observerEmploye(navigateur, base, nom, pin) {
 // Ce verrou est un comportement VOULU (16/08/2026, demande de Frédéric), pas
 // un bug : la recette devait le reconnaître comme une dispense légitime, pas
 // comme un champ manquant à attendre en vain jusqu'au timeout.
+// « L'ARRIVÉE EXISTE » — une seule expression, deux usages.
+//
+// `majServiceLive` écrit « Service en cours depuis … » exactement quand
+// l'arrivée est pointée et le départ pas encore. La même phrase sert donc à
+// deux questions : « y a-t-il quelque chose à franchir ? » avant, et « le
+// franchissement a-t-il abouti ? » après. Deux expressions séparées auraient
+// divergé — c'est déjà arrivé ce soir entre le verdict et le résumé.
+const ARRIVEE_ENREGISTREE = /Service en cours depuis/i;
+
 function pointageDesactive(texteEcran) {
   return /pointage est désactivé sur ce site/i.test(texteEcran || '');
 }
@@ -537,6 +546,16 @@ async function franchirPointageArrivee(page, base) {
   const texteVerrou = await page.locator('body').innerText().catch(() => '');
   if (pointageDesactive(texteVerrou)) {
     return { franchi: true, motif: null, desactive: true };
+  }
+
+  // DÉJÀ POINTÉE — troisième cas, distinct des deux autres. Le champ photo
+  // n'est rendu que `if (!fait && !bloque && info.photoRequise)` : une fois
+  // l'arrivée enregistrée, il disparaît légitimement. Le run 34475062826 l'a
+  // rapporté comme « champ photo absent » quatre minutes après le run qui
+  // venait de pointer — un défaut apparent qui n'était que la trace du
+  // précédent succès.
+  if (ARRIVEE_ENREGISTREE.test(texteVerrou)) {
+    return { franchi: true, motif: null, dejaFait: true };
   }
 
   const champ = page.locator('#photoInput-arrivee');
@@ -581,7 +600,7 @@ async function franchirPointageArrivee(page, base) {
       // exactement quand l'arrivée est pointée et le départ pas encore. C'est
       // le seul marqueur que la personne a réellement sous les yeux.
       await page.waitForFunction(
-        () => /Service en cours depuis/i.test(document.body.innerText || ''),
+        () => /Service en cours depuis/i.test(document.body.innerText || ''),   // ARRIVEE_ENREGISTREE, recopiée : la page n'a pas accès aux constantes du module
       { timeout: 90000 });
     return { franchi: true, motif: null };
   } catch (e) {
@@ -899,7 +918,8 @@ if (require.main === module) {
       console.log('  · Pointage d’arrivée franchi par la recette : '
         + (!e || !e.pointage ? 'NON EXÉCUTÉ'
           : e.pointage.desactive ? 'non requis — pointage désactivé sur ce site (pointage_actif=false)'
-          : e.pointage.franchi ? 'oui'
+          : e.pointage.dejaFait ? 'sans objet — arrivée déjà pointée aujourd’hui'
+          : e.pointage.franchi ? 'oui — arrivée enregistrée par la recette'
           : `NON — ${e.pointage.motif || 'motif non rendu'}`));
       console.log('  · Invitation à l’inventaire sur l’accueil : '
         + resumeInvitation(e && e.invitation));
