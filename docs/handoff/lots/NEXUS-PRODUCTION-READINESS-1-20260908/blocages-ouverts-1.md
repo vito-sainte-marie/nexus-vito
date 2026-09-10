@@ -140,3 +140,82 @@ Les points 3 à 6 sont ouverts, connus, hors périmètre, et n'empêchent rien.
 gardes exécutées ce jour. Et elle ne couvre que ce que les gardes savent voir :
 un blocage que rien n'instrumente n'y figure pas — c'est une raison de plus pour
 que la déclaration finale soit humaine.
+
+---
+
+## ROUVERT le 10/09/2026, en préparant la gate
+
+`aucun_blocage_non_resolu` était déclarable OK ce matin. **Il ne l'est plus.**
+Deux défauts sont apparus en mesurant au lieu de déclarer — c'est-à-dire en
+faisant exactement ce que la re-mesure finale demandait.
+
+### 7 · La CI n'est pas verte sur le candidat — **cause non isolée**
+
+Le SHA `ea561f6` porte **deux exécutions de la même suite** :
+
+| run | événement | verdict |
+|---|---|---|
+| 34485844362 | `pull_request` | **success** |
+| 34485839396 | `push` | **failure** |
+
+Une seule épreuve sépare les deux : `test_security_jamais_invoque_si_url_20260910.js`,
+au premier contrôle — « `reconstruire-base-test.sh` : URL fournie ⇒ security
+JAMAIS invoqué ». Le marqueur d'invocation existait, donc `security` a bien été
+atteint alors qu'une URL était fournie.
+
+**Observation brute** conservée. **Reproduction : impossible ici.** L'épreuve
+passe 7/7 sur macOS, et elle passe sur le run `pull_request` du *même SHA*.
+Une occurrence, pas deux.
+
+**Hypothèses examinées.**
+
+- *Le correctif aurait disparu du script* — **écartée** : `security` n'apparaît
+  qu'une fois dans `reconstruire-base-test.sh` (ligne 62), sous le garde
+  `if [ -n "${NEXUS_TEST_DB_URL:-}" ]`, et la mutation négative de l'épreuve
+  démontre qu'un appel inconditionnel serait détecté.
+- *Interférence par le fichier partagé `PREPROD-CYCLE.json`* (défaut 8
+  ci-dessous) — **écartée par lecture** : le script ne lit jamais ce fichier,
+  et rien ne s'exécute entre la ligne 27 et la ligne 59 qui puisse appeler
+  `security`.
+- *`psql` absent en local, présent sur le runner* — **écartée** : `psql` est
+  présent sur les deux, et le seul appel à `security` précède toute connexion.
+- *Collision de chemin sur le marqueur* — non écartée, mais le chemin porte
+  déjà `Date.now()` et `Math.random()`.
+
+**Cause non isolée.** Je n'écris pas de correctif sur une hypothèse : corriger
+sans cause, c'est déplacer le défaut. L'épreuve a été **instrumentée** — son
+message d'échec porte désormais le contenu du marqueur, le code de sortie,
+`stdout` et `stderr`. Le contrôle lui-même est inchangé : l'instrumentation
+n'est pas la correction. La prochaine occurrence dira ce que celle-ci a tu.
+
+**Conséquence pour la gate, et c'est le point qui compte.** Un run `push` rouge
+sur le SHA candidat suffit à retirer le vert, même si le run `pull_request` du
+même SHA est vert. `ci_et_guardians_conformes` est donc **BLOQUE**, et le
+verdict global `NON_PRET`. Ce n'était pas visible tant que le verdict était
+raconté plutôt que calculé.
+
+### 8 · La suite corrompt un fichier suivi du dépôt — **démontré, deux fois**
+
+`docs/handoff/PREPROD-CYCLE.json` ressort **modifié** après `node run-tests.js` :
+`cycles` est vidé et l'entrée réelle est perdue.
+
+**Reproduit deux fois de suite**, et l'artefact était déjà présent dans l'arbre
+de travail avant que je le cherche.
+
+**Cause démontrée.** Six épreuves sauvegardent ce même fichier, le remplacent
+par une version vide, lancent un script, puis le restaurent — et le lanceur
+exécute les fichiers **en parallèle** (4 en CI, 8 en local). Deux épreuves qui
+se chevauchent : la seconde sauvegarde la version *déjà vidée* par la première,
+et sa restauration écrase la restauration correcte. La dernière restauration
+gagne, et ce n'est pas nécessairement l'originale.
+
+**Non corrigé, volontairement.** Réparer demande de sortir ce fichier de
+l'arbre de travail pour les six épreuves — donc de toucher six fichiers et le
+chemin qu'un outil partagé lit. Ce n'est pas un geste à poser dans l'heure qui
+précède une gate de Production. Le défaut est réel, tracé, et sans effet
+démontré sur le défaut 7. **L'arbitrage revient à Frédéric** : corriger avant
+la release, ou après.
+
+**Ce que ce défaut coûte aujourd'hui :** un `git status` sale après chaque
+exécution de la suite, et le risque de committer un journal PREPROD vidé sans
+s'en apercevoir.

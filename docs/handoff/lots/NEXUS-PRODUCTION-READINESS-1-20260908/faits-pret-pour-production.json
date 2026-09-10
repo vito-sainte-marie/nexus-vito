@@ -1,0 +1,51 @@
+{
+  "lot": "NEXUS-PRODUCTION-READINESS-1-20260908",
+  "etabli_le": "2026-09-10",
+  "regle": "Chaque fait porte sa preuve. Une valeur sans preuve exécutable n'a rien à faire ici : elle rendrait un critère OK sur la foi d'un souvenir. Deux faits ne figurent PAS dans ce fichier et sont mesurés à l'exécution — le SHA candidat (git rev-parse HEAD) et l'état de la CI sur ce SHA (gh) — parce qu'ils changent à chaque commit et qu'un fichier ne peut pas les suivre honnêtement.",
+  "faits": {
+    "guardiansRequisConformes": {
+      "valeur": true,
+      "preuve": "run 34485358493 — Guardians backend, QA (0 finding / 259 épreuves), Business Rules, Bible, Philosophie, LANG-003 et LANG-004 tous au vert"
+    },
+    "railHandoffConforme": {
+      "valeur": true,
+      "preuve": "node outils/handoff.js verifier → conforme (29 lots, 10 avertissements, 6 dérogations tracées)"
+    },
+    "manifesteMigrationsAJour": {
+      "valeur": true,
+      "preuve": "node test_manifeste_migrations_complet_20260909.js → 5/5 ; manifeste-migrations-production-1.md"
+    },
+    "mesuresProductionFraiches": {
+      "horodatage": "2026-09-10T14:02:14Z",
+      "preuve": "preuve-re-mesure-finale-1.md — six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz, valides 24 h (expire le 2026-09-11T14:02Z)"
+    },
+    "aucunImpactDmlInconnu": {
+      "valeur": true,
+      "preuve": "preuve-re-mesure-finale-1.md §1 (Advisor : 0 créée, 0 changée, 37 identiques, rejouable par outils/comparer-referentiel-advisor.js) et §2/§4 (17, 89, 21 dont 20 repris)"
+    },
+    "preprodAnonymiseOuEquivalent": {
+      "valeur": true,
+      "preuve": "preuve-repetition-preprod-equivalente-1.md — répétition équivalente sur Test, jeu convergent aux volumes mesurés, preuve de confidentialité incluse"
+    },
+    "repetitionMigrationsRecetteReussie": {
+      "valeur": true,
+      "preuve": "preuve-repetition-executee-1.md (8/8 étapes) et preuve-recette-navigateur-1.md (recette navigateur verte, run 34485358493)"
+    },
+    "planReparationRollbackDocumente": {
+      "valeur": true,
+      "preuve": "plan-reparation-rollback-1.md — couvre chaque migration DML, y compris l'irréversibilité du DML de #6"
+    },
+    "fenetreDeploiementConfirmee": {
+      "valeur": true,
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
+    },
+    "aucunBlocageNonResolu": {
+      "valeur": null,
+      "preuve": "blocages-ouverts-1.md déclarait ce critère déclarable OK le 10/09. Il est repassé à INCONNU le même jour : la CI a échoué sur le candidat (run 34485839396, push), défaut d'abord non isolé. Ce critère ne peut pas être redéclaré tant que cet échec n'est pas expliqué ou reproduit — et la déclaration finale appartient à Frédéric Bragance, pas à ce fichier."
+    },
+    "gateHumaineFrederic": {
+      "valeur": null,
+      "preuve": "Aucune gate formulée. Elle appartient à Frédéric Bragance seul, et reste distincte du verdict par construction : les dix critères au vert n'autorisent rien."
+    }
+  }
+}

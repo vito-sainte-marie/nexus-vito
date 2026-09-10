@@ -74,9 +74,22 @@ function lancer(script, env, marqueur) {
 for (const s of SCRIPTS) {
   t(`${path.basename(s)} : URL fournie => security JAMAIS invoqué`, () => {
     const marqueur = path.join(os.tmpdir(), `marqueur-${Date.now()}-${Math.random()}`);
-    lancer(s, { NEXUS_TEST_DB_URL: URL_MORTE }, marqueur);
+    const r = lancer(s, { NEXUS_TEST_DB_URL: URL_MORTE }, marqueur);
+    // INSTRUMENTATION (10/09/2026) — ce contrôle a échoué UNE fois, sur le run
+    // 34485839396 (push, Linux), alors qu'il passait sur le run pull_request du
+    // MÊME SHA et qu'il passe sur macOS. Cause non isolée : rien dans le
+    // message d'échec ne disait POURQUOI `security` avait été atteint. Un
+    // échec qui ne se reproduit pas et qui n'imprime rien ne s'explique jamais.
+    // Ceci n'est pas un correctif : le contrôle est inchangé, seul son récit
+    // l'est. Si l'échec revient, le prochain message porte l'état réel.
     assert.ok(!fs.existsSync(marqueur),
-      `security a été invoqué alors que NEXUS_TEST_DB_URL était fournie (marqueur présent)`);
+      'security a été invoqué alors que NEXUS_TEST_DB_URL était fournie.\n' +
+      `      marqueur   : ${marqueur}\n` +
+      `      appels     : ${fs.existsSync(marqueur) ? JSON.stringify(fs.readFileSync(marqueur, 'utf8')) : '(aucun)'}\n` +
+      `      code sortie: ${r.status} · signal ${r.signal || '—'}\n` +
+      `      URL vue    : ${JSON.stringify(URL_MORTE)}\n` +
+      `      stdout     : ${JSON.stringify((r.stdout || '').slice(0, 400))}\n` +
+      `      stderr     : ${JSON.stringify((r.stderr || '').slice(0, 400))}`);
   });
 
   t(`${path.basename(s)} : URL absente => security est bien invoqué (l'épreuve n'est pas un leurre mort)`, () => {

@@ -7,8 +7,10 @@ Il ne remplace aucune mesure déjà faite (`mesures-production-lecture-seule-1.m
 rejouer, parce que ces deux mesures sont temporelles et se périment.
 
 Aucune requête de ce fichier n'a été exécutée dans cette session : ce canal
-n'a jamais eu d'accès réseau ni d'identifiant vers un projet Supabase
-Production (constat inchangé depuis le 06/09/2026). Chaque requête est
+était écrit à une date où aucun accès Production n'existait. Depuis, les
+mesures en lecture seule passent par le connecteur Supabase, sur autorisation
+explicite de Frédéric Bragance et **sans jamais écrire** — voir
+`preuve-re-mesure-finale-1.md` pour l'exécution du 10/09/2026. Chaque requête est
 dérivée du contenu exact des migrations concernées — jamais supposée.
 
 ## 1. Référentiel Advisor (condition #5 du manifeste)
@@ -34,14 +36,29 @@ réelle juste avant l'exécution, pas à décider d'appliquer ou non #3.
 
 ## 3. Résolution du fuseau par site (condition implicite de #4)
 
+**Corrigé le 10/09/2026 — la requête d'origine ne pouvait pas s'exécuter.**
+Elle lisait `s.timezone`, colonne que la migration #4 *ajoute* : avant
+application, `column s.timezone does not exist`. Une requête de pré-mesure ne
+peut pas interroger l'état d'après. Elle demande donc maintenant ce que la
+migration *résoudra*, à partir de ce qui existe déjà :
+
 ```sql
-select s.site_id, s.timezone as fuseau_actuel, c.fuseau_horaire as fuseau_station_config,
+select s.site_id,
+       (select 1 from information_schema.columns
+         where table_schema='public' and table_name='sites' and column_name='timezone') is not null
+         as colonne_timezone_deja_presente,
+       c.fuseau_horaire as fuseau_station_config,
        (c.fuseau_horaire is not null
-        and exists (select 1 from pg_timezone_names where name = c.fuseau_horaire)) as sera_repris_automatiquement
+        and exists (select 1 from pg_timezone_names where name = c.fuseau_horaire)) as sera_repris_automatiquement,
+       (s.site_id in ('vito-sainte-marie','nexus-station-test','site-fantome-test'))
+         as couvert_par_decision_explicite
   from public.sites s
   left join public.station_config c on c.site = s.site_id
  order by s.site_id;
 ```
+
+`colonne_timezone_deja_presente` doit rendre **false** : si elle rend `true`,
+la migration #4 a déjà été appliquée et ce document ne mesure plus l'avant.
 
 Un site où `sera_repris_automatiquement` est faux ET `fuseau_actuel` est nul
 recevra une décision explicite (étape 4 de la migration #4) — vérifier
@@ -54,16 +71,30 @@ Reproduit exactement le CTE `a_reprendre` de
 `20260905170000_reprise_et_unicite_shifts_en_cours.sql`, en lecture seule :
 
 ```sql
-with a_reprendre as (
+with fuseau as (
+  -- Pré-image de `sites.timezone`, que la migration #4 n'a pas encore posée :
+  -- exactement ce qu'elle y écrira (station_config si le fuseau est valide,
+  -- sinon la décision explicite portée par la migration pour les trois sites
+  -- connus). Rejouer le CTE tel quel échouerait — `s.timezone` n'existe pas.
+  select s.site_id,
+         coalesce(
+           (select c.fuseau_horaire from public.station_config c
+             where c.site = s.site_id and c.fuseau_horaire is not null
+               and exists (select 1 from pg_timezone_names where name = c.fuseau_horaire)),
+           case when s.site_id in ('vito-sainte-marie','nexus-station-test','site-fantome-test')
+                then 'America/Martinique' end) as tz
+    from public.sites s),
+a_reprendre as (
   select sh.id, sh.employee_id, sh.heure_debut,
-         (sh.heure_debut at time zone s.timezone)::date as jour_station
+         (sh.heure_debut at time zone f.tz)::date as jour_station
   from public.shifts sh
   join public.employees e on e.id = sh.employee_id
   join public.sites s on s.site_id = e.site_id
+  join fuseau f on f.site_id = s.site_id
   where sh.statut = 'en_cours'
     and (
-      (sh.heure_debut at time zone s.timezone)::date
-        < (now() at time zone s.timezone)::date
+      (sh.heure_debut at time zone f.tz)::date
+        < (now() at time zone f.tz)::date
       or sh.id <> (
         select sh2.id from public.shifts sh2
         where sh2.employee_id = sh.employee_id and sh2.statut = 'en_cours'
