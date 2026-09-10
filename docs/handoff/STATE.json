@@ -225,12 +225,12 @@
       "consomme_le": "2026-09-09T03:18:34.653Z"
     },
     "NEXUS-PRODUCTION-READINESS-1-20260908": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-7.md",
-      "derniere_decision": "decision-6.md",
+      "derniere_decision": "decision-7.md",
       "source_decision": "registre",
-      "commit_decision": "c3ba2a7f73c84be8fc3dce7b6817331a8db6c0b2",
-      "consomme_le": "2026-09-10T06:52:49.058Z"
+      "commit_decision": "db775ff23f44c1ea85f1fa176404f6fcaa8759e3",
+      "consomme_le": "2026-09-10T10:34:12.260Z"
     }
   },
   "artefacts_hors_registre": [
