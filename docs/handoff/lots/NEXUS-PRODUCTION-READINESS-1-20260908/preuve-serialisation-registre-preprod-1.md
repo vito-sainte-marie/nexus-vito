@@ -87,7 +87,32 @@ Les deux modes concordent : `--sequentiel` rend **253/262** également. Si une
 
 ---
 
-## Ce que ces huit exécutions ont trouvé au passage
+## La CI a démenti la première version dans l'heure — et c'était utile
+
+Le premier jet ne reconnaissait comme exclusive qu'une épreuve **nommant** le
+registre. Six épreuves, exactement le périmètre arbitré. La CI a répondu par
+un échec net, sur les trois événements à la fois :
+
+> `test_garde_mode_environnement_20260909.js` — « le registre doit être lisible »
+
+**Cette épreuve ne nomme jamais le registre.** Elle lance
+`outils/garde-mode-environnement.js`, qui le **lit**. Laissée en parallèle, elle
+tombait sur un fichier à demi réécrit par une épreuve de la voie sérialisée.
+
+**La déduction va donc à deux pas, pas à un** : un outil qui nomme le registre
+contamine l'épreuve qui l'invoque. Trois outils sont concernés
+(`garde-preprod-ephemere`, `garde-mode-environnement`,
+`repetition-release-complete`), déduits eux aussi par lecture, jamais listés.
+
+Le périmètre passe de six à huit épreuves — **six directes, une par outil, plus
+l'épreuve de sérialisation elle-même**. Ce n'est pas un élargissement de
+confort : c'est le périmètre réel, que la mesure a corrigé. Les 254 autres
+restent parallèles.
+
+Un témoin de mutation le tient : sans la déduction par outil,
+`test_garde_mode_environnement` repasse en parallèle.
+
+## Ce que ces exécutions ont trouvé au passage
 
 Les cinq premières ont fait apparaître **une autre** intermittence, 2 fois sur
 6 : `test_build_tracabilite_20260905.js`, en `ENOENT ... copyfile`.

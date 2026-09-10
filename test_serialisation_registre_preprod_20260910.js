@@ -34,17 +34,28 @@ function t(nom, fn) {
 }
 
 const RACINE = __dirname;
-const { toucheAuRegistre, planifier, REGISTRE_PARTAGE } = require(path.join(RACINE, 'run-tests.js'));
+const { toucheAuRegistre, outilsDuRegistre, planifier, REGISTRE_PARTAGE } = require(path.join(RACINE, 'run-tests.js'));
 const CYCLE = path.join(RACINE, 'docs', 'handoff', 'PREPROD-CYCLE.json');
 const REF_BIDON = 'zzzzrefdetestinexistante';
 
 const empreinte = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
-/** Les épreuves qui nomment le registre — déduites, jamais recopiées. */
+/** Les outils dont le contenu nomme le registre. */
+function outilsSensibles() {
+  const dir = path.join(RACINE, 'outils');
+  const sources = {};
+  for (const f of fs.readdirSync(dir)) {
+    if (/\.(js|sh)$/.test(f)) sources[f] = fs.readFileSync(path.join(dir, f), 'utf8');
+  }
+  return outilsDuRegistre(sources);
+}
+
+/** Les épreuves qui touchent au registre — déduites, jamais recopiées. */
 function epreuvesDuRegistre() {
+  const outils = outilsSensibles();
   return fs.readdirSync(RACINE)
     .filter((f) => f.startsWith('test_') && f.endsWith('.js'))
-    .filter((f) => toucheAuRegistre(fs.readFileSync(path.join(RACINE, f), 'utf8')))
+    .filter((f) => toucheAuRegistre(fs.readFileSync(path.join(RACINE, f), 'utf8'), outils))
     .sort();
 }
 
@@ -52,13 +63,41 @@ function epreuvesDuRegistre() {
 
 t('les épreuves du registre sont détectées par leur contenu, pas par une liste', () => {
   const detectees = epreuvesDuRegistre();
+  const outils = outilsSensibles();
   assert.ok(detectees.length >= 6,
     `${detectees.length} épreuve(s) détectée(s), au moins 6 attendues : ${detectees.join(', ')}`);
-  // Chacune nomme réellement le registre — la détection ne ratisse pas large.
+  // Chacune touche réellement au registre — la détection ne ratisse pas large.
   for (const f of detectees) {
-    assert.ok(fs.readFileSync(path.join(RACINE, f), 'utf8').includes(REGISTRE_PARTAGE),
-      `${f} est classée exclusive sans nommer ${REGISTRE_PARTAGE}`);
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+    assert.ok(src.includes(REGISTRE_PARTAGE) || outils.some((o) => src.includes(o)),
+      `${f} est classée exclusive sans toucher au registre, ni directement ni par un outil`);
   }
+});
+
+t('une épreuve qui n\'atteint le registre QUE par un outil est prise aussi', () => {
+  // Le trou que la CI a démenti dans l'heure. `test_garde_mode_environnement`
+  // ne nomme jamais le registre : il lance `outils/garde-mode-environnement.js`,
+  // qui le LIT. Laissé en parallèle, il tombait sur un fichier à demi réécrit
+  // (« le registre doit être lisible »). Un outil qui nomme le registre
+  // contamine l'épreuve qui l'invoque.
+  const outils = outilsSensibles();
+  assert.ok(outils.includes('garde-mode-environnement'),
+    `outils du registre déduits : ${outils.join(', ')} — le garde de mode en est absent`);
+  const cible = 'test_garde_mode_environnement_20260909.js';
+  const src = fs.readFileSync(path.join(RACINE, cible), 'utf8');
+  assert.ok(!src.includes(REGISTRE_PARTAGE),
+    `${cible} nomme désormais le registre : ce témoin ne prouve plus la déduction indirecte`);
+  assert.ok(toucheAuRegistre(src, outils), `${cible} n'est pas reconnue comme exclusive`);
+  // MUTATION : sans la déduction par outil, elle repasse en parallèle.
+  assert.ok(!toucheAuRegistre(src, []),
+    'la déduction par outil ne change rien : le témoin ne prouve rien');
+});
+
+t('un outil qui ne nomme pas le registre ne contamine personne', () => {
+  const sources = { 'garde-mode-environnement.js': 'lit PREPROD-CYCLE.json', 'nexus-marge.js': 'rien' };
+  assert.deepStrictEqual(outilsDuRegistre(sources), ['garde-mode-environnement']);
+  assert.deepStrictEqual(outilsDuRegistre({}), []);
+  assert.deepStrictEqual(outilsDuRegistre(null), []);
 });
 
 t('toutes partent dans la MÊME voie — c\'est ce qui les empêche de se croiser', () => {
@@ -177,4 +216,4 @@ t(`ni ${REF_BIDON} ni aucun cycle ouvert ne subsiste dans le registre`, () => {
     `${ouverts.length} cycle(s) ouvert(s) laissé(s) par la suite : ${JSON.stringify(ouverts)}`);
 });
 
-console.log(`\n${passes}/9 vérifications passées — les épreuves du registre ne se croisent plus, et le rendent intact.`);
+console.log(`\n${passes}/11 vérifications passées — les épreuves du registre ne se croisent plus, et le rendent intact.`);

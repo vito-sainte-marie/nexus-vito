@@ -54,11 +54,31 @@ function verdictNonRegression({ fichiers, echecs, connus }) {
 // LA LISTE N'EST PAS ÉCRITE À LA MAIN. Une liste se périme dès qu'une épreuve
 // future touche le registre sans y être inscrite. Elle est DÉDUITE du contenu
 // des fichiers : toute épreuve qui nomme le registre est exclusive.
+//
+// LA DÉDUCTION VA À DEUX PAS, PAS À UN. La première version ne reconnaissait
+// que les épreuves nommant le registre. La CI l'a démentie dans l'heure :
+// `test_garde_mode_environnement_20260909.js` ne le nomme jamais — il lance
+// `outils/garde-mode-environnement.js`, qui le LIT. Laissé en parallèle, il
+// tombait sur un registre à demi réécrit (« le registre doit être lisible »).
+// Un outil qui nomme le registre contamine donc l'épreuve qui l'invoque.
 const REGISTRE_PARTAGE = 'PREPROD-CYCLE';
 
-/** Vrai si le SOURCE d'une épreuve nomme le registre partagé. */
-function toucheAuRegistre(source) {
-  return typeof source === 'string' && source.includes(REGISTRE_PARTAGE);
+/**
+ * Vrai si l'épreuve touche au registre — directement (elle le nomme) ou par
+ * un outil qui, lui, le nomme. `outils` porte les noms de ces outils.
+ */
+function toucheAuRegistre(source, outils) {
+  if (typeof source !== 'string') return false;
+  if (source.includes(REGISTRE_PARTAGE)) return true;
+  return (outils || []).some((o) => o && source.includes(o));
+}
+
+/** Noms des outils dont le contenu nomme le registre. Fonction pure. */
+function outilsDuRegistre(sourcesParNom) {
+  return Object.entries(sourcesParNom || {})
+    .filter(([, src]) => typeof src === 'string' && src.includes(REGISTRE_PARTAGE))
+    .map(([nom]) => nom.replace(/\.(js|sh)$/, ''))
+    .sort();
 }
 
 /**
@@ -82,7 +102,7 @@ function planifier({ fichiers, largeur, exclusifs }) {
 }
 
 if (require.main !== module) {
-  module.exports = { verdictNonRegression, toucheAuRegistre, planifier, REGISTRE_PARTAGE };
+  module.exports = { verdictNonRegression, toucheAuRegistre, outilsDuRegistre, planifier, REGISTRE_PARTAGE };
   return;
 }
 
@@ -140,8 +160,16 @@ function lancer(f) {
 async function executer() {
   const resultats = new Map();
   const largeur = sequentiel ? 1 : PARALLELE;
+  const sourcesOutils = {};
+  try {
+    const dir = path.join(__dirname, 'outils');
+    for (const f of fs.readdirSync(dir)) {
+      if (/\.(js|sh)$/.test(f)) sourcesOutils[f] = fs.readFileSync(path.join(dir, f), 'utf8');
+    }
+  } catch (e) { /* pas d'outils lisibles : la déduction directe suffira */ }
+  const outils = outilsDuRegistre(sourcesOutils);
   const exclusifs = fichiers.filter((f) => {
-    try { return toucheAuRegistre(fs.readFileSync(path.join(__dirname, f), 'utf8')); }
+    try { return toucheAuRegistre(fs.readFileSync(path.join(__dirname, f), 'utf8'), outils); }
     catch (e) { return true; }   // illisible : on sérialise plutôt que de risquer la course
   });
   const plan = planifier({ fichiers, largeur, exclusifs });
