@@ -48,13 +48,24 @@ function verifier(libelle, condition) {
 // N'utilise ni test_guardians_router_20260907.js ni test_build_tracabilite_20260905.js
 // eux-mêmes (le premier est déjà corrigé ; le second ne doit jamais être
 // modifié pour un test) — reproduit la même mécanique de façon autonome.
-function listerPuisCopier(dirDest) {
+//
+// Défaut §10 rouvert le 10/09/2026 : cette reproduction écrivait elle-même
+// `__fixture_race_repro_20260910__.js` à la racine RÉELLE du dépôt, ce qui la
+// remettait en course contre `test_build_tracabilite_20260905.js` dès que
+// `run-tests.js` les exécute en parallèle — exactement le défaut que ce
+// fichier a pour but de documenter, mais retombant cette fois sur la racine
+// partagée au lieu d'un bac à sable. `listerPuisCopier` accepte désormais une
+// racine source explicite (par défaut RACINE, comportement de la
+// contre-épreuve inchangé, qui ne fait que lire) ; la reproduction, elle,
+// pointe systématiquement vers un répertoire temporaire dédié créé pour
+// l'occasion — jamais vers `RACINE`.
+function listerPuisCopier(dirDest, racineSource = RACINE) {
   // Exactement le motif de copierDepot() dans test_build_tracabilite : un
   // readdirSync, PUIS une boucle de fs.copyFileSync — jamais une seule passe
   // atomique. C'est cet écart entre le listage et la copie qui est en cause.
-  const fichiers = fs.readdirSync(RACINE).filter(f => /\.js$/.test(f) && !f.startsWith('test_'));
+  const fichiers = fs.readdirSync(racineSource).filter(f => /\.js$/.test(f) && !f.startsWith('test_'));
   for (const f of fichiers) {
-    fs.copyFileSync(path.join(RACINE, f), path.join(dirDest, f));
+    fs.copyFileSync(path.join(racineSource, f), path.join(dirDest, f));
   }
 }
 
@@ -66,11 +77,16 @@ function listerPuisCopier(dirDest) {
 // donc un vrai second processus écrivain, concurrent du balayage du parent.
 async function mutationRepro(dureeMs) {
   const nomFixture = '__fixture_race_repro_20260910__.js';
-  const cheminRacine = path.join(RACINE, nomFixture);
+  // Bac à sable dédié : ni la fixture ni le balayage « lister puis copier »
+  // de cette reproduction ne touchent plus jamais la racine réelle du dépôt,
+  // pour ne plus jamais entrer en course avec test_build_tracabilite (qui,
+  // lui, balaie la vraie racine et ne doit jamais être modifié pour un test).
+  const dirRacineSandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-race-sandbox-'));
+  const cheminFixture = path.join(dirRacineSandbox, nomFixture);
   const dirDest = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-race-repro-'));
   const scriptEcrivain = `
     const fs = require('fs');
-    const chemin = ${JSON.stringify(cheminRacine)};
+    const chemin = ${JSON.stringify(cheminFixture)};
     const fin = Date.now() + ${dureeMs};
     while (Date.now() < fin) {
       try { fs.writeFileSync(chemin, '// fixture éphémère de reproduction\\n'); } catch (e) {}
@@ -93,7 +109,7 @@ async function mutationRepro(dureeMs) {
     while (Date.now() - debut < dureeMs) {
       iterations++;
       try {
-        listerPuisCopier(dirDest);
+        listerPuisCopier(dirDest, dirRacineSandbox);
       } catch (err) {
         if (err.code === 'ENOENT') { enonceObserve = true; break; }
         throw err;
@@ -102,8 +118,9 @@ async function mutationRepro(dureeMs) {
   } finally {
     ecrivain.kill();
     await finEcrivain;
-    try { fs.unlinkSync(cheminRacine); } catch (err) { /* déjà absent */ }
+    try { fs.unlinkSync(cheminFixture); } catch (err) { /* déjà absent */ }
     fs.rmSync(dirDest, { recursive: true, force: true });
+    fs.rmSync(dirRacineSandbox, { recursive: true, force: true });
   }
   return { enonceObserve, iterations };
 }
@@ -116,7 +133,7 @@ async function preuveMutation() {
   const DUREE_MS = 4000;
   const { enonceObserve, iterations } = await mutationRepro(DUREE_MS);
   verifier(
-    `(mutation) un second processus qui écrit/supprime un .js à la racine réelle pendant que ce processus balaie « lister puis copier » reproduit l'ENOENT du défaut 10 (observé sur ${iterations} balayage(s), fenêtre ${DUREE_MS} ms)`,
+    `(mutation) un second processus qui écrit/supprime un .js dans un bac à sable dédié pendant que ce processus balaie « lister puis copier » ce même bac à sable reproduit l'ENOENT du défaut 10 (observé sur ${iterations} balayage(s), fenêtre ${DUREE_MS} ms)`,
     enonceObserve
   );
 }
