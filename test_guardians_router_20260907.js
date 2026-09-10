@@ -45,31 +45,26 @@ t('reglesEnPortee filtre par scope et module', () => {
 });
 
 // ── Guardian Security : secret littéral ────────────────────────────────
+// Les fixtures vivent hors du dépôt (racine temporaire, jamais __dirname) :
+// défaut 10 du 10/09/2026 — un fichier écrit à la racine réelle du dépôt,
+// même brièvement, peut être ramassé par une autre épreuve qui liste cette
+// racine en parallèle (voir test_build_tracabilite_20260905.js) et provoquer
+// un ENOENT sur un fichier disparu entre le listage et la copie.
+// guardianSecurity/guardianArchitectureCollisions/guardianArchitectureDependances
+// acceptent un paramètre racine explicite précisément pour permettre ceci.
 t('guardianSecurity détecte un JWT littéral, silence sinon (mutation)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardians-sec-'));
-  const f = 'fixture-secret.js';
-  // Assemblé à l'exécution, jamais écrit d'un seul tenant dans le dépôt. Un
-  // jeton littéral, même factice, est une chaîne en forme de JWT qui dort dans
-  // l'arbre : le jour où une migration entre dans le même diff, le guardian
-  // Security scanne ce fichier et signale son propre fixture. Un garde qui se
-  // dénonce lui-même apprend à ses lecteurs à ignorer ses findings.
   const jwt = ['eyJhbGciOiJIUzI1NiJ9', 'eyJzdWIiOiIxMjM0NTY3ODkwIn0', 'abcdefghijklmnopqrstuvwxyz012345'].join('.');
-  fs.writeFileSync(path.join(dir, f), `const token = "${jwt}";`);
-  const ancienCwd = process.cwd();
-  // simuler RACINE via un require frais serait plus lourd ; on scanne directement
-  // en pointant le fichier réel écrit sous la vraie racine du dépôt à la place.
-  const cheminReel = path.join(__dirname, '__fixture_secret_tmp__.js');
-  fs.writeFileSync(cheminReel, `const token = "${jwt}";`);
+  const cheminFixture = path.join(dir, '__fixture_secret_tmp__.js');
+  fs.writeFileSync(cheminFixture, `const token = "${jwt}";`);
   try {
-    const findingsRouge = guardianSecurity(['__fixture_secret_tmp__.js']);
+    const findingsRouge = guardianSecurity(['__fixture_secret_tmp__.js'], dir);
     assert(findingsRouge.length >= 1, 'devrait détecter le JWT littéral');
-    fs.writeFileSync(cheminReel, `const token = process.env.NEXUS_TOKEN;`);
-    const findingsVert = guardianSecurity(['__fixture_secret_tmp__.js']);
+    fs.writeFileSync(cheminFixture, `const token = process.env.NEXUS_TOKEN;`);
+    const findingsVert = guardianSecurity(['__fixture_secret_tmp__.js'], dir);
     assert.strictEqual(findingsVert.length, 0, 'ne doit pas signaler une référence à une variable d\'environnement');
   } finally {
-    fs.unlinkSync(cheminReel);
     fs.rmSync(dir, { recursive: true, force: true });
-    process.chdir(ancienCwd);
   }
 });
 
@@ -85,29 +80,30 @@ t('guardianArchitectureCollisions ne signale pas une identité déclarée une se
   // Construit via concaténation pour que le motif ne soit pas un littéral
   // présent tel quel dans CE fichier de test lorsqu'il est lui-même scanné.
   const nomIdentite = '__Fixture' + 'Unique__';
-  const cheminA = path.join(__dirname, '__fixture_identite_a__.js');
-  const cheminB = path.join(__dirname, '__fixture_identite_b__.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardians-arch-'));
+  const cheminA = path.join(dir, '__fixture_identite_a__.js');
+  const cheminB = path.join(dir, '__fixture_identite_b__.js');
   fs.writeFileSync(cheminA, 'window.' + nomIdentite + ' = {};');
   try {
-    let findings = guardianArchitectureCollisions();
+    let findings = guardianArchitectureCollisions(dir);
     assert(findings.some(f => f.message.includes(nomIdentite)) === false, 'une seule déclaration ne doit pas être un finding');
     fs.writeFileSync(cheminB, 'global.' + nomIdentite + ' = {};');
-    findings = guardianArchitectureCollisions();
+    findings = guardianArchitectureCollisions(dir);
     assert(findings.some(f => f.message.includes(nomIdentite)) === true, 'deux déclarations doivent produire un finding');
   } finally {
-    fs.unlinkSync(cheminA);
-    if (fs.existsSync(cheminB)) fs.unlinkSync(cheminB);
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 t('guardianArchitectureDependances signale une dépendance applicative vers docs/gouvernance', () => {
-  const cheminApp = path.join(__dirname, '__fixture_app_dep__.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardians-dep-'));
+  const cheminApp = path.join(dir, '__fixture_app_dep__.js');
   fs.writeFileSync(cheminApp, "const r = require('docs/gouvernance/garde-portee-site-aides.json');");
   try {
-    const findings = guardianArchitectureDependances(['__fixture_app_dep__.js']);
+    const findings = guardianArchitectureDependances(['__fixture_app_dep__.js'], dir);
     assert(findings.length >= 1);
   } finally {
-    fs.unlinkSync(cheminApp);
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

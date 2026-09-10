@@ -32,7 +32,14 @@ function envPropre(ajouts) {
 let passes = 0;
 function t(nom, fn) {
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
-  catch (e) { console.error(`  ✗ ${nom}\n    ${e.message}`); process.exitCode = 1; }
+  // `e.name` d'abord : sans lui, un SyntaxError (JSON.parse) et un
+  // AssertionError (assert.ok) impriment tous deux un message SANS le mot
+  // « Error » — indiscernables l'un de l'autre dans un log CI qui ne garde
+  // que cette ligne. Défaut §7 du 10/09/2026 (blocages-ouverts-1.md) :
+  // reproduit en corrompant PREPROD-CYCLE.json, la sortie était identique à
+  // un vrai refus « security a été invoqué ». Ceci n'est pas un correctif du
+  // contrôle lui-même — il reste inchangé — seul son récit l'est.
+  catch (e) { console.error(`  ✗ ${nom}\n    ${e.name}: ${e.message}`); process.exitCode = 1; }
 }
 
 const RACINE = __dirname;
