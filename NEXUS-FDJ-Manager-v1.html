@@ -2249,7 +2249,7 @@
     } else if (d.verdict === 'ecart_reel') {
       etatLigne = `<span style="color:var(--amber);">${NexusFdjMoteur.libelleVerdictContinuiteStock('ecart_reel')} : écart de <b>${fmtNum(Math.abs(d.ecart))}</b> ticket${Math.abs(d.ecart) > 1 ? 's' : ''}</span>`;
     } else if (d.verdict === 'donnee_manquante') {
-      etatLigne = `<span style="color:var(--text-dim);">${NexusFdjMoteur.libelleVerdictContinuiteStock('donnee_manquante')} : ${d.elementManquant}. L’alerte reste ouverte.</span>`;
+      etatLigne = `<span style="color:var(--text-dim);">${NexusFdjMoteur.libelleVerdictContinuiteStock('donnee_manquante')} (${d.elementManquant}). L’alerte reste ouverte.</span>`;
     } else {
       // Écart désormais nul mais alerte encore ouverte : la situation que
       // Frédéric demande de ne plus confondre avec un écart réel. Elle ne
