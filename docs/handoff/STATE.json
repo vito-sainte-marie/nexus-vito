@@ -226,7 +226,7 @@
     },
     "NEXUS-PRODUCTION-READINESS-1-20260908": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-9.md",
+      "derniere_demande": "request-10.md",
       "derniere_decision": "decision-8.md",
       "source_decision": "registre",
       "commit_decision": "ddb007f40289ea6ff010d192603a1aa8439987f9",
