@@ -234,6 +234,13 @@
       "sort": "SUPERSEDEE",
       "motif": "Quatre commits : ed66744 (isole la fixture de course dans un bac à sable), 058949c, 319c13d, 0e03b7e. Elle corrige le MÊME défaut 10 que le candidat, par une voie très proche — `listerPuisCopier(dirDest, racineSource = RACINE)` et un répertoire dédié. Le candidat porte la version postérieure et plus large : bac à sable peuplé des fichiers réels avec leurs tailles (la durée des copyFileSync est ce qui ouvre la fenêtre de course) et deux contrôles de non-nuisance, 9 vérifications contre 7. UN SEUL fichier de cette branche est absent du candidat, et c'est le seul de tout le lot des six : request-11.md, une demande Handoff AWAITING_DECISION portant sur la fermeture du défaut 10. Elle n'est PAS rapatriée, volontairement : le défaut qu'elle soumet à décision est fermé autrement sur le candidat (c405c75), et le lot a depuis avancé jusqu'à request-10 et à l'arbitrage de Frédéric Bragance du 10/09. Aucun correctif applicatif ni aucune épreuve n'est perdu — vérifié par comparaison des deux arbres.",
       "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2123",
+      "tete": "ee567671d99d12c68af42f656be757aa9935c64a",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, ee56767, sur le candidat antérieur 764efa8. Aucun fichier de code : seulement docs/handoff/STATE.json, CURRENT.md, DECISION.md, faits-pret-pour-production.json et un request-11.md publié par handoff.js demande. Consomme decision-9.md et classe les six branches 20260910-* en SUPERSEDEE pour rétablir aucunBlocageNonResolu=true — même conclusion que le candidat, mais en s'appuyant sur 764efa8 au lieu du classement plus rigoureux et indépendant fait directement sur le candidat jusqu'à 647a074 puis f5ba864 (vérification fichier par fichier de chacune des six, motifs détaillés, garde-branches-en-rade 21/21). decision-9.md a été reconsommée séparément sur le candidat réel (commit 766b456, 2026-09-10T22:34Z) via ce même réveil. request-11.md de cette branche n'est pas rapatrié : il documente un état Handoff et un verdict déjà obtenus, de façon plus superficielle, sur le canonique lui-même. Rien d'applicatif ou de probatoire n'est perdu.",
+      "le": "2026-09-10"
     }
   ]
 }
