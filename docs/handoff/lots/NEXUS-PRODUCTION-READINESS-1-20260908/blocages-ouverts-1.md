@@ -339,3 +339,56 @@ touche une épreuve du routeur Guardians et sort des six épreuves du registre.
 **Conséquence à connaître avant la gate :** tant qu'elle n'est pas traitée, la
 CI restera **rouge par intermittence**, pour une raison désormais entièrement
 comprise et sans rapport avec la release.
+
+### 11 · La recette navigateur ne se connecte plus — **cause non isolée**, et elle touche un secret
+
+Depuis le run **34495731476** (`workflow_dispatch`, `d9225e5`), la recette
+échoue au **premier écran** :
+
+> Connexion refusée : toujours sur l'écran de login 30 s après validation.
+> Écran : « Prénom ou code PIN incorrect. »
+
+Tout le reste du workflow est passé — suite, Guardians, semis Supabase Test.
+Seule la dernière étape tombe.
+
+**Ce qui est établi** (lectures seules sur Supabase **Test**, jamais Production,
+et aucune valeur de secret lue) :
+
+| fait | mesure |
+|---|---|
+| les quatre comptes de recette | présents, `actif = true`, `compte_test = true` |
+| bannis, supprimés, non confirmés | **non**, aucun des trois |
+| erreur renvoyée par l'API | `400 invalid_credentials` — **pas** une limite de débit |
+| dernière connexion réussie de `manager-test` | **10/09 14 h 45 min 44 s** |
+| `auth.users.updated_at` après cette connexion | +11 ms — écriture de connexion, **pas** de changement de mot de passe |
+| événement d'audit `user_updated_password` | **aucun** dans la fenêtre |
+| fichier applicatif d'authentification modifié depuis la recette verte | **aucun** (`nexus-auth.js` et l'app HTML identiques à `8f346c4`) |
+
+**Hypothèses examinées.**
+
+- *Limite de débit après mes nombreux déclenchements* — **écartée** : l'API
+  répond `invalid_credentials`, pas `over_request_rate_limit`.
+- *Compte désactivé ou supprimé* — **écartée** par mesure.
+- *Régression applicative de ma part* — **écartée** : aucun fichier
+  d'authentification n'a changé entre la recette verte et maintenant.
+- *Changement du mot de passe entre 14 h 45 min 17 s et 14 h 45 min 44 s* —
+  **non écartée, et c'est la piste la plus forte.** Deux connexions réussies de
+  `manager-test` se suivent à 27 s d'intervalle ; un changement de code entre
+  les deux serait ensuite masqué par l'`updated_at` de la seconde connexion.
+
+**Un fait à connaître, et il n'est pas de moi.** Ces deux connexions de
+14 h 45 ne viennent ni de la CI ni d'un navigateur ordinaire : leur agent est
+`Claude/1.44121.2` sur macOS — **une session Claude pilotant un navigateur sur
+cette machine**. Toutes les connexions CI portent `HeadlessChrome` sur Linux.
+Une autre session a donc ouvert NEXUS Test en tant que `manager-test` pendant
+que ce lot tournait, et c'est la seule activité anormale de la fenêtre.
+
+**Cause non isolée.** Je m'arrête là, et volontairement : la suite touche un
+**secret de recette**, et lire, poser ou faire tourner un secret est une gate
+humaine. Je n'ai lu aucune valeur — seulement des horodatages, des états de
+compte et une empreinte.
+
+**Ce que cela demande, et de vous seul :** vérifier si le code PIN de
+`Manager Test` sur Supabase **Test** a été changé vers 14 h 45, et si oui
+remettre `NEXUS_TEST_MANAGER_PIN` en accord avec lui. Aucune autre étape du
+workflow n'est en cause.
