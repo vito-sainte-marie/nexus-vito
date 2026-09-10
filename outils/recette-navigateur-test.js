@@ -485,10 +485,10 @@ async function observerEmploye(navigateur, base, nom, pin) {
 
 // FRANCHIR LE POINTAGE D'ARRIVÉE (09/09/2026)
 //
-// `nexus-auth.js` impose une séquence : prise de poste, PUIS pointage
-// d'arrivée, et seulement ensuite l'accueil. La recette allait droit à
-// l'accueil et se faisait renvoyer pointer ; l'invitation à l'inventaire
-// restait donc éternellement NON JUGÉE.
+// `nexus-auth.js` impose une séquence QUAND le pointage est actif : prise de
+// poste, PUIS pointage d'arrivée, et seulement ensuite l'accueil. La recette
+// allait droit à l'accueil et se faisait renvoyer pointer ; l'invitation à
+// l'inventaire restait donc éternellement NON JUGÉE.
 //
 // ON N'INVENTE AUCUN CONTOURNEMENT. L'écran capture normalement la photo par
 // `getUserMedia`, et prévoit DÉJÀ un repli par champ fichier « si getUserMedia
@@ -505,6 +505,20 @@ async function observerEmploye(navigateur, base, nom, pin) {
 //
 // ELLE N'ÉCRIT QUE SUR TEST, sous le compte de recette. Le pointage réel d'un
 // employé n'est jamais touché.
+//
+// CAUSE ISOLÉE (10/09/2026) — l'échec répété (« champ photo d'arrivée
+// absent ») n'était NI un défaut de release NI une caméra manquante : c'est un
+// défaut de FIXTURE/RECETTE. `station_config.pointage_actif` a été mis à
+// `false` pour `nexus-station-test` le 07/09/2026, précisément pour simplifier
+// la navigation des trois profils de recette. `NEXUS-Pointage-v1.html:507`
+// affiche alors un verrou défensif — « Le pointage est désactivé sur ce site »
+// — et ne rend JAMAIS `#photoInput-arrivee`, exactement le symptôme observé.
+// Ce verrou est un comportement VOULU (16/08/2026, demande de Frédéric), pas
+// un bug : la recette devait le reconnaître comme une dispense légitime, pas
+// comme un champ manquant à attendre en vain jusqu'au timeout.
+function pointageDesactive(texteEcran) {
+  return /pointage est désactivé sur ce site/i.test(texteEcran || '');
+}
 
 const PHOTO_RECETTE = path.join(__dirname, 'fixtures', 'photo-pointage-recette.png');
 
@@ -514,6 +528,17 @@ async function franchirPointageArrivee(page, base) {
     await page.goto(new URL('NEXUS-Pointage-v1.html', base).href, { waitUntil: 'domcontentloaded' })
       .catch(() => {});
   }
+
+  // Vérifié AVANT d'attendre le champ photo : si le pointage est désactivé
+  // pour ce site, rien ne bloque l'accueil et il n'y a rien à franchir. Deux
+  // choses opposées sinon confondues : « pointage non requis » (dispense
+  // légitime) et « champ absent » (défaut). Attendre #photoInput-arrivee en
+  // premier aurait couru jusqu'au timeout de 20 s avant de conclure à tort.
+  const texteVerrou = await page.locator('body').innerText().catch(() => '');
+  if (pointageDesactive(texteVerrou)) {
+    return { franchi: true, motif: null, desactive: true };
+  }
+
   const champ = page.locator('#photoInput-arrivee');
   // Le motif porte la page ET ce que l'écran affiche : sans eux, « champ
   // absent » ne localise rien et la session suivante recommence l'enquête.
@@ -811,7 +836,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, ATTENDU, executer };
+module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -855,6 +880,7 @@ if (require.main === module) {
           : e.premiere.atteint === 'confirme' ? 'satisfaite' : 'NON SATISFAITE'));
       console.log('  · Pointage d’arrivée franchi par la recette : '
         + (!e || !e.pointage ? 'NON EXÉCUTÉ'
+          : e.pointage.desactive ? 'non requis — pointage désactivé sur ce site (pointage_actif=false)'
           : e.pointage.franchi ? 'oui'
           : `NON — ${e.pointage.motif || 'motif non rendu'}`));
       console.log('  · Invitation à l’inventaire sur l’accueil : '
