@@ -1,49 +1,44 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-7.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
-seq: 6
+seq: 7
 author: NEXUS Orchestrator
 decision: APPROVED
 closes: false
-in_reply_to: request-6.md
+in_reply_to: request-7.md
 branch: config-par-environnement
 ---
-# Poursuite déterministe : intégrer le correctif portable et aller directement à la répétition réelle
+# Poursuite déterministe : confirmer la recette réelle avant les re-mesures Production
 
-Aucun arbitrage Frédéric supplémentaire n'est requis. `request-6.md` ne soulève aucun choix métier, aucune donnée personnelle Production, aucune ressource facturable et aucune extension de privilège. Il confirme un défaut d'outillage Test déjà couvert par `decision-5.md`.
+Aucun arbitrage Frédéric supplémentaire n'est requis. `request-7.md` décrit un défaut de fixture/recette déjà isolé, sans choix métier nouveau, sans donnée personnelle Production, sans ressource facturable et sans extension de privilège.
 
-## 1. Correctif scripts accepté, sans élargissement
+## 1. Correctif recette accepté
 
-Repartir du HEAD canonique courant de `config-par-environnement`. Intégrer uniquement le correctif qui garantit que `security find-generic-password` n'est jamais invoqué lorsque `NEXUS_TEST_DB_URL` est déjà fournie, dans les scripts où le défaut subsiste réellement :
+Le correctif qui reconnaît explicitement le cas `pointage_actif=false` dans la recette employé est accepté. Il doit rester limité à la recette Test : aucune modification du comportement métier de Production n'est autorisée par cette décision.
 
-- `outils/reconstruire-base-test.sh` ;
-- `outils/repeter-lot-production-readiness-test.sh` ;
-- `outils/repetition-release-complete.sh` si la même condition y est encore présente.
+Le HEAD canonique a déjà intégré ce correctif et la CI locale/non connectée est verte. Cette CI ne vaut toutefois pas preuve navigateur réelle lorsque les étapes Test connectées sont `skipped`.
 
-Conserver impérativement le refus de la référence Production avant toute tentative de connexion. Aucun secret ne doit être créé, affiché, journalisé ou commité.
+## 2. Prochaine preuve obligatoire
 
-## 2. Ne plus perfectionner PREPROD avant le prochain résultat réel
+Utiliser le mécanisme CI déjà présent, sans ajouter de nouvelle architecture, afin d'obtenir une exécution réelle de la recette navigateur sur `config-par-environnement` contre `nexus-test` avec les secrets Test déjà autorisés.
 
-Après ce correctif et ses tests, ne pas ajouter de nouvelle architecture, de nouvelle garde ou de nouveau mécanisme sauf si un défaut observé pendant la répétition réelle le rend indispensable.
+Le `workflow_dispatch` existant est le chemin préféré s'il permet d'exécuter les étapes Test connectées sur la branche canonique. Ne modifier `.github/workflows/tests.yml` que si une impossibilité matérielle du mécanisme existant est démontrée, et alors revenir avec le patch minimal requis avant de l'appliquer.
 
-La priorité est désormais la preuve de la release : atteindre l'étape où les migrations de promotion rencontrent les données du jeu PREPROD, puis exécuter les étapes restantes. Un arrêt sur une migration confrontée à des données existantes est un résultat utile et doit être rapporté comme tel, avec la migration exacte, la forme de donnée rencontrée, l'impact Production potentiel et la correction minimale proposée.
+La preuve attendue est le verdict réel sur le parcours Employé A et l'invitation à l'inventaire après reconnaissance du pointage désactivé. Une étape `skipped` ne constitue pas une preuve.
 
-## 3. Workflow et répétition
+## 3. Si la recette passe
 
-Le câblage déjà approuvé par `decision-5.md` reste inchangé : répétition destructive exclusivement via `workflow_dispatch`, input explicite `repetition_test=oui`, branche `config-par-environnement`, projet Test `udljdqxerrbbbajxubfn`, connexion Test déjà préparée, refus interne du projet Production.
+Si la recette réelle est satisfaite et qu'aucune nouvelle régression n'apparaît, compléter le package de readiness et revenir par un nouveau `request-N.md` uniquement pour préparer les re-mesures Production strictement SELECT-only déjà autorisées avant la gate finale.
 
-Si le canal Claude ne peut toujours pas éditer `.github/workflows/*.yml`, il ne doit pas contourner cette restriction. Il doit terminer la partie qui lui appartient sur le HEAD canonique, puis revenir uniquement avec le geste Orchestrator matériellement requis. L'Orchestrator appliquera le patch workflow minimal depuis un rail autorisé.
+## 4. Si la recette échoue
 
-## 4. Critère du prochain retour
+Ne pas perfectionner l'outillage. Isoler la première cause réelle, la classer entre défaut de release, défaut de fixture/recette ou indisponibilité d'environnement, appliquer uniquement une correction déterministe minimale en Test lorsqu'elle est déjà couverte par la gouvernance, puis rejouer à partir de l'étape utile.
 
-Ne revenir par un nouveau `request-N.md` que dans l'un des cas suivants :
+Si la correction implique un choix métier, une donnée Production non anonymisée, une nouvelle ressource facturable, une extension de privilège ou une contradiction canonique non résoluble, revenir sans agir pour arbitrage Frédéric.
 
-1. le correctif scripts est intégré au HEAD canonique et le workflow doit être câblé par l'Orchestrator ;
-2. la répétition réelle a rencontré un défaut de migration ou de données nécessitant une correction ;
-3. la répétition réelle et les étapes 5 à 8 sont terminées et le package est prêt pour les re-mesures Production SELECT-only ;
-4. une vraie décision Frédéric devient nécessaire.
+## 5. Interdictions inchangées
 
-Aucune écriture ou migration Supabase Production, aucun push/merge `main` ou `production`, aucun déploiement ou rollback Production n'est autorisé par cette décision. `Prêt pour Production` ne vaut jamais autorisation Production.
+Aucune écriture ou migration Supabase Production. Aucun push/merge vers `main` ou `production`. Aucun déploiement ni rollback Production. Aucune copie non anonymisée de Production. Aucun secret ou service_role exposé. Migration 21 reste exclue de cette release. `Prêt pour Production` ne vaut jamais autorisation Production.
