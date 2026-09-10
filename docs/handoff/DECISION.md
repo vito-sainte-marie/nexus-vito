@@ -1,43 +1,49 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-7.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-8.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
-seq: 7
+seq: 8
 author: NEXUS Orchestrator
 decision: APPROVED
 closes: false
-in_reply_to: request-7.md
+in_reply_to: request-8.md
 branch: config-par-environnement
 ---
-# Poursuite déterministe : confirmer la recette réelle avant les re-mesures Production
+# Poursuite déterministe : sérialiser uniquement les épreuves qui partagent le registre PREPROD
 
-Aucun arbitrage Frédéric supplémentaire n'est requis. `request-7.md` décrit un défaut de fixture/recette déjà isolé, sans choix métier nouveau, sans donnée personnelle Production, sans ressource facturable et sans extension de privilège.
+Aucun arbitrage Frédéric supplémentaire n'est requis pour le défaut démontré `zzzzrefdetestinexistante`.
 
-## 1. Correctif recette accepté
+Le diagnostic de `request-8.md` établit que la voie 2 est la correction minimale, réversible et sans élargissement de surface de sécurité. Elle est cohérente avec la gouvernance déjà autorisée : corriger les défauts déterministes de l'outillage Test, ne pas perfectionner PREPROD, ne pas modifier les gardes ni les scripts de release sans nécessité démontrée.
 
-Le correctif qui reconnaît explicitement le cas `pointage_actif=false` dans la recette employé est accepté. Il doit rester limité à la recette Test : aucune modification du comportement métier de Production n'est autorisée par cette décision.
+## 1. Voie retenue
 
-Le HEAD canonique a déjà intégré ce correctif et la CI locale/non connectée est verte. Cette CI ne vaut toutefois pas preuve navigateur réelle lorsque les étapes Test connectées sont `skipped`.
+Retenir la voie 2 : exécuter en série les seules épreuves qui manipulent `docs/handoff/PREPROD-CYCLE.json`, en les retirant du pool parallèle du lanceur de tests.
 
-## 2. Prochaine preuve obligatoire
+Le correctif doit rester limité au lanceur et aux tests nécessaires pour prouver l'absence de course. Aucune logique métier, aucune garde PREPROD, aucun script de release et aucun comportement Production ne doivent être modifiés pour fermer ce défaut.
 
-Utiliser le mécanisme CI déjà présent, sans ajouter de nouvelle architecture, afin d'obtenir une exécution réelle de la recette navigateur sur `config-par-environnement` contre `nexus-test` avec les secrets Test déjà autorisés.
+## 2. Preuves exigées
 
-Le `workflow_dispatch` existant est le chemin préféré s'il permet d'exécuter les étapes Test connectées sur la branche canonique. Ne modifier `.github/workflows/tests.yml` que si une impossibilité matérielle du mécanisme existant est démontrée, et alors revenir avec le patch minimal requis avant de l'appliquer.
+Prouver au minimum :
 
-La preuve attendue est le verdict réel sur le parcours Employé A et l'invitation à l'inventaire après reconnaissance du pointage désactivé. Une étape `skipped` ne constitue pas une preuve.
+1. plusieurs exécutions successives et parallèles de la suite ne laissent plus survivre `REF_BIDON` ou `zzzzrefdetestinexistante` ;
+2. `PREPROD-CYCLE.json` revient exactement à son état initial après chaque épreuve ;
+3. le correctif est détecté par une mutation négative ou une épreuve équivalente ;
+4. aucune nouvelle régression n'apparaît dans la suite globale et les Guardians ;
+5. la recette connectée et la répétition reprennent à l'étape utile, sans reconstruire inutilement ce qui est déjà prouvé.
 
-## 3. Si la recette passe
+## 3. Défaut security distinct
 
-Si la recette réelle est satisfaite et qu'aucune nouvelle régression n'apparaît, compléter le package de readiness et revenir par un nouveau `request-N.md` uniquement pour préparer les re-mesures Production strictement SELECT-only déjà autorisées avant la gate finale.
+Le défaut `security` observé sur `ea561f6` reste distinct et sa cause reste non isolée. Cette décision n'autorise pas une correction par analogie. Utiliser l'instrumentation déjà ajoutée pour capturer la prochaine occurrence et isoler la cause réelle.
 
-## 4. Si la recette échoue
+Une correction déterministe minimale peut être appliquée ensuite si la cause est démontrée et reste dans le périmètre Test/outillage déjà autorisé. Toute extension de privilège, modification d'une garde de sécurité ou modification d'un script de release exige une nouvelle décision avant application.
 
-Ne pas perfectionner l'outillage. Isoler la première cause réelle, la classer entre défaut de release, défaut de fixture/recette ou indisponibilité d'environnement, appliquer uniquement une correction déterministe minimale en Test lorsqu'elle est déjà couverte par la gouvernance, puis rejouer à partir de l'étape utile.
+## 4. Discipline de fin de lot
 
-Si la correction implique un choix métier, une donnée Production non anonymisée, une nouvelle ressource facturable, une extension de privilège ou une contradiction canonique non résoluble, revenir sans agir pour arbitrage Frédéric.
+Ne pas ajouter de nouvelle architecture. Ne pas améliorer l'outillage au-delà de ce qui est nécessaire pour obtenir la preuve de release. Une fois les défauts d'outillage fermés, reprendre directement la recette réelle et compléter le package de readiness.
+
+Revenir par un nouveau `request-N.md` avec les preuves réelles, les points fermés et les seuls blocages encore ouverts. Si le package est complet, demander uniquement les re-mesures Production SELECT-only déjà autorisées et la préparation de la gate finale spécifique.
 
 ## 5. Interdictions inchangées
 

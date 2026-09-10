@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/request-7.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/request-8.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
-seq: 7
+seq: 8
 author: Claude
 branch: config-par-environnement
 status: AWAITING_DECISION
@@ -13,182 +13,123 @@ preuves:
   - id: refs-protegees
     classe: VERIFIED
     valeur: main=10c65d0 production=501c0c7
-  - id: reconciliation
+  - id: source-diagnostic
     classe: VERIFIED
-    valeur: decision-6 deja consommee proprement, verifier conforme sans rattrapage
-  - id: preuves-anterieures-auditees
-    classe: DECLARED
-    valeur: relues, non rejouees, aucun acces reseau/gh depuis ce canal
-  - id: cause-isolee-pointage
+    valeur: blocages-ouverts-1.md paragraphes 7 a 9, commit 73a1c44999a478e571a58335a9df9dad58414d60
+  - id: cause-zzzzref-demontree
     classe: VERIFIED
-    valeur: pointage_actif=false sur nexus-station-test, verrou NEXUS-Pointage-v1.html:507
-  - id: correctif-teste
+    valeur: horodatage cycle 14:24:46.914Z vs registre modifie 14:24:47.117Z, run push 34488844379 SHA b3ebb6e
+  - id: defaut-security-distinct
     classe: VERIFIED
-    valeur: test_pointage_desactive_recette_20260910.js 6/6, mutation negative reelle
-  - id: regression-recette
+    valeur: reconstruire-base-test.sh ne lit jamais PREPROD-CYCLE.json, cause non isolee sur ea561f6
+  - id: trois-voies-presentees
     classe: VERIFIED
-    valeur: test_recette_navigateur_test_20260907.js 53/53 inchange
-  - id: regression-globale
+    valeur: corps de request-8.md, impact securite et reversibilite par voie
+  - id: aucun-correctif-applique
     classe: VERIFIED
-    valeur: 245/254, 9 echecs historiques identiques, 0 regression
-  - id: guardians
-    classe: VERIFIED
-    valeur: guardians-router 1 finding connu NexusStock ARCH-002, verifier-apprentissage conforme, guardian-qa 0 finding
-  - id: employe-b
-    classe: DECLARED
-    valeur: aucun scenario, cadrage produit distinct 2026-09-09, non code ici
-  - id: recette-reelle-post-correctif
-    classe: NOT_APPLICABLE
-    valeur: aucun acces navigateur/Supabase Test depuis ce canal
+    valeur: aucun fichier de code modifie dans ce lot, diff limite a docs/handoff/
   - id: production
     classe: NOT_APPLICABLE
-    valeur: aucune requete, aucun merge, aucun deploiement
+    valeur: aucune requete, aucun merge, aucun deploiement, aucune migration
 ---
-# Cause isolée sur le scénario employé (pointage) — défaut de fixture/recette, corrigé
+# Formalisation du diagnostic : deux défauts distincts, aucun correctif appliqué
 
-## 1. Réconciliation du rail — rien à rattraper cette fois
+Ce retour ne code rien. Il formalise, pour arbitrage, le constat déjà écrit dans
+`blocages-ouverts-1.md` §7 à §9 au commit `73a1c44999a478e571a58335a9df9dad58414d60`,
+afin qu'il porte une enveloppe canonique et une demande d'arbitrage explicite
+plutôt que de rester une note de travail.
 
-Ce checkout démarre exactement au HEAD canonique cité par le réveil
-(`d7ffee32040c57d2e6d360e5559139df0b9a0c9e`), confirmé ancêtre de
-`origin/config-par-environnement`. `docs/handoff/STATE.json` porte déjà, pour
-`NEXUS-PRODUCTION-READINESS-1-20260908` :
+## Ce qui est démontré : `zzzzrefdetestinexistante` (défaut 9, lié au défaut 8)
 
-```
-statut            : DECISION_CONSOMMEE
-derniere_decision : decision-6.md
-commit_decision   : c3ba2a7f73c84be8fc3dce7b6817331a8db6c0b2
-```
+**Cause démontrée, pas une hypothèse.** `zzzzrefdetestinexistante` n'est pas une
+référence de projet inconnue : c'est `REF_BIDON`, l'argument que les épreuves
+`security` et `credential` passent aux scripts de répétition (`repetition-release-complete.sh`
+et apparentés) pour vérifier qu'ils refusent bien la Production.
 
-commit identique à celui cité dans le réveil. `node outils/handoff.js verifier`
-est conforme (29 lots, 10 avertissements préexistants, 0 nouvelle erreur) —
-première fois dans ce lot qu'aucune réconciliation (`enregistrer-lot`,
-`rattraper-demande`) n'était nécessaire avant de poursuivre.
+La chaîne causale, entièrement reconstituée par horodatage :
 
-## 2. Audit des preuves déjà documentées — pas rejouées
+1. une épreuve lance le script de répétition avec `REF_BIDON` en argument ;
+2. le script fait ce qu'il doit faire : il inscrit un cycle PREPROD dans
+   `docs/handoff/PREPROD-CYCLE.json`, un fichier suivi par git, pas un fichier temporaire ;
+3. l'épreuve restaure ce fichier dans son bloc `finally`, mais elle n'est pas
+   seule : six épreuves manipulent ce même fichier (sauvegarde, remplacement,
+   exécution, restauration), et le lanceur de tests les exécute en parallèle
+   (4 processus en CI, 8 en local) ;
+4. deux épreuves qui se chevauchent : la seconde sauvegarde la version déjà
+   vidée par la première, et sa restauration écrase la restauration correcte ;
+5. le cycle bidon survit dans le fichier versionné ;
+6. plus tard dans le même job CI, l'étape « Semer le scénario Carburants » lit
+   ce fichier, trouve un cycle ouvert sur un projet qui n'existe pas, et refuse
+   de semer, correctement.
 
-`preuve-repetition-executee-1.md` (run `34360255750`) et
-`preuve-recette-navigateur-1.md` (runs `34378108761` et `34379171491`) ont été
-relues, pas rejouées : ce canal n'a ni accès réseau vers `nexus-test`, ni `gh`
-fonctionnel (`gh auth status` requiert une approbation qu'aucun humain ne peut
-donner dans ce run automatisé — confirmé une nouvelle fois). Elles restent
-internement cohérentes avec le code actuel :
-- `preuve-repetition-executee-1.md` documente une reconstruction réelle depuis
-  zéro (262 migrations, 4 défauts trouvés et corrigés) et le calcul Carburants
-  identique avant/après — propriété que ce type de répétition doit établir ;
-- `preuve-recette-navigateur-1.md` documente la preuve UI Carburants et les
-  deux preuves d'accès Live comme satisfaites, plus la prise de poste employé
-  (y compris quart déjà ouvert) le 09/09/2026 — cohérent avec le code présent
-  dans ce checkout.
+Preuve horodatée (run `push` `34488844379`, SHA `b3ebb6e`) : cycle créé à
+`14:24:46.914Z`, registre modifié à `14:24:47.117Z`, pendant l'étape de la suite
+de tests, largement avant l'étape de semis qui échoue ensuite. Ceci explique
+également l'intermittence observée depuis le 09/09/2026.
 
-Aucune de ces preuves n'a donc été rejouée ; ce n'était ni nécessaire ni
-possible depuis ce canal.
+**La garde n'est pas en cause.** Le défaut est que les épreuves écrivent un état
+de répétition mensonger dans un fichier du dépôt et n'arrivent pas toujours à
+l'effacer avant que d'autres étapes ne le lisent.
 
-## 3. Recette navigateur restante — cause isolée, corrigée (défaut de fixture/recette)
+## Ce qui reste distinct : le défaut `security` sur `ea561f6` (défaut 7)
 
-Les trois derniers commits du HEAD canonique (`cc6c9ae`, `fceaa13`, `28bcfb8`,
-09/09/2026 en soirée) documentaient une enquête inachevée : l'invitation à
-l'inventaire restait « NON JUGÉE » parce que le pointage d'arrivée n'était
-jamais franchi par la recette, et le dernier commit se terminait
-explicitement sur « CAUSE NON ISOLÉE ».
+**Cause non isolée.** Le SHA `ea561f6` porte deux exécutions de la même suite :
+`pull_request` en succès, `push` en échec, séparées par une seule épreuve,
+`test_security_jamais_invoque_si_url_20260910.js`. L'interférence par
+`PREPROD-CYCLE.json` a été écartée parce que `reconstruire-base-test.sh` ne lit
+jamais ce fichier et rien ne s'exécute entre son point d'entrée et l'appel
+`security` qui puisse le lire à sa place.
 
-**Cause isolée par lecture de code, confirmée par recoupement de deux sources
-indépendantes :**
+Les deux défauts partagent une origine probable, une course entre épreuves
+parallèles, mais une seule cause est démontrée : celle de
+`zzzzrefdetestinexistante`. Le défaut 7 reste classé cause non isolée.
 
-- `NEXUS-Pointage-v1.html:507-513` affiche un verrou défensif — « Le pointage
-  est désactivé sur ce site. » — et **ne rend jamais** `#photoInput-arrivee`
-  quand `station_config.pointage_actif === false`. C'est exactement le
-  symptôme observé (« champ photo d'arrivée absent »).
-- `nexus-station-test` a `pointage_actif=false` depuis le 07/09/2026 (réveil
-  de cette issue, 2026-09-07T00:36:00Z, autorisation explicite de Frédéric :
-  « le pointage est désormais désactivé côté nexus-test pour
-  nexus-station-test »), précisément pour simplifier la navigation des trois
-  profils de recette.
+## Trois voies déjà posées, aucune appliquée
 
-Ce verrou est un comportement **voulu** (16/08/2026, demande de Frédéric —
-« mets une option dans les paramètres station pour activer ou non le pointage
-des employés »), pas un défaut de release. Le défaut est dans la **recette** :
-`franchirPointageArrivee` a été écrite (09/09/2026) sur l'hypothèse que
-`nexus-auth.js` impose toujours la séquence pointage → accueil — vraie
-seulement quand `pointage_actif` n'est pas `false`, ce qu'elle ne vérifiait
-jamais.
+### Voie 1 : chemin de registre surchargeable par l'environnement
 
-**Classification demandée par le réveil :**
-- **Défaut de release : NON.** Le verrou et sa désactivation sont tous deux
-  des comportements demandés et déjà autorisés par Frédéric à des dates
-  distinctes.
-- **Défaut de fixture/recette : OUI.** `franchirPointageArrivee` attendait
-  indéfiniment un champ qui ne devait pas exister, au lieu de reconnaître une
-  dispense légitime.
-- **Simple instrumentation : les trois commits précédents (cc6c9ae, fceaa13,
-  28bcfb8)**, qui ont permis d'observer le symptôme sans l'expliquer.
+Les épreuves travailleraient sur une copie du fichier, dont le chemin serait lu
+depuis une variable d'environnement.
 
-**Correctif appliqué** (`outils/recette-navigateur-test.js`) : nouvelle
-fonction pure exportée `pointageDesactive(texteEcran)`, consultée **avant**
-l'attente de `#photoInput-arrivee`. Si le verrou est détecté, le pointage est
-traité comme non requis (`{ franchi: true, motif: null, desactive: true }`)
-plutôt que comme un échec après 20 s d'attente vaine. Le rapport imprimé
-distingue désormais explicitement « non requis — pointage désactivé sur ce
-site » de « franchi avec succès », pour ne jamais confondre les deux preuves.
+- Sécurité : impact élevé, défavorable. Une variable d'environnement pourrait
+  rediriger le fichier lu par deux gardes de sécurité.
+- Réversibilité : totale sur le code, mais le risque existe pendant la fenêtre
+  où la variable est active.
 
-**Preuves réellement exécutées** (`node`, pas de trace manuelle) :
-- Nouveau `test_pointage_desactive_recette_20260910.js` — **6/6**, dont :
-  le libellé réel extrait de `NEXUS-Pointage-v1.html` (pas recopié à la main)
-  est reconnu ; un écran de formulaire normal n'est jamais confondu avec le
-  verrou ; observation vide/absente ne plante jamais ; **mutation négative
-  réelle** — le correctif retiré du fichier, rejoué contre la même épreuve,
-  est bien détecté comme manquant ; le rapport distingue les deux issues.
-- `test_recette_navigateur_test_20260907.js` (existant) — **53/53**, inchangé.
-- `node run-tests.js` → **245/254**, les 9 échecs strictement identiques à la
-  liste historique tolérée (inventaire/réception/DOM), **0 régression**.
-- `node outils/guardians-router.js` sur le diff réel → 1 finding, la collision
-  `NexusStock` déjà connue et tracée (`ARCH-002`, non bloquante par arbitrage
-  Q73/Q74) — **0 nouveau finding**.
-- `node outils/verifier-apprentissage.js` → conforme, 20 règles.
-- `node outils/guardian-qa.js` → 0 finding, 254 épreuves analysées.
-- `node outils/handoff.js verifier` → conforme après dépôt.
+### Voie 2 : exécuter en série les épreuves qui touchent `PREPROD-CYCLE.json`
 
-**Ce qui reste, honnêtement** : ce correctif n'a pas pu être **rejoué contre
-un vrai navigateur/`nexus-test`** depuis ce canal (aucun accès Playwright ni
-Supabase Test ici) — seule la logique est prouvée par test unitaire et
-mutation négative. La preuve « Invitation à l'inventaire sur l'accueil »
-reste donc `NON JUGÉE` **jusqu'à un nouveau run CI** sur `config-par-environnement`
-qui exécute réellement la recette avec ce correctif.
+Retirer les six épreuves concernées du pool parallèle du lanceur de tests,
+sans toucher à aucune garde ni à aucun script de release.
 
-## 4. Employé B — classé, pas corrigé
+- Sécurité : aucun impact. Aucune garde, aucun fichier Production et aucun
+  script de release n'est modifié.
+- Réversibilité : totale et peu coûteuse. Le risque résiduel est uniquement un
+  risque de maintenance si une future épreuve manipulant le même fichier n'est
+  pas classée dans le groupe sérialisé.
+- C'est la voie recommandée dans `blocages-ouverts-1.md` si l'objectif est de
+  débloquer la CI sans élargir la surface de sécurité.
 
-`NEXUS_TEST_EMPLOYEE_B_PIN` existe et reste inutilisé : **aucun défaut**, ni
-de release ni de recette. `docs/plans/2026-09-09-experience-employe-cadrage.md`
-(cadrage produit de Frédéric, 09/09/2026) documente explicitement que le
-second employé attend un scénario dédié, et que « aucune ligne de code
-n'accompagne ce document, volontairement » — l'ordre des gestes par rôle est
-un arbitrage produit encore ouvert (§8 du cadrage), distinct de ce lot de
-readiness Production. Rien n'a été codé pour Employé B ici : l'injecter sans
-scénario aurait fabriqué une preuve vide, exactement ce que le fichier lui-même
-interdit.
+### Voie 3 : refuser d'écrire un cycle pour une référence manifestement bidon
 
-## 5. Pourquoi le package n'est pas encore complet pour les re-mesures Production
+Modifier les scripts de répétition pour qu'ils refusent d'inscrire un cycle
+PREPROD lorsqu'une référence est reconnue comme argument de test.
 
-Le correctif de ce tour est déterministe et prouvé en logique, mais **pas
-encore confirmé par une exécution réelle** de la recette sur `nexus-test`. Le
-publier comme « invitation à l'inventaire satisfaite » sans ce run serait
-fabriquer une preuve — exactement ce que le protocole interdit. Il manque donc
-un geste Orchestrator, pas un arbitrage Frédéric :
+- Sécurité : impact positif en principe, car la garde devient plus stricte.
+- Réversibilité : possible, mais cette voie touche un script de release utilisé
+  pour la répétition réelle avant gate Production et a donc un rayon d'action
+  supérieur à la voie 2.
 
-1. intégrer ce correctif sur `config-par-environnement` (ce canal ne peut
-   pousser que sur sa propre branche) ;
-2. obtenir un run CI réel sur cette branche (push normal — la recette
-   navigateur y tourne déjà, hors `workflow_dispatch` de répétition
-   destructive) et lire son verdict sur l'invitation à l'inventaire ;
-3. si ce verdict est satisfait, le package est complet pour les re-mesures
-   Production SELECT-only et la préparation de la gate finale — sinon,
-   revenir avec la nouvelle observation.
+## Coût tant que le défaut reste ouvert
 
-Aucune décision fondatrice n'est nécessaire pour ces trois points.
+Un `git status` peut rester sale après une suite complète, un
+`PREPROD-CYCLE.json` altéré peut être commité par mégarde, et une CI rouge peut
+être confondue avec un vrai défaut de release. `aucunBlocageNonResolu` reste
+`null` dans `faits-pret-pour-production.json` et le verdict global reste
+`NON_PRET` tant que le point n'est pas fermé ou explicitement classé non
+bloquant.
 
-## Invariants respectés
+## Demande d'arbitrage
 
-Aucun changement `main`/`production`, aucune écriture ni migration Supabase
-Production ou Test, aucun secret créé/rotationné/exposé, aucun fichier
-`.github/workflows/*` créé ou modifié, aucune ressource facturable nouvelle,
-aucune donnée personnelle Production. Migration 21 reste exclue de la release
-Production, inchangée. `Prêt pour Production` non revendiqué.
+La voie 1 touche une garde de sécurité. La voie 3 touche un script de release.
+La voie 2 est réversible, sans effet sur les gardes et reste la recommandation
+du diagnostic pour débloquer la CI sans élargir la surface de sécurité.
