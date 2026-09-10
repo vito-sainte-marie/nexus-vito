@@ -192,6 +192,48 @@
       "sort": "INTEGREE",
       "motif": "Publiait request-7.md, canonique par le rail Orchestrator. Portait EN PLUS test_security_jamais_invoque_si_url_20260909.js, que la comparaison initiale des trois branches trousseau avait manqué : elle vérifie que security n est jamais INVOQUÉ quand l URL est fournie, propriété plus forte que « le script ne plante pas » — un trousseau verrouillé peut demander une confirmation interactive. Rapatriée le 10/09/2026, mutation réancrée sur la garde plutôt que sur sa mise en forme, 7/7. Elle couvre les TROIS scripts, y compris repetition-release-complete.sh.",
       "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1435",
+      "tete": "d164d798a908f292fc026d3876ca365a16ac7823",
+      "sort": "SUPERSEDEE",
+      "motif": "Son seul commit propre (d164d79) publie request-8.md du lot Readiness via outils/handoff.js demande — le diagnostic zzzzrefdetestinexistante / security. Comparaison ligne à ligne : le request-8.md canonique (arrivé par une autre voie, condensé, sans tirets cadratins) porte exactement le même diagnostic, les mêmes trois voies et la même recommandation (voie 2). Rien d'unique à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1544",
+      "tete": "192fa383a6fcd598883b83743b3d172922c08eec",
+      "sort": "SUPERSEDEE",
+      "motif": "Ses trois commits propres (cb5459d rattraper-demande request-8, 51f0ac0 fixtures Guardians hors dépôt §10, 192fa38 instrumentation run-tests.js §7) sont déjà rapatriés sélectivement au canonique : outils/guardians-router.js, run-tests.js et test_guardians_router_20260907.js sont octet pour octet identiques au HEAD. test_fixtures_hors_depot_20260910.js est dépassé : le HEAD canonique porte une version ultérieure (bac à sable dédié via bacASable(), deux contrôles de non-nuisance en plus) qui couvre la même démonstration. blocages-ouverts-1.md/faits-pret-pour-production.json y sont également dépassés par des sessions postérieures. Rien d'unique à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1621",
+      "tete": "89b2db0a272b487764423e245ea6adf54b9ebecb",
+      "sort": "SUPERSEDEE",
+      "motif": "Son seul commit propre (89b2db0) exécute rattraper-demande puis consommer decision-8 — aucun fichier applicatif, uniquement CURRENT.md/DECISION.md/STATE.json. STATE.json y portait déjà commit_decision=ddb007f et statut DECISION_CONSOMMEE ; le HEAD canonique est allé plus loin depuis (request-9, request-10, decision-9 consommée). Effet strictement redondant avec ce qui est déjà dépassé au canonique, rien à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1727",
+      "tete": "5ae3804e2fc098fde02387bffd408ede0d24d521",
+      "sort": "SUPERSEDEE",
+      "motif": "Son commit propre (5ae3804) classait déjà 1435/1544/1621 SUPERSEDEE dans BRANCHES-CLASSEES.json avec des motifs vérifiés indépendamment ici et repris pour l'essentiel dans les trois entrées ci-dessus — jamais fusionné, donc son seul apport réel était resté en rade avec elle. Sa mise à jour de blocages-ouverts-1.md/faits-pret-pour-production.json (fermeture §12, non-fermeture §7, nouveau §13) est dépassée par les sessions postérieures (1828, puis la fermeture définitive du défaut Auth documentée au HEAD canonique). Rien d'autre à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1828",
+      "tete": "c14b81733f344d3f5966411f9f7845b5bddb1838",
+      "sort": "SUPERSEDEE",
+      "motif": "Son commit propre (c14b817) proposait request-9.md (isolation du défaut 13 par élimination) et une mise à jour de blocages-ouverts-1.md/faits-pret-pour-production.json — jamais fusionnée telle quelle. Le request-9.md canonique actuel reprend la même conclusion (défaut 13, trois causes écartées par élimination) mais a été revérifié indépendamment et réécrit dans une session postérieure, avant d'être lui-même dépassé par la fermeture définitive du défaut Auth (run 34523206197, réalignement PIN par Frédéric Bragance) puis par les déclarations du 10/09. Rien d'unique à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2006",
+      "tete": "0e03b7e6ad50ad9d241c0ec7ac58e2e98810dde4",
+      "sort": "SUPERSEDEE",
+      "motif": "Ses quatre commits propres isolent la fixture de reproduction dans un bac à sable (ed66744), consomment decision-9.md et documentent la fermeture définitive du défaut 10, puis publient un request-11.md. Le correctif de fixture est fonctionnellement équivalent à celui déjà canonique (c405c75 : même mécanisme bacASable()/racineBalayee, nommage différent) — vérifié par lecture, pas de régression à transporter. La consommation de decision-9.md a été refaite directement sur ce lot via outils/handoff.js, sur le HEAD canonique réel, plutôt que reprise de cette branche : son STATE.json datait d'avant les événements survenus depuis (fermeture définitive du défaut Auth, déclaration de Frédéric Bragance sur aucun_blocage_non_resolu, puis second blocage sur les six branches en rade). Son request-11.md est donc stale et n'a pas été publié tel quel ; un nouveau request-11.md reflétant l'état réel est publié à la place par ce lot. Rien d'unique à transporter.",
+      "le": "2026-09-10"
     }
   ]
 }

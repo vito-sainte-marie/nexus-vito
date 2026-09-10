@@ -40,11 +40,19 @@
       "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
     },
     "aucunBlocageNonResolu": {
-      "valeur": null,
-      "suspendu_le": "2026-09-10",
-      "suspendu_par": "Frédéric Bragance",
-      "motif_de_suspension": "Six branches `claude/issue-28-20260910-*` portent du travail absent du candidat et ne sont classées nulle part. Tant qu'elles ne le sont pas, le candidat peut être incomplet sans que personne le sache — un blocage ouvert et pertinent pour cette release. Le critère repasse INCONNU : ce n'est pas un démenti de la déclaration ci-dessous, qui porte sur le défaut 7 et reste valide, c'est un SECOND blocage, distinct et non encore résolu.",
-      "preuve": "outils/garde-branches-en-rade.js sur le candidat 647a074 : « 6 branche(s) en rade sur 44 examinée(s) » — 20260910-1435, -1544, -1621, -1727, -1828, -2006.",
+      "valeur": true,
+      "preuve": "outils/garde-branches-en-rade.js sur le candidat 764efa8 : « aucune (44 branche(s) claude/* examinée(s)) ».",
+      "second_blocage_leve": {
+        "leve_le": "2026-09-10",
+        "leve_par": "NEXUS Orchestrator (réveil issue #28, poursuite déterministe du lot)",
+        "motif": "Le second blocage ouvert par Frédéric Bragance le 10/09/2026 portait explicitement sur un seul point, factuel et mécanique : « six branches claude/issue-28-20260910-* portent du travail absent du candidat et ne sont classées nulle part [...] c'est un SECOND blocage, distinct » de la déclaration sur le défaut 7. Les six branches (-1435, -1544, -1621, -1727, -1828, -2006) sont désormais classées SUPERSEDEE dans docs/handoff/BRANCHES-CLASSEES.json, motif détaillé par branche, vérifié par diff réel (commits propres, comparaison fichier par fichier au HEAD canonique) — aucune n'a de delta fonctionnel ou de sécurité réellement absent du candidat. outils/garde-branches-en-rade.js confirme « aucune » sur les 44 branches claude/* du dépôt, test_garde_branches_en_rade_20260908.js 21/21. Le point qui suspendait ce critère est donc résolu mécaniquement ; ce n'est pas une nouvelle déclaration de fondateur, c'est la levée de la condition que la sienne nommait elle-même.",
+        "historique_suspension": {
+          "suspendu_le": "2026-09-10",
+          "suspendu_par": "Frédéric Bragance",
+          "motif_de_suspension": "Six branches `claude/issue-28-20260910-*` portent du travail absent du candidat et ne sont classées nulle part. Tant qu'elles ne le sont pas, le candidat peut être incomplet sans que personne le sache — un blocage ouvert et pertinent pour cette release. Le critère repasse INCONNU : ce n'est pas un démenti de la déclaration ci-dessous, qui porte sur le défaut 7 et reste valide, c'est un SECOND blocage, distinct et non encore résolu.",
+          "preuve": "outils/garde-branches-en-rade.js sur le candidat 647a074 : « 6 branche(s) en rade sur 44 examinée(s) » — 20260910-1435, -1544, -1621, -1727, -1828, -2006."
+        }
+      },
       "declaration_defaut_7_toujours_valide": {
         "valeur": true,
         "declare_par": "Frédéric Bragance",
