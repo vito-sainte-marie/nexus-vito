@@ -45,16 +45,24 @@ fi
 # qu'une URL Test parfaitement valide était disponible. Le script refusait de
 # travailler faute d'un moyen dont il n'avait pas besoin.
 #
-# L'ordre est donc inversé : on ne réclame un credential que si l'on doit
-# FABRIQUER l'URL soi-même. Quand elle est fournie, elle porte son propre moyen
-# d'authentification, ou `PGPASSWORD` est déjà dans l'environnement.
+# CORRECTIF (decision-6.md, 10/09/2026) : le contournement précédent laissait
+# encore `security` s'exécuter inconditionnellement — sa sortie était
+# simplement ignorée si une URL existait. `security` n'est donc désormais
+# invoqué QUE si `NEXUS_TEST_DB_URL` est absente : quand elle est fournie, elle
+# porte son propre moyen d'authentification, ou `PGPASSWORD` est déjà dans
+# l'environnement, et il n'y a alors aucune raison d'appeler un binaire qui
+# n'existe même pas sur un runner Linux.
 #
 # CE QUI N'EST PAS ASSOUPLI : le refus de la référence Production reste AVANT
 # toute tentative de connexion, et une connexion qui échoue échoue — on ne
 # devine aucun mot de passe et on n'en fabrique aucun.
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
+  MDP=""
+else
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
 fi
 if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
   echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe." >&2
