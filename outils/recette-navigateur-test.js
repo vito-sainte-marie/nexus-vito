@@ -571,10 +571,17 @@ async function franchirPointageArrivee(page, base) {
       // disait « le pointage est exigé » : deux lignes contradictoires, et
       // c'est ma mesure qui mentait.
       //
-      // L'écran n'écrit « Arrivé à l'heure » ou « Arrivé, N min de retard »
-      // qu'une fois la ligne d'arrivée réellement enregistrée.
+      // ET IL FAUT LE MARQUEUR DE LA VUE EMPLOYÉ. Ma deuxième version attendait
+      // « Arrivé à l'heure » — cette phrase vit dans `afficherEquipeManager`,
+      // une vue MANAGER qu'un employé ne voit jamais. Corriger un critère faux
+      // par un autre critère faux ne se voit pas : les deux échouent, et l'on
+      // croit avoir avancé.
+      //
+      // Côté employé, `majServiceLive` écrit « Service en cours depuis … »
+      // exactement quand l'arrivée est pointée et le départ pas encore. C'est
+      // le seul marqueur que la personne a réellement sous les yeux.
       await page.waitForFunction(
-        () => /Arriv[ée]\s*(?:à\s+l|,\s*\d+\s*min)/i.test(document.body.innerText || ''),
+        () => /Service en cours depuis/i.test(document.body.innerText || ''),
       { timeout: 90000 });
     return { franchi: true, motif: null };
   } catch (e) {

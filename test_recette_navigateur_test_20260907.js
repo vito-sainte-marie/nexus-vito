@@ -564,14 +564,19 @@ epreuve('le succès du pointage se mesure sur le STATUT, pas sur un libellé', (
   assert.ok(critere, 'le critère de succès doit être une expression régulière lisible');
   const re = new RegExp(critere[1].slice(1, -2), 'i');
 
-  const AVANT = "Pointage\nArrivée\nPrise de poste\nDébut pause\nDépart";
-  const APRES = "Pointage\nArrivé à l'heure\nArrivée\nDépart";
-  const RETARD = "Pointage\nArrivé, 12 min de retard\nArrivée\nDépart";
+  // Textes RÉELS : « AVANT » est l'écran de pointage avant toute arrivée,
+  // « APRÈS » est celui capturé par le run 34474617455 une fois la photo
+  // déposée et l'arrivée enregistrée.
+  const AVANT = "☰ MENU\nNEXUS · POINTAGE\nPointer ma journée\n12:05:49\nJeudi 10 Septembre\n\nArrivée\nPrise de poste\nDépart";
+  const APRES = "☰ MENU\nNEXUS · POINTAGE\nPointer ma journée\n12:05:49\nJeudi 10 Septembre\nService en cours depuis 0 minute.\nArrivée\nDépart";
 
   assert.ok(!re.test(AVANT),
     'le critère reconnaît un écran où RIEN n’a été pointé : il ne prouve rien');
-  assert.ok(re.test(APRES), 'il doit reconnaître « Arrivé à l’heure »');
-  assert.ok(re.test(RETARD), 'et « Arrivé, N min de retard » — un retard reste une arrivée');
+  assert.ok(re.test(APRES),
+    'le critère ne reconnaît pas l’écran RÉEL d’une arrivée enregistrée');
+  assert.ok(!/Arriv[ée]\s*\(\?:à/.test(String(re)) && !/à\s\+l/.test(String(re)),
+    '« Arrivé à l’heure » vit dans afficherEquipeManager, une vue MANAGER : ' +
+    'un employé ne la voit jamais, et l’attendre ne prouverait rien');
 });
 
 epreuve('« franchi » et « désactivé » ne se confondent pas dans le rapport', () => {
