@@ -219,3 +219,73 @@ la release, ou après.
 **Ce que ce défaut coûte aujourd'hui :** un `git status` sale après chaque
 exécution de la suite, et le risque de committer un journal PREPROD vidé sans
 s'en apercevoir.
+
+### 9 · `zzzzrefdetestinexistante` — **cause démontrée**, après plusieurs jours
+
+Le cycle fantôme `zzzzrefdetestinexistante` faisait échouer le semis CI par
+intermittence depuis le 09/09. Il était classé **cause non isolée**. Il ne
+l'est plus.
+
+Le run `push` **34488844379** (SHA `b3ebb6e`) le dit mot pour mot :
+
+> La base est en TEST_NORMAL, mais 1 cycle(s) restent ouverts : `zzzzrefdetestinexistante`.
+> cycle ouvert : `{"projet_ref":"zzzzrefdetestinexistante","release":"2026.09.0","cree_le":"2026-09-10T14:24:46.914Z","detruit_le":null}`
+
+**Ce n'est pas une référence de projet inconnue. C'est `REF_BIDON`**, la
+référence bidon que les épreuves `security` et `credential` passent en
+argument aux scripts de répétition pour vérifier qu'ils refusent la Production.
+
+**La chaîne, entièrement démontrée :**
+
+1. l'épreuve lance `repetition-release-complete.sh zzzzrefdetestinexistante` ;
+2. le script fait ce qu'il doit faire — il **inscrit un cycle PREPROD** dans
+   `docs/handoff/PREPROD-CYCLE.json`, un fichier **suivi par git** ;
+3. l'épreuve restaure le fichier dans son `finally`, mais elle n'est pas seule :
+   c'est le défaut 8 ci-dessus, six épreuves en parallèle, dernière
+   restauration gagnante ;
+4. le cycle bidon survit dans le fichier ;
+5. **plus tard dans le même job**, l'étape « Semer le scénario Carburants »
+   lit ce fichier, trouve un cycle ouvert sur un projet qui n'existe pas, et
+   refuse — correctement.
+
+L'horodatage le confirme : cycle créé à **14 h 24 min 46,914 s**, registre
+modifié à **14 h 24 min 47,117 s** — pendant l'étape de la suite, deux cents
+millisecondes plus tard, bien avant l'étape de semis qui échoue.
+
+**La garde n'est pas en cause : elle a fait exactement son travail.** Elle a
+refusé de semer pendant ce qu'elle croyait être une répétition en cours. Le
+défaut est que les épreuves écrivent un état de répétition mensonger dans un
+fichier du dépôt, et n'arrivent pas toujours à l'effacer.
+
+**Cela explique aussi l'intermittence.** Le cycle ne survit que lorsque deux
+épreuves se chevauchent au bon moment — d'où des runs verts entre deux runs
+rouges, sans qu'aucun code n'ait changé.
+
+**Cela n'explique PAS le défaut 7** (l'épreuve `security` en échec sur
+`ea561f6`) : `reconstruire-base-test.sh` ne lit jamais ce fichier. Deux
+symptômes, une même origine probable, une seule cause démontrée. Le défaut 7
+reste **cause non isolée**, et son instrumentation reste en place.
+
+### Ce qu'il faut décider — et c'est une décision, pas une correction évidente
+
+Trois voies, aucune neutre :
+
+1. **Un chemin de registre surchargeable par l'environnement**
+   (`NEXUS_PREPROD_CYCLE`), pour que les épreuves travaillent sur une copie.
+   Simple et propre — mais cela donne à une variable d'environnement le
+   pouvoir de rendre aveugles `garde-preprod-ephemere` et
+   `garde-mode-environnement`. **C'est un élargissement de surface de
+   sécurité, et il vous revient.**
+2. **Exécuter en série les épreuves qui touchent ce fichier.** Ne change aucune
+   garde, ne surcharge rien. Mais la protection dépend d'une liste qu'une
+   épreuve future oubliera.
+3. **Que les scripts n'inscrivent aucun cycle pour une référence manifestement
+   bidon.** Refuser d'écrire plutôt que d'écrire puis nettoyer. La plus propre,
+   la plus intrusive : elle touche un script de release à la veille d'une gate.
+
+**Je n'en ai appliqué aucune.** La première touche une garde de sécurité, la
+troisième un script de release — les deux demandent votre arbitrage. La
+deuxième est réversible et sans effet sur les gardes ; c'est celle que je
+recommande si l'objectif est de débloquer la CI sans rien élargir.
+
+**En attendant, la CI reste rouge sur le candidat, et le verdict NON_PRET.**
