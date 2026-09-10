@@ -826,3 +826,32 @@ aucune autre épreuve n'est atteinte.
 **C'est le seul point qui garde la CI rouge sur le candidat.** Le run `push`
 `34522377670` échoue là-dessus ; le `workflow_dispatch` relancé passe. La
 différence entre les deux n'est pas le code, c'est l'ordonnancement.
+
+## FERMÉ le 10/09/2026 — défaut 10, la reproduction a quitté le dépôt
+
+Sur votre instruction. `test_fixtures_hors_depot_20260910.js` déclenche
+désormais la course dans un **bac à sable**, jamais dans la racine du dépôt.
+
+**La démonstration est intacte.** Ce qui rend le mécanisme vrai, c'est l'écart
+entre `readdir` et `copyFile` face à un `write`/`unlink` concurrent **dans le
+répertoire balayé**. Que ce répertoire soit la racine du dépôt ou une copie
+fidèle ne change rien à la preuve — cela change seulement qui en souffre.
+
+Le bac à sable est peuplé des mêmes fichiers, **avec leurs tailles réelles** :
+c'est la durée des `copyFileSync` qui ouvre la fenêtre de course. Un répertoire
+de fichiers vides l'aurait rétrécie et aurait rendu la reproduction capricieuse
+— l'épreuve serait devenue exactement ce qu'elle dénonce. La racine réelle
+n'est plus que **lue**.
+
+**Deux contrôles nouveaux empêchent le retour en arrière**, et c'est le point
+qui compte : un correctif qui se contente de déplacer un chemin se défait au
+premier copier-coller.
+
+> · (non-nuisance) la course a été déclenchée HORS du dépôt
+> · la fixture de reproduction n'a jamais existé à la racine du dépôt
+
+**Preuves.** L'épreuve rend **8/8**, mutation comprise : l'ENOENT est toujours
+reproduit, sur 4 balayages en 4 s. Le couple exact
+`test_fixtures_hors_depot` × `test_build_tracabilite` lancé **6 fois en
+parallèle** : zéro échec, zéro ENOENT. Suite complète **4 fois** : 255/264,
+registre intact, arbre propre. Guardian QA : **0 finding sur 264**.
