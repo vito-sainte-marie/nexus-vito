@@ -225,8 +225,8 @@
       "consomme_le": "2026-09-09T03:18:34.653Z"
     },
     "NEXUS-PRODUCTION-READINESS-1-20260908": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-10.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-11.md",
       "derniere_decision": "decision-9.md",
       "source_decision": "registre",
       "commit_decision": "766b45698ffc5351204cbd5e3d83dc480b50496a",
