@@ -122,10 +122,10 @@ const MOTIFS_SECRET = [
   { nom: 'cle_supabase_assignee', motif: /SUPABASE_(SERVICE_ROLE|SECRET)_KEY\s*[:=]\s*["'][^"'\s]{8,}["']/i },
 ];
 
-function guardianSecurity(fichiers) {
+function guardianSecurity(fichiers, racine = RACINE) {
   const findings = [];
   for (const f of fichiers) {
-    const chemin = path.join(RACINE, f);
+    const chemin = path.join(racine, f);
     if (!fs.existsSync(chemin) || fs.statSync(chemin).isDirectory()) continue;
     let contenu;
     try { contenu = fs.readFileSync(chemin, 'utf8'); } catch (err) { continue; }
@@ -185,9 +185,9 @@ function identitesGlobalesDeclarees(racine) {
   return parIdentite;
 }
 
-function guardianArchitectureCollisions() {
+function guardianArchitectureCollisions(racine = RACINE) {
   const findings = [];
-  const parIdentite = identitesGlobalesDeclarees(RACINE);
+  const parIdentite = identitesGlobalesDeclarees(racine);
   for (const [nom, fichiers] of parIdentite) {
     if (fichiers.size > 1) {
       findings.push({
@@ -202,13 +202,13 @@ function guardianArchitectureCollisions() {
 
 // Aucun fichier applicatif ne doit dépendre de docs/gouvernance, docs/learning
 // ou outils (ADR-0002 : « absence de dependance applicative »).
-function guardianArchitectureDependances(fichiers) {
+function guardianArchitectureDependances(fichiers, racine = RACINE) {
   const findings = [];
   const RE_DEP = /docs\/(gouvernance|learning)\/|(?:require\(\s*['"]\.{0,2}\/?outils\/)/;
   for (const f of fichiers) {
     if (f.startsWith('outils/') || f.startsWith('docs/') || f.startsWith('test_') || f.startsWith('.github/')) continue;
     if (!f.endsWith('.js') && !f.endsWith('.html')) continue;
-    const chemin = path.join(RACINE, f);
+    const chemin = path.join(racine, f);
     if (!fs.existsSync(chemin)) continue;
     let contenu;
     try { contenu = fs.readFileSync(chemin, 'utf8'); } catch (err) { continue; }

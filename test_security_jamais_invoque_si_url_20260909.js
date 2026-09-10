@@ -28,7 +28,9 @@ function envPropre(ajouts) {
 let passes = 0;
 function t(nom, fn) {
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
-  catch (e) { console.error(`  ✗ ${nom}\n    ${e.message}`); process.exitCode = 1; }
+  // e.name d'abord — voir test_security_jamais_invoque_si_url_20260910.js
+  // pour le motif exact (défaut §7 du 10/09/2026, reproduit).
+  catch (e) { console.error(`  ✗ ${nom}\n    ${e.name}: ${e.message}`); process.exitCode = 1; }
 }
 
 const RACINE = __dirname;

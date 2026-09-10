@@ -392,3 +392,209 @@ compte et une empreinte.
 `Manager Test` sur Supabase **Test** a été changé vers 14 h 45, et si oui
 remettre `NEXUS_TEST_MANAGER_PIN` en accord avec lui. Aucune autre étape du
 workflow n'est en cause.
+
+---
+
+## FERMÉ le 10/09/2026 — défaut 10
+
+**Cause déjà démontrée, corrigée et éprouvée.** `guardianSecurity`,
+`guardianArchitectureCollisions` et `guardianArchitectureDependances`
+(`outils/guardians-router.js`) acceptent désormais un paramètre `racine`
+optionnel — défaut inchangé (`RACINE` du dépôt), aucun changement de
+comportement en CI. Les quatre fixtures de
+`test_guardians_router_20260907.js` vivent maintenant dans des répertoires
+`os.tmpdir()`, jamais sous `__dirname` : le fichier qui les créait à la
+racine réelle et les supprimait aussitôt — la ressource que
+`test_build_tracabilite_20260905.js` liste puis copie — ne la touche plus.
+
+**Preuves** (`test_fixtures_hors_depot_20260910.js`, nouveau) :
+- **mutation** : un second PROCESSUS (pas un thread unique — un seul thread
+  ne peut jamais entrelacer write/scan/unlink dans cet ordre) qui écrit et
+  supprime un `.js` à la racine réelle pendant qu'un balayage
+  lister-puis-copier la traite reproduit l'`ENOENT` du défaut, de façon
+  indépendante des deux fichiers réels ; la contre-épreuve confirme que sans
+  cette écriture, le même balayage ne peut jamais échouer ainsi ;
+- **comportemental** : 20 exécutions parallèles complètes (5 rounds × 2
+  exemplaires des deux vrais fichiers) — 0 échec, 0 `ENOENT`, 0 fixture
+  orpheline, arbre Git rendu exactement dans le même état qu'avant.
+
+Suite complète : aucune régression (les 9 échecs historiques inchangés).
+
+## Défaut 7 — nouvel élément, la cause reste NON ISOLÉE
+
+**Le statut ne change pas : `cause non isolée`.** Trois tentatives de
+reproduction du symptôme EXACT (le marqueur `security` existant alors que
+`NEXUS_TEST_DB_URL` est fournie) — en standalone répété, en course délibérée
+contre les cinq autres épreuves qui touchent `PREPROD-CYCLE.json`, et via
+`run-tests.js` lui-même sur plusieurs exécutions complètes — n'ont **jamais**
+reproduit ce symptôme précis sur ce runner.
+
+**Ce qui a été trouvé à la place, et qui reste utile.** En cherchant à courir
+cette épreuve contre ses cinq soeurs du registre PREPROD, une corruption
+accidentelle de `docs/handoff/PREPROD-CYCLE.json` (fichier vidé, 0 octet) a
+fait échouer `test_security_jamais_invoque_si_url_20260910.js` de façon
+**parfaitement déterministe** — mais avec un `e.message` différent
+(`Unexpected end of JSON input`, une `SyntaxError` de `JSON.parse` dans le
+harnais du test lui-même, pas le refus métier attendu).
+
+**Le vrai défaut trouvé, mécanique et corrigé** : `run-tests.js` ne
+rapportait, pour tout échec, qu'UNE ligne tronquée à 110 caractères — le
+premier `✗ …` de la sortie, QUEL QU'EN SOIT LE MOTIF. Un `AssertionError`
+métier (« security a été invoqué ») et une `SyntaxError` sans rapport
+produisent tous deux une sortie qui commence par la même ligne `✗ nom du
+test` : le lecteur ne pouvait pas les distinguer depuis le log CI seul.
+L'instrumentation posée le 10/09/2026 sur ce test précis (marqueur, code de
+sortie, stdout, stderr) n'atteignait donc **jamais** le log CI — seule cette
+ligne tronquée y arrivait. C'est très probablement ce qui a empêché
+d'isoler la cause exacte du run `34485839396` : l'information existait dans
+le process enfant, mais `run-tests.js` ne la faisait jamais remonter.
+
+**Corrigé, sans toucher à un seul garde ni script de release :**
+`run-tests.js` affiche désormais la sortie complète (bornée à 4000
+caractères) de chaque échec, en plus de la ligne courte. Les deux fichiers
+`test_security_jamais_invoque_si_url_2026090{9,10}.js` impriment désormais
+`e.name` avant `e.message`, pour que `SyntaxError`/`TypeError`/… restent
+visibles même sans race — vérifié : rejouer la même corruption affiche
+maintenant `SyntaxError: Unexpected end of JSON input` dans la ligne courte
+ELLE-MÊME (le motif `[A-Za-z]*Error` de `run-tests.js` la capture
+directement), plus le détail complet en dessous.
+
+**Ce que cela ne prouve PAS** : que le défaut 7 original avait cette même
+cause. Le symptôme reproduit ici (`SyntaxError`) diffère du symptôme
+rapporté (`security` réellement invoqué). Les deux restent possibles :
+soit le rapport `34485839396` était lui-même cette même ambiguïté mal lue,
+soit un défaut distinct, toujours réel, reste à isoler.
+
+**Prochain discriminant mesurable, si le défaut revient** : le prochain échec
+de cette famille en CI portera désormais, dans le log lui-même, soit
+`AssertionError: security a été invoqué alors que…` (le vrai défaut, à
+corriger alors avec la preuve enfin en main), soit `SyntaxError: Unexpected
+end of JSON input` ou toute autre exception nommée (un défaut d'une autre
+famille, déjà connue). Le statut `cause non isolée` reste donc EXACTEMENT
+ce qu'il était — seul l'outil pour la voir la prochaine fois a changé.
+
+## Défaut 11 — inchangé
+
+Statut **`BLOCKED_HUMAN_SECRET`** confirmé, inchangé. Aucune lecture,
+rotation ni exécution de secret n'a eu lieu dans cette session. L'action
+minimale demandée à Frédéric reste exactement celle du 10/09/2026
+ci-dessus : vérifier si le PIN de `Manager Test` a changé vers 14 h 45 et,
+si oui, réaligner `NEXUS_TEST_MANAGER_PIN`.
+
+---
+
+## FERMÉ le 10/09/2026 — défaut 11
+
+**Preuve directe, lue via `gh run view` (jamais un secret, jamais un PIN).**
+Le run `34498775844` porte deux tentatives sur le commit `4f26a372` :
+
+| tentative | événement | verdict | étape en cause |
+|---|---|---|---|
+| 1 | `push` | `failure` | `Recette navigateur NEXUS Test` |
+| 2 | `push` | **`success`** | — toutes les étapes, y compris la recette |
+
+La tentative 2 est verte de bout en bout : semis Supabase Test, publication
+NEXUS Live, Playwright, et **la recette navigateur elle-même**, qui inclut la
+connexion `Manager Test` mise en cause par le défaut 11. Entre la tentative 1
+et la 2, aucun code n'a changé — seule la relance diffère, cohérent avec
+l'hypothèse retenue le 10/09 (PIN réaligné entre-temps par Frédéric).
+
+**Le diff entre ce commit et le candidat courant ne touche rien à
+l'authentification.** `git diff --stat 4f26a37 ddb007f` ne montre que deux
+fichiers Handoff (`request-8.md`, `decision-8.md`) — zéro fichier applicatif,
+zéro configuration Test. Le run vert de `4f26a37` est donc une preuve directe
+et transposable au candidat : rien dans ce que le candidat ajoute ne peut
+avoir réintroduit le défaut.
+
+**Défaut 11 fermé.** Aucun secret n'a été lu pour arriver à cette conclusion —
+seuls des verdicts de run et un diff de fichiers l'ont établie.
+
+---
+
+## OUVERT le 10/09/2026 — défaut 12, sur le candidat lui-même
+
+**La CI du candidat `ddb007f` (l'actuel HEAD canonique) échoue, sur les deux
+événements.** Lu via `gh run view` :
+
+| run | événement | verdict | étape en cause |
+|---|---|---|---|
+| `34501548868` | `pull_request` | `failure` | `Suite de non-régression et verdict` |
+| `34501543499` | `push` | `failure` | `Suite de non-régression et verdict` |
+
+Le journal de l'étape (récupéré par `gh run view --log-failed`, jamais par
+navigateur) montre `test_handoff_v2_20260905.js` classé **régression** :
+
+```
+AssertionError [ERR_ASSERTION]: le refus doit nommer sa raison : AVERTISSEMENT — lots/CARBURANTS-PERFORM…
+```
+
+C'est l'épreuve « une décision déjà consommée ne se rejoue pas » : elle
+mute pour de vrai `docs/handoff/STATE.json`, relance
+`node outils/handoff.js consommer <lot déjà consommé>` en sous-processus, et
+attend le message `déjà marquée consommée`. Le sous-processus a bien échoué
+(le premier `assert` passe), mais avec un AUTRE message — la sortie récupérée
+commence par les avertissements normaux de `verifier()`, donc le
+sous-processus a bien démarré et progressé, mais s'est arrêté ailleurs que
+prévu.
+
+**Non reproduit localement.** Rejoué `node test_handoff_v2_20260905.js` seul
+(vert), puis `node run-tests.js` complet **neuf fois de suite** dans cette
+session — huit fois vert, une fois un échec de `test_fixtures_hors_depot_20260910.js`
+(une régression *différente*, propre à sa propre course interne — voir
+ci-dessous), jamais celui-ci. Le journal ancien ne peut pas être approfondi :
+la version de `run-tests.js` qui a produit ce run ne portait pas encore
+l'instrumentation « sortie complète » fermée au défaut 10 ci-dessus — seule
+la ligne tronquée à 110 caractères a été conservée par GitHub, et elle est
+déjà entièrement au dossier.
+
+**Hypothèses écartées ou non retenues, par lecture, pas par exécution :**
+- *Un autre test réécrit `docs/handoff/STATE.json` en parallèle* — aucun
+  autre fichier `test_*.js` de la suite n'écrit ce fichier réel hors d'un
+  répertoire temporaire `NEXUS_HANDOFF_DIR` (vérifié par recherche exhaustive
+  sur les cinq fichiers qui nomment `handoff.js`).
+- *Une variable d'environnement `NEXUS_HANDOFF_DIR` fuirait vers ce
+  sous-processus* — le sous-processus hérite de `process.env`, mais aucun
+  step de `.github/workflows/tests.yml` ne positionne cette variable.
+- *Le lot choisi par le test diffère entre le candidat et ce qui a été
+  rejoué ici* — vérifié faux : `git show ddb007f:docs/handoff/STATE.json`
+  désigne le même lot (`HANDOFF-V2-EVENEMENTIEL-20260905`, commit `e76713f`)
+  que celui obtenu localement.
+
+**Cause non isolée.** Comme pour le défaut 7, je n'écris pas de correctif sur
+une hypothèse. L'instrumentation `run-tests.js` livrée pour le défaut 7
+(sortie complète bornée à 4000 caractères sur tout échec) couvre aussi
+celui-ci sans modification supplémentaire : le PROCHAIN échec de ce test en
+CI portera son message réel dans le log, pas seulement cette ligne tronquée.
+
+**Conséquence pour la gate, inchangée dans son sens :** `ci_et_guardians_conformes`
+reste **BLOQUE** — pas à cause du défaut 7 (toujours non reproduit), mais
+maintenant aussi à cause de ce défaut 12, constaté deux fois sur le candidat
+lui-même. Le verdict global reste **NON_PRET**.
+
+## Note — défaut 10, une seconde course trouvée DANS sa propre épreuve, corrigée
+
+Sur les neuf premières exécutions complètes de `node run-tests.js` de cette
+session, **une** a rapporté `test_fixtures_hors_depot_20260910.js` lui-même
+en échec — pas `test_guardians_router` ni `test_build_tracabilite`, l'épreuve
+qui les couvre. Avec l'instrumentation « sortie complète » du défaut 7
+(livrée le 10/09, intégrée dans ce même lot), le message exact est apparu :
+
+```
+ÉCHEC — zéro fichier fixture orphelin à la racine après coup (__fixture_race_repro_20260910__.js)
+```
+
+**Cause démontrée, propre à l'épreuve, sans rapport avec le mécanisme
+qu'elle prouve.** Le bloc (1) de mutation lance un second PROCESSUS qui
+écrit/efface `__fixture_race_repro_20260910__.js` en boucle, puis appelle
+`ecrivain.kill()` et nettoie **immédiatement** — `kill()` envoie un signal,
+il ne garantit pas un arrêt instantané. Une dernière itération du processus
+écrivain pouvait encore écrire le fichier **après** le nettoyage du parent,
+le laissant orphelin pour le reste du fichier de test (bloc 2, `executionsParalleles`),
+qui le détecte alors comme régression — sur son propre artefact, jamais sur
+ceux des deux vrais fichiers qu'il surveille.
+
+**Corrigé** : `mutationRepro` attend désormais l'événement `exit` du
+processus écrivain avant de nettoyer (`await finEcrivain`), au lieu de
+nettoyer sur la foi d'un `kill()` qui vient d'être envoyé. Cinq exécutions
+de la suite complète après ce correctif : cinq fois vert, y compris
+`test_fixtures_hors_depot_20260910.js`.
