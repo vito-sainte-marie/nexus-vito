@@ -551,6 +551,39 @@ epreuve('une chaîne de requête n’est pas une destination', () => {
     'le motif doit se décider sur le CHEMIN, jamais sur l’URL complète');
 });
 
+epreuve('le succès du pointage se mesure sur le STATUT, pas sur un libellé', () => {
+  // « Arrivée » est le libellé du bouton, présent avant tout pointage. Un
+  // critère qui s'en contente est satisfait dès l'affichage de l'écran, et
+  // `franchi: true` ne peut jamais être faux. C'est ce qui a produit, le
+  // 09/09, un rapport annonçant « Pointage franchi : oui » pendant que
+  // l'invitation disait « le pointage est exigé ».
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('async function franchirPointageArrivee'),
+                         src.indexOf('const ECRAN_ACCUEIL'));
+  const critere = bloc.match(/waitForFunction\(\s*\(\)\s*=>\s*(\/[^\n]*?\/i)\.test/);
+  assert.ok(critere, 'le critère de succès doit être une expression régulière lisible');
+  const re = new RegExp(critere[1].slice(1, -2), 'i');
+
+  const AVANT = "Pointage\nArrivée\nPrise de poste\nDébut pause\nDépart";
+  const APRES = "Pointage\nArrivé à l'heure\nArrivée\nDépart";
+  const RETARD = "Pointage\nArrivé, 12 min de retard\nArrivée\nDépart";
+
+  assert.ok(!re.test(AVANT),
+    'le critère reconnaît un écran où RIEN n’a été pointé : il ne prouve rien');
+  assert.ok(re.test(APRES), 'il doit reconnaître « Arrivé à l’heure »');
+  assert.ok(re.test(RETARD), 'et « Arrivé, N min de retard » — un retard reste une arrivée');
+});
+
+epreuve('« franchi » et « désactivé » ne se confondent pas dans le rapport', () => {
+  // Le pointage effectué est une PREUVE ; le pointage désactivé sur le site est
+  // une DISPENSE. Les afficher pareil effacerait la différence.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'recette-navigateur-test.js'), 'utf8');
+  assert.ok(/e\.pointage\.desactive \?/.test(src),
+    'le résumé doit distinguer la dispense de la preuve');
+  assert.ok(/pointage_actif=false|désactivé sur ce site/i.test(src),
+    'et nommer la cause de la dispense, pas seulement l’annoncer');
+});
+
 epreuve('la photo de recette est INCONFONDABLE avec une vraie', () => {
   // Elle est déposée dans le stockage de Test sous le compte de recette. Elle
   // doit être reconnaissable au premier regard ET dans son propre fichier :

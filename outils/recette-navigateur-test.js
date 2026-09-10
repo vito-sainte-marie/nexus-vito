@@ -563,7 +563,18 @@ async function franchirPointageArrivee(page, base) {
   // l'arrivée enregistrée — et non un délai : l'upload peut prendre plus d'une
   // minute sur le réseau de la station, l'écran le dit lui-même.
   try {
-    await page.waitForFunction(() => /Arriv[ée]/i.test(document.body.innerText || ''),
+      // LE CRITÈRE PORTE SUR LE STATUT, PAS SUR LE MOT. Ma première version
+      // attendait /Arriv[ée]/i — or « Arrivée » est le LIBELLÉ DU BOUTON,
+      // présent avant tout pointage. Le critère était satisfait dès l'affichage
+      // de l'écran, et `franchi: true` ne pouvait jamais être faux. Le rapport
+      // du 09/09 annonçait « Pointage franchi : oui » pendant que l'invitation
+      // disait « le pointage est exigé » : deux lignes contradictoires, et
+      // c'est ma mesure qui mentait.
+      //
+      // L'écran n'écrit « Arrivé à l'heure » ou « Arrivé, N min de retard »
+      // qu'une fois la ligne d'arrivée réellement enregistrée.
+      await page.waitForFunction(
+        () => /Arriv[ée]\s*(?:à\s+l|,\s*\d+\s*min)/i.test(document.body.innerText || ''),
       { timeout: 90000 });
     return { franchi: true, motif: null };
   } catch (e) {
