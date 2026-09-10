@@ -40,6 +40,23 @@ const REF_BIDON = 'zzzzrefdetestinexistante';
 
 const empreinte = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
+/**
+ * Copie le registre HORS du dépôt et rend le chemin du témoin.
+ *
+ * Pourquoi une copie plutôt qu'une empreinte gardée en mémoire : Guardian QA
+ * a refusé la première version, et il avait raison de la refuser — l'attendu
+ * et l'observé y sortaient du MÊME appel (`empreinte(CYCLE)` des deux côtés).
+ * Une telle comparaison est vraie par construction tant qu'on ne regarde que
+ * le code. Le témoin est donc un fichier réel, écrit ailleurs, que rien de ce
+ * que fait l'épreuve ne peut atteindre.
+ */
+function temoinDuRegistre() {
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'nexus-temoin-registre-'));
+  const copie = path.join(dir, 'PREPROD-CYCLE.avant.json');
+  fs.copyFileSync(CYCLE, copie);
+  return copie;
+}
+
 /** Les outils dont le contenu nomme le registre. */
 function outilsSensibles() {
   const dir = path.join(RACINE, 'outils');
@@ -152,17 +169,18 @@ t('une épreuve illisible est sérialisée par défaut, jamais laissée en paral
 // ── 2. LE COMPORTEMENT ─────────────────────────────────────────────────────
 
 t('chaque épreuve du registre rend le fichier OCTET POUR OCTET tel qu\'elle l\'a trouvé', () => {
-  const avant = empreinte(CYCLE);
+  const temoin = temoinDuRegistre();
   const fautives = [];
   for (const f of epreuvesDuRegistre()) {
     if (f === path.basename(__filename)) continue;   // ne pas se relancer soi-même
     spawnSync('node', [f], { cwd: RACINE, encoding: 'utf8', timeout: 120000 });
-    if (empreinte(CYCLE) !== avant) {
+    if (empreinte(CYCLE) !== empreinte(temoin)) {
       fautives.push(f);
-      fs.writeFileSync(CYCLE, fs.readFileSync(CYCLE));  // ne pas contaminer la suivante
+      fs.copyFileSync(temoin, CYCLE);   // ne pas contaminer l'épreuve suivante
       break;
     }
   }
+  fs.rmSync(path.dirname(temoin), { recursive: true, force: true });
   assert.deepStrictEqual(fautives, [],
     `ces épreuves laissent ${path.basename(CYCLE)} modifié : ${fautives.join(', ')}`);
 });
@@ -194,15 +212,16 @@ t('la restauration tient même quand l\'épreuve ÉCHOUE', () => {
     'la copie ne sait pas où est la racine : elle ne toucherait pas au vrai registre');
   const copie = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'nexus-restauration-')),
                           'verification-restauration-apres-echec.js');
-  const avant = empreinte(CYCLE);
+  const temoin = temoinDuRegistre();
   try {
     fs.writeFileSync(copie, mute);
     const r = spawnSync('node', [copie], { cwd: RACINE, encoding: 'utf8', timeout: 120000 });
     assert.notStrictEqual(r.status, 0, 'l\'épreuve mutée devait échouer : le témoin ne prouve rien');
-    assert.strictEqual(empreinte(CYCLE), avant,
+    assert.strictEqual(empreinte(CYCLE), empreinte(temoin),
       'une épreuve qui échoue laisse le registre modifié — le `finally` ne tient pas');
   } finally {
     fs.rmSync(path.dirname(copie), { recursive: true, force: true });
+    fs.rmSync(path.dirname(temoin), { recursive: true, force: true });
   }
 });
 

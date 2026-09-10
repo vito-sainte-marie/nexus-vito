@@ -308,3 +308,34 @@ cycle bidon résiduel.
 
 **Le défaut 7 reste ouvert, et son libellé est inchangé : cause non isolée.**
 Il n'est pas réglé par cette décision.
+
+### 10 · Une seconde intermittence, **cause démontrée**, hors du périmètre arbitré
+
+`test_build_tracabilite_20260905.js` échoue par intermittence en
+`ENOENT ... copyfile` — 2 fois sur 4, puis 0 fois sur 8, selon l'ordonnancement.
+Ce n'est **pas** le registre PREPROD, et la sérialisation ne l'a jamais touché.
+
+**Cause démontrée**, par échantillonnage de l'arbre de travail toutes les 40 ms
+pendant la suite. Deux fichiers apparaissent puis disparaissent à la racine du
+dépôt :
+
+> `__fixture_identite_a__.js` · `__fixture_identite_b__.js`
+
+Ils sont écrits par `test_guardians_router_20260907.js`
+(lignes 88-89, `path.join(__dirname, …)`), puis supprimés. Or
+`test_build_tracabilite` liste les `.js` de la racine qui ne commencent pas par
+`test_`, **puis** les copie. Un fichier listé et supprimé entre les deux donne
+exactement cet `ENOENT`.
+
+**Même famille que le défaut 9, ressource différente** : une épreuve qui écrit
+dans l'arbre de travail fait tomber une autre épreuve. Ici la ressource
+partagée n'est pas un fichier précis, c'est **le répertoire racine**.
+
+**Non corrigé — hors du périmètre que vous avez arbitré.** La correction est
+contenue (écrire les deux fixtures dans un répertoire temporaire, en passant la
+racine explicitement, comme je l'ai fait pour ma propre copie mutée), mais elle
+touche une épreuve du routeur Guardians et sort des six épreuves du registre.
+
+**Conséquence à connaître avant la gate :** tant qu'elle n'est pas traitée, la
+CI restera **rouge par intermittence**, pour une raison désormais entièrement
+comprise et sans rapport avec la release.
