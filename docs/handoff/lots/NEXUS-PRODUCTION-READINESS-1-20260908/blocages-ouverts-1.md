@@ -761,3 +761,68 @@ avec lui. Rien d'autre dans la chaîne connectée n'est en cause : les 46
 sont vertes. Ce n'est pas une décision de fondateur : c'est une opération de
 recette Test déjà pré-autorisée (§1 des pré-autorisations, `CLAUDE.md`) —
 transmise ici comme blocage externe précis, pas comme arbitrage métier.
+
+---
+
+## FERMÉ le 10/09/2026, pour de bon — défaut 11
+
+**Preuve directe, cette fois complète.** Run `34523206197`
+(`workflow_dispatch`, candidat `b7cbe95`), **toutes les étapes vertes** :
+
+```
+success  Suite de non-régression et verdict
+success  Guardian QA
+success  Semer le scénario Carburants sur Supabase Test
+success  Publier le journal NEXUS Live
+success  Installer Playwright
+success  Recette navigateur NEXUS Test
+```
+
+La recette est allée jusqu'au bout, connexion `Manager Test` comprise :
+
+> · UI Carburants (CARB-004) : satisfaite
+> · Accès Live REFUSÉ au manager · ACCORDÉ au Créateur : satisfaites
+> · Prise de poste employé : satisfaite
+> · Invitation à l'inventaire sur l'accueil : satisfaite
+> · Prise de poste avec un quart DÉJÀ OUVERT : satisfaite
+> · Pointage d'arrivée : sans objet — arrivée déjà pointée aujourd'hui
+
+**Cause confirmée a posteriori** : le code de `Manager Test` et le secret
+`NEXUS_TEST_MANAGER_PIN` avaient divergé. Frédéric Bragance les a réalignés le
+10/09 à 19 h 53 UTC — l'empreinte du secret stocké est passée de `cc676729…` à
+`a8ef4c27…`, écriture vérifiée sans jamais lire la valeur. La connexion, qui
+échouait depuis 15 h 28, repasse au premier essai suivant.
+
+**La fermeture du 15 h 55 était prématurée** : elle reposait sur une seule
+relance verte, et le défaut est revenu à 17 h 24. Celle-ci repose sur un run
+complet APRÈS le geste qui explique la cause. Ce n'est pas la même chose.
+
+## ROUVERT le 10/09/2026 — défaut 10, par l'épreuve qui devait le fermer
+
+`test_build_tracabilite_20260905.js` échoue de nouveau en `ENOENT ... copyfile`,
+et le nom du fichier manquant dit tout :
+
+```
+copyfile '/home/runner/work/nexus-vito/nexus-vito/__fixture_race_repro_20260910__.js'
+```
+
+**Cause démontrée.** `test_fixtures_hors_depot_20260910.js` — l'épreuve écrite
+pour prouver le défaut 10 — lance un second processus qui écrit et efface
+`__fixture_race_repro_20260910__.js` **dans la racine du dépôt**, en boucle
+serrée, pendant toute la durée de la reproduction. Or `test_build_tracabilite`
+liste les `.js` de cette même racine puis les copie. Les deux tournent en
+parallèle : le fichier est listé, puis effacé avant d'être copié.
+
+**L'épreuve qui devait fermer le défaut le REPRODUIT contre les autres.** Elle
+prouve la course en la déclenchant pour de vrai, sur la ressource partagée
+réelle, au lieu de la déclencher dans un bac à sable.
+
+**Correction proposée, non appliquée** — le fichier appartient à un autre
+canal : faire écrire le processus écrivain dans un répertoire temporaire, et
+faire balayer `listerPuisCopier` ce même répertoire. Le mécanisme prouvé reste
+identique — `readdir` puis `copyFile` contre `write` puis `unlink` — mais plus
+aucune autre épreuve n'est atteinte.
+
+**C'est le seul point qui garde la CI rouge sur le candidat.** Le run `push`
+`34522377670` échoue là-dessus ; le `workflow_dispatch` relancé passe. La
+différence entre les deux n'est pas le code, c'est l'ordonnancement.
