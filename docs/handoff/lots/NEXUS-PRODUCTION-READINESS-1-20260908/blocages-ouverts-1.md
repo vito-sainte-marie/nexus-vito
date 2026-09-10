@@ -598,3 +598,84 @@ processus écrivain avant de nettoyer (`await finEcrivain`), au lieu de
 nettoyer sur la foi d'un `kill()` qui vient d'être envoyé. Cinq exécutions
 de la suite complète après ce correctif : cinq fois vert, y compris
 `test_fixtures_hors_depot_20260910.js`.
+
+---
+
+## 13 · Session du 10/09/2026 en fin de journée — reprise sur `e6c7948`, canal issue #28
+
+Reprise Orchestrator sur le HEAD canonique `e6c7948769c8e1aa6a2690d1c6e5b782f56f7ea9`
+(merge de `3117951` — fermeture §10/§11, ouverture §12 — dans `ddb007f`).
+Confirmé : `HEAD` de cette session est exactement ce SHA, ancêtre (identique)
+de `origin/config-par-environnement` ; les 11 fichiers du merge correspondent
+au périmètre §10/§11/instrumentation/Handoff annoncé.
+
+### §1bis · Trois nouvelles branches en rade, fermé le jour même
+
+`node outils/garde-branches-en-rade.js` en signalait 3 à la reprise —
+apparues APRÈS la classification du matin même, issues du travail qui a
+produit `3117951` : `claude/issue-28-20260910-1435`, `-1544`, `-1621`.
+
+Vérifié une par une, jamais supposé : `1435` ne porte qu'un `request-8.md`
+dont le contenu (diagnostic, trois voies, recommandation) est identique en
+substance au `request-8.md` canonique arrivé par une autre voie (diff
+ligne à ligne fait, reformulation seulement). `1544` porte exactement les
+trois commits que `3117951` dit avoir rapatriés — `outils/guardians-router.js`,
+`run-tests.js`, `test_guardians_router_20260907.js` et
+`test_fixtures_hors_depot_20260910.js` sont octet pour octet identiques entre
+cette branche et le HEAD canonique (`git diff` vide). `1621` ne touche aucun
+fichier applicatif : une consommation de `decision-8.md` strictement
+identique à celle déjà canonique (même `commit_decision`), une session
+parallèle qui a perdu la course.
+
+Les trois sont classées `SUPERSEDEE` dans `docs/handoff/BRANCHES-CLASSEES.json`,
+motif détaillé par branche. `garde-branches-en-rade.js` repasse à « aucune »
+(40 branches examinées), `test_garde_branches_en_rade_20260908.js` 21/21.
+
+### §7 et §12 — nouvelles tentatives de reproduction, statut inchangé
+
+Sur ce HEAD : `test_security_jamais_invoque_si_url_20260910.js` seul (7/7),
+`test_handoff_v2_20260905.js` seul ×3 (53/53 à chaque fois), puis
+`node run-tests.js` complet **×10 exécutions consécutives** — dix fois
+« Aucune régression : seuls les 9 échecs connus subsistent. » Aucune
+reproduction du symptôme §7 (marqueur `security` invoqué avec URL fournie) ni
+du symptôme §12 (`test_handoff_v2` classé régression). S'ajoute aux 9
+exécutions locales déjà citées le 10/09 (total 19 exécutions complètes
+cumulées, 0 reproduction) : la cause reste **non isolée** pour les deux, ni
+plus ni moins établie qu'avant cette session. Aucun correctif spéculatif
+appliqué — conforme à la règle déjà posée : corriger sur une hypothèse
+déplacerait le défaut, ne le réparerait pas.
+
+### Élément déclaré non vérifiable dans ce canal — le point qui compte pour la gate
+
+Le réveil de ce jour affirme que le run `34508020759` (workflow `Tests`) sur
+le SHA candidat actuel est `success`, avec semis Supabase Test et recette
+navigateur réellement exécutés (non `skipped`). **Ce fait n'a pas pu être
+vérifié dans cette session** : `gh` et tout accès réseau (`git fetch`,
+`curl`) requièrent une approbation qu'aucun humain ne peut donner dans ce
+run automatisé issue_comment — confirmé explicitness par essai direct sur
+`gh --version` lui-même, pas seulement sur une sous-commande. Ce n'est pas
+nouveau pour ce canal (cf. tout l'historique de ce fil depuis le 06/09), mais
+cela reste la seule pièce manquante pour que §12 (et, par la même preuve,
+une nouvelle observation en faveur de §7) puisse être fermé par preuve
+plutôt que rester déclaré.
+
+**Ce fait est donc classé DECLARED, pas VERIFIED**, dans
+`faits-pret-pour-production.json`. Il ne peut pas à lui seul faire passer
+`aucunBlocageNonResolu` à `true` : le calculateur `nexus-live-criteres-production.js`,
+rejoué avec les faits honnêtes de cette session (`ciVerteSurCandidate: null`,
+`aucunBlocageNonResolu: null`, tout le reste `true`/à jour), rend
+**`verdict: INCONNU`** — pas `NON_PRET` par preuve d'échec (aucun échec
+observé sur ce SHA précis), pas `PRET_POUR_PRODUCTION` non plus (deux
+critères sur onze non prouvés, aucun ne peut être présumé). `autorisation_production`
+reste `NON_AUTORISEE` dans tous les cas.
+
+**Geste minimal exact pour lever ce point** : depuis une session ou un canal
+disposant de `gh`/réseau (ou directement par Frédéric/Orchestrator, qui l'ont
+déjà), confirmer `gh run view 34508020759 --json conclusion,jobs` — conclusion
+`success` ET les étapes de semis Supabase Test / recette navigateur
+effectivement `completed` (pas `skipped`). Si confirmé, §12 se ferme par
+preuve directe (même méthode que §11 le 10/09 matin) et `aucunBlocageNonResolu`
+peut repasser à `true` sous réserve que §7 reste non bloquant par la même
+logique qu'avant (cause non isolée, jamais reproduite sur le candidat lui-même
+depuis, instrumentation en place pour la prochaine occurrence). Aucune autre
+action Test/outillage ne reste possible depuis ce canal pour avancer ce point.

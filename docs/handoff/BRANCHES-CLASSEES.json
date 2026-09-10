@@ -192,6 +192,27 @@
       "sort": "INTEGREE",
       "motif": "Publiait request-7.md, canonique par le rail Orchestrator. Portait EN PLUS test_security_jamais_invoque_si_url_20260909.js, que la comparaison initiale des trois branches trousseau avait manqué : elle vérifie que security n est jamais INVOQUÉ quand l URL est fournie, propriété plus forte que « le script ne plante pas » — un trousseau verrouillé peut demander une confirmation interactive. Rapatriée le 10/09/2026, mutation réancrée sur la garde plutôt que sur sa mise en forme, 7/7. Elle couvre les TROIS scripts, y compris repetition-release-complete.sh.",
       "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1435",
+      "tete": "d164d798a908f292fc026d3876ca365a16ac7823",
+      "sort": "SUPERSEDEE",
+      "motif": "Son seul commit propre (d164d79) publie request-8.md du lot Readiness via outils/handoff.js demande — le diagnostic zzzzrefdetestinexistante / security. Comparaison octet par octet : le request-8.md canonique (arrivé par une autre voie, condensé) porte exactement le même diagnostic, les mêmes trois voies et la même recommandation (voie 2). Rien d'unique à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1544",
+      "tete": "192fa383a6fcd598883b83743b3d172922c08eec",
+      "sort": "SUPERSEDEE",
+      "motif": "Ses trois commits propres (cb5459d rattraper-demande request-8, 51f0ac0 fixtures Guardians hors dépôt §10, 192fa38 instrumentation run-tests.js §7) ont été rapatriés sélectivement dans le commit canonique 3117951 (« rapatrier §10, fermer §11, trouver §12 »), qui le dit explicitement. Vérifié par diff direct : outils/guardians-router.js, run-tests.js, test_guardians_router_20260907.js et test_fixtures_hors_depot_20260910.js sont octet pour octet identiques entre cette branche et le HEAD canonique. Rien d'unique à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1621",
+      "tete": "89b2db0a272b487764423e245ea6adf54b9ebecb",
+      "sort": "SUPERSEDEE",
+      "motif": "Son seul commit propre (89b2db0) exécute rattraper-demande puis consommer decision-8 — aucun fichier applicatif, uniquement CURRENT.md/DECISION.md/STATE.json. STATE.json y porte déjà commit_decision=ddb007f et statut DECISION_CONSOMMEE, identique au canonique (seul consomme_le diffère : 16:22:22Z contre 16:46:00Z) : une session parallèle a exécuté la même opération de rattrapage, et celle qui a été poussée en premier l'a emporté. Effet strictement identique, rien à transporter.",
+      "le": "2026-09-10"
     }
   ]
 }
