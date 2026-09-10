@@ -40,12 +40,16 @@
       "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
     },
     "aucunBlocageNonResolu": {
-      "valeur": null,
-      "suspendu_le": "2026-09-10",
-      "suspendu_par": "Frédéric Bragance",
-      "motif_de_suspension": "Six branches `claude/issue-28-20260910-*` portent du travail absent du candidat et ne sont classées nulle part. Tant qu'elles ne le sont pas, le candidat peut être incomplet sans que personne le sache — un blocage ouvert et pertinent pour cette release. Le critère repasse INCONNU : ce n'est pas un démenti de la déclaration ci-dessous, qui porte sur le défaut 7 et reste valide, c'est un SECOND blocage, distinct et non encore résolu.",
-      "preuve": "outils/garde-branches-en-rade.js sur le candidat 647a074 : « 6 branche(s) en rade sur 44 examinée(s) » — 20260910-1435, -1544, -1621, -1727, -1828, -2006.",
-      "declaration_defaut_7_toujours_valide": {
+      "valeur": true,
+      "retabli_le": "2026-09-10",
+      "deux_blocages_traites": [
+        "défaut 7 (épreuve `security` sur ea561f6) — déclaré non bloquant par Frédéric Bragance, six motifs consignés ci-dessous",
+        "six branches en rade — classées le 10/09/2026 dans docs/handoff/BRANCHES-CLASSEES.json, toutes SUPERSEDEE, chacune avec son SHA de tête et sa preuve"
+      ],
+      "preuve": "outils/garde-branches-en-rade.js : « Branches en rade : aucune (44 branche(s) claude/* examinée(s)) ». Comparaison des arbres : un seul fichier de ces six branches est absent du candidat, request-11.md, une demande Handoff volontairement non rapatriée — aucun correctif applicatif, aucune épreuve. Les diffs de code de ces branches ne contiennent que des retours en arrière, dont la version d'AVANT la correction du défaut 10.",
+      "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
+      "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées.",
+      "declaration_defaut_7": {
         "valeur": true,
         "declare_par": "Frédéric Bragance",
         "declare_le": "2026-09-10",

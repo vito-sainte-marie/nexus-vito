@@ -192,6 +192,48 @@
       "sort": "INTEGREE",
       "motif": "Publiait request-7.md, canonique par le rail Orchestrator. Portait EN PLUS test_security_jamais_invoque_si_url_20260909.js, que la comparaison initiale des trois branches trousseau avait manqué : elle vérifie que security n est jamais INVOQUÉ quand l URL est fournie, propriété plus forte que « le script ne plante pas » — un trousseau verrouillé peut demander une confirmation interactive. Rapatriée le 10/09/2026, mutation réancrée sur la garde plutôt que sur sa mise en forme, 7/7. Elle couvre les TROIS scripts, y compris repetition-release-complete.sh.",
       "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1435",
+      "tete": "d164d798a908f292fc026d3876ca365a16ac7823",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, d164d79. Publie request-8.md — DÉJÀ présent sur le candidat 647a074 (6540 octets), plus CURRENT.md et STATE.json, remplacés depuis par un état Handoff postérieur. Aucun fichier de cette branche n'est absent du candidat (comm sur les deux arbres : zéro). Son diff de code ne contient QUE des retours en arrière : +14/-389 sur NEXUS-FDJ-Manager-v1.html et -152 sur nexus-fdj-moteur.js (elle précède le merge du hotfix FDJ 4f26a37), -482 sur test_fdj_continuite_stock_reconciliation, -250 sur test_fixtures_hors_depot, -238 sur test_serialisation_registre_preprod, et ses +26 sur test_guardians_router écrivent __fixture_secret_tmp__.js DANS la racine du dépôt — c'est la version d'AVANT la correction du défaut 10. L'intégrer réintroduirait le défaut.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1544",
+      "tete": "192fa383a6fcd598883b83743b3d172922c08eec",
+      "sort": "SUPERSEDEE",
+      "motif": "Trois commits : cb5459d (rattrape request-8.md, présent sur le candidat), 51f0ac0 (fixtures Guardians hors du dépôt, défaut 10), 192fa38 (diagnostic du défaut 7 — la sortie complète d'une épreuve en échec n'atteignait jamais le log CI). VÉRIFIÉ FICHIER PAR FICHIER : run-tests.js, outils/guardians-router.js, test_guardians_router_20260907.js et les DEUX épreuves security sont IDENTIQUES entre 647a074 et cette branche — le diagnostic de 192fa38, y compris `detail: sortie.slice(-4000)`, est donc déjà sur le candidat. Seul test_fixtures_hors_depot_20260910.js diffère (+19/-81) : le candidat porte la version postérieure, avec bac à sable peuplé de fichiers réels et deux contrôles de non-nuisance, 9 vérifications contre 7. Rien d'utile n'est perdu.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1621",
+      "tete": "89b2db0a272b487764423e245ea6adf54b9ebecb",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, 89b2db0. Ne touche que CURRENT.md, DECISION.md et STATE.json — de l'état Handoff, remplacé depuis. Zéro fichier absent du candidat. Son diff de code est intégralement un retour en arrière : -250 sur test_fixtures_hors_depot, -26 sur run-tests.js, et ses +26 sur test_guardians_router réécrivent une fixture dans la racine réelle du dépôt, version d'avant la correction du défaut 10.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1727",
+      "tete": "5ae3804e2fc098fde02387bffd408ede0d24d521",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, 5ae3804. Son apport propre était de classer 1435, 1544 et 1621 en SUPERSEDEE — ce classement est REFAIT ICI, vérifié indépendamment fichier par fichier plutôt que repris sur parole, et avec les mêmes conclusions. Le reste est documentaire (blocages-ouverts-1.md +81, faits-pret-pour-production.json), remplacé par l'état postérieur du candidat. Seule différence de code : test_fixtures_hors_depot_20260910.js (+17/-68), version antérieure à la correction du défaut 10.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1828",
+      "tete": "c14b81733f344d3f5966411f9f7845b5bddb1838",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, c14b817. Publie request-9.md — DÉJÀ présent sur le candidat (8536 octets). Le reste est documentaire : CURRENT.md, STATE.json, blocages-ouverts-1.md (+117), faits-pret-pour-production.json — tous remplacés par l'état postérieur. Zéro fichier absent du candidat. Seule différence de code : test_fixtures_hors_depot_20260910.js (+17/-68), version antérieure.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2006",
+      "tete": "0e03b7e6ad50ad9d241c0ec7ac58e2e98810dde4",
+      "sort": "SUPERSEDEE",
+      "motif": "Quatre commits : ed66744 (isole la fixture de course dans un bac à sable), 058949c, 319c13d, 0e03b7e. Elle corrige le MÊME défaut 10 que le candidat, par une voie très proche — `listerPuisCopier(dirDest, racineSource = RACINE)` et un répertoire dédié. Le candidat porte la version postérieure et plus large : bac à sable peuplé des fichiers réels avec leurs tailles (la durée des copyFileSync est ce qui ouvre la fenêtre de course) et deux contrôles de non-nuisance, 9 vérifications contre 7. UN SEUL fichier de cette branche est absent du candidat, et c'est le seul de tout le lot des six : request-11.md, une demande Handoff AWAITING_DECISION portant sur la fermeture du défaut 10. Elle n'est PAS rapatriée, volontairement : le défaut qu'elle soumet à décision est fermé autrement sur le candidat (c405c75), et le lot a depuis avancé jusqu'à request-10 et à l'arbitrage de Frédéric Bragance du 10/09. Aucun correctif applicatif ni aucune épreuve n'est perdu — vérifié par comparaison des deux arbres.",
+      "le": "2026-09-10"
     }
   ]
 }
