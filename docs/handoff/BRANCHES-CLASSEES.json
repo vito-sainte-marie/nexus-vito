@@ -156,6 +156,42 @@
       "sort": "INTEGREE",
       "motif": "Poursuite de la readiness Production (decision-2). INTÉGRÉE : 15 fichiers touchés, aucun absent, 81 % des lignes ajoutées littéralement présentes au canonique hors miroirs ; le reste a été révisé par 2ddd01f puis 4ca914e. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées.",
       "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1054",
+      "tete": "e9262da20a8e80cc1023e650136003e1bb90620e",
+      "sort": "A_REPRENDRE",
+      "motif": "Arbitrage Orchestrator du 10/09/2026 relayé par Frédéric Bragance. Ses correctifs de scripts sont SUPERSÉDÉS : le défaut du trousseau est corrigé au canonique, prouvé 10/10 par test_credential_seulement_si_necessaire et 7/7 par test_security_jamais_invoque_si_url. Reste un delta RÉELLEMENT absent : outils/resoudre-connexion-test.sh, qui factorise la résolution direct/pooler recopiée dans deux scripts, et son épreuve test_resoudre_connexion_test_20260909.js qui en dépend. Écartés de CETTE release sur arbitrage explicite : outil de confort, ne ferme aucun défaut observé, ajoute une abstraction juste avant la gate Production. À reprendre comme amélioration technique après la release — la duplication reste une dette de forme, pas un défaut.",
+      "le": "2026-09-10",
+      "renvoi": "ARCH-006"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1213",
+      "tete": "ad2e4c82351722669243dc0a7ce1e1a95b2e27ce",
+      "sort": "INTEGREE",
+      "motif": "Contenu utile réappliqué et prouvé sur le canonique le 10/09/2026 : test_reconstruction_sans_trousseau_20260909.js rapatrié, adapté au message d avertissement canonique et à la nouvelle disposition du bloc credential, 7/7 dont sa mutation négative. Ses correctifs de scripts ne sont PAS repris : déjà présents au canonique. request-5.md est canonique par une autre voie.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1455",
+      "tete": "28bf9d335cc22714b0872732dbd17c045c0be121",
+      "sort": "INTEGREE",
+      "motif": "Contenu utile réappliqué et prouvé sur le canonique le 10/09/2026 : la commande handoff.js rattraper-demande et son épreuve 8/8, plus test_connexion_test_url_avant_trousseau_20260909.js, 6/6. La commande répare le cas rencontré deux fois le 09/09 — un request-N déposé directement laisse STATE.json en retard et bloque tout le registre. Ses correctifs de scripts ne sont pas repris : déjà présents au canonique.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1735",
+      "tete": "2453d989e2453728f0db50748c1f6727afd29224",
+      "sort": "SUPERSEDEE",
+      "motif": "Publiait request-6.md, devenu canonique par le rail Orchestrator (commit c3ba2a7). Son seul fichier absent du canonique, test_connexion_test_url_avant_trousseau_20260909.js, est rapatrié le 10/09/2026 par la voie de la branche 1455 qui le portait aussi. Plus rien à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-2038",
+      "tete": "73a8c40d75d0018b167370132b61f1cc6b06f6ed",
+      "sort": "INTEGREE",
+      "motif": "Publiait request-7.md, canonique par le rail Orchestrator. Portait EN PLUS test_security_jamais_invoque_si_url_20260909.js, que la comparaison initiale des trois branches trousseau avait manqué : elle vérifie que security n est jamais INVOQUÉ quand l URL est fournie, propriété plus forte que « le script ne plante pas » — un trousseau verrouillé peut demander une confirmation interactive. Rapatriée le 10/09/2026, mutation réancrée sur la garde plutôt que sur sa mise en forme, 7/7. Elle couvre les TROIS scripts, y compris repetition-release-complete.sh.",
+      "le": "2026-09-10"
     }
   ]
 }

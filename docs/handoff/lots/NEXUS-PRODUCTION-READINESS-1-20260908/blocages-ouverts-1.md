@@ -100,12 +100,39 @@ release ; tous attendent un arbitrage.
 
 ---
 
-## Ce que je recommande de déclarer
+## FERMÉ le 10/09/2026
 
-**`aucun_blocage_non_resolu` reste INCONNU tant que les cinq branches en rade ne
-sont pas tranchées.** C'est le seul point où quelque chose pourrait manquer au
-candidat sans que personne le sache — et c'est exactement ce que ce critère
-existe pour empêcher.
+**Les cinq branches sont classées au SHA exact**, sur arbitrage Orchestrator
+relayé par Frédéric Bragance. `garde-branches-en-rade` rend désormais
+« aucune », et son épreuve passe 21/21.
+
+| branche | tête | sort |
+|---|---|---|
+| `…0909-1054` | `e9262da` | **A_REPRENDRE** → Backlog `ARCH-006` |
+| `…0909-1213` | `ad2e4c8` | **INTEGREE** |
+| `…0909-1455` | `28bf9d3` | **INTEGREE** |
+| `…0909-1735` | `2453d98` | **SUPERSEDEE** |
+| `…0909-2038` | `73a8c40` | **INTEGREE** |
+
+Aucune fusion globale : rapatriement sélectif de la commande
+`handoff.js rattraper-demande` et de quatre épreuves, toutes exécutées sur le
+HEAD canonique. `outils/resoudre-connexion-test.sh` est écarté de cette
+release et suivi en `ARCH-006`.
+
+**`aucun_blocage_non_resolu` peut être déclaré OK.** Les points 3 à 6 ci-dessus
+restent ouverts, connus, hors périmètre, et n'empêchent rien.
+
+### Ce que ce classement a révélé au passage
+
+La branche `2038` portait une **cinquième épreuve** que ma première comparaison
+avait manquée : `test_security_jamais_invoque_si_url_20260909.js`. Elle vérifie
+que `security` n'est jamais **invoqué** quand l'URL est fournie — propriété plus
+forte que « le script ne plante pas », car un trousseau verrouillé peut demander
+une confirmation interactive et bloquer un script qui n'en avait pas besoin.
+
+Ma comparaison du 10/09 ne regardait que les trois branches « trousseau » et
+n'avait pas ouvert les deux branches « handoff ». **Une comparaison bornée à ce
+qu'on croit chercher manque ce qu'on ne cherchait pas.**
 
 Les points 3 à 6 sont ouverts, connus, hors périmètre, et n'empêchent rien.
 
