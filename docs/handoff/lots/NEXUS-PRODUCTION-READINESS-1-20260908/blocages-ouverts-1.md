@@ -289,3 +289,22 @@ deuxième est réversible et sans effet sur les gardes ; c'est celle que je
 recommande si l'objectif est de débloquer la CI sans rien élargir.
 
 **En attendant, la CI reste rouge sur le candidat, et le verdict NON_PRET.**
+
+### FERMÉ le 10/09/2026 — défauts 8 et 9
+
+**Voie 2 appliquée**, sur arbitrage Orchestrator relayé par Frédéric Bragance
+(`request-8`). Les six épreuves qui touchent `PREPROD-CYCLE.json` sont drainées
+par une voie unique du lanceur ; le reste de la suite garde son parallélisme.
+
+Aucune garde modifiée, aucun script de release touché, aucune variable
+d'environnement introduite — la voie 1 est rejetée pour cette release, la voie
+3 différée après la gate.
+
+Preuves : `preuve-serialisation-registre-preprod-1.md`. **9/9** sur l'épreuve
+dédiée, dont la restitution octet pour octet du registre y compris après échec
+forcé à l'intérieur du `try`, et **8 exécutions consécutives** de la suite
+parallèle complète sans un seul échec hors liste, sans registre modifié et sans
+cycle bidon résiduel.
+
+**Le défaut 7 reste ouvert, et son libellé est inchangé : cause non isolée.**
+Il n'est pas réglé par cette décision.

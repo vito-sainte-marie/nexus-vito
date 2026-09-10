@@ -35,7 +35,56 @@ function verdictNonRegression({ fichiers, echecs, connus }) {
   return { code: 'CONFORME', fichiers: [] };
 }
 
-if (require.main !== module) { module.exports = { verdictNonRegression }; return; }
+// ── Les épreuves qui écrivent dans le dépôt ne peuvent pas se croiser ────
+//
+// LE DÉFAUT, démontré le 10/09/2026 (blocages-ouverts-1.md §9). Six épreuves
+// sauvegardent `docs/handoff/PREPROD-CYCLE.json`, le remplacent, lancent un
+// script qui y inscrit un cycle PREPROD, puis le restaurent. Lancées en
+// parallèle, la seconde sauvegarde l'état DÉJÀ modifié par la première : la
+// dernière restauration gagne, et ce n'est pas l'originale. Un cycle bidon
+// (`zzzzrefdetestinexistante`) survivait alors dans un fichier suivi par git,
+// et faisait échouer l'étape de semis PLUS TARD DANS LE MÊME JOB CI.
+//
+// LA RÉPARATION EST UNE VOIE DÉDIÉE, pas un verrou et pas une variable
+// d'environnement : ces épreuves sont drainées une par une par un seul
+// exécutant, le reste de la suite garde son parallélisme. Aucune garde n'est
+// modifiée, aucun chemin n'est redirigeable — le registre canonique reste le
+// seul, à sa place.
+//
+// LA LISTE N'EST PAS ÉCRITE À LA MAIN. Une liste se périme dès qu'une épreuve
+// future touche le registre sans y être inscrite. Elle est DÉDUITE du contenu
+// des fichiers : toute épreuve qui nomme le registre est exclusive.
+const REGISTRE_PARTAGE = 'PREPROD-CYCLE';
+
+/** Vrai si le SOURCE d'une épreuve nomme le registre partagé. */
+function toucheAuRegistre(source) {
+  return typeof source === 'string' && source.includes(REGISTRE_PARTAGE);
+}
+
+/**
+ * Répartit les épreuves en deux files : celles qui touchent au registre
+ * (drainées par UN seul exécutant, donc jamais simultanées) et les autres
+ * (partagées entre les exécutants restants).
+ *
+ * Fonction pure, pour que l'invariant soit éprouvable sans lancer la suite :
+ * toute épreuve exclusive est dans `exclusives`, et `exclusives` n'est drainée
+ * que par une voie.
+ */
+function planifier({ fichiers, largeur, exclusifs }) {
+  const tous = (fichiers || []).slice();
+  const ex = new Set(exclusifs || []);
+  if (!(largeur > 1)) return { exclusives: [], paralleles: tous, voies: 1 };
+  const exclusives = tous.filter((f) => ex.has(f));
+  const paralleles = tous.filter((f) => !ex.has(f));
+  // Pas d'épreuve exclusive : rien à sérialiser, toute la largeur au reste.
+  if (!exclusives.length) return { exclusives: [], paralleles, voies: largeur };
+  return { exclusives, paralleles, voies: largeur };
+}
+
+if (require.main !== module) {
+  module.exports = { verdictNonRegression, toucheAuRegistre, planifier, REGISTRE_PARTAGE };
+  return;
+}
 
 // Un drapeau n'est pas un filtre. `--sequentiel` était pris pour le motif de
 // sélection : la suite ne lançait AUCUNE épreuve et s'annonçait terminée. Une
@@ -90,14 +139,22 @@ function lancer(f) {
 
 async function executer() {
   const resultats = new Map();
-  const file = fichiers.slice();
   const largeur = sequentiel ? 1 : PARALLELE;
+  const exclusifs = fichiers.filter((f) => {
+    try { return toucheAuRegistre(fs.readFileSync(path.join(__dirname, f), 'utf8')); }
+    catch (e) { return true; }   // illisible : on sérialise plutôt que de risquer la course
+  });
+  const plan = planifier({ fichiers, largeur, exclusifs });
   // Le mode est DÉCLARÉ, pas deviné. Sans cette ligne, rien ne distinguait un
   // `--sequentiel` réellement séquentiel d'un `--sequentiel` ignoré : la
   // comparaison entre les deux modes comparait alors deux fois le même, et la
   // mutation qui supprimait le mode séquentiel survivait.
-  console.log(`${fichiers.length} épreuve(s), ${largeur === 1 ? 'en séquentiel' : largeur + ' en parallèle'}.`);
-  await Promise.all(Array.from({ length: largeur }, async () => {
+  const detail = plan.exclusives.length
+    ? `, dont ${plan.exclusives.length} sérialisée(s) sur le registre partagé`
+    : '';
+  console.log(`${fichiers.length} épreuve(s), ${largeur === 1 ? 'en séquentiel' : largeur + ' en parallèle'}${detail}.`);
+
+  const drainer = async (file) => {
     for (;;) {
       const f = file.shift();
       if (!f) return;
@@ -105,7 +162,22 @@ async function executer() {
       resultats.set(f, r);
       process.stdout.write(r.ok ? '.' : 'x');
     }
-  }));
+  };
+
+  if (!plan.exclusives.length) {
+    const file = plan.paralleles.slice();
+    await Promise.all(Array.from({ length: Math.max(1, largeur) }, () => drainer(file)));
+  } else {
+    // UNE voie pour les exclusives — c'est ce qui garantit qu'aucune paire
+    // d'entre elles ne se chevauche. Les autres voies se partagent le reste,
+    // et gardent le vol de travail : le parallélisme n'est pas sacrifié.
+    const fileExclusive = plan.exclusives.slice();
+    const fileParallele = plan.paralleles.slice();
+    await Promise.all([
+      drainer(fileExclusive),
+      ...Array.from({ length: Math.max(1, largeur - 1) }, () => drainer(fileParallele)),
+    ]);
+  }
   // Rendu dans l'ordre des FICHIERS, pas dans celui des retours.
   return fichiers.filter(f => !resultats.get(f).ok)
     .map(f => ({ f, cause: resultats.get(f).cause }));
