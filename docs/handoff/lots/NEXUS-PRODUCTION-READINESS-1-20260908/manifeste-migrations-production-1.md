@@ -158,25 +158,38 @@ contrôle refait à la main ne se refait pas.
 
 ---
 
-## EXCLUES de cette release — lot correctif du 11/09/2026
+## INCLUSES — lot correctif du 11/09/2026
 
-Cinq migrations ajoutées le 11/09/2026 par le lot
-`NEXUS-POINTAGE-CORRECTIF-1-20260911`. **Aucune ne fait partie de cette
-release.** Elles sont appliquées à Supabase **Test uniquement**, sur
-autorisation explicite de l'Orchestrator, et leur promotion vers Production
-fera l'objet d'un arbitrage distinct.
+**Sept migrations, requalifiées EXCLUES → INCLUSES le 11/09/2026.**
 
-| migration | sort | motif |
-|---|---|---|
-| `20260911180000_pointages_service_id.sql` | **EXCLUE** | Ajoute `pointages.service_id` nullable, sa clé étrangère et son index. Prérequis du rattachement ; sans effet tant que rien ne le renseigne. |
-| `20260911180100_pointages_rattachement_historique.sql` | **EXCLUE** | Rattache les **80 seuls** pointages dont le service est certain et produit le rapport des **12 exceptions** (8 ambigus, 4 sans service). Aucune attribution arbitraire. |
-| `20260911180200_pointages_client_event_id.sql` | **EXCLUE** | Porte en base l'identifiant idempotent de la file hors ligne, avec unicité partielle. Rend la reprise sûre entre deux appareils. |
-| `20260911180300_pointages_unicite_partielle.sql` | **EXCLUE** | Unicité `(service_id, employee_id, type)` là où `service_id` n'est pas nul. N'a de sens qu'une fois le chemin applicatif adapté. |
-| `20260911180400_shifts_fin_apres_debut.sql` | **EXCLUE** | Contrainte `fin >= debut`, posée `NOT VALID`. Sa validation exige le traitement explicite des lignes existantes incompatibles, et n'est pas incluse ici. |
-| `20260911180500_depart_ferme_son_propre_service.sql` | **EXCLUE** | Un départ ne ferme plus « le service en cours le plus récent » mais **celui que porte son pointage**, et n'écrit jamais une fin antérieure au début. C'est la garantie côté produit de l'invariant que la contrainte tient côté base. |
-| `20260911180600_pointage_exige_service_et_evenement.sql` | **EXCLUE** | Tout NOUVEAU pointage exige `service_id` et `client_event_id`, et le service désigné doit appartenir au même employé et au même site. Le repli « service le plus récent » disparaît. Les pointages historiques sans service ne sont pas touchés : la règle porte sur l'insertion, pas sur la forme de la table. |
+**Pourquoi elles ne pouvaient pas rester exclues.** Le code de cette release
+EXIGE désormais `pointages.service_id` et `pointages.client_event_id` : tout
+nouveau pointage les renseigne, et la base les refuse sinon. Déployer ce code
+sans les migrations qui créent ces colonnes rendrait **tout pointage
+impossible** dès la première minute. Les deux ne se séparent plus.
 
-**Pourquoi exclues et non incluses.** La release en cours a son candidat, ses
-mesures et son plan de retour arrière ; y ajouter cinq migrations
-changerait l'objet de la gate que Frédéric Bragance doit accorder. Le
-correctif se prouve d'abord sur Test.
+`test_migrations_exigees_par_le_code_20260911.js` interdit désormais cette
+séparation : si le code écrit une colonne, la migration qui la crée doit être
+citée INCLUSE ici.
+
+### Ordre d'application, et ce dont chacune dépend
+
+| # | migration | dépend de | rôle |
+|---|---|---|---|
+| 1 | `20260911180000_pointages_service_id.sql` | — | crée la colonne, sa clé étrangère vers `shifts`, son index |
+| 2 | `20260911180100_pointages_rattachement_historique.sql` | 1 | backfill des **75** cas certains ; laisse **17** à NULL (5 ambigus, 12 sans service) |
+| 3 | `20260911180200_pointages_client_event_id.sql` | — | crée la colonne et son unicité partielle |
+| 4 | `20260911180300_pointages_unicite_partielle.sql` | 1, 2 | unicité `(service_id, employee_id, type)` là où `service_id` n'est pas nul |
+| 5 | `20260911180400_shifts_fin_apres_debut.sql` | — | contrainte `fin >= debut`, posée `NOT VALID` |
+| 6 | `20260911180500_depart_ferme_son_propre_service.sql` | 1 | le départ ne ferme que le service que porte son pointage |
+| 7 | `20260911180600_pointage_exige_service_et_evenement.sql` | 1, 3, 6 | exige les deux colonnes sur tout NOUVEAU pointage, et supprime le repli |
+
+**L'ordre n'est pas indicatif.** 7 refuse un pointage sans `service_id` : elle
+ne peut pas précéder 1. 4 indexe `service_id` : elle ne peut pas précéder le
+backfill 2, sous peine de contraindre des lignes qu'on n'a pas encore
+rattachées. 6 lit `new.service_id` : elle ne peut pas précéder 1.
+
+**Ce que ces migrations ne font pas.** La contrainte `fin >= debut` reste
+`NOT VALID` : sa validation exige le traitement explicite des lignes
+existantes incompatibles, et n'est pas incluse. Les 17 exceptions historiques
+ne sont jamais rattachées.
