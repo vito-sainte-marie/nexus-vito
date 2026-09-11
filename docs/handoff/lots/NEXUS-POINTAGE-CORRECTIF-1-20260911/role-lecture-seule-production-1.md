@@ -153,3 +153,54 @@ avant toute écriture. L'autorisation ne repose donc pas sur le seul droit
 que cet appel échoue bien pour ce rôle. Tant que ce n'est pas constaté,
 la garantie « aucune capacité d'écriture » n'est pas acquise — elle est
 seulement *plausible*, et ce n'est pas la même chose.
+
+---
+
+## Garantie 7 — démontrée, et sur les privilèges
+
+**11/09/2026.** Le rôle se connecte (hôte direct), identité
+`nexus_prod_readonly_login`, `default_transaction_read_only = on`.
+
+Premier passage : les cinq écritures sont refusées par « *cannot execute … in a
+read-only transaction* ». **Ce n'était pas la preuve demandée** — c'est le
+filet, pas la frontière. Les sondes ont donc été rejouées avec
+`set transaction read write` à l'intérieur de la transaction, pour forcer le
+contrôle de privilège.
+
+| sonde | refus |
+|---|---|
+| `INSERT` sur `pointages` | **permission denied for table pointages** |
+| `UPDATE` sur `shifts` (`where 1 = 0`) | **permission denied for table shifts** |
+| `DELETE` sur `pointages` (`where 1 = 0`) | **permission denied for table pointages** |
+| `CREATE TABLE` dans `public` | **permission denied for schema public** |
+| `ALTER TABLE` sur `pointages` | **must be owner of table pointages** |
+| `fdj_synchroniser_releves_courants(…)` | **permission denied for function** |
+| `run_scheduled_inventory_reviews()` | **permission denied for function** |
+
+Les `where 1 = 0` sont délibérés : PostgreSQL vérifie la permission **avant**
+la condition. Le refus tombe même quand aucune ligne n'est visée.
+
+Aucune table de sonde laissée derrière. Toutes les transactions annulées.
+
+## Et un obstacle que la fermeture a créé
+
+**Le rôle ne voit aucune ligne.**
+
+| table | lignes visibles |
+|---|---|
+| `pointages` · `shifts` · `sites` · `station_config` · `mission_catalog` | **0** partout |
+
+La RLS est active sur `pointages` et `shifts` (`relrowsecurity = t`), et le rôle
+**ne la contourne pas** — c'était la garantie 3, elle est tenue. Mais aucune
+politique ne lui accorde de lecture : les politiques existantes reposent sur
+`auth.uid()`, qu'une connexion `psql` n'a jamais.
+
+**Le rôle est donc correctement verrouillé, et trop verrouillé pour faire la
+preuve.** L'extraction rendrait un ensemble vide, et un rapport « 0 / 0 / 0 »
+qui ne prouverait rien tout en ayant l'air d'un résultat.
+
+**Je m'arrête là.** Accorder une politique RLS de lecture à ce rôle sur les
+tables de la preuve est une modification de sécurité en Production. Votre
+autorisation parlait des « droits strictement nécessaires à la lecture des
+tables utiles à la preuve » — écrite avant que nous sachions que la RLS
+bloquerait. Je ne l'étends pas moi-même.
