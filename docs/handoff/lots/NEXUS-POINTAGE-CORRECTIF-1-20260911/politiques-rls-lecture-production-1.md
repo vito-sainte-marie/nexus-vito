@@ -45,6 +45,21 @@ alter role nexus_prod_readonly_login connection limit 1;
 | `mission_catalog` | la mesure #2 de cohérence `site`/`site_id` |
 | `advisor_rules` | la mesure #1, comparaison au seed |
 | `nexus_language_templates` | la mesure #1, comparaison au seed |
+| `employees` | **ajoutée le 11/09** — la mesure #4 canonique, `shifts → employees → sites` |
+
+### `employees`, et seulement deux colonnes
+
+Autorisation explicite de Frédéric Bragance du 11/09 : le CTE canonique de la
+migration #6 lit `e.id` et `e.site_id`, rien d'autre. Le grant porte exactement
+ces deux colonnes.
+
+```sql
+grant select (id, site_id) on public.employees to nexus_prod_readonly;
+```
+
+Refusées, vérifiées une par une : `nom`, `username`, `role`, `actif`,
+`est_createur`, `compte_test`, `created_at`. La table ne porte ni PIN ni
+coordonnées.
 
 **`using (true)` est délibéré.** L'audit doit voir *toutes* les lignes, y compris
 les dix exceptions `site-fantome-test` : une politique qui les filtrerait ferait
@@ -87,7 +102,30 @@ filet de la transaction en lecture seule — toutes refusées sur le privilège 
 
 Fonctions `SECURITY DEFINER` écrivantes exécutables par ce rôle : **0**.
 
-## Reste à arbitrer après la gate
+## Durée de vie du dispositif — arbitré le 11/09
 
-Désactivation du `LOGIN` ou expiration du mot de passe, et retrait des sept
-politiques. **Proposé, pas exécuté** : ces gestes appartiennent à Frédéric.
+Le dispositif d'audit **reste en place** après la gate. Ce qui change, c'est la
+capacité de s'y connecter, pas la capacité de lire.
+
+| élément | après la gate |
+|---|---|
+| `nexus_prod_readonly_login` | `ALTER ROLE … NOLOGIN` — **proposé, pas exécuté** |
+| `nexus_prod_readonly` | **conservé**, avec ses droits minimaux |
+| les huit politiques RLS | **conservées** |
+| `CONNECTION LIMIT 1` | **conservé** |
+| mot de passe | conservé, inutilisable tant que `NOLOGIN` tient |
+
+**Les politiques ne seront retirées que si le dispositif d'audit est
+officiellement abandonné** — décision de Frédéric, écrite, pas déduite d'une
+période d'inactivité.
+
+Pourquoi `NOLOGIN` plutôt que le retrait des politiques : couper la connexion
+est réversible d'un geste et ne détruit rien. Retirer les politiques
+détruirait la configuration qu'il a fallu établir, et le prochain audit
+repartirait de l'obstacle du 11/09 — un rôle qui a le droit et ne voit rien.
+
+Commande proposée, **non exécutée** :
+
+```sql
+alter role nexus_prod_readonly_login nologin;
+```

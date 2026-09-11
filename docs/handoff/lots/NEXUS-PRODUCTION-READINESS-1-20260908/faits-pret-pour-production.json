@@ -17,11 +17,12 @@
     },
     "mesuresProductionFraiches": {
       "horodatage": "2026-09-11T22:39:53Z",
-      "preuve": "preuve-re-mesure-finale-2.md — six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz, jouées par nexus_prod_readonly_login (rôle dont l'incapacité d'écrire est démontrée sonde par sonde). Valides 24 h, expirent le 2026-09-12T22:39Z. La mesure #5 est INCONNUE : un rôle sans pg_read_all_stats ne voit le texte d'aucune autre session (11 masquées)."
+      "expire_le": "2026-09-12T22:39:53Z",
+      "preuve": "preuve-re-mesure-finale-2.md — mesures #1 à #4 et #6 jouées par nexus_prod_readonly_login sur uzhjpqpctpvxytxpxoqz, SHA b10f9b6. La mesure #5 est INCONNUE par construction et le reste jusqu'à son exécution par un observateur privilégié dans les minutes précédant la fenêtre (outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql). Ces mesures n'autorisent PAS la gate du 13/09 : elles expirent avant. Protocole de reprise : protocole-gate-dimanche-1.md."
     },
     "aucunImpactDmlInconnu": {
       "valeur": true,
-      "preuve": "preuve-re-mesure-finale-2.md §1 (Advisor : 0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 shifts, 89 mission_catalog, inchangés) ; §4 (26 services en cours, 24 seraient clos sans pointage — écart facteur 1,63 avec la référence 16 du 08/09, sous le seuil de 2). Réserve écrite : l'équivalence de la variante de la mesure #4 au CTE de la migration est INCONNUE, employees étant hors du périmètre du rôle."
+      "preuve": "preuve-re-mesure-finale-2.md §1 (0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 shifts, 89 mission_catalog, inchangés) ; §4 CTE CANONIQUE via employees : 26 services en cours, 24 seraient clos sans pointage, écart facteur 1,63 avec la référence 16 du 08/09. La variante par site porté par le service rend le même ensemble — différence symétrique nulle — parce que les trois conditions de divergence valent zéro (site du service ≠ site de l'employé : 0 ; employé introuvable : 0 ; site de l'employé absent de sites : 0). Seul le canonique porte le critère. Augmentation compatible avec la persistance de services ouverts sans clôture ; cause individuelle non attribuée."
     },
     "preprodAnonymiseOuEquivalent": {
       "valeur": true,
@@ -37,7 +38,7 @@
     },
     "fenetreDeploiementConfirmee": {
       "valeur": true,
-      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. La clause « 0 écriture en vol » de la re-mesure du 10/09 est RETIRÉE : preuve-re-mesure-finale-2.md §5 montre qu'un rôle sans pg_read_all_stats rend zéro parce qu'il ne voit rien (11 sessions masquées). Ce critère ne repose donc que sur la fenêtre métier, jamais sur cette heuristique."
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la mesure #5 est INCONNUE jusqu'à la gate (preuve-re-mesure-finale-2.md §5). La clause « 0 écriture en vol » du 10/09 est retirée — elle confondait session active et transaction écrivante."
     },
     "aucunBlocageNonResolu": {
       "valeur": false,
@@ -75,7 +76,7 @@
       },
       "preuve_backfill_92": {
         "valeur": true,
-        "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — extraction lecture seule des 92 pointages Production réels, pseudonymisation déterministe, insertion dans le schéma isolé preuve_backfill de Test, backfill réel, comparaison avant/après, destruction vérifiée. Résultat : 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte. Conforme à la répartition canonique."
+        "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte ; schéma temporaire détruit et destruction vérifiée. Répartition acceptée par Frédéric Bragance le 11/09."
       }
     },
     "gateHumaineFrederic": {

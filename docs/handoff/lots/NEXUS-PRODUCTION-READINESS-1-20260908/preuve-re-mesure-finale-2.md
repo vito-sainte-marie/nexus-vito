@@ -5,6 +5,10 @@
 `nexus_prod_readonly`, `connection limit 1`, mot de passe lu dans le trousseau
 local et jamais affiché.
 
+**SHA sur lequel ces mesures portent : `b10f9b6`** — voir `identite-du-candidat-1.md`.
+La première rédaction de ce rapport recalculait les critères sur `febb3d6`
+puis annonçait un push `b10f9b6` : deux SHA dans un même verdict, corrigé.
+
 Cette exécution **remplace** celle du 10/09/2026, périmée depuis
 14 h 02 UTC. Différence de fond : la mesure du 10/09 passait par le connecteur
 Supabase, c'est-à-dire par un rôle capable d'écrire. Celle-ci passe par un rôle
@@ -53,61 +57,130 @@ migration le couvre pour rien, ce qui est sans effet.
 ## 4 · Reprise des services ouverts
 
 ```
-services_en_cours_total                    26
-services qui seraient clos sans pointage   24
-shifts en_cours dont le site est introuvable  0
+services_en_cours_total                        26
+CANONIQUE  (join employees, join sites)        24
+VARIANTE   (site porté par le service)         24
+différence symétrique entre les deux ensembles  0 ligne
 ```
 
-**Écart avec la référence du 08/09 (16) : facteur 1,63.** Sous le facteur 2 posé
-par `plan-reparation-rollback-1.md` — la fenêtre reste ouverte sans explication
-supplémentaire. La progression est cohérente avec le défaut du parcours
-Caissière : l'écran continue de créer des services que personne ne ferme. Dix
-de plus en trois jours.
+**Seul le résultat canonique porte le critère : 24.**
 
-**Limite à ne pas maquiller.** Le CTE d'origine passe par
-`employees.site_id`. La table `employees` est hors du périmètre autorisé du
-rôle, volontairement. La variante jouée ici prend le site porté par le service
-lui-même (`coalesce(shifts.site_id, shifts.site)`). Les deux ne coïncident que
-si aucun service n'est rattaché à un site différent de celui de son employé —
-**ce que cette mesure ne peut pas vérifier**. Le nombre 24 est un fait sur la
-variante ; son équivalence au CTE de la migration est **INCONNUE**.
+### Comment le CTE canonique a pu être joué
 
-Ce que la mesure établit tout de même : les 26 services en cours portent tous
-un site résoluble (0 orphelin), donc la variante ne perd aucune ligne.
+Le CTE d'origine passe par `employees`, qui était hors du périmètre du rôle.
+Sur autorisation explicite de Frédéric Bragance du 11/09, le rôle a reçu le
+`SELECT` sur **les deux seules colonnes que la requête lit** :
 
-## 5 · Absence d'écriture concurrente — **INCONNU**
+```sql
+grant select (id, site_id) on public.employees to nexus_prod_readonly;
+create policy audit_nexus_readonly_select on public.employees
+  for select to nexus_prod_readonly using (true);
+```
+
+Les sept autres colonnes restent refusées, vérifié une par une :
+`nom`, `username`, `role`, `actif`, `est_createur`, `compte_test`, `created_at`.
+La table ne porte aucune colonne de PIN ni de coordonnées.
+
+Le CTE a ensuite été exécuté avec son chemin de jointure intact —
+`shifts → employees → sites`. La seule substitution est celle déjà actée le
+10/09 et documentée en §3 : `sites.timezone` n'existe pas encore, la migration
+#4 l'ajoute, donc la pré-image (`station_config.fuseau_horaire` valide, sinon
+la décision explicite de la migration) tient sa place. Une requête de pré-mesure
+ne peut pas lire l'état d'après.
+
+### Pourquoi les deux résultats coïncident
+
+Non pas par chance, et la coïncidence de deux nombres ne démontrerait rien à
+elle seule. Les trois conditions qui les font diverger ont été mesurées, et
+valent zéro :
+
+| condition de divergence | mesuré |
+|---|---|
+| service en cours dont le site diffère de celui de son employé | **0** |
+| service en cours dont l'employé est introuvable | **0** |
+| service en cours dont le site de l'employé est absent de `sites` | **0** |
+
+Les deux ensembles de `shift_id` sont donc identiques, et la différence
+symétrique le confirme directement : zéro ligne dans un sens comme dans l'autre.
+La variante n'est pas « équivalente » par principe — elle l'est **aujourd'hui,
+sur cet état-là**, parce que ces trois écarts sont nuls. Rien ne garantit
+qu'ils le resteront ; c'est le canonique qu'il faudra rejouer dimanche.
+
+### Fenêtre
+
+Écart avec la référence du 08/09 (16) : **facteur 1,63**, sous le seuil de 2
+posé par `plan-reparation-rollback-1.md`. La fenêtre reste ouverte sans
+explication supplémentaire.
+
+Dix services ouverts de plus en trois jours : **augmentation compatible avec la
+persistance de services ouverts sans clôture ; cause individuelle non
+attribuée.** Aucun de ces dix n'a été relié à une session, un employé ou un
+écran précis — aucune corrélation n'a été établie, et un rapprochement de date
+n'en est pas une.
+
+## 5 · Écriture en vol — **INCONNU jusqu'à la gate**
 
 Résultat brut de la première tentative : 1 ligne. **C'était ma propre requête.**
 Le motif `ilike '%insert into public.shifts%'` figure littéralement dans le
-texte de la sonde, que `pg_stat_activity` expose ; la sonde se reconnaissait
-elle-même. Rejouée avec le motif reconstruit par concaténation :
+texte de la sonde, que `pg_stat_activity` expose : la sonde se reconnaissait
+elle-même. Rejouée avec le motif reconstruit par concaténation : `0`.
+
+Mais ce zéro-là ne valait rien non plus :
 
 ```
-moi : 0 · autres visibles : 0 · masquées : 0
-```
-
-Et la raison de fond :
-
-```
-current_setting('is_superuser')                          off
+current_setting('is_superuser')                           off
 pg_has_role(current_user, 'pg_read_all_stats', 'member')  f
 onze sessions non-idle avec query = '<insufficient privilege>'
 ```
 
-Onze sessions tournent, et le rôle ne voit le texte d'**aucune**. Cette mesure
-ne peut pas être rendue par un rôle correctement restreint : elle exige
-`pg_read_all_stats`, c'est-à-dire précisément l'élargissement que le mandat
-interdit.
+Le rôle ne voit le texte d'**aucune** autre session. Un zéro qui vient d'un
+aveuglement n'est pas une mesure.
 
-**Statut : INCONNU, pas OK.** Le 10/09, la même mesure avait été déclarée « 0
-écriture en vol » — c'était faux au sens strict : elle avait été jouée par un
-rôle privilégié, et le zéro observé aujourd'hui par un rôle aveugle aurait été
-lu de la même façon. Une mesure qui rend zéro parce qu'elle ne voit rien n'est
-pas une mesure.
+**`pg_read_all_stats` ne sera pas accordé** à `nexus_prod_readonly` : ce droit
+livrerait le texte des requêtes de toutes les sessions, donc potentiellement des
+données personnelles, des identifiants et des valeurs métier. Le rôle d'audit
+n'a pas à les voir.
 
-Elle reste de toute façon qualifiée d'heuristique par
-`re-mesure-finale-gate-1.md`. La décision de fenêtre s'appuie sur
-`mesure-fenetre-deploiement-1.md`, pas sur elle.
+### Ce que « écriture en vol » veut dire
+
+Une session `active` n'est pas une écriture. Elle peut exécuter un SELECT, un
+VACUUM, un `pg_dump` : rien de cela ne verrouille une ligne ni ne menace une
+migration. Confondre les deux, c'est encore mesurer un proxy.
+
+La mesure retenue, `outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql`,
+ne lit aucun texte de requête. Elle retient une session si **au moins l'une** de
+ces deux conditions tient :
+
+- **`backend_xid is not null`** — PostgreSQL n'attribue un identifiant de
+  transaction réel qu'au moment où la transaction écrit. Une transaction qui n'a
+  fait que lire n'en a pas.
+- **un verrou `RowExclusiveLock` ou supérieur** sur `public.shifts`,
+  `public.mission_catalog` ou `public.pointages` — les niveaux que seuls
+  INSERT / UPDATE / DELETE / DDL prennent ; un SELECT prend `AccessShareLock`,
+  qui n'y figure pas.
+
+Aucune des deux ne dépend d'un motif textuel, donc aucune ne peut se
+reconnaître elle-même ; `pg_backend_pid()` exclut l'observateur. La sortie ne
+porte que du technique : pid, rôle, `application_name`, état, ancienneté, motif.
+
+### Validation de l'instrument, 11/09
+
+Jouée une fois par le connecteur privilégié, uniquement pour prouver qu'elle
+s'exécute et qu'elle discrimine :
+
+```
+sessions_totales            12
+non-idle hors observateur    1
+écritures en vol             0
+textes masqués (privilégié)  0
+```
+
+Une session non-idle, zéro écriture en vol : exactement la distinction que la
+mesure du 10/09 ne faisait pas.
+
+**Ceci ne vaut pas mesure de gate.** Le critère #5 reste **INCONNU** jusqu'à son
+exécution par un observateur privilégié déjà autorisé, en lecture seule, dans
+les minutes précédant la fenêtre de déploiement.
 
 ## 6 · `nexus_live_events`
 
@@ -129,4 +202,5 @@ verdict reste **NON_PRET** et l'autorisation **NON_AUTORISEE**.
 ## Validité
 
 Ces mesures expirent le **2026-09-12 à 22 h 39 UTC**. La gate du dimanche
-13/09 tombe après : elles devront être rejouées.
+13/09 tombe après : **aucune mesure de ce rapport ne peut autoriser la gate de
+dimanche.** Le protocole de reprise est dans `protocole-gate-dimanche-1.md`.

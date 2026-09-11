@@ -128,7 +128,7 @@ function principal(argv) {
   const marque = { [STATUT.OK]: '✓', [STATUT.BLOQUE]: '✗', [STATUT.INCONNU]: '?' };
   for (const [critere, statut] of Object.entries(r.criteres)) {
     const preuve = critere === 'candidate_immuable_identifiee' ? 'git rev-parse HEAD'
-      : critere === 'ci_et_guardians_conformes' ? `gh run list --commit ${sha ? sha.slice(0, 7) : '?'}`
+      : critere === 'ci_et_guardians_conformes' ? `gh run list --commit ${sha || "?"}`
       : (declares[correspondance(critere)] || {}).preuve || '—';
     console.log(`  ${marque[statut] || '?'} ${statut.padEnd(8)} ${critere}`);
     console.log(`             ${preuve}`);
