@@ -12,6 +12,7 @@
 | 3 | `pointages_rattachement_historique` | appliquée |
 | 4 | `pointages_unicite_partielle` + `shifts_fin_apres_debut` (NOT VALID) | appliquées |
 | 5 | `depart_ferme_son_propre_service` | appliquée |
+| 6 | `pointage_exige_service_et_evenement` | appliquée |
 
 La migration 2 a d'abord échoué : `UPDATE … FROM LATERAL` ne peut pas
 référencer la table cible en PostgreSQL (`42P10`). Réécrite en sous-requête
@@ -29,8 +30,18 @@ corrélée. Le fichier du rail porte la version qui passe.
 > clos par le second, en `prise_de_poste_suivante`.
 
 > **Un départ ne ferme que le service porté par son pointage.** Un départ
-> désignant un service déjà clos laisse le service courant ouvert — il ne se
-> rabat plus sur « le plus récent ».
+> désignant un service déjà clos laisse le service courant ouvert.
+
+> **Le repli « service le plus récent » n'existe plus.** Un nouveau pointage
+> sans `service_id` est refusé par la base (`23502`), un pointage sans
+> `client_event_id` aussi, et un pointage rattaché au service d'un AUTRE
+> employé est refusé (`23514`). Le chemin normal passe toujours. Quatre
+> tentatives réelles, quatre verdicts attendus.
+
+> **Les douze exceptions historiques sont préservées.** La règle porte sur
+> l'INSERTION, pas sur la forme de la table : `service_id` reste nullable, et
+> les lignes déjà présentes ne sont pas touchées. Une colonne `NOT NULL`
+> aurait exigé d'inventer un service pour ces douze-là.
 
 Le bac à sable a été nettoyé : zéro service ouvert résiduel.
 

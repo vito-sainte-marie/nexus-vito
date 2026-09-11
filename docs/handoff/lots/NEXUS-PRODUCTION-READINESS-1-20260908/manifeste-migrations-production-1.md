@@ -174,6 +174,7 @@ fera l'objet d'un arbitrage distinct.
 | `20260911180300_pointages_unicite_partielle.sql` | **EXCLUE** | Unicité `(service_id, employee_id, type)` là où `service_id` n'est pas nul. N'a de sens qu'une fois le chemin applicatif adapté. |
 | `20260911180400_shifts_fin_apres_debut.sql` | **EXCLUE** | Contrainte `fin >= debut`, posée `NOT VALID`. Sa validation exige le traitement explicite des lignes existantes incompatibles, et n'est pas incluse ici. |
 | `20260911180500_depart_ferme_son_propre_service.sql` | **EXCLUE** | Un départ ne ferme plus « le service en cours le plus récent » mais **celui que porte son pointage**, et n'écrit jamais une fin antérieure au début. C'est la garantie côté produit de l'invariant que la contrainte tient côté base. |
+| `20260911180600_pointage_exige_service_et_evenement.sql` | **EXCLUE** | Tout NOUVEAU pointage exige `service_id` et `client_event_id`, et le service désigné doit appartenir au même employé et au même site. Le repli « service le plus récent » disparaît. Les pointages historiques sans service ne sont pas touchés : la règle porte sur l'insertion, pas sur la forme de la table. |
 
 **Pourquoi exclues et non incluses.** La release en cours a son candidat, ses
 mesures et son plan de retour arrière ; y ajouter cinq migrations
