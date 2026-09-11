@@ -189,9 +189,46 @@
   // l'admin) n'est pas deja manager ou gerant. Sans ce filtre, n'importe
   // quel employe pouvait selectionner Manager a la prise de poste et
   // voir la vue manager de Missions, meme sans y etre habilite.
+  // Correspondance entre le rôle ADMINISTRATIF (employees.role, fixé par
+  // l'admin) et le rôle du jour proposé ici. La base écrit 'caissier' au
+  // masculin, l'écran propose 'caissiere' : sans cette table, aucun des deux
+  // ne reconnaît l'autre.
+  const ROLE_ADMIN_VERS_JOUR = { pompiste: 'pompiste', caissier: 'caissiere', caissiere: 'caissiere', renfort: 'renfort' };
+
+  /**
+   * Les rôles réellement proposables à CETTE employée.
+   *
+   * LE DÉFAUT, relevé le 11/09/2026 : le filtre ne retirait que 'manager',
+   * une valeur qui n'existe même pas dans ROLES. Il ne retirait donc rien.
+   * Une caissière se voyait offrir « Pompiste », « Caissière » et « Renfort
+   * opérationnel », les trois sélectionnables, et pouvait se déclarer
+   * pompiste pour la journée. Le rôle du jour est écrit dans shifts.role et
+   * commande les missions : c'est une auto-attribution d'habilitation.
+   *
+   * LA RÈGLE : le rôle administratif de l'employée, et lui seul. Les
+   * managers et gérants gardent l'accès à tout : c'est leur métier de
+   * remplacer au pied levé.
+   *
+   * CE QUI RESTE À ARBITRER, et que ce code ne tranche pas : le renfort.
+   * Il est ajouté ici pour tout le monde, comme avant, parce que « le
+   * renfort ne se déduit pas de l'horloge, c'est une décision de planning »
+   * (arbitrage du 09/09/2026), et qu'aucun planning n'est lu sur cet
+   * écran. Le restreindre demanderait de décider QUI peut être renfort, et
+   * cette décision appartient à Frédéric Bragance, pas à ce fichier.
+   */
   function rolesDisponibles() {
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
-    return estManager ? ROLES : ROLES.filter(r => r.value !== 'manager');
+    if (estManager) return ROLES;
+    const admin = (employeeCourant && employeeCourant.role) || '';
+    const sien = ROLE_ADMIN_VERS_JOUR[admin];
+    // Rôle administratif inconnu de la table : on ne devine pas, et on ne
+    // referme pas non plus la porte au point d'empêcher la prise de poste.
+    // On rend l'ancienne liste et on le dit, plutôt que de bloquer.
+    if (!sien) {
+      console.error('Prise de poste : rôle administratif « ' + admin + ' » inconnu, aucun filtrage appliqué.');
+      return ROLES.filter(r => r.value !== 'manager');
+    }
+    return ROLES.filter(r => r.value === sien || r.value === 'renfort');
   }
 
   // A3 / C2-3 (05/09/2026) — le cas le plus lourd de conséquences des six :

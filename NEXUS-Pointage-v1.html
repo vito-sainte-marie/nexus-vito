@@ -187,8 +187,9 @@
   // saisie qui manquait, pas une nouvelle fonctionnalité de zéro.
   //
   // Règle : chaque type ('arrivee','pause_debut','pause_fin','depart')
-  // ne peut être pointé qu'une fois par jour et par employé, dans
-  // l'ordre. Le retard n'est calculé (retard_min) que pour l'arrivée,
+  // ne peut être pointé qu'une fois par jour et par employé. La pause
+  // garde sa séquence propre (pas de fin sans début), mais elle n'est
+  // PLUS un passage obligé vers le départ — voir pointageDisponible(). Le retard n'est calculé (retard_min) que pour l'arrivée,
   // à partir du quart actif de l'employé dans `shifts` (statut
   // 'en_cours') — jamais un chiffre inventé : si aucun quart actif
   // n'est trouvé, retard_min reste à 0 plutôt que d'être estimé.
@@ -225,6 +226,58 @@
   const CLE_TENTATIVE_EN_COURS = 'nexus_pointage_tentative_en_cours';
 
   const ORDRE_TYPES = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+
+  /**
+   * Ce qui est POINTABLE maintenant, type par type.
+   *
+   * LE DÉFAUT, relevé le 11/09/2026 en parcourant NEXUS en caissière, et
+   * mesuré ensuite sur Production. L'ancienne règle n'ouvrait QUE l'étape
+   * suivante de ORDRE_TYPES :
+   *
+   *     const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+   *     const bloque = !fait && !estProchain;
+   *
+   * Une employée qui ne prend pas de pause — ou qui oublie de la pointer —
+   * ne pouvait donc JAMAIS pointer son départ : `prochainType` restait
+   * bloqué sur 'pause_debut' et le bouton Départ était désactivé jusqu'au
+   * lendemain. Son quart restait ouvert.
+   *
+   * Ce que Production en dit, sur ses 92 pointages : 48 journées se sont
+   * arrêtées sur la seule arrivée, contre 11 menées jusqu'au départ — et
+   * plus aucun pointage depuis le 30/08/2026.
+   *
+   * LA RÈGLE MAINTENANT : la pause reste une séquence (on ne termine pas
+   * une pause qu'on n'a pas commencée), mais elle n'est plus un passage
+   * obligé vers le départ. Dès que l'arrivée est pointée, partir est
+   * possible. Aucune durée minimale de pause n'est introduite ici : c'est
+   * une règle métier et de paie, elle appartient à Frédéric Bragance.
+   */
+  function pointageDisponible(type, dejaFait) {
+    if (dejaFait[type]) return false;              // jamais deux fois le même jour
+    switch (type) {
+      case 'arrivee':     return true;
+      case 'pause_debut': return !!dejaFait.arrivee && !dejaFait.depart;
+      case 'pause_fin':   return !!dejaFait.pause_debut && !dejaFait.depart;
+      case 'depart':      return !!dejaFait.arrivee;
+      default:            return false;
+    }
+  }
+
+  /** Vrai si une pause est ouverte et jamais refermée. */
+  function pauseEnCours(dejaFait) {
+    return !!dejaFait.pause_debut && !dejaFait.pause_fin;
+  }
+
+  /**
+   * Le service ouvert, mais SEULEMENT s'il a commencé le même jour station
+   * que le pointage. Sinon : null, et les champs qui en dépendent
+   * retombent sur leur repli honnête (retard 0, quart 'non_defini',
+   * horaire prévu nul). Voir enregistrerPointage pour le défaut d'origine.
+   */
+  function serviceDuJourSeulement(shiftActif, jourDuPointage) {
+    if (!shiftActif || !shiftActif.heure_debut) return null;
+    return dateISOLocale(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
+  }
   const LABELS_TYPES = {
     // consignePhoto (28/07/2026, demande de Frédéric) : précise ce qui
     // doit être photographié — NEXUS ne peut pas vérifier le contenu
@@ -617,8 +670,7 @@
     const boutonsHtml = ORDRE_TYPES.map(type => {
       const info = LABELS_TYPES[type];
       const fait = dejaFait[type];
-      const estProchain = type === prochainType;
-      const bloque = !fait && !estProchain;
+      const bloque = !pointageDisponible(type, dejaFait);
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       // Échec technique de la photo (07/08/2026) : signalé sobrement dans le
       // sous-texte du bouton déjà pointé, sans jamais donner l'impression
@@ -713,6 +765,24 @@
         if (btn.disabled) return;
         const type = btn.dataset.type;
         const info = LABELS_TYPES[type];
+        // Partir avec une pause restée ouverte (11/09/2026) : c'est
+        // désormais POSSIBLE — la pause n'est plus un passage obligé — mais
+        // ce n'est pas anodin. Une pause jamais refermée fausse le temps de
+        // travail compté. On le DIT, on ne le bloque pas : l'employée a le
+        // dernier mot, parce qu'elle seule sait si sa pause a eu lieu.
+        // Aucune durée n'est supposée ni corrigée ici.
+        if (type === 'depart' && pauseEnCours(dejaFait)) {
+          const debutPause = dejaFait.pause_debut && dejaFait.pause_debut.heure
+            ? String(dejaFait.pause_debut.heure).slice(0, 5) : null;
+          const message = debutPause
+            ? `Votre pause de ${debutPause} n'a jamais été refermée.\n\n`
+              + 'Si vous partez maintenant, elle restera ouverte dans votre journée et '
+              + 'le temps compté sera faux.\n\nPointez « Fin pause » d\'abord, ou '
+              + 'continuez si la pause n\'a pas eu lieu.'
+            : 'Une pause est encore ouverte dans votre journée. Pointez « Fin pause » '
+              + 'd\'abord, ou continuez si elle n\'a pas eu lieu.';
+          if (!window.confirm(message)) return;
+        }
         clicPointage[type] = new Date();
         try {
           localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
@@ -837,6 +907,15 @@
     // donc jamais réellement visible, ni en succès ni en échec — l'employé
     // ne voyait que l'écran se redessiner, ce qui a probablement renforcé
     // l'impression de "boucle" même quand le pointage avait fonctionné.
+    // Réconciliation de l'écran avec la base (11/09/2026). Constaté en
+    // parcourant NEXUS en caissière : le départ était ÉCRIT en base, avec sa
+    // photo, pendant que l'écran affichait encore le voile de la caméra et
+    // « Départ » comme restant à faire. L'employée recommence, ou s'en va en
+    // croyant avoir échoué. Le formulaire était bien redessiné — mais SOUS un
+    // voile que rien ne retirait. On le retire ici, quel que soit le chemin
+    // suivi (caméra en page, repli natif, échec technique).
+    document.querySelectorAll('.camera-overlay').forEach(o => o.remove());
+
     await new Promise(resolve => setTimeout(resolve, 1400));
 
     // Retour automatique (28/07/2026) : quand cette page a été atteinte via
@@ -1060,11 +1139,54 @@
     const heure = heureRetenue.toTimeString().slice(0, 8);
     const today = dateISOLocale(heureRetenue);
 
+    // Le service de référence doit être CELUI DU JOUR (11/09/2026).
+    //
+    // LE DÉFAUT : `nexusServiceCourant` rend le service `en_cours` sans
+    // aucun filtre de date. Un quart laissé ouvert la veille revenait donc
+    // comme service du jour, et l'arrivée du matin était comparée à son
+    // heure de début. Constaté en parcourant NEXUS en caissière : une
+    // arrivée à 10 h 33 annoncée « Retard constaté : 1028 min », soit
+    // dix-sept heures, avec `heure_debut_quart` pointant sur la veille —
+    // et le chiffre ÉCRIT en base, pas seulement affiché.
+    //
+    // On ne devine pas le service du jour et on n'en fabrique pas : si le
+    // service ouvert n'a pas commencé le même jour station que le
+    // pointage, on retombe sur le repli déjà prévu — retard 0, quart
+    // 'non_defini', horaire prévu nul. Une absence assumée vaut mieux
+    // qu'un retard inventé.
+    const serviceDuJour = serviceDuJourSeulement(shiftActif, today);
+
     let retardMin = 0;
-    if (type === 'arrivee' && shiftActif && shiftActif.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
-      const debutPrevu = new Date(shiftActif.heure_debut);
+    if (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
+      const debutPrevu = new Date(serviceDuJour.heure_debut);
       const diffMin = Math.round((heureRetenue - debutPrevu) / 60000);
       retardMin = diffMin > 0 ? diffMin : 0;
+    }
+
+    // ANTI-DOUBLON (11/09/2026). La règle « un seul pointage par type et par
+    // jour » n'existait QUE dans l'écran : `public.pointages` ne porte aucun
+    // index unique sur (employee_id, date, type) — vérifié, seule la clé
+    // primaire sur `id` existe. Un double envoi — bouton re-cliqué, page
+    // rejouée après un repli caméra, réseau lent — insérait donc deux lignes
+    // sans que rien ne s'y oppose.
+    //
+    // Ce contrôle relit juste avant d'écrire. Il ne remplace pas une
+    // contrainte en base, et ne prétend pas le faire : deux envois vraiment
+    // simultanés peuvent encore passer tous les deux. C'est une réduction
+    // honnête du risque, pas une garantie — la garantie demande une
+    // migration, qui n'appartient pas à ce lot.
+    const { data: dejaEnBase, error: erreurRelecture } = await nexusClient
+      .from('pointages').select('id')
+      .eq('employee_id', employee.id).eq('date', today).eq('type', type).limit(1);
+    if (erreurRelecture) {
+      console.error('Relecture anti-doublon du pointage:', erreurRelecture);
+    } else if (dejaEnBase && dejaEnBase.length) {
+      const banner = document.getElementById('confirmBanner');
+      if (banner) {
+        banner.textContent = `${LABELS_TYPES[type].label} était déjà enregistré pour aujourd'hui. Rien n'a été ajouté.`;
+        banner.className = 'confirm-banner ok';
+      }
+      return true;   // rien à écrire : l'écran se réconcilie, aucun doublon
     }
 
     const { error } = await nexusClient.from('pointages').insert({
@@ -1079,7 +1201,7 @@
       // bloquerait le pointage, exactement ce qu'on cherche à éviter avec
       // photo_echec_technique ci-dessous. 'non_defini' n'est pas un chiffre
       // inventé — il documente honnêtement l'absence de quart identifiable.
-      quart: (shiftActif && shiftActif.quart) || 'non_defini',
+      quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
       retard_min: retardMin,
       photo_url: photoUrl || null,
       // Échec technique de la photo (07/08/2026, demande de Frédéric) : ne
@@ -1091,7 +1213,7 @@
       // et jamais recalculé ensuite — c'est ce qui permet à l'historique
       // d'afficher "Horaire prévu" sans jamais inventer ou réestimer une
       // valeur après coup (article 5 de la constitution NEXUS).
-      heure_debut_quart: (type === 'arrivee' && shiftActif && shiftActif.heure_debut) || null,
+      heure_debut_quart: (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut) || null,
     });
 
     const banner = document.getElementById('confirmBanner');
@@ -1114,8 +1236,8 @@
         : '';
       if (type === 'arrivee' && retardMin > 0) {
         banner.classList.add('retard');
-        const horairePrevu = shiftActif && shiftActif.heure_debut
-          ? new Date(shiftActif.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        const horairePrevu = serviceDuJour && serviceDuJour.heure_debut
+          ? new Date(serviceDuJour.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
           : null;
         banner.innerHTML = `
           <div class="confirm-banner-titre">Arrivée enregistrée à ${heure.slice(0, 5)}</div>

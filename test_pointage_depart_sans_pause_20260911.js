@@ -1,0 +1,217 @@
+#!/usr/bin/env node
+// Une employée qui ne prend pas de pause doit pouvoir partir.
+//
+// LE DÉFAUT, relevé le 11/09/2026 en parcourant NEXUS en caissière, et
+// mesuré ensuite sur Production. L'écran de pointage n'ouvrait QUE l'étape
+// suivante de ORDRE_TYPES :
+//
+//     const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+//     const bloque = !fait && !estProchain;
+//
+// Après l'arrivée, le seul bouton actif était « Début pause ». « Départ »
+// restait désactivé. Une employée qui ne prend pas de pause — ou qui oublie
+// de la pointer — ne pouvait PAS pointer son départ, et son quart restait
+// ouvert jusqu'à ce qu'une migration le ferme en clos_sans_pointage.
+//
+// Ce que Production dit de ce mécanisme, sur ses 92 pointages : 48 journées
+// arrêtées sur la seule arrivée, contre 11 menées jusqu'au départ, et plus
+// aucun pointage depuis le 30/08/2026.
+//
+// CETTE ÉPREUVE JUGE LE COMPORTEMENT, pas le texte : elle évalue les
+// fonctions réellement embarquées dans la page, extraites de son source, et
+// rejoue l'ANCIENNE règle en mutation pour prouver qu'elle mordait.
+
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+let passes = 0;
+function t(nom, fn) {
+  try { fn(); passes++; console.log(`  ✓ ${nom}`); }
+  catch (e) { console.error(`  ✗ ${nom}\n    ${e.message}`); process.exitCode = 1; }
+}
+
+const RACINE = __dirname;
+const POINTAGE = fs.readFileSync(path.join(RACINE, 'NEXUS-Pointage-v1.html'), 'utf8');
+const PRISE = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
+
+/** Extrait une fonction du source de la page et la rend appelable. */
+function fonctionDeLaPage(source, nom, prelude = '') {
+  const m = source.match(new RegExp(`function ${nom}\\([\\s\\S]*?\\n  \\}`));
+  assert.ok(m, `fonction ${nom} introuvable — l'épreuve ne juge plus rien`);
+  return new Function(`${prelude}\n${m[0]}\nreturn ${nom};`)();
+}
+
+const pointageDisponible = fonctionDeLaPage(POINTAGE, 'pointageDisponible');
+const pauseEnCours = fonctionDeLaPage(POINTAGE, 'pauseEnCours');
+const dateISOLocaleSrc = POINTAGE.match(/function dateISOLocale\([\s\S]*?\n  \}/)[0];
+const serviceDuJourSeulement = fonctionDeLaPage(POINTAGE, 'serviceDuJourSeulement', dateISOLocaleSrc);
+
+// ── Le cœur : partir sans pause ────────────────────────────────────────────
+
+t('après l\'arrivée seule, le DÉPART est possible', () => {
+  assert.strictEqual(pointageDisponible('depart', { arrivee: {} }), true,
+    'le départ reste inatteignable sans pause — le défaut est intact');
+});
+
+t('MUTATION : l\'ancienne règle, elle, l\'interdisait', () => {
+  // Sans ce témoin, l'épreuve ci-dessus passerait aussi sur un écran qui
+  // n'aurait jamais eu le défaut — elle ne prouverait pas qu'on l'a réparé.
+  const ORDRE = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+  const ancienneRegle = (type, dejaFait) => {
+    const prochain = ORDRE.find(x => !dejaFait[x]);
+    return !(!dejaFait[type] && type !== prochain) && !dejaFait[type];
+  };
+  assert.strictEqual(ancienneRegle('depart', { arrivee: {} }), false,
+    'la mutation ne reproduit pas le défaut : elle ne prouve rien');
+  assert.notStrictEqual(pointageDisponible('depart', { arrivee: {} }),
+    ancienneRegle('depart', { arrivee: {} }),
+    'la règle actuelle se comporte comme l\'ancienne');
+});
+
+t('la pause garde sa séquence : pas de fin sans début', () => {
+  assert.strictEqual(pointageDisponible('pause_fin', { arrivee: {} }), false);
+  assert.strictEqual(pointageDisponible('pause_fin', { arrivee: {}, pause_debut: {} }), true);
+});
+
+t('on ne pointe rien avant d\'être arrivée', () => {
+  assert.strictEqual(pointageDisponible('depart', {}), false);
+  assert.strictEqual(pointageDisponible('pause_debut', {}), false);
+  assert.strictEqual(pointageDisponible('arrivee', {}), true);
+});
+
+t('rien ne se pointe deux fois le même jour', () => {
+  for (const type of ['arrivee', 'pause_debut', 'pause_fin', 'depart']) {
+    assert.strictEqual(pointageDisponible(type, { [type]: {} }), false, `${type} repointable`);
+  }
+});
+
+t('une fois partie, la journée est close — plus aucune pause', () => {
+  const partie = { arrivee: {}, depart: {} };
+  assert.strictEqual(pointageDisponible('pause_debut', partie), false);
+  assert.strictEqual(pointageDisponible('pause_fin', partie), false);
+});
+
+t('partir avec une pause ouverte reste POSSIBLE, et détectable', () => {
+  // Possible : on ne bloque pas. Détectable : l'écran doit pouvoir le dire.
+  const pauseOuverte = { arrivee: {}, pause_debut: { heure: '10:43:33' } };
+  assert.strictEqual(pointageDisponible('depart', pauseOuverte), true);
+  assert.strictEqual(pauseEnCours(pauseOuverte), true);
+  assert.strictEqual(pauseEnCours({ arrivee: {}, pause_debut: {}, pause_fin: {} }), false);
+  assert.strictEqual(pauseEnCours({ arrivee: {} }), false);
+});
+
+t('l\'écran avertit avant un départ sur pause ouverte, sans l\'empêcher', () => {
+  const bloc = POINTAGE.match(/if \(type === 'depart' && pauseEnCours\(dejaFait\)\) \{[\s\S]*?\n        \}/);
+  assert.ok(bloc, 'aucune consigne avant le départ sur pause ouverte');
+  assert.ok(/window\.confirm/.test(bloc[0]), 'la consigne ne demande rien à l\'employée');
+  assert.ok(/if \(!window\.confirm\(message\)\) return;/.test(bloc[0]),
+    'la consigne n\'offre pas de renoncer');
+  assert.ok(!/disabled|return false/.test(bloc[0].replace(/window\.confirm[\s\S]*/, '')),
+    'la consigne bloque au lieu d\'avertir');
+});
+
+t('aucune durée minimale de pause n\'est introduite', () => {
+  // Règle métier et de paie : elle appartient à Frédéric Bragance. Ce lot
+  // n'a pas à la deviner, et une valeur glissée ici passerait inaperçue.
+  const suspects = POINTAGE.match(/DUREE_MIN[A-Z_]*\s*=|pauseMinimale|dureeMinimale|minutesMinimum/g) || [];
+  assert.deepStrictEqual(suspects, [], `durée de pause fixée dans le code : ${suspects.join(', ')}`);
+});
+
+// ── Le service de référence ────────────────────────────────────────────────
+
+t('un quart ouvert la VEILLE n\'est plus le service du jour', () => {
+  const hier = { heure_debut: '2026-09-10T21:25:41Z', quart: 'soir' };
+  assert.strictEqual(serviceDuJourSeulement(hier, '2026-09-11'), null,
+    'le quart de la veille sert encore de référence — le retard de 1028 min revient');
+});
+
+t('un quart ouvert le jour même reste la référence', () => {
+  const aujourdhui = { heure_debut: new Date().toISOString(), quart: 'matin' };
+  const jour = new Date().toISOString().slice(0, 10);
+  const rendu = serviceDuJourSeulement(aujourdhui, jour);
+  // La date locale peut différer de la date UTC en soirée : on ne juge que
+  // la cohérence avec ce que la page calcule elle-même.
+  if (rendu !== null) assert.strictEqual(rendu, aujourdhui);
+});
+
+t('sans service ouvert, aucune référence n\'est inventée', () => {
+  assert.strictEqual(serviceDuJourSeulement(null, '2026-09-11'), null);
+  assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11'), null);
+});
+
+t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
+  // On juge le CORPS de la fonction qui écrit, pas le fichier entier : les
+  // autres écrans lisent légitimement retard_min ailleurs, et un grep global
+  // mélangerait les deux.
+  const corps = POINTAGE.match(/async function enregistrerPointage\([\s\S]*?\n  \}\n/);
+  assert.ok(corps, 'enregistrerPointage introuvable — l\'épreuve ne juge plus rien');
+  const apres = corps[0].split('const serviceDuJour =');
+  assert.strictEqual(apres.length, 2, 'le service du jour n\'est plus résolu avant l\'écriture');
+  // La ligne de résolution elle-même a le droit de nommer shiftActif : c'est
+  // son argument. Ce qui suit, non.
+  const suite = apres[1].split('\n').slice(1).join('\n');
+  assert.ok(!/shiftActif/.test(suite),
+    'shiftActif est encore lu APRÈS la résolution du service du jour : le quart de la veille peut revenir');
+  for (const champ of ['retard_min:', 'quart:', 'heure_debut_quart:']) {
+    const ligne = suite.split('\n').find(l => l.trim().startsWith(champ));
+    assert.ok(ligne, `${champ} n'est plus écrit`);
+    assert.ok(/serviceDuJour|retardMin/.test(ligne), `${champ} ne suit pas le service du jour`);
+  }
+});
+
+// ── Réconciliation et doublons ────────────────────────────────────────────
+
+t('aucun voile de caméra ne survit à un enregistrement', () => {
+  assert.ok(/document\.querySelectorAll\('\.camera-overlay'\)\.forEach\(o => o\.remove\(\)\);/.test(POINTAGE),
+    'l\'écran peut rester couvert alors que le pointage est écrit en base');
+});
+
+t('le pointage est relu avant d\'être écrit', () => {
+  const bloc = POINTAGE.match(/const \{ data: dejaEnBase[\s\S]*?return true;/);
+  assert.ok(bloc, 'aucune relecture anti-doublon avant insertion');
+  assert.ok(/\.eq\('employee_id', employee\.id\)\.eq\('date', today\)\.eq\('type', type\)/.test(bloc[0]),
+    'la relecture ne cible pas (employé, jour, type)');
+});
+
+// ── Rôles proposés à la prise de poste ────────────────────────────────────
+
+function rolesPour(role) {
+  const ROLES = PRISE.match(/const ROLES = \[[\s\S]*?\n  \];/)[0];
+  const MAP = PRISE.match(/const ROLE_ADMIN_VERS_JOUR = \{[^}]*\};/)[0];
+  const FN = PRISE.match(/function rolesDisponibles\(\) \{[\s\S]*?\n  \}/)[0];
+  return new Function('role',
+    `${ROLES}\n${MAP}\n${FN}\nconst employeeCourant = { role };\nreturn rolesDisponibles().map(r => r.value);`)(role);
+}
+
+t('une caissière ne peut pas se déclarer pompiste', () => {
+  const offerts = rolesPour('caissier');
+  assert.ok(!offerts.includes('pompiste'),
+    `rôles offerts à une caissière : ${offerts.join(', ')} — elle peut s'attribuer la piste`);
+  assert.ok(offerts.includes('caissiere'), 'son propre rôle ne lui est plus proposé');
+});
+
+t('MUTATION : l\'ancien filtre, lui, ne retirait rien', () => {
+  const ROLES = PRISE.match(/const ROLES = \[[\s\S]*?\n  \];/)[0];
+  const ancien = new Function(`${ROLES}\nreturn ROLES.filter(r => r.value !== 'manager').map(r => r.value);`)();
+  assert.ok(ancien.includes('pompiste') && ancien.includes('caissiere'),
+    'la mutation ne reproduit pas l\'ancien comportement : elle ne prouve rien');
+});
+
+t('un manager garde l\'accès à tous les rôles', () => {
+  const offerts = rolesPour('manager');
+  assert.ok(offerts.includes('pompiste') && offerts.includes('caissiere'),
+    'le manager ne peut plus remplacer au pied levé');
+});
+
+t('un rôle administratif inconnu ne bloque pas la prise de poste', () => {
+  // Fail-open assumé ET tracé : mieux vaut une liste large qu'une employée
+  // incapable de prendre son poste parce que son rôle a été mal saisi.
+  const offerts = rolesPour('zzz-inconnu');
+  assert.ok(offerts.length > 0, 'un rôle inconnu empêche toute prise de poste');
+  assert.ok(/console\.error\('Prise de poste : rôle administratif/.test(PRISE),
+    'le rôle inconnu est ignoré en silence');
+});
+
+console.log(`\n${passes}/19 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
