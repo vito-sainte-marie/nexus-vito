@@ -13,19 +13,32 @@ suivant. Le verdict affiché décrivait un arbre qui n'existait déjà plus.
 
 ## Les trois SHA
 
-| rôle | SHA | contenu |
-|---|---|---|
-| **contient politiques, rapports, corrections** | `14143501bbc7d2b19967c860865c8d971c206ec7` | huit politiques RLS documentées, `preuve-re-mesure-finale-2.md` avec la mesure #4 canonique, `outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql`, `protocole-gate-dimanche-1.md`, ce fichier, faits mis à jour |
-| **HEAD distant** | `14143501bbc7d2b19967c860865c8d971c206ec7` | `origin/config-par-environnement`, identique au local |
-| **CI verte** | `14143501bbc7d2b19967c860865c8d971c206ec7` | `Tests` · push `completed/success` · pull_request `completed/success` |
+Un fichier ne peut pas nommer le SHA de son propre commit : l'écrire le change.
+J'ai fait tourner la boucle deux fois avant de le voir — `b83fc15` nommait
+`b10f9b6`, `1414350` nommait `b83fc15`. Le tableau ci-dessous n'est donc pas une
+valeur figée, c'est une **règle**, vérifiable à tout instant :
 
-**Les trois coïncident. `1414350` est le seul SHA qui pourra devenir candidat.**
+| rôle | comment l'obtenir |
+|---|---|
+| **contient politiques, rapports, corrections** | le dernier commit de `config-par-environnement` |
+| **HEAD distant** | `git fetch origin && git rev-parse origin/config-par-environnement` |
+| **CI verte** | `gh run list --commit <ce SHA, COMPLET>` → `push` et `pull_request` en `success` |
 
-Deux SHA antérieurs ont aussi une CI verte et ne peuvent pas porter le verdict :
-`febb3d6` ne contient ni les politiques ni les rapports ; `b10f9b6` porte les
-sept premières politiques mais ni la mesure #4 canonique, ni la mesure #5
-corrigée, ni le protocole de dimanche ; `b83fc15` les porte tous mais laissait
-dans les faits un « SHA b10f9b6 » déjà périmé.
+**Les trois doivent coïncider. Un verdict dont le SHA ne correspond pas au HEAD
+distant vérifié vert est nul**, et c'est ce contrôle-là — pas une valeur
+recopiée — qui désigne le candidat.
+
+Le SHA effectif est annoncé à Frédéric dans le rapport de session, hors du
+dépôt, là où l'écrire ne le déplace pas.
+
+### Historique de la chaîne, pour la traçabilité
+
+| SHA | pourquoi il ne peut pas porter le verdict |
+|---|---|
+| `febb3d6` | ni politiques ni rapports |
+| `b10f9b6` | sept politiques, mais ni #4 canonique, ni #5 corrigée, ni protocole |
+| `b83fc15` | tout le contenu, mais les faits citaient encore « SHA b10f9b6 » |
+| `1414350` | faits corrigés, mais le tableau d'identité nommait encore `b83fc15` |
 
 ### Vérifié après le push, pas avant
 
