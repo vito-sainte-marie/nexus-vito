@@ -24,10 +24,16 @@ seconde. Chaque paire tombe exactement dans la fenêtre d'un run CI :
 
 | paire | fenêtre du run `push` (heure station) | commit |
 |---|---|---|
-| 11:06:01.150 · 11:06:01.652 | run antérieur | — |
+| 11:06:01.150 · 11:06:01.652 | 11:04:06 → 11:07:09 | `22e0cc5` |
 | 11:17:50.740 · 11:17:51.318 | 11:16:05 → 11:19:00 | `3ca9a06` |
 | 11:51:53.543 · 11:51:54.640 | 11:50:04 → 11:53:03 | `59f38ec` |
 | 12:22:43.604 · 12:22:44.023 | 12:21:04 → 12:23:07 | `c33faf8` |
+
+**Quatre paires, huit services, quatre runs — le compte est complet.** La
+première version de ce tableau laissait la paire de 11:06 sans run identifié
+(« run antérieur »), ce qui annonçait quatre paires et n'en documentait que
+trois. L'écart est levé : le run `push` de `22e0cc5` couvre 11:04:06 →
+11:07:09, heure station, et contient cette paire.
 
 **Ce sont les prises de poste de la recette navigateur automatisée.** Son
 scénario en fait deux à la suite — c'est le cas « prise de poste avec un quart

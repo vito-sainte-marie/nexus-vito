@@ -69,7 +69,47 @@ const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_
 // voir. Une capacité optionnelle absente dégrade CE QU'ELLE COUVRE, pas le
 // reste (ENV-003).
 const SECRETS_EMPLOYE = ['NEXUS_TEST_EMPLOYEE_A_NOM', 'NEXUS_TEST_EMPLOYEE_A_PIN'];
+
+// ── Séparation des identités de recette (11/09/2026) ────────────────────────
+//
+// LE DÉFAUT, démontré ce jour-là : cette recette et un parcours humain ont
+// tourné EN MÊME TEMPS sur le même compte. Résultat, un service clôturé avec
+// une fin antérieure à sa propre création — les deux acteurs écrivaient sur la
+// même journée, du même employé, à la seconde près.
+//
+// La recette automatisée garde « Employé Test A ». « Employé Test B » est
+// réservé aux parcours humains, et la recette REFUSE de s'en servir : une
+// séparation qui repose sur la discipline de celui qui lance n'est pas une
+// séparation.
+const IDENTITE_HUMAINE_RESERVEE = 'Employé Test B';
+
+/** Compare deux noms sans se laisser arrêter par la casse ni les accents. */
+function memeIdentite(a, b) {
+  const n = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+  return n(a) === n(b) && n(a) !== '';
+}
+
+/**
+ * Refuse de démarrer si la recette a reçu l'identité humaine.
+ * Rendue pure et exportée : la garde doit être éprouvable sans lancer de
+ * navigateur, et sa mutation doit mordre.
+ */
+function refusIdentitePartagee(nomConfigure) {
+  if (!memeIdentite(nomConfigure, IDENTITE_HUMAINE_RESERVEE)) return null;
+  return `La recette automatisée a reçu « ${nomConfigure} », réservé aux parcours humains. `
+    + 'Deux acteurs sur une même identité produisent des services entrelacés et des '
+    + 'clôtures incohérentes (11/09/2026). Configurez NEXUS_TEST_EMPLOYEE_A_NOM sur '
+    + 'le compte de recette automatisée.';
+}
 const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
+
+// Refus au démarrage, avant toute connexion : un mauvais compte ne doit pas
+// pouvoir écrire une seule ligne avant d'être arrêté.
+{
+  const refus = refusIdentitePartagee(process.env.NEXUS_TEST_EMPLOYEE_A_NOM);
+  if (refus) { console.error(`ÉCHEC de la recette navigateur : ${refus}`); process.exit(1); }
+}
 const ECRAN_LIVE = 'NEXUS-Live-Developpement-v1.html';
 
 function secretsManquants(env) {
@@ -898,7 +938,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {

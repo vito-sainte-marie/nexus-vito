@@ -210,6 +210,36 @@ t('la reprise est branchée au retour du réseau, une seule fois', () => {
     'un écouteur par rendu enverrait autant de fois qu\'il y a eu de rendus');
 });
 
+t('l\'identifiant idempotent a la FORME d\'un uuid', () => {
+  // `client_event_id` est une colonne uuid : une chaîne libre y serait
+  // refusée, et la file resterait pleine sans que personne comprenne.
+  const f = monterLaFile();
+  for (let i = 0; i < 40; i++) {
+    const id = f.identifiantTentative();
+    assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id),
+      `identifiant non conforme : ${id}`);
+  }
+});
+
+t('le pointage porte son service et son identifiant jusqu\'en base', () => {
+  assert.ok(/service_id: \(serviceDuJour && serviceDuJour\.id\) \|\| null,/.test(POINTAGE),
+    'le pointage ne porte pas son service');
+  assert.ok(/client_event_id: evenementClient,/.test(POINTAGE),
+    'l\'identifiant idempotent ne voyage pas jusqu\'en base');
+  const iId = POINTAGE.indexOf('const evenementClient = identifiantTentative();');
+  const iLigne = POINTAGE.indexOf('const ligne = {');
+  assert.ok(iId > -1 && iId < iLigne,
+    'l\'identifiant est généré après la ligne : il ne protège plus la première tentative');
+});
+
+t('la file ne forge pas un second identifiant', () => {
+  const f = monterLaFile();
+  const ligne = { ...LIGNE('arrivee'), client_event_id: '11111111-1111-4111-8111-111111111111' };
+  const e = f.fileAjouter(ligne, {});
+  assert.strictEqual(e.id, ligne.client_event_id,
+    'la file a régénéré un identifiant : celui envoyé en base et celui de la file divergent');
+});
+
 lancerTout().then(() => {
-  console.log(`\n${passes}/14 vérifications passées — une tentative de pointage ne se perd plus, et rien n'est présenté comme reçu avant de l'être.`);
+  console.log(`\n${passes}/17 vérifications passées — une tentative de pointage ne se perd plus, et rien n'est présenté comme reçu avant de l'être.`);
 });

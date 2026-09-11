@@ -294,7 +294,11 @@
   /** Identifiant idempotent, généré AVANT l'envoi et jamais régénéré. */
   function identifiantTentative() {
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
-    return 'tentative-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    // Repli en FORME d'UUID : `client_event_id` est une colonne uuid, une
+    // chaîne libre y serait refusée. Version 4 posée à la main.
+    const h = () => Math.floor(Math.random() * 16).toString(16);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
+      c => (c === 'x' ? h() : ((Math.floor(Math.random() * 4) + 8).toString(16))));
   }
   function fileAjouter(ligne, contexte) {
     const entrees = fileLire();
@@ -303,7 +307,7 @@
     const deja = entrees.find(e => e.ligne.employee_id === ligne.employee_id
       && e.ligne.date === ligne.date && e.ligne.type === ligne.type);
     if (deja) return deja;
-    const entree = { id: identifiantTentative(), ligne, contexte: contexte || {},
+    const entree = { id: ligne.client_event_id || identifiantTentative(), ligne, contexte: contexte || {},
                      clic: new Date().toISOString(), essais: 0 };
     entrees.push(entree);
     fileEcrire(entrees);
@@ -1357,8 +1361,18 @@
     // La tentative est écrite sur l'appareil AVANT d'être envoyée
     // (11/09/2026). Si le réseau tombe ici, elle n'est pas perdue : elle
     // reste en file, visible, et repart au retour du réseau.
+    // Identifiant idempotent généré AVANT la première tentative, et porté
+    // jusqu'en base (11/09/2026). Tant qu'il ne vivait qu'en JavaScript, il
+    // ne protégeait rien : deux appareils, deux onglets ou une réinstallation
+    // pouvaient encore produire deux lignes pour un seul geste.
+    const evenementClient = identifiantTentative();
+
     const ligne = {
       employee_id: employee.id,
+      // Le service auquel CE pointage se rattache. Un départ ne fermera que
+      // celui-là, jamais un service créé entre-temps par une autre session.
+      service_id: (serviceDuJour && serviceDuJour.id) || null,
+      client_event_id: evenementClient,
       site: siteId,
       date: today,
       type,

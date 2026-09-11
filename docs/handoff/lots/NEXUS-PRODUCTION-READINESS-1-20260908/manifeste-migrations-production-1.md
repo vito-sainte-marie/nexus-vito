@@ -155,3 +155,27 @@ migration Test/CI n'échappe à l'exclusion. Le contrôle partait d'une
 vérification faite à la main le matin même du 09/09 : 21 migrations, 21 citées.
 Cinq heures plus tard il y en avait 26, et le manifeste ne le savait pas. Un
 contrôle refait à la main ne se refait pas.
+
+---
+
+## EXCLUES de cette release — lot correctif du 11/09/2026
+
+Cinq migrations ajoutées le 11/09/2026 par le lot
+`NEXUS-POINTAGE-CORRECTIF-1-20260911`. **Aucune ne fait partie de cette
+release.** Elles sont appliquées à Supabase **Test uniquement**, sur
+autorisation explicite de l'Orchestrator, et leur promotion vers Production
+fera l'objet d'un arbitrage distinct.
+
+| migration | sort | motif |
+|---|---|---|
+| `20260911180000_pointages_service_id.sql` | **EXCLUE** | Ajoute `pointages.service_id` nullable, sa clé étrangère et son index. Prérequis du rattachement ; sans effet tant que rien ne le renseigne. |
+| `20260911180100_pointages_rattachement_historique.sql` | **EXCLUE** | Rattache les **80 seuls** pointages dont le service est certain et produit le rapport des **12 exceptions** (8 ambigus, 4 sans service). Aucune attribution arbitraire. |
+| `20260911180200_pointages_client_event_id.sql` | **EXCLUE** | Porte en base l'identifiant idempotent de la file hors ligne, avec unicité partielle. Rend la reprise sûre entre deux appareils. |
+| `20260911180300_pointages_unicite_partielle.sql` | **EXCLUE** | Unicité `(service_id, employee_id, type)` là où `service_id` n'est pas nul. N'a de sens qu'une fois le chemin applicatif adapté. |
+| `20260911180400_shifts_fin_apres_debut.sql` | **EXCLUE** | Contrainte `fin >= debut`, posée `NOT VALID`. Sa validation exige le traitement explicite des lignes existantes incompatibles, et n'est pas incluse ici. |
+| `20260911180500_depart_ferme_son_propre_service.sql` | **EXCLUE** | Un départ ne ferme plus « le service en cours le plus récent » mais **celui que porte son pointage**, et n'écrit jamais une fin antérieure au début. C'est la garantie côté produit de l'invariant que la contrainte tient côté base. |
+
+**Pourquoi exclues et non incluses.** La release en cours a son candidat, ses
+mesures et son plan de retour arrière ; y ajouter cinq migrations
+changerait l'objet de la gate que Frédéric Bragance doit accorder. Le
+correctif se prouve d'abord sur Test.
