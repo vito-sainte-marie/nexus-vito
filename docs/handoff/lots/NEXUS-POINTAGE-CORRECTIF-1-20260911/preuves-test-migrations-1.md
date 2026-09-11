@@ -55,3 +55,22 @@ Le bac à sable a été nettoyé : zéro service ouvert résiduel.
 - **CI et parcours manuel simultanés sur deux comptes** : la garde d'identité
   existe et mord (7/7), mais l'exécution simultanée demande le code PIN du
   compte humain, que Frédéric Bragance saisit lui-même.
+
+---
+
+## NEXUS-Debug-v1.html — classé OBSOLÈTE, désactivé explicitement
+
+**Preuve qu'aucun parcours actif n'en dépend :** `localStorage.nexus_pointages`
+n'est plus écrit que par **cet écran lui-même**. Aucun parcours employé ne
+l'alimente depuis le passage à Supabase, et l'écran n'est référencé que par des
+épreuves et par `NEXUS-Debug-Createur-v1.html`. Il n'apparaît pas dans
+`outils/build.sh`.
+
+L'import refuse désormais de s'exécuter, avec sa raison en clair. **Il n'a pas
+été adapté** : sa source est morte, et aucun service certain ne peut être
+déduit d'un historique qui ne porte ni `service_id` ni `client_event_id`. Le
+rattacher au service le plus proche aurait été l'approximation que ce lot vient
+de supprimer.
+
+**Le laisser échouer sur une erreur de base aurait été pire** : le Créateur
+aurait cru à une panne.

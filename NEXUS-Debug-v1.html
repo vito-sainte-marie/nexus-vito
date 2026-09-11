@@ -137,6 +137,30 @@
     const btn = document.getElementById('btnMigrer');
     msg.className = 'msg'; msg.textContent = '';
 
+      // DESACTIVE le 11/09/2026, explicitement plutot que silencieusement.
+      //
+      // Depuis ce jour, tout nouveau pointage doit porter son `service_id` et
+      // son `client_event_id`, et la base le refuse sinon. Cet import lit un
+      // historique local (`localStorage.nexus_pointages`) qui ne porte ni l un
+      // ni l autre, et aucun service certain ne peut en etre deduit : le
+      // rattacher au service le plus proche serait exactement l approximation
+      // que ce lot vient de supprimer.
+      //
+      // POURQUOI LE DESACTIVER PLUTOT QUE L ADAPTER : la source est morte.
+      // `localStorage.nexus_pointages` n est plus ecrit que par cet ecran
+      // lui-meme ; aucun parcours employe ne l alimente depuis le passage a
+      // Supabase. Un import sans source n a pas de modele a rattraper.
+      //
+      // Le laisser echouer sur une erreur de base aurait ete pire : le
+      // Createur aurait cru a une panne. Il lit desormais pourquoi.
+      msg.textContent = 'Import desactive le 11/09/2026. Tout pointage exige desormais un service et un '
+        + 'identifiant d evenement, que cet historique local ne porte pas, et aucun service certain ne '
+        + 'peut en etre deduit. Les lignes concernees restent des exceptions a traiter a la main : elles '
+        + 'ne sont pas inserees.';
+      msg.className = 'msg err';
+      if (btn) { btn.disabled = true; btn.textContent = 'Import desactive'; }
+      return;
+
     const pointagesLocal = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
     const dates = Object.keys(pointagesLocal);
     if (dates.length === 0) {
