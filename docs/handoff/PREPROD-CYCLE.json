@@ -9,6 +9,19 @@
       "release": "2026.09.2",
       "cree_le": "2026-09-11T17:25:33.374Z",
       "detruit_le": "2026-09-11T17:51:58.652Z"
+    },
+    {
+      "projet_ref": "udljdqxerrbbbajxubfn",
+      "release": "2026.09.3",
+      "cree_le": "2026-09-11T18:24:17.538Z",
+      "detruit_le": "2026-09-11T18:48:09.284191Z",
+      "note": "Repetition interrompue a l'etape 8 par une limite de duree de l'outil, pas par un defaut : les etapes 1 a 7 avaient abouti. Le cycle est ferme ici parce que l'environnement a ete repris par la repetition suivante, et non parce qu'il aurait ete detruit proprement. Ecrit tel quel plutot que laisse croire a une fin normale."
+    },
+    {
+      "projet_ref": "udljdqxerrbbbajxubfn",
+      "release": "2026.09.5",
+      "cree_le": "2026-09-11T18:48:18.324Z",
+      "detruit_le": "2026-09-11T19:14:39.807Z"
     }
   ]
 }
