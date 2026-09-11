@@ -322,4 +322,33 @@ t('le hors ligne n\'est PAS simulé', () => {
     `l'écran laisse croire à un fonctionnement hors ligne : ${promesses.join(', ')}`);
 });
 
-console.log(`\n${passes}/32 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
+// ── Les DEUX portes vers la prise de poste ────────────────────────────────
+
+t('après la clôture, aucune des deux portes n\'impose la prise de poste', () => {
+  // Le 11/09/2026, une seule des deux avait été corrigée. L'écran d'accueil
+  // continuait de rediriger : une correction posée sur une porte quand il y
+  // en a deux ne corrige rien, elle déplace l'endroit où l'on se cogne.
+  const AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
+  const APP = fs.readFileSync(path.join(RACINE, 'NEXUS-App-v1.html'), 'utf8');
+  assert.ok(/async function nexusDepartPointeAujourdhui/.test(AUTH),
+    'aucun test partagé du départ du jour');
+  assert.ok(/return !\(await nexusDepartPointeAujourdhui\(employee\)\);/.test(AUTH),
+    'la porte de nexus-auth.js ne consulte pas le départ du jour');
+  const redirections = APP.match(/window\.location\.href = 'NEXUS-Prise-De-Poste-v1\.html';/g) || [];
+  assert.strictEqual(redirections.length, 1, `${redirections.length} redirections dans l'accueil`);
+  const bloc = APP.match(/if \(r\.aucun\) \{[\s\S]*?NEXUS-Prise-De-Poste-v1\.html';/)[0];
+  assert.ok(/nexusDepartPointeAujourdhui/.test(bloc),
+    'la porte de l\'accueil redirige sans consulter le départ du jour');
+});
+
+t('une lecture impossible ne relâche pas la porte', () => {
+  const AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
+  const fn = AUTH.match(/async function nexusDepartPointeAujourdhui[\s\S]*?data\.length\);\}/);
+  assert.ok(fn, 'nexusDepartPointeAujourdhui introuvable — l\'épreuve ne juge plus rien');
+  const surErreur = fn[0].match(/if\(error\)\{[\s\S]*?return (\w+);/);
+  assert.ok(surErreur, 'aucun traitement de l\'erreur de lecture');
+  assert.strictEqual(surErreur[1], 'false',
+    'une lecture ratée est prise pour un départ pointé : la porte s\'ouvre sur une panne');
+});
+
+console.log(`\n${passes}/34 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);

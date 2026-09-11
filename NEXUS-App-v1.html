@@ -2780,8 +2780,17 @@
     if (!employee.consultation_externe) {
       const r = await nexusServiceCourant(employee);
       if (r.aucun) {
-        window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-        return;
+        // Seconde porte vers la prise de poste (11/09/2026, arbitrage C.3).
+        // Celle de nexus-auth.js avait ete corrigee ; celle-ci redirigeait
+        // toujours, et l'employee qui venait de pointer son depart se
+        // retrouvait aussitot devant la question du role. Apres une cloture,
+        // reprendre un poste reste possible, mais par une action volontaire,
+        // jamais comme ecran impose. Une correction posee sur une porte quand
+        // il y en a deux ne corrige rien : elle deplace l'endroit ou l'on se cogne.
+        if (!(await nexusDepartPointeAujourdhui(employee))) {
+          window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
+          return;
+        }
       }
       if (r.service) {
         roleDuJour = r.service.role;

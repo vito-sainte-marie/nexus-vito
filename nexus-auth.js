@@ -276,15 +276,30 @@ async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES
   // de partir ; on ne lui redemande pas de reprendre. Reprendre un poste
   // reste possible, mais par une action volontaire, jamais par une
   // redirection automatique.
+  return !(await nexusDepartPointeAujourdhui(employee));}
+
+/**
+ * L'employe a-t-il deja pointe son depart aujourd'hui ?
+ *
+ * Sert aux DEUX portes qui menaient a la prise de poste : celle de
+ * nexusPriseDePosteManquante, et celle de NEXUS-App-v1.html. La premiere
+ * seule avait ete corrigee le 11/09/2026, et l'ecran d'accueil continuait a
+ * rediriger : une correction posee sur une porte quand il y en a deux ne
+ * corrige rien, elle deplace l'endroit ou l'on se cogne.
+ *
+ * En cas d'erreur de lecture : false, donc ancien contrat conserve. On ne
+ * relache pas une porte parce qu'on n'a pas pu la lire.
+ */
+async function nexusDepartPointeAujourdhui(employee){
+  if(!employee||!employee.id)return false;
   const journee = nexusDateLocaleISO(new Date());
-  const { data: departs, error: erreurDepart } = await nexusClient
+  const { data, error } = await nexusClient
     .from('pointages').select('id')
     .eq('employee_id', employee.id).eq('date', journee).eq('type', 'depart').limit(1);
-  if(erreurDepart){
-    console.error('Prise de poste : lecture du depart du jour impossible \u2014', erreurDepart);
-    return true;   // dans le doute, on garde l'ancien contrat
+  if(error){
+    console.error('Depart du jour : lecture impossible \u2014', error);
+    return false;
   }
-  if(departs && departs.length) return false;
-  return true;}
+  return !!(data && data.length);}
 async function nexusLogout(){await nexusClient.auth.signOut();window.location.href="index.html";}
 function nexusQuitterConsultation(){localStorage.removeItem('nexus_site_consulte_createur');window.location.href="NEXUS-App-v1.html";}
