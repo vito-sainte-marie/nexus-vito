@@ -243,8 +243,23 @@ async function executionsParalleles() {
   const orphelins = fs.readdirSync(RACINE).filter(f => f.startsWith('__fixture_'));
   verifier(`zéro fichier fixture orphelin à la racine après coup (${orphelins.join(', ') || 'aucun'})`, orphelins.length === 0);
 
+  // CE QUE CETTE VÉRIFICATION MESURE, et ce qu'elle ne doit pas mesurer.
+  //
+  // Elle comparait `git status --short` avant et après, sur TOUT l'arbre. À
+  // l'intérieur de la suite complète, d'autres épreuves réécrivent
+  // légitimement des fichiers suivis le temps de leur exécution — le registre
+  // PREPROD, par exemple. Le snapshot attrapait ces états transitoires et
+  // accusait cette épreuve-ci d'artefacts qu'elle n'avait pas laissés : elle
+  // passait seule, elle échouait en suite (11/09/2026).
+  //
+  // Une garde qui exige un état du monde au lieu d'une cohérence finit
+  // toujours par accuser le monde. Elle ne juge donc plus que CE QU'ELLE PEUT
+  // ELLE-MÊME LAISSER : des fixtures à la racine. Le contrôle des orphelins
+  // ci-dessus dit la même chose sur les noms ; celui-ci le dit sur l'arbre
+  // Git, y compris pour un fichier qui serait suivi par mégarde.
   const apres = execFileSync('git', ['status', '--short'], { cwd: RACINE, encoding: 'utf8' });
-  verifier('arbre Git rendu exactement dans le même état après les exécutions parallèles (aucun artefact laissé)', apres === avant);
-
+  const lignesFixtures = l => l.split('\n').filter(x => /__fixture_/.test(x)).sort().join('\n');
+  verifier('aucune fixture n\'apparaît dans l\'arbre Git après les exécutions parallèles',
+    lignesFixtures(apres) === lignesFixtures(avant));
   console.log(`\n${ok} vérifications passées.`);
 })();
