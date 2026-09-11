@@ -70,6 +70,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 </head>
 <body>
@@ -134,7 +135,11 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    // A3 (05/09/2026) : plus de repli vers Sainte-Marie. Le planning d'une
+    // autre station serait un faux planning, pas un planning approximatif.
+    const siteId = NexusStation.exigerSite(employee,
+      'Votre fiche ne rattache votre compte à aucun commerce. Votre planning ne peut donc pas être chargé.');
+    if (!siteId) return;
     let MOIS_COURANT = premierJourMois(new Date());
 
     document.getElementById('sousTitre').textContent = `Bonjour ${employee.nom}`;

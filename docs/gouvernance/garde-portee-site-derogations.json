@@ -1,0 +1,35 @@
+{
+  "commentaire": "Registre EXPLICITE des écarts tolérés par la garde ADR-0001. Chaque entrée est nommée, motivée, datée et attribuée. Une exclusion silencieuse serait un contrôle désactivé — c'est la règle posée pour les dérogations du Handoff v2, appliquée ici. Vide à ce jour : aucun écart n'a été jugé nécessaire.",
+  "derogations": [
+    {
+      "fichier": "sites",
+      "policy": "createur_insert_sites",
+      "table": "sites",
+      "regle": "PORTEE_CREATEUR",
+      "classe_attendue": "UNKNOWN",
+      "motif": "Créer un commerce est la capacité constitutive du rôle créateur : par définition, aucun site préexistant ne peut lui servir de portée. AUTORISATION HUMAINE EXPLICITE donnée par Frédéric Bragance le 06/09/2026 — « le créateur peut créer de nouveaux sites ».",
+      "autorise_par": "Frédéric Bragance (autorisation explicite, 06/09/2026)",
+      "le": "2026-09-06"
+    },
+    {
+      "fichier": "sites",
+      "policy": "createur_update_sites",
+      "table": "sites",
+      "regle": "PORTEE_CREATEUR",
+      "classe_attendue": "UNKNOWN",
+      "motif": "Administrer la ligne de plateforme d'un commerce relève de l'autorité du créateur (doctrine fondatrice du 06/09/2026 : « le fait qu'un site refuse l'accès du créateur à ses données métier ne lui retire pas l'autorité sur la plateforme »). Le risque réel — s'ouvrir l'accès aux données d'un client — est fermé séparément par le trigger nexus_acces_createur_immuable, qui rend acces_createur_autorise immuable depuis toute identité authentifiée. La policy reste large, la garde qui compte est ailleurs et elle est explicite.",
+      "autorise_par": "Frédéric Bragance (doctrine fondatrice du 06/09/2026)",
+      "le": "2026-09-06"
+    },
+    {
+      "fichier": "sites",
+      "policy": "createur_delete_sites",
+      "table": "sites",
+      "regle": "PORTEE_CREATEUR",
+      "classe_attendue": "UNKNOWN",
+      "motif": "Retirer un commerce de la plateforme relève de la même autorité. La destruction de données d'un client est empêchée séparément par le trigger nexus_site_supprimable — un commerce portant encore des comptes employés n'est pas supprimable — et par 57 clés étrangères.",
+      "autorise_par": "Frédéric Bragance (doctrine fondatrice du 06/09/2026)",
+      "le": "2026-09-06"
+    }
+  ]
+}

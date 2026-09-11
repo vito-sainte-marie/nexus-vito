@@ -1,0 +1,218 @@
+# NEXUS Handoff — request-1
+
+protocol: nexus-handoff/2
+lot_id: NEXUS-LIVE-CONTROL-CENTER-1-20260906
+type: architecture-and-product-spec
+branch: config-par-environnement
+environment: TEST_ONLY
+requested_by: Frederic Bragance
+
+## Objet
+
+Concevoir le Centre de contrôle des agents NEXUS permettant d'observer la progression du travail automatisé en temps réel sans rendre Frédéric responsable de la surveillance ni de l'avancement nominal du système.
+
+Nom produit provisoire dans l'interface : **NEXUS LIVE DÉVELOPPEMENT**.
+
+Principe cardinal : **autonomie sans opacité**.
+
+Le système doit travailler de manière autonome ; l'observabilité doit permettre de comprendre instantanément l'état du travail lorsqu'un humain choisit de regarder, sans exiger de clics ou d'actions pour faire avancer les agents.
+
+## Séparation structurelle Créateur / Manager
+
+NEXUS doit désormais distinguer explicitement deux niveaux qui ne doivent plus être confondus :
+
+### Créateur NEXUS
+
+Rôle système interne, actuellement réservé à Frédéric Bragance.
+
+Responsabilités et droits spécifiques :
+- administration du produit NEXUS lui-même ;
+- accès aux outils de développement, orchestration, agents, Guardians, CI et observabilité système ;
+- accès à **NEXUS LIVE DÉVELOPPEMENT** ;
+- accès aux fonctions de gouvernance produit qui ne concernent pas l'exploitation quotidienne d'une entreprise cliente.
+
+Ce rôle n'est pas un rôle métier client et ne doit pas être représenté comme un niveau supérieur de `manager` dans une hiérarchie d'entreprise cliente.
+
+### Manager NEXUS
+
+Rôle métier d'une structure cliente. Le manager peut conserver les droits opérationnels larges actuellement nécessaires dans NEXUS pour administrer son ou ses sites, mais ces droits s'arrêtent au périmètre fonctionnel de la structure cliente.
+
+Un manager ne doit jamais obtenir par héritage, configuration multisite, rôle large ou raccourci technique les capacités internes du Créateur.
+
+Principe : **Manager administre son exploitation ; Créateur administre NEXUS.**
+
+Cette séparation doit devenir une frontière d'autorisation explicite et durable avant l'industrialisation multi-client.
+
+## Accès — invariant Créateur uniquement
+
+Cette fonctionnalité est **strictement réservée au Créateur NEXUS**, actuellement Frédéric Bragance.
+
+Conséquences obligatoires :
+- aucun manager client, employé, administrateur de station, responsable multisite ou entreprise cliente ne doit pouvoir voir, appeler ou deviner cette interface ;
+- le droit d'accès ne doit jamais être dérivé d'un rôle métier client comme `manager`, `admin_site`, `owner_company`, `multi_site_manager` ou équivalent ;
+- l'autorisation doit reposer sur une capacité système distincte de type `nexus_creator_control_center` (nom final à figer dans la conception) ;
+- fail closed si l'identité ou la capacité Créateur n'est pas explicitement prouvée ;
+- aucun fallback vers un rôle plus large ;
+- ne jamais exposer dans cette vue des secrets, tokens, `service_role`, variables sensibles, données clientes brutes ou logs techniques contenant des données non nécessaires ;
+- les événements affichés doivent être minimisés et orientés exécution/gouvernance : agent, lot, état, preuve, commit/run, gate, blocage, prochaine étape ;
+- l'existence du Centre de contrôle ne doit créer aucun nouveau droit d'accès aux données opérationnelles des clients ;
+- le Créateur peut observer le fonctionnement du système sans que cela lui confère automatiquement un droit de lecture des données métier d'une entreprise cliente.
+
+Principe de séparation : **supervision du système NEXUS ≠ accès aux données clientes**.
+
+Le Guardian Security & Isolation doit disposer d'un veto explicite sur tout mécanisme d'accès ou toute donnée exposée par ce Centre de contrôle.
+
+## Positionnement dans l'interface NEXUS
+
+**NEXUS LIVE DÉVELOPPEMENT** doit faire partie de l'interface NEXUS utilisée par le Créateur, et non d'un outil externe séparé réservé aux développeurs.
+
+Contraintes UX et sécurité :
+- le point d'entrée n'est rendu que pour une session authentifiée disposant explicitement de la capacité Créateur ;
+- il peut être placé dans une zone système / Créateur distincte de la navigation métier normale ;
+- pour toute session manager, employé, admin station, responsable ou administrateur multisite client, le point d'entrée est absent de l'interface ;
+- l'URL/API sous-jacente reste protégée serveur : masquer le menu ne constitue jamais le contrôle d'accès ;
+- un accès direct à l'URL par un utilisateur non Créateur doit être refusé ;
+- le mode multisite client ne doit contenir aucun droit, case à cocher, permission ou rôle permettant d'activer NEXUS LIVE DÉVELOPPEMENT ;
+- un manager d'une autre structure ne doit même pas pouvoir s'auto-attribuer ou déléguer cette capacité ;
+- la capacité Créateur appartient à l'espace système NEXUS, jamais à la matrice de droits d'une entreprise cliente.
+
+Principe d'interface : **visible dans NEXUS pour le Créateur, inexistant pour le client.**
+
+## Philosophie obligatoire
+
+- automatisation par défaut, humain par exception ;
+- l'humain intervient par valeur, jamais par défaut ;
+- une interface de supervision informe, elle ne devient pas un moteur manuel du workflow ;
+- ne jamais rediscuter une décision canonique existante sans preuve nouvelle ;
+- chaque moteur/agent conserve son domaine de responsabilité ;
+- le Centre de contrôle agrège les vérités d'exécution, il ne recrée pas les calculs ou décisions des agents ;
+- simplicité d'usage visible, complexité interne maîtrisée ;
+- les états doivent être explicites, auditables et compréhensibles en quelques secondes.
+
+## Cible UX
+
+En moins de 10 secondes, Frédéric doit pouvoir répondre à :
+1. Qui travaille actuellement ?
+2. Sur quel lot ?
+3. Quelle étape est en cours ?
+4. Qu'est-ce qui est déjà terminé ?
+5. Quels tests / CI / Guardians sont passés ou bloquent ?
+6. Y a-t-il un vrai gate humain ?
+7. Quelle est la prochaine étape automatique ?
+8. Le système est-il en train d'avancer normalement, d'attendre un événement, ou d'être bloqué ?
+
+## États minimums à représenter
+
+- IDLE / EN_ATTENTE_EVENT
+- EN_ANALYSE
+- EN_EXECUTION
+- EN_TEST
+- EN_REVUE_GUARDIAN
+- ATTENTE_CI
+- ATTENTE_DECISION_HUMAINE
+- BLOQUE_FAIL_CLOSED
+- TERMINE
+
+## Agents / rôles visibles
+
+Au minimum :
+- NEXUS Orchestrator
+- Claude / ingénieur d'exécution
+- Guardian Architecture & Cohérence
+- Guardian Security & Isolation
+- Guardian Business Rules
+- Guardian QA / Regression
+- Guardian Bible / Philosophie
+
+La vue doit pouvoir accueillir de futurs agents sans refonte de structure.
+
+## Informations par activité
+
+Chaque activité affichée doit être issue d'une vérité d'exécution explicite :
+- agent / rôle
+- lot_id
+- étape
+- statut
+- horodatage début / dernière mise à jour
+- source de vérité / commit / run associé
+- résultat de l'étape précédente
+- prochaine étape prévue
+- blocage éventuel
+- human_gate_required: true/false
+- raison du gate si true
+- niveau de confiance / preuve disponible si pertinent
+
+## Principe d'observabilité
+
+Le Centre de contrôle ne doit pas dépendre du parsing fragile de logs humains. Concevoir un contrat d'événements / statuts structurés, versionné et exploitable par l'Orchestrator et les agents.
+
+Le modèle doit permettre le live sans coupler l'UI à Claude, GitHub Actions ou un fournisseur particulier.
+
+## Architecture attendue
+
+Étudier une structure du type :
+
+Agent / workflow / Guardian
+→ événement d'état structuré
+→ journal d'exécution canonique
+→ Orchestrator
+→ vue Live NEXUS
+
+Le journal doit être append-only ou historisé, idempotent et corrélable par lot_id / event_id / run_id.
+
+Le Centre de contrôle lit la vérité d'exécution ; il ne pilote pas l'exécution nominale.
+
+## Mode intervention humaine
+
+La présence d'un gate humain doit être rare, explicite et justifiée. L'interface peut présenter l'arbitrage demandé, mais ne doit jamais créer artificiellement des approbations manuelles pour des étapes que la Bible, les Guardians ou la CI peuvent décider de manière fiable.
+
+Question obligatoire : **Pourquoi un humain doit-il intervenir ici ?**
+
+## MVP demandé
+
+Spécifier un MVP capable d'afficher :
+- le lot actif ;
+- l'agent actuellement actif ;
+- une timeline courte des dernières étapes ;
+- progression / état des Guardians ;
+- état des tests et CI ;
+- blocage ou gate humain ;
+- prochaine étape automatique ;
+- dernier événement reçu ;
+- indicateur « système autonome / intervention requise ».
+
+Le MVP doit d'abord exploiter les sources déjà présentes dans GitHub / Handoff / Actions avant d'ajouter une nouvelle infrastructure.
+
+## Acceptance criteria
+
+1. Architecture indépendante du fournisseur d'agent.
+2. Aucun besoin de surveillance humaine nominale.
+3. Lecture de progression en moins de 10 secondes.
+4. États structurés et non déduits uniquement de texte libre.
+5. Historique corrélable au lot et aux preuves.
+6. Compatible avec event-driven Orchestrator et watchdog horaire.
+7. Aucun nouveau droit Production.
+8. Aucun secret exposé.
+9. Pas de duplication des décisions ou calculs des moteurs/agents.
+10. UX cohérente avec NEXUS : sobre, claire, directionnelle, explicite.
+11. Accès strictement Créateur, fail closed, avec capacité système dédiée distincte de tout rôle client.
+12. La supervision du système ne donne jamais, par effet de bord, accès aux données métier clientes.
+13. Les contrôles d'accès doivent être testés négativement : manager client, employé, admin station, responsable multisite et propriétaire d'entreprise cliente refusés.
+14. Le rôle `manager` conserve ses droits métier actuels mais n'hérite jamais des droits système Créateur.
+15. `NEXUS LIVE DÉVELOPPEMENT` est visible dans l'interface NEXUS uniquement pour la session Créateur.
+16. Aucun écran de gestion des droits multisite client ne peut attribuer la capacité Créateur ou rendre visible NEXUS LIVE DÉVELOPPEMENT.
+17. Un accès direct URL/API par un non-Créateur est refusé côté serveur, même si l'URL est connue.
+
+## Contraintes
+
+- ne pas mélanger ce lot avec NEXUS-ORCHESTRATOR-EVENT-DRIVEN-1-20260906 ;
+- ce lot peut avancer en conception pendant que Claude finalise le rail event-driven ;
+- pas d'implémentation qui dépend d'un état non encore prouvé du rail event-driven ;
+- pas de main, production, Supabase Production ou NEXUS Production ;
+- pas de service_role côté navigateur/repo/logs.
+
+## Retour attendu
+
+Audit d'architecture + spécification produit/UX + schéma d'événements/statuts + proposition MVP + modèle d'autorisation Créateur/Manager + tests négatifs d'accès + points d'intégration avec le rail event-driven une fois celui-ci validé.
+
+Ne demander une décision à Frédéric que s'il existe un vrai choix stratégique non tranché par la Bible ou les décisions canoniques existantes.

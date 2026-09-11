@@ -570,7 +570,8 @@
         <span class="header-divider"></span>
         <span class="header-sitewrap">
           <span id="logoFrameHote"></span>
-          <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
+          <!-- A3 / B1 : libellé neutre. chargerMarqueSite() y met le nom réel du commerce, ou son identifiant. Jamais le nom d'un autre. -->
+          <span class="header-sitename" id="stationTitle">Ma station</span>
         </span>
       </div>
     </div>
@@ -726,9 +727,9 @@
          statique inventée. -->
     <div class="conseiller-card conseiller-card-hero">
       <div class="conseiller-head">
-        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="NEXUS Coach Terrain">
         <div>
-          <div class="conseiller-name">COACH NEXUS<img class="conseiller-sparkle" src="assets/icons/icon-sparkle-24.png" alt=""></div>
+          <div class="conseiller-name">NEXUS COACH TERRAIN<img class="conseiller-sparkle" src="assets/icons/icon-sparkle-24.png" alt=""></div>
           <div class="conseiller-statut-ligne" id="conseillerEmployeStatut">Votre service est en cours</div>
         </div>
       </div>
@@ -768,6 +769,29 @@
         <span id="pointageMiniBtnTexte">Pointer →</span>
       </a>
     </div>
+
+      <!-- L'inventaire vous attend (09/09/2026) — demande de Frédéric :
+           « soumettre au renfort sa participation à l'inventaire », placée ici,
+           « sur l'accueil employé après la prise de poste ».
+
+           POURQUOI CETTE CARTE EXISTE. Rien ne bloquait le renfort : le rôle est
+           proposé à la prise de poste, la présence s'écrit, une règle le vise
+           déjà en base. Et sur Production au 09/09/2026 : 36 services pris en
+           renfort depuis le 18/07, ZÉRO présence en renfort sur une session
+           d'inventaire, 56 missions restées sans personne. Rien ne le bloquait,
+           rien ne l'invitait.
+
+           Elle reste MASQUÉE tant qu'il n'y a rien à proposer : un « 0 mission
+           en attente » ajouterait du bruit à un outil qu'on reproche déjà d'en
+           faire trop. -->
+      <div class="prochaine-action-card" id="participationInventaire" style="display:none;">
+        <div class="prochaine-action-tag" id="participationTag">L’inventaire vous attend</div>
+        <div class="prochaine-action-titre" id="participationTexte"></div>
+        <a class="prochaine-action-btn" href="NEXUS-Inventaire-v1.html">
+          <img src="assets/icons/icon-fleche-droite-24.png" alt="">
+          <span>Y participer →</span>
+        </a>
+      </div>
 
     <!-- Mes outils du quart — jusqu'à 4 tuiles, choisies parmi Missions /
          Inventaire / FDJ / Réception carburant / Progression selon ce qui
@@ -1281,14 +1305,32 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- NEXUS Live (08/09/2026). Le MVP du 07/09 n'avait aucune entrée de
+           navigation : l'écran n'était atteignable qu'en tapant son URL, ce que
+           l'audit du lot listait déjà comme un manque. Le masquage n'a jamais
+           été la protection — celle-ci est la policy `select_nexus_live_events`
+           (`je_suis_createur()`) plus `NexusLiveAcces.nexusLiveAutorise` : un
+           non-Créateur qui atteint l'URL charge la page et n'obtient aucune
+           donnée. Rendre l'entrée visible au Créateur ne change donc rien à la
+           sécurité, seulement à l'accessibilité pour celui à qui l'écran est
+           destiné. -->
+      <a class="nav-item" data-role="createur" href="NEXUS-Live-Developpement-v1.html">
+        <div class="nav-icon">📡</div>
+        <div class="nav-body">
+          <div class="nav-title">NEXUS Live</div>
+          <div class="nav-desc">Déploiements, Guardians et arbitrages en attente — environnement Test</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
     </nav>
   </div>
 
-  <footer>NEXUS · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
@@ -1296,6 +1338,11 @@
 <script src="nexus-marge.js?v=20260904-0104"></script>
 <script src="nexus-tempo.js?v=20260904-0104"></script>
 <script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+<!-- Ajoutés le 09/09/2026 pour l'invitation à l'inventaire : le moteur rend les
+     règles qui n'ont trouvé personne, la couche de règles lit le catalogue et
+     les rôles présents. Aucun autre usage sur cet écran. -->
+<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
@@ -1392,6 +1439,9 @@
   // `opportunites`).
   const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
+  // A3 / C1c-4b : l'Accueil devient résolveur explicite — il délègue le
+  // statut carburants à la chaîne Brief, qui date ses journées.
+  let FUSEAU_STATION = null;
   let SITE_HOME = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_HOME_ID = null;
 
@@ -1739,6 +1789,9 @@
 
   async function initPosteManager(employee) {
     SITE_HOME = employee.site_id;
+    // A3 / C1c-4b : fuseau du commerce résolu une fois, puis transmis.
+    const fuseauAccueil = await NexusStation.fuseauDeLaStation(SITE_HOME);
+    FUSEAU_STATION = fuseauAccueil.timezone || null;
     EMPLOYEE_HOME_ID = employee.id;
 
     const [
@@ -1761,7 +1814,7 @@
       NexusConseillerDonnees.chargerConstatTempo(nexusClient, SITE_HOME),
       NexusConseillerDonnees.chargerMessagesAdvisor(nexusClient, SITE_HOME),
       chargerRaccourcisHome(SITE_HOME),
-      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME, FUSEAU_STATION),
       NexusAppDonnees.chargerAlertesFdjNonVuesHome(nexusClient, SITE_HOME),
     ]);
     afficherHeureRecalcul();
@@ -2460,6 +2513,7 @@
     { label: 'Rappels', desc: 'Commandes fournisseurs, carburant', href: 'NEXUS-Parametres-Rappels-v1.html', role: 'manager' },
     { label: 'Administration multi-site', desc: 'Nom, logo et création de nouveaux sites', href: 'NEXUS-Admin-Sites-v1.html', role: 'createur' },
     { label: 'Debug créateur', desc: 'Outils techniques multi-site — agit directement sur Supabase', href: 'NEXUS-Debug-Createur-v1.html', role: 'createur', danger: true },
+    { label: 'NEXUS Live', desc: 'Déploiements, Guardians et arbitrages en attente — environnement Test', href: 'NEXUS-Live-Developpement-v1.html', role: 'createur' },
     { label: 'Pointage', desc: 'Arrivée, pause, départ', href: 'NEXUS-Pointage-v1.html', role: 'all' },
     { label: 'Mon Planning', desc: 'Vos jours de travail, votre rôle, vos repos', href: 'NEXUS-Mon-Planning-v1.html', role: 'all' },
     // Ma Progression (27/07/2026, demande de Frédéric) : role 'all' — sans
@@ -2616,6 +2670,74 @@
     toggle.classList.toggle('open', ouvert);
   });
 
+
+  // L'INVITATION À L'INVENTAIRE (09/09/2026)
+  //
+  // Elle ne redistribue rien et ne décide rien : elle montre à l'employé les
+  // missions d'inventaire que PERSONNE n'a prises et qu'il pourrait prendre.
+  // Le moteur (`propositionParticipationDuJour`) est pur et éprouvé à part ;
+  // ici, on lit et l'on affiche.
+  //
+  // LA SESSION N'EST PAS LE QUART DE L'EMPLOYÉ. `inventaire_quarts.quart` vaut
+  // « matin » ou « soir » : c'est la session de comptage. Depuis que le renfort
+  // est un quart de plein droit, `service.quart` peut valoir « renfort », qui
+  // ne désigne aucune session. On résout donc la session par l'horloge de la
+  // station, comme le fait l'écran Inventaire lui-même.
+  //
+  // ELLE SE TAIT PLUTÔT QUE DE SE TROMPER : sans moteur chargé, sans fuseau,
+  // sans rôle, ou à la moindre erreur de lecture, la carte reste masquée. Une
+  // invitation fausse coûterait plus cher que pas d'invitation.
+  async function afficherParticipationInventaire(site, role, fuseau) {
+    const carte = document.getElementById('participationInventaire');
+    if (!carte) return;
+    const M = window.NexusInventaireMoteur;
+    const MR = window.NexusInventaireMissionRulesDonnees;
+    // CE QUE LA CARTE A DÉCIDÉ, écrit sur elle-même. Sans cette trace, une
+    // carte absente est indistinguable : rien n'attendait, ou quelque chose a
+    // cassé ? La recette navigateur ne pourrait alors ni la juger conforme ni
+    // la juger fautive, et se contenterait de ne rien prouver.
+    //   'aucune'       — rien n'attend ce rôle, l'absence est JUSTE ;
+    //   'proposee'     — une mission attend, la carte DOIT être visible ;
+    //   'indisponible' — on n'a pas pu savoir, et l'on ne conclut pas.
+    // Trois états, jamais deux.
+    const noter = (etat) => { carte.setAttribute('data-etat', etat); };
+    noter('indisponible');
+    if (!M || !MR || !site || !role || !fuseau) return;
+    if (typeof M.propositionParticipationDuJour !== 'function') return;
+    try {
+      const q = await NexusStation.quartConfigureDuMoment(site, fuseau, undefined, nexusClient);
+      if (!q || q.indetermine || !q.quart) return;
+      const session = q.quart === '1' ? 'matin' : 'soir';
+      const dateISO = NexusStation.dateLocaleStation(fuseau);
+      const [missionRules, rolesPresents] = await Promise.all([
+        MR.chargerMissionRules(nexusClient, site),
+        MR.chargerRolesPresentsQuart(nexusClient, site, dateISO, session),
+      ]);
+      const roleCanonique = typeof MR.normaliserRoleCode === 'function'
+        ? MR.normaliserRoleCode(role) : role;
+      const p = M.propositionParticipationDuJour({
+        missionRules, quart: session, rolesPresents, role: roleCanonique,
+      });
+      if (!p) { noter('aucune'); return; }
+      noter('proposee');
+      // Le texte dit CE QUI ATTEND, pas un décompte de corvées. Et quand
+      // l'employé vient en soutien d'un rôle absent, on le lui dit : venir en
+      // renfort d'un collègue n'est pas la même chose que sa propre mission.
+      const nom = (p.mission && p.mission.nom) || 'Un contrôle d’inventaire';
+      const autres = p.nombreEnAttente - 1;
+      const reste = autres > 0
+        ? ` · ${autres} autre${autres > 1 ? 's' : ''} attend${autres > 1 ? 'ent' : ''}`
+        : '';
+      document.getElementById('participationTexte').textContent =
+        (p.viaRepli ? `En soutien : ${nom}` : nom) + reste;
+      document.getElementById('participationTag').textContent =
+        p.viaRepli ? 'L’équipe a besoin de vous' : 'L’inventaire vous attend';
+      carte.style.display = '';
+    } catch (e) {
+      console.warn('Invitation inventaire : lecture impossible, carte masquée.', e);
+    }
+  }
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
@@ -2644,26 +2766,47 @@
     // recalculé ici — un 4e calcul de quart existe déjà entre Prise de
     // Poste/Inventaire/FDJ (12:40 vs 13:00 selon l'écran, incohérence
     // connue et non résolue), inutile d'en ajouter un 5e (Article 11).
+    // S-4 (05/09/2026) : le service courant vient de la primitive unique
+    // (nexus-auth.js). Ce lecteur bornait la journée en UTC
+    // (`new Date().toISOString()`) — ni l'heure de la station, ni même
+    // l'heure de l'appareil. Depuis que S-2 et S-3 clôturent réellement,
+    // cette borne aurait renvoyé un service terminé comme s'il était actif.
+    //
+    // La borne de journée disparaît du chemin de décision « quel est le
+    // service courant ? ». Les autres dettes de journée (UTC contre heure
+    // appareil contre heure station) restent consignées en A17 et ne sont
+    // pas traitées ici.
     let quartDuJour = null;
-    const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
-      const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
-        .from('shifts')
-        .select('id, role, quart')
-        .eq('employee_id', employee.id)
-        .gte('heure_debut', aujourdISO + 'T00:00:00')
-        .lte('heure_debut', aujourdISO + 'T23:59:59')
-        .order('heure_debut', { ascending: false })
-        .limit(1);
+      const r = await nexusServiceCourant(employee);
+      if (r.aucun) {
+        // Seconde porte vers la prise de poste (11/09/2026, arbitrage C.3).
+        // Celle de nexus-auth.js avait ete corrigee ; celle-ci redirigeait
+        // toujours, et l'employee qui venait de pointer son depart se
+        // retrouvait aussitot devant la question du role. Apres une cloture,
+        // reprendre un poste reste possible, mais par une action volontaire,
+        // jamais comme ecran impose. Une correction posee sur une porte quand
+        // il y en a deux ne corrige rien : elle deplace l'endroit ou l'on se cogne.
+        if (!(await nexusDepartPointeAujourdhui(employee))) {
+          window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
+          return;
+        }
+      }
+      if (r.service) {
+        roleDuJour = r.service.role;
+        quartDuJour = r.service.quart;
+      }
+      // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
+      // renvoyer un employé vers la prise de poste alors qu'il en a une.
+    }
 
-      if (!erreurShift && (!shiftsAujourdhui || shiftsAujourdhui.length === 0)) {
-        window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-        return;
-      }
-      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) {
-        roleDuJour = shiftsAujourdhui[0].role;
-        quartDuJour = shiftsAujourdhui[0].quart;
-      }
+    // L'invitation à l'inventaire, une fois le rôle du jour connu. Jamais
+    // attendue : elle s'affiche quand elle a sa réponse, et l'accueil ne
+    // ralentit pas pour elle.
+    if (roleDuJour) {
+      NexusStation.fuseauDeLaStation(SITE_HOME)
+        .then(f => afficherParticipationInventaire(SITE_HOME, roleDuJour, f && f.timezone))
+        .catch(() => {});
     }
 
     document.getElementById('sessionInfo').innerHTML =
@@ -2706,7 +2849,7 @@
     // points animés (span.dots-anim) qui vit juste à côté dans le HTML.
     document.getElementById('taglineTexte').textContent = estNiveauManager
       ? "Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités"
-      : 'Le Coach NEXUS prépare votre journée et vous aide à donner le meilleur de vous-même';
+      : 'NEXUS Coach Terrain prépare votre journée et vous aide à donner le meilleur de vous-même';
 
     if (estNiveauManager) {
       document.getElementById('conseillerEmployeWrap').style.display = 'none';
@@ -2752,9 +2895,31 @@
     (async function chargerMarqueSite() {
       const siteId = employee.site_id;
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
-      if (error || !site) return;
       const titre = document.getElementById('stationTitle');
-      if (titre && site.nom_entreprise) titre.textContent = site.nom_entreprise;
+      // A3 / B1 (05/09/2026) — le nom d'un autre commerce ne sert plus de
+      // valeur de secours.
+      //
+      // Le libellé « Vito Sainte-Marie Usine » était écrit en dur et n'était
+      // remplacé que si la lecture RÉUSSISSAIT et rapportait un nom. Sur
+      // échec réseau, ou sur un site sans nom_entreprise, un client voyait le
+      // nom d'un autre client en en-tête. Le mécanisme était présentationnel,
+      // le mode de défaillance ne l'était pas.
+      //
+      // Trois branches, selon la règle A4-bis : l'échec de la requête est une
+      // panne technique (error) ; une lecture réussie sans nom est une
+      // configuration incomplète (warn). Le repli est l'identifiant du
+      // commerce COURANT — jamais celui d'un autre, jamais une chaîne vide.
+      if (error) {
+        console.error('Lecture identité du commerce :', error);
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      if (!site || !site.nom_entreprise) {
+        console.warn('Identité du commerce non configurée — en-tête neutre.');
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      titre.textContent = site.nom_entreprise;
       if (site.logo_url) {
         const hote = document.getElementById('logoFrameHote');
         if (hote) {
@@ -2774,15 +2939,19 @@
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
-      const HORAIRES_DEFAUT_RAPPEL = {
-        quart1: { normal: "05:45", etendu: "05:45" },
-        quart2: { normal: "12:40", etendu: "13:40" },
-        renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
-      };
+      // A3 / C2-4 (05/09/2026) — HORAIRES_DEFAUT_RAPPEL supprimé.
+      //
+      // C'était un TROISIÈME jeu d'horaires, incomplet (ni fin_normal ni
+      // fin_etendu), servant à satisfaire la contrainte NOT NULL de
+      // station_config.horaires lors d'un upsert de PRIX carburants. Un écran
+      // qui enregistre des prix n'a aucune raison de décider des horaires
+      // d'un commerce — et encore moins de ceux d'une autre station.
+      //
+      // Sans horaires configurés, l'enregistrement est refusé et dit pourquoi.
       async function chargerHorairesPourUpsert() {
         const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-        if (error) { console.error('Chargement horaires (rappel prix):', error); return HORAIRES_DEFAUT_RAPPEL; }
-        return (data && data.horaires) || HORAIRES_DEFAUT_RAPPEL;
+        if (error) { console.error('Chargement horaires (rappel prix) :', error); return null; }
+        return (data && data.horaires) || null;
       }
 
       async function chargerPrixCarburantsRappel() {
@@ -2803,9 +2972,9 @@
         conteneur.innerHTML = `
           <div class="conseiller-card">
             <div class="conseiller-head">
-              <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+              <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="NEXUS Directeur d’Exploitation">
               <div>
-                <div class="conseiller-name">CONSEILLER NEXUS</div>
+                <div class="conseiller-name">NEXUS DIRECTEUR D’EXPLOITATION</div>
                 <div class="conseiller-sub">Rappel du 1ᵉʳ du mois</div>
               </div>
             </div>
@@ -2826,6 +2995,14 @@
           btn.disabled = true;
           const prix_carburants = { mois: moisCourant, sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
           const horaires = await chargerHorairesPourUpsert();
+          if (!horaires) {
+            btn.disabled = false;
+            alert('Horaires de quart non configurés pour ce commerce.\n\n'
+              + 'NEXUS ne peut pas créer la configuration de ce site à partir d’un '
+              + 'enregistrement de prix, et il ne reprendra pas les horaires d’une '
+              + 'autre station. Un manager doit les renseigner dans Paramètres Station.');
+            return;
+          }
           const { error } = await nexusClient.from('station_config').upsert(
             { site: siteId, prix_carburants, horaires, updated_at: new Date().toISOString() },
             { onConflict: 'site' }

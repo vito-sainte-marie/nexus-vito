@@ -1,0 +1,252 @@
+{
+  "schema": "nexus-rules/1",
+  "updated_at": "2026-09-08",
+  "rules": [
+    {
+      "id": "ENV-001",
+      "scope": [
+        "development",
+        "github",
+        "architecture"
+      ],
+      "trigger": "start_code_lot",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Claude must work from the expected canonical HEAD of config-par-environnement; stale-main derived execution is blocked before coding.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "ENV-002",
+      "scope": [
+        "test",
+        "security"
+      ],
+      "trigger": "test_execution",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Autonomous code/test/fix loops are allowed in NEXUS Test within the approved lot; Production access is not implied.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "ENV-003",
+      "scope": [
+        "orchestrator",
+        "test",
+        "availability"
+      ],
+      "trigger": "optional_test_capability_unavailable",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "An optional Test capability that is unavailable must degrade explicitly instead of preventing Claude from starting; any proof that actually requires that capability remains unsatisfied and fail-closed.",
+      "source": "ADR-0003"
+    },
+    {
+      "id": "SEC-001",
+      "scope": [
+        "security",
+        "supabase",
+        "connector"
+      ],
+      "trigger": "service_role",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "service_role is allowed only behind a trusted server or NEXUS Connector and is forbidden in repository, browser and public workflow logs.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "SEC-002",
+      "scope": [
+        "security",
+        "data"
+      ],
+      "trigger": "client_data_access",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "The creator administers NEXUS but the client company controls use and sharing of its data; company/site context must be explicit and isolated.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "PROD-001",
+      "scope": [
+        "production",
+        "release"
+      ],
+      "trigger": "production_promotion",
+      "module": "all",
+      "severity": "human_gate",
+      "rule": "No application or Production change to main, production, Supabase Production or NEXUS Production without Frederic's explicit approval; the only main exception is the human-authorized orchestration control-plane defined by ADR-0003.",
+      "source": "ADR-0002, ADR-0003"
+    },
+    {
+      "id": "GOV-003",
+      "scope": [
+        "github",
+        "orchestrator",
+        "control_plane"
+      ],
+      "trigger": "main_workflow_change",
+      "module": "orchestration",
+      "severity": "human_gate",
+      "rule": "A main-branch workflow change is allowed only for the orchestration control-plane, with Frederic's explicit authorization, no application files, no Production access expansion and no cleartext secret.",
+      "source": "ADR-0003"
+    },
+    {
+      "id": "ARCH-001",
+      "scope": [
+        "architecture"
+      ],
+      "trigger": "business_logic_change",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A business truth has one logical owner; wrappers, CIN and UI consume it and do not rebuild a parallel calculation.",
+      "source": "BIBLE.md"
+    },
+    {
+      "id": "QA-001",
+      "scope": [
+        "qa",
+        "regression"
+      ],
+      "trigger": "executable_change",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Claude fixes and retests failures inside the authorized lot without opening a new decision cycle; escalate only when the fix changes scope or doctrine.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "GOV-001",
+      "scope": [
+        "orchestrator",
+        "handoff"
+      ],
+      "trigger": "decision_available",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "Never wake Claude twice for the same canonical decision while the first wake is active, successful, or its outcome is unknown; verify issue #28, workflow state and canonical Handoff first.",
+      "source": "REPRISE.md"
+    },
+    {
+      "id": "GOV-004",
+      "scope": [
+        "orchestrator",
+        "handoff",
+        "github"
+      ],
+      "trigger": "claude_wake_failed",
+      "module": "orchestration",
+      "severity": "blocking",
+      "rule": "If the first Claude wake for a canonical decision has objectively ended unsuccessfully and the decision remains unconsumed, no request return exists, and no equivalent Claude run is active, Orchestrator may issue exactly one controlled retry for the same decision. A second failed retry must not loop; record the incident and escalate the rail failure to Orchestrator for diagnosis before any further wake.",
+      "source": "REPRISE.md; Frederic arbitration 2026-09-07"
+    },
+    {
+      "id": "GOV-002",
+      "scope": [
+        "orchestrator",
+        "learning"
+      ],
+      "trigger": "post_lot",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "After each lot, promote durable knowledge to rules/ADR/Bible and recurring incidents to automatic checks so a twice-solved problem does not require a third identical human analysis.",
+      "source": "ADR-0002"
+    },
+    {
+      "id": "CARB-001",
+      "scope": [
+        "business_rules",
+        "carburants"
+      ],
+      "trigger": "truck_completion",
+      "module": "carburants-performance",
+      "severity": "business",
+      "rule": "Maximum truck volume is an optimization target, never an obligation; complement only when physically safe and absorbable by forecast rotation without inventing future sales.",
+      "source": "CARB-004 canonical decisions"
+    },
+    {
+      "id": "QA-002",
+      "scope": [
+        "qa",
+        "regression",
+        "development"
+      ],
+      "trigger": "before_wiring_detector",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "A detector must be calibrated against the real repository before being wired into CI, and its finding count reported before and after. A guard that emits dozens of false positives is disabled within a week, taking with it the real findings it would have caught later. Noise is a failure mode, not an inconvenience.",
+      "source": "garde-portee-site 78->48, guardians-router 13->1, guardian-regles-metier 8887->2, guardian-bible 638->17, guardian-qa 14->1"
+    },
+    {
+      "id": "QA-003",
+      "scope": [
+        "qa",
+        "regression",
+        "development"
+      ],
+      "trigger": "mutation_testing",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "A mutation must be proven to have actually modified the source before its result is read, and a hypothesis must be measured before it is acted upon. A sed that matches nothing returns a meaningless 'survived'; an unmeasured hypothesis sends the fix to the wrong place.",
+      "source": "3 silent seds on 2026-09-07; pilesParPosition hypothesis measured at 0.0% of profile"
+    },
+    {
+      "id": "QA-004",
+      "scope": [
+        "qa",
+        "regression"
+      ],
+      "trigger": "write_test",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "An assertion must be able to fail. Anchor patterns or quote the expected phrase; capture every stream the program under test writes to; never let a catch swallow the signal. Mechanised by outils/guardian-qa.js.",
+      "source": "/2/ matching issue-28, /OK/ unanchored, stdout-only helper on stderr output"
+    },
+    {
+      "id": "GOV-005",
+      "scope": [
+        "gouvernance",
+        "integration"
+      ],
+      "trigger": "end_of_run",
+      "module": "all",
+      "severity": "advisory",
+      "rule": "Work is not delivered because it exists on a branch. A cloud run pushes a branch and nothing merges it: the silence looks exactly like success. Every work branch must end either merged into the canonical branch or recorded in docs/handoff/BRANCHES-CLASSEES.json with a sort, a motive and the exact sha covered. Mechanised by outils/garde-branches-en-rade.js and surfaced in NEXUS Live.",
+      "source": "three branches carrying an already-rendered arbitration waited unnoticed on 2026-09-08; the Live MVP and the CARB-004 fix had the same fate earlier"
+    },
+    {
+      "id": "QA-005",
+      "scope": [
+        "qa",
+        "environnement"
+      ],
+      "trigger": "before_push",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A local bench must share its assumptions with the real environment, and be runnable before pushing. A scenario calibrated against one station's configuration and seeded into another is proven locally and false in reality. Snapshot the real configuration, calibrate against that snapshot, and let CI verify the snapshot has not drifted. Mechanised by outils/repetition-recette-carburants.js. The same applies to shell: reproduce the runner exact flags. GitHub `shell: bash` runs with `-e`, which `set -uo pipefail` does not disable — a bare `var=$(cmd)` whose command fails kills the step before any message, making the very branches written to name that failure unreachable. Test with `bash --noprofile --norc -e -o pipefail`.",
+      "source": "2026-09-08: four commits and four six-minute CI cycles to make one seed work, because CI was the only place the real environment could be exercised and it reveals one obstacle at a time; the scenario itself had been calibrated with another station tanks; and 2026-09-08: four CI-visible cases proven locally with plain `bash script` passed, then died silently in CI under -e; and 2026-09-08 again: the fuel scenario was validated across seven weekdays but a SINGLE hour, and broke at 13:25 when the 11:00 order cutoff lengthened the sales window — seven days at one hour was half the domain"
+    },
+    {
+      "id": "SEC-003",
+      "scope": [
+        "securite",
+        "privileges"
+      ],
+      "trigger": "blocked_by_permission",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "When a permission blocks an automated step, find the exact mechanism by EXPERIMENT before choosing a fix, then prefer the fix that PRESERVES least privilege over the convenient one. Widening a read or write capability to satisfy a SQL convenience is a permanent cost paid for a temporary comfort; reshaping the statement is usually free.",
+      "source": "2026-09-08: publishing the NEXUS Live journal was refused under RLS. Four hypotheses failed in a row — the table grant, the write policy, the emitted actor roles, then a conflict with an invisible row — before an experiment showed the `ON CONFLICT` clause itself requires a read POLICY under RLS, which a table grant does not provide. Granting the CI role read access to the Creator execution journal would have worked; publishing row by row without `ON CONFLICT`, and treating a duplicate key as the expected fact it is, kept the role write-only and needed no new privilege."
+    },
+    {
+      "id": "QA-006",
+      "scope": [
+        "qa",
+        "regression"
+      ],
+      "trigger": "write_test",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "A test must never require a known defect to be PRESENT. Asserting that the repository still contains the bug locks it in: the day it is fixed, that test breaks and CI reports the fix as a regression. Prove the detector with synthetic fixtures; use the real repository to check the defect does not COME BACK.",
+      "source": "2026-09-08: closing CARB-007 removed the copied truck capacity from a screen, and test_guardian_regles_metier failed with « la capacité camion recopiée hors du moteur doit rester visible » — the fix was flagged as a new failing test"
+    }
+  ]
+}

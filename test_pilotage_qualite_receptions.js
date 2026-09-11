@@ -133,6 +133,11 @@ global.nexusClient = {
   },
 };
 global.nexusRequireAuth = async () => employee;
+// A3 / C1c-2 (05/09/2026) : l'écran résout désormais le fuseau du commerce
+// par le contrat NexusStation. Ce bac à sable le fournit pour que l'échec
+// connu de ce test reste celui du DOM absent, et ne soit pas masqué par un
+// ReferenceError venu d'A3.
+global.NexusStation = { fuseauDeLaStation: async () => ({ timezone: 'America/Martinique' }) };
 global.requestAnimationFrame = (fn) => fn();
 global.alert = () => {};
 

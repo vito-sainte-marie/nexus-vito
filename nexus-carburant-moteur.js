@@ -372,6 +372,20 @@
     return (cuves || []).reduce((s, c) => s + (Number(c.capacite) || 0), 0);
   }
 
+  // Limite de REMPLISSAGE totale — ce qu'une livraison peut réellement
+  // atteindre, capacité brute moins le tampon de sécurité de chaque cuve.
+  //
+  // Distincte de `capaciteTotale` et souvent confondue avec elle : sur la
+  // station Test, SP95 a 25 000 L de capacité pour 23 750 L de limite. Ce
+  // calcul vivait en ligne dans `nexus-carburant-commande-donnees-core.js`,
+  // et `NEXUS-Parametres-Rappels-v1.html` en gardait une TROISIÈME version,
+  // codée en dur (28 500 / 27 000) et fausse pour la station réelle
+  // (28 761 / 28 553) — CARB-007. Une vérité métier n'a qu'un propriétaire
+  // logique (Bible, « Architecture de vérité ») : le voici.
+  function limiteRemplissageTotale(cuves) {
+    return (cuves || []).reduce((s, c) => s + (Number(c.limite_remplissage) || 0), 0);
+  }
+
   // ============================================================
   // FIABILITÉ DU CONTRÔLE (14/08/2026, retour de Frédéric après le premier
   // test réel de Carburants Pilotage) — "Données insuffisantes" est trop
@@ -1729,7 +1743,7 @@
     statutGlobalControle, texteControleJour,
     controleInchange,
     SEUIL_AUTONOMIE_ALERTE_JOURS, SEUIL_AUTONOMIE_VIGILANCE_JOURS, SEUIL_AUTONOMIE_CONFORTABLE_JOURS,
-    calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
+    calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale, limiteRemplissageTotale,
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,

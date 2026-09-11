@@ -209,7 +209,7 @@
   <div class="section desktop-grid" id="app">
     <div class="empty-note">Analyse en cours…</div>
   </div>
-  <footer>NEXUS Progression v1 · Coach personnel · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Progression v1 · Coach personnel · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script>
@@ -626,8 +626,8 @@
     // vos côtés pour vous accompagner dans vos missions et vous aider à
     // progresser" — jamais un simple compte-rendu de chiffres.
     const accueil = services.length > 0
-      ? `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS accompagne cet employé au quotidien dans ses missions et sa progression.' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser.'} J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse pour ${vueManager ? 'mieux comprendre ses' : 'mieux comprendre vos'} points forts.`
-      : `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser'} — chaque service ${vueManager ? 'qu\'il enregistre m\'aide à mieux le' : 'que vous enregistrez m\'aide à mieux vous'} comprendre.`;
+      ? `Bonjour ${prenom}. ${vueManager ? 'NEXUS Coach Terrain accompagne cet employé au quotidien dans ses missions et sa progression.' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser.'} J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse pour ${vueManager ? 'mieux comprendre ses' : 'mieux comprendre vos'} points forts.`
+      : `Bonjour ${prenom}. ${vueManager ? 'NEXUS Coach Terrain commence tout juste à apprendre la manière de travailler de cet employé' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser'} — chaque service ${vueManager ? 'qu\'il enregistre m\'aide à mieux le' : 'que vous enregistrez m\'aide à mieux vous'} comprendre.`;
 
     // ------------------------------------------------------------
     // Rendu "Mes résultats" — Boutique / Piste / FDJ (16/08/2026)
@@ -874,9 +874,9 @@
     document.getElementById('app').innerHTML = `
       <div class="coach-card">
         <div class="coach-head">
-          <img class="coach-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <img class="coach-avatar" src="assets/nexus-avatar.png" alt="NEXUS Coach Terrain">
           <div>
-            <div class="coach-nom">COACH NEXUS</div>
+            <div class="coach-nom">NEXUS COACH TERRAIN</div>
             <div class="coach-sous-nom">${vueManager ? 'Coach personnel de ' + cible.nom : 'Votre coach personnel'}</div>
           </div>
         </div>

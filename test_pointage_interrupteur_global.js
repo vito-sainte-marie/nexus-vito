@@ -63,6 +63,12 @@ async function executer(scenario, employee, pageActuelle = 'NEXUS-App-v1.html') 
     nexusClient: fauxClient(scenario),
   };
   ctx.globalThis = ctx;
+  // Le build pose `nexus-page.js` avant `nexus-auth.js` sur chaque écran ; le
+  // contexte de test doit composer la page de la même façon, sinon il éprouve
+  // un assemblage qui n'existe nulle part. Dans un navigateur `window` EST
+  // l'objet global : on refait ici ce raccourci explicitement.
+  vm.runInNewContext(fs.readFileSync(__dirname + '/nexus-page.js', 'utf8'), ctx);
+  ctx.NexusPage = ctx.window.NexusPage;
   vm.runInNewContext(constSeq + '\n\n' + code, ctx);
   return ctx.__test(employee);
 }

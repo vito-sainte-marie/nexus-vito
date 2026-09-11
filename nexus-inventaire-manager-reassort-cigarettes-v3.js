@@ -4,7 +4,7 @@
 // relevé physique sont intégrés avant de calculer la couverture boutique.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Inventaire-Manager-v1.html') return;
+  if(!NexusPage.est('NEXUS-Inventaire-Manager-v1.html')) return;
   const AGE_MAX_HEURES=36;
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const num=v=>Number(v)||0;

@@ -283,7 +283,7 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Réception carburant v2 · Visite guidée, contrôlée, tracée · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Réception carburant v2 · Visite guidée, contrôlée, tracée · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script>
@@ -452,7 +452,7 @@
       </div>
       ${consignes.length ? `
         <div class="nexus-dit">
-          <div class="coach-tete">🧭 Coach NEXUS — avant de commencer</div>
+          <div class="coach-tete">🧭 NEXUS Coach Terrain — avant de commencer</div>
           <div class="consignes-liste">
             ${consignes.map(c => `<div class="consigne-item"><div class="consigne-puce">•</div><div><span class="consigne-theme">${c.theme ? c.theme + ' — ' : ''}</span>${c.texte}</div></div>`).join('')}
           </div>
@@ -1115,7 +1115,7 @@
           <div class="stat-row"><span class="stat-label">Delta</span><span class="stat-value ${r.statut === 'a_rapprocher' ? 'red' : (r.statut === 'coherente' ? 'green' : '')}">${M.texteEcart(r.ecartMesureL, r.ecartMesureRatio)}</span></div>
         `; }).join('')}
       </div>
-      <div class="nexus-dit" id="lectureNexus"><div class="coach-tete">🧭 Coach NEXUS</div><div id="lectureNexusTexte">Comparaison à l'historique en cours…</div></div>
+      <div class="nexus-dit" id="lectureNexus"><div class="coach-tete">🧭 NEXUS Coach Terrain</div><div id="lectureNexusTexte">Comparaison à l'historique en cours…</div></div>
       <button class="btn-primary" id="btnTerminerReception">Terminer la réception</button>
       <button class="btn-ghost" id="btnRetourCalcul">Retour</button>
     `;

@@ -1,0 +1,87 @@
+{
+  "lot": "NEXUS-PRODUCTION-READINESS-1-20260908",
+  "etabli_le": "2026-09-10",
+  "regle": "Chaque fait porte sa preuve. Une valeur sans preuve exécutable n'a rien à faire ici : elle rendrait un critère OK sur la foi d'un souvenir. Deux faits ne figurent PAS dans ce fichier et sont mesurés à l'exécution — le SHA candidat (git rev-parse HEAD) et l'état de la CI sur ce SHA (gh) — parce qu'ils changent à chaque commit et qu'un fichier ne peut pas les suivre honnêtement.",
+  "faits": {
+    "guardiansRequisConformes": {
+      "valeur": true,
+      "preuve": "run 34525903638 (workflow_dispatch, c405c75) — Guardian QA 0 finding sur 264 épreuves, plus Guardians backend, Business Rules, Bible, Philosophie, LANG-003 et LANG-004, tous au vert"
+    },
+    "railHandoffConforme": {
+      "valeur": true,
+      "preuve": "node outils/handoff.js verifier → conforme (29 lots, 10 avertissements, 6 dérogations tracées)"
+    },
+    "manifesteMigrationsAJour": {
+      "valeur": true,
+      "preuve": "node test_manifeste_migrations_complet_20260909.js → 5/5 ; manifeste-migrations-production-1.md"
+    },
+    "mesuresProductionFraiches": {
+      "horodatage": "2026-09-11T22:39:53Z",
+      "expire_le": "2026-09-12T22:39:53Z",
+      "preuve": "preuve-re-mesure-finale-2.md — mesures #1 à #4 et #6 jouées sur uzhjpqpctpvxytxpxoqz par nexus_prod_readonly_login le 11/09/2026 (#1 à #3 et #6 à 22:39 UTC, #4 canonique à 23:05 UTC après ouverture de employees.id et employees.site_id). Aucun SHA n'est cité ici : ce sont des faits sur Production, pas sur l'arbre, et le SHA candidat est mesuré à l'exécution par l'évaluateur. La mesure #5 est INCONNUE par construction et le reste jusqu'à son exécution par un observateur privilégié dans les minutes précédant la fenêtre (outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql). Ces mesures n'autorisent PAS la gate du 13/09 : elles expirent le 12/09 à 22:39 UTC. Protocole de reprise : protocole-gate-dimanche-1.md."
+    },
+    "aucunImpactDmlInconnu": {
+      "valeur": true,
+      "preuve": "preuve-re-mesure-finale-2.md §1 (0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 shifts, 89 mission_catalog, inchangés) ; §4 CTE CANONIQUE via employees : 26 services en cours, 24 seraient clos sans pointage, écart facteur 1,63 avec la référence 16 du 08/09. La variante par site porté par le service rend le même ensemble — différence symétrique nulle — parce que les trois conditions de divergence valent zéro (site du service ≠ site de l'employé : 0 ; employé introuvable : 0 ; site de l'employé absent de sites : 0). Seul le canonique porte le critère. Augmentation compatible avec la persistance de services ouverts sans clôture ; cause individuelle non attribuée."
+    },
+    "preprodAnonymiseOuEquivalent": {
+      "valeur": true,
+      "preuve": "preuve-repetition-preprod-equivalente-1.md — répétition équivalente sur Test, jeu convergent aux volumes mesurés, preuve de confidentialité incluse"
+    },
+    "repetitionMigrationsRecetteReussie": {
+      "valeur": true,
+      "preuve": "preuve-repetition-executee-1.md (8/8 étapes) et run 34525903638 — recette navigateur verte, connexion Manager Test comprise, six points satisfaits et un sans objet (arrivée déjà pointée)"
+    },
+    "planReparationRollbackDocumente": {
+      "valeur": true,
+      "preuve": "plan-reparation-rollback-1.md — couvre chaque migration DML, y compris l'irréversibilité du DML de #6"
+    },
+    "fenetreDeploiementConfirmee": {
+      "valeur": true,
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la mesure #5 est INCONNUE jusqu'à la gate (preuve-re-mesure-finale-2.md §5). La clause « 0 écriture en vol » du 10/09 est retirée — elle confondait session active et transaction écrivante."
+    },
+    "aucunBlocageNonResolu": {
+      "valeur": false,
+      "bloque_le": "2026-09-11",
+      "bloque_par": "Frédéric Bragance",
+      "motif": "Le parcours Caissière du 11/09/2026 a mis au jour un défaut DANS LE PÉRIMÈTRE de la release : l'interface de pointage rend le départ inatteignable sans pause. Les migrations réparent les services historiques, mais l'écran continuerait d'en créer de nouveaux restés ouverts. Le verdict repasse NON_PRET et la gate de dimanche est suspendue.",
+      "preuve": "NEXUS-Pointage-v1.html:227 ORDRE_TYPES = ['arrivee','pause_debut','pause_fin','depart'] ; :575 prochainType = ORDRE_TYPES.find(t => !dejaFait[t]) ; :621 bloque = !fait && !estProchain. Vérifié à l'écran sur nexus-test : arrivée pointée -> Départ désactivé ; après début et fin de pause -> Départ actif. Vingt-quatre relevés au total, dont dix bloquants.",
+      "declaration_defaut_7_et_branches": {
+        "valeur": true,
+        "retabli_le": "2026-09-10",
+        "deux_blocages_traites": [
+          "défaut 7 (épreuve `security` sur ea561f6) — déclaré non bloquant par Frédéric Bragance, six motifs consignés ci-dessous",
+          "six branches en rade — classées le 10/09/2026 dans docs/handoff/BRANCHES-CLASSEES.json, toutes SUPERSEDEE, chacune avec son SHA de tête et sa preuve"
+        ],
+        "preuve": "outils/garde-branches-en-rade.js : « Branches en rade : aucune (44 branche(s) claude/* examinée(s)) ». Comparaison des arbres : un seul fichier de ces six branches est absent du candidat, request-11.md, une demande Handoff volontairement non rapatriée — aucun correctif applicatif, aucune épreuve. Les diffs de code de ces branches ne contiennent que des retours en arrière, dont la version d'AVANT la correction du défaut 10.",
+        "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
+        "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées.",
+        "declaration_defaut_7": {
+          "valeur": true,
+          "declare_par": "Frédéric Bragance",
+          "declare_le": "2026-09-10",
+          "porte_sur": "le défaut 7 — épreuve `security` sur l'ancien candidat ea561f6",
+          "motifs": [
+            "une seule occurrence, sur l'ancien candidat ea561f6",
+            "aucune reproduction depuis",
+            "cause non isolée, donc aucun correctif hypothétique autorisé",
+            "instrumentation en place pour capturer une éventuelle nouvelle occurrence",
+            "CI verte sur les événements du candidat contrôlé",
+            "aucun fichier de la release identifié comme défaillant par cette occurrence"
+          ],
+          "preuve": "Déclaration de Frédéric Bragance du 10/09/2026. Ce critère ne se mesure pas, il se déclare — blocages-ouverts-1.md le pose ainsi depuis le 10/09. Les faits qui la fondent sont mesurés et datés : 40 exécutions CI de l'épreuve depuis l'échec, 40 passages, zéro reproduction (dont 5 à conditions d'ordonnancement identiques, avant la sérialisation) ; les trois scripts couverts sont de l'outillage Test, hors artefact de release, et leur refus de la référence Production est un contrôle distinct couvert par six autres épreuves.",
+          "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
+          "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
+        }
+      },
+      "preuve_backfill_92": {
+        "valeur": true,
+        "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte ; schéma temporaire détruit et destruction vérifiée. Répartition acceptée par Frédéric Bragance le 11/09."
+      }
+    },
+    "gateHumaineFrederic": {
+      "valeur": null,
+      "preuve": "Aucune gate formulée. Elle appartient à Frédéric Bragance seul, et reste distincte du verdict par construction : les dix critères au vert n'autorisent rien."
+    }
+  }
+}

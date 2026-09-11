@@ -121,7 +121,9 @@
 </div>
 
 <script>
-  const FN_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co/functions/v1/admin-api";
+  // Dérivée de la configuration d'environnement : la fonction Edge visée
+  // suit le projet Supabase du build, jamais une URL figée (04/09/2026).
+  const FN_URL = `${NEXUS_SUPABASE_URL}/functions/v1/admin-api`;
   let SESSION_TOKEN = null;
 
   const SCOPES_DISPONIBLES = [

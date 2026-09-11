@@ -3,7 +3,7 @@
 // navigation arrière explicite. Aucun calcul métier modifié.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Carburant-Reception-v1.html') return;
+  if(!NexusPage.est('NEXUS-Carburant-Reception-v1.html')) return;
 
   let cuvesParCarburant=null;
   let chargementCuves=null;

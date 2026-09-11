@@ -66,7 +66,8 @@
         .eq('site', siteId).order('periode_debut', { ascending: false }).order('article', { ascending: true })),
       chargerProduitsAppel(client, siteId),
     ]);
-    if (error || !data) { console.error('Chargement products:', error); return []; }
+    if (error) { console.error('Chargement products : erreur technique', error); return []; }
+    if (!data) { console.info('Chargement products : aucune donnée disponible pour ce site.'); return []; }
     return data.filter(r => !produitsAppel.has(r.article));
   }
 
@@ -146,9 +147,14 @@
         .eq('site', siteId).order('date', { ascending: true })),
       fetchAllRows(() => client.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', siteId)),
     ]);
-    if (error || !data) {
-      console.error('Chargement audits_caisse (constat Tempo):', error);
-      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+    const RIEN_A_CONSTATER = { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+    if (error) {
+      console.error('Chargement audits_caisse (constat Tempo) : erreur technique', error);
+      return RIEN_A_CONSTATER;
+    }
+    if (!data) {
+      console.info('Chargement audits_caisse (constat Tempo) : aucune donnée disponible pour ce site.');
+      return RIEN_A_CONSTATER;
     }
     const constat = global.NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel);
     const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);

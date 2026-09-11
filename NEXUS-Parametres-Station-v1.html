@@ -207,6 +207,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -315,29 +316,27 @@
              NEXUS convertissait les horaires ci-dessous en instants réels
              en supposant 'Europe/Paris' codé en dur (nexus-carburant-
              moteur.js), quel que soit le site. Ce champ rend le fuseau
-             réellement paramétrable par station (station_config.
-             fuseau_horaire), au lieu d'une hypothèse invisible. Placé
-             avant les heures de quart car il détermine comment CES heures
-             sont interprétées. -->
+             réellement paramétrable par station, au lieu d'une hypothèse
+             invisible. Placé avant les heures de quart car il détermine
+             comment CES heures sont interprétées.
+             A3 / C1c-3 (05/09/2026) : la source est désormais
+             sites.timezone, et non plus station_config.fuseau_horaire.
+             Affiché en lecture seule ici — seul le compte créateur peut
+             modifier l'identité d'un site. Volontairement PAS un <select>
+             désactivé : un contrôle de saisie inerte invite à réessayer. -->
         <div class="card">
           <div class="section-label">Fuseau horaire de la station</div>
           <div class="note">Détermine comment NEXUS convertit les heures de quart ci-dessous en instants réels (calcul des fenêtres carburant, horodatage des relevés). Une station en métropole et une station en Martinique n'ont pas la même heure locale au même instant.</div>
           <div class="row">
             <label>Fuseau</label>
-            <select id="fuseau_horaire">
-              <option value="America/Martinique">Martinique (UTC-4, sans heure d'été)</option>
-              <option value="America/Guadeloupe">Guadeloupe / Saint-Martin (UTC-4, sans heure d'été)</option>
-              <option value="America/Cayenne">Guyane (UTC-3, sans heure d'été)</option>
-              <option value="Indian/Reunion">La Réunion (UTC+4, sans heure d'été)</option>
-              <option value="Indian/Mayotte">Mayotte (UTC+3, sans heure d'été)</option>
-              <option value="Pacific/Noumea">Nouvelle-Calédonie (UTC+11, sans heure d'été)</option>
-              <option value="Pacific/Tahiti">Polynésie française (UTC-10, sans heure d'été)</option>
-              <option value="Europe/Paris">France métropolitaine (UTC+1/+2, heure d'été)</option>
-            </select>
+            <span id="fuseauValeur" style="font-family:var(--mono, monospace); font-weight:600;">…</span>
           </div>
+          <div class="note" id="noteFuseauEtat">Lecture du fuseau du commerce…</div>
+          <div class="note">Propriété du site, modifiable par le compte créateur.</div>
         </div>
 
         <div class="card">
+      <div class="note" id="noteHorairesEtat" style="display:none;"></div>
       <div class="section-label">Quart 1 — Début de service attendu</div>
       <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q1_normal"></div>
       <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q1_etendu"></div>
@@ -377,7 +376,7 @@
     </div>
 
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
-    <button class="btn btn-secondary" id="reinitialiser">Réinitialiser aux valeurs Vito Sainte-Marie Usine</button>
+    <button class="btn btn-secondary" id="reinitialiser">Pré-remplir avec les valeurs de référence</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
 
         <div class="psec-subgroup-label" style="margin-top:20px;">Pointage</div>
@@ -554,6 +553,7 @@
     <div class="card" id="cardCuvesCarburants">
       <div class="section-label">Cuves & capacités carburants</div>
       <div class="note">Ces capacités dimensionnent les jauges de stock affichées dans Carburants Performance. Désactivez un carburant que la station ne vend pas — ses jauges disparaissent sans perdre sa configuration.</div>
+      <div class="note" id="noteCuvesEtat" style="display:none;"></div>
       <div id="cuvesCarburantsListe"><div class="note">Chargement…</div></div>
       <button class="btn btn-primary" id="sauvegarderCuves">Enregistrer les cuves</button>
       <div class="saved-note" id="savedNoteCuves">✓ Configuration des cuves enregistrée</div>
@@ -614,7 +614,7 @@
     <!-- ------------------------------------------------------------
          Réception carburant — consignes de sécurité (15/08/2026).
          station_config.consignes_securite_reception (jsonb, tableau de
-         {theme, texte}), affichées par Coach NEXUS sur l'écran d'accueil
+         {theme, texte}), affichées par NEXUS Coach Terrain sur l'écran d'accueil
          de NEXUS-Carburant-Reception-v1.html avant que l'employé démarre —
          "il ne faut pas coder des consignes spécifiques à Sainte-Marie
          directement dans la page" (Frédéric). Vide par défaut, comme les
@@ -622,7 +622,7 @@
          ------------------------------------------------------------ -->
     <div class="card" id="cardConsignesReception">
       <div class="section-label">Réception carburant — consignes de sécurité</div>
-      <div class="note">Affichées à l'employé juste avant qu'il démarre une réception (Coach NEXUS). Un thème court (ex. "EPI") aide à les repérer d'un coup d'œil.</div>
+      <div class="note">Affichées à l'employé juste avant qu'il démarre une réception (NEXUS Coach Terrain). Un thème court (ex. "EPI") aide à les repérer d'un coup d'œil.</div>
       <div id="consignesReceptionListe"><div class="liste-vide">Chargement…</div></div>
       <button class="btn btn-secondary" id="ajouterConsigneReception">+ Ajouter une consigne</button>
       <button class="btn btn-primary" id="sauvegarderConsignesReception">Enregistrer les consignes</button>
@@ -1121,18 +1121,29 @@
   // reprennent l'ancienne règle devinée (+7h dim-mer, +8h jeu-sam)
   // comme point de départ raisonnable — modifiable librement une
   // fois que les vraies heures de fermeture sont connues.
-  const HORAIRES_DEFAUT = {
+  // A3 / C2-1 (05/09/2026) — ce n'est plus un REPLI, c'est un MODÈLE.
+  //
+  // Ces valeurs ne sont pas celles de Vito Sainte-Marie : la lecture de la
+  // production le 05/09/2026 donne quart2 fin_normal 20:05 et fin_etendu
+  // 22:05, contre 19:40 et 21:40 ici. Le commentaire d'origine le disait
+  // déjà — « l'ancienne règle devinée, +7 h dim-mer, +8 h jeu-sam » : 12:40
+  // + 7 h = 19:40. C'est une règle arithmétique, pas une observation.
+  //
+  // Elles ne sont donc plus JAMAIS substituées en silence. Elles ne
+  // s'écrivent que si un manager clique « Pré-remplir », les voit dans le
+  // formulaire, et les enregistre lui-même.
+  const HORAIRES_MODELE = {
     quart1: { normal: "05:45", etendu: "05:45", fin_normal: "12:45", fin_etendu: "13:45" },
     quart2: { normal: "12:40", etendu: "13:40", fin_normal: "19:40", fin_etendu: "21:40" },
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
     temps_habillage_min: 15,
   };
 
-  // Fuseau par défaut si station_config n'a encore aucune ligne pour ce
-  // site — la seule station réelle connue de NEXUS aujourd'hui (24/08/2026,
-  // v2.232), jamais 'Europe/Paris'. Cohérent avec le défaut posé en base
-  // par la migration ajouter_fuseau_horaire_station_config.
-  const FUSEAU_DEFAUT = 'America/Martinique';
+  // A3 / C1c-3 (05/09/2026) : il n'y a plus de fuseau par défaut. Le fuseau
+  // du commerce est une propriété d'identité du site (sites.timezone), pas
+  // un réglage d'exploitation. Cet écran l'AFFICHE ; il ne le devine pas et
+  // ne l'invente pas. C'est le seul des huit points C1 où l'absence n'est
+  // pas bloquante : cet écran existe pour montrer ce qui est configuré.
 
   // Table Supabase station_config — remplace localStorage('nexus_config_horaires'),
   // qui ne s'appliquait qu'a l'appareil sur lequel un manager l'avait modifie
@@ -1142,37 +1153,93 @@
   // même requête (Article 11 — pas un second appel réseau pour un champ
   // du même écran/même section).
   async function chargerConfig() {
-    const { data, error } = await nexusClient.from('station_config').select('horaires,fuseau_horaire').eq('site', employee.site_id).maybeSingle();
-    if (error) { console.error('Chargement station_config:', error); return { horaires: HORAIRES_DEFAUT, fuseau: FUSEAU_DEFAUT }; }
-    return {
-      horaires: (data && data.horaires) || HORAIRES_DEFAUT,
-      fuseau: (data && data.fuseau_horaire) || FUSEAU_DEFAUT,
-    };
+    // A3 / C1c-3 : le fuseau ne vient plus d'ici. station_config reste la
+    // source des horaires ; le fuseau est lu séparément dans sites.timezone
+    // par le contrat NexusStation.
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
+    // A3 / C2-1 : plus de substitution. `null` dit « pas configuré », et
+    // l'écran le montre — c'est sa raison d'être.
+    if (error) { console.error('Chargement station_config:', error); return { horaires: null }; }
+    return { horaires: (data && data.horaires) || null };
   }
 
+  // A3 / C2-1 : un champ sans valeur configurée reste VIDE. Il n'emprunte
+  // plus la valeur d'une autre station — un `<input type="time">` pré-rempli
+  // est indiscernable d'un réglage choisi, et c'est ainsi qu'un horaire
+  // deviné finissait enregistré comme une décision du commerce.
   function remplirFormulaire(config) {
-    document.getElementById('q1_normal').value = config.quart1.normal;
-    document.getElementById('q1_etendu').value = config.quart1.etendu;
-    document.getElementById('q1_fin_normal').value = config.quart1.fin_normal || HORAIRES_DEFAUT.quart1.fin_normal;
-    document.getElementById('q1_fin_etendu').value = config.quart1.fin_etendu || HORAIRES_DEFAUT.quart1.fin_etendu;
-    document.getElementById('q2_normal').value = config.quart2.normal;
-    document.getElementById('q2_etendu').value = config.quart2.etendu;
-    document.getElementById('q2_fin_normal').value = config.quart2.fin_normal || HORAIRES_DEFAUT.quart2.fin_normal;
-    document.getElementById('q2_fin_etendu').value = config.quart2.fin_etendu || HORAIRES_DEFAUT.quart2.fin_etendu;
-    document.getElementById('r_debut').value = config.renfort.debut;
-    document.getElementById('r_pause_debut').value = config.renfort.pause_debut;
-    document.getElementById('r_pause_fin').value = config.renfort.pause_fin;
-    document.getElementById('r_fin').value = config.renfort.fin;
-    document.getElementById('temps_habillage').value = (config.temps_habillage_min != null) ? config.temps_habillage_min : HORAIRES_DEFAUT.temps_habillage_min;
+    const c = config || {};
+    const q1 = c.quart1 || {}, q2 = c.quart2 || {}, r = c.renfort || {};
+    const poser = (id, valeur) => { document.getElementById(id).value = (valeur != null && valeur !== '') ? valeur : ''; };
+    poser('q1_normal', q1.normal);   poser('q1_etendu', q1.etendu);
+    poser('q1_fin_normal', q1.fin_normal); poser('q1_fin_etendu', q1.fin_etendu);
+    poser('q2_normal', q2.normal);   poser('q2_etendu', q2.etendu);
+    poser('q2_fin_normal', q2.fin_normal); poser('q2_fin_etendu', q2.fin_etendu);
+    poser('r_debut', r.debut);       poser('r_pause_debut', r.pause_debut);
+    poser('r_pause_fin', r.pause_fin); poser('r_fin', r.fin);
+    poser('temps_habillage', c.temps_habillage_min);
+    const etat = document.getElementById('noteHorairesEtat');
+    if (etat) {
+      const configure = !!(c.quart1 && c.quart1.normal);
+      etat.textContent = configure ? '' : 'Non configuré — aucun horaire de quart n’est déclaré pour ce commerce. Tant qu’il en manque, NEXUS ne peut pas dire à quel quart appartient un pointage, un comptage ou un relevé.';
+      etat.style.color = 'var(--amber, #d29922)';
+      etat.style.display = configure ? 'none' : 'block';
+    }
+  }
+
+
+  // A3 / C2-1 — `station_config.horaires` est NOT NULL : tous les
+  // enregistrements de cet écran (prix, raccourcis, drapeaux, Sheets…)
+  // renvoient les horaires courants pour ne pas violer la contrainte quand
+  // la ligne du site n'existe pas encore.
+  //
+  // Depuis C2-1, ces horaires peuvent légitimement être ABSENTS. On ne les
+  // remplace pas par ceux d'une autre station : on refuse l'enregistrement
+  // et on dit quoi faire. Un seul point de contrôle, pour que les
+  // enregistrements concernés ne divergent pas.
+  //
+  // L'enregistrement des horaires eux-mêmes n'appelle PAS cette garde : il
+  // écrit `horaires: config`, c'est-à-dire précisément ce qui manque.
+  function horairesObligatoires() {
+    if (CONFIG_HORAIRES_ACTUEL) return CONFIG_HORAIRES_ACTUEL;
+    alert('Horaires de quart non configurés pour ce commerce.\n\n'
+      + 'NEXUS ne peut pas créer la configuration de ce site sans eux, et il ne '
+      + 'reprendra pas ceux d’une autre station. Renseignez les horaires de quart, '
+      + 'enregistrez-les, puis recommencez.');
+    return null;
   }
 
   // Garde les horaires actuellement charges en memoire : station_config.horaires
   // est NOT NULL en base, donc tout upsert qui ne le fournirait pas (ex. un
   // enregistrement de prix carburants seul) echouerait si la ligne n'existe
   // pas encore pour ce site (23502 — null value in column "horaires").
-  let { horaires: CONFIG_HORAIRES_ACTUEL, fuseau: FUSEAU_ACTUEL } = await chargerConfig();
+  let { horaires: CONFIG_HORAIRES_ACTUEL } = await chargerConfig();
+
+  // A3 / C1c-3 — le fuseau, lu à sa source unique. Absence VISIBLE mais NON
+  // BLOQUANTE : c'est l'écran de configuration, il doit montrer le trou.
+  const fuseauStation = await NexusStation.fuseauDeLaStation(employee.site_id);
+  let FUSEAU_ACTUEL = fuseauStation.timezone || '';
   remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
-  document.getElementById('fuseau_horaire').value = FUSEAU_ACTUEL;
+  // A3 / C1c-3 — affichage informatif, pas un sélecteur désactivé.
+  //
+  // Un `<select disabled>` reste un contrôle de saisie : il suggère qu'on
+  // pourrait le rendre modifiable, et invite à réessayer. Le fuseau n'est
+  // pas un réglage d'exploitation qu'un manager aurait le droit de changer
+  // — c'est une propriété d'identité du commerce (politique RLS
+  // createur_update_sites). L'écran l'AFFICHE, il ne prétend pas l'éditer.
+  {
+    const valeur = document.getElementById('fuseauValeur');
+    const noteFuseau = document.getElementById('noteFuseauEtat');
+    if (FUSEAU_ACTUEL) {
+      valeur.textContent = FUSEAU_ACTUEL;
+      noteFuseau.textContent = 'Les heures de quart ci-dessous sont interprétées dans ce fuseau.';
+    } else {
+      valeur.textContent = 'Non configuré';
+      valeur.style.color = 'var(--amber, #d29922)';
+      noteFuseau.textContent = 'Aucun fuseau n’est déclaré pour ce commerce. Les heures de quart ci-dessous ne peuvent pas être converties en instants réels tant qu’il manque.';
+      noteFuseau.style.color = 'var(--amber, #d29922)';
+    }
+  }
 
   // Forfait NEXUS (26/07/2026) — affichage lecture seule uniquement.
   // La colonne sites.forfait reste la seule source de vérité, modifiable
@@ -1274,8 +1341,10 @@
     document.getElementById('sauvegarderRaccourcis').addEventListener('click', async () => {
       const btn = document.getElementById('sauvegarderRaccourcis');
       btn.disabled = true;
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       btn.disabled = false;
@@ -1286,8 +1355,10 @@
     });
 
     document.getElementById('reinitialiserRaccourcis').addEventListener('click', async () => {
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       if (error) { console.error('Réinitialisation raccourcis:', error); alert('Erreur — réessayez.'); return; }
@@ -1314,32 +1385,36 @@
       },
       temps_habillage_min: parseInt(document.getElementById('temps_habillage').value, 10) || 0,
     };
-    // fuseau_horaire (24/08/2026, v2.232) — enregistré avec les horaires
-    // dans le même upsert : il gouverne directement comment ces heures
-    // sont interprétées, pas une notion séparée.
-    const fuseauSelectionne = document.getElementById('fuseau_horaire').value || FUSEAU_DEFAUT;
+    // A3 / C1c-3 : l'enregistrement n'écrit PLUS fuseau_horaire. Continuer à
+    // l'écrire dans une colonne que plus personne ne lit ferait croire au
+    // manager qu'il a changé quelque chose — la pire des sauvegardes.
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, horaires: config, fuseau_horaire: fuseauSelectionne, updated_at: new Date().toISOString() },
+      { site: employee.site_id, horaires: config, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
     if (error) { console.error('Enregistrement station_config:', error); alert('Erreur — réessayez.'); return; }
     CONFIG_HORAIRES_ACTUEL = config;
-    FUSEAU_ACTUEL = fuseauSelectionne;
     const note = document.getElementById('savedNote');
     note.textContent = '✓ Horaires enregistrés — pris en compte sur tous les appareils au prochain pointage';
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 3000);
   });
 
-  document.getElementById('reinitialiser').addEventListener('click', async () => {
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() },
-      { onConflict: 'site' }
-    );
-    if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
-    CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
-    remplirFormulaire(HORAIRES_DEFAUT);
+  // A3 / B3 (05/09/2026) — le bouton PRÉ-REMPLIT, il n'enregistre plus.
+  //
+  // Il faisait un upsert direct : un clic suffisait à inscrire dans la
+  // configuration du site des horaires devinés, faux de 25 minutes, sans que
+  // personne ne les ait lus. Après cet upsert, plus rien ne distinguait
+  // « valeurs de référence » de « horaires déclarés par le commerce ».
+  //
+  // Désormais il remplit le formulaire et s'arrête là. Le manager voit les
+  // valeurs, les ajuste, et c'est SON clic sur Enregistrer qui décide.
+  document.getElementById('reinitialiser').addEventListener('click', () => {
+    remplirFormulaire(HORAIRES_MODELE);
+    const note = document.getElementById('savedNote');
+    note.textContent = 'Valeurs de référence proposées — vérifiez-les puis enregistrez. Rien n’est encore écrit.';
+    note.style.display = 'block';
   });
 
   // ------------------------------------------------------------
@@ -1371,8 +1446,10 @@
   document.getElementById('pointageActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, pointage_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, pointage_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1413,8 +1490,10 @@
   document.getElementById('managerPointageRequis').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, manager_pointage_requis: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1460,8 +1539,10 @@
   document.getElementById('jaugeageCarburantActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1619,8 +1700,10 @@
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, prix_carburants, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1637,17 +1720,34 @@
   // Cuves & capacités carburants (13/08/2026, audit Carburants Pilotage) —
   // même pattern que Prix carburants ci-dessus : station_config.cuves_
   // carburants (jsonb), jamais une deuxième copie des valeurs par défaut
-  // (NexusCarburantDonnees.CUVES_PAR_DEFAUT, chargé via nexus-carburant-
-  // donnees.js, Article 11 — une seule vérité). Ordre volontairement
-  // GO/SP95/GNR, identique partout ailleurs dans NEXUS Carburants.
+  // Ordre volontairement GO/SP95/GNR, identique partout ailleurs dans NEXUS
+  // Carburants.
+  //
+  // A3 / C3 (05/09/2026) — CUVES_MODELE remplace l'ancien
+  // NexusCarburantDonnees.CUVES_PAR_DEFAUT, retiré de la couche de données.
+  //
+  // Ce n'est plus un repli : plus aucun écran ne calcule à partir de ces
+  // valeurs. C'est une ossature de FORMULAIRE — quels carburants, combien de
+  // réservoirs, quels libellés proposer — pour qu'un commerce qui n'a encore
+  // rien configuré ait des champs à remplir plutôt qu'une page vide.
+  //
+  // Les capacités y sont volontairement à null : une capacité est une
+  // grandeur physique du site. Proposer un nombre ferait accepter par
+  // inadvertance la cuve d'une autre station, ce que faisait exactement
+  // l'ancien repli.
   // ------------------------------------------------------------
   const ORDRE_CARBURANTS = ['go', 'sp95', 'gnr'];
+  const CUVES_MODELE = {
+    go:   { actif: true, label: 'Gasoil (GO)', cuves: [{ id: 'cuve1', label: 'Réservoir 1', capacite: null }, { id: 'cuve2', label: 'Réservoir 2', capacite: null }] },
+    sp95: { actif: true, label: 'Sans plomb (SP95)', cuves: [{ id: 'unique', label: 'Réservoir unique', capacite: null }] },
+    gnr:  { actif: true, label: 'Gasoil non routier (GNR)', cuves: [{ id: 'unique', label: 'Réservoir unique', capacite: null }] },
+  };
   let CUVES_CONFIG_ACTUELLE = null;
 
   function renderCuvesCarburants(config) {
     const zone = document.getElementById('cuvesCarburantsListe');
     zone.innerHTML = ORDRE_CARBURANTS.map(cle => {
-      const c = config[cle] || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const c = (config && config[cle]) || CUVES_MODELE[cle];
       const cuvesHTML = c.cuves.map((cuve, i) => `
         <div class="row">
           <label>Nom du réservoir</label>
@@ -1714,7 +1814,7 @@
   function lireConfigCuvesFormulaire() {
     const config = {};
     ORDRE_CARBURANTS.forEach(cle => {
-      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || CUVES_MODELE[cle];
       const chkActif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`);
       const actif = chkActif ? chkActif.checked : base.actif;
       const cuves = base.cuves.map(cuve => {
@@ -1731,7 +1831,17 @@
   }
 
   (async function initCuvesCarburants() {
-    const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employee.site_id);
+    // A3 / C3 : `etat` est LU, pas jeté. L'écran de configuration est le seul
+    // endroit où « absente » n'est pas bloquant — c'est sa raison d'être.
+    const { config, etat } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employee.site_id);
+    const noteCuves = document.getElementById('noteCuvesEtat');
+    if (noteCuves) {
+      noteCuves.textContent = etat === 'configure'
+        ? ''
+        : 'Non configuré — aucune capacité de cuve n’est déclarée pour ce commerce. Les autonomies et les recommandations de commande restent suspendues tant qu’elles manquent.';
+      noteCuves.style.color = 'var(--amber, #d29922)';
+      noteCuves.style.display = etat === 'configure' ? 'none' : 'block';
+    }
     CUVES_CONFIG_ACTUELLE = config;
     renderCuvesCarburants(config);
   })();
@@ -1741,7 +1851,7 @@
     const config = {};
     let erreur = false;
     ORDRE_CARBURANTS.forEach(cle => {
-      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || CUVES_MODELE[cle];
       const actif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`).checked;
       const cuves = base.cuves.map(cuve => {
         const val = document.getElementById(`cuve_${cle}_${cuve.id}`).value;
@@ -1757,11 +1867,13 @@
     // Même précaution que Prix carburants : on renvoie aussi horaires et
     // prix_carburants déjà connus pour ne jamais les vider par inadvertance
     // via l'upsert (station_config n'a qu'une ligne par site).
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants').eq('site', employee.site_id).maybeSingle();
     const { error } = await nexusClient.from('station_config').upsert(
       {
         site: employee.site_id, cuves_carburants: config,
-        horaires: (existant && existant.horaires) || CONFIG_HORAIRES_ACTUEL,
+        horaires: (existant && existant.horaires) || horairesUpsert,
         prix_carburants: existant ? existant.prix_carburants : null,
         updated_at: new Date().toISOString(),
       },
@@ -1819,11 +1931,13 @@
       const precedente = document.querySelector('#cardReceptionCarburantRole .role-chip.actif');
       const valeurPrecedente = precedente ? precedente.dataset.valeur : 'employe';
       majChipsReceptionCarburantRole(valeur); // optimiste, annulé ci-dessous en cas d'erreur
+      const horairesUpsert = horairesObligatoires();
+      if (!horairesUpsert) return;
       const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants,cuves_carburants').eq('site', employee.site_id).maybeSingle();
       const { error } = await nexusClient.from('station_config').upsert(
         {
           site: employee.site_id, reception_carburant_role: valeur,
-          horaires: (existant && existant.horaires) || CONFIG_HORAIRES_ACTUEL,
+          horaires: (existant && existant.horaires) || horairesUpsert,
           prix_carburants: existant ? existant.prix_carburants : null,
           cuves_carburants: existant ? existant.cuves_carburants : null,
           updated_at: new Date().toISOString(),
@@ -2157,8 +2271,10 @@
     }
     btn.disabled = true;
     const google_sheet_id = actif ? idSaisi : null;
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2190,8 +2306,10 @@
     // serveur. On enregistre donc d'abord l'identifiant saisi (même si la
     // synchronisation n'est pas encore activée) pour que le test porte
     // bien sur CE classeur.
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error: saveErr } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id: idSaisi, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (saveErr) {

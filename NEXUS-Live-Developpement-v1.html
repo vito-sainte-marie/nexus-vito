@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Live Développement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-live-acces.js?v=20260907-0100"></script>
+<script src="nexus-live-evenement.js?v=20260907-0100"></script>
+<script src="nexus-live-projection.js?v=20260907-0100"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+  .header{padding:20px 20px 14px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--amber);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px;}
+  .locked{padding:40px 20px; text-align:center; color:var(--text-dim); font-family:var(--mono); font-size:12px;}
+  .statut-badge{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; border-radius:20px; padding:4px 10px;}
+  .statut-AUTONOMOUS{color:var(--green); background:var(--green-dim); border:1px solid rgba(52,211,153,0.4);}
+  .statut-HUMAN_REQUIRED{color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.4);}
+  .statut-FAIL_CLOSED{color:var(--red); background:var(--red-dim); border:1px solid rgba(240,87,90,0.4);}
+  .statut-IDLE{color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline);}
+  .timeline-item{padding:8px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .timeline-item:last-child{border-bottom:none;}
+  .timeline-meta{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:2px;}
+  .guardian-row{display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12.5px;}
+  .empty-note{color:var(--text-dim); font-size:12px; font-family:var(--mono);}
+  .fraicheur{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-radius:20px; padding:3px 9px; margin-left:8px;}
+  .fraicheur.FRAIS{background:#0d3a24; color:#7ee2b0;}
+  .fraicheur.TIEDE{background:#3d3410; color:#f0d27a;}
+  .fraicheur.FROID{background:#4a1d1d; color:#ffb4b4;}
+  .fraicheur.INCONNU{background:#333; color:#bbb;}
+  .compteurs{display:flex; gap:10px; flex-wrap:wrap;}
+  .compteur{flex:1 1 90px; background:rgba(255,255,255,.03); border:1px solid var(--hairline); border-radius:10px; padding:12px;}
+  .compteur .n{font-size:22px; font-weight:700;}
+  .compteur .l{font-size:10.5px; color:var(--text-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em; margin-top:4px;}
+  .proposition{font-size:11.5px; color:var(--text-dim); margin-top:10px; line-height:1.5;}
+  /* LE VERDICT. Hiérarchie typographique volontairement forte : verdict très
+     lisible, explication courte, preuve secondaire discrète. Le monospace est
+     réservé aux identifiants techniques — il donnait à toute la page un air
+     de console d'observabilité. */
+  .verdict{border-radius:16px; padding:20px; margin-bottom:14px; border:1px solid var(--hairline);}
+  .verdict.NORMAL{background:#0d2a1d; border-color:#1f6b47;}
+  .verdict.VIGILANCE{background:#2e2712; border-color:#7a6420;}
+  .verdict.INTERVENTION{background:#3a1618; border-color:#8d3238;}
+  .verdict-pastille{font-size:20px; line-height:1;}
+  .verdict-titre{font-size:19px; font-weight:700; line-height:1.25; margin-top:10px;}
+  .verdict-explication{font-size:13px; line-height:1.55; margin-top:8px; opacity:.92;}
+  .verdict-decisions{margin-top:14px; font-size:12.5px; font-weight:600;}
+  .risque{border-radius:14px; padding:16px; margin-bottom:14px; background:#3a1618; border:1px solid #8d3238;}
+  .risque-titre{font-size:14.5px; font-weight:700;}
+  .risque-texte{font-size:12.5px; line-height:1.55; margin-top:6px; opacity:.92;}
+  .attente-rien{border-radius:14px; padding:18px; margin-bottom:14px; background:#0d2a1d; border:1px solid #1f6b47; text-align:center;}
+  .attente-rien .grand{font-size:17px; font-weight:700;}
+  .attente-rien .petit{font-size:12px; opacity:.85; margin-top:6px;}
+  .garde-etat{font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;}
+  .garde-etat.ok{background:#0d3a24; color:#7ee2b0;}
+  .garde-etat.vigilance{background:#3d3410; color:#f0d27a;}
+  .garde-etat.grave{background:#4a1d1d; color:#ffb4b4;}
+  .garde-etat.attente,.garde-etat.inconnu{background:#333; color:#bbb;}
+  /* La timeline résumée. Le monospace est réservé à l'heure — un identifiant
+     technique ; le texte, lui, se lit dans la typographie principale. */
+  .evt{display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--hairline);}
+  .evt:first-child{border-top:none;}
+  .evt-heure{font-family:var(--mono); font-size:11px; color:var(--text-dim); flex:0 0 42px; padding-top:2px;}
+  .evt-titre{font-size:13px; font-weight:600; line-height:1.4;}
+  .evt-detail{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-top:2px;}
+  .evt.grave .evt-titre{color:#ffb4b4;}
+  .evt.vigilance .evt-titre{color:#f0d27a;}
+  .evt.ok .evt-titre{color:#7ee2b0;}
+  .evt.inconnu .evt-titre{font-style:italic; color:var(--text-dim);}
+  .masques{font-size:11px; color:var(--text-dim); margin-top:12px; font-style:italic;}
+  /* LE FLUX. La chaîne existait dans l'infrastructure sans être visible à
+     l'écran. Chaque étape porte son état, et deux d'entre elles ne peuvent
+     jamais se cocher toutes seules. */
+  .flux{display:flex; flex-direction:column; gap:0;}
+  .flux-etape{display:flex; gap:12px; align-items:flex-start; padding:7px 0;}
+  .flux-puce{flex:0 0 18px; height:18px; border-radius:50%; margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;}
+  .flux-etape.faite .flux-puce{background:#0d3a24; color:#7ee2b0;}
+  .flux-etape.courante .flux-puce{background:#f0d27a; color:#2a2410;}
+  .flux-etape.a_venir .flux-puce{background:#2a2f36; color:#7b848f;}
+  .flux-etape.bloquee .flux-puce{background:#4a1d1d; color:#ffb4b4;}
+  .flux-etape.inconnue .flux-puce{background:#333; color:#bbb;}
+  .flux-nom{font-size:13px; font-weight:600;}
+  .flux-etape.courante .flux-nom{color:#f0d27a;}
+  .flux-etape.bloquee .flux-nom{color:#ffb4b4;}
+  .flux-etape.a_venir .flux-nom,.flux-etape.inconnue .flux-nom{color:var(--text-dim); font-weight:500;}
+  .flux-qui{font-size:11px; color:var(--text-dim); line-height:1.45; margin-top:1px;}
+  .flux-inconnu{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; font-style:italic;}
+  .encours-titre{font-size:16px; font-weight:700; line-height:1.3;}
+  .encours-ligne{font-size:13px; line-height:1.6; margin-top:6px; display:flex; gap:8px;}
+  .encours-ligne::before{content:'·'; color:var(--text-dim);}
+  .technique{font-family:var(--mono); font-size:11px; color:var(--text-dim); line-height:1.6;}
+  details.journal{margin-top:12px;}
+  details.journal summary{font-size:11.5px; color:var(--text-dim); cursor:pointer;}
+  details.journal .timeline-item{margin-top:8px;}
+  .btn-autoriser{margin-top:14px; width:100%; padding:12px; border-radius:10px; border:1px solid #2f7d55; background:#124a30; color:#c8f3dc; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; cursor:pointer;}
+  .btn-autoriser:disabled{opacity:.5; cursor:default;}
+  .retour-gate{margin-top:10px; font-size:12px; line-height:1.5;}
+  .retour-gate.erreur{color:#ffb4b4;}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <div class="header">
+    <div class="eyebrow">NEXUS · Créateur</div>
+    <div class="title">Live Développement</div>
+    <div class="subtitle" id="sousTitre">Chargement…</div>
+  </div>
+  <div class="divider"></div>
+  <!-- `data-nexus-live` est un MARQUEUR DE CONTRAT, pas un libellé. La recette
+     navigateur prouvait l'accès Créateur en cherchant le mot « Timeline » à
+     l'écran ; renommer cette section en « Ce qui s'est passé » a cassé la
+     preuve. Une preuve qui juge une prose juge un vocabulaire — même défaut
+     que le refus d'accès jugé sur ses mots le 07/09. Ce marqueur ne change
+     pas quand on réécrit un titre. -->
+<div class="section" id="root" data-nexus-live="chargement"><div class="empty-note">Chargement…</div></div>
+</div>
+<script>
+  // NEXUS LIVE DÉVELOPPEMENT — MVP (07/09/2026), lot
+  // NEXUS-LIVE-CONTROL-CENTER-1-20260906. Réservé au Créateur NEXUS
+  // (spec-1.md §2-3) : la page appelle nexusRequireAuth() comme tout écran
+  // authentifié NEXUS, puis délègue la décision d'accès à
+  // NexusLiveAcces.nexusLiveAutorise(employee) — un seul point de vérité,
+  // aucun second calcul d'autorisation ici. Le masquage de ce point d'entrée
+  // dans la navigation NEXUS est une mesure UX ; la protection réelle est
+  // la politique RLS `select_nexus_live_events` (je_suis_createur()) posée
+  // par la migration 20260907010000 — un accès direct à l'URL par un
+  // utilisateur non Créateur charge la page mais n'obtient aucune donnée.
+
+  function afficherRefus(motif) {
+    document.getElementById('root').dataset.nexusLive = 'refuse';
+    document.getElementById('sousTitre').textContent = 'Accès refusé';
+    document.getElementById('root').innerHTML =
+      `<div class="locked">Cet écran est réservé au Créateur NEXUS.<br>(${motif})</div>`;
+  }
+
+  function libelleStatut(statut) {
+    const L = {
+      AUTONOMOUS: 'Système autonome', HUMAN_REQUIRED: 'Intervention requise',
+      FAIL_CLOSED: 'Bloqué en sécurité', IDLE: 'Au repos',
+    };
+    return L[statut] || statut;
+  }
+
+  // L'ÂGE DU JOURNAL, avant tout le reste. Le 08/09/2026 cet écran a affiché
+  // huit événements vieux de treize heures sans le dire : un journal mort
+  // ressemblait exactement à un journal vivant. « Une anomalie ne doit jamais
+  // être masquée par un affichage rassurant » (Bible).
+  function texteFraicheur(f) {
+    if (f.niveau === 'INCONNU') return 'âge inconnu';
+    if (f.ageMinutes < 1) return 'à l\'instant';
+    if (f.ageMinutes < 60) return `il y a ${f.ageMinutes} min`;
+    const h = Math.floor(f.ageMinutes / 60), m = f.ageMinutes % 60;
+    return `il y a ${h} h${m ? ' ' + String(m).padStart(2, '0') : ''}`;
+  }
+
+  function blocDeploiements(dep) {
+    // Pas d'événement de déploiement : on le DIT. Trois zéros faute de données
+    // mentiraient plus qu'un bloc vide.
+    if (!dep) {
+      return `<div class="card"><div class="section-label">Déploiements</div>
+        <div class="empty-note">Aucun état de déploiement reçu — ne rien conclure de cette absence.</div></div>`;
+    }
+    // Le VOCABULAIRE est décidé et éprouvé dans la projection, pas ici : « Dette,
+    // entrée(s), P0 … pas comme langage principal du cockpit. Les SHA doivent
+    // être du niveau expert. » (Frédéric, 08/09/2026)
+    const dit = NexusLiveProjection.formulerDeploiements(dep);
+    const compteurs = dit.compteurs.map(x =>
+      `<div class="compteur"><div class="n">${x.n}</div><div class="l">${x.libelle}</div></div>`).join('');
+    const phrases = dit.phrases.map(x => `<div class="proposition">${x}</div>`).join('');
+    // Les empreintes de commit ne DISPARAISSENT pas : elles descendent d'un
+    // étage, repliées, consultables quand on les cherche.
+    const technique = dit.technique.length
+      ? `<details class="journal"><summary>Repères techniques</summary>`
+        + dit.technique.map(x => `<div class="technique" style="margin-top:6px;">${x.libelle} : ${x.valeur}</div>`).join('')
+        + `</details>` : '';
+    return `<div class="card">
+      <div class="section-label">Déploiements</div>
+      <div class="compteurs">${compteurs}</div>
+      ${phrases}${technique}
+      <div class="proposition">« Prêt pour Production » reste une <strong>proposition</strong> : aucune décision de
+      recette ne vaut autorisation de production. Cet écran présente et transmet ; il ne fabrique aucune autorisation.</div>
+    </div>`;
+  }
+
+  // Le VERDICT, en haut, avant toute donnée. Retour de Frédéric du 08/09/2026 :
+  // « le bloc MAINTENANT devrait donner un verdict, et non seulement des
+  // données ». Et il se calcule (`NexusLiveProjection.verdictLive`) — un
+  // verdict affirmé serait le « chiffre inventé » que la Bible interdit
+  // ailleurs.
+  const PASTILLE = { NORMAL: '🟢', VIGILANCE: '🟠', INTERVENTION: '🔴' };
+
+  function blocVerdict(v) {
+    return `<div class="verdict ${v.niveau}">
+      <div class="verdict-pastille">${PASTILLE[v.niveau] || '⚪'}</div>
+      <div class="verdict-titre">${v.titre}</div>
+      <div class="verdict-explication">${v.explication}</div>
+      <div class="verdict-decisions">${v.decisions === 0
+        ? 'Aucune décision pour toi.'
+        : `${v.decisions} décision t’attend.`}</div>
+    </div>`;
+  }
+
+  // Les risques STRUCTURELS sortent du journal et montent en haut de page.
+  // « Ce message ne doit absolument pas être enfoui dans la timeline. C'est un
+  // risque structurel majeur. »
+  function blocRisques(risques) {
+    return (risques || []).map(r => `<div class="risque">
+      <div class="risque-titre">⚠️ ${r.titre}</div>
+      <div class="risque-texte">${r.texte}</div>
+    </div>`).join('');
+  }
+
+  // CE QUI T'ATTEND — carte TOUJOURS rendue, même vide.
+  //
+  // Le Guardian Philosophie signalait cet écran : la carte « Intervention »
+  // disparaissait quand aucun arbitrage n'attendait, si bien qu'on ne pouvait
+  // pas distinguer « vérifié, rien à faire » de « pas vérifié ». Critères 4 et
+  // 8 de sa doctrine. Une absence se DIT.
+  // Rend `null` — et non un tiret — quand l'horodatage n'est pas exploitable :
+  // l'appelant décide alors de ne rien écrire plutôt que d'écrire « le — ».
+  function horodatage(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit',
+      hour: '2-digit', minute: '2-digit' });
+  }
+
+  function blocAttente(gate) {
+    // `data-attente` est un MARQUEUR DE CONTRAT, pas un libellé : la recette
+    // doit pouvoir constater la COHÉRENCE entre ce que l'écran annonce et le
+    // bouton qu'il propose, sans jamais lire la prose — deux preuves ont déjà
+    // été cassées par une reformulation (« Timeline », « Cet écran est réservé
+    // au Créateur NEXUS »).
+    if (!gate) {
+      return `<div class="attente-rien" data-attente="rien">
+        <div class="grand">Rien ne t’attend</div>
+        <div class="petit">Vérifié à l’instant : aucun arbitrage n’est en attente de ta décision.</div>
+      </div>`;
+    }
+    // RÉPONDRE N'EST PAS RÉSOUDRE. Tant que la garde qui a posé la question
+    // n'a pas constaté que sa cause a disparu, l'écran ne dit pas « rien ne
+    // t'attend » — il dit que la réponse est donnée et que la cause tient.
+    // Et il ne represente pas le bouton : cliquer deux fois n'apprendrait rien
+    // de plus et fabriquerait une seconde décision identique.
+    if (gate.repondu) {
+      const quand = horodatage(gate.repondu.occurredAt);
+      return `<div class="card" data-attente="repondu"><div class="section-label">Ce qui t’attend</div>
+        <div>${gate.question}</div>
+        <div class="proposition">Tu as répondu${gate.repondu.par ? ' (' + gate.repondu.par + ')' : ''}
+        ${quand ? 'le ' + quand : ''} — mais la cause n’a pas encore disparu. La garde qui a posé
+        cette question la refermera d’elle-même quand elle constatera qu’elle est levée.</div></div>`;
+    }
+    return `<div class="card" data-attente="arbitrage"><div class="section-label">Ce qui t’attend</div>
+      <div>${gate.question}</div>
+      <button class="btn-autoriser" id="btnAutoriser">J'autorise</button>
+      <div class="retour-gate" id="retourGate"></div>
+      <div class="proposition">Cette autorisation est écrite au nom de ta session Créateur. NEXUS Live
+      la transmet ; il ne la fabrique pas, et personne d'autre ne peut l'écrire à ta place.</div></div>`;
+  }
+
+  // LE FLUX vers Production. « La chaîne existe dans l'infrastructure, mais
+  // elle n'est pas visible dans l'interface. »
+  //
+  // L'étape courante est DÉDUITE des faits ; quand ils ne permettent pas de la
+  // situer, l'écran le dit au lieu d'en désigner une au hasard.
+  const PUCE = { faite: '✓', courante: '●', a_venir: '', bloquee: '!', inconnue: '?' };
+
+  function blocFlux(flux) {
+    const inconnu = flux.inconnue
+      ? '<div class="flux-inconnu">Les événements reçus ne permettent pas de situer l’étape en cours. '
+        + 'Aucune étape n’est désignée : mieux vaut ne pas savoir que désigner au hasard.</div>'
+      : '';
+    return `<div class="card">
+      <div class="section-label">Où en est la chaîne</div>
+      ${inconnu}
+      <div class="flux">
+        ${flux.etapes.map(e => `<div class="flux-etape ${e.etat}">
+          <div class="flux-puce">${PUCE[e.etat] || ''}</div>
+          <div>
+            <div class="flux-nom">${e.libelle}</div>
+            <div class="flux-qui">${e.qui}</div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // CE QUI SE PASSE MAINTENANT, en langage d'équipe.
+  //
+  // « Ton écran affiche "Agent actif : etat-deploiement", mais ce n'est pas ce
+  // que toi tu veux savoir. Tu veux savoir : que fait actuellement l'équipe ? »
+  // Le nom technique reste accessible, replié.
+  function blocEnCours(travail, projection) {
+    if (travail.inconnu) {
+      return `<div class="card"><div class="section-label">En cours</div>
+        <div class="empty-note">Aucun relevé d’activité reçu — ne rien conclure de cette absence.</div></div>`;
+    }
+    // « Pas de "—" pour une prochaine étape sans explication. » Un tiret ne
+    // dit pas s'il n'y a rien ou si personne n'a regardé.
+    const ouRien = (v, quand) => v || `<span class="technique">${quand}</span>`;
+    return `<div class="card">
+      <div class="section-label">En cours</div>
+      <div class="encours-titre">${travail.titre || 'Travail sans lot identifié'}</div>
+      ${travail.lignes.map(l => `<div class="encours-ligne">${l}</div>`).join('')}
+      <details class="journal">
+        <summary>Noms techniques</summary>
+        <div class="technique" style="margin-top:8px;">
+          Lot : ${ouRien(travail.lotTechnique, 'aucun lot déclaré dans les événements reçus')}<br>
+          Agents : ${ouRien(travail.acteursTechniques.join(', '), 'aucun acteur déclaré')}<br>
+          Étape du contrat : ${ouRien(projection.current_phase, 'non renseignée par le dernier événement')}<br>
+          Prochaine étape automatique : ${ouRien(projection.next_automatic_step, 'non annoncée par le dernier événement')}
+        </div>
+      </details>
+    </div>`;
+  }
+
+  function renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux, travail) {
+    const f = fraicheur || { niveau: 'INCONNU', ageMinutes: null };
+    // « Je ne sais pas immédiatement ce que signifie cette durée. Dernière
+    // synchronisation ? Dernier événement ? » — on nomme donc ce qu'elle mesure.
+    document.getElementById('sousTitre').innerHTML =
+      `Environnement Test · dernière analyse <span class="fraicheur ${f.niveau}">${texteFraicheur(f)}</span>`;
+    const root = document.getElementById('root');
+    // Le Créateur est entré ET l'écran a rendu quelque chose : c'est CE fait
+    // que la recette doit pouvoir constater, pas un libellé.
+    root.dataset.nexusLive = 'rendu';
+    if (!evenements.length) {
+      root.innerHTML = blocVerdict(verdict) + blocRisques(verdict.risques)
+        + '<div class="card"><div class="empty-note">Aucun événement Live reçu pour le moment.</div></div>'
+        + blocDeploiements(deploiements);
+      return;
+    }
+
+    const dernier = evenements[evenements.length - 1];
+    const guardiansHtml = Object.keys(projection.guardians).length
+      ? Object.entries(projection.guardians).map(([id, statut]) => {
+          // « BLOCKED est beaucoup trop violent et trop ambigu. » Traduit en
+          // langage d'exploitant par le module de projection.
+          const l = window.NexusLiveProjection.libelleStatutGarde({ status: statut });
+          return `<div class="guardian-row"><span>${id}</span><span class="garde-etat ${l.ton}">${l.texte}</span></div>`;
+        }).join('')
+      : '<div class="empty-note">Aucun Guardian actif sur ce lot.</div>';
+
+    // CE QUI S'EST PASSÉ — résumé, pas journal brut.
+    //
+    // « Ce n'est pas vraiment une timeline. C'est un journal système brut. »
+    // Les relevés identiques sont écartés, mais COMPTÉS et dits : escamoter en
+    // silence serait la faute que ce résumé corrige, retournée.
+    const resume = window.NexusLiveProjection.resumerTimeline(evenements);
+    const heure = (iso) => {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const resumeHtml = resume.entrees.slice(-12).reverse().map(e =>
+      `<div class="evt ${e.ton}">
+        <div class="evt-heure">${heure(e.occurredAt)}</div>
+        <div>
+          <div class="evt-titre">${e.titre}</div>
+          ${e.detail ? `<div class="evt-detail">${e.detail}</div>` : ''}
+        </div>
+      </div>`).join('') || '<div class="empty-note">Aucun événement à résumer.</div>';
+    const masquesHtml = resume.masques
+      ? `<div class="masques">${resume.masques} relevé(s) identique(s) écarté(s) — répéter le même état n’apprend rien. Le journal technique les conserve.</div>`
+      : '';
+
+    // Le journal brut reste accessible, replié : « le détail technique complet
+    // pourrait exister derrière "Voir le journal technique" ».
+    const journalHtml = evenements.slice(-15).reverse().map(evt =>
+      `<div class="timeline-item">${evt.summary}
+        <div class="timeline-meta">${evt.phase} · ${evt.status} · ${evt.actor.id} · ${evt.occurred_at}</div>
+      </div>`).join('');
+
+    root.innerHTML = `
+      ${blocVerdict(verdict)}
+      ${blocRisques(verdict.risques)}
+      ${blocEnCours(travail, projection)}
+      ${blocAttente(projection.human_gate)}
+      ${blocFlux(flux)}
+      ${blocDeploiements(deploiements)}
+      <div class="card">
+        <div class="section-label">Guardians</div>
+        ${guardiansHtml}
+      </div>
+      <div class="card">
+        <div class="section-label">Ce qui s’est passé</div>
+        ${resumeHtml}
+        ${masquesHtml}
+        <details class="journal">
+          <summary>Voir le journal technique (${evenements.length} événement(s))</summary>
+          ${journalHtml}
+        </details>
+      </div>
+    `;
+  }
+
+  // ── Transmettre l'autorisation ──────────────────────────────────────
+  //
+  // Décision de Frédéric du 08/09/2026 : un bouton simple, sur la session
+  // Créateur déjà authentifiée, sans ressaisie de PIN.
+  //
+  // Ce que ce bouton NE FAIT PAS : il ne décide rien, il ne promeut rien, il
+  // ne touche ni `main` ni Production. Il écrit UN fait — « le Créateur a
+  // autorisé, à cette heure, en réponse à cette question-là » — et ce fait est
+  // ensuite lu par le rail. La séparation posée par Frédéric tient :
+  // « NEXUS Live peut présenter et transmettre ton autorisation, mais il ne
+  // doit jamais fabriquer cette autorisation lui-même. »
+  //
+  // La politique RLS `insert_nexus_live_events` exige `je_suis_createur()` :
+  // un manager qui atteindrait cette page ne pourrait rien écrire. Et la
+  // politique `publication_ci` borne la CI à `actor_role in ('ci','guardian')`
+  // — elle ne peut donc pas signer une autorisation humaine.
+  async function transmettreAutorisation(employee, gate) {
+    const retour = document.getElementById('retourGate');
+    const bouton = document.getElementById('btnAutoriser');
+    bouton.disabled = true;
+    retour.className = 'retour-gate';
+    retour.textContent = 'Transmission…';
+
+    const evenement = {
+      protocol: 'nexus-execution-event/1',
+      event_id: 'evt-autorisation-' + (gate.event_id || gate.lot_id) + '-' + Date.now().toString(36),
+      occurred_at: new Date().toISOString(),
+      lot_id: gate.lot_id,
+      run_id: 'live',
+      actor: { id: employee.nom || employee.id || 'Créateur', role: 'human' },
+      phase: 'GATE',
+      status: 'PASSED',
+      summary: 'Autorisation accordée par le Créateur — ' + gate.question,
+      // La question à laquelle cette autorisation répond, désignée et non
+      // devinée : sans cette référence, l'autorisation flotterait sans objet.
+      evidence: { type: 'autorisation', ref: gate.event_id || gate.lot_id },
+      human_gate: { required: false },
+    };
+
+    // Le contrat a le dernier mot, ici comme ailleurs. Un événement refusé
+    // n'est pas corrigé pour passer : il n'est pas envoyé.
+    const erreurs = window.NexusLiveEvenement.validerEvenementLive(evenement);
+    if (erreurs.length) {
+      retour.className = 'retour-gate erreur';
+      retour.textContent = 'Autorisation NON transmise — le contrat la refuse : ' + erreurs.join(', ');
+      bouton.disabled = false;
+      return;
+    }
+
+    const { error } = await nexusClient.from('nexus_live_events').insert({
+      event_id: evenement.event_id, occurred_at: evenement.occurred_at,
+      lot_id: evenement.lot_id, run_id: evenement.run_id,
+      actor_id: evenement.actor.id, actor_role: evenement.actor.role,
+      phase: evenement.phase, status: evenement.status, summary: evenement.summary,
+      evidence: evenement.evidence, next_step: null, human_gate: evenement.human_gate, source: null,
+    });
+    if (error) {
+      // Dire l'échec. Une autorisation qu'on croit transmise et qui ne l'est
+      // pas est pire que pas de bouton du tout.
+      retour.className = 'retour-gate erreur';
+      retour.textContent = 'Autorisation NON transmise : ' + error.message;
+      bouton.disabled = false;
+      return;
+    }
+    retour.textContent = 'Autorisation transmise. Rechargement…';
+    setTimeout(() => window.location.reload(), 900);
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (!window.NexusLiveAcces || !window.NexusLiveAcces.nexusLiveAutorise(employee)) {
+      afficherRefus(window.NexusLiveAcces ? window.NexusLiveAcces.motifRefusLive(employee) : 'module_acces_indisponible');
+      return;
+    }
+    const { data, error } = await nexusClient
+      .from('nexus_live_events')
+      .select('event_id, occurred_at, lot_id, run_id, actor_id, actor_role, phase, status, summary, evidence, next_step, human_gate, source')
+      .order('occurred_at', { ascending: true })
+      .limit(500);
+    if (error) {
+      document.getElementById('root').innerHTML = `<div class="card"><div class="empty-note">Lecture du journal Live impossible : ${error.message}</div></div>`;
+      return;
+    }
+    const evenements = (data || []).map(row => ({
+      protocol: 'nexus-execution-event/1',
+      event_id: row.event_id,
+      occurred_at: row.occurred_at,
+      lot_id: row.lot_id,
+      run_id: row.run_id,
+      actor: { id: row.actor_id, role: row.actor_role },
+      phase: row.phase,
+      status: row.status,
+      summary: row.summary,
+      evidence: row.evidence,
+      next_step: row.next_step,
+      human_gate: row.human_gate,
+      source: row.source,
+    })).filter(window.NexusLiveEvenement.evenementValide);
+    const P = window.NexusLiveProjection;
+    const projection = P.construireProjectionLive(evenements);
+    const fraicheur = P.fraicheurJournal(evenements, new Date().toISOString());
+    const deploiements = P.extraireDeploiements(evenements);
+    const verdict = P.verdictLive({ events: evenements, projection, deploiements, fraicheur });
+    const flux = P.fluxLive({ events: evenements, projection, deploiements });
+    const travail = P.travailVivant({ events: evenements, projection });
+    renderProjection(projection, evenements, fraicheur, deploiements, verdict, flux, travail);
+    const bouton = document.getElementById('btnAutoriser');
+    if (bouton && projection.human_gate) {
+      bouton.addEventListener('click', () => transmettreAutorisation(employee, projection.human_gate));
+    }
+  });
+</script>
+</body>
+</html>

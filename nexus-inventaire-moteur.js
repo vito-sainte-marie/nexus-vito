@@ -1242,6 +1242,91 @@
     };
   }
 
+  // ────────────────────────────────────────────────────────────────
+  // SOUMETTRE À UN RÔLE SA PARTICIPATION (09/09/2026)
+  //
+  // Demande de Frédéric Bragance : « je souhaite soumettre au renfort sa
+  // participation à l'inventaire ».
+  //
+  // CE QUE LA MESURE A MONTRÉ, et qui a décidé de la forme. Rien ne bloquait
+  // le renfort : le rôle est proposé à la prise de poste, `shifts.role` le
+  // porte, l'écran Inventaire le résout, la présence s'écrit, `role_code` n'a
+  // aucune contrainte, `zonesPourRole` lui ouvre les deux zones, et une règle
+  // « renfort · les deux quarts · moment pendant » existe déjà en base.
+  //
+  // Et pourtant, relevé en lecture seule sur Production le 09/09/2026 :
+  // 36 services pris en renfort depuis le 18/07, ZÉRO présence en renfort sur
+  // une session d'inventaire, et 56 missions restées `non_affectee` faute de
+  // rôle présent.
+  //
+  // Le défaut n'est donc pas un blocage, c'est une ABSENCE D'INVITATION : le
+  // renfort devrait aller à l'inventaire de lui-même, et aucun des 36 ne l'a
+  // fait. Ces deux fonctions produisent ce qu'il faut lui montrer.
+  //
+  // PURES, comme le reste du moteur : elles ne savent rien du réseau et se
+  // mutilent en microsecondes.
+
+  // Les règles qui, à cet instant, ne trouvent personne — ni le rôle visé, ni
+  // son repli — et que `role` pourrait prendre. Proposer à quelqu'un une
+  // mission déjà affectée serait pire que se taire.
+  function reglesQuiAttendent({ missionRules, quart, moment, rolesPresents, role }) {
+    const cible = typeof role === 'string' ? role.trim() : '';
+    if (!cible) return [];
+    const presents = rolesPresents instanceof Set ? rolesPresents : new Set(rolesPresents || []);
+    // ON NE FILTRE PAS « le rôle est déjà présent » ICI. J'avais écrit ce
+    // raccourci, et la mutation qui le retire n'a rien cassé : quand le rôle
+    // est là, ses règles sont `affectee` et le filtre ci-dessous les écarte
+    // déjà. Un garde qu'aucune mutation ne met en défaut ne protège rien — il
+    // donne seulement l'impression d'une précaution.
+    return resoudreMissionRulesApplicables({ missionRules, quart, moment, rolesPresents: presents })
+      .filter(r => r.statut === 'non_affectee')
+      .filter(r => r.regle.role_code === cible || r.regle.role_repli === cible)
+      .map(r => ({
+        regle: r.regle,
+        // Visé directement, ou appelé en repli : ce n'est pas la même
+        // proposition, et l'employé a le droit de savoir laquelle.
+        viaRepli: r.regle.role_code !== cible,
+      }));
+  }
+
+  // Ce qu'on soumet, UNE FOIS, sans liste. Rend null quand il n'y a rien à
+  // proposer : un écran qui affiche « 0 mission en attente » ajoute du bruit à
+  // un outil qu'on reproche déjà d'en faire trop.
+  function propositionParticipation({ attendues, role }) {
+    const liste = Array.isArray(attendues) ? attendues : [];
+    if (!liste.length) return null;
+    const directes = liste.filter(a => !a.viaRepli);
+    // UNE mission, la première dans l'ordre du manager, et le nombre qui
+    // attend derrière. Une action à la fois : c'est la règle du parcours, et
+    // c'est ce qui distingue une invitation d'une liste.
+    const premiere = (directes.length ? directes : liste)[0];
+    return {
+      role,
+      mission: premiere.regle,
+      viaRepli: premiere.viaRepli,
+      nombreEnAttente: liste.length,
+    };
+  }
+
+
+  // Les trois moments d'une session, dans l'ordre où ils arrivent. Proposer
+  // une mission de fin de session à quelqu'un qui vient d'arriver serait exact
+  // et inutile : on balaie donc dans l'ordre et l'on s'arrête au premier
+  // moment qui attend quelqu'un.
+  const MOMENTS_ORDONNES = ['debut', 'pendant', 'fin'];
+
+  // L'invitation complète pour un rôle, sur une session : on cherche moment
+  // par moment, du plus tôt au plus tard, et l'on rend la PREMIÈRE proposition
+  // trouvée. Null si rien n'attend ce rôle nulle part.
+  function propositionParticipationDuJour({ missionRules, quart, rolesPresents, role }) {
+    for (const moment of MOMENTS_ORDONNES) {
+      const attendues = reglesQuiAttendent({ missionRules, quart, moment, rolesPresents, role });
+      const p = propositionParticipation({ attendues, role });
+      if (p) return { ...p, moment };
+    }
+    return null;
+  }
+
   // Résout TOUTES les mission_rules applicables à un contexte (site déjà
   // filtré en amont par le chargeur — Article 11, jamais un second filtre
   // de site ici). Retourne une ligne de résolution par règle applicable,
@@ -1751,6 +1836,8 @@
     agregerAnomaliesParProduit, appliquerCutoverControles,
     MOMENTS_QUART, libelleMoment, STRATEGIES_REPLI, libelleStrategieRepli,
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
+    reglesQuiAttendent, propositionParticipation, propositionParticipationDuJour,
+    MOMENTS_ORDONNES,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
     perimetreProduitsMission, selectionnerPerimetreMission, selectionnerPerimetreIntelligent,
     genererMissionsPourContexte, couvertureMissions,

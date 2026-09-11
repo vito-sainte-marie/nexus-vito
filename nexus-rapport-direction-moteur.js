@@ -761,7 +761,7 @@
 
   function construireSignature() {
     return {
-      accroche: 'Propulsé par le Conseiller NEXUS',
+      accroche: 'Propulsé par NEXUS Directeur d’Exploitation',
       sousAccroche: 'Des données aux décisions.',
       mentionConfiance: 'Ce rapport est produit à partir des données disponibles dans NEXUS. Les éléments RÉELS sont mesurés. Les éléments DÉRIVÉS sont calculés. Les éléments ESTIMÉS constituent des projections et non des garanties.',
     };

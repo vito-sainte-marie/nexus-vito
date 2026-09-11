@@ -37,20 +37,78 @@ if [ "$REF" = "$PROD_REF" ]; then
   exit 3
 fi
 
-MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
-if [ -z "$MDP" ]; then
-  echo "Mot de passe introuvable dans le trousseau (compte « nexus », service « nexus-test-db »)." >&2
-  echo "Le déposer avec :  security add-generic-password -a nexus -s nexus-test-db -w" >&2
+# LE TROUSSEAU N'EST EXIGÉ QUE S'IL EST LE SEUL RECOURS.
+#
+# Constat canonisé le 09/09/2026 (request-5) : le trousseau macOS était réclamé
+# AVANT même de regarder si `NEXUS_TEST_DB_URL` était fournie. Sur un runner
+# Linux il n'existe pas — la reconstruction mourait donc en `exit 4` alors
+# qu'une URL Test parfaitement valide était disponible. Le script refusait de
+# travailler faute d'un moyen dont il n'avait pas besoin.
+#
+# CORRECTIF (decision-6.md, 10/09/2026) : le contournement précédent laissait
+# encore `security` s'exécuter inconditionnellement — sa sortie était
+# simplement ignorée si une URL existait. `security` n'est donc désormais
+# invoqué QUE si `NEXUS_TEST_DB_URL` est absente : quand elle est fournie, elle
+# porte son propre moyen d'authentification, ou `PGPASSWORD` est déjà dans
+# l'environnement, et il n'y a alors aucune raison d'appeler un binaire qui
+# n'existe même pas sur un runner Linux.
+#
+# CE QUI N'EST PAS ASSOUPLI : le refus de la référence Production reste AVANT
+# toute tentative de connexion, et une connexion qui échoue échoue — on ne
+# devine aucun mot de passe et on n'en fabrique aucun.
+if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
+  MDP=""
+else
+  MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
+  if [ -z "$MDP" ]; then
+    MDP="${NEXUS_TEST_DB_PASSWORD:-}"
+  fi
+fi
+if [ -z "$MDP" ] && [ -z "${NEXUS_TEST_DB_URL:-}" ]; then
+  echo "Aucun moyen de se connecter : ni NEXUS_TEST_DB_URL, ni mot de passe." >&2
+  echo "Fournir l'URL, ou déposer le mot de passe avec :" >&2
+  echo "  security add-generic-password -a nexus -s nexus-test-db -w" >&2
   exit 4
 fi
+if [ -n "$MDP" ]; then
+  export PGPASSWORD="$MDP"
+fi
+unset MDP
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
-export PGPASSWORD="$MDP"; unset MDP
-# Connexion DIRECTE plutôt que par le pooler : le nom d'hôte du pooler
-# dépend de la région ET de l'instance (aws-0, aws-1…), et une erreur dessus
-# produit un « tenant not found » qu'on prend à tort pour un mauvais mot de
-# passe. L'hôte direct, lui, se déduit de la seule référence du projet.
-URL="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+# CONNEXION : direct d'abord, pooler en REPLI.
+#
+# L'hôte direct `db.<ref>.supabase.co` se déduit de la seule référence du
+# projet — d'où ce choix d'origine — mais il ne publie QU'UNE ADRESSE IPv6.
+# Le 09/09/2026, il est devenu injoignable en pleine répétition : « Operation
+# timed out » sur 2600:1f18:…, après avoir fonctionné le matin même. Une
+# reconstruction qui dépend d'une IPv6 disponible n'est pas reproductible.
+#
+# Le pooler, lui, répond en IPv4. Son nom d'hôte dépend de la région ET de
+# l'instance (aws-0, aws-1…), et une erreur dessus produit un « tenant not
+# found » qu'on prend à tort pour un mauvais mot de passe : il n'est donc
+# JAMAIS deviné. On utilise exactement l'hôte que la CI emploie déjà tous les
+# jours, et `NEXUS_TEST_DB_URL` permet de le remplacer sans toucher au code.
+POOLER_HOTE="aws-0-us-east-1.pooler.supabase.com"
+URL_DIRECTE="postgresql://postgres@db.${REF}.supabase.co:5432/postgres?sslmode=require"
+URL_POOLER="postgresql://postgres.${REF}@${POOLER_HOTE}:5432/postgres?sslmode=require"
+
+if [ -n "${NEXUS_TEST_DB_URL:-}" ]; then
+  URL="$NEXUS_TEST_DB_URL"
+  echo "Connexion : URL fournie par NEXUS_TEST_DB_URL."
+elif psql "$URL_DIRECTE" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+  URL="$URL_DIRECTE"
+  echo "Connexion : hôte direct."
+elif psql "$URL_POOLER" --quiet --no-psqlrc -tAc "select 1" >/dev/null 2>&1; then
+  URL="$URL_POOLER"
+  echo "Connexion : hôte direct injoignable, repli sur le pooler ($POOLER_HOTE)."
+else
+  echo "AUCUNE connexion possible à $REF, ni en direct ni par le pooler." >&2
+  echo "Ce n'est pas nécessairement le mot de passe : l'hôte direct est IPv6 seulement." >&2
+  echo "Vérifier le réseau, ou fournir NEXUS_TEST_DB_URL explicitement." >&2
+  exit 6
+fi
+export NEXUS_TEST_DB_URL="$URL"
 
 # Remise à zéro FIDÈLE. Deux pièges découverts le 04/09/2026 :
 #
@@ -102,13 +160,30 @@ end $$;
 REINIT
 fi
 
-echo "Reconstruction de $REF depuis $(ls "$RACINE"/supabase/migrations/*.sql | wc -l | tr -d ' ') migrations."
+n_total=$(ls "$RACINE"/supabase/migrations/*.sql | wc -l | tr -d ' ')
+echo "Reconstruction de $REF depuis $n_total migrations."
 echo
 
 n=0
+# JUSQUA — s'arrêter à une version donnée, incluse. Sans cette borne, la seule
+# reconstruction possible mène à l'état le plus récent, et une répétition de
+# release ne peut PAS commencer : elle a besoin de l'état d'AVANT, celui que
+# Production sert aujourd'hui, pour que les migrations de promotion rencontrent
+# les mêmes formes qu'elles rencontreront là-bas.
+# Vide = tout appliquer, comportement inchangé.
+JUSQUA="${JUSQUA:-}"
+if [ -n "$JUSQUA" ]; then
+  echo "Borne demandée : arrêt APRÈS la migration $JUSQUA."
+fi
+
 for f in "$RACINE"/supabase/migrations/*.sql; do
   n=$((n+1))
   nom="$(basename "$f")"
+  version="${nom%%_*}"
+  if [ -n "$JUSQUA" ] && [ "$version" \> "$JUSQUA" ]; then
+    echo "  Borne atteinte : $((n_total - n + 1)) migration(s) NON appliquée(s), à partir de $nom."
+    break
+  fi
   printf "  [%02d] %-72s " "$n" "$nom"
   if sortie="$(psql "$URL" --quiet --no-psqlrc -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
     v="${nom%%_*}"; libelle="${nom#*_}"; libelle="${libelle%.sql}"

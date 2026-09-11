@@ -99,6 +99,10 @@
   .histo-type{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase;}
   .histo-date{font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
   .histo-score{font-family:var(--mono); font-size:15px; font-weight:700; color:var(--cyan);}
+  /* L'état neutre ne doit pas ressembler à une note : ni la couleur d'accent,
+     ni la graisse d'un chiffre. Une lecture rapide ne doit pas pouvoir le
+     prendre pour une mesure. */
+  .histo-score.non-evalue{color:var(--muted, #8b96a5); font-weight:500; font-size:12.5px; font-style:italic;}
   .histo-comment{font-size:11.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
   .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
@@ -110,6 +114,8 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
+<script src="nexus-mesure.js?v=20260908"></script>
+<script src="nexus-evaluation-affichage.js?v=20260908"></script>
 </head>
 <body>
 <div class="phone">
@@ -482,15 +488,20 @@
         return;
       }
       listeEl.innerHTML = tousEvenements.map(ev => {
-        let scoreTxt = '';
-        if (ev.kind === 'Contrôle tenue') scoreTxt = `${ev.points} pts`;
-        else if (ev.kind === 'Évaluation Renfort') scoreTxt = `${(ev.total||0).toFixed(1)} / 5`;
-        else scoreTxt = `${ev.prime_pct||0}%`;
+        // EVAL-001 (08/09/2026). Avant : `(ev.total || 0).toFixed(1)`. Le `||`
+        // confondait une note de ZÉRO avec une note ABSENTE, et un salarié dont
+        // l'évaluation n'était pas encore chiffrée lisait « 0.0 / 5 » sur
+        // l'écran qu'il consulte lui-même — un reproche fabriqué à partir d'un
+        // trou de donnée. La règle vit désormais dans
+        // `nexus-evaluation-affichage.js`, éprouvée, et cet écran la consomme
+        // sans la reconstruire.
+        const scoreTxt = window.NexusEvaluationAffichage.libelleScore(ev);
+        const classeScore = window.NexusEvaluationAffichage.estNonEvalue(ev) ? ' non-evalue' : '';
         const commentaire = ev.commentaires ? `<div class="histo-comment">${ev.commentaires}</div>` : '';
         return `<div class="histo-item">
           <div class="histo-top">
             <span class="histo-type">${ev.kind}</span>
-            <span class="histo-score">${scoreTxt}</span>
+            <span class="histo-score${classeScore}">${scoreTxt}</span>
           </div>
           <div class="histo-date">${new Date(ev.date).toLocaleDateString('fr-FR')}</div>
           ${commentaire}

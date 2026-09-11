@@ -1,0 +1,79 @@
+{
+  "note": "Propriétaire UNIQUE des échecs tolérés de la suite. Cette liste vivait en deux exemplaires — figée dans .github/workflows/tests.yml, et reconstruite à la main dans un fichier temporaire à chaque session. Deux copies d'une même vérité : c'est toujours celle qu'on oublie qui se met à mentir. `run-tests.js` en est désormais le seul lecteur, en local comme en CI. — 09/09/2026 : les neuf motifs sont désormais établis et rangés en quatre familles. AUCUN des neuf ne révèle un défaut applicatif ; tous décrivent une épreuve qui a cessé de suivre son sujet. Le vrai coût est ailleurs : neuf tests rouges tolérés sont neuf tests qui ne protègent plus rien, dont les deux SEULS du module Réception carburant.",
+  "regle": "Un échec absent de cette liste est une RÉGRESSION et arrête la chaîne. Un fichier de cette liste qui repasse au vert l'arrête AUSSI : il doit en être retiré, sinon la liste autorise silencieusement un retour en arrière. Le contrôle qui compte n'est pas le compte, c'est la liste (QA-006).",
+  "mesure_le": "2026-09-08",
+  "echecs": [
+    {
+      "fichier": "test_chaine_temporelle_carburant_20260821.js",
+      "cause_observee": "TypeError: chargerControleJour : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation",
+      "motif": "chargerControleJour(client, siteId, date, timezone) exige un fuseau depuis nexus-carburant-donnees.js:290 — « son absence est une erreur de contrat, pas un état à afficher ». Le test l’appelle avec TROIS arguments, sans fuseau, alors que son propre intitulé annonce « fuseau Martinique ».",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "CONTRAT DURCI APRÈS L’ÉCRITURE DU TEST",
+      "portee": "La garde est saine et mord : c’est le test qui ne l’a pas suivie. Mais le scénario réel du 20→21/08 qu’il protégeait n’est plus couvert."
+    },
+    {
+      "fichier": "test_inventaire_categorie_mixte_deux_lieux.js",
+      "cause_observee": "ReferenceError: estComptageDeuxLieuxEmploye is not defined",
+      "motif": "Même mécanisme. Extrait grouperParCategorie et ordonnerParcoursDepotBoutiqueReste ; la première appelle estComptageDeuxLieuxEmploye, non extraite.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "TEST PAR DÉCOUPE, CASSÉ PAR UNE REFACTORISATION",
+      "portee": "Aucun défaut applicatif."
+    },
+    {
+      "fichier": "test_inventaire_parcours_depot_boutique_reste.js",
+      "cause_observee": "ReferenceError: NexusStation is not defined",
+      "motif": "Variante du même défaut : le test lit NEXUS-Inventaire-v1.html et évalue ses blocs <script> NUS, mais l’écran dépend de quinze fichiers chargés par <script src> que le bac à sable n’ouvre jamais. NexusStation vit dans nexus-station.js, jamais chargé.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "TEST PAR DÉCOUPE, CASSÉ PAR UNE REFACTORISATION",
+      "portee": "Aucun défaut applicatif : le navigateur charge les quinze dépendances."
+    },
+    {
+      "fichier": "test_inventaire_production_journaliere_q1.js",
+      "cause_observee": "ReferenceError: modeTestInventaireActif is not defined",
+      "motif": "Même mécanisme. Extrait quinze fonctions d’écriture immédiate ; l’une d’elles appelle modeTestInventaireActif, absente de la liste.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "TEST PAR DÉCOUPE, CASSÉ PAR UNE REFACTORISATION",
+      "portee": "Aucun défaut applicatif."
+    },
+    {
+      "fichier": "test_inventaire_sprint4_ux_flash.js",
+      "cause_observee": "ReferenceError: estComptageDeuxLieuxEmploye is not defined",
+      "motif": "Le test découpe des fonctions une par une dans le <script> de NEXUS-Inventaire-v1.html par comptage d’accolades, puis n’évalue que ces tranches. Il extrait grouperParCategorie et produitEstCompte, qui appellent toutes deux estComptageDeuxLieuxEmploye — absente de sa liste d’extraction.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "TEST PAR DÉCOUPE, CASSÉ PAR UNE REFACTORISATION",
+      "portee": "Aucun défaut applicatif : le navigateur charge le bloc entier, où la fonction existe bien."
+    },
+    {
+      "fichier": "test_inventaire_sprint4bis_ecriture_immediate.js",
+      "cause_observee": "ReferenceError: modeTestInventaireActif is not defined",
+      "motif": "Même mécanisme, même symbole manquant : modeTestInventaireActif, appelée par une des douze fonctions extraites.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "TEST PAR DÉCOUPE, CASSÉ PAR UNE REFACTORISATION",
+      "portee": "Aucun défaut applicatif."
+    },
+    {
+      "fichier": "test_pilotage_qualite_receptions.js",
+      "cause_observee": "TypeError: document.addEventListener is not a function",
+      "motif": "Le faux document du test (ligne 35) ne déclare que getElementById, querySelectorAll, querySelector et body. Le code sous test appelle document.addEventListener, ajouté après l’écriture du simulacre.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "SIMULACRE INCOMPLET",
+      "portee": "Aucun défaut applicatif : un vrai document possède la méthode."
+    },
+    {
+      "fichier": "test_reception_moteur.js",
+      "cause_observee": "TypeError: Mod.calculerReceptionCorrigee is not a function",
+      "motif": "nexus-reception-moteur.js n’exporte plus calculerReceptionCorrigee : son bloc d’export (ligne 374) déclare une autre API — calculerReceptionCarburant, agregerDeltaParCarburant, statutGlobalVisite, verifierCompartimentsVsBl, signatureDeltaLivraison. L’ancienne API (calculerReceptionCorrigee, calculerEcartTerrainBl, calculerEcartSystemeBl, statutInitialReception, calculerReception, chronologieValide), documentée en v2.92 du dictionnaire de données, n’existe plus nulle part dans le code.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "MODULE REFONDU, TEST RESTÉ SUR L’ANCIENNE API",
+      "portee": "Le moteur de réception tourne en production avec son test dédié inerte."
+    },
+    {
+      "fichier": "test_reception_v1_dom.js",
+      "cause_observee": "ReferenceError: demarrerReception is not defined",
+      "motif": "demarrerReception apparaît ZÉRO fois dans NEXUS-Carburant-Reception-v1.html, alors que la v2.94 du dictionnaire documente son correctif en détail. L’écran a été réécrit depuis ; le test rejoue un parcours qui n’existe plus.",
+      "commentaire": "Motif établi le 09/09/2026 (QA-007) par lecture du code, sans exécution — la base Test était en répétition de release. Chaque motif est appuyé sur une observation nommée ci-dessus, jamais sur une hypothèse.",
+      "famille": "MODULE REFONDU, TEST RESTÉ SUR L’ANCIENNE API",
+      "portee": "Le parcours employé de réception tourne avec son unique test DOM inerte."
+    }
+  ]
+}
