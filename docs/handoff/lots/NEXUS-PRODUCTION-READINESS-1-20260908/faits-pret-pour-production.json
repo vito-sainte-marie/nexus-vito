@@ -40,31 +40,38 @@
       "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
     },
     "aucunBlocageNonResolu": {
-      "valeur": true,
-      "retabli_le": "2026-09-10",
-      "deux_blocages_traites": [
-        "défaut 7 (épreuve `security` sur ea561f6) — déclaré non bloquant par Frédéric Bragance, six motifs consignés ci-dessous",
-        "six branches en rade — classées le 10/09/2026 dans docs/handoff/BRANCHES-CLASSEES.json, toutes SUPERSEDEE, chacune avec son SHA de tête et sa preuve"
-      ],
-      "preuve": "outils/garde-branches-en-rade.js : « Branches en rade : aucune (44 branche(s) claude/* examinée(s)) ». Comparaison des arbres : un seul fichier de ces six branches est absent du candidat, request-11.md, une demande Handoff volontairement non rapatriée — aucun correctif applicatif, aucune épreuve. Les diffs de code de ces branches ne contiennent que des retours en arrière, dont la version d'AVANT la correction du défaut 10.",
-      "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
-      "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées.",
-      "declaration_defaut_7": {
+      "valeur": false,
+      "bloque_le": "2026-09-11",
+      "bloque_par": "Frédéric Bragance",
+      "motif": "Le parcours Caissière du 11/09/2026 a mis au jour un défaut DANS LE PÉRIMÈTRE de la release : l'interface de pointage rend le départ inatteignable sans pause. Les migrations réparent les services historiques, mais l'écran continuerait d'en créer de nouveaux restés ouverts. Le verdict repasse NON_PRET et la gate de dimanche est suspendue.",
+      "preuve": "NEXUS-Pointage-v1.html:227 ORDRE_TYPES = ['arrivee','pause_debut','pause_fin','depart'] ; :575 prochainType = ORDRE_TYPES.find(t => !dejaFait[t]) ; :621 bloque = !fait && !estProchain. Vérifié à l'écran sur nexus-test : arrivée pointée -> Départ désactivé ; après début et fin de pause -> Départ actif. Vingt-quatre relevés au total, dont dix bloquants.",
+      "declaration_defaut_7_et_branches": {
         "valeur": true,
-        "declare_par": "Frédéric Bragance",
-        "declare_le": "2026-09-10",
-        "porte_sur": "le défaut 7 — épreuve `security` sur l'ancien candidat ea561f6",
-        "motifs": [
-          "une seule occurrence, sur l'ancien candidat ea561f6",
-          "aucune reproduction depuis",
-          "cause non isolée, donc aucun correctif hypothétique autorisé",
-          "instrumentation en place pour capturer une éventuelle nouvelle occurrence",
-          "CI verte sur les événements du candidat contrôlé",
-          "aucun fichier de la release identifié comme défaillant par cette occurrence"
+        "retabli_le": "2026-09-10",
+        "deux_blocages_traites": [
+          "défaut 7 (épreuve `security` sur ea561f6) — déclaré non bloquant par Frédéric Bragance, six motifs consignés ci-dessous",
+          "six branches en rade — classées le 10/09/2026 dans docs/handoff/BRANCHES-CLASSEES.json, toutes SUPERSEDEE, chacune avec son SHA de tête et sa preuve"
         ],
-        "preuve": "Déclaration de Frédéric Bragance du 10/09/2026. Ce critère ne se mesure pas, il se déclare — blocages-ouverts-1.md le pose ainsi depuis le 10/09. Les faits qui la fondent sont mesurés et datés : 40 exécutions CI de l'épreuve depuis l'échec, 40 passages, zéro reproduction (dont 5 à conditions d'ordonnancement identiques, avant la sérialisation) ; les trois scripts couverts sont de l'outillage Test, hors artefact de release, et leur refus de la référence Production est un contrôle distinct couvert par six autres épreuves.",
+        "preuve": "outils/garde-branches-en-rade.js : « Branches en rade : aucune (44 branche(s) claude/* examinée(s)) ». Comparaison des arbres : un seul fichier de ces six branches est absent du candidat, request-11.md, une demande Handoff volontairement non rapatriée — aucun correctif applicatif, aucune épreuve. Les diffs de code de ces branches ne contiennent que des retours en arrière, dont la version d'AVANT la correction du défaut 10.",
         "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
-        "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
+        "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées.",
+        "declaration_defaut_7": {
+          "valeur": true,
+          "declare_par": "Frédéric Bragance",
+          "declare_le": "2026-09-10",
+          "porte_sur": "le défaut 7 — épreuve `security` sur l'ancien candidat ea561f6",
+          "motifs": [
+            "une seule occurrence, sur l'ancien candidat ea561f6",
+            "aucune reproduction depuis",
+            "cause non isolée, donc aucun correctif hypothétique autorisé",
+            "instrumentation en place pour capturer une éventuelle nouvelle occurrence",
+            "CI verte sur les événements du candidat contrôlé",
+            "aucun fichier de la release identifié comme défaillant par cette occurrence"
+          ],
+          "preuve": "Déclaration de Frédéric Bragance du 10/09/2026. Ce critère ne se mesure pas, il se déclare — blocages-ouverts-1.md le pose ainsi depuis le 10/09. Les faits qui la fondent sont mesurés et datés : 40 exécutions CI de l'épreuve depuis l'échec, 40 passages, zéro reproduction (dont 5 à conditions d'ordonnancement identiques, avant la sérialisation) ; les trois scripts couverts sont de l'outillage Test, hors artefact de release, et leur refus de la référence Production est un contrôle distinct couvert par six autres épreuves.",
+          "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
+          "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
+        }
       }
     },
     "gateHumaineFrederic": {

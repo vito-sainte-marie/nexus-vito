@@ -234,6 +234,27 @@
       "sort": "SUPERSEDEE",
       "motif": "Quatre commits : ed66744 (isole la fixture de course dans un bac à sable), 058949c, 319c13d, 0e03b7e. Elle corrige le MÊME défaut 10 que le candidat, par une voie très proche — `listerPuisCopier(dirDest, racineSource = RACINE)` et un répertoire dédié. Le candidat porte la version postérieure et plus large : bac à sable peuplé des fichiers réels avec leurs tailles (la durée des copyFileSync est ce qui ouvre la fenêtre de course) et deux contrôles de non-nuisance, 9 vérifications contre 7. UN SEUL fichier de cette branche est absent du candidat, et c'est le seul de tout le lot des six : request-11.md, une demande Handoff AWAITING_DECISION portant sur la fermeture du défaut 10. Elle n'est PAS rapatriée, volontairement : le défaut qu'elle soumet à décision est fermé autrement sur le candidat (c405c75), et le lot a depuis avancé jusqu'à request-10 et à l'arbitrage de Frédéric Bragance du 10/09. Aucun correctif applicatif ni aucune épreuve n'est perdu — vérifié par comparaison des deux arbres.",
       "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2123",
+      "tete": "ee567671d99d12c68af42f656be757aa9935c64a",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2233",
+      "tete": "68f1f33424442f5148cd37abc4642ce05d73599a",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2305",
+      "tete": "59b78fd8043e1b7f55a93d0f8e2c3859a8f06edb",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
     }
   ]
 }
