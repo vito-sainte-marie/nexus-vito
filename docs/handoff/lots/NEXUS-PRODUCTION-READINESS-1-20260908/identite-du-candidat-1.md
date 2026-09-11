@@ -15,14 +15,23 @@ suivant. Le verdict affiché décrivait un arbre qui n'existait déjà plus.
 
 | rôle | SHA | contenu |
 |---|---|---|
-| **contient politiques, rapports, corrections** | `b10f9b6e82049f2efab7a0aafd372c4b195af7be` | sept politiques RLS documentées, `preuve-re-mesure-finale-2.md`, faits mis à jour, retrait de la clause « 0 écriture en vol » |
-| **HEAD distant** | `b10f9b6e82049f2efab7a0aafd372c4b195af7be` | `origin/config-par-environnement`, identique au local |
-| **CI verte** | `b10f9b6e82049f2efab7a0aafd372c4b195af7be` | `Tests` · push `success` · pull_request `success`, 11/09 22 h 42 UTC |
+| **contient politiques, rapports, corrections** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | huit politiques RLS documentées, `preuve-re-mesure-finale-2.md` avec la mesure #4 canonique, `outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql`, `protocole-gate-dimanche-1.md`, ce fichier, faits mis à jour |
+| **HEAD distant** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | `origin/config-par-environnement`, identique au local |
+| **CI verte** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | `Tests` · push `completed/success` · pull_request `completed/success` |
 
-**Les trois coïncident. `b10f9b6` est le seul SHA qui pourra devenir candidat.**
+**Les trois coïncident. `b83fc15` est le seul SHA qui pourra devenir candidat.**
 
-`febb3d6` a lui aussi une CI verte, mais il ne contient ni les politiques ni les
-rapports : il ne peut pas porter le verdict.
+Deux SHA antérieurs ont aussi une CI verte et ne peuvent pas porter le verdict :
+`febb3d6` ne contient ni les politiques ni les rapports ; `b10f9b6` porte les
+sept premières politiques mais ni la mesure #4 canonique, ni la mesure #5
+corrigée, ni le protocole de dimanche.
+
+### Vérifié après le push, pas avant
+
+L'évaluateur relancé sur `b83fc15` immédiatement après le push a rendu
+« aucun run sur ce SHA » — la CI démarrait. C'est le même piège sous une autre
+forme : un verdict calculé trop tôt décrit un état que la CI n'a pas encore
+jugé. Attendre la fin des runs, puis recalculer.
 
 ## Un défaut d'outillage corrigé au passage
 

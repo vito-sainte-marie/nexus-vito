@@ -18,7 +18,7 @@
     "mesuresProductionFraiches": {
       "horodatage": "2026-09-11T22:39:53Z",
       "expire_le": "2026-09-12T22:39:53Z",
-      "preuve": "preuve-re-mesure-finale-2.md — mesures #1 à #4 et #6 jouées par nexus_prod_readonly_login sur uzhjpqpctpvxytxpxoqz, SHA b10f9b6. La mesure #5 est INCONNUE par construction et le reste jusqu'à son exécution par un observateur privilégié dans les minutes précédant la fenêtre (outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql). Ces mesures n'autorisent PAS la gate du 13/09 : elles expirent avant. Protocole de reprise : protocole-gate-dimanche-1.md."
+      "preuve": "preuve-re-mesure-finale-2.md — mesures #1 à #4 et #6 jouées sur uzhjpqpctpvxytxpxoqz par nexus_prod_readonly_login le 11/09/2026 (#1 à #3 et #6 à 22:39 UTC, #4 canonique à 23:05 UTC après ouverture de employees.id et employees.site_id). Aucun SHA n'est cité ici : ce sont des faits sur Production, pas sur l'arbre, et le SHA candidat est mesuré à l'exécution par l'évaluateur. La mesure #5 est INCONNUE par construction et le reste jusqu'à son exécution par un observateur privilégié dans les minutes précédant la fenêtre (outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql). Ces mesures n'autorisent PAS la gate du 13/09 : elles expirent le 12/09 à 22:39 UTC. Protocole de reprise : protocole-gate-dimanche-1.md."
     },
     "aucunImpactDmlInconnu": {
       "valeur": true,
