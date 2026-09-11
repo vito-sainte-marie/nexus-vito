@@ -99,3 +99,57 @@ Il hérite exactement des droits prévus, et d'aucun autre.
 a été rejetée — `permission denied to alter role`. Le rôle du connecteur n'est
 pas superutilisateur, il ne peut donc pas manipuler les attributs de rôle.
 C'est une limite que je n'ai pas cherché à contourner.
+
+---
+
+## Privilèges indirects — ce que PUBLIC donne déjà, et une découverte
+
+**Ce que PUBLIC accorde à tout le monde**, donc aussi à ce rôle :
+
+| ACL relevée | conséquence |
+|---|---|
+| base : `=Tc/postgres` | **TEMP** et **CONNECT** pour PUBLIC |
+| schéma `public` : `=U/pg_database_owner` | **USAGE** pour PUBLIC |
+
+`has_database_privilege(…, 'TEMP') = true` ne vient donc **pas** de mes
+octrois : il vient de PUBLIC, et une table temporaire n'est pas une écriture
+dans les données métier. Ce n'était pas une sonde valable, et je ne touche
+pas aux droits globaux de PUBLIC pour la faire échouer.
+
+En revanche : `CREATE` sur la base et sur le schéma `public` restent **refusés**
+au rôle.
+
+### 34 fonctions exécutables, 16 en `SECURITY DEFINER`
+
+Cinq d'entre elles écrivent. Quatre sont des **fonctions de trigger**
+(`returns trigger`, rattachées à un trigger) : elles ne sont pas appelables
+directement.
+
+**La cinquième l'est** :
+
+> `public.fdj_synchroniser_releves_courants(p_site text) returns integer`
+> `SECURITY DEFINER`, propriétaire `postgres`, `EXECUTE` accordé à **PUBLIC**,
+> écrit dans `fdj_releves_cloture`.
+
+C'est le **seul chemin d'écriture appelable** accessible à ce rôle, et il
+contourne par construction les octrois de lecture seule, puisqu'il s'exécute
+en tant que `postgres`.
+
+**Elle se défend elle-même**, et c'est ce qui change tout :
+
+```sql
+if auth.uid() is null then raise exception 'Authentification requise'; end if;
+if not exists (select 1 from employees e
+               where e.id = auth.uid() and e.site_id = p_site
+                 and e.role in ('manager','gerant'))
+then raise exception 'Accès manager requis'; end if;
+```
+
+Une connexion `psql` n'a **jamais** d'`auth.uid()` : le premier garde lève
+avant toute écriture. L'autorisation ne repose donc pas sur le seul droit
+`EXECUTE`, mais sur une vérification interne.
+
+**Ce qui reste à démontrer, et que je ne peux pas démontrer sans connexion :**
+que cet appel échoue bien pour ce rôle. Tant que ce n'est pas constaté,
+la garantie « aucune capacité d'écriture » n'est pas acquise — elle est
+seulement *plausible*, et ce n'est pas la même chose.
