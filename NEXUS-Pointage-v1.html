@@ -771,17 +771,26 @@
         // travail compté. On le DIT, on ne le bloque pas : l'employée a le
         // dernier mot, parce qu'elle seule sait si sa pause a eu lieu.
         // Aucune durée n'est supposée ni corrigée ici.
+        // Pause encore ouverte au moment du départ (arbitrage Frédéric
+        // Bragance, 11/09/2026, règle 6). On ne bloque pas, on ne laisse pas
+        // filer non plus : on PROPOSE de terminer la pause à l'heure du
+        // départ, puis d'enregistrer le départ. Deux événements distincts,
+        // tous deux à une heure RÉELLE.
+        //
+        // Règle 7 : aucun début ni aucune durée de pause n'est inventé
+        // rétroactivement. La fin posée ici est l'instant du départ, pas une
+        // estimation, et l'employée l'a acceptée en toutes lettres.
         if (type === 'depart' && pauseEnCours(dejaFait)) {
           const debutPause = dejaFait.pause_debut && dejaFait.pause_debut.heure
             ? String(dejaFait.pause_debut.heure).slice(0, 5) : null;
-          const message = debutPause
-            ? `Votre pause de ${debutPause} n'a jamais été refermée.\n\n`
-              + 'Si vous partez maintenant, elle restera ouverte dans votre journée et '
-              + 'le temps compté sera faux.\n\nPointez « Fin pause » d\'abord, ou '
-              + 'continuez si la pause n\'a pas eu lieu.'
-            : 'Une pause est encore ouverte dans votre journée. Pointez « Fin pause » '
-              + 'd\'abord, ou continuez si elle n\'a pas eu lieu.';
+          const message = (debutPause
+            ? `Votre pause commencée à ${debutPause} est encore ouverte.\n\n`
+            : 'Une pause est encore ouverte dans votre journée.\n\n')
+            + 'En continuant, NEXUS la termine maintenant, à l\'heure de votre départ, '
+            + 'puis enregistre votre départ.\n\nAnnuler si vous préférez pointer '
+            + '« Fin pause » vous-même.';
           if (!window.confirm(message)) return;
+          cloturerPauseAuDepart = true;
         }
         clicPointage[type] = new Date();
         try {
@@ -808,6 +817,13 @@
     document.querySelectorAll('.pointage-photo-input').forEach(input => {
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
+          // Aucun fichier ne survit à son pointage (11/09/2026, arbitrage E).
+          // L'input restait chargé du dernier fichier choisi : un objet File
+          // encore présent dans le DOM, réutilisable par un rendu suivant, et
+          // invisible pour l'employée. On le vide DÈS la lecture, avant tout
+          // envoi : la variable locale garde la seule référence utile, le
+          // temps de cet envoi-là.
+          input.value = '';
         // L'input et le bouton associé sont frères dans .pointage-item.
         const btn = input.parentElement && input.parentElement.querySelector('.pointage-btn');
         const type = input.dataset.type;
@@ -1121,6 +1137,12 @@
   // période qui n'a jamais été annoncée comme officielle aux employés.
   const DATE_OFFICIALISATION_RETARDS = '2026-08-01';
 
+  // Drapeau porté du clic jusqu'à l'écriture : une pause ouverte que
+  // l'employée a accepté de clore à l'heure de son départ. Remis à faux
+  // après chaque enregistrement, pour qu'il ne survive jamais d'un pointage
+  // au suivant.
+  let cloturerPauseAuDepart = false;
+
   async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, photoEchecTechnique) {
     const now = new Date();
 
@@ -1187,6 +1209,35 @@
         banner.className = 'confirm-banner ok';
       }
       return true;   // rien à écrire : l'écran se réconcilie, aucun doublon
+    }
+
+    // Clôture de la pause à l'heure du départ (règle 6). Elle est écrite
+    // AVANT le départ, comme un événement à part entière : même heure, même
+    // quart, aucune photo, aucune durée supposée. Si cette écriture échoue,
+    // on n'enregistre pas le départ — mieux vaut un départ à repointer
+    // qu'une pause laissée ouverte derrière un départ enregistré.
+    if (type === 'depart' && cloturerPauseAuDepart) {
+      const { data: finDeja } = await nexusClient
+        .from('pointages').select('id')
+        .eq('employee_id', employee.id).eq('date', today).eq('type', 'pause_fin').limit(1);
+      if (!finDeja || !finDeja.length) {
+        const { error: erreurFin } = await nexusClient.from('pointages').insert({
+          employee_id: employee.id, site: siteId, date: today, type: 'pause_fin', heure,
+          quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
+          retard_min: 0, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
+        });
+        if (erreurFin) {
+          console.error('Clôture de la pause à l\'heure du départ:', erreurFin);
+          const b = document.getElementById('confirmBanner');
+          if (b) {
+            b.textContent = 'La fin de pause n\'a pas pu être enregistrée. Votre départ n\'a pas été pointé : réessayez.';
+            b.className = 'confirm-banner erreur';
+          }
+          cloturerPauseAuDepart = false;
+          return false;
+        }
+      }
+      cloturerPauseAuDepart = false;
     }
 
     const { error } = await nexusClient.from('pointages').insert({

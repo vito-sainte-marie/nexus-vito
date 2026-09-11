@@ -119,6 +119,60 @@ t('aucune durée minimale de pause n\'est introduite', () => {
   assert.deepStrictEqual(suspects, [], `durée de pause fixée dans le code : ${suspects.join(', ')}`);
 });
 
+// ── Les six parcours canoniques (arbitrage Frédéric Bragance, 11/09/2026) ──
+
+t('parcours : arrivée → départ, autorisé', () => {
+  assert.strictEqual(pointageDisponible('depart', { arrivee: {} }), true);
+});
+
+t('parcours : arrivée → début → fin → départ, autorisé', () => {
+  assert.strictEqual(pointageDisponible('pause_debut', { arrivee: {} }), true);
+  assert.strictEqual(pointageDisponible('pause_fin', { arrivee: {}, pause_debut: {} }), true);
+  assert.strictEqual(pointageDisponible('depart', { arrivee: {}, pause_debut: {}, pause_fin: {} }), true);
+});
+
+t('parcours : départ sur pause ouverte → fin de pause ET départ, séparément', () => {
+  // Règle 6 : la pause est terminée à l'heure du départ, puis le départ est
+  // enregistré. Deux lignes, pas une. Et l'heure de fin est celle du départ,
+  // jamais une estimation (règle 7).
+  const bloc = POINTAGE.match(/if \(type === 'depart' && cloturerPauseAuDepart\) \{[\s\S]*?\n    \}/);
+  assert.ok(bloc, 'aucune clôture de pause à l\'heure du départ');
+  assert.ok(/type: 'pause_fin', heure,/.test(bloc[0]),
+    'la fin de pause n\'est pas écrite à l\'heure du départ');
+  assert.ok(bloc[0].indexOf("type: 'pause_fin'") < POINTAGE.indexOf("const { error } = await nexusClient.from('pointages').insert({"),
+    'la fin de pause n\'est pas écrite AVANT le départ');
+  assert.ok(/photo_url: null/.test(bloc[0]), 'la fin de pause emporte une photo');
+});
+
+t('parcours : départ sans arrivée, refusé', () => {
+  assert.strictEqual(pointageDisponible('depart', {}), false);
+});
+
+t('parcours : fin de pause sans début, refusée', () => {
+  assert.strictEqual(pointageDisponible('pause_fin', {}), false);
+  assert.strictEqual(pointageDisponible('pause_fin', { arrivee: {} }), false);
+});
+
+t('aucune pause fictive n\'est créée lors d\'un départ direct', () => {
+  // Le témoin qui compte pour la règle 4 : l'absence de pause n'est ni une
+  // erreur ni une donnée manquante. Rien ne doit être écrit pour la combler.
+  const corps = POINTAGE.match(/async function enregistrerPointage\([\s\S]*?\n  \}\n/)[0];
+  const ecrituresPause = corps.match(/type: 'pause_(debut|fin)'/g) || [];
+  assert.deepStrictEqual(ecrituresPause, ["type: 'pause_fin'"],
+    `écritures de pause dans l'enregistrement : ${ecrituresPause.join(', ')} — une seule est attendue, et sous confirmation`);
+  assert.ok(/if \(type === 'depart' && cloturerPauseAuDepart\)/.test(corps),
+    'la seule écriture de pause n\'est pas conditionnée à la confirmation de l\'employée');
+  assert.ok(!/pause_debut'[,)]?\s*$/m.test(corps.replace(/\/\/.*$/gm, '')),
+    'un début de pause peut être écrit rétroactivement');
+});
+
+t('le drapeau de clôture ne survit jamais d\'un pointage au suivant', () => {
+  const corps = POINTAGE.match(/async function enregistrerPointage\([\s\S]*?\n  \}\n/)[0];
+  const remises = (corps.match(/cloturerPauseAuDepart = false/g) || []).length;
+  assert.ok(remises >= 2,
+    `le drapeau n'est remis à faux que ${remises} fois : il peut fuir vers le pointage suivant`);
+});
+
 // ── Le service de référence ────────────────────────────────────────────────
 
 t('un quart ouvert la VEILLE n\'est plus le service du jour', () => {
@@ -154,8 +208,11 @@ t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
   const suite = apres[1].split('\n').slice(1).join('\n');
   assert.ok(!/shiftActif/.test(suite),
     'shiftActif est encore lu APRÈS la résolution du service du jour : le quart de la veille peut revenir');
+  // On vise l'écriture du pointage DEMANDÉ, pas celle de la clôture de pause
+  // qui la précède et porte, elle, des valeurs littérales assumées.
+  const principal = suite.slice(suite.indexOf("const { error } = await nexusClient.from('pointages').insert({"));
   for (const champ of ['retard_min:', 'quart:', 'heure_debut_quart:']) {
-    const ligne = suite.split('\n').find(l => l.trim().startsWith(champ));
+    const ligne = principal.split('\n').find(l => l.trim().startsWith(champ));
     assert.ok(ligne, `${champ} n'est plus écrit`);
     assert.ok(/serviceDuJour|retardMin/.test(ligne), `${champ} ne suit pas le service du jour`);
   }
@@ -214,4 +271,15 @@ t('un rôle administratif inconnu ne bloque pas la prise de poste', () => {
     'le rôle inconnu est ignoré en silence');
 });
 
-console.log(`\n${passes}/19 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
+t('aucun fichier ne survit à son pointage', () => {
+  // Arbitrage E : ni fichier précédemment sélectionné, ni objet File, ni
+  // état de formulaire réutilisé d'un pointage au suivant.
+  const bloc = POINTAGE.match(/input\.addEventListener\('change', async \(\) => \{[\s\S]{0,700}/)[0];
+  const iLecture = bloc.indexOf('input.files && input.files[0]');
+  const iVidage = bloc.indexOf("input.value = ''");
+  assert.ok(iVidage > -1, 'l\'input fichier n\'est jamais vidé : un File reste dans le DOM');
+  assert.ok(iVidage > iLecture && iVidage - iLecture < 600,
+    'l\'input est vidé trop loin de sa lecture, ou avant elle');
+});
+
+console.log(`\n${passes}/27 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);

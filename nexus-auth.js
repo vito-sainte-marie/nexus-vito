@@ -206,6 +206,11 @@ async function nexusPointageArriveeManquant(employee){if(NexusPage.est(NEXUS_PAG
 // défense de lecture contre un historique imparfait ou un import.
 //
 // Retour : { service } | { aucun: true } | { erreur: true }
+function nexusDateLocaleISO(d){
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
 async function nexusServiceCourant(employee){
   if(!employee||!employee.id||!employee.site_id){
     console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
@@ -218,9 +223,30 @@ async function nexusServiceCourant(employee){
     .eq('site_id', employee.site_id)
     .eq('statut', 'en_cours')
     .order('heure_debut', { ascending: false })
-    .limit(2);
+    .limit(5);
   if(error){ console.error('Service courant : lecture impossible \u2014', error); return { erreur: true }; }
-  const services = data || [];
+  // JAMAIS le service de la veille (11/09/2026, arbitrage C.1/C.2 apres le
+  // parcours Caissiere). La requete ne filtre que sur l'employe, le site et
+  // le statut : un quart laisse ouvert hier revenait donc comme service du
+  // jour. C'est ce qui a produit un retard de 1028 minutes ECRIT en base sur
+  // une arrivee de 10 h 33.
+  //
+  // Le filtre se fait ici, sur la date locale de l'appareil, et non par une
+  // borne SQL : `sites.timezone` n'existe pas encore en Production (la
+  // migration de la release l'apporte), et la station est sur site avec ses
+  // employes. C'est la meme regle que l'ecran de pointage applique deja.
+  // Aucun quart ne franchit minuit a cette station : le quart 2 finit au
+  // plus tard a 22 h 10.
+  const jourLocal = nexusDateLocaleISO(new Date());
+  const tous = data || [];
+  const services = tous.filter(sv => sv.heure_debut && nexusDateLocaleISO(new Date(sv.heure_debut)) === jourLocal);
+  // Signale la PRESENCE d'un service ouvert d'un autre jour, pas l'absence
+  // d'un service du jour : une absence n'est pas une anomalie, et un journal
+  // d'erreur declenche par du vide apprend a ignorer les journaux.
+  const ouvertsHorsDuJour = tous.length - services.length;
+  if(ouvertsHorsDuJour > 0){
+    console.error('Service courant : ' + ouvertsHorsDuJour + ' service(s) ouvert(s) commence(s) un autre jour, ignore(s) \u2014 le service de la veille n\'est jamais reutilise.');
+  }
   if(!services.length) return { aucun: true };
   // S-1 pose un index unique partiel : plus d\u2019un service ouvert est
   // devenu impossible. Si cela se produit malgré tout, c\u2019est une anomalie
@@ -242,6 +268,23 @@ async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES
   // doit pas enfermer un employé hors de l'application.
   const r=await nexusServiceCourant(employee);
   if(r.erreur)return false;
-  return !!r.aucun;}
+  if(!r.aucun)return false;
+  // Apres la cloture, la prise de poste ne s'impose plus (11/09/2026,
+  // arbitrage C.3). L'employee qui vient de pointer son depart n'a plus de
+  // service courant : l'ancien contrat la renvoyait aussitot vers
+  // "Quel est votre role pour ce quart ?", comme ecran principal. Elle vient
+  // de partir ; on ne lui redemande pas de reprendre. Reprendre un poste
+  // reste possible, mais par une action volontaire, jamais par une
+  // redirection automatique.
+  const journee = nexusDateLocaleISO(new Date());
+  const { data: departs, error: erreurDepart } = await nexusClient
+    .from('pointages').select('id')
+    .eq('employee_id', employee.id).eq('date', journee).eq('type', 'depart').limit(1);
+  if(erreurDepart){
+    console.error('Prise de poste : lecture du depart du jour impossible \u2014', erreurDepart);
+    return true;   // dans le doute, on garde l'ancien contrat
+  }
+  if(departs && departs.length) return false;
+  return true;}
 async function nexusLogout(){await nexusClient.auth.signOut();window.location.href="index.html";}
 function nexusQuitterConsultation(){localStorage.removeItem('nexus_site_consulte_createur');window.location.href="NEXUS-App-v1.html";}
