@@ -12,16 +12,19 @@
 -- plausible. Le rapport d'exception ci-dessous les nomme un par un.
 -- ============================================================================
 
+-- `UPDATE ... FROM LATERAL` ne peut pas referencer la table cible en
+-- PostgreSQL (42P10) : la repetition du 11/09/2026 l'a refuse a l'etape 5,
+-- et c'est elle qui a rattrape l'ecart entre ce fichier et ce qui avait
+-- reellement fonctionne. Sous-requete correlee, meme semantique.
 update public.pointages p
-   set service_id = c.id
-  from lateral (
-        select sh.id
-          from public.shifts sh
-         where sh.employee_id = p.employee_id
-           and sh.site_id     = p.site
-           and (sh.heure_debut at time zone
-                 (select s.timezone from public.sites s where s.site_id = p.site))::date = p.date
-       ) c
+   set service_id = (
+     select sh.id
+       from public.shifts sh
+      where sh.employee_id = p.employee_id
+        and sh.site_id     = p.site
+        and (sh.heure_debut at time zone
+              (select s.timezone from public.sites s where s.site_id = p.site))::date = p.date
+   )
  where p.service_id is null
    and 1 = (select count(*)
               from public.shifts sh2

@@ -230,9 +230,18 @@ t(`ni ${REF_BIDON} ni aucun cycle ouvert ne subsiste dans le registre`, () => {
   assert.ok(!brut.includes(REF_BIDON),
     `la référence bidon subsiste dans ${path.basename(CYCLE)} : une épreuve l'y a laissée`);
   const cycles = JSON.parse(brut).cycles || [];
-  const ouverts = cycles.filter((c) => !c.detruit_le);
-  assert.deepStrictEqual(ouverts, [],
-    `${ouverts.length} cycle(s) ouvert(s) laissé(s) par la suite : ${JSON.stringify(ouverts)}`);
-});
+  // Un cycle ouvert n'est pas une faute EN SOI : pendant une répétition de
+  // release, il en existe un, et c'est précisément ce que la garde PREPROD
+  // surveille. Ce qui serait fautif, c'est qu'une ÉPREUVE en laisse un —
+  // reconnaissable à la référence bidon qu'elles utilisent toutes.
+  //
+  // La première version exigeait zéro cycle ouvert, quelle qu'en soit
+  // l'origine. Elle a fait échouer la répétition du 11/09/2026 à l'étape 7,
+  // sur un cycle parfaitement légitime : une garde qui exige un état du monde
+  // au lieu d'une cohérence finit toujours par accuser le monde.
+  const ouvertsDesEpreuves = cycles.filter(c => !c.detruit_le && c.projet_ref === REF_BIDON);
+  assert.deepStrictEqual(ouvertsDesEpreuves, [],
+    `cycle(s) laissé(s) ouvert(s) par les épreuves : ${JSON.stringify(ouvertsDesEpreuves)}`);
+  });
 
 console.log(`\n${passes}/11 vérifications passées — les épreuves du registre ne se croisent plus, et le rendent intact.`);

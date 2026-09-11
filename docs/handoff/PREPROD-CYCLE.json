@@ -3,5 +3,12 @@
   "regle": "Toute construction de PREPROD s'inscrit ici AVANT d'exister, et se ferme par `detruit_le` dès la release terminée. Une entrée ouverte au-delà de FENETRE_HEURES bloque la chaîne : ce n'est pas un rappel, c'est un refus. Une entrée sans date de destruction n'est pas une entrée en attente, c'est un environnement qui contient les identités d'une équipe et que personne ne surveille.",
   "fenetre_heures": 48,
   "pourquoi_48": "Une répétition de release se compte en heures, pas en jours. 48 h laisse la place à un incident et à une reprise le lendemain, sans laisser un mois s'écouler. Un seuil plus large reviendrait à tolérer ce que l'arbitrage interdit.",
-  "cycles": []
+  "cycles": [
+    {
+      "projet_ref": "udljdqxerrbbbajxubfn",
+      "release": "2026.09.2",
+      "cree_le": "2026-09-11T17:25:33.374Z",
+      "detruit_le": "2026-09-11T17:51:58.652Z"
+    }
+  ]
 }
