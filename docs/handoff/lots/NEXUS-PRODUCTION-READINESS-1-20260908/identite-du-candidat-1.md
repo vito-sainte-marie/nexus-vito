@@ -15,20 +15,21 @@ suivant. Le verdict affiché décrivait un arbre qui n'existait déjà plus.
 
 | rôle | SHA | contenu |
 |---|---|---|
-| **contient politiques, rapports, corrections** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | huit politiques RLS documentées, `preuve-re-mesure-finale-2.md` avec la mesure #4 canonique, `outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql`, `protocole-gate-dimanche-1.md`, ce fichier, faits mis à jour |
-| **HEAD distant** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | `origin/config-par-environnement`, identique au local |
-| **CI verte** | `b83fc150b8ccd9a868d5952648fdd1b21142b2f3` | `Tests` · push `completed/success` · pull_request `completed/success` |
+| **contient politiques, rapports, corrections** | `14143501bbc7d2b19967c860865c8d971c206ec7` | huit politiques RLS documentées, `preuve-re-mesure-finale-2.md` avec la mesure #4 canonique, `outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql`, `protocole-gate-dimanche-1.md`, ce fichier, faits mis à jour |
+| **HEAD distant** | `14143501bbc7d2b19967c860865c8d971c206ec7` | `origin/config-par-environnement`, identique au local |
+| **CI verte** | `14143501bbc7d2b19967c860865c8d971c206ec7` | `Tests` · push `completed/success` · pull_request `completed/success` |
 
-**Les trois coïncident. `b83fc15` est le seul SHA qui pourra devenir candidat.**
+**Les trois coïncident. `1414350` est le seul SHA qui pourra devenir candidat.**
 
 Deux SHA antérieurs ont aussi une CI verte et ne peuvent pas porter le verdict :
 `febb3d6` ne contient ni les politiques ni les rapports ; `b10f9b6` porte les
 sept premières politiques mais ni la mesure #4 canonique, ni la mesure #5
-corrigée, ni le protocole de dimanche.
+corrigée, ni le protocole de dimanche ; `b83fc15` les porte tous mais laissait
+dans les faits un « SHA b10f9b6 » déjà périmé.
 
 ### Vérifié après le push, pas avant
 
-L'évaluateur relancé sur `b83fc15` immédiatement après le push a rendu
+L'évaluateur relancé sur `b83fc15` immédiatement après le push avait rendu
 « aucun run sur ce SHA » — la CI démarrait. C'est le même piège sous une autre
 forme : un verdict calculé trop tôt décrit un état que la CI n'a pas encore
 jugé. Attendre la fin des runs, puis recalculer.
