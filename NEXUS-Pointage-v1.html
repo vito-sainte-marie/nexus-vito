@@ -377,11 +377,19 @@
             <div>${message}</div>
             <div class="camera-etat-actions">
               <label class="primaire" for="${inputId}">Utiliser l'appareil photo du téléphone</label>
+              <button class="secondaire" type="button" data-sans-photo>Enregistrer sans photo</button>
               <button class="secondaire" type="button" data-annuler-camera>Annuler</button>
             </div>
           </div>
         `);
         overlay.querySelector('[data-annuler-camera]').addEventListener('click', () => fermer(null));
+        // La photo est COMPLÉMENTAIRE, jamais une condition (arbitrage du
+        // 11/09/2026). Une caméra refusée, absente ou en échec ne doit pas
+        // coûter son pointage à l'employée : elle peut enregistrer sans
+        // photo, et l'écran le dit en toutes lettres. La cause technique est
+        // conservée (photo_echec_technique) pour rester honnête envers le
+        // manager, sans rien reprocher à l'employée.
+        overlay.querySelector('[data-sans-photo]').addEventListener('click', () => fermer('sans-photo'));
         // Résolution spéciale 'repli' (et non null) : l'appelant doit savoir
         // que le mécanisme natif prend le relais (repère localStorage à
         // conserver, contrairement à une annulation volontaire).
@@ -801,6 +809,13 @@
         const resultat = await ouvrirCameraPointage({ consigne: info.consignePhoto, inputId });
 
         if (resultat === 'repli') return; // l'input caché + son écouteur 'change' (ci-dessous) prennent le relais, repère conservé
+        if (resultat === 'sans-photo') {
+          // Le clic vaut pointage. La photo manquera, sa cause est tracée,
+          // et rien d'autre n'est perdu.
+          try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+          await finaliserPointage(btn, employee, siteId, type, shiftActif, null, clicPointage[type], true);
+          return;
+        }
         if (!resultat) {
           // Annulation volontaire (fermeture de l'overlay) : ce n'est pas
           // une tentative interrompue à signaler au prochain chargement.
@@ -1282,9 +1297,14 @@
       // ajoutée au message de confirmation, jamais à sa place — le
       // pointage est bien enregistré, la photo est juste un détail annexe
       // à préciser, pas une inquiétude à faire porter à l'employé.
-      const notePhoto = photoEchecTechnique
-        ? ' · Photo non envoyée (problème technique), ton pointage est accepté quand même.'
-        : '';
+        // Dire « sans photo » en toutes lettres (11/09/2026). L'ancienne
+        // formule parlait d'un « problème technique » sans jamais nommer
+        // l'état réel du pointage. L'employée doit lire ce qui a été
+        // enregistré, pas ce qui a échoué : le pointage compte, la photo
+        // manque, et la cause reste conservée pour le manager.
+        const notePhoto = photoEchecTechnique
+          ? ' Enregistré SANS PHOTO : la photo n\'a pas pu être envoyée. Votre pointage compte quand même.'
+          : '';
       if (type === 'arrivee' && retardMin > 0) {
         banner.classList.add('retard');
         const horairePrevu = serviceDuJour && serviceDuJour.heure_debut

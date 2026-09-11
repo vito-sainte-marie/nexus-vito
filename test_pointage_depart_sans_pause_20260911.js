@@ -282,4 +282,44 @@ t('aucun fichier ne survit à son pointage', () => {
     'l\'input est vidé trop loin de sa lecture, ou avant elle');
 });
 
-console.log(`\n${passes}/27 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
+// ── La photo est complémentaire, jamais une condition ─────────────────────
+
+t('une caméra refusée n\'annule plus le pointage', () => {
+  const bloc = POINTAGE.match(/if \(resultat === 'sans-photo'\) \{[\s\S]*?\n        \}/);
+  assert.ok(bloc, 'un refus de caméra ne laisse aucune voie vers l\'enregistrement');
+  assert.ok(/finaliserPointage\(btn, employee, siteId, type, shiftActif, null, clicPointage\[type\], true\)/.test(bloc[0]),
+    'le pointage sans photo n\'est pas enregistré, ou ne trace pas sa cause');
+  assert.ok(/Enregistrer sans photo/.test(POINTAGE),
+    'l\'employée ne se voit jamais proposer d\'enregistrer sans photo');
+});
+
+t('un envoi de photo en échec n\'annule pas le pointage non plus', () => {
+  const corps = POINTAGE.match(/const photoUrl = await uploaderPhotoPointageAvecRelance[\s\S]*?\n      \}/)[0];
+  assert.ok(/finaliserPointage\([^)]*null, heureClic, true\)/.test(corps),
+    'un envoi raté fait perdre le pointage');
+});
+
+t('l\'écran dit « sans photo » en toutes lettres, et garde la cause', () => {
+  assert.ok(/Enregistré SANS PHOTO/.test(POINTAGE),
+    'la confirmation ne nomme pas l\'état réel du pointage');
+  assert.ok(/photo_echec_technique: !!photoEchecTechnique/.test(POINTAGE),
+    'la cause technique n\'est plus conservée');
+});
+
+t('plusieurs tentatives ne produisent aucun doublon', () => {
+  const bloc = POINTAGE.match(/const \{ data: dejaEnBase[\s\S]*?return true;/);
+  assert.ok(bloc, 'aucune relecture avant écriture');
+  assert.ok(/\.eq\('type', type\)/.test(bloc[0]), 'la relecture ne cible pas le type');
+});
+
+t('le hors ligne n\'est PAS simulé', () => {
+  // Arbitrage 3 : ne pas prétendre à une garantie absente. Aucune file
+  // d'attente, aucun état « en attente de synchronisation », aucun
+  // service worker dans cet écran. Tant que ce n'est pas construit, rien
+  // ne doit le laisser croire.
+  const promesses = POINTAGE.match(/en_attente_de_synchronisation|navigator\.onLine|serviceWorker|indexedDB/g) || [];
+  assert.deepStrictEqual(promesses, [],
+    `l'écran laisse croire à un fonctionnement hors ligne : ${promesses.join(', ')}`);
+});
+
+console.log(`\n${passes}/32 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
