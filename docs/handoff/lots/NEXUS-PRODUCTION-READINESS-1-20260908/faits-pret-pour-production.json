@@ -16,12 +16,12 @@
       "preuve": "node test_manifeste_migrations_complet_20260909.js → 5/5 ; manifeste-migrations-production-1.md"
     },
     "mesuresProductionFraiches": {
-      "horodatage": "2026-09-10T14:02:14Z",
-      "preuve": "preuve-re-mesure-finale-1.md — six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz, valides 24 h (expire le 2026-09-11T14:02Z)"
+      "horodatage": "2026-09-11T22:39:53Z",
+      "preuve": "preuve-re-mesure-finale-2.md — six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz, jouées par nexus_prod_readonly_login (rôle dont l'incapacité d'écrire est démontrée sonde par sonde). Valides 24 h, expirent le 2026-09-12T22:39Z. La mesure #5 est INCONNUE : un rôle sans pg_read_all_stats ne voit le texte d'aucune autre session (11 masquées)."
     },
     "aucunImpactDmlInconnu": {
       "valeur": true,
-      "preuve": "preuve-re-mesure-finale-1.md §1 (Advisor : 0 créée, 0 changée, 37 identiques, rejouable par outils/comparer-referentiel-advisor.js) et §2/§4 (17, 89, 21 dont 20 repris)"
+      "preuve": "preuve-re-mesure-finale-2.md §1 (Advisor : 0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 shifts, 89 mission_catalog, inchangés) ; §4 (26 services en cours, 24 seraient clos sans pointage — écart facteur 1,63 avec la référence 16 du 08/09, sous le seuil de 2). Réserve écrite : l'équivalence de la variante de la mesure #4 au CTE de la migration est INCONNUE, employees étant hors du périmètre du rôle."
     },
     "preprodAnonymiseOuEquivalent": {
       "valeur": true,
@@ -37,7 +37,7 @@
     },
     "fenetreDeploiementConfirmee": {
       "valeur": true,
-      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales ; re-mesure du 10/09 : 0 écriture en vol au moment du contrôle"
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. La clause « 0 écriture en vol » de la re-mesure du 10/09 est RETIRÉE : preuve-re-mesure-finale-2.md §5 montre qu'un rôle sans pg_read_all_stats rend zéro parce qu'il ne voit rien (11 sessions masquées). Ce critère ne repose donc que sur la fenêtre métier, jamais sur cette heuristique."
     },
     "aucunBlocageNonResolu": {
       "valeur": false,
@@ -72,6 +72,10 @@
           "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
           "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
         }
+      },
+      "preuve_backfill_92": {
+        "valeur": true,
+        "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — extraction lecture seule des 92 pointages Production réels, pseudonymisation déterministe, insertion dans le schéma isolé preuve_backfill de Test, backfill réel, comparaison avant/après, destruction vérifiée. Résultat : 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte. Conforme à la répartition canonique."
       }
     },
     "gateHumaineFrederic": {
