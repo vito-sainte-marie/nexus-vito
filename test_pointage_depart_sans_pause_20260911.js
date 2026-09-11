@@ -139,7 +139,7 @@ t('parcours : départ sur pause ouverte → fin de pause ET départ, séparémen
   assert.ok(bloc, 'aucune clôture de pause à l\'heure du départ');
   assert.ok(/type: 'pause_fin', heure,/.test(bloc[0]),
     'la fin de pause n\'est pas écrite à l\'heure du départ');
-  assert.ok(bloc[0].indexOf("type: 'pause_fin'") < POINTAGE.indexOf("const { error } = await nexusClient.from('pointages').insert({"),
+  assert.ok(POINTAGE.indexOf("type: 'pause_fin', heure,") < POINTAGE.indexOf("const ligne = {"),
     'la fin de pause n\'est pas écrite AVANT le départ');
   assert.ok(/photo_url: null/.test(bloc[0]), 'la fin de pause emporte une photo');
 });
@@ -210,7 +210,7 @@ t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
     'shiftActif est encore lu APRÈS la résolution du service du jour : le quart de la veille peut revenir');
   // On vise l'écriture du pointage DEMANDÉ, pas celle de la clôture de pause
   // qui la précède et porte, elle, des valeurs littérales assumées.
-  const principal = suite.slice(suite.indexOf("const { error } = await nexusClient.from('pointages').insert({"));
+  const principal = suite.slice(suite.indexOf("const ligne = {"));
   for (const champ of ['retard_min:', 'quart:', 'heure_debut_quart:']) {
     const ligne = principal.split('\n').find(l => l.trim().startsWith(champ));
     assert.ok(ligne, `${champ} n'est plus écrit`);

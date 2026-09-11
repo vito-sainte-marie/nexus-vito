@@ -263,6 +263,82 @@
     }
   }
 
+  // ══ FILE LOCALE DES POINTAGES (11/09/2026) ═══════════════════════════════
+  //
+  // Ce qui manquait, et que le repli « sans photo » ne remplaçait pas : quand
+  // le réseau tombe entre le clic et le serveur, le pointage était PERDU. Un
+  // message « réessayez », et rien de conservé. À la station, ça veut dire une
+  // employée qui repointe trois fois ou qui renonce.
+  //
+  // CE QUE CETTE FILE GARANTIT, et rien de plus :
+  //   * la tentative est écrite sur l'appareil AVANT le moindre envoi ;
+  //   * elle porte un identifiant idempotent, généré une seule fois ;
+  //   * l'heure du CLIC est conservée, distincte de l'heure de réception ;
+  //   * elle survit à un rechargement, à une fermeture du navigateur, à une
+  //     session expirée — dans ce dernier cas elle attend la reconnexion ;
+  //   * elle est rejouée au retour du réseau, et une reprise ne duplique rien.
+  //
+  // CE QU'ELLE NE GARANTIT PAS, et qu'il ne faut pas laisser croire : tant
+  // qu'une entrée est en file, le pointage N'EST PAS reçu par le serveur.
+  // L'écran le dit avec ces mots-là.
+  const CLE_FILE_POINTAGES = 'nexus_pointages_en_attente';
+
+  function fileLire() {
+    try { const b = localStorage.getItem(CLE_FILE_POINTAGES); return b ? JSON.parse(b) : []; }
+    catch (e) { console.error('File des pointages illisible:', e); return []; }
+  }
+  function fileEcrire(entrees) {
+    try { localStorage.setItem(CLE_FILE_POINTAGES, JSON.stringify(entrees)); return true; }
+    catch (e) { console.error('File des pointages non enregistrable:', e); return false; }
+  }
+  /** Identifiant idempotent, généré AVANT l'envoi et jamais régénéré. */
+  function identifiantTentative() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return 'tentative-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+  function fileAjouter(ligne, contexte) {
+    const entrees = fileLire();
+    // Idempotence à la source : un même (employé, jour, type) n'entre qu'une
+    // fois en file, quel que soit le nombre de clics.
+    const deja = entrees.find(e => e.ligne.employee_id === ligne.employee_id
+      && e.ligne.date === ligne.date && e.ligne.type === ligne.type);
+    if (deja) return deja;
+    const entree = { id: identifiantTentative(), ligne, contexte: contexte || {},
+                     clic: new Date().toISOString(), essais: 0 };
+    entrees.push(entree);
+    fileEcrire(entrees);
+    return entree;
+  }
+  function fileRetirer(id) { fileEcrire(fileLire().filter(e => e.id !== id)); }
+  function fileEntreeDuType(type) {
+    return fileLire().find(e => e.ligne && e.ligne.type === type) || null;
+  }
+
+  /**
+   * Rejoue la file. Sans réseau, sans session, ou sur erreur : l'entrée RESTE.
+   * On ne supprime jamais une tentative qu'on n'a pas su remettre.
+   */
+  async function viderLaFile(employee) {
+    const entrees = fileLire();
+    if (!entrees.length) return { envoyees: 0, restantes: 0 };
+    let envoyees = 0;
+    for (const entree of entrees) {
+      if (employee && entree.ligne.employee_id !== employee.id) continue;
+      try {
+        const { data: deja } = await nexusClient.from('pointages').select('id')
+          .eq('employee_id', entree.ligne.employee_id)
+          .eq('date', entree.ligne.date).eq('type', entree.ligne.type).limit(1);
+        if (deja && deja.length) { fileRetirer(entree.id); envoyees++; continue; }
+        const { error } = await nexusClient.from('pointages').insert(entree.ligne);
+        if (error) { console.error('Reprise de la file, entrée conservée:', error); continue; }
+        fileRetirer(entree.id); envoyees++;
+      } catch (e) {
+        console.error('Reprise de la file, entrée conservée (réseau ou session):', e);
+      }
+    }
+    return { envoyees, restantes: fileLire().length };
+  }
+
   /** Vrai si une pause est ouverte et jamais refermée. */
   function pauseEnCours(dejaFait) {
     return !!dejaFait.pause_debut && !dejaFait.pause_fin;
@@ -617,8 +693,25 @@
       : '<div class="timeline-empty">Aucun employé actif sur ce site.</div>';
   }
 
+  // Retour du réseau : on rejoue la file et on redessine. Posé une seule fois
+  // — un écouteur par rendu enverrait autant de fois qu'il y a eu de rendus.
+  let ecouteurReseauPose = false;
+  function poserEcouteurReseau(employee, siteId) {
+    if (ecouteurReseauPose) return;
+    ecouteurReseauPose = true;
+    window.addEventListener('online', async () => {
+      const bilan = await viderLaFile(employee);
+      if (bilan.envoyees > 0) await afficherFormulairePointage(employee, siteId);
+    });
+  }
+
   async function afficherFormulairePointage(employee, siteId) {
     const today = dateISOLocale();
+    // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
+    // qui fait repartir une tentative restée sur l'appareil après une coupure,
+    // une fermeture du navigateur, ou une session expirée puis rouverte.
+    await viderLaFile(employee);
+    poserEcouteurReseau(employee, siteId);
     // S-4 (05/09/2026) : le service courant vient de la primitive unique
     // (nexus-auth.js). Ce lecteur avait sa propre définition ; depuis que
     // S-2 et S-3 clôturent réellement, elle aurait renvoyé un service
@@ -678,17 +771,23 @@
     const boutonsHtml = ORDRE_TYPES.map(type => {
       const info = LABELS_TYPES[type];
       const fait = dejaFait[type];
-      const bloque = !pointageDisponible(type, dejaFait);
+      const enAttente = fileEntreeDuType(type);
+      // Un type en attente d'envoi n'est ni repointable ni présenté comme
+      // reçu : les deux mensonges possibles sont écartés d'un coup.
+      const bloque = !!enAttente || !pointageDisponible(type, dejaFait);
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       // Échec technique de la photo (07/08/2026) : signalé sobrement dans le
       // sous-texte du bouton déjà pointé, sans jamais donner l'impression
       // que le pointage lui-même est en cause.
       const notePhotoBtn = fait && !fait.photo_url && fait.photo_echec_technique ? ' · Photo non reçue (technique)' : '';
+      const noteAttente = enAttente
+        ? ` · ⏳ Enregistré sur ce téléphone à ${String(enAttente.ligne.heure || '').slice(0, 5)}, envoi en attente`
+        : '';
       let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}${fait.photo_url ? ' · Photo ✓' : notePhotoBtn}` : info.sous;
       if (!fait && info.photoRequise) sousTexte = `📷 ${info.consignePhoto}`;
       const contenuInterieur = `
         <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
-        ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
+        ${sousTexte || noteAttente ? `<span class="sous">${sousTexte}${noteAttente}</span>` : ''}
       `;
 
       // Action active nécessitant une photo (10/08/2026, correction en
@@ -1255,7 +1354,10 @@
       cloturerPauseAuDepart = false;
     }
 
-    const { error } = await nexusClient.from('pointages').insert({
+    // La tentative est écrite sur l'appareil AVANT d'être envoyée
+    // (11/09/2026). Si le réseau tombe ici, elle n'est pas perdue : elle
+    // reste en file, visible, et repart au retour du réseau.
+    const ligne = {
       employee_id: employee.id,
       site: siteId,
       date: today,
@@ -1280,17 +1382,27 @@
       // d'afficher "Horaire prévu" sans jamais inventer ou réestimer une
       // valeur après coup (article 5 de la constitution NEXUS).
       heure_debut_quart: (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut) || null,
-    });
+    };
+    const tentative = fileAjouter(ligne, { retardMin, heureClic: heureRetenue.toISOString() });
+
+    const { error } = await nexusClient.from('pointages').insert(ligne);
 
     const banner = document.getElementById('confirmBanner');
     if (error) {
-      console.error('Enregistrement pointage:', error);
+      console.error('Enregistrement pointage, tentative conservée:', error);
       if (banner) {
-        banner.textContent = "Le pointage n'a pas pu être enregistré — réessayez.";
+        // Ne jamais présenter comme reçu ce qui ne l'est pas, ni comme perdu
+        // ce qui est conservé. L'employée doit savoir exactement où en est
+        // son pointage : sur son téléphone, pas encore chez NEXUS.
+        banner.textContent = `${LABELS_TYPES[type].label} enregistré${type === 'depart' ? '' : 'e'} `
+          + `sur ce téléphone à ${heure.slice(0, 5)} — envoi en attente. `
+          + 'Rien ne sera perdu : NEXUS renverra tout seul dès que le réseau revient.';
         banner.classList.add('show');
       }
       return false;
     }
+    // Reçu par le serveur : la tentative n'a plus lieu d'être conservée.
+    fileRetirer(tentative.id);
     if (banner) {
       banner.classList.remove('retard');
       // Note discrète sur l'échec technique de la photo (07/08/2026) :

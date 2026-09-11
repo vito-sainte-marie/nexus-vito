@@ -116,9 +116,15 @@ verifier('le dépôt réel donne le chiffre annoncé', () => {
   //
   // Ce chiffre n'est pas une formalité : il a rattrapé cette écriture le jour
   // même où elle a été ajoutée, avant qu'elle n'entre dans le paysage.
+    // 11/09/2026 : 48 vers 50, tables inchangees (37). La file locale des
+    // pointages ajoute DEUX ecritures, toutes deux vers `pointages` :
+    // l'insertion normale, qui recoit desormais une variable `ligne` au lieu
+    // d'un litteral, et la reprise de la file (`viderLaFile`). Les deux
+    // portent `site: siteId`, resolu depuis l'employe connecte, exactement
+    // comme avant : la portee de site n'est ni elargie ni contournee.
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
-  assert.strictEqual(t.length, 48, `48 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
+  assert.strictEqual(t.length, 50, `50 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
   assert.strictEqual(tables.size, 37, `37 tables attendues, ${tables.size} trouvées`);
 });
 
