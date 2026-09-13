@@ -138,6 +138,50 @@ est rendu.
 Et LANG-003 a refusé un tiret cadratin ajouté dans une phrase affichée. Le
 plafond n'a pas été relevé : la phrase a été reformulée.
 
+## Un troisième défaut, trouvé par la reconnexion
+
+**13/09/2026.** Frédéric se déconnecte, se reconnecte, reprend un poste. NEXUS
+annonce « début de pause » comme prochaine étape, et tous les boutons sont
+éteints. Mesuré en base :
+
+```
+pointages du jour : arrivee 12:27:58 · depart 12:32:05
+services du jour  : termine 12:27:48 → 12:32:05 | en_cours 12:48:23 → ouvert
+```
+
+La session n'y était pour rien : le nouveau service héritait des pointages du
+service précédent.
+
+### La base n'avait jamais interdit ce cas
+
+`pointages_un_par_service_et_type` porte sur `(service_id, employee_id, type)`.
+Deux services dans la journée, deux arrivées : permis, depuis le 11/09.
+**Seul l'écran raisonnait encore en journée**, parce qu'il datait d'avant
+`service_id` : `dejaFait` se construisait sur tous les pointages de la date.
+
+### Et « prochaine étape » était un reste de la séquence stricte
+
+`prochainType = ORDRE_TYPES.find(t => !dejaFait[t])` — exactement la ligne que
+le correctif du 11/09 avait remplacée pour la DISPONIBILITÉ des boutons, mais
+qui avait survécu pour le LIBELLÉ. D'où l'incohérence visible à l'écran : une
+étape annoncée que les boutons refusaient.
+
+Le correctif du 11/09 avait traité l'endroit où l'on se cognait, pas la règle.
+C'est la deuxième fois que ce proxy réapparaît ailleurs.
+
+### Ce qui a été corrigé
+
+- `service_id` est chargé avec les pointages du jour ;
+- `dejaFait` ne retient que les pointages **du service courant** ;
+- `prochainType` vaut la première étape réellement **disponible**, la même
+  règle que les boutons ;
+- l'historique reste celui de la **journée** : c'est le contexte que l'employée
+  veut voir, et il ne commande rien.
+
+`test_pointage_par_service_20260913.js` — 18 vérifications, dont le scénario
+exact du 13/09 et la démonstration que l'ancien calcul annonçait une étape
+indisponible.
+
 ## Ce que ce lot ne fait pas
 
 Il ne lève aucun blocage. `aucun_blocage_non_resolu` reste **BLOQUE** :

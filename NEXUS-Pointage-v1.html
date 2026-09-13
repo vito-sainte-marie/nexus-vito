@@ -253,7 +253,7 @@
    * une règle métier et de paie, elle appartient à Frédéric Bragance.
    */
   function pointageDisponible(type, dejaFait) {
-    if (dejaFait[type]) return false;              // jamais deux fois le même jour
+    if (dejaFait[type]) return false;              // jamais deux fois dans le même service
     switch (type) {
       case 'arrivee':     return true;
       case 'pause_debut': return !!dejaFait.arrivee && !dejaFait.depart;
@@ -786,14 +786,35 @@
     // se vérifie donc AVANT la photo et avant toute écriture, et l'écran dit
     // quoi faire au lieu de laisser deviner.
     const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
-      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
+      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee, service_id').eq('employee_id', employee.id).eq('date', today),
     ]);
     if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
 
+    // CE QUI EST DÉJÀ POINTÉ SE COMPTE PAR SERVICE, PAS PAR JOURNÉE.
+    //
+    // Relevé par Frédéric le 13/09/2026 : après un départ pointé à 12:32, il
+    // reprend un poste à 12:48. NEXUS annonçait « début de pause » comme
+    // prochaine étape, et TOUS les boutons étaient éteints — le nouveau
+    // service héritait des pointages du service précédent.
+    //
+    // La base, elle, n'a jamais interdit ce cas : `pointages_un_par_service_
+    // et_type` porte sur (service_id, employee_id, type). Deux services dans
+    // la journée, deux arrivées, c'est permis. Seul l'écran raisonnait encore
+    // en journée, parce qu'il datait d'avant `service_id`.
+    //
+    // L'historique reste celui de la journée : c'est le contexte que
+    // l'employée veut voir. Ce qui est « déjà fait » devient celui du service.
+    const serviceCourant = serviceDuJourSeulement(shiftActif, today);
     const dejaFait = {};
-    (pointagesJour || []).forEach(p => { dejaFait[p.type] = p; });
+    (pointagesJour || [])
+      .filter(p => serviceCourant && p.service_id === serviceCourant.id)
+      .forEach(p => { dejaFait[p.type] = p; });
 
-    const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+    // `prochainType` était resté calculé à l'ancienne, par simple parcours de
+    // ORDRE_TYPES : c'est ce reste de la séquence stricte qui annonçait
+    // « début de pause » après un départ. Il vaut désormais la première étape
+    // réellement DISPONIBLE, la même règle que les boutons appliquent.
+    const prochainType = ORDRE_TYPES.find(t => pointageDisponible(t, dejaFait));
 
     if (!serviceDuJourSeulement(shiftActif, today)) {
       // Le compteur de l'en-tête vit HORS de #app et n'est remis à jour que
