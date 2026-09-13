@@ -785,7 +785,52 @@
     // La règle métier est posée : sans service ouvert, on ne pointe pas. Elle
     // se vérifie donc AVANT la photo et avant toute écriture, et l'écran dit
     // quoi faire au lieu de laisser deviner.
+    const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
+      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
+    ]);
+    if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
+
+    const dejaFait = {};
+    (pointagesJour || []).forEach(p => { dejaFait[p.type] = p; });
+
+    const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+
     if (!serviceDuJourSeulement(shiftActif, today)) {
+      // Le compteur de l'en-tête vit HORS de #app et n'est remis à jour que
+      // par les affectations du rendu complet, plus bas. Sortir sans les
+      // exécuter le laissait tourner : après un départ, l'écran affichait
+      // encore « Service en cours depuis 4 minutes », indéfiniment. Relevé
+      // par Frédéric le 13/09/2026 sur le parcours d'Employé Test B.
+      etatCompteur = null;
+      referenceCompteur = null;
+      majServiceLive();
+
+      const journeeTerminee = (pointagesJour || []).length > 0;
+      if (journeeTerminee) {
+        // JOURNÉE FINIE, PAS JOURNÉE ABSENTE. Une employée qui vient de
+        // pointer son départ n'a pas « aucun poste ouvert » à régler : elle a
+        // fini. Lui proposer « Prenez d'abord votre poste » l'inviterait à en
+        // rouvrir un, et lui faire perdre l'historique du jour effacerait la
+        // preuve de ce qu'elle vient d'enregistrer.
+        document.getElementById('app').innerHTML = `
+          ${noteRejets}
+          <div class="confirm-banner" id="confirmBanner"></div>
+          <div class="info-note" style="margin-bottom:18px;">
+            Votre journée est enregistrée. Il n'y a plus de poste ouvert. Reprenez une prise de poste au prochain service.
+          </div>
+          <div class="section-label">📋 Historique du service</div>
+          <ul class="timeline" id="timelineJour"></ul>
+          <div style="height:18px;"></div>
+          <div class="section-label">✔ Activité du jour</div>
+          <div class="activite-jour" id="activiteJour">
+            <div class="activite-texte">Chargement…</div>
+          </div>
+        `;
+        renderTimeline(pointagesJour || [], null, employee, siteId);
+        chargerActiviteJour(employee, siteId);
+        return;
+      }
+
       document.getElementById('app').innerHTML = `
         ${noteRejets}
         <div class="info-note" style="border-color:var(--amber); color:var(--amber); margin-bottom:18px;">
@@ -800,16 +845,6 @@
       if (lien) lien.addEventListener('click', () => { window.location.href = 'NEXUS-Prise-De-Poste-v1.html'; });
       return;
     }
-
-    const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
-      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
-    ]);
-    if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
-
-    const dejaFait = {};
-    (pointagesJour || []).forEach(p => { dejaFait[p.type] = p; });
-
-    const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
 
     // Tentative précédente interrompue (03/08/2026, cas de Samantha) : si le
     // repère posé juste avant un envoi précédent est encore présent — donc

@@ -87,6 +87,57 @@ Elle garde son esprit et change de cible : ce qui reste réellement absent
 servir qu'à **refuser de conclure** hors ligne, jamais à promettre un envoi.
 Un seul usage autorisé, vérifié.
 
+## Le parcours navigateur a trouvé deux défauts de plus — les miens
+
+**13/09/2026, parcours réel de Frédéric Bragance sur `Employé Test B`.** Base
+vérifiée après coup : arrivée 12:27:58, départ 12:32:05, service `termine`,
+`heure_fin` 12:32:05, `cloture_source = pointage_depart`, 0 service ouvert,
+0 `fin < début`. Les deux pointages portent leur `service_id` et leur
+`client_event_id`. La garde et le classement des erreurs ont fonctionné.
+
+Mais la garde que j'avais posée le matin même en portait deux défauts, que
+seul le parcours pouvait révéler.
+
+### Le compteur de service continuait de courir
+
+`#serviceLive` vit dans l'en-tête, **hors de `#app`**, et n'est mis à jour que
+par les affectations `etatCompteur` / `referenceCompteur` du rendu complet.
+Ma garde sortait AVANT elles : après un départ, l'écran affichait encore
+« Service en cours depuis 4 minutes », et le compteur montait indéfiniment.
+
+La garde remet désormais les deux à `null` et rafraîchit l'en-tête avant tout
+rendu.
+
+### Une journée finie n'est pas une journée absente
+
+Pire, et plus bête : une employée qui venait de pointer son départ recevait
+« Aucun poste n'est ouvert. Prenez d'abord votre poste » et un bouton l'invitant
+à en rouvrir un. Elle perdait au passage l'historique du jour, donc la preuve de
+ce qu'elle venait d'enregistrer.
+
+La garde distingue maintenant les deux situations, sur un fait et non sur une
+supposition : y a-t-il des pointages aujourd'hui ?
+
+| situation | écran |
+|---|---|
+| aucun service, **aucun** pointage du jour | « Aucun poste n'est ouvert… » et le bouton de prise de poste |
+| aucun service, **des** pointages du jour | « Votre journée est enregistrée… », l'historique et l'activité du jour, aucun bouton |
+
+Les pointages du jour sont donc lus AVANT la garde. Ce n'est pas un
+affaiblissement : ce qui doit précéder la garde, c'est la caméra et l'écriture,
+pas une lecture.
+
+### Une leçon sur mes propres épreuves
+
+Trois de mes vérifications sont devenues fausses en corrigeant, et une
+quatrième matchait le commentaire qui expliquait pourquoi la phrase ne devait
+PAS être affichée. Une garde qui lit du code sans distinguer le commentaire du
+rendu mesure le texte, pas le comportement. Elles portent désormais sur ce qui
+est rendu.
+
+Et LANG-003 a refusé un tiret cadratin ajouté dans une phrase affichée. Le
+plafond n'a pas été relevé : la phrase a été reformulée.
+
 ## Ce que ce lot ne fait pas
 
 Il ne lève aucun blocage. `aucun_blocage_non_resolu` reste **BLOQUE** :

@@ -56,15 +56,22 @@ navigateur.onLine = true;
 console.log('\n── 3 · L’écran refuse de pointer sans service ──');
 verifier('la garde teste le service AVANT de rendre les boutons',
   /if \(!serviceDuJourSeulement\(shiftActif, today\)\) \{/.test(SOURCE));
-verifier('elle est posée avant la lecture des pointages du jour',
+// Ce qui compte n'est pas d'être avant la LECTURE — la garde a besoin des
+// pointages du jour pour distinguer une journée finie d'une journée absente —
+// mais d'être avant toute CAMÉRA et toute écriture. Une lecture n'écrit rien.
+verifier('elle est posée avant le rendu des boutons de pointage',
   SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))')
-    < SOURCE.indexOf("nexusClient.from('pointages').select('id, type, heure, retard_min"));
+    < SOURCE.indexOf('<div class="pointage-list">'));
+verifier('elle est posée avant tout câblage de la caméra',
+  SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))')
+    < SOURCE.indexOf('data-photo-btn'));
 verifier('le message exact est affiché',
   SOURCE.includes("Aucun poste n'est ouvert. Prenez d'abord votre poste pour pouvoir pointer."));
 verifier('un accès à la prise de poste est proposé',
   /btnAllerPriseDePoste[\s\S]{0,400}NEXUS-Prise-De-Poste-v1\.html/.test(SOURCE));
-verifier('la fonction sort avant tout rendu de bouton de pointage',
-  /if \(!serviceDuJourSeulement\(shiftActif, today\)\) \{[\s\S]{0,1400}?return;\n    \}/.test(SOURCE));
+verifier('la garde se termine par un return, elle ne retombe pas dans le rendu',
+  /\n      return;\n    \}\n/.test(SOURCE.slice(SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))'),
+                                          SOURCE.indexOf('<div class="pointage-list">'))));
 
 console.log('\n── 4 · Un refus ne part plus en file, et ne promet rien ──');
 verifier('la branche définitive précède la branche réseau',
@@ -99,6 +106,38 @@ verifier('elle oriente vers le manager',
   /noteRejets[\s\S]{0,1200}Prévenez votre manager/.test(SOURCE));
 verifier('elle apparaît aussi quand aucun poste n’est ouvert',
   /\$\{noteRejets\}[\s\S]{0,600}Aucun poste n'est ouvert/.test(SOURCE));
+
+console.log('\n── 7 · Sortir de la garde ne laisse pas le compteur tourner ──');
+// Le compteur de l'en-tête vit hors de #app : seul le rendu complet le remet
+// à jour. La garde sortait avant, et « Service en cours depuis X » continuait
+// de courir après un départ. Relevé par Frédéric le 13/09/2026.
+const garde = SOURCE.match(/if \(!serviceDuJourSeulement\(shiftActif, today\)\) \{[\s\S]*?\n    \}/);
+verifier('la garde existe et forme un bloc', !!garde);
+verifier('elle remet etatCompteur à null', /etatCompteur = null;/.test(garde[0]));
+verifier('elle remet referenceCompteur à null', /referenceCompteur = null;/.test(garde[0]));
+verifier('elle rafraîchit l’en-tête immédiatement', /majServiceLive\(\);/.test(garde[0]));
+verifier('la remise à zéro précède tout rendu',
+  garde[0].indexOf('etatCompteur = null') < garde[0].indexOf("getElementById('app').innerHTML"));
+
+console.log('\n── 8 · Une journée finie n’est pas une journée absente ──');
+verifier('la garde distingue les deux cas', /const journeeTerminee = \(pointagesJour \|\| \[\]\)\.length > 0;/.test(garde[0]));
+const brancheFinie = garde[0].match(/if \(journeeTerminee\) \{[\s\S]*?\n        return;\n      \}/);
+verifier('la branche « journée finie » forme un bloc distinct', !!brancheFinie);
+// Le contrôle porte sur ce qui est RENDU, pas sur le code : le commentaire
+// qui explique pourquoi on n'affiche pas « Prenez d'abord votre poste »
+// contient forcément cette phrase.
+const rendusFinie = (brancheFinie ? brancheFinie[0] : '').replace(/^\s*\/\/.*$/gm, '');
+verifier('journée finie : aucune invitation à reprendre un poste',
+  !!brancheFinie && !/Prenez d'abord votre poste|btnAllerPriseDePoste/.test(rendusFinie));
+verifier('journée finie : l’historique du jour reste affiché',
+  /journeeTerminee[\s\S]{0,1400}?renderTimeline\(pointagesJour/.test(garde[0]));
+verifier('journée finie : le message dit que la journée est enregistrée',
+  /Votre journée est enregistrée\./.test(garde[0]));
+verifier('journée absente : le bouton de prise de poste est là',
+  /btnAllerPriseDePoste/.test(garde[0]));
+verifier('les pointages du jour sont lus AVANT la garde',
+  SOURCE.indexOf("nexusClient.from('pointages').select('id, type, heure, retard_min")
+    < SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))'));
 
 console.log(`\n${echecs === 0 ? '✓' : '✗'} ${reussites} réussite(s), ${echecs} échec(s)\n`);
 process.exit(echecs === 0 ? 0 : 1);
