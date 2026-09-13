@@ -42,10 +42,10 @@
     },
     "aucunBlocageNonResolu": {
       "valeur": false,
-      "bloque_le": "2026-09-11",
+      "bloque_le": "2026-09-13",
       "bloque_par": "Frédéric Bragance",
-      "motif": "Le parcours Caissière du 11/09/2026 a mis au jour un défaut DANS LE PÉRIMÈTRE de la release : l'interface de pointage rend le départ inatteignable sans pause. Les migrations réparent les services historiques, mais l'écran continuerait d'en créer de nouveaux restés ouverts. Le verdict repasse NON_PRET et la gate de dimanche est suspendue.",
-      "preuve": "NEXUS-Pointage-v1.html:227 ORDRE_TYPES = ['arrivee','pause_debut','pause_fin','depart'] ; :575 prochainType = ORDRE_TYPES.find(t => !dejaFait[t]) ; :621 bloque = !fait && !estProchain. Vérifié à l'écran sur nexus-test : arrivée pointée -> Départ désactivé ; après début et fin de pause -> Départ actif. Vingt-quatre relevés au total, dont dix bloquants.",
+      "motif": "DEUX défauts distincts, tous deux dans le périmètre de la release. (1) 11/09 — le parcours Caissière : l'interface de pointage rendait le départ inatteignable sans pause. CORRIGÉ dans le lot NEXUS-POINTAGE-CORRECTIF-1-20260911. (2) 13/09 — la file hors ligne promettait un envoi que la base refusait : sans service ouvert, le trigger nexus_pointage_exige_service refuse (23502), et l'écran présentait ce refus comme une coupure réseau en rejouant l'entrée indéfiniment. Corrigé le 13/09, mais Frédéric Bragance a déclaré ce défaut BLOQUANT et exige, avant toute gate : le correctif, les tests ET un parcours navigateur réel. Le parcours navigateur n'est pas fait.",
+      "preuve": "defaut-file-hors-ligne-sans-service-1.md — sonde en transaction annulée sur Test : sans service REFUSÉE [23502], avec service ACCEPTÉE, une seule variable, rien écrit. test_pointage_sans_service_20260913.js 27/27, avec témoin de mutation : 8/8 des contrôles de source échouent sur le fichier d'avant correction. Le premier défaut reste couvert par test_pointage_depart_sans_pause_20260911.js 34/34.",
       "declaration_defaut_7_et_branches": {
         "valeur": true,
         "retabli_le": "2026-09-10",
@@ -77,7 +77,8 @@
       "preuve_backfill_92": {
         "valeur": true,
         "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte ; schéma temporaire détruit et destruction vérifiée. Répartition acceptée par Frédéric Bragance le 11/09."
-      }
+      },
+      "reste_a_prouver": "Parcours navigateur réel sur NEXUS Test : sans service, l'écran refuse et oriente vers la prise de poste ; avec service, le pointage aboutit. Demande une connexion par PIN, saisie par Frédéric Bragance."
     },
     "gateHumaineFrederic": {
       "valeur": null,

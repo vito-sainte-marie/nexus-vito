@@ -319,13 +319,45 @@
   }
 
   /**
-   * Rejoue la file. Sans réseau, sans session, ou sur erreur : l'entrée RESTE.
-   * On ne supprime jamais une tentative qu'on n'a pas su remettre.
+   * Le serveur a-t-il REFUSÉ, ou n'a-t-il simplement pas répondu ?
+   *
+   * LE DÉFAUT DU 13/09/2026. Toute erreur d'insertion était traitée comme une
+   * coupure réseau : la tentative partait en file avec la promesse « rien ne
+   * sera perdu », et la file la rejouait indéfiniment. Une violation de
+   * contrainte — un pointage sans `service_id`, par exemple — était donc
+   * rejouée à chaque ouverture de l'écran, refusée à chaque fois, sans que
+   * personne ne le sache : `console.error` était la seule trace.
+   *
+   * La distinction se lit dans la réponse : PostgREST et PostgreSQL renvoient
+   * un CODE (SQLSTATE `23502`, `42501`, ou un code `PGRST…`). Une coupure de
+   * transport n'en a pas, elle échoue avant d'avoir une réponse. On ne devine
+   * donc rien : on regarde si le serveur a parlé.
+   */
+  function erreurDefinitive(erreur) {
+    if (!erreur) return false;
+    // Hors ligne franc : jamais définitif, quelle que soit la forme de l'erreur.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    const code = erreur.code || (erreur.details && erreur.details.code) || null;
+    if (!code) return false;
+    // Codes de transport que la couche réseau peut poser sans qu'aucun refus
+    // métier n'ait eu lieu.
+    if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ENOTFOUND') return false;
+    return true;
+  }
+
+  /**
+   * Rejoue la file.
+   *   * pas de réponse (réseau, session) : l'entrée RESTE, elle repartira ;
+   *   * le serveur refuse : l'entrée est RETIRÉE et rapportée à l'employée.
+   *
+   * On ne supprime jamais une tentative qu'on n'a pas su remettre — mais on ne
+   * conserve plus indéfiniment une tentative que le serveur ne prendra jamais.
    */
   async function viderLaFile(employee) {
     const entrees = fileLire();
-    if (!entrees.length) return { envoyees: 0, restantes: 0 };
+    if (!entrees.length) return { envoyees: 0, restantes: 0, rejetees: [] };
     let envoyees = 0;
+    const rejetees = [];
     for (const entree of entrees) {
       if (employee && entree.ligne.employee_id !== employee.id) continue;
       try {
@@ -334,13 +366,22 @@
           .eq('date', entree.ligne.date).eq('type', entree.ligne.type).limit(1);
         if (deja && deja.length) { fileRetirer(entree.id); envoyees++; continue; }
         const { error } = await nexusClient.from('pointages').insert(entree.ligne);
-        if (error) { console.error('Reprise de la file, entrée conservée:', error); continue; }
+        if (error) {
+          if (erreurDefinitive(error)) {
+            console.error('Reprise de la file, entrée REFUSÉE par le serveur et retirée:', error);
+            rejetees.push({ type: entree.ligne.type, heure: entree.ligne.heure, code: error.code || null });
+            fileRetirer(entree.id);
+            continue;
+          }
+          console.error('Reprise de la file, entrée conservée:', error);
+          continue;
+        }
         fileRetirer(entree.id); envoyees++;
       } catch (e) {
         console.error('Reprise de la file, entrée conservée (réseau ou session):', e);
       }
     }
-    return { envoyees, restantes: fileLire().length };
+    return { envoyees, restantes: fileLire().length, rejetees };
   }
 
   /** Vrai si une pause est ouverte et jamais refermée. */
@@ -714,14 +755,52 @@
     // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
     // qui fait repartir une tentative restée sur l'appareil après une coupure,
     // une fermeture du navigateur, ou une session expirée puis rouverte.
-    await viderLaFile(employee);
+    const bilanFile = await viderLaFile(employee);
     poserEcouteurReseau(employee, siteId);
+    // Une tentative que le serveur a refusée n'est ni renvoyée ni effacée en
+    // silence : elle est dite. L'employée doit savoir qu'un pointage qu'elle
+    // croyait « en attente d'envoi » ne partira pas, et pourquoi.
+    const noteRejets = (bilanFile.rejetees || []).length
+      ? `<div class="info-note" style="margin-bottom:14px; border-color:var(--red); color:var(--red);">`
+        + `⚠ ${bilanFile.rejetees.length === 1 ? 'Un pointage gardé' : `${bilanFile.rejetees.length} pointages gardés`} sur ce téléphone `
+        + `${bilanFile.rejetees.map(r => `(${(LABELS_TYPES[r.type] || {}).label || r.type} de ${String(r.heure || '').slice(0, 5)})`).join(', ')} `
+        + `n'${bilanFile.rejetees.length === 1 ? 'a' : 'ont'} pas pu être enregistré${bilanFile.rejetees.length === 1 ? '' : 's'} : NEXUS l'a refusé, ce n'est pas un problème de réseau. `
+        + `${bilanFile.rejetees.length === 1 ? 'Il a été retiré' : 'Ils ont été retirés'} de l'attente. Prévenez votre manager, qui peut le saisir pour vous.</div>`
+      : '';
     // S-4 (05/09/2026) : le service courant vient de la primitive unique
     // (nexus-auth.js). Ce lecteur avait sa propre définition ; depuis que
     // S-2 et S-3 clôturent réellement, elle aurait renvoyé un service
     // terminé comme s'il était actif.
     const resultatService = await nexusServiceCourant(employee);
     const shiftActif = resultatService.service || null;
+
+    // AUCUN POSTE OUVERT (13/09/2026, arbitrage de Frédéric après le parcours
+    // d'Employé Test B). Depuis le 11/09, la base EXIGE `service_id` sur tout
+    // nouveau pointage — le trigger `nexus_pointage_exige_service` refuse le
+    // reste. L'écran, lui, offrait encore le pointage, prenait la photo,
+    // rangeait la tentative en file et promettait « rien ne sera perdu ».
+    // Cette promesse ne pouvait pas être tenue : le refus ne venait pas du
+    // réseau mais de la donnée, et la file rejouait à l'infini.
+    //
+    // La règle métier est posée : sans service ouvert, on ne pointe pas. Elle
+    // se vérifie donc AVANT la photo et avant toute écriture, et l'écran dit
+    // quoi faire au lieu de laisser deviner.
+    if (!serviceDuJourSeulement(shiftActif, today)) {
+      document.getElementById('app').innerHTML = `
+        ${noteRejets}
+        <div class="info-note" style="border-color:var(--amber); color:var(--amber); margin-bottom:18px;">
+          Aucun poste n'est ouvert. Prenez d'abord votre poste pour pouvoir pointer.
+        </div>
+        <button class="pointage-btn couleur-arrivee" id="btnAllerPriseDePoste">
+          <span class="label">Prendre mon poste</span>
+          <span class="sous">Ouvre NEXUS Prise de poste</span>
+        </button>
+      `;
+      const lien = document.getElementById('btnAllerPriseDePoste');
+      if (lien) lien.addEventListener('click', () => { window.location.href = 'NEXUS-Prise-De-Poste-v1.html'; });
+      return;
+    }
+
     const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
       nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
     ]);
@@ -824,6 +903,7 @@
     const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
     document.getElementById('app').innerHTML = `
       ${retourEnAttente ? '<div class="info-note" style="margin-bottom:14px;">🔒 Pointez votre arrivée pour accéder au reste de NEXUS.</div>' : ''}
+      ${noteRejets}
       ${noteTentativeInterrompue}
       <div class="confirm-banner" id="confirmBanner"></div>
       <div class="section-label">⏱ Votre journée</div>
@@ -1402,6 +1482,24 @@
     const { error } = await nexusClient.from('pointages').insert(ligne);
 
     const banner = document.getElementById('confirmBanner');
+    if (error && erreurDefinitive(error)) {
+      // LE SERVEUR A REFUSÉ (13/09/2026). Ce n'est pas une coupure : la file
+      // ne doit pas s'en charger, et surtout on ne promet pas un envoi qui
+      // n'aura jamais lieu. La tentative est retirée tout de suite — la garder
+      // reviendrait à la rejouer à chaque ouverture de l'écran, refusée à
+      // chaque fois, sans que personne ne le sache.
+      console.error('Enregistrement pointage REFUSÉ par le serveur, tentative retirée:', error);
+      fileRetirer(tentative.id);
+      try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+      if (banner) {
+        banner.classList.remove('retard');
+        banner.textContent = `${LABELS_TYPES[type].label} non enregistré${type === 'depart' ? '' : 'e'} : `
+          + "NEXUS a refusé ce pointage, et ce n'est pas un problème de réseau. "
+          + "Rien n'est resté en attente sur ce téléphone. Prévenez votre manager, qui peut le saisir pour vous.";
+        banner.classList.add('show');
+      }
+      return false;
+    }
     if (error) {
       console.error('Enregistrement pointage, tentative conservée:', error);
       if (banner) {

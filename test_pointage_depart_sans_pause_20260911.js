@@ -312,14 +312,27 @@ t('plusieurs tentatives ne produisent aucun doublon', () => {
   assert.ok(/\.eq\('type', type\)/.test(bloc[0]), 'la relecture ne cible pas le type');
 });
 
-t('le hors ligne n\'est PAS simulé', () => {
-  // Arbitrage 3 : ne pas prétendre à une garantie absente. Aucune file
-  // d'attente, aucun état « en attente de synchronisation », aucun
-  // service worker dans cet écran. Tant que ce n'est pas construit, rien
-  // ne doit le laisser croire.
-  const promesses = POINTAGE.match(/en_attente_de_synchronisation|navigator\.onLine|serviceWorker|indexedDB/g) || [];
-  assert.deepStrictEqual(promesses, [],
-    `l'écran laisse croire à un fonctionnement hors ligne : ${promesses.join(', ')}`);
+t('le hors ligne ne promet que ce qu\'il tient', () => {
+  // PRÉMISSE CHANGÉE LE 13/09/2026. Cette garde interdisait toute trace de
+  // hors ligne — « tant que ce n'est pas construit, rien ne doit le laisser
+  // croire ». Il A été construit depuis, le 11/09, sur demande de Frédéric,
+  // et prouvé en direct : file locale, reprise au retour du réseau, aucun
+  // doublon. La garde avait survécu par accident, son motif ne listant pas
+  // `addEventListener('online')`, qui était pourtant là.
+  //
+  // Elle garde son esprit — ne pas prétendre à une garantie absente — mais
+  // vise désormais ce qui reste réellement absent, et surveille le seul
+  // usage légitime de `navigator.onLine` : DÉCLINER de conclure quand la
+  // réponse ne peut pas venir du serveur. Jamais promettre un envoi.
+  const jamaisConstruit = POINTAGE.match(/serviceWorker|indexedDB|en_attente_de_synchronisation/g) || [];
+  assert.deepStrictEqual(jamaisConstruit, [],
+    `l'écran évoque un mécanisme qui n'existe pas : ${jamaisConstruit.join(', ')}`);
+
+  const usages = POINTAGE.match(/navigator\.onLine/g) || [];
+  assert.strictEqual(usages.length, 1,
+    `navigator.onLine doit rester à un seul endroit, il y en a ${usages.length}`);
+  assert.ok(/function erreurDefinitive\(erreur\) \{[\s\S]*?navigator\.onLine === false\) return false;/.test(POINTAGE),
+    'navigator.onLine sert à autre chose qu\'à refuser de conclure hors ligne');
 });
 
 // ── Les DEUX portes vers la prise de poste ────────────────────────────────
