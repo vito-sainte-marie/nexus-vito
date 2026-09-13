@@ -182,6 +182,57 @@ C'est la deuxième fois que ce proxy réapparaît ailleurs.
 exact du 13/09 et la démonstration que l'ancien calcul annonçait une étape
 indisponible.
 
+## Le refus silencieux : cinq endroits, une seule erreur
+
+**13/09/2026.** Sur le second service, « Enregistrer sans photo » deux fois :
+aucune arrivée, aucun message, le bouton revient à son état initial.
+
+Le refus ne venait ni du réseau ni de la base : **rien n'a jamais été envoyé.**
+La relecture anti-doublon cherchait par `(employé, DATE, type)`, retrouvait
+l'arrivée de 12:27 du service précédent, concluait « déjà enregistré » et
+rendait `true` **sans écrire**.
+
+Et le message qui l'expliquait était écrit dans un élément invisible :
+`.confirm-banner` est en `display:none`, seule `.show` l'affiche. La ligne
+posait `className = 'confirm-banner ok'` — sans `show`, et avec une classe
+`ok` qui n'existe dans aucun CSS. **Le refus parlait dans une pièce vide.**
+
+La même erreur de portée vivait à cinq endroits, tous hérités d'avant
+`service_id` :
+
+| endroit | portée fausse | corrigé en |
+|---|---|---|
+| `dejaFait` de l'écran | la journée | le service |
+| `prochainType` | `ORDRE_TYPES.find(!dejaFait)` | la première étape disponible |
+| relecture anti-doublon avant écriture | `(employé, date, type)` | `(employé, service, type)` |
+| déduplication de la file | `(employé, date, type)` | `(employé, service, type)` |
+| rejeu de la file | `(employé, date, type)` | `(employé, service, type)` |
+
+Plus deux défauts trouvés en chemin :
+
+- **Deux bandeaux écrits sans `show`** — le refus anti-doublon et l'échec de
+  clôture de pause. Tous deux invisibles, tous deux avec une classe inventée.
+- **L'insertion de `pause_fin` au départ ne portait ni `service_id` ni
+  `client_event_id`.** Le trigger la refusait donc systématiquement depuis le
+  11/09 : un départ avec une pause ouverte échouait toujours, et le message
+  d'échec était l'un des deux invisibles.
+
+Une entrée de file sans service n'est plus interrogée en base : elle est
+**inenvoyable** par construction, elle sort et elle est dite. C'est le sort des
+entrées restées sur un téléphone avant le 11/09.
+
+### Deux leçons sur mes propres épreuves
+
+`test_pointage_depart_sans_pause_20260911.js` **exigeait la portée fausse** —
+« la relecture cible (employé, jour, type) ». Une épreuve qui exige la mauvaise
+portée protège le défaut, pas la règle. Corrigée, avec une seconde assertion
+qui interdit désormais le retour de la journée.
+
+Et deux épreuves que j'avais ajoutées se trouvaient **enregistrées après
+l'exécution du runner**, dans le `.then()` final : elles ne tournaient jamais.
+Vertes par construction — exactement ce que Guardian QA traque, et qu'il ne
+peut pas voir, sa règle étant par fichier.
+
 ## Ce que ce lot ne fait pas
 
 Il ne lève aucun blocage. `aucun_blocage_non_resolu` reste **BLOQUE** :

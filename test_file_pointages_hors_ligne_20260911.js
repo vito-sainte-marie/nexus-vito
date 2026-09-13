@@ -79,7 +79,12 @@ function monterLaFile(options) {
   return { ...bac, stockage, journal };
 }
 
-const LIGNE = (type) => ({ employee_id: 'emp-1', site: 'st-1', date: '2026-09-11', type, heure: '08:00:00' });
+// Depuis le 11/09, `service_id` est obligatoire en base : toute ligne
+// réellement mise en file en porte un. La fixture le reflète (13/09/2026).
+const LIGNE = (type) => ({ employee_id: 'emp-1', site: 'st-1', date: '2026-09-11', type,
+  heure: '08:00:00', service_id: 'svc-1' });
+// Une entrée d'AVANT le 11/09, restée sur un téléphone : aucun service.
+const LIGNE_LEGACY = (type) => ({ employee_id: 'emp-1', site: 'st-1', date: '2026-09-11', type, heure: '08:00:00' });
 
 // ── La tentative est conservée avant tout envoi ───────────────────────────
 
@@ -240,6 +245,27 @@ t('la file ne forge pas un second identifiant', () => {
     'la file a régénéré un identifiant : celui envoyé en base et celui de la file divergent');
 });
 
+// ── Les entrées que le serveur ne prendra jamais ─────────────────────────
+
+t('une entrée sans service est retirée, pas rejouée sans fin', async () => {
+  const f = monterLaFile();
+  f.fileAjouter(LIGNE_LEGACY('arrivee'), {});
+  const bilan = await f.viderLaFile({ id: 'emp-1' });
+  assert.strictEqual(f.fileLire().length, 0, 'l\'entrée inenvoyable est restée en file');
+  assert.strictEqual(bilan.envoyees, 0, 'elle ne doit pas être comptée comme envoyée');
+  assert.strictEqual(bilan.rejetees.length, 1, 'elle doit être rapportée');
+  assert.strictEqual(bilan.rejetees[0].code, 'sans_service');
+  assert.strictEqual(f.journal.inserts.length, 0, 'aucune tentative d\'insertion inutile');
+});
+
+t('deux services le même jour : la seconde arrivée n\'est pas confondue', async () => {
+  const f = monterLaFile();
+  const s2 = { ...LIGNE('arrivee'), service_id: 'svc-2' };
+  f.fileAjouter(LIGNE('arrivee'), {});
+  f.fileAjouter(s2, {});
+  assert.strictEqual(f.fileLire().length, 2, 'la seconde a été prise pour un doublon de la première');
+});
+
 lancerTout().then(() => {
-  console.log(`\n${passes}/17 vérifications passées — une tentative de pointage ne se perd plus, et rien n'est présenté comme reçu avant de l'être.`);
+  console.log(`\n${passes}/19 vérifications passées — une tentative de pointage ne se perd plus, et rien n'est présenté comme reçu avant de l'être.`);
 });

@@ -225,11 +225,19 @@ t('aucun voile de caméra ne survit à un enregistrement', () => {
     'l\'écran peut rester couvert alors que le pointage est écrit en base');
 });
 
-t('le pointage est relu avant d\'être écrit', () => {
+t('le pointage est relu avant d\'être écrit, à la portée du SERVICE', () => {
+  // PORTÉE CORRIGÉE LE 13/09/2026. Cette vérification exigeait (employé,
+  // JOUR, type) — la portée qui a fait échouer le second service de la
+  // journée : la relecture retrouvait l'arrivée du service précédent et
+  // rendait `true` sans écrire. La bonne portée est celle de l'index unique
+  // posé le 11/09, `pointages_un_par_service_et_type`. Une épreuve qui exige
+  // la mauvaise portée protège le défaut, elle ne protège pas la règle.
   const bloc = POINTAGE.match(/const \{ data: dejaEnBase[\s\S]*?return true;/);
   assert.ok(bloc, 'aucune relecture anti-doublon avant insertion');
-  assert.ok(/\.eq\('employee_id', employee\.id\)\.eq\('date', today\)\.eq\('type', type\)/.test(bloc[0]),
-    'la relecture ne cible pas (employé, jour, type)');
+  assert.ok(/\.eq\('employee_id', employee\.id\)\.eq\('service_id', serviceDuJour\.id\)\.eq\('type', type\)/.test(bloc[0]),
+    'la relecture ne cible pas (employé, service, type)');
+  assert.ok(!/\.eq\('date', today\)/.test(bloc[0]),
+    'la relecture retient encore la journée : deux services le même jour se confondront');
 });
 
 // ── Rôles proposés à la prise de poste ────────────────────────────────────

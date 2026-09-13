@@ -76,7 +76,41 @@ verifier('l’ancien calcul séquentiel a disparu du code vivant',
 verifier('l’historique reste celui de la JOURNÉE',
   /renderTimeline\(pointagesJour \|\| \[\], prochainType, employee, siteId\)/.test(SOURCE));
 
-console.log('\n── 4 · Un pointage sans service ne compte pour aucun service ──');
+console.log('\n── 4 · Le chemin d’écriture compte aussi par service ──');
+verifier('la relecture anti-doublon cible le service, plus la date',
+  /\.eq\('employee_id', employee\.id\)\.eq\('service_id', serviceDuJour\.id\)\.eq\('type', type\)/.test(SOURCE),
+  'elle retrouvait l’arrivée du service précédent et rendait true sans écrire');
+verifier('la file déduplique par service, plus par jour',
+  /e\.ligne\.service_id === ligne\.service_id && e\.ligne\.type === ligne\.type/.test(SOURCE));
+verifier('le rejeu de la file interroge le service, plus la date',
+  /\.eq\('service_id', entree\.ligne\.service_id\)\.eq\('type', entree\.ligne\.type\)/.test(SOURCE));
+// Une entrée sans service ne se rattrape pas : le trigger la refusera
+// toujours. La chercher en base serait demander au serveur de confirmer une
+// impossibilité connue d'avance. Elle sort, et elle est dite.
+verifier('une entrée sans service est rejetée sans interroger le serveur',
+  /if \(!entree\.ligne\.service_id\) \{[\s\S]{0,400}?code: 'sans_service'[\s\S]{0,200}?fileRetirer\(entree\.id\)/.test(SOURCE));
+verifier('le rejeu ne retombe plus sur une recherche par journée',
+  !/\.is\('service_id', null\)/.test(SOURCE));
+
+console.log('\n── 5 · Un message écrit doit être un message vu ──');
+// `.confirm-banner` est en display:none ; seule `.show` le rend visible.
+verifier('le CSS confirme que « show » commande l’affichage',
+  /\.confirm-banner\{[^}]*display:none;\}/.test(SOURCE) && /\.confirm-banner\.show\{display:block;\}/.test(SOURCE));
+const attributions = SOURCE.match(/(?:banner|b)\.className = '[^']*'/g) || [];
+verifier('toute attribution de className porte « show »',
+  attributions.every(a => /show/.test(a)),
+  'attributions sans show : ' + attributions.filter(a => !/show/.test(a)).join(' · '));
+verifier('aucune classe inventée sans CSS (« ok », « erreur »)',
+  !attributions.some(a => /'confirm-banner ok'|'confirm-banner erreur'/.test(a)));
+
+console.log('\n── 6 · La clôture de pause au départ porte ce que la base exige ──');
+const insertPauseFin = SOURCE.match(/type: 'pause_fin', heure,[\s\S]{0,320}?\}\);/);
+verifier('l’insertion de pause_fin existe', !!insertPauseFin);
+verifier('elle porte service_id', !!insertPauseFin && /service_id: serviceDuJour\.id/.test(insertPauseFin[0]),
+  'sans lui, le trigger nexus_pointage_exige_service la refuse depuis le 11/09');
+verifier('elle porte client_event_id', !!insertPauseFin && /client_event_id: identifiantTentative\(\)/.test(insertPauseFin[0]));
+
+console.log('\n── 7 · Un pointage sans service ne compte pour aucun service ──');
 verifier('les pointages historiques à service_id nul sont exclus',
   /p\.service_id === serviceCourant\.id/.test(SOURCE),
   'une égalité stricte : null n’égale aucun identifiant');

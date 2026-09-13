@@ -302,10 +302,15 @@
   }
   function fileAjouter(ligne, contexte) {
     const entrees = fileLire();
-    // Idempotence à la source : un même (employé, jour, type) n'entre qu'une
-    // fois en file, quel que soit le nombre de clics.
+    // Idempotence à la source : un même (employé, SERVICE, type) n'entre
+    // qu'une fois en file, quel que soit le nombre de clics.
+    //
+    // La clé était (employé, JOUR, type) — 13/09/2026. Deux services le même
+    // jour, et la seconde arrivée était confondue avec la première : c'est la
+    // même erreur de portée que la relecture anti-doublon et que `dejaFait`.
+    // La bonne clé est celle de l'index unique posé le 11/09.
     const deja = entrees.find(e => e.ligne.employee_id === ligne.employee_id
-      && e.ligne.date === ligne.date && e.ligne.type === ligne.type);
+      && e.ligne.service_id === ligne.service_id && e.ligne.type === ligne.type);
     if (deja) return deja;
     const entree = { id: ligne.client_event_id || identifiantTentative(), ligne, contexte: contexte || {},
                      clic: new Date().toISOString(), essais: 0 };
@@ -361,9 +366,23 @@
     for (const entree of entrees) {
       if (employee && entree.ligne.employee_id !== employee.id) continue;
       try {
+        // Une entrée sans service n'est pas « peut-être déjà envoyée » : elle
+        // est INENVOYABLE. Le trigger `nexus_pointage_exige_service` la
+        // refusera toujours. Inutile d'interroger le serveur pour l'apprendre,
+        // et hors de question de la rejouer sans fin : elle sort, et elle est
+        // dite. Ce sont les entrées restées en file avant le 11/09.
+        if (!entree.ligne.service_id) {
+          console.error('Reprise de la file : entrée sans service, inenvoyable, retirée.', entree.ligne.type);
+          rejetees.push({ type: entree.ligne.type, heure: entree.ligne.heure, code: 'sans_service' });
+          fileRetirer(entree.id);
+          continue;
+        }
+        // Même portée que partout ailleurs : le service, pas la journée. Une
+        // entrée du second service ne doit pas être prise pour déjà envoyée
+        // parce que le PREMIER service portait le même type (13/09/2026).
         const { data: deja } = await nexusClient.from('pointages').select('id')
           .eq('employee_id', entree.ligne.employee_id)
-          .eq('date', entree.ligne.date).eq('type', entree.ligne.type).limit(1);
+          .eq('service_id', entree.ligne.service_id).eq('type', entree.ligne.type).limit(1);
         if (deja && deja.length) { fileRetirer(entree.id); envoyees++; continue; }
         const { error } = await nexusClient.from('pointages').insert(entree.ligne);
         if (error) {
@@ -1447,20 +1466,32 @@
     // sans que rien ne s'y oppose.
     //
     // Ce contrôle relit juste avant d'écrire. Il ne remplace pas une
-    // contrainte en base, et ne prétend pas le faire : deux envois vraiment
-    // simultanés peuvent encore passer tous les deux. C'est une réduction
-    // honnête du risque, pas une garantie — la garantie demande une
-    // migration, qui n'appartient pas à ce lot.
+    // contrainte en base : deux envois vraiment simultanés peuvent encore
+    // passer tous les deux. C'est une réduction honnête du risque.
+    //
+    // PORTÉE CORRIGÉE LE 13/09/2026. Cette relecture cherchait par
+    // (employé, DATE, type). Frédéric reprend un poste à 12:48 après un
+    // départ pointé à 12:32 : la relecture retrouvait l'arrivée de 12:27,
+    // concluait « déjà enregistré », et rendait `true` SANS ÉCRIRE. Le
+    // second service restait sans pointage, et le bouton revenait à son
+    // état initial sans un mot.
+    //
+    // La bonne portée est celle de l'index unique posé le 11/09 —
+    // `pointages_un_par_service_et_type` sur (service_id, employee_id, type).
+    // Un pointage appartient à un service, plus à une journée.
     const { data: dejaEnBase, error: erreurRelecture } = await nexusClient
       .from('pointages').select('id')
-      .eq('employee_id', employee.id).eq('date', today).eq('type', type).limit(1);
+      .eq('employee_id', employee.id).eq('service_id', serviceDuJour.id).eq('type', type).limit(1);
     if (erreurRelecture) {
       console.error('Relecture anti-doublon du pointage:', erreurRelecture);
     } else if (dejaEnBase && dejaEnBase.length) {
       const banner = document.getElementById('confirmBanner');
       if (banner) {
-        banner.textContent = `${LABELS_TYPES[type].label} était déjà enregistré pour aujourd'hui. Rien n'a été ajouté.`;
-        banner.className = 'confirm-banner ok';
+        banner.textContent = `${LABELS_TYPES[type].label} était déjà enregistré pour ce service. Rien n'a été ajouté.`;
+        // `show` est ce qui rend le bandeau visible : `.confirm-banner` est en
+        // `display:none`. L'écrire sans cette classe revenait à parler dans
+        // une pièce vide — c'est ce qui rendait le refus silencieux.
+        banner.className = 'confirm-banner show';
       }
       return true;   // rien à écrire : l'écran se réconcilie, aucun doublon
     }
@@ -1475,9 +1506,15 @@
         .from('pointages').select('id')
         .eq('employee_id', employee.id).eq('date', today).eq('type', 'pause_fin').limit(1);
       if (!finDeja || !finDeja.length) {
+        // `service_id` et `client_event_id` sont OBLIGATOIRES depuis le
+        // 11/09 : le trigger `nexus_pointage_exige_service` refuse toute
+        // insertion qui n'en porte pas. Cette écriture-ci les avait perdus au
+        // passage — la clôture de pause au départ était donc refusée
+        // systématiquement (13/09/2026), et le départ avec elle.
         const { error: erreurFin } = await nexusClient.from('pointages').insert({
           employee_id: employee.id, site: siteId, date: today, type: 'pause_fin', heure,
           quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
+          service_id: serviceDuJour.id, client_event_id: identifiantTentative(),
           retard_min: 0, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
         });
         if (erreurFin) {
@@ -1485,7 +1522,7 @@
           const b = document.getElementById('confirmBanner');
           if (b) {
             b.textContent = 'La fin de pause n\'a pas pu être enregistrée. Votre départ n\'a pas été pointé : réessayez.';
-            b.className = 'confirm-banner erreur';
+            b.className = 'confirm-banner retard show';
           }
           cloturerPauseAuDepart = false;
           return false;
