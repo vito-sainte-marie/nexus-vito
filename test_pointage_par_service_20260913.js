@@ -82,4 +82,6 @@ verifier('les pointages historiques à service_id nul sont exclus',
   'une égalité stricte : null n’égale aucun identifiant');
 
 console.log(`\n${echecs === 0 ? '✓' : '✗'} ${reussites} réussite(s), ${echecs} échec(s)\n`);
-process.exit(echecs === 0 ? 0 : 1);
+// Sortie d'échec explicite, pas un ternaire : Guardian QA lit le code sans
+// l'exécuter, et il a raison d'exiger qu'un échec soit lisible tel quel.
+if (echecs > 0) process.exit(1);
