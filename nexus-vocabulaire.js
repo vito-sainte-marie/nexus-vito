@@ -127,7 +127,7 @@
   const POOL_STOCK = {
     confortable: ['Stock confortable.'], maitrise: ['Stock maîtrisé.'], tendu: ['Stock tendu.'],
     risque_rupture: ['Risque de rupture.'], rupture_imminente: ['Rupture imminente.'],
-    surstock: ['Surstock.'], incoherent: ['Stock incohérent — à contrôler.'],
+    surstock: ['Surstock.'], incoherent: ['Stock incohérent, à contrôler.'],
   };
   NexusVocab.stock = function (niveau, seed) { return niveau ? pick(POOL_STOCK[niveau], seed) : null; };
 
@@ -234,7 +234,7 @@
   // ------------------------------------------------------------
   NexusVocab.prevision = function (evolutionPct) {
     if (evolutionPct == null) return null;
-    return `Si la tendance se poursuit au même rythme, ce serait une évolution de l'ordre de ${evolutionPct >= 0 ? '+' : ''}${(evolutionPct * 100).toFixed(1)} % sur la prochaine période comparable — une hypothèse, pas un engagement chiffré.`;
+    return `Si la tendance se poursuit au même rythme, ce serait une évolution de l'ordre de ${evolutionPct >= 0 ? '+' : ''}${(evolutionPct * 100).toFixed(1)} % sur la prochaine période comparable. C'est une hypothèse, pas un engagement chiffré.`;
   };
 
   // ------------------------------------------------------------

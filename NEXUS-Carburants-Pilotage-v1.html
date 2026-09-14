@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -763,7 +764,7 @@
     </div>
   </div>
 
-  <footer>NEXUS Carburants Performance v1 (refonte 13/08/2026, habillage accordéon 14/08/2026, renommage Performance 24/08/2026) · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Carburants Performance v1 (refonte 13/08/2026, habillage accordéon 14/08/2026, renommage Performance 24/08/2026) · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script>
@@ -803,7 +804,10 @@
   // 'America/Martinique' n'est qu'un repli si la ligne station_config
   // n'existe pas encore pour ce site (jamais 'Europe/Paris' — voir
   // nexus-carburant-donnees.js pour le même repli côté chargement moteur).
-  let FUSEAU_STATION = 'America/Martinique';
+  // A3 / C1c-2 (05/09/2026) : null tant que le fuseau du commerce n'a pas
+  // été résolu. Les quatre formatages ci-dessous affichent « — » plutôt
+  // qu'une heure calculée dans le fuseau d'une autre station.
+  let FUSEAU_STATION = null;
   let TYPE_PERIODE = 'semaine';
   // Contexte "aujourd'hui" (indépendant de la période sélectionnée),
   // chargé une seule fois à l'initialisation et réutilisé par le bloc
@@ -990,6 +994,7 @@
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
+    if (!FUSEAU_STATION) return '—'; // fuseau du commerce non résolu : pas d'heure inventée
     const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: FUSEAU_STATION });
     const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
@@ -1243,6 +1248,7 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
+    if (!FUSEAU_STATION) return '—'; // fuseau du commerce non résolu : pas d'heure inventée
     const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: FUSEAU_STATION });
     const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
@@ -1284,9 +1290,9 @@
   // période sélectionnée (toujours "aujourd'hui"), chargé une seule fois.
   // ------------------------------------------------------------
   async function chargerControleEtAutonomie() {
-    const [{ config }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
+    const [{ config, etat: etatCuves }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
       NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
-      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO()),
+      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO(), FUSEAU_STATION),
       NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
       // Sprint C6 (audit §10) : badge de qualité par carburant — lit la
       // preuve déjà posée dans carburant_controles, jamais une deuxième
@@ -1371,6 +1377,12 @@
         autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
       });
     }
+    // A3 / C3 : usage DÉCISIONNEL — capacité totale, autonomie, capacité
+    // disponible à la livraison. Sans cuves déclarées, on ne calcule pas.
+    if (!config) {
+      console.warn('Carburants Performance : aucune capacité de cuve déclarée pour ce commerce — autonomies et recommandations suspendues.');
+      return { ...controle, cuvesConfig: null, cuvesIndeterminees: etatCuves, autonomiesParCarburant: null, derniersControles, statutJaugeageJour, referencePhysiqueDuJour: refDuJour };
+    }
     return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles, statutJaugeageJour, referencePhysiqueDuJour: refDuJour };
   }
 
@@ -1414,6 +1426,9 @@
       return;
     }
     const M = NexusCarburantMoteur;
+    if (!ctx.cuvesConfig) {
+      return '<div class="controle-vide">Capacités de cuves non configurées pour ce commerce — un manager doit les renseigner dans Paramètres Station. NEXUS ne calcule pas une autonomie sur les cuves d’une autre station.</div>';
+    }
     const cartes = M.CLES_CARBURANT.filter(cle => ctx.cuvesConfig[cle] && ctx.cuvesConfig[cle].actif).map(cle => {
       const cfg = ctx.cuvesConfig[cle];
       const r = ctx.parCarburant[cle];
@@ -1897,7 +1912,7 @@
     if (!zone) return;
     if (!global_NexusCommandeCarburantDonnees_disponible()) { zone.innerHTML = ''; return; }
     try {
-      COMMANDE_CTX = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID);
+      COMMANDE_CTX = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { timezone: FUSEAU_STATION });
     } catch (e) {
       console.error('Évaluation Commande Carburant:', e);
       COMMANDE_CTX = null;
@@ -2367,14 +2382,35 @@
         ${fiabiliteCarburantHTML}`;
     }).join('');
 
+    // Motif structuré de non-complétion camion (06/09/2026, audit E2 :
+    // "exposer une raison structurée" au lieu de laisser un total sous
+    // 36 000 L sans explication) — relit `ctx.optimisation.motifsNonCompletion`
+    // déjà calculé par le moteur, jamais un second diagnostic ici (Article 11).
+    const MOTIF_NON_COMPLETION_TXT = { capacite_insuffisante: 'capacité disponible insuffisante', plafond_anti_surstock: 'plafond anti-surstock atteint' };
+    const motifsNonCompletion = (ctx.optimisation && ctx.optimisation.motifsNonCompletion) || {};
+    const motifsNonCompletionTxt = Object.entries(motifsNonCompletion)
+      .map(([c, motif]) => `${COURT_CARBURANT[c] || c} : ${MOTIF_NON_COMPLETION_TXT[motif] || motif}`).join(' · ');
+
     const totalHTML = ctx.commandeRecommandee
       ? `<div class="commande-total"><span>Total</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
+        + (motifsNonCompletionTxt ? `<div class="section-note" style="margin:4px 0 0; padding:0; font-size:10.5px;">Camion non complété au maximum — ${motifsNonCompletionTxt}.</div>` : '')
       : (ctx.optimisation && ctx.optimisation.decision === 'insuffisant_meme_optimise'
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
+    // CTA piloté par l'état structuré du moteur (06/09/2026, decision-2.md
+    // condition 6 + audit E3) — `ctx.cta` vient déjà de construireEvaluationGlobale
+    // (Article 11, jamais un second calcul de commandabilité/arbitrage ici) :
+    // "Préparer ma commande" seulement si `ctx.cta.action === 'preparer'`
+    // (créneau réellement commandable ET aucun arbitrage quantité résiduel),
+    // sinon "Simuler ma commande" qui ouvre le simulateur déjà existant —
+    // un seul bouton rendu ici, jamais les deux (pas de doublon, point 8 de
+    // request-1.md).
+    const ctaSimulation = ctx.commandeRecommandee && ctx.cta && ctx.cta.action === 'simuler';
     const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      ? (ctaSimulation
+        ? `<button type="button" class="commande-cta-btn" id="btnSimulerCommandeCta" style="background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);">🧪 Simuler ma commande →</button>`
+        : `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`)
       : '';
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
@@ -2573,6 +2609,20 @@
 
     const btn = document.getElementById('btnPreparerCommande');
     if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    const btnSimuler = document.getElementById('btnSimulerCommandeCta');
+    if (btnSimuler) btnSimuler.addEventListener('click', () => ouvrirSimulateurCommande());
+  }
+
+  // Ouvre le simulateur de commande déjà existant (§30, même panneau que le
+  // bouton toggle indépendant "🧪 Simuler une commande") — jamais un second
+  // mécanisme de simulation créé pour ce CTA (Article 11, point 8 de
+  // request-1.md : un seul CTA de simulation, sans doublon).
+  function ouvrirSimulateurCommande() {
+    SIMULATEUR_COMMANDE_OUVERT = true;
+    const panel = document.getElementById('simulateurCommandePanel');
+    renderSimulateurCommandePanel();
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // ------------------------------------------------------------
@@ -2843,7 +2893,7 @@
     zone.innerHTML = '<div class="loading">Calcul…</div>';
     let simulation = null;
     try {
-      simulation = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { dateISO: dateVal, heureHHMM: heureVal });
+      simulation = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { dateISO: dateVal, heureHHMM: heureVal, timezone: FUSEAU_STATION });
     } catch (e) {
       console.error('Simulation Commande Carburant:', e);
     }
@@ -3594,7 +3644,7 @@
   // entre plusieurs références, jamais une référence choisie au hasard.
   async function chargerVentesReferenceAvecRepli(candidates, actuel, periodeActuelle) {
     for (const c of candidates) {
-      const resultat = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, c.debut, c.fin);
+      const resultat = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, c.debut, c.fin, FUSEAU_STATION);
       const lignesComparables = NexusCarburantDonnees.alignerQuartsComparables(
         actuel.lignes || [], periodeActuelle.debut, resultat.lignes || [], c.debut
       );
@@ -3742,7 +3792,7 @@
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})${enCours ? ' — en cours' : ''}`;
     const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
-    const actuel = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin);
+    const actuel = await NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin, FUSEAU_STATION);
     const reference = await chargerVentesReferenceAvecRepli(referencesCandidates, actuel, periode);
 
     const M = NexusCarburantMoteur;
@@ -4561,9 +4611,9 @@
     // en dépendent. Requête minimale, dédiée : station_config.horaires
     // n'est pas utile ici (déjà géré par nexus-carburant-donnees.js).
     {
-      const { data: stationConfig, error: eFuseau } = await nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ID).maybeSingle();
-      if (eFuseau) console.error('Chargement fuseau_horaire station:', eFuseau);
-      if (stationConfig && stationConfig.fuseau_horaire) FUSEAU_STATION = stationConfig.fuseau_horaire;
+      // A3 / C1c-2 : source unique sites.timezone, plus station_config.
+      const fuseauPilotage = await NexusStation.fuseauDeLaStation(SITE_ID);
+      FUSEAU_STATION = fuseauPilotage.timezone || null;
     }
 
     initAccordions();

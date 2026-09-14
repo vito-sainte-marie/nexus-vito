@@ -194,3 +194,15 @@ Seul l'article 9 a été reformulé par rapport à la version 1.0 de Frédéric.
 Deux chantiers restent ouverts pour que la Constitution soit pleinement vraie dans le produit, pas seulement dans l'intention :
 - **Article 3** (chaque donnée doit avoir une définition, une formule, une source, une fréquence) : aucun document centralisé ne l'atteste encore aujourd'hui — voir `NEXUS-Dictionnaire-Donnees-v1.md`, premier brouillon.
 - **Article 11** (une seule vérité, aucune contradiction entre pages) : le correctif de comparaison de périodes fiables n'est aujourd'hui posé que sur NEXUS-Rayon-v1.html et NEXUS-Cockpit-v2.html — pas encore harmonisé sur NEXUS-Produits-v1.html ni les autres pages qui comparent des périodes.
+
+## Note de révision (08/09/2026) — Articles 12 et 13, partiellement historiques
+
+Les articles 12 et 13 parlent d'un « Conseiller NEXUS » unique. Cet agent unique n'existe plus : `docs/nexus/BIBLE.md` l'a scindé en deux agents distincts par leur destinataire, leur ton et leur responsabilité — **NEXUS Directeur d'Exploitation**, qui s'adresse au manager, et **NEXUS Coach Terrain**, qui s'adresse aux employés.
+
+Les deux articles restent vrais dans leur intention. Le langage décrit à l'article 12 — calme, précis, professionnel, honnête, pédagogique, orienté terrain, jamais dramatisant, jamais moralisateur — s'applique aux deux agents. La troisième question de l'article 13 se lit désormais : « l'agent NEXUS concerné peut-il expliquer sa valeur ? »
+
+**Les articles ne sont pas réécrits, et c'est délibéré.** Réécrire un texte fondateur pour le faire coïncider avec l'état présent efface la trace de la décision qui a changé les choses : on obtient un document qui a toujours eu raison, et dont plus personne ne peut dire ce qu'il a coûté de penser. La Bible l'emporte déjà par construction — `CONTINUITY.md` la désigne comme source doctrinale des invariants courants — de sorte qu'aucune ambiguïté opérationnelle ne subsiste. Ce qui manquait n'était pas l'autorité, c'était la marque : rien ne signalait ces deux articles comme partiellement historiques. Cette note la pose.
+
+**Ce qui reste ouvert.** Le renommage est acté dans la doctrine ; le code ne l'a pas encore suivi et porte toujours des occurrences de « Conseiller NEXUS ». C'est une dette de propagation, pas un arbitrage — elle se traite au Backlog, écran par écran, et non par une réécriture de ce document.
+
+Confirmée par Frédéric Bragance le 08/09/2026, sur proposition de `docs/nexus/AUDIT-PHILOSOPHIE-LANGAGE-RESULTATS-20260908.md` (§4.2).

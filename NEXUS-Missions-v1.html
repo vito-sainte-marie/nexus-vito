@@ -365,24 +365,24 @@
   // avec des bornes ISO completes (avec "Z", donc UTC sans ambiguite) —
   // en plus de corriger ce risque, ca correspond exactement a la demande
   // de Frederic : la prise de poste reste valable 24h, pas jusqu'a minuit.
-  async function chargerShiftAujourdhui(employeeId) {
-    const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await nexusClient
-      .from('shifts')
-      // "quart" (03/08/2026, demande de Frédéric) : récupéré en plus de
-      // "role" pour permettre la comparaison au dernier service comparable
-      // (même rôle ET même quart) — voir chargerDernierServiceComparable.
-      // "id" (04/09/2026) : c'est LUI qui isole la progression des coches.
-      // Une prise de poste = une ligne shifts = un id ; toute coche s'y
-      // rattache, donc un nouveau service repart forcément décoché.
-      .select('id, role, quart')
-      .eq('employee_id', employeeId)
-      .gte('heure_debut', il24h)
-      .order('heure_debut', { ascending: false })
-      .limit(1);
-    if (error) { console.error('Chargement shift du jour:', error); return null; }
-    return (data && data[0]) ? data[0] : null;
+  // S-4 / Q1 (05/09/2026) — la fenêtre de 24 h est SUPPRIMÉE.
+  //
+  // Elle portait une décision produit nommée : « la prise de poste reste
+  // valable 24 h, pas jusqu'à minuit ». Cette borne compensait l'absence de
+  // cycle de vie réel des services — rien ne clôturait, il fallait bien une
+  // limite. Depuis S-2 et S-3, la base porte une vérité explicite :
+  // `en_cours` ou clos. Garder 24 h en parallèle ferait cohabiter deux
+  // vérités concurrentes, et laisserait cocher des missions rattachées à un
+  // service déjà terminé.
+  //
+  // `employeeId` n'est plus le paramètre : la primitive exige l'employé ET
+  // son site, car l'invariant est « le service actif de cet employé sur ce
+  // site ».
+  async function chargerShiftAujourdhui(employee) {
+    const r = await nexusServiceCourant(employee);
+    return r.service || null;
   }
+
 
   // Évolution vs le dernier service comparable (03/08/2026, demande de
   // Frédéric) : "comparable" = même rôle ET même quart (matin/soir) — les
@@ -391,6 +391,13 @@
   // récent dans les mêmes conditions (avant aujourd'hui), et son total de
   // points gagnés ce jour-là (validés + en attente, comme le score du jour
   // actuel — on compare deux choses de même nature).
+  // S-4 (05/09/2026) — CE LECTEUR NE DÉTERMINE PAS LE SERVICE COURANT.
+  //
+  // Il cherche un service PASSÉ comparable (même rôle, même quart, jamais
+  // aujourd'hui) pour afficher une comparaison de points. Il ne sert ni à
+  // autoriser une action, ni à rattacher une coche : ces deux usages
+  // passent exclusivement par nexusServiceCourant(). Son absence de borne
+  // temporelle est donc voulue — c'est un historique, pas un état.
   async function chargerDernierServiceComparable(employeeId, role, quart) {
     if (!role || !quart) return null;
     const { data, error } = await nexusClient
@@ -1165,7 +1172,7 @@
   // ne faut pas laisser passer sur un écran dont on vient de corriger la
   // confiance dans l'état affiché.
   async function sauvegarderProgressionItem(empId, missionId, index, checked, photoUrl) {
-    if (!shiftIdActif) { console.error('Sauvegarde progression : aucune prise de poste active.'); return false; }
+    if (!shiftIdActif) { console.warn('Sauvegarde progression : aucune prise de poste active — incohérence de contexte métier, pas une panne technique. La coche n’est rattachée à aucun service.'); return false; }
     const { error } = await nexusClient
       .from('mission_progress')
       .upsert(
@@ -1260,6 +1267,10 @@
     const { error } = await nexusClient
       .from('mission_completions')
       .insert({
+        // 2B-SECURITY-WRITE-GUARD (06/09/2026) — le site est DIT, plus déduit
+        // du défaut de colonne. La policy l'exige désormais ; sans lui,
+        // l'insertion partait silencieusement sur « vito-sainte-marie ».
+        site_id: SITE_ACTUEL,
         employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,
@@ -1755,9 +1766,9 @@
     el.innerHTML = `
       <div class="conseiller-perso">
         <div class="conseiller-perso-head">
-          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="${estCoach ? 'Coach NEXUS' : 'Conseiller NEXUS'}">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="${estCoach ? 'NEXUS Coach Terrain' : 'NEXUS Directeur d’Exploitation'}">
           <div>
-            <div class="conseiller-perso-nom">${estCoach ? 'COACH NEXUS' : 'CONSEILLER NEXUS'}</div>
+            <div class="conseiller-perso-nom">${estCoach ? 'NEXUS COACH TERRAIN' : 'NEXUS DIRECTEUR D’EXPLOITATION'}</div>
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>
@@ -1819,9 +1830,9 @@
     el.innerHTML = `
       <div class="conseiller-perso">
         <div class="conseiller-perso-head">
-          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="NEXUS Coach Terrain">
           <div>
-            <div class="conseiller-perso-nom">COACH NEXUS</div>
+            <div class="conseiller-perso-nom">NEXUS COACH TERRAIN</div>
             <div class="conseiller-perso-sous">Prise de poste</div>
           </div>
         </div>
@@ -1941,7 +1952,7 @@
             <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min · ${m.points || 5} pts${baremeNote}${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
             ${m.disponibilite === 'conditionnelle' ? `<div class="mission-conditionnelle-badge">À réaliser uniquement si nécessaire</div>` : ''}
           </div>
-          ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
+          ${isAuto ? '<span class="badge badge-auto">NEXUS Directeur d’Exploitation</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
         </div>
         <div class="mission-body ${missionsOuvertes.has(m.mission_id)?'open':''}" id="body-${m.mission_id}">
           ${controle ? `<div class="controle-banner">🔍 Mode contrôle manager — vous vérifiez que l'équipe a bien réalisé ces points, vous ne les faites pas vous-même.</div>` : ''}
@@ -2001,7 +2012,7 @@
     // Les recommandations du Conseiller NEXUS s'adressent au manager, pas aux employés —
     // c'est lui qui décide ensuite de déléguer une mission.
     if (!q && roleDuJour === 'manager') {
-      htmlObligatoires += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
+      htmlObligatoires += `<div class="section-label">Aujourd'hui — recommandé par NEXUS Directeur d’Exploitation</div>`;
       htmlObligatoires += `<div id="plansActionMissions"></div>`;
     }
 
@@ -2355,7 +2366,7 @@
     SITE_ACTUEL = employee.site_id;
 
     if (!employee.consultation_externe) {
-      const shiftDuJour = await chargerShiftAujourdhui(employeeId);
+      const shiftDuJour = await chargerShiftAujourdhui(employeeCourant || { id: employeeId, site_id: SITE_ACTUEL });
       if (!shiftDuJour) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;

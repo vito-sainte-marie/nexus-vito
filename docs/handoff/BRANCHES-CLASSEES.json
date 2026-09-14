@@ -1,0 +1,260 @@
+{
+  "commentaire": "Registre des branches de travail classées — voir outils/garde-branches-en-rade.js. Une branche non fusionnee et non inscrite ici est signalee EN RADE. Un classement ne couvre que le sha  qu il a vu : si la branche recoit de nouveaux commits, elle reapparait. Vocabulaire repris de docs/gouvernance/2026-09-07-audit-travaux-claude-branches-isolees.md.",
+  "classees": [
+    {
+      "branche": "claude/issue-28-20260906-0604",
+      "tete": "93852f8c83dbc8f593316ce8328aca47d9890bf4",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §1 : lot pompiste/fuseau déjà DECISION_CONSOMMEE par une autre voie ; la migration 20260906120000, la garde et ses tests sont canoniques. PR #29 fermée.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1314",
+      "tete": "4ffeb5183eb2027d3f55101a2c5bc05fad6042a5",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §2 : première implémentation du créneau commandable, supersédée par les décisions Carburants ultérieures. Conservée comme preuve historique ; 1314/1315/1323 sont des itérations concurrentes qui ne se cumulent pas.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1315",
+      "tete": "0b49a868890587d5c156c58f46891bfb9018b902",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §3 : variante concurrente de la même correction Carburants.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1323",
+      "tete": "72cec144f0f03aea8c3ef0573eb403ed98538e17",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §4 : créneau lundi-vendredi avant 11h repris ensuite dans le rail canonique. Conservée comme preuve historique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1405",
+      "tete": "7a5d329676e3b99b48d1a1a296f865f74ced1bb3",
+      "sort": "A_REPRENDRE",
+      "motif": "Audit du 07/09/2026 §5 : le Guardian Philosophie NEXUS (docs/gouvernance/GUARDIAN-PHILOSOPHIE-NEXUS.md) et l audit event-driven n existent QUE sur cette branche. Vérifié le 08/09/2026 : absents du canonique.",
+      "le": "2026-09-08",
+      "renvoi": "GOV-002"
+    },
+    {
+      "branche": "claude/issue-28-20260906-1412",
+      "tete": "157316e2805774e34a53530b7939f720d099141f",
+      "sort": "A_REPRENDRE",
+      "motif": "Audit du 07/09/2026 §6 : audit-1.md du lot GUARDIAN-ARCHITECTURE-COHERENCE absent du canonique alors que le répertoire du lot existe. La collision NexusStock est suivie en ARCH-002 ; les trois autres findings ne le sont nulle part.",
+      "le": "2026-09-08",
+      "renvoi": "ARCH-003"
+    },
+    {
+      "branche": "claude/issue-28-20260906-2014",
+      "tete": "821310cecfcbf23f59ca26a09e51f9abe8614c73",
+      "sort": "SUPERSEDEE",
+      "motif": "Audit du 07/09/2026 §7 : décision-4 Carburants, partiellement supersédée. Le lot CARBURANTS-PERFORMANCE a sa propre correction canonique, prouvée par la traversée P0 et la recette UI.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-0028",
+      "tete": "4ecccc85bea94c15ddda468e246bf12fcdea2cf7",
+      "sort": "INTEGREE",
+      "motif": "Gouvernance Autonome v2 : guardians-router.js et verifier-apprentissage.js rapatriés sélectivement sur le HEAD canonique, éprouvés et calibrés (audit §8, ordre de réconciliation n°2).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-0044",
+      "tete": "990a0f1191468a7dc469049807c05e757b2e2294",
+      "sort": "INTEGREE",
+      "motif": "MVP NEXUS Live rapatrié sur le HEAD canonique le 07/09/2026 : page, contrat, projection, migration Test renumérotée en 20260907222249, producteur d événements, preuves d accès positive et négative (audit §9, ordre n°3).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1112",
+      "tete": "49b85197f0e0ae1035d6264f6995f18d5efc0f93",
+      "sort": "INTEGREE",
+      "motif": "Rapatriement Guardians backend + vérification apprentissage (repair-1) : contenu présent au canonique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1128",
+      "tete": "c6a21c21ec83d26fe6be04ec997115f1bbe266c0",
+      "sort": "INTEGREE",
+      "motif": "Correctif CARB-004 de la traversée reliquatArrondi : transporté à l identique et prouvé par test_carburant_commande_p0_traversee_reliquat_20260907.js.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1232",
+      "tete": "e880e71062db8de2387587cbc55901eca0cc9f27",
+      "sort": "INTEGREE",
+      "motif": "Réapplication et preuve du correctif reliquatArrondi (decision-2) : contenu présent au canonique.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1527",
+      "tete": "cc8de5ea1184daa3e87f907cd1f21007d36ff472",
+      "sort": "INTEGREE",
+      "motif": "Commande handoff.js decision : reprise au canonique, y compris le refus de REJECTED AVANT écriture, éprouvé dans test_handoff_v2_20260905.js (lignes 346-376).",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1609",
+      "tete": "2ced922439299bb98aee33886c8ef743abf4ac98",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-4, clôture CARB-004 : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1647",
+      "tete": "a50e9650f3bca47aadc8230444ec88e9a7c5f4bf",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1, clôture ORCHESTRATION-AUTONOMIE-1 : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1810",
+      "tete": "59a6a0ba37b144ca4695e64a658ed5bfb0bdde8c",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1 (APPROVED_WITH_CONDITIONS) : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-1842",
+      "tete": "c05e6e17906e85a93ada2af58f1d3a60f87a069e",
+      "sort": "INTEGREE",
+      "motif": "Consommation de decision-1 (closes:true) : registre canonique à jour.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-2047",
+      "tete": "47d51012bd33a4984d30c92ee8f9320411e136d7",
+      "sort": "SUPERSEDEE",
+      "motif": "Décision périmée : elle répond à request-1.md alors que la demande active était request-2.md. outils/handoff.js refuse de consommer une décision qui ne répond pas à la demande active.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260907-2119",
+      "tete": "6f8f5bfe8c89208a2ab5baee9de82ed806a41db5",
+      "sort": "SUPERSEDEE",
+      "motif": "Porte le même arbitrage Q73-Q76 que la branche 20260908-0213, qui a été fusionnée. Ses entrées Backlog Q74 (EVAL-001, DEBUG-001, COACH-001, CARB-007, ARCH-002) ont été transportées le 08/09/2026.",
+      "le": "2026-09-08"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0019",
+      "tete": "bf40b9aed756cf91fa343b503786045d018b4291",
+      "sort": "INTEGREE",
+      "motif": "Réconciliation du rail, `handoff.js enregistrer-lot` et premier inventaire des migrations Readiness. INTÉGRÉE : aucun des 7 fichiers touchés n'est absent du canonique, `enregistrer-lot` est présent dans `outils/handoff.js` et `test_handoff_enregistrer_lot_20260909.js` est canonique. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées. Les lignes non retrouvées telles quelles sont les miroirs régénérés et `inventaire-migrations-1.md`, RÉVISÉ depuis : le canonique couvre toujours les migrations 3 et 6 et porte la mesure des 13 services.",
+      "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0100",
+      "tete": "a43534a14a38b1707285a0aaf7f22a07a1057aed",
+      "sort": "INTEGREE",
+      "motif": "Manifeste des migrations Production, plans PREPROD/rollback/release et critères Live (request-3). INTÉGRÉE : les 16 fichiers touchés existent au canonique, dont `criteres-pret-pour-production-1.md`, `manifeste-migrations-production-1.md`, `plan-preprod-anonymise-1.md`, `plan-reparation-rollback-1.md` et `procedure-release-production-1.md`. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées. Les écarts résiduels portent sur des documents révisés après reprise, pas sur du contenu perdu.",
+      "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-0234",
+      "tete": "a5484290f4f9fb94f66d659844f5a2b13315d9d2",
+      "sort": "INTEGREE",
+      "motif": "Poursuite de la readiness Production (decision-2). INTÉGRÉE : 15 fichiers touchés, aucun absent, 81 % des lignes ajoutées littéralement présentes au canonique hors miroirs ; le reste a été révisé par 2ddd01f puis 4ca914e. Aucune PR n'a jamais été ouverte sur cette branche (vérifié le 09/09/2026) : son contenu a été RÉAPPLIQUÉ à la main sur `config-par-environnement` par des commits « réconcilier le rail », et non fusionné. D'où une ascendance absente malgré un travail présent — et le signalement de la garde, qui a raison de ne pas deviner. Les PR #31, #32 et #33 du même jour sont, elles, de vraies fusions à deux parents : leurs branches ne sont pas signalées.",
+      "le": "2026-09-09"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1054",
+      "tete": "e9262da20a8e80cc1023e650136003e1bb90620e",
+      "sort": "A_REPRENDRE",
+      "motif": "Arbitrage Orchestrator du 10/09/2026 relayé par Frédéric Bragance. Ses correctifs de scripts sont SUPERSÉDÉS : le défaut du trousseau est corrigé au canonique, prouvé 10/10 par test_credential_seulement_si_necessaire et 7/7 par test_security_jamais_invoque_si_url. Reste un delta RÉELLEMENT absent : outils/resoudre-connexion-test.sh, qui factorise la résolution direct/pooler recopiée dans deux scripts, et son épreuve test_resoudre_connexion_test_20260909.js qui en dépend. Écartés de CETTE release sur arbitrage explicite : outil de confort, ne ferme aucun défaut observé, ajoute une abstraction juste avant la gate Production. À reprendre comme amélioration technique après la release — la duplication reste une dette de forme, pas un défaut.",
+      "le": "2026-09-10",
+      "renvoi": "ARCH-006"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1213",
+      "tete": "ad2e4c82351722669243dc0a7ce1e1a95b2e27ce",
+      "sort": "INTEGREE",
+      "motif": "Contenu utile réappliqué et prouvé sur le canonique le 10/09/2026 : test_reconstruction_sans_trousseau_20260909.js rapatrié, adapté au message d avertissement canonique et à la nouvelle disposition du bloc credential, 7/7 dont sa mutation négative. Ses correctifs de scripts ne sont PAS repris : déjà présents au canonique. request-5.md est canonique par une autre voie.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1455",
+      "tete": "28bf9d335cc22714b0872732dbd17c045c0be121",
+      "sort": "INTEGREE",
+      "motif": "Contenu utile réappliqué et prouvé sur le canonique le 10/09/2026 : la commande handoff.js rattraper-demande et son épreuve 8/8, plus test_connexion_test_url_avant_trousseau_20260909.js, 6/6. La commande répare le cas rencontré deux fois le 09/09 — un request-N déposé directement laisse STATE.json en retard et bloque tout le registre. Ses correctifs de scripts ne sont pas repris : déjà présents au canonique.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-1735",
+      "tete": "2453d989e2453728f0db50748c1f6727afd29224",
+      "sort": "SUPERSEDEE",
+      "motif": "Publiait request-6.md, devenu canonique par le rail Orchestrator (commit c3ba2a7). Son seul fichier absent du canonique, test_connexion_test_url_avant_trousseau_20260909.js, est rapatrié le 10/09/2026 par la voie de la branche 1455 qui le portait aussi. Plus rien à transporter.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260909-2038",
+      "tete": "73a8c40d75d0018b167370132b61f1cc6b06f6ed",
+      "sort": "INTEGREE",
+      "motif": "Publiait request-7.md, canonique par le rail Orchestrator. Portait EN PLUS test_security_jamais_invoque_si_url_20260909.js, que la comparaison initiale des trois branches trousseau avait manqué : elle vérifie que security n est jamais INVOQUÉ quand l URL est fournie, propriété plus forte que « le script ne plante pas » — un trousseau verrouillé peut demander une confirmation interactive. Rapatriée le 10/09/2026, mutation réancrée sur la garde plutôt que sur sa mise en forme, 7/7. Elle couvre les TROIS scripts, y compris repetition-release-complete.sh.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1435",
+      "tete": "d164d798a908f292fc026d3876ca365a16ac7823",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, d164d79. Publie request-8.md — DÉJÀ présent sur le candidat 647a074 (6540 octets), plus CURRENT.md et STATE.json, remplacés depuis par un état Handoff postérieur. Aucun fichier de cette branche n'est absent du candidat (comm sur les deux arbres : zéro). Son diff de code ne contient QUE des retours en arrière : +14/-389 sur NEXUS-FDJ-Manager-v1.html et -152 sur nexus-fdj-moteur.js (elle précède le merge du hotfix FDJ 4f26a37), -482 sur test_fdj_continuite_stock_reconciliation, -250 sur test_fixtures_hors_depot, -238 sur test_serialisation_registre_preprod, et ses +26 sur test_guardians_router écrivent __fixture_secret_tmp__.js DANS la racine du dépôt — c'est la version d'AVANT la correction du défaut 10. L'intégrer réintroduirait le défaut.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1544",
+      "tete": "192fa383a6fcd598883b83743b3d172922c08eec",
+      "sort": "SUPERSEDEE",
+      "motif": "Trois commits : cb5459d (rattrape request-8.md, présent sur le candidat), 51f0ac0 (fixtures Guardians hors du dépôt, défaut 10), 192fa38 (diagnostic du défaut 7 — la sortie complète d'une épreuve en échec n'atteignait jamais le log CI). VÉRIFIÉ FICHIER PAR FICHIER : run-tests.js, outils/guardians-router.js, test_guardians_router_20260907.js et les DEUX épreuves security sont IDENTIQUES entre 647a074 et cette branche — le diagnostic de 192fa38, y compris `detail: sortie.slice(-4000)`, est donc déjà sur le candidat. Seul test_fixtures_hors_depot_20260910.js diffère (+19/-81) : le candidat porte la version postérieure, avec bac à sable peuplé de fichiers réels et deux contrôles de non-nuisance, 9 vérifications contre 7. Rien d'utile n'est perdu.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1621",
+      "tete": "89b2db0a272b487764423e245ea6adf54b9ebecb",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, 89b2db0. Ne touche que CURRENT.md, DECISION.md et STATE.json — de l'état Handoff, remplacé depuis. Zéro fichier absent du candidat. Son diff de code est intégralement un retour en arrière : -250 sur test_fixtures_hors_depot, -26 sur run-tests.js, et ses +26 sur test_guardians_router réécrivent une fixture dans la racine réelle du dépôt, version d'avant la correction du défaut 10.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1727",
+      "tete": "5ae3804e2fc098fde02387bffd408ede0d24d521",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, 5ae3804. Son apport propre était de classer 1435, 1544 et 1621 en SUPERSEDEE — ce classement est REFAIT ICI, vérifié indépendamment fichier par fichier plutôt que repris sur parole, et avec les mêmes conclusions. Le reste est documentaire (blocages-ouverts-1.md +81, faits-pret-pour-production.json), remplacé par l'état postérieur du candidat. Seule différence de code : test_fixtures_hors_depot_20260910.js (+17/-68), version antérieure à la correction du défaut 10.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-1828",
+      "tete": "c14b81733f344d3f5966411f9f7845b5bddb1838",
+      "sort": "SUPERSEDEE",
+      "motif": "Un commit, c14b817. Publie request-9.md — DÉJÀ présent sur le candidat (8536 octets). Le reste est documentaire : CURRENT.md, STATE.json, blocages-ouverts-1.md (+117), faits-pret-pour-production.json — tous remplacés par l'état postérieur. Zéro fichier absent du candidat. Seule différence de code : test_fixtures_hors_depot_20260910.js (+17/-68), version antérieure.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2006",
+      "tete": "0e03b7e6ad50ad9d241c0ec7ac58e2e98810dde4",
+      "sort": "SUPERSEDEE",
+      "motif": "Quatre commits : ed66744 (isole la fixture de course dans un bac à sable), 058949c, 319c13d, 0e03b7e. Elle corrige le MÊME défaut 10 que le candidat, par une voie très proche — `listerPuisCopier(dirDest, racineSource = RACINE)` et un répertoire dédié. Le candidat porte la version postérieure et plus large : bac à sable peuplé des fichiers réels avec leurs tailles (la durée des copyFileSync est ce qui ouvre la fenêtre de course) et deux contrôles de non-nuisance, 9 vérifications contre 7. UN SEUL fichier de cette branche est absent du candidat, et c'est le seul de tout le lot des six : request-11.md, une demande Handoff AWAITING_DECISION portant sur la fermeture du défaut 10. Elle n'est PAS rapatriée, volontairement : le défaut qu'elle soumet à décision est fermé autrement sur le candidat (c405c75), et le lot a depuis avancé jusqu'à request-10 et à l'arbitrage de Frédéric Bragance du 10/09. Aucun correctif applicatif ni aucune épreuve n'est perdu — vérifié par comparaison des deux arbres.",
+      "le": "2026-09-10"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2123",
+      "tete": "ee567671d99d12c68af42f656be757aa9935c64a",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2233",
+      "tete": "68f1f33424442f5148cd37abc4642ce05d73599a",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260910-2305",
+      "tete": "59b78fd8043e1b7f55a93d0f8e2c3859a8f06edb",
+      "sort": "SUPERSEDEE",
+      "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
+      "le": "2026-09-11"
+    }
+  ]
+}

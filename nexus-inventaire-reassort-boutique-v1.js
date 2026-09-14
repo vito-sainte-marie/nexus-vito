@@ -4,7 +4,7 @@
 // V2 : possibilité de raisonner en couverture de ventes et en conditionnements complets.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Stock-Localise-v1.html') return;
+  if(!NexusPage.est('NEXUS-Stock-Localise-v1.html')) return;
 
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));

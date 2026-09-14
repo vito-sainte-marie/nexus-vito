@@ -389,6 +389,19 @@ async function addRH(){
   await reload()}
  catch(e){console.error('NEXUS PAYE — déclaration d’un événement RH :',e);btn.disabled=false;nexusErreur('Déclaration impossible',messageErreur(e))}
 }
+// A3 / B1-c (05/09/2026) — l'identité du commerce imprimée sur le dossier
+// comptable. Elle était passée EN DUR ('ViTO Sainte-Marie') : l'écran ne
+// lisait même pas la table `sites`, donc tout client exportait son dossier
+// de paie au nom d'un autre. Trois branches, même règle qu'App et Cockpit :
+// panne technique -> error, nom non configuré -> warn, et dans les deux cas
+// un repli sur l'identifiant du commerce COURANT.
+async function nomDuCommerce(){
+ const {data,error}=await nexusClient.from('sites').select('nom_entreprise').eq('site_id',SITE).maybeSingle();
+ if(error){console.error('Lecture identité du commerce :',error);return SITE||'Commerce non identifié'}
+ if(!data||!data.nom_entreprise){console.warn('Identité du commerce non configurée — dossier au nom de l’identifiant du site.');return SITE||'Commerce non identifié'}
+ return data.nom_entreprise
+}
+
 // Sortie PRINCIPALE du module (03/09/2026). Le dossier vient de
 // l'instantané figé à la validation du mois quand il existe — la
 // comptable doit pouvoir régénérer deux fois le même document — et
@@ -399,7 +412,7 @@ async function genererDossierPdf(){
  const dossier=(snap&&snap.dossier)||NexusPayeMoteur.dossierComptable(RAPPORT);
  btn.disabled=true;btn.textContent='Génération…';
  try{
-  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{site:SITE,nomEntreprise:'ViTO Sainte-Marie'});
+  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{site:SITE,nomEntreprise:await nomDuCommerce()});
   await NexusPdfMoteur.partagerOuTelechargerPdf(pdf.bytes,pdf.nomFichier,{titre:pdf.titre,texte:'Variables de paie préparées par NEXUS.'});
  }catch(e){console.error('NEXUS PAYE — dossier comptable PDF :',e);nexusErreur('Dossier non généré',`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(e)}`);}
  finally{btn.disabled=false;btn.textContent='2 · Générer le dossier comptable'}

@@ -150,7 +150,12 @@
 
     rapport.pageDeGarde({
       titre: 'DOSSIER COMPTABLE',
-      nomEntreprise: opts.nomEntreprise || 'ViTO Sainte-Marie',
+      // A3 / B1-c (05/09/2026) — le repli était 'ViTO Sainte-Marie'. Un
+      // dossier comptable ne reste pas dans l'application : il part chez une
+      // comptable. Un PDF portant le nom d'un autre commerce n'est pas une
+      // approximation d'affichage, c'est une contamination d'identité client.
+      // Repli sur l'identifiant du site courant, jamais sur un nom propre.
+      nomEntreprise: opts.nomEntreprise || opts.site || 'Commerce non identifié',
       periodeBornes: label.charAt(0).toUpperCase() + label.slice(1),
       accroche: 'Variables de paie préparées par NEXUS',
       sousAccroche: 'La comptable reste responsable du bulletin.',

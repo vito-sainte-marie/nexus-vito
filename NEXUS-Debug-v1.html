@@ -8,6 +8,9 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
+<script src="nexus-mesure.js?v=20260908"></script>
+<script src="nexus-ecart-affichage.js?v=20260908"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <style>
   :root{
@@ -52,6 +55,12 @@
   .btn{width:100%; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
   .btn-primary{background:var(--cyan); color:#04141a;}
   .btn-danger{background:transparent; color:var(--red); border:1px solid var(--red);}
+  /* DEBUG-001 : l'absence de mesure n'est ni conforme ni anormale. Elle ne
+     doit donc emprunter ni le vert ni le rouge — sans quoi un contrôle qui
+     n'a pas eu lieu se lit comme un contrôle réussi. */
+  .ecart-conforme{color:var(--green);}
+  .ecart-anomalie{color:var(--red);}
+  .ecart-neutre{color:var(--text-dim, #8b96a5); font-style:italic; font-weight:500;}
   .btn:disabled{opacity:0.35; cursor:not-allowed;}
 
   .msg{font-size:12px; margin-top:12px; padding:10px; border-radius:8px; text-align:center; display:none;}
@@ -90,7 +99,7 @@
 </div>
 
 <script>
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // A3 : jamais un site par défaut — posé par employee.site_id une fois connecté
 
   // Compare sans tenir compte des accents/majuscules — "Frédéric", "Frederic",
   // "FREDERIC" doivent tous matcher la meme entree.
@@ -127,6 +136,30 @@
     const msg = document.getElementById('msgMigration');
     const btn = document.getElementById('btnMigrer');
     msg.className = 'msg'; msg.textContent = '';
+
+      // DESACTIVE le 11/09/2026, explicitement plutot que silencieusement.
+      //
+      // Depuis ce jour, tout nouveau pointage doit porter son `service_id` et
+      // son `client_event_id`, et la base le refuse sinon. Cet import lit un
+      // historique local (`localStorage.nexus_pointages`) qui ne porte ni l un
+      // ni l autre, et aucun service certain ne peut en etre deduit : le
+      // rattacher au service le plus proche serait exactement l approximation
+      // que ce lot vient de supprimer.
+      //
+      // POURQUOI LE DESACTIVER PLUTOT QUE L ADAPTER : la source est morte.
+      // `localStorage.nexus_pointages` n est plus ecrit que par cet ecran
+      // lui-meme ; aucun parcours employe ne l alimente depuis le passage a
+      // Supabase. Un import sans source n a pas de modele a rattraper.
+      //
+      // Le laisser echouer sur une erreur de base aurait ete pire : le
+      // Createur aurait cru a une panne. Il lit desormais pourquoi.
+      msg.textContent = 'Import desactive le 11/09/2026. Tout pointage exige desormais un service et un '
+        + 'identifiant d evenement, que cet historique local ne porte pas, et aucun service certain ne '
+        + 'peut en etre deduit. Les lignes concernees restent des exceptions a traiter a la main : elles '
+        + 'ne sont pas inserees.';
+      msg.className = 'msg err';
+      if (btn) { btn.disabled = true; btn.textContent = 'Import desactive'; }
+      return;
 
     const pointagesLocal = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
     const dates = Object.keys(pointagesLocal);
@@ -194,7 +227,12 @@
 
     let inseres = 0, erreurs = 0;
     for (let i = 0; i < nouveauxSeuls.length; i += 200) {
-      const lot = nouveauxSeuls.slice(i, i + 200);
+      // 2B-SECURITY-WRITE-GUARD (06/09/2026) — chaque ligne migrée déclare
+      // son site. Le lot venait d'un stockage local qui ne le portait pas :
+      // sans cette ligne, la migration rattachait tout l'historique au site
+      // du défaut de colonne, quel que soit le commerce d'origine.
+      const lot = nouveauxSeuls.slice(i, i + 200)
+        .map(p => ({ ...p, site: p.site || SITE_ACTUEL }));
       const { error } = await nexusClient.from('pointages').insert(lot);
       if (error) { console.error('Insertion migration:', error); erreurs += lot.length; }
       else inseres += lot.length;
@@ -551,9 +589,15 @@
       <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;">
         <div style="display:flex; justify-content:space-between;">
           <span class="kv-key">Quart ${a.quart} · statut ${a.statut || '—'}</span>
-          <span class="kv-val" style="color:${(a.ecart_total||0)===0?'var(--green)':'var(--red)'};">${(a.ecart_total||0)>=0?'+':''}${Math.round(a.ecart_total||0)} €</span>
+          <!-- DEBUG-001 (08/09/2026). Avant, la couleur et le texte étaient
+               calculés sur `a.ecart_total || 0` : un écart JAMAIS MESURÉ
+               s'affichait « +0 € » en VERT, c'est-à-dire comme une conformité
+               parfaite. Trois signaux mentaient ensemble. La règle vit
+               désormais dans `nexus-ecart-affichage.js`, éprouvée, et cet
+               écran la consomme sans la reconstruire. -->
+          <span class="kv-val ecart-${window.NexusEcartAffichage.classeEcart(a.ecart_total)}">${window.NexusEcartAffichage.libelleEcart(a.ecart_total)}</span>
         </div>
-        <div class="kv-names">Piste ${(a.ecart_piste||0)>=0?'+':''}${Math.round(a.ecart_piste||0)} € · Boutique ${(a.ecart_boutique||0)>=0?'+':''}${Math.round(a.ecart_boutique||0)} €${a.commentaire ? ' · ' + a.commentaire : ''}</div>
+        <div class="kv-names">${window.NexusEcartAffichage.libelleDetail(a.ecart_piste, a.ecart_boutique)}${a.commentaire ? ' · ' + a.commentaire : ''}</div>
         <button class="btn btn-danger" data-id="${a.id}" data-date="${a.date}" onclick="supprimerAuditCaisse(this)">Supprimer cet audit</button>
       </div>`).join('');
 
@@ -719,7 +763,11 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    // A3 (05/09/2026) : Debug agit directement sur Supabase — un site
+    // deviné y serait la pire des substitutions silencieuses.
+    SITE_ACTUEL = NexusStation.exigerSite(employee,
+      'Votre compte n’est rattaché à aucun commerce. Debug agit directement sur les données : il ne peut pas travailler sur un site supposé.');
+    if (!SITE_ACTUEL) return;
     renderRoot();
   });
 </script>

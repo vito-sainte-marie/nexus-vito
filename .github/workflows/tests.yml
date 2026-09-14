@@ -21,8 +21,23 @@ name: Tests
 # ce workflow ne peut ni écrire dans le dépôt, ni publier, ni atteindre quoi
 # que ce soit hors de la machine de build. Les tests sont purement locaux —
 # aucun n'ouvre de connexion réseau ni ne parle à Supabase (vérifié).
+# `actions: read` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 08/09/2026, à sa demande
+# explicite. C'est un élargissement de la surface du jeton du workflow, donc un
+# geste humain (CLAUDE.md) : Claude ne pouvait pas se l'accorder.
+#
+# Ce qu'il ouvre exactement : la LECTURE des métadonnées de runs GitHub Actions
+# de ce dépôt. Aucune écriture, aucun accès à un secret. Le dépôt étant public,
+# ces métadonnées sont déjà lisibles publiquement ; ce que la permission change
+# est que le jeton du workflow peut les demander, ce qu'il ne pouvait pas faire.
+#
+# Pourquoi elle est nécessaire : `evenementsAgentGithub` interroge les runs du
+# workflow `claude.yml` pour combler l'angle mort entre le déclenchement de
+# Claude depuis une issue et son apparition dans le Handoff. Sans ce droit,
+# `gh run list` échoue et la fonction se tait — comportement volontaire, mais
+# NEXUS Live restait aveugle pendant cet intervalle, parfois des heures.
 permissions:
   contents: read
+  actions: read
 
 on:
   push:
@@ -34,43 +49,575 @@ jobs:
   non-regression:
     runs-on: ubuntu-latest
     steps:
+      # `fetch-depth: 0` récupère tout l'historique, branche `production`
+      # comprise : le contrôle d'immuabilité des migrations la compare à la
+      # branche courante. Sans elle, il ne peut pas savoir quelles migrations
+      # sont déjà appliquées en production — et il échoue plutôt que de se
+      # taire.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
-      - name: Cohérence des épingles de cache
-        run: node outils/poser-build-id.js --verifier
+      # `nexus-build.js` n'est plus versionné : le vérifier sur le dépôt brut
+      # n'aurait plus de sens. Ce test exécute la VRAIE chaîne de build dans
+      # une copie jetable, puis éprouve chaque condition d'échec — commit
+      # indéterminable, épingle falsifiée, actif modifié après le build. Il
+      # échoue si le build accepte de publier une version non identifiable.
+      # Barrière avant promotion : une migration appliquée en production est
+      # immuable dans son identité. Ce contrôle ne dépend d'aucun secret — il
+      # compare la branche `production` à la branche courante — et il aurait
+      # arrêté le renommage du 04/09 (commit 95cc92a) avant le push.
+      - name: Immuabilité des migrations déjà en production
+        run: node test_migrations_immuables_20260905.js
 
-      - name: Suite de non-régression
-        id: suite
-        run: node run-tests.js | tee /tmp/sortie.txt
-        continue-on-error: true
+      - name: Traçabilité de la génération (chaîne de build complète)
+        run: node test_build_tracabilite_20260905.js
 
-      - name: Comparer aux échecs connus
-        run: |
-          set -euo pipefail
-          CONNUS="test_chaine_temporelle_carburant_20260821.js
-          test_inventaire_categorie_mixte_deux_lieux.js
-          test_inventaire_parcours_depot_boutique_reste.js
-          test_inventaire_production_journaliere_q1.js
-          test_inventaire_sprint4_ux_flash.js
-          test_inventaire_sprint4bis_ecriture_immediate.js
-          test_pilotage_qualite_receptions.js
-          test_reception_moteur.js
-          test_reception_v1_dom.js"
-          ACTUELS=$(grep -oE 'test_[a-z0-9_]+\.js' /tmp/sortie.txt | sort -u || true)
-          ATTENDUS=$(echo "$CONNUS" | sed 's/^ *//' | sort -u)
-          NOUVEAUX=$(comm -13 <(echo "$ATTENDUS") <(echo "$ACTUELS") || true)
-          REPARES=$(comm -23 <(echo "$ATTENDUS") <(echo "$ACTUELS") || true)
-          if [ -n "$NOUVEAUX" ]; then
-            echo "::error::Nouveaux tests en échec :"; echo "$NOUVEAUX"; exit 1
-          fi
-          if [ -n "$REPARES" ]; then
-            echo "::error::Ces tests ne sont plus en échec — retirez-les de la liste des échecs connus :"; echo "$REPARES"; exit 1
-          fi
-          echo "Aucune régression : seuls les 9 échecs connus subsistent."
+      # UNE SEULE EXÉCUTION, UN SEUL PROPRIÉTAIRE. La liste des échecs tolérés
+      # était figée ici, en dur, ET reconstruite à la main hors du dépôt à
+      # chaque session locale. Deux copies d'une même vérité, dont une
+      # invisible depuis le poste de travail : c'est toujours celle qu'on
+      # oublie qui se met à mentir. Elle vit désormais dans
+      # `docs/qa/ECHECS-CONNUS.json`, et `run-tests.js` en est le seul lecteur.
+      #
+      # Le verdict est rendu par le lanceur lui-même, dans la même exécution
+      # que la suite : il distingue une RÉGRESSION, une épreuve GUÉRIE qu'il
+      # faut retirer de la liste, une entrée qui ne correspond plus à aucun
+      # fichier, et une référence illisible — cas où il refuse de conclure
+      # plutôt que d'annoncer « aucune régression ».
+      - name: Suite de non-régression et verdict
+        run: node run-tests.js
+
+      # La parallélisation a fait passer la suite de 60 s à 25 s. Le gain ne
+      # vaut que si les deux modes disent la même chose : cette épreuve le
+      # vérifie sur un sous-ensemble rapide, plutôt que de rejouer la suite
+      # entière deux fois — une garde trop chère finit par être retirée.
+      - name: Le lanceur parallèle rend-il le même verdict ?
+        run: node test_lanceur_parallele_20260908.js
+
+      # Le protocole de handoff est le dernier contrat du dispositif qui ne
+      # tenait que par la discipline de ses acteurs. Il est désormais validé
+      # ici, comme le reste. `fetch-depth: 0` ci-dessus rend `origin/main` et
+      # `origin/production` lisibles : sans elles, l'invariant de protection
+      # des refs serait invérifiable, ce que le validateur traite comme un
+      # échec et non comme une tolérance.
+      # ENV-001 — « Claude doit partir du HEAD canonique attendu de
+      # config-par-environnement ». Le 07/09/2026, trois runs ont terminé « avec
+      # succès » sur des branches racinées sur main, et rien ne l'a dit. La cause
+      # est corrigée (base_branch sur claude-code-action) ; cette étape surveille
+      # que la correction tienne, comme l'audit du 07/09 le demande au §12.1.
+      #
+      # Exclue sur main et production : ces branches ne descendent pas du canon
+      # et ne sont pas censées le faire. Un contrôle qui échouerait là serait un
+      # faux positif permanent, donc une étape qu'on finirait par retirer.
+      #
+      # `--tolerer-retard` : un travail dépassé par le canon pendant son
+      # exécution est signalé, pas bloqué. La racine sur la branche par défaut,
+      # elle, bloque toujours — c'est le défaut que cette garde existe pour voir.
+      - name: ENV-001 — la branche part-elle du HEAD canonique
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/production'
+        run: node outils/garde-env-001.js --tolerer-retard
+
+      - name: Épreuves mutationnelles de la garde ENV-001
+        run: node test_garde_env_001_20260907.js
+
+      - name: Protocole Handoff v2
+        env:
+          NEXUS_SORTIE_SUITE: /tmp/sortie.txt
+        run: node outils/handoff.js verifier
+
+      - name: Épreuves mutationnelles du validateur Handoff
+        run: node test_handoff_v2_20260905.js
+
+      # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
+      # l'arbitrage conditionne son activation à la revue de ses résultats par
+      # Architecture, Security et QA. Elle rapporte donc sans arrêter la CI,
+      # et son test propre (ci-dessus, dans la suite) reste bloquant : la
+      # garde peut se taire, elle ne peut pas mentir sans qu'on le voie.
+      - name: Garde de portée site (ADR-0001) — rapport
+        run: node outils/garde-portee-site.js || true
+
+      # ── Guardians backend (ORCH-002) ───────────────────────────────────
+      # Deux contrôles, deux régimes, et la différence n'est pas cosmétique.
+      #
+      # `verifier-apprentissage.js` est BLOQUANT : il ne juge que l'intégrité
+      # de RULES.json / EXPERIENCE.jsonl, qui est verte sur le canon et le
+      # reste tant que personne ne casse le registre. Un rouge y est donc
+      # toujours une régression réelle, jamais une dette héritée.
+      #
+      # `guardians-router.js` RAPPORTE sans arrêter la CI. Après calibration
+      # il ne rend plus qu'un seul finding sur le canon — la collision
+      # `NexusStock` entre nexus-stock.js et nexus-stock-moteur.js — et c'est
+      # une dette PRÉ-EXISTANTE que l'audit du 07/09 (§12.5) demande de
+      # trancher avant toute suppression ou renommage. Le rendre bloquant
+      # aujourd'hui mettrait la CI au rouge dès le premier run pour une chose
+      # que ce lot n'a pas le droit de corriger, et la leçon de Q71 est
+      # explicite : une garde dont le premier verdict est rouge se fait
+      # retirer, et emporte avec elle les findings qu'elle aurait trouvés
+      # ensuite. Même régime que la garde de portée site, pour la même raison.
+      #
+      # Ses épreuves, elles, restent bloquantes : le garde peut se taire, il
+      # ne peut pas mentir sans qu'on le voie.
+      - name: Vérification de l'apprentissage (RULES.json / EXPERIENCE.jsonl)
+        run: node outils/verifier-apprentissage.js
+
+      - name: Guardians backend — rapport
+        env:
+          NEXUS_GUARDIANS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          NEXUS_GUARDIANS_HEAD_REF: HEAD
+        run: node outils/guardians-router.js || true
+
+      # Guardian QA — BLOQUANT, et c'est le seul des trois qui peut l'être :
+      # il rend 0 finding sur les 212 fichiers d'épreuves du canon. Tout rouge
+      # y sera donc une régression réelle, jamais une dette héritée. Il cherche
+      # les épreuves qui ne peuvent pas échouer — motif trop permissif, capture
+      # de flux partielle, assertion avalée par un catch — la famille de défaut
+      # qui a produit trois faux « vert » dans la seule journée du 07/09.
+      - name: Guardian QA — épreuves qui ne peuvent pas échouer
+        run: node outils/guardian-qa.js
+
+      # Les deux suivants RAPPORTENT sans arrêter la CI : leurs findings sont
+      # des dettes pré-existantes qu'aucun de ces lots n'a le droit de corriger.
+      # Bloquer aujourd'hui mettrait la CI au rouge pour de l'histoire, et une
+      # garde rouge au premier run se fait retirer — avec tout ce qu'elle aurait
+      # trouvé ensuite.
+      - name: Guardian Business Rules — rapport
+        run: node outils/guardian-regles-metier.js || true
+
+      - name: Guardian Bible — chiffres inventés — rapport
+        run: node outils/guardian-bible.js || true
+
+      # Branches en rade — RAPPORT, et ce choix est délibéré.
+      #
+      # Une branche non rapatriée n'est pas un défaut du commit qu'on teste :
+      # rendre la CI rouge pour elle punirait le mauvais changement, et la
+      # première réaction serait de désactiver la garde. Elle nomme donc, sans
+      # arrêter. Son épreuve propre, elle, reste bloquante : la garde peut se
+      # taire, elle ne peut pas mentir sans qu'on le voie.
+      # Répétition de la recette Carburants — BLOQUANTE, et sans base.
+      #
+      # Elle rejoue le scénario à travers la vraie chaîne du moteur en lisant
+      # ses hypothèses dans l'instantané de la station Test, sur les SEPT jours
+      # de la semaine. Elle répond en 0,2 seconde à la question qui coûtait un
+      # cycle de CI de six minutes — c'est elle qu'il faut lancer AVANT de
+      # pousser. Ici elle sert de filet : si elle échoue, inutile d'aller plus
+      # loin, la recette navigateur trouverait la même chose bien plus tard.
+      - name: Répétition de la recette Carburants (7 jours)
+        run: node outils/repetition-recette-carburants.js
+
+      - name: Épreuves de la répétition
+        run: node test_repetition_recette_carburants_20260908.js
+
+      # Guardian Philosophie NEXUS — RAPPORT, et c'est sa doctrine qui le veut.
+      # `decision-1.md` (Q75) l'a arbitré consultatif : jamais bloquant tant
+      # qu'il dépend d'un jugement de modèle. Il ne note personne — il nomme
+      # les silences ambigus et rappelle les neuf critères au relecteur. Son
+      # épreuve propre, elle, reste bloquante : il peut se taire, il ne peut
+      # pas mentir sans qu'on le voie.
+      - name: Guardian Philosophie NEXUS — rapport
+        run: node outils/guardian-philosophie.js || true
+
+      - name: Épreuves du Guardian Philosophie
+        run: node test_guardian_philosophie_20260908.js
+
+      - name: Branches de travail en rade — rapport
+        run: node outils/garde-branches-en-rade.js || true
+
+      - name: Épreuves de la garde des branches en rade
+        run: node test_garde_branches_en_rade_20260908.js
+
+      # BLOQUANTE, contrairement aux Guardians consultatifs. La règle est
+      # arbitrée (portée 1, décision de Frédéric du 08/09/2026) et la garde est
+      # calibrée : 0 signalement sur le dépôt en l'état. Une garde qui ne crie
+      # pas peut se permettre d'arrêter la chaîne — c'est celle qui hurle au
+      # premier run qu'on désactive (QA-002).
+      - name: LANG-003 — le tiret cadratin dans ce que NEXUS dit
+        run: node outils/garde-langage-nexus.js
+
+      - name: Épreuves de la garde LANG-003
+        run: node test_garde_langage_nexus_20260908.js
+
+      # Une ligne de Bible que rien ne mécanise est une décoration : elle se met
+      # à mentir le jour où le code s'en écarte, sans que personne ne le voie.
+      - name: Les principes de la Bible sont-ils TENUS ?
+        run: node test_bible_principes_mecanises_20260908.js
+
+      # Une doctrine qui recopie une vérité vivant ailleurs devient une seconde
+      # source, et c'est toujours la copie qu'on oublie de mettre à jour.
+      - name: La doctrine du langage tient-elle ses promesses ?
+        run: node test_doctrine_langage_20260908.js
+
+      # Une permission accordée une fois a tendance à s'élargir ensuite, et
+      # personne ne relit un YAML pour vérifier une ligne qui n'a pas bougé.
+      - name: La surface du jeton de CI est-elle restée celle autorisée ?
+        run: node test_permissions_workflow_20260908.js
+
+      # Les agents portent leur nom devant l'utilisateur ; les commentaires
+      # datés gardent le leur, parce qu'ils datent une demande.
+      - name: LANG-004 — le nom des agents NEXUS
+        run: node test_vocabulaire_agents_20260908.js
+
+      # Une gravité d'écart de caisse, un seul propriétaire (ARCH-003).
+      - name: Épreuves de la classification unique des écarts
+        run: node test_classification_ecart_unique_20260908.js
+
+      # « Je n'ai pas pu demander » n'est ni une faute ni une conformité.
+      - name: La protection Production a-t-elle bien TROIS états ?
+        run: node test_barriere_production_trois_etats_20260908.js
+
+      # La répétition PREPROD-équivalente fait `drop schema public cascade`.
+      # Elle ne doit jamais emporter une décision humaine avec elle.
+      - name: La répétition préserve-t-elle le journal Live ?
+        run: node test_repetition_preserve_journal_20260909.js
+
+      # Un droit accordé en base doit exister dans le dépôt, sinon une
+      # reconstruction le perd sans que rien ne le dise.
+      - name: Les droits CI vivent-ils dans une migration ?
+        run: node test_droits_ci_dans_migrations_20260909.js
+
+      # L'hôte direct de Supabase ne publie qu'une adresse IPv6. Une
+      # reconstruction ne doit pas dépendre de sa disponibilité.
+      - name: La reconstruction survit-elle à une IPv6 absente ?
+        run: node test_connexion_test_repli_20260909.js
+
+      # Un PREPROD contient les identités d'une vraie équipe. La preuve qui
+      # autorise l'accès à cet environnement est la pièce la plus sensible.
+      - name: La preuve d'absence de donnée personnelle cherche-t-elle partout ?
+        run: node test_preuve_absence_donnee_personnelle_20260909.js
+
+      # Un PREPROD est détruit après sa release (arbitrage du 09/09/2026).
+      # BLOQUANTE : une copie de production oubliée est l'endroit où les
+      # fuites se logent.
+      - name: Un PREPROD survit-il à sa release ?
+        run: node outils/garde-preprod-ephemere.js
+
+      - name: Épreuves de la garde PREPROD éphémère
+        run: node test_garde_preprod_ephemere_20260909.js
+
+      - name: Épreuves de la garde du mode d'environnement
+        run: node test_garde_mode_environnement_20260909.js
+
+      # Le jeu de répétition porte les FORMES de Production, jamais ses données.
+      - name: Le jeu PREPROD reproduit-il les cas mesurés ?
+        run: node test_jeu_preprod_cas_production_20260909.js
+
+      # Un manifeste qui vieillit en silence promeut ce qu'il ignore.
+      - name: Toute migration de la promotion est-elle classée ?
+        run: node test_manifeste_migrations_complet_20260909.js
+
+      - name: Épreuves du routeur Guardians
+        run: node test_guardians_router_20260907.js
+
+      - name: Épreuves de la vérification d'apprentissage
+        run: node test_verifier_apprentissage_20260907.js
 
       - name: Simulations métier
         run: npm run simulations --silent
+
+      - name: Épreuves du réveil automatique
+        run: node test_reveil_handoff_20260907.js
+
+      - name: Épreuves du jugement de la recette navigateur
+        run: node test_recette_navigateur_test_20260907.js
+
+      # ------------------------------------------------------------------
+      # Recette navigateur NEXUS Test — la preuve UI, sans saisie humaine.
+      #
+      # Uniquement sur la branche canonique : c'est la seule dont NEXUS Test
+      # sert le contenu. Lancer la recette depuis une branche de travail
+      # testerait une version déployée qui n'est pas la sienne, et rendrait un
+      # vert ou un rouge également faux.
+      # ------------------------------------------------------------------
+
+      # Semis du jeu de données de recette. Idempotent (`on conflict`) et non
+      # destructeur : il ne met à jour que les litrages, et laisse intacts les
+      # montants et statuts des lignes appartenant à d'autres recettes.
+      # Sans le secret d'écriture, l'étape se déclare indisponible et passe —
+      # c'est la recette suivante qui dira alors, elle, que la preuve manque.
+      - name: Préparer la connexion PostgreSQL Test en écriture
+        if: github.ref == 'refs/heads/config-par-environnement'
+        env:
+          NEXUS_TEST_DB_URL_WRITE: ${{ secrets.SUPABASE_TEST_DB_URL_WRITE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NEXUS_TEST_DB_URL_WRITE:-}" ]; then
+            echo "::notice::SUPABASE_TEST_DB_URL_WRITE absent — jeu de données de recette non semé (ENV-003, non bloquant)."
+            echo "NEXUS_SEMIS_DISPONIBLE=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "NEXUS_SEMIS_DISPONIBLE=1" >> "$GITHUB_ENV"
+          # Même décomposition que .github/workflows/claude.yml : le mot de
+          # passe est masqué AVANT d'exister ailleurs, et `psql` se lance sans
+          # aucun argument de connexion — donc jamais de secret sur une ligne
+          # de commande, visible dans la liste des processus.
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, unquote
+
+          u = urlparse(os.environ['NEXUS_TEST_DB_URL_WRITE'])
+          if u.scheme not in ('postgresql', 'postgres'):
+              raise SystemExit('Schéma d\'URL PostgreSQL invalide')
+          if not all((u.hostname, u.username, u.password, u.path)):
+              raise SystemExit('URL PostgreSQL Test incomplète')
+
+          values = {
+              'PGHOST': u.hostname,
+              'PGPORT': str(u.port or 5432),
+              'PGDATABASE': u.path.lstrip('/') or 'postgres',
+              'PGUSER': unquote(u.username),
+              'PGPASSWORD': unquote(u.password),
+              'PGSSLMODE': 'require',
+          }
+          print(f"::add-mask::{values['PGPASSWORD']}")
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              for cle, valeur in values.items():
+                  f.write(f'{cle}={valeur}\n')
+          PY
+
+      # Étape distincte, et non la suite de la précédente : les variables
+      # écrites dans $GITHUB_ENV ne prennent effet qu'au step SUIVANT. Les
+      # laisser dans le même step aurait lancé `psql` sans aucune connexion —
+      # le genre d'erreur qui rend un rouge incompréhensible.
+      # Une base INJOIGNABLE et une base qui REFUSE ne sont pas le même fait, et
+      # les confondre coûte les deux fois. Le 08/09/2026, l'hôte direct de
+      # Supabase (`db.<ref>.supabase.co`) ne publie plus qu'une adresse IPv6 ;
+      # les runners GitHub n'ont pas d'IPv6. Le semis est donc devenu rouge le
+      # jour même où le secret d'écriture a enfin été créé — et ce rouge a
+      # emporté avec lui la recette navigateur, seule preuve que l'écran
+      # Carburants et NEXUS Live fonctionnent réellement. Une capacité Test
+      # absente ne doit jamais faire perdre les preuves qui, elles, tiennent.
+      #
+      # La tolérance est donc STRICTEMENT limitée à l'injoignabilité réseau.
+      # Un refus d'authentification, un droit manquant, une erreur SQL : tout
+      # cela reste bloquant. C'est la différence entre « je n'ai pas pu
+      # demander » et « on m'a répondu non » — la seconde est un vrai défaut.
+      - name: Semer le scénario Carburants sur Supabase Test
+        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        run: |
+          set -uo pipefail
+          if ! sonde=$(psql -v ON_ERROR_STOP=1 -c 'select 1' 2>&1 >/dev/null); then
+            if grep -qiE 'network is unreachable|could not translate host name|connection timed out|no route to host' <<<"$sonde"; then
+              echo "::warning::ENV-003 — base Test INJOIGNABLE depuis le runner : $sonde"
+              echo "::warning::Le jeu de recette n'a PAS été semé. La recette navigateur juge des données déjà présentes ; si elles ont dérivé, elle échouera — elle ne rendra pas un vert de complaisance."
+              echo "::warning::Cause connue : l'hôte direct Supabase ne publie qu'une adresse IPv6, absente des runners GitHub. Correctif = pointer SUPABASE_TEST_DB_URL_WRITE sur le pooler de session (IPv4). Geste humain : c'est un secret."
+              echo "NEXUS_SEMIS_FAIT=0" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "La base Test a RÉPONDU, et elle a refusé — ce n'est pas une indisponibilité :"
+            echo "$sonde"
+            exit 1
+          fi
+          # `set -e` est absent (la sonde ci-dessus doit pouvoir échouer sans
+          # tuer le step) : l'échec du semis se vérifie donc À LA MAIN. Un
+          # premier jet l'a oublié et une erreur SQL sortait en vert — le
+          # défaut même que ce bloc existe pour empêcher, retrouvé par l'essai
+          # à faux `psql` plutôt qu'en production.
+          # DEUX FOIS, délibérément. Le fichier promet l'idempotence dans son
+          # en-tête depuis le début, et ne la tenait pas : son second insert
+          # n'avait pas de `on conflict`. Le défaut est resté invisible tant
+          # que le semis n'avait jamais réussi à s'exécuter deux fois. Une
+          # promesse que rien n'exerce n'est pas une garantie, c'est une
+          # intention — alors on l'exerce à chaque passage.
+          for passage in 1 2; do
+            if ! psql -v ON_ERROR_STOP=1 -f outils/recette-carburants-test.sql; then
+              echo "Le semis a échoué au passage $passage alors que la base RÉPONDAIT — défaut réel, pas une indisponibilité."
+              [ "$passage" = 2 ] && echo "Un échec au SECOND passage seulement est une rupture d'idempotence."
+              exit 1
+            fi
+          done
+          # LA MOITIÉ NÉGATIVE. Le rôle CI vient d'obtenir une politique RLS
+          # bornée au site de recette (migration 20260908033743). Vérifier
+          # seulement qu'il écrit là où il doit ne prouve pas qu'il est borné :
+          # un rôle en BYPASSRLS passerait exactement la même épreuve. On exige
+          # donc aussi qu'il ÉCHOUE ailleurs.
+          #
+          # `begin; … ; rollback;` : si l'écriture est refusée, psql sort non
+          # nul et on l'attend ; si elle est acceptée, le rollback garantit que
+          # rien n'est écrit sur l'autre site — la fuite est détectée sans
+          # jamais être commise.
+          if psql -v ON_ERROR_STOP=1 -c "begin; insert into public.audits_caisse (site, date, quart, litrage_sp95, litrage_gazole, litrage_gnr) values ('site-fantome-test','2026-09-08','9',1,1,null); rollback;" >/dev/null 2>&1; then
+            echo "FUITE D'ISOLATION : le rôle CI a écrit sur site-fantome-test. La politique RLS ne borne pas ce qu'elle prétend borner."
+            exit 1
+          fi
+          # Le droit de LECTURE sur `sites` ne doit rien montrer. Il n'existe que
+          # pour laisser s'évaluer la sous-requête d'une politique `TO PUBLIC`
+          # de `carburant_releves` ; RLS est active sur `sites` et toutes ses
+          # politiques visent `authenticated`, dont ce rôle n'est pas membre.
+          # Cette affirmation ne reste pas un commentaire : si une politique
+          # `TO PUBLIC` était un jour ajoutée sur `sites`, la lecture cesserait
+          # d'être vide et on l'apprendrait le jour même, pas à l'incident.
+          # `|| true` INDISPENSABLE : GitHub lance `shell: bash` avec `-e`, que
+          # `set -uo pipefail` ne désactive pas. Sans lui, une affectation dont
+          # la commande échoue tue le step AVANT le moindre message — et les
+          # trois issues distinguées plus bas (vide / fuite / invérifiable)
+          # deviennent inatteignables précisément dans le cas qu'elles
+          # existent pour nommer.
+          lignes=$(psql -tAc "select count(*) from public.sites" 2>&1) || true
+          # Un compte non numérique n'est pas une fuite, c'est une erreur : les
+          # confondre nommerait un fait pour un autre, et enverrait chercher le
+          # défaut au mauvais endroit. Les deux bloquent, mais pas sous le même
+          # nom.
+          case "$lignes" in
+            0) : ;;
+            ''|*[!0-9]*) echo "LECTURE INVÉRIFIABLE sur sites — ne rien conclure : $lignes"; exit 1 ;;
+            *) echo "FUITE DE LECTURE : le rôle CI voit $lignes ligne(s) dans sites, il ne doit en voir aucune."; exit 1 ;;
+          esac
+          echo "Isolation vérifiée : le rôle CI est refusé hors du site de recette, et ne voit aucune ligne de sites."
+          # L'instantané contre lequel le scénario est calibré doit correspondre
+          # à la station Test. S'il dérive, la recette cherchera un défaut
+          # imaginaire dans le moteur — c'est exactement ce qui est arrivé le
+          # 07/09, avec un scénario calculé pour les cuves d'une autre station.
+          #
+          # SEC-018 ACCORDÉ par Frédéric Bragance le 08/09/2026 : la politique
+          # `lecture_recette_station_test` ouvre au rôle CI la seule ligne
+          # `nexus-station-test`, et le `grant` ne porte que sur les colonnes
+          # comparées. Aucune station cliente n'entre dans cette portée, aucune
+          # écriture n'est accordée.
+          #
+          # CONSÉQUENCE : un « permission denied » n'est PLUS une limite
+          # d'environnement, c'est une RÉGRESSION — le droit existe, donc son
+          # refus veut dire qu'on l'a retiré. Il devient bloquant. Les autres
+          # échecs de lecture restent tolérés (ENV-003) et DÉCLARÉS, jamais
+          # transformés en « instantané conforme » : ne pas savoir n'est pas
+          # une conformité.
+          #
+          # Le filet reste réel par ailleurs : une dérive ferait échouer la
+          # recette navigateur, qui est bloquante. Cette comparaison est celle
+          # qui NOMME la cause au lieu de laisser chercher.
+          # `|| true`, même raison : sans lui, `-e` a tué ce step en silence au
+          # run 34227764396 — aucun message, seulement « exit code 1 ».
+          vivant=$(psql -tAc "select jsonb_build_object('fuseau_horaire', fuseau_horaire, 'cuves_carburants', cuves_carburants, 'carburant_commande_config', carburant_commande_config) from station_config where site='nexus-station-test'" 2>&1) || true
+          if printf '%s' "$vivant" | grep -qiE 'permission denied|permission refus'; then
+            echo "Le rôle CI ne peut plus lire station_config alors que SEC-018 le lui accorde depuis le 08/09/2026."
+            echo "Le droit a donc été retiré ou la politique supprimée — ce n'est pas une limite d'environnement."
+            printf '%s\n' "$vivant"
+            exit 1
+          elif [ -z "${vivant// /}" ] || printf '%s' "$vivant" | grep -qiE 'error'; then
+            echo "::warning::ENV-003 — instantané de la station NON vérifié : la configuration vivante n'est pas lisible ($vivant). Une dérive resterait invisible ici ; elle ferait échouer la recette navigateur, sans en nommer la cause."
+          elif ! printf '%s' "$vivant" | node outils/repetition-recette-carburants.js --comparer; then
+            exit 1
+          fi
+          # DEUX SOURCES, UNE SEULE VÉRITÉ. La base porte le mode
+          # d'environnement, le dépôt porte le cycle PREPROD : leur désaccord
+          # est l'information. Une recette exécutée pendant une répétition
+          # jugerait des données structurées pour reproduire des cas
+          # Production, pas le jeu de recette normal — et resterait verte.
+          mode=$(psql -tAc "select mode from public.nexus_environnement_mode" 2>/dev/null | tr -d '[:space:]') || true
+          node outils/garde-mode-environnement.js "$mode"
+          echo "NEXUS_SEMIS_FAIT=1" >> "$GITHUB_ENV"
+          echo "Scénario de recette Carburants semé sur Supabase Test."
+
+      # PUBLICATION DU JOURNAL LIVE.
+      #
+      # Le producteur et l'écran existaient depuis le 07/09 sans rien entre
+      # eux : NEXUS Live affichait un instantané figé de treize heures, et rien
+      # ne le disait. Un tableau de bord qui n'est pas alimenté n'est pas un
+      # tableau de bord, c'est une capture d'écran.
+      #
+      # `|| true` sur les affectations : GitHub lance `shell: bash` avec `-e`,
+      # et sans lui une commande qui échoue tue le step avant tout message
+      # (leçon QA-005, apprise deux fois aujourd'hui).
+      #
+      # ENV-003 : tant que le rôle CI n'a pas le droit d'insérer dans
+      # `nexus_live_events`, l'absence de publication est DÉCLARÉE. Elle n'est
+      # jamais transformée en succès silencieux — sinon l'écran continuerait
+      # d'afficher du vieux en donnant l'impression d'être alimenté.
+      # PUBLICATION DU JOURNAL LIVE.
+      #
+      # Le producteur et l'écran existaient depuis le 07/09 sans rien entre
+      # eux : NEXUS Live affichait un instantané figé de treize heures, et rien
+      # ne le disait. Un tableau de bord qui n'est pas alimenté n'est pas un
+      # tableau de bord, c'est une capture d'écran.
+      #
+      # PUBLICATION LIGNE PAR LIGNE, SANS `on conflict` — choix de sécurité.
+      # Sous RLS, `on conflict` exige de pouvoir LIRE la table pour arbitrer le
+      # conflit ; le rôle CI a le droit d'écrire mais aucune policy de lecture.
+      # Plutôt que d'ouvrir le journal d'exécution du Créateur à un rôle
+      # technique pour la commodité d'une clause SQL, on garde ce rôle en
+      # ÉCRITURE SEULE et on traite le doublon pour ce qu'il est : un fait
+      # attendu lors d'une republication, reconnaissable à son erreur propre.
+      #
+      # `|| true` sur les affectations : GitHub lance `shell: bash` avec `-e`,
+      # et sans lui une commande qui échoue tue le step avant tout message
+      # (leçon QA-005, apprise deux fois le 08/09).
+      - name: Publier le journal NEXUS Live
+        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        # GH_TOKEN n'est donné qu'ICI, la seule étape qui exécute le producteur.
+        # Le poser au niveau du job l'exposerait à toutes les autres, dont celles
+        # qui lancent du code d'épreuve : une permission accordée sert ce qui en
+        # a besoin, pas tout ce qui passe.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          sql=$(node outils/producteur-evenements-live.js --sql-unitaire 2>&1) || true
+          if [ -z "${sql// /}" ] || ! printf '%s' "$sql" | grep -q 'insert into public.nexus_live_events'; then
+            echo "::warning::ENV-003 — aucun événement Live produit : $sql"
+            exit 0
+          fi
+          retour=$(printf '%s' "$sql" | psql -v ON_ERROR_STOP=0 2>&1) || true
+          publies=$(printf '%s' "$retour" | grep -c '^INSERT 0 1' || true)
+          deja=$(printf '%s' "$retour" | grep -c 'nexus_live_events_event_id_key' || true)
+          # Tout ce qui n'est ni une publication ni un doublon attendu est un
+          # défaut réel : on ne l'avale pas.
+          autres=$(printf '%s' "$retour" | grep -E '^ERROR' | grep -vc 'nexus_live_events_event_id_key' || true)
+          if [ "$autres" != "0" ]; then
+            echo "Publication du journal Live REFUSÉE pour une raison autre qu'un doublon :"
+            printf '%s\n' "$retour" | grep -E '^(EVENEMENT|ERROR)' | tail -20
+            exit 1
+          fi
+          echo "Journal NEXUS Live : $publies événement(s) publié(s), $deja déjà présent(s)."
+
+      - name: Installer Playwright
+        if: github.ref == 'refs/heads/config-par-environnement'
+        run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
+
+      # Bloquante quand les secrets sont là : une preuve qui s'excuse ne prouve
+      # rien. Non bloquante quand ils manquent (ENV-003) — et elle le DIT,
+      # plutôt que de laisser croire que la preuve UI existe.
+      - name: Recette navigateur NEXUS Test
+        if: github.ref == 'refs/heads/config-par-environnement'
+        env:
+          NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
+          # Le NOM, pas le username : nexus_identifiant_de_connexion résout sur
+          # employees.nom. 'manager-test' rend NULL, 'Manager Test' rend le compte.
+          NEXUS_TEST_MANAGER_NOM: Manager Test
+          # Le compte Créateur de recette, pour la preuve d'accès POSITIVE à
+          # NEXUS Live. Le MVP n'avait qu'une recette négative — la moitié
+          # rassurante et la moins utile : un écran cassé qui refuse tout le
+          # monde la passerait aussi.
+          NEXUS_TEST_CREATEUR_NOM: Créateur Test
+          # Un PIN par profil depuis le 08/09/2026. Partager un seul secret entre
+          # le Créateur et le Manager donnait au compte le moins autorisé la clé
+          # du plus autorisé : la recette ne pouvait plus prouver une séparation
+          # qu'elle-même n'observait pas. Les secrets Employé A/B existent mais ne
+          # sont pas déclarés ici : aucun scénario ne les exerce, et un secret
+          # injecté sans usage fabrique une preuve vide.
+          NEXUS_TEST_MANAGER_PIN: ${{ secrets.NEXUS_TEST_MANAGER_PIN }}
+          NEXUS_TEST_CREATEUR_PIN: ${{ secrets.NEXUS_TEST_CREATEUR_PIN }}
+          # Compte EMPLOYÉ, injecté depuis le 09/09/2026 à la demande de
+          # Frédéric. Le secret existait déjà et dormait : la règle « un secret
+          # injecté sans usage fabrique une preuve vide » interdisait de le
+          # câbler tant qu'aucun scénario ne l'exerçait. Le scénario existe
+          # maintenant — prise de poste, puis prise de poste AVEC un quart déjà
+          # ouvert, le cas ordinaire de l'équipe que l'index d'unicité de la
+          # release pourrait refuser.
+          #
+          # Son absence ne fait PAS tomber la recette : ces deux variables sont
+          # hors de SECRETS_REQUIS, et le scénario employé dégrade seul.
+          NEXUS_TEST_EMPLOYEE_A_NOM: Employé Test A
+          NEXUS_TEST_EMPLOYEE_A_PIN: ${{ secrets.NEXUS_TEST_EMPLOYEE_A_PIN }}
+          # Attend que NEXUS Test serve RÉELLEMENT le commit testé avant de
+          # juger quoi que ce soit. Cloudflare déploie de façon asynchrone, et
+          # une recette lancée trop tôt prouverait la version précédente —
+          # ce que decision-2.md du lot CARB-004 interdit explicitement.
+          NEXUS_COMMIT_ATTENDU: ${{ github.sha }}
+        run: node outils/recette-navigateur-test.js

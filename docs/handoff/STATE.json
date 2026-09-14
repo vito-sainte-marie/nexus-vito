@@ -1,0 +1,304 @@
+{
+  "protocol": "nexus-handoff/2",
+  "lot_actif": "NEXUS-POINTAGE-CORRECTIF-1-20260911",
+  "legacy_before_v2": {
+    "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
+    "lots": [
+      {
+        "lot_id": "S-4-LECTEURS-SERVICE-COURANT-20260905",
+        "demande": "a425dd8, 53bc3f3",
+        "decision": "04b7e71, 3370b36",
+        "issue": "APPROVED_CLOSED (valeur legacy)"
+      },
+      {
+        "lot_id": "S-5-SHIFT-ID-INVENTAIRE-20260905",
+        "demande": "67ecdce, 0e0eb3f",
+        "decision": "ab8b9b7, 72a632a",
+        "issue": "APPROVED_CLOSED (valeur legacy)"
+      }
+    ]
+  },
+  "lots": {
+    "HANDOFF-V2-EVENEMENTIEL-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "e76713f483c7ce664deb54f8c31e45fd1ef976b5",
+      "consomme_le": "2026-09-06T00:33:03.708Z",
+      "legacy_before_v2": {
+        "demande": "db50d40",
+        "decision": "docs/handoff/DECISION.md (v1)"
+      }
+    },
+    "B1-REJEU-NAVIGATEUR-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "1840dbcd28cc28e2830e39bab152e7114bb7618d",
+      "consomme_le": "2026-09-06T01:09:23.675Z"
+    },
+    "VERIFY-QUART-AUTOMATIQUE-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c0fb0df55b31e75403f912bb902f02dc96182fe7",
+      "consomme_le": "2026-09-06T01:38:51.440Z"
+    },
+    "NEXUS-BASELINE-1-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "9d64bae45c12b9cd9a94520c36a40eb4e79374b8",
+      "consomme_le": "2026-09-06T02:24:49.204Z"
+    },
+    "NEXUS-GOVERNANCE-CORE-1-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "db2ffc4fd01a11da5d275c65cbd625065f1f36eb",
+      "consomme_le": "2026-09-06T02:33:19.101Z"
+    },
+    "SITE-EXPLICITE-1-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "75b1c32e39d3d1349e7db51a537511bc59ea683b",
+      "consomme_le": "2026-09-06T02:55:02.279Z"
+    },
+    "SITE-EXPLICITE-1-PHASE2A-20260905": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "9a2ed8f88e33b8d1d5636076a47a4e43d8d5a5be",
+      "consomme_le": "2026-09-06T03:01:43.615Z"
+    },
+    "SITE-EXPLICITE-1-2B-SECURITY-WRITE-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "996cd62f4463342ce83700c808e974030572bd34",
+      "consomme_le": "2026-09-06T03:10:44.535Z"
+    },
+    "SITE-EXPLICITE-1-RLS-MATRIX-PROOF-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "129b153eb59417ff33b59c229c13128151c4f997",
+      "consomme_le": "2026-09-06T03:19:57.480Z"
+    },
+    "SITE-EXPLICITE-1-RLS-UPDATE-MATRIX-PROOF-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "a6dc3afd88df76f83a3eea1959e4f48c4c94f8f3",
+      "consomme_le": "2026-09-06T03:28:32.056Z"
+    },
+    "SITE-EXPLICITE-1-MUTATION-SITE-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "130bab57f3e3340092bcc9e0877a7a9dd2bc9d35",
+      "consomme_le": "2026-09-06T03:39:11.191Z"
+    },
+    "SITE-EXPLICITE-1-INSERT-SITE-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "d4195e396e1bcc88ee5bd33ae9951f3c371956ed",
+      "consomme_le": "2026-09-06T03:44:56.716Z"
+    },
+    "SITE-EXPLICITE-1-STATIC-SITE-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "046f10a92da3bb1fb959e0e714398249837f5fd0",
+      "consomme_le": "2026-09-06T03:56:11.920Z"
+    },
+    "SITE-EXPLICITE-1-STATIC-GUARD-FINDINGS-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "73bed674ae3b5cf55d04da139efad9052e3868e1",
+      "consomme_le": "2026-09-06T04:02:53.097Z"
+    },
+    "SITE-EXPLICITE-1-STATIC-GUARD-UNKNOWN-TRIAGE-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "fc2534169eb5c84b230ca58f76aa75bd960ed0db",
+      "consomme_le": "2026-09-06T04:18:53.315Z"
+    },
+    "SITE-EXPLICITE-1-CREATEUR-SITES-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "542c20c453408810c80017745ec2415988af0f3f",
+      "consomme_le": "2026-09-06T04:33:23.573Z"
+    },
+    "SITE-EXPLICITE-1-NAMED-HELPERS-BEHAVIOR-PROOF-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "fb572700f446d6a643a237ff47f87c748938604c",
+      "consomme_le": "2026-09-06T12:34:05.000Z"
+    },
+    "SITE-EXPLICITE-1-POMPISTE-DU-JOUR-TIMEZONE-GUARD-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c8a2c128ab702d77456b3446d05cd42f3a7a3e35",
+      "consomme_le": "2026-09-06T12:34:05.000Z"
+    },
+    "CARBURANTS-PERFORMANCE-AUDIT-COMMANDE-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "74eb1f66ee0fa660b3c7ffdaa5d13dd7efb70b37",
+      "consomme_le": "2026-09-06T13:12:15.000Z"
+    },
+    "CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-3.md",
+      "derniere_decision": "decision-4.md",
+      "source_decision": "registre",
+      "commit_decision": "452eef8b8f144ddd025d222ac3553eef897707da",
+      "consomme_le": "2026-09-06T22:25:48.094Z"
+    },
+    "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-4.md",
+      "derniere_decision": "decision-4.md",
+      "source_decision": "registre",
+      "commit_decision": "96c0a698a5cc06179c6a810f8f601e44fb6dd13f",
+      "consomme_le": "2026-09-07T16:20:37.439Z"
+    },
+    "NEXUS-ORCHESTRATION-REPAIR-1-20260907": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "ff6a2d9361a4f94030b83a9a4c0466c2e4bbbb0e",
+      "note": "Enregistré le 07/09/2026 depuis une session ayant droit d'écriture sur config-par-environnement. Le répertoire existait sous docs/handoff/lots/ depuis a2e31cf sans jamais figurer ici : les runs Claude qui l'ont alimenté étaient racinés sur main et n'avaient donc pas le STATE.json canonique sous la main pour l'y inscrire. Aucun consomme_le n'est posé : personne n'a jamais enregistré la consommation de decision-1.md par outils/handoff.js, et l'inventer daterait un acte qui n'a pas eu lieu.",
+      "consomme_le": "2026-09-07T15:34:42.461Z"
+    },
+    "NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "12d32e4f7cdd705f0a537349770cd7350c434c08",
+      "consomme_le": "2026-09-07T18:53:25.304Z"
+    },
+    "NEXUS-ORCHESTRATION-GUARDIANS-1-20260907": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "27c38e9edf07344da9c7c2f3615fab12d4202fab",
+      "consomme_le": "2026-09-08T02:14:48.446Z"
+    },
+    "NEXUS-PHILOSOPHIE-LANGAGE-AUDIT-1-20260908": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-3.md",
+      "derniere_decision": "decision-3.md",
+      "source_decision": "registre",
+      "commit_decision": "90276b4221b36a5e8d5f1444ac540e3e5c1e329d",
+      "consomme_le": "2026-09-09T03:18:34.653Z"
+    },
+    "NEXUS-PRODUCTION-READINESS-1-20260908": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-10.md",
+      "derniere_decision": "decision-9.md",
+      "source_decision": "registre",
+      "commit_decision": "766b45698ffc5351204cbd5e3d83dc480b50496a",
+      "consomme_le": "2026-09-11T15:45:56.397Z"
+    },
+    "NEXUS-POINTAGE-CORRECTIF-1-20260911": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md"
+    }
+  },
+  "artefacts_hors_registre": [
+    {
+      "lot_id": "NEXUS-GUARDIAN-ARCHITECTURE-COHERENCE-1-20260906",
+      "motif": "Dossier de conception créé avant la normalisation des lots Handoff v2 ; son request-1.md n'a jamais porté d'enveloppe YAML et ne doit pas en recevoir rétroactivement — fabriquer une enveloppe qu'il n'a jamais eue inventerait un passé plausible.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-06"
+    },
+    {
+      "lot_id": "NEXUS-LIVE-CONTROL-CENTER-1-20260906",
+      "motif": "Dossier de conception créé avant la normalisation des lots Handoff v2 ; son request-1.md n'a jamais porté d'enveloppe YAML et ne doit pas en recevoir rétroactivement — fabriquer une enveloppe qu'il n'a jamais eue inventerait un passé plausible.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-06"
+    },
+    {
+      "lot_id": "NEXUS-ORCHESTRATOR-EVENT-DRIVEN-1-20260906",
+      "motif": "Dossier de conception créé avant la normalisation des lots Handoff v2 ; son request-1.md n'a jamais porté d'enveloppe YAML et ne doit pas en recevoir rétroactivement — fabriquer une enveloppe qu'il n'a jamais eue inventerait un passé plausible.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-06"
+    }
+  ],
+  "derogations": [
+    {
+      "fichier": "NEXUS-ORCHESTRATION-REPAIR-1-20260907/decision-2.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "L'enveloppe porte `decision: REJECTED`, absent du vocabulaire canonique. Défaut de FORME : le corps est sans ambiguïté (« REPAIR-1 n'est pas validé comme réparation réussie, mais son cycle est clos proprement »), il porte `closes: true`, et le verdict équivaut au BLOCKED du vocabulaire. Le fichier n'est ni renommé ni réécrit : réécrire le dépôt d'un tiers violerait l'append-only. Sans cette dérogation la décision se bloque elle-même — elle demande explicitement de fermer REPAIR-1 puis de publier request-4, et son enveloppe non conforme empêche les deux. QUATRIÈME écart d'enveloppe consécutif : la cause n'est plus l'inattention mais le contrat, qui n'offrait aucun moyen outillé de produire une enveloppe conforme côté décision — `handoff.js demande` existait pour les demandes, rien pour les décisions. `outils/handoff.js decision` est ajouté dans le même lot pour qu'il n'y ait pas de cinquième. Cette dérogation couvre le fichier déjà déposé, pas la pratique.",
+      "autorise_par": "Frédéric Bragance (gate humaine — arbitrage explicite du 07/09/2026)",
+      "le": "2026-09-07"
+    },
+    {
+      "fichier": "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md",
+      "regle": "STATUT_HORS_VOCABULAIRE",
+      "motif": "Enveloppe incomplète : `status` et `token_mode` absents. Défaut de FORME seulement — le corps est une demande d'arbitrage explicite, et ChatGPT l'a effectivement arbitrée par decision-3.md. Le fichier n'est ni réécrit ni complété : y ajouter aujourd'hui une enveloppe qu'il n'a jamais portée fabriquerait un passé plausible, exactement ce que le protocole interdit depuis A18. La cause n'est pas une négligence de rédaction mais le rail d'intégration : le run Claude qui a écrit ce fichier était raciné sur main et n'avait donc dans son arbre ni le STATE.json canonique ni outils/handoff.js — il ne pouvait pas passer par `handoff.js demande`, seule voie qui produit une enveloppe conformante. La correction structurelle est traitée séparément (base_branch sur claude-code-action) ; cette dérogation ne couvre que le fichier déjà déposé.",
+      "autorise_par": "Frédéric Bragance (gate humaine — arbitrage explicite du 07/09/2026)",
+      "le": "2026-09-07"
+    },
+    {
+      "fichier": "CARBURANTS-PERFORMANCE-OPTIMISATION-CAMION-20260906/request-3.md",
+      "regle": "TOKEN_MODE_HORS_VOCABULAIRE",
+      "motif": "Même fichier, même cause, même refus de réécrire : voir la dérogation STATUT_HORS_VOCABULAIRE ci-dessus. `token_mode` est une déclaration d'intention faite AVANT l'exécution ; la poser après coup serait la seule chose pire que son absence.",
+      "autorise_par": "Frédéric Bragance (gate humaine — arbitrage explicite du 07/09/2026)",
+      "le": "2026-09-07"
+    },
+    {
+      "fichier": "HANDOFF-V2-EVENEMENTIEL-20260905/decision-2.md",
+      "regle": "SEQUENCE_NON_CONTIGUE",
+      "motif": "Le dépôt est numéroté 2 alors qu'il est la première décision du registre, parce que la demande request-1.md écrite par Claude demandait littéralement « déposer decision-2.md ». L'auteur de la décision a suivi l'instruction reçue. Le fichier n'est ni renommé ni réécrit : renommer le dépôt d'un tiers violerait l'append-only, et assouplir la règle la viderait de son sens. L'écart est donc assumé ici, visible à chaque exécution.",
+      "autorise_par": "Frédéric Bragance (gate humaine)",
+      "le": "2026-09-05"
+    },
+    {
+      "fichier": "VERIFY-QUART-AUTOMATIQUE-20260905/decision-1.md",
+      "regle": "BRANCHE_ABSENTE",
+      "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
+      "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
+      "le": "2026-09-05"
+    },
+    {
+      "fichier": "VERIFY-QUART-AUTOMATIQUE-20260905/decision-1.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
+      "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
+      "le": "2026-09-05"
+    }
+  ]
+}

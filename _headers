@@ -1,0 +1,14 @@
+# Cloudflare Pages — en-têtes de réponse.
+#
+# nexus-config.js désigne l'environnement (test ou production) : c'est le
+# seul fichier du site dont un exemplaire périmé change la base à laquelle
+# l'application parle. `no-store` est la seule directive qui interdise
+# réellement de le conserver — `max-age=0, must-revalidate` autorise encore
+# un stockage suivi d'une revalidation, donc une fenêtre pendant laquelle un
+# navigateur ou un intermédiaire peut servir l'ancien.
+#
+# outils/generer-config.js vérifie la présence de cette règle et refuse de
+# produire un build sans elle.
+/nexus-config.js
+  Cache-Control: no-store
+  X-Robots-Tag: noindex

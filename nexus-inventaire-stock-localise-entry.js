@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   const pages=new Set(['NEXUS-Inventaire-Manager-v1.html','NEXUS-Inventaire-v1.html']);
-  const page=location.pathname.split('/').pop(); if(!pages.has(page)) return;
+  const page=NexusPage.identifiant(); if(!NexusPage.est(Array.from(pages))) return;
 
   function injecterStyleManager(){
     if(document.getElementById('nexusStockLocaliseEntryStyle')) return;
@@ -63,7 +63,7 @@
   async function init(){
     try{
       const e=await nexusRequireAuth(); if(!e||!['manager','gerant'].includes(e.role)) return;
-      if(page==='NEXUS-Inventaire-Manager-v1.html'){
+      if(NexusPage.est('NEXUS-Inventaire-Manager-v1.html')){
         let essais=0;
         const tenter=()=>{if(ajouterAccesManager()||essais++>40)return;setTimeout(tenter,150)};
         tenter();

@@ -5,7 +5,7 @@
 (function nexusStockLocaliseUxV2() {
   'use strict';
 
-  if ((window.location.pathname.split('/').pop() || '') !== 'NEXUS-Stock-Localise-v1.html') return;
+  if(!NexusPage.est('NEXUS-Stock-Localise-v1.html')) return;
 
   function init() {
     const recherche = document.getElementById('recherche');

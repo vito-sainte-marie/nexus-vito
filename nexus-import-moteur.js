@@ -354,7 +354,7 @@
     typeStock: 'Stock théorique instantané',
     typeCampagne: 'Campagne NEXUS',
     typePanier: 'Panier moyen',
-    conseillerLabel: 'Conseiller NEXUS — Import',
+    conseillerLabel: 'NEXUS Directeur d’Exploitation — Import',
     boutonVerifier: 'Vérifier le fichier',
     boutonPublier: 'Publier dans NEXUS →',
     succesPublication: 'Données publiées dans NEXUS',

@@ -155,7 +155,11 @@
   function injecter(src, cle) {
     if (document.querySelector('script[data-nexus-carburants-p0="' + cle + '"]')) return;
     var script = document.createElement('script');
-    script.src = src;
+    // Épinglé sur l'unique génération officielle, comme tout actif servi. Ces
+    // trois scripts se chargeaient sans épingle : hors génération au même titre
+    // qu'un actif portant une épingle périmée, et invisibles au contrôle de
+    // cohérence, qui n'inspecte que les balises présentes au chargement.
+    script.src = NexusBuild.versionner(src);
     script.async = false;
     script.setAttribute('data-nexus-carburants-p0', cle);
     document.head.appendChild(script);

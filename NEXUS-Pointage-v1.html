@@ -171,7 +171,7 @@
   <div class="section desktop-grid" id="app">
     <div class="info-note">Chargement de votre journée…</div>
   </div>
-  <footer>NEXUS Pointage v1 · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Pointage v1 · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script>
@@ -187,8 +187,9 @@
   // saisie qui manquait, pas une nouvelle fonctionnalité de zéro.
   //
   // Règle : chaque type ('arrivee','pause_debut','pause_fin','depart')
-  // ne peut être pointé qu'une fois par jour et par employé, dans
-  // l'ordre. Le retard n'est calculé (retard_min) que pour l'arrivée,
+  // ne peut être pointé qu'une fois par jour et par employé. La pause
+  // garde sa séquence propre (pas de fin sans début), mais elle n'est
+  // PLUS un passage obligé vers le départ — voir pointageDisponible(). Le retard n'est calculé (retard_min) que pour l'arrivée,
   // à partir du quart actif de l'employé dans `shifts` (statut
   // 'en_cours') — jamais un chiffre inventé : si aucun quart actif
   // n'est trouvé, retard_min reste à 0 plutôt que d'être estimé.
@@ -225,6 +226,198 @@
   const CLE_TENTATIVE_EN_COURS = 'nexus_pointage_tentative_en_cours';
 
   const ORDRE_TYPES = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+
+  /**
+   * Ce qui est POINTABLE maintenant, type par type.
+   *
+   * LE DÉFAUT, relevé le 11/09/2026 en parcourant NEXUS en caissière, et
+   * mesuré ensuite sur Production. L'ancienne règle n'ouvrait QUE l'étape
+   * suivante de ORDRE_TYPES :
+   *
+   *     const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+   *     const bloque = !fait && !estProchain;
+   *
+   * Une employée qui ne prend pas de pause — ou qui oublie de la pointer —
+   * ne pouvait donc JAMAIS pointer son départ : `prochainType` restait
+   * bloqué sur 'pause_debut' et le bouton Départ était désactivé jusqu'au
+   * lendemain. Son quart restait ouvert.
+   *
+   * Ce que Production en dit, sur ses 92 pointages : 48 journées se sont
+   * arrêtées sur la seule arrivée, contre 11 menées jusqu'au départ — et
+   * plus aucun pointage depuis le 30/08/2026.
+   *
+   * LA RÈGLE MAINTENANT : la pause reste une séquence (on ne termine pas
+   * une pause qu'on n'a pas commencée), mais elle n'est plus un passage
+   * obligé vers le départ. Dès que l'arrivée est pointée, partir est
+   * possible. Aucune durée minimale de pause n'est introduite ici : c'est
+   * une règle métier et de paie, elle appartient à Frédéric Bragance.
+   */
+  function pointageDisponible(type, dejaFait) {
+    if (dejaFait[type]) return false;              // jamais deux fois dans le même service
+    switch (type) {
+      case 'arrivee':     return true;
+      case 'pause_debut': return !!dejaFait.arrivee && !dejaFait.depart;
+      case 'pause_fin':   return !!dejaFait.pause_debut && !dejaFait.depart;
+      case 'depart':      return !!dejaFait.arrivee;
+      default:            return false;
+    }
+  }
+
+  // ══ FILE LOCALE DES POINTAGES (11/09/2026) ═══════════════════════════════
+  //
+  // Ce qui manquait, et que le repli « sans photo » ne remplaçait pas : quand
+  // le réseau tombe entre le clic et le serveur, le pointage était PERDU. Un
+  // message « réessayez », et rien de conservé. À la station, ça veut dire une
+  // employée qui repointe trois fois ou qui renonce.
+  //
+  // CE QUE CETTE FILE GARANTIT, et rien de plus :
+  //   * la tentative est écrite sur l'appareil AVANT le moindre envoi ;
+  //   * elle porte un identifiant idempotent, généré une seule fois ;
+  //   * l'heure du CLIC est conservée, distincte de l'heure de réception ;
+  //   * elle survit à un rechargement, à une fermeture du navigateur, à une
+  //     session expirée — dans ce dernier cas elle attend la reconnexion ;
+  //   * elle est rejouée au retour du réseau, et une reprise ne duplique rien.
+  //
+  // CE QU'ELLE NE GARANTIT PAS, et qu'il ne faut pas laisser croire : tant
+  // qu'une entrée est en file, le pointage N'EST PAS reçu par le serveur.
+  // L'écran le dit avec ces mots-là.
+  const CLE_FILE_POINTAGES = 'nexus_pointages_en_attente';
+
+  function fileLire() {
+    try { const b = localStorage.getItem(CLE_FILE_POINTAGES); return b ? JSON.parse(b) : []; }
+    catch (e) { console.error('File des pointages illisible:', e); return []; }
+  }
+  function fileEcrire(entrees) {
+    try { localStorage.setItem(CLE_FILE_POINTAGES, JSON.stringify(entrees)); return true; }
+    catch (e) { console.error('File des pointages non enregistrable:', e); return false; }
+  }
+  /** Identifiant idempotent, généré AVANT l'envoi et jamais régénéré. */
+  function identifiantTentative() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    // Repli en FORME d'UUID : `client_event_id` est une colonne uuid, une
+    // chaîne libre y serait refusée. Version 4 posée à la main.
+    const h = () => Math.floor(Math.random() * 16).toString(16);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
+      c => (c === 'x' ? h() : ((Math.floor(Math.random() * 4) + 8).toString(16))));
+  }
+  function fileAjouter(ligne, contexte) {
+    const entrees = fileLire();
+    // Idempotence à la source : un même (employé, SERVICE, type) n'entre
+    // qu'une fois en file, quel que soit le nombre de clics.
+    //
+    // La clé était (employé, JOUR, type) — 13/09/2026. Deux services le même
+    // jour, et la seconde arrivée était confondue avec la première : c'est la
+    // même erreur de portée que la relecture anti-doublon et que `dejaFait`.
+    // La bonne clé est celle de l'index unique posé le 11/09.
+    const deja = entrees.find(e => e.ligne.employee_id === ligne.employee_id
+      && e.ligne.service_id === ligne.service_id && e.ligne.type === ligne.type);
+    if (deja) return deja;
+    const entree = { id: ligne.client_event_id || identifiantTentative(), ligne, contexte: contexte || {},
+                     clic: new Date().toISOString(), essais: 0 };
+    entrees.push(entree);
+    fileEcrire(entrees);
+    return entree;
+  }
+  function fileRetirer(id) { fileEcrire(fileLire().filter(e => e.id !== id)); }
+  function fileEntreeDuType(type) {
+    return fileLire().find(e => e.ligne && e.ligne.type === type) || null;
+  }
+
+  /**
+   * Le serveur a-t-il REFUSÉ, ou n'a-t-il simplement pas répondu ?
+   *
+   * LE DÉFAUT DU 13/09/2026. Toute erreur d'insertion était traitée comme une
+   * coupure réseau : la tentative partait en file avec la promesse « rien ne
+   * sera perdu », et la file la rejouait indéfiniment. Une violation de
+   * contrainte — un pointage sans `service_id`, par exemple — était donc
+   * rejouée à chaque ouverture de l'écran, refusée à chaque fois, sans que
+   * personne ne le sache : `console.error` était la seule trace.
+   *
+   * La distinction se lit dans la réponse : PostgREST et PostgreSQL renvoient
+   * un CODE (SQLSTATE `23502`, `42501`, ou un code `PGRST…`). Une coupure de
+   * transport n'en a pas, elle échoue avant d'avoir une réponse. On ne devine
+   * donc rien : on regarde si le serveur a parlé.
+   */
+  function erreurDefinitive(erreur) {
+    if (!erreur) return false;
+    // Hors ligne franc : jamais définitif, quelle que soit la forme de l'erreur.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    const code = erreur.code || (erreur.details && erreur.details.code) || null;
+    if (!code) return false;
+    // Codes de transport que la couche réseau peut poser sans qu'aucun refus
+    // métier n'ait eu lieu.
+    if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ENOTFOUND') return false;
+    return true;
+  }
+
+  /**
+   * Rejoue la file.
+   *   * pas de réponse (réseau, session) : l'entrée RESTE, elle repartira ;
+   *   * le serveur refuse : l'entrée est RETIRÉE et rapportée à l'employée.
+   *
+   * On ne supprime jamais une tentative qu'on n'a pas su remettre — mais on ne
+   * conserve plus indéfiniment une tentative que le serveur ne prendra jamais.
+   */
+  async function viderLaFile(employee) {
+    const entrees = fileLire();
+    if (!entrees.length) return { envoyees: 0, restantes: 0, rejetees: [] };
+    let envoyees = 0;
+    const rejetees = [];
+    for (const entree of entrees) {
+      if (employee && entree.ligne.employee_id !== employee.id) continue;
+      try {
+        // Une entrée sans service n'est pas « peut-être déjà envoyée » : elle
+        // est INENVOYABLE. Le trigger `nexus_pointage_exige_service` la
+        // refusera toujours. Inutile d'interroger le serveur pour l'apprendre,
+        // et hors de question de la rejouer sans fin : elle sort, et elle est
+        // dite. Ce sont les entrées restées en file avant le 11/09.
+        if (!entree.ligne.service_id) {
+          console.error('Reprise de la file : entrée sans service, inenvoyable, retirée.', entree.ligne.type);
+          rejetees.push({ type: entree.ligne.type, heure: entree.ligne.heure, code: 'sans_service' });
+          fileRetirer(entree.id);
+          continue;
+        }
+        // Même portée que partout ailleurs : le service, pas la journée. Une
+        // entrée du second service ne doit pas être prise pour déjà envoyée
+        // parce que le PREMIER service portait le même type (13/09/2026).
+        const { data: deja } = await nexusClient.from('pointages').select('id')
+          .eq('employee_id', entree.ligne.employee_id)
+          .eq('service_id', entree.ligne.service_id).eq('type', entree.ligne.type).limit(1);
+        if (deja && deja.length) { fileRetirer(entree.id); envoyees++; continue; }
+        const { error } = await nexusClient.from('pointages').insert(entree.ligne);
+        if (error) {
+          if (erreurDefinitive(error)) {
+            console.error('Reprise de la file, entrée REFUSÉE par le serveur et retirée:', error);
+            rejetees.push({ type: entree.ligne.type, heure: entree.ligne.heure, code: error.code || null });
+            fileRetirer(entree.id);
+            continue;
+          }
+          console.error('Reprise de la file, entrée conservée:', error);
+          continue;
+        }
+        fileRetirer(entree.id); envoyees++;
+      } catch (e) {
+        console.error('Reprise de la file, entrée conservée (réseau ou session):', e);
+      }
+    }
+    return { envoyees, restantes: fileLire().length, rejetees };
+  }
+
+  /** Vrai si une pause est ouverte et jamais refermée. */
+  function pauseEnCours(dejaFait) {
+    return !!dejaFait.pause_debut && !dejaFait.pause_fin;
+  }
+
+  /**
+   * Le service ouvert, mais SEULEMENT s'il a commencé le même jour station
+   * que le pointage. Sinon : null, et les champs qui en dépendent
+   * retombent sur leur repli honnête (retard 0, quart 'non_defini',
+   * horaire prévu nul). Voir enregistrerPointage pour le défaut d'origine.
+   */
+  function serviceDuJourSeulement(shiftActif, jourDuPointage) {
+    if (!shiftActif || !shiftActif.heure_debut) return null;
+    return dateISOLocale(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
+  }
   const LABELS_TYPES = {
     // consignePhoto (28/07/2026, demande de Frédéric) : précise ce qui
     // doit être photographié — NEXUS ne peut pas vérifier le contenu
@@ -324,11 +517,19 @@
             <div>${message}</div>
             <div class="camera-etat-actions">
               <label class="primaire" for="${inputId}">Utiliser l'appareil photo du téléphone</label>
+              <button class="secondaire" type="button" data-sans-photo>Enregistrer sans photo</button>
               <button class="secondaire" type="button" data-annuler-camera>Annuler</button>
             </div>
           </div>
         `);
         overlay.querySelector('[data-annuler-camera]').addEventListener('click', () => fermer(null));
+        // La photo est COMPLÉMENTAIRE, jamais une condition (arbitrage du
+        // 11/09/2026). Une caméra refusée, absente ou en échec ne doit pas
+        // coûter son pointage à l'employée : elle peut enregistrer sans
+        // photo, et l'écran le dit en toutes lettres. La cause technique est
+        // conservée (photo_echec_technique) pour rester honnête envers le
+        // manager, sans rien reprocher à l'employée.
+        overlay.querySelector('[data-sans-photo]').addEventListener('click', () => fermer('sans-photo'));
         // Résolution spéciale 'repli' (et non null) : l'appelant doit savoir
         // que le mécanisme natif prend le relais (repère localStorage à
         // conserver, contrairement à une annulation volontaire).
@@ -556,18 +757,134 @@
       : '<div class="timeline-empty">Aucun employé actif sur ce site.</div>';
   }
 
+  // Retour du réseau : on rejoue la file et on redessine. Posé une seule fois
+  // — un écouteur par rendu enverrait autant de fois qu'il y a eu de rendus.
+  let ecouteurReseauPose = false;
+  function poserEcouteurReseau(employee, siteId) {
+    if (ecouteurReseauPose) return;
+    ecouteurReseauPose = true;
+    window.addEventListener('online', async () => {
+      const bilan = await viderLaFile(employee);
+      if (bilan.envoyees > 0) await afficherFormulairePointage(employee, siteId);
+    });
+  }
+
   async function afficherFormulairePointage(employee, siteId) {
     const today = dateISOLocale();
-    const [{ data: pointagesJour, error: erreurPointages }, { data: shiftActif }] = await Promise.all([
-      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
-      nexusClient.from('shifts').select('id, quart, heure_debut').eq('employee_id', employee.id).eq('statut', 'en_cours').order('heure_debut', { ascending: false }).limit(1).maybeSingle(),
+    // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
+    // qui fait repartir une tentative restée sur l'appareil après une coupure,
+    // une fermeture du navigateur, ou une session expirée puis rouverte.
+    const bilanFile = await viderLaFile(employee);
+    poserEcouteurReseau(employee, siteId);
+    // Une tentative que le serveur a refusée n'est ni renvoyée ni effacée en
+    // silence : elle est dite. L'employée doit savoir qu'un pointage qu'elle
+    // croyait « en attente d'envoi » ne partira pas, et pourquoi.
+    const noteRejets = (bilanFile.rejetees || []).length
+      ? `<div class="info-note" style="margin-bottom:14px; border-color:var(--red); color:var(--red);">`
+        + `⚠ ${bilanFile.rejetees.length === 1 ? 'Un pointage gardé' : `${bilanFile.rejetees.length} pointages gardés`} sur ce téléphone `
+        + `${bilanFile.rejetees.map(r => `(${(LABELS_TYPES[r.type] || {}).label || r.type} de ${String(r.heure || '').slice(0, 5)})`).join(', ')} `
+        + `n'${bilanFile.rejetees.length === 1 ? 'a' : 'ont'} pas pu être enregistré${bilanFile.rejetees.length === 1 ? '' : 's'} : NEXUS l'a refusé, ce n'est pas un problème de réseau. `
+        + `${bilanFile.rejetees.length === 1 ? 'Il a été retiré' : 'Ils ont été retirés'} de l'attente. Prévenez votre manager, qui peut le saisir pour vous.</div>`
+      : '';
+    // S-4 (05/09/2026) : le service courant vient de la primitive unique
+    // (nexus-auth.js). Ce lecteur avait sa propre définition ; depuis que
+    // S-2 et S-3 clôturent réellement, elle aurait renvoyé un service
+    // terminé comme s'il était actif.
+    const resultatService = await nexusServiceCourant(employee);
+    const shiftActif = resultatService.service || null;
+
+    // AUCUN POSTE OUVERT (13/09/2026, arbitrage de Frédéric après le parcours
+    // d'Employé Test B). Depuis le 11/09, la base EXIGE `service_id` sur tout
+    // nouveau pointage — le trigger `nexus_pointage_exige_service` refuse le
+    // reste. L'écran, lui, offrait encore le pointage, prenait la photo,
+    // rangeait la tentative en file et promettait « rien ne sera perdu ».
+    // Cette promesse ne pouvait pas être tenue : le refus ne venait pas du
+    // réseau mais de la donnée, et la file rejouait à l'infini.
+    //
+    // La règle métier est posée : sans service ouvert, on ne pointe pas. Elle
+    // se vérifie donc AVANT la photo et avant toute écriture, et l'écran dit
+    // quoi faire au lieu de laisser deviner.
+    const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
+      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee, service_id').eq('employee_id', employee.id).eq('date', today),
     ]);
     if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
 
+    // CE QUI EST DÉJÀ POINTÉ SE COMPTE PAR SERVICE, PAS PAR JOURNÉE.
+    //
+    // Relevé par Frédéric le 13/09/2026 : après un départ pointé à 12:32, il
+    // reprend un poste à 12:48. NEXUS annonçait « début de pause » comme
+    // prochaine étape, et TOUS les boutons étaient éteints — le nouveau
+    // service héritait des pointages du service précédent.
+    //
+    // La base, elle, n'a jamais interdit ce cas : `pointages_un_par_service_
+    // et_type` porte sur (service_id, employee_id, type). Deux services dans
+    // la journée, deux arrivées, c'est permis. Seul l'écran raisonnait encore
+    // en journée, parce qu'il datait d'avant `service_id`.
+    //
+    // L'historique reste celui de la journée : c'est le contexte que
+    // l'employée veut voir. Ce qui est « déjà fait » devient celui du service.
+    const serviceCourant = serviceDuJourSeulement(shiftActif, today);
     const dejaFait = {};
-    (pointagesJour || []).forEach(p => { dejaFait[p.type] = p; });
+    (pointagesJour || [])
+      .filter(p => serviceCourant && p.service_id === serviceCourant.id)
+      .forEach(p => { dejaFait[p.type] = p; });
 
-    const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
+    // `prochainType` était resté calculé à l'ancienne, par simple parcours de
+    // ORDRE_TYPES : c'est ce reste de la séquence stricte qui annonçait
+    // « début de pause » après un départ. Il vaut désormais la première étape
+    // réellement DISPONIBLE, la même règle que les boutons appliquent.
+    const prochainType = ORDRE_TYPES.find(t => pointageDisponible(t, dejaFait));
+
+    if (!serviceDuJourSeulement(shiftActif, today)) {
+      // Le compteur de l'en-tête vit HORS de #app et n'est remis à jour que
+      // par les affectations du rendu complet, plus bas. Sortir sans les
+      // exécuter le laissait tourner : après un départ, l'écran affichait
+      // encore « Service en cours depuis 4 minutes », indéfiniment. Relevé
+      // par Frédéric le 13/09/2026 sur le parcours d'Employé Test B.
+      etatCompteur = null;
+      referenceCompteur = null;
+      majServiceLive();
+
+      const journeeTerminee = (pointagesJour || []).length > 0;
+      if (journeeTerminee) {
+        // JOURNÉE FINIE, PAS JOURNÉE ABSENTE. Une employée qui vient de
+        // pointer son départ n'a pas « aucun poste ouvert » à régler : elle a
+        // fini. Lui proposer « Prenez d'abord votre poste » l'inviterait à en
+        // rouvrir un, et lui faire perdre l'historique du jour effacerait la
+        // preuve de ce qu'elle vient d'enregistrer.
+        document.getElementById('app').innerHTML = `
+          ${noteRejets}
+          <div class="confirm-banner" id="confirmBanner"></div>
+          <div class="info-note" style="margin-bottom:18px;">
+            Votre journée est enregistrée. Il n'y a plus de poste ouvert. Reprenez une prise de poste au prochain service.
+          </div>
+          <div class="section-label">📋 Historique du service</div>
+          <ul class="timeline" id="timelineJour"></ul>
+          <div style="height:18px;"></div>
+          <div class="section-label">✔ Activité du jour</div>
+          <div class="activite-jour" id="activiteJour">
+            <div class="activite-texte">Chargement…</div>
+          </div>
+        `;
+        renderTimeline(pointagesJour || [], null, employee, siteId);
+        chargerActiviteJour(employee, siteId);
+        return;
+      }
+
+      document.getElementById('app').innerHTML = `
+        ${noteRejets}
+        <div class="info-note" style="border-color:var(--amber); color:var(--amber); margin-bottom:18px;">
+          Aucun poste n'est ouvert. Prenez d'abord votre poste pour pouvoir pointer.
+        </div>
+        <button class="pointage-btn couleur-arrivee" id="btnAllerPriseDePoste">
+          <span class="label">Prendre mon poste</span>
+          <span class="sous">Ouvre NEXUS Prise de poste</span>
+        </button>
+      `;
+      const lien = document.getElementById('btnAllerPriseDePoste');
+      if (lien) lien.addEventListener('click', () => { window.location.href = 'NEXUS-Prise-De-Poste-v1.html'; });
+      return;
+    }
 
     // Tentative précédente interrompue (03/08/2026, cas de Samantha) : si le
     // repère posé juste avant un envoi précédent est encore présent — donc
@@ -612,18 +929,23 @@
     const boutonsHtml = ORDRE_TYPES.map(type => {
       const info = LABELS_TYPES[type];
       const fait = dejaFait[type];
-      const estProchain = type === prochainType;
-      const bloque = !fait && !estProchain;
+      const enAttente = fileEntreeDuType(type);
+      // Un type en attente d'envoi n'est ni repointable ni présenté comme
+      // reçu : les deux mensonges possibles sont écartés d'un coup.
+      const bloque = !!enAttente || !pointageDisponible(type, dejaFait);
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       // Échec technique de la photo (07/08/2026) : signalé sobrement dans le
       // sous-texte du bouton déjà pointé, sans jamais donner l'impression
       // que le pointage lui-même est en cause.
       const notePhotoBtn = fait && !fait.photo_url && fait.photo_echec_technique ? ' · Photo non reçue (technique)' : '';
+      const noteAttente = enAttente
+        ? ` · ⏳ Enregistré sur ce téléphone à ${String(enAttente.ligne.heure || '').slice(0, 5)}, envoi en attente`
+        : '';
       let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}${fait.photo_url ? ' · Photo ✓' : notePhotoBtn}` : info.sous;
       if (!fait && info.photoRequise) sousTexte = `📷 ${info.consignePhoto}`;
       const contenuInterieur = `
         <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
-        ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
+        ${sousTexte || noteAttente ? `<span class="sous">${sousTexte}${noteAttente}</span>` : ''}
       `;
 
       // Action active nécessitant une photo (10/08/2026, correction en
@@ -656,6 +978,7 @@
     const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
     document.getElementById('app').innerHTML = `
       ${retourEnAttente ? '<div class="info-note" style="margin-bottom:14px;">🔒 Pointez votre arrivée pour accéder au reste de NEXUS.</div>' : ''}
+      ${noteRejets}
       ${noteTentativeInterrompue}
       <div class="confirm-banner" id="confirmBanner"></div>
       <div class="section-label">⏱ Votre journée</div>
@@ -708,6 +1031,33 @@
         if (btn.disabled) return;
         const type = btn.dataset.type;
         const info = LABELS_TYPES[type];
+        // Partir avec une pause restée ouverte (11/09/2026) : c'est
+        // désormais POSSIBLE — la pause n'est plus un passage obligé — mais
+        // ce n'est pas anodin. Une pause jamais refermée fausse le temps de
+        // travail compté. On le DIT, on ne le bloque pas : l'employée a le
+        // dernier mot, parce qu'elle seule sait si sa pause a eu lieu.
+        // Aucune durée n'est supposée ni corrigée ici.
+        // Pause encore ouverte au moment du départ (arbitrage Frédéric
+        // Bragance, 11/09/2026, règle 6). On ne bloque pas, on ne laisse pas
+        // filer non plus : on PROPOSE de terminer la pause à l'heure du
+        // départ, puis d'enregistrer le départ. Deux événements distincts,
+        // tous deux à une heure RÉELLE.
+        //
+        // Règle 7 : aucun début ni aucune durée de pause n'est inventé
+        // rétroactivement. La fin posée ici est l'instant du départ, pas une
+        // estimation, et l'employée l'a acceptée en toutes lettres.
+        if (type === 'depart' && pauseEnCours(dejaFait)) {
+          const debutPause = dejaFait.pause_debut && dejaFait.pause_debut.heure
+            ? String(dejaFait.pause_debut.heure).slice(0, 5) : null;
+          const message = (debutPause
+            ? `Votre pause commencée à ${debutPause} est encore ouverte.\n\n`
+            : 'Une pause est encore ouverte dans votre journée.\n\n')
+            + 'En continuant, NEXUS la termine maintenant, à l\'heure de votre départ, '
+            + 'puis enregistre votre départ.\n\nAnnuler si vous préférez pointer '
+            + '« Fin pause » vous-même.';
+          if (!window.confirm(message)) return;
+          cloturerPauseAuDepart = true;
+        }
         clicPointage[type] = new Date();
         try {
           localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
@@ -717,6 +1067,13 @@
         const resultat = await ouvrirCameraPointage({ consigne: info.consignePhoto, inputId });
 
         if (resultat === 'repli') return; // l'input caché + son écouteur 'change' (ci-dessous) prennent le relais, repère conservé
+        if (resultat === 'sans-photo') {
+          // Le clic vaut pointage. La photo manquera, sa cause est tracée,
+          // et rien d'autre n'est perdu.
+          try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+          await finaliserPointage(btn, employee, siteId, type, shiftActif, null, clicPointage[type], true);
+          return;
+        }
         if (!resultat) {
           // Annulation volontaire (fermeture de l'overlay) : ce n'est pas
           // une tentative interrompue à signaler au prochain chargement.
@@ -733,6 +1090,13 @@
     document.querySelectorAll('.pointage-photo-input').forEach(input => {
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
+          // Aucun fichier ne survit à son pointage (11/09/2026, arbitrage E).
+          // L'input restait chargé du dernier fichier choisi : un objet File
+          // encore présent dans le DOM, réutilisable par un rendu suivant, et
+          // invisible pour l'employée. On le vide DÈS la lecture, avant tout
+          // envoi : la variable locale garde la seule référence utile, le
+          // temps de cet envoi-là.
+          input.value = '';
         // L'input et le bouton associé sont frères dans .pointage-item.
         const btn = input.parentElement && input.parentElement.querySelector('.pointage-btn');
         const type = input.dataset.type;
@@ -832,6 +1196,15 @@
     // donc jamais réellement visible, ni en succès ni en échec — l'employé
     // ne voyait que l'écran se redessiner, ce qui a probablement renforcé
     // l'impression de "boucle" même quand le pointage avait fonctionné.
+    // Réconciliation de l'écran avec la base (11/09/2026). Constaté en
+    // parcourant NEXUS en caissière : le départ était ÉCRIT en base, avec sa
+    // photo, pendant que l'écran affichait encore le voile de la caméra et
+    // « Départ » comme restant à faire. L'employée recommence, ou s'en va en
+    // croyant avoir échoué. Le formulaire était bien redessiné — mais SOUS un
+    // voile que rien ne retirait. On le retire ici, quel que soit le chemin
+    // suivi (caméra en page, repli natif, échec technique).
+    document.querySelectorAll('.camera-overlay').forEach(o => o.remove());
+
     await new Promise(resolve => setTimeout(resolve, 1400));
 
     // Retour automatique (28/07/2026) : quand cette page a été atteinte via
@@ -976,14 +1349,15 @@
   // les missions récurrentes du rôle du jour non encore faites aujourd'hui.
   // Si aucun quart n'est identifiable (roleDuJour introuvable), on omet ce
   // chiffre plutôt que d'en inventer un — jamais un chiffre inventé.
-  async function chargerRoleDuJour(employeeId) {
-    const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await nexusClient
-      .from('shifts').select('role').eq('employee_id', employeeId)
-      .gte('heure_debut', il24h).order('heure_debut', { ascending: false }).limit(1);
-    if (error) { console.error('Chargement rôle du jour (activité):', error); return null; }
-    return (data && data[0]) ? data[0].role : null;
+  async function chargerRoleDuJour(employee) {
+    // S-4 (05/09/2026) : le rôle du jour vient du service RÉELLEMENT actif,
+    // via la primitive unique de nexus-auth.js. Ce lecteur avait sa propre
+    // borne temporelle ; depuis que S-2 et S-3 clôturent, elle aurait
+    // renvoyé le rôle d'un service terminé.
+    const r = await nexusServiceCourant(employee);
+    return r.service ? r.service.role : null;
   }
+
 
   async function chargerActiviteJour(employee, siteId) {
     const zone = document.getElementById('activiteJour');
@@ -992,7 +1366,7 @@
     const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
-      chargerRoleDuJour(employee.id),
+      chargerRoleDuJour(employee),
       nexusClient.from('mission_catalog').select('mission_id, role_required, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
     ]);
     if (erreurTerminees) console.error('Activité du jour (terminées):', erreurTerminees);
@@ -1036,6 +1410,12 @@
   // période qui n'a jamais été annoncée comme officielle aux employés.
   const DATE_OFFICIALISATION_RETARDS = '2026-08-01';
 
+  // Drapeau porté du clic jusqu'à l'écriture : une pause ouverte que
+  // l'employée a accepté de clore à l'heure de son départ. Remis à faux
+  // après chaque enregistrement, pour qu'il ne survive jamais d'un pointage
+  // au suivant.
+  let cloturerPauseAuDepart = false;
+
   async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, photoEchecTechnique) {
     const now = new Date();
 
@@ -1054,15 +1434,132 @@
     const heure = heureRetenue.toTimeString().slice(0, 8);
     const today = dateISOLocale(heureRetenue);
 
+    // Le service de référence doit être CELUI DU JOUR (11/09/2026).
+    //
+    // LE DÉFAUT : `nexusServiceCourant` rend le service `en_cours` sans
+    // aucun filtre de date. Un quart laissé ouvert la veille revenait donc
+    // comme service du jour, et l'arrivée du matin était comparée à son
+    // heure de début. Constaté en parcourant NEXUS en caissière : une
+    // arrivée à 10 h 33 annoncée « Retard constaté : 1028 min », soit
+    // dix-sept heures, avec `heure_debut_quart` pointant sur la veille —
+    // et le chiffre ÉCRIT en base, pas seulement affiché.
+    //
+    // On ne devine pas le service du jour et on n'en fabrique pas : si le
+    // service ouvert n'a pas commencé le même jour station que le
+    // pointage, on retombe sur le repli déjà prévu — retard 0, quart
+    // 'non_defini', horaire prévu nul. Une absence assumée vaut mieux
+    // qu'un retard inventé.
+    const serviceDuJour = serviceDuJourSeulement(shiftActif, today);
+
     let retardMin = 0;
-    if (type === 'arrivee' && shiftActif && shiftActif.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
-      const debutPrevu = new Date(shiftActif.heure_debut);
+    if (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
+      const debutPrevu = new Date(serviceDuJour.heure_debut);
       const diffMin = Math.round((heureRetenue - debutPrevu) / 60000);
       retardMin = diffMin > 0 ? diffMin : 0;
     }
 
-    const { error } = await nexusClient.from('pointages').insert({
+    // ANTI-DOUBLON (11/09/2026). La règle « un seul pointage par type et par
+    // jour » n'existait QUE dans l'écran : `public.pointages` ne porte aucun
+    // index unique sur (employee_id, date, type) — vérifié, seule la clé
+    // primaire sur `id` existe. Un double envoi — bouton re-cliqué, page
+    // rejouée après un repli caméra, réseau lent — insérait donc deux lignes
+    // sans que rien ne s'y oppose.
+    //
+    // Ce contrôle relit juste avant d'écrire. Il ne remplace pas une
+    // contrainte en base : deux envois vraiment simultanés peuvent encore
+    // passer tous les deux. C'est une réduction honnête du risque.
+    //
+    // PORTÉE CORRIGÉE LE 13/09/2026. Cette relecture cherchait par
+    // (employé, DATE, type). Frédéric reprend un poste à 12:48 après un
+    // départ pointé à 12:32 : la relecture retrouvait l'arrivée de 12:27,
+    // concluait « déjà enregistré », et rendait `true` SANS ÉCRIRE. Le
+    // second service restait sans pointage, et le bouton revenait à son
+    // état initial sans un mot.
+    //
+    // La bonne portée est celle de l'index unique posé le 11/09 —
+    // `pointages_un_par_service_et_type` sur (service_id, employee_id, type).
+    // Un pointage appartient à un service, plus à une journée.
+    const { data: dejaEnBase, error: erreurRelecture } = await nexusClient
+      .from('pointages').select('id')
+      .eq('employee_id', employee.id).eq('service_id', serviceDuJour.id).eq('type', type).limit(1);
+    if (erreurRelecture) {
+      console.error('Relecture anti-doublon du pointage:', erreurRelecture);
+    } else if (dejaEnBase && dejaEnBase.length) {
+      const banner = document.getElementById('confirmBanner');
+      if (banner) {
+        banner.textContent = `${LABELS_TYPES[type].label} était déjà enregistré pour ce service. Rien n'a été ajouté.`;
+        // `show` est ce qui rend le bandeau visible : `.confirm-banner` est en
+        // `display:none`. L'écrire sans cette classe revenait à parler dans
+        // une pièce vide — c'est ce qui rendait le refus silencieux.
+        banner.className = 'confirm-banner show';
+      }
+      return true;   // rien à écrire : l'écran se réconcilie, aucun doublon
+    }
+
+    // Clôture de la pause à l'heure du départ (règle 6). Elle est écrite
+    // AVANT le départ, comme un événement à part entière : même heure, même
+    // quart, aucune photo, aucune durée supposée. Si cette écriture échoue,
+    // on n'enregistre pas le départ — mieux vaut un départ à repointer
+    // qu'une pause laissée ouverte derrière un départ enregistré.
+    if (type === 'depart' && cloturerPauseAuDepart) {
+      // PORTÉE CORRIGÉE LE 13/09/2026, deuxième passe. Cette relecture-ci
+      // cherchait encore par (employé, DATE, type) — la portée que le reste de
+      // l'écran avait quittée le matin même. Deux services le même jour, une
+      // pause refermée sur le premier : elle retrouvait CETTE fin-là,
+      // concluait « déjà fait », et sautait l'écriture. Le départ s'enregistrait
+      // seul, la pause du second service restait ouverte pour toujours, et
+      // aucun message ne le disait. La journée close portait alors trois
+      // pointages là où quatre gestes avaient été faits.
+      //
+      // La bonne portée est celle de l'index unique du 11/09 —
+      // `pointages_un_par_service_et_type` sur (service_id, employee_id, type).
+      // C'est aussi celle de la relecture anti-doublon du pointage principal et
+      // celle du rejeu de la file : une seule règle, trois chemins d'écriture.
+      // La date ne dit rien de ce qui est dû à CE service.
+      const { data: finDeja } = await nexusClient
+        .from('pointages').select('id')
+        .eq('employee_id', employee.id).eq('service_id', serviceDuJour.id).eq('type', 'pause_fin').limit(1);
+      if (!finDeja || !finDeja.length) {
+        // `service_id` et `client_event_id` sont OBLIGATOIRES depuis le
+        // 11/09 : le trigger `nexus_pointage_exige_service` refuse toute
+        // insertion qui n'en porte pas. Cette écriture-ci les avait perdus au
+        // passage — la clôture de pause au départ était donc refusée
+        // systématiquement (13/09/2026), et le départ avec elle.
+        const { error: erreurFin } = await nexusClient.from('pointages').insert({
+          employee_id: employee.id, site: siteId, date: today, type: 'pause_fin', heure,
+          quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
+          service_id: serviceDuJour.id, client_event_id: identifiantTentative(),
+          retard_min: 0, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
+        });
+        if (erreurFin) {
+          console.error('Clôture de la pause à l\'heure du départ:', erreurFin);
+          const b = document.getElementById('confirmBanner');
+          if (b) {
+            b.textContent = 'La fin de pause n\'a pas pu être enregistrée. Votre départ n\'a pas été pointé : réessayez.';
+            b.className = 'confirm-banner retard show';
+          }
+          cloturerPauseAuDepart = false;
+          return false;
+        }
+      }
+      cloturerPauseAuDepart = false;
+    }
+
+    // La tentative est écrite sur l'appareil AVANT d'être envoyée
+    // (11/09/2026). Si le réseau tombe ici, elle n'est pas perdue : elle
+    // reste en file, visible, et repart au retour du réseau.
+    // Identifiant idempotent généré AVANT la première tentative, et porté
+    // jusqu'en base (11/09/2026). Tant qu'il ne vivait qu'en JavaScript, il
+    // ne protégeait rien : deux appareils, deux onglets ou une réinstallation
+    // pouvaient encore produire deux lignes pour un seul geste.
+    const evenementClient = identifiantTentative();
+
+    const ligne = {
       employee_id: employee.id,
+      // Le service auquel CE pointage se rattache. Un départ ne fermera que
+      // celui-là, jamais un service créé entre-temps par une autre session.
+      service_id: (serviceDuJour && serviceDuJour.id) || null,
+      client_event_id: evenementClient,
       site: siteId,
       date: today,
       type,
@@ -1073,7 +1570,7 @@
       // bloquerait le pointage, exactement ce qu'on cherche à éviter avec
       // photo_echec_technique ci-dessous. 'non_defini' n'est pas un chiffre
       // inventé — il documente honnêtement l'absence de quart identifiable.
-      quart: (shiftActif && shiftActif.quart) || 'non_defini',
+      quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
       retard_min: retardMin,
       photo_url: photoUrl || null,
       // Échec technique de la photo (07/08/2026, demande de Frédéric) : ne
@@ -1085,31 +1582,64 @@
       // et jamais recalculé ensuite — c'est ce qui permet à l'historique
       // d'afficher "Horaire prévu" sans jamais inventer ou réestimer une
       // valeur après coup (article 5 de la constitution NEXUS).
-      heure_debut_quart: (type === 'arrivee' && shiftActif && shiftActif.heure_debut) || null,
-    });
+      heure_debut_quart: (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut) || null,
+    };
+    const tentative = fileAjouter(ligne, { retardMin, heureClic: heureRetenue.toISOString() });
+
+    const { error } = await nexusClient.from('pointages').insert(ligne);
 
     const banner = document.getElementById('confirmBanner');
-    if (error) {
-      console.error('Enregistrement pointage:', error);
+    if (error && erreurDefinitive(error)) {
+      // LE SERVEUR A REFUSÉ (13/09/2026). Ce n'est pas une coupure : la file
+      // ne doit pas s'en charger, et surtout on ne promet pas un envoi qui
+      // n'aura jamais lieu. La tentative est retirée tout de suite — la garder
+      // reviendrait à la rejouer à chaque ouverture de l'écran, refusée à
+      // chaque fois, sans que personne ne le sache.
+      console.error('Enregistrement pointage REFUSÉ par le serveur, tentative retirée:', error);
+      fileRetirer(tentative.id);
+      try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
       if (banner) {
-        banner.textContent = "Le pointage n'a pas pu être enregistré — réessayez.";
+        banner.classList.remove('retard');
+        banner.textContent = `${LABELS_TYPES[type].label} non enregistré${type === 'depart' ? '' : 'e'} : `
+          + "NEXUS a refusé ce pointage, et ce n'est pas un problème de réseau. "
+          + "Rien n'est resté en attente sur ce téléphone. Prévenez votre manager, qui peut le saisir pour vous.";
         banner.classList.add('show');
       }
       return false;
     }
+    if (error) {
+      console.error('Enregistrement pointage, tentative conservée:', error);
+      if (banner) {
+        // Ne jamais présenter comme reçu ce qui ne l'est pas, ni comme perdu
+        // ce qui est conservé. L'employée doit savoir exactement où en est
+        // son pointage : sur son téléphone, pas encore chez NEXUS.
+        banner.textContent = `${LABELS_TYPES[type].label} enregistré${type === 'depart' ? '' : 'e'} `
+          + `sur ce téléphone à ${heure.slice(0, 5)} — envoi en attente. `
+          + 'Rien ne sera perdu : NEXUS renverra tout seul dès que le réseau revient.';
+        banner.classList.add('show');
+      }
+      return false;
+    }
+    // Reçu par le serveur : la tentative n'a plus lieu d'être conservée.
+    fileRetirer(tentative.id);
     if (banner) {
       banner.classList.remove('retard');
       // Note discrète sur l'échec technique de la photo (07/08/2026) :
       // ajoutée au message de confirmation, jamais à sa place — le
       // pointage est bien enregistré, la photo est juste un détail annexe
       // à préciser, pas une inquiétude à faire porter à l'employé.
-      const notePhoto = photoEchecTechnique
-        ? ' · Photo non envoyée (problème technique), ton pointage est accepté quand même.'
-        : '';
+        // Dire « sans photo » en toutes lettres (11/09/2026). L'ancienne
+        // formule parlait d'un « problème technique » sans jamais nommer
+        // l'état réel du pointage. L'employée doit lire ce qui a été
+        // enregistré, pas ce qui a échoué : le pointage compte, la photo
+        // manque, et la cause reste conservée pour le manager.
+        const notePhoto = photoEchecTechnique
+          ? ' Enregistré SANS PHOTO : la photo n\'a pas pu être envoyée. Votre pointage compte quand même.'
+          : '';
       if (type === 'arrivee' && retardMin > 0) {
         banner.classList.add('retard');
-        const horairePrevu = shiftActif && shiftActif.heure_debut
-          ? new Date(shiftActif.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        const horairePrevu = serviceDuJour && serviceDuJour.heure_debut
+          ? new Date(serviceDuJour.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
           : null;
         banner.innerHTML = `
           <div class="confirm-banner-titre">Arrivée enregistrée à ${heure.slice(0, 5)}</div>

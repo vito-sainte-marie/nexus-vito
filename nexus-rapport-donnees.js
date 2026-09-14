@@ -104,7 +104,8 @@
 
   /**
    * Marge agrégée (montant € et taux %) sur [periode.debut, periode.fin],
-   * pour un site — cascade normalized_sales → products (pas de proxy
+   * pour un site — cascade products (A16, 05/09/2026 : l'étage
+   * normalized_sales a été retiré, voir plus bas). (pas de proxy
    * quotidien fiable pour la marge ailleurs que normalized_sales : ni
    * audits_caisse ni aucune autre table n'a de champ marge). Le taux
    * calculé à partir de normalized_sales est étiqueté 'derive' (pas
@@ -119,19 +120,24 @@
   async function chargerMargePeriode(client, site, periode) {
     const { debut, fin } = periode;
 
-    const { data: ventes, error: e1 } = await client
-      .from('current_normalized_sales')
-      .select('total_ttc, margin_amount_ht, unit_sale_price_ht, quantity, sold_at')
-      .eq('site', site)
-      .gte('sold_at', `${debut}T00:00:00`)
-      .lte('sold_at', `${fin}T23:59:59.999`);
-    if (e1) console.error('Rapport NEXUS — chargement marge (normalized_sales):', e1);
-    if (!e1 && ventes && ventes.length) {
-      const montant = ventes.reduce((s, v) => s + (v.margin_amount_ht || 0), 0);
-      const caHt = ventes.reduce((s, v) => s + (v.unit_sale_price_ht || 0) * (v.quantity || 0), 0);
-      const tauxPct = caHt > 0 ? (montant / caHt) * 100 : null;
-      return { disponible: true, montant, tauxPct, source: 'normalized_sales', confiance: 'derive', couvertureIncertaine: true, nbLignes: ventes.length };
-    }
+    // A16 (05/09/2026) — la lecture de `current_normalized_sales` est RETIRÉE.
+    //
+    // Elle interrogeait depuis le navigateur une vue dont les privilèges ont
+    // été révoqués à `anon, authenticated` le 31/07/2026, en réponse à un
+    // audit de sécurité Supabase — voir
+    // 20260731121835_fix_current_normalized_sales_security_invoker.sql. La
+    // vue porte `security_invoker = true` et `normalized_sales` est en
+    // deny-all : cet appel ne pouvait QUE échouer.
+    //
+    // Ce n'était donc pas une source de repli, c'était un refus à chaque
+    // chargement de Rapport, journalisé en erreur. Un reliquat d'avant la
+    // couche Edge : `normalized_sales` est alimentée et lue par
+    // service_role, jamais par une session employé.
+    //
+    // Rien n'est perdu : `products` était déjà la source suivante de la
+    // cascade, et elle reste accessible. Le jour où une Edge Function
+    // exposera la marge normalisée, elle se branchera ICI — pas en rouvrant
+    // la table au navigateur, ce qui annulerait la décision du 31/07.
 
     const { data: produits, error: e3 } = await client
       .from('products')

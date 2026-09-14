@@ -1,0 +1,64 @@
+{
+  "lot": "NEXUS-PRODUCTION-READINESS-1-20260908",
+  "etabli_le": "2026-09-10",
+  "regle": "Chaque fait porte sa preuve. Une valeur sans preuve exécutable n'a rien à faire ici : elle rendrait un critère OK sur la foi d'un souvenir. Deux faits ne figurent PAS dans ce fichier et sont mesurés à l'exécution — le SHA candidat (git rev-parse HEAD) et l'état de la CI sur ce SHA (gh) — parce qu'ils changent à chaque commit et qu'un fichier ne peut pas les suivre honnêtement.",
+  "faits": {
+    "guardiansRequisConformes": {
+      "valeur": true,
+      "preuve": "run 34525903638 (workflow_dispatch, c405c75) — Guardian QA 0 finding sur 264 épreuves, plus Guardians backend, Business Rules, Bible, Philosophie, LANG-003 et LANG-004, tous au vert"
+    },
+    "railHandoffConforme": {
+      "valeur": true,
+      "preuve": "node outils/handoff.js verifier → conforme (29 lots, 10 avertissements, 6 dérogations tracées)"
+    },
+    "manifesteMigrationsAJour": {
+      "valeur": true,
+      "preuve": "node test_manifeste_migrations_complet_20260909.js → 5/5 ; manifeste-migrations-production-1.md"
+    },
+    "mesuresProductionFraiches": {
+      "horodatage": "2026-09-14T13:42:32Z",
+      "expire_le": "2026-09-15T13:42:32Z",
+      "preuve": "preuve-re-mesure-finale-3.md — #1 à #4 et #6 par nexus_prod_readonly_login, lecture seule confirmée par la base ; #5 par le connecteur privilégié, 0 ligne. La #5 ne vaut PAS pour la gate : mesure d'instant prise à 09 h 42 heure station, à rejouer dans les minutes précédant la fenêtre de 22 h–23 h."
+    },
+    "aucunImpactDmlInconnu": {
+      "valeur": true,
+      "preuve": "preuve-re-mesure-finale-3.md §1 (0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 et 89, inchangés) ; §4 CTE CANONIQUE : 30 services en cours, 28 seraient clos sans pointage, les trois conditions de divergence remesurées à zéro. ALERTE DE TENDANCE : 16 le 08/09, 26 le 11/09, 30 le 14/09 — rapport 1,88 contre un seuil à 2 (soit 32). Au rythme observé d'environ deux par jour, le seuil sera franchi d'ici un à deux jours, et la migration #6 exigera alors une explication écrite. §6 nexus_live_events absente."
+    },
+    "preprodAnonymiseOuEquivalent": {
+      "valeur": true,
+      "preuve": "preuve-repetition-preprod-equivalente-1.md — répétition équivalente sur Test, jeu convergent aux volumes mesurés, preuve de confidentialité incluse"
+    },
+    "repetitionMigrationsRecetteReussie": {
+      "valeur": true,
+      "preuve": "preuve-repetition-executee-1.md (8/8 étapes) et run 34525903638 — recette navigateur verte, connexion Manager Test comprise, six points satisfaits et un sans objet (arrivée déjà pointée)"
+    },
+    "planReparationRollbackDocumente": {
+      "valeur": true,
+      "preuve": "plan-reparation-rollback-1.md — couvre chaque migration DML, y compris l'irréversibilité du DML de #6"
+    },
+    "fenetreDeploiementConfirmee": {
+      "valeur": true,
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la #5 est une mesure d'instant, à rejouer dans les minutes précédant la fenêtre (preuve-re-mesure-finale-3.md §5)."
+    },
+    "aucunBlocageNonResolu": {
+      "valeur": true,
+      "declare_par": "Frédéric Bragance",
+      "declare_le": "2026-09-14",
+      "porte_sur": "UNIQUEMENT les défauts Pointage concernés : le départ inatteignable sans pause (11/09), la file hors ligne qui promettait un envoi que la base refusait (13/09), et la portée « journée » au lieu du service corrigée à sept endroits (13/09).",
+      "motifs": [
+        "correctif appliqué",
+        "tests concluants",
+        "parcours navigateur réel validé le 13/09/2026"
+      ],
+      "preuve": "Deux défauts corrigés et prouvés. (1) 11/09, parcours Caissière : le départ était inatteignable sans pause. test_pointage_depart_sans_pause_20260911.js 34/34. (2) 13/09, la file hors ligne promettait un envoi que la base refusait, et le refus était classé comme une coupure réseau. La même erreur de portée — la journée au lieu du service — vivait à SEPT endroits, tous ramenés au service : dejaFait, prochainType de l'écran Pointage, la relecture anti-doublon, la relecture de pause_fin, la déduplication de la file, son rejeu, et la prochaine action annoncée par l'accueil. Un module partagé, nexus-pointage-regles.js, porte désormais la règle pour les deux écrans. Épreuves : test_pointage_sans_service_20260913.js 40/40, test_pointage_par_service_20260913.js 29/29, test_pause_fin_par_service_20260913.js 25/25, test_app_prochaine_action_par_service_20260913.js 24/24, test_file_pointages_hors_ligne_20260911.js 19/19. Guardian QA : 0 finding sur 272 épreuves. Parcours navigateur mesuré EN BASE : Mesuré en base après coup, pas déclaré. Employé Test B, deux services le même jour, tous deux clos par pointage_depart, heure_fin >= heure_debut, tous les pointages rattachés à leur service et porteurs d'un client_event_id : service 12:27:48 → 12:32:05, deux pointages ; service 12:48:23 → 22:20:50, quatre pointages (arrivee 19:50:13, pause_debut 19:50:27, depart 22:20:50, pause_fin 22:20:50). L'enchaînement pause_fin → départ → clôture → rafraîchissement immédiat sans rechargement, qui était la dernière preuve manquante, est donc joué et vérifié.",
+      "portee": "Ne constitue AUCUNE autorisation de déploiement Production. Ne vaut pas gate humaine. Ne couvre aucun autre périmètre. Le verdict reste NON_PRET et l'autorisation NON_AUTORISEE tant que les six mesures Production périmées ne sont pas rejouées et validées — critère impacts_production_mesures_horodates, BLOQUE depuis le 12/09/2026 22:39 UTC.",
+      "dettes_restant_tracees": "Deux observations de FORMULATION restent ouvertes, volontairement hors de ce lot et non corrigées : « Historique du service » affiche toute la journée, et le libellé photo. Voir observations-ux-parcours-13-09-1.md. Les dettes hors périmètre déjà classées restent tracées : ni supprimées, ni présentées comme corrigées.",
+      "declaration_handoff": "docs/handoff/lots/NEXUS-POINTAGE-CORRECTIF-1-20260911/decision-1.md — APPROVED_WITH_CONDITIONS, closes=false, enveloppe posée par outils/handoff.js decision.",
+      "historique_du_blocage": "Le critère reste BLOQUE, mais sa justification a changé le 14/09 : les trois conditions que Frédéric Bragance avait posées le 13/09 — correctif, tests, parcours navigateur réel — sont désormais REMPLIES. Ce qui manque n'est plus une preuve, c'est la déclaration elle-même : ce critère ne se mesure pas, il se déclare, et il appartient à Frédéric Bragance seul. Sa levée exigera un commit, donc un nouveau candidat et une CI à repasser."
+    },
+    "gateHumaineFrederic": {
+      "valeur": null,
+      "preuve": "Aucune gate formulée. Elle appartient à Frédéric Bragance seul, et reste distincte du verdict par construction : les dix critères au vert n'autorisent rien."
+    }
+  }
+}
