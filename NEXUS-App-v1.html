@@ -1332,6 +1332,7 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-indice.js?v=20260904-0104"></script>
@@ -1941,7 +1942,9 @@
   // (jamais un chiffre inventé — une étape sans donnée réelle reste
   // "sans objet", jamais cochée par défaut).
   // ============================================================
-  const POINTAGE_MINI_ORDRE = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+  // L'ordre des types vit dans NexusPointageRegles.ORDRE_TYPES depuis le
+  // 13/09/2026. Cet écran n'en garde plus de copie : la garder invitait à
+  // s'en servir pour décider, ce qui est précisément le défaut corrigé.
   const POINTAGE_MINI_LIBELLES = {
     arrivee: 'Pointer l’arrivée →',
     pause_debut: 'Pointer le début de pause →',
@@ -1956,13 +1959,32 @@
   };
   const POINTAGE_MINI_COULEURS = { arrivee: 'arrivee', pause_debut: 'pause', pause_fin: 'pause', depart: 'depart' };
 
-  // Prochaine étape de pointage — pure, prend les pointages du jour déjà
-  // chargés (type par ligne) et renvoie le prochain type manquant dans
-  // l'ordre réel de la journée, ou null si tout est pointé.
-  function calculerProchainPointage(pointagesJour) {
-    const fait = {};
-    (pointagesJour || []).forEach(p => { fait[p.type] = true; });
-    return POINTAGE_MINI_ORDRE.find(t => !fait[t]) || null;
+  // Prochaine étape de pointage — pure. Elle prend les pointages du jour
+  // (plusieurs services possibles) et l'identifiant du service courant.
+  //
+  // CE CALCUL ÉTAIT FAUX DEUX FOIS (corrigé le 13/09/2026 au soir, septième
+  // endroit de la série). Il s'écrivait :
+  //
+  //     const fait = {};
+  //     (pointagesJour || []).forEach(p => { fait[p.type] = true; });
+  //     return POINTAGE_MINI_ORDRE.find(t => !fait[t]) || null;
+  //
+  // 1. La PORTÉE : tous les pointages de la journée, quel que soit leur
+  //    service. Un employé qui reprend un poste après un départ voyait son
+  //    nouveau service hériter des pointages de l'ancien.
+  // 2. LA RÈGLE : « le premier type manquant » n'est pas « la prochaine
+  //    étape possible ». Sur une journée portant arrivée et départ, ce
+  //    calcul annonce « début de pause » — une étape que l'écran Pointage
+  //    refuse. C'est le reste de séquence stricte déjà retiré de cet
+  //    écran-là le 13/09 au matin, qui avait survécu ici.
+  //
+  // Les deux sont réparés en consommant la règle plutôt qu'en la
+  // réécrivant : NexusPointageRegles est désormais son seul propriétaire
+  // (ARCH-001), et test_app_prochaine_action_par_service_20260913.js
+  // verrouille l'équivalence avec l'écran Pointage.
+  function calculerProchainPointage(pointagesJour, serviceCourantId) {
+    const dejaFait = NexusPointageRegles.dejaFaitDuService(pointagesJour, serviceCourantId);
+    return NexusPointageRegles.prochaineEtape(dejaFait);
   }
 
   // Fenêtre horaire d'une mission — même règle exacte que
@@ -2231,7 +2253,7 @@
   // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
   // lectures Supabase partent en parallèle (Promise.all) : la page reste
   // aussi rapide qu'avant malgré le calcul plus riche.
-  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour) {
+  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
 
     const d = new Date();
@@ -2259,7 +2281,12 @@
       statutJaugeageJour,
     ] = await Promise.all([
       pointageActifSite
-        ? nexusClient.from('pointages').select('type').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
+        // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
+        // écran ne pouvait pas distinguer deux services de la même journée,
+        // et comptait comme faits les pointages du service précédent.
+        // La lecture reste celle de la JOURNÉE — c'est le tri qui se fait
+        // par service, juste après, exactement comme dans l'écran Pointage.
+        ? nexusClient.from('pointages').select('type, service_id').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
         : Promise.resolve({ data: [], error: null }),
       nexusClient.from('mission_catalog').select('mission_id, role_required, disponibilite, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', employee.site_id),
       nexusClient.from('mission_completions').select('mission_id, points, points_ajustement').eq('employee_id', employee.id).eq('date', todayISO),
@@ -2308,9 +2335,22 @@
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait);
-    const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour) : null;
-    const arriveeFaite = (pointagesJour || []).some(p => p.type === 'arrivee');
-    const departFait = (pointagesJour || []).some(p => p.type === 'depart');
+    // Le service du jour, et lui seul (même règle que l'écran Pointage) : un
+    // quart laissé ouvert la veille n'est pas le service courant. Sans
+    // service du jour, `dejaFaitDuService` rend un état vide — donc
+    // « arrivée » comme prochaine étape, ce qui est exact : il n'y a rien de
+    // pointé pour un service qui n'existe pas.
+    const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(
+      serviceCourant, todayISO, d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    const serviceCourantId = serviceCourantJour ? serviceCourantJour.id : null;
+    // « Fait » se compte dans CE service, jamais dans la journée : c'est la
+    // même correction qu'aux six autres endroits du 13/09/2026. Un départ
+    // pointé sur le service du midi ne clôt pas celui du soir, et ne doit
+    // donc pas cocher l'étape « Clôture » de la progression.
+    const dejaFaitService = NexusPointageRegles.dejaFaitDuService(pointagesJour, serviceCourantId);
+    const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour, serviceCourantId) : null;
+    const arriveeFaite = !!dejaFaitService.arrivee;
+    const departFait = !!dejaFaitService.depart;
 
     const ctx = {
       pointageActif: pointageActifSite, prochainPointage, arriveeFaite, departFait,
@@ -2777,6 +2817,11 @@
     // appareil contre heure station) restent consignées en A17 et ne sont
     // pas traitées ici.
     let quartDuJour = null;
+    // Le service courant lui-même, et plus seulement son rôle et son quart
+    // (13/09/2026) : l'accueil en a besoin pour compter ce qui est pointé
+    // DANS ce service. Il était déjà lu ici, et jeté après en avoir extrait
+    // deux champs — l'accueil retombait alors sur la journée entière.
+    let serviceCourant = null;
     if (!employee.consultation_externe) {
       const r = await nexusServiceCourant(employee);
       if (r.aucun) {
@@ -2795,6 +2840,7 @@
       if (r.service) {
         roleDuJour = r.service.role;
         quartDuJour = r.service.quart;
+        serviceCourant = r.service;
       }
       // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
       // renvoyer un employé vers la prise de poste alors qu'il en a une.
@@ -2878,7 +2924,7 @@
       // regroupe désormais tout ce qui était dispersé ici (pointage,
       // inventaire, FDJ, réception carburant, notification Progression) :
       // voir initAccueilEmploye() et son détail plus haut dans le script.
-      await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour);
+      await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour, serviceCourant);
     }
 
     if (employee.est_createur) {
