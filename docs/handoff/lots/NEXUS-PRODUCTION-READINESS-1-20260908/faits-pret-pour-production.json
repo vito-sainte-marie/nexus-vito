@@ -18,7 +18,8 @@
     "mesuresProductionFraiches": {
       "horodatage": "2026-09-11T22:39:53Z",
       "expire_le": "2026-09-12T22:39:53Z",
-      "preuve": "preuve-re-mesure-finale-2.md — mesures #1 à #4 et #6 jouées sur uzhjpqpctpvxytxpxoqz par nexus_prod_readonly_login le 11/09/2026 (#1 à #3 et #6 à 22:39 UTC, #4 canonique à 23:05 UTC après ouverture de employees.id et employees.site_id). Aucun SHA n'est cité ici : ce sont des faits sur Production, pas sur l'arbre, et le SHA candidat est mesuré à l'exécution par l'évaluateur. La mesure #5 est INCONNUE par construction et le reste jusqu'à son exécution par un observateur privilégié dans les minutes précédant la fenêtre (outils/mesure-5-ecriture-en-vol-observateur-privilegie.sql). Ces mesures n'autorisent PAS la gate du 13/09 : elles expirent le 12/09 à 22:39 UTC. Protocole de reprise : protocole-gate-dimanche-1.md."
+      "preuve": "PÉRIMÉES. Mesurées le 11/09/2026 à 22:39 UTC, valides 24 h : le critère est BLOQUE depuis le 12/09 22:39 UTC, et le restera jusqu'à ce que les six mesures soient rejouées. Ce n'est pas un défaut, c'est la règle d'âge qui fait son travail. Contenu de la mesure périmée : preuve-re-mesure-finale-2.md, six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz par nexus_prod_readonly_login. Protocole de reprise : protocole-gate-dimanche-1.md, étapes 1 à 5.",
+      "perimees_depuis": "2026-09-12T22:39:53Z"
     },
     "aucunImpactDmlInconnu": {
       "valeur": true,
@@ -44,8 +45,8 @@
       "valeur": false,
       "bloque_le": "2026-09-13",
       "bloque_par": "Frédéric Bragance",
-      "motif": "DEUX défauts distincts, tous deux dans le périmètre de la release. (1) 11/09 — le parcours Caissière : l'interface de pointage rendait le départ inatteignable sans pause. CORRIGÉ dans le lot NEXUS-POINTAGE-CORRECTIF-1-20260911. (2) 13/09 — la file hors ligne promettait un envoi que la base refusait : sans service ouvert, le trigger nexus_pointage_exige_service refuse (23502), et l'écran présentait ce refus comme une coupure réseau en rejouant l'entrée indéfiniment. Corrigé le 13/09, mais Frédéric Bragance a déclaré ce défaut BLOQUANT et exige, avant toute gate : le correctif, les tests ET un parcours navigateur réel. Le parcours navigateur n'est pas fait.",
-      "preuve": "defaut-file-hors-ligne-sans-service-1.md — sonde en transaction annulée sur Test : sans service REFUSÉE [23502], avec service ACCEPTÉE, une seule variable, rien écrit. test_pointage_sans_service_20260913.js 27/27, avec témoin de mutation : 8/8 des contrôles de source échouent sur le fichier d'avant correction. Le premier défaut reste couvert par test_pointage_depart_sans_pause_20260911.js 34/34.",
+      "motif": "Le critère reste BLOQUE, mais sa justification a changé le 14/09 : les trois conditions que Frédéric Bragance avait posées le 13/09 — correctif, tests, parcours navigateur réel — sont désormais REMPLIES. Ce qui manque n'est plus une preuve, c'est la déclaration elle-même : ce critère ne se mesure pas, il se déclare, et il appartient à Frédéric Bragance seul. Sa levée exigera un commit, donc un nouveau candidat et une CI à repasser.",
+      "preuve": "Deux défauts corrigés et prouvés. (1) 11/09, parcours Caissière : le départ était inatteignable sans pause. test_pointage_depart_sans_pause_20260911.js 34/34. (2) 13/09, la file hors ligne promettait un envoi que la base refusait, et le refus était classé comme une coupure réseau. La même erreur de portée — la journée au lieu du service — vivait à SEPT endroits, tous ramenés au service : dejaFait, prochainType de l'écran Pointage, la relecture anti-doublon, la relecture de pause_fin, la déduplication de la file, son rejeu, et la prochaine action annoncée par l'accueil. Un module partagé, nexus-pointage-regles.js, porte désormais la règle pour les deux écrans. Épreuves : test_pointage_sans_service_20260913.js 40/40, test_pointage_par_service_20260913.js 29/29, test_pause_fin_par_service_20260913.js 25/25, test_app_prochaine_action_par_service_20260913.js 24/24, test_file_pointages_hors_ligne_20260911.js 19/19. Guardian QA : 0 finding sur 272 épreuves.",
       "declaration_defaut_7_et_branches": {
         "valeur": true,
         "retabli_le": "2026-09-10",
@@ -78,7 +79,14 @@
         "valeur": true,
         "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte ; schéma temporaire détruit et destruction vérifiée. Répartition acceptée par Frédéric Bragance le 11/09."
       },
-      "reste_a_prouver": "Parcours navigateur réel sur NEXUS Test : sans service, l'écran refuse et oriente vers la prise de poste ; avec service, le pointage aboutit. Demande une connexion par PIN, saisie par Frédéric Bragance."
+      "reste_a_prouver": "Plus rien à prouver sur ce critère. Restent deux observations de FORMULATION, volontairement hors de ce lot et non corrigées : « Historique du service » affiche en réalité toute la journée, et le libellé photo. Voir observations-ux-parcours-13-09-1.md. Les mélanger à un correctif fonctionnel obligerait à reprouver un parcours pour un mot.",
+      "justification_mise_a_jour_le": "2026-09-14",
+      "parcours_navigateur_reel": {
+        "valeur": true,
+        "joue_le": "2026-09-13",
+        "par": "Frédéric Bragance, sur NEXUS Test, connexion par PIN saisi par lui-même",
+        "preuve": "Mesuré en base après coup, pas déclaré. Employé Test B, deux services le même jour, tous deux clos par pointage_depart, heure_fin >= heure_debut, tous les pointages rattachés à leur service et porteurs d'un client_event_id : service 12:27:48 → 12:32:05, deux pointages ; service 12:48:23 → 22:20:50, quatre pointages (arrivee 19:50:13, pause_debut 19:50:27, depart 22:20:50, pause_fin 22:20:50). L'enchaînement pause_fin → départ → clôture → rafraîchissement immédiat sans rechargement, qui était la dernière preuve manquante, est donc joué et vérifié."
+      }
     },
     "gateHumaineFrederic": {
       "valeur": null,
