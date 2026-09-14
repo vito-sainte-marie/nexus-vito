@@ -233,8 +233,12 @@
       "consomme_le": "2026-09-11T15:45:56.397Z"
     },
     "NEXUS-POINTAGE-CORRECTIF-1-20260911": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-2.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "24911d822031af57f744d92bb30f8ebc46a37685",
+      "consomme_le": "2026-09-14T10:50:32.403Z"
     }
   },
   "artefacts_hors_registre": [
