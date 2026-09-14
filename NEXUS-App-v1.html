@@ -2108,6 +2108,14 @@
   // sans lien réel derrière. Coach et Prochaine action partagent cette
   // même priorité (voir determinerPhraseCoach) — une seule vérité.
   function determinerProchaineActionEmploye(ctx) {
+    // Journée terminée : le dire, sans proposer de pointage (14/09/2026,
+    // voir NexusPointageRegles.journeeTermineeSansService). Vérifié en
+    // premier — avant même le pointage — puisque `ctx.prochainPointage`
+    // est déjà neutralisé à null par l'appelant dans ce cas ; ce garde-fou
+    // reste explicite pour ne jamais dépendre de cet ordre d'annulation.
+    if (ctx.journeeTerminee) {
+      return { couleur: null, titre: 'Votre journée est enregistrée. Il n’y a plus de service ouvert.', lienTexte: null, lien: null };
+    }
     if (ctx.pointageActif && ctx.prochainPointage === 'arrivee') {
       return {
         couleur: POINTAGE_MINI_COULEURS.arrivee,
@@ -2351,9 +2359,25 @@
     const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour, serviceCourantId) : null;
     const arriveeFaite = !!dejaFaitService.arrivee;
     const departFait = !!dejaFaitService.depart;
+    // Journée terminée SANS service ouvert (14/09/2026) : distincte de
+    // « rien commencé ». `serviceCourantJour` est null pour deux raisons
+    // opposées — la journée n'a pas débuté, ou un départ l'a déjà refermée
+    // (S-2). Sans cette distinction, `prochainPointage` ci-dessus retombe
+    // sur « arrivée » (état vide de `dejaFaitDuService`) même quand la
+    // journée est finie, et rouvre l'étape que l'écran Pointage refuse déjà
+    // pour ce même cas (sa propre garde `journeeTerminee`). Relevé par
+    // Frédéric sur Employé Test B après déconnexion/reconnexion : Supabase
+    // confirmait le service clos par `pointage_depart`, zéro service
+    // ouvert, et l'accueil annonçait pourtant « Votre service est en
+    // cours » / « Pointer l'arrivée ».
+    const journeeTerminee = pointageActifSite
+      && NexusPointageRegles.journeeTermineeSansService(serviceCourantJour, pointagesJour);
+    const prochainPointageEffectif = journeeTerminee ? null : prochainPointage;
 
     const ctx = {
-      pointageActif: pointageActifSite, prochainPointage, arriveeFaite, departFait,
+      pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
+      arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
+      journeeTerminee,
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
@@ -2364,7 +2388,7 @@
     renderOutilsQuart(choisirTuilesOutilsQuart(ctx));
 
     document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
-    const nbActions = (prochainPointage ? 1 : 0)
+    const nbActions = (prochainPointageEffectif ? 1 : 0)
       + Math.max(0, missionsInfo.total - missionsInfo.faites)
       + Math.max(0, controlesInfo.total - controlesInfo.faits);
     // "Rôle du jour" affiché de façon discrète (cadrage UX §14) — préfixe
@@ -2372,9 +2396,15 @@
     const statutEl = document.getElementById('conseillerEmployeStatut');
     if (statutEl) {
       const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || null;
-      const phraseService = nbActions === 0
-        ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
-        : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
+      // Journée terminée : jamais « en cours », quel que soit nbActions —
+      // sinon une mission encore ouverte suffisait à réafficher « Votre
+      // service est en cours » sur une journée déjà close (même défaut,
+      // formulé autrement).
+      const phraseService = journeeTerminee
+        ? 'Votre journée est terminée'
+        : nbActions === 0
+          ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
+          : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
       statutEl.textContent = libelleRole ? `${libelleRole} · ${phraseService}` : phraseService;
     }
 
