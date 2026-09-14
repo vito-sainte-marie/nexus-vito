@@ -94,7 +94,32 @@
     return jourDeService(new Date(service.heure_debut)) === jourDuPointage ? service : null;
   }
 
-  const API = { ORDRE_TYPES, estDisponible, prochaineEtape, dejaFaitDuService, serviceDuJourSeulement };
+  /**
+   * Journée terminée SANS service ouvert, distincte de « rien commencé ».
+   *
+   * `serviceDuJour` peut être absent pour deux raisons opposées : la
+   * journée n'a pas débuté (aucun pointage), ou un départ l'a déjà
+   * refermée (S-2, clôture au pointage de départ). Confondre les deux
+   * fait retomber un appelant sur le même état vide dans les deux cas, et
+   * rouvrir « Pointer l'arrivée » sur une journée déjà finie — l'étape que
+   * l'écran Pointage refuse déjà pour ce même cas (sa propre garde
+   * interne, non dupliquée ici).
+   *
+   * Relevé sur l'accueil (NEXUS-App-v1.html) le 14/09/2026, parcours
+   * Employé Test B après déconnexion/reconnexion : Supabase confirmait le
+   * dernier service clos par `pointage_depart`, zéro service ouvert, et
+   * l'accueil annonçait pourtant « Votre service est en cours » /
+   * « Pointer l'arrivée ».
+   *
+   * `pointagesJour` porte les pointages de la journée entière, tous
+   * services confondus (comme lu par l'appelant) : un seul suffit à
+   * prouver que la journée a débuté.
+   */
+  function journeeTermineeSansService(serviceDuJour, pointagesJour) {
+    return !serviceDuJour && !!(pointagesJour && pointagesJour.length);
+  }
+
+  const API = { ORDRE_TYPES, estDisponible, prochaineEtape, dejaFaitDuService, serviceDuJourSeulement, journeeTermineeSansService };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusPointageRegles = API;
