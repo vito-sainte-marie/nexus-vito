@@ -42,51 +42,20 @@
       "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la mesure #5 est INCONNUE jusqu'à la gate (preuve-re-mesure-finale-2.md §5). La clause « 0 écriture en vol » du 10/09 est retirée — elle confondait session active et transaction écrivante."
     },
     "aucunBlocageNonResolu": {
-      "valeur": false,
-      "bloque_le": "2026-09-13",
-      "bloque_par": "Frédéric Bragance",
-      "motif": "Le critère reste BLOQUE, mais sa justification a changé le 14/09 : les trois conditions que Frédéric Bragance avait posées le 13/09 — correctif, tests, parcours navigateur réel — sont désormais REMPLIES. Ce qui manque n'est plus une preuve, c'est la déclaration elle-même : ce critère ne se mesure pas, il se déclare, et il appartient à Frédéric Bragance seul. Sa levée exigera un commit, donc un nouveau candidat et une CI à repasser.",
-      "preuve": "Deux défauts corrigés et prouvés. (1) 11/09, parcours Caissière : le départ était inatteignable sans pause. test_pointage_depart_sans_pause_20260911.js 34/34. (2) 13/09, la file hors ligne promettait un envoi que la base refusait, et le refus était classé comme une coupure réseau. La même erreur de portée — la journée au lieu du service — vivait à SEPT endroits, tous ramenés au service : dejaFait, prochainType de l'écran Pointage, la relecture anti-doublon, la relecture de pause_fin, la déduplication de la file, son rejeu, et la prochaine action annoncée par l'accueil. Un module partagé, nexus-pointage-regles.js, porte désormais la règle pour les deux écrans. Épreuves : test_pointage_sans_service_20260913.js 40/40, test_pointage_par_service_20260913.js 29/29, test_pause_fin_par_service_20260913.js 25/25, test_app_prochaine_action_par_service_20260913.js 24/24, test_file_pointages_hors_ligne_20260911.js 19/19. Guardian QA : 0 finding sur 272 épreuves.",
-      "declaration_defaut_7_et_branches": {
-        "valeur": true,
-        "retabli_le": "2026-09-10",
-        "deux_blocages_traites": [
-          "défaut 7 (épreuve `security` sur ea561f6) — déclaré non bloquant par Frédéric Bragance, six motifs consignés ci-dessous",
-          "six branches en rade — classées le 10/09/2026 dans docs/handoff/BRANCHES-CLASSEES.json, toutes SUPERSEDEE, chacune avec son SHA de tête et sa preuve"
-        ],
-        "preuve": "outils/garde-branches-en-rade.js : « Branches en rade : aucune (44 branche(s) claude/* examinée(s)) ». Comparaison des arbres : un seul fichier de ces six branches est absent du candidat, request-11.md, une demande Handoff volontairement non rapatriée — aucun correctif applicatif, aucune épreuve. Les diffs de code de ces branches ne contiennent que des retours en arrière, dont la version d'AVANT la correction du défaut 10.",
-        "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
-        "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées.",
-        "declaration_defaut_7": {
-          "valeur": true,
-          "declare_par": "Frédéric Bragance",
-          "declare_le": "2026-09-10",
-          "porte_sur": "le défaut 7 — épreuve `security` sur l'ancien candidat ea561f6",
-          "motifs": [
-            "une seule occurrence, sur l'ancien candidat ea561f6",
-            "aucune reproduction depuis",
-            "cause non isolée, donc aucun correctif hypothétique autorisé",
-            "instrumentation en place pour capturer une éventuelle nouvelle occurrence",
-            "CI verte sur les événements du candidat contrôlé",
-            "aucun fichier de la release identifié comme défaillant par cette occurrence"
-          ],
-          "preuve": "Déclaration de Frédéric Bragance du 10/09/2026. Ce critère ne se mesure pas, il se déclare — blocages-ouverts-1.md le pose ainsi depuis le 10/09. Les faits qui la fondent sont mesurés et datés : 40 exécutions CI de l'épreuve depuis l'échec, 40 passages, zéro reproduction (dont 5 à conditions d'ordonnancement identiques, avant la sérialisation) ; les trois scripts couverts sont de l'outillage Test, hors artefact de release, et leur refus de la référence Production est un contrôle distinct couvert par six autres épreuves.",
-          "portee": "Ferme UNIQUEMENT le critère aucun_blocage_non_resolu. Ne vaut pas gate finale de déploiement et n'autorise aucune opération sur main, Supabase Production ou NEXUS Production.",
-          "dettes_restant_tracees": "Le défaut 7 reste OUVERT au suivi, instrumenté, non corrigé. Les dettes hors périmètre déjà classées (ARCH-002, ARCH-006, QA-007, Guardian Bible 9 findings, LANG-003 1481 tirets, placement des 23 missions, vocabulaire renfort, transmission au quart suivant) restent tracées : ni supprimées, ni présentées comme corrigées."
-        }
-      },
-      "preuve_backfill_92": {
-        "valeur": true,
-        "preuve": "outils/preuve-backfill-pointages.js, 11/09/2026 — 92 = 75 rattachés + 5 ambigus + 12 sans service, dont 10 site-fantome-test ; 0 rattachement hors site ; 0 perte ; schéma temporaire détruit et destruction vérifiée. Répartition acceptée par Frédéric Bragance le 11/09."
-      },
-      "reste_a_prouver": "Plus rien à prouver sur ce critère. Restent deux observations de FORMULATION, volontairement hors de ce lot et non corrigées : « Historique du service » affiche en réalité toute la journée, et le libellé photo. Voir observations-ux-parcours-13-09-1.md. Les mélanger à un correctif fonctionnel obligerait à reprouver un parcours pour un mot.",
-      "justification_mise_a_jour_le": "2026-09-14",
-      "parcours_navigateur_reel": {
-        "valeur": true,
-        "joue_le": "2026-09-13",
-        "par": "Frédéric Bragance, sur NEXUS Test, connexion par PIN saisi par lui-même",
-        "preuve": "Mesuré en base après coup, pas déclaré. Employé Test B, deux services le même jour, tous deux clos par pointage_depart, heure_fin >= heure_debut, tous les pointages rattachés à leur service et porteurs d'un client_event_id : service 12:27:48 → 12:32:05, deux pointages ; service 12:48:23 → 22:20:50, quatre pointages (arrivee 19:50:13, pause_debut 19:50:27, depart 22:20:50, pause_fin 22:20:50). L'enchaînement pause_fin → départ → clôture → rafraîchissement immédiat sans rechargement, qui était la dernière preuve manquante, est donc joué et vérifié."
-      }
+      "valeur": true,
+      "declare_par": "Frédéric Bragance",
+      "declare_le": "2026-09-14",
+      "porte_sur": "UNIQUEMENT les défauts Pointage concernés : le départ inatteignable sans pause (11/09), la file hors ligne qui promettait un envoi que la base refusait (13/09), et la portée « journée » au lieu du service corrigée à sept endroits (13/09).",
+      "motifs": [
+        "correctif appliqué",
+        "tests concluants",
+        "parcours navigateur réel validé le 13/09/2026"
+      ],
+      "preuve": "Deux défauts corrigés et prouvés. (1) 11/09, parcours Caissière : le départ était inatteignable sans pause. test_pointage_depart_sans_pause_20260911.js 34/34. (2) 13/09, la file hors ligne promettait un envoi que la base refusait, et le refus était classé comme une coupure réseau. La même erreur de portée — la journée au lieu du service — vivait à SEPT endroits, tous ramenés au service : dejaFait, prochainType de l'écran Pointage, la relecture anti-doublon, la relecture de pause_fin, la déduplication de la file, son rejeu, et la prochaine action annoncée par l'accueil. Un module partagé, nexus-pointage-regles.js, porte désormais la règle pour les deux écrans. Épreuves : test_pointage_sans_service_20260913.js 40/40, test_pointage_par_service_20260913.js 29/29, test_pause_fin_par_service_20260913.js 25/25, test_app_prochaine_action_par_service_20260913.js 24/24, test_file_pointages_hors_ligne_20260911.js 19/19. Guardian QA : 0 finding sur 272 épreuves. Parcours navigateur mesuré EN BASE : Mesuré en base après coup, pas déclaré. Employé Test B, deux services le même jour, tous deux clos par pointage_depart, heure_fin >= heure_debut, tous les pointages rattachés à leur service et porteurs d'un client_event_id : service 12:27:48 → 12:32:05, deux pointages ; service 12:48:23 → 22:20:50, quatre pointages (arrivee 19:50:13, pause_debut 19:50:27, depart 22:20:50, pause_fin 22:20:50). L'enchaînement pause_fin → départ → clôture → rafraîchissement immédiat sans rechargement, qui était la dernière preuve manquante, est donc joué et vérifié.",
+      "portee": "Ne constitue AUCUNE autorisation de déploiement Production. Ne vaut pas gate humaine. Ne couvre aucun autre périmètre. Le verdict reste NON_PRET et l'autorisation NON_AUTORISEE tant que les six mesures Production périmées ne sont pas rejouées et validées — critère impacts_production_mesures_horodates, BLOQUE depuis le 12/09/2026 22:39 UTC.",
+      "dettes_restant_tracees": "Deux observations de FORMULATION restent ouvertes, volontairement hors de ce lot et non corrigées : « Historique du service » affiche toute la journée, et le libellé photo. Voir observations-ux-parcours-13-09-1.md. Les dettes hors périmètre déjà classées restent tracées : ni supprimées, ni présentées comme corrigées.",
+      "declaration_handoff": "docs/handoff/lots/NEXUS-POINTAGE-CORRECTIF-1-20260911/decision-1.md — APPROVED_WITH_CONDITIONS, closes=false, enveloppe posée par outils/handoff.js decision.",
+      "historique_du_blocage": "Le critère reste BLOQUE, mais sa justification a changé le 14/09 : les trois conditions que Frédéric Bragance avait posées le 13/09 — correctif, tests, parcours navigateur réel — sont désormais REMPLIES. Ce qui manque n'est plus une preuve, c'est la déclaration elle-même : ce critère ne se mesure pas, il se déclare, et il appartient à Frédéric Bragance seul. Sa levée exigera un commit, donc un nouveau candidat et une CI à repasser."
     },
     "gateHumaineFrederic": {
       "valeur": null,
