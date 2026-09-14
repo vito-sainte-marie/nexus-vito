@@ -16,14 +16,13 @@
       "preuve": "node test_manifeste_migrations_complet_20260909.js → 5/5 ; manifeste-migrations-production-1.md"
     },
     "mesuresProductionFraiches": {
-      "horodatage": "2026-09-11T22:39:53Z",
-      "expire_le": "2026-09-12T22:39:53Z",
-      "preuve": "PÉRIMÉES. Mesurées le 11/09/2026 à 22:39 UTC, valides 24 h : le critère est BLOQUE depuis le 12/09 22:39 UTC, et le restera jusqu'à ce que les six mesures soient rejouées. Ce n'est pas un défaut, c'est la règle d'âge qui fait son travail. Contenu de la mesure périmée : preuve-re-mesure-finale-2.md, six mesures SELECT-only sur uzhjpqpctpvxytxpxoqz par nexus_prod_readonly_login. Protocole de reprise : protocole-gate-dimanche-1.md, étapes 1 à 5.",
-      "perimees_depuis": "2026-09-12T22:39:53Z"
+      "horodatage": "2026-09-14T13:42:32Z",
+      "expire_le": "2026-09-15T13:42:32Z",
+      "preuve": "preuve-re-mesure-finale-3.md — #1 à #4 et #6 par nexus_prod_readonly_login, lecture seule confirmée par la base ; #5 par le connecteur privilégié, 0 ligne. La #5 ne vaut PAS pour la gate : mesure d'instant prise à 09 h 42 heure station, à rejouer dans les minutes précédant la fenêtre de 22 h–23 h."
     },
     "aucunImpactDmlInconnu": {
       "valeur": true,
-      "preuve": "preuve-re-mesure-finale-2.md §1 (0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 shifts, 89 mission_catalog, inchangés) ; §4 CTE CANONIQUE via employees : 26 services en cours, 24 seraient clos sans pointage, écart facteur 1,63 avec la référence 16 du 08/09. La variante par site porté par le service rend le même ensemble — différence symétrique nulle — parce que les trois conditions de divergence valent zéro (site du service ≠ site de l'employé : 0 ; employé introuvable : 0 ; site de l'employé absent de sites : 0). Seul le canonique porte le critère. Augmentation compatible avec la persistance de services ouverts sans clôture ; cause individuelle non attribuée."
+      "preuve": "preuve-re-mesure-finale-3.md §1 (0 ECRASEE, 0 COMPLETEE, 37 IDENTIQUE) ; §2 (17 et 89, inchangés) ; §4 CTE CANONIQUE : 30 services en cours, 28 seraient clos sans pointage, les trois conditions de divergence remesurées à zéro. ALERTE DE TENDANCE : 16 le 08/09, 26 le 11/09, 30 le 14/09 — rapport 1,88 contre un seuil à 2 (soit 32). Au rythme observé d'environ deux par jour, le seuil sera franchi d'ici un à deux jours, et la migration #6 exigera alors une explication écrite. §6 nexus_live_events absente."
     },
     "preprodAnonymiseOuEquivalent": {
       "valeur": true,
@@ -39,7 +38,7 @@
     },
     "fenetreDeploiementConfirmee": {
       "valeur": true,
-      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, établi sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la mesure #5 est INCONNUE jusqu'à la gate (preuve-re-mesure-finale-2.md §5). La clause « 0 écriture en vol » du 10/09 est retirée — elle confondait session active et transaction écrivante."
+      "preuve": "mesure-fenetre-deploiement-1.md — dimanche à mercredi 22 h–23 h locales, sur l'activité métier réelle. Ce critère ne repose sur aucune mesure d'écriture concurrente : la #5 est une mesure d'instant, à rejouer dans les minutes précédant la fenêtre (preuve-re-mesure-finale-3.md §5)."
     },
     "aucunBlocageNonResolu": {
       "valeur": true,
