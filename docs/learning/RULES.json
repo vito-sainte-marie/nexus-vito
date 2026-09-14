@@ -102,6 +102,18 @@
       "source": "BIBLE.md"
     },
     {
+      "id": "ARCH-002",
+      "scope": [
+        "architecture",
+        "regression"
+      ],
+      "trigger": "business_logic_change",
+      "module": "all",
+      "severity": "blocking",
+      "rule": "When the SCOPE of a rule changes, change it at every read that guards a write, not only where the symptom appeared. Enumerate the reads first, fix them in one pass, then assert the old scope is absent everywhere. A scope left behind is silent by nature: the guard finds a row that belongs to another scope, concludes the work is already done, and skips the write while reporting success.",
+      "source": "2026-09-13: the scope « already pointed » moved from (employee, date, type) to (employee, service, type). It was fixed in five places in the morning and a sixth was found that evening — the read guarding the pause-close written at departure time. Two services on one day, and the departure was recorded alone while the second break stayed open forever, with no message. Each fix had targeted where someone had stumbled, never the rule."
+    },
+    {
       "id": "QA-001",
       "scope": [
         "qa",

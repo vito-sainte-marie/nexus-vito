@@ -1502,9 +1502,23 @@
     // on n'enregistre pas le départ — mieux vaut un départ à repointer
     // qu'une pause laissée ouverte derrière un départ enregistré.
     if (type === 'depart' && cloturerPauseAuDepart) {
+      // PORTÉE CORRIGÉE LE 13/09/2026, deuxième passe. Cette relecture-ci
+      // cherchait encore par (employé, DATE, type) — la portée que le reste de
+      // l'écran avait quittée le matin même. Deux services le même jour, une
+      // pause refermée sur le premier : elle retrouvait CETTE fin-là,
+      // concluait « déjà fait », et sautait l'écriture. Le départ s'enregistrait
+      // seul, la pause du second service restait ouverte pour toujours, et
+      // aucun message ne le disait. La journée close portait alors trois
+      // pointages là où quatre gestes avaient été faits.
+      //
+      // La bonne portée est celle de l'index unique du 11/09 —
+      // `pointages_un_par_service_et_type` sur (service_id, employee_id, type).
+      // C'est aussi celle de la relecture anti-doublon du pointage principal et
+      // celle du rejeu de la file : une seule règle, trois chemins d'écriture.
+      // La date ne dit rien de ce qui est dû à CE service.
       const { data: finDeja } = await nexusClient
         .from('pointages').select('id')
-        .eq('employee_id', employee.id).eq('date', today).eq('type', 'pause_fin').limit(1);
+        .eq('employee_id', employee.id).eq('service_id', serviceDuJour.id).eq('type', 'pause_fin').limit(1);
       if (!finDeja || !finDeja.length) {
         // `service_id` et `client_event_id` sont OBLIGATOIRES depuis le
         // 11/09 : le trigger `nexus_pointage_exige_service` refuse toute

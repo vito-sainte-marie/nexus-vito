@@ -233,6 +233,84 @@ l'exécution du runner**, dans le `.then()` final : elles ne tournaient jamais.
 Vertes par construction — exactement ce que Guardian QA traque, et qu'il ne
 peut pas voir, sa règle étant par fichier.
 
+## Le sixième endroit — le tableau ci-dessus en comptait cinq
+
+**13/09/2026, au soir.** Le tableau des cinq endroits était incomplet. Une
+sixième relecture gardait encore la portée par journée, et c'est celle qui
+protège l'écriture de la fin de pause posée à l'heure du départ :
+
+```
+.eq('employee_id', employee.id).eq('date', today).eq('type', 'pause_fin')
+```
+
+Elle n'avait pas été vue parce que le chemin de la clôture de pause avait été
+corrigé le matin même **sur un autre point** : l'insertion ne portait ni
+`service_id` ni `client_event_id`. On avait réparé ce que la base refusait, et
+laissé intacte la question posée juste avant.
+
+### Ce qu'elle produit
+
+Deux services du même employé le même jour, la pause du premier refermée, la
+pause du second encore ouverte. Au départ du second service, la relecture
+retrouve la fin de pause **du premier**, conclut « déjà fait » et saute
+l'écriture. Le départ, lui, s'enregistre.
+
+Résultat : un service clos dont la pause ne se referme jamais, et aucun
+message — la sortie est un succès. La journée close montre trois pointages là
+où quatre gestes ont été faits. Le compteur de temps de pause d'un service
+ainsi clos reste ouvert sur une pause sans fin.
+
+C'est le même défaut que le premier de la série, à un endroit de plus : une
+règle changée dans l'écran, pas partout où elle s'applique. Le correctif du
+matin traitait les endroits où l'on s'était cogné.
+
+### Ce qui a été corrigé
+
+La relecture cible désormais `(employee_id, service_id, type)` — la portée de
+l'index unique `pointages_un_par_service_et_type` du 11/09, et celle des cinq
+autres chemins. La date ne dit rien de ce qui est dû à CE service.
+
+**La file hors ligne et son rejeu ont été revérifiés : ils étaient déjà
+corrects.** `viderLaFile` interroge `(employee_id, service_id, type)` et la
+déduplication de la file porte sur `(service_id, type)`. Aucun autre chemin
+d'écriture ne déduplique plus par `(date, type)` — c'est désormais une
+vérification, pas une relecture à faire de mémoire.
+
+Les trois autres lectures par date subsistent et doivent subsister : l'activité
+du site, l'historique du jour et les missions du jour affichent un contexte.
+Elles ne gardent aucune écriture.
+
+### Épreuve
+
+`test_pause_fin_par_service_20260913.js` — 25 vérifications.
+
+Elle ne lit pas seulement la source, **elle la joue**. Le bloc de clôture est
+extrait de l'écran et exécuté contre une base simulée qui applique les filtres
+réellement demandés, l'unicité `pointages_un_par_service_et_type` et le refus
+`nexus_pointage_exige_service`. Le scénario du §1 est celui mesuré sur Test :
+service du midi clos avec sa pause refermée, service du soir avec sa pause
+ouverte.
+
+**Témoin de mutation**, `NEXUS_SOURCE_POINTAGE=<fichier d'avant> node …` :
+six vérifications échouent, dont quatre par comportement et non par motif de
+texte. Le témoin montre aussi la forme exacte du silence — « le départ peut
+suivre » reste **vert** sur le fichier d'avant correction : le départ
+s'enregistrait bel et bien, seul. Une épreuve qui passerait des deux côtés ne
+prouverait rien.
+
+Le chemin du refus est éprouvé lui aussi : si la base refuse la fin de pause,
+le départ n'est pas pointé et l'employée le lit dans un bandeau visible. Règle
+6 — mieux vaut un départ à repointer qu'une pause laissée ouverte derrière un
+départ enregistré.
+
+### Ce que cette épreuve dit de la précédente
+
+`test_pointage_par_service_20260913.js` vérifiait déjà, en son §6, que
+l'insertion de `pause_fin` portait `service_id` et `client_event_id`. Elle
+regardait l'écriture et jamais la question posée avant elle. Une garde qui
+suit un correctif au lieu de suivre la règle laisse passer le même défaut à
+l'endroit voisin.
+
 ## Ce que ce lot ne fait pas
 
 Il ne lève aucun blocage. `aucun_blocage_non_resolu` reste **BLOQUE** :
