@@ -1,0 +1,174 @@
+# Déploiement Production — GitHub Pages
+#
+# CE WORKFLOW EST LE SEUL À DÉPLOYER. `tests.yml` ne déploie rien.
+#
+# ─── Pourquoi il existe ────────────────────────────────────────────────────
+# `https://app.nexusconseil.net` est servi par GitHub Pages **depuis la
+# branche `production`, octet pour octet, sans build** (mesuré le 15/09/2026 :
+# `server: GitHub.com`, `CNAME` dans la branche, et l'empreinte sha256 du
+# `nexus-auth.js` servi identique à celle du fichier de branche).
+#
+# La branche candidate `config-par-environnement`, elle, est un arbre **qui
+# exige un build** : `outils/build.sh` produit `nexus-config.js` et
+# `nexus-build.js`, tous deux `.gitignore`d donc absents de la branche, et
+# l'écran de connexion refuse de démarrer sans eux. La fusionner en l'état
+# afficherait « Configuration absente » à tout employé.
+#
+# Ce workflow fournit le chemin de build qui manque. Il ne dépend d'aucun
+# autre lot et n'en contient aucun.
+#
+# ─── Les deux modes, et pourquoi la bascule est sans interruption ──────────
+# Le mode n'est pas choisi par un humain : il est **déduit de l'arbre**.
+#
+#   `outils/build.sh` absent  → mode « a-l-identique » : l'arbre est publié
+#       tel quel. C'est exactement ce que Pages sert aujourd'hui. C'est ce qui
+#       permet de basculer la source de Pages (branche → Actions) sans que
+#       personne ne voie la différence.
+#   `outils/build.sh` présent → mode « construit » : le build est exécuté,
+#       et l'artefact doit contenir la configuration qu'il a produite.
+#
+# La règle qui tient l'ensemble : **un arbre qui SAIT se construire ne se
+# publie jamais brut** (règle A1 de la garde). Sans elle, le jour où le
+# candidat est fusionné, un workflow distrait publierait l'arbre sans sa
+# configuration — la panne que tout ceci existe pour empêcher.
+#
+# ─── Ce qui reste à faire à la main (Frédéric, dans GitHub) ────────────────
+# Aucun de ces gestes n'est exécutable depuis un workflow, par construction.
+#   1. Secrets du dépôt : `NEXUS_SUPABASE_URL`, `NEXUS_SUPABASE_ANON_KEY`.
+#   2. Variable du dépôt : `NEXUS_DEPLOIEMENT_ARME` = `non` au départ.
+#   3. Environnement `github-pages` limité à la branche `production`.
+#   4. Settings → Pages : source « GitHub Actions », au moment que dit
+#      `docs/plans/2026-09-15-bascule-hebergement-production-github-pages.md`.
+#
+# Tant que `NEXUS_DEPLOIEMENT_ARME` ne vaut pas `oui`, ce workflow construit,
+# vérifie et publie l'artefact comme pièce à conviction — **et ne déploie
+# rien**. C'est le « ne déploie rien tant que ce n'est pas éprouvé » de la
+# consigne, écrit dans le workflow plutôt que confié à la mémoire.
+
+name: Déploiement Production (GitHub Pages)
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+    inputs:
+      ref_applicatif:
+        description: "Référence à construire pour répétition (branche ou SHA). NE DÉPLOIE JAMAIS — sert à éprouver le build et l'artefact."
+        required: false
+        type: string
+      deployer:
+        description: "Déployer réellement (exige aussi la branche production et NEXUS_DEPLOIEMENT_ARME=oui)"
+        required: false
+        default: "non"
+        type: choice
+        options: ["non", "oui"]
+
+# Rien par défaut. Chaque job demande le strict nécessaire, et le droit
+# d'écrire sur Pages n'existe que dans le job qui déploie.
+permissions: {}
+
+# Pas d'annulation en vol : interrompre un déploiement Pages à mi-chemin est
+# le seul moyen de laisser le site dans un état intermédiaire.
+concurrency:
+  group: pages-production
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    name: Construire et éprouver l'artefact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      sha_construit: ${{ steps.mode.outputs.sha_construit }}
+    steps:
+      - name: Récupérer l'arbre
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref_applicatif || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Installer Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      # Le mode est déduit, jamais déclaré : un paramètre d'entrée se trompe,
+      # un test de présence non.
+      - name: Déterminer le mode de publication
+        id: mode
+        run: |
+          set -euo pipefail
+          if [ -f outils/build.sh ]; then
+            echo "mode=construit" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::construit — outils/build.sh est présent, l'arbre sera construit."
+          else
+            echo "mode=a-l-identique" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::a-l-identique — pas de outils/build.sh, l'arbre est publié tel quel (état actuel de la Production)."
+          fi
+          echo "sha_construit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Construire (NEXUS_ENV=production)
+        if: steps.mode.outputs.mode == 'construit'
+        env:
+          NEXUS_ENV: production
+          NEXUS_SUPABASE_URL: ${{ secrets.NEXUS_SUPABASE_URL }}
+          NEXUS_SUPABASE_ANON_KEY: ${{ secrets.NEXUS_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          # Échec net et lisible plutôt qu'un build qui produit une
+          # configuration vide et un site qui ne démarre pas.
+          if [ -z "${NEXUS_SUPABASE_URL}" ] || [ -z "${NEXUS_SUPABASE_ANON_KEY}" ]; then
+            echo "::error title=Secrets absents::NEXUS_SUPABASE_URL et NEXUS_SUPABASE_ANON_KEY doivent être définis dans les secrets du dépôt."
+            exit 1
+          fi
+          bash outils/build.sh
+
+      # La garde. Lecture seule, échec fermé, et elle ne recopie jamais ce
+      # qu'elle refuse : le journal d'un run est lisible par tout le dépôt.
+      - name: Éprouver l'artefact avant publication
+        run: node outils/verifier-artefact-pages.js --mode=${{ steps.mode.outputs.mode }}
+
+      # `upload-pages-artifact` exclut `.git` et `.github` : `path: .`
+      # reproduit donc exactement l'ensemble servi aujourd'hui.
+      - name: Emballer l'artefact Pages
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: .
+
+  deployer:
+    name: Déployer sur GitHub Pages
+    needs: construire
+    runs-on: ubuntu-latest
+    # Quatre conditions cumulatives. Chacune coupe un chemin par lequel un
+    # déploiement pourrait partir sans être voulu :
+    #   — la branche : rien d'autre que `production` ne publie ;
+    #   — la variable de dépôt : l'arme est posée par un humain, dans GitHub ;
+    #   — l'origine : un push, ou une main qui a explicitement dit « oui » ;
+    #   — l'identité : on ne déploie que le commit sur lequel le workflow a
+    #     été déclenché. C'est ce qui rend `ref_applicatif` inoffensif — une
+    #     répétition sur une autre référence ne peut pas atteindre ce job.
+    if: >-
+      github.ref == 'refs/heads/production' &&
+      vars.NEXUS_DEPLOIEMENT_ARME == 'oui' &&
+      (github.event_name == 'push' || inputs.deployer == 'oui') &&
+      needs.construire.outputs.sha_construit == github.sha
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      # Placé ici, et non dans `construire` : tant que la source de Pages est
+      # encore « Deploy from a branch », `configure-pages` échoue sur le type
+      # de build hérité. Le garder hors du job de construction permet
+      # d'éprouver build, garde et artefact AVANT la bascule.
+      - name: Configurer Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+
+      - name: Déployer
+        id: deploiement
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
