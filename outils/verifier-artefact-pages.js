@@ -28,7 +28,14 @@
 //   --mode=construit       l'arbre sort de `bash outils/build.sh`
 //   --mode=a-l-identique   l'arbre est publié tel quel (état actuel de
 //                          `production`, qui ne possède pas de `build.sh`)
-//   --racine=<dir>         arbre à contrôler (défaut : la racine du dépôt)
+//   --racine=<dir>         arbre à contrôler (défaut : la racine du dépôt).
+//                          En mode « construit » c'est l'artefact composé
+//                          (`_site`), pas le dépôt.
+//   --arbre-source=<dir>   arbre d'origine, utilisé par la SEULE règle A1
+//                          (défaut : --racine). Il faut les deux parce que
+//                          `outils/` ne fait pas partie de l'artefact public :
+//                          « cet arbre sait-il se construire ? » se demande à
+//                          la source, « qu'est-ce qui part ? » à l'artefact.
 //   --refuser-mot-service-role   voir la règle S5 ci-dessous
 'use strict';
 
@@ -62,6 +69,7 @@ function option(nom) {
 }
 const MODE = option('mode');
 const RACINE = path.resolve(option('racine') || path.join(__dirname, '..'));
+const ARBRE_SOURCE = path.resolve(option('arbre-source') || RACINE);
 const REFUSER_MOT = args.includes('--refuser-mot-service-role');
 
 const MODES = ['construit', 'a-l-identique'];
@@ -74,13 +82,25 @@ if (!fs.existsSync(RACINE) || !fs.statSync(RACINE).isDirectory()) {
   console.error(`\n  ÉCHEC — la racine « ${RACINE} » n'existe pas.\n`);
   process.exit(1);
 }
+if (!fs.existsSync(ARBRE_SOURCE) || !fs.statSync(ARBRE_SOURCE).isDirectory()) {
+  console.error(`\n  ÉCHEC — l'arbre source « ${ARBRE_SOURCE} » n'existe pas.\n`);
+  process.exit(1);
+}
 
 // ── Périmètre exact de l'artefact ──────────────────────────────────────────
-// `actions/upload-pages-artifact` archive le chemin fourni en excluant
-// `.git` et `.github`. Le périmètre contrôlé ici est donc EXACTEMENT ce qui
-// sera publié : contrôler plus large donnerait de faux refus, contrôler plus
-// étroit laisserait passer un fichier réellement servi.
-const EXCLUS = new Set(['.git', '.github', 'node_modules']);
+// Le périmètre contrôlé ici est EXACTEMENT ce qui sera publié : contrôler
+// plus large donnerait de faux refus, contrôler plus étroit laisserait passer
+// un fichier réellement servi.
+//
+// `actions/upload-pages-artifact` écarte lui-même, **depuis la v4.0.0**, tout
+// chemin dont un segment commence par un point — `.git`, `.github`,
+// `.gitignore`, `supabase/.gitkeep`. C'est la raison pour laquelle ce lot est
+// épinglé sur la v5 et non sur la v3 : avec la v3, `.gitignore` et
+// `supabase/.gitkeep` auraient été exposés par Actions alors que le mode
+// branche les masquait (Jekyll). L'écart de contenu mesuré entre les deux
+// hébergements disparaît donc de lui-même.
+const EXCLUS = new Set(['node_modules']);
+function estCache(nom) { return nom.startsWith('.'); }
 
 // Extensions binaires : illisibles en texte, et aucune clé ne s'y cache sous
 // une forme que ces règles sauraient reconnaître. Elles sont écartées
@@ -91,19 +111,27 @@ const BINAIRES = new Set([
   '.mp4', '.mp3', '.wav', '.mov', '.heic',
 ]);
 
+let horsPerimetre = 0;
+
 function parcourir(dir, relatif = '') {
   const sortie = [];
   for (const entree of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (relatif === '' && EXCLUS.has(entree.name)) continue;
-    if (entree.name === 'node_modules') continue;
+    if (EXCLUS.has(entree.name) || estCache(entree.name)) { horsPerimetre++; continue; }
     const abs = path.join(dir, entree.name);
     const rel = relatif ? `${relatif}/${entree.name}` : entree.name;
     if (entree.isSymbolicLink()) { avertir(`Lien symbolique ignoré : ${rel}`); continue; }
-    if (entree.isDirectory()) sortie.push(...parcourir(abs, rel));
+    if (entree.isDirectory()) { dossiers.add(rel); sortie.push(...parcourir(abs, rel)); }
     else if (entree.isFile()) sortie.push(rel);
   }
   return sortie;
 }
+
+// Ensembles exacts — comparaison **sensible à la casse**. Le disque de
+// développement ne l'est pas, GitHub Pages si : `href="Accueil.png"` pour un
+// fichier `accueil.png` fonctionne ici et renvoie 404 en Production. Résoudre
+// contre ces ensembles plutôt que contre le disque attrape cette classe
+// d'erreur, que `fs.existsSync` laisserait passer.
+const dossiers = new Set();
 
 function estTexte(abs, rel) {
   if (BINAIRES.has(path.extname(rel).toLowerCase())) return false;
@@ -126,7 +154,11 @@ const fichiers = parcourir(RACINE);
 // ne le fabrique pas. Le mode « à l'identique » n'existe que pour l'arbre
 // d'aujourd'hui, qui n'a pas de chaîne de build ; il s'éteint de lui-même le
 // jour où `outils/build.sh` arrive dans la branche.
-const A_BUILD = fs.existsSync(path.join(RACINE, 'outils', 'build.sh'));
+// Évaluée sur l'ARBRE SOURCE, pas sur l'artefact : `outils/` ne fait pas
+// partie de l'artefact public, et chercher `build.sh` dans `_site` conclurait
+// toujours « cet arbre ne sait pas se construire » — la garde s'éteindrait
+// exactement dans le cas qu'elle existe pour couvrir.
+const A_BUILD = fs.existsSync(path.join(ARBRE_SOURCE, 'outils', 'build.sh'));
 if (MODE === 'a-l-identique' && A_BUILD) {
   refuser('A1', 'Le mode « à l\'identique » a été demandé alors que `outils/build.sh` existe : cet arbre doit être construit, pas publié brut.');
 }
@@ -223,6 +255,186 @@ if (MODE === 'construit' && present('nexus-config.js')) {
 // incident.
 if (present('_headers')) {
   avertir('`_headers` est présent, mais GitHub Pages l\'ignore : `no-store` sur `/nexus-config.js` ne sera PAS appliqué. Écart connu, hérité de l\'hébergement Cloudflare de la recette.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P. PÉRIMÈTRE PUBLIC (mode « construit » uniquement)
+// ═══════════════════════════════════════════════════════════════════════════
+// Second témoin de `outils/composer-artefact-public.js`. Le composeur décide
+// ce qui part ; cette règle vérifie, sur l'arbre réellement emballé, que la
+// décision a bien été appliquée. Sans elle, remettre `path: .` dans le
+// workflow — une ligne — republierait la racine entière sans que rien ne le
+// signale : aucun de ces fichiers ne contient de clé, donc les règles S les
+// acceptent toutes.
+//
+// La liste reprend la lettre de la consigne du 15/09 : `.git`, `.github`,
+// `docs`, `supabase`, `outils`, les tests, `CLAUDE.md` et les documents
+// internes. Elle est volontairement plus courte que celle du composeur : ce
+// qu'elle énumère est ce qui ne doit JAMAIS être public, pas tout ce qu'il
+// est inutile de publier.
+//
+// Elle ne s'applique pas en mode « à l'identique » : ce mode publie l'arbre
+// de `production` tel qu'il est servi aujourd'hui, documents internes
+// compris. C'est un état de fait, transitoire, et la refuser reviendrait à
+// interdire la bascule sans interruption — voir l'en-tête du workflow.
+const PERIMETRE_PUBLIC = [
+  [rel => rel === 'CLAUDE.md', 'consignes internes du dépôt'],
+  [rel => /(^|\/)test_[^/]*\.js$/.test(rel), 'fichier de test'],
+  [rel => rel === 'run-tests.js', 'lanceur de la suite de tests'],
+  [rel => rel.toLowerCase().endsWith('.md'), 'document interne'],
+  [rel => rel.toLowerCase().endsWith('.sql'), 'migration ou requête SQL'],
+  [rel => /^(docs|supabase|outils|simulations|nexus-ocr-worker)\//.test(rel), 'dossier interne'],
+  [rel => /^migrations[^/]*\//.test(rel), 'dossier de migrations SQL'],
+];
+
+if (MODE === 'construit') {
+  const fautifs = new Map();
+  for (const rel of fichiers) {
+    for (const [teste, motif] of PERIMETRE_PUBLIC) {
+      if (teste(rel)) {
+        if (!fautifs.has(motif)) fautifs.set(motif, []);
+        fautifs.get(motif).push(rel);
+        break;
+      }
+    }
+  }
+  if (fautifs.size) {
+    for (const [motif, liste] of fautifs) {
+      const extrait = liste.slice(0, 5).join(', ') + (liste.length > 5 ? `, … (+${liste.length - 5})` : '');
+      refuser('P1', `${liste.length} fichier(s) hors périmètre public — ${motif} : ${extrait}. L'artefact n'a pas été composé par \`outils/composer-artefact-public.js\`, ou le workflow emballe encore la racine du dépôt.`);
+    }
+  } else {
+    constater('Périmètre public respecté : ni tests, ni SQL, ni documents internes, ni dossier serveur dans l\'artefact.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R. CLÔTURE DES RÉFÉRENCES — la preuve de complétude
+// ═══════════════════════════════════════════════════════════════════════════
+// C'est la règle qui répond à « prouve que tous les écrans, scripts et
+// ressources nécessaires à NEXUS restent présents ».
+//
+// La preuve ne peut pas être une liste : une liste de ce qu'il faut garder
+// est écrite par la même main que la liste de ce qu'il faut exclure, et se
+// trompe des deux côtés en même temps. La preuve est une **clôture** : on
+// relit chaque écran et chaque script de l'artefact, on en extrait chaque
+// référence locale — `src`, `href`, `url()` CSS, `import`, `fetch`,
+// `new Worker`, `new URL` — et on exige que la cible existe **dans
+// l'artefact**. Un écran retiré par erreur n'est pas détecté par son absence,
+// il est détecté par le lien qui ne mène plus nulle part.
+//
+// La résolution se fait contre l'inventaire de l'artefact, **pas contre le
+// disque** : elle est donc sensible à la casse, comme GitHub Pages, et ne
+// peut pas valider un fichier qui existe hors artefact.
+//
+// Non résolu volontairement : ce qui est construit à l'exécution (`${…}`,
+// `{{…}}`) et ce qui est distant. Les deux sont comptés et affichés — une
+// ligne d'inventaire qui gonfle est le signal qu'un chargement dynamique
+// local est apparu et que cette règle ne le couvre plus.
+const fichiersSet = new Set(fichiers);
+
+const PROTOCOLES_IGNORES = /^(?:https?:|ftp:|\/\/|data:|blob:|mailto:|tel:|sms:|javascript:|about:|#)/i;
+
+// `url(…)` est une notation **CSS**. Dans un écran, le CSS ne vit que dans les
+// blocs `<style>` et les attributs `style="…"` ; partout ailleurs, `…url(` est
+// du JavaScript. Restreindre la lecture à ces zones n'est pas un raffinement :
+// sans elle, l'extracteur mord sur tout identifiant qui se termine par `url`.
+// Le premier passage sur l'arbre réel l'a prouvé — `URL.revokeObjectURL(a.href)`,
+// `createObjectURL(blob)`, `ouvrirDepuisParametresUrl(date, quart)` — douze
+// refus, douze faux positifs, zéro vrai. Une garde qui refuse à tort se fait
+// débrancher aussi sûrement qu'une garde muette ; c'est le même échec.
+function zonesCss(contenu) {
+  const zones = [];
+  for (const m of contenu.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) zones.push(m[1]);
+  for (const m of contenu.matchAll(/\bstyle\s*=\s*"([^"]*)"/gi)) zones.push(m[1]);
+  for (const m of contenu.matchAll(/\bstyle\s*=\s*'([^']*)'/gi)) zones.push(m[1]);
+  return zones.join('\n');
+}
+
+// Second cran, à l'intérieur même du CSS : `url(` doit ouvrir un mot, jamais le
+// terminer. `(?<![\w-])` écarte `…Url(`, `…URL(` et `--ma-var-url(`.
+const MOTIF_URL_CSS = /(?<![\w-])url\(\s*['"]?([^'")]+)['"]?\s*\)/gi;
+
+const EXTRACTEURS = [
+  // HTML — attributs statiques, valeur entre guillemets.
+  { exts: ['.html', '.htm'], motif: /\b(?:src|href)\s*=\s*"([^"]*)"/gi },
+  { exts: ['.html', '.htm'], motif: /\b(?:src|href)\s*=\s*'([^']*)'/gi },
+  // CSS : le fichier entier ; écran : ses seules zones CSS.
+  { exts: ['.css'], motif: MOTIF_URL_CSS },
+  { exts: ['.html', '.htm'], motif: MOTIF_URL_CSS, portee: zonesCss },
+  // JS — chargements de modules et de ressources.
+  { exts: ['.js', '.mjs'], motif: /\bimport\s+(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]/g },
+  { exts: ['.js', '.mjs'], motif: /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g },
+  { exts: ['.js', '.mjs'], motif: /\bnew\s+Worker\(\s*['"]([^'"]+)['"]/g },
+  { exts: ['.js', '.mjs'], motif: /\bfetch\(\s*['"]([^'"]+)['"]/g },
+  { exts: ['.js', '.mjs'], motif: /\bnew\s+URL\(\s*['"]([^'"]+)['"]/g },
+];
+
+function resoudre(depuis, reference) {
+  const base = path.posix.dirname('/' + depuis);
+  const cible = reference.startsWith('/')
+    ? path.posix.normalize(reference)
+    : path.posix.normalize(path.posix.join(base, reference));
+  return cible.replace(/^\/+/, '');
+}
+
+let referencesResolues = 0, referencesDistantes = 0, referencesDynamiques = 0;
+const manquantes = [];
+const vues = new Set();
+
+for (const rel of fichiers) {
+  const ext = path.extname(rel).toLowerCase();
+  const extracteurs = EXTRACTEURS.filter(e => e.exts.includes(ext));
+  if (!extracteurs.length) continue;
+  const contenu = fs.readFileSync(path.join(RACINE, rel), 'utf8');
+
+  for (const { motif, portee } of extracteurs) {
+    const texte = portee ? portee(contenu) : contenu;
+    motif.lastIndex = 0;
+    let m;
+    while ((m = motif.exec(texte)) !== null) {
+      const brute = m[1].trim();
+      if (!brute) continue;
+      if (PROTOCOLES_IGNORES.test(brute)) {
+        if (/^(?:https?:|ftp:|\/\/)/i.test(brute)) referencesDistantes++;
+        continue;
+      }
+      // Construite à l'exécution : il n'y a pas de cible à vérifier.
+      if (brute.includes('${') || brute.includes('{{') || brute.includes('<%') || brute.includes('+')) {
+        referencesDynamiques++;
+        continue;
+      }
+      let chemin = brute.split('#')[0].split('?')[0];
+      if (!chemin) continue;
+      try { chemin = decodeURIComponent(chemin); } catch { /* laissé tel quel */ }
+
+      const cible = resoudre(rel, chemin);
+      if (cible === '' || cible.startsWith('..')) {
+        const cle = `${rel}→${brute}`;
+        if (!vues.has(cle)) { vues.add(cle); manquantes.push({ depuis: rel, reference: brute, cause: 'sort de l\'artefact' }); }
+        continue;
+      }
+      if (fichiersSet.has(cible)) { referencesResolues++; continue; }
+      if (dossiers.has(cible) && fichiersSet.has(`${cible}/index.html`)) { referencesResolues++; continue; }
+      if (chemin === '/' && fichiersSet.has('index.html')) { referencesResolues++; continue; }
+
+      const cle = `${rel}→${brute}`;
+      if (vues.has(cle)) continue;
+      vues.add(cle);
+      manquantes.push({ depuis: rel, reference: brute, cause: 'cible absente de l\'artefact' });
+    }
+  }
+}
+
+if (manquantes.length) {
+  for (const m of manquantes.slice(0, 25)) {
+    refuser('R1', `${m.depuis} référence « ${m.reference} » — ${m.cause}. L'écran serait servi avec une ressource manquante.`);
+  }
+  if (manquantes.length > 25) {
+    refuser('R1', `… et ${manquantes.length - 25} autre(s) référence(s) non résolue(s), non listées.`);
+  }
+} else {
+  constater(`Clôture des références vérifiée : ${referencesResolues} référence(s) locale(s) résolue(s) dans l'artefact, zéro manquante (${referencesDistantes} distante(s), ${referencesDynamiques} construite(s) à l'exécution, non résolues).`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -358,9 +570,10 @@ if (motServiceRole) {
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── Contrôle de l\'artefact GitHub Pages ─────────────────────────');
 console.log(`  racine  : ${RACINE}`);
+if (ARBRE_SOURCE !== RACINE) console.log(`  source  : ${ARBRE_SOURCE} (règle A1 seulement)`);
 console.log(`  mode    : ${MODE}`);
 console.log(`  périmètre : ${fichiers.length} fichier(s) — ${fichiersScrutes} scruté(s), ${fichiersBinaires} binaire(s) écarté(s).`);
-console.log(`              (\`.git\`, \`.github\` et \`node_modules\` sont hors artefact, comme chez upload-pages-artifact.)`);
+console.log(`              ${horsPerimetre} entrée(s) hors artefact : \`node_modules\` et tout chemin caché, que upload-pages-artifact v4+ n'emballe pas.`);
 console.log('');
 for (const c of constats) console.log(`  · ${c}`);
 console.log('');

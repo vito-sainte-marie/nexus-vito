@@ -48,9 +48,13 @@ function arbre(fichiers) {
   return racine;
 }
 
-function controler(racine, mode, options = []) {
+// `cible` est soit une racine, soit le couple { racine, options } que rend
+// `arbreConstruit` — voir ce dernier pour la raison d'être des deux arbres.
+function controler(cible, mode, options = []) {
+  const racine = typeof cible === 'string' ? cible : cible.racine;
+  const propres = typeof cible === 'string' ? [] : cible.options;
   const r = spawnSync(process.execPath,
-    [VERIFICATEUR, `--mode=${mode}`, `--racine=${racine}`, ...options],
+    [VERIFICATEUR, `--mode=${mode}`, `--racine=${racine}`, ...propres, ...options],
     { encoding: 'utf8' });
   return { code: r.status, sortie: `${r.stdout}${r.stderr}` };
 }
@@ -95,6 +99,21 @@ const APPAT_AFFECTATION = ['SUPABASE', 'SERVICE', 'ROLE', 'KEY'].join('_')
   + ' = "valeur-de-test-manifestement-fausse-xx";';
 const MOT_SERVICE_ROLE = ['service', 'role'].join('_');
 
+// ── Arbre construit : deux arbres, et c'est tout le sujet ──────────────────
+// Depuis que l'artefact public est **composé**, `outils/` n'en fait plus
+// partie. Les deux questions de la garde ne se posent donc plus au même
+// endroit : « cet arbre sait-il se construire ? » (règle A1) se demande à la
+// SOURCE ; « qu'est-ce qui part vers le site ? » (B, C, S, P, R) se demande à
+// l'ARTEFACT. Un bac à sable qui confondrait les deux ne saurait plus
+// exprimer le cas normal — un artefact construit ne contient jamais le script
+// qui l'a construit.
+function arbreConstruit(fichiers = {}) {
+  const source = path.join(BAC, `source-${numeroArbre + 1}`);
+  fs.mkdirSync(path.join(source, 'outils'), { recursive: true });
+  fs.writeFileSync(path.join(source, 'outils', 'build.sh'), BUILD_SH);
+  return { racine: arbre(fichiers), options: [`--arbre-source=${source}`] };
+}
+
 function config(env, ref, longueurCle = 40) {
   const cle = 'CLE-DE-TEST-MANIFESTEMENT-FAUSSE-'.padEnd(longueurCle, 'x').slice(0, longueurCle);
   return `(function (g) { g.NEXUS_CONFIG = Object.freeze({\n`
@@ -138,7 +157,7 @@ exigerRefus(
 
 exigerRefus(
   'B3 · nexus-config.js absent après construction',
-  'B3', arbre({ 'outils/build.sh': BUILD_SH }), 'construit');
+  'B3', arbreConstruit(), 'construit');
 
 exigerRefus(
   'B3 · nexus-config.js committé dans un arbre publié brut',
@@ -146,7 +165,7 @@ exigerRefus(
 
 exigerAcceptation(
   'B · arbre construit complet — accepté',
-  arbre({ 'outils/build.sh': BUILD_SH, 'nexus-config.js': config('production', REF_PROD) }),
+  arbreConstruit({ 'nexus-config.js': config('production', REF_PROD) }),
   'construit');
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,22 +173,22 @@ exigerAcceptation(
 // ═══════════════════════════════════════════════════════════════════════════
 exigerRefus(
   'C2 · configuration déclarant « test » dans un artefact de Production',
-  'C2', arbre({ 'outils/build.sh': BUILD_SH, 'nexus-config.js': config('test', REF_TEST) }),
+  'C2', arbreConstruit({ 'nexus-config.js': config('test', REF_TEST) }),
   'construit');
 
 exigerRefus(
   'C3 · configuration visant un autre projet Supabase',
-  'C3', arbre({ 'outils/build.sh': BUILD_SH, 'nexus-config.js': config('production', REF_TEST) }),
+  'C3', arbreConstruit({ 'nexus-config.js': config('production', REF_TEST) }),
   'construit');
 
 exigerRefus(
   'C4 · clé trop courte pour être valide',
-  'C4', arbre({ 'outils/build.sh': BUILD_SH, 'nexus-config.js': config('production', REF_PROD, 12) }),
+  'C4', arbreConstruit({ 'nexus-config.js': config('production', REF_PROD, 12) }),
   'construit');
 
 exigerRefus(
   'C1 · nexus-config.js illisible',
-  'C1', arbre({ 'outils/build.sh': BUILD_SH, 'nexus-config.js': '// vidé par erreur\n' }),
+  'C1', arbreConstruit({ 'nexus-config.js': '// vidé par erreur\n' }),
   'construit');
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -228,6 +247,124 @@ exigerAcceptation(
 exigerRefus(
   'S5 · le mot nu en prose SQL — bloquant avec --refuser-mot-service-role',
   'S5', PROSE, 'a-l-identique', ['--refuser-mot-service-role']);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P — périmètre public : l'artefact construit ne publie pas le dépôt
+// ═══════════════════════════════════════════════════════════════════════════
+// La première version du workflow emballait `path: .` — la racine entière.
+// Rien de tout cela n'est un secret au sens des règles S, et c'est justement
+// le piège : les règles S auraient tout accepté. La règle P est le second
+// témoin du composeur — si quelqu'un remet `path: .` un jour, la garde refuse
+// au lieu de republier le dépôt en silence.
+const CONFIG_OK = config('production', REF_PROD);
+
+exigerRefus(
+  'P1 · un fichier de test dans l\'artefact construit',
+  'P1', arbreConstruit({ 'nexus-config.js': CONFIG_OK, 'test_quelque_chose.js': 'assert(true);\n' }),
+  'construit');
+
+exigerRefus(
+  'P1 · une migration SQL dans l\'artefact construit',
+  'P1', arbreConstruit({ 'nexus-config.js': CONFIG_OK, '20260101_ajout.sql': 'alter table t add column c int;\n' }),
+  'construit');
+
+exigerRefus(
+  'P1 · le dossier docs/ dans l\'artefact construit',
+  'P1', arbreConstruit({ 'nexus-config.js': CONFIG_OK, 'docs/plans/bascule.md': '# plan interne\n' }),
+  'construit');
+
+exigerRefus(
+  'P1 · CLAUDE.md dans l\'artefact construit',
+  'P1', arbreConstruit({ 'nexus-config.js': CONFIG_OK, 'CLAUDE.md': '# consignes internes\n' }),
+  'construit');
+
+exigerRefus(
+  'P1 · le dossier supabase/ dans l\'artefact construit',
+  'P1', arbreConstruit({ 'nexus-config.js': CONFIG_OK, 'supabase/config.toml': '[api]\nport = 54321\n' }),
+  'construit');
+
+// L'inverse, et il est aussi important : le mode « à l'identique » publie
+// l'arbre de `production` TEL QU'IL EST SERVI AUJOURD'HUI, documents internes
+// compris. Lui appliquer la règle P interdirait la bascule sans interruption
+// — c'est-à-dire la seule chose que ce mode existe pour permettre.
+exigerAcceptation(
+  'P · les mêmes documents internes en mode « à l\'identique » — acceptés',
+  arbre({
+    'CLAUDE.md': '# consignes internes\n',
+    'test_quelque_chose.js': 'assert(true);\n',
+    'docs/plans/bascule.md': '# plan interne\n',
+    '20260101_ajout.sql': 'alter table t add column c int;\n',
+  }), 'a-l-identique');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R — clôture des références : la preuve que rien de nécessaire n'a sauté
+// ═══════════════════════════════════════════════════════════════════════════
+// La liste d'exclusion du composeur est écrite par la même main que la liste
+// de ce qu'il faut garder : elle ne peut pas se relire elle-même. La preuve
+// est ailleurs — un écran retiré par erreur n'est pas détecté par son absence,
+// il est détecté par le lien qui ne mène plus nulle part.
+exigerRefus(
+  'R1 · un écran référence un script absent de l\'artefact',
+  'R1', arbre({ 'index.html': '<!doctype html><script src="nexus-auth.js"></script>\n' }),
+  'a-l-identique');
+
+// GitHub Pages tourne sur Linux, le poste de développement sur un disque
+// insensible à la casse. `fs.existsSync` accepterait ici ; l'inventaire non.
+// C'est toute la raison de résoudre contre un ensemble plutôt que le disque.
+exigerRefus(
+  'R1 · référence dont la casse diffère du fichier — 404 sur Pages',
+  'R1', arbre({
+    'index.html': '<!doctype html><script src="Nexus-Auth.js"></script>\n',
+    'nexus-auth.js': 'void 0;\n',
+  }), 'a-l-identique');
+
+exigerRefus(
+  'R1 · référence qui sort de l\'artefact',
+  'R1', arbre({ 'index.html': '<!doctype html><script src="../hors-artefact.js"></script>\n' }),
+  'a-l-identique');
+
+exigerAcceptation(
+  'R · référence résolue, ancre, données en ligne et distant — acceptés',
+  arbre({
+    'index.html': '<!doctype html><html><head>'
+      + '<link rel="stylesheet" href="/theme.css">'
+      + '<script src="nexus-auth.js?v=3"></script>'
+      + '<script src="https://cdn.example.com/lib.js"></script>'
+      + '</head><body><a href="#section">ancre</a>'
+      + '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">'
+      + '<img src="assets/logo.png"></body></html>\n',
+    'theme.css': 'body { background: url("assets/fond.png"); }\n',
+    'nexus-auth.js': 'void 0;\n',
+    'assets/logo.png': 'octets\n',
+    'assets/fond.png': 'octets\n',
+  }), 'a-l-identique');
+
+// Le faux positif mesuré le 15/09/2026 : `url(` sans frontière de mot mordait
+// sur tout identifiant JavaScript finissant par `url`. Douze refus, douze faux
+// positifs, zéro vrai. Une garde qui refuse à tort se fait débrancher aussi
+// sûrement qu'une garde muette.
+exigerAcceptation(
+  'R · `createObjectURL(blob)` n\'est pas une référence CSS — accepté',
+  arbre({
+    'index.html': '<!doctype html><html><head><style>body{background:url(assets/fond.png)}</style>'
+      + '</head><body><script src="app.js"></script></body></html>\n',
+    'app.js': 'const u = URL.createObjectURL(blob);\n'
+      + 'URL.revokeObjectURL(a.href);\n'
+      + 'ouvrirDepuisParametresUrl(date, quart);\n',
+    'assets/fond.png': 'octets\n',
+  }), 'a-l-identique');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARBRE SOURCE — A1 se demande à la source, pas à l'artefact
+// ═══════════════════════════════════════════════════════════════════════════
+// Depuis que l'artefact est composé, `outils/build.sh` n'y figure plus jamais.
+// Si A1 cherchait le script dans l'artefact, elle conclurait toujours « cet
+// arbre ne sait pas se construire » et se tairait exactement dans le cas
+// qu'elle existe pour couvrir : le jour où le candidat est fusionné et où un
+// workflow distrait publierait l'arbre sans sa configuration.
+exigerRefus(
+  'A1 · la source sait se construire, même si l\'artefact ne contient plus outils/',
+  'A1', arbreConstruit(), 'a-l-identique');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PÉRIMÈTRE — ce qui n'est pas publié n'est pas contrôlé

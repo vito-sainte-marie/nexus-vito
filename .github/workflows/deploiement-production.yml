@@ -25,12 +25,51 @@
 #       permet de basculer la source de Pages (branche → Actions) sans que
 #       personne ne voie la différence.
 #   `outils/build.sh` présent → mode « construit » : le build est exécuté,
-#       et l'artefact doit contenir la configuration qu'il a produite.
+#       **puis un artefact public dédié est composé** dans `_site`, et c'est
+#       lui seul qui part vers le site.
 #
 # La règle qui tient l'ensemble : **un arbre qui SAIT se construire ne se
 # publie jamais brut** (règle A1 de la garde). Sans elle, le jour où le
 # candidat est fusionné, un workflow distrait publierait l'arbre sans sa
 # configuration — la panne que tout ceci existe pour empêcher.
+#
+# ─── « à l'identique » est TEMPORAIRE, et s'éteint tout seul ───────────────
+# Ce mode existe pour **une seule chose** : la première bascule de la source
+# de Pages, branche → Actions, sans que personne ne voie la différence. Il
+# publie donc le dépôt tel qu'il est servi aujourd'hui, documents internes
+# compris — non par choix, mais parce que c'est déjà l'état public, et que
+# restreindre le périmètre le même jour qu'on change de mécanisme rendrait
+# indémêlable une éventuelle régression.
+#
+# Il n'a pas besoin d'être retiré : il **se retire de lui-même**. Le jour où
+# `outils/build.sh` atteint `production` — c'est-à-dire à l'étape 5 du plan,
+# avec le lot applicatif — le test de présence bascule en mode `construit`, et
+# ce chemin cesse définitivement d'être emprunté. La composition n'est donc
+# pas un ajout au mode actuel : elle est le régime normal, et « à l'identique »
+# n'est que le sas.
+#
+# ─── Pourquoi un artefact composé, et pas la racine du dépôt ───────────────
+# La première version de ce workflow emballait `path: .` : le dépôt entier,
+# migrations SQL, tests, plans internes et `CLAUDE.md` compris. Rien de tout
+# cela n'est un secret au sens des règles S de la garde — et c'est exactement
+# le piège : les règles S auraient tout accepté. Publier n'est pas fuiter,
+# mais ce n'est pas non plus neutre, et un site public n'a aucune raison de
+# porter l'outillage qui l'a produit.
+#
+# `outils/composer-artefact-public.js` compose donc un arbre dédié. Deux
+# règles de la garde le tiennent, et il faut les deux :
+#   — **P** (périmètre public) : refuse un artefact `construit` qui contient
+#     encore des tests, du SQL, `docs/`, `supabase/`, `outils/` ou des
+#     documents internes. C'est le second témoin : si quelqu'un remet
+#     `path: .`, la garde refuse au lieu de republier le dépôt en silence.
+#   — **R** (clôture des références) : toute référence locale d'un écran, d'un
+#     script ou d'une feuille de style doit se résoudre **dans l'artefact**,
+#     casse comprise — Pages sert depuis Linux, le poste de développement est
+#     insensible à la casse. C'est la preuve que la composition n'a rien
+#     emporté de nécessaire : une liste d'exclusion ne peut pas se relire
+#     elle-même, mais un lien qui ne mène plus nulle part se voit.
+# Mesuré le 15/09/2026 : 1002 fichiers → 525 ; 962 références locales
+# résolues, zéro manquante, **avant comme après composition**.
 #
 # ─── Ce qui reste à faire à la main (Frédéric, dans GitHub) ────────────────
 # Aucun de ces gestes n'est exécutable depuis un workflow, par construction.
@@ -81,6 +120,7 @@ jobs:
       contents: read
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
+      racine: ${{ steps.mode.outputs.racine }}
       sha_construit: ${{ steps.mode.outputs.sha_construit }}
     steps:
       - name: Récupérer l'arbre
@@ -103,10 +143,12 @@ jobs:
           set -euo pipefail
           if [ -f outils/build.sh ]; then
             echo "mode=construit" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Mode::construit — outils/build.sh est présent, l'arbre sera construit."
+            echo "racine=_site" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::construit — outils/build.sh est présent : l'arbre sera construit, puis un artefact public dédié composé dans _site."
           else
             echo "mode=a-l-identique" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Mode::a-l-identique — pas de outils/build.sh, l'arbre est publié tel quel (état actuel de la Production)."
+            echo "racine=." >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::a-l-identique (TEMPORAIRE, première bascule seulement) — pas de outils/build.sh, l'arbre est publié tel quel, à l'identique de ce que Pages sert aujourd'hui."
           fi
           echo "sha_construit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -126,17 +168,43 @@ jobs:
           fi
           bash outils/build.sh
 
+      # Composition de l'artefact public. En mode `construit` seulement : le
+      # mode « à l'identique » doit publier l'arbre octet pour octet, c'est sa
+      # raison d'être unique et temporaire.
+      - name: Composer l'artefact public
+        if: steps.mode.outputs.mode == 'construit'
+        run: node outils/composer-artefact-public.js --source=. --destination=_site --vider
+
       # La garde. Lecture seule, échec fermé, et elle ne recopie jamais ce
       # qu'elle refuse : le journal d'un run est lisible par tout le dépôt.
+      #
+      # `--racine` est ce qui PART (l'artefact) ; `--arbre-source` est ce dont
+      # il vient. Les deux questions ne se posent plus au même endroit depuis
+      # que l'artefact est composé : « cet arbre sait-il se construire ? »
+      # (règle A1) se demande à la source, puisqu'un artefact construit ne
+      # contient jamais le script qui l'a construit ; « qu'est-ce qui part
+      # vers le site ? » (B, C, S, P, R) se demande à l'artefact.
       - name: Éprouver l'artefact avant publication
-        run: node outils/verifier-artefact-pages.js --mode=${{ steps.mode.outputs.mode }}
+        run: |
+          node outils/verifier-artefact-pages.js \
+            --mode=${{ steps.mode.outputs.mode }} \
+            --racine=${{ steps.mode.outputs.racine }} \
+            --arbre-source=.
 
-      # `upload-pages-artifact` exclut `.git` et `.github` : `path: .`
-      # reproduit donc exactement l'ensemble servi aujourd'hui.
+      # `path` suit le mode :
+      #   construit      → `_site`, l'artefact composé et éprouvé ;
+      #   a-l-identique  → `.`, l'arbre tel qu'il est servi aujourd'hui.
+      #
+      # Depuis la v4.0.0, l'action **exclut par défaut tous les chemins
+      # commençant par un point**, `.git` et `.github` compris. En mode « à
+      # l'identique » c'est ce qui fait tomber le dernier écart mesuré avec le
+      # mode branche : Jekyll masquait `.gitignore` et `supabase/.gitkeep`,
+      # cette exclusion les masque aussi. L'ensemble servi est donc le même,
+      # fichier pour fichier, et la bascule ne change rien de visible.
       - name: Emballer l'artefact Pages
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: .
+          path: ${{ steps.mode.outputs.racine }}
 
   deployer:
     name: Déployer sur GitHub Pages
@@ -167,8 +235,8 @@ jobs:
       # de build hérité. Le garder hors du job de construction permet
       # d'éprouver build, garde et artefact AVANT la bascule.
       - name: Configurer Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Déployer
         id: deploiement
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
