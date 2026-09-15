@@ -9,6 +9,35 @@ différées, ni le lot de projection, ni `2c1550f`, et n'en dépend pas.
 
 ---
 
+## 0. Phase 1 de `Procedure_Production_NEXUS_v2` — état point par point
+
+La procédure v2 est adoptée comme cible du rail Production. Ce document ne
+traite que sa **Phase 1** (§13). Aucune évolution métier n'y est mêlée.
+
+| # | Ce que demande la Phase 1 | État | Preuve |
+|---|---|---|---|
+| 1 | corriger le workflow `067a293…` | **fait** | commit `04738f1` |
+| 2 | dossier public dédié, en mode construit | **fait** | `outils/composer-artefact-public.js`, 861 → 540 |
+| 3 | actions Pages en version officielle **courante**, épinglées par SHA | **fait** | §6 — v5.0.0 / v6.0.0 / v5.0.1 |
+| 4 | construire l'artefact et l'éprouver **sans le servir** | **fait** | §5 (garde) et §7 (empreinte) |
+| 5 | installer le workflow seul | **plan** — exige fusion, puis GO | étape 1 du §4 |
+| 6 | basculer Pages vers Actions | **plan** — exige GO | étape 4 du §4 |
+| 7 | vérifier le domaine, garder le retour à la branche | **mesuré** | §2bis |
+
+La procédure v2 exige qu'un artefact promu porte six champs : SHA source
+complet, SHA-256 de l'artefact, environnement ciblé, liste exacte des
+migrations, identifiant de build, provenance. Le §7 dit où chacun est produit
+et pourquoi il est écrit **hors** de l'arbre qu'il mesure.
+
+**Les trois objectifs à 30 jours** — hotfix en moins de 4 h, release normale
+en moins de 48 h, moins de 5 minutes d'arbitrage humain par déploiement — ne
+sont pas des intentions : chacun se mesure sur les horodatages d'exécution
+GitHub. Ce lot les sert par un point précis : l'arbitrage humain par
+déploiement devient la lecture d'**une seule ligne** — l'empreinte promue
+face à l'empreinte éprouvée — au lieu d'une inspection d'arbre.
+
+---
+
 ## 1. Le point de départ, mesuré
 
 `https://app.nexusconseil.net` est servi par **GitHub Pages en mode
@@ -65,9 +94,21 @@ basculement est un échange de version, pas une reconstruction sur place :
 l'ancienne version reste servie jusqu'à ce que la nouvelle soit complète. Il
 n'existe pas de fenêtre où le site est vide.
 
-Le domaine personnalisé ne bouge pas : il est enregistré dans les réglages du
-dépôt **et** présent dans `CNAME`, lui-même inclus dans l'artefact. **Aucun
-changement DNS n'est nécessaire, et aucun n'est prévu.**
+Le domaine personnalisé ne bouge pas. Relevé le 15/09/2026 sur
+`GET /repos/vito-sainte-marie/nexus-vito/pages` :
+
+```
+build_type  : legacy
+source      : { branch: production, path: / }
+cname       : app.nexusconseil.net
+https       : certificat approuvé, expire le 13/12/2026, https_enforced
+custom_404  : false
+```
+
+**Le domaine vit dans le réglage du dépôt, pas dans le fichier `CNAME`.**
+C'est ce qui rend la bascule sûre : changer `build_type` ne touche ni `cname`,
+ni le certificat, ni le DNS. **Aucun changement DNS n'est nécessaire, et aucun
+n'est prévu.**
 
 ### L'écart de contenu, mesuré puis refermé
 
@@ -83,6 +124,76 @@ ce comportement. L'ensemble servi après bascule est donc identique à celui
 d'aujourd'hui **sans écart résiduel** — ni `.nojekyll`, ni exclusion à
 ajouter. Vérification faite par la garde : elle annonce désormais les entrées
 hors artefact plutôt que de les passer sous silence.
+
+---
+
+## 2bis. La réversibilité, mesurée sur la totalité du site
+
+« Réversible » ne se raisonne pas, se mesure. La question posée est la
+suivante : **le retour à « Deploy from a branch » restitue-t-il exactement ce
+qui est servi aujourd'hui ?** Il ne le fait que si ce qui est servi aujourd'hui
+*est* la branche, octet pour octet — sinon le retour arrière restaurerait un
+site que personne n'a jamais vu.
+
+La réponse n'a pas été échantillonnée : **les 998 fichiers non cachés de
+`origin/production` ont été téléchargés depuis `https://app.nexusconseil.net`
+et confrontés un à un** au contenu de la branche
+(`d5a8b77d80513283c5621c04fae33f397b3956c0`), le 15/09/2026.
+
+| verdict | fichiers |
+|---|---|
+| sha256 servi == sha256 de la branche | **997** |
+| écart | **1** — `CNAME`, servi en 404 |
+
+`CNAME` n'est pas une exception gênante : Pages le **consomme** comme
+configuration et ne l'a jamais servi. C'est la seule différence sur 998
+fichiers, et elle est documentée chez l'éditeur.
+
+**Ce que cela établit, et rien de plus :**
+
+1. Le site servi aujourd'hui **est** la branche. Aucune transformation Jekyll
+   n'altère quoi que ce soit : ni les `.md` (servis bruts, donc sans
+   en-tête YAML nulle part), ni les `.sql`, ni les `test_*.js`.
+2. Aucun chemin commençant par un point n'est servi — vérifié directement :
+   `/.gitignore` → 404, `/.github/workflows/tests.yml` → 404. Le périmètre
+   qu'écarte `upload-pages-artifact` v4+ est **déjà** celui que Pages n'expose
+   pas. L'égalité annoncée au §2 est donc mesurée, pas déduite.
+3. Le retour arrière ne dépend d'aucun commit : **l'artefact Actions n'écrit
+   jamais dans la branche.** `production` reste à `d5a8b77d…` quoi qu'il
+   arrive, et repasser `build_type` en `legacy` restitue ces 997 fichiers
+   identiques sans reconstruction ni fusion.
+
+### Le geste de retour arrière, en entier
+
+**Settings → Pages → Build and deployment → Source : `Deploy from a branch` →
+branche `production`, dossier `/ (root)`.** Rien d'autre. Ni DNS, ni
+certificat, ni `git revert`, ni remise en cause de `NEXUS_DEPLOIEMENT_ARME`
+(le laisser à `oui` est sans effet dès lors que Pages n'écoute plus les
+Actions — mais le repasser à `non` coupe la source à sa racine, et c'est le
+geste à préférer si l'on veut aussi empêcher une republication).
+
+### La seule différence attendue après bascule
+
+En mode Actions, `CNAME` n'est plus consommé : il fait partie de l'arbre
+emballé et **deviendra probablement servable** (404 → 200). Son contenu est le
+nom de domaine affiché dans la barre d'adresse : il n'expose rien. C'est le
+seul écart connu entre « avant » et « après », il est énoncé ici pour qu'il ne
+soit pas découvert comme une régression au contrôle de l'étape 4.
+
+### Un écart de plate-forme, à connaître avant de comparer des empreintes
+
+`origin/production` contient **deux chemins qui ne diffèrent que par la
+casse** — `assets/icons/icon-nexus-tempo.PNG` et `…/icon-nexus-tempo.png` —
+pointant sur le **même blob** (`eb33c8f6…`). Les deux sont servis, avec le même
+contenu.
+
+Sur macOS, insensible à la casse, un seul des deux existe sur disque : une
+mesure locale voit **998** fichiers. Sur le runner Linux, les deux existent :
+l'artefact en portera **999**, et son empreinte sera donc **différente de la
+mesure locale**. Ce n'est pas une dérive de l'outil, c'est une propriété de
+l'arbre. **L'empreinte faisant foi est celle relevée dans l'exécution**, jamais
+une mesure de poste. Résorber le doublon est une modification du contenu de
+`production` : hors du périmètre de ce lot, et signalé plutôt que fait.
 
 ---
 
@@ -117,9 +228,11 @@ Actions 1, 2 et 3 du §3. `NEXUS_DEPLOIEMENT_ARME` reste à `non`.
 
 ### Étape 1 — fusionner ce lot dans `production`
 Par pull request : `production` est protégée, `non-regression` est requis.
-Le lot ajoute quatre fichiers — le workflow, la garde, le composeur et sa
-suite de mutation — et ne modifie que `.gitignore`, d'une ligne : `_site/`.
-**Aucun écran, aucun script applicatif n'est touché.**
+Le lot ajoute **sept fichiers** — le workflow, la garde et son épreuve, le
+composeur, l'empreinte et son épreuve, le présent plan — et ne modifie que
+`.gitignore`, de cinq lignes dont `_site/`.
+**Aucun écran, aucun script applicatif n'est touché.** Les deux épreuves
+ajoutées portent la suite du dépôt de **175 à 177** fichiers de test.
 
 Dès la fusion, le workflow **se déclenche** sur le push. Il construira (mode
 `a-l-identique`, puisque `build.sh` est absent), éprouvera l'artefact et
@@ -136,6 +249,13 @@ identique **aux chemins cachés près** — `.git`, `.github`, `.gitignore`,
 `supabase/.gitkeep` — que `upload-pages-artifact` v4+ n'emballe pas et que le
 mode branche n'exposait pas davantage. Le journal de la garde énumère ces
 entrées, il n'y a donc rien à deviner.
+
+**Et relever l'empreinte** (§7), écrite dans le résumé du job : c'est elle
+qu'il faudra retrouver, inchangée, à l'étape 4. Attendu pour
+`d5a8b77d…` : `998` fichiers hors chemins cachés — **999 sur le runner**, la
+casse d'`icon-nexus-tempo` faisant apparaître deux entrées là où macOS n'en
+voit qu'une (§2bis). Noter la valeur annoncée par l'exécution ; c'est elle qui
+fait foi.
 
 *Effet sur le site : aucun.* *C'est l'étape qui rend la suivante sûre.*
 
@@ -155,12 +275,18 @@ est la bonne, et Pages échange la version servie.
 **Contrôle immédiat**, dans cet ordre :
 1. `https://app.nexusconseil.net` s'ouvre et l'écran de connexion fonctionne ;
 2. l'en-tête HTTP annonce toujours `server: GitHub.com` ;
-3. `sha256` d'un fichier servi — `nexus-auth.js` — toujours identique à celui
-   de la branche.
+3. l'empreinte inscrite sous « Artefact promu en Production » est **la même**
+   que celle relevée à l'étape 2 — c'est la preuve qu'aucune reconstruction
+   n'a eu lieu entre l'épreuve et la promotion ;
+4. rejouer la confrontation du §2bis sur un échantillon : chaque fichier servi
+   doit rester identique à `git show origin/production:<chemin>`. Le **seul**
+   écart attendu est `CNAME`, qui peut passer de 404 à 200 (§2bis).
 
 *Retour arrière, en quelques minutes :* **Settings → Pages → Source : `Deploy
 from a branch` → `production` / `/ (root)`.** L'état d'origine est restauré
-sans qu'aucun commit ne soit nécessaire.
+sans qu'aucun commit ne soit nécessaire — mesuré au §2bis : ce que ce retour
+restitue est, à `CNAME` près, **exactement** les 997 fichiers servis
+aujourd'hui, parce que la branche n'a jamais été touchée par le déploiement.
 
 ### Étape 5 — seulement ensuite, le lot applicatif
 La fusion de `ea57d4b` devient possible **parce que** `outils/build.sh`
@@ -310,3 +436,124 @@ Quatre conditions cumulatives gardent le job `deployer` : branche
 déclenchement**. C'est cette dernière qui rend l'entrée `ref_applicatif`
 inoffensive : elle permet de répéter le build sur n'importe quelle référence,
 et ne peut jamais atteindre le déploiement.
+
+---
+
+## 7. L'empreinte de l'artefact
+
+La procédure v2 tient sur une phrase : **construire une fois, éprouver
+l'artefact construit, puis promouvoir exactement le même artefact.** « Le
+même » n'est vérifiable que s'il porte un nom qui change dès qu'un octet
+change. C'est ce que produit `outils/empreinte-artefact.js`.
+
+### Comment elle est calculée
+
+1. Parcours de l'arbre, **tout chemin dont un segment commence par un point
+   est écarté** — exactement le périmètre de `upload-pages-artifact` v4+. Sans
+   cette égalité, l'empreinte bougerait sans que le site bouge, et ne pourrait
+   jamais être confrontée à ce que l'URL sert réellement.
+2. Tri des chemins **en ordre d'octets** (`Buffer.compare`), jamais par
+   collation de machine : `localeCompare` donne un ordre qui dépend du système
+   et de sa locale, donc une empreinte qui n'est pas la même partout.
+3. Manifeste `<sha256>  <chemin>` ligne à ligne ; **l'empreinte est le sha256
+   de ce manifeste.** Elle change donc si un octet change, si un fichier est
+   ajouté, retiré, renommé ou déplacé.
+4. Échec fermé : arbre vide, lien symbolique, nom contenant un saut de ligne,
+   racine illisible — aucun de ces cas ne produit d'empreinte.
+
+Reproductible à la main, sans l'outil :
+
+```bash
+cd <racine> && find . -type f -not -path '*/.*' | sed 's|^\./||' \
+  | LC_ALL=C sort | while read -r f; do printf '%s  %s\n' \
+      "$(shasum -a 256 "$f" | cut -d' ' -f1)" "$f"; done | shasum -a 256
+```
+
+### Où elle est écrite — et pourquoi pas dans le dépôt
+
+**Un fichier ne peut pas nommer sa propre empreinte** : l'y écrire la
+déplacerait, et il faudrait une seconde empreinte pour dire laquelle est vraie.
+Elle est donc émise **dehors** : sortie d'étape (`$GITHUB_OUTPUT`), résumé de
+job (`$GITHUB_STEP_SUMMARY`), manifeste détaillé dans `$RUNNER_TEMP` — donc
+éphémère, et aucune action supplémentaire n'a été introduite pour le conserver.
+
+L'étape est placée **après la garde et avant l'emballage** : c'est le dernier
+moment où l'arbre qui part est encore sur le disque. Le job `deployer`
+réinscrit ensuite la même valeur sous « Artefact promu en Production », à côté
+de l'URL déployée. Les deux lignes se lisent en quelques secondes — c'est là
+que se joue le « moins de 5 minutes d'arbitrage humain par déploiement ».
+
+Les six champs exigés par la procédure v2 : `sha_source`, `empreinte_artefact`,
+`environnement`, `migrations_nombre` + `migrations_empreinte`,
+`identifiant_build`, et la provenance (`procede`, `atelier`, `run`).
+
+### Ce que l'épreuve contrôle
+
+`test_empreinte_artefact_20260915.js` — **23 contrôles, 23 verts.** Ils ne
+vérifient pas que l'outil « marche » : chacun fabrique l'arbre qui produirait
+un défaut précis, et exige le verdict.
+
+| famille | ce qui est exigé |
+|---|---|
+| **Bouge** (7) | un octet, un ajout, un retrait, un renommage, un déplacement, un fichier vidé, deux fichiers qui échangent leur contenu |
+| **Stable** (6) | deux mesures du même arbre, ordre de création inversé, date de modification changée, chemins cachés à trois profondeurs |
+| **Ordre** (1) | le manifeste est trié en octets — le cas vérifie aussi que `localeCompare` donnerait un ordre **différent** sur ce jeu de noms, sans quoi il ne mordrait pas |
+| **Fermé** (3) | arbre vide, lien symbolique, nom avec saut de ligne |
+| **Indépendant** (1) | le parcours est réimplémenté dans le test, sans appeler l'outil |
+| **CLI** (4) | `--attendu` conforme accepté, différent refusé, racine absente, **mesurer ne modifie pas l'arbre mesuré** |
+| **Réel** (1) | l'arbre de cette branche, pas seulement des bacs à sable |
+
+**Campagne de mutation.** Huit défauts remis dans l'outil, l'épreuve rejouée à
+chaque fois, l'outil restauré inconditionnellement. Six mutations tuées.
+
+**Deux ont survécu, et c'est une information, pas un trou.** Retirer la
+*seule* règle des liens symboliques, ou la *seule* vérification d'existence de
+la racine, ne change rien au verdict — une seconde garde reprend derrière
+(l'entrée de type inattendu ; l'arbre vide). Deux visées supplémentaires l'ont
+établi : retirer **les deux** fait tomber `Fermé · un lien symbolique arrête la
+mesure`. La mutation visait hors du contrat de la garde ; ce n'est pas
+l'épreuve qui passait à côté.
+
+### Les empreintes relevées
+
+| arbre | fichiers | octets | empreinte |
+|---|---|---|---|
+| `origin/production` `d5a8b77d…` (ce qui sera publié à la bascule) | 998 | 53 454 287 | `d5c073a85b3bc7252e79848833f0f2cb3244b49f32dc057e94e13d0eb8ef4df7` |
+| branche du présent lot `04738f18…` | 1003 | 53 553 503 | `a39fa4ae4b0c3c52d6a804a75f3c5b94269cb582981bc6ce1f97090300edce99` |
+| candidat `ea57d4b…`, **non construit** (refusé par la garde) | 538 | 48 642 427 | `63210dcf091a53f26f5b098c08a6fd22366f2924a0c8e73866eb26f699b69fe8` |
+
+Mesures de poste, donc soumises à l'écart de casse décrit au §2bis : sur le
+runner Linux, la première ligne portera 999 fichiers et une autre empreinte.
+**L'empreinte faisant foi est celle de l'exécution.**
+
+### Le build n'est pas reproductible — d'exactement une seconde
+
+Question posée sur le candidat `ea57d4b` : **deux constructions de la même
+source donnent-elles le même artefact ?** Deux clones indépendants, construits
+l'un après l'autre, `NEXUS_ENV=test` :
+
+| | build 1 | build 2 |
+|---|---|---|
+| fichiers / octets | 540 / 48 656 221 | 540 / 48 656 221 |
+| `identifiant_build` | `100a1d6f1bfa` | `100a1d6f1bfa` |
+| empreinte | `4fb2dc06ad09…` | `b30cf6952e67…` |
+
+Le manifeste diffère sur **exactement une ligne** : `nexus-build.js`. Le
+fichier diffère sur **exactement un champ** : `construitLe: '…T17:17:06Z'`
+contre `'…T17:17:07Z'`. L'identifiant de build, lui, est stable — la
+non-reproductibilité ne vient pas de là, contrairement à ce qui était supposé.
+
+**Ce que cela impose.** « Zéro artefact reconstruit après validation » n'est
+pas une discipline que l'on peut rattraper : **une reconstruction ne pourra
+jamais retrouver l'empreinte validée.** C'est une raison de plus de promouvoir
+l'artefact déjà emballé — ce que fait `deploy-pages` — et jamais de rejouer le
+build « pour être sûr ». Le remède serait de dériver `construitLe` de la date
+du commit, ou de le retirer. **Il n'est pas appliqué ici :** `poser-build-id.js`
+vit sur `ea57d4b`, et ce lot ne mêle aucune évolution d'un autre lot.
+
+### La mesure ne touche pas ce qu'elle mesure
+
+L'outil ouvre en lecture seule, n'écrit que là où on le lui dit
+(`--journal`, `--sortie`, `--resume`), et un contrôle dédié vérifie que
+l'arbre mesuré est inchangé après la mesure. Aucun privilège, aucune session,
+aucun secret : il ne lit que des octets de fichiers.

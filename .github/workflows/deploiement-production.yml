@@ -122,6 +122,9 @@ jobs:
       mode: ${{ steps.mode.outputs.mode }}
       racine: ${{ steps.mode.outputs.racine }}
       sha_construit: ${{ steps.mode.outputs.sha_construit }}
+      empreinte: ${{ steps.empreinte.outputs.empreinte }}
+      fichiers: ${{ steps.empreinte.outputs.fichiers }}
+      identifiant_build: ${{ steps.empreinte.outputs.identifiant_build }}
     steps:
       - name: Récupérer l'arbre
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -191,6 +194,38 @@ jobs:
             --racine=${{ steps.mode.outputs.racine }} \
             --arbre-source=.
 
+      # L'empreinte, relevée APRÈS la garde et AVANT l'emballage : c'est
+      # exactement l'arbre qui part vers le site, mesuré au dernier moment où
+      # il est encore sur le disque.
+      #
+      # Elle est écrite DEHORS — sortie d'étape, résumé de job, journal dans
+      # `$RUNNER_TEMP` — jamais dans l'arbre mesuré. Un fichier ne peut pas
+      # nommer sa propre empreinte : l'y écrire la déplacerait, et il faudrait
+      # une seconde empreinte pour dire laquelle est vraie.
+      #
+      # Le périmètre mesuré est celui de `upload-pages-artifact` : tout chemin
+      # dont un segment commence par un point est écarté des deux côtés. Sans
+      # cette égalité, l'empreinte changerait sans que le site change, et ne
+      # pourrait jamais être confrontée à ce que l'URL réelle sert.
+      #
+      # Le manifeste ligne à ligne reste dans `$RUNNER_TEMP`, donc éphémère —
+      # aucune action supplémentaire n'est introduite pour le conserver. Quand
+      # deux empreintes diffèrent et qu'il faut savoir QUEL fichier a bougé,
+      # le chemin est de télécharger les deux artefacts Pages (ils sont
+      # conservés par GitHub) et de rejouer `empreinte-artefact.js` sur chacun.
+      - name: Relever l'empreinte de l'artefact
+        id: empreinte
+        env:
+          NEXUS_ENV: production
+        run: |
+          set -euo pipefail
+          node outils/empreinte-artefact.js \
+            --racine=${{ steps.mode.outputs.racine }} \
+            --arbre-source=. \
+            --journal="$RUNNER_TEMP/empreinte-artefact.txt" \
+            --sortie="$GITHUB_OUTPUT" \
+            --resume="$GITHUB_STEP_SUMMARY"
+
       # `path` suit le mode :
       #   construit      → `_site`, l'artefact composé et éprouvé ;
       #   a-l-identique  → `.`, l'arbre tel qu'il est servi aujourd'hui.
@@ -240,3 +275,24 @@ jobs:
       - name: Déployer
         id: deploiement
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      # Ce job ne reconstruit rien : `deploy-pages` promeut l'artefact emballé
+      # par `construire`, dans le même run. L'empreinte reportée ici est donc
+      # celle de l'arbre éprouvé, et pas celle d'une reconstruction — c'est ce
+      # qui rend « promouvoir exactement le même artefact » vérifiable après
+      # coup, sur la page du déploiement plutôt que de mémoire.
+      - name: Inscrire l'empreinte promue
+        run: |
+          {
+            echo "### Artefact promu en Production"
+            echo ""
+            echo "| Champ | Valeur |"
+            echo "|---|---|"
+            echo "| \`empreinte_artefact\` | \`${{ needs.construire.outputs.empreinte }}\` |"
+            echo "| \`sha_source\` | \`${{ needs.construire.outputs.sha_construit }}\` |"
+            echo "| \`identifiant_build\` | \`${{ needs.construire.outputs.identifiant_build }}\` |"
+            echo "| \`fichiers\` | \`${{ needs.construire.outputs.fichiers }}\` |"
+            echo "| \`url\` | ${{ steps.deploiement.outputs.page_url }} |"
+            echo ""
+            echo "Aucune reconstruction entre l'épreuve et la promotion : le même artefact, emballé une fois."
+          } >> "$GITHUB_STEP_SUMMARY"
