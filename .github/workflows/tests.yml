@@ -91,9 +91,16 @@ jobs:
         run: npm run simulations --silent
 
       # ─── Épreuves d'infrastructure — résultat séparé, bloquant ───────────
-      # Pas de `continue-on-error` : ces deux étapes échouent la CI d'emblée.
+      # Pas de `continue-on-error` : ces trois étapes échouent la CI d'emblée.
       - name: 'Infrastructure — empreinte de l''artefact'
         run: node .github/deploiement/test_empreinte_artefact_20260915.js
 
       - name: 'Infrastructure — garde de l''artefact Pages'
         run: node .github/deploiement/test_verifier_artefact_pages_20260915.js
+
+      # Le workflow de Production se déclenche aussi sur `pull_request`, pour
+      # que l'artefact soit mesuré avant la fusion. Cette épreuve relit le YAML
+      # réel et calcule que la condition du job `deployer` ne peut pas être
+      # satisfaite par un tel événement.
+      - name: 'Infrastructure — un `pull_request` ne peut pas déployer'
+        run: node .github/deploiement/test_garde_deployer_20260915.js

@@ -312,10 +312,30 @@ sont plus à la racine, donc plus ramassées par `run-tests.js`, qui n'inspecte
 que la racine. L'ensemble des `test_*.js` de la racine est **identique, fichier
 pour fichier, à celui de `origin/production`** — **175**, comme avant le lot.
 
-Dès la fusion, le workflow **se déclenche** sur le push. Il construira (mode
-`a-l-identique`, puisque `build.sh` est absent), éprouvera l'artefact, le
-mesurera et l'emballera. **Il n'ira pas plus loin** : le job `deployer` attend
-une approbation qui n'est pas donnée.
+Le workflow **se déclenche avant la fusion**, sur la PR elle-même
+(`pull_request` vers `production`), et de nouveau sur le push après fusion.
+Dans les deux cas il construit (mode `a-l-identique`, puisque `build.sh` est
+absent), éprouve l'artefact, le mesure et l'emballe. **Il n'ira pas plus
+loin.**
+
+Mesurer avant plutôt qu'après n'est pas un confort : sans le déclencheur de
+PR, la première mesure réelle de l'artefact Linux n'existe qu'une fois la
+fusion faite — c'est-à-dire après le seul moment où l'on peut encore décider de
+ne pas la faire. Ce déclencheur ne peut rien publier, et ce n'est pas une
+lecture de bonne foi du YAML : sur un événement `pull_request`, `github.ref`
+vaut `refs/pull/<n>/merge` et `inputs.*` vaut `null`, donc **deux** des trois
+clauses de `deployer` tombent, indépendamment l'une de l'autre.
+`.github/deploiement/test_garde_deployer_20260915.js` extrait la condition du
+YAML réel, l'évalue sur tous les contextes de PR plausibles, et exige qu'aucun
+ne l'ouvre — plus une campagne de mutation qui vérifie que l'épreuve mord.
+Sur le push d'après fusion, la branche redevient `refs/heads/production` : la
+première clause s'ouvre, et ce qui retient alors est l'approbation
+d'environnement, qui n'est pas donnée.
+
+*Ce que le déclencheur de PR mesure* est l'arbre du **commit de fusion**
+(`github.sha` sur un événement `pull_request`), c'est-à-dire l'arbre que
+`production` servira une fois la PR fusionnée — pas celui de la branche seule.
+C'est l'objet qu'il fallait mesurer.
 
 *Effet sur le site : aucun — Pages est toujours en mode branche.*
 *Retour arrière : révoquer la PR.*
@@ -741,7 +761,7 @@ migrations_source_empreinte : 87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6
 
 ### Ce que l'épreuve contrôle
 
-`test_empreinte_artefact_20260915.js` — **23 contrôles, 23 verts.** Ils ne
+`test_empreinte_artefact_20260915.js` — **32 contrôles, 32 verts.** Ils ne
 vérifient pas que l'outil « marche » : chacun fabrique l'arbre qui produirait
 un défaut précis, et exige le verdict.
 
@@ -754,6 +774,7 @@ un défaut précis, et exige le verdict.
 | **Indépendant** (1) | le parcours est réimplémenté dans le test, sans appeler l'outil |
 | **CLI** (4) | `--attendu` conforme accepté, différent refusé, racine absente, **mesurer ne modifie pas l'arbre mesuré** |
 | **Réel** (1) | l'arbre de cette branche, pas seulement des bacs à sable |
+| **Provenance** (9) | les 240 migrations source : périmètre `supabase/migrations/*.sql`, `.sql` caché ignoré, et six façons d'échouer fermé — dossier absent, `ENOTDIR`, dossier vide, aucun `.sql`, sous-dossier, lien symbolique ; plus la provenance de l'arbre réel |
 
 **Campagne de mutation.** Huit défauts remis dans l'outil, l'épreuve rejouée à
 chaque fois, l'outil restauré inconditionnellement. Six mutations tuées.
@@ -829,13 +850,13 @@ aucun secret : il ne lit que des octets de fichiers.
 
 ### Deux résultats, pas un seul
 
-Les deux épreuves du rail vivent sous `.github/deploiement/` et **ne sont pas
+Les trois épreuves du rail vivent sous `.github/deploiement/` et **ne sont pas
 ramassées par `run-tests.js`** : sa découverte est plate et limitée à la racine
 (`readdirSync(__dirname)` filtré sur `test_*.js`). Les déplacer les en a donc
 sorties **sans toucher une ligne de `run-tests.js`** — ce qui était la
 contrainte.
 
-Elles sont lancées dans `tests.yml` comme **deux étapes dédiées et bloquantes**,
+Elles sont lancées dans `tests.yml` comme **trois étapes dédiées et bloquantes**,
 après la suite métier. Deux raisons de ne pas les fondre dedans :
 
 - un échec d'infrastructure ne doit pas se lire comme une régression métier, ni
@@ -844,7 +865,7 @@ après la suite métier. Deux raisons de ne pas les fondre dedans :
   d'infrastructure noyé dedans **ne ferait rien échouer du tout**. En étape
   séparée, sans tolérance, il arrête la CI.
 
-Les huit étapes du job `non-regression`, dans l'ordre :
+Les neuf étapes du job `non-regression`, dans l'ordre :
 
 | # | étape | tolérance |
 |---|---|---|
@@ -856,14 +877,16 @@ Les huit étapes du job `non-regression`, dans l'ordre :
 | 6 | Simulations métier | bloquante |
 | 7 | **Infrastructure — empreinte de l'artefact** | **bloquante, aucune tolérance** |
 | 8 | **Infrastructure — garde de l'artefact Pages** | **bloquante, aucune tolérance** |
+| 9 | **Infrastructure — un `pull_request` ne peut pas déployer** | **bloquante, aucune tolérance** |
 
-### Les trois résultats, relevés le 15/09/2026
+### Les quatre résultats, relevés le 15/09/2026
 
 | suite | résultat | échecs |
 |---|---|---|
 | métier — `node run-tests.js` | **166/175** | les **9** échecs connus, ni plus ni moins |
-| `test_empreinte_artefact_20260915.js` | **23/23** | aucun |
+| `test_empreinte_artefact_20260915.js` | **32/32** | aucun |
 | `test_verifier_artefact_pages_20260915.js` | **37/37** | aucun |
+| `test_garde_deployer_20260915.js` | **20/20** | aucun |
 
 **Sur la base historique.** La cible annoncée était « 167/176 avec les mêmes 9
 échecs connus ». Le compte réel est **166/175**, et c'est bien la base

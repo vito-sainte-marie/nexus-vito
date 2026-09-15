@@ -105,6 +105,19 @@ name: Déploiement Production (GitHub Pages)
 on:
   push:
     branches: [production]
+
+  # Éprouver l'artefact AVANT la fusion, pas après. Sans ce déclencheur, la
+  # première mesure réelle de l'artefact Linux n'existe qu'une fois la PR
+  # fusionnée dans `production` — c'est-à-dire trop tard pour arbitrer. Ce
+  # déclencheur ne peut rien publier : `deployer` exige
+  # `github.ref == 'refs/heads/production'`, et sur un événement
+  # `pull_request` la référence est `refs/pull/<n>/merge`. La condition est
+  # doublement fermée — l'origine n'est ni un `push` ni un `oui` explicite —
+  # et l'épreuve statique .github/deploiement/test_garde_deployer_20260915.js
+  # le vérifie sur le texte même de ce fichier.
+  pull_request:
+    branches: [production]
+
   workflow_dispatch:
     inputs:
       ref_applicatif:
