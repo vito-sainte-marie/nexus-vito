@@ -1,0 +1,497 @@
+# Déploiement Production — GitHub Pages
+#
+# CE WORKFLOW EST LE SEUL À DÉPLOYER. `tests.yml` ne déploie rien.
+#
+# ─── Pourquoi il existe ────────────────────────────────────────────────────
+# `https://app.nexusconseil.net` est servi par GitHub Pages **depuis la
+# branche `production`, octet pour octet, sans build** (mesuré le 15/09/2026 :
+# `server: GitHub.com`, `CNAME` dans la branche, et l'empreinte sha256 du
+# `nexus-auth.js` servi identique à celle du fichier de branche).
+#
+# La branche candidate `config-par-environnement`, elle, est un arbre **qui
+# exige un build** : `outils/build.sh` produit `nexus-config.js` et
+# `nexus-build.js`, tous deux `.gitignore`d donc absents de la branche, et
+# l'écran de connexion refuse de démarrer sans eux. La fusionner en l'état
+# afficherait « Configuration absente » à tout employé.
+#
+# Ce workflow fournit le chemin de build qui manque. Il ne dépend d'aucun
+# autre lot et n'en contient aucun.
+#
+# ─── Les deux modes, et pourquoi la bascule est sans interruption ──────────
+# Le mode n'est pas choisi par un humain : il est **déduit de l'arbre**.
+#
+#   `outils/build.sh` absent  → mode « a-l-identique » : l'arbre est publié
+#       tel quel. C'est exactement ce que Pages sert aujourd'hui. C'est ce qui
+#       permet de basculer la source de Pages (branche → Actions) sans que
+#       personne ne voie la différence.
+#   `outils/build.sh` présent → mode « construit » : le build est exécuté,
+#       **puis un artefact public dédié est composé** dans `_site`, et c'est
+#       lui seul qui part vers le site.
+#
+# La règle qui tient l'ensemble : **un arbre qui SAIT se construire ne se
+# publie jamais brut** (règle A1 de la garde). Sans elle, le jour où le
+# candidat est fusionné, un workflow distrait publierait l'arbre sans sa
+# configuration — la panne que tout ceci existe pour empêcher.
+#
+# ─── « à l'identique » est TEMPORAIRE, et s'éteint tout seul ───────────────
+# Ce mode existe pour **une seule chose** : la première bascule de la source
+# de Pages, branche → Actions, sans que personne ne voie la différence. Il
+# publie donc le dépôt tel qu'il est servi aujourd'hui, documents internes
+# compris — non par choix, mais parce que c'est déjà l'état public, et que
+# restreindre le périmètre le même jour qu'on change de mécanisme rendrait
+# indémêlable une éventuelle régression.
+#
+# Il n'a pas besoin d'être retiré : il **se retire de lui-même**. Le jour où
+# `outils/build.sh` atteint `production` — c'est-à-dire à l'étape 5 du plan,
+# avec le lot applicatif — le test de présence bascule en mode `construit`, et
+# ce chemin cesse définitivement d'être emprunté. La composition n'est donc
+# pas un ajout au mode actuel : elle est le régime normal, et « à l'identique »
+# n'est que le sas.
+#
+# ─── Pourquoi un artefact composé, et pas la racine du dépôt ───────────────
+# La première version de ce workflow emballait `path: .` : le dépôt entier,
+# migrations SQL, tests, plans internes et `CLAUDE.md` compris. Rien de tout
+# cela n'est un secret au sens des règles S de la garde — et c'est exactement
+# le piège : les règles S auraient tout accepté. Publier n'est pas fuiter,
+# mais ce n'est pas non plus neutre, et un site public n'a aucune raison de
+# porter l'outillage qui l'a produit.
+#
+# `.github/deploiement/composer-artefact-public.js` compose donc un arbre dédié. Deux
+# règles de la garde le tiennent, et il faut les deux :
+#   — **P** (périmètre public) : refuse un artefact `construit` qui contient
+#     encore des tests, du SQL, `docs/`, `supabase/`, `outils/` ou des
+#     documents internes. C'est le second témoin : si quelqu'un remet
+#     `path: .`, la garde refuse au lieu de republier le dépôt en silence.
+#   — **R** (clôture des références) : toute référence locale d'un écran, d'un
+#     script ou d'une feuille de style doit se résoudre **dans l'artefact**,
+#     casse comprise — Pages sert depuis Linux, le poste de développement est
+#     insensible à la casse. C'est la preuve que la composition n'a rien
+#     emporté de nécessaire : une liste d'exclusion ne peut pas se relire
+#     elle-même, mais un lien qui ne mène plus nulle part se voit.
+# Mesuré le 15/09/2026 : 1002 fichiers → 525 ; 962 références locales
+# résolues, zéro manquante, **avant comme après composition**.
+#
+# ─── Ce qui reste à faire à la main (Frédéric, dans GitHub) ────────────────
+# Aucun de ces gestes n'est exécutable depuis un workflow, par construction.
+#   1. Secrets du dépôt : `NEXUS_SUPABASE_URL`, `NEXUS_SUPABASE_ANON_KEY`.
+#   2. Environnement `github-pages` : Frédéric relecteur requis,
+#      auto-approbation autorisée, branche de déploiement limitée à
+#      `production`.
+#   3. Settings → Pages : source « GitHub Actions », au moment que dit
+#      `.github/deploiement/2026-09-15-bascule-hebergement-production-github-pages.md`.
+#
+# ─── LA GATE EST L'ENVIRONNEMENT, PLUS UNE VARIABLE (15/09/2026) ───────────
+# La version précédente subordonnait le déploiement à une variable de dépôt,
+# `NEXUS_DEPLOIEMENT_ARME`. Le défaut n'est pas qu'elle protégeait mal ce
+# jour-là : c'est qu'elle ne protège **qu'une fois**. Passée à `oui` pour un
+# déploiement, elle y reste, et tous les push suivants sur `production`
+# partent sans que personne n'ait plus rien décidé. Une gate qu'on arme
+# s'oublie armée ; une gate qu'on approuve se redemande à chaque fois.
+#
+# Elle est donc retirée de la condition, et la seule gate est l'approbation de
+# l'environnement `github-pages` — redemandée à chaque exécution, jamais
+# persistante. Aucun chemin ne subsiste par lequel la seule présence d'une
+# variable autoriserait les déploiements futurs. La variable n'est plus lue
+# nulle part ; elle n'a jamais été créée dans ce dépôt, il n'y a donc rien à
+# retirer côté GitHub.
+#
+# Tant que l'approbation n'est pas donnée, ce workflow construit, vérifie,
+# mesure et emballe l'artefact comme pièce à conviction — **et ne déploie
+# rien**. C'est le « ne déploie rien tant que ce n'est pas éprouvé » de la
+# consigne, écrit dans le workflow plutôt que confié à la mémoire.
+
+name: Déploiement Production (GitHub Pages)
+
+on:
+  push:
+    branches: [production]
+
+  # Éprouver l'artefact AVANT la fusion, pas après. Sans ce déclencheur, la
+  # première mesure réelle de l'artefact Linux n'existe qu'une fois la PR
+  # fusionnée dans `production` — c'est-à-dire trop tard pour arbitrer. Ce
+  # déclencheur ne peut rien publier : `deployer` exige
+  # `github.ref == 'refs/heads/production'`, et sur un événement
+  # `pull_request` la référence est `refs/pull/<n>/merge`. La condition est
+  # doublement fermée — l'origine n'est ni un `push` ni un `oui` explicite —
+  # et l'épreuve statique .github/deploiement/test_garde_deployer_20260915.js
+  # le vérifie sur le texte même de ce fichier.
+  pull_request:
+    branches: [production]
+
+  workflow_dispatch:
+    inputs:
+      ref_applicatif:
+        description: "Référence à construire pour répétition (branche ou SHA). NE DÉPLOIE JAMAIS — sert à éprouver le build et l'artefact."
+        required: false
+        type: string
+      deployer:
+        description: "Déployer réellement (exige aussi la branche production et l'approbation de l'environnement github-pages)"
+        required: false
+        default: "non"
+        type: choice
+        options: ["non", "oui"]
+
+# Rien par défaut. Chaque job demande le strict nécessaire, et le droit
+# d'écrire sur Pages n'existe que dans le job qui déploie.
+permissions: {}
+
+# Pas d'annulation en vol : interrompre un déploiement Pages à mi-chemin est
+# le seul moyen de laisser le site dans un état intermédiaire.
+concurrency:
+  group: pages-production
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    name: Construire et éprouver l'artefact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      racine: ${{ steps.mode.outputs.racine }}
+      sha_construit: ${{ steps.mode.outputs.sha_construit }}
+      empreinte: ${{ steps.empreinte.outputs.empreinte }}
+      fichiers: ${{ steps.empreinte.outputs.fichiers }}
+      identifiant_build: ${{ steps.empreinte.outputs.identifiant_build }}
+    steps:
+      - name: Récupérer l'arbre
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref_applicatif || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Installer Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      # Le mode est déduit, jamais déclaré : un paramètre d'entrée se trompe,
+      # un test de présence non.
+      - name: Déterminer le mode de publication
+        id: mode
+        run: |
+          set -euo pipefail
+          if [ -f outils/build.sh ]; then
+            echo "mode=construit" >> "$GITHUB_OUTPUT"
+            echo "racine=_site" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::construit — outils/build.sh est présent : l'arbre sera construit, puis un artefact public dédié composé dans _site."
+          else
+            echo "mode=a-l-identique" >> "$GITHUB_OUTPUT"
+            echo "racine=." >> "$GITHUB_OUTPUT"
+            echo "::notice title=Mode::a-l-identique (TEMPORAIRE, première bascule seulement) — pas de outils/build.sh, l'arbre est publié tel quel, à l'identique de ce que Pages sert aujourd'hui."
+          fi
+          echo "sha_construit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Construire (NEXUS_ENV=production)
+        if: steps.mode.outputs.mode == 'construit'
+        env:
+          NEXUS_ENV: production
+          NEXUS_SUPABASE_URL: ${{ secrets.NEXUS_SUPABASE_URL }}
+          NEXUS_SUPABASE_ANON_KEY: ${{ secrets.NEXUS_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          # Échec net et lisible plutôt qu'un build qui produit une
+          # configuration vide et un site qui ne démarre pas.
+          if [ -z "${NEXUS_SUPABASE_URL}" ] || [ -z "${NEXUS_SUPABASE_ANON_KEY}" ]; then
+            echo "::error title=Secrets absents::NEXUS_SUPABASE_URL et NEXUS_SUPABASE_ANON_KEY doivent être définis dans les secrets du dépôt."
+            exit 1
+          fi
+          bash outils/build.sh
+
+      # Composition de l'artefact public. En mode `construit` seulement : le
+      # mode « à l'identique » doit publier l'arbre octet pour octet, c'est sa
+      # raison d'être unique et temporaire.
+      - name: Composer l'artefact public
+        if: steps.mode.outputs.mode == 'construit'
+        run: node .github/deploiement/composer-artefact-public.js --source=. --destination=_site --vider
+
+      # La garde. Lecture seule, échec fermé, et elle ne recopie jamais ce
+      # qu'elle refuse : le journal d'un run est lisible par tout le dépôt.
+      #
+      # `--racine` est ce qui PART (l'artefact) ; `--arbre-source` est ce dont
+      # il vient. Les deux questions ne se posent plus au même endroit depuis
+      # que l'artefact est composé : « cet arbre sait-il se construire ? »
+      # (règle A1) se demande à la source, puisqu'un artefact construit ne
+      # contient jamais le script qui l'a construit ; « qu'est-ce qui part
+      # vers le site ? » (B, C, S, P, R) se demande à l'artefact.
+      - name: Éprouver l'artefact avant publication
+        run: |
+          node .github/deploiement/verifier-artefact-pages.js \
+            --mode=${{ steps.mode.outputs.mode }} \
+            --racine=${{ steps.mode.outputs.racine }} \
+            --arbre-source=.
+
+      # L'empreinte, relevée APRÈS la garde et AVANT l'emballage : c'est
+      # exactement l'arbre qui part vers le site, mesuré au dernier moment où
+      # il est encore sur le disque.
+      #
+      # Elle est écrite DEHORS — sortie d'étape, résumé de job, journal dans
+      # `$RUNNER_TEMP` — jamais dans l'arbre mesuré. Un fichier ne peut pas
+      # nommer sa propre empreinte : l'y écrire la déplacerait, et il faudrait
+      # une seconde empreinte pour dire laquelle est vraie.
+      #
+      # Le périmètre mesuré est celui de `upload-pages-artifact` : tout chemin
+      # dont un segment commence par un point est écarté des deux côtés. Sans
+      # cette égalité, l'empreinte changerait sans que le site change, et ne
+      # pourrait jamais être confrontée à ce que l'URL réelle sert.
+      #
+      # Le manifeste ligne à ligne reste dans `$RUNNER_TEMP`, donc éphémère —
+      # aucune action supplémentaire n'est introduite pour le conserver. Quand
+      # deux empreintes diffèrent et qu'il faut savoir QUEL fichier a bougé,
+      # le chemin est de télécharger les deux artefacts Pages (ils sont
+      # conservés par GitHub) et de rejouer `empreinte-artefact.js` sur chacun.
+      - name: Relever l'empreinte de l'artefact
+        id: empreinte
+        env:
+          NEXUS_ENV: production
+        run: |
+          set -euo pipefail
+          node .github/deploiement/empreinte-artefact.js \
+            --racine=${{ steps.mode.outputs.racine }} \
+            --arbre-source=. \
+            --journal="$RUNNER_TEMP/empreinte-artefact.txt" \
+            --sortie="$GITHUB_OUTPUT" \
+            --resume="$GITHUB_STEP_SUMMARY"
+
+      # `path` suit le mode :
+      #   construit      → `_site`, l'artefact composé et éprouvé ;
+      #   a-l-identique  → `.`, l'arbre tel qu'il est servi aujourd'hui.
+      #
+      # Depuis la v4.0.0, l'action **exclut par défaut tous les chemins
+      # commençant par un point**, `.git` et `.github` compris. En mode « à
+      # l'identique » c'est ce qui fait tomber le dernier écart mesuré avec le
+      # mode branche : Jekyll masquait `.gitignore` et `supabase/.gitkeep`,
+      # cette exclusion les masque aussi. L'ensemble servi est donc le même,
+      # fichier pour fichier, et la bascule ne change rien de visible.
+      #
+      # `retention-days` est écrit EXPLICITEMENT. Le défaut de l'action est
+      # `1` — un seul jour. Ce n'est pas un réglage de confort : c'est la durée
+      # pendant laquelle l'artefact promu reste téléchargeable, donc la fenêtre
+      # dans laquelle on peut encore rejouer `empreinte-artefact.js` dessus et
+      # confronter l'empreinte à ce que l'URL sert réellement. Un jour ne
+      # couvre pas un week-end ; sept jours couvrent le délai de 48 h annoncé
+      # pour une release normale, plus la marge d'un incident découvert tard.
+      # Un seul téléversement, ici et nulle part ailleurs : `deployer` promeut
+      # cet artefact-là, il n'en fabrique pas un second.
+      - name: Emballer l'artefact Pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ steps.mode.outputs.racine }}
+          retention-days: 7
+
+  deployer:
+    name: Déployer sur GitHub Pages
+    needs: construire
+    runs-on: ubuntu-latest
+    # Trois conditions cumulatives, plus la gate humaine qui n'est pas ici mais
+    # dans `environment:` ci-dessous. Chacune coupe un chemin par lequel un
+    # déploiement pourrait partir sans être voulu :
+    #   — la branche : rien d'autre que `production` ne publie ;
+    #   — l'origine : un push, ou une main qui a explicitement dit « oui » ;
+    #   — l'identité : on ne déploie que le commit sur lequel le workflow a
+    #     été déclenché. C'est ce qui rend `ref_applicatif` inoffensif — une
+    #     répétition sur une autre référence ne peut pas atteindre ce job.
+    #
+    # Il n'y a plus de condition sur une variable de dépôt. `vars.*` n'est lu
+    # nulle part dans ce fichier — ni ici, ni dans une étape, ni dans une
+    # expression — et aucune variable d'Actions n'existe dans ce dépôt. Aucun
+    # chemin ne subsiste par lequel la seule présence d'une valeur persistante
+    # autoriserait un déploiement futur : ce qui autorise est une approbation,
+    # redemandée à chaque exécution.
+    if: >-
+      github.ref == 'refs/heads/production' &&
+      (github.event_name == 'push' || inputs.deployer == 'oui') &&
+      needs.construire.outputs.sha_construit == github.sha
+    permissions:
+      # `contents: read` n'est pas là pour lire l'arbre — ce job ne fait aucun
+      # checkout, et c'est voulu : il ne doit rien pouvoir reconstruire. Il est
+      # là pour la seule garde anti-obsolescence, qui demande à l'API quel est
+      # le HEAD actuel de `production`.
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      # Placé ici, et non dans `construire` : tant que la source de Pages est
+      # encore « Deploy from a branch », `configure-pages` échoue sur le type
+      # de build hérité. Le garder hors du job de construction permet
+      # d'éprouver build, garde et artefact AVANT la bascule.
+      - name: Configurer Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # ─── GARDE ANTI-OBSOLESCENCE ────────────────────────────────────────
+      # Placée APRÈS l'approbation de l'environnement — tout ce job l'est,
+      # `environment:` suspend le job entier — et IMMÉDIATEMENT avant
+      # `deploy-pages`. Les deux positions comptent :
+      #   · après, parce que c'est l'approbation qui introduit le délai. Entre
+      #     le déclenchement et le clic, il peut s'écouler des heures ; c'est
+      #     précisément là que `production` peut avancer ;
+      #   · immédiatement avant, parce que la question « ce que je m'apprête à
+      #     publier est-il encore l'état courant ? » ne vaut que posée au
+      #     dernier moment. Toute étape glissée entre la garde et la promotion
+      #     rouvre la fenêtre que la garde ferme.
+      #
+      # `if: always()` serait ici une faute : la garde doit s'exécuter en
+      # conditions normales et faire ÉCHOUER le job, pas rattraper un échec.
+      #
+      # ÉCHEC FERMÉ. Toute réponse autre qu'une égalité stricte arrête le
+      # déploiement : HEAD plus récent, HEAD divergent, API injoignable, SHA
+      # illisible. Un doute ne publie pas.
+      #
+      # Le cas « SHA plus ancien » n'a AUCUN rattrapage ici, et c'est délibéré.
+      # Il faut le dire sans ambiguïté, parce que la formulation précédente
+      # était fausse : `workflow_dispatch` avec `ref_applicatif` ne redéploie
+      # PAS un ancien SHA. La condition du job exige
+      # `needs.construire.outputs.sha_construit == github.sha`, et ce workflow
+      # ne repointe jamais `production`. Construire sur une autre référence
+      # produit donc un artefact que le job `deployer` refusera.
+      #
+      # En Phase 1 :
+      #   · rollback d'HÉBERGEMENT = ramener Pages de « GitHub Actions » à
+      #     « Deploy from a branch » → `production` / `root`. Geste humain,
+      #     hors de ce workflow ;
+      #   · rollback APPLICATIF (republier un état de code plus ancien) =
+      #     circuit distinct, NON FOURNI dans cette Phase 1 ;
+      #   · `ref_applicatif` = construction et épreuve d'une référence, rien
+      #     d'autre. Jamais un chemin de déploiement.
+      #
+      # Aucun chemin ne permet à ce job de promouvoir un artefact que le HEAD
+      # courant de `production` ne revendique plus.
+      - name: Garde anti-obsolescence — le SHA construit est-il encore le HEAD de production ?
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_CONSTRUIT: ${{ needs.construire.outputs.sha_construit }}
+        run: |
+          set -euo pipefail
+
+          # Un SHA de commit Git, c'est exactement quarante caractères
+          # hexadécimaux minuscules. Mesurer la seule longueur laisserait
+          # passer quarante caractères quelconques — un message d'erreur de
+          # l'API, un fragment de JSON, une chaîne tronquée à la bonne taille.
+          # Le `case` rejette d'abord toute chaîne vide ou contenant un
+          # caractère hors [0-9a-f], puis la longueur est exigée : c'est
+          # `^[0-9a-f]{40}$`, écrit de façon portable.
+          est_sha() {
+            case "$1" in
+              "" | *[!0-9a-f]*) return 1 ;;
+            esac
+            [ ${#1} -eq 40 ]
+          }
+
+          if [ -z "${SHA_CONSTRUIT}" ]; then
+            echo "::error title=Garde anti-obsolescence::Le SHA construit est vide : le job de construction n'a pas publié sa sortie. Déploiement refusé."
+            exit 1
+          fi
+
+          if ! est_sha "${SHA_CONSTRUIT}"; then
+            echo "::error title=Garde anti-obsolescence::Le SHA construit n'a pas la forme d'un SHA Git (quarante caractères hexadécimaux minuscules) : « ${SHA_CONSTRUIT} ». Échec fermé."
+            exit 1
+          fi
+
+          # Lecture seule, sur la référence elle-même — pas sur un cache, pas
+          # sur `github.sha`, qui est figé au déclenchement et ne dirait donc
+          # rien de ce qui s'est passé pendant l'attente d'approbation.
+          if ! TETE=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/production" --jq '.object.sha' 2>/dev/null); then
+            echo "::error title=Garde anti-obsolescence::Impossible de lire le HEAD actuel de \`production\` (API injoignable ou référence absente). Échec fermé : sans réponse, on ne publie pas."
+            exit 1
+          fi
+
+          if ! est_sha "${TETE}"; then
+            echo "::error title=Garde anti-obsolescence::HEAD de \`production\` illisible — ce n'est pas un SHA Git (quarante caractères hexadécimaux minuscules) : « ${TETE} ». Échec fermé."
+            exit 1
+          fi
+
+          if [ "${TETE}" = "${SHA_CONSTRUIT}" ]; then
+            echo "::notice title=Garde anti-obsolescence::HEAD de \`production\` = ${TETE} — identique au SHA construit. L'artefact promu est bien l'état courant."
+            {
+              echo "### Garde anti-obsolescence — franchie"
+              echo ""
+              echo "| Champ | Valeur |"
+              echo "|---|---|"
+              echo "| \`sha_construit\` | \`${SHA_CONSTRUIT}\` |"
+              echo "| \`head_production\` | \`${TETE}\` |"
+              echo "| verdict | identiques — promotion autorisée |"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Les deux SHA diffèrent : le déploiement est refusé quoi qu'il
+          # arrive. La relation n'est demandée que pour écrire une erreur
+          # lisible — elle ne peut rien autoriser, et son échec n'est pas
+          # fatal puisque la décision est déjà prise.
+          # SÉMANTIQUE DE L'API — à lire avant de toucher au `case`.
+          # `GET /repos/{dépôt}/compare/{BASE}...{TÊTE}` renvoie un `status`
+          # qui décrit TÊTE PAR RAPPORT À BASE. Ici BASE = le SHA construit et
+          # TÊTE = le HEAD courant de `production`. Donc :
+          #   · `ahead`     : TÊTE descend du SHA construit — `production` a
+          #                   AVANCÉ pendant l'attente d'approbation. C'est le
+          #                   cas d'obsolescence normal, celui pour lequel
+          #                   cette garde existe ;
+          #   · `behind`    : c'est le SHA construit qui descend de TÊTE ;
+          #   · `identical` : incohérent ici, puisqu'on n'arrive dans ce bloc
+          #                   qu'avec deux SHA différents ;
+          #   · `diverged`  : aucun des deux ne contient l'autre.
+          # Vérifié le 15/09/2026 sur le dépôt lui-même, en lecture seule :
+          # compare/da6525f0...d5a8b77d (parent → enfant) = `ahead`,
+          # ahead_by 1 ; le sens inverse = `behind`, behind_by 1 ; deux fois
+          # le même SHA = `identical`.
+          RELATION=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA_CONSTRUIT}...${TETE}" --jq '.status' 2>/dev/null || echo "inconnue")
+          case "${RELATION}" in
+            ahead)
+              MOTIF="\`production\` a avancé depuis la construction : ${TETE} est un descendant de ${SHA_CONSTRUIT}. Publier maintenant remettrait le site dans un état plus ancien que la branche." ;;
+            behind)
+              MOTIF="Le SHA construit est en avance sur \`production\` : ${SHA_CONSTRUIT} descend de ${TETE}, et l'artefact ne correspond donc à aucun état publiable de la branche." ;;
+            identical)
+              MOTIF="L'API déclare les deux commits identiques alors que les SHA diffèrent (${SHA_CONSTRUIT} ≠ ${TETE}) : réponse incohérente, elle n'autorise rien." ;;
+            diverged)
+              MOTIF="\`production\` a divergé depuis la construction (réécriture d'historique ou force-push). Aucun des deux états ne contient l'autre." ;;
+            *)
+              MOTIF="Relation entre les deux commits indéterminée (\`${RELATION}\`)." ;;
+          esac
+
+          echo "::error title=Déploiement obsolète::${MOTIF}"
+          {
+            echo "### Garde anti-obsolescence — REFUS"
+            echo ""
+            echo "| Champ | Valeur |"
+            echo "|---|---|"
+            echo "| \`sha_construit\` | \`${SHA_CONSTRUIT}\` |"
+            echo "| \`head_production\` | \`${TETE}\` |"
+            echo "| relation | \`${RELATION}\` |"
+            echo ""
+            echo "${MOTIF}"
+            echo ""
+            echo "Rien n'a été publié. Pour publier l'état courant, relancez le rail sur \`${TETE}\` : il reconstruira, ré-éprouvera et remesurera."
+            echo ""
+            echo "Republier un état plus ancien n'est pas possible par ce workflow, et \`ref_applicatif\` ne le permet pas : la condition \`sha_construit == github.sha\` refusera l'artefact, et rien ici ne repointe \`production\`. En Phase 1, le seul retour arrière disponible est le rollback d'hébergement — reposer GitHub Pages sur \`production\` / \`root\`. Un rollback applicatif relève d'un circuit distinct, non fourni dans cette phase."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Déployer
+        id: deploiement
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      # Ce job ne reconstruit rien : `deploy-pages` promeut l'artefact emballé
+      # par `construire`, dans le même run. L'empreinte reportée ici est donc
+      # celle de l'arbre éprouvé, et pas celle d'une reconstruction — c'est ce
+      # qui rend « promouvoir exactement le même artefact » vérifiable après
+      # coup, sur la page du déploiement plutôt que de mémoire.
+      - name: Inscrire l'empreinte promue
+        run: |
+          {
+            echo "### Artefact promu en Production"
+            echo ""
+            echo "| Champ | Valeur |"
+            echo "|---|---|"
+            echo "| \`empreinte_artefact\` | \`${{ needs.construire.outputs.empreinte }}\` |"
+            echo "| \`sha_source\` | \`${{ needs.construire.outputs.sha_construit }}\` |"
+            echo "| \`identifiant_build\` | \`${{ needs.construire.outputs.identifiant_build }}\` |"
+            echo "| \`fichiers\` | \`${{ needs.construire.outputs.fichiers }}\` |"
+            echo "| \`url\` | ${{ steps.deploiement.outputs.page_url }} |"
+            echo ""
+            echo "Aucune reconstruction entre l'épreuve et la promotion : le même artefact, emballé une fois."
+          } >> "$GITHUB_STEP_SUMMARY"

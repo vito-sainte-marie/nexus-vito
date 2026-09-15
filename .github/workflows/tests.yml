@@ -15,6 +15,21 @@
 # Le workflow échoue si un AUTRE test casse, ou si l'un de ces 9 est réparé
 # sans mettre la liste à jour — un garde-fou volontairement strict, pour que
 # la dette reste visible plutôt que de s'installer.
+#
+# ─── DEUX RÉSULTATS, PAS UN SEUL (15/09/2026) ──────────────────────────────
+# Les deux épreuves du rail de déploiement vivent sous `.github/deploiement/`
+# et NON à la racine. Elles ne sont donc pas ramassées par `run-tests.js`, qui
+# n'inspecte que la racine — c'est voulu, et c'est ce qui rend son compte
+# comparable à celui de `production` : même ensemble de fichiers, même base.
+#
+# Elles sont lancées ici comme deux étapes DÉDIÉES et BLOQUANTES. Deux raisons
+# de ne pas les fondre dans la suite métier :
+#   · un échec d'infrastructure ne doit pas se lire comme une régression
+#     métier, ni se cacher derrière la liste des 9 échecs tolérés ;
+#   · la suite métier tourne en `continue-on-error` — un échec d'infrastructure
+#     noyé dedans ne ferait rien échouer du tout. Ici, il arrête la CI.
+# Aucune tolérance, aucun échec connu : ces deux épreuves sont vertes ou la
+# branche ne passe pas.
 name: Tests
 
 # Aucun secret n'est référencé, et le jeton n'a que la lecture du dépôt :
@@ -74,3 +89,18 @@ jobs:
 
       - name: Simulations métier
         run: npm run simulations --silent
+
+      # ─── Épreuves d'infrastructure — résultat séparé, bloquant ───────────
+      # Pas de `continue-on-error` : ces trois étapes échouent la CI d'emblée.
+      - name: 'Infrastructure — empreinte de l''artefact'
+        run: node .github/deploiement/test_empreinte_artefact_20260915.js
+
+      - name: 'Infrastructure — garde de l''artefact Pages'
+        run: node .github/deploiement/test_verifier_artefact_pages_20260915.js
+
+      # Le workflow de Production se déclenche aussi sur `pull_request`, pour
+      # que l'artefact soit mesuré avant la fusion. Cette épreuve relit le YAML
+      # réel et calcule que la condition du job `deployer` ne peut pas être
+      # satisfaite par un tel événement.
+      - name: 'Infrastructure — un `pull_request` ne peut pas déployer'
+        run: node .github/deploiement/test_garde_deployer_20260915.js
