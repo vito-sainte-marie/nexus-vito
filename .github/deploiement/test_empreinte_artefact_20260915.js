@@ -15,7 +15,7 @@
 // lui-même.
 //
 // ─── CAMPAGNE DE MUTATION DU 15/09/2026 ────────────────────────────────────
-// Défaut remis dans `outils/empreinte-artefact.js`, épreuve rejouée. Ce qui
+// Défaut remis dans `.github/deploiement/empreinte-artefact.js`, épreuve rejouée. Ce qui
 // est mordu, et par quel cas :
 //   chemins cachés comptés dans l'empreinte  → 4 cas (périmètre + arbre réel)
 //   tri par collation au lieu d'octets       → Ordre
@@ -40,8 +40,12 @@ const assert = require('assert');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
-const OUTIL = path.join(__dirname, 'outils', 'empreinte-artefact.js');
-assert.ok(fs.existsSync(OUTIL), 'outils/empreinte-artefact.js introuvable');
+// L'outil est désormais un voisin : `.github/deploiement/` réunit le rail de
+// déploiement et ses deux épreuves. La racine du dépôt — ce que mesurent les
+// cas « Réel » — est deux niveaux au-dessus.
+const OUTIL = path.join(__dirname, 'empreinte-artefact.js');
+assert.ok(fs.existsSync(OUTIL), '.github/deploiement/empreinte-artefact.js introuvable');
+const RACINE_DEPOT = path.join(__dirname, '..', '..');
 const { empreinte, inventorier } = require(OUTIL);
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-empreinte-'));
@@ -253,9 +257,15 @@ function lancer(options) {
   return { code: r.status, sortie: `${r.stdout}${r.stderr}` };
 }
 
+// `--arbre-source=` est désormais explicite dans tous les cas CLI. Il l'était
+// implicitement — le dossier courant — et la provenance des migrations ayant
+// été rendue fermée, ce dossier courant est devenu porteur : lancer l'épreuve
+// depuis ailleurs que la racine du dépôt aurait fait échouer des cas qui ne
+// parlent pas de migrations. Une épreuve ne doit pas dépendre d'où on
+// l'appelle.
 cas('CLI · --attendu conforme : accepté', () => {
   const racine = arbre({ ...BASE });
-  const { code, sortie } = lancer([`--racine=${racine}`, `--attendu=${e(racine)}`]);
+  const { code, sortie } = lancer([`--racine=${racine}`, `--arbre-source=${RACINE_DEPOT}`, `--attendu=${e(racine)}`]);
   assert.strictEqual(code, 0, `attendu : acceptation.\n${sortie}`);
 });
 
@@ -263,7 +273,7 @@ cas('CLI · --attendu conforme : accepté', () => {
 // plutôt que déclaratif.
 cas('CLI · --attendu différent : refus', () => {
   const racine = arbre({ ...BASE });
-  const { code, sortie } = lancer([`--racine=${racine}`, `--attendu=${'0'.repeat(64)}`]);
+  const { code, sortie } = lancer([`--racine=${racine}`, `--arbre-source=${RACINE_DEPOT}`, `--attendu=${'0'.repeat(64)}`]);
   assert.strictEqual(code, 1, `attendu : refus.\n${sortie}`);
   assert.ok(sortie.includes('attendu'), 'le refus doit montrer les deux valeurs');
 });
@@ -277,7 +287,7 @@ cas('CLI · une racine absente ne produit pas d\'empreinte', () => {
 // mesuré — un fichier d'empreinte, par exemple — il changerait ce qu'il
 // mesure, et la valeur annoncée ne serait plus celle de ce qui est servi.
 cas('CLI · mesurer ne modifie pas l\'arbre mesuré', () => {
-  const racine = arbre({ ...BASE });
+  const racine = arbre({ ...BASE, 'supabase/migrations/0001_socle.sql': 'create table t();\n' });
   const avant = e(racine);
   const journal = path.join(BAC, 'journal-hors-arbre.txt');
   const { code, sortie } = lancer([`--racine=${racine}`, `--arbre-source=${racine}`, `--journal=${journal}`]);
@@ -288,6 +298,128 @@ cas('CLI · mesurer ne modifie pas l\'arbre mesuré', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LA PROVENANCE DES MIGRATIONS — elle doit échouer FERMÉE
+// ═══════════════════════════════════════════════════════════════════════════
+// Ces cas ne mesurent pas une empreinte : ils vérifient qu'aucune release ne
+// peut emporter une provenance de migrations silencieusement vide. Le défaut
+// corrigé le 15/09/2026 était exactement là — dossier absent, dossier sans
+// migration et sous-dossier renvoyaient « 0 / aucune » avec un code 0, c'est-
+// à-dire une provenance fausse portée par un rail vert.
+//
+// Chaque cas exige le code 1 ET un fragment du diagnostic : un `echouer()` qui
+// se déclencherait pour une autre raison passerait un contrôle qui ne regarde
+// que le code de sortie.
+
+// Un artefact quelconque, juste pour que la mesure ait quelque chose à mesurer
+// avant d'arriver à la provenance.
+function artefactQuelconque() { return arbre({ ...BASE }); }
+
+function provenance(intitule, fichiersSource, codeAttendu, fragment, apres) {
+  cas(intitule, () => {
+    const source = arbre(fichiersSource);
+    if (apres) apres(source);
+    const journal = path.join(BAC, `journal-prov-${numeroArbre}.txt`);
+    const { code, sortie } = lancer([
+      `--racine=${artefactQuelconque()}`, `--arbre-source=${source}`, `--journal=${journal}`,
+    ]);
+    assert.strictEqual(code, codeAttendu, `code inattendu.\n${sortie}`);
+    assert.ok(sortie.includes(fragment), `diagnostic attendu absent — « ${fragment} » :\n${sortie}`);
+    if (codeAttendu === 1) {
+      assert.ok(!fs.existsSync(journal), 'un journal a été écrit malgré la provenance en échec');
+    }
+  });
+}
+
+provenance('Fermé · `supabase/migrations` absent : la provenance s\'arrête',
+  { 'lisez-moi.md': 'aucun dossier supabase ici\n' },
+  1, 'absent ou illisible');
+
+// `readdirSync` sur un fichier lève ENOTDIR : « illisible » ne se limite pas
+// aux droits, c'est tout ce qui n'ouvre pas.
+provenance('Fermé · `supabase/migrations` n\'est pas un dossier (ENOTDIR)',
+  { 'supabase/migrations': 'ceci est un fichier, pas un dossier\n' },
+  1, 'absent ou illisible');
+
+provenance('Fermé · dossier vide : zéro migration canonique arrête tout',
+  { 'lisez-moi.md': 'x\n' },
+  1, 'Aucune migration canonique',
+  (source) => fs.mkdirSync(path.join(source, 'supabase/migrations'), { recursive: true }));
+
+// Zéro `.sql` malgré des entrées : le compte d'entrées lues doit apparaître,
+// sinon le diagnostic ne distingue pas « dossier vide » de « dossier plein de
+// fichiers qui ne sont pas des migrations ».
+provenance('Fermé · que des fichiers non-SQL : toujours zéro migration canonique',
+  { 'supabase/migrations/lisez-moi.md': 'notes\n', 'supabase/migrations/schema.txt': 'x\n' },
+  1, 'Aucune migration canonique');
+
+provenance('Fermé · un sous-dossier dans `supabase/migrations` : type inattendu',
+  {
+    'supabase/migrations/0001_socle.sql': 'create table t();\n',
+    'supabase/migrations/archives/0000_vieux.sql': 'select 1;\n',
+  },
+  1, 'sous-dossier');
+
+provenance('Fermé · un lien symbolique dans `supabase/migrations` : type inattendu',
+  { 'supabase/migrations/0001_socle.sql': 'create table t();\n' },
+  1, 'lien symbolique',
+  (source) => fs.symlinkSync(
+    path.join(source, 'supabase/migrations/0001_socle.sql'),
+    path.join(source, 'supabase/migrations/0002_alias.sql')));
+
+// Le témoin. Sans lui, les six cas ci-dessus seraient satisfaits par un outil
+// qui refuse tout.
+cas('Provenance · deux migrations canoniques : mesurées, chemin complet, empreinte', () => {
+  const source = arbre({
+    'supabase/migrations/0002_ensuite.sql': 'alter table t add c int;\n',
+    'supabase/migrations/0001_socle.sql': 'create table t();\n',
+    'supabase/migrations/.DS_Store': 'bruit macOS\n',
+    'supabase/migrations/lisez-moi.md': 'ce n\'est pas une migration\n',
+    'requete-de-travail.sql': 'select 1;\n',
+    'supabase/retours/0001_retour.sql': 'drop table t;\n',
+  });
+  const journal = path.join(BAC, 'journal-provenance-temoin.txt');
+  const { code, sortie } = lancer([
+    `--racine=${artefactQuelconque()}`, `--arbre-source=${source}`, `--journal=${journal}`,
+  ]);
+  assert.strictEqual(code, 0, `la provenance aurait dû passer.\n${sortie}`);
+  assert.ok(/migrations_source_nombre\s*: 2\b/.test(sortie),
+    `deux migrations attendues, ni le SQL de la racine ni \`supabase/retours/\` :\n${sortie}`);
+  const m = sortie.match(/migrations_source_empreinte\s*: ([0-9a-f]{64})/);
+  assert.ok(m, `empreinte de provenance mal formée :\n${sortie}`);
+
+  const texte = fs.readFileSync(journal, 'utf8');
+  assert.ok(texte.includes('supabase/migrations/0001_socle.sql'), 'le manifeste n\'énumère pas la première migration');
+  assert.ok(texte.includes('supabase/migrations/0002_ensuite.sql'), 'le manifeste n\'énumère pas la seconde migration');
+  // Les lignes de manifeste seulement : l'en-tête du journal CITE
+  // `supabase/retours/` pour dire qu'il est exclu, et un `includes` naïf sur
+  // le fichier entier confondrait l'exclusion avec une inclusion.
+  const lignes = texte.split('\n').filter(l => /^[0-9a-f]{64} {2}/.test(l));
+  assert.ok(!lignes.some(l => l.endsWith('requete-de-travail.sql')), 'un SQL de la racine est entré dans la provenance');
+  assert.ok(!lignes.some(l => l.includes('supabase/retours/')), 'un SQL de `supabase/retours/` est entré dans la provenance');
+  assert.ok(!lignes.some(l => l.endsWith('.md')), 'un fichier non-SQL est entré dans la provenance');
+  assert.ok(!lignes.some(l => l.includes('.DS_Store')), 'un fichier caché est entré dans la provenance');
+  assert.ok(!texte.includes('(aucune)'), 'le repli « (aucune) » subsiste alors que zéro migration est un échec');
+
+  // Le chemin complet, pas le nom nu : deux dossiers de migrations qui
+  // partageraient un nom de fichier produiraient sinon le même manifeste.
+  const ligne = texte.split('\n').find(l => l.endsWith('supabase/migrations/0001_socle.sql'));
+  assert.ok(/^[0-9a-f]{64} {2}supabase\/migrations\/0001_socle\.sql$/.test(ligne),
+    `ligne de manifeste mal formée : « ${ligne} »`);
+});
+
+// Un `.sql` caché n'est pas une migration — même règle qu'à l'emballage — mais
+// sa présence ne doit pas non plus arrêter le rail.
+cas('Provenance · un `.sql` caché est ignoré sans arrêter la mesure', () => {
+  const source = arbre({
+    'supabase/migrations/0001_socle.sql': 'create table t();\n',
+    'supabase/migrations/.0000_brouillon.sql': 'oups\n',
+  });
+  const { code, sortie } = lancer([`--racine=${artefactQuelconque()}`, `--arbre-source=${source}`]);
+  assert.strictEqual(code, 0, `le rail s'est arrêté sur un fichier caché.\n${sortie}`);
+  assert.ok(/migrations_source_nombre\s*: 1\b/.test(sortie), `une seule migration attendue :\n${sortie}`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // L'ARBRE RÉEL — la mesure doit passer sur ce qui sera réellement servi
 // ═══════════════════════════════════════════════════════════════════════════
 // Une garde calibrée sur des arbres fabriqués peut parfaitement échouer sur le
@@ -295,12 +427,29 @@ cas('CLI · mesurer ne modifie pas l\'arbre mesuré', () => {
 // références avait refusé l'arbre réel sur douze faux positifs, alors que sa
 // suite de mutation était verte.
 cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
-  const m = empreinte(__dirname);
+  const m = empreinte(RACINE_DEPOT);
   assert.ok(m.ok, `l'arbre réel n'a pas pu être mesuré : ${m.arret.join(' ')}`);
   assert.ok(/^[0-9a-f]{64}$/.test(m.empreinte), 'empreinte mal formée');
   assert.ok(m.fichiers.length > 500, `inventaire invraisemblable : ${m.fichiers.length} fichier(s)`);
   assert.ok(!m.fichiers.some(f => f.split('/').some(s => s.startsWith('.'))),
     'un chemin caché est entré dans l\'empreinte alors qu\'il ne sera pas emballé');
+});
+
+// Rendre la provenance fermée ne devait rien changer au dépôt réel : mêmes
+// 240 migrations, même empreinte. Ces deux valeurs peuvent être écrites ici
+// sans se contredire — elles ne dépendent que de `supabase/migrations/*.sql`,
+// jamais de ce fichier. (Ce qu'un fichier ne peut pas nommer, c'est sa propre
+// empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
+const MIGRATIONS_REELLES_NOMBRE = 240;
+const MIGRATIONS_REELLES_EMPREINTE = '87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6e82caaa7666430';
+
+cas('Réel · la provenance des migrations reste 240 et garde son empreinte', () => {
+  const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
+  assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
+  assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
+    `l'inventaire réel n'annonce plus ${MIGRATIONS_REELLES_NOMBRE} migrations :\n${sortie}`);
+  assert.ok(sortie.includes(`migrations_source_empreinte: ${MIGRATIONS_REELLES_EMPREINTE}`),
+    `l'empreinte des migrations réelles a changé :\n${sortie}`);
 });
 
 // ── Verdict ────────────────────────────────────────────────────────────────

@@ -38,9 +38,9 @@
 // recalculer sans l'outil qui l'a produite ne prouve rien contre cet outil.
 //
 // Usage :
-//   node outils/empreinte-artefact.js --racine=_site
-//   node outils/empreinte-artefact.js --racine=. --arbre-source=. --journal=/tmp/e.txt
-//   node outils/empreinte-artefact.js --racine=_site --attendu=<sha256>
+//   node .github/deploiement/empreinte-artefact.js --racine=_site
+//   node .github/deploiement/empreinte-artefact.js --racine=. --arbre-source=. --journal=/tmp/e.txt
+//   node .github/deploiement/empreinte-artefact.js --racine=_site --attendu=<sha256>
 //
 // Options :
 //   --racine=<dir>         arbre à mesurer (ce qui partira vers le site)
@@ -202,43 +202,121 @@ function identifiantBuild() {
 // Les migrations sont une propriété de la SOURCE, pas de l'artefact : elles
 // n'y sont jamais (c'est le but). Les inventorier ici relie quand même la
 // release à l'état de base qu'elle suppose.
-function migrations() {
-  const trouvees = [];
-  function chercher(relatif, profondeur) {
-    let entrees;
-    try { entrees = fs.readdirSync(path.join(SOURCE, relatif || '.'), { withFileTypes: true }); }
-    catch (e) { return; }
-    for (const e of entrees) {
-      const rel = relatif ? `${relatif}/${e.name}` : e.name;
-      if (estCache(e.name) || e.name === 'node_modules') continue;
-      if (e.isDirectory()) {
-        const pertinent = profondeur === 0
-          ? (e.name.startsWith('migrations') || e.name === 'supabase')
-          : true;
-        if (pertinent && profondeur < 3) chercher(rel, profondeur + 1);
-        continue;
-      }
-      if (e.isFile() && e.name.toLowerCase().endsWith('.sql')) trouvees.push(rel);
-    }
-  }
-  chercher('', 0);
-  trouvees.sort(ordreOctets);
-  let texte = '';
-  for (const rel of trouvees) texte += `${sha256(fs.readFileSync(path.join(SOURCE, rel)))}  ${rel}\n`;
-  return { liste: trouvees, empreinte: trouvees.length ? sha256(texte) : 'aucune', texte };
+//
+// LE PÉRIMÈTRE EST UN SEUL DOSSIER, SANS RÉCURSION : `supabase/migrations/`.
+// C'est la seule définition qui tienne : c'est ce dossier, et lui seul, que
+// la CLI Supabase applique et dont elle tient le registre. Tout le reste est
+// du SQL qui se trouve être du SQL.
+//
+// La version précédente ratissait `supabase/` en entier plus tout dossier de
+// premier niveau nommé `migrations*`, plus — par un défaut de garde, la ligne
+// de collecte n'étant pas soumise au test de pertinence — les `.sql` épars de
+// la racine. Elle annonçait 256 « migrations » là où il y en a 240 :
+//   240  supabase/migrations/*.sql        les migrations canoniques
+//  + 11  *.sql à la racine                requêtes et correctifs de travail
+//  +  2  supabase/repairs/, supabase/retours/
+//  +  3  migrations_*/ de premier niveau
+//  −  2  comptés deux fois
+//  = 256
+// Le plus gênant n'était pas l'écart : c'était `migrations_appliquees.sql`,
+// un EXPORT de l'état appliqué, compté comme une migration. Un inventaire qui
+// confond la photographie avec le geste ne peut pas servir de provenance.
+//
+// Un correctif de rattrapage, un export ou un retour arrière ne devient pas
+// canonique parce qu'il est écrit en SQL. Le rapprochement Git ↔ Production ↔
+// Test de ces fichiers-là est un lot séparé, en lecture seule, hors de ce
+// rail.
+const MIGRATIONS_DOSSIER = 'supabase/migrations';
+
+//
+// CETTE PROVENANCE ÉCHOUE FERMÉE. C'est le point le plus important de la
+// fonction, et ce n'était pas le cas jusqu'ici. Une provenance qui, dans le
+// doute, annonce « aucune » n'est pas une provenance : c'est un silence qui
+// a la forme d'une mesure, et il se propage jusqu'au journal de release avec
+// l'autorité d'un chiffre. Trois situations laissaient passer le rail sans
+// rien mesurer :
+//   · le dossier absent ou illisible — un `--arbre-source=` visant l'artefact
+//     plutôt que le dépôt suffisait à produire « 0 / aucune » sans un mot ;
+//   · zéro migration canonique — indiscernable, dans le journal, d'un dépôt
+//     dont les migrations auraient été effacées ;
+//   · une entrée d'un type inattendu — le commentaire affirmait qu'un
+//     sous-dossier serait « signalé », alors qu'il était absorbé en silence.
+// Les trois s'arrêtent désormais, par `echouer()`, avant toute publication.
+
+function typeEntree(e) {
+  if (e.isDirectory()) return 'sous-dossier';
+  if (e.isSymbolicLink()) return 'lien symbolique';
+  if (e.isFIFO()) return 'tube nommé';
+  if (e.isSocket()) return 'socket';
+  if (e.isBlockDevice() || e.isCharacterDevice()) return 'périphérique';
+  return 'type inconnu';
 }
 
-const MIGRATIONS = migrations();
+function migrationsSource() {
+  const dossier = path.join(SOURCE, MIGRATIONS_DOSSIER);
+  let entrees;
+  try { entrees = fs.readdirSync(dossier, { withFileTypes: true }); }
+  catch (e) {
+    echouer([
+      `Dossier des migrations canoniques absent ou illisible : « ${dossier} ».`,
+      `Cause système : ${e.code || e.message}.`,
+      `La provenance d'une release énumère « ${MIGRATIONS_DOSSIER}/*.sql ». Sans ce`,
+      `dossier il n'y a rien à annoncer, et « aucune » serait un mensonge poli.`,
+      `Vérifiez --arbre-source= : il doit désigner la racine du dépôt, pas l'artefact.`,
+    ]);
+  }
+
+  const trouvees = [];
+  const inattendues = [];
+  for (const e of entrees) {
+    if (estCache(e.name)) continue;
+    // Pas de récursion : une migration est un FICHIER de ce dossier. Un
+    // sous-dossier, un lien, tout autre type est signalé — et signalé veut
+    // dire arrêté, pas ignoré.
+    if (!e.isFile()) { inattendues.push(`${e.name} — ${typeEntree(e)}`); continue; }
+    if (!e.name.toLowerCase().endsWith('.sql')) continue;
+    trouvees.push(`${MIGRATIONS_DOSSIER}/${e.name}`);
+  }
+
+  if (inattendues.length) {
+    echouer([
+      `Entrée(s) d'un type inattendu dans « ${MIGRATIONS_DOSSIER}/ » :`,
+      ...inattendues.map(x => `  ${x}`),
+      `Ce dossier ne contient que des fichiers de migration. Un sous-dossier y`,
+      `cache des migrations que cet inventaire ne compterait pas : la provenance`,
+      `annoncée serait alors incomplète sans le dire. Rien n'est deviné ici.`,
+    ]);
+  }
+
+  if (!trouvees.length) {
+    echouer([
+      `Aucune migration canonique trouvée dans « ${dossier} ».`,
+      `${entrees.length} entrée(s) lue(s), zéro fichier « *.sql » non caché.`,
+      `Un dépôt NEXUS en a 240 au 15/09/2026. Zéro n'est pas un inventaire vide,`,
+      `c'est un inventaire qui a échoué : le rail s'arrête plutôt que d'attacher`,
+      `« migrations_source_nombre: 0 » à une release.`,
+    ]);
+  }
+
+  trouvees.sort(ordreOctets);
+
+  let texte = '';
+  for (const rel of trouvees) texte += `${sha256(fs.readFileSync(path.join(SOURCE, rel)))}  ${rel}\n`;
+  return { liste: trouvees, empreinte: sha256(texte), texte };
+}
+
+const MIGRATIONS = migrationsSource();
 const PROVENANCE = {
   sha_source: shaSource(),
   empreinte_artefact: mesure.empreinte,
   environnement: ENVIRONNEMENT,
   identifiant_build: identifiantBuild(),
-  migrations_nombre: MIGRATIONS.liste.length,
-  migrations_empreinte: MIGRATIONS.empreinte,
+  migrations_source_nombre: MIGRATIONS.liste.length,
+  migrations_source_empreinte: MIGRATIONS.empreinte,
+  migrations_source_liste: `${MIGRATIONS_DOSSIER}/*.sql — énumérées une à une en fin de manifeste`,
   fichiers: mesure.fichiers.length,
   octets: mesure.octets,
-  procede: 'outils/composer-artefact-public.js → outils/verifier-artefact-pages.js → outils/empreinte-artefact.js',
+  procede: '.github/deploiement/composer-artefact-public.js → .github/deploiement/verifier-artefact-pages.js → .github/deploiement/empreinte-artefact.js',
   atelier: process.env.GITHUB_WORKFLOW_REF || 'hors GitHub Actions',
   run: process.env.GITHUB_RUN_ID ? `${process.env.GITHUB_RUN_ID}/${process.env.GITHUB_RUN_ATTEMPT || '1'}` : 'hors GitHub Actions',
 };
@@ -250,7 +328,7 @@ console.log(`  fichiers    : ${mesure.fichiers.length} (${mesure.caches.length} 
 console.log(`  octets      : ${mesure.octets}`);
 console.log('');
 for (const [cle, valeur] of Object.entries(PROVENANCE)) {
-  console.log(`  ${cle.padEnd(20)}: ${valeur}`);
+  console.log(`  ${cle.padEnd(27)}: ${valeur}`);
 }
 console.log('── ────────────────────────────────────────────────────────────\n');
 
@@ -262,7 +340,14 @@ if (JOURNAL) {
     + `# Manifeste : une ligne par fichier servi, « <sha256>  <chemin> », ordre d'octets.\n`
     + `# L'empreinte ci-dessus est le sha256 de tout ce qui suit cette ligne.\n`
     + mesure.manifeste
-    + (MIGRATIONS.liste.length ? `\n# Migrations de la source (jamais dans l'artefact) :\n${MIGRATIONS.texte}` : ''));
+    + `\n# Migrations canoniques de la source — \`${MIGRATIONS_DOSSIER}/*.sql\`, jamais dans\n`
+    + `# l'artefact. Ni les SQL épars de la racine, ni \`supabase/repairs/\`, ni\n`
+    + `# \`supabase/retours/\`, ni aucun export d'état appliqué n'y figurent : ce ne\n`
+    + `# sont pas des migrations, et les compter comme telles fausserait la\n`
+    + `# provenance de la release.\n`
+    // Pas de repli « (aucune) » : zéro migration n'atteint jamais cette ligne,
+    // `migrationsSource()` s'étant arrêtée avant.
+    + MIGRATIONS.texte);
   console.log(`  Manifeste écrit : ${JOURNAL}`);
 }
 
@@ -279,7 +364,7 @@ if (RESUME) {
     `### Empreinte de l'artefact\n\n`
     + `| Champ | Valeur |\n|---|---|\n`
     + Object.entries(PROVENANCE).map(([c, v]) => `| \`${c}\` | \`${v}\` |`).join('\n')
-    + `\n\nEmpreinte reproductible à la main : voir l'en-tête de \`outils/empreinte-artefact.js\`.\n\n`);
+    + `\n\nEmpreinte reproductible à la main : voir l'en-tête de \`.github/deploiement/empreinte-artefact.js\`.\n\n`);
 }
 
 if (ATTENDU && ATTENDU !== mesure.empreinte) {

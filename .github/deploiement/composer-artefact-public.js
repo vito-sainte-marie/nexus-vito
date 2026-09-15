@@ -10,7 +10,7 @@
 // internes), `CLAUDE.md` et les vingt notes de travail à la racine.
 //
 // Aucun de ces fichiers n'est un secret au sens de la garde — c'est
-// précisément le piège : `outils/verifier-artefact-pages.js` les aurait tous
+// précisément le piège : `.github/deploiement/verifier-artefact-pages.js` les aurait tous
 // acceptés, parce qu'ils ne contiennent aucune clé. Ils décrivent en revanche
 // la structure de la base, le nom des tables, la forme des politiques et les
 // intentions du projet. Publier la carte n'est pas publier la clé, mais ce
@@ -23,7 +23,7 @@
 // délibéré et va dans le sens le moins dangereux des deux : une liste
 // d'inclusion oubliée casse un écran en Production sans prévenir ; une liste
 // d'exclusion oubliée publie un fichier de trop, ce qui se corrige. Le filet
-// qui rattrape l'oubli est ailleurs — `outils/verifier-artefact-pages.js`
+// qui rattrape l'oubli est ailleurs — `.github/deploiement/verifier-artefact-pages.js`
 // résout, après composition, **toutes** les références `src`/`href` de tous
 // les écrans de l'artefact et refuse si l'une d'elles ne pointe plus sur
 // rien. C'est ce contrôle-là, et non cette liste, qui prouve que rien de
@@ -33,9 +33,9 @@
 // écrit une destination neuve, jamais l'inverse.
 //
 // Usage :
-//   node outils/composer-artefact-public.js
-//   node outils/composer-artefact-public.js --source=. --destination=_site
-//   node outils/composer-artefact-public.js --vider      (voir plus bas)
+//   node .github/deploiement/composer-artefact-public.js
+//   node .github/deploiement/composer-artefact-public.js --source=. --destination=_site
+//   node .github/deploiement/composer-artefact-public.js --vider      (voir plus bas)
 //
 // Options :
 //   --source=<dir>        arbre à composer (défaut : la racine du dépôt)
@@ -56,7 +56,12 @@ function option(nom) {
   return t ? t.slice(nom.length + 3) : null;
 }
 
-const SOURCE = path.resolve(option('source') || path.join(__dirname, '..'));
+// Cet outil vit sous `.github/deploiement/` : la racine du dépôt est deux
+// niveaux au-dessus, pas un. `.github/` est écarté de l'artefact Pages sans
+// condition (`upload-pages-artifact` passe `--exclude=.github` à `tar`), ce
+// qui est précisément la raison pour laquelle le rail de déploiement habite
+// là et non dans `outils/`, qui est un dossier publiable.
+const SOURCE = path.resolve(option('source') || path.join(__dirname, '..', '..'));
 const DESTINATION = path.resolve(option('destination') || path.join(SOURCE, '_site'));
 const VIDER = args.includes('--vider');
 const MARQUEUR = '.artefact-public';
@@ -215,7 +220,7 @@ if (arret.length) {
 }
 
 fs.writeFileSync(path.join(DESTINATION, MARQUEUR),
-  'Marqueur de outils/composer-artefact-public.js.\n'
+  'Marqueur de .github/deploiement/composer-artefact-public.js.\n'
   + 'Sa seule fonction est d\'autoriser --vider sur ce dossier.\n'
   + 'Fichier caché : upload-pages-artifact v4+ ne l\'emballe pas.\n');
 

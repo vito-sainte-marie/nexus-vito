@@ -20,9 +20,9 @@
 // IL NE DÉPLOIE RIEN, N'ÉCRIT RIEN, NE CONTACTE RIEN. Lecture seule.
 //
 // Usage :
-//   node outils/verifier-artefact-pages.js --mode=construit
-//   node outils/verifier-artefact-pages.js --mode=a-l-identique
-//   node outils/verifier-artefact-pages.js --mode=… --racine=/chemin/arbre
+//   node .github/deploiement/verifier-artefact-pages.js --mode=construit
+//   node .github/deploiement/verifier-artefact-pages.js --mode=a-l-identique
+//   node .github/deploiement/verifier-artefact-pages.js --mode=… --racine=/chemin/arbre
 //
 // Options :
 //   --mode=construit       l'arbre sort de `bash outils/build.sh`
@@ -68,7 +68,8 @@ function option(nom) {
   return t ? t.slice(nom.length + 3) : null;
 }
 const MODE = option('mode');
-const RACINE = path.resolve(option('racine') || path.join(__dirname, '..'));
+// `.github/deploiement/` → la racine du dépôt est deux niveaux au-dessus.
+const RACINE = path.resolve(option('racine') || path.join(__dirname, '..', '..'));
 const ARBRE_SOURCE = path.resolve(option('arbre-source') || RACINE);
 const REFUSER_MOT = args.includes('--refuser-mot-service-role');
 
@@ -260,7 +261,7 @@ if (present('_headers')) {
 // ═══════════════════════════════════════════════════════════════════════════
 // P. PÉRIMÈTRE PUBLIC (mode « construit » uniquement)
 // ═══════════════════════════════════════════════════════════════════════════
-// Second témoin de `outils/composer-artefact-public.js`. Le composeur décide
+// Second témoin de `.github/deploiement/composer-artefact-public.js`. Le composeur décide
 // ce qui part ; cette règle vérifie, sur l'arbre réellement emballé, que la
 // décision a bien été appliquée. Sans elle, remettre `path: .` dans le
 // workflow — une ligne — republierait la racine entière sans que rien ne le
@@ -301,7 +302,7 @@ if (MODE === 'construit') {
   if (fautifs.size) {
     for (const [motif, liste] of fautifs) {
       const extrait = liste.slice(0, 5).join(', ') + (liste.length > 5 ? `, … (+${liste.length - 5})` : '');
-      refuser('P1', `${liste.length} fichier(s) hors périmètre public — ${motif} : ${extrait}. L'artefact n'a pas été composé par \`outils/composer-artefact-public.js\`, ou le workflow emballe encore la racine du dépôt.`);
+      refuser('P1', `${liste.length} fichier(s) hors périmètre public — ${motif} : ${extrait}. L'artefact n'a pas été composé par \`.github/deploiement/composer-artefact-public.js\`, ou le workflow emballe encore la racine du dépôt.`);
     }
   } else {
     constater('Périmètre public respecté : ni tests, ni SQL, ni documents internes, ni dossier serveur dans l\'artefact.');

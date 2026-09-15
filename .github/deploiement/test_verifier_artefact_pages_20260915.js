@@ -8,7 +8,7 @@
 // remplace pas la mutation.
 //
 // Ce test fabrique donc, pour chaque règle de
-// `outils/verifier-artefact-pages.js`, un arbre qui la viole EXACTEMENT, et
+// `.github/deploiement/verifier-artefact-pages.js`, un arbre qui la viole EXACTEMENT, et
 // exige un refus. Il exige aussi l'inverse — que les cas légitimes passent :
 // une garde qui refuse tout est débranchée dès qu'elle gêne, et ne protège
 // alors plus rien.
@@ -24,8 +24,12 @@ const path = require('path');
 const assert = require('assert');
 const { spawnSync } = require('child_process');
 
-const VERIFICATEUR = path.join(__dirname, 'outils', 'verifier-artefact-pages.js');
-assert.ok(fs.existsSync(VERIFICATEUR), 'outils/verifier-artefact-pages.js introuvable');
+// Le vérificateur est désormais un voisin : `.github/deploiement/` réunit le
+// rail de déploiement et ses deux épreuves. La racine du dépôt — ce que
+// contrôle le cas « Réel » — est deux niveaux au-dessus.
+const VERIFICATEUR = path.join(__dirname, 'verifier-artefact-pages.js');
+assert.ok(fs.existsSync(VERIFICATEUR), '.github/deploiement/verifier-artefact-pages.js introuvable');
+const RACINE_DEPOT = path.join(__dirname, '..', '..');
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-artefact-'));
 let numeroArbre = 0;
@@ -399,7 +403,7 @@ cas('Discrétion · la valeur suspecte n\'est jamais imprimée', () => {
 // arbre qui compte. Ce cas vérifie du même coup que ce fichier de test, qui
 // manipule des appâts, n'empoisonne pas l'artefact qu'il protège.
 cas('Réel · l\'arbre de cette branche est acceptable en mode « à l\'identique »', () => {
-  const { code, sortie } = controler(__dirname, 'a-l-identique');
+  const { code, sortie } = controler(RACINE_DEPOT, 'a-l-identique');
   assert.strictEqual(code, 0, `l'arbre réel a été refusé :\n${sortie}`);
 });
 

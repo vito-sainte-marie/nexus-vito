@@ -17,11 +17,11 @@ traite que sa **Phase 1** (§13). Aucune évolution métier n'y est mêlée.
 | # | Ce que demande la Phase 1 | État | Preuve |
 |---|---|---|---|
 | 1 | corriger le workflow `067a293…` | **fait** | commit `04738f1` |
-| 2 | dossier public dédié, en mode construit | **fait** | `outils/composer-artefact-public.js`, 861 → 540 |
+| 2 | dossier public dédié, en mode construit | **fait** | `.github/deploiement/composer-artefact-public.js`, 861 → 540 |
 | 3 | actions Pages en version officielle **courante**, épinglées par SHA | **fait** | §6 — v5.0.0 / v6.0.0 / v5.0.1 |
 | 4 | construire l'artefact et l'éprouver **sans le servir** | **fait** | §5 (garde) et §7 (empreinte) |
 | 5 | installer le workflow seul | **plan** — exige fusion, puis GO | étape 1 du §4 |
-| 6 | basculer Pages vers Actions | **plan** — exige GO | étape 4 du §4 |
+| 6 | basculer Pages vers Actions | **plan** — exige GO | étape 3 du §4 |
 | 7 | vérifier le domaine, garder le retour à la branche | **mesuré** | §2bis |
 
 La procédure v2 exige qu'un artefact promu porte six champs : SHA source
@@ -72,11 +72,11 @@ même, fichier pour fichier.
 pour cette étape-ci : changer le mécanisme (branche → Actions) sans changer
 le contenu, afin qu'une éventuelle régression soit attribuable à une seule
 cause. Il n'a pas besoin d'être retiré — il **s'éteint de lui-même** le jour
-où `outils/build.sh` atteint `production` (étape 5), le test de présence
+où `outils/build.sh` atteint `production` (étape 4), le test de présence
 basculant alors en mode `construit`.
 
 **En mode `construit`, l'arbre n'est plus publié : un artefact public dédié
-est composé.** `outils/composer-artefact-public.js` écrit `_site`, d'où sont
+est composé.** `.github/deploiement/composer-artefact-public.js` écrit `_site`, d'où sont
 retirés `.git`, `.github`, `docs/`, `supabase/`, `outils/`, `simulations/`,
 `node_modules/`, les dossiers `migrations*`, ainsi que — à toute profondeur —
 les fichiers de test, `run-tests.js`, les `*.md`, `*.sql`, `*.ts`, `*.py`,
@@ -167,10 +167,12 @@ fichiers, et elle est documentée chez l'éditeur.
 
 **Settings → Pages → Build and deployment → Source : `Deploy from a branch` →
 branche `production`, dossier `/ (root)`.** Rien d'autre. Ni DNS, ni
-certificat, ni `git revert`, ni remise en cause de `NEXUS_DEPLOIEMENT_ARME`
-(le laisser à `oui` est sans effet dès lors que Pages n'écoute plus les
-Actions — mais le repasser à `non` coupe la source à sa racine, et c'est le
-geste à préférer si l'on veut aussi empêcher une republication).
+certificat, ni `git revert`, ni réglage à défaire ailleurs : dès lors que Pages
+n'écoute plus les Actions, le rail peut continuer de construire et d'emballer
+sans que rien n'atteigne le site. Et s'il faut aussi empêcher toute
+republication, il n'y a rien à désarmer — il suffit de **ne pas approuver** le
+déploiement suivant : la gate est une approbation, pas un interrupteur laissé
+en position (§3bis).
 
 ### La seule différence attendue après bascule
 
@@ -178,7 +180,7 @@ En mode Actions, `CNAME` n'est plus consommé : il fait partie de l'arbre
 emballé et **deviendra probablement servable** (404 → 200). Son contenu est le
 nom de domaine affiché dans la barre d'adresse : il n'expose rien. C'est le
 seul écart connu entre « avant » et « après », il est énoncé ici pour qu'il ne
-soit pas découvert comme une régression au contrôle de l'étape 4.
+soit pas découvert comme une régression au contrôle de l'étape 3.
 
 ### Un écart de plate-forme, à connaître avant de comparer des empreintes
 
@@ -199,22 +201,81 @@ une mesure de poste. Résorber le doublon est une modification du contenu de
 
 ## 3. Ce que seul Frédéric peut faire, dans GitHub
 
-Aucune de ces quatre actions n'est exécutable depuis un workflow ni depuis un
-dépôt : elles vivent dans les réglages, pas dans le code.
+Aucune de ces trois actions n'est exécutable depuis un workflow ni depuis un
+dépôt : elles vivent dans les réglages, pas dans le code. **Aucune n'a été
+appliquée** — elles sont énoncées ici pour être faites à la main, au moment
+que dit le §4.
 
 1. **Settings → Secrets and variables → Actions → Secrets**, créer :
    - `NEXUS_SUPABASE_URL` = `https://uzhjpqpctpvxytxpxoqz.supabase.co`
    - `NEXUS_SUPABASE_ANON_KEY` = la clé **publiable** de Production
      (`anon` / `sb_publishable_…`). **Jamais la clé de service.**
-2. **Settings → Secrets and variables → Actions → Variables**, créer :
-   - `NEXUS_DEPLOIEMENT_ARME` = `non` — **c'est le cran de sûreté.** Tant
-     qu'il ne vaut pas `oui`, le workflow construit, éprouve et publie
-     l'artefact comme pièce à conviction, et **ne déploie rien**.
-3. **Settings → Environments → `github-pages`** : limiter les branches de
-   déploiement à **`production`** (« Selected branches » → `production`). Un
-   second verrou, indépendant de la condition écrite dans le workflow.
-4. **Settings → Pages → Build and deployment → Source : `GitHub Actions`** —
-   **à l'étape 4 de la procédure ci-dessous, pas avant.**
+2. **Settings → Environments → `github-pages`**, trois réglages ensemble :
+   - **Required reviewers** → **Frédéric**. C'est la gate.
+   - **Prevent self-review** → **laissé décoché**. Frédéric est seul
+     mainteneur : exiger un second approbateur rendrait tout déploiement
+     impossible, donc ferait démonter la gate à la première urgence.
+   - **Deployment branches** → *Selected branches* → **`production`** seule.
+     Un second verrou, indépendant de la condition écrite dans le workflow.
+3. **Settings → Pages → Build and deployment → Source : `GitHub Actions`** —
+   **à l'étape 3 de la procédure ci-dessous, pas avant.**
+
+**Il n'y a aucune variable d'Actions à créer.** Le dépôt n'en contient aucune
+aujourd'hui, et le workflow n'en lit aucune : voir le §3bis, qui explique
+pourquoi l'ancien cran de sûreté `NEXUS_DEPLOIEMENT_ARME` a été retiré du
+projet plutôt que posé.
+
+---
+
+## 3bis. La gate est une approbation, pas une variable
+
+La version précédente de ce plan posait une variable de dépôt,
+`NEXUS_DEPLOIEMENT_ARME`, et subordonnait le job `deployer` à `== 'oui'`. Le
+défaut n'est pas qu'elle protégeait mal le jour de la bascule : ce jour-là elle
+protégeait très bien. Le défaut est qu'elle **ne protège qu'une fois**.
+
+Passée à `oui` pour le déploiement du 15/09, elle y reste. Le lendemain, et
+tous les jours suivants, chaque push sur `production` part en Production sans
+que personne n'ait plus rien décidé. Le geste humain a eu lieu une fois et
+autorise indéfiniment. **Une gate qu'on arme s'oublie armée ; une gate qu'on
+approuve se redemande à chaque fois.**
+
+Elle est donc retirée de la condition du job. La seule gate est désormais
+l'**approbation de l'environnement `github-pages`**, redemandée à chaque
+exécution et jamais persistante. Le workflow ne lit `vars.*` nulle part — ni
+dans une condition, ni dans une étape, ni dans une expression — et la variable
+n'a jamais été créée dans ce dépôt : il n'y a rien à retirer côté GitHub, et
+aucun chemin ne subsiste par lequel la seule présence d'une valeur persistante
+autoriserait un déploiement futur.
+
+Tant que l'approbation n'est pas donnée, le workflow construit, éprouve, mesure
+et emballe l'artefact **comme pièce à conviction — et ne déploie rien.** C'est
+exactement ce que faisait le cran de sûreté, sans l'inconvénient de rester
+armé.
+
+### Ce qui n'est pas demandé, et pourquoi
+
+- **Aucune approbation obligatoire de pull request.** Frédéric est seul
+  mainteneur : une PR exigeant l'approbation d'un tiers ne serait jamais
+  fusionnable. Une règle impossible à respecter finit désactivée, et emporte
+  avec elle celles qui marchaient.
+- **`require_last_push_approval` reste désactivé**, pour la même raison : il
+  interdit à l'auteur du dernier push d'approuver, c'est-à-dire à la seule
+  personne présente.
+
+### Ce qui est proposé, à appliquer plus tard
+
+| réglage | où | valeur proposée | pourquoi |
+|---|---|---|---|
+| résolution obligatoire des conversations | ruleset « Production — gate humaine NEXUS » (id `22486272`) | **activée** | une remarque en revue ne peut plus être fusionnée sans avoir été close ; c'est la seule exigence de revue qu'un mainteneur unique puisse honorer |
+| `github-pages` → Required reviewers | environnement | **Frédéric** | la gate de déploiement |
+| `github-pages` → Prevent self-review | environnement | **désactivé** | sans quoi la gate est un blocage, pas une gate |
+| `github-pages` → Deployment branches | environnement | **`production`** seule | second verrou hors du code |
+| approbation de PR obligatoire | ruleset | **non demandée** | impossible à un seul mainteneur |
+| `require_last_push_approval` | ruleset | **non activé** | idem |
+
+**Aucun de ces réglages n'a été appliqué.** Ce tableau est une proposition ;
+son exécution demande une décision distincte.
 
 ---
 
@@ -222,21 +283,39 @@ dépôt : elles vivent dans les réglages, pas dans le code.
 
 Chaque étape est réversible, et le dit.
 
-### Étape 0 — poser les secrets, la variable et l'environnement
-Actions 1, 2 et 3 du §3. `NEXUS_DEPLOIEMENT_ARME` reste à `non`.
+### Étape 0 — poser les secrets et l'environnement
+Actions 1 et 2 du §3. Aucune variable à créer.
 *Effet sur le site : aucun.* *Retour arrière : supprimer les entrées.*
 
 ### Étape 1 — fusionner ce lot dans `production`
 Par pull request : `production` est protégée, `non-regression` est requis.
-Le lot ajoute **sept fichiers** — le workflow, la garde et son épreuve, le
-composeur, l'empreinte et son épreuve, le présent plan — et ne modifie que
-`.gitignore`, de cinq lignes dont `_site/`.
-**Aucun écran, aucun script applicatif n'est touché.** Les deux épreuves
-ajoutées portent la suite du dépôt de **175 à 177** fichiers de test.
+Le lot ajoute **sept fichiers, tous sous `.github/`** — le workflow, et sous
+`.github/deploiement/` la garde et son épreuve, le composeur, l'empreinte et
+son épreuve, le présent plan — et ne modifie que `.github/workflows/tests.yml`
+et `.gitignore`.
+
+**Aucun fichier du périmètre publiable n'est ajouté, retiré ni modifié.** Ce
+n'est pas une intention, c'est une mesure : l'inventaire `(mode, blob, chemin)`
+des **999** fichiers non cachés de `origin/production` et celui de l'état
+fusionné sont **identiques**, même sha256
+(`6270e7ddd53a1a5502bbb07fbc65c9fe64c1e5c13c67ee4e5273fc3377336028`). Des neuf
+chemins touchés, **zéro** a un segment ne commençant pas par un point.
+
+C'est la raison d'être de `.github/deploiement/`, et elle est plus solide que
+la seule règle du point : `upload-pages-artifact` passe `--exclude=.git
+--exclude=.github` à `tar`, **inconditionnellement**, y compris si
+`include-hidden-files` était un jour activé. Un dossier caché ordinaire ne
+tiendrait que par la première règle ; celui-ci tient par les deux.
+
+Et la suite métier retrouve sa base : les deux épreuves d'infrastructure ne
+sont plus à la racine, donc plus ramassées par `run-tests.js`, qui n'inspecte
+que la racine. L'ensemble des `test_*.js` de la racine est **identique, fichier
+pour fichier, à celui de `origin/production`** — **175**, comme avant le lot.
 
 Dès la fusion, le workflow **se déclenche** sur le push. Il construira (mode
-`a-l-identique`, puisque `build.sh` est absent), éprouvera l'artefact et
-l'emballera. **Il n'ira pas plus loin** : `NEXUS_DEPLOIEMENT_ARME` vaut `non`.
+`a-l-identique`, puisque `build.sh` est absent), éprouvera l'artefact, le
+mesurera et l'emballera. **Il n'ira pas plus loin** : le job `deployer` attend
+une approbation qui n'est pas donnée.
 
 *Effet sur le site : aucun — Pages est toujours en mode branche.*
 *Retour arrière : révoquer la PR.*
@@ -251,7 +330,7 @@ mode branche n'exposait pas davantage. Le journal de la garde énumère ces
 entrées, il n'y a donc rien à deviner.
 
 **Et relever l'empreinte** (§7), écrite dans le résumé du job : c'est elle
-qu'il faudra retrouver, inchangée, à l'étape 4. Attendu pour
+qu'il faudra retrouver, inchangée, à l'étape 3. Attendu pour
 `d5a8b77d…` : `998` fichiers hors chemins cachés — **999 sur le runner**, la
 casse d'`icon-nexus-tempo` faisant apparaître deux entrées là où macOS n'en
 voit qu'une (§2bis). Noter la valeur annoncée par l'exécution ; c'est elle qui
@@ -259,18 +338,26 @@ fait foi.
 
 *Effet sur le site : aucun.* *C'est l'étape qui rend la suivante sûre.*
 
-### Étape 3 — armer
-Passer `NEXUS_DEPLOIEMENT_ARME` à `oui`.
-*Effet sur le site : toujours aucun — Pages n'écoute pas encore les Actions.*
-*Retour arrière : repasser à `non`.*
-
-### Étape 4 — basculer la source de Pages
+### Étape 3 — basculer la source de Pages, puis approuver
 **Settings → Pages → Source : `GitHub Actions`.**
 Puis relancer le workflow : Actions → « Déploiement Production (GitHub
 Pages) » → *Run workflow* sur `production`, `deployer` = `oui`.
 
-Le déploiement s'exécute, `configure-pages` réussit maintenant que la source
-est la bonne, et Pages échange la version servie.
+Le job `construire` se déroule. Le job `deployer` s'arrête alors en attente :
+**« Review deployments » → `github-pages` → Approve and deploy.** C'est le
+geste humain, et il est redemandé à chaque exécution.
+
+Ce qui se passe entre l'approbation et la promotion tient en une étape : la
+**garde anti-obsolescence** redemande à l'API le HEAD actuel de `production` et
+le compare au SHA construit. Si la branche a avancé pendant l'attente — et
+cette attente peut durer des heures — **le déploiement échoue fermé** plutôt
+que de remettre le site dans un état plus ancien que la branche. Elle échoue
+fermé aussi si l'API ne répond pas : un doute ne publie pas.
+
+Une fois la garde franchie, `configure-pages` ayant réussi puisque la source
+est la bonne, `deploy-pages` promeut **l'artefact emballé par `construire`,
+dans cette même exécution**. Rien n'est reconstruit, rien n'est réemballé.
+Pages échange la version servie.
 
 **Contrôle immédiat**, dans cet ordre :
 1. `https://app.nexusconseil.net` s'ouvre et l'écran de connexion fonctionne ;
@@ -288,7 +375,7 @@ sans qu'aucun commit ne soit nécessaire — mesuré au §2bis : ce que ce retou
 restitue est, à `CNAME` près, **exactement** les 997 fichiers servis
 aujourd'hui, parce que la branche n'a jamais été touchée par le déploiement.
 
-### Étape 5 — seulement ensuite, le lot applicatif
+### Étape 4 — seulement ensuite, le lot applicatif
 La fusion de `ea57d4b` devient possible **parce que** `outils/build.sh`
 arrivera avec lui : le workflow basculera de lui-même en mode `construit`,
 exécutera `bash outils/build.sh` avec `NEXUS_ENV=production`, et la garde
@@ -302,7 +389,7 @@ décision distincte.**
 
 ## 5. Ce que la garde contrôle, et ce qu'elle ne contrôle pas
 
-`outils/verifier-artefact-pages.js` s'exécute avant l'emballage. Lecture
+`.github/deploiement/verifier-artefact-pages.js` s'exécute avant l'emballage. Lecture
 seule, échec fermé, et **elle ne recopie jamais ce qu'elle refuse** : le
 journal d'une exécution Actions est lisible par tout le dépôt — une garde qui
 imprime le secret qu'elle a trouvé le publie.
@@ -371,7 +458,7 @@ non-régression fige ce comportement.
 convention Cloudflare. La règle `Cache-Control: no-store` sur
 `/nexus-config.js` — que `generer-config.js` exige et vérifie au build — **ne
 sera pas appliquée** une fois servie par Pages. La garde le signale en
-avertissement, sans bloquer. Conséquence à connaître le jour où l'étape 5 est
+avertissement, sans bloquer. Conséquence à connaître le jour où l'étape 4 est
 autorisée : un `nexus-config.js` pourra être mis en cache par les
 navigateurs. Traiter ce point relève du lot applicatif, pas de celui-ci.
 
@@ -393,12 +480,53 @@ rendrait la bascule impossible.
 
 ---
 
+## 5bis. Le retour arrière en Phase 1 — ce qu'il couvre, ce qu'il ne couvre pas
+
+Une version antérieure de ce document et du workflow affirmait qu'un état plus
+ancien pouvait être republié par `workflow_dispatch` avec `ref_applicatif`.
+**C'est faux, et il vaut mieux le dire que le corriger discrètement :** le job
+`deployer` exige `needs.construire.outputs.sha_construit == github.sha`, et ce
+workflow ne repointe jamais `production`. Construire sur une autre référence
+produit donc un artefact que `deployer` refusera. Une phrase fausse sur un
+retour arrière est plus dangereuse qu'un retour arrière absent : elle se lit
+le jour de l'incident, quand personne ne relit le YAML.
+
+**Trois choses distinctes, qu'il ne faut pas confondre.**
+
+| | ce que c'est | disponible en Phase 1 |
+|---|---|---|
+| **Rollback d'hébergement** | ramener Pages de « GitHub Actions » à « Deploy from a branch » → `production` / `/ (root)` | **oui** — geste humain, hors workflow, mesuré au §2bis |
+| **Rollback applicatif** | republier un état de **code** antérieur | **non** — circuit distinct, non fourni dans cette phase |
+| **`ref_applicatif`** | construire et éprouver une référence | **oui**, et **rien d'autre** : jamais un chemin de déploiement |
+
+**Ce que couvre le rollback d'hébergement.** Il restitue exactement ce que
+`production` contient — à `CNAME` près, les 997 fichiers confrontés un à un au
+§2bis. Comme l'artefact Actions n'écrit jamais dans la branche, `production` ne
+bouge pas pendant la bascule : il n'y a ni commit à annuler, ni fusion à
+défaire. Ce retour est donc **complet pour le risque que la bascule
+introduit** — le risque d'hébergement — et pour lui seul.
+
+**Ce qu'il ne couvre pas.** Si le code de `production` est lui-même en cause,
+revenir à « Deploy from a branch » republie ce même code : l'hébergement change,
+le contenu non. Le remède est alors un geste de dépôt — `git revert` sur
+`production`, par la PR que le ruleset impose — qui est du ressort de la
+procédure applicative, pas de ce rail. La Phase 1 ne le fournit pas, et ne
+prétend pas le fournir.
+
+**Aucun chemin ne permet à ce workflow de promouvoir un artefact que le HEAD
+courant de `production` ne revendique plus.** C'est une propriété, pas une
+limitation regrettable : c'est elle qui rend l'artefact promu lisible d'une
+seule ligne.
+
+---
+
 ## 6. Permissions
 
 | où | quoi | pourquoi |
 |---|---|---|
 | workflow, niveau haut | `permissions: {}` | rien par défaut |
 | job `construire` | `contents: read` | lire l'arbre, rien de plus |
+| job `deployer` | `contents: read` | **uniquement pour la garde anti-obsolescence**, qui demande à l'API le HEAD courant de `production`. Ce job ne fait aucun `checkout` — et c'est voulu : il ne doit rien pouvoir reconstruire |
 | job `deployer` | `pages: write`, `id-token: write` | exigé par `deploy-pages` ; **ce droit n'existe que dans le job qui déploie** |
 | checkout | `persist-credentials: false` | le jeton ne reste pas dans l'arbre construit |
 
@@ -430,12 +558,103 @@ remplacement tient en une ligne — SHA de **v4.0.0** :
 `7b1f4a764d45c48632c6b24a0339c27f5614fb0b`. **C'est une décision de Frédéric,
 pas un point technique.**
 
-Quatre conditions cumulatives gardent le job `deployer` : branche
-`production`, `NEXUS_DEPLOIEMENT_ARME == 'oui'`, déclenchement par push ou
-`deployer == 'oui'`, et **le commit construit doit être celui du
-déclenchement**. C'est cette dernière qui rend l'entrée `ref_applicatif`
-inoffensive : elle permet de répéter le build sur n'importe quelle référence,
-et ne peut jamais atteindre le déploiement.
+### Ce qui garde le job `deployer` — trois conditions, une gate, une garde
+
+**Trois conditions cumulatives** dans le `if:` du job :
+
+1. branche `production` ;
+2. déclenchement par push, ou `deployer == 'oui'` sur un lancement manuel ;
+3. **le commit construit doit être celui du déclenchement**
+   (`needs.construire.outputs.sha_construit == github.sha`).
+
+C'est la troisième qui rend l'entrée `ref_applicatif` inoffensive : construire
+sur une autre référence produit un artefact que le job `deployer` **refusera**,
+puisque `sha_construit` ne sera pas égal à `github.sha`. `ref_applicatif` sert
+donc à éprouver un build, **jamais à déployer** — voir §5bis.
+
+**Il n'y a plus de quatrième condition sur une variable de dépôt.**
+`NEXUS_DEPLOIEMENT_ARME` a disparu du `if:`. `vars.*` n'est lu nulle part dans
+ce fichier — ni dans le `if:`, ni dans une étape, ni dans une expression — et
+le dépôt ne possède aucune variable d'Actions. Aucun chemin ne subsiste par
+lequel la seule présence d'une valeur persistante autoriserait un déploiement
+futur. Ce qui autorise est une approbation, redemandée à chaque exécution
+(§3bis).
+
+**La gate humaine n'est pas dans le `if:`** : elle est dans `environment:
+github-pages`, dont les *Required reviewers* suspendent le job jusqu'à
+approbation (§3, geste 2).
+
+**Puis une garde, après l'approbation et juste avant la promotion.** L'étape
+« Garde anti-obsolescence » interroge l'API — `repos/…/git/ref/heads/production`
+— et compare le HEAD courant au SHA construit. Si un commit plus récent
+existe, **le déploiement échoue fermé** : on ne publie pas un artefact devenu
+obsolète pendant que l'approbation attendait. Elle échoue également fermé
+quand l'API est injoignable, quand le HEAD est illisible, et quand le SHA
+construit est vide — l'absence de réponse n'est jamais lue comme une
+autorisation. Elle ne porte pas `if: always()`, et ce serait une faute : une
+garde qui s'exécute après un échec amont n'a plus rien à garder.
+
+**Déployer délibérément un SHA plus ancien n'est possible par aucun chemin de
+ce rail.** Ni en contournant la garde, ni par `workflow_dispatch` : voir §5bis,
+qui énonce ce que le retour arrière de Phase 1 couvre et ce qu'il ne couvre
+pas.
+
+**La sémantique de `compare`, parce qu'elle avait été lue à l'envers.**
+`GET /repos/{dépôt}/compare/{BASE}...{TÊTE}` renvoie un `status` qui décrit
+**TÊTE par rapport à BASE**. La garde appelle `compare/${SHA_CONSTRUIT}...${TETE}` :
+BASE est donc le SHA construit, TÊTE le HEAD courant de `production`.
+
+| `status` | ce que cela veut dire ici |
+|---|---|
+| `ahead` | **`production` a avancé** depuis la construction — c'est le cas d'obsolescence pour lequel la garde existe |
+| `behind` | c'est le SHA construit qui descend du HEAD courant |
+| `identical` | incohérent à ce point du script, qui n'est atteint qu'avec deux SHA différents |
+| `diverged` | aucun des deux ne contient l'autre (réécriture d'historique) |
+
+Vérifié le 15/09/2026 **sur le dépôt lui-même, en lecture seule** :
+`compare/da6525f0…...d5a8b77d…` (parent → enfant) répond `ahead`, `ahead_by: 1`,
+`behind_by: 0` ; le sens inverse répond `behind` ; deux fois le même SHA répond
+`identical`. La version précédente de ce document, comme celle du `case`,
+appelait `behind` le cas d'un HEAD qui avait avancé. Les deux refusaient, donc
+l'épreuve passait — c'est le diagnostic qui aurait désigné la mauvaise
+situation.
+
+**Format des SHA.** `TETE` et `SHA_CONSTRUIT` sont validés contre
+`^[0-9a-f]{40}$`, pas contre une simple longueur de 40 : quarante caractères
+quelconques — un fragment de JSON, un message d'erreur, une chaîne tronquée à
+la bonne taille — ne sont pas un SHA. La forme est écrite en `sh` portable :
+un `case` qui rejette la chaîne vide et tout caractère hors `[0-9a-f]`, suivi
+du test de longueur.
+
+**Épreuve de la garde.** Le script est extrait tel quel du YAML (104 lignes,
+zéro expression `${{ }}`) et rejoué contre un `gh` simulé. Ce `gh` ne reçoit
+plus le `status` par variable d'environnement : il le **calcule** à partir d'un
+graphe d'ancêtres déclaré, selon la règle réelle de l'API — sans quoi l'épreuve
+ne vérifierait que sa propre convention. Chaque cas exige **le code de sortie
+et un fragment du diagnostic** ; c'est cette seconde exigence qui rend une
+inversion `ahead`/`behind` détectable. **17 contrôles, 17 conformes :**
+
+| cas | attendu | obtenu |
+|---|---|---|
+| HEAD identique au SHA construit | publie (code 0) | ✅ |
+| `production` a avancé d'un commit (`ahead`) | refus (code 1), diagnostic « a avancé depuis la construction » | ✅ |
+| `production` a avancé de deux commits (`ahead`) | refus, même diagnostic | ✅ |
+| SHA construit en avance sur le HEAD (`behind`) | refus, diagnostic « en avance sur » | ✅ |
+| historique divergent (`diverged`, force-push) | refus, diagnostic « divergé » | ✅ |
+| HEAD de 40 caractères non hexadécimaux (`zzz…`) | refus | ✅ |
+| SHA construit de 40 caractères non hexadécimaux | refus | ✅ |
+| HEAD tronqué (`abc123`) | refus | ✅ |
+| HEAD vide | refus | ✅ |
+| `sha_construit` vide | refus | ✅ |
+| API de référence injoignable | refus, fermé | ✅ |
+| `compare` injoignable, HEAD différent | refus (relation « inconnue ») | ✅ |
+| le résumé de refus énonce la formulation de rollback de Phase 1 | 3 fragments présents | ✅ |
+| le résumé ne contient plus l'ancienne formulation fausse | 2 fragments absents | ✅ |
+
+**Mutation.** Une épreuve verte ne prouve rien tant qu'elle n'a pas été vue
+mordre. Deux mutations ont été injectées dans le script extrait : réinverser
+`ahead`/`behind` → **14 réussis, 3 échoués** ; revenir à la validation par la
+seule longueur → **15 réussis, 2 échoués** ; script restauré → **17/17**.
 
 ---
 
@@ -444,7 +663,7 @@ et ne peut jamais atteindre le déploiement.
 La procédure v2 tient sur une phrase : **construire une fois, éprouver
 l'artefact construit, puis promouvoir exactement le même artefact.** « Le
 même » n'est vérifiable que s'il porte un nom qui change dès qu'un octet
-change. C'est ce que produit `outils/empreinte-artefact.js`.
+change. C'est ce que produit `.github/deploiement/empreinte-artefact.js`.
 
 ### Comment elle est calculée
 
@@ -484,8 +703,41 @@ de l'URL déployée. Les deux lignes se lisent en quelques secondes — c'est l�
 que se joue le « moins de 5 minutes d'arbitrage humain par déploiement ».
 
 Les six champs exigés par la procédure v2 : `sha_source`, `empreinte_artefact`,
-`environnement`, `migrations_nombre` + `migrations_empreinte`,
-`identifiant_build`, et la provenance (`procede`, `atelier`, `run`).
+`environnement`, `migrations_source_nombre` + `migrations_source_empreinte`
+(+ `migrations_source_liste`), `identifiant_build`, et la provenance
+(`procede`, `atelier`, `run`).
+
+### La provenance des migrations : un périmètre, un seul
+
+Les champs portent désormais le mot **`source`**, et ce n'est pas cosmétique.
+Le périmètre mesuré est **exclusivement `supabase/migrations/*.sql`** : un seul
+dossier, sans récursion, sans fichier caché, extension `.sql` uniquement, tri
+en ordre d'octets. Sur la base actuelle : **240 fichiers**.
+
+| champ | ce qu'il porte |
+|---|---|
+| `migrations_source_nombre` | le compte de `supabase/migrations/*.sql` — **240** |
+| `migrations_source_empreinte` | sha256 du manifeste `<sha256>  <nom>` de ces seuls fichiers |
+| `migrations_source_liste` | leurs noms, dans l'ordre mesuré |
+
+Le nom précédent — `migrations_nombre` — laissait croire à un inventaire de
+*toutes* les migrations du dépôt. Un parcours large en ramasse **256** : 240
+sources, plus 11 SQL épars, 2 exports, 3 réparations, moins 2 doublons de
+chemin. Le pire faux compte venait de `migrations_appliquees.sql`, qui est un
+**export d'état appliqué**, pas une migration. **Aucun SQL épars, export,
+réparation ou retour arrière n'est qualifié de migration canonique.**
+
+Ce champ dit donc une chose précise et vérifiable : *quelles migrations
+source l'arbre promu contient*. Il ne prétend pas dire ce qui est appliqué en
+Production. **Le rapprochement Git ↔ Production ↔ Test est un lot séparé, en
+lecture seule, et ne fait pas partie de cette PR.**
+
+Relevé le 15/09/2026, et recalculé indépendamment en shell pour contrôle :
+
+```
+migrations_source_nombre    : 240
+migrations_source_empreinte : 87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6e82caaa7666430
+```
 
 ### Ce que l'épreuve contrôle
 
@@ -526,7 +778,7 @@ Mesures de poste, donc soumises à l'écart de casse décrit au §2bis : sur le
 runner Linux, la première ligne portera 999 fichiers et une autre empreinte.
 **L'empreinte faisant foi est celle de l'exécution.**
 
-### Le build n'est pas reproductible — d'exactement une seconde
+### Le build n'est pas reproductible — d'exactement une seconde (dette de Phase 2)
 
 Question posée sur le candidat `ea57d4b` : **deux constructions de la même
 source donnent-elles le même artefact ?** Deux clones indépendants, construits
@@ -547,9 +799,22 @@ non-reproductibilité ne vient pas de là, contrairement à ce qui était suppos
 pas une discipline que l'on peut rattraper : **une reconstruction ne pourra
 jamais retrouver l'empreinte validée.** C'est une raison de plus de promouvoir
 l'artefact déjà emballé — ce que fait `deploy-pages` — et jamais de rejouer le
-build « pour être sûr ». Le remède serait de dériver `construitLe` de la date
-du commit, ou de le retirer. **Il n'est pas appliqué ici :** `poser-build-id.js`
-vit sur `ea57d4b`, et ce lot ne mêle aucune évolution d'un autre lot.
+build « pour être sûr ».
+
+**Ce que cela n'impose pas — arbitrage du 15/09/2026.** Ce défaut avait été
+présenté comme bloquant ; il ne l'est pas, et il faut dire pourquoi
+exactement. Le rail ne reconstruit jamais entre l'épreuve et la promotion :
+`construire` emballe **un seul** artefact, `deployer` promeut **celui-là**, et
+les deux jobs appartiennent à la **même exécution**. Aucune reconstruction
+inter-exécutions n'est nécessaire, donc la seconde qui varie n'est jamais
+comparée à elle-même. **Le déterminisme de `construitLe` est reclassé en dette
+de Phase 2** : souhaitable pour l'auditabilité et pour une reconstruction de
+secours — le jour où il faudrait refabriquer un artefact perdu et prouver
+qu'il est le même — mais **non bloquant pour ce lot**.
+
+Le remède, quand il viendra : dériver `construitLe` de la date du commit, ou le
+retirer. **Il n'est pas appliqué ici :** `poser-build-id.js` vit sur `ea57d4b`,
+et ce lot ne mêle aucune évolution d'un autre lot.
 
 ### La mesure ne touche pas ce qu'elle mesure
 
@@ -557,3 +822,100 @@ L'outil ouvre en lecture seule, n'écrit que là où on le lui dit
 (`--journal`, `--sortie`, `--resume`), et un contrôle dédié vérifie que
 l'arbre mesuré est inchangé après la mesure. Aucun privilège, aucune session,
 aucun secret : il ne lit que des octets de fichiers.
+
+---
+
+## 8. Ce que la CI exécute, et ce qu'elle rapporte
+
+### Deux résultats, pas un seul
+
+Les deux épreuves du rail vivent sous `.github/deploiement/` et **ne sont pas
+ramassées par `run-tests.js`** : sa découverte est plate et limitée à la racine
+(`readdirSync(__dirname)` filtré sur `test_*.js`). Les déplacer les en a donc
+sorties **sans toucher une ligne de `run-tests.js`** — ce qui était la
+contrainte.
+
+Elles sont lancées dans `tests.yml` comme **deux étapes dédiées et bloquantes**,
+après la suite métier. Deux raisons de ne pas les fondre dedans :
+
+- un échec d'infrastructure ne doit pas se lire comme une régression métier, ni
+  se cacher derrière la liste des 9 échecs tolérés ;
+- la suite métier tourne en `continue-on-error: true` — un échec
+  d'infrastructure noyé dedans **ne ferait rien échouer du tout**. En étape
+  séparée, sans tolérance, il arrête la CI.
+
+Les huit étapes du job `non-regression`, dans l'ordre :
+
+| # | étape | tolérance |
+|---|---|---|
+| 1 | `actions/checkout` | — |
+| 2 | `actions/setup-node` (Node 24) | — |
+| 3 | Cohérence des épingles de cache | bloquante |
+| 4 | Suite de non-régression (`run-tests.js`) | `continue-on-error: true` |
+| 5 | Comparer aux échecs connus (liste de 9) | **bloquante** |
+| 6 | Simulations métier | bloquante |
+| 7 | **Infrastructure — empreinte de l'artefact** | **bloquante, aucune tolérance** |
+| 8 | **Infrastructure — garde de l'artefact Pages** | **bloquante, aucune tolérance** |
+
+### Les trois résultats, relevés le 15/09/2026
+
+| suite | résultat | échecs |
+|---|---|---|
+| métier — `node run-tests.js` | **166/175** | les **9** échecs connus, ni plus ni moins |
+| `test_empreinte_artefact_20260915.js` | **23/23** | aucun |
+| `test_verifier_artefact_pages_20260915.js` | **37/37** | aucun |
+
+**Sur la base historique.** La cible annoncée était « 167/176 avec les mêmes 9
+échecs connus ». Le compte réel est **166/175**, et c'est bien la base
+historique : `origin/production` porte **175** fichiers `test_*.js` à la racine,
+dont 166 passent et 9 échouent. Après le déplacement, l'ensemble des `test_*.js`
+de la racine est **identique, fichier pour fichier, à celui de
+`origin/production`** — le lot n'en ajoute ni n'en retire aucun. Avant le
+déplacement la racine en portait 177 (les deux épreuves d'infrastructure), d'où
+un compte qui n'était pas comparable. Le chiffre « 167/176 » ne correspond à
+aucun état mesuré ; **la base retrouvée est 166/175**, avec exactement les 9
+échecs listés dans `tests.yml`.
+
+Les 9 échecs connus, inchangés : inventaire ×5, réception ×2, carburant ×1,
+pilotage ×1.
+
+### `retention-days: 7` — pourquoi c'est écrit explicitement
+
+Le défaut de `upload-pages-artifact` est **`1`** — un seul jour. Ce n'est pas un
+réglage de confort : c'est la durée pendant laquelle l'artefact promu reste
+téléchargeable, donc **la fenêtre dans laquelle on peut encore rejouer
+`empreinte-artefact.js` dessus** et confronter l'empreinte à ce que l'URL sert
+réellement. Un jour ne couvre pas un week-end ; sept jours couvrent le délai de
+48 h annoncé pour une release normale, plus la marge d'un incident découvert
+tard.
+
+**Un seul téléversement, ici et nulle part ailleurs.** `construire` emballe une
+fois ; `deployer` promeut cet artefact-là et n'en fabrique pas un second.
+
+---
+
+## 9. Dette externe — Cloudflare Pages (constat seul)
+
+**Aucun correctif Cloudflare n'est apporté par ce lot, et c'est délibéré.** Le
+sujet est documenté ici pour qu'il ne soit pas confondu avec un signal de cette
+PR.
+
+| constat | mesure |
+|---|---|
+| échec du contrôle Cloudflare Pages | identique sur `d5a8b77d`, `04738f1` et `067a293` |
+| 30 derniers commits de `origin/production` | **0 succès, 3 échecs, 27 sans contrôle** |
+| projet visé | `nexus-test` — `a581d7a4-2244-4d69-a3a1-bad0f6606aa6` |
+| cause racine | **non établie** — les journaux vivent dans le tableau de bord Cloudflare, hors du dépôt |
+
+**Ce que cela établit :** l'échec **préexiste au lot** et ne dépend pas de son
+contenu — il tombe de la même façon sur un commit antérieur de `production` que
+sur la branche du lot. Ce n'est donc pas une régression introduite ici, et ce
+n'est pas un indicateur de santé exploitable en l'état.
+
+**Ce que cela n'établit pas :** pourquoi il échoue. Tant que les journaux du
+tableau de bord n'ont pas été lus, toute cause avancée serait une hypothèse.
+
+**Traitement prévu :** lot séparé. Deux issues possibles — réparer l'intégration
+(si `nexus-test` doit continuer d'être construit par Cloudflare) ou la retirer
+(si le rail GitHub Actions la rend redondante). **Le choix appartient à
+Frédéric**, et il n'a pas à être fait pour fusionner ce lot.

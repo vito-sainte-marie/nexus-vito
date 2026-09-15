@@ -28,7 +28,7 @@ npm-debug.log*
 *.tgz
 supabase/.temp/
 
-# Artefact public composé par outils/composer-artefact-public.js. Produit à
-# chaque déploiement, jamais versionné : le committer ferait vivre deux copies
-# de chaque écran, dont l'une vieillirait en silence.
+# Artefact public composé par .github/deploiement/composer-artefact-public.js.
+# Produit à chaque déploiement, jamais versionné : le committer ferait vivre
+# deux copies de chaque écran, dont l'une vieillirait en silence.
 _site/
