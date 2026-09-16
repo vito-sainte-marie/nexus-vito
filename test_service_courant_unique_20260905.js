@@ -61,15 +61,34 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
       if (/from\('shifts'\)/.test(ligne)) lectures.push(`${f}:${i + 1}`);
     });
   }
-  // Trois accès légitimes et trois seulement :
-  //   nexus-auth.js                  → la primitive
+  // Trois FICHIERS légitimes et trois seulement :
+  //   nexus-auth.js                  → la primitive, et elle seule
   //   NEXUS-Prise-De-Poste-v1.html   → l'unique insert
   //   NEXUS-Missions-v1.html         → l'historique comparable, jamais le service courant
-  assert.strictEqual(lectures.length, 3,
+  //
+  // L'assertion portait sur le NOMBRE DE LIGNES (3). Le 16/09/2026, la
+  // primitive a gagné un second accès — l'UPDATE de clôture des services
+  // obsolètes — et le test a échoué. Il avait raison de le faire : il ne
+  // savait pas distinguer « un écran de plus touche shifts », ce qui rouvre
+  // le défaut de S-4, de « la primitive fait une chose de plus », ce qui ne
+  // le rouvre pas. Compter des lignes était une approximation du vrai
+  // invariant : QUELS fichiers touchent shifts, et combien de fois la
+  // primitive le LIT.
+  const fichiers = [...new Set(lectures.map(l => l.split(':')[0]))].sort();
+  assert.deepStrictEqual(fichiers,
+    ['NEXUS-Missions-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'nexus-auth.js'],
     'Neuf lectures devaient converger vers une primitive :\n  ' + lectures.join('\n  '));
-  assert.ok(lectures.some(l => l.startsWith('nexus-auth.js')));
-  assert.ok(lectures.some(l => l.startsWith('NEXUS-Prise-De-Poste-v1.html')));
-  assert.ok(lectures.some(l => l.startsWith('NEXUS-Missions-v1.html')));
+
+  // Une seule LECTURE dans la primitive. `select(` désigne ici la projection
+  // d'une lecture ; l'écriture de clôture porte `.select('id')` en fin de
+  // chaîne pour compter ses lignes, et se reconnaît à son `.update(`.
+  const auth = sansCommentaires(lire('nexus-auth.js'));
+  const acces = auth.split("from('shifts')").slice(1);
+  const ecritures = acces.filter(a => /^[\s\S]{0,600}?\.update\(/.test(a));
+  assert.strictEqual(acces.length - ecritures.length, 1,
+    'La définition du service courant doit rester UNE lecture de shifts.');
+  assert.strictEqual(ecritures.length, 1,
+    'Une seule écriture sur shifts hors prise de poste : la clôture des services obsolètes.');
 });
 
 verifier('les sept consommateurs passent par la primitive', () => {

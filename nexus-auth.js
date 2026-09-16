@@ -117,6 +117,89 @@ async function nexusRequireAuth() {
 // ────────────────────────────────────────────────────────────────────
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
 async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+/**
+ * Refermer ce qu'un jour précédent a laissé ouvert — sans inventer la fin.
+ * ────────────────────────────────────────────────────────────────────
+ * LE FAIT, 16/09/2026. Trois services étaient encore `en_cours` en
+ * Production : un depuis le 14/09, un depuis le 15/09, un quart du matin
+ * déjà fini. Personne n'avait pointé de départ. `nexusServiceCourant` les
+ * VOYAIT — il les ignorait depuis le 11/09 et l'écrivait dans la console —
+ * mais rien ne les refermait : ils restaient « actifs » pour le manager,
+ * indéfiniment.
+ *
+ * L'ARBITRAGE. NEXUS est utilisé de façon intermittente pendant le pilote.
+ * Exiger le pointage fermerait l'application à ceux qui ne l'ont pas
+ * utilisée ; inventer une heure de fin fabriquerait des durées fausses,
+ * comme les 2 jours 00 h 24 que la migration P-2 vient d'effacer. Le seul
+ * modèle cohérent : NEXUS referme seul, dit qu'il l'a fait, et n'écrit
+ * AUCUNE heure de fin.
+ *
+ * `cloture_source = 'cycle_pilote'` (P-3) et `cloture_par` NULL : aucun
+ * humain n'a pris cette décision, et le journal doit pouvoir le dire. C'est
+ * ce champ qui permettra demain de distinguer « l'équipe pointe » de
+ * « NEXUS a fermé à sa place » — donc de savoir ce que le pilote mesure.
+ *
+ * CE QUE CETTE FONCTION NE FAIT PAS. Elle ne décide pas ce qui est
+ * obsolète : la règle vit dans `nexus-pointage-regles.js`, et sans ce
+ * module elle ne fait RIEN plutôt que d'en recopier une version locale.
+ * Sept copies d'une même règle de pointage ont déjà coûté une journée.
+ *
+ * Elle ne connaît pas non plus le seuil de bascule des quarts : le
+ * contexte qu'elle fournit n'a pas de `seuilBascule`, donc `serviceObsolete`
+ * n'applique ici que le critère du jour précédent. Un quart du matin fini
+ * le jour même sera refermé par l'écran qui, lui, possède ce seuil — ou
+ * demain, par le critère du jour. Fournir un seuil approximatif serait
+ * pire : NEXUS fermerait des services encore en cours.
+ *
+ * Retour : { closes, tentees, indisponible? } — jamais d'exception. Une
+ * clôture de ménage ne doit pas empêcher un employé d'accéder à son écran.
+ */
+async function nexusCloturerServicesObsoletes(employee, services){
+  const regles = (typeof NexusPointageRegles !== 'undefined') ? NexusPointageRegles : null;
+  if(!regles || !regles.MOTIF_CLOTURE_PILOTE){
+    console.error('Cycle des services : nexus-pointage-regles.js n’est pas chargé par cet écran — aucune clôture automatique n’est tentée. Le motif ne se recopie pas ici : il n’existe qu’à un seul endroit.');
+    return { closes: 0, tentees: 0, indisponible: true };
+  }
+  if(!employee || !employee.id || !services || !services.length) return { closes: 0, tentees: 0 };
+
+  const maintenant = new Date().toISOString();
+  let closes = 0;
+  for(const obsolete of services){
+    const { data, error } = await nexusClient
+      .from('shifts')
+      .update({
+        statut:         'clos_sans_pointage',
+        heure_fin:      null,
+        cloture_source: 'cycle_pilote',
+        cloture_le:     maintenant,
+        cloture_par:    null,
+        cloture_motif:  regles.MOTIF_CLOTURE_PILOTE[obsolete.motif] || regles.MOTIF_CLOTURE_PILOTE.jour_precedent,
+      })
+      // `statut = en_cours` dans le filtre, et pas seulement l'identifiant :
+      // deux onglets ouverts font la même chose en même temps. Le second ne
+      // doit pas réécrire une clôture déjà posée, ni compter comme un succès.
+      .eq('id', obsolete.service.id)
+      .eq('statut', 'en_cours')
+      .select('id');
+    if(error){
+      console.error('Cycle des services : clôture du service ' + obsolete.service.id + ' impossible —', error);
+      continue;
+    }
+    // Zéro ligne SANS erreur : un refus de RLS ne lève rien, et une clôture
+    // concurrente non plus. On dit ce qui est mesuré, on ne tranche pas
+    // entre deux causes qu'on n'a pas observées.
+    if(!data || !data.length){
+      console.error('Cycle des services : le service ' + obsolete.service.id + ' n’a pas été modifié — il a été fermé entre-temps, ou cette écriture est refusée.');
+      continue;
+    }
+    closes++;
+  }
+  if(closes > 0){
+    console.info('Cycle des services : ' + closes + ' service(s) d’un jour précédent refermé(s) sans heure de fin (phase pilote).');
+  }
+  return { closes, tentees: services.length };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // S-4 (05/09/2026) — LE service courant. Une seule définition.
 //
@@ -193,6 +276,22 @@ async function nexusServiceCourant(employee){
   const ouvertsHorsDuJour = tous.length - services.length;
   if(ouvertsHorsDuJour > 0){
     console.error('Service courant : ' + ouvertsHorsDuJour + ' service(s) ouvert(s) commence(s) un autre jour, ignore(s) \u2014 le service de la veille n\'est jamais reutilise.');
+    // 16/09/2026 — LES IGNORER NE SUFFISAIT PAS. Ils restaient `en_cours` en
+    // base, donc « actifs » pour le manager, sans fin et sans terme. NEXUS les
+    // referme ici, au moment exact où il constate leur existence.
+    //
+    // La liste vient de la règle, jamais de la soustraction ci-dessus : un
+    // service sans `heure_debut` n'appartient à aucun jour, et ne doit donc
+    // pas être refermé au motif qu'il n'est pas d'aujourd'hui.
+    //
+    // `await` : la lecture attend le ménage. C'est une requête par service
+    // obsolète, et le cas normal est zéro. En échange, deux écrans ouverts
+    // ne relancent pas indéfiniment la même clôture.
+    const regles = (typeof NexusPointageRegles !== 'undefined') ? NexusPointageRegles : null;
+    const obsoletes = regles && regles.servicesObsoletes
+      ? regles.servicesObsoletes(tous, { jourStation: jourLocal, jourDeService: d => nexusDateLocaleISO(d) })
+      : [];
+    if(obsoletes.length) await nexusCloturerServicesObsoletes(employee, obsoletes);
   }
   if(!services.length) return { aucun: true };
   // S-1 pose un index unique partiel : plus d\u2019un service ouvert est
