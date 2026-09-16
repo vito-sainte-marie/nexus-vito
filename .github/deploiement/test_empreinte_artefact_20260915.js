@@ -435,15 +435,18 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
     'un chemin caché est entré dans l\'empreinte alors qu\'il ne sera pas emballé');
 });
 
-// Rendre la provenance fermée ne devait rien changer au dépôt réel : mêmes
-// 240 migrations, même empreinte. Ces deux valeurs peuvent être écrites ici
-// sans se contredire — elles ne dépendent que de `supabase/migrations/*.sql`,
-// jamais de ce fichier. (Ce qu'un fichier ne peut pas nommer, c'est sa propre
-// empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
-const MIGRATIONS_REELLES_NOMBRE = 240;
-const MIGRATIONS_REELLES_EMPREINTE = '87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6e82caaa7666430';
+// Ces deux valeurs peuvent être écrites ici sans se contredire — elles ne
+// dépendent que de `supabase/migrations/*.sql`, jamais de ce fichier. (Ce
+// qu'un fichier ne peut pas nommer, c'est sa propre empreinte d'artefact, et
+// ce n'est pas ce qui est mesuré ici.)
+//
+// 240 → 261 le 16/09/2026. Ce n'est pas une livraison de 21 migrations : ce
+// sont 21 migrations DÉJÀ APPLIQUÉES en Production dont le fichier manquait au
+// dépôt. Le compte du dépôt rejoint celui de la base — il ne le devance pas.
+const MIGRATIONS_REELLES_NOMBRE = 261;
+const MIGRATIONS_REELLES_EMPREINTE = '064612d4bbd1ba3445f2c8be5256aefd916248a77e4aa6c157e01aff6c8b4978';
 
-cas('Réel · la provenance des migrations reste 240 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations reste complète et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
