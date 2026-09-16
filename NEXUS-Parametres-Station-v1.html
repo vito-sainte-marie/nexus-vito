@@ -1117,13 +1117,30 @@
   });
 
 
-  // Valeurs par défaut Vito Sainte-Marie Usine. Les fins de quart
-  // reprennent l'ancienne règle devinée (+7h dim-mer, +8h jeu-sam)
-  // comme point de départ raisonnable — modifiable librement une
-  // fois que les vraies heures de fermeture sont connues.
+  // Valeurs par défaut Vito Sainte-Marie Usine. Les fins de quart ont
+  // longtemps repris « l'ancienne règle devinée (+7h dim-mer, +8h jeu-sam),
+  // point de départ raisonnable, modifiable une fois les vraies heures de
+  // fermeture connues ». Elles le sont depuis l'arbitrage du 09/09/2026 :
+  // ce sont celles écrites ici. Ce bloc n'est donc plus une supposition.
+  //
+  // Ce n'est pas une fixture : c'est ce que le bouton « Réinitialiser aux
+  // valeurs Vito Sainte-Marie Usine » ÉCRIT en base. Le laisser sur les
+  // valeurs devinées armait l'annulation silencieuse de l'arbitrage — et
+  // quart2 ne portait même pas les valeurs de Production (19:40 / 21:40 au
+  // lieu de 20:05 / 22:05) : le bouton n'a jamais restauré ce qu'il
+  // annonçait restaurer.
+  //
+  // Les quatre fixtures qui figent ENCORE 12:45 / 13:45 / 20:05 / 22:05 —
+  // simulations/scenarios-carburant.js, simulations/executer-ventilation.js,
+  // test_chaine_temporelle_carburant_20260821.js et
+  // test_carburant_performance_reception_20260902.js — décrivent la
+  // Production telle qu'elle est aujourd'hui, et non telle qu'elle doit
+  // être. Elles se mettent à jour APRÈS l'application du correctif, pas
+  // avant, sinon elles resteraient vertes en décrivant une station qui
+  // n'existe plus.
   const HORAIRES_DEFAUT = {
-    quart1: { normal: "05:45", etendu: "05:45", fin_normal: "12:45", fin_etendu: "13:45" },
-    quart2: { normal: "12:40", etendu: "13:40", fin_normal: "19:40", fin_etendu: "21:40" },
+    quart1: { normal: "05:45", etendu: "05:45", fin_normal: "13:15", fin_etendu: "14:15" },
+    quart2: { normal: "12:40", etendu: "13:40", fin_normal: "20:10", fin_etendu: "22:10" },
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
     temps_habillage_min: 15,
   };
@@ -1172,6 +1189,27 @@
   // pas encore pour ce site (23502 — null value in column "horaires").
   let { horaires: CONFIG_HORAIRES_ACTUEL, fuseau: FUSEAU_ACTUEL } = await chargerConfig();
   remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
+
+  // Mais cet instantane est pris UNE SEULE FOIS, au chargement de la page, et
+  // il est renvoye par huit ecritures de reglages sans aucun rapport avec les
+  // horaires (raccourcis, pointage, pointage manager, jaugeage, prix
+  // carburants, Google Sheet). Tant que personne ne modifie les horaires
+  // ailleurs, cela ne se voit pas. Le jour ou quelqu'un les modifie — depuis
+  // un autre appareil, ou par une correction appliquee directement en base —
+  // un onglet Parametres ouvert AVANT ce changement les reecrit a l'ancienne
+  // valeur des qu'on y touche n'importe quel reglage. La correction serait
+  // annulee par un geste sans rapport visible avec elle, et sans erreur.
+  // On relit donc horaires juste avant chaque ecriture de reglage : la ligne
+  // existe presque toujours, et c'est alors sa valeur fraiche qui est reecrite
+  // a l'identique. Le repli sur le cache ne sert plus qu'au seul cas qui a
+  // motive ce champ : la ligne station_config n'existe pas encore pour ce site.
+  async function horairesPourEcriture(site) {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', site).maybeSingle();
+    // Lecture impossible : on n'ecrit pas. Renvoyer le cache ici retablirait
+    // tel quel le defaut que cette fonction corrige.
+    if (error) { console.error('Relecture horaires avant ecriture:', error); return { error }; }
+    return { horaires: (data && data.horaires) || CONFIG_HORAIRES_ACTUEL };
+  }
   document.getElementById('fuseau_horaire').value = FUSEAU_ACTUEL;
 
   // Forfait NEXUS (26/07/2026) — affichage lecture seule uniquement.
@@ -1274,8 +1312,9 @@
     document.getElementById('sauvegarderRaccourcis').addEventListener('click', async () => {
       const btn = document.getElementById('sauvegarderRaccourcis');
       btn.disabled = true;
-      const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(siteId);
+      const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: horairesFrais, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       btn.disabled = false;
@@ -1286,8 +1325,9 @@
     });
 
     document.getElementById('reinitialiserRaccourcis').addEventListener('click', async () => {
-      const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: null, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(siteId);
+      const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+        { site: siteId, raccourcis: null, horaires: horairesFrais, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       if (error) { console.error('Réinitialisation raccourcis:', error); alert('Erreur — réessayez.'); return; }
@@ -1371,8 +1411,9 @@
   document.getElementById('pointageActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, pointage_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, pointage_actif: actif, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1413,8 +1454,9 @@
   document.getElementById('managerPointageRequis').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, manager_pointage_requis: actif, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1460,8 +1502,9 @@
   document.getElementById('jaugeageCarburantActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1619,8 +1662,9 @@
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, prix_carburants, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1933,8 +1977,9 @@
       seuil_ecart_mesure_pct: seuilMesure,
       ordre_cuves: RECEPTION_ORDRE_CUVES_ACTUEL.map(cu => ({ carburant: cu.carburant, cuve_id: cu.id })),
     };
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, reception_carburant_config, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, reception_carburant_config, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1990,8 +2035,9 @@
     const btn = document.getElementById('sauvegarderConsignesReception');
     const consignes = RECEPTION_CONSIGNES_ACTUELLES.map(c => ({ theme: (c.theme || '').trim(), texte: (c.texte || '').trim() })).filter(c => c.texte);
     btn.disabled = true;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, consignes_securite_reception: consignes, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, consignes_securite_reception: consignes, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2022,8 +2068,9 @@
     const nom = document.getElementById('contactReceptionNom').value.trim();
     const telephone = document.getElementById('contactReceptionTel').value.trim();
     btn.disabled = true;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, contact_manager_reception: { nom, telephone }, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, contact_manager_reception: { nom, telephone }, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2157,8 +2204,9 @@
     }
     btn.disabled = true;
     const google_sheet_id = actif ? idSaisi : null;
-    const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, google_sheet_id, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2190,8 +2238,9 @@
     // serveur. On enregistre donc d'abord l'identifiant saisi (même si la
     // synchronisation n'est pas encore activée) pour que le test porte
     // bien sur CE classeur.
-    const { error: saveErr } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+    const { horaires: horairesFrais, error: errHoraires } = await horairesPourEcriture(employee.site_id);
+    const { error: saveErr } = errHoraires ? { error: errHoraires } : await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, google_sheet_id: idSaisi, horaires: horairesFrais, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (saveErr) {
