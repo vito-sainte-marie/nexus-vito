@@ -104,3 +104,22 @@ jobs:
       # satisfaite par un tel événement.
       - name: 'Infrastructure — un `pull_request` ne peut pas déployer'
         run: node .github/deploiement/test_garde_deployer_20260915.js
+
+      # ─── Guardian Philosophie NEXUS — RAPPORT, jamais une barrière ────────
+      # `decision-1.md` du lot NEXUS-ORCHESTRATION-GUARDIANS-1-20260907 (Q75)
+      # l'a arbitré CONSULTATIF : jamais bloquant tant qu'il dépend d'un
+      # jugement de modèle. Le `|| true` n'est donc pas une tolérance concédée
+      # faute de mieux, c'est sa doctrine qui l'impose.
+      #
+      # Il ne note personne : il nomme les sections titrées dont la
+      # disparition est ambiguë — « vérifié, rien à signaler » ou « pas
+      # vérifié » ? — et rappelle les neuf critères au relecteur.
+      #
+      # Son épreuve propre n'a PAS d'étape ici, et c'est délibéré :
+      # `test_guardian_philosophie_20260908.js` est à la racine, donc
+      # `run-tests.js` la ramasse, et « Comparer aux échecs connus » est
+      # stricte dans les deux sens — si elle cassait, elle sortirait en
+      # NOUVEAUX et arrêterait la CI. Une seconde étape ne la rendrait pas
+      # plus bloquante, elle ferait un deuxième endroit à maintenir.
+      - name: Guardian Philosophie NEXUS — rapport
+        run: node outils/guardian-philosophie.js || true
