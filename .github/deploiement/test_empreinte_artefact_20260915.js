@@ -440,19 +440,32 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // donc aucune circularité. (Ce qu'un fichier ne peut pas nommer, c'est sa
 // propre empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
 //
-// Le chiffre n'est pas décoratif : il doit bouger EXACTEMENT quand une
-// migration est ajoutée, et jamais autrement. 16/09/2026 — 240 → 242, les deux
-// migrations du lot Pointage (`…_rattachement_shift_du_quart_employe.sql` et
-// `…_prise_de_poste_contrat_unique.sql`). Puis 242 → 243 le même jour :
-// `20260911180600_pointage_exige_service_et_evenement.sql`, appliquée sur Test
-// depuis le 11/09 et qui ne figurait dans aucune branche fusionnée. Les deux
-// valeurs sont MESURÉES (`node .github/deploiement/empreinte-artefact.js
-// --arbre-source=.`), jamais recopiées : une mise à jour de ces constantes
-// sans ajout correspondant dans `supabase/migrations/` serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 243;
-const MIGRATIONS_REELLES_EMPREINTE = '8adfcf54eab570ff904abc3ef65290c0a276abdb8aa8f9277dbc796c1fc45d4b';
+// Le chiffre n'est pas décoratif : il doit bouger EXACTEMENT quand un fichier
+// de migration entre au dépôt, et jamais autrement. 16/09/2026, au terme du
+// train de fusion : 240 → 262. Le détail, parce que la somme naïve est fausse :
+//
+//   240  ligne `production`
+//   + 3  lot Pointage (`…_rattachement_shift_du_quart_employe.sql`,
+//        `…_prise_de_poste_contrat_unique.sql`,
+//        `20260911180600_pointage_exige_service_et_evenement.sql`)
+//   +21  lot Inventaire : 21 migrations DÉJÀ APPLIQUÉES en Production dont le
+//        fichier manquait au dépôt. Le dépôt rejoint la base, il ne la devance
+//        pas.
+//   - 2  RECOUVREMENT : les deux premières du lot Pointage figurent aussi dans
+//        les 21 récupérées. Vérifié octet par octet — blobs identiques sur
+//        `lot1`, `lot8` et `lot4` — donc la fusion n'arbitre rien.
+//   ───
+//    262
+//
+// 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux. Les deux
+// valeurs sont MESURÉES sur l'arbre fusionné (`node
+// .github/deploiement/empreinte-artefact.js --arbre-source=.`), jamais
+// recopiées ni additionnées : une mise à jour de ces constantes sans ajout
+// correspondant dans `supabase/migrations/` serait un aveu.
+const MIGRATIONS_REELLES_NOMBRE = 262;
+const MIGRATIONS_REELLES_EMPREINTE = 'f41a9dc070126d8457e2f8ee29e1a6698968fbc5d8c751fe108b93a56b1784c3';
 
-cas('Réel · la provenance des migrations annonce 243 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 262 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
