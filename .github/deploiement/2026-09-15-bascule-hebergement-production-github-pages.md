@@ -199,8 +199,9 @@ interrupteur laissé en position (§3bis).
 **Conséquence sur le chronométrage.** La cible « hotfix en moins de quatre
 heures » suppose un retour arrière disponible ; celui-ci exige désormais **une
 présence humaine pour approuver**, pas seulement pour cliquer un réglage. Le
-délai de retour est donc borné par le temps de réponse d'un relecteur, et non
-par la propagation de Pages. À énoncer dans toute astreinte.
+délai de retour comprend le temps de réponse d'un relecteur, puis le temps
+d'exécution, de propagation et de vérification du déploiement *legacy*. À
+intégrer dans toute astreinte.
 
 ### La seule différence attendue après bascule
 
@@ -425,8 +426,9 @@ approbation le site sert encore l'artefact Actions ; **(3)** vérifier le
 retour au contenu précédent. Aucun commit n'est nécessaire — mesuré au
 §2bis : ce que ce retour restitue est, à `CNAME` près, **exactement** les 997
 fichiers servis aujourd'hui, parce que la branche n'a jamais été touchée par
-le déploiement. Le délai n'est donc pas « quelques minutes » mais « quelques
-minutes **plus** le temps de réponse d'un relecteur ».
+le déploiement. Le délai n'est donc pas « quelques minutes » mais « le temps
+de réponse d'un relecteur, **plus** le temps d'exécution, de propagation et
+de vérification de Pages ».
 
 ### Étape 4 — seulement ensuite, le lot applicatif
 La fusion de `ea57d4b` devient possible **parce que** `outils/build.sh`
