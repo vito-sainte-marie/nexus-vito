@@ -165,14 +165,43 @@ fichiers, et elle est documentée chez l'éditeur.
 
 ### Le geste de retour arrière, en entier
 
-**Settings → Pages → Build and deployment → Source : `Deploy from a branch` →
-branche `production`, dossier `/ (root)`.** Rien d'autre. Ni DNS, ni
-certificat, ni `git revert`, ni réglage à défaire ailleurs : dès lors que Pages
-n'écoute plus les Actions, le rail peut continuer de construire et d'emballer
-sans que rien n'atteigne le site. Et s'il faut aussi empêcher toute
-republication, il n'y a rien à désarmer — il suffit de **ne pas approuver** le
-déploiement suivant : la gate est une approbation, pas un interrupteur laissé
-en position (§3bis).
+> **Corrigé le 15/09/2026, après la bascule.** Ce paragraphe annonçait « un
+> seul geste ». **C'est faux**, et la bascule l'a démontré : le relecteur
+> requis de l'environnement `github-pages` garde **aussi** le rail *legacy*
+> `pages build and deployment`, et pas seulement le rail Actions. Constaté en
+> conditions réelles : après la fusion de la PR #44, deux déploiements se sont
+> présentés **tous deux en attente d'approbation humaine**, l'un émis par
+> l'application `github-pages` (legacy), l'autre par `github-actions`. Un
+> changement de source *ne republie donc pas tout seul* : il ouvre une
+> demande d'approbation de plus.
+
+Le retour arrière est en **trois** gestes, dans cet ordre :
+
+1. **Remettre la source** — Settings → Pages → Build and deployment →
+   Source : `Deploy from a branch` → branche `production`, dossier
+   `/ (root)`.
+2. **Approuver la reconstruction *legacy*** que ce changement déclenche. Elle
+   s'arrête devant l'environnement `github-pages` exactement comme le rail
+   Actions. **Tant qu'elle n'est pas approuvée, le site continue de servir
+   l'artefact Actions** : le retour arrière n'est pas acquis à l'étape 1.
+3. **Vérifier le retour au contenu précédent** — le site répond 200, et la
+   confrontation du §2bis retrouve ses 997 fichiers identiques à la branche,
+   `CNAME` étant repassé de 200 à 404.
+
+Ce qui reste vrai : ni DNS, ni certificat, ni `git revert`, ni réglage à
+défaire ailleurs — la bascule du 15/09 a mesuré qu'elle ne change **que**
+`build_type` (le domaine `app.nexusconseil.net`, `https_enforced` et le
+certificat sont sortis inchangés). Et s'il faut empêcher toute republication
+par le rail Actions, il n'y a rien à désarmer : il suffit de **ne pas
+approuver** le déploiement suivant — la gate est une approbation, pas un
+interrupteur laissé en position (§3bis).
+
+**Conséquence sur le chronométrage.** La cible « hotfix en moins de quatre
+heures » suppose un retour arrière disponible ; celui-ci exige désormais **une
+présence humaine pour approuver**, pas seulement pour cliquer un réglage. Le
+délai de retour comprend le temps de réponse d'un relecteur, puis le temps
+d'exécution, de propagation et de vérification du déploiement *legacy*. À
+intégrer dans toute astreinte.
 
 ### La seule différence attendue après bascule
 
@@ -389,11 +418,17 @@ Pages échange la version servie.
    doit rester identique à `git show origin/production:<chemin>`. Le **seul**
    écart attendu est `CNAME`, qui peut passer de 404 à 200 (§2bis).
 
-*Retour arrière, en quelques minutes :* **Settings → Pages → Source : `Deploy
-from a branch` → `production` / `/ (root)`.** L'état d'origine est restauré
-sans qu'aucun commit ne soit nécessaire — mesuré au §2bis : ce que ce retour
-restitue est, à `CNAME` près, **exactement** les 997 fichiers servis
-aujourd'hui, parce que la branche n'a jamais été touchée par le déploiement.
+*Retour arrière — **trois** gestes, pas un (corrigé le 15/09, voir §2bis) :*
+**(1)** Settings → Pages → Source : `Deploy from a branch` → `production` /
+`/ (root)` ; **(2) approuver la reconstruction *legacy*** que ce changement
+déclenche, car la gate `github-pages` la retient elle aussi — sans cette
+approbation le site sert encore l'artefact Actions ; **(3)** vérifier le
+retour au contenu précédent. Aucun commit n'est nécessaire — mesuré au
+§2bis : ce que ce retour restitue est, à `CNAME` près, **exactement** les 997
+fichiers servis aujourd'hui, parce que la branche n'a jamais été touchée par
+le déploiement. Le délai n'est donc pas « quelques minutes » mais « le temps
+de réponse d'un relecteur, **plus** le temps d'exécution, de propagation et
+de vérification de Pages ».
 
 ### Étape 4 — seulement ensuite, le lot applicatif
 La fusion de `ea57d4b` devient possible **parce que** `outils/build.sh`
@@ -515,7 +550,7 @@ le jour de l'incident, quand personne ne relit le YAML.
 
 | | ce que c'est | disponible en Phase 1 |
 |---|---|---|
-| **Rollback d'hébergement** | ramener Pages de « GitHub Actions » à « Deploy from a branch » → `production` / `/ (root)` | **oui** — geste humain, hors workflow, mesuré au §2bis |
+| **Rollback d'hébergement** | ramener Pages à « Deploy from a branch » → `production` / `/ (root)`, **puis approuver la reconstruction *legacy***, **puis** vérifier le contenu | **oui** — **trois** gestes humains, hors workflow, mesurés au §2bis |
 | **Rollback applicatif** | republier un état de **code** antérieur | **non** — circuit distinct, non fourni dans cette phase |
 | **`ref_applicatif`** | construire et éprouver une référence | **oui**, et **rien d'autre** : jamais un chemin de déploiement |
 
@@ -525,6 +560,16 @@ le jour de l'incident, quand personne ne relit le YAML.
 bouge pas pendant la bascule : il n'y a ni commit à annuler, ni fusion à
 défaire. Ce retour est donc **complet pour le risque que la bascule
 introduit** — le risque d'hébergement — et pour lui seul.
+
+**Ce qu'il exige, et que ce document a d'abord annoncé à tort.** Il n'est pas
+atomique. Le relecteur requis de l'environnement `github-pages` garde les
+**deux** rails : remettre la source sur la branche déclenche une exécution
+`pages build and deployment` qui **attend elle aussi une approbation
+humaine**. Entre le geste 1 et le geste 2, le site sert encore l'artefact
+Actions. Le jour de l'incident, cela veut dire : *changer le réglage ne suffit
+pas — il faut aller approuver, sinon rien ne revient.* Constaté en conditions
+réelles le 15/09/2026 lors de la bascule elle-même, où les deux déploiements
+concurrents attendaient tous deux l'humain.
 
 **Ce qu'il ne couvre pas.** Si le code de `production` est lui-même en cause,
 revenir à « Deploy from a branch » republie ce même code : l'hébergement change,
