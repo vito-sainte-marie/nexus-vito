@@ -157,16 +157,39 @@ const appelants = racine
 verifier('aucun script ni workflow ne l’exécute automatiquement — c’est un geste humain',
   appelants.length === 0);
 
-// ─── 4. LES FIXTURES QUI COPIENT LA STATION ─────────────────────────────────
-// Deux simulations figent ces horaires en dur. Elles n'ouvrent aucune
-// connexion : elles resteraient vertes en simulant une station qui n'existe
-// plus. Elles doivent donc copier l'UN des deux états — celui d'avant tant que
+// ─── 4. LES FICHIERS QUI COPIENT LA STATION ─────────────────────────────────
+// QUATRE fichiers figent ces horaires en dur — et non deux, comme le croyait
+// la première rédaction de cette épreuve. Deux sont des simulations ; les deux
+// autres sont des tests, et à ce titre personne ne pense à les relire quand on
+// modifie la station. Aucun des quatre n'ouvre de connexion : tous resteraient
+// verts en décrivant une station qui n'existe plus.
+//
+// Ils doivent donc copier l'UN des deux états — celui d'avant tant que
 // l'écriture n'a pas eu lieu, celui d'après une fois qu'elle a eu lieu — mais
 // jamais un troisième, ni un mélange des deux.
+//
+// Un fichier peut ne figer qu'une partie des quatre valeurs : la fixture de
+// test_carburant_performance_reception_20260902.js ne porte que les horaires
+// étendus. On ne compare donc que les valeurs qu'il porte RÉELLEMENT.
+//
+// Mais « ce qu'il porte réellement » ne peut pas être déduit du fichier au
+// moment de l'épreuve, sinon la garde se rétrécit toute seule : renommer un
+// champ le retire de la comparaison, et la vérification reste verte sur ce
+// qu'il en reste. La mutation l'a montré — remplacer `fin_etendu` par
+// `fin_du_quart` dans le quart 1 de la fixture ci-dessus laissait l'épreuve
+// passer sur le seul quart 2. Ce que chaque fichier porte est donc écrit ici,
+// comme un constat mesuré, et vérifié séparément.
 const AVANT = { fin_normal: '12:45', fin_etendu: '13:45', q2_fin_normal: '20:05', q2_fin_etendu: '22:05' };
 const APRES = { fin_normal: ECRIT.q1_fin_normal, fin_etendu: ECRIT.q1_fin_etendu,
                 q2_fin_normal: ECRIT.q2_fin_normal, q2_fin_etendu: ECRIT.q2_fin_etendu };
-for (const f of ['simulations/scenarios-carburant.js', 'simulations/executer-ventilation.js']) {
+const PORTEURS = [
+  { f: 'simulations/scenarios-carburant.js', porte: ['fin_normal', 'fin_etendu', 'q2_fin_normal', 'q2_fin_etendu'] },
+  { f: 'simulations/executer-ventilation.js', porte: ['fin_normal', 'fin_etendu', 'q2_fin_normal', 'q2_fin_etendu'] },
+  { f: 'test_chaine_temporelle_carburant_20260821.js', porte: ['fin_normal', 'fin_etendu', 'q2_fin_normal', 'q2_fin_etendu'] },
+  // Cette fixture-ci ne décrit que les horaires étendus.
+  { f: 'test_carburant_performance_reception_20260902.js', porte: ['fin_etendu', 'q2_fin_etendu'] },
+];
+for (const { f, porte } of PORTEURS) {
   const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
   const lu = {
     fin_normal: (src.match(/quart1:[^}]*fin_normal: '(\d\d:\d\d)'/) || [])[1],
@@ -174,7 +197,10 @@ for (const f of ['simulations/scenarios-carburant.js', 'simulations/executer-ven
     q2_fin_normal: (src.match(/quart2:[^}]*fin_normal: '(\d\d:\d\d)'/) || [])[1],
     q2_fin_etendu: (src.match(/quart2:[^}]*fin_etendu: '(\d\d:\d\d)'/) || [])[1],
   };
-  const egal = (ref) => Object.keys(ref).every((k) => lu[k] === ref[k]);
+  const portees = Object.keys(lu).filter((k) => lu[k] !== undefined);
+  verifier(`${f} fige toujours les ${porte.length} valeur(s) que cette garde y surveille`,
+    portees.length === porte.length && porte.every((k) => portees.includes(k)));
+  const egal = (ref) => porte.every((k) => lu[k] === ref[k]);
   verifier(`${f} copie un état cohérent de la station (celui d’avant l’écriture, ou celui d’après — pas un mélange)`,
     egal(AVANT) || egal(APRES));
 }
