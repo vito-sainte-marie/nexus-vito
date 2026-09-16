@@ -455,8 +455,11 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   - 2  RECOUVREMENT Pointage∩Inventaire, blobs identiques sur `lot1`,
 //        `lot8` et `lot4` : la fusion n'arbitre rien
 //   + 1  lot Projection (#53) : `20260914210000_mes_ecarts_caisse_projection_employe.sql`
+//   + 1  lot Accès hors service (#61) :
+//        `20260916210000_mes_ecarts_caisse_masque_le_provisoire.sql` — additive,
+//        elle ne réécrit pas la projection du 14/09 déjà estampillée sur Test
 //   ───
-//    263
+//    264
 //
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
@@ -465,10 +468,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 263;
-const MIGRATIONS_REELLES_EMPREINTE = '3cebe21dc9538b14150d571275db59b18678391b7492c1ec971ed90e0ab40f79';
+const MIGRATIONS_REELLES_NOMBRE = 264;
+const MIGRATIONS_REELLES_EMPREINTE = '64d493882410acfc550943913f8eba467467e147584778b98b37682ff13a9092';
 
-cas('Réel · la provenance des migrations annonce 263 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 264 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
