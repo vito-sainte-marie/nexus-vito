@@ -2738,28 +2738,33 @@
     // DANS ce service. Il était déjà lu ici, et jeté après en avoir extrait
     // deux champs — l'accueil retombait alors sur la journée entière.
     let serviceCourant = null;
+    // TROISIÈME porte vers la prise de poste — supprimée le 16/09/2026.
+    //
+    // Le 11/09, le commentaire posé ici annonçait « une correction posee sur
+    // une porte quand il y en a deux ne corrige rien : elle deplace l'endroit
+    // ou l'on se cogne ». Il y en avait TROIS : nexus-auth.js en avait deux
+    // (prise de poste, pointage d'arrivée), l'accueil une troisième, qui
+    // redirigeait pour son propre compte.
+    //
+    // L'accueil est désormais classé en CONSULTATION (nexus-auth.js, règle
+    // d'accès du 16/09/2026) : il porte les deux chemins « Consulter NEXUS »
+    // et « Commencer mon service », et une page qui propose de prendre son
+    // poste ne peut pas y renvoyer d'office — ce serait la boucle que la
+    // règle interdit. Il reste seulement LECTEUR du service courant, pour
+    // afficher le rôle et le quart du jour quand il y en a un.
+    //
+    // La question « cet écran exige-t-il un service ? » ne se pose plus ici :
+    // elle se pose une seule fois, dans nexusPageExigeServiceOperationnel().
     if (!employee.consultation_externe) {
       const r = await nexusServiceCourant(employee);
-      if (r.aucun) {
-        // Seconde porte vers la prise de poste (11/09/2026, arbitrage C.3).
-        // Celle de nexus-auth.js avait ete corrigee ; celle-ci redirigeait
-        // toujours, et l'employee qui venait de pointer son depart se
-        // retrouvait aussitot devant la question du role. Apres une cloture,
-        // reprendre un poste reste possible, mais par une action volontaire,
-        // jamais comme ecran impose. Une correction posee sur une porte quand
-        // il y en a deux ne corrige rien : elle deplace l'endroit ou l'on se cogne.
-        if (!(await nexusDepartPointeAujourdhui(employee))) {
-          window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-          return;
-        }
-      }
       if (r.service) {
         roleDuJour = r.service.role;
         quartDuJour = r.service.quart;
         serviceCourant = r.service;
       }
-      // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
-      // renvoyer un employé vers la prise de poste alors qu'il en a une.
+      // r.aucun : l'employé n'est pas en service. Ce n'est plus un motif de
+      // redirection — c'est l'état normal de quelqu'un qui vient consulter.
+      // r.erreur : une panne de lecture ne change rien non plus.
     }
 
     document.getElementById('sessionInfo').innerHTML =

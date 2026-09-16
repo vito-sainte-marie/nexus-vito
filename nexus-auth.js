@@ -115,8 +115,172 @@ async function nexusRequireAuth() {
 // changera ou où le mode d'artefact « construit » entrera en service ;
 // c'est ce jour-là, et pas avant, qu'il faudra charger `nexus-page.js`.
 // ────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// RÈGLE D'ACCÈS — L'AUTHENTIFICATION N'EST JAMAIS UNE PREUVE DE PRÉSENCE
+// (16/09/2026)
+//
+//   « L'authentification n'est jamais une preuve de présence.
+//
+//     La navigation dans NEXUS, la consultation du Cockpit ou l'accès à
+//     l'espace personnel ne doivent créer ni service, ni shift, ni
+//     pointage, ni retard, ni variable de paie.
+//
+//     Après connexion et avant toute prise de poste, NEXUS présente deux
+//     chemins distincts :
+//       1. Consulter NEXUS — navigation sans preuve de présence ;
+//       2. Commencer mon service — action explicite créant le service
+//          opérationnel.
+//
+//     Aucun service ne peut être créé implicitement par le login, le
+//     chargement d'un écran, une redirection ou la consultation d'une
+//     donnée.
+//
+//     Cette règle s'applique aux employés comme aux managers. »
+//
+// CE QUE LA RÈGLE CORRIGE. Jusqu'au 16/09/2026, `nexusRequireAuth()` — la
+// porte unique des 52 écrans authentifiés — traitait TOUTE page de la même
+// façon : pas de service courant ⇒ renvoi vers la prise de poste. Un
+// employé qui voulait seulement relire ses écarts validés devait donc
+// d'abord ouvrir un service, et la simple consultation fabriquait la
+// preuve de présence qu'elle n'aurait jamais dû produire. La garde n'était
+// pas mal placée — elle est bien centralisée depuis S-4 — elle était trop
+// LARGE : elle confondait « consulter ses propres données » et « agir sur
+// le terrain ».
+//
+// POURQUOI UNE LISTE EN DUR. La catégorie d'un écran est une propriété de
+// l'écran, jamais une donnée de la requête : aucun paramètre d'URL, aucun
+// champ de formulaire, aucune valeur de `localStorage` n'entre dans
+// `nexusCategorieAcces()`. Un utilisateur qui modifierait sa requête ne
+// peut pas se déclarer « en consultation » sur un écran opérationnel.
+//
+// CE QUE CETTE CLASSIFICATION N'EST PAS. Ce n'est pas une autorisation
+// d'accès aux données. Elle ne décide que d'une REDIRECTION de navigation.
+// L'autorisation reste entièrement du côté Supabase — RLS et `auth.uid()`
+// — et ne dépend d'aucune valeur venue du navigateur. Relâcher la
+// redirection ne rend pas une ligne de plus.
+//
+// PAR DÉFAUT, UN ÉCRAN NON CLASSÉ EST OPÉRATIONNEL : l'oubli conserve
+// l'ancien contrat au lieu de l'ouvrir. `test_acces_hors_service_20260916.js`
+// vérifie de surcroît que les quatre listes couvrent TOUS les écrans du
+// dépôt, pour qu'un écran nouveau soit classé sciemment, pas par défaut.
+// ════════════════════════════════════════════════════════════════════
+/* NEXUS-ACCES-REGLE:DEBUT — bloc pur, extrait et exécuté tel quel par les épreuves */
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
-async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+
+// CONSULTATION — l'employé y lit ce qui le concerne, le manager y pilote et
+// y administre. Aucun de ces écrans n'exige d'être en service : les ouvrir
+// ne crée ni service, ni shift, ni pointage, ni retard, ni variable de paie.
+const NEXUS_PAGES_CONSULTATION = [
+  // Espace personnel de l'employé + accueil (qui porte les deux chemins).
+  'NEXUS-App-v1.html',
+  'NEXUS-Mon-Evolution-v1.html',
+  'NEXUS-Mon-Planning-v1.html',
+  'NEXUS-Progression-v1.html',
+  'NEXUS-Apprentissage-v1.html',
+  'NEXUS-Boite-Reception-v1.html',
+  'NEXUS-Documentation-v1.html',
+  // Pilotage et contrôle du manager — nommés par l'arbitrage du 16/09/2026 :
+  // « le manager doit pouvoir consulter le Cockpit, contrôler Verify,
+  // regarder les carburants, consulter les employés, analyser les résultats,
+  // effectuer une tâche administrative, sans être automatiquement considéré
+  // comme présent ou en service. »
+  'NEXUS-Cockpit-v2.html',
+  'NEXUS-Verify-v1.html',
+  'NEXUS-Carburants-Pilotage-v1.html',
+  'NEXUS-Resultats-Equipe-v1.html',
+  'NEXUS-Evaluation-Employe-v1.html',
+  'NEXUS-Analyse-Ecarts-v1.html',
+  'NEXUS-FDJ-Analyse-v1.html',
+  'NEXUS-Centre-Intelligence-v1.html',
+  'NEXUS-Radar-Manager-v1.html',
+  'NEXUS-Capital-v1.html',
+  'NEXUS-Rapport-v1.html',
+  'NEXUS-Journal-v1.html',
+  'NEXUS-Tracabilite-v1.html',
+  // Tâches administratives.
+  'NEXUS-Planning-v1.html',
+  'NEXUS-Assignations-v1.html',
+  'NEXUS-Paye-v1.html',
+  'NEXUS-Campagne-v1.html',
+  'NEXUS-Import-v1.html',
+  'NEXUS-Admin-API-v1.html',
+  'NEXUS-Admin-Sites-v1.html',
+  'NEXUS-Parametres-Station-v1.html',
+  'NEXUS-Parametres-Inventaire-v1.html',
+  'NEXUS-Parametres-Rappels-v1.html',
+  'NEXUS-Parametres-Comptes-Clients-v1.html',
+  'NEXUS-FDJ-Parametres-v1.html',
+  'NEXUS-Debug-v1.html',
+  'NEXUS-Debug-Createur-v1.html',
+];
+
+// OPÉRATIONNEL — le geste de terrain d'un quart. La garde reste ENTIÈRE :
+// ces écrans continuent d'exiger un service ouvert et le pointage d'arrivée.
+// C'est la moitié de l'arbitrage qu'il ne faut pas perdre de vue : dissocier
+// n'est pas désarmer.
+const NEXUS_PAGES_OPERATIONNELLES = [
+  'NEXUS-Missions-v1.html',
+  'NEXUS-Brief-v1.html',
+  'NEXUS-Inventaire-v1.html',
+  'NEXUS-Inventaire-Manager-v1.html',
+  'NEXUS-Scanner-v1.html',
+  'NEXUS-Scanner-Stock-v1.html',
+  'NEXUS-Stock-Localise-v1.html',
+  'NEXUS-Rayon-v1.html',
+  'NEXUS-Produits-v1.html',
+  'NEXUS-Carburants-v1.html',
+  'NEXUS-Carburant-Reception-v1.html',
+  'NEXUS-FDJ-v1.html',
+  'NEXUS-FDJ-Manager-v1.html',
+  'NEXUS-Coach-FDJ-v1.html',
+  'NEXUS-Comptes-Clients-v1.html',
+  'NEXUS-Tempo-v1.html',
+];
+
+// PUBLIQUES — aucune session n'y est exigée : elles n'appellent pas
+// `nexusRequireAuth()`. Elles ne sont listées que pour qu'aucun écran du
+// dépôt n'échappe au classement, et donc à la relecture.
+const NEXUS_PAGES_PUBLIQUES = [
+  'NEXUS-Login-v1.html',
+  'NEXUS-Home-Concept-v1.html',
+  'NEXUS-API-v1.html',
+  'NEXUS-CGU-v1.html',
+  'NEXUS-Confidentialite-v1.html',
+  'NEXUS-Mentions-Legales-v1.html',
+  'NEXUS-FAQ-v1.html',
+  'NEXUS-Feuille-de-Route-v1.html',
+  'NEXUS-Propos-v1.html',
+];
+
+/**
+ * À quelle catégorie d'accès appartient cet écran ?
+ *
+ * 'sequence'     — les deux écrans du parcours de prise de poste eux-mêmes ;
+ *                  les garder gardés provoquerait une boucle de redirection.
+ * 'consultation' — lecture de ses propres données, pilotage, administration.
+ * 'publique'     — pas de session exigée.
+ * 'operationnel' — geste de terrain : la garde s'applique. C'est AUSSI le
+ *                  défaut, pour qu'un écran oublié reste fermé.
+ */
+function nexusCategorieAcces(page){
+  if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page))return 'sequence';
+  if(NEXUS_PAGES_CONSULTATION.includes(page))return 'consultation';
+  if(NEXUS_PAGES_PUBLIQUES.includes(page))return 'publique';
+  return 'operationnel';
+}
+
+/**
+ * Cet écran exige-t-il un service opérationnel ouvert ?
+ *
+ * LA question des trois portes — celle de la prise de poste, celle du
+ * pointage d'arrivée, et celle de l'accueil. Elles posaient la même question
+ * de trois façons ; elles la posent désormais une seule fois, ici.
+ */
+function nexusPageExigeServiceOperationnel(page){
+  return nexusCategorieAcces(page) === 'operationnel';
+}
+/* NEXUS-ACCES-REGLE:FIN */
+async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
 // ────────────────────────────────────────────────────────────────────
 // S-4 (05/09/2026) — LE service courant. Une seule définition.
 //
@@ -205,7 +369,7 @@ async function nexusServiceCourant(employee){
   return { service: services[0] };
 }
 
-async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
+async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
   // l'existence d'un service dans la journée de l'appareil. Après un
   // pointage de départ, l'employé n'a plus de service courant : s'il
   // revient sur un parcours qui en exige un, il est renvoyé vers la prise
@@ -228,11 +392,17 @@ async function nexusPriseDePosteManquante(employee){const page=window.location.p
 /**
  * L'employe a-t-il deja pointe son depart aujourd'hui ?
  *
- * Sert aux DEUX portes qui menaient a la prise de poste : celle de
+ * Servait aux DEUX portes qui menaient a la prise de poste : celle de
  * nexusPriseDePosteManquante, et celle de NEXUS-App-v1.html. La premiere
  * seule avait ete corrigee le 11/09/2026, et l'ecran d'accueil continuait a
  * rediriger : une correction posee sur une porte quand il y en a deux ne
  * corrige rien, elle deplace l'endroit ou l'on se cogne.
+ *
+ * 16/09/2026 : il y en avait TROIS, et la porte de l'accueil a ete supprimee
+ * — l'accueil est un ecran de consultation. Cette fonction n'a donc plus
+ * qu'UN appelant, nexusPriseDePosteManquante. On l'ecrit ici parce qu'un
+ * motif faux survit a sa propre peremption : « sert aux deux portes » etait
+ * vrai le 11/09 et ne l'est plus.
  *
  * En cas d'erreur de lecture : false, donc ancien contrat conserve. On ne
  * relache pas une porte parce qu'on n'a pas pu la lire.
