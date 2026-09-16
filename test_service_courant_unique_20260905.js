@@ -61,15 +61,59 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
       if (/from\('shifts'\)/.test(ligne)) lectures.push(`${f}:${i + 1}`);
     });
   }
-  // Trois accès légitimes et trois seulement :
-  //   nexus-auth.js                  → la primitive
+  // Trois FICHIERS légitimes et trois seulement :
+  //   nexus-auth.js                  → la primitive, et elle seule
   //   NEXUS-Prise-De-Poste-v1.html   → l'unique insert
   //   NEXUS-Missions-v1.html         → l'historique comparable, jamais le service courant
-  assert.strictEqual(lectures.length, 3,
+  //
+  // L'assertion portait sur le NOMBRE DE LIGNES (3). Le 16/09/2026, la
+  // primitive a gagné un second accès — l'UPDATE de clôture des services
+  // obsolètes — et le test a échoué. Il avait raison de le faire : il ne
+  // savait pas distinguer « un écran de plus touche shifts », ce qui rouvre
+  // le défaut de S-4, de « la primitive fait une chose de plus », ce qui ne
+  // le rouvre pas. Compter des lignes était une approximation du vrai
+  // invariant : QUELS fichiers touchent shifts, et combien de fois la
+  // primitive le LIT.
+  const fichiers = [...new Set(lectures.map(l => l.split(':')[0]))].sort();
+  assert.deepStrictEqual(fichiers,
+    ['NEXUS-Missions-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'nexus-auth.js'],
     'Neuf lectures devaient converger vers une primitive :\n  ' + lectures.join('\n  '));
-  assert.ok(lectures.some(l => l.startsWith('nexus-auth.js')));
-  assert.ok(lectures.some(l => l.startsWith('NEXUS-Prise-De-Poste-v1.html')));
-  assert.ok(lectures.some(l => l.startsWith('NEXUS-Missions-v1.html')));
+
+  // UNE SEULE LECTURE RÉPOND À LA QUESTION DU SERVICE COURANT — et c'est
+  // cela, non un nombre, qui empêche S-4 de se rouvrir.
+  //
+  // Le 16/09/2026, la primitive a gagné une SECONDE lecture : les services
+  // encore ouverts du SITE, que le manager régularise depuis le Cockpit.
+  // Compter les lectures l'aurait refusée à tort. Ce qui la rend inoffensive
+  // est vérifiable : elle ne filtre PAS sur `employee_id`, donc elle ne peut
+  // répondre « quel est mon service » à personne. Le jour où quelqu'un lui
+  // ajouterait ce filtre — en croyant bien faire, pour « réutiliser la
+  // requête » — NEXUS aurait de nouveau deux définitions concurrentes du
+  // service courant, et cette assertion mordrait à cet instant précis.
+  //
+  // La fenêtre de 600 caractères borne chaque accès à sa propre chaîne
+  // fluide : au-delà commence du code qui ne le concerne plus. `.select(` ne
+  // distingue rien ici — l'écriture de clôture en porte un pour compter ses
+  // lignes — seule la présence de `.update(` sépare écriture et lecture.
+  const auth = sansCommentaires(lire('nexus-auth.js'));
+  const acces = auth.split("from('shifts')").slice(1).map(a => a.slice(0, 600));
+  const ecritures = acces.filter(a => /\.update\(/.test(a));
+  assert.strictEqual(ecritures.length, 1,
+    'Une seule écriture sur shifts hors prise de poste : la clôture des services obsolètes.');
+
+  const lectures2 = acces.filter(a => !/\.update\(/.test(a));
+  const parEmploye = lectures2.filter(a => /\.eq\('employee_id'/.test(a));
+  assert.strictEqual(parEmploye.length, 1,
+    'La définition du service courant doit rester LA seule lecture de shifts filtrée par employé.');
+
+  // Toute AUTRE lecture est une lecture d'équipe : elle est bornée au site,
+  // sans quoi elle rendrait les services d'un commerce voisin. La RLS le
+  // refuserait — mais une requête qui compte sur la RLS pour se borner est
+  // une requête qui ne sait pas ce qu'elle demande.
+  lectures2.filter(a => !/\.eq\('employee_id'/.test(a)).forEach(a => {
+    assert.ok(/\.eq\('site_id'/.test(a),
+      'Une lecture de shifts qui n’est ni le service courant ni une écriture doit être bornée au site.');
+  });
 });
 
 verifier('les sept consommateurs passent par la primitive', () => {
