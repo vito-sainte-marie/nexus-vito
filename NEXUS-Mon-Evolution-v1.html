@@ -316,15 +316,29 @@
       // encore mesure compter dans l'un et pas dans l'autre : la projection
       // rend une ligne par poste tenu, y compris quand l'ecart est encore
       // `null` parce que le quart n'a pas ete controle.
-      const rowsMesures = (data || []).filter(r => r.ecart !== null && r.ecart !== undefined);
+      //
+      // 16/09/2026 — `ecart` est desormais `null` pour DEUX raisons
+      // distinctes, et les confondre ferait disparaitre un controle reel :
+      //   - `valide_le` est null : le serveur MASQUE le montant tant qu'un
+      //     manager n'a pas valide (migration 20260916210000). Le controle
+      //     existe, l'employe doit le voir — sans son montant.
+      //   - `valide_le` est renseigne mais la colonne est vide : ce poste
+      //     n'a pas ete mesure dans cet audit. Rien a montrer, comme avant.
+      // Le filtre historique masquait les deux : depuis le masquage serveur,
+      // il aurait fait disparaitre de l'ecran tout controle en attente de
+      // validation, sans un mot — un employe aurait cru qu'aucun controle
+      // n'avait eu lieu.
+      const rows = (data || []).filter(r => (r.ecart !== null && r.ecart !== undefined) || !r.valide_le);
 
-      const lignes = rowsMesures.map(r => ({
+      const lignes = rows.map(r => ({
         date: r.date,
         quart: r.quart,
         poste: r.poste,
         role: r.poste === 'piste' ? 'Piste' : 'Boutique',
-        ecart: Number(r.ecart),
+        // `null` = montant non communique. Jamais `Number(null)`, qui vaut 0.
+        ecart: (r.ecart !== null && r.ecart !== undefined) ? Number(r.ecart) : null,
         partage: !!r.poste_partage,
+        enAttenteValidation: !r.valide_le,
       }));
 
       // Un état vide n'est pas un résultat à zéro (arbitrage du 14/09/2026).
@@ -357,11 +371,13 @@
       // seuil de conformite sort du cumul comme les autres, mais n'appelle
       // aucun arbitrage. Il s'affiche grise, sans badge.
       const P = window.NexusProgression;
-      const services = P.construireServicesCaisseDepuisProjection(rowsMesures);
+      const services = P.construireServicesCaisseDepuisProjection(rows);
       const cleEcart = e => `${e.date}|${e.quart}|${e.poste}`;
       const aArbitrer = new Set(P.ecartsEnAttenteArbitrage(services).map(cleEcart));
 
-      const personnelles = lignes.filter(l => !l.partage);
+      // Le cumul ne somme que ce qui est connu : un montant masque ne peut
+      // ni s'additionner, ni compter pour zero.
+      const personnelles = lignes.filter(l => !l.partage && l.ecart != null);
 
       if (personnelles.length === 0) {
         cumulEl.textContent = CUMUL_INDISPONIBLE;
@@ -385,10 +401,15 @@
         const dateAffichee = new Date(l.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const mention = l.partage ? ' · poste partagé, hors cumul' : '';
         const badge = aArbitrer.has(cleEcart(l)) ? '<span class="ecart-badge">à arbitrer</span>' : '';
+        // Montant non communique : la phrase arretee, et rien d'autre. Ni
+        // "0,00 €", ni tiret muet qui laisserait croire a une donnee absente.
+        const montantHtml = l.ecart == null
+          ? `<div class="ecart-montant" style="color:var(--text-dim); font-family:inherit; font-size:12px;">${P.MENTION_CONTROLE_EN_COURS}</div>`
+          : `<div class="ecart-montant" style="color:${l.partage ? 'var(--text-dim)' : classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>`;
         return `
           <div class="ecart-row${l.partage ? ' partage' : ''}">
             <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}${mention}${badge}</div>
-            <div class="ecart-montant" style="color:${l.partage ? 'var(--text-dim)' : classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>
+            ${montantHtml}
           </div>`;
       }).join('') + mentionArbitrage;
     }

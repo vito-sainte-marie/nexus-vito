@@ -104,8 +104,11 @@
         surPiste, surBoutique,
         soloPiste: surPiste && listePiste.length === 1,
         soloBoutique: surBoutique && listeBoutique.length === 1,
-        ecartPiste: surPiste ? arrondi(Number(a.ecart_piste)) : null,
-        ecartBoutique: surBoutique ? arrondi(Number(a.ecart_boutique)) : null,
+        // 16/09/2026 : `Number(null)` vaut 0. Un contrôle dont l'écart n'est
+        // pas encore renseigné en base valait donc "0,00 €" — un chiffre que
+        // personne n'a mesuré. Un montant absent reste `null`, partout.
+        ecartPiste: (surPiste && a.ecart_piste != null) ? arrondi(Number(a.ecart_piste)) : null,
+        ecartBoutique: (surBoutique && a.ecart_boutique != null) ? arrondi(Number(a.ecart_boutique)) : null,
         // Mes Caisses (03/08/2026) : valideLe null => contrôle provisoire.
         // Les montants *_valide ne sont significatifs qu'une fois validés —
         // jamais lus tant que valideLe est null (voir statutCaisseJour).
@@ -185,14 +188,18 @@
       if (r.poste === 'piste') {
         s.surPiste = true;
         s.soloPiste = solo;
-        s.ecartPiste = arrondi(Number(r.ecart));
+        // La projection masque `ecart` tant que le poste n'est pas validé
+        // (migration 20260916210000). `Number(null)` vaut 0 : sans ce test,
+        // un contrôle en cours s'afficherait "0,00 €", c'est-à-dire une
+        // information fausse — pire qu'une information masquée.
+        s.ecartPiste = r.ecart != null ? arrondi(Number(r.ecart)) : null;
         s.ecartPisteValide = r.ecart_valide != null ? arrondi(Number(r.ecart_valide)) : null;
         s.ecartPisteOrigine = r.ecart_origine != null ? arrondi(Number(r.ecart_origine)) : null;
         s.causeCodePiste = r.cause_code || null;
       } else {
         s.surBoutique = true;
         s.soloBoutique = solo;
-        s.ecartBoutique = arrondi(Number(r.ecart));
+        s.ecartBoutique = r.ecart != null ? arrondi(Number(r.ecart)) : null;
         s.ecartBoutiqueValide = r.ecart_valide != null ? arrondi(Number(r.ecart_valide)) : null;
         s.ecartBoutiqueOrigine = r.ecart_origine != null ? arrondi(Number(r.ecart_origine)) : null;
         s.causeCodeBoutique = r.cause_code || null;
@@ -213,14 +220,40 @@
   // jour-là sont conformes — peu importe qu'il ait été seul ou non : un
   // écart conforme ne fait de tort à personne, l'attribution n'a pas
   // besoin d'être certaine pour créditer un bon résultat.
+  //
+  // 16/09/2026 — TROISIÈME RÉPONSE : `null`, "on ne sait pas encore".
+  // Depuis que la projection masque les montants d'un contrôle non validé
+  // (migration 20260916210000), `ecartPiste`/`ecartBoutique` valent `null`
+  // tant qu'un manager n'a pas validé. Or `estConforme(null)` répond `true` :
+  // laisser passer ce `null` créditerait un service "propre" sur un résultat
+  // que personne ne connaît encore — exactement la fausse précision que l'on
+  // refuse d'afficher sous la forme d'un "0,00 €". Un résultat inconnu n'est
+  // ni un succès ni un échec : il vaut `null`, et chaque compteur choisit
+  // explicitement de l'ignorer — jamais de le compter pour l'un ou l'autre.
+  // C'est la règle déjà appliquée par serieValideeConforme (section 10)
+  // depuis le 03/08/2026, étendue ici à tout le fichier.
   function serviceEstPropre(s) {
+    if (!s) return null;
+    // Un montant absent AVANT validation est un montant masqué, jamais un
+    // zéro. Après validation, un `null` reste la valeur historique d'une
+    // colonne jamais renseignée : comportement inchangé (estConforme).
+    const inconnu = !s.valideLe && (
+      (s.surPiste && s.ecartPiste == null) || (s.surBoutique && s.ecartBoutique == null)
+    );
+    if (inconnu) return null;
     const okPiste = !s.surPiste || estConforme(s.ecartPiste);
     const okBoutique = !s.surBoutique || estConforme(s.ecartBoutique);
     return okPiste && okBoutique;
   }
 
+  // "Sait-on comment ce service s'est terminé ?" — la question à poser avant
+  // de faire entrer un service dans un taux, un dénominateur ou une série.
+  function resultatServiceConnu(s) {
+    return serviceEstPropre(s) !== null;
+  }
+
   function nbServicesConformes(services) {
-    return (services || []).filter(serviceEstPropre).length;
+    return (services || []).filter(s => serviceEstPropre(s) === true).length;
   }
 
   // Écarts réellement attribuables à CET employé : uniquement les postes
@@ -291,9 +324,14 @@
     // plus ancien au plus récent pour parcourir l'historique dans l'ordre
     // chronologique, plus simple pour détecter des séries.
     const chrono = [...(services || [])].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    let record = 0, courante = 0, enCours = 0;
+    let record = 0, courante = 0, enCours = 0, indetermines = 0;
     chrono.forEach(s => {
-      if (serviceEstPropre(s)) {
+      const propre = serviceEstPropre(s);
+      // 16/09/2026 — un contrôle encore en cours ne casse pas la série et ne
+      // la prolonge pas : on ne sait pas. Le compter propre inventerait un
+      // record ; le compter sale punirait sur une donnée inexistante.
+      if (propre === null) { indetermines += 1; return; }
+      if (propre) {
         courante += 1;
         if (courante > record) record = courante;
       } else {
@@ -301,12 +339,15 @@
       }
     });
     // La série "en cours" est la série propre qui se termine au tout
-    // dernier service connu (si le dernier service n'est pas propre, la
-    // série en cours est 0).
+    // dernier service DONT LE RÉSULTAT EST CONNU (si ce service n'est pas
+    // propre, la série en cours est 0). Les contrôles encore en cours sont
+    // traversés sans être comptés, pour la même raison que ci-dessus.
     for (let i = chrono.length - 1; i >= 0; i--) {
-      if (serviceEstPropre(chrono[i])) enCours += 1; else break;
+      const propre = serviceEstPropre(chrono[i]);
+      if (propre === null) continue;
+      if (propre) enCours += 1; else break;
     }
-    return { enCours, record, total: chrono.length };
+    return { enCours, record, total: chrono.length, indetermines };
   }
 
   // Tendance de l'écart moyen (uniquement sur les écarts attribuables) :
@@ -353,7 +394,11 @@
   // ------------------------------------------------------------
 
   function statutCaisse(services) {
-    const attribuables = services.filter(s => s.soloPiste || s.soloBoutique);
+    // 16/09/2026 : `ecartsAttribuables` ne peut rien trouver sur un contrôle
+    // encore masqué. Le garder au dénominateur ferait mécaniquement monter le
+    // taux de conformité à chaque caisse en attente de validation — une bonne
+    // note fabriquée par l'attente. Ces services sortent des deux côtés.
+    const attribuables = services.filter(s => (s.soloPiste || s.soloBoutique) && resultatServiceConnu(s));
     if (attribuables.length < SEUIL_MIN_ASSIGNATIONS) return { statut: 'Données insuffisantes', detail: null };
     const nbEcarts = ecartsAttribuables(services).length;
     const taux = 1 - nbEcarts / attribuables.length;
@@ -443,9 +488,19 @@
     const serie = meilleureSerieConforme(services);
     if (serie.enCours >= 3) {
       forts.push({ texte: `${serie.enCours} service${serie.enCours > 1 ? 's' : ''} sans écart de caisse d'affilée.`, poids: serie.enCours });
-    } else if (nbServicesConformes(services) >= 5 && services.length >= 5) {
-      const pct = Math.round(nbServicesConformes(services) / services.length * 100);
-      if (pct >= 80) forts.push({ texte: `${pct} % de vos services sans écart de caisse.`, poids: pct / 20 });
+    } else {
+      // 16/09/2026 — le dénominateur ne retient que les services dont le
+      // résultat est connu. Sinon, `estConforme(null)` répondant `true`,
+      // chaque caisse en attente de validation entrait au numérateur ET au
+      // dénominateur comme un succès : le taux annoncé montait à chaque
+      // contrôle non arbitré. On aurait félicité un employé à "91 %" sur la
+      // foi de mesures que personne n'a encore regardées.
+      const juges = (services || []).filter(resultatServiceConnu);
+      const conformes = nbServicesConformes(juges);
+      if (conformes >= 5 && juges.length >= 5) {
+        const pct = Math.round(conformes / juges.length * 100);
+        if (pct >= 80) forts.push({ texte: `${pct} % de vos services sans écart de caisse.`, poids: pct / 20 });
+      }
     }
     if (statutPonctualiteVal.statut === 'Sous contrôle' && statutPonctualiteVal.nbRetards === 0) {
       forts.push({ texte: `Ponctualité parfaite sur vos ${statutPonctualiteVal.total} derniers pointages.`, poids: statutPonctualiteVal.total / 5 });
@@ -676,9 +731,13 @@
     const parQuart = {};
     (services || []).forEach(s => {
       if (!s.quart) return;
+      // Un service au résultat encore inconnu n'entre ni au numérateur ni au
+      // dénominateur : il diluerait le taux au lieu de l'informer.
+      const propre = serviceEstPropre(s);
+      if (propre === null) return;
       if (!parQuart[s.quart]) parQuart[s.quart] = { total: 0, propres: 0 };
       parQuart[s.quart].total += 1;
-      if (serviceEstPropre(s)) parQuart[s.quart].propres += 1;
+      if (propre) parQuart[s.quart].propres += 1;
     });
     const quarts = Object.keys(parQuart).filter(q => parQuart[q].total >= SEUIL_MIN_SERVICES_PAR_QUART);
     if (quarts.length < 2) return null;
@@ -919,6 +978,14 @@
   const MENTION_PROTECTION_LONGUE = 'Les montants affichés avant validation sont provisoires : ils correspondent au contrôle enregistré au moment de la clôture de caisse, avant toute vérification manager. Seuls les écarts validés par un manager sont définitifs et peuvent entrer dans vos statistiques. Un écart provisoire peut être corrigé, expliqué ou annulé lors de la validation — il ne doit jamais être interprété comme une faute avant cette étape.';
   const MENTION_PROTECTION_COURTE = 'Résultats provisoires jusqu\'à validation complète de la caisse. Seuls les écarts validés sont définitifs.';
 
+  // 16/09/2026 — la SEULE information qu'un employé peut recevoir sur un
+  // contrôle de caisse non encore validé, lorsque le montant ne lui est pas
+  // communiqué. Texte arrêté, à ne pas paraphraser : ni montant, ni tendance,
+  // ni "petit écart", ni rassurance qui laisserait deviner le résultat.
+  // Les deux mentions ci-dessus restent en vigueur pour la vue manager, où
+  // les montants provisoires sont légitimement lisibles.
+  const MENTION_CONTROLE_EN_COURS = 'Contrôle de votre caisse en cours.';
+
   // Agrège les services d'un employé sur un mois donné (moisRef au format
   // 'YYYY-MM'). Les deux cumuls (provisoire / validé) restent toujours
   // séparés — voir note de section ci-dessus.
@@ -940,15 +1007,29 @@
     const duMois = (services || []).filter(s => s.date && s.date.slice(0, 7) === moisRef);
     let caissesConformes = 0, caissesEnCours = 0, caissesEcartValide = 0;
     let ecartProvisoireCumule = 0, ecartValideCumule = 0;
+    // 16/09/2026 — combien de montants provisoires nous sont masqués, et
+    // combien nous sont connus. Côté employé, la projection ne livre plus le
+    // montant d'un contrôle non validé : `+= null` vaut `+ 0` en JavaScript,
+    // le total annoncé aurait donc été "0,00 €" — un chiffre faux présenté
+    // comme un cumul. Côté manager (source brute), les montants provisoires
+    // restent lisibles : les deux régimes doivent coexister ici.
+    let provisoiresMasques = 0, provisoiresConnus = 0;
     duMois.forEach(s => {
       const statut = statutCaisseJour(s);
       if (statut === 'provisoire') {
         caissesEnCours += 1;
         // Cumul provisoire : tous les montants attribuables (poste solo),
         // calculés sur les colonnes brutes — jamais les colonnes _valide,
-        // qui n'existent pas encore tant que non validé.
-        if (s.soloPiste) ecartProvisoireCumule += s.ecartPiste;
-        if (s.soloBoutique) ecartProvisoireCumule += s.ecartBoutique;
+        // qui n'existent pas encore tant que non validé. Un montant masqué
+        // est compté comme masqué, jamais comme zéro.
+        if (s.soloPiste) {
+          if (s.ecartPiste != null) { ecartProvisoireCumule += s.ecartPiste; provisoiresConnus += 1; }
+          else provisoiresMasques += 1;
+        }
+        if (s.soloBoutique) {
+          if (s.ecartBoutique != null) { ecartProvisoireCumule += s.ecartBoutique; provisoiresConnus += 1; }
+          else provisoiresMasques += 1;
+        }
       } else if (statut === 'validee_conforme') {
         caissesConformes += 1;
         if (s.soloPiste && s.ecartPisteValide != null) ecartValideCumule += s.ecartPisteValide;
@@ -963,7 +1044,13 @@
       moisRef,
       caissesControlees: duMois.length,
       caissesConformes, caissesEnCours, caissesEcartValide,
-      ecartProvisoireCumule, ecartValideCumule,
+      // `null` quand AUCUN montant provisoire n'est lisible : il n'y a pas de
+      // total à annoncer, et surtout pas "0,00 €". Un cumul partiel reste un
+      // nombre, mais `ecartProvisoireMasque` dit à l'appelant qu'il est
+      // incomplet — à lui de ne pas le présenter comme un solde.
+      ecartProvisoireCumule: (provisoiresConnus === 0 && provisoiresMasques > 0) ? null : ecartProvisoireCumule,
+      ecartProvisoireMasque: provisoiresMasques > 0,
+      ecartValideCumule,
     };
   }
 
@@ -1084,7 +1171,14 @@
   function messageCoachCaisseJour({ statut, montantEcart, serieValideeConformeVal, ameliorationDetectee }) {
     const enCours = serieValideeConformeVal ? serieValideeConformeVal.enCours : 0;
     if (statut === 'provisoire') {
-      if (montantEcart != null && !estConforme(montantEcart)) {
+      // 16/09/2026 — montant non communiqué (projection employé) : la seule
+      // phrase autorisée, et rien d'autre. Ni "petit", ni "rien à faire",
+      // ni "une fois validé" : toute glose est déjà une information sur un
+      // résultat que l'employé n'a pas à connaître avant l'arbitrage.
+      // Les deux branches suivantes ne subsistent que pour la vue manager,
+      // où la source brute livre légitimement le montant provisoire.
+      if (montantEcart == null) return MENTION_CONTROLE_EN_COURS;
+      if (!estConforme(montantEcart)) {
         return `Un petit écart de ${Math.abs(montantEcart).toFixed(2)} € a été relevé sur ce contrôle. Il reste provisoire tant qu'un manager ne l'a pas validé — rien à faire de votre côté pour l'instant.`;
       }
       return 'Ce contrôle de caisse est en cours de validation par un manager. Il apparaîtra dans votre historique définitif une fois validé.';
@@ -1567,7 +1661,7 @@
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, construireServicesCaisseDepuisProjection,
-    estConforme, serviceEstPropre,
+    estConforme, serviceEstPropre, resultatServiceConnu,
     nbServicesConformes, ecartsAttribuables,
     // Quart partagé — notification, jamais attribution (14/09/2026)
     ecartsEnAttenteArbitrage, MENTION_QUART_PARTAGE,
@@ -1582,7 +1676,7 @@
     detecterNouveaute,
     // Mes Caisses (03/08/2026)
     statutCaisseJour, LIBELLE_STATUT_CAISSE_JOUR,
-    MENTION_PROTECTION_LONGUE, MENTION_PROTECTION_COURTE,
+    MENTION_PROTECTION_LONGUE, MENTION_PROTECTION_COURTE, MENTION_CONTROLE_EN_COURS,
     agregerMoisCaisse, moisPrecedent, tendanceMoisCaisse,
     joursConsecutifsSansEcartValide, serieValideeConforme,
     pointFiabiliteEligible, bonusRegulariteCaisse,
