@@ -435,15 +435,20 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
     'un chemin caché est entré dans l\'empreinte alors qu\'il ne sera pas emballé');
 });
 
-// Rendre la provenance fermée ne devait rien changer au dépôt réel : mêmes
-// 240 migrations, même empreinte. Ces deux valeurs peuvent être écrites ici
-// sans se contredire — elles ne dépendent que de `supabase/migrations/*.sql`,
-// jamais de ce fichier. (Ce qu'un fichier ne peut pas nommer, c'est sa propre
-// empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
-const MIGRATIONS_REELLES_NOMBRE = 240;
-const MIGRATIONS_REELLES_EMPREINTE = '87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6e82caaa7666430';
+// La provenance est écrite ici en clair : ces deux valeurs ne dépendent que de
+// `supabase/migrations/*.sql`, jamais de ce fichier — les y inscrire ne crée
+// donc aucune circularité. (Ce qu'un fichier ne peut pas nommer, c'est sa
+// propre empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
+//
+// Le chiffre n'est pas décoratif : il doit bouger EXACTEMENT quand une
+// migration est ajoutée, et jamais autrement. 16/09/2026 — 240 → 242, les deux
+// migrations du lot Pointage (`…_rattachement_shift_du_quart_employe.sql` et
+// `…_prise_de_poste_contrat_unique.sql`). Une mise à jour de ces constantes
+// sans ajout correspondant dans `supabase/migrations/` serait un aveu.
+const MIGRATIONS_REELLES_NOMBRE = 242;
+const MIGRATIONS_REELLES_EMPREINTE = 'a526f23401d3fd87aad528293522b53817384804e713b241d0847a69e981d96e';
 
-cas('Réel · la provenance des migrations reste 240 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 242 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
