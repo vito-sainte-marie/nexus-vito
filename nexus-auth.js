@@ -171,11 +171,19 @@ async function nexusServiceCourant(employee){
   // une arrivee de 10 h 33.
   //
   // Le filtre se fait ici, sur la date locale de l'appareil, et non par une
-  // borne SQL : `sites.timezone` n'existe pas encore en Production (la
-  // migration de la release l'apporte), et la station est sur site avec ses
-  // employes. C'est la meme regle que l'ecran de pointage applique deja.
-  // Aucun quart ne franchit minuit a cette station : le quart 2 finit au
-  // plus tard a 22 h 10.
+  // borne SQL calculee dans le fuseau du site. Ce n'est PAS faute de donnee :
+  // `sites.timezone` EXISTE en Production — la migration 20260905131500 y est
+  // inscrite depuis le 05/09/2026. Une version anterieure de ce commentaire
+  // affirmait le contraire ; c'etait faux, et un motif faux est pire qu'une
+  // absence de motif, parce qu'il survit a sa propre peremption.
+  //
+  // Le vrai motif : la station est sur site avec ses employes, aucun quart n'y
+  // franchit minuit (le quart 2 finit au plus tard a 22 h 10), et c'est deja
+  // la regle que l'ecran de pointage applique. Deux definitions de la journee
+  // pour un meme employe seraient pires qu'une definition imparfaite.
+  //
+  // Ce qui ferait tomber ce choix et imposerait la borne SQL : un quart a
+  // cheval sur minuit, ou un appareil hors du fuseau de sa station.
   const jourLocal = nexusDateLocaleISO(new Date());
   const tous = data || [];
   const services = tous.filter(sv => sv.heure_debut && nexusDateLocaleISO(new Date(sv.heure_debut)) === jourLocal);
