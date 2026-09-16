@@ -122,14 +122,36 @@
      jusqu'au 16/09/2026 et la redisait donc en dur, ce qui fait deux endroits
      ou une seule regle peut deriver. nexus-ecarts-moteur.js doit etre charge
      avant : nexus-progression.js lui delegue la gravite d'un ecart. -->
+<!-- Meme raison pour la GRAVITE d'un montant (16/09/2026) : les seuils de la
+     section 11 du cahier des charges vivent dans nexus-verify-moteur.js, et
+     nulle part ailleurs. Cet ecran les redisait en dur, a trois paliers au lieu
+     de quatre : le palier "anomalie" n'y existait pas. Un ecart de 5,01 a 20
+     EUR s'y affichait donc en ambre, le ton du "a surveiller", alors qu'il est
+     une ANOMALIE partout ailleurs dans NEXUS (Verify, Rapport de Direction,
+     Cockpit, Brief, Pilotage Carburants). Le seul ecran qui regarde l'employee
+     etait le seul a minimiser. -->
+<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-progression.js?v=20260904-0104"></script>
 <script src="nexus-caisse-source.js?v=20260904-0104"></script>
 <script>
+  // Cet ecran ne decide plus de la gravite d'un montant, il la demande.
+  // `NexusVerifyMoteur.classifierEcart` est la seule echelle de l'app
+  // (conforme <= 2 EUR, surveiller <= 5, anomalie <= 20, critique au-dela) :
+  // la meme que NEXUS Verify, le Rapport de Direction, le Cockpit, le Brief et
+  // le Pilotage Carburants. Ne reste ici que la traduction en couleur, et
+  // celle de NEXUS-Verify-v1.html (.statut-conforme/-surveiller/-anomalie/
+  // -critique) : --rouge vaut ici exactement le --red de Verify (#F0575A).
+  // Aucun repli si le moteur manque : un repli reecrirait les seuils, donc
+  // recreerait le deuxieme endroit ou une seule regle peut deriver.
+  const COULEUR_GRAVITE = {
+    conforme: 'var(--green)',
+    surveiller: 'var(--amber)',
+    anomalie: 'var(--rouge)',
+    critique: 'var(--rouge)',
+  };
   function classifierEcart(montantAbs) {
-    if (montantAbs <= 2) return 'var(--green)';
-    if (montantAbs <= 20) return 'var(--amber)';
-    return 'var(--rouge)';
+    return COULEUR_GRAVITE[window.NexusVerifyMoteur.classifierEcart(montantAbs)];
   }
 
   // Mêmes paliers que la carte "Conseiller NEXUS" de l'écran Missions —
