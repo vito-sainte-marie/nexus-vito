@@ -410,4 +410,49 @@ t('cas 5 — seul le bouton de prise de poste ouvre un service', () => {
   assert.ok(cite, 'plus aucun clic n\'appelle confirmerPriseDePoste');
 });
 
+t('cas 6 — l\'accueil propose deux chemins, et le chemin de consultation n\'écrit rien', () => {
+  const src = lire('NEXUS-App-v1.html');
+  const code = scriptsDe(src);
+  const { fonctions } = atteignablesAuChargement(code);
+
+  // Le conteneur existe dans le HTML, pas seulement dans une chaîne de
+  // caractères : un panneau qu'aucun élément n'accueille ne s'affiche jamais.
+  assert.ok(/<div id="deuxChemins"><\/div>/.test(src),
+    'le conteneur des deux chemins a disparu de l\'accueil');
+
+  const f = fonctions.get('renderDeuxChemins');
+  assert.ok(f, 'renderDeuxChemins introuvable : les deux chemins ne sont plus rendus');
+
+  // LES LIBELLÉS SONT LE CONTRAT. La mission les fixe mot pour mot, et ce
+  // n'est pas de la cosmétique : c'est ce que l'utilisateur lit avant de
+  // décider s'il travaille ou s'il regarde. « Commencer mon service
+  // opérationnel » en particulier est la phrase que la règle exige pour le
+  // manager — la seule action qui doit l'enregistrer en service.
+  for (const libelle of ['Consulter mon espace', 'Consulter NEXUS',
+                         'Commencer mon service', 'Commencer mon service opérationnel']) {
+    assert.ok(f.corps.includes(libelle),
+      'libellé manquant dans les deux chemins : « ' + libelle + ' »');
+  }
+
+  // Le chemin opérationnel est un LIEN vers l'écran de prise de poste, pas
+  // une action. Il ne fait qu'y conduire ; c'est le bouton de cet écran-là
+  // qui écrit, sous le regard de l'utilisateur.
+  assert.ok(/href="NEXUS-Prise-De-Poste-v1\.html"/.test(f.corps),
+    'le chemin opérationnel ne mène plus à l\'écran de prise de poste');
+
+  // Et surtout : rien ne s'écrit ici. C'est exactement la mutation N2,
+  // éprouvée rouge — un insert glissé dans l'accueil pour « gagner du
+  // temps » fabriquerait une présence au chargement de chaque session.
+  assert.ok(!/\.(insert|upsert|update|delete)\s*\(/.test(f.corps),
+    'renderDeuxChemins écrit : proposer un chemin n\'est pas le prendre');
+  assert.ok(!/from\s*\(/.test(f.corps),
+    'renderDeuxChemins interroge la base : il doit se contenter de l\'état déjà lu');
+
+  // Le panneau ne décide de rien à partir de ce que l'utilisateur contrôle :
+  // le rôle vient de la fiche d'authentification, jamais d'une URL ni d'un
+  // stockage local que n'importe qui peut réécrire dans sa console.
+  assert.ok(!/localStorage|sessionStorage|location\.search|URLSearchParams/.test(f.corps),
+    'les deux chemins se règlent sur une donnée contrôlée par l\'utilisateur');
+});
+
 console.log(`\n${passes} vérifications passées — se connecter, consulter, actualiser : rien de tout cela ne fabrique une présence.`);
