@@ -455,4 +455,52 @@ t('cas 6 — l\'accueil propose deux chemins, et le chemin de consultation n\'é
     'les deux chemins se règlent sur une donnée contrôlée par l\'utilisateur');
 });
 
+// ── Cas 14 de la recette : sur un téléphone, les deux chemins restent
+// atteignables ────────────────────────────────────────────────────────────
+//
+// Ce n'est pas une coquetterie de mise en page. Si, à 360 px de large, le
+// bouton « Commencer mon service » sortait du cadre ou passait sous un autre
+// élément, un employé sur le terrain — qui n'ouvre NEXUS que sur son
+// téléphone — n'aurait plus qu'un seul chemin praticable : celui qu'il voit.
+// La règle « deux chemins distincts » deviendrait un seul chemin de fait.
+//
+// La vérification est statique et le revendique : elle n'ouvre pas de
+// navigateur et ne mesure aucun pixel. Elle établit trois choses qu'un
+// contrôle statique peut établir — que les boutons ont le droit de passer à
+// la ligne, qu'ils ne réclament pas une largeur qu'un téléphone ne peut pas
+// donner, et qu'aucune règle d'affichage ni aucune garde JavaScript ne fait
+// dépendre le panneau de la largeur de l'écran. Le rendu réel, lui, a été
+// regardé dans la recette.
+t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
+  const src = lire('NEXUS-App-v1.html');
+
+  const actions = /\.chemins-actions\{([^}]*)\}/.exec(src);
+  assert.ok(actions, 'la règle .chemins-actions est introuvable');
+  assert.ok(/flex-wrap:\s*wrap/.test(actions[1]),
+    'sans passage à la ligne, le second chemin déborde hors du cadre sur un téléphone');
+
+  const bouton = /\.chemins-btn\{([^}]*)\}/.exec(src);
+  assert.ok(bouton, 'la règle .chemins-btn est introuvable');
+  const base = /flex:\s*1\s+1\s+(\d+)px/.exec(bouton[1]);
+  assert.ok(base, 'les boutons doivent porter une base flexible, pas une largeur figée');
+  // 320 px est le plus étroit des téléphones encore en service ; le panneau
+  // lui retire 40 px de marge et 36 px de rembourrage. Une base supérieure à
+  // ce qui reste imposerait un défilement horizontal.
+  assert.ok(Number(base[1]) <= 320 - 40 - 36,
+    `base de ${base[1]}px : trop large pour un écran de 320 px`);
+  assert.ok(!/\bwidth:\s*\d{3,}px/.test(bouton[1]), 'aucune largeur fixe sur les boutons');
+
+  // Aucune règle d'affichage conditionnée à la largeur : le panneau ne peut
+  // pas disparaître à partir d'un certain seuil.
+  assert.ok(!/@media/.test(src),
+    'une media query pourrait masquer un chemin selon la largeur — à réexaminer si l\'écran en acquiert une');
+
+  // Et surtout : aucune garde JavaScript ne consulte la taille de l'écran
+  // pour décider ce qui est proposé. Les deux chemins sont les mêmes partout.
+  const f = fonctionsDe(scriptsDe(src)).get('renderDeuxChemins');
+  assert.ok(f, 'renderDeuxChemins introuvable');
+  assert.ok(!/innerWidth|matchMedia|screen\.|ontouchstart|userAgent/.test(f.corps),
+    'les chemins proposés dépendent du terminal : ils doivent être identiques partout');
+});
+
 console.log(`\n${passes} vérifications passées — se connecter, consulter, actualiser : rien de tout cela ne fabrique une présence.`);
