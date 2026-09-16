@@ -443,12 +443,16 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // Le chiffre n'est pas décoratif : il doit bouger EXACTEMENT quand une
 // migration est ajoutée, et jamais autrement. 16/09/2026 — 240 → 242, les deux
 // migrations du lot Pointage (`…_rattachement_shift_du_quart_employe.sql` et
-// `…_prise_de_poste_contrat_unique.sql`). Une mise à jour de ces constantes
+// `…_prise_de_poste_contrat_unique.sql`). Puis 242 → 243 le même jour :
+// `20260911180600_pointage_exige_service_et_evenement.sql`, appliquée sur Test
+// depuis le 11/09 et qui ne figurait dans aucune branche fusionnée. Les deux
+// valeurs sont MESURÉES (`node .github/deploiement/empreinte-artefact.js
+// --arbre-source=.`), jamais recopiées : une mise à jour de ces constantes
 // sans ajout correspondant dans `supabase/migrations/` serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 242;
-const MIGRATIONS_REELLES_EMPREINTE = 'a526f23401d3fd87aad528293522b53817384804e713b241d0847a69e981d96e';
+const MIGRATIONS_REELLES_NOMBRE = 243;
+const MIGRATIONS_REELLES_EMPREINTE = '8adfcf54eab570ff904abc3ef65290c0a276abdb8aa8f9277dbc796c1fc45d4b';
 
-cas('Réel · la provenance des migrations annonce 242 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 243 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
