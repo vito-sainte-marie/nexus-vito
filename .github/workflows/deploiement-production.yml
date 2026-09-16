@@ -351,9 +351,14 @@ jobs:
       # produit donc un artefact que le job `deployer` refusera.
       #
       # En Phase 1 :
-      #   · rollback d'HÉBERGEMENT = ramener Pages de « GitHub Actions » à
-      #     « Deploy from a branch » → `production` / `root`. Geste humain,
-      #     hors de ce workflow ;
+      #   · rollback d'HÉBERGEMENT = TROIS gestes humains, hors de ce
+      #     workflow : (1) ramener Pages de « GitHub Actions » à « Deploy
+      #     from a branch » → `production` / `root` ; (2) APPROUVER la
+      #     reconstruction « pages build and deployment » que ce changement
+      #     déclenche — le relecteur requis de l'environnement
+      #     `github-pages` garde AUSSI le rail legacy, donc sans cette
+      #     approbation le site continue de servir l'artefact Actions ;
+      #     (3) vérifier le retour au contenu précédent ;
       #   · rollback APPLICATIF (republier un état de code plus ancien) =
       #     circuit distinct, NON FOURNI dans cette Phase 1 ;
       #   · `ref_applicatif` = construction et épreuve d'une référence, rien
@@ -467,7 +472,7 @@ jobs:
             echo ""
             echo "Rien n'a été publié. Pour publier l'état courant, relancez le rail sur \`${TETE}\` : il reconstruira, ré-éprouvera et remesurera."
             echo ""
-            echo "Republier un état plus ancien n'est pas possible par ce workflow, et \`ref_applicatif\` ne le permet pas : la condition \`sha_construit == github.sha\` refusera l'artefact, et rien ici ne repointe \`production\`. En Phase 1, le seul retour arrière disponible est le rollback d'hébergement — reposer GitHub Pages sur \`production\` / \`root\`. Un rollback applicatif relève d'un circuit distinct, non fourni dans cette phase."
+            echo "Republier un état plus ancien n'est pas possible par ce workflow, et \`ref_applicatif\` ne le permet pas : la condition \`sha_construit == github.sha\` refusera l'artefact, et rien ici ne repointe \`production\`. En Phase 1, le seul retour arrière disponible est le rollback d'hébergement — reposer GitHub Pages sur \`production\` / \`root\`, **puis approuver la reconstruction legacy que ce changement déclenche** (la gate \`github-pages\` retient aussi ce rail : sans approbation, le site sert encore l'artefact Actions), puis vérifier le contenu. Un rollback applicatif relève d'un circuit distinct, non fourni dans cette phase."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
