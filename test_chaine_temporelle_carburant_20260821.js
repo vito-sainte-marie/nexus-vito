@@ -285,6 +285,28 @@ console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
     };
     return chain;
   }
+  // Les tables que ce scénario ne met pas en scène répondaient par une chaîne
+  // à trois maillons — select / eq / maybeSingle. `chargerDernieresAncresReception`
+  // est arrivé après ce test et interroge `carburant_reception_visites` par une
+  // requête de LISTE : .neq().not().lt().order().limit(), attendue directement.
+  // Le mock mourait sur « .neq is not a function » et le scénario ne mesurait
+  // plus la chaîne temporelle, seulement l'absence d'un maillon. La bonne
+  // réponse pour une table absente du scénario n'est pas une panne, c'est
+  // « aucune ligne » — sous les deux formes, liste et ligne unique.
+  function chainListe(lignes) {
+    const chain = {
+      select() { return chain; }, eq() { return chain; }, neq() { return chain; },
+      not() { return chain; }, in() { return chain; }, is() { return chain; },
+      lt() { return chain; }, lte() { return chain; }, gt() { return chain; }, gte() { return chain; },
+      order() { return chain; }, limit() { return chain; }, range() { return chain; },
+      maybeSingle: async () => ({ data: lignes[0] || null, error: null }),
+      single: async () => ({ data: lignes[0] || null, error: null }),
+      then: (resolve) => resolve({ data: lignes, error: null }),
+    };
+    return chain;
+  }
+  const chainVide = () => chainListe([]);
+
   function creerClientReel() {
     return {
       from(table) {
@@ -293,9 +315,9 @@ console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
         // valeur réelle de vito-sainte-marie (station_config.fuseau_horaire),
         // jamais 'Europe/Paris'.
         if (table === 'station_config') return { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: { horaires: HORAIRES_VITO, fuseau_horaire: FUSEAU_VITO }, error: null }) };
-        if (table === 'audits_caisse') return { select() { return this; }, eq() { return this; }, gte() { return this; }, lte() { return this; }, then: (resolve) => resolve({ data: quarts, error: null }) };
+        if (table === 'audits_caisse') return chainListe(quarts);
         if (table === 'carburant_stock_references') return { select() { return this; }, eq() { return this; }, lte() { return this; }, order() { return this; }, limit() { return this; }, maybeSingle: async () => ({ data: null, error: null }) };
-        return { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: null, error: null }) };
+        return chainVide();
       },
     };
   }
@@ -336,9 +358,9 @@ console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
       from(table) {
         if (table === 'carburant_releves') return chainReleves();
         if (table === 'station_config') return { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: { horaires: HORAIRES_VITO }, error: null }) };
-        if (table === 'audits_caisse') return { select() { return this; }, eq() { return this; }, gte() { return this; }, lte() { return this; }, then: (resolve) => resolve({ data: quarts, error: null }) };
+        if (table === 'audits_caisse') return chainListe(quarts);
         if (table === 'carburant_stock_references') return { select() { return this; }, eq() { return this; }, lte() { return this; }, order() { return this; }, limit() { return this; }, maybeSingle: async () => ({ data: null, error: null }) };
-        return { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: null, error: null }) };
+        return chainVide();
       },
     };
     const r = await D.chargerControleJour(clientSansFuseau, 'vito-sainte-marie', '2026-08-21');

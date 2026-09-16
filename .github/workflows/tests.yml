@@ -10,8 +10,8 @@
 # qu'aucun test n'ait été exécuté ailleurs que sur le poste du développeur.
 #
 # Attention en lisant le résultat : 8 tests échouent déjà indépendamment de
-# toute modification (inventaire ×4, réception ×2, carburant ×1, pilotage
-# ×1). Ils sont listés ci-dessous et tolérés tant qu'ils ne sont pas repris.
+# toute modification (inventaire ×4, réception ×2, pilotage ×1). Ils sont
+# listés ci-dessous et tolérés tant qu'ils ne sont pas repris.
 # Le workflow échoue si un AUTRE test casse, ou si l'un de ces 8 est réparé
 # sans mettre la liste à jour — un garde-fou volontairement strict, pour que
 # la dette reste visible plutôt que de s'installer.
@@ -66,8 +66,7 @@ jobs:
       - name: Comparer aux échecs connus
         run: |
           set -euo pipefail
-          CONNUS="test_chaine_temporelle_carburant_20260821.js
-          test_inventaire_categorie_mixte_deux_lieux.js
+          CONNUS="test_inventaire_categorie_mixte_deux_lieux.js
           test_inventaire_production_journaliere_q1.js
           test_inventaire_sprint4_ux_flash.js
           test_inventaire_sprint4bis_ecriture_immediate.js
