@@ -20,6 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -621,9 +622,15 @@
   // Même règle que NEXUS-Inventaire-v1.html (02/08/2026) : le quart par
   // défaut se base sur les horaires réels configurés dans Paramètres
   // Station, pas sur un seuil fixe codé en dur.
-  const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
+  // A3 / C2-2 : plus de seuil par défaut à transmettre — il vient de la
+  // configuration du site, ou le quart reste indéterminé.
+  // A3 / C2-3 : fuseau du commerce, résolu une fois et conservé — il sert
+  // aussi à juger si une clôture est en retard (libelleEtatQuart).
+  let FUSEAU_STATION_IM = null;
   async function quartDuMoment(site) {
-    return NexusInventaireManagerDonnees.quartDuMoment(nexusClient, site, HORAIRE_DEFAUT_DEBUT_QUART2);
+    const fuseau = await NexusStation.fuseauDeLaStation(site);
+    FUSEAU_STATION_IM = fuseau.timezone || null;
+    return NexusInventaireManagerDonnees.quartDuMoment(nexusClient, site, FUSEAU_STATION_IM);
   }
 
   function libelleStatutQuart(q) {
@@ -653,10 +660,13 @@
     const finNormale = horaires && cleHoraire && horaires[cleHoraire] ? horaires[cleHoraire].fin_normal : null;
     if (!finNormale) return { texte: base, urgence: 'normal' };
 
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
-    const [h, m] = finNormale.split(':').map(Number);
-    const minutesFin = h * 60 + (m || 0);
+    // A3 / C2-3 : « la clôture est-elle en retard ? » se juge à l'heure de la
+    // STATION. Avec l'heure de l'appareil, un manager en déplacement voyait
+    // des clôtures en retard qui ne l'étaient pas, ou l'inverse.
+    if (!FUSEAU_STATION_IM) return { texte: base, urgence: 'normal' };
+    const minutesMaintenant = NexusStation.minutesLocalesStation(FUSEAU_STATION_IM);
+    const minutesFin = NexusStation.minutesDepuisMinuit(finNormale);
+    if (minutesFin === null) return { texte: base, urgence: 'normal' };
     const minutesAvantFin = minutesFin - minutesMaintenant;
     const n = synthese.manquants;
 
@@ -3485,6 +3495,11 @@
 
     dateSelectionnee = dateISO();
     quartSelectionne = await quartDuMoment(siteId);
+    if (!quartSelectionne) {
+      console.error('Contrôle inventaire bloqué : horaires de quart non configurés pour ce commerce.');
+      document.getElementById('root').innerHTML = '<div class="locked">Quart indéterminable — il manque le fuseau horaire du commerce ou ses horaires de quart. NEXUS ne devine pas à quel quart rattacher un contrôle.</div>';
+      return;
+    }
 
     await chargerEtAfficherTout();
     afficherTipParametresInventaireSiUtile();

@@ -34,7 +34,7 @@
 //   - chargerParametresFdjSite : la requête est identique (table
 //     fdj_site_settings, même filtre site) mais le DÉFAUT appliqué diffère
 //     totalement selon la page (`{ seuil_min_quarts_moyenne: 3 }` ici,
-//     `{ horaire_bascule_quart2_repli: '12:40' }` dans FDJ-v1) — chaque
+//     `{ fenetre_acces_quart_min: 30 }` dans FDJ-v1) — chaque
 //     page ne consomme qu'un champ différent de la même ligne de config,
 //     ce n'est pas un doublon à fusionner mais une coïncidence de requête.
 //   - chargerEmployesSite : requête identique à celle de FDJ-Manager

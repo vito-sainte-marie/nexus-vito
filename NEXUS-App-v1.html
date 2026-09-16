@@ -570,7 +570,8 @@
         <span class="header-divider"></span>
         <span class="header-sitewrap">
           <span id="logoFrameHote"></span>
-          <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
+          <!-- A3 / B1 : libellé neutre. chargerMarqueSite() y met le nom réel du commerce, ou son identifiant. Jamais le nom d'un autre. -->
+          <span class="header-sitename" id="stationTitle">Ma station</span>
         </span>
       </div>
     </div>
@@ -1289,7 +1290,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-indice.js?v=20260904-0104"></script>
@@ -1392,6 +1395,9 @@
   // `opportunites`).
   const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
+  // A3 / C1c-4b : l'Accueil devient résolveur explicite — il délègue le
+  // statut carburants à la chaîne Brief, qui date ses journées.
+  let FUSEAU_STATION = null;
   let SITE_HOME = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_HOME_ID = null;
 
@@ -1739,6 +1745,9 @@
 
   async function initPosteManager(employee) {
     SITE_HOME = employee.site_id;
+    // A3 / C1c-4b : fuseau du commerce résolu une fois, puis transmis.
+    const fuseauAccueil = await NexusStation.fuseauDeLaStation(SITE_HOME);
+    FUSEAU_STATION = fuseauAccueil.timezone || null;
     EMPLOYEE_HOME_ID = employee.id;
 
     const [
@@ -1761,7 +1770,7 @@
       NexusConseillerDonnees.chargerConstatTempo(nexusClient, SITE_HOME),
       NexusConseillerDonnees.chargerMessagesAdvisor(nexusClient, SITE_HOME),
       chargerRaccourcisHome(SITE_HOME),
-      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME, FUSEAU_STATION),
       NexusAppDonnees.chargerAlertesFdjNonVuesHome(nexusClient, SITE_HOME),
     ]);
     afficherHeureRecalcul();
@@ -1888,7 +1897,9 @@
   // (jamais un chiffre inventé — une étape sans donnée réelle reste
   // "sans objet", jamais cochée par défaut).
   // ============================================================
-  const POINTAGE_MINI_ORDRE = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+  // L'ordre des types vit dans NexusPointageRegles.ORDRE_TYPES depuis le
+  // 13/09/2026. Cet écran n'en garde plus de copie : la garder invitait à
+  // s'en servir pour décider, ce qui est précisément le défaut corrigé.
   const POINTAGE_MINI_LIBELLES = {
     arrivee: 'Pointer l’arrivée →',
     pause_debut: 'Pointer le début de pause →',
@@ -1903,13 +1914,32 @@
   };
   const POINTAGE_MINI_COULEURS = { arrivee: 'arrivee', pause_debut: 'pause', pause_fin: 'pause', depart: 'depart' };
 
-  // Prochaine étape de pointage — pure, prend les pointages du jour déjà
-  // chargés (type par ligne) et renvoie le prochain type manquant dans
-  // l'ordre réel de la journée, ou null si tout est pointé.
-  function calculerProchainPointage(pointagesJour) {
-    const fait = {};
-    (pointagesJour || []).forEach(p => { fait[p.type] = true; });
-    return POINTAGE_MINI_ORDRE.find(t => !fait[t]) || null;
+  // Prochaine étape de pointage — pure. Elle prend les pointages du jour
+  // (plusieurs services possibles) et l'identifiant du service courant.
+  //
+  // CE CALCUL ÉTAIT FAUX DEUX FOIS (corrigé le 13/09/2026 au soir, septième
+  // endroit de la série). Il s'écrivait :
+  //
+  //     const fait = {};
+  //     (pointagesJour || []).forEach(p => { fait[p.type] = true; });
+  //     return POINTAGE_MINI_ORDRE.find(t => !fait[t]) || null;
+  //
+  // 1. La PORTÉE : tous les pointages de la journée, quel que soit leur
+  //    service. Un employé qui reprend un poste après un départ voyait son
+  //    nouveau service hériter des pointages de l'ancien.
+  // 2. LA RÈGLE : « le premier type manquant » n'est pas « la prochaine
+  //    étape possible ». Sur une journée portant arrivée et départ, ce
+  //    calcul annonce « début de pause » — une étape que l'écran Pointage
+  //    refuse. C'est le reste de séquence stricte déjà retiré de cet
+  //    écran-là le 13/09 au matin, qui avait survécu ici.
+  //
+  // Les deux sont réparés en consommant la règle plutôt qu'en la
+  // réécrivant : NexusPointageRegles est désormais son seul propriétaire
+  // (ARCH-001), et test_app_prochaine_action_par_service_20260913.js
+  // verrouille l'équivalence avec l'écran Pointage.
+  function calculerProchainPointage(pointagesJour, serviceCourantId) {
+    const dejaFait = NexusPointageRegles.dejaFaitDuService(pointagesJour, serviceCourantId);
+    return NexusPointageRegles.prochaineEtape(dejaFait);
   }
 
   // Fenêtre horaire d'une mission — même règle exacte que
@@ -2033,6 +2063,14 @@
   // sans lien réel derrière. Coach et Prochaine action partagent cette
   // même priorité (voir determinerPhraseCoach) — une seule vérité.
   function determinerProchaineActionEmploye(ctx) {
+    // Journée terminée : le dire, sans proposer de pointage (14/09/2026,
+    // voir NexusPointageRegles.journeeTermineeSansService). Vérifié en
+    // premier — avant même le pointage — puisque `ctx.prochainPointage`
+    // est déjà neutralisé à null par l'appelant dans ce cas ; ce garde-fou
+    // reste explicite pour ne jamais dépendre de cet ordre d'annulation.
+    if (ctx.journeeTerminee) {
+      return { couleur: null, titre: 'Votre journée est enregistrée. Il n’y a plus de service ouvert.', lienTexte: null, lien: null };
+    }
     if (ctx.pointageActif && ctx.prochainPointage === 'arrivee') {
       return {
         couleur: POINTAGE_MINI_COULEURS.arrivee,
@@ -2178,7 +2216,7 @@
   // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
   // lectures Supabase partent en parallèle (Promise.all) : la page reste
   // aussi rapide qu'avant malgré le calcul plus riche.
-  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour) {
+  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
 
     const d = new Date();
@@ -2206,7 +2244,12 @@
       statutJaugeageJour,
     ] = await Promise.all([
       pointageActifSite
-        ? nexusClient.from('pointages').select('type').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
+        // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
+        // écran ne pouvait pas distinguer deux services de la même journée,
+        // et comptait comme faits les pointages du service précédent.
+        // La lecture reste celle de la JOURNÉE — c'est le tri qui se fait
+        // par service, juste après, exactement comme dans l'écran Pointage.
+        ? nexusClient.from('pointages').select('type, service_id').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
         : Promise.resolve({ data: [], error: null }),
       nexusClient.from('mission_catalog').select('mission_id, role_required, disponibilite, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', employee.site_id),
       nexusClient.from('mission_completions').select('mission_id, points, points_ajustement').eq('employee_id', employee.id).eq('date', todayISO),
@@ -2255,12 +2298,41 @@
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait);
-    const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour) : null;
-    const arriveeFaite = (pointagesJour || []).some(p => p.type === 'arrivee');
-    const departFait = (pointagesJour || []).some(p => p.type === 'depart');
+    // Le service du jour, et lui seul (même règle que l'écran Pointage) : un
+    // quart laissé ouvert la veille n'est pas le service courant. Sans
+    // service du jour, `dejaFaitDuService` rend un état vide — donc
+    // « arrivée » comme prochaine étape, ce qui est exact : il n'y a rien de
+    // pointé pour un service qui n'existe pas.
+    const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(
+      serviceCourant, todayISO, d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    const serviceCourantId = serviceCourantJour ? serviceCourantJour.id : null;
+    // « Fait » se compte dans CE service, jamais dans la journée : c'est la
+    // même correction qu'aux six autres endroits du 13/09/2026. Un départ
+    // pointé sur le service du midi ne clôt pas celui du soir, et ne doit
+    // donc pas cocher l'étape « Clôture » de la progression.
+    const dejaFaitService = NexusPointageRegles.dejaFaitDuService(pointagesJour, serviceCourantId);
+    const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour, serviceCourantId) : null;
+    const arriveeFaite = !!dejaFaitService.arrivee;
+    const departFait = !!dejaFaitService.depart;
+    // Journée terminée SANS service ouvert (14/09/2026) : distincte de
+    // « rien commencé ». `serviceCourantJour` est null pour deux raisons
+    // opposées — la journée n'a pas débuté, ou un départ l'a déjà refermée
+    // (S-2). Sans cette distinction, `prochainPointage` ci-dessus retombe
+    // sur « arrivée » (état vide de `dejaFaitDuService`) même quand la
+    // journée est finie, et rouvre l'étape que l'écran Pointage refuse déjà
+    // pour ce même cas (sa propre garde `journeeTerminee`). Relevé par
+    // Frédéric sur Employé Test B après déconnexion/reconnexion : Supabase
+    // confirmait le service clos par `pointage_depart`, zéro service
+    // ouvert, et l'accueil annonçait pourtant « Votre service est en
+    // cours » / « Pointer l'arrivée ».
+    const journeeTerminee = pointageActifSite
+      && NexusPointageRegles.journeeTermineeSansService(serviceCourantJour, pointagesJour);
+    const prochainPointageEffectif = journeeTerminee ? null : prochainPointage;
 
     const ctx = {
-      pointageActif: pointageActifSite, prochainPointage, arriveeFaite, departFait,
+      pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
+      arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
+      journeeTerminee,
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
@@ -2271,7 +2343,7 @@
     renderOutilsQuart(choisirTuilesOutilsQuart(ctx));
 
     document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
-    const nbActions = (prochainPointage ? 1 : 0)
+    const nbActions = (prochainPointageEffectif ? 1 : 0)
       + Math.max(0, missionsInfo.total - missionsInfo.faites)
       + Math.max(0, controlesInfo.total - controlesInfo.faits);
     // "Rôle du jour" affiché de façon discrète (cadrage UX §14) — préfixe
@@ -2279,9 +2351,15 @@
     const statutEl = document.getElementById('conseillerEmployeStatut');
     if (statutEl) {
       const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || null;
-      const phraseService = nbActions === 0
-        ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
-        : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
+      // Journée terminée : jamais « en cours », quel que soit nbActions —
+      // sinon une mission encore ouverte suffisait à réafficher « Votre
+      // service est en cours » sur une journée déjà close (même défaut,
+      // formulé autrement).
+      const phraseService = journeeTerminee
+        ? 'Votre journée est terminée'
+        : nbActions === 0
+          ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
+          : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
       statutEl.textContent = libelleRole ? `${libelleRole} · ${phraseService}` : phraseService;
     }
 
@@ -2644,26 +2722,44 @@
     // recalculé ici — un 4e calcul de quart existe déjà entre Prise de
     // Poste/Inventaire/FDJ (12:40 vs 13:00 selon l'écran, incohérence
     // connue et non résolue), inutile d'en ajouter un 5e (Article 11).
+    // S-4 (05/09/2026) : le service courant vient de la primitive unique
+    // (nexus-auth.js). Ce lecteur bornait la journée en UTC
+    // (`new Date().toISOString()`) — ni l'heure de la station, ni même
+    // l'heure de l'appareil. Depuis que S-2 et S-3 clôturent réellement,
+    // cette borne aurait renvoyé un service terminé comme s'il était actif.
+    //
+    // La borne de journée disparaît du chemin de décision « quel est le
+    // service courant ? ». Les autres dettes de journée (UTC contre heure
+    // appareil contre heure station) restent consignées en A17 et ne sont
+    // pas traitées ici.
     let quartDuJour = null;
-    const aujourdISO = new Date().toISOString().slice(0, 10);
+    // Le service courant lui-même, et plus seulement son rôle et son quart
+    // (13/09/2026) : l'accueil en a besoin pour compter ce qui est pointé
+    // DANS ce service. Il était déjà lu ici, et jeté après en avoir extrait
+    // deux champs — l'accueil retombait alors sur la journée entière.
+    let serviceCourant = null;
     if (!employee.consultation_externe) {
-      const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
-        .from('shifts')
-        .select('id, role, quart')
-        .eq('employee_id', employee.id)
-        .gte('heure_debut', aujourdISO + 'T00:00:00')
-        .lte('heure_debut', aujourdISO + 'T23:59:59')
-        .order('heure_debut', { ascending: false })
-        .limit(1);
-
-      if (!erreurShift && (!shiftsAujourdhui || shiftsAujourdhui.length === 0)) {
-        window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-        return;
+      const r = await nexusServiceCourant(employee);
+      if (r.aucun) {
+        // Seconde porte vers la prise de poste (11/09/2026, arbitrage C.3).
+        // Celle de nexus-auth.js avait ete corrigee ; celle-ci redirigeait
+        // toujours, et l'employee qui venait de pointer son depart se
+        // retrouvait aussitot devant la question du role. Apres une cloture,
+        // reprendre un poste reste possible, mais par une action volontaire,
+        // jamais comme ecran impose. Une correction posee sur une porte quand
+        // il y en a deux ne corrige rien : elle deplace l'endroit ou l'on se cogne.
+        if (!(await nexusDepartPointeAujourdhui(employee))) {
+          window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
+          return;
+        }
       }
-      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) {
-        roleDuJour = shiftsAujourdhui[0].role;
-        quartDuJour = shiftsAujourdhui[0].quart;
+      if (r.service) {
+        roleDuJour = r.service.role;
+        quartDuJour = r.service.quart;
+        serviceCourant = r.service;
       }
+      // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
+      // renvoyer un employé vers la prise de poste alors qu'il en a une.
     }
 
     document.getElementById('sessionInfo').innerHTML =
@@ -2735,7 +2831,7 @@
       // regroupe désormais tout ce qui était dispersé ici (pointage,
       // inventaire, FDJ, réception carburant, notification Progression) :
       // voir initAccueilEmploye() et son détail plus haut dans le script.
-      await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour);
+      await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour, serviceCourant);
     }
 
     if (employee.est_createur) {
@@ -2752,9 +2848,31 @@
     (async function chargerMarqueSite() {
       const siteId = employee.site_id;
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
-      if (error || !site) return;
       const titre = document.getElementById('stationTitle');
-      if (titre && site.nom_entreprise) titre.textContent = site.nom_entreprise;
+      // A3 / B1 (05/09/2026) — le nom d'un autre commerce ne sert plus de
+      // valeur de secours.
+      //
+      // Le libellé « Vito Sainte-Marie Usine » était écrit en dur et n'était
+      // remplacé que si la lecture RÉUSSISSAIT et rapportait un nom. Sur
+      // échec réseau, ou sur un site sans nom_entreprise, un client voyait le
+      // nom d'un autre client en en-tête. Le mécanisme était présentationnel,
+      // le mode de défaillance ne l'était pas.
+      //
+      // Trois branches, selon la règle A4-bis : l'échec de la requête est une
+      // panne technique (error) ; une lecture réussie sans nom est une
+      // configuration incomplète (warn). Le repli est l'identifiant du
+      // commerce COURANT — jamais celui d'un autre, jamais une chaîne vide.
+      if (error) {
+        console.error('Lecture identité du commerce :', error);
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      if (!site || !site.nom_entreprise) {
+        console.warn('Identité du commerce non configurée — en-tête neutre.');
+        if (titre) titre.textContent = siteId || 'Commerce non identifié';
+        return;
+      }
+      titre.textContent = site.nom_entreprise;
       if (site.logo_url) {
         const hote = document.getElementById('logoFrameHote');
         if (hote) {
@@ -2774,15 +2892,19 @@
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
-      const HORAIRES_DEFAUT_RAPPEL = {
-        quart1: { normal: "05:45", etendu: "05:45" },
-        quart2: { normal: "12:40", etendu: "13:40" },
-        renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
-      };
+      // A3 / C2-4 (05/09/2026) — HORAIRES_DEFAUT_RAPPEL supprimé.
+      //
+      // C'était un TROISIÈME jeu d'horaires, incomplet (ni fin_normal ni
+      // fin_etendu), servant à satisfaire la contrainte NOT NULL de
+      // station_config.horaires lors d'un upsert de PRIX carburants. Un écran
+      // qui enregistre des prix n'a aucune raison de décider des horaires
+      // d'un commerce — et encore moins de ceux d'une autre station.
+      //
+      // Sans horaires configurés, l'enregistrement est refusé et dit pourquoi.
       async function chargerHorairesPourUpsert() {
         const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-        if (error) { console.error('Chargement horaires (rappel prix):', error); return HORAIRES_DEFAUT_RAPPEL; }
-        return (data && data.horaires) || HORAIRES_DEFAUT_RAPPEL;
+        if (error) { console.error('Chargement horaires (rappel prix) :', error); return null; }
+        return (data && data.horaires) || null;
       }
 
       async function chargerPrixCarburantsRappel() {
@@ -2826,6 +2948,14 @@
           btn.disabled = true;
           const prix_carburants = { mois: moisCourant, sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
           const horaires = await chargerHorairesPourUpsert();
+          if (!horaires) {
+            btn.disabled = false;
+            alert('Horaires de quart non configurés pour ce commerce.\n\n'
+              + 'NEXUS ne peut pas créer la configuration de ce site à partir d’un '
+              + 'enregistrement de prix, et il ne reprendra pas les horaires d’une '
+              + 'autre station. Un manager doit les renseigner dans Paramètres Station.');
+            return;
+          }
           const { error } = await nexusClient.from('station_config').upsert(
             { site: siteId, prix_carburants, horaires, updated_at: new Date().toISOString() },
             { onConflict: 'site' }
