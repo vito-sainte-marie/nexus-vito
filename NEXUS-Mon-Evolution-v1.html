@@ -56,6 +56,9 @@
   .ecart-row:last-child{border-bottom:none;}
   .ecart-info{color:var(--text-mid);}
   .ecart-montant{font-family:var(--mono); font-weight:600; white-space:nowrap;}
+  .ecart-row.partage .ecart-montant{opacity:.55;}
+  .ecart-badge{display:inline-block; margin-left:6px; padding:1px 6px; border-radius:9px; font-family:var(--mono); font-size:9px; letter-spacing:.3px; color:var(--text-dim); border:1px solid var(--hairline);}
+  .ecart-mention{margin-top:10px; font-size:11.5px; line-height:1.5; color:var(--text-dim);}
 
   .prog-row{display:flex; align-items:center; gap:18px;}
   .prog-donut-wrap{position:relative; width:110px; height:110px; flex-shrink:0;}
@@ -109,11 +112,46 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<!-- Projection sécurisée par poste (14/09/2026) : cet écran lisait
+     `audits_caisse` en clair et recevait, sur chaque ligne, l'identifiant du
+     collègue qui tenait l'autre poste, l'écart de ce poste et le commentaire
+     du manager. Il ne lit plus que ses propres postes. -->
+<!-- La regle d'attribution d'un ecart (poste tenu seul / poste partage) ne vit
+     pas dans cet ecran : elle vit dans nexus-progression.js, comme pour
+     NEXUS Progression et NEXUS Apprentissage. Cet ecran ne la chargeait pas
+     jusqu'au 16/09/2026 et la redisait donc en dur, ce qui fait deux endroits
+     ou une seule regle peut deriver. nexus-ecarts-moteur.js doit etre charge
+     avant : nexus-progression.js lui delegue la gravite d'un ecart. -->
+<!-- Meme raison pour la GRAVITE d'un montant (16/09/2026) : les seuils de la
+     section 11 du cahier des charges vivent dans nexus-verify-moteur.js, et
+     nulle part ailleurs. Cet ecran les redisait en dur, a trois paliers au lieu
+     de quatre : le palier "anomalie" n'y existait pas. Un ecart de 5,01 a 20
+     EUR s'y affichait donc en ambre, le ton du "a surveiller", alors qu'il est
+     une ANOMALIE partout ailleurs dans NEXUS (Verify, Rapport de Direction,
+     Cockpit, Brief, Pilotage Carburants). Le seul ecran qui regarde l'employee
+     etait le seul a minimiser. -->
+<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+<script src="nexus-progression.js?v=20260904-0104"></script>
+<script src="nexus-caisse-source.js?v=20260904-0104"></script>
 <script>
+  // Cet ecran ne decide plus de la gravite d'un montant, il la demande.
+  // `NexusVerifyMoteur.classifierEcart` est la seule echelle de l'app
+  // (conforme <= 2 EUR, surveiller <= 5, anomalie <= 20, critique au-dela) :
+  // la meme que NEXUS Verify, le Rapport de Direction, le Cockpit, le Brief et
+  // le Pilotage Carburants. Ne reste ici que la traduction en couleur, et
+  // celle de NEXUS-Verify-v1.html (.statut-conforme/-surveiller/-anomalie/
+  // -critique) : --rouge vaut ici exactement le --red de Verify (#F0575A).
+  // Aucun repli si le moteur manque : un repli reecrirait les seuils, donc
+  // recreerait le deuxieme endroit ou une seule regle peut deriver.
+  const COULEUR_GRAVITE = {
+    conforme: 'var(--green)',
+    surveiller: 'var(--amber)',
+    anomalie: 'var(--rouge)',
+    critique: 'var(--rouge)',
+  };
   function classifierEcart(montantAbs) {
-    if (montantAbs <= 2) return 'var(--green)';
-    if (montantAbs <= 20) return 'var(--amber)';
-    return 'var(--rouge)';
+    return COULEUR_GRAVITE[window.NexusVerifyMoteur.classifierEcart(montantAbs)];
   }
 
   // Mêmes paliers que la carte "Conseiller NEXUS" de l'écran Missions —
@@ -226,63 +264,133 @@
     }
 
     // ------------------------------------------------------------
-    // Écarts de caisse du mois en cours — données réelles issues
-    // d'audits_caisse (NEXUS Verify). Chaque ligne d'audit couvre un
-    // site + date + quart et liste qui était présent sur la caisse
-    // piste et/ou boutique ce quart-là (employes_piste / employes_
-    // boutique) ; on ne garde que les lignes où l'employé connecté
-    // apparaît, avec l'écart correspondant à SON poste ce quart-là.
+    // Écarts de caisse du mois en cours — données réelles, issues des
+    // comptages de NEXUS Verify, lues par `mes_ecarts_caisse()`
+    // (migration 20260914210000). Une ligne = un poste réellement tenu
+    // par la personne connectée. Le serveur a déjà fait le tri : cet
+    // écran ne reçoit ni l'identifiant d'un collègue, ni l'écart du
+    // poste qu'il n'a pas tenu, ni l'écart du quart entier, ni le nom
+    // du validateur, ni le commentaire du manager.
+    //
+    // Jusqu'au 14/09/2026, ce même écran lisait `audits_caisse` en
+    // clair et filtrait côté navigateur sur `employes_piste` /
+    // `employes_boutique` : pour décider quoi montrer, il devait
+    // d'abord tout recevoir. La réponse réseau contenait donc les
+    // données des collègues, que l'affichage les montre ou non.
+    //
     // Un nouveau comptage écrase l'ancien via upsert côté Verify
     // (conflit sur site+date+quart) : on lit donc toujours la
     // dernière valeur, jamais un historique de doublons.
     // ------------------------------------------------------------
+    // Le montant affiché quand il n'y a rien à additionner. Nommé une fois,
+    // parce que les trois branches qui l'utilisent (erreur, aucun contrôle,
+    // aucun poste hors partage) disent la même chose : NEXUS ne connaît pas
+    // ce montant. Trois littéraux auraient été trois occasions d'en écrire
+    // un quatrième, différent.
+    const CUMUL_INDISPONIBLE = '—';
+
     async function chargerEcartsCaisse() {
       const conteneur = document.getElementById('ecartsListe');
       const cumulEl = document.getElementById('ecartCumule');
       const now = new Date();
       const premierJourMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
-      const { data, error } = await nexusClient
-        .from('audits_caisse')
-        .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
-        .eq('site', siteId)
-        .gte('date', premierJourMois)
-        .order('date', { ascending: false });
-
-      if (error) {
-        console.error('Chargement audits_caisse:', error);
-        conteneur.innerHTML = '<div class="empty-note">Erreur de chargement des écarts de caisse.</div>';
-        cumulEl.textContent = '—';
-        return;
-      }
-
-      const lignes = [];
-      (data || []).forEach(a => {
-        const enPiste = Array.isArray(a.employes_piste) && a.employes_piste.includes(employee.id);
-        const enBoutique = Array.isArray(a.employes_boutique) && a.employes_boutique.includes(employee.id);
-        if (enPiste && a.ecart_piste !== null) lignes.push({ date: a.date, quart: a.quart, role: 'Piste', ecart: Number(a.ecart_piste) });
-        if (enBoutique && a.ecart_boutique !== null) lignes.push({ date: a.date, quart: a.quart, role: 'Boutique', ecart: Number(a.ecart_boutique) });
+      // Projection par poste (14/09/2026). L'écran ne filtre plus lui-même
+      // par identifiant : le serveur ne lui envoie que les postes qu'il a
+      // réellement tenus. Il n'y a donc plus rien à écarter côté navigateur,
+      // et plus rien à écarter signifie plus rien à laisser fuir.
+      const { data, error } = await NexusCaisseSource.chargerPostesEmploye({
+        client: nexusClient, depuis: premierJourMois,
       });
 
-      if (lignes.length === 0) {
-        conteneur.innerHTML = '<div class="empty-note">Aucun écart de caisse enregistré pour vous ce mois-ci.</div>';
-        cumulEl.textContent = '0.00 €';
-        cumulEl.style.color = 'var(--green)';
+      if (error) {
+        console.error('Chargement mes_ecarts_caisse:', error);
+        conteneur.innerHTML = '<div class="empty-note">Erreur de chargement des écarts de caisse.</div>';
+        cumulEl.textContent = CUMUL_INDISPONIBLE;
+        cumulEl.style.color = 'var(--text-dim)';
         return;
       }
 
-      const cumul = lignes.reduce((s, l) => s + l.ecart, 0);
-      cumulEl.textContent = `${cumul >= 0 ? '+' : ''}${cumul.toFixed(2)} €`;
-      cumulEl.style.color = classifierEcart(Math.abs(cumul));
+      // Un seul et meme ensemble de lignes alimente l'affichage ET le moteur
+      // de regles. Les filtrer chacun de son cote laisserait un poste non
+      // encore mesure compter dans l'un et pas dans l'autre : la projection
+      // rend une ligne par poste tenu, y compris quand l'ecart est encore
+      // `null` parce que le quart n'a pas ete controle.
+      const rowsMesures = (data || []).filter(r => r.ecart !== null && r.ecart !== undefined);
+
+      const lignes = rowsMesures.map(r => ({
+        date: r.date,
+        quart: r.quart,
+        poste: r.poste,
+        role: r.poste === 'piste' ? 'Piste' : 'Boutique',
+        ecart: Number(r.ecart),
+        partage: !!r.poste_partage,
+      }));
+
+      // Un état vide n'est pas un résultat à zéro (arbitrage du 14/09/2026).
+      // Cet écran affichait « 0.00 € » en vert à quelqu'un dont aucun quart
+      // n'avait jamais été contrôlé : un employé sans audit y lisait un
+      // résultat parfait qui n'existait pas. Le montant reste vide tant
+      // qu'il n'y a rien à additionner.
+      if (lignes.length === 0) {
+        conteneur.innerHTML = '<div class="empty-note"><b>Aucun contrôle de caisse enregistré pour vous ce mois-ci.</b><br><br>Cet écran se remplira dès qu\'un quart que vous avez tenu sera contrôlé. Tant qu\'il n\'y a rien à mesurer, NEXUS n\'affiche pas de résultat.</div>';
+        cumulEl.textContent = CUMUL_INDISPONIBLE;
+        cumulEl.style.color = 'var(--text-dim)';
+        return;
+      }
+
+      // Poste partage : plusieurs personnes ont tenu CE poste sur ce quart.
+      // Sans comptage de passation, rien ne dit laquelle a fait l'ecart. Le
+      // binome habituel piste + boutique n'est pas concerne : ce sont deux
+      // postes distincts, deux responsabilites distinctes.
+      //
+      // CE QUE CET ECRAN DECIDE, ET CE QU'IL NE DECIDE PAS (16/09/2026). Il
+      // decide seulement de la mise en forme. QUI attend un arbitrage est
+      // decide par `NexusProgression.ecartsEnAttenteArbitrage`, et la phrase
+      // qui le dit est `NexusProgression.MENTION_QUART_PARTAGE` — la meme
+      // regle et les memes mots que Progression et Apprentissage. Jusqu'ici
+      // cet ecran redisait la regle en dur et ecrivait sa propre phrase :
+      // c'etait un second endroit ou une seule regle pouvait deriver, sans
+      // que rien ne le signale.
+      //
+      // La distinction compte : un poste partage dont l'ecart reste sous le
+      // seuil de conformite sort du cumul comme les autres, mais n'appelle
+      // aucun arbitrage. Il s'affiche grise, sans badge.
+      const P = window.NexusProgression;
+      const services = P.construireServicesCaisseDepuisProjection(rowsMesures);
+      const cleEcart = e => `${e.date}|${e.quart}|${e.poste}`;
+      const aArbitrer = new Set(P.ecartsEnAttenteArbitrage(services).map(cleEcart));
+
+      const personnelles = lignes.filter(l => !l.partage);
+
+      if (personnelles.length === 0) {
+        cumulEl.textContent = CUMUL_INDISPONIBLE;
+        cumulEl.style.color = 'var(--text-dim)';
+      } else {
+        // Le cumul somme TOUS les ecarts des postes tenus seul(e), y compris
+        // ceux qui restent sous le seuil de conformite : c'est le solde reel
+        // du mois, pas une liste de points d'attention. `ecartsAttribuables`
+        // n'est volontairement pas utilise ici — il filtre sur le seuil, et
+        // s'en servir ferait disparaitre du solde les petits ecarts qui
+        // existent bel et bien.
+        const cumul = personnelles.reduce((s, l) => s + l.ecart, 0);
+        cumulEl.textContent = `${cumul >= 0 ? '+' : ''}${cumul.toFixed(2)} €`;
+        cumulEl.style.color = classifierEcart(Math.abs(cumul));
+      }
+
+      const mentionArbitrage = aArbitrer.size === 0 ? '' :
+        `<div class="ecart-mention">${P.MENTION_QUART_PARTAGE}</div>`;
 
       conteneur.innerHTML = lignes.map(l => {
         const dateAffichee = new Date(l.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const mention = l.partage ? ' · poste partagé, hors cumul' : '';
+        const badge = aArbitrer.has(cleEcart(l)) ? '<span class="ecart-badge">à arbitrer</span>' : '';
         return `
-          <div class="ecart-row">
-            <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}</div>
-            <div class="ecart-montant" style="color:${classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>
+          <div class="ecart-row${l.partage ? ' partage' : ''}">
+            <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}${mention}${badge}</div>
+            <div class="ecart-montant" style="color:${l.partage ? 'var(--text-dim)' : classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>
           </div>`;
-      }).join('');
+      }).join('') + mentionArbitrage;
     }
 
     await Promise.all([afficherProgression(), chargerEcartsCaisse()]);

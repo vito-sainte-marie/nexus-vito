@@ -368,7 +368,14 @@ const EXTRACTEURS = [
   { exts: ['.js', '.mjs'], motif: /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g },
   { exts: ['.js', '.mjs'], motif: /\bnew\s+Worker\(\s*['"]([^'"]+)['"]/g },
   { exts: ['.js', '.mjs'], motif: /\bfetch\(\s*['"]([^'"]+)['"]/g },
-  { exts: ['.js', '.mjs'], motif: /\bnew\s+URL\(\s*['"]([^'"]+)['"]/g },
+  // `new URL(x)` se résout depuis le fichier ; `new URL(x, base)` NON : c'est le
+  // second argument qui fixe la base, et cette base n'est presque jamais connue
+  // au repos (`location.href`, `page.url()`, une variable). Les résoudre depuis le
+  // dossier du fichier a refusé l'arbre réel sur trois appels parfaitement corrects
+  // d'`outils/recette-navigateur-test.js` : la forme à deux arguments est donc
+  // comptée comme construite à l'exécution, exactement comme `'a' + b`.
+  { exts: ['.js', '.mjs'], motif: /\bnew\s+URL\(\s*['"]([^'"]+)['"]\s*\)/g },
+  { exts: ['.js', '.mjs'], motif: /\bnew\s+URL\(\s*['"][^'"]+['"]\s*,/g, dynamique: true },
 ];
 
 function resoudre(depuis, reference) {
@@ -389,11 +396,13 @@ for (const rel of fichiers) {
   if (!extracteurs.length) continue;
   const contenu = fs.readFileSync(path.join(RACINE, rel), 'utf8');
 
-  for (const { motif, portee } of extracteurs) {
+  for (const { motif, portee, dynamique } of extracteurs) {
     const texte = portee ? portee(contenu) : contenu;
     motif.lastIndex = 0;
     let m;
     while ((m = motif.exec(texte)) !== null) {
+      // Extracteur déclaré non résoluble : on compte, on ne résout pas.
+      if (dynamique) { referencesDynamiques++; continue; }
       const brute = m[1].trim();
       if (!brute) continue;
       if (PROTOCOLES_IGNORES.test(brute)) {

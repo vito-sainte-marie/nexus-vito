@@ -126,6 +126,85 @@
     return services;
   }
 
+  // Même tunnel, source sûre (14/09/2026).
+  // `construireServicesCaisse` ci-dessus lit `audits_caisse` en clair : pour
+  // savoir si l'employé était sur piste ou en boutique, il doit recevoir
+  // `employes_piste` et `employes_boutique` — donc les UUID de ses collègues,
+  // l'écart du poste qu'il n'a pas tenu et le commentaire du manager. C'est
+  // la fuite de colonnes que la RLS ne sait pas fermer.
+  //
+  // Le backend tranche désormais à la place du navigateur : `mes_ecarts_caisse()`
+  // (migration 20260914210000) rend UNE LIGNE PAR POSTE RÉELLEMENT TENU par
+  // l'appelant, sans aucun identifiant de collègue. Cette fonction remet ces
+  // lignes dans la forme `services[]` que tout le reste du moteur consomme
+  // déjà — statutCaisse, serviceEstPropre, ligneActiviteCaisse, les séries,
+  // les badges : rien d'autre ne change.
+  //
+  // Correspondance champ à champ, volontairement littérale :
+  //   poste = 'piste'    -> surPiste,    ecartPiste,    ecartPisteValide, …
+  //   poste = 'boutique' -> surBoutique, ecartBoutique, ecartBoutiqueValide, …
+  //   poste_partage      -> solo* = !poste_partage
+  //
+  // `solo*` portait déjà exactement le bon sens : il valait
+  // `liste.length === 1`, c'est-à-dire « personne d'autre n'a tenu CE poste ».
+  // L'arbitrage du 14/09/2026 confirme cette lecture — le binôme normal
+  // piste + boutique n'est pas un poste partagé — et `poste_partage` la
+  // calcule désormais côté serveur sur le seul tableau du poste concerné.
+  //
+  // `commentaireValidation` reste toujours `null` : le commentaire manager
+  // n'est plus transmis, et aucun écran employé ne le lisait.
+  //
+  // Le regroupement par `audit_id` reconstitue un service par quart. Mesure
+  // du 14/09/2026 en Production : aucune ligne où la même personne tient les
+  // deux postes — le regroupement est donc, aujourd'hui, un simple passage
+  // 1 ligne -> 1 service. Il est écrit pour supporter le cas contraire sans
+  // se réécrire.
+  function construireServicesCaisseDepuisProjection(rowsPostes) {
+    const parAudit = new Map();
+    (rowsPostes || []).forEach(r => {
+      if (!r || (r.poste !== 'piste' && r.poste !== 'boutique')) return;
+      const cle = r.audit_id != null ? String(r.audit_id) : `${r.date}|${r.quart}`;
+      let s = parAudit.get(cle);
+      if (!s) {
+        s = {
+          id: r.audit_id != null ? r.audit_id : null,
+          date: r.date,
+          quart: r.quart,
+          surPiste: false, surBoutique: false,
+          soloPiste: false, soloBoutique: false,
+          ecartPiste: null, ecartBoutique: null,
+          valideLe: null,
+          ecartPisteValide: null, ecartBoutiqueValide: null,
+          commentaireValidation: null,
+          ecartPisteOrigine: null, ecartBoutiqueOrigine: null,
+          causeCodePiste: null, causeCodeBoutique: null,
+        };
+        parAudit.set(cle, s);
+      }
+      const solo = !r.poste_partage;
+      if (r.poste === 'piste') {
+        s.surPiste = true;
+        s.soloPiste = solo;
+        s.ecartPiste = arrondi(Number(r.ecart));
+        s.ecartPisteValide = r.ecart_valide != null ? arrondi(Number(r.ecart_valide)) : null;
+        s.ecartPisteOrigine = r.ecart_origine != null ? arrondi(Number(r.ecart_origine)) : null;
+        s.causeCodePiste = r.cause_code || null;
+      } else {
+        s.surBoutique = true;
+        s.soloBoutique = solo;
+        s.ecartBoutique = arrondi(Number(r.ecart));
+        s.ecartBoutiqueValide = r.ecart_valide != null ? arrondi(Number(r.ecart_valide)) : null;
+        s.ecartBoutiqueOrigine = r.ecart_origine != null ? arrondi(Number(r.ecart_origine)) : null;
+        s.causeCodeBoutique = r.cause_code || null;
+      }
+      // Date de validation du poste tenu, jamais l'identité du validateur.
+      if (r.valide_le && !s.valideLe) s.valideLe = r.valide_le;
+    });
+    const services = Array.from(parAudit.values());
+    services.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+    return services;
+  }
+
   function estConforme(montant) {
     return montant == null || Math.abs(montant) <= SEUIL_ECART_CONFORME;
   }
@@ -161,6 +240,48 @@
     ecarts.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     return ecarts;
   }
+
+  // Écarts d'un poste PARTAGÉ où l'employé figurait (règle énoncée par
+  // Frédéric le 14/09/2026, qui complète sa décision du 27/07/2026) :
+  //
+  //   Le planning détermine la personne ATTENDUE. La prise de poste et la
+  //   passation déterminent la personne RESPONSABLE. Quand un quart
+  //   comporte plusieurs détenteurs successifs de la même caisse, chaque
+  //   responsabilité doit être isolée par un COMPTAGE DE PASSATION. Sans
+  //   comptage intermédiaire, l'écart demeure rattaché au quart partagé et
+  //   nécessite un ARBITRAGE MANAGER. Aucune attribution individuelle ni
+  //   répartition automatique ne peut être effectuée sans preuve.
+  //
+  // Ces écarts ne sont donc JAMAIS des écarts de l'employé : ni dans ses
+  // statistiques, ni dans un cumul, ni au prorata. Mais les taire serait
+  // une autre forme de fausse précision — l'employé était bien sur ce
+  // poste, et le quart attend un arbitrage. Cette liste existe pour être
+  // NOTIFIÉE (Frédéric, 14/09/2026 : le remplacement en cours de quart est
+  // extrêmement rare aujourd'hui, donc on se contente de le signaler ; le
+  // comptage de passation n'est pas demandé).
+  //
+  // Invariant à préserver : ecartsAttribuables et ecartsEnAttenteArbitrage
+  // sont DISJOINTES. Un même (date, quart, poste) ne peut pas être dans les
+  // deux — un poste est solo ou partagé, jamais les deux.
+  function ecartsEnAttenteArbitrage(services) {
+    const ecarts = [];
+    (services || []).forEach(s => {
+      if (s.surPiste && !s.soloPiste && !estConforme(s.ecartPiste)) {
+        ecarts.push({ date: s.date, quart: s.quart, poste: 'piste', montant: s.ecartPiste, partage: true });
+      }
+      if (s.surBoutique && !s.soloBoutique && !estConforme(s.ecartBoutique)) {
+        ecarts.push({ date: s.date, quart: s.quart, poste: 'boutique', montant: s.ecartBoutique, partage: true });
+      }
+    });
+    ecarts.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return ecarts;
+  }
+
+  // Phrase unique pour présenter un écart en attente d'arbitrage. Elle vit
+  // ici, pas dans un écran : la même règle doit se dire avec les mêmes mots
+  // partout où elle s'affiche.
+  const MENTION_QUART_PARTAGE = 'Quart partagé : cet écart n\'est rattaché à personne tant qu\'un manager ne l\'a pas arbitré.';
+
 
   // Série de services propres — la plus récente (en cours) et la
   // meilleure jamais observée. Sert à "vous êtes à N services sans écart"
@@ -640,7 +761,12 @@
   // `joursAvant` jours, en ne gardant que les lignes antérieures à cette
   // date — permet de dire honnêtement "vous étiez à tel niveau" sans avoir
   // besoin d'un historique stocké séparément.
-  function calculerNiveauADate({ auditsRows, pointagesRows, assignationsRows, controlesRows, evaluationsRows, completionsRows, employeeId, joursAvant }) {
+  // `servicesCaisse` (14/09/2026) : services déjà construits, à filtrer par
+  // date plutôt qu'à rebâtir. C'est le chemin des écrans employés depuis la
+  // bascule sur `mes_ecarts_caisse()` — ils n'ont plus de lignes brutes à
+  // passer, et n'ont plus à en recevoir. `auditsRows` reste pour les appelants
+  // qui lisent encore la table entière, c'est-à-dire la vue manager.
+  function calculerNiveauADate({ auditsRows, servicesCaisse, pointagesRows, assignationsRows, controlesRows, evaluationsRows, completionsRows, employeeId, joursAvant }) {
     const jours = joursAvant || SEUIL_JOURS_NIVEAU_PASSE;
     const dateLimite = new Date(Date.now() - jours * 86400000).toISOString().slice(0, 10);
     const auditsF = (auditsRows || []).filter(a => a.date <= dateLimite);
@@ -650,7 +776,9 @@
     const completionsF = (completionsRows || []).filter(m => m.date <= dateLimite);
     const assignationsF = (assignationsRows || []).filter(a => ((a.updated_at || a.due_at || '').slice(0, 10)) <= dateLimite);
 
-    const services = construireServicesCaisse(auditsF, employeeId);
+    const services = servicesCaisse
+      ? servicesCaisse.filter(s => s.date <= dateLimite)
+      : construireServicesCaisse(auditsF, employeeId);
     const statutCaisseVal = statutCaisse(services);
     const statutPonctualiteVal = statutPonctualite(pointagesF);
     const statutMissionsVal = statutMissions(assignationsF);
@@ -1438,8 +1566,12 @@
 
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
-    construireServicesCaisse, estConforme, serviceEstPropre,
-    nbServicesConformes, ecartsAttribuables, meilleureSerieConforme,
+    construireServicesCaisse, construireServicesCaisseDepuisProjection,
+    estConforme, serviceEstPropre,
+    nbServicesConformes, ecartsAttribuables,
+    // Quart partagé — notification, jamais attribution (14/09/2026)
+    ecartsEnAttenteArbitrage, MENTION_QUART_PARTAGE,
+    meilleureSerieConforme,
     tendanceEcartMoyen, quartDominant,
     statutCaisse, statutPonctualite, statutMissions, statutTenue, statutRelationClient,
     niveauNexus, pointsForts, identifierAxeProgression, genererEncouragement,

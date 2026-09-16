@@ -1,8 +1,15 @@
 # Bascule de l'hébergement Production — branche → GitHub Actions
 
-**Rédigé le 15/09/2026. Rien n'est engagé : ce document décrit une procédure,
-il ne l'exécute pas.** Aucun réglage GitHub Pages n'a été modifié, aucun DNS
-touché, `ea57d4b` n'est pas fusionné.
+**Rédigé le 15/09/2026 comme une procédure à exécuter. Exécutée les 15 et
+16/09/2026.** Ce qui suit reste écrit au futur là où c'est le texte de la
+procédure — on ne réécrit pas un plan après coup, on l'annote. Ce qui a été
+réellement observé est consigné au **§10, « Constat de la bascule »**, et lui
+seul fait foi sur l'exécution.
+
+Le DNS n'a pas été touché, `ea57d4b` n'est toujours pas fusionné, et les deux
+migrations différées ne sont toujours pas appliquées. Le seul réglage GitHub
+Pages modifié est celui que la procédure demandait : `build_type` passé de
+`legacy` à `workflow`.
 
 Ce lot est **autonome**. Il ne contient ni `ea57d4b`, ni les deux migrations
 différées, ni le lot de projection, ni `2c1550f`, et n'en dépend pas.
@@ -20,9 +27,13 @@ traite que sa **Phase 1** (§13). Aucune évolution métier n'y est mêlée.
 | 2 | dossier public dédié, en mode construit | **fait** | `.github/deploiement/composer-artefact-public.js`, 861 → 540 |
 | 3 | actions Pages en version officielle **courante**, épinglées par SHA | **fait** | §6 — v5.0.0 / v6.0.0 / v5.0.1 |
 | 4 | construire l'artefact et l'éprouver **sans le servir** | **fait** | §5 (garde) et §7 (empreinte) |
-| 5 | installer le workflow seul | **plan** — exige fusion, puis GO | étape 1 du §4 |
-| 6 | basculer Pages vers Actions | **plan** — exige GO | étape 3 du §4 |
-| 7 | vérifier le domaine, garder le retour à la branche | **mesuré** | §2bis |
+| 5 | installer le workflow seul | **fait** le 15/09 | PR #44, fusion `e91faa3e` |
+| 6 | basculer Pages vers Actions | **fait** le 15/09 | `build_type=workflow`, déploiement `6470673772` — §10 |
+| 7 | vérifier le domaine, garder le retour à la branche | **mesuré**, puis **corrigé** | §2bis, et §10 pour ce que le retour exige réellement |
+
+**La Phase 1 est close.** Les sept points sont faits. Ce qui reste ouvert
+relève de la Phase 2 — `outils/build.sh`, le mode `construit`, la fusion de
+`ea57d4b` — et **n'est pas autorisé par ce document**.
 
 La procédure v2 exige qu'un artefact promu porte six champs : SHA source
 complet, SHA-256 de l'artefact, environnement ciblé, liste exacte des
@@ -311,6 +322,13 @@ son exécution demande une décision distincte.
 ## 4. La procédure, dans l'ordre
 
 Chaque étape est réversible, et le dit.
+
+> **Exécutée.** Les étapes 0 à 3 ont été conduites les 15 et 16/09/2026. Le
+> texte ci-dessous est conservé tel qu'il a été écrit **avant** l'exécution,
+> parce qu'il est la référence de ce qui a été promis ; ce qui s'est
+> réellement produit — y compris les deux endroits où la procédure s'est
+> révélée incomplète — est au **§10**. L'étape 4 n'a pas été exécutée et ne
+> l'est toujours pas.
 
 ### Étape 0 — poser les secrets et l'environnement
 Actions 1 et 2 du §3. Aucune variable à créer.
@@ -844,6 +862,35 @@ Mesures de poste, donc soumises à l'écart de casse décrit au §2bis : sur le
 runner Linux, la première ligne portera 999 fichiers et une autre empreinte.
 **L'empreinte faisant foi est celle de l'exécution.**
 
+**Ce qui a été relevé à l'exécution.** Trois constructions successives sur le
+runner, sur trois arbres différents, ont rendu la **même** empreinte :
+
+| run | événement | arbre construit | fichiers | octets | empreinte |
+|---|---|---|---|---|---|
+| `35042461283` | `pull_request` | `refs/pull/45/merge`, tête `78b580d` | 999 | 53 536 661 | `f2b291b1…c9f23b` |
+| `35046159104` | `pull_request` | `refs/pull/45/merge`, tête `e2b7587` | 999 | 53 536 661 | `f2b291b1…c9f23b` |
+| `35084157592` | `push` | `production` = `faba562` — **ce qui est publié** | 999 | 53 536 661 | `f2b291b1…c9f23b` |
+
+Les trois en mode `a-l-identique`. Empreinte publiée en entier :
+`f2b291b1a9295531feab8ce3132d1763b58b382f50cee0f54c4d2a5b61c9f23b`.
+
+Les deux premières mesures portent sur l'**arbre de fusion**, pas sur la
+branche : l'empreinte annoncée avant fusion était déjà celle de ce qui allait
+être publié. Elle n'a pas bougé après.
+
+Deux enseignements, tous deux prévus par ce document mais jamais encore
+démontrés :
+
+- **999 fichiers, pas 998.** L'écart de casse annoncé au §2bis s'est produit
+  exactement comme décrit : `icon-nexus-tempo.PNG` et `icon-nexus-tempo.png`
+  sont deux fichiers distincts sur le runner, un seul sur le poste. Les deux
+  sont servis, au même octet près.
+- **Modifier `.github/` ne déplace pas l'empreinte.** Trois des quatre têtes
+  ci-dessus ne diffèrent que par des fichiers sous `.github/` — runbook et
+  workflow. `upload-pages-artifact` exclut ce répertoire sans condition, donc
+  l'artefact est le même. Vérifié côté servi :
+  `https://app.nexusconseil.net/.github/workflows/tests.yml` → **404**.
+
 ### Le build n'est pas reproductible — d'exactement une seconde (dette de Phase 2)
 
 Question posée sur le candidat `ea57d4b` : **deux constructions de la même
@@ -987,3 +1034,142 @@ tableau de bord n'ont pas été lus, toute cause avancée serait une hypothèse.
 (si `nexus-test` doit continuer d'être construit par Cloudflare) ou la retirer
 (si le rail GitHub Actions la rend redondante). **Le choix appartient à
 Frédéric**, et il n'a pas à être fait pour fusionner ce lot.
+
+---
+
+## 10. Constat de la bascule — exécutée les 15 et 16/09/2026
+
+**Ce paragraphe est le seul qui parle au passé.** Tout ce qui précède est le
+texte de la procédure, conservé tel qu'il a été écrit avant l'exécution. Ce qui
+suit est ce qui s'est réellement produit, mesuré, avec les identifiants qui
+permettent de le revérifier sans croire ce document sur parole.
+
+### 10.1 La chronologie, en deux temps
+
+| quand | ce qui s'est passé | preuve |
+|---|---|---|
+| 15/09 | fusion de la PR #44 — le workflow seul, sans changement de réglage | `production` = `e91faa3e` |
+| 15/09 23:43:27Z | réglage Pages `legacy` → `workflow`, puis premier déploiement par le rail Actions | déploiement `6470673772`, `success` |
+| 15/09 23:43:41Z | **un second déploiement apparaît, par le rail *legacy*** | déploiement `6470676375`, `failure` |
+| 16/09 10:17:15Z | fusion de la PR #45 — correction du retour arrière dans le runbook | `production` = `faba56283f62e2e42956627ed9f8e0472928cd87` |
+| 16/09 10:17:34Z | artefact construit et emballé | `artifact_id: 10441059264` |
+| 16/09 10:17:38Z | le déploiement s'arrête devant la gate humaine | statut `waiting` |
+| 16/09 10:48:07Z | approbation, pour ce seul déploiement | statut `queued` |
+| 16/09 10:48:19Z | déploiement `success` | `environment_url: https://app.nexusconseil.net/` |
+
+**La gate a tenu 30 minutes et 29 secondes** (10:17:38Z → 10:48:07Z), puis le
+déploiement lui-même a pris **12 secondes**. C'est le premier chiffre réel dont
+dispose ce dossier : le délai d'un déploiement Production, c'est le temps de
+réponse d'un humain, pas le temps d'une machine.
+
+### 10.2 Ce que la procédure n'avait pas prévu — les deux rails
+
+**Le §2bis affirmait qu'un retour arrière tenait en un geste.** C'était faux, et
+la bascule l'a démontré sans qu'on la provoque : au moment où Pages est passé en
+mode `workflow`, **deux** déploiements sont nés à quatorze secondes d'écart.
+
+| déploiement | rail | issue |
+|---|---|---|
+| `6470673772` | `performed_via_github_app.slug = github-actions` | `success` — c'est lui qui sert |
+| `6470676375` | `performed_via_github_app.slug = github-pages` | `failure` — jamais approuvé |
+
+Le relecteur requis de l'environnement `github-pages` **garde les deux rails**.
+Le rail *legacy* a donc buté sur la même gate et n'a jamais été approuvé : il
+est mort en `failure`, ce qui est le comportement voulu, mais ce n'est pas ce
+que la procédure annonçait.
+
+**Conséquence, déjà corrigée dans ce document** (PR #45, cinq endroits) : le
+retour arrière est **en trois gestes** — reposer la source sur `production` /
+`root`, *approuver la reconstruction legacy*, vérifier le contenu restitué — et
+son délai **additionne trois durées**, dont une attente humaine. C'est cette
+somme qui doit tenir dans la cible « hotfix en moins de quatre heures », pas la
+seule disponibilité d'un relecteur.
+
+Le champ `performed_via_github_app.slug` est le seul moyen fiable de savoir quel
+rail a produit un déploiement. Il est à retenir : l'interface ne le montre pas.
+
+### 10.3 Ce que la procédure avait prévu, et qui s'est vérifié
+
+**« Construire une fois, promouvoir le même artefact. »** Le journal du job de
+déploiement promeut `artifact_id: 10441059264` — celui qui a été emballé à
+10:17:34Z, soit **avant** l'attente devant la gate. Aucune reconstruction après
+approbation. C'est le §1 tenu mécaniquement, pas par discipline.
+
+**La garde anti-obsolescence a parlé.** Au moment de déployer, le job a
+redemandé à l'API la tête courante de `production` et l'a comparée au SHA
+construit :
+
+> HEAD de `production` = `faba56283f62e2e42956627ed9f8e0472928cd87` — identique
+> au SHA construit. L'artefact promu est bien l'état courant.
+
+**Aucun run *legacy* n'a été déclenché par la fusion du 16/09.** Les deux seuls
+runs sur `faba562` sont `Tests` (`35084157573`, `success`) et le run de
+déploiement (`35084157592`, `success`, `run_attempt: 1` — aucune relance
+manuelle).
+
+**`pages/builds/latest` ment.** Avec `build_type=workflow`, cette route continue
+de rapporter le dernier build *legacy* (`e91faa3e`, 16/09 00:33:39Z). Elle n'est
+**pas** une source d'autorité sur ce qui est servi. Les deux sources qui font
+foi sont le **statut du déploiement** et les **en-têtes du site**.
+
+### 10.4 Les réglages, après
+
+| réglage | valeur relevée |
+|---|---|
+| `build_type` | `workflow` |
+| `status` | `built` |
+| source | `production` / `/` |
+| `cname` | `app.nexusconseil.net` |
+| `https_enforced` | `true` — `http://` répond 301 vers `https://` |
+
+**C'est le seul réglage qui a changé.** Le DNS n'a pas été touché ; aucun
+secret, aucune variable Actions, aucun réglage Supabase n'a été modifié ;
+`ea57d4b` n'est pas fusionné ; les deux migrations différées ne sont pas
+appliquées.
+
+### 10.5 Les contrôles du site servi
+
+Toutes les pages et ressources essentielles en **HTTP 200** :
+
+| ressource | octets |
+|---|---|
+| `/` et `/index.html` | 47 062 |
+| `/NEXUS-App-v1.html` | 188 315 |
+| `/NEXUS-Login-v1.html` | 6 625 |
+| `/NEXUS-Cockpit-v2.html` | 98 985 |
+| `/NEXUS-Pointage-v1.html` | 66 411 |
+| `/manifest.json` | 8 051 |
+| `/CNAME` | 20 |
+| les 20 modules `nexus-*.js` | tous 200 |
+| `/assets/icon-nexus-tempo.png` **et** `.PNG` | 200 / 82 374 chacun |
+| `/.github/workflows/tests.yml` | **404** — attendu |
+
+**Identité à l'octet** vérifiée par sha256 entre le contenu servi et
+`git show faba562:<chemin>` pour `index.html`, `NEXUS-Login-v1.html`,
+`NEXUS-App-v1.html`, `manifest.json` et `assets/nexus-logo-cyan.png`. Ce qui est
+publié est bien la source, non transformée — c'est la définition du mode
+`a-l-identique`.
+
+**Aucune erreur console** sur l'accueil, l'application et la page de connexion —
+pas même un avertissement. La page de connexion s'affiche complète (PRÉNOM,
+CODE PIN, « Se connecter », « Connexion sécurisée · Supabase Auth »). **Aucun
+identifiant n'a été saisi** : la vérification s'arrête à « le formulaire est
+présent et le service répond ».
+
+**Horodatage cohérent.** `last-modified` est passé de
+`Wed, 16 Sep 2026 00:33:39 GMT` à `Wed, 16 Sep 2026 10:48:14 GMT`, soit cinq
+secondes avant le passage en `success`. L'`etag` a suivi :
+`"6aa9e3e3-b7d6"` → `"6aaa73ee-b7d6"` — seul le préfixe de date change, le
+suffixe `b7d6` (47 062 octets) est inchangé, ce qui confirme que le fichier
+servi est le même.
+
+**Observation de stabilité.** 13 relevés sur 6 min 24 (10:54:34Z → 11:00:58Z),
+39 requêtes, toutes en 200, `last-modified` et `etag` strictement constants, et
+le dernier déploiement `github-pages` toujours `6478653134`.
+
+### 10.6 Ce qui reste ouvert
+
+La Phase 1 est close. Ne relèvent **pas** de ce document, et ne sont **pas**
+autorisés par lui : `outils/build.sh` et le mode `construit`, la fusion de
+`ea57d4b`, les migrations `login_non_enumerable` et `pointage_exige_service`, et
+la dette Cloudflare du §9.

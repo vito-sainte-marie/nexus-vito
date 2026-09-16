@@ -358,6 +358,30 @@ exigerAcceptation(
     'assets/fond.png': 'octets\n',
   }), 'a-l-identique');
 
+// Le second faux positif, mesuré le 16/09/2026 sur le même arbre réel : trois
+// refus [R1] pour des appels corrects d'`outils/recette-navigateur-test.js`.
+// `new URL(cible, base)` ne se résout PAS depuis le dossier du fichier — c'est
+// le second argument qui fixe la base, et il vaut ici l'adresse du site servi.
+// La garde résolvait `NEXUS-Login-v1.html` depuis `outils/`, ne l'y trouvait
+// pas, et refusait l'artefact : même classe d'erreur que `…Url(`, même remède.
+exigerAcceptation(
+  'R · `new URL(cible, base)` — la base vient du second argument, pas du dossier',
+  arbre({
+    'index.html': '<!doctype html><script src="outils/recette.js"></script>\n',
+    'outils/recette.js': "const u = new URL('NEXUS-Login-v1.html', base).href;\n",
+    'NEXUS-Login-v1.html': '<!doctype html>\n',
+  }), 'a-l-identique');
+
+// Et la garde doit continuer à mordre sur la forme à UN seul argument, la seule
+// que le dossier du fichier suffise à résoudre. Sans ce cas, la correction
+// ci-dessus reviendrait à débrancher `new URL` en entier.
+exigerRefus(
+  'R1 · `new URL(x)` à un seul argument reste résolu — et refusé si x manque',
+  'R1', arbre({
+    'index.html': '<!doctype html><script src="app.js"></script>\n',
+    'app.js': "const u = new URL('nexus-absent.js');\n",
+  }), 'a-l-identique');
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ARBRE SOURCE — A1 se demande à la source, pas à l'artefact
 // ═══════════════════════════════════════════════════════════════════════════

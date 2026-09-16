@@ -24,6 +24,27 @@
 // ------------------------------------------------------------
 
 (function (global) {
+
+  // COACH-001 (08/09/2026). Les justifications ci-dessous chiffraient
+  // `mesure || 0` : un employé dont le taux n'avait PAS été mesuré lisait
+  // « Vos contrôles sont conformes sur 0 % de vos derniers quarts » — un
+  // reproche fabriqué à partir d'une absence de donnée, adressé à une
+  // personne. C'est le contraire de la Bible : « L'employé doit recevoir un
+  // accompagnement utile, positif, concret et NON PUNITIF. »
+  //
+  // La notion « une mesure absente n'est pas une mesure nulle » a un
+  // propriétaire logique unique, `nexus-mesure.js` (même défaut trouvé le
+  // même jour dans EVAL-001 et DEBUG-001 : un seul bug recopié trois fois).
+  const mesure = (typeof require === 'function' && typeof module !== 'undefined')
+    ? require('./nexus-mesure.js')
+    : global.NexusMesure;
+
+  // Un pourcentage, ou rien — jamais un zéro inventé.
+  function pourcentageMesure(v) {
+    const n = mesure.valeurMesuree(v);
+    return n === null ? null : Math.round(n * 100);
+  }
+
   // ------------------------------------------------------------
   // BIBLIOTHÈQUE DE FORMULATIONS — audit §19 : plusieurs variantes par
   // règle pour éviter la monotonie, même sens métier. `pourquoi` peut être
@@ -82,14 +103,25 @@
         "Votre rigueur est solide ; concentrez-vous aujourd’hui sur la proposition commerciale.",
         "Votre prochain levier : passer d’une rigueur déjà acquise à la proposition active en caisse.",
       ],
-      pourquoi: (n, ev) => `Vos contrôles sont conformes sur ${ev && Math.round((ev.taux || 0) * 100)} % de vos ${ev && ev.nbQuarts} derniers quarts mesurés.`,
+      pourquoi: (n, ev) => {
+        const pct = pourcentageMesure(ev && ev.taux);
+        if (pct === null) return 'Votre taux de conformité n’a pas encore été mesuré sur assez de quarts.';
+        return `Vos contrôles sont conformes sur ${pct} % de vos ${ev && ev.nbQuarts} derniers quarts mesurés.`;
+      },
     },
     fdj_palier_sous_represente: {
       variantes: [
         "Aujourd’hui, pensez à proposer ce palier aux clients qui hésitent sur le montant.",
         "Une opportunité aujourd’hui : ce palier est moins présent chez vous que sur le reste du site.",
       ],
-      pourquoi: (n, ev) => `Le palier ${ev && ev.prix} € représente ${ev && Math.round((ev.partEmploye || 0) * 100)} % de vos ventes, contre ${ev && Math.round((ev.partSite || 0) * 100)} % pour le site.`,
+      pourquoi: (n, ev) => {
+        const pctEmp = pourcentageMesure(ev && ev.partEmploye);
+        const pctSite = pourcentageMesure(ev && ev.partSite);
+        if (pctEmp === null || pctSite === null) {
+          return `La part du palier ${ev && ev.prix} € n’a pas encore été mesurée de façon comparable.`;
+        }
+        return `Le palier ${ev && ev.prix} € représente ${pctEmp} % de vos ventes, contre ${pctSite} % pour le site.`;
+      },
     },
     fdj_jour_faible: {
       variantes: [
@@ -586,6 +618,6 @@
     evaluerReglesCoach, selectionnerRecommandationCoach, construireRecommandation, estEnCooldown,
     calculerCandidatsCoachEquipe, SEUILS_COACH_EQUIPE_DEFAUT,
     // Exposés individuellement pour les tests unitaires.
-    DETECTEURS,
+    DETECTEURS, pourcentageMesure,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
