@@ -49,6 +49,13 @@ function fauxClient({ config, arrivee }) {
 
 async function executer(scenario, employee, pageActuelle = 'NEXUS-App-v1.html') {
   const code = [
+    // `nexusEstManager` est EXTRAITE elle aussi, jamais réécrite ici. Le
+    // 16/09/2026, cette fonction a cessé de recopier `role === 'manager' ||
+    // role === 'gerant'` et appelle désormais la règle unique du fichier. Un
+    // test qui redéfinirait cette règle de son côté validerait sa propre
+    // copie : le jour où NEXUS changerait la définition d'un manager, il
+    // resterait vert en mesurant l'ancienne.
+    extraire('nexusEstManager'),
     extraire('nexusPointageArriveeManquant'),
     "globalThis.__test = nexusPointageArriveeManquant;",
   ].join('\n\n');

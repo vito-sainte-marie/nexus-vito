@@ -151,6 +151,23 @@
     manager:        'Fin non enregistrée — régularisation par le manager (phase pilote)',
   };
 
+  // Les valeurs écrites dans `shifts.cloture_source`. Elles répondent à une
+  // question que le motif ne répond pas : QUI a décidé de refermer. Le motif
+  // dit ce qui a été constaté ; la source dit d'où vient la décision, et c'est
+  // elle qui permettra de mesurer ce que le pilote mesure réellement —
+  // combien de services l'équipe ferme elle-même, combien NEXUS ferme à sa
+  // place, combien un manager a dû reprendre à la main.
+  //
+  // Elles sont ici, et pas dans le module d'écriture, pour la même raison que
+  // les motifs : la contrainte `shifts_cloture_source_check` les connaît
+  // toutes les deux, et un appelant qui en inventerait une troisième serait
+  // refusé par la base au pire moment — pendant l'action du manager, après
+  // qu'il a cliqué.
+  const SOURCE_CLOTURE_PILOTE = {
+    automatique: 'cycle_pilote', // NEXUS, au retour dans l'application
+    manager:     'manager',      // un humain, que `cloture_par` nomme
+  };
+
   /**
    * Ce service ouvert doit-il cesser d'être considéré comme actif ?
    *
@@ -242,7 +259,7 @@
   }
 
   const API = { ORDRE_TYPES, estDisponible, prochaineEtape, dejaFaitDuService, serviceDuJourSeulement, journeeTermineeSansService,
-                 MOTIF_CLOTURE_PILOTE, serviceObsolete, servicesObsoletes, finNonEnregistree, dureeServiceMs };
+                 MOTIF_CLOTURE_PILOTE, SOURCE_CLOTURE_PILOTE, serviceObsolete, servicesObsoletes, finNonEnregistree, dureeServiceMs };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusPointageRegles = API;

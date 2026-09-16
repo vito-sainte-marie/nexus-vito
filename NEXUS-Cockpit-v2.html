@@ -339,9 +339,22 @@
      marquerCaisseJustifiee(). */
   .caisse-justifie-row{display:flex; align-items:center; gap:9px; margin-top:10px; padding:10px 12px; border:1px solid var(--hairline); border-radius:8px; font-size:12px; color:var(--text-mid); cursor:pointer;}
   .caisse-justifie-row input[type="checkbox"]{width:17px; height:17px; flex-shrink:0; accent-color:var(--green); cursor:pointer;}
+  /* Services restés ouverts — « fin non enregistrée » (16/09/2026, phase
+     pilote). Ambre et non rouge : un service resté ouvert n'est pas une
+     faute de l'employé, c'est une trace d'usage incomplet de NEXUS. Aucun
+     écran ne doit donner à ces lignes l'allure d'un manquement. */
+  .service-ouvert-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline);}
+  .service-ouvert-item:last-child{border-bottom:none;}
+  .service-ouvert-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .service-ouvert-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .service-ouvert-nom{color:var(--text); font-weight:600; display:block; margin-bottom:2px;}
+  .service-ouvert-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:4px; display:block;}
+  .service-ouvert-btn{margin-top:14px; width:100%; padding:11px; border:none; border-radius:8px; background:var(--amber); color:#2a1f05; font-weight:600; font-size:12.5px; cursor:pointer;}
+  .service-ouvert-btn:disabled{opacity:0.5; cursor:default;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
@@ -400,6 +413,19 @@
        baisse — question différente, axe complémentaire, voir Data
        Dictionary v2.48). -->
   <div class="section" id="risquesQualifiesSection"></div>
+  <div class="divider"></div>
+  <!-- Services restés ouverts — « fin non enregistrée » (16/09/2026).
+       Exigence du jour, mot pour mot : « le manager peut régulariser
+       plusieurs services obsolètes en une action ». C'est le seul endroit de
+       NEXUS où cette action existe, et le Cockpit a été choisi parce qu'il
+       est le seul écran d'action quotidienne du manager.
+
+       Vide pour un employé : la section ne s'affiche que pour un manager ou
+       un gérant. Ce n'est pas la barrière d'accès — celle-ci est la RLS de
+       `shifts`, qui rendrait de toute façon les seuls services du site —
+       c'est la règle d'affichage, et la garantie que `cloture_par` ne
+       nommera jamais quelqu'un qui n'a pas pris la décision. -->
+  <div class="section" id="servicesOuvertsSection"></div>
   <div class="divider"></div>
   <div class="section">
     <div class="section-title">Plan d'exploitation du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
@@ -1505,6 +1531,161 @@
       if (error) { console.error('Justification écart caisse:', error); return false; }
       return true;
     }
+    // ========================================================================
+    // SERVICES RESTÉS OUVERTS — « fin non enregistrée » (16/09/2026)
+    //
+    // LE FAIT. Trois services étaient encore `en_cours` en Production : un
+    // ouvert le 14/09, un le 15/09, un quart du matin déjà terminé. Personne
+    // n'a mal travaillé : l'équipe utilise NEXUS par intermittence, prend son
+    // poste certains jours et oublie de pointer son départ.
+    //
+    // CE QUE CET ÉCRAN FAIT, ET CE QU'IL NE FAIT PAS. Il LIT les services
+    // ouverts du site, il DEMANDE aux règles lesquels sont obsolètes, il
+    // AFFICHE la liste, et il propose UNE action qui les referme tous. Il ne
+    // décide pas de ce qui est obsolète — `nexus-pointage-regles.js` le fait,
+    // pour cet écran comme pour tous les autres. Il n'écrit pas non plus :
+    // `nexusRegulariserServicesObsoletes` dans `nexus-auth.js` est la seule
+    // écriture, et elle est la même que celle de la clôture automatique.
+    //
+    // POURQUOI ICI ET NON DANS `nexus-auth.js`. Les autres écrans referment
+    // seuls, au passage, sans rien demander : ils n'ont ni le fuseau du
+    // commerce ni son heure de bascule, donc ils n'appliquent que le critère
+    // du jour précédent. Le Cockpit charge `nexus-station.js` — ajouté au
+    // fichier le 16/09 pour cette raison — et peut donc appliquer AUSSI le
+    // critère « quart planifié terminé ». C'est le seul écran qui voit un
+    // quart du matin fini le jour même.
+    //
+    // AUCUNE HEURE DE FIN N'EST AFFICHÉE NI ÉCRITE. NEXUS ne sait pas quand
+    // ces employés ont terminé. Il dit « fin non enregistrée » et s'arrête là.
+    // Aucune durée, aucun total, aucune conclusion de présence ne doit être
+    // tirée de ces lignes.
+    // ========================================================================
+    let SERVICES_OBSOLETES = [];
+    let CYCLE_CONTEXTE = null;      // { timezone, jourStation, jourDeService, minutesStation, seuilBascule? }
+    let CYCLE_INDISPONIBLE = null;  // pourquoi la liste n'a pas pu être établie
+
+    // Ce que le manager lit quand NEXUS renonce. Chaque cas dit ce qui
+    // manque, jamais « erreur » : un fuseau absent et un réseau coupé
+    // n'appellent pas le même geste.
+    const CYCLE_RENONCEMENT = {
+      modules:       'les règles de pointage ne sont pas chargées par cet écran',
+      site:          'le commerce de votre compte n’est pas déterminé',
+      reseau:        'les réglages du commerce n’ont pas pu être lus',
+      configuration: 'le fuseau horaire du commerce n’est pas renseigné',
+      fuseau:        'le fuseau horaire du commerce n’est pas renseigné',
+      lecture:       'la liste des services du commerce n’a pas pu être lue',
+    };
+
+    // Le contexte que `servicesObsoletes` attend, résolu ENTIÈREMENT ici.
+    //
+    // `seuilBascule` n'est posé que s'il est connu. Un seuil approximatif
+    // serait pire que pas de seuil : NEXUS proposerait de refermer des
+    // services encore en cours. Sans lui, seul le critère du jour précédent
+    // s'applique, et la section le dit au manager.
+    async function contexteCycleDuSite(siteId) {
+      const fuseau = await NexusStation.fuseauDeLaStation(siteId);
+      if (!fuseau || !fuseau.timezone) {
+        return { indetermine: (fuseau && fuseau.indetermine) || 'configuration' };
+      }
+      const tz = fuseau.timezone;
+      const ctx = {
+        timezone:       tz,
+        jourStation:    NexusStation.dateLocaleStation(tz),
+        jourDeService:  d => NexusStation.dateLocaleStation(tz, d),
+        minutesStation: NexusStation.minutesLocalesStation(tz),
+      };
+      const seuil = await NexusStation.seuilDeBascule(siteId, undefined, tz);
+      if (seuil && Number.isFinite(seuil.minutes)) ctx.seuilBascule = seuil.minutes;
+      else console.warn('Services restés ouverts : heure de bascule inconnue (' + ((seuil && seuil.indetermine) || 'configuration') + ') — seul le critère du jour précédent s’applique.');
+      return ctx;
+    }
+
+    async function chargerServicesObsoletes(employee) {
+      SERVICES_OBSOLETES = [];
+      CYCLE_CONTEXTE = null;
+      CYCLE_INDISPONIBLE = null;
+      // Un employé ne voit pas cette section : ce n'est ni une erreur ni un
+      // renoncement, il n'y a simplement rien à afficher pour lui.
+      if (!nexusEstManager(employee)) return;
+      if (typeof NexusStation === 'undefined' || typeof NexusPointageRegles === 'undefined') {
+        CYCLE_INDISPONIBLE = 'modules';
+        console.error('Services restés ouverts : nexus-station.js ou nexus-pointage-regles.js n’est pas chargé par cet écran.');
+        return;
+      }
+      if (!employee.site_id) {
+        CYCLE_INDISPONIBLE = 'site';
+        console.error('Services restés ouverts : site de l’employé inconnu — aucune lecture. Un site indéterminé ne se remplace pas par un site par défaut.');
+        return;
+      }
+      const ctx = await contexteCycleDuSite(employee.site_id);
+      if (ctx.indetermine) { CYCLE_INDISPONIBLE = ctx.indetermine; return; }
+      CYCLE_CONTEXTE = ctx;
+      const lecture = await nexusServicesOuvertsDuSite(employee);
+      if (lecture.erreur) { CYCLE_INDISPONIBLE = 'lecture'; return; }
+      SERVICES_OBSOLETES = NexusPointageRegles.servicesObsoletes(lecture.services, ctx);
+    }
+
+    // L'heure de DÉBUT est datée dans le fuseau du commerce, jamais dans
+    // celui de l'appareil du manager : c'est la seule lecture qui a un sens
+    // pour lui, et la même que celle qu'a vue l'employé en prenant son poste.
+    function debutLisible(service) {
+      if (!service || !service.heure_debut || !CYCLE_CONTEXTE) return '—';
+      return new Date(service.heure_debut).toLocaleString('fr-FR', {
+        timeZone: CYCLE_CONTEXTE.timezone,
+        weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function renderServicesOuverts(employee) {
+      const el = document.getElementById('servicesOuvertsSection');
+      if (!el) return;
+      if (!nexusEstManager(employee)) { el.innerHTML = ''; return; }
+      if (CYCLE_INDISPONIBLE) {
+        el.innerHTML = `
+          <div class="section-title">Services restés ouverts</div>
+          <div class="section-note">NEXUS n’a pas pu établir cette liste : ${CYCLE_RENONCEMENT[CYCLE_INDISPONIBLE] || CYCLE_INDISPONIBLE}. Aucun service n’est refermé tant que ce point n’est pas levé.</div>`;
+        return;
+      }
+      if (!SERVICES_OBSOLETES.length) { el.innerHTML = ''; return; }
+      const n = SERVICES_OBSOLETES.length;
+      const seuilConnu = CYCLE_CONTEXTE && Number.isFinite(CYCLE_CONTEXTE.seuilBascule);
+      el.innerHTML = `
+        <div class="section-title">Services restés ouverts <span class="badge badge-real">fin non enregistrée</span></div>
+        ${SERVICES_OBSOLETES.map(o => {
+          const sv = o.service;
+          const quart = sv.quart ? `quart ${sv.quart}` : 'quart non précisé';
+          const role  = sv.role || 'poste non précisé';
+          const cause = o.motif === 'quart_termine'
+            ? 'Quart planifié terminé, départ non pointé.'
+            : 'Service d’un jour précédent, départ non pointé.';
+          return `<div class="service-ouvert-item">
+            <span class="service-ouvert-dot"></span>
+            <span class="service-ouvert-text">
+              <span class="service-ouvert-nom">${sv.nom || 'Employé non nommé'}</span>${cause}
+              <span class="service-ouvert-meta">Ouvert ${debutLisible(sv)} · ${role} · ${quart} · fin non enregistrée</span>
+            </span>
+          </div>`;
+        }).join('')}
+        <button class="service-ouvert-btn" id="servicesOuvertsBtn">Clore ${n === 1 ? 'ce service' : `ces ${n} services`} sans heure de fin</button>
+        <div class="section-note">NEXUS ne connaît pas l’heure de départ de ${n === 1 ? 'cet employé' : 'ces employés'} et n’en invente aucune : ${n === 1 ? 'le service sera refermé' : 'les services seront refermés'} avec la mention « fin non enregistrée », à votre nom. Aucune durée de présence ne sera calculée à partir de ${n === 1 ? 'cette ligne' : 'ces lignes'}.${seuilConnu ? '' : ' L’heure de bascule des quarts n’étant pas connue, seuls les services d’un jour précédent figurent ici.'}</div>`;
+      const btn = document.getElementById('servicesOuvertsBtn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Clôture en cours…';
+        const bilan = await nexusRegulariserServicesObsoletes(employee, SERVICES_OBSOLETES);
+        // On RELIT plutôt que de croire le bilan : un service refusé — par la
+        // RLS, ou parce qu'un autre écran vient de le refermer — doit
+        // réapparaître ou disparaître selon ce que la base dit vraiment, et
+        // non selon ce que cet écran espérait.
+        await chargerServicesObsoletes(employee);
+        renderServicesOuverts(employee);
+        if (bilan.refuses && bilan.refuses.length) {
+          alert(bilan.refuses.length + ' service(s) n’ont pas pu être refermés et restent ouverts. Réessayez, ou signalez-le si cela se reproduit.');
+        }
+      });
+    }
+
     nexusRequireAuth().then(async employee => {
       if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
       employeeCourantId = employee.id;
@@ -1556,6 +1737,11 @@
       renderBriefMini();
       renderNouvelles();
       renderTopVentes();
+      // Après le premier rendu, volontairement : la liste demande deux
+      // lectures supplémentaires (réglages du commerce, services du site) et
+      // ne doit pas retarder ce que le manager vient consulter.
+      await chargerServicesObsoletes(employee);
+      renderServicesOuverts(employee);
       const rappelBtn = document.getElementById('rappelAjouterBtn');
       if (rappelBtn) {
         rappelBtn.addEventListener('click', async () => {

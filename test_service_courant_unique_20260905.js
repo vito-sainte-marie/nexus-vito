@@ -79,16 +79,41 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
     ['NEXUS-Missions-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'nexus-auth.js'],
     'Neuf lectures devaient converger vers une primitive :\n  ' + lectures.join('\n  '));
 
-  // Une seule LECTURE dans la primitive. `select(` désigne ici la projection
-  // d'une lecture ; l'écriture de clôture porte `.select('id')` en fin de
-  // chaîne pour compter ses lignes, et se reconnaît à son `.update(`.
+  // UNE SEULE LECTURE RÉPOND À LA QUESTION DU SERVICE COURANT — et c'est
+  // cela, non un nombre, qui empêche S-4 de se rouvrir.
+  //
+  // Le 16/09/2026, la primitive a gagné une SECONDE lecture : les services
+  // encore ouverts du SITE, que le manager régularise depuis le Cockpit.
+  // Compter les lectures l'aurait refusée à tort. Ce qui la rend inoffensive
+  // est vérifiable : elle ne filtre PAS sur `employee_id`, donc elle ne peut
+  // répondre « quel est mon service » à personne. Le jour où quelqu'un lui
+  // ajouterait ce filtre — en croyant bien faire, pour « réutiliser la
+  // requête » — NEXUS aurait de nouveau deux définitions concurrentes du
+  // service courant, et cette assertion mordrait à cet instant précis.
+  //
+  // La fenêtre de 600 caractères borne chaque accès à sa propre chaîne
+  // fluide : au-delà commence du code qui ne le concerne plus. `.select(` ne
+  // distingue rien ici — l'écriture de clôture en porte un pour compter ses
+  // lignes — seule la présence de `.update(` sépare écriture et lecture.
   const auth = sansCommentaires(lire('nexus-auth.js'));
-  const acces = auth.split("from('shifts')").slice(1);
-  const ecritures = acces.filter(a => /^[\s\S]{0,600}?\.update\(/.test(a));
-  assert.strictEqual(acces.length - ecritures.length, 1,
-    'La définition du service courant doit rester UNE lecture de shifts.');
+  const acces = auth.split("from('shifts')").slice(1).map(a => a.slice(0, 600));
+  const ecritures = acces.filter(a => /\.update\(/.test(a));
   assert.strictEqual(ecritures.length, 1,
     'Une seule écriture sur shifts hors prise de poste : la clôture des services obsolètes.');
+
+  const lectures2 = acces.filter(a => !/\.update\(/.test(a));
+  const parEmploye = lectures2.filter(a => /\.eq\('employee_id'/.test(a));
+  assert.strictEqual(parEmploye.length, 1,
+    'La définition du service courant doit rester LA seule lecture de shifts filtrée par employé.');
+
+  // Toute AUTRE lecture est une lecture d'équipe : elle est bornée au site,
+  // sans quoi elle rendrait les services d'un commerce voisin. La RLS le
+  // refuserait — mais une requête qui compte sur la RLS pour se borner est
+  // une requête qui ne sait pas ce qu'elle demande.
+  lectures2.filter(a => !/\.eq\('employee_id'/.test(a)).forEach(a => {
+    assert.ok(/\.eq\('site_id'/.test(a),
+      'Une lecture de shifts qui n’est ni le service courant ni une écriture doit être bornée au site.');
+  });
 });
 
 verifier('les sept consommateurs passent par la primitive', () => {

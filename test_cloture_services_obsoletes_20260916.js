@@ -197,8 +197,15 @@ verifier('un quart du soir du jour même reste actif — le seuil n’est pas fo
     // Le contexte passé à la règle n'a volontairement ni minutesStation ni
     // seuilBascule : nexus-station.js n'est pas chargé par tous ces écrans, et
     // un seuil approximatif fermerait des services encore en cours.
+    //
+    // La garde porte sur le CODE, pas sur la prose : le 16/09, elle s'est
+    // déclenchée sur le commentaire qui explique précisément pourquoi la
+    // primitive n'a pas de seuil. Une garde qui interdit un mot interdit aussi
+    // qu'on écrive pourquoi il est absent.
     const corps = SOURCE.slice(SOURCE.indexOf('async function nexusServiceCourant'));
-    assert.ok(!/seuilBascule/.test(corps.slice(0, corps.indexOf('\n}'))),
+    const code = corps.slice(0, corps.indexOf('\n}'))
+      .split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    assert.ok(!/seuilBascule/.test(code),
       'aucun seuil ne doit être improvisé dans la primitive');
   });
 });
