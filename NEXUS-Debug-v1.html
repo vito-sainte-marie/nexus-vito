@@ -120,9 +120,11 @@
     return { retards, pointages, validees, journal, nomsRetards, nomsPointages: [...nomsPointages] };
   }
 
-  // Migration ponctuelle — reprend l'historique local (nexus_pointages) et
-  // l'insere dans Supabase (pointages). Concue pour etre relancee sans risque :
-  // toute entree deja presente (meme employe + date + type + heure) est ignoree.
+  // EXPORT de l'historique local (nexus_pointages) de cet appareil. Cette
+  // fonction inserait dans Supabase jusqu'au 16/09/2026 ; voir plus bas
+  // pourquoi elle ne le fait plus. Elle ecarte toujours ce qui est deja
+  // present en base (meme employe + date + type + heure), pour que le fichier
+  // ne contienne que ce qui manque reellement.
   async function migrerPointagesVersSupabase() {
     const msg = document.getElementById('msgMigration');
     const btn = document.getElementById('btnMigrer');
@@ -136,16 +138,16 @@
       return;
     }
 
-    if (!confirm(`Cet appareil contient des pointages sur ${dates.length} jour(s). Lancer la migration vers Supabase ?`)) return;
+    if (!confirm(`Cet appareil contient des pointages sur ${dates.length} jour(s). Les exporter dans un fichier ?`)) return;
 
-    btn.disabled = true; btn.textContent = 'Migration en cours…';
+    btn.disabled = true; btn.textContent = 'Export en cours…';
 
     const { data: employesData, error: erreurEmployes } = await nexusClient.from('employees').select('id, nom');
     if (erreurEmployes) {
       console.error('Chargement employees:', erreurEmployes);
       msg.textContent = 'Erreur de chargement des employés — réessayez.';
       msg.className = 'msg err';
-      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      btn.disabled = false; btn.textContent = 'Exporter l\'historique local';
       return;
     }
     const idParNom = {};
@@ -172,7 +174,7 @@
         ? `Aucune entrée migrable — noms non reconnus dans Supabase : ${[...nomsNonReconnus].join(', ')}.`
         : 'Rien à migrer.';
       msg.className = 'msg err';
-      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      btn.disabled = false; btn.textContent = 'Exporter l\'historique local';
       return;
     }
 
@@ -188,27 +190,39 @@
     if (nouveauxSeuls.length === 0) {
       msg.textContent = `Tout est déjà présent dans Supabase (${doublons} entrée(s) déjà migrées). Rien à faire.`;
       msg.className = 'msg ok';
-      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      btn.disabled = false; btn.textContent = 'Exporter l\'historique local';
       return;
     }
 
-    let inseres = 0, erreurs = 0;
-    for (let i = 0; i < nouveauxSeuls.length; i += 200) {
-      const lot = nouveauxSeuls.slice(i, i + 200);
-      const { error } = await nexusClient.from('pointages').insert(lot);
-      if (error) { console.error('Insertion migration:', error); erreurs += lot.length; }
-      else inseres += lot.length;
-    }
+    // L'ÉCRITURE EST RETIRÉE ICI, LE 16/09/2026. Depuis le 11/09, le trigger
+    // `nexus_pointage_exige_service` (migration 20260911180600) refuse tout
+    // INSERT dans `pointages` qui ne porte pas `service_id` ET
+    // `client_event_id`. Un historique d'appareil n'a ni l'un ni l'autre : il
+    // décrit des gestes faits avant que les services existent. Cet outil ne
+    // pouvait donc plus rien écrire — il aurait échoué dans la console et
+    // annoncé « ✓ 0 pointage(s) migré(s) » à l'écran. Une erreur silencieuse
+    // vaut moins qu'un refus lisible.
+    //
+    // RIEN N'EST PERDU POUR AUTANT : ce que la migration aurait inséré part
+    // dans un fichier. Reprendre un historique sans service est un geste de
+    // base de données, fait une fois, sous le regard de quelqu'un — pas un
+    // bouton d'écran. C'est exactement ce que la règle du 11/09 énonce :
+    // aucun pointage ne se cherche un service, et personne ne lui en invente.
+    const contenu = JSON.stringify(nouveauxSeuls, null, 2);
+    const lien = document.createElement('a');
+    lien.href = URL.createObjectURL(new Blob([contenu], { type: 'application/json' }));
+    lien.download = `nexus-historique-pointages-${SITE_ACTUEL}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(lien); lien.click(); document.body.removeChild(lien);
+    URL.revokeObjectURL(lien.href);
 
-    btn.disabled = false; btn.textContent = 'Lancer la migration';
+    btn.disabled = false; btn.textContent = 'Exporter l\'historique local';
 
-    let resume = `✓ ${inseres} pointage(s) migré(s) vers Supabase.`;
-    if (doublons > 0) resume += ` ${doublons} déjà présents, ignorés.`;
-    if (erreurs > 0) resume += ` ${erreurs} en erreur (voir la console).`;
-    if (nomsNonReconnus.size > 0) resume += ` Noms non reconnus, non migrés : ${[...nomsNonReconnus].join(', ')}.`;
+    let resume = `✓ ${nouveauxSeuls.length} pointage(s) écrit(s) dans un fichier. Aucune écriture dans Supabase : depuis le 11/09/2026, un pointage sans service y est refusé.`;
+    if (doublons > 0) resume += ` ${doublons} déjà présents dans Supabase, écartés.`;
+    if (nomsNonReconnus.size > 0) resume += ` Noms non reconnus, écartés : ${[...nomsNonReconnus].join(', ')}.`;
 
     msg.textContent = resume;
-    msg.className = erreurs > 0 ? 'msg err' : 'msg ok';
+    msg.className = 'msg ok';
     renderRoot();
   }
 
@@ -612,9 +626,9 @@
       </div>
 
       <div class="card">
-        <div class="section-label">Migration ponctuelle — Pointage vers Supabase</div>
-        <p class="note" style="margin-top:0;">Reprend l'historique local (<code>nexus_pointages</code>) de cet appareil et l'insère dans la table Supabase <code>pointages</code>, en retrouvant chaque employé par son nom. Sans danger à relancer plusieurs fois — les entrées déjà migrées sont détectées et ignorées.</p>
-        <button class="btn btn-primary" id="btnMigrer">Lancer la migration</button>
+        <div class="section-label">Historique local de Pointage — export</div>
+        <p class="note" style="margin-top:0;">Écrit dans un fichier l'historique local (<code>nexus_pointages</code>) de cet appareil, en retrouvant chaque employé par son nom et en écartant ce qui figure déjà dans Supabase. N'écrit rien dans Supabase : depuis le 11/09/2026, un pointage y est refusé s'il ne désigne pas son service, et un historique d'appareil n'en porte aucun. Reprendre ces lignes est un geste de base de données.</p>
+        <button class="btn btn-primary" id="btnMigrer">Exporter l'historique local</button>
         <div class="msg" id="msgMigration"></div>
       </div>
 
