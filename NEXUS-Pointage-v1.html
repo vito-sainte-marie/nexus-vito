@@ -794,16 +794,32 @@
     const shiftActif = resultatService.service || null;
 
     // AUCUN POSTE OUVERT (13/09/2026, arbitrage de Frédéric après le parcours
-    // d'Employé Test B). Depuis le 11/09, la base EXIGE `service_id` sur tout
-    // nouveau pointage — le trigger `nexus_pointage_exige_service` refuse le
-    // reste. L'écran, lui, offrait encore le pointage, prenait la photo,
-    // rangeait la tentative en file et promettait « rien ne sera perdu ».
-    // Cette promesse ne pouvait pas être tenue : le refus ne venait pas du
-    // réseau mais de la donnée, et la file rejouait à l'infini.
+    // d'Employé Test B). L'écran offrait encore le pointage, prenait la
+    // photo, rangeait la tentative en file et promettait « rien ne sera
+    // perdu ». Cette promesse ne pouvait pas être tenue : le refus ne venait
+    // pas du réseau mais de la donnée, et la file rejouait à l'infini.
     //
     // La règle métier est posée : sans service ouvert, on ne pointe pas. Elle
     // se vérifie donc AVANT la photo et avant toute écriture, et l'écran dit
     // quoi faire au lieu de laisser deviner.
+    //
+    // ELLE EST MÉTIER AVANT D'ÊTRE TECHNIQUE, et c'est délibéré : elle ne
+    // s'appuie sur aucun état de base. Une première rédaction de ce
+    // commentaire disait « depuis le 11/09, la base EXIGE service_id ».
+    // C'était vrai de Test et faux de Production, où la migration
+    // 20260911180600 n'est toujours pas appliquée au 16/09/2026 — la base
+    // y accepterait encore un pointage sans service. Un motif écrit depuis
+    // un seul environnement survit à sa propre péremption et fait relire
+    // le code de travers ; on écrit donc ici ce qui est vrai des deux.
+    //
+    // L'ordre de déploiement en découle, et il n'est pas réversible : ce
+    // code d'abord, le trigger ensuite. Le trigger posé sur une Production
+    // qui ne sait pas encore envoyer `service_id` refuserait TOUT pointage.
+    // Aujourd'hui cela ne se verrait pas — `station_config.pointage_actif`
+    // est à false pour vito-sainte-marie depuis le 03/09 et plus aucun
+    // pointage n'est écrit — mais la panne serait simplement armée, et
+    // elle se déclencherait le jour où quelqu'un rallume l'interrupteur,
+    // sans rapport visible avec le geste qui l'aurait causée.
     const [{ data: pointagesJour, error: erreurPointages }] = await Promise.all([
       nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, photo_echec_technique, heure_debut_quart, anomalie_signalee, service_id').eq('employee_id', employee.id).eq('date', today),
     ]);
