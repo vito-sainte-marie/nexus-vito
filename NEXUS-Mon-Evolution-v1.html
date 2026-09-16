@@ -56,6 +56,9 @@
   .ecart-row:last-child{border-bottom:none;}
   .ecart-info{color:var(--text-mid);}
   .ecart-montant{font-family:var(--mono); font-weight:600; white-space:nowrap;}
+  .ecart-row.partage .ecart-montant{opacity:.55;}
+  .ecart-badge{display:inline-block; margin-left:6px; padding:1px 6px; border-radius:9px; font-family:var(--mono); font-size:9px; letter-spacing:.3px; color:var(--text-dim); border:1px solid var(--hairline);}
+  .ecart-mention{margin-top:10px; font-size:11.5px; line-height:1.5; color:var(--text-dim);}
 
   .prog-row{display:flex; align-items:center; gap:18px;}
   .prog-donut-wrap{position:relative; width:110px; height:110px; flex-shrink:0;}
@@ -113,6 +116,14 @@
      `audits_caisse` en clair et recevait, sur chaque ligne, l'identifiant du
      collègue qui tenait l'autre poste, l'écart de ce poste et le commentaire
      du manager. Il ne lit plus que ses propres postes. -->
+<!-- La regle d'attribution d'un ecart (poste tenu seul / poste partage) ne vit
+     pas dans cet ecran : elle vit dans nexus-progression.js, comme pour
+     NEXUS Progression et NEXUS Apprentissage. Cet ecran ne la chargeait pas
+     jusqu'au 16/09/2026 et la redisait donc en dur, ce qui fait deux endroits
+     ou une seule regle peut deriver. nexus-ecarts-moteur.js doit etre charge
+     avant : nexus-progression.js lui delegue la gravite d'un ecart. -->
+<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+<script src="nexus-progression.js?v=20260904-0104"></script>
 <script src="nexus-caisse-source.js?v=20260904-0104"></script>
 <script>
   function classifierEcart(montantAbs) {
@@ -278,15 +289,21 @@
         return;
       }
 
-      const lignes = (data || [])
-        .filter(r => r.ecart !== null && r.ecart !== undefined)
-        .map(r => ({
-          date: r.date,
-          quart: r.quart,
-          role: r.poste === 'piste' ? 'Piste' : 'Boutique',
-          ecart: Number(r.ecart),
-          partage: !!r.poste_partage,
-        }));
+      // Un seul et meme ensemble de lignes alimente l'affichage ET le moteur
+      // de regles. Les filtrer chacun de son cote laisserait un poste non
+      // encore mesure compter dans l'un et pas dans l'autre : la projection
+      // rend une ligne par poste tenu, y compris quand l'ecart est encore
+      // `null` parce que le quart n'a pas ete controle.
+      const rowsMesures = (data || []).filter(r => r.ecart !== null && r.ecart !== undefined);
+
+      const lignes = rowsMesures.map(r => ({
+        date: r.date,
+        quart: r.quart,
+        poste: r.poste,
+        role: r.poste === 'piste' ? 'Piste' : 'Boutique',
+        ecart: Number(r.ecart),
+        partage: !!r.poste_partage,
+      }));
 
       // Un état vide n'est pas un résultat à zéro (arbitrage du 14/09/2026).
       // Cet écran affichait « 0.00 € » en vert à quelqu'un dont aucun quart
@@ -300,35 +317,58 @@
         return;
       }
 
-      // Poste partagé : plusieurs personnes ont tenu CE poste sur ce quart.
-      // Sans comptage de passation, rien ne dit laquelle a fait l'écart, donc
-      // il n'entre pas dans le cumul personnel et attend l'arbitrage d'un
-      // manager. Le binôme habituel piste + boutique n'est pas concerné : ce
-      // sont deux postes distincts, deux responsabilités distinctes.
+      // Poste partage : plusieurs personnes ont tenu CE poste sur ce quart.
+      // Sans comptage de passation, rien ne dit laquelle a fait l'ecart. Le
+      // binome habituel piste + boutique n'est pas concerne : ce sont deux
+      // postes distincts, deux responsabilites distinctes.
+      //
+      // CE QUE CET ECRAN DECIDE, ET CE QU'IL NE DECIDE PAS (16/09/2026). Il
+      // decide seulement de la mise en forme. QUI attend un arbitrage est
+      // decide par `NexusProgression.ecartsEnAttenteArbitrage`, et la phrase
+      // qui le dit est `NexusProgression.MENTION_QUART_PARTAGE` — la meme
+      // regle et les memes mots que Progression et Apprentissage. Jusqu'ici
+      // cet ecran redisait la regle en dur et ecrivait sa propre phrase :
+      // c'etait un second endroit ou une seule regle pouvait deriver, sans
+      // que rien ne le signale.
+      //
+      // La distinction compte : un poste partage dont l'ecart reste sous le
+      // seuil de conformite sort du cumul comme les autres, mais n'appelle
+      // aucun arbitrage. Il s'affiche grise, sans badge.
+      const P = window.NexusProgression;
+      const services = P.construireServicesCaisseDepuisProjection(rowsMesures);
+      const cleEcart = e => `${e.date}|${e.quart}|${e.poste}`;
+      const aArbitrer = new Set(P.ecartsEnAttenteArbitrage(services).map(cleEcart));
+
       const personnelles = lignes.filter(l => !l.partage);
-      const aArbitrer = lignes.filter(l => l.partage);
 
       if (personnelles.length === 0) {
         cumulEl.textContent = CUMUL_INDISPONIBLE;
         cumulEl.style.color = 'var(--text-dim)';
       } else {
+        // Le cumul somme TOUS les ecarts des postes tenus seul(e), y compris
+        // ceux qui restent sous le seuil de conformite : c'est le solde reel
+        // du mois, pas une liste de points d'attention. `ecartsAttribuables`
+        // n'est volontairement pas utilise ici — il filtre sur le seuil, et
+        // s'en servir ferait disparaitre du solde les petits ecarts qui
+        // existent bel et bien.
         const cumul = personnelles.reduce((s, l) => s + l.ecart, 0);
         cumulEl.textContent = `${cumul >= 0 ? '+' : ''}${cumul.toFixed(2)} €`;
         cumulEl.style.color = classifierEcart(Math.abs(cumul));
       }
 
-      const noteArbitrage = aArbitrer.length === 0 ? '' :
-        `<div class="empty-note">${aArbitrer.length} poste(s) tenu(s) à plusieurs ce mois-ci : l\'écart est affiché mais reste hors de votre cumul, en attente de l\'arbitrage d\'un manager.</div>`;
+      const mentionArbitrage = aArbitrer.size === 0 ? '' :
+        `<div class="ecart-mention">${P.MENTION_QUART_PARTAGE}</div>`;
 
       conteneur.innerHTML = lignes.map(l => {
         const dateAffichee = new Date(l.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const mention = l.partage ? ' · poste partagé, hors cumul' : '';
+        const badge = aArbitrer.has(cleEcart(l)) ? '<span class="ecart-badge">à arbitrer</span>' : '';
         return `
-          <div class="ecart-row">
-            <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}${mention}</div>
+          <div class="ecart-row${l.partage ? ' partage' : ''}">
+            <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}${mention}${badge}</div>
             <div class="ecart-montant" style="color:${l.partage ? 'var(--text-dim)' : classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>
           </div>`;
-      }).join('') + noteArbitrage;
+      }).join('') + mentionArbitrage;
     }
 
     await Promise.all([afficherProgression(), chargerEcartsCaisse()]);

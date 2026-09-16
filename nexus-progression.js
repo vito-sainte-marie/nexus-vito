@@ -241,6 +241,48 @@
     return ecarts;
   }
 
+  // Écarts d'un poste PARTAGÉ où l'employé figurait (règle énoncée par
+  // Frédéric le 14/09/2026, qui complète sa décision du 27/07/2026) :
+  //
+  //   Le planning détermine la personne ATTENDUE. La prise de poste et la
+  //   passation déterminent la personne RESPONSABLE. Quand un quart
+  //   comporte plusieurs détenteurs successifs de la même caisse, chaque
+  //   responsabilité doit être isolée par un COMPTAGE DE PASSATION. Sans
+  //   comptage intermédiaire, l'écart demeure rattaché au quart partagé et
+  //   nécessite un ARBITRAGE MANAGER. Aucune attribution individuelle ni
+  //   répartition automatique ne peut être effectuée sans preuve.
+  //
+  // Ces écarts ne sont donc JAMAIS des écarts de l'employé : ni dans ses
+  // statistiques, ni dans un cumul, ni au prorata. Mais les taire serait
+  // une autre forme de fausse précision — l'employé était bien sur ce
+  // poste, et le quart attend un arbitrage. Cette liste existe pour être
+  // NOTIFIÉE (Frédéric, 14/09/2026 : le remplacement en cours de quart est
+  // extrêmement rare aujourd'hui, donc on se contente de le signaler ; le
+  // comptage de passation n'est pas demandé).
+  //
+  // Invariant à préserver : ecartsAttribuables et ecartsEnAttenteArbitrage
+  // sont DISJOINTES. Un même (date, quart, poste) ne peut pas être dans les
+  // deux — un poste est solo ou partagé, jamais les deux.
+  function ecartsEnAttenteArbitrage(services) {
+    const ecarts = [];
+    (services || []).forEach(s => {
+      if (s.surPiste && !s.soloPiste && !estConforme(s.ecartPiste)) {
+        ecarts.push({ date: s.date, quart: s.quart, poste: 'piste', montant: s.ecartPiste, partage: true });
+      }
+      if (s.surBoutique && !s.soloBoutique && !estConforme(s.ecartBoutique)) {
+        ecarts.push({ date: s.date, quart: s.quart, poste: 'boutique', montant: s.ecartBoutique, partage: true });
+      }
+    });
+    ecarts.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return ecarts;
+  }
+
+  // Phrase unique pour présenter un écart en attente d'arbitrage. Elle vit
+  // ici, pas dans un écran : la même règle doit se dire avec les mêmes mots
+  // partout où elle s'affiche.
+  const MENTION_QUART_PARTAGE = 'Quart partagé : cet écart n\'est rattaché à personne tant qu\'un manager ne l\'a pas arbitré.';
+
+
   // Série de services propres — la plus récente (en cours) et la
   // meilleure jamais observée. Sert à "vous êtes à N services sans écart"
   // et "vous égalez/battez votre record".
@@ -1526,7 +1568,10 @@
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, construireServicesCaisseDepuisProjection,
     estConforme, serviceEstPropre,
-    nbServicesConformes, ecartsAttribuables, meilleureSerieConforme,
+    nbServicesConformes, ecartsAttribuables,
+    // Quart partagé — notification, jamais attribution (14/09/2026)
+    ecartsEnAttenteArbitrage, MENTION_QUART_PARTAGE,
+    meilleureSerieConforme,
     tendanceEcartMoyen, quartDominant,
     statutCaisse, statutPonctualite, statutMissions, statutTenue, statutRelationClient,
     niveauNexus, pointsForts, identifierAxeProgression, genererEncouragement,
