@@ -9,10 +9,10 @@
 # `main` directement — pousser revenait donc à déployer en production sans
 # qu'aucun test n'ait été exécuté ailleurs que sur le poste du développeur.
 #
-# Attention en lisant le résultat : 9 tests échouent déjà indépendamment de
-# toute modification (inventaire ×5, réception ×2, carburant ×1, pilotage
+# Attention en lisant le résultat : 8 tests échouent déjà indépendamment de
+# toute modification (inventaire ×4, réception ×2, carburant ×1, pilotage
 # ×1). Ils sont listés ci-dessous et tolérés tant qu'ils ne sont pas repris.
-# Le workflow échoue si un AUTRE test casse, ou si l'un de ces 9 est réparé
+# Le workflow échoue si un AUTRE test casse, ou si l'un de ces 8 est réparé
 # sans mettre la liste à jour — un garde-fou volontairement strict, pour que
 # la dette reste visible plutôt que de s'installer.
 #
@@ -25,7 +25,7 @@
 # Elles sont lancées ici comme deux étapes DÉDIÉES et BLOQUANTES. Deux raisons
 # de ne pas les fondre dans la suite métier :
 #   · un échec d'infrastructure ne doit pas se lire comme une régression
-#     métier, ni se cacher derrière la liste des 9 échecs tolérés ;
+#     métier, ni se cacher derrière la liste des 8 échecs tolérés ;
 #   · la suite métier tourne en `continue-on-error` — un échec d'infrastructure
 #     noyé dedans ne ferait rien échouer du tout. Ici, il arrête la CI.
 # Aucune tolérance, aucun échec connu : ces deux épreuves sont vertes ou la
@@ -68,7 +68,6 @@ jobs:
           set -euo pipefail
           CONNUS="test_chaine_temporelle_carburant_20260821.js
           test_inventaire_categorie_mixte_deux_lieux.js
-          test_inventaire_parcours_depot_boutique_reste.js
           test_inventaire_production_journaliere_q1.js
           test_inventaire_sprint4_ux_flash.js
           test_inventaire_sprint4bis_ecriture_immediate.js
@@ -85,7 +84,7 @@ jobs:
           if [ -n "$REPARES" ]; then
             echo "::error::Ces tests ne sont plus en échec — retirez-les de la liste des échecs connus :"; echo "$REPARES"; exit 1
           fi
-          echo "Aucune régression : seuls les 9 échecs connus subsistent."
+          echo "Aucune régression : seuls les 8 échecs connus subsistent."
 
       - name: Simulations métier
         run: npm run simulations --silent
