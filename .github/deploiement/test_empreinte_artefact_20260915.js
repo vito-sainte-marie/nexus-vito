@@ -440,10 +440,26 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // sans se contredire — elles ne dépendent que de `supabase/migrations/*.sql`,
 // jamais de ce fichier. (Ce qu'un fichier ne peut pas nommer, c'est sa propre
 // empreinte d'artefact, et ce n'est pas ce qui est mesuré ici.)
-const MIGRATIONS_REELLES_NOMBRE = 240;
-const MIGRATIONS_REELLES_EMPREINTE = '87da937b22e7e9f6cca75d7b179c9879766b763436afbe9aa6e82caaa7666430';
+//
+// 16/09/2026 — CETTE BRANCHE AJOUTE UNE MIGRATION, DONC ELLE DÉPLACE CE CHIFFRE.
+// `20260914210000_mes_ecarts_caisse_projection_employe.sql` porte la projection
+// `public.mes_ecarts_caisse()` : l'inventaire passe de 240 à 241 fichiers et
+// l'empreinte change avec lui. Ce n'est pas une garde qu'on desserre pour
+// qu'elle passe — c'est une garde qui a fait exactement son travail, en
+// refusant la branche tant que son ajout n'était pas déclaré ici. Le chiffre
+// n'est donc pas relevé « pour faire vert » : il est relevé parce qu'un
+// fichier de plus est réellement entré dans `supabase/migrations/`, et il
+// refusera la prochaine branche qui en ajoutera un sans le dire.
+//
+// Conséquence pour le train de livraison : les lots qui suivent portent eux
+// aussi ce compteur (240 → 242 → 261 dans les PR déjà ouvertes). Ce fichier est
+// donc un point de conflit PROGRAMMÉ à chaque fusion, et la valeur finale de
+// `production` devra être recalculée après le dernier lot, jamais recopiée
+// depuis l'une des branches.
+const MIGRATIONS_REELLES_NOMBRE = 241;
+const MIGRATIONS_REELLES_EMPREINTE = '61745a68f1d8ac19fb6cc977a4d00f434adc77fa746759f37a6b6d7932679e1f';
 
-cas('Réel · la provenance des migrations reste 240 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations reste 241 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

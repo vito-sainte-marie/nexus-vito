@@ -21,6 +21,9 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-progression.js?v=20260904-0104"></script>
+<!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
+     lui-même entre les lignes brutes et la projection employé. -->
+<script src="nexus-caisse-source.js?v=20260904-0104"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -155,7 +158,7 @@
     }
 
     const [
-      { data: auditsRows, error: e1 },
+      { services: servicesCaisse, erreur: e1, source: sourceCaisse },
       { data: pointagesRows, error: e2 },
       { data: assignationsRows, error: e3 },
       { data: controlesRows, error: e4 },
@@ -163,9 +166,12 @@
       { data: completionsRows, error: e6 },
       { data: catalogueRows, error: e7 },
     ] = await Promise.all([
-      fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
-        .eq('site', siteId).order('date', { ascending: false })),
+      // Écarts de caisse — la source est choisie par nexus-caisse-source.js,
+      // jamais ici (14/09/2026) : projection `mes_ecarts_caisse()` pour soi,
+      // lignes brutes pour un manager qui consulte quelqu'un d'autre.
+      NexusCaisseSource.chargerServicesCaisse({
+        client: nexusClient, siteId, cibleId: cible.id, vueManager,
+      }),
       nexusClient.from('pointages').select('date, retard_min').eq('type', 'arrivee').eq('employee_id', cible.id),
       nexusClient.from('mission_assignments').select('status, due_at, updated_at').eq('site_id', siteId).eq('assigned_to_employee_id', cible.id),
       nexusClient.from('controles_tenue').select('date, conforme').eq('site', siteId).eq('employee_id', cible.id),
@@ -177,7 +183,7 @@
       nexusClient.from('mission_completions').select('date, heure, mission_id, photo_fournie').eq('employee_id', cible.id),
       nexusClient.from('mission_catalog').select('mission_id, proof_required').eq('site_id', siteId),
     ]);
-    if (e1) console.error('Chargement audits_caisse (apprentissage):', e1);
+    if (e1) console.error(`Chargement écarts de caisse (apprentissage, source ${sourceCaisse}) :`, e1);
     if (e2) console.error('Chargement pointages (apprentissage):', e2);
     if (e3) console.error('Chargement mission_assignments (apprentissage):', e3);
     if (e4) console.error('Chargement controles_tenue (apprentissage):', e4);
@@ -186,7 +192,7 @@
     if (e7) console.error('Chargement mission_catalog (apprentissage):', e7);
 
     const N = NexusProgression;
-    const services = N.construireServicesCaisse(auditsRows || [], cible.id);
+    const services = servicesCaisse || [];
     const ecarts = N.ecartsAttribuables(services);
     const statutCaisseVal = N.statutCaisse(services);
     const statutPonctualiteVal = N.statutPonctualite(pointagesRows || []);
@@ -205,7 +211,7 @@
       missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
     });
     const niveauPasse = N.calculerNiveauADate({
-      auditsRows: auditsRows || [], pointagesRows: pointagesRows || [], assignationsRows: assignationsRows || [],
+      servicesCaisse: services, pointagesRows: pointagesRows || [], assignationsRows: assignationsRows || [],
       controlesRows: controlesRows || [], evaluationsRows: evaluationsRows || [], completionsRows: completionsRows || [],
       employeeId: cible.id,
     });
