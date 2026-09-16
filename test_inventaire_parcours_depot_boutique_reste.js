@@ -176,6 +176,14 @@ function chain(rows) {
     order() { return obj; }, in() { return obj; }, limit() { return obj; },
     insert(payload) { return chain([Object.assign({ id: 'created-' + Math.random().toString(36).slice(2) }, payload)]); },
     update() { return chain([]); },
+    // L'écriture immédiate passe par upsert : sans lui, l'écran rabattait
+    // chaque comptage sur sa file hors ligne et le test ne vérifiait plus rien
+    // du chemin d'écriture.
+    upsert(payload) {
+      const lignes = Array.isArray(payload) ? payload : [payload];
+      rows.push(...lignes);
+      return chain(lignes);
+    },
     maybeSingle() { return Promise.resolve({ data: rows[0] !== undefined ? rows[0] : null, error: null }); },
     single() { return Promise.resolve({ data: rows[0], error: null }); },
     then(resolve, reject) { return Promise.resolve({ data: rows, error: null }).then(resolve, reject); },
@@ -222,7 +230,21 @@ const sandbox = {
   confirm: () => true,
   localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
 };
+// Les modules se rattachent à `window` comme dans la page ; ici `window`, le
+// global du contexte et le bac à sable sont un seul et même objet, exactement
+// comme dans un navigateur.
+sandbox.window = sandbox;
 vm.createContext(sandbox);
+
+// L'écran ne vit jamais seul : sa page charge d'abord les modules dont son
+// script inline se sert (NexusStation pour le quart de la station,
+// NexusInventaireMoteur pour l'ordonnancement). Le harnais ne chargeait que
+// l'inline : le premier appel mourait sur « … is not defined » et le test
+// mesurait une globale absente au lieu du parcours. On les charge dans l'ordre
+// des balises <script> de NEXUS-Inventaire-v1.html.
+for (const module of ['nexus-station.js', 'nexus-inventaire-moteur.js']) {
+  vm.runInContext(fs.readFileSync(path.join(DIR, module), 'utf8'), sandbox, { filename: module });
+}
 
 scriptSrc += `
 ;globalThis.__NEXUS_TEST__ = {
@@ -230,6 +252,7 @@ scriptSrc += `
   get produitsZone(){ return produitsZone; },
   get boutiqueRattrapageIgnore(){ return boutiqueRattrapageIgnore; }, set boutiqueRattrapageIgnore(v){ boutiqueRattrapageIgnore = v; },
   get employeeCourant(){ return employeeCourant; },
+  set quartRow(v){ quartRow = v; },
   demarrerOuvertureComptage, renderCategoriesOuverture, renderFinalisationDoubleLieu, renderCloture,
   ordonnerParcoursDepotBoutiqueReste, grouperParCategorie, depotEntierementTermine,
   produitsDoubleLieuEnAttenteBoutique,
@@ -249,6 +272,12 @@ async function attendre(cond, tentatives = 30) {
   const H = sandbox.__NEXUS_TEST__;
   await attendre(() => !!H.employeeCourant);
   assert.ok(H.employeeCourant, "L'initialisation (nexusRequireAuth) doit aboutir");
+
+  // L'écran réel obtient sa ligne `inventaire_quarts` au démarrage
+  // (obtenirOuCreerQuart). Ce scénario pilote l'écran par ses poignées de
+  // test et ne passe pas par ce démarrage : sans ce câblage, l'écriture
+  // immédiate déclenchée à l'étape 6 partirait avec un quart nul.
+  H.quartRow = FIXTURES.inventaire_quarts[0];
 
   // ------------------------------------------------------------
   // 1) Ordonnancement — dépôt d'abord, reste en dernier (unitaire, pur)
