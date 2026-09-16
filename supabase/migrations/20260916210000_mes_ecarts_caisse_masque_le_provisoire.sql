@@ -144,6 +144,26 @@ comment on function public.mes_ecarts_caisse() is
 -- `revoke ... from public` seul ne suffit pas : il ne retire que l'entree du
 -- pseudo-role PUBLIC, jamais un grant nomme. La lecon est du 16/09/2026, apres
 -- trois occurrences du meme motif.
+--
+-- 16/09/2026 — l'ACL finale est ECRITE, pas heritee. Sans la ligne
+-- `service_role` ci-dessous, la fonction gardait ce droit sur Test et en
+-- Production parce qu'elle y preexistait (`create or replace` conserve l'ACL),
+-- et ne l'aurait PAS eu sur une base neuve. L'ACL dependait donc de l'histoire
+-- de la base, pas de la migration. Les quatre lignes qui suivent la rendent
+-- identique partout.
+--
+-- Propriete attendue apres cette migration, dans TOUS les environnements :
+--   postgres      = EXECUTE  (proprietaire)
+--   authenticated = EXECUTE  (l'employe qui consulte ses propres ecarts)
+--   service_role  = EXECUTE  (role technique serveur : il contourne deja la
+--                             RLS et sa cle ne quitte jamais le serveur ;
+--                             le retirer casserait des chemins serveur sans
+--                             rien refermer cote navigateur)
+--   anon          = AUCUN
+--   PUBLIC        = AUCUN
+--
+-- Soit exactement : {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}
 revoke all on function public.mes_ecarts_caisse() from public;
 revoke all on function public.mes_ecarts_caisse() from anon;
 grant execute on function public.mes_ecarts_caisse() to authenticated;
+grant execute on function public.mes_ecarts_caisse() to service_role;

@@ -45,7 +45,28 @@ Propriétés vérifiées sur Test, à revérifier après application en Producti
   ne peut pas être choisie par l'appelant, elle vient de `auth.uid()` ;
 - `revoke all … from public` **et** `revoke all … from anon` — sur Supabase le
   premier ne ferme pas le second, l'ACL d'`anon` est un grant nommé ;
-- `grant execute … to authenticated` et rien d'autre ;
+- l'ACL finale est **écrite en toutes lettres**, jamais héritée. La propriété
+  attendue, identique dans tous les environnements, est exactement :
+
+  | Rôle | `EXECUTE` |
+  |---|---|
+  | `postgres` (propriétaire) | oui |
+  | `authenticated` | **oui** — l'employé qui consulte ses propres écarts |
+  | `service_role` | **oui** — rôle technique serveur |
+  | `anon` | **non** |
+  | `PUBLIC` | **non** |
+
+  soit `{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}`.
+
+  `service_role` **conserve** `EXECUTE`, et la migration le dit désormais par un
+  `grant` explicite. Ce rôle contourne déjà la RLS et sa clé ne quitte jamais le
+  serveur : la lui retirer casserait des chemins serveur sans rien refermer côté
+  navigateur. Avant le 16/09 la migration restait muette sur ce rôle ; il gardait
+  son droit sur Test et en Production **parce que la fonction y préexistait**
+  (`create or replace` conserve l'ACL), et ne l'aurait pas eu sur une base neuve,
+  où l'`alter default privileges` de Supabase sur `public` pose
+  `{anon=X,authenticated=X,service_role=X}` avant que les `revoke` ne passent.
+  L'ACL dépendait donc de l'histoire de la base et non de la migration ;
 - `create or replace` : rejouable, et l'ACL est reposée explicitement à chaque
   passage plutôt que laissée à l'héritage.
 

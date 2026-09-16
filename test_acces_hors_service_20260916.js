@@ -290,5 +290,32 @@ const EN_SERVICE = { service: { id: 'sv1', role: 'caissier', quart: 'quart_1' } 
     'l\'accueil redirige à nouveau au chargement : la troisième porte est revenue');
   passes++; console.log('OK — l\'accueil est resté un lecteur du service, pas une porte');
 
+  // ── L'ACL de la migration est écrite, pas héritée ────────────────────
+  // 16/09/2026. `create or replace` conserve l'ACL d'une fonction qui existe
+  // déjà : une migration muette sur un rôle lui laisse le droit là où la
+  // fonction préexistait, et le lui refuse ailleurs. L'ACL dépendait donc de
+  // l'histoire de la base. Les quatre lignes doivent être TOUTES présentes,
+  // `service_role` compris — c'est la seule façon d'obtenir le même résultat
+  // sur Test, en Production et sur une base neuve.
+  const MIG = fs.readFileSync(path.join(RACINE, 'supabase/migrations/20260916210000_mes_ecarts_caisse_masque_le_provisoire.sql'), 'utf8');
+  const sansCommentaires = MIG.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
+  const ACL_ATTENDUE = [
+    ['revoke', /revoke\s+all\s+on\s+function\s+public\.mes_ecarts_caisse\(\)\s+from\s+public\s*;/,
+     'revoke … from public manquant'],
+    ['revoke', /revoke\s+all\s+on\s+function\s+public\.mes_ecarts_caisse\(\)\s+from\s+anon\s*;/,
+     'revoke … from anon manquant — sur Supabase, PUBLIC ne ferme pas anon'],
+    ['grant',  /grant\s+execute\s+on\s+function\s+public\.mes_ecarts_caisse\(\)\s+to\s+authenticated\s*;/,
+     'grant … to authenticated manquant'],
+    ['grant',  /grant\s+execute\s+on\s+function\s+public\.mes_ecarts_caisse\(\)\s+to\s+service_role\s*;/,
+     'grant … to service_role manquant : l\'ACL redevient héritée, donc indéterminée'],
+  ];
+  for (const [, motif, message] of ACL_ATTENDUE) {
+    assert.ok(motif.test(sansCommentaires), message);
+  }
+  // Et surtout : aucun grant à anon ni à PUBLIC, sous aucune forme.
+  assert.ok(!/grant[\s\S]{0,120}mes_ecarts_caisse\(\)\s+to\s+(anon|public)\b/i.test(sansCommentaires),
+    'la migration accorde EXECUTE à anon ou à PUBLIC');
+  passes++; console.log('OK — l\'ACL de la migration est écrite en toutes lettres : authenticated + service_role, jamais anon ni PUBLIC');
+
   console.log(`\n${passes} vérifications passées — l'authentification n'est pas une preuve de présence, et le terrain reste gardé.`);
 })().catch(err => { console.error(err); process.exit(1); });

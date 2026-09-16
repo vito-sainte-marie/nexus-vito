@@ -461,6 +461,12 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ───
 //    264
 //
+//   16/09/2026 — l'empreinte a bougé sans que le NOMBRE bouge : la migration
+//   `20260916210000` a été rouverte pour écrire son ACL en toutes lettres
+//   (`grant execute … to service_role`, jusque-là hérité et donc indéterminé).
+//   Un contenu qui change à nombre constant est exactement ce que cette
+//   empreinte est là pour rendre visible.
+//
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
@@ -469,7 +475,7 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
 const MIGRATIONS_REELLES_NOMBRE = 264;
-const MIGRATIONS_REELLES_EMPREINTE = '64d493882410acfc550943913f8eba467467e147584778b98b37682ff13a9092';
+const MIGRATIONS_REELLES_EMPREINTE = 'cb13585cab60fd356ec3bc01858b0ff2968823b0b69c9f01ff4d109878acab4b';
 
 cas('Réel · la provenance des migrations annonce 264 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
