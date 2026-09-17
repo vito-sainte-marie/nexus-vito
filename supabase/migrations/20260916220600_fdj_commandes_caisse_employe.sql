@@ -370,6 +370,18 @@ begin
           using errcode = 'invalid_parameter_value';
       end if;
 
+      -- stock_initial_auto N'EST VOLONTAIREMENT NI INSÉRÉE NI MISE À JOUR.
+      -- Ce n'est pas un oubli, c'est la seule écriture correcte des deux côtés :
+      --   · ligne existante (le jeu a été compté à l'ouverture) — le `do update`
+      --     ne cite pas la colonne, donc la valeur posée à l'ouverture SURVIT.
+      --     Un employé qui a corrigé lui-même son stock de départ l'a passée à
+      --     false ; la clôture ne doit pas la remettre à true et rendre sa
+      --     saisie réécrasable par les outils de reprise.
+      --   · ligne créée ici (jeu compté seulement à la clôture) — la colonne est
+      --     `not null default false` depuis 20260817004129, et false veut dire
+      --     « valeur d'un humain, ne pas la réécrire automatiquement ». C'est le
+      --     défaut prudent : présumer l'inverse autoriserait un outil à écraser
+      --     un chiffre que personne n'a hérité de nulle part.
       insert into public.fdj_shift_counts as c (
         site, shift_id, game_id, stock_initial, appro, stock_final,
         ventes_qte, ventes_valeur, updated_at

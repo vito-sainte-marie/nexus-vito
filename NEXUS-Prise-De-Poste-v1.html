@@ -129,6 +129,15 @@
   .warning-securite{background:var(--red-dim); border:1px solid rgba(240,87,90,0.4); border-radius:10px; padding:12px 14px; font-size:12px; color:var(--red); line-height:1.55; margin-top:14px;}
   .warning-securite b{color:var(--red);}
 
+  /* FDJ Vague 1 (17/09/2026) — l'ouverture du quart FDJ est une conséquence
+     de la prise de poste, pas une action de plus ; son résultat se lit ici.
+     Trois tons, aucun vocabulaire accusatoire : elle a eu lieu, elle n'a pas
+     lieu d'être, ou elle se heurte à un quart déjà tenu par quelqu'un. */
+  .note-fdj{border-radius:10px; padding:11px 13px; font-size:12px; line-height:1.55; margin-top:14px;}
+  .note-fdj.ok{background:var(--green-dim); border:1px solid rgba(58,191,127,0.35); color:var(--green);}
+  .note-fdj.info{background:rgba(255,255,255,0.04); border:1px solid var(--hairline); color:var(--text-mid);}
+  .note-fdj.conflit{background:var(--amber-dim); border:1px solid rgba(232,168,56,0.4); color:var(--amber);}
+
   .final-card{padding:8px 0;}
   .final-greet{font-size:19px; font-weight:700;}
   .final-line{font-size:13.5px; color:var(--text-mid); margin-top:10px; display:flex; justify-content:space-between;}
@@ -380,13 +389,72 @@
     });
   }
 
+  // FDJ Vague 1 (17/09/2026) — OUVERTURE NATURELLE DU QUART FDJ.
+  //
+  // Règle métier : « la prise de poste de l'employé sur le quart 1 doit
+  // entraîner l'ouverture du quart FDJ 1 […] l'employé ne doit pas avoir à
+  // cliquer sur un deuxième bouton "Commencer mon quart FDJ" ». Il n'y a donc
+  // aucun bouton supplémentaire ici : l'ouverture est une conséquence de la
+  // prise de poste, pas une action de plus.
+  //
+  // Symétriquement, c'est le SEUL endroit de NEXUS qui ouvre un quart FDJ.
+  // Ni la connexion, ni l'arrivée sur l'accueil, ni l'ouverture de l'écran FDJ,
+  // ni une consultation de manager n'en créent un (NEXUS-FDJ-v1.html ne fait
+  // plus que LIRE le quart du jour — voir obtenirShiftDuQuart()).
+  //
+  // Ce que cette fonction ne fait PAS : bloquer la prise de poste. L'employé
+  // qui vient de prendre son poste l'a réellement pris ; si l'ouverture FDJ
+  // échoue (réseau, site sans FDJ, quart non numéroté, conflit de
+  // responsable), sa présence reste enregistrée et il continue son parcours.
+  // Le résultat est simplement porté à sa connaissance sur l'écran final.
+  //
+  // L'idempotence n'est pas gérée ici : elle est garantie côté base par
+  // fdj_ouvrir_quart_depuis_prise_de_poste(), qui reconnaît l'événement source
+  // déjà traité. Un double-clic, un rechargement ou un retour arrière ne
+  // créent jamais un second quart.
+  let messageOuvertureFdj = null;
+
+  async function ouvrirQuartFdjDepuisPriseDePoste(priseDePosteId) {
+    messageOuvertureFdj = null;
+    if (!priseDePosteId) return;
+    const { data, error } = await nexusClient.rpc('fdj_ouvrir_quart_depuis_prise_de_poste', {
+      p_prise_de_poste_id: priseDePosteId,
+    });
+    if (error) {
+      // Journalisé, jamais bloquant, jamais silencieux pour l'employé si la
+      // station tient une caisse FDJ : il saura en arrivant sur l'écran FDJ
+      // qu'aucun quart n'est ouvert, avec la marche à suivre.
+      console.error('Ouverture du quart FDJ depuis la prise de poste:', error);
+      return;
+    }
+    if (!data) return;
+    // Un conflit de responsable n'est pas une erreur technique : c'est une
+    // information métier que l'employé doit recevoir tout de suite, sans
+    // qu'aucune réattribution silencieuse n'ait lieu. La reprise se décide et
+    // se motive côté manager.
+    if (data.conflit) { messageOuvertureFdj = { ton: 'conflit', texte: data.message }; return; }
+    if (data.ouvert === false && data.message) { messageOuvertureFdj = { ton: 'info', texte: data.message }; return; }
+    if (data.ouvert === true) {
+      messageOuvertureFdj = {
+        ton: 'ok',
+        texte: data.deja_ouvert
+          ? 'Votre quart FDJ était déjà ouvert : il vous attend tel quel.'
+          : 'Votre quart FDJ est ouvert. Rien n\'y a été saisi à votre place.',
+      };
+    }
+  }
+
   async function confirmerPriseDePoste() {
     const btn = document.getElementById('btnConfirmer');
     btn.disabled = true;
     btn.textContent = 'Confirmation…';
 
     const quart = quartDuMoment();
-    const { error } = await nexusClient.from('shifts').insert({
+    // `.select('id').single()` — l'identifiant de CET événement de prise de
+    // poste est ce qui relie le quart FDJ à sa cause. Sans lui, l'ouverture
+    // FDJ devrait redeviner qui prend son poste, où et pour quel quart : c'est
+    // exactement ce que la refonte supprime.
+    const { data: priseDePoste, error } = await nexusClient.from('shifts').insert({
       employee_id: employeeCourant.id,
       role: roleChoisi,
       role_prevu: employeeCourant.role,
@@ -394,7 +462,7 @@
       quart,
       site: employeeCourant.site_id,
       statut: 'en_cours',
-    });
+    }).select('id').single();
 
     if (error) {
       console.error('Confirmation prise de poste:', error);
@@ -403,6 +471,8 @@
       btn.textContent = 'Confirmer ma prise de poste';
       return;
     }
+
+    await ouvrirQuartFdjDepuisPriseDePoste(priseDePoste && priseDePoste.id);
 
     renderFinal();
   }
@@ -428,6 +498,7 @@
         <div class="final-line"><span>Missions prévues</span><b>${nbMissions}</b></div>
         <div class="final-line"><span>Priorités</span><b>${prioritaires} avant votre pause</b></div>
         <div class="final-line"><span>Temps estimé</span><b>${tempsTotal} minutes</b></div>
+        ${messageOuvertureFdj ? `<div class="note-fdj ${messageOuvertureFdj.ton}">${messageOuvertureFdj.texte}</div>` : ''}
         <button class="btn-primary" id="btnDashboard">${estNiveauManagerCourant() ? 'Ouvrir mon poste de pilotage' : 'Ouvrir mon tableau de bord'}</button>
       </div>
     `;
