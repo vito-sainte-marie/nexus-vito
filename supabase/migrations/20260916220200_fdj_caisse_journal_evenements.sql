@@ -75,8 +75,23 @@ create table if not exists public.fdj_caisse_evenements (
   )),
 
   -- Un événement qui change une version doit dire d'où et vers où.
+  --
+  -- Trois formes légitimes, et trois seulement :
+  --   · (null, null) — l'événement ne porte sur aucune version (il décrit le
+  --     contrôle, pas la saisie) ;
+  --   · (null, n) pour la SEULE confirmation initiale — c'est la naissance de
+  --     la caisse : il n'existe aucune version antérieure, et écrire 0 ou 1
+  --     dans version_avant inventerait un état qui n'a jamais existé (§8) ;
+  --   · (n, m) avec m >= n — toute autre transition part d'une version connue.
+  -- La première rédaction n'admettait que la première et la troisième : elle
+  -- rejetait donc l'unique chemin par lequel une caisse peut naître, ce qui
+  -- rendait fdj_confirmer_caisse inapplicable. Corrigé le 17/09/2026 après
+  -- exécution réelle sur nexus-test — la suite de tests, statique, ne pouvait
+  -- pas le voir.
   constraint fdj_caisse_evenements_versions_check check (
     (version_avant is null and version_apres is null)
+    or (version_avant is null and version_apres is not null
+        and evenement = 'confirmation_initiale')
     or (version_avant is not null and version_apres is not null and version_apres >= version_avant)
   ),
 

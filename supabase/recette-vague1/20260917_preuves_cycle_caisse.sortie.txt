@@ -1,0 +1,411 @@
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:622: NOTICE:  trigger "fdj_caisse_evenements_pas_de_modification" for relation "public.fdj_caisse_evenements" does not exist, skipping
+
+############################################################
+#  SECTION 0 — JEU D ESSAI (role postgres, site de test)   #
+############################################################
+    etape    | jeux | prises_de_poste_actives | date_metier_pdp_a1 | quart_fdj_matin | quart_fdj_soir 
+-------------+------+-------------------------+--------------------+-----------------+----------------
+ jeu d essai |    2 |                       4 | 2026-09-16         | 1               | 2
+(1 row)
+
+
+############################################################
+#  PREUVE 11 (a) — une simple consultation ne cree rien    #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+          preuve          | quarts_listes 
+--------------------------+---------------
+ P11 consultation employe |             0
+(1 row)
+
+          preuve          | demandes_listees 
+--------------------------+------------------
+ P11 consultation employe |                0
+(1 row)
+
+ preuve |         etiquette          | delta_quarts | delta_caisses | delta_evenements | delta_audit | delta_demandes 
+--------+----------------------------+--------------+---------------+------------------+-------------+----------------
+ P11    | apres consultation employe |            0 |             0 |                0 |           0 |              0
+(1 row)
+
+     preuve     |           proname           |          volatilite          
+----------------+-----------------------------+------------------------------
+ P11 volatilite | fdj_alertes_caisse          | stable (ecriture impossible)
+ P11 volatilite | fdj_chronologie_caisse      | stable (ecriture impossible)
+ P11 volatilite | fdj_ma_caisse               | stable (ecriture impossible)
+ P11 volatilite | fdj_mes_comptages_caisse    | stable (ecriture impossible)
+ P11 volatilite | fdj_mes_corrections_caisse  | stable (ecriture impossible)
+ P11 volatilite | fdj_mes_demandes_correction | stable (ecriture impossible)
+ P11 volatilite | fdj_mes_quarts_fdj          | stable (ecriture impossible)
+(7 rows)
+
+
+############################################################
+#  PREUVE 10 — la prise de poste ouvre UN SEUL quart FDJ   #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+          preuve           | ouvert | deja_ouvert |        motif        | date_metier | quart |             responsable              
+---------------------------+--------+-------------+---------------------+-------------+-------+--------------------------------------
+ P10.1 ouverture naturelle | true   | false       | ouverture_naturelle | 2026-09-16  | 1     | 868d0b92-bf65-4c99-be43-656911919afd
+(1 row)
+
+           preuve            | ouvert | deja_ouvert |           motif            | meme_quart 
+-----------------------------+--------+-------------+----------------------------+------------
+ P10.2 meme evenement rejoue | true   | true        | idempotence_prise_de_poste | t
+(1 row)
+
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+                  preuve                   | ouvert | deja_ouvert |              motif              | meme_quart 
+-------------------------------------------+--------+-------------+---------------------------------+------------
+ P10.3 nouvelle prise de poste, meme quart | true   | true        | quart_existant_meme_responsable | t
+(1 row)
+
+    preuve     |        site        |    date    | quart | quarts_fdj 
+---------------+--------------------+------------+-------+------------
+ P10.4 unicite | nexus-station-test | 2026-09-16 | 1     |          1
+(1 row)
+
+      preuve       | responsable_est_a |          prise_de_poste_id           | ouverture_source | auteur_technique_identique |  statut   | ouvert_le_renseigne 
+-------------------+-------------------+--------------------------------------+------------------+----------------------------+-----------+---------------------
+ P10.5 tracabilite | t                 | bbbbbbb1-0000-4000-8000-000000000001 | prise_de_poste   | t                          | brouillon | t
+(1 row)
+
+         preuve         | caisses_creees | comptages_crees | rapports_crees | releves_crees 
+------------------------+----------------+-----------------+----------------+---------------
+ P10.6 rien de fabrique |              0 |               0 |              0 |             0
+(1 row)
+
+
+--- P10.7 : ce qui N OUVRE PAS de quart FDJ ---
+ identite_manager 
+------------------
+ t
+(1 row)
+
+              preuve              | ouvert |           motif           |                           message                            
+----------------------------------+--------+---------------------------+--------------------------------------------------------------
+ P10.7 prise de poste manageriale | false  | prise_de_poste_managerial | Une prise de poste en mode manager n'ouvre pas de quart FDJ.
+(1 row)
+
+ identite_employe_b 
+--------------------
+ t
+(1 row)
+
+               preuve               | ouvert | conflit |              motif               | responsable_reste_a |                                                      message                                                       
+------------------------------------+--------+---------+----------------------------------+---------------------+--------------------------------------------------------------------------------------------------------------------
+ P10.8 quart deja tenu par un autre | false  | true    | quart_existant_autre_responsable | t                   | Ce quart FDJ est déjà ouvert au nom d'une autre personne. Une reprise doit être décidée et motivée par un manager.
+(1 row)
+
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4105: NOTICE:  P10.9 OK — refus attendu : Cette prise de poste appartient à un autre employé
+           preuve           | quarts_fdj_du_site 
+----------------------------+--------------------
+ P10.10 aucun quart en trop |                  1
+(1 row)
+
+ identite_employe_b 
+--------------------
+ t
+(1 row)
+
+            preuve             | ouvert |        motif        | quart | responsable_est_b 
+-------------------------------+--------+---------------------+-------+-------------------
+ P10.11 quart 2 ouvrable par B | true   | ouverture_naturelle | 2     | t
+(1 row)
+
+
+############################################################
+#  PREUVE 12 — l ecart provisoire apparait APRES la        #
+#               confirmation, jamais avant                 #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+          preuve          |       etape        | ecart_etabli | ecart_provisoire | libelle_ecart |                 message                  
+--------------------------+--------------------+--------------+------------------+---------------+------------------------------------------
+ P12.1 avant toute saisie | saisie_a_commencer | false        | null             | null          | Rien n'a encore été transmis au manager.
+(1 row)
+
+           preuve           | enregistre |  statut   |                                         message                                          
+----------------------------+------------+-----------+------------------------------------------------------------------------------------------
+ P12.2 brouillon enregistre | true       | brouillon | Votre saisie est enregistrée en brouillon. Elle n'a pas encore été transmise au manager.
+(1 row)
+
+                    preuve                     |   etape   | ecart_etabli | ecart_provisoire | libelle_ecart | aide_total_attendu | aide_difference | cle_ecart_presente 
+-----------------------------------------------+-----------+--------------+------------------+---------------+--------------------+-----------------+--------------------
+ P12.3 apres brouillon, toujours rien d etabli | brouillon | false        | null             | null          | 310.00             | -18.00          | f
+(1 row)
+
+       preuve       | confirme | idempotent | version | ecart_provisoire | en_attente |                        message                        
+--------------------+----------+------------+---------+------------------+------------+-------------------------------------------------------
+ P12.4 confirmation | true     | false      | 1       | -18.00           | true       | Cette caisse reste en attente du contrôle du manager.
+(1 row)
+
+          preuve          |            etape            | ecart_etabli | ecart_provisoire | ecart_retenu |            libelle_ecart             |                        message                        | correction_possible | signalement_possible | confirmation_initiale_reelle | confirmation_initiale_ecart 
+--------------------------+-----------------------------+--------------+------------------+--------------+--------------------------------------+-------------------------------------------------------+---------------------+----------------------+------------------------------+-----------------------------
+ P12.5 apres confirmation | en_attente_controle_manager | true         | -18.00           | null         | Écart provisoire en moins : −18.00 € | Cette caisse reste en attente du contrôle du manager. | true                | false                | 292                          | -18.00
+(1 row)
+
+           preuve           | confirme | idempotent | version 
+----------------------------+----------+------------+---------
+ P12.6 confirmation rejouee | true     | true       | 1
+(1 row)
+
+       preuve       |  statut   | version | nb_corrections | caisse_attendue | caisse_reelle | ecart  | confirme | non_validee | saisie_par_a 
+--------------------+-----------+---------+----------------+-----------------+---------------+--------+----------+-------------+--------------
+ P12.7 etat en base | confirmee |       1 |              0 |          310.00 |           292 | -18.00 | t        | t           | t
+(1 row)
+
+
+############################################################
+#  PREUVE 13 — une correction AVANT validation est tracee  #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+      preuve      | corrige | version | nb_corrections | ecart_avant | ecart_apres |                        message                        
+------------------+---------+---------+----------------+-------------+-------------+-------------------------------------------------------
+ P13.1 correction | true    | 2       | 1              | -18.00      |             | Cette caisse reste en attente du contrôle du manager.
+(1 row)
+
+                preuve                 | ecart_provisoire |     libelle_ecart      | premiere_caisse_reelle | premier_ecart | version | nb_corrections 
+---------------------------------------+------------------+------------------------+------------------------+---------------+---------+----------------
+ P13.2 la premiere confirmation survit | 0.00             | Aucun écart provisoire | 292                    | -18.00        | 2       | 1
+(1 row)
+
+               preuve               |          survenu_le           |       evenement       |                 libelle                  | version_avant | version_apres | ecart_avant | ecart_apres |            libelle_ecart             |                mon_motif                |   mon_commentaire    |                                                                                              valeurs_avant                                                                                              |                                                                                              valeurs_apres                                                                                              
+------------------------------------+-------------------------------+-----------------------+------------------------------------------+---------------+---------------+-------------+-------------+--------------------------------------+-----------------------------------------+----------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P13.3 historique rendu a l employe | 2026-09-17 06:34:16.414899+00 | confirmation_initiale | Caisse confirmée et transmise au manager |               |             1 |             |      -18.00 | Écart provisoire en moins : −18.00 € |                                         |                      |                                                                                                                                                                                                         | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
+ P13.3 historique rendu a l employe | 2026-09-17 06:34:16.414899+00 | correction_employe    | Saisie corrigée                          |             1 |             2 |      -18.00 |        0.00 | Aucun écart provisoire               | Erreur de comptage sur le jeu a 5 euros | Stock final recompte | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00} | {"ecart": 0.00, "caisse_reelle": 310, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
+(2 rows)
+
+                          preuve                          |       evenement       | auteur_role | auteur_est_a | responsable_est_a | version_apres | statut_avant | statut_apres |                  motif                  
+----------------------------------------------------------+-----------------------+-------------+--------------+-------------------+---------------+--------------+--------------+-----------------------------------------
+ P13.4 journal (lecture postgres : ferme a authenticated) | correction_employe    | employe     | t            | t                 |             2 | confirmee    | confirmee    | Erreur de comptage sur le jeu a 5 euros
+ P13.4 journal (lecture postgres : ferme a authenticated) | confirmation_initiale | employe     | t            | t                 |             1 | brouillon    | confirmee    | 
+(2 rows)
+
+                    preuve                     | version | nb_corrections | coherent | caisse_reelle_origine | ecart_origine | caisse_reelle | ecart | correction_datee 
+-----------------------------------------------+---------+----------------+----------+-----------------------+---------------+---------------+-------+------------------
+ P13.5 contrainte version = nb_corrections + 1 |       2 |              1 | t        |                   292 |        -18.00 |           310 |  0.00 | t
+(1 row)
+
+
+############################################################
+#  PREUVE 15 — seul le manager valide                      #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4265: NOTICE:  P15.1 OK — l employe ne valide pas sa caisse : Seul un manager habilité peut effectuer cette opération.
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4265: NOTICE:  P15.2 OK — l employe n ouvre pas le controle : Seul un manager habilité peut effectuer cette opération.
+ identite_employe_b 
+--------------------
+ t
+(1 row)
+
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.3 OK — un collegue ne valide pas : Seul un manager habilité peut effectuer cette opération.
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.4 OK — un collegue ne corrige pas : Ce quart FDJ est sous la responsabilité d'un autre employé.
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.5 OK — un collegue ne lit pas la caisse d un autre : Ce quart FDJ n'est pas sous votre responsabilité.
+ identite_manager 
+------------------
+ t
+(1 row)
+
+                   preuve                   | controle_ouvert | idempotent | ecart | libelle_ecart_manager 
+--------------------------------------------+-----------------+------------+-------+-----------------------
+ P15.6 ouverture du controle par le manager | true            | false      | 0.00  | Conforme
+(1 row)
+
+             preuve              | valide | idempotent | resultat |  statut  
+---------------------------------+--------+------------+----------+----------
+ P15.7 validation par le manager | true   | false      | conforme | conforme
+(1 row)
+
+          preuve          | valide | idempotent 
+--------------------------+--------+------------
+ P15.8 validation rejouee | true   | true
+(1 row)
+
+       preuve       |  statut  | resultat_controle | valide_par_le_manager | controle_par_le_manager | validee | saisie_toujours_imputee_a_a 
+--------------------+----------+-------------------+-----------------------+-------------------------+---------+-----------------------------
+ P15.9 etat en base | conforme | conforme          | t                     | t                       | t       | t
+(1 row)
+
+
+############################################################
+#  PREUVE 14 — apres validation, la correction est refusee #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+          preuve          | corrige |     motif      |                                            message                                            
+--------------------------+---------+----------------+-----------------------------------------------------------------------------------------------
+ P14.1 correction refusee | false   | caisse_validee | Cette caisse a été validée par le manager. Utilisez « Signaler une erreur après validation ».
+(1 row)
+
+              preuve              | enregistre |         motif         
+----------------------------------+------------+-----------------------
+ P14.2 brouillon refuse lui aussi | false      | caisse_deja_confirmee
+(1 row)
+
+              preuve              | signale | idempotent |                                      message                                       
+----------------------------------+---------+------------+------------------------------------------------------------------------------------
+ P14.3 le seul recours : signaler | true    | false      | Votre signalement est transmis au manager. Aucune valeur validée n'a été modifiée.
+(1 row)
+
+          preuve          | signale | idempotent 
+--------------------------+---------+------------
+ P14.4 signalement rejoue | true    | true
+(1 row)
+
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4378: NOTICE:  P14.5 OK — message trop court refuse : Merci de décrire l'erreur en au moins 5 caractères.
+psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4378: NOTICE:  P14.6 OK — l employe ne rouvre pas : Seul un manager habilité peut effectuer cette opération.
+                preuve                 | colonnes_modifiees 
+---------------------------------------+--------------------
+ P14.7 aucune valeur validee n a bouge |                  0
+(1 row)
+
+          preuve           | statut  |                            message                            | demandeur_est_a | nb_demandes 
+---------------------------+---------+---------------------------------------------------------------+-----------------+-------------
+ P14.8 demande enregistree | ouverte | Je pense avoir inverse deux stocks finaux, merci de verifier. | t               |           1
+(1 row)
+
+
+############################################################
+#  PREUVE 16 — auteur de saisie et employe operationnel    #
+#               restent deux notions distinctes            #
+############################################################
+                preuve                 |       evenement       | auteur_role |  auteur   | responsable_operationnel | deux_personnes_distinctes 
+---------------------------------------+-----------------------+-------------+-----------+--------------------------+---------------------------
+ P16.1 journal : auteur <> responsable | correction_employe    | employe     | employe A | employe A                | f
+ P16.1 journal : auteur <> responsable | ouverture_controle    | manager     | manager   | employe A                | t
+ P16.1 journal : auteur <> responsable | demande_correction    | employe     | employe A | employe A                | f
+ P16.1 journal : auteur <> responsable | validation            | manager     | manager   | employe A                | t
+ P16.1 journal : auteur <> responsable | confirmation_initiale | employe     | employe A | employe A                | f
+(5 rows)
+
+                 preuve                 | saisie_par_a | validee_par_le_manager | controlee_par_le_manager | colonnes_distinctes 
+----------------------------------------+--------------+------------------------+--------------------------+---------------------
+ P16.2 caisse : saisi_par <> valide_par | t            | t                      | t                        | t
+(1 row)
+
+                      preuve                      | responsable_est_a | cree_par_a | ouverture_source 
+--------------------------------------------------+-------------------+------------+------------------
+ P16.3 quart : created_by <> employee_id possible | t                 | t          | prise_de_poste
+(1 row)
+
+ identite_manager 
+------------------
+ t
+(1 row)
+
+          preuve           | transfere | precedent_est_a | nouveau_est_b 
+---------------------------+-----------+-----------------+---------------
+ P16.4 transfert explicite | true      | t               | t
+(1 row)
+
+        preuve         | responsable_est_b | precedent_est_a | transfere_par_le_manager | horodate |                             motif_transfert                              | auteur_de_creation_inchange 
+-----------------------+-------------------+-----------------+--------------------------+----------+--------------------------------------------------------------------------+-----------------------------
+ P16.5 apres transfert | t                 | t               | t                        | t        | Reprise du quart : l employe A a quitte le site avant la fin du service. | t
+(1 row)
+
+           preuve           |               action                |                                  motif                                   | acteur_est_le_manager 
+----------------------------+-------------------------------------+--------------------------------------------------------------------------+-----------------------
+ P16.6 journal du transfert | fdj_quart_responsabilite_transferee | Reprise du quart : l employe A a quitte le site avant la fin du service. | t
+(1 row)
+
+
+############################################################
+#  PREUVE 11 (b) — la consultation du manager ne cree rien #
+############################################################
+ identite_second_manager 
+-------------------------
+ t
+(1 row)
+
+                 preuve                 | lignes 
+----------------------------------------+--------
+ P11 chronologie (consultation manager) |      5
+(1 row)
+
+               preuve               | corrigee_apres_confirmation | corrections_successives | variation_importante | variation_maximale_euros | signalements_apres_validation |                                   avertissement                                    
+------------------------------------+-----------------------------+-------------------------+----------------------+--------------------------+-------------------------------+------------------------------------------------------------------------------------
+ P11 alertes (consultation manager) | true                        | false                   | true                 | 18.00                    | 1                             | Ces indicateurs aident au contrôle. Ils ne qualifient aucune correction de fraude.
+(1 row)
+
+ preuve | delta_quarts | delta_caisses | delta_evenements | delta_audit | delta_demandes 
+--------+--------------+---------------+------------------+-------------+----------------
+ P11b   |            0 |             0 |                0 |           0 |              0
+(1 row)
+
+
+============================================================
+=  FIN DES PREUVES — ANNULATION DE LA TRANSACTION          =
+============================================================
+               bilan                | quart |    date    |  statut   | ouverture_source | responsable 
+------------------------------------+-------+------------+-----------+------------------+-------------
+ BILAN — quarts FDJ du site de test | 1     | 2026-09-16 | valide    | prise_de_poste   | employe B
+ BILAN — quarts FDJ du site de test | 2     | 2026-09-16 | brouillon | prise_de_poste   | employe B
+(2 rows)
+
+             bilan              |       evenement       | auteur_role | version_avant | version_apres | ecart_avant | ecart_apres |                  motif                  
+--------------------------------+-----------------------+-------------+---------------+---------------+-------------+-------------+-----------------------------------------
+ BILAN — journal des evenements | correction_employe    | employe     |             1 |             2 |      -18.00 |        0.00 | Erreur de comptage sur le jeu a 5 euros
+ BILAN — journal des evenements | ouverture_controle    | manager     |             2 |             2 |        0.00 |        0.00 | 
+ BILAN — journal des evenements | demande_correction    | employe     |             2 |             2 |        0.00 |        0.00 | 
+ BILAN — journal des evenements | validation            | manager     |             2 |             2 |        0.00 |        0.00 | 
+ BILAN — journal des evenements | confirmation_initiale | employe     |               |             1 |             |      -18.00 | 
+(5 rows)
+
+          bilan          |                action                | n 
+-------------------------+--------------------------------------+---
+ BILAN — journal d audit | fdj_caisse_confirmee_par_employe     | 1
+ BILAN — journal d audit | fdj_caisse_corrigee_par_employe      | 1
+ BILAN — journal d audit | fdj_caisse_validee_par_manager       | 1
+ BILAN — journal d audit | fdj_erreur_signalee_apres_validation | 1
+ BILAN — journal d audit | fdj_quart_ouvert_par_prise_de_poste  | 2
+ BILAN — journal d audit | fdj_quart_responsabilite_transferee  | 1
+ BILAN — journal d audit | quart_brouillon_enregistre           | 1
+(7 rows)
+
+
+############################################################
+#  APRES ROLLBACK — la base de Test est revenue a son etat  #
+#  initial : aucune donnee de recette ne subsiste.          #
+############################################################
+   controle    | fdj_shifts_attendu_0 | fdj_cash_controls_attendu_0 | journal_caisse_disparu | demandes_correction_disparues | fdj_audit_log_attendu_0 | fdj_games_test_attendu_0 | shifts_attendu_47 
+---------------+----------------------+-----------------------------+------------------------+-------------------------------+-------------------------+--------------------------+-------------------
+ POST-ROLLBACK |                    0 |                           0 | t                      | t                             |                       0 |                        0 |                47
+(1 row)
+
+                               controle                               | fonctions_fdj_vague1_attendu_0 
+----------------------------------------------------------------------+--------------------------------
+ POST-ROLLBACK — les fonctions de la Vague 1 n existent plus sur Test |                              0
+(1 row)
+
+
+============================================================
+=  RECETTE TERMINEE — TRANSACTION ANNULEE                   =
+=  Aucune migration appliquee, aucune donnee conservee.     =
+============================================================

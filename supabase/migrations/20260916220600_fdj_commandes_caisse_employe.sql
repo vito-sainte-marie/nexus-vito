@@ -420,17 +420,41 @@ begin
 
   -- Deux rapports distincts, comme le front servi (upsert par
   -- (shift_id, type_rapport)).
-  insert into public.fdj_reports (site, shift_id, type_rapport, lots_payes_grattage, saisi_par)
-  values (p_site, p_shift_id, 'journalier', p_lots_payes_grattage, p_auteur_id)
-  on conflict (shift_id, type_rapport) do update
-    set lots_payes_grattage = excluded.lots_payes_grattage,
-        saisi_par           = excluded.saisi_par;
+  --
+  -- NULL veut dire « non fourni », jamais « efface ce qui est enregistré » —
+  -- c'est déjà la règle de la boucle de comptages ci-dessus (`if p_comptages
+  -- is not null`) et celle que fdj_corriger_caisse_confirmee documente pour
+  -- chacun de ses arguments. Deux commandes sœurs ne peuvent pas donner deux
+  -- sens opposés au même NULL (Article 11).
+  --
+  -- La première rédaction écrasait sans condition. Comme cette procédure est
+  -- appelée AVANT le contrôle de complétude de fdj_confirmer_caisse, et que ce
+  -- contrôle refuse par un `return` (donc sans annuler la transaction), une
+  -- confirmation incomplète effaçait les montants du brouillon puis rendait un
+  -- refus : un refus qui détruisait la saisie qu'il reprochait d'être
+  -- incomplète. Prouvé sur nexus-test le 17/09/2026, dans une transaction
+  -- annulée.
+  --
+  -- La garde ci-dessous ne cherche pas à empêcher toute écriture sur le chemin
+  -- du refus : ce qui est écrit là, ce sont les montants que l'employé vient de
+  -- saisir, et les conserver est précisément ce qu'il faut faire — il relit son
+  -- écran, complète ce qui manque et reconfirme. Ce qu'il ne faut pas faire,
+  -- c'est effacer. C'est donc la destruction qui disparaît, pas l'écriture.
+  if p_lots_payes_grattage is not null then
+    insert into public.fdj_reports (site, shift_id, type_rapport, lots_payes_grattage, saisi_par)
+    values (p_site, p_shift_id, 'journalier', p_lots_payes_grattage, p_auteur_id)
+    on conflict (shift_id, type_rapport) do update
+      set lots_payes_grattage = excluded.lots_payes_grattage,
+          saisi_par           = excluded.saisi_par;
+  end if;
 
-  insert into public.fdj_reports (site, shift_id, type_rapport, caisse_tirages, saisi_par)
-  values (p_site, p_shift_id, 'temps_reel', p_caisse_tirages, p_auteur_id)
-  on conflict (shift_id, type_rapport) do update
-    set caisse_tirages = excluded.caisse_tirages,
-        saisi_par      = excluded.saisi_par;
+  if p_caisse_tirages is not null then
+    insert into public.fdj_reports (site, shift_id, type_rapport, caisse_tirages, saisi_par)
+    values (p_site, p_shift_id, 'temps_reel', p_caisse_tirages, p_auteur_id)
+    on conflict (shift_id, type_rapport) do update
+      set caisse_tirages = excluded.caisse_tirages,
+          saisi_par      = excluded.saisi_par;
+  end if;
 end;
 $$;
 
