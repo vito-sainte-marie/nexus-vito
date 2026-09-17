@@ -47,7 +47,14 @@ function fauxClient({ config, arrivee }) {
   return { from: (table) => chain(table) };
 }
 
-async function executer(scenario, employee, pageActuelle = 'NEXUS-App-v1.html') {
+// 16/09/2026 — la page de référence des scénarios passe de l'accueil à
+// Missions. Ce n'est pas un détail d'écriture : depuis la règle d'accès,
+// NEXUS-App-v1.html est un écran de CONSULTATION, que le pointage ne garde
+// plus. Y laisser les scénarios les aurait tous rendus verts pour la mauvaise
+// raison — « false » parce que la page n'est plus gardée, et non parce que
+// l'interrupteur dispense. Missions est un écran opérationnel : c'est bien
+// l'interrupteur qui y décide, et lui seul.
+async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.html') {
   const code = [
     // `nexusEstManager` est EXTRAITE elle aussi, jamais réécrite ici. Le
     // 16/09/2026, cette fonction a cessé de recopier `role === 'manager' ||
@@ -59,10 +66,15 @@ async function executer(scenario, employee, pageActuelle = 'NEXUS-App-v1.html') 
     extraire('nexusPointageArriveeManquant'),
     "globalThis.__test = nexusPointageArriveeManquant;",
   ].join('\n\n');
-  // NEXUS_PAGES_SEQUENCE_OBLIGATOIRE est une const définie juste avant la
-  // fonction dans le fichier réel — on la réinjecte ici pour rester fidèle
-  // à ce que le vrai fichier exécute (jamais réécrite, seulement portée).
-  const constSeq = src.slice(src.indexOf('const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE'), src.indexOf(';', src.indexOf('const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE')) + 1);
+  // La règle d'accès est définie juste avant la fonction dans le fichier
+  // réel — on l'injecte ENTIÈRE, telle quelle, pour rester fidèle à ce que le
+  // vrai fichier exécute (jamais réécrite, seulement portée). Elle porte les
+  // quatre listes et nexusPageExigeServiceOperationnel(), que la fonction
+  // sous test appelle.
+  const dBloc = src.indexOf('/* NEXUS-ACCES-REGLE:DEBUT');
+  const fBloc = src.indexOf('/* NEXUS-ACCES-REGLE:FIN */');
+  assert.ok(dBloc !== -1 && fBloc > dBloc, 'bloc de règle d\'accès introuvable dans nexus-auth.js');
+  const constSeq = src.slice(dBloc, fBloc);
   const ctx = {
     globalThis: {},
     console,

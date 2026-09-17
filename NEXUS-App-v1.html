@@ -368,6 +368,17 @@
      NEXUS-Refonte-Accueil-Note-Conception.md pour le détail complet
      de la démarche.
      ============================================================ */
+  /* Les deux chemins (16/09/2026) — « L'authentification n'est jamais une
+     preuve de présence ». Le panneau est volontairement sobre et non modal :
+     il propose, il n'impose pas, et il ne barre jamais la route au reste de
+     l'écran, qui est déjà de la consultation. */
+  .chemins{margin:16px 20px 0; padding:18px; border-radius:18px; background:var(--panel); border:1px solid var(--hairline);}
+  .chemins-titre{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim);}
+  .chemins-sous{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
+  .chemins-actions{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  .chemins-btn{flex:1 1 150px; display:block; text-align:center; padding:13px 16px; border-radius:var(--r-md); font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em; font-weight:600; text-decoration:none; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); cursor:pointer;}
+  .chemins-btn-service{background:var(--green-dim); border-color:rgba(52,211,153,0.35); color:var(--green);}
+  .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(52,211,153,0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
@@ -583,6 +594,10 @@
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
+  <!-- Les deux chemins — rempli par renderDeuxChemins(). Vide tant que la
+       session n'est pas chargée : jamais un écran bloquant, jamais une
+       redirection. -->
+  <div id="deuxChemins"></div>
   <div id="banniereForfait"></div>
   <div id="banniereCarburants"></div>
 
@@ -2694,6 +2709,68 @@
     toggle.classList.toggle('open', ouvert);
   });
 
+  // LES DEUX CHEMINS (16/09/2026) — « L'authentification n'est jamais une
+  // preuve de présence. »
+  //
+  // Cette fonction AFFICHE et rien d'autre. Elle ne lit rien, n'écrit rien,
+  // ne redirige pas : elle reçoit l'état déjà connu de l'appelant et pose
+  // deux propositions. Le chemin opérationnel est un simple lien vers
+  // NEXUS-Prise-De-Poste-v1.html, dont le bouton « Confirmer » est la seule
+  // écriture de `shifts` du dépôt. Un `insert` posé ici rendrait rouge
+  // test_connexion_nest_pas_presence_20260916.js, et ce serait justice :
+  // ce panneau est précisément l'endroit où la tentation existe.
+  //
+  // Deux libellés, parce que la mission en donne deux : « Consulter mon
+  // espace » pour l'employé, qui vient voir SES données ; « Consulter
+  // NEXUS » pour le manager, qui vient piloter la station. Le chemin
+  // opérationnel du manager porte le mot que la règle exige mot pour mot —
+  // « Commencer mon service opérationnel » — parce qu'un manager peut
+  // travailler des heures dans NEXUS sans jamais tenir un poste de terrain.
+  //
+  // Le rôle vient de la fiche employé (auth), jamais d'un paramètre d'URL ou
+  // d'un stockage local : aucune donnée contrôlée par l'utilisateur ne décide
+  // de ce qui s'affiche.
+  function renderDeuxChemins(employee, serviceCourant, estNiveauManager) {
+    const hote = document.getElementById('deuxChemins');
+    if (!hote) return;
+    // Le créateur en consultation externe regarde les données d'un autre
+    // site : lui proposer d'y prendre un poste n'aurait aucun sens.
+    if (employee.consultation_externe) return;
+
+    if (serviceCourant) {
+      // Déjà en service : plus de choix à présenter, seulement un rappel.
+      // La prise de poste reste accessible par la navigation, comme avant.
+      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+        + (serviceCourant.role ? ' — ' + serviceCourant.role : '')
+        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>';
+      return;
+    }
+
+    const libelleConsulter = estNiveauManager ? 'Consulter NEXUS' : 'Consulter mon espace';
+    const libelleService = estNiveauManager ? 'Commencer mon service opérationnel' : 'Commencer mon service';
+    const sous = estNiveauManager
+      ? 'Vous êtes connecté, pas en service. Consulter le Cockpit, contrôler Verify, regarder les carburants ou analyser les résultats ne vous enregistre pas comme présent.'
+      : 'Vous êtes connecté, pas en service. Consulter vos écarts, votre évolution, votre historique ou vos régularisations ne crée ni service, ni pointage, ni retard.';
+
+    hote.innerHTML = `
+      <div class="chemins">
+        <div class="chemins-titre">Deux chemins</div>
+        <div class="chemins-sous">${sous}</div>
+        <div class="chemins-actions">
+          <button type="button" class="chemins-btn" id="cheminConsulter">${libelleConsulter}</button>
+          <a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">${libelleService}</a>
+        </div>
+      </div>`;
+
+    // « Consulter » ne navigue nulle part : on y est déjà. Le bouton ne fait
+    // que replier le panneau, pour l'affichage en cours et lui seul — rien
+    // n'est mémorisé, donc rien de ce que l'utilisateur contrôle ne peut
+    // revenir décider quoi que ce soit au chargement suivant.
+    document.getElementById('cheminConsulter').addEventListener('click', () => {
+      hote.innerHTML = '';
+    });
+  }
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
@@ -2738,29 +2815,45 @@
     // DANS ce service. Il était déjà lu ici, et jeté après en avoir extrait
     // deux champs — l'accueil retombait alors sur la journée entière.
     let serviceCourant = null;
+    // TROISIÈME porte vers la prise de poste — supprimée le 16/09/2026.
+    //
+    // Le 11/09, le commentaire posé ici annonçait « une correction posee sur
+    // une porte quand il y en a deux ne corrige rien : elle deplace l'endroit
+    // ou l'on se cogne ». Il y en avait TROIS : nexus-auth.js en avait deux
+    // (prise de poste, pointage d'arrivée), l'accueil une troisième, qui
+    // redirigeait pour son propre compte.
+    //
+    // L'accueil est désormais classé en CONSULTATION (nexus-auth.js, règle
+    // d'accès du 16/09/2026) : il porte les deux chemins « Consulter NEXUS »
+    // et « Commencer mon service », et une page qui propose de prendre son
+    // poste ne peut pas y renvoyer d'office — ce serait la boucle que la
+    // règle interdit. Il reste seulement LECTEUR du service courant, pour
+    // afficher le rôle et le quart du jour quand il y en a un.
+    //
+    // La question « cet écran exige-t-il un service ? » ne se pose plus ici :
+    // elle se pose une seule fois, dans nexusPageExigeServiceOperationnel().
     if (!employee.consultation_externe) {
       const r = await nexusServiceCourant(employee);
-      if (r.aucun) {
-        // Seconde porte vers la prise de poste (11/09/2026, arbitrage C.3).
-        // Celle de nexus-auth.js avait ete corrigee ; celle-ci redirigeait
-        // toujours, et l'employee qui venait de pointer son depart se
-        // retrouvait aussitot devant la question du role. Apres une cloture,
-        // reprendre un poste reste possible, mais par une action volontaire,
-        // jamais comme ecran impose. Une correction posee sur une porte quand
-        // il y en a deux ne corrige rien : elle deplace l'endroit ou l'on se cogne.
-        if (!(await nexusDepartPointeAujourdhui(employee))) {
-          window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-          return;
-        }
-      }
       if (r.service) {
         roleDuJour = r.service.role;
         quartDuJour = r.service.quart;
         serviceCourant = r.service;
       }
-      // r.erreur : on ne redirige pas — une panne de lecture ne doit pas
-      // renvoyer un employé vers la prise de poste alors qu'il en a une.
+      // r.aucun : l'employé n'est pas en service. Ce n'est plus un motif de
+      // redirection — c'est l'état normal de quelqu'un qui vient consulter.
+      // r.erreur : une panne de lecture ne change rien non plus.
     }
+
+    // LES DEUX CHEMINS (16/09/2026) — « Après connexion et avant toute prise
+    // de poste, NEXUS présente deux chemins distincts : Consulter NEXUS —
+    // navigation sans preuve de présence ; Commencer mon service — action
+    // explicite créant le service opérationnel. »
+    //
+    // Ce bloc AFFICHE, il ne décide de rien. Aucune écriture n'en part : le
+    // chemin opérationnel est un lien, et le service ne naît que du clic sur
+    // le bouton de NEXUS-Prise-De-Poste-v1.html, seule écriture de `shifts`
+    // du dépôt.
+    renderDeuxChemins(employee, serviceCourant, estNiveauManager);
 
     document.getElementById('sessionInfo').innerHTML =
       `Bonjour ${employee.nom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;

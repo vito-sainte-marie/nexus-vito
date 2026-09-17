@@ -343,23 +343,37 @@ t('le hors ligne ne promet que ce qu\'il tient', () => {
     'navigator.onLine sert à autre chose qu\'à refuser de conclure hors ligne');
 });
 
-// ── Les DEUX portes vers la prise de poste ────────────────────────────────
+// ── Les portes vers la prise de poste ─────────────────────────────────────
 
-t('après la clôture, aucune des deux portes n\'impose la prise de poste', () => {
-  // Le 11/09/2026, une seule des deux avait été corrigée. L'écran d'accueil
-  // continuait de rediriger : une correction posée sur une porte quand il y
-  // en a deux ne corrige rien, elle déplace l'endroit où l'on se cogne.
+t('après la clôture, aucune porte n\'impose la prise de poste', () => {
+  // Le 11/09/2026, une seule des deux portes connues avait été corrigée.
+  // L'écran d'accueil continuait de rediriger : une correction posée sur une
+  // porte quand il y en a deux ne corrige rien, elle déplace l'endroit où
+  // l'on se cogne. Le 16/09/2026, l'audit en a trouvé TROIS, et la troisième
+  // — celle de l'accueil — a été SUPPRIMÉE : l'accueil est un écran de
+  // consultation, il porte les deux chemins « Consulter NEXUS » et
+  // « Commencer mon service », et il ne peut donc plus renvoyer d'office vers
+  // l'un des deux. Ce qu'on vérifie ici a changé en conséquence : la porte de
+  // nexus-auth.js consulte toujours le départ du jour, et le chemin de
+  // chargement de l'accueil ne redirige plus du tout.
   const AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
   const APP = fs.readFileSync(path.join(RACINE, 'NEXUS-App-v1.html'), 'utf8');
   assert.ok(/async function nexusDepartPointeAujourdhui/.test(AUTH),
     'aucun test partagé du départ du jour');
   assert.ok(/return !\(await nexusDepartPointeAujourdhui\(employee\)\);/.test(AUTH),
     'la porte de nexus-auth.js ne consulte pas le départ du jour');
-  const redirections = APP.match(/window\.location\.href = 'NEXUS-Prise-De-Poste-v1\.html';/g) || [];
-  assert.strictEqual(redirections.length, 1, `${redirections.length} redirections dans l'accueil`);
-  const bloc = APP.match(/if \(r\.aucun\) \{[\s\S]*?NEXUS-Prise-De-Poste-v1\.html';/)[0];
-  assert.ok(/nexusDepartPointeAujourdhui/.test(bloc),
-    'la porte de l\'accueil redirige sans consulter le départ du jour');
+  // Le bloc de chargement qui lit le service courant : il doit rester un
+  // LECTEUR. Une redirection qui y reviendrait rétablirait la troisième porte.
+  const bloc = APP.match(/if \(!employee\.consultation_externe\) \{\s*const r = await nexusServiceCourant\(employee\);[\s\S]*?\n    \}/);
+  assert.ok(bloc, 'le bloc de lecture du service courant de l\'accueil est introuvable');
+  // On juge le CODE, pas les commentaires : le bloc explique justement en
+  // toutes lettres ce qu'il ne fait plus, et une assertion qui lirait ses
+  // commentaires échouerait sur sa propre documentation.
+  const codeSeul = bloc[0].split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  assert.ok(!/window\.location/.test(codeSeul),
+    'la troisième porte est revenue : l\'accueil redirige à nouveau au chargement');
+  assert.ok(!/r\.aucun/.test(codeSeul),
+    'l\'accueil décide encore quelque chose de l\'absence de service au chargement');
 });
 
 t('une lecture impossible ne relâche pas la porte', () => {

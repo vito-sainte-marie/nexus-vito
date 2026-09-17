@@ -723,9 +723,22 @@
       // pas un enum matin/soir garanti. On l'affiche tel quel.
       const quartLabel = `Quart ${l.quart}`;
       const detailHtml = l.activite === 'fdj' ? detailFdjHtml(l.source) : detailBoutiquePisteHtml(l);
+      // 16/09/2026 — trois cas, et non plus deux :
+      //   1. montant connu           → le montant ;
+      //   2. montant absent, poste partagé → l'écart n'est attribuable à
+      //      personne, on le dit ;
+      //   3. montant absent, poste tenu seul et contrôle non validé → le
+      //      montant ne nous est PAS communiqué (la projection serveur le
+      //      masque tant qu'un manager n'a pas validé). Ne rien afficher
+      //      laissait croire à une ligne vide ou à un bug : la phrase
+      //      canonique dit ce qui se passe, sans rien révéler du résultat.
       const montantHtml = l.montant != null
         ? `<div class="caisse-jour-montant">${l.montant >= 0 ? '+' : ''}${l.montant.toFixed(2)} €</div>`
-        : (!l.attribuable ? `<div class="caisse-jour-montant vide">Poste partagé — écart non attribuable individuellement</div>` : '');
+        : (!l.attribuable
+            ? `<div class="caisse-jour-montant vide">Poste partagé — écart non attribuable individuellement</div>`
+            : (l.statut === 'provisoire'
+                ? `<div class="caisse-jour-montant vide">${N.MENTION_CONTROLE_EN_COURS}</div>`
+                : ''));
       return `
       <div class="caisse-jour-item" data-activite="${l.activite}" data-idx="${i}">
         <div class="caisse-jour-top">
