@@ -726,7 +726,16 @@ end $$;
 -- ligne préexistante ne peut être atteinte, puisque aucune ne porte ces
 -- valeurs. Plusieurs passes, car les dépendances sont chaînées
 -- (carnet → mouvement → quart → employé) et parce que
--- `fdj_shifts.previous_shift_id` référence sa propre table.
+-- `fdj_shifts.previous_shift_id` référence sa propre table. Les passes
+-- ne suffisent pourtant pas seules : un DELETE qui viole une clé
+-- étrangère lève une erreur, il ne rend pas simplement zéro ligne, et
+-- les tables sont parcourues dans l'ordre alphabétique — `fdj_shifts`
+-- avant `fdj_stock_movements`, donc le parent avant son enfant. Une
+-- table encore référencée est donc laissée pour la passe suivante, et
+-- la boucle refuse de s'arrêter tant qu'une seule reste bloquée : il
+-- faut qu'une passe entière ne supprime plus rien ET n'achoppe sur
+-- rien. Seules les violations de clé étrangère sont tolérées ainsi ;
+-- toute autre erreur remonte.
 --
 -- LE JOURNAL DE CAISSE. `fdj_caisse_evenements` est immuable par
 -- trigger : ni UPDATE ni DELETE, pour personne, propriétaire compris.
@@ -760,6 +769,7 @@ declare
   v_journal  bigint;
   v_effacee  boolean := false;
   v_passe    integer := 0;
+  v_bloque   integer := 0;
   v_tour     bigint;
   v_lignes   bigint;
   v_total    bigint := 0;
@@ -796,8 +806,9 @@ begin
   perform set_config('nexus.fdj_journal_maintenance', 'true', true);
 
   loop
-    v_passe := v_passe + 1;
-    v_tour  := 0;
+    v_passe  := v_passe + 1;
+    v_tour   := 0;
+    v_bloque := 0;
     for r in
       select distinct c.relname as table_nom, a.attname as colonne
         from pg_constraint k
@@ -810,13 +821,24 @@ begin
          and a.atttypid = 'uuid'::regtype
        order by 1, 2
     loop
-      execute format('delete from public.%I where %I = any($1)', r.table_nom, r.colonne)
-        using v_fixtures;
-      get diagnostics v_lignes = row_count;
-      v_tour := v_tour + v_lignes;
+      begin
+        execute format('delete from public.%I where %I = any($1)', r.table_nom, r.colonne)
+          using v_fixtures;
+        get diagnostics v_lignes = row_count;
+        v_tour := v_tour + v_lignes;
+      exception when foreign_key_violation then
+        -- Encore référencée : ses enfants tomberont dans cette passe ou
+        -- dans la suivante. On n'avale que ce cas-là, et on le compte.
+        v_bloque := v_bloque + 1;
+      end;
     end loop;
     v_total := v_total + v_tour;
-    exit when v_tour = 0;
+    if v_tour = 0 then
+      if v_bloque > 0 then
+        raise exception 'DÉMONTAGE ÉCHOUE — % table(s) restent bloquées par une clé étrangère sans qu''aucune ligne ne parte : dépendance circulaire, ou référence venue d''ailleurs que des fixtures.', v_bloque;
+      end if;
+      exit;
+    end if;
     if v_passe >= 10 then
       raise exception 'DÉMONTAGE ÉCHOUE — dépendances non résorbées après 10 passes.';
     end if;
