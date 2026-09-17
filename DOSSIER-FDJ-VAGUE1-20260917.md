@@ -1442,12 +1442,22 @@ pas distinguer l'élision de l'erreur, et rien ne le prévient qu'il y a quelque
 chose à distinguer.
 
 La sortie du serveur n'est donc plus reproduite ici. Elle l'est **intégralement
-et par le script lui-même** dans le fichier de preuve, avec la commande
-expurgée, le `diff`, les empreintes et le code de retour :
+et par le script lui-même** dans le fichier de preuve, avec le pilote
+réellement soumis à psql, la commande expurgée, le `diff`, les empreintes et le
+code de retour :
 
 ```
-supabase/phase-c/preuves/20260917T160541Z_recette-phase-c_udljdqxerrbbbajxubfn.md
+supabase/phase-c/preuves/20260917T162213Z_recette-phase-c_udljdqxerrbbbajxubfn.md
 ```
+
+Cette preuve est celle du rejeu du 17/09/2026 à 16:22 UTC, depuis le commit
+`a9d26db`, dépôt propre. Elle remplace celle de 16:05 UTC, retirée : cette
+première preuve portait l'empreinte d'un script qui a depuis changé, et son
+dernier paragraphe affirmait un résultat — « aucune migration de la Phase A
+persistante, aucune RPC installée » — que le script imprimait sans l'avoir
+mesuré. On ne corrige pas à la main un fichier dont toute la valeur tient à ce
+que personne ne l'a écrit ; on le rejoue. Elle reste lisible dans l'historique
+git, au commit `f309ef4`.
 
 #### Trois affirmations distinctes, trois preuves distinctes
 
@@ -1467,7 +1477,7 @@ pas par lecture.
 **3 — Qu'il ne subsiste rien sur Test.** **Ce n'est établi ni par la sortie, ni
 par le fichier de preuve.** Cela se vérifie hors d'eux, en interrogeant
 `nexus-test` après coup. Les cinq mêmes mesures, relevées juste avant puis
-juste après le rejeu :
+juste après le rejeu de 16:22 UTC, par la même requête :
 
 | mesure | avant | après |
 |---|---|---|

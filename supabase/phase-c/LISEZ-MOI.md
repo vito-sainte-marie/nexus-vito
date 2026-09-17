@@ -59,11 +59,25 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
    de migration Phase A sur `nexus-test` établit qu'aucune écriture n'a
    survécu, jamais qu'une recette a tourné — une recette jamais lancée
    laisserait le même état. La preuve porte donc la date, le commit, les
-   empreintes des fichiers joués, la commande expurgée, le `diff`, la sortie
-   complète du serveur, le code de retour et la dernière instruction rendue.
+   empreintes des fichiers joués, la liste nominative des prérequis retenus
+   avec leurs empreintes, **le pilote intégral réellement soumis à psql**, la
+   commande expurgée, le `diff`, la sortie complète du serveur, le code de
+   retour et la dernière instruction rendue.
+
+   Le pilote y figure en clair et non seulement empreint : il contient un
+   chemin temporaire qui change à chaque exécution, donc son empreinte brute
+   ne serait reproductible par personne. C'est le texte expurgé qui est
+   empreint — celui-là, un relecteur peut le refaire. Et chaque prérequis
+   s'annonce lui-même dans la sortie du serveur, par un `\echo` émis avant
+   son `\ir` : sans cela, seules les migrations ayant produit un `NOTICE`
+   laisseraient une trace, et un glob trop étroit resterait invisible dans le
+   fichier même censé l'empêcher.
+
    Elle distingue explicitement l'exécution, le `ROLLBACK`, et l'absence
    d'effet durable — cette dernière se vérifiant hors du fichier, en
-   interrogeant la base après coup.
+   interrogeant la base après coup. Elle ne dit **pas** ce que cette
+   vérification a donné : une preuve écrite par le processus qui vient de
+   tourner ne peut rien affirmer de ce qui subsiste après lui.
 3. Appliquer ensuite le fichier tel quel, avec `psql -f`.
 4. Rejouer les requêtes de vérification données en fin de fichier.
 
