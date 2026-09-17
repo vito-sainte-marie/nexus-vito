@@ -61,9 +61,15 @@ qu'il désigne.)
 
 ## 3. Le lien de la pull request
 
-Renseigné au moment de l'ouverture de la PR, dans le commit qui suit la
-rédaction de ce dossier. La PR vise `production`, en mode ouverture seule :
-**elle ne doit pas être fusionnée** (§12).
+**https://github.com/vito-sainte-marie/nexus-vito/pull/62**
+
+Elle vise `production`, en mode ouverture seule : **elle ne doit pas être
+fusionnée** (§12). Son corps porte le SHA de tête au moment de l'ouverture,
+que ce fichier n'écrit pas (point 2), et un tableau d'entrées pour se repérer
+dans les 25 points ci-dessous.
+
+Un lien, contrairement à un SHA, ne bouge pas quand on l'écrit : il peut donc
+vivre ici sans se contredire.
 
 ## 4. La base exacte utilisée pour la branche
 
