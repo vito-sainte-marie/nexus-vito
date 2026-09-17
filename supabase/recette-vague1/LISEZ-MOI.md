@@ -8,12 +8,36 @@ part avec `supabase db push`, et rien ne doit être inscrit dans
 
 | Fichier | Rôle |
 |---|---|
-| `20260917_preuves_cycle_caisse.sql` | le corps de la recette : jeu d'essai, puis les preuves 10 à 16 du mandat, jouées **en transaction annulée** |
-| `20260917_preuves_cycle_caisse.sortie.txt` | la sortie réelle du 17/09/2026 sur `nexus-test`, conservée telle quelle |
+| `20260917_preuves_cycle_caisse.sql` | les preuves **10 à 16** du mandat : le cycle de vie d'une caisse, de l'ouverture du quart à la validation |
+| `20260917_preuves_cycle_caisse.sortie.txt` | sa sortie réelle du 17/09/2026 sur `nexus-test`, conservée telle quelle |
+| `20260917_preuves_livrets_et_historique.sql` | les preuves **§10.5 et §10.6** : livrets et mouvements, puis l'effet des migrations sur des données **préexistantes** |
+| `20260917_preuves_livrets_et_historique.sortie.txt` | sa sortie réelle du 17/09/2026, code de sortie 0 |
 
-Le fichier SQL **ne s'exécute pas seul** : il suppose les neuf migrations de la
-Phase A déjà chargées dans la même transaction. Voir la commande d'assemblage
-ci-dessous.
+Les deux se jouent **en transaction annulée** et ne se chargent pas de la même
+manière :
+
+* `…_cycle_caisse.sql` **ne s'exécute pas seul** : il suppose les neuf
+  migrations de la Phase A déjà chargées dans la même transaction, et se joue
+  avec la commande d'assemblage ci-dessous ;
+* `…_livrets_et_historique.sql` est **auto-portant** : il ouvre lui-même la
+  transaction et charge les neuf migrations par `\ir`, *au milieu* du fichier.
+  Ce n'est pas une commodité, c'est le sujet même de la preuve : il fabrique
+  d'abord un historique (9 quarts, 8 caisses couvrant les huit statuts réels,
+  5 mouvements), **puis** applique les migrations par-dessus, puis mesure ce
+  qu'elles lui ont fait. On ne peut pas prouver qu'une migration respecte
+  l'existant si l'existant naît après elle. Il se lance directement :
+
+```
+PGPASSWORD="$(security find-generic-password -a nexus -s nexus-test-db -w)" \
+PGCONNECT_TIMEOUT=20 \
+/opt/homebrew/opt/libpq/bin/psql \
+  "postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require" \
+  -v ON_ERROR_STOP=1 -q \
+  -f supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql
+```
+
+Son `\ir ../migrations/…` se résout relativement au **répertoire du fichier**,
+pas au répertoire courant : il fonctionne donc d'où qu'on le lance.
 
 ## Pourquoi il existe
 
@@ -56,7 +80,14 @@ Deux réponses complémentaires en sont sorties, et il faut les deux :
   échouant si la version fautive passait. Une garde verte ne prouve rien tant
   qu'on n'a pas vu ce qui la fait rougir.
 
-## Comment la rejouer
+## Comment rejouer la recette du cycle de caisse
+
+(Pour l'autre fichier, voir la commande auto-portante plus haut.)
+
+Le glob compte : les neuf migrations de la Vague 1 sont estampillées
+`2026091622HHMM`, de `220000` à `220800`. Un glob plus étroit en charge une
+partie et le reste échoue sur des objets manquants, ce qui ressemble à un bug
+du code alors que c'est la commande qui est incomplète.
 
 Sur `nexus-test` uniquement — **jamais sur Production**. Le script se termine
 par `rollback;` : il ne laisse rien derrière lui, ni les tables, ni les
@@ -65,7 +96,7 @@ la sortie le constatent explicitement).
 
 ```
 { printf '%s\n' '\set ON_ERROR_STOP on' 'begin;'
-  for m in supabase/migrations/202609162200*.sql supabase/migrations/2026091622080*.sql; do cat "$m"; done
+  for m in supabase/migrations/2026091622*.sql; do cat "$m"; done
   cat supabase/recette-vague1/20260917_preuves_cycle_caisse.sql
 } > /tmp/preuves.sql
 
@@ -88,12 +119,34 @@ Trois détails qui coûtent chacun une demi-heure quand on les oublie :
 
 ## Ce que la recette prouve, et ce qu'elle ne prouve pas
 
-Elle couvre les preuves **10 à 16** du mandat : l'ouverture naturelle du quart
-et son idempotence, le fait qu'une consultation ne crée rien, l'apparition de
-l'écart provisoire **après** la confirmation, la traçabilité d'une correction
-avant validation, le refus d'une correction après validation, le monopole du
-manager sur la validation, et la distinction entre l'auteur de saisie et
-l'employé opérationnel.
+`…_cycle_caisse.sql` couvre les preuves **10 à 16** du mandat : l'ouverture
+naturelle du quart et son idempotence, le fait qu'une consultation ne crée
+rien, l'apparition de l'écart provisoire **après** la confirmation, la
+traçabilité d'une correction avant validation, le refus d'une correction après
+validation, le monopole du manager sur la validation, et la distinction entre
+l'auteur de saisie et l'employé opérationnel.
+
+`…_livrets_et_historique.sql` couvre **§10.5** (les trois notions distinctes
+sur un mouvement, la clé d'idempotence qui mord, la date d'effet contrainte, et
+l'argument structurel : aucune des 29 fonctions ajoutées par la vague ne
+mentionne `fdj_stock_movements` ni `fdj_booklets`) et **§10.6** (aucune colonne
+ajoutée n'est remplie, aucune valeur existante ne bouge — 22 empreintes
+identiques —, les huit statuts historiques survivent, et les contraintes
+`NOT VALID` laissent vivre les lignes incohérentes tout en refusant les
+nouvelles).
+
+Deux de ses preuves servent surtout à ne pas se rassurer à tort :
+
+* **P22.3b** exécute `alter table … validate constraint` et vérifie qu'il
+  **échoue**. Tant qu'on ne l'a pas fait, on suppose que le `NOT VALID` était
+  nécessaire ; après, on le sait.
+* **P22.6** ne nomme pas l'index d'idempotence en dur : elle demande à la base
+  lequel porte réellement l'unicité, le retire, fabrique un doublon, puis tente
+  de le recréer avec sa propre définition. C'est cette précaution qui a révélé
+  que `fdj_stock_movements_idempotency_key_uniq` **existait déjà** sur Test
+  comme sur Production, et que la migration 220400 — qui utilisait
+  `create unique index if not exists` sous un autre nom — en aurait créé un
+  second, identique. `if not exists` compare le nom, jamais la définition.
 
 Elle ne prouve **pas** les politiques RLS de la Phase C : celles-ci ne sont pas
 chargées ici, et leurs propres mutations vivent dans
@@ -108,7 +161,7 @@ exception » pour les deux derniers cas donne un test vert qui ne prouve rien.
 
 ## La sortie conservée
 
-`20260917_preuves_cycle_caisse.sortie.txt` est la sortie réelle du 17/09/2026,
-code de sortie 0, gardée pour comparaison. Ce n'est pas une référence figée :
+Les deux `*.sortie.txt` sont les sorties réelles du 17/09/2026, code de sortie
+0, gardées pour comparaison. Ce n'est pas une référence figée :
 si une exécution ultérieure en diffère, c'est la nouvelle exécution qui dit la
 vérité — ce fichier dit seulement ce qui était vrai ce jour-là, avec ce code.

@@ -477,6 +477,17 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ce 267 est MESURÉ (`node .github/deploiement/empreinte-artefact.js
 //   --arbre-source=.`), pas déduit de l'addition ci-dessus.
 //
+//   17/09/2026 — lot FDJ Vague 1, cycle de vie de la caisse :
+//   + 9  `20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql` à
+//        `20260916220800_fdj_projection_employe.sql` — neuf migrations
+//        strictement additives : colonnes de cycle de vie, journal
+//        d'événements, demandes de correction après validation, auteur et date
+//        d'effet des mouvements, cinq lots de commandes serveur, projection
+//        employé. Aucune ne réécrit une migration déjà estampillée, aucune ne
+//        recouvre un lot antérieur : il n'y a rien à retrancher.
+//   ───
+//    276
+//
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
@@ -484,10 +495,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 267;
-const MIGRATIONS_REELLES_EMPREINTE = 'ce9156a9bd4dc33627475193dbe9a914ee3dac75af86a00ea841d1d9638d89d5';
+const MIGRATIONS_REELLES_NOMBRE = 276;
+const MIGRATIONS_REELLES_EMPREINTE = '29224d9830ed835fade5bf57798e4078901dd150f5d5f8a42ad01b3c9b0d2f67';
 
-cas('Réel · la provenance des migrations annonce 267 et garde son empreinte', () => {
+cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

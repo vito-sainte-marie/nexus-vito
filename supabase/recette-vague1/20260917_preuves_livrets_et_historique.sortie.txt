@@ -1,0 +1,248 @@
+
+############################################################
+#  P22.0 — LA CONDITION DE VALIDITE DE LA PHASE A          #
+############################################################
+ preuve | migrations_vague1_deja_enregistrees_attendu_0 | versions_trouvees 
+--------+-----------------------------------------------+-------------------
+ P22.0  |                                             0 | (aucune)
+(1 row)
+
+    preuve    | journal_caisse_absent | demandes_absentes | colonne_prise_de_poste_absente | colonne_confirme_le_absente | colonne_effective_at_absente 
+--------------+-----------------------+-------------------+--------------------------------+-----------------------------+------------------------------
+ P22.0 schema | t                     | t                 | t                              | t                           | t
+(1 row)
+
+
+############################################################
+#  SECTION 0 — UN HISTORIQUE, POSE AVANT LES MIGRATIONS    #
+############################################################
+   etape   | quarts_historiques | caisses_historiques | mouvements_historiques | livrets_attendu_0 | lignes_sous_empreinte 
+-----------+--------------------+---------------------+------------------------+-------------------+-----------------------
+ SECTION 0 |                  9 |                   8 |                      5 |                 0 |                    22
+(1 row)
+
+
+############################################################
+#  LES NEUF MIGRATIONS DE LA PHASE A, DANS L ORDRE          #
+############################################################
+psql:supabase/migrations/20260916220200_fdj_caisse_journal_evenements.sql:152: NOTICE:  trigger "fdj_caisse_evenements_pas_de_modification" for relation "public.fdj_caisse_evenements" does not exist, skipping
+psql:supabase/migrations/20260916220400_fdj_mouvements_auteur_et_date_effet.sql:117: NOTICE:  fdj_stock_movements : un index unique couvre déjà idempotency_key, rien à créer.
+
+############################################################
+#  P22.1 — AUCUNE COLONNE AJOUTEE N EST REMPLIE            #
+############################################################
+      preuve      | lignes | prise_de_poste_id_renseigne_attendu_0 | created_by_renseigne_attendu_0 | ouverture_source_renseigne_attendu_0 | responsable_precedent_attendu_0 | transfere_par_attendu_0 | transfere_le_attendu_0 | motif_transfert_attendu_0 
+------------------+--------+---------------------------------------+--------------------------------+--------------------------------------+---------------------------------+-------------------------+------------------------+---------------------------
+ P22.1 fdj_shifts |      9 |                                     0 |                              0 |                                    0 |                               0 |                       0 |                      0 |                         0
+(1 row)
+
+          preuve           | lignes | created_by_renseigne_attendu_0 | effective_at_renseigne_attendu_0 
+---------------------------+--------+--------------------------------+----------------------------------
+ P22.1 fdj_stock_movements |      5 |                              0 |                                0
+(1 row)
+
+         preuve          | lignes | saisi_par_attendu_0 | confirme_par_attendu_0 | confirme_le_attendu_0 | controle_par_attendu_0 | controle_le_attendu_0 | derniere_correction_attendu_0 
+-------------------------+--------+---------------------+------------------------+-----------------------+------------------------+-----------------------+-------------------------------
+ P22.1 fdj_cash_controls |      8 |                   0 |                      0 |                     0 |                      0 |                     0 |                             0
+(1 row)
+
+        preuve        | version_min | version_max | corrections_min | corrections_max | invariant_viole_attendu_0 
+----------------------+-------------+-------------+-----------------+-----------------+---------------------------
+ P22.1 valeurs posees |           1 |           1 |               0 |               0 |                         0
+(1 row)
+
+
+############################################################
+#  P22.2 — AUCUNE VALEUR EXISTANTE N A BOUGE               #
+############################################################
+ preuve | lignes_avant | lignes_apres | valeurs_modifiees_attendu_0 | lignes_disparues_attendu_0 | lignes_apparues_attendu_0 
+--------+--------------+--------------+-----------------------------+----------------------------+---------------------------
+ P22.2  |           22 |           22 |                           0 |                          0 |                         0
+(1 row)
+
+
+############################################################
+#  P22.3 — LES HUIT STATUTS HISTORIQUES SURVIVENT          #
+############################################################
+ preuve |      statut       | lignes 
+--------+-------------------+--------
+ P22.3  | a_controler       |      1
+ P22.3  | a_regulariser     |      1
+ P22.3  | conforme          |      1
+ P22.3  | en_attente        |      1
+ P22.3  | expliquee         |      1
+ P22.3  | provisoire        |      1
+ P22.3  | regularise        |      1
+ P22.3  | valide_avec_ecart |      1
+(8 rows)
+
+      preuve       |                   conname                   | validee |                portee                
+-------------------+---------------------------------------------+---------+--------------------------------------
+ P22.3 contraintes | fdj_cash_controls_statut_check              | t       | confrontee a tout l historique
+ P22.3 contraintes | fdj_cash_controls_validation_complete_check | f       | NOT VALID : l historique est epargne
+ P22.3 contraintes | fdj_cash_controls_version_check             | f       | NOT VALID : l historique est epargne
+(3 rows)
+
+
+--- P22.3b — ce que NOT VALID epargne, et ce qu il n epargne pas ---
+                 preuve                 |                  id                  |    statut     | valide_par |       valide_le        
+----------------------------------------+--------------------------------------+---------------+------------+------------------------
+ P22.3b (1) la ligne incoherente survit | 00000002-0000-4000-8000-000000000003 | a_regulariser |            | 2026-08-03 07:45:00+00
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:297: NOTICE:  P22.3b (2) refus attendu sur une ligne NEUVE : new row for relation "fdj_cash_controls" violates check constraint "fdj_cash_controls_validation_complete_check" (23514)
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:311: NOTICE:  P22.3b (3) validation immediate refusee, comme attendu : check constraint "fdj_cash_controls_validation_complete_check" of relation "fdj_cash_controls" is violated by some row (23514)
+
+############################################################
+#  P22.4 — LES QUARTS TRANSMIS SANS DATE RESTENT SANS DATE #
+############################################################
+ preuve | transmis_sans_date | transmis_avec_date | brouillons_preserves | brouillon_date_inventee_attendu_0 
+--------+--------------------+--------------------+----------------------+-----------------------------------
+ P22.4  |                  3 |                  5 |                    1 |                                 0
+(1 row)
+
+
+############################################################
+#  P22.5 — LES ECARTS a_regulariser RESTENT INTACTS        #
+############################################################
+ preuve |                  id                  |    statut     | resultat_controle | ecart  | date_metier | quart 
+--------+--------------------------------------+---------------+-------------------+--------+-------------+-------
+ P22.5  | 00000002-0000-4000-8000-000000000003 | a_regulariser | a_regulariser     | -37.00 | 2026-08-02  | 1
+ P22.5  | 00000002-0000-4000-8000-000000000008 | regularise    | a_regulariser     |  -1.00 | 2026-08-04  | 2
+(2 rows)
+
+
+############################################################
+#  P22.6 — UN DOUBLON DE CLE ARRETERAIT LA PHASE A         #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:383: NOTICE:  P22.6 index porteur de l unicite : fdj_stock_movements_idempotency_key_uniq
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:383: NOTICE:  P22.6 la migration s arrete, sans rien modifier : could not create unique index "fdj_stock_movements_idempotency_key_uniq" (23505)
+           preuve           | index_retabli_attendu_1 |             cle_intacte              
+----------------------------+-------------------------+--------------------------------------
+ P22.6 apres retour arriere |                       1 | 11111111-0000-4000-8000-000000000002
+(1 row)
+
+
+############################################################
+#  P21.1 — TROIS NOTIONS DISTINCTES SUR UN MOUVEMENT        #
+############################################################
+ preuve | responsable_operationnel | auteur_de_la_saisie | deux_identites_distinctes |      effective_at      |       created_at       | date_effet_distincte_de_l_enregistrement 
+--------+--------------------------+---------------------+---------------------------+------------------------+------------------------+------------------------------------------
+ P21.1  | Employé Test A           | Manager Test        | t                         | 2026-09-16 17:00:00+00 | 2026-09-17 03:00:00+00 | t
+(1 row)
+
+
+############################################################
+#  P21.2 — L HISTORIQUE NE RECOIT NI AUTEUR NI DATE D EFFET #
+############################################################
+ preuve |                  id                  | type_mouvement | responsable_connu | auteur_de_saisie_attendu_null | date_effet_attendue_null 
+--------+--------------------------------------+----------------+-------------------+-------------------------------+--------------------------
+ P21.2  | 00000004-0000-4000-8000-000000000001 | reception      | Employé Test A    |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000002 | transfert      | Employé Test B    |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000003 | activation     | Employé Test A    |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000004 | activation     | Employé Test B    |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000005 | correction     | Employé Test A    |                               | 
+(5 rows)
+
+
+############################################################
+#  P21.3 — LA CLE D IDEMPOTENCE MORD                        #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:448: NOTICE:  P21.3 rejeu refuse, comme attendu : duplicate key value violates unique constraint "fdj_stock_movements_idempotency_key_uniq" (23505)
+ preuve |           idempotency_key            | lignes 
+--------+--------------------------------------+--------
+ P21.3  | 11111111-0000-4000-8000-000000000001 |      1
+ P21.3  | 11111111-0000-4000-8000-000000000002 |      1
+ P21.3  | 11111111-0000-4000-8000-00000000000a |      1
+(3 rows)
+
+
+############################################################
+#  P21.4 — SANS CLE, PLUSIEURS LIGNES COHABITENT            #
+############################################################
+ preuve | mouvements_sans_cle | mouvements_avec_cle 
+--------+---------------------+---------------------
+ P21.4  |                   3 |                   3
+(1 row)
+
+--- P21.4b — un seul index, pas deux ---
+ preuve | index_uniques_sur_idempotency_key_attendu_1 |              nom_de_l_index              |                                                                          definition                                                                          
+--------+---------------------------------------------+------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.4b |                                           1 | fdj_stock_movements_idempotency_key_uniq | CREATE UNIQUE INDEX fdj_stock_movements_idempotency_key_uniq ON public.fdj_stock_movements USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)
+(1 row)
+
+
+############################################################
+#  P21.5 — UNE DATE D EFFET ABSURDE EST REFUSEE             #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:504: NOTICE:  P21.5 date d effet absurde refusee, comme attendu : new row for relation "fdj_stock_movements" violates check constraint "fdj_stock_movements_effective_at_check" (23514)
+
+############################################################
+#  P21.6 — AUCUNE ACTIVATION, AUCUN MOUVEMENT REEL          #
+############################################################
+  preuve   | livrets_attendu_0 | mouvements_du_jeu_historique | mouvements_crees_par_la_recette 
+-----------+-------------------+------------------------------+---------------------------------
+ P21.6 (a) |                 0 |                            5 |                               1
+(1 row)
+
+  preuve   | fonctions_ajoutees_par_la_vague | ecrivent_ou_lisent_les_mouvements_attendu_0 | touchent_les_livrets_attendu_0 
+-----------+---------------------------------+---------------------------------------------+--------------------------------
+ P21.6 (b) |                              29 |                                           0 |                              0
+(1 row)
+
+      preuve      |                proname                 | volatilite 
+------------------+----------------------------------------+------------
+ P21.6 (b) detail | fdj_alertes_caisse                     | stable
+ P21.6 (b) detail | fdj_caisse_evenements_immuable         | volatile
+ P21.6 (b) detail | fdj_calculer_caisse                    | stable
+ P21.6 (b) detail | fdj_chaine_continuite                  | stable
+ P21.6 (b) detail | fdj_chronologie_caisse                 | stable
+ P21.6 (b) detail | fdj_confirmer_caisse                   | volatile
+ P21.6 (b) detail | fdj_corriger_caisse_confirmee          | volatile
+ P21.6 (b) detail | fdj_corriger_caisse_manager            | volatile
+ P21.6 (b) detail | fdj_date_metier                        | stable
+ P21.6 (b) detail | fdj_ecrire_saisies_caisse              | volatile
+ P21.6 (b) detail | fdj_enregistrer_brouillon_caisse       | volatile
+ P21.6 (b) detail | fdj_libelle_ecart_employe              | immutable
+ P21.6 (b) detail | fdj_libelle_ecart_manager              | immutable
+ P21.6 (b) detail | fdj_ma_caisse                          | stable
+ P21.6 (b) detail | fdj_mes_comptages_caisse               | stable
+ P21.6 (b) detail | fdj_mes_corrections_caisse             | stable
+ P21.6 (b) detail | fdj_mes_demandes_correction            | stable
+ P21.6 (b) detail | fdj_mes_quarts_fdj                     | stable
+ P21.6 (b) detail | fdj_numero_quart_depuis_prise_de_poste | immutable
+ P21.6 (b) detail | fdj_ouvrir_controle_caisse             | volatile
+ P21.6 (b) detail | fdj_ouvrir_quart_depuis_prise_de_poste | volatile
+ P21.6 (b) detail | fdj_quart_de_l_employe                 | stable
+ P21.6 (b) detail | fdj_quart_du_manager                   | stable
+ P21.6 (b) detail | fdj_rouvrir_caisse                     | volatile
+ P21.6 (b) detail | fdj_signaler_erreur_apres_validation   | volatile
+ P21.6 (b) detail | fdj_traiter_demande_correction         | volatile
+ P21.6 (b) detail | fdj_transferer_responsabilite_quart    | volatile
+ P21.6 (b) detail | fdj_valider_caisse                     | volatile
+ P21.6 (b) detail | fdj_ventes_jeu                         | immutable
+(29 rows)
+
+
+############################################################
+#  BILAN AVANT ANNULATION                                   #
+############################################################
+ bilan | quarts | caisses | mouvements | livrets | evenements_caisse_attendu_0 | demandes_attendu_0 
+-------+--------+---------+------------+---------+-----------------------------+--------------------
+ BILAN |      9 |       8 |          6 |       0 |                           0 |                  0
+(1 row)
+
+
+############################################################
+#  APRES ROLLBACK — nexus-test est revenu a son etat initial #
+############################################################
+   controle    | fdj_shifts_attendu_0 | fdj_cash_controls_attendu_0 | fdj_stock_movements_attendu_0 | fdj_booklets_attendu_0 | jeux_historiques_attendu_0 | journal_caisse_disparu | colonne_effective_at_disparue | migrations_enregistrees_attendu_0 
+---------------+----------------------+-----------------------------+-------------------------------+------------------------+----------------------------+------------------------+-------------------------------+-----------------------------------
+ POST-ROLLBACK |                    0 |                           0 |                             0 |                      0 |                          0 | t                      | t                             |                                 0
+(1 row)
+
+
+============================================================
+=  RECETTE TERMINEE — TRANSACTION ANNULEE                   =
+=  Aucune migration appliquee, aucune donnee conservee.     =
+============================================================
