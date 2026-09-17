@@ -487,6 +487,56 @@
   ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
   function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
+  // Vague 1 (17/09/2026) — un changement de titulaire sur un quart DÉJÀ
+  // ouvert n'est pas une simple correction de champ : c'est un transfert de
+  // responsabilité, qui passe par fdj_transferer_responsabilite_quart avec
+  // un motif. Sur un quart neuf, c'est une désignation initiale : rien à
+  // transférer.
+  function transfertEnCours() {
+    return !!(edition && !edition.estNouveau && edition.employeeIdOrigine && edition.employeeId !== edition.employeeIdOrigine);
+  }
+  function nomEmployeSite(id) { const e = employesSite.find(x => x.id === id); return e ? e.nom : 'Le titulaire précédent'; }
+  // Vague 1 (17/09/2026) — l'enregistrement ne choisit plus « quelles
+  // colonnes écraser » mais « quelle COMMANDE serveur appeler ». Deux
+  // questions distinctes, et deux commandes distinctes :
+  //   · les MONTANTS ont-ils bougé ? → fdj_corriger_caisse_manager, qui
+  //     recalcule tout côté serveur à partir des comptages et des rapports
+  //     que les étapes 2 et 3 viennent d'écrire, et qui pose une version ;
+  //   · le VERDICT a-t-il bougé ? → fdj_valider_caisse, qui seule écrit
+  //     resultat_controle, valide_par et valide_le.
+  // Sur un quart neuf (edition.avant === null) tout est « modifié » : il n'y
+  // a pas d'état précédent auquel se comparer.
+  function nombreOuNull(v) { return (v === null || v === undefined || v === '') ? null : Number(v); }
+  function montantsCaisseModifies() {
+    if (!edition || !edition.avant) return true;
+    const a = edition.avant;
+    return JSON.stringify(a.counts || {}) !== JSON.stringify(edition.counts || {})
+        || nombreOuNull(a.lotsPayes) !== nombreOuNull(edition.lotsPayes)
+        || nombreOuNull(a.caisseTirages) !== nombreOuNull(edition.caisseTirages)
+        || nombreOuNull(a.regularisations) !== nombreOuNull(edition.regularisations)
+        || nombreOuNull(a.caisseReelle) !== nombreOuNull(edition.caisseReelle);
+  }
+  function verdictCaisseModifie() {
+    if (!edition || !edition.avant) return true;
+    const a = edition.avant;
+    return (a.resultatControle || '') !== (edition.resultatControle || '')
+        || (a.motifEcart || '') !== (edition.motifEcart || '')
+        || (a.motifEcartTexte || '') !== (edition.motifEcartTexte || '');
+  }
+  // Motif adressé au serveur : les commandes managériales exigent 5
+  // caractères au moins (fdj_corriger_caisse_manager, fdj_saisir_caisse_manager).
+  // Le menu déroulant et le commentaire de l'écran suffisent presque
+  // toujours ; sinon on retombe sur une phrase qui désigne le quart, jamais
+  // sur un remplissage muet.
+  function motifCaisseManager() {
+    const morceaux = [];
+    if (edition.motifEcart) morceaux.push(labelMotifEcart(edition.motifEcart));
+    const texte = (edition.motifEcartTexte || '').trim();
+    if (texte) morceaux.push(texte);
+    const brut = morceaux.join(' — ').trim();
+    if (brut.length >= 5) return brut;
+    return `Saisie manager du ${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${edition.quart}`;
+  }
   function labelMotifException(v) { const m = MOTIFS_EXCEPTION_CARNET.find(x => x.value === v); return m ? m.label : (v || '—'); }
   function labelMotifDerogationQuart(v) { const m = MOTIFS_DEROGATION_QUART.find(x => x.value === v); return m ? m.label : (v || '—'); }
   function labelMotifCorrectionCaisse(v) { const m = MOTIFS_CORRECTION_CAISSE.find(x => x.value === v); return m ? m.label : (v || '—'); }
@@ -614,22 +664,24 @@
   // l'historique reste entier et rejouable, même philosophie que les autres
   // ledgers append-only du projet, ex. fdj_releves_cloture).
   async function creerActivationReconstitueeCorrectionManager(gameId, shift, quantite, justification) {
-    const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, shift_id: shift.id, type_mouvement: quantite >= 0 ? 'activation' : 'correction', quantite,
-      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
-      methode_identification: 'reconstituee_correction_manager', booklet_id: null, employee_id: managerCourant.id,
-      idempotency_key: idempotencyKey, justification,
+    // Relecture PR #62, point 3 — bascule vers `fdj_activer_carnet`
+    // (20260916221000). Cet insert écrivait `employee_id: managerCourant.id`
+    // sur le quart D'UN AUTRE : la ligne désignait le manager comme
+    // responsable opérationnel d'une activation qu'il n'a jamais faite, et
+    // c'est exactement ce que la commande corrige — `employee_id` reste le
+    // titulaire du quart, `created_by` devient le manager.
+    const { data: retour, error } = await nexusClient.rpc('fdj_activer_carnet', {
+      p_shift_id: shift.id,
+      p_game_id: gameId,
+      p_quantite: quantite,
+      p_methode: 'reconstituee_correction_manager',
+      p_jeton: genererIdempotencyKey(),
+      p_justification: justification,
     });
-    if (error && error.code === '23505') return true; // rejeu réseau idempotent
+    if (!error && retour && retour.idempotent) return true; // rejeu réseau, reconnu par la commande
     if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; }
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shift.id, entite_type: 'fdj_stock_movement', entite_id: null,
-      action: quantite >= 0 ? 'fdj_activation_reconstituee_correction_manager' : 'fdj_activation_reconstituee_annulee_correction_manager',
-      acteur_id: managerCourant.id, motif: null,
-      nouvelle_valeur: { game_id: gameId, quantite, methode_identification: 'reconstituee_correction_manager' },
-    });
+    // Le `fdj_audit_log` qui suivait est retiré : la commande journalise les
+    // deux mêmes actions, dans la transaction du mouvement.
     return true;
   }
   // Solde confiés/activés/non-activés (09/08/2026, précision de Frédéric :
@@ -1638,9 +1690,11 @@
       if (error) console.error('Correction auto stock_initial FDJ:', error);
     }
 
-    const [{ data: counts }, { data: reports }, { data: cash }] = await Promise.all([
+    // `fdj_reports` ne fait plus partie de cette lecture : les montants de
+    // caisse ne sont plus recomposés ici, ils sont recalculés par le
+    // serveur en fin de fonction.
+    const [{ data: counts }, { data: cash }] = await Promise.all([
       nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftId),
-      nexusClient.from('fdj_reports').select('*').eq('shift_id', shiftId),
       nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle(),
     ]);
     const countsParJeu = {};
@@ -1658,27 +1712,37 @@
 
     if (!cash) return; // caisse pas encore saisie pour ce quart -> rien à réécrire côté écart
 
-    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
-    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
-    const ventesTotal = NexusFdjMoteur.ventesGrattageTotal(jeux, countsParJeu);
-    const grattage = NexusFdjMoteur.caisseGrattage(ventesTotal, repJournalier ? repJournalier.lots_payes_grattage : null);
-    const attendue = NexusFdjMoteur.caisseAttendue(grattage, repTempsReel ? repTempsReel.caisse_tirages : null, cash.regularisations);
-    const nouvelEcart = NexusFdjMoteur.ecartCaisse(cash.caisse_reelle, attendue);
-    const avant = { ecart: cash.ecart, caisse_attendue: cash.caisse_attendue, ventes_grattage_valeur: cash.ventes_grattage_valeur, caisse_grattage: cash.caisse_grattage };
-
-    const { error: eCash } = await nexusClient.from('fdj_cash_controls').update({
-      ventes_grattage_valeur: ventesTotal, caisse_grattage: grattage, caisse_attendue: attendue, ecart: nouvelEcart,
-      updated_at: new Date().toISOString(),
-    }).eq('shift_id', shiftId);
-    if (eCash) { console.error('Réécriture auto écart FDJ:', eCash); return; }
-
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shiftId, entite_type: 'fdj_cash_control', entite_id: shiftId,
-      action: 'fdj_ecart_recalcule_apres_retablissement_chaine', acteur_id: null,
-      motif: `Recalcul automatique après rétablissement de chaîne — jeux corrigés : ${applicables.map(a => a.game_id).join(', ')}`,
-      ancienne_valeur: avant,
-      nouvelle_valeur: { ecart: nouvelEcart, caisse_attendue: attendue, ventes_grattage_valeur: ventesTotal, caisse_grattage: grattage },
+    // Vague 1 (17/09/2026) — ce recalcul n'écrit plus lui-même dans
+    // `fdj_cash_controls`. C'était la dernière écriture directe du dépôt
+    // sur une table du cycle de caisse, et elle n'était pas « hors du
+    // cycle » : elle réécrivait l'écart. L'écran demande donc au serveur
+    // de rejouer le calcul à partir des comptages que les deux boucles
+    // ci-dessus viennent de corriger — `fdj_corriger_caisse_manager`
+    // appelle `fdj_calculer_caisse` et réécrit ventes, caisse grattage,
+    // caisse attendue et écart sans toucher au constat d'origine :
+    // exactement les quatre colonnes que cet écran réécrivait à la main,
+    // mais avec le motif, la version de relevé et l'événement de journal
+    // que l'écriture directe n'avait pas.
+    //
+    // Deux différences assumées avec le comportement précédent :
+    //  · une caisse non confirmée n'est pas corrigeable — la commande
+    //    répond `caisse_non_confirmee`. Ce n'est pas une perte : la
+    //    confirmation recalcule elle-même tout depuis les comptages, donc
+    //    les valeurs rétablies ci-dessus seront prises en compte à ce
+    //    moment-là. On n'insiste pas et on ne contourne pas ;
+    //  · la trace n'est plus un `insert` direct dans `fdj_audit_log` avec
+    //    `acteur_id: null` : la commande journalise sous l'identité réelle
+    //    du manager connecté, ce qui vaut mieux qu'un acteur anonyme.
+    const motifRecalcul = `Recalcul automatique après rétablissement de chaîne — jeux corrigés : ${applicables.map(a => a.game_id).join(', ')}`;
+    const { data: rRecalcul, error: eRecalcul } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
+      p_shift_id: shiftId,
+      p_motif: motifRecalcul,
+      p_commentaire: 'Écart recalculé par NEXUS depuis les comptages rétablis ; les montants comptés ne sont pas touchés.',
     });
+    if (eRecalcul) { console.error('Recalcul serveur de l\'écart FDJ:', eRecalcul); return; }
+    if (rRecalcul && rRecalcul.corrige === false && rRecalcul.motif !== 'caisse_non_confirmee') {
+      console.error('Recalcul serveur de l\'écart FDJ refusé:', rRecalcul);
+    }
   }
 
   // ============================================================
@@ -3428,20 +3492,22 @@
 
   async function enregistrerReappro() {
     const btn = document.getElementById('btnConfirmerReappro');
-    const bureau = emplacementParType('bureau');
-    const caisse = emplacementParType('caisse');
+    // Relecture PR #62, point 3 — bascule vers `fdj_enregistrer_mouvement_stock`
+    // (20260916221000). L'appelant ne décrit plus QUE l'opération métier et
+    // les quantités : le sens du transfert, les deux emplacements, le site,
+    // l'auteur et la date d'effet sont déduits côté serveur. Un
+    // `reappro_caisse` ne peut donc plus partir à l'envers.
     const lignes = Object.entries(reappro.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'transfert', quantite: qte,
-        location_source_id: bureau ? bureau.id : null, location_destination_id: caisse ? caisse.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        justification: `Réapprovisionnement caisse — carnets non activés (manager).`,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à transférer.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'reappro_caisse',
+      p_lignes: lignes,
+      p_jeton: genererIdempotencyKey(),
+    });
     if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reappro = null;
     renderAccueil();
@@ -3600,21 +3666,21 @@
 
   async function enregistrerRetraitCaisse() {
     const btn = document.getElementById('btnConfirmerRetraitCaisse');
-    const bureau = emplacementParType('bureau');
-    const caisse = emplacementParType('caisse');
-    const justification = `Retrait caisse → bureau (manager)${retraitCaisse.motif ? ` — ${labelMotifRetraitCaisse(retraitCaisse.motif)}` : ''}.`;
+    // Relecture PR #62, point 3 — `fdj_enregistrer_mouvement_stock`. Le motif
+    // part en clair (libellé déjà traduit pour l'humain) ; c'est le serveur
+    // qui compose la justification et qui choisit le sens caisse → bureau.
     const lignes = Object.entries(retraitCaisse.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: qte,
-        location_source_id: caisse ? caisse.id : null, location_destination_id: bureau ? bureau.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        justification,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à retirer.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'retrait_caisse',
+      p_lignes: lignes,
+      p_jeton: genererIdempotencyKey(),
+      p_motif: retraitCaisse.motif ? labelMotifRetraitCaisse(retraitCaisse.motif) : null,
+    });
     if (error) { console.error('Retrait caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le retrait'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; retraitCaisse = null;
     renderAccueil();
@@ -3894,20 +3960,24 @@
 
   async function enregistrerReception() {
     const btn = document.getElementById('btnConfirmerReception');
-    const bureau = emplacementParType('bureau');
+    // Relecture PR #62, point 3 — bascule vers `fdj_enregistrer_mouvement_stock`
+    // (20260916221000). La réception partait en LOT : c'est pour ce cas que la
+    // commande prend `p_lignes`, un tableau. Les scinder en autant d'appels
+    // transformerait une coupure réseau en demi-réception, avec un bureau
+    // crédité de la moitié du carton. L'emplacement de destination, le site,
+    // l'auteur et la date d'effet ne sont plus décrits ici.
     const lignes = Object.entries(reception.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'reception', quantite: qte,
-        location_source_id: null, location_destination_id: bureau ? bureau.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        source: reception.source || null,
-        justification: `Réception FDJ (manager)${reception.source ? ` — ${reception.source}` : ''}.`,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité reçue.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'reception',
+      p_lignes: lignes,
+      p_jeton: genererIdempotencyKey(),
+      p_source: reception.source || null,
+    });
     if (error) { console.error('Réception FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer la réception'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reception = null;
     renderAccueil();
@@ -4208,12 +4278,17 @@
     const btn = document.getElementById('btnValiderRapprochement');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const caisse = emplacementParType('caisse');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: rapprochement.gameId, shift_id: null, type_mouvement: 'activation', quantite: rapprochement.quantite,
-      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
-      methode_identification: 'saisie_manuelle', employee_id: null,
-      justification: `Rapprochement manuel manager — quart(s) complété(s)/corrigé(s) après coup sans mouvement tracé.${rapprochement.justification ? ` ${rapprochement.justification}` : ''}`,
+    // Relecture PR #62, point 3 — bascule vers `fdj_enregistrer_mouvement_stock`.
+    // C'est le seul des six mouvements de gestion où la commande laisse
+    // `employee_id` à NULL : le rapprochement reconstitue le geste d'un
+    // employé resté inconnu, et l'inscrire au nom du manager serait un faux.
+    // Le front n'a donc plus à se souvenir de cette exception — c'est
+    // précisément ce que la commande sait, et le front non.
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'rapprochement_activation',
+      p_lignes: [{ game_id: rapprochement.gameId, quantite: rapprochement.quantite }],
+      p_jeton: genererIdempotencyKey(),
+      p_motif: rapprochement.justification || null,
     });
     if (error) {
       console.error('Rapprochement stock FDJ:', error);
@@ -4269,13 +4344,19 @@
     const btn = document.getElementById('btnConfirmerBlocage');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const source = emplacementParType(blocage.emplacement);
-    const zoneBloquee = emplacementParType('bloque');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: blocage.gameId, type_mouvement: 'blocage', quantite: blocage.quantite,
-      location_source_id: source ? source.id : null, location_destination_id: zoneBloquee ? zoneBloquee.id : null,
-      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-      justification: `Retrait/blocage (manager) — ${blocage.motif}`,
+    // Relecture PR #62, point 3 — bascule vers `fdj_enregistrer_mouvement_stock`.
+    // L'emplacement source reste un choix du manager (bureau ou caisse) : il
+    // est donc encore passé, mais comme un NOM, pas comme un identifiant de
+    // ligne — le serveur le résout et refuse tout autre nom. La destination,
+    // elle, n'est plus négociable : un blocage va en zone bloquée. Le motif
+    // reste exigé ici pour le confort de saisie, mais ce n'est plus la seule
+    // garde : la commande refuse aussi un `blocage` sans motif.
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'blocage',
+      p_lignes: [{ game_id: blocage.gameId, quantite: blocage.quantite }],
+      p_jeton: genererIdempotencyKey(),
+      p_motif: blocage.motif,
+      p_emplacement_source: blocage.emplacement,
     });
     if (error) { console.error('Blocage FDJ:', error); btn.disabled = false; btn.textContent = 'Signaler'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'stock-etat'; blocage = null;
@@ -4286,13 +4367,14 @@
     const solde = stockEtat.soldes[gameId];
     if (!solde || !(solde.bloques > 0)) return;
     if (!confirm(`Retourner les ${solde.bloques} carnet(s) bloqué(s) de ce jeu au Bureau ?`)) return;
-    const zoneBloquee = emplacementParType('bloque');
-    const bureau = emplacementParType('bureau');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: solde.bloques,
-      location_source_id: zoneBloquee ? zoneBloquee.id : null, location_destination_id: bureau ? bureau.id : null,
-      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-      justification: 'Retour au bureau depuis la zone bloquée (manager).',
+    // Relecture PR #62, point 3 — bascule vers `fdj_enregistrer_mouvement_stock`.
+    // Le sens du mouvement (zone bloquée → bureau) est fixé par l'opération :
+    // il n'est plus possible d'écrire par erreur un `retour` qui viderait le
+    // bureau vers la zone bloquée en inversant deux variables.
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'retour_bloque',
+      p_lignes: [{ game_id: gameId, quantite: solde.bloques }],
+      p_jeton: genererIdempotencyKey(),
     });
     if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; }
     await ouvrirStockEtat();
@@ -4917,6 +4999,19 @@
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
       caisseReelle: null, motifEcart: '', motifEcartTexte: '', resultatControle: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
       caisseReelleOrigine: null, ecartOrigine: null,
+      // Vague 1 (17/09/2026) — état du cycle de caisse côté serveur, lu ici
+      // pour choisir la bonne COMMANDE à l'enregistrement (voir étape 4 de
+      // enregistrerEdition) : une feuille jamais confirmée par un employé
+      // n'emprunte pas le chemin « contrôler puis valider ».
+      confirmeLe: null, valideLe: null,
+      // Réattribution : le titulaire d'origine et le motif du transfert. Sur
+      // un quart neuf il n'y a pas de transfert possible — la désignation
+      // initiale n'en est pas un.
+      employeeIdOrigine: null, motifTransfert: '',
+      // Un quart neuf n'a ni demande de correction à arbitrer, ni caisse à
+      // rouvrir : les deux champs existent quand même, pour que les rendus
+      // n'aient jamais à distinguer « vide » de « absent ».
+      demandesCorrection: [], motifReouverture: '',
     };
     jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
     // Préremplissage (09/08/2026, demande de Frédéric) : un quart tout
@@ -4928,6 +5023,79 @@
     renderEdition();
   }
 
+  // DEMANDES DE CORRECTION — Vague 1 (17/09/2026). La table
+  // `fdj_demandes_correction` est fermée à `authenticated` : ni policy, ni
+  // grant. Elle ne se lit donc que par la projection serveur, qui vérifie
+  // au passage que l'appelant est bien manager du site du quart.
+  async function chargerDemandesCorrection(shiftId) {
+    if (!shiftId) return [];
+    const { data, error } = await nexusClient.rpc('fdj_demandes_correction_du_quart', { p_shift_id: shiftId });
+    if (error) { console.error('Chargement demandes de correction FDJ:', error); return []; }
+    return (data && data.demandes) || [];
+  }
+
+  const DECISIONS_DEMANDE_CORRECTION = [
+    { value: 'acceptee_reouverture',    label: 'Acceptée — je rouvre la caisse' },
+    { value: 'corrigee_par_manager',    label: 'Acceptée — je corrige moi-même' },
+    { value: 'orientee_regularisation', label: 'Orientée vers une régularisation' },
+    { value: 'refusee',                 label: 'Refusée — la caisse reste en l\'état' },
+  ];
+  function labelDecisionDemande(v) { const d = DECISIONS_DEMANDE_CORRECTION.find(x => x.value === v); return d ? d.label : v; }
+
+  // La décision ne rouvre ni ne corrige rien d'elle-même : elle répond à
+  // l'employé et laisse le geste correspondant au manager, qui l'accomplit
+  // avec son propre motif. C'est délibéré côté serveur
+  // (fdj_traiter_demande_correction « n'enchaîne aucune réouverture
+  // automatique ») : deux décisions distinctes, deux traces distinctes.
+  function renderDemandesCorrectionFdj() {
+    const liste = (edition.demandesCorrection || []);
+    if (!liste.length) return '';
+    return `
+      <div class="champ-sep"></div>
+      <label class="champ-label">Demandes de correction de ce quart</label>
+      ${liste.map(d => `
+        <div class="jeu-row" data-demande="${d.id}" style="padding:12px 14px; margin-bottom:8px;">
+          <div class="histo-sub" style="margin-bottom:8px;">
+            <b style="color:var(--text);">${d.demandeur_nom || 'Un employé'}</b>, le ${d.cree_le ? new Date(d.cree_le).toLocaleString('fr-FR') : '—'}${d.ecart_au_signalement !== null && d.ecart_au_signalement !== undefined ? ` — écart au signalement : <b style="color:var(--amber);">${d.ecart_au_signalement > 0 ? '+' : ''}${fmtEuro(d.ecart_au_signalement)}</b>` : ''}<br>
+            « ${(d.message || '').replace(/</g, '&lt;')} »
+          </div>
+          ${d.statut === 'ouverte' ? `
+            <select class="champ-select" data-decision-pour="${d.id}" style="margin-bottom:8px;">
+              <option value="">— Décision —</option>
+              ${DECISIONS_DEMANDE_CORRECTION.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+            </select>
+            <input class="champ-input" data-reponse-pour="${d.id}" type="text" style="margin-bottom:8px;" placeholder="Réponse à l'employé (3 caractères au moins)…">
+            <button type="button" class="btn-modifier" data-traiter-demande="${d.id}" style="margin-top:0;">Enregistrer la décision</button>
+          ` : `
+            <div class="histo-sub" style="color:var(--text-mid);">
+              ${labelDecisionDemande(d.statut)}${d.traite_par_nom ? ` — ${d.traite_par_nom}` : ''}${d.traite_le ? `, le ${new Date(d.traite_le).toLocaleString('fr-FR')}` : ''}
+              ${d.reponse_manager ? `<br>Réponse : « ${d.reponse_manager.replace(/</g, '&lt;')} »` : ''}
+            </div>
+          `}
+        </div>
+      `).join('')}
+    `;
+  }
+
+  // RÉOUVERTURE — Vague 1 (17/09/2026). Une caisse validée ne se
+  // recertifie pas : fdj_valider_caisse est idempotente et ignorerait le
+  // nouveau verdict en silence. Le geste est donc nommé, motivé (cinq
+  // caractères au moins) et journalisé.
+  function renderReouvertureCaisseFdj() {
+    if (!edition || edition.estNouveau || !edition.valideLe) return '';
+    return `
+      <div class="champ-sep"></div>
+      <div class="jeu-row" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne"><div class="jeu-nom">\ud83d\udd12 Caisse validée le ${new Date(edition.valideLe).toLocaleString('fr-FR')}</div></div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          Les montants restent corrigeables. Changer le <b style="color:var(--text);">verdict</b> suppose de rouvrir la caisse : l'employé et le journal en gardent trace.
+        </div>
+        <input class="champ-input" id="champMotifReouverture" type="text" style="margin-bottom:8px;" placeholder="Motif de la réouverture (5 caractères au moins)…" value="${(edition.motifReouverture || '').replace(/"/g, '&quot;')}">
+        <button type="button" class="btn-modifier" id="btnRouvrirCaisse" style="margin-top:0;">Rouvrir la caisse</button>
+      </div>
+    `;
+  }
+
   async function chargerHistoriqueAudit(shiftId) {
     if (!shiftId) return [];
     const { data, error } = await nexusClient.from('fdj_audit_log').select('*').eq('shift_id', shiftId).order('date_action', { ascending: false });
@@ -4937,10 +5105,11 @@
 
   async function ouvrirEditionExistant(shift) {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement du quart…</div>';
-    const [{ data: counts }, { data: reports }, historiqueAudit] = await Promise.all([
+    const [{ data: counts }, { data: reports }, historiqueAudit, demandesCorrection] = await Promise.all([
       nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shift.id),
       nexusClient.from('fdj_reports').select('*').eq('shift_id', shift.id),
       chargerHistoriqueAudit(shift.id),
+      chargerDemandesCorrection(shift.id),
     ]);
     const countsMap = {};
     const stockInitialAutoCharge = {};
@@ -4979,8 +5148,16 @@
       // jamais disparaître ce que l'employé a réellement transmis.
       caisseReelleOrigine: cash ? cash.caisse_reelle_origine : null,
       ecartOrigine: cash ? cash.ecart_origine : null,
+      // Vague 1 (17/09/2026) — voir ouvrirEditionNouveau : ces deux dates
+      // décident, à l'enregistrement, de la commande serveur employée.
+      confirmeLe: cash ? (cash.confirme_le || null) : null,
+      valideLe: cash ? (cash.valide_le || null) : null,
+      employeeIdOrigine: shift.employee_id,
+      motifTransfert: '',
       estNouveau: false,
       historiqueAudit,
+      demandesCorrection,
+      motifReouverture: '',
     };
     // Instantané "avant" pour la trace d'audit — jamais un écrasement
     // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
@@ -5084,9 +5261,14 @@
       </div>
       ${!edition.estNouveau ? '<div class="champ-note">Changer la date ou le quart déplace ce même enregistrement — impossible si un autre quart FDJ existe déjà à cette date/quart.</div>' : ''}
       <label class="champ-label">Employé assigné</label>
-      <select class="champ-select" id="champEmploye" style="margin-bottom:16px;">
+      <select class="champ-select" id="champEmploye" style="margin-bottom:${transfertEnCours() ? '4px' : '16px'};">
         ${employesSite.map(e => `<option value="${e.id}" ${e.id===edition.employeeId?'selected':''}>${e.nom}</option>`).join('')}
       </select>
+      ${transfertEnCours() ? `
+      <div class="champ-note" style="margin:0 0 8px;">Changer le titulaire d'un quart déjà ouvert est un <b>transfert de responsabilité</b> : ${nomEmployeSite(edition.employeeIdOrigine)} reste responsable de ce qui a été fait avant. Le motif est obligatoire et rejoint le journal.</div>
+      <label class="champ-label">Motif du transfert de responsabilité *</label>
+      <input class="champ-input" id="champMotifTransfert" type="text" style="margin-bottom:16px;" placeholder="Ex. : absence imprévue, renfort de fin de quart…" value="${(edition.motifTransfert || '').replace(/"/g, '&quot;')}">
+      ` : ''}
 
       <div class="champ-sep"></div>
       <div class="section-titre">Grattage</div>
@@ -5147,6 +5329,9 @@
         <option value="brouillon" ${edition.statutShift==='brouillon'?'selected':''}>Brouillon</option>
         <option value="valide" ${edition.statutShift==='valide'?'selected':''}>Validé</option>
       </select>
+
+      ${renderReouvertureCaisseFdj()}
+      ${renderDemandesCorrectionFdj()}
 
       ${renderHistoriqueAuditFdj()}
 
@@ -5380,7 +5565,12 @@
     // toucher une case déjà saisie à la main.
     document.getElementById('champDate').addEventListener('change', async e => { edition.date = e.target.value; await reprefillStockInitial(); renderEdition(); });
     document.getElementById('champQuart').addEventListener('change', async e => { edition.quart = e.target.value; await reprefillStockInitial(); renderEdition(); });
-    document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
+    // Vague 1 (17/09/2026) : re-rendu complet plutôt qu'une mutation — le
+    // titulaire choisi fait apparaître (ou disparaître) le champ « motif du
+    // transfert », obligatoire dès que le quart existe déjà.
+    document.getElementById('champEmploye').addEventListener('change', e => { edition.employeeId = e.target.value; renderEdition(); });
+    const champMotifTransfert = document.getElementById('champMotifTransfert');
+    if (champMotifTransfert) champMotifTransfert.addEventListener('input', e => { edition.motifTransfert = e.target.value; });
     // "État de saisie" (ex-"Statut du quart") conditionne "État du quart"
     // (badge dérivé) — re-rendu complet pour rester cohérent partout.
     document.getElementById('champStatutShift').addEventListener('change', e => { edition.statutShift = e.target.value; renderEdition(); });
@@ -5448,6 +5638,17 @@
     document.getElementById('champCaisseReelle').addEventListener('input', e => { edition.caisseReelle = e.target.value === '' ? null : Number(e.target.value); majResume(); });
 
     document.getElementById('btnEnregistrer').addEventListener('click', enregistrerEdition);
+
+    // Vague 1 (17/09/2026) — les deux gestes qui ne passent pas par le
+    // bouton d'enregistrement, parce qu'ils ne sont pas une saisie : ils
+    // changent l'état du dossier et répondent à quelqu'un.
+    const champMotifReouv = document.getElementById('champMotifReouverture');
+    if (champMotifReouv) champMotifReouv.addEventListener('input', e => { edition.motifReouverture = e.target.value; });
+    const btnRouvrir = document.getElementById('btnRouvrirCaisse');
+    if (btnRouvrir) btnRouvrir.addEventListener('click', rouvrirCaisseEdition);
+    document.querySelectorAll('[data-traiter-demande]').forEach(b => {
+      b.addEventListener('click', () => traiterDemandeCorrection(b.getAttribute('data-traiter-demande')));
+    });
     document.getElementById('btnAnnuler').addEventListener('click', () => { vue = 'liste'; edition = null; renderAccueil(); });
   }
 
@@ -5456,6 +5657,79 @@
   // d'approbation. Une trace reste dans fdj_audit_log (avant/après), sans
   // jamais bloquer l'enregistrement (traçabilité, pas contrôle d'accès).
   // ------------------------------------------------------------
+  // Réouverture d'une caisse validée — fdj_rouvrir_caisse. La commande
+  // remet le statut à `confirmee`, efface le verdict, et n'INVENTE aucun
+  // montant : elle ne touche ni la caisse réelle ni l'écart. Le manager
+  // recertifie ensuite par le bouton habituel.
+  async function rouvrirCaisseEdition() {
+    const motif = (edition.motifReouverture || '').trim();
+    if (motif.length < 5) {
+      alert('Rouvrir une caisse valid\u00e9e demande un motif d\'au moins 5 caract\u00e8res : il rejoint le journal du quart et la r\u00e9ponse faite \u00e0 l\'employ\u00e9.');
+      const c = document.getElementById('champMotifReouverture'); if (c) c.focus();
+      return;
+    }
+    const btn = document.getElementById('btnRouvrirCaisse');
+    if (btn) { btn.disabled = true; btn.textContent = 'Réouverture…'; }
+    const { data, error } = await nexusClient.rpc('fdj_rouvrir_caisse', { p_shift_id: edition.shiftId, p_motif: motif });
+    if (error) {
+      console.error('Réouverture caisse FDJ:', error);
+      if (btn) { btn.disabled = false; btn.textContent = 'Rouvrir la caisse'; }
+      alert('La r\u00e9ouverture a \u00e9t\u00e9 refus\u00e9e : ' + (error.message || 'raison inconnue'));
+      return;
+    }
+    if (data && data.rouverte === false) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Rouvrir la caisse'; }
+      alert('Caisse non rouverte : ' + (data.message || data.motif));
+      return;
+    }
+    edition.motifReouverture = '';
+    await rechargerQuartEdition();
+  }
+
+  // Décision sur une demande de correction — fdj_traiter_demande_correction.
+  async function traiterDemandeCorrection(demandeId) {
+    const selDecision = document.querySelector(`[data-decision-pour="${demandeId}"]`);
+    const champReponse = document.querySelector(`[data-reponse-pour="${demandeId}"]`);
+    const decision = selDecision ? selDecision.value : '';
+    const reponse = champReponse ? (champReponse.value || '').trim() : '';
+    if (!decision) { alert('Choisissez une d\u00e9cision avant d\'enregistrer.'); if (selDecision) selDecision.focus(); return; }
+    if (reponse.length < 3) {
+      alert('Une r\u00e9ponse d\'au moins 3 caract\u00e8res est obligatoire : l\'employ\u00e9 doit savoir ce qui a \u00e9t\u00e9 d\u00e9cid\u00e9.');
+      if (champReponse) champReponse.focus();
+      return;
+    }
+    const btn = document.querySelector(`[data-traiter-demande="${demandeId}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const { data, error } = await nexusClient.rpc('fdj_traiter_demande_correction', {
+      p_demande_id: demandeId, p_decision: decision, p_reponse: reponse,
+    });
+    if (error) {
+      console.error('Traitement demande de correction FDJ:', error);
+      if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer la décision'; }
+      alert('D\u00e9cision refus\u00e9e : ' + (error.message || 'raison inconnue'));
+      return;
+    }
+    // La commande n'enchaîne rien : elle dit quel geste reste à faire, et
+    // c'est au manager de l'accomplir avec son propre motif.
+    if (data && data.geste_suivant && data.idempotent === false) alert('D\u00e9cision enregistr\u00e9e.\n\nGeste suivant : ' + data.geste_suivant);
+    edition.demandesCorrection = await chargerDemandesCorrection(edition.shiftId);
+    renderEdition();
+  }
+
+  // Après un geste qui change l'état du dossier côté serveur, l'écran ne
+  // devine pas le nouvel état : il relit le quart. `edition.avant`, les
+  // dates de confirmation et de validation en dépendent — s'en remettre à
+  // une supposition locale ferait repartir l'enregistrement suivant sur le
+  // mauvais chemin de l'étape 4.
+  async function rechargerQuartEdition() {
+    const shift = await chargerShiftAvecCaisseParId(edition.shiftId);
+    if (!shift) {
+      alert('Geste enregistr\u00e9, mais l\'\u00e9cran n\'a pas pu se rafra\u00eechir. Rouvrez ce quart depuis la liste.');
+      return;
+    }
+    await ouvrirEditionExistant(shift);
+  }
+
   async function enregistrerEdition() {
     // 21/08/2026, refonte statuts FDJ (demande de Frédéric) : ces
     // validations empêchent d'enregistrer un état incohérent (verdict non
@@ -5489,6 +5763,18 @@
       if (txtMotif) txtMotif.focus();
       return;
     }
+    // Vague 1 (17/09/2026) : changer le titulaire d'un quart déjà ouvert
+    // n'est plus un champ que l'on écrase, c'est un transfert de
+    // responsabilité — fdj_transferer_responsabilite_quart exige un motif
+    // d'au moins 5 caractères et produit un événement de journal. La même
+    // règle est appliquée ici pour que le refus arrive avant l'appel réseau,
+    // avec le champ sous les yeux.
+    if (transfertEnCours() && (edition.motifTransfert || '').trim().length < 5) {
+      alert('Changer le titulaire de ce quart est un transfert de responsabilit\u00e9 : indiquez un motif d\'au moins 5 caract\u00e8res. Il rejoint le journal du quart.');
+      const champMotifT = document.getElementById('champMotifTransfert');
+      if (champMotifT) champMotifT.focus();
+      return;
+    }
     const btn = document.getElementById('btnEnregistrer');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
@@ -5508,7 +5794,10 @@
     let shift;
     if (edition.shiftId) {
       const { data, error } = await nexusClient.from('fdj_shifts')
-        .update({ date: edition.date, quart: edition.quart, employee_id: edition.employeeId, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
+        // Vague 1 (17/09/2026) : `employee_id` est SORTI de cet UPDATE. Le
+        // titulaire d'un quart ouvert ne se réécrit plus par une colonne —
+        // il se transfère, avec motif et journal, juste après ce bloc.
+        .update({ date: edition.date, quart: edition.quart, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
         .eq('id', edition.shiftId).select().single();
       if (error) {
         console.error('Mise à jour quart FDJ:', error);
@@ -5521,8 +5810,19 @@
     } else {
       const { data: existant } = await nexusClient.from('fdj_shifts').select('*').eq('site', siteId).eq('date', edition.date).eq('quart', edition.quart).maybeSingle();
       if (existant) {
+        // Vague 1 (17/09/2026) : ce chemin — « je crée un quart, il en
+        // existait déjà un à cette date » — réattribuait silencieusement le
+        // quart d'un collègue, sans motif ni journal, parce que l'écran de
+        // création n'a pas de champ « motif du transfert » (il n'a rien à
+        // transférer, en principe). Plutôt que d'inventer un motif, NEXUS
+        // renvoie le manager sur le quart concerné, où le geste existe.
+        if (existant.employee_id && existant.employee_id !== edition.employeeId) {
+          btn.disabled = false; btn.textContent = libelleBouton;
+          alert(`Un quart FDJ existe d\u00e9j\u00e0 pour cette date et ce quart, au nom de ${nomEmployeSite(existant.employee_id)}.\n\nChanger de titulaire est un transfert de responsabilit\u00e9 : ouvrez ce quart depuis la liste et indiquez-y le motif. Il rejoindra le journal.`);
+          return;
+        }
         const { data, error } = await nexusClient.from('fdj_shifts')
-          .update({ employee_id: edition.employeeId, statut: edition.statutShift })
+          .update({ statut: edition.statutShift })
           .eq('id', existant.id).select().single();
         if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = libelleBouton; return; }
         shift = data;
@@ -5533,6 +5833,34 @@
         if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur de création du quart. Réessayez.'); return; }
         shift = data;
       }
+    }
+
+    // 1 bis) Transfert de responsabilité — Vague 1 (17/09/2026). Le seul
+    // chemin par lequel le titulaire d'un quart ouvert peut changer. La
+    // commande vérifie le rôle, l'appartenance au même site, exige le motif,
+    // conserve le responsable précédent (responsable_precedent_id) et écrit
+    // l'événement fdj_quart_responsabilite_transferee au journal.
+    if (transfertEnCours()) {
+      const { data: rTransfert, error: eTransfert } = await nexusClient.rpc('fdj_transferer_responsabilite_quart', {
+        p_shift_id: shift.id,
+        p_nouveau_responsable_id: edition.employeeId,
+        p_motif: (edition.motifTransfert || '').trim(),
+      });
+      if (eTransfert) {
+        console.error('Transfert de responsabilité du quart FDJ:', eTransfert);
+        btn.disabled = false; btn.textContent = libelleBouton;
+        alert('Le transfert de responsabilit\u00e9 a \u00e9t\u00e9 refus\u00e9 : ' + (eTransfert.message || 'raison inconnue') + '\n\nRien n\'a \u00e9t\u00e9 enregistr\u00e9 pour la caisse.');
+        return;
+      }
+      // `deja_responsable` n'est pas une erreur : c'est le cas où la base
+      // porte déjà le titulaire voulu (deux enregistrements successifs).
+      if (rTransfert && rTransfert.transfere === false && rTransfert.motif !== 'deja_responsable') {
+        btn.disabled = false; btn.textContent = libelleBouton;
+        alert('Transfert refus\u00e9 : ' + (rTransfert.message || rTransfert.motif));
+        return;
+      }
+      edition.employeeIdOrigine = edition.employeeId;
+      edition.motifTransfert = '';
     }
 
     // 2) Comptages — upsert des jeux réellement touchés par le manager.
@@ -5630,19 +5958,98 @@
     ], { onConflict: 'shift_id,type_rapport' });
     if (eRep) { console.error('Enregistrement rapports FDJ (manager):', eRep); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur les tirages. Réessayez.'); return; }
 
-    // 4) Rapprochement caisse — le manager choisit lui-même le statut
-    // (pouvoir total), valide_par/valide_le posés dès qu'il enregistre ici.
+    // 4) Rapprochement caisse — Vague 1 (17/09/2026). L'écran n'écrit plus
+    // dans `fdj_cash_controls`. Il n'a d'ailleurs plus à calculer ce qu'il
+    // enregistre : les commandes serveur recalculent elles-mêmes les
+    // montants à partir des comptages et des rapports que les étapes 2 et 3
+    // viennent d'écrire. `ecart` reste calculé ici, mais pour l'affichage et
+    // pour la trace d'audit de l'étape 5 — plus comme une valeur écrite.
+    //
+    // Trois états de la caisse, trois chemins. Ce n'est pas une complication
+    // gratuite : c'est la différence entre « le manager tient la feuille à la
+    // place de l'employé », « le manager contrôle ce que l'employé a
+    // confirmé » et « la caisse est close ».
     const ecart = ecartCaisseEdition();
-    const { error: eCash } = await nexusClient.from('fdj_cash_controls').upsert({
-      site: siteId, shift_id: shift.id,
-      ventes_grattage_valeur: ventesGrattageTotalEdition(), lots_payes_grattage: edition.lotsPayes,
-      caisse_grattage: caisseGrattageEdition(), caisse_tirages: edition.caisseTirages,
-      regularisations: edition.regularisations || 0, caisse_attendue: caisseAttendueEdition(), caisse_reelle: edition.caisseReelle,
-      ecart, motif_ecart: edition.motifEcart || null, motif_ecart_texte: edition.motifEcartTexte || null,
-      resultat_controle: edition.resultatControle || null, statut: edition.statutCaisse,
-      valide_par: managerCourant.id, valide_le: new Date().toISOString(), updated_at: new Date().toISOString(),
-    }, { onConflict: 'shift_id' });
-    if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur la caisse. Réessayez.'); return; }
+    const echecCaisse = (message) => {
+      btn.disabled = false; btn.textContent = libelleBouton;
+      alert(message);
+    };
+
+    if (!edition.confirmeLe) {
+      // A) L'employé n'a rien confirmé — le manager saisit la feuille à sa
+      // place. `fdj_saisir_caisse_manager` refuse d'écraser une caisse déjà
+      // confirmée, ce qui évite la course entre l'écran employé et celui-ci.
+      const { data: rSaisie, error: eSaisie } = await nexusClient.rpc('fdj_saisir_caisse_manager', {
+        p_shift_id: shift.id,
+        p_caisse_reelle: edition.caisseReelle,
+        p_justification: motifCaisseManager(),
+        p_regularisations: edition.regularisations || 0,
+        p_resultat_controle: edition.resultatControle || null,
+        p_motif_interne: edition.motifEcartTexte || null,
+        p_motif_ecart: edition.motifEcart || '',
+      });
+      if (eSaisie) { console.error('Saisie caisse FDJ (manager):', eSaisie); echecCaisse('La saisie de la caisse a \u00e9t\u00e9 refus\u00e9e : ' + (eSaisie.message || 'raison inconnue')); return; }
+      if (rSaisie && rSaisie.saisi === false) {
+        if (rSaisie.motif === 'saisie_incomplete') {
+          // Les comptages et les rapports sont enregistrés : le travail n'est
+          // pas perdu, il manque une donnée pour clore. On informe, on ne
+          // bloque pas, et on laisse l'écran se rafraîchir.
+          alert('Comptages et rapports enregistr\u00e9s. ' + (rSaisie.message || 'Il manque une information pour \u00e9tablir la caisse.'));
+        } else {
+          echecCaisse('Caisse non enregistr\u00e9e : ' + (rSaisie.message || rSaisie.motif));
+          return;
+        }
+      }
+    } else if (!edition.valideLe) {
+      // B) L'employé a confirmé, la caisse n'est pas validée — c'est le
+      // contrôle proprement dit. Prise en contrôle d'abord (idempotente),
+      // correction des montants si le manager en a changé, verdict ensuite.
+      const { error: eOuv } = await nexusClient.rpc('fdj_ouvrir_controle_caisse', { p_shift_id: shift.id });
+      if (eOuv) { console.error('Prise en contrôle caisse FDJ:', eOuv); echecCaisse('La prise en contr\u00f4le a \u00e9t\u00e9 refus\u00e9e : ' + (eOuv.message || 'raison inconnue')); return; }
+
+      if (montantsCaisseModifies()) {
+        const { data: rCorr, error: eCorr } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
+          p_shift_id: shift.id,
+          p_motif: motifCaisseManager(),
+          p_caisse_reelle: edition.caisseReelle,
+          p_regularisations: edition.regularisations || 0,
+          p_commentaire: edition.motifEcartTexte || null,
+        });
+        if (eCorr) { console.error('Correction manager caisse FDJ:', eCorr); echecCaisse('La correction a \u00e9t\u00e9 refus\u00e9e : ' + (eCorr.message || 'raison inconnue')); return; }
+        if (rCorr && rCorr.corrige === false) { echecCaisse('Correction refus\u00e9e : ' + (rCorr.message || rCorr.motif)); return; }
+      }
+
+      const { data: rVal, error: eVal } = await nexusClient.rpc('fdj_valider_caisse', {
+        p_shift_id: shift.id,
+        p_resultat_controle: edition.resultatControle,
+        p_motif_interne: edition.motifEcartTexte || null,
+        p_motif_ecart: edition.motifEcart || '',
+      });
+      if (eVal) { console.error('Validation caisse FDJ:', eVal); echecCaisse('La validation a \u00e9t\u00e9 refus\u00e9e : ' + (eVal.message || 'raison inconnue')); return; }
+      if (rVal && rVal.valide === false) { echecCaisse('Caisse non valid\u00e9e : ' + (rVal.message || rVal.motif)); return; }
+    } else {
+      // C) La caisse est validée. `fdj_valider_caisse` est alors IDEMPOTENTE :
+      // elle ne réécrit ni le verdict, ni le motif, et renvoie un succès. Un
+      // manager qui recertifierait ici verrait donc son changement disparaître
+      // en silence — c'est exactement le genre d'écrasement muet que cette
+      // vague supprime. Changer le verdict d'une caisse close passe par une
+      // réouverture explicite, avec motif et journal.
+      if (verdictCaisseModifie()) {
+        echecCaisse('Cette caisse est valid\u00e9e : son verdict ne se r\u00e9\u00e9crit plus.\n\nUtilisez « Rouvrir la caisse » (un motif vous sera demand\u00e9), puis certifiez de nouveau. Les montants, eux, restent corrigeables sans r\u00e9ouverture.');
+        return;
+      }
+      if (montantsCaisseModifies()) {
+        const { data: rCorr, error: eCorr } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
+          p_shift_id: shift.id,
+          p_motif: motifCaisseManager(),
+          p_caisse_reelle: edition.caisseReelle,
+          p_regularisations: edition.regularisations || 0,
+          p_commentaire: edition.motifEcartTexte || null,
+        });
+        if (eCorr) { console.error('Correction manager caisse FDJ (après validation):', eCorr); echecCaisse('La correction a \u00e9t\u00e9 refus\u00e9e : ' + (eCorr.message || 'raison inconnue')); return; }
+        if (rCorr && rCorr.corrige === false) { echecCaisse('Correction refus\u00e9e : ' + (rCorr.message || rCorr.motif)); return; }
+      }
+    }
 
     // 5) Trace d'audit — avant/après, jamais un écrasement silencieux même
     // en pouvoir total. 09/08/2026, demande de Frédéric : "pouvoir corriger

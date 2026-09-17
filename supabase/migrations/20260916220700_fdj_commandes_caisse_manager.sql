@@ -255,7 +255,8 @@ comment on function public.fdj_ouvrir_controle_caisse(uuid) is
 create or replace function public.fdj_valider_caisse(
   p_shift_id          uuid,
   p_resultat_controle text,
-  p_motif_interne     text default null
+  p_motif_interne     text default null,
+  p_motif_ecart       text default null
 )
 returns jsonb
 language plpgsql
@@ -268,6 +269,7 @@ declare
   v_cash   public.fdj_cash_controls;
   v_statut text;
   v_valide boolean;
+  v_motif_ecart text;
 begin
   v_shift := public.fdj_quart_du_manager(p_shift_id);
 
@@ -312,6 +314,24 @@ begin
       using errcode = 'invalid_parameter_value';
   end if;
 
+  -- `motif_ecart` est un CODE énuméré (le menu déroulant de l'écran
+  -- manager), distinct de `motif_ecart_texte` qui est le commentaire
+  -- interne. Il était jusqu'ici la seule colonne du cycle de caisse
+  -- qu'aucune commande serveur n'écrivait : la bascule de l'écran manager
+  -- (Vague 1, point 4) l'aurait donc silencieusement perdue. Trois cas :
+  --   null  → la colonne n'est pas touchée (appelants à trois arguments) ;
+  --   ''    → le motif est effacé (il n'y a plus rien à expliquer) ;
+  --   code  → contrôlé contre la liste, puis retenu.
+  v_motif_ecart := nullif(btrim(coalesce(p_motif_ecart, '')), '');
+  if v_motif_ecart is not null
+     and v_motif_ecart not in ('remboursement', 'erreur_saisie', 'erreur_comptage',
+                               'erreur_montant_caisse', 'carnet_non_declare',
+                               'mouvement_oublie', 'erreur_rapport',
+                               'correction_verification', 'autre', 'non_explique') then
+    raise exception 'Motif d''écart inconnu : %', p_motif_ecart
+      using errcode = 'invalid_parameter_value';
+  end if;
+
   -- (c) — seules trois valeurs closent le contrôle.
   v_valide := p_resultat_controle in ('conforme', 'avec_ecart', 'a_regulariser');
   v_statut := case p_resultat_controle
@@ -324,6 +344,9 @@ begin
   update public.fdj_cash_controls
      set statut            = v_statut,
          resultat_controle = p_resultat_controle,
+         motif_ecart       = case when p_motif_ecart is null
+                                  then v_cash.motif_ecart
+                                  else v_motif_ecart end,
          motif_ecart_texte = nullif(btrim(coalesce(p_motif_interne, '')), ''),
          valide_par        = case when v_valide then v_uid else null end,
          valide_le         = case when v_valide then now() else null end,
@@ -378,7 +401,7 @@ begin
 end;
 $$;
 
-comment on function public.fdj_valider_caisse(uuid, text, text) is
+comment on function public.fdj_valider_caisse(uuid, text, text, text) is
   'Mandat §3.6 — « Valider la caisse ». Seul un manager habilité écrit valide_par / valide_le / resultat_controle / motif interne.';
 
 -- ----------------------------------------------------------------------------
@@ -915,7 +938,7 @@ declare
     'public.fdj_libelle_ecart_manager(numeric)',
     'public.fdj_quart_du_manager(uuid)',
     'public.fdj_ouvrir_controle_caisse(uuid)',
-    'public.fdj_valider_caisse(uuid, text, text)',
+    'public.fdj_valider_caisse(uuid, text, text, text)',
     'public.fdj_rouvrir_caisse(uuid, text)',
     'public.fdj_corriger_caisse_manager(uuid, text, numeric, numeric, text)',
     'public.fdj_traiter_demande_correction(uuid, text, text)',
@@ -941,7 +964,7 @@ $$;
 --   drop function if exists public.fdj_traiter_demande_correction(uuid, text, text);
 --   drop function if exists public.fdj_corriger_caisse_manager(uuid, text, numeric, numeric, text);
 --   drop function if exists public.fdj_rouvrir_caisse(uuid, text);
---   drop function if exists public.fdj_valider_caisse(uuid, text, text);
+--   drop function if exists public.fdj_valider_caisse(uuid, text, text, text);
 --   drop function if exists public.fdj_ouvrir_controle_caisse(uuid);
 --   drop function if exists public.fdj_quart_du_manager(uuid);
 --   drop function if exists public.fdj_libelle_ecart_manager(numeric);
