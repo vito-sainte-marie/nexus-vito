@@ -222,7 +222,7 @@ sur un nom — plutôt que de faire confiance à un commentaire écrit la veille
 rattrapage.** C'est le seul arbitrage de cette vague qui mérite une
 justification écrite. La règle habituelle — ne jamais réécrire une migration —
 protège les bases où elle a déjà tourné : la réécrire produirait deux schémas
-différents portant le même numéro. Ici, **aucune des neuf migrations n'a
+différents portant le même numéro. Ici, **aucune des douze migrations n'a
 jamais été appliquée nulle part** : ni sur Production, ni sur Test (la recette
 s'est terminée par `rollback`), ni sur une branche Supabase. Le registre
 `schema_migrations` ne les connaît pas. Il n'existe donc aucune base à
@@ -407,7 +407,7 @@ réseau** (§4).
 # Les preuves (points 10 à 18)
 
 Toutes les preuves qui suivent ont été jouées le 17/09/2026 sur **`nexus-test`**,
-dans **une seule transaction terminée par `rollback;`** — les neuf migrations de
+dans **une seule transaction terminée par `rollback;`** — les douze migrations de
 la Phase A, puis le jeu d'essai, puis les preuves. Code de sortie 0. Rien n'a
 subsisté : les quatre dernières vérifications du script constatent que les
 tables créées n'existent plus (`to_regclass(…) is null`) et qu'aucune fonction
@@ -600,18 +600,28 @@ sortie conservée à côté, code de sortie 0, transaction annulée.
 | **P21.2** | les 5 mouvements historiques reçoivent `created_by = NULL` et `effective_at = NULL` — « auteur historique inconnu », pas une date inventée (§8) | 5/5 à `NULL` |
 | **P21.3** | la clé d'idempotence **mord** : rejouer le même mouvement avec la même clé lève `23505` et n'écrit rien | 3 clés, 1 ligne chacune |
 | **P21.4** | l'absence de clé reste permise : 3 mouvements sans clé cohabitent (l'index est partiel) | 3 sans / 3 avec |
-| **P21.4b** | après les neuf migrations, il n'existe **qu'un seul** index unique sur `idempotency_key` — la non-duplication annoncée au 5.7 | 1, `fdj_stock_movements_idempotency_key_uniq` |
+| **P21.4b** | après les douze migrations, il n'existe **qu'un seul** index unique sur `idempotency_key` — la non-duplication annoncée au 5.7 | 1, `fdj_stock_movements_idempotency_key_uniq` |
 | **P21.5** | une date d'effet absurde (postérieure à l'enregistrement) est refusée par `fdj_stock_movements_effective_at_check` : `23514` | refus |
-| **P21.6 (a)** | **aucune activation, aucun mouvement réel** n'a été créé : 0 livret, les 5 mouvements historiques sont ceux que la recette a elle-même posés, +1 pour la démonstration d'idempotence | 0 livret |
-| **P21.6 (b)** | l'argument **structurel** : sur les **29 fonctions** ajoutées par la vague, **0** mentionne `fdj_stock_movements`, **0** mentionne `fdj_booklets` | 0 / 0 |
+| **P21.6 (a)** | avant toute exécution contrôlée, **aucune activation, aucun mouvement réel** : 0 livret, les 5 mouvements historiques sont ceux que la recette a elle-même posés, +1 pour la démonstration d'idempotence | 0 livret |
+| **P21.6 (b1)** | **installer** les douze migrations n'écrit rien : les cinq compteurs mesurés avant et après le bloc `\ir` — mouvements, livrets, journal d'audit, quarts, caisses — ont un delta **nul** | 0 × 5 |
+| **P21.6 (b2)** | **leur code** porte légitimement les écritures, et sous quelles gardes : **2** des 36 fonctions de la vague écrivent dans `fdj_stock_movements` — `fdj_activer_carnet` et `fdj_enregistrer_mouvement_stock` — toutes deux `SECURITY DEFINER`, `search_path` figé, **sans paramètre `employee_id`**, `EXECUTE` fermé à `anon` **et** à `PUBLIC` ; **0** touche `fdj_booklets` | 2 / 0, six colonnes `t` |
+| **P21.7** | **leur exécution**, jouée et mesurée dans la transaction annulée : activation par l'employé, reconstitution puis correction managériales (`employee_id` reste l'employé du quart, `created_by` devient le manager), mouvement de gestion manager, idempotence unitaire et par lot, non-forgeabilité de la clé, et **12 refus** | 7 lignes écrites, dont 3 d'un auteur autre que le responsable ; 6 actions de journal |
 
-P21.6 (b) est la preuve qui compte vraiment pour le §6. Les autres disent
-« nous n'avons rien activé pendant la mission » ; celle-ci dit que **le code
-livré ne le peut pas** : aucune des commandes serveur de la Vague 1 ne touche
-aux livrets ni aux mouvements. La vague *prépare* les colonnes du §6
-(`created_by`, `effective_at`, la clé d'idempotence, la contrainte de date) et
-s'arrête là. L'écriture des activations reste où elle est — dans le front,
-listée à l'annexe B — et sa reprise est une dette de la Vague 2.
+P21.6 (b) disait autrefois l'inverse, et c'était le défaut probant de ce
+dossier : « sur les 29 fonctions ajoutées, **0** mentionne
+`fdj_stock_movements` ». Le chiffre était juste pour les **neuf** premières
+migrations — les seules que la recette chargeait — et faux dès la relecture
+finale, qui ajoute `20260916221000`, c'est-à-dire précisément les commandes
+qui écrivent ces mouvements. Une preuve qui ne charge pas ces migrations ne
+parle pas de la Phase A livrée. La correction est détaillée en **26.14**.
+
+Ce que la preuve établit désormais est plus fort, pas plus faible. Les autres
+sous-preuves disent « nous n'avons rien activé pendant la mission » ; (b1) dit
+que **poser le code n'active rien**, (b2) dit **sous quelles gardes** le code
+écrit, et P21.7 le fait écrire pour de bon avant d'annuler. L'écriture des
+activations ne reste donc plus dans le front : les deux `insert` directs
+correspondants sont fermés (26.3), et ce que la Vague 2 devra reprendre est le
+**reste** de l'annexe B, pas ces deux gestes-là.
 
 ## 16 ter. Les données existantes — les preuves du §10.6
 
@@ -619,7 +629,7 @@ Même recette. Son parti pris est ce qui la rend probante : elle **fabrique
 l'historique avant de charger les migrations**, dans la même transaction —
 9 quarts (3 transmis sans date, 5 avec, 1 brouillon), 8 caisses couvrant les
 **huit** statuts réellement présents en Production, 5 mouvements — puis
-applique les neuf migrations par-dessus, puis mesure. On ne peut pas prouver
+applique les douze migrations par-dessus, puis mesure. On ne peut pas prouver
 qu'une migration respecte l'existant si l'existant naît après elle.
 
 | Preuve | Ce qu'elle établit | Résultat |
@@ -1371,6 +1381,7 @@ non silencieuse.
 | §8 | 30 fonctions, cinq familles | **36 fonctions**, six familles (29 à l'ouverture + 7 à la relecture) |
 | §18, §23 | 12 puis « quinze » mutations | **13 mutations**, 17 vérifications |
 | §22, §24 | 9 migrations en Phase A | **12 migrations** |
+| §16 bis | P21.6 (b) : « 0 fonction n'écrit les mouvements » | **2** l'écrivent — voir 26.14 |
 
 Le premier mérite une explication, parce que l'erreur est instructive :
 `mes_ecarts_caisse()` figurait dans la liste comme « ajustée ». **Elle ne l'est
@@ -1745,6 +1756,106 @@ sont deux opérations distinctes, et la seconde demande une décision
 explicite : elle change des SHA déjà publiés, invalide les références
 croisées de ce dossier et de la PR #62, et ne retire rien des copies
 déjà faites. Elle relève d'une décision, pas d'une initiative.
+
+---
+
+### 26.14 — La recette ne chargeait que neuf des douze migrations
+
+Ce n'est pas une imprécision de documentation, et c'est pour cela qu'elle
+figure ici plutôt qu'en note.
+
+`20260917_preuves_livrets_et_historique.sql` chargeait par `\ir` les
+migrations `20260916220000` à `20260916220800` — **neuf**. La Phase A finale
+en compte **douze** : la relecture a ajouté `…220900`, `…221000` et `…221100`
+(26.2, 26.3). La migration `20260916221000` est précisément celle qui crée
+`fdj_activer_carnet` et `fdj_enregistrer_mouvement_stock`, les commandes
+serveur qui **écrivent** les mouvements de stock.
+
+La conséquence est probante, pas cosmétique. P21.6 (b) concluait « aucune des
+fonctions ajoutées n'écrit dans `fdj_stock_movements` ni dans `fdj_booklets` ».
+C'était vrai du schéma que la recette avait sous les yeux, et faux du schéma
+livré : elle constatait l'absence de fonctions qu'elle n'avait pas chargées.
+Une preuve ne peut pas conclure sur ce qu'elle n'a pas fait entrer dans sa
+transaction.
+
+**Ce qui a été corrigé, à périmètre strictement limité :**
+
+* les **douze** migrations sont chargées, dans l'ordre `220000` → `221100`,
+  toujours *au milieu* du fichier, après la fabrication de l'historique ;
+* le fichier n'annonce plus la liste qu'il croit jouer : un bloc `PREREQUIS`
+  fait **énumérer par le serveur** les douze fichiers réellement lus, et une
+  garde `to_regprocedure` interrompt la recette si l'une des commandes manque.
+  Un glob ou une liste qui perdraient une migration ne passeraient plus au
+  vert en silence ;
+* les cinq compteurs (mouvements, livrets, journal d'audit, quarts, caisses)
+  sont relevés **avant** et **après** le bloc de chargement. Les données
+  préexistantes — 9 quarts, 8 caisses, 5 mouvements, fabriqués avant les
+  migrations — traversent les douze migrations sans qu'aucune ligne bouge ;
+* P21.6 est refondue en trois affirmations distinctes, parce que les confondre
+  est exactement ce qui a produit le défaut : **(b1)** installer les commandes
+  ne crée aucun mouvement ; **(b2)** leur code contient légitimement les
+  écritures, et on montre sous quelles gardes ; **(b3)** leur exécution est
+  jouée à part, en P21.7 ;
+* P21.7 les exécute pour de bon, avec les acteurs et emplacements synthétiques
+  déjà présents, puis la transaction est annulée.
+
+**Ce que P21.7 éprouve.** Une activation par l'employé sur son propre quart,
+et son rejeu au même jeton — `{ enregistre: true, idempotent: true }`, une
+seule ligne. Une activation reconstituée par le manager, puis une correction
+négative : sur les deux lignes, `employee_id` reste **l'employé du quart** et
+`created_by` devient **le manager**. Le manager rejoue ensuite, à l'identique,
+les paramètres *et* le jeton de l'employé : il obtient une ligne **nouvelle**,
+parce que `auth.uid()` entre dans la clé — la clé d'un autre n'est pas
+atteignable (26.3). Un mouvement de gestion manager — réception de deux lignes,
+puis réapprovisionnement de caisse — est enregistré hors quart, `shift_id` à
+`NULL`. Enfin **douze refus**, en trois contextes : sous l'employé, sous le
+manager, et sans session authentifiée. Les voici tels que le serveur les rend :
+
+| | Refus |
+|---|---|
+| 4.1 | « Seul un manager habilité peut reconstituer une activation. » |
+| 4.2 | « Seul un manager habilité peut enregistrer un mouvement de stock FDJ. » |
+| 4.3 | « Une quantité négative n'est admise que pour une correction managériale reconstituée. » |
+| 4.4 | « Ce quart FDJ est sous la responsabilité d'un autre employé. » |
+| 4.5 | « Jeton d'appel manquant : l'idempotence ne peut pas être garantie. » |
+| 4.6 | « Quantité de carnets manquante ou nulle. » |
+| 4.7 | « Opération de mouvement de stock inconnue. » |
+| 4.8 | « Un blocage exige un motif. » |
+| 4.9 | « Emplacement de blocage inconnu : bureau ou caisse attendus. » |
+| 4.10 | « Une date d'effet ne peut pas être dans le futur. » |
+| 4.11 | « Ligne de mouvement sans quantité positive. » |
+| 4.12 | « Aucune session authentifiée : opération refusée. » |
+
+Bilan de la section : **7 lignes** écrites par les commandes, dont **3** où
+l'auteur n'est pas le responsable opérationnel, **0** rattachée à un quart
+incohérent ; **6 actions** distinctes au journal d'audit, chacune imputée à un
+acteur nommé. Puis `rollback`, et le balayage des 410 colonnes `uuid` du schéma
+`public` ne trouve aucune fixture survivante.
+
+**Deux contraintes de forme qui ont pesé sur l'écriture.** La garde
+`test_recette_vague1_identifiants_synthetiques_20260917.js` (26.13) refuse
+**tout** UUID hors forme fixture dans le dossier, sorties comprises — or les
+commandes renvoient les identifiants qu'elles viennent d'engendrer. Les
+résultats affichés retirent donc ces clés par l'opérateur `jsonb -` : ce n'est
+pas une retouche de la sortie, c'est la requête qui ne les demande pas. Et
+aucun emplacement synthétique de type « bloqué » n'existe dans le jeu d'essai :
+les opérations `blocage` et `retour_bloque` ne sont éprouvées que par leurs
+refus, ce que le fichier dit en toutes lettres plutôt que de le laisser croire
+couvert.
+
+**Un piège de mesure, relevé parce qu'il est réutilisable.** Le premier rejeu a
+échoué, et il avait raison d'échouer : le contrôle du rejeu managérial comptait
+**trois** lignes là où il en attendait deux. La troisième n'était pas une
+écriture des commandes — c'était l'un des cinq mouvements d'historique posés
+en SECTION 0, qui porte lui aussi la méthode `quantite` sur ce quart. Une
+mesure qui ne distingue pas ses propres fixtures de ce qu'elle observe finit
+par s'observer elle-même. Le comptage écarte désormais les identifiants de
+forme fixture, et ne retient que ce que le serveur a écrit.
+
+**Ce que le rejeu a coûté ailleurs : rien.** La sortie a été **intégralement
+régénérée** par un seul lancement, sans aucune correction manuelle. Les
+compteurs d'avant et d'après, le contrôle d'identité et le balayage
+post-`rollback` rendent les mêmes valeurs qu'en 26.13, à la ligne près.
 
 ---
 

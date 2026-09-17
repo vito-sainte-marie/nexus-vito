@@ -3,18 +3,30 @@
 -- Mandat « Refonte FDJ, Vague 1 », §10.5 et §10.6.
 -- A jouer sur nexus-test UNIQUEMENT. Le fichier se termine par rollback;.
 --
--- Ce fichier est AUTO-PORTANT : il charge lui-meme les neuf migrations de la
+-- Ce fichier est AUTO-PORTANT : il charge lui-meme les DOUZE migrations de la
 -- Phase A par \ir, entre la pose de l historique et les preuves. C est la
 -- difference avec 20260917_preuves_cycle_caisse.sql, qui suppose les migrations
 -- deja chargees : ici, l ORDRE est le sujet meme de la preuve. On ne peut pas
 -- montrer ce qu une migration fait a des donnees existantes si les donnees
 -- n existent pas avant elle.
 --
--- Lancement :
+-- DOUZE, ET PLUS NEUF. Cette recette s arretait a 20260916220800. C etait une
+-- limite de portee tenable tant qu on ne lui demandait qu une chose ; elle ne
+-- l est plus des lors qu elle sert a repondre au troisieme blocage de la
+-- relecture. 20260916221000 cree precisement les commandes serveur qui
+-- ecrivent les mouvements de stock : une preuve qui ne les charge pas ne parle
+-- pas de la Phase A finale, elle parle d un etat intermediaire qui ne sera
+-- jamais deploye. Les trois dernieres migrations sont donc chargees ici, et
+-- P21.6 a ete refondue en consequence : elle n attend plus « zero fonction qui
+-- touche les mouvements », elle distingue ce qu il fallait distinguer — leur
+-- INSTALLATION, qui n ecrit rien ; leur CODE, qui contient legitimement les
+-- ecritures ; leur EXECUTION controlee, qui est mesuree en P21.7.
+--
+-- Lancement (depuis la racine du depot) :
 --   PGPASSWORD="$(security find-generic-password -a nexus -s nexus-test-db -w)" \
---   PGCONNECT_TIMEOUT=20 /opt/homebrew/opt/libpq/bin/psql \
+--   PGCONNECT_TIMEOUT=45 /opt/homebrew/opt/libpq/bin/psql \
 --     "postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require" \
---     -v ON_ERROR_STOP=1 -q -f supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql
+--     -X -v ON_ERROR_STOP=1 -q -f supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql
 -- =============================================================================
 
 \set ON_ERROR_STOP on
@@ -25,7 +37,7 @@ begin;
 \echo '#  P22.0 — LA CONDITION DE VALIDITE DE LA PHASE A          #'
 \echo '############################################################'
 -- Le dossier (section 5.7) justifie d avoir corrige deux migrations EN PLACE
--- plutot que d empiler une migration de rattrapage, au motif qu aucune des neuf
+-- plutot que d empiler une migration de rattrapage, au motif qu aucune des douze
 -- n a jamais ete appliquee nulle part. Cette prémisse n est pas une opinion :
 -- elle se verifie, et c est la premiere chose que fait cette recette.
 
@@ -210,6 +222,18 @@ create temporary table fonctions_avant as
   select p.oid, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public';
 
+-- Les compteurs qui serviront a separer l INSTALLATION des commandes de leur
+-- EXECUTION (P21.6 b1). Ils sont pris ICI, c est-a-dire apres la pose de tout
+-- l historique et juste avant le premier \ir : tout ecart mesure apres le bloc
+-- des douze migrations sera donc imputable aux migrations elles-memes, a rien
+-- d autre.
+create temporary table compteurs_avant_migrations as
+  select (select count(*) from public.fdj_stock_movements) as mouvements,
+         (select count(*) from public.fdj_booklets)        as livrets,
+         (select count(*) from public.fdj_audit_log)       as audit,
+         (select count(*) from public.fdj_shifts)          as quarts,
+         (select count(*) from public.fdj_cash_controls)   as caisses;
+
 select 'SECTION 0' as etape,
        (select count(*) from public.fdj_shifts)          as quarts_historiques,
        (select count(*) from public.fdj_cash_controls)   as caisses_historiques,
@@ -219,8 +243,15 @@ select 'SECTION 0' as etape,
 
 \echo ''
 \echo '############################################################'
-\echo '#  LES NEUF MIGRATIONS DE LA PHASE A, DANS L ORDRE          #'
+\echo '#  LES DOUZE MIGRATIONS DE LA PHASE A, DANS L ORDRE         #'
 \echo '############################################################'
+-- L ordre n est pas cosmetique : 20260916220400 ajoute created_by et
+-- effective_at, et 20260916221000 ecrit ces deux colonnes. Charger la seconde
+-- sans la premiere echouerait. Les douze sont donc nommees une a une, de
+-- 220000 a 221100, sans glob : ce qui est charge est ce qui est lisible ici.
+-- Le serveur annonce lui-meme chacune d elles dans la sortie, en prefixe
+-- psql:supabase/migrations/<fichier>:<ligne> des le premier message qu elle
+-- produit ; le decompte n a donc pas a etre cru sur parole.
 
 \ir ../migrations/20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql
 \ir ../migrations/20260916220100_fdj_caisse_cycle_de_vie_colonnes.sql
@@ -231,6 +262,49 @@ select 'SECTION 0' as etape,
 \ir ../migrations/20260916220600_fdj_commandes_caisse_employe.sql
 \ir ../migrations/20260916220700_fdj_commandes_caisse_manager.sql
 \ir ../migrations/20260916220800_fdj_projection_employe.sql
+\ir ../migrations/20260916220900_fdj_projection_progression.sql
+\ir ../migrations/20260916221000_fdj_commandes_activations_et_mouvements.sql
+\ir ../migrations/20260916221100_fdj_commande_saisie_caisse_manager.sql
+
+-- Le meme releve, immediatement apres. Aucune requete ne s est intercalee.
+create temporary table compteurs_apres_migrations as
+  select (select count(*) from public.fdj_stock_movements) as mouvements,
+         (select count(*) from public.fdj_booklets)        as livrets,
+         (select count(*) from public.fdj_audit_log)       as audit,
+         (select count(*) from public.fdj_shifts)          as quarts,
+         (select count(*) from public.fdj_cash_controls)   as caisses;
+
+-- Et la liste des douze, telle que le fichier la declare — a confronter aux
+-- prefixes psql:supabase/migrations/... que le serveur a emis juste au-dessus.
+select 'PREREQUIS' as bloc, n as rang, v as migration_chargee
+from unnest(array[
+  '20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql',
+  '20260916220100_fdj_caisse_cycle_de_vie_colonnes.sql',
+  '20260916220200_fdj_caisse_journal_evenements.sql',
+  '20260916220300_fdj_demandes_correction_apres_validation.sql',
+  '20260916220400_fdj_mouvements_auteur_et_date_effet.sql',
+  '20260916220500_fdj_commande_ouverture_quart.sql',
+  '20260916220600_fdj_commandes_caisse_employe.sql',
+  '20260916220700_fdj_commandes_caisse_manager.sql',
+  '20260916220800_fdj_projection_employe.sql',
+  '20260916220900_fdj_projection_progression.sql',
+  '20260916221000_fdj_commandes_activations_et_mouvements.sql',
+  '20260916221100_fdj_commande_saisie_caisse_manager.sql'
+]) with ordinality as u(v, n)
+order by n;
+
+-- Preuve d existence, cote serveur cette fois : les objets que seules les
+-- trois dernieres migrations creent. Si l une des trois n avait pas ete
+-- chargee, cette ligne le dirait sans qu il faille lire la sortie a l oeil.
+do $$
+begin
+  if to_regprocedure('public.fdj_activer_carnet(uuid, uuid, numeric, text, text, text, text, uuid)') is null
+     or to_regprocedure('public.fdj_enregistrer_mouvement_stock(text, jsonb, text, text, text, text, timestamptz)') is null
+     or to_regprocedure('public.fdj_saisir_caisse_manager(uuid, numeric, text, numeric, text, text, text)') is null then
+    raise exception 'PREREQUIS : les douze migrations ne sont pas toutes chargees — les commandes de 221000/221100 manquent';
+  end if;
+  raise notice 'PREREQUIS OK : les douze migrations de la Phase A sont chargees, 220000 a 221100';
+end $$;
 
 \echo ''
 \echo '############################################################'
@@ -561,34 +635,514 @@ rollback to savepoint p215;
 
 \echo ''
 \echo '############################################################'
-\echo '#  P21.6 — AUCUNE ACTIVATION, AUCUN MOUVEMENT REEL          #'
+\echo '#  P21.6 — INSTALLER LES COMMANDES N ECRIT RIEN              #'
 \echo '############################################################'
 -- « Aucune activation ni aucun mouvement reel ne doit etre cree pendant cette
--- mission » (§6). Deux verifications de nature differente.
+-- mission » (§6).
 --
--- (a) Constat : la vague n a touche aucun livret.
+-- Cette preuve tenait autrefois en une phrase : aucune fonction apportee par la
+-- vague n ecrit dans fdj_stock_movements ni dans fdj_booklets. La phrase etait
+-- vraie tant que cette recette s arretait a la neuvieme migration. Elle est
+-- fausse des lors que les douze sont chargees, et elle devait l etre :
+-- 20260916221000 cree precisement deux commandes serveur qui ecrivent dans
+-- fdj_stock_movements. C est leur raison d etre, et c est ce qui repond au
+-- troisieme blocage de la relecture. Attendre ici « zero fonction ecrivante »
+-- reviendrait a exiger que la correction n ait pas eu lieu.
+--
+-- On ne prouve donc plus « aucune fonction n ecrit ». On distingue les trois
+-- choses que cette phrase confondait :
+--   (b1) l INSTALLATION des douze migrations ne cree aucun mouvement ;
+--   (b2) leur CODE contient legitimement les ecritures, et sous quelles gardes ;
+--   (b3) leur EXECUTION est jouee, mesuree et annulee — c est P21.7.
+--
+-- (a) Etat des lieux a cet instant, avant toute execution de commande.
 select 'P21.6 (a)' as preuve,
        (select count(*) from public.fdj_booklets) as livrets_attendu_0,
        (select count(*) from public.fdj_stock_movements where source = 'historique') as mouvements_du_jeu_historique,
-       (select count(*) from public.fdj_stock_movements where source <> 'historique') as mouvements_crees_par_la_recette;
+       (select count(*) from public.fdj_stock_movements where source is distinct from 'historique') as mouvements_poses_par_la_recette;
+-- `is distinct from` et non `<>` : fdj_activer_carnet n ecrit pas la colonne
+-- source, qui reste NULL. Avec `<>`, les lignes ecrites par la commande
+-- auraient echappe au comptage — la mesure se serait auto-innocentee.
 
--- (b) Argument structurel : AUCUNE des fonctions creees par les neuf migrations
---     n ecrit dans fdj_stock_movements ni dans fdj_booklets. Ce n est pas une
---     promesse de comportement, c est une propriete de leur code source, et la
---     liste des fonctions n est pas recopiee a la main : c est la difference
---     entre l etat d avant et l etat d apres.
-select 'P21.6 (b)' as preuve,
-       count(*) as fonctions_ajoutees_par_la_vague,
-       count(*) filter (where p.prosrc ~ 'fdj_stock_movements') as ecrivent_ou_lisent_les_mouvements_attendu_0,
-       count(*) filter (where p.prosrc ~ 'fdj_booklets')        as touchent_les_livrets_attendu_0
+-- (b1) L INSTALLATION. Les deux releves encadrent le bloc des douze \ir : entre
+--      eux, rien d autre ne s est execute. Un delta non nul serait le signe
+--      qu une migration de la Phase A touche aux donnees, ce qu aucune ne doit
+--      faire.
+select 'P21.6 (b1)' as preuve,
+       b.mouvements - a.mouvements as delta_mouvements_attendu_0,
+       b.livrets    - a.livrets    as delta_livrets_attendu_0,
+       b.audit      - a.audit      as delta_journal_audit_attendu_0,
+       b.quarts     - a.quarts     as delta_quarts_attendu_0,
+       b.caisses    - a.caisses    as delta_caisses_attendu_0
+from compteurs_avant_migrations a, compteurs_apres_migrations b;
+
+do $$
+declare d record;
+begin
+  select b.mouvements - a.mouvements as m, b.livrets - a.livrets as l,
+         b.audit - a.audit as j, b.quarts - a.quarts as q, b.caisses - a.caisses as c
+    into d
+    from compteurs_avant_migrations a, compteurs_apres_migrations b;
+  if d.m <> 0 or d.l <> 0 or d.j <> 0 or d.q <> 0 or d.c <> 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.6 (b1) : installer les douze migrations a modifie les donnees (mouvements %, livrets %, audit %, quarts %, caisses %)',
+      d.m, d.l, d.j, d.q, d.c;
+  end if;
+  raise notice 'P21.6 (b1) OK — installer les douze migrations ne cree ni mouvement, ni livret, ni ligne de journal';
+end $$;
+
+-- (b2) LE CODE. Les fonctions ajoutees par la vague qui ecrivent dans
+--      fdj_stock_movements sont nommees — la liste n est pas recopiee a la
+--      main, c est la difference entre l etat d avant et l etat d apres — et
+--      chacune est examinee sur ce qui rend l ecriture acceptable :
+--        * elle s execute en SECURITY DEFINER, avec un search_path fige ;
+--        * elle n accepte pas de recevoir le responsable operationnel en
+--          parametre : employee_id est lu en base depuis le quart, jamais
+--          dicte par l appelant. C est la garantie qu une session ne peut pas
+--          ecrire un mouvement au nom d un tiers ;
+--        * son droit d execution est ferme a anon et a PUBLIC. `revoke from
+--          public` ne suffit pas sur Supabase : anon recoit ses droits par
+--          grants nommes, les deux sont donc verifies separement.
+select 'P21.6 (b2)' as preuve, p.proname,
+       p.prosecdef as security_definer_attendu_t,
+       coalesce(array_to_string(p.proconfig, ','), '') ~ 'search_path=' as search_path_fige_attendu_t,
+       not ('employee_id' = any (coalesce(p.proargnames, '{}'::text[]))) as employee_id_non_dicte_attendu_t,
+       not has_function_privilege('anon', p.oid, 'execute') as execute_ferme_a_anon_attendu_t,
+       not exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                    where a.grantee = 0 and a.privilege_type = 'EXECUTE') as execute_ferme_a_public_attendu_t
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant);
+where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant)
+  and p.prosrc ~ 'insert into public\.fdj_stock_movements'
+order by p.proname;
 
-select 'P21.6 (b) detail' as preuve, p.proname,
-       case p.provolatile when 's' then 'stable' when 'i' then 'immutable' else 'volatile' end as volatilite
+do $$
+declare n_ecrivantes int; n_defaillantes int; n_livrets int;
+begin
+  select count(*) into n_ecrivantes
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant)
+     and p.prosrc ~ 'insert into public\.fdj_stock_movements';
+
+  select count(*) into n_defaillantes
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant)
+     and p.prosrc ~ 'insert into public\.fdj_stock_movements'
+     and not (
+       p.prosecdef
+       and coalesce(array_to_string(p.proconfig, ','), '') ~ 'search_path='
+       and not ('employee_id' = any (coalesce(p.proargnames, '{}'::text[])))
+       and not has_function_privilege('anon', p.oid, 'execute')
+       and not exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                        where a.grantee = 0 and a.privilege_type = 'EXECUTE'));
+
+  select count(*) into n_livrets
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant)
+     and p.prosrc ~ 'fdj_booklets';
+
+  if n_ecrivantes < 2 then
+    raise exception 'ECHEC DE LA PREUVE P21.6 (b2) : % fonction(s) ecrivante(s) reperee(s) — la vague en apporte deux, la mesure a rate sa cible', n_ecrivantes;
+  end if;
+  if n_defaillantes > 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.6 (b2) : % fonction(s) ecrivante(s) hors garde (definer, search_path, employee_id dicte, anon ou PUBLIC)', n_defaillantes;
+  end if;
+  if n_livrets <> 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.6 (b2) : % fonction(s) de la vague touche(nt) fdj_booklets — la Vague 1 ne devait pas y toucher', n_livrets;
+  end if;
+  raise notice 'P21.6 (b2) OK — % commandes ecrivent les mouvements, toutes sous garde ; aucune ne touche les livrets', n_ecrivantes;
+end $$;
+
+-- Le detail de toutes les fonctions apportees par la vague, ecrivantes ou non.
+select 'P21.6 (b2) detail' as preuve, p.proname,
+       case p.provolatile when 's' then 'stable' when 'i' then 'immutable' else 'volatile' end as volatilite,
+       p.prosrc ~ 'insert into public\.fdj_stock_movements' as ecrit_les_mouvements
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.oid not in (select oid from fonctions_avant)
 order by p.proname;
+
+-- (b3) L EXECUTION. Elle n est pas supposee : elle est jouee juste en dessous,
+--      sous identites simulees, avec ses refus et son idempotence, puis
+--      annulee avec le reste de la transaction.
+select 'P21.6 (b3)' as preuve,
+       'l execution controlee des deux commandes est mesuree en P21.7' as renvoi;
+
+\echo ''
+\echo '############################################################'
+\echo '#  P21.7 — EXECUTION CONTROLEE DES COMMANDES DE LA VAGUE    #'
+\echo '############################################################'
+-- Ce qui suit exerce reellement fdj_activer_carnet et
+-- fdj_enregistrer_mouvement_stock, sous jetons simules, avec les acteurs, les
+-- emplacements et les jeux synthetiques poses en SECTION 0. Aucune donnee
+-- reelle n est creee, et la transaction entiere est annulee a la fin du
+-- fichier.
+--
+-- Deux precautions de forme, dites plutot que tues :
+--   * les identifiants engendres par le serveur (mouvement_id, mouvement_ids)
+--     sont retires des resultats affiches par l operateur jsonb `-`. Ce sont
+--     des gen_random_uuid() : ils ne sont pas de forme fixture et n ont rien a
+--     faire dans la sortie publiee d un depot public. Rien n est retouche a la
+--     main pour autant : c est la requete qui ne les demande pas.
+--   * aucun emplacement synthetique de type « bloque » n existe ici. Les
+--     operations blocage et retour_bloque ne sont donc eprouvees que par leurs
+--     refus, pas par leur chemin nominal.
+
+-- ---------------------------------------------------------------------------
+-- (1) Activation par l employe, sur son propre quart.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims',
+                  '{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true)
+       is not null as identite_employe_a;
+set local role authenticated;
+
+select 'P21.7 (1)' as preuve,
+       public.fdj_activer_carnet(
+         '00000001-0000-4000-8000-000000000001',
+         '00000003-0000-4000-8000-000000000001',
+         3, 'quantite', 'jeton-p217-activation-employe') - 'mouvement_id'::text as resultat;
+
+-- (1 bis) Idempotence : le meme appel, le meme jeton, aucune ligne de plus.
+select 'P21.7 (1 bis)' as preuve,
+       public.fdj_activer_carnet(
+         '00000001-0000-4000-8000-000000000001',
+         '00000003-0000-4000-8000-000000000001',
+         3, 'quantite', 'jeton-p217-activation-employe') - 'mouvement_id'::text as resultat_du_rejeu;
+
+reset role;
+
+select 'P21.7 (1) controle' as preuve, m.type_mouvement, m.quantite, m.methode_identification,
+       (select username from public.employees where id = m.employee_id) as responsable_operationnel,
+       (select username from public.employees where id = m.created_by)  as auteur_de_la_saisie,
+       m.employee_id = m.created_by as l_employe_est_son_propre_auteur_attendu_t,
+       m.effective_at as date_d_effet_reprise_de_l_ouverture_du_quart,
+       m.source is null as source_laissee_vide_attendu_t
+from public.fdj_stock_movements m
+where m.shift_id = '00000001-0000-4000-8000-000000000001'
+  and m.created_by = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.fdj_stock_movements
+   where shift_id = '00000001-0000-4000-8000-000000000001'
+     and created_by = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1';
+  if n <> 1 then
+    raise exception 'ECHEC DE LA PREUVE P21.7 (1 bis) : % ligne(s) apres deux appels identiques — l idempotence ne tient pas', n;
+  end if;
+  raise notice 'P21.7 (1 bis) OK — deux appels au meme jeton, une seule ligne de mouvement';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- (2) Reconstitution manageriale sur le quart d un autre : le responsable
+--     reste l employe du quart, l auteur devient le manager.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims',
+                  '{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true)
+       is not null as identite_manager;
+set local role authenticated;
+
+select 'P21.7 (2)' as preuve,
+       public.fdj_activer_carnet(
+         '00000001-0000-4000-8000-000000000001',
+         '00000003-0000-4000-8000-000000000002',
+         2, 'reconstituee_correction_manager', 'jeton-p217-reconstitution-manager',
+         'Carnet active en fin de quart, saisi le lendemain par le manager') - 'mouvement_id'::text as resultat;
+
+-- (2 bis) La meme voie en negatif : une correction manageriale qui annule.
+select 'P21.7 (2 bis)' as preuve,
+       public.fdj_activer_carnet(
+         '00000001-0000-4000-8000-000000000001',
+         '00000003-0000-4000-8000-000000000002',
+         -2, 'reconstituee_correction_manager', 'jeton-p217-annulation-manager',
+         'Annulation de l activation reconstituee') - 'mouvement_id'::text as resultat_de_la_correction;
+
+-- (2 ter) La cle d idempotence n est pas forgeable. Le manager rejoue ici
+--         EXACTEMENT les parametres de l appel (1) — meme quart, meme jeu,
+--         meme methode, meme jeton — et obtient une ligne nouvelle, non un
+--         rejeu silencieux : auth.uid() entre dans le condensat. Sans cela,
+--         connaitre le jeton d autrui suffirait a etouffer son ecriture.
+select 'P21.7 (2 ter)' as preuve,
+       public.fdj_activer_carnet(
+         '00000001-0000-4000-8000-000000000001',
+         '00000003-0000-4000-8000-000000000001',
+         3, 'quantite', 'jeton-p217-activation-employe') - 'mouvement_id'::text as resultat_meme_jeton_autre_acteur;
+
+reset role;
+
+select 'P21.7 (2) controle' as preuve, m.type_mouvement, m.quantite, m.methode_identification,
+       (select username from public.employees where id = m.employee_id) as responsable_operationnel,
+       (select username from public.employees where id = m.created_by)  as auteur_de_la_saisie,
+       m.employee_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as responsable_reste_l_employe_du_quart_attendu_t,
+       m.created_by  = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as auteur_est_le_manager_attendu_t
+from public.fdj_stock_movements m
+where m.created_by = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3'
+  and m.methode_identification in ('quantite', 'reconstituee_correction_manager')
+order by m.methode_identification, m.quantite;
+
+do $$
+declare n_total int; n_auteurs int;
+begin
+  -- Le filtre de forme ecarte le mouvement d historique pose en SECTION 0, qui
+  -- porte lui aussi la methode `quantite` sur ce quart : on ne compte ici que
+  -- ce que les commandes ont ecrit.
+  select count(*), count(distinct created_by) into n_total, n_auteurs
+    from public.fdj_stock_movements
+   where shift_id = '00000001-0000-4000-8000-000000000001'
+     and methode_identification = 'quantite'
+     and id::text !~ '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-';
+  if n_total <> 2 or n_auteurs <> 2 then
+    raise exception 'ECHEC DE LA PREUVE P21.7 (2 ter) : % ligne(s) pour % auteur(s), deux et deux attendus — la cle d idempotence serait forgeable', n_total, n_auteurs;
+  end if;
+  raise notice 'P21.7 (2 ter) OK — le meme jeton joue par un autre acteur n etouffe pas l ecriture du premier';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- (3) Mouvement de gestion manager : reception au bureau, puis reapprovision-
+--     nement de la caisse. Hors quart : shift_id reste NULL.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims',
+                  '{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true)
+       is not null as identite_manager_gestion;
+set local role authenticated;
+
+select 'P21.7 (3)' as preuve,
+       public.fdj_enregistrer_mouvement_stock(
+         'reception',
+         '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":10},
+           {"game_id":"00000003-0000-4000-8000-000000000002","quantite":4}]'::jsonb,
+         'jeton-p217-reception', 'Livraison hebdomadaire (recette)', 'recette-vague1')
+       - 'mouvement_ids'::text as resultat_reception;
+
+-- (3 bis) Idempotence d un lot entier : deux lignes rejouees, zero ecriture.
+select 'P21.7 (3 bis)' as preuve,
+       public.fdj_enregistrer_mouvement_stock(
+         'reception',
+         '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":10},
+           {"game_id":"00000003-0000-4000-8000-000000000002","quantite":4}]'::jsonb,
+         'jeton-p217-reception', 'Livraison hebdomadaire (recette)', 'recette-vague1')
+       - 'mouvement_ids'::text as resultat_du_rejeu;
+
+-- (3 ter) Transfert bureau vers caisse.
+select 'P21.7 (3 ter)' as preuve,
+       public.fdj_enregistrer_mouvement_stock(
+         'reappro_caisse',
+         '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":6}]'::jsonb,
+         'jeton-p217-reappro', null, 'recette-vague1')
+       - 'mouvement_ids'::text as resultat_reappro;
+
+reset role;
+
+select 'P21.7 (3) controle' as preuve, m.type_mouvement, m.quantite, m.source,
+       (select l.nom from public.fdj_locations l where l.id = m.location_source_id)      as depuis,
+       (select l.nom from public.fdj_locations l where l.id = m.location_destination_id) as vers,
+       (select username from public.employees where id = m.employee_id) as responsable_operationnel,
+       (select username from public.employees where id = m.created_by)  as auteur_de_la_saisie,
+       m.shift_id is null as mouvement_hors_quart_attendu_t
+from public.fdj_stock_movements m
+where m.source = 'recette-vague1'
+order by m.type_mouvement, m.quantite desc;
+
+-- ---------------------------------------------------------------------------
+-- (4) Les refus. Chacun est encadre : si l appel passait, le `raise exception`
+--     de la ligne suivante porterait l errcode P0001, que le handler cible ne
+--     rattrape pas — la garde mord.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims',
+                  '{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true)
+       is not null as identite_employe_a_pour_les_refus;
+set local role authenticated;
+
+do $$
+declare v_msg text;
+begin
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000001',
+      '00000003-0000-4000-8000-000000000001', 1, 'reconstituee_correction_manager', 'jeton-p217-refus-a');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.1) : un employe a pu reconstituer une correction manageriale';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.1) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('reception',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":1}]'::jsonb, 'jeton-p217-refus-b');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.2) : un employe a pu enregistrer un mouvement de gestion';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.2) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000001',
+      '00000003-0000-4000-8000-000000000001', -1, 'quantite', 'jeton-p217-refus-c');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.3) : une quantite negative est passee hors correction manageriale';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.3) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000002',
+      '00000003-0000-4000-8000-000000000001', 1, 'quantite', 'jeton-p217-refus-d');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.4) : un employe a pu activer sur le quart d un collegue';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.4) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000001',
+      '00000003-0000-4000-8000-000000000001', 1, 'quantite', '   ');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.5) : un appel sans jeton a ete accepte';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.5) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000001',
+      '00000003-0000-4000-8000-000000000001', 0, 'quantite', 'jeton-p217-refus-f');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.6) : une activation de quantite nulle a ete acceptee';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.6) OK — refus attendu : %', v_msg;
+  end;
+end $$;
+
+reset role;
+
+select set_config('request.jwt.claims',
+                  '{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true)
+       is not null as identite_manager_pour_les_refus;
+set local role authenticated;
+
+do $$
+declare v_msg text;
+begin
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('inventaire_sauvage',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":1}]'::jsonb, 'jeton-p217-refus-g');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.7) : une operation inconnue a ete acceptee';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.7) OK — refus attendu : %', v_msg;
+  end;
+
+  -- 4.8 : l emplacement est volontairement valide, sinon c est la garde
+  -- d emplacement qui repondrait et le motif ne serait jamais examine.
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('blocage',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":1}]'::jsonb, 'jeton-p217-refus-h',
+      p_emplacement_source => 'bureau');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.8) : un blocage sans motif a ete accepte';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.8) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('blocage',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":1}]'::jsonb, 'jeton-p217-refus-i',
+      p_motif => 'Carnets abimes', p_emplacement_source => 'reserve');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.9) : un emplacement de blocage inconnu a ete accepte';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.9) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('reception',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":1}]'::jsonb, 'jeton-p217-refus-j',
+      p_effective_at => now() + interval '1 day');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.10) : une date d effet dans le futur a ete acceptee';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.10) OK — refus attendu : %', v_msg;
+  end;
+
+  begin
+    perform public.fdj_enregistrer_mouvement_stock('reception',
+      '[{"game_id":"00000003-0000-4000-8000-000000000001","quantite":0}]'::jsonb, 'jeton-p217-refus-k');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.11) : une ligne sans quantite positive a ete acceptee';
+  exception when invalid_parameter_value then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.11) OK — refus attendu : %', v_msg;
+  end;
+end $$;
+
+reset role;
+
+-- 4.12 : aucune session. Les claims sont poses SANS cle `sub`, ce qui rend
+-- auth.uid() NULL sans erreur de cast ; le role reste `authenticated`, de sorte
+-- que ce soit bien la garde de la commande qui reponde, et non un simple defaut
+-- de droit d execution.
+select set_config('request.jwt.claims', '{"role":"anon"}', true)
+       is not null as aucune_session_simulee;
+set local role authenticated;
+
+do $$
+declare v_msg text;
+begin
+  begin
+    perform public.fdj_activer_carnet('00000001-0000-4000-8000-000000000001',
+      '00000003-0000-4000-8000-000000000001', 1, 'quantite', 'jeton-p217-refus-l');
+    raise exception 'ECHEC DE LA PREUVE P21.7 (4.12) : une activation a ete acceptee sans session authentifiee';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_msg = message_text;
+    raise notice 'P21.7 (4.12) OK — refus attendu : %', v_msg;
+  end;
+end $$;
+
+reset role;
+select set_config('request.jwt.claims', '{}', true) is not null as identite_rendue;
+
+-- ---------------------------------------------------------------------------
+-- (5) Bilan de ce que les commandes ont ecrit. Le filtre porte sur la forme de
+--     l identifiant : les lignes posees a la main par la recette ont un id de
+--     forme fixture, celles ecrites par les commandes portent un
+--     gen_random_uuid(). Aucune liste tenue a la main.
+-- ---------------------------------------------------------------------------
+select 'P21.7 (5)' as bilan, m.type_mouvement, m.methode_identification,
+       count(*) as lignes, sum(m.quantite) as quantite_totale,
+       (select username from public.employees where id = m.employee_id) as responsable_operationnel,
+       (select username from public.employees where id = m.created_by)  as auteur_de_la_saisie
+from public.fdj_stock_movements m
+where m.id::text !~ '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-'
+group by m.type_mouvement, m.methode_identification, m.employee_id, m.created_by
+order by m.type_mouvement, m.methode_identification;
+
+do $$
+declare n_lignes int; n_dissocies int; n_incoherents int;
+begin
+  with ecrites as (
+    select m.employee_id, m.created_by, m.shift_id,
+           (select s.employee_id from public.fdj_shifts s where s.id = m.shift_id) as titulaire
+      from public.fdj_stock_movements m
+     where m.id::text !~ '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-'
+  )
+  select count(*),
+         count(*) filter (where employee_id is distinct from created_by),
+         count(*) filter (where shift_id is not null and employee_id is distinct from titulaire)
+    into n_lignes, n_dissocies, n_incoherents
+    from ecrites;
+
+  if n_lignes = 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.7 (5) : aucune ligne ecrite par les commandes — la preuve d execution est vide';
+  end if;
+  if n_dissocies = 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.7 (5) : aucune ligne ou l auteur differe du responsable — la dissociation n est pas eprouvee';
+  end if;
+  if n_incoherents > 0 then
+    raise exception 'ECHEC DE LA PREUVE P21.7 (5) : % ligne(s) rattachee(s) a un quart dont le responsable n est pas le titulaire', n_incoherents;
+  end if;
+  raise notice 'P21.7 (5) OK — % lignes ecrites par les commandes, dont % ou l auteur n est pas le responsable ; aucun rattachement de quart incoherent', n_lignes, n_dissocies;
+end $$;
+
+-- Et le journal : chaque ecriture a laisse une trace nominative.
+select 'P21.7 (6)' as preuve, a.action, count(*) as lignes_de_journal,
+       (select username from public.employees where id = a.acteur_id) as acteur
+from public.fdj_audit_log a
+group by a.action, a.acteur_id
+order by a.action;
 
 \echo ''
 \echo '############################################################'

@@ -10,7 +10,7 @@ part avec `supabase db push`, et rien ne doit être inscrit dans
 |---|---|
 | `20260917_preuves_cycle_caisse.sql` | les preuves **10 à 16** du mandat : le cycle de vie d'une caisse, de l'ouverture du quart à la validation |
 | `20260917_preuves_cycle_caisse.sortie.txt` | sa sortie réelle sur `nexus-test`, copiée brute — **jamais retouchée à la main** |
-| `20260917_preuves_livrets_et_historique.sql` | les preuves **§10.5 et §10.6** : livrets et mouvements, puis l'effet des migrations sur des données **préexistantes** |
+| `20260917_preuves_livrets_et_historique.sql` | les preuves **§10.5 et §10.6** : livrets et mouvements, l'effet des migrations sur des données **préexistantes**, et l'exécution contrôlée des commandes d'activation et de mouvement |
 | `20260917_preuves_livrets_et_historique.sortie.txt` | sa sortie réelle, code de sortie 0, copiée brute elle aussi |
 
 Les deux se jouent **en transaction annulée** et ne se chargent pas de la même
@@ -20,13 +20,21 @@ manière :
   migrations de la Phase A déjà chargées dans la même transaction, et se joue
   avec la commande d'assemblage ci-dessous ;
 * `…_livrets_et_historique.sql` est **auto-portant** : il ouvre lui-même la
-  transaction et charge **neuf** migrations par `\ir`, *au milieu* du fichier.
-  Neuf et non douze : il s'arrête à `20260916220800`, les trois dernières
-  — projection de progression, activations et mouvements, saisie managériale —
-  n'étant pas chargées. Sa mesure « aucune colonne ajoutée n'est remplie » ne
-  porte donc que sur ces neuf-là. C'est une limite de portée, pas un défaut de
-  ce qu'il affirme ; l'élargir obligerait à rejouer et à régénérer sa sortie.
-  Ce n'est pas une commodité, c'est le sujet même de la preuve : il fabrique
+  transaction et charge les **douze** migrations de la Phase A par `\ir`,
+  *au milieu* du fichier, de `20260916220000` à `20260916221100`. Il en a
+  longtemps chargé neuf, s'arrêtant à `20260916220800`. Ce n'était pas tenable :
+  `20260916221000` crée précisément les commandes serveur qui écrivent les
+  mouvements de stock, et une preuve qui ne les charge pas ne parle pas de la
+  Phase A finale — elle parle d'un état intermédiaire qui ne sera jamais
+  déployé. Les douze sont donc chargées, le fichier annonce la liste qu'il a
+  réellement jouée (bloc `PREREQUIS`), une garde `to_regprocedure` refuse de
+  poursuivre si les commandes manquent, et `P21.6` a été refondue en
+  conséquence : elle n'attend plus « zéro fonction qui touche les mouvements »,
+  elle distingue leur **installation** (qui n'écrit rien), leur **code** (qui
+  contient légitimement les écritures, sous garde) et leur **exécution
+  contrôlée**, mesurée en `P21.7` puis annulée.
+  Le chargement au milieu du fichier n'est pas une commodité, c'est le sujet
+  même de la preuve : il fabrique
   d'abord un historique (9 quarts, 8 caisses couvrant les huit statuts réels,
   5 mouvements), **puis** applique les migrations par-dessus, puis mesure ce
   qu'elles lui ont fait. On ne peut pas prouver qu'une migration respecte
