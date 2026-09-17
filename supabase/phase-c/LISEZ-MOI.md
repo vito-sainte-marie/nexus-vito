@@ -140,6 +140,29 @@ exception `42501`, tandis que la RLS se contente de masquer la ligne — **0
 ligne touchée, aucune erreur**. Écrire « on attend une exception » pour le
 second cas donne un test vert qui ne prouve rien.
 
+Les deux acteurs sont créés par le fichier de mutations lui-même et
+démontés avant la fin, dans la même transaction annulée. Le `rollback;`
+reste la garantie d'absence d'effet durable ; le démontage répond d'autre
+chose — que la recette sait défaire ce qu'elle a fait et n'a rien laissé
+essaimer hors des onze identifiants déclarés. Il ne connaît que ces onze
+UUID : il parcourt les clés étrangères mono-colonne de type `uuid` du
+schéma `public` et ne supprime que les lignes qui les portent, donc
+aucune ligne préexistante n'est atteignable.
+
+Un point mérite d'être lu avant d'être jugé : le démontage ouvre
+`nexus.fdj_journal_maintenance`. `fdj_caisse_evenements` est un journal
+immuable par trigger — ni UPDATE ni DELETE, propriétaire compris — et
+c'est le seul obstacle réel, y compris pour les lignes mères, puisque
+supprimer une caisse y cascaderait et que supprimer un employé y
+passerait un `set null`. La migration 20260916220200 prévoit elle-même
+ce mode de maintenance ; il est ouvert **après la treizième mutation**,
+en variable `local` à la transaction, et refermé aussitôt. Aucune
+mutation ne peut donc en profiter, et il meurt avec le `rollback`. Pour
+que cette ouverture ne puisse pas masquer un journal déjà sans garde, le
+démontage exige d'abord que le journal porte des traces des fixtures,
+**puis** qu'un DELETE hors maintenance soit refusé : les deux échouent
+bruyamment sinon.
+
 ## Retour arrière
 
 Il figure en fin de fichier, commenté, avec sa propre condition d'arrêt. Il

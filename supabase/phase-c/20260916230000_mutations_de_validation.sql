@@ -711,21 +711,35 @@ begin
 end $$;
 
 -- =====================================================================
--- DÉMONTAGE — toutes les lignes créées ici sont retirées avant la fin.
+-- DÉMONTAGE — les identités synthétiques et tout ce qu'elles ont produit
+-- sont retirés ici, avant la fin.
 --
 -- Le `rollback;` final reste la garantie : c'est lui qui répond de
 -- l'absence d'effet durable, et ce démontage ne s'y substitue pas. Il
 -- répond d'autre chose — que la recette sait défaire ce qu'elle a fait,
--- et qu'elle n'a rien laissé essaimer hors des identifiants déclarés.
--- Il échouerait bruyamment sinon.
+-- et qu'elle n'a rien laissé essaimer hors des onze identifiants
+-- déclarés. Il échouerait bruyamment sinon.
 --
--- La boucle ne connaît que les onze UUID de fixture. Elle parcourt les
--- clés étrangères mono-colonne de type `uuid` du schéma `public` et ne
--- supprime que les lignes dont la valeur appartient à cette liste :
--- aucune ligne préexistante ne peut être atteinte, puisque aucune ne
--- porte ces valeurs. Plusieurs passes, car les dépendances sont
--- chaînées (carnet → mouvement → quart → employé) et parce que
+-- La boucle ne connaît que ces onze UUID. Elle parcourt les clés
+-- étrangères mono-colonne de type `uuid` du schéma `public` et ne
+-- supprime que les lignes dont la valeur appartient à la liste : aucune
+-- ligne préexistante ne peut être atteinte, puisque aucune ne porte ces
+-- valeurs. Plusieurs passes, car les dépendances sont chaînées
+-- (carnet → mouvement → quart → employé) et parce que
 -- `fdj_shifts.previous_shift_id` référence sa propre table.
+--
+-- LE JOURNAL DE CAISSE. `fdj_caisse_evenements` est immuable par
+-- trigger : ni UPDATE ni DELETE, pour personne, propriétaire compris.
+-- C'est voulu, et c'est le seul obstacle réel au démontage — il touche
+-- aussi les lignes mères, puisque supprimer une caisse y cascaderait et
+-- que supprimer un employé y passerait un `set null`. La migration
+-- 20260916220200 prévoit pour cela un mode de maintenance explicite,
+-- `nexus.fdj_journal_maintenance` ; on l'ouvre ICI et nulle part
+-- ailleurs, après la treizième mutation, en variable LOCALE à la
+-- transaction — elle meurt donc avec elle, et aucune mutation n'a pu en
+-- profiter. On vérifie d'abord que le journal refuse bien de s'effacer
+-- sans elle : sinon le démontage aurait « réussi » sur un journal déjà
+-- sans garde, et n'aurait rien mesuré.
 -- =====================================================================
 do $$
 declare
@@ -743,18 +757,43 @@ declare
     '99999999-9999-4999-8999-999999999999'   -- emplacement de caisse
   ]::uuid[];
   v_avant    bigint;
+  v_journal  bigint;
+  v_effacee  boolean := false;
   v_passe    integer := 0;
   v_tour     bigint;
   v_lignes   bigint;
   v_total    bigint := 0;
-  v_restant  bigint := 0;
   r          record;
 begin
   select count(*) into v_avant
     from public.employees where id = any(v_fixtures);
   if v_avant <> 2 then
-    raise exception 'DÉMONTAGE ÉCHOUE — % employé(s) synthétique(s) présent(s) au lieu de 2 : les mutations n''ont pas joué sur les identités attendues.', v_avant;
+    raise exception 'DÉMONTAGE ÉCHOUE — % employé(s) synthétique(s) au lieu de 2 : les mutations n''ont pas joué sur les identités attendues.', v_avant;
   end if;
+
+  -- Le journal doit contenir les traces des commandes de M9 et M12, et
+  -- il doit refuser de les rendre. Les deux points comptent : un journal
+  -- vide se laisserait effacer sans rien prouver.
+  select count(*) into v_journal
+    from public.fdj_caisse_evenements
+   where cash_control_id = any(v_fixtures) or shift_id = any(v_fixtures)
+      or auteur_id = any(v_fixtures) or employe_responsable_id = any(v_fixtures);
+  if v_journal = 0 then
+    raise exception 'DÉMONTAGE ÉCHOUE — le journal de caisse ne porte aucune trace des fixtures : les commandes de M9 et M12 n''ont donc rien journalisé.';
+  end if;
+
+  begin
+    delete from public.fdj_caisse_evenements where auteur_id = any(v_fixtures);
+    v_effacee := true;
+  exception when others then
+    if position('immuable' in sqlerrm) = 0 then raise; end if;
+  end;
+  if v_effacee then
+    raise exception 'DÉMONTAGE ÉCHOUE — le journal de caisse s''est laissé effacer hors maintenance : son immuabilité ne tient plus.';
+  end if;
+
+  -- Mode de maintenance, local à la transaction annulée.
+  perform set_config('nexus.fdj_journal_maintenance', 'true', true);
 
   loop
     v_passe := v_passe + 1;
@@ -783,13 +822,15 @@ begin
     end if;
   end loop;
 
-  -- Les quatre tables où la fixture EST la ligne mère : leur `id` est une
+  -- Les cinq tables où la fixture EST la ligne mère : leur `id` est une
   -- clé primaire, jamais une clé étrangère, donc la boucle ne les voit pas.
   delete from public.fdj_cash_controls where id = any(v_fixtures);
   delete from public.fdj_shifts         where id = any(v_fixtures);
   delete from public.fdj_games          where id = any(v_fixtures);
   delete from public.fdj_locations      where id = any(v_fixtures);
   delete from public.employees          where id = any(v_fixtures);
+
+  perform set_config('nexus.fdj_journal_maintenance', 'false', true);
 
   -- Contrôle de sortie : plus une seule référence, nulle part.
   for r in
@@ -807,20 +848,27 @@ begin
     execute format('select count(*) from public.%I where %I = any($1)', r.table_nom, r.colonne)
       into v_lignes using v_fixtures;
     if v_lignes <> 0 then
-      raise exception 'DÉMONTAGE ÉCHOUE — % ligne(s) de fixture subsistent dans public.%.%', v_lignes, r.table_nom, r.colonne;
+      raise exception 'DÉMONTAGE ÉCHOUE — % ligne(s) de fixture subsistent dans public.%(%)', v_lignes, r.table_nom, r.colonne;
     end if;
   end loop;
 
-  select count(*) into v_restant
-    from public.employees where id = any(v_fixtures);
-  if v_restant <> 0 then
-    raise exception 'DÉMONTAGE ÉCHOUE — % identité(s) synthétique(s) subsistent.', v_restant;
+  select count(*) into v_lignes from public.employees where id = any(v_fixtures);
+  if v_lignes <> 0 then
+    raise exception 'DÉMONTAGE ÉCHOUE — % identité(s) synthétique(s) subsistent.', v_lignes;
+  end if;
+  select count(*) into v_lignes from public.fdj_shifts where id = any(v_fixtures);
+  if v_lignes <> 0 then
+    raise exception 'DÉMONTAGE ÉCHOUE — % quart(s) de fixture subsistent.', v_lignes;
+  end if;
+
+  if coalesce(current_setting('nexus.fdj_journal_maintenance', true), 'false') = 'true' then
+    raise exception 'DÉMONTAGE ÉCHOUE — le mode de maintenance du journal est resté ouvert.';
   end if;
 
   if v_total = 0 then
-    raise exception 'DÉMONTAGE SUSPECT — aucune ligne supprimée : les fixtures n''avaient donc rien produit.';
+    raise exception 'DÉMONTAGE SUSPECT — aucune ligne dépendante supprimée : les fixtures n''avaient donc rien produit.';
   end if;
-  raise notice 'DÉMONTAGE — % ligne(s) dépendante(s) retirée(s) en % passe(s), 0 fixture restante.', v_total, v_passe;
+  raise notice 'DÉMONTAGE — % ligne(s) dépendante(s) retirée(s) en % passe(s), dont % du journal de caisse ; 0 fixture restante, journal re-scellé.', v_total, v_passe, v_journal;
 end $$;
 
 do $$ begin raise notice '===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU ====='; end $$;
