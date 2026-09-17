@@ -85,12 +85,18 @@ NB_DIFF=$(diff "$CORPS" "$TRAVAIL/corps.sql" | grep -c '^[<>]' || true)
 [ "$NB_DIFF" = 4 ] || { echo "REFUS — $NB_DIFF lignes de diff au lieu de 4 : autre chose que le begin/commit a bougé." >&2; exit 2; }
 echo "------------------------------------------------------------"
 
-# Les neuf migrations de la Phase A sont les prérequis du corps (condition
+# Les douze migrations de la Phase A sont les prérequis du corps (condition
 # C1). Sur une base qui ne les a pas encore, on les charge DANS la même
 # transaction annulée : le corps est alors joué sur le schéma qu'il attend,
 # et rien ne subsiste.
+#
+# Le motif est `2026091622*` et non `20260916220*` : les deux dernières
+# migrations (`…221000`, commandes d'activation et de mouvement, et
+# `…221100`, commande de saisie managériale) sortaient de la seconde forme
+# sans que rien ne le signale — un glob trop étroit ne se plaint pas, il
+# charge moins.
 : > "$TRAVAIL/prerequis.sql"
-for f in "$MIGRATIONS"/20260916220*.sql; do
+for f in "$MIGRATIONS"/2026091622*.sql; do
   printf '\\ir %s\n' "$f" >> "$TRAVAIL/prerequis.sql"
 done
 

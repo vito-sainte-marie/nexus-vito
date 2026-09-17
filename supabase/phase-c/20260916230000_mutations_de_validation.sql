@@ -14,7 +14,7 @@
 --   psql "<url directe de Test>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
 --
 -- Résultat attendu, et lui seul :
---   ===== LES DIX MUTATIONS ONT LE COMPORTEMENT ATTENDU =====
+--   ===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU =====
 --   ROLLBACK
 --
 -- Les UUID ci-dessous sont ceux d'employés de **Test**. Sur un autre
@@ -61,6 +61,26 @@ insert into public.fdj_cash_controls (id, site, shift_id, caisse_attendue, caiss
 values ('44444444-4444-4444-8444-444444444444', :'SITE',
         '22222222-2222-4222-8222-222222222222', 300, 300, 0, 'provisoire');
 
+-- Un quart CLÔTURÉ de l'employé, avec sa caisse validée et le commentaire
+-- interne du manager : c'est le cobaye de la contre-épreuve M4 bis. La
+-- projection `fdj_ma_progression_caisse()` ne rend que les quarts
+-- `valide` (cahier FDJ-26), les trois quarts `brouillon` ci-dessus lui
+-- sont donc invisibles — sans celui-ci, M4 bis serait vert pour la
+-- mauvaise raison : une sortie vide ne prouve aucune fermeture.
+insert into public.fdj_shifts (id, site, date, quart, employee_id, statut, ouvert_le, valide_le)
+values ('66666666-6666-4666-8666-666666666666', :'SITE', '2026-09-16', '1',
+        :'EMPLOYE', 'valide', now(), now());
+
+insert into public.fdj_cash_controls
+  (id, site, shift_id, caisse_attendue, caisse_reelle, caisse_reelle_origine,
+   ecart, ecart_origine, motif_ecart, statut, motif_ecart_texte,
+   resultat_controle, valide_par, valide_le)
+values ('77777777-7777-4777-8777-777777777777', :'SITE',
+        '66666666-6666-4666-8666-666666666666', 500, 499, 497.50,
+        -1, -2.50, 'erreur_monnaie', 'valide_avec_ecart',
+        'MOTIF INTERNE MANAGER — ne doit jamais sortir par la projection',
+        'a_regulariser', :'MANAGER', now());
+
 -- Un troisième quart, volontairement SANS caisse : fdj_cash_controls
 -- porte un unique sur shift_id (une caisse par quart), donc la
 -- contre-épreuve « le manager peut encore créer une caisse » a besoin
@@ -68,6 +88,36 @@ values ('44444444-4444-4444-8444-444444444444', :'SITE',
 insert into public.fdj_shifts (id, site, date, quart, employee_id, statut, ouvert_le)
 values ('55555555-5555-4555-8555-555555555555', :'SITE', '2026-09-18', '1',
         :'EMPLOYE', 'brouillon', now());
+
+-- Un jeu et un emplacement de caisse : `fdj_activer_carnet` exige un
+-- `game_id` réel (clé étrangère) et résout son emplacement par
+-- `fdj_emplacement_du_site(site, 'caisse')`. Sans eux, M11 bis
+-- échouerait sur une contrainte, pas sur la garde que l'on mesure.
+insert into public.fdj_games (id, site, nom, prix, tickets_par_carnet)
+values ('88888888-8888-4888-8888-888888888888', :'SITE', 'JEU DE RECETTE M11', 5, 30);
+
+insert into public.fdj_locations (id, site, nom, type)
+values ('99999999-9999-4999-8999-999999999999', :'SITE', 'Caisse de recette', 'caisse');
+
+-- Les DEUX rapports du quart 5555 : `fdj_calculer_caisse` rend un écart
+-- NULL tant que `journalier` ET `temps_reel` ne sont pas tous deux
+-- présents, et `fdj_saisir_caisse_manager` répondrait alors
+-- `{saisi:false, motif:'saisie_incomplete'}`. La contre-épreuve M9
+-- serait verte pour la mauvaise raison : elle n'aurait rien saisi.
+-- Sans comptage de jeu, ventes = 0 ; attendue = (0 - 40) + 290 + 0 = 250.
+insert into public.fdj_reports (site, shift_id, type_rapport, lots_payes_grattage)
+values (:'SITE', '55555555-5555-4555-8555-555555555555', 'journalier', 40);
+
+insert into public.fdj_reports (site, shift_id, type_rapport, caisse_tirages)
+values (:'SITE', '55555555-5555-4555-8555-555555555555', 'temps_reel', 290);
+
+-- La caisse du quart 1111 est CONFIRMÉE par l'employé : sans cela,
+-- `fdj_ouvrir_controle_caisse` et `fdj_valider_caisse` rendent
+-- `{..., motif:'caisse_non_confirmee'}` sans lever d'exception — encore
+-- une contre-épreuve verte qui n'aurait rien contrôlé.
+update public.fdj_cash_controls
+   set confirme_le = now(), confirme_par = :'EMPLOYE'
+ where id = '33333333-3333-4333-8333-333333333333';
 
 -- =====================================================================
 -- M1 — L'employé ne peut plus INSÉRER une caisse en direct.
@@ -150,8 +200,17 @@ begin
 end $$;
 
 -- =====================================================================
--- M4 — L'employé ne peut plus LIRE les caisses de ses collègues.
---      AVANT la Phase C, il lisait tout le site. C'est le gain net.
+-- M4 — L'employé ne LIT plus fdj_cash_controls du tout, en direct.
+--      AVANT la Phase C il lisait tout le site (mesuré le 17/09/2026 sur
+--      nexus-test : deux caisses lues, dont une d'un collègue, avec
+--      motif_ecart_texte en clair). APRÈS, ni celle du collègue, ni la
+--      sienne. C'est la RLS : 0 ligne, AUCUNE erreur.
+--
+--      Cette mutation attendait auparavant `v_miennes = 1`, parce que
+--      « Ma Progression » lisait la table par jointure. L'écran passe
+--      désormais par la projection serveur (20260916220900) : la
+--      condition s'inverse, et M4 bis vérifie qu'on n'a pas seulement
+--      cassé l'écran.
 -- =====================================================================
 do $$
 declare v_miennes integer; v_autres integer;
@@ -167,10 +226,42 @@ begin
   if v_autres <> 0 then
     raise exception 'M4 ÉCHOUE — l''employé lit encore la caisse d''un collègue.';
   end if;
-  if v_miennes <> 1 then
-    raise exception 'M4 ÉCHOUE — l''employé ne lit plus sa PROPRE caisse : Ma Progression serait vidée en silence.';
+  if v_miennes <> 0 then
+    raise exception 'M4 ÉCHOUE — la lecture directe de fdj_cash_controls reste ouverte à l''employé (% ligne(s)) : les colonnes du manager repassent dans sa réponse réseau.', v_miennes;
   end if;
-  raise notice 'M4 PASSE — l''employé lit sa caisse (1) et plus celle du collègue (0).';
+  raise notice 'M4 PASSE — lecture directe fermée : 0 pour sa caisse, 0 pour celle du collègue.';
+end $$;
+
+-- =====================================================================
+-- M4 bis — contre-épreuve : « Ma Progression » n'est pas vidée pour
+--      autant, et ce qu'elle rend ne contient AUCUN champ manager.
+--      Une fermeture qui casse l'écran serait, elle aussi, verte à M4.
+-- =====================================================================
+do $$
+declare v_lignes integer; v_dump text; v_ecart numeric; v_ecart_origine numeric;
+begin
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+  select count(*), coalesce(string_agg(to_jsonb(p)::text, ' '), '')
+    into v_lignes, v_dump
+    from public.fdj_ma_progression_caisse() p;
+  select p.ecart, p.ecart_origine into v_ecart, v_ecart_origine
+    from public.fdj_ma_progression_caisse() p
+   where p.shift_id = '66666666-6666-4666-8666-666666666666';
+  execute 'reset role';
+  if v_lignes <> 1 then
+    raise exception 'M4 bis ÉCHOUE — la projection rend % ligne(s) au lieu de 1 : Ma Progression est vidée en silence.', v_lignes;
+  end if;
+  if v_dump like '%MOTIF INTERNE MANAGER%'
+     or v_dump like '%a_regulariser%'
+     or v_dump like '%28810f30-8182-4126-920f-051a4c7cb596%' then
+    raise exception 'M4 bis ÉCHOUE — la projection transporte un champ réservé au manager (commentaire, verdict ou identité du contrôleur).';
+  end if;
+  if v_ecart is distinct from -1 or v_ecart_origine is distinct from -2.50 then
+    raise exception 'M4 bis ÉCHOUE — écart définitif (%) ou provisoire (%) perdu : l''employé doit voir les deux.', v_ecart, v_ecart_origine;
+  end if;
+  raise notice 'M4 bis PASSE — 1 quart rendu, écarts -2.50 puis -1.00, aucun champ manager.';
 end $$;
 
 -- =====================================================================
@@ -286,41 +377,69 @@ begin
 end $$;
 
 -- =====================================================================
--- M9 — Le MANAGER, lui, continue de tout faire : contrôler, valider,
---      réattribuer. La fermeture ne doit pas casser l'écran qui valide.
+-- M9 — Le MANAGER continue de tout faire, mais PAR LES COMMANDES.
+--      La fermeture ne doit pas casser l'écran qui contrôle et valide ;
+--      elle doit en revanche l'obliger à passer par le cycle prévu.
+--
+--      L'ancienne version de cette mutation écrivait en direct dans
+--      `fdj_cash_controls` et réattribuait un quart par un `update` de
+--      colonne. Les deux gestes sont désormais fermés (M12, M13) : les
+--      y laisser aurait rendu M9 rouge, et la corriger en abaissant la
+--      Phase C aurait été l'inverse du travail demandé.
 -- =====================================================================
 do $$
-declare v_lignes integer;
+declare
+  v_lignes  integer;
+  v_ouvert  jsonb;
+  v_valide  jsonb;
+  v_saisi   jsonb;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
     '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
 
-  update public.fdj_cash_controls
-     set statut = 'conforme', valide_par = '28810f30-8182-4126-920f-051a4c7cb596',
-         valide_le = now(), resultat_controle = 'avec_ecart',
-         motif_ecart_texte = 'contrôle manager'
-   where id = '33333333-3333-4333-8333-333333333333';
-  get diagnostics v_lignes = row_count;
-  if v_lignes <> 1 then
-    raise exception 'M9 ÉCHOUE — le manager ne peut plus valider une caisse (% ligne).', v_lignes;
+  -- 1. Prise en contrôle de la caisse confirmée par l'employé.
+  v_ouvert := public.fdj_ouvrir_controle_caisse('11111111-1111-4111-8111-111111111111');
+  if coalesce((v_ouvert->>'controle_ouvert')::boolean, false) is not true then
+    raise exception 'M9 ÉCHOUE — le manager ne peut plus prendre une caisse en contrôle : %', v_ouvert;
   end if;
 
-  update public.fdj_shifts set employee_id = '755a2dc5-3390-4a29-a865-847cbebc1133'
-   where id = '11111111-1111-4111-8111-111111111111';
-  get diagnostics v_lignes = row_count;
-  if v_lignes <> 1 then
-    raise exception 'M9 ÉCHOUE — le manager ne peut plus réattribuer un quart (% ligne).', v_lignes;
+  -- 2. Validation avec écart : motif interne ET motif d'écart énuméré.
+  v_valide := public.fdj_valider_caisse(
+    '11111111-1111-4111-8111-111111111111',
+    'avec_ecart',
+    'écart de 5 € constaté au recomptage',
+    'erreur_comptage');
+  if coalesce((v_valide->>'valide')::boolean, false) is not true then
+    raise exception 'M9 ÉCHOUE — le manager ne peut plus valider une caisse : %', v_valide;
   end if;
 
-  insert into public.fdj_cash_controls (site, shift_id, caisse_attendue, statut)
-  values ('nexus-station-test', '55555555-5555-4555-8555-555555555555', 10, 'provisoire');
+  -- 3. Saisie managériale sur un quart sans caisse (feuille rendue en
+  --    retard, employé absent). Les deux rapports du quart 5555 sont
+  --    en fixture : sans eux, l'écart serait NULL et la commande
+  --    répondrait `saisie_incomplete` — vert sans rien avoir saisi.
+  v_saisi := public.fdj_saisir_caisse_manager(
+    '55555555-5555-4555-8555-555555555555',
+    250,
+    'feuille rendue en retard, saisie par le manager',
+    0,
+    'conforme');
+  if coalesce((v_saisi->>'saisi')::boolean, false) is not true then
+    raise exception 'M9 ÉCHOUE — le manager ne peut plus saisir une caisse : %', v_saisi;
+  end if;
 
-  insert into public.fdj_reports (site, shift_id, type_rapport)
-  values ('nexus-station-test', '55555555-5555-4555-8555-555555555555', 'journalier');
+  -- 4. Le seul geste direct qui reste légitime au manager : déposer un
+  --    rapport FDJ. `fdj_reports` n'est pas dans le périmètre fermé par
+  --    la Phase C, et l'écran manager l'écrit toujours en direct.
+  insert into public.fdj_reports (site, shift_id, type_rapport, lots_payes_grattage)
+  values ('nexus-station-test', '11111111-1111-4111-8111-111111111111', 'journalier', 120);
+  get diagnostics v_lignes = row_count;
+  if v_lignes <> 1 then
+    raise exception 'M9 ÉCHOUE — le manager ne peut plus déposer un rapport (% ligne).', v_lignes;
+  end if;
 
   execute 'reset role';
-  raise notice 'M9 PASSE — le manager valide, réattribue, crée une caisse et un report.';
+  raise notice 'M9 PASSE — le manager contrôle, valide, saisit une feuille et dépose un rapport.';
 end $$;
 
 -- =====================================================================
@@ -344,4 +463,219 @@ begin
   end if;
 end $$;
 
-do $$ begin raise notice '===== LES DIX MUTATIONS ONT LE COMPORTEMENT ATTENDU ====='; end $$;
+-- =====================================================================
+-- M11 — L'employé ne peut plus écrire un mouvement de stock en direct,
+--       et surtout pas en imputant le mouvement à un collègue.
+--       Refus attendu : exception 42501 (aucune politique INSERT).
+-- =====================================================================
+do $$
+declare v_passee boolean := false;
+begin
+  begin
+    execute 'set local role authenticated';
+    perform set_config('request.jwt.claims',
+      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    -- `employee_id` forgé sur le manager : c'est très exactement ce que
+    -- le front savait faire avant cette vague.
+    insert into public.fdj_stock_movements
+      (site, game_id, shift_id, type_mouvement, quantite, employee_id, created_by)
+    values ('nexus-station-test', '88888888-8888-4888-8888-888888888888',
+            '11111111-1111-4111-8111-111111111111', 'activation', 1,
+            '28810f30-8182-4126-920f-051a4c7cb596',
+            '28810f30-8182-4126-920f-051a4c7cb596');
+    v_passee := true;
+  exception
+    when insufficient_privilege then raise notice 'M11 PASSE — refus RLS : %', sqlerrm;
+    when others then raise notice 'M11 PASSE — refus (%) : %', sqlstate, sqlerrm;
+  end;
+  execute 'reset role';
+  if v_passee then
+    raise exception 'M11 ÉCHOUE — un employé écrit encore un mouvement de stock en direct, au nom d''un collègue.';
+  end if;
+end $$;
+
+-- =====================================================================
+-- M11 bis — CONTRE-ÉPREUVE, et cœur du point 3 du mandat.
+--       La même activation, par la commande serveur, passe — et
+--       l'attribution est décidée par le SERVEUR :
+--         · `employee_id`  = le titulaire du quart, toujours ;
+--         · `created_by`   = l'appelant, employé OU manager.
+--       Quand le manager saisit la feuille à la place de l'employé,
+--       l'employé reste le responsable opérationnel et le manager
+--       n'apparaît que comme auteur de la saisie.
+-- =====================================================================
+do $$
+declare
+  v_employe   jsonb;
+  v_manager   jsonb;
+  v_par_emp   integer;
+  v_par_mgr   integer;
+  v_usurpes   integer;
+begin
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+  v_employe := public.fdj_activer_carnet(
+    '11111111-1111-4111-8111-111111111111',
+    '88888888-8888-4888-8888-888888888888',
+    1, 'quantite', 'jeton-recette-m11bis-employe');
+  if coalesce((v_employe->>'enregistre')::boolean, false) is not true then
+    raise exception 'M11 bis ÉCHOUE — l''employé ne peut plus activer un carnet : %', v_employe;
+  end if;
+
+  perform set_config('request.jwt.claims',
+    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+  v_manager := public.fdj_activer_carnet(
+    '11111111-1111-4111-8111-111111111111',
+    '88888888-8888-4888-8888-888888888888',
+    1, 'quantite', 'jeton-recette-m11bis-manager');
+  if coalesce((v_manager->>'enregistre')::boolean, false) is not true then
+    raise exception 'M11 bis ÉCHOUE — le manager ne peut plus activer un carnet : %', v_manager;
+  end if;
+
+  execute 'reset role';
+
+  select count(*) filter (where m.created_by = '868d0b92-bf65-4c99-be43-656911919afd'
+                            and m.employee_id = '868d0b92-bf65-4c99-be43-656911919afd'),
+         count(*) filter (where m.created_by = '28810f30-8182-4126-920f-051a4c7cb596'
+                            and m.employee_id = '868d0b92-bf65-4c99-be43-656911919afd'),
+         count(*) filter (where m.employee_id <> '868d0b92-bf65-4c99-be43-656911919afd')
+    into v_par_emp, v_par_mgr, v_usurpes
+    from public.fdj_stock_movements m
+   where m.shift_id = '11111111-1111-4111-8111-111111111111';
+
+  if v_par_emp <> 1 then
+    raise exception 'M11 bis ÉCHOUE — activation de l''employé mal attribuée (% ligne).', v_par_emp;
+  end if;
+  if v_par_mgr <> 1 then
+    raise exception 'M11 bis ÉCHOUE — saisie du manager : employee_id doit rester l''employé opérationnel et created_by devenir le manager (% ligne).', v_par_mgr;
+  end if;
+  if v_usurpes <> 0 then
+    raise exception 'M11 bis ÉCHOUE — % mouvement(s) imputé(s) à quelqu''un d''autre que le titulaire du quart.', v_usurpes;
+  end if;
+
+  raise notice 'M11 bis PASSE — employee_id vient du quart, created_by de auth.uid(), y compris en saisie manager.';
+end $$;
+
+-- =====================================================================
+-- M12 — Le manager ne réattribue plus un quart par un `update` de
+--       colonne : changer de titulaire est un TRANSFERT DE
+--       RESPONSABILITÉ, qui exige un motif et laisse une trace.
+--       Refus attendu : exception 42501 (trigger fdj_shifts_garde_colonnes).
+-- =====================================================================
+do $$
+declare
+  v_passee    boolean := false;
+  v_court     boolean := false;
+  v_transfert jsonb;
+  v_journal   integer;
+  v_titulaire uuid;
+begin
+  begin
+    execute 'set local role authenticated';
+    perform set_config('request.jwt.claims',
+      '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    update public.fdj_shifts
+       set employee_id = '28810f30-8182-4126-920f-051a4c7cb596'
+     where id = '55555555-5555-4555-8555-555555555555';
+    v_passee := true;
+  exception
+    when insufficient_privilege then raise notice 'M12 PASSE — refus du trigger : %', sqlerrm;
+    when others then raise notice 'M12 PASSE — refus (%) : %', sqlstate, sqlerrm;
+  end;
+  if v_passee then
+    execute 'reset role';
+    raise exception 'M12 ÉCHOUE — un quart change encore de titulaire par une écriture de colonne, sans motif ni trace.';
+  end if;
+
+  -- Rattraper une exception annule la sous-transaction du sous-bloc, et
+  -- avec elle le `set local role` et le `set_config(..., true)` qui y
+  -- ont été posés. Sans ces deux lignes, la suite tournerait sous le
+  -- rôle du script : `auth.uid()` serait nul et la commande refuserait
+  -- pour la mauvaise raison.
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+
+  -- Le motif n'est pas décoratif : la commande le refuse s'il est vide
+  -- ou trop court. Sans ce sous-contrôle, « exiger un motif » ne serait
+  -- qu'une intention écrite dans un commentaire.
+  begin
+    v_transfert := public.fdj_transferer_responsabilite_quart(
+      '55555555-5555-4555-8555-555555555555',
+      '28810f30-8182-4126-920f-051a4c7cb596',
+      '  ');
+    v_court := true;
+  exception
+    when invalid_parameter_value then raise notice 'M12 PASSE — transfert sans motif refusé : %', sqlerrm;
+  end;
+  if v_court then
+    execute 'reset role';
+    raise exception 'M12 ÉCHOUE — un transfert de responsabilité passe sans motif.';
+  end if;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+
+  -- CONTRE-ÉPREUVE : le geste légitime, lui, aboutit et se journalise.
+  v_transfert := public.fdj_transferer_responsabilite_quart(
+    '55555555-5555-4555-8555-555555555555',
+    '28810f30-8182-4126-920f-051a4c7cb596',
+    'passation de poste 14h — employé parti en pause longue');
+  if coalesce((v_transfert->>'transfere')::boolean, false) is not true then
+    execute 'reset role';
+    raise exception 'M12 ÉCHOUE — la commande de transfert ne transfère plus : %', v_transfert;
+  end if;
+
+  execute 'reset role';
+
+  select s.employee_id into v_titulaire
+    from public.fdj_shifts s where s.id = '55555555-5555-4555-8555-555555555555';
+  if v_titulaire <> '28810f30-8182-4126-920f-051a4c7cb596' then
+    raise exception 'M12 ÉCHOUE — le titulaire n''a pas changé après le transfert (%).', v_titulaire;
+  end if;
+
+  select count(*) into v_journal
+    from public.fdj_audit_log a
+   where a.shift_id = '55555555-5555-4555-8555-555555555555'
+     and a.action = 'fdj_quart_responsabilite_transferee';
+  if v_journal < 1 then
+    raise exception 'M12 ÉCHOUE — le transfert ne produit aucun événement de journal.';
+  end if;
+
+  raise notice 'M12 PASSE — écriture directe refusée, transfert motivé accepté et journalisé.';
+end $$;
+
+-- =====================================================================
+-- M13 — Le manager non plus n'écrit dans `fdj_cash_controls` en direct.
+--       Refus attendu : PAS d'exception. Les politiques UPDATE ont été
+--       supprimées et seules des politiques SELECT subsistent : une
+--       politique de lecture n'autorise pas un UPDATE, la ligne est
+--       simplement hors de portée. Attendre une exception ici serait un
+--       test qui ne mord pas — il serait vert le jour où quelqu'un
+--       remettrait une politique UPDATE permissive.
+-- =====================================================================
+do $$
+declare v_lignes integer;
+begin
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+
+  update public.fdj_cash_controls
+     set resultat_controle = 'conforme',
+         valide_par = '28810f30-8182-4126-920f-051a4c7cb596',
+         valide_le = now(),
+         motif_ecart_texte = 'contournement de la commande de validation'
+   where id = '44444444-4444-4444-8444-444444444444';
+  get diagnostics v_lignes = row_count;
+
+  execute 'reset role';
+  if v_lignes <> 0 then
+    raise exception 'M13 ÉCHOUE — le manager valide encore une caisse par un update direct (% ligne), sans événement ni journal.', v_lignes;
+  end if;
+  raise notice 'M13 PASSE — update direct du manager sans effet : 0 ligne, aucune erreur.';
+end $$;
+
+do $$ begin raise notice '===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU ====='; end $$;

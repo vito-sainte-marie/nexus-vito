@@ -14,7 +14,7 @@
 // La relecture de la Vague 1 a d'ailleurs cru y voir un `end if;` surnuméraire
 // vers la ligne 500. Le fichier a été REJOUÉ en entier sur `nexus-test` dans
 // une transaction annulée (recette `supabase/phase-c/recette-test.sh`) : il
-// s'exécute intégralement et ses cinq contrôles internes passent. La syntaxe
+// s'exécute intégralement et ses huit contrôles internes passent. La syntaxe
 // n'était pas en cause. Ce qui manquait, c'était le moyen de le savoir sans
 // base de données — ce fichier-ci.
 //
@@ -58,13 +58,13 @@ for (const f of fichiersPhaseC) {
 }
 console.log(`OK — les ${fichiersPhaseC.length} fichiers de supabase/phase-c/ s'analysent.`);
 
-// Les neuf migrations de la Vague 1 sont les prérequis du script (condition C1
+// Les douze migrations de la Vague 1 sont les prérequis du script (condition C1
 // de son en-tête) : elles doivent passer sur le même pied.
 const dossierMigrations = __dirname + '/supabase/migrations/';
 const vague1 = fs.readdirSync(dossierMigrations)
   .filter(f => /^202609162208?\d\d_fdj_/.test(f) || /^2026091622\d{4}_fdj_/.test(f)).sort();
-assert.ok(vague1.length >= 9,
-  `Les neuf migrations de la Vague 1 doivent être trouvées (trouvées : ${vague1.length}).`);
+assert.ok(vague1.length >= 12,
+  `Les douze migrations de la Vague 1 doivent être trouvées (trouvées : ${vague1.length}).`);
 for (const f of vague1) {
   assert.doesNotThrow(() => A.analyserFichier(fs.readFileSync(dossierMigrations + f, 'utf8')),
     `supabase/migrations/${f} n'est pas analysable.`);

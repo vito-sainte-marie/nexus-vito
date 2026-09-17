@@ -9,7 +9,7 @@ La Vague 1 de la refonte FDJ suit la stratégie **étendre → basculer → ferm
 
 | Phase | Contenu | Où | Application |
 |---|---|---|---|
-| **A — étendre** | 9 migrations `20260916220000` → `20260916220800` : colonnes, tables, journal, commandes serveur, projection employé | `supabase/migrations/` | avec le déploiement, sans rien casser |
+| **A — étendre** | 12 migrations `20260916220000` → `20260916221100` : colonnes, tables, journal, commandes serveur, projections employé, commandes d'activation et de saisie managériale | `supabase/migrations/` | avec le déploiement, sans rien casser |
 | **B — basculer** | le front n'utilise plus que les nouvelles commandes | fichiers `.html` / `.js` | déploiement Pages |
 | **C — fermer** | RLS définitives, retrait des écritures directes | **ici** | **manuelle, après preuve que B est servi** |
 
@@ -33,10 +33,13 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
 
 1. Lire les **conditions C1 à C5** en tête du fichier et les vérifier une par
    une. Elles portent sur l'état réel de la base et sur le fichier réellement
-   **servi**, pas sur le contenu du dépôt. C5 est la plus facile à oublier :
-   l'écran *Ma Progression* lit `fdj_cash_controls` par jointure, et une
-   politique réservée au manager n'y produirait aucune erreur — seulement une
-   ligne imbriquée vide, en silence.
+   **servi**, pas sur le contenu du dépôt. C5 est la plus facile à oublier, et
+   elle a changé de sens le 17/09/2026 : l'écran *Ma Progression* ne lit plus
+   `fdj_cash_controls` par jointure, il appelle `fdj_ma_progression_caisse()`.
+   La fermeture réserve donc la lecture des caisses au manager — mais si
+   l'écran **servi** est encore l'ancien, il n'en sortira aucune erreur,
+   seulement une ligne imbriquée vide, en silence. C'est le même piège,
+   passé de l'autre côté.
 2. Répéter d'abord la fermeture **en transaction annulée**, avec les
    mutations, par la recette :
    ```
@@ -45,11 +48,11 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
    Elle joue le fichier **exact** du dépôt : elle n'en substitue que le
    `begin;` et le `commit;`, vérifie l'ancrage avant de le faire, imprime le
    `diff` (quatre lignes) et refuse de partir si autre chose a bougé. Sur une
-   base qui n'a pas encore la Phase A, elle charge les neuf migrations dans la
-   même transaction annulée. Le fichier contient cinq contrôles internes qui
+   base qui n'a pas encore la Phase A, elle charge les douze migrations dans la
+   même transaction annulée. Le fichier contient huit contrôles internes qui
    font échouer la transaction si la fermeture est incomplète, et la recette
-   enchaîne sur les dix mutations — étape **non facultative**, voir plus bas
-   *« pourquoi les cinq contrôles ne suffisent pas »*.
+   enchaîne sur les treize mutations — étape **non facultative**, voir plus bas
+   *« pourquoi les contrôles internes ne suffisent pas »*.
 3. Appliquer ensuite le fichier tel quel, avec `psql -f`.
 4. Rejouer les requêtes de vérification données en fin de fichier.
 
@@ -61,19 +64,21 @@ la vérifie pour de bon : `test_phase_c_analysable_20260917.js` analyse le SQL
 d'ici avec `outils/analyser-sql-plpgsql.js` (appariement réel des blocs
 PL/pgSQL, pas une recherche de motifs), contrôle que l'ancrage transactionnel
 reste substituable par la recette, et rejoue six mutations du fichier qui
-doivent toutes rougir.
+doivent toutes rougir. Elle analyse aussi le fichier de mutations lui-même :
+tout `.sql` de ce dossier passe sous l'analyseur.
 
-## Pourquoi les cinq contrôles internes ne suffisent pas
+## Pourquoi les contrôles internes ne suffisent pas
 
-Ils interrogent `pg_policies` et `pg_trigger` : ils constatent qu'une garde
-est **installée**, jamais qu'elle **refuse** quelque chose. Les deux se
+Ils interrogent `pg_policies`, `pg_trigger` et `to_regprocedure` : ils
+constatent qu'une garde est **installée**, jamais qu'elle **refuse** quelque
+chose. Les deux se
 ressemblent beaucoup — en vert.
 
 Mesuré le 17/09/2026 : les deux fonctions de garde avaient d'abord été
 écrites en `security definer`. Elles s'exécutaient donc sous le propriétaire,
 `current_user` y valait `postgres`, et leur première ligne
 (`if current_user <> 'authenticated' then return new`) **désactivait la garde
-elle-même**. Les cinq contrôles passaient. Un employé pouvait se réattribuer
+elle-même**. Les contrôles internes passaient. Un employé pouvait se réattribuer
 le quart d'un collègue. Seule la mutation l'a montré.
 
 D'où `20260916230000_mutations_de_validation.sql`, à jouer **dans la même
@@ -88,9 +93,10 @@ transaction annulée**, juste après le corps de la fermeture :
 psql "<url directe de Test>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
 ```
 
-Dix mutations jouées sous le rôle `authenticated`, avec le jeton d'employés
+Treize mutations jouées sous le rôle `authenticated`, avec le jeton d'employés
 réels : chacune **doit échouer**, et le script échoue si l'une d'elles passe.
-S'y ajoutent des contre-épreuves (M2 bis, M4, M7, M8 bis, M9) qui vérifient
+S'y ajoutent des contre-épreuves (M2 bis, M4, M7, M8 bis, M9, M11 bis, et la
+seconde moitié de M12) qui vérifient
 l'inverse — car une garde qui refuse *tout* casserait l'écran FDJ et serait,
 elle aussi, verte au premier examen.
 
@@ -109,8 +115,8 @@ remis en arrière.
 
 | Fichier | Rôle |
 |---|---|
-| `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, cinq contrôles internes, retour arrière commenté |
-| `20260916230000_mutations_de_validation.sql` | les dix mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
+| `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, huit contrôles internes, retour arrière commenté |
+| `20260916230000_mutations_de_validation.sql` | les treize mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
 | `recette-test.sh` | joue le fichier exact sur `nexus-test` en transaction annulée, mutations comprises ; refuse toute cible ressemblant à la Production |
 
 ## Registre des migrations
