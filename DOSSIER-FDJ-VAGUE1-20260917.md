@@ -1464,7 +1464,8 @@ git, au commit `f309ef4`.
 **1 — Que la recette a bien été exécutée.** Établi par le fichier de preuve, et
 par lui seul. Il porte la date UTC, le commit testé, l'état propre du dépôt à
 cet instant, la référence du projet Test (`udljdqxerrbbbajxubfn`), les
-empreintes SHA-256 des trois fichiers joués, la commande expurgée, le `diff` de
+empreintes SHA-256 des trois fichiers joués, celles des douze prérequis, le
+pilote intégral réellement soumis à psql, la commande expurgée, le `diff` de
 quatre lignes, la sortie intégrale du serveur et le code de retour. Aucune de
 ces pièces n'existerait si la recette n'avait pas tourné.
 
