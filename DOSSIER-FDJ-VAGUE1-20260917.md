@@ -1458,8 +1458,57 @@ ROLLBACK
 OK — le fichier exact de la Phase C s'exécute, et la transaction a été annulée.
 ```
 
-**`ROLLBACK` est la dernière instruction.** Rien ne subsiste sur Test. Et
-puisque la base de Test n'avait pas la Phase A, les douze migrations
+Cette sortie a d'abord été recopiée ici à la main, et elle n'avait alors
+aucune contrepartie vérifiable : elle affirmait une exécution que rien ne
+conservait. Depuis le commit `c94fe45`, **la recette dépose elle-même une
+preuve datée et expurgée**, et l'exécution ci-dessus a été rejouée depuis ce
+commit exact. Elle est conservée sous :
+
+```
+supabase/phase-c/preuves/20260917T160541Z_recette-phase-c_udljdqxerrbbbajxubfn.md
+```
+
+#### Trois affirmations distinctes, trois preuves distinctes
+
+**1 — Que la recette a bien été exécutée.** Établi par le fichier de preuve, et
+par lui seul. Il porte la date UTC, le commit testé, l'état propre du dépôt à
+cet instant, la référence du projet Test (`udljdqxerrbbbajxubfn`), les
+empreintes SHA-256 des trois fichiers joués, la commande expurgée, le `diff` de
+quatre lignes, la sortie intégrale du serveur et le code de retour. Aucune de
+ces pièces n'existerait si la recette n'avait pas tourné.
+
+**2 — Que la transaction a été annulée.** Établi par la dernière instruction
+rendue par le serveur — `ROLLBACK` — extraite de la sortie et contrôlée par le
+script lui-même : une sortie qui se terminerait par `COMMIT` fait sortir la
+recette en 1. Cette garde a été éprouvée **par mutation**, avec un faux `psql`,
+pas par lecture.
+
+**3 — Qu'il ne subsiste rien sur Test.** **Ce n'est établi ni par la sortie, ni
+par le fichier de preuve.** Cela se vérifie hors d'eux, en interrogeant
+`nexus-test` après coup. Les cinq mêmes mesures, relevées juste avant puis
+juste après le rejeu :
+
+| mesure | avant | après |
+|---|---|---|
+| migrations `2026091622%` | 0 | 0 |
+| table `fdj_caisse_evenements` | ABSENTE | ABSENTE |
+| fonctions `fdj_%` | 6 | 6 |
+| politiques sur tables `fdj_%` | 50 | 50 |
+| triggers sur tables `fdj_%` | 3 | 3 |
+
+Le `diff` des deux relevés ne rend aucune différence. Les six fonctions `fdj_%`
+sont toutes antérieures à la Vague 1 — `fdj_cash_controls_proteger_origine`,
+`fdj_corriger_caisse_employe`, `fdj_incrementer_appro_shift_count`,
+`fdj_sync_releve_apres_cash_control`, `fdj_synchroniser_releves_courants`,
+`fdj_tracer_correction_stock_initial` — et aucune des six RPC de la Vague 1
+n'est installée sur Test.
+
+L'ordre de ces trois points n'est pas décoratif. **Le raisonnement inverse —
+conclure de l'absence de trace que la recette a tourné — affirmerait le
+conséquent** : une recette jamais lancée laisserait exactement le même état.
+C'est la raison d'être du fichier de preuve.
+
+Enfin, puisque la base de Test n'avait pas la Phase A, les douze migrations
 prérequises ont été chargées **dans la même transaction annulée** : le corps a
 donc été joué sur le schéma qu'il attend, et pas sur un schéma approchant.
 
