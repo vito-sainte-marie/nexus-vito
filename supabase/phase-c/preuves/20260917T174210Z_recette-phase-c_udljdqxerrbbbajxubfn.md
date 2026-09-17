@@ -7,8 +7,8 @@ modifier à la main : il ne vaut que parce que personne ne l'a écrit.
 
 | | |
 |---|---|
-| Date UTC | `2026-09-17T16:22:13Z` |
-| Commit testé | `a9d26dbc3592721cbff70f8470974ddf24bcbf49` |
+| Date UTC | `2026-09-17T17:42:10Z` |
+| Commit testé | `ee16e66127c81f50687839b80c8204c91550323b` |
 | Branche | `fdj-vague1-cycle-caisse-20260916` |
 | État du dépôt au lancement | **propre** (mesuré avant l'écriture de cette preuve) |
 | Cible | nexus-test — projet `udljdqxerrbbbajxubfn` — `db.udljdqxerrbbbajxubfn.supabase.co:5432` |
@@ -22,7 +22,7 @@ modifier à la main : il ne vaut que parce que personne ne l'a écrit.
 |---|---|---|
 | `supabase/phase-c/20260916230000_fdj_rls_definitives_phase_c.sql` | `4deefefd4e2a2467e60d71060303537ffd7ca8bc48862147192d553380984764` | `1cdde4aa62c269e9737bbef7737da81c45f58ab3` |
 | `supabase/phase-c/20260916230000_mutations_de_validation.sql` | `c1effd8ef8b3927f3e34e6c44b61e90783eb7704769b53ae1d31b0f5625af5b6` | `f0a5564c1fbea43d4aaf914dc3ff06a5a31b6d74` |
-| `supabase/phase-c/recette-test.sh` | `827a67dac2f482263dc2412f51ff0567984fa0da3b686b0b6e4ccef53bf97b71` | `147e86151d479a7210571243ad6707d7c5f47d66` |
+| `supabase/phase-c/recette-test.sh` | `aa453296a5f8d428ed2b760f9b4e543e5fc9bbf5091e466c7f39df685de2fbd5` | `02e6ec5a9380a28038279580286fd7a3fd8f9645` |
 
 Le dépôt était propre : le contenu empreint et le blob du commit sont le même octet.
 
@@ -75,7 +75,7 @@ dans cet ordre, chaque entrée précédée d'un `\echo` qui la nomme.
 ## 5. Commande exécutée (expurgée)
 
 ```
-/opt/homebrew/opt/libpq/bin/psql 'postgresql://postgres:***@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require' -v ON_ERROR_STOP=1 -f pilote.sql
+/opt/homebrew/opt/libpq/bin/psql 'postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require' -v ON_ERROR_STOP=1 -f pilote.sql
 ```
 
 Le mot de passe ne figure jamais sur la ligne de commande : il est lu au

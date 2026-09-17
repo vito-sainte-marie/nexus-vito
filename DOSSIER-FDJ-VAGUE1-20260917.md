@@ -1447,17 +1447,31 @@ réellement soumis à psql, la commande expurgée, le `diff`, les empreintes et 
 code de retour :
 
 ```
-supabase/phase-c/preuves/20260917T162213Z_recette-phase-c_udljdqxerrbbbajxubfn.md
+supabase/phase-c/preuves/20260917T174210Z_recette-phase-c_udljdqxerrbbbajxubfn.md
 ```
 
-Cette preuve est celle du rejeu du 17/09/2026 à 16:22 UTC, depuis le commit
-`a9d26db`, dépôt propre. Elle remplace celle de 16:05 UTC, retirée : cette
-première preuve portait l'empreinte d'un script qui a depuis changé, et son
-dernier paragraphe affirmait un résultat — « aucune migration de la Phase A
-persistante, aucune RPC installée » — que le script imprimait sans l'avoir
-mesuré. On ne corrige pas à la main un fichier dont toute la valeur tient à ce
-que personne ne l'a écrit ; on le rejoue. Elle reste lisible dans l'historique
-git, au commit `f309ef4`.
+Cette preuve est celle du rejeu du 17/09/2026 à 17:42 UTC, depuis le commit
+`ee16e66`, dépôt propre. C'est la troisième, et les deux précédentes ont été
+retirées plutôt que retouchées — on ne corrige pas à la main un fichier dont
+toute la valeur tient à ce que personne ne l'a écrit ; on le rejoue. Toutes
+deux restent lisibles dans l'historique git.
+
+Celle de 16:05 UTC (`f309ef4`) portait l'empreinte d'un script qui a depuis
+changé, et son dernier paragraphe affirmait un résultat — « aucune migration de
+la Phase A persistante, aucune RPC installée » — que le script imprimait sans
+l'avoir mesuré.
+
+Celle de 16:22 UTC (`1132030`) est tombée sur un point plus petit et de même
+nature. Son §5, intitulé « Commande exécutée », rendait
+`postgresql://postgres:***@db…` ; or l'URL réellement passée à psql n'a jamais
+porté de mot de passe — il est lu au trousseau et remis par l'environnement.
+Le `***` n'expurgeait donc rien : il **figurait** un secret là où il n'y en
+avait pas. Aucun secret n'était exposé et aucune autre section n'en dépendait,
+mais un relecteur comparant le §5 au §7 ne pouvait plus distinguer le masquage
+d'un secret de son invention — dans le seul fichier dont toute la valeur tient
+à sa fidélité. La ligne montre désormais la commande telle qu'elle est lancée,
+et la phrase qui la suit continue d'expliquer, séparément, par où passe le mot
+de passe.
 
 #### Trois affirmations distinctes, trois preuves distinctes
 
@@ -1472,13 +1486,18 @@ ces pièces n'existerait si la recette n'avait pas tourné.
 **2 — Que la transaction a été annulée.** Établi par la dernière instruction
 rendue par le serveur — `ROLLBACK` — extraite de la sortie et contrôlée par le
 script lui-même : une sortie qui se terminerait par `COMMIT` fait sortir la
-recette en 1. Cette garde a été éprouvée **par mutation**, avec un faux `psql`,
-pas par lecture.
+recette en 1. Cette garde a été éprouvée une fois **par mutation**, en
+substituant un faux `psql` qui rendait `COMMIT` : la recette est bien sortie en
+1. Cette vérification a eu lieu pendant la relecture et **aucun test versionné
+ne la rejoue** : elle n'est donc pas reproductible depuis le dépôt, et ne doit
+pas être lue comme une garantie permanente. Ce qui est reproductible, c'est que
+le script lit la dernière instruction de la sortie et refuse de conclure si ce
+n'est pas `ROLLBACK`.
 
 **3 — Qu'il ne subsiste rien sur Test.** **Ce n'est établi ni par la sortie, ni
 par le fichier de preuve.** Cela se vérifie hors d'eux, en interrogeant
 `nexus-test` après coup. Les cinq mêmes mesures, relevées juste avant puis
-juste après le rejeu de 16:22 UTC, par la même requête :
+juste après le rejeu de 17:42 UTC, par la même requête :
 
 | mesure | avant | après |
 |---|---|---|
