@@ -53,6 +53,17 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
    font échouer la transaction si la fermeture est incomplète, et la recette
    enchaîne sur les treize mutations — étape **non facultative**, voir plus bas
    *« pourquoi les contrôles internes ne suffisent pas »*.
+
+   Chaque exécution dépose une preuve datée sous `supabase/phase-c/preuves/`.
+   Une recette qui ne laisse rien derrière elle ne se prouve pas : l'absence
+   de migration Phase A sur `nexus-test` établit qu'aucune écriture n'a
+   survécu, jamais qu'une recette a tourné — une recette jamais lancée
+   laisserait le même état. La preuve porte donc la date, le commit, les
+   empreintes des fichiers joués, la commande expurgée, le `diff`, la sortie
+   complète du serveur, le code de retour et la dernière instruction rendue.
+   Elle distingue explicitement l'exécution, le `ROLLBACK`, et l'absence
+   d'effet durable — cette dernière se vérifiant hors du fichier, en
+   interrogeant la base après coup.
 3. Appliquer ensuite le fichier tel quel, avec `psql -f`.
 4. Rejouer les requêtes de vérification données en fin de fichier.
 
@@ -117,7 +128,8 @@ remis en arrière.
 |---|---|
 | `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, huit contrôles internes, retour arrière commenté |
 | `20260916230000_mutations_de_validation.sql` | les treize mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
-| `recette-test.sh` | joue le fichier exact sur `nexus-test` en transaction annulée, mutations comprises ; refuse toute cible ressemblant à la Production |
+| `recette-test.sh` | joue le fichier exact sur `nexus-test` en transaction annulée, mutations comprises ; refuse toute cible ressemblant à la Production ; dépose une preuve datée et refuse d'en écrire une qui porterait le secret |
+| `preuves/` | les preuves engendrées, une par exécution. Écrites par le script, jamais à la main |
 
 ## Registre des migrations
 

@@ -26,6 +26,30 @@
 #   · Le secret vient du trousseau et n'est jamais affiché ; psql
 #     réimprime l'URL dans ses erreurs, la sortie est donc filtrée.
 #
+# CE QU'IL CONSERVE, ET POURQUOI
+#
+# Une exécution qui ne laisse aucune trace ne se prouve pas. L'absence de
+# migration Phase A sur `nexus-test` établit qu'aucune écriture n'a
+# survécu — elle n'établit pas qu'une recette a tourné : une recette
+# jamais lancée laisserait exactement le même état. Affirmer le contraire,
+# c'est affirmer le conséquent.
+#
+# Le script écrit donc, à chaque exécution, un fichier de preuve daté sous
+# `supabase/phase-c/preuves/`, qui porte : la date UTC, le commit testé,
+# l'état du dépôt au lancement, la cible, les empreintes SHA-256 et les
+# blobs git des trois fichiers joués, la commande expurgée, le diff exact,
+# la sortie complète expurgée, le code de retour et la dernière
+# instruction de la transaction. Trois choses distinctes y sont dites
+# séparément : que la recette a été EXÉCUTÉE, qu'elle s'est terminée par
+# un ROLLBACK, et qu'elle n'a laissé AUCUN effet durable.
+#
+# Avant d'écrire, le fichier est relu et refusé s'il contient le secret du
+# trousseau ; le contrôle se fait en bash, sans jamais passer le mot de
+# passe en argument d'une commande — `ps` le verrait.
+#
+#   PREUVE=non  supabase/phase-c/recette-test.sh   # n'écrit aucune preuve
+#   PREUVE=/chemin/fichier.md                      # écrit là
+#
 # USAGE
 #   supabase/phase-c/recette-test.sh                 # corps + mutations
 #   supabase/phase-c/recette-test.sh --sans-mutations
@@ -43,8 +67,27 @@ MIGRATIONS="$ICI/../migrations"
 CORPS="$ICI/20260916230000_fdj_rls_definitives_phase_c.sql"
 MUTATIONS="$ICI/20260916230000_mutations_de_validation.sql"
 
+SCRIPT="$ICI/recette-test.sh"
+
 AVEC_MUTATIONS=1
 [ "${1:-}" = "--sans-mutations" ] && AVEC_MUTATIONS=0
+
+# --- Contexte, mesuré AVANT toute écriture ----------------------------
+# L'état du dépôt est relevé maintenant : la preuve elle-même est écrite
+# à la fin, et la mesurer après se salirait toute seule.
+DATE_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+HORODATAGE=$(date -u '+%Y%m%dT%H%M%SZ')
+COMMIT=$(git -C "$ICI" rev-parse HEAD)
+BRANCHE=$(git -C "$ICI" rev-parse --abbrev-ref HEAD)
+RACINE=$(git -C "$ICI" rev-parse --show-toplevel)
+PORCELAIN=$(git -C "$ICI" status --porcelain)
+if [ -z "$PORCELAIN" ]; then ETAT_DEPOT="propre"; else ETAT_DEPOT="SALE"; fi
+
+# Empreinte du contenu, et blob git du même fichier à HEAD : la première
+# décrit ce qui a été joué, le second rattache ce contenu au commit. Deux
+# blobs identiques entre deux commits, c'est le même octet pour octet.
+empreinte()   { shasum -a 256 "$1" | cut -d' ' -f1; }
+blob_a_head() { git -C "$ICI" ls-tree HEAD -- "$(basename "$1")" | awk '{print $3}'; }
 
 # --- Cible ------------------------------------------------------------
 REF=${REF:-$REF_TEST}
@@ -78,9 +121,10 @@ sed -e "${LIGNE_BEGIN}s|^begin;\$|-- [RECETTE] begin;  -- la transaction est ouv
     -e "${LIGNE_COMMIT}s|^commit;\$|-- [RECETTE] commit;  -- la recette termine par rollback|" \
     "$CORPS" > "$TRAVAIL/corps.sql"
 
+DIFF_TEXTE=$(diff "$CORPS" "$TRAVAIL/corps.sql" || true)
 echo "--- diff entre le fichier du dépôt et ce qui va être joué ---"
-diff "$CORPS" "$TRAVAIL/corps.sql" || true
-NB_DIFF=$(diff "$CORPS" "$TRAVAIL/corps.sql" | grep -c '^[<>]' || true)
+printf '%s\n' "$DIFF_TEXTE"
+NB_DIFF=$(printf '%s\n' "$DIFF_TEXTE" | grep -c '^[<>]' || true)
 # Quatre lignes de diff : deux « < » et deux « > », soit deux lignes substituées.
 [ "$NB_DIFF" = 4 ] || { echo "REFUS — $NB_DIFF lignes de diff au lieu de 4 : autre chose que le begin/commit a bougé." >&2; exit 2; }
 echo "------------------------------------------------------------"
@@ -127,16 +171,129 @@ echo ">> psql db.$REF.supabase.co — transaction annulée en fin de course."
 # connexion passerait pour un succès. La sortie est écrite dans le fichier
 # de travail, filtrée, puis affichée — psql réimprime l'URL, mot de passe
 # compris, dans ses messages d'erreur.
+COMMANDE_EXPURGEE="$PSQL 'postgresql://postgres:***@db.$REF.supabase.co:5432/postgres?sslmode=require' -v ON_ERROR_STOP=1 -f pilote.sql"
 set +e
 "$PSQL" "$URL" -v ON_ERROR_STOP=1 -f "$TRAVAIL/pilote.sql" > "$TRAVAIL/sortie.txt" 2>&1
 CODE=$?
 set -e
-sed 's/postgres:[^@]*@/postgres:***@/g' "$TRAVAIL/sortie.txt"
+# Trois expurgations, pour trois raisons différentes. Le mot de passe, parce
+# que psql réimprime l'URL entière dans ses erreurs. Le chemin du dépôt et
+# celui du fichier de travail, parce que la preuve est versée dans un dépôt
+# PUBLIC : le chemin absolu d'un poste n'y apprend rien sur la Phase C, et
+# des chemins relatifs rendent la preuve lisible par quelqu'un d'autre.
+SORTIE=$(sed -e 's/postgres:[^@]*@/postgres:***@/g' \
+             -e "s|$TRAVAIL/|<travail>/|g" \
+             -e "s|$RACINE/||g" "$TRAVAIL/sortie.txt")
+printf '%s\n' "$SORTIE"
+
+# Dernière instruction réellement rendue par le serveur. C'est elle, et non
+# l'absence de trace, qui atteste que la transaction a été annulée.
+DERNIERE=$(printf '%s\n' "$SORTIE" | grep -v '^[[:space:]]*$' | tail -1 || true)
+
+# --- Preuve durable ---------------------------------------------------
+PREUVE=${PREUVE:-"$ICI/preuves/${HORODATAGE}_recette-phase-c_${REF}.md"}
+if [ "$PREUVE" != non ]; then
+  mkdir -p "$(dirname "$PREUVE")"
+  {
+    printf '%s\n' \
+      "# Preuve d'exécution — recette de la Phase C sur nexus-test" \
+      "" \
+      "Fichier **engendré** par \`supabase/phase-c/recette-test.sh\`. Ne pas le" \
+      "modifier à la main : il ne vaut que parce que personne ne l'a écrit." \
+      "" \
+      "## 1. Quand, quoi, où" \
+      "" \
+      "| | |" \
+      "|---|---|" \
+      "| Date UTC | \`$DATE_UTC\` |" \
+      "| Commit testé | \`$COMMIT\` |" \
+      "| Branche | \`$BRANCHE\` |" \
+      "| État du dépôt au lancement | **$ETAT_DEPOT** (mesuré avant l'écriture de cette preuve) |" \
+      "| Cible | nexus-test — projet \`$REF\` — \`db.$REF.supabase.co:5432\` |" \
+      "| Production | \`$REF_PROD\` — jamais visée, refus câblé dans le script |" \
+      "| Mutations de validation | $([ "$AVEC_MUTATIONS" = 1 ] && printf 'jouées' || printf 'écartées (--sans-mutations)') |" \
+      "" \
+      "## 2. Empreintes des fichiers joués" \
+      "" \
+      "| fichier | SHA-256 du contenu | blob git à HEAD |" \
+      "|---|---|---|" \
+      "| \`supabase/phase-c/$(basename "$CORPS")\` | \`$(empreinte "$CORPS")\` | \`$(blob_a_head "$CORPS")\` |" \
+      "| \`supabase/phase-c/$(basename "$MUTATIONS")\` | \`$(empreinte "$MUTATIONS")\` | \`$(blob_a_head "$MUTATIONS")\` |" \
+      "| \`supabase/phase-c/$(basename "$SCRIPT")\` | \`$(empreinte "$SCRIPT")\` | \`$(blob_a_head "$SCRIPT")\` |" \
+      "" \
+      "$([ "$ETAT_DEPOT" = propre ] \
+        && printf 'Le dépôt était propre : le contenu empreint et le blob du commit sont le même octet.' \
+        || printf 'ATTENTION — le dépôt était SALE. Le contenu empreint est celui du disque ; il peut différer du blob du commit, qui est celui de `%s`.' "$COMMIT")" \
+      "" \
+      "## 3. Commande exécutée (expurgée)" \
+      "" \
+      '```'
+    printf '%s\n' "$COMMANDE_EXPURGEE"
+    printf '%s\n' \
+      '```' \
+      "" \
+      "Le mot de passe ne figure jamais sur la ligne de commande : il est lu au" \
+      "trousseau et passé à psql par l'environnement (\`PGPASSWORD\`)." \
+      "" \
+      "## 4. Diff appliqué au corps — $NB_DIFF lignes" \
+      "" \
+      "Deux lignes substituées, le \`begin;\` et le \`commit;\`. Le script refuse" \
+      "de continuer si ce diff n'en fait pas exactement quatre." \
+      "" \
+      '```diff'
+    printf '%s\n' "$DIFF_TEXTE"
+    printf '%s\n' \
+      '```' \
+      "" \
+      "## 5. Sortie complète de psql (expurgée)" \
+      "" \
+      '```'
+    printf '%s\n' "$SORTIE"
+    printf '%s\n' \
+      '```' \
+      "" \
+      "## 6. Verdict" \
+      "" \
+      "| | |" \
+      "|---|---|" \
+      "| Code de retour de psql | \`$CODE\` |" \
+      "| Dernière instruction rendue | \`$DERNIERE\` |" \
+      "" \
+      "## 7. Portée — trois choses distinctes" \
+      "" \
+      "1. **L'exécution** est établie par les §1 à §5 : une commande datée, une" \
+      "   cible nommée, les empreintes des fichiers joués, la sortie complète du" \
+      "   serveur et un code de retour." \
+      "2. **Le \`ROLLBACK\`** est établi par le §6 : la dernière instruction rendue" \
+      "   par le serveur. Le script refuse de conclure si ce n'en est pas une." \
+      "3. **L'absence d'effet durable** n'est **pas** établie par ce fichier. Elle" \
+      "   se vérifie en interrogeant la base APRÈS coup — aucune migration de la" \
+      "   Phase A persistante, aucune RPC installée. Le raisonnement inverse," \
+      "   conclure de l'absence de trace que la recette a tourné, affirmerait le" \
+      "   conséquent : une recette jamais lancée laisserait exactement le même" \
+      "   état."
+  } > "$PREUVE"
+
+  # Le fichier est relu et refusé s'il porte le secret. Le mot de passe
+  # n'est comparé qu'en bash : le passer à grep le rendrait visible à `ps`.
+  CONTENU_PREUVE=$(cat "$PREUVE")
+  if [ -n "${PGPASSWORD:-}" ] && [[ "$CONTENU_PREUVE" == *"$PGPASSWORD"* ]]; then
+    rm -f "$PREUVE"
+    echo "REFUS — la preuve contenait le secret du trousseau ; elle a été détruite." >&2
+    exit 2
+  fi
+  echo ">> preuve écrite : $PREUVE"
+fi
 
 if [ "$CODE" != 0 ]; then
   echo "ÉCHEC — la Phase C ne passe pas sur cette base (code $CODE)." >&2
   echo "        La connexion à Supabase est intermittente : si le message parle" >&2
   echo "        de « timeout expired », relancer avant de conclure." >&2
+  exit 1
+fi
+if [ "$DERNIERE" != ROLLBACK ]; then
+  echo "ÉCHEC — psql a rendu 0 mais la dernière instruction est « $DERNIERE »," >&2
+  echo "        pas « ROLLBACK ». L'annulation de la transaction n'est pas établie." >&2
   exit 1
 fi
 echo "OK — le fichier exact de la Phase C s'exécute, et la transaction a été annulée."
