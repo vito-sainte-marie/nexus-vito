@@ -4,8 +4,10 @@
 **État : préparé, non appliqué, non fusionné, non déployé.**
 
 Ce document est le livrable exigé avant arrêt par le §13 du mandat. Il est
-organisé dans l'ordre des 25 points demandés. Chaque affirmation renvoie soit
-à un fichier du dépôt, soit à une mesure datée prise sur une base réelle.
+organisé dans l'ordre des 25 points demandés, suivis d'un **point 26** qui rend
+compte de la relecture finale de la PR #62 et corrige, en les nommant, trois
+chiffres faux de la première version. Chaque affirmation renvoie soit à un
+fichier du dépôt, soit à une mesure datée prise sur une base réelle.
 
 > Rappel du cadre, valable pour tout ce qui suit : **rien de ce qui est décrit
 > ici n'a été appliqué à la Production.** Aucune migration n'a été exécutée de
@@ -21,7 +23,7 @@ organisé dans l'ordre des 25 points demandés. Chaque affirmation renvoie soit
 Elle ne contient que la Vague 1 : aucun autre travail, aucune reprise d'une
 branche antérieure. Ses commits se lisent par leur rôle, dans l'ordre :
 
-1. **Phase A — étendre** : les neuf migrations additives.
+1. **Phase A — étendre** : les douze migrations additives.
 2. **Phase B — basculer** : le front qui n'appelle plus que les commandes
    serveur.
 3. **Phase C — fermer** : les RLS définitives et le retrait des écritures
@@ -31,6 +33,10 @@ branche antérieure. Ses commits se lisent par leur rôle, dans l'ordre :
 5. **Les preuves des livrets et des données existantes** (§10.5 et §10.6), le
    compteur de migrations de l'épreuve d'empreinte porté de 267 à 276, et ce
    dossier.
+6. **La relecture finale de la PR #62** (point 26) : la confidentialité de « Ma
+   Progression », l'attribution serveur des activations et des mouvements, la
+   bascule de l'écran manager, la Phase C rendue exécutable et rejouée sur
+   Test, l'empreinte portée de 276 à 279, et la mise à jour de ce dossier.
 
 Le décompte n'est pas figé ici, pour la même raison que le SHA ne l'est pas au
 point 2 : l'ouverture de la PR, puis tout correctif que la CI demanderait,
@@ -49,10 +55,15 @@ accompagne ce dossier.
 
 La règle vérifiable, elle, est écrite ici : la tête de la branche est son
 dernier commit, celui que `git log --oneline -1` rend sur
-`fdj-vague1-cycle-caisse-20260916`, et tous ses commits portent un titre
-commençant par `FDJ Vague 1 —`. Aucun commit d'une autre origine n'y figure :
-`git log --oneline da38b67a9e106ea495d03484ed2e3064b0a3eadb..` ne doit
-retourner que ceux-là.
+`fdj-vague1-cycle-caisse-20260916`. Aucun commit d'une autre origine n'y
+figure : `git log --oneline da38b67a9e106ea495d03484ed2e3064b0a3eadb..` ne doit
+retourner que ceux de la vague.
+
+(Le préfixe de titre n'est plus un critère. Les commits de la première passe
+portent tous `FDJ Vague 1 —` ; ceux nés de la relecture finale, non — ils
+disent ce qu'ils corrigent plutôt que le lot auquel ils appartiennent. Un
+critère qui aurait cessé d'être vrai sans que personne ne le note valait moins
+que pas de critère du tout.)
 
 (Une version antérieure de ce point annonçait le commit de Phase C comme tête.
 C'était vrai à l'heure où la ligne a été écrite, et faux une heure plus tard :
