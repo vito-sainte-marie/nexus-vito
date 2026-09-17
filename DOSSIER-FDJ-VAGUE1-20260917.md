@@ -659,7 +659,7 @@ Deux réserves, énoncées franchement :
 
 ## 17. Résultats complets des tests
 
-**Suite du dépôt : 205/212.** Les sept échecs sont **exactement** ceux qui
+**Suite du dépôt : 206/213.** Les sept échecs sont **exactement** ceux qui
 existaient déjà sur la base `da38b67a`, et exactement la liste `CONNUS` de
 `.github/workflows/tests.yml` :
 
@@ -1539,6 +1539,12 @@ dernières migrations de la relecture (`…221000`, `…221100`) sortaient de la
 seconde forme. **Un glob trop étroit ne se plaint pas — il charge moins**, et la
 recette aurait tourné au vert sur un schéma incomplet.
 
+> **Cette section décrit le rejeu de 17:42 UTC. Sa preuve a depuis été
+> retirée, et le fichier de mutations réécrit : voir 26.13.** Les
+> mesures avant/après ci-dessus restent celles de ce rejeu-là ; celles
+> du rejeu qui fait foi aujourd'hui, 18:13 UTC, figurent en 26.13 et
+> donnent les mêmes valeurs.
+
 ---
 
 ### 26.11 — Les tests et l'empreinte
@@ -1550,9 +1556,10 @@ de `test_fdj_fiabilisation_etape5_idempotence.js`, et deux fichiers existants
 (`test_fdj_continuite_auto_recalcul.js`, `test_fdj_fiabilisation_etape5_idempotence.js`)
 sont portés à la nouvelle architecture.
 
-La suite passe donc de **203/210 à 205/212** : le lanceur compte des
-**fichiers**, pas des assertions, ce qui explique que les deux tests internes ne
-bougent pas le total. Les **sept échecs `CONNUS` sont inchangés**, aux mêmes
+La suite passe donc de **203/210 à 205/212**, puis à **206/213** avec la
+garde d'identifiants ajoutée en 26.13 : le lanceur compte des **fichiers**,
+pas des assertions, ce qui explique que les deux tests internes ne bougent
+pas le total. Les **sept échecs `CONNUS` sont inchangés**, aux mêmes
 noms, et aucun ne touche au périmètre FDJ.
 
 L'épreuve d'empreinte a rougi, comme elle rougit à **tout** lot de migrations :
@@ -1578,140 +1585,118 @@ est durcie à **`>= 12`**.
 
 ---
 
-# Annexe A — Les contradictions métier rencontrées
+### 26.13 — Deux identifiants réels dans un dépôt public
 
-Le mandat demande de documenter précisément toute contradiction impossible à
-trancher à partir de ses règles, et de poursuivre le reste. Il y en a sept.
-Aucune n'a empêché de produire la vague ; six ont été tranchées et la septième
-est une dette assumée.
+Le fichier de mutations désignait ses deux acteurs par les UUID de deux
+comptes existants de `nexus-test` : vingt occurrences pour l'un,
+dix-huit pour l'autre. Une vérification booléenne sur Test confirme que
+les deux correspondent à de vrais comptes `auth.users`.
 
-**A1 — Deux caisses, deux doctrines opposées sur l'écart.** Le §3.3 impose que
-l'employé voie son écart provisoire **après** confirmation. Mais la fonction
-`mes_ecarts_caisse()` — qui sert la caisse **station**, pas la caisse FDJ — le
-masque tant que `valide_le` est nul, et c'est délibéré : c'est la règle posée
-le 14/09 pour la clôture station. *Tranché :* les deux objets sont distincts et
-les deux doctrines coexistent sans se contredire. La caisse FDJ suit le §3.3 ;
-la caisse station garde sa règle. Ce qu'il ne faut surtout pas faire, c'est
-aligner l'une sur l'autre « par cohérence » — ce serait revenir sur une
-décision produit prise ailleurs, pour un autre écran.
+Ce ne sont pas des secrets d'authentification. Ce sont des **identifiants
+pseudonymes persistants** : ils ne portent ni nom ni courriel, mais ils
+désignent durablement une personne et se corrèlent entre eux. Le dépôt
+est **public**. Masquer la seule preuve aurait laissé les mêmes valeurs
+dans le fichier source, c'est-à-dire l'essentiel.
 
-**A2 — L'employé modifie l'écart en saisissant ses régularisations.** Le champ
-`regularisations`, saisi par l'employé, entre dans le calcul de l'écart. Un
-employé peut donc, sans rien falsifier, faire varier son propre écart
-provisoire. Le §5.1 ne l'interdit pas (c'est une donnée de sa saisie), mais le
-§3.6 réserve au manager le résultat définitif. *Tranché :* la valeur est
-conservée — la supprimer casserait la caisse réelle — mais chaque changement
-est tracé dans `fdj_caisse_evenements.metadata`, avec l'ancienne et la nouvelle
-valeur. Le manager voit donc la variation et son auteur, au lieu de subir un
-écart qui bouge sans explication.
+**Ce qui a été fait.** Les deux acteurs sont désormais **créés par le
+fichier lui-même**, dans la transaction annulée, et démontés avant la
+fin. Ce ne sont pas des valeurs fictives substituées aux anciennes : ce
+sont deux lignes réelles de `public.employees`, insérées avec un rôle
+`caissier` et un rôle `manager` sur le même site, de sorte que les clés
+étrangères, la contrainte de rôle, l'unicité du `username` et le
+prédicat `fdj_je_controle_le_site()` restent **réellement éprouvés**. La
+distinction des deux rôles est exercée, pas déclarée : M9 et M11 bis, les
+contre-épreuves managériales, sont vertes, et M8 impute son refus à
+l'employé synthétique.
 
-**A3 — Une tentative refusée n'écrit rien, donc ne s'alerte pas.** Le §3.5
-demande une alerte managériale sur « tentative de modification après
-validation ». Or une commande serveur qui refuse ne laisse, par construction,
-aucune trace en base : il n'y a rien à compter. *Tranché par substitution :*
-l'alerte compte les `fdj_demandes_correction` déposées après validation, qui
-sont le canal légitime prévu au §3.7. Un employé qui insiste produit des
-demandes, pas des écritures refusées et invisibles. La différence est notée
-ici parce qu'elle change ce que l'alerte signifie : elle mesure l'insistance
-*déclarée*, pas les tentatives *silencieuses*.
+Un point a rendu la chose possible : `public.employees.id` **n'a aucune
+clé étrangère vers `auth.users`**, et toutes les colonnes d'acteur du
+périmètre FDJ référencent `employees`. Un employé peut donc exister sans
+compte d'authentification, et le rôle `authenticated` est simulé par un
+jeton local comme il l'était déjà.
 
-**A4 — Ne rien montrer avant confirmation rendrait la saisie inutilisable.**
-Le §3.3 interdit de présenter un résultat comme un écart établi avant la
-première confirmation. Mais un employé qui compte sa caisse a besoin de voir ce
-qu'il saisit. *Tranché :* la projection rend les montants sous la clé
-`aide_a_la_saisie`, accompagnée de `ecart_etabli: false`. Le nom de la clé et
-le drapeau disent tous deux ce que c'est — un total de contrôle, pas un
-verdict — et le rendu employé n'emploie le mot « écart » qu'après
-confirmation.
+**La garde.** `test_phase_c_identifiants_synthetiques_20260917.js` refuse
+tout UUID de `supabase/phase-c/` — SQL, script, LISEZ-MOI et **preuves
+comprises** — qui ne figure pas dans la liste déclarée des onze fixtures.
+Trois choix méritent d'être exposés :
 
-**A5 — L'écran manager réattribuait encore un quart sans motif.** Le §2.3
-interdit toute réattribution silencieuse, et la commande
-`fdj_transferer_responsabilite_quart` exige un motif, l'horodate et la
-journalise. L'écran manager écrivait pourtant `employee_id` en direct.
-*Tranché à la relecture finale (point 26.4) — la dette est levée.*
-`employee_id` est **sorti** de l'`update` du quart ; le changement de titulaire
-passe par la commande, avec un champ « motif du transfert » et un refus côté
-écran avant l'appel réseau si le motif fait moins de cinq caractères.
+- La liste est **contrainte de forme** — un seul chiffre hexadécimal
+  répété, version 4, variante 8 — et cette contrainte est vérifiée
+  **avant** que la liste serve de critère d'autorisation. Une liste
+  contrôlée après coup n'aurait jamais empêché l'ajout qu'elle est
+  censée interdire : on aurait fait taire la garde en y déclarant
+  l'identifiant réel.
+- Chaque fixture déclarée doit être **réellement employée** dans le
+  dossier. Une liste d'autorisation qui ouvre un droit d'avance est une
+  porte, pas une garde.
+- La garde se **mord elle-même** : deux UUID d'apparence réelle,
+  fabriqués pour ce test seul, sont refusés en contenu comme en
+  déclaration. Ils ne sont pas les identifiants retirés — les réécrire
+  ici, fût-ce pour éprouver la garde, reviendrait à les republier.
 
-Un second chemin, plus discret, a été trouvé en même temps : « je crée un
-quart, il en existait déjà un à cette date » réattribuait silencieusement le
-quart d'un collègue, par un `update` de rattrapage, sur un écran de création
-qui n'a pas de champ motif — il n'a rien à transférer, en principe. Plutôt que
-d'inventer un motif par défaut, NEXUS refuse et renvoie le manager sur le quart
-concerné, là où le geste existe et où le motif sera écrit par un humain. La
-mutation **M12** rejoue les deux formes du refus, et vérifie qu'un transfert
-motivé passe et se journalise.
+**Le démontage, et ce qu'il a coûté.** Deux obstacles, tous deux
+instructifs. `fdj_caisse_evenements` est un journal immuable par trigger,
+et ni les lignes du journal ni leurs lignes mères ne pouvaient partir —
+supprimer une caisse y cascade, supprimer un employé y passe un
+`set null`. La migration 20260916220200 prévoit elle-même un mode de
+maintenance, `nexus.fdj_journal_maintenance` ; il est ouvert **après la
+treizième mutation**, en variable `local` à la transaction annulée, puis
+refermé. Aucune mutation ne s'exécute sur un journal désarmé. Et pour que
+cette ouverture ne puisse pas *masquer* un journal déjà sans garde, le
+démontage exige d'abord que le journal porte des traces des fixtures,
+**puis** qu'un DELETE hors maintenance soit effectivement refusé.
 
-**A6 — Deux définitions du manager habilité.** Le prédicat RLS managérial
-n'exige pas `actif = true`, alors que `fdj_quart_du_manager` écrit
-`e.actif is not false`. Un manager désactivé pourrait donc, au niveau RLS
-seul, continuer de lire. *Tranché dans le sens le plus strict pour les
-écritures :* toutes les commandes serveur passent par le prédicat qui teste
-l'activité. La divergence subsiste sur la lecture RLS et est signalée ici
-plutôt que corrigée dans la même vague : resserrer un prédicat de lecture
-partagé par d'autres écrans est un changement de portée qui mérite sa propre
-mesure (la leçon du 14/09 sur `audits_caisse` : « qui ne figure nulle part ne
-lit plus rien »).
+Second obstacle : un DELETE qui viole une clé étrangère **lève une
+erreur**, il ne rend pas zéro ligne, et les tables sont parcourues dans
+l'ordre alphabétique — `fdj_shifts` avant `fdj_stock_movements`, le
+parent avant son enfant. Les passes seules ne convergeaient donc pas. Une
+table bloquée est laissée pour la passe suivante, et la boucle refuse de
+s'arrêter tant qu'une seule le reste : il faut qu'une passe entière ne
+supprime plus rien **et** n'achoppe sur rien. Seules les violations de
+clé étrangère sont tolérées ainsi.
 
-**A7 — « NULL = inchangé » empêche de vider un champ.** Le correctif du
-défaut 1 donne aux paramètres de saisie la sémantique « NULL = non fourni,
-donc inchangé ». Conséquence directe : un employé ne peut plus *vider* un
-champ qu'il avait rempli par erreur, seulement le remplacer par une autre
-valeur. *Tranché :* c'est le prix de la cohérence avec
-`fdj_corriger_caisse_confirmee`, qui emploie la même convention, et l'Article
-11 interdit deux sémantiques différentes pour le même geste. Le contournement
-existe (saisir `0`) et le cas est rare ; une valeur sentinelle explicite
-serait la vraie réponse, en Vague 2.
+**Le rejeu qui fait foi.** 17/09/2026, 18:13:06 UTC, depuis le commit
+`69b82b9`, arbre propre, sur `nexus-test`. Code de retour 0, dernière
+instruction rendue `ROLLBACK`, démontage de 22 lignes dépendantes en
+3 passes dont 3 du journal, 0 fixture restante. La preuve :
 
-# Annexe B — Les écritures directes qui subsistent
+```
+supabase/phase-c/preuves/20260917T181306Z_recette-phase-c_udljdqxerrbbbajxubfn.md
+```
 
-Le §5.3 demande que « les écritures directes trop larges soient supprimées une
-fois le nouveau front basculé ». La Phase C ferme ce qui peut l'être **sans
-casser un écran encore servi** ; le reste est listé ici, parce qu'un inventaire
-incomplet vaut moins que pas d'inventaire du tout.
+Elle remplace celle de 17:42 UTC, retirée — elle portait un identifiant
+réel et attestait un fichier qui n'existe plus. Les mesures avant/après
+sont identiques à celles du 26.10, et une mesure de plus a été prise :
+hors transaction, `nexus.fdj_journal_maintenance` n'est **pas définie**,
+et aucun employé `recette-phase-c-%` ne subsiste.
 
-Le fichier `NEXUS-FDJ-v1.html` contient **21** accès directs aux tables `fdj_*`,
-dont **9 en écriture** — c'était 24 et 11 avant la relecture finale. La Vague 1
-a basculé tout le cycle de caisse, les activations et les mouvements de stock
-sur les commandes serveur ; ce qui suit ne l'est pas encore.
+**Ce que cela ne règle pas — et qui est le point le plus important de
+cette section.** L'inventaire de l'historique montre que la correction ne
+couvre pas toute l'exposition :
 
-| Emplacement | Écriture | Pourquoi elle subsiste |
+| où | occurrences | public ? |
 |---|---|---|
-| `NEXUS-FDJ-v1.html:717` | `update fdj_shifts` (lien de continuité avec le quart précédent) | appartient à la chaîne de stock, hors périmètre du cycle de caisse |
-| `:1417` | `upsert fdj_shift_counts` | les comptages d'ouverture ; aucune commande serveur ne les couvre encore — dette de Vague 2, et la raison pour laquelle la Phase C laisse les droits d'écriture sur cette table |
-| `:1421` | `update fdj_shifts` (`ouverture_validee`) | validation d'ouverture de stock, distincte de l'ouverture du quart FDJ |
-| `:1431`, `:1435`, `:1652`, `:1835` | `insert fdj_alertes` | alertes de stock, hors périmètre |
-| `:1452` | `insert fdj_employee_shift_locks` | le verrou d'écran, hors périmètre |
-| `:1460`, `:1660` | `insert fdj_audit_log` | conservés, mais **encadrés** : la Phase C ajoute un trigger qui refuse un `acteur_id` différent de `auth.uid()` |
-| ~~`:1638`, `:1809`~~ | ~~`insert fdj_stock_movements`~~ | **levé à la relecture finale (26.3).** Les deux appels passent par `fdj_activer_carnet` et `fdj_enregistrer_mouvement_stock` ; l'écran ne fournit plus ni site, ni employé, ni auteur, ni date d'effet, ni clé d'idempotence. Il ne reste aucun `from('fdj_stock_movements')` en écriture dans cet écran. |
-| ~~`NEXUS-FDJ-Manager-v1.html:5511`, `:5525`, `:5531`~~ | ~~`update` / `insert fdj_shifts` avec `employee_id`~~ | **levé à la relecture finale (26.4).** `employee_id` est sorti de l'`update` ; le titulaire change par `fdj_transferer_responsabilite_quart`, avec motif et journal — voir A5. |
+| `supabase/phase-c/` à la tête | 0 | — |
+| `supabase/recette-vague1/` **à la tête** (3 fichiers) | **58** | oui, depuis `c215740` |
+| `docs/recettes/2026-09-05-rejeu-bloqueur-1.md` | 1, sur ~40 branches distantes | oui, depuis `5596126` du 05/09 |
+| `origin/production` | **0** | — |
+| commits de cette branche déjà poussés | 18 commits, de `74ec033` à `f19b4dc` | oui |
 
-Ce qui subsiste dans `NEXUS-FDJ-Manager-v1.html` est d'une autre nature : cet
-écran écrit encore en direct `fdj_reports`, `fdj_shift_counts` et les colonnes
-`date` / `quart` / `statut` d'un `fdj_shifts`. La Phase C **réserve ces
-écritures au manager** — c'est exactement ce que la mutation **M9** vérifie en
-sens inverse : « le manager contrôle, valide, saisit une feuille et dépose un
-rapport ». Ce ne sont donc pas des trous : ce sont les gestes que le rôle a le
-droit de faire, et le seul geste que l'écran ne pouvait plus faire sans
-commande — la saisie de la feuille de caisse — en a reçu une
-(`fdj_saisir_caisse_manager`).
+Le blocage ouvert portait sur la recette Phase C, et la garde versionnée
+est bornée au même périmètre — c'est ce qui a été demandé, et c'est ce
+qui est fait. Mais les mêmes deux identifiants restent lisibles **à la
+tête**, hors Phase C, dans `supabase/recette-vague1/`, et l'un des deux
+est public depuis le 5 septembre dans une fiche de rejeu répliquée sur
+une quarantaine de branches. Corriger la Phase C seule laisse donc
+l'essentiel de l'exposition en place.
 
-La lecture signalée dans la première version de cette annexe — `motif_ecart_texte`
-servi à l'employé par l'écran **Ma Progression** — **est levée** (26.2). Cet
-écran, **dans son chemin employé**, ne lit plus `fdj_cash_controls` : il
-appelle `fdj_ma_progression_caisse()`, qui ne rend que des colonnes autorisées.
-Son chemin **manager** lit encore les lignes brutes — c'est son objet — mais par
-une liste de colonnes explicite au lieu d'un `select('*')`, et gardé par la RLS.
-La fuite était d'ailleurs plus large que ce paragraphe ne le disait : voir 26.2.
+**L'historique n'a pas été touché.** Aucune réécriture, aucun
+`push --force`. La correction de la tête et le traitement de l'historique
+sont deux opérations distinctes, et la seconde demande une décision
+explicite : elle change des SHA déjà publiés, invalide les références
+croisées de ce dossier et de la PR #62, et ne retire rien des copies
+déjà faites. Elle relève d'une décision, pas d'une initiative.
 
-**La règle qui en découle pour la Phase C :** elle ne retire que les droits
-dont on a la preuve qu'aucun écran servi ne se sert — mais, cette preuve ayant
-été faite pour les trois dettes ci-dessus, elle retire nettement plus qu'à
-l'ouverture de la vague : **20 politiques directes deviennent 16**, et la
-lecture de `fdj_cash_controls` par l'employé est **fermée**, pas gardée. Là où
-un trigger de garde subsiste — `fdj_audit_log`, les colonnes de `fdj_shifts` —
-c'est parce que l'écriture reste légitime et que seule la **colonne** est
-interdite ; la RLS filtre des lignes, jamais des colonnes, et un trigger est le
-seul outil qui ait la bonne granularité. Le principe du §9 est inchangé : on ne
-ferme qu'après avoir prouvé que plus personne ne passe par la porte. Ce qui a
-changé, c'est qu'on a fait la preuve.
+---
+
+# Annexe A — Les contradictions métier rencontrées
