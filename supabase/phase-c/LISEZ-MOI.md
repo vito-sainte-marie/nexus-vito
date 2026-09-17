@@ -37,17 +37,31 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
    l'écran *Ma Progression* lit `fdj_cash_controls` par jointure, et une
    politique réservée au manager n'y produirait aucune erreur — seulement une
    ligne imbriquée vide, en silence.
-2. Répéter d'abord la fermeture **en transaction annulée** :
+2. Répéter d'abord la fermeture **en transaction annulée**, avec les
+   mutations, par la recette :
    ```
-   sed 's/^commit;$/rollback;/' 20260916230000_fdj_rls_definitives_phase_c.sql > /tmp/essai.sql
-   psql "<url directe>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
+   supabase/phase-c/recette-test.sh
    ```
-   Le fichier contient cinq contrôles internes qui font échouer la
-   transaction si la fermeture est incomplète.
-3. **Rejouer le jeu de mutations** — cette étape n'est pas facultative, voir
-   plus bas *« pourquoi les cinq contrôles ne suffisent pas »*.
-4. Appliquer ensuite le fichier tel quel, avec `psql -f`.
-5. Rejouer les requêtes de vérification données en fin de fichier.
+   Elle joue le fichier **exact** du dépôt : elle n'en substitue que le
+   `begin;` et le `commit;`, vérifie l'ancrage avant de le faire, imprime le
+   `diff` (quatre lignes) et refuse de partir si autre chose a bougé. Sur une
+   base qui n'a pas encore la Phase A, elle charge les neuf migrations dans la
+   même transaction annulée. Le fichier contient cinq contrôles internes qui
+   font échouer la transaction si la fermeture est incomplète, et la recette
+   enchaîne sur les dix mutations — étape **non facultative**, voir plus bas
+   *« pourquoi les cinq contrôles ne suffisent pas »*.
+3. Appliquer ensuite le fichier tel quel, avec `psql -f`.
+4. Rejouer les requêtes de vérification données en fin de fichier.
+
+Une sortie de recette datée ne prouve jamais que le fichier **d'aujourd'hui**
+s'exécute : à chaque fois que ce dossier change, la recette est à rejouer.
+C'est précisément ce que la CI ne peut pas faire — elle n'a pas de base, et
+n'en aura pas. Elle vérifie donc la seule chose vérifiable sans base, mais elle
+la vérifie pour de bon : `test_phase_c_analysable_20260917.js` analyse le SQL
+d'ici avec `outils/analyser-sql-plpgsql.js` (appariement réel des blocs
+PL/pgSQL, pas une recherche de motifs), contrôle que l'ancrage transactionnel
+reste substituable par la recette, et rejoue six mutations du fichier qui
+doivent toutes rougir.
 
 ## Pourquoi les cinq contrôles internes ne suffisent pas
 
@@ -97,6 +111,7 @@ remis en arrière.
 |---|---|
 | `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, cinq contrôles internes, retour arrière commenté |
 | `20260916230000_mutations_de_validation.sql` | les dix mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
+| `recette-test.sh` | joue le fichier exact sur `nexus-test` en transaction annulée, mutations comprises ; refuse toute cible ressemblant à la Production |
 
 ## Registre des migrations
 
