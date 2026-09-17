@@ -488,6 +488,23 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ───
 //    276
 //
+//   17/09/2026 — relecture finale de la PR #62, trois migrations de plus :
+//   + 3  `20260916220900_fdj_projection_progression.sql` (l'écran employé ne
+//        lit plus la table de caisse en clair),
+//        `20260916221000_fdj_commandes_activations_et_mouvements.sql` (auteur,
+//        employé, site, quart et date d'effet déduits côté serveur) et
+//        `20260916221100_fdj_commande_saisie_caisse_manager.sql` (la saisie
+//        managériale, sans laquelle refermer les politiques aurait cassé un
+//        usage réel au lieu d'une faille). Additives elles aussi.
+//
+//        L'empreinte change également à cause de
+//        `20260916220700_fdj_commandes_caisse_manager.sql`, rouverte pour
+//        étendre deux signatures : un contenu qui bouge à l'intérieur d'une
+//        migration déjà estampillée ne se voit QUE par cette empreinte, pas
+//        par le compteur.
+//   ───
+//    279
+//
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
@@ -495,8 +512,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 276;
-const MIGRATIONS_REELLES_EMPREINTE = '29224d9830ed835fade5bf57798e4078901dd150f5d5f8a42ad01b3c9b0d2f67';
+const MIGRATIONS_REELLES_NOMBRE = 279;
+const MIGRATIONS_REELLES_EMPREINTE = '9a2ff308105bae27722d074f2b127b9212ac1a7f4424a07a44c7cbb9a3051168';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
