@@ -455,17 +455,27 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   - 2  RECOUVREMENT Pointage∩Inventaire, blobs identiques sur `lot1`,
 //        `lot8` et `lot4` : la fusion n'arbitre rien
 //   + 1  lot Projection (#53) : `20260914210000_mes_ecarts_caisse_projection_employe.sql`
+//   + 3  lot Cycle des services en phase pilote (#60, 16/09/2026) :
+//        `20260916193000_prise_de_poste_ninvente_plus_la_fin.sql`,
+//        `20260916194000_regularisation_fins_inventees_prise_de_poste.sql`,
+//        `20260916195000_cloture_source_cycle_pilote.sql`
 //   + 1  lot Accès hors service (#61) :
 //        `20260916210000_mes_ecarts_caisse_masque_le_provisoire.sql` — additive,
 //        elle ne réécrit pas la projection du 14/09 déjà estampillée sur Test
 //   ───
-//    264
+//    267
 //
 //   16/09/2026 — l'empreinte a bougé sans que le NOMBRE bouge : la migration
 //   `20260916210000` a été rouverte pour écrire son ACL en toutes lettres
 //   (`grant execute … to service_role`, jusque-là hérité et donc indéterminé).
 //   Un contenu qui change à nombre constant est exactement ce que cette
 //   empreinte est là pour rendre visible.
+//
+//   16/09/2026, intégration de la tête de `production` dans #61 — #60 et #61
+//   sont deux branches sœurs issues du même point : leurs quatre migrations
+//   sont disjointes, aucun recouvrement à retrancher. 263 + 3 + 1 = 267, et
+//   ce 267 est MESURÉ (`node .github/deploiement/empreinte-artefact.js
+//   --arbre-source=.`), pas déduit de l'addition ci-dessus.
 //
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
@@ -474,10 +484,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 264;
-const MIGRATIONS_REELLES_EMPREINTE = 'cb13585cab60fd356ec3bc01858b0ff2968823b0b69c9f01ff4d109878acab4b';
+const MIGRATIONS_REELLES_NOMBRE = 267;
+const MIGRATIONS_REELLES_EMPREINTE = 'ce9156a9bd4dc33627475193dbe9a914ee3dac75af86a00ea841d1d9638d89d5';
 
-cas('Réel · la provenance des migrations annonce 264 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 267 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

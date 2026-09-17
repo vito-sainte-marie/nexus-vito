@@ -83,7 +83,7 @@ jobs:
           if [ -n "$REPARES" ]; then
             echo "::error::Ces tests ne sont plus en échec — retirez-les de la liste des échecs connus :"; echo "$REPARES"; exit 1
           fi
-          echo "Aucune régression : seuls les 8 échecs connus subsistent."
+          echo "Aucune régression : seuls les $(echo "$ATTENDUS" | wc -l | tr -d ' ') échecs connus subsistent."
 
       - name: Simulations métier
         run: npm run simulations --silent

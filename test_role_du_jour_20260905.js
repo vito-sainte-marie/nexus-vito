@@ -126,16 +126,53 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   // ── 4. Les permissions n'ont pas bougé ─────────────────────────────────
   // L'audit A11 a dénombré 57 contrôles applicatifs sur la fiche employé
   // (manager/gerant). Ce lot ne devait en toucher AUCUN.
+  //
+  // Le 16/09/2026, cette garde a rougi — 54 au lieu de 55 — et elle avait
+  // tort. Aucun contrôle n'avait disparu : dans `nexus-auth.js`, deux COPIES
+  // de `role === 'manager' || role === 'gerant'` ont cédé la place à un appel
+  // à `nexusEstManager`, la règle unique du fichier. Les contrôles sont
+  // toujours là ; ils ont changé de FORME. Compter les copies inline était
+  // une approximation du vrai invariant : COMBIEN D'ENDROITS décident qu'un
+  // employé est manager. Une garde qui ne sait compter qu'une forme punit la
+  // factorisation et récompense le copier-coller — c'est exactement ce que
+  // `regle-pointage-source-unique` reproche au code qu'elle surveille.
+  //
+  // Les deux formes sont donc comptées ensemble, et le total reste FIGÉ :
+  // un contrôle réellement supprimé le fait baisser. La comptabilité se
+  // ferme ligne à ligne :
+  //   55  copies inline dénombrées le 05/09
+  //   −2  copies converties en appel à la règle unique (nexus-auth.js)
+  //   +5  appels à la règle unique : les 2 conversions ci-dessus, plus les
+  //       3 points de décision introduits par le volet D du 16/09
+  //       (nexus-auth.js : régularisation manager ; Cockpit : deux gardes
+  //        d'affichage de la section des services ouverts)
+  //   = 58 points de décision.
   const RE_SOURCE = /\b(employee|employeCourant|employeeCourant|emp|e)\.role\b(?!_)/;
-  let permissions = 0;
+
+  // La DÉFINITION de `nexusEstManager` n'est PAS un point de décision : elle
+  // est la règle elle-même. La compter reviendrait à dire qu'écrire la règle
+  // une fois de plus renforce les permissions.
+  const sansLaDefinition = t => {
+    const i = t.indexOf('function nexusEstManager(');
+    if (i === -1) return t;
+    const j = t.indexOf('\n}', i);
+    return t.slice(0, i) + t.slice(j === -1 ? t.length : j);
+  };
+
+  const pointsParFichier = {};
   for (const f of fs.readdirSync(RACINE)) {
     if (!/\.(js|html)$/.test(f) || f.startsWith('test_')) continue;
-    for (const l of lire(f).split('\n')) {
-      if (l.trim().startsWith('//') || !RE_SOURCE.test(l)) continue;
-      if (/'(manager|gerant)'/.test(l)) permissions++;
+    for (const l of sansLaDefinition(lire(f)).split('\n')) {
+      if (l.trim().startsWith('//')) continue;
+      const copie = RE_SOURCE.test(l) && /'(manager|gerant)'/.test(l);
+      const appel = /nexusEstManager\(/.test(l);
+      if (copie || appel) pointsParFichier[f] = (pointsParFichier[f] || 0) + (copie ? 1 : 0) + (appel ? 1 : 0);
     }
   }
-  verifier(`les contrôles de permission sur la fiche sont intacts (${permissions})`, permissions === 55);
+  const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
+  verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
+    `${permissions === 58 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 58);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));

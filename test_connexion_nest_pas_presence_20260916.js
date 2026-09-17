@@ -243,6 +243,41 @@ const ECRITURES_ATTENDUES = {
   'NEXUS-Pointage-v1.html': { table: 'pointages', nombre: 3 },
 };
 
+// TOUTE modification des tables de présence, verbe compris et littéral
+// d'argument à l'appui — là où `ecrituresDePresence` ne regarde que la
+// CRÉATION (`insert`/`upsert`).
+//
+// Pourquoi cette seconde lecture existe (arbitrage du 16/09/2026). La règle
+// dit : « aucun service ne peut être CRÉÉ implicitement par le login, le
+// chargement d'un écran, une redirection ou la consultation d'une donnée ».
+// Elle n'interdit pas d'en REFERMER un : le cycle des services en phase
+// pilote referme, au retour dans l'application, les services qu'aucun départ
+// n'a jamais clos — sans heure de fin, et en le disant. Interdire tout verbe
+// dans le chemin commun reviendrait à défaire cet arbitrage ; l'autoriser en
+// bloc rendrait la garde muette le jour où une écriture y rouvrirait un
+// service. On lit donc la FORME de chaque écriture, pas seulement son verbe.
+function ecrituresSurPresence(src) {
+  const code = masquerCommentaires(src);
+  const out = [];
+  const re = /from\(\s*'(shifts|pointages)'\s*\)/g;
+  let m;
+  while ((m = re.exec(code))) {
+    // La chaîne PostgREST se termine au point-virgule : au-delà, un verbe
+    // appartiendrait à une autre requête.
+    let fin = code.indexOf(';', m.index);
+    if (fin === -1 || fin > m.index + 900) fin = Math.min(m.index + 900, code.length);
+    const fenetre = code.slice(m.index, fin);
+    const v = /\.\s*(insert|upsert|update|delete)\s*\(/.exec(fenetre);
+    if (!v) continue;
+    const iPar = m.index + v.index + v[0].length - 1;
+    out.push({
+      position: m.index, table: m[1], verbe: v[1],
+      argument: code.slice(iPar, finDesParentheses(code, iPar)),
+    });
+  }
+  return out;
+}
+
 function ecrituresDePresence(f) {
   const src = lire(f);
   const positions = [];
@@ -387,8 +422,28 @@ t('cas 3 et 4 — ni l\'actualisation ni la reconnexion ne pointent', () => {
   const auth = lire('nexus-auth.js');
   assert.deepStrictEqual(ecrituresDePresence('nexus-auth.js'), [],
     'nexus-auth.js écrit une présence : chaque chargement d\'écran en créerait une');
-  assert.ok(!/from\('(shifts|pointages)'\)[\s\S]{0,80}\.(insert|upsert|update|delete)/.test(auth),
-    'le chemin commun d\'authentification modifie shifts ou pointages');
+  // Le chemin commun n'a le droit qu'à UNE forme d'écriture, et la garde la
+  // nomme au lieu de la tolérer : refermer un service déjà ouvert, sans
+  // inventer d'heure de fin. Trois choses restent interdites ici, et chacune
+  // a sa mutation plus bas — créer (`insert`/`upsert`), toucher un pointage,
+  // et écrire `en_cours`, qui rouvrirait une présence au chargement.
+  for (const e of ecrituresSurPresence(auth)) {
+    assert.strictEqual(e.table, 'shifts',
+      `le chemin commun d'authentification modifie « ${e.table} » (${e.verbe}) : ` +
+      'un pointage est un geste, il ne s\'écrit jamais au chargement d\'un écran');
+    assert.strictEqual(e.verbe, 'update',
+      `le chemin commun d'authentification porte un « ${e.verbe} » sur shifts : ` +
+      'il peut refermer un service déjà ouvert, jamais en créer ni en effacer un');
+    assert.ok(/statut\s*:\s*'clos_sans_pointage'/.test(e.argument),
+      'une écriture du chemin commun sur shifts n\'inscrit pas `clos_sans_pointage` : ' +
+      'seule la clôture de la phase pilote y est admise, et elle se reconnaît à ce statut');
+    assert.ok(/heure_fin\s*:\s*null/.test(e.argument),
+      'une écriture du chemin commun sur shifts pose une heure de fin : ' +
+      'NEXUS ne sait pas quand l\'employé a fini — c\'est la durée fabriquée que P-2 a effacée');
+    assert.ok(!/'en_cours'/.test(e.argument),
+      'une écriture du chemin commun inscrit `en_cours` : ouvrir un écran rouvrirait ' +
+      'une présence, ce que la règle interdit exactement');
+  }
   // Et le rétablissement de session ne passe par aucune écriture.
   for (const f of ['nexus-session.js', 'nexus-supabase.js']) {
     if (fs.existsSync(path.join(RACINE, f)))
@@ -501,6 +556,46 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
   assert.ok(f, 'renderDeuxChemins introuvable');
   assert.ok(!/innerWidth|matchMedia|screen\.|ontouchstart|userAgent/.test(f.corps),
     'les chemins proposés dépendent du terminal : ils doivent être identiques partout');
+});
+
+// ── La garde du chemin commun mord-elle ? ─────────────────────────────────
+//
+// Une garde qui s'assouplit doit prouver qu'elle n'est pas devenue muette.
+// Le 16/09/2026 elle est passée de « aucun verbe » à « un seul verbe, et
+// seulement sous cette forme » : quatre mutations du texte réel établissent
+// que chacune des quatre conditions rougit pour son propre motif. Le contrat
+// mesuré est celui de `ecrituresSurPresence`, pas une reformulation.
+t('la garde du chemin commun rougit sur les quatre dérives', () => {
+  const auth = lire('nexus-auth.js');
+  const conforme = ecrituresSurPresence(auth);
+  assert.ok(conforme.length >= 1,
+    'aucune écriture détectée dans nexus-auth.js : la garde mesurerait le vide');
+
+  const verdict = (src) => {
+    for (const e of ecrituresSurPresence(src)) {
+      if (e.table !== 'shifts') return 'table';
+      if (e.verbe !== 'update') return 'verbe';
+      if (!/statut\s*:\s*'clos_sans_pointage'/.test(e.argument)) return 'statut';
+      if (!/heure_fin\s*:\s*null/.test(e.argument)) return 'heure_fin';
+      if (/'en_cours'/.test(e.argument)) return 'reouverture';
+    }
+    return 'conforme';
+  };
+  assert.strictEqual(verdict(auth), 'conforme',
+    'le fichier réel ne passe pas sa propre garde');
+
+  // M1 — la clôture devient une création.
+  assert.strictEqual(verdict(auth.replace('.update({', '.insert({')), 'verbe',
+    'M1 : un insert glissé dans le chemin commun passerait');
+  // M2 — la même écriture, mais sur les pointages.
+  assert.strictEqual(verdict(auth.replace(/\.from\('shifts'\)(\s*\n\s*\.update)/, ".from('pointages')$1")),
+    'table', 'M2 : une écriture de pointage au chargement passerait');
+  // M3 — NEXUS réinvente une heure de fin.
+  assert.strictEqual(verdict(auth.replace('heure_fin:      null,', 'heure_fin:      maintenant,')),
+    'heure_fin', 'M3 : une durée fabriquée au chargement passerait');
+  // M4 — le service est rouvert au lieu d'être refermé.
+  assert.strictEqual(verdict(auth.replace("statut:         'clos_sans_pointage',", "statut:         'en_cours',")),
+    'statut', 'M4 : une réouverture de service au chargement passerait');
 });
 
 console.log(`\n${passes} vérifications passées — se connecter, consulter, actualiser : rien de tout cela ne fabrique une présence.`);

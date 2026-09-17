@@ -156,6 +156,11 @@ async function porte1(page, employee, { service, departPointe }) {
     BLOC,
     'async function nexusServiceCourant(e){ __lectures.push("shifts"); return ' + JSON.stringify(service) + '; }',
     'async function nexusDepartPointeAujourdhui(e){ __lectures.push("pointages"); return ' + JSON.stringify(!!departPointe) + '; }',
+    // 16/09/2026 — les deux portes appellent desormais `nexusEstManager`
+    // au lieu de recopier `role === 'manager' || role === 'gerant'`. Elle
+    // est EXTRAITE du fichier reel, jamais reecrite ici : un banc qui
+    // porterait sa propre copie resterait vert en mesurant l'ancienne.
+    extraire('nexusEstManager'),
     extraire('nexusPriseDePosteManquante'),
     'this.__test = nexusPriseDePosteManquante;',
   ].join('\n\n');
@@ -179,7 +184,7 @@ async function porte2(page, employee, { config, arrivee }) {
     __lectures: [],
     nexusClient: { from: (table) => { ctx.__lectures.push(table); return chain(table); } },
   };
-  const code = [BLOC, extraire('nexusPointageArriveeManquant'),
+  const code = [BLOC, extraire('nexusEstManager'), extraire('nexusPointageArriveeManquant'),
                 'this.__test = nexusPointageArriveeManquant;'].join('\n\n');
   vm.runInNewContext(code, ctx);
   const bloque = await ctx.__test(employee);

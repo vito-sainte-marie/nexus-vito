@@ -280,7 +280,247 @@ function nexusPageExigeServiceOperationnel(page){
   return nexusCategorieAcces(page) === 'operationnel';
 }
 /* NEXUS-ACCES-REGLE:FIN */
-async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+// Manager ou gérant — LA réponse, une seule fois. Elle était écrite deux
+// fois dans ce fichier et une fois de plus dans chaque écran qui en a besoin.
+// Ce n'est pas une habilitation : les droits réels sont ceux de la RLS, qui
+// ne lit pas cette fonction. C'est la règle d'AFFICHAGE et de journal — à
+// qui NEXUS propose une action, et qui il nomme quand il l'enregistre.
+function nexusEstManager(employee){
+  return !!employee && (employee.role === 'manager' || employee.role === 'gerant');
+}
+
+async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+// ============================================================================
+// CYCLE DE VIE DES SERVICES PENDANT LA PHASE PILOTE (16/09/2026)
+//
+// LE FAIT. Trois services étaient encore `en_cours` en Production : un depuis
+// le 14/09, un depuis le 15/09, un quart du matin déjà fini. Personne n'avait
+// pointé de départ. `nexusServiceCourant` les VOYAIT — il les ignorait depuis
+// le 11/09 et l'écrivait dans la console — mais rien ne les refermait : ils
+// restaient « actifs » pour le manager, indéfiniment.
+//
+// L'ARBITRAGE. NEXUS est utilisé de façon intermittente pendant le pilote.
+// Exiger le pointage fermerait l'application à ceux qui ne l'ont pas utilisée ;
+// inventer une heure de fin fabriquerait des durées fausses, comme les
+// 2 jours 00 h 24 que la migration P-2 vient d'effacer. Le seul modèle
+// cohérent : NEXUS referme seul, dit qu'il l'a fait, et n'écrit AUCUNE heure
+// de fin — ou le manager régularise, et NEXUS écrit que c'est lui.
+//
+// CE QUE CETTE SECTION NE FAIT PAS. Elle ne décide pas ce qui est obsolète :
+// la règle vit dans `nexus-pointage-regles.js`, et sans ce module rien n'est
+// tenté plutôt qu'une version locale recopiée. Sept copies d'une même règle de
+// pointage ont déjà coûté une journée.
+//
+// Quatre fonctions, et une seule écriture :
+//   nexusReglesPilote()                    — le module de règles, ou null
+//   nexusAppliquerCloturePilote()          — L'écriture, paramétrée par la décision
+//   nexusCloturerServicesObsoletes()       — décision de NEXUS  (cloture_par NULL)
+//   nexusServicesOuvertsDuSite()           — la lecture d'équipe du manager
+//   nexusRegulariserServicesObsoletes()    — décision du manager (cloture_par = lui)
+// ============================================================================
+function nexusReglesPilote(){
+  const regles = (typeof NexusPointageRegles !== 'undefined') ? NexusPointageRegles : null;
+  if(regles && regles.MOTIF_CLOTURE_PILOTE && regles.SOURCE_CLOTURE_PILOTE) return regles;
+  console.error('Cycle des services : nexus-pointage-regles.js n’est pas chargé par cet écran — aucune clôture n’est tentée. Ni le motif ni la source ne se recopient ici : ils n’existent qu’à un seul endroit, et un écran qui les recopierait les ferait diverger.');
+  return null;
+}
+
+/**
+ * L'ÉCRITURE de clôture — une seule, quelle que soit la décision.
+ * ─────────────────────────────────────────────────────────────────
+ * Deux appelants aujourd'hui : NEXUS qui referme seul au retour dans
+ * l'application, et le manager qui régularise plusieurs services d'un geste.
+ * Ils diffèrent par la DÉCISION — qui la prend, ce qu'elle inscrit — et par
+ * rien d'autre. La forme écrite, elle, doit être rigoureusement la même :
+ * `clos_sans_pointage`, `heure_fin` NULLE, un motif, une source, un instant.
+ *
+ * Séparer les deux chemins d'écriture reviendrait à préparer la divergence
+ * que P-2 vient d'effacer en base — 43 heures de fin fabriquées en Test, 2 en
+ * Production, parce qu'un chemin inventait ce qu'un autre refusait d'inventer.
+ *
+ * @param {Array}  services  [{ service: {id}, motif: <clé de MOTIF_CLOTURE_PILOTE> }]
+ * @param {object} decision
+ * @param {string} decision.source     une valeur de SOURCE_CLOTURE_PILOTE, jamais un littéral
+ * @param {string} decision.par        l'employee.id du décideur, ou null si c'est NEXUS
+ * @param {function} decision.motifPour (obsolete, MOTIFS) -> le texte écrit
+ *
+ * Retour : { closes, tentees, refuses, indisponible?, invalide? } — jamais
+ * d'exception. Une clôture de ménage ne doit pas empêcher un écran de s'ouvrir.
+ */
+async function nexusAppliquerCloturePilote(services, decision){
+  const regles = nexusReglesPilote();
+  if(!regles) return { closes: 0, tentees: 0, refuses: [], indisponible: true };
+
+  // La source est vérifiée ICI, avant la première écriture, et pas laissée à
+  // `shifts_cloture_source_check`. La base refuserait tout aussi bien — mais
+  // après le clic du manager, service par service, avec un message qu'il ne
+  // peut pas lire.
+  const sourcesConnues = Object.keys(regles.SOURCE_CLOTURE_PILOTE).map(c => regles.SOURCE_CLOTURE_PILOTE[c]);
+  if(!decision || sourcesConnues.indexOf(decision.source) === -1 || typeof decision.motifPour !== 'function'){
+    console.error('Cycle des services : décision de clôture invalide (source « ' + (decision && decision.source) + ' ») — rien n’est écrit.');
+    return { closes: 0, tentees: 0, refuses: [], invalide: true };
+  }
+  if(!services || !services.length) return { closes: 0, tentees: 0, refuses: [] };
+
+  const maintenant = new Date().toISOString();
+  const refuses = [];
+  let closes = 0;
+  for(const obsolete of services){
+    if(!obsolete || !obsolete.service || !obsolete.service.id){
+      console.error('Cycle des services : entrée sans service identifié, ignorée.');
+      continue;
+    }
+    // Le motif vient du module de règles, jamais d'un littéral local. Sans
+    // motif, on ne referme pas : une clôture muette ne dirait pas pourquoi.
+    const motif = decision.motifPour(obsolete, regles.MOTIF_CLOTURE_PILOTE);
+    if(!motif){
+      console.error('Cycle des services : aucun motif pour le service ' + obsolete.service.id + ' — il reste ouvert.');
+      refuses.push(obsolete.service.id);
+      continue;
+    }
+    const { data, error } = await nexusClient
+      .from('shifts')
+      .update({
+        statut:         'clos_sans_pointage',
+        // NULLE, et pas `now()`. C'est le cœur de l'arbitrage du 16/09 :
+        // NEXUS ne sait pas quand l'employé a fini, donc NEXUS ne l'écrit pas.
+        heure_fin:      null,
+        cloture_source: decision.source,
+        cloture_le:     maintenant,
+        cloture_par:    decision.par || null,
+        cloture_motif:  motif,
+      })
+      // `statut = en_cours` dans le filtre, et pas seulement l'identifiant :
+      // deux onglets ouverts font la même chose en même temps. Le second ne
+      // doit pas réécrire une clôture déjà posée, ni compter comme un succès.
+      .eq('id', obsolete.service.id)
+      .eq('statut', 'en_cours')
+      .select('id');
+    if(error){
+      console.error('Cycle des services : clôture du service ' + obsolete.service.id + ' impossible —', error);
+      refuses.push(obsolete.service.id);
+      continue;
+    }
+    // Zéro ligne SANS erreur : un refus de RLS ne lève rien, et une clôture
+    // concurrente non plus. On dit ce qui est mesuré, on ne tranche pas
+    // entre deux causes qu'on n'a pas observées.
+    if(!data || !data.length){
+      console.error('Cycle des services : le service ' + obsolete.service.id + ' n’a pas été modifié — il a été fermé entre-temps, ou cette écriture est refusée.');
+      refuses.push(obsolete.service.id);
+      continue;
+    }
+    closes++;
+  }
+  return { closes, tentees: services.length, refuses };
+}
+
+/**
+ * NEXUS referme seul, au retour dans l'application. `cloture_par` NULL :
+ * aucun humain n'a pris cette décision, et le journal doit pouvoir le dire.
+ */
+async function nexusCloturerServicesObsoletes(employee, services){
+  const regles = nexusReglesPilote();
+  if(!regles) return { closes: 0, tentees: 0, refuses: [], indisponible: true };
+  if(!employee || !employee.id || !services || !services.length) return { closes: 0, tentees: 0, refuses: [] };
+
+  const bilan = await nexusAppliquerCloturePilote(services, {
+    source: regles.SOURCE_CLOTURE_PILOTE.automatique,
+    par:    null,
+    // Le motif suit le critère qui a rendu le service obsolète ; le repli sur
+    // `jour_precedent` couvre une clé que ce module ne connaîtrait pas encore.
+    motifPour: (obsolete, MOTIFS) => MOTIFS[obsolete.motif] || MOTIFS.jour_precedent,
+  });
+  if(bilan.closes > 0){
+    console.info('Cycle des services : ' + bilan.closes + ' service(s) refermé(s) sans heure de fin (phase pilote).');
+  }
+  return bilan;
+}
+
+/**
+ * Les services encore ouverts du site — la lecture d'équipe, ici et nulle
+ * part ailleurs.
+ * ────────────────────────────────────────────────────────
+ * Aucun écran de NEXUS ne lisait jusqu'ici les services de l'équipe : deux
+ * seulement touchent `shifts`, et tous deux pour l'employé courant. Cette
+ * lecture existe pour que l'action de régularisation du manager n'ouvre pas un
+ * troisième accès direct à la table depuis une page.
+ *
+ * AUCUNE garde de rôle ici, volontairement : la barrière est `select_shifts`,
+ * qui rend à un employé ordinaire ses propres services et à un manager ceux
+ * de son site. Dupliquer la règle en JavaScript la ferait diverger le jour où
+ * la RLS changerait, sans rien protéger — le client n'est pas une barrière.
+ *
+ * La jointure NOMME sa contrainte : `shifts` référence `employees` deux fois
+ * (`employee_id` et `cloture_par`), et PostgREST refuse une relation ambiguë.
+ *
+ * Retour : { services: [...] } | { erreur: true, services: [] }
+ */
+async function nexusServicesOuvertsDuSite(employee){
+  if(!employee || !employee.site_id){
+    console.error('Services ouverts : site de l’employé inconnu — aucune lecture d’équipe. Un site indetermine ne se remplace pas par un site par defaut.');
+    return { erreur: true, services: [] };
+  }
+  const PLAFOND = 200;
+  const { data, error } = await nexusClient
+    .from('shifts')
+    .select('id, employee_id, role, quart, heure_debut, statut, site_id, employees!shifts_employee_id_fkey(nom)')
+    .eq('site_id', employee.site_id)
+    .eq('statut', 'en_cours')
+    .order('heure_debut', { ascending: true })
+    .limit(PLAFOND);
+  if(error){
+    console.error('Services ouverts : lecture impossible —', error);
+    return { erreur: true, services: [] };
+  }
+  const lignes = data || [];
+  // Un plafond atteint est un résultat tronqué, pas un résultat. On le dit
+  // plutôt que de laisser un manager croire qu'il a tout vu.
+  if(lignes.length === PLAFOND){
+    console.warn('Services ouverts : ' + PLAFOND + ' lignes rendues, la liste est peut-être tronquée.');
+  }
+  return {
+    services: lignes.map(sv => Object.assign({}, sv, {
+      nom: (sv.employees && sv.employees.nom) || null,
+    })),
+  };
+}
+
+/**
+ * Le manager régularise plusieurs services obsolètes en une action.
+ * ─────────────────────────────────────────────────────
+ * Exigence du 16/09/2026, mot pour mot : « le manager peut régulariser
+ * plusieurs services obsolètes en une action ».
+ *
+ * LA GARDE DE RÔLE EST ICI, alors qu'elle est absente de la lecture ci-dessus.
+ * Ce n'est pas une incohérence : en lecture, la RLS suffit, elle rend moins.
+ * En écriture, la RLS refuserait elle aussi — mais `cloture_source` vaudrait
+ * déjà 'manager' et `cloture_par` désignerait quelqu'un qui n'en est pas un.
+ * Le journal du pilote doit dire vrai sur QUI a décidé ; c'est cette vérité-là
+ * que la garde protège, pas l'accès.
+ *
+ * Le motif est IMPOSÉ : quel que soit le critère qui a rendu le service
+ * obsolète, c'est un humain qui a tranché, et le journal l'écrit ainsi.
+ */
+async function nexusRegulariserServicesObsoletes(manager, obsoletes){
+  const regles = nexusReglesPilote();
+  if(!regles) return { closes: 0, tentees: 0, refuses: [], indisponible: true };
+  if(!manager || !manager.id || !nexusEstManager(manager)){
+    console.error('Régularisation refusée : seul un manager ou un gérant régularise les services de son équipe.');
+    return { closes: 0, tentees: 0, refuses: [], refuse: true };
+  }
+  if(!obsoletes || !obsoletes.length) return { closes: 0, tentees: 0, refuses: [] };
+
+  const bilan = await nexusAppliquerCloturePilote(obsoletes, {
+    source: regles.SOURCE_CLOTURE_PILOTE.manager,
+    par:    manager.id,
+    motifPour: (obsolete, MOTIFS) => MOTIFS.manager,
+  });
+  if(bilan.closes > 0){
+    console.info('Régularisation : ' + bilan.closes + ' service(s) refermé(s) sans heure de fin, à la main du manager.');
+  }
+  return bilan;
+}
+
 // ────────────────────────────────────────────────────────────────────
 // S-4 (05/09/2026) — LE service courant. Une seule définition.
 //
@@ -357,6 +597,30 @@ async function nexusServiceCourant(employee){
   const ouvertsHorsDuJour = tous.length - services.length;
   if(ouvertsHorsDuJour > 0){
     console.error('Service courant : ' + ouvertsHorsDuJour + ' service(s) ouvert(s) commence(s) un autre jour, ignore(s) \u2014 le service de la veille n\'est jamais reutilise.');
+    // 16/09/2026 — LES IGNORER NE SUFFISAIT PAS. Ils restaient `en_cours` en
+    // base, donc « actifs » pour le manager, sans fin et sans terme. NEXUS les
+    // referme ici, au moment exact où il constate leur existence.
+    //
+    // La liste vient de la règle, jamais de la soustraction ci-dessus : un
+    // service sans `heure_debut` n'appartient à aucun jour, et ne doit donc
+    // pas être refermé au motif qu'il n'est pas d'aujourd'hui.
+    //
+    // `await` : la lecture attend le ménage. C'est une requête par service
+    // obsolète, et le cas normal est zéro. En échange, deux écrans ouverts
+    // ne relancent pas indéfiniment la même clôture.
+    const regles = (typeof NexusPointageRegles !== 'undefined') ? NexusPointageRegles : null;
+    // LE CONTEXTE FOURNI ICI N'A PAS DE `seuilBascule`, et c'est délibéré.
+    // `nexus-auth.js` est chargé par tous les écrans ; `nexus-station.js`, qui
+    // sait lire les horaires du commerce, ne l'est que par sept d'entre eux.
+    // Sans seuil, `serviceObsolete` n'applique que le critère du jour
+    // précédent — un quart du matin fini le jour même sera refermé par le
+    // Cockpit, qui possède ce seuil, ou demain par le critère du jour.
+    // Fournir un seuil approximatif serait pire : NEXUS fermerait des services
+    // encore en cours.
+    const obsoletes = regles && regles.servicesObsoletes
+      ? regles.servicesObsoletes(tous, { jourStation: jourLocal, jourDeService: d => nexusDateLocaleISO(d) })
+      : [];
+    if(obsoletes.length) await nexusCloturerServicesObsoletes(employee, obsoletes);
   }
   if(!services.length) return { aucun: true };
   // S-1 pose un index unique partiel : plus d\u2019un service ouvert est
@@ -369,7 +633,7 @@ async function nexusServiceCourant(employee){
   return { service: services[0] };
 }
 
-async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
+async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=nexusEstManager(employee);if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
   // l'existence d'un service dans la journée de l'appareil. Après un
   // pointage de départ, l'employé n'a plus de service courant : s'il
   // revient sur un parcours qui en exige un, il est renvoyé vers la prise
