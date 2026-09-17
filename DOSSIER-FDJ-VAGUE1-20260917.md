@@ -314,7 +314,8 @@ l'identité, le rôle, le site, le titulaire, l'état courant et la transition.
 
 ## 8. Les fonctions et commandes serveur créées
 
-**30 fonctions**, réparties en cinq familles. Toutes fixent explicitement leur
+**36 fonctions**, réparties en six familles (29 à l'ouverture de la vague, plus
+les 7 de la relecture finale — point 26). Toutes fixent explicitement leur
 `search_path`, révoquent `EXECUTE` à `anon` et à `PUBLIC`, et ne l'accordent
 qu'aux rôles nécessaires (§4).
 
@@ -340,7 +341,19 @@ qu'aux rôles nécessaires (§4).
 
 **Calcul et intégrité**
 `fdj_calculer_caisse()` · `fdj_ventes_jeu()` · `fdj_chaine_continuite()` ·
-`fdj_caisse_evenements_immuable()` (trigger) · `mes_ecarts_caisse()` (ajustée)
+`fdj_caisse_evenements_immuable()` (trigger)
+
+**Attribution serveur des mouvements et des saisies (point 26)**
+`fdj_ma_progression_caisse()` · `fdj_demandes_correction_du_quart()` ·
+`fdj_activer_carnet()` · `fdj_enregistrer_mouvement_stock()` ·
+`fdj_saisir_caisse_manager()` · `fdj_cle_idempotence()` ·
+`fdj_emplacement_du_site()`
+
+Une correction de décompte au passage : `mes_ecarts_caisse()` figurait dans la
+première version de cette liste comme « ajustée ». Elle ne l'est pas — elle
+date du `20260914210000` et cette vague n'y touche pas. Elle est seulement
+**citée** par `20260916220900` comme le précédent dont la nouvelle projection
+reprend la règle : aucun paramètre d'identité, filtrage sur `auth.uid()` seul.
 
 Chaque commande d'écriture vérifie, dans cet ordre : **identité** (`auth.uid()`,
 jamais un identifiant fourni par le navigateur) → **rôle enregistré en base**
@@ -635,7 +648,7 @@ Deux réserves, énoncées franchement :
 
 ## 17. Résultats complets des tests
 
-**Suite du dépôt : 203/210.** Les sept échecs sont **exactement** ceux qui
+**Suite du dépôt : 205/212.** Les sept échecs sont **exactement** ceux qui
 existaient déjà sur la base `da38b67a`, et exactement la liste `CONNUS` de
 `.github/workflows/tests.yml` :
 
@@ -651,7 +664,12 @@ test_reception_v1_dom.js                         ReferenceError: demarrerRecepti
 
 Aucun n'est FDJ ; aucun n'est touché par cette vague. La CI échoue **dans les
 deux sens** — un nouveau test rouge la fait échouer, un test réparé mais laissé
-dans la liste aussi. 203 et non 202 : un test a été ajouté, il passe.
+dans la liste aussi. 212 fichiers et non 210 : la relecture finale en ajoute
+deux (`test_progression_projection_fdj_20260917.js` et
+`test_phase_c_analysable_20260917.js`), tous deux verts. Le lanceur compte des
+**fichiers**, pas des assertions : les deux tests ajoutés *à l'intérieur* de
+`test_fdj_fiabilisation_etape5_idempotence.js` (points 26.5 et 26.6) ne font
+donc pas bouger ce total, et c'est normal.
 
 Le reste de la chaîne CI, mesuré le 17/09/2026 sur la tête de la branche :
 
@@ -716,14 +734,24 @@ Une garde qui n'a jamais rougi n'est pas une garde. Chaque famille de
 vérifications porte donc ses propres mutations, et **échoue si la mutation
 passe**.
 
-**a) Les 12 mutations de la Phase C** —
+**a) Les 13 mutations de la Phase C** —
 `supabase/phase-c/20260916230000_mutations_de_validation.sql`, jouées sous le
-rôle `authenticated` dans la transaction annulée : dix tentatives qui doivent
-échouer (se réattribuer le quart d'un collègue, écrire `valide_par`, modifier
-une caisse validée, lire les commentaires du manager, écrire dans
-`fdj_audit_log` au nom d'un autre…) et cinq contre-épreuves (M2 bis, M4, M7,
-M8 bis, M9) qui vérifient l'inverse — car une garde qui refuse **tout**
-casserait l'écran FDJ, et serait verte elle aussi.
+rôle `authenticated` dans la transaction annulée. Treize mutations numérotées,
+dix-sept vérifications : **onze tentatives qui doivent échouer** (M1, M2, M3,
+M4, M5, M6, M8, M10, M11, M12, M13 — insérer ou modifier une caisse en direct,
+se réattribuer le quart d'un collègue, écrire `valide_par`, lire les
+commentaires du manager, écrire dans `fdj_audit_log` au nom d'un autre,
+écrire un mouvement de stock en direct…) et **six contre-épreuves** (M2 bis,
+M4 bis, M7, M8 bis, M9, M11 bis) qui vérifient l'inverse — car une garde qui
+refuse **tout** casserait l'écran FDJ, et serait verte elle aussi.
+
+Les trois dernières sont nées de la relecture finale : **M4 bis** (« Ma
+Progression » continue de rendre l'écart après confirmation, sans un seul champ
+manager), **M11 bis** (`employee_id` vient du quart et `created_by` de
+`auth.uid()`, y compris quand c'est le manager qui saisit) et **M13** (le
+manager non plus n'écrit dans `fdj_cash_controls` en direct : 0 ligne, aucune
+erreur). Le détail de leur écriture — et du piège de sous-transaction qu'elles
+ont révélé — est au point 26.9.
 
 Ce jeu a déjà servi : les deux fonctions de garde avaient d'abord été écrites
 en `security definer`, ce qui plaçait `current_user` à `postgres` et faisait
@@ -861,7 +889,7 @@ Supabase ne regarde pas le dépôt. Chaque phase ci-dessous est une action
 **manuelle et explicite**, à faire dans l'ordre, chacune après la
 vérification qui la précède.
 
-### Phase A — ÉTENDRE (9 migrations)
+### Phase A — ÉTENDRE (12 migrations)
 
 Aucune ne casse le front actuellement servi : elles ajoutent des colonnes
 nullables, des tables neuves, des fonctions neuves. Ordre impératif — chacune
@@ -878,10 +906,13 @@ dépend des précédentes.
 | 7 | `20260916220600_fdj_commandes_caisse_employe.sql` | brouillon, confirmation, correction, signalement |
 | 8 | `20260916220700_fdj_commandes_caisse_manager.sql` | contrôle, validation, réouverture, transfert |
 | 9 | `20260916220800_fdj_projection_employe.sql` | `fdj_ma_caisse()` et les six lectures employé |
+| 10 | `20260916220900_fdj_projection_progression.sql` | `fdj_ma_progression_caisse()` et `fdj_demandes_correction_du_quart()` — l'écran « Ma Progression » cesse de recevoir les colonnes du manager |
+| 11 | `20260916221000_fdj_commandes_activations_et_mouvements.sql` | `fdj_activer_carnet()`, `fdj_enregistrer_mouvement_stock()`, `fdj_cle_idempotence()`, `fdj_emplacement_du_site()` — auteur, employé, site, quart et date d'effet déduits côté serveur |
+| 12 | `20260916221100_fdj_commande_saisie_caisse_manager.sql` | `fdj_saisir_caisse_manager()` — la saisie de la feuille par le manager, sans laquelle refermer les politiques aurait cassé un usage réel |
 
 **Vérification avant de passer à B** — quatre contrôles en lecture seule :
 
-1. les 9 migrations figurent au registre `supabase_migrations.schema_migrations` ;
+1. les 12 migrations figurent au registre `supabase_migrations.schema_migrations` ;
 2. `fdj_ma_caisse()` rend un objet cohérent sur un quart réel **sans rien y
    écrire** (la fonction est `stable`, le moteur le garantit) ;
 3. les compteurs du point 19 et du point 20 sont **inchangés** — 3 brouillons,
@@ -898,9 +929,21 @@ C'est la fusion de la PR, puis le déploiement Pages. Le nouveau
 `NEXUS-FDJ-v1.html` n'appelle plus que les commandes serveur ; il n'écrit plus
 directement dans `fdj_cash_controls`, `fdj_reports` ni `fdj_caisse_evenements`.
 
-**L'écran manager `NEXUS-FDJ-Manager-v1.html` n'est volontairement PAS
-basculé** : le mandat porte sur le parcours employé. Il continue d'écrire en
-direct. C'est la raison pour laquelle la Phase C ne peut pas tout fermer.
+**L'écran manager `NEXUS-FDJ-Manager-v1.html` est basculé lui aussi** — c'était
+la quatrième correction bloquante de la relecture finale (point 26.4). Ses six
+gestes du cycle de caisse passent désormais par les commandes serveur :
+`fdj_ouvrir_controle_caisse`, `fdj_valider_caisse`, `fdj_rouvrir_caisse`,
+`fdj_corriger_caisse_manager`, `fdj_traiter_demande_correction` et
+`fdj_transferer_responsabilite_quart`, auxquels s'ajoutent
+`fdj_saisir_caisse_manager`, `fdj_activer_carnet` et
+`fdj_enregistrer_mouvement_stock`. Il ne reste **aucune écriture directe sur
+`fdj_cash_controls`** dans cet écran — ses trois accès à cette table sont des
+`.select`, et un test le vérifie sur le texte du fichier.
+
+Ce qu'il écrit encore en direct — `fdj_reports`, `fdj_shift_counts`, la date /
+le quart / le statut d'un `fdj_shifts` — reste réservé au manager par la
+Phase C, et le titulaire du quart est sorti de cet `update`. La vérification 2
+ci-dessous porte donc sur les **deux** écrans, employé et manager.
 
 **Vérification avant de passer à C** — et c'est la plus importante du plan,
 parce que fermer trop tôt casse l'écran servi :
@@ -957,7 +1000,7 @@ Arrêt **immédiat**, à n'importe quelle phase :
 - l'écran FDJ servi rend une erreur après la Phase A (elle ne devait rien
   changer pour lui) ;
 - après la Phase B, une écriture directe employé subsiste dans les journaux ;
-- après la Phase C, une seule des quinze mutations ne se comporte pas comme
+- après la Phase C, une seule des treize mutations ne se comporte pas comme
   attendu ;
 - un quart réel se retrouve avec deux lignes FDJ actives ;
 - une caisse validée est modifiée par autre chose qu'une réouverture
@@ -970,11 +1013,11 @@ avant la Phase A.** Rien de ce qui est décrit ci-dessus n'a été fait.
 
 | Phase | Retour arrière | Coût |
 |---|---|---|
-| **A** | `drop function` des 30 fonctions, `drop table` des 2 tables neuves, `drop index` de `fdj_shifts_prise_de_poste_unique`, `alter table … drop column` des colonnes ajoutées | **nul tant que le front n'est pas basculé** — rien ne les utilise. Aucune donnée existante n'est touchée : les colonnes ajoutées sont neuves, les données historiques n'y sont pas. |
+| **A** | `drop function` des 36 fonctions, `drop table` des 2 tables neuves, `drop index` de `fdj_shifts_prise_de_poste_unique`, `alter table … drop column` des colonnes ajoutées | **nul tant que le front n'est pas basculé** — rien ne les utilise. Aucune donnée existante n'est touchée : les colonnes ajoutées sont neuves, les données historiques n'y sont pas. |
 | **B** | revert du commit de fusion, redéploiement Pages | l'ancien front revient. Les caisses confirmées **par le nouveau front** entre-temps gardent leur `statut`/`version` : l'ancien écran les lit comme avant (il ignore ces colonnes). Les données ne sont pas perdues — elles deviennent invisibles. |
 | **C** | réappliquer les politiques d'origine, conservées **intégralement** en commentaire d'en-tête de la migration de Phase C | immédiat, mais **ne rend pas** ce qui aurait été écrit pendant la fenêtre. |
 
-Le retour arrière de A doit se faire **dans l'ordre inverse** des 9 migrations,
+Le retour arrière de A doit se faire **dans l'ordre inverse** des 12 migrations,
 les fonctions avant les tables.
 
 Un point à savoir avant de commencer : **le retour arrière de A après B est
@@ -1011,6 +1054,446 @@ Précisément :
 
 Le seul état modifié est **une branche Git** et **une PR ouverte**. Tout le
 reste attend un GO.
+
+---
+
+# La relecture finale de la PR #62 (point 26)
+
+## 26. Ce que la relecture a trouvé, et ce qu'elle a changé
+
+La PR #62 a été relue avant fusion. Quatre conditions bloquantes en sont
+sorties. Elles ne portaient pas sur des détails : trois d'entre elles
+concernaient des garanties que le dossier affirmait déjà tenir. Cette section
+dit ce qui a été corrigé, ce que la mesure a démenti, et ce qui reste assumé.
+
+Cinq commits, tous sur la même branche `fdj-vague1-cycle-caisse-20260916` —
+**aucune nouvelle PR, aucune fusion** :
+
+| SHA | Ce qu'il corrige |
+|---|---|
+| `771adca` | « Ma progression » ne doit pas recevoir les colonnes du manager (point 2) |
+| `c0eb507` | Activations et mouvements : que le serveur décide qui a écrit, et pour qui (point 3) |
+| `8d8f499` | L'écran manager n'écrit plus dans les tables du cycle de caisse (point 4) |
+| `6341485` | Phase C : refermer ce que la bascule rend inutile, et le prouver sur Test (point 1) |
+| `2858da8` | Empreinte des migrations : 276 → 279, et le contenu a bougé aussi |
+
+---
+
+### 26.1 — La Phase C était inexécutable, et personne ne pouvait le savoir
+
+Le bloc de contrôles du corps de la Phase C portait un `end if;` surnuméraire.
+Le fichier ne compilait pas. Aucun garde-fou ne l'avait vu, pour une raison
+structurelle : **la Phase C ne vit pas dans `supabase/migrations/`.** Elle
+s'applique à la main, après la bascule du front (voir le §22 et
+`supabase/phase-c/LISEZ-MOI.md`). Rien ne l'exécute jamais — ni la CI, qui n'a
+pas de base, ni le déploiement. Et une sortie de recette datée de la veille ne
+prouve rien du fichier du jour.
+
+Deux choses ont donc été faites, et non une :
+
+1. **La syntaxe est corrigée**, et le fichier **exact de la tête courante** a
+   été rejoué sur Test, en transaction annulée, par
+   `supabase/phase-c/recette-test.sh`. Ce script n'est pas un raccourci : il
+   vérifie l'ancrage `begin;` / `commit;` **avant** toute substitution, refuse
+   de tourner si le corps contient déjà un `rollback;`, refuse une cible qui
+   ressemble à la Production, imprime le `diff` entre le fichier du dépôt et ce
+   qui sera joué et **exige qu'il fasse exactement quatre lignes**. Autrement
+   dit : si quoi que ce soit d'autre que les deux lignes de transaction avait
+   bougé, la recette s'arrêterait plutôt que de jouer autre chose que le
+   fichier du dépôt.
+
+2. **Une garde CI a été ajoutée** — `test_phase_c_analysable_20260917.js`. Elle
+   **analyse** et n'exécute pas, parce que la CI est volontairement hors
+   réseau. C'est une limite qu'il faut nommer clairement : une analyse
+   syntaxique aurait attrapé cet `end if;`, elle n'attrapera pas une faute de
+   logique. La preuve d'exécution reste le rejeu sur Test, qui est un geste
+   humain — mais il est désormais **scripté, reproductible et sûr**, ce qu'il
+   n'était pas.
+
+La sortie du rejeu du 17/09/2026 figure au 26.10.
+
+---
+
+### 26.2 — « Ma Progression » : la fuite était plus large que la relecture ne le disait
+
+La relecture pointait `motif_ecart_texte`, `resultat_controle` et `valide_par`.
+La mesure en a trouvé davantage. `NEXUS-Progression-v1.html` chargeait ses
+quarts par `from('fdj_shifts').select('*, fdj_cash_controls(*)')` : **l'étoile
+imbriquée envoyait toutes les colonnes du contrôle**, dont aussi `controle_par`,
+`controle_le`, `saisi_par`, `confirme_par`, `nb_corrections`,
+`derniere_correction_le`, `version`, et l'historique des corrections qui
+l'accompagnait. L'écran n'en affichait rien. **La réponse réseau les portait, et
+c'est la réponse qui compte** — un onglet Réseau suffit.
+
+Deux fermetures ont été examinées et écartées :
+
+- **La RLS ne pouvait rien.** Elle filtre des **lignes**, jamais des colonnes ;
+  et ces lignes-là sont légitimement celles de l'employé.
+- **Un `grant select (colonnes)` non plus.** Le privilège porte sur le rôle
+  `authenticated`, commun aux employés **et** aux managers. Le restreindre
+  casserait l'écran Écarts, qui lit précisément `motif_ecart_texte`.
+
+La seule fermeture possible est une **projection serveur** :
+`fdj_ma_progression_caisse()` (migration `20260916220900`). Elle ne prend
+**aucun paramètre d'identité** — ni employé, ni site : elle ne filtre que sur
+`auth.uid()`, de sorte que modifier l'appel dans la console du navigateur ne
+donne accès à rien de plus. Elle renvoie **exactement les douze champs** que
+`NexusProgression.construireServicesCaisseFdjDepuisProjection` consomme, pas un de plus — pas
+même `site`, que l'écran connaît déjà.
+
+`motif_ecart` **reste** renvoyé, et c'est délibéré : c'est un **code énuméré**
+que l'employé choisit lui-même en corrigeant sa caisse, affiché depuis toujours
+sous « Motif ». Il ne faut pas le confondre avec `motif_ecart_texte`, qui est le
+**commentaire interne** du manager. Le premier appartient à l'employé ; le
+second ne lui a jamais été destiné.
+
+Un point mérite d'être dit sans le sous-entendre : **« Ma Progression » lit
+encore les lignes brutes — mais seulement dans son chemin manager**, celui où un
+responsable consulte la progression de quelqu'un d'autre. Ce chemin ne passe
+évidemment pas par une projection filtrée sur `auth.uid()`. Il a été traité
+autrement : la liste des colonnes y est **écrite en clair, une seule fois**
+(`SELECT_FDJ_SHIFTS_BRUT`, dans `nexus-caisse-source.js`), à la place du
+`select('*')` d'origine. Le commentaire qui l'accompagne dit pourquoi :
+« `select('*')` sur une table de montants finit toujours par transporter la
+colonne de trop ». C'est ce chemin-là, et lui seul, que la RLS de la Phase C
+garde — elle ne l'ouvre qu'au manager du site.
+
+Les quatre garanties demandées sont tenues : la lecture brute de
+`fdj_cash_controls` redevient l'affaire du manager et des fonctions serveur ;
+l'employé ne reçoit plus ni commentaire interne ni identité du contrôleur ;
+**l'écart provisoire reste visible après confirmation** ; **le résultat destiné
+à l'employé reste visible après validation**.
+
+**La mutation exigée existe.** `test_progression_projection_fdj_20260917.js`
+contient une mutation qui ajoute un champ manager à la projection employé —
+elle **doit** faire échouer les tests, et elle les fait échouer. C'est la seule
+façon de savoir que la liste des douze champs est une garantie et non un
+commentaire : toute tentative future de l'élargir rougira.
+
+---
+
+### 26.3 — Deux colonnes vides ne prouvent rien
+
+`created_by` et `effective_at` avaient été ajoutées à `fdj_stock_movements`.
+Rien ne les renseignait. Le front écrivait toujours ses mouvements en direct et
+choisissait lui-même `site`, `employee_id` et `shift_id`. Un `insert` où
+l'appelant **nomme l'employé concerné** n'est pas une trace : c'est une
+déclaration.
+
+Deux commandes serveur ont été créées — `fdj_activer_carnet` et
+`fdj_enregistrer_mouvement_stock` (migration `20260916221000`). Elles déduisent,
+côté serveur et **sans jamais croire l'appelant** :
+
+| Champ | D'où il vient, désormais |
+|---|---|
+| `created_by` | `auth.uid()` |
+| `employee_id` | le **responsable opérationnel du quart**, jamais l'appelant |
+| `site` | le quart |
+| `shift_id` | le quart, après vérification qu'il est celui de l'employé ou un quart dont l'appelant est le manager |
+| `effective_at` | la **date d'effet du quart**, jamais l'horloge du poste |
+| `idempotency_key` | `fdj_cle_idempotence(jeton, contexte)` |
+| `booklet_id` | le livret, lorsqu'il est identifié |
+
+La clé d'idempotence est le point qui demandait le plus d'attention, et il
+n'était pas dans la relecture. L'écran envoyait jusqu'ici **la clé elle-même**.
+Une clé fournie par l'appelant est une clé qu'un appelant peut fabriquer : il
+suffisait de rejouer celle d'un collègue pour que sa propre écriture soit avalée
+comme un doublon et **disparaisse sans erreur**. La clé dérive maintenant de
+`auth.uid()`, du jeton et du contexte. Personne ne peut viser la clé d'un
+autre ; son propre rejeu retombe sur la même clé. **L'écran n'envoie plus qu'un
+jeton**, et le rejeu ne remonte plus un `23505` déguisé en succès : la commande
+répond `{ enregistre: true, idempotent: true }`.
+
+Effet de bord bienvenu : le jeton de repli, utilisé quand `crypto.randomUUID`
+n'existe pas, n'est pas un UUID valide. Il cassait l'écriture, puisque la
+colonne est de type `uuid`. Il ne la casse plus.
+
+Les deux `insert` directs correspondants sont fermés
+(ex-`NEXUS-FDJ-v1.html:1638` et `:1809`), ainsi que l'`insert fdj_audit_log` qui
+suivait l'un d'eux : la commande journalise elle-même, **sous la même action et
+dans la même transaction**. Le laisser en doublait les lignes — et il pouvait
+auparavant échouer seul, laissant un mouvement sans trace.
+
+**La preuve du cas manager est explicite**, comme demandé : lorsqu'un manager
+saisit la feuille d'un quart qui n'est pas le sien, `employee_id` reste
+**l'employé opérationnel** et `created_by` devient **le manager**. C'est la
+mutation **M11 bis**, et c'est exactement la distinction que ces deux colonnes
+ont été ajoutées pour porter — distinction jusqu'ici invérifiable.
+
+---
+
+### 26.4 — L'écran manager reposait sur la bonne volonté d'un fichier HTML
+
+Les commandes serveur existaient depuis le début de la vague. L'écran manager,
+lui, continuait d'écrire en direct. Toute la garantie de la Vague 1 tenait donc
+à ce qu'un fichier HTML veuille bien passer par la bonne porte.
+
+Les six gestes demandés basculent : **prise en contrôle**, **validation**,
+**réouverture**, **correction managériale**, **décision sur une demande de
+correction**, **transfert de responsabilité**. L'écran appelle aujourd'hui dix
+commandes serveur, et **n'écrit plus une seule fois dans `fdj_cash_controls`** —
+ses trois accès restants à cette table sont des `select`.
+
+Le transfert **exige un motif** et **produit un événement de journal** ; il
+n'existe plus de chemin pour le faire sans l'un ni l'autre. Le détail du second
+chemin, plus discret, est au **A5**.
+
+**Une commande manquait à la liste de la relecture**, et sans elle la fermeture
+aurait cassé un usage réel plutôt qu'une faille :
+`fdj_saisir_caisse_manager` (migration `20260916221100`). Un manager qui remplit
+la feuille d'un employé absent n'avait, jusqu'ici, d'autre moyen que l'écriture
+directe. Fermer les politiques sans lui donner de porte aurait été une panne, pas
+une garantie.
+
+**Deux différences de comportement sont assumées ici plutôt que contournées :**
+
+- **Une caisse non confirmée n'est pas corrigeable.** La commande répond
+  `caisse_non_confirmee` au lieu d'écrire ; l'ancien `update` direct écrivait
+  quand même. On n'insiste pas et on ne contourne pas : une caisse dont
+  l'employé n'a pas encore signé le comptage n'a pas d'écart à corriger.
+- **La trace du recalcul automatique** n'est plus posée par l'écran sous un nom
+  à lui avec `acteur_id: null` : c'est la commande qui journalise, sous son
+  action et sous l'identité réelle de l'appelant.
+
+Le test de continuité est porté à cette architecture, avec une garde qui
+manquait : **chaque accès de l'écran à `fdj_cash_controls` doit être suivi d'un
+`.select`**. C'est ainsi que la dernière écriture directe avait survécu à la
+première passe — une seule, isolée, « juste pour ce cas-là ». Elle ne peut plus
+revenir sans rougir.
+
+---
+
+### 26.5 — `motif_ecart`, la colonne qu'aucune commande n'écrivait
+
+En basculant l'écran manager, une colonne du cycle de caisse s'est révélée
+orpheline : `motif_ecart` — le **code** choisi dans le menu déroulant de
+l'écran manager, à ne pas confondre avec `motif_ecart_texte`. C'était **la seule
+colonne du cycle qu'aucune commande serveur n'écrivait**. La bascule l'aurait
+donc silencieusement perdue : l'écran aurait cessé d'écrire, et rien n'aurait
+pris le relais.
+
+`fdj_valider_caisse` reçoit donc un quatrième paramètre, `p_motif_ecart`,
+contrôlé contre une liste blanche de dix codes, avec une sémantique à trois cas
+choisie pour **ne pas casser les appelants existants** :
+
+- `null` → la colonne n'est pas touchée (les appels à trois arguments
+  continuent de fonctionner à l'identique) ;
+- `''` → le motif est **effacé** (il n'y a plus rien à expliquer) ;
+- un code → contrôlé, puis retenu ; un code inconnu lève
+  `invalid_parameter_value`.
+
+C'est le genre de détail qu'une bascule perd sans bruit, et qu'on ne retrouve
+que des semaines plus tard, en se demandant pourquoi la colonne est vide depuis
+une date précise.
+
+---
+
+### 26.6 — Ce que la Phase C peut désormais fermer
+
+Trois dettes nommées « Vague 2 » dans la première version de ce dossier sont
+**levées** par les points 2, 3 et 4 ci-dessus. La Phase C n'a donc plus besoin
+de les ménager :
+
+- la clause `fdj_est_mon_quart` de `select_fdj_cash_controls` **disparaît** —
+  l'employé ne lit plus la table, il appelle la projection ;
+- les politiques d'écriture directe sur `fdj_stock_movements` pour l'employé
+  **disparaissent** — il passe par les commandes ;
+- l'`update` de `fdj_shifts` portant `employee_id` **est fermé** — le titulaire
+  se transfère, il ne se réécrit pas.
+
+**Le décompte : 20 politiques directes deviennent 16.** Là où un trigger de
+garde subsiste — `fdj_audit_log`, les colonnes de `fdj_shifts` — c'est parce que
+**l'écriture reste légitime et que seule la colonne est interdite**. La RLS ne
+sait pas faire cela ; un trigger, si. Ce n'est pas une dette : c'est le bon
+outil pour la bonne granularité.
+
+**La dette qui reste ouverte est hors du cycle sécurisé**, comme le mandat
+l'exige : `fdj_reports`, `fdj_shift_counts` et les colonnes `date` / `quart` /
+`statut` de `fdj_shifts`, que l'écran manager écrit encore en direct et que la
+Phase C **réserve au manager**. La mutation **M9** le vérifie en sens
+positif — « le manager contrôle, valide, saisit une feuille et dépose un
+rapport » — et aucune garantie de cette vague n'en dépend : ni l'attribution de
+la responsabilité, ni la confidentialité de l'employé, ni la traçabilité des
+mouvements.
+
+---
+
+### 26.7 — Les gestes sans point d'entrée dans l'écran
+
+Sur les 36 fonctions de la vague, **trois n'ont aucun appelant front** à ce
+stade — vérifié en cherchant leur nom, et pas seulement la forme
+`rpc('nom')`, dans l'ensemble des écrans et des scripts servis :
+
+| Fonction | Ce qu'elle attend |
+|---|---|
+| `fdj_chronologie_caisse()` | la chronologie manager d'une caisse (mandat §3.4) — l'écran ne l'affiche pas encore |
+| `fdj_alertes_caisse()` | les indicateurs d'aide au contrôle (mandat §3.5) — **les seuils par défaut attendent un arbitrage humain** |
+| `fdj_mes_quarts_fdj()` | la projection employé générique, supplantée pour « Ma Progression » par `fdj_ma_progression_caisse()` (26.2) |
+
+Aucune n'est « morte » : les trois sont couvertes par les mutations et par les
+privilèges de la Phase C. Les nommer ici évite qu'on les prenne plus tard pour
+du code oublié — et, pour `fdj_alertes_caisse()`, rappelle qu'il reste une
+décision produit à prendre avant de l'afficher.
+
+La recherche par nom importe : `fdj_confirmer_caisse` et
+`fdj_enregistrer_brouillon_caisse` **sont** appelées, mais par une variable
+(`NEXUS-FDJ-v1.html:2329` choisit l'une ou l'autre selon le geste). Un
+inventaire qui n'aurait cherché que `rpc('fdj_confirmer_caisse'` les aurait
+déclarées orphelines — et aurait pu conduire à les supprimer.
+
+Dans le même ordre d'idée : `fdj_valider_caisse` est **idempotente**. Valider
+deux fois ne produit pas deux validations. La conséquence est qu'une caisse
+validée **ne se rectifie pas en revalidant** : il faut passer par la
+réouverture, qui est un geste distinct, tracé, et réservé au manager. C'est plus
+contraignant qu'un second clic, et c'est le but.
+
+---
+
+### 26.8 — Ce que la relecture a démenti dans ce dossier
+
+Trois chiffres de la première version étaient faux. Ils sont corrigés dans le
+corps du document ; ils sont listés ici pour que la correction soit visible et
+non silencieuse.
+
+| Où | Ce qui était écrit | Ce qui est vrai |
+|---|---|---|
+| §8 | 30 fonctions, cinq familles | **36 fonctions**, six familles (29 à l'ouverture + 7 à la relecture) |
+| §18, §23 | 12 puis « quinze » mutations | **13 mutations**, 17 vérifications |
+| §22, §24 | 9 migrations en Phase A | **12 migrations** |
+
+Le premier mérite une explication, parce que l'erreur est instructive :
+`mes_ecarts_caisse()` figurait dans la liste comme « ajustée ». **Elle ne l'est
+pas.** Elle date du `20260914210000`, et cette vague n'y touche pas — elle est
+seulement *citée en commentaire* par `20260916220900` comme précédent de la
+règle « aucun paramètre d'identité ». Une fonction mentionnée dans un
+commentaire avait été comptée comme une fonction modifiée. Le décompte réel
+était donc 29, et non 30.
+
+Le deuxième est un piège de comptage à l'envers : `grep '^-- M'` rend **seize**
+en-têtes dans le fichier de mutations, ce qui aurait conduit à écrire « seize
+mutations ». Le script, lui, annonce « LES TREIZE MUTATIONS » — parce que
+**M2 bis vit à l'intérieur du bloc M2** et n'a pas d'en-tête propre. Le chiffre
+retenu vient de **l'exécution**, pas du `grep`.
+
+Une erreur d'outillage, du même genre, a été commise et corrigée pendant la
+relecture : `outils/analyser-sql-plpgsql.js` est un **module**, et
+`analyserFichier(sql)` prend le **texte** du fichier, pas son chemin. Appelée
+avec un chemin, elle analysait une chaîne de quarante caractères et la trouvait
+parfaitement valide. Une garde qui reçoit le mauvais argument ne se plaint pas :
+elle passe au vert.
+
+---
+
+### 26.9 — De dix à treize mutations, et le piège du rollback de sous-transaction
+
+Les mutations passent de dix à treize. Les trois nouvelles portent exactement
+sur les garanties nées de cette relecture :
+
+- **M4 bis** — la projection employé rend bien un quart, l'écart provisoire puis
+  l'écart définitif, **et aucun champ manager** ;
+- **M11 bis** — `employee_id` vient du quart, `created_by` de `auth.uid()`,
+  **y compris en saisie manager** ;
+- **M13** — l'`update` direct du manager sur une table basculée **reste sans
+  effet**.
+
+M13 a demandé deux essais. La première version attendait une exception ; or une
+RLS qui refuse une **mise à jour** ne lève rien : elle ne trouve simplement
+aucune ligne à mettre à jour. La forme du refus n'est pas la même selon
+l'endroit où il a lieu, et confondre les trois rend une garde muette :
+
+| Où le refus a lieu | Ce qu'on observe |
+|---|---|
+| Trigger | erreur `42501`, message métier |
+| RLS en lecture ou en `update` | **0 ligne, aucune erreur** |
+| Commande serveur | exception, ou retour `jsonb` explicite |
+
+L'autre piège, plus coûteux, mérite d'être écrit une fois pour toutes : **un
+sous-bloc `begin … exception` qui rattrape une erreur annule aussi le
+`set local role` et le `set_config(..., true)` posés à l'intérieur.** Une
+mutation qui prend l'identité d'un employé, provoque le refus attendu, attrape
+l'erreur et enchaîne, **reprend l'identité du superutilisateur sans le dire**.
+Les vérifications suivantes passent alors au vert pour la pire des raisons : ce
+n'est plus l'employé qui les subit. Le rôle et la configuration sont désormais
+**rétablis explicitement après chaque rattrapage**.
+
+---
+
+### 26.10 — La Phase C exacte, rejouée sur Test le 17/09/2026
+
+Sortie du rejeu, transaction annulée (extraits) :
+
+```
+NOTICE:  M1 PASSE — refus RLS : new row violates row-level security policy for table "fdj_cash_controls"
+NOTICE:  M2 PASSE — 0 ligne modifiée (la caisse est invisible en écriture à l'employé).
+NOTICE:  M2 bis PASSE — la caisse est intacte : 455 / provisoire.
+NOTICE:  M3 PASSE — un employé ne peut pas valider la caisse d'un collègue.
+NOTICE:  M4 PASSE — lecture directe fermée : 0 pour sa caisse, 0 pour celle du collègue.
+NOTICE:  M4 bis PASSE — 1 quart rendu, écarts -2.50 puis -1.00, aucun champ manager.
+NOTICE:  M5 PASSE — refus du trigger : Quart FDJ : changer de titulaire est un transfert de responsabilité, pas une modification de champ.
+NOTICE:  M6 PASSE — refus (42501) : Quart FDJ : cette modification passe par une commande NEXUS (ouverture, transfert, validation), pas par une écriture directe.
+NOTICE:  M7 PASSE — validation d'ouverture et chaînage de quart toujours possibles.
+NOTICE:  M8 PASSE — refus (42501) : Journal FDJ : une action ne peut être imputée qu'à soi-même.
+NOTICE:  M8 bis PASSE — journalisation en son nom et journalisation automatique intactes.
+NOTICE:  M9 PASSE — le manager contrôle, valide, saisit une feuille et dépose un rapport.
+NOTICE:  M10 PASSE — refus (42501) : new row violates row-level security policy for table "fdj_corrections"
+NOTICE:  M11 PASSE — refus RLS : new row violates row-level security policy for table "fdj_stock_movements"
+NOTICE:  M11 bis PASSE — employee_id vient du quart, created_by de auth.uid(), y compris en saisie manager.
+NOTICE:  M12 PASSE — refus du trigger : Quart FDJ : changer de titulaire est un transfert de responsabilité, pas une modification de champ.
+NOTICE:  M12 PASSE — transfert sans motif refusé : Un transfert de responsabilité exige un motif explicite
+NOTICE:  M12 PASSE — écriture directe refusée, transfert motivé accepté et journalisé.
+NOTICE:  M13 PASSE — update direct du manager sans effet : 0 ligne, aucune erreur.
+NOTICE:  ===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU =====
+ROLLBACK
+OK — le fichier exact de la Phase C s'exécute, et la transaction a été annulée.
+```
+
+**`ROLLBACK` est la dernière instruction.** Rien ne subsiste sur Test. Et
+puisque la base de Test n'avait pas la Phase A, les douze migrations
+prérequises ont été chargées **dans la même transaction annulée** : le corps a
+donc été joué sur le schéma qu'il attend, et pas sur un schéma approchant.
+
+Un détail du script mérite d'être noté, parce qu'il a failli coûter la preuve :
+le glob des prérequis est `2026091622*.sql` et non `20260916220*.sql`. Les deux
+dernières migrations de la relecture (`…221000`, `…221100`) sortaient de la
+seconde forme. **Un glob trop étroit ne se plaint pas — il charge moins**, et la
+recette aurait tourné au vert sur un schéma incomplet.
+
+---
+
+### 26.11 — Les tests et l'empreinte
+
+Deux fichiers de test sont ajoutés :
+`test_progression_projection_fdj_20260917.js` et
+`test_phase_c_analysable_20260917.js`. Deux tests sont ajoutés **à l'intérieur**
+de `test_fdj_fiabilisation_etape5_idempotence.js`, et deux fichiers existants
+(`test_fdj_continuite_auto_recalcul.js`, `test_fdj_fiabilisation_etape5_idempotence.js`)
+sont portés à la nouvelle architecture.
+
+La suite passe donc de **203/210 à 205/212** : le lanceur compte des
+**fichiers**, pas des assertions, ce qui explique que les deux tests internes ne
+bougent pas le total. Les **sept échecs `CONNUS` sont inchangés**, aux mêmes
+noms, et aucun ne touche au périmètre FDJ.
+
+L'épreuve d'empreinte a rougi, comme elle rougit à **tout** lot de migrations :
+c'est son travail. Les deux constantes sont re-mesurées sur un worktree propre
+par `node .github/deploiement/empreinte-artefact.js --arbre-source=.` —
+**276 → 279 migrations**, et l'empreinte de contenu a bougé aussi, puisque
+`20260916220700` a été modifiée en place (26.5). La garde `vague1.length >= 9`
+est durcie à **`>= 12`**.
+
+---
+
+### 26.12 — Ce qui reste assumé
+
+- **Les estampilles de cache `?v=20260904-0104` ne sont pas incrémentées** par
+  cette branche. C'est une décision, pas un oubli : ces estampilles sont posées
+  à l'échelle du site et les bumper depuis une branche de fonctionnalité crée
+  un conflit sur chaque PR concurrente. Le geste appartient au déploiement.
+  **À reprendre au moment de servir la vague** — un navigateur qui garde
+  `nexus-progression.js` en cache continuerait de lire `fdj_cash_controls(*)`.
+- **Aucune action Production.** Aucun déploiement. Aucune migration Production.
+  Aucune fusion. La relecture n'a produit que des commits sur la branche
+  existante, et un rejeu annulé sur Test.
 
 ---
 
@@ -1060,18 +1543,23 @@ le drapeau disent tous deux ce que c'est — un total de contrôle, pas un
 verdict — et le rendu employé n'emploie le mot « écart » qu'après
 confirmation.
 
-**A5 — L'écran manager réattribue encore un quart sans motif.** Le §2.3
+**A5 — L'écran manager réattribuait encore un quart sans motif.** Le §2.3
 interdit toute réattribution silencieuse, et la commande
 `fdj_transferer_responsabilite_quart` exige un motif, l'horodate et la
-journalise. Mais l'écran manager, **non basculé en Vague 1**, écrit toujours
-`employee_id` en direct : `NEXUS-FDJ-Manager-v1.html:5511`, `:5525` et `:5531`.
-*Non tranché — dette de Vague 2.* C'est la seule contradiction qui reste
-ouverte. Elle ne bloque pas la vague : le chemin employé, lui, passe
-exclusivement par les commandes serveur. Mais tant que cet écran n'est pas
-basculé, la Phase C ne peut pas retirer les droits d'`update` sur
-`fdj_shifts` — c'est écrit noir sur blanc au point 22, et c'est la raison pour
-laquelle la Phase C garde un trigger de garde sur les colonnes plutôt qu'une
-fermeture complète.
+journalise. L'écran manager écrivait pourtant `employee_id` en direct.
+*Tranché à la relecture finale (point 26.4) — la dette est levée.*
+`employee_id` est **sorti** de l'`update` du quart ; le changement de titulaire
+passe par la commande, avec un champ « motif du transfert » et un refus côté
+écran avant l'appel réseau si le motif fait moins de cinq caractères.
+
+Un second chemin, plus discret, a été trouvé en même temps : « je crée un
+quart, il en existait déjà un à cette date » réattribuait silencieusement le
+quart d'un collègue, par un `update` de rattrapage, sur un écran de création
+qui n'a pas de champ motif — il n'a rien à transférer, en principe. Plutôt que
+d'inventer un motif par défaut, NEXUS refuse et renvoie le manager sur le quart
+concerné, là où le geste existe et où le motif sera écrit par un humain. La
+mutation **M12** rejoue les deux formes du refus, et vérifie qu'un transfert
+motivé passe et se journalise.
 
 **A6 — Deux définitions du manager habilité.** Le prédicat RLS managérial
 n'exige pas `actif = true`, alors que `fdj_quart_du_manager` écrit
@@ -1101,9 +1589,10 @@ fois le nouveau front basculé ». La Phase C ferme ce qui peut l'être **sans
 casser un écran encore servi** ; le reste est listé ici, parce qu'un inventaire
 incomplet vaut moins que pas d'inventaire du tout.
 
-Le fichier `NEXUS-FDJ-v1.html` contient **24** accès directs aux tables `fdj_*`,
-dont **11 en écriture**. La Vague 1 a basculé tout le cycle de caisse sur les
-commandes serveur ; ce qui suit ne l'est pas encore.
+Le fichier `NEXUS-FDJ-v1.html` contient **21** accès directs aux tables `fdj_*`,
+dont **9 en écriture** — c'était 24 et 11 avant la relecture finale. La Vague 1
+a basculé tout le cycle de caisse, les activations et les mouvements de stock
+sur les commandes serveur ; ce qui suit ne l'est pas encore.
 
 | Emplacement | Écriture | Pourquoi elle subsiste |
 |---|---|---|
@@ -1113,19 +1602,35 @@ commandes serveur ; ce qui suit ne l'est pas encore.
 | `:1431`, `:1435`, `:1652`, `:1835` | `insert fdj_alertes` | alertes de stock, hors périmètre |
 | `:1452` | `insert fdj_employee_shift_locks` | le verrou d'écran, hors périmètre |
 | `:1460`, `:1660` | `insert fdj_audit_log` | conservés, mais **encadrés** : la Phase C ajoute un trigger qui refuse un `acteur_id` différent de `auth.uid()` |
-| `:1638`, `:1809` | `insert fdj_stock_movements` (activation implicite et activation de carnet) | **le §6 en dépend directement.** La Vague 1 ajoute les colonnes (`created_by`, `effective_at`, clé d'idempotence) mais ne bascule pas ces deux appels : aucune activation réelle ne devait être créée pendant la mission, et écrire la commande serveur sans pouvoir l'exécuter une seule fois contre une donnée réelle aurait produit exactement le genre de code que la recette a pris en défaut trois fois. |
-| `NEXUS-FDJ-Manager-v1.html:5511`, `:5525`, `:5531` | `update` / `insert fdj_shifts` avec `employee_id` | l'écran manager, non basculé — voir A5 |
+| ~~`:1638`, `:1809`~~ | ~~`insert fdj_stock_movements`~~ | **levé à la relecture finale (26.3).** Les deux appels passent par `fdj_activer_carnet` et `fdj_enregistrer_mouvement_stock` ; l'écran ne fournit plus ni site, ni employé, ni auteur, ni date d'effet, ni clé d'idempotence. Il ne reste aucun `from('fdj_stock_movements')` en écriture dans cet écran. |
+| ~~`NEXUS-FDJ-Manager-v1.html:5511`, `:5525`, `:5531`~~ | ~~`update` / `insert fdj_shifts` avec `employee_id`~~ | **levé à la relecture finale (26.4).** `employee_id` est sorti de l'`update` ; le titulaire change par `fdj_transferer_responsabilite_quart`, avec motif et journal — voir A5. |
 
-Une lecture mérite aussi d'être signalée : le champ `motif_ecart_texte` reste
-accessible via l'écran **Ma Progression**, qui ne passe pas par la projection
-`fdj_ma_caisse`. Le §4 interdit qu'un champ sensible transite par le réseau
-pour être masqué ensuite dans l'interface ; cet écran n'est pas dans le
-périmètre de la vague, mais il l'enfreint aujourd'hui. À traiter en Vague 2, en
-même temps que l'écran manager.
+Ce qui subsiste dans `NEXUS-FDJ-Manager-v1.html` est d'une autre nature : cet
+écran écrit encore en direct `fdj_reports`, `fdj_shift_counts` et les colonnes
+`date` / `quart` / `statut` d'un `fdj_shifts`. La Phase C **réserve ces
+écritures au manager** — c'est exactement ce que la mutation **M9** vérifie en
+sens inverse : « le manager contrôle, valide, saisit une feuille et dépose un
+rapport ». Ce ne sont donc pas des trous : ce sont les gestes que le rôle a le
+droit de faire, et le seul geste que l'écran ne pouvait plus faire sans
+commande — la saisie de la feuille de caisse — en a reçu une
+(`fdj_saisir_caisse_manager`).
+
+La lecture signalée dans la première version de cette annexe — `motif_ecart_texte`
+servi à l'employé par l'écran **Ma Progression** — **est levée** (26.2). Cet
+écran, **dans son chemin employé**, ne lit plus `fdj_cash_controls` : il
+appelle `fdj_ma_progression_caisse()`, qui ne rend que des colonnes autorisées.
+Son chemin **manager** lit encore les lignes brutes — c'est son objet — mais par
+une liste de colonnes explicite au lieu d'un `select('*')`, et gardé par la RLS.
+La fuite était d'ailleurs plus large que ce paragraphe ne le disait : voir 26.2.
 
 **La règle qui en découle pour la Phase C :** elle ne retire que les droits
-dont on a la preuve qu'aucun écran servi ne se sert. Partout ailleurs elle
-substitue un **trigger de garde** — qui laisse l'écriture passer mais refuse
-les colonnes interdites — à une fermeture qui provoquerait une panne. C'est
-moins satisfaisant qu'un `revoke`, et c'est la seule option compatible avec le
-§9 : on ne ferme qu'après avoir prouvé que plus personne ne passe par la porte.
+dont on a la preuve qu'aucun écran servi ne se sert — mais, cette preuve ayant
+été faite pour les trois dettes ci-dessus, elle retire nettement plus qu'à
+l'ouverture de la vague : **20 politiques directes deviennent 16**, et la
+lecture de `fdj_cash_controls` par l'employé est **fermée**, pas gardée. Là où
+un trigger de garde subsiste — `fdj_audit_log`, les colonnes de `fdj_shifts` —
+c'est parce que l'écriture reste légitime et que seule la **colonne** est
+interdite ; la RLS filtre des lignes, jamais des colonnes, et un trigger est le
+seul outil qui ait la bonne granularité. Le principe du §9 est inchangé : on ne
+ferme qu'après avoir prouvé que plus personne ne passe par la porte. Ce qui a
+changé, c'est qu'on a fait la preuve.
