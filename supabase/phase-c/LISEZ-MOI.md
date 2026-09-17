@@ -31,24 +31,72 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
 
 ## Comment l'appliquer, le jour venu
 
-1. Lire les **conditions C1 à C4** en tête du fichier et les vérifier une par
+1. Lire les **conditions C1 à C5** en tête du fichier et les vérifier une par
    une. Elles portent sur l'état réel de la base et sur le fichier réellement
-   **servi**, pas sur le contenu du dépôt.
+   **servi**, pas sur le contenu du dépôt. C5 est la plus facile à oublier :
+   l'écran *Ma Progression* lit `fdj_cash_controls` par jointure, et une
+   politique réservée au manager n'y produirait aucune erreur — seulement une
+   ligne imbriquée vide, en silence.
 2. Répéter d'abord la fermeture **en transaction annulée** :
    ```
    sed 's/^commit;$/rollback;/' 20260916230000_fdj_rls_definitives_phase_c.sql > /tmp/essai.sql
    psql "<url directe>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
    ```
-   Le fichier contient trois contrôles internes qui font échouer la
+   Le fichier contient cinq contrôles internes qui font échouer la
    transaction si la fermeture est incomplète.
-3. Appliquer ensuite le fichier tel quel, avec `psql -f`.
-4. Rejouer les requêtes de vérification données en fin de fichier.
+3. **Rejouer le jeu de mutations** — cette étape n'est pas facultative, voir
+   plus bas *« pourquoi les cinq contrôles ne suffisent pas »*.
+4. Appliquer ensuite le fichier tel quel, avec `psql -f`.
+5. Rejouer les requêtes de vérification données en fin de fichier.
+
+## Pourquoi les cinq contrôles internes ne suffisent pas
+
+Ils interrogent `pg_policies` et `pg_trigger` : ils constatent qu'une garde
+est **installée**, jamais qu'elle **refuse** quelque chose. Les deux se
+ressemblent beaucoup — en vert.
+
+Mesuré le 17/09/2026 : les deux fonctions de garde avaient d'abord été
+écrites en `security definer`. Elles s'exécutaient donc sous le propriétaire,
+`current_user` y valait `postgres`, et leur première ligne
+(`if current_user <> 'authenticated' then return new`) **désactivait la garde
+elle-même**. Les cinq contrôles passaient. Un employé pouvait se réattribuer
+le quart d'un collègue. Seule la mutation l'a montré.
+
+D'où `20260916230000_mutations_de_validation.sql`, à jouer **dans la même
+transaction annulée**, juste après le corps de la fermeture :
+
+```
+{ sed 's/^commit;$//' 20260916230000_fdj_rls_definitives_phase_c.sql
+  printf '\n'
+  cat 20260916230000_mutations_de_validation.sql
+  printf '\nrollback;\n'
+} > /tmp/essai.sql
+psql "<url directe de Test>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
+```
+
+Dix mutations jouées sous le rôle `authenticated`, avec le jeton d'employés
+réels : chacune **doit échouer**, et le script échoue si l'une d'elles passe.
+S'y ajoutent des contre-épreuves (M2 bis, M4, M7, M8 bis, M9) qui vérifient
+l'inverse — car une garde qui refuse *tout* casserait l'écran FDJ et serait,
+elle aussi, verte au premier examen.
+
+Attention à ne pas confondre les deux formes de refus : le trigger lève une
+exception `42501`, tandis que la RLS se contente de masquer la ligne — **0
+ligne touchée, aucune erreur**. Écrire « on attend une exception » pour le
+second cas donne un test vert qui ne prouve rien.
 
 ## Retour arrière
 
 Il figure en fin de fichier, commenté, avec sa propre condition d'arrêt. Il
 rouvre les écritures directes : ne l'exécuter que si le front a lui aussi été
 remis en arrière.
+
+## Contenu du dossier
+
+| Fichier | Rôle |
+|---|---|
+| `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, cinq contrôles internes, retour arrière commenté |
+| `20260916230000_mutations_de_validation.sql` | les dix mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
 
 ## Registre des migrations
 
