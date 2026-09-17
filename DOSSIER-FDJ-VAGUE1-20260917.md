@@ -687,6 +687,22 @@ cite la même empreinte `ce9156a9…`. Il n'a **pas** été modifié : c'est
 l'enregistrement d'une mesure faite le 16/09 pour un autre lot, et une mesure
 datée ne se réécrit pas parce qu'un lot postérieur l'a rendue caduque.
 
+### Sur la PR elle-même
+
+Le workflow `non-regression` est passé **vert dès le premier run**, les trois
+épreuves d'infrastructure comprises, et l'est resté sur chaque commit poussé
+depuis. `Supabase Preview` est annoncé `skipping` : **aucune branche Supabase
+n'est créée**, donc aucune migration n'est appliquée par l'ouverture de cette
+PR.
+
+Le workflow « Déploiement Production (GitHub Pages) » se déclenche aussi sur
+`pull_request`, et c'est voulu : il **construit et éprouve** l'artefact, puis
+son job « Déployer sur GitHub Pages » reste *skipped*, 0 seconde. C'est
+exactement ce que `test_garde_deployer_20260915.js` exige, et la preuve qu'un
+déploiement ne peut pas partir d'une PR. Un artefact `github-pages` figure donc
+bien dans le run — il a été **fabriqué, pas publié**, et il ne faut pas lire sa
+présence comme une mise en ligne.
+
 Les tests FDJ réécrits pour cette vague :
 `test_fdj_carte_ecart_visuelle.js` (le rendu employé, exécuté en `vm`),
 `test_fdj_masquage_ecart_cloture_v2266.js` (la non-révélation avant
