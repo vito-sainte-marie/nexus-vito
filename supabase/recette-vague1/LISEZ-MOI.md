@@ -9,18 +9,23 @@ part avec `supabase db push`, et rien ne doit être inscrit dans
 | Fichier | Rôle |
 |---|---|
 | `20260917_preuves_cycle_caisse.sql` | les preuves **10 à 16** du mandat : le cycle de vie d'une caisse, de l'ouverture du quart à la validation |
-| `20260917_preuves_cycle_caisse.sortie.txt` | sa sortie réelle du 17/09/2026 sur `nexus-test`, conservée telle quelle |
+| `20260917_preuves_cycle_caisse.sortie.txt` | sa sortie réelle sur `nexus-test`, copiée brute — **jamais retouchée à la main** |
 | `20260917_preuves_livrets_et_historique.sql` | les preuves **§10.5 et §10.6** : livrets et mouvements, puis l'effet des migrations sur des données **préexistantes** |
-| `20260917_preuves_livrets_et_historique.sortie.txt` | sa sortie réelle du 17/09/2026, code de sortie 0 |
+| `20260917_preuves_livrets_et_historique.sortie.txt` | sa sortie réelle, code de sortie 0, copiée brute elle aussi |
 
 Les deux se jouent **en transaction annulée** et ne se chargent pas de la même
 manière :
 
-* `…_cycle_caisse.sql` **ne s'exécute pas seul** : il suppose les neuf
+* `…_cycle_caisse.sql` **ne s'exécute pas seul** : il suppose les **douze**
   migrations de la Phase A déjà chargées dans la même transaction, et se joue
   avec la commande d'assemblage ci-dessous ;
 * `…_livrets_et_historique.sql` est **auto-portant** : il ouvre lui-même la
-  transaction et charge les neuf migrations par `\ir`, *au milieu* du fichier.
+  transaction et charge **neuf** migrations par `\ir`, *au milieu* du fichier.
+  Neuf et non douze : il s'arrête à `20260916220800`, les trois dernières
+  — projection de progression, activations et mouvements, saisie managériale —
+  n'étant pas chargées. Sa mesure « aucune colonne ajoutée n'est remplie » ne
+  porte donc que sur ces neuf-là. C'est une limite de portée, pas un défaut de
+  ce qu'il affirme ; l'élargir obligerait à rejouer et à régénérer sa sortie.
   Ce n'est pas une commodité, c'est le sujet même de la preuve : il fabrique
   d'abord un historique (9 quarts, 8 caisses couvrant les huit statuts réels,
   5 mouvements), **puis** applique les migrations par-dessus, puis mesure ce
@@ -29,10 +34,10 @@ manière :
 
 ```
 PGPASSWORD="$(security find-generic-password -a nexus -s nexus-test-db -w)" \
-PGCONNECT_TIMEOUT=20 \
+PGCONNECT_TIMEOUT=45 \
 /opt/homebrew/opt/libpq/bin/psql \
   "postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require" \
-  -v ON_ERROR_STOP=1 -q \
+  -X -v ON_ERROR_STOP=1 -q \
   -f supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql
 ```
 
@@ -84,38 +89,60 @@ Deux réponses complémentaires en sont sorties, et il faut les deux :
 
 (Pour l'autre fichier, voir la commande auto-portante plus haut.)
 
-Le glob compte : les neuf migrations de la Vague 1 sont estampillées
-`2026091622HHMM`, de `220000` à `220800`. Un glob plus étroit en charge une
+Le glob compte : les **douze** migrations de la Vague 1 sont estampillées
+`2026091622HHMM`, de `220000` à `221100`. Un glob plus étroit en charge une
 partie et le reste échoue sur des objets manquants, ce qui ressemble à un bug
-du code alors que c'est la commande qui est incomplète.
+du code alors que c'est la commande qui est incomplète. D'où le `\echo` posé
+devant chacune : **chaque prérequis s'annonce lui-même dans la sortie**. Sans
+cela, seules les migrations produisant un `NOTICE` laisseraient une trace, et
+un glob trop étroit resterait invisible dans le fichier même censé l'attester.
+On a compté « neuf » pendant deux jours sur la foi de ce texte ; `ls` en donne
+douze.
 
 Sur `nexus-test` uniquement — **jamais sur Production**. Le script se termine
 par `rollback;` : il ne laisse rien derrière lui, ni les tables, ni les
 fonctions, ni les lignes du jeu d'essai (les quatre dernières vérifications de
 la sortie le constatent explicitement).
 
+`DEPOT` désigne la racine du dépôt, `TRAVAIL` un répertoire de travail vide.
+Le pilote est assemblé **dans** `TRAVAIL` et joué par un `-f` **relatif** :
+c'est ce qui tient le chemin du poste hors de la sortie (voir plus bas).
+
 ```
+mkdir -p "$TRAVAIL" && cd "$TRAVAIL"
+
 { printf '%s\n' '\set ON_ERROR_STOP on' 'begin;'
-  for m in supabase/migrations/2026091622*.sql; do cat "$m"; done
-  cat supabase/recette-vague1/20260917_preuves_cycle_caisse.sql
-} > /tmp/preuves.sql
+  for m in "$DEPOT"/supabase/migrations/2026091622*.sql; do
+    printf '\n\\echo %s\n' "-- prerequis charge : ${m#$DEPOT/}"
+    cat "$m"; printf '\n'
+  done
+  cat "$DEPOT"/supabase/recette-vague1/20260917_preuves_cycle_caisse.sql
+} > preuves.sql
 
 PGPASSWORD="$(security find-generic-password -a nexus -s nexus-test-db -w)" \
-PGCONNECT_TIMEOUT=20 \
+PGCONNECT_TIMEOUT=45 \
 /opt/homebrew/opt/libpq/bin/psql \
   "postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require" \
-  -v ON_ERROR_STOP=1 -q -f /tmp/preuves.sql
+  -X -v ON_ERROR_STOP=1 -q -f preuves.sql
 ```
 
-Trois détails qui coûtent chacun une demi-heure quand on les oublie :
+Quatre détails qui coûtent chacun une demi-heure quand on les oublie :
 
-* **`PGCONNECT_TIMEOUT=20`** — la résolution tente d'abord l'IPv6 et expire.
-  Sans ce délai, la connexion échoue avec un « Operation timed out » qui
-  ressemble à une panne de la base.
+* **`PGCONNECT_TIMEOUT`** — la résolution tente d'abord l'IPv6 et expire. Sans
+  ce délai, la connexion échoue avec un « Operation timed out » qui ressemble à
+  une panne de la base. `20` a suffi le 17/09 au matin, plus l'après-midi : le
+  rejeu s'est fait à `45`.
 * **L'URL directe, jamais le pooler.** Le pooler ne tient pas une transaction
   de cette longueur et ne rend pas les `notice`.
 * **Les `\set` de psql ne sont pas interpolés dans un bloc `do $$ … $$`.** Le
   script passe donc les identifiants par une table temporaire `ctx(cle, val)`.
+* **Le chemin passé à `-f` se retrouve dans la sortie**, en préfixe de chaque
+  `NOTICE` : `psql:<ce chemin>:<ligne>:`. Un pilote assemblé sous `/tmp` y
+  inscrivait le chemin du poste de travail, dans un fichier destiné à un dépôt
+  public. D'où le `cd` : on assemble dans le répertoire de travail et on passe
+  `-f preuves.sql`, ce qui rend `psql:preuves.sql:630:`. La sortie se corrige
+  à la source, jamais au `sed` — une sortie retouchée n'est plus une sortie.
+  Le `-X` s'ajoute pour qu'aucun `~/.psqlrc` ne vienne s'y mêler.
 
 ## Ce que la recette prouve, et ce qu'elle ne prouve pas
 
@@ -159,9 +186,66 @@ masque la ligne (**0 ligne, aucune erreur**), et une commande serveur rend
 `{"ok": false, "motif": "…"}` sans rien lever du tout. Écrire « on attend une
 exception » pour les deux derniers cas donne un test vert qui ne prouve rien.
 
+## Les acteurs de la recette sont entièrement synthétiques
+
+Les deux recettes ont d'abord été écrites avec les identifiants de **quatre
+employés réels** de `nexus-test` — un caissier, un pompiste, un manager, un
+manager créateur — et de deux emplacements FDJ réels. Soixante-seize
+occurrences, dans un dépôt **public**. Ce ne sont pas des secrets
+d'authentification : on ne se connecte avec aucun d'eux. Ce sont des
+identifiants pseudonymes *persistants*, stables dans le temps, réutilisés par
+toutes les tables d'acteur, et corrélables à une personne dès qu'on dispose
+d'un autre extrait de la base.
+
+Ils ont été remplacés par des acteurs créés et démontés **dans la transaction
+annulée** : quatre employés et deux emplacements, qui exercent réellement les
+contraintes des tables qu'ils occupent — la clé étrangère vers `public.sites`,
+le `employees_role_check`, l'unicité de `username`, le
+`fdj_locations_type_check` — et dont les rôles reproduisent ceux des comptes
+remplacés, parce que la RLS et les commandes serveur lisent ces colonnes.
+`public.employees.id` n'a aucune clé étrangère vers `auth.users` : un employé
+peut exister sans compte d'authentification, et le jeton simulé par
+`set_config('request.jwt.claims', …)` n'a besoin que de cet identifiant.
+
+Leur forme n'est pas décorative, elle est **le critère** :
+
+```
+<7 fois le même chiffre hex><1 hex>-0000-4000-8000-<11 fois le même><1 hex>
+```
+
+Un identifiant fabriqué par `gen_random_uuid()` — c'est-à-dire tout compte
+réel — n'a aucune chance d'y répondre. C'est ce qui permet à la garde
+`test_recette_vague1_identifiants_synthetiques_20260917.js`, à la racine, de
+refuser tout UUID de ce dossier qui ne soit pas de cette forme **sans tenir
+aucune liste** : ni liste d'interdiction — y inscrire les quatre identifiants
+retirés reviendrait à les republier dans le fichier chargé de les bannir, et
+la garde ne verrait pas le cinquième —, ni liste d'autorisation, qu'il
+suffirait d'étendre pour la faire taire. Elle contrôle aussi le sujet des
+jetons JWT simulés, la présence des contrôles embarqués et de leur trace dans
+les sorties publiées, l'absence de sortie orpheline et l'absence de chemin de
+poste de travail. Dix mutations la font rougir, chacune à la partie prévue, éprouvées à
+l'écriture : identifiant réel réintroduit, sujet de jeton non conforme,
+contrôle embarqué retiré, sortie caduque, chemin de poste, sortie vidée.
+
+Les recettes se contrôlent en outre **elles-mêmes**, à l'exécution, ce que la
+CI ne peut pas faire faute de base :
+
+* un balayage d'identité juste avant le `rollback`, qui exige d'abord de
+  tourner sous `postgres` — sous `authenticated`, la RLS le rendrait aveugle
+  et il serait vert pour n'avoir rien vu ;
+* un balayage des **410** colonnes `uuid` du schéma `public` **après** le
+  `rollback`, qui échoue si une seule ligne de forme fixture subsiste, et qui
+  échoue aussi s'il a balayé moins de 100 colonnes — un balayage qui rate sa
+  cible ne doit pas pouvoir passer pour une preuve d'absence.
+
+Les deux impriment un `NOTICE` que l'on retrouve dans les `*.sortie.txt`.
+
 ## La sortie conservée
 
-Les deux `*.sortie.txt` sont les sorties réelles du 17/09/2026, code de sortie
-0, gardées pour comparaison. Ce n'est pas une référence figée :
+Les deux `*.sortie.txt` sont les sorties réelles, code de sortie 0, copiées
+telles quelles depuis le serveur et gardées pour comparaison. **Aucune n'est
+corrigée à la main** : quand une recette change, on la rejoue et on remplace
+sa sortie entière. Une sortie retouchée n'atteste plus rien, puisqu'elle
+n'atteste plus une exécution. Ce n'est pas une référence figée :
 si une exécution ultérieure en diffère, c'est la nouvelle exécution qui dit la
 vérité — ce fichier dit seulement ce qui était vrai ce jour-là, avec ce code.

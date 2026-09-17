@@ -1557,9 +1557,10 @@ de `test_fdj_fiabilisation_etape5_idempotence.js`, et deux fichiers existants
 sont portés à la nouvelle architecture.
 
 La suite passe donc de **203/210 à 205/212**, puis à **206/213** avec la
-garde d'identifiants ajoutée en 26.13 : le lanceur compte des **fichiers**,
-pas des assertions, ce qui explique que les deux tests internes ne bougent
-pas le total. Les **sept échecs `CONNUS` sont inchangés**, aux mêmes
+garde d'identifiants de la Phase C et à **207/214** avec celle des recettes
+de la Vague 1, toutes deux décrites en 26.13 : le lanceur compte des
+**fichiers**, pas des assertions, ce qui explique que les deux tests internes
+ne bougent pas le total. Les **sept échecs `CONNUS` sont inchangés**, aux mêmes
 noms, et aucun ne touche au périmètre FDJ.
 
 L'épreuve d'empreinte a rougi, comme elle rougit à **tout** lot de migrations :
@@ -1585,7 +1586,7 @@ est durcie à **`>= 12`**.
 
 ---
 
-### 26.13 — Deux identifiants réels dans un dépôt public
+### 26.13 — Des identifiants réels dans un dépôt public
 
 Le fichier de mutations désignait ses deux acteurs par les UUID de deux
 comptes existants de `nexus-test` : vingt occurrences pour l'un,
@@ -1670,25 +1671,73 @@ sont identiques à celles du 26.10, et une mesure de plus a été prise :
 hors transaction, `nexus.fdj_journal_maintenance` n'est **pas définie**,
 et aucun employé `recette-phase-c-%` ne subsiste.
 
-**Ce que cela ne règle pas — et qui est le point le plus important de
-cette section.** L'inventaire de l'historique montre que la correction ne
-couvre pas toute l'exposition :
+**Ce que cela ne réglait pas — et qui s'est révélé plus large que prévu.**
+L'inventaire initial annonçait **deux** identifiants et **58** occurrences
+hors Phase C. Il était faux par construction : il cherchait les deux valeurs
+déjà connues, au lieu d'extraire tous les UUID des fichiers et de demander à
+la base lesquels existaient. La contre-vérification, faite dans l'autre sens
+— extraire les 45 UUID distincts des trois fichiers de
+`supabase/recette-vague1/`, puis interroger `auth.users` et
+`public.employees` —, en a trouvé **quatre**, et **76** occurrences :
 
-| où | occurrences | public ? |
-|---|---|---|
-| `supabase/phase-c/` à la tête | 0 | — |
-| `supabase/recette-vague1/` **à la tête** (3 fichiers) | **58** | oui, depuis `c215740` |
-| `docs/recettes/2026-09-05-rejeu-bloqueur-1.md` | 1, sur ~40 branches distantes | oui, depuis `5596126` du 05/09 |
-| `origin/production` | **0** | — |
-| commits de cette branche déjà poussés | 18 commits, de `74ec033` à `f19b4dc` | oui |
+| acteur réel (désigné par son rôle) | caisse.sql | livrets.sql | caisse.sortie.txt | total |
+|---|---|---|---|---|
+| le caissier | 25 | 12 | 1 | **38** |
+| le manager | 13 | 7 | 0 | **20** |
+| le pompiste | 10 | 7 | 0 | **17** |
+| le second manager, créateur | 1 | 0 | 0 | **1** |
+| | **49** | **26** | **1** | **76** |
 
-Le blocage ouvert portait sur la recette Phase C, et la garde versionnée
-est bornée au même périmètre — c'est ce qui a été demandé, et c'est ce
-qui est fait. Mais les mêmes deux identifiants restent lisibles **à la
-tête**, hors Phase C, dans `supabase/recette-vague1/`, et l'un des deux
-est public depuis le 5 septembre dans une fiche de rejeu répliquée sur
-une quarantaine de branches. Corriger la Phase C seule laisse donc
-l'essentiel de l'exposition en place.
+Les valeurs elles-mêmes ne sont pas reproduites ici, ni dans la garde : les
+écrire pour les documenter serait les republier. Une chercher-remplacer sur
+deux valeurs aurait laissé les deux autres en place, et la garde n'aurait
+rien vu — c'est exactement pourquoi elle ne tient **aucune liste**.
+
+**Ce qui a été fait, à la tête.** Les deux recettes de la Vague 1 ne
+dépendent plus d'aucun compte réel : quatre employés et deux emplacements
+FDJ entièrement synthétiques sont créés dans leur transaction annulée,
+avec les rôles, relations et contraintes réellement exercés. Les deux
+recettes ont été **rejouées** sur `nexus-test` et leurs sorties
+intégralement régénérées — aucune n'a été corrigée à la main. Les mesures
+d'avant et d'après sont identiques à la ligne près, et le balayage des 410
+colonnes `uuid` du schéma `public`, exécuté après le `rollback`, ne trouve
+aucune fixture survivante. Deux défauts sont tombés au passage, tous deux
+de la même famille — une vérification qui se croit verte alors qu'elle n'a
+rien vu : le contrôle d'identité pouvait tourner sous `authenticated`, où
+la RLS l'aurait rendu aveugle, et le balayage post-rollback acceptait de
+n'avoir parcouru que 40 colonnes. Le premier exige désormais `postgres`,
+le second un plancher de 100 colonnes.
+
+Une fuite d'un autre ordre a été fermée dans le même geste : le chemin du
+poste de travail était inscrit dans la sortie publiée, en préfixe de chaque
+`NOTICE`, parce que le pilote était assemblé sous `/tmp` et passé à `-f`
+par son chemin absolu. Il est maintenant assemblé dans un répertoire de
+travail et joué par un chemin relatif ; le `LISEZ-MOI` du dossier documente
+la commande corrigée, et la garde refuse tout chemin de poste dans ces
+fichiers.
+
+**La garde.** `test_recette_vague1_identifiants_synthetiques_20260917.js`,
+à la racine, contrôle les cinq fichiers du dossier. Elle n'a ni liste
+d'interdiction — y inscrire les quatre valeurs retirées les republierait, et
+ne verrait pas la cinquième — ni liste d'autorisation, qu'il suffirait
+d'étendre pour la faire taire. Elle reconnaît une **forme** : sept fois le
+même chiffre hexadécimal, un discriminant, un milieu figé, onze fois le même
+chiffre, un discriminant. Aucun identifiant produit par `gen_random_uuid()`
+n'y répond. Elle vérifie en outre le sujet des jetons JWT simulés, la
+présence des contrôles embarqués et de leur trace dans les sorties, l'absence
+de sortie orpheline et l'absence de chemin local. Dix mutations la font
+rougir, chacune à la partie prévue ; les deux qui réintroduisent un
+identifiant réel ont été jouées sur une copie hors dépôt, et les valeurs
+masquées dans toute sortie.
+
+**Ce qui reste, et qui n'est pas de mon ressort.** L'exposition historique
+subsiste : l'identifiant du caissier est public depuis le 5 septembre dans
+une fiche de rejeu, propagée à une quarantaine de références distantes. Le
+détail — références concernées, commits d'introduction, PR, branches actives
+ou obsolètes — a été relevé en lecture seule et remis hors dépôt, car le
+publier ici reviendrait à cartographier ce qu'il faudrait effacer. Point
+essentiel : `origin/production` n'en porte **aucun**, et le commit qui
+introduit la fiche n'est pas son ancêtre.
 
 **L'historique n'a pas été touché.** Aucune réécriture, aucun
 `push --force`. La correction de la tête et le traitement de l'historique

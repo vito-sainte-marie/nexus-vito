@@ -10,6 +10,51 @@ grant select, insert, update on ctx to authenticated;
 create temporary table snap (etiquette text, n_shifts int, n_cash int, n_evt int, n_audit int, n_dem int);
 grant select, insert on snap to authenticated;
 
+-- Instantane du remplissage des tables AVANT la moindre ecriture de la
+-- recette. Il ne sert qu au controle d identite de la fin : celui-ci doit
+-- pouvoir distinguer les lignes posees ici de celles qui preexistaient sur
+-- nexus-test, sans jamais nommer ni les unes ni les autres.
+create temporary table etat_initial (tab text primary key, n bigint);
+do $$
+declare r record; n bigint;
+begin
+  for r in select table_name from information_schema.tables
+           where table_schema = 'public' and table_type = 'BASE TABLE'
+             and (table_name like 'fdj\_%' or table_name in ('employees','shifts'))
+  loop
+    execute format('select count(*) from public.%I', r.table_name) into n;
+    insert into etat_initial values (r.table_name, n);
+  end loop;
+end $$;
+
+-- Les acteurs de cette recette sont SYNTHETIQUES et crees ici meme, dans la
+-- transaction annulee. Aucun employe reel de nexus-test n est sollicite : le
+-- depot est public, et l identifiant d un employe y est un identifiant
+-- pseudonyme persistant, correlable a une personne meme sans nom ni courriel.
+--
+-- Ils ne sont pas decoratifs pour autant. employees.site_id porte une cle
+-- etrangere vers public.sites, role est soumis a employees_role_check, et
+-- username est unique : les quatre lignes exercent reellement ces trois
+-- contraintes. Leurs roles reproduisent ceux des comptes qu ils remplacent —
+-- un caissier, un pompiste, un manager, un manager createur — parce que la
+-- RLS et les commandes serveur lisent ces colonnes, et qu une fixture qui ne
+-- les reproduirait pas ferait mentir la preuve.
+--
+-- public.employees.id n a aucune cle etrangere vers auth.users : un employe
+-- peut donc exister sans compte d authentification, et le jeton simule par
+-- set_config('request.jwt.claims', ...) n a besoin que de cet id.
+insert into public.employees
+  (id, username, nom, role, actif, est_createur, site_id, compte_test)
+values
+  ('eeeeeee1-0000-4000-8000-eeeeeeeeeee1','recette-vague1-employe-a',
+   'Recette Vague 1 — employe A',      'caissier', true, false, 'nexus-station-test', true),
+  ('eeeeeee2-0000-4000-8000-eeeeeeeeeee2','recette-vague1-employe-b',
+   'Recette Vague 1 — employe B',      'pompiste', true, false, 'nexus-station-test', true),
+  ('eeeeeee3-0000-4000-8000-eeeeeeeeeee3','recette-vague1-manager',
+   'Recette Vague 1 — manager',        'manager',  true, false, 'nexus-station-test', true),
+  ('eeeeeee4-0000-4000-8000-eeeeeeeeeee4','recette-vague1-manager-2',
+   'Recette Vague 1 — second manager', 'manager',  true, true,  'nexus-station-test', true);
+
 -- Deux jeux FDJ pour le site de test : fdj_ecrire_saisies_caisse refuse un
 -- game_id qui n appartient pas au site (invalid_parameter_value).
 insert into public.fdj_games (id, site, nom, prix, ordre_affichage) values
@@ -21,11 +66,11 @@ insert into public.fdj_games (id, site, nom, prix, ordre_affichage) values
 insert into public.shifts
   (id, employee_id, site, site_id, role_prevu, role, quart, heure_debut, statut, confirmed_by)
 values
-  ('bbbbbbb1-0000-4000-8000-000000000001','868d0b92-bf65-4c99-be43-656911919afd',
+  ('bbbbbbb1-0000-4000-8000-000000000001','eeeeeee1-0000-4000-8000-eeeeeeeeeee1',
    'nexus-station-test','nexus-station-test','caissiere','caissiere','matin','2026-09-16 12:00:00+00','en_cours','employe'),
-  ('bbbbbbb1-0000-4000-8000-000000000005','28810f30-8182-4126-920f-051a4c7cb596',
+  ('bbbbbbb1-0000-4000-8000-000000000005','eeeeeee3-0000-4000-8000-eeeeeeeeeee3',
    'nexus-station-test','nexus-station-test','manager','manager','matin','2026-09-16 12:05:00+00','en_cours','employe'),
-  ('bbbbbbb1-0000-4000-8000-000000000003','755a2dc5-3390-4a29-a865-847cbebc1133',
+  ('bbbbbbb1-0000-4000-8000-000000000003','eeeeeee2-0000-4000-8000-eeeeeeeeeee2',
    'nexus-station-test','nexus-station-test','caissiere','caissiere','matin','2026-09-16 13:00:00+00','en_cours','employe');
 
 select 'jeu d essai' as etape,
@@ -47,7 +92,7 @@ insert into snap values ('avant toute consultation',
 \echo '#  PREUVE 11 (a) — une simple consultation ne cree rien    #'
 \echo '############################################################'
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 -- L employe est authentifie, il ouvre son ecran FDJ : il consulte.
@@ -92,7 +137,7 @@ order by p.proname;
 \echo '#  PREUVE 10 — la prise de poste ouvre UN SEUL quart FDJ   #'
 \echo '############################################################'
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 select 'P10.1 ouverture naturelle' as preuve,
@@ -115,10 +160,10 @@ reset role;
 insert into public.shifts
   (id, employee_id, site, site_id, role_prevu, role, quart, heure_debut, statut, confirmed_by)
 values
-  ('bbbbbbb1-0000-4000-8000-000000000002','868d0b92-bf65-4c99-be43-656911919afd',
+  ('bbbbbbb1-0000-4000-8000-000000000002','eeeeeee1-0000-4000-8000-eeeeeeeeeee1',
    'nexus-station-test','nexus-station-test','caissiere','caissiere','matin','2026-09-16 16:00:00+00','en_cours','employe');
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 select 'P10.3 nouvelle prise de poste, meme quart' as preuve,
@@ -133,7 +178,7 @@ from public.fdj_shifts f
 where f.site = 'nexus-station-test' and f.date = '2026-09-16' and f.quart = '1'
 group by f.site, f.date, f.quart;
 
-select 'P10.5 tracabilite' as preuve, f.employee_id = '868d0b92-bf65-4c99-be43-656911919afd' as responsable_est_a,
+select 'P10.5 tracabilite' as preuve, f.employee_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as responsable_est_a,
        f.prise_de_poste_id, f.ouverture_source, f.created_by = f.employee_id as auteur_technique_identique,
        f.statut, f.ouvert_le is not null as ouvert_le_renseigne
 from public.fdj_shifts f where f.id = (select val from ctx where cle = 'shift_a')::uuid;
@@ -147,7 +192,7 @@ select 'P10.6 rien de fabrique' as preuve,
 \echo ''
 \echo '--- P10.7 : ce qui N OUVRE PAS de quart FDJ ---'
 
-select set_config('request.jwt.claims','{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true) is not null as identite_manager;
+select set_config('request.jwt.claims','{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true) is not null as identite_manager;
 set local role authenticated;
 
 select 'P10.7 prise de poste manageriale' as preuve,
@@ -155,12 +200,12 @@ select 'P10.7 prise de poste manageriale' as preuve,
 from (select public.fdj_ouvrir_quart_depuis_prise_de_poste('bbbbbbb1-0000-4000-8000-000000000005') as r) t;
 
 reset role;
-select set_config('request.jwt.claims','{"sub":"755a2dc5-3390-4a29-a865-847cbebc1133","role":"authenticated"}', true) is not null as identite_employe_b;
+select set_config('request.jwt.claims','{"sub":"eeeeeee2-0000-4000-8000-eeeeeeeeeee2","role":"authenticated"}', true) is not null as identite_employe_b;
 set local role authenticated;
 
 select 'P10.8 quart deja tenu par un autre' as preuve,
        r->>'ouvert' as ouvert, r->>'conflit' as conflit, r->>'motif' as motif,
-       r->>'responsable_actuel_id' = '868d0b92-bf65-4c99-be43-656911919afd' as responsable_reste_a,
+       r->>'responsable_actuel_id' = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as responsable_reste_a,
        r->>'message' as message
 from (select public.fdj_ouvrir_quart_depuis_prise_de_poste('bbbbbbb1-0000-4000-8000-000000000003') as r) t;
 
@@ -186,15 +231,15 @@ from public.fdj_shifts where site = 'nexus-station-test';
 insert into public.shifts
   (id, employee_id, site, site_id, role_prevu, role, quart, heure_debut, statut, confirmed_by)
 values
-  ('bbbbbbb1-0000-4000-8000-000000000004','755a2dc5-3390-4a29-a865-847cbebc1133',
+  ('bbbbbbb1-0000-4000-8000-000000000004','eeeeeee2-0000-4000-8000-eeeeeeeeeee2',
    'nexus-station-test','nexus-station-test','caissiere','caissiere','soir','2026-09-16 21:00:00+00','en_cours','employe');
 
-select set_config('request.jwt.claims','{"sub":"755a2dc5-3390-4a29-a865-847cbebc1133","role":"authenticated"}', true) is not null as identite_employe_b;
+select set_config('request.jwt.claims','{"sub":"eeeeeee2-0000-4000-8000-eeeeeeeeeee2","role":"authenticated"}', true) is not null as identite_employe_b;
 set local role authenticated;
 
 select 'P10.11 quart 2 ouvrable par B' as preuve,
        r->>'ouvert' as ouvert, r->>'motif' as motif, r->>'quart' as quart,
-       r->>'employee_id' = '755a2dc5-3390-4a29-a865-847cbebc1133' as responsable_est_b
+       r->>'employee_id' = 'eeeeeee2-0000-4000-8000-eeeeeeeeeee2' as responsable_est_b
 from (select public.fdj_ouvrir_quart_depuis_prise_de_poste('bbbbbbb1-0000-4000-8000-000000000004') as r) t;
 
 reset role;
@@ -205,7 +250,7 @@ reset role;
 \echo '#               confirmation, jamais avant                 #'
 \echo '############################################################'
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 select 'P12.1 avant toute saisie' as preuve,
@@ -262,7 +307,7 @@ reset role;
 select 'P12.7 etat en base' as preuve, c.statut, c.version, c.nb_corrections,
        c.caisse_attendue, c.caisse_reelle, c.ecart,
        c.confirme_le is not null as confirme, c.valide_le is null as non_validee,
-       c.saisi_par = '868d0b92-bf65-4c99-be43-656911919afd' as saisie_par_a
+       c.saisi_par = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as saisie_par_a
 from public.fdj_cash_controls c where c.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
 \echo ''
@@ -270,7 +315,7 @@ from public.fdj_cash_controls c where c.shift_id = (select val from ctx where cl
 \echo '#  PREUVE 13 — une correction AVANT validation est tracee  #'
 \echo '############################################################'
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 select 'P13.1 correction' as preuve,
@@ -296,8 +341,8 @@ reset role;
 
 select 'P13.4 journal (lecture postgres : ferme a authenticated)' as preuve,
        e.evenement, e.auteur_role,
-       e.auteur_id = '868d0b92-bf65-4c99-be43-656911919afd' as auteur_est_a,
-       e.employe_responsable_id = '868d0b92-bf65-4c99-be43-656911919afd' as responsable_est_a,
+       e.auteur_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as auteur_est_a,
+       e.employe_responsable_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as responsable_est_a,
        e.version_apres, e.statut_avant, e.statut_apres, e.motif
 from public.fdj_caisse_evenements e
 where e.shift_id = (select val from ctx where cle='shift_a')::uuid
@@ -314,7 +359,7 @@ from public.fdj_cash_controls c where c.shift_id = (select val from ctx where cl
 \echo '#  PREUVE 15 — seul le manager valide                      #'
 \echo '############################################################'
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 do $$
@@ -337,7 +382,7 @@ begin
 end $$;
 
 reset role;
-select set_config('request.jwt.claims','{"sub":"755a2dc5-3390-4a29-a865-847cbebc1133","role":"authenticated"}', true) is not null as identite_employe_b;
+select set_config('request.jwt.claims','{"sub":"eeeeeee2-0000-4000-8000-eeeeeeeeeee2","role":"authenticated"}', true) is not null as identite_employe_b;
 set local role authenticated;
 
 do $$
@@ -367,7 +412,7 @@ begin
 end $$;
 
 reset role;
-select set_config('request.jwt.claims','{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true) is not null as identite_manager;
+select set_config('request.jwt.claims','{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true) is not null as identite_manager;
 set local role authenticated;
 
 select 'P15.6 ouverture du controle par le manager' as preuve,
@@ -387,10 +432,10 @@ from (select public.fdj_valider_caisse((select val from ctx where cle='shift_a')
 reset role;
 
 select 'P15.9 etat en base' as preuve, c.statut, c.resultat_controle,
-       c.valide_par = '28810f30-8182-4126-920f-051a4c7cb596' as valide_par_le_manager,
-       c.controle_par = '28810f30-8182-4126-920f-051a4c7cb596' as controle_par_le_manager,
+       c.valide_par = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as valide_par_le_manager,
+       c.controle_par = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as controle_par_le_manager,
        c.valide_le is not null as validee,
-       c.saisi_par = '868d0b92-bf65-4c99-be43-656911919afd' as saisie_toujours_imputee_a_a
+       c.saisi_par = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as saisie_toujours_imputee_a_a
 from public.fdj_cash_controls c where c.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
 \echo ''
@@ -403,7 +448,7 @@ select version, nb_corrections, caisse_reelle, ecart, statut, resultat_controle,
        valide_par, valide_le, caisse_reelle_origine, ecart_origine
 from public.fdj_cash_controls where shift_id = (select val from ctx where cle='shift_a')::uuid;
 
-select set_config('request.jwt.claims','{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true) is not null as identite_employe_a;
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true) is not null as identite_employe_a;
 set local role authenticated;
 
 select 'P14.1 correction refusee' as preuve,
@@ -466,7 +511,7 @@ from fige a, public.fdj_cash_controls b
 where b.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
 select 'P14.8 demande enregistree' as preuve, d.statut, d.message,
-       d.demandeur_id = '868d0b92-bf65-4c99-be43-656911919afd' as demandeur_est_a, count(*) over () as nb_demandes
+       d.demandeur_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as demandeur_est_a, count(*) over () as nb_demandes
 from public.fdj_demandes_correction d
 where d.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
@@ -478,53 +523,53 @@ where d.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
 select 'P16.1 journal : auteur <> responsable' as preuve,
        e.evenement, e.auteur_role,
-       case e.auteur_id when '868d0b92-bf65-4c99-be43-656911919afd' then 'employe A'
-                        when '28810f30-8182-4126-920f-051a4c7cb596' then 'manager' else 'autre' end as auteur,
-       case e.employe_responsable_id when '868d0b92-bf65-4c99-be43-656911919afd' then 'employe A'
-                        when '28810f30-8182-4126-920f-051a4c7cb596' then 'manager' else 'autre' end as responsable_operationnel,
+       case e.auteur_id when 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' then 'employe A'
+                        when 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' then 'manager' else 'autre' end as auteur,
+       case e.employe_responsable_id when 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' then 'employe A'
+                        when 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' then 'manager' else 'autre' end as responsable_operationnel,
        e.auteur_id is distinct from e.employe_responsable_id as deux_personnes_distinctes
 from public.fdj_caisse_evenements e
 where e.shift_id = (select val from ctx where cle='shift_a')::uuid
 order by e.survenu_le, e.id;
 
 select 'P16.2 caisse : saisi_par <> valide_par' as preuve,
-       c.saisi_par = '868d0b92-bf65-4c99-be43-656911919afd' as saisie_par_a,
-       c.valide_par = '28810f30-8182-4126-920f-051a4c7cb596' as validee_par_le_manager,
-       c.controle_par = '28810f30-8182-4126-920f-051a4c7cb596' as controlee_par_le_manager,
+       c.saisi_par = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as saisie_par_a,
+       c.valide_par = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as validee_par_le_manager,
+       c.controle_par = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as controlee_par_le_manager,
        c.saisi_par is distinct from c.valide_par as colonnes_distinctes
 from public.fdj_cash_controls c where c.shift_id = (select val from ctx where cle='shift_a')::uuid;
 
 select 'P16.3 quart : created_by <> employee_id possible' as preuve,
-       f.employee_id = '868d0b92-bf65-4c99-be43-656911919afd' as responsable_est_a,
-       f.created_by = '868d0b92-bf65-4c99-be43-656911919afd' as cree_par_a,
+       f.employee_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as responsable_est_a,
+       f.created_by = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as cree_par_a,
        f.ouverture_source
 from public.fdj_shifts f where f.id = (select val from ctx where cle='shift_a')::uuid;
 
-select set_config('request.jwt.claims','{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true) is not null as identite_manager;
+select set_config('request.jwt.claims','{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true) is not null as identite_manager;
 set local role authenticated;
 
 select 'P16.4 transfert explicite' as preuve,
        r->>'transfere' as transfere,
-       r->>'responsable_precedent_id' = '868d0b92-bf65-4c99-be43-656911919afd' as precedent_est_a,
-       r->>'responsable_id' = '755a2dc5-3390-4a29-a865-847cbebc1133' as nouveau_est_b
+       r->>'responsable_precedent_id' = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as precedent_est_a,
+       r->>'responsable_id' = 'eeeeeee2-0000-4000-8000-eeeeeeeeeee2' as nouveau_est_b
 from (select public.fdj_transferer_responsabilite_quart(
         (select val from ctx where cle='shift_a')::uuid,
-        '755a2dc5-3390-4a29-a865-847cbebc1133',
+        'eeeeeee2-0000-4000-8000-eeeeeeeeeee2',
         'Reprise du quart : l employe A a quitte le site avant la fin du service.') as r) t;
 
 reset role;
 
 select 'P16.5 apres transfert' as preuve,
-       f.employee_id = '755a2dc5-3390-4a29-a865-847cbebc1133' as responsable_est_b,
-       f.responsable_precedent_id = '868d0b92-bf65-4c99-be43-656911919afd' as precedent_est_a,
-       f.responsable_transfere_par = '28810f30-8182-4126-920f-051a4c7cb596' as transfere_par_le_manager,
+       f.employee_id = 'eeeeeee2-0000-4000-8000-eeeeeeeeeee2' as responsable_est_b,
+       f.responsable_precedent_id = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as precedent_est_a,
+       f.responsable_transfere_par = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as transfere_par_le_manager,
        f.responsable_transfere_le is not null as horodate,
        f.motif_transfert,
-       f.created_by = '868d0b92-bf65-4c99-be43-656911919afd' as auteur_de_creation_inchange
+       f.created_by = 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' as auteur_de_creation_inchange
 from public.fdj_shifts f where f.id = (select val from ctx where cle='shift_a')::uuid;
 
 select 'P16.6 journal du transfert' as preuve, a.action, a.motif,
-       a.acteur_id = '28810f30-8182-4126-920f-051a4c7cb596' as acteur_est_le_manager
+       a.acteur_id = 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' as acteur_est_le_manager
 from public.fdj_audit_log a
 where a.shift_id = (select val from ctx where cle='shift_a')::uuid
   and a.action = 'fdj_quart_responsabilite_transferee';
@@ -541,7 +586,7 @@ insert into snap values ('avant consultation manager',
   (select count(*) from public.fdj_audit_log),
   (select count(*) from public.fdj_demandes_correction));
 
-select set_config('request.jwt.claims','{"sub":"794c3e91-c9ec-48f8-b7be-f7b97c483d40","role":"authenticated"}', true) is not null as identite_second_manager;
+select set_config('request.jwt.claims','{"sub":"eeeeeee4-0000-4000-8000-eeeeeeeeeee4","role":"authenticated"}', true) is not null as identite_second_manager;
 set local role authenticated;
 
 select 'P11 chronologie (consultation manager)' as preuve, count(*) as lignes
@@ -581,9 +626,9 @@ where s1.etiquette = 'avant consultation manager' and s2.etiquette = 'apres cons
 
 select 'BILAN — quarts FDJ du site de test' as bilan, f.quart, f.date, f.statut,
        f.ouverture_source,
-       case f.employee_id when '868d0b92-bf65-4c99-be43-656911919afd' then 'employe A'
-                          when '755a2dc5-3390-4a29-a865-847cbebc1133' then 'employe B'
-                          when '28810f30-8182-4126-920f-051a4c7cb596' then 'manager' else 'autre' end as responsable
+       case f.employee_id when 'eeeeeee1-0000-4000-8000-eeeeeeeeeee1' then 'employe A'
+                          when 'eeeeeee2-0000-4000-8000-eeeeeeeeeee2' then 'employe B'
+                          when 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3' then 'manager' else 'autre' end as responsable
 from public.fdj_shifts f where f.site = 'nexus-station-test' order by f.quart, f.date;
 
 select 'BILAN — journal des evenements' as bilan, e.evenement, e.auteur_role,
@@ -594,6 +639,97 @@ order by e.survenu_le, e.id;
 
 select 'BILAN — journal d audit' as bilan, a.action, count(*) as n
 from public.fdj_audit_log a group by a.action order by a.action;
+
+\echo ''
+\echo '##############################################################'
+\echo '#  CONTROLE D IDENTITE — aucun employe reel dans la recette   #'
+\echo '##############################################################'
+-- Ce controle ne connait aucune valeur. Il ne connait qu une FORME :
+--
+--   ^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$
+--
+-- sept chiffres hexadecimaux identiques puis un libre, variante 4 et variant
+-- 8 figes, onze chiffres identiques puis un libre. Un uuid v4 tire au hasard
+-- n a aucune chance pratique de la satisfaire. C est ce qui fait qu aucune
+-- liste d autorisation n est necessaire ici — et surtout qu aucun identifiant
+-- reel ne pourrait y etre blanchi en l y inscrivant.
+--
+-- Il balaie les colonnes uuid d IDENTITE, celles qui designent un employe :
+-- employee_id, manager_id, acteur_id, auteur, demandeur, responsable,
+-- valide_par, controle_par, saisi_par, cloture_par, created_by, confirmed_by,
+-- traite_par, override_manager_id — plus employees.id lui-meme — sur toutes
+-- les tables fdj_*, shifts et employees. Les identifiants de lignes engendres
+-- par le serveur (gen_random_uuid()) ne sont volontairement pas soumis a la
+-- regle : ce sont des cles techniques, pas des identites.
+--
+-- Pour les tables qui n etaient PAS vides au depart — instantane etat_initial
+-- pris avant la premiere ecriture — il ne regarde que les lignes posees par la
+-- recette, reconnues a leur id de forme fixture. Ailleurs il regarde tout, y
+-- compris ce qu ont ecrit les commandes serveur.
+--
+-- Les jetons simules sont couverts par ricochet : une commande serveur inscrit
+-- auth.uid() dans fdj_audit_log.acteur_id ou dans le journal de caisse, et un
+-- jeton portant un identifiant reel y laisserait sa trace. Les jetons de
+-- simple consultation, qui n ecrivent rien, sont couverts hors base par
+-- test_recette_vague1_identifiants_synthetiques_20260917.js.
+--
+-- Deux garde-fous ferment la porte au controle qui ne controle rien : moins de
+-- douze colonnes balayees, ou zero valeur vue, et il echoue.
+-- Ce controle doit voir TOUTES les lignes. Sous le role authenticated la RLS
+-- en masquerait une partie, et le balayage serait vert pour la plus mauvaise
+-- des raisons : parce qu il n aurait rien vu. D ou le retour au role de
+-- session, et la verification que ce retour a bien eu lieu.
+reset role;
+do $$
+begin
+  if current_user <> 'postgres' then
+    raise exception 'IDENTITE : le controle tourne sous le role % et non postgres — la RLS le rendrait aveugle', current_user;
+  end if;
+end $$;
+
+do $$
+declare
+  forme constant text := '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$';
+  r record; n bigint; vus bigint; cols int := 0; total bigint := 0;
+begin
+  for r in
+    select c.table_name as tab, c.column_name as col,
+           coalesce((select e.n from etat_initial e where e.tab = c.table_name), 0) as n0,
+           exists (select 1 from information_schema.columns i
+                    where i.table_schema = 'public' and i.table_name = c.table_name
+                      and i.column_name = 'id' and i.udt_name = 'uuid') as a_id
+      from information_schema.columns c
+      join information_schema.tables x
+        on x.table_schema = c.table_schema and x.table_name = c.table_name
+       and x.table_type = 'BASE TABLE'
+     where c.table_schema = 'public' and c.udt_name = 'uuid'
+       and (c.table_name like 'fdj\_%' or c.table_name in ('shifts','employees'))
+       and (c.column_name ~ '(employee|manager|acteur|auteur|demandeur|responsable|valide_par|controle_par|saisi_par|cloture_par|created_by|confirmed_by|traite_par)'
+            or (c.table_name = 'employees' and c.column_name = 'id'))
+     order by c.table_name, c.column_name
+  loop
+    if r.n0 > 0 and not r.a_id then
+      raise exception 'IDENTITE : %.% appartient a une table deja peuplee et sans id uuid — le controle ne sait pas isoler les lignes de la recette', r.tab, r.col;
+    end if;
+    execute format(
+      'select count(*) filter (where %2$I is not null and %2$I::text !~ %3$L), count(%2$I) from public.%1$I %4$s',
+      r.tab, r.col, forme,
+      case when r.n0 > 0 then format('where id::text ~ %L', forme) else '' end)
+      into n, vus;
+    if n > 0 then
+      raise exception 'IDENTITE : %.% porte % identifiant(s) qui ne sont pas de forme fixture', r.tab, r.col, n;
+    end if;
+    cols  := cols + 1;
+    total := total + vus;
+  end loop;
+  if cols < 12 then
+    raise exception 'IDENTITE : % colonne(s) seulement balayee(s) — le controle a rate sa cible', cols;
+  end if;
+  if total = 0 then
+    raise exception 'IDENTITE : aucune valeur controlee — le controle est vide';
+  end if;
+  raise notice 'IDENTITE OK : % colonnes d identite balayees, % valeurs vues, toutes de forme fixture', cols, total;
+end $$;
 
 rollback;
 
@@ -610,7 +746,9 @@ select 'POST-ROLLBACK' as controle,
        to_regclass('public.fdj_demandes_correction') is null                           as demandes_correction_disparues,
        (select count(*) from public.fdj_audit_log)                                     as fdj_audit_log_attendu_0,
        (select count(*) from public.fdj_games where site = 'nexus-station-test')        as fdj_games_test_attendu_0,
-       (select count(*) from public.shifts)                                            as shifts_attendu_47;
+       (select count(*) from public.shifts)                                            as shifts_attendu_47,
+       (select count(*) from public.employees)                                         as employes_attendu_4,
+       (select count(*) from public.fdj_locations)                                     as fdj_locations_attendu_3;
 
 select 'POST-ROLLBACK — les fonctions de la Vague 1 n existent plus sur Test' as controle,
        count(*) as fonctions_fdj_vague1_attendu_0
@@ -618,6 +756,41 @@ from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
   and p.proname in ('fdj_ouvrir_quart_depuis_prise_de_poste','fdj_confirmer_caisse',
                     'fdj_corriger_caisse_confirmee','fdj_valider_caisse','fdj_ma_caisse');
+
+-- Et la demonstration qu aucune fixture ne subsiste. Ce balayage ne cherche
+-- aucune valeur connue : il cherche la FORME, sur TOUTES les colonnes uuid du
+-- schema public — pas seulement celles que la recette a touchees — et exige
+-- qu aucune ligne n en porte plus une seule. Il leve, il n imprime pas : une
+-- preuve qui se contente d afficher un compteur se lit en diagonale.
+do $$
+declare
+  forme constant text := '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$';
+  r record; n bigint; cols int := 0; restes bigint := 0; ou text := '';
+begin
+  for r in
+    select c.table_name as tab, c.column_name as col
+      from information_schema.columns c
+      join information_schema.tables x
+        on x.table_schema = c.table_schema and x.table_name = c.table_name
+       and x.table_type = 'BASE TABLE'
+     where c.table_schema = 'public' and c.udt_name = 'uuid'
+     order by 1, 2
+  loop
+    execute format('select count(*) from public.%I where %I::text ~ %L', r.tab, r.col, forme) into n;
+    cols := cols + 1;
+    if n > 0 then
+      restes := restes + n;
+      ou := ou || format(' %s.%s=%s', r.tab, r.col, n);
+    end if;
+  end loop;
+  if cols < 100 then
+    raise exception 'POST-ROLLBACK : % colonne(s) uuid seulement balayee(s) — le balayage a rate sa cible', cols;
+  end if;
+  if restes > 0 then
+    raise exception 'POST-ROLLBACK : % ligne(s) de forme fixture subsistent :%', restes, ou;
+  end if;
+  raise notice 'POST-ROLLBACK OK : % colonnes uuid du schema public balayees, aucune fixture ne subsiste', cols;
+end $$;
 
 \echo ''
 \echo '============================================================'

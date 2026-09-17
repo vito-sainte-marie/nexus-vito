@@ -1,11 +1,24 @@
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:622: NOTICE:  trigger "fdj_caisse_evenements_pas_de_modification" for relation "public.fdj_caisse_evenements" does not exist, skipping
+-- prerequis charge : supabase/migrations/20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql
+-- prerequis charge : supabase/migrations/20260916220100_fdj_caisse_cycle_de_vie_colonnes.sql
+-- prerequis charge : supabase/migrations/20260916220200_fdj_caisse_journal_evenements.sql
+psql:preuves.sql:630: NOTICE:  trigger "fdj_caisse_evenements_pas_de_modification" for relation "public.fdj_caisse_evenements" does not exist, skipping
+-- prerequis charge : supabase/migrations/20260916220300_fdj_demandes_correction_apres_validation.sql
+-- prerequis charge : supabase/migrations/20260916220400_fdj_mouvements_auteur_et_date_effet.sql
+psql:preuves.sql:893: NOTICE:  fdj_stock_movements : un index unique couvre déjà idempotency_key, rien à créer.
+-- prerequis charge : supabase/migrations/20260916220500_fdj_commande_ouverture_quart.sql
+-- prerequis charge : supabase/migrations/20260916220600_fdj_commandes_caisse_employe.sql
+-- prerequis charge : supabase/migrations/20260916220700_fdj_commandes_caisse_manager.sql
+-- prerequis charge : supabase/migrations/20260916220800_fdj_projection_employe.sql
+-- prerequis charge : supabase/migrations/20260916220900_fdj_projection_progression.sql
+-- prerequis charge : supabase/migrations/20260916221000_fdj_commandes_activations_et_mouvements.sql
+-- prerequis charge : supabase/migrations/20260916221100_fdj_commande_saisie_caisse_manager.sql
 
 ############################################################
 #  SECTION 0 — JEU D ESSAI (role postgres, site de test)   #
 ############################################################
     etape    | jeux | prises_de_poste_actives | date_metier_pdp_a1 | quart_fdj_matin | quart_fdj_soir 
 -------------+------+-------------------------+--------------------+-----------------+----------------
- jeu d essai |    2 |                       4 | 2026-09-16         | 1               | 2
+ jeu d essai |    2 |                       5 | 2026-09-16         | 1               | 2
 (1 row)
 
 
@@ -54,7 +67,7 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
 
           preuve           | ouvert | deja_ouvert |        motif        | date_metier | quart |             responsable              
 ---------------------------+--------+-------------+---------------------+-------------+-------+--------------------------------------
- P10.1 ouverture naturelle | true   | false       | ouverture_naturelle | 2026-09-16  | 1     | 868d0b92-bf65-4c99-be43-656911919afd
+ P10.1 ouverture naturelle | true   | false       | ouverture_naturelle | 2026-09-16  | 1     | eeeeeee1-0000-4000-8000-eeeeeeeeeee1
 (1 row)
 
            preuve            | ouvert | deja_ouvert |           motif            | meme_quart 
@@ -109,7 +122,7 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
  P10.8 quart deja tenu par un autre | false  | true    | quart_existant_autre_responsable | t                   | Ce quart FDJ est déjà ouvert au nom d'une autre personne. Une reprise doit être décidée et motivée par un manager.
 (1 row)
 
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4105: NOTICE:  P10.9 OK — refus attendu : Cette prise de poste appartient à un autre employé
+psql:preuves.sql:5490: NOTICE:  P10.9 OK — refus attendu : Cette prise de poste appartient à un autre employé
            preuve           | quarts_fdj_du_site 
 ----------------------------+--------------------
  P10.10 aucun quart en trop |                  1
@@ -191,14 +204,14 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
 
                preuve               |          survenu_le           |       evenement       |                 libelle                  | version_avant | version_apres | ecart_avant | ecart_apres |            libelle_ecart             |                mon_motif                |   mon_commentaire    |                                                                                              valeurs_avant                                                                                              |                                                                                              valeurs_apres                                                                                              
 ------------------------------------+-------------------------------+-----------------------+------------------------------------------+---------------+---------------+-------------+-------------+--------------------------------------+-----------------------------------------+----------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- P13.3 historique rendu a l employe | 2026-09-17 06:34:16.414899+00 | confirmation_initiale | Caisse confirmée et transmise au manager |               |             1 |             |      -18.00 | Écart provisoire en moins : −18.00 € |                                         |                      |                                                                                                                                                                                                         | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
- P13.3 historique rendu a l employe | 2026-09-17 06:34:16.414899+00 | correction_employe    | Saisie corrigée                          |             1 |             2 |      -18.00 |        0.00 | Aucun écart provisoire               | Erreur de comptage sur le jeu a 5 euros | Stock final recompte | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00} | {"ecart": 0.00, "caisse_reelle": 310, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
+ P13.3 historique rendu a l employe | 2026-09-17 18:49:32.026236+00 | confirmation_initiale | Caisse confirmée et transmise au manager |               |             1 |             |      -18.00 | Écart provisoire en moins : −18.00 € |                                         |                      |                                                                                                                                                                                                         | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
+ P13.3 historique rendu a l employe | 2026-09-17 18:49:32.026236+00 | correction_employe    | Saisie corrigée                          |             1 |             2 |      -18.00 |        0.00 | Aucun écart provisoire               | Erreur de comptage sur le jeu a 5 euros | Stock final recompte | {"ecart": -18.00, "caisse_reelle": 292, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00} | {"ecart": 0.00, "caisse_reelle": 310, "caisse_tirages": 200, "caisse_attendue": 310.00, "caisse_grattage": 110.00, "regularisations": 0, "lots_payes_grattage": 30, "ventes_grattage_valeur": 140.00}
 (2 rows)
 
                           preuve                          |       evenement       | auteur_role | auteur_est_a | responsable_est_a | version_apres | statut_avant | statut_apres |                  motif                  
 ----------------------------------------------------------+-----------------------+-------------+--------------+-------------------+---------------+--------------+--------------+-----------------------------------------
- P13.4 journal (lecture postgres : ferme a authenticated) | correction_employe    | employe     | t            | t                 |             2 | confirmee    | confirmee    | Erreur de comptage sur le jeu a 5 euros
  P13.4 journal (lecture postgres : ferme a authenticated) | confirmation_initiale | employe     | t            | t                 |             1 | brouillon    | confirmee    | 
+ P13.4 journal (lecture postgres : ferme a authenticated) | correction_employe    | employe     | t            | t                 |             2 | confirmee    | confirmee    | Erreur de comptage sur le jeu a 5 euros
 (2 rows)
 
                     preuve                     | version | nb_corrections | coherent | caisse_reelle_origine | ecart_origine | caisse_reelle | ecart | correction_datee 
@@ -215,16 +228,16 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
  t
 (1 row)
 
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4265: NOTICE:  P15.1 OK — l employe ne valide pas sa caisse : Seul un manager habilité peut effectuer cette opération.
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4265: NOTICE:  P15.2 OK — l employe n ouvre pas le controle : Seul un manager habilité peut effectuer cette opération.
+psql:preuves.sql:5650: NOTICE:  P15.1 OK — l employe ne valide pas sa caisse : Seul un manager habilité peut effectuer cette opération.
+psql:preuves.sql:5650: NOTICE:  P15.2 OK — l employe n ouvre pas le controle : Seul un manager habilité peut effectuer cette opération.
  identite_employe_b 
 --------------------
  t
 (1 row)
 
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.3 OK — un collegue ne valide pas : Seul un manager habilité peut effectuer cette opération.
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.4 OK — un collegue ne corrige pas : Ce quart FDJ est sous la responsabilité d'un autre employé.
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4295: NOTICE:  P15.5 OK — un collegue ne lit pas la caisse d un autre : Ce quart FDJ n'est pas sous votre responsabilité.
+psql:preuves.sql:5680: NOTICE:  P15.3 OK — un collegue ne valide pas : Seul un manager habilité peut effectuer cette opération.
+psql:preuves.sql:5680: NOTICE:  P15.4 OK — un collegue ne corrige pas : Ce quart FDJ est sous la responsabilité d'un autre employé.
+psql:preuves.sql:5680: NOTICE:  P15.5 OK — un collegue ne lit pas la caisse d un autre : Ce quart FDJ n'est pas sous votre responsabilité.
  identite_manager 
 ------------------
  t
@@ -279,8 +292,8 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
  P14.4 signalement rejoue | true    | true
 (1 row)
 
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4378: NOTICE:  P14.5 OK — message trop court refuse : Merci de décrire l'erreur en au moins 5 caractères.
-psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-com-apple-CloudDocs-nexus-ocr-worker/fe1340d8-0b50-4625-b6a6-e6b8cea78837/scratchpad/preuves.sql:4378: NOTICE:  P14.6 OK — l employe ne rouvre pas : Seul un manager habilité peut effectuer cette opération.
+psql:preuves.sql:5763: NOTICE:  P14.5 OK — message trop court refuse : Merci de décrire l'erreur en au moins 5 caractères.
+psql:preuves.sql:5763: NOTICE:  P14.6 OK — l employe ne rouvre pas : Seul un manager habilité peut effectuer cette opération.
                 preuve                 | colonnes_modifiees 
 ---------------------------------------+--------------------
  P14.7 aucune valeur validee n a bouge |                  0
@@ -298,11 +311,11 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
 ############################################################
                 preuve                 |       evenement       | auteur_role |  auteur   | responsable_operationnel | deux_personnes_distinctes 
 ---------------------------------------+-----------------------+-------------+-----------+--------------------------+---------------------------
- P16.1 journal : auteur <> responsable | correction_employe    | employe     | employe A | employe A                | f
+ P16.1 journal : auteur <> responsable | confirmation_initiale | employe     | employe A | employe A                | f
+ P16.1 journal : auteur <> responsable | validation            | manager     | manager   | employe A                | t
  P16.1 journal : auteur <> responsable | ouverture_controle    | manager     | manager   | employe A                | t
  P16.1 journal : auteur <> responsable | demande_correction    | employe     | employe A | employe A                | f
- P16.1 journal : auteur <> responsable | validation            | manager     | manager   | employe A                | t
- P16.1 journal : auteur <> responsable | confirmation_initiale | employe     | employe A | employe A                | f
+ P16.1 journal : auteur <> responsable | correction_employe    | employe     | employe A | employe A                | f
 (5 rows)
 
                  preuve                 | saisie_par_a | validee_par_le_manager | controlee_par_le_manager | colonnes_distinctes 
@@ -371,11 +384,11 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
 
              bilan              |       evenement       | auteur_role | version_avant | version_apres | ecart_avant | ecart_apres |                  motif                  
 --------------------------------+-----------------------+-------------+---------------+---------------+-------------+-------------+-----------------------------------------
- BILAN — journal des evenements | correction_employe    | employe     |             1 |             2 |      -18.00 |        0.00 | Erreur de comptage sur le jeu a 5 euros
+ BILAN — journal des evenements | confirmation_initiale | employe     |               |             1 |             |      -18.00 | 
+ BILAN — journal des evenements | validation            | manager     |             2 |             2 |        0.00 |        0.00 | 
  BILAN — journal des evenements | ouverture_controle    | manager     |             2 |             2 |        0.00 |        0.00 | 
  BILAN — journal des evenements | demande_correction    | employe     |             2 |             2 |        0.00 |        0.00 | 
- BILAN — journal des evenements | validation            | manager     |             2 |             2 |        0.00 |        0.00 | 
- BILAN — journal des evenements | confirmation_initiale | employe     |               |             1 |             |      -18.00 | 
+ BILAN — journal des evenements | correction_employe    | employe     |             1 |             2 |      -18.00 |        0.00 | Erreur de comptage sur le jeu a 5 euros
 (5 rows)
 
           bilan          |                action                | n 
@@ -390,13 +403,18 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
 (7 rows)
 
 
+##############################################################
+#  CONTROLE D IDENTITE — aucun employe reel dans la recette   #
+##############################################################
+psql:preuves.sql:6000: NOTICE:  IDENTITE OK : 27 colonnes d identite balayees, 43 valeurs vues, toutes de forme fixture
+
 ############################################################
 #  APRES ROLLBACK — la base de Test est revenue a son etat  #
 #  initial : aucune donnee de recette ne subsiste.          #
 ############################################################
-   controle    | fdj_shifts_attendu_0 | fdj_cash_controls_attendu_0 | journal_caisse_disparu | demandes_correction_disparues | fdj_audit_log_attendu_0 | fdj_games_test_attendu_0 | shifts_attendu_47 
----------------+----------------------+-----------------------------+------------------------+-------------------------------+-------------------------+--------------------------+-------------------
- POST-ROLLBACK |                    0 |                           0 | t                      | t                             |                       0 |                        0 |                47
+   controle    | fdj_shifts_attendu_0 | fdj_cash_controls_attendu_0 | journal_caisse_disparu | demandes_correction_disparues | fdj_audit_log_attendu_0 | fdj_games_test_attendu_0 | shifts_attendu_47 | employes_attendu_4 | fdj_locations_attendu_3 
+---------------+----------------------+-----------------------------+------------------------+-------------------------------+-------------------------+--------------------------+-------------------+--------------------+-------------------------
+ POST-ROLLBACK |                    0 |                           0 | t                      | t                             |                       0 |                        0 |                47 |                  4 |                       3
 (1 row)
 
                                controle                               | fonctions_fdj_vague1_attendu_0 
@@ -404,6 +422,7 @@ psql:/private/tmp/claude-501/-Users-fredericbragance-Library-Mobile-Documents-co
  POST-ROLLBACK — les fonctions de la Vague 1 n existent plus sur Test |                              0
 (1 row)
 
+psql:preuves.sql:6061: NOTICE:  POST-ROLLBACK OK : 410 colonnes uuid du schema public balayees, aucune fixture ne subsiste
 
 ============================================================
 =  RECETTE TERMINEE — TRANSACTION ANNULEE                   =

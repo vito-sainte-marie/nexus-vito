@@ -70,14 +70,69 @@ select 'P22.0 schema' as preuve,
 --
 -- Ce jeu n est pas « un jeu de test » : c est la forme des donnees reelles.
 
+-- Instantane du remplissage des tables AVANT la moindre ecriture de la
+-- recette. Il ne sert qu au controle d identite de la fin : celui-ci doit
+-- pouvoir distinguer les lignes posees ici de celles qui preexistaient sur
+-- nexus-test, sans jamais nommer ni les unes ni les autres.
+create temporary table etat_initial (tab text primary key, n bigint);
+do $$
+declare r record; n bigint;
+begin
+  for r in select table_name from information_schema.tables
+           where table_schema = 'public' and table_type = 'BASE TABLE'
+             and (table_name like 'fdj\_%' or table_name in ('employees','shifts'))
+  loop
+    execute format('select count(*) from public.%I', r.table_name) into n;
+    insert into etat_initial values (r.table_name, n);
+  end loop;
+end $$;
+
 create temporary table ctx (cle text primary key, val text);
 insert into ctx values
-  ('emp_a',   '868d0b92-bf65-4c99-be43-656911919afd'),
-  ('emp_b',   '755a2dc5-3390-4a29-a865-847cbebc1133'),
-  ('manager', '28810f30-8182-4126-920f-051a4c7cb596'),
+  ('emp_a',   'eeeeeee1-0000-4000-8000-eeeeeeeeeee1'),
+  ('emp_b',   'eeeeeee2-0000-4000-8000-eeeeeeeeeee2'),
+  ('manager', 'eeeeeee3-0000-4000-8000-eeeeeeeeeee3'),
   ('site',    'nexus-station-test'),
-  ('loc_bureau', 'e9851de4-e647-45b5-b685-3a7d33da9834'),
-  ('loc_caisse', 'e3864f8f-a300-454c-9665-099cf719ac32');
+  ('loc_bureau', 'ddddddd1-0000-4000-8000-ddddddddddd1'),
+  ('loc_caisse', 'ddddddd2-0000-4000-8000-ddddddddddd2');
+
+-- Les acteurs de cette recette sont SYNTHETIQUES et crees ici meme, dans la
+-- transaction annulee. Aucun employe reel de nexus-test n est sollicite : le
+-- depot est public, et l identifiant d un employe y est un identifiant
+-- pseudonyme persistant, correlable a une personne meme sans nom ni courriel.
+--
+-- Ils ne sont pas decoratifs pour autant. employees.site_id porte une cle
+-- etrangere vers public.sites, role est soumis a employees_role_check, et
+-- username est unique : les quatre lignes exercent reellement ces trois
+-- contraintes. Leurs roles reproduisent ceux des comptes qu ils remplacent —
+-- un caissier, un pompiste, un manager, un manager createur — parce que la
+-- RLS et les commandes serveur lisent ces colonnes, et qu une fixture qui ne
+-- les reproduirait pas ferait mentir la preuve.
+--
+-- public.employees.id n a aucune cle etrangere vers auth.users : un employe
+-- peut donc exister sans compte d authentification, et le jeton simule par
+-- set_config('request.jwt.claims', ...) n a besoin que de cet id.
+insert into public.employees
+  (id, username, nom, role, actif, est_createur, site_id, compte_test)
+values
+  ('eeeeeee1-0000-4000-8000-eeeeeeeeeee1','recette-vague1-employe-a',
+   'Recette Vague 1 — employe A',      'caissier', true, false, 'nexus-station-test', true),
+  ('eeeeeee2-0000-4000-8000-eeeeeeeeeee2','recette-vague1-employe-b',
+   'Recette Vague 1 — employe B',      'pompiste', true, false, 'nexus-station-test', true),
+  ('eeeeeee3-0000-4000-8000-eeeeeeeeeee3','recette-vague1-manager',
+   'Recette Vague 1 — manager',        'manager',  true, false, 'nexus-station-test', true),
+  ('eeeeeee4-0000-4000-8000-eeeeeeeeeee4','recette-vague1-manager-2',
+   'Recette Vague 1 — second manager', 'manager',  true, true,  'nexus-station-test', true);
+
+-- Deux emplacements synthetiques. fdj_stock_movements porte deux cles
+-- etrangeres vers fdj_locations : sans ces deux lignes, la recette devrait
+-- emprunter des emplacements reels de nexus-test — lesquels appartiennent au
+-- site vito-sainte-marie, si bien qu un mouvement declare sur
+-- nexus-station-test pointait vers l emplacement d un autre site. La fixture
+-- corrige donc aussi cette incoherence.
+insert into public.fdj_locations (id, site, nom, type, actif, ordre_affichage) values
+  ('ddddddd1-0000-4000-8000-ddddddddddd1','nexus-station-test','Bureau (recette Vague 1)','bureau',true,910),
+  ('ddddddd2-0000-4000-8000-ddddddddddd2','nexus-station-test','Caisse (recette Vague 1)','caisse',true,920);
 
 insert into public.fdj_games (id, site, nom, prix, ordre_affichage) values
   ('00000003-0000-4000-8000-000000000001','nexus-station-test','JEU HISTORIQUE 2 EUROS',2.00,1),
@@ -87,15 +142,15 @@ insert into public.fdj_games (id, site, nom, prix, ordre_affichage) values
 -- suite : dans fdj_shifts.statut, 'valide' signifie « transmis par l employe »
 -- et n a jamais voulu dire « valide par le manager ».
 insert into public.fdj_shifts (id, site, date, quart, employee_id, statut, ouvert_le, valide_le, created_at) values
-  ('00000001-0000-4000-8000-000000000001','nexus-station-test','2026-08-01','1','868d0b92-bf65-4c99-be43-656911919afd','valide',   '2026-08-01 12:00:00+00', null,                     '2026-08-01 12:00:00+00'),
-  ('00000001-0000-4000-8000-000000000002','nexus-station-test','2026-08-01','2','755a2dc5-3390-4a29-a865-847cbebc1133','valide',   '2026-08-01 21:00:00+00','2026-08-02 08:00:00+00','2026-08-01 21:00:00+00'),
-  ('00000001-0000-4000-8000-000000000003','nexus-station-test','2026-08-02','1','868d0b92-bf65-4c99-be43-656911919afd','valide',   '2026-08-02 12:00:00+00', null,                     '2026-08-02 12:00:00+00'),
-  ('00000001-0000-4000-8000-000000000004','nexus-station-test','2026-08-02','2','755a2dc5-3390-4a29-a865-847cbebc1133','valide',   '2026-08-02 21:00:00+00','2026-08-03 08:30:00+00','2026-08-02 21:00:00+00'),
-  ('00000001-0000-4000-8000-000000000005','nexus-station-test','2026-08-03','1','868d0b92-bf65-4c99-be43-656911919afd','valide',   '2026-08-03 12:00:00+00', null,                     '2026-08-03 12:00:00+00'),
-  ('00000001-0000-4000-8000-000000000006','nexus-station-test','2026-08-03','2','755a2dc5-3390-4a29-a865-847cbebc1133','valide',   '2026-08-03 21:00:00+00','2026-08-04 09:00:00+00','2026-08-03 21:00:00+00'),
-  ('00000001-0000-4000-8000-000000000007','nexus-station-test','2026-08-04','1','868d0b92-bf65-4c99-be43-656911919afd','valide',   '2026-08-04 12:00:00+00','2026-08-05 08:00:00+00','2026-08-04 12:00:00+00'),
-  ('00000001-0000-4000-8000-000000000008','nexus-station-test','2026-08-04','2','755a2dc5-3390-4a29-a865-847cbebc1133','valide',   '2026-08-04 21:00:00+00','2026-08-05 09:00:00+00','2026-08-04 21:00:00+00'),
-  ('00000001-0000-4000-8000-000000000009','nexus-station-test','2026-08-05','1','868d0b92-bf65-4c99-be43-656911919afd','brouillon','2026-08-05 12:00:00+00', null,                     '2026-08-05 12:00:00+00');
+  ('00000001-0000-4000-8000-000000000001','nexus-station-test','2026-08-01','1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','valide',   '2026-08-01 12:00:00+00', null,                     '2026-08-01 12:00:00+00'),
+  ('00000001-0000-4000-8000-000000000002','nexus-station-test','2026-08-01','2','eeeeeee2-0000-4000-8000-eeeeeeeeeee2','valide',   '2026-08-01 21:00:00+00','2026-08-02 08:00:00+00','2026-08-01 21:00:00+00'),
+  ('00000001-0000-4000-8000-000000000003','nexus-station-test','2026-08-02','1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','valide',   '2026-08-02 12:00:00+00', null,                     '2026-08-02 12:00:00+00'),
+  ('00000001-0000-4000-8000-000000000004','nexus-station-test','2026-08-02','2','eeeeeee2-0000-4000-8000-eeeeeeeeeee2','valide',   '2026-08-02 21:00:00+00','2026-08-03 08:30:00+00','2026-08-02 21:00:00+00'),
+  ('00000001-0000-4000-8000-000000000005','nexus-station-test','2026-08-03','1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','valide',   '2026-08-03 12:00:00+00', null,                     '2026-08-03 12:00:00+00'),
+  ('00000001-0000-4000-8000-000000000006','nexus-station-test','2026-08-03','2','eeeeeee2-0000-4000-8000-eeeeeeeeeee2','valide',   '2026-08-03 21:00:00+00','2026-08-04 09:00:00+00','2026-08-03 21:00:00+00'),
+  ('00000001-0000-4000-8000-000000000007','nexus-station-test','2026-08-04','1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','valide',   '2026-08-04 12:00:00+00','2026-08-05 08:00:00+00','2026-08-04 12:00:00+00'),
+  ('00000001-0000-4000-8000-000000000008','nexus-station-test','2026-08-04','2','eeeeeee2-0000-4000-8000-eeeeeeeeeee2','valide',   '2026-08-04 21:00:00+00','2026-08-05 09:00:00+00','2026-08-04 21:00:00+00'),
+  ('00000001-0000-4000-8000-000000000009','nexus-station-test','2026-08-05','1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','brouillon','2026-08-05 12:00:00+00', null,                     '2026-08-05 12:00:00+00');
 
 -- Huit caisses, une par statut historique autorise par l ancienne CHECK.
 -- La ligne 3 porte volontairement un valide_le SANS valide_par : c est le cas
@@ -104,13 +159,13 @@ insert into public.fdj_shifts (id, site, date, quart, employee_id, statut, ouver
 insert into public.fdj_cash_controls
   (id, site, shift_id, caisse_attendue, caisse_reelle, ecart, statut, valide_par, valide_le, created_at, updated_at, resultat_controle, motif_ecart_texte) values
   ('00000002-0000-4000-8000-000000000001','nexus-station-test','00000001-0000-4000-8000-000000000001', 500.00, 500.00,   0.00,'provisoire',       null,                                  null,                    '2026-08-01 20:00:00+00','2026-08-01 20:00:00+00', null,           null),
-  ('00000002-0000-4000-8000-000000000002','nexus-station-test','00000001-0000-4000-8000-000000000002', 610.00, 610.00,   0.00,'conforme',         '28810f30-8182-4126-920f-051a4c7cb596','2026-08-02 08:00:00+00','2026-08-01 23:00:00+00','2026-08-02 08:00:00+00','conforme',     'Controle sans remarque.'),
+  ('00000002-0000-4000-8000-000000000002','nexus-station-test','00000001-0000-4000-8000-000000000002', 610.00, 610.00,   0.00,'conforme',         'eeeeeee3-0000-4000-8000-eeeeeeeeeee3','2026-08-02 08:00:00+00','2026-08-01 23:00:00+00','2026-08-02 08:00:00+00','conforme',     'Controle sans remarque.'),
   ('00000002-0000-4000-8000-000000000003','nexus-station-test','00000001-0000-4000-8000-000000000003', 480.00, 443.00, -37.00,'a_regulariser',    null,                                  '2026-08-03 07:45:00+00','2026-08-02 20:00:00+00','2026-08-03 07:45:00+00','a_regulariser','Manquant constate au controle. Note interne manager.'),
-  ('00000002-0000-4000-8000-000000000004','nexus-station-test','00000001-0000-4000-8000-000000000004', 520.00, 534.00,  14.00,'valide_avec_ecart','28810f30-8182-4126-920f-051a4c7cb596','2026-08-03 08:30:00+00','2026-08-02 23:00:00+00','2026-08-03 08:30:00+00','avec_ecart',   'Excedent, origine non identifiee.'),
+  ('00000002-0000-4000-8000-000000000004','nexus-station-test','00000001-0000-4000-8000-000000000004', 520.00, 534.00,  14.00,'valide_avec_ecart','eeeeeee3-0000-4000-8000-eeeeeeeeeee3','2026-08-03 08:30:00+00','2026-08-02 23:00:00+00','2026-08-03 08:30:00+00','avec_ecart',   'Excedent, origine non identifiee.'),
   ('00000002-0000-4000-8000-000000000005','nexus-station-test','00000001-0000-4000-8000-000000000005', 455.00, 454.00,  -1.00,'a_controler',      null,                                  null,                    '2026-08-03 20:00:00+00','2026-08-03 20:00:00+00', null,           null),
   ('00000002-0000-4000-8000-000000000006','nexus-station-test','00000001-0000-4000-8000-000000000006', 610.00, 607.00,  -3.00,'en_attente',       null,                                  null,                    '2026-08-03 23:00:00+00','2026-08-03 23:00:00+00', null,           null),
   ('00000002-0000-4000-8000-000000000007','nexus-station-test','00000001-0000-4000-8000-000000000007', 505.00, 503.00,  -2.00,'expliquee',        null,                                  null,                    '2026-08-04 20:00:00+00','2026-08-04 20:00:00+00', null,           'Explication fournie, non tranchee.'),
-  ('00000002-0000-4000-8000-000000000008','nexus-station-test','00000001-0000-4000-8000-000000000008', 600.00, 599.00,  -1.00,'regularise',       '28810f30-8182-4126-920f-051a4c7cb596','2026-08-05 09:00:00+00','2026-08-04 23:00:00+00','2026-08-05 09:00:00+00','a_regulariser','Regularise au quart suivant.');
+  ('00000002-0000-4000-8000-000000000008','nexus-station-test','00000001-0000-4000-8000-000000000008', 600.00, 599.00,  -1.00,'regularise',       'eeeeeee3-0000-4000-8000-eeeeeeeeeee3','2026-08-05 09:00:00+00','2026-08-04 23:00:00+00','2026-08-05 09:00:00+00','a_regulariser','Regularise au quart suivant.');
 
 -- Cinq mouvements de stock historiques. Aucun ne sait qui l a saisi : cette
 -- information n existait pas avant la Vague 1. Deux portent une cle
@@ -123,11 +178,11 @@ insert into public.fdj_cash_controls
 -- deterministes, a deriver de l evenement source.
 insert into public.fdj_stock_movements
   (id, site, game_id, type_mouvement, quantite, location_source_id, location_destination_id, employee_id, created_at, shift_id, methode_identification, source, idempotency_key) values
-  ('00000004-0000-4000-8000-000000000001','nexus-station-test','00000003-0000-4000-8000-000000000001','reception', 10, null,                                   'e9851de4-e647-45b5-b685-3a7d33da9834','868d0b92-bf65-4c99-be43-656911919afd','2026-08-01 12:30:00+00','00000001-0000-4000-8000-000000000001','quantite','historique','11111111-0000-4000-8000-000000000001'),
-  ('00000004-0000-4000-8000-000000000002','nexus-station-test','00000003-0000-4000-8000-000000000001','transfert',  5, 'e9851de4-e647-45b5-b685-3a7d33da9834','e3864f8f-a300-454c-9665-099cf719ac32','755a2dc5-3390-4a29-a865-847cbebc1133','2026-08-01 21:15:00+00','00000001-0000-4000-8000-000000000002','quantite','historique','11111111-0000-4000-8000-000000000002'),
-  ('00000004-0000-4000-8000-000000000003','nexus-station-test','00000003-0000-4000-8000-000000000002','activation', 1, 'e3864f8f-a300-454c-9665-099cf719ac32', null,                                  '868d0b92-bf65-4c99-be43-656911919afd','2026-08-02 13:00:00+00','00000001-0000-4000-8000-000000000003','scan',    'historique', null),
-  ('00000004-0000-4000-8000-000000000004','nexus-station-test','00000003-0000-4000-8000-000000000002','activation', 1, 'e3864f8f-a300-454c-9665-099cf719ac32', null,                                  '755a2dc5-3390-4a29-a865-847cbebc1133','2026-08-02 22:00:00+00','00000001-0000-4000-8000-000000000004','scan',    'historique', null),
-  ('00000004-0000-4000-8000-000000000005','nexus-station-test','00000003-0000-4000-8000-000000000001','correction', 2, null,                                   'e9851de4-e647-45b5-b685-3a7d33da9834','868d0b92-bf65-4c99-be43-656911919afd','2026-08-03 14:00:00+00','00000001-0000-4000-8000-000000000005','saisie_manuelle','historique', null);
+  ('00000004-0000-4000-8000-000000000001','nexus-station-test','00000003-0000-4000-8000-000000000001','reception', 10, null,                                   'ddddddd1-0000-4000-8000-ddddddddddd1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','2026-08-01 12:30:00+00','00000001-0000-4000-8000-000000000001','quantite','historique','11111111-0000-4000-8000-000000000001'),
+  ('00000004-0000-4000-8000-000000000002','nexus-station-test','00000003-0000-4000-8000-000000000001','transfert',  5, 'ddddddd1-0000-4000-8000-ddddddddddd1','ddddddd2-0000-4000-8000-ddddddddddd2','eeeeeee2-0000-4000-8000-eeeeeeeeeee2','2026-08-01 21:15:00+00','00000001-0000-4000-8000-000000000002','quantite','historique','11111111-0000-4000-8000-000000000002'),
+  ('00000004-0000-4000-8000-000000000003','nexus-station-test','00000003-0000-4000-8000-000000000002','activation', 1, 'ddddddd2-0000-4000-8000-ddddddddddd2', null,                                  'eeeeeee1-0000-4000-8000-eeeeeeeeeee1','2026-08-02 13:00:00+00','00000001-0000-4000-8000-000000000003','scan',    'historique', null),
+  ('00000004-0000-4000-8000-000000000004','nexus-station-test','00000003-0000-4000-8000-000000000002','activation', 1, 'ddddddd2-0000-4000-8000-ddddddddddd2', null,                                  'eeeeeee2-0000-4000-8000-eeeeeeeeeee2','2026-08-02 22:00:00+00','00000001-0000-4000-8000-000000000004','scan',    'historique', null),
+  ('00000004-0000-4000-8000-000000000005','nexus-station-test','00000003-0000-4000-8000-000000000001','correction', 2, null,                                   'ddddddd1-0000-4000-8000-ddddddddddd1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1','2026-08-03 14:00:00+00','00000001-0000-4000-8000-000000000005','saisie_manuelle','historique', null);
 
 -- L empreinte de l historique, colonne par colonne. On ne peut pas prendre
 -- md5(ligne entiere) : les migrations AJOUTENT des colonnes, la ligne entiere
@@ -289,7 +344,7 @@ savepoint p223b;
 do $$
 begin
   insert into public.fdj_cash_controls (id, site, shift_id, statut, valide_par, valide_le)
-  values ('00000002-0000-4000-8000-0000000000ff','nexus-station-test',
+  values ('00000002-0000-4000-8000-fffffffffff0','nexus-station-test',
           '00000001-0000-4000-8000-000000000009','conforme', null, now());
   raise notice 'P22.3b (2) ECHEC DE LA PREUVE : une ligne neuve incoherente a ete acceptee';
 exception when check_violation then
@@ -402,9 +457,9 @@ insert into public.fdj_stock_movements
    employee_id, created_by, effective_at, created_at, shift_id, methode_identification, source, idempotency_key)
 values
   ('00000004-0000-4000-8000-00000000000a','nexus-station-test','00000003-0000-4000-8000-000000000001',
-   'transfert', 3, 'e9851de4-e647-45b5-b685-3a7d33da9834','e3864f8f-a300-454c-9665-099cf719ac32',
-   '868d0b92-bf65-4c99-be43-656911919afd',            -- responsable operationnel : A
-   '28810f30-8182-4126-920f-051a4c7cb596',            -- auteur de la saisie : le manager
+   'transfert', 3, 'ddddddd1-0000-4000-8000-ddddddddddd1','ddddddd2-0000-4000-8000-ddddddddddd2',
+   'eeeeeee1-0000-4000-8000-eeeeeeeeeee1',            -- responsable operationnel : A
+   'eeeeeee3-0000-4000-8000-eeeeeeeeeee3',            -- auteur de la saisie : le manager
    '2026-09-16 17:00:00+00', '2026-09-17 03:00:00+00',
    '00000001-0000-4000-8000-000000000001','saisie_manuelle','saisie_differee_manager','11111111-0000-4000-8000-00000000000a');
 
@@ -439,8 +494,8 @@ begin
     (id, site, game_id, type_mouvement, quantite, location_destination_id, employee_id,
      created_by, created_at, methode_identification, source, idempotency_key)
   values ('00000004-0000-4000-8000-00000000000b','nexus-station-test','00000003-0000-4000-8000-000000000001',
-          'transfert', 3, 'e3864f8f-a300-454c-9665-099cf719ac32','868d0b92-bf65-4c99-be43-656911919afd',
-          '28810f30-8182-4126-920f-051a4c7cb596', now(),'saisie_manuelle','saisie_differee_manager',
+          'transfert', 3, 'ddddddd2-0000-4000-8000-ddddddddddd2','eeeeeee1-0000-4000-8000-eeeeeeeeeee1',
+          'eeeeeee3-0000-4000-8000-eeeeeeeeeee3', now(),'saisie_manuelle','saisie_differee_manager',
           '11111111-0000-4000-8000-00000000000a');
   raise notice 'P21.3 ECHEC DE LA PREUVE : le meme mouvement a ete enregistre deux fois';
 exception when unique_violation then
@@ -495,8 +550,8 @@ begin
     (id, site, game_id, type_mouvement, quantite, location_destination_id, employee_id,
      created_by, effective_at, created_at, methode_identification, source)
   values ('00000004-0000-4000-8000-00000000000c','nexus-station-test','00000003-0000-4000-8000-000000000001',
-          'reception', 1,'e9851de4-e647-45b5-b685-3a7d33da9834','868d0b92-bf65-4c99-be43-656911919afd',
-          '28810f30-8182-4126-920f-051a4c7cb596',
+          'reception', 1,'ddddddd1-0000-4000-8000-ddddddddddd1','eeeeeee1-0000-4000-8000-eeeeeeeeeee1',
+          'eeeeeee3-0000-4000-8000-eeeeeeeeeee3',
           '2026-09-20 12:00:00+00', '2026-09-17 03:00:00+00','quantite','saisie_differee_manager');
   raise notice 'P21.5 ECHEC DE LA PREUVE : une date d effet posterieure de trois jours a ete acceptee';
 exception when check_violation then
@@ -548,6 +603,97 @@ select 'BILAN' as bilan,
        (select count(*) from public.fdj_caisse_evenements)    as evenements_caisse_attendu_0,
        (select count(*) from public.fdj_demandes_correction)  as demandes_attendu_0;
 
+\echo ''
+\echo '##############################################################'
+\echo '#  CONTROLE D IDENTITE — aucun employe reel dans la recette   #'
+\echo '##############################################################'
+-- Ce controle ne connait aucune valeur. Il ne connait qu une FORME :
+--
+--   ^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$
+--
+-- sept chiffres hexadecimaux identiques puis un libre, variante 4 et variant
+-- 8 figes, onze chiffres identiques puis un libre. Un uuid v4 tire au hasard
+-- n a aucune chance pratique de la satisfaire. C est ce qui fait qu aucune
+-- liste d autorisation n est necessaire ici — et surtout qu aucun identifiant
+-- reel ne pourrait y etre blanchi en l y inscrivant.
+--
+-- Il balaie les colonnes uuid d IDENTITE, celles qui designent un employe :
+-- employee_id, manager_id, acteur_id, auteur, demandeur, responsable,
+-- valide_par, controle_par, saisi_par, cloture_par, created_by, confirmed_by,
+-- traite_par, override_manager_id — plus employees.id lui-meme — sur toutes
+-- les tables fdj_*, shifts et employees. Les identifiants de lignes engendres
+-- par le serveur (gen_random_uuid()) ne sont volontairement pas soumis a la
+-- regle : ce sont des cles techniques, pas des identites.
+--
+-- Pour les tables qui n etaient PAS vides au depart — instantane etat_initial
+-- pris avant la premiere ecriture — il ne regarde que les lignes posees par la
+-- recette, reconnues a leur id de forme fixture. Ailleurs il regarde tout, y
+-- compris ce qu ont ecrit les commandes serveur.
+--
+-- Les jetons simules sont couverts par ricochet : une commande serveur inscrit
+-- auth.uid() dans fdj_audit_log.acteur_id ou dans le journal de caisse, et un
+-- jeton portant un identifiant reel y laisserait sa trace. Les jetons de
+-- simple consultation, qui n ecrivent rien, sont couverts hors base par
+-- test_recette_vague1_identifiants_synthetiques_20260917.js.
+--
+-- Deux garde-fous ferment la porte au controle qui ne controle rien : moins de
+-- douze colonnes balayees, ou zero valeur vue, et il echoue.
+-- Ce controle doit voir TOUTES les lignes. Sous le role authenticated la RLS
+-- en masquerait une partie, et le balayage serait vert pour la plus mauvaise
+-- des raisons : parce qu il n aurait rien vu. D ou le retour au role de
+-- session, et la verification que ce retour a bien eu lieu.
+reset role;
+do $$
+begin
+  if current_user <> 'postgres' then
+    raise exception 'IDENTITE : le controle tourne sous le role % et non postgres — la RLS le rendrait aveugle', current_user;
+  end if;
+end $$;
+
+do $$
+declare
+  forme constant text := '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$';
+  r record; n bigint; vus bigint; cols int := 0; total bigint := 0;
+begin
+  for r in
+    select c.table_name as tab, c.column_name as col,
+           coalesce((select e.n from etat_initial e where e.tab = c.table_name), 0) as n0,
+           exists (select 1 from information_schema.columns i
+                    where i.table_schema = 'public' and i.table_name = c.table_name
+                      and i.column_name = 'id' and i.udt_name = 'uuid') as a_id
+      from information_schema.columns c
+      join information_schema.tables x
+        on x.table_schema = c.table_schema and x.table_name = c.table_name
+       and x.table_type = 'BASE TABLE'
+     where c.table_schema = 'public' and c.udt_name = 'uuid'
+       and (c.table_name like 'fdj\_%' or c.table_name in ('shifts','employees'))
+       and (c.column_name ~ '(employee|manager|acteur|auteur|demandeur|responsable|valide_par|controle_par|saisi_par|cloture_par|created_by|confirmed_by|traite_par)'
+            or (c.table_name = 'employees' and c.column_name = 'id'))
+     order by c.table_name, c.column_name
+  loop
+    if r.n0 > 0 and not r.a_id then
+      raise exception 'IDENTITE : %.% appartient a une table deja peuplee et sans id uuid — le controle ne sait pas isoler les lignes de la recette', r.tab, r.col;
+    end if;
+    execute format(
+      'select count(*) filter (where %2$I is not null and %2$I::text !~ %3$L), count(%2$I) from public.%1$I %4$s',
+      r.tab, r.col, forme,
+      case when r.n0 > 0 then format('where id::text ~ %L', forme) else '' end)
+      into n, vus;
+    if n > 0 then
+      raise exception 'IDENTITE : %.% porte % identifiant(s) qui ne sont pas de forme fixture', r.tab, r.col, n;
+    end if;
+    cols  := cols + 1;
+    total := total + vus;
+  end loop;
+  if cols < 12 then
+    raise exception 'IDENTITE : % colonne(s) seulement balayee(s) — le controle a rate sa cible', cols;
+  end if;
+  if total = 0 then
+    raise exception 'IDENTITE : aucune valeur controlee — le controle est vide';
+  end if;
+  raise notice 'IDENTITE OK : % colonnes d identite balayees, % valeurs vues, toutes de forme fixture', cols, total;
+end $$;
+
 rollback;
 
 \echo ''
@@ -565,7 +711,44 @@ select 'POST-ROLLBACK' as controle,
        not exists (select 1 from information_schema.columns
                    where table_schema='public' and table_name='fdj_stock_movements'
                      and column_name='effective_at') as colonne_effective_at_disparue,
-       (select count(*) from supabase_migrations.schema_migrations where version like '2026091622%') as migrations_enregistrees_attendu_0;
+       (select count(*) from supabase_migrations.schema_migrations where version like '2026091622%') as migrations_enregistrees_attendu_0,
+       (select count(*) from public.employees)                                          as employes_attendu_4,
+       (select count(*) from public.fdj_locations)                                      as fdj_locations_attendu_3;
+
+-- Et la demonstration qu aucune fixture ne subsiste. Ce balayage ne cherche
+-- aucune valeur connue : il cherche la FORME, sur TOUTES les colonnes uuid du
+-- schema public — pas seulement celles que la recette a touchees — et exige
+-- qu aucune ligne n en porte plus une seule. Il leve, il n imprime pas : une
+-- preuve qui se contente d afficher un compteur se lit en diagonale.
+do $$
+declare
+  forme constant text := '^([0-9a-f])\1{6}[0-9a-f]-0000-4000-8000-([0-9a-f])\2{10}[0-9a-f]$';
+  r record; n bigint; cols int := 0; restes bigint := 0; ou text := '';
+begin
+  for r in
+    select c.table_name as tab, c.column_name as col
+      from information_schema.columns c
+      join information_schema.tables x
+        on x.table_schema = c.table_schema and x.table_name = c.table_name
+       and x.table_type = 'BASE TABLE'
+     where c.table_schema = 'public' and c.udt_name = 'uuid'
+     order by 1, 2
+  loop
+    execute format('select count(*) from public.%I where %I::text ~ %L', r.tab, r.col, forme) into n;
+    cols := cols + 1;
+    if n > 0 then
+      restes := restes + n;
+      ou := ou || format(' %s.%s=%s', r.tab, r.col, n);
+    end if;
+  end loop;
+  if cols < 100 then
+    raise exception 'POST-ROLLBACK : % colonne(s) uuid seulement balayee(s) — le balayage a rate sa cible', cols;
+  end if;
+  if restes > 0 then
+    raise exception 'POST-ROLLBACK : % ligne(s) de forme fixture subsistent :%', restes, ou;
+  end if;
+  raise notice 'POST-ROLLBACK OK : % colonnes uuid du schema public balayees, aucune fixture ne subsiste', cols;
+end $$;
 
 \echo ''
 \echo '============================================================'
