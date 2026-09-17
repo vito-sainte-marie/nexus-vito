@@ -1633,16 +1633,27 @@
   // Journal et pour tout futur rapprochement. Trace systématique dans
   // fdj_audit_log ("avec trace dans le Journal", demande de Frédéric).
   async function creerActivationImplicite(gameId, quantiteCarnets, motifException) {
-    const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: quantiteCarnets,
-      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
-      methode_identification: 'implicite_appro', booklet_id: null, employee_id: employeeCourant.id,
-      idempotency_key: idempotencyKey,
-      justification: `Activation déduite automatiquement de l'appro saisi à la clôture (${shiftRow.date} · Quart ${shiftRow.quart}) — aucune activation correspondante enregistrée pendant le quart.${motifException ? ` Anomalie signalée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
+    // Relecture PR #62, point 3 — l'insert direct est remplacé par la commande
+    // serveur `fdj_activer_carnet` (migration 20260916221000). Ce qui n'est
+    // plus envoyé d'ici : site, employee_id, shift_id en tant que valeur libre,
+    // les deux emplacements, la clé d'idempotence et l'écriture du Journal. Le
+    // serveur les déduit du quart autorisé et de auth.uid(), et c'est tout
+    // l'objet de la bascule : un employé ne peut plus désigner le quart, le
+    // site ni le responsable d'un collègue depuis sa console.
+    const { error } = await nexusClient.rpc('fdj_activer_carnet', {
+      p_shift_id: shiftRow.id,
+      p_game_id: gameId,
+      p_quantite: quantiteCarnets,
+      p_methode: 'implicite_appro',
+      // Le jeton ne porte plus que l'idempotence RÉSEAU : le serveur en dérive
+      // la clé réelle en y mêlant auth.uid(), donc un jeton repli non-UUID
+      // (crypto.randomUUID absent) ne casse plus l'écriture.
+      p_jeton: genererIdempotencyKey(),
+      p_justification: `Activation déduite automatiquement de l'appro saisi à la clôture (${shiftRow.date} · Quart ${shiftRow.quart}) — aucune activation correspondante enregistrée pendant le quart.${motifException ? ` Anomalie signalée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
+      p_motif: motifException || null,
     });
-    if (error && error.code === '23505') return; // rejeu réseau idempotent — même lecture que les autres écritures FDJ (voir executerActivationCarnetInterne)
+    // Le rejeu réseau (23505) est désormais absorbé par la commande, qui rend
+    // { enregistre: true, idempotent: true } : il ne remonte plus comme erreur.
     if (error) { console.error('Activation implicite depuis appro FDJ:', error); alert("Erreur d'enregistrement d'une activation détectée automatiquement à partir de l'appro. Réessayez."); return; }
 
     if (motifException) {
@@ -1657,11 +1668,11 @@
       if (eAlerte) console.error('Enregistrement alerte activation implicite sans stock FDJ:', eAlerte); // non bloquant
     }
 
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_stock_movement', entite_id: null,
-      action: 'fdj_activation_implicite_appro', acteur_id: employeeCourant.id, motif: motifException || null,
-      nouvelle_valeur: { game_id: gameId, quantite_carnets: quantiteCarnets, methode_identification: 'implicite_appro' },
-    });
+    // L'insert `fdj_audit_log` qui suivait ici a été retiré : `fdj_activer_carnet`
+    // journalise lui-même, sous la même action `fdj_activation_implicite_appro`,
+    // dans la même transaction que le mouvement. Le laisser en doublerait les
+    // lignes — et il pouvait auparavant échouer seul, laissant un mouvement
+    // sans trace.
   }
 
   // Écran séquentiel (un jeu à la fois) pour les activations implicites SANS
@@ -1779,6 +1790,14 @@
   // key_uniq). Un rejeu réseau de la même tentative porte la même clé et se
   // heurte au conflit 23505, traité comme un succès idempotent — jamais
   // comme une vraie erreur.
+  //
+  // Depuis la bascule du 17/09/2026 (PR #62, point 3), cette valeur n'est plus
+  // la clé : c'est un JETON. `fdj_activer_carnet` en dérive la clé réelle par
+  // md5(auth.uid() || jeton || contexte), si bien que (a) le jeton de repli,
+  // qui n'est pas un UUID valide, ne casse plus l'écriture — la colonne est
+  // de type uuid — et (b) la clé d'un autre utilisateur est inatteignable,
+  // même en rejouant son jeton. Le 23505 ne remonte plus jusqu'ici : la
+  // commande le lit et répond { idempotent: true }.
   function genererIdempotencyKey() {
     return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
@@ -1804,20 +1823,25 @@
     const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
     const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
     if (label) label.textContent = '…';
-    const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: 1,
-      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
-      methode_identification: 'quantite', booklet_id: null, employee_id: employeeCourant.id,
-      idempotency_key: idempotencyKey,
-      justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}${motifException ? ` Exception tracée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
+    // Relecture PR #62, point 3 — bascule vers la commande serveur
+    // `fdj_activer_carnet`. L'appelant ne fournit plus le site, l'emplacement
+    // de caisse, le responsable ni la clé d'idempotence : tout cela se déduit
+    // du quart que le serveur accepte de reconnaître comme le sien.
+    const { data: retourActivation, error } = await nexusClient.rpc('fdj_activer_carnet', {
+      p_shift_id: shiftRow.id,
+      p_game_id: gameId,
+      p_quantite: 1,
+      p_methode: 'quantite',
+      p_jeton: genererIdempotencyKey(),
+      p_justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}${motifException ? ` Exception tracée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
+      p_motif: motifException || null,
     });
-    if (error && error.code === '23505') {
-      // Rejeu réseau de cette même tentative (clé déjà posée) : l'écriture a
-      // déjà eu lieu au premier passage, y compris l'incrément d'appro —
-      // rien à refaire ici, ce n'est jamais une vraie erreur (même lecture
-      // du code 23505 que fdj_releves_cloture, voir plus bas dans ce fichier).
+    if (!error && retourActivation && retourActivation.idempotent) {
+      // Rejeu réseau de cette même tentative : la commande a reconnu sa propre
+      // clé et n'a rien réécrit. L'écriture a eu lieu au premier passage, y
+      // compris l'incrément d'appro — rien à refaire ici, et surtout pas
+      // réincrémenter le solde local. Ce qui était lu comme un code 23505
+      // est désormais une réponse explicite du serveur.
       if (label) { label.textContent = 'Activer'; }
       return;
     }
