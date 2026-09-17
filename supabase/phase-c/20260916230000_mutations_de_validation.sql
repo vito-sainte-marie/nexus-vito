@@ -17,9 +17,16 @@
 --   ===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU =====
 --   ROLLBACK
 --
--- Les UUID ci-dessous sont ceux d'employés de **Test**. Sur un autre
--- environnement, les remplacer : un employé non manager, un manager du
--- même site, un second employé non manager.
+-- Les UUID ci-dessous sont **entièrement synthétiques** : ce fichier ne
+-- dépend d'aucun compte existant, sur aucun environnement. Le dépôt est
+-- public, et l'identifiant d'un employé réel y serait un identifiant
+-- pseudonyme persistant — pas un secret, mais une donnée corrélable à
+-- une personne. Les deux acteurs — un employé non manager, un manager
+-- du même site — sont donc créés par ce fichier même, dans la
+-- transaction annulée, et démontés explicitement avant la notice
+-- finale. La garde `test_phase_c_identifiants_synthetiques_20260917.js`
+-- refuse tout UUID de ce dossier qui ne figurerait pas dans la liste
+-- déclarée des fixtures.
 --
 -- Dernière exécution verte : 17/09/2026, projet udljdqxerrbbbajxubfn.
 -- =====================================================================
@@ -31,7 +38,8 @@
 --
 -- Principe : une garde verte ne prouve rien. Chaque interdit du §5.1 est
 -- ici une mutation réelle, jouée sous le rôle `authenticated` avec le
--- jeton d'un employé réel de Test. Le test échoue si la mutation PASSE.
+-- jeton d'un employé synthétique créé ci-dessous. Le test échoue si la
+-- mutation PASSE.
 --
 -- Deux formes de refus, à ne jamais confondre :
 --   · le TRIGGER lève 42501            → on attend une exception ;
@@ -39,9 +47,33 @@
 --     Attendre une exception là serait un test qui ne mord pas.
 -- =====================================================================
 
-\set EMPLOYE  '868d0b92-bf65-4c99-be43-656911919afd'
-\set MANAGER  '28810f30-8182-4126-920f-051a4c7cb596'
+\set EMPLOYE  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+\set MANAGER  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 \set SITE     'nexus-station-test'
+
+-- --- Les deux acteurs, entièrement synthétiques -----------------------
+-- Ce ne sont pas des valeurs fictives posées à la place d'un vrai
+-- compte : ce sont deux vraies lignes de `public.employees`, soumises à
+-- la clé étrangère `employees_site_id_fkey` vers `public.sites`, à la
+-- contrainte `employees_role_check` et à l'unicité de `username`. Les
+-- colonnes d'acteur de la Phase C (`fdj_shifts.employee_id`,
+-- `fdj_cash_controls.valide_par` et `confirme_par`,
+-- `fdj_audit_log.acteur_id`, `fdj_stock_movements.employee_id` et
+-- `created_by`, `fdj_reports.saisi_par`…) référencent toutes
+-- `public.employees` — et non `auth.users` : les relations éprouvées
+-- ici sont donc exactement celles de la production.
+--
+-- Le prédicat de rôle `public.fdj_je_controle_le_site()` lit lui aussi
+-- `public.employees` : c'est la ligne `manager` ci-dessous, et elle
+-- seule, qui fait passer les contre-épreuves managériales. Changer son
+-- `role` pour `caissier` suffirait à faire rougir M9 et M11 bis — la
+-- distinction des deux rôles est donc réellement exercée.
+insert into public.employees
+  (id, username, nom, role, actif, est_createur, site_id, compte_test)
+values (:'EMPLOYE', 'recette-phase-c-employe', 'Recette Phase C — employé',
+        'caissier', true, false, :'SITE', true),
+       (:'MANAGER', 'recette-phase-c-manager', 'Recette Phase C — manager',
+        'manager', true, false, :'SITE', true);
 
 -- --- Données de test, créées et annulées dans cette transaction --------
 insert into public.fdj_shifts (id, site, date, quart, employee_id, statut, ouvert_le)
@@ -129,7 +161,7 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+      '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
     insert into public.fdj_cash_controls (site, shift_id, caisse_attendue, statut)
     values ('nexus-station-test', '11111111-1111-4111-8111-111111111111', 999, 'provisoire');
     v_passee := true;
@@ -155,7 +187,7 @@ declare v_lignes integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   update public.fdj_cash_controls
      set caisse_reelle = 460, ecart = 0, statut = 'conforme'
    where id = '33333333-3333-4333-8333-333333333333';
@@ -187,9 +219,9 @@ declare v_lignes integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   update public.fdj_cash_controls
-     set statut = 'conforme', valide_par = '868d0b92-bf65-4c99-be43-656911919afd', valide_le = now()
+     set statut = 'conforme', valide_par = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', valide_le = now()
    where id = '44444444-4444-4444-8444-444444444444';
   get diagnostics v_lignes = row_count;
   execute 'reset role';
@@ -217,7 +249,7 @@ declare v_miennes integer; v_autres integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   select count(*) into v_miennes from public.fdj_cash_controls
    where id = '33333333-3333-4333-8333-333333333333';
   select count(*) into v_autres from public.fdj_cash_controls
@@ -242,7 +274,7 @@ declare v_lignes integer; v_dump text; v_ecart numeric; v_ecart_origine numeric;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   select count(*), coalesce(string_agg(to_jsonb(p)::text, ' '), '')
     into v_lignes, v_dump
     from public.fdj_ma_progression_caisse() p;
@@ -255,7 +287,7 @@ begin
   end if;
   if v_dump like '%MOTIF INTERNE MANAGER%'
      or v_dump like '%a_regulariser%'
-     or v_dump like '%28810f30-8182-4126-920f-051a4c7cb596%' then
+     or v_dump like '%bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb%' then
     raise exception 'M4 bis ÉCHOUE — la projection transporte un champ réservé au manager (commentaire, verdict ou identité du contrôleur).';
   end if;
   if v_ecart is distinct from -1 or v_ecart_origine is distinct from -2.50 then
@@ -275,9 +307,9 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+      '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
     update public.fdj_shifts
-       set employee_id = '868d0b92-bf65-4c99-be43-656911919afd'
+       set employee_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
      where id = '22222222-2222-4222-8222-222222222222';
     v_passee := true;
   exception
@@ -300,7 +332,7 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+      '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
     update public.fdj_shifts set statut = 'valide', valide_le = now()
      where id = '11111111-1111-4111-8111-111111111111';
     v_passee := true;
@@ -323,7 +355,7 @@ declare v_lignes integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   update public.fdj_shifts
      set ouverture_validee = true, ouverture_validee_le = now(),
          previous_shift_id = '22222222-2222-4222-8222-222222222222'
@@ -345,10 +377,10 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+      '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
     insert into public.fdj_audit_log (site, entite_type, action, acteur_id)
     values ('nexus-station-test', 'fdj_shifts', 'test_imputation',
-            '28810f30-8182-4126-920f-051a4c7cb596');
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
     v_passee := true;
   exception when others then raise notice 'M8 PASSE — refus (%) : %', sqlstate, sqlerrm;
   end;
@@ -365,10 +397,10 @@ declare v_lignes integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   insert into public.fdj_audit_log (site, entite_type, action, acteur_id)
   values ('nexus-station-test', 'fdj_shifts', 'test_soi_meme',
-          '868d0b92-bf65-4c99-be43-656911919afd');
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   insert into public.fdj_audit_log (site, entite_type, action, acteur_id)
   values ('nexus-station-test', 'fdj_shifts', 'test_automatique', null);
   get diagnostics v_lignes = row_count;
@@ -396,7 +428,7 @@ declare
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
 
   -- 1. Prise en contrôle de la caisse confirmée par l'employé.
   v_ouvert := public.fdj_ouvrir_controle_caisse('11111111-1111-4111-8111-111111111111');
@@ -452,7 +484,7 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+      '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
     insert into public.fdj_corrections (site, shift_id) values ('nexus-station-test', '11111111-1111-4111-8111-111111111111');
     v_passee := true;
   exception when others then raise notice 'M10 PASSE — refus (%) : %', sqlstate, sqlerrm;
@@ -474,15 +506,15 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+      '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
     -- `employee_id` forgé sur le manager : c'est très exactement ce que
     -- le front savait faire avant cette vague.
     insert into public.fdj_stock_movements
       (site, game_id, shift_id, type_mouvement, quantite, employee_id, created_by)
     values ('nexus-station-test', '88888888-8888-4888-8888-888888888888',
             '11111111-1111-4111-8111-111111111111', 'activation', 1,
-            '28810f30-8182-4126-920f-051a4c7cb596',
-            '28810f30-8182-4126-920f-051a4c7cb596');
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
     v_passee := true;
   exception
     when insufficient_privilege then raise notice 'M11 PASSE — refus RLS : %', sqlerrm;
@@ -514,7 +546,7 @@ declare
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"868d0b92-bf65-4c99-be43-656911919afd","role":"authenticated"}', true);
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
   v_employe := public.fdj_activer_carnet(
     '11111111-1111-4111-8111-111111111111',
     '88888888-8888-4888-8888-888888888888',
@@ -524,7 +556,7 @@ begin
   end if;
 
   perform set_config('request.jwt.claims',
-    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
   v_manager := public.fdj_activer_carnet(
     '11111111-1111-4111-8111-111111111111',
     '88888888-8888-4888-8888-888888888888',
@@ -535,11 +567,11 @@ begin
 
   execute 'reset role';
 
-  select count(*) filter (where m.created_by = '868d0b92-bf65-4c99-be43-656911919afd'
-                            and m.employee_id = '868d0b92-bf65-4c99-be43-656911919afd'),
-         count(*) filter (where m.created_by = '28810f30-8182-4126-920f-051a4c7cb596'
-                            and m.employee_id = '868d0b92-bf65-4c99-be43-656911919afd'),
-         count(*) filter (where m.employee_id <> '868d0b92-bf65-4c99-be43-656911919afd')
+  select count(*) filter (where m.created_by = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+                            and m.employee_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+         count(*) filter (where m.created_by = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+                            and m.employee_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+         count(*) filter (where m.employee_id <> 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
     into v_par_emp, v_par_mgr, v_usurpes
     from public.fdj_stock_movements m
    where m.shift_id = '11111111-1111-4111-8111-111111111111';
@@ -574,9 +606,9 @@ begin
   begin
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',
-      '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+      '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
     update public.fdj_shifts
-       set employee_id = '28810f30-8182-4126-920f-051a4c7cb596'
+       set employee_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
      where id = '55555555-5555-4555-8555-555555555555';
     v_passee := true;
   exception
@@ -595,7 +627,7 @@ begin
   -- pour la mauvaise raison.
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
 
   -- Le motif n'est pas décoratif : la commande le refuse s'il est vide
   -- ou trop court. Sans ce sous-contrôle, « exiger un motif » ne serait
@@ -603,7 +635,7 @@ begin
   begin
     v_transfert := public.fdj_transferer_responsabilite_quart(
       '55555555-5555-4555-8555-555555555555',
-      '28810f30-8182-4126-920f-051a4c7cb596',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       '  ');
     v_court := true;
   exception
@@ -616,12 +648,12 @@ begin
 
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
 
   -- CONTRE-ÉPREUVE : le geste légitime, lui, aboutit et se journalise.
   v_transfert := public.fdj_transferer_responsabilite_quart(
     '55555555-5555-4555-8555-555555555555',
-    '28810f30-8182-4126-920f-051a4c7cb596',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     'passation de poste 14h — employé parti en pause longue');
   if coalesce((v_transfert->>'transfere')::boolean, false) is not true then
     execute 'reset role';
@@ -632,7 +664,7 @@ begin
 
   select s.employee_id into v_titulaire
     from public.fdj_shifts s where s.id = '55555555-5555-4555-8555-555555555555';
-  if v_titulaire <> '28810f30-8182-4126-920f-051a4c7cb596' then
+  if v_titulaire <> 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' then
     raise exception 'M12 ÉCHOUE — le titulaire n''a pas changé après le transfert (%).', v_titulaire;
   end if;
 
@@ -661,11 +693,11 @@ declare v_lignes integer;
 begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
-    '{"sub":"28810f30-8182-4126-920f-051a4c7cb596","role":"authenticated"}', true);
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}', true);
 
   update public.fdj_cash_controls
      set resultat_controle = 'conforme',
-         valide_par = '28810f30-8182-4126-920f-051a4c7cb596',
+         valide_par = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
          valide_le = now(),
          motif_ecart_texte = 'contournement de la commande de validation'
    where id = '44444444-4444-4444-8444-444444444444';
@@ -676,6 +708,119 @@ begin
     raise exception 'M13 ÉCHOUE — le manager valide encore une caisse par un update direct (% ligne), sans événement ni journal.', v_lignes;
   end if;
   raise notice 'M13 PASSE — update direct du manager sans effet : 0 ligne, aucune erreur.';
+end $$;
+
+-- =====================================================================
+-- DÉMONTAGE — toutes les lignes créées ici sont retirées avant la fin.
+--
+-- Le `rollback;` final reste la garantie : c'est lui qui répond de
+-- l'absence d'effet durable, et ce démontage ne s'y substitue pas. Il
+-- répond d'autre chose — que la recette sait défaire ce qu'elle a fait,
+-- et qu'elle n'a rien laissé essaimer hors des identifiants déclarés.
+-- Il échouerait bruyamment sinon.
+--
+-- La boucle ne connaît que les onze UUID de fixture. Elle parcourt les
+-- clés étrangères mono-colonne de type `uuid` du schéma `public` et ne
+-- supprime que les lignes dont la valeur appartient à cette liste :
+-- aucune ligne préexistante ne peut être atteinte, puisque aucune ne
+-- porte ces valeurs. Plusieurs passes, car les dépendances sont
+-- chaînées (carnet → mouvement → quart → employé) et parce que
+-- `fdj_shifts.previous_shift_id` référence sa propre table.
+-- =====================================================================
+do $$
+declare
+  v_fixtures uuid[] := array[
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',  -- employé synthétique
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',  -- manager synthétique
+    '11111111-1111-4111-8111-111111111111',  -- quart employé, brouillon
+    '22222222-2222-4222-8222-222222222222',  -- quart manager, brouillon
+    '33333333-3333-4333-8333-333333333333',  -- caisse du quart 1111
+    '44444444-4444-4444-8444-444444444444',  -- caisse du quart 2222
+    '55555555-5555-4555-8555-555555555555',  -- quart sans caisse
+    '66666666-6666-4666-8666-666666666666',  -- quart clôturé
+    '77777777-7777-4777-8777-777777777777',  -- caisse validée du 6666
+    '88888888-8888-4888-8888-888888888888',  -- jeu de recette
+    '99999999-9999-4999-8999-999999999999'   -- emplacement de caisse
+  ]::uuid[];
+  v_avant    bigint;
+  v_passe    integer := 0;
+  v_tour     bigint;
+  v_lignes   bigint;
+  v_total    bigint := 0;
+  v_restant  bigint := 0;
+  r          record;
+begin
+  select count(*) into v_avant
+    from public.employees where id = any(v_fixtures);
+  if v_avant <> 2 then
+    raise exception 'DÉMONTAGE ÉCHOUE — % employé(s) synthétique(s) présent(s) au lieu de 2 : les mutations n''ont pas joué sur les identités attendues.', v_avant;
+  end if;
+
+  loop
+    v_passe := v_passe + 1;
+    v_tour  := 0;
+    for r in
+      select distinct c.relname as table_nom, a.attname as colonne
+        from pg_constraint k
+        join pg_class      c on c.oid = k.conrelid
+        join pg_namespace  n on n.oid = c.relnamespace
+        join pg_attribute  a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
+       where k.contype = 'f'
+         and n.nspname = 'public'
+         and cardinality(k.conkey) = 1
+         and a.atttypid = 'uuid'::regtype
+       order by 1, 2
+    loop
+      execute format('delete from public.%I where %I = any($1)', r.table_nom, r.colonne)
+        using v_fixtures;
+      get diagnostics v_lignes = row_count;
+      v_tour := v_tour + v_lignes;
+    end loop;
+    v_total := v_total + v_tour;
+    exit when v_tour = 0;
+    if v_passe >= 10 then
+      raise exception 'DÉMONTAGE ÉCHOUE — dépendances non résorbées après 10 passes.';
+    end if;
+  end loop;
+
+  -- Les quatre tables où la fixture EST la ligne mère : leur `id` est une
+  -- clé primaire, jamais une clé étrangère, donc la boucle ne les voit pas.
+  delete from public.fdj_cash_controls where id = any(v_fixtures);
+  delete from public.fdj_shifts         where id = any(v_fixtures);
+  delete from public.fdj_games          where id = any(v_fixtures);
+  delete from public.fdj_locations      where id = any(v_fixtures);
+  delete from public.employees          where id = any(v_fixtures);
+
+  -- Contrôle de sortie : plus une seule référence, nulle part.
+  for r in
+    select distinct c.relname as table_nom, a.attname as colonne
+      from pg_constraint k
+      join pg_class      c on c.oid = k.conrelid
+      join pg_namespace  n on n.oid = c.relnamespace
+      join pg_attribute  a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
+     where k.contype = 'f'
+       and n.nspname = 'public'
+       and cardinality(k.conkey) = 1
+       and a.atttypid = 'uuid'::regtype
+     order by 1, 2
+  loop
+    execute format('select count(*) from public.%I where %I = any($1)', r.table_nom, r.colonne)
+      into v_lignes using v_fixtures;
+    if v_lignes <> 0 then
+      raise exception 'DÉMONTAGE ÉCHOUE — % ligne(s) de fixture subsistent dans public.%.%', v_lignes, r.table_nom, r.colonne;
+    end if;
+  end loop;
+
+  select count(*) into v_restant
+    from public.employees where id = any(v_fixtures);
+  if v_restant <> 0 then
+    raise exception 'DÉMONTAGE ÉCHOUE — % identité(s) synthétique(s) subsistent.', v_restant;
+  end if;
+
+  if v_total = 0 then
+    raise exception 'DÉMONTAGE SUSPECT — aucune ligne supprimée : les fixtures n''avaient donc rien produit.';
+  end if;
+  raise notice 'DÉMONTAGE — % ligne(s) dépendante(s) retirée(s) en % passe(s), 0 fixture restante.', v_total, v_passe;
 end $$;
 
 do $$ begin raise notice '===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU ====='; end $$;

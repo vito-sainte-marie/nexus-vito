@@ -92,6 +92,15 @@ reste substituable par la recette, et rejoue six mutations du fichier qui
 doivent toutes rougir. Elle analyse aussi le fichier de mutations lui-même :
 tout `.sql` de ce dossier passe sous l'analyseur.
 
+Une seconde garde, `test_phase_c_identifiants_synthetiques_20260917.js`,
+refuse tout UUID de ce dossier — SQL, script, ce fichier-ci et **preuves
+comprises** — qui ne figure pas dans la liste déclarée des fixtures. Le
+dépôt est public : l'identifiant d'un employé réel y est un identifiant
+pseudonyme persistant, corrélable à une personne, même sans nom ni
+courriel. La liste est elle-même contrainte de forme — un seul chiffre
+hexadécimal répété — de sorte qu'on ne puisse pas faire taire la garde en
+y déclarant un identifiant réel.
+
 ## Pourquoi les contrôles internes ne suffisent pas
 
 Ils interrogent `pg_policies`, `pg_trigger` et `to_regprocedure` : ils
@@ -118,8 +127,9 @@ transaction annulée**, juste après le corps de la fermeture :
 psql "<url directe de Test>" -v ON_ERROR_STOP=1 -f /tmp/essai.sql
 ```
 
-Treize mutations jouées sous le rôle `authenticated`, avec le jeton d'employés
-réels : chacune **doit échouer**, et le script échoue si l'une d'elles passe.
+Treize mutations jouées sous le rôle `authenticated`, avec le jeton
+d'employés **entièrement synthétiques** : chacune **doit échouer**, et le
+script échoue si l'une d'elles passe.
 S'y ajoutent des contre-épreuves (M2 bis, M4, M7, M8 bis, M9, M11 bis, et la
 seconde moitié de M12) qui vérifient
 l'inverse — car une garde qui refuse *tout* casserait l'écran FDJ et serait,
@@ -141,7 +151,7 @@ remis en arrière.
 | Fichier | Rôle |
 |---|---|
 | `20260916230000_fdj_rls_definitives_phase_c.sql` | la fermeture elle-même : politiques RLS définitives, deux triggers de garde, huit contrôles internes, retour arrière commenté |
-| `20260916230000_mutations_de_validation.sql` | les treize mutations qui doivent échouer, plus leurs contre-épreuves ; ne s'exécute pas seul |
+| `20260916230000_mutations_de_validation.sql` | les treize mutations qui doivent échouer, plus leurs contre-épreuves ; crée et démonte ses deux acteurs synthétiques ; ne s'exécute pas seul |
 | `recette-test.sh` | joue le fichier exact sur `nexus-test` en transaction annulée, mutations comprises ; refuse toute cible ressemblant à la Production ; dépose une preuve datée et refuse d'en écrire une qui porterait le secret |
 | `preuves/` | les preuves engendrées, une par exécution. Écrites par le script, jamais à la main |
 
