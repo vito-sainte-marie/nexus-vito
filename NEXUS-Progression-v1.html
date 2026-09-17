@@ -311,7 +311,7 @@
       { data: completionsRows, error: e6 },
       { data: catalogueRows, error: e7 },
       { data: inventaireRows, error: e8 },
-      { data: fdjShiftsRows, error: e9 },
+      { servicesFdj: servicesCaisseFdj, erreur: e9, source: sourceCaisseFdj },
       { data: badgeAwardsRows, error: e10 },
       { data: pointsLedgerRows, error: e11 },
       { data: quartEmployeRows, error: e12 },
@@ -345,13 +345,23 @@
       // "inventaire obligatoire terminé" du point de fiabilité — jamais
       // utilisé pour rien d'autre ici.
       nexusClient.from('inventaire_quarts').select('date, quart, statut').eq('site', siteId),
-      // FDJ dans Ma Progression (16/08/2026, demande de Frédéric) : même
-      // forme que NEXUS-FDJ-Manager-v1.html::chargerShiftsAvecCaisse,
-      // filtrée site + employé. Un quart sans caisse enregistrée (pas
-      // encore transmis) n'a rien à montrer ici — voir
-      // NexusProgression.construireServicesCaisseFdj.
-      fetchAllRows(() => nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
-        .eq('site', siteId).eq('employee_id', cible.id).order('date', { ascending: false })),
+      // FDJ dans Ma Progression (16/08/2026, demande de Frédéric).
+      //
+      // 17/09/2026, relecture de la PR #62 : cet appel demandait
+      // `select('*, fdj_cash_controls(*)')`. L'étoile imbriquée faisait
+      // arriver dans la réponse réseau de l'employé le commentaire interne
+      // du manager (`motif_ecart_texte`), son verdict (`resultat_controle`)
+      // et l'identité du contrôleur (`valide_par`, `controle_par`). Aucun
+      // rendu ne les affichait ; la console du navigateur, elle, les
+      // affichait très bien, et la RLS ne pouvait rien y faire — elle filtre
+      // des lignes, jamais des colonnes.
+      //
+      // Le choix de la source est désormais dans NexusCaisseSource, comme
+      // pour Verify : projection serveur pour soi, lignes brutes pour un
+      // manager qui consulte quelqu'un d'autre.
+      NexusCaisseSource.chargerServicesCaisseFdj({
+        client: nexusClient, siteId, cibleId: cible.id, vueManager,
+      }),
       // Mes séries — badges Série Caisse (19/08/2026) : badges déjà acquis et
       // ledger de points de CET employé — jamais recalculés, uniquement lus
       // (la seule écriture possible est un INSERT idempotent plus bas).
@@ -385,7 +395,7 @@
     if (e6) console.error('Chargement mission_completions (progression):', e6);
     if (e7) console.error('Chargement mission_catalog (progression):', e7);
     if (e8) console.error('Chargement inventaire_quarts (progression):', e8);
-    if (e9) console.error('Chargement fdj_shifts (progression):', e9);
+    if (e9) console.error(`Chargement caisse FDJ (progression, source ${sourceCaisseFdj}) :`, e9);
     if (e10) console.error('Chargement progression_badge_awards:', e10);
     if (e11) console.error('Chargement progression_points_ledger:', e11);
     if (e12) console.error('Chargement inventaire_quart_employes (progression):', e12);
@@ -402,7 +412,7 @@
     const ecarts = N.ecartsAttribuables(services);
     // Ma Progression multi-activité (16/08/2026) : FDJ + historique unifié
     // Boutique/Piste/FDJ — voir nexus-progression.js section 11.
-    const servicesFdj = N.construireServicesCaisseFdj(fdjShiftsRows || []);
+    const servicesFdj = servicesCaisseFdj || [];
     const lignesUnifiees = N.construireHistoriqueUnifie(services, servicesFdj);
     const statutCaisseVal = N.statutCaisse(services);
     const statutPonctualiteVal = N.statutPonctualite(pointagesRows || []);
