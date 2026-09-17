@@ -1431,38 +1431,19 @@ n'est plus l'employé qui les subit. Le rôle et la configuration sont désormai
 
 ### 26.10 — La Phase C exacte, rejouée sur Test le 17/09/2026
 
-Sortie du rejeu, transaction annulée (extraits) :
+Cette section a longtemps porté un extrait de la sortie, recopié ici à la
+main. Il est retiré. Il avait deux défauts, et le second est le plus grave :
+il n'avait aucune contrepartie vérifiable — il affirmait une exécution que
+rien ne conservait — et **il n'était pas fidèle**. La ligne M8 y perdait
+silencieusement l'identifiant qu'elle cite, sans qu'aucune marque de coupure
+ne le signale. Un extrait choisi, retranscrit et abrégé par la partie qu'il
+sert ne dit ni ce qu'il a coupé, ni ce qu'il a retouché ; le relecteur ne peut
+pas distinguer l'élision de l'erreur, et rien ne le prévient qu'il y a quelque
+chose à distinguer.
 
-```
-NOTICE:  M1 PASSE — refus RLS : new row violates row-level security policy for table "fdj_cash_controls"
-NOTICE:  M2 PASSE — 0 ligne modifiée (la caisse est invisible en écriture à l'employé).
-NOTICE:  M2 bis PASSE — la caisse est intacte : 455 / provisoire.
-NOTICE:  M3 PASSE — un employé ne peut pas valider la caisse d'un collègue.
-NOTICE:  M4 PASSE — lecture directe fermée : 0 pour sa caisse, 0 pour celle du collègue.
-NOTICE:  M4 bis PASSE — 1 quart rendu, écarts -2.50 puis -1.00, aucun champ manager.
-NOTICE:  M5 PASSE — refus du trigger : Quart FDJ : changer de titulaire est un transfert de responsabilité, pas une modification de champ.
-NOTICE:  M6 PASSE — refus (42501) : Quart FDJ : cette modification passe par une commande NEXUS (ouverture, transfert, validation), pas par une écriture directe.
-NOTICE:  M7 PASSE — validation d'ouverture et chaînage de quart toujours possibles.
-NOTICE:  M8 PASSE — refus (42501) : Journal FDJ : une action ne peut être imputée qu'à soi-même.
-NOTICE:  M8 bis PASSE — journalisation en son nom et journalisation automatique intactes.
-NOTICE:  M9 PASSE — le manager contrôle, valide, saisit une feuille et dépose un rapport.
-NOTICE:  M10 PASSE — refus (42501) : new row violates row-level security policy for table "fdj_corrections"
-NOTICE:  M11 PASSE — refus RLS : new row violates row-level security policy for table "fdj_stock_movements"
-NOTICE:  M11 bis PASSE — employee_id vient du quart, created_by de auth.uid(), y compris en saisie manager.
-NOTICE:  M12 PASSE — refus du trigger : Quart FDJ : changer de titulaire est un transfert de responsabilité, pas une modification de champ.
-NOTICE:  M12 PASSE — transfert sans motif refusé : Un transfert de responsabilité exige un motif explicite
-NOTICE:  M12 PASSE — écriture directe refusée, transfert motivé accepté et journalisé.
-NOTICE:  M13 PASSE — update direct du manager sans effet : 0 ligne, aucune erreur.
-NOTICE:  ===== LES TREIZE MUTATIONS ONT LE COMPORTEMENT ATTENDU =====
-ROLLBACK
-OK — le fichier exact de la Phase C s'exécute, et la transaction a été annulée.
-```
-
-Cette sortie a d'abord été recopiée ici à la main, et elle n'avait alors
-aucune contrepartie vérifiable : elle affirmait une exécution que rien ne
-conservait. Depuis le commit `c94fe45`, **la recette dépose elle-même une
-preuve datée et expurgée**, et l'exécution ci-dessus a été rejouée depuis ce
-commit exact. Elle est conservée sous :
+La sortie du serveur n'est donc plus reproduite ici. Elle l'est **intégralement
+et par le script lui-même** dans le fichier de preuve, avec la commande
+expurgée, le `diff`, les empreintes et le code de retour :
 
 ```
 supabase/phase-c/preuves/20260917T160541Z_recette-phase-c_udljdqxerrbbbajxubfn.md
@@ -1508,9 +1489,19 @@ conclure de l'absence de trace que la recette a tourné — affirmerait le
 conséquent** : une recette jamais lancée laisserait exactement le même état.
 C'est la raison d'être du fichier de preuve.
 
-Enfin, puisque la base de Test n'avait pas la Phase A, les douze migrations
+Enfin, puisque la base de Test n'avait pas la Phase A, les migrations
 prérequises ont été chargées **dans la même transaction annulée** : le corps a
 donc été joué sur le schéma qu'il attend, et pas sur un schéma approchant.
+Cette phrase-là aussi a d'abord été écrite sans être établie. Le script disait
+avoir tout chargé, mais seules les deux migrations ayant émis un `NOTICE`
+laissaient une trace dans la sortie : les dix autres n'étaient attestées que
+par l'affirmation du script sur son propre travail. **Chaque prérequis
+s'annonce désormais lui-même** — le pilote émet un `\echo '>> prerequis NN/12 :
+<fichier>'` avant chaque `\ir`, de sorte que c'est le serveur, et non le
+script, qui énumère ce qu'il a lu. Le fichier de preuve donne en outre la liste
+nominative des prérequis retenus avec leur SHA-256 (§3) ; la sortie du serveur
+la recoupe ligne à ligne (§7). Si le glob venait à en manquer un, la preuve le
+montrerait au lieu de le taire.
 
 Un détail du script mérite d'être noté, parce qu'il a failli coûter la preuve :
 le glob des prérequis est `2026091622*.sql` et non `20260916220*.sql`. Les deux

@@ -139,10 +139,31 @@ echo "------------------------------------------------------------"
 # `…221100`, commande de saisie managériale) sortaient de la seconde forme
 # sans que rien ne le signale — un glob trop étroit ne se plaint pas, il
 # charge moins.
+#
+# Chaque prérequis s'annonce lui-même dans la sortie du serveur. C'est
+# délibéré : sans cela, la preuve ne porterait que l'affirmation du script
+# qu'il a tout chargé, et seules les migrations ayant émis un NOTICE
+# laisseraient une trace. Un glob trop étroit resterait invisible dans le
+# fichier même censé l'empêcher.
 : > "$TRAVAIL/prerequis.sql"
+NB_PREREQUIS=0
+PREREQUIS_TABLE=""
 for f in "$MIGRATIONS"/2026091622*.sql; do
+  [ -e "$f" ] || continue
+  NB_PREREQUIS=$((NB_PREREQUIS + 1))
+  PREREQUIS_TABLE="$PREREQUIS_TABLE| $NB_PREREQUIS | \`$(basename "$f")\` | \`$(empreinte "$f")\` |
+"
+  printf "\\\\echo '>> prerequis %02d/NB : %s'\n" "$NB_PREREQUIS" "$(basename "$f")" >> "$TRAVAIL/prerequis.sql"
   printf '\\ir %s\n' "$f" >> "$TRAVAIL/prerequis.sql"
 done
+if [ "$NB_PREREQUIS" = 0 ]; then
+  echo "REFUS — aucun prérequis de la Phase A sous $MIGRATIONS (motif 2026091622*.sql)." >&2
+  echo "        Le corps serait joué sur un schéma incomplet, et rien ne le dirait." >&2
+  exit 2
+fi
+# Le total n'est connu qu'une fois la boucle finie : on le substitue après coup.
+sed -i '' "s|/NB :|/$NB_PREREQUIS :|g" "$TRAVAIL/prerequis.sql"
+echo ">> $NB_PREREQUIS migrations de la Phase A prêtes, chargées seulement si la base ne les a pas."
 
 {
   printf '%s\n' \
@@ -158,6 +179,15 @@ done
   [ "$AVEC_MUTATIONS" = 1 ] && printf '\\ir %s\n' "$MUTATIONS"
   printf '%s\n' 'rollback;'
 } > "$TRAVAIL/pilote.sql"
+
+# Le pilote est le seul artefact réellement soumis à psql : c'est lui qui
+# choisit les prérequis, leur ordre, et qui porte le `rollback;` final.
+# L'empreindre ne suffit pas — il contient un chemin temporaire qui change à
+# chaque exécution, donc son empreinte brute n'est reproductible par
+# personne. Il est donc reproduit en clair dans la preuve, expurgé, et c'est
+# le texte expurgé qui est empreint : celui-là, un relecteur peut le refaire.
+PILOTE_EXPURGE=$(sed -e "s|$TRAVAIL/|<travail>/|g" -e "s|$RACINE/||g" "$TRAVAIL/pilote.sql")
+PILOTE_SHA=$(printf '%s\n' "$PILOTE_EXPURGE" | shasum -a 256 | cut -d' ' -f1)
 
 # --- Exécution --------------------------------------------------------
 PGPASSWORD=$(security find-generic-password -a nexus -s nexus-test-db -w)
@@ -212,6 +242,7 @@ if [ "$PREUVE" != non ]; then
       "| Cible | nexus-test — projet \`$REF\` — \`db.$REF.supabase.co:5432\` |" \
       "| Production | \`$REF_PROD\` — jamais visée, refus câblé dans le script |" \
       "| Mutations de validation | $([ "$AVEC_MUTATIONS" = 1 ] && printf 'jouées' || printf 'écartées (--sans-mutations)') |" \
+      "| Prérequis Phase A disponibles | $NB_PREREQUIS fichiers (motif \`2026091622*.sql\`) — chargés seulement si la base ne les a pas ; voir §3 et §7 |" \
       "" \
       "## 2. Empreintes des fichiers joués" \
       "" \
@@ -225,7 +256,33 @@ if [ "$PREUVE" != non ]; then
         && printf 'Le dépôt était propre : le contenu empreint et le blob du commit sont le même octet.' \
         || printf 'ATTENTION — le dépôt était SALE. Le contenu empreint est celui du disque ; il peut différer du blob du commit, qui est celui de `%s`.' "$COMMIT")" \
       "" \
-      "## 3. Commande exécutée (expurgée)" \
+      "## 3. Prérequis de la Phase A retenus par le script" \
+      "" \
+      "Ce que le glob a trouvé, dans l'ordre de chargement. Ce tableau dit ce" \
+      "que le script **a l'intention** de charger ; le §7 dit ce qui a" \
+      "**réellement** été chargé, chaque fichier s'y annonçant lui-même." \
+      "" \
+      "| # | fichier de \`supabase/migrations/\` | SHA-256 |" \
+      "|---|---|---|"
+    printf '%s' "$PREREQUIS_TABLE"
+    printf '%s\n' \
+      "" \
+      "## 4. Le pilote réellement soumis à psql (expurgé)" \
+      "" \
+      "Aucun des fichiers ci-dessus n'est joué seul : psql reçoit ce pilote, et" \
+      "lui seul. Il est reproduit ici en entier — c'est lui qui ouvre la" \
+      "transaction, décide de charger ou non la Phase A, appelle le corps, les" \
+      "mutations, et termine par \`rollback;\`." \
+      "" \
+      '```' \
+      "$PILOTE_EXPURGE" \
+      '```' \
+      "" \
+      "SHA-256 de ce texte expurgé : \`$PILOTE_SHA\`. Le fichier" \
+      "\`<travail>/prerequis.sql\` qu'il inclut est exactement la liste du §3," \
+      "dans cet ordre, chaque entrée précédée d'un \`\\echo\` qui la nomme." \
+      "" \
+      "## 5. Commande exécutée (expurgée)" \
       "" \
       '```'
     printf '%s\n' "$COMMANDE_EXPURGEE"
@@ -235,7 +292,7 @@ if [ "$PREUVE" != non ]; then
       "Le mot de passe ne figure jamais sur la ligne de commande : il est lu au" \
       "trousseau et passé à psql par l'environnement (\`PGPASSWORD\`)." \
       "" \
-      "## 4. Diff appliqué au corps — $NB_DIFF lignes" \
+      "## 6. Diff appliqué au corps — $NB_DIFF lignes" \
       "" \
       "Deux lignes substituées, le \`begin;\` et le \`commit;\`. Le script refuse" \
       "de continuer si ce diff n'en fait pas exactement quatre." \
@@ -245,30 +302,35 @@ if [ "$PREUVE" != non ]; then
     printf '%s\n' \
       '```' \
       "" \
-      "## 5. Sortie complète de psql (expurgée)" \
+      "## 7. Sortie complète de psql (expurgée)" \
       "" \
       '```'
     printf '%s\n' "$SORTIE"
     printf '%s\n' \
       '```' \
       "" \
-      "## 6. Verdict" \
+      "## 8. Verdict" \
       "" \
       "| | |" \
       "|---|---|" \
       "| Code de retour de psql | \`$CODE\` |" \
       "| Dernière instruction rendue | \`$DERNIERE\` |" \
       "" \
-      "## 7. Portée — trois choses distinctes" \
+      "## 9. Portée — trois choses distinctes" \
       "" \
-      "1. **L'exécution** est établie par les §1 à §5 : une commande datée, une" \
-      "   cible nommée, les empreintes des fichiers joués, la sortie complète du" \
-      "   serveur et un code de retour." \
-      "2. **Le \`ROLLBACK\`** est établi par le §6 : la dernière instruction rendue" \
+      "1. **L'exécution** est établie par les §1 à §7 : une commande datée, une" \
+      "   cible nommée, les empreintes des fichiers joués, le pilote intégral," \
+      "   la sortie complète du serveur et un code de retour." \
+      "2. **Le \`ROLLBACK\`** est établi par le §8 : la dernière instruction rendue" \
       "   par le serveur. Le script refuse de conclure si ce n'en est pas une." \
-      "3. **L'absence d'effet durable** n'est **pas** établie par ce fichier. Elle" \
-      "   se vérifie en interrogeant la base APRÈS coup — aucune migration de la" \
-      "   Phase A persistante, aucune RPC installée. Le raisonnement inverse," \
+      "3. **L'absence d'effet durable** n'est **pas** établie par ce fichier, et" \
+      "   ne peut pas l'être : il est écrit par le processus qui vient de" \
+      "   tourner, pas par la base. Elle se vérifie hors d'ici, en interrogeant" \
+      "   la base APRÈS coup — migrations de la Phase A, tables, fonctions," \
+      "   politiques, triggers — et en comparant à un relevé pris AVANT." \
+      "   **Ce fichier ne dit rien du résultat de cette comparaison** : écrire" \
+      "   ici « rien n'a persisté » serait une phrase que ce script imprimerait" \
+      "   à l'identique dans le cas contraire. Le raisonnement inverse," \
       "   conclure de l'absence de trace que la recette a tourné, affirmerait le" \
       "   conséquent : une recette jamais lancée laisserait exactement le même" \
       "   état."
