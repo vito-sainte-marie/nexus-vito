@@ -201,7 +201,12 @@ echo ">> psql db.$REF.supabase.co — transaction annulée en fin de course."
 # connexion passerait pour un succès. La sortie est écrite dans le fichier
 # de travail, filtrée, puis affichée — psql réimprime l'URL, mot de passe
 # compris, dans ses messages d'erreur.
-COMMANDE_EXPURGEE="$PSQL 'postgresql://postgres:***@db.$REF.supabase.co:5432/postgres?sslmode=require' -v ON_ERROR_STOP=1 -f pilote.sql"
+# Cette ligne reproduit la commande ci-dessous, et n'en retire que le chemin du
+# fichier de travail. Elle ne porte PAS de « postgres:***@ » : l'URL lancée n'a
+# jamais contenu de mot de passe, il passe par l'environnement. Masquer un
+# secret absent ferait croire qu'il en existait un, et un relecteur ne pourrait
+# plus distinguer l'expurgation de l'invention.
+COMMANDE_EXPURGEE="$PSQL 'postgresql://postgres@db.$REF.supabase.co:5432/postgres?sslmode=require' -v ON_ERROR_STOP=1 -f pilote.sql"
 set +e
 "$PSQL" "$URL" -v ON_ERROR_STOP=1 -f "$TRAVAIL/pilote.sql" > "$TRAVAIL/sortie.txt" 2>&1
 CODE=$?
