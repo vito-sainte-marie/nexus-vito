@@ -1,22 +1,29 @@
 # Accueil employés — état des lieux avant travaux
 
 Branche `accueil-employes-20260918`, partie de `52cd4a4` (Production du 18/09,
-hotfix Angélique inclus). **Aucune modification de code à ce stade** : ce
-document constate, puis propose un périmètre à arbitrer.
+hotfix Angélique inclus). Ce document a d'abord constaté l'existant, puis
+proposé un périmètre à arbitrer.
+
+> **Mise à jour du 18/09/2026.** Le périmètre a été arbitré depuis (voir §4) et
+> un premier lot est livré sur cette branche : « l'accueil hors service ». Les
+> numéros de ligne cités plus bas ont été retirés : ils périmaient à chaque
+> commit, et un repère faux est pire qu'un repère absent. Les symboles cités
+> (`initAccueilEmploye`, `CAPACITES_ROLE_DEFAUT`, …) se retrouvent par
+> recherche dans `NEXUS-App-v1.html`.
 
 ---
 
 ## 1. Ce qui existe déjà, et qui est bon
 
 L'accueil employé n'est pas une page laissée de côté. Il a son propre
-orchestrateur, `initAccueilEmploye()` (`NEXUS-App-v1.html:2234`), issu de la
+orchestrateur, `initAccueilEmploye()` (dans `NEXUS-App-v1.html`), issu de la
 refonte du 20/08/2026, et il est **piloté par le rôle du jour**, pas par le
 rôle habituel de la fiche :
 
-* `CAPACITES_ROLE_DEFAUT` (`:1983`) — matrice rôle du jour → modules (FDJ,
+* `CAPACITES_ROLE_DEFAUT` — matrice rôle du jour → modules (FDJ,
   réception carburant), combinée aux réglages de site existants (forfait
   Professional, `reception_carburant_role`) sans les remplacer.
-* `roleADroitModule()` (`:1987`) — rôle inconnu ⇒ on **n'interdit pas**, on
+* `roleADroitModule()` — rôle inconnu ⇒ on **n'interdit pas**, on
   laisse passer (Article 5). Le bon réflexe.
 * Les missions obligatoires, l'inventaire, FDJ, la réception et le jaugeage
   sont filtrés par ce même rôle du jour, avec les cas particuliers documentés
@@ -31,8 +38,8 @@ caissière — FDJ inclus. Rien à corriger de ce côté, la chaîne est cohére
 ### 2.1 — `polyvalent` est un rôle du jour impossible à choisir
 
 `polyvalent` existe en base (`shifts.role`, `mission_catalog.role_required`),
-il est traité par la matrice de l'accueil (`:1983`) et porte un libellé
-(`LIBELLE_ROLE_JOUR`, `:1995`). Il est également géré par
+il est traité par la matrice de l'accueil et porte un libellé
+(`LIBELLE_ROLE_JOUR`). Il est également géré par
 `NEXUS-Assignations-v1.html`.
 
 Mais `NEXUS-Prise-De-Poste-v1.html` ne propose que quatre rôles — pompiste,
@@ -45,9 +52,8 @@ Les deux se défendent ; ce qui ne se défend pas, c'est qu'il vive à moitié.
 ### 2.2 — La granularité de visibilité s'arrête à « manager / tous »
 
 `PAGES_INDEX` ne connaît que trois valeurs de `role` : `all`, `manager`,
-`createur` (`:2484`), valeurs testées en `:2604`-`:2606`. Toute finesse par
-rôle du jour est donc codée en dur, au cas par cas, dans le filtre de
-recherche (`:2593`) :
+`createur`. Toute finesse par rôle du jour est donc codée en dur, au cas par
+cas, dans le filtre de recherche :
 
 * Pointage masqué si le site l'a désactivé ;
 * Inventaire masqué pour un renfort.
@@ -75,8 +81,44 @@ relire six cents lignes.
 | 2 | Porter la finesse « rôle du jour » dans `PAGES_INDEX` | Supprime les exceptions codées en dur avant qu'elles se multiplient | Moyen — touche la navigation de tous |
 | 3 | Écrire la note de conception « Accueil employés » | Fixe la règle hors du code, comme l'a été la règle de pointage | Nul |
 
-## 4. Ce qu'il manque pour démarrer
+## 4. Le périmètre arbitré, et ce qui a été livré
 
-La consigne reçue s'arrête à « l'accueil employés, sur une branche » — la
-phrase est coupée et le périmètre n'est pas donné. La branche est prête ; le
-choix des lots 1 / 2 / 3, ou d'un tout autre sujet, revient à Frédéric.
+Cette section demandait un arbitrage ; il a été rendu le 18/09/2026 : « le
+parcours doit guider Angélique et les autres employés : prendre ou reprendre
+leur poste, voir leur rôle du jour, comprendre la prochaine action et accéder
+directement aux missions correspondantes ».
+
+Ce n'est aucun des trois lots proposés ci-dessus — c'est un quatrième écart,
+que le tableau ne voyait pas parce qu'il regardait le code plutôt que l'écran
+tel qu'un employé le reçoit. **Depuis le 16/09/2026, l'accueil est en catégorie
+`consultation` : on peut l'ouvrir sans avoir pris son poste**, alors qu'il
+était resté écrit pour quelqu'un en service.
+
+### 4.1 — Lot livré : « l'accueil hors service »
+
+Une seule notion introduite, `enService` — le service ouvert **aujourd'hui**, et
+lui seul (un quart laissé ouvert la veille n'en est pas un, même règle que
+l'écran Pointage). Six conséquences :
+
+| Avant | Après |
+|---|---|
+| « Votre service est en cours · 3 actions à terminer », sans service | « Aucun poste en cours », ou « Consultation externe » |
+| Prochaine action « Pointer l'arrivée » | « Prenez votre poste pour démarrer votre service » → prise de poste |
+| Inventaire / FDJ / réception / jaugeage prescrits sans quart | Aucun contrôle de quart hors quart |
+| Tuiles Missions / Inventaire / FDJ qui **rebondissent** (catégorie `operationnel`) | Les écrans réellement atteignables, plus le geste qui débloque le reste |
+| Barre de progression à 0 % sur une journée qui n'a pas commencé | Barre masquée — et **toujours cochée** sur une journée terminée |
+| Rôle du jour inconnu ⇒ ligne de statut sans rôle | Rôle affiché brut (même esprit que l'Article 5) |
+
+**Ce que le lot ne fait pas, volontairement** : aucune écriture, aucune
+redirection d'office. L'accueil propose la prise de poste, il ne l'impose pas —
+« l'authentification n'est jamais une preuve de présence », et le seul `insert`
+sur `shifts` reste le bouton « Confirmer » de la prise de poste.
+
+Gardé par `test_accueil_hors_service_20260918.js` (63 contrôles), éprouvé par
+`outils/mutation-accueil-hors-service.js` (13 défauts réintroduits un à un,
+13 tués).
+
+### 4.2 — Ce qui reste ouvert
+
+Les trois lots du §3 (`polyvalent` à trancher, finesse de `PAGES_INDEX`, note de
+conception) n'ont pas été touchés. Ils restent à arbitrer.

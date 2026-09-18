@@ -94,8 +94,12 @@ console.log('\n── 3 · L’accueil neutralise ce piège pour une journée r�
 // extraites de la page — pas une réécriture indépendante de la règle.
 verifier('la garde `journeeTerminee` est bien câblée dans initAccueilEmploye',
   /const journeeTerminee = pointageActifSite\s*\n\s*&& NexusPointageRegles\.journeeTermineeSansService\(serviceCourantJour, pointagesJour\);/.test(APP));
+// Élargi le 18/09/2026 : la neutralisation couvre désormais aussi « aucun
+// service ouvert aujourd'hui » (lot accueil hors service). L'acquis du 14/09
+// est intact — journée terminée ⇒ aucun pointage — mais il n'est plus la
+// seule condition, et le motif d'origine ne décrivait plus le code.
 verifier('`prochainPointage` est neutralisé à null quand la journée est terminée',
-  /const prochainPointageEffectif = journeeTerminee \? null : prochainPointage;/.test(APP));
+  /const prochainPointageEffectif = \(journeeTerminee \|\| !enService\) \? null : prochainPointage;/.test(APP));
 verifier('le ctx transmis aux rendus porte `journeeTerminee` et le pointage neutralisé',
   /prochainPointage: prochainPointageEffectif/.test(APP) && /journeeTerminee,/.test(APP));
 verifier('`nbActions` compte sur le pointage neutralisé, pas sur le brut',
