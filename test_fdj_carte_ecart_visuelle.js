@@ -1,12 +1,26 @@
-// Test — Carte visuelle "écart de caisse" (16/08/2026, demande de Frédéric :
-// "fais en sorte comme la caisse boutique ou piste que les employé voient
-// leurs ecart validée en FDJ. structure bien le visuels afin que ce soit
-// simple, intuitif et graphiquement agreable").
+// Test — Rendu employé du résultat de caisse FDJ.
 //
-// Extrait les fonctions réelles depuis NEXUS-FDJ-v1.html (jamais réécrites
-// à la main) et vérifie la structure HTML produite par renderCarteEcart /
-// phraseEcartCaisse pour les cas réels : aperçu en cours de saisie, écart
-// en attente de validation manager, écart validé conforme/avec écart.
+// 16/08/2026, demande de Frédéric : "fais en sorte comme la caisse boutique
+// ou piste que les employé voient leurs ecart validée en FDJ. structure bien
+// le visuels afin que ce soit simple, intuitif et graphiquement agreable".
+// Cette exigence n'a jamais été annulée — c'est son RENDU qui a changé.
+//
+// Vague 1 (17/09/2026) — ce test portait sur renderCarteEcart() /
+// phraseEcartCaisse() / LIBELLES_STATUT_CAISSE, tous trois supprimés de
+// NEXUS-FDJ-v1.html. Deux raisons, l'une et l'autre écrites dans le mandat :
+//
+//   1. §4 — ces fonctions recevaient la ligne fdj_cash_controls entière, donc
+//      le motif interne du manager et l'identité du validateur. « Aucun champ
+//      sensible reçu dans le réseau puis simplement masqué dans l'interface. »
+//   2. §3.3 — elles RECOMPOSAIENT le vocabulaire (« Excédent de X € »,
+//      « Écart détecté », badge "En attente de validation"). Les libellés sont
+//      désormais fixés par le serveur (fdj_libelle_ecart_employe) et recopiés
+//      tels quels. Une phrase écrite dans un écran finit toujours par diverger
+//      de la règle.
+//
+// Le test suit donc le nouveau rendu — pointDeCaisseHTML(), alimenté par
+// fdj_ma_caisse() — et vérifie AUTANT ce qui est affiché que ce qui ne doit
+// plus l'être : un test qui n'interdit rien ne prouve rien.
 
 const fs = require('fs');
 const assert = require('assert');
@@ -27,71 +41,130 @@ function extraire(nomFonction) {
   return script.slice(debut, j);
 }
 
-function extraireConst(nomConst) {
-  const debut = script.indexOf(`const ${nomConst} = {`);
-  assert.ok(debut !== -1, `Constante ${nomConst} introuvable dans NEXUS-FDJ-v1.html`);
-  const fin = script.indexOf('};', debut) + 2;
-  return script.slice(debut, fin);
-}
+const srcPointDeCaisse = extraire('pointDeCaisseHTML');
 
 const src = [
   `function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : (Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + ' €'; }`,
-  extraireConst('LIBELLES_STATUT_CAISSE'),
-  extraire('renderCarteEcart'),
-  extraire('phraseEcartCaisse'),
-  'globalThis.__test = { renderCarteEcart, phraseEcartCaisse };',
+  extraire('heureCourte'),
+  extraire('dateHeureCourte'),
+  srcPointDeCaisse,
+  extraire('detailCaisseHTML'),
+  'globalThis.__test = { pointDeCaisseHTML, detailCaisseHTML };',
 ].join('\n\n');
 
 const vm = require('vm');
-const ctx = { globalThis: {}, console };
+const ctx = { globalThis: {}, console, Date, Number, isNaN };
 ctx.globalThis = ctx;
 vm.runInNewContext(src, ctx);
-const { renderCarteEcart, phraseEcartCaisse } = ctx.__test;
+const { pointDeCaisseHTML, detailCaisseHTML } = ctx.__test;
 
 // ------------------------------------------------------------
-// 1) Aperçu avant saisie de la caisse réelle (ecart=null, statut=null) —
-//    pas de badge, montant "—", phrase d'invite.
+// 1) L'écran ne nomme pas le résultat : il recopie le libellé du serveur.
+//    Preuve par l'absurde — un libellé qui ne ressemble à aucune formule
+//    connue doit ressortir intact. S'il était recomposé ici, il serait perdu.
 // ------------------------------------------------------------
-let carte = renderCarteEcart(null, null, { label: 'Aperçu — Caisse FDJ' });
-assert.ok(carte.includes('Aperçu — Caisse FDJ'), 'Le libellé personnalisé doit apparaître');
-assert.ok(!carte.includes('statut-badge'), 'Aucun badge tant que rien n\'est encore calculé/enregistré');
-assert.ok(carte.includes('>—<'), 'Montant affiché "—" tant que la caisse réelle n\'est pas saisie');
-console.log('OK — aperçu avant saisie : pas de badge, montant "—".');
+let bloc = pointDeCaisseHTML({
+  ma_saisie: { caisse_attendue: 486, caisse_reelle: 468 },
+  confirmation_initiale: { confirme_le: '2026-09-17T18:07:00Z', caisse_reelle: 468 },
+  ecart_provisoire: -18,
+  libelle_ecart: 'Écart provisoire en moins : −18,00 €',
+  message: 'Cette caisse reste en attente du contrôle du manager.',
+});
+assert.ok(bloc.includes('Écart provisoire en moins : −18,00 €'),
+  'Le libellé du serveur doit être recopié tel quel (§3.3)');
+assert.ok(bloc.includes('Cette caisse reste en attente du contrôle du manager.'),
+  'Le message du serveur accompagne l\'écart provisoire (§3.3)');
+assert.ok(bloc.includes('486,00 €') && bloc.includes('468,00 €'),
+  'Attendu et Déclaré restent affichés : l\'employé doit pouvoir comprendre et corriger sa propre saisie (§4)');
+console.log('OK — le libellé et le message viennent du serveur, recopiés sans retouche.');
 
 // ------------------------------------------------------------
-// 2) Écart nul (caisse exacte) — badge vert si statut fourni, phrase claire.
+// 2) Aucun vocabulaire fabriqué dans l'écran. Recherche sur le CODE SOURCE
+//    réel de la fonction, pas sur une sortie : c'est la seule façon de voir
+//    une phrase qui ne s'afficherait que dans un cas non testé.
 // ------------------------------------------------------------
-carte = renderCarteEcart(0, 'conforme', { label: 'Caisse FDJ · Quart 1' });
-assert.ok(carte.includes('statut-badge conforme'), 'Badge conforme attendu');
-assert.ok(carte.includes('Conforme'), 'Libellé français du statut attendu');
-assert.ok(carte.includes('var(--green)'), 'Montant à 0 doit être en vert');
-assert.ok(carte.includes('à l\'euro près'), 'Phrase explicite pour un écart nul');
-console.log('OK — écart nul : badge Conforme, montant vert, phrase claire.');
+for (const mot of ['Excédent', 'Manque', 'Écart détecté', 'En attente de validation',
+                   'petit écart', 'grand écart', 'Caisse validée']) {
+  assert.ok(!srcPointDeCaisse.includes(mot),
+    `L'écran employé ne doit plus écrire "${mot}" : le vocabulaire est fixé par le serveur (§3.3/§3.6)`);
+}
+for (const champ of ['motif_ecart_texte', 'valide_par', 'valide_le', 'resultat_controle', 'commentaire_interne']) {
+  assert.ok(!srcPointDeCaisse.includes(champ),
+    `L'écran employé ne doit jamais manipuler ${champ} : ce champ ne lui est pas envoyé (§4)`);
+}
+console.log('OK — ni vocabulaire manager ni champ réservé au manager dans le rendu employé.');
 
 // ------------------------------------------------------------
-// 3) Écart négatif (manque), pas encore validé par le manager (provisoire).
+// 3) Deux tons, jamais trois. Un troisième ton qualifierait l'écart avant
+//    que le manager l'ait regardé — exactement ce que "petit/grand écart"
+//    interdit (§3.3).
 // ------------------------------------------------------------
-carte = renderCarteEcart(-12.5, 'provisoire', { label: 'Caisse FDJ · Quart 2' });
-assert.ok(carte.includes('statut-badge provisoire'), 'Badge "en attente" attendu tant que non validé par le manager');
-assert.ok(carte.includes('En attente de validation'), 'Libellé du badge provisoire');
-assert.ok(carte.includes('var(--red)'), 'Écart > 1€ en valeur absolue doit être rouge');
-assert.ok(carte.includes('-12,50'), 'Montant formaté en euros français');
-const phraseManque = phraseEcartCaisse(-12.5, 'provisoire');
-assert.ok(phraseManque.includes('Manque'), 'Écart négatif = manque');
-assert.ok(phraseManque.includes('En attente de vérification par le manager'), 'Précision "en attente" tant que provisoire');
-console.log('OK — écart négatif provisoire : badge "En attente de validation", montant rouge, phrase "Manque".');
+assert.ok(pointDeCaisseHTML({ ecart_provisoire: 0, libelle_ecart: 'Aucun écart provisoire' }).includes('stat-value green'),
+  'Écart nul : vert');
+assert.ok(pointDeCaisseHTML({ ecart_provisoire: -0.5, libelle_ecart: 'x' }).includes('stat-value amber'),
+  'Écart non nul : ambre, quel que soit le montant (plus de seuil à 1 €)');
+assert.ok(pointDeCaisseHTML({ ecart_provisoire: -1200, libelle_ecart: 'x' }).includes('stat-value amber'),
+  'Un écart de 1 200 € reste ambre : l\'écran ne hiérarchise pas la gravité');
+assert.ok(!srcPointDeCaisse.includes('red'), 'Aucun rouge dans le rendu employé');
+console.log('OK — deux tons seulement, sans seuil de gravité.');
 
 // ------------------------------------------------------------
-// 4) Écart positif (excédent), validé par le manager avec écart.
+// 4) Avant confirmation, rien n'est établi : pas d'heure de confirmation,
+//    et le résultat retombe sur "—" plutôt que sur un chiffre inventé.
 // ------------------------------------------------------------
-carte = renderCarteEcart(0.8, 'valide_avec_ecart', { label: 'Caisse FDJ · Quart 1' });
-assert.ok(carte.includes('statut-badge valide_avec_ecart'), 'Badge du statut choisi par le manager');
-assert.ok(carte.includes('Validé avec écart'));
-assert.ok(carte.includes('var(--amber)'), 'Écart <= 1€ doit être ambre (ni vert ni rouge)');
-assert.ok(carte.includes('+0,80'), 'Signe + affiché pour un excédent');
-const phraseExcedent = phraseEcartCaisse(0.8, 'valide_avec_ecart');
-assert.ok(phraseExcedent.includes('Excédent'), 'Écart positif = excédent');
-assert.ok(!phraseExcedent.includes('En attente'), 'Une fois validé par le manager, plus de mention "en attente"');
-console.log('OK — écart positif validé : badge du statut manager, montant ambre, phrase "Excédent" sans mention "en attente".');
+bloc = pointDeCaisseHTML({ ma_saisie: { caisse_attendue: 486 } });
+assert.ok(bloc.includes('>—<'), 'Sans libellé serveur, aucun résultat n\'est affiché');
+assert.ok(!bloc.includes('stat-value green') && !bloc.includes('stat-value amber'),
+  'Sans écart connu, aucune couleur : ne rien dire plutôt que suggérer');
+console.log('OK — avant confirmation, aucun résultat présenté comme établi.');
 
-console.log('Tous les tests de la carte visuelle "écart de caisse" passent.');
+// ------------------------------------------------------------
+// 5) Correction après confirmation (§3.4) — la première confirmation reste
+//    visible À CÔTÉ de la nouvelle valeur, jamais à sa place.
+// ------------------------------------------------------------
+bloc = pointDeCaisseHTML({
+  ma_saisie: { caisse_attendue: 486, caisse_reelle: 486 },
+  confirmation_initiale: { confirme_le: '2026-09-17T18:07:00Z', caisse_reelle: 468 },
+  ecart_provisoire: 0, libelle_ecart: 'Aucun écart provisoire', nb_corrections: 2,
+});
+assert.ok(bloc.includes('corrigée 2 fois'), 'Le nombre de corrections est annoncé (§3.4)');
+assert.ok(bloc.includes('468,00 €'), 'La valeur de la PREMIÈRE confirmation reste affichée');
+assert.ok(bloc.includes('486,00 €'), 'La valeur corrigée est affichée elle aussi');
+assert.ok(pointDeCaisseHTML({ ecart_provisoire: 0, libelle_ecart: 'x',
+  confirmation_initiale: { confirme_le: '2026-09-17T18:07:00Z', caisse_reelle: 468 }, nb_corrections: 1 })
+  .includes('corrigée une fois'), 'Accord du singulier');
+assert.ok(!pointDeCaisseHTML({ ecart_provisoire: 0, libelle_ecart: 'x' }).includes('corrigée'),
+  'Aucune mention de correction quand il n\'y en a pas eu');
+console.log('OK — une correction n\'efface jamais la première confirmation.');
+
+// ------------------------------------------------------------
+// 6) L'action offerte est celle que le SERVEUR autorise — l'écran ne décide
+//    pas qui peut corriger. Même décision que celle qui autorise l'écriture,
+//    pas une seconde règle recopiée dans la page (§5.3).
+// ------------------------------------------------------------
+bloc = pointDeCaisseHTML({ ecart_provisoire: 0, libelle_ecart: 'x',
+  correction_possible: true, action_disponible: 'Corriger ma saisie' });
+assert.ok(bloc.includes('data-action="corriger"') && bloc.includes('Corriger ma saisie'));
+
+bloc = pointDeCaisseHTML({ ecart_retenu: 0, libelle_ecart: 'x',
+  signalement_possible: true, action_disponible: 'Signaler une erreur après validation' });
+assert.ok(bloc.includes('data-action="signaler"') && bloc.includes('Signaler une erreur après validation'),
+  'Après validation, le seul recours est le signalement (§3.7)');
+
+bloc = pointDeCaisseHTML({ ecart_retenu: -18, libelle_ecart: 'Écart en moins : −18,00 €' });
+assert.ok(!bloc.includes('btnActionCaisse'),
+  'Quand le serveur n\'autorise ni correction ni signalement, aucun bouton n\'est proposé');
+console.log('OK — l\'action disponible est décidée par le serveur, jamais par l\'écran.');
+
+// ------------------------------------------------------------
+// 7) detailCaisseHTML — décompose la formule pour "Comprendre mon résultat",
+//    et uniquement à partir de la propre saisie de l'employé.
+// ------------------------------------------------------------
+const detail = detailCaisseHTML({ ventes_grattage_valeur: 900, lots_payes_grattage: 620,
+                                  caisse_tirages: 206, regularisations: 5 });
+for (const v of ['900,00 €', '620,00 €', '206,00 €', '5,00 €']) {
+  assert.ok(detail.includes(v), `${v} attendu dans le détail`);
+}
+console.log('OK — detailCaisseHTML : décompose la formule à partir de la seule saisie de l\'employé.');
+
+console.log('Tous les tests du rendu employé du résultat de caisse FDJ passent.');

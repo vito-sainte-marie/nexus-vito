@@ -1,0 +1,424 @@
+
+############################################################
+#  P22.0 — LA CONDITION DE VALIDITE DE LA PHASE A          #
+############################################################
+ preuve | migrations_vague1_deja_enregistrees_attendu_0 | versions_trouvees 
+--------+-----------------------------------------------+-------------------
+ P22.0  |                                             0 | (aucune)
+(1 row)
+
+    preuve    | journal_caisse_absent | demandes_absentes | colonne_prise_de_poste_absente | colonne_confirme_le_absente | colonne_effective_at_absente 
+--------------+-----------------------+-------------------+--------------------------------+-----------------------------+------------------------------
+ P22.0 schema | t                     | t                 | t                              | t                           | t
+(1 row)
+
+
+############################################################
+#  SECTION 0 — UN HISTORIQUE, POSE AVANT LES MIGRATIONS    #
+############################################################
+   etape   | quarts_historiques | caisses_historiques | mouvements_historiques | livrets_attendu_0 | lignes_sous_empreinte 
+-----------+--------------------+---------------------+------------------------+-------------------+-----------------------
+ SECTION 0 |                  9 |                   8 |                      5 |                 0 |                    22
+(1 row)
+
+
+############################################################
+#  LES DOUZE MIGRATIONS DE LA PHASE A, DANS L ORDRE         #
+############################################################
+psql:supabase/migrations/20260916220200_fdj_caisse_journal_evenements.sql:152: NOTICE:  trigger "fdj_caisse_evenements_pas_de_modification" for relation "public.fdj_caisse_evenements" does not exist, skipping
+psql:supabase/migrations/20260916220400_fdj_mouvements_auteur_et_date_effet.sql:117: NOTICE:  fdj_stock_movements : un index unique couvre déjà idempotency_key, rien à créer.
+   bloc    | rang |                      migration_chargee                      
+-----------+------+-------------------------------------------------------------
+ PREREQUIS |    1 | 20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql
+ PREREQUIS |    2 | 20260916220100_fdj_caisse_cycle_de_vie_colonnes.sql
+ PREREQUIS |    3 | 20260916220200_fdj_caisse_journal_evenements.sql
+ PREREQUIS |    4 | 20260916220300_fdj_demandes_correction_apres_validation.sql
+ PREREQUIS |    5 | 20260916220400_fdj_mouvements_auteur_et_date_effet.sql
+ PREREQUIS |    6 | 20260916220500_fdj_commande_ouverture_quart.sql
+ PREREQUIS |    7 | 20260916220600_fdj_commandes_caisse_employe.sql
+ PREREQUIS |    8 | 20260916220700_fdj_commandes_caisse_manager.sql
+ PREREQUIS |    9 | 20260916220800_fdj_projection_employe.sql
+ PREREQUIS |   10 | 20260916220900_fdj_projection_progression.sql
+ PREREQUIS |   11 | 20260916221000_fdj_commandes_activations_et_mouvements.sql
+ PREREQUIS |   12 | 20260916221100_fdj_commande_saisie_caisse_manager.sql
+(12 rows)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:307: NOTICE:  PREREQUIS OK : les douze migrations de la Phase A sont chargees, 220000 a 221100
+
+############################################################
+#  P22.1 — AUCUNE COLONNE AJOUTEE N EST REMPLIE            #
+############################################################
+      preuve      | lignes | prise_de_poste_id_renseigne_attendu_0 | created_by_renseigne_attendu_0 | ouverture_source_renseigne_attendu_0 | responsable_precedent_attendu_0 | transfere_par_attendu_0 | transfere_le_attendu_0 | motif_transfert_attendu_0 
+------------------+--------+---------------------------------------+--------------------------------+--------------------------------------+---------------------------------+-------------------------+------------------------+---------------------------
+ P22.1 fdj_shifts |      9 |                                     0 |                              0 |                                    0 |                               0 |                       0 |                      0 |                         0
+(1 row)
+
+          preuve           | lignes | created_by_renseigne_attendu_0 | effective_at_renseigne_attendu_0 
+---------------------------+--------+--------------------------------+----------------------------------
+ P22.1 fdj_stock_movements |      5 |                              0 |                                0
+(1 row)
+
+         preuve          | lignes | saisi_par_attendu_0 | confirme_par_attendu_0 | confirme_le_attendu_0 | controle_par_attendu_0 | controle_le_attendu_0 | derniere_correction_attendu_0 
+-------------------------+--------+---------------------+------------------------+-----------------------+------------------------+-----------------------+-------------------------------
+ P22.1 fdj_cash_controls |      8 |                   0 |                      0 |                     0 |                      0 |                     0 |                             0
+(1 row)
+
+        preuve        | version_min | version_max | corrections_min | corrections_max | invariant_viole_attendu_0 
+----------------------+-------------+-------------+-----------------+-----------------+---------------------------
+ P22.1 valeurs posees |           1 |           1 |               0 |               0 |                         0
+(1 row)
+
+
+############################################################
+#  P22.2 — AUCUNE VALEUR EXISTANTE N A BOUGE               #
+############################################################
+ preuve | lignes_avant | lignes_apres | valeurs_modifiees_attendu_0 | lignes_disparues_attendu_0 | lignes_apparues_attendu_0 
+--------+--------------+--------------+-----------------------------+----------------------------+---------------------------
+ P22.2  |           22 |           22 |                           0 |                          0 |                         0
+(1 row)
+
+
+############################################################
+#  P22.3 — LES HUIT STATUTS HISTORIQUES SURVIVENT          #
+############################################################
+ preuve |      statut       | lignes 
+--------+-------------------+--------
+ P22.3  | a_controler       |      1
+ P22.3  | a_regulariser     |      1
+ P22.3  | conforme          |      1
+ P22.3  | en_attente        |      1
+ P22.3  | expliquee         |      1
+ P22.3  | provisoire        |      1
+ P22.3  | regularise        |      1
+ P22.3  | valide_avec_ecart |      1
+(8 rows)
+
+      preuve       |                   conname                   | validee |                portee                
+-------------------+---------------------------------------------+---------+--------------------------------------
+ P22.3 contraintes | fdj_cash_controls_statut_check              | t       | confrontee a tout l historique
+ P22.3 contraintes | fdj_cash_controls_validation_complete_check | f       | NOT VALID : l historique est epargne
+ P22.3 contraintes | fdj_cash_controls_version_check             | f       | NOT VALID : l historique est epargne
+(3 rows)
+
+
+--- P22.3b — ce que NOT VALID epargne, et ce qu il n epargne pas ---
+                 preuve                 |                  id                  |    statut     | valide_par |       valide_le        
+----------------------------------------+--------------------------------------+---------------+------------+------------------------
+ P22.3b (1) la ligne incoherente survit | 00000002-0000-4000-8000-000000000003 | a_regulariser |            | 2026-08-03 07:45:00+00
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:426: NOTICE:  P22.3b (2) refus attendu sur une ligne NEUVE : new row for relation "fdj_cash_controls" violates check constraint "fdj_cash_controls_validation_complete_check" (23514)
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:440: NOTICE:  P22.3b (3) validation immediate refusee, comme attendu : check constraint "fdj_cash_controls_validation_complete_check" of relation "fdj_cash_controls" is violated by some row (23514)
+
+############################################################
+#  P22.4 — LES QUARTS TRANSMIS SANS DATE RESTENT SANS DATE #
+############################################################
+ preuve | transmis_sans_date | transmis_avec_date | brouillons_preserves | brouillon_date_inventee_attendu_0 
+--------+--------------------+--------------------+----------------------+-----------------------------------
+ P22.4  |                  3 |                  5 |                    1 |                                 0
+(1 row)
+
+
+############################################################
+#  P22.5 — LES ECARTS a_regulariser RESTENT INTACTS        #
+############################################################
+ preuve |                  id                  |    statut     | resultat_controle | ecart  | date_metier | quart 
+--------+--------------------------------------+---------------+-------------------+--------+-------------+-------
+ P22.5  | 00000002-0000-4000-8000-000000000003 | a_regulariser | a_regulariser     | -37.00 | 2026-08-02  | 1
+ P22.5  | 00000002-0000-4000-8000-000000000008 | regularise    | a_regulariser     |  -1.00 | 2026-08-04  | 2
+(2 rows)
+
+
+############################################################
+#  P22.6 — UN DOUBLON DE CLE ARRETERAIT LA PHASE A         #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:512: NOTICE:  P22.6 index porteur de l unicite : fdj_stock_movements_idempotency_key_uniq
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:512: NOTICE:  P22.6 la migration s arrete, sans rien modifier : could not create unique index "fdj_stock_movements_idempotency_key_uniq" (23505)
+           preuve           | index_retabli_attendu_1 |             cle_intacte              
+----------------------------+-------------------------+--------------------------------------
+ P22.6 apres retour arriere |                       1 | 11111111-0000-4000-8000-000000000002
+(1 row)
+
+
+############################################################
+#  P21.1 — TROIS NOTIONS DISTINCTES SUR UN MOUVEMENT        #
+############################################################
+ preuve |  responsable_operationnel   |    auteur_de_la_saisie    | deux_identites_distinctes |      effective_at      |       created_at       | date_effet_distincte_de_l_enregistrement 
+--------+-----------------------------+---------------------------+---------------------------+------------------------+------------------------+------------------------------------------
+ P21.1  | Recette Vague 1 — employe A | Recette Vague 1 — manager | t                         | 2026-09-16 17:00:00+00 | 2026-09-17 03:00:00+00 | t
+(1 row)
+
+
+############################################################
+#  P21.2 — L HISTORIQUE NE RECOIT NI AUTEUR NI DATE D EFFET #
+############################################################
+ preuve |                  id                  | type_mouvement |      responsable_connu      | auteur_de_saisie_attendu_null | date_effet_attendue_null 
+--------+--------------------------------------+----------------+-----------------------------+-------------------------------+--------------------------
+ P21.2  | 00000004-0000-4000-8000-000000000001 | reception      | Recette Vague 1 — employe A |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000002 | transfert      | Recette Vague 1 — employe B |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000003 | activation     | Recette Vague 1 — employe A |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000004 | activation     | Recette Vague 1 — employe B |                               | 
+ P21.2  | 00000004-0000-4000-8000-000000000005 | correction     | Recette Vague 1 — employe A |                               | 
+(5 rows)
+
+
+############################################################
+#  P21.3 — LA CLE D IDEMPOTENCE MORD                        #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:577: NOTICE:  P21.3 rejeu refuse, comme attendu : duplicate key value violates unique constraint "fdj_stock_movements_idempotency_key_uniq" (23505)
+ preuve |           idempotency_key            | lignes 
+--------+--------------------------------------+--------
+ P21.3  | 11111111-0000-4000-8000-000000000001 |      1
+ P21.3  | 11111111-0000-4000-8000-000000000002 |      1
+ P21.3  | 11111111-0000-4000-8000-00000000000a |      1
+(3 rows)
+
+
+############################################################
+#  P21.4 — SANS CLE, PLUSIEURS LIGNES COHABITENT            #
+############################################################
+ preuve | mouvements_sans_cle | mouvements_avec_cle 
+--------+---------------------+---------------------
+ P21.4  |                   3 |                   3
+(1 row)
+
+--- P21.4b — un seul index, pas deux ---
+ preuve | index_uniques_sur_idempotency_key_attendu_1 |              nom_de_l_index              |                                                                          definition                                                                          
+--------+---------------------------------------------+------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.4b |                                           1 | fdj_stock_movements_idempotency_key_uniq | CREATE UNIQUE INDEX fdj_stock_movements_idempotency_key_uniq ON public.fdj_stock_movements USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)
+(1 row)
+
+
+############################################################
+#  P21.5 — UNE DATE D EFFET ABSURDE EST REFUSEE             #
+############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:633: NOTICE:  P21.5 date d effet absurde refusee, comme attendu : new row for relation "fdj_stock_movements" violates check constraint "fdj_stock_movements_effective_at_check" (23514)
+
+############################################################
+#  P21.6 — INSTALLER LES COMMANDES N ECRIT RIEN              #
+############################################################
+  preuve   | livrets_attendu_0 | mouvements_du_jeu_historique | mouvements_poses_par_la_recette 
+-----------+-------------------+------------------------------+---------------------------------
+ P21.6 (a) |                 0 |                            5 |                               1
+(1 row)
+
+   preuve   | delta_mouvements_attendu_0 | delta_livrets_attendu_0 | delta_journal_audit_attendu_0 | delta_quarts_attendu_0 | delta_caisses_attendu_0 
+------------+----------------------------+-------------------------+-------------------------------+------------------------+-------------------------
+ P21.6 (b1) |                          0 |                       0 |                             0 |                      0 |                       0
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:691: NOTICE:  P21.6 (b1) OK — installer les douze migrations ne cree ni mouvement, ni livret, ni ligne de journal
+   preuve   |             proname             | security_definer_attendu_t | search_path_fige_attendu_t | employee_id_non_dicte_attendu_t | execute_ferme_a_anon_attendu_t | execute_ferme_a_public_attendu_t 
+------------+---------------------------------+----------------------------+----------------------------+---------------------------------+--------------------------------+----------------------------------
+ P21.6 (b2) | fdj_activer_carnet              | t                          | t                          | t                               | t                              | t
+ P21.6 (b2) | fdj_enregistrer_mouvement_stock | t                          | t                          | t                               | t                              | t
+(2 rows)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:752: NOTICE:  P21.6 (b2) OK — 2 commandes ecrivent les mouvements, toutes sous garde ; aucune ne touche les livrets
+      preuve       |                proname                 | volatilite | ecrit_les_mouvements 
+-------------------+----------------------------------------+------------+----------------------
+ P21.6 (b2) detail | fdj_activer_carnet                     | volatile   | t
+ P21.6 (b2) detail | fdj_alertes_caisse                     | stable     | f
+ P21.6 (b2) detail | fdj_caisse_evenements_immuable         | volatile   | f
+ P21.6 (b2) detail | fdj_calculer_caisse                    | stable     | f
+ P21.6 (b2) detail | fdj_chaine_continuite                  | stable     | f
+ P21.6 (b2) detail | fdj_chronologie_caisse                 | stable     | f
+ P21.6 (b2) detail | fdj_cle_idempotence                    | stable     | f
+ P21.6 (b2) detail | fdj_confirmer_caisse                   | volatile   | f
+ P21.6 (b2) detail | fdj_corriger_caisse_confirmee          | volatile   | f
+ P21.6 (b2) detail | fdj_corriger_caisse_manager            | volatile   | f
+ P21.6 (b2) detail | fdj_date_metier                        | stable     | f
+ P21.6 (b2) detail | fdj_demandes_correction_du_quart       | stable     | f
+ P21.6 (b2) detail | fdj_ecrire_saisies_caisse              | volatile   | f
+ P21.6 (b2) detail | fdj_emplacement_du_site                | stable     | f
+ P21.6 (b2) detail | fdj_enregistrer_brouillon_caisse       | volatile   | f
+ P21.6 (b2) detail | fdj_enregistrer_mouvement_stock        | volatile   | t
+ P21.6 (b2) detail | fdj_libelle_ecart_employe              | immutable  | f
+ P21.6 (b2) detail | fdj_libelle_ecart_manager              | immutable  | f
+ P21.6 (b2) detail | fdj_ma_caisse                          | stable     | f
+ P21.6 (b2) detail | fdj_ma_progression_caisse              | stable     | f
+ P21.6 (b2) detail | fdj_mes_comptages_caisse               | stable     | f
+ P21.6 (b2) detail | fdj_mes_corrections_caisse             | stable     | f
+ P21.6 (b2) detail | fdj_mes_demandes_correction            | stable     | f
+ P21.6 (b2) detail | fdj_mes_quarts_fdj                     | stable     | f
+ P21.6 (b2) detail | fdj_numero_quart_depuis_prise_de_poste | immutable  | f
+ P21.6 (b2) detail | fdj_ouvrir_controle_caisse             | volatile   | f
+ P21.6 (b2) detail | fdj_ouvrir_quart_depuis_prise_de_poste | volatile   | f
+ P21.6 (b2) detail | fdj_quart_de_l_employe                 | stable     | f
+ P21.6 (b2) detail | fdj_quart_du_manager                   | stable     | f
+ P21.6 (b2) detail | fdj_rouvrir_caisse                     | volatile   | f
+ P21.6 (b2) detail | fdj_saisir_caisse_manager              | volatile   | f
+ P21.6 (b2) detail | fdj_signaler_erreur_apres_validation   | volatile   | f
+ P21.6 (b2) detail | fdj_traiter_demande_correction         | volatile   | f
+ P21.6 (b2) detail | fdj_transferer_responsabilite_quart    | volatile   | f
+ P21.6 (b2) detail | fdj_valider_caisse                     | volatile   | f
+ P21.6 (b2) detail | fdj_ventes_jeu                         | immutable  | f
+(36 rows)
+
+   preuve   |                            renvoi                             
+------------+---------------------------------------------------------------
+ P21.6 (b3) | l execution controlee des deux commandes est mesuree en P21.7
+(1 row)
+
+
+############################################################
+#  P21.7 — EXECUTION CONTROLEE DES COMMANDES DE LA VAGUE    #
+############################################################
+ identite_employe_a 
+--------------------
+ t
+(1 row)
+
+  preuve   |                                                                                                                                                   resultat                                                                                                                                                    
+-----------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (1) | {"shift_id": "00000001-0000-4000-8000-000000000001", "created_by": "eeeeeee1-0000-4000-8000-eeeeeeeeeee1", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee1-0000-4000-8000-eeeeeeeeeee1", "par_manager": false, "effective_at": "2026-08-01T12:00:00+00:00", "type_mouvement": "activation"}
+(1 row)
+
+    preuve     |                                                 resultat_du_rejeu                                                  
+---------------+--------------------------------------------------------------------------------------------------------------------
+ P21.7 (1 bis) | {"shift_id": "00000001-0000-4000-8000-000000000001", "enregistre": true, "idempotent": true, "par_manager": false}
+(1 row)
+
+       preuve       | type_mouvement | quantite | methode_identification | responsable_operationnel |   auteur_de_la_saisie    | l_employe_est_son_propre_auteur_attendu_t | date_d_effet_reprise_de_l_ouverture_du_quart | source_laissee_vide_attendu_t 
+--------------------+----------------+----------+------------------------+--------------------------+--------------------------+-------------------------------------------+----------------------------------------------+-------------------------------
+ P21.7 (1) controle | activation     |        3 | quantite               | recette-vague1-employe-a | recette-vague1-employe-a | t                                         | 2026-08-01 12:00:00+00                       | t
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:831: NOTICE:  P21.7 (1 bis) OK — deux appels au meme jeton, une seule ligne de mouvement
+ identite_manager 
+------------------
+ t
+(1 row)
+
+  preuve   |                                                                                                                                                   resultat                                                                                                                                                   
+-----------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (2) | {"shift_id": "00000001-0000-4000-8000-000000000001", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee1-0000-4000-8000-eeeeeeeeeee1", "par_manager": true, "effective_at": "2026-08-01T12:00:00+00:00", "type_mouvement": "activation"}
+(1 row)
+
+    preuve     |                                                                                                                                          resultat_de_la_correction                                                                                                                                           
+---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (2 bis) | {"shift_id": "00000001-0000-4000-8000-000000000001", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee1-0000-4000-8000-eeeeeeeeeee1", "par_manager": true, "effective_at": "2026-08-01T12:00:00+00:00", "type_mouvement": "correction"}
+(1 row)
+
+    preuve     |                                                                                                                                       resultat_meme_jeton_autre_acteur                                                                                                                                       
+---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (2 ter) | {"shift_id": "00000001-0000-4000-8000-000000000001", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee1-0000-4000-8000-eeeeeeeeeee1", "par_manager": true, "effective_at": "2026-08-01T12:00:00+00:00", "type_mouvement": "activation"}
+(1 row)
+
+       preuve       | type_mouvement | quantite |     methode_identification      | responsable_operationnel |  auteur_de_la_saisie   | responsable_reste_l_employe_du_quart_attendu_t | auteur_est_le_manager_attendu_t 
+--------------------+----------------+----------+---------------------------------+--------------------------+------------------------+------------------------------------------------+---------------------------------
+ P21.7 (2) controle | activation     |        3 | quantite                        | recette-vague1-employe-a | recette-vague1-manager | t                                              | t
+ P21.7 (2) controle | correction     |       -2 | reconstituee_correction_manager | recette-vague1-employe-a | recette-vague1-manager | t                                              | t
+ P21.7 (2) controle | activation     |        2 | reconstituee_correction_manager | recette-vague1-employe-a | recette-vague1-manager | t                                              | t
+(3 rows)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:895: NOTICE:  P21.7 (2 ter) OK — le meme jeton joue par un autre acteur n etouffe pas l ecriture du premier
+ identite_manager_gestion 
+--------------------------
+ t
+(1 row)
+
+  preuve   |                                                                                                                                      resultat_reception                                                                                                                                       
+-----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (3) | {"ecrits": 2, "rejeux": 0, "operation": "reception", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "effective_at": "2026-09-17T23:07:42.660599+00:00", "type_mouvement": "reception"}
+(1 row)
+
+    preuve     |                                                                                                                                      resultat_du_rejeu                                                                                                                                       
+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (3 bis) | {"ecrits": 0, "rejeux": 2, "operation": "reception", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": true, "employee_id": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "effective_at": "2026-09-17T23:07:42.660599+00:00", "type_mouvement": "reception"}
+(1 row)
+
+    preuve     |                                                                                                                                          resultat_reappro                                                                                                                                          
+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ P21.7 (3 ter) | {"ecrits": 1, "rejeux": 0, "operation": "reappro_caisse", "created_by": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "enregistre": true, "idempotent": false, "employee_id": "eeeeeee3-0000-4000-8000-eeeeeeeeeee3", "effective_at": "2026-09-17T23:07:42.660599+00:00", "type_mouvement": "transfert"}
+(1 row)
+
+       preuve       | type_mouvement | quantite |     source     |          depuis          |           vers           | responsable_operationnel |  auteur_de_la_saisie   | mouvement_hors_quart_attendu_t 
+--------------------+----------------+----------+----------------+--------------------------+--------------------------+--------------------------+------------------------+--------------------------------
+ P21.7 (3) controle | reception      |       10 | recette-vague1 |                          | Bureau (recette Vague 1) | recette-vague1-manager   | recette-vague1-manager | t
+ P21.7 (3) controle | reception      |        4 | recette-vague1 |                          | Bureau (recette Vague 1) | recette-vague1-manager   | recette-vague1-manager | t
+ P21.7 (3) controle | transfert      |        6 | recette-vague1 | Bureau (recette Vague 1) | Caisse (recette Vague 1) | recette-vague1-manager   | recette-vague1-manager | t
+(3 rows)
+
+ identite_employe_a_pour_les_refus 
+-----------------------------------
+ t
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.1) OK — refus attendu : Seul un manager habilité peut reconstituer une activation.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.2) OK — refus attendu : Seul un manager habilité peut enregistrer un mouvement de stock FDJ.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.3) OK — refus attendu : Une quantité négative n'est admise que pour une correction managériale reconstituée.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.4) OK — refus attendu : Ce quart FDJ est sous la responsabilité d'un autre employé.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.5) OK — refus attendu : Jeton d'appel manquant : l'idempotence ne peut pas être garantie.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1009: NOTICE:  P21.7 (4.6) OK — refus attendu : Quantité de carnets manquante ou nulle.
+ identite_manager_pour_les_refus 
+---------------------------------
+ t
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1070: NOTICE:  P21.7 (4.7) OK — refus attendu : Opération de mouvement de stock inconnue.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1070: NOTICE:  P21.7 (4.8) OK — refus attendu : Un blocage exige un motif.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1070: NOTICE:  P21.7 (4.9) OK — refus attendu : Emplacement de blocage inconnu : bureau ou caisse attendus.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1070: NOTICE:  P21.7 (4.10) OK — refus attendu : Une date d'effet ne peut pas être dans le futur.
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1070: NOTICE:  P21.7 (4.11) OK — refus attendu : Ligne de mouvement sans quantité positive.
+ aucune_session_simulee 
+------------------------
+ t
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1093: NOTICE:  P21.7 (4.12) OK — refus attendu : Aucune session authentifiée : opération refusée.
+ identite_rendue 
+-----------------
+ t
+(1 row)
+
+   bilan   | type_mouvement |     methode_identification      | lignes | quantite_totale | responsable_operationnel |   auteur_de_la_saisie    
+-----------+----------------+---------------------------------+--------+-----------------+--------------------------+--------------------------
+ P21.7 (5) | activation     | quantite                        |      1 |               3 | recette-vague1-employe-a | recette-vague1-employe-a
+ P21.7 (5) | activation     | quantite                        |      1 |               3 | recette-vague1-employe-a | recette-vague1-manager
+ P21.7 (5) | activation     | reconstituee_correction_manager |      1 |               2 | recette-vague1-employe-a | recette-vague1-manager
+ P21.7 (5) | correction     | reconstituee_correction_manager |      1 |              -2 | recette-vague1-employe-a | recette-vague1-manager
+ P21.7 (5) | reception      | quantite                        |      2 |              14 | recette-vague1-manager   | recette-vague1-manager
+ P21.7 (5) | transfert      | quantite                        |      1 |               6 | recette-vague1-manager   | recette-vague1-manager
+(6 rows)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1138: NOTICE:  P21.7 (5) OK — 7 lignes ecrites par les commandes, dont 3 ou l auteur n est pas le responsable ; aucun rattachement de quart incoherent
+  preuve   |                         action                         | lignes_de_journal |          acteur          
+-----------+--------------------------------------------------------+-------------------+--------------------------
+ P21.7 (6) | fdj_activation_carnet                                  |                 1 | recette-vague1-employe-a
+ P21.7 (6) | fdj_activation_carnet                                  |                 1 | recette-vague1-manager
+ P21.7 (6) | fdj_activation_reconstituee_annulee_correction_manager |                 1 | recette-vague1-manager
+ P21.7 (6) | fdj_activation_reconstituee_correction_manager         |                 1 | recette-vague1-manager
+ P21.7 (6) | fdj_mouvement_stock_reappro_caisse                     |                 1 | recette-vague1-manager
+ P21.7 (6) | fdj_mouvement_stock_reception                          |                 1 | recette-vague1-manager
+(6 rows)
+
+
+############################################################
+#  BILAN AVANT ANNULATION                                   #
+############################################################
+ bilan | quarts | caisses | mouvements | livrets | evenements_caisse_attendu_0 | demandes_attendu_0 
+-------+--------+---------+------------+---------+-----------------------------+--------------------
+ BILAN |      9 |       8 |         13 |       0 |                           0 |                  0
+(1 row)
+
+
+##############################################################
+#  CONTROLE D IDENTITE — aucun employe reel dans la recette   #
+##############################################################
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1249: NOTICE:  IDENTITE OK : 27 colonnes d identite balayees, 43 valeurs vues, toutes de forme fixture
+
+############################################################
+#  APRES ROLLBACK — nexus-test est revenu a son etat initial #
+############################################################
+   controle    | fdj_shifts_attendu_0 | fdj_cash_controls_attendu_0 | fdj_stock_movements_attendu_0 | fdj_booklets_attendu_0 | jeux_historiques_attendu_0 | journal_caisse_disparu | colonne_effective_at_disparue | migrations_enregistrees_attendu_0 | employes_attendu_4 | fdj_locations_attendu_3 
+---------------+----------------------+-----------------------------+-------------------------------+------------------------+----------------------------+------------------------+-------------------------------+-----------------------------------+--------------------+-------------------------
+ POST-ROLLBACK |                    0 |                           0 |                             0 |                      0 |                          0 | t                      | t                             |                                 0 |                  4 |                       3
+(1 row)
+
+psql:supabase/recette-vague1/20260917_preuves_livrets_et_historique.sql:1305: NOTICE:  POST-ROLLBACK OK : 410 colonnes uuid du schema public balayees, aucune fixture ne subsiste
+
+============================================================
+=  RECETTE TERMINEE — TRANSACTION ANNULEE                   =
+=  Aucune migration appliquee, aucune donnee conservee.     =
+============================================================
