@@ -105,7 +105,7 @@ l'écran Pointage). Six conséquences :
 | « Votre service est en cours · 3 actions à terminer », sans service | « Aucun poste en cours », ou « Consultation externe » |
 | Prochaine action « Pointer l'arrivée » | « Prenez votre poste pour démarrer votre service » → prise de poste |
 | Inventaire / FDJ / réception / jaugeage prescrits sans quart | Aucun contrôle de quart hors quart |
-| Tuiles Missions / Inventaire / FDJ qui **rebondissent** (catégorie `operationnel`) | Les écrans réellement atteignables, plus le geste qui débloque le reste |
+| Tuiles Missions / Inventaire / FDJ qui **rebondissent** (catégorie `operationnel`) | Les écrans réellement atteignables, plus le geste qui débloque le reste — *hors service seulement ; voir §4.1 bis* |
 | Barre de progression à 0 % sur une journée qui n'a pas commencé | Barre masquée — et **toujours cochée** sur une journée terminée |
 | Rôle du jour inconnu ⇒ ligne de statut sans rôle | Rôle affiché brut (même esprit que l'Article 5) |
 
@@ -114,11 +114,80 @@ redirection d'office. L'accueil propose la prise de poste, il ne l'impose pas �
 « l'authentification n'est jamais une preuve de présence », et le seul `insert`
 sur `shifts` reste le bouton « Confirmer » de la prise de poste.
 
-Gardé par `test_accueil_hors_service_20260918.js` (63 contrôles), éprouvé par
-`outils/mutation-accueil-hors-service.js` (13 défauts réintroduits un à un,
-13 tués).
+### 4.1 bis — Second lot : « en service ne suffit pas »
+
+La ligne « tuiles qui rebondissent » du tableau ci-dessus était **plus large que
+le correctif du matin**. `nexusRequireAuth` a deux portes, pas une :
+
+1. `nexusPriseDePosteManquante` — exige un service ouvert **aujourd'hui** ;
+2. `nexusPointageArriveeManquant` — exige **en plus** l'arrivée pointée **de la
+   journée**, et renvoie sinon toute page `operationnel` vers le pointage.
+
+Le premier lot ne fermait que la première. Mesuré sur Test le 18/09/2026 : un
+pompiste en service mais sans arrivée pointée (S2) et une caissière
+`professional` dans le même état (S5) recevaient Missions, Inventaire, FDJ et
+Réception — qui rebondissaient **exactement comme hors service**. Relevé brut
+de S5 avant correctif :
+
+```
+· tuile « FDJ » → NEXUS-FDJ-v1.html [operationnel]
+    ✓ lien autorisé   : categorie operationnel
+    ✗ écran ouvert    : nexusRequireAuth renvoie vers NEXUS-Pointage-v1.html
+    ✗ action accomplie: ecran non ouvert — rien n'a pu etre tente
+```
+
+La règle est désormais écrite **une fois**, dans `nexus-auth.js`, à côté des
+deux gardes qu'elle résume — `nexusEcranOperationnelAtteignable(etat)`. L'accueil
+la **lit** ; il ne la redevine pas une troisième fois. Quatre conséquences :
+
+| Avant | Après |
+|---|---|
+| Tuiles Missions / Inventaire / FDJ en service sans arrivée pointée | Pointer mon arrivée · Progression · Mon planning · Mon évolution |
+| Coach « Commencez par l'inventaire… » — consigne impossible à suivre | « Pointez votre arrivée : vos missions et vos contrôles s'ouvriront ensuite. » |
+| Titre « Mes outils du quart » alors qu'aucun outil n'ouvre | « Mes écrans » |
+| Rien ne nommait le geste qui débloque le reste | La tuile `pointage` le nomme, et `NEXUS-Pointage-v1.html` est en catégorie `sequence` : il ne se garde pas lui-même |
+
+**Deux notions distinctes, volontairement** : `arriveePointeeJour` (l'arrivée de
+la **journée**, ce que la garde regarde) et `arriveeFaite` (l'arrivée du
+**service courant**, `NexusPointageRegles.dejaFaitDuService`, correctif du
+13/09/2026 pour la barre de progression). Deux services le même jour et une
+seule arrivée pointée : la garde laisse passer, la barre continue de compter par
+service. Les deux sont justes, chacune dans sa question.
+
+**Ce que le lot ne change pas, volontairement** : `inventaireApplicable`,
+`fdjApplicable`, `receptionApplicable` et le compte d'actions restent vrais. Ces
+contrôles sont réellement **applicables** — ils ne sont simplement pas encore
+**atteignables**. Confondre les deux effacerait de l'écran le travail du quart
+au lieu de le dater d'après.
+
+Gardé par `test_accueil_hors_service_20260918.js` (98 contrôles) et
+`test_fuseau_station_20260918.js` (81 contrôles), éprouvé par
+`outils/mutation-accueil-hors-service.js` (27 défauts réintroduits un à un,
+27 tués, 0 survivant) en trois campagnes : l'écran, la journée métier, la règle
+d'atteignabilité.
+
+### 4.1 ter — La date métier suit le fuseau du site
+
+Troisième écart, trouvé par le parcours et non par la lecture : la date métier
+était calculée sur l'**horloge de l'appareil**. À instant identique, un
+téléphone à Paris et un téléphone en Martinique ne prenaient pas la même
+décision pour le même site — y compris dans la logique qui referme les anciens
+services.
+
+Le fuseau du site (`station_config.fuseau_horaire`, défaut
+`America/Martinique`) est désormais lu et appliqué, sous les bornes
+`NEXUS-FUSEAU-METIER` de `nexus-auth.js`. Mesure : les six situations du
+parcours rejouées sous six fuseaux d'appareil rendent **six condensés
+identiques au bit près**.
 
 ### 4.2 — Ce qui reste ouvert
 
 Les trois lots du §3 (`polyvalent` à trancher, finesse de `PAGES_INDEX`, note de
 conception) n'ont pas été touchés. Ils restent à arbitrer.
+
+S'y ajoute une anomalie mineure relevée par le parcours S4 et **non traitée**
+ici : `nexusCloturerServicesObsoletes` referme tout service dont le jour métier
+n'est pas celui du jour, avec le motif `jour_precedent` — sans distinguer
+« jour antérieur » de « jour postérieur ». Un service daté du futur est donc
+refermé sous un motif faux. Hors périmètre de ce lot : en usage réel, un service
+du futur ne devrait pas exister.

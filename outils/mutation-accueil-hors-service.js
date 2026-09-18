@@ -77,85 +77,191 @@ const MUTATIONS = [
   ['M12 · jaugeage prescrit sans service',
    'const jaugeageApplicable = enService && jaugeagePertinentRole',
    'const jaugeageApplicable = jaugeagePertinentRole'],
+  // SECOND LOT DU 18/09 — la seconde porte de `nexusRequireAuth`. Chacune de
+  // ces cinq mutations remet l'écran dans l'état exactement mesuré sur Test
+  // en S2 et S5 : des tuiles opérationnelles qui rebondissent vers le
+  // pointage.
+  ['M14 · tuiles : plus de repli « arrivée non pointée » (elles rebondissent)',
+   "    if (!ctx.operationnelAtteignable) {\n      return ['pointage', 'progression', 'planning', 'evolution']",
+   "    if (false) {\n      return ['pointage', 'progression', 'planning', 'evolution']"],
+  ['M15 · phrase du Coach : consigne impossible à suivre',
+   "    if (!ctx.operationnelAtteignable) {\n      return 'Pointez votre arrivée",
+   "    if (false) {\n      return 'Pointez votre arrivée"],
+  // La distinction du 13/09 remise à l'envers : la garde regarde l'arrivée de
+  // la JOURNÉE, pas celle du service courant. Confondre les deux renvoie au
+  // pointage quelqu'un que la garde laisse passer — un faux blocage.
+  ['M16 · arrivée comptée par service au lieu de par journée',
+   "const arriveePointeeJour = (pointagesJour || []).some(p => p.type === 'arrivee');",
+   'const arriveePointeeJour = arriveeFaite;'],
+  ['M17 · titre de section rebasculé sur le seul « en service »',
+   "      operationnelAtteignable ? 'Mes outils du quart' : 'Mes écrans');",
+   "      enService ? 'Mes outils du quart' : 'Mes écrans');"],
+  // `estManager: false` est un fait établi par l'appelant (branche employé de
+  // l'accueil), pas une commodité : le supposer vrai rouvre les deux portes.
+  ['M18 · l’accueil employé se déclare manager',
+   '      estManager: false,',
+   '      estManager: true,'],
 ];
 
-const SRC = fs.readFileSync(path.join(RACINE, ECRAN), 'utf8');
+// 18/09/2026 — LA CAMPAGNE COUVRE DÉSORMAIS DEUX FICHIERS.
+// La journée métier ne vit plus dans l'écran : elle vient des primitives de
+// fuseau de `nexus-auth.js`, chargé par tous les écrans. Muter le seul écran
+// laisserait donc ce lot-là sans aucune épreuve de mutation — exactement
+// l'angle mort que cet outil existe pour fermer.
+//
+// Les deux campagnes restent séparées à dessein. `test_fuseau_station_...`
+// relance la suite de l'accueil sous deux fuseaux d'appareil : l'ajouter aux
+// tests de la campagne d'écran tuerait ses treize mutations par ricochet, et
+// un signal qui se déclenche toujours ne mesure plus rien.
+const MUTATIONS_FUSEAU = [
+  ['F1 · le jour métier retombe sur l\'horloge de l\'appareil',
+   '    timeZone: fuseau || NEXUS_FUSEAU_DEFAUT,',
+   '    timeZone: undefined,'],
+  ['F2 · repli métropolitain pour une station ultramarine',
+   "const NEXUS_FUSEAU_DEFAUT = 'America/Martinique';",
+   "const NEXUS_FUSEAU_DEFAUT = 'Europe/Paris';"],
+  ['F3 · les vieux services ne sont plus refermés',
+   'if(obsoletes.length) await nexusCloturerServicesObsoletes(employee, obsoletes);',
+   'if(false) await nexusCloturerServicesObsoletes(employee, obsoletes);'],
+  ['F4 · le fuseau du site n\'est plus lu, il est supposé',
+   'return nexusRetenirFuseau(siteId, data && data.fuseau_horaire);',
+   'return nexusRetenirFuseau(siteId, null);'],
+];
+
+const TESTS_FUSEAU = ['test_fuseau_station_20260918.js'];
+
+// 18/09/2026, SECOND LOT — TROISIÈME CAMPAGNE.
+// `nexusEcranOperationnelAtteignable` vit dans `nexus-auth.js`, à côté des
+// deux gardes qu'elle résume, mais c'est la suite de l'ACCUEIL qui la mesure
+// (elle l'extrait et l'exécute telle quelle). D'où un troisième couple
+// fichier/tests : muter la règle dans l'écran serait viser à côté, et la
+// laisser hors campagne serait rendre la garde muette — le défaut même que
+// cet outil existe pour trouver.
+const MUTATIONS_REGLE = [
+  ['G1 · la seconde porte n’est plus regardée',
+   'return !!e.arriveePointeeJour;',
+   'return true;'],
+  ['G2 · un site sans pointage exige quand même l’arrivée',
+   'if(e.pointageActif === false) return true;',
+   'if(false) return true;'],
+  ['G3 · défaut inversé : un réseau muet promet l’écran',
+   'if(e.pointageActif === false) return true;',
+   'if(e.pointageActif !== true) return true;'],
+  ['G4 · manager et consultation externe ne sont plus exemptés',
+   'if(e.estManager || e.consultationExterne) return true;',
+   'if(false) return true;'],
+  ['G5 · la première porte s’ouvre sans service',
+   'if(!e.enService) return false;',
+   'if(false) return false;'],
+];
+
+const TESTS_REGLE = ['test_accueil_hors_service_20260918.js'];
+
+// Les fichiers que toute racine mutée doit porter : l'écran et `nexus-auth.js`
+// parce qu'ils sont mutés, `nexus-pointage-regles.js` parce que les deux en
+// dépendent et qu'une règle absente rougirait pour la mauvaise raison.
+const FICHIERS_RACINE = [ECRAN, 'nexus-auth.js', 'nexus-pointage-regles.js'];
+const SOURCES = {};
+FICHIERS_RACINE.forEach(f => { SOURCES[f] = fs.readFileSync(path.join(RACINE, f), 'utf8'); });
 
 function lancerUn(test, racine) {
   try {
     const sortie = execFileSync('node', [path.join(RACINE, test)], {
-      cwd: RACINE, timeout: 30000, encoding: 'utf8',
-      // Les deux tests de l'accueil ne désignent pas l'écran de la même façon :
+      cwd: RACINE, timeout: 180000, encoding: 'utf8',
+      // Les tests de l'accueil ne désignent pas l'écran de la même façon :
       // celui du 18/09 prend une racine, celui du 14/09 un chemin de fichier.
       // Passer les deux est ce qui permet à la mutation de les atteindre tous
       // les deux — sans NEXUS_SOURCE_APP, le second lirait le fichier de
       // travail non muté et resterait vert sans rien prouver.
-      env: {
-        ...process.env,
+      env: Object.assign({}, process.env, {
         NEXUS_RACINE: racine,
         NEXUS_SOURCE_APP: path.join(racine, ECRAN),
-      },
+      }),
     });
     return { code: 0, sortie: sortie.trim() };
   } catch (e) {
-    return { code: e.status === undefined ? 1 : e.status, sortie: `${e.stdout || ''}${e.stderr || ''}`.trim() };
+    return {
+      code: e.status === undefined ? 1 : e.status,
+      sortie: String(e.stdout || '') + String(e.stderr || ''),
+    };
   }
 }
 
 // Une mutation est tuée dès qu'un test rougit ; on rapporte lequel, parce que
 // « quelque chose a échoué » ne dit pas quelle règle a mordu.
-function lancer(racine) {
+function lancer(racine, tests) {
   const rouges = [];
-  for (const test of TESTS) {
+  for (const test of tests) {
     const r = lancerUn(test, racine);
-    if (r.code !== 0) rouges.push({ test, ...r });
+    if (r.code !== 0) rouges.push(Object.assign({ test }, r));
   }
   return { code: rouges.length ? 1 : 0, rouges };
 }
-const resume = r => r.rouges.length
-  ? r.rouges.map(x => `${x.test.replace(/^test_|\.js$/g, '')} : ${
-      (x.sortie.split('\n').find(l => /contrôles verts|échec\(s\)/.test(l)) || '(sortie illisible)').trim()}`).join(' ; ')
-  : 'les deux tests restent verts';
 
-// Témoin : sans mutation, le test doit être vert. Sinon la mesure qui suit ne
-// veut rien dire — un rouge ne prouverait pas que la mutation a mordu.
-const temoin = lancer(RACINE);
-console.log('TÉMOIN (aucune mutation) : ' + resume(temoin));
-if (temoin.code !== 0) {
-  console.log('Les tests ne sont pas verts sans mutation — mesure inexploitable.');
-  temoin.rouges.forEach(x => console.log(x.sortie));
-  process.exit(2);
+const resume = r => r.rouges.length
+  ? r.rouges.map(x => {
+      const ligne = x.sortie.split('\n').reverse()
+        .find(l => /contrôles verts|rouges|échec/i.test(l));
+      return x.test.replace(/^test_|\.js$/g, '') + ' : '
+        + (ligne ? ligne.trim() : '(sortie illisible, code ' + x.code + ')');
+    }).join(' ; ')
+  : 'tests verts';
+
+function racineMutee(fichier, avant, apres) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutation-accueil-'));
+  FICHIERS_RACINE.forEach(f => fs.copyFileSync(path.join(RACINE, f), path.join(tmp, f)));
+  fs.writeFileSync(path.join(tmp, fichier), SOURCES[fichier].split(avant).join(apres));
+  return tmp;
 }
 
 const tuees = [];
 const survivantes = [];
-for (const [nom, avant, apres] of MUTATIONS) {
-  const occurrences = SRC.split(avant).length - 1;
-  if (occurrences !== 1) {
-    // Une garde muette est d'abord une mutation mal visée : un motif qui ne
-    // s'applique pas se rapporte, il ne se tait pas.
-    console.log(`  ??          ${nom} — motif introuvable ou ambigu (${occurrences} occurrences), mutation NON APPLIQUÉE`);
-    survivantes.push(`${nom} (motif introuvable)`);
-    continue;
+
+function campagne(titre, mutations, fichier, tests) {
+  console.log('');
+  console.log(titre);
+
+  // Témoin : sans mutation, les tests doivent être verts. Sinon la mesure qui
+  // suit ne veut rien dire — un rouge ne prouverait pas que la mutation a mordu.
+  const temoin = lancer(RACINE, tests);
+  console.log('  TÉMOIN (aucune mutation) : ' + resume(temoin));
+  if (temoin.code !== 0) {
+    console.log('  Les tests ne sont pas verts sans mutation — mesure inexploitable.');
+    temoin.rouges.forEach(x => console.log(x.sortie));
+    process.exit(2);
   }
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutation-accueil-'));
-  try {
-    fs.copyFileSync(path.join(RACINE, 'nexus-pointage-regles.js'), path.join(tmp, 'nexus-pointage-regles.js'));
-    fs.writeFileSync(path.join(tmp, ECRAN), SRC.split(avant).join(apres));
-    const r = lancer(tmp);
-    if (r.code === 0) {
-      console.log(`  SURVIVANTE  ${nom} — ${resume(r)}`);
-      survivantes.push(nom);
-    } else {
-      console.log(`  tuée        ${nom} — ${resume(r)}`);
-      tuees.push(nom);
+
+  for (const [nom, avant, apres] of mutations) {
+    const occurrences = SOURCES[fichier].split(avant).length - 1;
+    if (occurrences !== 1) {
+      // Une garde muette est d'abord une mutation mal visée : un motif qui ne
+      // s'applique plus se rapporte, il ne se tait pas.
+      console.log('  ??          ' + nom + ' — motif introuvable ou ambigu ('
+        + occurrences + ' occurrences), mutation NON APPLIQUÉE');
+      survivantes.push(nom + ' (motif introuvable dans ' + fichier + ')');
+      continue;
     }
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    const tmp = racineMutee(fichier, avant, apres);
+    try {
+      const r = lancer(tmp, tests);
+      if (r.code === 0) {
+        console.log('  SURVIVANTE  ' + nom + ' — ' + resume(r));
+        survivantes.push(nom);
+      } else {
+        console.log('  tuée        ' + nom + ' — ' + resume(r));
+        tuees.push(nom);
+      }
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   }
 }
 
+campagne('L\'ÉCRAN — ' + ECRAN, MUTATIONS, ECRAN, TESTS);
+campagne('LA JOURNÉE MÉTIER — nexus-auth.js', MUTATIONS_FUSEAU, 'nexus-auth.js', TESTS_FUSEAU);
+campagne('LA RÈGLE D\'ATTEIGNABILITÉ — nexus-auth.js', MUTATIONS_REGLE, 'nexus-auth.js', TESTS_REGLE);
+
 console.log('');
-console.log(`${tuees.length} mutations tuées, ${survivantes.length} survivantes`);
+console.log(tuees.length + ' mutations tuées, ' + survivantes.length + ' survivantes');
 survivantes.forEach(s => console.log('  · survivante : ' + s));
 process.exit(survivantes.length ? 1 : 0);

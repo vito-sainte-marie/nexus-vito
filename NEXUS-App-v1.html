@@ -2186,6 +2186,15 @@
         ? 'Vous consultez ce site sans y être en service.'
         : 'Commencez par prendre votre poste : votre rôle du jour, vos missions et vos contrôles en découlent.';
     }
+    // En service, mais arrivée non pointée : tous les écrans que cette
+    // phrase recommanderait rebondissent vers le pointage (même défaut que
+    // les tuiles, même condition, 18/09/2026). « Commencez par l'inventaire »
+    // serait une consigne impossible à suivre. La carte Prochaine action
+    // nomme déjà ce geste en P-1 : une seule vérité, redite ici dans les mots
+    // du Coach — le travail du quart n'est pas nié, il est daté d'après.
+    if (!ctx.operationnelAtteignable) {
+      return 'Pointez votre arrivée : vos missions et vos contrôles s’ouvriront ensuite.';
+    }
     const items = [];
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) items.push('le jaugeage d’ouverture');
     if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
@@ -2209,6 +2218,11 @@
     // catégorie `consultation` ou `sequence` dans nexus-auth.js, donc
     // réellement atteignables sans poste ouvert.
     prisedeposte: { titre: 'Prendre mon poste', desc: 'Ouvrir mon service et choisir mon rôle', href: 'NEXUS-Prise-De-Poste-v1.html', icone: 'assets/icons/icon-prise-de-poste.png' },
+    // Quatrième tuile de repli (18/09/2026, second lot) : en service, mais
+    // arrivée non pointée. C'est CE geste qui débloque les quatre écrans
+    // opérationnels, et `NEXUS-Pointage-v1.html` est en catégorie `sequence`
+    // dans nexus-auth.js — il ne se garde pas lui-même, donc il s'ouvre.
+    pointage: { titre: 'Pointer mon arrivée', desc: 'Ouvrir mon quart et débloquer mes écrans', href: 'NEXUS-Pointage-v1.html', icone: 'assets/icons/icon-pointage.png' },
     planning: { titre: 'Mon planning', desc: 'Mes jours de travail et mes repos', href: 'NEXUS-Mon-Planning-v1.html', icone: 'assets/icons/icon-planner.png' },
     evolution: { titre: 'Mon évolution', desc: 'Mes résultats et mon historique', href: 'NEXUS-Mon-Evolution-v1.html', icone: 'assets/icons/icon-evolution.png' },
   };
@@ -2223,6 +2237,22 @@
     if (!ctx.enService) {
       const candidats = ctx.consultationExterne ? [] : ['prisedeposte'];
       return candidats.concat(['planning', 'evolution', 'progression']).slice(0, 4);
+    }
+    // EN SERVICE NE SUFFIT PAS (18/09/2026, second lot). La branche
+    // ci-dessus ne ferme que la PREMIÈRE porte de nexus-auth.js, celle de la
+    // prise de poste. Il en reste une seconde : tant que l'arrivée du jour
+    // n'est pas pointée, `nexusPointageArriveeManquant` renvoie TOUTE page
+    // opérationnelle vers le pointage. Missions, Inventaire, FDJ et Réception
+    // rebondissaient donc exactement comme hors service — mesuré sur Test le
+    // 18/09/2026 (S2 pompiste, S5 caissière professional), avec S6 pour
+    // contre-témoin : arrivée pointée, les mêmes tuiles ouvrent leur écran.
+    //
+    // On propose donc, là aussi, ce qui est réellement atteignable et le
+    // geste qui débloque le reste. `operationnelAtteignable` n'est pas
+    // recalculé ici : il vient de `nexusEcranOperationnelAtteignable()`, la
+    // règle écrite à côté des deux gardes qu'elle résume.
+    if (!ctx.operationnelAtteignable) {
+      return ['pointage', 'progression', 'planning', 'evolution'].slice(0, 4);
     }
     const candidats = ['missions'];
     if (ctx.inventaireApplicable) candidats.push('inventaire');
@@ -2317,8 +2347,20 @@
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
 
-    const d = new Date();
-    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // LE JOUR MÉTIER — celui de la STATION, pas celui de l'appareil
+    // (18/09/2026). Ces deux lignes lisaient `getFullYear/getMonth/getDate`,
+    // c'est-à-dire l'horloge du téléphone de l'employé. `todayISO` irrigue
+    // ensuite TOUT cet écran : les pointages du jour, les missions
+    // accomplies, le contrôle FDJ, le jaugeage, et la comparaison du quart
+    // d'inventaire. Un employé qui ouvre NEXUS depuis la métropole voyait
+    // donc une journée vide à 20 h locales Martinique — et pire, la lecture
+    // du service courant refermait son service.
+    //
+    // La primitive vit dans `nexus-auth.js`, chargé par tous les écrans ;
+    // le fuseau vient de `station_config.fuseau_horaire`, lu une fois par
+    // page et mis en cache par site.
+    const fuseauStation = await nexusFuseauSite(employee.site_id);
+    const todayISO = nexusJourDansFuseau(new Date(), fuseauStation);
     const maintenant = new Date();
 
     // ---- « En service », notion unique de cet écran (18/09/2026) ----
@@ -2333,8 +2375,13 @@
     // Ce n'est PAS un refus par rôle : `roleADroitModule` n'est pas touché
     // et continue de laisser passer un rôle inconnu (Article 5). « Pas de
     // service aujourd'hui » est un fait, pas un droit retiré.
+    //
+    // `serviceDuJourSeulement` ne lit aucune horloge : l'appelant est
+    // propriétaire du jour ET de la façon de dater un service. Les deux
+    // viennent maintenant du fuseau de la station, sans quoi le jour et la
+    // datation du service pourraient diverger — le pire des deux mondes.
     const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(
-      serviceCourant, todayISO, d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      serviceCourant, todayISO, d => nexusJourDansFuseau(d, fuseauStation));
     const serviceCourantId = serviceCourantJour ? serviceCourantJour.id : null;
     const enService = !!serviceCourantJour;
     const consultationExterne = !!employee.consultation_externe;
@@ -2447,8 +2494,36 @@
     const prochainPointageEffectif = (journeeTerminee || !enService) ? null : prochainPointage;
     const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || roleDuJour || null;
 
+    // ATTEINDRE N'EST PAS AVOIR LE DROIT (18/09/2026, second lot).
+    // `enService` répond à la PREMIÈRE porte de `nexusRequireAuth`
+    // (`nexusPriseDePosteManquante`). Il en reste une seconde,
+    // `nexusPointageArriveeManquant`, qui renvoie toute page opérationnelle
+    // vers le pointage tant que l'arrivée du JOUR n'est pas pointée. La
+    // règle vit dans nexus-auth.js, à côté des deux gardes qu'elle résume :
+    // l'accueil la LIT, il ne la redevine pas une troisième fois.
+    //
+    // `arriveePointeeJour` est l'arrivée de la JOURNÉE, pas celle du service
+    // courant — c'est ce que la garde regarde, et `arriveeFaite` ci-dessus
+    // dit autre chose (`dejaFaitDuService`). Deux services le même jour et
+    // une seule arrivée pointée sur le premier : la garde laisse passer,
+    // tandis que la barre de progression continue de compter par service
+    // (correctif du 13/09/2026). Les deux sont justes, chacune dans sa
+    // question — d'où deux variables, et non une.
+    const arriveePointeeJour = (pointagesJour || []).some(p => p.type === 'arrivee');
+    // `estManager: false` n'est pas une supposition : cet orchestrateur
+    // n'est appelé que dans la branche employé de l'accueil
+    // (`estNiveauManager` faux), et `estNiveauManager` y est écrit mot pour
+    // mot comme `nexusEstManager`. L'exemption manager des deux gardes ne
+    // peut donc pas jouer ici.
+    const operationnelAtteignable = nexusEcranOperationnelAtteignable({
+      enService, arriveePointeeJour,
+      pointageActif: pointageActifSite,
+      consultationExterne,
+      estManager: false,
+    });
+
     const ctx = {
-      enService, consultationExterne,
+      enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
       journeeTerminee,
@@ -2462,7 +2537,7 @@
     renderOutilsQuart(
       choisirTuilesOutilsQuart(ctx),
       libelleRole,
-      enService ? 'Mes outils du quart' : 'Mes écrans');
+      operationnelAtteignable ? 'Mes outils du quart' : 'Mes écrans');
 
     document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
     const nbActions = (prochainPointageEffectif ? 1 : 0)

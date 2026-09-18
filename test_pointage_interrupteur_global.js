@@ -55,7 +55,15 @@ function fauxClient({ config, arrivee }) {
 // l'interrupteur dispense. Missions est un écran opérationnel : c'est bien
 // l'interrupteur qui y décide, et lui seul.
 async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.html') {
+  // 18/09/2026 — la fonction sous test ne lit plus le jour de l'appareil mais
+  // celui du SITE : elle appelle les primitives de fuseau, bornees dans
+  // `nexus-auth.js` comme l'est la regle d'acces. Elles sont PORTEES telles
+  // quelles, jamais recopiees — meme doctrine que pour `nexusEstManager`.
+  const dFuseau = src.indexOf('/* NEXUS-FUSEAU-METIER:DEBUT */');
+  const fFuseau = src.indexOf('/* NEXUS-FUSEAU-METIER:FIN */');
+  assert.ok(dFuseau !== -1 && fFuseau > dFuseau, 'bloc du jour metier introuvable dans nexus-auth.js');
   const code = [
+    src.slice(dFuseau, fFuseau),
     // `nexusEstManager` est EXTRAITE elle aussi, jamais réécrite ici. Le
     // 16/09/2026, cette fonction a cessé de recopier `role === 'manager' ||
     // role === 'gerant'` et appelle désormais la règle unique du fichier. Un

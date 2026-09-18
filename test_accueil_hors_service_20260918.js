@@ -83,18 +83,48 @@ const purs = new Function(`${tranchePure}\nreturn {${EXPORTS_PURS.join(',')}};`)
 
 // Extraction par équilibrage d'accolades : une expression régulière se ferait
 // piéger par la première accolade fermante venue.
-function extraireFonction(entete) {
-  const i = SRC.indexOf(entete);
-  assert.ok(i !== -1, `« ${entete} » introuvable dans ${ECRAN}`);
+function extraireFonction(entete, source, ou) {
+  const src = source || SRC;
+  const i = src.indexOf(entete);
+  assert.ok(i !== -1, `« ${entete} » introuvable dans ${ou || ECRAN}`);
   let prof = 0;
-  for (let k = SRC.indexOf('{', i); k < SRC.length; k++) {
-    if (SRC[k] === '{') prof++;
-    else if (SRC[k] === '}' && --prof === 0) return SRC.slice(i, k + 1);
+  for (let k = src.indexOf('{', i); k < src.length; k++) {
+    if (src[k] === '{') prof++;
+    else if (src[k] === '}' && --prof === 0) return src.slice(i, k + 1);
   }
   throw new Error(`« ${entete} » n'est pas refermée`);
 }
 const SRC_INIT = extraireFonction('async function initAccueilEmploye(');
 const SRC_CHEMINS = extraireFonction('function renderDeuxChemins(');
+
+// LE FUSEAU DE LA STATION (18/09/2026) — l'accueil n'en définit rien : il
+// dépend des primitives de `nexus-auth.js`, chargé par tous les écrans. On
+// exécute donc CES fonctions-là, jamais une doublure qui rendrait le test
+// vert sur un écran cassé. C'est la même doctrine que `tranchePure` : le test
+// éprouve le code livré.
+const SRC_AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
+const fuseaux = new Function('nexusClient', [
+  'const NEXUS_FUSEAU_DEFAUT = ' + JSON.stringify(
+    (SRC_AUTH.match(/const NEXUS_FUSEAU_DEFAUT = '([^']+)'/) || [])[1] || '') + ';',
+  'const nexusFuseauxSite = new Map();',
+  'const console = { error() {} };',
+  extraireFonction('function nexusFuseauValide(', SRC_AUTH, 'nexus-auth.js'),
+  extraireFonction('function nexusRetenirFuseau(', SRC_AUTH, 'nexus-auth.js'),
+  extraireFonction('function nexusJourDansFuseau(', SRC_AUTH, 'nexus-auth.js'),
+  extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js'),
+  'return { NEXUS_FUSEAU_DEFAUT, nexusJourDansFuseau, nexusFuseauSite, nexusFuseauxSite };',
+].join('\n'));
+assert.ok(/America\/Martinique/.test(SRC_AUTH),
+  'le repli de fuseau de nexus-auth.js doit rester une station ultramarine');
+
+// LA RÈGLE D'ATTEIGNABILITÉ (18/09/2026, second lot) — même doctrine encore :
+// `nexusEcranOperationnelAtteignable` est extraite de nexus-auth.js et
+// exécutée telle quelle. Une doublure locale rendrait ce test vert alors que
+// l'accueil promettrait toujours des écrans que les deux gardes referment.
+const nexusEcranOperationnelAtteignable = new Function([
+  extraireFonction('function nexusEcranOperationnelAtteignable(', SRC_AUTH, 'nexus-auth.js'),
+  'return nexusEcranOperationnelAtteignable;',
+].join('\n'))();
 
 // ---------------------------------------------------------------------------
 // DOUBLURES — un DOM qui enregistre, un client qui refuse d'écrire
@@ -147,14 +177,20 @@ async function executerAccueil({
 }) {
   const { document, journal } = faireDom();
   const rendus = {};
+  // Le fuseau est relu pour CHAQUE cas : le cache de `nexus-auth.js` est
+  // volontairement reconstruit ici, sinon un cas contaminerait le suivant.
+  const auth = fuseaux(faireClient(reponses));
   const noms = [
-    'document', 'console', 'nexusClient', 'NexusForfait', 'NexusPointageRegles',
+    'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
+    'NexusForfait', 'NexusPointageRegles',
     'NexusCarburantDonnees', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
+    'nexusEcranOperationnelAtteignable',
     ...EXPORTS_PURS,
   ];
   const valeurs = [
     document, { error() {} }, faireClient(reponses),
+    auth.nexusFuseauSite, auth.nexusJourDansFuseau,
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
     { chargerStatutJaugeageJour: async () => statutJaugeage },
@@ -163,6 +199,7 @@ async function executerAccueil({
     etapes => { rendus.etapes = etapes; rendus.pct = purs.calculerPourcentageProgressionService(etapes); },
     action => { rendus.action = action; },
     (codes, libelleRole, titreSection) => { Object.assign(rendus, { tuiles: codes, libelleRole, titreSection }); },
+    nexusEcranOperationnelAtteignable,
     ...EXPORTS_PURS.map(n => purs[n]),
   ];
   // Le `ctx` réellement construit par l'orchestrateur est capté au passage.
@@ -299,16 +336,30 @@ async function cas(nom, entree, controles) {
   // =========================================================================
   // B. EN SERVICE — le rôle du jour commande, et il est nommé
   // =========================================================================
+  // L'arrivée est POINTÉE par défaut dans cette section (18/09/2026, second
+  // lot). Ce n'est pas une commodité : sans elle, aucun écran opérationnel
+  // n'est atteignable (seconde garde de nexusRequireAuth), les tuiles
+  // retombent sur le repli « Pointer mon arrivée », et la section B
+  // cesserait de mesurer ce qu'elle prétend mesurer — le rôle du jour. Le cas
+  // « en service, arrivée non pointée » a désormais sa propre section E.
   const enService = (role, extra = {}) => ({
     employee: employe(), roleDuJour: role, pointageActifSite: true, quartDuJour: 'matin',
     serviceCourant: service(role),
-    reponses: { mission_catalog: { data: catalogue(role), error: null } },
+    reponses: {
+      mission_catalog: { data: catalogue(role), error: null },
+      pointages: { data: [{ type: 'arrivee', service_id: `svc-${role}` }], error: null },
+    },
     forfait: 'professional', receptionRole: 'employe', ...extra,
   });
+  // Le même état, arrivée NON pointée — ce que voit un employé qui a pris son
+  // poste mais n'a pas encore pointé.
+  const enServiceSansArrivee = (role, extra = {}) => enService(role, {
+    reponses: { mission_catalog: { data: catalogue(role), error: null } }, ...extra,
+  });
 
-  await cas('B1 · pompiste en service, arrivée non pointée', enService('pompiste'),
+  await cas('B1 · pompiste en service, arrivée pointée', enService('pompiste'),
     ({ rendus, journal, verifier, verifierQue }) => {
-      verifier('prochaine action = pointer l’arrivée', rendus.action.lienTexte, 'Pointer l’arrivée →');
+      verifier('écrans opérationnels atteignables', rendus.ctx.operationnelAtteignable, true);
       verifierQue('barre de progression affichée', rendus.pct !== null, `pct = ${rendus.pct}`);
       verifier('libellé du rôle transmis aux tuiles', rendus.libelleRole, 'Pompiste');
       verifier('titre de section', rendus.titreSection, 'Mes outils du quart');
@@ -403,6 +454,145 @@ async function cas(nom, entree, controles) {
     verifier('Ouverture cochée', rendus.etapes.find(e => e.code === 'ouverture').etat.statut, 'fait');
     verifier('Clôture cochée', rendus.etapes.find(e => e.code === 'cloture').etat.statut, 'fait');
   });
+
+  // =========================================================================
+  // P. LA SECONDE PORTE — « en service » ne suffit pas (18/09/2026, 2e lot)
+  //
+  // `nexusRequireAuth` pose DEUX questions. Le premier lot du 18/09 n'avait
+  // fermé que la première (aucun service ouvert). Le parcours connecté sur
+  // Test a montré la seconde, restée grande ouverte : S2 (pompiste) et S5
+  // (caissière `professional`), en service mais arrivée non pointée,
+  // recevaient les tuiles Missions, Inventaire, FDJ et Réception, et les
+  // quatre écrans rebondissaient vers NEXUS-Pointage-v1.html. S6, arrivée
+  // pointée, les ouvrait. Les cas ci-dessous sont ce relevé, figé.
+  // =========================================================================
+  await cas('P1 · pompiste en service, arrivée non pointée (défaut S2)',
+    enServiceSansArrivee('pompiste'),
+    ({ rendus, journal, verifier, verifierQue }) => {
+      verifier('écran opérationnel non atteignable', rendus.ctx.operationnelAtteignable, false);
+      verifier('tuiles : le geste qui débloque, et rien qui rebondisse',
+        rendus.tuiles, ['pointage', 'progression', 'planning', 'evolution']);
+      verifier('titre de section', rendus.titreSection, 'Mes écrans');
+      verifier('phrase du Coach', journal.textes.conseillerEmployeTexte,
+        'Pointez votre arrivée : vos missions et vos contrôles s’ouvriront ensuite.');
+      verifier('prochaine action = pointer l’arrivée', rendus.action.lienTexte, 'Pointer l’arrivée →');
+      verifier('lien de la prochaine action', rendus.action.lien, 'NEXUS-Pointage-v1.html');
+      // Ce qui reste VRAI : le service existe, et ses contrôles sont bien
+      // applicables. Ils ne sont pas encore atteignables — c'est autre chose,
+      // et la barre de progression continue donc de les compter.
+      verifierQue('barre de progression affichée : le service a commencé',
+        rendus.pct !== null, `pct = ${rendus.pct}`);
+      verifier('inventaire toujours applicable', rendus.ctx.inventaireApplicable, true);
+      verifierQue('statut : le service est bien en cours',
+        journal.textes.conseillerEmployeStatut.includes('Pompiste · '),
+        journal.textes.conseillerEmployeStatut);
+    });
+
+  await cas('P2 · caissière professional, arrivée non pointée (défaut S5)',
+    enServiceSansArrivee('caissiere'),
+    ({ rendus, verifier, verifierQue }) => {
+      verifierQue('aucune tuile FDJ qui rebondirait',
+        !rendus.tuiles.includes('fdj'), JSON.stringify(rendus.tuiles));
+      verifierQue('aucune tuile Missions qui rebondirait',
+        !rendus.tuiles.includes('missions'), JSON.stringify(rendus.tuiles));
+      verifierQue('aucune tuile Inventaire qui rebondirait',
+        !rendus.tuiles.includes('inventaire'), JSON.stringify(rendus.tuiles));
+      // FDJ reste APPLICABLE — le forfait et le rôle n'ont pas changé. Le
+      // contrôle est dû, il n'est simplement pas encore ouvrable.
+      verifier('FDJ toujours applicable', rendus.ctx.fdjApplicable, true);
+    });
+
+  await cas('P3 · contre-témoin : la même caissière, arrivée pointée (S6)',
+    enService('caissiere'),
+    ({ rendus, journal, verifier, verifierQue }) => {
+      verifier('écrans opérationnels atteignables', rendus.ctx.operationnelAtteignable, true);
+      verifierQue('FDJ de nouveau prescrit', rendus.tuiles.includes('fdj'), JSON.stringify(rendus.tuiles));
+      verifier('titre de section', rendus.titreSection, 'Mes outils du quart');
+      verifierQue('le Coach reprend le travail du quart',
+        !/Pointez votre arrivée/.test(journal.textes.conseillerEmployeTexte),
+        journal.textes.conseillerEmployeTexte);
+    });
+
+  // Un site qui a désactivé le pointage n'exige jamais l'arrivée : la garde
+  // `nexusPointageArriveeManquant` s'y arrête d'elle-même
+  // (`pointage_actif = false`). Promettre « Mes écrans » là serait un faux
+  // blocage, aussi grave que la fausse promesse inverse.
+  await cas('P4 · site sans pointage, service ouvert',
+    enServiceSansArrivee('pompiste', { pointageActifSite: false }),
+    ({ rendus, journal, verifier, verifierQue }) => {
+      verifier('atteignable sans arrivée', rendus.ctx.operationnelAtteignable, true);
+      verifierQue('tuile Missions rendue', rendus.tuiles.includes('missions'), JSON.stringify(rendus.tuiles));
+      verifier('titre de section', rendus.titreSection, 'Mes outils du quart');
+      verifierQue('aucune invitation à pointer sur un site sans pointage',
+        !/Pointez votre arrivée/.test(journal.textes.conseillerEmployeTexte),
+        journal.textes.conseillerEmployeTexte);
+    });
+
+  // LA DISTINCTION QUI FAIT TOUT : la garde regarde l'arrivée de la JOURNÉE,
+  // la barre de progression compte par SERVICE (correctif du 13/09/2026).
+  // Deux quarts le même jour, arrivée pointée sur le premier : la garde
+  // laisse passer, donc l'accueil doit proposer les écrans — tout en
+  // rappelant de pointer l'arrivée de ce second quart.
+  await cas('P5 · second service du jour, arrivée pointée sur le premier',
+    enServiceSansArrivee('pompiste', {
+      reponses: {
+        mission_catalog: { data: catalogue('pompiste'), error: null },
+        pointages: {
+          data: [{ type: 'arrivee', service_id: 'svc-du-matin' }, { type: 'depart', service_id: 'svc-du-matin' }],
+          error: null,
+        },
+      },
+    }),
+    ({ rendus, verifier, verifierQue }) => {
+      verifier('atteignable : la garde regarde la journée', rendus.ctx.operationnelAtteignable, true);
+      verifierQue('tuile Missions rendue', rendus.tuiles.includes('missions'), JSON.stringify(rendus.tuiles));
+      // Et pourtant l'arrivée de CE service n'est pas pointée : les deux
+      // vérités cohabitent sans se contredire.
+      verifier('arrivée du service courant non pointée', rendus.ctx.arriveeFaite, false);
+      verifier('la carte rappelle de pointer ce quart', rendus.action.lienTexte, 'Pointer l’arrivée →');
+    });
+
+  // Une consultation externe n'est jamais renvoyée au pointage : les deux
+  // gardes l'exemptent. Elle n'a pourtant rien d'opérationnel à faire — d'où
+  // la tuile de repli SANS prise de poste (déjà mesuré en A3).
+  await cas('P6 · consultation externe, service ouvert, arrivée non pointée',
+    enServiceSansArrivee('pompiste', { employee: employe({ consultation_externe: true }) }),
+    ({ rendus, journal, verifier, verifierQue }) => {
+      verifier('exemptée par les deux gardes', rendus.ctx.operationnelAtteignable, true);
+      verifierQue('aucune invitation à pointer',
+        !/Pointez votre arrivée/.test(journal.textes.conseillerEmployeTexte),
+        journal.textes.conseillerEmployeTexte);
+    });
+
+  // La règle elle-même, appelée directement. Les six cas ci-dessus l'exercent
+  // à travers l'accueil, ce qui est l'essentiel — mais deux de ses états ne
+  // sont pas atteignables par cet écran : un `pointageActif` indéterminé
+  // (`chargerPointageActif` rend toujours un booléen strict) et « hors
+  // service alors que l'arrivée du jour est pointée » (fin de journée). Ces
+  // deux-là se mesurent ici, sur la fonction pure.
+  {
+    const nom = 'P7 · la règle, appelée directement';
+    const atteignable = etat => nexusEcranOperationnelAtteignable(etat);
+    // Le défaut est « pointage exigé » : une erreur réseau ou une colonne
+    // absente ne doit pas faire promettre un écran que la garde refermera.
+    verifier(nom, 'pointageActif indéterminé ⇒ arrivée exigée',
+      atteignable({ enService: true, arriveePointeeJour: false }), false);
+    verifier(nom, 'pointageActif null ⇒ arrivée exigée',
+      atteignable({ enService: true, arriveePointeeJour: false, pointageActif: null }), false);
+    // La PREMIÈRE porte reste fermée pour elle-même : avoir pointé son
+    // arrivée ce matin n'ouvre pas un écran opérationnel le soir, service
+    // clos. `nexusPriseDePosteManquante` exige un service, point.
+    verifier(nom, 'hors service, même arrivée pointée',
+      atteignable({ enService: false, arriveePointeeJour: true, pointageActif: true }), false);
+    verifier(nom, 'en service et arrivée pointée',
+      atteignable({ enService: true, arriveePointeeJour: true, pointageActif: true }), true);
+    verifier(nom, 'manager exempté des deux gardes',
+      atteignable({ enService: false, arriveePointeeJour: false, estManager: true }), true);
+    verifier(nom, 'consultation externe exemptée des deux gardes',
+      atteignable({ enService: false, arriveePointeeJour: false, consultationExterne: true }), true);
+    verifier(nom, 'un état vide ne promet rien', atteignable({}), false);
+    verifier(nom, 'aucun état ne promet rien', atteignable(undefined), false);
+  }
 
   // =========================================================================
   // D. LE RAPPEL « LES DEUX CHEMINS » — reprendre son poste, changer de rôle
