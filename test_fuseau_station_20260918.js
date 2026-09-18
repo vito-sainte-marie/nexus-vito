@@ -69,6 +69,15 @@ const SERVICE_REELLEMENT_ANCIEN = {
   id: 'svc-ancien', role: 'pompiste', quart: 'matin',
   heure_debut: '2026-09-11T13:00:00Z', site_id: 'site-1', statut: 'en_cours',
 };
+// Un service daté du LENDEMAIN du jour station. Il n'est pas une curiosité de
+// test : une horloge d'appareil déréglée au moment de la prise de poste, une
+// saisie d'avance, ou simplement un site dont le fuseau est corrigé après coup
+// suffisent à en produire un. Vu de Martinique à l'INSTANT du test, son jour
+// métier est le 15 alors que la station est encore au 14.
+const SERVICE_DU_LENDEMAIN_STATION = {
+  id: 'svc-demain', role: 'caissiere', quart: 'matin',
+  heure_debut: '2026-09-15T13:00:00Z', site_id: 'site-1', statut: 'en_cours',
+};
 
 const SCENARIOS = [
   {
@@ -103,6 +112,34 @@ const SCENARIOS = [
     cle: 'S6', quoi: 'fuseau configuré illisible — repli ultramarin, jamais l’appareil',
     fuseauSite: 'Mars/Olympus_Mons', shifts: [SERVICE_DU_JOUR_STATION],
     attendu: { jourStation: '2026-09-14', service: 'svc-du-jour', clotures: [] },
+  },
+  {
+    // LE SYMÉTRIQUE DE S2, ET C'EST TOUT L'ENJEU. `jour différent` n'est pas
+    // `jour antérieur` : le service du 15 n'est pas le service du jour de la
+    // station, donc il n'est pas RETENU — mais il ne doit pas être REFERMÉ
+    // pour autant. La clôture écrit en base, sans geste humain, au simple
+    // retour dans l'application.
+    cle: 'S7', quoi: 'site en Martinique, service daté du LENDEMAIN du jour station',
+    fuseauSite: 'America/Martinique', shifts: [SERVICE_DU_LENDEMAIN_STATION],
+    attendu: { jourStation: '2026-09-14', service: null, clotures: [] },
+  },
+  {
+    // La même ligne, vue d'un site déclaré à Paris : elle devient le service
+    // du jour. La frontière se déplace donc dans les DEUX sens avec le fuseau
+    // du site — S4 le montrait vers le passé, S8 le montre vers l'avenir.
+    cle: 'S8', quoi: 'site déclaré à Paris, mêmes lignes que S7',
+    fuseauSite: 'Europe/Paris', shifts: [SERVICE_DU_LENDEMAIN_STATION],
+    attendu: { jourStation: '2026-09-15', service: 'svc-demain', clotures: [] },
+  },
+  {
+    // LE CAS QUI FAIT VRAIMENT PEUR. Le ménage n'est déclenché que s'il existe
+    // au moins un service ouvert hors du jour ; ici le vieux service l'ouvre,
+    // et la liste à refermer est alors calculée sur TOUS les services ouverts.
+    // Le service du futur doit traverser ce ménage sans une écriture.
+    cle: 'S9', quoi: 'site en Martinique, un vrai ancien ET un service du lendemain',
+    fuseauSite: 'America/Martinique',
+    shifts: [SERVICE_REELLEMENT_ANCIEN, SERVICE_DU_LENDEMAIN_STATION],
+    attendu: { jourStation: '2026-09-14', service: null, clotures: [['svc-ancien', 'jour_precedent']] },
   },
 ];
 
@@ -277,6 +314,26 @@ verifierQue('Un service de trois jours est toujours refermé, motif `jour_preced
 verifierQue('Aucun appareil ne referme le service ouvert le jour même de la station',
   APPAREILS.every(tz => releves[tz].S1.clotures.length === 0),
   'un appareil hors du fuseau de sa station déclenchait cette écriture');
+
+// 4 bis. UN SERVICE DU FUTUR RESTE INTACT, DEPUIS AUCUN APPAREIL ET DANS
+//    AUCUNE CONFIGURATION. Le critère s'écrivait « jour DIFFÉRENT du jour
+//    station » : il attrapait donc aussi l'avenir, sous le motif
+//    `jour_precedent` — un motif faux, et une écriture (`statut`,
+//    `cloture_source`, `cloture_motif`, `cloture_par`) sur un service qui
+//    n'avait pas commencé.
+verifierQue('Aucun appareil ne referme un service daté du futur',
+  APPAREILS.every(tz => releves[tz].S7.clotures.length === 0),
+  'la clôture ne doit mordre que sur le jour PASSÉ, jamais sur un jour à venir');
+verifierQue('Un service du futur n’est pas non plus RETENU comme service du jour',
+  APPAREILS.every(tz => releves[tz].S7.service === null),
+  'ne pas le refermer ne veut pas dire le prendre pour le quart en cours');
+verifierQue('Le ménage déclenché par un vrai ancien n’emporte pas le service du futur',
+  APPAREILS.every(tz => releves[tz].S9.clotures.length === 1
+    && releves[tz].S9.clotures[0][0] === 'svc-ancien'),
+  'S9 : le vieux service ouvre le ménage, celui du lendemain doit le traverser intact');
+verifierQue('Le fuseau du site déplace la frontière vers l’avenir aussi (S7 / S8)',
+  APPAREILS.every(tz => releves[tz].S7.service === null && releves[tz].S8.service === 'svc-demain'),
+  'mêmes lignes, deux sites : le jour métier n’est pas une propriété de la ligne');
 
 // 5. LE FUSEAU LU EST CELUI DU SITE, PAS UNE CONSTANTE.
 verifierQue('Changer le fuseau du site change la décision (S1 en Martinique / S4 à Paris)',

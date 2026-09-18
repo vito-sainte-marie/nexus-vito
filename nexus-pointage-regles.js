@@ -176,9 +176,12 @@
    *
    * DEUX CRITÈRES, ET PAS UN DE PLUS :
    *
-   * 1. `jour_precedent` — le service a commencé un autre jour STATION que
+   * 1. `jour_precedent` — le service a commencé un jour STATION ANTÉRIEUR à
    *    celui en cours. C'est le critère de `serviceDuJourSeulement`, appliqué
-   *    ici à la clôture au lieu du rattachement.
+   *    ici à la clôture au lieu du rattachement — mais avec une différence
+   *    que le nom du motif dit déjà : le rattachement écarte tout jour
+   *    DIFFÉRENT, la clôture ne referme que le jour PASSÉ. Un service daté du
+   *    futur n'est pas obsolète, il n'a pas commencé.
    *
    * 2. `quart_termine` — le service a commencé le jour même, sur le quart du
    *    matin, et l'heure locale de la station a dépassé le seuil de bascule
@@ -195,6 +198,10 @@
    * INDÉTERMINATION : sans seuil exploitable, le critère 2 ne conclut rien
    * (et ne conclut surtout pas « terminé »). Le critère 1 reste évaluable.
    *
+   * UN SERVICE DU FUTUR EST RENDU INTACT, par aucun des deux critères. La
+   * clôture écrit en base sans geste humain : sur un service qui n'a pas
+   * commencé, le silence est la seule réponse défendable.
+   *
    * @param {object} service              la ligne shifts (heure_debut, quart, statut)
    * @param {object} ctx
    * @param {string} ctx.jourStation      jour station courant, ISO (yyyy-mm-dd)
@@ -208,7 +215,29 @@
     if (!ctx || typeof ctx.jourDeService !== 'function' || !ctx.jourStation) return vide;
 
     const jourDuService = ctx.jourDeService(new Date(service.heure_debut));
-    if (jourDuService !== ctx.jourStation) return { obsolete: true, motif: 'jour_precedent' };
+
+    // ATTENTION : un jour DIFFERENT n'est pas un jour ANTERIEUR.
+    //
+    // Ce test s'ecrivait `!== ctx.jourStation`, et refermait donc aussi les
+    // services dates du FUTUR, sous le motif `jour_precedent` — un motif
+    // faux. Ce n'etait pas une anomalie d'affichage : la cloture ECRIT
+    // (`statut`, `cloture_source`, `cloture_motif`, `cloture_par`) et elle
+    // est declenchee sans geste humain, au retour dans l'application. Un
+    // service pris d'avance — ou date du futur par une horloge d'appareil
+    // deregle, ou par une saisie — etait detruit en silence.
+    //
+    // Les deux valeurs viennent de `Intl` en 'en-CA' : 'AAAA-MM-JJ', mois et
+    // jour toujours sur deux chiffres. L'ordre lexicographique EST donc
+    // l'ordre chronologique, sans conversion ni fuseau a re-appliquer.
+    if (jourDuService < ctx.jourStation) return { obsolete: true, motif: 'jour_precedent' };
+
+    // Jour POSTERIEUR : on ne conclut rien, et surtout pas via le critere 2.
+    // Celui-ci compare `minutesStation` — l'heure du jour COURANT — au seuil
+    // de bascule ; applique a un service qui n'a pas encore commence, il
+    // aurait rendu « quart_termine » des que la station passe l'apres-midi.
+    // Le non-choix est ici le seul choix juste : ce service sera obsolete le
+    // moment venu, par ce meme critere, quand son jour sera passe.
+    if (jourDuService !== ctx.jourStation) return vide;
 
     const estDuMatin = service.quart === 'matin' || service.quart === 'quart1';
     if (!estDuMatin) return vide;

@@ -161,7 +161,7 @@ contrôles sont réellement **applicables** — ils ne sont simplement pas encor
 au lieu de le dater d'après.
 
 Gardé par `test_accueil_hors_service_20260918.js` (98 contrôles) et
-`test_fuseau_station_20260918.js` (81 contrôles), éprouvé par
+`test_fuseau_station_20260918.js` (121 contrôles), éprouvé par
 `outils/mutation-accueil-hors-service.js` (27 défauts réintroduits un à un,
 27 tués, 0 survivant) en trois campagnes : l'écran, la journée métier, la règle
 d'atteignabilité.
@@ -180,14 +180,39 @@ Le fuseau du site (`station_config.fuseau_horaire`, défaut
 parcours rejouées sous six fuseaux d'appareil rendent **six condensés
 identiques au bit près**.
 
+### 4.1 quater — La clôture ne referme que le passé
+
+Une version antérieure de ce document rangeait le point suivant parmi les
+« anomalies mineures », **non traitées**, au motif qu'« en usage réel, un
+service du futur ne devrait pas exister ». Ce classement était faux sur les
+deux termes, et il est corrigé ici.
+
+`serviceObsolete` testait `jourDuService !== ctx.jourStation`. Un jour
+**différent** n'est pas un jour **antérieur** : un service daté du lendemain
+était donc refermé, sous le motif `jour_precedent` — un motif faux.
+
+Ce n'était pas une anomalie d'affichage. La clôture **écrit**
+(`statut`, `cloture_source`, `cloture_motif`, `cloture_par`) et elle part
+**sans geste humain**, au simple retour dans l'application. Quant à l'usage
+réel : une horloge d'appareil déréglée à la prise de poste, une saisie
+d'avance ou un fuseau de site corrigé après coup suffisent à produire un tel
+service. Il était détruit en silence.
+
+Le test est désormais `jourDuService < ctx.jourStation` — légitime sans
+conversion, les deux valeurs venant d'`Intl` en `'en-CA'` où l'ordre
+lexicographique **est** l'ordre chronologique. Et le jour postérieur rend
+explicitement « pas obsolète », sans passer au second critère : celui-ci
+compare `minutesStation`, l'heure du jour **courant**, et aurait conclu
+« quart terminé » dès l'après-midi sur un service qui n'a pas commencé.
+
+Gardé à deux niveaux : la règle seule
+(`test_cycle_services_pilote_20260916.js`, deux cas ajoutés dont la frontière
+au jour près — changement de mois et d'année dans les deux sens) et la chaîne
+complète jusqu'à l'écriture (`test_fuseau_station_20260918.js`, scénarios S7 à
+S9 : le service du lendemain reste intact depuis les trois appareils, y compris
+lorsqu'un vrai service ancien déclenche le ménage dans le même passage).
+
 ### 4.2 — Ce qui reste ouvert
 
 Les trois lots du §3 (`polyvalent` à trancher, finesse de `PAGES_INDEX`, note de
 conception) n'ont pas été touchés. Ils restent à arbitrer.
-
-S'y ajoute une anomalie mineure relevée par le parcours S4 et **non traitée**
-ici : `nexusCloturerServicesObsoletes` referme tout service dont le jour métier
-n'est pas celui du jour, avec le motif `jour_precedent` — sans distinguer
-« jour antérieur » de « jour postérieur ». Un service daté du futur est donc
-refermé sous un motif faux. Hors périmètre de ce lot : en usage réel, un service
-du futur ne devrait pas exister.
