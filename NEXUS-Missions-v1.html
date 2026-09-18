@@ -2363,7 +2363,17 @@
     SITE_ACTUEL = employee.site_id;
 
     if (!employee.consultation_externe) {
-      const shiftDuJour = await chargerShiftAujourdhui(employeeCourant || { id: employeeId, site_id: SITE_ACTUEL });
+      // 18/09/2026 — `employeeCourant` n'existe PAS dans cet écran. Le nom
+      // vient d'Inventaire, où il désigne l'employé résolu ; recopié ici, il
+      // n'était déclaré nulle part. Lire un identifiant non déclaré lève une
+      // ReferenceError AVANT que le `||` ne soit évalué : le repli ne
+      // protégeait de rien, l'initialisation cassait et l'écran restait
+      // blanc pour tout employé en service (la branche `consultation_externe`
+      // passait à côté, d'où un défaut invisible en consultation).
+      // L'employé est déjà là, sous le nom que tous les autres écrans lui
+      // donnent — Pointage, Cockpit, Brief et App appellent tous la primitive
+      // avec `employee`.
+      const shiftDuJour = await chargerShiftAujourdhui(employee);
       if (!shiftDuJour) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;
