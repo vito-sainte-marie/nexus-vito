@@ -979,13 +979,18 @@
       .filter(a => a.mission); // ignore une assignation orpheline (mission désactivée entre-temps)
   }
 
+  // 18/09/2026 — L'ordre des deux écritures est inversé : la complétion est
+  // enregistrée D'ABORD, l'assignation n'est close qu'ensuite. Avant,
+  // l'assignation passait à "terminee" puis la complétion était tentée ; si
+  // elle était refusée (ce qui était le cas de tout site autre que
+  // vito-sainte-marie, cf. sauvegarderCompletionSupabase), la mission
+  // disparaissait de la liste du manager sans qu'aucune complétion
+  // n'existe en face. Dans ce sens-ci, un refus ne laisse aucune trace à
+  // défaire : rien n'a bougé, et la mission reste à faire.
+  //
+  // Retourne true/false — l'appelant ne rafraîchit et n'annonce qu'après
+  // confirmation.
   async function cloturerMissionAssignee(assigneeId, missionId, titre, points) {
-    const { error } = await nexusClient
-      .from('mission_assignments')
-      .update({ status: 'terminee', updated_at: new Date().toISOString() })
-      .eq('id', assigneeId);
-    if (error) { console.error('Clôture mission assignée:', error); return; }
-
     const entry = {
       mission_id: missionId, titre,
       date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
@@ -995,8 +1000,24 @@
       // mission sans preuve requise.
       statut_validation: 'valide',
     };
+    const resultat = await sauvegarderCompletionSupabase(employeeId, entry);
+    if (!resultat.ok) { alert(resultat.message); return false; }
+
+    const { error } = await nexusClient
+      .from('mission_assignments')
+      .update({ status: 'terminee', updated_at: new Date().toISOString() })
+      .eq('id', assigneeId);
+    if (error) {
+      // La complétion, elle, est bien enregistrée : les points sont acquis.
+      // Seule la clôture de l'assignation a échoué — on le dit plutôt que
+      // de laisser croire que rien ne s'est passé.
+      console.error('Clôture mission assignée:', error);
+      completionsCache.push(entry);
+      alert("Mission enregistrée, mais elle n'a pas pu être retirée de vos missions assignées — signalez-le à votre manager.");
+      return true;
+    }
     completionsCache.push(entry);
-    await sauvegarderCompletionSupabase(employeeId, entry);
+    return true;
   }
 
   async function renderMissionsAssignees() {
@@ -1036,7 +1057,11 @@
           e.stopPropagation();
           btn.disabled = true;
           btn.textContent = 'Enregistrement…';
-          await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+          // 18/09/2026 — Le résultat est exploité : un refus rend la main au
+          // bouton tout de suite (la mission est restée à faire) au lieu de
+          // le laisser figé sur "Enregistrement…".
+          const enregistree = await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+          if (!enregistree) { btn.disabled = false; btn.textContent = '✓ Marquer comme terminée'; return; }
           renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
           await renderMissionsAssignees();
         });
@@ -1066,7 +1091,9 @@
         e.stopPropagation();
         btn.disabled = true;
         btn.textContent = 'Enregistrement…';
-        await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+        // 18/09/2026 — Idem : un refus rend la main au bouton.
+        const enregistree = await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+        if (!enregistree) { btn.disabled = false; btn.textContent = '✓ Marquer comme terminée'; return; }
         renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
         await renderMissionsAssignees();
       });
@@ -1264,11 +1291,35 @@
     return data || [];
   }
 
+  // 18/09/2026 — Cette fonction n'envoyait PAS `site_id`. La colonne
+  // `mission_completions.site_id` est NOT NULL DEFAULT 'vito-sainte-marie',
+  // et la politique RLS exige `site_id = current_employee_site_id()` :
+  // l'écriture ne réussissait donc que pour le site historique et était
+  // refusée (42501) partout ailleurs. Comme l'échec n'était que consigné
+  // dans la console, l'écran annonçait "✓ Validée aujourd'hui" et les
+  // points obtenus alors que rien n'avait été enregistré — tout retombait
+  // à zéro au rechargement suivant. C'est le défaut que
+  // `sauvegarderProgressionItem` a déjà corrigé plus bas ; ici il était
+  // resté.
+  //
+  // `site_id` est donc envoyé explicitement, depuis le site de l'employé
+  // connecté. S'il est absent, on REFUSE d'écrire plutôt que de laisser la
+  // base retomber sur 'vito-sainte-marie' : une complétion attribuée au
+  // mauvais site est pire qu'une complétion refusée, car elle est
+  // invisible pour celui qui devrait la voir.
+  //
+  // Retourne { ok, message } plutôt que d'avaler l'erreur : l'appelant ne
+  // doit annoncer la validation qu'une fois l'enregistrement confirmé.
   async function sauvegarderCompletionSupabase(empId, entry) {
+    if (!SITE_ACTUEL) {
+      console.error('Sauvegarde complétion : site de l\'employé inconnu, écriture refusée.');
+      return { ok: false, message: "Votre site n'a pas pu être identifié : la mission n'a pas été enregistrée. Rechargez la page, puis réessayez." };
+    }
     const { error } = await nexusClient
       .from('mission_completions')
       .insert({
-        employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
+        employee_id: empId, site_id: SITE_ACTUEL,
+        mission_id: entry.mission_id, titre: entry.titre,
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,
         employes_presents: entry.employes_presents || null,
@@ -1279,7 +1330,11 @@
         // NEXUS-Resultats-Equipe-v1.html pour l'action de validation.
         statut_validation: entry.statut_validation || 'valide',
       });
-    if (error) console.error('Sauvegarde complétion:', error);
+    if (error) {
+      console.error('Sauvegarde complétion:', error);
+      return { ok: false, message: "La mission n'a pas pu être enregistrée. Elle n'est pas validée — réessayez." };
+    }
+    return { ok: true };
   }
 
   // Redimensionnement côté client avant envoi (05/08/2026, retour employé —
@@ -2330,11 +2385,30 @@
             // autres restent créditées immédiatement.
             statut_validation: mission.proof_required ? 'en_attente' : 'valide',
           };
-          completionsCache.push(entry); // re-rendu optimiste
+          // 18/09/2026 — Plus de re-rendu optimiste ici. Avant, l'entrée
+          // était poussée dans le cache et l'écran repeint AVANT l'appel —
+          // qui n'était même pas attendu : "✓ Validée aujourd'hui" et les
+          // points s'affichaient quoi qu'il arrive, et tout retombait à
+          // zéro au rechargement suivant. C'est précisément ce mensonge
+          // qu'il faut supprimer : rien n'est annoncé tant que
+          // l'enregistrement n'est pas confirmé.
+          //
+          // Le bouton porte l'attente ("Enregistrement…"), et en cas de
+          // refus l'état d'avant le clic est rétabli — libellé, bouton
+          // réactivé, produit ciblé conservé — puis l'employé est prévenu.
+          btn.disabled = true;
+          btn.textContent = 'Enregistrement…';
+          const resultat = await sauvegarderCompletionSupabase(employeeId, entry);
+          if (!resultat.ok) {
+            btn.disabled = false;
+            btn.textContent = libelleInitial;
+            alert(resultat.message);
+            return;
+          }
+          completionsCache.push(entry);
           delete produitCibleState[missionId]; // repart propre pour la prochaine fois
           render();
           renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
-          sauvegarderCompletionSupabase(employeeId, entry);
         };
 
         if (mission.proof_required) {
