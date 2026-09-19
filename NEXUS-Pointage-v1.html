@@ -444,15 +444,27 @@
    * se calcule contre le Planning et les Paramètres Station, jamais contre
    * l'heure d'ouverture d'un service. Voir retardDeLArrivee().
    *
-   * DETTE CONNUE, hors périmètre du mandat 33 : nexus-pointage-regles.js
-   * porte la même règle, paramétrée par le découpage du jour. Les deux
-   * corps sont identiques aujourd'hui ; les réunir demande de fournir le
-   * module aux tests qui jouent cette fonction seule, ce qui n'a rien à
-   * voir avec les horaires et sera traité à part.
+   * `jourDeService` reçoit une date et rend son jour station : ce fichier
+   * ne lit aucune horloge et ne décide d'aucun fuseau. C'est le contrat du
+   * module, repris à l'identique.
+   *
+   * 19/09/2026, mandat 38 §3 — CE PARAMÈTRE N'EXISTAIT PAS ICI, ET C'ÉTAIT
+   * LE DÉFAUT. Le commentaire ci-dessus disait déjà « le même jour station »,
+   * mais le corps convertissait `heure_debut` avec le calendrier de
+   * l'APPAREIL, quand `jourDuPointage` venait, lui, du site. Les deux côtés
+   * de cette égalité ne parlaient donc pas de la même journée dès que le
+   * téléphone n'était pas réglé sur le fuseau de la station : un service
+   * bien ouvert le jour même était rejeté comme « service de la veille »,
+   * le quart retombait sur 'non_defini' et l'écran annonçait « aucun poste
+   * ouvert » à quelqu'un qui venait de prendre le sien.
+   *
+   * DETTE CONNUE, toujours ouverte : nexus-pointage-regles.js porte la même
+   * règle et le même corps. Les réunir demande de fournir le module aux
+   * tests qui jouent cette fonction seule, et sera traité à part.
    */
-  function serviceDuJourSeulement(shiftActif, jourDuPointage) {
+  function serviceDuJourSeulement(shiftActif, jourDuPointage, jourDeService) {
     if (!shiftActif || !shiftActif.heure_debut) return null;
-    return dateISOLocale(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
+    return jourDeService(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
   }
   const LABELS_TYPES = {
     // consignePhoto (28/07/2026, demande de Frédéric) : précise ce qui
@@ -691,9 +703,55 @@
   function heureLocale() {
     return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
-  function dateISOLocale(d) {
-    d = d || new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // ────────────────────────────────
+  // LE JOUR MÉTIER, EN DEUX ÉTAPES (19/09/2026, mandat 38 §3)
+  //
+  // 1. le fuseau du SITE ; 2. le jour que ce fuseau donne à l'instant du
+  // geste. Jamais le jour de l'APPAREIL.
+  //
+  // CE QUI PRÉCÉDAIT : `dateISOLocale` lisait getFullYear/getMonth/getDate,
+  // c'est-à-dire le calendrier du téléphone. Un pointage fait à 21 h à
+  // Sainte-Marie depuis un appareil resté réglé sur Paris était écrit au
+  // LENDEMAIN : la ligne existait bien en base, mais dans une journée où
+  // plus personne ne la relisait. L'historique du jour ne la montrait plus,
+  // les boutons se rouvraient comme si rien n'avait été pointé, et le
+  // tableau de l'équipe ne la voyait pas. Le même écart datait les
+  // complétions de Missions — corrigé là-bas le 18/09, pas ici.
+  //
+  // La primitive n'est pas réécrite ici : `nexusFuseauSite` et
+  // `nexusJourDansFuseau` (nexus-auth.js, bloc NEXUS-FUSEAU-METIER) sont
+  // celles dont `nexusServiceCourant` se sert déjà pour décider quel
+  // service est celui du jour. Dater un pointage autrement que le service
+  // auquel il se rattache rouvrirait l'écart par l'autre bout.
+  //
+  // Asynchrone, et aucun fuseau n'est retenu à l'écran : `nexusFuseauSite`
+  // mémorise déjà par site, la deuxième lecture ne coûte rien, et il n'y a
+  // aucun instant où cet écran travaillerait avec un fuseau pas encore
+  // chargé. L'horloge est relue à chaque appel : une session laissée ouverte
+  // de part et d'autre de minuit change de journée toute seule.
+  //
+  // DEUX LECTEURS DE FUSEAU COEXISTENT DANS NEXUS, et ce n'est pas un oubli
+  // de ce lot : `nexusFuseauSite` lit `station_config.fuseau_horaire` et
+  // replie sur America/Martinique ; `NexusStation.fuseauDeLaStation` lit
+  // `sites.timezone` et refuse tout repli. Chacun a raison sur son objet —
+  // DATER ne doit bloquer personne, CALCULER UN RETARD ne doit rien
+  // inventer (mandat 33). C'est donc celui-ci qui date, et `retardDeLArrivee`
+  // qui exige l'autre. Leur accord n'est pas supposé : leur désaccord est
+  // rattrapé explicitement, voir la garde des deux jours dans
+  // `retardDeLArrivee`.
+  // ────────────────────────────────
+  async function jourStationDe(siteId, instant) {
+    return nexusJourDansFuseau(instant || new Date(), await nexusFuseauSite(siteId));
+  }
+
+  // Le même découpage, rendu sous forme de fonction, pour les règles qui
+  // datent une autre date que « maintenant » — l'ouverture d'un service, par
+  // exemple. Elles reçoivent le découpeur plutôt que de lire un fuseau
+  // elles-mêmes : c'est le contrat de nexus-pointage-regles.js, où aucune
+  // règle ne connaît ni horloge ni fuseau.
+  async function decoupeurDeJours(siteId) {
+    const fuseau = await nexusFuseauSite(siteId);
+    return instant => nexusJourDansFuseau(instant, fuseau);
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -780,24 +838,36 @@
   // Le retard de CE pointage, en minutes — ou null s'il n'est pas
   // calculable. Chaque `return null` ci-dessous est un refus explicite, et
   // aucun ne doit être relu comme « employé à l'heure ».
-  async function retardDeLArrivee(type, employee, jourAppareil, heureRetenue) {
+  async function retardDeLArrivee(type, employee, jourDuPointage, heureRetenue) {
     if (NexusPointageRegles.TYPES_AVEC_HEURE_ATTENDUE.indexOf(type) === -1) return null;
     try {
-      const affectation = await affectationPlanifiee(employee, jourAppareil);
+      const affectation = await affectationPlanifiee(employee, jourDuPointage);
       if (!affectation) return null;
 
       // Le fuseau du site RÉELLEMENT TRAVAILLÉ : c'est lui qui déclare
       // l'horaire, c'est donc dans son heure locale que l'arrivée se juge.
+      // Et il vient de `sites.timezone` par `NexusStation`, qui REFUSE tout
+      // repli : calculer un retard contre un fuseau deviné produirait un
+      // chiffre faux, là où dater ne peut que se tromper de case (mandat 33).
       const fuseau = await fuseauDuSite(affectation.site);
       if (!fuseau) return null;
 
-      // Le pointage est daté avec le jour de l'APPAREIL (`dateISOLocale`),
-      // et c'est ce jour-là qui a servi à lire le planning. S'il ne coïncide
-      // pas avec le jour de la station, les deux côtés de la soustraction ne
-      // parlent pas de la même journée : on ne conclut pas.
-      if (NexusStation.dateLocaleStation(fuseau, heureRetenue) !== jourAppareil) return null;
+      // LES DEUX CÔTÉS DE LA SOUSTRACTION DOIVENT PARLER DE LA MÊME JOURNÉE.
+      // `jourDuPointage` est le jour du site de RATTACHEMENT de l'employé
+      // (jourStationDe, via station_config.fuseau_horaire), et c'est lui qui
+      // a servi à lire le planning. Ici on tient le jour du site TRAVAILLÉ,
+      // lu dans sites.timezone. Deux causes peuvent les séparer, et cette
+      // garde les attrape toutes les deux :
+      //   1. un transfert vers un site d'un autre fuseau ;
+      //   2. un désaccord entre station_config.fuseau_horaire et
+      //      sites.timezone pour un même site — les deux colonnes existent,
+      //      rien ne les tient ensemble, et `vito-sainte-marie` les a déjà
+      //      en désaccord sur Test (fuseau_horaire NULL, donc repli).
+      // Dans les deux cas on ne conclut pas : pas de retard inventé, pas de
+      // « à l'heure » inventé non plus.
+      if (NexusStation.dateLocaleStation(fuseau, heureRetenue) !== jourDuPointage) return null;
 
-      const hhmm = await heureDebutDue(affectation, jourAppareil);
+      const hhmm = await heureDebutDue(affectation, jourDuPointage);
       if (!hhmm) return null;
 
       return NexusPointageRegles.retardDuPointage({ type }, {
@@ -894,7 +964,7 @@
   });
 
   async function afficherEquipeManager(siteId) {
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
     const [{ data: equipe }, { data: pointagesJour }] = await Promise.all([
       nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true),
       nexusClient.from('pointages').select('employee_id, type, heure').eq('site', siteId).eq('date', today),
@@ -940,7 +1010,8 @@
   }
 
   async function afficherFormulairePointage(employee, siteId) {
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
+    const jourDeService = await decoupeurDeJours(siteId);
     // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
     // qui fait repartir une tentative restée sur l'appareil après une coupure,
     // une fermeture du navigateur, ou une session expirée puis rouverte.
@@ -1009,7 +1080,7 @@
     //
     // L'historique reste celui de la journée : c'est le contexte que
     // l'employée veut voir. Ce qui est « déjà fait » devient celui du service.
-    const serviceCourant = serviceDuJourSeulement(shiftActif, today);
+    const serviceCourant = serviceDuJourSeulement(shiftActif, today, jourDeService);
     const dejaFait = {};
     (pointagesJour || [])
       .filter(p => serviceCourant && p.service_id === serviceCourant.id)
@@ -1021,7 +1092,7 @@
     // réellement DISPONIBLE, la même règle que les boutons appliquent.
     const prochainType = ORDRE_TYPES.find(t => pointageDisponible(t, dejaFait));
 
-    if (!serviceDuJourSeulement(shiftActif, today)) {
+    if (!serviceDuJourSeulement(shiftActif, today, jourDeService)) {
       // Le compteur de l'en-tête vit HORS de #app et n'est remis à jour que
       // par les affectations du rendu complet, plus bas. Sortir sans les
       // exécuter le laissait tourner : après un départ, l'écran affichait
@@ -1604,7 +1675,7 @@
   async function chargerActiviteJour(employee, siteId) {
     const zone = document.getElementById('activiteJour');
     if (!zone) return;
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
     const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
@@ -1666,7 +1737,10 @@
       ? heureClic
       : now;
     const heure = heureRetenue.toTimeString().slice(0, 8);
-    const today = dateISOLocale(heureRetenue);
+    // LA COLONNE `date` DU POINTAGE, et avec elle le rattachement au service,
+    // la lecture du planning et l'historique du jour : le jour du SITE à
+    // l'instant retenu, jamais celui de l'appareil (mandat 38 §3).
+    const today = await jourStationDe(siteId, heureRetenue);
 
     // Le service de référence doit être CELUI DU JOUR (11/09/2026).
     //
@@ -1683,7 +1757,7 @@
     // pointage, on retombe sur le repli déjà prévu — retard 0, quart
     // 'non_defini', horaire prévu nul. Une absence assumée vaut mieux
     // qu'un retard inventé.
-    const serviceDuJour = serviceDuJourSeulement(shiftActif, today);
+    const serviceDuJour = serviceDuJourSeulement(shiftActif, today, await decoupeurDeJours(siteId));
 
     // LE RETARD EST DE NOUVEAU CALCULÉ (19/09/2026, mandat 33) — mais plus
     // jamais contre `shifts.heure_debut`.

@@ -50,8 +50,17 @@ function fonctionDeLaPage(source, nom, prelude = '') {
 
 const pointageDisponible = fonctionDeLaPage(POINTAGE, 'pointageDisponible');
 const pauseEnCours = fonctionDeLaPage(POINTAGE, 'pauseEnCours');
-const dateISOLocaleSrc = POINTAGE.match(/function dateISOLocale\([\s\S]*?\n  \}/)[0];
-const serviceDuJourSeulement = fonctionDeLaPage(POINTAGE, 'serviceDuJourSeulement', dateISOLocaleSrc);
+// 19/09/2026, mandat 38 §3 — LE DÉCOUPEUR DE JOURS EST DÉSORMAIS INJECTÉ.
+// La page ne convertit plus `heure_debut` avec le calendrier de l'APPAREIL :
+// `serviceDuJourSeulement` reçoit une fonction qui rend le jour du SITE,
+// comme le fait déjà nexus-pointage-regles.js. L'épreuve fournit le sien,
+// fixé sur le fuseau de la station — ce qui la rend enfin déterministe :
+// elle dépendait jusqu'ici du fuseau réglé sur la machine qui la joue, et
+// c'était exactement le défaut qu'elle était censée surveiller.
+const jourStation = d => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(d);
+const serviceDuJourSeulement = fonctionDeLaPage(POINTAGE, 'serviceDuJourSeulement');
 
 // ── Le cœur : partir sans pause ────────────────────────────────────────────
 
@@ -182,22 +191,39 @@ t('le drapeau de clôture ne survit jamais d\'un pointage au suivant', () => {
 
 t('un quart ouvert la VEILLE n\'est plus le service du jour', () => {
   const hier = { heure_debut: '2026-09-10T21:25:41Z', quart: 'soir' };
-  assert.strictEqual(serviceDuJourSeulement(hier, '2026-09-11'), null,
+  assert.strictEqual(serviceDuJourSeulement(hier, '2026-09-11', jourStation), null,
     'le quart de la veille sert encore de référence — le retard de 1028 min revient');
 });
 
 t('un quart ouvert le jour même reste la référence', () => {
-  const aujourdhui = { heure_debut: new Date().toISOString(), quart: 'matin' };
-  const jour = new Date().toISOString().slice(0, 10);
-  const rendu = serviceDuJourSeulement(aujourdhui, jour);
-  // La date locale peut différer de la date UTC en soirée : on ne juge que
-  // la cohérence avec ce que la page calcule elle-même.
-  if (rendu !== null) assert.strictEqual(rendu, aujourdhui);
+  // 11:00 à la Martinique : même journée des deux côtés, sans ambiguïté.
+  const aujourdhui = { heure_debut: '2026-09-11T15:00:00Z', quart: 'matin' };
+  assert.strictEqual(serviceDuJourSeulement(aujourdhui, '2026-09-11', jourStation), aujourdhui,
+    'un service ouvert le jour même est écarté — l\'écran annoncerait « aucun poste ouvert »');
+});
+
+t('LE JOUR VIENT DU SITE, PAS DE L\'APPAREIL', () => {
+  // Un service ouvert à 21:25 à Sainte-Marie le 11/09 : 01:25 UTC le 12/09,
+  // donc « demain » pour un téléphone resté réglé sur Paris ou sur UTC.
+  const ceSoir = { heure_debut: '2026-09-12T01:25:00Z', quart: 'soir' };
+  assert.strictEqual(serviceDuJourSeulement(ceSoir, '2026-09-11', jourStation), ceSoir,
+    'le service du soir est rejeté comme s\'il appartenait au lendemain');
+
+  // MUTATION : le découpeur de l'APPAREIL, celui que la page employait avant
+  // le 19/09. Sur une machine réglée sur la Martinique il répond juste —
+  // c'est bien pourquoi le défaut a survécu si longtemps — alors on le joue
+  // explicitement sur un fuseau européen, qui est le cas relevé.
+  const jourParis = d => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  assert.strictEqual(serviceDuJourSeulement(ceSoir, '2026-09-11', jourParis), null,
+    'le découpeur de l\'appareil rend le même verdict que celui du site : ' +
+    'la garde ne mord pas, elle ne prouve rien');
 });
 
 t('sans service ouvert, aucune référence n\'est inventée', () => {
-  assert.strictEqual(serviceDuJourSeulement(null, '2026-09-11'), null);
-  assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11'), null);
+  assert.strictEqual(serviceDuJourSeulement(null, '2026-09-11', jourStation), null);
+  assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11', jourStation), null);
 });
 
 t('le quart écrit en base suit le service DU JOUR, et le retard n\'est plus dérivé', () => {
