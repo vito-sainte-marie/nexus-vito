@@ -749,6 +749,132 @@ fichier est l'écouteur de clic existant (aucun `await` sur son retour, donc la 
 
 ---
 
+## 10. Source officielle du planning — NEXUS ou Google Sheets (19/09/2026)
+
+Origine : arbitrage de Frédéric du 19/09/2026, au terme du diagnostic « source unique de planning ».
+Avant ce chantier, six lecteurs interrogeaient `planning_shifts` en direct — les écrans Pointage,
+Planning et Mon Planning, et les modules partagés `nexus-station.js` (dont dépend Prise de poste),
+`nexus-pointage-regles.js` et `nexus-paye-donnees.js` — sans jamais dire d'où venait la ligne lue :
+un planning généré par NEXUS et un planning importé d'un classeur Google Sheets cohabitaient dans la
+même table, et le premier consommateur venu prenait la première ligne trouvée. Cette section fixe
+les décisions métier qui sortent de ce chantier. Elles valent pour tout site, pas seulement pour le
+site pilote.
+
+### 10.1 Une seule source fait foi, par site ET par période
+
+`station_config.planning_source` (`'nexus'` ou `'google_sheets'`) dit ce qui fait foi **aujourd'hui**.
+`planning_source_periodes` (`site`, `source`, `source_precedente`, `date_effet`, `auteur_id`,
+`change_le`, `motif` ; unique sur `(site, date_effet)`) dit **depuis quand**. La question « quelle
+source faisait foi le 12 août ? » a donc une réponse, et c'est `source_planning_applicable(site, date)`
+qui la donne — jamais la colonne courante, qui ne sait rien du passé. Un site qui n'a jamais rien
+déclaré vaut `'nexus'` : le comportement historique, explicitement, pas par accident.
+
+Un trigger de cohérence (`planning_source_coherence_controle`) refuse en `23514` toute divergence
+entre les deux côtés. Une bascule est donc indivisible : `station_config.planning_source` et la ligne
+de période s'écrivent dans **la même transaction**, ou rien ne s'écrit. Comme PostgREST ouvre une
+transaction par requête, cela interdit structurellement de basculer depuis l'écran par un `update`
+suivi d'un `insert` : le geste passe par la RPC unique `basculer_source_planning(site, source, motif)`.
+
+### 10.2 Tous les consommateurs lisent la vue, aucun ne lit la table
+
+`v_planning_officiel` (`security_invoker = true`) est le seul lecteur autorisé du planning : mêmes
+colonnes que `planning_shifts`, moins les lignes dont la provenance n'est pas la source applicable à
+leur date. Pointage, Mon Planning, Planning et `nexus-paye-donnees.js` la lisent ; aucun ne lit plus la
+table.
+
+**Zéro ligne rendue pour un jour donné signifie « planning officiel indisponible ».** Jamais
+« repos », jamais « à l'heure ». C'est le prolongement direct de la règle de sécurité métier du
+18/09/2026 : NEXUS ne doit jamais confondre *0 minute de retard* avec *retard impossible à calculer
+faute de source fiable*. Le repli muet qui existait avant ce chantier — prendre n'importe quelle ligne
+plutôt que rien — est supprimé, pas assoupli.
+
+### 10.3 Le jour métier est celui de la STATION, jamais celui de l'appareil
+
+Un pointage, un service et une ligne de planning se datent avec le fuseau du site, en deux étapes :
+(1) le fuseau de la station, (2) le jour que ce fuseau donne à l'instant du geste. Un téléphone réglé
+sur un autre fuseau ne doit plus pouvoir déplacer un service d'une journée. Côté base, la même règle
+est tenue par `planning_jour_station` / `planning_jour_de_ma_station`.
+
+**Dette ouverte, non refermée par ce chantier** : deux lecteurs de fuseau coexistent —
+`nexusFuseauSite` lit `station_config.fuseau_horaire` et replie sur `America/Martinique` ;
+`NexusStation.fuseauDeLaStation` lit `sites.timezone` et refuse tout repli. Leur accord actuel est
+**fortuit**, et il est déjà faux sur la base Test pour `vito-sainte-marie`. À traiter dans un lot
+dédié.
+
+### 10.4 Un import Google Sheets est un brouillon — Importer, Contrôler, Valider et publier
+
+Le parcours retenu par Frédéric est en trois temps, sans raccourci : **Importer → Contrôler → Valider
+et publier**. `importer_planning_google` écrit `publie = false` ; rien de ce qui est importé n'est
+visible des employés ni compté par la paie tant que le manager n'a pas publié explicitement. La
+prévisualisation n'est pas un confort d'affichage : c'est l'étape où les anomalies se tranchent.
+
+La lecture du classeur et le découpage de la grille se font **ailleurs et une seule fois** (Edge
+`google-sheets-sync`, moteur `nexus-planning-sheets-moteur.js`). La fonction SQL ne lit rien et ne
+devine rien : elle reçoit un lot déjà contrôlé et l'écrit. Il n'existe donc pas un lecteur Google
+Sheets dans Pointage et un autre dans Paye.
+
+### 10.5 Aucune correspondance n'est devinée
+
+Deux dictionnaires explicites, portés par `station_config` :
+
+- `planning_alias` — le nom écrit dans le classeur → un employé NEXUS. Jamais de rapprochement
+  approximatif : deux prénoms proches peuvent être deux personnes (même doctrine que
+  `import_product_aliases`).
+- `planning_codes_sites` — un code de cellule → un `site_id` NEXUS existant, contrôlé par
+  `trg_planning_codes_sites_controle` (un site inexistant est refusé en `23503`).
+
+**Un code absent de ce dictionnaire ne vaut pas 7 heures : il ressort en anomalie**, que le manager
+tranche avant de publier. La liste `CODES_SITE_OBSERVES` (`T`, `SME`, `SMU`, `TRINITE`, `UNION`) ne
+vaut plus correspondance depuis le 19/09/2026 ; elle ne sert plus qu'à *nommer* le problème
+(« SMU n'est déclaré nulle part » plutôt que « valeur illisible »). Elle ne produit aucune heure et
+aucun site.
+
+Seul mappage posé par arbitrage : **`SMU` → `vito-sainte-marie`**. Conséquence à retenir : `SMU` est
+aussi le préfixe d'onglet du site lui-même — une cellule `SMU` dans l'onglet `SMU09` **n'est pas un
+transfert**, c'est du travail sur place, et le barème 7/8 selon le jour s'y applique normalement.
+
+### 10.6 Ce que dit le Sheet, ce que dit NEXUS
+
+- `duree_heures` vient du **classeur** (7, 8) : c'est ce que le manager saisit et ce que la paie compte.
+- `heure_debut` / `heure_fin` viennent de **Paramètres Station**, par le moteur unique
+  `calculer_horaires_quart` : c'est l'horaire théorique, celui auquel un retard se mesure.
+
+Les deux peuvent diverger (le Sheet dit 7 là où l'horaire dit 8). Ce n'est pas une erreur à corriger
+en silence, c'est un écart à montrer : aucun des deux n'écrase l'autre. Et quand la station ne déclare
+pas d'horaire pour ce quart, `heure_debut` reste **NULL** — la fonction rend le nombre de lignes
+concernées (`horaires_absents`) pour que l'écran le **dise** au manager au lieu de le taire. Un horaire
+non déclaré est compté, jamais comblé.
+
+### 10.7 Le passé ne se réécrit pas
+
+Une bascule est datée par la **base** (`change_le` en `now()`, `date_effet` sur le jour métier de la
+station), jamais par le navigateur du manager. Seule une bascule prenant effet **le jour même ou dans
+le futur** est corrigible : la policy `update_planning_source_periodes` borne la correction au site de
+l'appelant, aux rôles `manager`/`gerant`, et au jour métier de la station
+(`planning_bascule_modifiable`). Une bascule passée reste telle qu'elle a été faite — se raviser
+s'écrit par une nouvelle période, pas par une réécriture.
+
+Cette correction du jour même existe pour une raison précise : la clé `(site, date_effet)` étant
+unique, un manager qui bascule puis se ravise dans la même journée heurterait sinon un `23505` sans
+recours.
+
+### 10.8 Paye ne gagne aucune fonction de ce chantier
+
+Décision explicite de Frédéric : « Ne développe pas maintenant de nouvelles fonctions Paye. Préserve
+simplement ce contrat architectural dans la conception de la source Planning. » Le seul changement
+côté paie est le lecteur — `nexus-paye-donnees.js` lit désormais `v_planning_officiel`. Voir
+`NEXUS-Paye-Specification-v1.md`.
+
+### 10.9 Ce que cette section ne couvre pas
+
+- Aucune bascule de `planning_source` en Production n'est faite ni autorisée par ce chantier : la
+  mécanique existe, l'usage reste à valider sur Test avec un onglet fictif.
+- `planning_shifts` ne porte **aucune contrainte composite site/employé** : seul le contrôle applicatif
+  de `importer_planning_google` empêche d'y écrire un employé d'un autre site. Dette ouverte.
+- La dette des deux lecteurs de fuseau (§10.3) reste entière.
+
+---
+
 ## Historique des versions
 
 | Version | Date | Changement |
@@ -5158,3 +5284,97 @@ Nouveau fichier `test_inventaire_reglages_fantomes_v2307.js` (18 scénarios) : c
 - N'a pas touché à `estMasquePourProduit` ni à `inventaire_modes_controle` — les deux mécanismes qui rendaient `comptage_masque` redondant restent inchangés et pleinement fonctionnels.
 - N'a pas supprimé les colonnes `validation_manager_requise`/`comptage_masque`/`photo_obligatoire` en base, ni le pass-through applicatif qui les fait transiter — seul le contrôle d'édition à l'écran a été retiré (retrait UI, pas migration de suppression de colonne).
 - N'a pas construit d'UI pour régler `reapprovisionnable`/`controle_aleatoire` à un niveau autre que produit/catégorie (pas de niveau site global demandé).
+
+## v2.308 — Source unique de planning : NEXUS ou Google Sheets, datée et tracée (19/09/2026)
+
+**Origine** : diagnostic demandé par Frédéric le 19/09/2026 (« source unique de planning »), puis
+arbitrage final du même jour : « GO pour l'implémentation sur Test selon ton plan. Choix retenu :
+import Google Sheets en brouillon → prévisualisation → validation et publication explicite par le
+manager. UX attendue : Importer → Contrôler → Valider et publier. Correction avant implémentation :
+SMU doit être explicitement mappé sur `vito-sainte-marie`. Pour SME, T, TRINITE, UNION et les autres
+codes, ne devine aucune correspondance : utilise uniquement des mappings explicites vers des `site_id`
+NEXUS existants. Une correspondance impossible reste une anomalie à traiter. […] Aucune bascule de
+`vito-sainte-marie` vers `google_sheets` en Production avant validation complète du parcours. »
+
+Les décisions métier canoniques issues de ce chantier sont consignées en **§10** de ce document, qui
+fait foi. Cette entrée ne raconte que la réalisation et ses limites.
+
+### Constat d'origine (Article 5 — vérifié, pas supposé)
+
+`planning_shifts` accueillait déjà deux provenances (`source = 'nexus'` / `'google_sheets'`) sans
+qu'aucun lecteur ne fasse la différence. Quatre écrans lisaient la table en direct, chacun avec sa
+propre requête. Deux plannings contradictoires pour la même journée y étaient donc représentables, et
+le premier arrivé gagnait — silencieusement. Aucune trace n'existait de ce qui faisait foi à une date
+passée : la question « quelle source faisait foi le 12 août ? » était sans réponse.
+
+### Réalisation, en cinq étapes séparées et testées chacune
+
+1. **Migration `20260919180000_planning_source_officielle_projection_normalisee.sql`** — colonne
+   `station_config.planning_source`, registre daté `planning_source_periodes`, fonction
+   `source_planning_applicable(site, date)`, vue `v_planning_officiel` (`security_invoker = true`,
+   donc la RLS de `planning_shifts` s'applique intégralement, `publie` compris), trigger de cohérence
+   `planning_source_coherence_controle`, garde de normalisation `planning_source_periodes_normalise`.
+   **Elle ne bascule aucun site** : `planning_source` garde partout sa valeur, et un site sans période
+   déclarée vaut `'nexus'`.
+2. **Consommateurs** — `NEXUS-Pointage-v1.html`, `NEXUS-Mon-Planning-v1.html`, `NEXUS-Planning-v1.html`,
+   `nexus-paye-donnees.js` et `nexus-pointage-regles.js` lisent `v_planning_officiel`. Le repli muet
+   est supprimé : zéro ligne veut dire « planning officiel indisponible », jamais « repos » ni « à
+   l'heure ».
+3. **Jour métier en deux étapes dans Pointage** — le fuseau du site d'abord, le jour ensuite ; jamais
+   le jour de l'appareil. Corrige un défaut réel et antérieur à ce chantier : `serviceDuJourSeulement`
+   comparait un jour d'APPAREIL à un jour de SITE, et rejetait comme « service de la veille » un
+   service bien ouvert le jour même dès que le téléphone n'était pas réglé sur le fuseau de la station.
+4. **Import `20260919200000_import_planning_google_sheets.sql`** — `importer_planning_google(site,
+   début, fin exclusive, lot, import_id, par)` écrit un **brouillon** (`publie = false`) et rend
+   `(lignes_ecrites, lignes_remplacees, horaires_absents)`. Bouton d'import et prévisualisation dans
+   Planning ; éditeurs de `planning_alias` et `planning_codes_sites` dans Paramètres Station.
+5. **Bascule tracée `20260919220000_bascule_source_planning_tracee.sql`** — RPC unique
+   `basculer_source_planning(site, source, motif)`, `security invoker`, datée par la base, plus la
+   policy `update_planning_source_periodes` qui autorise la seule correction du jour même (§10.7).
+
+### Défauts trouvés en chemin, et corrigés dans ce lot
+
+- **Le bouton « Enregistrer la source officielle » était cassé depuis l'étape 2** : `update
+  station_config` seul est refusé en `23514` par le trigger de cohérence, et PostgREST ouvre une
+  transaction par requête — un `.update()` suivi d'un `.insert()` fait donc deux transactions, jamais
+  une bascule. D'où la RPC unique. Non déployé à ce jour, donc sans effet en Production.
+- **`importer_planning_google` restait exécutable par `anon`** : `revoke … from public` ne ferme pas
+  `anon`, que Supabase sert par des grants nommés. Révocation explicite ajoutée.
+- **`CODES_SITE_OBSERVES` devinait des heures** : la liste `T/SME/SMU/TRINITE/UNION` valait 7 h par
+  elle-même. Elle ne vaut plus correspondance et ne sert qu'à nommer l'anomalie (§10.5).
+- **Le `comment on table` de `planning_source_periodes`** annonçait encore une table « en ajout seul »
+  après l'ouverture de la correction du jour même.
+- **La RLS de `sites`** limite l'éditeur de codes de site au seul site visible par l'appelant : un
+  manager ne peut déclarer un code pointant vers un site qu'il ne voit pas. Constaté, conservé.
+
+### Tests
+
+- Épreuves SQL rejouées sur la base Test (`nexus-test`) : `outils/epreuve-bascule-source-planning.sql`
+  rend **20 contrôles verts** (12 + 8), en plus des épreuves des étapes précédentes.
+- `test_bascule_source_planning_tracee.js` : garde d'écran et de migration, soumise à **14 mutations
+  délibérées — 14 refus, restitution verte**.
+- Régression complète : **212/219 fichiers de test**, les 7 échecs étant exactement la liste `CONNUS`
+  préexistante à ce chantier ; simulations Paye **15/15** ; empreinte des migrations **32/32** après
+  re-mesure à 271.
+
+**Leçon consignée dans le code lui-même** : une première campagne de mutation avait rendu 12 faux
+« rouges ». L'épreuve lisait ses fichiers en **chemin relatif** et le script la lançait depuis un autre
+répertoire : toutes les exécutions avaient échoué en `ENOENT`, ce qui ressemble trait pour trait à une
+garde qui mord. Seul un témoin « après restitution » l'a révélé. Les chemins sont désormais résolus
+depuis `__dirname`, et le commentaire d'en-tête du test dit pourquoi.
+
+### Ce que ce lot NE couvre PAS
+
+- **Aucune bascule en Production.** `vito-sainte-marie` reste sur `'nexus'`. La validation sur Test
+  avec un onglet fictif reste à faire ; elle bute aujourd'hui sur `station_config.horaires` de
+  `nexus-station-test`, qui ne déclare que `normal`/`fin_normal` et laisse donc
+  `calculer_horaires_quart` rendre des NULL du jeudi au samedi.
+- N'a développé **aucune fonction Paye nouvelle** (§10.8), conformément à la consigne explicite.
+- N'a pas refermé la dette des **deux lecteurs de fuseau** (§10.3), dont l'accord est fortuit et déjà
+  faux sur Test pour `vito-sainte-marie`.
+- N'a pas ajouté de **contrainte composite site/employé** sur `planning_shifts` : seul le contrôle
+  applicatif de `importer_planning_google` empêche d'y écrire un employé d'un autre site.
+- N'a pas traité la **dette systémique** mesurée au passage : 171 tables sur 172 de la base Test
+  accordent `TRUNCATE` à `authenticated`, et `TRUNCATE` ignore la RLS. Hors périmètre de ce lot.
+- N'a pas tranché le sort des **335 lignes `planning_shifts` de Production** (27/07 → 31/08/2026),
+  toutes `publie = false` : c'est une décision métier, pas une correction technique.
