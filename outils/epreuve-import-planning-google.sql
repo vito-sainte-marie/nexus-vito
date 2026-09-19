@@ -16,9 +16,12 @@
 --   T6  meme case deux fois dans le lot-> refus
 -- puis ce qui est ecrit :
 --   T7  brouillon : `publie = false`, provenance et case d'origine portees
---   T8  `duree_heures` vient du SHEET, `heure_debut`/`heure_fin` de
---       PARAMETRES STATION, et un quart sans horaire declare reste NULL —
---       il est COMPTE, pas comble
+--   T8a `duree_heures` vient du SHEET, `heure_debut`/`heure_fin` de
+--       PARAMETRES STATION, et l'un n'ecrase pas l'autre
+--   T8b le jeudi d'une station a regime UNIFORME recoit l'horaire `normal`
+--       qu'elle a ecrit — un repli de regime n'est pas une invention
+--   T8c un quart dont l'horaire n'est VRAIMENT pas declare reste NULL,
+--       et il est COMPTE (`horaires_absents`), pas comble
 --   T9  un reimport REMPLACE sa periode sans jamais doubler,
 --       et ne touche pas une ligne `source = 'nexus'`
 --
@@ -38,7 +41,10 @@ declare
   v_site    constant text := 'nexus-station-test';
   v_autre   constant text := 'site-fantome-test';
   LUNDI     constant date := date '2026-11-02';   -- horaire declare  (normal)
-  JEUDI     constant date := date '2026-11-05';   -- horaire NON declare (etendu)
+  JEUDI     constant date := date '2026-11-05';   -- regime etendu non declare
+  -- `renfort` n'est declare dans aucun des horaires de la base Test : c'est
+  -- le seul quart dont l'horaire theorique manque VRAIMENT depuis que
+  -- `calculer_horaires_quart` replie le regime etendu sur le normal.
   DEBUT     constant date := date '2026-11-01';
   FIN       constant date := date '2026-12-01';   -- borne exclusive
   v_emp     uuid;
@@ -145,14 +151,23 @@ begin
                          'source_ref', 'TEST11!2026-11-02|QUART A|EMP1'),
       jsonb_build_object('employee_id', v_emp, 'date', JEUDI, 'quart', 'quart1',
                          'duree_heures', 7, 'statut', 'travail_normal',
-                         'source_ref', 'TEST11!2026-11-05|QUART A|EMP1')
+                         'source_ref', 'TEST11!2026-11-05|QUART A|EMP1'),
+      jsonb_build_object('employee_id', v_emp2, 'date', JEUDI, 'quart', 'renfort',
+                         'duree_heures', 4, 'statut', 'renfort',
+                         'source_ref', 'TEST11!2026-11-05|RENFORT|EMP2')
     ), gen_random_uuid(), null);
 
-  if v_r.lignes_ecrites <> 2 then
-    v_echecs := v_echecs || ('T7 lignes ecrites attendues 2, obtenu ' || v_r.lignes_ecrites);
+  if v_r.lignes_ecrites <> 3 then
+    v_echecs := v_echecs || ('T7 lignes ecrites attendues 3, obtenu ' || v_r.lignes_ecrites);
   end if;
   if v_r.lignes_remplacees <> 0 then
     v_echecs := v_echecs || ('T7 premier import : aucune ligne a remplacer, obtenu ' || v_r.lignes_remplacees);
+  end if;
+  -- Un seul quart sans horaire declare dans ce lot : le renfort du jeudi.
+  -- Si le repli de regime venait a disparaitre, ce compte passerait a 2 et
+  -- dirait AVANT l'ecran ce que T8b dit apres.
+  if v_r.horaires_absents <> 1 then
+    v_echecs := v_echecs || ('T7 horaires absents attendus 1, obtenu ' || v_r.horaires_absents);
   end if;
 
   select count(*) into v_n from planning_shifts
@@ -180,16 +195,37 @@ begin
     v_echecs := v_echecs || ('T8a la duree du Sheet a ete ecrasee : attendu 6, obtenu ' || v_r.duree_heures);
   end if;
 
-  -- T8b — le jeudi : la station ne declare pas d'horaire etendu. NEXUS ne le
-  -- devine pas. La ligne existe, son horaire theorique reste NULL.
+  -- T8b — le jeudi, quart1 : la station ne declare QU'UN regime, le normal.
+  -- Depuis `20260919160000`, le couple bascule EN BLOC sur ce regime au lieu
+  -- de ne rien rendre. L'horaire obtenu, 06:00-13:00, n'est pas devine : il
+  -- est ecrit dans Parametres Station. Avant cette migration, la fonction
+  -- rendait ici une ligne toute-NULL, et ce meme controle attendait NULL —
+  -- il documentait le defaut au lieu de la regle.
   select * into v_r from (
     select duree_heures, heure_debut, heure_fin from planning_shifts
-     where site_id = v_site and source = 'google_sheets' and date = JEUDI) s;
-  if v_r.heure_debut is not null then
-    v_echecs := v_echecs || ('T8b un horaire non declare a ete invente : ' || v_r.heure_debut::text);
+     where site_id = v_site and source = 'google_sheets'
+       and date = JEUDI and quart = 'quart1') s;
+  if v_r.heure_debut is distinct from time '06:00' or v_r.heure_fin is distinct from time '13:00' then
+    v_echecs := v_echecs || ('T8b repli de regime attendu 06:00-13:00, obtenu '
+                             || coalesce(v_r.heure_debut::text, 'NULL') || '-' || coalesce(v_r.heure_fin::text, 'NULL'));
   end if;
   if v_r.duree_heures <> 7 then
     v_echecs := v_echecs || ('T8b la duree du Sheet a ete perdue : ' || coalesce(v_r.duree_heures::text, 'NULL'));
+  end if;
+
+  -- T8c — le renfort : aucun horaire declare, nulle part, pour aucun jour.
+  -- NEXUS ne le fabrique pas. La ligne existe, sa duree vient du Sheet, son
+  -- horaire theorique reste NULL, et l'import le DIT en le comptant.
+  select * into v_r from (
+    select duree_heures, heure_debut, heure_fin from planning_shifts
+     where site_id = v_site and source = 'google_sheets'
+       and date = JEUDI and quart = 'renfort') s;
+  if v_r.heure_debut is not null or v_r.heure_fin is not null then
+    v_echecs := v_echecs || ('T8c un horaire non declare a ete invente : '
+                             || coalesce(v_r.heure_debut::text, 'NULL') || '-' || coalesce(v_r.heure_fin::text, 'NULL'));
+  end if;
+  if v_r.duree_heures <> 4 then
+    v_echecs := v_echecs || ('T8c la duree du Sheet a ete perdue : ' || coalesce(v_r.duree_heures::text, 'NULL'));
   end if;
 
   -- T9 — le reimport remplace, ne double pas, et laisse NEXUS tranquille.
@@ -200,8 +236,8 @@ begin
                          'source_ref', 'TEST11!2026-11-02|QUART A|EMP1')
     ), gen_random_uuid(), null);
 
-  if v_r.lignes_remplacees <> 2 then
-    v_echecs := v_echecs || ('T9 lignes remplacees attendues 2, obtenu ' || v_r.lignes_remplacees);
+  if v_r.lignes_remplacees <> 3 then
+    v_echecs := v_echecs || ('T9 lignes remplacees attendues 3, obtenu ' || v_r.lignes_remplacees);
   end if;
 
   select count(*) into v_n from planning_shifts
@@ -290,7 +326,7 @@ begin
   end;
 
   if array_length(v_echecs, 1) is null then
-    raise notice 'IMPORT PLANNING GOOGLE : 13 controles verts.';
+    raise notice 'IMPORT PLANNING GOOGLE : 15 controles verts.';
   else
     raise exception E'IMPORT PLANNING GOOGLE — ECHECS :\n  %', array_to_string(v_echecs, E'\n  ');
   end if;
