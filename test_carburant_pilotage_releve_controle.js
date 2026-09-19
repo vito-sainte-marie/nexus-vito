@@ -44,6 +44,14 @@ const fnFmtLSrc = extraireSync(html, 'fmtL');
 const fnFormaterDateSrc = extraireSync(html, 'formaterDateFrCourt');
 const fnControleModalSrc = extraireSync(html, 'renderReleveControleModal');
 const fnReceptionModalSrc = extraireSync(html, 'renderReleveReceptionModal');
+// 19/09/2026 — régularisation d'une réception passée. La modale est la vue
+// la plus complète d'une réception : c'est là qu'un manager va chercher la
+// preuve. Les fonctions de provenance sont extraites telles quelles, jamais
+// doublées — c'est leur texte que le cas 3bis vérifie.
+const fnEstVisiteRegulariseeSrc = extraireSync(html, 'estVisiteRegularisee');
+const fnEchapperTexteSrc = extraireSync(html, 'echapperTexte');
+const fnUrlJustificatifSureSrc = extraireSync(html, 'urlJustificatifSure');
+const fnFormaterDateHeureFrSrc = extraireSync(html, 'formaterDateHeureFr');
 
 // Charge les VRAIS moteurs (pas de mock) — libelleQualiteControle,
 // libelleCauseQualiteChaine, libelleStatutReception, texteEcart doivent
@@ -99,6 +107,11 @@ function construireRenderReceptionModal(modal) {
     function construireReleveReceptionPdf() {}
     function global_NexusReceptionDonnees_disponible() { return false; }
     function chargerEtAfficherSignatureReception() {}
+    const FUSEAU_STATION = 'America/Martinique';
+    ${fnFormaterDateHeureFrSrc}
+    ${fnEstVisiteRegulariseeSrc}
+    ${fnEchapperTexteSrc}
+    ${fnUrlJustificatifSureSrc}
     return (${fnReceptionModalSrc});
   `;
   return new Function('document', 'NexusReceptionMoteur', prelude)(
@@ -213,6 +226,87 @@ function construireRenderReceptionModal(modal) {
   assert.ok(out.includes('1 compartiment(s) non réceptionné(s)'), 'Compte des compartiments non réceptionnés absent');
   assert.ok(out.includes('Exporter le relevé de réception (PDF)'), 'Bouton export PDF absent');
   console.log('✓ 3. renderReleveReceptionModal — visite multi-carburant avec dérogation, statuts issus du vrai moteur de réception');
+}
+
+// ------------------------------------------------------------
+// 3bis) Réception régularisée d'après un relevé terrain manuscrit
+//   (mandat du 19/09/2026). La modale doit rendre les TROIS dates
+//   distinctes et jamais confondues : la livraison a réellement eu lieu le
+//   18/09, les jaugeages ont été relevés sur le terrain ce jour-là, et la
+//   saisie NEXUS date du 19/09. Un manager qui ouvre cette preuve ne doit
+//   pas pouvoir croire que les chiffres ont été tapés pendant le dépotage.
+// ------------------------------------------------------------
+{
+  const modal = fabriquerModal();
+  const render = construireRenderReceptionModal(modal);
+  const visite = {
+    date_visite: '2026-09-18',
+    heure_debut: '2026-09-18T13:30:00.000Z',
+    heure_fin: '2026-09-18T14:10:00.000Z',
+    transporteur: 'TRANSHYDRO SARL',
+    chauffeur: 'M. Dupont',
+    immatriculation: 'AB-123-CD',
+    bon_livraison_reference: 'BL-4521',
+    statut: 'terminee',
+    mode_saisie: 'regularisation',
+    regularisation_le: '2026-09-19T14:05:00.000Z',
+    regularisation_par_nom: 'Manager Test',
+    regularisation_motif: 'Accès au rôle pompiste temporairement indisponible au moment du dépotage.',
+    controle_terrain_par: 'Pompiste Test',
+    created_at: '2026-09-19T14:05:02.000Z',
+    justificatif_url: 'https://exemple.invalid/storage/preuve.jpg',
+    lignes: [
+      { carburant: 'go', quantite_bl_l: 16000, quantite_compartiments_l: 16000, quantite_mesuree_l: 15940, delta_l: -60, delta_ratio: -0.00375, statut: 'coherente' },
+    ],
+    compartiments: [{ numero: 1, carburant: 'go', statut: 'receptionne' }],
+    mesures: [{ cuve_id: 'cuve1', carburant: 'go', jaugeage_avant_l: 4000, jaugeage_apres_l: 19940, delta_mesure_l: 15940, source: 'releve_manuscrit' }],
+  };
+  render(visite);
+  const out = modal.innerHTML;
+  assert.ok(/régularisée/.test(out), 'La modale doit annoncer que la réception a été régularisée');
+  assert.ok(out.includes('relevé terrain manuscrit'), 'La provenance "relevé terrain manuscrit" doit être écrite dans la preuve');
+  assert.ok(out.includes('Manager Test'), 'L\'auteur de la régularisation doit être nommé');
+  assert.ok(out.includes('Pompiste Test'), 'La personne ayant fait le contrôle terrain doit être nommée');
+  assert.ok(out.includes('Accès au rôle pompiste'), 'Le motif de la régularisation doit être lisible');
+  assert.ok(out.includes('Voir le justificatif joint') && out.includes('https://exemple.invalid/storage/preuve.jpg'), 'Le justificatif joint doit être atteignable depuis la preuve');
+  // Les trois dates, chacune à sa place.
+  // La modale date la réception avec formaterDateFrCourt ("18 sept.") et
+  // horodate la régularisation avec formaterDateHeureFr ("19/09 à 10:05",
+  // heure de la station). Les deux formats coexistent déjà dans la page ;
+  // ce test constate le rendu réel plutôt que d'imposer une convention.
+  assert.ok(/18\s*sept/.test(out), 'La date réelle de la livraison (18 sept.) doit rester la date de la réception');
+  assert.ok(out.includes('19/09'), 'La date de saisie/régularisation NEXUS (19/09) doit apparaître distinctement');
+  assert.ok(!/19\s*sept/.test(out), 'La date de saisie ne doit jamais prendre la place de la date de réception');
+  // Le BL reste la quantité théorique, la mesure reste la mesure.
+  assert.ok(out.includes('BL-4521'), 'La référence du BL doit être conservée');
+  console.log('✓ 3bis. Réception régularisée — les trois dates distinctes, auteur, contrôle terrain, motif et justificatif dans la preuve');
+}
+
+// ------------------------------------------------------------
+// 3ter) Échappement : motif et nom du contrôleur terrain sont de la saisie
+//   libre, et l'URL du justificatif vient de la base. Ils ne doivent pas
+//   pouvoir injecter de balise, et un href non https ne doit pas être
+//   proposé comme lien.
+// ------------------------------------------------------------
+{
+  const modal = fabriquerModal();
+  const render = construireRenderReceptionModal(modal);
+  render({
+    date_visite: '2026-09-18', heure_fin: '2026-09-18T14:10:00.000Z', statut: 'terminee',
+    mode_saisie: 'regularisation', regularisation_le: '2026-09-19T14:05:00.000Z',
+    regularisation_par_nom: '<img src=x onerror=alert(1)>',
+    regularisation_motif: '<script>alert("xss")</script>',
+    controle_terrain_par: 'a" onmouseover="alert(2)',
+    justificatif_url: 'javascript:alert(3)',
+    lignes: [], compartiments: [], mesures: [],
+  });
+  const out = modal.innerHTML;
+  assert.ok(!out.includes('<img src=x'), 'Le nom saisi ne doit pas produire de balise');
+  assert.ok(!out.includes('<script>alert'), 'Le motif saisi ne doit pas produire de script');
+  assert.ok(!out.includes('onmouseover="alert'), 'Le nom du contrôleur terrain ne doit pas produire d\'attribut exécutable');
+  assert.ok(!out.includes('javascript:alert'), 'Une URL non https ne doit jamais devenir un lien');
+  assert.ok(out.includes('Aucun justificatif joint'), 'Sans justificatif exploitable, la modale doit le dire plutôt que proposer un lien mort');
+  console.log('✓ 3ter. Champs libres de régularisation échappés, URL de justificatif non https refusée');
 }
 
 // ------------------------------------------------------------

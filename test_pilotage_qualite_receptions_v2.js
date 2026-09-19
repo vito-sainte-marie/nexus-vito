@@ -47,6 +47,13 @@ const fnDisponibleSrc = extraireSync(html, 'global_NexusReceptionDonnees_disponi
 const fnFmtLSrc = extraireSync(html, 'fmtL');
 const constNomCarburant = extraireConst(html, 'NOM_CARBURANT');
 const constNiveauCouleur = extraireConst(html, 'NIVEAU_COULEUR');
+// 19/09/2026 — provenance d'une réception régularisée : la carte doit dire
+// qu'une réception a été reconstruite d'après un relevé manuscrit. Les vraies
+// fonctions de la page sont extraites (jamais des doublures : c'est
+// précisément leur texte que ce test vérifie).
+const fnEstVisiteRegulariseeSrc = extraireSync(html, 'estVisiteRegularisee');
+const fnMentionRegularisationSrc = extraireSync(html, 'mentionRegularisation');
+const fnFormaterDateHeureFrSrc = extraireSync(html, 'formaterDateHeureFr');
 
 // Charge le vrai moteur (pas un mock) pour libelleStatutReception/texteEcart —
 // cette carte ne recalcule jamais rien elle-même (Article 11), donc le test
@@ -54,6 +61,10 @@ const constNiveauCouleur = extraireConst(html, 'NIVEAU_COULEUR');
 const sandbox = { console };
 vm.createContext(sandbox);
 vm.runInContext(moteurSrc, sandbox);
+
+// Reproduit le formatage de la page pour comparer des volumes sans
+// dépendre d'un espace insécable écrit à la main dans le test.
+const fmtLAttendu = new Function(`${fnFmtLSrc}; return fmtL;`)();
 
 function fabriquerZone() {
   return { _html: '', get innerHTML() { return this._html; }, set innerHTML(v) { this._html = v; } };
@@ -80,6 +91,13 @@ function construireFonction(nexusClientMock, nexusReceptionDonneesMock, zone) {
     // note appartient au bloc "Dernière livraison", pas à "Qualité des
     // réceptions" testé par ce fichier.
     function rafraichirNoteTerrainLivraison() {}
+    // Fuseau réel de la station (v2.232) — une régularisation saisie à
+    // 14:05 UTC doit s'afficher à l'heure de la station, pas à celle du
+    // serveur qui rend la page.
+    const FUSEAU_STATION = 'America/Martinique';
+    ${fnFormaterDateHeureFrSrc}
+    ${fnEstVisiteRegulariseeSrc}
+    ${fnMentionRegularisationSrc}
     return (${fnQualiteSrc.replace(/^async function \w+/, 'async function chargerEtRendreQualiteReceptions')});
   `;
   const fn = new Function('document', 'nexusClient', 'NexusReceptionDonnees', 'NexusReceptionMoteur', 'SITE_ID', prelude)(
@@ -146,6 +164,73 @@ function construireFonction(nexusClientMock, nexusReceptionDonneesMock, zone) {
     assert.ok(c.includes('>1<') || c.includes('1 (dérogation'), 'Le compte de compartiments non réceptionnés doit être 1');
   }
   console.log('✓ 2. Visite multi-carburant — une carte par carburant, dérogation et compartiment non réceptionné signalés');
+
+  // ------------------------------------------------------------
+  // 3) Réception régularisée d'après un relevé terrain manuscrit
+  //    (mandat du 19/09/2026, test obligatoire n°6 "provenance visible").
+  //    Le cas réel : la livraison du 18/09 a bien eu lieu et a bien été
+  //    jaugée, mais sur papier — la saisie NEXUS est faite le 19/09. Les
+  //    CHIFFRES doivent être présentés exactement comme ceux d'une
+  //    réception normale (aucun traitement de faveur, Performance s'en
+  //    sert telle quelle) ; c'est le RÉCIT qui doit changer : sans
+  //    mention, un manager croirait que les jaugeages ont été relevés
+  //    dans NEXUS le jour même.
+  // ------------------------------------------------------------
+  {
+    const visiteRegularisee = {
+      date_visite: '2026-09-18',
+      transporteur: 'TRANSHYDRO SARL',
+      statut: 'terminee',
+      mode_saisie: 'regularisation',
+      regularisation_le: '2026-09-19T14:05:00.000Z',
+      regularisation_par_nom: 'Manager Test',
+      regularisation_motif: 'Saisie NEXUS impossible au moment du dépotage.',
+      controle_terrain_par: 'Pompiste Test',
+      created_at: '2026-09-19T14:05:02.000Z',
+      lignes: [
+        { carburant: 'go', quantite_bl_l: 16000, quantite_compartiments_l: 16000, quantite_mesuree_l: 15940, delta_l: -60, delta_ratio: -0.00375, statut: 'coherente' },
+      ],
+      compartiments: [{ numero: 1, carburant: 'go', statut: 'receptionne' }],
+      mesures: [
+        { cuve_id: 'cuve1', carburant: 'go', jaugeage_avant_l: 4000, jaugeage_apres_l: 19940, delta_mesure_l: 15940, source: 'releve_manuscrit' },
+      ],
+    };
+    const zone = fabriquerZone();
+    const fn = construireFonction({}, { chargerDerniereVisite: async () => visiteRegularisee }, zone);
+    await fn();
+    const c = zone.innerHTML;
+    assert.ok(c.includes('18/09/2026'), 'La date affichée doit rester celle de la livraison réelle (18/09), pas celle de la saisie');
+    assert.ok(/régularisée/.test(c), 'La carte doit dire que cette réception a été régularisée');
+    assert.ok(c.includes('relevé terrain manuscrit'), 'La provenance "relevé terrain manuscrit" doit être visible');
+    assert.ok(c.includes('19/09'), 'La date de régularisation (19/09) doit être visible à côté de la date de livraison');
+    assert.ok(c.includes('relevé manuscrit') && c.includes('Cuve cuve1'), 'Chaque mesure issue du papier doit porter sa provenance');
+    // Les chiffres restent ceux d'une réception normale, au litre près.
+    assert.ok(c.includes(fmtLAttendu(16000)), 'Le BL doit rester affiché tel quel');
+    assert.ok(c.includes(fmtLAttendu(15940)), 'La quantité mesurée doit être affichée telle quelle');
+    // Aucune invention : ce que le document ne dit pas reste vide.
+    assert.ok(!/undefined|NaN|null/.test(c), 'Aucune valeur fabriquée ne doit apparaître dans la carte');
+  }
+  console.log('✓ 3. Réception régularisée — provenance visible, chiffres inchangés, date réelle conservée');
+
+  // ------------------------------------------------------------
+  // 4) Réception normale : aucune mention de régularisation ne doit
+  //    apparaître (une trace de provenance ne s'invite pas là où il n'y a
+  //    rien à signaler).
+  // ------------------------------------------------------------
+  {
+    const visiteNormale = {
+      date_visite: '2026-09-19', transporteur: 'TRANSHYDRO SARL', statut: 'terminee', mode_saisie: 'temps_reel',
+      lignes: [{ carburant: 'go', quantite_bl_l: 16000, quantite_compartiments_l: 16000, quantite_mesuree_l: 15990, delta_l: -10, delta_ratio: -0.000625, statut: 'coherente' }],
+      compartiments: [], mesures: [{ cuve_id: 'cuve1', carburant: 'go', jaugeage_avant_l: 4000, jaugeage_apres_l: 19990, delta_mesure_l: 15990, source: 'saisie_nexus' }],
+    };
+    const zone = fabriquerZone();
+    const fn = construireFonction({}, { chargerDerniereVisite: async () => visiteNormale }, zone);
+    await fn();
+    const c = zone.innerHTML;
+    assert.ok(!/régularis/i.test(c), 'Une réception temps réel ne doit porter aucune mention de régularisation');
+    assert.ok(!/manuscrit/i.test(c), 'Une réception temps réel ne doit porter aucune mention de relevé manuscrit');
+  }
+  console.log('✓ 4. Réception temps réel — aucune mention de provenance parasite');
 
   console.log('\nTous les tests pilotage_qualite_receptions_v2 passent.');
 })().catch(e => { console.error(e); process.exit(1); });
