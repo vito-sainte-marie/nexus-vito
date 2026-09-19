@@ -480,14 +480,20 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
+//   19/09/2026 — lot Régularisation d'une réception passée : + 1 migration,
+//   `20260919103000_carburant_reception_regularisation_releve_manuscrit.sql`.
+//   267 + 1 = 268, et ce 268 est MESURÉ comme les précédents. Elle est
+//   additive — huit colonnes à valeur par défaut, un check et un trigger —
+//   et ne rouvre aucune migration déjà estampillée.
+//
 // Les deux valeurs sont MESURÉES (`node
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 267;
-const MIGRATIONS_REELLES_EMPREINTE = 'ce9156a9bd4dc33627475193dbe9a914ee3dac75af86a00ea841d1d9638d89d5';
+const MIGRATIONS_REELLES_NOMBRE = 268;
+const MIGRATIONS_REELLES_EMPREINTE = '75e639c2a3fc0d2c06728a7967bb52833cc48ae73e163d8e30545fc402324d07';
 
-cas('Réel · la provenance des migrations annonce 267 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 268 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
