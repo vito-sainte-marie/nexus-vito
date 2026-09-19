@@ -486,8 +486,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   + 1  `20260919180000_planning_source_officielle_projection_normalisee.sql`
 //   19/09/2026 — lot Import du planning depuis Google Sheets :
 //   + 1  `20260919200000_import_planning_google_sheets.sql`
+//   19/09/2026 — lot Bascule de source de planning tracée :
+//   + 1  `20260919220000_bascule_source_planning_tracee.sql`
 //   ───
-//    270
+//    271
 //
 //   Deux branches sœurs ont annoncé 268 ce jour-là sans annoncer la même
 //   empreinte : la Régularisation d'une réception passée (#65) mesurait
@@ -501,10 +503,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 270;
-const MIGRATIONS_REELLES_EMPREINTE = 'a355c65ab9c6977dac5c46fdd569bbd9ba81ef74f64aaa28cfb76075db6e91ca';
+const MIGRATIONS_REELLES_NOMBRE = 271;
+const MIGRATIONS_REELLES_EMPREINTE = '09a59a8a09e59c490004a797d957b0eaef85601b06b6ab07eb0b028f4904b605';
 
-cas('Réel · la provenance des migrations annonce 270 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 271 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
