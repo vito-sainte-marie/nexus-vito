@@ -544,13 +544,19 @@
           </div>
         `);
         overlay.querySelector('[data-annuler-camera]').addEventListener('click', () => fermer(null));
-        // La photo est COMPLÉMENTAIRE, jamais une condition (arbitrage du
-        // 11/09/2026). Une caméra refusée, absente ou en échec ne doit pas
-        // coûter son pointage à l'employée : elle peut enregistrer sans
-        // photo, et l'écran le dit en toutes lettres. 18/09/2026 : ce geste
-        // est désormais tracé comme un CHOIX, pas comme une panne. Poser
-        // photo_echec_technique ici revenait à déclarer au manager un
-        // incident technique que personne n'avait vécu (voir motifSansPhoto).
+        // ATTENTION — ce bouton n'existe QUE dans ce panneau de repli, donc
+        // seulement quand la caméra en page est indisponible, refusée ou en
+        // échec. L'écran de capture, lui, n'offre que le déclencheur ou la
+        // croix, et la croix annule le pointage : quand la caméra répond, la
+        // photo est de fait REQUISE. Règle réellement livrée, constatée sur
+        // téléphone et arbitrée le 19/09/2026 : photo requise tant que la
+        // caméra répond, jamais bloquante quand elle ne répond pas. C'est
+        // ainsi que se concilie l'arbitrage du 11/09/2026 — une caméra
+        // absente ne doit pas coûter son pointage à l'employée.
+        // 18/09/2026 : ce geste est tracé comme un CHOIX, pas comme une
+        // panne. Poser photo_echec_technique ici revenait à déclarer au
+        // manager un incident technique que personne n'avait vécu (voir
+        // motifSansPhoto).
         overlay.querySelector('[data-sans-photo]').addEventListener('click', () => fermer('sans-photo'));
         // Résolution spéciale 'repli' (et non null) : l'appelant doit savoir
         // que le mécanisme natif prend le relais (repère localStorage à
