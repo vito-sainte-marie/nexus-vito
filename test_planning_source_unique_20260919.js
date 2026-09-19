@@ -91,14 +91,38 @@ CONSOMMATEURS.forEach(([fichier, attendus]) => {
 
 // ── 2 · L'atelier du manager : la table, mais bornée ──────────────────────
 
-console.log('\n── 2 · NEXUS-Planning-v1.html : deux accès, deux bornes ──');
+console.log('\n── 2 · NEXUS-Planning-v1.html : trois accès, trois bornes ──');
 
 const ATELIER = lire('NEXUS-Planning-v1.html');
 
+// Trois accès, et trois seulement — chacun nommé, parce qu'un quatrième
+// apparu sans être discuté serait exactement la manière dont la règle
+// « une seule source » se perd :
+//   1. la grille du mois, qui doit montrer le brouillon que le manager
+//      vient de générer — la vue le lui cacherait ;
+//   2. la publication du mois généré par NEXUS ;
+//   3. la publication du mois IMPORTÉ depuis Google Sheets (19/09/2026).
+//      L'import écrit un brouillon, puis publie en SECONDE écriture : c'est
+//      ce qui permet de prévisualiser avant d'engager, et c'est pour cela
+//      que l'écriture de publication est ici et pas dans la fonction SQL.
 t('l\'atelier garde planning_shifts — il doit voir les brouillons', () => {
   const vus = appels(ATELIER).filter(r => r === 'planning_shifts');
-  assert.strictEqual(vus.length, 2,
-    `l'atelier interroge la table ${vus.length} fois : le contrat en prévoit 2`);
+  assert.strictEqual(vus.length, 3,
+    `l'atelier interroge la table ${vus.length} fois : le contrat en prévoit 3`);
+});
+
+// La publication de l'import ne doit toucher QUE ce que l'import vient
+// d'écrire. Sans la borne de provenance, valider un mois Google Sheets
+// publierait au passage un brouillon NEXUS laissé en attente ; sans la
+// borne de période, elle publierait des mois que personne n'a relus.
+t('la publication de l\'import est bornée à sa provenance et à sa période', () => {
+  const i = ATELIER.indexOf("rpc('importer_planning_google'");
+  assert.ok(i > 0, 'l\'écran n\'appelle plus la fonction d\'import');
+  const bloc = ATELIER.slice(i, i + 3000);
+  for (const borne of ["eq('source', 'google_sheets')", "gte('date'", "lt('date'", "eq('publie', false)"]) {
+    assert.ok(bloc.includes(borne),
+      `la publication de l'import ne pose pas la borne ${borne} : elle publierait plus que ce qu'elle a importé`);
+  }
 });
 
 t('l\'atelier ne lit pas la vue — elle lui cacherait son propre brouillon', () => {

@@ -101,6 +101,16 @@
   .saved-note{margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:8px; text-align:center; font-size:12px; display:none;}
   .source-link{display:inline-block; margin-top:10px; color:var(--green); font:600 11px var(--mono); text-decoration:none;}
   #contenu.source-google .planning-nexus-card{display:none;}
+  /* Import Google Sheets : miroir de la regle ci-dessus. La carte d'import
+     n'existe que quand Google Sheets fait foi, et la grille du mois reste
+     visible dans les deux cas — c'est le seul endroit ou le manager voit
+     ce qui est REELLEMENT ecrit, quelle que soit la provenance. */
+  #contenu .planning-google-card{display:none;}
+  #contenu.source-google .planning-google-card{display:block;}
+  #contenu.source-google #cardPlanning{display:block;}
+  .import-compteurs{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px;}
+  .import-compteur{font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; padding:7px 10px;}
+  .import-compteur b{color:var(--cyan);}
   .reserve{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -109,6 +119,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
+<script src="nexus-planning-sheets-moteur.js?v=20260904-0104"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -128,6 +139,27 @@
       <div class="note" id="sourcePlanningResume">Chargement de la source officielle…</div>
       <a class="source-link" id="planningGoogleOpen" href="#" target="_blank" rel="noopener" style="display:none;">Ouvrir le planning Google Sheets ↗</a>
       <a class="btn btn-secondary" href="NEXUS-Parametres-Station-v1.html#cardPlanningOfficiel">Modifier dans Paramètres Station</a>
+    </div>
+
+    <!-- Import du planning Google Sheets (19/09/2026).
+         Visible UNIQUEMENT quand Google Sheets est la source officielle.
+         Dans ce cas la carte « Génération » est masquée : cette carte porte
+         donc sa PROPRE navigation de mois et son PROPRE geste de
+         publication, faute de quoi un import déposé en brouillon n'aurait
+         plus aucun moyen de devenir visible par l'équipe.
+         Parcours : Importer → Contrôler → Valider et publier. -->
+    <div class="card planning-google-card" id="cardImportGoogle">
+      <div class="section-label">Import du planning Google Sheets</div>
+      <div class="mois-nav">
+        <button id="gMoisPrec">← Mois préc.</button>
+        <div class="mois-label" id="gMoisLabel"></div>
+        <button id="gMoisSuiv">Mois suiv. →</button>
+      </div>
+      <div class="note">NEXUS lit l'onglet du mois choisi et vous montre ce qu'il a compris : <b style="color:var(--text);">rien n'est écrit tant que vous n'avez pas validé</b>. Un import remplace le mois entier pour la provenance Google Sheets — une personne retirée du classeur disparaît du planning. Les heures de début et de fin ne sont pas dans le classeur : elles viennent des horaires de Paramètres Station.</div>
+      <button class="btn btn-primary" id="btnImporterGoogle">Importer l'onglet…</button>
+      <div id="apercuImportGoogle" class="gap-list"></div>
+      <button class="btn btn-secondary" id="btnValiderImportGoogle" disabled>Valider et publier</button>
+      <div id="resultatImportGoogle" class="gap-list"></div>
     </div>
 
     <div class="card planning-nexus-card">
@@ -218,10 +250,19 @@
   };
 
   function premierJourMois(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-  function moisISO(d) { return premierJourMois(d).toISOString().slice(0, 10); }
+  // `toISOString()` convertissait en UTC un minuit LOCAL : a l'est de
+  // Greenwich il rendait le dernier jour du mois precedent. En Martinique
+  // (UTC-4) le decalage jouait dans l'autre sens et l'erreur ne se voyait
+  // pas. Depuis que cette date borne un import qui REMPLACE son mois, une
+  // borne fausse effacerait le mauvais mois : on formate donc les
+  // composantes locales, sans passer par UTC.
+  function jourISO(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function moisISO(d) { return jourISO(premierJourMois(d)); }
   function moisSuivant(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
   function moisPrecedent(d) { return new Date(d.getFullYear(), d.getMonth() - 1, 1); }
-  function finMoisISO(d) { return moisSuivant(d).toISOString().slice(0, 10); }
+  function finMoisISO(d) { return jourISO(moisSuivant(d)); }
   function heureCourte(t) { return t ? t.slice(0, 5) : ''; }
 
   nexusRequireAuth().then(async employee => {
@@ -248,6 +289,15 @@
     // previsualisation — pas la grille.
     let SOURCE_PLANNING = 'nexus';
 
+    // Ce qu'il faut pour LIRE le classeur, tel que Parametres Station le
+    // declare. Vide par defaut : sans prefixe d'onglet, l'import ne propose
+    // rien plutot que de tenter un nom d'onglet invente.
+    let CONFIG_GOOGLE = { prefixe: '', alias: {}, codesSite: {} };
+    // L'import lu et analyse, en attente du geste du manager. Il ne survit
+    // ni a un changement de mois ni a une nouvelle lecture : ce qui est
+    // valide est toujours ce qui est affiche.
+    let IMPORT_EN_ATTENTE = null;
+
     function normaliserUrlPlanningGoogle(valeur) {
       const texte = String(valeur || '').trim();
       const match = texte.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -269,11 +319,19 @@
 
     async function chargerSourcePlanning() {
       const { data, error } = await nexusClient.from('station_config')
-        .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
+        .select('planning_source,planning_google_sheet_url,planning_google_sheet_id,planning_onglet_prefixe,planning_alias,planning_codes_sites')
         .eq('site', siteId).maybeSingle();
       if (error) throw error;
       const source = (data && data.planning_source) || 'nexus';
       const url = normaliserUrlPlanningGoogle((data && data.planning_google_sheet_url) || ((data && data.planning_google_sheet_id) ? data.planning_google_sheet_id : ''));
+      // Le prefixe d'onglet, les alias de prenoms et les codes de site se
+      // declarent dans Parametres Station et NULLE PART AILLEURS : cet ecran
+      // les lit, il ne les devine pas et ne les complete pas.
+      CONFIG_GOOGLE = {
+        prefixe: (data && data.planning_onglet_prefixe) || '',
+        alias: (data && data.planning_alias) || {},
+        codesSite: (data && data.planning_codes_sites) || {},
+      };
       appliquerSourcePlanning(source, url);
     }
 
@@ -663,12 +721,251 @@
       alert('Planning publié.');
     });
 
+
+    // ------------------------------------------------------------
+    // IMPORT DU PLANNING GOOGLE SHEETS — « Importer → Controler →
+    // Valider et publier » (arbitrage du 19/09/2026).
+    //
+    // Cet ecran ne REFAIT rien. Il branche trois pieces qui existent
+    // deja : la lecture du classeur (Edge Function google-sheets-sync,
+    // source=planning), l'analyse de la grille (le moteur unique
+    // nexus-planning-sheets-moteur.js, celui-la meme que Parametres
+    // Station) et l'ecriture (la fonction SQL importer_planning_google,
+    // qui seule sait remplacer un mois sans toucher aux lignes NEXUS).
+    // Le travail propre de cet ecran est de MONTRER ce qui a ete compris
+    // avant que quoi que ce soit ne soit ecrit.
+    //
+    // Deux regles tiennent tout le parcours :
+    //  1. un import ne se valide JAMAIS avec une anomalie non levee. Le
+    //     bouton reste desactive et il n'existe pas de « forcer » : une
+    //     anomalie se leve dans Parametres Station ou dans le classeur,
+    //     pas ici ;
+    //  2. l'import depose un BROUILLON (publie = false) et la
+    //     publication reste un geste explicite. Les deux tiennent dans
+    //     le meme bouton parce que le manager vient de controler, mais
+    //     ce sont bien deux ecritures, dans cet ordre.
+    //
+    // Ce que cet ecran n'invente pas : les heures de debut et de fin.
+    // Elles ne sont pas dans le classeur ; la fonction SQL les demande a
+    // calculer_horaires_quart. Quand un quart n'a pas d'horaire declare,
+    // la ligne est ecrite avec des horaires VIDES et comptee — jamais
+    // comblee (voir la regle « 0 minute de retard n'est pas un retard
+    // impossible a calculer »).
+    // ------------------------------------------------------------
+    function echapperTexte(valeur) {
+      return String(valeur == null ? '' : valeur)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function ongletDuMoisCourant() {
+      const moteur = window.NexusPlanningSheets;
+      if (!moteur || !CONFIG_GOOGLE.prefixe) return '';
+      return moteur.ongletDuMois(CONFIG_GOOGLE.prefixe, MOIS_COURANT);
+    }
+
+    function oublierImportEnAttente() {
+      IMPORT_EN_ATTENTE = null;
+      const apercu = document.getElementById('apercuImportGoogle');
+      const resultat = document.getElementById('resultatImportGoogle');
+      if (apercu) apercu.innerHTML = '';
+      if (resultat) resultat.innerHTML = '';
+      const valider = document.getElementById('btnValiderImportGoogle');
+      if (valider) { valider.disabled = true; valider.textContent = 'Valider et publier'; }
+    }
+
+    function renderImportGoogleEntete() {
+      const label = document.getElementById('gMoisLabel');
+      if (label) label.textContent = `${MOIS_LABELS[MOIS_COURANT.getMonth()]} ${MOIS_COURANT.getFullYear()}`;
+      const btn = document.getElementById('btnImporterGoogle');
+      if (!btn) return;
+      const onglet = ongletDuMoisCourant();
+      btn.textContent = onglet ? `Importer l’onglet ${onglet}` : 'Aucun préfixe d’onglet déclaré';
+      btn.disabled = !onglet;
+    }
+
+    // L'apercu dit CE QUI SERA ECRIT, personne par personne — pas la
+    // grille : la grille est l'etat du planning, l'apercu est une
+    // proposition que le manager peut encore refuser.
+    function afficherApercuImport(analyse, onglet) {
+      const box = document.getElementById('apercuImportGoogle');
+      const shifts = analyse.shifts || [];
+      const anomalies = analyse.anomalies || [];
+      const parEmploye = new Map();
+      shifts.forEach(s => {
+        const e = parEmploye.get(s.employeeId) || { nom: s.nomFeuille, jours: 0, heures: 0, transferts: 0, deduites: 0 };
+        e.jours += 1;
+        e.heures += Number(s.heures) || 0;
+        if (s.statut === 'transfert_site') e.transferts += 1;
+        if (s.heuresDeduites) e.deduites += 1;
+        parEmploye.set(s.employeeId, e);
+      });
+      const jours = new Set(shifts.map(s => s.date));
+
+      const compteurs = `<div class="import-compteurs">
+        <div class="import-compteur">Onglet <b>${echapperTexte(onglet)}</b></div>
+        <div class="import-compteur"><b>${shifts.length}</b> affectation(s)</div>
+        <div class="import-compteur"><b>${parEmploye.size}</b> personne(s)</div>
+        <div class="import-compteur"><b>${jours.size}</b> jour(s) couvert(s)</div>
+        <div class="import-compteur"><b>${anomalies.length}</b> anomalie(s)</div>
+      </div>`;
+
+      const lignes = [...parEmploye.values()]
+        .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+        .map(e => {
+          const details = [];
+          if (e.transferts) details.push(`${e.transferts} sur un autre site`);
+          if (e.deduites) details.push(`${e.deduites} heure(s) déduite(s) d’un code de site`);
+          return `<div class="indispo-item"><div>${echapperTexte(e.nom)} — ${e.jours} jour(s) · ${Math.round(e.heures * 100) / 100} h${details.length ? ' · ' + echapperTexte(details.join(' · ')) : ''}</div></div>`;
+        }).join('');
+
+      const listeAnomalies = anomalies
+        .map(a => `<div class="gap-item">⚠ ${echapperTexte(String(a))}</div>`).join('');
+
+      const verdict = anomalies.length
+        ? `<div class="gap-item">${anomalies.length} anomalie(s) à lever avant de pouvoir valider. Une anomalie ne se force pas : corrigez le classeur, ou déclarez l’alias / le code de site dans Paramètres Station, puis relancez l’import.</div>`
+        : (shifts.length
+          ? '<div class="gap-ok">✓ Aucune anomalie — cet import peut être validé et publié.</div>'
+          : '<div class="gap-item">Aucune affectation lue sur ce mois : rien à importer.</div>');
+
+      box.innerHTML = compteurs + listeAnomalies + verdict
+        + (lignes ? `<div style="margin-top:10px;">${lignes}</div>` : '')
+        + '<div class="note" style="margin-top:12px;">Les heures de début et de fin ne figurent pas dans le classeur : NEXUS les prendra dans les horaires de Paramètres Station. Un quart sans horaire déclaré sera importé sans horaire et signalé — jamais complété au jugé.</div>';
+    }
+
+    document.getElementById('btnImporterGoogle').addEventListener('click', async () => {
+      const onglet = ongletDuMoisCourant();
+      if (!onglet) return;
+      oublierImportEnAttente();
+      const btn = document.getElementById('btnImporterGoogle');
+      const box = document.getElementById('apercuImportGoogle');
+      btn.disabled = true;
+      btn.textContent = 'Lecture du classeur…';
+      try {
+        if (!window.NexusPlanningSheets) throw new Error('le lecteur de planning n’est pas chargé');
+        const { data: sessionData } = await nexusClient.auth.getSession();
+        const token = sessionData && sessionData.session && sessionData.session.access_token;
+        const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/google-sheets-sync?source=planning&sheet=${encodeURIComponent(onglet)}`, {
+          headers: { Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+        });
+        const charge = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error((charge && (charge.message || charge.error)) || `lecture refusée (${resp.status})`);
+        const analyse = window.NexusPlanningSheets.analyserFeuillePlanning(charge.values || [], {
+          periode: moisISO(MOIS_COURANT).slice(0, 7),
+          employesNexus: EMPLOYES,
+          alias: CONFIG_GOOGLE.alias,
+          codesSite: CONFIG_GOOGLE.codesSite,
+          onglet,
+          siteId,
+        });
+        IMPORT_EN_ATTENTE = {
+          onglet, analyse,
+          debut: moisISO(MOIS_COURANT), fin: finMoisISO(MOIS_COURANT),
+        };
+        afficherApercuImport(analyse, onglet);
+        document.getElementById('btnValiderImportGoogle').disabled =
+          (analyse.anomalies || []).length > 0 || (analyse.shifts || []).length === 0;
+      } catch (err) {
+        console.error('Import planning Google Sheets:', err);
+        box.innerHTML = `<div class="gap-item">Lecture impossible : ${echapperTexte(err && err.message ? err.message : err)}</div>`;
+      } finally {
+        renderImportGoogleEntete();
+      }
+    });
+
+    document.getElementById('btnValiderImportGoogle').addEventListener('click', async () => {
+      if (!IMPORT_EN_ATTENTE) return;
+      const { onglet, analyse, debut, fin } = IMPORT_EN_ATTENTE;
+      const shifts = analyse.shifts || [];
+      // Ceinture : le bouton est deja desactive dans ce cas. La garde
+      // reste, parce qu'un bouton desactive est une politesse d'ecran,
+      // pas une regle.
+      if ((analyse.anomalies || []).length > 0 || shifts.length === 0) return;
+      if (!confirm(`Importer ${shifts.length} affectation(s) depuis l’onglet ${onglet}, puis les publier ?\n\nLe mois entier est remplacé pour la provenance Google Sheets : ce qui n’est plus dans le classeur disparaît du planning.`)) return;
+
+      const btn = document.getElementById('btnValiderImportGoogle');
+      const resultat = document.getElementById('resultatImportGoogle');
+      btn.disabled = true;
+      btn.textContent = 'Import en cours…';
+      resultat.innerHTML = '';
+
+      const importId = (window.crypto && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : null;
+      if (!importId) {
+        resultat.innerHTML = '<div class="gap-item">Ce navigateur ne sait pas produire d’identifiant d’import : NEXUS refuse d’écrire un import qu’il ne saurait pas retrouver ni annuler.</div>';
+        btn.disabled = false;
+        btn.textContent = 'Valider et publier';
+        return;
+      }
+
+      const lot = shifts.map(s => ({
+        employee_id: s.employeeId,
+        date: s.date,
+        quart: s.quartNexus,
+        statut: s.statut,
+        duree_heures: s.heures,
+        site_transfert: s.horsSite ? s.siteTravail : null,
+        source_ref: s.sourceRef,
+      }));
+
+      const { data, error } = await nexusClient.rpc('importer_planning_google', {
+        p_site: siteId, p_debut: debut, p_fin: fin,
+        p_lot: lot, p_import_id: importId, p_par: employee.id,
+      });
+      if (error) {
+        console.error('importer_planning_google:', error);
+        resultat.innerHTML = `<div class="gap-item">Import refusé, rien n’a été écrit : ${echapperTexte(error.message)}</div>`;
+        btn.disabled = false;
+        btn.textContent = 'Valider et publier';
+        return;
+      }
+      const bilan = (Array.isArray(data) ? data[0] : data) || {};
+
+      // Publication — l'ecriture qui rend le mois visible par l'equipe.
+      // Bornee sur la provenance `google_sheets` : elle ne publie jamais
+      // un brouillon de generation NEXUS reste en attente.
+      const { error: erreurPublication } = await nexusClient
+        .from('planning_shifts')
+        .update({ publie: true, modifie_le: new Date().toISOString(), modifie_par: employee.id })
+        .eq('site_id', siteId).eq('source', 'google_sheets')
+        .gte('date', debut).lt('date', fin).eq('publie', false);
+
+      const sansHoraire = Number(bilan.horaires_absents) || 0;
+      const messages = [
+        `<div class="gap-ok">✓ ${Number(bilan.lignes_ecrites) || 0} affectation(s) importée(s) depuis ${echapperTexte(onglet)}, ${Number(bilan.lignes_remplacees) || 0} ligne(s) précédente(s) remplacée(s).</div>`,
+      ];
+      if (sansHoraire) {
+        messages.push(`<div class="gap-item">⚠ ${sansHoraire} affectation(s) sans horaire théorique : le quart correspondant n’a pas d’horaire déclaré dans Paramètres Station. Elles sont importées telles quelles — NEXUS ne calculera ni retard ni durée théorique pour ces jours-là tant que l’horaire manque.</div>`);
+      }
+      if (erreurPublication) {
+        console.error('Publication import Google Sheets:', erreurPublication);
+        messages.push('<div class="gap-item">⚠ L’import est enregistré mais la publication a échoué : le mois reste en brouillon, invisible par l’équipe. Réessayez la validation.</div>');
+      } else {
+        messages.push('<div class="gap-ok">✓ Mois publié — visible par l’équipe.</div>');
+      }
+      resultat.innerHTML = messages.join('');
+
+      IMPORT_EN_ATTENTE = null;
+      document.getElementById('apercuImportGoogle').innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Valider et publier';
+      await chargerEtAfficherPlanning();
+    });
+
+    document.getElementById('gMoisPrec').addEventListener('click', () => { MOIS_COURANT = moisPrecedent(MOIS_COURANT); rafraichirMois(); });
+    document.getElementById('gMoisSuiv').addEventListener('click', () => { MOIS_COURANT = moisSuivant(MOIS_COURANT); rafraichirMois(); });
+
     document.getElementById('moisPrec').addEventListener('click', () => { MOIS_COURANT = moisPrecedent(MOIS_COURANT); rafraichirMois(); });
     document.getElementById('moisSuiv').addEventListener('click', () => { MOIS_COURANT = moisSuivant(MOIS_COURANT); rafraichirMois(); });
 
     async function rafraichirMois() {
       renderMoisLabel();
       document.getElementById('resultatGeneration').innerHTML = '';
+      // Les deux navigations de mois — celle de la generation et celle de
+      // l'import — pilotent LE MEME mois : deux mois concurrents a l'ecran
+      // produiraient tot ou tard un import valide sur le mois d'a cote.
+      // Changer de mois annule l'import en attente : ce qui se valide est
+      // toujours ce qui est affiche.
+      renderImportGoogleEntete();
+      oublierImportEnAttente();
       await chargerEtAfficherPlanning();
     }
 
@@ -683,6 +980,7 @@
     await chargerIndisponibilites();
     await chargerRegles();
     renderMoisLabel();
+    renderImportGoogleEntete();
     await chargerEtAfficherPlanning();
     await chargerHistoriqueGenerations();
   });
