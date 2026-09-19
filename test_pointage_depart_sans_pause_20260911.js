@@ -27,7 +27,12 @@ const fs = require('fs');
 const path = require('path');
 
 let passes = 0;
+// 18/09/2026 : `total` était écrit en dur (34) dans la ligne de conclusion.
+// Ajouter trois gardes affichait donc « 36/34 » — un dénominateur faux, dans
+// une épreuve dont tout le propos est de ne rien annoncer qu'elle ne mesure.
+let total = 0;
 function t(nom, fn) {
+  total++;
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
   catch (e) { console.error(`  ✗ ${nom}\n    ${e.message}`); process.exitCode = 1; }
 }
@@ -292,26 +297,66 @@ t('aucun fichier ne survit à son pointage', () => {
 
 // ── La photo est complémentaire, jamais une condition ─────────────────────
 
+// PRÉMISSE CHANGÉE LE 18/09/2026. Ces trois gardes épinglaient le littéral
+// `true` passé à finaliserPointage, et `!!photoEchecTechnique`. Elles étaient
+// vertes pendant que l'écran mentait : un booléen unique servait à la fois
+// l'échec d'envoi ET le clic « Enregistrer sans photo », si bien qu'un employé
+// qui refusait sa caméra était déclaré au manager comme victime d'une panne.
+// Le texte était conforme, le comportement non — exactement ce que l'en-tête
+// de cette épreuve dit ne pas vouloir. Elles jugent désormais le motif porté
+// par le code, et la valeur que ce motif produit en base.
+
 t('une caméra refusée n\'annule plus le pointage', () => {
   const bloc = POINTAGE.match(/if \(resultat === 'sans-photo'\) \{[\s\S]*?\n        \}/);
   assert.ok(bloc, 'un refus de caméra ne laisse aucune voie vers l\'enregistrement');
-  assert.ok(/finaliserPointage\(btn, employee, siteId, type, shiftActif, null, clicPointage\[type\], true\)/.test(bloc[0]),
-    'le pointage sans photo n\'est pas enregistré, ou ne trace pas sa cause');
+  const appel = bloc[0].match(/finaliserPointage\(btn, employee, siteId, type, shiftActif, null, clicPointage\[type\], (.+?)\);/);
+  assert.ok(appel, 'le pointage sans photo n\'est pas enregistré');
+  assert.strictEqual(appel[1], "'choix_employe'",
+    'le refus de caméra ne nomme pas son motif, ou le confond avec un échec technique');
   assert.ok(/Enregistrer sans photo/.test(POINTAGE),
     'l\'employée ne se voit jamais proposer d\'enregistrer sans photo');
 });
 
 t('un envoi de photo en échec n\'annule pas le pointage non plus', () => {
   const corps = POINTAGE.match(/const photoUrl = await uploaderPhotoPointageAvecRelance[\s\S]*?\n      \}/)[0];
-  assert.ok(/finaliserPointage\([^)]*null, heureClic, true\)/.test(corps),
-    'un envoi raté fait perdre le pointage');
+  const appel = corps.match(/finaliserPointage\([^)]*null, heureClic, (.+?)\);/);
+  assert.ok(appel, 'un envoi raté fait perdre le pointage');
+  assert.strictEqual(appel[1], "'echec_technique'",
+    'un envoi raté n\'est plus tracé comme tel pour le manager');
 });
 
-t('l\'écran dit « sans photo » en toutes lettres, et garde la cause', () => {
-  assert.ok(/Enregistré SANS PHOTO/.test(POINTAGE),
-    'la confirmation ne nomme pas l\'état réel du pointage');
-  assert.ok(/photo_echec_technique: !!photoEchecTechnique/.test(POINTAGE),
-    'la cause technique n\'est plus conservée');
+t('le drapeau d\'échec technique ne se pose QUE sur un échec technique', () => {
+  // Le cœur du correctif du 18/09, jugé sur la valeur réellement écrite :
+  // l'expression est extraite du littéral inséré en base, puis évaluée.
+  const ligne = POINTAGE.match(/const ligne = \{[\s\S]*?\n    \};/)[0];
+  const expr = ligne.match(/photo_echec_technique: (.+),/);
+  assert.ok(expr, 'la cause technique n\'est plus conservée');
+  const derive = new Function('motifSansPhoto', 'return (' + expr[1] + ');');
+  assert.strictEqual(derive('echec_technique'), true,
+    'un envoi raté n\'est plus signalé au manager');
+  assert.strictEqual(derive('choix_employe'), false,
+    'un clic « Enregistrer sans photo » est encore écrit comme une panne technique');
+  assert.strictEqual(derive(null), false,
+    'un pointage avec photo est marqué en échec');
+});
+
+t('l\'écran dit « sans photo » en toutes lettres, et sans inventer de panne', () => {
+  assert.ok(/Enregistré SANS PHOTO : la photo n\\?'a pas pu être envoyée/.test(POINTAGE),
+    'la confirmation ne nomme pas l\'échec d\'envoi');
+  assert.ok(/Enregistré SANS PHOTO, comme vous l\\?'avez demandé/.test(POINTAGE),
+    'un enregistrement voulu sans photo est annoncé comme un échec d\'envoi');
+  assert.ok(/Pointage enregistré sans photo/.test(POINTAGE),
+    'l\'historique du manager n\'a aucun libellé pour une photo simplement absente');
+});
+
+t('le départ n\'annonce plus une obligation que rien n\'applique', () => {
+  // La consigne disait « Obligatoire : photo de la mise en alarme » alors que
+  // le même écran offre « Enregistrer sans photo » juste en dessous. Une
+  // obligation affichée et non tenue n'oblige personne.
+  const depart = POINTAGE.match(/\n    depart: \{[^\n]*\n/)[0];
+  assert.ok(/consignePhoto:/.test(depart), 'le départ n\'a plus de consigne photo');
+  assert.ok(!/[Oo]bligatoire/.test(depart),
+    'le départ annonce une photo obligatoire que rien n\'impose');
 });
 
 t('plusieurs tentatives ne produisent aucun doublon', () => {
@@ -386,4 +431,4 @@ t('une lecture impossible ne relâche pas la porte', () => {
     'une lecture ratée est prise pour un départ pointé : la porte s\'ouvre sur une panne');
 });
 
-console.log(`\n${passes}/34 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
+console.log(`\n${passes}/${total} vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
