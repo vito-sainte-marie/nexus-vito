@@ -2357,10 +2357,29 @@
     // du service courant refermait son service.
     //
     // La primitive vit dans `nexus-auth.js`, chargé par tous les écrans ;
-    // le fuseau vient de `station_config.fuseau_horaire`, lu une fois par
-    // page et mis en cache par site.
+    // le fuseau vient de `sites.timezone` — l'autorité canonique déclarée
+    // par la migration 20260905131500, que `nexusFuseauSite` a rejointe le
+    // 19/09/2026. Il est lu une fois par page et mis en cache par site.
+    //
+    // PAS DE FUSEAU, PAS DE JOUR, ET PAS D'ÉCRAN QUI AFFIRME. `nexusFuseauSite`
+    // ne replie plus sur une valeur devinée : il rend `null`. Ici, `todayISO`
+    // irrigue six lectures datées ; avec une date nulle, chacune rendrait
+    // zéro ligne et l'accueil dirait « rien fait aujourd'hui » à quelqu'un qui
+    // a travaillé. Pire, `serviceDuJourSeulement` comparerait deux `null`
+    // égaux entre eux et reprendrait le service de la veille — exactement le
+    // défaut du 11/09. L'accueil dit donc qu'il ne sait pas, et s'arrête.
     const fuseauStation = await nexusFuseauSite(employee.site_id);
     const todayISO = nexusJourDansFuseau(new Date(), fuseauStation);
+    if (!fuseauStation || !todayISO) {
+      console.error('Accueil : jour de la station ind\u00e9termin\u00e9 \u2014 aucune journ\u00e9e affich\u00e9e.');
+      const statutInconnu = document.getElementById('conseillerEmployeStatut');
+      const texteInconnu = document.getElementById('conseillerEmployeTexte');
+      if (statutInconnu) statutInconnu.textContent = 'Journée de la station indéterminée';
+      if (texteInconnu) texteInconnu.textContent = "Je n'ai pas pu lire le fuseau horaire du site : "
+        + "je préfère ne rien vous annoncer plutôt que de vous montrer une journée qui n'est peut-être pas la vôtre. "
+        + 'Vérifiez la connexion, puis rechargez la page.';
+      return;
+    }
     const maintenant = new Date();
 
     // ---- « En service », notion unique de cet écran (18/09/2026) ----

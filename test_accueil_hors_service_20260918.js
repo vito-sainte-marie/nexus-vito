@@ -104,18 +104,30 @@ const SRC_CHEMINS = extraireFonction('function renderDeuxChemins(');
 // éprouve le code livré.
 const SRC_AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
 const fuseaux = new Function('nexusClient', [
-  'const NEXUS_FUSEAU_DEFAUT = ' + JSON.stringify(
-    (SRC_AUTH.match(/const NEXUS_FUSEAU_DEFAUT = '([^']+)'/) || [])[1] || '') + ';',
   'const nexusFuseauxSite = new Map();',
   'const console = { error() {} };',
   extraireFonction('function nexusFuseauValide(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('function nexusRetenirFuseau(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('function nexusJourDansFuseau(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js'),
-  'return { NEXUS_FUSEAU_DEFAUT, nexusJourDansFuseau, nexusFuseauSite, nexusFuseauxSite };',
+  'return { nexusJourDansFuseau, nexusFuseauSite, nexusFuseauxSite };',
 ].join('\n'));
-assert.ok(/America\/Martinique/.test(SRC_AUTH),
-  'le repli de fuseau de nexus-auth.js doit rester une station ultramarine');
+
+// 19/09/2026 — CE CONTRÔLE DISAIT L'INVERSE, ET IL NE MORDAIT MÊME PLUS.
+// Il exigeait que le repli de `nexus-auth.js` reste « une station
+// ultramarine » en cherchant `America/Martinique` dans TOUT le fichier : le
+// nom survit aujourd'hui dans les commentaires qui racontent le défaut
+// corrigé, donc l'assertion serait restée verte après la suppression du
+// repli. Une garde qui ne peut plus tomber n'en est plus une.
+//
+// Ce qu'il faut garder désormais est l'inverse exact : plus aucune constante
+// de repli, et une seule autorité de fuseau — `sites.timezone`, déclarée
+// source de vérité par la migration 20260905131500 du 05/09/2026.
+const SRC_FUSEAU_SITE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js');
+assert.ok(!/NEXUS_FUSEAU_DEFAUT/.test(SRC_AUTH),
+  'une constante de repli est une troisième source de vérité, et une source muette');
+assert.ok(/\.from\('sites'\)/.test(SRC_FUSEAU_SITE) && !/station_config/.test(SRC_FUSEAU_SITE),
+  'le fuseau se lit dans `sites.timezone`, jamais dans la colonne dépréciée');
 
 // LA RÈGLE D'ATTEIGNABILITÉ (18/09/2026, second lot) — même doctrine encore :
 // `nexusEcranOperationnelAtteignable` est extraite de nexus-auth.js et
@@ -170,16 +182,29 @@ function faireClient(reponses) {
   };
 }
 
+// Le fuseau de la station est une DONNÉE DU CAS, et il a un défaut explicite.
+// Avant le 19/09/2026, aucun cas ne servait de fuseau : le code repliait sur
+// une constante et l'écran se dessinait quand même. Les cas étaient donc tous,
+// à leur insu, des cas « sans fuseau configuré ». Ils portent maintenant une
+// station réelle, et le cas sans fuseau est éprouvé pour lui-même (A6).
+const FUSEAU_STATION_PAR_DEFAUT = 'America/Martinique';
+
 async function executerAccueil({
   employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant,
   reponses = {}, forfait = 'professional', receptionRole = 'aucun',
   jaugeageActif = false, statutJaugeage = null,
+  fuseauSite = FUSEAU_STATION_PAR_DEFAUT,
 }) {
   const { document, journal } = faireDom();
   const rendus = {};
+  // `sites` est fourni par la doublure, sauf si le cas en décide autrement :
+  // `Object.assign` laisse un `reponses.sites` explicite l'emporter.
+  const reponsesSite = Object.assign({
+    sites: { data: fuseauSite ? { timezone: fuseauSite } : null, error: null },
+  }, reponses);
   // Le fuseau est relu pour CHAQUE cas : le cache de `nexus-auth.js` est
   // volontairement reconstruit ici, sinon un cas contaminerait le suivant.
-  const auth = fuseaux(faireClient(reponses));
+  const auth = fuseaux(faireClient(reponsesSite));
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
     'NexusForfait', 'NexusPointageRegles',
@@ -189,7 +214,7 @@ async function executerAccueil({
     ...EXPORTS_PURS,
   ];
   const valeurs = [
-    document, { error() {} }, faireClient(reponses),
+    document, { error() {} }, faireClient(reponsesSite),
     auth.nexusFuseauSite, auth.nexusJourDansFuseau,
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
@@ -332,6 +357,47 @@ async function cas(nom, entree, controles) {
     verifier('prise de poste proposée quand même', rendus.action.lien, 'NEXUS-Prise-De-Poste-v1.html');
     verifier('aucun contrôle de quart compté', rendus.ctx.controlesInfo.total, 0);
   });
+
+  // A5 / A6 — LE JOUR DE LA STATION EST INDÉTERMINÉ (19/09/2026).
+  //
+  // Jusqu'à cet arbitrage, l'accueil se dessinait quand même : le fuseau non
+  // résolu était remplacé par une constante du code, et l'écran affirmait une
+  // journée qu'il n'avait pas lue. Deux cas produisent cet état : `sites` ne
+  // rend rien (A5), ou le fuseau lu est inconnu de CET appareil (A6).
+  //
+  // Ce que ces deux cas gardent n'est pas un message, c'est un SILENCE : pas
+  // de prochaine action, pas de tuiles, pas de progression, pas de contrôles
+  // de quart. Un accueil qui prescrirait « pointer l'arrivée » sur une journée
+  // devinée serait pire qu'un accueil qui se tait, parce que l'employé, lui,
+  // n'a aucun moyen de savoir que la date est fausse.
+  const RIEN_ANNONCE = ({ rendus, journal, verifier, verifierQue }) => {
+    verifier('aucune prochaine action', rendus.action, undefined);
+    verifier('aucune tuile', rendus.tuiles, undefined);
+    verifier('aucune progression', rendus.etapes, undefined);
+    verifier('aucun contexte de quart construit', rendus.ctx, undefined);
+    verifier('ligne de statut : la station, pas l’employé',
+      journal.textes.conseillerEmployeStatut, 'Journée de la station indéterminée');
+    verifierQue('le Coach dit pourquoi il se tait',
+      /fuseau horaire du site/.test(journal.textes.conseillerEmployeTexte || ''),
+      journal.textes.conseillerEmployeTexte);
+    // LE CONTRE-SENS À INTERDIRE : « je ne sais pas quel jour on est » ne doit
+    // jamais se dire « vous n'avez rien fait aujourd'hui ».
+    verifierQue('aucune journée vide annoncée',
+      !/Aucun poste en cours|rien/i.test(journal.textes.conseillerEmployeStatut || ''),
+      journal.textes.conseillerEmployeStatut);
+  };
+
+  await cas('A5 · `sites` ne rend aucun fuseau — l’accueil se tait', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: true,
+    quartDuJour: 'matin', serviceCourant: service('pompiste'),
+    fuseauSite: null,
+  }, RIEN_ANNONCE);
+
+  await cas('A6 · fuseau inconnu de cet appareil — l’accueil se tait aussi', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: true,
+    quartDuJour: 'matin', serviceCourant: service('pompiste'),
+    fuseauSite: 'Mars/Olympus_Mons',
+  }, RIEN_ANNONCE);
 
   // =========================================================================
   // B. EN SERVICE — le rôle du jour commande, et il est nommé

@@ -19,9 +19,10 @@
 // --------------------
 //   1. À instant identique, un appareil quelconque date la journée de l'écran
 //      comme la STATION la date — affichage, compteur et ENREGISTREMENT.
-//   2. La journée suit `station_config.fuseau_horaire` du SITE : déclarer le
-//      site à Paris déplace la frontière. Sans ce point, un code qui aurait
-//      figé la Martinique en dur serait vert.
+//   2. La journée suit `sites.timezone` du SITE — l'autorité canonique du
+//      fuseau depuis la migration 20260905131500 : déclarer le site à Paris
+//      déplace la frontière. Sans ce point, un code qui aurait figé la
+//      Martinique en dur serait vert.
 //   3. La bascule de minuit se fait SANS rechargement : une session ouverte à
 //      cheval sur minuit change de journée toute seule.
 //   4. Ce qui a été validé la veille cesse de compter pour aujourd'hui, et
@@ -117,6 +118,16 @@ function horlogeFigee(etat) {
 // l'employé connecté. Un écran qui irait lire le fuseau d'un autre site —
 // « vito-sainte-marie » traîne encore en dur dans treize tables — n'obtient
 // rien ici, et la journée qu'il en tire diverge aussitôt.
+//
+// 19/09/2026 — LE FUSEAU SE LIT DANS `sites.timezone`, ET `station_config`
+// EST DEVENUE UN PIÈGE. Cette doublure servait le fuseau sur
+// `station_config.fuseau_horaire`, colonne que la migration 20260905131500
+// déclare DÉPRÉCIÉE au profit de `sites.timezone`. Elle exigeait donc du code
+// livré qu'il lise la mauvaise autorité. Elle sert désormais la bonne — et
+// répond sur l'ancienne un fuseau qu'aucun appareil ne résout : un lecteur
+// qui y reviendrait n'obtiendrait AUCUN jour, et l'épreuve entière rougirait
+// au premier scénario. Cette table n'est pas absente du banc, elle y est un
+// piège.
 function faireClient(fuseauSite, ecrits) {
   return {
     from(table) {
@@ -125,9 +136,13 @@ function faireClient(fuseauSite, ecrits) {
         select: () => chaine, order: () => chaine, limit: () => chaine,
         eq: (col, val) => { if (col === 'site' || col === 'site_id') siteDemande = val; return chaine; },
         maybeSingle: () => Promise.resolve(
-          table === 'station_config' && siteDemande === SITE_DE_L_EMPLOYE
-            ? { data: { fuseau_horaire: fuseauSite }, error: null }
-            : { data: null, error: null }),
+          siteDemande !== SITE_DE_L_EMPLOYE
+            ? { data: null, error: null }
+            : table === 'sites'
+              ? { data: { timezone: fuseauSite }, error: null }
+              : table === 'station_config'
+                ? { data: { fuseau_horaire: 'Mars/Olympus_Mons' }, error: null }
+                : { data: null, error: null }),
         insert: (row) => { ecrits.push({ table, row }); return Promise.resolve({ error: null }); },
         update: (row) => { ecrits.push({ table, row }); return chaine; },
         then: (res, rej) => Promise.resolve({ data: [], error: null }).then(res, rej),
@@ -285,19 +300,28 @@ async function epreuves(appareil) {
 
   // ---- La fenêtre d'avant-chargement. ------------------------------------
   //
-  // Entre l'ouverture de l'écran et la réponse de `station_config`, le fuseau
-  // du site n'est pas encore connu. Ce n'est pas une hypothèse : c'est une
-  // lecture réseau, et l'écran vit pendant ce temps-là. Ce qui date sa
-  // journée dans cet intervalle doit replier sur la STATION, jamais sur
-  // l'appareil — sans quoi un téléphone à Auckland ouvrirait l'écran déjà au
-  // lendemain, le temps d'un aller-retour.
+  // Entre l'ouverture de l'écran et la réponse de `sites`, le fuseau du site
+  // n'est pas encore connu. Ce n'est pas une hypothèse : c'est une lecture
+  // réseau, et l'écran vit pendant ce temps-là.
+  //
+  // 19/09/2026 — CE QUE CETTE ÉPREUVE EXIGE A CHANGÉ DE SENS. Elle demandait
+  // qu'un jour soit quand même rendu dans cet intervalle, « replié sur la
+  // station » : un fuseau écrit en dur dans nexus-auth.js, donc une troisième
+  // source de vérité, et muette. Un téléphone à Auckland n'ouvrait certes pas
+  // l'écran au lendemain — mais un site RÉELLEMENT hors Martinique, lui, se
+  // voyait dater sur la Martinique sans que rien ne le dise, et la complétion
+  // partait en base avec cette date-là. On exige désormais l'inverse : tant
+  // que le fuseau n'est pas lu, il n'y a PAS de journée, et l'écran ne se
+  // dessine pas (garde d'initialisation, éprouvée juste en dessous sur le
+  // fichier livré).
   {
     const s = await monterSession('America/Martinique', { t: INSTANT_SOIR }, { demarrer: false });
-    v('avant même que le fuseau du site soit lu, la journée reste celle de la station', () => {
-      assert.strictEqual(s.ECRAN.jour(), '2026-09-18');
+    v('avant que le fuseau du site soit lu, l’écran n’a aucune journée', () => {
+      assert.strictEqual(s.ECRAN.jour(), null,
+        'une journée est datée avant toute lecture du fuseau : elle ne peut venir que d’un repli');
     });
     await s.ECRAN.demarrer();
-    v('… et elle ne change pas une fois le fuseau chargé', () => {
+    v('… et la journée de la station apparaît une fois le fuseau chargé', () => {
       assert.strictEqual(s.ECRAN.jour(), '2026-09-18');
     });
   }
@@ -331,13 +355,45 @@ async function epreuves(appareil) {
     });
   }
 
-  // ---- Site sans fuseau lisible : repli station, jamais l'appareil. ------
+  // ---- Site sans fuseau lisible : aucune journée, et l'écran se tait. ----
+  //
+  // Deux causes, un seul comportement : `sites` ne rend rien, ou rend un
+  // fuseau que cet appareil ne sait pas résoudre. Dans les deux cas l'écran
+  // n'a pas de journée — et surtout il ne s'en fabrique pas une. Jusqu'au
+  // 19/09 cette boucle exigeait `'2026-09-18'`, c'est-à-dire la Martinique
+  // devinée : l'épreuve rendait le repli OBLIGATOIRE pour rester verte.
   for (const cas of [null, 'Mars/Olympus_Mons']) {
     const s = await monterSession(cas, { t: INSTANT_SOIR });
-    v(`fuseau du site « ${cas} » : repli sur la station, pas sur l’appareil`, () => {
-      assert.strictEqual(s.ECRAN.jour(), '2026-09-18');
+    v(`fuseau du site « ${cas} » : aucune journée, aucune date devinée`, () => {
+      assert.strictEqual(s.ECRAN.jour(), null,
+        'l’écran date de nouveau sa journée sans savoir dans quel fuseau');
+    });
+    v(`fuseau du site « ${cas} » : rien n’a été écrit`, () => {
+      assert.strictEqual(s.ecrits.length, 0,
+        'une écriture est partie alors que la journée est indéterminée');
     });
   }
+
+  // La garde d'initialisation, lue dans le fichier livré. `jourMetier()`
+  // irrigue quatorze endroits de cet écran ; ce qui empêche une journée
+  // indéterminée de s'y propager n'est pas dans `jourMetier`, c'est cet
+  // arrêt-là, posé AVANT `chargerShiftAujourdhui` — sans quoi une panne de
+  // lecture du fuseau passerait pour une absence de service et renverrait
+  // l'employée vers la prise de poste.
+  v('sans fuseau, l’écran refuse de se dessiner', () => {
+    const i = SRC_ECRAN.indexOf('FUSEAU_SITE = await nexusFuseauSite(');
+    assert.ok(i !== -1, 'l’écran ne lit plus le fuseau de son site');
+    // L'APPEL, pas le nom : les commentaires qui expliquent pourquoi la garde
+    // précède `chargerShiftAujourdhui` contiennent eux aussi ce nom, et la
+    // fenêtre se refermait avant d'atteindre la garde — une garde muette.
+    const j = SRC_ECRAN.indexOf('await chargerShiftAujourdhui(', i);
+    assert.ok(j !== -1, 'l’écran ne charge plus le service du jour après avoir lu le fuseau');
+    const entre = SRC_ECRAN.slice(i, j);
+    assert.ok(/if \(!FUSEAU_SITE\) \{/.test(entre),
+      'la garde a disparu, ou elle est posée après le chargement du service');
+    assert.ok(/return;/.test(entre.slice(entre.indexOf('if (!FUSEAU_SITE) {'))),
+      'la garde n’arrête pas l’initialisation : l’écran continue sans journée');
+  });
 
   // ---- Garde de non-retour. ----------------------------------------------
   //

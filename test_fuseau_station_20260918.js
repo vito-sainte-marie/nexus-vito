@@ -20,12 +20,25 @@
 // --------------------
 //   1. À instant identique, deux appareils quelconques prennent la MÊME
 //      décision pour le MÊME site — jour métier, service retenu, clôtures.
-//   2. La décision suit `station_config.fuseau_horaire` du SITE : changer le
-//      fuseau du site change la décision, changer celui de l'appareil ne la
-//      change jamais. Un test qui ne vérifierait que le premier point serait
-//      vert sur un code qui aurait simplement figé la Martinique en dur.
+//   2. La décision suit `sites.timezone` du SITE : changer le fuseau du site
+//      change la décision, changer celui de l'appareil ne la change jamais.
+//      Un test qui ne vérifierait que le premier point serait vert sur un code
+//      qui aurait simplement figé la Martinique en dur.
 //   3. La clôture des services RÉELLEMENT anciens est conservée, motif
 //      `jour_precedent` : corriger le fuseau ne devait pas désarmer le ménage.
+//   4. 19/09/2026 — UN FUSEAU NON RÉSOLU NE SE REMPLACE PLUS. Ce test exigeait
+//      jusqu'ici un repli sur `America/Martinique` quand le fuseau manquait ou
+//      était illisible (S5, S6). L'arbitrage du 19/09 l'interdit : le repli
+//      était une TROISIÈME source de vérité — une constante du code qu'aucune
+//      base ne porte — et il était silencieux. S5 et S6 exigent désormais
+//      l'inverse : jour de la station indéterminé, aucun service retenu, et
+//      surtout AUCUNE CLÔTURE, puisque refermer écrit en base sur la foi d'un
+//      jour que NEXUS n'a pas su lire.
+//
+//      Le faux client sert par ailleurs un fuseau CONTRADICTOIRE sur
+//      `station_config.fuseau_horaire` (la colonne dépréciée) : si un lecteur
+//      y revenait, S1 basculerait au 15 septembre et rougirait. Cette table
+//      n'est pas absente du test, elle y est un piège.
 //
 // COMMENT IL LE MESURE — DEUX PRÉCAUTIONS QUI FONT TOUTE LA VALEUR
 // ---------------------------------------------------------------
@@ -104,14 +117,24 @@ const SCENARIOS = [
     attendu: { jourStation: '2026-09-15', service: null, clotures: [['svc-du-jour', 'jour_precedent']] },
   },
   {
-    cle: 'S5', quoi: 'site sans fuseau configuré — repli ultramarin',
+    // 19/09/2026 — CE SCÉNARIO A CHANGÉ D'ATTENDU, PAS DE SITUATION. Il
+    // exigeait un repli ultramarin ; il exige maintenant l'aveu. `sites` ne
+    // rend rien de lisible, donc le jour de la station est indéterminé, donc
+    // NEXUS ne retient aucun service — et ne referme rien. Le service ouvert
+    // du jour même reste intact : c'est le point qui compte, car l'ancien
+    // repli le retenait par chance, en datant dans un fuseau supposé.
+    cle: 'S5', quoi: 'site sans fuseau lisible — jour indéterminé, aucune écriture',
     fuseauSite: null, shifts: [SERVICE_DU_JOUR_STATION],
-    attendu: { jourStation: '2026-09-14', service: 'svc-du-jour', clotures: [] },
+    attendu: { jourStation: null, service: null, clotures: [], erreur: true },
   },
   {
-    cle: 'S6', quoi: 'fuseau configuré illisible — repli ultramarin, jamais l’appareil',
+    // Le fuseau existe en base mais CET appareil ne sait pas le résoudre.
+    // `Intl` lèverait à chaque calcul de date : le refus est prononcé à la
+    // lecture, une fois, et vaut « indéterminé » — jamais l'horloge locale,
+    // jamais une constante.
+    cle: 'S6', quoi: 'fuseau configuré illisible par l’appareil — jour indéterminé',
     fuseauSite: 'Mars/Olympus_Mons', shifts: [SERVICE_DU_JOUR_STATION],
-    attendu: { jourStation: '2026-09-14', service: 'svc-du-jour', clotures: [] },
+    attendu: { jourStation: null, service: null, clotures: [], erreur: true },
   },
   {
     // LE SYMÉTRIQUE DE S2, ET C'EST TOUT L'ENJEU. `jour différent` n'est pas
@@ -188,9 +211,16 @@ function faireClient(fuseauSite, shifts) {
       const chaine = {
         select: () => chaine, eq: () => chaine, order: () => chaine, limit: () => chaine,
         maybeSingle: () => Promise.resolve(
-          table === 'station_config'
-            ? { data: { fuseau_horaire: fuseauSite }, error: null }
-            : { data: null, error: null }),
+          table === 'sites'
+            ? { data: { timezone: fuseauSite }, error: null }
+            // LA COLONNE DÉPRÉCIÉE EST UN PIÈGE, PAS UN VIDE. Elle répond, et
+            // elle répond FAUX : de l'autre côté de la ligne de changement de
+            // date. Un lecteur qui y reviendrait daterait S1 au 15 septembre
+            // et rougirait immédiatement, au lieu de passer inaperçu parce que
+            // les deux tables disent aujourd'hui la même chose en production.
+            : table === 'station_config'
+              ? { data: { fuseau_horaire: 'Pacific/Auckland' }, error: null }
+              : { data: null, error: null }),
         then: (res, rej) => rep().then(res, rej),
       };
       ['insert', 'update', 'upsert', 'delete'].forEach(m => { chaine[m] = refuser(table, m); });
@@ -203,19 +233,21 @@ function faireClient(fuseauSite, shifts) {
 // `nexus-auth.js` n'est pas un module : on en monte la portée à la main, avec
 // exactement les fonctions dont `nexusServiceCourant` a besoin.
 function monterAuth(client, cloturer) {
-  const defaut = (SRC_AUTH.match(/const NEXUS_FUSEAU_DEFAUT = '([^']+)'/) || [])[1] || '';
-  assert.ok(defaut, 'NEXUS_FUSEAU_DEFAUT introuvable dans nexus-auth.js');
+  // 19/09/2026 — PLUS AUCUNE CONSTANTE DE REPLI N'EST INJECTÉE ICI. Ce montage
+  // en réclamait une (`NEXUS_FUSEAU_DEFAUT`) et échouait sans elle ; la
+  // réclamer aujourd'hui rendrait le repli OBLIGATOIRE pour que la CI reste
+  // verte, ce qui est exactement l'inverse de l'arbitrage. Son absence est
+  // désormais vérifiée explicitement, plus bas.
   return new Function(
     'Date', 'console', 'nexusClient', 'NexusPointageRegles', 'nexusCloturerServicesObsoletes',
     [
-      `const NEXUS_FUSEAU_DEFAUT = ${JSON.stringify(defaut)};`,
       'const nexusFuseauxSite = new Map();',
       extraireFonction('function nexusFuseauValide(', SRC_AUTH),
       extraireFonction('function nexusRetenirFuseau(', SRC_AUTH),
       extraireFonction('function nexusJourDansFuseau(', SRC_AUTH),
       extraireFonction('async function nexusFuseauSite(', SRC_AUTH),
       extraireFonction('async function nexusServiceCourant(', SRC_AUTH),
-      'return { NEXUS_FUSEAU_DEFAUT, nexusJourDansFuseau, nexusFuseauSite, nexusServiceCourant };',
+      'return { nexusJourDansFuseau, nexusFuseauSite, nexusServiceCourant };',
     ].join('\n'),
   )(horlogeFigee(INSTANT), { error() {}, info() {} }, client, NexusPointageRegles, cloturer);
 }
@@ -299,7 +331,11 @@ for (const sc of SCENARIOS) {
     verifier(`${sc.cle} (${tz}) · jour métier — ${sc.quoi}`, r.jourStation, sc.attendu.jourStation);
     verifier(`${sc.cle} (${tz}) · service retenu`, r.service, sc.attendu.service);
     verifier(`${sc.cle} (${tz}) · clôtures décidées`, r.clotures, sc.attendu.clotures);
-    verifierQue(`${sc.cle} (${tz}) · aucune erreur de lecture`, r.erreur === false);
+    // L'AVEU EST UNE DÉCISION, PAS UN ACCIDENT : il s'éprouve dans les deux
+    // sens. Un scénario nominal qui se mettrait à rendre `erreur` serait une
+    // panne ; un scénario sans fuseau qui rendrait un résultat calme serait le
+    // repli revenu.
+    verifier(`${sc.cle} (${tz}) · aveu de lecture`, r.erreur, sc.attendu.erreur === true);
   }
 }
 
@@ -340,10 +376,22 @@ verifierQue('Changer le fuseau du site change la décision (S1 en Martinique / S
   APPAREILS.every(tz => releves[tz].S1.jourStation !== releves[tz].S4.jourStation),
   'sans cette différence, le fuseau du site ne serait pas lu mais supposé');
 
-// 6. LE REPLI RESTE ULTRAMARIN. Se tromper vers l'Europe AVANCE la journée,
-//    donc referme des services encore ouverts : c'est le défaut corrigé.
-verifierQue('Le repli de `nexus-auth.js` est une station ultramarine',
-  /const NEXUS_FUSEAU_DEFAUT = 'America\/Martinique'/.test(SRC_AUTH));
+// 6. IL N'Y A PLUS DE REPLI DU TOUT, ET UNE SEULE AUTORITÉ DE FUSEAU.
+//    Ces trois contrôles sont statiques, et c'est assumé : ils ne prouvent pas
+//    un comportement — les scénarios ci-dessus s'en chargent — ils interdisent
+//    la RÉAPPARITION de la forme précise qui a produit le défaut. Une
+//    constante de repli réintroduite ailleurs échapperait au premier ; c'est
+//    pourquoi S5 et S6, eux, éprouvent la décision.
+verifierQue('Aucune constante de repli ne subsiste dans `nexus-auth.js`',
+  !/NEXUS_FUSEAU_DEFAUT/.test(SRC_AUTH),
+  'un repli codé en dur est une troisième source de vérité, et une source muette');
+const SRC_FUSEAU_SITE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH);
+verifierQue('Le fuseau est lu dans l’autorité canonique `sites.timezone`',
+  /\.from\('sites'\)/.test(SRC_FUSEAU_SITE) && /select\('timezone'\)/.test(SRC_FUSEAU_SITE),
+  'la migration 20260905131500 déclare `sites.timezone` source de vérité depuis le 05/09/2026');
+verifierQue('La colonne dépréciée `station_config.fuseau_horaire` n’est plus lue',
+  !/station_config/.test(SRC_FUSEAU_SITE) && !/fuseau_horaire/.test(SRC_FUSEAU_SITE),
+  'deux lecteurs ne peuvent pas rester autorités concurrentes du jour métier');
 verifierQue('`nexusDateLocaleISO` ne survit pas en alias',
   !/function nexusDateLocaleISO/.test(SRC_AUTH),
   'un motif faux survit à sa propre péremption : la fonction est supprimée, pas conservée');

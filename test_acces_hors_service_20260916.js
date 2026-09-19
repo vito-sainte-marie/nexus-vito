@@ -180,16 +180,33 @@ async function porte1(page, employee, { service, departPointe }) {
 }
 
 // La porte du pointage d'arrivée, idem, avec un faux client Supabase.
-async function porte2(page, employee, { config, arrivee }) {
+//
+// 19/09/2026 — LE BANC SERT MAINTENANT `sites`. Depuis l'arbitrage du jour
+// metier, cette porte lit le fuseau du SITE avant de dater la journee : un
+// banc qui ne sert pas cette table lui rend un fuseau nul, et la porte se
+// tait au lieu de mordre. Le `false` obtenu ainsi ressemble trait pour trait
+// a une dispense — c'est un faux vert inverse. Le defaut du banc est le
+// fuseau de l'APPAREIL, parce que les instants compares ici viennent de
+// `Date.now()` : en donner un autre deplacerait la frontiere de journee sous
+// les scenarios sans rien mesurer de plus. La colonne DEPRECIEE
+// `station_config.fuseau_horaire` n'est volontairement pas servie — un
+// lecteur qui y reviendrait ne trouverait rien, et les scenarios rougiraient.
+const FUSEAU_APPAREIL = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+async function porte2(page, employee, { config, arrivee, fuseauSite = FUSEAU_APPAREIL }) {
   function chain(table) {
     return {
       select: () => chain(table), eq: () => chain(table),
-      maybeSingle: async () => table === 'station_config'
-        ? { data: config } : { data: arrivee, error: null },
+      maybeSingle: async () => {
+        if (table === 'station_config') return { data: config };
+        if (table === 'sites') return { data: fuseauSite ? { timezone: fuseauSite } : null, error: null };
+        return { data: arrivee, error: null };
+      },
     };
   }
+  const refus = [];
   const ctx = {
-    console,
+    console: { log: () => {}, warn: () => {}, error: (...a) => refus.push(a.join(' ')) },
     window: { location: { pathname: '/' + page } },
     __lectures: [],
     nexusClient: { from: (table) => { ctx.__lectures.push(table); return chain(table); } },
@@ -198,7 +215,7 @@ async function porte2(page, employee, { config, arrivee }) {
                 'this.__test = nexusPointageArriveeManquant;'].join('\n\n');
   vm.runInNewContext(code, ctx);
   const bloque = await ctx.__test(employee);
-  return { bloque, lectures: ctx.__lectures };
+  return { bloque, lectures: ctx.__lectures, refus };
 }
 
 const EMPLOYE = { id: 'e1', site_id: 's1', role: 'employe', consultation_externe: false };
@@ -280,6 +297,24 @@ const EN_SERVICE = { service: { id: 'sv1', role: 'caissier', quart: 'quart_1' } 
   assert.strictEqual(managerTerrain.bloque, true,
     'manager_pointage_requis ne mord plus nulle part : l\'interrupteur est devenu décoratif');
   passes++; console.log('OK — manager_pointage_requis mord toujours sur les écrans de terrain');
+
+  // ── ... et il ne mord QUE sur un jour que la station sait dater ────────
+  // Le `true` ci-dessus et le `false` ci-dessous sont le meme scenario a un
+  // seul fait pres : le fuseau du site. Sans temoin, un `false` de cette
+  // porte serait indiscernable d'une dispense — alors qu'il ne dispense
+  // personne : il retire une RELANCE, il n'accorde aucun acces (la regle
+  // d'acces, elle, est eprouvee par `porte1`). Ce qui se verifie ici, c'est
+  // que NEXUS se TAIT sans se taire en silence : le motif est journalise.
+  const sansFuseau = await porte2('NEXUS-Inventaire-Manager-v1.html', MANAGER,
+    { config: { pointage_actif: true, manager_pointage_requis: true }, arrivee: null,
+      fuseauSite: null });
+  assert.strictEqual(sansFuseau.bloque, false,
+    'sans jour de station, la porte reclame un pointage contre une date devinee');
+  assert.ok(!sansFuseau.lectures.includes('pointages'),
+    'le jour est indetermine : aucune lecture de pointage ne doit etre tentee');
+  assert.ok(sansFuseau.refus.some(m => /indetermin/.test(m)),
+    'le refus doit etre journalise, jamais silencieux');
+  passes++; console.log('OK — jour de station indéterminé : aucune relance, et le motif est dit');
 
   // ── Aucune régression sur les dispenses existantes ─────────────────────
   const externe = await porte1('NEXUS-Missions-v1.html',

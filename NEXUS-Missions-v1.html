@@ -314,9 +314,17 @@
   // `jourMetier()` est volontairement SYNCHRONE et relit l'heure a chaque
   // appel : le fuseau, lui, est lu une fois au demarrage. Une session ouverte
   // de part et d'autre de minuit bascule donc de journee toute seule, sans
-  // rechargement. Avant que le fuseau ne soit charge — et si sa lecture
-  // echoue — `nexusJourDansFuseau` replie sur le fuseau de la station, ce qui
-  // reste le jour du site et jamais celui d'UTC.
+  // rechargement.
+  //
+  // 19/09/2026 — IL N'Y A PLUS DE REPLI. Ce commentaire annoncait que
+  // `nexusJourDansFuseau` retombait sur le fuseau de la station quand la
+  // lecture echouait : c'etait une constante ecrite dans nexus-auth.js, donc
+  // une troisieme source de verite, et muette. `nexusFuseauSite` lit
+  // desormais `sites.timezone` — l'autorite canonique declaree par la
+  // migration 20260905131500 — et rend `null` s'il ne peut pas la lire.
+  // `jourMetier()` rend alors `null` lui aussi, et l'ecran refuse de se
+  // dessiner (garde a l'initialisation) plutot que de dater ses completions
+  // d'un jour devine.
   let FUSEAU_SITE = null;
   function jourMetier(instant) {
     return nexusJourDansFuseau(instant || new Date(), FUSEAU_SITE);
@@ -2470,6 +2478,20 @@
     // jour dans le fuseau du site, et tout ce qui suit doit dater sa journee
     // de la meme facon.
     FUSEAU_SITE = await nexusFuseauSite(SITE_ACTUEL);
+    // PAS DE FUSEAU, PAS DE JOUR METIER — ET PAS DE MISSIONS DATEES.
+    // `jourMetier()` irrigue quatorze endroits de cet ecran, dont l'ecriture
+    // des completions (`mission_completions.date`). Poursuivre sans fuseau
+    // reviendrait a lire et a ecrire une journee devinee. On s'arrete avant
+    // `chargerShiftAujourdhui`, qui redirigerait vers la prise de poste et
+    // ferait passer une panne de lecture pour une absence de service.
+    if (!FUSEAU_SITE) {
+      console.error('Missions : jour de la station ind\u00e9termin\u00e9 \u2014 ecran non dessine.');
+      const zoneJournee = document.getElementById('journeeSection');
+      if (zoneJournee) zoneJournee.innerHTML = '<div class="empty-note">Journ\u00e9e de la station ind\u00e9termin\u00e9e.<br>'
+        + 'NEXUS n\u2019a pas pu lire le fuseau horaire du site : vos missions ne peuvent pas \u00eatre dat\u00e9es.<br>'
+        + 'V\u00e9rifiez la connexion, puis rechargez la page.</div>';
+      return;
+    }
 
     if (!employee.consultation_externe) {
       // 18/09/2026 — `employeeCourant` n'existe PAS dans cet écran. Le nom

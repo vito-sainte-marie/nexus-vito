@@ -730,15 +730,25 @@
   // chargé. L'horloge est relue à chaque appel : une session laissée ouverte
   // de part et d'autre de minuit change de journée toute seule.
   //
-  // DEUX LECTEURS DE FUSEAU COEXISTENT DANS NEXUS, et ce n'est pas un oubli
-  // de ce lot : `nexusFuseauSite` lit `station_config.fuseau_horaire` et
-  // replie sur America/Martinique ; `NexusStation.fuseauDeLaStation` lit
-  // `sites.timezone` et refuse tout repli. Chacun a raison sur son objet —
-  // DATER ne doit bloquer personne, CALCULER UN RETARD ne doit rien
-  // inventer (mandat 33). C'est donc celui-ci qui date, et `retardDeLArrivee`
-  // qui exige l'autre. Leur accord n'est pas supposé : leur désaccord est
-  // rattrapé explicitement, voir la garde des deux jours dans
-  // `retardDeLArrivee`.
+  // UNE SEULE AUTORITE DE FUSEAU DEPUIS LE 19/09/2026 : `sites.timezone`.
+  //
+  // Ce commentaire decrivait deux lecteurs contradictoires — `nexusFuseauSite`
+  // lisant `station_config.fuseau_horaire` avec repli sur America/Martinique,
+  // `NexusStation.fuseauDeLaStation` lisant `sites.timezone` sans repli — et
+  // justifiait leur coexistence par leurs objets differents. Ce n'etait pas
+  // tenable : deux colonnes peuvent diverger, et rien ne les tenait ensemble.
+  // `nexusFuseauSite` a rejoint l'autorite que la migration 20260905131500
+  // avait deja designee le 05/09/2026. Les deux lecteurs lisent maintenant la
+  // MEME colonne et refusent tous deux le repli ; il reste deux caches, un par
+  // fichier, et plus aucun desaccord possible sur la valeur.
+  //
+  // La garde des deux jours de `retardDeLArrivee` reste en place : elle ne
+  // rattrape plus un desaccord de colonnes — il ne peut plus s'en produire —
+  // mais elle continue d'interdire de dater un retard sur un autre jour que
+  // celui du pointage.
+  //
+  // SANS FUSEAU, PAS DE JOUR. `jourStationDe` rend `null` plutot qu'une date
+  // devinee ; chaque appelant le traite, et aucun n'ecrit en base sans jour.
   // ────────────────────────────────
   async function jourStationDe(siteId, instant) {
     return nexusJourDansFuseau(instant || new Date(), await nexusFuseauSite(siteId));
@@ -749,8 +759,13 @@
   // exemple. Elles reçoivent le découpeur plutôt que de lire un fuseau
   // elles-mêmes : c'est le contrat de nexus-pointage-regles.js, où aucune
   // règle ne connaît ni horloge ni fuseau.
+  // Rend `null` quand le fuseau n'est pas resolu, et NON un decoupeur qui
+  // rendrait `null` pour chaque instant : deux `null` se comparent egaux, et
+  // un decoupeur muet ferait passer le service de la veille pour celui du
+  // jour. L'absence de decoupeur, elle, ne peut pas etre ignoree.
   async function decoupeurDeJours(siteId) {
     const fuseau = await nexusFuseauSite(siteId);
+    if (!fuseau) return null;
     return instant => nexusJourDansFuseau(instant, fuseau);
   }
 
@@ -965,6 +980,14 @@
 
   async function afficherEquipeManager(siteId) {
     const today = await jourStationDe(siteId);
+    if (!today) {
+      // Sans jour de station, `date = null` ne rendrait aucun pointage et la
+      // liste dirait « Pas encore pointe » de toute l'equipe. Un ecran vide
+      // qui affirme est pire qu'un ecran qui dit ne pas savoir.
+      const zoneEquipe = document.getElementById('equipeListe');
+      if (zoneEquipe) zoneEquipe.innerHTML = '<li class="timeline-empty">Journee de la station indeterminee \u2014 liste momentanement indisponible.</li>';
+      return;
+    }
     const [{ data: equipe }, { data: pointagesJour }] = await Promise.all([
       nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true),
       nexusClient.from('pointages').select('employee_id, type, heure').eq('site', siteId).eq('date', today),
@@ -1012,6 +1035,28 @@
   async function afficherFormulairePointage(employee, siteId) {
     const today = await jourStationDe(siteId);
     const jourDeService = await decoupeurDeJours(siteId);
+    // LE JOUR DE LA STATION COMMANDE TOUT CET ECRAN : la date ecrite sur le
+    // pointage, le service auquel il se rattache, la ligne de planning lue et
+    // l'historique affiche. S'il n'est pas etabli, NEXUS ne propose pas un
+    // formulaire qui ecrirait une date devinee : il le dit et s'arrete.
+    //
+    // CETTE GARDE NE CASSE PAS LE POINTAGE HORS LIGNE, et c'est mesure, pas
+    // suppose. Cet ecran ne s'affiche JAMAIS sans reseau : `nexusRequireAuth`
+    // (nexus-auth.js) lit `employees` sur le serveur avant de rendre la main,
+    // et renvoie vers l'ecran de connexion si cette lecture echoue. Il n'y a
+    // pas de service worker : la page elle-meme n'est pas servie hors ligne.
+    // La file locale couvre donc la coupure QUI SURVIENT APRES le rendu —
+    // entre le clic et le serveur — et a ce moment-la le fuseau du site a
+    // deja ete lu et memorise dans la page (`nexusFuseauxSite`). Le pointage
+    // hors ligne continue de fonctionner sans aucune lecture reseau du
+    // fuseau, et sans qu'un repli silencieux ait besoin d'exister.
+    if (!today || !jourDeService) {
+      document.getElementById('pageTitle').textContent = 'Pointage';
+      document.getElementById('app').innerHTML = `
+        <div class="locked">Journ\u00e9e de la station ind\u00e9termin\u00e9e.<br>NEXUS n\u2019a pas pu lire le fuseau horaire du site : aucun pointage ne peut \u00eatre enregistr\u00e9 sans savoir \u00e0 quelle journ\u00e9e il appartient.<br><br>V\u00e9rifiez la connexion, puis rechargez la page.</div>
+      `;
+      return;
+    }
     // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
     // qui fait repartir une tentative restée sur l'appareil après une coupure,
     // une fermeture du navigateur, ou une session expirée puis rouverte.
@@ -1676,6 +1721,12 @@
     const zone = document.getElementById('activiteJour');
     if (!zone) return;
     const today = await jourStationDe(siteId);
+    if (!today) {
+      // Meme raison qu'ailleurs : « 0 mission terminee » se lirait comme un
+      // fait alors que la journee n'est pas etablie.
+      zone.innerHTML = '<div class="info-note">Activit\u00e9 du jour indisponible \u2014 journ\u00e9e de la station ind\u00e9termin\u00e9e.</div>';
+      return;
+    }
     const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
@@ -1741,6 +1792,27 @@
     // la lecture du planning et l'historique du jour : le jour du SITE à
     // l'instant retenu, jamais celui de l'appareil (mandat 38 §3).
     const today = await jourStationDe(siteId, heureRetenue);
+    const jourDeService = await decoupeurDeJours(siteId);
+
+    // SANS JOUR DE STATION, AUCUNE ÉCRITURE — ET RIEN EN FILE (19/09/2026).
+    //
+    // `pointages.date` est NOT NULL : une date nulle serait refusée par le
+    // serveur. Mais le vrai risque n'est pas le refus, c'est la FILE : une
+    // tentative mise en attente avec une date fabriquée serait rejouée
+    // indéfiniment, ou pire, acceptée sur le mauvais jour. La garde est donc
+    // posée AVANT `fileAjouter`, pas après l'insertion.
+    if (!today || !jourDeService) {
+      console.error('Pointage non enregistr\u00e9 : jour de la station ind\u00e9termin\u00e9 \u2014 rien n\'a \u00e9t\u00e9 mis en file.');
+      const bandeau = document.getElementById('confirmBanner');
+      if (bandeau) {
+        bandeau.textContent = `${LABELS_TYPES[type].label} non enregistré${type === 'depart' ? '' : 'e'} : `
+          + "NEXUS n'a pas pu lire le fuseau horaire du site et ne sait pas à quelle journée "
+          + "rattacher ce pointage. Rien n'est resté en attente sur ce téléphone. "
+          + 'Rechargez la page ; si cela persiste, prévenez votre manager.';
+        bandeau.classList.add('show');
+      }
+      return false;
+    }
 
     // Le service de référence doit être CELUI DU JOUR (11/09/2026).
     //
@@ -1757,7 +1829,7 @@
     // pointage, on retombe sur le repli déjà prévu — retard 0, quart
     // 'non_defini', horaire prévu nul. Une absence assumée vaut mieux
     // qu'un retard inventé.
-    const serviceDuJour = serviceDuJourSeulement(shiftActif, today, await decoupeurDeJours(siteId));
+    const serviceDuJour = serviceDuJourSeulement(shiftActif, today, jourDeService);
 
     // LE RETARD EST DE NOUVEAU CALCULÉ (19/09/2026, mandat 33) — mais plus
     // jamais contre `shifts.heure_debut`.

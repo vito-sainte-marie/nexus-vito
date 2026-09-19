@@ -795,11 +795,21 @@ Un pointage, un service et une ligne de planning se datent avec le fuseau du sit
 sur un autre fuseau ne doit plus pouvoir déplacer un service d'une journée. Côté base, la même règle
 est tenue par `planning_jour_station` / `planning_jour_de_ma_station`.
 
-**Dette ouverte, non refermée par ce chantier** : deux lecteurs de fuseau coexistent —
-`nexusFuseauSite` lit `station_config.fuseau_horaire` et replie sur `America/Martinique` ;
-`NexusStation.fuseauDeLaStation` lit `sites.timezone` et refuse tout repli. Leur accord actuel est
-**fortuit**, et il est déjà faux sur la base Test pour `vito-sainte-marie`. À traiter dans un lot
-dédié.
+**Une seule autorité : `sites.timezone`** (arbitrage du 19/09/2026). La colonne
+`station_config.fuseau_horaire` est **DÉPRÉCIÉE** depuis la migration
+`20260905131500_fuseau_horaire_par_site.sql`, qui a porté le fuseau sur `sites`. Les deux lecteurs
+du jour métier qui coexistaient — `nexusFuseauSite` et `NexusStation.fuseauDeLaStation` — lisent
+désormais la même colonne, et leur accord n'est plus fortuit. Côté base, `planning_jour_station`
+tient déjà la même règle. La portée de cet arbitrage est le **jour métier** : Pointage, service
+courant, départ du jour, Missions, accueil et Planning (voir §10.9 pour ce qui lit encore la
+colonne dépréciée ailleurs).
+
+**Aucun repli, et aucun repli silencieux.** Un fuseau de site illisible ou absent ne se remplace
+pas par `America/Martinique` : le jour de la station est alors **indéterminé**, et chaque appelant
+le dit au lieu de deviner — `nexusServiceCourant` rend `{ erreur: true }` et ne referme aucun
+service, `nexusPointageArriveeManquant` ne réclame aucune relance, la porte du départ du jour rend
+`false`. Dans les trois cas le motif est journalisé. Une date devinée coûte plus cher qu'un refus
+avoué : c'est elle qui a produit les services de 2 j 00 h 24 effacés par P-2.
 
 ### 10.4 Un import Google Sheets est un brouillon — Importer, Contrôler, Valider et publier
 
@@ -812,6 +822,14 @@ La lecture du classeur et le découpage de la grille se font **ailleurs et une s
 `google-sheets-sync`, moteur `nexus-planning-sheets-moteur.js`). La fonction SQL ne lit rien et ne
 devine rien : elle reçoit un lot déjà contrôlé et l'écrit. Il n'existe donc pas un lecteur Google
 Sheets dans Pointage et un autre dans Paye.
+
+**Un brouillon ne devient pas officiel en vieillissant** (arbitrage du 19/09/2026). Au 19/09/2026,
+les **335 lignes de `planning_shifts` en Production** (site `vito-sainte-marie`, du 27/07 au
+31/08/2026) portent toutes `publie = false`. Elles **restent non publiées**. `publie = false` dit
+qu'elles n'ont jamais acquis le statut de planning officiel validé, et aucune publication de masse ne
+viendra leur donner après coup une autorité qu'un manager ne leur a jamais donnée. Si juillet-août
+doit être reconstitué un jour, ce sera une **qualification historique explicite**, ligne à ligne et
+motivée — pas un `update … set publie = true`.
 
 ### 10.5 Aucune correspondance n'est devinée
 
@@ -829,9 +847,22 @@ vaut plus correspondance depuis le 19/09/2026 ; elle ne sert plus qu'à *nommer*
 (« SMU n'est déclaré nulle part » plutôt que « valeur illisible »). Elle ne produit aucune heure et
 aucun site.
 
-Seul mappage posé par arbitrage : **`SMU` → `vito-sainte-marie`**. Conséquence à retenir : `SMU` est
-aussi le préfixe d'onglet du site lui-même — une cellule `SMU` dans l'onglet `SMU09` **n'est pas un
-transfert**, c'est du travail sur place, et le barème 7/8 selon le jour s'y applique normalement.
+Seul mappage posé par arbitrage : **`SMU` → `vito-sainte-marie`**. `SMU` signifie **Sainte-Marie
+Usine** (confirmé par Frédéric le 19/09/2026) : c'est le site lui-même, et c'est aussi le préfixe de
+ses onglets. Une cellule `SMU` dans l'onglet `SMU09` **n'est donc pas un transfert**.
+
+**Ce que vaut une cellule, en quatre cas et pas un de plus :**
+
+| Cellule | Durée | Lieu | Statut |
+|---|---|---|---|
+| un nombre (`7`, `8`) | la valeur écrite | le site de l'onglet | `travail_normal` |
+| un code mappé sur le site de l'onglet (`SMU` dans `SMU09`) | **7 h** | le site de l'onglet | `travail_normal` |
+| un code mappé sur un **autre** `site_id` | **7 h** | cet autre site | `transfert_site` |
+| un code **non mappé** | *rien* | *rien* | **anomalie**, aucune déduction |
+
+Le barème 7/8 selon le jour ne concerne que la première ligne : un code de site vaut 7 h, y compris
+quand il désigne le site importé lui-même. Tout ce qui n'est ni un nombre ni un code connu (un
+prénom écrit à la main, le plus souvent) ressort en `valeur_illisible` — jamais en heures.
 
 ### 10.6 Ce que dit le Sheet, ce que dit NEXUS
 
@@ -871,7 +902,24 @@ côté paie est le lecteur — `nexus-paye-donnees.js` lit désormais `v_plannin
   mécanique existe, l'usage reste à valider sur Test avec un onglet fictif.
 - `planning_shifts` ne porte **aucune contrainte composite site/employé** : seul le contrôle applicatif
   de `importer_planning_google` empêche d'y écrire un employé d'un autre site. Dette ouverte.
-- La dette des deux lecteurs de fuseau (§10.3) reste entière.
+- **La colonne dépréciée est encore lue par la chaîne Carburants**, hors du jour métier et hors de
+  ce lot : `nexus-carburant-donnees.js`, `nexus-carburant-commande-donnees-core.js`,
+  `nexus-carburants-p0-performance.js` et `NEXUS-Carburants-Pilotage-v1.html` lisent
+  `station_config.fuseau_horaire` avec un repli **silencieux** sur `America/Martinique` ;
+  `NEXUS-Parametres-Station-v1.html` l'**écrit** encore. Ces quatre lectures ne datent aucun jour
+  métier — elles bornent des fenêtres de quart carburant — et l'arbitrage du 19/09/2026 n'y touche
+  pas. Elles restent une dette : tant qu'elles vivent, `sites.timezone` est l'autorité du jour
+  métier, pas encore l'autorité unique de NEXUS. À solder dans le lot Carburants, avec le
+  remplacement de l'écran de réglage.
+- **Dette sécurité critique, enregistrée ici, à traiter hors de ce lot** (arbitrage du 19/09/2026) :
+  `anon` et `authenticated` détiennent le privilège `TRUNCATE` sur **144 des 161 tables de Production**
+  (sur Test, 146 et 145 des 164), et **`TRUNCATE` ignore la RLS** — une politique de ligne ne protège
+  rien contre lui. Mesuré le 19/09/2026 sur les deux bases. Le risque est aujourd'hui **latent et non
+  exploitable par un appel REST** : PostgREST n'émet jamais cet ordre, et aucune fonction `public` de
+  Production n'exécute de SQL dynamique ni de `TRUNCATE`. Il deviendrait réel au premier chemin qui
+  exécuterait du SQL sous l'un de ces deux rôles. La correction est **transversale** — elle touche
+  toutes les tables — et n'a donc rien à faire dans le lot Planning : elle fait l'objet d'un traitement
+  séparé.
 
 ---
 
@@ -5374,7 +5422,9 @@ depuis `__dirname`, et le commentaire d'en-tête du test dit pourquoi.
   faux sur Test pour `vito-sainte-marie`.
 - N'a pas ajouté de **contrainte composite site/employé** sur `planning_shifts` : seul le contrôle
   applicatif de `importer_planning_google` empêche d'y écrire un employé d'un autre site.
-- N'a pas traité la **dette systémique** mesurée au passage : 171 tables sur 172 de la base Test
-  accordent `TRUNCATE` à `authenticated`, et `TRUNCATE` ignore la RLS. Hors périmètre de ce lot.
+- N'a pas traité la **dette systémique** mesurée au passage : `anon` et `authenticated` détiennent
+  `TRUNCATE` sur la quasi-totalité des tables (144 des 161 en Production, 145 et 146 des 164 sur Test,
+  re-mesuré le 19/09/2026), et `TRUNCATE` ignore la RLS. Hors périmètre de ce lot ; enregistrée comme
+  risque sécurité critique en §10.9.
 - N'a pas tranché le sort des **335 lignes `planning_shifts` de Production** (27/07 → 31/08/2026),
   toutes `publie = false` : c'est une décision métier, pas une correction technique.

@@ -48,8 +48,16 @@ function fonctionDe(source, nom, prelude = '', indent = '  ') {
 // est celui du jour. Si Pointage en employait une autre, les deux se
 // contrediraient tôt ou tard.
 const JOUR_DANS_FUSEAU_SRC = AUTH.match(/function nexusJourDansFuseau\([\s\S]*?\n\}/)[0];
-assert.ok(/NEXUS_FUSEAU_DEFAUT/.test(JOUR_DANS_FUSEAU_SRC));
-const PRELUDE = `const NEXUS_FUSEAU_DEFAUT = 'America/Martinique';\n${JOUR_DANS_FUSEAU_SRC}`;
+// 19/09/2026 — LE PRELUDE NE FOURNIT PLUS DE REPLI. Cette epreuve injectait
+// jusqu'ici `NEXUS_FUSEAU_DEFAUT` dans le prelude : elle EXIGEAIT donc que la
+// primitive replie sur un fuseau devine. L'arbitrage du 19/09 l'interdit — un
+// repli est une troisieme source de verite, et une source muette. La primitive
+// rend desormais `null` sans fuseau, et c'est cela que l'on verifie ici.
+assert.ok(!/NEXUS_FUSEAU_DEFAUT/.test(JOUR_DANS_FUSEAU_SRC),
+  'la primitive de jour metier replie de nouveau sur un fuseau devine');
+assert.ok(/if\(!fuseau\) return null;/.test(JOUR_DANS_FUSEAU_SRC),
+  'sans fuseau, la primitive ne renonce plus : elle daterait dans un fuseau choisi a la place de l\'appelant');
+const PRELUDE = JOUR_DANS_FUSEAU_SRC;
 
 // L'INSTANT DU DÉFAUT : 21:25 le 11/09 à Sainte-Marie (GMT-4), donc 01:25 le
 // 12/09 en UTC. Un appareil européen ou UTC dit « demain » ; le site, lui,
@@ -72,8 +80,11 @@ const jourStationDe = fonctionDe(POINTAGE, 'jourStationDe',
 const MESURES = {};
 async function prendreLesMesures() {
   MESURES.duSoir = await jourStationDe('vito-sainte-marie', CE_SOIR);
-  MESURES.avecRepli = await fonctionDe(POINTAGE, 'jourStationDe',
-    `${PRELUDE}\nasync function nexusFuseauSite(){ return NEXUS_FUSEAU_DEFAUT; }`
+  // Le site dont le fuseau n'a pas pu etre lu. Ce n'etait pas mesure ainsi
+  // avant le 19/09 : l'epreuve fournissait alors le fuseau de repli et
+  // verifiait qu'on datait quand meme. On mesure desormais le renoncement.
+  MESURES.sansFuseau = await fonctionDe(POINTAGE, 'jourStationDe',
+    `${PRELUDE}\nasync function nexusFuseauSite(){ return null; }`
   )('site-sans-config', CE_SOIR);
 }
 
@@ -100,10 +111,28 @@ t('MUTATION : le calendrier de l\'appareil, lui, le datait du lendemain', () => 
   } finally { process.env.TZ = ancienTZ; }
 });
 
-t('un fuseau inconnu ne fait échouer aucun pointage', () => {
-  // DATER ne doit bloquer personne : `nexusFuseauSite` replie, et c'est
-  // délibéré (là où CALCULER UN RETARD, lui, refuse de replier — §3).
-  assert.strictEqual(MESURES.avecRepli, JOUR_DU_SITE);
+t('un fuseau non résolu ne se remplace pas : le jour reste indéterminé', () => {
+  // AVANT LE 19/09, cette garde exigeait l'inverse : `nexusFuseauSite`
+  // repliait sur `America/Martinique`, et l'épreuve vérifiait qu'on datait
+  // quand même. Un pointage pris sur un site dont le fuseau n'avait pas pu
+  // être lu recevait donc une date CALCULÉE DANS UN FUSEAU DEVINÉ, écrite en
+  // base exactement comme une date lue, et plus rien ensuite ne distinguait
+  // les deux. On préfère désormais ne pas dater du tout : l'appelant voit un
+  // `null` et ne peut plus l'ignorer sans le savoir.
+  assert.strictEqual(MESURES.sansFuseau, null,
+    'le jour métier est de nouveau fabriqué à partir d\'un fuseau que personne n\'a fourni');
+});
+
+t('MUTATION : avec un repli, ce même site recevait une date d\'apparence normale', () => {
+  // La garde ci-dessus ne prouverait rien si l'instant choisi ne pouvait pas
+  // produire de date du tout. On rejoue donc l'ancienne règle — un repli codé
+  // en dur — et on exige qu'elle DATE : c'est bien le renoncement que l'on
+  // mesure, pas une impossibilité technique.
+  const jourReplie = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(CE_SOIR);
+  assert.strictEqual(jourReplie, JOUR_DU_SITE,
+    'l\'ancienne règle ne datait pas non plus : la garde ne mord pas');
 });
 
 t('sans instant fourni, c\'est l\'horloge qui est relue', () => {
@@ -218,9 +247,18 @@ t('AUCUN appel de la page ne se passe du découpeur', () => {
 });
 
 t('le service écrit en base passe par le même découpeur', () => {
-  assert.ok(/serviceDuJourSeulement\(shiftActif, today, await decoupeurDeJours\(siteId\)\)/
-    .test(CORPS_ENREGISTRER),
+  // Le découpeur n'est plus construit dans l'appel lui-même : il est obtenu
+  // une fois, CONTRÔLÉ (la garde du 19/09 refuse d'enregistrer quand il
+  // manque), puis passé. On exige donc les trois : une seule construction,
+  // depuis le site, et l'unique variable ainsi obtenue en argument.
+  assert.ok(/const jourDeService = await decoupeurDeJours\(siteId\);/.test(CORPS_ENREGISTRER),
+    'l\'écriture ne construit plus son découpeur à partir du site');
+  assert.ok(/if \(!today \|\| !jourDeService\) \{/.test(CORPS_ENREGISTRER),
+    'un découpeur absent n\'arrête plus l\'enregistrement : le pointage partirait en file sans journée');
+  assert.ok(/serviceDuJourSeulement\(shiftActif, today, jourDeService\)/.test(CORPS_ENREGISTRER),
     'l\'écriture rattache le pointage à un service jugé dans un autre fuseau que sa date');
+  assert.ok(!/serviceDuJourSeulement\(shiftActif, today\)/.test(CORPS_ENREGISTRER),
+    'un appel sans découpeur subsiste dans l\'écriture');
 });
 
 console.log('\n── 5 · Dater n\'est pas calculer un retard ──');

@@ -113,22 +113,42 @@ const MUTATIONS = [
 // relance la suite de l'accueil sous deux fuseaux d'appareil : l'ajouter aux
 // tests de la campagne d'écran tuerait ses treize mutations par ricochet, et
 // un signal qui se déclenche toujours ne mesure plus rien.
+// 19/09/2026 — CAMPAGNE REVISÉE APRÈS L'ARBITRAGE DU FUSEAU.
+// Trois des quatre mutations d'origine visaient du code qui n'existe plus :
+// elles ancraient sur `NEXUS_FUSEAU_DEFAUT` et sur la lecture de
+// `station_config.fuseau_horaire`, tous deux supprimés le 19/09. Une mutation
+// qui n'a plus d'ancre ne survit pas : elle ne s'applique pas, et la campagne
+// se félicite d'une garde qu'elle n'a jamais éprouvée. Elles visent désormais
+// les formes que le code livré peut effectivement reprendre — le repli,
+// l'horloge de l'appareil, et le retour à l'autorité dépréciée.
 const MUTATIONS_FUSEAU = [
   ['F1 · le jour métier retombe sur l\'horloge de l\'appareil',
-   '    timeZone: fuseau || NEXUS_FUSEAU_DEFAUT,',
+   '    timeZone: fuseau,',
    '    timeZone: undefined,'],
-  ['F2 · repli métropolitain pour une station ultramarine',
-   "const NEXUS_FUSEAU_DEFAUT = 'America/Martinique';",
-   "const NEXUS_FUSEAU_DEFAUT = 'Europe/Paris';"],
+  ['F2 · un fuseau non résolu est remplacé au lieu d\'être avoué',
+   '  if(!fuseau) return null;',
+   "  if(!fuseau) fuseau = 'America/Martinique';"],
   ['F3 · les vieux services ne sont plus refermés',
    'if(obsoletes.length) await nexusCloturerServicesObsoletes(employee, obsoletes);',
    'if(false) await nexusCloturerServicesObsoletes(employee, obsoletes);'],
   ['F4 · le fuseau du site n\'est plus lu, il est supposé',
-   'return nexusRetenirFuseau(siteId, data && data.fuseau_horaire);',
-   'return nexusRetenirFuseau(siteId, null);'],
+   'return nexusRetenirFuseau(siteId, data.timezone);',
+   "return nexusRetenirFuseau(siteId, 'America/Martinique');"],
+  ['F5 · le lecteur revient à la colonne dépréciée',
+   "      .from('sites').select('timezone').eq('site_id', siteId).maybeSingle();",
+   "      .from('station_config').select('fuseau_horaire').eq('site', siteId).maybeSingle()\n      .then(r => ({ data: r.data && { timezone: r.data.fuseau_horaire }, error: r.error }));"],
 ];
 
-const TESTS_FUSEAU = ['test_fuseau_station_20260918.js'];
+// F2 est la seule dont la garde ne vit pas dans l'accueil : les appelants de
+// `nexus-auth.js` refusent déjà un fuseau nul avant d'appeler la primitive, si
+// bien qu'un repli glissé DANS la primitive leur serait invisible. C'est le
+// chemin Pointage qui l'éprouve — il extrait cette même primitive de
+// `nexus-auth.js` et la fait dater sans fuseau. D'où le second test ici : il
+// mesure le même fichier, par l'autre porte.
+const TESTS_FUSEAU = [
+  'test_fuseau_station_20260918.js',
+  'test_jour_metier_pointage_20260919.js',
+];
 
 // 18/09/2026, SECOND LOT — TROISIÈME CAMPAGNE.
 // `nexusEcranOperationnelAtteignable` vit dans `nexus-auth.js`, à côté des
