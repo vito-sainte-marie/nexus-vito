@@ -45,6 +45,16 @@ const F = AUTH.indexOf('/* NEXUS-ACCES-REGLE:FIN */');
 assert.ok(D !== -1 && F > D, 'le bloc de règle d\'accès a disparu de nexus-auth.js');
 const BLOC = AUTH.slice(D, F);
 
+// 18/09/2026 — la porte du pointage d'arrivee ne lit plus le jour de
+// l'appareil mais celui du SITE. Elle depend donc des primitives de fuseau,
+// bornees dans `nexus-auth.js` exactement comme la regle d'acces. On les
+// PORTE telles quelles : un banc qui recopierait `Intl.DateTimeFormat` de son
+// cote resterait vert le jour ou le fichier reel changerait de repli.
+const DF = AUTH.indexOf('/* NEXUS-FUSEAU-METIER:DEBUT */');
+const FF = AUTH.indexOf('/* NEXUS-FUSEAU-METIER:FIN */');
+assert.ok(DF !== -1 && FF > DF, 'le bloc du jour metier a disparu de nexus-auth.js');
+const FUSEAU = AUTH.slice(DF, FF);
+
 // Le bloc seul, exécuté hors navigateur : il est PUR par construction.
 function chargerRegle() {
   const ctx = { console };
@@ -184,7 +194,7 @@ async function porte2(page, employee, { config, arrivee }) {
     __lectures: [],
     nexusClient: { from: (table) => { ctx.__lectures.push(table); return chain(table); } },
   };
-  const code = [BLOC, extraire('nexusEstManager'), extraire('nexusPointageArriveeManquant'),
+  const code = [BLOC, FUSEAU, extraire('nexusEstManager'), extraire('nexusPointageArriveeManquant'),
                 'this.__test = nexusPointageArriveeManquant;'].join('\n\n');
   vm.runInNewContext(code, ctx);
   const bloque = await ctx.__test(employee);

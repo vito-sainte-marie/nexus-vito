@@ -172,7 +172,14 @@
   // (mission_completions), la source reellement alimentee par l'ecran Missions.
   function calculerEquipe(pointagesHisto) {
     if (!pointagesHisto || pointagesHisto.length === 0) return null; // aucun pointage encore enregistre
-    const totalRetardMin = pointagesHisto.reduce((s,p) => s + (p.retard_min||0), 0);
+    // `retard_min` est nullable depuis le 19/09/2026 : NULL = retard non
+    // calculable. La requête ci-dessous les écarte déjà (`.gt` ignore les
+    // NULL), mais on ne compte que les minutes RÉELLEMENT mesurées plutôt
+    // que de lire un NULL comme un zéro — un zéro de commodité finit
+    // toujours par sortir quelque part comme un « à l'heure » constaté.
+    const totalRetardMin = pointagesHisto
+      .filter(p => Number.isFinite(p.retard_min))
+      .reduce((s, p) => s + p.retard_min, 0);
     const score = Math.max(0, 100 - totalRetardMin); // 1 point perdu par minute de retard cumulee
     return Math.round(score);
   }

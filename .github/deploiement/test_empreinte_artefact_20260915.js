@@ -480,14 +480,27 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
+//   19/09/2026 — lot Moteur d'horaires unique et retard nullable (#64) :
+//   + 1  `20260919160000_horaires_moteur_unique_et_retard_nullable.sql`
+//   ───
+//    268
+//
+//   Deux branches sœurs annoncent 268 ce jour-là sans annoncer la même
+//   empreinte : la Régularisation d'une réception passée (#65) mesure
+//   268 / `75e639c2…`, ce lot-ci mesure 268 / `c6fdf93f…`. Le nombre seul ne
+//   distingue pas deux inventaires différents — c'est l'empreinte qui le
+//   fait, et c'est toute la raison d'être de la seconde constante. Ces
+//   compteurs se re-mesurent à chaque lot, ils ne s'additionnent pas d'une
+//   branche à l'autre.
+//
 // Les deux valeurs sont MESURÉES (`node
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 267;
-const MIGRATIONS_REELLES_EMPREINTE = 'ce9156a9bd4dc33627475193dbe9a914ee3dac75af86a00ea841d1d9638d89d5';
+const MIGRATIONS_REELLES_NOMBRE = 268;
+const MIGRATIONS_REELLES_EMPREINTE = 'c6fdf93ff7259485b18ee404068748416e4fc00e9cadbf73b287ce2959695bb5';
 
-cas('Réel · la provenance des migrations annonce 267 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 268 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

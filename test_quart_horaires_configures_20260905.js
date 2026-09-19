@@ -138,8 +138,14 @@ verifier('tous les chemins passent par l’heure de la station', () => {
   const corps = regle.slice(i);
   assert.ok(/minutesLocalesStation\(timezone, instant\)/.test(corps),
     'la règle commune compare l’heure de la STATION au seuil');
-  assert.ok(/from\('station_config'\)\.select\('horaires'\)/.test(corps),
-    'la règle commune lit le seuil CONFIGURÉ');
+  // 19/09/2026 — le seuil ne se lit plus dans `station_config` côté client : il
+  // vient de la RPC `calculer_horaires_quart`, la MÊME fonction que celle dont
+  // le Planning tire ses horaires théoriques. Garder l'ancienne assertion
+  // aurait exigé que la seconde vérité reste en place pour rester verte.
+  assert.ok(/\.rpc\('calculer_horaires_quart'/.test(corps),
+    'la règle commune lit le seuil CONFIGURÉ, par le moteur unique');
+  assert.ok(!/from\('station_config'\)\.select\('horaires'\)/.test(corps),
+    'la règle commune ne doit plus réassembler le seuil depuis station_config');
   assert.ok(!/getHours\(\)|getMinutes\(\)|['"]\d{1,2}:\d{2}['"]/.test(corps),
     'ni horloge d’appareil ni seuil en dur dans la règle commune');
 });

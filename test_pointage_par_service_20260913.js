@@ -73,8 +73,16 @@ verifier('prochainType vient de la disponibilité, plus de ORDRE_TYPES.find(!dej
 verifier('l’ancien calcul séquentiel a disparu du code vivant',
   !/^\s*const prochainType = ORDRE_TYPES\.find\(t => !dejaFait\[t\]\);/m.test(SOURCE),
   'il n’en reste qu’une trace en commentaire, qui documente le défaut');
+// 18/09/2026 : renderTimeline reçoit désormais un 5e argument, l'identifiant
+// du service EN COURS — non pour filtrer la liste, mais pour marquer « · en
+// cours » l'intertitre du bon service. Ce que cette garde protège est
+// inchangé : le 1er argument reste `pointagesJour`, la journée entière.
 verifier('l’historique reste celui de la JOURNÉE',
-  /renderTimeline\(pointagesJour \|\| \[\], prochainType, employee, siteId\)/.test(SOURCE));
+  /renderTimeline\(pointagesJour \|\| \[\], prochainType, employee, siteId[,)]/.test(SOURCE)
+  && !/renderTimeline\(\s*pointagesJour\.filter/.test(SOURCE));
+verifier('le service en cours est seulement SIGNALÉ à l’historique, pas imposé',
+  /renderTimeline\(pointagesJour \|\| \[\], prochainType, employee, siteId, serviceCourant && serviceCourant\.id\)/.test(SOURCE),
+  'sans lui, aucun intertitre ne peut dire lequel des services de la journée est ouvert');
 
 console.log('\n── 4 · Le chemin d’écriture compte aussi par service ──');
 verifier('la relecture anti-doublon cible le service, plus la date',

@@ -124,8 +124,15 @@
     if (eP && eM) return { disponible: false, raison: 'Aucune donnée équipe accessible sur cette période.' };
 
     const pts = pointages || [];
-    const nbPointages = pts.length;
-    const nbRetards = pts.filter(p => (p.retard_min || 0) > 0).length;
+    // `retard_min` est nullable depuis le 19/09/2026 : NULL = retard non
+    // calculable, jamais « à l'heure ». Ces arrivées comptent bien comme
+    // présence (collaborateurs actifs, disponibilité du bloc) mais sortent
+    // des DEUX côtés de la fraction de ponctualité : au dénominateur,
+    // elles feraient monter le taux à chaque journée non mesurée.
+    const mesures = pts.filter(p => Number.isFinite(p.retard_min));
+    const nbArrivees = pts.length;
+    const nbPointages = mesures.length;
+    const nbRetards = mesures.filter(p => p.retard_min > 0).length;
     const tauxPonctualite = nbPointages > 0 ? 1 - (nbRetards / nbPointages) : null;
     const collaborateursActifs = new Set(pts.map(p => p.employee_id)).size;
 
@@ -134,7 +141,9 @@
     const nbMissionsTerminees = mis.filter(m => m.status === 'completed' || m.status === 'termine' || m.status === 'terminee').length;
     const tauxMissions = nbMissions > 0 ? nbMissionsTerminees / nbMissions : null;
 
-    const disponible = nbPointages > 0 || nbMissions > 0;
+    // Disponibilité = il s'est passé quelque chose sur la période ; elle se
+    // juge sur les arrivées réelles, pas sur les seules journées mesurées.
+    const disponible = nbArrivees > 0 || nbMissions > 0;
     return {
       disponible,
       raison: disponible ? null : 'Aucun pointage ni mission enregistrés sur cette période.',
