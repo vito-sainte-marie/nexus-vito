@@ -197,6 +197,8 @@
   .contact-manager-nom{font-size:13.5px; font-weight:700;}
   .contact-manager-tel{font-family:var(--mono); font-size:13px; color:var(--cyan);}
 
+  .confirmation-doublon{display:flex; gap:10px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:var(--text-mid); margin-bottom:14px;}
+  .confirmation-doublon input{margin-top:2px; flex:0 0 auto; width:16px; height:16px; accent-color:var(--amber);}
   .derogation-panel{background:var(--panel); border:1.5px dashed var(--hairline); border-radius:14px; padding:16px; margin-top:6px;}
   .derogation-titre{font-size:12.5px; font-weight:700; margin-bottom:10px; color:var(--text-mid);}
 
@@ -348,6 +350,65 @@
   let resultatsParCarburant = null; // { sp95: sortie calculerReceptionCarburant + comparaisonHistorique, ... }
   let enSoumission = false;
   let derniereVisite = null; // après soumission réussie
+
+  // ------------------------------------------------------------
+  // RÉGULARISATION D'UNE RÉCEPTION PASSÉE (19/09/2026)
+  // ------------------------------------------------------------
+  // Cas réel : le 18/09 la réception a bien eu lieu, le BL était là, les
+  // jaugeages ont été faits — mais sur papier, parce que la pompiste
+  // n'avait momentanément pas accès à son rôle. Le même parcours est
+  // réutilisé tel quel (aucun nouveau module) : seules changent la
+  // provenance des mesures et l'origine des horodatages.
+  //
+  // Le point sensible n'est PAS la saisie d'une date passée — `heure_debut`
+  // était déjà un champ libre. C'est l'instant des jaugeages : en temps
+  // réel il vaut `new Date()` parce que l'employé mesure pendant qu'il
+  // saisit ; en régularisation la mesure a eu lieu avant, et poser l'heure
+  // de saisie ferait de cette réception la mesure la plus récente du site,
+  // qui écraserait le relevé physique postérieur (le "stock J+1 + livraison
+  // J" explicitement interdit). Les trois dates restent donc distinctes :
+  // livraison réelle (heure_debut/heure_fin), mesures terrain
+  // (jaugeage_*_le, saisies d'après le document), saisie NEXUS (created_at,
+  // posé par la base) — plus regularisation_le, l'instant de cette saisie.
+  let modeSaisie = 'temps_reel'; // 'temps_reel' | 'regularisation'
+  let regularisation = { motif: '', controle_terrain_par: '', justificatif_url: null, justificatif_nom: '', justificatif_en_cours: false };
+  // Horodatages des jaugeages relevés sur le document manuscrit, au format
+  // datetime-local — un par phase, comme en temps réel où un seul instant
+  // est posé sur toutes les cuves de la phase.
+  let jaugeageLe = { avant: '', apres: '' };
+  function estRegularisation() { return modeSaisie === 'regularisation'; }
+  // Même règle que la garde en base (trg_garde_regularisation_reception) :
+  // l'écran ne fait que refléter le droit, il ne le crée pas — un appel
+  // direct à l'API par un autre rôle est refusé côté PostgreSQL. La règle
+  // d'affichage vient de `nexusEstManager` (nexus-auth.js) : une copie de
+  // plus de `role === 'manager'` serait un huitième endroit où NEXUS décide
+  // qui est manager.
+  function peutRegulariser() { return nexusEstManager(employeeCourant); }
+  // 19/09/2026 — garde anti-doublon de régularisation. L'idempotence protège
+  // du double clic (même geste, même clé) ; elle ne protège pas d'un second
+  // geste volontaire plusieurs jours après, où le manager peut très bien
+  // ignorer qu'un collègue a déjà régularisé la même livraison. On lit donc
+  // les réceptions déjà enregistrées pour la date saisie. Quatre états
+  // distincts, et notamment 'indisponible' : ne pas savoir n'est pas la même
+  // chose que savoir qu'il n'y en a pas, et ne doit pas laisser passer une
+  // seconde réception en silence.
+  let doublon = { date: '', etat: 'vide', visites: [], confirme: false };
+  function echapperTexte(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function heureCourteFr(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+  function datetimeLocalVersISO(v) { return v ? new Date(v).toISOString() : ''; }
+  function fmtDateCourte(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  }
   // Sprint C4 "Réception" (audit Carburants, 17/08/2026) — clé générée UNE
   // SEULE FOIS par visite (à "Démarrons ensemble"), jamais régénérée avant
   // une nouvelle visite. Envoyée à chaque tentative de soumission : un
@@ -459,14 +520,23 @@
         </div>
       ` : ''}
       <button class="btn-primary" id="btnDemarrer">Démarrons ensemble</button>
+      ${peutRegulariser() ? `<button class="btn-ghost" id="btnRegulariser">Régulariser une réception passée</button>` : ''}
     `;
-    document.getElementById('btnDemarrer').addEventListener('click', demarrerVisite);
+    document.getElementById('btnDemarrer').addEventListener('click', () => demarrerVisite('temps_reel'));
+    const btnRegul = document.getElementById('btnRegulariser');
+    if (btnRegul) btnRegul.addEventListener('click', () => demarrerVisite('regularisation'));
   }
   function cuvesActivesSite() { return config.cuvesOrdonnees || []; }
 
-  function demarrerVisite() {
+  function demarrerVisite(mode) {
+    modeSaisie = (mode === 'regularisation' && peutRegulariser()) ? 'regularisation' : 'temps_reel';
+    regularisation = { motif: '', controle_terrain_par: '', justificatif_url: null, justificatif_nom: '', justificatif_en_cours: false };
+    jaugeageLe = { avant: '', apres: '' };
     idempotencyKey = genererIdempotencyKey();
-    visite = { transporteur: TRANSPORTEUR_DEFAUT, chauffeur: '', immatriculation: '', bon_livraison_reference: '', heure_debut: datetimeLocalMaintenant() };
+    // En régularisation, aucune date n'est pré-remplie : la date du jour
+    // serait une valeur inventée, et c'est précisément la date réelle de la
+    // livraison qui doit être lue sur le document (Article 5).
+    visite = { transporteur: TRANSPORTEUR_DEFAUT, chauffeur: '', immatriculation: '', bon_livraison_reference: '', heure_debut: estRegularisation() ? '' : datetimeLocalMaintenant() };
     lignes = { sp95: { actif: false, quantite_bl_l: '' }, go: { actif: false, quantite_bl_l: '' }, gnr: { actif: false, quantite_bl_l: '' } };
     mesuresParCuve = {};
     compartiments = [];
@@ -487,6 +557,12 @@
     const carburantsDisponibles = NexusReceptionMoteur.CARBURANTS.filter(c => (config.cuvesCarburants[c] || {}).actif);
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
+      ${estRegularisation() ? `
+        <div class="nexus-dit">
+          <div class="coach-tete">🧾 Régularisation d'une réception passée</div>
+          Saisissez ce qui est écrit sur le relevé terrain, tel quel : la date réelle de la livraison, puis les jaugeages avec l'heure à laquelle ils ont été relevés. NEXUS enregistrera séparément la date de la réception et celle de cette saisie, et marquera ces mesures comme provenant d'un relevé manuscrit.
+        </div>
+      ` : ''}
       <div class="champ-label">Carburants livrés</div>
       ${carburantsDisponibles.map(c => `
         <div class="carburant-attendu-card ${lignes[c].actif ? 'actif' : ''}" style="--cc:var(--${c});">
@@ -510,8 +586,19 @@
       <input class="champ-input texte" id="fImmat" placeholder="AA-123-BB" value="${visite.immatriculation}">
       <div class="champ-label">N° de BL ou de facture <span class="optionnel">(optionnel)</span></div>
       <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison, ou FAC-XXXXX" value="${visite.bon_livraison_reference}">
-      <div class="champ-label">Heure de début de réception</div>
+      <div class="champ-label">${estRegularisation() ? 'Date et heure réelles de la livraison' : 'Heure de début de réception'}</div>
       <input class="champ-input" id="fHeureDebut" type="datetime-local" value="${visite.heure_debut}">
+      ${estRegularisation() ? `
+        <div class="champ-note">Celle du document, pas celle d'aujourd'hui.</div>
+        <div class="champ-label">Contrôle terrain réalisé par <span class="optionnel">(optionnel)</span></div>
+        <input class="champ-input texte" id="fControleTerrain" placeholder="Nom de la personne qui a jaugé sur place" value="${regularisation.controle_terrain_par}">
+        <div class="champ-label">Motif de la régularisation</div>
+        <input class="champ-input texte" id="fMotifRegul" placeholder="Pourquoi la saisie n'a pas pu être faite sur le moment" value="${regularisation.motif}">
+        <div class="champ-label">Justificatif <span class="optionnel">(optionnel)</span></div>
+        <input class="champ-input" id="fJustificatif" type="file" accept="image/*,application/pdf">
+        <div class="champ-note" id="etatJustificatif">${regularisation.justificatif_url ? `✓ ${regularisation.justificatif_nom} joint.` : 'Photo ou scan du relevé manuscrit, du BL ou de la feuille de dépotage.'}</div>
+        <div id="zoneDoublonReception"></div>
+      ` : ''}
       <button class="btn-primary" id="btnContinuerLivraison" disabled>Continuer</button>
       <button class="btn-ghost" id="btnAnnulerLivraison">Annuler</button>
     `;
@@ -531,9 +618,39 @@
       visite.immatriculation = document.getElementById('fImmat').value;
       visite.bon_livraison_reference = document.getElementById('fRefBl').value;
       visite.heure_debut = document.getElementById('fHeureDebut').value;
+      if (estRegularisation()) {
+        regularisation.controle_terrain_par = document.getElementById('fControleTerrain').value;
+        regularisation.motif = document.getElementById('fMotifRegul').value;
+        verifierDoublonReception();
+      }
       majBoutonLivraison();
     };
-    ['fTransporteur','fChauffeur','fImmat','fRefBl','fHeureDebut'].forEach(id => document.getElementById(id).addEventListener('input', maj));
+    const champsLivraison = ['fTransporteur','fChauffeur','fImmat','fRefBl','fHeureDebut'];
+    if (estRegularisation()) champsLivraison.push('fControleTerrain', 'fMotifRegul');
+    champsLivraison.forEach(id => document.getElementById(id).addEventListener('input', maj));
+    const champJustificatif = document.getElementById('fJustificatif');
+    if (champJustificatif) champJustificatif.addEventListener('change', async () => {
+      const file = champJustificatif.files && champJustificatif.files[0];
+      if (!file) return;
+      const etat = document.getElementById('etatJustificatif');
+      regularisation.justificatif_en_cours = true;
+      majBoutonLivraison();
+      if (etat) etat.textContent = 'Envoi du justificatif…';
+      const url = await uploaderJustificatifReception(file);
+      regularisation.justificatif_en_cours = false;
+      if (url) {
+        regularisation.justificatif_url = url;
+        regularisation.justificatif_nom = file.name;
+        if (etat) etat.textContent = `✓ ${file.name} joint.`;
+      } else {
+        // Article 5 : on ne fait pas croire que la pièce est en sécurité.
+        regularisation.justificatif_url = null;
+        regularisation.justificatif_nom = '';
+        if (etat) etat.textContent = "Le justificatif n'a pas pu être envoyé. Vous pouvez réessayer, ou poursuivre sans pièce jointe.";
+      }
+      majBoutonLivraison();
+    });
+    majZoneDoublon();
     majBoutonLivraison();
     document.getElementById('btnContinuerLivraison').addEventListener('click', () => {
       // Prépare les mesures de cuve pour les carburants prévus (étape 2).
@@ -550,9 +667,74 @@
     });
     document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) allerEtape('accueil'); });
   }
+  // Lecture des réceptions déjà enregistrées à la date saisie. Ne tranche
+  // rien : deux livraisons le même jour arrivent réellement. Elle rend
+  // seulement impossible de créer un doublon SANS l'avoir vu.
+  async function verifierDoublonReception() {
+    if (!estRegularisation()) { doublon = { date: '', etat: 'vide', visites: [], confirme: false }; return; }
+    const jour = (visite.heure_debut || '').slice(0, 10);
+    if (!jour) { doublon = { date: '', etat: 'vide', visites: [], confirme: false }; majZoneDoublon(); majBoutonLivraison(); return; }
+    if (jour === doublon.date && doublon.etat !== 'vide') return;
+    doublon = { date: jour, etat: 'verification', visites: [], confirme: false };
+    majZoneDoublon(); majBoutonLivraison();
+    const existantes = await NexusReceptionDonnees.chargerVisitesDeLaDate(nexusClient, siteId, jour);
+    if (doublon.date !== jour) return; // la date a changé pendant la lecture
+    if (existantes === null) doublon.etat = 'indisponible';
+    else if (!existantes.length) doublon.etat = 'aucune';
+    else { doublon.etat = 'existe'; doublon.visites = existantes; }
+    majZoneDoublon();
+    majBoutonLivraison();
+  }
+  function majZoneDoublon() {
+    const zone = document.getElementById('zoneDoublonReception');
+    if (!zone) return;
+    if (doublon.etat === 'vide') { zone.innerHTML = ''; return; }
+    if (doublon.etat === 'verification') {
+      zone.innerHTML = '<div class="champ-note">Vérification des réceptions déjà enregistrées à cette date…</div>';
+      return;
+    }
+    if (doublon.etat === 'aucune') {
+      zone.innerHTML = '<div class="champ-note">Aucune réception n\'est encore enregistrée à cette date.</div>';
+      return;
+    }
+    if (doublon.etat === 'indisponible') {
+      zone.innerHTML = '<div class="capacite-alerte"><div class="capacite-alerte-titre">Vérification impossible</div><div class="capacite-alerte-ligne">Impossible de lire les réceptions déjà enregistrées à cette date. Réessayez : régulariser sans cette vérification risquerait de créer un doublon invisible.</div></div>';
+      return;
+    }
+    const liste = doublon.visites.map(v => {
+      const h = heureCourteFr(v.heure_debut);
+      const ref = v.bon_livraison_reference ? ` — BL ${echapperTexte(v.bon_livraison_reference)}` : '';
+      return `<div class="capacite-alerte-ligne">• Réception${h ? ` de ${h}` : ''}${ref}</div>`;
+    }).join('');
+    zone.innerHTML = `
+      <div class="capacite-alerte">
+        <div class="capacite-alerte-titre">${doublon.visites.length === 1 ? 'Une réception est déjà enregistrée à cette date' : `${doublon.visites.length} réceptions sont déjà enregistrées à cette date`}</div>
+        ${liste}
+        <div class="capacite-alerte-ligne" style="margin-top:6px;">S'il s'agit de la même livraison, n'en créez pas une seconde : quittez et vérifiez l'historique.</div>
+      </div>
+      <label class="confirmation-doublon"><input type="checkbox" id="fConfirmerDoublon"${doublon.confirme ? ' checked' : ''}><span>Je confirme qu'il s'agit d'une <b>autre</b> livraison, distincte de celle${doublon.visites.length > 1 ? 's' : ''} ci-dessus.</span></label>
+    `;
+    const caseConfirmation = document.getElementById('fConfirmerDoublon');
+    if (caseConfirmation) caseConfirmation.addEventListener('change', () => {
+      doublon.confirme = !!caseConfirmation.checked;
+      majBoutonLivraison();
+    });
+  }
+
   function majBoutonLivraison() {
     const prevus = carburantsPrevus();
-    const ok = prevus.length > 0 && visite.heure_debut;
+    // En régularisation : motif obligatoire (il est repris tel quel dans la
+    // trace d'audit et dans le message de fin), pas d'upload en vol, et la
+    // livraison doit être réellement passée — une date future ne serait pas
+    // une réception constatée.
+    const doublonOk = doublon.etat === 'aucune' || (doublon.etat === 'existe' && doublon.confirme);
+    const regulOk = !estRegularisation() || (
+      regularisation.motif.trim() !== ''
+      && !regularisation.justificatif_en_cours
+      && !!visite.heure_debut && new Date(visite.heure_debut).getTime() < Date.now()
+      && doublonOk
+    );
+    const ok = prevus.length > 0 && visite.heure_debut && regulOk;
     const btn = document.getElementById('btnContinuerLivraison');
     if (btn) btn.disabled = !ok;
   }
@@ -642,6 +824,11 @@
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
       <div class="champ-note" style="margin-top:0;">${notePhase}</div>
+      ${estRegularisation() ? `
+        <div class="champ-label">Date et heure du jaugeage ${phase} <span class="optionnel">(telles qu'écrites sur le relevé)</span></div>
+        <input class="champ-input" id="fJaugeageLe" type="datetime-local" value="${jaugeageLe[phase]}">
+        <div class="champ-note" id="noteChronoJaugeage"></div>
+      ` : ''}
       ${phase === 'avant' ? `<div id="jaugeageAlerteZone">${jaugeageAlerteHtml()}</div>` : ''}
       ${cuves.map(cu => {
         const cle = cleCuve(cu);
@@ -674,11 +861,21 @@
       if (cu) majJaugeVisuelle(phase, cu);
       majBoutonJaugeage(champL);
     }));
+    const champJaugeageLe = document.getElementById('fJaugeageLe');
+    if (champJaugeageLe) champJaugeageLe.addEventListener('input', () => {
+      jaugeageLe[phase] = champJaugeageLe.value;
+      majBoutonJaugeage(champL);
+    });
     majBoutonJaugeage(champL);
     document.getElementById('btnContinuerJaugeage').addEventListener('click', () => {
-      const maintenant = new Date().toISOString();
-      cuves.forEach(cu => { mesuresParCuve[cleCuve(cu)][champLe] = maintenant; });
-      if (phase === 'apres') { heureFin = maintenant; allerEtape('calcul'); }
+      // Temps réel : l'employé mesure pendant qu'il saisit, l'instant de la
+      // saisie EST l'instant de la mesure. Régularisation : la mesure a eu
+      // lieu avant, son instant est celui noté sur le document — le poser à
+      // `now()` daterait la réception du jour de la saisie et la ferait
+      // passer devant le relevé physique postérieur.
+      const instantMesure = estRegularisation() ? datetimeLocalVersISO(jaugeageLe[phase]) : new Date().toISOString();
+      cuves.forEach(cu => { mesuresParCuve[cleCuve(cu)][champLe] = instantMesure; });
+      if (phase === 'apres') { heureFin = instantMesure; allerEtape('calcul'); }
       else allerEtape('compartiments');
     });
     document.getElementById('btnRetourJaugeage').addEventListener('click', () => allerEtape(phase === 'avant' ? 'livraison' : 'reception'));
@@ -686,8 +883,31 @@
   function majBoutonJaugeage(champL) {
     const cuves = cuvesPrevues();
     const complet = cuves.every(cu => mesuresParCuve[cleCuve(cu)][champL] !== '' && !isNaN(Number(mesuresParCuve[cleCuve(cu)][champL])));
+    const phase = champL === 'jaugeage_avant_l' ? 'avant' : 'apres';
+    const chrono = chronoJaugeageRegularisation(phase);
+    const note = document.getElementById('noteChronoJaugeage');
+    if (note) note.textContent = chrono.message;
     const btn = document.getElementById('btnContinuerJaugeage');
-    if (btn) btn.disabled = !complet;
+    if (btn) btn.disabled = !complet || !chrono.ok;
+  }
+  // Chronologie d'une régularisation : livraison ≤ jaugeage avant ≤ jaugeage
+  // après ≤ maintenant. NEXUS ne corrige ni ne devine ces heures — il refuse
+  // simplement une suite impossible, plutôt que d'enregistrer une réception
+  // dont l'ordre des faits serait faux.
+  function chronoJaugeageRegularisation(phase) {
+    if (!estRegularisation()) return { ok: true, message: '' };
+    const saisi = jaugeageLe[phase];
+    if (!saisi) return { ok: false, message: "Indiquez l'heure à laquelle ce jaugeage a été relevé sur le terrain." };
+    const t = new Date(saisi).getTime();
+    if (isNaN(t)) return { ok: false, message: "Cette date n'est pas lisible." };
+    if (t > Date.now()) return { ok: false, message: 'Ce jaugeage serait daté dans le futur.' };
+    const tLivraison = visite.heure_debut ? new Date(visite.heure_debut).getTime() : null;
+    if (tLivraison != null && t < tLivraison) return { ok: false, message: 'Ce jaugeage serait antérieur à la livraison elle-même.' };
+    if (phase === 'apres' && jaugeageLe.avant) {
+      const tAvant = new Date(jaugeageLe.avant).getTime();
+      if (!isNaN(tAvant) && t < tAvant) return { ok: false, message: 'Le jaugeage final serait antérieur au jaugeage initial.' };
+    }
+    return { ok: true, message: '' };
   }
 
   // ------------------------------------------------------------
@@ -1235,7 +1455,11 @@
 
     const M = NexusReceptionMoteur;
     const heureDebutISO = visite.heure_debut ? new Date(visite.heure_debut).toISOString() : new Date().toISOString();
-    const heureFinISO = heureFin || new Date().toISOString();
+    // Jamais `now()` comme repli en régularisation : la fin d'une réception
+    // passée est celle du jaugeage final noté sur le document (la garde de
+    // l'étape de jaugeage le rend obligatoire) — au pire l'heure de la
+    // livraison elle-même, jamais le jour de la saisie.
+    const heureFinISO = heureFin || (estRegularisation() ? heureDebutISO : new Date().toISOString());
     const uneDerogation = !!derogationGlobaleCompartiments || Object.keys(derogationsParCompartiment).length > 0;
 
     const ligneVisite = {
@@ -1251,6 +1475,20 @@
       nombre_compartiments: compartiments.length,
       statut: uneDerogation ? 'terminee_avec_derogation' : 'terminee',
       idempotency_key: idempotencyKey,
+      // Trois dates distinctes, jamais fusionnées : heure_debut/heure_fin
+      // (livraison réelle), jaugeage_*_le (mesures terrain, sur les
+      // mesures), created_at (saisie NEXUS, posé par la base et jamais
+      // envoyé d'ici). regularisation_le est l'instant de CETTE saisie —
+      // la base vérifie qu'il est postérieur à la fin de réception.
+      mode_saisie: estRegularisation() ? 'regularisation' : 'temps_reel',
+      ...(estRegularisation() ? {
+        regularisation_motif: regularisation.motif.trim(),
+        regularisation_par: employeeCourant.id,
+        regularisation_par_nom: employeeCourant.nom || null,
+        regularisation_le: new Date().toISOString(),
+        controle_terrain_par: regularisation.controle_terrain_par.trim() || null,
+        justificatif_url: regularisation.justificatif_url || null,
+      } : {}),
     };
 
     const lignesFinales = carburantsPrevus().map(carb => {
@@ -1283,6 +1521,10 @@
       jaugeage_avant_le: m.jaugeage_avant_le,
       jaugeage_apres_l: m.jaugeage_apres_l !== '' ? Number(m.jaugeage_apres_l) : null,
       jaugeage_apres_le: m.jaugeage_apres_le || null,
+      // Provenance de l'observation, pas de la saisie : ce qui a été lu sur
+      // le Veeder-Root et recopié d'un relevé papier n'a pas le même statut
+      // de preuve qu'une lecture saisie sur place.
+      source: estRegularisation() ? 'releve_manuscrit' : 'saisie_nexus',
       delta_mesure_l: M.calculerDeltaMesure(Number(m.jaugeage_avant_l), m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l)),
     }));
 
@@ -1313,6 +1555,12 @@
         visiteId: data.id,
         mesures: mesuresFinales,
         cuvesGo: (config && config.cuvesCarburants && config.cuvesCarburants.go && config.cuvesCarburants.go.cuves) || [],
+        // Régularisation : le relevé reconstruit porte l'instant réel du
+        // jaugeage final, pas celui de la saisie — sinon la ligne du 18/09
+        // deviendrait la mesure la plus récente du site et sa fenêtre de
+        // ventes s'étendrait jusqu'au jour de la régularisation. En temps
+        // réel, rien n'est transmis : le pont garde son `new Date()`.
+        ...(estRegularisation() ? { mesureLe: heureFinISO } : {}),
       }).then(r => { if (!r.ok) console.error('Pont réception carburant → stock (non bloquant):', r.error); })
         .catch(e => console.error('Pont réception carburant → stock (non bloquant):', e));
     }
@@ -1356,8 +1604,15 @@
     const tousCoherents = statutGlobal === 'coherente';
     document.getElementById('content').innerHTML = `
       <div class="checkmark">✓</div>
-      <div class="final-greet">Réception terminée</div>
+      <div class="final-greet">${estRegularisation()
+        ? `Réception du ${fmtDateCourte(visite.heure_debut)} — régularisée le ${fmtDateCourte(new Date().toISOString())} à partir d'un relevé terrain manuscrit`
+        : 'Réception terminée'}</div>
       <div class="final-liste">
+        ${estRegularisation() ? `
+          <div class="final-item"><i>✓</i>La date réelle de la livraison (${fmtDateCourte(visite.heure_debut)}) et celle de cette saisie sont enregistrées séparément.</div>
+          <div class="final-item"><i>✓</i>Les jaugeages sont conservés avec leur provenance : relevé manuscrit${regularisation.controle_terrain_par.trim() ? `, contrôle terrain réalisé par ${regularisation.controle_terrain_par.trim()}` : ''}.</div>
+          ${regularisation.justificatif_url ? `<div class="final-item"><i>✓</i>Le justificatif est joint à la réception.</div>` : ''}
+        ` : ''}
         <div class="final-item"><i>✓</i>Tous les compartiments ont été réceptionnés.</div>
         <div class="final-item"><i>✓</i>Le chargement camion correspond au bon de livraison${derogationGlobaleCompartiments ? ' (déverrouillage manager tracé).' : '.'}</div>
         <div class="final-item"><i>${tousCoherents ? '✓' : '•'}</i>${tousCoherents ? 'Le rapprochement des jaugeages est cohérent avec les seuils de contrôle de la station.' : 'Un écart de rapprochement a été signalé — votre manager le consultera dans Carburants Performance.'}</div>
@@ -1367,6 +1622,46 @@
       <button class="btn-primary" id="btnRetourAccueilFinal">Terminer</button>
     `;
     document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => allerEtape('accueil'));
+  }
+
+  // ------------------------------------------------------------
+  // JUSTIFICATIF DE RÉGULARISATION
+  // ------------------------------------------------------------
+  // Aucun nouveau stockage : même bucket privé et même convention de chemin
+  // que les preuves de mission et les photos de pointage
+  // (preuves-missions/<employeeId>/…, RLS par dossier d'employé), même URL
+  // signée longue durée. `upsert` permet au manager de remplacer sa pièce
+  // avant validation sans laisser d'orphelin, la clé d'idempotence de la
+  // visite servant de nom de fichier.
+  async function redimensionnerImageJustificatif(file) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const MAX_COTE = 1600;
+      const ratio = Math.min(1, MAX_COTE / Math.max(bitmap.width, bitmap.height));
+      if (ratio === 1) return file;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * ratio);
+      canvas.height = Math.round(bitmap.height * ratio);
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (!blob) return file;
+      return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
+    } catch (e) {
+      console.error('Redimensionnement justificatif (repli sur le fichier d\'origine):', e);
+      return file;
+    }
+  }
+  async function uploaderJustificatifReception(file) {
+    const fichier = (file.type || '').startsWith('image/') ? await redimensionnerImageJustificatif(file) : file;
+    const ext = (fichier.name && fichier.name.includes('.')) ? fichier.name.split('.').pop().toLowerCase() : 'jpg';
+    const chemin = `${employeeCourant.id}/reception-regularisation-${idempotencyKey}.${ext}`;
+    const { error: erreurUpload } = await nexusClient.storage.from('preuves-missions')
+      .upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg', upsert: true });
+    if (erreurUpload) { console.error('Upload justificatif de régularisation:', erreurUpload); return null; }
+    const DIX_ANS = 315360000;
+    const { data: signee, error: erreurSignee } = await nexusClient.storage.from('preuves-missions').createSignedUrl(chemin, DIX_ANS);
+    if (erreurSignee) { console.error('URL signée du justificatif de régularisation:', erreurSignee); return null; }
+    return signee.signedUrl;
   }
 
   // ------------------------------------------------------------
