@@ -227,22 +227,39 @@ t('le quart écrit en base suit le service DU JOUR, et le retard n\'est plus dé
   assert.ok(/serviceDuJour/.test(champDe('quart:')),
     'quart: ne suit plus le service du jour — le quart de la veille peut revenir');
 
-  // PRÉMISSE INVERSÉE LE 18/09/2026. Cette épreuve exigeait que `retard_min`
-  // et `heure_debut_quart` suivent eux aussi le service du jour. C'était
-  // précisément le défaut : `shifts.heure_debut` vaut `created_at` quand le
-  // service est ouvert d'un clic, et l'écran annonçait « Retard constaté :
-  // 1028 min » à une arrivée de 10 h 33. Aucune colonne ne distingue un
-  // horaire PLANIFIÉ d'une heure d'ouverture ; les deux champs ne doivent
-  // donc plus rien dériver du service. La garde est retournée, pas retirée :
-  // elle mord désormais dans l'autre sens.
-  assert.match(champDe('retard_min:'), /retard_min:\s*0\s*,/,
-    'retard_min est de nouveau calculé : un retard serait affirmé sans horaire planifié fiable');
+  // DEUX FOIS RETOURNÉE, ET C'EST LA MÊME RÈGLE À CHAQUE FOIS : le retard ne
+  // se dérive JAMAIS du service. Le 11/09 l'épreuve exigeait qu'il en dérive,
+  // et c'était le défaut : `shifts.heure_debut` vaut `created_at` quand le
+  // service est ouvert d'un clic, d'où « Retard constaté : 1028 min » pour
+  // une arrivée de 10 h 33. Le 18/09 on a donc figé `retard_min: 0` — ce qui
+  // a remplacé un faux retard par un faux « à l'heure », tout aussi menteur.
+  // Le 19/09 (mandat 33) le retard est de nouveau CALCULÉ, mais contre les
+  // Paramètres Station du site réellement travaillé, via le Planning ; et il
+  // vaut `null` dès qu'une de ces sources manque. Ce qui reste interdit, et
+  // que cette garde mesure, c'est la dérivation depuis le service ouvert.
+  assert.match(champDe('retard_min:'), /retard_min:\s*retardMin\s*,/,
+    'retard_min ne porte plus la mesure de retardDeLArrivee : soit il est figé — un faux « à l\'heure » — soit il vient d\'ailleurs');
   assert.match(champDe('heure_debut_quart:'), /heure_debut_quart:\s*null\s*,/,
     'heure_debut_quart capture de nouveau une heure d\'ouverture présentée comme un horaire prévu');
   for (const champ of ['retard_min:', 'heure_debut_quart:']) {
-    assert.ok(!/serviceDuJour|shiftActif|retardMin|heure_debut/.test(champDe(champ).replace(champ, '')),
+    assert.ok(!/serviceDuJour|shiftActif|heure_debut_?\b/.test(champDe(champ).replace(champ, '')),
       `${champ} dérive de nouveau d'un service : l'ouverture d'un service n'est pas un horaire prévu`);
   }
+
+  // Et la mesure elle-même ne doit pas rouvrir la porte par sa fenêtre : le
+  // calcul du retard n'a le droit de lire ni le service ouvert, ni `shifts`.
+  const calcul = POINTAGE.match(/async function retardDeLArrivee\([\s\S]*?\n  \}\n/);
+  assert.ok(calcul, 'retardDeLArrivee introuvable — le retard n\'est plus calculé nulle part, ou il a changé de nom sans que l\'épreuve suive');
+  assert.ok(!/shiftActif|serviceDuJour|from\('shifts'\)/.test(calcul[0]),
+    'le calcul du retard lit de nouveau le service ouvert : c\'est exactement le défaut du 11/09');
+  // L'heure attendue vient d'une fonction dédiée : on suit le chaînage plutôt
+  // que d'exiger l'appel RPC dans ce corps-ci.
+  assert.ok(/heureDebutDue\(/.test(calcul[0]),
+    'le calcul du retard ne demande plus son heure attendue à heureDebutDue');
+  const heureDue = POINTAGE.match(/async function heureDebutDue\([\s\S]*?\n  \}\n/);
+  assert.ok(heureDue, 'heureDebutDue introuvable');
+  assert.ok(/\.rpc\('calculer_horaires_quart'/.test(heureDue[0]),
+    'l\'heure attendue ne passe plus par les Paramètres Station : elle vient d\'ailleurs, donc d\'une invention');
 });
 
 // ── Réconciliation et doublons ────────────────────────────────────────────

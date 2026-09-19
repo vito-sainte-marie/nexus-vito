@@ -177,8 +177,12 @@ function departAvecPauseOuverte(pointages, service) {
   verifier('elle porte le quart du service, jamais un quart inventé',
     !!fin3 && fin3.quart === 'matin');
   verifier('elle porte un client_event_id', !!fin3 && !!fin3.client_event_id);
-  verifier('elle ne porte aucune photo et aucun retard',
-    !!fin3 && fin3.photo_url === null && fin3.retard_min === 0
+  // `retard_min === null` et non `0` : depuis le mandat 33 (19/09/2026), 0
+  // veut dire « mesuré, et à l'heure ». Une fin de pause n'a pas d'heure
+  // attendue — son retard est sans objet, pas nul. Écrire 0 ici affirmerait
+  // une ponctualité que personne n'a mesurée, et la compterait comme telle.
+  verifier('elle ne porte aucune photo, et son retard est sans objet (null, pas 0)',
+    !!fin3 && fin3.photo_url === null && fin3.retard_min === null
     && fin3.photo_echec_technique === false);
   verifier('elle est écrite AVANT le départ',
     cas3.journal.insertions.length === 1 && cas3.journal.insertions[0].type === 'pause_fin');

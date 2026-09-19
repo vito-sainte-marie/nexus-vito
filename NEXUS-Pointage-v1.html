@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -190,14 +191,24 @@
   // garde sa séquence propre (pas de fin sans début), mais elle n'est
   // PLUS un passage obligé vers le départ — voir pointageDisponible().
   //
-  // Retard (18/09/2026) : PLUS AUCUN retard n'est calculé ni affiché. Le
-  // chiffre se mesurait contre `shifts.heure_debut`, qui vaut `created_at`
-  // quand le service est ouvert d'un clic : l'écran annonçait alors un
-  // retard de plusieurs heures à qui arrivait à l'heure. Aucune colonne ne
-  // distingue un horaire PLANIFIÉ d'une heure d'ouverture, donc rien n'est
-  // affirmé : `retard_min` est écrit à 0 (la colonne est NOT NULL) et
-  // `heure_debut_quart` à null. Voir le bloc « AUCUN RETARD N'EST PLUS
-  // CALCULÉ » dans enregistrerPointage().
+  // Retard (19/09/2026, mandat 33) : le retard est de nouveau CALCULÉ, mais
+  // contre la bonne source. Deux erreurs successives l'avaient précédé, de
+  // même racine — affirmer quand on ne sait pas :
+  //   - jusqu'au 18/09, le chiffre se mesurait contre `shifts.heure_debut`,
+  //     qui vaut `created_at` quand le service est ouvert d'un clic :
+  //     l'écran annonçait des heures de retard à qui arrivait à l'heure ;
+  //   - le 18/09, le calcul a été arrêté net et `retard_min` écrit à 0, ce
+  //     qui a remplacé un faux retard par un faux « à l'heure ».
+  // Le contrat arbitré nomme les sources : Paramètres Station = horaires
+  // canoniques du site ; Planning = affectation réelle ; Pointage = heure
+  // constatée ; retard = rapprochement des trois. `shifts.heure_debut` est
+  // INTERDIT comme horaire théorique.
+  // `retard_min` est désormais NULLABLE : 0 = à l'heure, MESURÉ ; > 0 =
+  // retard mesuré ; null = NON CALCULABLE, et null ne veut jamais dire « à
+  // l'heure ». `heure_debut_quart` reste null — c'est un `timestamptz`, et
+  // y écrire une heure attendue (un `time` local) obligerait à fabriquer un
+  // instant, donc à inventer un fuseau. Voir retardDeLArrivee() ci-dessous
+  // et `retardDuPointage` dans nexus-pointage-regles.js.
   //
   // Photo de validation (28/07/2026, demande de Frédéric) : l'arrivée et
   // le départ demandent une photo, prise et envoyée avant l'enregistrement
@@ -426,9 +437,18 @@
 
   /**
    * Le service ouvert, mais SEULEMENT s'il a commencé le même jour station
-   * que le pointage. Sinon : null, et les champs qui en dépendent
-   * retombent sur leur repli honnête (retard 0, quart 'non_defini',
-   * horaire prévu nul). Voir enregistrerPointage pour le défaut d'origine.
+   * que le pointage. Sinon : null, et `quart` retombe sur 'non_defini'.
+   * Voir enregistrerPointage pour le défaut d'origine.
+   *
+   * Le RETARD, lui, ne dépend plus de ce service depuis le 19/09/2026 : il
+   * se calcule contre le Planning et les Paramètres Station, jamais contre
+   * l'heure d'ouverture d'un service. Voir retardDeLArrivee().
+   *
+   * DETTE CONNUE, hors périmètre du mandat 33 : nexus-pointage-regles.js
+   * porte la même règle, paramétrée par le découpage du jour. Les deux
+   * corps sont identiques aujourd'hui ; les réunir demande de fournir le
+   * module aux tests qui jouent cette fonction seule, ce qui n'a rien à
+   * voir avec les horaires et sera traité à part.
    */
   function serviceDuJourSeulement(shiftActif, jourDuPointage) {
     if (!shiftActif || !shiftActif.heure_debut) return null;
@@ -674,6 +694,110 @@
   function dateISOLocale(d) {
     d = d || new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // L'HEURE ATTENDUE D'UNE ARRIVÉE (19/09/2026, mandat 33)
+  //
+  // Un seul chemin, et il passe par le moteur unique : Planning pour savoir
+  // CE QUI ÉTAIT DÛ (quel quart, sur quel site), puis
+  // `calculer_horaires_quart` pour savoir À QUELLE HEURE. C'est la fonction
+  // dont le Planning tire lui-même ses horaires : il ne peut plus exister
+  // deux vérités. Quand elle ne rend pas de ligne, on ne rend pas d'heure —
+  // aucun repli, aucun horaire fabriqué.
+  //
+  // Le temps d'habillage n'est ni ajouté ni retranché : `heure_debut` le
+  // comprend déjà, puisque `heures_ouverture_publique` décale l'ouverture au
+  // public de `temps_habillage_min` APRÈS ce début (05:45 + 15 = 06:00).
+  // ────────────────────────────────────────────────────────────────
+
+  // Les fuseaux déjà résolus pendant cette session d'écran. Un fuseau ne
+  // change pas en cours de journée ; seuls les SUCCÈS sont mémorisés, pour
+  // qu'une coupure passagère ne fige pas un « indéterminé » jusqu'au
+  // rechargement de la page.
+  const fuseauxDeStation = new Map();
+
+  async function fuseauDuSite(site) {
+    if (!site) return null;
+    if (fuseauxDeStation.has(site)) return fuseauxDeStation.get(site);
+    const resultat = await NexusStation.fuseauDeLaStation(site);
+    if (!resultat || !resultat.timezone) return null;
+    fuseauxDeStation.set(site, resultat.timezone);
+    return resultat.timezone;
+  }
+
+  // L'affectation du jour, telle que le Planning la déclare. La sélection
+  // (une seule ligne travaillée, site de transfert prioritaire) est une
+  // règle métier : elle vit dans nexus-pointage-regles.js, pas ici.
+  //
+  // À NOTER, et ce n'est pas un défaut de cet écran : la RLS de
+  // `planning_shifts` n'ouvre à un employé que les lignes PUBLIÉES de son
+  // site. Tant qu'aucun planning n'est publié, cette lecture rend zéro
+  // ligne et le retard vaut null pour tout le monde. C'est exactement ce
+  // que la sémantique demande de dire — NEXUS ne connaît pas l'horaire dû
+  // de ces journées — et non une panne à contourner.
+  async function affectationPlanifiee(employee, jourStation) {
+    const { data, error } = await nexusClient
+      .from('planning_shifts')
+      .select('quart, statut, site_id, site_transfert')
+      .eq('employee_id', employee.id)
+      .eq('date', jourStation);
+    if (error) {
+      console.error('Planning du jour : lecture impossible —', error);
+      return null;
+    }
+    return NexusPointageRegles.affectationDuJour(data || []);
+  }
+
+  // L'heure de début due, en « HH:MM », par le moteur unique. Zéro ligne =
+  // horaire non déclaré (renfort sans horaire, site sans configuration,
+  // quart hors nomenclature) : on rend null, jamais une heure de repli.
+  async function heureDebutDue(affectation, jourStation) {
+    const { data, error } = await nexusClient.rpc('calculer_horaires_quart', {
+      p_site: affectation.site, p_quart: affectation.quart, p_date: jourStation,
+    });
+    if (error) {
+      console.error('Horaires du quart : lecture impossible —', error);
+      return null;
+    }
+    const lignes = Array.isArray(data) ? data : (data ? [data] : []);
+    if (!lignes.length || !lignes[0]) return null;
+    return NexusStation.heureSqlEnHHMM(lignes[0].heure_debut);
+  }
+
+  // Le retard de CE pointage, en minutes — ou null s'il n'est pas
+  // calculable. Chaque `return null` ci-dessous est un refus explicite, et
+  // aucun ne doit être relu comme « employé à l'heure ».
+  async function retardDeLArrivee(type, employee, jourAppareil, heureRetenue) {
+    if (NexusPointageRegles.TYPES_AVEC_HEURE_ATTENDUE.indexOf(type) === -1) return null;
+    try {
+      const affectation = await affectationPlanifiee(employee, jourAppareil);
+      if (!affectation) return null;
+
+      // Le fuseau du site RÉELLEMENT TRAVAILLÉ : c'est lui qui déclare
+      // l'horaire, c'est donc dans son heure locale que l'arrivée se juge.
+      const fuseau = await fuseauDuSite(affectation.site);
+      if (!fuseau) return null;
+
+      // Le pointage est daté avec le jour de l'APPAREIL (`dateISOLocale`),
+      // et c'est ce jour-là qui a servi à lire le planning. S'il ne coïncide
+      // pas avec le jour de la station, les deux côtés de la soustraction ne
+      // parlent pas de la même journée : on ne conclut pas.
+      if (NexusStation.dateLocaleStation(fuseau, heureRetenue) !== jourAppareil) return null;
+
+      const hhmm = await heureDebutDue(affectation, jourAppareil);
+      if (!hhmm) return null;
+
+      return NexusPointageRegles.retardDuPointage({ type }, {
+        minutesAttendues: NexusStation.minutesDepuisMinuit(hhmm),
+        minutesPointage: NexusStation.minutesLocalesStation(fuseau, heureRetenue),
+      });
+    } catch (e) {
+      // Une exception n'autorise pas davantage à écrire 0 qu'une absence de
+      // planning : elle prouve seulement qu'on ne sait pas.
+      console.error('Retard non calculable :', e);
+      return null;
+    }
   }
 
   function demarrerHorloge() {
@@ -1549,24 +1673,29 @@
     // qu'un retard inventé.
     const serviceDuJour = serviceDuJourSeulement(shiftActif, today);
 
-    // AUCUN RETARD N'EST PLUS CALCULÉ (18/09/2026, arbitrage de Frédéric).
+    // LE RETARD EST DE NOUVEAU CALCULÉ (19/09/2026, mandat 33) — mais plus
+    // jamais contre `shifts.heure_debut`.
     //
-    // Le correctif du 11/09 avait déjà retiré le quart de la veille du calcul.
-    // Il restait le fond du problème : `shifts.heure_debut` vaut `created_at`
-    // quand le service est ouvert d'un clic — vérifié sur nexus-station-test,
-    // deux services ouverts le 18/09 portent heure_debut = created_at, là où
-    // un service semé porte une valeur distincte. AUCUNE colonne ne permet de
-    // dire lequel des deux on lit. L'ouverture d'un service n'est pas un
-    // horaire prévu, et comparer une arrivée à l'instant où quelqu'un a
-    // appuyé sur le bouton produisait « Retard constaté : 1 min » contre un
-    // horaire que personne n'avait jamais annoncé.
+    // Ce qui précédait : le correctif du 11/09 avait retiré le quart de la
+    // veille du calcul ; il restait le fond du problème — `shifts.heure_debut`
+    // vaut `created_at` quand le service est ouvert d'un clic, et aucune
+    // colonne ne dit lequel des deux on lit. Le 18/09, le calcul a donc été
+    // arrêté et `retard_min` figé à 0. Mais 0 dans une colonne NOT NULL, ce
+    // n'était pas « pas de chiffre » : c'était « à l'heure », affirmé 33 fois
+    // en Production sans l'avoir mesuré.
     //
-    // Le chiffre n'était pas seulement affiché : il était ÉCRIT en base
-    // (retard_min), avec l'horaire prétendu (heure_debut_quart), et d'autres
-    // écrans le relisent. Tant qu'aucun planning ne dit l'heure due, les deux
-    // colonnes restent à leur valeur d'absence — 0 et null — et l'écran
-    // affiche l'heure d'arrivée enregistrée, qui est un fait. Les lignes
-    // déjà écrites ne sont pas retouchées.
+    // L'heure attendue vient désormais du Planning (l'affectation réelle) et
+    // des Paramètres Station (l'horaire canonique), par le moteur unique
+    // `calculer_horaires_quart`. Quand l'une des deux manque, `retardMin`
+    // vaut null — la colonne est nullable depuis la migration du 19/09 — et
+    // null ne signifie JAMAIS « à l'heure » : les consommateurs doivent
+    // exclure ces lignes, pas les compter comme ponctuelles.
+    //
+    // `heure_debut_quart` reste null : c'est un `timestamptz`, et l'heure
+    // attendue est un `time` local. L'y écrire obligerait à fabriquer un
+    // instant, donc à inventer un fuseau — le fallback que l'arbitrage
+    // interdit. Les lignes déjà écrites ne sont pas retouchées.
+    const retardMin = await retardDeLArrivee(type, employee, today, heureRetenue);
 
     // ANTI-DOUBLON (11/09/2026). La règle « un seul pointage par type et par
     // jour » n'existait QUE dans l'écran : `public.pointages` ne porte aucun
@@ -1635,11 +1764,13 @@
         // insertion qui n'en porte pas. Cette écriture-ci les avait perdus au
         // passage — la clôture de pause au départ était donc refusée
         // systématiquement (13/09/2026), et le départ avec elle.
+        // Une fin de pause n'a pas d'heure attendue : son retard est sans
+        // objet, donc null — pas zéro (19/09/2026, mandat 33).
         const { error: erreurFin } = await nexusClient.from('pointages').insert({
           employee_id: employee.id, site: siteId, date: today, type: 'pause_fin', heure,
           quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
           service_id: serviceDuJour.id, client_event_id: identifiantTentative(),
-          retard_min: 0, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
+          retard_min: null, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
         });
         if (erreurFin) {
           console.error('Clôture de la pause à l\'heure du départ:', erreurFin);
@@ -1681,10 +1812,9 @@
       // photo_echec_technique ci-dessous. 'non_defini' n'est pas un chiffre
       // inventé — il documente honnêtement l'absence de quart identifiable.
       quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
-      // 0 assumé, pas un retard mesuré à zéro : voir le bloc « AUCUN RETARD
-      // N'EST PLUS CALCULÉ » plus haut. Ce n'est pas un chiffre inventé, c'est
-      // l'absence de chiffre, écrite dans une colonne NOT NULL.
-      retard_min: 0,
+      // 0 = à l'heure, MESURÉ ; > 0 = retard mesuré ; null = non calculable.
+      // Voir le bloc « LE RETARD EST DE NOUVEAU CALCULÉ » plus haut.
+      retard_min: retardMin,
       photo_url: photoUrl || null,
       // Échec technique de la photo (07/08/2026, demande de Frédéric) : ne
       // doit jamais mettre en cause la bonne foi de l'employé ni bloquer le
@@ -1704,7 +1834,7 @@
       // conservent la leur.
       heure_debut_quart: null,
     };
-    const tentative = fileAjouter(ligne, { retardMin: 0, heureClic: heureRetenue.toISOString() });
+    const tentative = fileAjouter(ligne, { retardMin, heureClic: heureRetenue.toISOString() });
 
     const { error } = await nexusClient.from('pointages').insert(ligne);
 

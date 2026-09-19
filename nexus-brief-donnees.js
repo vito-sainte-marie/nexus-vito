@@ -630,8 +630,14 @@
       { data: pointagesRetardTous, error: e6 },
     ] = await Promise.all([
       client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
+      // Les deux dénominateurs ne comptent que les arrivées MESURÉES
+      // (`retard_min` non NULL). Depuis le 19/09/2026 NULL = retard non
+      // calculable : les numérateurs les excluent déjà (`.gt` ignore les
+      // NULL), et les laisser au dénominateur ferait baisser le taux
+      // d'anomalies à chaque journée sans planning publié — Article 11,
+      // même correction que dans nexus-app-donnees.js.
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
       client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
       // Portée (collectif/individuel) et `employesASurveiller` restent
       // mesurés sur l'historique complet, sans fenêtre — voir commentaire

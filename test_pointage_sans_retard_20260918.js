@@ -13,6 +13,12 @@
 // AUCUNE colonne ne distingue un horaire PLANIFIÉ d'une heure d'ouverture.
 // L'ouverture d'un service n'est pas un horaire prévu.
 //
+// RÉVISION DU 19/09/2026 (mandat 33) : le retard est de nouveau CALCULÉ,
+// mais contre les Paramètres Station du site réellement travaillé, via le
+// Planning — et il vaut `null` dès qu'une de ces sources manque, jamais 0.
+// Seule la garde G4b a changé de sens ; tout le reste de cette épreuve tient,
+// parce que l'écran ne prononce toujours aucun verdict de ponctualité.
+//
 // CE QUE CETTE ÉPREUVE JUGE : le rendu réel de renderTimeline, extrait de la
 // page et exécuté sur des pointages construits pour piéger l'ancien code —
 // y compris une ligne ANCIENNE portant encore retard_min = 1028 en base, que
@@ -196,13 +202,28 @@ t('G4c · plus aucun chemin ne pose la classe « retard »', () => {
     'un retrait défensif subsiste pour une classe que plus rien ne pose : il ment sur l\'état du code');
 });
 
-t('G4b · aucun retard n\'est plus CALCULÉ avant l\'écriture', () => {
+t('G4b · le retard calculé avant l\'écriture ne vient que des Paramètres Station', () => {
+  // PRÉMISSE RÉVISÉE LE 19/09/2026 (mandat 33). Le 18/09, l'épreuve exigeait
+  // qu'AUCUN retard ne soit calculé : c'était la seule façon sûre de ne plus
+  // mesurer contre `shifts.heure_debut`. Mais figer `retard_min: 0` remplace
+  // un faux retard par un faux « à l'heure », qui se propage tout autant dans
+  // les sept écrans consommateurs. Le retard est donc de nouveau calculé —
+  // contre les Paramètres Station du site réellement travaillé, et `null`
+  // quand la source manque. Ce que cette garde interdit n'a PAS changé : que
+  // l'ouverture d'un service serve d'horaire prévu.
   assert.ok(!/DATE_OFFICIALISATION_RETARDS/.test(CODE),
     'la bascule de date du retard est revenue : le calcul avec elle');
-  assert.ok(!/retardMin\s*=\s*[^0]/.test(ECRITURE),
-    'un retard est de nouveau calculé avant l\'écriture en base');
   assert.ok(!/heure_debut[^_]/.test(ECRITURE.slice(ECRITURE.indexOf('const ligne = {'))),
     'l\'heure d\'ouverture du service est de nouveau lue au moment d\'écrire');
+
+  // Une seule origine pour la valeur écrite, et c'est le calcul dédié.
+  const affectations = ECRITURE.split('\n').filter(l => /\bretardMin\s*=/.test(l));
+  assert.strictEqual(affectations.length, 1,
+    `retardMin a ${affectations.length} origines dans l'écriture : la valeur écrite n'est plus traçable`);
+  assert.match(affectations[0], /await retardDeLArrivee\(/,
+    'retardMin ne vient plus de retardDeLArrivee : soit il est figé — un faux « à l\'heure » — soit il vient d\'une autre source');
+  assert.ok(!/shiftActif/.test(affectations[0]),
+    'le retard se mesure de nouveau contre le service ouvert : c\'est le défaut du 18/09');
 });
 
 t('G5 · la vue manager montre l\'heure enregistrée, pas un jugement', () => {

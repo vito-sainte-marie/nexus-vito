@@ -287,8 +287,115 @@
     return fin - debut;
   }
 
+  // ------------------------------------------------------------
+  // LE RETARD — 19/09/2026 (mandat 33)
+  //
+  // Le retard a été calculé pendant des mois contre `shifts.heure_debut`,
+  // qui vaut `created_at` quand le service est ouvert d'un clic : l'écran
+  // annonçait des heures de retard à qui arrivait à l'heure. Le 18/09, le
+  // calcul a donc été arrêté net et `retard_min` écrit à 0 — ce qui a
+  // remplacé un faux retard par un faux « à l'heure », 33 lignes en
+  // Production. Les deux erreurs ont la même racine : affirmer quelque
+  // chose quand on ne sait pas.
+  //
+  // Le contrat arbitré le 19/09/2026 nomme les sources :
+  //   Paramètres Station = horaires canoniques du site ;
+  //   Planning           = affectation réelle (journée / quart / site) ;
+  //   Pointage           = heure réellement constatée ;
+  //   retard             = rapprochement des trois.
+  // `shifts.heure_debut` est INTERDIT comme horaire théorique.
+  //
+  // Ce module ne lit rien : l'appelant apporte les minutes des deux côtés.
+  // L'heure attendue vient de `calculer_horaires_quart(site, quart, date)`,
+  // moteur unique — celui-là même dont le Planning tire ses horaires. Quand
+  // il ne rend pas d'horaire, il ne rend PAS de ligne, et le retard vaut
+  // null. Aucun repli, aucune heure fabriquée.
+  // ------------------------------------------------------------
+
+  // Les seuls pointages qui ont une heure attendue. Un départ, un début ou
+  // une fin de pause n'en ont pas : les Paramètres Station ne déclarent ni
+  // heure de fin due, ni horaire de pause opposable. Leur retard n'est pas
+  // nul, il est SANS OBJET — donc null, jamais 0.
+  const TYPES_AVEC_HEURE_ATTENDUE = ['arrivee'];
+
+  /**
+   * Le retard de ce pointage, en minutes — ou `null` s'il n'est PAS calculable.
+   *
+   *   0     : retard CALCULÉ, l'employé est à l'heure (ou en avance) ;
+   *   > 0   : retard CALCULÉ ;
+   *   null  : NON calculable — et `null` ne veut JAMAIS dire « à l'heure ».
+   *
+   * Le temps d'habillage n'est ni ajouté ni retranché ici : il est déjà
+   * compris dans le début de quart des Paramètres Station, qui décalent
+   * l'ouverture au public de `temps_habillage_min` APRÈS ce début
+   * (05:45 + 15 = 06:00). L'y ajouter une seconde fois transformerait
+   * l'habillage en tolérance de retard, ce que l'arbitrage refuse.
+   *
+   * @param {object} pointage
+   * @param {string} pointage.type          'arrivee' | 'depart' | 'pause_debut' | 'pause_fin'
+   * @param {object} ctx
+   * @param {number|null} ctx.minutesAttendues  début de quart dû, minutes depuis minuit,
+   *                                            tel que rendu par calculer_horaires_quart
+   *                                            POUR LE SITE RÉELLEMENT TRAVAILLÉ ; null si
+   *                                            l'horaire n'est pas déclaré (renfort sans
+   *                                            horaire, quart 'non_defini', site inconnu).
+   * @param {number|null} ctx.minutesPointage   heure constatée, minutes depuis minuit du
+   *                                            même jour station.
+   * @returns {number|null}
+   */
+  function retardDuPointage(pointage, ctx) {
+    if (!pointage || TYPES_AVEC_HEURE_ATTENDUE.indexOf(pointage.type) === -1) return null;
+    ctx = ctx || {};
+    if (!Number.isFinite(ctx.minutesAttendues)) return null;
+    if (!Number.isFinite(ctx.minutesPointage)) return null;
+    const ecart = ctx.minutesPointage - ctx.minutesAttendues;
+    // Arriver en avance n'est pas un retard négatif : c'est zéro retard, et
+    // c'est un zéro MESURÉ, celui que la sémantique autorise à écrire.
+    return ecart > 0 ? ecart : 0;
+  }
+
+  // Les statuts de planning qui ouvrent une journée TRAVAILLÉE, donc une heure
+  // attendue. Liste POSITIVE, et volontairement : la contrainte de la base
+  // (`planning_shifts_statut_check`) en déclare six, dont `repos` et `conge`
+  // qui n'en ouvrent aucune — et la Production porte bien des lignes
+  // `repos/quart1` ou `conge/quart2`, qui rendraient pourtant un horaire si
+  // on les passait au moteur. Une liste positive fait qu'un statut inconnu
+  // donne « non calculable » au lieu d'un faux retard : c'est le sens du
+  // filet, il doit tomber du bon côté.
+  const STATUTS_PLANNING_TRAVAILLES = ['travail_normal', 'manager', 'renfort', 'transfert_site'];
+
+  /**
+   * L'affectation de la journée, à partir des lignes de planning de cet
+   * employé pour ce jour — ou `null` si elle n'est pas déterminable.
+   *
+   * Zéro ligne travaillée : NEXUS ne sait pas ce qui était dû. Plusieurs :
+   * il ne sait pas laquelle oppose son horaire. Dans les deux cas le retard
+   * est non calculable, pas nul. (La Production ne porte aujourd'hui aucune
+   * journée à deux lignes travaillées : les 82 doublons mesurés le 19/09/2026
+   * sont tous `repos`+`repos` ou `conge`+`conge`. Le cas ambigu est donc
+   * théorique — raison de plus pour ne pas l'arbitrer en douce.)
+   *
+   * Le site rendu est celui RÉELLEMENT TRAVAILLÉ : `site_transfert` prime sur
+   * `site_id`, comme l'exige le contrat pour un transfert de site.
+   *
+   * @param {Array<object>} lignes  lignes de `planning_shifts` du jour
+   * @returns {{quart: string, site: string}|null}
+   */
+  function affectationDuJour(lignes) {
+    if (!Array.isArray(lignes)) return null;
+    const travaillees = lignes.filter(l =>
+      l && STATUTS_PLANNING_TRAVAILLES.indexOf(l.statut) !== -1);
+    if (travaillees.length !== 1) return null;
+    const ligne = travaillees[0];
+    const site = ligne.site_transfert || ligne.site_id;
+    if (!site || !ligne.quart) return null;
+    return { quart: ligne.quart, site: site };
+  }
+
   const API = { ORDRE_TYPES, estDisponible, prochaineEtape, dejaFaitDuService, serviceDuJourSeulement, journeeTermineeSansService,
-                 MOTIF_CLOTURE_PILOTE, SOURCE_CLOTURE_PILOTE, serviceObsolete, servicesObsoletes, finNonEnregistree, dureeServiceMs };
+                 MOTIF_CLOTURE_PILOTE, SOURCE_CLOTURE_PILOTE, serviceObsolete, servicesObsoletes, finNonEnregistree, dureeServiceMs,
+                 TYPES_AVEC_HEURE_ATTENDUE, retardDuPointage,
+                 STATUTS_PLANNING_TRAVAILLES, affectationDuJour };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusPointageRegles = API;
