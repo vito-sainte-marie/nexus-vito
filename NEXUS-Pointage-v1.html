@@ -730,18 +730,30 @@
   // (une seule ligne travaillée, site de transfert prioritaire) est une
   // règle métier : elle vit dans nexus-pointage-regles.js, pas ici.
   //
-  // À NOTER, et ce n'est pas un défaut de cet écran : la RLS de
-  // `planning_shifts` n'ouvre à un employé que les lignes PUBLIÉES de son
-  // site. Tant qu'aucun planning n'est publié, cette lecture rend zéro
-  // ligne et le retard vaut null pour tout le monde. C'est exactement ce
-  // que la sémantique demande de dire — NEXUS ne connaît pas l'horaire dû
-  // de ces journées — et non une panne à contourner.
+  // LA SOURCE QUI FAIT FOI, PAS LA TABLE. `v_planning_officiel` ne rend que
+  // les lignes de la source en vigueur à CETTE date — génération NEXUS ou
+  // import Google Sheets selon l'historique de bascule du site. La table,
+  // elle, rend les deux : la lire ici ferait calculer un retard contre un
+  // planning qui ne faisait pas foi ce jour-là.
+  //
+  // `publie` est demandé explicitement et non laissé à la RLS. La RLS
+  // n'ouvre à un employé que les lignes publiées de son site, mais un
+  // manager voit aussi les brouillons : sans ce filtre, le retard d'un
+  // manager se calculerait contre un planning non publié, et celui d'un
+  // pompiste contre rien. Le même écran doit dire la même chose à tout le
+  // monde.
+  //
+  // Tant qu'aucun planning n'est publié, cette lecture rend zéro ligne et
+  // le retard vaut null pour tout le monde. C'est exactement ce que la
+  // sémantique demande de dire — NEXUS ne connaît pas l'horaire dû de ces
+  // journées — et non une panne à contourner.
   async function affectationPlanifiee(employee, jourStation) {
     const { data, error } = await nexusClient
-      .from('planning_shifts')
+      .from('v_planning_officiel')
       .select('quart, statut, site_id, site_transfert')
       .eq('employee_id', employee.id)
-      .eq('date', jourStation);
+      .eq('date', jourStation)
+      .eq('publie', true);
     if (error) {
       console.error('Planning du jour : lecture impossible —', error);
       return null;

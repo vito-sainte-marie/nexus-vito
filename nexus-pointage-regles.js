@@ -378,7 +378,7 @@
    * Le site rendu est celui RÉELLEMENT TRAVAILLÉ : `site_transfert` prime sur
    * `site_id`, comme l'exige le contrat pour un transfert de site.
    *
-   * @param {Array<object>} lignes  lignes de `planning_shifts` du jour
+   * @param {Array<object>} lignes  lignes de `v_planning_officiel` du jour
    * @returns {{quart: string, site: string}|null}
    */
   function affectationDuJour(lignes) {

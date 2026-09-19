@@ -237,6 +237,17 @@
     let EMPLOYES = [];
     let CONTRAINTES = {}; // employee_id -> { heures_contrat_semaine, jours_repos_habituels, peut_faire_renfort }
 
+    // LA SOURCE OFFICIELLE DU SITE, retenue apres lecture de `station_config`.
+    // Cet ecran est l'ATELIER du manager : contrairement a Pointage, Paye ou
+    // Mon Planning, il doit voir les BROUILLONS, donc il ne peut pas lire
+    // `v_planning_officiel`. Mais depuis que deux provenances peuvent occuper
+    // la meme case, lire `planning_shifts` sans borne empilerait la generation
+    // NEXUS et l'import Google Sheets dans le meme jour. L'atelier travaille
+    // donc sur UNE provenance, nommee, et c'est celle qui fait foi pour le
+    // site. L'import en attente de validation aura son propre panneau de
+    // previsualisation — pas la grille.
+    let SOURCE_PLANNING = 'nexus';
+
     function normaliserUrlPlanningGoogle(valeur) {
       const texte = String(valeur || '').trim();
       const match = texte.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -246,6 +257,7 @@
 
     function appliquerSourcePlanning(source, url) {
       const valeur = source === 'google_sheets' ? 'google_sheets' : 'nexus';
+      SOURCE_PLANNING = valeur;
       document.getElementById('contenu').classList.toggle('source-google', valeur === 'google_sheets');
       document.getElementById('sourcePlanningResume').textContent = valeur === 'google_sheets'
         ? 'Google Sheets est la source officielle présentée à l’équipe. Les outils de génération NEXUS sont masqués pour éviter deux plannings concurrents.'
@@ -542,6 +554,7 @@
         .from('planning_shifts')
         .select('*, employees!planning_shifts_employee_id_fkey(nom)')
         .eq('site_id', siteId)
+        .eq('source', SOURCE_PLANNING)
         .gte('date', debut).lt('date', fin)
         .order('date').order('quart');
       const conteneur = document.getElementById('planningGrille');
@@ -635,10 +648,17 @@
       if (!confirm('Publier le planning de ce mois ? Il devient visible par toute l\'équipe.')) return;
       const debut = moisISO(MOIS_COURANT);
       const fin = finMoisISO(MOIS_COURANT);
+      // `source` est une BORNE, pas une commodite. Sans elle, ce bouton
+      // publierait toutes provenances confondues : un import Google Sheets
+      // depose en brouillon et pas encore controle deviendrait visible par
+      // l'equipe d'un seul clic, alors que le parcours valide est
+      // « Importer → Controler → Valider et publier ». Ici on ne publie que
+      // ce qui fait deja foi pour ce site.
       const { error } = await nexusClient
         .from('planning_shifts')
         .update({ publie: true, modifie_le: new Date().toISOString(), modifie_par: employee.id })
-        .eq('site_id', siteId).gte('date', debut).lt('date', fin).eq('publie', false);
+        .eq('site_id', siteId).eq('source', SOURCE_PLANNING)
+        .gte('date', debut).lt('date', fin).eq('publie', false);
       if (error) { console.error('Publication planning:', error); alert('Erreur — réessayez.'); return; }
       alert('Planning publié.');
     });

@@ -206,19 +206,34 @@
   // échoue : dans les trois cas l'appelant retombera sur l'horloge, ce qui est
   // le comportement d'avant. Une panne de planning ne doit jamais empêcher
   // quelqu'un de prendre son poste.
+  //
+  // LA LECTURE PASSE PAR `v_planning_officiel`, JAMAIS PAR `planning_shifts`.
+  // Depuis que les deux sources coexistent sur la même case, la table rend
+  // l'import ET la génération ; seule la vue rend celle qui faisait foi ce
+  // jour-là. Lire la table reviendrait à tirer au sort.
+  //
+  // Et la lecture ne demande plus UNE ligne. `maybeSingle()` traitait « deux
+  // lignes » comme une panne : or quart1 + renfort le même jour est un cas
+  // métier ordinaire, pas une erreur. Le repli sur l'horloge était donc muet
+  // là où il aurait fallu dire « je ne sais pas lequel ». Ici l'ambiguïté est
+  // un refus nommé : plusieurs quarts travaillés, aucun arbitrage possible à
+  // ce niveau. Cet arbitrage-là appartient à `NexusPointageRegles`, dont
+  // quatre des écrans qui chargent ce fichier ne disposent pas — le
+  // dupliquer ici recréerait une règle d'écran, ce qu'on a déjà payé.
   async function quartPlanifie(employeeId, dateLocaleISO, client) {
     if (typeof employeeId !== 'string' || !employeeId.trim()) return null;
     if (typeof dateLocaleISO !== 'string' || !dateLocaleISO.trim()) return null;
     try {
       const { data, error } = await (client || nexusClient)
-        .from('planning_shifts')
+        .from('v_planning_officiel')
         .select('quart, statut, publie')
         .eq('employee_id', employeeId).eq('date', dateLocaleISO)
-        .eq('publie', true)
-        .maybeSingle();
-      if (error || !data) return null;
-      if (!STATUTS_AU_TRAVAIL.includes(data.statut)) return null;
-      return QUARTS_PLANIFIABLES.includes(data.quart) ? data.quart : null;
+        .eq('publie', true);
+      if (error || !Array.isArray(data)) return null;
+      const travailles = data.filter(l => l && STATUTS_AU_TRAVAIL.includes(l.statut)
+        && QUARTS_PLANIFIABLES.includes(l.quart));
+      if (travailles.length !== 1) return null;
+      return travailles[0].quart;
     } catch (e) {
       return null;
     }

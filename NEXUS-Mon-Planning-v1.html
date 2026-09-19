@@ -166,8 +166,11 @@
     async function chargerMonPlanning() {
       const debut = moisISO(MOIS_COURANT);
       const fin = finMoisISO(MOIS_COURANT);
+      // `v_planning_officiel` et non `planning_shifts` : l'employe doit voir
+      // la provenance qui fait foi a chaque date, une seule ligne par case,
+      // que le mois vienne du generateur NEXUS ou d'un import Google Sheets.
       const { data, error } = await nexusClient
-        .from('planning_shifts')
+        .from('v_planning_officiel')
         .select('*')
         .eq('employee_id', employee.id)
         .eq('site_id', siteId)
@@ -230,8 +233,10 @@
     async function chargerPlanningEquipe() {
       const debut = moisISO(MOIS_COURANT);
       const fin = finMoisISO(MOIS_COURANT);
+      // Meme regle que ci-dessus. Le nom de contrainte reste celui de la
+      // table de base : PostgREST resout la relation a travers la vue.
       const { data, error } = await nexusClient
-        .from('planning_shifts')
+        .from('v_planning_officiel')
         .select('*, employees!planning_shifts_employee_id_fkey(nom)')
         .eq('site_id', siteId)
         .gte('date', debut).lt('date', fin)

@@ -168,7 +168,11 @@ function chaine({ planning = [], erreurPlanning = null, horaires = [], erreurHor
   };
   const nexusClient = {
     from: table => {
-      assert.strictEqual(table, 'planning_shifts',
+      // `v_planning_officiel` et RIEN D'AUTRE. Lire `planning_shifts`
+      // rendrait la génération NEXUS et l'import Google Sheets pour la même
+      // journée : le retard se calculerait contre un planning qui ne faisait
+      // pas foi ce jour-là. Cette égalité est la garde de ce contrat.
+      assert.strictEqual(table, 'v_planning_officiel',
         `la chaîne du retard lit ${table} : une source non prévue par le contrat`);
       journal.planning++;
       return requete({ data: planning, error: erreurPlanning });
