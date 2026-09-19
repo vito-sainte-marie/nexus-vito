@@ -200,7 +200,7 @@ t('sans service ouvert, aucune référence n\'est inventée', () => {
   assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11'), null);
 });
 
-t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
+t('le quart écrit en base suit le service DU JOUR, et le retard n\'est plus dérivé', () => {
   // On juge le CORPS de la fonction qui écrit, pas le fichier entier : les
   // autres écrans lisent légitimement retard_min ailleurs, et un grep global
   // mélangerait les deux.
@@ -216,10 +216,32 @@ t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
   // On vise l'écriture du pointage DEMANDÉ, pas celle de la clôture de pause
   // qui la précède et porte, elle, des valeurs littérales assumées.
   const principal = suite.slice(suite.indexOf("const ligne = {"));
-  for (const champ of ['retard_min:', 'quart:', 'heure_debut_quart:']) {
+  const champDe = champ => {
     const ligne = principal.split('\n').find(l => l.trim().startsWith(champ));
     assert.ok(ligne, `${champ} n'est plus écrit`);
-    assert.ok(/serviceDuJour|retardMin/.test(ligne), `${champ} ne suit pas le service du jour`);
+    return ligne;
+  };
+
+  // `quart` reste dérivé du service du jour : c'est un fait observé (quel
+  // service était ouvert), pas une mesure contre un horaire.
+  assert.ok(/serviceDuJour/.test(champDe('quart:')),
+    'quart: ne suit plus le service du jour — le quart de la veille peut revenir');
+
+  // PRÉMISSE INVERSÉE LE 18/09/2026. Cette épreuve exigeait que `retard_min`
+  // et `heure_debut_quart` suivent eux aussi le service du jour. C'était
+  // précisément le défaut : `shifts.heure_debut` vaut `created_at` quand le
+  // service est ouvert d'un clic, et l'écran annonçait « Retard constaté :
+  // 1028 min » à une arrivée de 10 h 33. Aucune colonne ne distingue un
+  // horaire PLANIFIÉ d'une heure d'ouverture ; les deux champs ne doivent
+  // donc plus rien dériver du service. La garde est retournée, pas retirée :
+  // elle mord désormais dans l'autre sens.
+  assert.match(champDe('retard_min:'), /retard_min:\s*0\s*,/,
+    'retard_min est de nouveau calculé : un retard serait affirmé sans horaire planifié fiable');
+  assert.match(champDe('heure_debut_quart:'), /heure_debut_quart:\s*null\s*,/,
+    'heure_debut_quart capture de nouveau une heure d\'ouverture présentée comme un horaire prévu');
+  for (const champ of ['retard_min:', 'heure_debut_quart:']) {
+    assert.ok(!/serviceDuJour|shiftActif|retardMin|heure_debut/.test(champDe(champ).replace(champ, '')),
+      `${champ} dérive de nouveau d'un service : l'ouverture d'un service n'est pas un horaire prévu`);
   }
 });
 
