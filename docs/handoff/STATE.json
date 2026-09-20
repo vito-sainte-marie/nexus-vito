@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-POINTAGE-CORRECTIF-1-20260911",
+  "lot_actif": "NEXUS-CONTINUITE-TERRAIN-1-20260920",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -233,6 +233,14 @@
       "consomme_le": "2026-09-11T15:45:56.397Z"
     },
     "NEXUS-POINTAGE-CORRECTIF-1-20260911": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "d0d9ea79d5063f1035cb8eacf1e8079acd5869f7",
+      "consomme_le": "2026-09-20T18:44:13.569Z"
+    },
+    "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
       "statut": "ATTENTE_DECISION",
       "derniere_demande": "request-1.md"
     }
