@@ -522,7 +522,7 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 const MIGRATIONS_REELLES_NOMBRE = 276;
 const MIGRATIONS_REELLES_EMPREINTE = 'ef440d0a20155e747edd220ccb42e874e1fe9402ee81072c1b4696ca0c1ab56e';
 
-cas('Réel · la provenance des migrations annonce 274 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 276 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
