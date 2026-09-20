@@ -206,19 +206,34 @@
   // échoue : dans les trois cas l'appelant retombera sur l'horloge, ce qui est
   // le comportement d'avant. Une panne de planning ne doit jamais empêcher
   // quelqu'un de prendre son poste.
+  //
+  // LA LECTURE PASSE PAR `v_planning_officiel`, JAMAIS PAR `planning_shifts`.
+  // Depuis que les deux sources coexistent sur la même case, la table rend
+  // l'import ET la génération ; seule la vue rend celle qui faisait foi ce
+  // jour-là. Lire la table reviendrait à tirer au sort.
+  //
+  // Et la lecture ne demande plus UNE ligne. `maybeSingle()` traitait « deux
+  // lignes » comme une panne : or quart1 + renfort le même jour est un cas
+  // métier ordinaire, pas une erreur. Le repli sur l'horloge était donc muet
+  // là où il aurait fallu dire « je ne sais pas lequel ». Ici l'ambiguïté est
+  // un refus nommé : plusieurs quarts travaillés, aucun arbitrage possible à
+  // ce niveau. Cet arbitrage-là appartient à `NexusPointageRegles`, dont
+  // quatre des écrans qui chargent ce fichier ne disposent pas — le
+  // dupliquer ici recréerait une règle d'écran, ce qu'on a déjà payé.
   async function quartPlanifie(employeeId, dateLocaleISO, client) {
     if (typeof employeeId !== 'string' || !employeeId.trim()) return null;
     if (typeof dateLocaleISO !== 'string' || !dateLocaleISO.trim()) return null;
     try {
       const { data, error } = await (client || nexusClient)
-        .from('planning_shifts')
+        .from('v_planning_officiel')
         .select('quart, statut, publie')
         .eq('employee_id', employeeId).eq('date', dateLocaleISO)
-        .eq('publie', true)
-        .maybeSingle();
-      if (error || !data) return null;
-      if (!STATUTS_AU_TRAVAIL.includes(data.statut)) return null;
-      return QUARTS_PLANIFIABLES.includes(data.quart) ? data.quart : null;
+        .eq('publie', true);
+      if (error || !Array.isArray(data)) return null;
+      const travailles = data.filter(l => l && STATUTS_AU_TRAVAIL.includes(l.statut)
+        && QUARTS_PLANIFIABLES.includes(l.quart));
+      if (travailles.length !== 1) return null;
+      return travailles[0].quart;
     } catch (e) {
       return null;
     }
@@ -303,6 +318,23 @@
     return JOURS_ETENDUS.includes(jour) ? 'etendu' : 'normal';
   }
 
+  // SPÉCIFICATION, plus chemin de production — 19/09/2026 (mandat 33).
+  //
+  // Ces deux fonctions décrivaient la règle ET la décidaient : `seuilDeBascule`
+  // lisait `station_config.horaires` puis réassemblait le régime du jour ici,
+  // pendant que `calculer_horaires_quart` faisait le même travail en base pour
+  // le Planning. Deux moteurs, donc deux vérités possibles — et elles ont
+  // divergé : un jeudi, la base répondait `quart2` sans heure de début (son
+  // régime `etendu` n'était pas déclaré et elle ne repliait pas), là où le JS
+  // répondait 13:00 en repliant sur `normal`.
+  //
+  // La règle vit désormais dans `calculer_horaires_quart`, qui replie le régime
+  // EN BLOC — début ET fin — et ne rend aucune ligne quand l'horaire n'est pas
+  // déclaré. `cleHoraireDuJour`, `JOURS_ETENDUS` et `seuilDepuisHoraires`
+  // restent exportées comme la formulation éprouvable de cette règle : c'est ce
+  // qui permet de vérifier par test que la base dit bien ce que la règle dit,
+  // au lieu de le supposer. Elles ne décident plus rien en production.
+  //
   // PURE. `horaires` = station_config.horaires ; `cle` = 'etendu' | 'normal'.
   // Le repli sur `normal` quand `etendu` est absent sert les commerces à
   // horaire uniforme — il ne masque pas une configuration incomplète, puisque
@@ -312,6 +344,17 @@
     if (!q2) return null;
     const brut = (cle === 'etendu' ? q2.etendu : q2.normal) || q2.normal;
     return minutesDepuisMinuit(brut);
+  }
+
+  // PURE. PostgreSQL rend un `time` en `HH:MM:SS`, parfois avec des fractions ;
+  // les horaires saisis à l'écran, eux, sont en `HH:MM`. `minutesDepuisMinuit`
+  // reste STRICTE sur la forme d'écran — la relâcher lui ferait accepter au
+  // clavier ce que seule la base a le droit d'écrire. La conversion se fait
+  // donc ici, au point exact où l'on franchit la frontière.
+  function heureSqlEnHHMM(valeur) {
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(
+      String(valeur == null ? '' : valeur).trim());
+    return m ? (m[1].length === 1 ? '0' + m[1] : m[1]) + ':' + m[2] : null;
   }
 
   // Le seuil configuré du site, en minutes depuis minuit, POUR LE JOUR DONNÉ.
@@ -325,6 +368,12 @@
   // reproduirait à l'échelle du jour l'erreur que `minutesLocalesStation`
   // interdit déjà à l'échelle de l'heure. Son absence est un refus, pas un
   // repli.
+  //
+  // Depuis le 19/09/2026, le seuil vient de la RPC `calculer_horaires_quart` —
+  // la MÊME fonction que celle dont le Planning tire les horaires théoriques.
+  // Le retour ne porte plus de `regime` : l'annoncer aurait voulu dire le
+  // recalculer ici, donc rouvrir la seconde vérité qu'on vient de fermer. Ce
+  // que la base a réellement appliqué, elle le dit par `debut`.
   async function seuilDeBascule(siteId, client, timezone, instant) {
     if (typeof siteId !== 'string' || !siteId.trim()) {
       throw new TypeError('NexusStation.seuilDeBascule : siteId manquant ou invalide.');
@@ -333,26 +382,31 @@
       console.warn('Seuil de bascule : fuseau du commerce non fourni. Le jour local est indéterminable, aucun seuil rendu.');
       return { indetermine: 'fuseau' };
     }
+    const jour = dateLocaleStation(timezone, instant);
     const { data, error } = await (client || nexusClient)
-      .from('station_config').select('horaires').eq('site', siteId.trim()).maybeSingle();
+      .rpc('calculer_horaires_quart', { p_site: siteId.trim(), p_quart: 'quart2', p_date: jour });
     if (error) {
       console.error('Seuil de bascule : lecture des horaires impossible —', error);
       return { indetermine: 'reseau' };
     }
     // Règle A4-bis : la requête a réussi, c'est la configuration qui manque.
-    const cle = cleHoraireDuJour(timezone, instant);
-    const minutes = seuilDepuisHoraires(data && data.horaires, cle);
+    // Zéro ligne = l'horaire n'est pas déclaré pour ce jour. La base ne rend
+    // plus de ligne toute-NULL : il n'y a donc plus à distinguer « pas de
+    // ligne » de « une ligne qui ne dit rien ».
+    const lignes = Array.isArray(data) ? data : (data ? [data] : []);
+    const debut = lignes.length ? heureSqlEnHHMM(lignes[0].heure_debut) : null;
+    const minutes = minutesDepuisMinuit(debut);
     if (minutes === null) {
-      console.warn('Seuil de bascule : aucun horaire configuré pour « ' + siteId + ' » — NEXUS ne devine pas à quel quart appartient ce moment.');
+      console.warn('Seuil de bascule : aucun horaire de quart 2 déclaré pour « ' + siteId + ' » le ' + jour + ' — NEXUS ne devine pas à quel quart appartient ce moment.');
       return { indetermine: 'configuration' };
     }
-    return { minutes, regime: cle };
+    return { minutes, debut, jour };
   }
 
   global.NexusStation = {
     siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
-    cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS,
+    cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS, heureSqlEnHHMM,
     quartDuJour, quartPlanifie, dateLocaleStation,
     QUARTS_PLANIFIABLES, STATUTS_AU_TRAVAIL,
     quartConfigureDuMoment, seuilDeBascule,

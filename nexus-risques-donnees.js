@@ -700,7 +700,12 @@
     const depuis = new Date(Date.now() - (depuisNJours || 14) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [{ data: retards, error: e1 }, { data: totaux, error: e2 }] = await Promise.all([
       client.from('pointages').select('employee_id, retard_min, employees(nom)').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', depuis),
-      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').gte('date', depuis),
+      // Dénominateur par collaborateur : seules les arrivées dont le retard
+      // a pu être calculé. NULL = non calculable depuis le 19/09/2026 ;
+      // les compter gonflerait `totalPointages`, donc la taille
+      // d'échantillon que `qualifierPonctualiteCollaborateur` utilise pour
+      // décider si un signal est statistiquement qualifiable.
+      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', depuis),
     ]);
     if (e1 || e2) { [e1, e2].forEach(e => { if (e) console.error('Chargement ponctualité (risque équipe):', e); }); return {}; }
     const totalParEmploye = {};

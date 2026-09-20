@@ -218,3 +218,32 @@ Le mois de référence est encodé dans deux tests rejouables :
 - `test_nexus_paye_ecran_rendu.js` — 27 vérifications : l'écran est **réellement exécuté** sur un DOM minimal, ce qu'aucun test ne faisait jusqu'ici. Un gabarit peut contenir tous les bons mots et lever une exception à l'exécution ; le manager voit alors un écran vide, sans le moindre message.
 
 Ces deux tests s'ajoutent à `test_nexus_paye_evenement_rh.js` (44 vérifications, dont le refus du dépliage par journée) et à `test_nexus_paye_periode_manuelle.js`, dont le scénario encodait l'ancien comportement — un congé saisi jour par jour — et encode désormais son refus.
+
+---
+
+## 12. Le planning que PAYE lit (19/09/2026)
+
+**Renvoi, pas une nouvelle règle.** Les décisions métier sur la provenance du planning sont consignées
+une seule fois, en **§10 de `NEXUS-Data-Dictionary-v2.md`** (« Source officielle du planning — NEXUS ou
+Google Sheets »). Ce qui suit n'en retient que les trois points qui engagent PAYE.
+
+1. **PAYE lit `v_planning_officiel`, jamais `planning_shifts`.** Depuis le 19/09/2026,
+   `nexus-paye-donnees.js` lit la vue, filtrée sur `publie = true`. La table contient deux provenances
+   (`'nexus'` et `'google_sheets'`) : la lire en direct compterait deux fois une journée pour laquelle
+   les deux existent. La vue n'expose que la provenance qui faisait foi **à chaque date**, ce qui rend
+   un mois de bascule lisible sans rattrapage.
+
+2. **Zéro ligne n'est pas zéro heure.** Un jour sans ligne dans la vue signifie « planning officiel
+   indisponible » — jamais « repos », jamais « à l'heure ». Même doctrine que l'interdiction de
+   l'attribution « au pif » du §8 : ce qui manque se dit, ne se comble pas. De même, `heure_debut`
+   peut rester **NULL** quand Paramètres Station ne déclare pas d'horaire pour ce quart ; la ligne
+   est alors **comptée comme non calculable**, pas requalifiée en conforme.
+
+3. **Ce que compte la paie vient du classeur ; l'horaire théorique vient de NEXUS.** `duree_heures` est
+   la donnée saisie par le manager. `heure_debut`/`heure_fin` viennent de Paramètres Station via le
+   moteur unique `calculer_horaires_quart`. Les deux peuvent diverger, et cet écart se montre : aucun
+   des deux n'écrase l'autre.
+
+**Ce chantier n'a créé aucune fonction PAYE nouvelle**, par consigne explicite de Frédéric (« Ne
+développe pas maintenant de nouvelles fonctions Paye. Préserve simplement ce contrat architectural
+dans la conception de la source Planning. »). Les quatre suites du §9 restent ouvertes et inchangées.

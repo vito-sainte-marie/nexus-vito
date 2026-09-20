@@ -480,14 +480,39 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
+//   19/09/2026 — lot Moteur d'horaires unique et retard nullable (#64) :
+//   + 1  `20260919160000_horaires_moteur_unique_et_retard_nullable.sql`
+//   19/09/2026 — lot Source de planning officielle et projection normalisée :
+//   + 1  `20260919180000_planning_source_officielle_projection_normalisee.sql`
+//   19/09/2026 — lot Import du planning depuis Google Sheets :
+//   + 1  `20260919200000_import_planning_google_sheets.sql`
+//   19/09/2026 — lot Bascule de source de planning tracée :
+//   + 1  `20260919220000_bascule_source_planning_tracee.sql`
+//   19/09/2026 — lot Horodatage serveur des affectations de planning :
+//   + 1  `20260919240000_horodatage_serveur_planning_shifts.sql`
+//   19/09/2026 — lot Date d'effet choisie de la bascule de source :
+//   + 1  `20260919260000_bascule_source_planning_date_effet.sql`
+//   19/09/2026 — lot Source précédente lue à la date d'effet :
+//   + 1  `20260919280000_source_precedente_a_la_date_d_effet.sql`
+//   ───
+//    274
+//
+//   Deux branches sœurs ont annoncé 268 ce jour-là sans annoncer la même
+//   empreinte : la Régularisation d'une réception passée (#65) mesurait
+//   268 / `75e639c2…`, ce lot-ci mesurait 268 / `c6fdf93f…` avant d'ajouter
+//   la source de planning. Le nombre seul ne distingue pas deux inventaires
+//   différents — c'est l'empreinte qui le fait, et c'est toute la raison
+//   d'être de la seconde constante. Ces compteurs se re-mesurent à chaque
+//   lot, ils ne s'additionnent pas d'une branche à l'autre.
+//
 // Les deux valeurs sont MESURÉES (`node
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 267;
-const MIGRATIONS_REELLES_EMPREINTE = 'ce9156a9bd4dc33627475193dbe9a914ee3dac75af86a00ea841d1d9638d89d5';
+const MIGRATIONS_REELLES_NOMBRE = 274;
+const MIGRATIONS_REELLES_EMPREINTE = 'e6b4fb530e0eda30898cd950b60c5e1f6fb3d16aeb31cac562fbf4d949ad0195';
 
-cas('Réel · la provenance des migrations annonce 267 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 274 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

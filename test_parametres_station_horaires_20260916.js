@@ -117,8 +117,16 @@ verifier('la relecture précède immédiatement l’écriture qui l’utilise', 
 // ─── 3. LES DEUX ÉCRITURES QUI ONT LE DROIT DE TOUCHER AUX HORAIRES ─────────
 // L'écran Horaires lui-même, et le bouton « Réinitialiser ». Ceux-là écrivent
 // des horaires parce que c'est leur objet — ils ne sont pas concernés.
+// Cette assertion a exigé `fuseau_horaire: fuseauSelectionne` dans le même
+// upsert jusqu'au 20/09/2026. Elle encodait le défaut : l'écran écrivait une
+// colonne dépréciée qu'aucune fonction du jour métier ne lit plus. L'arbitrage
+// du 20/09 a retiré cette écriture — le fuseau est désormais un paramètre
+// structurel de créateur, lu dans `sites.timezone`. La garde reste donc, mais
+// sur ce que cet écran a le droit d'écrire : les horaires, et rien d'autre.
 verifier('l’écran Horaires écrit toujours ce que le formulaire porte',
-  /\{ site: employee\.site_id, horaires: config, fuseau_horaire: fuseauSelectionne/.test(src));
+  /\{ site: employee\.site_id, horaires: config, updated_at:/.test(src));
+verifier('l’écran Horaires n’écrit plus la colonne dépréciée fuseau_horaire',
+  !/fuseau_horaire:/.test(src));
 verifier('le bouton « Réinitialiser » écrit toujours les valeurs par défaut',
   /\{ site: employee\.site_id, horaires: HORAIRES_DEFAUT/.test(src));
 

@@ -70,7 +70,12 @@
     const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
       client.from('mission_completions').select('points'),
       client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
+      // `.not('retard_min', 'is', null)` : le dénominateur ne compte que
+      // les arrivées dont le retard a pu être calculé. Depuis le
+      // 19/09/2026 NULL = non calculable ; le numérateur les excluait déjà
+      // (`.gt` ignore les NULL), les garder ici aurait dilué le taux
+      // d'anomalies avec des journées qui ne prouvent rien.
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null),
     ]);
     if (e1) console.error('Chargement mission_completions (accueil):', e1);
     if (e2) console.error('Chargement pointages (accueil):', e2);

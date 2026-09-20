@@ -379,6 +379,7 @@
   .chemins-btn{flex:1 1 150px; display:block; text-align:center; padding:13px 16px; border-radius:var(--r-md); font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em; font-weight:600; text-decoration:none; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); cursor:pointer;}
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(52,211,153,0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(52,211,153,0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
+  .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
@@ -790,7 +791,7 @@
          s'applique réellement (rôle du jour, forfait, réglage réception
          carburant du site) — voir choisirTuilesOutilsQuart(). Jamais les
          5 en même temps : "moins de choix, mais les bons choix". -->
-    <div class="section-tag" style="padding-top:18px;">Mes outils du quart</div>
+    <div class="section-tag" style="padding-top:18px;" id="outilsQuartTag">Mes outils du quart</div>
     <div class="outils-quart-grid" id="outilsQuartGrid"></div>
 
     <!-- Ma progression — teaser léger (points du jour, lecture seule) :
@@ -2026,27 +2027,48 @@
   }
 
   // Les 4 étapes de la barre "Progression du service" — statut parmi
-  // 'fait' / 'aVenir' / 'encours' / 'sansobjet'. "Ouverture" est acquise
-  // par construction quand le pointage est désactivé (nexus-auth.js exige
-  // déjà une prise de poste du jour pour atteindre cet écran) ; "Clôture"
-  // reste "sans objet" dans ce cas — aucun autre signal réel de fin de
-  // service n'existe.
+  // 'fait' / 'aVenir' / 'encours' / 'sansobjet'.
+  //
+  // Sans service du jour (`ctx.enService` faux), les quatre étapes sont
+  // sans objet : le pourcentage rend alors null et la barre reste masquée.
+  // Une barre de progression d'un service qui n'existe pas ne mesure rien.
+  //
+  // "Ouverture" est acquise par construction quand le pointage du site est
+  // désactivé ; "Clôture" reste "sans objet" dans ce cas — aucun autre
+  // signal réel de fin de service n'existe. Une version antérieure de ce
+  // commentaire justifiait cela par « nexus-auth.js exige déjà une prise de
+  // poste du jour pour atteindre cet écran » : c'était vrai jusqu'au
+  // 16/09/2026, date à laquelle l'accueil est passé en catégorie
+  // `consultation` et la troisième porte vers la prise de poste a été
+  // retirée. Un motif faux survit à sa propre péremption ; celui-là est
+  // corrigé, pas supprimé, pour que la règle d'accès reste lisible d'ici.
   function calculerEtapesProgressionService(ctx) {
-    const ouverture = !ctx.pointageActif
-      ? { statut: 'fait' }
-      : { statut: ctx.arriveeFaite ? 'fait' : 'aVenir' };
-    const missions = (!ctx.missionsInfo || ctx.missionsInfo.total === 0)
-      ? { statut: 'sansobjet' }
+    const sansObjet = { statut: 'sansobjet' };
+    // « Rien aujourd'hui » n'est pas « journée terminée ». Sans service du
+    // jour ET sans journée close, il n'y a aucun quart à représenter : les
+    // quatre étapes sont sans objet et la barre reste masquée (18/09/2026).
+    // Mais une journée TERMINÉE a bien eu lieu : ses pointages d'arrivée et
+    // de départ sont des faits, et les effacer ferait disparaître le travail
+    // accompli de l'écran de celui qui vient de le faire (acquis du
+    // 14/09/2026, section 6 de test_pointage_accueil_journee_terminee).
+    const rienAujourdhui = !ctx.enService && !ctx.journeeTerminee;
+    const ouverture = rienAujourdhui
+      ? sansObjet
+      : !ctx.pointageActif
+        ? { statut: 'fait' }
+        : { statut: ctx.arriveeFaite ? 'fait' : 'aVenir' };
+    const missions = (!ctx.enService || !ctx.missionsInfo || ctx.missionsInfo.total === 0)
+      ? sansObjet
       : ctx.missionsInfo.faites >= ctx.missionsInfo.total
         ? { statut: 'fait' }
         : ctx.missionsInfo.faites > 0 ? { statut: 'encours' } : { statut: 'aVenir' };
-    const controles = (!ctx.controlesInfo || !ctx.controlesInfo.applicable)
-      ? { statut: 'sansobjet' }
+    const controles = (!ctx.enService || !ctx.controlesInfo || !ctx.controlesInfo.applicable)
+      ? sansObjet
       : ctx.controlesInfo.faits >= ctx.controlesInfo.total
         ? { statut: 'fait' }
         : ctx.controlesInfo.faits > 0 ? { statut: 'encours' } : { statut: 'aVenir' };
-    const cloture = !ctx.pointageActif
-      ? { statut: 'sansobjet' }
+    const cloture = (rienAujourdhui || !ctx.pointageActif)
+      ? sansObjet
       : { statut: ctx.departFait ? 'fait' : 'aVenir' };
     return [
       { code: 'ouverture', label: 'Ouverture', icone: 'assets/icons/icon-valide-24.png', etat: ouverture },
@@ -2085,6 +2107,30 @@
     // reste explicite pour ne jamais dépendre de cet ordre d'annulation.
     if (ctx.journeeTerminee) {
       return { couleur: null, titre: 'Votre journée est enregistrée. Il n’y a plus de service ouvert.', lienTexte: null, lien: null };
+    }
+    // Aucun poste ouvert aujourd'hui (18/09/2026). Le premier geste réel
+    // n'est pas « pointer l'arrivée » mais « prendre son poste » : l'écran
+    // Pointage lui-même refuse de pointer sans service ouvert et renvoie
+    // vers NEXUS-Prise-De-Poste-v1.html. Annoncer « Pointer l'arrivée » ici
+    // faisait donc traverser un écran pour rien.
+    //
+    // C'est une PROPOSITION, jamais une redirection : l'accueil est en
+    // catégorie `consultation` depuis le 16/09/2026 et ne doit renvoyer
+    // personne d'office, sous peine de boucle. Et ce lien n'écrit rien —
+    // seul le bouton « Confirmer » de la prise de poste insère un `shifts`.
+    if (!ctx.enService) {
+      if (ctx.consultationExterne) {
+        // Consultation externe : le créateur regarde un autre site que le
+        // sien, lui proposer d'y prendre un poste n'aurait aucun sens
+        // (même raison qu'au premier écran de renderDeuxChemins).
+        return { couleur: null, titre: 'Vous consultez ce site sans y être en service.', lienTexte: null, lien: null };
+      }
+      return {
+        couleur: 'neutre',
+        titre: 'Aucun poste n’est ouvert. Prenez votre poste pour démarrer votre service.',
+        lienTexte: 'Prendre mon poste →',
+        lien: 'NEXUS-Prise-De-Poste-v1.html',
+      };
     }
     if (ctx.pointageActif && ctx.prochainPointage === 'arrivee') {
       return {
@@ -2131,6 +2177,24 @@
   // la carte "Prochaine action" : celle-ci porte le pointage/jaugeage, la
   // phrase du Coach porte le travail du quart (contrôles + missions).
   function determinerPhraseCoach(ctx) {
+    // Même priorité que la Prochaine action — une seule vérité : sans
+    // service du jour, il n'y a ni contrôle ni mission à recommander, et
+    // « tout est en ordre » serait un contresens (18/09/2026).
+    if (ctx.journeeTerminee) return 'Votre journée est enregistrée — il n’y a plus rien à faire ici aujourd’hui.';
+    if (!ctx.enService) {
+      return ctx.consultationExterne
+        ? 'Vous consultez ce site sans y être en service.'
+        : 'Commencez par prendre votre poste : votre rôle du jour, vos missions et vos contrôles en découlent.';
+    }
+    // En service, mais arrivée non pointée : tous les écrans que cette
+    // phrase recommanderait rebondissent vers le pointage (même défaut que
+    // les tuiles, même condition, 18/09/2026). « Commencez par l'inventaire »
+    // serait une consigne impossible à suivre. La carte Prochaine action
+    // nomme déjà ce geste en P-1 : une seule vérité, redite ici dans les mots
+    // du Coach — le travail du quart n'est pas nié, il est daté d'après.
+    if (!ctx.operationnelAtteignable) {
+      return 'Pointez votre arrivée : vos missions et vos contrôles s’ouvriront ensuite.';
+    }
     const items = [];
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) items.push('le jaugeage d’ouverture');
     if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
@@ -2150,8 +2214,46 @@
     fdj: { titre: 'FDJ', desc: 'Contrôler votre activité FDJ', href: 'NEXUS-FDJ-v1.html', icone: 'assets/icons/icon-fdj-48.png' },
     reception: { titre: 'Réception', desc: 'Livraison carburant du jour', href: 'NEXUS-Carburant-Reception-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
     progression: { titre: 'Progression', desc: 'Mes séries et récompenses', href: 'NEXUS-Progression-v1.html', icone: 'assets/icons/icon-progression-48.png' },
+    // Trois tuiles de repli, hors service (18/09/2026) : toutes trois en
+    // catégorie `consultation` ou `sequence` dans nexus-auth.js, donc
+    // réellement atteignables sans poste ouvert.
+    prisedeposte: { titre: 'Prendre mon poste', desc: 'Ouvrir mon service et choisir mon rôle', href: 'NEXUS-Prise-De-Poste-v1.html', icone: 'assets/icons/icon-prise-de-poste.png' },
+    // Quatrième tuile de repli (18/09/2026, second lot) : en service, mais
+    // arrivée non pointée. C'est CE geste qui débloque les quatre écrans
+    // opérationnels, et `NEXUS-Pointage-v1.html` est en catégorie `sequence`
+    // dans nexus-auth.js — il ne se garde pas lui-même, donc il s'ouvre.
+    pointage: { titre: 'Pointer mon arrivée', desc: 'Ouvrir mon quart et débloquer mes écrans', href: 'NEXUS-Pointage-v1.html', icone: 'assets/icons/icon-pointage.png' },
+    planning: { titre: 'Mon planning', desc: 'Mes jours de travail et mes repos', href: 'NEXUS-Mon-Planning-v1.html', icone: 'assets/icons/icon-planner.png' },
+    evolution: { titre: 'Mon évolution', desc: 'Mes résultats et mon historique', href: 'NEXUS-Mon-Evolution-v1.html', icone: 'assets/icons/icon-evolution.png' },
   };
   function choisirTuilesOutilsQuart(ctx) {
+    // Hors service, les tuiles opérationnelles REBONDISSENT : Missions,
+    // Inventaire, FDJ et Réception sont en catégorie `operationnel`, et
+    // nexus-auth.js (nexusPriseDePosteManquante) renvoie toute page
+    // opérationnelle vers la prise de poste tant qu'aucun service n'est
+    // ouvert. Les proposer, c'est promettre un écran qu'on ne peut pas
+    // atteindre. On propose donc ce qui est réellement accessible, et le
+    // geste qui débloque le reste (18/09/2026).
+    if (!ctx.enService) {
+      const candidats = ctx.consultationExterne ? [] : ['prisedeposte'];
+      return candidats.concat(['planning', 'evolution', 'progression']).slice(0, 4);
+    }
+    // EN SERVICE NE SUFFIT PAS (18/09/2026, second lot). La branche
+    // ci-dessus ne ferme que la PREMIÈRE porte de nexus-auth.js, celle de la
+    // prise de poste. Il en reste une seconde : tant que l'arrivée du jour
+    // n'est pas pointée, `nexusPointageArriveeManquant` renvoie TOUTE page
+    // opérationnelle vers le pointage. Missions, Inventaire, FDJ et Réception
+    // rebondissaient donc exactement comme hors service — mesuré sur Test le
+    // 18/09/2026 (S2 pompiste, S5 caissière professional), avec S6 pour
+    // contre-témoin : arrivée pointée, les mêmes tuiles ouvrent leur écran.
+    //
+    // On propose donc, là aussi, ce qui est réellement atteignable et le
+    // geste qui débloque le reste. `operationnelAtteignable` n'est pas
+    // recalculé ici : il vient de `nexusEcranOperationnelAtteignable()`, la
+    // règle écrite à côté des deux gardes qu'elle résume.
+    if (!ctx.operationnelAtteignable) {
+      return ['pointage', 'progression', 'planning', 'evolution'].slice(0, 4);
+    }
     const candidats = ['missions'];
     if (ctx.inventaireApplicable) candidats.push('inventaire');
     if (ctx.fdjApplicable) candidats.push('fdj');
@@ -2211,17 +2313,28 @@
     `).join('');
   }
 
-  function renderOutilsQuart(codes) {
+  // `libelleRoleJour` n'est qu'un libellé d'affichage : la tuile Missions
+  // nomme le rôle du jour pour que l'employé sache AVANT de cliquer quelles
+  // missions il va trouver — NEXUS-Missions-v1.html filtre déjà sur ce même
+  // rôle du jour, c'est la même vérité, énoncée un écran plus tôt.
+  // `titreSection` relibelle « Mes outils du quart » quand il n'y a pas de
+  // quart : un titre qui parle d'un quart inexistant est un faux motif.
+  function renderOutilsQuart(codes, libelleRoleJour, titreSection) {
     const grid = document.getElementById('outilsQuartGrid');
     if (!grid) return;
+    const tag = document.getElementById('outilsQuartTag');
+    if (tag && titreSection) tag.textContent = titreSection;
     grid.innerHTML = codes.map(code => {
       const t = TUILES_OUTILS_CATALOGUE[code];
       if (!t) return '';
+      const desc = (code === 'missions' && libelleRoleJour)
+        ? `Mes tâches du quart · ${libelleRoleJour}`
+        : t.desc;
       return `
         <a class="outil-quart-card" href="${t.href}">
           <div class="outil-quart-icon"><img src="${t.icone}" alt=""></div>
           <div class="outil-quart-titre">${t.titre}</div>
-          <div class="outil-quart-desc">${t.desc}</div>
+          <div class="outil-quart-desc">${desc}</div>
         </a>`;
     }).join('');
   }
@@ -2234,9 +2347,63 @@
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
 
-    const d = new Date();
-    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // LE JOUR MÉTIER — celui de la STATION, pas celui de l'appareil
+    // (18/09/2026). Ces deux lignes lisaient `getFullYear/getMonth/getDate`,
+    // c'est-à-dire l'horloge du téléphone de l'employé. `todayISO` irrigue
+    // ensuite TOUT cet écran : les pointages du jour, les missions
+    // accomplies, le contrôle FDJ, le jaugeage, et la comparaison du quart
+    // d'inventaire. Un employé qui ouvre NEXUS depuis la métropole voyait
+    // donc une journée vide à 20 h locales Martinique — et pire, la lecture
+    // du service courant refermait son service.
+    //
+    // La primitive vit dans `nexus-auth.js`, chargé par tous les écrans ;
+    // le fuseau vient de `sites.timezone` — l'autorité canonique déclarée
+    // par la migration 20260905131500, que `nexusFuseauSite` a rejointe le
+    // 19/09/2026. Il est lu une fois par page et mis en cache par site.
+    //
+    // PAS DE FUSEAU, PAS DE JOUR, ET PAS D'ÉCRAN QUI AFFIRME. `nexusFuseauSite`
+    // ne replie plus sur une valeur devinée : il rend `null`. Ici, `todayISO`
+    // irrigue six lectures datées ; avec une date nulle, chacune rendrait
+    // zéro ligne et l'accueil dirait « rien fait aujourd'hui » à quelqu'un qui
+    // a travaillé. Pire, `serviceDuJourSeulement` comparerait deux `null`
+    // égaux entre eux et reprendrait le service de la veille — exactement le
+    // défaut du 11/09. L'accueil dit donc qu'il ne sait pas, et s'arrête.
+    const fuseauStation = await nexusFuseauSite(employee.site_id);
+    const todayISO = nexusJourDansFuseau(new Date(), fuseauStation);
+    if (!fuseauStation || !todayISO) {
+      console.error('Accueil : jour de la station ind\u00e9termin\u00e9 \u2014 aucune journ\u00e9e affich\u00e9e.');
+      const statutInconnu = document.getElementById('conseillerEmployeStatut');
+      const texteInconnu = document.getElementById('conseillerEmployeTexte');
+      if (statutInconnu) statutInconnu.textContent = 'Journée de la station indéterminée';
+      if (texteInconnu) texteInconnu.textContent = "Je n'ai pas pu lire le fuseau horaire du site : "
+        + "je préfère ne rien vous annoncer plutôt que de vous montrer une journée qui n'est peut-être pas la vôtre. "
+        + 'Vérifiez la connexion, puis rechargez la page.';
+      return;
+    }
     const maintenant = new Date();
+
+    // ---- « En service », notion unique de cet écran (18/09/2026) ----
+    //
+    // Le service du jour, et lui seul (même règle que l'écran Pointage) : un
+    // quart laissé ouvert la veille n'est pas le service courant. Calculé
+    // ICI, avant tout le reste, parce que quatre applicabilités en
+    // dépendent : sans service du jour, l'accueil prescrivait un inventaire,
+    // un contrôle FDJ et une réception carburant à quelqu'un qui n'a pas de
+    // poste — des contrôles de quart sans quart.
+    //
+    // Ce n'est PAS un refus par rôle : `roleADroitModule` n'est pas touché
+    // et continue de laisser passer un rôle inconnu (Article 5). « Pas de
+    // service aujourd'hui » est un fait, pas un droit retiré.
+    //
+    // `serviceDuJourSeulement` ne lit aucune horloge : l'appelant est
+    // propriétaire du jour ET de la façon de dater un service. Les deux
+    // viennent maintenant du fuseau de la station, sans quoi le jour et la
+    // datation du service pourraient diverger — le pire des deux mondes.
+    const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(
+      serviceCourant, todayISO, d => nexusJourDansFuseau(d, fuseauStation));
+    const serviceCourantId = serviceCourantJour ? serviceCourantJour.id : null;
+    const enService = !!serviceCourantJour;
+    const consultationExterne = !!employee.consultation_externe;
 
     // Jaugeage d'ouverture (cadrage rôle, 20/08/2026) : uniquement
     // interrogé pour un pompiste au quart matin — proxy rôle+quart plutôt
@@ -2287,7 +2454,7 @@
     if (eF) console.error('Chargement fdj_shifts (accueil employé):', eF);
     if (eSnap) console.error('Lecture apprentissage_snapshots (App-v1):', eSnap);
 
-    const inventaireApplicable = roleDuJour !== 'renfort';
+    const inventaireApplicable = enService && roleDuJour !== 'renfort';
     const inventaireFait = (quartEmployeRows || []).some(r =>
       r.responsable_comptage && r.inventaire_quarts &&
       r.inventaire_quarts.date === todayISO &&
@@ -2300,27 +2467,21 @@
     // rôle, correctif 20/08/2026) — ET (b) le forfait Professional
     // l'autorise (erreur réseau = forfait null = non applicable, même
     // prudence que l'ancienne mini-carte fdjMini).
-    const fdjApplicable = roleADroitModule('fdj', roleDuJour) && forfait !== null && NexusForfait.estProfessional(forfait);
+    const fdjApplicable = enService && roleADroitModule('fdj', roleDuJour) && forfait !== null && NexusForfait.estProfessional(forfait);
     const fdjFait = (fdjShiftsRows || []).some(s => s.statut === 'valide');
 
     // Réception carburant : même logique — le rôle du jour doit y avoir
     // droit (pompiste/manager par défaut, jamais caissière/renfort par
     // défaut) ET le réglage du site doit l'autoriser côté employé.
-    const receptionApplicable = roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
+    const receptionApplicable = enService && roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
 
-    const jaugeageApplicable = jaugeagePertinentRole && !!jaugeageActifSite;
+    const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
     const jaugeageFait = !!(statutJaugeageJour && (statutJaugeageJour.statut === 'fait' || statutJaugeageJour.statut === 'impossible'));
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait);
-    // Le service du jour, et lui seul (même règle que l'écran Pointage) : un
-    // quart laissé ouvert la veille n'est pas le service courant. Sans
-    // service du jour, `dejaFaitDuService` rend un état vide — donc
-    // « arrivée » comme prochaine étape, ce qui est exact : il n'y a rien de
-    // pointé pour un service qui n'existe pas.
-    const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(
-      serviceCourant, todayISO, d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-    const serviceCourantId = serviceCourantJour ? serviceCourantJour.id : null;
+    // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
+    // en tête de cette fonction (voir « En service », notion unique).
     // « Fait » se compte dans CE service, jamais dans la journée : c'est la
     // même correction qu'aux six autres endroits du 13/09/2026. Un départ
     // pointé sur le service du midi ne clôt pas celui du soir, et ne doit
@@ -2342,9 +2503,46 @@
     // cours » / « Pointer l'arrivée ».
     const journeeTerminee = pointageActifSite
       && NexusPointageRegles.journeeTermineeSansService(serviceCourantJour, pointagesJour);
-    const prochainPointageEffectif = journeeTerminee ? null : prochainPointage;
+    // Sans service du jour, `dejaFaitDuService` rend un état vide et
+    // `calculerProchainPointage` retombe donc sur « arrivée ». C'est exact
+    // arithmétiquement — rien n'est pointé pour un service qui n'existe
+    // pas — mais c'est une fausse piste à l'écran : l'écran Pointage refuse
+    // lui-même de pointer sans poste ouvert et propose « Prendre mon
+    // poste ». On neutralise donc le pointage ici aussi, exactement comme
+    // pour une journée terminée (18/09/2026).
+    const prochainPointageEffectif = (journeeTerminee || !enService) ? null : prochainPointage;
+    const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || roleDuJour || null;
+
+    // ATTEINDRE N'EST PAS AVOIR LE DROIT (18/09/2026, second lot).
+    // `enService` répond à la PREMIÈRE porte de `nexusRequireAuth`
+    // (`nexusPriseDePosteManquante`). Il en reste une seconde,
+    // `nexusPointageArriveeManquant`, qui renvoie toute page opérationnelle
+    // vers le pointage tant que l'arrivée du JOUR n'est pas pointée. La
+    // règle vit dans nexus-auth.js, à côté des deux gardes qu'elle résume :
+    // l'accueil la LIT, il ne la redevine pas une troisième fois.
+    //
+    // `arriveePointeeJour` est l'arrivée de la JOURNÉE, pas celle du service
+    // courant — c'est ce que la garde regarde, et `arriveeFaite` ci-dessus
+    // dit autre chose (`dejaFaitDuService`). Deux services le même jour et
+    // une seule arrivée pointée sur le premier : la garde laisse passer,
+    // tandis que la barre de progression continue de compter par service
+    // (correctif du 13/09/2026). Les deux sont justes, chacune dans sa
+    // question — d'où deux variables, et non une.
+    const arriveePointeeJour = (pointagesJour || []).some(p => p.type === 'arrivee');
+    // `estManager: false` n'est pas une supposition : cet orchestrateur
+    // n'est appelé que dans la branche employé de l'accueil
+    // (`estNiveauManager` faux), et `estNiveauManager` y est écrit mot pour
+    // mot comme `nexusEstManager`. L'exemption manager des deux gardes ne
+    // peut donc pas jouer ici.
+    const operationnelAtteignable = nexusEcranOperationnelAtteignable({
+      enService, arriveePointeeJour,
+      pointageActif: pointageActifSite,
+      consultationExterne,
+      estManager: false,
+    });
 
     const ctx = {
+      enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
       journeeTerminee,
@@ -2355,7 +2553,10 @@
 
     renderProgressionService(calculerEtapesProgressionService(ctx));
     renderProchaineAction(determinerProchaineActionEmploye(ctx));
-    renderOutilsQuart(choisirTuilesOutilsQuart(ctx));
+    renderOutilsQuart(
+      choisirTuilesOutilsQuart(ctx),
+      libelleRole,
+      operationnelAtteignable ? 'Mes outils du quart' : 'Mes écrans');
 
     document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
     const nbActions = (prochainPointageEffectif ? 1 : 0)
@@ -2365,16 +2566,25 @@
     // la ligne de statut déjà existante plutôt que d'ajouter un bloc.
     const statutEl = document.getElementById('conseillerEmployeStatut');
     if (statutEl) {
-      const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || null;
+      // Le libellé du rôle retombe sur la valeur brute plutôt que de
+      // disparaître : un rôle du jour inconnu de LIBELLE_ROLE_JOUR reste
+      // affiché tel qu'il est en base (même esprit que l'Article 5 —
+      // l'inconnu ne se traduit pas par du vide).
+      //
       // Journée terminée : jamais « en cours », quel que soit nbActions —
       // sinon une mission encore ouverte suffisait à réafficher « Votre
-      // service est en cours » sur une journée déjà close (même défaut,
-      // formulé autrement).
+      // service est en cours » sur une journée déjà close.
+      //
+      // Hors service : ni « en cours », ni « à jour ». Les deux laissaient
+      // croire à un service ouvert ; c'est ce qu'annonçait cet écran à un
+      // employé qui n'avait pas encore pris son poste (18/09/2026).
       const phraseService = journeeTerminee
         ? 'Votre journée est terminée'
-        : nbActions === 0
-          ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
-          : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
+        : !enService
+          ? (consultationExterne ? 'Consultation externe' : 'Aucun poste en cours')
+          : nbActions === 0
+            ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
+            : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
       statutEl.textContent = libelleRole ? `${libelleRole} · ${phraseService}` : phraseService;
     }
 
@@ -2738,11 +2948,25 @@
     if (employee.consultation_externe) return;
 
     if (serviceCourant) {
-      // Déjà en service : plus de choix à présenter, seulement un rappel.
-      // La prise de poste reste accessible par la navigation, comme avant.
+      // Déjà en service : plus de choix à présenter, seulement un rappel —
+      // et la porte pour le corriger. « Reprendre son poste » et « changer
+      // de rôle » passent par le même écran que la prise de poste initiale ;
+      // la formulation est celle de NEXUS-Missions-v1.html, mot pour mot,
+      // pour que le même geste porte le même nom partout (18/09/2026).
+      //
+      // Ce lien AFFICHE une porte, il n'écrit rien : la seule écriture de
+      // `shifts` du dépôt reste le bouton « Confirmer » de la prise de
+      // poste. Le rappel passe par le libellé lisible du rôle plutôt que
+      // par la valeur brute de la base.
+      const libelleRoleService = serviceCourant.role
+        ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role)
+        : null;
       hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
-        + (serviceCourant.role ? ' — ' + serviceCourant.role : '')
-        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>';
+        + (libelleRoleService ? ' — ' + libelleRoleService : '')
+        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
+        + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+        + 'Changer de rôle / refaire ma prise de poste</a>'
+        + '</div>';
       return;
     }
 

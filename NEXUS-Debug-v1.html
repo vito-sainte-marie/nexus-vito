@@ -171,7 +171,13 @@
         (parEmploye[nom] || []).forEach(p => {
           aInserer.push({
             employee_id: empId, site: SITE_ACTUEL, date,
-            type: p.type, heure: p.heure, quart: p.quart || 'inconnu', retard_min: p.retard_min || 0,
+            type: p.type, heure: p.heure, quart: p.quart || 'inconnu',
+            // Reprise de pointages locaux : un retard absent de la sauvegarde
+            // n'a jamais été mesuré. L'écrire `0` fabriquerait un « à
+            // l'heure » qui n'a pas été constaté — c'est précisément la
+            // confusion que le mandat du 19/09/2026 interdit. La colonne
+            // est nullable : on écrit « non calculable ».
+            retard_min: Number.isFinite(p.retard_min) ? p.retard_min : null,
           });
         });
       });

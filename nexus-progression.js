@@ -407,14 +407,30 @@
     return { statut: 'À corriger', detail: `${nbEcarts} écart(s) sur ${attribuables.length} service(s) en solo` };
   }
 
+  // Un pointage est MESURÉ quand `retard_min` porte un nombre. Depuis le
+  // 19/09/2026 la colonne est nullable et NULL veut dire « retard non
+  // calculable » — planning non publié, horaire de site non déclaré,
+  // renfort sans horaire de renfort. NULL ne veut JAMAIS dire « à
+  // l'heure » : `0` est le seul zéro qui ait été constaté.
+  function estMesure(pointage) {
+    return !!pointage && Number.isFinite(pointage.retard_min);
+  }
+
   // Même formule que statutEquipe (App-v1) et chargerDomainesRadarHome —
   // jamais une deuxième définition du score de ponctualité qui donnerait
   // un chiffre différent de ce que voit déjà le manager.
   function statutPonctualite(pointagesArriveeEmploye) {
-    const total = (pointagesArriveeEmploye || []).length;
+    // Même raisonnement que statutCaisse ci-dessus : un pointage dont le
+    // retard n'est pas calculable ne prouve rien. Le garder au
+    // dénominateur ferait monter le score à chaque journée non mesurée —
+    // une bonne note fabriquée par l'absence de planning. Ces pointages
+    // sortent des deux côtés, et le seuil d'échantillon porte lui aussi
+    // sur les seules journées mesurées.
+    const mesures = (pointagesArriveeEmploye || []).filter(estMesure);
+    const total = mesures.length;
     if (total < SEUIL_MIN_PONTAGES) return { statut: 'Données insuffisantes', detail: null };
-    const retards = pointagesArriveeEmploye.filter(p => (p.retard_min || 0) > 0);
-    const totalRetard = retards.reduce((s, p) => s + (p.retard_min || 0), 0);
+    const retards = mesures.filter(p => p.retard_min > 0);
+    const totalRetard = retards.reduce((s, p) => s + p.retard_min, 0);
     const score = Math.round(Math.max(0, 100 - totalRetard));
     const statut = score >= 90 ? 'Sous contrôle' : score >= 70 ? 'À surveiller' : 'À corriger';
     return { statut, detail: `${retards.length} retard(s) sur ${total} pointage(s)`, score, nbRetards: retards.length, total };
@@ -611,12 +627,17 @@
   // appliquée aux pointages plutôt qu'aux services caisse) — nécessite
   // `date` sur chaque pointage pour être ordonnée chronologiquement.
   function calculerSeriePonctualite(pointagesArriveeEmploye) {
+    // Les journées non calculables (`retard_min` NULL) sont retirées de la
+    // série : les compter comme ponctuelles décernerait un record jamais
+    // constaté, les compter comme des retards casserait une série que rien
+    // ne contredit. Elles ne prolongent ni ne rompent — elles n'existent
+    // pas pour cette mesure, et `total` ne compte que ce qui est mesuré.
     const chrono = [...(pointagesArriveeEmploye || [])]
-      .filter(p => p.date)
+      .filter(p => p.date && estMesure(p))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     let record = 0, courante = 0, enCours = 0;
     chrono.forEach(p => {
-      if ((p.retard_min || 0) === 0) {
+      if (p.retard_min === 0) {
         courante += 1;
         if (courante > record) record = courante;
       } else {
@@ -624,7 +645,7 @@
       }
     });
     for (let i = chrono.length - 1; i >= 0; i--) {
-      if ((chrono[i].retard_min || 0) === 0) enCours += 1; else break;
+      if (chrono[i].retard_min === 0) enCours += 1; else break;
     }
     return { enCours, record, total: chrono.length };
   }
