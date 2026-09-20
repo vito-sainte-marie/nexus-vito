@@ -44,7 +44,13 @@ assert.ok(!parametres.includes('planning_source:'),
 // --- 2. Il appelle la RPC, avec le motif ------------------------------------
 const appel = parametres.indexOf("rpc('basculer_source_planning'");
 assert.ok(appel > 0, 'Parametres Station n\'appelle pas basculer_source_planning');
-const fenetre = parametres.slice(appel, appel + 1400);
+// Fenetre bornee a la FIN de la fonction, pas a un nombre de caracteres :
+// le compte rendu s'est enrichi le 19/09/2026 des cas retroactifs, et une
+// fenetre fixe de 1400 signes l'a laisse sortir du champ alors qu'il etait
+// intact. Une epreuve ne doit pas rougir parce qu'un texte a grandi.
+const finFenetre = parametres.indexOf('rendreHistoriqueBascules();', appel);
+assert.ok(finFenetre > appel, 'la fin de la bascule est introuvable : l\'epreuve ne juge plus rien');
+const fenetre = parametres.slice(appel, finFenetre);
 assert.ok(/p_site:\s*employee\.site_id/.test(fenetre),
   'la bascule doit viser le site de l\'employe connecte, jamais un site en dur');
 assert.ok(/p_source:\s*source/.test(fenetre), 'la source choisie n\'est pas transmise');

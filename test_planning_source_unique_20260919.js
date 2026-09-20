@@ -77,6 +77,29 @@ CONSOMMATEURS.forEach(([fichier, attendus]) => {
   });
 });
 
+// Interroger la vue ne sert à rien si l'écran n'y arrive jamais. Jusqu'au
+// 19/09/2026, Mon Planning testait `planning_source` AVANT de charger, et
+// remplaçait toute la section par un renvoi vers le classeur : les deux
+// lectures ci-dessus existaient mais étaient mortes dès que la source
+// officielle valait `google_sheets`. Or Google Sheets est une source
+// d'ENTRÉE — après import et publication, la projection NEXUS est ce qui se
+// consomme. Le classeur peut rester en second, sous le planning ; il ne peut
+// pas le remplacer.
+t('Mon Planning ne court-circuite pas la projection en mode Google Sheets', () => {
+  const src = lire('NEXUS-Mon-Planning-v1.html');
+  const i = src.indexOf("planning_source === 'google_sheets'");
+  assert.ok(i > 0, 'le test de provenance a disparu — l\'épreuve ne juge plus rien');
+  const fin = src.indexOf('async function chargerMonPlanning');
+  assert.ok(fin > i, 'le chargement du planning ne suit plus le test de provenance');
+  const bloc = src.slice(i, fin);
+  assert.ok(!/\breturn\s*;/.test(bloc),
+    'Mon Planning sort avant de charger : l\'employé ne verrait pas le planning publié');
+  assert.ok(!/querySelector\(\s*'\.section'\s*\)/.test(bloc),
+    'Mon Planning réécrit la section entière : le planning publié serait remplacé, pas complété');
+  assert.ok(/getElementById\(\s*'sourceEntree'\s*\)/.test(bloc),
+    'le renvoi vers le classeur n\'est plus cantonné à son encart secondaire');
+});
+
 // La Paye et Pointage s'ouvrent au manager, à qui la RLS montre aussi les
 // brouillons. Sans `publie` explicite, leur chiffre dépendrait du rôle de
 // celui qui regarde — le même écran dirait deux choses différentes.
@@ -91,11 +114,11 @@ CONSOMMATEURS.forEach(([fichier, attendus]) => {
 
 // ── 2 · L'atelier du manager : la table, mais bornée ──────────────────────
 
-console.log('\n── 2 · NEXUS-Planning-v1.html : trois accès, trois bornes ──');
+console.log('\n── 2 · NEXUS-Planning-v1.html : quatre accès, quatre bornes ──');
 
 const ATELIER = lire('NEXUS-Planning-v1.html');
 
-// Trois accès, et trois seulement — chacun nommé, parce qu'un quatrième
+// Quatre accès, et quatre seulement — chacun nommé, parce qu'un cinquième
 // apparu sans être discuté serait exactement la manière dont la règle
 // « une seule source » se perd :
 //   1. la grille du mois, qui doit montrer le brouillon que le manager
@@ -105,10 +128,13 @@ const ATELIER = lire('NEXUS-Planning-v1.html');
 //      L'import écrit un brouillon, puis publie en SECONDE écriture : c'est
 //      ce qui permet de prévisualiser avant d'engager, et c'est pour cela
 //      que l'écriture de publication est ici et pas dans la fonction SQL.
+//   4. le COMPTAGE de contrôle d'après publication (19/09/2026), qui mesure
+//      combien d'affectations viennent d'être publiées — en regard du
+//      comptage sur la vue, qui dit combien sont réellement servies.
 t('l\'atelier garde planning_shifts — il doit voir les brouillons', () => {
   const vus = appels(ATELIER).filter(r => r === 'planning_shifts');
-  assert.strictEqual(vus.length, 3,
-    `l'atelier interroge la table ${vus.length} fois : le contrat en prévoit 3`);
+  assert.strictEqual(vus.length, 4,
+    `l'atelier interroge la table ${vus.length} fois : le contrat en prévoit 4`);
 });
 
 // La publication de l'import ne doit toucher QUE ce que l'import vient
@@ -125,9 +151,28 @@ t('la publication de l\'import est bornée à sa provenance et à sa période', 
   }
 });
 
-t('l\'atelier ne lit pas la vue — elle lui cacherait son propre brouillon', () => {
-  assert.ok(!appels(ATELIER).includes('v_planning_officiel'),
-    'l\'atelier lit la vue : le manager ne verrait plus ce qu\'il vient de générer');
+// La vue cacherait au manager le brouillon qu'il vient de générer : elle ne
+// doit donc JAMAIS alimenter un affichage de l'atelier. Elle a pourtant une
+// place, et une seule : COMPTER ce que l'équipe voit réellement, pour que le
+// message d'après publication cesse de promettre une visibilité qu'il n'a pas
+// vérifiée (19/09/2026). D'où la borne : un seul accès, et sans données —
+// `head: true` ne rapporte qu'un nombre, jamais une ligne à afficher.
+t('l\'atelier ne lit la vue que pour compter, jamais pour afficher', () => {
+  const vus = appels(ATELIER).filter(r => r === 'v_planning_officiel');
+  assert.strictEqual(vus.length, 1,
+    `l'atelier touche la vue ${vus.length} fois : le contrat en prévoit 1, et pour compter`);
+  const i = ATELIER.indexOf(".from('v_planning_officiel')");
+  const bloc = ATELIER.slice(i, i + 260);
+  assert.ok(/count: 'exact', head: true/.test(bloc),
+    'l\'atelier RAMÈNE des lignes de la vue : le manager ne verrait plus son propre brouillon');
+});
+
+t('la grille du mois ne passe jamais par la vue', () => {
+  const i = ATELIER.indexOf('async function chargerEtAfficherPlanning');
+  assert.ok(i > 0, 'la grille est introuvable — l\'épreuve ne juge plus rien');
+  const bloc = ATELIER.slice(i, ATELIER.indexOf('const conteneur = document.getElementById(\'planningGrille\')', i));
+  assert.ok(!bloc.includes('v_planning_officiel'),
+    'la grille lit la vue : le brouillon que le manager vient de générer lui serait caché');
 });
 
 t('la grille est bornée à une provenance nommée', () => {

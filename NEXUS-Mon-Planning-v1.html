@@ -60,11 +60,9 @@
   .chip small{opacity:0.7; margin-left:4px;}
   .chip-vide{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
   .chip-moi{box-shadow:0 0 0 2px var(--cyan) inset;}
-  .google-planning{padding:6px 0 2px; text-align:center;}
-  .google-mark{width:46px; height:46px; margin:0 auto 12px; border-radius:12px; display:grid; place-items:center; background:rgba(52,211,153,.12); color:var(--green); font:700 20px var(--mono);}
-  .google-planning h2{font-size:16px; margin-bottom:7px;}
-  .google-planning p{font-size:12px; line-height:1.55; color:var(--text-mid); margin-bottom:14px;}
-  .google-btn{display:block; width:100%; padding:12px; border-radius:8px; background:var(--green); color:#06150f; text-decoration:none; font-weight:700; font-size:13px;}
+  .source-entree p{font-size:11.5px; line-height:1.55; color:var(--text-dim); margin-bottom:10px;}
+  .source-entree strong{color:var(--text-mid); font-weight:600;}
+  .source-entree-lien{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--text-mid); text-decoration:none; border:1px solid var(--hairline); border-radius:6px; padding:7px 11px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -98,6 +96,8 @@
       <div class="note">Votre ligne est mise en évidence.</div>
       <div id="planningEquipe"><div class="note">Chargement…</div></div>
     </div>
+
+    <div id="sourceEntree"></div>
   </div>
 
   <footer>Nexus Planner · Vue employé</footer>
@@ -143,10 +143,17 @@
       .select('planning_source,planning_google_sheet_url,planning_google_sheet_id')
       .eq('site', siteId).maybeSingle();
     if (sourceError) console.error('Chargement source planning:', sourceError);
+    // Google Sheets est une source d'ENTREE : le manager y saisit, puis importe
+    // et publie. La projection publiee dans `v_planning_officiel` reste la
+    // seule version consommable, y compris ici. Cet ecran affiche donc le meme
+    // planning que les autres consommateurs, et le classeur n'apparait qu'en
+    // second, sous le planning, pour dire d'ou viennent les lignes.
     if (sourcePlanning && sourcePlanning.planning_source === 'google_sheets') {
       const url = lienPlanningGoogleSecurise(sourcePlanning);
-      document.querySelector('.section').innerHTML = `<div class="card"><div class="section-label">Planning officiel</div><div class="google-planning"><div class="google-mark">G</div><h2>Votre planning est sur Google Sheets</h2><p>Ce classeur est la source officielle choisie par votre manager. Il s'ouvre en lecture selon les droits Google accordés à votre compte.</p>${url ? `<a class="google-btn" href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">Consulter mon planning ↗</a>` : '<div class="note">Le lien doit encore être renseigné par le manager.</div>'}</div></div>`;
-      return;
+      // Sans lien exploitable, l'encart n'apprendrait rien a l'employe : on se tait.
+      if (url) {
+        document.getElementById('sourceEntree').innerHTML = `<div class="card source-entree"><div class="section-label">Source d'entrée</div><p>Votre manager prépare ce planning dans un classeur Google Sheets, puis l'importe et le publie dans NEXUS. <strong>Le planning ci-dessus est la version publiée : c'est elle qui fait foi.</strong> Le classeur peut contenir des modifications qui n'ont pas encore été importées.</p><a class="source-entree-lien" href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">Ouvrir le classeur ↗</a></div>`;
+      }
     }
 
     const TACHE_LABEL = { piste: 'Piste', caisse: 'Caisse' };

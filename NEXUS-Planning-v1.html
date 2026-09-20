@@ -125,7 +125,7 @@
 <div class="phone" id="app">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · Manager <span class="badge-premium">Premium</span></div>
+    <div class="eyebrow">NEXUS · Manager <span class="badge-premium">Professional</span></div>
     <div class="title">Nexus Planner</div>
     <div class="subtitle">Le bon collaborateur, au bon endroit, au bon moment.</div>
   </div>
@@ -232,7 +232,7 @@
     </div>
   </div>
 
-  <footer>Nexus Planner v1 · Premium · Vito Sainte-Marie Usine</footer>
+  <footer>Nexus Planner v1 · Professional<span id="footerStation"></span></footer>
 </div>
 
 <script>
@@ -273,7 +273,28 @@
     }
 
     const siteId = employee.site_id;
-    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Planning-v1.html', siteId))) return;
+    // La regle commerciale ne change pas : Nexus Planner exige Professional,
+    // et un site Essential n'y entre pas. Ce qui change, c'est qu'on le DIT.
+    // `nexusRequireProfessional` redirige sans un mot : l'ecran disparaissait
+    // sous les yeux du manager, qui lisait une panne la ou il y a une regle.
+    // Le refus est donc affiche ici, puis la redirection se fait — le bandeau
+    // de l'accueil (`?forfait_requis=`) continue de le rappeler a l'arrivee.
+    // `chargerForfait` rend `null` sur erreur reseau et la doctrine de
+    // nexus-forfait.js est alors de laisser passer plutot que de bloquer un
+    // manager legitime : elle est reprise telle quelle.
+    const forfaitSite = await NexusForfait.chargerForfait(siteId);
+    if (forfaitSite !== null && !NexusForfait.estProfessional(forfaitSite)) {
+      const libelleForfait = (NexusForfait.FORFAIT_LABELS || {})[forfaitSite] || forfaitSite;
+      const retour = 'NEXUS-App-v1.html?forfait_requis=' + encodeURIComponent('NEXUS-Planning-v1.html');
+      document.getElementById('app').innerHTML =
+        '<div class="reserve"><div style="font-size:15px; color:var(--text); margin-bottom:10px;">\ud83d\udc8e Nexus Planner fait partie de l\u2019offre NEXUS Professional.</div>'
+        + '<div style="margin-bottom:16px;">Votre station est au forfait <b>' + echapperTexte(libelleForfait) + '</b> : cet \u00e9cran ne lui est pas ouvert. '
+        + 'Contactez votre cr\u00e9ateur NEXUS pour activer Professional.</div>'
+        + '<div style="font-size:12px;">Retour \u00e0 l\u2019accueil dans quelques instants \u2014 '
+        + '<a href="' + retour + '" style="color:var(--cyan);">y aller maintenant</a>.</div></div>';
+      setTimeout(() => { window.location.href = retour; }, 6000);
+      return;
+    }
     let MOIS_COURANT = premierJourMois(new Date());
     let EMPLOYES = [];
     let CONTRAINTES = {}; // employee_id -> { heures_contrat_semaine, jours_repos_habituels, peut_faire_renfort }
@@ -315,6 +336,21 @@
       const lien = document.getElementById('planningGoogleOpen');
       lien.style.display = valeur === 'google_sheets' && url ? 'inline-block' : 'none';
       if (url) lien.href = url;
+    }
+
+    // Le pied de page nommait « Vito Sainte-Marie Usine » en dur : tout
+    // manager d'un autre site lisait donc le nom d'une station qui n'est pas
+    // la sienne. Le libelle lisible vit dans `sites.nom_entreprise` (la
+    // colonne `nom` n'existe pas). A defaut, on ecrit l'identifiant technique
+    // du site de l'employe connecte : c'est moins joli, mais c'est vrai. On
+    // ne retombe JAMAIS sur un nom de station ecrit dans le fichier.
+    async function chargerNomStation() {
+      const cible = document.getElementById('footerStation');
+      if (!cible) return;
+      const { data, error } = await nexusClient.from('sites')
+        .select('nom_entreprise').eq('site_id', siteId).maybeSingle();
+      if (error) console.error('Chargement sites.nom_entreprise:', error);
+      cible.textContent = ' · ' + ((data && data.nom_entreprise) || siteId);
     }
 
     async function chargerSourcePlanning() {
@@ -617,7 +653,17 @@
         .order('date').order('quart');
       const conteneur = document.getElementById('planningGrille');
       if (error) { console.error('Chargement planning_shifts:', error); conteneur.innerHTML = '<div class="note">Erreur de chargement.</div>'; return; }
-      if (!data || data.length === 0) { conteneur.innerHTML = '<div class="note">Aucun planning généré pour ce mois. Utilisez "Générer le brouillon" ci-dessus.</div>'; return; }
+      if (!data || data.length === 0) {
+        // Le message renvoyait vers « Générer le brouillon ». En mode Google
+        // Sheets ce bouton n'existe pas — la carte « Génération » est
+        // masquée par `#contenu.source-google .planning-nexus-card` — et le
+        // manager cherchait donc un bouton absent de son écran. Chaque
+        // provenance nomme le geste qui la remplit, et aucune autre.
+        conteneur.innerHTML = SOURCE_PLANNING === 'google_sheets'
+          ? '<div class="note">Aucun planning importé pour ce mois. Utilisez "Importer l\'onglet…" ci-dessus, puis "Valider et publier".</div>'
+          : '<div class="note">Aucun planning généré pour ce mois. Utilisez "Générer le brouillon" ci-dessus.</div>';
+        return;
+      }
 
       const parJour = {};
       data.forEach(ps => {
@@ -706,6 +752,9 @@
       if (!confirm('Publier le planning de ce mois ? Il devient visible par toute l\'équipe.')) return;
       const debut = moisISO(MOIS_COURANT);
       const fin = finMoisISO(MOIS_COURANT);
+      // `modifie_le` n'est pas envoye : depuis `20260919240000`, un trigger
+      // `before update` le pose a `now()` cote base et ignore toute valeur
+      // recue. L'horloge du poste du manager ne date plus une publication.
       // `source` est une BORNE, pas une commodite. Sans elle, ce bouton
       // publierait toutes provenances confondues : un import Google Sheets
       // depose en brouillon et pas encore controle deviendrait visible par
@@ -714,7 +763,7 @@
       // ce qui fait deja foi pour ce site.
       const { error } = await nexusClient
         .from('planning_shifts')
-        .update({ publie: true, modifie_le: new Date().toISOString(), modifie_par: employee.id })
+        .update({ publie: true, modifie_par: employee.id })
         .eq('site_id', siteId).eq('source', SOURCE_PLANNING)
         .gte('date', debut).lt('date', fin).eq('publie', false);
       if (error) { console.error('Publication planning:', error); alert('Erreur — réessayez.'); return; }
@@ -921,10 +970,11 @@
 
       // Publication — l'ecriture qui rend le mois visible par l'equipe.
       // Bornee sur la provenance `google_sheets` : elle ne publie jamais
-      // un brouillon de generation NEXUS reste en attente.
+      // un brouillon de generation NEXUS reste en attente. L'horodatage
+      // est pose par la base (trigger de `20260919240000`), pas ici.
       const { error: erreurPublication } = await nexusClient
         .from('planning_shifts')
-        .update({ publie: true, modifie_le: new Date().toISOString(), modifie_par: employee.id })
+        .update({ publie: true, modifie_par: employee.id })
         .eq('site_id', siteId).eq('source', 'google_sheets')
         .gte('date', debut).lt('date', fin).eq('publie', false);
 
@@ -935,11 +985,40 @@
       if (sansHoraire) {
         messages.push(`<div class="gap-item">⚠ ${sansHoraire} affectation(s) sans horaire théorique : le quart correspondant n’a pas d’horaire déclaré dans Paramètres Station. Elles sont importées telles quelles — NEXUS ne calculera ni retard ni durée théorique pour ces jours-là tant que l’horaire manque.</div>`);
       }
+      // « Publie » et « visible » ont cesse d'etre synonymes le jour ou la
+      // source officielle a porte une date d'effet : une affectation publiee
+      // AVANT cette date reste servie par la source precedente, donc absente
+      // de `v_planning_officiel`, donc invisible pour l'equipe. Annoncer
+      // « Mois publie — visible par l'equipe » sans regarder serait un faux
+      // temoin. Les deux comptes sont donc demandes a la base : ce qui est
+      // publie, et ce qui est reellement servi.
+      let publieesMois = null;
+      let serviesMois = null;
+      if (!erreurPublication) {
+        const compte = await nexusClient.from('planning_shifts')
+          .select('id', { count: 'exact', head: true })
+          .eq('site_id', siteId).eq('source', 'google_sheets').eq('publie', true)
+          .gte('date', debut).lt('date', fin);
+        const servies = await nexusClient.from('v_planning_officiel')
+          .select('id', { count: 'exact', head: true })
+          .eq('site_id', siteId).eq('source', 'google_sheets').eq('publie', true)
+          .gte('date', debut).lt('date', fin);
+        if (compte.error || servies.error) console.error('Visibilite reelle du mois:', compte.error || servies.error);
+        else { publieesMois = Number(compte.count) || 0; serviesMois = Number(servies.count) || 0; }
+      }
+
       if (erreurPublication) {
         console.error('Publication import Google Sheets:', erreurPublication);
         messages.push('<div class="gap-item">⚠ L’import est enregistré mais la publication a échoué : le mois reste en brouillon, invisible par l’équipe. Réessayez la validation.</div>');
+      } else if (publieesMois === null) {
+        messages.push('<div class="gap-ok">✓ Publication enregistrée.</div>');
+        messages.push('<div class="gap-item">⚠ NEXUS n’a pas pu vérifier ce que l’équipe voit réellement — ouvrez Mon Planning pour le contrôler.</div>');
       } else {
-        messages.push('<div class="gap-ok">✓ Mois publié — visible par l’équipe.</div>');
+        const horsPeriode = Math.max(0, publieesMois - serviesMois);
+        messages.push(`<div class="gap-ok">✓ ${publieesMois} affectation(s) publiée(s) ce mois-ci, ${serviesMois} visible(s) par l’équipe.</div>`);
+        if (horsPeriode) {
+          messages.push(`<div class="gap-item">⚠ ${horsPeriode} affectation(s) publiée(s) restent invisibles : ces journées précèdent la date à partir de laquelle Google Sheets est la source officielle du site, et continuent d’être servies par la source précédente. Pour les ouvrir à l’équipe, faites prendre effet la source à une date antérieure depuis Paramètres Station.</div>`);
+        }
       }
       resultat.innerHTML = messages.join('');
 
@@ -972,6 +1051,7 @@
     // ------------------------------------------------------------
     // Initialisation
     // ------------------------------------------------------------
+    await chargerNomStation();
     await chargerSourcePlanning();
     await chargerEquipe();
     renderContraintes();

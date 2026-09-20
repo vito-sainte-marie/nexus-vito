@@ -219,6 +219,23 @@
   .planning-source-fields{display:none; padding-top:4px;}
   .planning-source-motif{display:block; margin-top:13px; margin-bottom:5px; font:9.5px/1.4 var(--mono); color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px;}
   #planningSourceMotif{margin-bottom:12px;}
+  .planning-source-effet{margin-top:12px; padding:10px 11px; background:var(--panel-raised); border:1px solid var(--hairline); border-left:2px solid var(--cyan); border-radius:0 9px 9px 0; font:10.5px/1.6 var(--mono); color:var(--text-mid);}
+  .planning-source-effet b{color:var(--text);}
+  .planning-source-effet.indisponible{border-left-color:var(--amber, #d9a441);}
+  .planning-source-retro{margin-top:10px;}
+  .planning-source-retro-geste{background:none; border:none; padding:0; color:var(--cyan); font:10.5px/1.6 var(--mono); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+  .planning-source-retro-geste[disabled]{color:var(--text-dim); cursor:not-allowed; text-decoration:none;}
+  .planning-source-retro-champs{margin-top:10px; padding:11px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px;}
+  .planning-source-retro-champs label{display:block; margin-bottom:5px; font:9.5px/1.4 var(--mono); color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px;}
+  .planning-source-retro-champs input[type="date"]{width:100%; margin-bottom:8px; accent-color:var(--cyan);}
+  .planning-source-retro-champs .psr-avert{font:10.5px/1.6 var(--mono); color:var(--text-mid); margin-bottom:8px;}
+  .planning-source-recap{margin-top:12px; padding:12px; background:var(--panel-raised); border:1px solid var(--amber, #d9a441); border-radius:9px;}
+  .planning-source-recap .psc-titre{font:700 11px/1.5 var(--mono); color:var(--amber, #d9a441); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px;}
+  .planning-source-recap dl{display:grid; grid-template-columns:auto 1fr; gap:4px 10px; margin:0 0 10px; font:10.5px/1.6 var(--mono);}
+  .planning-source-recap dt{color:var(--text-dim);}
+  .planning-source-recap dd{margin:0; color:var(--text);}
+  .planning-source-recap .psc-portee{font:10.5px/1.6 var(--mono); color:var(--text-mid); margin-bottom:10px;}
+  .planning-source-recap .psc-boutons{display:flex; gap:8px; flex-wrap:wrap;}
   .planning-source-histo{margin-top:16px;}
   .planning-source-histo .psh-titre{font:9.5px/1.4 var(--mono); color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px;}
   .planning-source-histo .psh-ligne{padding:7px 0; border-top:1px solid var(--hairline); font:10.5px/1.6 var(--mono); color:var(--text-mid);}
@@ -810,8 +827,16 @@
            approximatif place un employe sur un poste qu'il n'a pas.
            Ce qui n'est pas declare ICI ressort en anomalie au moment de
            l'import, et un import ne se valide jamais avec une anomalie non
-           levee. La cible d'un code de site ne se saisit donc JAMAIS a la
-           main : elle se choisit parmi les sites que NEXUS connait deja. -->
+           levee. La cible d'un code de site ne se DEVINE jamais ; elle se
+           choisit dans la liste des sites que ce compte peut lire. Cette
+           liste est coupee par la RLS de `sites` : un manager ne voit que sa
+           propre station, si bien que designer le site voisin vers lequel son
+           planning envoie reellement quelqu'un etait impossible depuis cet
+           ecran et obligeait a passer par psql. On ouvre donc une saisie
+           EXPLICITE de l'identifiant, et elle n'est pas un blanc-seing : le
+           trigger `planning_codes_sites_controle()` — `security definer`
+           justement parce que `sites` porte une RLS — refuse (23503) tout
+           `site_id` qui n'existe pas. Saisir n'est pas inventer. -->
       <div class="section-label" style="margin-top:22px;">Correspondances d'import</div>
       <div class="note" style="margin-top:0;">NEXUS ne devine aucune correspondance. Un nom de colonne ou un code de site absent de ces listes ressort en <b style="color:var(--text);">anomalie</b> au moment de l'import, et l'import ne peut pas etre valide tant qu'elle n'est pas levee.</div>
 
@@ -825,11 +850,13 @@
       </div>
 
       <div class="section-label" style="margin-top:18px;">Codes de site du classeur → sites NEXUS</div>
-      <div class="note" style="margin-top:0;">Une cellule portant un code de site vaut 7 heures travaillees <b style="color:var(--text);">ailleurs</b> : c'est une information de lieu, pas une absence. Seul un site deja connu de NEXUS peut etre designe — un code sans site NEXUS reste une anomalie, il ne s'invente pas.</div>
+      <div class="note" style="margin-top:0;">Une cellule portant un code de site vaut 7 heures <b style="color:var(--text);">travaillees</b>, jamais une absence. Le lieu, lui, depend de la cible declaree ici : un code qui designe <b style="color:var(--text);">cette station</b> — SMU sur Sainte-Marie Usine — vaut 7 h <b style="color:var(--text);">sur place</b> ; un code qui designe <b style="color:var(--text);">un autre site</b> vaut 7 h en <b style="color:var(--text);">transfert</b>. Un code absent de cette liste ne vaut rien du tout : il ressort en <b style="color:var(--text);">anomalie</b>, et NEXUS n'en deduit ni lieu ni heures.</div>
+      <div class="note" style="margin-top:6px;">La liste ne propose que les sites que ce compte a le droit de lire. Si le site vise n'y figure pas, choisissez <b style="color:var(--text);">« Un autre site NEXUS… »</b> et saisissez son identifiant : NEXUS verifie qu'il existe et refuse sinon.</div>
       <div class="plg-mappage" id="plgCodes"></div>
       <div class="plg-ajout">
         <input type="text" id="plgCodeCle" class="champ-recherche" placeholder="Code ecrit dans la cellule — ex. SMU" autocomplete="off" maxlength="16" style="text-transform:uppercase;">
         <select id="plgCodeCible" class="champ-recherche"></select>
+        <input type="text" id="plgCodeCibleAutre" class="champ-recherche" placeholder="Identifiant NEXUS du site — ex. vito-sainte-marie" autocomplete="off" maxlength="64" style="display:none;">
         <button class="btn btn-secondary" id="plgCodeAjouter">Ajouter</button>
       </div>
       <div class="gs-resultat" id="plgMappageResultat"></div>
@@ -859,9 +886,34 @@
         <div class="note" style="margin-top:0;" id="planningGoogleClasseur"></div>
         <a class="planning-source-link" id="planningGoogleOuvrir" href="#" target="_blank" rel="noopener" style="display:none;">Ouvrir le planning Google Sheets ↗</a>
       </div>
-      <label class="planning-source-motif" for="planningSourceMotif">Motif du changement (facultatif)</label>
+      <div class="planning-source-effet" id="planningSourceEffet"></div>
+      <div class="planning-source-retro">
+        <button type="button" class="planning-source-retro-geste" id="planningRetroOuvrir" aria-expanded="false" aria-controls="planningRetroChamps">Faire prendre effet ce changement à une date antérieure…</button>
+        <div class="planning-source-retro-champs" id="planningRetroChamps" hidden>
+          <div class="psr-avert">Une date antérieure change la source qui fait foi sur des journées déjà travaillées. Elle ne publie rien : les affectations doivent avoir été réellement importées et publiées pour devenir consultables.</div>
+          <label for="planningRetroDate">Date d’effet</label>
+          <input type="date" id="planningRetroDate" class="champ-recherche">
+          <button type="button" class="planning-source-retro-geste" id="planningRetroAnnuler">Revenir à la date du jour</button>
+        </div>
+      </div>
+      <label class="planning-source-motif" for="planningSourceMotif">Motif du changement <span id="planningSourceMotifExigence">(facultatif)</span></label>
       <input type="text" id="planningSourceMotif" class="champ-recherche" maxlength="200" placeholder="Pourquoi ce changement ? — conservé dans l’historique" autocomplete="off">
       <button class="btn btn-primary" id="planningSourceEnregistrer">Enregistrer la source officielle</button>
+      <div class="planning-source-recap" id="planningSourceRecap" hidden>
+        <div class="psc-titre">Confirmer une bascule rétroactive</div>
+        <dl>
+          <dt>Ancienne source</dt><dd id="pscAncienne"></dd>
+          <dt>Nouvelle source</dt><dd id="pscNouvelle"></dd>
+          <dt>Date d’effet</dt><dd id="pscEffet"></dd>
+          <dt>Portée</dt><dd id="pscRetro"></dd>
+          <dt>Motif</dt><dd id="pscMotif"></dd>
+        </dl>
+        <div class="psc-portee" id="pscExplication"></div>
+        <div class="psc-boutons">
+          <button class="btn btn-primary" id="pscConfirmer">Confirmer la bascule rétroactive</button>
+          <button class="btn" id="pscAnnuler">Annuler</button>
+        </div>
+      </div>
       <div class="gs-resultat" id="planningSourceResultat"></div>
       <div class="planning-source-histo" id="planningSourceHisto"></div>
     </div>
@@ -1005,6 +1057,7 @@
       info.innerHTML = 'Aucun classeur de planning déclaré — renseignez-le d\u2019abord dans <b style="color:var(--text);">Intégrations › Synchronisation du planning</b>.';
       lien.style.display = 'none';
     }
+    rendreAnnonceEffet();
   }
 
   function rafraichirApercuPlanning() {
@@ -1072,6 +1125,23 @@
     return s.nom_entreprise ? `${s.site_id} — ${s.nom_entreprise}` : s.site_id;
   }
 
+  // Valeur sentinelle du <select>. `sites.site_id` ne porte AUCUNE contrainte
+  // de forme (seules `sites_pkey` et `sites_forfait_check` existent) : rien
+  // n'interdit formellement qu'un site s'appelle ainsi. Cet identifiant est
+  // donc reserve par cet ecran, et la garde de `chargerCiblesCorrespondances`
+  // le verifie au lieu de le supposer.
+  const CIBLE_AUTRE_SITE = '__autre_site__';
+
+  function basculerSaisieAutreSite() {
+    const select = document.getElementById('plgCodeCible');
+    const champ = document.getElementById('plgCodeCibleAutre');
+    if (!select || !champ) return;
+    const ouvert = select.value === CIBLE_AUTRE_SITE;
+    champ.style.display = ouvert ? '' : 'none';
+    if (!ouvert) champ.value = '';
+    else champ.focus();
+  }
+
   async function chargerCiblesCorrespondances() {
     const [rSites, rEmployes] = await Promise.all([
       nexusClient.from('sites').select('site_id,nom_entreprise').order('site_id'),
@@ -1080,13 +1150,25 @@
     if (rSites.error) console.error('Chargement des sites:', rSites.error);
     if (rEmployes.error) console.error('Chargement des employes:', rEmployes.error);
     SITES_CONNUS = rSites.data || [];
+    // Deux options de meme valeur rendraient le choix ambigu : le menu
+    // prendrait la premiere et le champ de saisie s'ouvrirait sans raison.
+    if (SITES_CONNUS.some(s => s.site_id === CIBLE_AUTRE_SITE)) {
+      console.error(`Un site porte l'identifiant « ${CIBLE_AUTRE_SITE} », reserve a la saisie explicite : le menu des codes de site est ambigu.`);
+    }
     EMPLOYES_SITE = (rEmployes.data || []).filter(e => String(e.nom || '').trim());
     const selSite = document.getElementById('plgCodeCible');
     const selEmp = document.getElementById('plgAliasCible');
     // Un choix vide en tete : sans lui, le premier site de la liste passerait
     // pour choisi alors que personne ne l'a choisi.
+    // `SITES_CONNUS` est coupe par la RLS de `sites` : un manager ordinaire
+    // n'y lit que sa propre station. Sans porte de sortie, cet ecran ne
+    // pourrait JAMAIS declarer un transfert vers le site voisin — le cas
+    // metier normal — et il faudrait psql. D'ou l'option explicite, qui ouvre
+    // une saisie d'identifiant plutot qu'une liste des clients NEXUS (que
+    // personne ne doit lire). L'existence du site reste verifiee par la base.
     selSite.innerHTML = '<option value="">Choisir un site NEXUS…</option>'
-      + SITES_CONNUS.map(s => `<option value="${echapperTexte(s.site_id)}">${echapperTexte(libelleSite(s.site_id))}</option>`).join('');
+      + SITES_CONNUS.map(s => `<option value="${echapperTexte(s.site_id)}">${echapperTexte(libelleSite(s.site_id))}</option>`).join('')
+      + `<option value="${CIBLE_AUTRE_SITE}">Un autre site NEXUS — saisir l’identifiant…</option>`;
     selEmp.innerHTML = '<option value="">Choisir un employe…</option>'
       + EMPLOYES_SITE.map(e => `<option value="${echapperTexte(e.nom)}">${echapperTexte(e.nom)}</option>`).join('');
   }
@@ -1196,13 +1278,31 @@
     if (ok) { champ.value = ''; select.value = ''; }
   });
 
+  document.getElementById('plgCodeCible').addEventListener('change', basculerSaisieAutreSite);
+
   document.getElementById('plgCodeAjouter').addEventListener('click', async () => {
     const champ = document.getElementById('plgCodeCle');
     const select = document.getElementById('plgCodeCible');
+    const champAutre = document.getElementById('plgCodeCibleAutre');
     const cle = normaliserCodeSite(champ.value);
-    const cible = String(select.value || '').trim();
+    const saisi = select.value === CIBLE_AUTRE_SITE;
+    // Un `site_id` est un identifiant technique : on le prend tel qu'il est
+    // ecrit, sans corriger la casse ni les tirets. Corriger reviendrait a
+    // deviner quel site etait vise — exactement ce que cet ecran refuse de
+    // faire. Un identifiant mal orthographie n'existe pas, et la base le dit.
+    const cible = saisi ? String(champAutre.value || '').trim() : String(select.value || '').trim();
     if (!cle) return refuserCorrespondance('Indiquez le code tel qu’il apparait dans la cellule.');
-    if (!cible) return refuserCorrespondance('Choisissez le site NEXUS vise — un code de site ne s’invente pas.');
+    if (!cible) {
+      return refuserCorrespondance(saisi
+        ? 'Saisissez l’identifiant NEXUS du site vise — un code de site ne s’invente pas.'
+        : 'Choisissez le site NEXUS vise — un code de site ne s’invente pas.');
+    }
+    // Une cible saisie a la main vise un site que cet ecran ne peut pas
+    // relire : personne ne verra donc son nom avant l'import. On la fait
+    // relire au manager, code et identifiant nommes, avant de l'enregistrer.
+    if (saisi && !confirm(`Declarer « ${cle} » → « ${cible} » ?\n\nCe site n’est pas lisible par ce compte : NEXUS ne peut pas vous en montrer le nom. Chaque cellule « ${cle} » vaudra 7 heures travaillees sur ce site — un transfert s’il ne s’agit pas de votre station.`)) {
+      return refuserCorrespondance(`Correspondance « ${cle} » abandonnee — rien n’a ete enregistre.`);
+    }
     const { dict, remplace } = sansEquivalent(configPlanning.codesSite, cle);
     dict[cle] = cible;
     const btn = document.getElementById('plgCodeAjouter');
@@ -1210,7 +1310,7 @@
     const ok = await enregistrerCorrespondances(configPlanning.alias, dict,
       remplace ? `✓ « ${cle} » designe desormais ${libelleSite(cible)}.` : `✓ « ${cle} » designe ${libelleSite(cible)}.`);
     btn.disabled = false;
-    if (ok) { champ.value = ''; select.value = ''; }
+    if (ok) { champ.value = ''; select.value = ''; basculerSaisieAutreSite(); }
   });
 
   // Retrait : un seul clic, mais il se dit. Une correspondance retiree fera
@@ -1247,6 +1347,115 @@
   function formaterJourMetier(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso == null ? '' : iso));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso == null ? '' : iso);
+  }
+
+  const JOURS_FR = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+
+  // Meme doctrine que `formaterJourMetier`, en toutes lettres. Le nom du jour
+  // exige un calendrier, donc un `Date` : il est construit en UTC STRICT et
+  // relu en UTC, ce qui le reduit a une arithmetique de calendrier. Un `new
+  // Date('2026-09-19')` relu par `getDay()` reprojetterait le jour metier de
+  // la station dans le fuseau de l'appareil, et un manager en metropole
+  // lirait « jeudi 18 » la ou la base a inscrit le 19.
+  function formaterJourMetierLong(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso == null ? '' : iso));
+    if (!m) return formaterJourMetier(iso);
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return `${JOURS_FR[d.getUTCDay()]} ${Number(m[3])} ${MOIS_FR[Number(m[2]) - 1]} ${m[1]}`;
+  }
+
+  // --- Date d'effet d'une bascule -------------------------------------------
+  // `configPlanning.source` suit les boutons radio des que le manager en
+  // touche un : elle dit ce qui est SELECTIONNE, pas ce qui est enregistre.
+  // L'annonce « les jours anterieurs resteront servis par… » doit nommer la
+  // source reellement en base, d'ou cette variable distincte.
+  let sourceEnBase = 'nexus';
+  // Le jour metier vient de la STATION, jamais de l'appareil. Seule
+  // `planning_jour_de_ma_station` est ouverte a `authenticated`, et elle
+  // refuse tout site autre que celui de l'appelant.
+  let jourStation = null;
+  let jourStationRefus = '';
+  // Vide = pas de retroactivite. Ce champ ne s'ouvre que sur un geste
+  // explicite : une bascule retroactive change la source qui fait foi sur des
+  // journees deja travaillees.
+  let basculeRetroDate = '';
+
+  async function chargerJourStation() {
+    const { data, error } = await nexusClient.rpc('planning_jour_de_ma_station', { p_site: employee.site_id });
+    if (error) {
+      console.error('Jour metier de la station:', error);
+      jourStation = null;
+      // 22004 : la station n'a pas de fuseau declare. Le dire, plutot que de
+      // dater la bascule avec l'horloge du navigateur — ce serait inventer un
+      // jour metier que personne n'a declare.
+      jourStationRefus = error.code === '22004'
+        ? 'Le fuseau horaire de la station n\u2019est pas d\u00e9clar\u00e9 : NEXUS ne peut pas dire quel jour il y est. Renseignez-le plus haut avant de changer la source.'
+        : 'Jour m\u00e9tier de la station indisponible pour le moment.';
+      return;
+    }
+    jourStation = String(data || '').slice(0, 10) || null;
+    jourStationRefus = jourStation ? '' : 'Jour m\u00e9tier de la station indisponible pour le moment.';
+  }
+
+  function estRetroactive() {
+    return !!(basculeRetroDate && jourStation && basculeRetroDate < jourStation);
+  }
+
+  // `max` sur le champ borne le selecteur, pas une saisie au clavier. Une date
+  // future doit se voir refuser ici aussi, sans quoi l'ecran retomberait
+  // silencieusement sur le jour de la station : le manager croirait avoir
+  // programme une bascule que personne n'a enregistree.
+  function dateEffetFuture() {
+    return !!(basculeRetroDate && jourStation && basculeRetroDate > jourStation);
+  }
+
+  // Annoncee AVANT, pas apres : cette ligne est permanente sous le choix de
+  // source, et elle dit la date d'effet et le sort des journees anterieures
+  // avant que le manager ne clique.
+  function rendreAnnonceEffet() {
+    const el = document.getElementById('planningSourceEffet');
+    const geste = document.getElementById('planningRetroOuvrir');
+    const exigence = document.getElementById('planningSourceMotifExigence');
+    const champDate = document.getElementById('planningRetroDate');
+    if (jourStation) champDate.max = jourStation;
+    if (!jourStation) {
+      el.className = 'planning-source-effet indisponible';
+      el.textContent = jourStationRefus;
+      geste.disabled = true;
+      geste.title = jourStationRefus;
+    } else {
+      geste.disabled = false;
+      geste.removeAttribute('title');
+      el.className = 'planning-source-effet';
+      if (dateEffetFuture()) {
+        el.className = 'planning-source-effet indisponible';
+        el.innerHTML = `Date d\u2019effet refus\u00e9e : le <b>${echapperTexte(formaterJourMetierLong(basculeRetroDate))}</b>`
+          + ` est post\u00e9rieur au ${echapperTexte(formaterJourMetierLong(jourStation))}, jour m\u00e9tier de votre station.`
+          + ' Une source de planning ne se programme pas en avance.';
+      } else if (estRetroactive()) {
+        el.innerHTML = `Prendra effet le <b>${echapperTexte(formaterJourMetierLong(basculeRetroDate))}</b>`
+          + ` \u2014 date ant\u00e9rieure choisie, au lieu du ${echapperTexte(formaterJourMetierLong(jourStation))}.`
+          + ` Les journ\u00e9es du ${echapperTexte(formaterJourMetier(basculeRetroDate))} \u00e0 aujourd\u2019hui changeront de source.`;
+      } else {
+        el.innerHTML = `Prendra effet le <b>${echapperTexte(formaterJourMetierLong(jourStation))}</b>`
+          + ' \u2014 jour m\u00e9tier de votre station.'
+          + ` Les jours ant\u00e9rieurs continueront d\u2019\u00eatre servis par la source qui leur est d\u00e9j\u00e0 applicable (aujourd\u2019hui : ${echapperTexte(libelleSource(sourceEnBase))}).`;
+      }
+    }
+    exigence.textContent = estRetroactive() ? '(obligatoire)' : '(facultatif)';
+  }
+
+  function fermerRecapBascule() {
+    document.getElementById('planningSourceRecap').hidden = true;
+  }
+
+  function reinitialiserRetroactivite() {
+    basculeRetroDate = '';
+    document.getElementById('planningRetroDate').value = '';
+    document.getElementById('planningRetroChamps').hidden = true;
+    document.getElementById('planningRetroOuvrir').setAttribute('aria-expanded', 'false');
+    fermerRecapBascule();
+    rendreAnnonceEffet();
   }
 
   async function chargerHistoriqueBascules() {
@@ -1314,6 +1523,8 @@
       alias: (data && data.planning_alias) || {},
       codesSite: (data && data.planning_codes_sites) || {},
     };
+    // La source REELLEMENT enregistree, mise a l'abri des boutons radio.
+    sourceEnBase = configPlanning.source;
     return true;
   }
 
@@ -1322,6 +1533,9 @@
     document.getElementById('plgLien').value = configPlanning.url;
     document.getElementById('plgPrefixe').value = configPlanning.prefixe;
     rafraichirApercuPlanning();
+    // Le jour metier d'abord : l'annonce de la date d'effet en depend, et elle
+    // doit etre lisible avant le premier clic, pas apres.
+    await chargerJourStation();
     afficherChoixSourcePlanning();
     await chargerHistoriqueBascules();
     rendreHistoriqueBascules();
@@ -1336,8 +1550,29 @@
 
   document.querySelectorAll('input[name="planningSource"]').forEach(radio => radio.addEventListener('change', () => {
     configPlanning.source = radio.value;
+    // Un recapitulatif porte une decision precise : changer la source apres
+    // l'avoir affiche le rendrait faux.
+    fermerRecapBascule();
     afficherChoixSourcePlanning();
   }));
+
+  document.getElementById('planningRetroOuvrir').addEventListener('click', () => {
+    const champs = document.getElementById('planningRetroChamps');
+    const geste = document.getElementById('planningRetroOuvrir');
+    const ouvert = !champs.hidden;
+    if (ouvert) { reinitialiserRetroactivite(); return; }
+    champs.hidden = false;
+    geste.setAttribute('aria-expanded', 'true');
+    document.getElementById('planningRetroDate').focus();
+  });
+
+  document.getElementById('planningRetroAnnuler').addEventListener('click', reinitialiserRetroactivite);
+
+  document.getElementById('planningRetroDate').addEventListener('change', (ev) => {
+    basculeRetroDate = String(ev.target.value || '').slice(0, 10);
+    fermerRecapBascule();
+    rendreAnnonceEffet();
+  });
 
   // Les refus de la base sont affiches tels qu'elle les formule. Elle est la
   // seule a savoir quel jour il est dans la station et ce que l'historique
@@ -1351,17 +1586,84 @@
     return "Erreur d'enregistrement \u2014 réessayez.";
   }
 
-  document.getElementById('planningSourceEnregistrer').addEventListener('click', async () => {
+  // Le recapitulatif n'est pas une case a cocher : il renomme l'ancienne et la
+  // nouvelle source, la date d'effet, le caractere retroactif et le motif,
+  // puis attend un second geste. Ce que le manager confirme est ce qu'il a lu.
+  // La source REMPLACEE par une bascule retroactive est celle de la date
+  // d'effet, pas celle d'aujourd'hui : c'est la definition qu'applique la base
+  // en inscrivant `source_precedente`. L'ecran ne la recalcule pas — il la
+  // demande a `source_planning_applicable`, la seule autorite de projection.
+  // L'historique affiche ici est tronque a douze lignes : en deduire la source
+  // d'une date ancienne donnerait une reponse fausse sans le dire.
+  async function sourceApplicableA(dateIso) {
+    const { data, error } = await nexusClient.rpc('source_planning_applicable', {
+      p_site: employee.site_id,
+      p_date: dateIso,
+    });
+    if (error) { console.error('Source applicable:', error); return null; }
+    return data || null;
+  }
+
+  async function afficherRecapBascule(source, motif) {
+    const ancienne = await sourceApplicableA(basculeRetroDate);
+    // Ne jamais nommer une source qu'on n'a pas pu lire : un recapitulatif qui
+    // se trompe d'ancienne source est pire que muet.
+    document.getElementById('pscAncienne').textContent = ancienne
+      ? libelleSource(ancienne)
+      : 'Indisponible \u2014 lecture impossible pour le moment';
+    document.getElementById('pscNouvelle').textContent = libelleSource(source);
+    document.getElementById('pscEffet').textContent = formaterJourMetierLong(basculeRetroDate);
+    document.getElementById('pscRetro').textContent =
+      `R\u00e9troactive \u2014 ant\u00e9rieure au ${formaterJourMetierLong(jourStation)}, jour m\u00e9tier de votre station.`;
+    document.getElementById('pscMotif').textContent = `\u00ab ${motif} \u00bb`;
+    document.getElementById('pscExplication').textContent =
+      'La source qui fait foi change pour les journ\u00e9es \u00e0 partir de cette date, y compris des journ\u00e9es d\u00e9j\u00e0 travaill\u00e9es. '
+      + 'Cela ne publie rien : les affectations doivent avoir \u00e9t\u00e9 r\u00e9ellement import\u00e9es et publi\u00e9es pour devenir consultables. '
+      + 'Le changement reste inscrit dans l\u2019historique.';
+    document.getElementById('planningSourceRecap').hidden = false;
+  }
+
+  async function enregistrerSourcePlanning(confirmee) {
     const btn = document.getElementById('planningSourceEnregistrer');
+    const boutonConfirmer = document.getElementById('pscConfirmer');
     const resultat = document.getElementById('planningSourceResultat');
     const champMotif = document.getElementById('planningSourceMotif');
     const source = document.querySelector('input[name="planningSource"]:checked').value;
     if (source === 'google_sheets' && !configPlanning.id) {
       resultat.className = 'gs-resultat err';
-      resultat.textContent = 'Déclarez d\u2019abord le classeur dans Intégrations › Synchronisation du planning.';
+      resultat.textContent = 'D\u00e9clarez d\u2019abord le classeur dans Int\u00e9grations \u203a Synchronisation du planning.';
+      return;
+    }
+    if (dateEffetFuture()) {
+      fermerRecapBascule();
+      resultat.className = 'gs-resultat err';
+      resultat.textContent = `Date d\u2019effet refus\u00e9e : le ${formaterJourMetier(basculeRetroDate)} est post\u00e9rieur au jour m\u00e9tier de votre station (${formaterJourMetier(jourStation)}). Une source de planning ne se programme pas en avance.`;
+      return;
+    }
+    const retro = estRetroactive();
+    const motif = String(champMotif.value || '').trim();
+    // La base refuse deja une retroactivite sans motif. Le dire ici evite un
+    // aller-retour reseau pour une exigence que cet ecran connait, mais la
+    // regle reste celle de la base : c'est elle qui tranche.
+    if (retro && !motif) {
+      fermerRecapBascule();
+      resultat.className = 'gs-resultat err';
+      resultat.textContent = 'Une date d\u2019effet ant\u00e9rieure exige un motif : dites pourquoi la source change sur des journ\u00e9es d\u00e9j\u00e0 travaill\u00e9es.';
+      champMotif.focus();
+      return;
+    }
+    if (retro && !confirmee) {
+      resultat.className = 'gs-resultat';
+      resultat.textContent = '';
+      // Le recapitulatif interroge la base : sans ce verrou, deux clics
+      // ouvriraient deux fois la meme confirmation.
+      btn.disabled = true;
+      await afficherRecapBascule(source, motif);
+      btn.disabled = false;
       return;
     }
     btn.disabled = true;
+    boutonConfirmer.disabled = true;
     resultat.className = 'gs-resultat loading';
     resultat.textContent = 'Enregistrement\u2026';
     // Declarer la source, c'est DEUX ecritures : le reglage et sa trace. Un
@@ -1370,31 +1672,58 @@
     // refuse la premiere au COMMIT (23514) — c'est exactement ce qui cassait
     // ce bouton. Une seule RPC les porte donc ensemble, et c'est la base qui
     // date la bascule dans le fuseau de la STATION : cet ecran n'a pas de jour
-    // metier fiable a lui.
+    // metier fiable a lui. `p_date_effet` n'est transmise que lorsque le
+    // manager l'a explicitement choisie ; sinon la base prend son propre jour.
     const { data, error } = await nexusClient.rpc('basculer_source_planning', {
       p_site: employee.site_id,
       p_source: source,
       p_motif: champMotif.value,
+      p_date_effet: retro ? basculeRetroDate : null,
     });
     btn.disabled = false;
+    boutonConfirmer.disabled = false;
     if (error) {
       console.error('Sauvegarde source planning:', error);
+      fermerRecapBascule();
       resultat.className = 'gs-resultat err';
       resultat.textContent = messageRefusBascule(error);
       return;
     }
     const compte = data || {};
-    configPlanning.source = compte.source || source;
+    // `source_du_jour` est ce que la base a ecrit dans `station_config` : une
+    // bascule retroactive posee AVANT une bascule plus recente ne change pas
+    // la source d'aujourd'hui. L'ecran affiche ce qui est, pas ce qui a ete
+    // demande.
+    sourceEnBase = compte.source_du_jour || compte.source || source;
+    configPlanning.source = sourceEnBase;
     champMotif.value = '';
+    reinitialiserRetroactivite();
     afficherChoixSourcePlanning();
     resultat.className = 'gs-resultat ok';
     // Ce qui est annonce est ce que la base a repondu, pas ce qui a ete
     // demande : la date d'effet et la source precedente viennent d'elle.
-    resultat.textContent = compte.inchangee
-      ? `✓ ${libelleSource(configPlanning.source)} reste le planning officiel \u2014 changement tracé au ${formaterJourMetier(compte.date_effet)}.`
-      : `✓ ${libelleSource(configPlanning.source)} est le planning officiel \u00e0 partir du ${formaterJourMetier(compte.date_effet)} (auparavant ${libelleSource(compte.source_precedente)}).`;
+    const effetLong = formaterJourMetierLong(compte.date_effet);
+    if (compte.retroactif && compte.source !== sourceEnBase) {
+      resultat.textContent = `\u2713 Bascule r\u00e9troactive enregistr\u00e9e : ${libelleSource(compte.source)} fait foi \u00e0 partir du ${effetLong}.`
+        + ` Le planning officiel d\u2019aujourd\u2019hui reste ${libelleSource(sourceEnBase)} \u2014 un changement post\u00e9rieur existe d\u00e9j\u00e0.`;
+    } else if (compte.retroactif) {
+      resultat.textContent = `\u2713 ${libelleSource(compte.source)} est le planning officiel \u00e0 partir du ${effetLong} (bascule r\u00e9troactive, auparavant ${libelleSource(compte.source_precedente)}).`;
+    } else if (compte.inchangee) {
+      resultat.textContent = `\u2713 ${libelleSource(sourceEnBase)} reste le planning officiel \u2014 changement trac\u00e9 au ${effetLong}.`;
+    } else {
+      resultat.textContent = `\u2713 ${libelleSource(compte.source)} est le planning officiel \u00e0 partir du ${effetLong} (auparavant ${libelleSource(compte.source_precedente)}).`;
+    }
     await chargerHistoriqueBascules();
     rendreHistoriqueBascules();
+  }
+
+  document.getElementById('planningSourceEnregistrer').addEventListener('click', () => enregistrerSourcePlanning(false));
+  document.getElementById('pscConfirmer').addEventListener('click', () => enregistrerSourcePlanning(true));
+  document.getElementById('pscAnnuler').addEventListener('click', () => {
+    fermerRecapBascule();
+    const resultat = document.getElementById('planningSourceResultat');
+    resultat.className = 'gs-resultat';
+    resultat.textContent = 'Bascule r\u00e9troactive abandonn\u00e9e \u2014 rien n\u2019a \u00e9t\u00e9 enregistr\u00e9.';
   });
 
   // --- Synchronisation du planning : enregistrement, puis test ---
