@@ -628,11 +628,19 @@ async function nexusRegulariserServicesObsoletes(manager, obsoletes){
 // chute depuis le 11/09 — « un appareil hors du fuseau de sa station ». Elle
 // est arrivee ; la borne est donc reprise ici.
 //
-// LA REGLE. La date metier suit `station_config.fuseau_horaire` du site, et
-// elle seule. A instant identique, deux appareils quelconques prennent la
-// meme decision pour le meme site. La cloture des services REELLEMENT anciens
-// est conservee telle quelle : elle est simplement adossee au jour de la
+// LA REGLE. La date metier suit le fuseau declare du site, et lui seul. A
+// instant identique, deux appareils quelconques prennent la meme decision
+// pour le meme site. La cloture des services REELLEMENT anciens est
+// conservee telle quelle : elle est simplement adossee au jour de la
 // station et non plus a celui de l'appareil.
+//
+// CE FUSEAU EST `sites.timezone`. Ce paragraphe a nomme
+// `station_config.fuseau_horaire` du 18/09 au 20/09/2026 : c'etait deja faux
+// a l'ecriture, la migration 20260905131500_fuseau_horaire_par_site.sql
+// ayant porte l'autorite sur `sites.timezone` le 05/09. Le code a ete
+// corrige le 19/09 (voir le bloc borne plus bas) ; cette phrase enseignait
+// encore l'inverse. Un commentaire qui survit a la correction qu'il decrit
+// redevient la source du prochain defaut.
 //
 // POURQUOI PAS `NexusStation.dateLocaleStation()` ? Elle fait exactement cela,
 // et elle est plus stricte (elle refuse un fuseau absent au lieu de replier).
@@ -641,10 +649,15 @@ async function nexusRegulariserServicesObsoletes(manager, obsoletes){
 // indisponible precisement la ou elle manque. Meme formule, meme doctrine,
 // deux portees — et c'est `nexus-station.js` qui reste la reference stricte.
 //
-// LE REPLI. `'America/Martinique'`, comme toute la chaine Carburant
-// (`nexus-carburant-donnees.js`). JAMAIS un fuseau metropolitain par defaut
-// pour une station ultramarine : se tromper vers l'Europe AVANCE la journee,
-// donc referme des services encore ouverts — c'est le defaut qu'on corrige.
+// IL N'Y A PAS DE REPLI. Ce paragraphe en decrivait un, ultramarin par
+// defaut, au motif qu'il valait mieux que l'Europe. Il a ete supprime du
+// code le 19/09/2026 : une constante qu'aucune base ne porte est une
+// troisieme source de verite, et l'appelant ne peut pas la distinguer d'une
+// valeur lue. Un fuseau non resolu vaut desormais `null` — dater devient
+// IMPOSSIBLE plutot que FAUX. Le raisonnement d'origine reste vrai pour
+// autant : se tromper vers l'Europe AVANCE la journee et referme des
+// services encore ouverts. C'est la raison de ne rien inventer, pas celle
+// d'inventer mieux.
 // ============================================================================
 // Ces primitives sont bornees pour etre PORTEES telles quelles par les tests
 // et par les harnais, comme l'est la regle d'acces : le jour metier est
