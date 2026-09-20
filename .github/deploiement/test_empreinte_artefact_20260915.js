@@ -494,8 +494,18 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   + 1  `20260919260000_bascule_source_planning_date_effet.sql`
 //   19/09/2026 — lot Source précédente lue à la date d'effet :
 //   + 1  `20260919280000_source_precedente_a_la_date_d_effet.sql`
+//   20/09/2026 — réconciliation du dépôt avec Production (#66) : les deux
+//        migrations ci-dessous étaient DÉJÀ APPLIQUÉES et inscrites au
+//        registre de Production, seul le fichier manquait au dépôt — le
+//        dépôt rejoint la base, il ne la devance pas
+//   + 1  `20260920120000_droits_v_planning_officiel.sql`
+//   + 1  `20260920140000_bascule_source_precedente_et_change_le.sql`
 //   ───
-//    274
+//    276
+//
+//   274 + 2 migrations de réconciliation = 276, et ce 276 est le compte
+//   exact du registre `supabase_migrations.schema_migrations` de Production
+//   au 20/09/2026 : la réconciliation se mesure elle-même.
 //
 //   Deux branches sœurs ont annoncé 268 ce jour-là sans annoncer la même
 //   empreinte : la Régularisation d'une réception passée (#65) mesurait
@@ -509,10 +519,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 274;
-const MIGRATIONS_REELLES_EMPREINTE = 'e6b4fb530e0eda30898cd950b60c5e1f6fb3d16aeb31cac562fbf4d949ad0195';
+const MIGRATIONS_REELLES_NOMBRE = 276;
+const MIGRATIONS_REELLES_EMPREINTE = 'ef440d0a20155e747edd220ccb42e874e1fe9402ee81072c1b4696ca0c1ab56e';
 
-cas('Réel · la provenance des migrations annonce 274 et garde son empreinte', () => {
+cas('Réel · la provenance des migrations annonce 276 et garde son empreinte', () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),
