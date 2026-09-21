@@ -241,8 +241,8 @@
       "consomme_le": "2026-09-20T18:44:13.569Z"
     },
     "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-3.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-4.md",
       "derniere_decision": "decision-3.md",
       "source_decision": "registre",
       "commit_decision": "166a3ff5f9ec00fe6d41a309a52ff40457ad0d52",
