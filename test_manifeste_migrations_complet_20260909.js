@@ -12,10 +12,23 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
+const {
+  empreinte,
+  extraireEmpreinteAttendue,
+  MANIFESTE_HISTORIQUE,
+  ADDENDUM_COURANT,
+} = require('./outils/verifier-manifeste-migrations-complet.js');
 
 const DIR = path.join(__dirname, 'supabase', 'migrations');
 const LOT = path.join(__dirname, 'docs', 'handoff', 'lots', 'NEXUS-PRODUCTION-READINESS-1-20260908');
-const MANIFESTE = fs.readFileSync(path.join(LOT, 'manifeste-migrations-production-1.md'), 'utf8');
+const MANIFESTE = fs.readFileSync(MANIFESTE_HISTORIQUE, 'utf8');
+assert.strictEqual(MANIFESTE_HISTORIQUE, path.join(LOT, 'manifeste-migrations-production-1.md'));
+const ADDENDUM = fs.readFileSync(ADDENDUM_COURANT, 'utf8');
+// Le manifeste historique est clos : toute migration postérieure à sa
+// rédaction est classée par cet addendum append-only, jamais en rouvrant le
+// fichier ci-dessus. Une migration comptera comme classée si l'un OU l'autre
+// la cite (voir `CLASSEMENT` plus bas).
+const CLASSEMENT = MANIFESTE + '\n' + ADDENDUM;
 
 // Dernière migration déjà appliquée en Production, relevée le 08/09/2026 en
 // lecture seule. Tout ce qui vient APRÈS est la promotion.
@@ -33,16 +46,23 @@ t('la promotion n’est pas vide et part du bon endroit', () => {
     'aucune migration antérieure : la borne est fausse dans l’autre sens');
 });
 
-t('CHAQUE migration de la promotion est citée au manifeste', () => {
-  const absentes = promotion.filter(f => !MANIFESTE.includes(f.replace(/\.sql$/, '')));
+t('l’addendum porte l’empreinte exacte du manifeste historique réel — sinon on refuse de conclure', () => {
+  const attendue = extraireEmpreinteAttendue(ADDENDUM);
+  assert.ok(attendue, 'l’addendum ne porte aucune empreinte à vérifier');
+  assert.strictEqual(empreinte(MANIFESTE), attendue,
+    'le manifeste historique a changé depuis que l’addendum a figé son empreinte — refus de conclure sur une base mouvante');
+});
+
+t('CHAQUE migration de la promotion est citée au manifeste historique ou à son addendum', () => {
+  const absentes = promotion.filter(f => !CLASSEMENT.includes(f.replace(/\.sql$/, '')));
   assert.deepStrictEqual(absentes, [],
     `${absentes.length} migration(s) non classée(s) — le manifeste a vieilli :\n  ` + absentes.join('\n  '));
 });
 
-t('le manifeste ne cite aucune migration qui n’existe plus', () => {
+t('le manifeste (historique + addendum) ne cite aucune migration qui n’existe plus', () => {
   // Une entrée orpheline laisse croire qu'un sujet est traité alors que le
   // fichier a été renommé ou supprimé.
-  const citees = [...MANIFESTE.matchAll(/`(20\d{12}_[a-z0-9_]+)`/g)].map(m => m[1]);
+  const citees = [...CLASSEMENT.matchAll(/`(20\d{12}_[a-z0-9_]+)`/g)].map(m => m[1]);
   const fantomes = [...new Set(citees)].filter(v => !migrations.some(f => f.startsWith(v)));
   assert.deepStrictEqual(fantomes, [], 'migrations citées mais absentes : ' + fantomes.join(', '));
 });
@@ -68,7 +88,7 @@ t('une migration qui SE DÉCLARE Test/CI est marquée exclue', () => {
     // En revanche, pas de fenêtre de N caractères : elle attrapait le mot
     // « EXCLUE » des lignes VOISINES, si bien que dé-classer une migration ne
     // faisait pas échouer l'épreuve.
-    const lignes = MANIFESTE.split('\n');
+    const lignes = CLASSEMENT.split('\n');
     const iLigne = lignes.findIndex(l => l.includes(nom));
     assert.ok(iLigne >= 0, `${nom} absente du manifeste`);
     let titre = '';

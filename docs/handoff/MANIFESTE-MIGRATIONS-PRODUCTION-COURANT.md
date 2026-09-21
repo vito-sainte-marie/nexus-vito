@@ -39,16 +39,17 @@ empreinte) :
 manifeste historique : si elle ne concorde plus, le mécanisme refuse de
 conclure plutôt que de certifier sur un fichier qui a changé sous lui.
 
-## Mécanisme de lecture combinée (proposition, non câblée dans ce geste)
+## Mécanisme de lecture combinée (câblé dans le contrôle réel)
 
 `outils/verifier-manifeste-migrations-complet.js` lit le manifeste
 historique **et** ce fichier, et considère une migration classée dès qu'elle
 est citée dans l'un OU l'autre. Ce module est démontré et éprouvé par
-mutation dans `test_manifeste_migrations_append_only_20260921.js`, mais
-**n'est pas câblé** dans `test_manifeste_migrations_complet_20260909.js` par
-ce geste : `decision-4.md` autorise la preuve et la proposition minimale
-uniquement, pas la correction du contrôle existant. Le câblage réel (lire ce
-fichier en plus du manifeste historique) reste une décision à venir.
+mutation dans `test_manifeste_migrations_append_only_20260921.js`, et,
+depuis `decision-5.md` du lot `NEXUS-CONTINUITE-TERRAIN-1-20260920`, **est
+câblé** dans le contrôle réel `test_manifeste_migrations_complet_20260909.js` :
+celui-ci lit désormais ce fichier en plus du manifeste historique, et refuse
+de conclure si l'empreinte figée ci-dessus ne concorde plus avec le manifeste
+historique réel.
 
 ---
 

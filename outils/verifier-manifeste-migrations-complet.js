@@ -6,10 +6,9 @@
 // Ce module démontre le mécanisme demandé par `decision-4.md` §2 (lot
 // NEXUS-CONTINUITE-TERRAIN-1-20260920) : permettre à des migrations
 // postérieures à la borne du manifeste historique d'être classées SANS
-// rouvrir ce manifeste. Il n'est PAS câblé dans
-// `test_manifeste_migrations_complet_20260909.js` par ce geste — c'est une
-// preuve et une proposition, pas une correction appliquée (périmètre exact
-// de la décision).
+// rouvrir ce manifeste. Depuis `decision-5.md` du même lot, il est câblé
+// dans `test_manifeste_migrations_complet_20260909.js` — le contrôle réel
+// lit désormais le manifeste historique ET cet addendum.
 //
 // GARDE D'IMMUABILITÉ : le manifeste historique est lu, jamais écrit, et son
 // empreinte SHA256 doit concorder avec celle figée dans l'addendum avant

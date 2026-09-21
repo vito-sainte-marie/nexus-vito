@@ -20,50 +20,43 @@ const {
 let n = 0;
 function t(nom, fn) { fn(); n++; console.log('OK — ' + nom); }
 
-// ── 1. Preuve reproductible sur le vrai fichier divergent ────────────────
-t('la migration réellement divergente est classée DIVERGENCE_DOCUMENTAIRE', () => {
+// ── 1. Preuve reproductible sur le vrai fichier, réaligné par decision-5.md ──
+// `decision-5.md` (lot NEXUS-CONTINUITE-TERRAIN-1-20260920) a autorisé le
+// remplacement du fichier du rail par le contenu octet pour octet de
+// `production` — ces trois épreuves vérifiaient jusqu'ici l'EXISTENCE de la
+// divergence documentaire ; elles vérifient désormais sa DISPARITION, sans
+// perdre la preuve que le comparateur mesure la réalité et non une
+// hypothèse : un git diff vide est une preuve au moins aussi forte qu'un
+// diff non vide correctement classé.
+t('la migration, réalignée sur production, est désormais classée IDENTIQUE', () => {
   const r = comparerMigrationAvecProduction('20260911180600_pointage_exige_service_et_evenement.sql');
-  assert.strictEqual(r.verdict, 'DIVERGENCE_DOCUMENTAIRE');
-  assert.strictEqual(r.seulementCommentaires, true);
+  assert.strictEqual(r.verdict, 'IDENTIQUE');
   assert.strictEqual(r.diffLogique.length, 0);
+  assert.strictEqual(r.octetsProduction, r.octetsRail,
+    'production et le rail devraient désormais avoir exactement le même nombre d’octets');
 });
 
-t('la direction réelle de la divergence est production → rail, pas l’inverse', () => {
-  // `request-4.md` (lot NEXUS-CONTINUITE-TERRAIN-1-20260920) affirmait le
-  // bloc « présent sur le rail et absent de la version réellement appliquée
-  // en Production ». Mesuré ici : c'est l'inverse. `production` (commit
-  // 41538aa, "Rapatrier le trigger ... derrière son code", 16/09/2026) porte
-  // le bloc ; le rail (commit f682ed6, 11/09/2026, jamais modifié depuis) ne
-  // l'a jamais eu. Cette épreuve fixe le fait pour qu'il ne se réinverse pas
-  // en silence.
-  const r = comparerMigrationAvecProduction('20260911180600_pointage_exige_service_et_evenement.sql');
-  assert.ok(r.commentairesUniquementDansA.length > 0,
-    'des lignes de commentaire devraient exister UNIQUEMENT en production (côté A)');
-  assert.strictEqual(r.commentairesUniquementDansB.length, 0,
-    'aucune ligne de commentaire ne devrait exister uniquement sur le rail (côté B)');
-  assert.ok(r.octetsProduction > r.octetsRail,
-    'production devrait être le côté le plus long (il porte le bloc en plus)');
+t('le contenu du rail est un octet pour octet exact de production (SHA256)', () => {
+  const crypto = require('crypto');
+  const { execFileSync } = require('child_process');
+  const fs = require('fs');
+  const path = require('path');
+  const chemin = path.join(__dirname, 'supabase', 'migrations', '20260911180600_pointage_exige_service_et_evenement.sql');
+  const contenuRail = fs.readFileSync(chemin, 'utf8');
+  const contenuProduction = execFileSync('git', [
+    'show', 'origin/production:supabase/migrations/20260911180600_pointage_exige_service_et_evenement.sql',
+  ], { cwd: __dirname }).toString();
+  const empreinte = (s) => crypto.createHash('sha256').update(s).digest('hex');
+  assert.strictEqual(empreinte(contenuRail), empreinte(contenuProduction));
 });
 
-t('la ligne de comparaison directe git (production → rail) confirme le même sens', () => {
+t('la ligne de comparaison directe git (production → rail) ne montre plus aucun hunk', () => {
   const { execFileSync } = require('child_process');
   const diff = execFileSync('git', [
     'diff', 'origin/production:supabase/migrations/20260911180600_pointage_exige_service_et_evenement.sql',
     'supabase/migrations/20260911180600_pointage_exige_service_et_evenement.sql',
   ], { cwd: __dirname }).toString();
-  // Ne classer les lignes qu'APRÈS le premier `@@` : avant lui, `--- a/...`
-  // et `+++ b/...` sont des en-têtes de fichier, pas du contenu — et le
-  // contenu réel commence lui-même par `--` (commentaire SQL), si bien
-  // qu'un filtre sur `l.startsWith('---')` appliqué à tout le texte les
-  // aurait classées à tort comme en-têtes plutôt que comme du contenu retiré.
-  const corps = diff.split('\n');
-  const iPremierHunk = corps.findIndex(l => l.startsWith('@@'));
-  assert.ok(iPremierHunk >= 0, 'la diff devrait contenir au moins un hunk `@@`');
-  const lignesContenu = corps.slice(iPremierHunk + 1);
-  const retirees = lignesContenu.filter(l => l.startsWith('-'));
-  const ajoutees = lignesContenu.filter(l => l.startsWith('+'));
-  assert.ok(retirees.length > 0, 'des lignes devraient être retirées (présentes en production, absentes du rail)');
-  assert.strictEqual(ajoutees.length, 0, 'aucune ligne ne devrait être ajoutée par le rail');
+  assert.strictEqual(diff, '', 'un diff vide est attendu maintenant que le rail est aligné octet pour octet sur production');
 });
 
 // ── 2. Reproductibilité sur contenu synthétique (aucun fichier écrit) ────
