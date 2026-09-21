@@ -54,6 +54,14 @@ Demande : `protocol`, `kind: request`, `lot_id`, `seq`, `author`, `branch`,
 Décision : `protocol`, `kind: decision`, `lot_id`, `seq`, `author`, `branch`,
 `decision`, `closes`, `in_reply_to`.
 
+Optionnel, sur l'une comme sur l'autre : **`wake_to`**, l'adresse où réveiller
+le destinataire du lot. Elle est donnée par l'ordre — Claude la pose en ouvrant
+le lot, l'Orchestrateur peut la reposer dans une décision — et la déclaration
+la plus récente du lot fait foi. C'est délibérément une **adresse libre** et
+non un vocabulaire clos : une URL d'issue aujourd'hui, autre chose demain. La
+règle est qu'aucun outil ne code de destinataire en dur ; changer de canal doit
+rester un fait écrit dans le rail, jamais une modification de code.
+
 ## Vocabulaire clos
 
 | Champ | Valeurs |
@@ -259,6 +267,16 @@ réagit à un commentaire ; il n'en poste aucun. C'est le même mur que
 validée, et rester sans effet tant que personne ne mentionne Claude. Écrire un
 outil qui poste la mention à la place de l'humain reviendrait à simuler le
 réveil que le protocole interdit de simuler.
+
+**Le sens retour a un outil, pas un déclencheur.**
+`outils/reveil-orchestrateur.js` répond à la question symétrique de
+`reveil-handoff.js` : « reste-t-il une demande que personne n'a arbitrée ? ».
+Il lit le registre, dit où la demande se lit réellement — en interrogeant git,
+car le champ `branch` d'une enveloppe est une intention, pas une adresse — et
+compose le corps du réveil à envoyer à `wake_to`. Il n'écrit ni ne publie rien.
+Aucun déclencheur ne l'appelle : le jeton de `tests.yml` ne peut pas écrire de
+commentaire, et `schedule` n'existe que sur `main`. L'outil rend le geste
+humain court et exact ; il ne le remplace pas.
 
 **Le réveil vit sur `main`, pas sur la branche de travail.** C'est le
 fonctionnement normal de `issue_comment` et `issues`, qui ne connaissent que la

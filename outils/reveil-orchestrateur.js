@@ -46,6 +46,13 @@ const { execFileSync } = require('child_process');
 // handoff.js (ARCH-001). Deux lectures divergeraient au premier changement.
 const handoff = require(path.join(__dirname, 'handoff.js'));
 
+const RACINE_GIT = (() => {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'],
+      { cwd: __dirname, encoding: 'utf8' }).trim() || null;
+  } catch (e) { return null; }
+})();
+
 function etatRegistre() {
   const chemin = handoff.CHEMINS.ETAT;
   if (!fs.existsSync(chemin)) return null;
@@ -64,24 +71,82 @@ function etatRegistre() {
 // Un réveil qui envoie l'Orchestrateur sur la branche déclarée lui fait ouvrir
 // un dossier vide et conclure « rien à arbitrer ». On demande donc à git, qui
 // sait, plutôt qu'à l'enveloppe, qui croit.
+//
+// Rien n'est codé en dur ici : ni le nom du remote (toutes les refs locales et
+// distantes sont interrogées), ni le chemin des lots (déduit de CHEMINS.LOTS,
+// et à défaut retrouvé par suffixe). Un dépôt qui renommerait son remote ou
+// déplacerait `docs/handoff` n'aurait pas à modifier ce fichier.
+function git(args, opts) {
+  return execFileSync('git', args, Object.assign({ cwd: RACINE_GIT, encoding: 'utf8' }, opts || {}));
+}
+
+// Chemin de la demande tel que git le connaît, ou null si le registre lu n'est
+// pas celui du dépôt (cas d'un NEXUS_HANDOFF_DIR pointant ailleurs).
+function cheminGit(lot, fichier) {
+  if (!RACINE_GIT) return null;
+  const rel = path.relative(RACINE_GIT, path.join(handoff.CHEMINS.LOTS, lot, fichier));
+  return rel.startsWith('..') || path.isAbsolute(rel) ? null : rel.split(path.sep).join('/');
+}
+
 function refsContenant(lot, fichier) {
-  const cible = `docs/handoff/lots/${lot}/${fichier}`;
+  if (!RACINE_GIT) return null;
+  const direct = cheminGit(lot, fichier);
+  const suffixe = `/lots/${lot}/${fichier}`;
   try {
-    const refs = execFileSync('git', ['for-each-ref', '--format=%(refname:short)',
-      'refs/heads', 'refs/remotes/origin'], { cwd: path.join(__dirname, '..'), encoding: 'utf8' })
+    const refs = git(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'])
       .split('\n').map(x => x.trim()).filter(Boolean);
     const trouvees = [];
     for (const r of refs) {
-      try {
-        execFileSync('git', ['cat-file', '-e', `${r}:${cible}`],
-          { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
-        trouvees.push(r);
-      } catch (e) { /* absente de cette ref : c'est une réponse, pas une panne */ }
+      let present = false;
+      if (direct) {
+        try { git(['cat-file', '-e', `${r}:${direct}`], { stdio: 'ignore' }); present = true; }
+        catch (e) { /* absente de cette ref : c'est une réponse, pas une panne */ }
+      } else {
+        // Registre hors dépôt : on retrouve le fichier par son suffixe plutôt
+        // que de présumer où les lots vivent.
+        try {
+          present = git(['ls-tree', '-r', '--name-only', r]).split('\n')
+            .some(l => l.endsWith(suffixe));
+        } catch (e) { present = false; }
+      }
+      if (present) trouvees.push(r);
     }
     return trouvees;
   } catch (e) {
     return null; // pas de git sous la main : on se taira plutôt que d'inventer
   }
+}
+
+// À qui adresser le réveil.
+//
+// L'adresse n'est PAS dans ce fichier, et c'est le point. Elle est donnée par
+// l'ordre : Claude la pose en ouvrant le lot, ou l'Orchestrateur la (re)pose
+// dans une décision, via le champ d'enveloppe `wake_to`. L'outil prend la plus
+// récente déclaration du lot, demandes et décisions confondues. Changer de
+// canal — autre issue, autre dépôt, autre transport — est alors un fait écrit
+// dans le rail, jamais une modification de code.
+//
+// Si le lot ne dit rien, NEXUS_HANDOFF_WAKE_TO peut router sans toucher aux
+// fichiers. Si personne ne dit rien, l'outil l'annonce et n'invente pas
+// d'adresse : un réveil envoyé au hasard réveille le mauvais agent.
+function adresseReveil(lot) {
+  // echanges(lot) sans genre ne rend que les décisions : on demande les deux
+  // familles, et on les remet dans l'ordre où le rail les produit —
+  // request-1, decision-1, request-2, decision-2… — pour que « la plus
+  // récente déclaration » veuille bien dire ce qu'elle dit.
+  const rang = e => e.seq * 2 + (e.kind === 'decision' ? 1 : 0);
+  const tous = []
+    .concat(handoff.echanges(lot, 'request').map(e => Object.assign({ kind: 'request' }, e)))
+    .concat(handoff.echanges(lot, 'decision').map(e => Object.assign({ kind: 'decision' }, e)))
+    .sort((a, b) => rang(b) - rang(a));
+  for (const e of tous) {
+    const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, e.fichier));
+    const v = env && env.env && env.env.wake_to;
+    if (v && String(v).trim()) return { adresse: String(v).trim(), source: e.fichier };
+  }
+  const env = process.env.NEXUS_HANDOFF_WAKE_TO;
+  if (env && env.trim()) return { adresse: env.trim(), source: 'NEXUS_HANDOFF_WAKE_TO' };
+  return { adresse: null, source: null };
 }
 
 // Une demande appelle l'Orchestrateur quand elle est la dernière du lot et
@@ -106,12 +171,15 @@ function examiner(etat) {
 
     const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, active.fichier));
     const refs = refsContenant(lot, active.fichier);
+    const ou = adresseReveil(lot);
     const declaree = (env && env.env && env.env.branch) || null;
     attentes.push({
       lot,
       demande: active.fichier,
       branche: declaree,
       refs_reelles: refs,
+      adresse: ou.adresse,
+      adresse_source: ou.source,
       // Vrai seulement si git a répondu ET qu'aucune ref portant la branche
       // déclarée ne contient le fichier. `null` (git muet) n'est pas un écart.
       branche_declaree_trompeuse: refs === null ? null
@@ -155,6 +223,10 @@ function corpsReveil(r) {
   return [
     'NEXUS Orchestrator — réveil Handoff (sens Claude → Orchestrateur).',
     '',
+    l.adresse
+      ? `Adressé à: ${l.adresse}  _(déclaré par \`${l.adresse_source}\`)_`
+      : "Adressé à: **non déclaré** — aucun échange du lot ne porte `wake_to`, et NEXUS_HANDOFF_WAKE_TO n'est pas posé. Ce réveil n'a pas de destinataire : il ne doit pas être publié au hasard.",
+    '',
     `LOT_ID: \`${l.lot}\``,
     `Demande en attente: \`${l.demande}\``,
     l.refs_reelles && l.refs_reelles.length
@@ -169,9 +241,11 @@ function corpsReveil(r) {
     'Arbitre cette demande avec le protocole `nexus-handoff/2` et dépose la',
     'décision correspondante dans le même lot.',
     '',
-    'Invariants : aucun changement `main`/`production`, aucune opération',
-    'Supabase Production, aucune promotion Production sans validation explicite',
-    'de Frédéric.',
+    // Pas d'invariants récités ici. Ils appartiennent au lot et à la
+    // gouvernance, pas à l'outil qui transporte le réveil : les recopier en
+    // dur, c'est créer une seconde source de vérité qui vieillira seule.
+    'Les invariants applicables sont ceux du lot et de la gouvernance en',
+    'vigueur. Ce réveil ne les réécrit pas et ne décide rien.',
   ].filter(x => x !== null).join('\n');
 }
 
