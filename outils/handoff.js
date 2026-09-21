@@ -10,8 +10,20 @@ const ETAT = path.join(HANDOFF, 'STATE.json');
 const MIROIR_DEMANDE = path.join(HANDOFF, 'CURRENT.md');
 const MIROIR_DECISION = path.join(HANDOFF, 'DECISION.md');
 const PROTOCOLE = 'nexus-handoff/2';
-const BRANCHE_AUTORISEE = 'config-par-environnement';
+const BRANCHE_HISTORIQUE = 'config-par-environnement';
+const BRANCHE_ACTIVE = process.env.NEXUS_CLAUDE_BASE_BRANCH || process.env.NEXUS_BASE_BRANCH || BRANCHE_HISTORIQUE;
 const REFS_PROTEGEES = ['main', 'production'];
+function brancheRailValide(branch) {
+  return branch === BRANCHE_HISTORIQUE || branch === BRANCHE_ACTIVE;
+}
+function brancheActiveSecurisee() {
+  return !REFS_PROTEGEES.includes(BRANCHE_ACTIVE) &&
+    (BRANCHE_ACTIVE === BRANCHE_HISTORIQUE || /^handoff-[A-Za-z0-9._/-]+$/.test(BRANCHE_ACTIVE));
+}
+if (!brancheActiveSecurisee()) {
+  console.error(`REFUS — rail Handoff actif non autorisé : ${JSON.stringify(BRANCHE_ACTIVE)}`);
+  process.exit(1);
+}
 const DECISIONS_CANONIQUES = ['APPROVED', 'APPROVED_WITH_CONDITIONS', 'BLOCKED', 'NEEDS_EVIDENCE'];
 const DECISIONS_LEGACY = ['APPROVED_CLOSED'];
 const STATUTS_DEMANDE = ['AWAITING_DECISION'];
@@ -57,8 +69,8 @@ function validerCommuns(lot, e, env, genre) {
   if (String(env.seq) !== String(e.seq)) bloquant(`${ou} : seq ${JSON.stringify(env.seq)} ne correspond pas au nom de fichier`);
   if (!env.author) bloquant(`${ou} : author manquant`);
   if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', ou);
-  else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${BRANCHE_AUTORISEE}`, 'BRANCHE_ABSENTE', ou);
-  else if (env.branch !== BRANCHE_AUTORISEE) bloquant(`${ou} : branch doit valoir ${BRANCHE_AUTORISEE}, trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', ou);
+  else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${BRANCHE_ACTIVE}`, 'BRANCHE_ABSENTE', ou);
+  else if (!brancheRailValide(env.branch)) bloquant(`${ou} : branch doit appartenir au rail autorisé (${BRANCHE_HISTORIQUE} ou ${BRANCHE_ACTIVE}), trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', ou);
 }
 function validerPreuves(ou, preuves) {
   if (!preuves) return; if (!Array.isArray(preuves)) { bloquant(`${ou} : preuves doit être une liste`); return; }
@@ -239,7 +251,7 @@ function nouvelleDecision(lot, corpsFichier, options) {
   const auteur = options.auteur || 'NEXUS Orchestrator';
   let env = '---\n';
   env += `protocol: ${PROTOCOLE}\nkind: decision\nlot_id: ${lot}\nseq: ${seq}\n`;
-  env += `author: ${auteur}\nbranch: ${BRANCHE_AUTORISEE}\ndecision: ${verdict}\ncloses: ${options.closes}\n`;
+  env += `author: ${auteur}\nbranch: ${BRANCHE_ACTIVE}\ndecision: ${verdict}\ncloses: ${options.closes}\n`;
   env += `in_reply_to: ${vise}\n---\n`;
   fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   console.log(`${lot}/${fichier} créé (${verdict}, closes=${options.closes}, en réponse à ${vise}).`);
@@ -324,10 +336,10 @@ function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
   const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`); console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.'); process.exit(1); } }
   const dir = path.join(LOTS, lot); fs.mkdirSync(dir, { recursive: true }); const seq = (dernier(echanges(lot, 'request')) || { seq: 0 }).seq + 1, fichier = `request-${seq}.md`, cible = path.join(dir, fichier); if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
-  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${BRANCHE_AUTORISEE}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
+  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${BRANCHE_ACTIVE}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
-function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot] || {}, avant = dernier(echanges(lot, 'decision')); try { git('fetch', '-q', 'origin', BRANCHE_AUTORISEE); } catch (e) {} const apres = dernier(echanges(lot, 'decision')); if (apres && (!avant || apres.seq > avant.seq)) { console.log(`event detected — ${lot}/${apres.fichier}`); return 0; } if (v.statut === 'ATTENTE_DECISION') { console.log(`session unavailable — aucune décision pour ${lot} ; relance humaine (secours v1) requise après extinction.`); return 0; } console.log(`session resumed — ${lot} au statut ${v.statut}`); return 0; }
+function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot] || {}, avant = dernier(echanges(lot, 'decision')); try { git('fetch', '-q', 'origin', BRANCHE_ACTIVE); } catch (e) {} const apres = dernier(echanges(lot, 'decision')); if (apres && (!avant || apres.seq > avant.seq)) { console.log(`event detected — ${lot}/${apres.fichier}`); return 0; } if (v.statut === 'ATTENTE_DECISION') { console.log(`session unavailable — aucune décision pour ${lot} ; relance humaine (secours v1) requise après extinction.`); return 0; } console.log(`session resumed — ${lot} au statut ${v.statut}`); return 0; }
 // Lecture du registre exposée aux autres outils (ARCH-001 : une vérité métier,
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
