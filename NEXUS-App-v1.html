@@ -1318,6 +1318,12 @@
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<!-- nexus-verify-moteur.js (20/09/2026, P0-3, lot NEXUS-CONTINUITE-TERRAIN-1) :
+     chargerControlesVerifyRestants (nexus-conseiller-donnees.js) délègue
+     désormais à NexusVerifyMoteur.statutValidationQuart, la MÊME
+     classification que NEXUS Verify (Article 11) — jamais un second calcul
+     de validation. Aucune autre fonction de ce fichier n'est appelée ici. -->
+<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
 <!-- nexus-brief-donnees.js (23/08/2026, v2.224, correctif "règle anti-
      divergence") : nécessaire pour que chargerStatutCarburantsHome
@@ -1781,7 +1787,7 @@
       NexusAppDonnees.calculerCandidatsHome(nexusClient, SITE_HOME),
       NexusAppDonnees.chargerValideesHome(nexusClient, SITE_HOME),
       NexusAppDonnees.chargerDomainesRadarHome(nexusClient),
-      NexusConseillerDonnees.chargerControlesVerifyRestants(nexusClient, SITE_HOME),
+      NexusConseillerDonnees.chargerControlesVerifyRestants(nexusClient, SITE_HOME, FUSEAU_STATION),
       NexusAppDonnees.chargerMargePlusHome(nexusClient, SITE_HOME),
       NexusConseillerDonnees.chargerConstatTempo(nexusClient, SITE_HOME),
       NexusConseillerDonnees.chargerMessagesAdvisor(nexusClient, SITE_HOME),
