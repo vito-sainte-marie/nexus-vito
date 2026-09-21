@@ -1,0 +1,424 @@
+sha	surfaces	date	sujet
+95cc92a4ffc0	APP+AUT+DOC+OUT+MIG+TEST	2026-09-04	sécurité: fermer les deux fuites anonymes et rendre la recette reconnaissable
+f3526ada0f06	APP+TEST	2026-09-04	fix(bandeau): une hauteur mesurée trop tôt figeait 306 px de vide
+3efbf1cd6a44	AUT+APP+OUT+TEST	2026-09-04	config: extraire la configuration Supabase vers l'environnement de build
+adb1f45d6af0	DOC	2026-09-04	recette: consolider le bilan de la passe navigateur (documentation seule)
+bb49f693e1b4	DOC	2026-09-04	recette: consigner l'état du déploiement et la régression du bandeau
+58e394b9b6f8	DOC+APP+OUT+TEST	2026-09-04	fix(navigation): identifier une page indépendamment de l'hébergeur (A8)
+9002d23e83c3	DOC+APP+TEST	2026-09-04	fix(journal): une absence de données n'est pas une erreur (A4)
+a9c52fcecd9d	DOC+OUT+MIG+TEST	2026-09-04	sécurité: une ligne, un site — supprimer la double identité de rattachement (A2)
+f3ee8d31239d	MIG	2026-09-04	migrations: aligner le numéro et le texte de la migration A2 sur la base
+237f378578ec	OUT	2026-09-04	outil: la réinitialisation vérifie la convention de connexion (A1)
+4b3f3de31a4f	APP+DOC+MIG+TEST	2026-09-05	2B-SECURITY-WRITE-GUARD — une écriture ne peut plus choisir son site
+1df1f3e636fc	APP+DOC+OUT+MIG+TEST	2026-09-05	A3-1 + A3-3 — le site et le fuseau ne sont plus devinés
+98a6e8d115be	APP+DOC+OUT+TEST	2026-09-05	fix(rôle): séparer identité administrative, poste du jour et permissions (A11)
+0be1bd526535	APP+DOC+TEST	2026-09-05	A3 / C2 — un quart ne se devine plus : heure de la station, seuil configuré
+270a1a927450	APP+DOC+TEST	2026-09-05	A4-bis — distinguer absence normale, incohérence métier et panne technique
+57f43c3ea32f	APP+DOC+TEST	2026-09-05	Verify — le quart proposé vient du contrat C2, plus du premier <option>
+cf3e66d5e40c	APP+DOC+TEST	2026-09-05	A3-6 — trente pieds de page signés du nom d'un autre commerce
+dd4d0f30ab14	APP+DOC+TEST	2026-09-05	A3 / C1 client — le fuseau devient un contexte explicite de bout en bout
+3b795ff80c94	APP+MIG+TEST	2026-09-05	S-5 — un comptage d'inventaire est rattaché au service réellement actif
+04dbcd461f37	APP+OUT+TEST	2026-09-05	build: une seule génération, sans échappatoire (A14, intégré à A6)
+0af560d2d229	APP+TEST	2026-09-05	build: la chaîne de versionnement parallèle dépassait nexus-auth.js (A14, suite)
+33f011be5a8b	APP+TEST	2026-09-05	A3 / C3 — une capacité de cuve est une donnée du site, pas une valeur devinée
+6b28f2f44c5f	APP+TEST	2026-09-05	A3 / B1 — plus aucune identité client ne retombe sur Sainte-Marie
+835a85db4c51	APP+TEST	2026-09-05	C2 — régression de vocabulaire : Inventaire dit « matin/soir », pas « 1/2 »
+9907039eea80	APP+TEST	2026-09-05	Verify — la règle du quart n'existe plus qu'en un seul exemplaire
+bb56cea9b7d9	APP+TEST	2026-09-05	A3 / C1 client — Brief privait sa propre chaîne du fuseau
+ca9cf9265862	APP+TEST	2026-09-05	S-4 — le service courant a une seule définition
+d1262ded67fd	APP+TEST	2026-09-05	A3 / C2-4 — deux réglages horaires qui ne décidaient plus rien
+c75fc9ab675a	AUT	2026-09-05	docs: add Claude handoff instructions
+bd5bd60f768e	CI+AUT+DOC+APP+OUT+TEST	2026-09-05	build: rendre impossible la publication d'une version non identifiable (A6)
+da65d0030fe4	CI+DOC+MIG+TEST	2026-09-05	migrations: restaurer l'identité de production et la rendre immuable (A12)
+3effc2768ed5	CI+DOC+OUT+TEST	2026-09-05	STATIC-SITE-GUARD — ADR-0001 devient un invariant, et il trouve trois occurrences
+d4925f0c6be4	CI+DOC+OUT+TEST	2026-09-05	Handoff v2 — le protocole ne repose plus sur la discipline de ses acteurs
+046f10a92da3	DOC	2026-09-05	handoff: arbitrate static site guard
+04b7e71ec823	DOC	2026-09-05	docs: arbitrage S-4 lecteurs service courant
+0e0eb3fffed9	DOC	2026-09-05	Handoff S-5 — implémenté et déployé, deux preuves en attente de session réelle
+129b153eb594	DOC	2026-09-05	handoff: arbitrate RLS matrix proof
+130bab57f3e3	DOC	2026-09-05	handoff: arbitrate mutation site guard
+1840dbcd28cc	DOC	2026-09-05	handoff: fermeture bloqueur 1 apres rejeu correctif
+1f27e39d16cf	DOC	2026-09-05	Demande MUTATION-SITE-GUARD — deux anomalies fermées, deux INSERT signalés
+204116968afa	DOC	2026-09-05	B1 — rejeu correctif réussi, demande de fermeture du bloqueur 1
+2628bc44c79e	DOC	2026-09-05	Recette transversale finale — 05/09/2026
+2aa463f2f3f8	DOC	2026-09-05	handoff: arbitrage B1 rejeu navigateur
+3370b36700f4	DOC	2026-09-05	handoff: close S-4 and defer RLS replay to blocker closure
+46ea76ae0ca2	DOC	2026-09-05	Demande Verify — quart proposé automatiquement, rejeu réel concluant
+53bc3f308a2c	DOC	2026-09-05	Handoff S-4 — implémenté, déployé, 9 preuves sur 10 produites
+55961267ffa0	DOC	2026-09-05	Rejeu bloqueur 1 — fiche de rejeu et état de départ constaté
+65083a12037e	DOC	2026-09-05	Demande NEXUS BASELINE 1 — proposition de gel, en attente d'arbitrage
+65f95d02305d	DOC	2026-09-05	Demande NEXUS BASELINE 1 (request-2) — registre complet, A15 et A16 clarifiées
+6627f3cdb6cb	DOC	2026-09-05	RLS-UPDATE-MATRIX-PROOF — deux anomalies découvertes, non corrigées
+67ecdcea3371	DOC	2026-09-05	Handoff S-5 — diagnostic du rattachement shift_id, en attente d'arbitrage
+72a632a5ccfe	DOC	2026-09-05	handoff: close S-5 pending blocker-1 browser replay
+75b1c32e39d3	DOC	2026-09-05	handoff: arbitrate SITE-EXPLICITE-1 phase 1
+786ee194d4d9	DOC	2026-09-05	Baseline 1 — matrice finale de recette et proposition de gel
+7ca2346d9eec	DOC	2026-09-05	Baseline 1 — registre complet des dettes, A15 et A16 clarifiées
+7e32842d5dcf	DOC	2026-09-05	Rejeu bloqueur 1 — S-3 ne fonctionne pas depuis l'application
+85e53e9552cf	DOC	2026-09-05	RLS-MATRIX-PROOF — 0 anomalie sur 54 tables, aucune policy modifiée
+87719fed0a90	DOC	2026-09-05	Demande STATIC-SITE-GUARD — trois occurrences trouvées, aucune corrigée
+8dcd1d792101	DOC	2026-09-05	A4-bis — clôture : rejeu des six écrans sur le déploiement réel
+8ef548e62772	DOC	2026-09-05	handoff: request evidence before NEXUS Baseline 1 freeze
+8f9cd7b48a5c	DOC	2026-09-05	docs: add current handoff template
+92a2926a8fa5	DOC	2026-09-05	recette: A6 et A14 fermés sur preuves de déploiement réel
+996cd62f4463	DOC	2026-09-05	handoff: approve security write guard and next proof stage
+9a2ed8f88e33	DOC	2026-09-05	handoff: arbitrate SITE-EXPLICITE Phase 2A
+9d64bae45c12	DOC	2026-09-05	handoff: approve and freeze NEXUS Baseline 1
+9f4188e949e5	DOC	2026-09-05	recette: consigner A14 et sa portée réelle (documentation seule)
+a425dd88aaf6	DOC	2026-09-05	Handoff S-4 — diagnostic des lecteurs du service courant, en attente d'arbitrage
+a6dc3afd88df	DOC	2026-09-05	handoff: arbitrate RLS update matrix proof
+a8bc6017b0e9	DOC	2026-09-05	A16 — 17 tables avec RLS active et aucune politique (documentaire)
+aa224f8723b4	DOC	2026-09-05	Demande INSERT-SITE-GUARD — six occurrences fermées, ADR-0001 acceptée
+ab8b9b79034d	DOC	2026-09-05	handoff: arbitre S-5 shift_id inventaire
+b16469c7a3c8	DOC	2026-09-05	docs: add NEXUS handoff protocol v1
+b49f3d82df61	DOC	2026-09-05	Demande 2B-SECURITY-WRITE-GUARD — exécuté, retour avant extension
+b8849ec021d0	DOC	2026-09-05	SITE-EXPLICITE-1 phase 1 — cartographie et preuves, aucune correction
+c0fb0df55b31	DOC	2026-09-05	handoff: approve and close Verify automatic quarter blocker
+c2b28c3a4fc3	DOC	2026-09-05	Rejeu bloqueur 1 — ordre littéral de la décision S-5 retenu
+c6469a51557c	DOC	2026-09-05	Demande B1 — rejeu exécuté, bloqueur 1 non fermable
+c85eb0443ff9	DOC	2026-09-05	handoff: arbitrate Handoff v2 architecture
+cb2a302ad505	DOC	2026-09-05	docs: add handoff decision template
+d4195e396e1b	DOC	2026-09-05	handoff: approve insert site guard and static guard next
+db2ffc4fd01a	DOC	2026-09-05	handoff: approve NEXUS Governance Core v1
+db50d4036cfc	DOC	2026-09-05	Handoff v2 — conception du protocole événementiel, en attente d'arbitrage
+e76713f483c7	DOC	2026-09-05	handoff: arbitre v2 et ferme le lot
+f6b6053e87df	DOC	2026-09-05	Governance Core 1 — constitution, en attente d'arbitrage
+16db38b740bd	DOC+APP+MIG	2026-09-05	A16 + A15 — le client n'appelle plus l'interdit, le référentiel devient reproductible
+053d7d8ad434	DOC+MIG	2026-09-05	S-3 — la prise de poste suivante clôture le service précédent
+8ed96b8bf3e3	DOC+MIG	2026-09-05	S-1 — reprise des services ouverts, puis unicité du service en cours
+3ef66464ace4	DOC+MIG+TEST	2026-09-05	MUTATION-SITE-GUARD — les deux anomalies de mutation sont fermées
+ba639134f42a	DOC+MIG+TEST	2026-09-05	INSERT-SITE-GUARD — créer n'est plus plus permissif qu'administrer
+bd30c7aa849d	DOC+MIG+TEST	2026-09-05	B1 — la prise de poste devient un contrat unique et déterministe
+0a11c5af3aeb	DOC+OUT+TEST	2026-09-05	SITE-EXPLICITE-1 phase 2A — harnais de preuve, aucune correction
+9c8dffeb0072	DOC+OUT+TEST	2026-09-05	SITE-EXPLICITE-1 phase 2A — demande déposée, et impasse du registre corrigée
+a8a55096d5ed	DOC+OUT+TEST	2026-09-05	Handoff v2 — une branche absente n'est pas une branche protégée
+f50a518992af	DOC+OUT+TEST	2026-09-05	Handoff v2 — la fraîcheur d'une décision se contrôle à la consommation
+f5c776d8cf21	DOC+OUT+TEST	2026-09-05	Handoff v2 — dérogations auditables, consommation gardée, in_reply_to normalisé
+ee34d9855fe7	MIG	2026-09-05	S-2 — un pointage de départ clôture le service actif
+2036a979bcac		2026-09-06	handoff: preserve awaiting consumption state
+a6b9f98e9d7c	APP+TEST	2026-09-06	fix(carburants): distinguer jour commandable de jour de livraison (decision-2.md)
+008bab4c6f2c	DOC	2026-09-06	handoff: record pompiste timezone guard proof
+0852208cb3f5	DOC	2026-09-06	handoff: ouvrir lot Live Control Center NEXUS
+09dddf311237	DOC	2026-09-06	docs(learning): seed append-only orchestrator experience log
+18a89d598c35	DOC	2026-09-06	handoff: authorize minimal carburants command correction
+191caf25ff91	DOC	2026-09-06	Demande CARB-004 — les quatre points exécutés dans l'ordre
+1f9a9175acba	DOC	2026-09-06	handoff: consommer decision-3.md et déposer request-3.md — validation Carburants Test
+219d1366717a	DOC	2026-09-06	docs(handoff): streamline reprise for autonomous test loop
+27de2626f6a0	DOC	2026-09-06	Demande UNKNOWN-TRIAGE — 27 vers 3, constat créateur remonté sans correction
+33e53b528b7d	DOC	2026-09-06	handoff: ouvrir orchestrator event-driven et guardian philosophie
+357302d5a87c	DOC	2026-09-06	docs(adr): adopt autonomous orchestrator and backend guardians
+3d9ada25c286	DOC	2026-09-06	governance: record creator ownership and client data doctrine
+41d856fca578	DOC	2026-09-06	docs: create canonical NEXUS backlog
+452eef8b8f14	DOC	2026-09-06	handoff: decision-4 carburants optimisation camion
+4d518ce06033	DOC	2026-09-06	docs(learning): record graceful degradation lesson from Claude control-plane
+4d75764e1bb2	DOC	2026-09-06	Demande STATIC-GUARD-FINDINGS — trois occurrences fermées, garde à zéro
+53a9b21ab8a2	DOC	2026-09-06	docs: define deterministic NEXUS restart procedure
+542c20c45340	DOC	2026-09-06	handoff: approve creator site guard and require behavioral helper proof
+542ffb66c886	DOC	2026-09-06	docs: establish NEXUS product bible
+554597d23fdb	DOC	2026-09-06	docs(bible): codify autonomous execution and progressive learning
+5843d8cbb700	DOC	2026-09-06	handoff: activer guardian architecture et coherence
+5e7512f66544	DOC	2026-09-06	handoff: enregistrer décision calendrier carburant
+5eadf737833d	DOC	2026-09-06	docs(adr): define narrow human-gated control-plane exception on main
+61c24b2beeba	DOC	2026-09-06	handoff: consommer decision-2.md du lot Carburants Performance Correction
+63ea7585cf14	DOC	2026-09-06	handoff: mark calendar decision ready for consumption
+68b70637bc23	DOC	2026-09-06	audit: diagnose carburants performance command anomaly
+693570bfccd4	DOC	2026-09-06	docs(handoff): authorize NEXUS Live Test implementation
+6bf0c2e5329c	DOC	2026-09-06	handoff: reserver Live Control Center au Createur NEXUS
+6c60e62a094d	DOC	2026-09-06	docs(learning): initialize compact operational rules registry
+6c81f912a4f7	DOC	2026-09-06	docs: séparer Créateur et Manager pour NEXUS Live Développement
+73bed674ae3b	DOC	2026-09-06	handoff: arbitrate static guard findings
+74eb1f66ee0f	DOC	2026-09-06	handoff: approve carburants performance audit findings
+7599c92866a2	DOC	2026-09-06	handoff: déposer request-2.md — retour d'implémentation Carburants Performance
+7ab7177e81fa	DOC	2026-09-06	handoff: enregistrer decision CARB-004
+7b576f34898c	DOC	2026-09-06	handoff: activate carburants command correction
+7b8d37b9e589	DOC	2026-09-06	docs(governance): establish autonomous orchestrator and backend guardians v2
+82117349ec58	DOC	2026-09-06	handoff: préciser calendrier métier commandes carburant
+847a7b5aaeed	DOC	2026-09-06	docs(continuity): align roles with autonomous governance v2
+9ac7d1265854	DOC	2026-09-06	docs: concevoir MVP NEXUS Live Developpement createur
+a10c0cc879ee	DOC	2026-09-06	Demande NAMED-HELPERS-BEHAVIOR-PROOF — activation bloquante non préparée
+a9431d5c544d	DOC	2026-09-06	governance: inscrire coherence architecture et permanence des decisions
+ad1d3fdef91a	DOC	2026-09-06	docs: establish NEXUS continuity contract
+af005b2bc2ea	DOC	2026-09-06	backlog: capture field findings carburants and FDJ
+b101fb29200a	DOC	2026-09-06	handoff: autoriser validation fonctionnelle Carburants en Test
+c0860191873b	DOC	2026-09-06	NAMED-HELPERS-BEHAVIOR-PROOF — une aide conforme, une aide défaillante
+c397f003bcf4	DOC	2026-09-06	handoff: consume carburants audit decision
+c8a2c128ab70	DOC	2026-09-06	handoff: approve pompiste timezone guard closure
+c9a560b7ea45	DOC	2026-09-06	handoff: enregistrer decision-4 carburants
+cacce4103d67	DOC	2026-09-06	handoff: activate carburants performance audit
+ddd18bc8a89f	DOC	2026-09-06	handoff: arbitrer CARB-004 optimisation camion
+e16f478c3a36	DOC	2026-09-06	docs(learning): document low-cost nexus memory architecture
+e1cf00fb0978	DOC	2026-09-06	docs(learning): encode control-plane and degraded capability rules
+e2ebb034fdb0	DOC	2026-09-06	handoff: open carburants performance audit lot
+ebed352b2a9e	DOC	2026-09-06	handoff: close pompiste timezone guard canonically
+f9eb3e6976cc	DOC	2026-09-06	handoff: open carburants command correction lot
+fb572700f446	DOC	2026-09-06	handoff: require station-time fix and downgrade defective helper
+fc2534169eb5	DOC	2026-09-06	handoff: arbitrate unknown triage and preserve Nexus Connector boundary
+fe559162c850	DOC	2026-09-06	Demande CREATEUR-SITES-GUARD — garde à zéro question, doctrine intégrée
+693572b382d6	DOC+APP+TEST	2026-09-06	CARB-004 — le plafond à 35 000 L n'était pas une garde métier, c'était l'arrondi
+492586cf753d	DOC+MIG+TEST	2026-09-06	STATIC-GUARD-FINDINGS — les trois occurrences trouvées par la garde sont fermées
+89ad9fd47a9b	DOC+OUT+MIG+TEST	2026-09-06	security: finalize pompiste station-day guard proof
+c469e47f44a9	DOC+OUT+MIG+TEST	2026-09-06	CREATEUR-SITES-GUARD — la protection incidente devient explicite, doctrine intégrée
+13acca92c11f	DOC+OUT+TEST	2026-09-06	handoff: reconnaître la supersession structurée et les artefacts hors registre
+c1dbc49646a5	DOC+OUT+TEST	2026-09-06	fix(handoff): valider in_reply_to par relation, jamais par rang numérique
+c95e5f25f082	DOC+OUT+TEST	2026-09-06	UNKNOWN-TRIAGE — 27 questions ouvertes ramenées à 3, et un constat de sécurité
+33251710e7f1	MIG	2026-09-06	migrations: réconcilier le dépôt et Test — plus aucune dérive dans les deux sens
+bed222c1243e	OUT	2026-09-06	handoff: accept legitimate protected-ref fast-forwards
+ece1fb49058a	OUT	2026-09-06	test: preserve protected-ref validation contract
+4cda56e4feab	OUT+TEST	2026-09-06	handoff: reconnaître ATTENTE_CONSOMMATION_DECISION dans le vocabulaire des statuts
+f9cbda6fb16d	APP+DOC+TEST+MIG	2026-09-07	Live: réintégrer le MVP NEXUS Live Développement sur la branche canonique
+cc572f6258e5	APP+TEST	2026-09-07	CARB-004/Q65 — transport du delta prouvé sur la branche canonique
+f16ca7f669e6	AUT+DOC+OUT+TEST	2026-09-07	apprentissage: promouvoir les leçons du 07/09 et servir la mémoire aux agents
+b268e58ba67c	AUT+OUT+TEST	2026-09-07	gouvernance: appliquer les pré-autorisations, et le Guardian Business Rules
+8c71ed2593f9	CI+AUT+DOC+MIG	2026-09-07	rls: lecture de sites pour le rôle CI, et Q76 en vigueur
+1f522c3eb390	CI+DOC	2026-09-07	ci: une base injoignable n'est pas une base qui refuse
+add949934070	CI+DOC+MIG	2026-09-07	rls: ouvrir au rôle CI le seul site de recette, et prouver qu'il s'arrête là
+5a6a587cd212	CI+DOC+OUT+TEST	2026-09-07	recette: finir le PIN par profil côté CI, et cesser de réclamer un geste fait
+b3efd6e479ee	CI+DOC+OUT+TEST	2026-09-07	orchestration: réveil automatique, recette navigateur, semis Test
+f78c48bb513b	CI+DOC+OUT+TEST	2026-09-07	garde: une branche de travail ne peut plus attendre en silence
+fae08b37d948	CI+OUT	2026-09-07	semis: tenir la promesse d'idempotence que l'en-tête faisait déjà
+39bd97869cdf	CI+OUT+TEST	2026-09-07	ci: garde ENV-001 — surveiller que le rail reste raciné sur le canon
+540def791007	CI+OUT+TEST	2026-09-07	Live: brancher l'écran, et prouver que le Créateur ENTRE
+70589682b821	CI+OUT+TEST	2026-09-07	recette: le login résout sur le NOM, pas sur le username
+b3dd1f677684	CI+OUT+TEST	2026-09-07	Guardian Bible — « jamais un chiffre inventé », et les trois gardes câblés
+debd46c1a01c	CI+OUT+TEST	2026-09-07	ORCH-002 : Guardians backend intégrés au canon, après calibration
+08bf3bfa28e7	DOC	2026-09-07	handoff: point active CARB-004 lot to decision-2
+12d32e4f7cdd	DOC	2026-09-07	handoff: arbitrate orchestration autonomie request-2
+16d6203c9a11	DOC	2026-09-07	handoff: ouvrir NEXUS-ORCHESTRATION-AUTONOMIE-1, le lot que decision-4 appelle
+193b375e00fb	DOC	2026-09-07	governance: audit Claude isolated branches before reconciliation
+329ae1c928f6	DOC	2026-09-07	handoff: open orchestration repair lot
+587ecd785f5e	DOC	2026-09-07	handoff: classify CARB-004 rail write blocker after request-3
+5a6ff4adf1de	DOC	2026-09-07	backlog: capture Carburants negative-stock capacity debt
+5fcd8d6303ed	DOC	2026-09-07	backlog: materialize orchestration follow-up lots
+648a9294054f	DOC	2026-09-07	handoff: request-2 — la recette est verte, Q71 répondue par la mesure
+6e9d271ac241	DOC	2026-09-07	handoff: publier le lot Guardians pour arbitrage
+7c3de2511174	DOC	2026-09-07	handoff: déposer request-4 en attente plutôt que contourner la garde
+83f39a8dd362	DOC	2026-09-07	handoff: approve orchestration repair in Test only
+85134af80932	DOC	2026-09-07	handoff: approve CARB-004 canonical reintegration and Test proof
+89556ef9c655	DOC	2026-09-07	backlog: la preuve d'accès POSITIVE à NEXUS Live est obtenue
+9169495ab01c	DOC	2026-09-07	handoff: canonicalise Claude CARB-004 request-2
+92c188f67131	DOC	2026-09-07	handoff: request-2 — trois Guardians, la mémoire servie, gouvernance déclarée
+96c0a698a5cc	DOC	2026-09-07	handoff: arbitrate Carburants request-4
+a2e31cfd3a21	DOC	2026-09-07	handoff: materialize Claude orchestration repair return
+c08d8154831b	DOC	2026-09-07	backlog: le pooler fonctionne ; c'est la RLS qui refuse le rôle CI
+c58c4aed855a	DOC	2026-09-07	handoff: define one controlled retry after failed Claude wake
+c718b158e073	DOC	2026-09-07	handoff: preserve Claude request-3 for CARB-004
+f6d5133c59d9	DOC	2026-09-07	governance: add controlled retry rule for failed Claude wake
+ff6a2d9361a4	DOC	2026-09-07	handoff: arbitrate and close incomplete orchestration repair 1
+215c15585b00	DOC+OUT	2026-09-07	sécurité: protéger production, et rendre les deux gestes humains impossibles à oublier
+74b364c8c080	DOC+OUT	2026-09-07	handoff: consommer decision-1, et dire que le réveil n'a pas de déclencheur
+99a309b5de67	DOC+OUT	2026-09-07	recette: preuve UI CARB-004 sur NEXUS Test, et le jeu de données qui la rend possible
+39d6b4d64e58	DOC+OUT+TEST	2026-09-07	handoff: remettre le registre d'aplomb après le passage par le rail cassé
+6bd2edd89b7d	DOC+OUT+TEST	2026-09-07	recette: un compte inconnectable n'est pas un accès refusé
+f1c96cae5814	DOC+OUT+TEST	2026-09-07	handoff: outiller le dépôt des décisions, fermer REPAIR-1, publier request-4
+8716e32897aa	OUT	2026-09-07	recette: attendre la sortie de l'écran de login, au lieu de courir contre lui
+23d18d13b6c1	OUT+TEST	2026-09-07	Live: le producteur d'événements — la source qui manquait
+7cc749be1829	OUT+TEST	2026-09-07	Guardian QA — détecter les épreuves qui ne peuvent pas échouer
+a0f1816ce9c7	OUT+TEST	2026-09-07	Live: le moteur d'état du bloc « Déploiements »
+a8f033ee31fa	OUT+TEST	2026-09-07	recette: la preuve Live gagnait une course, elle ne la gagne plus
+aa1f81296f5b	OUT+TEST	2026-09-07	recette: juger le refus sur son CODE, pas sur sa prose
+d81e36cc96a7	OUT+TEST	2026-09-07	recette: un écart sur données non semées n'accuse pas le moteur
+ccbe1fda0ec3	APP+DOC+OUT+TEST	2026-09-08	recette: sept jours à une seule heure, c'était la moitié du domaine
+cd5ad6476a45	APP+DOC+OUT+TEST	2026-09-08	Live: le bouton « J'autorise », et trois défauts trouvés en l'écrivant
+1f60f21ea111	APP+DOC+TEST	2026-09-08	CARB-007: l'écran Rappels cesse d'inventer les capacités de la station
+4ea252c279c7	APP+DOC+TEST	2026-09-08	EVAL-001: un salarié ne lira plus une note qu'il n'a jamais reçue
+61e20b7906d5	APP+DOC+TEST	2026-09-08	CARB-007: retirer le simulateur carburant de l'écran Rappels
+a299db402057	APP+DOC+TEST	2026-09-08	DEBUG-001: une absence de contrôle ne se peindra plus en vert
+3dc1054afac9	APP+OUT+MIG+TEST	2026-09-08	LIVE-001 : la base refusait l'autorisation que l'écran affichait
+66e6cb2f387f	APP+OUT+TEST	2026-09-08	Gates: répondre n'est pas résoudre
+95babba946de	APP+OUT+TEST	2026-09-08	Live: combler l'angle mort entre le déclenchement Claude et le Handoff
+1aad291fbe1e	APP+TEST	2026-09-08	Live: un verdict en haut, calculé — et « SYSTÈME AUTONOME » cesse de mentir
+6139dac7ae78	APP+TEST	2026-09-08	Live: dire ce que fait l'équipe, pas le nom de l'agent
+724b17aa64bd	APP+TEST	2026-09-08	nav: NEXUS Live devient atteignable, et la navigation cesse de pouvoir mentir
+7a7d2ed292c9	APP+TEST	2026-09-08	Live: la chaîne devient visible — Demande → … → Production
+80b4d3aea860	APP+TEST	2026-09-08	Live: dire le retard et les sujets, laisser les SHA aux experts
+aefe36edaf8e	APP+TEST	2026-09-08	Live: une timeline qui raconte, au lieu d'un journal qui répète
+a8a552a2f4c1	AUT+DOC+TEST	2026-09-08	Constitution : marquer les articles 12 et 13, sans les réécrire
+290b6dc530f5	CI	2026-09-08	ci: rapporter ce que la base a répondu, pas la cause supposée
+2aa332feffe9	CI	2026-09-08	ci: essai décisif — la même insertion sans la clause `on conflict`
+42d5fc5d7efc	CI	2026-09-08	ci: demander à la base qui elle a en face, au lieu de le déduire
+531e53664fdc	CI	2026-09-08	ci: laisser le rejeu aller jusqu'au bout pour distinguer les deux cas
+26d34ed8b190	CI+APP+DOC+OUT+TEST	2026-09-08	Live: le bloc « Déploiements », l'âge du journal, et une publication
+0f1b7b0af192	CI+APP+DOC+TEST	2026-09-08	LANG-004 : les agents portent leur nom devant l'utilisateur
+e78e4cf99c72	CI+APP+DOC+TEST	2026-09-08	ARCH-003 : l'audit rapatrié, et un écart de 3 € cesse d'être vert
+b3638e6340de	CI+APP+OUT+TEST	2026-09-08	Barrière Production : ne pas savoir n'est ni une faute ni une conformité
+e99d13d33eba	CI+APP+TEST	2026-09-08	Suite en parallèle : 60 s -> 25 s, avec la preuve que le verdict ne change pas
+21049cdaaf7a	CI+DOC	2026-09-08	ci: déclarer que la dérive de l'instantané n'est pas vérifiable, au lieu de rougir
+2cbeaa3de49c	CI+DOC	2026-09-08	ci: `-e` tuait le step avant tout message — et rendait muettes les issues nommées
+8f36430ebd97	CI+DOC	2026-09-08	ci: rejouer ligne par ligne quand le lot est refusé
+e6ea74085e94	CI+DOC	2026-09-08	SEC-018 : la CI peut enfin CONSTATER la dérive de l'instantané
+4dfc883fd7d7	CI+DOC+APP+OUT+TEST	2026-09-08	LANG-003 arbitrée portée 1 : la règle vise ce que NEXUS DIT
+a012a44b04fd	CI+DOC+APP+TEST	2026-09-08	Suite : un seul lancement, un seul propriétaire, un verdict qui peut dire non
+2427a10dff73	CI+DOC+OUT+TEST	2026-09-08	Live: publier sans jamais donner au rôle CI le droit de LIRE le journal
+369ee0fc9caf	CI+DOC+OUT+TEST	2026-09-08	répétition: cesser de découvrir l'environnement un cycle de CI à la fois
+a79a68404aec	CI+DOC+OUT+TEST	2026-09-08	Guardian Philosophie NEXUS : rapatrié, mécanisé sur ce qui n'est pas un jugement
+88048a77f686	CI+DOC+TEST	2026-09-08	Doctrine du langage NEXUS : écrite, et vérifiable
+b9c3bf4015a2	CI+DOC+TEST	2026-09-08	Bible : deux principes écrits, et tenus par du code
+3465f4c58798	CI+TEST	2026-09-08	actions: read, autorisé par Frédéric, et borné par une garde
+0781d44f6c9c	DOC	2026-09-08	handoff: ouvrir le lot de readiness Production
+172b57e1149b	DOC	2026-09-08	handoff: canoniser le request-2 Production Readiness
+27c38e9edf07	DOC	2026-09-08	handoff: matérialiser decision-1.md GUARDIANS-1 (APPROVED_WITH_CONDITIONS, closes:true)
+321b3bfcbc74	DOC	2026-09-08	handoff: autoriser la préparation de promotion Production
+47b4600999e2	DOC	2026-09-08	docs: transmettre cadrage audit philosophie et langage NEXUS
+58ad184e32f6	DOC	2026-09-08	backlog: SEC-020 — il manque le droit de LECTURE pour résoudre le on conflict
+645ef8ea04a9	DOC	2026-09-08	doc: confronter la logique de commande de Frédéric au moteur et à la Bible
+8a89a40b75af	DOC	2026-09-08	backlog: CARB-006 est arbitré, les trois preuves de recette sont satisfaites
+a36be4d7b565	DOC	2026-09-08	readiness: enregistrer les mesures Production en lecture seule
+b032628a9207	DOC	2026-09-08	handoff: audit Philosophie/Bible/vocabulaire/langage, publier request-1
+b0507ec843d8	DOC	2026-09-08	handoff: consommer decision-1 GUARDIANS-1, régénérer les miroirs
+ba1eed0e833c	DOC	2026-09-08	handoff: rattacher la décision au request de readiness
+c68f75c52d38	DOC	2026-09-08	handoff: audit Philosophie/Bible/vocabulaire/langage, publier request-1
+e364b7812f55	DOC	2026-09-08	handoff: autoriser la suite déterministe Production Readiness
+1762378367bc	DOC+APP+TEST	2026-09-08	COACH-001: aucun reproche ne se fabriquera plus à partir d'un trou de donnée
+39b52d502a0e	DOC+APP+TEST	2026-09-08	qa: une épreuve ne doit jamais exiger qu'un défaut EXISTE
+1759cc993910	DOC+OUT+TEST	2026-09-08	etat: dire qu'il ne reste aucun geste, au lieu de se taire
+90276b4221b3	DOC+TEST	2026-09-08	Bible : le renvoi vers la doctrine du langage, et le lot se ferme
+7192ac5ace88	OUT	2026-09-08	Recette: rendre visible la preuve du bouton d'autorisation
+7922f2e95c45	OUT	2026-09-08	recette: reconstruire le scénario Carburants contre la VRAIE station Test
+5cd4a3cf15c3	OUT+TEST	2026-09-08	recette: PIN dédié par profil (Manager/Créateur), fin du secret partagé
+bfd8e7fbe888	OUT+TEST	2026-09-08	ci: isoler la ligne refusée, au lieu de deviner laquelle
+f8835252b89d	OUT+TEST	2026-09-08	SEC: la CI ne signe plus au nom de l'Orchestrator ni de Claude
+3686ccb8f89f	APP+OUT+TEST	2026-09-09	La recette navigateur juge l'invitation, les jours calmes compris
+dee04ba1e31b	APP+OUT+TEST	2026-09-09	Le jeudi à 13 h, c'est le quart 1
+02bf32514c01	APP+TEST	2026-09-09	Le renfort est un quart de plein droit, et le planning décide
+8179de98fc7a	APP+TEST	2026-09-09	Rien ne bloquait le renfort : rien ne l'invitait
+a3812178e8c6	APP+TEST	2026-09-09	L'invitation à l'inventaire, sur l'accueil employé
+505bafb957ed	CI+DOC+OUT+MIG+TEST	2026-09-09	Séquence de répétition complète, et le manifeste cesse de vieillir seul
+75962ac285d2	CI+DOC+OUT+TEST	2026-09-09	PREPROD éphémère : l'arbitrage de Frédéric, mécanisé
+2450a9b87a41	CI+OUT+MIG+TEST	2026-09-09	Répétition : survivre à sa propre interruption
+781d0319ba45	CI+OUT+MIG+TEST	2026-09-09	PREPROD : un ÉTAT de nexus-test, jamais une copie de Production
+5234a06b4277	CI+OUT+TEST	2026-09-09	Jeu PREPROD : les formes de Production, jamais ses données
+73e69cdd8ef6	CI+OUT+TEST	2026-09-09	Reconstruction : ne plus dépendre d'une IPv6 disponible
+92072809b320	CI+OUT+TEST	2026-09-09	Répétition : la remise à zéro de Test effaçait tes autorisations
+d16ccb4aeee5	CI+OUT+TEST	2026-09-09	Scénario employé dans la recette navigateur — dont le quart déjà ouvert
+e4bbc2b2aa73	CI+OUT+TEST	2026-09-09	PREPROD anonymisé : les deux mécanismes qui manquaient
+0bfd8419039b	DOC	2026-09-09	La recette navigateur a tourné, et elle est verte
+0c9b6c8d7647	DOC	2026-09-09	handoff: canoniser request-6 Production Readiness
+1b364b783e02	DOC	2026-09-09	Handoff: decision-5 readiness clean-slate
+1fc67bf26b4e	DOC	2026-09-09	Classer les trois branches de la nuit, et nommer la vraie cause
+67debd2f7319	DOC	2026-09-09	readiness: mesurer le référentiel Advisor en lecture seule
+87e08edfafda	DOC	2026-09-09	Horaires canoniques : trois écarts, dont un qui se voit tous les jeudis
+999260385728	DOC	2026-09-09	handoff: publier request-4 — dépendance nexus_live_events fermée, répétition PREPROD-équivalente
+9aa2a5279eb8	DOC	2026-09-09	QA-007 : les neuf échecs tolérés ont enfin un motif établi
+9e7e128664c1	DOC	2026-09-09	handoff: consommer decision-3 (readiness), exclure migration 21, répétition PREPROD-équivalente sur nexus-test
+b0af5fa862fe	DOC	2026-09-09	Handoff: canoniser request-5 readiness clean-slate
+b364d15b7282	DOC	2026-09-09	Preuve exécutée : la répétition PREPROD-équivalente est verte
+b9fa80bbd467	DOC	2026-09-09	handoff: poursuivre la readiness après mesure Advisor
+bb1b80317165	DOC	2026-09-09	Feuille d'arbitrage : les 23 missions du pompiste, prêtes à être placées
+c34cfeb40f3e	DOC	2026-09-09	Parcours pompiste Q1, scène par scène — et le seul manque qui commande tout
+c3ba2a7f73c8	DOC	2026-09-09	handoff: decision-6 Production Readiness
+c8a667371c8f	DOC	2026-09-09	Renfort et inventaire : la règle existe déjà et ne produit rien
+cfc950ebc903	DOC	2026-09-09	handoff: decision-4 poursuivre la répétition Test de readiness
+d431ed8830d6	DOC	2026-09-09	Renfort confirmé — et le planning connaît un quart que l'exécution ignore
+ee3576dc6ab5	DOC	2026-09-09	Cadrage de l'expérience employé — mesuré, pas supposé
+efe79a7939f1	DOC	2026-09-09	Test rendu à son usage : la répétition est complète
+f40c82e0e05f	DOC	2026-09-09	Deuxième fois aujourd'hui : des décisions déposées sans être inscrites
+f4a1d71ecbc6	DOC	2026-09-09	Le parcours employé est prouvé à l'écran, quart déjà ouvert compris
+b4d75d76c2fc	DOC+APP+OUT+TEST	2026-09-09	handoff: reconcilier le rail (enregistrer-lot, decisions philo-3/readiness-2), poursuivre readiness Production hors Production
+383c36c4d963	DOC+OUT	2026-09-09	handoff: consommer decision-4, mécanisme exécutable pour répétition Test
+06e8156cbff0	DOC+OUT+TEST	2026-09-09	Répétition : un point de suspension collé à une variable a tout arrêté
+9b675017162e	DOC+OUT+TEST	2026-09-09	Protocole de diagnostic, et sa première application
+a68ae8345f5d	DOC+OUT+TEST	2026-09-09	Les services ouverts sont ceux de l'équipe, et ils étaient déjà périmés
+cf6aaf71bf45	DOC+OUT+TEST	2026-09-09	Le trousseau était exigé même quand il ne servait à rien
+e65814fe68fa	DOC+OUT+TEST	2026-09-09	Le pointage d'arrivée s'intercale entre la prise de poste et l'accueil
+10dce112e99a	MIG+TEST	2026-09-09	SEC-021 et SEC-022 : quatre droits vivaient en base sans exister au dépôt
+c6a56a82a5cb	MIG+TEST	2026-09-09	SEC-020 : une politique RLS sans droit de table ne s'applique à rien
+17a55c8596a0	OUT	2026-09-09	Répétition : la migration du mode aurait affiché OK sans rien faire
+28bcfb87ca2a	OUT	2026-09-09	Instrumentation : le pointage rendait son motif, personne ne l'imprimait
+8d83aa2b14fb	OUT	2026-09-09	La séquence de répétition EXÉCUTE, elle n'énumère plus
+a1999432a0a7	OUT	2026-09-09	J'ai modifié le script pendant qu'il tournait
+a60d60bb4951	OUT	2026-09-09	Le quart laissé ouvert n'est pas un accident, c'est l'usage
+a86c95f4bd6e	OUT	2026-09-09	Un service « termine » sans heure de fin, et un jeu qui se doublait
+b02f09425157	OUT	2026-09-09	Répétition RÉUSSIE : les 262 migrations rejouent sur une base vide
+c968b26d82db	OUT	2026-09-09	Un diagnostic qui ne nomme pas ce qu'il a regardé ne diagnostique rien
+ea59a4331dbf	OUT+APP	2026-09-09	mktemp -t : ma copie figée passait sur macOS et mourait sur Linux
+3e5da20f7cce	OUT+TEST	2026-09-09	Mon extension a emporté le scénario qu'elle devait compléter
+4b68065c49f0	OUT+TEST	2026-09-09	Une répétition qui casse laissait Test en répétition, sans dire comment en sortir
+6717fecd8b47	OUT+TEST	2026-09-09	J'ai réparé le fichier qui avait échoué, pas le motif
+6ae85378d4b8	OUT+TEST	2026-09-09	Répétition : un schéma NU ne doit pas faire échouer la capture
+a6acee14e29d	OUT+TEST	2026-09-09	« caissier » sans e — et la garde qui ferme enfin la classe
+a896cbdfccfe	OUT+TEST	2026-09-09	Mon correctif a cassé la reconstruction, et mon épreuve ne l'a pas vu
+ca3b8a792a40	OUT+TEST	2026-09-09	Le semis exigeait une colonne que la release apporte
+cc6c9aeeaa9e	OUT+TEST	2026-09-09	Le résumé contredisait l'indisponibilité deux lignes plus bas
+f1296f4b985d	OUT+TEST	2026-09-09	178 missions au lieu de 89 : le jeu ajoutait ce que l'histoire posait déjà
+fceaa134c629	OUT+TEST	2026-09-09	Une photo de test pour franchir le pointage, par le chemin de l'employé
+cf6ee8a775d4	TEST	2026-09-09	La répétition a rendu son rapport d'impact
+a4f1e15d30cc	APP	2026-09-10	Le message de donnée manquante ne redouble plus les deux-points
+b3614d90fe09	APP+DOC+TEST	2026-09-10	Une alerte de continuité de stock ne survit plus à sa cause
+2f57ad9d1ff1	DOC	2026-09-10	Défaut 11 fermé pour de bon, défaut 10 rouvert par l'épreuve qui devait le fermer
+37e91eae4ae7	DOC	2026-09-10	Blocages ouverts : un seul mérite ce nom, et c'est le candidat lui-même
+5601e5138acd	DOC	2026-09-10	Fenêtre de déploiement mesurée — et deux tâches écrivent toutes les 15 minutes
+5a35cd333554	DOC	2026-09-10	handoff: intégrer request-8 Production Readiness
+647a074040e2	DOC	2026-09-10	`aucun_blocage_non_resolu` déclaré par Frédéric Bragance — verdict PRET_POUR_PRODUCTION
+6a928421c458	DOC	2026-09-10	handoff: republier request-9 depuis le HEAD canonique, isoler le défaut 13
+73a1c44999a4	DOC	2026-09-10	`zzzzrefdetestinexistante` : cause démontrée après plusieurs jours
+742d4365d689	DOC	2026-09-10	Les trois branches ne font PAS doublon — et l'une porte ce que j'ai refait à la main
+758b5c03c441	DOC	2026-09-10	La recette ne se connecte plus — cause non isolée, et elle touche un secret
+764efa819699	DOC	2026-09-10	Verdict corrigé : six branches non classées sont un blocage ouvert
+766b45698ffc	DOC	2026-09-10	handoff: autoriser fermeture défaut auth et correction minimale course fixture
+95250f58b98d	DOC	2026-09-10	Dix critères sur onze au vert : il ne reste qu'une déclaration, et elle est humaine
+b7cbe95635c2	DOC	2026-09-10	handoff: défaut 13 confirmé reproductible trois fois, verdict NON_PRET inchangé
+baf5cf8dae96	DOC	2026-09-10	Package Readiness rafraîchi : ce qui est fermé, ce qui reste, et par qui
+cf61f14e932a	DOC	2026-09-10	handoff: consommer decision-7, tenter workflow_dispatch (bloqué, obstacle confirmé)
+db775ff23f44	DOC	2026-09-10	Handoff: decision-7 readiness recette réelle
+ddb007f40289	DOC	2026-09-10	handoff: decision-8 Production Readiness voie 2
+eabbcb2fd042	DOC	2026-09-10	Impact du seed Advisor chiffré : la migration ne changerait aucune valeur
+f5ba8641bb81	DOC	2026-09-10	Six branches classées au SHA exact — aucune ne portait de correctif absent
+24083590baca	DOC+APP+TEST	2026-09-10	La déduction va à deux pas : un outil qui lit le registre contamine son épreuve
+e9daccfe0149	DOC+APP+TEST	2026-09-10	Les six épreuves du registre PREPROD ne se croisent plus
+3117951724be	DOC+OUT+APP+TEST	2026-09-10	handoff: consommer decision-8, rapatrier §10, fermer §11, trouver §12
+1b6acf781bac	DOC+OUT+TEST	2026-09-10	handoff: consommer decision-6, security jamais invoqué si NEXUS_TEST_DB_URL
+b3ebb6ec6513	DOC+OUT+TEST	2026-09-10	Re-mesure finale exécutée, et le verdict de préparation devient calculable
+e282fefa4d37	DOC+OUT+TEST	2026-09-10	Employé : la recette confondait pointage désactivé et champ absent
+2de7fd4b7ed4	DOC+TEST	2026-09-10	Candidat canonique unique : la commande, quatre épreuves, cinq branches classées
+c405c7552f6b	DOC+TEST	2026-09-10	La reproduction de la course quitte le dépôt, sans rien perdre de sa preuve
+d9225e5689ee	DOC+TEST	2026-09-10	Guardian QA avait raison : l'attendu et l'observé sortaient du même appel
+8f346c4982e8	OUT	2026-09-10	Le déclenchement manuel marche — et le semis échoue sur une fixture
+12990c6ed183	OUT+TEST	2026-09-10	L'invitation est jugée — et j'avais corrigé un critère faux par un autre
+49198ea6e705	OUT+TEST	2026-09-10	« Pointage franchi : oui » était faux — ma mesure reconnaissait un bouton
+546e66b9cd54	OUT+TEST	2026-09-10	Rapatrié : handoff.js rattraper-demande, et son épreuve
+e0fb264dbc55	OUT+TEST	2026-09-10	« Champ photo absent » était la trace du succès précédent
+ea561f6f8af5	OUT+TEST	2026-09-10	Recette navigateur VERTE en workflow_dispatch — six points sur sept
+2460ed078d80	APP+DOC	2026-09-11	Les 92 pointages : 75 / 5 / 12, et c'est mon chiffre de départ qui était faux
+60edf14f8d0e	APP+DOC+OUT+MIG+TEST	2026-09-11	Quatrième paire documentée, identités séparées, six migrations appliquées sur Test
+4553ec220634	APP+DOC+OUT+TEST	2026-09-11	Huit services expliqués, migrations préparées, et une file qui ne perd plus rien
+59f38ecf5484	APP+DOC+OUT+TEST	2026-09-11	Lot correctif ouvert : NEXUS-POINTAGE-CORRECTIF-1-20260911
+3ca9a06bc50d	APP+TEST	2026-09-11	Le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence
+7582bc319bce	APP+TEST	2026-09-11	Deux portes menaient à la prise de poste — une seule avait été fermée
+c33faf8d9caa	APP+TEST	2026-09-11	La photo devient complémentaire : une caméra refusée ne coûte plus son pointage
+14143501bbc7	DOC	2026-09-11	Les faits Production ne portent plus de SHA d'arbre
+22e0cc5a0714	DOC	2026-09-11	Le parcours Caissière invalide PRET_POUR_PRODUCTION — verdict NON_PRET
+7cce864f9e15	DOC	2026-09-11	Répétition complète : les 33 migrations passent, Test rendu à son usage
+824ed594f552	DOC	2026-09-11	Le tableau des SHA nomme enfin celui qui est vert
+89a9e6ce2406	DOC	2026-09-11	La fermeture était écrite dans la migration. Elle n'avait jamais pris effet.
+b10f9b6e8204	DOC	2026-09-11	Le droit existait, la ligne ne venait pas : sept politiques de lecture
+e79519d59fbb	DOC	2026-09-11	Un fichier ne peut pas nommer le SHA de son propre commit
+edcb48d6b5d4	DOC	2026-09-11	`nexus_prod_readonly` créé sans mot de passe, et c'est volontaire
+f02351ccbeae	DOC	2026-09-11	PUBLIC donne déjà TEMP et USAGE, et une fonction écrit sous SECURITY DEFINER
+f1b9c585b02a	DOC	2026-09-11	EXECUTE retiré à PUBLIC sur la fonction FDJ — et l'audit en a trouvé trois autres
+fb2638b2fc2f	DOC	2026-09-11	Le rôle de connexion est membre, et rien de plus
+febb3d6a59b0	DOC	2026-09-11	Garantie 7 démontrée sur les privilèges — et le rôle ne voit aucune ligne
+f682ed64cd36	DOC+MIG	2026-09-11	Plus aucun pointage ne se cherche un service : la règle passe en base
+c2497883d69c	DOC+MIG+TEST	2026-09-11	La répétition a rattrapé un écart entre le rail et ce qui fonctionnait
+b83fc150b8cc	DOC+OUT	2026-09-11	Un verdict ne vaut que pour un SHA — et la mesure #4 devient canonique
+7db174a2e071	DOC+OUT+TEST	2026-09-11	Sept migrations INCLUSES, une garde qui l'exige, et 17 exceptions nommées
+67b97988d2de	OUT	2026-09-11	Le secret ne passera plus par un argument de processus
+abe8d3b2b6de	TEST	2026-09-11	Une garde qui exige un état du monde finit par accuser le monde
+02f557f6c8b5	APP+DOC+TEST	2026-09-13	Ma garde effaçait la journée qu'elle venait de protéger
+1ef8e14c5364	APP+DOC+TEST	2026-09-13	Le refus parlait dans une pièce vide
+82ab4f0a3492	APP+DOC+TEST	2026-09-13	Le nouveau service héritait des pointages de l'ancien
+894e306cebf2	APP+DOC+TEST	2026-09-13	L'accueil annonçait une étape que l'écran Pointage refusait
+be669e03b445	APP+DOC+TEST	2026-09-13	La file promettait un envoi que la base refusait
+ee2fa20b3bb4	APP+DOC+TEST	2026-09-13	La relecture de la fin de pause comptait encore par journée
+ab9295d6f44a	TEST	2026-09-13	Une sortie d'échec cachée dans un ternaire n'est pas une sortie d'échec
+d0d9ea79d506	DOC	2026-09-14	Frédéric lève le blocage Pointage. Le verdict ne bouge pas.
+ea57d4bdb13c	DOC	2026-09-14	Les six mesures sont rejouées. Le onzième critère passe au vert.
+ffd0f5d9754f	DOC	2026-09-14	La justification du blocage était périmée, le blocage non
+ced9e9990671	DOC	2026-09-20	La décision du 14/09 est consommée. Le lot Continuité terrain est ouvert.
+e24734485cc3	DOC	2026-09-20	handoff: autoriser les correctifs continuité sous garde
+8a5fc2b1ec2f	APP+DOC+TEST	2026-09-21	handoff: transporter request-2 sur le rail canonique
+bdff0d5542d3	CI+TEST	2026-09-21	Câbler le rail Handoff en CI et délier l'assertion en dur
+845e01e2cd61	DOC	2026-09-21	handoff: autoriser le candidat continuité P0-1/P0-3
+f444f3c00fd5	DOC	2026-09-21	handoff: consommer decision-2, publier request-3 (candidat P0-1/P0-3)
+256f6bafaafa	DOC+OUT	2026-09-21	handoff: outiller le réveil de l'Orchestrateur (sens Claude -> ChatGPT)
+aa89e2ab23b4	DOC+OUT	2026-09-21	handoff: l'adresse du réveil vient de l'ordre, pas du code
+d9f1841651e1	OUT	2026-09-21	handoff: aligner le validateur sur le rail actif
