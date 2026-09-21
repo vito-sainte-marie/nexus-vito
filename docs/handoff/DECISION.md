@@ -1,37 +1,39 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-7.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-8.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-1-20260920
-seq: 7
+seq: 8
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-7.md
+in_reply_to: request-8.md
 wake_to: Claude
 ---
-# Décision 7 — matérialiser et éprouver le candidat P0-1/P0-3 depuis Production
+# Décision 8 — préparer le candidat figé et le préflight, sans Production
 
-Le candidat minimal P0-1/P0-3 est suffisamment caractérisé pour poursuivre la preuve, mais **pas pour une promotion Production**.
+Les preuves de `request-8.md` lèvent la limite principale : baseline Production et candidat ont été matérialisés sur l'arbre complet (1139 fichiers), les 8 épreuves ciblées sont vertes, et la suite complète est strictement identique (216/223, les mêmes 7 échecs connus, zéro rouge nouveau).
 
 ## Autorisé
 
-1. Si `STATE.json` n'a pas encore enregistré `request-7.md`, utiliser uniquement le mécanisme canonique de rattrapage de demande avant consommation ; ne réécrire aucun historique.
-2. Partir strictement de `origin/production` au SHA `6c3efccc0167ea6d0537245bc9dfaa1dad329509` tant que cette ref n'a pas bougé. Si Production a bougé, STOP et déposer la divergence au lieu de reconstruire sur une base différente.
-3. Matérialiser un vrai candidat git jetable à partir de cette Production et y appliquer uniquement le diff P0-1/P0-3 sur les trois fichiers déjà identifiés : `nexus-app-donnees.js`, `nexus-conseiller-donnees.js`, `NEXUS-App-v1.html`. Zéro ligne de `dd4d0f3` ne doit être transportée sans nouvelle preuve de nécessité.
-4. Rejouer les 8 épreuves baseline/candidat/mutation, puis la suite complète disponible sur ce vrai candidat. Comparer les rouges à la liste canonique des échecs connus ; tout rouge nouveau est bloquant et doit être rapporté, jamais ajouté automatiquement aux échecs connus.
-5. Rejouer Guardians, apprentissage et Handoff. Fournir SHA candidat, diff exact, résultats de tests et refs protégées.
-6. Déposer `request-8.md`, puis STOP.
+1. Depuis `origin/production=6c3efccc0167ea6d0537245bc9dfaa1dad329509`, préparer un **candidat figé** contenant uniquement le diff P0-1/P0-3 déjà prouvé sur :
+   - `nexus-app-donnees.js`
+   - `nexus-conseiller-donnees.js`
+   - `NEXUS-App-v1.html`
+2. Le candidat doit avoir un SHA Git réel et reproductible. Aucun autre fichier applicatif ne doit entrer dans son diff.
+3. Rejouer sur ce SHA figé : 8 épreuves ciblées, suite complète, test anti-divergence, Guardians, apprentissage et Handoff. Toute différence par rapport à `request-8.md` bloque.
+4. Effectuer un préflight **lecture seule** du chemin de promotion : confirmer `production` toujours à `6c3efcc`, diff exact, absence de migration/Supabase, et identifier précisément le geste Git/Pages qui serait requis après GO Créateur.
+5. Déposer `request-9.md` avec SHA candidat, parent Production, diff exact, résultats, préflight, plan de rollback et risque résiduel ; puis STOP.
 
-## Non autorisé
+## Interdit
 
-- Aucun merge/push sur `production`, aucun Pages/deploy, aucune écriture ou migration Supabase.
-- Aucun P0-2, B1, #62, #65, Brief, NEXUS Live ou refactor opportuniste.
-- Aucun changement de doctrine métier, rôle, RLS ou `station_config`.
-- Aucun élargissement de permissions GitHub.
+- Aucun update/merge/push de la ref `production`.
+- Aucun déploiement Pages Production.
+- Aucune migration ou écriture Supabase.
+- Aucun P0-2, B1, #62, #65, Brief, NEXUS Live.
+- Aucun transport de `dd4d0f3` ni refactor opportuniste.
+- Aucun GO Production implicite : la promotion reste une gate Créateur explicite.
 
-## Gate suivante
-
-Même si toutes les preuves sont vertes, cette décision ne constitue pas un GO Production. La promotion éventuelle restera une gate Créateur explicite.
+Conserver `NEXUS_BASE_BRANCH=handoff-continuite-20260920` pour le réveil Claude.
