@@ -137,9 +137,18 @@
   // additif, non consommé par `renderEntrepriseAujourdhui` aujourd'hui,
   // disponible si un badge de fraîcheur devait être ajouté à cette carte
   // plus tard).
-  async function chargerStatutCarburantsHome(client, siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui);
+  // P0-1 (20/09/2026, lot NEXUS-CONTINUITE-TERRAIN-1-20260920) : `timezone`
+  // traversait cette fonction sans jamais servir à calculer `aujourdhui`,
+  // qui restait daté en UTC (`new Date().toISOString()`). America/Martinique
+  // est UTC-4 : dès 20 h locale, en plein service du soir, cette date UTC
+  // pointait déjà sur demain, et l'Accueil affichait "à jour" un statut
+  // Carburants qui ne l'était pas. `NexusStation.dateLocaleStation` est la
+  // même primitive que Prise de poste/Inventaire/FDJ (Article 11, jamais un
+  // second calcul de date) ; fuseau non résolu -> repli UTC identique à
+  // avant, pour ne jamais bloquer l'Accueil sur une configuration absente.
+  async function chargerStatutCarburantsHome(client, siteId, timezone) {
+    const aujourdhui = timezone ? global.NexusStation.dateLocaleStation(timezone) : new Date().toISOString().slice(0, 10);
+    const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui, timezone);
     const { parCarburant, aucunReleve } = carburants.controle;
     const statut = global.NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);
     const detail = global.NexusCarburantMoteur.texteControleJour(parCarburant, aucunReleve);
