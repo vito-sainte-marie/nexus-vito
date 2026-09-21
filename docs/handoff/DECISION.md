@@ -1,37 +1,51 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-6.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-1-20260920
-seq: 5
+seq: 6
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-5.md
+in_reply_to: request-6.md
 wake_to: Claude
 ---
-# Décision 5 — appliquer les deux corrections minimales de garde CI
+# Décision 6 — reconstruire P0-1/P0-3 depuis Production, sans promouvoir le rail
 
-Les preuves de `request-5.md` suffisent : la première divergence est strictement documentaire et la seconde vient d'un manifeste historique fermé que la garde actuelle traite à tort comme extensible indéfiniment.
+Les deux gardes CI démasquées sont maintenant corrigées et prouvées. La suite peut revenir à la priorité du lot : continuité terrain 7 jours et autonomie du remplaçant.
+
+## Correction factuelle canonique
+
+Les 14 migrations transportées dans les cycles précédents sont **déjà présentes sur `production`**. Elles ne constituent donc pas une « promotion réelle des 14 migrations en Production » à décider ultérieurement. Leur geste autorisé était uniquement une réconciliation Production → rail afin que le dépôt de travail reflète les migrations déjà livrées. Toute mention laissant entendre qu'elles devraient être réexécutées ou promues vers Production doit être traitée comme une formulation à corriger, jamais comme une autorisation SQL.
+
+Les 11 migrations Test/CI exclusives au rail restent hors Production et hors de ce geste.
 
 ## Autorisé
 
-1. **Garde immuabilité** : remplacer sur le rail uniquement `supabase/migrations/20260911180600_pointage_exige_service_et_evenement.sql` par le contenu **octet pour octet de `production`**, de façon à rétablir l'identité canonique de la migration déjà appliquée. Vérifier avant/après que le SQL exécutable reste identique et que l'identité finale rail/Production est exacte. Aucune exécution SQL.
-2. **Manifeste append-only** : conserver le manifeste historique du lot `NEXUS-PRODUCTION-READINESS-1-20260908` strictement inchangé. Câbler le contrôle réel `test_manifeste_migrations_complet_20260909.js` sur le mécanisme append-only prouvé dans `request-5.md` (manifeste historique + `docs/handoff/MANIFESTE-MIGRATIONS-PRODUCTION-COURANT.md`), avec vérification de l'empreinte figée du manifeste historique.
-3. Ne pas affaiblir les gardes : les contre-preuves doivent continuer à détecter une migration Production réellement absente/modifiée, une migration non classée et une altération du manifeste historique.
-4. Rejouer l'immuabilité, le manifeste, les tests de mutation, la suite complète, Guardians, apprentissage et Handoff. Si un nouvel échec apparaît, le rapporter tel quel sans l'ajouter aux échecs connus.
-5. Vérifier que `main` et `production` sont inchangées et qu'aucune opération Supabase n'a eu lieu.
-6. Déposer le prochain `request-N.md` avec diff exact, preuves et premier nouvel obstacle éventuel, puis STOP.
+1. Partir de `origin/production` (`6c3efcc` tant qu'il n'a pas bougé) dans une branche/worktree jetable, **pas du rail**, et déterminer la fermeture minimale de dépendances nécessaire pour que P0-1 et P0-3 fonctionnent réellement sur Production.
+2. Construire un candidat Production-based minimal contenant uniquement ce qui est nécessaire à :
+   - propager le fuseau station aux deux chargeurs Accueil concernés ;
+   - utiliser la date métier Martinique/station sans fallback UTC dans le parcours réel ;
+   - compter les audits réellement non validés selon la sémantique Verify déjà canonique ;
+   - inclure le moteur/script Verify uniquement si le graphe d'appel le démontre nécessaire.
+3. Ne pas importer `dd4d0f3` en bloc par défaut. Extraire seulement les prérequis sémantiques prouvés fonction/call-site/script par fonction/call-site/script.
+4. Produire des tests qui mordent sur la base Production : au minimum frontière 19:59 → 20:00 Martinique, continuité jusqu'au changement de jour métier, audit non validé/partiel/validé/ajusté, et une mutation/contre-preuve montrant qu'un candidat sans propagation du fuseau échoue.
+5. Comparer la suite complète du candidat à une baseline exécutée sur `production`, pas à l'ancien rail. Tout nouvel échec par rapport à cette baseline bloque.
+6. Prouver le diff exact, le graphe minimal de dépendances et l'absence de migration Test/CI, de P0-2, B1, rappels, Brief, #62/#65 et de refactor opportuniste.
+7. Déposer `request-7.md` avec SHA candidat, base Production exacte, fichiers, tests baseline/candidat, mutations et risques résiduels, puis STOP.
 
-## Interdictions
+## Non autorisé
 
-- Ne jamais modifier le manifeste historique clos.
-- Aucun transport des 11 migrations Test/CI vers Production.
-- Aucun portage applicatif, `dd4d0f3`, P0-1/P0-3, NEXUS Live, #62/#65, P0-2, B1 ou rappels.
-- Aucun merge/rebase/squash, aucune écriture Supabase, aucune Production, aucun déploiement.
-- Aucun élargissement de permissions GitHub.
+- Aucun merge/rebase/squash du rail vers Production.
+- Aucun merge/push sur `main` ou `production`.
+- Aucune migration ou écriture Supabase Production.
+- Aucun déploiement/activation Production.
+- Aucun changement de rôle, RLS, PIN ou accès B1.
+- Aucun write P0-2 dans `station_config.raccourcis`.
+- Aucun élargissement du périmètre à Brief, NEXUS Live, #62/#65 ou architecture générale.
 
-Conserver `NEXUS_BASE_BRANCH=handoff-continuite-20260920`.
-Cette décision n'est pas un GO Production.
+Si la fermeture minimale exige finalement un import architectural matériel (par exemple une part substantielle des 28 fichiers de `dd4d0f3`) plutôt qu'un petit lot démontrable, ne l'importe pas : chiffre-le dans `request-7.md` et STOP pour arbitrage.
+
+Conserver `NEXUS_BASE_BRANCH=handoff-continuite-20260920` pour le transport Handoff. Cette décision n'est pas un GO Production.
