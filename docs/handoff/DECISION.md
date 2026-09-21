@@ -1,38 +1,37 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-1-20260920
-seq: 4
+seq: 5
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: NEEDS_EVIDENCE
+decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-4.md
+in_reply_to: request-5.md
 wake_to: Claude
 ---
-# Décision 4 — caractériser les deux gardes démasquées sans réécrire l'histoire
+# Décision 5 — appliquer les deux corrections minimales de garde CI
 
-Le transport des 14 migrations est accepté comme réconciliation de dépôt : identité Production prouvée, aucune exécution SQL, refs protégées inchangées.
+Les preuves de `request-5.md` suffisent : la première divergence est strictement documentaire et la seconde vient d'un manifeste historique fermé que la garde actuelle traite à tort comme extensible indéfiniment.
 
-Les deux échecs désormais visibles ne doivent ni être classés silencieusement comme connus ni être corrigés par réécriture d'un lot clos.
+## Autorisé
 
-## Autorisé — preuve et proposition minimale uniquement
-
-1. Pour `20260911180600_pointage_exige_service_et_evenement.sql`, prouver de façon reproductible que la divergence rail/Production est strictement documentaire : retirer/normaliser virtuellement le bloc de commentaire et comparer le reste octet pour octet. Identifier ensuite la correction canonique minimale qui ferait du fichier Git le reflet exact de la migration réellement appliquée, sans exécuter SQL et sans modifier Production.
-2. Pour `test_manifeste_migrations_complet_20260909.js`, analyser la sémantique du test et du manifeste fermé `NEXUS-PRODUCTION-READINESS-1-20260908`. Proposer la correction minimale qui conserve l'immuabilité du manifeste historique tout en permettant aux migrations Production postérieures à sa borne d'être classées par un mécanisme append-only/current plutôt que par réécriture du lot clos.
-3. Vérifier par mutation/contre-preuve que chaque proposition fait échouer le contrôle lorsqu'une migration Production est réellement absente ou modifiée. Un vert obtenu seulement en relâchant la garde est interdit.
-4. Mesurer l'impact exact en fichiers et indiquer si la correction peut rester purement infrastructure/QA, sans applicatif ni migration SQL.
-5. Déposer un nouveau `request-N.md` avec les preuves et la recommandation minimale, puis STOP.
+1. **Garde immuabilité** : remplacer sur le rail uniquement `supabase/migrations/20260911180600_pointage_exige_service_et_evenement.sql` par le contenu **octet pour octet de `production`**, de façon à rétablir l'identité canonique de la migration déjà appliquée. Vérifier avant/après que le SQL exécutable reste identique et que l'identité finale rail/Production est exacte. Aucune exécution SQL.
+2. **Manifeste append-only** : conserver le manifeste historique du lot `NEXUS-PRODUCTION-READINESS-1-20260908` strictement inchangé. Câbler le contrôle réel `test_manifeste_migrations_complet_20260909.js` sur le mécanisme append-only prouvé dans `request-5.md` (manifeste historique + `docs/handoff/MANIFESTE-MIGRATIONS-PRODUCTION-COURANT.md`), avec vérification de l'empreinte figée du manifeste historique.
+3. Ne pas affaiblir les gardes : les contre-preuves doivent continuer à détecter une migration Production réellement absente/modifiée, une migration non classée et une altération du manifeste historique.
+4. Rejouer l'immuabilité, le manifeste, les tests de mutation, la suite complète, Guardians, apprentissage et Handoff. Si un nouvel échec apparaît, le rapporter tel quel sans l'ajouter aux échecs connus.
+5. Vérifier que `main` et `production` sont inchangées et qu'aucune opération Supabase n'a eu lieu.
+6. Déposer le prochain `request-N.md` avec diff exact, preuves et premier nouvel obstacle éventuel, puis STOP.
 
 ## Interdictions
 
-- Ne pas modifier le fichier migration divergent dans ce geste.
-- Ne pas modifier le manifeste du lot clos dans ce geste.
-- Ne pas ajouter ces deux échecs à `ECHECS-CONNUS.json`.
+- Ne jamais modifier le manifeste historique clos.
+- Aucun transport des 11 migrations Test/CI vers Production.
 - Aucun portage applicatif, `dd4d0f3`, P0-1/P0-3, NEXUS Live, #62/#65, P0-2, B1 ou rappels.
-- Aucun merge/rebase/squash, aucune écriture Supabase, aucune Production, aucun élargissement de permissions GitHub.
+- Aucun merge/rebase/squash, aucune écriture Supabase, aucune Production, aucun déploiement.
+- Aucun élargissement de permissions GitHub.
 
 Conserver `NEXUS_BASE_BRANCH=handoff-continuite-20260920`.
 Cette décision n'est pas un GO Production.
