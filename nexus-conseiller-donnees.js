@@ -184,12 +184,43 @@
   // Contrôles Verify restants — NEXUS Verify n'a pas de notion de "contrôle
   // en attente" en base ; convention 2 quarts/jour (quart1/quart2, cf.
   // station_config.horaires). Identique entre App-v1 et Brief.
-  async function chargerControlesVerifyRestants(client, siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { data, error } = await client.from('audits_caisse').select('quart').eq('site', siteId).eq('date', aujourdhui);
+  //
+  // P0-1/P0-3 (20/09/2026, lot NEXUS-CONTINUITE-TERRAIN-1-20260920) — deux
+  // défauts distincts corrigés ici :
+  //
+  //  - P0-1 : `aujourdhui` restait daté en UTC. `timezone` est un paramètre
+  //    ADDITIF, optionnel : absent (Brief ne le passe pas encore — dette
+  //    distincte, non traitée dans ce lot), le repli reproduit exactement le
+  //    comportement d'avant. Fourni (App-v1, voir NEXUS-App-v1.html), la
+  //    date est calculée dans le fuseau de la station via
+  //    `NexusStation.dateLocaleStation`, même primitive que le reste de
+  //    l'app (Article 11).
+  //
+  //  - P0-3 : un quart SAISI mais pas encore VALIDÉ par un manager comptait
+  //    comme "fait" (`quartsFaits`) — le chiffre affiché à l'Accueil ne
+  //    désignait donc pas le travail qui reste réellement.
+  //    `NexusVerifyMoteur.statutValidationQuart` est la MÊME classification
+  //    que NEXUS Verify lui-même (Article 11, jamais un second calcul de
+  //    validation) : un quart ne compte comme fait que si ses caisses
+  //    attendues sont validées ('valide' ou 'ajuste'), jamais seulement
+  //    saisies. Ce correctif s'applique aux deux appelants (App-v1 et
+  //    Brief, la fonction étant partagée) : la doctrine Verify elle-même
+  //    n'est pas modifiée, seule cette lecture cesse de diverger d'elle.
+  async function chargerControlesVerifyRestants(client, siteId, timezone) {
+    const aujourdhui = timezone ? global.NexusStation.dateLocaleStation(timezone) : new Date().toISOString().slice(0, 10);
+    const { data, error } = await client.from('audits_caisse')
+      .select('quart, ecart_piste, ecart_boutique, valide_le_piste, valide_le_boutique')
+      .eq('site', siteId).eq('date', aujourdhui);
     if (error) { console.error('Chargement audits_caisse (contrôles restants):', error); return null; }
-    const quartsFaits = new Set((data || []).map(a => a.quart));
-    return Math.max(0, 2 - quartsFaits.size);
+    const quartsValides = new Set(
+      (data || [])
+        .filter(a => {
+          const s = global.NexusVerifyMoteur.statutValidationQuart(a);
+          return s && (s.etat === 'valide' || s.etat === 'ajuste');
+        })
+        .map(a => a.quart)
+    );
+    return Math.max(0, 2 - quartsValides.size);
   }
 
   global.NexusConseillerDonnees = {

@@ -1,50 +1,44 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/decision-8.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-PRODUCTION-READINESS-1-20260908
-seq: 8
-author: NEXUS Orchestrator
-decision: APPROVED
+lot_id: NEXUS-CONTINUITE-TERRAIN-1-20260920
+seq: 1
+author: ChatGPT (orchestrateur NEXUS)
+branch: handoff-continuite-20260920
+decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-8.md
-branch: config-par-environnement
+in_reply_to: request-1.md
 ---
-# Poursuite déterministe : sérialiser uniquement les épreuves qui partagent le registre PREPROD
 
-Aucun arbitrage Frédéric supplémentaire n'est requis pour le défaut démontré `zzzzrefdetestinexistante`.
+# Continuité terrain — poursuite autorisée sous garde
 
-Le diagnostic de `request-8.md` établit que la voie 2 est la correction minimale, réversible et sans élargissement de surface de sécurité. Elle est cohérente avec la gouvernance déjà autorisée : corriger les défauts déterministes de l'outillage Test, ne pas perfectionner PREPROD, ne pas modifier les gardes ni les scripts de release sans nécessité démontrée.
+Le diagnostic est accepté comme base de travail. L'objectif reste l'autonomie terrain pendant sept jours, sans abaisser les gates Production et sans rouvrir les chantiers gelés.
 
-## 1. Voie retenue
+## Autorisé maintenant
 
-Retenir la voie 2 : exécuter en série les seules épreuves qui manipulent `docs/handoff/PREPROD-CYCLE.json`, en les retirant du pool parallèle du lanceur de tests.
+1. **P0-1 — fuseau station** : préparer le correctif minimal des deux chargeurs Accueil pour utiliser la date métier du site `America/Martinique`. Code uniquement. Tester le cas critique 19:59 → 20:00 local et la continuité jusqu'à la fermeture. Aucun déploiement Production.
+2. **P0-3 — Verify** : préparer le correctif minimal afin que l'Accueil compte le travail réellement restant, c'est-à-dire les audits non validés, sans modifier la doctrine Verify. Code uniquement. Preuves de non-régression obligatoires. Aucun déploiement Production.
+3. Rejouer les recettes non destructives nécessaires et déposer les preuves dans ce lot.
 
-Le correctif doit rester limité au lanceur et aux tests nécessaires pour prouver l'absence de course. Aucune logique métier, aucune garde PREPROD, aucun script de release et aucun comportement Production ne doivent être modifiés pour fermer ce défaut.
+Ces deux corrections doivent rester petites, séparables et réversibles. Aucun refactor opportuniste.
 
-## 2. Preuves exigées
+## Non autorisé à ce stade
 
-Prouver au minimum :
+- **B1** : aucune promotion temporaire de compte, aucun changement de rôle/RLS, aucune création ou réinitialisation de compte. Le choix du remplaçant et l'élévation éventuelle restent une gate Créateur explicite.
+- **P0-2** : aucune modification de `station_config.raccourcis` en Production. Préparer seulement la valeur exacte et la preuve de l'effet attendu ; l'écriture Production exige un GO Créateur explicite.
+- **public.rappels** : aucune écriture Production avant définition du contenu et du porteur.
+- Aucun merge Production, migration Supabase Production, déploiement Pages, fusion de #62/#65, modification de `config-par-environnement`, promotion des migrations Test/CI ou reprise du chantier frontière migrations.
 
-1. plusieurs exécutions successives et parallèles de la suite ne laissent plus survivre `REF_BIDON` ou `zzzzrefdetestinexistante` ;
-2. `PREPROD-CYCLE.json` revient exactement à son état initial après chaque épreuve ;
-3. le correctif est détecté par une mutation négative ou une épreuve équivalente ;
-4. aucune nouvelle régression n'apparaît dans la suite globale et les Guardians ;
-5. la recette connectée et la répétition reprennent à l'étape utile, sans reconstruire inutilement ce qui est déjà prouvé.
+## Preuves attendues
 
-## 3. Défaut security distinct
+Pour P0-1 et P0-3 : diff minimal, tests ciblés, non-régression, impact exact sur le parcours du remplaçant, absence d'effet sur les règles métier et indication claire de ce qui resterait à faire pour un candidat Production.
 
-Le défaut `security` observé sur `ea561f6` reste distinct et sa cause reste non isolée. Cette décision n'autorise pas une correction par analogie. Utiliser l'instrumentation déjà ajoutée pour capturer la prochaine occurrence et isoler la cause réelle.
+Pour P0-2 : valeur actuelle, valeur proposée, écran/urgence impacté, mécanisme de rollback et preuve en environnement non-Production si possible.
 
-Une correction déterministe minimale peut être appliquée ensuite si la cause est démontrée et reste dans le périmètre Test/outillage déjà autorisé. Toute extension de privilège, modification d'une garde de sécurité ou modification d'un script de release exige une nouvelle décision avant application.
+## Gate suivante
 
-## 4. Discipline de fin de lot
+Déposer un nouveau request dans ce même lot avec les preuves. Ne pas transformer cette décision en autorisation Production.
 
-Ne pas ajouter de nouvelle architecture. Ne pas améliorer l'outillage au-delà de ce qui est nécessaire pour obtenir la preuve de release. Une fois les défauts d'outillage fermés, reprendre directement la recette réelle et compléter le package de readiness.
-
-Revenir par un nouveau `request-N.md` avec les preuves réelles, les points fermés et les seuls blocages encore ouverts. Si le package est complet, demander uniquement les re-mesures Production SELECT-only déjà autorisées et la préparation de la gate finale spécifique.
-
-## 5. Interdictions inchangées
-
-Aucune écriture ou migration Supabase Production. Aucun push/merge vers `main` ou `production`. Aucun déploiement ni rollback Production. Aucune copie non anonymisée de Production. Aucun secret ou service_role exposé. Migration 21 reste exclue de cette release. `Prêt pour Production` ne vaut jamais autorisation Production.
+**STOP à la prochaine gate.**
