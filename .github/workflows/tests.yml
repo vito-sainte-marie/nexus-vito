@@ -63,6 +63,34 @@ jobs:
         with:
           node-version: '24'
 
+      # Le rail Handoff n'est pas une constante du code : `outils/handoff.js`
+      # le lit dans l'environnement (NEXUS_CLAUDE_BASE_BRANCH, puis
+      # NEXUS_BASE_BRANCH) et retombe sur `config-par-environnement` à défaut.
+      # `claude.yml` le route depuis le corps du commentaire déclencheur
+      # (a786408) ; ici la source est la branche sur laquelle le run tourne.
+      # Sans ce câblage, la suite refusait toute enveloppe déclarant le rail
+      # sur lequel elle vit — le validateur se contredisait lui-même.
+      #
+      # Un rail non reconnu ne fait PAS échouer ce workflow, contrairement à
+      # `claude.yml` : celui-ci s'exécute sur toutes les branches, y compris
+      # `main` et `production`, qui ne sont pas des rails. On retombe alors
+      # sur le rail historique. `main` et `production` ne peuvent pas être
+      # retenues, par construction : elles ne satisfont aucune des deux
+      # formes acceptées.
+      - name: Résoudre le rail Handoff de ce run
+        shell: bash
+        env:
+          NEXUS_REF_COURANTE: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          rail="config-par-environnement"
+          if [[ "$NEXUS_REF_COURANTE" == "config-par-environnement" \
+             || "$NEXUS_REF_COURANTE" =~ ^handoff-[A-Za-z0-9._/-]+$ ]]; then
+            rail="$NEXUS_REF_COURANTE"
+          fi
+          echo "Rail Handoff retenu : $rail (ref : $NEXUS_REF_COURANTE)"
+          echo "NEXUS_BASE_BRANCH=$rail" >> "$GITHUB_ENV"
+
       # `nexus-build.js` n'est plus versionné : le vérifier sur le dépôt brut
       # n'aurait plus de sens. Ce test exécute la VRAIE chaîne de build dans
       # une copie jetable, puis éprouve chaque condition d'échec — commit

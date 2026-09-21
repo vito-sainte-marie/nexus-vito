@@ -50,10 +50,10 @@ function registreSain() {
   return dir;
 }
 
-function valider(dir) {
+function valider(dir, envPlus) {
   try {
     const sortie = execFileSync('node', [OUTIL, 'verifier'],
-      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir, ...(envPlus || {}) } });
     return { code: 0, sortie };
   } catch (e) {
     return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') };
@@ -321,10 +321,10 @@ function deposerDemande(dir, seq) {
      '---', '', 'Corps de la demande.', ''].join('\n'));
 }
 
-function outil(dir, args) {
+function outil(dir, args, envPlus) {
   try {
     const sortie = execFileSync('node', [OUTIL].concat(args),
-      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir, ...(envPlus || {}) } });
     return { code: 0, sortie };
   } catch (e) {
     return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') };
@@ -343,14 +343,26 @@ verifier('handoff.js decision produit une enveloppe conforme par construction', 
   deposerDemande(dir, 2);
   const corps = path.join(dir, 'corps.md');
   fs.writeFileSync(corps, '# Verdict\n\nCorps de la décision.\n');
-  const r = outil(dir, ['decision', LOT, corps, '--decision', 'BLOCKED', '--closes', 'true']);
+  // Le rail n'est pas une constante du code : `handoff.js` le lit dans
+  // l'environnement, et `claude.yml` l'y pose depuis l'ordre reçu. Cette
+  // épreuve pose donc un rail d'épreuve et vérifie que c'est LUI qui
+  // ressort. Y écrire `config-par-environnement` en dur, comme c'était le
+  // cas, revenait à éprouver le contraire de ce que le protocole promet :
+  // le test passait au vert tant que le routage ne marchait pas, et
+  // rougissait dès qu'il marchait. Les deux valeurs sont posées parce que
+  // NEXUS_CLAUDE_BASE_BRANCH prime sur NEXUS_BASE_BRANCH : n'en poser
+  // qu'une laisserait l'environnement du runner décider à la place du test.
+  const RAIL_EPREUVE = 'handoff-epreuve-20260905';
+  const rail = { NEXUS_BASE_BRANCH: RAIL_EPREUVE, NEXUS_CLAUDE_BASE_BRANCH: RAIL_EPREUVE };
+  const r = outil(dir, ['decision', LOT, corps, '--decision', 'BLOCKED', '--closes', 'true'], rail);
   assert.strictEqual(r.code, 0, 'la commande doit réussir : ' + r.sortie);
   const ecrit = fs.readFileSync(path.join(dir, 'lots', LOT, 'decision-2.md'), 'utf8');
   assert.ok(/^decision: BLOCKED$/m.test(ecrit), 'verdict posé par l’outil : ' + ecrit);
-  assert.ok(/^branch: config-par-environnement$/m.test(ecrit), 'branche posée par l’outil, jamais retapée : ' + ecrit);
+  assert.ok(new RegExp('^branch: ' + RAIL_EPREUVE + '$', 'm').test(ecrit),
+    'la branche posée par l’outil doit être le rail reçu, jamais une constante : ' + ecrit);
   assert.ok(/^in_reply_to: request-2\.md$/m.test(ecrit), 'in_reply_to résolu seul sur la demande active : ' + ecrit);
   ecrireEtat(dir, e => { e.lots[LOT].derniere_demande = 'request-2.md'; e.lots[LOT].derniere_decision = 'decision-2.md'; });
-  const v = valider(dir);
+  const v = valider(dir, rail);
   assert.strictEqual(v.code, 0, 'ce que l’outil écrit doit passer le validateur sans dérogation : ' + v.sortie);
 });
 
