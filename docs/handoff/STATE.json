@@ -242,11 +242,11 @@
     },
     "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md",
-      "derniere_decision": "decision-1.md",
+      "derniere_demande": "request-3.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "e24734485cc3e84fcb224637ef3ac330daea297b",
-      "consomme_le": "2026-09-21T10:52:25.573Z"
+      "commit_decision": "845e01e2cd61335641d3dbb270f6c46da158ebf8",
+      "consomme_le": "2026-09-21T12:11:37.833Z"
     }
   },
   "artefacts_hors_registre": [
