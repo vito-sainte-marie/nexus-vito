@@ -201,11 +201,69 @@ survivent.
 
 ## Cycle
 
+Le cycle complet, de la demande au réveil :
+
 ```
-handoff.js demande <LOT_ID> <corps.md>   →  request-N.md + miroirs
-ChatGPT                                  →  decision-N.md
-handoff.js consommer <LOT_ID>            →  STATE.json marque la consommation
+Claude
+  │  handoff.js demande <LOT_ID> <corps.md>
+  ▼
+request-N.md  (+ miroirs v1 régénérés)
+  │  git push
+  ▼
+GitHub
+  │  tests.yml sur push: ['**']
+  ▼
+handoff.js verifier  —  l'enveloppe est-elle recevable ?
+  │
+  ▼
+watcher ChatGPT      —  HORS DÉPÔT : lit la branche, arbitre
+  │  commit
+  ▼
+decision-N.md
+  │  @claude          —  GESTE : un commentaire, posté par quelqu'un
+  ▼
+claude.yml (sur main)
+  │  issue_comment · pull_request_review_comment
+  │  pull_request_review · issues
+  ▼
+Claude
+  │  handoff.js consommer <LOT_ID>
+  ▼
+STATE.json marque la consommation
 ```
+
+Les maillons ne sont pas de même nature, et les confondre est la façon la plus
+simple de croire le rail automatique alors qu'il ne l'est pas. Chacun se classe
+avec le vocabulaire de preuve du protocole lui-même :
+
+| Maillon | Ce qui le porte | Classe |
+| --- | --- | --- |
+| `request-N.md` | `outils/handoff.js demande` | `VERIFIED` |
+| Contrôle d'enveloppe | `tests.yml` → `handoff.js verifier` | `VERIFIED` |
+| Épreuves du validateur | `tests.yml` → `test_handoff_v2_20260905.js` | `VERIFIED` |
+| `decision-N.md` | watcher ChatGPT, hors de ce dépôt | `DECLARED` |
+| Mention `@claude` | personne ; c'est un geste | `HUMAN` |
+| Réveil sur mention | `.github/workflows/claude.yml`, sur `main` | `VERIFIED` |
+| Consommation | `outils/handoff.js consommer` | `VERIFIED` |
+
+Trois remarques que le schéma seul ne dit pas.
+
+**Le watcher n'est pas dans ce dépôt.** Rien ici ne le démarre, ne le surveille
+ni ne prouve qu'il tourne. Son absence ne produit aucun rouge : elle produit un
+lot qui attend indéfiniment. Un lot sans décision depuis longtemps est le seul
+symptôme, et il faut aller le chercher.
+
+**La mention `@claude` est un geste, pas un maillon outillé.** `claude.yml`
+réagit à un commentaire ; il n'en poste aucun. C'est le même mur que
+« Couche événementielle — et sa limite » : la décision peut être déposée,
+validée, et rester sans effet tant que personne ne mentionne Claude. Écrire un
+outil qui poste la mention à la place de l'humain reviendrait à simuler le
+réveil que le protocole interdit de simuler.
+
+**Le réveil vit sur `main`, pas sur la branche de travail.** C'est le
+fonctionnement normal de `issue_comment` et `issues`, qui ne connaissent que la
+branche par défaut. Modifier `claude.yml` sur une branche de handoff ne change
+donc rien au réveil : seule la version présente sur `main` s'exécute.
 
 Une décision déjà consommée ne se rejoue pas : la commande refuse et n'écrit
 rien.
