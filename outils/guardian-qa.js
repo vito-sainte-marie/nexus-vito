@@ -402,6 +402,17 @@ function reglesTautologie(src, code, appels) {
 
 // Attendu extrait d'une variable dont la valeur vient du même appel que
 // l'observé : `const attendu = calc(x); ... assert.strictEqual(calc(x), attendu)`.
+//
+// Un appel qui LIT un état mutable externe (fichier disque, horloge…) n'est
+// jamais garanti de renvoyer deux fois la même valeur : le comparer à
+// lui-même n'est pas une tautologie, c'est l'idiome même d'un contrôle
+// « rien n'a changé entre-temps » (ex. `const avant = fs.readFileSync(f)`,
+// une opération refusée tentée entre les deux, puis
+// `assert.strictEqual(fs.readFileSync(f), avant)`). Confondre ce cas avec un
+// vrai recalcul pur (`M.repartir(cuves, 3000)`, que la règle doit continuer à
+// détecter) rend la garde bruyante sur son propre dépôt de tests Handoff.
+const RE_LECTURE_ETAT_MUTABLE = /\bfs\s*\.\s*(readFileSync|existsSync|statSync|lstatSync|readdirSync)\s*\(/;
+
 function regleAttenduRecalcule(src, code, appels) {
   const findings = [];
   const affectations = new Map();
@@ -409,7 +420,7 @@ function regleAttenduRecalcule(src, code, appels) {
   let m;
   while ((m = RE_AFFECT.exec(code)) !== null) {
     const valeur = normaliser(src.slice(m.index + m[0].length - m[2].length, m.index + m[0].length));
-    if (/\(/.test(valeur)) affectations.set(m[1], valeur);
+    if (/\(/.test(valeur) && !RE_LECTURE_ETAT_MUTABLE.test(valeur)) affectations.set(m[1], valeur);
   }
   for (const a of appels) {
     if (!COMPARAISONS.has(a.methode) || a.args.length < 2) continue;

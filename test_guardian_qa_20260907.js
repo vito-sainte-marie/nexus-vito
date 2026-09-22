@@ -150,6 +150,21 @@ t('un attendu recalculé par l\'appel même qu\'on observe', () => {
 // 2. LES SILENCES — chaque filtre de calibration, éprouvé
 // ───────────────────────────────────────────────────────────────────────
 
+// Le faux positif réel trouvé le 22/09/2026 sur test_handoff_v2_20260905.js :
+// `const avant = fs.readFileSync(f); <tentative refusée>; assert.strictEqual(
+// fs.readFileSync(f), avant)` contrôle l'ABSENCE de mutation, pas un recalcul
+// pur — fs.readFileSync peut légitimement renvoyer autre chose la seconde
+// fois si l'opération entre les deux n'avait pas été refusée.
+t('silence : relire un fichier pour prouver l\'absence de mutation n\'est pas un recalcul pur', () => {
+  assert.deepStrictEqual(garde.analyser(src(
+    "const dir = registreSain();",
+    "const etatInitial = fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8');",
+    "const r = outil(dir, ['declarer-rail', LOT, 'production']);",
+    "assert.notStrictEqual(r.code, 0);",
+    "assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial, 'un refus n\\'écrit rien');"
+  ), 'test_vrai.js'), []);
+});
+
 t('silence : un motif ancré, même court, est un choix explicite', () => {
   assert.deepStrictEqual(garde.analyser(src(
     "assert.ok(/^OK$/m.test(r.sortie), r.sortie);"
@@ -465,6 +480,23 @@ muter('le témoin levé dans le catch n\'est plus observé',
     );
     assert.deepStrictEqual(codes(g.analyser(source, 'test_x.js')), ['assertion_avalee_par_catch'],
       'sans cette observation, la forme « témoin levé dans le catch » est accusée à tort');
+    assert.deepStrictEqual(garde.analyser(source, 'test_x.js'), []);
+  });
+
+// M10 — le filtre « lecture d'état mutable » saute : relire un fichier pour
+// prouver l'absence de mutation redevient accusé de recalcul pur, exactement
+// le faux positif réel du 22/09/2026 sur test_handoff_v2_20260905.js.
+muter('le filtre fs.readFileSync ne filtre plus',
+  s => s.replace(
+    "if (/\\(/.test(valeur) && !RE_LECTURE_ETAT_MUTABLE.test(valeur)) affectations.set(m[1], valeur);",
+    "if (/\\(/.test(valeur)) affectations.set(m[1], valeur);"),
+  g => {
+    const source = src(
+      "const etatInitial = fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8');",
+      "assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial);"
+    );
+    assert.deepStrictEqual(codes(g.analyser(source, 'test_x.js')), ['attendu_calcule_par_le_meme_appel'],
+      'sans ce filtre, relire un fichier pour prouver l\'absence de mutation redevient accusé à tort');
     assert.deepStrictEqual(garde.analyser(source, 'test_x.js'), []);
   });
 
