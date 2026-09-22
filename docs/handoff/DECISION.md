@@ -1,56 +1,49 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 1
+seq: 2
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-1.md
+in_reply_to: request-2.md
 ---
-# Décision — B1 : accès du remplaçant manager
+# Décision — poursuite technique de request-2.md, aucun nouvel arbitrage de fond
 
 ## Verdict
 
 `APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-Le point 1 de `request-1.md` (la seule question soumise à un geste humain) est tranché.
-Les §2 et §3 restent déclarés, pas soumis, et continuent d'avancer dans ce même lot sans
-nouvel arbitrage. Le lot reste donc ouvert.
+## Motif
 
-## Décision métier — rôles et accès pendant l'absence de Frédéric
+`decision-1.md` avait déjà posé les termes : les §2 et §3 de `request-1.md` sont **déclarés**,
+pas soumis, et avancent dans ce même lot sans nouvel arbitrage intermédiaire. `request-2.md` est
+le compte rendu de ce travail déclaré (§2.1 — étude d'isolation Test des candidats web, ajout
+prouvé de `urlTestDeBranche()`) : il ne pose aucune question de fond nouvelle et n'appelle donc
+aucune décision métier. Cette décision ne fait que consigner, via l'outillage canonique, que la
+poursuite est techniquement approuvée — elle n'invente aucune règle métier et ne rouvre aucun
+point déjà tranché par `decision-1.md`.
 
-- Audrey et Lydie sont les remplaçantes manager légitimes.
-- Audrey est la remplaçante opérationnelle prioritaire actuellement. Frédéric confirme, le
-  22/09/2026, qu'elle se connecte normalement à NEXUS — la preuve d'aboutissement demandée par
-  `request-1.md` (`auth.users.last_sign_in_at` du compte retenu à la date du jour) est donc déjà
-  acquise, constatée par Frédéric et non par une requête que Claude aurait exécutée.
-- Yannick est gérante ; ses droits actuels sont conservés tels quels.
-- Angélique ne reçoit aucune promotion manager. Son rôle préférentiel reste renfort, avec
-  polyvalence opérationnelle renfort/caissière/pompiste.
-- Principe général pour les employés terrain, à conserver au-delà de ce lot : rôle préférentiel
-  ≠ rôle opérationnel du quart ≠ autorité manager/gérant. Ce sont trois notions distinctes, et
-  aucune des deux premières n'emporte la troisième.
+L'absence d'accès Cloudflare/Supabase Test depuis ce canal GitHub Issue, documentée de façon
+constante dans ce lot et dans l'ensemble de l'issue depuis le 06/09/2026, reste une contrainte
+structurelle du canal — pas un motif pour élever une gate humaine.
 
-## Ce que cette décision NE fait PAS
+## Conditions
 
-Comptes et droits en base restent inchangés : Audrey et Lydie portaient déjà les droits manager
-nécessaires, la question n'était pas un déficit de privilège mais une absence de connexion,
-désormais levée pour Audrey. Aucun changement RLS, aucun changement de rôle, aucun secret n'est
-requis pour clore ce point — conformément à la demande, aucune écriture de ce type n'a été
-fabriquée pour produire une preuve supplémentaire.
-
-## Pourquoi `closes: false`
-
-`request-1.md` ne soumettait que ce point à un arbitrage ; ses §2 (isolation Test des candidats
-web) et §3 (dette de dérive Supabase Test) sont déjà déclarés comme travail ordinaire à mener
-sans autorisation intermédiaire dans ce même lot. Fermer le lot ici arrêterait ce travail sans
-raison.
+- aucune règle métier nouvelle n'est posée par cette décision ;
+- le portage des fichiers de configuration vers les branches candidates (`rebuild/fdj-62-20260922`,
+  `rebuild/carburants-65-20260922`) reste différé tant qu'un accès Cloudflare humain n'a pas
+  observé ce qui y est réellement construit et servi ;
+- aucune preuve Supabase Test/Production ne doit être fabriquée pour combler l'absence d'accès de
+  ce canal ; toute preuve manquante par construction doit être déclarée `NOT_APPLICABLE`, jamais
+  simulée ;
+- le classement des gates en attente (§6) et l'état Git de #62/#65 se limitent aux preuves
+  Git/GitHub réellement disponibles depuis ce canal.
 
 ## Invariants
 
-Aucun `main`, aucune `production`, aucun déploiement, aucune écriture Supabase Production,
-aucune modification RLS/rôle/secret.
+Aucun `main`, aucune `production`, aucun déploiement, aucune écriture Supabase Production, aucune
+modification RLS/rôle/secret, aucun nouveau rôle, aucune règle métier/UX nouvelle.
