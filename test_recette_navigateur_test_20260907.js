@@ -833,6 +833,21 @@ epreuve('l’alias suit la règle de Cloudflare Pages, pas une devinette', () =>
   assert.throws(() => aliasCloudflare('___'), /alias de déploiement Cloudflare vide/);
 });
 
+epreuve('urlTestDeBranche dérive l’adresse d’une branche EXPLICITEMENT nommée, jamais devinée', () => {
+  const { urlTestDeBranche } = require(OUTIL);
+  const r = urlTestDeBranche('rebuild/fdj-62-20260922');
+  assert.strictEqual(r.url, 'https://rebuild-fdj-62-20260922.nexus-test-ddf.pages.dev/');
+  assert.strictEqual(r.branche, 'rebuild/fdj-62-20260922');
+  // Même règle d'alias que le rail — aucune seconde implémentation. Valeur
+  // mesurée le 22/09/2026 dans l'en-tête de ce même fichier.
+  assert.strictEqual(urlTestDeBranche('handoff-continuite-20260920').url,
+    'https://handoff-continuite-20260920.nexus-test-ddf.pages.dev/');
+  assert.throws(() => urlTestDeBranche(''), /nom de branche vide ou absent/);
+  assert.throws(() => urlTestDeBranche(undefined), /nom de branche vide ou absent/);
+  assert.throws(() => urlTestDeBranche('___'), /alias de déploiement Cloudflare vide/,
+    'une branche qui ne produit aucun alias valide doit échouer comme aliasCloudflare le ferait');
+});
+
 async function sousFetch(faux, fn) {
   const reel = global.fetch;
   global.fetch = faux;

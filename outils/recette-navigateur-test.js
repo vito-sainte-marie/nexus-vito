@@ -188,6 +188,20 @@ function urlTestDuRail(env = process.env, racine = path.join(__dirname, '..')) {
   return { url, rail, impose: false };
 }
 
+// Dérive l'adresse Test d'une branche EXPLICITEMENT nommée par l'appelant —
+// jamais une branche déduite ou codée en dur ici. `urlTestDuRail()` reste la
+// voie normale (adresse du rail, lue au registre) ; celle-ci sert la recette
+// manuelle d'un candidat qui n'est pas le rail (ex. une branche de PR), sans
+// dupliquer la logique d'alias : même fonction `aliasCloudflare`, même hôte.
+// Un appelant qui veut le rail doit encore passer par `urlTestDuRail()` — ce
+// n'est pas un second chemin vers la même réponse, c'est un chemin vers une
+// AUTRE branche, fournie par qui appelle, jamais par ce fichier.
+function urlTestDeBranche(nomDeBranche) {
+  const nom = String(nomDeBranche || '').trim();
+  if (!nom) throw new Error('urlTestDeBranche : nom de branche vide ou absent.');
+  return { url: `https://${aliasCloudflare(nom)}.${HOTE_PAGES_TEST}/`, branche: nom };
+}
+
 function secretsManquants(env) {
   return SECRETS_REQUIS.filter(n => !env[n] || !String(env[n]).trim());
 }
@@ -1037,7 +1051,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
