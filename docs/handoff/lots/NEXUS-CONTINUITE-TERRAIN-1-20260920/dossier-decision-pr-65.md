@@ -121,3 +121,50 @@ l'autorisation tombe et le dossier est à refaire.
 
 Aucune fusion Production automatique. Aucun déploiement et aucune migration Production ne sont
 demandés par ce dossier, quelle que soit la réponse.
+
+## 7. Verdict rendu le 22/09/2026 — NO GO temporaire
+
+Frédéric, en session : **NO-GO temporaire de fusion Production — preuves Test profondes
+manquantes.** « Ce ne sont pas des rejets fonctionnels. Les candidats peuvent être bons ; leur
+dossier de preuve n'est simplement pas encore au niveau requis pour Production. » Et sur ce
+candidat précisément : « Pour #65, le périmètre est beaucoup plus petit — 3 commits et 1
+migration — mais la même lacune de preuve existe. »
+
+## 8. Ce qui a été mesuré depuis, et ce que la mesure a révélé
+
+Mesuré le 22/09/2026 contre la vraie base Test (`db.udljdqxerrbbbajxubfn.supabase.co`), mot de
+passe lu au trousseau, **essai refermé par `rollback`**, migration préalablement vérifiée
+transaction-compatible.
+
+- **Essai à blanc : `exit 0`.** Mais avec **9 NOTICE « column … already exists, skipping »**.
+- **Différence d'objets à l'intérieur de la transaction : 0 objet créé, 0 objet détruit.** Sur
+  Test, cette migration est un **no-op strict**.
+
+### 8.1 Pourquoi ce no-op est un résultat, pas un succès
+
+Les colonnes existent déjà sur Test. Or **aucune** des 276 migrations de l'arbre `production` ne
+déclare `regularisation_motif` ni `mode_saisie`, et aucune des 11 versions hors-bande de Test
+(`20260904175747` … `20260909170000`) n'approche du 19/09. Le schéma de Test a donc été avancé
+par du DDL direct, hors du système de migrations.
+
+Conséquence à énoncer franchement : **la migration de #65 n'a jamais été prouvée créer quoi que
+ce soit, nulle part.** Elle est muette sur Test parce que Test a déjà dérivé ; sur Production,
+sa fusion serait sa **première application réelle**. L'essai vert ci-dessus prouve qu'elle ne
+casse rien là où son effet est déjà acquis. Il ne prouve pas son effet.
+
+Le schéma Production n'a pas pu être relu en contrepartie : le secret en lecture seule
+(`nexus-prod-db-readonly`) est bien présent, mais ni l'hôte direct ni le pooler n'ont répondu
+depuis ce poste (exit 6). C'est une mesure **non prise**, pas une mesure négative.
+
+### 8.2 Structurellement indisponible pour ce SHA
+
+Identique à `fe4e9a2`, et pour les mêmes deux causes indépendantes : le `nexus-auth.js` de
+`fe36a8e` est celui de 932 lignes, qui code `uzhjpqpctpvxytxpxoqz.supabase.co` — **Supabase
+Production** — en dur et ignore `window.NEXUS_CONFIG` ; et `urlTestDuRail()` dérive l'adresse du
+rail déclaré au registre, donc ne sait pas adresser un candidat de PR. Un déploiement de branche
+de `reception-regularisation-20260919` servirait une page parlant à Production ; y jouer la
+recette y écrirait.
+
+Conformément au point 5 du plan, **l'absence de recette navigateur profonde pour `fe36a8e` est
+inscrite ici comme absence**, et les mesures PostgreSQL ci-dessus ne sont pas offertes en
+équivalent.

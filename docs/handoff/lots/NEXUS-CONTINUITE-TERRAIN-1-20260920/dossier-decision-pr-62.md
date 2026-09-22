@@ -137,3 +137,70 @@ l'autorisation tombe et le dossier est à refaire.
 
 Aucune fusion Production automatique. Aucun déploiement et aucune migration Production ne sont
 demandés par ce dossier, quelle que soit la réponse.
+
+## 7. Verdict rendu le 22/09/2026 — NO GO temporaire
+
+Frédéric, en session : **NO-GO temporaire de fusion Production — preuves Test profondes
+manquantes.** Textuellement : « Ce ne sont pas des rejets fonctionnels. Les candidats peuvent
+être bons ; leur dossier de preuve n'est simplement pas encore au niveau requis pour
+Production. » La couche absente est nommée : « pas de PostgreSQL Test, pas de semis Test, pas de
+journal Live, pas de Playwright/recette navigateur, et aucune preuve "SHA attendu = SHA
+réellement servi". Pour #62, avec 12 migrations, ce manque est particulièrement important. »
+
+Ce verdict ne porte pas sur `fe4e9a2` comme code. Il porte sur son dossier.
+
+## 8. Ce qui a été mesuré depuis, et ce qui ne peut pas l'être
+
+La couche manquante n'est pas homogène. Elle se sépare en deux moitiés de nature différente.
+
+### 8.1 Obtenable sans le rail — fait, contre la vraie base Test
+
+Mesuré le 22/09/2026 contre `db.udljdqxerrbbbajxubfn.supabase.co`, mot de passe lu au trousseau
+(`nexus-test-db`), **chaque essai dans une transaction refermée par `rollback`**. Les 12
+migrations candidates ont d'abord été vérifiées transaction-compatibles (aucun `concurrently`,
+`vacuum`, `create database`, `alter system`, ni `begin;` incorporé) : un essai roulé en arrière
+est donc fidèle, et non une approximation.
+
+- **État de Test :** 287 migrations appliquées, tête `20260920140000`. L'arbre `production` du
+  dépôt en compte 276. **L'écart de 11 n'est pas un retard : ce sont 11 versions présentes dans
+  aucun arbre du dépôt** (`20260904175747` … `20260909170000`, toutes début septembre).
+- **Aucune** des 12 migrations de #62 n'a jamais été appliquée à Test.
+- **Essai à blanc des 12, dans l'ordre : `exit 0`.** Elles s'appliquent toutes sur le schéma Test
+  réel, sans erreur. Deux NOTICE bénins seulement.
+- **Différence d'objets mesurée à l'intérieur de la transaction, avant `rollback`** (instantanés
+  `information_schema.columns`, `pg_proc`, `pg_policies` avant/après, diffés dans les deux
+  sens) : **54 colonnes créées, 36 fonctions créées, 0 objet détruit.**
+- Rien n'a été écrit : Test est resté à 287 migrations après les essais.
+
+C'est la preuve d'**applicabilité**, et elle est verte. Ce n'est pas la preuve de **comportement**.
+
+### 8.2 Structurellement indisponible pour ce SHA — deux causes, pas un manque d'effort
+
+La recette navigateur et la preuve « SHA attendu = SHA servi » ne sont pas absentes faute
+d'avoir essayé. Elles sont **impossibles sur `fe4e9a2`**, pour deux raisons indépendantes :
+
+1. **`nexus-auth.js` de `fe4e9a2` code Supabase Production en dur.** C'est le fichier de 932
+   lignes, celui de `production`, qui porte `uzhjpqpctpvxytxpxoqz.supabase.co` écrit dans la
+   source et n'interroge jamais `window.NEXUS_CONFIG`. L'indirection d'environnement — le
+   `nexus-auth.js` de 305 lignes qui lit `nexus-config.js` — n'existe que sur la lignée du
+   rail. `nexus-config.js` n'est dans **aucun** arbre git : il est généré au build par
+   `outils/generer-config.js` via `outils/build.sh`, **hors mandat**. Conséquence : le
+   déploiement Cloudflare de branche de `fdj-vague1-cycle-caisse-20260916` sert une page qui
+   parle à **Supabase Production**. Y jouer une recette navigateur écrirait en Production —
+   interdit sans gate humaine explicite.
+2. **`urlTestDuRail()`** (`outils/recette-navigateur-test.js`) dérive l'adresse Test du rail
+   déclaré au registre (`node outils/handoff.js rail`). Même la garde `NEXUS_REF_EST_LE_RAIL`
+   levée, l'outil ne saurait pas adresser un candidat de PR : il n'a pas de branche à viser.
+
+Conformément au point 5 du plan — « Inscrire explicitement au dossier que la recette navigateur
+profonde n'existe pas pour leur SHA. Ne pas transformer son absence en succès ou en preuve
+équivalente » — **cette absence est inscrite ici comme absence.** Les mesures du §8.1 ne la
+remplacent pas et ne sont pas offertes en équivalent.
+
+### 8.3 Ce que cela laisse
+
+`fe4e9a2` peut donc être prouvé applicable, et ne peut pas être prouvé servi. Combler
+réellement l'écart demanderait de porter l'indirection d'environnement sur la branche de PR,
+c'est-à-dire d'y faire descendre la lignée du rail et d'employer `outils/build.sh` — deux choses
+hors du mandat, et que le plan lui-même écarte : « C'est une évolution d'architecture CI à
+étudier séparément, pas quelque chose que j'introduirais au milieu de #62/#65. »
