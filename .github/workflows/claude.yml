@@ -7,12 +7,15 @@
 # un job Claude disposant de droits d'écriture. Une mention `@claude` par tout
 # autre acteur est ignorée par le job, même sur un dépôt public.
 #
-# Le rail de travail présenté à Claude est routable par le déclencheur autorisé :
-# un commentaire peut porter `NEXUS_BASE_BRANCH=<branche>`. Seules
-# `config-par-environnement` et les branches `handoff-*` sont acceptées ; main et
-# production sont exclus par construction. Sans marqueur, le rail historique
-# `config-par-environnement` reste le repli. Le workflow vit sur `main` parce que
-# GitHub écoute les événements d'issues/commentaires depuis la branche par défaut.
+# Le rail de travail présenté à Claude est DÉSIGNÉ par le déclencheur autorisé,
+# jamais déduit : le corps doit porter `NEXUS_BASE_BRANCH=<branche>` (la forme
+# `NEXUS_BASE_BRANCH: <branche>` et les backticks ou guillemets autour de la
+# valeur sont acceptés à l'identique). Seules `config-par-environnement` et les
+# branches `handoff-*` sont acceptées ; main et production sont exclus par
+# construction. Sans désignation, le job s'arrête : aucun repli n'est appliqué,
+# parce qu'un rail deviné est un rail faux et que l'erreur est alors silencieuse.
+# Le workflow vit sur `main` parce que GitHub écoute les événements
+# d'issues/commentaires depuis la branche par défaut.
 #
 # Décision humaine du 06/09/2026 : le canal Claude peut désormais écrire sur la
 # branche de PR Test afin d'implémenter un lot autorisé, exécuter les tests Node
@@ -74,24 +77,50 @@ jobs:
       id-token: write
 
     steps:
-      - name: Résoudre le rail NEXUS demandé
+      - name: Résoudre le rail NEXUS désigné
         env:
           NEXUS_TRIGGER_BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body || '' }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          base="config-par-environnement"
-          if [[ "$NEXUS_TRIGGER_BODY" =~ NEXUS_BASE_BRANCH=([A-Za-z0-9._/-]+) ]]; then
-            base="${BASH_REMATCH[1]}"
+          # Une désignation ne se recalcule pas. On lit ce que l'humain a écrit,
+          # sous toutes les formes qu'il écrit réellement : `=` ou `:`, espaces
+          # optionnels, valeur éventuellement entourée de backticks ou guillemets.
+          designations="$( { printf '%s' "$NEXUS_TRIGGER_BODY" \
+            | grep -oE 'NEXUS_BASE_BRANCH[[:space:]]*[:=][[:space:]]*[`"'"'"']?[A-Za-z0-9._/-]+' || true; } \
+            | sed -E 's/^.*[:=][[:space:]]*[`"'"'"']?//' | sort -u )"
+
+          if [[ -z "$designations" ]]; then
+            echo "::error::Aucun rail NEXUS désigné dans le déclencheur. Ajoutez NEXUS_BASE_BRANCH=<branche> au commentaire. Aucun repli n'est appliqué : un rail se désigne, il ne se devine pas."
+            exit 1
+          fi
+          if [[ "$(printf '%s\n' "$designations" | wc -l | tr -d ' ')" != "1" ]]; then
+            echo "::error::Désignation de rail ambiguë — le déclencheur nomme plusieurs branches :"
+            printf '::error::  - %s\n' $designations
+            exit 1
+          fi
+          base="$designations"
+
+          if [[ "$base" == "main" || "$base" == "production" ]]; then
+            echo "::error::Une ref protégée ne peut pas être un rail Claude: $base"
+            exit 1
+          fi
+          if [[ "$base" == *".."* || "$base" == /* || "$base" == */ ]]; then
+            echo "::error::Nom de rail malformé: $base"
+            exit 1
           fi
           if [[ "$base" != "config-par-environnement" && ! "$base" =~ ^handoff-[A-Za-z0-9._/-]+$ ]]; then
             echo "::error::Rail NEXUS refusé: $base"
             exit 1
           fi
-          if [[ "$base" == "main" || "$base" == "production" ]]; then
-            echo "::error::Une ref protégée ne peut pas être un rail Claude."
+          # Le rail désigné doit exister : sinon le checkout échouerait plus loin
+          # avec un message qui ne nomme pas la cause.
+          if ! gh api "repos/${GITHUB_REPOSITORY}/branches/${base}" --silent >/dev/null 2>&1; then
+            echo "::error::Rail NEXUS introuvable sur origin: $base"
             exit 1
           fi
+
           echo "NEXUS_CLAUDE_BASE_BRANCH=$base" >> "$GITHUB_ENV"
           echo "Rail NEXUS sélectionné: $base"
 
