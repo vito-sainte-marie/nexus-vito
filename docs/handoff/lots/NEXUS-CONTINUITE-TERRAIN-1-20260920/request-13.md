@@ -1,5 +1,3 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/request-13.md
-     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
@@ -110,3 +108,33 @@ Elle porte sur ce commit et sur lui seul. Elle n'autorise aucune écriture Produ
 migration Production, aucune fusion vers `production`, aucun déploiement. Elle ne crée
 aucun précédent : un dépôt direct sur `main` reste un écart, et le prochain devra passer par
 une enveloppe.
+
+## 5. Ce que le dépôt de la décision va coûter — mesuré, pas supposé
+
+Cette demande est déposée par `handoff.js demande` : elle est conforme par construction, et
+`handoff.js verifier` est vert avec elle (31 lots, 14 avertissements, 10 dérogations).
+
+**La décision qui l'arbitre, elle, ne peut pas être conforme.** Mesure prise, pas déduite :
+`handoff.js decision … --decision APPROVED_WITH_CONDITIONS --closes false --en-reponse-a
+request-13.md --auteur Frederic` produit bien une enveloppe « conforme par construction », et
+`handoff.js verifier` rend alors **une** violation, une seule :
+
+    ÉCHEC — lots/NEXUS-CONTINUITE-TERRAIN-1-20260920 : séquence des décisions non contiguë (decision-13.md)
+
+Cause : la règle exige que la i-ème décision porte `seq = i+1`. Ce lot porte les décisions
+1 à 9 puis **12** — `decision-10.md` et `decision-11.md` n'ont jamais existé, et `decision-12.md`
+est déjà couverte par une dérogation SEQUENCE_NON_CONTIGUE du 22/09. L'outil numérote la
+suivante `dernière + 1`, donc 13, alors que la contiguïté en attendrait 11.
+
+Conséquence structurelle à énoncer : **ce lot ne peut plus produire une décision contiguë.**
+Ni l'outil, ni une écriture à la main : la seule numérotation qui satisferait la règle serait
+11, c'est-à-dire glisser une décision *avant* `decision-12.md` alors qu'elle est déposée après
+— fabriquer un ordre qui n'a pas eu lieu, précisément ce que l'append-only interdit. Ce n'est
+donc pas un défaut de `decision-13`, c'est l'héritage de la mauvaise numérotation de
+`decision-12`, qui se paiera à chaque décision suivante du lot.
+
+Je n'écris pas cette décision. Un verdict porte la signature de son auteur, et la dérogation
+qu'il entraîne porte un `autorise_par` — les deux appartiennent à Frédéric, pas à moi. Le
+corps de la décision, la commande exacte qui la dépose et l'entrée `derogations` exacte
+qu'elle réclame sont préparés intégralement et joints au dossier. Le lot reste en
+`ATTENTE_DECISION`, ce qui est l'état vrai.
