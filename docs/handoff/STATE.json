@@ -343,6 +343,13 @@
       "valeur_retenue": {
         "in_reply_to": "request-12.md"
       }
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-13.md",
+      "regle": "SEQUENCE_NON_CONTIGUE",
+      "motif": "decision-13.md est la 11e decision reelle du lot et porte le rang 13, parce que decision-12.md porte deja le rang 12 pour la 10e — decision-10.md et decision-11.md n'ont jamais existe. Defaut de FORME seulement, et HERITE : ce n'est pas un ecart de ce depot mais la consequence mecanique de la mauvaise numerotation de decision-12.md, deja derogee le 22/09/2026. L'outil handoff.js decision numerote derniere+1, donc 13 ; la seule numerotation contigue serait 11, c'est-a-dire glisser cette decision AVANT decision-12.md alors qu'elle est deposee apres — fabriquer un ordre qui n'a pas eu lieu, ce que l'append-only interdit. Le fichier n'est ni renomme ni reecrit. Le controle de contiguite etant positionnel (handoff.js:250), toute decision supplementaire de ce lot ajouterait une violation de plus : c'est pourquoi decision-13.md porte closes: true et FERME le lot. Cette derogation est donc la derniere de cette regle pour ce lot, et non la premiere d'une serie — les questions encore ouvertes (B1, les deux trous de preuve de #62 et #65, la derive de schema de Supabase Test) repartent dans le lot successeur NEXUS-CONTINUITE-TERRAIN-2-20260922, contigu par construction. Arbitrage de Frederic du 22/09/2026, apres lecture du paragraphe 5 de preparation-du-verdict-13.md : « Je ne prolongerais surtout pas ce lot avec trois decisions supplementaires qui genereraient mecaniquement trois nouvelles derogations. »",
+      "autorise_par": "Frédéric Bragance (gate humaine — GO explicite en session du 22/09/2026, apres lecture de la derogation)",
+      "le": "2026-09-22"
     }
   ]
 }
