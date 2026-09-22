@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-POINTAGE-CORRECTIF-1-20260911",
+  "lot_actif": "NEXUS-CONTINUITE-TERRAIN-1-20260920",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -233,8 +233,20 @@
       "consomme_le": "2026-09-11T15:45:56.397Z"
     },
     "NEXUS-POINTAGE-CORRECTIF-1-20260911": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "d0d9ea79d5063f1035cb8eacf1e8079acd5869f7",
+      "consomme_le": "2026-09-20T18:44:13.569Z"
+    },
+    "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "derniere_demande": "request-12.md",
+      "derniere_decision": "decision-9.md",
+      "source_decision": "registre",
+      "commit_decision": "f87c379b289a10c2481266518aef84fc1142685f",
+      "consomme_le": "2026-09-21T23:10:47.555Z"
     }
   },
   "artefacts_hors_registre": [
@@ -299,6 +311,34 @@
       "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
       "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
       "le": "2026-09-05"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "L'enveloppe porte `decision: GO_RATIFICATION`, absent du vocabulaire canonique (APPROVED|APPROVED_WITH_CONDITIONS|BLOCKED|NEEDS_EVIDENCE). Défaut de FORME : le corps est sans ambiguïté — « GO ratification. Je ratifie l'équivalence applicative documentée par request-11 §1 à §3, corrigée et complétée par request-12 » — assorti de conditions explicites (« Elle n'autorise aucune nouvelle écriture Production, aucune migration Production, aucun merge/promotion Production et aucun nouveau déploiement Production », et la non-conformité de forme du merge commit reste inscrite, non réécrite). Le verdict équivaut donc à APPROVED_WITH_CONDITIONS. Le fichier n'est ni renommé ni réécrit : réécrire le dépôt d'un tiers (author: Frederic) violerait l'append-only. Dérogation posée sous la pré-autorisation CLAUDE.md « Pré-autorisations — ce que Claude décide seul », point 2 (défaut de FORME d'enveloppe sur fichier déjà publié, verdict hors vocabulaire dont le corps est sans ambiguïté).",
+      "autorise_par": "Claude / NEXUS Orchestrator (pré-autorisation CLAUDE.md, point 2 — dérogation de forme sur enveloppe déjà publiée)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "CLOSES_HORS_VOCABULAIRE",
+      "motif": "L'enveloppe ne porte pas de champ `closes`. Défaut de FORME seulement — le corps est sans ambiguïté : « Le Handoff peut poursuivre sur le rail canonique handoff-continuite-20260920 [...] conformément à la Bible, à la gouvernance et aux décisions déjà établies. » Cette phrase dit explicitement une continuation, jamais une clôture. Valeur retenue : `closes: false`. Le fichier n'est ni renommé ni réécrit. `outils/handoff.js` portait par ailleurs un défaut connexe corrigé dans le même lot : le contrôle `closes` n'attachait ni code ni fichier à son `bloquant()`, rendant cette classe d'écart structurellement indérogeable avant correction — traité comme correction d'outillage (CLAUDE.md, pré-autorisations, point 3), pas comme un changement de vocabulaire.",
+      "autorise_par": "Claude / NEXUS Orchestrator (pré-autorisation CLAUDE.md, point 2 — dérogation de forme sur enveloppe déjà publiée)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "IN_REPLY_TO_MANQUANT",
+      "motif": "L'enveloppe ne porte pas de champ `in_reply_to`. Défaut de FORME seulement — le corps nomme explicitement les demandes visées (« request-11 §1 à §3, corrigée et complétée par request-12 »), et `request-12.md` §4 déclare lui-même être devenu la demande active dont la décision vaut sur l'ensemble du post-flight (« Comme le protocole fait de cette demande la demande active, une décision rendue ici vaut décision sur le post-flight complet »). `request-12.md` est structurellement la seule valeur possible : c'est la dernière demande du lot (`STATE.json.lots[...].derniere_demande` au moment du dépôt), et `outils/handoff.js consommer` exige que la décision consommée réponde à la demande active. Valeur retenue : `in_reply_to: request-12.md`. Le fichier n'est ni renommé ni réécrit.",
+      "autorise_par": "Claude / NEXUS Orchestrator (pré-autorisation CLAUDE.md, point 2 — dérogation de forme sur enveloppe déjà publiée)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "SEQUENCE_NON_CONTIGUE",
+      "motif": "Le dépôt est numéroté 12 alors que la dernière décision du registre pour ce lot est decision-9.md (decision-10.md et decision-11.md n'existent pas) — la prochaine séquence calculée par l'outil aurait été 10. Même figure que la dérogation SEQUENCE_NON_CONTIGUE déjà autorisée sur HANDOFF-V2-EVENEMENTIEL-20260905/decision-2.md : l'auteur (Frederic, en écriture directe, hors `outils/handoff.js decision`) a numéroté la décision pour qu'elle porte le même numéro que la demande à laquelle elle répond (request-12.md), plutôt que de suivre le compteur strict des décisions. Le fichier n'est ni renommé ni réécrit : renommer le dépôt d'un tiers en decision-10.md violerait l'append-only et romprait le lien visuel avec request-12 que l'auteur a choisi.",
+      "autorise_par": "Claude / NEXUS Orchestrator (pré-autorisation CLAUDE.md, point 2 — dérogation de forme sur enveloppe déjà publiée)",
+      "le": "2026-09-22"
     }
   ]
 }
