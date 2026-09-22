@@ -146,6 +146,29 @@ t('un attendu recalculé par l\'appel même qu\'on observe', () => {
   assert.deepStrictEqual(codes(indirect), ['attendu_calcule_par_le_meme_appel']);
 });
 
+// Le faux positif réel du 22/09/2026 : `test_handoff_v2_20260905.js` capture
+// STATE.json avant une série de tentatives refusées, puis relit le même
+// chemin pour prouver qu'aucune n'a écrit. Le texte des deux lectures est
+// identique, mais ce n'est pas une recomputation pure — c'est un fichier sur
+// disque, relu après de vraies opérations intercalées. La règle doit s'en
+// taire, jamais accuser le motif « avant/après » qui prouve une absence de
+// mutation.
+t('silence : relire fs.readFileSync avant/après une opération n\'est pas une recomputation pure', () => {
+  // Note : deux lectures fs dans la MÊME instruction, sans aucune opération
+  // intercalée, restent accusées par `reglesTautologie` — à raison, rien ne
+  // peut avoir changé entre les deux appels. C'est la forme INDIRECTE, avec
+  // une vraie opération entre l'instantané et sa relecture, que cette règle
+  // doit laisser passer — c'est le motif « avant/après » réel du dépôt.
+  const indirect = garde.analyser(src(
+    "const etatInitial = fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8');",
+    "tenterUneMutationRefusee(dir);",
+    "assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial,",
+    "  'un refus n\\'écrit rien');"
+  ), 'test_vrai.js');
+  assert.deepStrictEqual(indirect, [],
+    'un instantané fs avant/après une vraie opération intercalée ne doit jamais être accusé');
+});
+
 // ───────────────────────────────────────────────────────────────────────
 // 2. LES SILENCES — chaque filtre de calibration, éprouvé
 // ───────────────────────────────────────────────────────────────────────
@@ -465,6 +488,23 @@ muter('le témoin levé dans le catch n\'est plus observé',
     );
     assert.deepStrictEqual(codes(g.analyser(source, 'test_x.js')), ['assertion_avalee_par_catch'],
       'sans cette observation, la forme « témoin levé dans le catch » est accusée à tort');
+    assert.deepStrictEqual(garde.analyser(source, 'test_x.js'), []);
+  });
+
+// M10 — l'exemption « lecture d'état mutable » saute : le motif avant/après
+// sur fs.readFileSync redevient accusé d'être tautologique par construction.
+muter('l\'exemption « lecture fs mutable » est retirée',
+  s => s.replace(
+    "if (source && source === observe && !RE_LECTURE_ETAT_MUTABLE.test(source)) {",
+    'if (source && source === observe) {'),
+  g => {
+    const source = src(
+      "const etatInitial = fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8');",
+      "tenterUneMutationRefusee(dir);",
+      "assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial);"
+    );
+    assert.deepStrictEqual(codes(g.analyser(source, 'test_x.js')), ['attendu_calcule_par_le_meme_appel'],
+      'sans cette exemption, le motif avant/après sur fs.readFileSync redevient un faux positif');
     assert.deepStrictEqual(garde.analyser(source, 'test_x.js'), []);
   });
 

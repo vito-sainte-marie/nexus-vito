@@ -400,6 +400,19 @@ function reglesTautologie(src, code, appels) {
   return findings;
 }
 
+// Un appel qui LIT un état externe mutable (fichier sur disque, ici) peut
+// légitimement être rejoué deux fois avec des résultats différents : c'est
+// exactement le motif « instantané avant → opération → instantané après »
+// que ce dépôt utilise pour prouver qu'un refus n'écrit rien (ex. STATE.json
+// relu avant/après une tentative refusée, alors que de vraies tentatives de
+// mutation ont eu lieu entre les deux lectures). Rejouer un tel appel n'est
+// pas une recomputation qui garantit l'égalité par construction — c'est un
+// second échantillonnage, dont l'égalité est précisément ce que l'épreuve
+// cherche à établir. On whiteliste donc la lecture connue plutôt que deviner
+// la pureté d'un appel arbitraire : plus sûr de se taire à tort que d'exclure
+// trop large.
+const RE_LECTURE_ETAT_MUTABLE = /\bfs\s*\.\s*(?:readFileSync|readdirSync|existsSync|statSync|lstatSync)\s*\(/;
+
 // Attendu extrait d'une variable dont la valeur vient du même appel que
 // l'observé : `const attendu = calc(x); ... assert.strictEqual(calc(x), attendu)`.
 function regleAttenduRecalcule(src, code, appels) {
@@ -416,7 +429,7 @@ function regleAttenduRecalcule(src, code, appels) {
     const observe = normaliser(src.slice(a.args[0][0], a.args[0][1]));
     const attendu = normaliser(src.slice(a.args[1][0], a.args[1][1]));
     const source = affectations.get(attendu);
-    if (source && source === observe) {
+    if (source && source === observe && !RE_LECTURE_ETAT_MUTABLE.test(source)) {
       findings.push({
         code: 'attendu_calcule_par_le_meme_appel',
         ligne: ligneDe(src, a.debut),
