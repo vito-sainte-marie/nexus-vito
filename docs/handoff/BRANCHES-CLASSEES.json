@@ -255,6 +255,62 @@
       "sort": "SUPERSEDEE",
       "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
       "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1051",
+      "tete": "bb5b9388e0a703005dc3f50637f42d0180a66a5c",
+      "sort": "SUPERSEDEE",
+      "motif": "Publie « P0-1/P0-3 fuseau station + audits non validés (Continuité terrain) ». Diff contre le HEAD canonique du 22/09 (`b9ffd787`) : 56 fichiers, uniquement des suppressions (317 insertions, 8122 suppressions) — la branche est strictement en retard, elle précède tout le travail P0-1/P0-3 réellement promu en Production (`2bc7b39`, ratifié par `decision-12.md`). Rien d'unique à transporter.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1534",
+      "tete": "70dd1fca5146230f4f5f1af1eedefc7fde61087d",
+      "sort": "SUPERSEDEE",
+      "motif": "Reconstruit un candidat P0-1/P0-3 depuis Production et publie request-7.md. `request-7.md`/`decision-6.md` sont canoniques par une autre voie (présents dans `lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/`, le contenu a évolué depuis — +153/-0 sur ce seul fichier). Le reste du diff (24 fichiers) est une régression pure vers un `outils/handoff.js` antérieur de 292 lignes. Rien d'unique à transporter.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1749",
+      "tete": "0ab8789b0e57129f08a4e88aaf9d066424a62d51",
+      "sort": "SUPERSEDEE",
+      "motif": "Consomme decision-8 (candidat figé/préflight autorisé). Son commit-clé de fond, `621004a` (candidat P0-1/P0-3 sur le vrai arbre Production), précède la suite du même travail déjà canonique. Chaîne dépassée par 1756 puis par le GO Créateur réellement promu (`f87c379`, ancêtre confirmé du HEAD canonique).",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1756",
+      "tete": "70598f7e66358839623de60e4da5c8881e758253",
+      "sort": "SUPERSEDEE",
+      "motif": "Consomme decision-9 (GO Créateur), refuse le fast-forward Production. Son commit `f87c379` (« GO Créateur Production P0-1/P0-3 ») EST un ancêtre direct du HEAD canonique — vérifié par `git merge-base --is-ancestor`. Le contenu a bien rejoint le rail ; seule cette branche de travail reste en retard derrière lui.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0023",
+      "tete": "e60e7a640c3f845b60f600058fc4c170af7144bd",
+      "sort": "SUPERSEDEE",
+      "motif": "Itération intermédiaire de la consommation de decision-12 (réparer in_reply_to, publier un request-13 provisoire). Diff contre le HEAD canonique : 35 fichiers, seulement des suppressions nettes (412 insertions, 5501 suppressions) — dépassée par la consommation réellement canonique (`9f3e542`, `b9ffd787`) qui couvre les mêmes défauts de forme par 4 dérogations motivées.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0605",
+      "tete": "dc9ed18323fd4db6154f9abbe19ae9b9f03f5715",
+      "sort": "SUPERSEDEE",
+      "motif": "Autre itération de la même consommation decision-12 (« preuve locale »). Diff contre le HEAD canonique : 39 fichiers, seulement des suppressions nettes (360 insertions, 6117 suppressions). Même conclusion que 0023 : dépassée par `9f3e542`/`b9ffd787`, canoniques.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1238",
+      "tete": "1daf388ebfa199d9606992d2cfc4579e0a432f19",
+      "sort": "SUPERSEDEE",
+      "motif": "Branche depuis `9f3e542` (canonique) et corrige, en parallèle du HEAD canonique, le même défaut Guardian QA (whitelister la lecture d'un état mutable — `fs.readFileSync`/`readdirSync`/`existsSync`/`statSync`/`lstatSync` — dans la règle anti-tautologie). Diff avec le HEAD canonique limité à `outils/guardian-qa.js` et son test (2 fichiers, 45/35 lignes) : les deux versions posent la même regex d'exclusion, appliquée à un point différent du code (à l'affectation ici, à la comparaison sur le canonique) — même défaut fermé deux fois, en concurrence, pas un contenu manquant.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1400",
+      "tete": "00f4be7a819941840c4141b27e61f195bf386b87",
+      "sort": "SUPERSEDEE",
+      "motif": "Premier audit #62/#65 + classement de 9 branches en rade + `request-13.md` (préparé, jamais intégré à `handoff-continuite-20260920`). Mesures de divergence (105 fichiers +17319/-12858 pour #62, 80 fichiers +1998/-11920 pour #65) reproduites à l'identique le 22/09. Une citation erronée y est corrigée dans ce lot : le commit cité comme nommant explicitement « #65 » (`fa29fa4`) porte en réalité un autre sujet (empreinte des migrations) — l'identification de la branche `reception-regularisation-20260919` reste fondée sur son commit `fbf113b` et la correspondance thématique, pas sur une citation numérique littérale. Ses 7 classements SUPERSEDEE sont repris ici, revérifiés indépendamment plutôt que recopiés ; ses 2 A_REPRENDRE (POINTAGE) ne le sont volontairement PAS, voir 20260914-0247/-1045 ci-dessous — un chaînage vers `claude/issue-28-20260922-1530` (postérieur au classement du 1400) recoupe le lot déjà `DECISION_CONSOMMEE` `NEXUS-POINTAGE-CORRECTIF-1-20260911`, ce que le 1400 ne pouvait pas voir.",
+      "le": "2026-09-22"
     }
   ]
 }
