@@ -47,6 +47,52 @@ assert.strictEqual(permsAbsent.demanderCorrection, false);
 console.log('OK — shift null : ne plante jamais, traité comme non-clôturé.');
 
 // ------------------------------------------------------------
+// 1 bis) Vague 1 (17/09/2026) — la règle raisonne sur l'ÉTAPE du cycle de
+// vie de la caisse, pas sur fdj_shifts.statut, dont la valeur 'valide'
+// signifie "transmis par l'employé" et NON "validé par le manager".
+//
+// Ces quatre cas sont la formulation exécutable du §3 du mandat :
+//   brouillon → rien d'établi ; confirmée → écart PROVISOIRE + correction
+//   directe ; validée → écart RETENU, plus aucune correction, seulement un
+//   signalement. Le test vérifie autant ce qui est permis que ce qui ne
+//   l'est plus : une règle qui n'interdit rien ne prouve rien.
+// ------------------------------------------------------------
+
+let permsSaisie = M.permissionsEcartCaisseEmploye({ etape: 'saisie_a_commencer' });
+assert.strictEqual(permsSaisie.voir, false, 'Avant toute saisie, aucun résultat n\'est établi');
+assert.strictEqual(permsSaisie.provisoire, false);
+
+let permsBrouillon2 = M.permissionsEcartCaisseEmploye({ etape: 'brouillon' });
+assert.strictEqual(permsBrouillon2.voir, false, 'Un brouillon ne montre aucun écart (28/08/2026, toujours en vigueur)');
+assert.strictEqual(permsBrouillon2.corrigerDirectement, true);
+
+let permsConfirmee = M.permissionsEcartCaisseEmploye({ etape: 'en_attente_controle_manager' });
+assert.strictEqual(permsConfirmee.voir, true, 'Après confirmation, l\'employé voit son écart provisoire (§3.3)');
+assert.strictEqual(permsConfirmee.provisoire, true, 'Cet écart est PROVISOIRE tant que le manager n\'a pas contrôlé');
+assert.strictEqual(permsConfirmee.corrigerDirectement, true, 'Tant que le manager n\'a pas validé, l\'employé corrige lui-même (§3.4)');
+assert.strictEqual(permsConfirmee.correctionTracee, true, 'Toute correction après confirmation est tracée');
+assert.strictEqual(permsConfirmee.signalerApresValidation, false, 'On ne "signale" pas une caisse qui n\'est pas encore validée');
+
+let permsValidee = M.permissionsEcartCaisseEmploye({ etape: 'validee' });
+assert.strictEqual(permsValidee.voir, true, 'Après validation, l\'écart retenu reste visible');
+assert.strictEqual(permsValidee.provisoire, false, 'Après validation, l\'écart n\'est plus provisoire : il est retenu');
+assert.strictEqual(permsValidee.corrigerDirectement, false, 'Une caisse validée ne se corrige plus (§3.7)');
+assert.strictEqual(permsValidee.signalerApresValidation, true, 'Seul recours après validation : signaler une erreur');
+console.log('OK — les quatre étapes du cycle de vie donnent la bonne permission.');
+
+// Traduction de la forme historique : un fdj_shifts en statut 'valide' est
+// une caisse TRANSMISE, donc en attente du contrôle manager — surtout pas
+// une caisse validée par le manager. C'est précisément le contresens que
+// cette version corrige.
+assert.strictEqual(M.etapeCaisseFdj({ statut: 'valide' }), 'en_attente_controle_manager',
+  'fdj_shifts.statut = \'valide\' veut dire TRANSMIS, jamais VALIDÉ PAR LE MANAGER');
+assert.strictEqual(M.etapeCaisseFdj({ statut: 'brouillon' }), 'brouillon');
+assert.strictEqual(M.etapeCaisseFdj(null), 'saisie_a_commencer');
+assert.strictEqual(M.etapeCaisseFdj('etape_inventee'), 'saisie_a_commencer',
+  'Une étape inconnue retombe sur la plus prudente, jamais sur une permission');
+console.log('OK — la forme historique (fdj_shifts) se traduit sans changer de sens.');
+
+// ------------------------------------------------------------
 // 2) ecartCaisse — vérifie que l'écart reste identique, qu'il soit affiché
 //    immédiatement (employé) ou après coup (manager) : même formule, une
 //    seule fois calculée (Article 11).

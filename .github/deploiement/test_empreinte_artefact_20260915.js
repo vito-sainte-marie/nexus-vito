@@ -477,6 +477,34 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ce 267 est MESURÉ (`node .github/deploiement/empreinte-artefact.js
 //   --arbre-source=.`), pas déduit de l'addition ci-dessus.
 //
+//   17/09/2026 — lot FDJ Vague 1, cycle de vie de la caisse :
+//   + 9  `20260916220000_fdj_quart_relie_a_la_prise_de_poste.sql` à
+//        `20260916220800_fdj_projection_employe.sql` — neuf migrations
+//        strictement additives : colonnes de cycle de vie, journal
+//        d'événements, demandes de correction après validation, auteur et date
+//        d'effet des mouvements, cinq lots de commandes serveur, projection
+//        employé. Aucune ne réécrit une migration déjà estampillée, aucune ne
+//        recouvre un lot antérieur : il n'y a rien à retrancher.
+//   ───
+//    276
+//
+//   17/09/2026 — relecture finale de la PR #62, trois migrations de plus :
+//   + 3  `20260916220900_fdj_projection_progression.sql` (l'écran employé ne
+//        lit plus la table de caisse en clair),
+//        `20260916221000_fdj_commandes_activations_et_mouvements.sql` (auteur,
+//        employé, site, quart et date d'effet déduits côté serveur) et
+//        `20260916221100_fdj_commande_saisie_caisse_manager.sql` (la saisie
+//        managériale, sans laquelle refermer les politiques aurait cassé un
+//        usage réel au lieu d'une faille). Additives elles aussi.
+//
+//        L'empreinte change également à cause de
+//        `20260916220700_fdj_commandes_caisse_manager.sql`, rouverte pour
+//        étendre deux signatures : un contenu qui bouge à l'intérieur d'une
+//        migration déjà estampillée ne se voit QUE par cette empreinte, pas
+//        par le compteur.
+//   ───
+//    279
+//
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
@@ -501,11 +529,20 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   + 1  `20260920120000_droits_v_planning_officiel.sql`
 //   + 1  `20260920140000_bascule_source_precedente_et_change_le.sql`
 //   ───
-//    276
+//    288
 //
-//   274 + 2 migrations de réconciliation = 276, et ce 276 est le compte
-//   exact du registre `supabase_migrations.schema_migrations` de Production
-//   au 20/09/2026 : la réconciliation se mesure elle-même.
+//   22/09/2026 — intégration de la tête de `production` dans #62. Sur la
+//   ligne `production` seule, les neuf migrations ci-dessus donnaient
+//   274 + 2 = 276, et ce 276 est le compte exact du registre
+//   `supabase_migrations.schema_migrations` de Production au 20/09/2026 :
+//   la réconciliation se mesurait elle-même. Ici elles s'ajoutent aux douze
+//   du lot FDJ : 279 + 7 + 2 = 288. Les deux lignes sont disjointes — aucune
+//   migration commune, donc aucun recouvrement à retrancher — et ce 288 est
+//   MESURÉ sur l'arbre fusionné, pas déduit de l'addition ci-dessus.
+//
+//   Au passage : #62 et `production` ont tous deux annoncé 276 avant cette
+//   fusion, par deux chemins sans aucun fichier commun. Le nombre seul ne
+//   les distinguait pas ; les empreintes, si.
 //
 //   Deux branches sœurs ont annoncé 268 ce jour-là sans annoncer la même
 //   empreinte : la Régularisation d'une réception passée (#65) mesurait
@@ -519,10 +556,10 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 276;
-const MIGRATIONS_REELLES_EMPREINTE = 'ef440d0a20155e747edd220ccb42e874e1fe9402ee81072c1b4696ca0c1ab56e';
+const MIGRATIONS_REELLES_NOMBRE = 288;
+const MIGRATIONS_REELLES_EMPREINTE = '116fc82135a63a8896b360c217d37198653693836e509c8cc1c99c83e4832f2c';
 
-cas('Réel · la provenance des migrations annonce 276 et garde son empreinte', () => {
+cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

@@ -1366,6 +1366,49 @@
     return services;
   }
 
+  // FDJ — la même forme de services, mais depuis la projection serveur
+  // `fdj_ma_progression_caisse()` (migration 20260916220900), une ligne
+  // plate par quart. Écrite le 17/09/2026 : l'écran employé demandait
+  // `fdj_cash_controls(*)`, et recevait donc dans sa réponse réseau le
+  // commentaire interne du manager, son verdict et l'identité du
+  // contrôleur — des champs qu'aucun rendu n'affichait, mais que la
+  // console du navigateur, elle, affiche très bien. La RLS ne pouvait rien
+  // y faire : elle filtre des lignes, jamais des colonnes.
+  //
+  // La sortie est identique, champ pour champ, à `construireServicesCaisseFdj` :
+  // tout ce qui consomme des services FDJ (`statutCaisseJourFdj`,
+  // `ligneActiviteFdj`, `construireHistoriqueUnifie`) ignore d'où ils
+  // viennent, et doit continuer de l'ignorer.
+  //
+  // Le serveur applique déjà les deux filtres de `construireServicesCaisseFdj`
+  // — `s.statut = 'valide'` (FDJ-26 : un brouillon n'est pas une progression)
+  // et la jointure sur `fdj_cash_controls` (un quart sans caisse enregistrée
+  // n'a rien transmis). Le premier est néanmoins rejoué ici, sur
+  // `statut_quart` : si la projection cessait un jour de filtrer, l'écran
+  // afficherait un brouillon comme un quart clos, ce qui est exactement le
+  // défaut que FDJ-26 avait corrigé. Deux filtres qui disent la même chose au
+  // même endroit ne se contredisent pas.
+  function construireServicesCaisseFdjDepuisProjection(rowsProjection) {
+    const services = [];
+    (rowsProjection || []).forEach(r => {
+      if (!r || !r.shift_id || r.statut_quart !== 'valide') return;
+      services.push({
+        id: r.shift_id, date: r.date, quart: r.quart,
+        quartValide: true,
+        statutCash: r.statut_caisse || null,
+        caisseAttendue: r.caisse_attendue != null ? Number(r.caisse_attendue) : null,
+        caisseReelle: r.caisse_reelle != null ? Number(r.caisse_reelle) : null,
+        caisseReelleOrigine: r.caisse_reelle_origine != null ? Number(r.caisse_reelle_origine) : null,
+        ecart: r.ecart != null ? Number(r.ecart) : null,
+        ecartOrigine: r.ecart_origine != null ? Number(r.ecart_origine) : null,
+        motifEcart: r.motif_ecart || null,
+        valideLe: r.valide_le || null,
+      });
+    });
+    services.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+    return services;
+  }
+
   // Statut FDJ ramené au même vocabulaire à 3 niveaux que Verify
   // (provisoire / validee_conforme / validee_ecart) — FDJ n'a pas de seuil
   // numérique automatique comme Verify (SEUIL_ECART_CONFORME) : c'est le
@@ -1707,7 +1750,7 @@
     // vers nexus-ecarts-moteur.js) — statutActivite/statutCaisseJour ci-
     // dessus en dépendent désormais.
     statutEcartActiviteVerify, statutActivite, ligneActiviteCaisse,
-    construireServicesCaisseFdj, statutCaisseJourFdj, ligneActiviteFdj,
+    construireServicesCaisseFdj, construireServicesCaisseFdjDepuisProjection, statutCaisseJourFdj, ligneActiviteFdj,
     construireHistoriqueUnifie, syntheseActivite, syntheseCombinee,
     serieValideeConformeUnifiee,
     // Mes séries — badges Série Caisse + points (19/08/2026)

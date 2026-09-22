@@ -99,9 +99,64 @@
     };
   }
 
+  // ---------------------------------------------------------------------
+  // FDJ — même problème, même remède (17/09/2026, relecture de la PR #62).
+  //
+  // « Ma Progression » chargeait ses quarts FDJ par
+  // `from('fdj_shifts').select('*, fdj_cash_controls(*)')`. L'étoile
+  // imbriquée envoyait à l'employé, dans la réponse réseau, le commentaire
+  // interne du manager (`motif_ecart_texte`), son verdict
+  // (`resultat_controle`) et l'identité du contrôleur (`valide_par`,
+  // `controle_par`). L'écran n'en affichait rien ; c'est la réponse qui
+  // compte, pas ce qu'on en fait ensuite.
+  //
+  // Pour soi : `fdj_ma_progression_caisse()` (migration 20260916220900),
+  // sans paramètre d'identité, qui ne rend que les douze champs consommés
+  // par `construireServicesCaisseFdj` et ne rend que les quarts clôturés.
+  // Pour un manager qui consulte quelqu'un d'autre : les lignes brutes,
+  // gardées par la RLS de `fdj_cash_controls` — qui, après la Phase C, ne
+  // les ouvre qu'au manager du site.
+  // ---------------------------------------------------------------------
+
+  // Les colonnes lues sur les lignes brutes, chemin manager uniquement.
+  // Écrites une fois, ici : `select('*')` sur une table de montants finit
+  // toujours par transporter la colonne de trop.
+  const SELECT_FDJ_SHIFTS_BRUT = 'id, site, date, quart, statut, '
+    + 'fdj_cash_controls(statut, caisse_attendue, caisse_reelle, '
+    + 'caisse_reelle_origine, ecart, ecart_origine, motif_ecart, valide_le)';
+
+  async function chargerServicesCaisseFdj({ client, siteId, cibleId, vueManager }) {
+    const P = global.NexusProgression;
+    if (!P) return { servicesFdj: null, erreur: new Error('NexusProgression absent'), source: null };
+
+    if (vueManager) {
+      const { data, error } = await paginer(() => client
+        .from('fdj_shifts').select(SELECT_FDJ_SHIFTS_BRUT)
+        .eq('site', siteId).eq('employee_id', cibleId)
+        .order('date', { ascending: false }));
+      if (error) return { servicesFdj: null, erreur: error, source: 'fdj_shifts' };
+      return {
+        servicesFdj: P.construireServicesCaisseFdj(data || []),
+        erreur: null,
+        source: 'fdj_shifts',
+      };
+    }
+
+    const { data, error } = await paginer(() => client
+      .rpc('fdj_ma_progression_caisse').order('date', { ascending: false }));
+    if (error) return { servicesFdj: null, erreur: error, source: 'fdj_ma_progression_caisse' };
+    return {
+      servicesFdj: P.construireServicesCaisseFdjDepuisProjection(data || []),
+      erreur: null,
+      source: 'fdj_ma_progression_caisse',
+    };
+  }
+
   global.NexusCaisseSource = {
     SELECT_AUDITS_BRUT,
+    SELECT_FDJ_SHIFTS_BRUT,
     chargerPostesEmploye,
     chargerServicesCaisse,
+    chargerServicesCaisseFdj,
   };
 })(window);
