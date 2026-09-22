@@ -32,7 +32,16 @@ function extraire(nomFonction) {
 // dépend de la table interrogée (station_config vs pointages) — chaque
 // scénario fournit les deux réponses attendues, dans l'ordre où le code
 // réel les demande.
-function fauxClient({ config, arrivee }) {
+// 19/09/2026 — `sites` est servie ici parce que la fonction sous test y lit
+// desormais le fuseau de la station. La colonne depreciee
+// `station_config.fuseau_horaire` n'est volontairement PAS servie : si un
+// lecteur y revenait, il ne trouverait rien et les scenarios rougiraient.
+// Le defaut est le fuseau de l'APPAREIL : l'arrivee du jour est cherchee a la
+// date d'aujourd'hui, et un autre fuseau deplacerait cette date sans rien
+// mesurer de plus. Le cas « site sans fuseau » est un scenario a part.
+const FUSEAU_APPAREIL = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+function fauxClient({ config, arrivee, fuseau = FUSEAU_APPAREIL }) {
   function chain(table) {
     return {
       select: () => chain(table),
@@ -40,12 +49,16 @@ function fauxClient({ config, arrivee }) {
       maybeSingle: async () => {
         if (table === 'station_config') return { data: config };
         if (table === 'pointages') return { data: arrivee, error: null };
+        if (table === 'sites') return { data: fuseau ? { timezone: fuseau } : null, error: null };
         throw new Error('table inattendue: ' + table);
       },
     };
   }
   return { from: (table) => chain(table) };
 }
+
+// Les refus journalises par la fonction sous test, pour le dernier appel.
+let ERREURS = [];
 
 // 16/09/2026 — la page de référence des scénarios passe de l'accueil à
 // Missions. Ce n'est pas un détail d'écriture : depuis la règle d'accès,
@@ -55,7 +68,15 @@ function fauxClient({ config, arrivee }) {
 // l'interrupteur dispense. Missions est un écran opérationnel : c'est bien
 // l'interrupteur qui y décide, et lui seul.
 async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.html') {
+  // 18/09/2026 — la fonction sous test ne lit plus le jour de l'appareil mais
+  // celui du SITE : elle appelle les primitives de fuseau, bornees dans
+  // `nexus-auth.js` comme l'est la regle d'acces. Elles sont PORTEES telles
+  // quelles, jamais recopiees — meme doctrine que pour `nexusEstManager`.
+  const dFuseau = src.indexOf('/* NEXUS-FUSEAU-METIER:DEBUT */');
+  const fFuseau = src.indexOf('/* NEXUS-FUSEAU-METIER:FIN */');
+  assert.ok(dFuseau !== -1 && fFuseau > dFuseau, 'bloc du jour metier introuvable dans nexus-auth.js');
   const code = [
+    src.slice(dFuseau, fFuseau),
     // `nexusEstManager` est EXTRAITE elle aussi, jamais réécrite ici. Le
     // 16/09/2026, cette fonction a cessé de recopier `role === 'manager' ||
     // role === 'gerant'` et appelle désormais la règle unique du fichier. Un
@@ -75,9 +96,10 @@ async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.ht
   const fBloc = src.indexOf('/* NEXUS-ACCES-REGLE:FIN */');
   assert.ok(dBloc !== -1 && fBloc > dBloc, 'bloc de règle d\'accès introuvable dans nexus-auth.js');
   const constSeq = src.slice(dBloc, fBloc);
+  ERREURS = [];
   const ctx = {
     globalThis: {},
-    console,
+    console: { log: () => {}, warn: () => {}, error: (...a) => ERREURS.push(a.join(' ')) },
     window: { location: { pathname: '/' + pageActuelle } },
     nexusClient: fauxClient(scenario),
   };
@@ -157,6 +179,28 @@ async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.ht
   );
   assert.strictEqual(consultationExterne, false, 'un créateur en consultation externe ne doit jamais être bloqué');
   console.log('OK — consultation externe créateur jamais bloquée (régression).');
+
+  // 7) Site dont le fuseau n'est pas lisible → aucune relance. NEXUS ne peut
+  //    pas savoir si l'arrivee du JOUR manque sans savoir quel jour il est a
+  //    la station ; reclamer un pointage contre un jour devine serait pire que
+  //    se taire. Ce `false` n'ouvre aucune porte : il retire un rappel, il
+  //    n'accorde pas d'acces — la regle d'acces, elle, est eprouvee ailleurs.
+  const sansFuseau = await executer(
+    { config: { pointage_actif: true, manager_pointage_requis: false }, arrivee: null, fuseau: null },
+    { id: 'e6', site_id: 's1', role: 'employe', consultation_externe: false }
+  );
+  assert.strictEqual(sansFuseau, false, 'sans jour de station, aucune relance de pointage ne doit etre reclamee');
+  assert.ok(ERREURS.some(e => /indetermine/.test(e)), 'le refus doit etre journalise, jamais silencieux');
+  console.log('OK — site sans fuseau lisible : aucune relance, et le motif est journalisé.');
+
+  // Et le meme site, fuseau lisible, redevient bloquant : la garde ci-dessus
+  // est bien la cause du `false`, pas une dispense heritee du scenario.
+  const memeSiteAvecFuseau = await executer(
+    { config: { pointage_actif: true, manager_pointage_requis: false }, arrivee: null },
+    { id: 'e6', site_id: 's1', role: 'employe', consultation_externe: false }
+  );
+  assert.strictEqual(memeSiteAvecFuseau, true, 'avec un fuseau lisible, ce meme employe reste bloque');
+  console.log('OK — témoin : le même scénario, fuseau lisible, bloque bien (la garde est la cause).');
 
   console.log('\nTous les tests "interrupteur global Pointage" passent.');
 })().catch(err => { console.error(err); process.exit(1); });

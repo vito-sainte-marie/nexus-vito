@@ -480,20 +480,58 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // 243 + 21 = 264 aurait été le chiffre déduit, et il aurait été faux : c'est
 // précisément pourquoi ce compteur se mesure.
 //
-//   19/09/2026 — lot Régularisation d'une réception passée : + 1 migration,
-//   `20260919103000_carburant_reception_regularisation_releve_manuscrit.sql`.
-//   267 + 1 = 268, et ce 268 est MESURÉ comme les précédents. Elle est
-//   additive — huit colonnes à valeur par défaut, un check et un trigger —
-//   et ne rouvre aucune migration déjà estampillée.
+//   19/09/2026 — lot Moteur d'horaires unique et retard nullable (#64) :
+//   + 1  `20260919160000_horaires_moteur_unique_et_retard_nullable.sql`
+//   19/09/2026 — lot Source de planning officielle et projection normalisée :
+//   + 1  `20260919180000_planning_source_officielle_projection_normalisee.sql`
+//   19/09/2026 — lot Import du planning depuis Google Sheets :
+//   + 1  `20260919200000_import_planning_google_sheets.sql`
+//   19/09/2026 — lot Bascule de source de planning tracée :
+//   + 1  `20260919220000_bascule_source_planning_tracee.sql`
+//   19/09/2026 — lot Horodatage serveur des affectations de planning :
+//   + 1  `20260919240000_horodatage_serveur_planning_shifts.sql`
+//   19/09/2026 — lot Date d'effet choisie de la bascule de source :
+//   + 1  `20260919260000_bascule_source_planning_date_effet.sql`
+//   19/09/2026 — lot Source précédente lue à la date d'effet :
+//   + 1  `20260919280000_source_precedente_a_la_date_d_effet.sql`
+//   20/09/2026 — réconciliation du dépôt avec Production (#66) : les deux
+//        migrations ci-dessous étaient DÉJÀ APPLIQUÉES et inscrites au
+//        registre de Production, seul le fichier manquait au dépôt — le
+//        dépôt rejoint la base, il ne la devance pas
+//   + 1  `20260920120000_droits_v_planning_officiel.sql`
+//   + 1  `20260920140000_bascule_source_precedente_et_change_le.sql`
+//   19/09/2026 — lot Régularisation d'une réception passée (#65) :
+//   + 1  `20260919103000_carburant_reception_regularisation_releve_manuscrit.sql`
+//        additive — huit colonnes à valeur par défaut, un check et un trigger —
+//        et elle ne rouvre aucune migration déjà estampillée
+//   ───
+//    277
+//
+//   22/09/2026 — intégration de la tête de `production` dans #65. Sur la ligne
+//   `production` seule, les neuf migrations du 19 et du 20 donnaient
+//   274 + 2 = 276, et ce 276 est le compte exact du registre
+//   `supabase_migrations.schema_migrations` de Production au 20/09/2026 : la
+//   réconciliation se mesurait elle-même. Ici la migration de #65 s'y ajoute :
+//   276 + 1 = 277. Les deux lignes sont disjointes — aucune migration commune,
+//   donc aucun recouvrement à retrancher — et ce 277 est MESURÉ sur l'arbre
+//   fusionné, pas déduit de l'addition ci-dessus.
+//
+//   Deux branches sœurs ont annoncé 268 le 19/09 sans annoncer la même
+//   empreinte : la Régularisation d'une réception passée (#65) mesurait
+//   268 / `75e639c2…`, le lot Planning mesurait 268 / `c6fdf93f…` avant
+//   d'ajouter la source de planning. Le nombre seul ne distingue pas deux
+//   inventaires différents — c'est l'empreinte qui le fait, et c'est toute la
+//   raison d'être de la seconde constante. Ces compteurs se re-mesurent à
+//   chaque lot, ils ne s'additionnent pas d'une branche à l'autre.
 //
 // Les deux valeurs sont MESURÉES (`node
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 268;
-const MIGRATIONS_REELLES_EMPREINTE = '75e639c2a3fc0d2c06728a7967bb52833cc48ae73e163d8e30545fc402324d07';
+const MIGRATIONS_REELLES_NOMBRE = 277;
+const MIGRATIONS_REELLES_EMPREINTE = 'e23c091f97a8d4f16eb15cba005498f9f86a47a43355504e9fae6c2938be7673';
 
-cas('Réel · la provenance des migrations annonce 268 et garde son empreinte', () => {
+cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
   assert.strictEqual(code, 0, `la provenance de l'arbre réel a échoué.\n${sortie}`);
   assert.ok(sortie.includes(`migrations_source_nombre   : ${MIGRATIONS_REELLES_NOMBRE}`),

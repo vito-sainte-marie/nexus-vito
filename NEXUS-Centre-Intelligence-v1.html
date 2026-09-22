@@ -407,10 +407,14 @@
   // "repetition sur plusieurs periodes -> ouvrir un accompagnement").
   function patternAssiduite(retardsHisto, equipeMap) {
     const compte = {};
-    (retardsHisto || []).forEach(p => {
+    // NULL = retard non calculable (colonne nullable depuis le
+    // 19/09/2026) : ni un retard à compter, ni une preuve de ponctualité.
+    // chargerRetardsTous() ne rapporte que des retards > 0, ce filtre est
+    // la ceinture de cette bretelle.
+    (retardsHisto || []).filter(p => Number.isFinite(p.retard_min)).forEach(p => {
       if (!compte[p.employee_id]) compte[p.employee_id] = { nb: 0, total: 0 };
       compte[p.employee_id].nb += 1;
-      compte[p.employee_id].total += (p.retard_min || 0);
+      compte[p.employee_id].total += p.retard_min;
     });
     return Object.entries(compte)
       .filter(([,v]) => v.nb >= 3)

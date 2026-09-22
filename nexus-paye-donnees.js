@@ -8,7 +8,14 @@
     const [emp, settings, planning, pointages, indispos, audits, items, periodeRes, configRes, ecarts] = await Promise.all([
       client.from('employees').select('id, username, nom, role, actif, site_id').eq('site_id', siteId).eq('actif', true).order('nom'),
       client.from('nexus_paye_employee_settings').select('*').eq('site_id', siteId),
-      client.from('planning_shifts').select('id, employee_id, date, quart, statut, duree_heures, heure_debut, heure_fin, tache').eq('site_id', siteId).gte('date', debut).lt('date', fin),
+      // LA VUE, PAS LA TABLE — et `publie` demande explicitement.
+      // `v_planning_officiel` n'expose que la provenance qui faisait foi a
+      // chaque date : lire `planning_shifts` compterait deux fois une journee
+      // ou l'import Google Sheets et la generation NEXUS coexistent.
+      // `publie` est exige ici parce que l'ecran Paye s'ouvre au manager, a
+      // qui la RLS montre aussi les brouillons : sans ce filtre, un planning
+      // en cours de redaction entrerait dans un rapport de paye.
+      client.from('v_planning_officiel').select('id, employee_id, date, quart, statut, duree_heures, heure_debut, heure_fin, tache').eq('site_id', siteId).eq('publie', true).gte('date', debut).lt('date', fin),
       client.from('pointages').select('id, employee_id, date, type, heure, quart, retard_min, anomalie_signalee').eq('site', siteId).gte('date', debut).lt('date', fin),
       client.from('employee_indisponibilites').select('id, employee_id, date_debut, date_fin, type, commentaire, motif, confirme_le, fin_indeterminee, date_reprise').eq('site_id', siteId).lte('date_debut', fin).gte('date_fin', debut),
       client.from('audits_caisse').select('id, date, quart, statut, employes_piste, employes_boutique').eq('site', siteId).gte('date', debut).lt('date', fin),

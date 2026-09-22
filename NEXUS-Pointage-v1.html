@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -83,7 +84,6 @@
   .timeline-item{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
   .timeline-item:last-child{border-bottom:none;}
   .timeline-dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); flex-shrink:0; margin-top:5px;}
-  .timeline-dot.retard{background:var(--red);}
   .timeline-dot.vide{background:transparent; border:1.5px solid var(--text-dim);}
   .timeline-body{flex:1; min-width:0;}
   .timeline-row-top{font-size:13px;}
@@ -91,8 +91,9 @@
   .timeline-label-prochaine{font-family:var(--mono); font-size:10px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);}
   .timeline-heure{font-family:var(--mono); font-size:12px; color:var(--text-mid); flex-shrink:0;}
   .timeline-sub{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
-  .timeline-sub.retard{color:var(--amber);}
   .timeline-photo{font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none;}
+  .timeline-service{list-style:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); padding:14px 0 2px; border-bottom:1px solid var(--hairline);}
+  .timeline-service:first-child{padding-top:2px;}
   .timeline-empty{font-size:12.5px; color:var(--text-dim); padding:6px 0;}
   .timeline-anomalie-lien{background:none; border:none; padding:0; margin-top:5px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; text-decoration:underline; -webkit-tap-highlight-color:transparent;}
   .timeline-anomalie-ok{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:5px;}
@@ -103,7 +104,6 @@
   .anomalie-btn.primaire{border-color:var(--cyan); color:var(--cyan);}
 
   .confirm-banner{background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.35); border-radius:12px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.55; color:var(--green); display:none;}
-  .confirm-banner.retard{background:var(--red-dim); border-color:rgba(240,87,90,0.4); color:var(--red);}
   .confirm-banner.show{display:block;}
   .confirm-banner-titre{font-weight:600;}
   .confirm-banner-sous{font-family:var(--mono); font-size:11.5px; margin-top:3px; opacity:0.85;}
@@ -120,7 +120,6 @@
   .equipe-nom{color:var(--text);}
   .equipe-statut{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
   .equipe-statut.ok{color:var(--green);}
-  .equipe-statut.retard{color:var(--red);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
@@ -190,15 +189,42 @@
   // Règle : chaque type ('arrivee','pause_debut','pause_fin','depart')
   // ne peut être pointé qu'une fois par jour et par employé. La pause
   // garde sa séquence propre (pas de fin sans début), mais elle n'est
-  // PLUS un passage obligé vers le départ — voir pointageDisponible(). Le retard n'est calculé (retard_min) que pour l'arrivée,
-  // à partir du quart actif de l'employé dans `shifts` (statut
-  // 'en_cours') — jamais un chiffre inventé : si aucun quart actif
-  // n'est trouvé, retard_min reste à 0 plutôt que d'être estimé.
+  // PLUS un passage obligé vers le départ — voir pointageDisponible().
+  //
+  // Retard (19/09/2026, mandat 33) : le retard est de nouveau CALCULÉ, mais
+  // contre la bonne source. Deux erreurs successives l'avaient précédé, de
+  // même racine — affirmer quand on ne sait pas :
+  //   - jusqu'au 18/09, le chiffre se mesurait contre `shifts.heure_debut`,
+  //     qui vaut `created_at` quand le service est ouvert d'un clic :
+  //     l'écran annonçait des heures de retard à qui arrivait à l'heure ;
+  //   - le 18/09, le calcul a été arrêté net et `retard_min` écrit à 0, ce
+  //     qui a remplacé un faux retard par un faux « à l'heure ».
+  // Le contrat arbitré nomme les sources : Paramètres Station = horaires
+  // canoniques du site ; Planning = affectation réelle ; Pointage = heure
+  // constatée ; retard = rapprochement des trois. `shifts.heure_debut` est
+  // INTERDIT comme horaire théorique.
+  // `retard_min` est désormais NULLABLE : 0 = à l'heure, MESURÉ ; > 0 =
+  // retard mesuré ; null = NON CALCULABLE, et null ne veut jamais dire « à
+  // l'heure ». `heure_debut_quart` reste null — c'est un `timestamptz`, et
+  // y écrire une heure attendue (un `time` local) obligerait à fabriquer un
+  // instant, donc à inventer un fuseau. Voir retardDeLArrivee() ci-dessous
+  // et `retardDuPointage` dans nexus-pointage-regles.js.
   //
   // Photo de validation (28/07/2026, demande de Frédéric) : l'arrivée et
-  // le départ exigent une photo qui valide l'action, avant même
-  // l'enregistrement en base — rien n'est inséré tant que la photo n'est
-  // pas envoyée avec succès. Début/fin de pause restent sans photo.
+  // le départ demandent une photo, prise et envoyée avant l'enregistrement
+  // en base. Début/fin de pause restent sans photo.
+  //
+  // CE COMMENTAIRE DISAIT FAUX JUSQU'AU 18/09/2026. Il annonçait que « rien
+  // n'est inséré tant que la photo n'est pas envoyée avec succès » : ce
+  // n'est plus vrai depuis l'arbitrage du 11/09/2026, où la photo est
+  // devenue COMPLÉMENTAIRE et jamais une condition (voir afficherRepli).
+  // Le pointage passe sans photo dans DEUX situations qu'il ne faut surtout
+  // pas confondre, et que le code distingue désormais (motifSansPhoto) :
+  //   - 'echec_technique' : l'envoi a échoué malgré la relance. L'employé
+  //     n'y est pour rien ; photo_echec_technique le trace pour le manager.
+  //   - 'choix_employe'   : l'employé a cliqué « Enregistrer sans photo »
+  //     (caméra refusée, absente, ou simple choix). Ce n'est PAS une panne,
+  //     et l'écrire comme telle inventait un incident qui n'a pas eu lieu.
   // ============================================================
 
   // Règle "le clic est le moment d'arrivée" (03/08/2026, demande de
@@ -411,25 +437,51 @@
 
   /**
    * Le service ouvert, mais SEULEMENT s'il a commencé le même jour station
-   * que le pointage. Sinon : null, et les champs qui en dépendent
-   * retombent sur leur repli honnête (retard 0, quart 'non_defini',
-   * horaire prévu nul). Voir enregistrerPointage pour le défaut d'origine.
+   * que le pointage. Sinon : null, et `quart` retombe sur 'non_defini'.
+   * Voir enregistrerPointage pour le défaut d'origine.
+   *
+   * Le RETARD, lui, ne dépend plus de ce service depuis le 19/09/2026 : il
+   * se calcule contre le Planning et les Paramètres Station, jamais contre
+   * l'heure d'ouverture d'un service. Voir retardDeLArrivee().
+   *
+   * `jourDeService` reçoit une date et rend son jour station : ce fichier
+   * ne lit aucune horloge et ne décide d'aucun fuseau. C'est le contrat du
+   * module, repris à l'identique.
+   *
+   * 19/09/2026, mandat 38 §3 — CE PARAMÈTRE N'EXISTAIT PAS ICI, ET C'ÉTAIT
+   * LE DÉFAUT. Le commentaire ci-dessus disait déjà « le même jour station »,
+   * mais le corps convertissait `heure_debut` avec le calendrier de
+   * l'APPAREIL, quand `jourDuPointage` venait, lui, du site. Les deux côtés
+   * de cette égalité ne parlaient donc pas de la même journée dès que le
+   * téléphone n'était pas réglé sur le fuseau de la station : un service
+   * bien ouvert le jour même était rejeté comme « service de la veille »,
+   * le quart retombait sur 'non_defini' et l'écran annonçait « aucun poste
+   * ouvert » à quelqu'un qui venait de prendre le sien.
+   *
+   * DETTE CONNUE, toujours ouverte : nexus-pointage-regles.js porte la même
+   * règle et le même corps. Les réunir demande de fournir le module aux
+   * tests qui jouent cette fonction seule, et sera traité à part.
    */
-  function serviceDuJourSeulement(shiftActif, jourDuPointage) {
+  function serviceDuJourSeulement(shiftActif, jourDuPointage, jourDeService) {
     if (!shiftActif || !shiftActif.heure_debut) return null;
-    return dateISOLocale(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
+    return jourDeService(new Date(shiftActif.heure_debut)) === jourDuPointage ? shiftActif : null;
   }
   const LABELS_TYPES = {
     // consignePhoto (28/07/2026, demande de Frédéric) : précise ce qui
     // doit être photographié — NEXUS ne peut pas vérifier le contenu
     // d'une photo, seulement guider l'employé sur quoi prendre avant
     // qu'il n'ouvre l'appareil photo. Arrivée : l'extérieur de la
-    // station (parking) suffit. Départ : la mise en alarme est
-    // obligatoire, c'est la preuve que la station est sécurisée.
+    // station (parking) suffit. Départ : c'est la mise en alarme qu'il faut
+    // photographier, la preuve que la station est sécurisée.
+    // « Ce qu'il faut photographier » n'est pas « photo obligatoire ».
+    // 18/09/2026 : la consigne du départ annonçait « Obligatoire : … » pour
+    // une exigence que rien n'applique depuis l'arbitrage du 11/09. Une
+    // obligation affichée et non tenue n'oblige personne : elle apprend
+    // seulement à l'employé que les consignes de l'écran sont négociables.
     arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante — une fois la photo prise, patientez quelques secondes, ne quittez pas la page', histLabel: 'Arrivée enregistrée', labelProchaine: 'Arrivée' },
     pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false, histLabel: 'Début de pause enregistré', labelProchaine: 'Début de pause' },
     pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false, histLabel: 'Fin de pause enregistrée', labelProchaine: 'Fin de pause' },
-    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme — une fois la photo prise, patientez quelques secondes, ne quittez pas la page', histLabel: 'Départ enregistré', labelProchaine: 'Départ' },
+    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Photo de la mise en alarme — une fois la photo prise, patientez quelques secondes, ne quittez pas la page', histLabel: 'Départ enregistré', labelProchaine: 'Départ' },
   };
 
   // Couleur par type (28/07/2026, demande de Frédéric) : reprend exactement
@@ -524,12 +576,19 @@
           </div>
         `);
         overlay.querySelector('[data-annuler-camera]').addEventListener('click', () => fermer(null));
-        // La photo est COMPLÉMENTAIRE, jamais une condition (arbitrage du
-        // 11/09/2026). Une caméra refusée, absente ou en échec ne doit pas
-        // coûter son pointage à l'employée : elle peut enregistrer sans
-        // photo, et l'écran le dit en toutes lettres. La cause technique est
-        // conservée (photo_echec_technique) pour rester honnête envers le
-        // manager, sans rien reprocher à l'employée.
+        // ATTENTION — ce bouton n'existe QUE dans ce panneau de repli, donc
+        // seulement quand la caméra en page est indisponible, refusée ou en
+        // échec. L'écran de capture, lui, n'offre que le déclencheur ou la
+        // croix, et la croix annule le pointage : quand la caméra répond, la
+        // photo est de fait REQUISE. Règle réellement livrée, constatée sur
+        // téléphone et arbitrée le 19/09/2026 : photo requise tant que la
+        // caméra répond, jamais bloquante quand elle ne répond pas. C'est
+        // ainsi que se concilie l'arbitrage du 11/09/2026 — une caméra
+        // absente ne doit pas coûter son pointage à l'employée.
+        // 18/09/2026 : ce geste est tracé comme un CHOIX, pas comme une
+        // panne. Poser photo_echec_technique ici revenait à déclarer au
+        // manager un incident technique que personne n'avait vécu (voir
+        // motifSansPhoto).
         overlay.querySelector('[data-sans-photo]').addEventListener('click', () => fermer('sans-photo'));
         // Résolution spéciale 'repli' (et non null) : l'appelant doit savoir
         // que le mécanisme natif prend le relais (repère localStorage à
@@ -644,9 +703,198 @@
   function heureLocale() {
     return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
-  function dateISOLocale(d) {
-    d = d || new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // ────────────────────────────────
+  // LE JOUR MÉTIER, EN DEUX ÉTAPES (19/09/2026, mandat 38 §3)
+  //
+  // 1. le fuseau du SITE ; 2. le jour que ce fuseau donne à l'instant du
+  // geste. Jamais le jour de l'APPAREIL.
+  //
+  // CE QUI PRÉCÉDAIT : `dateISOLocale` lisait getFullYear/getMonth/getDate,
+  // c'est-à-dire le calendrier du téléphone. Un pointage fait à 21 h à
+  // Sainte-Marie depuis un appareil resté réglé sur Paris était écrit au
+  // LENDEMAIN : la ligne existait bien en base, mais dans une journée où
+  // plus personne ne la relisait. L'historique du jour ne la montrait plus,
+  // les boutons se rouvraient comme si rien n'avait été pointé, et le
+  // tableau de l'équipe ne la voyait pas. Le même écart datait les
+  // complétions de Missions — corrigé là-bas le 18/09, pas ici.
+  //
+  // La primitive n'est pas réécrite ici : `nexusFuseauSite` et
+  // `nexusJourDansFuseau` (nexus-auth.js, bloc NEXUS-FUSEAU-METIER) sont
+  // celles dont `nexusServiceCourant` se sert déjà pour décider quel
+  // service est celui du jour. Dater un pointage autrement que le service
+  // auquel il se rattache rouvrirait l'écart par l'autre bout.
+  //
+  // Asynchrone, et aucun fuseau n'est retenu à l'écran : `nexusFuseauSite`
+  // mémorise déjà par site, la deuxième lecture ne coûte rien, et il n'y a
+  // aucun instant où cet écran travaillerait avec un fuseau pas encore
+  // chargé. L'horloge est relue à chaque appel : une session laissée ouverte
+  // de part et d'autre de minuit change de journée toute seule.
+  //
+  // UNE SEULE AUTORITE DE FUSEAU DEPUIS LE 19/09/2026 : `sites.timezone`.
+  //
+  // Ce commentaire decrivait deux lecteurs contradictoires — `nexusFuseauSite`
+  // lisant `station_config.fuseau_horaire` avec repli sur America/Martinique,
+  // `NexusStation.fuseauDeLaStation` lisant `sites.timezone` sans repli — et
+  // justifiait leur coexistence par leurs objets differents. Ce n'etait pas
+  // tenable : deux colonnes peuvent diverger, et rien ne les tenait ensemble.
+  // `nexusFuseauSite` a rejoint l'autorite que la migration 20260905131500
+  // avait deja designee le 05/09/2026. Les deux lecteurs lisent maintenant la
+  // MEME colonne et refusent tous deux le repli ; il reste deux caches, un par
+  // fichier, et plus aucun desaccord possible sur la valeur.
+  //
+  // La garde des deux jours de `retardDeLArrivee` reste en place : elle ne
+  // rattrape plus un desaccord de colonnes — il ne peut plus s'en produire —
+  // mais elle continue d'interdire de dater un retard sur un autre jour que
+  // celui du pointage.
+  //
+  // SANS FUSEAU, PAS DE JOUR. `jourStationDe` rend `null` plutot qu'une date
+  // devinee ; chaque appelant le traite, et aucun n'ecrit en base sans jour.
+  // ────────────────────────────────
+  async function jourStationDe(siteId, instant) {
+    return nexusJourDansFuseau(instant || new Date(), await nexusFuseauSite(siteId));
+  }
+
+  // Le même découpage, rendu sous forme de fonction, pour les règles qui
+  // datent une autre date que « maintenant » — l'ouverture d'un service, par
+  // exemple. Elles reçoivent le découpeur plutôt que de lire un fuseau
+  // elles-mêmes : c'est le contrat de nexus-pointage-regles.js, où aucune
+  // règle ne connaît ni horloge ni fuseau.
+  // Rend `null` quand le fuseau n'est pas resolu, et NON un decoupeur qui
+  // rendrait `null` pour chaque instant : deux `null` se comparent egaux, et
+  // un decoupeur muet ferait passer le service de la veille pour celui du
+  // jour. L'absence de decoupeur, elle, ne peut pas etre ignoree.
+  async function decoupeurDeJours(siteId) {
+    const fuseau = await nexusFuseauSite(siteId);
+    if (!fuseau) return null;
+    return instant => nexusJourDansFuseau(instant, fuseau);
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // L'HEURE ATTENDUE D'UNE ARRIVÉE (19/09/2026, mandat 33)
+  //
+  // Un seul chemin, et il passe par le moteur unique : Planning pour savoir
+  // CE QUI ÉTAIT DÛ (quel quart, sur quel site), puis
+  // `calculer_horaires_quart` pour savoir À QUELLE HEURE. C'est la fonction
+  // dont le Planning tire lui-même ses horaires : il ne peut plus exister
+  // deux vérités. Quand elle ne rend pas de ligne, on ne rend pas d'heure —
+  // aucun repli, aucun horaire fabriqué.
+  //
+  // Le temps d'habillage n'est ni ajouté ni retranché : `heure_debut` le
+  // comprend déjà, puisque `heures_ouverture_publique` décale l'ouverture au
+  // public de `temps_habillage_min` APRÈS ce début (05:45 + 15 = 06:00).
+  // ────────────────────────────────────────────────────────────────
+
+  // Les fuseaux déjà résolus pendant cette session d'écran. Un fuseau ne
+  // change pas en cours de journée ; seuls les SUCCÈS sont mémorisés, pour
+  // qu'une coupure passagère ne fige pas un « indéterminé » jusqu'au
+  // rechargement de la page.
+  const fuseauxDeStation = new Map();
+
+  async function fuseauDuSite(site) {
+    if (!site) return null;
+    if (fuseauxDeStation.has(site)) return fuseauxDeStation.get(site);
+    const resultat = await NexusStation.fuseauDeLaStation(site);
+    if (!resultat || !resultat.timezone) return null;
+    fuseauxDeStation.set(site, resultat.timezone);
+    return resultat.timezone;
+  }
+
+  // L'affectation du jour, telle que le Planning la déclare. La sélection
+  // (une seule ligne travaillée, site de transfert prioritaire) est une
+  // règle métier : elle vit dans nexus-pointage-regles.js, pas ici.
+  //
+  // LA SOURCE QUI FAIT FOI, PAS LA TABLE. `v_planning_officiel` ne rend que
+  // les lignes de la source en vigueur à CETTE date — génération NEXUS ou
+  // import Google Sheets selon l'historique de bascule du site. La table,
+  // elle, rend les deux : la lire ici ferait calculer un retard contre un
+  // planning qui ne faisait pas foi ce jour-là.
+  //
+  // `publie` est demandé explicitement et non laissé à la RLS. La RLS
+  // n'ouvre à un employé que les lignes publiées de son site, mais un
+  // manager voit aussi les brouillons : sans ce filtre, le retard d'un
+  // manager se calculerait contre un planning non publié, et celui d'un
+  // pompiste contre rien. Le même écran doit dire la même chose à tout le
+  // monde.
+  //
+  // Tant qu'aucun planning n'est publié, cette lecture rend zéro ligne et
+  // le retard vaut null pour tout le monde. C'est exactement ce que la
+  // sémantique demande de dire — NEXUS ne connaît pas l'horaire dû de ces
+  // journées — et non une panne à contourner.
+  async function affectationPlanifiee(employee, jourStation) {
+    const { data, error } = await nexusClient
+      .from('v_planning_officiel')
+      .select('quart, statut, site_id, site_transfert')
+      .eq('employee_id', employee.id)
+      .eq('date', jourStation)
+      .eq('publie', true);
+    if (error) {
+      console.error('Planning du jour : lecture impossible —', error);
+      return null;
+    }
+    return NexusPointageRegles.affectationDuJour(data || []);
+  }
+
+  // L'heure de début due, en « HH:MM », par le moteur unique. Zéro ligne =
+  // horaire non déclaré (renfort sans horaire, site sans configuration,
+  // quart hors nomenclature) : on rend null, jamais une heure de repli.
+  async function heureDebutDue(affectation, jourStation) {
+    const { data, error } = await nexusClient.rpc('calculer_horaires_quart', {
+      p_site: affectation.site, p_quart: affectation.quart, p_date: jourStation,
+    });
+    if (error) {
+      console.error('Horaires du quart : lecture impossible —', error);
+      return null;
+    }
+    const lignes = Array.isArray(data) ? data : (data ? [data] : []);
+    if (!lignes.length || !lignes[0]) return null;
+    return NexusStation.heureSqlEnHHMM(lignes[0].heure_debut);
+  }
+
+  // Le retard de CE pointage, en minutes — ou null s'il n'est pas
+  // calculable. Chaque `return null` ci-dessous est un refus explicite, et
+  // aucun ne doit être relu comme « employé à l'heure ».
+  async function retardDeLArrivee(type, employee, jourDuPointage, heureRetenue) {
+    if (NexusPointageRegles.TYPES_AVEC_HEURE_ATTENDUE.indexOf(type) === -1) return null;
+    try {
+      const affectation = await affectationPlanifiee(employee, jourDuPointage);
+      if (!affectation) return null;
+
+      // Le fuseau du site RÉELLEMENT TRAVAILLÉ : c'est lui qui déclare
+      // l'horaire, c'est donc dans son heure locale que l'arrivée se juge.
+      // Et il vient de `sites.timezone` par `NexusStation`, qui REFUSE tout
+      // repli : calculer un retard contre un fuseau deviné produirait un
+      // chiffre faux, là où dater ne peut que se tromper de case (mandat 33).
+      const fuseau = await fuseauDuSite(affectation.site);
+      if (!fuseau) return null;
+
+      // LES DEUX CÔTÉS DE LA SOUSTRACTION DOIVENT PARLER DE LA MÊME JOURNÉE.
+      // `jourDuPointage` est le jour du site de RATTACHEMENT de l'employé
+      // (jourStationDe, via station_config.fuseau_horaire), et c'est lui qui
+      // a servi à lire le planning. Ici on tient le jour du site TRAVAILLÉ,
+      // lu dans sites.timezone. Deux causes peuvent les séparer, et cette
+      // garde les attrape toutes les deux :
+      //   1. un transfert vers un site d'un autre fuseau ;
+      //   2. un désaccord entre station_config.fuseau_horaire et
+      //      sites.timezone pour un même site — les deux colonnes existent,
+      //      rien ne les tient ensemble, et `vito-sainte-marie` les a déjà
+      //      en désaccord sur Test (fuseau_horaire NULL, donc repli).
+      // Dans les deux cas on ne conclut pas : pas de retard inventé, pas de
+      // « à l'heure » inventé non plus.
+      if (NexusStation.dateLocaleStation(fuseau, heureRetenue) !== jourDuPointage) return null;
+
+      const hhmm = await heureDebutDue(affectation, jourDuPointage);
+      if (!hhmm) return null;
+
+      return NexusPointageRegles.retardDuPointage({ type }, {
+        minutesAttendues: NexusStation.minutesDepuisMinuit(hhmm),
+        minutesPointage: NexusStation.minutesLocalesStation(fuseau, heureRetenue),
+      });
+    } catch (e) {
+      // Une exception n'autorise pas davantage à écrire 0 qu'une absence de
+      // planning : elle prouve seulement qu'on ne sait pas.
+      console.error('Retard non calculable :', e);
+      return null;
+    }
   }
 
   function demarrerHorloge() {
@@ -731,10 +979,18 @@
   });
 
   async function afficherEquipeManager(siteId) {
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
+    if (!today) {
+      // Sans jour de station, `date = null` ne rendrait aucun pointage et la
+      // liste dirait « Pas encore pointe » de toute l'equipe. Un ecran vide
+      // qui affirme est pire qu'un ecran qui dit ne pas savoir.
+      const zoneEquipe = document.getElementById('equipeListe');
+      if (zoneEquipe) zoneEquipe.innerHTML = '<li class="timeline-empty">Journee de la station indeterminee \u2014 liste momentanement indisponible.</li>';
+      return;
+    }
     const [{ data: equipe }, { data: pointagesJour }] = await Promise.all([
       nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true),
-      nexusClient.from('pointages').select('employee_id, type, heure, retard_min').eq('site', siteId).eq('date', today),
+      nexusClient.from('pointages').select('employee_id, type, heure').eq('site', siteId).eq('date', today),
     ]);
     const parEmploye = {};
     (pointagesJour || []).forEach(p => {
@@ -749,7 +1005,13 @@
       if (p.depart) { statutTxt = `Terminé à ${(p.depart.heure || '').slice(0, 5)}`; statutClasse = 'ok'; }
       else if (p.pause_fin) { statutTxt = 'De retour de pause'; statutClasse = 'ok'; }
       else if (p.pause_debut) { statutTxt = 'En pause'; statutClasse = ''; }
-      else if (p.arrivee) { statutTxt = p.arrivee.retard_min > 0 ? `Arrivé, ${p.arrivee.retard_min} min de retard` : 'Arrivé à l\'heure'; statutClasse = p.arrivee.retard_min > 0 ? 'retard' : 'ok'; }
+      // 18/09/2026 — « ARRIVÉ À L'HEURE » N'ÉTAIT PAS PLUS ÉTABLI QUE LE
+      // RETARD. Les deux formules se déduisaient de retard_min, lui-même
+      // calculé contre l'heure d'OUVERTURE du service (voir
+      // enregistrerPointage). Le manager lisait donc un verdict là où NEXUS
+      // ne dispose que d'un fait : l'heure d'arrivée enregistrée. C'est ce
+      // fait, et lui seul, qui s'affiche désormais.
+      else if (p.arrivee) { statutTxt = `Arrivé à ${(p.arrivee.heure || '').slice(0, 5)}`; statutClasse = 'ok'; }
       else { statutTxt = 'Pas encore pointé'; statutClasse = ''; }
       return `<div class="equipe-item"><span class="equipe-nom">${e.nom}</span><span class="equipe-statut ${statutClasse}">${statutTxt}</span></div>`;
     });
@@ -771,7 +1033,30 @@
   }
 
   async function afficherFormulairePointage(employee, siteId) {
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
+    const jourDeService = await decoupeurDeJours(siteId);
+    // LE JOUR DE LA STATION COMMANDE TOUT CET ECRAN : la date ecrite sur le
+    // pointage, le service auquel il se rattache, la ligne de planning lue et
+    // l'historique affiche. S'il n'est pas etabli, NEXUS ne propose pas un
+    // formulaire qui ecrirait une date devinee : il le dit et s'arrete.
+    //
+    // CETTE GARDE NE CASSE PAS LE POINTAGE HORS LIGNE, et c'est mesure, pas
+    // suppose. Cet ecran ne s'affiche JAMAIS sans reseau : `nexusRequireAuth`
+    // (nexus-auth.js) lit `employees` sur le serveur avant de rendre la main,
+    // et renvoie vers l'ecran de connexion si cette lecture echoue. Il n'y a
+    // pas de service worker : la page elle-meme n'est pas servie hors ligne.
+    // La file locale couvre donc la coupure QUI SURVIENT APRES le rendu —
+    // entre le clic et le serveur — et a ce moment-la le fuseau du site a
+    // deja ete lu et memorise dans la page (`nexusFuseauxSite`). Le pointage
+    // hors ligne continue de fonctionner sans aucune lecture reseau du
+    // fuseau, et sans qu'un repli silencieux ait besoin d'exister.
+    if (!today || !jourDeService) {
+      document.getElementById('pageTitle').textContent = 'Pointage';
+      document.getElementById('app').innerHTML = `
+        <div class="locked">Journ\u00e9e de la station ind\u00e9termin\u00e9e.<br>NEXUS n\u2019a pas pu lire le fuseau horaire du site : aucun pointage ne peut \u00eatre enregistr\u00e9 sans savoir \u00e0 quelle journ\u00e9e il appartient.<br><br>V\u00e9rifiez la connexion, puis rechargez la page.</div>
+      `;
+      return;
+    }
     // Toute réouverture de l'écran tente d'abord de vider la file : c'est ce
     // qui fait repartir une tentative restée sur l'appareil après une coupure,
     // une fermeture du navigateur, ou une session expirée puis rouverte.
@@ -840,7 +1125,7 @@
     //
     // L'historique reste celui de la journée : c'est le contexte que
     // l'employée veut voir. Ce qui est « déjà fait » devient celui du service.
-    const serviceCourant = serviceDuJourSeulement(shiftActif, today);
+    const serviceCourant = serviceDuJourSeulement(shiftActif, today, jourDeService);
     const dejaFait = {};
     (pointagesJour || [])
       .filter(p => serviceCourant && p.service_id === serviceCourant.id)
@@ -852,7 +1137,7 @@
     // réellement DISPONIBLE, la même règle que les boutons appliquent.
     const prochainType = ORDRE_TYPES.find(t => pointageDisponible(t, dejaFait));
 
-    if (!serviceDuJourSeulement(shiftActif, today)) {
+    if (!serviceDuJourSeulement(shiftActif, today, jourDeService)) {
       // Le compteur de l'en-tête vit HORS de #app et n'est remis à jour que
       // par les affectations du rendu complet, plus bas. Sortir sans les
       // exécuter le laissait tourner : après un départ, l'écran affichait
@@ -875,7 +1160,7 @@
           <div class="info-note" style="margin-bottom:18px;">
             Votre journée est enregistrée. Il n'y a plus de poste ouvert. Reprenez une prise de poste au prochain service.
           </div>
-          <div class="section-label">📋 Historique du service</div>
+          <div class="section-label">📋 Historique du jour</div>
           <ul class="timeline" id="timelineJour"></ul>
           <div style="height:18px;"></div>
           <div class="section-label">✔ Activité du jour</div>
@@ -883,7 +1168,7 @@
             <div class="activite-texte">Chargement…</div>
           </div>
         `;
-        renderTimeline(pointagesJour || [], null, employee, siteId);
+        renderTimeline(pointagesJour || [], null, employee, siteId, null);
         chargerActiviteJour(employee, siteId);
         return;
       }
@@ -953,8 +1238,13 @@
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       // Échec technique de la photo (07/08/2026) : signalé sobrement dans le
       // sous-texte du bouton déjà pointé, sans jamais donner l'impression
-      // que le pointage lui-même est en cause.
-      const notePhotoBtn = fait && !fait.photo_url && fait.photo_echec_technique ? ' · Photo non reçue (technique)' : '';
+      // que le pointage lui-même est en cause. 18/09/2026 : une photo
+      // simplement absente n'est plus annoncée comme un incident technique.
+      const notePhotoBtn = fait && !fait.photo_url
+        ? (fait.photo_echec_technique
+            ? ' · Photo non reçue (technique)'
+            : (info.photoRequise ? ' · Sans photo' : ''))
+        : '';
       const noteAttente = enAttente
         ? ` · ⏳ Enregistré sur ce téléphone à ${String(enAttente.ligne.heure || '').slice(0, 5)}, envoi en attente`
         : '';
@@ -1001,7 +1291,7 @@
       <div class="section-label">⏱ Votre journée</div>
       <div class="pointage-list">${boutonsHtml}</div>
       <div style="height:18px;"></div>
-      <div class="section-label">📋 Historique du service</div>
+      <div class="section-label">📋 Historique du jour</div>
       <ul class="timeline" id="timelineJour"></ul>
       <div style="height:18px;"></div>
       <div class="section-label">✔ Activité du jour</div>
@@ -1010,7 +1300,7 @@
       </div>
     `;
 
-    renderTimeline(pointagesJour || [], prochainType, employee, siteId);
+    renderTimeline(pointagesJour || [], prochainType, employee, siteId, serviceCourant && serviceCourant.id);
     chargerActiviteJour(employee, siteId);
     majServiceLive();
 
@@ -1086,9 +1376,13 @@
         if (resultat === 'repli') return; // l'input caché + son écouteur 'change' (ci-dessous) prennent le relais, repère conservé
         if (resultat === 'sans-photo') {
           // Le clic vaut pointage. La photo manquera, sa cause est tracée,
-          // et rien d'autre n'est perdu.
+          // et rien d'autre n'est perdu. CORRIGÉ LE 18/09/2026 : ce chemin
+          // passait `true`, exactement le drapeau de l'échec d'envoi. Un
+          // employé qui refusait la caméra puis cliquait ici était enregistré
+          // comme victime d'une panne, et le manager lisait « Photo non reçue
+          // (problème technique) » pour un incident qui n'avait pas eu lieu.
           try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
-          await finaliserPointage(btn, employee, siteId, type, shiftActif, null, clicPointage[type], true);
+          await finaliserPointage(btn, employee, siteId, type, shiftActif, null, clicPointage[type], 'choix_employe');
           return;
         }
         if (!resultat) {
@@ -1158,7 +1452,6 @@
     if (sousEl) sousEl.textContent = 'Photo reçue — envoi en cours…';
     const banner = document.getElementById('confirmBanner');
     if (banner) {
-      banner.classList.remove('retard');
       banner.innerHTML = `<div class="confirm-banner-titre">⏳ Photo reçue, patientez…</div><div class="confirm-banner-sous">L'enregistrement est en cours — ne quittez pas cette page.</div>`;
       banner.classList.add('show');
     }
@@ -1183,10 +1476,10 @@
       // avec cette précision), avec une trace explicite
       // (photo_echec_technique) pour rester honnête envers le manager sur
       // ce qui s'est passé, sans pénaliser l'employé.
-      await finaliserPointage(btn, employee, siteId, type, shiftActif, null, heureClic, true);
+      await finaliserPointage(btn, employee, siteId, type, shiftActif, null, heureClic, 'echec_technique');
       return;
     }
-    await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, false);
+    await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, null);
   }
 
   // setElementOccupe (01/08/2026) : équivalent de btn.disabled — les
@@ -1199,11 +1492,16 @@
     el.classList.toggle('pointage-occupe', occupe);
   }
 
-  async function finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, photoEchecTechnique) {
+  // motifSansPhoto (18/09/2026) : null quand une photo accompagne le
+  // pointage, 'echec_technique' quand l'envoi a échoué malgré la relance,
+  // 'choix_employe' quand l'employé a cliqué « Enregistrer sans photo ». Ce
+  // paramètre était un booléen : les deux derniers cas s'écrasaient l'un
+  // l'autre, et l'écran racontait une panne à chaque fois.
+  async function finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, motifSansPhoto) {
     setElementOccupe(btn, true);
     const sous = btn.querySelector('.sous');
     if (sous) sous.textContent = '…';
-    const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, photoEchecTechnique);
+    const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, motifSansPhoto);
 
     // Laisser le temps de lire la bannière (07/08/2026, cas de Samantha) :
     // enregistrerPointage() affiche une bannière de confirmation (avec
@@ -1235,15 +1533,25 @@
     await afficherFormulairePointage(employee, siteId);
   }
 
-  // Historique du service (28/07/2026, demande de Frédéric) : chaque
-  // pointage déjà fait affiche désormais une ligne de contexte sous son
-  // heure — jamais un simple "+X min" en rouge sans explication, pour ne
-  // pas laisser croire à l'employé à une erreur du système. Le retard est
-  // présenté avec l'horaire prévu (heure_debut_quart, capturé au moment du
-  // pointage — jamais recalculé après coup) et l'heure réelle, jamais juste
-  // un delta brut. Une dernière ligne "Prochaine action" (pastille vide)
-  // montre ce qui reste à pointer, quand il en reste.
-  function renderTimeline(pointagesJour, prochainType, employee, siteId) {
+  // Historique du JOUR (28/07/2026, demande de Frédéric ; renommé le
+  // 18/09/2026). L'écran a toujours montré la journée entière — c'est le
+  // contexte que l'employée veut voir — mais il s'intitulait « Historique du
+  // service » et empilait sans aucune séparation les pointages de deux,
+  // parfois trois services successifs. Relevé le 18/09/2026 sur un parcours
+  // de recette : trois services d'une même journée à la suite, rien pour
+  // savoir où l'un finissait. Le titre dit maintenant ce qui est affiché, et
+  // un intertitre sépare les services dès qu'il y en a plusieurs.
+  //
+  // CE QUI A DISPARU LE 18/09/2026 : « Retard constaté » et « Horaire prévu ».
+  // Les deux se calculaient contre `shifts.heure_debut`, qui vaut `created_at`
+  // quand le service est ouvert d'un clic — vérifié sur nexus-station-test.
+  // L'ouverture d'un service n'est pas un horaire prévu, et AUCUNE colonne ne
+  // distingue aujourd'hui un horaire PLANIFIÉ d'une heure d'ouverture. Sans
+  // horaire planifié fiable, aucun retard n'est affirmé : l'écran montre
+  // l'heure d'arrivée ENREGISTRÉE, qui est un fait. Les lignes écrites avant
+  // ce correctif gardent leur retard_min en base — on cesse d'en tirer une
+  // affirmation, on ne réécrit pas l'historique.
+  function renderTimeline(pointagesJour, prochainType, employee, siteId, serviceCourantId) {
     const liste = document.getElementById('timelineJour');
     if (!liste) return;
     if (!pointagesJour.length) {
@@ -1251,28 +1559,32 @@
       return;
     }
     const tries = [...pointagesJour].sort((a, b) => (a.heure || '').localeCompare(b.heure || ''));
-    const lignesFaites = tries.map(p => {
+
+    // UN NUMÉRO PAR SERVICE, attribué dans l'ordre d'apparition de la journée,
+    // et des groupes CONSÉCUTIFS : si deux services s'entrelacent, l'écran le
+    // montre tel quel plutôt que de réordonner la journée de quelqu'un. Une
+    // ligne sans service_id (écrite avant le 11/09/2026) n'est jamais
+    // rattachée de force au service voisin : elle forme son propre groupe,
+    // nommé pour ce qu'il est.
+    const numeroService = new Map();
+    const groupes = [];
+    tries.forEach(p => {
+      const cle = p.service_id || null;
+      if (cle && !numeroService.has(cle)) numeroService.set(cle, numeroService.size + 1);
+      const dernier = groupes[groupes.length - 1];
+      if (dernier && dernier.cle === cle) dernier.lignes.push(p);
+      else groupes.push({ cle, lignes: [p] });
+    });
+
+    const ligneFaite = p => {
       const info = LABELS_TYPES[p.type] || { label: p.type, histLabel: p.type };
-      const enRetard = p.type === 'arrivee' && p.retard_min > 0;
       const heureReelle = (p.heure || '').slice(0, 5);
 
-      // Lignes de contexte séparées (28/07/2026, affinage demandé par
-      // Frédéric) : "Horaire prévu" sur sa propre ligne, puis "Retard
-      // constaté" + "Photo ✓" ensemble sur la suivante — jamais un horaire
-      // prévu affiché sans donnée réelle (heure_debut_quart), conformément
-      // à l'article 5 (jamais un chiffre inventé). Si ce quart n'a pas été
-      // capturé (donnée antérieure à cette fonctionnalité), on se limite à
-      // mentionner le retard sans inventer d'horaire prévu.
+      // Ne reste sous l'heure que ce qui est constaté : la photo quand elle
+      // existe, son absence quand elle manque. Plus aucun horaire prévu, plus
+      // aucun retard — voir l'en-tête de cette fonction.
       const lignesSub = [];
-      if (enRetard) {
-        if (p.heure_debut_quart) {
-          const horairePrevu = new Date(p.heure_debut_quart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-          lignesSub.push(`<div class="timeline-sub">Horaire prévu : ${horairePrevu}</div>`);
-        }
-        const retardEtPhoto = [`Retard constaté : ${p.retard_min} min`];
-        if (p.photo_url) retardEtPhoto.push(`<a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a>`);
-        lignesSub.push(`<div class="timeline-sub retard">${retardEtPhoto.join(' · ')}</div>`);
-      } else if (p.photo_url) {
+      if (p.photo_url) {
         lignesSub.push(`<div class="timeline-sub"><a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a></div>`);
       }
       // Échec technique de la photo (07/08/2026, demande de Frédéric) :
@@ -1280,6 +1592,14 @@
       // cause l'employé — un fait technique, pas un doute sur sa présence.
       if (!p.photo_url && p.photo_echec_technique) {
         lignesSub.push(`<div class="timeline-sub" style="color:var(--amber);">📷 Photo non reçue (problème technique) — pointage accepté normalement</div>`);
+      } else if (!p.photo_url && LABELS_TYPES[p.type] && LABELS_TYPES[p.type].photoRequise) {
+        // 18/09/2026 : ce cas n'avait aucun affichage parce qu'il n'existait
+        // pas — tout pointage sans photo était rangé sous « problème
+        // technique ». Formulation neutre et vérifiable : l'écran constate
+        // l'absence de photo, il n'attribue ni panne ni intention. Les lignes
+        // écrites AVANT ce correctif gardent leur drapeau et leur libellé :
+        // on ne réécrit pas l'historique, même pour le rendre plus juste.
+        lignesSub.push(`<div class="timeline-sub">📷 Pointage enregistré sans photo</div>`);
       }
 
       // Contester ce pointage (28/07/2026, demande de Frédéric, renommé
@@ -1287,8 +1607,16 @@
       // des contestations tardives — le texte et son horodatage sont
       // conservés tels quels dans anomalie_signalee/anomalie_signalee_le,
       // jamais résumés ni modifiés (seul le libellé affiché a changé).
+      //
+      // 18/09/2026 : cette affordance était commandée par `enRetard`. Retirer
+      // l'affichage du retard l'aurait fait disparaître avec lui — une
+      // employée n'aurait plus eu aucun moyen de dire que son arrivée ne
+      // reflète pas la réalité. Elle est donc portée par le TYPE du pointage,
+      // ce qui la rend aussi disponible aux arrivées qu'aucun retard ne
+      // signalait : c'est précisément le cas qu'un retard calculé de travers
+      // rendait muet.
       let anomalieHtml = '';
-      if (enRetard) {
+      if (p.type === 'arrivee') {
         anomalieHtml = p.anomalie_signalee
           ? `<div class="timeline-anomalie-ok">✓ Pointage contesté</div>`
           : `<button class="timeline-anomalie-lien" data-pointage-id="${p.id}">Contester ce pointage →</button>
@@ -1302,13 +1630,26 @@
       }
 
       return `<li class="timeline-item">
-        <span class="timeline-dot ${enRetard ? 'retard' : ''}"></span>
+        <span class="timeline-dot"></span>
         <div class="timeline-body">
           <div class="timeline-row-top"><span class="timeline-heure">${heureReelle}</span> — <span class="timeline-label">${info.histLabel || info.label}</span></div>
           ${lignesSub.join('')}
           ${anomalieHtml}
         </div>
       </li>`;
+    };
+
+    // Un intertitre ne se justifie que s'il sépare quelque chose : avec un
+    // seul service dans la journée, il n'y a rien à distinguer et la liste
+    // reste celle d'avant.
+    const separer = groupes.length > 1;
+    const lignesFaites = groupes.map(g => {
+      const entete = separer
+        ? `<li class="timeline-service">${g.cle
+            ? `Service ${numeroService.get(g.cle)}${g.cle === serviceCourantId ? ' · en cours' : ''}`
+            : 'Pointages sans service rattaché'}</li>`
+        : '';
+      return entete + g.lignes.map(ligneFaite).join('');
     });
 
     const ligneProchaine = prochainType ? `<li class="timeline-item">
@@ -1379,7 +1720,13 @@
   async function chargerActiviteJour(employee, siteId) {
     const zone = document.getElementById('activiteJour');
     if (!zone) return;
-    const today = dateISOLocale();
+    const today = await jourStationDe(siteId);
+    if (!today) {
+      // Meme raison qu'ailleurs : « 0 mission terminee » se lirait comme un
+      // fait alors que la journee n'est pas etablie.
+      zone.innerHTML = '<div class="info-note">Activit\u00e9 du jour indisponible \u2014 journ\u00e9e de la station ind\u00e9termin\u00e9e.</div>';
+      return;
+    }
     const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
@@ -1419,21 +1766,13 @@
     `;
   }
 
-  // Officialisation de la prise de poste (28/07/2026, demande de Frédéric) :
-  // le suivi des retards ne devient réel que le 1er août 2026. Avant cette
-  // date, le pointage arrivée/départ existe déjà (utile pour la photo et
-  // l'habitude), mais aucun retard n'est calculé ni compté — retard_min
-  // reste à 0 quel que soit l'horaire réel, pour ne pas pénaliser une
-  // période qui n'a jamais été annoncée comme officielle aux employés.
-  const DATE_OFFICIALISATION_RETARDS = '2026-08-01';
-
   // Drapeau porté du clic jusqu'à l'écriture : une pause ouverte que
   // l'employée a accepté de clore à l'heure de son départ. Remis à faux
   // après chaque enregistrement, pour qu'il ne survive jamais d'un pointage
   // au suivant.
   let cloturerPauseAuDepart = false;
 
-  async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, photoEchecTechnique) {
+  async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic, motifSansPhoto) {
     const now = new Date();
 
     // Règle "le clic est le moment d'arrivée" (03/08/2026, demande de
@@ -1449,7 +1788,31 @@
       ? heureClic
       : now;
     const heure = heureRetenue.toTimeString().slice(0, 8);
-    const today = dateISOLocale(heureRetenue);
+    // LA COLONNE `date` DU POINTAGE, et avec elle le rattachement au service,
+    // la lecture du planning et l'historique du jour : le jour du SITE à
+    // l'instant retenu, jamais celui de l'appareil (mandat 38 §3).
+    const today = await jourStationDe(siteId, heureRetenue);
+    const jourDeService = await decoupeurDeJours(siteId);
+
+    // SANS JOUR DE STATION, AUCUNE ÉCRITURE — ET RIEN EN FILE (19/09/2026).
+    //
+    // `pointages.date` est NOT NULL : une date nulle serait refusée par le
+    // serveur. Mais le vrai risque n'est pas le refus, c'est la FILE : une
+    // tentative mise en attente avec une date fabriquée serait rejouée
+    // indéfiniment, ou pire, acceptée sur le mauvais jour. La garde est donc
+    // posée AVANT `fileAjouter`, pas après l'insertion.
+    if (!today || !jourDeService) {
+      console.error('Pointage non enregistr\u00e9 : jour de la station ind\u00e9termin\u00e9 \u2014 rien n\'a \u00e9t\u00e9 mis en file.');
+      const bandeau = document.getElementById('confirmBanner');
+      if (bandeau) {
+        bandeau.textContent = `${LABELS_TYPES[type].label} non enregistré${type === 'depart' ? '' : 'e'} : `
+          + "NEXUS n'a pas pu lire le fuseau horaire du site et ne sait pas à quelle journée "
+          + "rattacher ce pointage. Rien n'est resté en attente sur ce téléphone. "
+          + 'Rechargez la page ; si cela persiste, prévenez votre manager.';
+        bandeau.classList.add('show');
+      }
+      return false;
+    }
 
     // Le service de référence doit être CELUI DU JOUR (11/09/2026).
     //
@@ -1466,14 +1829,31 @@
     // pointage, on retombe sur le repli déjà prévu — retard 0, quart
     // 'non_defini', horaire prévu nul. Une absence assumée vaut mieux
     // qu'un retard inventé.
-    const serviceDuJour = serviceDuJourSeulement(shiftActif, today);
+    const serviceDuJour = serviceDuJourSeulement(shiftActif, today, jourDeService);
 
-    let retardMin = 0;
-    if (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
-      const debutPrevu = new Date(serviceDuJour.heure_debut);
-      const diffMin = Math.round((heureRetenue - debutPrevu) / 60000);
-      retardMin = diffMin > 0 ? diffMin : 0;
-    }
+    // LE RETARD EST DE NOUVEAU CALCULÉ (19/09/2026, mandat 33) — mais plus
+    // jamais contre `shifts.heure_debut`.
+    //
+    // Ce qui précédait : le correctif du 11/09 avait retiré le quart de la
+    // veille du calcul ; il restait le fond du problème — `shifts.heure_debut`
+    // vaut `created_at` quand le service est ouvert d'un clic, et aucune
+    // colonne ne dit lequel des deux on lit. Le 18/09, le calcul a donc été
+    // arrêté et `retard_min` figé à 0. Mais 0 dans une colonne NOT NULL, ce
+    // n'était pas « pas de chiffre » : c'était « à l'heure », affirmé 33 fois
+    // en Production sans l'avoir mesuré.
+    //
+    // L'heure attendue vient désormais du Planning (l'affectation réelle) et
+    // des Paramètres Station (l'horaire canonique), par le moteur unique
+    // `calculer_horaires_quart`. Quand l'une des deux manque, `retardMin`
+    // vaut null — la colonne est nullable depuis la migration du 19/09 — et
+    // null ne signifie JAMAIS « à l'heure » : les consommateurs doivent
+    // exclure ces lignes, pas les compter comme ponctuelles.
+    //
+    // `heure_debut_quart` reste null : c'est un `timestamptz`, et l'heure
+    // attendue est un `time` local. L'y écrire obligerait à fabriquer un
+    // instant, donc à inventer un fuseau — le fallback que l'arbitrage
+    // interdit. Les lignes déjà écrites ne sont pas retouchées.
+    const retardMin = await retardDeLArrivee(type, employee, today, heureRetenue);
 
     // ANTI-DOUBLON (11/09/2026). La règle « un seul pointage par type et par
     // jour » n'existait QUE dans l'écran : `public.pointages` ne porte aucun
@@ -1542,11 +1922,13 @@
         // insertion qui n'en porte pas. Cette écriture-ci les avait perdus au
         // passage — la clôture de pause au départ était donc refusée
         // systématiquement (13/09/2026), et le départ avec elle.
+        // Une fin de pause n'a pas d'heure attendue : son retard est sans
+        // objet, donc null — pas zéro (19/09/2026, mandat 33).
         const { error: erreurFin } = await nexusClient.from('pointages').insert({
           employee_id: employee.id, site: siteId, date: today, type: 'pause_fin', heure,
           quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
           service_id: serviceDuJour.id, client_event_id: identifiantTentative(),
-          retard_min: 0, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
+          retard_min: null, photo_url: null, photo_echec_technique: false, heure_debut_quart: null,
         });
         if (erreurFin) {
           console.error('Clôture de la pause à l\'heure du départ:', erreurFin);
@@ -1588,18 +1970,27 @@
       // photo_echec_technique ci-dessous. 'non_defini' n'est pas un chiffre
       // inventé — il documente honnêtement l'absence de quart identifiable.
       quart: (serviceDuJour && serviceDuJour.quart) || 'non_defini',
+      // 0 = à l'heure, MESURÉ ; > 0 = retard mesuré ; null = non calculable.
+      // Voir le bloc « LE RETARD EST DE NOUVEAU CALCULÉ » plus haut.
       retard_min: retardMin,
       photo_url: photoUrl || null,
       // Échec technique de la photo (07/08/2026, demande de Frédéric) : ne
       // doit jamais mettre en cause la bonne foi de l'employé ni bloquer le
       // pointage — cette colonne trace explicitement le cas pour le
       // manager, distinct d'une photo simplement absente.
-      photo_echec_technique: !!photoEchecTechnique,
-      // heure_debut_quart (28/07/2026) : capturé ici, au moment du pointage,
-      // et jamais recalculé ensuite — c'est ce qui permet à l'historique
-      // d'afficher "Horaire prévu" sans jamais inventer ou réestimer une
-      // valeur après coup (article 5 de la constitution NEXUS).
-      heure_debut_quart: (type === 'arrivee' && serviceDuJour && serviceDuJour.heure_debut) || null,
+      //
+      // 18/09/2026 : « distinct d'une photo simplement absente » est enfin
+      // vrai. Seul l'échec d'envoi pose ce drapeau. Le clic « Enregistrer
+      // sans photo » laisse false, et `photo_url` null sur un type à photo
+      // suffit à le relire — pas de colonne nouvelle, pas de panne inventée.
+      photo_echec_technique: motifSansPhoto === 'echec_technique',
+      // heure_debut_quart (28/07/2026) : capturé au moment du pointage pour
+      // afficher « Horaire prévu » sans jamais réestimer après coup. Ce qui
+      // y était capturé n'était pas un horaire prévu mais l'heure d'OUVERTURE
+      // du service (18/09/2026) : la colonne reste vide tant qu'aucun
+      // planning ne fournit l'heure réellement due. Les lignes antérieures
+      // conservent la leur.
+      heure_debut_quart: null,
     };
     const tentative = fileAjouter(ligne, { retardMin, heureClic: heureRetenue.toISOString() });
 
@@ -1616,7 +2007,6 @@
       fileRetirer(tentative.id);
       try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
       if (banner) {
-        banner.classList.remove('retard');
         banner.textContent = `${LABELS_TYPES[type].label} non enregistré${type === 'depart' ? '' : 'e'} : `
           + "NEXUS a refusé ce pointage, et ce n'est pas un problème de réseau. "
           + "Rien n'est resté en attente sur ce téléphone. Prévenez votre manager, qui peut le saisir pour vous.";
@@ -1640,7 +2030,6 @@
     // Reçu par le serveur : la tentative n'a plus lieu d'être conservée.
     fileRetirer(tentative.id);
     if (banner) {
-      banner.classList.remove('retard');
       // Note discrète sur l'échec technique de la photo (07/08/2026) :
       // ajoutée au message de confirmation, jamais à sa place — le
       // pointage est bien enregistré, la photo est juste un détail annexe
@@ -1650,21 +2039,18 @@
         // l'état réel du pointage. L'employée doit lire ce qui a été
         // enregistré, pas ce qui a échoué : le pointage compte, la photo
         // manque, et la cause reste conservée pour le manager.
-        const notePhoto = photoEchecTechnique
+        const notePhoto = motifSansPhoto === 'echec_technique'
           ? ' Enregistré SANS PHOTO : la photo n\'a pas pu être envoyée. Votre pointage compte quand même.'
-          : '';
-      if (type === 'arrivee' && retardMin > 0) {
-        banner.classList.add('retard');
-        const horairePrevu = serviceDuJour && serviceDuJour.heure_debut
-          ? new Date(serviceDuJour.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-          : null;
-        banner.innerHTML = `
-          <div class="confirm-banner-titre">Arrivée enregistrée à ${heure.slice(0, 5)}</div>
-          <div class="confirm-banner-sous">${horairePrevu ? `Horaire prévu : ${horairePrevu} · ` : ''}Retard constaté : ${retardMin} min${notePhoto}</div>
-        `;
-      } else {
-        banner.textContent = `${LABELS_TYPES[type].label} enregistré${type === 'depart' ? '' : 'e'} à ${heure.slice(0, 5)}.${notePhoto}`;
-      }
+          : motifSansPhoto === 'choix_employe'
+            ? ' Enregistré SANS PHOTO, comme vous l\'avez demandé. Votre pointage compte normalement.'
+            : '';
+      // 18/09/2026 : la confirmation d'arrivée avait deux formes, et la
+      // seconde annonçait « Horaire prévu : … · Retard constaté : X min » au
+      // premier geste de la journée. C'est cette phrase, lue à l'écran, qui a
+      // fait constater que l'horaire opposé à l'employée était l'heure
+      // d'ouverture du service. Il n'en reste qu'une forme : ce qui a été
+      // enregistré, et à quelle heure.
+      banner.textContent = `${LABELS_TYPES[type].label} enregistré${type === 'depart' ? '' : 'e'} à ${heure.slice(0, 5)}.${notePhoto}`;
       banner.classList.add('show');
     }
     return true;

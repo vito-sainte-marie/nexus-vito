@@ -279,6 +279,47 @@ function nexusCategorieAcces(page){
 function nexusPageExigeServiceOperationnel(page){
   return nexusCategorieAcces(page) === 'operationnel';
 }
+/**
+ * Un ecran OPERATIONNEL est-il reellement ATTEIGNABLE dans cet etat ?
+ *
+ * Les deux gardes de `nexusRequireAuth` posent DEUX questions, pas une :
+ * `nexusPriseDePosteManquante` exige un service ouvert, puis
+ * `nexusPointageArriveeManquant` exige, EN PLUS, l'arrivee pointee du jour.
+ * Un service ouvert ne suffit donc pas — et c'est exactement le defaut releve
+ * le 18/09/2026 par le parcours connecte sur Test : un pompiste en service
+ * dont l'arrivee n'etait pas pointee (S2), puis une caissiere `professional`
+ * dans le meme etat (S5), recevaient les tuiles Missions, Inventaire, FDJ et
+ * Reception — et les quatre ecrans rebondissaient vers
+ * `NEXUS-Pointage-v1.html`. Le lot du matin n'avait ferme que la premiere
+ * porte. Le contre-temoin S6, arrivee pointee, ouvre les memes ecrans sans
+ * rebond : la condition du defaut est « en service + arrivee non pointee ».
+ *
+ * Fonction PURE : ni horloge, ni base, ni `window`. Elle repond sur des faits
+ * que l'appelant a deja etablis, et elle n'accorde AUCUN droit — la RLS ne la
+ * lit pas. C'est la regle d'AFFICHAGE, ecrite ici, a cote des deux gardes
+ * qu'elle resume, plutot que redevinee une troisieme fois par un ecran.
+ *
+ * `etat` = { enService, arriveePointeeJour, pointageActif, consultationExterne,
+ * estManager }. `arriveePointeeJour` est bien l'arrivee de la JOURNEE, comme
+ * la garde : celui qui a pointe son arrivee sur un premier service du jour
+ * n'est pas renvoye au pointage par le second — meme si l'accueil compte ses
+ * etapes de progression par service (correctif du 13/09/2026).
+ */
+function nexusEcranOperationnelAtteignable(etat){
+  const e = etat || {};
+  // Les deux gardes s'effacent pour un manager et pour une consultation
+  // externe : chez eux, un ecran operationnel ne rebondit pas.
+  if(e.estManager || e.consultationExterne) return true;
+  // Premiere porte — aucun service ouvert aujourd'hui.
+  if(!e.enService) return false;
+  // Seconde porte. Un site sans pointage ne l'exige jamais
+  // (`pointage_actif = false`) ; partout ailleurs l'arrivee du jour est
+  // exigee. Le defaut est donc « pointage exige » : une erreur reseau ou une
+  // colonne absente ne doit pas faire promettre un ecran que la garde, elle,
+  // refermera.
+  if(e.pointageActif === false) return true;
+  return !!e.arriveePointeeJour;
+}
 /* NEXUS-ACCES-REGLE:FIN */
 // Manager ou gérant — LA réponse, une seule fois. Elle était écrite deux
 // fois dans ce fichier et une fois de plus dans chaque écran qui en a besoin.
@@ -289,7 +330,23 @@ function nexusEstManager(employee){
   return !!employee && (employee.role === 'manager' || employee.role === 'gerant');
 }
 
-async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;
+  // 19/09/2026 — LE FUSEAU NE VIENT PLUS DE CETTE REQUETE. Il venait de la
+  // meme lecture `station_config`, ce qui coutait zero requete mais lisait la
+  // colonne DEPRECIEE, dont la ligne peut manquer. L'autorite est
+  // `sites.timezone` : une requete de plus au premier appel de la page, une
+  // seule, et le cache par site sert tout le reste de l'ecran.
+  const fuseau=await nexusFuseauSite(siteId);
+  if(!fuseau){
+    // Jour de la station indetermine : NEXUS ne peut pas savoir si l'arrivee
+    // du jour manque. Il ne reclame donc rien. Reclamer un pointage contre un
+    // jour devine est pire que se taire, et cette garde n'ouvre aucune porte
+    // — elle affiche une relance, elle n'autorise rien.
+    console.error('Pointage arrivee manquant : jour de la station indetermine \u2014 aucune relance.');
+    return false;
+  }
+  const today=nexusJourDansFuseau(new Date(), fuseau);
+  const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
 // ============================================================================
 // CYCLE DE VIE DES SERVICES PENDANT LA PHASE PILOTE (16/09/2026)
 //
@@ -549,11 +606,172 @@ async function nexusRegulariserServicesObsoletes(manager, obsoletes){
 // défense de lecture contre un historique imparfait ou un import.
 //
 // Retour : { service } | { aucun: true } | { erreur: true }
-function nexusDateLocaleISO(d){
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+// ============================================================================
+// LE JOUR METIER SUIT LE FUSEAU DU SITE, JAMAIS L'HORLOGE DE L'APPAREIL
+// (18/09/2026)
+//
+// CE QUI VIVAIT ICI. `nexusDateLocaleISO(d)` rendait le jour de l'APPAREIL
+// (`getFullYear/getMonth/getDate`). Elle est SUPPRIMEE, pas conservee en
+// alias : un motif faux survit a sa propre peremption, et une fonction qui
+// nomme « date locale » le jour du telephone d'un employe en deplacement
+// serait exactement ce motif.
+//
+// LE FAIT MESURE. Sur nexus-test le 18/09, meme instant absolu
+// (2026-09-15T02:00:00Z), meme base, meme employe, meme site :
+//
+//     appareil America/Martinique -> jour 2026-09-14 -> service EN COURS, 0 cloture
+//     appareil Europe/Paris       -> jour 2026-09-15 -> « aucun poste », 1 CLOTURE
+//
+// Un appareil hors du fuseau de sa station ne se contente donc pas de mal
+// afficher : il DECLENCHE UNE ECRITURE, la cloture d'un service encore actif.
+// Le commentaire de `nexusServiceCourant` nommait lui-meme cette condition de
+// chute depuis le 11/09 — « un appareil hors du fuseau de sa station ». Elle
+// est arrivee ; la borne est donc reprise ici.
+//
+// LA REGLE. La date metier suit le fuseau declare du site, et lui seul. A
+// instant identique, deux appareils quelconques prennent la meme decision
+// pour le meme site. La cloture des services REELLEMENT anciens est
+// conservee telle quelle : elle est simplement adossee au jour de la
+// station et non plus a celui de l'appareil.
+//
+// CE FUSEAU EST `sites.timezone`. Ce paragraphe a nomme
+// `station_config.fuseau_horaire` du 18/09 au 20/09/2026 : c'etait deja faux
+// a l'ecriture, la migration 20260905131500_fuseau_horaire_par_site.sql
+// ayant porte l'autorite sur `sites.timezone` le 05/09. Le code a ete
+// corrige le 19/09 (voir le bloc borne plus bas) ; cette phrase enseignait
+// encore l'inverse. Un commentaire qui survit a la correction qu'il decrit
+// redevient la source du prochain defaut.
+//
+// POURQUOI PAS `NexusStation.dateLocaleStation()` ? Elle fait exactement cela,
+// et elle est plus stricte (elle refuse un fuseau absent au lieu de replier).
+// Mais `nexus-station.js` n'est charge que par sept ecrans quand
+// `nexus-auth.js` l'est par tous : en dependre ici rendrait la date metier
+// indisponible precisement la ou elle manque. Meme formule, meme doctrine,
+// deux portees — et c'est `nexus-station.js` qui reste la reference stricte.
+//
+// IL N'Y A PAS DE REPLI. Ce paragraphe en decrivait un, ultramarin par
+// defaut, au motif qu'il valait mieux que l'Europe. Il a ete supprime du
+// code le 19/09/2026 : une constante qu'aucune base ne porte est une
+// troisieme source de verite, et l'appelant ne peut pas la distinguer d'une
+// valeur lue. Un fuseau non resolu vaut desormais `null` — dater devient
+// IMPOSSIBLE plutot que FAUX. Le raisonnement d'origine reste vrai pour
+// autant : se tromper vers l'Europe AVANCE la journee et referme des
+// services encore ouverts. C'est la raison de ne rien inventer, pas celle
+// d'inventer mieux.
+// ============================================================================
+// Ces primitives sont bornees pour etre PORTEES telles quelles par les tests
+// et par les harnais, comme l'est la regle d'acces : le jour metier est
+// desormais une dependance de plusieurs gardes de ce fichier, et un test qui
+// en recopierait une version locale validerait sa propre copie.
+/* NEXUS-FUSEAU-METIER:DEBUT */
+// L'AUTORITE DU FUSEAU EST `sites.timezone`, ET ELLE EST UNIQUE (19/09/2026).
+//
+// Ce bloc lisait `station_config.fuseau_horaire` et repliait sur une constante
+// `America/Martinique`. Trois defauts tenaient ensemble :
+//
+//  1. La colonne lue est DEPRECIEE depuis le 05/09/2026. La migration
+//     20260905131500_fuseau_horaire_par_site.sql l'ecrit dans le schema
+//     lui-meme : « la source de verite du fuseau est sites.timezone. Colonne
+//     conservee le temps que les lecteurs client migrent ». Ce bloc ETAIT le
+//     lecteur non migre — il n'y a jamais eu deux autorites par conception,
+//     il y avait une autorite et un retardataire.
+//  2. La ligne `station_config` PEUT MANQUER. Elle manque aujourd'hui sur Test
+//     pour `vito-sainte-marie` (mesure du 19/09/2026). Tant que le fuseau y
+//     habite, « pas de configuration » et « pas de fuseau » sont le meme etat,
+//     et c'est ce qui rendait un repli tentant. Dans `sites`, la ligne existe
+//     toujours, `timezone` est NOT NULL et un trigger valide le nom IANA :
+//     l'absence de valeur y est structurellement impossible.
+//  3. Le repli etait une TROISIEME source de verite — une constante du code
+//     qu'aucune base ne porte — et il etait SILENCIEUX : l'appelant ne pouvait
+//     pas distinguer un fuseau lu d'un fuseau devine. Les deux bases disent
+//     aujourd'hui America/Martinique partout ; la coincidence a masque le
+//     defaut, elle ne l'a pas corrige.
+//
+// CE QUI NE CHANGE PAS : la RLS. `select_sites` et `select_station_config`
+// ouvrent la lecture aux memes personnes — `authenticated`, site de l'employe
+// ou createur autorise (mesure du 19/09/2026 sur Test). Changer de table
+// n'ouvre ni ne ferme aucune porte.
+//
+// CE QUI CHANGE : un fuseau non resolu vaut desormais `null`. Dater devient
+// IMPOSSIBLE plutot que FAUX, et chaque appelant le traite explicitement. Il
+// n'existe plus un seul endroit ou NEXUS date dans un fuseau qu'il n'a pas lu.
+
+// Un site -> son fuseau. Une page ne lit `sites` qu'une fois par site : le
+// jour metier est demande a chaque garde d'acces, et une requete par garde
+// transformerait une correction de justesse en cout de chargement.
+// SEULS LES SUCCES sont memorises — une coupure passagere ne doit pas figer un
+// « indetermine » jusqu'au rechargement de la page.
+const nexusFuseauxSite = new Map();
+
+// Un fuseau que CET appareil ne sait pas resoudre ferait lever `Intl` a chaque
+// calcul de date. On le refuse une fois, a la lecture, plutot que de laisser
+// l'exception remonter dans une garde d'acces.
+function nexusFuseauValide(fuseau){
+  if(typeof fuseau !== 'string' || !fuseau.trim()) return null;
+  try{
+    new Intl.DateTimeFormat('en-CA', { timeZone: fuseau });
+    return fuseau;
+  }catch(e){
+    console.error('Fuseau du site inconnu de cet appareil : ' + fuseau + ' — le jour de la station reste indetermine.');
+    return null;
+  }
 }
 
+// Rend le fuseau retenu, ou `null`. Ne retient que ce qui est valide : un
+// `null` en cache serait un repli silencieux deguise en memoire.
+function nexusRetenirFuseau(siteId, valeur){
+  const fuseau = nexusFuseauValide(valeur);
+  if(siteId && fuseau) nexusFuseauxSite.set(siteId, fuseau);
+  return fuseau;
+}
+
+/**
+ * Le jour metier d'un instant, dans le fuseau d'une station.
+ * Rend 'AAAA-MM-JJ' — le format des colonnes `date` de la base, d'ou 'en-CA'.
+ * Rend `null` SANS FUSEAU : cette fonction ne choisit pas de fuseau a la place
+ * de l'appelant, et un jour devine serait ecrit en base comme un jour lu.
+ * Elle ne lit aucune configuration : le fuseau lui est fourni, et l'appelant
+ * est proprietaire du site auquel ce jour se rapporte.
+ */
+function nexusJourDansFuseau(instant, fuseau){
+  if(!fuseau) return null;
+  const d = instant instanceof Date ? instant : new Date(instant);
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: fuseau,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  return p.year + '-' + p.month + '-' + p.day;
+}
+
+/**
+ * Le fuseau de la station, lu dans l'autorite unique `sites.timezone`.
+ * Une lecture par page au plus. Rend `null` quand le fuseau n'a pas pu etre
+ * obtenu — aucun repli, aucune valeur devinee. L'appelant decide ce que
+ * « jour de la station indetermine » signifie chez lui ; il ne peut plus
+ * l'ignorer sans le savoir.
+ */
+async function nexusFuseauSite(siteId){
+  if(!siteId) return null;
+  if(nexusFuseauxSite.has(siteId)) return nexusFuseauxSite.get(siteId);
+  try{
+    const { data, error } = await nexusClient
+      .from('sites').select('timezone').eq('site_id', siteId).maybeSingle();
+    if(error){
+      console.error('Fuseau du site : lecture impossible — le jour de la station reste indetermine.', error);
+      return null;
+    }
+    if(!data || !data.timezone){
+      console.error('Fuseau du site : aucun `sites.timezone` visible pour ' + siteId + ' — le jour de la station reste indetermine.');
+      return null;
+    }
+    return nexusRetenirFuseau(siteId, data.timezone);
+  }catch(e){
+    console.error('Fuseau du site : lecture impossible — le jour de la station reste indetermine.', e);
+    return null;
+  }
+}
+
+/* NEXUS-FUSEAU-METIER:FIN */
 async function nexusServiceCourant(employee){
   if(!employee||!employee.id||!employee.site_id){
     console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
@@ -588,9 +806,26 @@ async function nexusServiceCourant(employee){
   //
   // Ce qui ferait tomber ce choix et imposerait la borne SQL : un quart a
   // cheval sur minuit, ou un appareil hors du fuseau de sa station.
-  const jourLocal = nexusDateLocaleISO(new Date());
+  //
+  // 18/09/2026 — LA SECONDE CONDITION EST ARRIVEE. Le filtre reste ici, en
+  // JavaScript, mais il ne lit plus l'horloge de l'appareil : il lit le jour
+  // de la STATION, dans son fuseau configure. Le quart a cheval sur minuit,
+  // lui, imposerait toujours la borne SQL — il n'existe pas davantage
+  // aujourd'hui qu'hier, et rien ici ne pretend le traiter.
+  const fuseau = await nexusFuseauSite(employee.site_id);
+  if(!fuseau){
+    // 19/09/2026 — SANS FUSEAU, ON NE FILTRE PAS, ET ON NE REFERME RIEN.
+    // Le filtre ci-dessous compare des jours ; deux `null` se ressemblent et
+    // laisseraient passer le service de la veille, exactement le defaut du
+    // 11/09 qui avait produit un retard de 1028 minutes. Et la cloture des
+    // services obsoletes, plus bas, ECRIT en base : elle ne doit jamais
+    // s'appuyer sur un jour que NEXUS n'a pas su lire.
+    console.error('Service courant : jour de la station indetermine \u2014 aucun filtre, aucune cloture.');
+    return { erreur: true };
+  }
+  const jourStation = nexusJourDansFuseau(new Date(), fuseau);
   const tous = data || [];
-  const services = tous.filter(sv => sv.heure_debut && nexusDateLocaleISO(new Date(sv.heure_debut)) === jourLocal);
+  const services = tous.filter(sv => sv.heure_debut && nexusJourDansFuseau(new Date(sv.heure_debut), fuseau) === jourStation);
   // Signale la PRESENCE d'un service ouvert d'un autre jour, pas l'absence
   // d'un service du jour : une absence n'est pas une anomalie, et un journal
   // d'erreur declenche par du vide apprend a ignorer les journaux.
@@ -618,7 +853,7 @@ async function nexusServiceCourant(employee){
     // Fournir un seuil approximatif serait pire : NEXUS fermerait des services
     // encore en cours.
     const obsoletes = regles && regles.servicesObsoletes
-      ? regles.servicesObsoletes(tous, { jourStation: jourLocal, jourDeService: d => nexusDateLocaleISO(d) })
+      ? regles.servicesObsoletes(tous, { jourStation, jourDeService: d => nexusJourDansFuseau(d, fuseau) })
       : [];
     if(obsoletes.length) await nexusCloturerServicesObsoletes(employee, obsoletes);
   }
@@ -673,7 +908,18 @@ async function nexusPriseDePosteManquante(employee){const page=window.location.p
  */
 async function nexusDepartPointeAujourdhui(employee){
   if(!employee||!employee.id)return false;
-  const journee = nexusDateLocaleISO(new Date());
+  // `pointages.date` est ecrite dans le jour de la station : la relire dans
+  // celui de l'appareil ferait manquer le depart pointe le soir meme, et la
+  // porte de la prise de poste se refermerait sur quelqu'un qui vient de
+  // partir.
+  const fuseau = await nexusFuseauSite(employee.site_id);
+  if(!fuseau){
+    // Meme contrat que l'erreur de lecture ci-dessous : on ne relache pas une
+    // porte parce qu'on n'a pas su dater la journee.
+    console.error('Depart du jour : jour de la station indetermine \u2014 depart repute non pointe.');
+    return false;
+  }
+  const journee = nexusJourDansFuseau(new Date(), fuseau);
   const { data, error } = await nexusClient
     .from('pointages').select('id')
     .eq('employee_id', employee.id).eq('date', journee).eq('type', 'depart').limit(1);

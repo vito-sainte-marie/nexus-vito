@@ -27,7 +27,12 @@ const fs = require('fs');
 const path = require('path');
 
 let passes = 0;
+// 18/09/2026 : `total` était écrit en dur (34) dans la ligne de conclusion.
+// Ajouter trois gardes affichait donc « 36/34 » — un dénominateur faux, dans
+// une épreuve dont tout le propos est de ne rien annoncer qu'elle ne mesure.
+let total = 0;
 function t(nom, fn) {
+  total++;
   try { fn(); passes++; console.log(`  ✓ ${nom}`); }
   catch (e) { console.error(`  ✗ ${nom}\n    ${e.message}`); process.exitCode = 1; }
 }
@@ -45,8 +50,17 @@ function fonctionDeLaPage(source, nom, prelude = '') {
 
 const pointageDisponible = fonctionDeLaPage(POINTAGE, 'pointageDisponible');
 const pauseEnCours = fonctionDeLaPage(POINTAGE, 'pauseEnCours');
-const dateISOLocaleSrc = POINTAGE.match(/function dateISOLocale\([\s\S]*?\n  \}/)[0];
-const serviceDuJourSeulement = fonctionDeLaPage(POINTAGE, 'serviceDuJourSeulement', dateISOLocaleSrc);
+// 19/09/2026, mandat 38 §3 — LE DÉCOUPEUR DE JOURS EST DÉSORMAIS INJECTÉ.
+// La page ne convertit plus `heure_debut` avec le calendrier de l'APPAREIL :
+// `serviceDuJourSeulement` reçoit une fonction qui rend le jour du SITE,
+// comme le fait déjà nexus-pointage-regles.js. L'épreuve fournit le sien,
+// fixé sur le fuseau de la station — ce qui la rend enfin déterministe :
+// elle dépendait jusqu'ici du fuseau réglé sur la machine qui la joue, et
+// c'était exactement le défaut qu'elle était censée surveiller.
+const jourStation = d => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(d);
+const serviceDuJourSeulement = fonctionDeLaPage(POINTAGE, 'serviceDuJourSeulement');
 
 // ── Le cœur : partir sans pause ────────────────────────────────────────────
 
@@ -177,25 +191,42 @@ t('le drapeau de clôture ne survit jamais d\'un pointage au suivant', () => {
 
 t('un quart ouvert la VEILLE n\'est plus le service du jour', () => {
   const hier = { heure_debut: '2026-09-10T21:25:41Z', quart: 'soir' };
-  assert.strictEqual(serviceDuJourSeulement(hier, '2026-09-11'), null,
+  assert.strictEqual(serviceDuJourSeulement(hier, '2026-09-11', jourStation), null,
     'le quart de la veille sert encore de référence — le retard de 1028 min revient');
 });
 
 t('un quart ouvert le jour même reste la référence', () => {
-  const aujourdhui = { heure_debut: new Date().toISOString(), quart: 'matin' };
-  const jour = new Date().toISOString().slice(0, 10);
-  const rendu = serviceDuJourSeulement(aujourdhui, jour);
-  // La date locale peut différer de la date UTC en soirée : on ne juge que
-  // la cohérence avec ce que la page calcule elle-même.
-  if (rendu !== null) assert.strictEqual(rendu, aujourdhui);
+  // 11:00 à la Martinique : même journée des deux côtés, sans ambiguïté.
+  const aujourdhui = { heure_debut: '2026-09-11T15:00:00Z', quart: 'matin' };
+  assert.strictEqual(serviceDuJourSeulement(aujourdhui, '2026-09-11', jourStation), aujourdhui,
+    'un service ouvert le jour même est écarté — l\'écran annoncerait « aucun poste ouvert »');
+});
+
+t('LE JOUR VIENT DU SITE, PAS DE L\'APPAREIL', () => {
+  // Un service ouvert à 21:25 à Sainte-Marie le 11/09 : 01:25 UTC le 12/09,
+  // donc « demain » pour un téléphone resté réglé sur Paris ou sur UTC.
+  const ceSoir = { heure_debut: '2026-09-12T01:25:00Z', quart: 'soir' };
+  assert.strictEqual(serviceDuJourSeulement(ceSoir, '2026-09-11', jourStation), ceSoir,
+    'le service du soir est rejeté comme s\'il appartenait au lendemain');
+
+  // MUTATION : le découpeur de l'APPAREIL, celui que la page employait avant
+  // le 19/09. Sur une machine réglée sur la Martinique il répond juste —
+  // c'est bien pourquoi le défaut a survécu si longtemps — alors on le joue
+  // explicitement sur un fuseau européen, qui est le cas relevé.
+  const jourParis = d => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  assert.strictEqual(serviceDuJourSeulement(ceSoir, '2026-09-11', jourParis), null,
+    'le découpeur de l\'appareil rend le même verdict que celui du site : ' +
+    'la garde ne mord pas, elle ne prouve rien');
 });
 
 t('sans service ouvert, aucune référence n\'est inventée', () => {
-  assert.strictEqual(serviceDuJourSeulement(null, '2026-09-11'), null);
-  assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11'), null);
+  assert.strictEqual(serviceDuJourSeulement(null, '2026-09-11', jourStation), null);
+  assert.strictEqual(serviceDuJourSeulement({ quart: 'soir' }, '2026-09-11', jourStation), null);
 });
 
-t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
+t('le quart écrit en base suit le service DU JOUR, et le retard n\'est plus dérivé', () => {
   // On juge le CORPS de la fonction qui écrit, pas le fichier entier : les
   // autres écrans lisent légitimement retard_min ailleurs, et un grep global
   // mélangerait les deux.
@@ -211,11 +242,50 @@ t('le retard et le quart écrits en base suivent le service DU JOUR', () => {
   // On vise l'écriture du pointage DEMANDÉ, pas celle de la clôture de pause
   // qui la précède et porte, elle, des valeurs littérales assumées.
   const principal = suite.slice(suite.indexOf("const ligne = {"));
-  for (const champ of ['retard_min:', 'quart:', 'heure_debut_quart:']) {
+  const champDe = champ => {
     const ligne = principal.split('\n').find(l => l.trim().startsWith(champ));
     assert.ok(ligne, `${champ} n'est plus écrit`);
-    assert.ok(/serviceDuJour|retardMin/.test(ligne), `${champ} ne suit pas le service du jour`);
+    return ligne;
+  };
+
+  // `quart` reste dérivé du service du jour : c'est un fait observé (quel
+  // service était ouvert), pas une mesure contre un horaire.
+  assert.ok(/serviceDuJour/.test(champDe('quart:')),
+    'quart: ne suit plus le service du jour — le quart de la veille peut revenir');
+
+  // DEUX FOIS RETOURNÉE, ET C'EST LA MÊME RÈGLE À CHAQUE FOIS : le retard ne
+  // se dérive JAMAIS du service. Le 11/09 l'épreuve exigeait qu'il en dérive,
+  // et c'était le défaut : `shifts.heure_debut` vaut `created_at` quand le
+  // service est ouvert d'un clic, d'où « Retard constaté : 1028 min » pour
+  // une arrivée de 10 h 33. Le 18/09 on a donc figé `retard_min: 0` — ce qui
+  // a remplacé un faux retard par un faux « à l'heure », tout aussi menteur.
+  // Le 19/09 (mandat 33) le retard est de nouveau CALCULÉ, mais contre les
+  // Paramètres Station du site réellement travaillé, via le Planning ; et il
+  // vaut `null` dès qu'une de ces sources manque. Ce qui reste interdit, et
+  // que cette garde mesure, c'est la dérivation depuis le service ouvert.
+  assert.match(champDe('retard_min:'), /retard_min:\s*retardMin\s*,/,
+    'retard_min ne porte plus la mesure de retardDeLArrivee : soit il est figé — un faux « à l\'heure » — soit il vient d\'ailleurs');
+  assert.match(champDe('heure_debut_quart:'), /heure_debut_quart:\s*null\s*,/,
+    'heure_debut_quart capture de nouveau une heure d\'ouverture présentée comme un horaire prévu');
+  for (const champ of ['retard_min:', 'heure_debut_quart:']) {
+    assert.ok(!/serviceDuJour|shiftActif|heure_debut_?\b/.test(champDe(champ).replace(champ, '')),
+      `${champ} dérive de nouveau d'un service : l'ouverture d'un service n'est pas un horaire prévu`);
   }
+
+  // Et la mesure elle-même ne doit pas rouvrir la porte par sa fenêtre : le
+  // calcul du retard n'a le droit de lire ni le service ouvert, ni `shifts`.
+  const calcul = POINTAGE.match(/async function retardDeLArrivee\([\s\S]*?\n  \}\n/);
+  assert.ok(calcul, 'retardDeLArrivee introuvable — le retard n\'est plus calculé nulle part, ou il a changé de nom sans que l\'épreuve suive');
+  assert.ok(!/shiftActif|serviceDuJour|from\('shifts'\)/.test(calcul[0]),
+    'le calcul du retard lit de nouveau le service ouvert : c\'est exactement le défaut du 11/09');
+  // L'heure attendue vient d'une fonction dédiée : on suit le chaînage plutôt
+  // que d'exiger l'appel RPC dans ce corps-ci.
+  assert.ok(/heureDebutDue\(/.test(calcul[0]),
+    'le calcul du retard ne demande plus son heure attendue à heureDebutDue');
+  const heureDue = POINTAGE.match(/async function heureDebutDue\([\s\S]*?\n  \}\n/);
+  assert.ok(heureDue, 'heureDebutDue introuvable');
+  assert.ok(/\.rpc\('calculer_horaires_quart'/.test(heureDue[0]),
+    'l\'heure attendue ne passe plus par les Paramètres Station : elle vient d\'ailleurs, donc d\'une invention');
 });
 
 // ── Réconciliation et doublons ────────────────────────────────────────────
@@ -292,26 +362,66 @@ t('aucun fichier ne survit à son pointage', () => {
 
 // ── La photo est complémentaire, jamais une condition ─────────────────────
 
+// PRÉMISSE CHANGÉE LE 18/09/2026. Ces trois gardes épinglaient le littéral
+// `true` passé à finaliserPointage, et `!!photoEchecTechnique`. Elles étaient
+// vertes pendant que l'écran mentait : un booléen unique servait à la fois
+// l'échec d'envoi ET le clic « Enregistrer sans photo », si bien qu'un employé
+// qui refusait sa caméra était déclaré au manager comme victime d'une panne.
+// Le texte était conforme, le comportement non — exactement ce que l'en-tête
+// de cette épreuve dit ne pas vouloir. Elles jugent désormais le motif porté
+// par le code, et la valeur que ce motif produit en base.
+
 t('une caméra refusée n\'annule plus le pointage', () => {
   const bloc = POINTAGE.match(/if \(resultat === 'sans-photo'\) \{[\s\S]*?\n        \}/);
   assert.ok(bloc, 'un refus de caméra ne laisse aucune voie vers l\'enregistrement');
-  assert.ok(/finaliserPointage\(btn, employee, siteId, type, shiftActif, null, clicPointage\[type\], true\)/.test(bloc[0]),
-    'le pointage sans photo n\'est pas enregistré, ou ne trace pas sa cause');
+  const appel = bloc[0].match(/finaliserPointage\(btn, employee, siteId, type, shiftActif, null, clicPointage\[type\], (.+?)\);/);
+  assert.ok(appel, 'le pointage sans photo n\'est pas enregistré');
+  assert.strictEqual(appel[1], "'choix_employe'",
+    'le refus de caméra ne nomme pas son motif, ou le confond avec un échec technique');
   assert.ok(/Enregistrer sans photo/.test(POINTAGE),
     'l\'employée ne se voit jamais proposer d\'enregistrer sans photo');
 });
 
 t('un envoi de photo en échec n\'annule pas le pointage non plus', () => {
   const corps = POINTAGE.match(/const photoUrl = await uploaderPhotoPointageAvecRelance[\s\S]*?\n      \}/)[0];
-  assert.ok(/finaliserPointage\([^)]*null, heureClic, true\)/.test(corps),
-    'un envoi raté fait perdre le pointage');
+  const appel = corps.match(/finaliserPointage\([^)]*null, heureClic, (.+?)\);/);
+  assert.ok(appel, 'un envoi raté fait perdre le pointage');
+  assert.strictEqual(appel[1], "'echec_technique'",
+    'un envoi raté n\'est plus tracé comme tel pour le manager');
 });
 
-t('l\'écran dit « sans photo » en toutes lettres, et garde la cause', () => {
-  assert.ok(/Enregistré SANS PHOTO/.test(POINTAGE),
-    'la confirmation ne nomme pas l\'état réel du pointage');
-  assert.ok(/photo_echec_technique: !!photoEchecTechnique/.test(POINTAGE),
-    'la cause technique n\'est plus conservée');
+t('le drapeau d\'échec technique ne se pose QUE sur un échec technique', () => {
+  // Le cœur du correctif du 18/09, jugé sur la valeur réellement écrite :
+  // l'expression est extraite du littéral inséré en base, puis évaluée.
+  const ligne = POINTAGE.match(/const ligne = \{[\s\S]*?\n    \};/)[0];
+  const expr = ligne.match(/photo_echec_technique: (.+),/);
+  assert.ok(expr, 'la cause technique n\'est plus conservée');
+  const derive = new Function('motifSansPhoto', 'return (' + expr[1] + ');');
+  assert.strictEqual(derive('echec_technique'), true,
+    'un envoi raté n\'est plus signalé au manager');
+  assert.strictEqual(derive('choix_employe'), false,
+    'un clic « Enregistrer sans photo » est encore écrit comme une panne technique');
+  assert.strictEqual(derive(null), false,
+    'un pointage avec photo est marqué en échec');
+});
+
+t('l\'écran dit « sans photo » en toutes lettres, et sans inventer de panne', () => {
+  assert.ok(/Enregistré SANS PHOTO : la photo n\\?'a pas pu être envoyée/.test(POINTAGE),
+    'la confirmation ne nomme pas l\'échec d\'envoi');
+  assert.ok(/Enregistré SANS PHOTO, comme vous l\\?'avez demandé/.test(POINTAGE),
+    'un enregistrement voulu sans photo est annoncé comme un échec d\'envoi');
+  assert.ok(/Pointage enregistré sans photo/.test(POINTAGE),
+    'l\'historique du manager n\'a aucun libellé pour une photo simplement absente');
+});
+
+t('le départ n\'annonce plus une obligation que rien n\'applique', () => {
+  // La consigne disait « Obligatoire : photo de la mise en alarme » alors que
+  // le même écran offre « Enregistrer sans photo » juste en dessous. Une
+  // obligation affichée et non tenue n'oblige personne.
+  const depart = POINTAGE.match(/\n    depart: \{[^\n]*\n/)[0];
+  assert.ok(/consignePhoto:/.test(depart), 'le départ n\'a plus de consigne photo');
+  assert.ok(!/[Oo]bligatoire/.test(depart),
+    'le départ annonce une photo obligatoire que rien n\'impose');
 });
 
 t('plusieurs tentatives ne produisent aucun doublon', () => {
@@ -386,4 +496,4 @@ t('une lecture impossible ne relâche pas la porte', () => {
     'une lecture ratée est prise pour un départ pointé : la porte s\'ouvre sur une panne');
 });
 
-console.log(`\n${passes}/34 vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
+console.log(`\n${passes}/${total} vérifications passées — le départ ne dépend plus d'une pause, et le quart de la veille ne sert plus de référence.`);
