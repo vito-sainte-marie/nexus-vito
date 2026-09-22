@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-POINTAGE-CORRECTIF-1-20260911",
+  "lot_actif": "NEXUS-CONTINUITE-TERRAIN-1-20260920",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -233,8 +233,21 @@
       "consomme_le": "2026-09-11T15:45:56.397Z"
     },
     "NEXUS-POINTAGE-CORRECTIF-1-20260911": {
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "d0d9ea79d5063f1035cb8eacf1e8079acd5869f7",
+      "consomme_le": "2026-09-20T18:44:13.569Z"
+    },
+    "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "derniere_demande": "request-12.md",
+      "derniere_decision": "decision-9.md",
+      "source_decision": "registre",
+      "commit_decision": "f87c379b289a10c2481266518aef84fc1142685f",
+      "consomme_le": "2026-09-21T23:10:47.555Z",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [
@@ -299,6 +312,37 @@
       "motif": "Enveloppe non conformante : le verdict est porté par `status:` au lieu de `decision:`, et `branch:` est absent. Défauts de FORME seulement — le fichier porte `status: APPROVED` et `closes: true`, et APPROVED appartient au vocabulaire canonique ; le corps confirme « APPROVED — bloqueur Verify fermé » et « les deux bloqueurs issus de la recette transverse sont maintenant levés ». Verdict retenu : APPROVED, closes=true, en réponse à request-1.md. Le fichier n'est ni renommé ni réécrit. Troisième dépôt consécutif présentant un écart d'enveloppe : le contrat n'est manifestement pas assez découvrable, ce qui est posé en question au lot suivant plutôt que dérogé indéfiniment.",
       "autorise_par": "Frédéric Bragance (gate humaine — instruction explicite de consommer ce fichier)",
       "le": "2026-09-05"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "SEQUENCE_NON_CONTIGUE",
+      "motif": "decision-12.md est numérotée 12 alors que la dernière décision réellement déposée dans ce lot est decision-9.md : decision-10.md et decision-11.md n'ont jamais existé, aucun commit ne les porte. Défaut de FORME seulement : Frédéric, auteur de la décision, a repris le rang de la demande qu'il arbitre (request-12.md) comme numéro de décision, au lieu de poursuivre la série des décisions. Le fichier n'est ni renommé ni réécrit : le retitrer decision-10.md fabriquerait après coup une numérotation qu'il n'a jamais portée, exactement ce que l'append-only interdit. La décision reste donc la 10e décision réelle du lot sous le nom decision-12.md.",
+      "autorise_par": "Claude — pré-autorisation CLAUDE.md, section « Pré-autorisations », point 2 (dérogation de FORME sur une enveloppe Handoff déjà publiée ; ni renommage ni réécriture, lot et fichier nommés, motif réel, dérogation imprimée à chaque exécution)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "DECISION_HORS_VOCABULAIRE",
+      "motif": "L'enveloppe porte `decision: GO_RATIFICATION`, absent du vocabulaire canonique (APPROVED|APPROVED_WITH_CONDITIONS|BLOCKED|NEEDS_EVIDENCE). Défaut de FORME seulement — le corps est sans ambiguïté : « GO ratification. Je ratifie l'équivalence applicative documentée par request-11 §1 à §3, corrigée et complétée par request-12. » Le même corps précise que cette ratification n'autorise aucune nouvelle écriture Production, aucune migration, aucun merge/promotion ni déploiement — ce sont les invariants déjà en vigueur, restatés, pas des conditions nouvelles ; le verdict équivaut donc à APPROVED, comme decision-9.md (« GO Créateur », même lot) l'a déjà posé pour un GO comparable assorti de ses propres conditions en prose. Verdict retenu : APPROVED. Le fichier n'est ni renommé ni réécrit.",
+      "autorise_par": "Claude — pré-autorisation CLAUDE.md, section « Pré-autorisations », point 2 (dérogation de FORME sur une enveloppe Handoff déjà publiée ; ni renommage ni réécriture, lot et fichier nommés, motif réel, dérogation imprimée à chaque exécution)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "CLOSES_INVALIDE",
+      "motif": "L'enveloppe ne porte aucun champ `closes`. Défaut de FORME seulement — le corps dit explicitement : « Le Handoff peut poursuivre sur le rail canonique handoff-continuite-20260920, avec NEXUS_BASE_BRANCH=handoff-continuite-20260920, conformément à la Bible, à la gouvernance et aux décisions déjà établies. » « Poursuivre » désigne sans ambiguïté un lot qui reste ouvert, exactement comme decision-9.md du même lot (`closes: false`) pour le même auteur sur le même sujet de fond. Verdict retenu : closes=false. Le fichier n'est ni renommé ni réécrit.",
+      "autorise_par": "Claude — pré-autorisation CLAUDE.md, section « Pré-autorisations », point 2 (dérogation de FORME sur une enveloppe Handoff déjà publiée ; ni renommage ni réécriture, lot et fichier nommés, motif réel, dérogation imprimée à chaque exécution)",
+      "le": "2026-09-22"
+    },
+    {
+      "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
+      "regle": "IN_REPLY_TO_MANQUANT",
+      "motif": "L'enveloppe ne porte aucun champ `in_reply_to`. Défaut de FORME seulement — au moment du dépôt de decision-12.md, la demande active du lot était request-12.md (la plus récente, déposée par Claude), et le corps de la décision cite explicitement « request-11 §1 à §3, corrigée et complétée par request-12 » comme objet de l'arbitrage. Le fichier n'est ni renommé ni réécrit ; la valeur retenue ci-dessous restitue la désignation que le corps porte déjà en prose, dans le champ que les outils de consommation et de réveil lisent réellement.",
+      "autorise_par": "Claude — pré-autorisation CLAUDE.md, section « Pré-autorisations », point 2 (dérogation de FORME sur une enveloppe Handoff déjà publiée ; ni renommage ni réécriture, lot et fichier nommés, motif réel, dérogation imprimée à chaque exécution)",
+      "le": "2026-09-22",
+      "valeur_retenue": {
+        "in_reply_to": "request-12.md"
+      }
     }
   ]
 }
