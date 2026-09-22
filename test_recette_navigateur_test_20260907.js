@@ -16,10 +16,18 @@ const path = require('path');
 const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
-const { verifier, verifierLive, jugerCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS } = require(OUTIL);
+const { verifier, verifierLive, jugerCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
+        aliasCloudflare, urlTestDuRail, attendreVersionServie, HOTE_PAGES_TEST } = require(OUTIL);
+const os = require('os');
 
 let passes = 0;
 function epreuve(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
+// Certaines épreuves attendent (le réseau est simulé, mais la fonction éprouvée
+// est asynchrone). `epreuve()` compterait la promesse elle-même comme un succès
+// et l'échec arriverait après le bilan : elles sont donc mises en file et
+// attendues avant qu'il soit imprimé.
+const attentes = [];
+function epreuveAttendue(nom, fn) { attentes.push([nom, fn]); }
 
 // Observation conforme : exactement ce que l'écran a rendu le 07/09/2026.
 function vuConforme(muter) {
@@ -745,4 +753,142 @@ epreuve('aucune observation ne vaut pas conforme', () => {
   assert.ok(verifierInvitation(null).length > 0, 'null doit produire un refus');
 });
 
-console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
+
+// ---------------------------------------------------------------------------
+// OÙ EST NEXUS TEST — la cinquième désignation recopiée (22/09/2026).
+//
+// `NEXUS_TEST_URL` était figée dans tests.yml sur l'alias de production du
+// projet Pages, qui sert le candidat GELÉ. La recette attendait donc le SHA du
+// rail à une adresse qui ne pouvait pas le servir. Ces épreuves tiennent la
+// porte fermée : l'adresse se DÉRIVE du rail déclaré au registre, et rien ne
+// doit pouvoir la refiger ailleurs.
+
+// Un registre jetable : `handoff.js` lit docs/handoff/STATE.json, et honore
+// NEXUS_HANDOFF_DIR. On lui donne donc un dossier à nous, pour faire DIRE au
+// registre un rail choisi — sans toucher au vrai.
+function registreJetable(rail, lot = 'LOT-EPREUVE') {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-registre-'));
+  const etat = { lot_actif: lot, lots: {} };
+  etat.lots[lot] = rail === undefined ? {} : { rail };
+  fs.writeFileSync(path.join(dir, 'STATE.json'), JSON.stringify(etat, null, 2));
+  return dir;
+}
+
+epreuve('l’adresse de NEXUS Test se DÉRIVE du rail déclaré au registre', () => {
+  const dir = registreJetable('handoff-continuite-20260920');
+  const r = urlTestDuRail({ NEXUS_HANDOFF_DIR: dir, NEXUS_TEST_URL: '' });
+  assert.strictEqual(r.rail, 'handoff-continuite-20260920');
+  assert.strictEqual(r.url, 'https://handoff-continuite-20260920.nexus-test-ddf.pages.dev/');
+  assert.strictEqual(r.impose, false, 'aucune variable n’imposait quoi que ce soit');
+
+  // CONTRE-TÉMOIN — sans lui, une adresse écrite en dur passerait l’épreuve
+  // précédente. Un autre rail au registre DOIT donner une autre adresse.
+  const autre = registreJetable('handoff-un-autre-rail');
+  const r2 = urlTestDuRail({ NEXUS_HANDOFF_DIR: autre, NEXUS_TEST_URL: '' });
+  assert.strictEqual(r2.url, 'https://handoff-un-autre-rail.nexus-test-ddf.pages.dev/');
+  assert.notStrictEqual(r2.url, r.url, 'l’adresse ne suit pas le rail : elle est figée quelque part');
+});
+
+epreuve('un rail illisible REFUSE, il ne retombe jamais sur l’alias gelé', () => {
+  // Le repli tentant serait https://nexus-test-ddf.pages.dev — qui sert
+  // `config-par-environnement`, le candidat gelé du 14/09. Prouver là-bas,
+  // c'est prouver sur un autre code que celui testé.
+  const vide = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-registre-vide-'));
+  const r = urlTestDuRail({ NEXUS_HANDOFF_DIR: vide, NEXUS_TEST_URL: '' });
+  assert.strictEqual(r.url, null, `refus attendu, obtenu ${r.url}`);
+  assert.ok(/rail Handoff illisible/.test(r.cause || ''), r.cause);
+  assert.ok(!new RegExp(`https://${HOTE_PAGES_TEST}`).test(JSON.stringify(r)),
+    'le refus ne doit même pas suggérer l’alias de production comme adresse');
+
+  // Et un rail refusé par le registre (une ref protégée) refuse aussi.
+  const protege = registreJetable('production');
+  assert.strictEqual(urlTestDuRail({ NEXUS_HANDOFF_DIR: protege, NEXUS_TEST_URL: '' }).url, null,
+    'un rail non autorisé au registre ne doit pas produire d’adresse');
+});
+
+epreuve('AUCUN workflow ne fixe NEXUS_TEST_URL', () => {
+  // La porte par laquelle le défaut est entré. Une variable d'environnement
+  // qui nomme une adresse est une désignation de branche recopiée : elle
+  // survivrait au changement de rail sans rien dire.
+  const dir = path.join(__dirname, '.github', 'workflows');
+  for (const nom of fs.readdirSync(dir).filter(n => /\.ya?ml$/.test(n))) {
+    const src = fs.readFileSync(path.join(dir, nom), 'utf8');
+    const lignes = src.split('\n').filter(l => /^\s*NEXUS_TEST_URL\s*:/.test(l));
+    assert.deepStrictEqual(lignes, [],
+      `${nom} refige l’adresse de NEXUS Test : ${lignes.join(' / ')}`);
+  }
+});
+
+epreuve('l’alias suit la règle de Cloudflare Pages, pas une devinette', () => {
+  // Mesuré le 22/09/2026 : la branche du rail répond bien à son alias.
+  assert.strictEqual(aliasCloudflare('handoff-continuite-20260920'), 'handoff-continuite-20260920');
+  // Minuscules, et tout caractère non alphanumérique devient un tiret. Le
+  // registre n'accepte que des rails `handoff-…` en ASCII (FORME_RAIL), donc
+  // le cas des tirets consécutifs — que Cloudflare peut traiter autrement et
+  // qui n'a PAS été mesuré — ne peut pas se produire ; on ne l'affirme pas.
+  assert.strictEqual(aliasCloudflare('Handoff/Continuite_2026'), 'handoff-continuite-2026');
+  assert.strictEqual(aliasCloudflare('a'.repeat(40)), 'a'.repeat(28), '28 caractères au plus');
+  assert.strictEqual(aliasCloudflare('trop-long-pour-cloudflare-x--'), 'trop-long-pour-cloudflare-x',
+    'un tiret final serait une adresse qui ne répond pas');
+  assert.throws(() => aliasCloudflare('___'), /alias de déploiement Cloudflare vide/);
+});
+
+async function sousFetch(faux, fn) {
+  const reel = global.fetch;
+  global.fetch = faux;
+  try { return await fn(); } finally { global.fetch = reel; }
+}
+
+epreuveAttendue('une adresse INJOIGNABLE n’est pas un déploiement en retard', async () => {
+  // Le `catch` vide d'origine rendait les deux cas identiques : au bout de
+  // quatre minutes, « NEXUS Test sert encore une version illisible » — alors
+  // que rien n'avait jamais répondu. On ne saurait pas distinguer une adresse
+  // fausse d'un build lent, et c'est exactement ce qu'il fallait savoir.
+  const v = await sousFetch(async () => { throw new Error('getaddrinfo ENOTFOUND'); },
+    () => attendreVersionServie('https://rien.invalid/', 'abcdef1234', 1, 1));
+  assert.strictEqual(v.servie, false);
+  assert.strictEqual(v.joint, false, 'rien n’a répondu : joint doit être faux');
+  assert.ok(/ENOTFOUND/.test(v.panne || ''), `la panne doit être nommée, vu ${v.panne}`);
+
+  // Un 404 non plus n'est pas une réponse : l'alias existe peut-être, le
+  // fichier d'identité de génération, non. Voir un-200-ne-prouve-pas-le-contenu.
+  const q = await sousFetch(async () => ({ ok: false, status: 404, text: async () => '' }),
+    () => attendreVersionServie('https://x/', 'abcdef1234', 1, 1));
+  assert.strictEqual(q.joint, false, 'un 404 n’a rien servi');
+  assert.strictEqual(q.panne, 'HTTP 404', q.panne);
+});
+
+epreuveAttendue('une adresse qui RÉPOND avec une autre version le dit autrement', async () => {
+  const v = await sousFetch(async () => ({ ok: true, status: 200, text: async () => "commit: 'ea57d4b'," }),
+    () => attendreVersionServie('https://x/', 'abcdef1234567', 1, 1));
+  assert.strictEqual(v.servie, false);
+  assert.strictEqual(v.joint, true, 'le site a répondu : joint doit être vrai');
+  assert.strictEqual(v.commit, 'ea57d4b', 'et la version réellement servie doit être nommée');
+
+  // Et le cas nominal, sans lequel les deux précédentes seraient satisfaites
+  // par une fonction qui ne conclut jamais.
+  const b = await sousFetch(async () => ({ ok: true, status: 200, text: async () => "commit: '18db37a'," }),
+    () => attendreVersionServie('https://x/', '18db37a9f0c1', 1, 1));
+  assert.strictEqual(b.servie, true, 'la version attendue est servie : ce doit être un succès');
+});
+
+epreuve('MUTATION : sans la dérivation, la recette repart sur l’alias gelé', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const mute = src.replace(
+    "  const url = `https://${aliasCloudflare(rail)}.${HOTE_PAGES_TEST}/`;",
+    "  const url = `https://${HOTE_PAGES_TEST}/`;");
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process,
+                __dirname: path.join(__dirname, 'outils'), __filename: OUTIL };
+  ctx.exports = ctx.module.exports;
+  require('vm').runInNewContext(mute, ctx);
+  const dir = registreJetable('handoff-continuite-20260920');
+  const r = ctx.module.exports.urlTestDuRail({ NEXUS_HANDOFF_DIR: dir, NEXUS_TEST_URL: '' });
+  assert.strictEqual(r.url, `https://${HOTE_PAGES_TEST}/`,
+    'le code muté devait servir l’alias gelé ; l’épreuve ne détecte donc pas ce défaut');
+});
+
+(async () => {
+  for (const [nom, fn] of attentes) { await fn(); passes++; console.log('OK — ' + nom); }
+  console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);
+})().catch(e => { console.error(e); process.exit(1); });

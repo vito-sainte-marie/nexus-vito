@@ -32,7 +32,11 @@
 //   node outils/recette-navigateur-test.js
 //
 // Environnement attendu :
-//   NEXUS_TEST_URL                 (ex. https://nexus-test-ddf.pages.dev)
+//   NEXUS_TEST_URL                 FACULTATIF depuis le 22/09/2026, et
+//                                  seulement pour viser une autre adresse à la
+//                                  main. L'adresse de NEXUS Test se DÉRIVE du
+//                                  rail déclaré au registre — voir « OÙ EST
+//                                  NEXUS TEST » plus bas.
 //   NEXUS_TEST_MANAGER_NOM         le NOM de l'employé, pas son username.
 //                                  Le champ est étiqueté « Prénom » à l'écran,
 //                                  mais la fonction `nexus_identifiant_de_connexion`
@@ -59,8 +63,9 @@
 // second employé, et la règle qui valait hier vaut encore aujourd'hui.
 
 const path = require('path');
+const { execFileSync } = require('child_process');
 
-const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
+const SECRETS_REQUIS = ['NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
 
 // Le scénario EMPLOYÉ a ses propres secrets, et ils sont VOLONTAIREMENT hors
 // de SECRETS_REQUIS. Les y ajouter ferait dégrader la recette ENTIÈRE le jour
@@ -112,6 +117,77 @@ const ECRAN_CARBURANTS = 'NEXUS-Carburants-Pilotage-v1.html';
 }
 const ECRAN_LIVE = 'NEXUS-Live-Developpement-v1.html';
 
+// OÙ EST NEXUS TEST — une adresse se DÉRIVE du rail, elle ne se recopie pas.
+//
+// Cloudflare Pages construit CHAQUE branche poussée : le rail a donc déjà son
+// propre déploiement Test, à son alias de branche. Mesuré le 22/09/2026 —
+// https://handoff-continuite-20260920.nexus-test-ddf.pages.dev sert le commit
+// 18db37a, environnement « test », Supabase udljdqxerrbbbajxubfn : un vrai
+// build Test, complet, construit à l'heure du push.
+//
+// Ce qui manquait n'était donc PAS un déploiement, c'était de regarder le bon.
+// `NEXUS_TEST_URL` était figée dans tests.yml sur l'alias de PRODUCTION du
+// projet Pages (https://nexus-test-ddf.pages.dev), lequel sert la branche
+// inscrite dans le tableau de bord Cloudflare : `config-par-environnement`, le
+// candidat gelé du 14/09. La recette attendait donc quatre minutes le SHA du
+// rail à une adresse qui ne pouvait pas le servir, puis se déclarait « non
+// exécutée » — une preuve manquante, indéfiniment, sans faute visible.
+//
+// La correction tient ici et nulle part ailleurs : l'adresse se dérive du rail
+// déclaré au registre (docs/handoff/STATE.json → lots[LOT].rail), demandé par
+// la MÊME commande que la CI — `node outils/handoff.js rail`. Aucune
+// désignation n'est recopiée dans Cloudflare, aucune ne transite par une
+// variable d'environnement : c'est le consommateur qui interroge l'autorité.
+// Le seul invariant écrit ici est l'identité de l'environnement Test (le projet
+// Pages), qui ne désigne aucune branche et ne change pas quand le rail change.
+//
+// ÉCHEC FERMÉ. Rail illisible ⇒ REFUS. Pas de repli sur l'alias de production :
+// ce repli servirait le candidat gelé, et la recette prouverait sur un autre
+// code que celui qu'elle teste. C'est précisément le défaut qu'on retire.
+const HOTE_PAGES_TEST = 'nexus-test-ddf.pages.dev';
+
+// La règle d'alias de Cloudflare Pages : minuscules, tout caractère non
+// alphanumérique devient un tiret, 28 caractères au plus. Se tromper ici ne
+// fabrique pas une fausse preuve — l'adresse dérivée ne répond alors pas, et
+// `attendreVersionServie` le DIT comme une injoignabilité, pas comme une
+// lenteur de déploiement.
+function aliasCloudflare(rail) {
+  const alias = String(rail || '').toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 28).replace(/-+$/, '');
+  if (!alias) throw new Error(`Rail ${JSON.stringify(rail)} : alias de déploiement Cloudflare vide.`);
+  return alias;
+}
+
+function railDuRegistre(env, racine) {
+  const sortie = execFileSync(process.execPath, [path.join(racine, 'outils', 'handoff.js'), 'rail'],
+    { cwd: racine, encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const rail = String(sortie).trim();
+  if (!rail) throw new Error('`handoff.js rail` n’a rien imprimé');
+  return rail;
+}
+
+function urlTestDuRail(env = process.env, racine = path.join(__dirname, '..')) {
+  let rail;
+  try { rail = railDuRegistre(env, racine); }
+  catch (e) {
+    return { url: null, rail: null,
+      cause: `rail Handoff illisible au registre (${String(e.message).split('\n')[0]}) — aucune adresse `
+        + 'Test ne peut en être dérivée, et il n’existe volontairement aucun repli : l’alias de '
+        + 'production du projet Pages sert le candidat gelé, pas le rail.' };
+  }
+  const url = `https://${aliasCloudflare(rail)}.${HOTE_PAGES_TEST}/`;
+  const impose = env.NEXUS_TEST_URL && String(env.NEXUS_TEST_URL).trim();
+  if (impose) {
+    const normalise = impose.replace(/\/?$/, '/');
+    if (normalise !== url) {
+      console.warn(`AVERTISSEMENT — NEXUS_TEST_URL impose ${normalise} ; le registre désigne ${url} `
+        + `(rail ${rail}). La variable l’emporte, pour qu'une recette manuelle puisse viser une autre `
+        + 'adresse — mais la preuve ne vaudra alors que pour celle-là. Aucun workflow ne doit la fixer.');
+    }
+    return { url: normalise, rail, impose: true };
+  }
+  return { url, rail, impose: false };
+}
+
 function secretsManquants(env) {
   return SECRETS_REQUIS.filter(n => !env[n] || !String(env[n]).trim());
 }
@@ -140,19 +216,28 @@ function extraireCommitServi(source) {
 // CARB-004 interdit : « aucune preuve UI sur une version qui ne contient pas
 // le correctif ». On attend donc que la version servie soit celle qu'on teste,
 // et si elle ne vient pas, on le DIT plutôt que de prouver autre chose.
+//
+// Et une adresse qui ne répond JAMAIS n'est pas un déploiement lent : c'est une
+// adresse qui ne mène nulle part. Avaler l'erreur réseau — ce que faisait le
+// `catch` vide — rendait les deux cas identiques au bout de quatre minutes.
 async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pasMs = 15000) {
   const url = new URL('nexus-build.js', base).href;
   const limite = Date.now() + timeoutMs;
-  let vu = null;
+  let vu = null, joint = false, panne = null;
   while (Date.now() < limite) {
     try {
       const reponse = await fetch(url, { cache: 'no-store' });
-      vu = extraireCommitServi(await reponse.text());
-      if (vu && commitAttendu.startsWith(vu)) return { servie: true, commit: vu };
-    } catch (e) { /* déploiement en cours, on repasse */ }
+      if (reponse.ok) {
+        joint = true;
+        vu = extraireCommitServi(await reponse.text());
+        if (vu && commitAttendu.startsWith(vu)) return { servie: true, commit: vu, joint, panne: null };
+      } else {
+        panne = `HTTP ${reponse.status}`;
+      }
+    } catch (e) { panne = String(e && e.message || e).split('\n')[0]; }
     await new Promise(r => setTimeout(r, pasMs));
   }
-  return { servie: false, commit: vu };
+  return { servie: false, commit: vu, joint, panne };
 }
 
 async function connecter(page, base, identifiant, pin) {
@@ -844,14 +929,28 @@ async function executer(env = process.env) {
         'Non bloquant. En CI : `npm install --no-save playwright && npx playwright install --with-deps chromium`.' };
   }
 
-  const base = env.NEXUS_TEST_URL.replace(/\/?$/, '/');
+  const cible = urlTestDuRail(env);
+  if (!cible.url) {
+    return { executee: false, bloquant: false,
+      message: `Recette navigateur Test non exécutée — ${cible.cause} Dégradation explicite (ENV-003), `
+        + 'non bloquante. La preuve UI reste donc NON satisfaite.' };
+  }
+  const base = cible.url;
+  console.log(`Adresse NEXUS Test dérivée du rail ${cible.rail}${cible.impose ? ' puis imposée par NEXUS_TEST_URL' : ''} : ${base}`);
 
   if (env.NEXUS_COMMIT_ATTENDU) {
     const v = await attendreVersionServie(base, env.NEXUS_COMMIT_ATTENDU);
     if (!v.servie) {
+      const attendu = env.NEXUS_COMMIT_ATTENDU.slice(0, 7);
+      const cause = !v.joint
+        ? `le déploiement Test est INJOIGNABLE à ${base} (${v.panne || 'cause inconnue'}). Ce n'est pas un `
+          + 'déploiement en retard : l’adresse dérivée du rail ne mène à rien. Cloudflare Pages construit '
+          + 'chaque branche poussée — si le rail a été poussé, son alias devrait répondre.'
+        : v.commit
+          ? `NEXUS Test sert encore ${v.commit} à ${base}, pas ${attendu}`
+          : `NEXUS Test répond à ${base} sans y exposer d’identité de génération lisible (attendu ${attendu})`;
       return { executee: false, bloquant: false,
-        message: `Recette navigateur Test non exécutée — NEXUS Test sert encore ${v.commit || 'une version illisible'}, ` +
-          `pas ${env.NEXUS_COMMIT_ATTENDU.slice(0, 7)}. Prouver sur une version qui n'est pas celle testée ne prouverait rien ` +
+        message: `Recette navigateur Test non exécutée — ${cause}. Prouver sur une version qui n'est pas celle testée ne prouverait rien ` +
           '(decision-2.md du lot CARB-004). Non bloquant : le déploiement Cloudflare est asynchrone.' };
     }
     console.log(`Version servie confirmée : ${v.commit}`);
@@ -938,7 +1037,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {

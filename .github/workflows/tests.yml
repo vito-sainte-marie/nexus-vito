@@ -640,7 +640,19 @@ jobs:
       - name: Recette navigateur NEXUS Test
         if: env.NEXUS_REF_EST_LE_RAIL == '1'
         env:
-          NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
+          # PAS de NEXUS_TEST_URL ici — retirée le 22/09/2026. Elle figeait
+          # l'adresse sur l'alias de PRODUCTION du projet Pages, lequel sert la
+          # branche inscrite au tableau de bord Cloudflare : `config-par-
+          # environnement`, le candidat GELÉ du 14/09. La recette attendait donc
+          # le SHA du rail à une adresse qui ne pouvait pas le servir, et se
+          # déclarait « non exécutée » run après run. C'était la cinquième
+          # désignation de rail recopiée hors du registre.
+          #
+          # Cloudflare Pages construit chaque branche poussée : l'outil dérive
+          # maintenant l'adresse du rail déclaré au registre, via la même
+          # commande que les étapes ci-dessus (`handoff.js rail`). Ne pas la
+          # réintroduire : une épreuve versionnée refuse tout workflow qui la
+          # fixe.
           # Le NOM, pas le username : nexus_identifiant_de_connexion résout sur
           # employees.nom. 'manager-test' rend NULL, 'Manager Test' rend le compte.
           NEXUS_TEST_MANAGER_NOM: Manager Test

@@ -218,5 +218,6 @@ echo "[4/4] Suite complète, Guardians et recette navigateur…"
 )
 echo
 echo "Répétition PREPROD-équivalente terminée sur $REF."
-echo "Reste à lancer manuellement (nécessite NEXUS_TEST_URL et les PIN de recette, jamais dans ce script) :"
+echo "Reste à lancer manuellement (nécessite les PIN de recette, jamais dans ce script ;"
+echo "l'adresse de NEXUS Test, elle, se dérive du rail déclaré au registre) :"
 echo "  node outils/recette-navigateur-test.js"
