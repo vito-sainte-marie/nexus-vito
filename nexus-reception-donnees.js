@@ -221,6 +221,24 @@
     return { ...visite, lignes: lignes || [], compartiments: compartiments || [], mesures: mesures || [] };
   }
 
+  // Réceptions déjà enregistrées pour une date donnée (19/09/2026) —
+  // support de la régularisation d'une réception passée. Une régularisation
+  // est un second geste volontaire : l'idempotence ne peut pas la protéger
+  // (chaque geste porte sa propre idempotency_key), et sans cette lecture un
+  // manager pourrait ressaisir une livraison déjà présente sans jamais la
+  // voir. On rend donc la liste telle quelle — deux livraisons le même jour
+  // existent réellement, ce n'est pas à cette fonction de trancher, mais au
+  // manager de confirmer en connaissance de cause.
+  async function chargerVisitesDeLaDate(client, siteId, date) {
+    if (!date) return [];
+    const { data, error } = await client.from('carburant_reception_visites')
+      .select('*').eq('site', siteId).eq('date_visite', date)
+      .neq('statut', 'annulee_doublon')
+      .order('heure_debut', { ascending: true });
+    if (error) { console.error('Chargement des réceptions déjà enregistrées pour cette date:', error); return null; }
+    return data || [];
+  }
+
   global.NexusReceptionDonnees = {
     chargerConfigReception,
     chargerHistoriqueEcartsRatio,
@@ -228,5 +246,6 @@
     chargerDerniereVisite,
     chargerHistoriqueVisites,
     chargerVisiteDetail,
+    chargerVisitesDeLaDate,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
