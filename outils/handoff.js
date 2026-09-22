@@ -538,6 +538,32 @@ function declarerRail(lot, rail) {
   console.log(`${lot} : rail ${etat.lots[lot].rail === ancien ? ancien : `${ancien} → ${rail}`}${resolu ? ` (origin/${rail}=${resolu})` : ''}, ${resolues.length} violation(s) résolue(s), 0 introduite.`);
   if (apres.length) console.log(`${apres.length} violation(s) subsistent, sans lien avec le rail — handoff.js verifier les détaille.`);
 }
+// LIRE LE RAIL EST UN GESTE, PAS UNE DÉDUCTION.
+//
+// 22/09/2026. Depuis le 21/09 le rail est un fait du registre, mais rien ne
+// permettait de le LIRE : `declarer-rail` l'écrit, `verifier` le consomme en
+// silence. Un appelant extérieur — l'étape d'un workflow qui doit savoir si
+// elle tourne sur le rail — n'avait donc d'autre choix que de le redécouvrir
+// par lui-même, c'est-à-dire de le deviner. Cinq étapes de tests.yml en sont
+// mortes : conditionnées au nom gelé `refs/heads/config-par-environnement`,
+// elles ont cessé de s'exécuter le jour où le travail a changé de rail. Elles
+// ne rougissaient pas — elles étaient `skipped`, ce qui ne se voit nulle part
+// dans un run vert.
+//
+// Cette commande ne calcule rien et n'écrit rien : elle imprime sur stdout la
+// désignation portée par le registre, pour le lot nommé ou, à défaut, pour
+// `lot_actif`. Un rail interdit ou illisible sort en erreur plutôt que de
+// laisser un appelant bâtir une condition sur une valeur fausse.
+function imprimerRail(lot) {
+  if (!fs.existsSync(ETAT)) { console.error('docs/handoff/STATE.json absent — aucun rail à lire.'); process.exit(1); }
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8'));
+  const cible = lot || etat.lot_actif;
+  if (!cible) { console.error('REFUS — STATE.json ne désigne aucun lot_actif ; nommez le lot : handoff.js rail <LOT_ID>'); process.exit(1); }
+  if (!etat.lots || !etat.lots[cible]) { console.error(`REFUS — lot inconnu au registre : ${cible}`); process.exit(1); }
+  const rail = railDuLot(etat, cible);
+  if (!railSecurise(rail)) { console.error(`REFUS — rail non autorisé pour ${cible} : ${JSON.stringify(rail)}`); process.exit(1); }
+  console.log(rail);
+}
 function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot] || {}, rail = exigerRailSecurise(etat, lot), avant = dernier(echanges(lot, 'decision')); try { git('fetch', '-q', 'origin', rail); } catch (e) {} const apres = dernier(echanges(lot, 'decision')); if (apres && (!avant || apres.seq > avant.seq)) { console.log(`event detected — ${lot}/${apres.fichier}`); return 0; } if (v.statut === 'ATTENTE_DECISION') { console.log(`session unavailable — aucune décision pour ${lot} ; relance humaine (secours v1) requise après extinction.`); return 0; } console.log(`session resumed — ${lot} au statut ${v.statut}`); return 0; }
 // Lecture du registre exposée aux autres outils (ARCH-001 : une vérité métier,
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
@@ -554,9 +580,10 @@ switch (commande) {
   case 'consommer': consommer(arg1); break;
   case 'enregistrer-lot': { const args = process.argv.slice(4); let rail; for (let i = 0; i < args.length; i++) { if (args[i] === '--rail') rail = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } enregistrerLot(arg1, rail); break; }
   case 'declarer-rail': declarerRail(arg1, arg2); break;
+  case 'rail': imprimerRail(arg1); break;
   case 'rattraper-demande': rattraperDemande(arg1); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null, rail; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
 }

@@ -80,6 +80,43 @@ jobs:
       # par `node outils/handoff.js declarer-rail <LOT_ID> <rail>`, qui
       # l'inscrit au registre.
 
+      # LE MÊME DÉFAUT, UN CRAN PLUS BAS — ET CELUI-CI NE ROUGISSAIT PAS.
+      #
+      # 22/09/2026. Cinq étapes de ce workflow — connexion PostgreSQL Test,
+      # semis Carburants, journal Live, installation Playwright, recette
+      # navigateur — étaient conditionnées à
+      # `github.ref == 'refs/heads/config-par-environnement'`, c'est-à-dire au
+      # nom gelé écrit en dur. Le jour où le travail a changé de rail, elles
+      # ont cessé de s'exécuter. Aucune alerte : `skipped` n'est pas `failure`,
+      # et un run où les cinq preuves les plus profondes sont sautées se
+      # termine vert. Mesure du 22/09 sur le run 35729983375 (b9ffd78, rail,
+      # succès) : les cinq étapes y sont `skipped`.
+      #
+      # La condition ne nomme plus une branche : elle demande au registre quel
+      # est le rail, et compare. `NEXUS_REF_EST_LE_RAIL` est un booléen, pas un
+      # nom de branche — il ne peut pas être confondu avec une désignation de
+      # rail ni servir à en fabriquer une, ce que la note ci-dessus interdit.
+      # La comparaison porte sur `GITHUB_REF` et non sur `head_ref`, pour
+      # conserver exactement le périmètre d'avant : ces étapes écrivent sur
+      # Supabase Test, elles s'exécutent sur le push du rail, jamais sur une PR.
+      - name: Situer ce run par rapport au rail déclaré au registre
+        shell: bash
+        run: |
+          set -uo pipefail
+          rail="$(node outils/handoff.js rail 2>/dev/null || true)"
+          if [[ -z "$rail" ]]; then
+            echo "::warning::Rail Handoff illisible au registre — les étapes réservées au rail sont ignorées. Ce n'est pas un repli sur une branche devinée : sans désignation lisible, on ne prétend pas savoir."
+            echo "NEXUS_REF_EST_LE_RAIL=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [[ "$GITHUB_REF" == "refs/heads/$rail" ]]; then
+            echo "NEXUS_REF_EST_LE_RAIL=1" >> "$GITHUB_ENV"
+            echo "Ce run pousse le rail déclaré ($rail) : les étapes qui lui sont réservées s'exécutent."
+          else
+            echo "NEXUS_REF_EST_LE_RAIL=0" >> "$GITHUB_ENV"
+            echo "Rail déclaré : $rail — ref de ce run : $GITHUB_REF. Étapes réservées au rail ignorées."
+          fi
+
       # `nexus-build.js` n'est plus versionné : le vérifier sur le dépôt brut
       # n'aurait plus de sens. Ce test exécute la VRAIE chaîne de build dans
       # une copie jetable, puis éprouve chaque condition d'échec — commit
@@ -357,7 +394,7 @@ jobs:
       # Sans le secret d'écriture, l'étape se déclare indisponible et passe —
       # c'est la recette suivante qui dira alors, elle, que la preuve manque.
       - name: Préparer la connexion PostgreSQL Test en écriture
-        if: github.ref == 'refs/heads/config-par-environnement'
+        if: env.NEXUS_REF_EST_LE_RAIL == '1'
         env:
           NEXUS_TEST_DB_URL_WRITE: ${{ secrets.SUPABASE_TEST_DB_URL_WRITE }}
         shell: bash
@@ -415,7 +452,7 @@ jobs:
       # cela reste bloquant. C'est la différence entre « je n'ai pas pu
       # demander » et « on m'a répondu non » — la seconde est un vrai défaut.
       - name: Semer le scénario Carburants sur Supabase Test
-        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
         shell: bash
         run: |
           set -uo pipefail
@@ -565,7 +602,7 @@ jobs:
       # et sans lui une commande qui échoue tue le step avant tout message
       # (leçon QA-005, apprise deux fois le 08/09).
       - name: Publier le journal NEXUS Live
-        if: github.ref == 'refs/heads/config-par-environnement' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
         shell: bash
         # GH_TOKEN n'est donné qu'ICI, la seule étape qui exécute le producteur.
         # Le poser au niveau du job l'exposerait à toutes les autres, dont celles
@@ -594,14 +631,14 @@ jobs:
           echo "Journal NEXUS Live : $publies événement(s) publié(s), $deja déjà présent(s)."
 
       - name: Installer Playwright
-        if: github.ref == 'refs/heads/config-par-environnement'
+        if: env.NEXUS_REF_EST_LE_RAIL == '1'
         run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
 
       # Bloquante quand les secrets sont là : une preuve qui s'excuse ne prouve
       # rien. Non bloquante quand ils manquent (ENV-003) — et elle le DIT,
       # plutôt que de laisser croire que la preuve UI existe.
       - name: Recette navigateur NEXUS Test
-        if: github.ref == 'refs/heads/config-par-environnement'
+        if: env.NEXUS_REF_EST_LE_RAIL == '1'
         env:
           NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
           # Le NOM, pas le username : nexus_identifiant_de_connexion résout sur

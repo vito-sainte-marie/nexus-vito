@@ -1096,6 +1096,104 @@ verifier('la demande visée se résout en un seul endroit', () => {
   }
 });
 
+// LIRE LE RAIL EST UN GESTE — ET CE QUI LE LIT NE DOIT PLUS LE DEVINER.
+//
+// 22/09/2026. Le rail est un fait du registre depuis le 21/09, mais rien ne
+// permettait de le LIRE : `declarer-rail` l'écrivait, `verifier` le consommait
+// en silence. Un appelant extérieur — l'étape d'un workflow qui doit savoir si
+// elle tourne sur le rail — n'avait donc d'autre choix que de le redécouvrir,
+// c'est-à-dire de le deviner. Cinq étapes de tests.yml en sont mortes : gelées
+// sur `refs/heads/config-par-environnement`, elles ont cessé de s'exécuter le
+// jour où le travail a changé de rail, sans rougir — `skipped` n'est pas
+// `failure`, et un run dont les cinq preuves les plus profondes sont sautées
+// se termine vert. Les trois épreuves qui suivent tiennent les deux bouts : la
+// commande qui dit le rail, et l'interdiction faite à la CI de le réinventer.
+
+verifier('`rail` imprime la désignation portée par le registre, et rien d’autre', () => {
+  const RAIL = 'handoff-epreuve-lecture-20260922';
+  const dir = registreSain();
+
+  // Sans déclaration, le lot vit sur la branche historique : c'est la
+  // tolérance d'héritage, elle doit se lire comme telle et non échouer.
+  const parDefaut = outil(dir, ['rail']);
+  assert.strictEqual(parDefaut.code, 0, 'lire un rail non déclaré ne doit pas échouer : ' + parDefaut.sortie);
+  assert.strictEqual(parDefaut.sortie.trim(), 'config-par-environnement',
+    'un lot sans déclaration doit se lire sur la branche historique : ' + parDefaut.sortie);
+
+  // Le contre-témoin : on déplace la désignation, la sortie doit suivre. Une
+  // commande qui imprimerait une constante renommée passerait le cas ci-dessus
+  // et rougirait ici.
+  railDeclare(dir, RAIL);
+  const declare = outil(dir, ['rail']);
+  assert.strictEqual(declare.code, 0, 'lire le rail déclaré ne doit pas échouer : ' + declare.sortie);
+  assert.strictEqual(declare.sortie.trim(), RAIL,
+    'la sortie doit suivre la désignation du registre : ' + declare.sortie);
+
+  // Nommer le lot donne le même résultat que s'en remettre à `lot_actif`.
+  assert.strictEqual(outil(dir, ['rail', LOT]).sortie.trim(), RAIL,
+    'nommer le lot doit rendre la même désignation');
+
+  // Un lot inconnu ne se répare pas par un repli : il se refuse. Sinon
+  // l'appelant bâtit sa condition sur une valeur inventée.
+  const inconnu = outil(dir, ['rail', 'LOT-QUI-N-EXISTE-PAS']);
+  assert.notStrictEqual(inconnu.code, 0, 'un lot inconnu doit être refusé : ' + inconnu.sortie);
+  assert.ok(/REFUS/.test(inconnu.sortie), 'le refus doit se dire : ' + inconnu.sortie);
+
+  // Un rail interdit — une ref protégée glissée au registre — se refuse aussi,
+  // plutôt que de laisser un workflow s'autoriser à tourner sur `production`.
+  ecrireEtat(dir, e => { e.lots[LOT].rail = 'production'; });
+  const interdit = outil(dir, ['rail']);
+  assert.notStrictEqual(interdit.code, 0, 'un rail interdit doit être refusé : ' + interdit.sortie);
+});
+
+verifier('aucune étape de la CI ne se conditionne à un nom de rail écrit en dur', () => {
+  // Une condition peut nommer `main` ou `production` : ce sont des refs
+  // protégées, des faits du dépôt que personne ne déplace. Tout autre nom de
+  // branche dans un `if:` est une désignation de rail — et une désignation se
+  // lit au registre, elle ne se recopie pas dans un fichier qui ne saura pas
+  // qu'elle a changé.
+  const PROTEGEES = ['main', 'production'];
+  const dirWf = path.join(RACINE, '.github', 'workflows');
+  const fichiers = fs.readdirSync(dirWf).filter(n => /\.ya?ml$/.test(n));
+  assert.ok(fichiers.length > 0, 'aucun workflow trouvé — l’épreuve ne mesurerait rien');
+  const fautes = [];
+  for (const f of fichiers) {
+    const lignes = fs.readFileSync(path.join(dirWf, f), 'utf8').split('\n');
+    lignes.forEach((ligne, i) => {
+      if (!/^\s*if:/.test(ligne)) return;
+      for (const m of ligne.matchAll(/refs\/heads\/([A-Za-z0-9._\/-]+)/g)) {
+        if (!PROTEGEES.includes(m[1])) fautes.push(`${f}:${i + 1} — ${m[1]}`);
+      }
+    });
+  }
+  assert.deepStrictEqual(fautes, [],
+    'ces conditions nomment un rail au lieu de le lire au registre :\n  ' + fautes.join('\n  '));
+
+  // Et le positif : la CI demande bien la désignation à l'outil.
+  const tests = fs.readFileSync(path.join(dirWf, 'tests.yml'), 'utf8');
+  assert.ok(/outils\/handoff\.js rail/.test(tests),
+    'tests.yml ne demande plus le rail au registre — les étapes qui lui sont réservées ne sauraient plus quand s’exécuter');
+});
+
+verifier('le drapeau de rail exporté par la CI est un booléen, jamais un nom de branche', () => {
+  // `NEXUS_REF_EST_LE_RAIL` répond « ce run est-il sur le rail ». S'il portait
+  // un nom de branche, il redeviendrait une désignation — recopiable,
+  // dérivable, et fausse le jour où le rail bouge. Il ne vaut que 0 ou 1.
+  const chemin = path.join(RACINE, '.github', 'workflows', 'tests.yml');
+  const lignes = fs.readFileSync(chemin, 'utf8').split('\n');
+  const affectations = [];
+  lignes.forEach((ligne, i) => {
+    const m = ligne.match(/NEXUS_REF_EST_LE_RAIL=(.*)$/);
+    if (m) affectations.push({ n: i + 1, valeur: m[1].split('"')[0].trim() });
+  });
+  assert.ok(affectations.length >= 2,
+    'le drapeau doit être posé dans les deux sens — sinon un seul chemin est couvert');
+  for (const a of affectations) {
+    assert.ok(/^[01]$/.test(a.valeur),
+      `tests.yml:${a.n} — le drapeau doit valoir 0 ou 1, pas ${JSON.stringify(a.valeur)}`);
+  }
+});
+
 // `demandeVisee` se lit dans un processus séparé : le registre est repointé par
 // NEXUS_HANDOFF_DIR, qui est lu au chargement du module.
 function demandeViseeDansDir(dir) {
