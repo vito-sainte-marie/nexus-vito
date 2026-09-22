@@ -1,0 +1,40 @@
+-- ---------------------------------------------------------------------------
+-- DROITS DE `v_planning_officiel` — CE QUE M2 AVAIT ECRIT, APPLIQUE
+-- Ecrite le 20/09/2026. HORS DU LOT GELE #64 : migration distincte et tracee.
+--
+-- M2 (20260919180000, l. 271-274) declare l'intention :
+--     revoke all on table public.v_planning_officiel from public;
+--     revoke all on table public.v_planning_officiel from anon;
+--     grant  select on table public.v_planning_officiel to authenticated;
+--     grant  select on table public.v_planning_officiel to service_role;
+--
+-- Mais `authenticated` n'est revoque nulle part. Or Supabase pose dans
+-- `pg_default_acl` un `alter default privileges in schema public grant all on
+-- tables to anon, authenticated, service_role` : toute table ET TOUTE VUE
+-- creee dans `public` nait avec TOUS les privileges pour `authenticated`. Le
+-- `grant select` de M2 ajoute donc un droit deja detenu, et les six autres
+-- (INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER) restent en place.
+--
+-- M4 (20260919220000, l. 151-152) a fait exactement ce rattrapage pour la
+-- TABLE `planning_source_periodes` :
+--     revoke all on table public.planning_source_periodes from authenticated;
+-- La vue, creee par la meme migration, n'a jamais recu l'equivalent. Ce
+-- fichier le lui applique, et rien d'autre.
+--
+-- PORTEE REELLE DU DEFAUT CORRIGE. Elle est faible et doit etre dite comme
+-- telle : la vue porte `security_invoker = true`, donc elle s'execute avec les
+-- droits et sous la RLS de l'appelant ; sa table de base unique est
+-- `planning_shifts`, sur laquelle `authenticated` detient DEJA en direct
+-- INSERT, UPDATE, DELETE et TRUNCATE (dette anterieure, hors de ce lot).
+-- PostgreSQL refuse par ailleurs TRUNCATE sur une vue : le bit `D` y est
+-- inerte. Cette migration ne ferme donc aucun chemin d'acces nouveau ; elle
+-- fait coincider l'ACL avec l'intention ecrite, pour que la prochaine lecture
+-- d'audit ne redecouvre pas un ecart deja tranche.
+--
+-- CE QU'ELLE NE FAIT PAS. Elle ne touche ni `planning_source_periodes`, ni
+-- `planning_shifts`, ni aucune fonction, ni `anon` (qui ne detient deja rien
+-- sur la vue), ni `service_role`, ni le proprietaire.
+-- ---------------------------------------------------------------------------
+
+revoke all on table public.v_planning_officiel from authenticated;
+grant select on table public.v_planning_officiel to authenticated;

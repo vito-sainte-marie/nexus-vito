@@ -166,7 +166,24 @@
       if (p.type === 'arrivee') {
         const cle = cleJour(p.employee_id, p.date);
         preuveJour.set(cle, { type: 'pointage', ligne: p });
-        const retard = Number(p.retard_min || 0);
+        // NULL = retard non calculable (colonne nullable depuis le
+        // 19/09/2026). Un retard non calculable n'est ni un retard à
+        // retenir ni une preuve de ponctualité : la journée n'entre pas
+        // dans `retardParJour`, et l'absence de clé y signifie « rien de
+        // mesuré », pas « zéro minute ».
+        //
+        // Cette ligne est une CEINTURE, pas le mécanisme : `retard > 0`
+        // ci-dessous écarte déjà un NULL tout seul (en JS `null > 0` est
+        // faux), et la mutation qui la supprime ne change aucune sortie du
+        // moteur — test_retard_null_consommateurs_20260919.js le démontre
+        // plutôt que de le supposer. Elle reste parce que la règle doit
+        // être lisible là où elle s'applique, et pour qu'un futur
+        // `retard >= 0` ne réintroduise pas un zéro de commodité en
+        // silence. Ce qui porte réellement le comportement, et ce que le
+        // test juge, c'est que `preuveJour.set` soit AU-DESSUS de ce
+        // `return` : un retard non calculable n'efface pas la présence.
+        if (!Number.isFinite(p.retard_min)) return;
+        const retard = p.retard_min;
         if (retard > 0) retardParJour.set(cle, Math.max(retardParJour.get(cle) || 0, retard));
       }
     });

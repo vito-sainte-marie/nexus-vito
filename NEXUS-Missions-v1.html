@@ -294,6 +294,42 @@
 </div>
 
 <script>
+  // ------------------------------------------------------------
+  // LE JOUR DU SITE, PAS CELUI DE L'HORLOGE UTC (18/09/2026).
+  //
+  // Cet ecran datait sa journee avec `new Date().toISOString()`, qui rend le
+  // jour UTC. A 21 h a la Martinique (GMT-4), UTC est deja demain : une
+  // mission terminee ce soir etait enregistree au lendemain, le compteur du
+  // jour ne la voyait pas, le bouton ne passait pas a "Validee aujourd'hui"
+  // et le score restait a zero. La mission etait pourtant bien en base —
+  // c'est la journee qui etait fausse, pas l'enregistrement.
+  //
+  // La regle existe deja et n'est pas recopiee ici : `nexusFuseauSite` et
+  // `nexusJourDansFuseau` (nexus-auth.js, bloc NEXUS-FUSEAU-METIER) sont la
+  // source unique du jour metier, celle que `nexusServiceCourant` utilise
+  // pour decider quel service est le service du jour. Un ecran qui daterait
+  // ses completions autrement que le service auquel elles se rattachent
+  // rouvrirait exactement l'ecart corrige ici.
+  //
+  // `jourMetier()` est volontairement SYNCHRONE et relit l'heure a chaque
+  // appel : le fuseau, lui, est lu une fois au demarrage. Une session ouverte
+  // de part et d'autre de minuit bascule donc de journee toute seule, sans
+  // rechargement.
+  //
+  // 19/09/2026 — IL N'Y A PLUS DE REPLI. Ce commentaire annoncait que
+  // `nexusJourDansFuseau` retombait sur le fuseau de la station quand la
+  // lecture echouait : c'etait une constante ecrite dans nexus-auth.js, donc
+  // une troisieme source de verite, et muette. `nexusFuseauSite` lit
+  // desormais `sites.timezone` — l'autorite canonique declaree par la
+  // migration 20260905131500 — et rend `null` s'il ne peut pas la lire.
+  // `jourMetier()` rend alors `null` lui aussi, et l'ecran refuse de se
+  // dessiner (garde a l'initialisation) plutot que de dater ses completions
+  // d'un jour devine.
+  let FUSEAU_SITE = null;
+  function jourMetier(instant) {
+    return nexusJourDansFuseau(instant || new Date(), FUSEAU_SITE);
+  }
+
   let catalogue = [];
   let roleDuJour = null;
   // Prise de poste en cours. Toute coche de checklist est rattachée à CE
@@ -410,10 +446,10 @@
       .order('heure_debut', { ascending: false })
       .limit(10);
     if (error) { console.error('Chargement dernier service comparable:', error); return null; }
-    const aujISO = new Date().toISOString().slice(0, 10);
-    const precedent = (data || []).find(s => new Date(s.heure_debut).toISOString().slice(0, 10) !== aujISO);
+    const aujISO = jourMetier();
+    const precedent = (data || []).find(s => jourMetier(s.heure_debut) !== aujISO);
     if (!precedent) return null;
-    const dateISO = new Date(precedent.heure_debut).toISOString().slice(0, 10);
+    const dateISO = jourMetier(precedent.heure_debut);
 
     const { data: completions, error: erreurCompletions } = await nexusClient
       .from('mission_completions')
@@ -491,7 +527,7 @@
   // d'abord, piste ensuite) non encore validée aujourd'hui — utilisée
   // uniquement pendant une affluence signalée.
   function missionSoutienActiviteRenfort() {
-    const aujISO = new Date().toISOString().slice(0, 10);
+    const aujISO = jourMetier();
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
     const titresSoutien = ['Soutien immédiat à la caisse', 'Soutien immédiat à la piste'];
     for (const titre of titresSoutien) {
@@ -573,7 +609,7 @@
   //                     comptée dans le potentiel de points ni le taux de
   //                     réalisation, affichée à part (voir render()).
   function calculerPotentielJour() {
-    const aujISO = new Date().toISOString().slice(0, 10);
+    const aujISO = jourMetier();
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
     const missions = missionsDuRoleAujourdhui();
 
@@ -979,24 +1015,45 @@
       .filter(a => a.mission); // ignore une assignation orpheline (mission désactivée entre-temps)
   }
 
+  // 18/09/2026 — L'ordre des deux écritures est inversé : la complétion est
+  // enregistrée D'ABORD, l'assignation n'est close qu'ensuite. Avant,
+  // l'assignation passait à "terminee" puis la complétion était tentée ; si
+  // elle était refusée (ce qui était le cas de tout site autre que
+  // vito-sainte-marie, cf. sauvegarderCompletionSupabase), la mission
+  // disparaissait de la liste du manager sans qu'aucune complétion
+  // n'existe en face. Dans ce sens-ci, un refus ne laisse aucune trace à
+  // défaire : rien n'a bougé, et la mission reste à faire.
+  //
+  // Retourne true/false — l'appelant ne rafraîchit et n'annonce qu'après
+  // confirmation.
   async function cloturerMissionAssignee(assigneeId, missionId, titre, points) {
-    const { error } = await nexusClient
-      .from('mission_assignments')
-      .update({ status: 'terminee', updated_at: new Date().toISOString() })
-      .eq('id', assigneeId);
-    if (error) { console.error('Clôture mission assignée:', error); return; }
-
     const entry = {
       mission_id: missionId, titre,
-      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      date: jourMetier(), heure: new Date().toTimeString().slice(0,5),
       photo_fournie: false, points: points || 5,
       // Pas de preuve photo sur ce circuit (mission assignée par un manager,
       // donc déjà cadrée par lui) — validée immédiatement, comme toute
       // mission sans preuve requise.
       statut_validation: 'valide',
     };
+    const resultat = await sauvegarderCompletionSupabase(employeeId, entry);
+    if (!resultat.ok) { alert(resultat.message); return false; }
+
+    const { error } = await nexusClient
+      .from('mission_assignments')
+      .update({ status: 'terminee', updated_at: new Date().toISOString() })
+      .eq('id', assigneeId);
+    if (error) {
+      // La complétion, elle, est bien enregistrée : les points sont acquis.
+      // Seule la clôture de l'assignation a échoué — on le dit plutôt que
+      // de laisser croire que rien ne s'est passé.
+      console.error('Clôture mission assignée:', error);
+      completionsCache.push(entry);
+      alert("Mission enregistrée, mais elle n'a pas pu être retirée de vos missions assignées — signalez-le à votre manager.");
+      return true;
+    }
     completionsCache.push(entry);
-    await sauvegarderCompletionSupabase(employeeId, entry);
+    return true;
   }
 
   async function renderMissionsAssignees() {
@@ -1036,7 +1093,11 @@
           e.stopPropagation();
           btn.disabled = true;
           btn.textContent = 'Enregistrement…';
-          await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+          // 18/09/2026 — Le résultat est exploité : un refus rend la main au
+          // bouton tout de suite (la mission est restée à faire) au lieu de
+          // le laisser figé sur "Enregistrement…".
+          const enregistree = await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+          if (!enregistree) { btn.disabled = false; btn.textContent = '✓ Marquer comme terminée'; return; }
           renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
           await renderMissionsAssignees();
         });
@@ -1066,7 +1127,9 @@
         e.stopPropagation();
         btn.disabled = true;
         btn.textContent = 'Enregistrement…';
-        await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+        // 18/09/2026 — Idem : un refus rend la main au bouton.
+        const enregistree = await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+        if (!enregistree) { btn.disabled = false; btn.textContent = '✓ Marquer comme terminée'; return; }
         renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
         await renderMissionsAssignees();
       });
@@ -1264,11 +1327,35 @@
     return data || [];
   }
 
+  // 18/09/2026 — Cette fonction n'envoyait PAS `site_id`. La colonne
+  // `mission_completions.site_id` est NOT NULL DEFAULT 'vito-sainte-marie',
+  // et la politique RLS exige `site_id = current_employee_site_id()` :
+  // l'écriture ne réussissait donc que pour le site historique et était
+  // refusée (42501) partout ailleurs. Comme l'échec n'était que consigné
+  // dans la console, l'écran annonçait "✓ Validée aujourd'hui" et les
+  // points obtenus alors que rien n'avait été enregistré — tout retombait
+  // à zéro au rechargement suivant. C'est le défaut que
+  // `sauvegarderProgressionItem` a déjà corrigé plus bas ; ici il était
+  // resté.
+  //
+  // `site_id` est donc envoyé explicitement, depuis le site de l'employé
+  // connecté. S'il est absent, on REFUSE d'écrire plutôt que de laisser la
+  // base retomber sur 'vito-sainte-marie' : une complétion attribuée au
+  // mauvais site est pire qu'une complétion refusée, car elle est
+  // invisible pour celui qui devrait la voir.
+  //
+  // Retourne { ok, message } plutôt que d'avaler l'erreur : l'appelant ne
+  // doit annoncer la validation qu'une fois l'enregistrement confirmé.
   async function sauvegarderCompletionSupabase(empId, entry) {
+    if (!SITE_ACTUEL) {
+      console.error('Sauvegarde complétion : site de l\'employé inconnu, écriture refusée.');
+      return { ok: false, message: "Votre site n'a pas pu être identifié : la mission n'a pas été enregistrée. Rechargez la page, puis réessayez." };
+    }
     const { error } = await nexusClient
       .from('mission_completions')
       .insert({
-        employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
+        employee_id: empId, site_id: SITE_ACTUEL,
+        mission_id: entry.mission_id, titre: entry.titre,
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,
         employes_presents: entry.employes_presents || null,
@@ -1279,7 +1366,11 @@
         // NEXUS-Resultats-Equipe-v1.html pour l'action de validation.
         statut_validation: entry.statut_validation || 'valide',
       });
-    if (error) console.error('Sauvegarde complétion:', error);
+    if (error) {
+      console.error('Sauvegarde complétion:', error);
+      return { ok: false, message: "La mission n'a pas pu être enregistrée. Elle n'est pas validée — réessayez." };
+    }
+    return { ok: true };
   }
 
   // Redimensionnement côté client avant envoi (05/08/2026, retour employé —
@@ -1360,19 +1451,22 @@
     // remontant depuis aujourd'hui. Si rien n'est encore validé
     // aujourd'hui, on part d'hier plutôt que de casser un vrai streak
     // juste parce que la journée vient de commencer.
-    const aujISO = new Date().toISOString().slice(0, 10);
-    let curseur = new Date();
-    if (!parJour[aujISO]) curseur.setDate(curseur.getDate() - 1);
+    const aujISO = jourMetier();
+    // La serie et la semaine se comptent sur les jours DE STATION : les
+    // completions portent desormais ces jours-la. L'ancre a midi UTC rend
+    // l'arithmetique de calendrier exacte sur la chaine 'AAAA-MM-JJ' sans
+    // repasser par l'horloge de l'appareil, qui vient d'etre ecartee.
+    let curseur = new Date(aujISO + 'T12:00:00Z');
+    if (!parJour[aujISO]) curseur.setUTCDate(curseur.getUTCDate() - 1);
     let streak = 0;
     while (true) {
       const iso = curseur.toISOString().slice(0, 10);
-      if (parJour[iso]) { streak += 1; curseur.setDate(curseur.getDate() - 1); } else break;
+      if (parJour[iso]) { streak += 1; curseur.setUTCDate(curseur.getUTCDate() - 1); } else break;
     }
 
-    const now = new Date();
-    const jourSemaineISO = (now.getDay() + 6) % 7; // 0 = lundi
-    const lundi = new Date(now);
-    lundi.setDate(now.getDate() - jourSemaineISO);
+    const lundi = new Date(aujISO + 'T12:00:00Z');
+    const jourSemaineISO = (lundi.getUTCDay() + 6) % 7; // 0 = lundi
+    lundi.setUTCDate(lundi.getUTCDate() - jourSemaineISO);
     const lundiISO = lundi.toISOString().slice(0, 10);
     const completionsSemaine = completions.filter(c => c.date >= lundiISO);
     const missionsSemaine = completionsSemaine.length;
@@ -1458,7 +1552,7 @@
       // validés) avant la dernière priorité — jamais de chiffre inventé,
       // uniquement des complétions réellement enregistrées aujourd'hui.
       if (roleDuJour === 'renfort') {
-        const aujISO = new Date().toISOString().slice(0, 10);
+        const aujISO = jourMetier();
         const completionsAujourdhui = completionsCache.filter(c => c.date === aujISO);
         const famillesSoutenues = new Set(completionsAujourdhui
           .map(c => { const m = catalogue.find(x => x.mission_id === c.mission_id); return m ? m.famille : null; })
@@ -1615,7 +1709,7 @@
   }
 
   function choisirMissionSuggeree() {
-    const aujISO = new Date().toISOString().slice(0, 10);
+    const aujISO = jourMetier();
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
 
     const heuresDepuisArrivee = heureArriveeAujourdhui != null
@@ -1818,7 +1912,7 @@
   // mission suggérée — jamais réaffiché plusieurs fois pour le même
   // service (voir cleAccueilRenfort).
   function cleAccueilRenfort(employeeIdCle) {
-    return `nexus_accueil_renfort_${employeeIdCle}_${new Date().toISOString().slice(0, 10)}`;
+    return `nexus_accueil_renfort_${employeeIdCle}_${jourMetier()}`;
   }
 
   function afficherAccueilRenfort(prenom) {
@@ -1903,7 +1997,7 @@
     // étape est déjà photographiée, ce n'est plus un geste en plus.
     const baremeNote = m.proof_required ? ' (+2 preuve photo)' : (m.photo_par_action ? ' · photo à chaque étape, points proportionnels' : '');
     const controle = !isAuto && estMissionControleManager(m);
-    const completionAujourdhui = completionsCache.find(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
+    const completionAujourdhui = completionsCache.find(c => c.mission_id === m.mission_id && c.date === jourMetier());
     const dejaValidee = !!completionAujourdhui;
 
     let libelleBouton;
@@ -2320,7 +2414,7 @@
             : null;
           const entry = {
             mission_id: missionId, titre: titreFinal,
-            date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+            date: jourMetier(), heure: new Date().toTimeString().slice(0,5),
             photo_fournie: !!photoUrl, photo_url: photoUrl, points,
             employes_presents: employesPresents,
             article_cible: produitCible ? produitCible.article : null,
@@ -2330,11 +2424,30 @@
             // autres restent créditées immédiatement.
             statut_validation: mission.proof_required ? 'en_attente' : 'valide',
           };
-          completionsCache.push(entry); // re-rendu optimiste
+          // 18/09/2026 — Plus de re-rendu optimiste ici. Avant, l'entrée
+          // était poussée dans le cache et l'écran repeint AVANT l'appel —
+          // qui n'était même pas attendu : "✓ Validée aujourd'hui" et les
+          // points s'affichaient quoi qu'il arrive, et tout retombait à
+          // zéro au rechargement suivant. C'est précisément ce mensonge
+          // qu'il faut supprimer : rien n'est annoncé tant que
+          // l'enregistrement n'est pas confirmé.
+          //
+          // Le bouton porte l'attente ("Enregistrement…"), et en cas de
+          // refus l'état d'avant le clic est rétabli — libellé, bouton
+          // réactivé, produit ciblé conservé — puis l'employé est prévenu.
+          btn.disabled = true;
+          btn.textContent = 'Enregistrement…';
+          const resultat = await sauvegarderCompletionSupabase(employeeId, entry);
+          if (!resultat.ok) {
+            btn.disabled = false;
+            btn.textContent = libelleInitial;
+            alert(resultat.message);
+            return;
+          }
+          completionsCache.push(entry);
           delete produitCibleState[missionId]; // repart propre pour la prochaine fois
           render();
           renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
-          sauvegarderCompletionSupabase(employeeId, entry);
         };
 
         if (mission.proof_required) {
@@ -2361,9 +2474,37 @@
     employeActuel = employee.nom;
     employeeId = employee.id;
     SITE_ACTUEL = employee.site_id;
+    // Avant chargerShiftAujourdhui : ce dernier resout deja le service du
+    // jour dans le fuseau du site, et tout ce qui suit doit dater sa journee
+    // de la meme facon.
+    FUSEAU_SITE = await nexusFuseauSite(SITE_ACTUEL);
+    // PAS DE FUSEAU, PAS DE JOUR METIER — ET PAS DE MISSIONS DATEES.
+    // `jourMetier()` irrigue quatorze endroits de cet ecran, dont l'ecriture
+    // des completions (`mission_completions.date`). Poursuivre sans fuseau
+    // reviendrait a lire et a ecrire une journee devinee. On s'arrete avant
+    // `chargerShiftAujourdhui`, qui redirigerait vers la prise de poste et
+    // ferait passer une panne de lecture pour une absence de service.
+    if (!FUSEAU_SITE) {
+      console.error('Missions : jour de la station ind\u00e9termin\u00e9 \u2014 ecran non dessine.');
+      const zoneJournee = document.getElementById('journeeSection');
+      if (zoneJournee) zoneJournee.innerHTML = '<div class="empty-note">Journ\u00e9e de la station ind\u00e9termin\u00e9e.<br>'
+        + 'NEXUS n\u2019a pas pu lire le fuseau horaire du site : vos missions ne peuvent pas \u00eatre dat\u00e9es.<br>'
+        + 'V\u00e9rifiez la connexion, puis rechargez la page.</div>';
+      return;
+    }
 
     if (!employee.consultation_externe) {
-      const shiftDuJour = await chargerShiftAujourdhui(employeeCourant || { id: employeeId, site_id: SITE_ACTUEL });
+      // 18/09/2026 — `employeeCourant` n'existe PAS dans cet écran. Le nom
+      // vient d'Inventaire, où il désigne l'employé résolu ; recopié ici, il
+      // n'était déclaré nulle part. Lire un identifiant non déclaré lève une
+      // ReferenceError AVANT que le `||` ne soit évalué : le repli ne
+      // protégeait de rien, l'initialisation cassait et l'écran restait
+      // blanc pour tout employé en service (la branche `consultation_externe`
+      // passait à côté, d'où un défaut invisible en consultation).
+      // L'employé est déjà là, sous le nom que tous les autres écrans lui
+      // donnent — Pointage, Cockpit, Brief et App appellent tous la primitive
+      // avec `employee`.
+      const shiftDuJour = await chargerShiftAujourdhui(employee);
       if (!shiftDuJour) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;

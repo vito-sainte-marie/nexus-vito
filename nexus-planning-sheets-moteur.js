@@ -20,6 +20,10 @@
   'use strict';
 
   const QUART = { 'QUART A': '1', 'QUART B': '2' };
+  // Le nom NEXUS du quart, pour que l'ecriture en base n'ait aucune
+  // conversion a refaire de son cote : `planning_shifts.quart` vaut
+  // 'quart1' | 'quart2' | 'renfort'.
+  const QUART_NEXUS = { '1': 'quart1', '2': 'quart2' };
 
   // Codes de site (03/09/2026, règle de Frédéric : « Dylan est rattaché à
   // Vito Sainte-Marie même s'il est sur un autre site — si tu vois T ou SME
@@ -28,7 +32,16 @@
   // Un code n'exclut donc PAS la personne de la paie du site : elle a
   // travaillé, 7 h, ailleurs. C'est une information de lieu, pas une absence.
   // Le barème 7/8 selon le jour ne s'applique qu'au travail sur place.
-  const CODES_SITE_DEFAUT = ['T', 'SME', 'SMU', 'TRINITE', 'UNION'];
+  //
+  // 19/09/2026 — CETTE LISTE NE VAUT PLUS CORRESPONDANCE (mandat du 19/09 :
+  // « ne devine aucune correspondance : utilise uniquement des mappings
+  // explicites vers des site_id NEXUS existants. Une correspondance
+  // impossible reste une anomalie à traiter »). Elle ne sert donc plus qu'à
+  // NOMMER le probleme : une valeur qui figure ici est reconnue comme un code
+  // de site, ce qui permet de dire « SMU n'est declare nulle part » plutot que
+  // « valeur illisible ». Elle ne produit AUCUNE heure et AUCUN site : seul
+  // `codesSite`, lu dans station_config.planning_codes_sites, le fait.
+  const CODES_SITE_OBSERVES = ['T', 'SME', 'SMU', 'TRINITE', 'UNION'];
   const HEURES_AUTRE_SITE = 7;
 
   // ------------------------------------------------------------
@@ -83,14 +96,48 @@
     return `${a}-${String(mo).padStart(2, '0')}-${String(j).padStart(2, '0')}`;
   }
 
+  // Une anomalie porte un type exploitable par l'ecran ET une phrase lisible
+  // par le manager. Elle reste une CHAÎNE a l'affichage (`String(a)`), pour
+  // que les anciens appels qui la journalisaient telle quelle continuent de
+  // dire quelque chose de sense.
+  function anomalie(type, message, extra) {
+    const a = Object.assign({ type, message }, extra || {});
+    a.toString = () => message;
+    return a;
+  }
+
   // `alias` : { "loanne": "loane" } — correspondance explicite quand
   // l'orthographe de la feuille diffère de celle de NEXUS. Jamais de
   // rapprochement approximatif : deux prénoms proches peuvent être deux
   // personnes (même doctrine que import_product_aliases).
-  function analyserFeuillePlanning(csv, { periode, employesNexus, alias, codesSite } = {}) {
-    const CODES = new Set((codesSite || CODES_SITE_DEFAUT).map(c => normaliser(c)));
-    const lignes = lignesCSV(csv).filter(l => l.some(c => String(c).trim() !== ''));
-    if (!lignes.length) return { shifts: [], colonnes: [], inconnus: [], codes: [], anomalies: ['feuille vide'] };
+  //
+  // `codesSite` : DICTIONNAIRE explicite { "SMU": "vito-sainte-marie" }, lu
+  // dans station_config.planning_codes_sites. Un code absent de ce
+  // dictionnaire ne vaut PAS 7 h : il ressort en anomalie, que le manager
+  // tranche avant de publier. Une liste est encore acceptee pour les anciens
+  // appels, mais elle ne designe alors aucun site : chacun de ses codes est
+  // une anomalie.
+  //
+  // `onglet` et `siteId` ne servent pas a lire la feuille : ils servent a
+  // rendre chaque ligne TRAÇABLE (`sourceRef`) et a savoir si un code de site
+  // designe le site importe lui-meme — SMU dans l'onglet SMU09 n'est pas un
+  // transfert — ou un autre site.
+  function analyserFeuillePlanning(csv, { periode, employesNexus, alias, codesSite, onglet, siteId } = {}) {
+    const dictionnaire = new Map();
+    if (codesSite && !Array.isArray(codesSite)) {
+      Object.entries(codesSite).forEach(([code, site]) => {
+        const cible = String(site == null ? '' : site).trim();
+        if (cible) dictionnaire.set(normaliser(code), cible);
+      });
+    }
+    // Reconnus comme codes de site — pour le DIRE, pas pour les traduire.
+    const CODES_CONNUS = new Set(
+      (Array.isArray(codesSite) && codesSite.length ? codesSite : CODES_SITE_OBSERVES).map(c => normaliser(c))
+    );
+    const ONGLET = String(onglet == null ? '' : onglet).trim();
+    const lignes = (Array.isArray(csv) ? csv.map(l => (Array.isArray(l) ? l : [l])) : lignesCSV(csv))
+      .filter(l => l.some(c => String(c == null ? '' : c).trim() !== ''));
+    if (!lignes.length) return { shifts: [], colonnes: [], inconnus: [], codes: [], anomalies: [anomalie('feuille_vide', 'feuille vide')] };
 
     const entete = lignes[0];
     const colonnes = [];
@@ -111,42 +158,77 @@
     // vides : un écran de paramétrage doit dire ce qui ne se rapprochera pas
     // AVANT que le mois se remplisse, pas après coup.
     const inconnus = new Set(colonnes.filter(c => !index.has(normaliser(c.nom))).map(c => c.nom));
+    // Ce qu'une colonne inconnue fait PERDRE : une colonne d'en-tete sans
+    // correspondance mais vide ne coute rien a l'import ; une colonne remplie
+    // que personne ne reclame est une perte silencieuse, donc une anomalie.
+    const perdusParColonne = new Map();
     let jour = null;
 
     for (let r = 1; r < lignes.length; r++) {
       const l = lignes[r];
       const iso = dateISO(l[1]);
       if (iso) jour = iso;
-      const quart = QUART[String(l[2] || '').trim().toUpperCase()];
+      const libelleQuart = String(l[2] == null ? '' : l[2]).trim().toUpperCase();
+      const quart = QUART[libelleQuart];
       if (!jour || !quart) continue;
       if (periode && jour.slice(0, 7) !== String(periode).slice(0, 7)) continue;
 
       colonnes.forEach(({ index: i, nom }) => {
-        const brut = String(l[i] || '').trim();
+        const brut = String(l[i] == null ? '' : l[i]).trim();
         if (!brut) return;
         const employe = index.get(normaliser(nom));
-        if (!employe) return; // déjà signalé dans `inconnus`
+        if (!employe) { perdusParColonne.set(nom, (perdusParColonne.get(nom) || 0) + 1); return; }
+        // La reference de la cellule d'origine : c'est elle qui rend un
+        // import annulable et relisable ligne a ligne, et qui permet de
+        // retrouver la case exacte quand le manager conteste une heure.
+        const sourceRef = `${ONGLET}!${jour}|${libelleQuart}|${nom}`;
+        const commun = {
+          employeeId: employe.id, nomFeuille: nom, date: jour,
+          quart, quartNexus: QUART_NEXUS[quart], sourceRef,
+        };
         const heures = Number(brut.replace(',', '.'));
         if (Number.isFinite(heures) && heures > 0 && heures <= 24) {
-          shifts.push({ employeeId: employe.id, nomFeuille: nom, date: jour, quart, heures, statut: 'travail_normal' });
-        } else if (CODES.has(normaliser(brut))) {
-          // Code de site : la personne a travaillé 7 h, ailleurs. Elle reste
-          // rattachée à ce site pour la paie, donc ces heures comptent.
-          shifts.push({
-            employeeId: employe.id, nomFeuille: nom, date: jour, quart,
-            heures: HEURES_AUTRE_SITE, statut: 'travail_normal',
-            siteTravail: brut.toUpperCase(), horsSite: true,
-          });
-        } else {
-          // Ni un nombre, ni un code connu : le plus souvent un prénom écrit
-          // à la main. On ne l'interprète pas — on le remonte pour que le
-          // manager tranche, plutôt que d'inventer des heures (Article 5).
-          codes.push({ employeeId: employe.id, nomFeuille: nom, date: jour, quart, valeur: brut });
+          shifts.push(Object.assign({}, commun, { heures, statut: 'travail_normal', valeur: brut }));
+          return;
         }
+        const site = dictionnaire.get(normaliser(brut));
+        if (site) {
+          // Code de site DÉCLARÉ : la personne a travaillé 7 h. Elle reste
+          // rattachée à ce site pour la paie, donc ces heures comptent.
+          // Le code peut designer le site importe lui-meme — SMU dans
+          // l'onglet SMU09 — et ce n'est alors pas un transfert.
+          const horsSite = !siteId || site !== siteId;
+          shifts.push(Object.assign({}, commun, {
+            heures: HEURES_AUTRE_SITE, statut: horsSite ? 'transfert_site' : 'travail_normal',
+            valeur: brut, siteTravail: horsSite ? site : siteId, horsSite,
+            heuresDeduites: true,
+          }));
+          return;
+        }
+        if (CODES_CONNUS.has(normaliser(brut))) {
+          // Reconnu comme code de site, mais rattache a AUCUN site_id NEXUS.
+          // On ne devine pas : ni le site, ni les 7 h. C'est une anomalie que
+          // le manager leve en declarant le code dans Parametres Station.
+          anomalies.push(anomalie('code_site_non_mappe',
+            `« ${brut} » ressemble a un code de site mais n'est declare dans aucun mappage : declarez-le dans Parametres Station, ou corrigez la case.`,
+            { valeur: brut, nomFeuille: nom, date: jour, quart, sourceRef }));
+          return;
+        }
+        // Ni un nombre, ni un code connu : le plus souvent un prénom écrit
+        // à la main. On ne l'interprète pas — on le remonte pour que le
+        // manager tranche, plutôt que d'inventer des heures (Article 5).
+        codes.push({ employeeId: employe.id, nomFeuille: nom, date: jour, quart, valeur: brut, sourceRef });
       });
     }
 
-    if (!shifts.length && !codes.length) anomalies.push('aucune affectation lue sur la période');
+    perdusParColonne.forEach((n, nom) => anomalies.push(anomalie('colonne_inconnue',
+      `la colonne « ${nom} » porte ${n} affectation(s) et ne correspond a personne dans NEXUS : declarez un alias, ou corrigez l'en-tete.`,
+      { nomFeuille: nom, occurrences: n })));
+    codes.forEach(c => anomalies.push(anomalie('valeur_illisible',
+      `« ${c.valeur} » le ${c.date} (quart ${c.quart}) pour ${c.nomFeuille} n'est ni un nombre d'heures ni un code declare.`,
+      { valeur: c.valeur, nomFeuille: c.nomFeuille, date: c.date, quart: c.quart, sourceRef: c.sourceRef })));
+
+    if (!shifts.length && !codes.length) anomalies.push(anomalie('aucune_affectation', 'aucune affectation lue sur la période'));
     return { shifts, colonnes: colonnes.map(c => c.nom), inconnus: [...inconnus], codes, anomalies };
   }
 
@@ -264,5 +346,5 @@
     };
   }
 
-  global.NexusPlanningSheets = { resumerParEmploye, analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser, ongletDuMois, normaliserPrefixeOnglet };
+  global.NexusPlanningSheets = { resumerParEmploye, analyserFeuillePlanning, rapprocherAvecVerify, lignesCSV, dateISO, normaliser, ongletDuMois, normaliserPrefixeOnglet, CODES_SITE_OBSERVES, HEURES_AUTRE_SITE };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -55,22 +55,22 @@ navigateur.onLine = true;
 
 console.log('\n── 3 · L’écran refuse de pointer sans service ──');
 verifier('la garde teste le service AVANT de rendre les boutons',
-  /if \(!serviceDuJourSeulement\(shiftActif, today\)\) \{/.test(SOURCE));
+  /if \(!serviceDuJourSeulement\(shiftActif, today, jourDeService\)\) \{/.test(SOURCE));
 // Ce qui compte n'est pas d'être avant la LECTURE — la garde a besoin des
 // pointages du jour pour distinguer une journée finie d'une journée absente —
 // mais d'être avant toute CAMÉRA et toute écriture. Une lecture n'écrit rien.
 verifier('elle est posée avant le rendu des boutons de pointage',
-  SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))')
+  SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today, jourDeService))')
     < SOURCE.indexOf('<div class="pointage-list">'));
 verifier('elle est posée avant tout câblage de la caméra',
-  SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))')
+  SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today, jourDeService))')
     < SOURCE.indexOf('data-photo-btn'));
 verifier('le message exact est affiché',
   SOURCE.includes("Aucun poste n'est ouvert. Prenez d'abord votre poste pour pouvoir pointer."));
 verifier('un accès à la prise de poste est proposé',
   /btnAllerPriseDePoste[\s\S]{0,400}NEXUS-Prise-De-Poste-v1\.html/.test(SOURCE));
 verifier('la garde se termine par un return, elle ne retombe pas dans le rendu',
-  /\n      return;\n    \}\n/.test(SOURCE.slice(SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))'),
+  /\n      return;\n    \}\n/.test(SOURCE.slice(SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today, jourDeService))'),
                                           SOURCE.indexOf('<div class="pointage-list">'))));
 
 console.log('\n── 4 · Un refus ne part plus en file, et ne promet rien ──');
@@ -111,7 +111,7 @@ console.log('\n── 7 · Sortir de la garde ne laisse pas le compteur tourner 
 // Le compteur de l'en-tête vit hors de #app : seul le rendu complet le remet
 // à jour. La garde sortait avant, et « Service en cours depuis X » continuait
 // de courir après un départ. Relevé par Frédéric le 13/09/2026.
-const garde = SOURCE.match(/if \(!serviceDuJourSeulement\(shiftActif, today\)\) \{[\s\S]*?\n    \}/);
+const garde = SOURCE.match(/if \(!serviceDuJourSeulement\(shiftActif, today, jourDeService\)\) \{[\s\S]*?\n    \}/);
 verifier('la garde existe et forme un bloc', !!garde);
 verifier('elle remet etatCompteur à null', /etatCompteur = null;/.test(garde[0]));
 verifier('elle remet referenceCompteur à null', /referenceCompteur = null;/.test(garde[0]));
@@ -137,7 +137,7 @@ verifier('journée absente : le bouton de prise de poste est là',
   /btnAllerPriseDePoste/.test(garde[0]));
 verifier('les pointages du jour sont lus AVANT la garde',
   SOURCE.indexOf("nexusClient.from('pointages').select('id, type, heure, retard_min")
-    < SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today))'));
+    < SOURCE.indexOf('if (!serviceDuJourSeulement(shiftActif, today, jourDeService))'));
 
 console.log(`\n${echecs === 0 ? '✓' : '✗'} ${reussites} réussite(s), ${echecs} échec(s)\n`);
 // Sortie d'échec explicite, pas un ternaire : Guardian QA lit le code sans

@@ -205,25 +205,34 @@
   const ROLE_ADMIN_VERS_JOUR = { pompiste: 'pompiste', caissier: 'caissiere', caissiere: 'caissiere', renfort: 'renfort' };
 
   /**
-   * Les rôles réellement proposables à CETTE employée.
+   * Les rôles réellement proposables à CETTE employée pour SA journée.
    *
-   * LE DÉFAUT, relevé le 11/09/2026 : le filtre ne retirait que 'manager',
-   * une valeur qui n'existe même pas dans ROLES. Il ne retirait donc rien.
-   * Une caissière se voyait offrir « Pompiste », « Caissière » et « Renfort
-   * opérationnel », les trois sélectionnables, et pouvait se déclarer
-   * pompiste pour la journée. Le rôle du jour est écrit dans shifts.role et
-   * commande les missions : c'est une auto-attribution d'habilitation.
+   * PREMIER DÉFAUT, relevé le 11/09/2026 : le filtre ne retirait que
+   * « manager », une valeur qui n'existait même pas dans ROLES. Il ne
+   * retirait donc rien, et une caissière pouvait se déclarer pompiste pour
+   * la journée. Le rôle du jour est écrit dans shifts.role et commande les
+   * missions : c'était une auto-attribution d'habilitation.
    *
-   * LA RÈGLE : le rôle administratif de l'employée, et lui seul. Les
-   * managers et gérants gardent l'accès à tout : c'est leur métier de
-   * remplacer au pied levé.
+   * SECOND DÉFAUT, constaté en Production le 18/09/2026 : la correction du
+   * 11/09 ne gardait que « son » rôle et le renfort. Pour une employée de
+   * fiche « renfort », « son » rôle EST le renfort — la liste se refermait
+   * donc sur un seul poste, et « Pompiste » comme « Caissière » lui étaient
+   * retirés. Elle ne pouvait plus prendre son poste en piste.
    *
-   * CE QUI RESTE À ARBITRER, et que ce code ne tranche pas : le renfort.
-   * Il est ajouté ici pour tout le monde, comme avant, parce que « le
-   * renfort ne se déduit pas de l'horloge, c'est une décision de planning »
-   * (arbitrage du 09/09/2026), et qu'aucun planning n'est lu sur cet
-   * écran. Le restreindre demanderait de décider QUI peut être renfort, et
-   * cette décision appartient à Frédéric Bragance, pas à ce fichier.
+   * LA RÈGLE, arbitrée le 18/09/2026 : employees.role est le rôle HABITUEL,
+   * préférentiel, jamais l'unique poste possible. La matrice des rôles du
+   * jour est donc :
+   *     fiche renfort            → renfort, pompiste, caissiere
+   *     fiche pompiste           → pompiste, renfort
+   *     fiche caissier/caissiere → caissiere, renfort
+   *     fiche manager/gerant     → tous les rôles existants
+   * Le poste de manager n'est JAMAIS proposé à qui n'est ni manager ni
+   * gérant : c'est la seule ligne de cette matrice qui touche aux
+   * permissions, et elle ne bouge pas.
+   *
+   * Ce que cette fonction ne fait pas : elle ne choisit rien. Le rôle
+   * habituel reste une suggestion purement visuelle (le badge « Rôle
+   * habituel » de renderChoixRole), pas une présélection.
    */
   function rolesDisponibles() {
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
@@ -237,7 +246,13 @@
       console.error('Prise de poste : rôle administratif « ' + admin + ' » inconnu, aucun filtrage appliqué.');
       return ROLES.filter(r => r.value !== 'manager');
     }
-    return ROLES.filter(r => r.value === sien || r.value === 'renfort');
+    // La matrice vit ICI, dans la fonction : les épreuves extraient cette
+    // fonction seule et l'exécutent en bac à sable. Une constante posée au
+    // dehors serait introuvable à l'exécution du test.
+    const ouverts = sien === 'renfort'
+      ? ['renfort', 'pompiste', 'caissiere']
+      : [sien, 'renfort'];
+    return ROLES.filter(r => ouverts.indexOf(r.value) !== -1);
   }
 
   // A3 / C2-3 (05/09/2026) — le cas le plus lourd de conséquences des six :

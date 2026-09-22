@@ -81,6 +81,50 @@ verifier('un quart du SOIR n’est jamais déclaré fini le jour même', () => {
   assert.strictEqual(R.serviceObsolete(soir, ctx(600, '2026-09-17')).motif, 'jour_precedent');
 });
 
+verifier('un service daté du FUTUR reste intact — aucun des deux critères ne mord', () => {
+  // LE DÉFAUT (relevé par le parcours S4 le 18/09/2026, corrigé le 18/09/2026).
+  // Le critère du jour s'écrivait `jourDuService !== jourStation` : tout jour
+  // DIFFÉRENT était refermé, futur compris, sous le motif `jour_precedent`.
+  // Ce n'est pas une anomalie d'affichage — la clôture ÉCRIT en base, sans
+  // geste humain, au retour dans l'application : un service pris d'avance
+  // était détruit en silence.
+  const demain     = service({ heure_debut: '2026-09-17T12:00:00Z' });   // 17/09 08:00 station
+  const dansUnMois = service({ heure_debut: '2026-10-16T12:00:00Z' });
+  const anProchain = service({ heure_debut: '2027-01-04T12:00:00Z' });
+  assert.strictEqual(jourDeService(new Date(demain.heure_debut)), '2026-09-17', 'prémisse du cas');
+
+  for (const futur of [demain, dansUnMois, anProchain]) {
+    // À l'heure du quart 1 comme après la bascule : le critère 2 compare
+    // l'heure du jour COURANT au seuil, il n'a aucun sens ici et ne doit
+    // surtout pas conclure « quart_termine » sur un quart non commencé.
+    for (const h of [0, 600, SEUIL - 1, SEUIL, SEUIL + 1, 23 * 60 + 59]) {
+      assert.deepStrictEqual(R.serviceObsolete(futur, ctx(h)), { obsolete: false, motif: null },
+        futur.heure_debut + ' à ' + h + ' min : un service du futur n’a pas commencé');
+    }
+  }
+
+  // …et il devient obsolète le moment venu, par le MÊME critère, une fois son
+  // jour passé. La correction repousse la clôture, elle ne la supprime pas.
+  assert.strictEqual(R.serviceObsolete(demain, ctx(600, '2026-09-18')).motif, 'jour_precedent');
+});
+
+verifier('la frontière du critère est le jour station, au jour près', () => {
+  // La comparaison est lexicographique sur 'AAAA-MM-JJ' : elle doit se
+  // comporter comme une comparaison de dates, y compris aux changements de
+  // mois et d'année, que `01` < `12` ferait rater si le format dérivait.
+  const cas = [
+    ['2026-08-31T12:00:00Z', '2026-09-01', 'jour_precedent'],  // veille, mois précédent
+    ['2025-12-31T12:00:00Z', '2026-01-01', 'jour_precedent'],  // veille, année précédente
+    ['2026-09-01T12:00:00Z', '2026-08-31', null],              // lendemain, mois suivant
+    ['2026-01-01T12:00:00Z', '2025-12-31', null],              // lendemain, année suivante
+  ];
+  for (const [debut, jour, attendu] of cas) {
+    // Quart du soir : on isole le critère 1 du critère 2.
+    const s = service({ quart: 'soir', heure_debut: debut });
+    assert.strictEqual(R.serviceObsolete(s, ctx(600, jour)).motif, attendu, debut + ' vu depuis ' + jour);
+  }
+});
+
 verifier('sans seuil exploitable, on ne conclut pas « terminé »', () => {
   for (const mauvais of [null, undefined, NaN, 'midi']) {
     const c = Object.assign(ctx(23 * 60), { seuilBascule: mauvais });
@@ -121,7 +165,11 @@ verifier('servicesObsoletes ne garde que les obsolètes, avec leur motif', () =>
   const matinFini= service({ id: 'b', quart: 'matin' });
   const soirVivant = service({ id: 'c', quart: 'soir', heure_debut: '2026-09-16T17:00:00Z' });
   const dejaClos = service({ id: 'd', statut: 'clos_sans_pointage', heure_debut: '2026-09-11T12:00:00Z' });
-  const r = R.servicesObsoletes([veille, matinFini, soirVivant, dejaClos], ctx(SEUIL));
+  // `e` est daté du LENDEMAIN : il ne doit pas être proposé au manager, et
+  // surtout pas dans une régularisation en masse — un seul geste refermerait
+  // alors un service qui n'a pas commencé.
+  const futur = service({ id: 'e', quart: 'matin', heure_debut: '2026-09-17T12:00:00Z' });
+  const r = R.servicesObsoletes([veille, matinFini, soirVivant, dejaClos, futur], ctx(SEUIL));
   assert.deepStrictEqual(r.map(x => x.service.id), ['a', 'b']);
   assert.deepStrictEqual(r.map(x => x.motif), ['jour_precedent', 'quart_termine']);
 });

@@ -42,7 +42,17 @@ function titre(t) { file.push([t, null]); }
 // ── Le banc d'essai ────────────────────────────────────────────────────────
 // Un faux client qui n'invente aucun résultat : on lui DIT ce que la lecture
 // rend, et il note ce qu'on lui demande d'écrire.
-function banc({ shifts, lignesModifiees, erreurUpdate, avecRegles = true }) {
+// 19/09/2026 — LE BANC SERT MAINTENANT LE FUSEAU DU SITE.
+// Depuis l'arbitrage du jour metier, `nexusServiceCourant` lit d'abord
+// `sites.timezone` : sans lui, il ne filtre plus et ne referme plus rien
+// (une cloture ECRIT, elle ne s'appuie pas sur un jour que NEXUS n'a pas su
+// lire). Le defaut du banc est le fuseau de l'APPAREIL, parce que les
+// instants ci-dessous sont fabriques a partir de `Date.now()` : leur donner
+// un autre fuseau deplacerait la frontiere de journee sous les scenarios
+// sans rien mesurer de plus. Le cas « pas de fuseau » est eprouve a part.
+const FUSEAU_APPAREIL = Intl.DateTimeFormat().resolvedOptions().timeZone;
+function banc({ shifts, lignesModifiees, erreurUpdate, avecRegles = true,
+                fuseauSite = FUSEAU_APPAREIL }) {
   const journal = { selects: [], updates: [], erreurs: [], infos: [] };
 
   const client = {
@@ -53,6 +63,12 @@ function banc({ shifts, lignesModifiees, erreurUpdate, avecRegles = true }) {
         update(champs) { req.update = champs; return chaine; },
         eq(col, val) { req.filtres.push([col, val]); return chaine; },
         order() { return chaine; },
+        maybeSingle() {
+          journal.selects.push(req);
+          return Promise.resolve(req.table === 'sites'
+            ? { data: fuseauSite ? { timezone: fuseauSite } : null, error: null }
+            : { data: null, error: null });
+        },
         limit() { journal.selects.push(req); return Promise.resolve({ data: shifts, error: null }); },
         then(res) {                        // fin de chaîne d'un UPDATE
           journal.updates.push(req);
@@ -207,6 +223,21 @@ verifier('un quart du soir du jour même reste actif — le seuil n’est pas fo
       .split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
     assert.ok(!/seuilBascule/.test(code),
       'aucun seuil ne doit être improvisé dans la primitive');
+  });
+});
+
+verifier('site sans fuseau lisible : rien n’est refermé, et le fait est dit', async () => {
+  // La cloture ECRIT en base. Sans jour de station, la comparaison qui
+  // designe les services obsoletes opposerait deux `null` egaux : le service
+  // de la veille passerait pour celui du jour — ou l'inverse. NEXUS ne
+  // referme donc rien du tout, et le dit.
+  const { ctx, journal } = banc({ shifts: [veille()], fuseauSite: null });
+  return ctx.nexusServiceCourant(EMPLOYE).then(r => {
+    assert.strictEqual(journal.updates.length, 0,
+      'une cloture ecrite sur un jour indetermine est une cloture devinee');
+    assert.strictEqual(r.erreur, true, 'l’ignorance se rend, elle ne se tait pas');
+    assert.ok(journal.erreurs.some(e => /indetermine/.test(e)),
+      'le motif du refus doit etre journalise');
   });
 });
 
