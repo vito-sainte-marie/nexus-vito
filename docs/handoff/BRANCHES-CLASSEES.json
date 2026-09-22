@@ -255,6 +255,71 @@
       "sort": "SUPERSEDEE",
       "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
       "le": "2026-09-11"
+    },
+    {
+      "branche": "claude/issue-28-20260914-0247",
+      "tete": "2f70039e99e9b0f892fc5db93385657b19bc394a",
+      "sort": "A_REPRENDRE",
+      "motif": "Correctif Accueil « journée déjà terminée » (serviceCourantJour=null après deux services clos → dejaFaitDuService rend un état vide → l'Accueil rouvre « Pointer l'arrivée »), testé 20/20 avec témoin de mutation (test_pointage_accueil_journee_terminee_20260914.js). Jamais intégré au canonique : `journeeTermineeSansService` est absent de nexus-pointage-regles.js sur handoff-continuite-20260920 (vérifié le 22/09/2026). Le code canonique actuel (NEXUS-App-v1.html, ~ligne 2346) porte un commentaire daté qui affirme l'inverse pour ce cas — contradiction non tranchée, non appliquée ici pour ne pas écraser une décision déjà écrite sans la vérifier contre le terrain.",
+      "le": "2026-09-22",
+      "renvoi": "POINTAGE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260914-1045",
+      "tete": "b9127959713c29ec51c714647cab47a7f9454f71",
+      "sort": "A_REPRENDRE",
+      "motif": "Même correctif que claude/issue-28-20260914-0247 (2f70039 y est cherry-pické), plus une tentative de consommation Handoff locale du lot NEXUS-POINTAGE-CORRECTIF-1-20260911 sur un STATE.json qui a depuis énormément avancé sur le canonique (commit_decision différent : ce STATE.json local ne fait plus foi). Seul le correctif de code reste à évaluer, sous POINTAGE-001 — la partie Handoff de cette branche est obsolète par construction, le lot a une toute autre histoire canonique depuis.",
+      "le": "2026-09-22",
+      "renvoi": "POINTAGE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1051",
+      "tete": "bb5b9388e0a703005dc3f50637f42d0180a66a5c",
+      "sort": "SUPERSEDEE",
+      "motif": "Première tentative de reconstruction P0-1/P0-3 (fuseau station + audits validés) le 21/09/2026. Contenu fonctionnellement présent au canonique par une voie différente : `NexusStation.dateLocaleStation` et `NexusVerifyMoteur.statutValidationQuart` sont bien appelés dans nexus-app-donnees.js/nexus-conseiller-donnees.js du HEAD `handoff-continuite-20260920` actuel (vérifié le 22/09/2026), issus du cycle canonique request-6/decision-6/request-7 du lot NEXUS-CONTINUITE-TERRAIN-1-20260920.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1534",
+      "tete": "70dd1fca5146230f4f5f1af1eedefc7fde61087d",
+      "sort": "SUPERSEDEE",
+      "motif": "Porte le candidat P0-1/P0-3 « depuis Production, dd4d0f3 non nécessaire » — request-7.md canonique du lot NEXUS-CONTINUITE-TERRAIN-1-20260920 porte exactement le même titre et le même contenu de fond (vérifié le 22/09/2026) : réappliqué au canonique par une voie différente.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1749",
+      "tete": "0ab8789b0e57129f08a4e88aaf9d066424a62d51",
+      "sort": "SUPERSEDEE",
+      "motif": "Consommation de decision-8.md du lot NEXUS-CONTINUITE-TERRAIN-1-20260920 : cette décision est déjà canonique (docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-8.md) et le lot a depuis progressé jusqu'à decision-12.md sur le rail réel. Étape dépassée par la suite du même cycle, pas un travail distinct.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1756",
+      "tete": "70598f7e66358839623de60e4da5c8881e758253",
+      "sort": "SUPERSEDEE",
+      "motif": "Consommation de decision-9.md (GO Créateur) du même lot, même raisonnement que claude/issue-28-20260921-1749 : étape canonique déjà présente, dépassée par la suite du cycle jusqu'à decision-12.md.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0023",
+      "tete": "e60e7a640c3f845b60f600058fc4c170af7144bd",
+      "sort": "SUPERSEDEE",
+      "motif": "Tentative parallèle de réparation d'outillage + 4 dérogations de forme + consommation de decision-12.md, publiant son propre request-13.md non repris. Le rail canonique a résolu la même consommation par une voie distincte (commit 9f3e542, 4 dérogations déposées dans STATE.json.derogations), avec un verdict DECISION_HORS_VOCABULAIRE plus prudent (APPROVED_WITH_CONDITIONS, préservant les réserves du corps) que celui choisi ici (APPROVED). Le request-13.md de cette branche ne traite ni FDJ (#62) ni Carburants (#65) : rien d'utile à en tirer au-delà de ce qui est déjà canonique.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0605",
+      "tete": "dc9ed18323fd4db6154f9abbe19ae9b9f03f5715",
+      "sort": "SUPERSEDEE",
+      "motif": "Seconde tentative parallèle, même objet que claude/issue-28-20260922-0023 (4 dérogations decision-12.md + consommation locale + request-13.md propre). Même raison de mise à l'écart : le rail canonique a résolu cette consommation par 9f3e542, avec un verdict plus prudent sur DECISION_HORS_VOCABULAIRE. Ce request-13.md non plus ne traite ni #62 ni #65.",
+      "le": "2026-09-22"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1238",
+      "tete": "1daf388ebfa199d9606992d2cfc4579e0a432f19",
+      "sort": "SUPERSEDEE",
+      "motif": "Correctif Guardian QA (regleAttenduRecalcule exempte désormais fs.readFileSync/readdirSync/existsSync/statSync/lstatSync de l'inférence de pureté). Contenu identique présent au canonique sous un commit différemment rédigé : `RE_LECTURE_ETAT_MUTABLE` existe dans outils/guardian-qa.js du HEAD handoff-continuite-20260920 actuel (b9ffd787, « Guardian QA : relire un fichier pour prouver l'absence de mutation n'est pas un recalcul pur »), vérifié le 22/09/2026.",
+      "le": "2026-09-22"
     }
   ]
 }
