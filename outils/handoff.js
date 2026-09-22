@@ -206,7 +206,19 @@ function verifier(ignorer) {
 function consommer(lot) {
   if (verifier(['PLUSIEURS_LOTS_ACTIFS']) !== 0) { console.error('\nREFUS — le registre ne valide pas ; aucune décision ne peut être consommée dans cet état.'); process.exit(1); }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot]; if (!v) { console.error(`Lot ${lot} inconnu.`); process.exit(1); } const dec = dernier(echanges(lot, 'decision'));
-  if (dec) { const demandes = echanges(lot, 'request'), r = lireEnveloppe(path.join(LOTS, lot, dec.fichier)), vise = r.env && r.env.in_reply_to ? path.basename(String(r.env.in_reply_to).trim()) : null, active = dernier(demandes); if (active && vise !== active.fichier) { console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`); console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.'); process.exit(1); } }
+  if (dec) {
+    const demandes = echanges(lot, 'request'), r = lireEnveloppe(path.join(LOTS, lot, dec.fichier)), ouDec = `${lot}/${dec.fichier}`;
+    // Une décision déjà publiée peut manquer `in_reply_to` en dépôt direct — une
+    // dérogation IN_REPLY_TO_MANQUANT (jamais fabriquée ici, seulement consultée)
+    // peut porter la valeur retenue par ailleurs ; sans elle, `vise` reste null et
+    // le refus ci-dessous s'applique normalement.
+    const derogationVise = (Array.isArray(etat.derogations) ? etat.derogations : [])
+      .find(d => d.fichier === ouDec && d.regle === 'IN_REPLY_TO_MANQUANT' && d.valeur);
+    const vise = r.env && r.env.in_reply_to ? path.basename(String(r.env.in_reply_to).trim())
+      : derogationVise ? path.basename(String(derogationVise.valeur).trim()) : null;
+    const active = dernier(demandes);
+    if (active && vise !== active.fichier) { console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`); console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.'); process.exit(1); }
+  }
   const source = dec ? 'registre' : 'legacy', cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION); let commit; try { commit = git('log', '-1', '--format=%H', '--', cible); } catch (e) { commit = ''; } if (!commit) { console.error(`Aucun commit trouvé pour ${cible} — refus de marquer une consommation invérifiable.`); process.exit(1); }
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
   v.statut = 'DECISION_CONSOMMEE'; v.derniere_decision = dec ? dec.fichier : null; v.source_decision = source; v.commit_decision = commit; v.consomme_le = new Date().toISOString(); fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}.`);

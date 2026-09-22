@@ -242,11 +242,11 @@
     },
     "NEXUS-CONTINUITE-TERRAIN-1-20260920": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-12.md",
-      "derniere_decision": "decision-9.md",
+      "derniere_demande": "request-13.md",
+      "derniere_decision": "decision-12.md",
       "source_decision": "registre",
-      "commit_decision": "f87c379b289a10c2481266518aef84fc1142685f",
-      "consomme_le": "2026-09-21T23:10:47.555Z"
+      "commit_decision": "80db5c9b78fa60fd4749d13020a0b039b8d18654",
+      "consomme_le": "2026-09-22T00:32:50.130Z"
     }
   },
   "artefacts_hors_registre": [
@@ -329,7 +329,8 @@
     {
       "fichier": "NEXUS-CONTINUITE-TERRAIN-1-20260920/decision-12.md",
       "regle": "IN_REPLY_TO_MANQUANT",
-      "motif": "L'enveloppe ne porte pas de champ `in_reply_to`. Défaut de FORME seulement — le corps nomme explicitement les demandes visées (« request-11 §1 à §3, corrigée et complétée par request-12 »), et `request-12.md` §4 déclare lui-même être devenu la demande active dont la décision vaut sur l'ensemble du post-flight (« Comme le protocole fait de cette demande la demande active, une décision rendue ici vaut décision sur le post-flight complet »). `request-12.md` est structurellement la seule valeur possible : c'est la dernière demande du lot (`STATE.json.lots[...].derniere_demande` au moment du dépôt), et `outils/handoff.js consommer` exige que la décision consommée réponde à la demande active. Valeur retenue : `in_reply_to: request-12.md`. Le fichier n'est ni renommé ni réécrit.",
+      "valeur": "request-12.md",
+      "motif": "L'enveloppe ne porte pas de champ `in_reply_to`. Défaut de FORME seulement — le corps nomme explicitement les demandes visées (« request-11 §1 à §3, corrigée et complétée par request-12 »), et `request-12.md` §4 déclare lui-même être devenu la demande active dont la décision vaut sur l'ensemble du post-flight (« Comme le protocole fait de cette demande la demande active, une décision rendue ici vaut décision sur le post-flight complet »). `request-12.md` est structurellement la seule valeur possible : c'est la dernière demande du lot (`STATE.json.lots[...].derniere_demande` au moment du dépôt), et `outils/handoff.js consommer` exige que la décision consommée réponde à la demande active. Valeur retenue : `in_reply_to: request-12.md` — portée dans le champ `valeur` de cette dérogation pour qu'`outils/handoff.js consommer` puisse la consulter mécaniquement (correction d'outillage ajoutée dans le même lot : ce contrôle ne consultait jusqu'ici aucune dérogation, seulement le champ brut du fichier). Le fichier n'est ni renommé ni réécrit.",
       "autorise_par": "Claude / NEXUS Orchestrator (pré-autorisation CLAUDE.md, point 2 — dérogation de forme sur enveloppe déjà publiée)",
       "le": "2026-09-22"
     },
