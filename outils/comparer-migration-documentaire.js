@@ -81,22 +81,50 @@ function git(...args) {
   return execFileSync('git', args, { cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 }
 
-function refProduction() {
-  for (const ref of ['production', 'origin/production', 'refs/remotes/origin/production']) {
-    try { git('rev-parse', '--verify', ref); return ref; } catch (e) { /* suivant */ }
+// LA RÉFÉRENCE DE PRODUCTION EST LA REF DISTANTE, JAMAIS LA COPIE LOCALE.
+// `origin/production` est l'état publié, celui que GitHub Pages sert ; une
+// branche locale `production` n'est qu'une intention, et elle peut être en
+// retard de semaines sans que rien ne le dise. Le 21/09/2026 elle valait
+// 501c0c7 quand `origin/production` valait 2bc7b39 : ce comparateur, qui
+// essayait `production` EN PREMIER, répondait « exists on disk, but not in
+// 'production' » sur une migration bel et bien publiée. L'ordre n'est pas un
+// confort d'écriture, il décide de ce qui est mesuré — et une garde qui mesure
+// une copie en retard ne mord sur rien. `outils/garde-env-001.js` énonce déjà
+// la règle ; ici elle était inversée. Une ref locale n'est donc acceptée qu'en
+// dernier recours, et jamais en silence.
+//
+// `git` et `avertir` sont injectables : un dépôt sans ref distante ne se
+// fabrique pas depuis le dépôt réel, et sans pouvoir le provoquer on n'aurait
+// pas vérifié l'ordre lui-même.
+function refProduction(options = {}) {
+  const g = options.git || git;
+  const avertir = options.avertir || (m => console.error(m));
+  for (const ref of ['refs/remotes/origin/production', 'origin/production']) {
+    try { g('rev-parse', '--verify', `${ref}^{commit}`); return ref; } catch (e) { /* suivant */ }
   }
+  try {
+    g('rev-parse', '--verify', 'production^{commit}');
+    avertir('AVERTISSEMENT — aucune ref distante `origin/production` : comparaison contre la copie '
+      + 'locale `production`, qui peut être en retard sans le dire. Récupérer l\'état publié avant '
+      + 'de conclure : git fetch origin production');
+    return 'production';
+  } catch (e) { /* aucune des trois */ }
   return null;
 }
 
 // Compare le fichier du rail à sa version sur la branche `production`.
 // Lecture pure (fs.readFileSync + git show) : n'écrit et n'exécute aucun SQL.
-function comparerMigrationAvecProduction(cheminRelatifMigration, { ref } = {}) {
+// `git` et `avertir` traversent jusqu'au résolveur : sans cela, le cas « aucune
+// référence de production » ne se provoque pas, et le refus de conclure reste
+// non vérifié — c'est-à-dire non acquis.
+function comparerMigrationAvecProduction(cheminRelatifMigration, { ref, git: gitInjecte, avertir } = {}) {
+  const g = gitInjecte || git;
   const racine = path.resolve(__dirname, '..');
   const cheminAbs = path.join(racine, 'supabase', 'migrations', cheminRelatifMigration);
-  const REF = ref || refProduction();
-  if (!REF) throw new Error('branche `production` introuvable : impossible de comparer sans elle');
+  const REF = ref || refProduction({ git: g, avertir });
+  if (!REF) throw new Error('référence de production introuvable (ni `origin/production` ni `production`) : impossible de comparer sans elle — `git fetch origin production`');
   const contenuRail = fs.readFileSync(cheminAbs, 'utf8');
-  const contenuProduction = git('show', `${REF}:supabase/migrations/${cheminRelatifMigration}`);
+  const contenuProduction = g('show', `${REF}:supabase/migrations/${cheminRelatifMigration}`);
   const resultat = comparerContenus(contenuProduction, contenuRail, 'production', 'rail');
   return { ...resultat, ref: REF, chemin: cheminRelatifMigration, octetsProduction: contenuProduction.length, octetsRail: contenuRail.length };
 }

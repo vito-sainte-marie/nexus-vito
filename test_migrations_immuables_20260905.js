@@ -40,17 +40,22 @@ function git(...args) {
   return execFileSync('git', args, { cwd: RACINE, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
 }
 
-// La branche de production, sous l'un des noms possibles selon le contexte.
-function refProduction() {
-  for (const ref of ['production', 'origin/production', 'refs/remotes/origin/production']) {
-    try { git('rev-parse', '--verify', ref); return ref; } catch (e) { /* suivant */ }
-  }
-  return null;
-}
+// LA RÉFÉRENCE DE PRODUCTION NE SE REDÉFINIT PAS ICI. Ce fichier portait sa
+// propre copie du résolveur, et cette copie essayait la branche locale
+// `production` EN PREMIER. Le 21/09/2026 elle valait 501c0c7 quand
+// `origin/production` valait 2bc7b39 : ce contrôle annonçait « 240 migrations
+// de production contrôlées » et passait au vert, alors que l'état publié en
+// portait 276. Trente-six migrations publiées échappaient à la règle
+// d'immuabilité — vert, et sans rien mordre. Une règle qui vit en deux
+// exemplaires finit par ne plus dire la même chose des deux côtés : le
+// résolveur est désormais unique, dans `outils/comparer-migration-documentaire.js`,
+// et il préfère TOUJOURS la ref distante. `git` lui est passé pour qu'il lise
+// le même dépôt que le reste de ce fichier.
+const { refProduction } = require('./outils/comparer-migration-documentaire.js');
 
-const REF = refProduction();
-assert.ok(REF, 'La branche `production` est introuvable. En CI, récupérer la branche '
-  + '(`git fetch origin production:production` ou `fetch-depth: 0`) : sans elle, ce '
+const REF = refProduction({ git });
+assert.ok(REF, 'La référence de production est introuvable. En CI, récupérer la branche '
+  + '(`git fetch origin production` ou `fetch-depth: 0`) : sans elle, ce '
   + 'contrôle ne peut pas savoir quelles migrations sont déjà appliquées en production.');
 console.log(`Référence de production : ${REF}\n`);
 
