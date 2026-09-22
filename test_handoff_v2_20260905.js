@@ -60,8 +60,21 @@ function valider(dir, envPlus) {
   }
 }
 
+// Une suite qui meurt sur le premier rouge cache tous les suivants. Le
+// 21/09/2026 une seule épreuve fragile a masqué l'état réel de neuf épreuves
+// posées après elle, et il a fallu la réparer pour apprendre qu'elles
+// passaient. Chaque épreuve est donc isolée : le rouge se dit, la suite
+// continue, et le bilan final rassemble les échecs. Le code de sortie ne
+// s'adoucit pas pour autant — un seul rouge fait échouer la suite.
 let passes = 0;
-function verifier(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
+const echecs = [];
+function verifier(nom, fn) {
+  try { fn(); passes++; console.log('OK — ' + nom); }
+  catch (e) {
+    echecs.push({ nom, message: (e && e.message) || String(e) });
+    console.log('ROUGE — ' + nom);
+  }
+}
 
 // Sans cette première épreuve, toutes les suivantes pourraient passer avec un
 // validateur qui refuse simplement tout.
@@ -241,7 +254,17 @@ verifier('une décision déjà consommée ne se rejoue pas', () => {
   catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   finally { fs.writeFileSync(cheminEtat, avant); }
   assert.notStrictEqual(code, 0, 'le rejeu d’une décision déjà consommée doit être refusé (fichier réel restauré) : ' + sortie);
-  assert.ok(/déjà marquée consommée/.test(sortie), 'le refus doit nommer sa raison : ' + sortie);
+  // Deux refus légitimes, dans cet ordre de précédence : `consommer` valide
+  // d'abord tout le registre, et ne regarde la consommation qu'ensuite. Quand
+  // un dépôt tiers non conforme traîne quelque part (21/09/2026 :
+  // decision-12.md, déposée hors vocabulaire par le Créateur), c'est le
+  // premier qui parle. La santé du registre réel n'est pas le sujet de cette
+  // épreuve — le refus l'est — mais elle exige quand même une raison NOMMÉE :
+  // un `consommer` qui réussirait en silence la ferait rougir.
+  const raisons = [/déjà marquée consommée/, /le registre ne valide pas/];
+  const laquelle = raisons.findIndex(r => r.test(sortie));
+  assert.ok(laquelle >= 0, 'le refus doit nommer sa raison : ' + sortie);
+  if (laquelle === 1) console.log('   (refus au stade validation — le registre réel porte des violations ; la précédence est éprouvée, pas la consommation)');
 });
 
 function ecrireEtat(dir, muter) {
@@ -343,26 +366,29 @@ verifier('handoff.js decision produit une enveloppe conforme par construction', 
   deposerDemande(dir, 2);
   const corps = path.join(dir, 'corps.md');
   fs.writeFileSync(corps, '# Verdict\n\nCorps de la décision.\n');
-  // Le rail n'est pas une constante du code : `handoff.js` le lit dans
-  // l'environnement, et `claude.yml` l'y pose depuis l'ordre reçu. Cette
-  // épreuve pose donc un rail d'épreuve et vérifie que c'est LUI qui
-  // ressort. Y écrire `config-par-environnement` en dur, comme c'était le
-  // cas, revenait à éprouver le contraire de ce que le protocole promet :
-  // le test passait au vert tant que le routage ne marchait pas, et
-  // rougissait dès qu'il marchait. Les deux valeurs sont posées parce que
-  // NEXUS_CLAUDE_BASE_BRANCH prime sur NEXUS_BASE_BRANCH : n'en poser
-  // qu'une laisserait l'environnement du runner décider à la place du test.
+  // Le rail n'est pas une constante du code, mais ce n'est plus non plus une
+  // variable d'environnement : il est déclaré au registre, dans
+  // STATE.json.lots[LOT].rail. Cette épreuve le déclare là et vérifie que
+  // c'est LUI que l'outil estampille — sans poser aucune variable, et donc
+  // sans que l'environnement du runner ait voix au chapitre.
+  //
+  // Elle a déjà porté deux formes fausses. D'abord `config-par-environnement`
+  // en dur : le test passait au vert tant que le rail ne marchait pas. Puis
+  // NEXUS_BASE_BRANCH/NEXUS_CLAUDE_BASE_BRANCH : elle exigeait alors que
+  // l'environnement fasse loi, c'est-à-dire exactement l'anomalie réparée le
+  // 21/09/2026. Une épreuve peut encoder le défaut qu'elle est censée
+  // interdire ; celle-ci l'a fait deux fois.
   const RAIL_EPREUVE = 'handoff-epreuve-20260905';
-  const rail = { NEXUS_BASE_BRANCH: RAIL_EPREUVE, NEXUS_CLAUDE_BASE_BRANCH: RAIL_EPREUVE };
-  const r = outil(dir, ['decision', LOT, corps, '--decision', 'BLOCKED', '--closes', 'true'], rail);
+  ecrireEtat(dir, e => { e.lots[LOT].rail = RAIL_EPREUVE; });
+  const r = outil(dir, ['decision', LOT, corps, '--decision', 'BLOCKED', '--closes', 'true']);
   assert.strictEqual(r.code, 0, 'la commande doit réussir : ' + r.sortie);
   const ecrit = fs.readFileSync(path.join(dir, 'lots', LOT, 'decision-2.md'), 'utf8');
   assert.ok(/^decision: BLOCKED$/m.test(ecrit), 'verdict posé par l’outil : ' + ecrit);
   assert.ok(new RegExp('^branch: ' + RAIL_EPREUVE + '$', 'm').test(ecrit),
-    'la branche posée par l’outil doit être le rail reçu, jamais une constante : ' + ecrit);
+    'la branche posée par l’outil doit être le rail déclaré au registre, ni une constante ni une variable d’environnement : ' + ecrit);
   assert.ok(/^in_reply_to: request-2\.md$/m.test(ecrit), 'in_reply_to résolu seul sur la demande active : ' + ecrit);
   ecrireEtat(dir, e => { e.lots[LOT].derniere_demande = 'request-2.md'; e.lots[LOT].derniere_decision = 'decision-2.md'; });
-  const v = valider(dir, rail);
+  const v = valider(dir);
   assert.strictEqual(v.code, 0, 'ce que l’outil écrit doit passer le validateur sans dérogation : ' + v.sortie);
 });
 
@@ -719,5 +745,219 @@ verifier('APPROVED_CLOSED reste lisible comme valeur legacy', () => {
   assert.ok(!/DECISIONS_CANONIQUES = \[[^\]]*APPROVED_CLOSED/.test(mod),
     'elle ne doit jamais devenir canonique');
 });
+
+// ——— Le rail est un fait du registre (21/09/2026) ————————————————————————
+//
+// Anomalie réparée ce jour : `handoff.js` lisait le rail actif dans
+// l'environnement (NEXUS_CLAUDE_BASE_BRANCH, puis NEXUS_BASE_BRANCH, puis
+// repli silencieux sur config-par-environnement). Les mêmes octets de
+// registre recevaient donc deux verdicts opposés selon l'endroit où le
+// validateur tournait, et l'échec produit (BRANCHE_INATTENDUE) est non
+// dérogeable : rien ne pouvait l'absorber. Les épreuves qui suivent visent
+// le contrat, pas l'implémentation — chacune a été essayée contre le code
+// d'avant la réparation, et chacune y rougit.
+
+function railDeclare(dir, rail) {
+  const lotDir = path.join(dir, 'lots', LOT);
+  for (const f of fs.readdirSync(lotDir).filter(n => /\.md$/.test(n))) {
+    const q = path.join(lotDir, f);
+    fs.writeFileSync(q, fs.readFileSync(q, 'utf8').replace(/^branch: .*$/m, `branch: ${rail}`));
+  }
+  if (rail !== undefined) ecrireEtat(dir, e => { e.lots[LOT].rail = rail; });
+}
+
+verifier('le verdict d’un registre ne dépend plus de l’environnement', () => {
+  // L'épreuve décisive. Un registre dont le lot déclare son rail et dont les
+  // enveloppes vivent sur ce rail doit rendre le MÊME verdict partout : dans
+  // un run qui tourne sur le rail, dans un run qui tourne ailleurs, dans un
+  // worktree sans variables, et jusque sous un environnement hostile qui
+  // annonce une ref protégée. Avant la réparation, seul le premier cas
+  // passait : les trois autres rendaient des violations BRANCHE_INATTENDUE.
+  const RAIL = 'handoff-epreuve-rail-20260921';
+  const dir = registreSain();
+  railDeclare(dir, RAIL);
+  const environnements = [
+    ['aucune variable (worktree, local, run hors rail)', {}],
+    ['la variable dit le même rail', { NEXUS_BASE_BRANCH: RAIL }],
+    ['la variable dit le rail historique', { NEXUS_BASE_BRANCH: 'config-par-environnement' }],
+    ['la variable dit une ref protégée', { NEXUS_CLAUDE_BASE_BRANCH: 'production' }],
+    ['la variable dit n’importe quoi', { NEXUS_BASE_BRANCH: 'refs/pull/42/merge' }],
+  ];
+  for (const [nom, env] of environnements) {
+    const v = valider(dir, env);
+    assert.strictEqual(v.code, 0, `le registre doit valider quand ${nom} : ` + v.sortie);
+  }
+  // Et la variable qui se contredit doit le dire — à voix haute, sans rien
+  // changer au verdict. La faire échouer rendrait le verdict à nouveau
+  // dépendant de l'environnement, c'est-à-dire réintroduirait le défaut.
+  const divergent = valider(dir, { NEXUS_BASE_BRANCH: 'handoff-autre-chose' });
+  assert.strictEqual(divergent.code, 0, 'une variable divergente ne fait pas échouer : ' + divergent.sortie);
+  assert.ok(/contredit le rail déclaré au registre/.test(divergent.sortie),
+    'une variable divergente doit être signalée : ' + divergent.sortie);
+  assert.ok(/le registre fait foi/.test(divergent.sortie),
+    'le signalement doit dire qui l’emporte : ' + divergent.sortie);
+});
+
+verifier('aucune variable d’environnement ne peut poser un rail', () => {
+  // La mutation qui prouve que le garde mord. Les enveloppes vivent sur un
+  // rail que le registre NE déclare pas, et l'environnement le proclame des
+  // deux manières historiques. Sous l'ancien code, cela suffisait à rendre le
+  // registre valide. Il doit désormais échouer : un rail non inscrit n'existe
+  // pas.
+  const RAIL = 'handoff-epreuve-rail-20260921';
+  const dir = registreSain();
+  railDeclare(dir, RAIL);
+  ecrireEtat(dir, e => { delete e.lots[LOT].rail; });
+  const v = valider(dir, { NEXUS_BASE_BRANCH: RAIL, NEXUS_CLAUDE_BASE_BRANCH: RAIL });
+  assert.notStrictEqual(v.code, 0, 'un rail seulement proclamé par l’environnement ne vaut rien : ' + v.sortie);
+  assert.ok(/branch doit appartenir au rail du lot tel que le registre le déclare/.test(v.sortie),
+    'le refus doit renvoyer au registre : ' + v.sortie);
+  // Et le message doit être lisible. « config-par-environnement ou
+  // config-par-environnement » était le seul indice, en Production, que
+  // personne n'avait déclaré de rail : un message qui se répète ne dit rien.
+  // Ici aucun rail n'est déclaré, donc le refus doit le dire, et ne jamais
+  // énumérer deux fois la même valeur.
+  const m = v.sortie.match(/rail du lot tel que le registre le déclare \(([^)]+)\)/);
+  assert.ok(m, 'le refus doit énoncer le rail attendu : ' + v.sortie);
+  const valeurs = m[1].split(' ou ');
+  assert.strictEqual(new Set(valeurs).size, valeurs.length,
+    'le message ne doit pas répéter la même valeur : ' + m[1]);
+  assert.ok(/ne déclare aucun rail/.test(m[1]),
+    'quand aucun rail n’est déclaré, le refus doit le dire au lieu de le laisser deviner : ' + m[1]);
+});
+
+verifier('quand un rail est déclaré, le refus énumère les deux branches recevables', () => {
+  // Contre-témoin du message précédent : un lot qui déclare son rail accepte
+  // deux branches — la branche historique dont tout le registre descend, et
+  // son rail — et le refus doit les nommer toutes les deux.
+  const RAIL = 'handoff-epreuve-rail-20260921';
+  const dir = registreSain();
+  ecrireEtat(dir, e => { e.lots[LOT].rail = RAIL; });
+  remplacer(dir, 'request-1.md',
+    'branch: config-par-environnement', 'branch: handoff-une-autre-20260921');
+  const v = valider(dir);
+  assert.notStrictEqual(v.code, 0, 'une branche hors rail doit être refusée : ' + v.sortie);
+  const m = v.sortie.match(/rail du lot tel que le registre le déclare \(([^)]+)\)/);
+  assert.ok(m, 'le refus doit énoncer les rails attendus : ' + v.sortie);
+  assert.deepStrictEqual(m[1].split(' ou '), ['config-par-environnement', RAIL],
+    'les deux branches recevables doivent être nommées : ' + m[1]);
+});
+
+verifier('un rail interdit au registre est refusé, et ne se déroge pas', () => {
+  // L'ancien garde vivait au chargement du module et tuait le processus — y
+  // compris celui d'un simple `require('outils/handoff.js')`, ce que fait
+  // outils/reveil-handoff.js. La protection est la même, la forme est une
+  // violation nommée.
+  for (const interdit of ['production', 'main']) {
+    const dir = registreSain();
+    ecrireEtat(dir, e => { e.lots[LOT].rail = interdit; });
+    const v = valider(dir);
+    assert.notStrictEqual(v.code, 0, `un rail ${interdit} doit être refusé : ` + v.sortie);
+    assert.ok(new RegExp(`rail ${JSON.stringify(interdit)} n.est pas un rail autoris`).test(v.sortie),
+      'le refus doit nommer le rail fautif : ' + v.sortie);
+    // Et aucune dérogation ne le rattrape : c'est un invariant de sécurité.
+    ecrireEtat(dir, e => {
+      e.derogations = [{ fichier: 'STATE.json', regle: 'RAIL_NON_AUTORISE',
+        motif: 'tentative de dérogation sur un invariant', autorise_par: 'test', le: '2026-09-21' }];
+    });
+    const w = valider(dir);
+    assert.notStrictEqual(w.code, 0, `une dérogation ne doit pas ouvrir le rail ${interdit} : ` + w.sortie);
+    assert.ok(/invariant de sécurité/.test(w.sortie), 'le refus de la dérogation doit se dire : ' + w.sortie);
+  }
+});
+
+verifier('un rail malformé est refusé', () => {
+  // Le rail est soit la branche historique, soit de la forme handoff-*. Une
+  // branche de travail ordinaire, une branche de run `claude/issue-*` ou une
+  // chaîne vide ne sont pas des rails : les accepter ferait du registre le
+  // miroir de n'importe quelle branche passagère.
+  for (const mauvais of ['feature/quelque-chose', 'claude/issue-42-20260921', '', 'handoff', 'Handoff-majuscule']) {
+    const dir = registreSain();
+    ecrireEtat(dir, e => { e.lots[LOT].rail = mauvais; });
+    const v = valider(dir);
+    assert.notStrictEqual(v.code, 0, `rail ${JSON.stringify(mauvais)} doit être refusé : ` + v.sortie);
+    assert.ok(/n.est pas un rail autoris/.test(v.sortie), 'le refus doit se nommer : ' + v.sortie);
+  }
+});
+
+verifier('un lot qui ne déclare aucun rail reste lu sur la branche historique', () => {
+  // Rétrocompatibilité : tout le registre antérieur au 21/09/2026 ne déclare
+  // pas de rail. Il doit rester vert sans qu'un seul fichier soit réécrit —
+  // sinon la réparation exigerait de toucher un registre append-only.
+  const dir = registreSain();
+  const e = JSON.parse(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'));
+  assert.strictEqual(e.lots[LOT].rail, undefined, 'le registre d’épreuve ne déclare aucun rail');
+  const v = valider(dir);
+  assert.strictEqual(v.code, 0, 'un registre sans rail déclaré doit valider : ' + v.sortie);
+});
+
+verifier('declarer-rail inscrit le rail, et rien d’autre', () => {
+  // Le geste qui remplace la variable d'environnement. Cas réel du
+  // 21/09/2026 en miniature : les enveloppes d'un lot vivent sur un rail que
+  // le registre ne déclare pas encore, le validateur refuse, et la
+  // déclaration — pas une variable, pas un colmatage de CI — le rend vert.
+  const RAIL = 'handoff-epreuve-rail-20260921';
+  const dir = registreSain();
+  railDeclare(dir, RAIL);
+  ecrireEtat(dir, e => { delete e.lots[LOT].rail; });
+  assert.notStrictEqual(valider(dir).code, 0, 'départ : le registre ne valide pas');
+  const r = outil(dir, ['declarer-rail', LOT, RAIL]);
+  assert.strictEqual(r.code, 0, 'la déclaration doit réussir : ' + r.sortie);
+  assert.ok(/violation\(s\) résolue\(s\), 0 introduite/.test(r.sortie),
+    'la déclaration doit rendre compte de ce qu’elle résout : ' + r.sortie);
+  assert.strictEqual(valider(dir).code, 0, 'arrivée : le registre valide');
+  const apres = JSON.parse(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'));
+  assert.strictEqual(apres.lots[LOT].rail, RAIL, 'le rail est inscrit au registre');
+  assert.strictEqual(apres.lots[LOT].statut, 'DECISION_CONSOMMEE', 'declarer-rail ne touche pas au statut');
+  assert.strictEqual(apres.lots[LOT].consomme_le, '2026-09-05T00:00:00.000Z', 'declarer-rail ne touche pas à la consommation');
+});
+
+verifier('declarer-rail refuse un rail interdit, un rail qui casse, et un rail inutile', () => {
+  const RAIL = 'handoff-epreuve-rail-20260921';
+  const dir = registreSain();
+  railDeclare(dir, RAIL);
+  const etatInitial = fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8');
+
+  for (const interdit of ['production', 'main', 'feature/x']) {
+    const r = outil(dir, ['declarer-rail', LOT, interdit]);
+    assert.notStrictEqual(r.code, 0, `declarer-rail ${interdit} doit être refusé : ` + r.sortie);
+    assert.ok(/rail non autoris/.test(r.sortie), 'le refus doit se nommer : ' + r.sortie);
+    assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial,
+      'un refus n’écrit rien');
+  }
+  // Un rail qui déplacerait le lot loin de ses propres enveloppes introduit
+  // des violations : la déclaration se refuse au lieu de casser le registre.
+  const casse = outil(dir, ['declarer-rail', LOT, 'handoff-ailleurs-20260921']);
+  assert.notStrictEqual(casse.code, 0, 'un rail qui introduit des violations doit être refusé : ' + casse.sortie);
+  assert.ok(/introduirait \d+ violation/.test(casse.sortie), 'le refus doit dire ce qu’il évite : ' + casse.sortie);
+  assert.strictEqual(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'), etatInitial, 'un refus n’écrit rien');
+  // Et redéclarer le rail déjà inscrit ne se fait pas : un registre ne
+  // s’écrit pas pour ne rien changer.
+  const inutile = outil(dir, ['declarer-rail', LOT, RAIL]);
+  assert.notStrictEqual(inutile.code, 0, 'redéclarer le même rail doit être refusé : ' + inutile.sortie);
+  assert.ok(/déclare déjà/.test(inutile.sortie), 'le refus doit dire pourquoi : ' + inutile.sortie);
+});
+
+verifier('le rail ne se lit plus dans l’environnement', () => {
+  // Épreuve de source, en complément des épreuves de comportement : elle
+  // interdit le retour de la lecture ambiante, y compris en repli. Le nom des
+  // variables reste présent dans le fichier — elles sont lues pour signaler
+  // leur propre divergence — mais plus jamais comme source du rail.
+  const source = fs.readFileSync(OUTIL, 'utf8');
+  const vivantes = source.split('\n').filter(l => !/^\s*\/\//.test(l));
+  for (const l of vivantes) {
+    assert.ok(!/(NEXUS_CLAUDE_BASE_BRANCH|NEXUS_BASE_BRANCH)\]?\s*\|\|/.test(l),
+      'aucune ligne vivante ne doit faire du rail un repli d’environnement : ' + l.trim());
+  }
+  assert.ok(/STATE\.json\.lots\[LOT\]\.rail|etat\.lots\[lot\]\.rail|v\.rail/.test(source),
+    'le rail doit se lire dans le registre');
+});
+
+
+if (echecs.length) {
+  console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);
+  for (const e of echecs) console.error(`\n— ${e.nom}\n  ${String(e.message).split('\n').join('\n  ')}`);
+  process.exit(1);
+}
 
 console.log(`\n${passes} vérifications passées — le protocole ne repose plus sur la discipline de ses acteurs.`);

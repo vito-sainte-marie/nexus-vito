@@ -246,7 +246,8 @@
       "derniere_decision": "decision-9.md",
       "source_decision": "registre",
       "commit_decision": "f87c379b289a10c2481266518aef84fc1142685f",
-      "consomme_le": "2026-09-21T23:10:47.555Z"
+      "consomme_le": "2026-09-21T23:10:47.555Z",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [

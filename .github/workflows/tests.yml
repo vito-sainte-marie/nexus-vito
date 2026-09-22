@@ -63,33 +63,22 @@ jobs:
         with:
           node-version: '24'
 
-      # Le rail Handoff n'est pas une constante du code : `outils/handoff.js`
-      # le lit dans l'environnement (NEXUS_CLAUDE_BASE_BRANCH, puis
-      # NEXUS_BASE_BRANCH) et retombe sur `config-par-environnement` à défaut.
-      # `claude.yml` le route depuis le corps du commentaire déclencheur
-      # (a786408) ; ici la source est la branche sur laquelle le run tourne.
-      # Sans ce câblage, la suite refusait toute enveloppe déclarant le rail
-      # sur lequel elle vit — le validateur se contredisait lui-même.
+      # Aucune résolution de rail ici, volontairement. Une étape « Résoudre le
+      # rail Handoff de ce run » devinait le rail depuis la ref du run et
+      # l'écrivait dans $GITHUB_ENV, parce que `outils/handoff.js` lisait
+      # alors le rail dans l'environnement. C'était un colmatage : il ne
+      # pouvait avoir raison que lorsque le run tournait déjà SUR le rail, et
+      # retombait silencieusement sur `config-par-environnement` partout
+      # ailleurs — y compris sur les branches de PR, où la suite rejetait
+      # ensuite les enveloppes du rail qu'elle venait de quitter.
       #
-      # Un rail non reconnu ne fait PAS échouer ce workflow, contrairement à
-      # `claude.yml` : celui-ci s'exécute sur toutes les branches, y compris
-      # `main` et `production`, qui ne sont pas des rails. On retombe alors
-      # sur le rail historique. `main` et `production` ne peuvent pas être
-      # retenues, par construction : elles ne satisfont aucune des deux
-      # formes acceptées.
-      - name: Résoudre le rail Handoff de ce run
-        shell: bash
-        env:
-          NEXUS_REF_COURANTE: ${{ github.head_ref || github.ref_name }}
-        run: |
-          set -euo pipefail
-          rail="config-par-environnement"
-          if [[ "$NEXUS_REF_COURANTE" == "config-par-environnement" \
-             || "$NEXUS_REF_COURANTE" =~ ^handoff-[A-Za-z0-9._/-]+$ ]]; then
-            rail="$NEXUS_REF_COURANTE"
-          fi
-          echo "Rail Handoff retenu : $rail (ref : $NEXUS_REF_COURANTE)"
-          echo "NEXUS_BASE_BRANCH=$rail" >> "$GITHUB_ENV"
+      # Depuis le 21/09/2026, le rail de chaque lot est déclaré dans
+      # docs/handoff/STATE.json (`lots[LOT].rail`) et lu là. Le verdict du
+      # validateur ne dépend donc plus de la branche sur laquelle ce workflow
+      # s'exécute : il est le même ici, en local et dans un worktree. Ne pas
+      # réintroduire de variable de rail dans ce fichier ; le rail se change
+      # par `node outils/handoff.js declarer-rail <LOT_ID> <rail>`, qui
+      # l'inscrit au registre.
 
       # `nexus-build.js` n'est plus versionné : le vérifier sur le dépôt brut
       # n'aurait plus de sens. Ce test exécute la VRAIE chaîne de build dans
