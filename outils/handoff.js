@@ -114,6 +114,34 @@ const avertissements = [];
 const bloquant = (m, code, fichier) => erreurs.push({ message: m, code: code || 'AUTRE', fichier: fichier || null });
 const avertir = (m) => avertissements.push(m);
 const CODES_NON_DEROGEABLES = ['BRANCHE_PROTEGEE', 'BRANCHE_INATTENDUE', 'RAIL_NON_AUTORISE', 'REFS_PROTEGEES', 'REFS_ILLISIBLES'];
+// 21/09/2026 — une dérogation savait dire « ce défaut de forme est toléré ».
+// Elle ne savait pas dire « et voici la valeur retenue ». Or `in_reply_to`
+// n'est pas seulement validé : trois outils LISENT la demande qu'une décision
+// vise (consommation, réveil du Handoff, réveil de l'Orchestrateur). Une
+// dérogation sur IN_REPLY_TO_MANQUANT rendait donc `verifier` vert et
+// laissait `consommer` refuser (« répond à null »), et l'Orchestrateur croire
+// la demande sans réponse — il réveillait Claude sur une demande que le
+// Créateur avait déjà arbitrée. Les dérogations historiques consignaient bien
+// la valeur retenue (« en réponse à request-1.md ») : en prose, qu'aucun
+// outil ne lit. `valeur_retenue` lui donne un domicile lisible.
+//
+// Le mécanisme est volontairement étroit : seules les substitutions déclarées
+// ici sont admises, jamais sur un code non dérogeable, jamais contre une
+// valeur que l'enveloppe porte réellement, toujours annoncée à voix haute, et
+// toujours re-soumise aux contrôles de cohérence normaux — une valeur retenue
+// qui désigne une demande inexistante échoue encore (IN_REPLY_TO_INCONNU).
+const SUBSTITUTIONS_ADMISES = { IN_REPLY_TO_MANQUANT: ['in_reply_to'] };
+function derogationsDuRegistre() { try { const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); return Array.isArray(etat.derogations) ? etat.derogations : []; } catch (e) { return []; } }
+// Valeur qu'un humain a retenue pour un champ absent d'une enveloppe, ou null.
+// Relit STATE.json à chaque appel : le registre est la source unique, et aucun
+// état intermédiaire ne peut se périmer entre deux commandes.
+function valeurRetenue(ou, regle, champ) {
+  if (!(SUBSTITUTIONS_ADMISES[regle] || []).includes(champ) || CODES_NON_DEROGEABLES.includes(regle)) return null;
+  const d = derogationsDuRegistre().find(x => x.fichier === ou && x.regle === regle && x.valeur_retenue);
+  if (!d) return null;
+  const v = d.valeur_retenue[champ];
+  return v === undefined || v === null || !String(v).trim() ? null : { valeur: String(v).trim(), derogation: d };
+}
 function git(...args) { return execFileSync('git', args, { cwd: RACINE, encoding: 'utf8' }).trim(); }
 function lireEnveloppe(fichier) {
   const brut = fs.readFileSync(fichier, 'utf8'); const lignes = brut.split('\n');
@@ -130,6 +158,21 @@ function lireEnveloppe(fichier) {
   }
   return { env, corps: lignes.slice(fin + 1).join('\n') };
 }
+// La demande qu'une décision vise, telle que le registre la désigne.
+// Ce n'est PAS `basename(in_reply_to)` : quand l'enveloppe ne déclare rien, la
+// désignation peut venir d'une dérogation nommée (valeur_retenue). Trois
+// outils recalculaient ce basename chacun de son côté — `consommer`,
+// `reveil-handoff.js`, `reveil-orchestrateur.js` — et aucun ne pouvait voir
+// l'arbitrage humain. La désignation vit ici, une seule fois.
+// Une valeur déclarée par l'enveloppe l'emporte toujours : une dérogation
+// comble une absence, elle ne réécrit jamais ce qu'un auteur a écrit.
+function demandeVisee(lot, fichierDecision) {
+  const r = lireEnveloppe(path.join(LOTS, lot, fichierDecision));
+  const brut = r.env && r.env.in_reply_to ? String(r.env.in_reply_to).trim() : '';
+  if (brut) return path.basename(brut);
+  const retenue = valeurRetenue(`${lot}/${fichierDecision}`, 'IN_REPLY_TO_MANQUANT', 'in_reply_to');
+  return retenue ? path.basename(retenue.valeur) : null;
+}
 function normaliserDecision(valeur) { if (valeur === 'APPROVED_CLOSED') return { decision: 'APPROVED', closes: true, legacy: true }; return { decision: valeur, legacy: false }; }
 function lots() { if (!fs.existsSync(LOTS)) return []; return fs.readdirSync(LOTS).filter(d => fs.statSync(path.join(LOTS, d)).isDirectory()).sort(); }
 function echanges(lot, genre) {
@@ -140,32 +183,32 @@ function echanges(lot, genre) {
 const dernier = liste => liste.length ? liste[liste.length - 1] : null;
 function validerCommuns(lot, e, env, genre, rail) {
   const ou = `${lot}/${e.fichier}`;
-  if (env.protocol !== PROTOCOLE) bloquant(`${ou} : protocol doit valoir ${PROTOCOLE}, trouvé ${JSON.stringify(env.protocol)}`);
-  if (env.kind !== genre) bloquant(`${ou} : kind doit valoir ${genre}, trouvé ${JSON.stringify(env.kind)}`);
-  if (env.lot_id !== lot) bloquant(`${ou} : lot_id ${JSON.stringify(env.lot_id)} ne correspond pas au répertoire ${lot}`);
-  if (String(env.seq) !== String(e.seq)) bloquant(`${ou} : seq ${JSON.stringify(env.seq)} ne correspond pas au nom de fichier`);
-  if (!env.author) bloquant(`${ou} : author manquant`);
+  if (env.protocol !== PROTOCOLE) bloquant(`${ou} : protocol doit valoir ${PROTOCOLE}, trouvé ${JSON.stringify(env.protocol)}`, 'PROTOCOLE_INATTENDU', ou);
+  if (env.kind !== genre) bloquant(`${ou} : kind doit valoir ${genre}, trouvé ${JSON.stringify(env.kind)}`, 'KIND_INATTENDU', ou);
+  if (env.lot_id !== lot) bloquant(`${ou} : lot_id ${JSON.stringify(env.lot_id)} ne correspond pas au répertoire ${lot}`, 'LOT_ID_INCOHERENT', ou);
+  if (String(env.seq) !== String(e.seq)) bloquant(`${ou} : seq ${JSON.stringify(env.seq)} ne correspond pas au nom de fichier`, 'SEQ_INCOHERENTE', ou);
+  if (!env.author) bloquant(`${ou} : author manquant`, 'AUTEUR_MANQUANT', ou);
   if (REFS_PROTEGEES.includes(env.branch)) bloquant(`${ou} : branch ${env.branch} est une ref protégée — refus`, 'BRANCHE_PROTEGEE', ou);
   else if (env.branch === undefined) bloquant(`${ou} : branch manquante — l'enveloppe doit déclarer ${rail}`, 'BRANCHE_ABSENTE', ou);
   else if (!brancheRailValide(env.branch, rail)) bloquant(`${ou} : branch doit appartenir au rail du lot tel que le registre le déclare (${railsAcceptes(rail)}), trouvé ${JSON.stringify(env.branch)}`, 'BRANCHE_INATTENDUE', ou);
 }
 function validerPreuves(ou, preuves) {
-  if (!preuves) return; if (!Array.isArray(preuves)) { bloquant(`${ou} : preuves doit être une liste`); return; }
-  for (const p of preuves) { if (!p.id) bloquant(`${ou} : une preuve sans id`); if (!CLASSES_PREUVE.includes(p.classe)) bloquant(`${ou} : preuve ${p.id} — classe ${JSON.stringify(p.classe)} hors vocabulaire (${CLASSES_PREUVE.join('|')})`); }
+  if (!preuves) return; if (!Array.isArray(preuves)) { bloquant(`${ou} : preuves doit être une liste`, 'PREUVES_MAL_FORMEES', ou); return; }
+  for (const p of preuves) { if (!p.id) bloquant(`${ou} : une preuve sans id`, 'PREUVE_SANS_ID', ou); if (!CLASSES_PREUVE.includes(p.classe)) bloquant(`${ou} : preuve ${p.id} — classe ${JSON.stringify(p.classe)} hors vocabulaire (${CLASSES_PREUVE.join('|')})`, 'PREUVE_CLASSE_HORS_VOCABULAIRE', ou); }
 }
 // L'empreinte est une preuve historique. Un avancement fast-forward est légitime ;
 // un SHA inconnu ou une divergence/réécriture de l'histoire échoue fermé.
 function verifierRefsProtegees(ou, valeur) {
   const brut = String(valeur || '').trim();
   const m = brut.match(/^main=([0-9a-f]{7,40})\s+production=([0-9a-f]{7,40})$/i);
-  if (!m) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — format invalide`, 'REFS_PROTEGEES'); return; }
+  if (!m) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — format invalide`, 'REFS_PROTEGEES', ou); return; }
   const attendues = { main: m[1], production: m[2] };
   for (const ref of REFS_PROTEGEES) {
     let historique, courant;
     try { historique = git('rev-parse', '--verify', `${attendues[ref]}^{commit}`); courant = git('rev-parse', '--verify', `origin/${ref}^{commit}`); }
-    catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — impossible de résoudre ${ref}=${attendues[ref]} ou origin/${ref}`, 'REFS_ILLISIBLES'); continue; }
+    catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — impossible de résoudre ${ref}=${attendues[ref]} ou origin/${ref}`, 'REFS_ILLISIBLES', ou); continue; }
     try { git('merge-base', '--is-ancestor', historique, courant); }
-    catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — ${ref} historique ${attendues[ref]} n'est pas ancêtre de la ref actuelle ${courant.slice(0, 7)}`, 'REFS_PROTEGEES'); }
+    catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — ${ref} historique ${attendues[ref]} n'est pas ancêtre de la ref actuelle ${courant.slice(0, 7)}`, 'REFS_PROTEGEES', ou); }
   }
 }
 // Une décision peut légitimement en superséder une autre répondant à la même
@@ -222,13 +265,13 @@ function validerEnveloppesLot(lot, rail) {
     // homonymes futurs. Une dérogation sur ces deux codes doit donc nommer
     // le chemin qualifié ; un basename seul ne les couvre pas.
     for (const e of demandes) {
-      const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
+      const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`, 'ENVELOPPE_ILLISIBLE', ou); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`, 'ENVELOPPE_ABSENTE', ou); continue; }
       const env = r.env; validerCommuns(lot, e, env, 'request', rail); if (!STATUTS_DEMANDE.includes(env.status)) bloquant(`${ou} : status ${JSON.stringify(env.status)} hors vocabulaire (${STATUTS_DEMANDE.join('|')})`, 'STATUT_HORS_VOCABULAIRE', ou); if (!TOKEN_MODES.includes(env.token_mode)) bloquant(`${ou} : token_mode ${JSON.stringify(env.token_mode)} hors vocabulaire (${TOKEN_MODES.join('|')})`, 'TOKEN_MODE_HORS_VOCABULAIRE', ou); validerPreuves(ou, env.preuves); const refs = (env.preuves || []).find(p => p.id === 'refs-protegees'); if (refs) verifierRefsProtegees(ou, refs.valeur || '');
     }
     const reponses = [];
     for (const e of decisions) {
-      const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`); continue; }
-      const env = r.env; validerCommuns(lot, e, env, 'decision', rail); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', ou); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`);
+      const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`, 'ENVELOPPE_ILLISIBLE', ou); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`, 'ENVELOPPE_ABSENTE', ou); continue; }
+      const env = r.env; validerCommuns(lot, e, env, 'decision', rail); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`, 'DECISION_LEGACY', ou); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', ou); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`, 'CLOSES_INVALIDE', ou);
       // La validité d'une décision dépend de la demande qu'elle référence (elle
       // doit exister dans CE lot) et de sa relation éventuelle de supersession
       // avec une décision précédente — jamais d'une comparaison numérique entre
@@ -237,7 +280,14 @@ function validerEnveloppesLot(lot, rail) {
       // décision peut tout aussi légitimement répondre à une demande plus
       // récente que la précédente décision du lot (cf. decision-3 -> request-2
       // du lot CARBURANTS-PERFORMANCE-CORRECTION-COMMANDE-20260906).
-      if (!env.in_reply_to) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', ou); else { const brut = String(env.in_reply_to).trim(), segments = brut.split('/').filter(Boolean), vise = segments[segments.length - 1], dossierCible = segments.length > 1 ? segments[segments.length - 2] : lot; if (dossierCible !== lot) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} désigne le lot ${dossierCible}, incohérent avec ${lot}`, 'IN_REPLY_TO_AUTRE_LOT', ou); else { const cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(env.in_reply_to)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', ou); else reponses.push({ decision: e, viseSeq: cible.seq, env }); } }
+      // `in_reply_to` n'est pas qu'une exigence de forme : c'est la désignation
+      // que trois outils lisent. Quand l'enveloppe ne la porte pas, une
+      // dérogation nommée peut la fournir — et elle est alors contrôlée comme
+      // si l'enveloppe l'avait portée.
+      const retenue = env.in_reply_to ? null : valeurRetenue(ou, 'IN_REPLY_TO_MANQUANT', 'in_reply_to');
+      if (retenue) avertir(`DÉROGATION IN_REPLY_TO_MANQUANT sur ${ou} — in_reply_to absent de l'enveloppe ; valeur retenue : ${retenue.valeur}\n         motif : ${retenue.derogation.motif}\n         autorisée par ${retenue.derogation.autorise_par}, le ${retenue.derogation.le}`);
+      const designation = env.in_reply_to || (retenue && retenue.valeur);
+      if (!designation) bloquant(`${ou} : in_reply_to manquant`, 'IN_REPLY_TO_MANQUANT', ou); else { const brut = String(designation).trim(), segments = brut.split('/').filter(Boolean), vise = segments[segments.length - 1], dossierCible = segments.length > 1 ? segments[segments.length - 2] : lot; if (dossierCible !== lot) bloquant(`${ou} : in_reply_to ${JSON.stringify(brut)} désigne le lot ${dossierCible}, incohérent avec ${lot}`, 'IN_REPLY_TO_AUTRE_LOT', ou); else { const cible = demandes.find(d => d.fichier === vise); if (!cible) bloquant(`${ou} : in_reply_to ${JSON.stringify(brut)} ne désigne aucune demande de ce lot`, 'IN_REPLY_TO_INCONNU', ou); else reponses.push({ decision: e, viseSeq: cible.seq, env }); } }
     }
     let supersessionsLegitimes = 0;
     for (let i = 1; i < reponses.length; i++) {
@@ -273,7 +323,7 @@ function validerEtatContenu(etat) {
     // qui n'itère que sur le disque. Là où le répertoire existe, la violation a
     // déjà été posée : on ne la dit pas deux fois.
     if (v.rail !== undefined && !railSecurise(v.rail) && !fs.existsSync(path.join(LOTS, lot))) bloquant(`STATE.json : ${lot}.rail ${JSON.stringify(v.rail)} n'est pas un rail autorisé — attendu ${BRANCHE_HISTORIQUE} ou handoff-*, jamais ${REFS_PROTEGEES.join('/')}`, 'RAIL_NON_AUTORISE', null); }
-  if (etat.derogations !== undefined) { if (!Array.isArray(etat.derogations)) bloquant('STATE.json : derogations doit être une liste'); else for (const d of etat.derogations) { for (const champ of ['fichier', 'regle', 'motif', 'autorise_par', 'le']) if (!d[champ]) bloquant(`STATE.json : dérogation incomplète — ${champ} manquant`); if (CODES_NON_DEROGEABLES.includes(d.regle)) bloquant(`STATE.json : ${d.regle} est un invariant de sécurité — aucune dérogation n'est recevable`); } }
+  if (etat.derogations !== undefined) { if (!Array.isArray(etat.derogations)) bloquant('STATE.json : derogations doit être une liste'); else for (const d of etat.derogations) { for (const champ of ['fichier', 'regle', 'motif', 'autorise_par', 'le']) if (!d[champ]) bloquant(`STATE.json : dérogation incomplète — ${champ} manquant`); if (CODES_NON_DEROGEABLES.includes(d.regle)) bloquant(`STATE.json : ${d.regle} est un invariant de sécurité — aucune dérogation n'est recevable`); if (d.valeur_retenue !== undefined) { const admis = SUBSTITUTIONS_ADMISES[d.regle] || []; if (!d.valeur_retenue || typeof d.valeur_retenue !== 'object' || Array.isArray(d.valeur_retenue)) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — valeur_retenue doit être un objet`); else if (!admis.length) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — aucune valeur retenue n'est admise pour cette règle (règles substituables : ${Object.keys(SUBSTITUTIONS_ADMISES).join('|')})`); else for (const champ of Object.keys(d.valeur_retenue)) if (!admis.includes(champ)) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — valeur retenue interdite pour ${champ} (admis : ${admis.join('|')})`); } } }
   return etat;
 }
 function enTeteMiroir(source) { return `<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/${source}\n     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->\n`; }
@@ -294,7 +344,7 @@ function verifier(ignorer) {
 function consommer(lot) {
   if (verifier(['PLUSIEURS_LOTS_ACTIFS']) !== 0) { console.error('\nREFUS — le registre ne valide pas ; aucune décision ne peut être consommée dans cet état.'); process.exit(1); }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot]; if (!v) { console.error(`Lot ${lot} inconnu.`); process.exit(1); } const dec = dernier(echanges(lot, 'decision'));
-  if (dec) { const demandes = echanges(lot, 'request'), r = lireEnveloppe(path.join(LOTS, lot, dec.fichier)), vise = r.env && r.env.in_reply_to ? path.basename(String(r.env.in_reply_to).trim()) : null, active = dernier(demandes); if (active && vise !== active.fichier) { console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`); console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.'); process.exit(1); } }
+  if (dec) { const demandes = echanges(lot, 'request'), vise = demandeVisee(lot, dec.fichier), active = dernier(demandes); if (active && vise !== active.fichier) { console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`); console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.'); process.exit(1); } }
   const source = dec ? 'registre' : 'legacy', cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION); let commit; try { commit = git('log', '-1', '--format=%H', '--', cible); } catch (e) { commit = ''; } if (!commit) { console.error(`Aucun commit trouvé pour ${cible} — refus de marquer une consommation invérifiable.`); process.exit(1); }
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
   v.statut = 'DECISION_CONSOMMEE'; v.derniere_decision = dec ? dec.fichier : null; v.source_decision = source; v.commit_decision = commit; v.consomme_le = new Date().toISOString(); fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}.`);
@@ -493,7 +543,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 

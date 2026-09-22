@@ -954,6 +954,158 @@ verifier('le rail ne se lit plus dans l’environnement', () => {
 });
 
 
+// ---------------------------------------------------------------------------
+// 21/09/2026 — deux défauts d'infrastructure du registre, réparés à la base.
+//
+// D1. `bloquant(m)` sans code recevait 'AUTRE' et un fichier null : AUCUNE
+//     dérogation ne pouvait viser la règle. Il existait donc trois catégories
+//     et non deux — dérogeable, non dérogeable par décision assumée
+//     (CODES_NON_DEROGEABLES), et non dérogeable par accident, silencieuse.
+//     C'est cette troisième qui a bloqué decision-12 : « closes doit valoir
+//     true ou false » n'était arbitrable par personne.
+// D2. Une dérogation savait dire « toléré », jamais « voici la valeur
+//     retenue ». `in_reply_to` n'est pas qu'une forme : trois outils lisaient
+//     la demande visée en la recalculant chacun de leur côté.
+// ---------------------------------------------------------------------------
+
+verifier('CLOSES_INVALIDE mord encore, et devient dérogeable', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'closes: true', 'closes: peut-etre');
+  const avant = valider(dir);
+  assert.strictEqual(avant.code, 1, 'un closes non booléen doit rester bloquant');
+  assert.ok(/closes doit valoir true ou false/.test(avant.sortie), avant.sortie);
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'CLOSES_INVALIDE',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21' }]; });
+  const apres = valider(dir);
+  assert.strictEqual(apres.code, 0, apres.sortie);
+  assert.ok(/DÉROGATION CLOSES_INVALIDE/.test(apres.sortie), 'la dérogation doit être réimprimée');
+});
+
+verifier('une dérogation sur un basename ne couvre pas un défaut qualifié par le lot', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'closes: true', 'closes: peut-etre');
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: 'decision-1.md', regle: 'CLOSES_INVALIDE',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21' }]; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 1, 'un basename nu couvrirait les homonymes de tous les lots');
+});
+
+verifier('aucun défaut ancré sur un fichier tiers ne reste sans code', () => {
+  // Le rouge d'aujourd'hui se voit ; le retour silencieux d'un bloquant sans
+  // code ne se verrait pas. Cette épreuve lit la source : tout appel dont le
+  // message commence par `${ou}` — donc ancré sur un fichier déposé par un
+  // tiers, qu'on ne réécrit jamais — doit porter un code ET le fichier
+  // qualifié. Les règles de STATE.json restent volontairement sans code :
+  // ce fichier est le nôtre, il se corrige, il ne se dérroge pas.
+  const source = fs.readFileSync(path.join(RACINE, 'outils', 'handoff.js'), 'utf8');
+  const nus = [];
+  let i = 0;
+  while ((i = source.indexOf('bloquant(', i)) !== -1) {
+    let k = i + 'bloquant('.length, profondeur = 1, args = [], cur = '', q = null;
+    while (k < source.length) {
+      const c = source[k];
+      if (q) { if (c === '\\') { cur += source.substr(k, 2); k += 2; continue; } if (c === q) q = null; cur += c; k++; continue; }
+      if (c === '"' || c === "'" || c === '`') { q = c; cur += c; k++; continue; }
+      if ('([{'.includes(c)) profondeur++;
+      else if (')]}'.includes(c)) { profondeur--; if (profondeur === 0) { args.push(cur); break; } }
+      if (c === ',' && profondeur === 1) { args.push(cur); cur = ''; k++; continue; }
+      cur += c; k++;
+    }
+    const a = args.map((x) => x.trim());
+    if (a.length && a[0].startsWith('`${ou}')) {
+      const ligne = source.slice(0, i).split('\n').length;
+      if (a.length < 3 || a[a.length - 1] !== 'ou') nus.push(`${ligne} : ${a[0].slice(0, 70)}`);
+    }
+    i += 'bloquant('.length;
+  }
+  assert.strictEqual(nus.length, 0, `bloquant(s) sans code ni fichier :\n  ${nus.join('\n  ')}`);
+});
+
+verifier('une dérogation sans valeur retenue tolère, mais ne désigne rien', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md\n', '');
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'IN_REPLY_TO_MANQUANT',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21' }]; });
+  assert.strictEqual(valider(dir).code, 0, 'la tolérance seule doit suffire à verdir la vérification');
+  const r = outil(dir, ['consommer', LOT]);
+  assert.strictEqual(r.code, 1, 'sans désignation, la consommation ne peut pas savoir à quoi la décision répond');
+  assert.ok(/répond à null/.test(r.sortie), r.sortie);
+});
+
+verifier('une valeur retenue fournit la désignation que l\'enveloppe ne porte pas', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md\n', '');
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'IN_REPLY_TO_MANQUANT',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21', valeur_retenue: { in_reply_to: 'request-1.md' } }]; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, r.sortie);
+  assert.ok(/valeur retenue : request-1\.md/.test(r.sortie), 'la valeur retenue doit être annoncée à voix haute');
+  assert.strictEqual(demandeViseeDansDir(dir), 'request-1.md');
+});
+
+verifier('une valeur retenue ne peut pas inventer une demande', () => {
+  const dir = registreSain();
+  remplacer(dir, 'decision-1.md', 'in_reply_to: request-1.md\n', '');
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'IN_REPLY_TO_MANQUANT',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21', valeur_retenue: { in_reply_to: 'request-9.md' } }]; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 1, 'une valeur retenue reste soumise aux contrôles de cohérence');
+  assert.ok(/ne désigne aucune demande de ce lot/.test(r.sortie), r.sortie);
+});
+
+verifier('une valeur retenue ne recouvre pas une valeur déclarée', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'IN_REPLY_TO_MANQUANT',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21', valeur_retenue: { in_reply_to: 'request-7.md' } }]; });
+  assert.strictEqual(valider(dir).code, 0);
+  assert.strictEqual(demandeViseeDansDir(dir), 'request-1.md',
+    'une dérogation comble une absence, elle ne réécrit pas ce qu\'un auteur a écrit');
+});
+
+verifier('une valeur retenue sur une règle non substituable est bloquante', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'SEQUENCE_NON_CONTIGUE',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21', valeur_retenue: { in_reply_to: 'request-1.md' } }]; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 1, 'le domaine des substitutions est fermé, pas ouvert');
+  assert.ok(/aucune valeur retenue n'est admise pour cette règle/.test(r.sortie), r.sortie);
+});
+
+verifier('une valeur retenue pour un champ non admis est bloquante', () => {
+  const dir = registreSain();
+  ecrireEtat(dir, (e) => { e.derogations = [{ fichier: `${LOT}/decision-1.md`, regle: 'IN_REPLY_TO_MANQUANT',
+    motif: 'Épreuve.', autorise_par: 'Épreuve', le: '2026-09-21', valeur_retenue: { closes: true } }]; });
+  const r = valider(dir);
+  assert.strictEqual(r.code, 1);
+  assert.ok(/valeur retenue interdite pour closes/.test(r.sortie), r.sortie);
+});
+
+verifier('la demande visée se résout en un seul endroit', () => {
+  // Trois outils recalculaient `basename(in_reply_to)`. Deux d'entre eux
+  // n'avaient alors aucun moyen de voir l'arbitrage humain, et le réveil de
+  // l'Orchestrateur réveillait Claude sur une demande déjà tranchée.
+  const outilHandoff = fs.readFileSync(path.join(RACINE, 'outils', 'handoff.js'), 'utf8');
+  assert.strictEqual((outilHandoff.match(/function demandeVisee\(/g) || []).length, 1,
+    'le résolveur doit être défini une seule fois');
+  assert.ok(/module\.exports = \{[^}]*demandeVisee/.test(outilHandoff), 'le résolveur doit être exporté');
+  for (const f of ['reveil-handoff.js', 'reveil-orchestrateur.js']) {
+    const src = fs.readFileSync(path.join(RACINE, 'outils', f), 'utf8');
+    assert.ok(/handoff\.demandeVisee\(/.test(src), `${f} doit demander la désignation au registre`);
+    assert.ok(!/in_reply_to\s*\n?\s*\?|basename\(String\([^)]*in_reply_to/.test(src),
+      `${f} ne doit pas recalculer la désignation`);
+  }
+});
+
+// `demandeVisee` se lit dans un processus séparé : le registre est repointé par
+// NEXUS_HANDOFF_DIR, qui est lu au chargement du module.
+function demandeViseeDansDir(dir) {
+  const sortie = execFileSync('node',
+    ['-e', `const h=require(${JSON.stringify(OUTIL)});process.stdout.write(String(h.demandeVisee(${JSON.stringify(LOT)},'decision-1.md')))`],
+    { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  return sortie.trim();
+}
+
+
 if (echecs.length) {
   console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);
   for (const e of echecs) console.error(`\n— ${e.nom}\n  ${String(e.message).split('\n').join('\n  ')}`);

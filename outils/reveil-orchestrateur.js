@@ -161,12 +161,11 @@ function examiner(etat) {
     if (!active) continue;
 
     const derniere = handoff.dernier(handoff.echanges(lot, 'decision'));
-    let repond = null;
-    if (derniere) {
-      const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, derniere.fichier));
-      repond = env && env.env && env.env.in_reply_to
-        ? path.basename(String(env.env.in_reply_to).trim()) : null;
-    }
+    // La demande visée se demande au registre (handoff.demandeVisee), elle ne
+    // se recalcule pas ici : quand un humain a retenu la désignation par
+    // dérogation, la recalculer depuis l'enveloppe rendait `null` et cette
+    // boucle réveillait Claude sur une demande déjà arbitrée.
+    const repond = derniere ? handoff.demandeVisee(lot, derniere.fichier) : null;
     if (repond && repond === active.fichier) continue; // arbitrée : rien à demander
 
     const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, active.fichier));

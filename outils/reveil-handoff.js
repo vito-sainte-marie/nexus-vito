@@ -70,9 +70,11 @@ function examiner(etat) {
 
     const demandes = handoff.echanges(lot, 'request');
     const active = handoff.dernier(demandes);
-    const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, derniere.fichier));
-    const vise = env && env.env && env.env.in_reply_to
-      ? path.basename(String(env.env.in_reply_to).trim()) : null;
+    // La demande visée se demande au registre, elle ne se recalcule pas ici :
+    // une désignation retenue par dérogation est invisible depuis l'enveloppe
+    // seule, et ce réveil concluait alors « décision périmée » sur une
+    // décision parfaitement arbitrée.
+    const vise = handoff.demandeVisee(lot, derniere.fichier);
     const perimee = !!(active && vise && vise !== active.fichier);
 
     lots.push({
