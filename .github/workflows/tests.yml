@@ -56,7 +56,11 @@ jobs:
           node-version: '24'
 
       - name: Cohérence des épingles de cache
-        run: node outils/poser-build-id.js --verifier
+        env:
+          NEXUS_ENV: test
+          NEXUS_SUPABASE_URL: https://udljdqxerrbbbajxubfn.supabase.co
+          NEXUS_SUPABASE_ANON_KEY: sb_publishable_essai0000000000
+        run: bash outils/build.sh
 
       - name: Suite de non-régression
         id: suite
