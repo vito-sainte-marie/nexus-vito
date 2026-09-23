@@ -1,83 +1,102 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-7.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 6
+seq: 7
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-7.md
+in_reply_to: request-8.md
 ---
-# Décision — arbitrage de la question ouverte au §6 de `request-7.md`
+# Décision — arbitrage des éléments techniques déterministes de `request-8.md`
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-7.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-8.md`.
 
 ## Motif
 
-Le diagnostic de `request-7.md` est retenu tel quel : 19 échecs nouveaux, tous imputables au seul
-commit `290a217f` (portage mécanique de 7 fichiers de la chaîne build/config), la liste `CONNUS`
-(7 échecs) restant intacte et non touchée. Ce n'est pas de la dette mécanique : `nexus-auth.js`
-porte deux lignées de développement divergentes depuis un fork ancien — le refactor build/config du
-rail (`NEXUS_CFG` fail closed, `NexusPage`/`NexusBuild`) d'un côté, les fonctions métier de la
-candidate (`nexusEstManager`, `nexusFuseauValide`, bloc `NEXUS-FUSEAU-METIER`, développées entre le
-16 et le 20/09 pour la continuité terrain) de l'autre. Le portage du 22/09 a traité le fichier comme
-un simple maillon de chaîne build/config et l'a remplacé en bloc, effaçant la seconde lignée — dont
-aucune autre copie n'existe sur le rail (confirmé : zéro occurrence de `nexusEstManager` et
-`nexusFuseauValide` sur `handoff-continuite-20260920`).
+`request-8.md` exécute correctement `decision-6.md` sur ses trois premiers points (réconciliation de
+`request-7.md`, matérialisation de `decision-6.md`, correctif isolé à un seul hunk) et applique de
+bonne foi la condition d'arrêt de `decision-6.md` (« retour par nouveau `request-N.md` [...] si [...]
+un risque matériel subsiste après la préparation du correctif ») sur les deux points restants, plutôt
+que de déclarer un succès non acquis. Les deux points relèvent de registres différents : l'un est
+une maintenance de harnais de test déterministe, l'autre reste une question de fait non observable
+depuis ce canal. Ils sont donc tranchés séparément ci-dessous — aucun des deux n'introduit de
+nouvelle règle métier, d'accès, de rôle ou de RLS.
 
-## Arbitrage de la question posée
+## Point 1 — les deux adaptations de harnais `NEXUS_CONFIG` : approuvées comme maintenance de test
 
-**Aucune nouvelle règle métier n'est nécessaire pour trancher ce point.** La règle d'architecture
-progressive et la priorité de continuité terrain, déjà établies pour ce lot, suffisent : elles
-interdisent d'écraser un comportement applicatif éprouvé pour homogénéiser une chaîne de build. Le
-choix n'est donc pas entre deux politiques métier concurrentes — c'est une correction de portage :
-le portage du 22/09 a transporté plus que ce que son propre message annonçait (« mécanique »).
+`test_cloture_services_obsoletes_20260916.js` et `test_regularisation_manager_20260916.js` chargent
+`nexus-auth.js` en entier via `vm.runInContext` avec un `ctx.window` antérieur à l'existence de la
+précondition fail-closed `NEXUS_CFG` (introduite par le correctif de `decision-6.md`, elle-même
+copiée du rail : `window.NEXUS_CONFIG` doit porter `supabaseUrl`, `supabaseCle` et `environnement`,
+tous trois véridiques, sinon `throw new Error(...)`).
 
-## Correctif autorisé
+Le patch proposé au §4 de `preuve-diff-nexus-auth-corrige-65-20260923.md` ajoute exactement :
+```js
+NEXUS_CONFIG: { environnement: 'test', supabaseUrl: 'https://test.supabase.co', supabaseCle: 'anon-test' }
+```
+Vérifié : les trois champs exigés par la garde sont présents et véridiques, aucun champ n'est vide
+ni falsifié pour contourner le `if (!NEXUS_CFG || !NEXUS_CFG.supabaseUrl || ...)`, et la garde
+elle-même n'est ni retirée ni monkey-patchée — le harnais apprend la précondition, il ne la
+désarme pas. C'est le même principe que celui déjà appliqué par `test_securite_lot_isolation_20260904.js`
+sur le rail, cité comme précédent dans `request-8.md`. **Approuvé comme maintenance de test pure**,
+au sens strict posé par le réveil : aucune règle d'autorisation nouvelle, aucun champ non exigé par
+la garde, aucune valeur destinée à masquer un échec plutôt qu'à satisfaire la précondition.
 
-Préparer, en préparation/Test uniquement, la correction minimale de la candidate #65 :
-1. conserver le `nexus-auth.js` fonctionnel de la lignée `fe36a8e` (fonctions métier de continuité
-   terrain intactes) comme base ;
-2. ne transporter depuis le rail, dans `nexus-auth.js`, que les éléments réellement nécessaires à
-   la chaîne build/config (garde `NEXUS_CFG`, `NexusPage`/`NexusBuild`) — jamais un remplacement en
-   bloc du fichier ;
-3. pour les 6 autres fichiers du portage (`_headers`, `nexus-bandeau-environnement.js`,
-   `nexus-page.js`, `outils/build.sh`, `outils/generer-config.js`, `outils/poser-build-id.js`),
-   aucun changement de portée par cette décision : rien dans `request-7.md` n'indique qu'ils
-   portent une régression fonctionnelle.
+Condition : le patch déposé doit être *identique* à celui cité (mêmes trois champs, valeurs de
+portée Test uniquement — jamais une URL/clé réelle) ; toute divergence n'est plus couverte par cette
+décision et doit revenir par un nouveau `request-N.md`.
 
-## Preuves exigées avant toute suite
+## Point 2 — normalisation pathname/Cloudflare : NON tranché, gate factuelle conservée
 
-1. Preuve par diff que les fonctions/contrôles d'accès, le fuseau métier, le pointage et l'accès
-   hors service ne régressent pas après la fusion.
-2. Suite candidate rejouée : retour à **217/224**, exactement les 7 échecs `CONNUS`, sans aucune
-   modification de la liste `CONNUS` pour masquer un rouge.
-3. Seulement après CI verte sur ces deux points : reprise de la preuve séparée d'identité de
-   preview et du `nexus-config.js` réellement servi, ciblant exclusivement Supabase Test — condition
-   cumulative déjà posée par `decision-3.md`/`decision-4.md`, inchangée par cette décision.
+**Aucune décision n'est rendue sur ce point.** `request-8.md` signale, sans la résoudre, une question
+de fait : est-ce que le déploiement Cloudflare Pages de la candidate #65 retire l'extension `.html`
+des URL, comme celui qui avait déjà causé une boucle de redirection le 04/09/2026 avant l'existence
+de `NexusPage` ? Cette information n'est observable que depuis le tableau de bord Cloudflare Pages de
+la candidate — ce canal ne peut ni l'observer ni la supposer, dans un sens comme dans l'autre.
 
-## Transport — même limite technique que `decision-5.md`
+Le correctif local proposé (normaliser `.html` des deux côtés de la comparaison dans
+`nexusCategorieAcces`) **n'est pas autorisé par cette décision**, même à titre préventif : c'est une
+modification de la logique d'accès, et `decision-6.md` limite déjà le transport « aux éléments
+réellement nécessaires à la chaîne build/config » — l'étendre à une correction défensive du code
+d'accès, sans preuve qu'elle est nécessaire, romprait cette limite et transformerait une question de
+configuration en règle d'accès nouvelle, ce que ce lot interdit explicitement.
 
-Écriture directe sur `rebuild/carburants-65-20260922` et sur `.github/workflows/*.yml` restent hors
-de portée de cet agent dans ce canal, quelle que soit la branche. Cette décision autorise le contenu
-du correctif, pas un moyen de le transporter que ce canal n'a pas. Conformément à `decision-4.md`,
-aucune sollicitation de Frédéric n'est due pour ce seul blocage de transport.
+Ce point reste donc une **gate factuelle ouverte**, à lever par observation (quiconque a accès au
+tableau de bord Cloudflare Pages de la candidate, ou par une preuve de comportement réel après
+déploiement), pas par arbitrage. Le lot reste ouvert (`closes: false`) tant que ce point n'est pas
+levé.
 
-## Conditions d'arrêt (STOP)
+## Périmètre autorisé par cette décision
 
-Retour par nouveau `request-N.md` canonique — pas d'exécution silencieuse au-delà — si : la
-conservation de `nexus-auth.js` de la lignée `fe36a8e` crée une incompatibilité réelle avec
-`build.sh`/`generer-config.js` ; une règle d'autorisation doit être modifiée pour que la fusion
-fonctionne ; ou un risque matériel subsiste après la préparation du correctif.
+1. Déposer, dans le même commit que le correctif source déjà préparé, les deux patchs de harnais de
+   test identifiés au §4 de `preuve-diff-nexus-auth-corrige-65-20260923.md` — texte exact, aucune
+   variante.
+2. Rejouer `node run-tests.js` sur l'arbre candidate ainsi corrigé et rapporter le résultat exact
+   (retour à 217/224 attendu, avec la liste `CONNUS` inchangée).
+3. Reprendre ensuite, seulement si (2) est vert, l'item 5 déjà posé par `decision-3.md`/`decision-4.md`/
+   `decision-6.md` (preuve d'identité de preview / `nexus-config.js` réellement servi, Supabase Test).
+
+Ce périmètre reste soumis à la même limite de transport que `decision-5.md`/`decision-6.md` : écriture
+sur `rebuild/carburants-65-20260922` et sur `.github/workflows/*.yml` hors de portée de cet agent
+dans ce canal, quelle que soit la branche. Aucune sollicitation de Frédéric n'est due pour ce seul
+blocage de transport (déjà arbitré par `decision-4.md`).
+
+## Conditions d'arrêt (STOP), inchangées et complétées
+
+Retour par nouveau `request-N.md` canonique — pas d'exécution silencieuse au-delà — si : le patch de
+harnais déposé diverge de celui cité au point 1 ; la suite candidate rejouée ne revient pas
+exactement à 217/224 avec les 7 `CONNUS` inchangés ; ou la question Cloudflare du point 2 devient
+observable et révèle un risque réel sur `NEXUS-Pointage-v1.html`/`NEXUS-Prise-De-Poste-v1.html`.
 
 ## Interdits absolus
 
 Aucun changement `main`/`production`, aucune migration/écriture Supabase Production, aucun
 déploiement/promotion Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun secret exposé.
-`NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot. La candidate n'est
-toujours pas déclarée prête.
+`NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot. La candidate n'est toujours
+pas déclarée prête.
