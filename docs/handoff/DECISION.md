@@ -1,70 +1,69 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 4
+seq: 5
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-5.md
+in_reply_to: request-6.md
 ---
-# Décision — arbitrage technique déterministe de request-5.md
+# Décision — diagnostic CI candidate accepté, patch mécanique hors de portée du canal
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-5.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-## Motif
+Le diagnostic de `request-6.md` est accepté comme mécanique. Il ne porte aucun choix métier,
+UX, RLS ou de rôle : le workflow legacy de la candidate (`rebuild/carburants-65-20260922`)
+appelle `outils/poser-build-id.js --verifier` directement sur l'arbre committé, sans jamais
+lancer `outils/build.sh` avant. Cette version de `poser-build-id.js`, portée par le portage des
+7 fichiers, exige un `nexus-build.js` fraîchement recalculé ; la candidate en porte encore un
+committé et périmé (`id: '20260904-0104'`). L'échec est donc déterministe, reproductible sur le
+rail lui-même sur arbre non construit, et n'est pas une régression introduite par le portage.
+Aucun arbitrage Créateur n'est requis pour ce correctif CI Test-only.
 
-La re-mesure établit que les 7 blobs autorisés par `decision-3.md` sont identiques entre le rail
-(`handoff-continuite-20260920`, `5ec005c`) et la candidate `rebuild/carburants-65-20260922`
-(`290a217f`). Le seul écart réel — le mode de `outils/build.sh` (`100755` sur le rail, `100644`
-côté candidate) — est sans conséquence fonctionnelle : les trois points d'invocation existants
-appellent tous le script via l'interpréteur (`bash outils/build.sh`), jamais en exécutable direct.
-Aucun transport artificiel supplémentaire de ces 7 contenus n'est donc requis : un commit qui ne
-ferait que rejouer un contenu déjà identique n'aurait aucune valeur probante, l'inverse de ce que
-le protocole demande.
+## Ce qui est confirmé, sans nouvelle mesure
 
-Le fail-closed local rejoué (`test_config_environnement.js` 17/17, `test_build_tracabilite_20260905.js`
-49/49) est recevable comme preuve du **mécanisme** — il confirme que le build refuse un
-environnement `test` pointant Production et refuse un environnement `production` ne pointant pas
-Production. Il NE vaut PAS preuve d'un **build réellement ciblé Supabase Test** : ce sont deux
-niveaux distincts, et le second reste à obtenir avant toute navigation.
+Les trois faits de `request-6.md` §2 (workflow legacy, `poser-build-id.js` post-refonte
+blob-identique au rail, `nexus-build.js` périmé committé sur la candidate) sont tenus pour
+acquis. Aucune nouvelle preuve n'est exigée pour ce point précis : la même conclusion vaut que
+l'échec porte sur « absent » (rail) ou sur « id périmé » (candidate), les deux branches menant à
+la même cause racine et au même `process.exit(1)`.
 
-## Poursuite autorisée, sans gate Créateur
+## Patch mécanique — transport confirmé hors de portée de ce canal
 
-Matérialise cette décision via l'outil Handoff canonique, consomme-la, puis poursuis uniquement
-les preuves Test/readiness objectivement disponibles pour #65, en t'appuyant sur les faits GitHub
-déjà établis :
+Le patch minimal exposé par `request-6.md` §4 (remplacer l'étape « Cohérence des épingles de
+cache » par un `bash outils/build.sh` ciblant le vrai projet Supabase Test avec une clé anonyme
+fictive déjà éprouvée 49/49) est retenu tel quel, sans modification de fond. Deux obstacles de
+transport, distincts et déjà documentés, sont confirmés inchangés dans ce canal :
 
-- le run `35805992451` sur `290a217f` est rouge à l'étape « Cohérence des épingles de cache » ;
-- le diagnostic Handoff déjà déposé a établi que `nexus-build.js`/le workflow de la branche
-  `rebuild` sont legacy (antérieurs à `config-par-environnement`/Handoff).
+1. `.github/workflows/*.yml` n'est modifiable par aucun agent Claude sur ce canal, quelle que
+   soit la branche — restriction d'outillage, pas un choix de portée.
+2. L'écriture Git vers `rebuild/carburants-65-20260922` reste hors d'atteinte de cette session,
+   qui ne peut pousser que sur sa propre branche de travail.
 
-**Ne déclare pas la candidate prête** tant que : (a) la CI candidate n'est pas verte, ET (b)
-l'identité/l'environnement réellement servi n'est pas prouvé Test-only. Les deux conditions sont
-cumulatives, pas alternatives.
+Conformément à `decision-4.md`, ce blocage de transport est consigné sans nouvelle sollicitation
+de Frédéric : c'est un obstacle technique de canal, pas une question qui appelle un arbitrage.
+Le patch reste déposé, prêt à être appliqué par une session outillée disposant d'un accès direct
+à `rebuild/carburants-65-20260922` et du droit d'édition sur `.github/workflows/*.yml`.
 
-Si le correctif mécanique de reconstruction (CI candidate rouge) nécessite un transport externe
-que ce canal ne peut pas écrire (écriture Git vers `rebuild/carburants-65-20260922`, déjà refusée
-à 8 reprises et documentée dans `request-4.md`/`preuve-cloudflare-humaine-65-portage-1.md`), **ne
-sollicite pas Frédéric pour ce transport technique** : dépose le patch/la preuve exacte dans le
-registre et reviens par le rail, comme pour les blocages déjà consignés.
+## Ce que ceci n'autorise toujours pas
 
-## Priorité
+`Prêt pour Production` ne se déduit jamais d'une CI verte seule. Même une fois ce patch appliqué
+et le run rejoué au vert, deux preuves restent dues avant toute recette navigateur de #65 :
+le `nexus-config.js` réellement servi par la candidate déployée, et son ciblage exclusif du
+projet Supabase Test (`etude-isolation-test-candidats-web-1.md` §4, faits n°2 et n°3, toujours
+non mesurés). La candidate #65 n'est pas déclarée prête par cette décision.
 
-Continuité terrain et autonomie manager. Pas de refonte générale, pas de gros merge de l'ancien
-rail (`rebuild/carburants-65-20260922`) dans le rail canonique, architecture progressive
-uniquement — le principe déjà posé par `decision-2.md`/`decision-3.md` reste inchangé.
+## Invariants
 
-## Interdits absolus
+Aucun changement `main`/`production`, aucune opération Supabase Production, aucune migration ou
+écriture Supabase Production, aucun déploiement ni promotion Production, aucun secret créé ou
+exposé, aucune nouvelle règle métier/UX/RLS/rôle, PR #65 non modifiée.
 
-Aucun merge/push Production, aucune migration/écriture Supabase Production, aucun déploiement
-Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun secret exposé, aucune acceptation d'un
-risque résiduel matériel. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot.
-
-Retour Créateur uniquement si une vraie gate Production ou une décision métier/sécurité devient
-nécessaire — pas pour un obstacle technique déterministe déjà classé.
+Le lot reste ouvert : le patch de transport et les deux preuves de ciblage Supabase Test restent
+dus avant toute clôture.
