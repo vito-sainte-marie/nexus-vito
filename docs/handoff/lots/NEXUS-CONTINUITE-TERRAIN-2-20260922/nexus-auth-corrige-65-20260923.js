@@ -283,6 +283,23 @@ const NEXUS_PAGES_PUBLIQUES = [
 ];
 
 /**
+ * Identifiant d'écran, normalisé pour la comparaison SEULEMENT.
+ *
+ * Cloudflare Pages retire l'extension `.html` de l'URL servie ; GitHub Pages
+ * la conserve. `nexus-page.js` existe pour cette même raison côté navigation
+ * (04/09/2026) mais n'est pas chargé par tous les écrans, et `nexus-auth.js`
+ * ne peut pas en dépendre (voir plus haut). Sans cette normalisation, un
+ * écran de CONSULTATION servi sans extension retomberait sur le défaut
+ * OPÉRATIONNEL — pas une ouverture, mais un blocage inattendu, et déjà la
+ * cause exacte de la boucle de redirection du 04/09/2026 sur la prise de
+ * poste. Les LISTES elles-mêmes ne changent pas : seule la comparaison
+ * devient insensible au suffixe.
+ */
+function nexusIdentifiantAccesNormalise(page){
+  return typeof page === 'string' ? page.replace(/\.html$/, '') : page;
+}
+
+/**
  * À quelle catégorie d'accès appartient cet écran ?
  *
  * 'sequence'     — les deux écrans du parcours de prise de poste eux-mêmes ;
@@ -293,9 +310,11 @@ const NEXUS_PAGES_PUBLIQUES = [
  *                  défaut, pour qu'un écran oublié reste fermé.
  */
 function nexusCategorieAcces(page){
-  if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page))return 'sequence';
-  if(NEXUS_PAGES_CONSULTATION.includes(page))return 'consultation';
-  if(NEXUS_PAGES_PUBLIQUES.includes(page))return 'publique';
+  const cible = nexusIdentifiantAccesNormalise(page);
+  const correspond = liste => liste.some(entree => nexusIdentifiantAccesNormalise(entree) === cible);
+  if(correspond(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE))return 'sequence';
+  if(correspond(NEXUS_PAGES_CONSULTATION))return 'consultation';
+  if(correspond(NEXUS_PAGES_PUBLIQUES))return 'publique';
   return 'operationnel';
 }
 
