@@ -1,67 +1,83 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-6.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 5
+seq: 6
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-6.md
+in_reply_to: request-7.md
 ---
-# Décision — arbitrage technique déterministe de request-6.md
+# Décision — arbitrage de la question ouverte au §6 de `request-7.md`
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-6.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-7.md`.
 
 ## Motif
 
-Le diagnostic de `request-6.md` est retenu tel quel : la CI rouge de la candidate
-(`rebuild/carburants-65-20260922`, run `35805992451`, étape « Cohérence des épingles de cache »)
-n'est pas une régression du portage des 7 fichiers, mais une incompatibilité structurelle entre le
-workflow legacy de la candidate (`node outils/poser-build-id.js --verifier` appelé directement sur
-l'arbre committé brut) et la version post-refonte de `outils/poser-build-id.js` que la candidate a
-reçue par ce même portage (blob identique au rail, confirmé par `request-5.md`). Le fait que
-`--verifier` échoue aussi sur l'arbre brut du rail lui-même confirme la cause structurelle plutôt
-qu'un défaut propre à #65.
+Le diagnostic de `request-7.md` est retenu tel quel : 19 échecs nouveaux, tous imputables au seul
+commit `290a217f` (portage mécanique de 7 fichiers de la chaîne build/config), la liste `CONNUS`
+(7 échecs) restant intacte et non touchée. Ce n'est pas de la dette mécanique : `nexus-auth.js`
+porte deux lignées de développement divergentes depuis un fork ancien — le refactor build/config du
+rail (`NEXUS_CFG` fail closed, `NexusPage`/`NexusBuild`) d'un côté, les fonctions métier de la
+candidate (`nexusEstManager`, `nexusFuseauValide`, bloc `NEXUS-FUSEAU-METIER`, développées entre le
+16 et le 20/09 pour la continuité terrain) de l'autre. Le portage du 22/09 a traité le fichier comme
+un simple maillon de chaîne build/config et l'a remplacé en bloc, effaçant la seconde lignée — dont
+aucune autre copie n'existe sur le rail (confirmé : zéro occurrence de `nexusEstManager` et
+`nexusFuseauValide` sur `handoff-continuite-20260920`).
+
+## Arbitrage de la question posée
+
+**Aucune nouvelle règle métier n'est nécessaire pour trancher ce point.** La règle d'architecture
+progressive et la priorité de continuité terrain, déjà établies pour ce lot, suffisent : elles
+interdisent d'écraser un comportement applicatif éprouvé pour homogénéiser une chaîne de build. Le
+choix n'est donc pas entre deux politiques métier concurrentes — c'est une correction de portage :
+le portage du 22/09 a transporté plus que ce que son propre message annonçait (« mécanique »).
 
 ## Correctif autorisé
 
-Le patch mécanique déposé au §4 de `request-6.md` est approuvé sans modification : remplacer, dans
-`.github/workflows/tests.yml` de la candidate, l'étape `run: node outils/poser-build-id.js
---verifier` par l'exécution de la vraie chaîne (`env` Test explicite + `run: bash outils/build.sh`),
-avec les identifiants déjà utilisés 49/49 fois par `test_build_tracabilite_20260905.js` sur le rail
-(URL publique du projet Test `nexus-test`, clé anonyme fictive) — aucune valeur nouvelle, aucun
-secret réel. Strictement limité à cette étape : aucune logique Carburants, aucun rôle/RLS, aucune
-UX, aucune autre extension.
-
-## Transport — condition non remplie, aucune escalade
-
-`request-6.md` classe `transport-patch-canal` en `NOT_APPLICABLE` : écriture de
-`.github/workflows/*.yml` hors de portée de cet agent quelle que soit la branche, et écriture Git
-vers `rebuild/carburants-65-20260922` refusée par le harnais. Cette décision ne lève aucune de ces
-deux limites techniques — elle autorise le contenu du patch, pas un moyen de le transporter que ce
-canal n'a pas. Conformément à `decision-4.md`, aucune sollicitation de Frédéric n'est due pour ce
-seul blocage de transport : le patch reste déposé dans le registre, prêt à être appliqué par une
-session outillée (accès `.github/workflows/*` + écriture sur `rebuild/carburants-65-20260922`).
+Préparer, en préparation/Test uniquement, la correction minimale de la candidate #65 :
+1. conserver le `nexus-auth.js` fonctionnel de la lignée `fe36a8e` (fonctions métier de continuité
+   terrain intactes) comme base ;
+2. ne transporter depuis le rail, dans `nexus-auth.js`, que les éléments réellement nécessaires à
+   la chaîne build/config (garde `NEXUS_CFG`, `NexusPage`/`NexusBuild`) — jamais un remplacement en
+   bloc du fichier ;
+3. pour les 6 autres fichiers du portage (`_headers`, `nexus-bandeau-environnement.js`,
+   `nexus-page.js`, `outils/build.sh`, `outils/generer-config.js`, `outils/poser-build-id.js`),
+   aucun changement de portée par cette décision : rien dans `request-7.md` n'indique qu'ils
+   portent une régression fonctionnelle.
 
 ## Preuves exigées avant toute suite
 
-Une fois le patch effectivement transporté et rejoué : (a) CI verte sur la candidate ; (b) preuve
-distincte — pas seulement l'absence d'appel réseau dans `generer-config.js` — que le build
-réellement servi cible exclusivement le projet Supabase Test (`udljdqxerrbbbajxubfn`), jamais
-Production, avant toute recette navigateur. Les deux conditions restent cumulatives, comme posé par
-`decision-3.md`/`decision-4.md`. La candidate n'est toujours pas déclarée prête.
+1. Preuve par diff que les fonctions/contrôles d'accès, le fuseau métier, le pointage et l'accès
+   hors service ne régressent pas après la fusion.
+2. Suite candidate rejouée : retour à **217/224**, exactement les 7 échecs `CONNUS`, sans aucune
+   modification de la liste `CONNUS` pour masquer un rouge.
+3. Seulement après CI verte sur ces deux points : reprise de la preuve séparée d'identité de
+   preview et du `nexus-config.js` réellement servi, ciblant exclusivement Supabase Test — condition
+   cumulative déjà posée par `decision-3.md`/`decision-4.md`, inchangée par cette décision.
+
+## Transport — même limite technique que `decision-5.md`
+
+Écriture directe sur `rebuild/carburants-65-20260922` et sur `.github/workflows/*.yml` restent hors
+de portée de cet agent dans ce canal, quelle que soit la branche. Cette décision autorise le contenu
+du correctif, pas un moyen de le transporter que ce canal n'a pas. Conformément à `decision-4.md`,
+aucune sollicitation de Frédéric n'est due pour ce seul blocage de transport.
+
+## Conditions d'arrêt (STOP)
+
+Retour par nouveau `request-N.md` canonique — pas d'exécution silencieuse au-delà — si : la
+conservation de `nexus-auth.js` de la lignée `fe36a8e` crée une incompatibilité réelle avec
+`build.sh`/`generer-config.js` ; une règle d'autorisation doit être modifiée pour que la fusion
+fonctionne ; ou un risque matériel subsiste après la préparation du correctif.
 
 ## Interdits absolus
 
-Aucun merge/push Production, aucune migration/écriture Supabase Production, aucun déploiement
-Production, aucune promotion Production sans accord explicite de Frédéric, aucune nouvelle règle
-métier/UX/RLS/rôle, aucun secret exposé. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le
-rail de ce lot.
-
-Retour Créateur uniquement si une vraie gate Production ou une décision métier/sécurité devient
-nécessaire — pas pour ce seul obstacle technique de transport, déjà classé.
+Aucun changement `main`/`production`, aucune migration/écriture Supabase Production, aucun
+déploiement/promotion Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun secret exposé.
+`NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot. La candidate n'est
+toujours pas déclarée prête.
