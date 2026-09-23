@@ -1,70 +1,71 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 4
+seq: 5
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-5.md
+in_reply_to: request-6.md
 ---
-# Décision — arbitrage technique déterministe de request-5.md
+# Décision — GO ratification de request-6, avec exigence de correction à la racine
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-5.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-## Motif
+Frédéric ratifie `request-6.md` : le diagnostic mécanique de la « Cohérence des épingles de
+cache » (workflow legacy de la candidate appelant `--verifier` sans construire l'arbre au
+préalable) est accepté comme cause exacte de cet échec précis, et le patch mécanique proposé
+(`bash outils/build.sh` à la place de `node outils/poser-build-id.js --verifier`) reste valide
+pour ce symptôme.
 
-La re-mesure établit que les 7 blobs autorisés par `decision-3.md` sont identiques entre le rail
-(`handoff-continuite-20260920`, `5ec005c`) et la candidate `rebuild/carburants-65-20260922`
-(`290a217f`). Le seul écart réel — le mode de `outils/build.sh` (`100755` sur le rail, `100644`
-côté candidate) — est sans conséquence fonctionnelle : les trois points d'invocation existants
-appellent tous le script via l'interpréteur (`bash outils/build.sh`), jamais en exécutable direct.
-Aucun transport artificiel supplémentaire de ces 7 contenus n'est donc requis : un commit qui ne
-ferait que rejouer un contenu déjà identique n'aurait aucune valeur probante, l'inverse de ce que
-le protocole demande.
+Condition explicite posée avant toute nouvelle action : **ne pas réparer uniquement le symptôme
+pour obtenir une CI verte**. Une preuve plus récente (run `35838111274`) montre que le portage
+complet des 7 fichiers du rail vers la candidate a également supprimé, dans `nexus-auth.js`, des
+primitives encore consommées par la lignée #65 (`nexusEstManager`, `nexusFuseauSite`, etc.),
+provoquant 20 nouveaux échecs. Le lot doit établir la cause racine de cette divergence — pas
+seulement rétablir un vert test par test ni étendre la liste des échecs « connus ».
 
-Le fail-closed local rejoué (`test_config_environnement.js` 17/17, `test_build_tracabilite_20260905.js`
-49/49) est recevable comme preuve du **mécanisme** — il confirme que le build refuse un
-environnement `test` pointant Production et refuse un environnement `production` ne pointant pas
-Production. Il NE vaut PAS preuve d'un **build réellement ciblé Supabase Test** : ce sont deux
-niveaux distincts, et le second reste à obtenir avant toute navigation.
+## Périmètre autorisé (Test uniquement, hors Production)
 
-## Poursuite autorisée, sans gate Créateur
+1. Établir l'arbre causal complet des 20 nouveaux échecs : cause commune, dépendances de
+   l'auth/config moderne, primitives candidate-only perdues, échecs réellement indépendants —
+   chaque classe prouvée, pas supposée.
+2. Comparer architecturalement la lignée #65 avant portage, le rail canonique actuel et la
+   Production pertinente : identifier pourquoi le transport d'infrastructure a remplacé une API
+   encore consommée au lieu de préserver un contrat compatible.
+3. Définir le plus petit correctif de cause racine — idéalement une frontière/contrat d'auth/
+   config compatible avec la candidate, conservant les primitives métier nécessaires tout en
+   supprimant le ciblage Production en dur. Ne pas réintroduire l'auth legacy complète si une
+   couche d'adaptation minimale suffit.
+4. Vérifier qu'aucune autre primitive/API candidate-only n'est perdue par les 7 fichiers
+   transportés — chercher systématiquement les consommateurs avant de conclure.
+5. Rejouer les tests pertinents et la suite complète sur un arbre jetable si le canal le permet.
+   Ne requalifier aucun échec en « connu » sans preuve.
+6. Si le correctif est architecturalement sûr, minimal, sans règle métier nouvelle et
+   déterministe : produire le patch exact et les contre-preuves dans le Handoff. Si son transport
+   sur la branche candidate reste impossible depuis le canal d'exécution, ne pas contourner :
+   déposer tout ce qui permet son application externe exacte.
+7. Après application éventuelle : CI entièrement verte, puis preuve séparée du `nexus-config.js`
+   réellement servi et du ciblage exclusif Supabase Test. Aucune recette navigateur avant cette
+   preuve Test-only.
+8. Si une décision métier/sécurité/RLS s'avère nécessaire : STOP, remonter précisément
+   l'arbitrage à Frédéric. Sinon poursuivre automatiquement jusqu'au prochain vrai gate.
 
-Matérialise cette décision via l'outil Handoff canonique, consomme-la, puis poursuis uniquement
-les preuves Test/readiness objectivement disponibles pour #65, en t'appuyant sur les faits GitHub
-déjà établis :
+## Pourquoi `closes: false`
 
-- le run `35805992451` sur `290a217f` est rouge à l'étape « Cohérence des épingles de cache » ;
-- le diagnostic Handoff déjà déposé a établi que `nexus-build.js`/le workflow de la branche
-  `rebuild` sont legacy (antérieurs à `config-par-environnement`/Handoff).
+Le lot n'est pas terminé : la cause racine de la divergence auth/config n'est pas encore établie,
+le correctif (s'il existe) n'est ni transporté ni prouvé vert en CI, et la preuve de ciblage
+Supabase Test réel reste à faire séparément. `request-6.md` répondait à un sous-diagnostic
+mécanique valide mais partiel ; ce verdict le ratifie et étend le périmètre vers la cause racine
+demandée par Frédéric.
 
-**Ne déclare pas la candidate prête** tant que : (a) la CI candidate n'est pas verte, ET (b)
-l'identité/l'environnement réellement servi n'est pas prouvé Test-only. Les deux conditions sont
-cumulatives, pas alternatives.
+## Invariants (inchangés)
 
-Si le correctif mécanique de reconstruction (CI candidate rouge) nécessite un transport externe
-que ce canal ne peut pas écrire (écriture Git vers `rebuild/carburants-65-20260922`, déjà refusée
-à 8 reprises et documentée dans `request-4.md`/`preuve-cloudflare-humaine-65-portage-1.md`), **ne
-sollicite pas Frédéric pour ce transport technique** : dépose le patch/la preuve exacte dans le
-registre et reviens par le rail, comme pour les blocages déjà consignés.
-
-## Priorité
-
-Continuité terrain et autonomie manager. Pas de refonte générale, pas de gros merge de l'ancien
-rail (`rebuild/carburants-65-20260922`) dans le rail canonique, architecture progressive
-uniquement — le principe déjà posé par `decision-2.md`/`decision-3.md` reste inchangé.
-
-## Interdits absolus
-
-Aucun merge/push Production, aucune migration/écriture Supabase Production, aucun déploiement
-Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun secret exposé, aucune acceptation d'un
-risque résiduel matériel. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot.
-
-Retour Créateur uniquement si une vraie gate Production ou une décision métier/sécurité devient
-nécessaire — pas pour un obstacle technique déterministe déjà classé.
+Aucun merge/push `main`/`production`, aucune migration/écriture Supabase Production, aucun
+déploiement Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun affaiblissement de garde,
+aucun secret exposé. PR #65 reste NO GO jusqu'à preuves complètes.
