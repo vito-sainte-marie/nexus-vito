@@ -1,0 +1,1755 @@
+--- a/NEXUS-Admin-API-v1.html
++++ b/NEXUS-Admin-API-v1.html
+@@ -18,8 +18,8 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Admin-Sites-v1.html
++++ b/NEXUS-Admin-Sites-v1.html
+@@ -18,8 +18,8 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Analyse-Ecarts-v1.html
++++ b/NEXUS-Analyse-Ecarts-v1.html
+@@ -157,11 +157,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-donnees.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-App-v1.html
++++ b/NEXUS-App-v1.html
+@@ -1306,35 +1306,35 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-indice.js?v=20260904-0104"></script>
+-<script src="nexus-marge.js?v=20260904-0104"></script>
+-<script src="nexus-tempo.js?v=20260904-0104"></script>
+-<script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-indice.js?v=59d2bdec4dd3"></script>
++<script src="nexus-marge.js?v=59d2bdec4dd3"></script>
++<script src="nexus-tempo.js?v=59d2bdec4dd3"></script>
++<script src="nexus-boussole-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ <!-- nexus-verify-moteur.js (20/09/2026, P0-3, lot NEXUS-CONTINUITE-TERRAIN-1) :
+      chargerControlesVerifyRestants (nexus-conseiller-donnees.js) délègue
+      désormais à NexusVerifyMoteur.statutValidationQuart, la MÊME
+      classification que NEXUS Verify (Article 11) — jamais un second calcul
+      de validation. Aucune autre fonction de ce fichier n'est appelée ici. -->
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
+ <!-- nexus-brief-donnees.js (23/08/2026, v2.224, correctif "règle anti-
+      divergence") : nécessaire pour que chargerStatutCarburantsHome
+      (nexus-app-donnees.js) délègue à chargerCarburantsBriefAvecFallback,
+      exactement la même fonction que Brief — jamais une deuxième formule
+      Carburants qui ignorerait le fallback temporel. Aucune autre fonction
+      de ce fichier n'est appelée depuis cet écran. -->
+-<script src="nexus-brief-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-app-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
++<script src="nexus-brief-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-app-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-raccourcis-catalogue.js?v=59d2bdec4dd3"></script>
+ <script>
+   // ------------------------------------------------------------
+   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
+--- a/NEXUS-Apprentissage-v1.html
++++ b/NEXUS-Apprentissage-v1.html
+@@ -18,12 +18,12 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-progression.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-progression.js?v=59d2bdec4dd3"></script>
+ <!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
+      lui-même entre les lignes brutes et la projection employé. -->
+-<script src="nexus-caisse-source.js?v=20260904-0104"></script>
++<script src="nexus-caisse-source.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Assignations-v1.html
++++ b/NEXUS-Assignations-v1.html
+@@ -18,9 +18,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Boite-Reception-v1.html
++++ b/NEXUS-Boite-Reception-v1.html
+@@ -109,9 +109,9 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+ <script>
+   // ============================================================
+--- a/NEXUS-Brief-v1.html
++++ b/NEXUS-Brief-v1.html
+@@ -304,39 +304,39 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-indice.js?v=20260904-0104"></script>
+-<script src="nexus-marge.js?v=20260904-0104"></script>
+-<script src="nexus-tempo.js?v=20260904-0104"></script>
+-<script src="nexus-stock.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-mesure.js?v=20260904-0104"></script>
+-<script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-indice.js?v=59d2bdec4dd3"></script>
++<script src="nexus-marge.js?v=59d2bdec4dd3"></script>
++<script src="nexus-tempo.js?v=59d2bdec4dd3"></script>
++<script src="nexus-stock.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-mesure.js?v=59d2bdec4dd3"></script>
++<script src="nexus-coach-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-boussole-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
+ <!-- Moteur Commande Carburant (24/08/2026, §24-25 du cahier) — notification
+      Brief (chargerCandidatCommandeCarburant, nexus-brief-donnees.js),
+      réutilise l'évaluation déjà calculée, aucun second calcul (Article 11). -->
+-<script src="nexus-carburant-commande-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-commande-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
+-<script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
+-<script src="nexus-secteurs-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-brief-donnees.js?v=20260904-0104"></script>
++<script src="nexus-carburant-commande-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-commande-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-secteurs-catalogue.js?v=59d2bdec4dd3"></script>
++<script src="nexus-moteurs-registre.js?v=59d2bdec4dd3"></script>
++<script src="nexus-secteurs-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-brief-donnees.js?v=59d2bdec4dd3"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <script>
+   // ============================================================
+   // NEXUS Brief — synthèse à l'attention du dirigeant (02/08/2026, demande
+--- a/NEXUS-Campagne-v1.html
++++ b/NEXUS-Campagne-v1.html
+@@ -109,11 +109,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-tempo.js?v=20260904-0104"></script>
+-<script src="nexus-campagnes.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-tempo.js?v=59d2bdec4dd3"></script>
++<script src="nexus-campagnes.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="app" id="app">
+--- a/NEXUS-Capital-v1.html
++++ b/NEXUS-Capital-v1.html
+@@ -166,12 +166,12 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-marge.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-marge.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="app">
+--- a/NEXUS-Carburant-Reception-v1.html
++++ b/NEXUS-Carburant-Reception-v1.html
+@@ -18,19 +18,19 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-reception-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-reception-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-reception-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-reception-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
+ <!-- Moteur Commande Carburant (24/08/2026, §34 du cahier) — uniquement pour
+      rapprocherCommandeReception()/chargerCommandeEnCoursParCarburant() une
+      fois la visite terminée (voir soumettreVisite() ci-dessous) ; le
+      moteur pur (nexus-carburant-commande-moteur.js) n'est pas nécessaire
+      ici, cet écran ne recalcule aucune recommandation. -->
+-<script src="nexus-carburant-commande-donnees.js?v=20260904-0104"></script>
++<script src="nexus-carburant-commande-donnees.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Carburants-Pilotage-v1.html
++++ b/NEXUS-Carburants-Pilotage-v1.html
+@@ -18,35 +18,35 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
+ <!-- Moteur Commande Carburant (24/08/2026) — après nexus-carburant-moteur.js/
+      nexus-carburant-donnees.js (nexus-carburant-commande-donnees.js réutilise
+      chargerCuvesConfig/chargerControleJour, Article 11), avant tout appel à
+      evaluerCommandeCarburantSite(). -->
+-<script src="nexus-carburant-commande-moteur.js?v=20260904-0104"></script>
++<script src="nexus-carburant-commande-moteur.js?v=59d2bdec4dd3"></script>
+ <!-- 28/08/2026, point 245 — nexus-carburant-commande-donnees.js réutilise
+      NexusVerifyMoteur.statutValidationQuart (v2.234, déjà défini pour NEXUS
+      Verify/Historique, Article 11) pour le badge Verify PUREMENT
+      INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
+      être chargé avant nexus-carburant-commande-donnees.js. -->
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-commande-donnees.js?v=20260904-0104"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-commande-donnees.js?v=59d2bdec4dd3"></script>
+ <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
+      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
+      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
+      (nexus-risques-donnees.js.chargerAutonomiesCarburantAvecHistorique en
+      dépend), avant tout appel à qualifierRisquesCarburantEnArrierePlan(). -->
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-reception-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-reception-donnees.js?v=20260904-0104"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-reception-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-reception-donnees.js?v=59d2bdec4dd3"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Carburants-v1.html
++++ b/NEXUS-Carburants-v1.html
+@@ -18,10 +18,10 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Centre-Intelligence-v1.html
++++ b/NEXUS-Centre-Intelligence-v1.html
+@@ -8,9 +8,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Coach-FDJ-v1.html
++++ b/NEXUS-Coach-FDJ-v1.html
+@@ -18,13 +18,13 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-mesure.js?v=20260904-0104"></script>
+-<script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-coach-fdj-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-mesure.js?v=59d2bdec4dd3"></script>
++<script src="nexus-coach-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-coach-fdj-donnees.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Cockpit-v2.html
++++ b/NEXUS-Cockpit-v2.html
+@@ -354,19 +354,19 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-vocabulaire.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-stock.js?v=20260904-0104"></script>
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-vocabulaire.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-stock.js?v=59d2bdec4dd3"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Comptes-Clients-v1.html
++++ b/NEXUS-Comptes-Clients-v1.html
+@@ -176,9 +176,9 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <script>
+   // ============================================================
+   // NEXUS COMPTES CLIENTS — v1 (07/08/2026)
+--- a/NEXUS-Debug-Createur-v1.html
++++ b/NEXUS-Debug-Createur-v1.html
+@@ -8,7 +8,7 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Debug-v1.html
++++ b/NEXUS-Debug-v1.html
+@@ -8,9 +8,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-mesure.js?v=20260904-0104"></script>
+-<script src="nexus-ecart-affichage.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
++<script src="nexus-mesure.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecart-affichage.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Documentation-v1.html
++++ b/NEXUS-Documentation-v1.html
+@@ -179,9 +179,9 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <script>
+   // ============================================================
+   // NEXUS — COMPRENDRE NEXUS — v2 (07/08/2026, demande de Frédéric)
+--- a/NEXUS-Evaluation-Employe-v1.html
++++ b/NEXUS-Evaluation-Employe-v1.html
+@@ -111,11 +111,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-mesure.js?v=20260904-0104"></script>
+-<script src="nexus-evaluation-affichage.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-mesure.js?v=59d2bdec4dd3"></script>
++<script src="nexus-evaluation-affichage.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-FDJ-Analyse-v1.html
++++ b/NEXUS-FDJ-Analyse-v1.html
+@@ -20,18 +20,18 @@
+ <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-mesure.js?v=20260904-0104"></script>
+-<script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-analyse-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-mesure.js?v=59d2bdec4dd3"></script>
++<script src="nexus-coach-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-analyse-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-FDJ-Manager-v1.html
++++ b/NEXUS-FDJ-Manager-v1.html
+@@ -19,17 +19,17 @@
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <!-- v2.268 : source canonique de situationVerificationEcart/motifEcartObligatoire,
+      chargée AVANT nexus-fdj-moteur.js qui délègue désormais dessus (Article 11). -->
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-FDJ-Parametres-v1.html
++++ b/NEXUS-FDJ-Parametres-v1.html
+@@ -18,10 +18,10 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-FDJ-v1.html
++++ b/NEXUS-FDJ-v1.html
+@@ -18,12 +18,12 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Import-v1.html
++++ b/NEXUS-Import-v1.html
+@@ -203,11 +203,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-import-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-import-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-import-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-import-donnees.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="app">
+--- a/NEXUS-Inventaire-Manager-v1.html
++++ b/NEXUS-Inventaire-Manager-v1.html
+@@ -20,21 +20,21 @@
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-snapshot-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-snapshot-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-manager-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-missions-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-production-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-snapshot-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-snapshot-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-plan-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-manager-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-missions-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-production-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Inventaire-v1.html
++++ b/NEXUS-Inventaire-v1.html
+@@ -18,19 +18,19 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-missions-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-tempo.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-production-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-plan-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-mission-rules-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-missions-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-tempo.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-production-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+@@ -345,7 +345,7 @@
+ 
+ <!-- La garde démarre avant le cœur de l'écran ; celui-ci attend ensuite son
+      drapeau READY avant toute initialisation opérationnelle. -->
+-<script src="nexus-inventaire-mode-test.js?v=20260904-0104"></script>
++<script src="nexus-inventaire-mode-test.js?v=59d2bdec4dd3"></script>
+ <script>
+   // ------------------------------------------------------------
+   // NEXUS Inventaire v1 (02/08/2026) — construit avec Frédéric à partir
+--- a/NEXUS-Journal-v1.html
++++ b/NEXUS-Journal-v1.html
+@@ -18,10 +18,10 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Missions-v1.html
++++ b/NEXUS-Missions-v1.html
+@@ -18,11 +18,11 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Mon-Evolution-v1.html
++++ b/NEXUS-Mon-Evolution-v1.html
+@@ -111,7 +111,7 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ <!-- Projection sécurisée par poste (14/09/2026) : cet écran lisait
+      `audits_caisse` en clair et recevait, sur chaque ligne, l'identifiant du
+      collègue qui tenait l'autre poste, l'écart de ce poste et le commentaire
+@@ -130,10 +130,10 @@
+      une ANOMALIE partout ailleurs dans NEXUS (Verify, Rapport de Direction,
+      Cockpit, Brief, Pilotage Carburants). Le seul ecran qui regarde l'employee
+      etait le seul a minimiser. -->
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-progression.js?v=20260904-0104"></script>
+-<script src="nexus-caisse-source.js?v=20260904-0104"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-progression.js?v=59d2bdec4dd3"></script>
++<script src="nexus-caisse-source.js?v=59d2bdec4dd3"></script>
+ <script>
+   // Cet ecran ne decide plus de la gravite d'un montant, il la demande.
+   // `NexusVerifyMoteur.classifierEcart` est la seule echelle de l'app
+--- a/NEXUS-Mon-Planning-v1.html
++++ b/NEXUS-Mon-Planning-v1.html
+@@ -68,7 +68,7 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone" id="app">
+--- a/NEXUS-Parametres-Comptes-Clients-v1.html
++++ b/NEXUS-Parametres-Comptes-Clients-v1.html
+@@ -83,9 +83,9 @@
+ 
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+ <script>
+   // ============================================================
+--- a/NEXUS-Parametres-Inventaire-v1.html
++++ b/NEXUS-Parametres-Inventaire-v1.html
+@@ -18,14 +18,14 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-production-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-plan-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-production-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-inventaire-mission-rules-donnees.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Parametres-Rappels-v1.html
++++ b/NEXUS-Parametres-Rappels-v1.html
+@@ -94,7 +94,7 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Parametres-Station-v1.html
++++ b/NEXUS-Parametres-Station-v1.html
+@@ -248,16 +248,16 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-reception-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-progression.js?v=20260904-0104"></script>
+-<script src="nexus-planning-sheets-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-raccourcis-catalogue.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-reception-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-progression.js?v=59d2bdec4dd3"></script>
++<script src="nexus-planning-sheets-moteur.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Paye-v1.html
++++ b/NEXUS-Paye-v1.html
+@@ -14,15 +14,15 @@
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-paye-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-paye-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-paye-dossier-pdf.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-ecarts-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-paye-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-paye-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-paye-dossier-pdf.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body><div class="phone">
+ <header class="header"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><div class="eyebrow">NEXUS · Manager</div><h1>Paye</h1><div class="subtitle">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div></header>
+--- a/NEXUS-Planning-v1.html
++++ b/NEXUS-Planning-v1.html
+@@ -116,10 +116,10 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-planning-sheets-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-planning-sheets-moteur.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone" id="app">
+--- a/NEXUS-Pointage-v1.html
++++ b/NEXUS-Pointage-v1.html
+@@ -18,10 +18,10 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pointage-regles.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Prise-De-Poste-v1.html
++++ b/NEXUS-Prise-De-Poste-v1.html
+@@ -18,9 +18,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Produits-v1.html
++++ b/NEXUS-Produits-v1.html
+@@ -194,11 +194,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-vocabulaire.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-conseiller.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-vocabulaire.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Progression-v1.html
++++ b/NEXUS-Progression-v1.html
+@@ -18,17 +18,17 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <!-- v2.286 : nexus-progression.js délègue désormais à
+      NexusEcartsMoteur.deriverStatutEcart (statutCaisseJour/statutActivite)
+      — doit être chargé AVANT nexus-progression.js. -->
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-progression.js?v=20260904-0104"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-progression.js?v=59d2bdec4dd3"></script>
+ <!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
+      lui-même entre les lignes brutes et la projection employé. -->
+-<script src="nexus-caisse-source.js?v=20260904-0104"></script>
++<script src="nexus-caisse-source.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Radar-Manager-v1.html
++++ b/NEXUS-Radar-Manager-v1.html
+@@ -78,11 +78,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-indice.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-indice.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Rapport-v1.html
++++ b/NEXUS-Rapport-v1.html
+@@ -19,22 +19,22 @@
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-rayon-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-secteurs-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-rapport-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-rapport-direction-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-risques-donnees.js?v=20260904-0104"></script>
+-<script src="nexus-rapport-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-rapport-direction-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rayon-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-secteurs-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rapport-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rapport-direction-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rapport-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rapport-direction-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Rayon-v1.html
++++ b/NEXUS-Rayon-v1.html
+@@ -136,10 +136,10 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-vocabulaire.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-rayon-moteur.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-vocabulaire.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-rayon-moteur.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Resultats-Equipe-v1.html
++++ b/NEXUS-Resultats-Equipe-v1.html
+@@ -102,9 +102,9 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone">
+--- a/NEXUS-Scanner-Stock-v1.html
++++ b/NEXUS-Scanner-Stock-v1.html
+@@ -18,10 +18,10 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-stock.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-stock.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Scanner-v1.html
++++ b/NEXUS-Scanner-v1.html
+@@ -186,11 +186,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-periodes.js?v=20260904-0104"></script>
+-<script src="nexus-marge.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++<script src="nexus-marge.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="app">
+--- a/NEXUS-Stock-Localise-v1.html
++++ b/NEXUS-Stock-Localise-v1.html
+@@ -9,9 +9,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+ :root{--bg:#0B0F14;--panel:#141B22;--panel2:#1A222C;--line:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--cyan:#4FC3D9;--green:#34D399;--amber:#F5A623;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}
+ *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans)}body{min-height:100vh}.app{max-width:980px;margin:0 auto;padding:24px 18px 80px}.eyebrow{font:600 10px var(--mono);letter-spacing:.13em;color:var(--cyan);text-transform:uppercase}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:16px}.top h1{margin:5px 0 4px;font-size:24px}.sub{font-size:13px;line-height:1.45;color:var(--mid)}.back{color:var(--cyan);text-decoration:none;font:600 11px var(--mono);white-space:nowrap;padding:8px 10px;border:1px solid rgba(79,195,217,.25);border-radius:9px}.toolbar{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.2fr) auto;gap:10px;margin:18px 0}.field{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:13px var(--sans);width:100%}.factor{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--mid);font-size:11px}.factor input{width:48px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:6px;text-align:center}.summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.chip{padding:6px 9px;border-radius:999px;background:rgba(79,195,217,.08);border:1px solid rgba(79,195,217,.18);color:#c9f7ff;font:10.5px var(--mono)}.notice{margin:0 0 14px;padding:11px 12px;border:1px solid rgba(79,195,217,.18);border-radius:10px;background:rgba(79,195,217,.045);font-size:11.5px;color:var(--mid);line-height:1.45}.actions{display:flex;gap:8px;margin:12px 0 16px}.btn{border-radius:10px;padding:11px 14px;border:1px solid var(--line);background:var(--panel);color:var(--mid);font-weight:600;cursor:pointer}.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#04141a}.btn:disabled{opacity:.4}.table{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}.head,.row{display:grid;grid-template-columns:minmax(170px,1.7fr) repeat(var(--zone-count),minmax(180px,1fr)) minmax(90px,.7fr);align-items:stretch}.head{background:var(--panel2);font:600 9px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}.head>div,.row>div{padding:10px 12px;border-right:1px solid var(--line)}.head>div:last-child,.row>div:last-child{border-right:0}.row{border-top:1px solid var(--line)}.product{font-weight:600;font-size:12.5px;display:flex;align-items:center}.zoneCell{display:flex;flex-direction:column;justify-content:center;gap:5px}.zoneValue{font:600 13px var(--mono);color:var(--text)}.zoneMeta{font-size:10px;color:var(--dim)}.inputs{display:grid;grid-template-columns:1fr 1fr;gap:6px}.miniLabel{font:9px var(--mono);color:var(--dim);margin-bottom:3px;text-align:center}.qty{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center;color:var(--text);font:14px var(--mono)}.qty:focus{outline:none;border-color:var(--cyan)}.total{display:flex;align-items:center;justify-content:center;font:700 15px var(--mono);color:var(--cyan)}.stale{color:var(--amber)}.empty{padding:24px;text-align:center;color:var(--dim);font-size:12px}.status{font:10.5px var(--mono);color:var(--mid);margin-left:auto}.status.ok{color:var(--green)}.status.err{color:var(--amber)}
+--- a/NEXUS-Tempo-v1.html
++++ b/NEXUS-Tempo-v1.html
+@@ -153,11 +153,11 @@
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-tempo.js?v=20260904-0104"></script>
+-<script src="nexus-marge.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-tempo.js?v=59d2bdec4dd3"></script>
++<script src="nexus-marge.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="app" id="app">
+--- a/NEXUS-Tracabilite-v1.html
++++ b/NEXUS-Tracabilite-v1.html
+@@ -18,9 +18,9 @@
+ <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-forfait.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ <style>
+   :root{
+     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+--- a/NEXUS-Verify-v1.html
++++ b/NEXUS-Verify-v1.html
+@@ -457,15 +457,15 @@
+ <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+ <script src="nexus-build.js"></script>
+-<script src="nexus-station.js?v=20260904-0104"></script>
+-<script src="nexus-auth.js?v=20260904-0104"></script>
+-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+-<script src="nexus-desktop.js?v=20260904-0104"></script>
+-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++<script src="nexus-station.js?v=59d2bdec4dd3"></script>
++<script src="nexus-auth.js?v=59d2bdec4dd3"></script>
++<script src="nexus-header-nav.js?v=59d2bdec4dd3"></script>
++<script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
++<script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+ <!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
+      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
+-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
++<script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++<script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>
+ </head>
+ <body>
+ <div class="phone" id="app">
+--- a/nexus-app-donnees.js
++++ b/nexus-app-donnees.js
+@@ -33,8 +33,8 @@
+ // si Frédéric confirme vouloir harmoniser les deux affichages.
+ //
+ // Inclure après nexus-conseiller.js ET nexus-conseiller-donnees.js :
+-// <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+-// <script src="nexus-app-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
++// <script src="nexus-app-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-auth.js
++++ b/nexus-auth.js
+@@ -1,7 +1,7 @@
+ // NEXUS — nexus-auth.js
+ // À inclure sur CHAQUE page qui nécessite une connexion (Cockpit, Missions, Plan d'action, etc.)
+ // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+-// <script src="nexus-auth.js?v=20260904-0104"></script>
++// <script src="nexus-auth.js?v=59d2bdec4dd3"></script>
+ 
+ // Configuration d'environnement (04/09/2026). L'URL et la clé ne sont plus
+ // écrites ici : elles viennent de `nexus-config.js`, généré au build depuis
+--- a/nexus-boussole-moteur.js
++++ b/nexus-boussole-moteur.js
+@@ -25,7 +25,7 @@
+ // plutôt qu'une copie locale.
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
+-// Inclure : <script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-boussole-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-brief-donnees.js
++++ b/nexus-brief-donnees.js
+@@ -44,8 +44,8 @@
+ // Voir Data Dictionary v2.41.
+ //
+ // Inclure après nexus-conseiller.js ET nexus-conseiller-donnees.js :
+-// <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+-// <script src="nexus-brief-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
++// <script src="nexus-brief-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-build.js
++++ b/nexus-build.js
+@@ -1,22 +1,90 @@
+-// Généré par outils/poser-build-id.js — ne pas éditer à la main.
+-// Identifiant unique de la génération déployée. Toutes les ressources
+-// fonctionnelles de ce déploiement portent ?v=<id> : un écran servi depuis le
+-// cache charge donc forcément un ensemble cohérent, jamais un mélange de
+-// générations.
++// Généré par outils/poser-build-id.js — NON VERSIONNÉ, ne pas éditer.
++//
++// Identité de cette génération. Quatre informations distinctes, parce que
++// quatre questions distinctes se posent devant un écran qui se comporte mal :
++//   commit          — quel état du code a produit ce déploiement ;
++//   id              — quelle génération d'actifs l'écran exécute réellement ;
++//   environnement   — à quelle base il parle ;
++//   construitLe     — quand cette génération a été fabriquée.
++//
++// L'identifiant est une empreinte du CONTENU des actifs épinglés : même code,
++// même identifiant, quel que soit l'hébergeur ou l'heure.
+ (function (global) {
+   'use strict';
+-  global.NEXUS_BUILD = { id: '20260904-0104', commit: 'b2190e5' };
+-  // Estampille discrète en pied de page, pour savoir d'un coup d'œil si le
+-  // téléphone, le Mac et le serveur exécutent la même version.
++
++  var IDENTITE = {
++    commit: '290a217f0f07d4f408469bc9cb8239814544f092',
++    commitCourt: '290a217',
++    id: '59d2bdec4dd3',
++    environnement: 'inconnu',
++    construitLe: '2026-09-23T01:50:46Z',
++    coherent: true,
++  };
++
++  // LA primitive d'épinglage. Tout module qui charge un script à l'exécution
++  // passe par ici — il n'existe aucune autre façon de construire une épingle.
++  //
++  // Pourquoi cette centralisation : nexus-auth.js entretenait sa PROPRE
++  // constante de génération, `STOCK_BUILD = '20260831-1408'`, qui gouvernait
++  // dix-huit scripts. Le Cockpit chargeait donc cinq fichiers d'une génération
++  // vieille de cinq jours pendant que le reste de l'écran était à jour :
++  // exactement le mélange que l'épinglage sert à rendre impossible. Il a
++  // survécu à tous les contrôles parce qu'aucun littéral `….js?v=…` n'apparaît
++  // dans le fichier — l'URL était construite par interpolation.
++  //
++  // ÉCHEC FERMÉ, sans repli d'aucune sorte. Pas de constante de substitution,
++  // pas d'horodatage, pas de valeur par défaut : une valeur de repli serait une
++  // seconde génération, c'est-à-dire le défaut qu'on vient de retirer.
++  function versionner(src) {
++    if (!IDENTITE.id) {
++      throw new Error('NEXUS ne peut pas charger « ' + src + ' » : identité de '
++        + 'génération absente. Charger nexus-build.js avant tout module qui '
++        + 'épingle une ressource — il n’existe aucune valeur de repli, et c’est '
++        + 'voulu : une seconde génération est précisément le défaut à éviter.');
++    }
++    return src + '?v=' + IDENTITE.id;
++  }
++
++  // Contrôle à l'exécution : les scripts de CETTE page portent-ils bien
++  // l'épingle de la génération annoncée ? Sans ce contrôle, un mélange de
++  // générations — page fraîche, moteur ancien resté en cache — resterait
++  // silencieux. C'est le scénario que l'épinglage sert à rendre impossible ;
++  // encore faut-il le constater plutôt que l'espérer.
++  function verifierCoherence() {
++    var hors = [];
++    var scripts = document.querySelectorAll('script[src]');
++    for (var i = 0; i < scripts.length; i++) {
++      var src = scripts[i].getAttribute('src') || '';
++      if (/^https?:|^\/\//.test(src)) continue;
++      var nom = src.split('?')[0];
++      if (nom === 'nexus-build.js' || nom === 'nexus-config.js') continue;
++      var m = /[?&]v=([0-9A-Za-z_-]+)/.exec(src);
++      if (!m || m[1] !== IDENTITE.id) hors.push(nom + ' → ' + (m ? m[1] : 'aucune épingle'));
++    }
++    if (!hors.length) return;
++    IDENTITE.coherent = false;
++    console.error('NEXUS — mélange de générations détecté (attendu ' + IDENTITE.id + ') : ' + hors.join(', '));
++  }
++
+   function estampiller() {
+     var pied = document.querySelector('footer');
+     if (!pied || pied.querySelector('.nexus-build-estampille')) return;
+     var s = document.createElement('span');
+     s.className = 'nexus-build-estampille';
+     s.style.cssText = 'display:block; margin-top:4px; font-size:10px; opacity:.55;';
+-    s.textContent = 'NEXUS build 20260904-0104 · commit b2190e5';
++    s.textContent = 'NEXUS ' + IDENTITE.environnement + ' · commit ' + IDENTITE.commitCourt
++      + ' · génération ' + IDENTITE.id + ' · construit le ' + IDENTITE.construitLe
++      + (IDENTITE.coherent ? '' : ' · ⚠ GÉNÉRATIONS MÉLANGÉES');
+     pied.appendChild(s);
+   }
+-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', estampiller, { once: true });
+-  else estampiller();
++
++  function demarrer() { verifierCoherence(); estampiller(); }
++
++  IDENTITE.versionner = versionner;
++  global.NEXUS_BUILD = IDENTITE;
++  // NexusBuild est le nom par lequel les modules appellent la primitive ;
++  // NEXUS_BUILD reste le nom historique de l'identité. Même objet.
++  global.NexusBuild = IDENTITE;
++  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer, { once: true });
++  else demarrer();
+ })(typeof window !== 'undefined' ? window : globalThis);
+--- a/nexus-campagnes.js
++++ b/nexus-campagnes.js
+@@ -27,7 +27,7 @@
+ // arriveront dès que cette donnée existera (voir NEXUS-Campagne-v1.html
+ // pour le message affiché à l'utilisateur à ce sujet).
+ //
+-// Inclure dans une page : <script src="nexus-campagnes.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-campagnes.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js, nexus-vocabulaire.js, nexus-tempo.js)
+ // ============================================================
+ 
+--- a/nexus-carburant-commande-coherence-v1.js
++++ b/nexus-carburant-commande-coherence-v1.js
+@@ -48,6 +48,6 @@
+     s.dataset.nexusCarburantsPolish=cle;
+     document.head.appendChild(s);
+   }
+-  injecter('nexus-carburants-p0-coherence-ui.js?v=20260904-0104','p0');
+-  injecter('nexus-carburants-mobile-polish-v2.js?v=20260904-0104','mobile-v2');
++  injecter('nexus-carburants-p0-coherence-ui.js?v=59d2bdec4dd3','p0');
++  injecter('nexus-carburants-mobile-polish-v2.js?v=59d2bdec4dd3','mobile-v2');
+ })();
+--- a/nexus-carburant-commande-donnees-core.js
++++ b/nexus-carburant-commande-donnees-core.js
+@@ -25,7 +25,7 @@
+ //
+ // Inclure après nexus-carburant-moteur.js, nexus-carburant-donnees.js et
+ // nexus-carburant-commande-moteur.js :
+-// <script src="nexus-carburant-commande-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-carburant-commande-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-carburant-commande-donnees.js
++++ b/nexus-carburant-commande-donnees.js
+@@ -21,21 +21,21 @@
+   // document.write conserve volontairement l'ordre synchrone historique :
+   // NexusCarburantCommandeDonnees est donc disponible exactement au même
+   // moment qu'avant pour les scripts et le bootstrap de la page.
+-  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=20260904-0104"><\/script>');
++  document.write('<script src="nexus-carburant-commande-donnees-core.js?v=59d2bdec4dd3"><\/script>');
+ 
+   // Le correctif de cohérence charge lui-même le polish mobile. On le force
+   // ici avec une version neuve AVANT le rendu de la page afin qu'un ancien
+   // exemplaire mis en cache par Safari ne puisse pas réinjecter le script
+   // destructif qui effaçait situationZone.
+   if (estPilotageCarburants()) {
+-    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=20260904-0104"><\/script>');
++    document.write('<script src="nexus-carburant-commande-coherence-v1.js?v=59d2bdec4dd3"><\/script>');
+   }
+ 
+   function chargerCorrectifUI() {
+     if (!estPilotageCarburants()) return;
+     if (document.querySelector('script[data-nexus-carburants-ui-correctifs="20260901"]')) return;
+     var s = document.createElement('script');
+-    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=20260904-0104';
++    s.src = 'nexus-carburants-ui-correctifs-20260901.js?v=59d2bdec4dd3';
+     s.dataset.nexusCarburantsUiCorrectifs = '20260901';
+     document.head.appendChild(s);
+   }
+--- a/nexus-carburant-donnees.js
++++ b/nexus-carburant-donnees.js
+@@ -19,7 +19,7 @@
+ //    tel quel par Brief NEXUS et Carburants Pilotage.
+ //
+ // Inclure après nexus-carburant-moteur.js :
+-// <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-carburant-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-carburant-moteur.js
++++ b/nexus-carburant-moteur.js
+@@ -61,7 +61,7 @@
+ //     soumise — elle doit être saisie sur le relevé SUIVANT.
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
+-// Inclure : <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-carburant-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-coach-fdj-donnees.js
++++ b/nexus-coach-fdj-donnees.js
+@@ -12,9 +12,9 @@
+ //
+ // Dépend de nexus-fdj-moteur.js (état du stock) et nexus-coach-fdj-moteur.js
+ // (sélection + formulations) — les inclure AVANT ce fichier :
+-//   <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+-//   <script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
+-//   <script src="nexus-coach-fdj-donnees.js?v=20260904-0104"></script>
++//   <script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-coach-fdj-moteur.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-coach-fdj-donnees.js?v=59d2bdec4dd3"></script>
+ //
+ // Limites honnêtes (documentées ici plutôt que cachées) :
+ //  - "Retard de clôture" (fdj_report_late) n'a PAS d'heure de fin de quart
+--- a/nexus-coach-fdj-moteur.js
++++ b/nexus-coach-fdj-moteur.js
+@@ -20,7 +20,7 @@
+ // suivantes de l'audit (§27, items 10 à 14), pas celle-ci.
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
+-// Inclure : <script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-coach-fdj-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-conseiller-donnees.js
++++ b/nexus-conseiller-donnees.js
+@@ -25,7 +25,7 @@
+ // Inclure après nexus-stock.js et nexus-conseiller.js, et AVANT tout
+ // fichier `-donnees.js` de page qui en dépend (nexus-brief-donnees.js,
+ // nexus-app-donnees.js) :
+-// <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-conseiller-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-conseiller.js
++++ b/nexus-conseiller.js
+@@ -24,8 +24,8 @@
+ //      impact_eur, qui ferait toujours remonter le même article).
+ //
+ // Dépend de nexus-periodes.js — l'inclure AVANT ce fichier dans la page :
+-//   <script src="nexus-periodes.js?v=20260904-0104"></script>
+-//   <script src="nexus-conseiller.js?v=20260904-0104"></script>
++//   <script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-conseiller.js?v=59d2bdec4dd3"></script>
+ // ============================================================
+ 
+ (function (global) {
+--- a/nexus-desktop.js
++++ b/nexus-desktop.js
+@@ -6,7 +6,7 @@
+ //
+ // PILOTE (02/08/2026) : n'est inclus pour l'instant QUE sur NEXUS-Verify-v1
+ // (écran choisi avec Frédéric pour valider le style avant de généraliser à
+-// tout NEXUS). À inclure sur une nouvelle page : <script src="nexus-desktop.js?v=20260904-0104"></script>
++// tout NEXUS). À inclure sur une nouvelle page : <script src="nexus-desktop.js?v=59d2bdec4dd3"></script>
+ // après nexus-auth.js, plus un peu de CSS spécifique à l'écran (voir le
+ // bloc "Vue bureau" dans le <style> de NEXUS-Verify-v1.html) pour que son
+ // contenu se réorganise en plusieurs colonnes — ce fichier pose la coquille
+--- a/nexus-ecarts-donnees.js
++++ b/nexus-ecarts-donnees.js
+@@ -30,8 +30,8 @@
+ // Dépend de nexus-ecarts-moteur.js (deriverStatutEcart, arrondiCentimes,
+ // calculerMontantRetenuLigne, roleCaisseInhabituelle) — DOIT être chargé
+ // avant ce fichier :
+-//   <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-//   <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
++//   <script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-ecarts-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-ecarts-moteur.js
++++ b/nexus-ecarts-moteur.js
+@@ -20,7 +20,7 @@
+ // "Analyse des écarts".
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
+-// Inclure : <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-fdj-analyse-donnees.js
++++ b/nexus-fdj-analyse-donnees.js
+@@ -55,7 +55,7 @@
+ // l'utilitaire `dateISO()` propre à la page.
+ //
+ // Inclure après nexus-auth.js (nexusClient) :
+-// <script src="nexus-fdj-analyse-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-fdj-analyse-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-fdj-moteur.js
++++ b/nexus-fdj-moteur.js
+@@ -15,7 +15,7 @@
+ // attendue 276,70 €, caisse réelle comptée 276,80 € → écart +0,10 €.
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
+-// Inclure : <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-fdj-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-forfait.js
++++ b/nexus-forfait.js
+@@ -27,7 +27,7 @@
+ //      après nexusRequireAuth() — un lien direct copié/collé ne suffit
+ //      donc pas à contourner la restriction.
+ //
+-// Inclure dans une page : <script src="nexus-forfait.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-forfait.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js, nexus-tempo.js, nexus-campagnes.js)
+ // ============================================================
+ 
+--- a/nexus-indice.js
++++ b/nexus-indice.js
+@@ -13,8 +13,8 @@
+ // l'Indice NEXUS.
+ //
+ // Dépend de nexus-periodes.js — l'inclure AVANT ce fichier dans la page :
+-//   <script src="nexus-periodes.js?v=20260904-0104"></script>
+-//   <script src="nexus-indice.js?v=20260904-0104"></script>
++//   <script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-indice.js?v=59d2bdec4dd3"></script>
+ // ============================================================
+ 
+ (function (global) {
+--- a/nexus-inventaire-manager-donnees.js
++++ b/nexus-inventaire-manager-donnees.js
+@@ -43,7 +43,7 @@
+ // exactement le risque de divergence que l'Article 11 interdit.
+ //
+ // Inclure après nexus-auth.js (nexusClient) :
+-// <script src="nexus-inventaire-manager-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-inventaire-manager-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-inventaire-mode-test.js
++++ b/nexus-inventaire-mode-test.js
+@@ -357,7 +357,7 @@
+ (function chargerComptageConditionnementCigarettes(){
+   if(document.querySelector('script[data-nexus-cigarettes-conditionnement]')) return;
+   const s=document.createElement('script');
+-  s.src='nexus-inventaire-cigarettes-conditionnement-v1.js?v=20260904-0104';
++  s.src='nexus-inventaire-cigarettes-conditionnement-v1.js?v=59d2bdec4dd3';
+   s.defer=true;
+   s.dataset.nexusCigarettesConditionnement='1';
+   document.head.appendChild(s);
+--- a/nexus-marge.js
++++ b/nexus-marge.js
+@@ -21,7 +21,7 @@
+ // qu'une famille n'est pas listée en exception, elle est comparée à
+ // l'intérieur de sa `categorie` — par défaut, jamais entre catégories.
+ //
+-// Inclure dans une page : <script src="nexus-marge.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-marge.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js, nexus-vocabulaire.js, nexus-periodes.js)
+ // ============================================================
+ 
+--- a/nexus-moteurs-registre.js
++++ b/nexus-moteurs-registre.js
+@@ -42,7 +42,7 @@
+ // — ce serait une précision que le code ne mesure pas réellement. Un seul
+ // moteur public "Contrôles" représente cette contribution agrégée.
+ //
+-// Inclure : <script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-moteurs-registre.js?v=59d2bdec4dd3"></script>
+ // (après nexus-secteurs-catalogue.js)
+ // ------------------------------------------------------------
+ 
+--- a/nexus-pdf-moteur.js
++++ b/nexus-pdf-moteur.js
+@@ -23,7 +23,7 @@
+  * payante) — génère un vrai fichier PDF (Blob), indépendant du moteur
+  * d'impression du navigateur. Charger AVANT ce script :
+  *   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+- *   <script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
++ *   <script src="nexus-pdf-moteur.js?v=59d2bdec4dd3"></script>
+  *
+  * Diffusion du PDF généré — audit "developpeur" du 09/08/2026 sur les
+  * limites d'impression des PWA iOS en mode standalone (bug WebKit
+--- a/nexus-periodes.js
++++ b/nexus-periodes.js
+@@ -18,7 +18,7 @@
+ // d'historique) de "paire comparable" (utilisée uniquement pour calculer
+ // une évolution).
+ //
+-// Inclure dans une page : <script src="nexus-periodes.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js et nexus-vocabulaire.js).
+ // ============================================================
+ 
+--- a/nexus-progression.js
++++ b/nexus-progression.js
+@@ -30,7 +30,7 @@
+ // pour créditer un bon résultat), mais jamais comme preuve d'un écart
+ // individuel.
+ //
+-// Inclure dans une page : <script src="nexus-progression.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-progression.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js, nexus-marge.js, nexus-tempo.js)
+ //
+ // v2.286 (29/08/2026, demande de Frédéric) : la classification "conforme /
+@@ -40,8 +40,8 @@
+ // (nexus-ecarts-donnees.js), au lieu d'un second calcul local par seuil.
+ // Voir le commentaire détaillé au-dessus de statutEcartActiviteVerify.
+ // DOIT donc être chargé dans cet ordre :
+-//   <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
+-//   <script src="nexus-progression.js?v=20260904-0104"></script>
++//   <script src="nexus-ecarts-moteur.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-progression.js?v=59d2bdec4dd3"></script>
+ // ============================================================
+ 
+ (function (global) {
+--- a/nexus-raccourcis-catalogue.js
++++ b/nexus-raccourcis-catalogue.js
+@@ -27,7 +27,7 @@
+ // ce fichier ne fait AUCUN calcul, aucun accès Supabase (comme tout
+ // moteur NEXUS).
+ //
+-// Inclure dans une page : <script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-raccourcis-catalogue.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-rapport-donnees.js
++++ b/nexus-rapport-donnees.js
+@@ -51,8 +51,8 @@
+ // Supabase, aucun calcul de bornes de date ici (Article 11).
+ //
+ // Inclure dans une page :
+-//   <script src="nexus-periodes.js?v=20260904-0104"></script>
+-//   <script src="nexus-rapport-donnees.js?v=20260904-0104"></script>
++//   <script src="nexus-periodes.js?v=59d2bdec4dd3"></script>
++//   <script src="nexus-rapport-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-rapport-moteur.js
++++ b/nexus-rapport-moteur.js
+@@ -22,7 +22,7 @@
+ //
+ // Inclure (après nexus-boussole-moteur.js si les statuts textuels sont
+ // réutilisés côté appelant — ce fichier ne l'importe pas lui-même) :
+-//   <script src="nexus-rapport-moteur.js?v=20260904-0104"></script>
++//   <script src="nexus-rapport-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-reception-donnees.js
++++ b/nexus-reception-donnees.js
+@@ -19,7 +19,7 @@
+ //   - NEXUS-Carburants-Pilotage-v1.html (sous-bloc "Qualité des réceptions")
+ //
+ // Inclure après nexus-reception-moteur.js :
+-// <script src="nexus-reception-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-reception-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-reception-moteur.js
++++ b/nexus-reception-moteur.js
+@@ -29,7 +29,7 @@
+ //
+ // Aucune dépendance DOM/Supabase — pures fonctions de calcul, même
+ // discipline que nexus-carburant-moteur.js et nexus-fdj-moteur.js.
+-// Inclure : <script src="nexus-reception-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-reception-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-risques-donnees.js
++++ b/nexus-risques-donnees.js
+@@ -23,9 +23,9 @@
+ //    lectures, alimentent nexus-risques-moteur.js.
+ //
+ // Dépendances de script (ordre requis) :
+-// <script src="nexus-verify-moteur.js?v=20260904-0104"></script>   (pour Caisse)
+-// <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+-// <script src="nexus-risques-donnees.js?v=20260904-0104"></script>
++// <script src="nexus-verify-moteur.js?v=59d2bdec4dd3"></script>   (pour Caisse)
++// <script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
++// <script src="nexus-risques-donnees.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-risques-moteur.js
++++ b/nexus-risques-moteur.js
+@@ -58,7 +58,7 @@
+ // table nexus_risk_signals).
+ //
+ // Inclure après nexus-marge.js et nexus-verify-moteur.js :
+-// <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
++// <script src="nexus-risques-moteur.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-secteurs-catalogue.js
++++ b/nexus-secteurs-catalogue.js
+@@ -28,7 +28,7 @@
+ // v2.30) : NULL = utilise le preset par défaut du métier, jamais un écran
+ // vide silencieux.
+ //
+-// Inclure dans une page : <script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-secteurs-catalogue.js?v=59d2bdec4dd3"></script>
+ // ------------------------------------------------------------
+ 
+ (function (global) {
+--- a/nexus-secteurs-moteur.js
++++ b/nexus-secteurs-moteur.js
+@@ -27,7 +27,7 @@
+ // (le Cockpit/Produits doit continuer à voir CHAQUE décision, y compris au
+ // niveau SKU).
+ //
+-// Inclure : <script src="nexus-secteurs-moteur.js?v=20260904-0104"></script>
++// Inclure : <script src="nexus-secteurs-moteur.js?v=59d2bdec4dd3"></script>
+ // (après nexus-boussole-moteur.js et nexus-carburant-moteur.js)
+ // ------------------------------------------------------------
+ 
+--- a/nexus-vocabulaire.js
++++ b/nexus-vocabulaire.js
+@@ -18,7 +18,7 @@
+ // la variété entre rayons différents, pas un texte qui change à chaque
+ // rechargement pour le même rayon.
+ //
+-// Inclure dans une page : <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
++// Inclure dans une page : <script src="nexus-vocabulaire.js?v=59d2bdec4dd3"></script>
+ // (même mécanisme que nexus-auth.js, chargé une fois par page).
+ // ============================================================
+ 
