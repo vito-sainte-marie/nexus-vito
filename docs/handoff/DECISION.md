@@ -1,49 +1,48 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 2
+seq: 3
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-2.md
+in_reply_to: request-3.md
 ---
-# Décision — poursuite technique de request-2.md, aucun nouvel arbitrage de fond
+# Décision — arbitrage procédural de request-3.md
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-3.md`.
 
-## Motif
+Le registre canonique était en `ATTENTE_DECISION` sur `request-3.md`. La preuve Cloudflare
+humaine #65 y est correctement classée `DECLARED` : clone de `fe36a8e…` OK, `bash outils/build.sh`
+absent, exit 127, aucun deploy. Les preuves internes confirment les 7 fichiers identifiés et le
+mécanisme fail-closed (`test_config_environnement.js` 17/17, `test_build_tracabilite_20260905.js`
+49/49, `handoff.js verifier` conforme). L'isolation Supabase Test après portage reste non prouvée
+et n'est pas requalifiée en acquis.
 
-`decision-1.md` avait déjà posé les termes : les §2 et §3 de `request-1.md` sont **déclarés**,
-pas soumis, et avancent dans ce même lot sans nouvel arbitrage intermédiaire. `request-2.md` est
-le compte rendu de ce travail déclaré (§2.1 — étude d'isolation Test des candidats web, ajout
-prouvé de `urlTestDeBranche()`) : il ne pose aucune question de fond nouvelle et n'appelle donc
-aucune décision métier. Cette décision ne fait que consigner, via l'outillage canonique, que la
-poursuite est techniquement approuvée — elle n'invente aucune règle métier et ne rouvre aucun
-point déjà tranché par `decision-1.md`.
+## Portée autorisée
 
-L'absence d'accès Cloudflare/Supabase Test depuis ce canal GitHub Issue, documentée de façon
-constante dans ce lot et dans l'ensemble de l'issue depuis le 06/09/2026, reste une contrainte
-structurelle du canal — pas un motif pour élever une gate humaine.
+Ce verdict n'autorise ni Production ni recette navigateur. Il autorise uniquement la poursuite
+mécanique déjà couverte par `decision-2.md` :
 
-## Conditions
+1. transport minimal des 7 fichiers (`outils/build.sh`, `outils/generer-config.js`,
+   `outils/poser-build-id.js`, `nexus-auth.js`, `nexus-page.js`,
+   `nexus-bandeau-environnement.js`, `_headers`) vers la branche candidate non protégée
+   `rebuild/carburants-65-20260922` — si et seulement si le canal d'exécution permet réellement
+   l'écriture Git vers cette branche ;
+2. preuve du build généré et de son ciblage exclusif Supabase Test, avant toute navigation.
 
-- aucune règle métier nouvelle n'est posée par cette décision ;
-- le portage des fichiers de configuration vers les branches candidates (`rebuild/fdj-62-20260922`,
-  `rebuild/carburants-65-20260922`) reste différé tant qu'un accès Cloudflare humain n'a pas
-  observé ce qui y est réellement construit et servi ;
-- aucune preuve Supabase Test/Production ne doit être fabriquée pour combler l'absence d'accès de
-  ce canal ; toute preuve manquante par construction doit être déclarée `NOT_APPLICABLE`, jamais
-  simulée ;
-- le classement des gates en attente (§6) et l'état Git de #62/#65 se limitent aux preuves
-  Git/GitHub réellement disponibles depuis ce canal.
+Si le canal refuse toujours l'écriture Git candidate, aucun contournement n'est tenté et aucune
+sollicitation de Frédéric n'a lieu pour ce point : le blocage est consigné tel quel, et le retour
+se fait par le rail. Les étapes nécessitant un accès Supabase Test réel restent bloquées jusqu'à
+preuve/accès réel, indépendamment de l'issue du portage.
 
-## Invariants
+## Interdits absolus
 
-Aucun `main`, aucune `production`, aucun déploiement, aucune écriture Supabase Production, aucune
-modification RLS/rôle/secret, aucun nouveau rôle, aucune règle métier/UX nouvelle.
+Aucun changement `main`/`production`, aucune migration/écriture Supabase Production, aucun
+déploiement Production, aucune nouvelle règle métier/UX, aucun nouveau rôle/RLS, aucun secret
+exposé. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot.
