@@ -1,70 +1,66 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 4
+seq: 5
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-5.md
+in_reply_to: request-6.md
 ---
-# Décision — arbitrage technique déterministe de request-5.md
+# Décision — arbitrage technique déterministe de request-6.md
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-5.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-## Motif
+Le diagnostic mécanique de `request-6.md` est confirmé par preuve GitHub fraîche : le patch décrit
+en §4 (remplacer l'étape « Cohérence des épingles de cache » par `bash outils/build.sh` avec les
+identifiants Test fictifs déjà éprouvés) a été appliqué exactement en un commit sur la candidate
+(`.github/workflows/tests.yml` uniquement, aucun autre fichier touché). Preuve : run CI
+`35838111274` sur `rebuild/carburants-65-20260922` @ `664af9853481cb6676a900dd37f89257898c4a20`.
+L'étape « Cohérence des épingles de cache » est désormais SUCCESS ; `bash outils/build.sh`
+construit une génération `783bc43a1658`, commit `664af98`, environnement `test`, 972 références
+cohérentes.
 
-La re-mesure établit que les 7 blobs autorisés par `decision-3.md` sont identiques entre le rail
-(`handoff-continuite-20260920`, `5ec005c`) et la candidate `rebuild/carburants-65-20260922`
-(`290a217f`). Le seul écart réel — le mode de `outils/build.sh` (`100755` sur le rail, `100644`
-côté candidate) — est sans conséquence fonctionnelle : les trois points d'invocation existants
-appellent tous le script via l'interpréteur (`bash outils/build.sh`), jamais en exécutable direct.
-Aucun transport artificiel supplémentaire de ces 7 contenus n'est donc requis : un commit qui ne
-ferait que rejouer un contenu déjà identique n'aurait aucune valeur probante, l'inverse de ce que
-le protocole demande.
+## Condition — ce que ce succès ne prouve pas
 
-Le fail-closed local rejoué (`test_config_environnement.js` 17/17, `test_build_tracabilite_20260905.js`
-49/49) est recevable comme preuve du **mécanisme** — il confirme que le build refuse un
-environnement `test` pointant Production et refuse un environnement `production` ne pointant pas
-Production. Il NE vaut PAS preuve d'un **build réellement ciblé Supabase Test** : ce sont deux
-niveaux distincts, et le second reste à obtenir avant toute navigation.
+Le succès de la garde build ne qualifie PAS la candidate. La même CI échoue ensuite à
+« Comparer aux échecs connus » : 197/224 passent, 27 échouent — 20 nouveaux échecs au-delà des
+7 historiques connus. Ces 20 nouveaux échecs sont maintenant le bloqueur réel du lot, pas la garde
+build. Deux familles observées dans les logs :
+- `nexus-auth.js` (règles accès/service/fuseau/jour métier absentes) ;
+- réception/régularisation (plusieurs tests, dont `test_reception_regularisation_20260919.js`).
 
-## Poursuite autorisée, sans gate Créateur
+## Poursuite autorisée sans gate Créateur
 
-Matérialise cette décision via l'outil Handoff canonique, consomme-la, puis poursuis uniquement
-les preuves Test/readiness objectivement disponibles pour #65, en t'appuyant sur les faits GitHub
-déjà établis :
+Analyse de fermeture de dépendances, en lecture/preuve d'abord :
+- comparer chaque famille de nouveaux échecs à la base Production actuelle et au rail moderne
+  (`handoff-continuite-20260920`) pour déterminer précisément quels fichiers/socles manquent à la
+  reconstruction #65 et lesquels sont réellement imputables au changement carburant du portage ;
+- n'ajouter aucun fichier par intuition, ne masquer aucun test ;
+- appliquer ensuite seulement les corrections mécaniques minimales qui restaurent des règles déjà
+  canoniques, sur la branche rebuild non protégée (`rebuild/carburants-65-20260922`), si leur
+  nécessité est démontrée par preuve directe (diff/lecture), sans introduire de logique parallèle ;
+- rejouer la CI après chaque lot cohérent de corrections.
 
-- le run `35805992451` sur `290a217f` est rouge à l'étape « Cohérence des épingles de cache » ;
-- le diagnostic Handoff déjà déposé a établi que `nexus-build.js`/le workflow de la branche
-  `rebuild` sont legacy (antérieurs à `config-par-environnement`/Handoff).
+## Avant toute recette navigateur
 
-**Ne déclare pas la candidate prête** tant que : (a) la CI candidate n'est pas verte, ET (b)
-l'identité/l'environnement réellement servi n'est pas prouvé Test-only. Les deux conditions sont
-cumulatives, pas alternatives.
+CI sans nouvelle régression, puis preuve du `nexus-config.js` réellement servi ciblant
+exclusivement Supabase Test. « Supabase Preview skipped » n'est pas une preuve d'isolation — la
+preuve doit porter sur le contenu réellement servi, pas sur l'absence d'une étape.
 
-Si le correctif mécanique de reconstruction (CI candidate rouge) nécessite un transport externe
-que ce canal ne peut pas écrire (écriture Git vers `rebuild/carburants-65-20260922`, déjà refusée
-à 8 reprises et documentée dans `request-4.md`/`preuve-cloudflare-humaine-65-portage-1.md`), **ne
-sollicite pas Frédéric pour ce transport technique** : dépose le patch/la preuve exacte dans le
-registre et reviens par le rail, comme pour les blocages déjà consignés.
+## Frontière — retour Handoff obligatoire
 
-## Priorité
+STOP et retour par le Handoff canonique seulement si la fermeture des 20 échecs exige : une
+nouvelle règle métier/UX, une modification rôle/RLS/sécurité, un choix d'architecture non couvert
+par la doctrine existante, ou un risque matériel. En dehors de ces cas, la correction mécanique
+minimale se poursuit sans nouvel arbitrage.
 
-Continuité terrain et autonomie manager. Pas de refonte générale, pas de gros merge de l'ancien
-rail (`rebuild/carburants-65-20260922`) dans le rail canonique, architecture progressive
-uniquement — le principe déjà posé par `decision-2.md`/`decision-3.md` reste inchangé.
+## Invariants
 
-## Interdits absolus
-
-Aucun merge/push Production, aucune migration/écriture Supabase Production, aucun déploiement
-Production, aucune nouvelle règle métier/UX/RLS/rôle, aucun secret exposé, aucune acceptation d'un
-risque résiduel matériel. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste le rail de ce lot.
-
-Retour Créateur uniquement si une vraie gate Production ou une décision métier/sécurité devient
-nécessaire — pas pour un obstacle technique déterministe déjà classé.
+Aucun `main`/`production`, aucune migration/écriture Supabase Production, aucun déploiement
+Production. Priorité inchangée : continuité terrain et autonomie manager remplaçant.
