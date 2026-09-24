@@ -1,0 +1,151 @@
+{
+  "commentaire": "Baseline machine-readable du programme de stabilisation #62/#65 — decision-11.md, lot NEXUS-CONTINUITE-TERRAIN-2-20260922. Premier depot ('commencer a produire' — decision-11.md §6), pas une version finale : a completer a chaque geste ulterieur (mesure DB reelle, isolation Cloudflare, execution de outils/reconstruire-baseline-candidat.sh). Toutes les valeurs Git sont mesurees dans cette session (24/09/2026) contre les refs deja presentes localement ; aucune mesure Supabase DB (aucun acces depuis ce canal).",
+  "date_mesure": "2026-09-24",
+  "rail_canonique": "handoff-continuite-20260920",
+  "cible_de_qualification": "Production de reference + migrations/delta explicites du candidat (decision-11.md §1) — le Test historique (nexus-test) n'est PAS cette baseline tant que sa derive n'est pas reconciliee.",
+  "production": {
+    "ref_git": "origin/production",
+    "sha": "2bc7b39dd73a35d8031f850e202095370a1db85a",
+    "migrations_count": 276,
+    "migration_tete": "20260920140000_bascule_source_precedente_et_change_le"
+  },
+  "rail": {
+    "ref_git": "origin/handoff-continuite-20260920",
+    "sha_avant_ce_lot": "178f265024034574c019d7b5d8efebe85fd14d31",
+    "migrations_count": 287,
+    "migration_tete": "20260920140000_bascule_source_precedente_et_change_le",
+    "ancetre_de_production": false,
+    "note": "production et le rail divergent a 501c0c7 (mesure du 22/09/2026, classement-gates-etat-git-62-65-1.md §1) — deux lignees deliberement separees, pas deux copies d'un meme travail."
+  },
+  "drift_rail_vs_production": {
+    "methode": "git diff --name-status origin/production <ref> -- supabase/migrations/, mesure le 24/09/2026",
+    "compte": 11,
+    "correction_par_rapport_au_22_09": "classement-gates-etat-git-62-65-1.md §2 et dossier-decision-pr-62.md §8.1 (22/09/2026) decrivaient ces 11 versions comme 'presentes dans aucun arbre du depot'. Mesure le 24/09/2026 : elles sont presentes sur le rail handoff-continuite-20260920 lui-meme (git diff --name-status origin/production HEAD ne montre AUCUNE suppression ni modification, seulement ces 11 ajouts). Elles manquaient a l'arbre production/candidates, pas a tout Git. Ceci ne referme pas a lui seul la gate 'derive de schema Supabase Test' : seul le cote base de donnees Supabase Test reelle (table supabase_migrations.schema_migrations) reste non verifie depuis ce canal — aucun acces.",
+    "classement": [
+      {
+        "fichier": "20260904175747_login_non_enumerable",
+        "classe": "CORRECTIF_LOGIN_EN_ATTENTE_DE_PROMOTION",
+        "pas_test_ci": true,
+        "motif": "Corrige une enumeration anonyme reelle de l'annuaire employes (employees_public expose en anon). Son propre en-tete porte : 'ORDRE DE PROMOTION — INCOMPATIBLE AVEC LE CODE ACTUELLEMENT EN PRODUCTION' — appliquer cette migration a Production AVANT de promouvoir le nouveau NEXUS-Login-v1.html casserait la connexion. C'est le 'correctif Login' nomme par decision-11.md §3 : dette infrastructure/baseline distincte de #62/#65, PAS a injecter dans #65, tracee ici pour la premiere fois sous cette forme machine-readable."
+      },
+      {
+        "fichier": "20260906113147_pompiste_du_jour_fuseau_station_test",
+        "classe": "TEST_CI",
+        "motif": "Nom auto-declaratif (_test), variante Test de la garde fuseau/pompiste deja canonique en production sous un autre nom."
+      },
+      {
+        "fichier": "20260907222249_creer_nexus_live_events_test",
+        "classe": "TEST_CI",
+        "motif": "Cree nexus_live_events, deja exclue de la promotion Production par le manifeste historique (migration #21, lot NEXUS-PRODUCTION-READINESS-1-20260908) faute de dependance Production reelle."
+      },
+      {
+        "fichier": "20260908033743_acces_rls_role_ci_recette_site_test",
+        "classe": "TEST_CI",
+        "motif": "Touche le role nexus_ci_recette (regle deterministe deja cablee dans outils/verifier-manifeste-migrations-complet.js)."
+      },
+      {
+        "fichier": "20260908035027_lecture_sites_role_ci_recette_pour_evaluation_rls",
+        "classe": "TEST_CI",
+        "motif": "Touche le role nexus_ci_recette."
+      },
+      {
+        "fichier": "20260908200000_actor_role_human_pour_autorisation_frederic",
+        "classe": "TEST_CI",
+        "motif": "Corrige une contrainte sur nexus_live_events (LIVE-001) — table elle-meme Test-only, donc cette migration l'est par dependance."
+      },
+      {
+        "fichier": "20260909110000_lecture_station_config_test_pour_derive_recette",
+        "classe": "TEST_CI",
+        "motif": "Nom auto-declaratif (_test), sert la mesure de derive de recette Test elle-meme."
+      },
+      {
+        "fichier": "20260909140000_droits_table_role_ci_recette_semis",
+        "classe": "TEST_CI",
+        "motif": "Touche le role nexus_ci_recette."
+      },
+      {
+        "fichier": "20260909150000_usage_schema_public_role_ci_recette",
+        "classe": "TEST_CI",
+        "motif": "Touche le role nexus_ci_recette."
+      },
+      {
+        "fichier": "20260909160000_publication_journal_live_par_la_ci",
+        "classe": "TEST_CI",
+        "motif": "Publication du journal Live par la CI — nexus_live_events, Test-only."
+      },
+      {
+        "fichier": "20260909170000_mode_environnement_test_preprod",
+        "classe": "TEST_CI",
+        "motif": "Nom auto-declaratif (_test / preprod)."
+      }
+    ]
+  },
+  "candidats": [
+    {
+      "id": "#62",
+      "branche": "fdj-vague1-cycle-caisse-20260916",
+      "sha": "fe4e9a2bf7e2ee15fc302e7d89c59be2259fe6d2",
+      "ancetre_production": true,
+      "commits_au_dela_de_production": 31,
+      "delta_migrations_count": 12,
+      "delta_migrations": [
+        "20260916220000_fdj_quart_relie_a_la_prise_de_poste",
+        "20260916220100_fdj_caisse_cycle_de_vie_colonnes",
+        "20260916220200_fdj_caisse_journal_evenements",
+        "20260916220300_fdj_demandes_correction_apres_validation",
+        "20260916220400_fdj_mouvements_auteur_et_date_effet",
+        "20260916220500_fdj_commande_ouverture_quart",
+        "20260916220600_fdj_commandes_caisse_employe",
+        "20260916220700_fdj_commandes_caisse_manager",
+        "20260916220800_fdj_projection_employe",
+        "20260916220900_fdj_projection_progression",
+        "20260916221000_fdj_commandes_activations_et_mouvements",
+        "20260916221100_fdj_commande_saisie_caisse_manager"
+      ],
+      "delta_pur_ajout": true,
+      "gate_go_production": "NO_GO_TEMPORAIRE",
+      "note": "Tete stable depuis decision-13.md (22/09/2026, lot NEXUS-CONTINUITE-TERRAIN-1-20260920) — le NO GO temporaire y reste attache tant que la tete ne bouge pas."
+    },
+    {
+      "id": "#65",
+      "branche": "reception-regularisation-20260919",
+      "sha": "fe36a8ebafb2a64dd1cc4f558424f3915749b4eb",
+      "ancetre_production": true,
+      "commits_au_dela_de_production": 3,
+      "delta_migrations_count": 1,
+      "delta_migrations": [
+        "20260919103000_carburant_reception_regularisation_releve_manuscrit"
+      ],
+      "delta_pur_ajout": true,
+      "gate_go_production": "NO_GO_TEMPORAIRE",
+      "note": "Tete stable depuis decision-13.md (22/09/2026). Priorite de ce lot (decision-11.md §5)."
+    }
+  ],
+  "mecanisme_reconstruction": {
+    "script": "outils/reconstruire-baseline-candidat.sh",
+    "usage": "outils/reconstruire-baseline-candidat.sh <branche-candidate> <project-ref-jetable>",
+    "principe": "Orchestre outils/reconstruire-base-test.sh (INCHANGE) depuis un git worktree jetable detache sur la branche candidate. Puisque production est un ancetre direct de #62/#65 (verifie par le script lui-meme avant tout geste, jamais suppose), supabase/migrations/ de la branche candidate = Production + son delta exact — aucune des 11 migrations ci-dessus. Aucun nouveau module de reconstruction : reutilisation stricte de l'existant, comme demande par decision-11.md §5 (generique pour #62 et les prochaines candidates).",
+    "gardes": [
+      "refuse project-ref = PRODUCTION (uzhjpqpctpvxytxpxoqz)",
+      "refuse project-ref = Test historique nexus-test (udljdqxerrbbbajxubfn) — non detruit, non reutilise pour cette preuve",
+      "refuse si production n'est pas un ancetre de la branche candidate",
+      "refuse si le delta migrations contient une modification/suppression (pas seulement un ajout)",
+      "DRY_RUN=oui : audit complet (SHA resolus, delta imprime) sans creer de worktree ni ouvrir de connexion"
+    ],
+    "preuve_deterministe_apportee_dans_ce_lot": "10/10 epreuves (test_reconstruire_baseline_candidat_20260924.js), toutes en DRY_RUN — usage, refus PROD_REF, refus Test historique, refus branche introuvable, refus non-ancetre (le rail lui-meme), delta exact #65 (1) et #62 (12) mesures contre les refs reelles, aucun worktree cree, garde de purete du delta presente. 0 regression (node run-tests.js), 0 nouveau finding Guardians (guardians-router.js : seule la collision NexusStock deja tracee ARCH-002 subsiste), verifier-apprentissage.js et guardian-qa.js conformes.",
+    "execution_reelle_non_faite": true,
+    "raison_stop": "decision-11.md §4 : creer une cible jetable/isolee est un NOUVEAU PROJET SUPABASE. Ce canal (GitHub Issue) n'a ni identifiants ni acces reseau vers un compte/organisation Supabase, ne peut donc ni creer un projet jetable ni fournir NEXUS_TEST_DB_URL pour un tel projet. Conformement a la decision, ce lot STOP ici plutot que de fabriquer une execution ou d'elargir la surface de securite.",
+    "besoin_exact_pour_executer": {
+      "ressource": "un projet Supabase jetable/isolable (ou equivalent Postgres jetable), distinct de Production (uzhjpqpctpvxytxpxoqz) et du Test historique (udljdqxerrbbbajxubfn)",
+      "acces": "NEXUS_TEST_DB_URL (ou trousseau/PGPASSWORD equivalent) pointant sur ce projet jetable, fourni a une session disposant d'un acces reseau/identifiants — pas creable ni utilisable depuis ce canal",
+      "geste_a_faire_une_fois_le_besoin_leve": "outils/reconstruire-baseline-candidat.sh reception-regularisation-20260919 <ref-jetable> — puis executer la recette candidate #65, puis appliquer la meme procedure a #62"
+    }
+  },
+  "limites_de_ce_canal": [
+    "aucun acces reseau/identifiant Supabase (Test ou Production) — confirme par construction depuis le 06/09/2026, reconfirme ici",
+    "aucun acces Cloudflare (tableau de bord) — l'isolation Test des candidats web (etude-isolation-test-candidats-web-1.md) reste non observee",
+    "aucun droit de push sur handoff-continuite-20260920 (verifie par l'API GitHub dans request-17.md : permissions push:false, pull:false pour ce jeton) — seule la branche claude/issue-28-20260924-2147 est modifiable depuis ce canal",
+    "aucune creation de ressource Supabase possible (nouveau projet, secret) — geste reserve a l'Orchestrator/Frederic",
+    "mesure Git uniquement : le cote base de donnees reelle (Supabase Test 287 versions appliquees selon dossier-decision-pr-62.md §8.1 du 22/09) n'a pas ete revisite ici — seule la comparaison entre arbres Git l'a ete"
+  ]
+}
