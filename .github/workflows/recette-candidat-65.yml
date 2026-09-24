@@ -1,0 +1,75 @@
+# Preuve isolée #65 — preview Cloudflare Test + recette navigateur authentifiée.
+# Périmètre strictement candidate : aucun déploiement/migration/écriture Production.
+name: "Preuve Test #65"
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - rebuild/carburants-65-20260922
+  workflow_dispatch:
+
+jobs:
+  preuve-test-65:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Attendre et prouver le build Cloudflare réellement servi
+        shell: bash
+        env:
+          PREVIEW_URL: https://rebuild-carburants-65-202609.nexus-test-ddf.pages.dev
+          SHA_ATTENDU: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tmp_build="$(mktemp)"
+          tmp_cfg="$(mktemp)"
+          trap 'rm -f "$tmp_build" "$tmp_cfg"' EXIT
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$PREVIEW_URL/nexus-build.js" -o "$tmp_build" &&
+               grep -Fq "commit: '$SHA_ATTENDU'" "$tmp_build"; then
+              ok=1
+              break
+            fi
+            echo "Preview pas encore sur ${SHA_ATTENDU:0:7} — attente ($i/60)."
+            sleep 5
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::La preview Cloudflare n'a pas servi le SHA attendu dans le délai."
+            exit 1
+          fi
+
+          curl -fsS --max-time 15 "$PREVIEW_URL/nexus-config.js" -o "$tmp_cfg"
+
+          # Preuve fail-closed : Test uniquement, projet Test attendu, jamais la ref Production.
+          grep -Fq 'environnement: "test"' "$tmp_cfg" || {
+            echo "::error::nexus-config.js servi n'annonce pas environnement=test."; exit 1; }
+          grep -Fq 'https://udljdqxerrbbbajxubfn.supabase.co' "$tmp_cfg" || {
+            echo "::error::nexus-config.js servi ne cible pas le projet Supabase Test attendu."; exit 1; }
+          if grep -Fq 'uzhjpqpctpvxytxpxoqz' "$tmp_cfg"; then
+            echo "::error::REFUS : la preview candidate contient la référence Supabase Production."
+            exit 1
+          fi
+          echo "PREUVE OK : SHA servi=${SHA_ATTENDU:0:7}, environnement=test, Supabase=Test exclusivement."
+
+      - name: Installer Playwright
+        run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
+
+      - name: Recette navigateur authentifiée #65
+        env:
+          NEXUS_TEST_URL: https://rebuild-carburants-65-202609.nexus-test-ddf.pages.dev/
+          NEXUS_TEST_MANAGER_NOM: Manager Test
+          NEXUS_TEST_CREATEUR_NOM: Créateur Test
+          NEXUS_TEST_MANAGER_PIN: ${{ secrets.NEXUS_TEST_MANAGER_PIN }}
+          NEXUS_TEST_CREATEUR_PIN: ${{ secrets.NEXUS_TEST_CREATEUR_PIN }}
+          NEXUS_TEST_EMPLOYEE_A_NOM: Employé Test A
+          NEXUS_TEST_EMPLOYEE_A_PIN: ${{ secrets.NEXUS_TEST_EMPLOYEE_A_PIN }}
+          NEXUS_COMMIT_ATTENDU: ${{ github.sha }}
+        run: node outils/recette-navigateur-test.js
