@@ -250,13 +250,13 @@
       "rail": "handoff-continuite-20260920"
     },
     "NEXUS-CONTINUITE-TERRAIN-2-20260922": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-11.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-8.md",
+      "derniere_decision": "decision-9.md",
       "source_decision": "registre",
-      "commit_decision": "1b8521b30f48e376204077904497dabe9f8d2ef9",
-      "consomme_le": "2026-09-23T22:22:02.124Z"
+      "commit_decision": "c9e0b76ca978b88426387301ba39da8ba169132b",
+      "consomme_le": "2026-09-24T01:36:53.098Z"
     }
   },
   "artefacts_hors_registre": [
