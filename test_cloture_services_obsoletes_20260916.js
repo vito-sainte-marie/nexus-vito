@@ -28,6 +28,10 @@ const assert = require('assert');
 
 const SOURCE = fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8');
 const REGLES = fs.readFileSync(path.join(__dirname, 'nexus-pointage-regles.js'), 'utf8');
+// decision-8 (23/09/2026) : nexus-auth.js exige désormais nexus-build.js et
+// nexus-page.js au chargement (portage 290a217). Le vrai nexus-page.js est
+// chargé tel quel dans le banc ; NexusBuild reçoit un stub, voir banc().
+const PAGE = fs.readFileSync(path.join(__dirname, 'nexus-page.js'), 'utf8');
 
 // Les vérifications sont MISES EN FILE, puis exécutées l'une après l'autre
 // avec `await`. Première rédaction de ce fichier : `verifier` appelait fn()
@@ -87,7 +91,12 @@ function banc({ shifts, lignesModifiees, erreurUpdate, avecRegles = true,
 
   const ctx = {
     supabase: { createClient: () => client },
-    window: { location: { pathname: '/NEXUS-Pointage-v1.html', search: '', href: '' } },
+    window: {
+      location: { pathname: '/NEXUS-Pointage-v1.html', search: '', href: '' },
+      // decision-8 (23/09/2026) : nexus-auth.js refuse de démarrer sans
+      // nexus-config.js. Configuration Test minimale, jamais de vraie clé.
+      NEXUS_CONFIG: { environnement: 'test', supabaseUrl: 'https://test.invalid', supabaseCle: 'stub' },
+    },
     document: { createElement: () => ({ style: {} }), head: { appendChild() {} }, body: { appendChild() {} },
                 addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] },
     console: {
@@ -99,6 +108,13 @@ function banc({ shifts, lignesModifiees, erreurUpdate, avecRegles = true,
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
+  // decision-8 §2 : aucune assertion de ce fichier ne porte sur la
+  // génération du build-id ni le versionnement d'URL — stub neutre autorisé
+  // pour NexusBuild. NexusPage est en revanche le vrai fichier committé.
+  ctx.NexusBuild = { versionner: (src) => src }; // stub d'infrastructure neutralisé, non métier
+  vm.runInContext(PAGE, ctx);
+  // Voir le même bridge, expliqué dans test_regularisation_manager_20260916.js.
+  ctx.NexusPage = ctx.window.NexusPage;
   if (avecRegles) vm.runInContext(REGLES, ctx);
   vm.runInContext(SOURCE, ctx);
   return { ctx, journal };

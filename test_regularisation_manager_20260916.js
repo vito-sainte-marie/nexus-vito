@@ -32,6 +32,12 @@ const assert = require('assert');
 const SOURCE  = fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8');
 const REGLES  = fs.readFileSync(path.join(__dirname, 'nexus-pointage-regles.js'), 'utf8');
 const COCKPIT = fs.readFileSync(path.join(__dirname, 'NEXUS-Cockpit-v2.html'), 'utf8');
+// decision-8 (23/09/2026) : nexus-auth.js exige désormais nexus-build.js et
+// nexus-page.js au chargement (portage 290a217). Le vrai nexus-page.js est
+// chargé tel quel dans le banc — son identité de page influence réellement
+// le résultat (chargement conditionnel de scripts) ; NexusBuild reçoit un
+// stub, voir banc() ci-dessous.
+const PAGE = fs.readFileSync(path.join(__dirname, 'nexus-page.js'), 'utf8');
 
 // File d'attente, puis `await` : une assertion posée après une écriture
 // asynchrone non attendue passe au vert avant que l'écriture n'ait lieu.
@@ -71,7 +77,13 @@ function banc({ shifts, erreurSelect, lignesModifiees, erreurUpdate, avecRegles 
   };
   const ctx = {
     supabase: { createClient: () => client },
-    window: { location: { pathname: '/NEXUS-Cockpit-v2.html', search: '', href: '' } },
+    window: {
+      location: { pathname: '/NEXUS-Cockpit-v2.html', search: '', href: '' },
+      // decision-8 (23/09/2026) : nexus-auth.js refuse de démarrer sans
+      // nexus-config.js. Configuration Test minimale, jamais de vraie clé —
+      // `fetch` reste interdit plus bas, aucun réseau n'en découle.
+      NEXUS_CONFIG: { environnement: 'test', supabaseUrl: 'https://test.invalid', supabaseCle: 'stub' },
+    },
     document: { createElement: () => ({ style: {} }), head: { appendChild() {} }, body: { appendChild() {} },
                 addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] },
     console: {
@@ -83,6 +95,21 @@ function banc({ shifts, erreurSelect, lignesModifiees, erreurUpdate, avecRegles 
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
+  // decision-8 §2 : NexusBuild.versionner n'est asserté par aucun test de ce
+  // fichier (ni génération de build-id, ni versionnement d'URL) — un stub
+  // d'identité neutre est donc autorisé plutôt que de committer un artefact
+  // de build. NexusPage, lui, influence réellement le comportement
+  // (chargement conditionnel de scripts selon la page) : le vrai fichier est
+  // exécuté, jamais réimplémenté.
+  ctx.NexusBuild = { versionner: (src) => src }; // stub d'infrastructure neutralisé, non métier
+  vm.runInContext(PAGE, ctx);
+  // nexus-page.js assigne son API à `window` (ou globalThis si window est
+  // absent) : ici `window` est un sous-objet distinct de l'objet global vm,
+  // donc l'assignation atterrit sur `ctx.window.NexusPage`. nexus-auth.js lit
+  // l'identifiant bare `NexusPage`, comme dans un vrai navigateur où
+  // `window === globalThis` — on relie donc les deux plutôt que de dupliquer
+  // la logique de nexus-page.js dans ce banc.
+  ctx.NexusPage = ctx.window.NexusPage;
   if (avecRegles) vm.runInContext(REGLES, ctx);
   vm.runInContext(SOURCE, ctx);
   return { ctx, journal };
