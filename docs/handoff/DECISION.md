@@ -1,67 +1,75 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-9.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-10.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 9
+seq: 10
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-11.md
+in_reply_to: request-16.md
 ---
-# Décision — `request-11.md` : restauration minimale d'un comportement existant
+# Décision — `request-16.md` : attribution CI acceptée (GO Créateur)
 
 ## Verdict
 
 `APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-Les preuves de `request-11.md` classent le point en `RESTAURATION_DE_COMPORTEMENT_EXISTANT` : les fonctions et invariants visés sont présents dans des commits ancêtres de Production et encore présents dans Production actuelle. Le défaut provient du portage mécanique `290a217`, qui a remplacé en bloc `nexus-auth.js` par la version du rail et a ainsi perdu du comportement métier déjà livré. Aucune nouvelle règle métier n'est nécessaire pour restaurer strictement ce périmètre.
+Frédéric valide l'attribution causale établie par `request-16.md` pour les 12 échecs de la suite
+candidate (commit `1ba8b88`, run `35995316868`, job `non-regression` #107618732366) : aucun n'est
+une régression nouvelle imputable au périmètre propre de `#65` (les deux harnais réalignés
+transportés par `1ba8b88` et la restauration minimale autorisée par `decision-9.md` §1).
 
-## 1. Restauration autorisée — candidate non-Production uniquement
+## 1. Réponse aux trois questions d'arbitrage de `request-16.md` §8
 
-Autorisé sur `rebuild/carburants-65-20260922` uniquement : appliquer le plus petit assemblage décrit et prouvé dans `request-11.md`, limité à :
+1. **Oui.** Le classement des 12 échecs est retenu : 7 dette QA préexistante du rail
+   (`docs/qa/ECHECS-CONNUS.json`, causes déjà nommées, sans rapport avec `nexus-auth.js`) ; 4
+   tracés au gap de classification d'accès/navigation, réel mais déjà nommé par `request-11.md`
+   §4/§6 et explicitement exclu du périmètre de restauration par `decision-9.md` §2 — ce gap
+   préexistait au portage `290a217`, le rail ne l'a jamais eu ; 1 (`test_gravite_ecart_source_
+   unique_20260916.js`) réexécuté isolément avec ses dépendances exactes du candidat, 31/31, non
+   attribué à `#65` en l'absence de preuve contraire.
+2. **Oui.** La boucle d'attribution CI propre au périmètre `#65` (harnais transportés + restau-
+   ration minimale) est considérée **close sur ce point précis** — sans que cela déclare la suite
+   candidate globale verte, et sans que cela vaille `GO` Production. Le lot racine distinct pour la
+   dette de classification d'accès (`proposition-lot-classification-acces-rail-1.md`) sera ouvert
+   après clôture complète de `#65`, séquencé, pas immédiatement.
+3. **Oui.** La recette navigateur authentifiée reste le seul geste bloquant restant avant tout
+   `GO`, et reste réservée à une session disposant réellement des secrets Test — cette clôture
+   d'attribution CI ne la remplace ni ne la contourne.
 
-1. `nexusEstManager(employee)` depuis Production ;
-2. le bloc d'autorité de fuseau nécessaire à `nexusServiceCourant` (`nexusFuseauxSite`, `nexusFuseauValide`, `nexusRetenirFuseau`, `nexusJourDansFuseau`, `nexusFuseauSite`) ;
-3. le cycle pilote déjà livré (`nexusReglesPilote`, `nexusAppliquerCloturePilote`, `nexusCloturerServicesObsoletes`, `nexusServicesOuvertsDuSite`, `nexusRegulariserServicesObsoletes`) ;
-4. le `nexusServiceCourant` correspondant ;
-5. la consolidation mécanique des deux prédicats manager résiduels vers `nexusEstManager(employee)`, sans modification de leur sémantique.
+Aucune de ces dettes (QA, classification d'accès, réexécution isolée) n'est masquée, supprimée ou
+rendue artificiellement verte par cette décision : elles restent inscrites, sourcées, et non
+résolues par ce lot.
 
-Conserver intégralement les gardes build/config déjà présentes sur la candidate (`NEXUS_CONFIG`, `NexusBuild`, `NexusPage`). Aucun remplacement en bloc de `nexus-auth.js` par une version historique n'est autorisé.
+## 2. Ce que cette décision n'affirme PAS
 
-## 2. Périmètre explicitement exclu
+Elle ne déclare pas la CI candidate verte au sens de `decision-9.md` §4 (le job `non-regression`
+reste littéralement rouge sur `1ba8b88`, faute d'une liste `ECHECS-CONNUS` mise à jour côté
+candidat — hors périmètre de ce lot). Elle ne clôt pas `#65` : les gates d'isolation Supabase Test
+des candidats web, de preuve de création réelle de la migration `#65`, et de dérive de schéma
+Supabase Test, recensées par `classement-gates-etat-git-62-65-1.md` §2, restent ouvertes et
+inchangées par cette décision.
 
-Ne pas restaurer dans ce geste la classification d'accès/navigation (`nexusCategorieAcces`, listes de pages, `nexusPageExigeServiceOperationnel`, `nexusEcranOperationnelAtteignable`) ni migrer les trois fonctions restantes vers `nexusFuseauSite`. Ces écarts sont réels mais distincts ; les traiter ici élargirait le périmètre UX au-delà de la restauration minimale démontrée.
+## 3. Suite autorisée
 
-Aucune règle métier, UX, rôle, RLS ou sécurité nouvelle ne doit être créée pour harmoniser ces écarts.
-
-## 3. Preuves obligatoires
-
-Après application sur la candidate :
-
-- `node --check` doit passer ;
-- rejouer réellement les deux harnais réalignés de `request-11.md` et obtenir leurs assertions métier, sans affaiblir les assertions ;
-- vérifier que la règle de rôle reste à source unique ;
-- exécuter la suite candidate complète et comparer au baseline connu ;
-- mesurer le diff final de `nexus-auth.js` et confirmer qu'aucun bloc hors périmètre n'a été introduit ;
-- si une nouvelle régression apparaît, STOP et la classer avant poursuite.
-
-Les 38/38 assertions de la zone jetable sont une preuve préparatoire ; elles ne remplacent pas l'exécution sur l'arbre candidate effectivement modifié.
-
-## 4. Gates suivantes inchangées
-
-Même si cette restauration devient verte, #65 reste NO GO tant que les gates déjà établies ne sont pas fermées : CI candidate verte, preuve du `nexus-config.js` réellement servi ciblant exclusivement Supabase Test, puis recette navigateur autorisée. La question Cloudflare/extension `.html` reste soumise à observation réelle ; aucune correction préventive.
-
-## 5. Transport
-
-Si Claude ne peut pas écrire directement sur `rebuild/carburants-65-20260922`, préparer un commit atomique sur une branche de travail persistante avec le diff exact et les preuves, puis revenir au rail. Ne pas demander une gate Créateur pour une limitation de transport Git non-Production.
-
-## STOP
-
-Retour par `request-N.md` si le comportement restauré diverge de Production, si les harnais échouent sur une assertion métier, si le diff exige un élargissement UX/sécurité/rôle/RLS, si une nouvelle régression matérielle apparaît, ou si une gate Test/Cloudflare devient contradictoire.
+1. Poursuivre les preuves déterministes restantes de `#65` disponibles sans secret ni accès
+   Production.
+2. Rechercher une voie d'exécution déjà prévue par l'infrastructure pour la recette navigateur
+   authentifiée (workflow/environnement Test avec secrets déjà protégés), sans lire, exposer,
+   copier ni demander la valeur d'un PIN. Si une telle voie est atteignable depuis la session en
+   cours, l'emprunter. Sinon, STOP et documenter précisément le geste minimal requis — pas de
+   nouveau mécanisme, pas de nouvelle garde, pas de contournement de sécurité.
+3. Si — et seulement si — toutes les gates de `#65` (attribution CI, recette navigateur, isolation
+   Test, preuve de migration, dérive de schéma) deviennent closes dans une même session outillée,
+   préparer le dossier de gate Production puis STOP pour `GO` explicite de Frédéric.
+4. Une fois le verdict complet de `#65` rendu (pas avant), enchaîner sur le lot racine distinct déjà
+   préparé pour la dette de classification d'accès/harnais.
 
 ## Interdits
 
-Aucun changement `main`/`production`, aucune migration ou écriture Supabase Production, aucun déploiement/promotion Production, aucun changement de rôle/RLS, aucun secret exposé. `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste canonique.
+Aucun merge ni déploiement Production, aucune écriture ni migration Supabase Production, aucun
+changement métier/UX/rôle/RLS/sécurité, aucun secret exposé, aucune baisse de gate.
+`NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste canonique.
