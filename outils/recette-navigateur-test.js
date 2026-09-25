@@ -209,6 +209,11 @@ function secretsManquants(env) {
 // Les attentes de la recette. Elles ne sont PAS des constantes décoratives :
 // elles décrivent le scénario semé par outils/recette-carburants-test.sql, et
 // une divergence doit se lire comme un échec, jamais s'ajuster au résultat.
+//
+// Elles décrivent le régime ORDINAIRE, celui où NEXUS vise le camion complet.
+// En fin de mois le moteur minimise le résiduel au lieu de remplir : exiger ces
+// chiffres-là ce jour-là reviendrait à demander au moteur de désobéir à la règle
+// du 25/08/2026. D'où `modeFinDeMois`, lu du moteur et jamais recalculé ici.
 const ATTENDU = {
   total: 36000,
   reliquatRecupereL: 1000,
@@ -301,6 +306,16 @@ async function lireRecommandation(page, base) {
     return {
       ok: !!(r && r.ok),
       site: SITE_ID,
+      // Le RÉGIME retenu par le moteur, remonté tel quel. Sans lui, la recette
+      // juge à l'aveugle : cinq jours par mois au moins, l'écran recommande
+      // légitimement autre chose que 36 000 L et la recette criait « régression ».
+      // `modeFinDeMois` est volontairement recopié SANS coercition — un artefact
+      // déployé plus ancien que le dépôt ne le porte pas, et cette absence doit
+      // se voir au jugement plutôt que devenir un « false » silencieux.
+      modeFinDeMois: r ? r.modeFinDeMois : undefined,
+      dateISO: r ? r.dateISO : null,
+      heureStation: r ? r.heureMaintenantHHMM : null,
+      fuseau: r ? r.timezone : null,
       commit: (typeof NexusBuild !== 'undefined' && NexusBuild && NexusBuild.commitCourt) || null,
       total: c ? c.total : null,
       volumes: c ? c.volumes : null,
@@ -318,6 +333,36 @@ function verifier(vu) {
       'la base Test n\'est pas semée : exécuter outils/recette-carburants-test.sql avant la recette.');
     return echecs;
   }
+
+  // Le contrat de l'écran AVANT tout jugement de chiffres.
+  //
+  // `modeFinDeMois` absent ne veut pas dire « pas en fin de mois » : il veut
+  // dire que la version servie ne sait pas le dire. La recette juge un artefact
+  // DÉPLOYÉ, qui peut être plus vieux que le dépôt — c'est le seul des trois
+  // instruments carburants où cet écart existe. Conclure quoi que ce soit de ce
+  // silence, dans un sens ou dans l'autre, serait juger à l'aveugle.
+  if (typeof vu.modeFinDeMois !== 'boolean') {
+    echecs.push('la version servie n\'expose pas `modeFinDeMois` — impossible de savoir si le moteur '
+      + 'vise le camion complet ou minimise le résiduel, donc impossible de juger le chiffre. '
+      + 'Version servie antérieure au régime de fin de mois, ou traversée rompue.');
+    return echecs;
+  }
+
+  // EN FIN DE MOIS, la signature CARB-004 n'a pas lieu d'être : on juge les
+  // PROPRIÉTÉS du régime, pas une seconde constante de litres recalibrée à la
+  // main — une constante de plus serait une deuxième chose à tenir à jour, et
+  // c'est ainsi qu'une recette se périme.
+  if (vu.modeFinDeMois) {
+    if (!(vu.total > 0)) {
+      echecs.push('fin de mois : l\'écran ne recommande aucune quantité. Minimiser le résiduel '
+        + 'n\'est pas s\'abstenir.');
+    } else if (vu.total >= ATTENDU.total) {
+      echecs.push(`fin de mois : total ${vu.total} L — la minimisation du résiduel doit rester SOUS `
+        + `le camion complet (${ATTENDU.total} L).`);
+    }
+    return echecs;
+  }
+
   if (vu.total !== ATTENDU.total) echecs.push(`total ${vu.total} L, attendu ${ATTENDU.total} L`);
 
   const rel = vu.reliquatArrondi;
@@ -341,6 +386,19 @@ function verifier(vu) {
 }
 
 
+// La chaîne complète : observer → juger le chiffre → borner la portée.
+//
+// Elle vit ICI et non dans `executer()`, qui exige un navigateur et qu'aucune
+// épreuve ne peut donc atteindre. Le 25/09/2026, sur le banc de répétition, une
+// mutation a SURVÉCU pour cette raison exacte : l'épreuve exerçait la fonction
+// sans vérifier que quiconque l'appelait. Le seul câblage réel de cette recette
+// — passer le régime au juge de portée — est désormais dans une fonction pure,
+// où une mutation le fait rougir.
+function jugerObservation(vu, semisFait) {
+  return jugerCarburants(verifier(vu), semisFait, vu && vu.modeFinDeMois === true);
+}
+
+
 // Un ÉCHEC sur données non semées ne s'impute pas au moteur.
 //
 // Distinction de la même famille que « compte inconnectable » contre « accès
@@ -361,7 +419,27 @@ function semisEffectue(env) {
   return (env || {}).NEXUS_SEMIS_FAIT === '1';
 }
 
-function jugerCarburants(echecsCarburants, semisFait) {
+function jugerCarburants(echecsCarburants, semisFait, modeFinDeMois) {
+  // La fin de mois n'est PAS un succès CARB-004 déguisé.
+  //
+  // Rendre la recette tolérante au régime de minimisation sans le dire aurait
+  // remplacé un faux rouge par un faux vert, ce qui est pire : la preuve UI du
+  // camion complet serait déclarée faite les jours où elle est structurellement
+  // inexerçable. Même famille que ENV-003 juste en dessous — la capacité de
+  // prouver manque, donc la preuve est déclarée MANQUANTE, jamais satisfaite par
+  // défaut. Ce qui a été observé reste vrai et reste jugé (l'écran DOIT tenir en
+  // fin de mois aussi) ; c'est la portée de la preuve qui est bornée.
+  if (modeFinDeMois && echecsCarburants.length === 0) {
+    return {
+      echecs: [],
+      indisponibilite: 'Régime de FIN DE MOIS au moment du passage : NEXUS minimise le résiduel au lieu '
+        + 'de viser le camion complet. L\'écran a été jugé sur les propriétés de ce régime et les tient — '
+        + 'mais la signature CARB-004 (36 000 L, reliquat récupéré, refus motivé) n\'était pas exerçable '
+        + 'aujourd\'hui. LA PREUVE UI DU CAMION COMPLET RESTE NON SATISFAITE pour ce passage. '
+        + 'Ce n\'est pas un défaut : c\'est le calendrier. Rejouer hors des cinq derniers jours du mois, '
+        + 'ou s\'en remettre à outils/repetition-recette-carburants.js, qui traverse les deux régimes.',
+    };
+  }
   if (semisFait || echecsCarburants.length === 0) {
     return { echecs: echecsCarburants, indisponibilite: null };
   }
@@ -975,10 +1053,8 @@ async function executer(env = process.env) {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
     await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
     const vu = await lireRecommandation(page, base);
-    const echecsCarburants = verifier(vu);
-
     const semisFait = semisEffectue(env);
-    const jugement = jugerCarburants(echecsCarburants, semisFait);
+    const jugement = jugerObservation(vu, semisFait);
     const echecs = jugement.echecs;
     const carburantsNonAttribuable = jugement.indisponibilite;
 
@@ -1051,7 +1127,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, jugerObservation, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {

@@ -25,19 +25,84 @@ function config() { return JSON.parse(fs.readFileSync(R.CONFIG, 'utf8')); }
 
 (async () => {
 
-await t('le scénario tient les 14 cas sur la configuration réelle de la station', async () => {
+await t('le scénario tient tous les cas sur la configuration réelle de la station', async () => {
   // Sans cette épreuve, toutes les suivantes passeraient avec un outil qui
   // refuse tout. Et sept jours, pas un : la fenêtre de vente avant livraison
   // dépend du jour, et c'est ce qui avait périmé la version précédente.
+  //
+  // Le nombre de cas n'est plus écrit ici. Il l'était — `14` — et cette
+  // constante interdisait au domaine de grandir : élargir le banc faisait
+  // rougir son épreuve, ce qui est exactement à l'envers. Ce qui est éprouvé
+  // maintenant, ce sont les PROPRIÉTÉS du domaine, pas son cardinal.
   const jours = await R.repeter(config());
-  assert.strictEqual(jours.length, 14, 'sept jours × deux côtés du cutoff');
+  assert.ok(jours.length >= 14, `domaine trop pauvre : ${jours.length} cas`);
   for (const j of jours) {
-    assert.deepStrictEqual(j.echecs, [], `${j.dateISO} : ${j.echecs.join(' | ')}`);
-    assert.strictEqual(j.reliquatL, R.ATTENDU.reliquatL);
-    assert.ok(j.stockPrevuSp95 >= R.BANDE_SP95.min && j.stockPrevuSp95 <= R.BANDE_SP95.max);
+    assert.deepStrictEqual(j.echecs, [], `${j.dateISO} ${j.heure} : ${j.echecs.join(' | ')}`);
   }
-  assert.strictEqual([...new Set(jours.map(j => j.fenetre))].sort().join(','), '1,2,3,4',
+  // La signature CARB-004 ne vaut QUE hors fin de mois. En fin de mois le
+  // moteur minimise le résiduel au lieu de viser le camion complet, et lui
+  // réclamer 1 000 L de reliquat serait lui reprocher d'obéir à la règle du
+  // 25/08/2026.
+  const ordinaires = jours.filter(j => !j.modeFinDeMois);
+  assert.ok(ordinaires.length, 'aucun cas ordinaire — le banc ne prouve plus CARB-004');
+  for (const j of ordinaires) {
+    assert.strictEqual(j.reliquatL, R.ATTENDU.reliquatL, `${j.dateISO} ${j.heure}`);
+    assert.ok(j.stockPrevuSp95 >= R.BANDE_SP95.min && j.stockPrevuSp95 <= R.BANDE_SP95.max,
+      `${j.dateISO} ${j.heure} : stock projeté ${j.stockPrevuSp95} L hors bande`);
+    assert.strictEqual(j.totalL, R.ATTENDU.total, `${j.dateISO} ${j.heure}`);
+  }
+  assert.strictEqual([...new Set(ordinaires.map(j => j.fenetre))].sort().join(','), '1,2,3,4',
     'les QUATRE fenêtres doivent être réellement exercées, cutoff compris');
+});
+
+await t('LE TROU DU 25/09 — le domaine ATTEINT le mode de fin de mois', async () => {
+  // Le banc partait d'un seul lundi, le 07. Six jours de décalage au plus,
+  // puis une fenêtre de livraison de quatre jours au plus : aucune livraison
+  // produite ne pouvait franchir le seuil des cinq derniers jours du mois.
+  // `estFinDeMois` n'était pas mal éprouvée, elle était INATTEIGNABLE — et le
+  // banc se déclarait « 14/14 conformes » pendant que la CI rougissait les 24
+  // et 25/09/2026 sur ce mode exact. Un banc qui ne peut pas atteindre la
+  // moitié du moteur ne dit pas « je ne sais pas » : il dit « vert ».
+  //
+  // C'est l'épreuve qui rougit si quelqu'un regèle le domaine.
+  const jours = await R.repeter(config());
+  const finMois = jours.filter(j => j.modeFinDeMois);
+  assert.ok(finMois.length >= 3,
+    `le domaine ne traverse plus la fin de mois (${finMois.length} cas) — regeler ` +
+    'LUNDIS ou HEURES rend le mode de minimisation du résiduel inatteignable.');
+  for (const j of finMois) {
+    assert.ok(j.totalL > 0, `${j.dateISO} : fin de mois sans recommandation`);
+    assert.ok(j.totalL < R.ATTENDU.total,
+      `${j.dateISO} : ${j.totalL} L — la fin de mois doit rester SOUS le camion complet`);
+  }
+});
+
+await t('la tranche du soir est interrogeable — l’horodatage ne déborde plus', async () => {
+  // `String(Number(heure.slice(0,2)) + 4)` donnait « 24 » à partir de 20 h
+  // locales : `T24:00` n'est pas une date, et le banc ne POUVAIT PAS être
+  // interrogé sur la tranche où la CI tourne et où le défaut de référentiel
+  // scindé du 25/09/2026 s'est manifesté. Le décalage se déduit désormais du
+  // fuseau au lieu d'être recopié à la main.
+  const c = config();
+  const heureMurale = (instant) => new Intl.DateTimeFormat('fr-FR',
+    { timeZone: c.fuseau_horaire, hour: '2-digit', minute: '2-digit', hour12: false })
+    .format(new Date(instant)).replace('h', ':').replace(/\s/g, '');
+
+  // On observe l'instant que le banc a RÉELLEMENT transmis au moteur, pas le
+  // résultat d'un appel direct à `instantUTC`. La première version de cette
+  // épreuve faisait l'inverse : elle a survécu à la mutation qui remettait le
+  // décalage codé en dur, parce qu'elle prouvait la fonction sans prouver que
+  // quiconque l'appelait. Même famille que la garde du 05/09 qui nommait
+  // l'heure et pas la date.
+  for (const heure of ['09:00', '15:00', '21:00', '23:30']) {
+    const j = await R.repeterUnJour(c, '2026-09-09', heure);
+    assert.deepStrictEqual(j.echecs, [], `${heure} : ${j.echecs.join(' | ')}`);
+    assert.ok(!Number.isNaN(Date.parse(j.maintenant)),
+      `${heure} : instant transmis illisible (${j.maintenant}) — au-delà de 20 h, ` +
+      'un décalage additionné à la main déborde en « T24:00 » et n\'est plus une date.');
+    assert.strictEqual(heureMurale(j.maintenant), heure,
+      `${heure} : l'instant transmis désigne ${heureMurale(j.maintenant)} à la station.`);
+  }
 });
 
 await t('la fenêtre dépend du jour ET du cutoff — la moitié qui manquait', async () => {

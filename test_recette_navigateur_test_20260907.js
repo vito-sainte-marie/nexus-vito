@@ -16,7 +16,7 @@ const path = require('path');
 const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
-const { verifier, verifierLive, jugerCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
+const { verifier, verifierLive, jugerCarburants, jugerObservation, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
         aliasCloudflare, urlTestDuRail, attendreVersionServie, HOTE_PAGES_TEST } = require(OUTIL);
 const os = require('os');
 
@@ -32,7 +32,10 @@ function epreuveAttendue(nom, fn) { attentes.push([nom, fn]); }
 // Observation conforme : exactement ce que l'écran a rendu le 07/09/2026.
 function vuConforme(muter) {
   const vu = {
-    ok: true, site: 'nexus-station-test', total: 36000,
+    // `modeFinDeMois: false` n'est pas un ornement : le moteur le rend, et le
+    // juge REFUSE désormais de conclure quand il manque. Une fixture qui ne le
+    // porterait pas décrirait un écran qui n'existe pas.
+    ok: true, modeFinDeMois: false, site: 'nexus-station-test', total: 36000,
     volumes: { sp95: 23000, go: 13000 },
     reliquatArrondi: {
       recupereL: 1000,
@@ -102,6 +105,92 @@ epreuve('une absence de recommandation renvoie vers le jeu de données, pas vers
   const e = verifier({ ok: false, total: null });
   assert.strictEqual(e.length, 1, 'un seul diagnostic, pas une avalanche : ' + e.join(' | '));
   assert.ok(/recette-carburants-test\.sql/.test(e[0]), e[0]);
+});
+
+epreuve('LE TROU DU 25/09 — en fin de mois, 4 000 L n’est pas une régression', () => {
+  // Le juge ne connaissait qu'un régime. Cinq jours par mois au moins, l'écran
+  // recommande légitimement autre chose que 36 000 L parce que NEXUS minimise
+  // le résiduel au lieu de remplir — et la recette annonçait « total 4000 L,
+  // attendu 36000 L », c'est-à-dire accusait le moteur d'obéir à sa règle.
+  // Le 24/09/2026 la CI a rendu ce rouge-là.
+  const e = verifier(vuConforme(v => {
+    v.modeFinDeMois = true;
+    v.total = 4000;
+    v.volumes = { sp95: 4000 };
+    v.reliquatArrondi = { recupereL: 0, parCarburant: {}, motifs: {} };
+  }));
+  assert.deepStrictEqual(e, [],
+    'une fin de mois conforme ne doit produire AUCUN échec : ' + e.join(' | '));
+});
+
+epreuve('en fin de mois, un total au niveau du camion complet reste refusé', () => {
+  // La moitié qui donne son sens à la précédente. Sans elle, « fin de mois »
+  // deviendrait un laissez-passer : n'importe quel chiffre passerait ce jour-là.
+  const e = verifier(vuConforme(v => { v.modeFinDeMois = true; }));
+  assert.ok(e.length, 'minimiser le résiduel ne peut pas donner un camion complet');
+  assert.ok(/SOUS le camion complet/.test(e.join(' ')), e.join(' | '));
+  const vide = verifier(vuConforme(v => { v.modeFinDeMois = true; v.total = 0; }));
+  assert.ok(/n’est pas s’abstenir|n'est pas s'abstenir/.test(vide.join(' ')), vide.join(' | '));
+});
+
+epreuve('une version servie qui n’expose pas le régime est REFUSÉE, pas devinée', () => {
+  // La recette juge un artefact DÉPLOYÉ, qui peut être antérieur au dépôt.
+  // Traiter `undefined` comme « pas en fin de mois » rendrait le juge aveugle
+  // exactement les jours où il doit voir clair, et le silence passerait pour
+  // une réponse. C'est le défaut que la garde du 05/09 a déjà payé une fois.
+  const e = verifier(vuConforme(v => { delete v.modeFinDeMois; }));
+  assert.ok(e.length, 'l’absence du régime doit être dite, pas comblée');
+  assert.ok(/n['’]expose pas .modeFinDeMois./.test(e.join(' ')), e.join(' | '));
+  assert.strictEqual(e.length, 1, 'un seul diagnostic, pas une avalanche de chiffres : ' + e.join(' | '));
+});
+
+epreuve('LE FAUX VERT — une fin de mois conforme ne vaut PAS preuve CARB-004', () => {
+  // Le vrai danger de cette réparation. Rendre le juge tolérant au régime de
+  // minimisation sans le DIRE aurait remplacé un faux rouge par un faux vert :
+  // la preuve UI du camion complet serait déclarée faite les jours où elle est
+  // structurellement inexerçable. La capacité de prouver manque, donc la preuve
+  // est déclarée manquante — même doctrine qu'ENV-003.
+  const j = jugerCarburants([], true, true);
+  assert.deepStrictEqual(j.echecs, [], 'rien à imputer au moteur : il a tenu son régime');
+  assert.ok(j.indisponibilite, 'mais la portée de la preuve doit être BORNÉE');
+  assert.ok(/NON SATISFAITE/.test(j.indisponibilite), j.indisponibilite);
+  assert.ok(/repetition-recette-carburants/.test(j.indisponibilite),
+    'et la recette doit dire où la preuve complète existe : ' + j.indisponibilite);
+
+  // Hors fin de mois, le même vert reste un vrai vert.
+  const ordinaire = jugerCarburants([], true, false);
+  assert.strictEqual(ordinaire.indisponibilite, null,
+    'ne pas fabriquer une indisponibilité là où la preuve est faite');
+});
+
+epreuve('LE CÂBLAGE — la recette passe bien le régime à son juge de portée', () => {
+  // Prouver `jugerCarburants(…, true)` sans prouver que la recette l'APPELLE
+  // avec le régime, c'est prouver la fonction et pas le câblage. Le 25/09/2026,
+  // sur le banc de répétition, une mutation a survécu exactement là. Cette
+  // épreuve exerce la chaîne entière, du même point d'entrée que `executer()`.
+  const finDeMois = vuConforme(v => {
+    v.modeFinDeMois = true;
+    v.total = 4000;
+    v.volumes = { sp95: 4000 };
+    v.reliquatArrondi = { recupereL: 0, parCarburant: {}, motifs: {} };
+  });
+  const j = jugerObservation(finDeMois, true);
+  assert.deepStrictEqual(j.echecs, [], 'la fin de mois conforme ne s’impute pas au moteur : ' + j.echecs.join(' | '));
+  assert.ok(j.indisponibilite && /CAMION COMPLET RESTE NON SATISFAITE/.test(j.indisponibilite),
+    'le régime doit atteindre le juge de portée, sinon ce vert se déclare preuve CARB-004 : '
+    + j.indisponibilite);
+
+  // Et le passage ordinaire reste une preuve pleine, sans réserve inventée.
+  const ordinaire = jugerObservation(vuConforme(), true);
+  assert.deepStrictEqual(ordinaire.echecs, []);
+  assert.strictEqual(ordinaire.indisponibilite, null);
+});
+
+epreuve('un ÉCART en fin de mois reste un échec bloquant', () => {
+  // La fin de mois borne la portée de la preuve ; elle n'excuse rien.
+  const j = jugerCarburants(['fin de mois : total 40000 L'], true, true);
+  assert.strictEqual(j.echecs.length, 1, 'l’écran est jugé dans les deux régimes');
+  assert.strictEqual(j.indisponibilite, null);
 });
 
 epreuve('les secrets manquants sont nommés un par un', () => {

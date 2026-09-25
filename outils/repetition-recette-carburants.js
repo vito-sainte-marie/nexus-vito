@@ -114,6 +114,32 @@ function faireClient(config, histo, quart1) {
   } };
 }
 
+// L'instant UTC correspondant à une heure MURALE dans un fuseau donné.
+//
+// Remplace `String(Number(heure.slice(0,2)) + 4)`, qui portait deux défauts.
+// Le premier saute aux yeux une fois écrit : à partir de 20 h locales, 20+4
+// donne « 24 » et l'horodatage `T24:00` n'est pas une date — le banc ne
+// POUVAIT PAS être interrogé sur la tranche du soir, celle-là même où le
+// défaut du 25/09/2026 vivait. Le second est le défaut de fond : +4 est le
+// décalage de la Martinique recopié à la main. Un banc qui code en dur le
+// référentiel qu'il est censé éprouver ne peut rien prouver à son sujet.
+// Ici le décalage se DÉDUIT du fuseau, par deux passes (la seconde rend la
+// bascule exacte même si un fuseau change d'offset dans la journée).
+function instantUTC(dateISO, heureHHMM, timezone) {
+  const naif = Date.parse(`${dateISO}T${heureHHMM}:00Z`);
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const luEnUTC = (t) => {
+    const o = {};
+    for (const x of fmt.formatToParts(new Date(t))) o[x.type] = x.value;
+    return Date.parse(`${o.year}-${o.month}-${o.day}T${o.hour === '24' ? '00' : o.hour}:${o.minute}:${o.second}Z`);
+  };
+  let t = naif - (luEnUTC(naif) - naif);
+  t = naif - (luEnUTC(t) - t);
+  return new Date(t).toISOString();
+}
+
 function jourDecale(dateISO, n) {
   const d = new Date(dateISO + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
@@ -124,7 +150,10 @@ function jourDecale(dateISO, n) {
 // survivaient : les contrôles se couvraient mutuellement, et supprimer l'un
 // d'eux laissait les autres crier à sa place. Une épreuve qui constate « un
 // échec survient » ne prouve pas QUEL contrôle l'a produit.
-function verifierJour({ commande, capaciteSp95, config }) {
+// `modeFinDeMois` vient du MOTEUR, jamais d'un second calcul de calendrier
+// ici. Le banc a le droit de juger, pas de redécider ce qu'est une fin de
+// mois — sinon deux vérités coexistent et c'est la plus fausse qui gagne.
+function verifierJour({ commande, capaciteSp95, config, modeFinDeMois }) {
   const echecs = [];
   if (!commande) {
     echecs.push('aucune commande recommandée — le scénario ne déclenche plus de commande.');
@@ -134,6 +163,24 @@ function verifierJour({ commande, capaciteSp95, config }) {
   const limiteGo = limiteTotale(config.cuves_carburants.go);
   const c = commande;
   const rel = c.reliquatArrondi || {};
+
+  // EN FIN DE MOIS, la signature CARB-004 n'a pas lieu d'être : NEXUS ne vise
+  // plus le camion complet, il minimise le résiduel. Attendre 36 000 L ici
+  // reviendrait à exiger du moteur qu'il désobéisse à la règle du 25/08/2026.
+  // On juge donc les PROPRIÉTÉS du mode, pas une seconde constante de litres
+  // recalibrée — une constante de plus serait une deuxième chose à tenir à
+  // jour, et c'est ainsi qu'un banc se périme.
+  if (modeFinDeMois) {
+    if (!(c.total > 0)) echecs.push('fin de mois : aucune quantité recommandée.');
+    if (c.total >= ATTENDU.total) {
+      echecs.push(`fin de mois : total ${c.total} L — le mode de minimisation doit rester SOUS le camion complet (${ATTENDU.total} L).`);
+    }
+    if (c.volumes.sp95 > limiteSp95) echecs.push(`sp95 ${c.volumes.sp95} L dépasse la limite de remplissage ${limiteSp95} L — physiquement impossible.`);
+    if (c.volumes.go > limiteGo) echecs.push(`go ${c.volumes.go} L dépasse la limite de remplissage ${limiteGo} L — physiquement impossible.`);
+    if (capaciteSp95 == null) echecs.push('capacité sp95 inconnue — ne rien conclure de cette absence.');
+    else if (capaciteSp95 > limiteSp95) echecs.push(`capacité sp95 ${Math.round(capaciteSp95)} L supérieure à la limite ${limiteSp95} L — cas dégénéré CARB-006, stock projeté négatif.`);
+    return echecs;
+  }
 
   if (c.total !== ATTENDU.total) echecs.push(`total ${c.total} L, attendu ${ATTENDU.total} L`);
   if (c.volumes.sp95 !== ATTENDU.sp95) echecs.push(`sp95 ${c.volumes.sp95} L, attendu ${ATTENDU.sp95} L`);
@@ -205,34 +252,59 @@ async function repeterUnJour(config, dateISO, heureHHMM) {
     return { dateISO, fenetre, echecs: ['La couche P0 n\'est pas installée — cette répétition n\'exercerait pas la chaîne réelle.'] };
   }
 
+  // Remonté dans le résultat, et pas seulement passé au moteur : une épreuve
+  // qui vérifie `instantUTC` sans vérifier que le banc s'en SERT prouve la
+  // fonction, pas le câblage. Mutation faite le 25/09/2026 — remettre le
+  // décalage codé en dur ne rougissait rien tant que l'instant transmis
+  // n'était pas observable.
+  const maintenant = instantUTC(dateISO, heure, config.fuseau_horaire);
   const r = await sandbox.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(
     faireClient(config, histo, quart1), config.site,
-    { timezone: config.fuseau_horaire, dateISO, heureHHMM: heure,
-      // `maintenant` en UTC pour l'heure locale demandée (Martinique = UTC-4).
-      maintenant: dateISO + 'T' + String(Number(heure.slice(0, 2)) + 4).padStart(2, '0') + heure.slice(2) + ':00.000Z' });
+    { timezone: config.fuseau_horaire, dateISO, heureHHMM: heure, maintenant });
 
+  const modeFinDeMois = !!(r && r.modeFinDeMois);
   const echecs = verifierJour({ commande: r && r.commandeRecommandee,
     capaciteSp95: r && r.parCarburant && r.parCarburant.sp95 ? r.parCarburant.sp95.capaciteDisponibleL : null,
-    config });
+    config, modeFinDeMois });
   const limiteSp95 = limiteTotale(config.cuves_carburants.sp95);
   const c = (r && r.commandeRecommandee) || null;
   const capaSp95 = r && r.parCarburant && r.parCarburant.sp95 ? r.parCarburant.sp95.capaciteDisponibleL : null;
   const stockPrevuSp95 = capaSp95 == null ? null : limiteSp95 - capaSp95;
-  if (!c) return { dateISO, fenetre, echecs };
-  return { dateISO, heure, fenetre, stockPrevuSp95: stockPrevuSp95 == null ? null : Math.round(stockPrevuSp95),
-    volumes: c.volumes, reliquatL: (c.reliquatArrondi || {}).recupereL, echecs };
+  if (!c) return { dateISO, heure, isoDow, fenetre, modeFinDeMois, maintenant, echecs };
+  return { dateISO, heure, isoDow, fenetre, modeFinDeMois, maintenant,
+    stockPrevuSp95: stockPrevuSp95 == null ? null : Math.round(stockPrevuSp95),
+    totalL: c.total, volumes: c.volumes, reliquatL: (c.reliquatArrondi || {}).recupereL, echecs };
 }
 
-// Les sept jours, à partir d'un lundi connu.
+// Les jours, à partir de lundis connus.
+//
+// `LUNDI_REFERENCE` seul (07/09) était un domaine GELÉ : parti d'un 7, décalé
+// de six jours au plus, puis livré dans une fenêtre de quatre jours au plus,
+// aucune date de livraison produite ne pouvait atteindre les cinq derniers
+// jours du mois. `estFinDeMois` était donc STRUCTURELLEMENT inatteignable —
+// pas mal éprouvée : inatteignable. Le banc ne pouvait pas rougir sur le mode
+// de fin de mois parce qu'il ne pouvait pas l'atteindre, et il a laissé
+// passer les rouges des 24 et 25/09/2026 en se déclarant vert.
+// Le second lundi porte ses livraisons au-delà du seuil (> 25 en septembre).
 const LUNDI_REFERENCE = '2026-09-07';
-// QUATORZE cas, pas sept : chaque jour est rejoué de part et d'autre du
-// cutoff. Valider sept jours à une seule heure ne couvrait que la moitié du
-// domaine, et c'est cette moitié manquante qui a cassé la recette.
+const LUNDI_FIN_DE_MOIS = '2026-09-21';
+const LUNDIS = [LUNDI_REFERENCE, LUNDI_FIN_DE_MOIS];
+
+// TROIS heures, pas deux. 09:00 et 15:00 encadrent le cutoff de 11 h ; 21:00
+// n'ouvre AUCUNE fenêtre nouvelle — c'est la même branche « après » que
+// 15:00, et le dire vaut mieux que de le laisser croire. Sa valeur est
+// ailleurs : la tranche du soir était inaccessible au banc, dont
+// l'horodatage débordait en `T24:00` au-delà de 20 h locales. C'est
+// exactement l'heure où la CI tourne, et exactement l'heure où le défaut de
+// référentiel scindé du 25/09/2026 s'est manifesté.
+const HEURES = ['09:00', '15:00', '21:00'];
+
 async function repeter(config) {
   const jours = [];
-  for (let i = 0; i < 7; i++) {
-    jours.push(await repeterUnJour(config, jourDecale(LUNDI_REFERENCE, i), '09:00'));
-    jours.push(await repeterUnJour(config, jourDecale(LUNDI_REFERENCE, i), '15:00'));
+  for (const lundi of LUNDIS) {
+    for (let i = 0; i < 7; i++) {
+      for (const heure of HEURES) jours.push(await repeterUnJour(config, jourDecale(lundi, i), heure));
+    }
   }
   return jours;
 }
@@ -283,7 +355,7 @@ function lireConfig() {
   catch (e) { return { erreur: `${path.relative(RACINE, CONFIG)} illisible : ${e.message}` }; }
 }
 
-module.exports = { repeter, repeterUnJour, verifierJour, limiteTotale, comparerInstantane, trier, CHAMPS_SUIVIS, lireConfig, SCENARIO, ATTENDU, BANDE_SP95, FENETRE, CUTOFF_HEURE, fenetreDeVente, CONFIG };
+module.exports = { repeter, repeterUnJour, verifierJour, instantUTC, limiteTotale, comparerInstantane, trier, CHAMPS_SUIVIS, lireConfig, SCENARIO, ATTENDU, BANDE_SP95, FENETRE, CUTOFF_HEURE, fenetreDeVente, CONFIG };
 
 if (require.main === module && process.argv.includes('--comparer')) {
   // Mode comparaison : la configuration vivante arrive sur l'entrée standard,
@@ -311,27 +383,46 @@ if (require.main === module && process.argv.includes('--comparer')) {
     process.exit(0);
   });
 } else if (require.main === module) {
-  const NOMS = ['lundi', 'lundi', 'mardi', 'mardi', 'mercredi', 'mercredi', 'jeudi', 'jeudi',
-    'vendredi', 'vendredi', 'samedi', 'samedi', 'dimanche', 'dimanche'];
+  // Le nom se DÉRIVE du jour rejoué. La liste de quatorze littéraux qu'il
+  // remplace était une troisième copie du domaine : dès que le domaine
+  // bougeait, l'affichage nommait un jour pour un autre sans rien casser.
+  const NOMS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
   const { config, erreur } = lireConfig();
   if (erreur) { console.error('Répétition INDISPONIBLE — ' + erreur); process.exit(1); }
   repeter(config).then(jours => {
     let mauvais = 0;
-    jours.forEach((j, i) => {
+    let finDeMois = 0;
+    for (const j of jours) {
+      const nom = `${NOMS[j.isoDow - 1]} ${j.dateISO.slice(8)}`.padEnd(13);
+      if (j.modeFinDeMois) finDeMois++;
       if (j.echecs.length) {
         mauvais++;
-        console.error(`${NOMS[i].padEnd(10)} ${j.heure} fenêtre ${j.fenetre} j — ÉCHEC`);
+        console.error(`${nom} ${j.heure} fenêtre ${j.fenetre} j — ÉCHEC`);
         for (const e of j.echecs) console.error('    · ' + e);
+      } else if (j.modeFinDeMois) {
+        // Annoncer le MODE. Un total autre que 36 000 L n'est un défaut que
+        // hors fin de mois ; l'afficher sans dire lequel des deux régimes
+        // s'applique, c'est fabriquer une alerte ou masquer une panne.
+        console.log(`${nom} ${j.heure} fenêtre ${j.fenetre} j — FIN DE MOIS : ${j.totalL} L`
+          + ` (${Object.entries(j.volumes).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v}`).join(' + ') || 'rien'}),`
+          + ` sous le camion complet comme attendu`);
       } else {
-        console.log(`${NOMS[i].padEnd(10)} ${j.heure} fenêtre ${j.fenetre} j — ${j.volumes.sp95} + ${j.volumes.go} = 36 000 L,`
+        console.log(`${nom} ${j.heure} fenêtre ${j.fenetre} j — ${j.volumes.sp95} + ${j.volumes.go} = ${j.totalL} L,`
           + ` reliquat ${j.reliquatL} L, stock sp95 projeté ${j.stockPrevuSp95} L`);
       }
-    });
+    }
     if (mauvais) {
-      console.error(`\n${mauvais} cas sur 14 en échec — ne pas pousser : la CI trouverait la même chose six minutes plus tard.`);
+      console.error(`\n${mauvais} cas sur ${jours.length} en échec — ne pas pousser : la CI trouverait la même chose six minutes plus tard.`);
       process.exit(1);
     }
-    console.log('\n14/14 cas conformes — scénario cohérent avec la configuration connue de la station Test.');
+    // Un banc dont le domaine n'atteint plus le mode de fin de mois se
+    // tairait en vert, exactement comme celui d'avant le 25/09/2026.
+    if (!finDeMois) {
+      console.error('\nAucun cas de FIN DE MOIS dans le domaine rejoué — le mode de minimisation');
+      console.error('du résiduel n\'est pas exercé. Ce vert ne prouve que la moitié du moteur.');
+      process.exit(1);
+    }
+    console.log(`\n${jours.length}/${jours.length} cas conformes (dont ${finDeMois} en fin de mois) — scénario cohérent avec la configuration connue de la station Test.`);
     console.log('Ceci n\'est PAS la preuve UI : seule la recette navigateur juge l\'écran et la base réelle.');
     process.exit(0);
   }).catch(e => { console.error('Répétition INDISPONIBLE — ' + e.message); process.exit(1); });
