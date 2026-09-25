@@ -31,9 +31,33 @@
 (function (global) {
   'use strict';
 
-  function dateISOAujourdhui() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // A3 / C1c-1 bis (25/09/2026) — `timezone` est obligatoire, exactement pour
+  // la raison écrite sous heureHHMMAujourdhui ci-dessous. Le durcissement du
+  // 05/09 avait traité l'HEURE et laissé la DATE derrière lui.
+  //
+  // Cette fonction lisait la date du NAVIGATEUR pendant que sa voisine lisait
+  // l'heure de la STATION. Le couple (date, heure) ainsi formé désigne un
+  // instant qui n'a jamais existé dès que les deux référentiels divergent —
+  // et ils divergent tous les jours à Fort-de-France : à partir de 20 h
+  // locales, la date UTC a déjà basculé au lendemain. On obtient alors un
+  // jeudi à 20 h 46 alors qu'on est mercredi. Le jour de semaine commande la
+  // fenêtre de livraison, qui commande `estFinDeMois`, qui commande le mode
+  // de volume : un décalage d'un jour retourne toute la recommandation.
+  //
+  // MESURÉ le 25/09/2026, pas déduit : la recette navigateur de NEXUS Test,
+  // exécutée depuis un runner en UTC entre 20 h et minuit heure station,
+  // recommandait 6 000 L de sp95 seul au lieu du camion complet de 36 000 L
+  // (runs 35939904156, 35943611183, 35948647676). Le témoin sans décalage,
+  // aux mêmes heures, rend 36 000 L. Le moteur de commande n'a aucun défaut :
+  // on lui passait une date et une heure qui ne parlaient pas du même jour.
+  function dateISOAujourdhui(timezone) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('dateISOAujourdhui : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation avant d’appeler.');
+    }
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date()).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
   }
   // A3 / C1c-1 (05/09/2026) — fonction PURE : `timezone` est obligatoire.
   //
@@ -590,7 +614,7 @@
         motif: "Fuseau du commerce non résolu — aucune recommandation de commande ne peut être datée. Résolvez sites.timezone avant d'évaluer." };
     }
 
-    const dateISO = (options && options.dateISO) || dateISOAujourdhui();
+    const dateISO = (options && options.dateISO) || dateISOAujourdhui(timezone);
     const { config, cuves, horaires } = await chargerConfigEtCuves(client, siteId);
     if (!config || !cuves) {
       return { ok: false, motif: "Configuration Commande Carburant absente pour ce site (station_config.carburant_commande_config / cuves_carburants).", etatGlobal: 'non_calculable' };

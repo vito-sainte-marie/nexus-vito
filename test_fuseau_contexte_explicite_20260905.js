@@ -83,6 +83,69 @@ verifier('aucun repli vers l’horloge de la machine hors des cas consignés', (
     'Ces fichiers n’utilisent plus l’horloge machine : retirez-les de la liste.\n  ' + reglés.join('\n  '));
 });
 
+// Découvert le 25/09/2026 — et découvert par une PANNE, pas par cette garde,
+// qui est précisément le défaut à corriger ici. Le durcissement du 05/09 a
+// nommé l'HEURE (`getHours`/`getMinutes`) et s'est arrêté là. La DATE lue sur
+// l'horloge de la machine est pourtant le même défaut de famille, et il est
+// PIRE : une heure fausse décale un affichage, une date fausse change le jour
+// de la semaine — donc la fenêtre de livraison, donc `estFinDeMois`, donc le
+// mode de volume. Toute la recommandation bascule.
+//
+// MESURÉ, pas déduit : `dateISOAujourdhui()` lisait la date du navigateur
+// pendant que sa voisine `heureHHMMAujourdhui(timezone)` lisait l'heure de la
+// station. Le couple formé désignait un instant qui n'a jamais existé. Sur un
+// runner en UTC, entre 20 h et minuit heure de Fort-de-France, la recette
+// navigateur recommandait 6 000 L de sp95 seul au lieu du camion complet de
+// 36 000 L (runs 35939904156, 35943611183, 35948647676) — et restait verte
+// aux mêmes heures la veille et le lendemain, ce qui a fait chercher ailleurs
+// pendant trois semaines.
+//
+// Le MOTIF visé n'est pas l'accesseur de calendrier : `d.setDate(d.getDate()
+// - fenetre)` sur une date DONNÉE est de l'arithmétique symétrique, sans
+// défaut. Le motif est l'horloge machine lue en calendrier : `new Date()`
+// SANS argument, dont on lit ensuite l'année, le mois ou le jour.
+const CALENDRIER_MACHINE_A_TRAITER = new Set([
+  // Les deux derniers, mesurés le 25/09/2026. Ils ne sont pas anodins : les
+  // deux s'en servent pour CHOISIR des données, pas pour afficher.
+  // `chargerP0(client, site, auj)` d'un côté, `.lte('date', …)` et
+  // `p0.date !== aujourdhuiLocal()` de l'autre — passé 20 h locales, ces
+  // écrans interrogent le lendemain et ne trouvent rien. Non corrigés ici
+  // parce qu'aucun des deux n'a de fuseau en portée : les réparer demande d'y
+  // faire descendre `NexusStation.fuseauDeLaStation`, ce qui change leur
+  // forme. Consignés pour que la garde morde sur le TROISIÈME.
+  'nexus-carburants-p0-coherence-ui.js',
+  'nexus-carburants-mobile-polish-v2.js',
+]);
+
+verifier('aucune date de calendrier lue sur l’horloge de la machine', () => {
+  const t = [];
+  const vus = new Set();
+  for (const f of APPLICATIF.filter(x => /^nexus-carburant/.test(x))) {
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8')
+      .split('\n').map(l => /^\s*(\/\/|\*|--)/.test(l) ? '' : l).join('\n');
+    const naissance = /(?:var|const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*new Date\(\s*\)/g;
+    let m;
+    while ((m = naissance.exec(src))) {
+      const v = m[1];
+      const calendrier = new RegExp('\\b' + v + '\\.(getFullYear|getMonth|getDate|getDay)\\s*\\(\\s*\\)');
+      if (!calendrier.test(src.slice(m.index, m.index + 400))) continue;
+      vus.add(f);
+      if (!CALENDRIER_MACHINE_A_TRAITER.has(f)) {
+        t.push(`${f}:${src.slice(0, m.index).split('\n').length}  ${v} = new Date() puis lecture du calendrier`);
+      }
+    }
+  }
+  assert.strictEqual(t.length, 0,
+    'La date de l’appareil n’est pas celle de la station : entre 20 h et minuit à ' +
+    'Fort-de-France, elle désigne DÉJÀ le lendemain. Le jour de semaine commande la ' +
+    'fenêtre de livraison, qui commande le mode de volume — toute la recommandation ' +
+    'bascule. Prenez le fuseau et passez par Intl :\n  ' + t.join('\n  '));
+  const reglés = [...CALENDRIER_MACHINE_A_TRAITER].filter(f => !vus.has(f));
+  assert.deepStrictEqual(reglés, [],
+    'Ces fichiers ne lisent plus le calendrier machine : retirez-les de ' +
+    'CALENDRIER_MACHINE_A_TRAITER.\n  ' + reglés.join('\n  '));
+});
+
 verifier('le contrat NexusStation est celui arbitré', () => {
   const src = fs.readFileSync(path.join(RACINE, 'nexus-station.js'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
@@ -99,6 +162,9 @@ verifier('le contrat NexusStation est celui arbitré', () => {
 verifier('les fonctions pures exigent timezone au lieu de le deviner', () => {
   for (const [f, fn] of [
     ['nexus-carburant-commande-donnees-core.js', 'heureHHMMAujourdhui'],
+    // Ajoutée le 25/09/2026. Sa voisine était sous contrat depuis le 05/09 ;
+    // elle, non — et c'est par là que le défaut est passé.
+    ['nexus-carburant-commande-donnees-core.js', 'dateISOAujourdhui'],
     ['nexus-carburants-p0-performance.js', 'dateLocaleISO'],
   ]) {
     const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
