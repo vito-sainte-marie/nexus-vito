@@ -1,75 +1,81 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-10.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-11.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 10
+seq: 11
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-16.md
+in_reply_to: request-17.md
 ---
-# Décision — `request-16.md` : attribution CI acceptée (GO Créateur)
+# Décision Créateur — baseline Test reproductible Production-équivalente pour `#65` (et procédure générique)
 
 ## Verdict
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-17.md`.
 
-Frédéric valide l'attribution causale établie par `request-16.md` pour les 12 échecs de la suite
-candidate (commit `1ba8b88`, run `35995316868`, job `non-regression` #107618732366) : aucun n'est
-une régression nouvelle imputable au périmètre propre de `#65` (les deux harnais réalignés
-transportés par `1ba8b88` et la restauration minimale autorisée par `decision-9.md` §1).
+Frédéric valide l'option structurante : ne pas modifier `#65` pour masquer le drift constaté et
+ne pas considérer le Test historique actuel comme baseline absolue tant qu'il n'est pas
+Production-équivalent.
 
-## 1. Réponse aux trois questions d'arbitrage de `request-16.md` §8
+**Note de forme, assumée et non corrigée après coup** : le réveil qui porte cette décision la
+nomme « Décision Créateur sur request-18 ». Au moment de son dépôt, la demande active du lot est
+`request-17.md` (`decision-10.md` déjà consommée, `STATE.json.derniere_demande = request-17.md`) ;
+aucun `request-18.md` n'existe. Cette décision répond donc à `request-17.md` — la seule demande
+réellement en attente d'arbitrage — et non à un fichier qui n'a jamais été déposé. `request-18.md`
+sera le prochain retour canonique de Claude sur ce lot, pas l'objet de cet arbitrage.
 
-1. **Oui.** Le classement des 12 échecs est retenu : 7 dette QA préexistante du rail
-   (`docs/qa/ECHECS-CONNUS.json`, causes déjà nommées, sans rapport avec `nexus-auth.js`) ; 4
-   tracés au gap de classification d'accès/navigation, réel mais déjà nommé par `request-11.md`
-   §4/§6 et explicitement exclu du périmètre de restauration par `decision-9.md` §2 — ce gap
-   préexistait au portage `290a217`, le rail ne l'a jamais eu ; 1 (`test_gravite_ecart_source_
-   unique_20260916.js`) réexécuté isolément avec ses dépendances exactes du candidat, 31/31, non
-   attribué à `#65` en l'absence de preuve contraire.
-2. **Oui.** La boucle d'attribution CI propre au périmètre `#65` (harnais transportés + restau-
-   ration minimale) est considérée **close sur ce point précis** — sans que cela déclare la suite
-   candidate globale verte, et sans que cela vaille `GO` Production. Le lot racine distinct pour la
-   dette de classification d'accès (`proposition-lot-classification-acces-rail-1.md`) sera ouvert
-   après clôture complète de `#65`, séquencé, pas immédiatement.
-3. **Oui.** La recette navigateur authentifiée reste le seul geste bloquant restant avant tout
-   `GO`, et reste réservée à une session disposant réellement des secrets Test — cette clôture
-   d'attribution CI ne la remplace ni ne la contourne.
+## 1. Cible de qualification retenue
 
-Aucune de ces dettes (QA, classification d'accès, réexécution isolée) n'est masquée, supprimée ou
-rendue artificiellement verte par cette décision : elles restent inscrites, sourcées, et non
-résolues par ce lot.
+Une **baseline Test reproductible = Production de référence + migrations/delta explicites du
+candidat**. Le Test historique (`nexus-test`, `udljdqxerrbbbajxubfn`) n'est PAS cette baseline :
+sa dérive de schéma déjà mesurée (287 vs 276 côté migrations Git, 11 versions hors dépôt —
+`classement-gates-etat-git-62-65-1.md` §2) l'exclut par construction tant qu'elle n'est pas
+réconciliée.
 
-## 2. Ce que cette décision n'affirme PAS
+## 2. Le projet Supabase Test historique n'est pas détruit
 
-Elle ne déclare pas la CI candidate verte au sens de `decision-9.md` §4 (le job `non-regression`
-reste littéralement rouge sur `1ba8b88`, faute d'une liste `ECHECS-CONNUS` mise à jour côté
-candidat — hors périmètre de ce lot). Elle ne clôt pas `#65` : les gates d'isolation Supabase Test
-des candidats web, de preuve de création réelle de la migration `#65`, et de dérive de schéma
-Supabase Test, recensées par `classement-gates-etat-git-62-65-1.md` §2, restent ouvertes et
-inchangées par cette décision.
+Conservé comme environnement de développement tant que sa dette n'est pas réconciliée. Aucun
+`reset`/DROP dessus dans ce lot.
 
-## 3. Suite autorisée
+## 3. Sémantique de la recette et correctif Login
 
-1. Poursuivre les preuves déterministes restantes de `#65` disponibles sans secret ni accès
-   Production.
-2. Rechercher une voie d'exécution déjà prévue par l'infrastructure pour la recette navigateur
-   authentifiée (workflow/environnement Test avec secrets déjà protégés), sans lire, exposer,
-   copier ni demander la valeur d'un PIN. Si une telle voie est atteignable depuis la session en
-   cours, l'emprunter. Sinon, STOP et documenter précisément le geste minimal requis — pas de
-   nouveau mécanisme, pas de nouvelle garde, pas de contournement de sécurité.
-3. Si — et seulement si — toutes les gates de `#65` (attribution CI, recette navigateur, isolation
-   Test, preuve de migration, dérive de schéma) deviennent closes dans une même session outillée,
-   préparer le dossier de gate Production puis STOP pour `GO` explicite de Frédéric.
-4. Une fois le verdict complet de `#65` rendu (pas avant), enchaîner sur le lot racine distinct déjà
-   préparé pour la dette de classification d'accès/harnais.
+Ne pas bypasser la sémantique de la recette authentifiée. Ne pas injecter le correctif Login dans
+`#65` : ce correctif et le drift historique sont une dette infrastructure/baseline distincte,
+tracée séparément, avec sa propre traçabilité.
 
-## Interdits
+## 4. Mécanisme minimal pour `#65`
 
-Aucun merge ni déploiement Production, aucune écriture ni migration Supabase Production, aucun
-changement métier/UX/rôle/RLS/sécurité, aucun secret exposé, aucune baisse de gate.
-`NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste canonique.
+Concevoir le plus petit mécanisme sûr permettant de prouver, sur une cible jetable/isolée :
+reconstruction de la baseline Production, application de la migration `#65`, preuve de
+création/rollback (ou équivalent non destructif), puis recette candidate.
+
+**Fail-closed explicite, repris tel quel** : si une ressource externe payante, un nouveau projet
+Supabase, une modification de secrets/sécurité, ou une action Production est nécessaire pour aller
+plus loin — **STOP** avant toute création, avec le besoin exact décrit dans le retour canonique.
+
+## 5. Généricité
+
+Cette mécanique est pensée comme future procédure générique pour `#62` et les prochaines
+candidates, pas comme un bricolage spécifique à `#65`.
+
+## 6. Baseline machine-readable du programme de stabilisation
+
+Claude commence à produire cette baseline : SHA Production, inventaire migrations
+Production/Test/dépôt, drift classifié, commande/preuve de reconstruction attendue, limites
+actuelles du canal d'exécution.
+
+## Ce que cette décision n'autorise pas
+
+Aucun nouveau module produit. Aucune modification de règle métier/UX/rôle/RLS/sécurité. Aucun
+merge/déploiement Production, aucune écriture/migration Supabase Production, aucun reset
+destructif Test, aucun secret exposé.
+
+## Suite
+
+Poursuivre automatiquement tout ce qui est déterministe et sans risque dans ce périmètre. Si `#65`
+devient entièrement prouvée par ce mécanisme, préparer son dossier de gate Production puis STOP
+pour `GO` explicite de Frédéric.
