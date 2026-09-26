@@ -1426,7 +1426,7 @@ verifier('une ref qui porte VRAIMENT le document reste proposée', () => {
 // seul nom de fichier, deux contenus. Une résolution par nom les confond ; une
 // résolution par empreinte les sépare. Sans ce dépôt jetable, les épreuves de
 // rendu ci-dessus passeraient encore avec une plomberie revenue au nom.
-const { blobsParRef, classerRefs } = require('./outils/reveil-orchestrateur.js');
+const { blobsParRef, classerRefs, refsDistantes } = require('./outils/reveil-orchestrateur.js');
 
 function depotJetableAvecHomonyme() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'homonyme-'));
@@ -1472,6 +1472,93 @@ verifier('une empreinte inconnue n’accuse personne', () => {
     'et il faut le DIRE, sinon le réveil affirme une certitude qu’il n’a pas');
 });
 
+
+// « Lisible ici » n'est pas « lisible là où l'arbitre se tient ».
+//
+// C'est l'homonymie vue de l'autre bout : une désignation qui résout d'un côté
+// et pas de l'autre. Le 25/09/2026, `request-18.md` était commité sur le rail
+// LOCAL et absent d'`origin/handoff-continuite-20260920` — le réveil donnait
+// une adresse que l'Orchestrateur, qui lit GitHub, aurait trouvée vide.
+verifier('une ref seulement LOCALE est annoncée comme illisible à distance', () => {
+  const corps = reveilJetable({ memes: ['handoff-continuite-20260920'], homonymes: [],
+    identifiable: true, lisible_a_distance: false });
+  assert.ok(/ref LOCALE/.test(corps),
+    'annoncer une branche non poussée sans le dire envoie l’arbitre à une adresse vide pour lui :\n' + corps);
+});
+
+// Contre-témoin : sans lui, un réveil qui crierait « locale » en permanence
+// passerait l'épreuve ci-dessus.
+verifier('une ref réellement poussée ne déclenche PAS cet avertissement', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-continuite-20260920'], homonymes: [],
+    identifiable: true, lisible_a_distance: true });
+  assert.ok(!/ref LOCALE/.test(corps),
+    'avertir toujours revient à n’avertir jamais : l’arbitre cesse de lire la ligne\n' + corps);
+});
+
+// Second contre-témoin : ne pas SAVOIR n'est pas savoir que non.
+verifier('une atteignabilité indéterminée ne s’affirme pas', () => {
+  const corps = reveilJetable({ memes: ['rail'], homonymes: [], identifiable: true,
+    lisible_a_distance: null });
+  assert.ok(!/ref LOCALE/.test(corps),
+    '`null` veut dire « git est muet » : l’affirmer serait inventer une mesure\n' + corps);
+});
+
+// Et la plomberie, sur un vrai dépôt : le classement doit lire les refs
+// DISTANTES du dépôt, pas présumer qu'un nom sans `/` est local.
+verifier('l’atteignabilité se mesure sur les refs distantes réelles', () => {
+  const d = depotJetableAvecHomonyme();
+  const blobs = blobsParRef(d.dir, d.chemin, null);
+
+  // Aucun remote : le document n'existe que localement.
+  assert.deepStrictEqual(refsDistantes(d.dir), new Set(),
+    'le dépôt jetable n’a pas de remote — la mesure doit le constater, pas le deviner');
+  assert.strictEqual(classerRefs(d.empreinte, blobs, refsDistantes(d.dir)).lisible_a_distance,
+    false, 'sans aucune ref distante, le document n’est pas lisible à distance');
+
+  // On FABRIQUE une ref distante pointant sur le rail : la même mesure doit
+  // maintenant répondre l'inverse. Sans ce second temps, une fonction qui
+  // rendrait toujours `false` passerait.
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/rail', 'rail'],
+    { cwd: d.dir, encoding: 'utf8' });
+  const blobs2 = blobsParRef(d.dir, d.chemin, null);
+  assert.ok(refsDistantes(d.dir).has('origin/rail'),
+    'la ref distante fabriquée doit être vue');
+  assert.strictEqual(classerRefs(d.empreinte, blobs2, refsDistantes(d.dir)).lisible_a_distance,
+    true, 'une ref distante portant LES MÊMES OCTETS rend le document lisible à distance');
+});
+
+// Et l'homonyme distant ne rend rien lisible : c'est un AUTRE document.
+verifier('un homonyme distant ne rend pas le document atteignable', () => {
+  const d = depotJetableAvecHomonyme();
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/run-agent', 'run-agent'],
+    { cwd: d.dir, encoding: 'utf8' });
+  const r = classerRefs(d.empreinte, blobsParRef(d.dir, d.chemin, null), refsDistantes(d.dir));
+  assert.deepStrictEqual(r.homonymes.sort(), ['origin/run-agent', 'run-agent'],
+    'les deux refs portant les autres octets sont des homonymes, locale comme distante');
+  assert.strictEqual(r.lisible_a_distance, false,
+    'pousser un homonyme ne publie pas CE document — le confondre est exactement le défaut du 25/09');
+});
+
+// N6/N7 du 25/09 : deux mutations passaient inaperçues. Les branches `null` de
+// `classerRefs` n'étaient tenues par rien — or transformer « on ne sait pas »
+// en « illisible » fabrique une fausse alarme, exactement le travers que
+// `lisible_a_distance` existe pour éviter.
+verifier('sans mesure des refs distantes, l’atteignabilité reste indéterminée', () => {
+  const d = depotJetableAvecHomonyme();
+  const r = classerRefs(d.empreinte, blobsParRef(d.dir, d.chemin, null), undefined);
+  assert.ok(r.memes.length > 0, 'le document EST porté par une ref : le cas est bien celui-ci');
+  assert.strictEqual(r.lisible_a_distance, null,
+    'git muet sur les refs distantes ne prouve pas l’absence — répondre `false` inventerait la mesure');
+});
+
+verifier('aucune ref porteuse : c’est « non publiée » qui parle, pas l’atteignabilité', () => {
+  const d = depotJetableAvecHomonyme();
+  const r = classerRefs(d.empreinte, blobsParRef(d.dir, 'lots/inexistant.md', null),
+    new Set(['origin/rail']));
+  assert.deepStrictEqual(r.memes, [], 'aucune ref ne porte ce chemin');
+  assert.strictEqual(r.lisible_a_distance, null,
+    'rien à lire nulle part n’est pas « lisible seulement en local » : deux diagnostics, deux lignes');
+});
 
 if (echecs.length) {
   console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);

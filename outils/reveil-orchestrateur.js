@@ -175,7 +175,22 @@ function blobsParRef(racine, chemin, suffixe) {
 //   memes       — refs portant CE document (mêmes octets) : à lire.
 //   homonymes   — refs portant ce NOM avec d'autres octets : à ne pas lire.
 //   ni l'un ni l'autre — le document n'est sur aucune ref : rien à lire ailleurs.
-function classerRefs(empreinte, blobs) {
+// Quelles refs l'Orchestrateur peut-il réellement atteindre ?
+//
+// « Lisible ici » n'est pas « lisible là où l'arbitre se tient ». Une ref
+// locale non poussée porte bien le document — et l'Orchestrateur, qui lit
+// GitHub, ne trouvera rien à l'adresse qu'on lui donne. C'est le même défaut
+// que l'homonymie, vu de l'autre bout : une désignation qui résout d'un côté
+// et pas de l'autre. Mesuré le 25/09/2026 : `request-18.md` commité sur le
+// rail local, absent d'`origin/handoff-continuite-20260920`.
+function refsDistantes(racine) {
+  const sortie = execFileSync('git',
+    ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'],
+    { cwd: racine, encoding: 'utf8' });
+  return new Set(sortie.split('\n').map(x => x.trim()).filter(Boolean));
+}
+
+function classerRefs(empreinte, blobs, distantes) {
   const memes = [];
   const homonymes = [];
   for (const [ref, blob] of blobs) {
@@ -185,7 +200,12 @@ function classerRefs(empreinte, blobs) {
     else if (blob === empreinte) memes.push(ref);
     else homonymes.push(ref);
   }
-  return { memes, homonymes, identifiable: empreinte !== null };
+  // `distantes` absent : on ne sait pas, donc on ne dit rien — `null`, jamais
+  // un `false` qui alarmerait à tort.
+  const lisible_a_distance = !distantes ? null
+    : memes.length === 0 ? null
+    : memes.some(r => distantes.has(r));
+  return { memes, homonymes, identifiable: empreinte !== null, lisible_a_distance };
 }
 
 function refsContenant(lot, fichier) {
@@ -200,7 +220,9 @@ function refsContenant(lot, fichier) {
   } catch (e) { empreinte = null; }
 
   try {
-    return classerRefs(empreinte, blobsParRef(RACINE_GIT, direct, `/lots/${lot}/${fichier}`));
+    return classerRefs(empreinte,
+      blobsParRef(RACINE_GIT, direct, `/lots/${lot}/${fichier}`),
+      refsDistantes(RACINE_GIT));
   } catch (e) {
     return null; // pas de git sous la main : on se taira plutôt que d'inventer
   }
@@ -269,6 +291,10 @@ function examiner(etat) {
         : refs.memes.length > 0
           && !refs.memes.some(r => r === declaree || r === `origin/${declaree}`),
       non_publiee: refs === null ? null : refs.memes.length === 0,
+      // Trois états, pas deux : lisible à distance, lisible seulement en
+      // local, ou indéterminé (`null`) quand git est muet ou qu'aucune ref
+      // ne la porte — auquel cas c'est `non_publiee` qui parle.
+      lisible_a_distance: refs === null ? null : refs.lisible_a_distance,
       token_mode: (env && env.env && env.env.token_mode) || null,
       statut_enveloppe: (env && env.env && env.env.status) || null,
       statut_registre: v.statut || null,
@@ -325,6 +351,12 @@ function corpsReveil(r) {
     l.non_publiee
       ? `⚠️ Cette demande n'est sur aucune ref : elle n'est pas encore poussée. Rien à lire ailleurs — attends le push.`
       : null,
+    // Et le même défaut vu de l'autre bout : le document existe, mais
+    // seulement là où JE me tiens. L'annoncer sans le dire envoie l'arbitre
+    // à une adresse qui, pour lui, est vide.
+    l.refs_reelles && l.refs_reelles.lisible_a_distance === false
+      ? `⚠️ Ce document n'existe que sur une ref LOCALE, non poussée. Tu ne peux pas le lire depuis GitHub : attends le push avant d'arbitrer.`
+      : null,
     // Et surtout : nommer les homonymes plutôt que de les offrir comme lieux de
     // lecture. Même nom, autres octets — les lire, c'est arbitrer autre chose.
     l.refs_reelles && l.refs_reelles.homonymes.length
@@ -350,7 +382,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil, blobsParRef, classerRefs };
+module.exports = { analyser, examiner, corpsReveil, blobsParRef, classerRefs, refsDistantes };
 
 if (require.main === module) {
   const r = analyser();
