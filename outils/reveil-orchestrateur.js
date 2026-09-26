@@ -342,15 +342,34 @@ function analyser() {
 // Ce bloc ne devine aucun rail. Il redit, dans la syntaxe que le workflow
 // exige, la branche distante DÉJÀ MESURÉE comme portant ce document. S'il n'y
 // en a pas exactement une, il ne tranche pas — il le dit et rend la main.
+// Une branche de run Claude n'est JAMAIS un rail : elle naît d'un run, personne
+// ne la fusionne, elle expire. Et elle porte le MÊME document que le rail —
+// elle en descend — donc l'empreinte ne la distingue pas : seule sa PROVENANCE
+// le fait. Sans ce filtre, le premier run publié fait deux candidats, l'arbitrage
+// refuse de trancher (à raison), et le réveil cesse de nommer le rail de retour.
+// Le défaut se referme alors tout seul, un run plus tard, sans que rien rougisse.
+const BRANCHE_DE_RUN = /^claude\//;
+
 function railDeRetour(l) {
   const r = l.refs_reelles;
   if (!r || !r.distants || !r.distants.length) return null;
   // Nom court d'une ref de `refs/remotes` : le premier segment est le remote.
-  const noms = [...new Set(r.distants.map(x => x.replace(/^[^/]+\//, '')))];
+  const noms = [...new Set(r.distants.map(x => x.replace(/^[^/]+\//, '')))]
+    .filter(n => !BRANCHE_DE_RUN.test(n));
   return noms.length === 1 ? noms[0] : null;
 }
 
-function blocRetour(l) {
+// `mention: false` retire la mention `@`+`claude` du corps. Ce n'est pas une
+// coquetterie : `claude.yml` se déclenche sur TOUT commentaire qui la contient,
+// sans filtre d'auteur. Un réveil publié par la CI qui la porterait relancerait
+// Claude, qui pousserait une branche, qui relancerait la CI, qui republierait.
+// Aujourd'hui seule une propriété de plateforme (GitHub n'enchaîne pas les
+// workflows déclenchés par `github.token`) empêche la boucle — invisible, et
+// qui tombe le jour où quelqu'un pose un PAT. Le filtre d'auteur a sa place
+// dans `claude.yml`, sur `main` ; tant qu'il n'y est pas, le corps publié ne
+// porte pas la mention et dit pourquoi.
+function blocRetour(l, opts) {
+  const mention = !opts || opts.mention !== false;
   const entete = 'Pour me répondre, le déclencheur doit NOMMER le rail :';
   const rail = railDeRetour(l);
   if (!rail) {
@@ -362,19 +381,25 @@ function blocRetour(l) {
   }
   return [entete,
     '```text',
-    '@claude NEXUS_BASE_BRANCH=`' + rail + '`',
+    (mention ? '@claude ' : '') + 'NEXUS_BASE_BRANCH=`' + rail + '`',
     '<ta décision, ou la consigne qui suit>',
     '```',
+    mention ? null
+      : 'Préfixe cette ligne de la mention `@`+`claude` en la postant : elle est ' +
+        'retirée ici parce qu\'un commentaire publié par la CI qui la porterait ' +
+        'redéclencherait Claude en boucle. Le filtre d\'auteur qui rendrait ce ' +
+        'retrait inutile vit dans `claude.yml`, sur `main`.',
     'À poster depuis le compte `vito-sainte-marie` : le workflow ne répond à',
     'aucun autre acteur. Sans cette ligne le job meurt avant d\'avoir de quoi',
-    'répondre — le silence qui suit n\'est pas un rail mort, c\'est un refus muet.'].join('\n');
+    'répondre — le silence qui suit n\'est pas un rail mort, c\'est un refus muet.']
+    .filter(x => x !== null).join('\n');
 }
 
 // Le corps du réveil. Volontairement factuel et court : il nomme le lot, le
 // fichier, la branche où le lire, et il rappelle les interdits permanents.
 // Il ne résume PAS la demande — un résumé écrit par le demandeur est une
 // façon polie de décider à la place de celui qui arbitre.
-function corpsReveil(r) {
+function corpsReveil(r, opts) {
   if (!r.reveil) return r.message;
   const l = r.lots[0];
   return [
@@ -414,7 +439,7 @@ function corpsReveil(r) {
     'Arbitre cette demande avec le protocole `nexus-handoff/2` et dépose la',
     'décision correspondante dans le même lot.',
     '',
-    blocRetour(l),
+    blocRetour(l, opts),
     '',
     // Pas d'invariants récités ici. Ils appartiennent au lot et à la
     // gouvernance, pas à l'outil qui transporte le réveil : les recopier en
@@ -435,7 +460,11 @@ module.exports = { analyser, examiner, corpsReveil, blocRetour, railDeRetour, bl
 if (require.main === module) {
   const r = analyser();
   if (process.argv.includes('--json')) console.log(JSON.stringify(r, null, 2));
-  else if (process.argv.includes('--message')) console.log(corpsReveil(r));
+  else if (process.argv.includes('--message')) {
+    // `--sans-mention` : le corps destiné à être PUBLIÉ par la CI.
+    const mention = !process.argv.includes('--sans-mention');
+    console.log(corpsReveil(r, { mention }));
+  }
   else {
     console.log(r.message);
     for (const l of r.lots) console.log(`  - ${l.lot} : ${l.demande} (${l.motif}), branche ${l.branche || '?'}, statut ${l.statut_registre}`);

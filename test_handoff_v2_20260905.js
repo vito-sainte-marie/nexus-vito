@@ -1385,14 +1385,14 @@ verifier('une adresse de réveil sans ambiguïté est ACCEPTÉE', () => {
 // que celui qu'il lui annonçait, sans que rien n'ait l'air faux.
 const { corpsReveil } = require('./outils/reveil-orchestrateur.js');
 
-function reveilJetable(refs, extra) {
+function reveilJetable(refs, extra, opts) {
   return corpsReveil({ reveil: true, lots: [Object.assign({
     lot: LOT, demande: 'request-18.md', branche: 'handoff-continuite-20260920',
     adresse: 'https://example.invalid/issues/28', adresse_source: 'request-18.md',
     refs_reelles: refs, motif: 'DEMANDE_NON_ARBITREE', token_mode: 'DEEP',
     branche_declaree_trompeuse: false,
     non_publiee: refs ? refs.memes.length === 0 : null,
-  }, extra || {})] });
+  }, extra || {})] }, opts);
 }
 
 verifier('un homonyme n’est JAMAIS offert comme endroit où lire', () => {
@@ -1459,6 +1459,98 @@ verifier('deux rails distants possibles ne se tranchent pas au hasard', () => {
                                 homonymes: [], identifiable: true });
   assert.ok(!/NEXUS_BASE_BRANCH=`/.test(corps),
     'le réveil a choisi un rail entre deux candidats équivalents :\n  ' + corps);
+});
+
+
+// UNE BRANCHE DE RUN N'EST JAMAIS UN RAIL.
+//
+// Mesuré le 26/09/2026, une heure après avoir réparé le sens du retour :
+// `claude[bot]` a poussé `claude/issue-28-20260926-1219`, qui DESCEND du rail
+// et porte donc le MÊME document, aux mêmes octets. L'empreinte ne les
+// distingue pas — seule la PROVENANCE le fait. Deux candidats équivalents, et
+// l'arbitrage ci-dessus a refusé de trancher : à raison, mais le réveil a
+// cessé de nommer le rail de retour dans le mouvement même où il venait
+// d'apprendre à le nommer.
+//
+// Ce défaut se referme tout seul un run plus tard, quand la branche expire,
+// sans que rien n'ait rougi entre-temps. C'est pourquoi il lui faut une
+// épreuve : il ne laisse aucune trace de son passage.
+verifier('une branche de run ne fait pas perdre le rail', () => {
+  const corps = reveilJetable({
+    memes: ['origin/handoff-continuite-20260920', 'origin/claude/issue-28-20260926-1219'],
+    distants: ['origin/handoff-continuite-20260920', 'origin/claude/issue-28-20260926-1219'],
+    homonymes: [], identifiable: true });
+  assert.ok(/NEXUS_BASE_BRANCH=`handoff-continuite-20260920`/.test(corps),
+    'une branche de run a suffi à rendre le rail ambigu : le réveil ne dit plus\n' +
+    '  comment lui répondre, et rien ne le signale :\n  ' + corps);
+});
+
+// Contre-témoin : écarter les branches de run ne doit pas fabriquer un rail
+// quand il n'en reste aucun.
+//
+// UNE SEULE branche, et c'est délibéré. Ma première version en mettait deux —
+// et une mutation l'a traversée sans rougir : avec deux candidats, écarter les
+// runs ou non donne `null` dans les deux cas, pour deux raisons différentes
+// (aucun candidat / ambiguïté). L'épreuve mesurait une coïncidence. Avec une
+// seule branche, un filtre qui se rabattrait sur la liste non filtrée faute de
+// candidat nommerait cette branche de run comme rail — et c'est exactement le
+// réflexe serviable qu'on écrit en croyant bien faire.
+verifier('une unique branche de run ne devient pas le rail par défaut', () => {
+  const corps = reveilJetable({
+    memes: ['origin/claude/issue-28-20260926-1219'],
+    distants: ['origin/claude/issue-28-20260926-1219'],
+    homonymes: [], identifiable: true });
+  assert.ok(!/NEXUS_BASE_BRANCH=`/.test(corps),
+    'le réveil a nommé une branche de run comme rail de retour : y répondre\n' +
+    '  branche sur une ref que personne ne fusionne et qui expire :\n  ' + corps);
+  assert.ok(/nomme le rail toi-même/.test(corps),
+    'et il doit DIRE que la désignation manque, pas la taire');
+});
+
+// Et le filtre doit viser JUSTE. Ancré sur `claude/`, il écarte les branches de
+// run ; sans l'ancre, il écarterait aussi un rail dont le nom contient
+// « claude » quelque part — et le défaut ressemblerait trait pour trait à
+// celui qu'on vient de réparer.
+verifier('le filtre ne mange pas un rail dont le nom contient « claude »', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-claude-20260926'],
+                                distants: ['origin/handoff-claude-20260926'],
+                                homonymes: [], identifiable: true });
+  assert.ok(/NEXUS_BASE_BRANCH=`handoff-claude-20260926`/.test(corps),
+    'un rail légitime a été pris pour une branche de run :\n  ' + corps);
+});
+
+// LE CORPS QUE LA CI PUBLIE. Depuis le 26/09/2026 le réveil est posté sur
+// l'issue par `tests.yml`. Publié tel quel, il porterait la mention `@`+`claude`
+// — et `claude.yml` se déclenche sur TOUT commentaire qui la contient, sans
+// filtre d'auteur : Claude relancé, une branche poussée, la CI relancée, un
+// nouveau réveil publié, sans fin. Et la déduplication n'y ferait rien, chaque
+// tour changeant les refs donc l'empreinte.
+//
+// Aujourd'hui seule une propriété de plateforme l'empêche — GitHub n'enchaîne
+// pas les workflows déclenchés par `github.token`. Invisible, et qui tombe le
+// jour où quelqu'un pose un PAT. On ne s'y adosse pas.
+verifier('le corps destiné à la publication ne porte pas la mention', () => {
+  const refs = { memes: ['origin/handoff-continuite-20260920'],
+                 distants: ['origin/handoff-continuite-20260920'],
+                 homonymes: [], identifiable: true };
+  const publiable = reveilJetable(refs, null, { mention: false });
+  assert.ok(!/@claude/.test(publiable),
+    'le corps publié par la CI porte la mention qui la fait se relancer :\n  ' + publiable);
+
+  // Le retrait ne doit pas emporter la consigne : sans le rail nommé, répondre
+  // au réveil produit un refus muet. Le corps reste utilisable, il dit
+  // simplement à l'arbitre d'ajouter la mention lui-même.
+  assert.ok(/NEXUS_BASE_BRANCH=`handoff-continuite-20260920`/.test(publiable),
+    'le corps publiable ne nomme plus le rail de retour :\n  ' + publiable);
+  assert.ok(/Préfixe cette ligne de la mention/.test(publiable),
+    'et il doit DIRE que la mention manque, sinon l’arbitre poste une ligne\n' +
+    '  qui ne déclenche rien et lit du silence comme un rail mort');
+
+  // Contre-témoin : par défaut, la mention est là. Sans lui, une composition
+  // qui l'aurait perdue partout passerait l'épreuve ci-dessus.
+  assert.ok(/@claude NEXUS_BASE_BRANCH=`handoff-continuite-20260920`/.test(reveilJetable(refs)),
+    'le corps par défaut a perdu la mention : posté par un humain, il ne\n' +
+    '  déclenche plus rien');
 });
 
 

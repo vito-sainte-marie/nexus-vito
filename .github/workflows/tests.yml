@@ -35,9 +35,25 @@ name: Tests
 # Claude depuis une issue et son apparition dans le Handoff. Sans ce droit,
 # `gh run list` échoue et la fonction se tait — comportement volontaire, mais
 # NEXUS Live restait aveugle pendant cet intervalle, parfois des heures.
+# `issues: write` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 26/09/2026, à sa demande
+# explicite (« GO pour `issues: write` dans tests.yml »). C'est un élargissement
+# de la surface du jeton, donc un geste humain (CLAUDE.md) : Claude ne pouvait
+# pas se l'accorder — il en avait pourtant la capacité technique, le scope
+# `workflow` suffisant à éditer ce fichier. Il ne se l'est pas accordé.
+#
+# Ce qu'elle ouvre exactement : ÉCRIRE un commentaire sur une issue de ce dépôt.
+# Aucune écriture dans le dépôt, aucun accès à un secret, aucun droit sur `main`
+# ni `production`, aucun déploiement.
+#
+# Pourquoi elle est nécessaire : le résumé de job PRÉPARE le réveil, il ne le
+# porte pas — il faut que quelqu'un aille l'y lire. Le sens Claude →
+# Orchestrateur restait donc suspendu à un geste humain, quand le sens inverse
+# était automatique depuis le 06/09. C'est cette asymétrie que la permission
+# supprime, et rien d'autre.
 permissions:
   contents: read
   actions: read
+  issues: write
 
 on:
   push:
@@ -222,6 +238,68 @@ jobs:
             node outils/reveil-orchestrateur.js --message
             echo '````'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # 26/09/2026 — LA PUBLICATION DU RÉVEIL, avec `issues: write`.
+      #
+      # Quatre refus AVANT d'écrire, parce qu'une permission d'écriture sans
+      # conditions est une permission qui écrit n'importe quand. Ce workflow
+      # tourne sur TOUTES les branches (`push: branches: ['**']`) : sans ces
+      # refus, chaque push de chaque branche posterait un commentaire.
+      #
+      #   1. rien à réveiller → on se tait ;
+      #   2. la branche courante n'est pas celle que le DOCUMENT déclare comme
+      #      rail → une branche de run ne réveille personne ;
+      #   3. l'adresse n'est pas déclarée PAR LE RAIL → on ne poste jamais « au
+      #      hasard ». Aucun destinataire n'est écrit ici : `wake_to` se déclare
+      #      dans le rail, jamais dans du code (PROTOCOL.md) ;
+      #   4. le même réveil est déjà publié → un réveil identique répété à
+      #      chaque push n'est plus un réveil, c'est du bruit.
+      #
+      # Et une garde de BOUCLE, qui elle fait ÉCHOUER l'étape au lieu de se
+      # taire : `claude.yml` se déclenche sur tout commentaire portant la
+      # mention `@`+`claude`, sans filtre d'auteur. Un réveil publié qui la
+      # porterait relancerait Claude → push → CI → nouveau réveil → sans fin.
+      # Seule une propriété de plateforme l'empêche aujourd'hui (GitHub
+      # n'enchaîne pas les workflows déclenchés par `github.token`) : invisible,
+      # et qui tombe le jour où quelqu'un pose un PAT. On ne s'y adosse pas.
+      - name: Réveil Orchestrateur — publication au destinataire déclaré
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          refus() { echo "Pas de publication : $1"; exit 0; }
+
+          J=$(node outils/reveil-orchestrateur.js --json)
+          [ "$(jq -r '.reveil' <<<"$J")" = "true" ] || refus "rien à réveiller."
+
+          RAIL=$(jq -r '.lots[0].branche // empty' <<<"$J")
+          [ -n "$RAIL" ] || refus "le lot ne déclare aucune branche."
+          [ "$GITHUB_REF_NAME" = "$RAIL" ] \
+            || refus "exécution sur '$GITHUB_REF_NAME', rail déclaré '$RAIL'."
+
+          ADRESSE=$(jq -r '.lots[0].adresse // empty' <<<"$J")
+          [ -n "$ADRESSE" ] || refus "aucune adresse déclarée par le rail."
+          case "$ADRESSE" in
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/"[0-9]*) : ;;
+            *) refus "l'adresse déclarée sort de ce dépôt : $ADRESSE" ;;
+          esac
+          NUM=${ADRESSE##*/}
+
+          CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention)
+          if printf '%s' "$CORPS" | grep -q '@claude'; then
+            echo "REFUS : le corps porte la mention qui redéclenche Claude." >&2
+            exit 1
+          fi
+
+          MARQUE="<!-- nexus-reveil: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
+          DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
+                   --jq '.[].body' | grep -cF "$MARQUE" || true)
+          [ "$DEJA" = "0" ] || refus "ce réveil exact est déjà publié."
+
+          printf '%s\n\n%s\n' "$CORPS" "$MARQUE" \
+            | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
+          echo "Réveil publié sur $ADRESSE"
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par
