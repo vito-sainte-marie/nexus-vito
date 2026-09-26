@@ -146,6 +146,176 @@ verifier('aucune date de calendrier lue sur l’horloge de la machine', () => {
     'CALENDRIER_MACHINE_A_TRAITER.\n  ' + reglés.join('\n  '));
 });
 
+// ── La source, et non plus le symptôme ────────────────────────────────────
+// 25/09/2026. Troisième durcissement de la même famille en vingt jours, et
+// c'est le motif de récurrence qu'on corrige ici, pas une occurrence de plus.
+//
+// Les deux gardes ci-dessus nomment des ACCESSEURS : `getHours|getMinutes`
+// le 05/09, puis `getFullYear|getMonth|getDate|getDay` le 25/09 — ajouté
+// après une panne, jamais par la garde. Chaque nouvelle façon de lire
+// l'horloge machine ouvre donc un angle mort neuf, et il y aura une
+// quatrième fois. Mesuré le 25/09 : la plus grosse famille du dépôt —
+// `new Date().toISOString().slice(0, 10)`, 46 occurrences — n'était vue par
+// AUCUNE des deux, alors que c'est exactement le même défaut, en pire : elle
+// rend le calendrier UTC, donc à Fort-de-France elle désigne déjà le
+// lendemain à partir de 20 h, tous les jours.
+//
+// Et leur PORTÉE est `/^nexus-carburant/` — la trace de l'endroit où la
+// panne a été trouvée, pas une règle de l'application. Sur les 47 fichiers
+// qui lisent l'horloge machine en termes locaux, elles en regardent 4.
+//
+// Cette garde-ci vise donc la SOURCE, unique : `new Date()` sans argument,
+// dont la valeur est ensuite lue en termes locaux ou de calendrier. Sur tout
+// l'applicatif. Ce qu'elle ne vise PAS, et c'est délibéré : `new Date()`
+// gardé comme INSTANT (horodatage envoyé en base, `toISOString()` entier,
+// mesure de durée) n'a pas de défaut — un instant n'a pas de fuseau. Le
+// défaut naît au moment où l'on en tire une heure, un jour ou une date.
+//
+// Le registre est une DETTE CHIFFRÉE, à cliquet : il porte le nombre
+// d'occurrences par fichier, et la garde rougit dans les TROIS sens — un
+// fichier qui n'y est pas, un fichier qui en gagne, et un fichier qui en
+// perd sans que le chiffre soit abaissé. C'est ce qui manquait aux deux
+// listes ci-dessus : un `Set` tolère qu'un fichier déjà consigné en gagne
+// dix de plus, ce qui est précisément la façon dont ce défaut s'est répandu.
+// Une dette qui ne peut que descendre finit par atteindre zéro ; une liste
+// « reste à traiter » ne se vide jamais.
+const DETTE_HORLOGE_MACHINE = {
+  'NEXUS-Missions-v1.html': 20,
+  'NEXUS-Brief-v1.html': 8,
+  'NEXUS-Cockpit-v2.html': 8,
+  'NEXUS-Centre-Intelligence-v1.html': 7,
+  'NEXUS-Evaluation-Employe-v1.html': 6,
+  'NEXUS-Capital-v1.html': 5,
+  'NEXUS-Inventaire-Manager-v1.html': 5,
+  'NEXUS-Inventaire-v1.html': 5,
+  'NEXUS-Verify-v1.html': 4,
+  'NEXUS-Carburant-Reception-v1.html': 3,
+  'NEXUS-FDJ-v1.html': 3,
+  'NEXUS-Progression-v1.html': 3,
+  'nexus-brief-donnees.js': 3,
+  'NEXUS-App-v1.html': 2,
+  'NEXUS-FDJ-Manager-v1.html': 2,
+  'NEXUS-Mon-Evolution-v1.html': 2,
+  'NEXUS-Parametres-Station-v1.html': 2,
+  'NEXUS-Pointage-v1.html': 2,
+  'NEXUS-Produits-v1.html': 2,
+  'NEXUS-Rapport-v1.html': 2,
+  'NEXUS-Scanner-v1.html': 2,
+  'NEXUS-Tempo-v1.html': 2,
+  'nexus-coach-fdj-donnees.js': 2,
+  'nexus-conseiller.js': 2,
+  'NEXUS-Boite-Reception-v1.html': 1,
+  'NEXUS-Carburants-Pilotage-v1.html': 1,
+  'NEXUS-Carburants-v1.html': 1,
+  'NEXUS-FDJ-Analyse-v1.html': 1,
+  'NEXUS-Journal-v1.html': 1,
+  'NEXUS-Parametres-Inventaire-v1.html': 1,
+  'NEXUS-Planning-v1.html': 1,
+  'NEXUS-Resultats-Equipe-v1.html': 1,
+  'NEXUS-Tracabilite-v1.html': 1,
+  'nexus-app-donnees.js': 1,
+  'nexus-auth.js': 1,
+  'nexus-carburant-commande-donnees-core.js': 1,
+  'nexus-carburant-donnees.js': 1,
+  'nexus-carburants-mobile-polish-v2.js': 1,
+  'nexus-carburants-p0-coherence-ui.js': 1,
+  'nexus-coach-fdj-moteur.js': 1,
+  'nexus-conseiller-donnees.js': 1,
+  'nexus-inventaire-moteur.js': 1,
+  'nexus-inventaire-stock-transfert-v2.js': 1,
+  'nexus-inventaire-transferts-internes.js': 1,
+  'nexus-risques-donnees.js': 1,
+  'nexus-secteurs-moteur.js': 1,
+  'nexus-tempo.js': 1,
+};
+
+// L'horloge machine lue en termes LOCAUX. Retourne les occurrences d'un
+// fichier, source déjà purgée de ses commentaires.
+function lecturesLocalesDeLHorloge(src) {
+  const trouves = [];
+  const DIRECT = [
+    [/new Date\(\s*\)\s*\.\s*(?:getFullYear|getMonth|getDate|getDay|getHours|getMinutes)/g,
+      'new Date().getX() — calendrier de la machine'],
+    [/new Date\(\s*\)\s*\.\s*toISOString\(\s*\)\s*\.\s*(?:slice|substring|substr|split)/g,
+      'new Date().toISOString().slice() — calendrier UTC, pas celui de la station'],
+    [/new Date\(\s*\)\s*\.\s*toTimeString\(\s*\)/g,
+      'new Date().toTimeString() — heure de la machine'],
+  ];
+  for (const [motif, quoi] of DIRECT) {
+    let m;
+    while ((m = motif.exec(src))) trouves.push({ i: m.index, quoi });
+  }
+  // `toLocaleDateString()` / `toLocaleTimeString()` SANS `timeZone` rendent le
+  // fuseau de la machine. Avec `timeZone`, la question est posée : pas un défaut.
+  const locale = /new Date\(\s*\)\s*\.\s*toLocale\w*String\(([^)]*)\)/g;
+  let m;
+  while ((m = locale.exec(src))) {
+    if (!/timeZone/.test(m[1])) {
+      trouves.push({ i: m.index, quoi: 'toLocale…String() sans timeZone — fuseau de la machine' });
+    }
+  }
+  // La forme indirecte : on nomme l'instant, puis on le lit en calendrier.
+  const naissance = /(?:var|const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*new Date\(\s*\)/g;
+  while ((m = naissance.exec(src))) {
+    const v = m[1];
+    const lu = new RegExp('\\b' + v + '\\.(?:getFullYear|getMonth|getDate|getDay|getHours|getMinutes)\\s*\\(');
+    if (lu.test(src.slice(m.index, m.index + 400))) {
+      trouves.push({ i: m.index, quoi: v + ' = new Date() puis lecture locale' });
+    }
+  }
+  return trouves;
+}
+
+verifier('l’horloge de la machine n’est lue localement que dans la dette inscrite', () => {
+  const nouveaux = [];
+  const aggraves = [];
+  const allegés = [];
+  const compte = {};
+  for (const f of APPLICATIF) {
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8')
+      .split('\n').map(l => /^\s*(\/\/|\*|--)/.test(l) ? '' : l).join('\n');
+    const trouves = lecturesLocalesDeLHorloge(src);
+    if (!trouves.length) continue;
+    compte[f] = trouves.length;
+    const inscrit = DETTE_HORLOGE_MACHINE[f];
+    if (inscrit === undefined) {
+      const ou = trouves.slice(0, 3)
+        .map(t => `${f}:${src.slice(0, t.i).split('\n').length}  ${t.quoi}`);
+      nouveaux.push(ou.join('\n  ') + (trouves.length > 3 ? `\n  … et ${trouves.length - 3} autres` : ''));
+    } else if (trouves.length > inscrit) {
+      aggraves.push(`${f} : ${inscrit} inscrites, ${trouves.length} trouvées`);
+    } else if (trouves.length < inscrit) {
+      allegés.push(`${f} : ${inscrit} inscrites, ${trouves.length} restantes`);
+    }
+  }
+
+  assert.deepStrictEqual(nouveaux, [],
+    'L’horloge de l’appareil n’est pas celle de la station. Entre 20 h et minuit à ' +
+    'Fort-de-France elle désigne DÉJÀ le lendemain, et `toISOString().slice(0, 10)` ' +
+    'le fait TOUTE L’ANNÉE puisqu’il rend le calendrier UTC.\n' +
+    'La primitive existe : `NexusStation.dateLocaleStation(timezone)`, le fuseau venant ' +
+    'de `NexusStation.fuseauDeLaStation(siteId)`.\n' +
+    'Et n’écrivez pas `param || new Date()…` : un défaut qui retombe sur l’horloge ' +
+    'machine rend un mauvais jour EN SILENCE. Une absence de date se REFUSE, comme ' +
+    'une absence de fuseau — c’est la règle déjà écrite sous `heureHHMMAujourdhui`.\n' +
+    'Un instant gardé comme instant (`toISOString()` entier en `updated_at`) n’est ' +
+    'PAS visé : un instant n’a pas de fuseau.\n  ' + nouveaux.join('\n  '));
+
+  assert.deepStrictEqual(aggraves, [],
+    'Ces fichiers portaient déjà la dette et l’ont AGGRAVÉE. Être inscrit au registre ' +
+    'n’autorise pas à en ajouter : la dette ne peut que descendre.\n  ' + aggraves.join('\n  '));
+
+  assert.deepStrictEqual(allegés, [],
+    'Bonne nouvelle, et elle doit être ENREGISTRÉE : abaissez le chiffre dans ' +
+    'DETTE_HORLOGE_MACHINE, sinon la dette cesse d’être mesurée et redevient une ' +
+    'liste que plus personne ne lit.\n  ' + allegés.join('\n  '));
+
+  const éteints = Object.keys(DETTE_HORLOGE_MACHINE).filter(f => !compte[f]);
+  assert.deepStrictEqual(éteints, [],
+    'Ces fichiers ne lisent plus l’horloge machine : retirez-les du registre.\n  ' +
+    éteints.join('\n  '));
+});
+
 verifier('le contrat NexusStation est celui arbitré', () => {
   const src = fs.readFileSync(path.join(RACINE, 'nexus-station.js'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
