@@ -4,9 +4,9 @@
   if ((location.pathname.split('/').pop() || '').toLowerCase() !== 'nexus-carburants-pilotage-v1.html') return;
 
   var cacheP0 = {}, cacheReception = {}, observer = null, siteCache = null;
+  var fuseauCache = null, fuseauRefuse = false;
   function frDate(iso){var p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
   function fmtL(v){return v==null||!Number.isFinite(Number(v))?'—':Math.round(Number(v)).toLocaleString('fr-FR')+' L';}
-  function aujourdhuiLocal(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function clientNexus(){try{return typeof nexusClient!=='undefined'?nexusClient:(global.nexusClient||null);}catch(e){return global.nexusClient||null;}}
 
   async function siteCourant(){
@@ -16,6 +16,33 @@
     var site=q.data.site_id;
     if(q.data.est_createur){var consulte=localStorage.getItem('nexus_site_consulte_createur');if(consulte)site=consulte;}
     siteCache=site;return site;
+  }
+
+  // Le fuseau de la station, mémorisé comme le site l'est : `corrigerUI` est
+  // rappelé à chaque image du MutationObserver. Une configuration absente est
+  // mémorisée elle aussi — elle ne se répare pas en cours de page, et la
+  // redemander à chaque image produirait une lecture réseau et une ligne de
+  // journal par image. Une panne RÉSEAU n'est pas mémorisée : elle peut cesser.
+  async function fuseauCourant(){
+    if(fuseauCache)return fuseauCache;
+    if(fuseauRefuse)return null;
+    var S=global.NexusStation;if(!S||!S.fuseauDeLaStation)return null;
+    var site=await siteCourant();if(!site)return null;
+    var f=await S.fuseauDeLaStation(site);
+    if(f&&f.timezone){fuseauCache=f.timezone;return fuseauCache;}
+    if(f&&f.indetermine==='configuration')fuseauRefuse=true;
+    return null;
+  }
+
+  // La date du jour à la STATION, jamais celle de l'appareil. Cet écran ne
+  // l'AFFICHE pas, il CHOISIT des données avec : `chargerP0(client, site,
+  // auj)` puis `p0.reference.date === auj`. Passé 20 h locales, un appareil
+  // en UTC est déjà au lendemain — la requête ne trouve rien et la référence
+  // certifiée du jour cesse d'être reconnue. Sans fuseau on ne calcule pas :
+  // aucun repli sur l'horloge machine, qui rendrait un mauvais jour en silence.
+  async function aujourdhuiStation(){
+    var tz=await fuseauCourant();
+    return tz?global.NexusStation.dateLocaleStation(tz):null;
   }
 
   async function chargerP0(client,site,dateISO){
@@ -75,7 +102,10 @@
   function corrigerSituations(){document.querySelectorAll('.carb-carte').forEach(function(c){var t=c.textContent||'';if(/Situation stock\s*:\s*Non évaluable/i.test(t)&&(/\bGO\b/.test(t)||/\bSP95\b/.test(t))&&/Autonomie[\s\S]*?\d+[\.,]?\d*\s*j/i.test(t)&&/Écart[\s\S]*?[+−-]?0\s*L/i.test(t))remplacer(c,/Situation stock\s*:\s*Non évaluable/gi,'Situation stock : Référence certifiée');});}
 
   async function corrigerP0EtReception(){
-    var client=clientNexus(),site=await siteCourant();if(!site||!client)return;var auj=aujourdhuiLocal(),p0=await chargerP0(client,site,auj);
+    var client=clientNexus(),site=await siteCourant();if(!site||!client)return;
+    // Le fuseau ne conditionne QUE le bloc du point zéro. La réception ne
+    // dépend d'aucune date : la refuser aussi serait punir ce qui va bien.
+    var auj=await aujourdhuiStation(),p0=auj?await chargerP0(client,site,auj):null;
     if(p0&&p0.reference.date===auj){document.querySelectorAll('.section-note').forEach(function(el){if(/Écart calculé depuis le dernier relevé du/i.test(el.textContent||''))el.textContent=(el.textContent||'').replace(/Écart calculé depuis le dernier relevé du [0-9/]+\./i,'Écart courant calculé depuis la référence certifiée du '+frDate(p0.reference.date)+'.');});var src=document.querySelector('.historique-pz-source');if(src){var card=src.closest('[class*="historique-pz"],.card')||src.parentElement;if(card&&/1\s*sept/i.test(card.textContent||'')){src.textContent='Source : Veeder-Root';src.title='Référence certifiée du '+frDate(p0.reference.date)+' à partir du relevé Veeder-Root.';}}}
     var r=await chargerReception(client,site);if(!r||!r.totalBl)return;var sous=document.getElementById('livraisonSousTitre'),stat=r.aRapprocher?' · à rapprocher':'';if(sous)sous.textContent='BL '+fmtL(r.totalBl)+(r.totalMesure?' · jauge +'+fmtL(r.totalMesure):'')+stat+' — '+frDate(r.visite.date_visite);
     var carte=document.querySelector('#livraisonZone .livraison-carte');if(carte&&!carte.querySelector('.nexus-p0-reception-note')){var note=document.createElement('div');note.className='nexus-p0-reception-note';note.innerHTML='Quantité documentaire BL : <b>'+fmtL(r.totalBl)+'</b>'+(r.totalMesure?' · Variation physique mesurée par jauge : <b>+'+fmtL(r.totalMesure)+'</b>':'')+(r.aRapprocher?' · <span style="color:var(--amber);font-weight:600">Rapprochement à confirmer</span>':'');carte.insertBefore(note,carte.firstChild.nextSibling);var total=carte.querySelector('.livraison-total');if(total){var sp=total.querySelectorAll('span');if(sp[0])sp[0].textContent='Total BL documentaire';if(sp[1])sp[1].textContent=fmtL(r.totalBl);}}

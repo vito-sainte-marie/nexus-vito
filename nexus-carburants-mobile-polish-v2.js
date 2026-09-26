@@ -7,15 +7,12 @@
   let raf = null;
   let siteCache = null;
   let p0Cache = null;
+  let fuseauCache = null;
+  let fuseauRefuse = false;
 
   function clientNexus() {
     try { return typeof nexusClient !== 'undefined' ? nexusClient : (global.nexusClient || null); }
     catch (e) { return global.nexusClient || null; }
-  }
-
-  function aujourdhuiLocal() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   function dateFrLisible(iso) {
@@ -44,16 +41,47 @@
     return site;
   }
 
+  // Le fuseau de la station, mémorisé comme le site l'est : `appliquer` est
+  // rappelé à chaque image du MutationObserver. Une configuration absente est
+  // mémorisée elle aussi — elle ne se répare pas en cours de page, et la
+  // redemander à chaque image produirait une lecture réseau et une ligne de
+  // journal par image. Une panne RÉSEAU n'est pas mémorisée : elle peut cesser.
+  async function fuseauCourant() {
+    if (fuseauCache) return fuseauCache;
+    if (fuseauRefuse) return null;
+    const S = global.NexusStation;
+    if (!S || !S.fuseauDeLaStation) return null;
+    const site = await siteCourant();
+    if (!site) return null;
+    const f = await S.fuseauDeLaStation(site);
+    if (f && f.timezone) { fuseauCache = f.timezone; return fuseauCache; }
+    if (f && f.indetermine === 'configuration') fuseauRefuse = true;
+    return null;
+  }
+
+  // La date du jour à la STATION, jamais celle de l'appareil. Cet écran ne
+  // l'AFFICHE pas, il CHOISIT des données avec : `.lte('date', …)` borne la
+  // recherche du point zéro, et `p0.date !== …` décide si le bandeau du jour
+  // s'applique. Passé 20 h locales, un appareil en UTC est déjà au lendemain —
+  // la borne laisse passer un point zéro de demain, et la référence du jour
+  // cesse d'être reconnue. Sans fuseau on ne calcule pas : aucun repli sur
+  // l'horloge machine, qui rendrait un mauvais jour en silence.
+  async function aujourdhuiStation() {
+    const tz = await fuseauCourant();
+    return tz ? global.NexusStation.dateLocaleStation(tz) : null;
+  }
+
   async function dernierPointZero() {
     if (p0Cache) return p0Cache;
     const client = clientNexus();
     const site = await siteCourant();
-    if (!client || !site) return null;
+    const auj = await aujourdhuiStation();
+    if (!client || !site || !auj) return null;
     const q = await client.from('carburant_stock_references')
       .select('id,date,type,statut,source,created_at')
       .eq('site', site)
       .eq('type', 'initialisation')
-      .lte('date', aujourdhuiLocal())
+      .lte('date', auj)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
@@ -130,7 +158,8 @@
 
   async function corrigerPointZeroEtSituation() {
     const p0 = await dernierPointZero();
-    if (!p0 || p0.date !== aujourdhuiLocal()) return;
+    const auj = await aujourdhuiStation();
+    if (!p0 || !auj || p0.date !== auj) return;
 
     // Les cartes v2 sont .carb-carte2. On ne touche jamais à leur parent.
     document.querySelectorAll('.carb-carte2').forEach(carte => {

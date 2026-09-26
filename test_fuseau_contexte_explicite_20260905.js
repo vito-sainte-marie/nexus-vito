@@ -104,18 +104,14 @@ verifier('aucun repli vers l’horloge de la machine hors des cas consignés', (
 // - fenetre)` sur une date DONNÉE est de l'arithmétique symétrique, sans
 // défaut. Le motif est l'horloge machine lue en calendrier : `new Date()`
 // SANS argument, dont on lit ensuite l'année, le mois ou le jour.
-const CALENDRIER_MACHINE_A_TRAITER = new Set([
-  // Les deux derniers, mesurés le 25/09/2026. Ils ne sont pas anodins : les
-  // deux s'en servent pour CHOISIR des données, pas pour afficher.
-  // `chargerP0(client, site, auj)` d'un côté, `.lte('date', …)` et
-  // `p0.date !== aujourdhuiLocal()` de l'autre — passé 20 h locales, ces
-  // écrans interrogent le lendemain et ne trouvent rien. Non corrigés ici
-  // parce qu'aucun des deux n'a de fuseau en portée : les réparer demande d'y
-  // faire descendre `NexusStation.fuseauDeLaStation`, ce qui change leur
-  // forme. Consignés pour que la garde morde sur le TROISIÈME.
-  'nexus-carburants-p0-coherence-ui.js',
-  'nexus-carburants-mobile-polish-v2.js',
-]);
+// VIDE depuis le 26/09/2026. Les deux derniers — `nexus-carburants-p0-
+// coherence-ui.js` et `nexus-carburants-mobile-polish-v2.js` — sont réparés.
+// Le motif invoqué pour les avoir consignés (« aucun des deux n'a de fuseau
+// en portée ») était faux : les deux résolvent déjà `siteCourant()`, et
+// `NexusStation.dateLocaleStation` est exporté et chargé par la page. Il n'y
+// avait rien à faire descendre. Une liste « reste à traiter » survit surtout
+// à la raison qui l'a remplie.
+const CALENDRIER_MACHINE_A_TRAITER = new Set([]);
 
 verifier('aucune date de calendrier lue sur l’horloge de la machine', () => {
   const t = [];
@@ -217,8 +213,6 @@ const DETTE_HORLOGE_MACHINE = {
   'nexus-auth.js': 1,
   'nexus-carburant-commande-donnees-core.js': 1,
   'nexus-carburant-donnees.js': 1,
-  'nexus-carburants-mobile-polish-v2.js': 1,
-  'nexus-carburants-p0-coherence-ui.js': 1,
   'nexus-coach-fdj-moteur.js': 1,
   'nexus-conseiller-donnees.js': 1,
   'nexus-inventaire-moteur.js': 1,
