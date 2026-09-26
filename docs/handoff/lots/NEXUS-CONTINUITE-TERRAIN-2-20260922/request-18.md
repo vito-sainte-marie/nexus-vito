@@ -124,3 +124,51 @@ sollicitation.
 Aucune fusion, aucun déploiement, aucune migration, aucune écriture en base, aucun secret
 lu, aucun PIN, aucune permission élargie. Rien n'a été poussé : les commits de ce travail
 restent locaux au rail, dans l'attente du GO de transport habituel.
+
+## 7. Mise à jour du 26/09/2026 — ce document est maintenant lisible là où vous êtes
+
+Ajouté par append, sans rien réécrire : **le §6 ci-dessus a cessé d'être vrai le
+26/09/2026**, et vous lisez cette demande sur la ref même que cette phrase niait. La
+laisser telle quelle et dater sa correction vaut mieux que la corriger en silence.
+
+**Le transport a eu lieu.** `ab62320..f3f903c` sur `handoff-continuite-20260920`, sous un
+GO de Frédéric borné à cette réparation, assorti de cinq critères qu'il a posés lui-même et
+que j'ai vérifiés sur la **totalité** du diff avant de pousser : aucune modification
+métier, aucune permission GitHub supplémentaire, aucun changement Supabase, aucun
+déploiement, aucune modification de `main` ou `production`. CI verte sur `f3f903c`.
+
+Une conséquence mérite d'être dite, parce qu'elle a failli faire mentir le périmètre : **le
+GO nommait des fichiers, or git transporte des commits.** `b546400` — un fichier de test
+ajouté, la garde d'horloge, 170 lignes, aucune source touchée — est l'**ancêtre** des trois
+autres. Aucun push ne pouvait porter la réparation sans lui. Je l'ai dit avant de pousser
+plutôt qu'après ; il satisfait les cinq critères et relève de Q76.
+
+**Ce que `f3f903c` ajoute au-delà de ce que les §1 à §4 décrivent.** Le maillon 3 était
+réparé, mais le réveil désignait encore le document **par son nom de fichier**. Quatre
+branches `origin/claude/issue-28-*` portent un `request-18.md` d'octets différents : le
+réveil annonçait donc des refs qui ne portaient pas ce que vous lisez ici — la mauvaise
+livraison la plus silencieuse qui soit, puisque la ligne est bien formée et le fichier
+vraiment là. Un document se désigne désormais par son **empreinte** (`git hash-object`), et
+le réveil rend trois réponses distinctes : `memes` (ces octets — à lire), `homonymes` (ce
+nom, d'autres octets — **nommés**, jamais offerts en lecture), aucune (« rien à lire
+ailleurs », ce qui n'est pas « cherchez ailleurs »).
+
+Le même défaut vu de l'autre bout : **« lisible ici » n'est pas « lisible là où l'arbitre se
+tient »**. Une ref locale porte le document sans que vous, qui lisez GitHub, puissiez
+l'atteindre. D'où `lisible_a_distance` : `true`, `false`, ou `null` quand la mesure manque —
+jamais un `false` qui alarmerait à tort.
+
+**Éprouvé par mutation, 95/95.** Sept mutations, sept rouges nommés, aucun n'en masquant un
+autre, contre-témoin vert à l'état restauré. Deux d'entre elles ont d'abord passé
+**inaperçues** : celles qui transforment `null` en `false`. Les états bruyants se gardent
+tout seuls parce qu'ils s'affichent ; l'état « on ne sait pas » ne produit aucune ligne,
+donc rien ne le contredit quand il se met à mentir — or c'est précisément lui qui empêche la
+fausse alarme. Les deux gardes manquantes sont écrites.
+
+**Ce que je ne demande toujours pas.** Les quatre branches homonymes restent divergentes :
+Frédéric a explicitement **refusé** tout GO de suppression ou de modification, les qualifiant
+de dette de gouvernance identifiée, à traiter séparément et sans la mélanger au travail #65.
+L'outil ne les nettoie pas ; il refuse de s'y tromper. Rien d'autre n'a changé : ni fusion,
+ni déploiement, ni migration, ni écriture en base, ni secret, ni PIN, ni permission élargie.
+
+**Le §5 est inchangé : la seule question de cette demande reste `issues: write`.**
