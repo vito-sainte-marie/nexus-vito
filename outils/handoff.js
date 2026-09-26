@@ -173,6 +173,29 @@ function demandeVisee(lot, fichierDecision) {
   const retenue = valeurRetenue(`${lot}/${fichierDecision}`, 'IN_REPLY_TO_MANQUANT', 'in_reply_to');
   return retenue ? path.basename(retenue.valeur) : null;
 }
+// L'adresse où réveiller le destinataire du lot, telle que le registre la
+// déclare. Même raison d'être que `demandeVisee` juste au-dessus : `wake_to`
+// est une DÉSIGNATION, pas un calcul — PROTOCOL.md dit qu'elle est « donnée
+// par l'ordre » et qu'aucun outil ne code de destinataire en dur. Elle vivait
+// pourtant dans le seul `reveil-orchestrateur.js`, qui la rescannait pour son
+// compte ; le validateur, lui, ne savait pas qu'elle pouvait manquer. Une
+// seule lecture ici, deux consommateurs : le réveil qui adresse, et
+// `verifier` qui signale un lot en attente d'arbitrage sans destinataire.
+// La déclaration la plus récente du lot fait foi — une décision de rang N
+// vient après la demande de rang N, d'où le rang composite.
+function adresseDeReveil(lot) {
+  const rang = e => e.seq * 2 + (e.kind === 'decision' ? 1 : 0);
+  const tous = []
+    .concat(echanges(lot, 'request').map(e => Object.assign({ kind: 'request' }, e)))
+    .concat(echanges(lot, 'decision').map(e => Object.assign({ kind: 'decision' }, e)))
+    .sort((a, b) => rang(b) - rang(a));
+  for (const e of tous) {
+    const r = lireEnveloppe(path.join(LOTS, lot, e.fichier));
+    const v = r && r.env && r.env.wake_to;
+    if (v && String(v).trim()) return { adresse: String(v).trim(), source: e.fichier };
+  }
+  return { adresse: null, source: null };
+}
 function normaliserDecision(valeur) { if (valeur === 'APPROVED_CLOSED') return { decision: 'APPROVED', closes: true, legacy: true }; return { decision: valeur, legacy: false }; }
 function lots() { if (!fs.existsSync(LOTS)) return []; return fs.readdirSync(LOTS).filter(d => fs.statSync(path.join(LOTS, d)).isDirectory()).sort(); }
 function echanges(lot, genre) {
@@ -326,6 +349,23 @@ function validerEtatContenu(etat) {
   if (etat.derogations !== undefined) { if (!Array.isArray(etat.derogations)) bloquant('STATE.json : derogations doit être une liste'); else for (const d of etat.derogations) { for (const champ of ['fichier', 'regle', 'motif', 'autorise_par', 'le']) if (!d[champ]) bloquant(`STATE.json : dérogation incomplète — ${champ} manquant`); if (CODES_NON_DEROGEABLES.includes(d.regle)) bloquant(`STATE.json : ${d.regle} est un invariant de sécurité — aucune dérogation n'est recevable`); if (d.valeur_retenue !== undefined) { const admis = SUBSTITUTIONS_ADMISES[d.regle] || []; if (!d.valeur_retenue || typeof d.valeur_retenue !== 'object' || Array.isArray(d.valeur_retenue)) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — valeur_retenue doit être un objet`); else if (!admis.length) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — aucune valeur retenue n'est admise pour cette règle (règles substituables : ${Object.keys(SUBSTITUTIONS_ADMISES).join('|')})`); else for (const champ of Object.keys(d.valeur_retenue)) if (!admis.includes(champ)) bloquant(`STATE.json : dérogation ${d.regle} sur ${d.fichier} — valeur retenue interdite pour ${champ} (admis : ${admis.join('|')})`); } } }
   return etat;
 }
+// 25/09/2026 — le réveil de l'Orchestrateur refusait de nommer un
+// destinataire pour le seul lot qui en attendait un : aucun de ses 27
+// échanges ne portait `wake_to`. PROTOCOL.md dit « Claude la pose en ouvrant
+// le lot » ; cette règle ne vivait qu'en prose, et sur deux lots consécutifs
+// elle n'a été honorée aucune fois. Une règle que rien ne mesure n'est pas
+// une règle. Avertissement et non blocage : le lot est conforme, c'est sa
+// JOIGNABILITÉ qui manque — la proportion est celle d'un WARN, et la seule
+// façon de l'éteindre est de déclarer l'adresse, jamais de la déroger.
+function signalerLotsSansAdresseDeReveil(etat) {
+  if (!etat || !etat.lots || typeof etat.lots !== 'object') return;
+  for (const [lot, v] of Object.entries(etat.lots)) {
+    if (!v || v.statut !== 'ATTENTE_DECISION') continue;
+    if (!fs.existsSync(path.join(LOTS, lot))) continue;
+    if (adresseDeReveil(lot).adresse) continue;
+    avertir(`lots/${lot} attend un arbitrage et aucun de ses échanges ne déclare \`wake_to\` — le réveil de l'Orchestrateur ne peut pas nommer de destinataire, donc il refuse de le composer. Posez l'adresse sur un échange du lot : handoff.js demande ${lot} <corps.md> --wake-to <adresse>`);
+  }
+}
 function enTeteMiroir(source) { return `<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/${source}\n     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->\n`; }
 function regenererMiroirs() { const etat = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }, lot = etat.lot_actif; if (!lot) return; const d = dernier(echanges(lot, 'request')); if (d) { const src = path.join('lots', lot, d.fichier); fs.writeFileSync(MIROIR_DEMANDE, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, d.fichier), 'utf8')); } const dec = dernier(echanges(lot, 'decision')); if (dec) { const src = path.join('lots', lot, dec.fichier); fs.writeFileSync(MIROIR_DECISION, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, dec.fichier), 'utf8')); } }
 function verifier(ignorer) {
@@ -335,6 +375,7 @@ function verifier(ignorer) {
   else { try { etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); } catch (e) { bloquant(`STATE.json illisible : ${e.message}`); } }
   const artefactsValides = artefactsHorsRegistreValides(etat);
   validerRegistre(etat, artefactsValides); validerEtatContenu(etat);
+  signalerLotsSansAdresseDeReveil(etat);
   if (etat && etat.lot_actif) signalerEnvDivergent(etat.lot_actif, railDuLot(etat, etat.lot_actif), avertir);
   if (etat && etat.lot_actif) { const d = dernier(echanges(etat.lot_actif, 'request')); if (d) { const r = lireEnveloppe(path.join(LOTS, etat.lot_actif, d.fichier)), p = ((r.env && r.env.preuves) || []).find(x => x.id === 'suite'), sortie = process.env.NEXUS_SORTIE_SUITE; if (p && sortie && fs.existsSync(sortie)) { const m = fs.readFileSync(sortie, 'utf8').match(/(\d+)\/(\d+) tests passent/); if (m && p.valeur.trim() !== `${m[1]}/${m[2]}`) avertir(`suite déclarée ${p.valeur.trim()}, mesurée ${m[1]}/${m[2]} — lot d'observation : avertissement, pas blocage.`); } } }
   const derogations = etat && Array.isArray(etat.derogations) ? etat.derogations : [], restantes = [];
@@ -392,7 +433,9 @@ function nouvelleDecision(lot, corpsFichier, options) {
   let env = '---\n';
   env += `protocol: ${PROTOCOLE}\nkind: decision\nlot_id: ${lot}\nseq: ${seq}\n`;
   env += `author: ${auteur}\nbranch: ${rail}\ndecision: ${verdict}\ncloses: ${options.closes}\n`;
-  env += `in_reply_to: ${vise}\n---\n`;
+  env += `in_reply_to: ${vise}\n`;
+  if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`;
+  env += '---\n';
   fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   console.log(`${lot}/${fichier} créé (${verdict}, closes=${options.closes}, en réponse à ${vise}).`);
   console.log('Enveloppe conforme par construction — à commiter, puis à consommer par `handoff.js consommer`.');
@@ -487,8 +530,30 @@ function nouvelleDemande(lot, corpsFichier, options) {
     rail = options.rail;
   } else rail = exigerRailSecurise(etatAvant, lot);
   const dir = path.join(LOTS, lot); fs.mkdirSync(dir, { recursive: true }); const seq = (dernier(echanges(lot, 'request')) || { seq: 0 }).seq + 1, fichier = `request-${seq}.md`, cible = path.join(dir, fichier); if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
-  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
+  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
+}
+// `wake_to` est une ADRESSE LIBRE (PROTOCOL.md) : aucun vocabulaire clos, une
+// URL d'issue aujourd'hui, autre chose demain. Rien à valider sur le fond,
+// donc — seulement sur la forme, parce qu'une enveloppe est lue ligne à ligne
+// et qu'un retour à la ligne y fabriquerait un champ fantôme.
+function adresseDeReveilValide(valeur) {
+  const v = String(valeur === undefined || valeur === null ? '' : valeur).trim();
+  if (!v) { console.error('REFUS — --wake-to attend une adresse ; vide, elle ne réveille personne.'); process.exit(1); }
+  if (/[\r\n]/.test(v)) { console.error('REFUS — une adresse de réveil tient sur une seule ligne.'); process.exit(1); }
+  if (v.startsWith('--')) { console.error(`REFUS — --wake-to ${JSON.stringify(v)} ressemble à une option, pas à une adresse.`); process.exit(1); }
+  // `issue #28` est l'adresse qu'on a spontanément envie d'écrire — et c'est un
+  // piège : en YAML, un `#` précédé d'un espace ouvre un COMMENTAIRE. Le
+  // lecteur maison de `lireEnveloppe` prend toute la ligne et lit bien
+  // « issue #28 » ; un vrai parseur YAML, lui, lit « issue ». L'adresse
+  // vaudrait alors deux choses selon qui la relit, et le jour où elle se
+  // perdrait, la ligne aurait l'air juste. Une URL ne se lit qu'une façon.
+  if (/\s#/.test(v)) {
+    console.error(`REFUS — ${JSON.stringify(v)} ne se lit pas pareil selon le lecteur : en YAML, un « # » précédé d'une espace ouvre un commentaire, et l'adresse s'arrête avant lui.`);
+    console.error('Donnez une adresse sans ambiguïté — une URL, par exemple https://github.com/<org>/<depot>/issues/28.');
+    process.exit(1);
+  }
+  return v;
 }
 function refuserRail(rail) {
   console.error(`REFUS — rail non autorisé : ${JSON.stringify(rail)}`);
@@ -569,7 +634,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 
@@ -582,8 +647,8 @@ switch (commande) {
   case 'declarer-rail': declarerRail(arg1, arg2); break;
   case 'rail': imprimerRail(arg1); break;
   case 'rattraper-demande': rattraperDemande(arg1); break;
-  case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null, rail; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail }); break; }
-  case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
+  case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo }); break; }
+  case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]…|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
 }

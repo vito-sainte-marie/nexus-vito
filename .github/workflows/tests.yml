@@ -188,6 +188,41 @@ jobs:
       - name: Épreuves mutationnelles du validateur Handoff
         run: node test_handoff_v2_20260905.js
 
+      # 25/09/2026 — LE TRANSPORT DU RÉVEIL, sens Claude → Orchestrateur.
+      # Trois maillons sur quatre existaient : la demande se dépose, le réveil
+      # la détecte, et il sait désormais l'adresser. Le quatrième — quelque
+      # chose qui PORTE le réveil hors du dépôt — n'existait pas, et l'outil le
+      # disait lui-même en tête de fichier. Le publier en commentaire d'issue
+      # exigerait `issues: write`, c'est-à-dire un élargissement de la surface
+      # du jeton : un geste humain que je ne peux pas m'accorder (CLAUDE.md).
+      # Le résumé de job, lui, est une simple écriture de fichier — AUCUNE
+      # permission supplémentaire — et c'est l'endroit où l'on regarde déjà
+      # quand un run se termine.
+      #
+      # Ce n'est donc PAS un réveil automatique, et il ne doit être présenté
+      # nulle part comme tel : c'est le geste humain rendu court et exact, le
+      # corps à coller étant déjà rédigé et déjà adressé. Aucun destinataire
+      # n'est écrit ici : `wake_to` se déclare dans le rail, jamais dans du
+      # code (PROTOCOL.md), et NEXUS_HANDOFF_WAKE_TO n'a rien à faire dans un
+      # workflow. Si le lot n'a pas d'adresse, le corps le dit et refuse de
+      # nommer quelqu'un au hasard.
+      #
+      # `always()` parce qu'un rail rouge est précisément le moment où un
+      # arbitrage manque le plus : le réveil ne doit pas disparaître avec la
+      # première étape qui échoue.
+      - name: Réveil Orchestrateur — corps à coller (résumé de job)
+        if: always()
+        run: |
+          {
+            echo "## Réveil Handoff — sens Claude → Orchestrateur"
+            echo
+            echo "À coller tel quel au destinataire nommé ci-dessous. Rien ne le publie : NEXUS prépare le message, le facteur le transmet."
+            echo
+            echo '````text'
+            node outils/reveil-orchestrateur.js --message
+            echo '````'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par
       # Architecture, Security et QA. Elle rapporte donc sans arrêter la CI,

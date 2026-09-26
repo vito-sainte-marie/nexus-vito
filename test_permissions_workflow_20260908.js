@@ -93,4 +93,68 @@ t('le producteur ne demande à GitHub que des métadonnées', () => {
     'aucune lecture de log ni d’artefact : ce n’est pas ce qui a été autorisé');
 });
 
+// ---------------------------------------------------------------------------
+// Le transport du réveil Orchestrateur : présent, et sans coût de permission.
+//
+// Le sens Claude → Orchestrateur est resté muet longtemps : l'outil composait
+// le message, et rien ne le portait. La voie retenue est le résumé de job —
+// une ÉCRITURE DE FICHIER, qui ne demande AUCUNE permission au jeton. Poser
+// `issues: write` aurait été plus commode : c'eût été élargir la surface de
+// sécurité, donc un geste humain (CLAUDE.md), pas un ajustement d'outillage.
+//
+// Deux choses peuvent se perdre ici, et aucune ne se voit en relisant un YAML :
+// l'étape DISPARAÎT dans un remaniement, et le sens redevient muet sans que
+// rien ne rougisse ; ou elle SURVIT en passant par l'API, réclame un jeton, et
+// le transport gratuit se retrouve échangé contre une permission que personne
+// n'a décidé d'ouvrir. Ces trois épreuves tiennent les deux bouts.
+
+function etapeDuReveil() {
+  const i = yml.indexOf('      - name: Réveil Orchestrateur');
+  assert.ok(i > 0,
+    'l’étape de réveil a disparu du workflow : le sens Claude → Orchestrateur ' +
+    'n’a plus rien qui transporte son message. L’outil continuerait de le ' +
+    'composer sans que personne ne le voie — exactement l’état d’avant.');
+  const suite = yml.slice(i + 1);
+  const fin = suite.indexOf('\n      - name:');
+  return suite.slice(0, fin === -1 ? undefined : fin);
+}
+
+t('le réveil Orchestrateur a une étape qui le TRANSPORTE', () => {
+  const etape = etapeDuReveil();
+  assert.ok(/\$GITHUB_STEP_SUMMARY/.test(etape),
+    'le corps doit aboutir au résumé de job, sinon il n’aboutit nulle part');
+  assert.ok(/node outils\/reveil-orchestrateur\.js --message/.test(etape),
+    'et c’est le producteur du rail qui le compose, pas un texte recopié dans le YAML');
+});
+
+t('le réveil part AUSSI quand les épreuves échouent', () => {
+  // C'est précisément quand quelque chose ne va pas que l'Orchestrateur doit
+  // être réveillé. Sans `if: always()`, le seul cas où le message compte est
+  // le seul où il ne serait pas écrit.
+  const etape = etapeDuReveil();
+  assert.ok(/if: always\(\)/.test(etape),
+    'sans `if: always()`, un premier rouge emporte le réveil avec lui');
+});
+
+t('ce transport ne coûte AUCUNE permission', () => {
+  const etape = etapeDuReveil();
+  const dette = [];
+  if (/GH_TOKEN|GITHUB_TOKEN/.test(etape)) dette.push('un jeton est donné à l’étape');
+  if (/secrets\./.test(etape)) dette.push('un secret est lu par l’étape');
+  if (/\bgh\s+\w/.test(etape)) dette.push('l’étape appelle `gh` : ce n’est plus une écriture de fichier');
+  if (/api\.github\.com|curl|wget/.test(etape)) dette.push('l’étape appelle l’API GitHub directement');
+  assert.deepStrictEqual(dette, [],
+    'Le résumé de job a été choisi parce qu’il ne demande RIEN. Si cette étape ' +
+    'se met à publier, elle réclamera une permission, et cette permission est ' +
+    'un geste humain — elle ne s’obtient pas en modifiant ce fichier.\n  ' +
+    dette.join('\n  '));
+
+  // Et le producteur lui-même ne publie pas : il ne parle qu'à `git`.
+  // « NEXUS prépare le message, le facteur le transmet » est une affirmation
+  // du YAML ; ici elle devient une mesure.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'reveil-orchestrateur.js'), 'utf8');
+  assert.ok(!/execFileSync\(\s*'gh'|require\('https?'\)|fetch\(/.test(src),
+    'reveil-orchestrateur.js doit COMPOSER le réveil, jamais le publier');
+});
+
 console.log(`\n${n}/${n} vérifications passées — une permission accordée n’est pas une permission ouverte.`);

@@ -17,19 +17,36 @@
 //
 // CE QU'IL FAIT. Il lit le registre et il conclut. Il ne réveille personne.
 //
-// ÉTAT RÉEL AU 21/09/2026 : OUTIL PRÊT, AUCUN DÉCLENCHEUR ACTIF, ET LE
-// TRANSPORT N'EXISTE PAS. Le jeton de `tests.yml` porte `contents: read` et
-// `actions: read` — il ne peut pas écrire un commentaire d'issue. Lui ajouter
-// `issues: write` serait un élargissement de sa surface, donc un geste humain
-// (CLAUDE.md) que Claude ne peut pas s'accorder. Et `schedule` ne vit que sur
-// la branche par défaut, fermée par `decision-1.md` du lot
-// NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907. Le réveil de l'Orchestrateur bute
-// donc sur exactement le même mur qu'ORCH-001, pour les mêmes raisons.
+// ÉTAT RÉEL AU 25/09/2026 : LE TRANSPORT EXISTE, LE DÉCLENCHEUR RESTE HUMAIN.
 //
-// Jusqu'à ce qu'un control-plane externe existe, ce fichier sert à une seule
-// chose, qui n'est pas rien : rendre le geste humain COURT et EXACT. Personne
-// n'a plus à reconstituer de tête quel lot attend quoi et sur quelle branche.
-// Il ne doit être présenté nulle part comme « un réveil automatique ».
+// Ce qui manquait tenait en quatre maillons. La demande se dépose (1), ce
+// fichier la détecte (2), il sait désormais l'ADRESSER (3, corrigé le 25/09 —
+// `wake_to` n'avait aucun écrivain : PROTOCOL.md demandait à Claude de poser
+// une adresse dans un champ qu'aucun outil conforme ne savait émettre), et
+// quelque chose la PORTE hors du dépôt (4). Le quatrième était le vrai trou,
+// et cette section disait à juste titre qu'il n'existait pas.
+//
+// IL EXISTE MAINTENANT, et sans rien élargir : `tests.yml` publie le corps
+// du réveil dans `$GITHUB_STEP_SUMMARY`. C'est une écriture de FICHIER —
+// aucune permission supplémentaire. Le jeton garde `contents: read` et
+// `actions: read`, et `test_permissions_workflow_20260908.js` continue de
+// refuser toute permission en écriture. Publier en commentaire d'issue
+// exigerait `issues: write`, c'est-à-dire un élargissement de la surface du
+// jeton : un geste humain (CLAUDE.md) que Claude ne peut pas s'accorder. La
+// variante est préparée et attend ce geste, elle n'est pas câblée.
+//
+// CE N'EST DONC PAS UN RÉVEIL AUTOMATIQUE, et il ne doit être présenté nulle
+// part comme tel. `schedule` ne vit toujours que sur la branche par défaut,
+// fermée par `decision-1.md` du lot NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907.
+// Ce que ce fichier fait, et ce n'est pas rien : rendre le geste humain COURT
+// et EXACT. Le corps est déjà rédigé, déjà adressé, et il attend à l'endroit
+// où l'on regarde déjà quand un run se termine. Personne n'a plus à
+// reconstituer de tête quel lot attend quoi et sur quelle branche.
+//
+// L'ADRESSE NE VIT PAS ICI. `wake_to` se déclare dans le rail, jamais dans du
+// code (PROTOCOL.md) : aucun outil ne code de destinataire en dur, et changer
+// de canal doit rester un fait écrit. Sans adresse déclarée, le corps le dit
+// et refuse de nommer quelqu'un au hasard.
 //
 //   node outils/reveil-orchestrateur.js            # texte lisible, sortie 0
 //   node outils/reveil-orchestrateur.js --json     # objet complet
@@ -88,30 +105,102 @@ function cheminGit(lot, fichier) {
   return rel.startsWith('..') || path.isAbsolute(rel) ? null : rel.split(path.sep).join('/');
 }
 
+// Un nom de fichier n'est pas une identité.
+//
+// Les runs d'agent branchent sur le rail, déposent `request-N.md`, poussent
+// leur propre branche — et personne ne les rapatrie. Le même nom finit donc
+// porté par plusieurs refs avec des contenus DIFFÉRENTS. Mesuré le 25/09/2026
+// sur le lot 2 : sept documents en quatre à cinq versions incompatibles, dont
+// une décision, et `request-18.md` en cinq exemplaires distincts.
+//
+// Répondre « voici les branches qui portent ce nom » revient alors à envoyer
+// l'arbitre lire un AUTRE document que celui qu'on lui annonce — et rien n'a
+// l'air faux : la ligne est bien formée, la branche existe, le fichier s'y
+// trouve. C'est la mauvaise livraison la plus silencieuse qui soit. On compare
+// donc l'empreinte du document, jamais son nom.
+//
+// Trois réponses distinctes, là où il n'y en avait qu'une :
+//   memes       — refs portant CE document (mêmes octets) : à lire.
+//   homonymes   — refs portant ce NOM avec un autre contenu : à ne pas lire.
+//   ni l'un ni l'autre — le document n'est sur aucune ref : rien à lire ailleurs.
+// La plomberie : quel objet chaque ref porte-t-elle À CE CHEMIN ?
+//
+// Séparée du classement ci-dessous, et prenant sa racine en argument, pour
+// qu'une épreuve puisse la lancer sur un dépôt jetable où l'on a FABRIQUÉ deux
+// branches portant le même nom de fichier avec des contenus différents. Le
+// défaut corrigé le 25/09/2026 vivait ici — dans une requête qui demandait
+// « ce chemin existe-t-il ? » au lieu de « que vaut-il ? ». Une garde qui ne
+// peut pas rejouer ce défaut-là ne garde rien.
+function blobsParRef(racine, chemin, suffixe) {
+  const gitLa = (args, opts) => execFileSync('git', args,
+    Object.assign({ cwd: racine, encoding: 'utf8' }, opts || {}));
+  const trouves = new Map();
+  const refs = gitLa(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'])
+    .split('\n').map(x => x.trim()).filter(Boolean);
+  for (const r of refs) {
+    let ou = chemin;
+    if (!ou && suffixe) {
+      // Registre hors dépôt : on retrouve le fichier par son suffixe plutôt
+      // que de présumer où les lots vivent.
+      try {
+        ou = gitLa(['ls-tree', '-r', '--name-only', r]).split('\n')
+          .find(l => l.endsWith(suffixe)) || null;
+      } catch (e) { ou = null; }
+    }
+    if (!ou) continue;
+    // stderr muet : « absent de cette ref » est une réponse attendue, pas une
+    // panne — la laisser parler noierait le réveil sous des `fatal:`.
+    try {
+      const blob = gitLa(['rev-parse', `${r}:${ou}`], { stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      if (blob) trouves.set(r, blob);
+    } catch (e) { /* absente de cette ref : c'est une réponse, pas une panne */ }
+  }
+  return trouves;
+}
+
+// Le classement : un nom de fichier n'est pas une identité.
+//
+// Les runs d'agent branchent sur le rail, déposent `request-N.md`, poussent
+// leur propre branche — et personne ne les rapatrie. Le même nom finit donc
+// porté par plusieurs refs avec des contenus DIFFÉRENTS. Mesuré le 25/09/2026
+// sur le lot 2 : sept documents en quatre à cinq versions incompatibles, dont
+// une décision, et `request-18.md` en cinq exemplaires distincts.
+//
+// Répondre « voici les branches qui portent ce nom » revient alors à envoyer
+// l'arbitre lire un AUTRE document que celui qu'on lui annonce — et rien n'a
+// l'air faux : la ligne est bien formée, la branche existe, le fichier s'y
+// trouve. C'est la mauvaise livraison la plus silencieuse qui soit.
+//
+// Trois réponses distinctes, là où il n'y en avait qu'une :
+//   memes       — refs portant CE document (mêmes octets) : à lire.
+//   homonymes   — refs portant ce NOM avec d'autres octets : à ne pas lire.
+//   ni l'un ni l'autre — le document n'est sur aucune ref : rien à lire ailleurs.
+function classerRefs(empreinte, blobs) {
+  const memes = [];
+  const homonymes = [];
+  for (const [ref, blob] of blobs) {
+    // Empreinte inconnue : on ne sait pas distinguer, donc on n'accuse
+    // personne d'être un homonyme. Le dire vaut mieux que le deviner.
+    if (empreinte === null) memes.push(ref);
+    else if (blob === empreinte) memes.push(ref);
+    else homonymes.push(ref);
+  }
+  return { memes, homonymes, identifiable: empreinte !== null };
+}
+
 function refsContenant(lot, fichier) {
   if (!RACINE_GIT) return null;
   const direct = cheminGit(lot, fichier);
-  const suffixe = `/lots/${lot}/${fichier}`;
+
+  // L'empreinte du document tel qu'il est ICI, commité ou non : `hash-object`
+  // répond sur un fichier du répertoire de travail.
+  let empreinte = null;
   try {
-    const refs = git(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'])
-      .split('\n').map(x => x.trim()).filter(Boolean);
-    const trouvees = [];
-    for (const r of refs) {
-      let present = false;
-      if (direct) {
-        try { git(['cat-file', '-e', `${r}:${direct}`], { stdio: 'ignore' }); present = true; }
-        catch (e) { /* absente de cette ref : c'est une réponse, pas une panne */ }
-      } else {
-        // Registre hors dépôt : on retrouve le fichier par son suffixe plutôt
-        // que de présumer où les lots vivent.
-        try {
-          present = git(['ls-tree', '-r', '--name-only', r]).split('\n')
-            .some(l => l.endsWith(suffixe));
-        } catch (e) { present = false; }
-      }
-      if (present) trouvees.push(r);
-    }
-    return trouvees;
+    empreinte = git(['hash-object', '--', path.join(handoff.CHEMINS.LOTS, lot, fichier)]).trim();
+  } catch (e) { empreinte = null; }
+
+  try {
+    return classerRefs(empreinte, blobsParRef(RACINE_GIT, direct, `/lots/${lot}/${fichier}`));
   } catch (e) {
     return null; // pas de git sous la main : on se taira plutôt que d'inventer
   }
@@ -130,20 +219,13 @@ function refsContenant(lot, fichier) {
 // fichiers. Si personne ne dit rien, l'outil l'annonce et n'invente pas
 // d'adresse : un réveil envoyé au hasard réveille le mauvais agent.
 function adresseReveil(lot) {
-  // echanges(lot) sans genre ne rend que les décisions : on demande les deux
-  // familles, et on les remet dans l'ordre où le rail les produit —
-  // request-1, decision-1, request-2, decision-2… — pour que « la plus
-  // récente déclaration » veuille bien dire ce qu'elle dit.
-  const rang = e => e.seq * 2 + (e.kind === 'decision' ? 1 : 0);
-  const tous = []
-    .concat(handoff.echanges(lot, 'request').map(e => Object.assign({ kind: 'request' }, e)))
-    .concat(handoff.echanges(lot, 'decision').map(e => Object.assign({ kind: 'decision' }, e)))
-    .sort((a, b) => rang(b) - rang(a));
-  for (const e of tous) {
-    const env = handoff.lireEnveloppe(path.join(handoff.CHEMINS.LOTS, lot, e.fichier));
-    const v = env && env.env && env.env.wake_to;
-    if (v && String(v).trim()) return { adresse: String(v).trim(), source: e.fichier };
-  }
+  // La déclaration du registre se lit dans outils/handoff.js, seul lecteur du
+  // registre (ARCH-001) — ce fichier la rescannait pour son compte, et le
+  // validateur ignorait donc qu'elle pouvait manquer. Une seule lecture, deux
+  // consommateurs : `handoff.js verifier` avertit quand un lot en attente n'a
+  // pas d'adresse, et ce réveil l'utilise. Ils ne peuvent plus diverger.
+  const declaree = handoff.adresseDeReveil(lot);
+  if (declaree.adresse) return declaree;
   const env = process.env.NEXUS_HANDOFF_WAKE_TO;
   if (env && env.trim()) return { adresse: env.trim(), source: 'NEXUS_HANDOFF_WAKE_TO' };
   return { adresse: null, source: null };
@@ -179,10 +261,14 @@ function examiner(etat) {
       refs_reelles: refs,
       adresse: ou.adresse,
       adresse_source: ou.source,
-      // Vrai seulement si git a répondu ET qu'aucune ref portant la branche
-      // déclarée ne contient le fichier. `null` (git muet) n'est pas un écart.
+      // Vrai seulement si le document est lisible sur AU MOINS une ref et que
+      // la branche déclarée n'en fait pas partie. `null` (git muet) n'est pas un
+      // écart — et « sur aucune ref » n'est pas une déclaration trompeuse : c'est
+      // une demande pas encore poussée, ce que dit la ligne `non_publiee`.
       branche_declaree_trompeuse: refs === null ? null
-        : !refs.some(r => r === declaree || r === `origin/${declaree}`),
+        : refs.memes.length > 0
+          && !refs.memes.some(r => r === declaree || r === `origin/${declaree}`),
+      non_publiee: refs === null ? null : refs.memes.length === 0,
       token_mode: (env && env.env && env.env.token_mode) || null,
       statut_enveloppe: (env && env.env && env.env.status) || null,
       statut_registre: v.statut || null,
@@ -228,11 +314,21 @@ function corpsReveil(r) {
     '',
     `LOT_ID: \`${l.lot}\``,
     `Demande en attente: \`${l.demande}\``,
-    l.refs_reelles && l.refs_reelles.length
-      ? `Branche où la lire: ${l.refs_reelles.map(r => '`' + r + '`').join(' , ')}`
+    l.refs_reelles && l.refs_reelles.memes.length
+      ? `Branche où la lire: ${l.refs_reelles.memes.map(r => '`' + r + '`').join(' , ')}`
       : `Branche où la lire: \`${l.branche || '(non déclarée)'}\``,
     l.branche_declaree_trompeuse
       ? `⚠️ L'enveloppe déclare \`branch: ${l.branche}\`, qui ne contient pas ce fichier. Ne cherche pas là.`
+      : null,
+    // Pas encore poussée n'est pas « à chercher ailleurs ». Le dire évite
+    // d'envoyer l'arbitre fouiller des branches qui ne peuvent pas l'avoir.
+    l.non_publiee
+      ? `⚠️ Cette demande n'est sur aucune ref : elle n'est pas encore poussée. Rien à lire ailleurs — attends le push.`
+      : null,
+    // Et surtout : nommer les homonymes plutôt que de les offrir comme lieux de
+    // lecture. Même nom, autres octets — les lire, c'est arbitrer autre chose.
+    l.refs_reelles && l.refs_reelles.homonymes.length
+      ? `⚠️ ${l.refs_reelles.homonymes.length} ref(s) portent un fichier du MÊME NOM avec un contenu DIFFÉRENT. Ne pas les lire pour cette demande : ${l.refs_reelles.homonymes.map(r => '`' + r + '`').join(' , ')}`
       : null,
     `Motif: \`${l.motif}\`` + (l.derniere_decision ? ` (dernière décision \`${l.derniere_decision}\`, qui ne lui répond pas)` : ''),
     l.token_mode ? `token_mode demandé: \`${l.token_mode}\`` : null,
@@ -254,7 +350,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil };
+module.exports = { analyser, examiner, corpsReveil, blobsParRef, classerRefs };
 
 if (require.main === module) {
   const r = analyser();

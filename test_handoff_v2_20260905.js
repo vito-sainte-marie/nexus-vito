@@ -1204,6 +1204,275 @@ function demandeViseeDansDir(dir) {
 }
 
 
+// ── `wake_to` : l'adresse de réveil ────────────────────────────────────────
+// 25/09/2026. Le réveil de l'Orchestrateur refusait de nommer un destinataire
+// pour le seul lot qui en attendait un. La cause n'était pas l'inattention :
+// `wake_to` n'avait AUCUN écrivain. Il se lisait dans un outil et ne s'écrivait
+// nulle part — `demande` et `decision`, les deux seules façons de produire une
+// enveloppe conforme, ne savaient pas l'émettre. PROTOCOL.md demandait à Claude
+// de poser une adresse dans un champ qu'aucun outil ne pouvait produire, et sur
+// deux lots consécutifs la règle a été honorée zéro fois. Une règle que rien ne
+// mesure n'est pas une règle : ces épreuves la mesurent dans les deux sens.
+
+// Un registre jetable dont le lot ATTEND un arbitrage — l'état, et le seul,
+// où l'absence d'adresse a une conséquence : le réveil n'a personne à joindre.
+function registreEnAttente() {
+  const dir = registreSain();
+  fs.unlinkSync(path.join(dir, 'lots', LOT, 'decision-1.md'));
+  ecrireEtat(dir, e => { e.lots[LOT] = { statut: 'ATTENTE_DECISION', derniere_demande: 'request-1.md' }; });
+  return dir;
+}
+
+function deposer(dir, args) {
+  const corps = path.join(dir, 'corps.md');
+  fs.writeFileSync(corps, '\n# Corps\n');
+  try {
+    return { code: 0, sortie: execFileSync('node', [OUTIL, 'demande', LOT, corps].concat(args),
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }) };
+  } catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }
+}
+
+const SIGNAL = /aucun de ses échanges ne déclare/;
+
+verifier('un lot qui attend un arbitrage sans adresse de réveil est signalé — et déclarer l’adresse l’éteint', () => {
+  const dir = registreEnAttente();
+
+  const avant = valider(dir);
+  assert.strictEqual(avant.code, 0, 'le lot est CONFORME : c’est sa joignabilité qui manque, pas sa forme\n' + avant.sortie);
+  assert.ok(SIGNAL.test(avant.sortie), 'le lot sans `wake_to` doit être signalé :\n' + avant.sortie);
+
+  // Le contre-témoin, sans lequel le vert ne prouverait rien : la même mesure,
+  // après avoir posé l'adresse PAR L'OUTIL — donc par le chemin que la prose
+  // demandait et que le code ne savait pas offrir.
+  const depot = deposer(dir, ['--token-mode', 'LEAN', '--wake-to', 'https://github.com/vito-sainte-marie/nexus-vito/issues/28']);
+  assert.strictEqual(depot.code, 0, 'déposer une demande adressée doit aboutir :\n' + depot.sortie);
+
+  const apres = valider(dir);
+  assert.strictEqual(apres.code, 0, apres.sortie);
+  assert.ok(!SIGNAL.test(apres.sortie),
+    'l’adresse déclarée doit éteindre le signal — sinon il est décoratif :\n' + apres.sortie);
+});
+
+verifier('l’adresse déclarée est celle que le réveil compose, et elle cite sa source', () => {
+  // La preuve de bout en bout. Prouver que l'écrivain écrit ne prouve pas que
+  // le lecteur lit : les deux outils doivent lire la MÊME déclaration.
+  const dir = registreEnAttente();
+  assert.strictEqual(deposer(dir, ['--token-mode', 'LEAN', '--wake-to', 'https://github.com/vito-sainte-marie/nexus-vito/issues/28']).code, 0);
+  const r = JSON.parse(execFileSync('node', [path.join(RACINE, 'outils', 'reveil-orchestrateur.js'), '--json'],
+    { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }));
+  assert.strictEqual(r.reveil, true, 'une demande non arbitrée doit réveiller');
+  assert.strictEqual(r.lots[0].adresse, 'https://github.com/vito-sainte-marie/nexus-vito/issues/28');
+  assert.strictEqual(r.lots[0].adresse_source, 'request-2.md',
+    'le réveil doit dire QUI a déclaré l’adresse — une adresse sans source n’est pas vérifiable');
+  const corps = execFileSync('node', [path.join(RACINE, 'outils', 'reveil-orchestrateur.js'), '--message'],
+    { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  assert.ok(corps.includes('Adressé à: https://github.com/vito-sainte-marie/nexus-vito/issues/28'),
+    'une URL contient des « / » : la chercher par regex littérale casse la source.\n' + corps);
+  assert.ok(!/non déclaré/.test(corps), corps);
+});
+
+verifier('la déclaration la plus récente du lot fait foi', () => {
+  // PROTOCOL.md : l'adresse est donnée par l'ordre, et une décision peut la
+  // reposer. Sans cette règle, changer de canal exigerait de réécrire le passé
+  // — or le registre est en ajout seul.
+  const dir = registreEnAttente();
+  assert.strictEqual(deposer(dir, ['--token-mode', 'LEAN', '--wake-to', 'ancienne-adresse']).code, 0);
+  assert.strictEqual(deposer(dir, ['--token-mode', 'LEAN', '--wake-to', 'nouvelle-adresse']).code, 0);
+  const r = JSON.parse(execFileSync('node', [path.join(RACINE, 'outils', 'reveil-orchestrateur.js'), '--json'],
+    { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }));
+  assert.strictEqual(r.lots[0].adresse, 'nouvelle-adresse');
+  assert.strictEqual(r.lots[0].adresse_source, 'request-3.md');
+});
+
+verifier('un lot déjà arbitré n’est pas signalé, même sans adresse', () => {
+  // La proportion, mesurée : vingt-huit lots clos dorment au registre réel.
+  // Un signal qui les réveillerait tous serait du bruit, et le bruit finit
+  // toujours par être ignoré — y compris le jour où il a raison.
+  const r = valider(registreSain());
+  assert.strictEqual(r.code, 0, r.sortie);
+  assert.ok(!SIGNAL.test(r.sortie),
+    'un lot clos n’attend plus personne : le signaler serait du bruit\n' + r.sortie);
+});
+
+verifier('une adresse vide ou multiligne est refusée à l’écriture', () => {
+  // Une enveloppe se lit ligne à ligne : un retour à la ligne y fabriquerait
+  // un champ fantôme. Et une adresse vide ne réveille personne tout en
+  // éteignant le signal — la pire des deux.
+  const dir = registreEnAttente();
+  const vide = deposer(dir, ['--token-mode', 'LEAN', '--wake-to', '   ']);
+  assert.notStrictEqual(vide.code, 0, 'une adresse vide doit être refusée');
+  assert.ok(/ne réveille personne/.test(vide.sortie), vide.sortie);
+
+  const coupee = deposer(dir, ['--token-mode', 'LEAN', '--wake-to', 'ChatGPT\nstatus: APPROVED']);
+  assert.notStrictEqual(coupee.code, 0, 'une adresse multiligne doit être refusée');
+  assert.ok(/une seule ligne/.test(coupee.sortie), coupee.sortie);
+
+  assert.ok(SIGNAL.test(valider(dir).sortie), 'aucun refus ne doit avoir laissé de trace dans le registre');
+});
+
+verifier('aucun outil ne code de destinataire en dur', () => {
+  // PROTOCOL.md : « aucun outil ne code de destinataire en dur ; changer de
+  // canal doit rester un fait écrit dans le rail, jamais une modification de
+  // code. » NEXUS_HANDOFF_WAKE_TO existe comme secours d'exploitation ; posée
+  // dans un workflow, elle deviendrait exactement la désignation recopiée hors
+  // du registre que ce dépôt a déjà payée cinq fois.
+  const dirWf = path.join(RACINE, '.github', 'workflows');
+  const fautes = [];
+  for (const f of fs.readdirSync(dirWf).filter(n => /\.ya?ml$/.test(n))) {
+    fs.readFileSync(path.join(dirWf, f), 'utf8').split('\n').forEach((ligne, i) => {
+      if (/^\s*#/.test(ligne)) return;
+      if (/NEXUS_HANDOFF_WAKE_TO/.test(ligne)) fautes.push(`${f}:${i + 1} — ${ligne.trim()}`);
+    });
+  }
+  assert.deepStrictEqual(fautes, [],
+    'ces lignes fixent le destinataire dans du code :\n  ' + fautes.join('\n  '));
+});
+
+
+// ---------------------------------------------------------------------------
+// L'ADRESSE DE RÉVEIL DOIT SE LIRE D'UNE SEULE FAÇON
+//
+// `issue #28` est l'adresse qu'on a spontanément envie d'écrire. En YAML, un
+// « # » précédé d'une espace ouvre un commentaire : le lecteur maison prend
+// toute la ligne et lit « issue #28 », un vrai parseur lit « issue ». L'adresse
+// vaudrait deux choses selon qui la relit, et le jour où le réveil partirait à
+// côté, la ligne aurait l'air juste. On refuse à l'écriture, pas à la lecture.
+function cli(dir, args) {
+  try {
+    const sortie = execFileSync('node', [OUTIL, ...args],
+      { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+    return { code: 0, sortie };
+  } catch (e) {
+    return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') };
+  }
+}
+
+function corpsJetable(dir) {
+  const f = path.join(dir, 'corps.md');
+  fs.writeFileSync(f, 'Corps de demande jetable.\n');
+  return f;
+}
+
+verifier('une adresse de réveil ambiguë en YAML est REFUSÉE', () => {
+  const dir = registreSain();
+  const avant = fs.readdirSync(path.join(dir, 'lots', LOT)).length;
+  const r = cli(dir, ['demande', LOT, corpsJetable(dir), '--wake-to', 'issue #28']);
+  assert.notStrictEqual(r.code, 0,
+    '`issue #28` a été acceptée : elle se lira « issue » chez un parseur YAML');
+  assert.ok(/commentaire/.test(r.sortie),
+    'le refus doit DIRE pourquoi — sinon on le contourne en changeant d’outil :\n  ' + r.sortie);
+  assert.strictEqual(fs.readdirSync(path.join(dir, 'lots', LOT)).length, avant,
+    'un refus qui écrit quand même l’enveloppe n’est pas un refus');
+});
+
+// Contre-témoin : sans lui, un validateur qui refuse TOUTE adresse passerait
+// l'épreuve ci-dessus sans rien garder de vivant.
+verifier('une adresse de réveil sans ambiguïté est ACCEPTÉE', () => {
+  const dir = registreSain();
+  const r = cli(dir, ['demande', LOT, corpsJetable(dir),
+    '--wake-to', 'https://github.com/vito-sainte-marie/nexus-vito/issues/28']);
+  assert.strictEqual(r.code, 0, 'une URL doit passer : ' + r.sortie);
+});
+
+// ---------------------------------------------------------------------------
+// UN NOM DE FICHIER N'EST PAS UNE IDENTITÉ
+//
+// Mesuré le 25/09/2026 : sept documents du lot 2 existaient en quatre à cinq
+// versions incompatibles selon la ref — dont une décision, et `request-18.md`
+// en cinq exemplaires distincts. Les runs d'agent branchent, déposent, poussent
+// leur branche, et personne ne les rapatrie. Le réveil annonçait alors ces
+// branches comme « où la lire » : il envoyait l'arbitre lire un AUTRE document
+// que celui qu'il lui annonçait, sans que rien n'ait l'air faux.
+const { corpsReveil } = require('./outils/reveil-orchestrateur.js');
+
+function reveilJetable(refs, extra) {
+  return corpsReveil({ reveil: true, lots: [Object.assign({
+    lot: LOT, demande: 'request-18.md', branche: 'handoff-continuite-20260920',
+    adresse: 'https://example.invalid/issues/28', adresse_source: 'request-18.md',
+    refs_reelles: refs, motif: 'DEMANDE_NON_ARBITREE', token_mode: 'DEEP',
+    branche_declaree_trompeuse: false,
+    non_publiee: refs ? refs.memes.length === 0 : null,
+  }, extra || {})] });
+}
+
+verifier('un homonyme n’est JAMAIS offert comme endroit où lire', () => {
+  const corps = reveilJetable({ memes: [], homonymes: ['origin/claude/issue-28-x'], identifiable: true });
+  const ligne = corps.split('\n').find(l => l.startsWith('Branche où la lire:'));
+  assert.ok(ligne, 'le réveil doit toujours dire où lire, même pour dire « nulle part »');
+  assert.ok(!/claude\/issue-28-x/.test(ligne),
+    'une ref au même nom mais au contenu différent a été proposée à la lecture :\n  ' + ligne);
+  assert.ok(/MÊME NOM/.test(corps) && /claude\/issue-28-x/.test(corps),
+    'et elle doit être NOMMÉE comme homonyme, pas passée sous silence : la taire\n' +
+    '  laisse l’arbitre tomber dessus par ses propres moyens, sans avertissement');
+});
+
+verifier('« pas encore poussée » ne se dit pas « cherche ailleurs »', () => {
+  const corps = reveilJetable({ memes: [], homonymes: [], identifiable: true });
+  assert.ok(/n'est sur aucune ref/.test(corps),
+    'une demande absente de toute ref doit être annoncée comme non poussée :\n  ' + corps);
+});
+
+verifier('une ref qui porte VRAIMENT le document reste proposée', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-continuite-20260920'], homonymes: [], identifiable: true });
+  const ligne = corps.split('\n').find(l => l.startsWith('Branche où la lire:'));
+  assert.ok(/origin\/handoff-continuite-20260920/.test(ligne),
+    'le contre-témoin échoue : plus aucune branche n’est proposée, même la bonne :\n  ' + ligne);
+  assert.ok(!/n'est sur aucune ref/.test(corps),
+    'et le document étant lisible, il ne faut pas le dire non poussé');
+});
+
+
+// Le défaut rejoué sur un dépôt FABRIQUÉ pour le porter : deux branches, un
+// seul nom de fichier, deux contenus. Une résolution par nom les confond ; une
+// résolution par empreinte les sépare. Sans ce dépôt jetable, les épreuves de
+// rendu ci-dessus passeraient encore avec une plomberie revenue au nom.
+const { blobsParRef, classerRefs } = require('./outils/reveil-orchestrateur.js');
+
+function depotJetableAvecHomonyme() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'homonyme-'));
+  const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_NAME: 'e', GIT_AUTHOR_EMAIL: 'e@e',
+           GIT_COMMITTER_NAME: 'e', GIT_COMMITTER_EMAIL: 'e@e' } });
+  g('init', '-q', '-b', 'rail');
+  fs.mkdirSync(path.join(dir, 'lots'), { recursive: true });
+  const f = path.join(dir, 'lots', 'request-18.md');
+  fs.writeFileSync(f, 'LE document.\n');
+  g('add', '-A'); g('commit', '-qm', 'rail');
+  g('checkout', '-q', '-b', 'run-agent');
+  fs.writeFileSync(f, 'UN AUTRE document, même nom.\n');
+  g('add', '-A'); g('commit', '-qm', 'run');
+  g('checkout', '-q', 'rail');
+  return { dir, chemin: 'lots/request-18.md',
+           empreinte: g('hash-object', '--', f).trim() };
+}
+
+verifier('deux refs au même nom sont séparées par leur CONTENU', () => {
+  const d = depotJetableAvecHomonyme();
+  const blobs = blobsParRef(d.dir, d.chemin, null);
+  assert.strictEqual(blobs.size, 2, 'les deux branches portent bien le chemin');
+  assert.notStrictEqual(blobs.get('rail'), blobs.get('run-agent'),
+    'la plomberie doit rapporter les OBJETS, pas une simple présence :\n' +
+    '  si elle rendait la même valeur pour les deux, aucun classement ne pourrait trancher');
+
+  const r = classerRefs(d.empreinte, blobs);
+  assert.deepStrictEqual(r.memes, ['rail'],
+    'seule la ref portant les mêmes octets est un endroit où lire');
+  assert.deepStrictEqual(r.homonymes, ['run-agent'],
+    'la ref au même nom et au contenu différent est un homonyme, pas une adresse');
+});
+
+// Contre-témoin : sans lui, un classement qui déclarerait TOUT homonyme
+// passerait l'épreuve ci-dessus.
+verifier('une empreinte inconnue n’accuse personne', () => {
+  const d = depotJetableAvecHomonyme();
+  const r = classerRefs(null, blobsParRef(d.dir, d.chemin, null));
+  assert.deepStrictEqual(r.homonymes, [],
+    'ne pas savoir identifier le document n’autorise pas à traiter les refs en homonymes');
+  assert.strictEqual(r.identifiable, false,
+    'et il faut le DIRE, sinon le réveil affirme une certitude qu’il n’a pas');
+});
+
+
 if (echecs.length) {
   console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);
   for (const e of echecs) console.error(`\n— ${e.nom}\n  ${String(e.message).split('\n').join('\n  ')}`);
