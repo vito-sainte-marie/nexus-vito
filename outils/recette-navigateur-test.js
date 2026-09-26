@@ -399,6 +399,25 @@ function jugerObservation(vu, semisFait) {
 }
 
 
+// L'état de la preuve UI Carburants se LIT du jugement ; il ne se redevine pas
+// d'une prose.
+//
+// Le 26/09/2026, le récapitulatif a imprimé « UI Carburants (CARB-004) :
+// satisfaite » trois lignes SOUS une indisponibilité disant « LA PREUVE UI DU
+// CAMION COMPLET RESTE NON SATISFAITE ». Motif : il reconnaissait au motif, par
+// expression régulière, la SEULE indisponibilité qu'il connaissait — le semis —
+// et tenait toute autre pour inexistante. Le faux vert évité au jugement était
+// revenu d'un cran plus haut, dans le bilan que Frédéric lit.
+//
+// Une désignation ne se recalcule pas : le juge a déjà tranché, le bilan le cite.
+function etatPreuveCarburants(jugement) {
+  if (!jugement || !jugement.indisponibilite) return 'satisfaite';
+  // Le motif court, pris AVANT le premier « : » — les indisponibilités de ce
+  // fichier s'ouvrent toutes sur leur cause, puis l'expliquent.
+  const motif = String(jugement.indisponibilite).split(' : ')[0].trim();
+  return 'NON SATISFAITE — ' + (motif || 'motif non rendu');
+}
+
 // Un ÉCHEC sur données non semées ne s'impute pas au moteur.
 //
 // Distinction de la même famille que « compte inconnectable » contre « accès
@@ -1121,13 +1140,14 @@ async function executer(env = process.env) {
     const indisponibilites = [carburantsNonAttribuable, createurIndisponible, employeIndisponible].filter(Boolean);
     return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
       vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
+      preuveCarburants: etatPreuveCarburants(jugement),
       live: { createur, manager }, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, jugerObservation, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -1143,10 +1163,7 @@ if (require.main === module) {
       // « preuve satisfaite » se lit comme un quitus général, alors qu'il peut
       // manquer la moitié de la démonstration.
       console.log('\nCe qui est prouvé, et ce qui ne l\'est pas :');
-      console.log('  · UI Carburants (CARB-004) : '
-        + (r.semisFait === false && (r.indisponibilites || []).some(i => /Jeu de recette NON semé/.test(i))
-          ? 'NON SATISFAITE — jeu de recette non semé'
-          : 'satisfaite'));
+      console.log('  · UI Carburants (CARB-004) : ' + r.preuveCarburants);
       console.log('  · Accès Live REFUSÉ au manager : satisfaite');
       console.log('  · Accès Live ACCORDÉ au Créateur : '
         + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));

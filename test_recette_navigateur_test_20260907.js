@@ -16,7 +16,7 @@ const path = require('path');
 const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
-const { verifier, verifierLive, jugerCarburants, jugerObservation, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
+const { verifier, verifierLive, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
         aliasCloudflare, urlTestDuRail, attendreVersionServie, HOTE_PAGES_TEST } = require(OUTIL);
 const os = require('os');
 
@@ -191,6 +191,33 @@ epreuve('un ÉCART en fin de mois reste un échec bloquant', () => {
   const j = jugerCarburants(['fin de mois : total 40000 L'], true, true);
   assert.strictEqual(j.echecs.length, 1, 'l’écran est jugé dans les deux régimes');
   assert.strictEqual(j.indisponibilite, null);
+});
+
+epreuve('LE BILAN — une preuve bornée ne se récapitule pas « satisfaite »', () => {
+  assert.strictEqual(etatPreuveCarburants({ echecs: [], indisponibilite: null }), 'satisfaite',
+    'sans indisponibilité, la preuve est faite');
+  assert.strictEqual(etatPreuveCarburants(jugerCarburants([], true, true)),
+    'NON SATISFAITE — Régime de FIN DE MOIS au moment du passage',
+    'le bilan doit reprendre le verdict du juge, pas en inventer un autre');
+  // Le motif historique (ENV-003) n'apparaît que si l'écran a DÉÇU sans que le
+  // jeu de recette ait été semé : il doit emprunter le même chemin que les autres.
+  assert.strictEqual(etatPreuveCarburants(jugerCarburants(['total 4000 L, attendu 36000 L'], false, false)),
+    'NON SATISFAITE — Jeu de recette NON semé (ENV-003)',
+    'le motif historique doit rester nommé, et par le même chemin que les autres');
+});
+
+epreuve('LE CÂBLAGE DU BILAN — il cite le verdict, il ne le redevine pas', () => {
+  const source = fs.readFileSync(OUTIL, 'utf8');
+  const ligne = source.split('\n').filter(l => /UI Carburants \(CARB-004\)/.test(l) && /console\.log/.test(l));
+  assert.strictEqual(ligne.length, 1, 'une seule ligne de bilan Carburants : ' + ligne.join(' | '));
+  assert.ok(/r\.preuveCarburants/.test(ligne[0]),
+    'le bilan doit LIRE le verdict porté par le résultat : ' + ligne[0]);
+  // Le 26/09/2026 cette ligne reconnaissait le motif à l\u2019expression régulière et
+  // imprimait « satisfaite » sous une indisponibilité qui disait le contraire.
+  const bloc = source.slice(source.indexOf('UI Carburants (CARB-004)') - 400,
+    source.indexOf('UI Carburants (CARB-004)') + 400);
+  assert.ok(!/indisponibilites \|\| \[\]\)\.some/.test(bloc),
+    'le bilan ne doit plus reconnaître une indisponibilité à sa prose');
 });
 
 epreuve('les secrets manquants sont nommés un par un', () => {
