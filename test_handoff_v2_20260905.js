@@ -1422,11 +1422,71 @@ verifier('une ref qui porte VRAIMENT le document reste proposée', () => {
 });
 
 
+// Le RETOUR du réveil. Mesuré le 26/09/2026 sur le run 36139253850 : le
+// commentaire de réponse du 25/09 13 h 10 portait `@claude` sans
+// `NEXUS_BASE_BRANCH`, le résolveur de rail a refusé à l'étape 2, les étapes 3
+// à 6 ont été sautées — donc `claude-code-action` n'a jamais tourné, donc aucun
+// commentaire de retour. Le réveil disait où LIRE et jamais quoi ÉCRIRE pour
+// répondre : la contrainte du chemin de retour n'était portée par rien.
+verifier('le réveil porte la désignation que le déclencheur de retour exige', () => {
+  const corps = reveilJetable({ memes: ['handoff-continuite-20260920', 'origin/handoff-continuite-20260920'],
+                                distants: ['origin/handoff-continuite-20260920'],
+                                homonymes: [], identifiable: true });
+  assert.ok(/NEXUS_BASE_BRANCH=`handoff-continuite-20260920`/.test(corps),
+    'sans cette ligne, répondre au réveil produit un refus muet à l’étape 2 :\n  ' + corps);
+  assert.ok(/@claude/.test(corps),
+    'et la mention doit y être : le workflow ne se déclenche pas sans elle');
+});
+
+// Contre-témoin de la précédente : sans lui, un bloc qui écrirait la
+// désignation EN DUR la passerait aussi.
+verifier('une désignation de retour ne s’invente pas faute de ref distante', () => {
+  const corps = reveilJetable({ memes: ['rail-local-seulement'], distants: [],
+                                homonymes: [], identifiable: true });
+  assert.ok(!/NEXUS_BASE_BRANCH=`/.test(corps),
+    'aucune branche distante ne porte ce document : nommer un rail ici serait\n' +
+    '  le deviner, et un rail deviné est un rail faux :\n  ' + corps);
+  assert.ok(/nomme le rail toi-même/.test(corps),
+    'et le taire ne vaut pas mieux — il faut dire que la désignation manque');
+});
+
+// Deux branches distantes aux MÊMES octets : le réveil ne choisit pas. Le
+// workflow refuse déjà l'ambiguïté ; la produire ici ne ferait que déplacer
+// le refus à un endroit où il est muet.
+verifier('deux rails distants possibles ne se tranchent pas au hasard', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-a', 'origin/handoff-b'],
+                                distants: ['origin/handoff-a', 'origin/handoff-b'],
+                                homonymes: [], identifiable: true });
+  assert.ok(!/NEXUS_BASE_BRANCH=`/.test(corps),
+    'le réveil a choisi un rail entre deux candidats équivalents :\n  ' + corps);
+});
+
+
 // Le défaut rejoué sur un dépôt FABRIQUÉ pour le porter : deux branches, un
 // seul nom de fichier, deux contenus. Une résolution par nom les confond ; une
 // résolution par empreinte les sépare. Sans ce dépôt jetable, les épreuves de
 // rendu ci-dessus passeraient encore avec une plomberie revenue au nom.
 const { blobsParRef, classerRefs, refsDistantes } = require('./outils/reveil-orchestrateur.js');
+
+// Et la mesure qui alimente tout ça : `distants` doit être la LISTE des refs
+// distantes réellement constatées, pas un booléen. Un booléen ne nomme rien,
+// et c'est un nom que le déclencheur de retour exige.
+verifier('classerRefs rapporte QUELLES refs sont distantes, pas seulement s’il y en a', () => {
+  const blobs = new Map([['rail', 'aaa'], ['origin/rail', 'aaa'], ['origin/autre', 'aaa']]);
+  const r = classerRefs('aaa', blobs, new Set(['origin/rail', 'origin/autre']));
+  assert.deepStrictEqual(r.distants, ['origin/rail', 'origin/autre'],
+    'la liste des refs distantes doit être conservée telle que mesurée');
+  assert.strictEqual(r.lisible_a_distance, true,
+    'et l’ancienne question — « lisible à distance ? » — doit répondre pareil qu’avant');
+  const sans = classerRefs('aaa', new Map([['rail', 'aaa']]), new Set());
+  assert.deepStrictEqual(sans.distants, [],
+    'aucune ref distante : une liste vide, jamais null — la mesure a eu lieu');
+  assert.strictEqual(sans.lisible_a_distance, false, 'et le document n’est pas lisible à distance');
+  const inconnu = classerRefs('aaa', new Map([['rail', 'aaa']]));
+  assert.strictEqual(inconnu.distants, null,
+    'sans jeu de refs distantes fourni, on ne SAIT pas : null, pas une liste vide');
+  assert.strictEqual(inconnu.lisible_a_distance, null, 'et la question reste sans réponse');
+});
 
 function depotJetableAvecHomonyme() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'homonyme-'));

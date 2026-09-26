@@ -202,10 +202,15 @@ function classerRefs(empreinte, blobs, distantes) {
   }
   // `distantes` absent : on ne sait pas, donc on ne dit rien — `null`, jamais
   // un `false` qui alarmerait à tort.
+  //
+  // `distants` garde la LISTE, pas seulement le fait qu'elle soit non vide :
+  // le déclencheur de retour doit nommer une branche, et un booléen ne nomme
+  // rien. Recalculer cette liste ailleurs, c'est mesurer deux fois.
+  const distants = !distantes ? null : memes.filter(r => distantes.has(r));
   const lisible_a_distance = !distantes ? null
     : memes.length === 0 ? null
-    : memes.some(r => distantes.has(r));
-  return { memes, homonymes, identifiable: empreinte !== null, lisible_a_distance };
+    : distants.length > 0;
+  return { memes, homonymes, distants, identifiable: empreinte !== null, lisible_a_distance };
 }
 
 function refsContenant(lot, fichier) {
@@ -324,6 +329,47 @@ function analyser() {
       (attentes.length > 1 ? ` (${attentes.length} lots concernés ; le premier est traité.)` : '') };
 }
 
+// Le déclencheur de RETOUR, sens Orchestrateur → Claude.
+//
+// Mesuré le 26/09/2026 : le réveil nommait la branche où LIRE, et jamais la
+// désignation que le déclencheur de retour doit porter. Le 25/09 à 13 h 10, le
+// commentaire de réponse est arrivé sans `NEXUS_BASE_BRANCH`. Le workflow a
+// refusé — c'est exactement son rôle, un rail ne se devine pas — mais il a
+// refusé à sa PREMIÈRE étape, donc avant toute étape capable de répondre : le
+// refus n'est revenu nulle part. Vingt-cinq heures de silence pour une ligne
+// absente, et un silence qui ne se distingue pas d'un rail mort.
+//
+// Ce bloc ne devine aucun rail. Il redit, dans la syntaxe que le workflow
+// exige, la branche distante DÉJÀ MESURÉE comme portant ce document. S'il n'y
+// en a pas exactement une, il ne tranche pas — il le dit et rend la main.
+function railDeRetour(l) {
+  const r = l.refs_reelles;
+  if (!r || !r.distants || !r.distants.length) return null;
+  // Nom court d'une ref de `refs/remotes` : le premier segment est le remote.
+  const noms = [...new Set(r.distants.map(x => x.replace(/^[^/]+\//, '')))];
+  return noms.length === 1 ? noms[0] : null;
+}
+
+function blocRetour(l) {
+  const entete = 'Pour me répondre, le déclencheur doit NOMMER le rail :';
+  const rail = railDeRetour(l);
+  if (!rail) {
+    return [entete,
+      'aucune branche distante ne porte ce document de façon univoque. Ce réveil',
+      'ne dicte donc pas de désignation : nomme le rail toi-même. Sans une ligne',
+      '`NEXUS_BASE_BRANCH=<branche>`, le workflow refuse à sa première étape et',
+      'ce refus ne revient nulle part.'].join('\n');
+  }
+  return [entete,
+    '```text',
+    '@claude NEXUS_BASE_BRANCH=`' + rail + '`',
+    '<ta décision, ou la consigne qui suit>',
+    '```',
+    'À poster depuis le compte `vito-sainte-marie` : le workflow ne répond à',
+    'aucun autre acteur. Sans cette ligne le job meurt avant d\'avoir de quoi',
+    'répondre — le silence qui suit n\'est pas un rail mort, c\'est un refus muet.'].join('\n');
+}
+
 // Le corps du réveil. Volontairement factuel et court : il nomme le lot, le
 // fichier, la branche où le lire, et il rappelle les interdits permanents.
 // Il ne résume PAS la demande — un résumé écrit par le demandeur est une
@@ -368,6 +414,8 @@ function corpsReveil(r) {
     'Arbitre cette demande avec le protocole `nexus-handoff/2` et dépose la',
     'décision correspondante dans le même lot.',
     '',
+    blocRetour(l),
+    '',
     // Pas d'invariants récités ici. Ils appartiennent au lot et à la
     // gouvernance, pas à l'outil qui transporte le réveil : les recopier en
     // dur, c'est créer une seconde source de vérité qui vieillira seule.
@@ -382,7 +430,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil, blobsParRef, classerRefs, refsDistantes };
+module.exports = { analyser, examiner, corpsReveil, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes };
 
 if (require.main === module) {
   const r = analyser();
