@@ -1,0 +1,262 @@
+# NEXUS — activation de Claude Code sur les issues et pull requests (06/09/2026).
+#
+# Ce workflow ne déploie rien. Il réagit uniquement à une mention explicite
+# `@claude` dans une issue, un commentaire ou une revue.
+#
+# Garde de sécurité : seul le compte GitHub `vito-sainte-marie` peut déclencher
+# un job Claude disposant de droits d'écriture. Une mention `@claude` par tout
+# autre acteur est ignorée par le job, même sur un dépôt public.
+#
+# Le rail de travail présenté à Claude est DÉSIGNÉ par le déclencheur autorisé,
+# jamais déduit : le corps doit porter `NEXUS_BASE_BRANCH=<branche>` (la forme
+# `NEXUS_BASE_BRANCH: <branche>` et les backticks ou guillemets autour de la
+# valeur sont acceptés à l'identique). Seules `config-par-environnement` et les
+# branches `handoff-*` sont acceptées ; main et production sont exclus par
+# construction. Sans désignation, le job s'arrête : aucun repli n'est appliqué,
+# parce qu'un rail deviné est un rail faux et que l'erreur est alors silencieuse.
+# Le workflow vit sur `main` parce que GitHub écoute les événements
+# d'issues/commentaires depuis la branche par défaut.
+#
+# Décision humaine du 06/09/2026 : le canal Claude peut désormais écrire sur la
+# branche de PR Test afin d'implémenter un lot autorisé, exécuter les tests Node
+# et consommer le Handoff. Les gates NEXUS restent inchangées : aucun commentaire
+# n'autorise une action à lui seul ; STATE + Handoff + décision canonique restent
+# obligatoires et aucune promotion Production n'est permise implicitement.
+#
+# Gouvernance autonome v2 : une capacité Test optionnelle indisponible ne doit
+# plus tuer Claude avant son démarrage. Le rail continue en mode dégradé et la
+# preuve concernée reste explicitement indisponible. Aucune ouverture Production.
+#
+# Le checkout conserve tout l'historique Git afin que le validateur Handoff
+# puisse résoudre et vérifier origin/main et origin/production. Cela donne une
+# visibilité en lecture sur les refs protégées, jamais une autorisation d'écrire
+# dessus.
+#
+# Accès Supabase Claude : TEST uniquement, lecture seule.
+# Le secret GitHub SUPABASE_TEST_DB_URL_READONLY est décomposé par le runner
+# GitHub AVANT l'appel à Claude en variables PostgreSQL standards PGHOST/PGPORT/
+# PGDATABASE/PGUSER/PGPASSWORD. Claude n'a donc jamais besoin d'expanser l'URL
+# secrète dans une ligne de commande : `psql` peut être lancé sans argument de
+# connexion. Le mot de passe est explicitement masqué dans les logs GitHub.
+# Aucun token Management API, service_role, mot de passe Production ou URL
+# Production ne doit être stocké sous ce nom.
+#
+# Recette navigateur NEXUS Test : le PIN commun des comptes de recette est stocké
+# uniquement dans le secret GitHub NEXUS_TEST_PIN et injecté au step Claude comme
+# variable d'environnement. Sa valeur ne doit jamais être affichée, journalisée,
+# commitée ou recopiée dans un commentaire. Les identifiants et l'URL ci-dessous
+# ne concernent que NEXUS Test.
+name: Claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude:
+    if: >-
+      github.actor == 'vito-sainte-marie' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Résoudre le rail NEXUS désigné
+        id: rail
+        env:
+          NEXUS_TRIGGER_BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body || '' }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Un refus doit pouvoir être entendu. On consigne le motif AVANT de
+          # sortir : l'étape 6 (`claude-code-action`), seul chemin de réponse du
+          # workflow, est en aval de ce refus et ne tournera donc pas.
+          REFUS="$RUNNER_TEMP/nexus-refus.md"
+          refuser() { printf '%s\n' "$1" >> "$REFUS"; echo "::error::$1"; exit 1; }
+
+          # Une désignation ne se recalcule pas. On lit ce que l'humain a écrit,
+          # sous toutes les formes qu'il écrit réellement : `=` ou `:`, espaces
+          # optionnels, valeur éventuellement entourée de backticks ou guillemets.
+          designations="$( { printf '%s' "$NEXUS_TRIGGER_BODY" \
+            | grep -oE 'NEXUS_BASE_BRANCH[[:space:]]*[:=][[:space:]]*[`"'"'"']?[A-Za-z0-9._/-]+' || true; } \
+            | sed -E 's/^.*[:=][[:space:]]*[`"'"'"']?//' | sort -u )"
+
+          if [[ -z "$designations" ]]; then
+            refuser "Aucun rail NEXUS désigné dans le déclencheur. Ajoutez NEXUS_BASE_BRANCH=<branche> au commentaire. Aucun repli n'est appliqué : un rail se désigne, il ne se devine pas."
+          fi
+          if [[ "$(printf '%s\n' "$designations" | wc -l | tr -d ' ')" != "1" ]]; then
+            refuser "$(printf 'Désignation de rail ambiguë — le déclencheur nomme plusieurs branches :\n%s' "$designations")"
+          fi
+          base="$designations"
+
+          if [[ "$base" == "main" || "$base" == "production" ]]; then
+            refuser "Une ref protégée ne peut pas être un rail Claude: $base"
+          fi
+          if [[ "$base" == *".."* || "$base" == /* || "$base" == */ ]]; then
+            refuser "Nom de rail malformé: $base"
+          fi
+          if [[ "$base" != "config-par-environnement" && ! "$base" =~ ^handoff-[A-Za-z0-9._/-]+$ ]]; then
+            refuser "Rail NEXUS refusé: $base"
+          fi
+          # Le rail désigné doit exister : sinon le checkout échouerait plus loin
+          # avec un message qui ne nomme pas la cause.
+          if ! gh api "repos/${GITHUB_REPOSITORY}/branches/${base}" --silent >/dev/null 2>&1; then
+            refuser "Rail NEXUS introuvable sur origin: $base"
+          fi
+
+          echo "NEXUS_CLAUDE_BASE_BRANCH=$base" >> "$GITHUB_ENV"
+          echo "Rail NEXUS sélectionné: $base"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.NEXUS_CLAUDE_BASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Rendre les refs protégées et le rail vérifiables par Handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/production:refs/remotes/origin/production \
+            "+refs/heads/$NEXUS_CLAUDE_BASE_BRANCH:refs/remotes/origin/$NEXUS_CLAUDE_BASE_BRANCH"
+
+      - name: Préparer connexion PostgreSQL Test read-only sans URL en ligne de commande
+        env:
+          NEXUS_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL_READONLY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$NEXUS_TEST_DB_URL" ]; then
+            echo "Supabase Test read-only secret absent; live DB proof unavailable. Claude continues without DB access."
+            echo "NEXUS_TEST_DB_AVAILABLE=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          set +e
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, unquote
+
+          raw = os.environ['NEXUS_TEST_DB_URL']
+          u = urlparse(raw)
+          if u.scheme not in ('postgresql', 'postgres'):
+              raise SystemExit('Invalid PostgreSQL URL scheme')
+          if not all((u.hostname, u.username, u.password, u.path)):
+              raise SystemExit('Incomplete PostgreSQL Test URL')
+
+          values = {
+              'PGHOST': u.hostname,
+              'PGPORT': str(u.port or 5432),
+              'PGDATABASE': u.path.lstrip('/') or 'postgres',
+              'PGUSER': unquote(u.username),
+              'PGPASSWORD': unquote(u.password),
+              'PGSSLMODE': 'require',
+              'NEXUS_SUPABASE_SCOPE': 'TEST_READ_ONLY',
+              'NEXUS_TEST_DB_AVAILABLE': '1',
+          }
+
+          print(f"::add-mask::{values['PGPASSWORD']}")
+          env_path = os.environ['GITHUB_ENV']
+          with open(env_path, 'a', encoding='utf-8') as f:
+              for key, value in values.items():
+                  f.write(f'{key}={value}\n')
+          PY
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Supabase Test read-only configuration is invalid; live DB proof unavailable. Claude continues without DB access."
+            echo "NEXUS_TEST_DB_AVAILABLE=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+      - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        env:
+          NEXUS_TEST_URL: https://nexus-test-ddf.pages.dev
+          NEXUS_TEST_MANAGER_USERNAME: manager-test
+          NEXUS_TEST_EMPLOYEE_A_USERNAME: employe-test-a
+          NEXUS_TEST_EMPLOYEE_B_USERNAME: employe-test-b
+          NEXUS_TEST_PIN: ${{ secrets.NEXUS_TEST_PIN }}
+        with:
+          # 07/09/2026 — correction du rail d'intégration.
+          #
+          # `actions/checkout` ci-dessus place bien l'arbre sur le rail NEXUS
+          # sélectionné, mais claude-code-action crée ENSUITE sa
+          # propre branche de travail, et sans cette entrée elle la coupe depuis
+          # la branche PAR DÉFAUT du dépôt, c'est-à-dire `main`. Le `ref:` du
+          # checkout n'y change rien.
+          #
+          # Conséquence observée le 07/09/2026 :
+          # `claude/issue-28-20260907-1232` était racinée sur main (645116b) et
+          # son seul ancêtre commun avec config-par-environnement était 501c0c7 —
+          # 260 fichiers de faux diff. Claude pouvait lire le HEAD canonique
+          # (`git show`) mais tout travail réel en sortait intransportable
+          # autrement qu'à la main, fichier par fichier.
+          #
+          # Avec base_branch, la branche Claude part du HEAD du rail sélectionné :
+          # son diff ne contient plus que le delta réel. Le routage n'autorise
+          # jamais main ni production et ne vaut aucune autorisation Production.
+          # Claude continue de pousser sur sa seule branche `claude/issue-N-*`.
+          # La gate humaine de réintégration reste entière.
+          base_branch: ${{ env.NEXUS_CLAUDE_BASE_BRANCH }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*),Bash(git show:*),Bash(git checkout:*)
+
+      # Le retour du refus. Sans cette étape, un refus de l'étape 2 ne revient
+      # nulle part : `claude-code-action` est en aval et ne tourne pas, donc
+      # aucun commentaire n'est publié, et l'appelant ne distingue pas ce
+      # silence d'un rail mort. Mesuré sur le run 36139253850 (25/09/2026) :
+      # vingt-cinq heures de silence pour une ligne absente.
+      #
+      # `issues: write` est déjà déclaré par ce job : aucune permission nouvelle
+      # n'est demandée ici. L'API `issues/{n}/comments` sert aussi bien une
+      # issue qu'une pull request, ce qui évite de brancher selon l'événement.
+      - name: Rendre le refus de rail audible
+        if: failure() && steps.rail.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADRESSE: ${{ github.event.issue.number || github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REFUS="$RUNNER_TEMP/nexus-refus.md"
+          # Une adresse ne se recalcule pas : si le déclencheur n'en porte pas,
+          # on ne la devine pas — on échoue en le disant.
+          if [[ -z "${ADRESSE:-}" ]]; then
+            echo "::error::Refus de rail non publiable : le déclencheur ne porte aucun numéro d'issue ni de PR."
+            exit 1
+          fi
+          # Un motif absent ne s'invente pas non plus.
+          if [[ -s "$REFUS" ]]; then motif="$(cat "$REFUS")"
+          else motif="Motif non consigné — voir le journal du run."; fi
+          {
+            printf '**Rail NEXUS refusé — le déclencheur n%sa pas été traité.**\n\n' "'"
+            printf '```text\n%s\n```\n\n' "$motif"
+            printf 'Aucun repli n%sa été appliqué : un rail se désigne, il ne se\n' "'"
+            printf 'devine pas. Pour relancer, réponds en portant la désignation :\n\n'
+            printf '```text\n@claude NEXUS_BASE_BRANCH=`<branche>`\n<ta consigne>\n```\n\n'
+            printf 'Journal du run : %s\n' "$RUN_URL"
+          } > "$RUNNER_TEMP/nexus-refus-corps.md"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ADRESSE}/comments" \
+            -f body="$(cat "$RUNNER_TEMP/nexus-refus-corps.md")" --silent
+          echo "Refus publié sur #${ADRESSE}."
