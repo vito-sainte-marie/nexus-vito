@@ -1560,6 +1560,97 @@ verifier('aucune ref porteuse : c’est « non publiée » qui parle, pas l’at
     'rien à lire nulle part n’est pas « lisible seulement en local » : deux diagnostics, deux lignes');
 });
 
+// ── Le miroir qui a cessé d'être une copie ─────────────────────────────────
+// 26/09/2026. `CURRENT.md` porte en tête « MIROIR v1 — NE PAS ÉDITER. Source
+// canonique : … » : celui qui l'ouvre croit lire la source. Une section entière
+// ajoutée à `request-18.md` l'a laissé en arrière, et `verifier` a répondu
+// « conforme ». Troisième variante du défaut de ce lot — un document qui se dit
+// copie d'un autre et ne l'est pas — la seule qui vivait DANS l'outil de garde.
+// La régénération existait ; rien ne mesurait qu'elle avait été faite.
+
+const MIROIR_PERIME = /s'annonce en tête comme un miroir/;
+
+verifier('un miroir en retard sur sa source canonique est signalé — et le régénérer l’éteint', () => {
+  const dir = registreSain();
+  execFileSync('node', [OUTIL, 'miroirs'], { cwd: RACINE, env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+
+  // Contre-témoin d'abord : au repos, le signal doit être MUET. Sans lui, un
+  // contrôle qui crierait toujours passerait pour une garde.
+  const frais = valider(dir);
+  assert.strictEqual(frais.code, 0, frais.sortie);
+  assert.ok(!MIROIR_PERIME.test(frais.sortie),
+    'un miroir à jour ne doit rien déclencher — sinon le signal est du bruit :\n' + frais.sortie);
+
+  // La dérive exacte du 26/09 : la source grandit par append, le miroir non.
+  fs.appendFileSync(path.join(dir, 'lots', LOT, 'request-1.md'),
+    '\n## Section ajoutée après la génération du miroir\n');
+
+  const apres = valider(dir);
+  assert.strictEqual(apres.code, 0,
+    'AVERTISSEMENT et non blocage : le protocole v2 lit le registre, pas ce fichier\n' + apres.sortie);
+  assert.ok(MIROIR_PERIME.test(apres.sortie), 'le miroir périmé doit être signalé :\n' + apres.sortie);
+  assert.ok(/CURRENT\.md/.test(apres.sortie), 'le signal doit NOMMER le fichier en cause :\n' + apres.sortie);
+  assert.ok(/handoff\.js miroirs/.test(apres.sortie),
+    'un avertissement sans remède déterministe se subit au lieu de s’éteindre :\n' + apres.sortie);
+
+  // Second contre-témoin : le remède annoncé doit réellement éteindre le signal.
+  execFileSync('node', [OUTIL, 'miroirs'], { cwd: RACINE, env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  const repare = valider(dir);
+  assert.ok(!MIROIR_PERIME.test(repare.sortie),
+    'régénérer doit éteindre le signal — sinon il est ineffaçable et donc ignoré :\n' + repare.sortie);
+});
+
+verifier('un miroir absent est signalé comme absent, pas comme dérivé', () => {
+  // Deux causes, deux phrases : « absent » se répare par une génération,
+  // « a dérivé » par une régénération. Les confondre envoie chercher ailleurs.
+  const dir = registreSain();
+  execFileSync('node', [OUTIL, 'miroirs'], { cwd: RACINE, env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  fs.unlinkSync(path.join(dir, 'CURRENT.md'));
+  const r = valider(dir);
+  assert.strictEqual(r.code, 0, r.sortie);
+  assert.ok(/CURRENT\.md est absent/.test(r.sortie), r.sortie);
+  assert.ok(!/CURRENT\.md a dérivé/.test(r.sortie),
+    'un fichier qui n’existe pas n’a pas « dérivé » :\n' + r.sortie);
+});
+
+verifier('le contrôle compare l’ARTEFACT ENTIER, en-tête de miroir compris', () => {
+  // Preuve que la garde et le générateur s'accordent, et pas seulement qu'ils
+  // se ressemblent. Un contrôle écrit de son côté comparerait le corps et
+  // oublierait l'en-tête — or c'est l'en-tête qui déclare la source canonique,
+  // donc la seule ligne qui promet quelque chose au lecteur. Ici le corps reste
+  // rigoureusement identique : seule l'en-tête ment, et cela doit suffire.
+  const dir = registreSain();
+  execFileSync('node', [OUTIL, 'miroirs'], { cwd: RACINE, env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
+  const cible = path.join(dir, 'CURRENT.md');
+  const genere = fs.readFileSync(cible, 'utf8');
+  const falsifie = genere.replace(/Source canonique : [^\n]*/, 'Source canonique : docs/handoff/lots/UN-AUTRE-LOT/request-99.md');
+  assert.notStrictEqual(falsifie, genere, 'l’en-tête doit bien avoir été modifiée');
+  assert.strictEqual(falsifie.slice(falsifie.indexOf('-->')), genere.slice(genere.indexOf('-->')),
+    'le corps doit rester identique : c’est tout l’objet de cette épreuve');
+  fs.writeFileSync(cible, falsifie);
+
+  const r = valider(dir);
+  assert.ok(MIROIR_PERIME.test(r.sortie),
+    'un miroir qui désigne une autre source que celle qu’il copie doit rougir, corps intact ou non :\n' + r.sortie);
+});
+
+// Et la même exigence prise par l'autre bout : les deux fonctions dérivent leur
+// attendu d'un seul calcul. Le vérifier dans la source est faible, mais il
+// nomme l'invariant que l'épreuve comportementale ci-dessus ne peut que
+// constater — une garde qui recalculerait de son côté finirait par diverger.
+verifier('génération et contrôle dérivent du même calcul', () => {
+  const src = fs.readFileSync(path.join(RACINE, 'outils', 'handoff.js'), 'utf8');
+  const corps = (nom) => {
+    const i = src.indexOf(`function ${nom}(`);
+    assert.notStrictEqual(i, -1, `${nom} doit exister`);
+    return src.slice(i, src.indexOf('\n}', i));
+  };
+  assert.ok(/miroirsAttendus\(/.test(corps('regenererMiroirs')),
+    'la génération doit écrire ce que `miroirsAttendus` calcule');
+  assert.ok(/miroirsAttendus\(/.test(corps('signalerMiroirsPerimes')),
+    'le contrôle doit comparer à ce que `miroirsAttendus` calcule, pas à sa propre idée');
+});
+
 if (echecs.length) {
   console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);
   for (const e of echecs) console.error(`\n— ${e.nom}\n  ${String(e.message).split('\n').join('\n  ')}`);

@@ -367,7 +367,40 @@ function signalerLotsSansAdresseDeReveil(etat) {
   }
 }
 function enTeteMiroir(source) { return `<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/${source}\n     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->\n`; }
-function regenererMiroirs() { const etat = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }, lot = etat.lot_actif; if (!lot) return; const d = dernier(echanges(lot, 'request')); if (d) { const src = path.join('lots', lot, d.fichier); fs.writeFileSync(MIROIR_DEMANDE, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, d.fichier), 'utf8')); } const dec = dernier(echanges(lot, 'decision')); if (dec) { const src = path.join('lots', lot, dec.fichier); fs.writeFileSync(MIROIR_DECISION, enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, dec.fichier), 'utf8')); } }
+// Ce que les miroirs v1 DEVRAIENT contenir. Une seule source pour l'écriture et
+// pour le contrôle : une garde qui recalculerait l'attendu de son côté pourrait
+// dériver du générateur sans que rien ne le dise.
+function miroirsAttendus(etat) {
+  const lot = etat && etat.lot_actif; if (!lot) return [];
+  const sorties = [];
+  for (const [genre, cible] of [['request', MIROIR_DEMANDE], ['decision', MIROIR_DECISION]]) {
+    const d = dernier(echanges(lot, genre)); if (!d) continue;
+    const src = path.join('lots', lot, d.fichier);
+    sorties.push({ cible, source: src,
+      contenu: enTeteMiroir(src) + fs.readFileSync(path.join(LOTS, lot, d.fichier), 'utf8') });
+  }
+  return sorties;
+}
+function regenererMiroirs() {
+  const etat = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} };
+  for (const m of miroirsAttendus(etat)) fs.writeFileSync(m.cible, m.contenu);
+}
+// POURQUOI. Un miroir périmé ne rougissait nulle part. Or il porte en tête
+// « NE PAS ÉDITER. Source canonique : … » : celui qui l'ouvre croit lire la
+// source. Le 26/09/2026, une section entière ajoutée à `request-18.md` a laissé
+// `CURRENT.md` en arrière et `verifier` a répondu « conforme ». C'est le défaut
+// du lot dans une troisième variante — un document qui se dit copie d'un autre
+// et ne l'est pas. Avertissement et non blocage : le protocole v2 lit le
+// registre et pas ce fichier, et la remise en état est déterministe.
+function signalerMiroirsPerimes(etat) {
+  for (const m of miroirsAttendus(etat)) {
+    const actuel = fs.existsSync(m.cible) ? fs.readFileSync(m.cible, 'utf8') : null;
+    if (actuel === m.contenu) continue;
+    const motif = actuel === null ? 'est absent'
+      : `a dérivé de sa source canonique docs/handoff/${m.source}`;
+    avertir(`${path.relative(RACINE, m.cible)} ${motif} — ce fichier s'annonce en tête comme un miroir, donc son lecteur croit lire la source. Remise en état : node outils/handoff.js miroirs`);
+  }
+}
 function verifier(ignorer) {
   erreurs.length = 0; avertissements.length = 0;
   let etat = null;
@@ -376,6 +409,7 @@ function verifier(ignorer) {
   const artefactsValides = artefactsHorsRegistreValides(etat);
   validerRegistre(etat, artefactsValides); validerEtatContenu(etat);
   signalerLotsSansAdresseDeReveil(etat);
+  signalerMiroirsPerimes(etat);
   if (etat && etat.lot_actif) signalerEnvDivergent(etat.lot_actif, railDuLot(etat, etat.lot_actif), avertir);
   if (etat && etat.lot_actif) { const d = dernier(echanges(etat.lot_actif, 'request')); if (d) { const r = lireEnveloppe(path.join(LOTS, etat.lot_actif, d.fichier)), p = ((r.env && r.env.preuves) || []).find(x => x.id === 'suite'), sortie = process.env.NEXUS_SORTIE_SUITE; if (p && sortie && fs.existsSync(sortie)) { const m = fs.readFileSync(sortie, 'utf8').match(/(\d+)\/(\d+) tests passent/); if (m && p.valeur.trim() !== `${m[1]}/${m[2]}`) avertir(`suite déclarée ${p.valeur.trim()}, mesurée ${m[1]}/${m[2]} — lot d'observation : avertissement, pas blocage.`); } } }
   const derogations = etat && Array.isArray(etat.derogations) ? etat.derogations : [], restantes = [];
