@@ -105,3 +105,55 @@ d'isolation »).
 Aucun changement `main`/`production`, aucune opération Supabase, aucune promotion Production,
 aucun secret créé/lu/exposé, aucun nouveau rôle/RLS, aucune nouvelle règle métier/UX, aucun
 contournement des protections.
+
+## 5. Mise à jour du 27/09/2026 — ajoutée par append, rien ci-dessus n'est réécrit
+
+Réponse au réveil du 27/09/2026 (issue #28) : `decision-11.md` (lot
+`NEXUS-CONTINUITE-TERRAIN-2-20260922`) ferme la ligne « Preuve de création réelle de la migration
+`#65` » de la table §2 ci-dessus, sur la base de `preuve-65-schema-jetable.md` (22/09/2026). Ce
+n'est **pas** un GO de fusion ni de Production ; les deux constats de son §4 (`revoke ... from
+public` toujours inefficace sur `anon`/`authenticated`, horodatage `20260919103000` antérieur à
+neuf migrations déjà en Production) restent ouverts, portés au futur dossier de gate Production.
+
+**Fait git nouveau, non encore incorporé au tableau ci-dessus** : `rebuild/carburants-65-20260922`
+(la branche que `preuve-cloudflare-humaine-65-portage-1.md` §3 nommait pour le portage
+mécanique, tip `fe36a8e` le 23/09) a **avancé de cinq commits** depuis, jusqu'à `20af9f6`,
+tous mesurés sur les refs déjà présentes localement — aucun `git fetch`/push n'a été nécessaire :
+
+| Commit | Date | Contenu |
+|---|---|---|
+| `290a217` | 22/09 | porte les 7 fichiers de la chaîne de build (exactement ceux listés par `preuve-cloudflare-humaine-65-portage-1.md` §3) |
+| `664af98` | 23/09 | aligne la garde de build du candidat |
+| `a31b2e4` | 24/09 | restaure `nexus-auth.js` prouvé sur la candidate (cause racine `290a217`, cf. `decision-9.md`) |
+| `1ba8b88` | 24/09 | réaligne les deux harnais `NEXUS_CONFIG` (transporté et mesuré par `request-16.md`, CI acceptée par `decision-10.md`) |
+| `20af9f6` | 24/09 | **nouveau, jamais cité par un `request-N.md`/`decision-N.md` de ce lot** — ajoute `.github/workflows/recette-candidat-65.yml` |
+
+Le workflow `20af9f6` est lu ici, pas exécuté ni déclenché depuis ce canal : il se déclenche sur
+push vers `rebuild/carburants-65-20260922` et sur `workflow_dispatch` ; il vérifie d'abord
+(fail-closed) que la preview Cloudflare sert exactement `github.sha` (`nexus-build.js`) et que
+`nexus-config.js` annonce `environnement: "test"` et le projet Supabase Test
+`udljdqxerrbbbajxubfn` — avec refus explicite si la référence Production
+(`uzhjpqpctpvxytxpxoqz`) apparaît — puis lance `node outils/recette-navigateur-test.js` avec les
+trois secrets Test déjà provisionnés (Manager, Créateur, Employé A). La version de ce script
+présente sur la candidate (vintage 09/09/2026, relue en entier) lit bien `NEXUS_COMMIT_ATTENDU`
+que le workflow lui passe — cohérent, pas un décalage.
+
+**Reclassement de la table §2** :
+
+| Gate | État au 24/09 (`request-17.md`) | État constaté le 27/09 (lecture git seule) |
+|---|---|---|
+| Isolation Supabase Test des candidats web | portage non fait | **portage mécanique fait** (`290a217`…`1ba8b88`) ; isolation *prouvée en exécution* reste à confirmer par un run réel |
+| Preuve de création réelle de la migration `#65` | ouverte | **fermée par `decision-11.md`** (§ ci-dessus) |
+| Recette navigateur authentifiée | hors de portée du canal | mécanisme **écrit et cohérent**, secrets réels déjà câblés (`20af9f6`) ; **résultat d'exécution non mesurable depuis ce canal** — ni `gh api`, ni `gh auth status`, ni `git fetch`/`push` ne s'exécutent ici sans une approbation qu'aucun humain ne peut donner dans ce run automatisé (revérifié le 27/09, même constat que `request-17.md`) |
+| GO Production `#65` | NO GO temporaire | **inchangé** — cette mise à jour ne le requalifie pas |
+
+**Geste minimal exact pour clore les deux gates restantes** : depuis une session ou un accès
+disposant de `gh`/l'interface GitHub (droits sur ce dépôt), lire l'historique des runs du
+workflow « Preuve Test #65 » sur `rebuild/carburants-65-20260922` à `20af9f6`. S'il n'a jamais
+tourné ou a échoué, le déclencher par `workflow_dispatch` (aucun nouveau secret, aucune nouvelle
+permission) et rapporter le verdict exact (SHA servi, `environnement`, projet Supabase observé,
+résultat de la recette) dans un prochain `request-N.md`. Aucun geste de ce type n'a été tenté
+depuis ce canal.
+
+Rien d'autre n'est changé par cet append : aucun portage, aucune configuration Cloudflare, aucune
+requête Supabase, aucune réouverture d'un verdict NO GO déjà rendu.
