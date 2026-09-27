@@ -1,75 +1,95 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-10.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONTINUITE-TERRAIN-2-20260922/decision-11.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-CONTINUITE-TERRAIN-2-20260922
-seq: 10
+seq: 11
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-16.md
+in_reply_to: request-18.md
 ---
-# Décision — `request-16.md` : attribution CI acceptée (GO Créateur)
+# Décision Créateur — la preuve jetable #65 du 22/09 est recevable pour la gate migration
 
 ## Verdict
 
 `APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-Frédéric valide l'attribution causale établie par `request-16.md` pour les 12 échecs de la suite
-candidate (commit `1ba8b88`, run `35995316868`, job `non-regression` #107618732366) : aucun n'est
-une régression nouvelle imputable au périmètre propre de `#65` (les deux harnais réalignés
-transportés par `1ba8b88` et la restauration minimale autorisée par `decision-9.md` §1).
+## 1. Ce qui est tranché — et seulement cela
 
-## 1. Réponse aux trois questions d'arbitrage de `request-16.md` §8
+Frédéric valide l'arbitrage recommandé : `preuve-65-schema-jetable.md` (22/09/2026) est reconnue
+comme preuve recevable de la gate « Preuve de création réelle de la migration #65 »
+(`classement-gates-etat-git-62-65-1.md` §2), sous réserve de son empreinte et de son périmètre
+déjà documentés — relus ici, pas rouverts :
 
-1. **Oui.** Le classement des 12 échecs est retenu : 7 dette QA préexistante du rail
-   (`docs/qa/ECHECS-CONNUS.json`, causes déjà nommées, sans rapport avec `nexus-auth.js`) ; 4
-   tracés au gap de classification d'accès/navigation, réel mais déjà nommé par `request-11.md`
-   §4/§6 et explicitement exclu du périmètre de restauration par `decision-9.md` §2 — ce gap
-   préexistait au portage `290a217`, le rail ne l'a jamais eu ; 1 (`test_gravite_ecart_source_
-   unique_20260916.js`) réexécuté isolément avec ses dépendances exactes du candidat, 31/31, non
-   attribué à `#65` en l'absence de preuve contraire.
-2. **Oui.** La boucle d'attribution CI propre au périmètre `#65` (harnais transportés + restau-
-   ration minimale) est considérée **close sur ce point précis** — sans que cela déclare la suite
-   candidate globale verte, et sans que cela vaille `GO` Production. Le lot racine distinct pour la
-   dette de classification d'accès (`proposition-lot-classification-acces-rail-1.md`) sera ouvert
-   après clôture complète de `#65`, séquencé, pas immédiatement.
-3. **Oui.** La recette navigateur authentifiée reste le seul geste bloquant restant avant tout
-   `GO`, et reste réservée à une session disposant réellement des secrets Test — cette clôture
-   d'attribution CI ne la remplace ni ne la contourne.
+- schéma jetable = les **276 migrations `production`** (`git archive origin/production
+  supabase/migrations`), rejouées dans l'ordre, zéro erreur ;
+- une seule migration ajoutée en 277e position :
+  `20260919103000_carburant_reception_regularisation_releve_manuscrit.sql`, sha256
+  `1a02adca37af32b6ea3ffa3ec41b43968502d75bd515877b47e1d4073a8d6caf` ;
+- 13 objets créés (8 colonnes, 3 contraintes, 1 routine, 1 trigger), **0 objet détruit** ;
+  différentiel inverse vide ;
+- garde éprouvée par treize cas, dont un contre-témoin réel (T12 : garde retirée, T2 rejoué,
+  passe — le rouge de T2 vient bien du trigger, pas d'un artefact du banc) et un cas décisif
+  (T10 : le pompiste du jour, laissé passer par la RLS, est refusé par la garde — sans elle la
+  réservation au manager n'aurait vécu que dans l'écran).
 
-Aucune de ces dettes (QA, classification d'accès, réexécution isolée) n'est masquée, supprimée ou
-rendue artificiellement verte par cette décision : elles restent inscrites, sourcées, et non
-résolues par ce lot.
+**Ceci ferme UNIQUEMENT la ligne « Preuve de création réelle de la migration #65 » de
+`classement-gates-etat-git-62-65-1.md` §2.** Ce n'est pas un GO de fusion, pas un GO Production,
+et cela ne rouvre aucun autre diagnostic déjà rendu sur `#65` ou `#62`.
 
-## 2. Ce que cette décision n'affirme PAS
+## 2. Ce qui reste explicitement ouvert, et n'est pas absous par ce verdict
 
-Elle ne déclare pas la CI candidate verte au sens de `decision-9.md` §4 (le job `non-regression`
-reste littéralement rouge sur `1ba8b88`, faute d'une liste `ECHECS-CONNUS` mise à jour côté
-candidat — hors périmètre de ce lot). Elle ne clôt pas `#65` : les gates d'isolation Supabase Test
-des candidats web, de preuve de création réelle de la migration `#65`, et de dérive de schéma
-Supabase Test, recensées par `classement-gates-etat-git-62-65-1.md` §2, restent ouvertes et
-inchangées par cette décision.
+La preuve elle-même liste deux constats à porter au dossier avant tout GO de déploiement
+(`preuve-65-schema-jetable.md` §4) — ils ne disparaissent pas ici, ils sont portés au dossier de
+gate Production à préparer :
 
-## 3. Suite autorisée
+1. `revoke ... from public` ne ferme pas `anon`/`authenticated` sur
+   `nexus_garde_regularisation_reception()` — portée mesurée faible (fonction de trigger, appel
+   direct déjà refusé par le moteur), mais c'est la **quatrième occurrence** de la même ligne qui
+   échoue de la même façon. À arbitrer avant un GO de déploiement, pas avant cette gate.
+2. La 277e porte un horodatage (`20260919103000`) antérieur à neuf migrations déjà appliquées en
+   Production. Risque outillage (CLI Supabase), pas schéma — la preuve a été menée dans l'ordre
+   réel de déploiement, donc le résultat n'en dépend pas. À traiter avant le déploiement, par
+   renommage de version ou application explicite.
 
-1. Poursuivre les preuves déterministes restantes de `#65` disponibles sans secret ni accès
-   Production.
-2. Rechercher une voie d'exécution déjà prévue par l'infrastructure pour la recette navigateur
-   authentifiée (workflow/environnement Test avec secrets déjà protégés), sans lire, exposer,
-   copier ni demander la valeur d'un PIN. Si une telle voie est atteignable depuis la session en
-   cours, l'emprunter. Sinon, STOP et documenter précisément le geste minimal requis — pas de
-   nouveau mécanisme, pas de nouvelle garde, pas de contournement de sécurité.
-3. Si — et seulement si — toutes les gates de `#65` (attribution CI, recette navigateur, isolation
-   Test, preuve de migration, dérive de schéma) deviennent closes dans une même session outillée,
-   préparer le dossier de gate Production puis STOP pour `GO` explicite de Frédéric.
-4. Une fois le verdict complet de `#65` rendu (pas avant), enchaîner sur le lot racine distinct déjà
-   préparé pour la dette de classification d'accès/harnais.
+Aucun des deux n'est une condition de cette gate ; les deux sont des conditions du futur dossier
+de gate Production.
+
+## 3. `request-18.md` — la seule question qu'il posait est devenue sans objet
+
+`request-18.md §5` demandait un arbitrage sur `issues: write`. Ce point n'a plus besoin de
+réponse ici : Frédéric l'a tranché directement, hors de ce fil de décision, par le commit
+`0b3c387` du 26/09/2026 sur `handoff-continuite-20260920` (« Le réveil Claude → Orchestrateur se
+poste seul (issues: write, accordé le 26/09) ») — autorisation inscrite à côté de la permission,
+datée et nominative, avec quatre refus avant écriture, une garde de boucle et une garde de
+provenance de branche, éprouvés par mutation. Cette décision ne rouvre pas ce diagnostic ; elle
+constate seulement qu'aucun arbitrage supplémentaire n'y est dû.
+
+## 4. Suite autorisée — les gates restantes de `#65`, dans l'ordre de `decision-10.md` §3
+
+1. **Isolation candidate/preview au SHA exact** : à re-mesurer sur l'état réel de
+   `rebuild/carburants-65-20260922`, qui a bougé depuis le 23/09 (portage de la chaîne de build,
+   correctif `nexus-auth.js`, réalignement des harnais). Ne pas supposer close sans preuve
+   fraîche.
+2. **CI attribuée** : déjà close sur son périmètre précis par `decision-10.md` — ne pas rouvrir
+   sans preuve contraire.
+3. **Recette navigateur authentifiée** : si un mécanisme CI existe déjà sur la branche candidate
+   avec les secrets Test réels et une vérification SHA-servi fail-closed, en mesurer le résultat
+   réel plutôt que d'en supposer un verdict — sans lire, exposer, copier ni demander la valeur
+   d'un PIN.
+4. **Dossier de gate Production** : à préparer seulement si les trois points précédents sont
+   réellement clos avec preuve, pas avant.
+
+Si un blocage `actions:write`/réseau empêche de déclencher ou de lire un run depuis la session en
+cours, ne pas contourner : documenter le geste minimal exact requis, sans redemander l'arbitrage
+migration de ce document.
 
 ## Interdits
 
-Aucun merge ni déploiement Production, aucune écriture ni migration Supabase Production, aucun
-changement métier/UX/rôle/RLS/sécurité, aucun secret exposé, aucune baisse de gate.
+Aucun merge ni déploiement Production, aucune migration/DDL ni écriture Supabase Production,
+aucun reset de Test historique, aucun changement métier/UX/rôle/RLS/sécurité, aucun affaiblissement
+de tests/`ECHECS-CONNUS`, aucun secret exposé, aucune baisse de gate.
 `NEXUS_BASE_BRANCH=handoff-continuite-20260920` reste canonique.
