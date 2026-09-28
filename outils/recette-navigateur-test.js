@@ -59,6 +59,7 @@
 // second employé, et la règle qui valait hier vaut encore aujourd'hui.
 
 const path = require('path');
+const { createHash } = require('crypto');
 
 const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
 
@@ -155,6 +156,57 @@ async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pa
   return { servie: false, commit: vu };
 }
 
+// Un 200 ne prouve pas que l'écran est là. L'hébergeur du candidat répond 200
+// à TOUT chemin absent en servant la page commerciale : un nom de fichier
+// inventé et `NEXUS-Live-Developpement-v1.html` rendent le même corps, octet
+// pour octet. Une recette qui enchaîne alors sur `waitForFunction` attend 30 s
+// un élément qui n'arrivera jamais, et rapporte « Timeout 30000ms exceeded » :
+// un rouge qui n'accuse rien, et qu'on est tenté d'aller chercher dans l'écran
+// plutôt que dans son absence.
+//
+// On relève donc une fois, à l'exécution, le corps servi pour un chemin qui ne
+// PEUT pas exister, et tout écran dont le corps lui est identique est déclaré
+// ABSENT. Le témoin ne dépend ni du code HTTP, ni d'un marqueur propre à
+// chaque écran, ni de l'hébergeur : il se mesure là où la recette s'exécute.
+async function empreinteServie(url) {
+  const reponse = await fetch(url, { cache: 'no-store' });
+  const corps = await reponse.text();
+  return {
+    statut: reponse.status,
+    taille: corps.length,
+    sha: createHash('sha256').update(corps).digest('hex').slice(0, 12)
+  };
+}
+
+let TEMOIN_ABSENCE = null;
+
+async function releverTemoinAbsence(base) {
+  const invente = 'NEXUS-CHEMIN-QUI-NE-PEUT-PAS-EXISTER-' + Date.now() + '.html';
+  try {
+    TEMOIN_ABSENCE = await empreinteServie(new URL(invente, base).href);
+  } catch (e) {
+    // Pas de témoin mesurable : on n'invente pas d'absence, la recette
+    // continue exactement comme avant ce garde-fou.
+    TEMOIN_ABSENCE = null;
+  }
+  return TEMOIN_ABSENCE;
+}
+
+async function exigerEcranServi(base, fichier) {
+  if (!TEMOIN_ABSENCE) return null;
+  const vu = await empreinteServie(new URL(fichier, base).href);
+  if (vu.sha === TEMOIN_ABSENCE.sha) {
+    throw new Error(
+      "L'écran " + fichier + " n'est pas déployé sur cette base." +
+      '\n  Base     : ' + base +
+      '\n  Servi    : HTTP ' + vu.statut + ', ' + vu.taille + ' octets, sha256:' + vu.sha +
+      '\n  Témoin   : un chemin inventé rend le MÊME corps (sha256:' + TEMOIN_ABSENCE.sha + ')' +
+      "\n  Lecture  : l'hébergeur répond 200 sur un fichier absent. Ce n'est pas" +
+      "\n             l'écran qui est cassé, c'est l'artefact qui n'est pas là.");
+  }
+  return vu;
+}
+
 async function connecter(page, base, identifiant, pin) {
   await page.goto(new URL('NEXUS-Login-v1.html', base).href, { waitUntil: 'domcontentloaded' });
   // Sélection par type et par ordre plutôt que par un id qui n'existe pas :
@@ -232,6 +284,7 @@ async function lireRecommandation(page, base) {
   page.on('console', surConsole);
   page.on('pageerror', surErreur);
   try {
+    await exigerEcranServi(base, ECRAN_CARBURANTS);
     await page.goto(new URL(ECRAN_CARBURANTS, base).href, { waitUntil: 'networkidle' });
     try {
       await page.waitForFunction(
@@ -344,6 +397,7 @@ async function observerLive(navigateur, base, nom, pin) {
   const page = await contexte.newPage();
   try {
     await connecter(page, base, nom, pin);
+    await exigerEcranServi(base, ECRAN_LIVE);
     await page.goto(new URL(ECRAN_LIVE, base).href, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => {
       const r = document.getElementById('root');
@@ -913,6 +967,11 @@ async function executer(env = process.env) {
     console.log(`Version servie confirmée : ${v.commit}`);
   }
 
+  const temoin = await releverTemoinAbsence(base);
+  console.log(temoin
+    ? `Témoin d'absence relevé : HTTP ${temoin.statut}, ${temoin.taille} octets, sha256:${temoin.sha}`
+    : "Témoin d'absence non mesurable : le contrôle de présence des écrans est inactif.");
+
   const navigateur = await chromium.launch();
   try {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
@@ -994,7 +1053,7 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer, releverTemoinAbsence, exigerEcranServi };
 
 if (require.main === module) {
   executer().then(r => {
