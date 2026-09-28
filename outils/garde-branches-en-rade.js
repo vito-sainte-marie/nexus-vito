@@ -43,13 +43,38 @@
 //
 // CETTE GARDE NE FUSIONNE RIEN. Elle nomme et elle se tait ensuite. Fusionner
 // suppose de lire le travail, et cette lecture n'appartient pas à un outil.
+//
+// CONTRE QUOI ON MESURE — repris le 28/09/2026. Cette garde a longtemps tenu
+// UNE référence unique et globale pour toutes les branches. Deux conséquences,
+// mesurées le 28/09 :
+//
+//   · cette référence, `config-par-environnement`, est gelée sur ea57d4b depuis
+//     le 14/09. Toute branche coupée après cette date est structurellement « en
+//     rade » contre elle. La garde criait 87 branches sur 87 ;
+//   · le même raisonnement, appliqué hors de cette garde, a fait déclarer le
+//     candidat Production `rebuild/carburants-65-20260922` abandonné depuis 24
+//     jours. Mesuré contre Production — son autorité réelle — il était à
+//     +8 / -0. Le verdict était faux, et il était faux à cause de la référence.
+//
+// La fraîcheur d'une branche se mesure donc contre la base qui fait autorité
+// POUR ELLE, déclarée dans `docs/handoff/AUTORITES-DE-BRANCHE.json`. Déclarée,
+// et non déduite : une branche qu'aucune règle ne couvre n'hérite d'aucune
+// référence par défaut — la garde le DIT et refuse de conclure. Deviner une
+// référence, c'est recalculer une désignation que quelqu'un a faite ailleurs.
+//
+// ET TOUT SIGNALEMENT NOMME SA RÉFÉRENCE, avec son sha et sa date. C'est ce
+// qui manquait : un message qui aurait dit « absent de config-par-environnement
+// (ea57d4b, 14/09) » aurait rendu le gel visible le jour même.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
 const RACINE = path.join(__dirname, '..');
-const CANONIQUE = process.env.NEXUS_BRANCHE_CANONIQUE || 'config-par-environnement';
-const PREFIXE = 'claude/';
+// Seam d'épreuve : force la référence de TOUTES les règles. Sert à provoquer
+// une autorité introuvable, cas qu'on ne peut pas fabriquer depuis le dépôt
+// réel et qu'une mutation traverserait donc en silence.
+const FORCEE = process.env.NEXUS_BRANCHE_CANONIQUE || null;
+const AUTORITES = path.join(RACINE, 'docs', 'handoff', 'AUTORITES-DE-BRANCHE.json');
 const REGISTRE = path.join(RACINE, 'docs', 'handoff', 'BRANCHES-CLASSEES.json');
 const BACKLOG = path.join(RACINE, 'docs', 'nexus', 'BACKLOG.md');
 // Vocabulaire repris MOT POUR MOT de l'audit canonique
@@ -65,8 +90,11 @@ function gitReel(...args) {
 
 // ── Le jugement, séparé de git pour être éprouvable ─────────────────────
 //
-// `branches`  : [{ nom, tete }]     — ce que le dépôt distant porte aujourd'hui
-// `contenues` : Set de noms          — celles dont les commits sont dans le canonique
+// `branches`  : [{ nom, tete, autorite }] — ce que le dépôt distant porte
+//               aujourd'hui. `autorite` est { nom, tete, date } : la base
+//               DÉCLARÉE contre laquelle cette branche-là se mesure. Absente,
+//               la branche n'est pas mesurable et la garde le dit.
+// `contenues` : Set de noms          — celles dont les commits sont dans LEUR autorité
 // `classees`  : entrées du registre
 function analyser({ branches, contenues, classees, renvoisConnus }) {
   const signalements = [];
@@ -76,17 +104,28 @@ function analyser({ branches, contenues, classees, renvoisConnus }) {
   for (const b of branches) {
     vues.add(b.nom);
     const c = parNom.get(b.nom);
+    // Sans référence déclarée, il n'y a pas de question « est-elle à jour ? ».
+    // Bloquant, et non silencieux : c'est précisément en laissant une branche
+    // tomber sur une référence par défaut qu'on obtient un verdict faux avec
+    // l'aplomb d'un verdict mesuré.
+    if (!b.autorite) {
+      signalements.push({ code: 'AUTORITE_INDECLAREE', bloquant: true, branche: b.nom,
+        texte: `${b.nom} : aucune règle de ${path.basename(AUTORITES)} ne dit contre quelle base la mesurer. `
+          + 'Sa fraîcheur n’est donc pas mesurée — et ne sera pas devinée.' });
+      continue;
+    }
+    const ref = `${b.autorite.nom} (${String(b.autorite.tete || '').slice(0, 7)}, ${b.autorite.date || 'date inconnue'})`;
     if (contenues.has(b.nom)) {
       // Fusionnée : rien à dire. Une entrée de registre devient inutile — on le
       // signale sans en faire un défaut, pour que le registre ne se fossilise
       // pas en liste de noms que plus personne ne relit.
       if (c) signalements.push({ code: 'CLASSEMENT_INUTILE', bloquant: false, branche: b.nom,
-        texte: `${b.nom} est fusionnée dans ${CANONIQUE} : son classement au registre n'a plus d'objet.` });
+        texte: `${b.nom} est fusionnée dans ${ref} : son classement au registre n'a plus d'objet.` });
       continue;
     }
     if (!c) {
       signalements.push({ code: 'EN_RADE', bloquant: true, branche: b.nom,
-        texte: `${b.nom} porte du travail absent de ${CANONIQUE} et n'est classée nulle part. `
+        texte: `${b.nom} porte du travail absent de ${ref} et n'est classée nulle part. `
           + 'Soit elle est rapatriée, soit son sort est inscrit au registre — mais elle ne peut pas rester muette.' });
       continue;
     }
@@ -139,6 +178,43 @@ function validerEntree(c, renvoisConnus) {
   return d;
 }
 
+// ── La table des autorités ──────────────────────────────────────────────
+//
+// `regles` est ORDONNÉE : la première dont le `motif` préfixe le nom de la
+// branche gagne. Une exception nomme une branche entière et prime sur toutes
+// les règles — c'est le seul endroit où une désignation humaine particulière
+// peut contredire la famille.
+function resoudreRegle(nom, table) {
+  for (const e of (table.exceptions || [])) {
+    if (e && e.branche === nom) return { motif: e.branche, autorite: e.autorite, examine: true, exception: true };
+  }
+  for (const r of (table.regles || [])) {
+    if (r && typeof r.motif === 'string' && nom.startsWith(r.motif)) return r;
+  }
+  return null;
+}
+
+function lireAutorites(chemin = AUTORITES) {
+  if (!fs.existsSync(chemin)) {
+    return { erreur: `${path.relative(RACINE, chemin)} absent — sans table des autorités, aucune fraîcheur n'est mesurable.` };
+  }
+  let j;
+  try { j = JSON.parse(fs.readFileSync(chemin, 'utf8')); }
+  catch (e) { return { erreur: `${path.relative(RACINE, chemin)} illisible : ${e.message}` }; }
+  if (!Array.isArray(j.regles) || !j.regles.length) {
+    return { erreur: `${path.relative(RACINE, chemin)} : \`regles\` doit être un tableau non vide.` };
+  }
+  for (const r of j.regles) {
+    if (!r || typeof r.motif !== 'string' || !r.motif) return { erreur: `${path.relative(RACINE, chemin)} : une règle sans \`motif\` ne désigne rien.` };
+    // Une règle examinée sans autorité est le défaut même qu'on répare : elle
+    // ferait retomber sa famille sur une référence implicite.
+    if (r.examine && !String(r.autorite || '').trim()) {
+      return { erreur: `${path.relative(RACINE, chemin)} : la règle \`${r.motif}\` est examinée mais ne nomme aucune autorité.` };
+    }
+  }
+  return { table: j };
+}
+
 // ── La couche git, qui peut échouer et doit le DIRE ─────────────────────
 // `git` est injectable pour que les modes de défaillance soient éprouvables :
 // un clone superficiel ou une branche canonique absente ne se fabriquent pas
@@ -146,13 +222,9 @@ function validerEntree(c, renvoisConnus) {
 // silence. Ce qu'on ne peut pas provoquer, on ne l'a pas vérifié.
 function releverDepot(options = {}) {
   const git = options.git || gitReel;
-  let refCanonique;
-  for (const candidat of [`origin/${CANONIQUE}`, CANONIQUE]) {
-    try { git('rev-parse', '--verify', `${candidat}^{commit}`); refCanonique = candidat; break; } catch (e) {}
-  }
-  if (!refCanonique) {
-    return { erreur: `Branche canonique ${CANONIQUE} introuvable — ne rien conclure de ce silence.` };
-  }
+  const table = options.table;
+  if (!table) return { erreur: 'Table des autorités non fournie — ne rien conclure de ce silence.' };
+
   let lignes;
   try { lignes = git('for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/remotes/origin').split('\n').filter(Boolean); }
   catch (e) { return { erreur: 'Références distantes illisibles — ne rien conclure de ce silence.' }; }
@@ -161,19 +233,54 @@ function releverDepot(options = {}) {
     // branche en rade » serait alors un mensonge tranquille.
     return { erreur: 'Aucune référence distante dans ce clone (clone superficiel ?) — ne rien conclure de ce silence.' };
   }
+
+  // Une autorité est résolue UNE fois et mémorisée : sinon la garde interroge
+  // git autant de fois qu'il y a de branches, pour la même réponse.
+  const cache = new Map();
+  function situer(nomAutorite) {
+    if (cache.has(nomAutorite)) return cache.get(nomAutorite);
+    let trouve = null;
+    for (const candidat of [`origin/${nomAutorite}`, nomAutorite]) {
+      try {
+        const tete = git('rev-parse', '--verify', `${candidat}^{commit}`);
+        let date = '';
+        try { date = git('log', '-1', '--format=%ad', '--date=short', candidat); } catch (e) {}
+        trouve = { nom: nomAutorite, ref: candidat, tete, date };
+        break;
+      } catch (e) {}
+    }
+    cache.set(nomAutorite, trouve);
+    return trouve;
+  }
+
   const branches = [];
   const contenues = new Set();
+  const autorites = new Map();
   for (const l of lignes) {
     const [ref, sha] = l.split(' ');
     const nom = ref.replace(/^origin\//, '');
-    if (!nom.startsWith(PREFIXE)) continue;
-    branches.push({ nom, tete: sha });
+    const regle = resoudreRegle(nom, table);
+    // Hors des familles examinées : ce n'est pas du travail de run en attente
+    // de rapatriement. Le silence est ici la bonne réponse, et il est déclaré.
+    if (!regle || !regle.examine) continue;
+
+    const nomAutorite = FORCEE || regle.autorite;
+    const autorite = situer(nomAutorite);
+    if (!autorite) {
+      // Fail closed. Une autorité déclarée qui n'existe plus sur le dépôt est
+      // la panne silencieuse par excellence : la table dit « mesure contre X »
+      // et X n'est nulle part. On arrête tout plutôt que d'examiner à moitié.
+      return { erreur: `Autorité ${nomAutorite}, déclarée pour ${regle.motif}*, introuvable — ne rien conclure de ce silence.` };
+    }
+    autorites.set(nomAutorite, autorite);
+
+    branches.push({ nom, tete: sha, autorite });
     let avance;
-    try { avance = git('rev-list', '--count', `${refCanonique}..${ref}`); }
-    catch (e) { return { erreur: `Impossible de situer ${nom} par rapport à ${CANONIQUE}.` }; }
+    try { avance = git('rev-list', '--count', `${autorite.ref}..${ref}`); }
+    catch (e) { return { erreur: `Impossible de situer ${nom} par rapport à ${nomAutorite}.` }; }
     if (avance === '0') contenues.add(nom);
   }
-  return { branches, contenues };
+  return { branches, contenues, autorites: [...autorites.values()] };
 }
 
 // Les identifiants réellement présents au Backlog. Absence de fichier =
@@ -198,16 +305,20 @@ function lireRegistre() {
 }
 
 function controler(options = {}) {
-  const depot = releverDepot(options);
+  const autorites = options.table ? { table: options.table } : lireAutorites();
+  if (autorites.erreur) return { indisponible: autorites.erreur };
+  const depot = releverDepot({ ...options, table: autorites.table });
   if (depot.erreur) return { indisponible: depot.erreur };
   const registre = lireRegistre();
   if (registre.erreur) return { indisponible: registre.erreur };
   const renvoisConnus = renvoisDuBacklog(fs.existsSync(BACKLOG) ? fs.readFileSync(BACKLOG, 'utf8') : null);
   return { signalements: analyser({ branches: depot.branches, contenues: depot.contenues,
-    classees: registre.classees, renvoisConnus }), total: depot.branches.length };
+    classees: registre.classees, renvoisConnus }), total: depot.branches.length,
+    autorites: depot.autorites || [] };
 }
 
-module.exports = { analyser, validerEntree, renvoisDuBacklog, releverDepot, controler, SORTS, CANONIQUE, PREFIXE };
+module.exports = { analyser, validerEntree, renvoisDuBacklog, releverDepot, controler,
+  lireAutorites, resoudreRegle, SORTS, AUTORITES };
 
 if (require.main === module) {
   const r = controler();
@@ -215,12 +326,16 @@ if (require.main === module) {
     console.error('Branches en rade : INDISPONIBLE — ' + r.indisponible);
     process.exit(1);
   }
+  // Une mesure dit contre quoi elle a mesuré, toujours et même quand tout va
+  // bien. C'est cette ligne qui aurait rendu le gel d'ea57d4b visible le jour
+  // même, au lieu de le laisser produire 87 verdicts faux.
+  for (const a of r.autorites) console.log(`Référence — ${a.nom} @ ${String(a.tete).slice(0, 7)} (${a.date})`);
   const bloquants = r.signalements.filter(s => s.bloquant);
   const avertissements = r.signalements.filter(s => !s.bloquant);
   for (const s of bloquants) console.error(`EN RADE — ${s.texte}`);
   for (const s of avertissements) console.log(`avertissement — ${s.texte}`);
   if (!bloquants.length) {
-    console.log(`Branches en rade : aucune (${r.total} branche(s) ${PREFIXE}* examinée(s)).`);
+    console.log(`Branches en rade : aucune (${r.total} branche(s) examinée(s)).`);
     process.exit(0);
   }
   console.error(`\n${bloquants.length} branche(s) en rade sur ${r.total} examinée(s).`);

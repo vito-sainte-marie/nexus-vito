@@ -1,0 +1,24 @@
+{
+  "commentaire": "Contre quoi se mesure la fraîcheur d'une branche. Une branche n'est pas « en retard » dans l'absolu : elle est en retard par rapport à la base qui fait autorité POUR ELLE. Le 28/09/2026, faute de cette table, le candidat Production `rebuild/carburants-65-20260922` a été mesuré contre le rail Handoff et déclaré abandonné depuis 24 jours ; mesuré contre Production, son autorité réelle, il était à +8 / -0, structurellement à jour. Une métrique de dérive mal choisie fait perdre exactement le temps qu'elle prétend faire gagner. CETTE TABLE EST DÉCLARÉE, PAS DÉDUITE : aucune branche ne reçoit d'autorité par défaut, et la garde refuse de conclure sur une branche qu'aucune règle ne couvre plutôt que d'en deviner une.",
+  "regles": [
+    {
+      "motif": "claude/",
+      "autorite": "handoff-continuite-20260920",
+      "examine": true,
+      "pourquoi": "Une branche de run est coupée depuis le rail qui a déclenché le run, et c'est dans ce rail que son travail doit revenir. L'autorité nommée ici doit rester le rail VIVANT : elle a pointé jusqu'au 28/09 sur `config-par-environnement`, gelée sur ea57d4b depuis le 14/09, ce qui faisait crier « en rade » 87 branches contre une référence qui n'avançait plus."
+    },
+    {
+      "motif": "rebuild/",
+      "autorite": "production",
+      "examine": false,
+      "pourquoi": "Un candidat Production se mesure contre Production, jamais contre le rail Handoff. `examine: false` : la garde des branches en rade existe pour le travail de run que personne ne rapatrie ; un candidat de PR est déjà suivi par sa PR. La règle est déclarée ici pour que la référence soit écrite noir sur blanc le jour où un outil en aura besoin."
+    },
+    {
+      "motif": "handoff-",
+      "autorite": "production",
+      "examine": false,
+      "pourquoi": "Le rail se mesure contre ce qu'il vise. Non examiné : le rail n'est pas du travail en rade, c'est la destination."
+    }
+  ],
+  "exceptions": []
+}
