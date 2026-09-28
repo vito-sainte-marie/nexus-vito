@@ -1019,6 +1019,142 @@ epreuve('MUTATION : sans la dérivation, la recette repart sur l’alias gelé',
     'le code muté devait servir l’alias gelé ; l’épreuve ne détecte donc pas ce défaut');
 });
 
+// ── « Manager Test » : la connexion qui n'était ni protégée ni dite ─────
+//
+// LE DÉFAUT, mesuré le 27/09/2026. La recette se connecte en « Manager Test »
+// dès sa première ligne, et son rapport ne le disait jamais — la seule des
+// trois identités absente du bilan. Pire : c'était aussi la seule connexion
+// sans `try`/`catch`. Un compte devenu inconnectable tuait la recette entière
+// en imputant à l'ÉCRAN DE LOGIN ce qui peut être une identité `auth.users`
+// absente — la confusion que ce même fichier interdit pour le Créateur (07/09)
+// et pour l'Employé A (09/09).
+const { indisponibiliteCompteManager, etatAccesLiveManager } = require(OUTIL);
+
+epreuve('le compte Manager inconnectable est NOMMÉ, et classé ENV-003', () => {
+  const m = indisponibiliteCompteManager('Manager Test', 'identifiant inconnu');
+  assert.ok(/Manager Test/.test(m), 'le message ne nomme pas le compte : illisible dans le rapport');
+  assert.ok(/ENV-003/.test(m), 'la dégradation n’est pas rattachée à son vocabulaire');
+  assert.ok(/NON SATISFAITES/.test(m), 'les preuves perdues ne sont pas déclarées manquantes');
+  assert.ok(/geste humain/.test(m), 'le message ne dit pas à qui revient le rétablissement');
+});
+
+epreuve('il n’accuse PAS l’écran de refuser : ce sont deux choses opposées', () => {
+  const m = indisponibiliteCompteManager('Manager Test', 'identifiant inconnu');
+  assert.ok(/non connectable/.test(m), 'la cause réelle n’est pas nommée');
+  assert.ok(!/refus(e|é)e? : toujours sur l’écran|Connexion refusée/i.test(m),
+    'le message reprend l’accusation portée contre l’écran de login');
+});
+
+epreuve('il ne recopie que la PREMIÈRE ligne du motif brut', () => {
+  // `connecter()` joint le texte de l'écran après un saut de ligne. Le recopier
+  // entier ferait entrer un écran complet dans le bilan — et un rapport qui
+  // déverse l'écran n'est plus lu. Même coupe que pour l'Employé A.
+  const m = indisponibiliteCompteManager('Manager Test', 'motif court\n  Écran : Prénom / code PIN / Se connecter');
+  assert.ok(/motif court/.test(m), 'le motif est perdu');
+  assert.ok(!/Se connecter/.test(m), 'le texte de l’écran entre dans le rapport');
+});
+
+epreuve('le refus d’accès Live au manager se DÉDUIT de ce qui a été vu', () => {
+  const vuRefuse = { refuse: true, texte: 'capacite_createur_absente' };
+  const vuEntre = { refuse: false, texte: 'timeline' };
+  assert.ok(/^satisfaite/.test(etatAccesLiveManager(vuRefuse, 'Manager Test')),
+    'un manager refusé devrait satisfaire la preuve');
+  assert.ok(/^NON SATISFAITE/.test(etatAccesLiveManager(vuEntre, 'Manager Test')),
+    'un manager qui ENTRE dans Live ne doit jamais rendre « satisfaite »');
+  assert.ok(/^NON SATISFAITE/.test(etatAccesLiveManager(null, 'Manager Test')),
+    'une absence d’observation n’est pas un refus');
+  for (const cas of [vuRefuse, vuEntre, null]) {
+    assert.ok(/Manager Test/.test(etatAccesLiveManager(cas, 'Manager Test')),
+      'la ligne ne nomme pas le compte');
+  }
+});
+
+// ── CÂBLAGE ────────────────────────────────────────────────────────────
+// Prouver la fonction n'est pas prouver qu'elle est branchée. Ces deux
+// contrôles lisent la SOURCE, et la mutation qui suit débranche l'aide plutôt
+// que de la casser : c'est la seule mutation qui démasque une garde muette.
+function exigerCablage(src) {
+  const i = src.indexOf('const navigateur = await chromium.launch();');
+  const j = src.indexOf('const vu = await lireRecommandation(page, base);');
+  assert.ok(i > -1 && j > i, 'la première connexion est introuvable dans la source');
+  const zone = src.slice(i, j);
+  const APPEL = 'await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM';
+  const a = zone.indexOf(APPEL);
+  assert.ok(a > -1, 'la connexion « Manager Test » a disparu de la recette');
+
+  // Le `try` le plus proche EN AMONT doit être celui de cette connexion, et
+  // rien d'autre. Sans cette exigence, le `try` extérieur — celui qui ferme le
+  // navigateur dans son `finally` — suffirait à faire passer le contrôle sur
+  // une connexion nue : une garde qui ne mord pas. C'est la mutation qui l'a
+  // montré, jamais la lecture.
+  const t = zone.lastIndexOf('try {', a);
+  assert.ok(t > -1 && /^\s*$/.test(zone.slice(t + 'try {'.length, a)),
+    'la connexion « Manager Test » n’est PAS protégée : un compte inconnectable tuerait la recette');
+
+  // Et le `catch` qui suit doit classer l'échec, avant tout `finally` : un
+  // `catch` qui relance laisse le message accuser l'écran de login.
+  const c = zone.indexOf('catch', a);
+  const f = zone.indexOf('finally', a);
+  assert.ok(c > -1 && (f === -1 || c < f), 'l’échec de connexion n’est rattrapé par aucun `catch`');
+  const corps = zone.slice(c, f === -1 ? zone.length : f);
+  assert.ok(corps.includes('indisponibiliteCompteManager'),
+    'la connexion est protégée mais son échec n’est pas classé en indisponibilité');
+  assert.ok(/executee: false/.test(corps),
+    'l’échec ne déclare pas la recette NON EXÉCUTÉE');
+}
+
+function exigerRapportDeduit(src) {
+  assert.ok(!src.includes("'  · Accès Live REFUSÉ au manager : satisfaite'"),
+    'le rapport affirme encore le refus par une ligne littérale, sans lire l’observation');
+  assert.ok(/console\.log\('  · Accès Live REFUSÉ au manager : '\s*\+\s*etatAccesLiveManager/.test(src),
+    'le rapport ne déduit pas le refus de l’observation');
+  assert.ok(/Connexion « \$\{nomManager\} » à NEXUS Test/.test(src),
+    'la connexion « Manager Test » reste absente du bilan que Frédéric lit');
+}
+
+epreuve('la connexion Manager est protégée ET dite, dans la source réelle', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  exigerCablage(src);
+  exigerRapportDeduit(src);
+});
+
+epreuve('MUTATION : sans le try/catch, le câblage doit être DÉMASQUÉ', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const mute = src.replace(
+    /    let managerConnecte = false;\n    try \{\n      await connecter\(page, base, env\.NEXUS_TEST_MANAGER_NOM, env\.NEXUS_TEST_MANAGER_PIN\);\n      managerConnecte = true;\n    \} catch \(e\) \{[\s\S]*?\n    \}\n/,
+    '    await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);\n');
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  assert.throws(() => exigerCablage(mute), /n’est PAS protégée/,
+    'la source revenue à l’état non protégé passe encore : le contrôle ne câble rien');
+  // CONTRE-TÉMOIN : sur la source intacte, le même contrôle passe.
+  exigerCablage(src);
+});
+
+epreuve('MUTATION : un `catch` qui RELANCE doit être DÉMASQUÉ', () => {
+  // Deuxième mutation, visée ailleurs : la protection reste, la classification
+  // part. C'est le cas le plus traître — la recette a l'air protégée, et le
+  // rapport accuse quand même l'écran de login.
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const mute = src.replace(
+    /\} catch \(e\) \{\n      return \{ executee: false, bloquant: false,\n        message: 'Recette navigateur Test non exécutée — '\n          \+ indisponibiliteCompteManager\(env\.NEXUS_TEST_MANAGER_NOM, e\.message\) \};\n    \}/,
+    '} catch (e) {\n      throw e;\n    }');
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  assert.throws(() => exigerCablage(mute), /n’est pas classé en indisponibilité/,
+    'un `catch` qui relance passe encore : le contrôle ne mesure que la forme');
+  exigerCablage(src);
+});
+
+epreuve('MUTATION : le rapport revenu au littéral doit être DÉMASQUÉ', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const mute = src.replace(
+    /      console\.log\('  · Accès Live REFUSÉ au manager : '\n        \+ etatAccesLiveManager\(r\.live && r\.live\.manager, nomManager\)\);/,
+    "      console.log('  · Accès Live REFUSÉ au manager : satisfaite');");
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  assert.throws(() => exigerRapportDeduit(mute), /ligne littérale/,
+    'le rapport revenu au littéral passe encore : le contrôle ne mesure rien');
+  exigerRapportDeduit(src);
+});
+
 (async () => {
   for (const [nom, fn] of attentes) { await fn(); passes++; console.log('OK — ' + nom); }
   console.log(`\n${passes}/${passes} vérifications passées — la recette juge la preuve, pas seulement le chiffre.`);

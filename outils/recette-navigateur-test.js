@@ -533,6 +533,47 @@ async function observerLive(navigateur, base, nom, pin) {
 // ment d'être jugé.
 const ATTENTES_CONNUES = ['rien', 'arbitrage', 'repondu'];
 
+// ── « Manager Test » : le compte sur lequel toute la recette repose ─────
+//
+// C'est la PREMIÈRE identité employée — sa session ouvre l'écran Carburants,
+// et c'est elle encore qui doit se faire REFUSER l'accès à NEXUS Live. Les
+// deux autres comptes ont chacun leur dégradation explicite depuis le 07/09
+// (Créateur) et le 09/09/2026 (Employé A) ; celui-ci n'en avait aucune. Un
+// compte Manager devenu inconnectable tuait donc la recette ENTIÈRE sur
+// « Connexion refusée : toujours sur l'écran de login 30 s après validation »,
+// un message qui accuse l'ÉCRAN alors que la cause peut être un compte sans
+// identité `auth.users`. C'est exactement la confusion que ce fichier interdit
+// deux fois ailleurs, et elle était ici en clair.
+//
+// Vérifié en base Test le 27/09/2026 : `manager-test` a bien son identité
+// `auth.users` et s'était connecté la veille. Cette garde ne répare donc pas
+// une panne observée — elle empêche que le jour où ce compte disparaîtra, la
+// recette accuse le contrôle d'accès d'un défaut qu'il n'a pas.
+function indisponibiliteCompteManager(nom, messageBrut) {
+  return `Compte Manager de recette « ${nom || 'non nommé'} » non connectable : `
+    + `${String(messageBrut || 'motif non rendu').split('\n')[0]} `
+    + 'Ce compte porte la PREMIÈRE session de la recette : sans lui, ni la preuve UI Carburants '
+    + 'ni le REFUS d’accès à NEXUS Live ne peuvent être prises. Capacité Test indisponible '
+    + '(ENV-003) : non bloquante, mais CES DEUX PREUVES SONT DÉCLARÉES NON SATISFAITES — '
+    + 'jamais satisfaites par défaut. Rétablir ce compte demande de fixer un PIN : geste '
+    + 'humain, hors périmètre de Claude.';
+}
+
+// Le rapport annonçait « Accès Live REFUSÉ au manager : satisfaite » par une
+// ligne LITTÉRALE, sans jamais lire l'observation. C'était vrai — `verifierLive`
+// rend la recette bloquante quand le manager entre, donc la ligne n'était
+// atteinte que dans le bon cas — mais vrai par ricochet, et un vert pour la
+// mauvaise raison ne se voit pas. La conclusion se DÉDUIT désormais de ce qui a
+// été vu, et elle NOMME le compte : cette connexion était la première chose que
+// la recette faisait, et la seule à rester invisible dans son rapport.
+function etatAccesLiveManager(manager, nom) {
+  const q = `« ${nom || 'manager'} »`;
+  if (!manager) return `NON SATISFAITE — ${q} non observé sur NEXUS Live`;
+  return manager.refuse
+    ? `satisfaite — ${q} s’est connecté et NEXUS Live lui a été refusé`
+    : `NON SATISFAITE — ${q} s’est connecté et NEXUS Live NE l’a PAS refusé`;
+}
+
 function verifierLive(createur, manager) {
   const echecs = [];
   // `createur === null` signifie « pas d'observation », pas « refusé ». On ne
@@ -1070,7 +1111,19 @@ async function executer(env = process.env) {
   const navigateur = await chromium.launch();
   try {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
-    await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+    // Voir `indisponibiliteCompteManager` : cette connexion-ci était la seule
+    // des trois à n'être pas protégée. On ne convertit pas un compte
+    // inconnectable en écran qui refuse — la recette se déclare NON EXÉCUTÉE,
+    // ce que le rapport distingue déjà d'un succès.
+    let managerConnecte = false;
+    try {
+      await connecter(page, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+      managerConnecte = true;
+    } catch (e) {
+      return { executee: false, bloquant: false,
+        message: 'Recette navigateur Test non exécutée — '
+          + indisponibiliteCompteManager(env.NEXUS_TEST_MANAGER_NOM, e.message) };
+    }
     const vu = await lireRecommandation(page, base);
     const semisFait = semisEffectue(env);
     const jugement = jugerObservation(vu, semisFait);
@@ -1141,13 +1194,13 @@ async function executer(env = process.env) {
     return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
       vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
       preuveCarburants: etatPreuveCarburants(jugement),
-      live: { createur, manager }, employe };
+      live: { createur, manager, nom: env.NEXUS_TEST_MANAGER_NOM, connecte: managerConnecte }, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, indisponibiliteCompteManager, etatAccesLiveManager, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -1164,7 +1217,21 @@ if (require.main === module) {
       // manquer la moitié de la démonstration.
       console.log('\nCe qui est prouvé, et ce qui ne l\'est pas :');
       console.log('  · UI Carburants (CARB-004) : ' + r.preuveCarburants);
-      console.log('  · Accès Live REFUSÉ au manager : satisfaite');
+      // La connexion « Manager Test » est la première chose que fait la
+      // recette. Elle ne figurait nulle part dans ce bilan : le rapport
+      // laissait croire qu'aucune session manager n'était ouverte.
+      // Aujourd'hui ce vert ne peut pas varier : `!r.executee` sort plus haut,
+      // donc le bilan n'est atteint que session ouverte. Ce qui le rend vrai
+      // n'est PAS la branche, c'est `managerConnecte`, posé après le retour de
+      // `connecter`. La branche négative est là pour le jour où ce retour
+      // anticipé bougera — pas pour faire croire à un arbitrage.
+      const nomManager = (r.live && r.live.nom) || 'manager';
+      console.log(`  · Connexion « ${nomManager} » à NEXUS Test : `
+        + ((r.live && r.live.connecte)
+          ? 'satisfaite — session ouverte, écran Carburants atteint'
+          : 'NON SATISFAITE — voir ci-dessus'));
+      console.log('  · Accès Live REFUSÉ au manager : '
+        + etatAccesLiveManager(r.live && r.live.manager, nomManager));
       console.log('  · Accès Live ACCORDÉ au Créateur : '
         + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
       // Ce que l'écran annonce et ce qu'il propose. Sans cette ligne, la preuve
