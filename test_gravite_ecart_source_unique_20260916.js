@@ -64,13 +64,20 @@ function composer(sourceMoteur) {
 }
 
 console.log('\n── 1 · L’écran charge la source canonique ──');
+// Les trois épingles ci-dessous se lisent sur l'arbre SERVI, que
+// `outils/build.sh` construit avant la suite en CI. Là, l'épingle n'est plus
+// une date (`?v=20260904-0104`) mais l'identifiant de génération, qui est
+// hexadécimal (`?v=ddaf9db160a1`). Un motif `[0-9-]+` ne la décrit donc plus :
+// il refusait ici, et — pire — il rendait `undefined === undefined` vrai dans
+// la comparaison d'épingles plus bas, c'est-à-dire un vert sans mesure.
 verifier('nexus-verify-moteur.js est inclus par la page',
-  /<script src="nexus-verify-moteur\.js\?v=[0-9-]+"><\/script>/.test(SOURCE));
+  /<script src="nexus-verify-moteur\.js\?v=[A-Za-z0-9-]+"><\/script>/.test(SOURCE));
 verifier('il est chargé avant le bloc qui l’utilise',
   SOURCE.indexOf('src="nexus-verify-moteur.js') < SOURCE.indexOf('const COULEUR_GRAVITE'));
 verifier('il porte la même épingle de cache que les autres moteurs de la page',
-  (SOURCE.match(/nexus-verify-moteur\.js\?v=([0-9-]+)/) || [])[1]
-  === (SOURCE.match(/nexus-ecarts-moteur\.js\?v=([0-9-]+)/) || [])[1]);
+  (SOURCE.match(/nexus-verify-moteur\.js\?v=([A-Za-z0-9-]+)/) || [])[1] !== undefined
+  && (SOURCE.match(/nexus-verify-moteur\.js\?v=([A-Za-z0-9-]+)/) || [])[1]
+  === (SOURCE.match(/nexus-ecarts-moteur\.js\?v=([A-Za-z0-9-]+)/) || [])[1]);
 
 console.log('\n── 2 · L’écran ne redit plus aucun seuil ──');
 const fonction = (SOURCE.match(/function classifierEcart\(montantAbs\) \{[\s\S]*?\n  \}/) || [''])[0];

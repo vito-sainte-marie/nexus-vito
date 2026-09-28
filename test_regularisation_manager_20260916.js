@@ -354,7 +354,17 @@ verifier('le Cockpit charge nexus-station.js — sans quoi le critère « quart 
     'le Cockpit est le seul écran qui peut voir un quart du matin fini le jour même');
   assert.ok(/src="nexus-pointage-regles\.js\?v=/.test(COCKPIT));
   // Une seule chaîne de version dans tout le dépôt.
-  const versions = new Set((COCKPIT.match(/\?v=[0-9-]+/g) || []));
+  //
+  // Le motif doit capturer l'épingle ENTIÈRE, pas son début. Écrit `[0-9-]+`,
+  // il collait à la seule forme qu'avaient les épingles le 16/09 —
+  // `?v=20260904-0104` — et, sur l'arbre construit par `outils/build.sh`, où
+  // l'épingle devient l'identifiant de génération (`?v=6bcfb5167538`), il ne
+  // retenait plus que son premier caractère. Le banc passait alors quand cet
+  // identifiant commençait par un chiffre et échouait sinon : un tirage à
+  // pile ou face, vert environ deux fois sur trois, muet sur sa vraie
+  // question. Constaté le 28/09/2026 en construisant `dbaa253`
+  // (génération `ddaf9db160a1`, commençant par une lettre).
+  const versions = new Set((COCKPIT.match(/\?v=[A-Za-z0-9-]+/g) || []));
   assert.strictEqual(versions.size, 1, 'une seule chaîne de version : ' + [...versions].join(', '));
 });
 
