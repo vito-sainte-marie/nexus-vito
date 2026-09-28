@@ -442,6 +442,37 @@ async function observerLive(navigateur, base, nom, pin) {
   }
 }
 
+// Un lot qui n'embarque pas un écran n'a aucune raison de l'éprouver — mais il
+// n'a pas non plus le droit de laisser croire qu'il l'a éprouvé. Le candidat #65
+// est un lot Carburants : `NEXUS-Live-Developpement-v1.html` n'est pas dans son
+// arbre, l'hébergeur répond 200 sur son chemin absent, et la recette y attendait
+// 30 s un écran qui n'arrivera jamais.
+//
+// La sortie n'est donc PAS de supprimer l'étape. Supprimer effacerait aussi la
+// preuve Live du rail le jour où ces branches se rejoignent, et un saut muet se
+// lirait comme un vert. On DÉCLARE, dans le workflow du candidat et nulle part
+// ailleurs, que ce lot n'éprouve pas Live ; la recette s'abstient alors bruyam-
+// ment. Le rail, qui ne déclare rien, est inchangé.
+//
+// L'abstention retire DEUX preuves, pas une : l'accès ACCORDÉ au Créateur, et
+// le refus OPPOSÉ au manager. Le motif doit nommer les deux, sinon la moitié
+// manquante se lit comme acquise.
+const MOTIF_LIVE_HORS_LOT =
+  'NEXUS Live NON ÉPREUVÉ — écran déclaré hors de ce lot par le runner '
+  + '(NEXUS_RECETTE_SANS_LIVE). DEUX preuves sont donc MANQUANTES, aucune n\'est '
+  + "satisfaite : l'accès ACCORDÉ au Créateur, et l'accès REFUSÉ au manager. "
+  + "L'écran n'est pas dans l'arbre de ce candidat ; son absence n'est pas un "
+  + 'verdict sur le contrôle d\'accès, et ne doit jamais en tenir lieu.';
+
+// La déclaration est LUE, jamais devinée. Dériver « ce lot n'a pas Live » du nom
+// de la branche, ou de l'absence constatée de l'écran, ferait taire la preuve
+// toute seule le jour d'un déploiement incomplet du rail — exactement le défaut
+// qu'on répare. Seul un humain, dans un fichier de workflow, peut la poser.
+function liveHorsLot(env) {
+  const v = String((env || {}).NEXUS_RECETTE_SANS_LIVE || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'oui';
+}
+
 // Vocabulaire FERMÉ. Un état d'attente que la recette ne connaît pas ne doit
 // pas passer pour conforme : c'est ainsi qu'un écran modifié cesse silencieuse-
 // ment d'être jugé.
@@ -995,18 +1026,28 @@ async function executer(env = process.env) {
     // serait pire encore. C'est une capacité Test indisponible au sens
     // ENV-003 : non bloquante, mais la preuve positive est alors déclarée
     // MANQUANTE — jamais satisfaite par défaut.
-    const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+    let manager = null;
     let createur = null;
     let createurIndisponible = null;
-    try {
-      createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_CREATEUR_PIN);
-    } catch (e) {
-      createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
-        + 'il existe dans `employees` mais sans identité `auth.users`. '
-        + 'La PREUVE D\'ACCÈS POSITIVE À NEXUS LIVE RESTE NON SATISFAITE. '
-        + 'Créer ce compte demande de fixer un PIN — geste humain, hors périmètre de Claude.';
+    let echecsLive = [];
+    const liveAbstenu = liveHorsLot(env);
+    if (liveAbstenu) {
+      // On n'observe rien, donc on ne juge rien — et on le DIT. `bloquant` ne
+      // bouge pas : l'abstention n'accuse pas l'écran. Mais elle ne le blanchit
+      // pas non plus : les deux lignes du rapport diront NON ÉPREUVÉE.
+      createurIndisponible = MOTIF_LIVE_HORS_LOT;
+    } else {
+      manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+      try {
+        createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_CREATEUR_PIN);
+      } catch (e) {
+        createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
+          + 'il existe dans `employees` mais sans identité `auth.users`. '
+          + 'La PREUVE D\'ACCÈS POSITIVE À NEXUS LIVE RESTE NON SATISFAITE. '
+          + 'Créer ce compte demande de fixer un PIN — geste humain, hors périmètre de Claude.';
+      }
+      echecsLive = verifierLive(createur, manager);
     }
-    const echecsLive = createur ? verifierLive(createur, manager) : verifierLive(null, manager);
 
     // Scénario employé — optionnel, et sa propre dégradation.
     let employe = null, echecsEmploye = [], employeIndisponible = null;
@@ -1047,13 +1088,13 @@ async function executer(env = process.env) {
     const indisponibilites = [carburantsNonAttribuable, createurIndisponible, employeIndisponible].filter(Boolean);
     return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
       vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
-      live: { createur, manager }, employe };
+      live: liveAbstenu ? null : { createur, manager }, liveAbstenu, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer, releverTemoinAbsence, exigerEcranServi };
+module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer, releverTemoinAbsence, exigerEcranServi, liveHorsLot, MOTIF_LIVE_HORS_LOT };
 
 if (require.main === module) {
   executer().then(r => {
@@ -1073,15 +1114,19 @@ if (require.main === module) {
         + (r.semisFait === false && (r.indisponibilites || []).some(i => /Jeu de recette NON semé/.test(i))
           ? 'NON SATISFAITE — jeu de recette non semé'
           : 'satisfaite'));
-      console.log('  · Accès Live REFUSÉ au manager : satisfaite');
+      const LIVE_ABSTENU = 'NON ÉPREUVÉE — écran hors de ce lot, voir ci-dessus';
+      console.log('  · Accès Live REFUSÉ au manager : '
+        + (r.liveAbstenu ? LIVE_ABSTENU : 'satisfaite'));
       console.log('  · Accès Live ACCORDÉ au Créateur : '
-        + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
+        + (r.liveAbstenu ? LIVE_ABSTENU
+          : (r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
       // Ce que l'écran annonce et ce qu'il propose. Sans cette ligne, la preuve
       // existait dans le code mais restait invisible dans le rapport que
       // Frédéric lit — et une preuve qu'on ne lit pas ne rassure personne.
       const c = r.live && r.live.createur;
       console.log('  · Cohérence question/bouton dans Live : '
-        + (!c ? 'NON SATISFAITE — Créateur non observé'
+        + (r.liveAbstenu ? LIVE_ABSTENU
+          : !c ? 'NON SATISFAITE — Créateur non observé'
           : !c.attente ? 'NON SATISFAITE — l’écran ne déclare pas ce qu’il attend'
           : c.attente === 'arbitrage'
             ? `un arbitrage est annoncé, bouton ${c.boutonAutoriser ? 'présent' : 'ABSENT'}`

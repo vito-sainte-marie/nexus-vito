@@ -62,8 +62,19 @@ jobs:
       - name: Installer Playwright
         run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
 
+      # NEXUS Live est hors de ce lot : `NEXUS-Live-Developpement-v1.html` n'est
+      # pas dans l'arbre de `rebuild/carburants-65-20260922`, et Cloudflare Pages
+      # répond 200 sur son chemin absent en servant la page commerciale — la
+      # recette y attendait donc 30 s un écran qui n'arrivera jamais.
+      #
+      # La déclaration est ici, et NULLE PART dans le code de la recette : le rail
+      # ne la pose pas et continue d'éprouver Live. Elle ne rend rien vert — elle
+      # fait dire à la recette, en clair, que DEUX preuves manquent : l'accès
+      # ACCORDÉ au Créateur et l'accès REFUSÉ au manager. Ce candidat ne peut donc
+      # PAS se prévaloir du contrôle d'accès Live.
       - name: Recette navigateur authentifiée #65
         env:
+          NEXUS_RECETTE_SANS_LIVE: '1'
           NEXUS_TEST_URL: https://rebuild-carburants-65-202609.nexus-test-ddf.pages.dev/
           NEXUS_TEST_MANAGER_NOM: Manager Test
           NEXUS_TEST_CREATEUR_NOM: Créateur Test
