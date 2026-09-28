@@ -185,15 +185,71 @@ async function connecter(page, base, identifiant, pin) {
 // affiché : le texte peut être juste pour de mauvaises raisons (arrondi vers
 // le haut plutôt que récupération du reliquat, par exemple — c'est
 // exactement ce qui a failli passer le 07/09).
-async function lireRecommandation(page, base) {
-  await page.goto(new URL(ECRAN_CARBURANTS, base).href, { waitUntil: 'networkidle' });
-  await page.waitForFunction(
-    () => typeof NexusCarburantCommandeDonnees === 'object' && typeof nexusClient === 'object'
-      && typeof SITE_ID !== 'undefined' && typeof FUSEAU_STATION !== 'undefined',
-    null, { timeout: 30000 });
 
-  const p0 = await page.evaluate(() => typeof NexusCarburantsP0 !== 'undefined' && NexusCarburantsP0.actif === true);
-  if (!p0) throw new Error('La couche P0 n\'est pas installée sur l\'écran : la recette n\'exercerait pas la chaîne réelle.');
+// État de l'écran au moment où une attente échoue. Un rouge qui dit
+// seulement « Timeout 30000ms exceeded » n'est pas attribuable : il ne
+// distingue pas « la page n'est plus l'écran visé » de « un script n'a pas
+// exporté son symbole ». On ne rapporte ici que des URL, des résultats de
+// `typeof` et des messages émis par le code de l'écran : aucune valeur
+// saisie ne peut transiter par ce chemin.
+// Chaque `typeof` est isolé : sur une déclaration `let` restée en zone morte
+// temporelle (script interrompu avant sa ligne), `typeof` lève au lieu de
+// rendre 'undefined' — et c'est précisément le signal qu'on veut voir.
+async function etatEcran(page) {
+  return page.evaluate(() => {
+    const lire = f => { try { return f(); } catch (e) { return 'LEVE(' + e.name + ')'; } };
+    return {
+      href: location.href,
+      titre: (document.title || '').slice(0, 80),
+      scripts: document.scripts.length,
+      symboles: {
+        NexusCarburantCommandeDonnees: lire(() => typeof NexusCarburantCommandeDonnees),
+        nexusClient: lire(() => typeof nexusClient),
+        SITE_ID: lire(() => typeof SITE_ID),
+        FUSEAU_STATION: lire(() => typeof FUSEAU_STATION),
+        NexusCarburantsP0: lire(() => typeof NexusCarburantsP0),
+        NexusPage: lire(() => typeof NexusPage),
+        NEXUS_CONFIG: lire(() => typeof NEXUS_CONFIG),
+        NexusBuild: lire(() => typeof NexusBuild)
+      }
+    };
+  }).catch(e => ({ href: '(page illisible)', titre: '', scripts: -1, symboles: { lecture: String(e && e.message) } }));
+}
+
+function decrireEtat(etat, incidents) {
+  const sym = Object.keys(etat.symboles).map(n => n + '=' + etat.symboles[n]).join(' ');
+  return '\n  Page     : ' + etat.href +
+         '\n  Titre    : ' + etat.titre +
+         '\n  Scripts  : ' + etat.scripts +
+         '\n  Symboles : ' + sym +
+         '\n  Incidents: ' + (incidents.length ? incidents.slice(0, 8).join('\n             ') : '(aucun)');
+}
+
+async function lireRecommandation(page, base) {
+  const incidents = [];
+  const surConsole = m => { if (m.type() === 'error') incidents.push('console: ' + m.text()); };
+  const surErreur = e => incidents.push('exception: ' + (e && e.message ? e.message : String(e)));
+  page.on('console', surConsole);
+  page.on('pageerror', surErreur);
+  try {
+    await page.goto(new URL(ECRAN_CARBURANTS, base).href, { waitUntil: 'networkidle' });
+    try {
+      await page.waitForFunction(
+        () => typeof NexusCarburantCommandeDonnees === 'object' && typeof nexusClient === 'object'
+          && typeof SITE_ID !== 'undefined' && typeof FUSEAU_STATION !== 'undefined',
+        null, { timeout: 30000 });
+    } catch (e) {
+      throw new Error('L\'écran Carburants n\'a pas exposé ses symboles en 30 s.' +
+        decrireEtat(await etatEcran(page), incidents));
+    }
+
+    const p0 = await page.evaluate(() => typeof NexusCarburantsP0 !== 'undefined' && NexusCarburantsP0.actif === true);
+    if (!p0) throw new Error('La couche P0 n\'est pas installée sur l\'écran : la recette n\'exercerait pas la chaîne réelle.' +
+      decrireEtat(await etatEcran(page), incidents));
+  } finally {
+    page.off('console', surConsole);
+    page.off('pageerror', surErreur);
+  }
 
   return page.evaluate(async () => {
     const r = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(
