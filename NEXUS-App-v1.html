@@ -3173,9 +3173,25 @@
     // L'invitation à l'inventaire, une fois le rôle du jour connu. Jamais
     // attendue : elle s'affiche quand elle a sa réponse, et l'accueil ne
     // ralentit pas pour elle.
+    //
+    // LE SITE VIENT D'`employee`, PAS DE `SITE_HOME` (28/09/2026). Le rail
+    // passe ici `SITE_HOME`, et c'est inopérant : cette variable vaut encore
+    // `null` à cet instant. Elle n'est affectée qu'à un seul endroit, dans
+    // `initPosteManager()`, appelée plus bas — et seulement dans la branche
+    // manager. Pour un employé, elle n'est JAMAIS affectée de toute la vie de
+    // la page. Or c'est précisément un employé, le renfort, que cette carte
+    // devait aller chercher. `afficherParticipationInventaire` se range donc
+    // sur `indisponible` dès sa deuxième ligne, à chaque fois, pour tout le
+    // monde. La recette rapporte cela comme « NON JUGÉE » et non comme un
+    // échec : rien n'a jamais rougi, et les 36 renforts sans invitation du
+    // 09/09/2026 sont restés sans invitation.
+    //
+    // `employee.site_id` est disponible ici, dans le paramètre du bloc
+    // englobant, et `nexusRequireAuth()` garantit qu'il n'est pas nul : elle
+    // déconnecte et redirige l'employé qui n'en a pas.
     if (roleDuJour) {
-      NexusStation.fuseauDeLaStation(SITE_HOME)
-        .then(f => afficherParticipationInventaire(SITE_HOME, roleDuJour, f && f.timezone))
+      NexusStation.fuseauDeLaStation(employee.site_id)
+        .then(f => afficherParticipationInventaire(employee.site_id, roleDuJour, f && f.timezone))
         .catch(() => {});
     }
 
