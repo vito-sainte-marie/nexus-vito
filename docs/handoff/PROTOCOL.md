@@ -253,8 +253,17 @@ avec le vocabulaire de preuve du protocole lui-même :
 | Mention `@claude` | personne ; c'est un geste | `HUMAN` |
 | Réveil sur mention | `.github/workflows/claude.yml`, sur `main` | `VERIFIED` |
 | Consommation | `outils/handoff.js consommer` | `VERIFIED` |
+| Réveil de l'Orchestrateur | `tests.yml` → `reveil-orchestrateur.js`, publié sur #28 | `VERIFIED` |
+| Qualification d'un retour | `tests.yml` → `qualifier-rapatriement.js` | `VERIFIED` |
+| Transport vers le rail | `tests.yml` → `rapatrier-vers-rail.js` | `DECLARED` |
+| Vérification destination | `git ls-remote` dans `pousser()` | `DECLARED` |
+| Veille de stagnation | `outils/watchdog-stagnation.js` | `DECLARED` |
 
-Trois remarques que le schéma seul ne dit pas.
+Les deux dernières lignes sont `DECLARED` et non `VERIFIED` pour une raison
+précise : le code est éprouvé, mais le geste réel n'a jamais été posé sur le
+dépôt, faute d'armement. Voir « Ce que l'autonomie n'autorise pas » plus bas.
+
+Quatre remarques que le schéma seul ne dit pas.
 
 **Le watcher n'est pas dans ce dépôt.** Rien ici ne le démarre, ne le surveille
 ni ne prouve qu'il tourne. Son absence ne produit aucun rouge : elle produit un
@@ -268,15 +277,29 @@ validée, et rester sans effet tant que personne ne mentionne Claude. Écrire un
 outil qui poste la mention à la place de l'humain reviendrait à simuler le
 réveil que le protocole interdit de simuler.
 
-**Le sens retour a un outil, pas un déclencheur.**
-`outils/reveil-orchestrateur.js` répond à la question symétrique de
-`reveil-handoff.js` : « reste-t-il une demande que personne n'a arbitrée ? ».
-Il lit le registre, dit où la demande se lit réellement — en interrogeant git,
-car le champ `branch` d'une enveloppe est une intention, pas une adresse — et
-compose le corps du réveil à envoyer à `wake_to`. Il n'écrit ni ne publie rien.
-Aucun déclencheur ne l'appelle : le jeton de `tests.yml` ne peut pas écrire de
-commentaire, et `schedule` n'existe que sur `main`. L'outil rend le geste
-humain court et exact ; il ne le remplace pas.
+**Le sens retour a maintenant un déclencheur — ce paragraphe disait le
+contraire jusqu'au 30/09/2026.** `outils/reveil-orchestrateur.js` répond à la
+question symétrique de `reveil-handoff.js` : « reste-t-il une demande que
+personne n'a arbitrée ? ». Il lit le registre, dit où la demande se lit
+réellement — en interrogeant git, car le champ `branch` d'une enveloppe est une
+intention, pas une adresse — et compose le corps du réveil. Il n'écrit toujours
+rien lui-même ; c'est `tests.yml` qui l'appelle à chaque passage sur le rail et
+qui **publie** le corps obtenu sur l'issue #28, grâce au `issues: write` accordé
+le 28/09/2026. La publication est **dédoublée par empreinte de contenu** et non
+par horodatage : republier deux fois le même réveil rend `NO_WORK`, pas un
+second commentaire.
+
+Deux précisions, parce que la formulation précédente s'est révélée fausse et
+qu'on ne veut pas la remplacer par une autre affirmation non mesurée. D'une
+part, ce qui manquait n'était pas un droit mais un câblage : le droit existait
+depuis deux jours quand ce texte affirmait encore « le jeton de `tests.yml` ne
+peut pas écrire de commentaire ». Une documentation qui **affirme** un état du
+monde au lieu de le **mesurer** finit toujours par mentir ; c'est exactement le
+défaut que la suite de ce document outille. D'autre part, publier le réveil ne
+publie pas la mention : le commentaire posté par le jeton intégré ne déclenche
+aucun run, et écrire « @claude » dedans serait de toute façon refusé par
+l'étape elle-même. Le maillon humain se déplace d'un cran — il ne disparaît
+pas.
 
 **Le réveil vit sur `main`, pas sur la branche de travail.** C'est le
 fonctionnement normal de `issue_comment` et `issues`, qui ne connaissent que la
@@ -285,6 +308,118 @@ donc rien au réveil : seule la version présente sur `main` s'exécute.
 
 Une décision déjà consommée ne se rejoue pas : la commande refuse et n'écrit
 rien.
+
+## Retour de travail — de la branche Claude au rail
+
+Le cycle ci-dessus s'arrête à la consommation d'une décision. Il ne dit rien du
+chemin inverse : **le travail produit par Claude doit revenir sur le rail**, et
+jusqu'au 30/09/2026 ce maillon n'existait pas. Claude travaillait sur
+`claude/issue-*`, la CI passait au vert, et plus rien ne bougeait : quelqu'un
+devait le remarquer, rapatrier à la main, et relancer. C'est là que la chaîne
+s'arrêtait — pas sur une panne, sur une absence.
+
+**Une tâche n'est jamais livrée parce qu'un commit existe sur une branche
+Claude.** Elle est livrée quand la destination porte le SHA attendu, et que
+cette destination a été **relue**. Tout lot passe donc obligatoirement par sept
+étapes, dans cet ordre :
+
+| # | Étape | Ce qui la porte | Ce qu'elle prouve |
+| --- | --- | --- | --- |
+| 1 | **demande** | `outils/handoff.js demande` | l'intention est écrite, datée, attribuée à un lot |
+| 2 | **exécution** | le run Claude sur `claude/issue-*` | un travail existe, à un SHA nommé |
+| 3 | **preuve** | `tests.yml` sur `push: ['**']` | les épreuves déterministes passent sur ce SHA |
+| 4 | **qualification** | `outils/qualifier-rapatriement.js` | douze conditions nécessaires sont mesurées, pas supposées |
+| 5 | **transport** | `outils/rapatrier-vers-rail.js` | avance rapide vers le rail, ou refus explicite |
+| 6 | **vérification destination** | `git ls-remote` dans `pousser()` | le rail porte réellement le SHA attendu |
+| 7 | **continuation** | `outils/reveil-orchestrateur.js` | le rail ayant bougé, le signal suivant est calculé |
+
+Aucune étape ne se déduit de la précédente. L'étape 6 existe parce qu'un
+`git push` qui rend 0 dit que la commande s'est bien passée, pas que la branche
+distante porte ce SHA ; l'étape 4 existe parce qu'un vert de CI dit que les
+épreuves passent, pas que le diff appartient au lot.
+
+### Ce qui est mesuré avant tout transport
+
+`qualifier-rapatriement.js` refuse tant qu'une seule de ces conditions n'est pas
+**prouvée** : branche rattachable sans ambiguïté au lot et au rail déclarés ;
+`NEXUS_BASE_BRANCH` explicite et concordante ; SHA de base connu ; HEAD Claude
+exact et non ambigu ; destination rail exacte ; aucun changement Production ;
+aucun changement hors périmètre autorisé ; aucun secret ; aucun affaiblissement
+de garde ; épreuves déterministes vertes ; absence de divergence incompatible ;
+diff inspectable et attribuable.
+
+Deux règles de lecture valent pour tout le mécanisme :
+
+- **`null` veut dire « non mesuré », jamais « non ».** Une ascendance qu'on n'a
+  pas pu calculer donne `ASCENDANCE_NON_MESUREE`, pas « pas d'ascendance ». Un
+  corpus tronqué donne `CORPUS_NON_MESURE`, pas « rien trouvé ». Répondre n'est
+  pas résoudre.
+- **En cas de divergence, conflit, ambiguïté ou modification hors périmètre :
+  refus explicite.** Jamais de rebase, de merge ni de résolution automatique :
+  cela produirait un arbre que personne n'a testé.
+
+### Aucun refus silencieux
+
+Règle permanente de la procédure NEXUS. Un workflow ne peut plus apparaître
+`success` en ayant refusé l'action essentielle sans signal exploitable. Chaque
+maillon publie un **état machine** pris dans une liste fermée :
+
+| État | Sens | Rougit la CI ? |
+| --- | --- | --- |
+| `EXECUTE` | le geste a été fait | non |
+| `NO_WORK` | il n'y a légitimement rien à faire | non |
+| `BLOCKED` | quelque chose attend et n'avancera pas seul | non |
+| `HUMAN_DECISION_REQUIRED` | un geste réservé à Frédéric est nécessaire | non |
+| `FAILED` | le maillon est en panne | **oui** |
+
+La couleur n'est pas le signal — l'état l'est. Transformer chaque `NO_WORK` en
+rouge apprendrait à l'équipe à ignorer le rouge, et on retomberait sur le même
+aveuglement par l'autre bout. En contrepartie, tout état qui arrête la chaîne
+(`BLOCKED`, `HUMAN_DECISION_REQUIRED`, `FAILED`) **doit** nommer ses six
+champs : `condition`, `sha`, `branche`, `lot`, `maillon`, `prochaine_action`.
+`outils/etat-maillon.js` lève si l'un manque, et publie sur quatre canaux —
+annotation de run, résumé de job, sortie d'étape, fichier JSON.
+
+### Stagnation : la chaîne sait qu'elle est arrêtée
+
+`outils/watchdog-stagnation.js` distingue le repos normal du travail en attente.
+Sa notion de **progression réelle** est volontairement aveugle au numéro de run,
+à l'horodatage et à l'auteur : elle compare une empreinte
+`position | SHA | décision`. Un nouveau run qui ne change rien à ces trois
+valeurs n'est pas une progression, c'est une boucle. Au-delà de
+`CYCLES_SANS_PROGRES` cycles identiques, ou de `MAX_REPRISES` reprises, le
+watchdog produit un signal de stagnation au lieu d'une relance — c'est ce qui
+empêche `Claude → CI → Claude` de tourner à vide. La déduplication des réveils
+suit le même principe : la marque publiée est une empreinte du **corps** du
+réveil, pas de l'instant où il est calculé.
+
+### Ce que l'autonomie n'autorise pas
+
+L'autonomie recherchée porte sur les opérations déterministes intermédiaires.
+Elle n'accorde **aucune** autorisation supplémentaire. Restent interdits sans
+geste explicite de Frédéric : fusion vers `production` ; push sur `production` ;
+déploiement Production ; migration ou écriture Supabase Production ;
+contournement d'une gate ; affaiblissement d'une garde ; toute décision métier.
+Lorsqu'un de ces gestes devient nécessaire, le maillon publie
+`HUMAN_DECISION_REQUIRED` et s'arrête proprement, en nommant le geste.
+
+Le corollaire tient en une phrase, et il vaut pour tout ce document :
+**une capacité constatée n'est jamais une autorisation.** Que le jeton du
+workflow puisse écrire ne dit rien de ce qu'il a le droit d'écrire ;
+`outils/transport-autorise.js` répond à l'autorité déclarée dans la mission,
+indépendamment de toute permission technique.
+
+### Preuve de continuité
+
+`test_continuite_bout_en_bout_20260930.js` rejoue la chaîne entière dans un
+dépôt jetable — demande déposée, réveil calculé, rail identifié depuis le
+déclencheur humain, branche de travail épinglée à ce déclencheur, CI verte,
+qualification, transport armé, destination relue, empreinte de progression
+changée. Aucune Production n'y figure, et l'épreuve le vérifie. Casser
+volontairement un maillon la rend rouge ; c'est sa raison d'être. Elle est le
+dernier banc de `test_mutations_rapatriement_20260930.js` : quand c'est elle qui
+mord et qu'aucun banc unitaire ne l'a précédée, la mutation portait sur un
+**câblage**, et prouver la fonction n'aurait pas suffi.
 
 ## Gate humaine
 

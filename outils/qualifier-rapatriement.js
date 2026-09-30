@@ -369,7 +369,11 @@ function qualifier(e) {
     motif: `« ${a.branche} » @ ${String(a.head).slice(0, 8)} contient « ${a.rail} » @ ${String(a.railSha).slice(0, 8)} : `
       + `le transport est un fast-forward, et l’arbre de destination sera exactement celui que la CI vient d’éprouver.`,
     prochaine_action: `Avancer « ${a.rail} » jusqu’à ${String(a.head).slice(0, 8)}, puis vérifier la destination et son SHA.`,
-    details: { mode: 'FAST_FORWARD', destination: a.rail, destination_sha_attendu: a.head, fichiers: touches.length } });
+    // La ref RETENUE voyage avec le verdict. Un nom de branche peut désigner deux
+    // commits ; dire « on a transporté la branche » ne permet à personne de refaire
+    // le geste. Dire de quelle ref le commit a été lu, si.
+    details: { mode: 'FAST_FORWARD', destination: a.rail, destination_sha_attendu: a.head,
+      ref_head: a.refHead || null, fichiers: touches.length } });
 }
 
 module.exports = {

@@ -40,9 +40,16 @@ const WATCH = 'outils/watchdog-stagnation.js';
 const WORKFLOW = '.github/workflows/tests.yml';
 const DESIG = 'outils/designation-rail.js';
 const RAPAT = 'outils/rapatrier-vers-rail.js';
+// L'épreuve de bout en bout est en DERNIER, et ce n'est pas un détail de goût :
+// `epreuvesVertes()` rend la main au PREMIER rouge, et cette épreuve-là coûte 17 s
+// quand les autres coûtent moins d'une seconde. Placée en dernier, son prix n'est
+// payé que par les mutations qu'aucun banc unitaire n'a su voir. Et quand c'est
+// elle qui mord, la ligne « → rouge (…) » le dit : c'est la preuve qu'elle était
+// nécessaire, pas seulement présente.
 const EPREUVES = ['test_qualifier_rapatriement_20260930.js', 'test_etat_maillon_20260930.js',
   'test_watchdog_stagnation_20260930.js', 'test_cablage_maillons_20260930.js',
-  'test_designation_rail_20260930.js', 'test_rapatriement_vers_rail_20260930.js'];
+  'test_designation_rail_20260930.js', 'test_rapatriement_vers_rail_20260930.js',
+  'test_continuite_bout_en_bout_20260930.js'];
 
 // Chaque mutation : le fichier, le texte exact remplacé, son remplacement
 // permissif, et l'épreuve qui DOIT rougir.
@@ -223,19 +230,41 @@ const MUTATIONS = [
   { nom: 'la boucle de réveil est rétrogradée en simple information', f: WORKFLOW,
     de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\',
     a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\' },
+  // ── Mutations de CÂBLAGE ─────────────────────────────────────────
+  // Celles-ci ne cassent pas un contrôle isolé : elles cassent le LIEN entre deux
+  // maillons. On les a ajoutées en pariant que seule l'épreuve de bout en bout les
+  // verrait ; MESURE DU 30/09 : les trois sont mordues par un banc unitaire, et la
+  // colonne « → rouge (…) » le dit. Le pari était faux, on le laisse écrit plutôt
+  // que de réécrire l'histoire : à ce jour AUCUNE mutation de ce banc n'exige
+  // l'épreuve de continuité pour être vue. Ce qui la justifie est ailleurs, et c'est
+  // un fait et non une intention : elle a trouvé un défaut réel que les six bancs
+  // unitaires laissaient passer — un dossier de transport qui ne nommait pas la ref
+  // d'où venait le commit, alors que le commentaire du code affirmait le contraire.
+  { nom: 'un refus qualifié n’arrête plus le transport', f: RAPAT,
+    de: "  if (resultat.etat !== 'EXECUTE') return resultat;",
+    a: '  if (false) return resultat;' },
+  { nom: 'la progression cesse de regarder le SHA', f: WATCH,
+    de: "    String(c.sha || '(sans sha)').trim(),",
+    a: "    '(sans sha)'," },
+  { nom: 'le dossier annonce une destination qui n’a pas bougé', f: QUALIF,
+    de: 'destination_sha_attendu: a.head,',
+    a: 'destination_sha_attendu: a.railSha,' },
   { nom: 'un arrêt est publié sans prochaine action', f: WORKFLOW,
     de: '--prochaine-action "qualifier puis rapatrier (outils/qualifier-rapatriement.js), ou inscrire le sort dans docs/handoff/BRANCHES-CLASSEES.json" \\',
     a:  '\\' },
 ];
 
-// Les modules dont dépendent les épreuves recopiées. `transport-autorise.js`
-// n'est pas muté, mais le qualifieur l'exige : un bac incomplet rougirait
-// partout, et ce rouge-là ne mesurerait rien.
-const COPIES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, 'outils/transport-autorise.js', WORKFLOW, ...EPREUVES];
+// Les modules dont dépendent les épreuves recopiées. On copie `outils/` EN ENTIER
+// plutôt qu'une liste nominative : l'épreuve de continuité fait tourner la chaîne
+// complète — réveil, handoff, désignation, qualification, transport — dans un dépôt
+// jetable qu'elle construit à partir de ce bac. Une liste aurait fini par oublier
+// une dépendance ; le témoin serait rouge, et ce rouge-là ne mesurerait rien
+// d'autre qu'un bac incomplet.
+const COPIES = [WORKFLOW, ...EPREUVES];
 const MUTABLES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, WORKFLOW];
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-mutation-'));
-fs.mkdirSync(path.join(BAC, 'outils'), { recursive: true });
+fs.cpSync('outils', path.join(BAC, 'outils'), { recursive: true });
 fs.mkdirSync(path.join(BAC, '.github/workflows'), { recursive: true });
 for (const c of COPIES) fs.copyFileSync(c, path.join(BAC, c));
 
