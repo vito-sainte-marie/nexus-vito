@@ -240,7 +240,7 @@ t('le réveil est PUBLIÉ à l’adresse que le rail déclare, pas à une adress
   assert.deepStrictEqual(endur, [], endur.join(' ; '));
 });
 
-t('les quatre refus sont là, et ils se TAISENT au lieu d’échouer', () => {
+t('les six refus sont là, et ils se TAISENT au lieu d’échouer', () => {
   const etape = etapeDePublication();
 
   // Se taire, pas rougir : aucune de ces situations n'est une panne. Une étape
@@ -251,7 +251,16 @@ t('les quatre refus sont là, et ils se TAISENT au lieu d’échouer', () => {
 
   const attendus = {
     'rien à réveiller': /\.reveil.*\|\| refus/s,
-    'la branche courante n’est pas le rail déclaré': /GITHUB_REF_NAME" = "\$RAIL"/,
+    // 30/09/2026 — cette ligne portait `/GITHUB_REF_NAME" = "\$RAIL"/`, sous le
+    // libellé « la branche courante n’est pas le rail déclaré ». Elle mesurait
+    // fidèlement le défaut : la CI de Claude pousse `claude/issue-28-*`, jamais
+    // le rail, donc ce refus tombait sur CHAQUE run d’agent et le sens
+    // Claude → Orchestrateur ne partait que derrière une poussée humaine. Le
+    // refus reste, sa question change : porter les octets de la demande, pas
+    // s’appeler comme le rail. Qui publie vraiment se mesure en exécutant
+    // l’étape — c’est `test_reveil_publication_ref_20260930.js`.
+    'la ref courante ne porte pas la demande': /refs_reelles\.memes/,
+    'la demande n’est pas identifiable': /refs_reelles\.identifiable/,
     'aucune adresse déclarée par le rail': /ADRESSE" \]\s*\|\| refus/,
     'l’adresse sort de ce dépôt': /GITHUB_SERVER_URL\/\$GITHUB_REPOSITORY\/issues\//,
     'ce réveil est déjà publié': /DEJA" = "0" \]\s*\|\| refus/,

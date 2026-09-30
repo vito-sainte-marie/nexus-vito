@@ -247,8 +247,8 @@ jobs:
       # refus, chaque push de chaque branche posterait un commentaire.
       #
       #   1. rien à réveiller → on se tait ;
-      #   2. la branche courante n'est pas celle que le DOCUMENT déclare comme
-      #      rail → une branche de run ne réveille personne ;
+      #   2. la ref courante ne PORTE pas la demande à réveiller → une branche
+      #      étrangère au lot ne réveille personne ;
       #   3. l'adresse n'est pas déclarée PAR LE RAIL → on ne poste jamais « au
       #      hasard ». Aucun destinataire n'est écrit ici : `wake_to` se déclare
       #      dans le rail, jamais dans du code (PROTOCOL.md) ;
@@ -262,6 +262,36 @@ jobs:
       # Seule une propriété de plateforme l'empêche aujourd'hui (GitHub
       # n'enchaîne pas les workflows déclenchés par `github.token`) : invisible,
       # et qui tombe le jour où quelqu'un pose un PAT. On ne s'y adosse pas.
+      #
+      # 30/09/2026 — POURQUOI LE REFUS 2 NE DIT PLUS « sois le rail ».
+      #
+      # Il l'a dit du 26 au 30/09, et pendant ces quatre jours le sens
+      # Claude → Orchestrateur n'est jamais parti seul. Mesure : les quatre
+      # réveils publiés sur l'issue suivent chacun une poussée du rail faite à
+      # la main, à la minute près. Les runs de `claude.yml`, eux, poussent
+      # `claude/issue-28-<date>-<heure>`, que personne ne rapatrie. Le journal
+      # du run 36726151526 le dit mot pour mot : « Pas de publication :
+      # exécution sur 'claude/issue-28-20260930-1349', rail déclaré
+      # 'handoff-continuite-20260920'. » Le dernier maillon de la boucle était
+      # accroché à une ref que le seul agent censé le franchir n'écrit jamais :
+      # elle ne pouvait se refermer que par un geste humain. C'est l'état que
+      # Frédéric a constaté le 30/09 — zéro workflow en vol, et personne pour
+      # dire pourquoi.
+      #
+      # Le refus ne s'ouvre pas pour autant, il change de question : non plus
+      # « t'appelles-tu le rail ? », mais « portes-tu les octets de la demande
+      # que ce réveil annonce ? ». C'est `refs_reelles.memes`, que l'outil
+      # calcule déjà en comparant les BLOBS, jamais les noms. Une ref qui ne
+      # porte pas le document n'y figure pas ; une ref qui porte le même nom
+      # avec d'autres octets part dans `homonymes` et reste muette. `main`,
+      # `production`, `rebuild/*` et les branches de run des autres lots sont
+      # donc refusées exactement comme avant, en silence. Et si l'empreinte
+      # n'est pas calculable, `memes` ne distingue plus rien : on se tait aussi.
+      #
+      # Ce que ce refus ne prétend PAS être : un rapatriement. Les branches de
+      # run continuent de s'accumuler sans être fusionnées — c'est une dette de
+      # gouvernance identifiée, elle appartient à Frédéric. On répare le canal
+      # de réveil, pas la politique de fusion.
       - name: Réveil Orchestrateur — publication au destinataire déclaré
         if: always()
         env:
@@ -275,8 +305,20 @@ jobs:
 
           RAIL=$(jq -r '.lots[0].branche // empty' <<<"$J")
           [ -n "$RAIL" ] || refus "le lot ne déclare aucune branche."
-          [ "$GITHUB_REF_NAME" = "$RAIL" ] \
-            || refus "exécution sur '$GITHUB_REF_NAME', rail déclaré '$RAIL'."
+
+          # Sans empreinte, tout ce qui porte le NOM du fichier entre dans
+          # `memes` : un homonyme parlerait pour le lot. On se tait.
+          [ "$(jq -r '.lots[0].refs_reelles.identifiable' <<<"$J")" = "true" ] \
+            || refus "la demande n'est pas identifiable ; un homonyme parlerait pour le lot."
+
+          # La ref courante doit figurer parmi celles qui PORTENT la demande.
+          # `origin/<ref>` compte : c'est sous ce nom que la ref poussée est
+          # vue depuis le checkout.
+          PORTEUSE=$(jq -r --arg ref "$GITHUB_REF_NAME" \
+            '[.lots[0].refs_reelles.memes[]? | select(. == $ref or . == "origin/" + $ref)] | length' \
+            <<<"$J")
+          [ "$PORTEUSE" != "0" ] \
+            || refus "'$GITHUB_REF_NAME' ne porte pas la demande du lot (rail déclaré : '$RAIL')."
 
           ADRESSE=$(jq -r '.lots[0].adresse // empty' <<<"$J")
           [ -n "$ADRESSE" ] || refus "aucune adresse déclarée par le rail."
