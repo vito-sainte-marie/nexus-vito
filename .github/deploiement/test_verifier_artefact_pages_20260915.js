@@ -63,12 +63,26 @@ function controler(cible, mode, options = []) {
   return { code: r.status, sortie: `${r.stdout}${r.stderr}` };
 }
 
+// ── Motif d'un échec : entier, jamais sa première ligne ────────────────────
+// Ne garder que `message.split('\n')[0]`, c'est rapporter « refusé » sans dire
+// pourquoi : le 30/09/2026 cette épreuve a annoncé pendant des jours un échec
+// dont le motif — « [A1] … cet arbre doit être construit » — n'apparaissait
+// nulle part, parce que la règle violée est nommée quelques lignes après le
+// début du message. Un refus dont le motif est effacé est un refus silencieux.
+const LIGNES_MOTIF = 40;
+function motif(erreur) {
+  const lignes = String(erreur && erreur.message).split('\n');
+  const gardees = lignes.slice(0, LIGNES_MOTIF).map(l => `    ${l}`);
+  if (lignes.length > LIGNES_MOTIF) gardees.push(`    … (${lignes.length - LIGNES_MOTIF} ligne(s) de plus)`);
+  return gardees.join('\n');
+}
+
 let total = 0;
 const echecs = [];
 function cas(intitule, fn) {
   total++;
   try { fn(); process.stdout.write('.'); }
-  catch (e) { echecs.push(`${intitule}\n    ${e.message.split('\n')[0]}`); process.stdout.write('x'); }
+  catch (e) { echecs.push(`${intitule}\n${motif(e)}`); process.stdout.write('x'); }
 }
 
 function exigerRefus(intitule, regle, racine, mode, options = []) {
