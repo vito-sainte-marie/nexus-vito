@@ -189,9 +189,14 @@ verifier('une branche étrangère au lot reste muette', () => {
   assert.ok(/ne porte pas la demande du lot/.test(r.sortie), r.sortie);
 });
 
-// CONTRE-TÉMOIN 2 : l'homonyme. Même nom de fichier, autres octets. Le laisser
-// publier ferait annoncer par une ref une demande qu'elle ne porte pas.
-verifier('un homonyme — même nom, autres octets — reste muet', () => {
+// CONTRE-TÉMOIN 2 : une ref classée `homonymes` — donc absente de `memes`.
+// Cette configuration n'arrive pas sur un vrai checkout : l'empreinte est prise
+// sur la copie du checkout, la ref courante se compare à elle-même et ne peut
+// pas être son propre homonyme. Ce qui est gardé ici, c'est le CHEMIN DE CODE :
+// figurer dans le JSON du lot ne suffit pas, il faut figurer dans `memes`.
+// Quelqu'un qui élargirait la sélection à `homonymes` — « elle est dans le
+// lot, non ? » — ferait annoncer par une ref une demande qu'elle ne porte pas.
+verifier('une ref rangée dans `homonymes` reste muette', () => {
   const r = lancer({ ref: 'claude/issue-28-20260924-2119' });
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(r.publie, '', 'un homonyme a parlé pour le lot : ' + r.sortie);

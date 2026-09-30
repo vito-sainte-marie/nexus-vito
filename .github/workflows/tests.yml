@@ -282,11 +282,21 @@ jobs:
       # « t'appelles-tu le rail ? », mais « portes-tu les octets de la demande
       # que ce réveil annonce ? ». C'est `refs_reelles.memes`, que l'outil
       # calcule déjà en comparant les BLOBS, jamais les noms. Une ref qui ne
-      # porte pas le document n'y figure pas ; une ref qui porte le même nom
-      # avec d'autres octets part dans `homonymes` et reste muette. `main`,
-      # `production`, `rebuild/*` et les branches de run des autres lots sont
-      # donc refusées exactement comme avant, en silence. Et si l'empreinte
-      # n'est pas calculable, `memes` ne distingue plus rien : on se tait aussi.
+      # porte pas le document du tout n'y figure pas, et se tait : mesuré le
+      # 30/09, `main`, `production` et `rebuild/carburants-65-20260922` n'ont
+      # pas `request-18.md`. Les branches de run des autres lots non plus.
+      #
+      # Ce que ce refus ne fait PAS, et qu'il ne faut pas lui prêter : trier
+      # entre deux versions du document. L'empreinte est prise sur la copie du
+      # CHECKOUT ; la ref courante s'y compare donc à elle-même et ne peut pas
+      # être son propre homonyme. `homonymes` classe les AUTRES refs, pour
+      # l'avertissement du corps. Une branche qui porterait une demande
+      # divergente réveillerait donc bien — en annonçant sa propre version, et
+      # le corps nomme la branche où la lire. C'est le comportement voulu : le
+      # réveil dit « il y a ceci à lire, ici », il n'arbitre pas.
+      #
+      # Et si l'empreinte n'est pas calculable, `memes` ne distingue plus rien :
+      # on se tait aussi.
       #
       # Ce que ce refus ne prétend PAS être : un rapatriement. Les branches de
       # run continuent de s'accumuler sans être fusionnées — c'est une dette de
