@@ -152,10 +152,53 @@ for (const m of MAILLONS) {
   });
 }
 
+// Un step qui lit `$?` doit d'abord désarmer `-e`.
+//
+// GitHub lance `shell: bash` avec `-e`. Sous `-e`, la commande dont on veut
+// lire le code de retour tue le step AVANT la ligne qui le lit : le `$?` n'est
+// jamais atteint, rien ne s'imprime, et le run montre un rouge nu. `set -uo
+// pipefail` ne désarme PAS `-e` — c'est la confusion qui a coûté le coup, et
+// elle se relit sans se voir.
+//
+// Le coût exact, mesuré en vol le 30/09 : l'étape des branches en rade est
+// morte à l'affectation, donc précisément le jour où la garde avait quelque
+// chose à dire. Son état de maillon n'a jamais été publié. Une étape écrite
+// pour supprimer les refus silencieux en produisait un.
+//
+// L'épreuve est statique et porte sur TOUS les steps, pas sur les deux
+// connus : la règle vaut pour le prochain step écrit, qui n'est pas encore là.
+ep('un step qui lit `$?` a désarmé le `-e` de GitHub', () => {
+  const fautifs = [];
+  for (const s of tousLesSteps()) {
+    // Un `$?` cité dans un commentaire ne s'exécute pas : le compter ferait
+    // rougir l'épreuve sur l'explication du défaut plutôt que sur le défaut.
+    const code = s.texte.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+    const lu = code.indexOf('$?');
+    if (lu === -1) continue;
+    const desarme = code.indexOf('set +e');
+    if (desarme === -1 || desarme > lu) fautifs.push(`${s.nom} (ligne ${s.ligne})`);
+  }
+  assert.deepStrictEqual(fautifs, [],
+    'ces steps lisent `$?` sous le `-e` de GitHub, donc ne l’atteignent jamais : '
+    + fautifs.join(' | '));
+});
 // ── outillage ────────────────────────────────────────────────────────────────
 // Découpe le workflow en étapes (`- name:` au niveau des étapes) et rend
 // TOUTES celles qui invoquent l’outil demandé — s’arrêter à la première ferait
 // passer un second site muet pour inexistant.
+// Rend TOUS les steps du workflow, pas seulement ceux qui invoquent un outil
+// nommé : une règle de forme du shell vaut pour le step qui n'existe pas
+// encore, et une liste fermée ne l'attraperait pas.
+function tousLesSteps() {
+  const l = brut.split('\n');
+  const debuts = [];
+  for (let i = 0; i < l.length; i++) if (/^\s{6}- name:/.test(l[i])) debuts.push(i);
+  return debuts.map((i, d) => ({
+    nom: l[i].replace(/^\s*- name:\s*/, '').trim(),
+    texte: l.slice(i, d + 1 < debuts.length ? debuts[d + 1] : l.length).join('\n'),
+    ligne: i + 1,
+  }));
+}
 function etapesQuiInvoquent(outil) {
   const l = recolle.split('\n');
   const debuts = [];

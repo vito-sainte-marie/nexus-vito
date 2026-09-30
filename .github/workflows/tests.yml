@@ -507,6 +507,15 @@ jobs:
       - name: Branches de travail en rade — état de maillon
         run: |
           set -uo pipefail
+          # `set +e` INDISPENSABLE, et ce n'est pas une redite de `-uo` :
+          # GitHub lance `shell: bash` avec `-e`, que `set -uo pipefail` ne
+          # désactive pas. Sans lui, l'affectation ci-dessous tue le step dès
+          # que la garde trouve quelque chose — c'est-à-dire exactement dans le
+          # cas qu'elle existe pour nommer. Mesuré en vol le 30/09 sur la
+          # branche de preuve : rouge nu, rapport jamais imprimé, état de
+          # maillon jamais publié. Un refus silencieux, dans l'étape même qui
+          # existe pour qu'il n'y en ait plus.
+          set +e
           RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?
           printf '%s\n' "$RAPPORT"
           if [ "$CODE" = "0" ]; then
@@ -1009,6 +1018,12 @@ jobs:
           fi
 
           # ── Le geste, ou sa qualification ─────────────────────────────────
+          # Même cause qu'à l'étape des branches en rade : sous le `-e` de
+          # GitHub, un `CODE=$?` placé après une commande qui échoue n'est
+          # jamais atteint. Il ne pouvait donc valoir que 0 — une lecture
+          # morte, et le FAILED de l'outil sortait sans que l'étape relise son
+          # dossier pour nommer la frontière.
+          set +e
           if [ "${NEXUS_RAPATRIEMENT_ARME:-}" = "oui" ]; then
             node outils/rapatrier-vers-rail.js \
               --branche "$BR" --depot "${GITHUB_REPOSITORY:-}" --transporter

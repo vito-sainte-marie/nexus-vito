@@ -242,6 +242,19 @@ const MUTATIONS = [
   { nom: 'le capteur des branches en rade est rebâillonné par « || true »', f: WORKFLOW, rouge: X_CABLAGE,
     de: "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?",
     a:  "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1 || true); CODE=$?" },
+  // Le `-e` de GitHub, désarmé — mesuré en vol le 30/09, pas déduit.
+  //
+  // `shell: bash` est lancé `/usr/bin/bash -e {0}`. Sous `-e`, l'affectation dont
+  // la commande échoue tue le step AVANT la ligne qui lit `$?` : rien ne s'imprime,
+  // aucun état de maillon n'est publié, le run montre un rouge nu. `set -uo pipefail`
+  // ne désarme PAS `-e` — c'est la confusion qui a coûté le coup.
+  //
+  // Le prix exact : l'étape des branches en rade est morte le jour où la garde avait
+  // enfin quelque chose à dire. Une étape écrite pour supprimer les refus silencieux
+  // en produisait un. Cette mutation remet ce défaut précis.
+  { nom: 'le `-e` de GitHub est réarmé sous une lecture de `$?`', f: WORKFLOW, rouge: X_CABLAGE,
+    de: "          set +e\n          RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?",
+    a:  "          RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?" },
   { nom: 'un refus du réveil redevient un echo sans état', f: WORKFLOW, rouge: X_CABLAGE,
     de: 'refus() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }',
     a:  'refus() { echo "rien à faire : $1 — $2"; exit 0; }' },
