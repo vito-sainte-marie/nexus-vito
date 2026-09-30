@@ -88,9 +88,19 @@ t('l’autorisation humaine est INSCRITE à côté de la permission', () => {
 // niveau du job, et qu'il n'aille qu'à des étapes désignées. Seule la seconde
 // était l'intention ; la première se mesure maintenant pour elle-même, et une
 // troisième étape qui se servirait rougira comme la deuxième l'aurait fait.
+//
+// Le 30/09/2026 elle a rougi, exactement comme annoncé, et la troisième étape
+// est ici. Ce qu'elle fait du jeton, en toutes lettres : elle LIT les
+// commentaires de l'issue du lot — pour retrouver le rail que Frédéric a
+// désigné — et les vérifications du commit — pour savoir si les épreuves sont
+// vertes. Elle n'écrit rien avec : le seul geste d'écriture du maillon est un
+// `git push`, qui passe par `contents: write` et non par `gh`. Cette
+// propriété n'est pas laissée à la parole de ce commentaire : l'épreuve qui
+// suit la mesure dans le code appelé.
 const ETAPES_AVEC_JETON = [
   'Publier le journal NEXUS Live',
   'Réveil Orchestrateur — publication au destinataire déclaré',
+  "Rapatriement vers le rail — qualifier, et ne transporter que si c'est prouvé",
 ];
 
 t('le jeton n’est donné qu’aux étapes désignées, jamais au job', () => {
@@ -111,6 +121,28 @@ t('le jeton n’est donné qu’aux étapes désignées, jamais au job', () => {
   });
   assert.deepStrictEqual(porteuses.slice().sort(), ETAPES_AVEC_JETON.slice().sort(),
     'étapes portant le jeton : ' + JSON.stringify(porteuses));
+});
+
+// Élargir la liste ci-dessus est un geste, pas une formalité — alors il vient
+// avec sa contrepartie mesurée. Le jeton confié à l'étape de rapatriement ne
+// doit servir qu'à LIRE. On le mesure là où il est réellement dépensé, dans le
+// module que l'étape appelle, et non sur la bonne foi du fichier d'atelier :
+// `gh api` sans verbe d'écriture, et sans `-f`/`--field`, qui bascule
+// silencieusement une requête en POST sans jamais écrire le mot.
+t('le jeton du rapatriement ne sert qu’à lire', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'rapatrier-vers-rail.js'), 'utf8');
+  const appels = [...src.matchAll(/exec\('gh',\s*\[([^\]]*)\]/g)].map((m) => m[1]);
+  assert.ok(appels.length >= 2,
+    `le module devrait appeler \`gh\` ; ${appels.length} appel(s) trouvé(s)`);
+  for (const a of appels) {
+    assert.ok(/'api'/.test(a), `un appel \`gh\` qui n’est pas \`api\` : ${a}`);
+    assert.ok(!/--method|'-X'|"-X"/.test(a), `verbe d’écriture dans un appel \`gh\` : ${a}`);
+    assert.ok(!/'-f'|'--field'|'--raw-field'|'-F'/.test(a),
+      `\`-f\`/\`--field\` bascule la requête en POST : ${a}`);
+  }
+  // Et l'écriture, elle, existe — mais ailleurs, et derrière l'armement.
+  assert.ok(/git'?,\s*\[\s*'push'|'push'/.test(src),
+    'le module doit bien porter un geste d’écriture, sinon cette épreuve ne garde rien');
 });
 
 t('le producteur ne demande à GitHub que des métadonnées', () => {

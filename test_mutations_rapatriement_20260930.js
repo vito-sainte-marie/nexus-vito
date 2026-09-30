@@ -40,180 +40,198 @@ const WATCH = 'outils/watchdog-stagnation.js';
 const WORKFLOW = '.github/workflows/tests.yml';
 const DESIG = 'outils/designation-rail.js';
 const RAPAT = 'outils/rapatrier-vers-rail.js';
-// L'épreuve de bout en bout est en DERNIER, et ce n'est pas un détail de goût :
-// `epreuvesVertes()` rend la main au PREMIER rouge, et cette épreuve-là coûte 17 s
-// quand les autres coûtent moins d'une seconde. Placée en dernier, son prix n'est
-// payé que par les mutations qu'aucun banc unitaire n'a su voir. Et quand c'est
-// elle qui mord, la ligne « → rouge (…) » le dit : c'est la preuve qu'elle était
-// nécessaire, pas seulement présente.
-const EPREUVES = ['test_qualifier_rapatriement_20260930.js', 'test_etat_maillon_20260930.js',
-  'test_watchdog_stagnation_20260930.js', 'test_cablage_maillons_20260930.js',
-  'test_designation_rail_20260930.js', 'test_rapatriement_vers_rail_20260930.js',
-  'test_continuite_bout_en_bout_20260930.js'];
+// L'ÉPREUVE QUI DOIT ROUGIR EST NOMMÉE, PAS CHERCHÉE.
+//
+// Première version : on lançait les bancs l'un après l'autre jusqu'au premier
+// rouge. C'était juste, et ça coûtait 54 s à vide — donc plus de 90 s sous le
+// parallélisme de `run-tests.js`, qui coupe à 90 s. Ce banc rougissait alors la
+// suite pour une raison qui n'était pas la sienne, et personne n'aurait su le
+// lire. Le prix n'était pas celui d'un banc : c'était celui de rejouer six
+// bancs dont on savait déjà qu'ils n'allaient pas mordre.
+//
+// Épingler est AUSSI plus fort que chercher. « Un banc quelconque rougit »
+// tolère qu'une garde change de gardien en silence ; « CE banc-là rougit » ne
+// le tolère pas. Et quand l'épingle est fausse, ce banc le DIT au lieu de
+// l'absoudre : un rouge trouvé chez un autre n'est pas une réussite.
+//
+// CE BANC NE FAIT PLUS TOURNER L'ÉPREUVE DE CONTINUITÉ, et c'est un revirement
+// du même jour. Elle y était, placée en dernier, au cas où elle verrait ce que
+// les bancs unitaires laissent passer. La mesure du 30/09 dit qu'aucune des 49
+// mutations ne l'atteint : elle coûtait 17 s au témoin pour ne rien démontrer
+// ICI. Elle reste dans la suite, lancée pour elle-même par `run-tests.js`, et
+// elle porte déjà ses propres maillons cassés (§5 de la mission). Le jour où
+// une mutation l'épingle, elle revient toute seule — la liste est déduite.
+const X_QUALIF = 'test_qualifier_rapatriement_20260930.js';
+const X_ETAT = 'test_etat_maillon_20260930.js';
+const X_WATCH = 'test_watchdog_stagnation_20260930.js';
+const X_CABLAGE = 'test_cablage_maillons_20260930.js';
+const X_DESIG = 'test_designation_rail_20260930.js';
+const X_RAPAT = 'test_rapatriement_vers_rail_20260930.js';
+const X_PERM = 'test_permissions_workflow_20260908.js';
 
 // Chaque mutation : le fichier, le texte exact remplacé, son remplacement
 // permissif, et l'épreuve qui DOIT rougir.
 const MUTATIONS = [
-  { nom: 'mauvaise NEXUS_BASE_BRANCH acceptée', f: QUALIF,
+  { nom: 'mauvaise NEXUS_BASE_BRANCH acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "if (String(a.baseBranch).trim() !== String(a.rail).trim()) {",
     a: "if (false) {" },
-  { nom: 'NEXUS_BASE_BRANCH absente devinée', f: QUALIF,
+  { nom: 'NEXUS_BASE_BRANCH absente devinée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (vide(a.baseBranch)) {",
     a: "  if (false) {" },
-  { nom: 'branche sans lot identifiable acceptée', f: QUALIF,
+  { nom: 'branche sans lot identifiable acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (vide(a.lot)) {",
     a: "  if (false) {" },
-  { nom: 'résultat d’un autre lot accepté', f: QUALIF,
+  { nom: 'résultat d’un autre lot accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  if (!porte(refs.memes)) {",
     a: "  if (false) {" },
-  { nom: 'homonyme accepté comme rattachement', f: QUALIF,
+  { nom: 'homonyme accepté comme rattachement', f: QUALIF, rouge: X_QUALIF,
     de: "  if (porte(refs.homonymes)) {",
     a: "  if (false) {" },
-  { nom: 'CI rouge acceptée', f: QUALIF,
+  { nom: 'CI rouge acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  const pasVertes = requis.filter(v => String(v.conclusion) !== 'success');",
     a: "  const pasVertes = [];" },
-  { nom: 'CI non mesurée acceptée', f: QUALIF,
+  { nom: 'CI non mesurée acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (!verifs) {",
     a: "  if (false && !verifs) {" },
-  { nom: 'changement hors périmètre accepté', f: QUALIF,
+  { nom: 'changement hors périmètre accepté', f: QUALIF, rouge: X_QUALIF,
     de: "    const dehors = touches.filter(c => !perimetre.some(p => c === p || c.startsWith(p.endsWith('/') ? p : `${p}/`)));",
     a: "    const dehors = [];" },
-  { nom: 'divergence du rail acceptée', f: QUALIF,
+  { nom: 'divergence du rail acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (a.railEstAncetre !== true) {",
     a: "  if (false) {" },
-  { nom: 'SHA de base périmé confondu avec une divergence', f: QUALIF,
+  { nom: 'SHA de base périmé confondu avec une divergence', f: QUALIF, rouge: X_QUALIF,
     de: "    const perime = a.baseEstAncetreDuRail === true;",
     a: "    const perime = false;" },
-  { nom: 'transport Production autorisé', f: QUALIF,
+  { nom: 'transport Production autorisé', f: QUALIF, rouge: X_QUALIF,
     de: "  if (!autorite.transport) {",
     a: "  if (false) {" },
-  { nom: 'changement Production accepté', f: QUALIF,
+  { nom: 'changement Production accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  const sentinelles = touches.filter(c => SENTINELLES_PRODUCTION.includes(c));",
     a: "  const sentinelles = [];" },
-  { nom: 'cible Supabase Production acceptée', f: QUALIF,
+  { nom: 'cible Supabase Production acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (versProduction.length) {",
     a: "  if (false) {" },
-  { nom: 'affaiblissement de garde accepté', f: QUALIF,
+  { nom: 'affaiblissement de garde accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  if (affaiblies.length) {",
     a: "  if (false) {" },
-  { nom: 'secret accepté', f: QUALIF,
+  { nom: 'secret accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  if (secrets.length) {",
     a: "  if (false) {" },
-  { nom: 'diff non inspectable accepté', f: QUALIF,
+  { nom: 'diff non inspectable accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  if (opaques.length) {",
     a: "  if (false) {" },
-  { nom: 'HEAD non résolu accepté', f: QUALIF,
+  { nom: 'HEAD non résolu accepté', f: QUALIF, rouge: X_QUALIF,
     de: "  if (!SHA.test(String(a.head || ''))) {",
     a: "  if (false) {" },
-  { nom: 'destination non résolue acceptée', f: QUALIF,
+  { nom: 'destination non résolue acceptée', f: QUALIF, rouge: X_QUALIF,
     de: "  if (!SHA.test(String(a.railSha || ''))) {",
     a: "  if (false) {" },
-  { nom: 'le détecteur de secret publie ce qu’il dénonce', f: QUALIF,
+  { nom: 'le détecteur de secret publie ce qu’il dénonce', f: QUALIF, rouge: X_QUALIF,
     de: "        if (m.motif.test(String(ligne))) secrets.push({ chemin, ligne: i + 1, nature: m.nom });",
     a: "        if (m.motif.test(String(ligne))) secrets.push({ chemin, ligne: i + 1, nature: m.nom, valeur: String(ligne) });" },
-  { nom: 'arrêt sans les six champs autorisé', f: ETAT,
+  { nom: 'arrêt sans les six champs autorisé', f: ETAT, rouge: X_ETAT,
     de: "    const manquants = CHAMPS_EXIGES.filter(k => vide(c[k]));",
     a: "    const manquants = [];" },
-  { nom: 'état hors de la liste fermée toléré', f: ETAT,
+  { nom: 'état hors de la liste fermée toléré', f: ETAT, rouge: X_ETAT,
     de: "  if (!ETATS.includes(e)) {",
     a: "  if (false) {" },
-  { nom: 'refus muet — plus d’état machine en sortie d’étape', f: ETAT,
+  { nom: 'refus muet — plus d’état machine en sortie d’étape', f: ETAT, rouge: X_ETAT,
     de: "  ajouter('GITHUB_OUTPUT', `etat=${r.etat}\\netat_code=${r.code || ''}\\netat_json=${json}\\n`);",
     a: "  ajouter('GITHUB_OUTPUT', ``);" },
-  { nom: 'NO_WORK transformé en rouge CI', f: ETAT,
+  { nom: 'NO_WORK transformé en rouge CI', f: ETAT, rouge: X_ETAT,
     de: "function codeSortie(r) { return r.etat === 'FAILED' ? 1 : 0; }",
     a: "function codeSortie(r) { return r.etat === 'EXECUTE' ? 0 : 1; }" },
-  { nom: 'annotation de run supprimée', f: ETAT,
+  { nom: 'annotation de run supprimée', f: ETAT, rouge: X_ETAT,
     de: "  sortie.write(`::${ANNOTATION[r.etat]}::${ligne(r)}\\n`);",
     a: "  sortie.write('');" },
-  { nom: "réveil dupliqué republié", f: WATCH,
+  { nom: "réveil dupliqué republié", f: WATCH, rouge: X_WATCH,
     de: "  if (publies.includes(signature)) {",
     a: "  if (false) {" },
-  { nom: "absence de progression ignorée", f: WATCH,
+  { nom: "absence de progression ignorée", f: WATCH, rouge: X_WATCH,
     de: "  if (derniers.length === CYCLES_SANS_PROGRES - 1 && derniers.every(x => x === courante)) {",
     a: "  if (false) {" },
-  { nom: "branche verte jamais rapatriée confondue avec une stagnation quelconque", f: WATCH,
+  { nom: "branche verte jamais rapatriée confondue avec une stagnation quelconque", f: WATCH, rouge: X_WATCH,
     de: "    const code = position === 'CI_VERTE' ? 'RESULTAT_NON_RAPATRIE' : 'STAGNATION';",
     a: "    const code = 'STAGNATION';" },
-  { nom: "stagnation non détectée", f: WATCH,
+  { nom: "stagnation non détectée", f: WATCH, rouge: X_WATCH,
     de: "  if (ecoulees >= attendu.minutes) {",
     a: "  if (false) {" },
-  { nom: "borne de reprises supprimée", f: WATCH,
+  { nom: "borne de reprises supprimée", f: WATCH, rouge: X_WATCH,
     de: "  if (reprises >= max) {",
     a: "  if (false) {" },
-  { nom: "progression mesurée sur l’existence d’un run", f: WATCH,
+  { nom: "progression mesurée sur l’existence d’un run", f: WATCH, rouge: X_WATCH,
     de: "  const c = e || {};",
     a: "  const c = e || {}; return JSON.stringify(c);" },
-  { nom: "date d’activité manquante traitée comme zéro", f: WATCH,
+  { nom: "date d’activité manquante traitée comme zéro", f: WATCH, rouge: X_WATCH,
     de: "  if (maintenant === null || activite === null) {",
     a: "  if (false) {" },
-  { nom: "horloge incohérente tolérée", f: WATCH,
+  { nom: "horloge incohérente tolérée", f: WATCH, rouge: X_WATCH,
     de: "  if (activite - maintenant > TOLERANCE_HORLOGE_MS) {",
     a: "  if (false) {" },
-  { nom: "position de chaîne devinée au lieu d’être déclarée", f: WATCH,
+  { nom: "position de chaîne devinée au lieu d’être déclarée", f: WATCH, rouge: X_WATCH,
     de: "  if (!position) {",
     a: "  if (false) {" },
-  { nom: 'la porte en ligne de commande requalifie l’état demandé', f: ETAT,
+  { nom: 'la porte en ligne de commande requalifie l’état demandé', f: ETAT, rouge: X_ETAT,
     de: "  const champs = { etat: e, code };",
     a:  "  const champs = { etat: 'NO_WORK', code };" },
-  { nom: 'la porte avale le code de sortie d’un FAILED', f: ETAT,
+  { nom: 'la porte avale le code de sortie d’un FAILED', f: ETAT, rouge: X_ETAT,
     de: "    process.exitCode = principal(process.argv.slice(2));",
     a:  "    principal(process.argv.slice(2)); process.exitCode = 0;" },
 
   // ── LA DÉSIGNATION DU RAIL ─────────────────────────────────────────────────
   // Six gardes, et une leçon : « une désignation ne se recalcule pas ». Chacune
   // de ces mutations est exactement le raccourci qu'un auteur pressé écrirait.
-  { nom: 'corpus non lu confondu avec un corpus vide', f: DESIG,
+  { nom: 'corpus non lu confondu avec un corpus vide', f: DESIG, rouge: X_DESIG,
     de: "  if (!Array.isArray(commentaires)) {",
     a:  "  commentaires = Array.isArray(commentaires) ? commentaires : [];\n  if (false) {" },
-  { nom: 'un repli remplace la désignation absente', f: DESIG,
+  { nom: 'un repli remplace la désignation absente', f: DESIG, rouge: X_DESIG,
     de: "  if (nommes.length === 0) {",
     a:  "  if (nommes.length === 0) { return { rail: 'handoff-continuite-20260920', origine: 'REPLI' }; }\n  if (false) {" },
-  { nom: 'tolérance élargie : un déclencheur étranger s’épingle', f: DESIG,
+  { nom: 'tolérance élargie : un déclencheur étranger s’épingle', f: DESIG, rouge: X_DESIG,
     de: "  const tol = (typeof tolerance === 'number' ? tolerance : TOLERANCE_SECONDES) * 1000;",
     a:  "  const tol = 86400 * 1000;" },
-  { nom: 'filtre d’auteur supprimé', f: DESIG,
+  { nom: 'filtre d’auteur supprimé', f: DESIG, rouge: X_DESIG,
     de: "    .filter((c) => !auteurAutorise || c.auteur === auteurAutorise)",
     a:  "    .filter(() => true)" },
-  { nom: 'rails protégés rendus désignables', f: DESIG,
+  { nom: 'rails protégés rendus désignables', f: DESIG, rouge: X_DESIG,
     de: "const RAILS_INTERDITS = Object.freeze(['main', 'production']);",
     a:  "const RAILS_INTERDITS = Object.freeze([]);" },
-  { nom: 'la grammaire cesse de lire la forme « : »', f: DESIG,
+  { nom: 'la grammaire cesse de lire la forme « : »', f: DESIG, rouge: X_DESIG,
     de: "  /NEXUS_BASE_BRANCH[ \\t]*[:=][ \\t]*[`\"']?([A-Za-z0-9._/-]+)/g;",
     a:  "  /NEXUS_BASE_BRANCH[ \\t]*[=][ \\t]*[`\"']?([A-Za-z0-9._/-]+)/g;" },
 
   // ── LE RAPATRIEMENT LUI-MÊME ───────────────────────────────────────────────
-  { nom: 'le transport devient armé par défaut', f: RAPAT,
+  { nom: 'le transport devient armé par défaut', f: RAPAT, rouge: X_RAPAT,
     de: "  if (!options.transporter) {",
     a:  "  if (false) {" },
-  { nom: 'la destination n’est plus relue après le geste', f: RAPAT,
+  { nom: 'la destination n’est plus relue après le geste', f: RAPAT, rouge: X_RAPAT,
     de: "  const relu = texte(exec('git', ['ls-remote', 'origin', `refs/heads/${rail}`])).split(/\\s+/)[0] || '';",
     a:  "  const relu = head;" },
-  { nom: 'toutes les vérifications sont écartées, pas seulement le run courant', f: RAPAT,
+  { nom: 'toutes les vérifications sont écartées, pas seulement le run courant', f: RAPAT, rouge: X_RAPAT,
     de: "  const aEcarter = runCourant ? new RegExp(`/runs/${runCourant}(/|$)`) : null;",
     a:  "  const aEcarter = /.*/;" },
-  { nom: 'le diff est réduit aux chemins : plus aucun contenu inspecté', f: RAPAT,
+  { nom: 'le diff est réduit aux chemins : plus aucun contenu inspecté', f: RAPAT, rouge: X_RAPAT,
     de: "  for (const l of texte(exec('git', ['diff', '--unified=0', plage])).split('\\n')) {",
     a:  "  for (const l of []) {" },
   // Celle-ci ne se mesure QUE par l'exécuteur réel : avec un faux exécuteur,
   // aucune épreuve n'aurait rougi. C'est précisément le trou qui a laissé
   // passer le défaut du 30/09, et cette ligne est ce qui le referme.
-  { nom: 'le tampon revient à sa taille par défaut, et le mur se retait', f: RAPAT,
+  { nom: 'le tampon revient à sa taille par défaut, et le mur se retait', f: RAPAT, rouge: X_RAPAT,
     de: "const TAMPON = 64 * 1024 * 1024;",
     a:  "const TAMPON = 1024 * 1024;" },
-  { nom: 'la cible Production est cherchée dans tout le fichier, pas dans l’ajout', f: QUALIF,
+  { nom: 'la cible Production est cherchée dans tout le fichier, pas dans l’ajout', f: QUALIF, rouge: X_QUALIF,
     de: "    const texte = surAjouts ? d.lignes_ajoutees.join('\\n') : String(lire(c) || '');",
     a:  "    const texte = String(lire(c) || '');" },
-  { nom: 'le repli conservateur devient un silence quand les lignes manquent', f: QUALIF,
+  { nom: 'le repli conservateur devient un silence quand les lignes manquent', f: QUALIF, rouge: X_QUALIF,
     de: "    const surAjouts = d && Array.isArray(d.lignes_ajoutees);",
     a:  "    const surAjouts = true; if (!d || !Array.isArray(d.lignes_ajoutees)) continue;" },
-  { nom: 'un nom désignant deux commits est arbitré en silence', f: RAPAT,
+  { nom: 'un nom désignant deux commits est arbitré en silence', f: RAPAT, rouge: X_RAPAT,
     de: "  if (shaLocal && shaDistant && shaLocal !== shaDistant) {",
     a:  "  if (false) {" },
-  { nom: 'la ref d’où vient le commit n’est plus nommée', f: RAPAT,
+  { nom: 'la ref d’où vient le commit n’est plus nommée', f: RAPAT, rouge: X_RAPAT,
     de: "  const refHead = shaLocal ? `refs/heads/${branche}` : (shaDistant ? `refs/remotes/origin/${branche}` : null);",
     a:  "  const refHead = null;" },
-  { nom: 'un débordement cesse de se nommer', f: RAPAT,
+  { nom: 'un débordement cesse de se nommer', f: RAPAT, rouge: X_RAPAT,
     de: "      const tronque = err && (err.code === 'ENOBUFS' || /ENOBUFS/.test(String(err.message || '')));",
     a:  "      const tronque = false;" },
 
@@ -221,13 +239,13 @@ const MUTATIONS = [
   // Les quatre mutations qui suivent ne touchent aucun module : elles rebranchent
   // le workflow tel qu'il était pendant les quatre jours d'arrêt. C'est là que le
   // défaut vivait réellement — les modules, eux, ont toujours été corrects.
-  { nom: 'le capteur des branches en rade est rebâillonné par « || true »', f: WORKFLOW,
+  { nom: 'le capteur des branches en rade est rebâillonné par « || true »', f: WORKFLOW, rouge: X_CABLAGE,
     de: "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?",
     a:  "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1 || true); CODE=$?" },
-  { nom: 'un refus du réveil redevient un echo sans état', f: WORKFLOW,
+  { nom: 'un refus du réveil redevient un echo sans état', f: WORKFLOW, rouge: X_CABLAGE,
     de: 'refus() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }',
     a:  'refus() { echo "rien à faire : $1 — $2"; exit 0; }' },
-  { nom: 'la boucle de réveil est rétrogradée en simple information', f: WORKFLOW,
+  { nom: 'la boucle de réveil est rétrogradée en simple information', f: WORKFLOW, rouge: X_CABLAGE,
     de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\',
     a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\' },
   // ── Mutations de CÂBLAGE ─────────────────────────────────────────
@@ -240,26 +258,52 @@ const MUTATIONS = [
   // un fait et non une intention : elle a trouvé un défaut réel que les six bancs
   // unitaires laissaient passer — un dossier de transport qui ne nommait pas la ref
   // d'où venait le commit, alors que le commentaire du code affirmait le contraire.
-  { nom: 'un refus qualifié n’arrête plus le transport', f: RAPAT,
+  { nom: 'un refus qualifié n’arrête plus le transport', f: RAPAT, rouge: X_RAPAT,
     de: "  if (resultat.etat !== 'EXECUTE') return resultat;",
     a: '  if (false) return resultat;' },
-  { nom: 'la progression cesse de regarder le SHA', f: WATCH,
+  { nom: 'la progression cesse de regarder le SHA', f: WATCH, rouge: X_WATCH,
     de: "    String(c.sha || '(sans sha)').trim(),",
     a: "    '(sans sha)'," },
-  { nom: 'le dossier annonce une destination qui n’a pas bougé', f: QUALIF,
+  { nom: 'le dossier annonce une destination qui n’a pas bougé', f: QUALIF, rouge: X_QUALIF,
     de: 'destination_sha_attendu: a.head,',
     a: 'destination_sha_attendu: a.railSha,' },
-  { nom: 'un arrêt est publié sans prochaine action', f: WORKFLOW,
+  { nom: 'un arrêt est publié sans prochaine action', f: WORKFLOW, rouge: X_CABLAGE,
     de: '--prochaine-action "qualifier puis rapatrier (outils/qualifier-rapatriement.js), ou inscrire le sort dans docs/handoff/BRANCHES-CLASSEES.json" \\',
     a:  '\\' },
+  // Le jeton de CI est confié à l'étape de rapatriement depuis le 30/09. Ce
+  // qui rend ce prêt acceptable n'est pas l'intention écrite au-dessus de la
+  // liste : c'est que le module n'appelle `gh` que pour lire. Cette mutation
+  // lui donne une plume, et exige que quelqu'un le dise.
+  { nom: 'le jeton du rapatriement se met à écrire sur l’issue', f: RAPAT, rouge: X_PERM,
+    de: "'--jq', '.[] | {date: .created_at, auteur: .user.login, corps: .body} | tostring']);",
+    a:  "'--method', 'POST', '-f', 'body=rapatrié']);" },
 ];
 
-// Les modules dont dépendent les épreuves recopiées. On copie `outils/` EN ENTIER
-// plutôt qu'une liste nominative : l'épreuve de continuité fait tourner la chaîne
-// complète — réveil, handoff, désignation, qualification, transport — dans un dépôt
-// jetable qu'elle construit à partir de ce bac. Une liste aurait fini par oublier
-// une dépendance ; le témoin serait rouge, et ce rouge-là ne mesurerait rien
-// d'autre qu'un bac incomplet.
+// UNE MUTATION SANS ÉPINGLE EST UN REFUS, PAS UN PLANTAGE. Le 30/09, neuf
+// mutations sont restées sans `rouge` parce que le script qui a posé les
+// épingles lisait `nom: '…'` et pas `nom: "…"`. Rien ne l'a dit : la liste
+// déduite a simplement porté un `undefined`, et le banc est mort dans
+// `path.join` sur un message qui ne nommait ni la mutation ni le manque. Une
+// omission doit se dénoncer là où elle se produit, avec le nom de ce qui
+// manque.
+const BANCS_CONNUS = [X_QUALIF, X_ETAT, X_WATCH, X_CABLAGE, X_DESIG, X_RAPAT, X_PERM];
+const orphelines = MUTATIONS.filter(m => !BANCS_CONNUS.includes(m.rouge));
+if (orphelines.length) {
+  console.error(`ÉPINGLE MANQUANTE — ${orphelines.length} mutation(s) ne désignent aucun banc connu :`);
+  for (const m of orphelines) console.error(`  ${m.nom} → ${m.rouge === undefined ? 'aucune épingle' : m.rouge}`);
+  process.exit(1);
+}
+
+// La liste des bancs n'est PAS écrite à la main : elle est déduite des épingles.
+// Une liste écrite se périme dans les deux sens — elle garde un banc que plus
+// aucune mutation ne vise, et elle oublie celui qu'une mutation neuve épingle.
+const EPREUVES = [...new Set(MUTATIONS.map(m => m.rouge))];
+
+// Les modules dont dépendent les épreuves recopiées. On copie `outils/` EN
+// ENTIER plutôt qu'une liste nominative : chaque banc charge le module qu'il
+// éprouve, qui en charge d'autres, et une liste aurait fini par en oublier un.
+// Le témoin serait alors rouge, et ce rouge-là ne mesurerait rien d'autre qu'un
+// bac incomplet.
 const COPIES = [WORKFLOW, ...EPREUVES];
 const MUTABLES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, WORKFLOW];
 
@@ -269,10 +313,14 @@ fs.mkdirSync(path.join(BAC, '.github/workflows'), { recursive: true });
 for (const c of COPIES) fs.copyFileSync(c, path.join(BAC, c));
 
 const empreinte = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+function lancer(e) {
+  const r = spawnSync(process.execPath, [e], { cwd: BAC, encoding: 'utf8' });
+  return { vert: r.status === 0, sortie: (r.stdout || '') + (r.stderr || '') };
+}
 function epreuvesVertes() {
   for (const e of EPREUVES) {
-    const r = spawnSync(process.execPath, [e], { cwd: BAC, encoding: 'utf8' });
-    if (r.status !== 0) return { vert: false, epreuve: e, sortie: (r.stdout || '') + (r.stderr || '') };
+    const r = lancer(e);
+    if (!r.vert) return { vert: false, epreuve: e, sortie: r.sortie };
   }
   return { vert: true };
 }
@@ -306,12 +354,19 @@ try {
     }
     try {
       fs.writeFileSync(path.join(BAC, m.f), src.replace(m.de, m.a));
-      const r = epreuvesVertes();
-      if (r.vert) {
-        echecs.push(`${m.nom} — LA GARDE NE MORD PAS : mutation appliquée, épreuves toujours vertes.`);
-      } else {
+      if (!lancer(m.rouge).vert) {
         passees++;
-        console.log(`  ✓ ${m.nom} → rouge (${r.epreuve})`);
+        console.log(`  ✓ ${m.nom} → rouge (${m.rouge})`);
+      } else {
+        // L'épingle n'a pas mordu. DEUX causes opposées, et les confondre
+        // ferait passer la plus grave pour l'autre : ou bien la garde ne mord
+        // nulle part, ou bien elle mord ailleurs et l'épingle désigne le
+        // mauvais gardien. On cherche donc, une seule fois, et on le nomme.
+        const ailleurs = EPREUVES.filter(e => e !== m.rouge).find(e => !lancer(e).vert);
+        echecs.push(ailleurs
+          ? `${m.nom} — ÉPINGLE FAUSSE : ${m.rouge} reste vert sous mutation, c’est ${ailleurs} qui mord. `
+            + 'La garde tient, mais pas là où ce banc l’affirme.'
+          : `${m.nom} — LA GARDE NE MORD PAS : mutation appliquée, épreuves toujours vertes.`);
       }
     } finally {
       fs.writeFileSync(path.join(BAC, m.f), src);   // une seule mutation à la fois, toujours

@@ -393,6 +393,17 @@ empêche `Claude → CI → Claude` de tourner à vide. La déduplication des r�
 suit le même principe : la marque publiée est une empreinte du **corps** du
 réveil, pas de l'instant où il est calculé.
 
+**Et il n'a pas de déclencheur — le dire fait partie du contrat.** Le module
+est éprouvé (26 contrôles, 10 mutations) et appelé par aucun workflow. La
+raison n'est pas un oubli : un watchdog branché sur `push` ne s'exécute que
+lorsque quelque chose bouge, et **c'est précisément le cas qu'il ne sert à
+rien d'observer**. Voir qu'une chaîne est arrêtée demande une horloge
+indépendante d'elle, donc `schedule` — qui ne s'exécute que depuis la branche
+par défaut. Tant que ce déclencheur n'existe pas sur `main`, la stagnation se
+constate à la demande et non toute seule, et la ligne « Veille de stagnation »
+du tableau des maillons reste `DECLARED`. C'est une limite nommée, pas une
+capacité sous-entendue.
+
 ### Ce que l'autonomie n'autorise pas
 
 L'autonomie recherchée porte sur les opérations déterministes intermédiaires.
