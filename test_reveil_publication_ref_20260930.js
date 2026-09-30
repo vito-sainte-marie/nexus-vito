@@ -110,8 +110,17 @@ function lancer(options) {
     fs.writeFileSync(p, contenu);
     fs.chmodSync(p, 0o755);
   };
+  // 30/09/2026 — LA PORTE D'ÉTAT N'EST PAS DOUBLÉE, ELLE EST EXÉCUTÉE.
+  // Le réveil est désormais un maillon qui publie son état (§4). Si le bac à
+  // sable doublait `etat-maillon.js`, l'épreuve mesurerait sa propre doublure
+  // au lieu du signal réellement émis — et le premier jour où la porte cesserait
+  // de publier, elle resterait verte. On lui laisse donc le vrai module, avec
+  // le vrai node : ce que l'étape annonce est observable dans `sortie`.
   ecrire('node', [
     '#!/bin/sh',
+    'case " $* " in',
+    '  *" outils/etat-maillon.js "*) shift; exec "$NEXUS_VRAI_NODE" "$NEXUS_PORTE" "$@" ;;',
+    'esac',
     'for a in "$@"; do',
     '  [ "$a" = "--json" ] && { cat "$NEXUS_FAUX_JSON"; exit 0; }',
     '  [ "$a" = "--message" ] && { cat "$NEXUS_FAUX_CORPS"; exit 0; }',
@@ -149,6 +158,8 @@ function lancer(options) {
       NEXUS_FAUX_CORPS: fCorps,
       NEXUS_FAUX_COMMENTAIRES: fComm,
       NEXUS_TRACE: trace,
+      NEXUS_VRAI_NODE: process.execPath,
+      NEXUS_PORTE: path.resolve(__dirname, 'outils/etat-maillon.js'),
     },
   });
   return {
@@ -156,6 +167,22 @@ function lancer(options) {
     sortie: (r.stdout || '') + (r.stderr || ''),
     publie: fs.readFileSync(trace, 'utf8'),
   };
+}
+
+// 30/09/2026 — ON LIT DÉSORMAIS L'ÉTAT, PAS LA PHRASE.
+// Ces épreuves cherchaient un bout de motif français dans la sortie. Ça tenait
+// tant que le refus était un `echo` : le jour où la formulation bouge, l'épreuve
+// rougit sans qu'aucune propriété n'ait changé — et on la « répare » en relâchant
+// le motif, jusqu'à ce qu'elle ne mesure plus rien. §4 donne mieux : chaque refus
+// publie un code fermé. C'est lui qu'on exige ici.
+function etatPublie(sortie) {
+  const m = /\[(EXECUTE|NO_WORK|BLOCKED|HUMAN_DECISION_REQUIRED|FAILED)\] \S+ \(([A-Z_]+)\)/.exec(sortie);
+  return m ? { etat: m[1], code: m[2] } : null;
+}
+function exigerEtat(r, etat, code) {
+  const e = etatPublie(r.sortie);
+  assert.ok(e, 'aucun état machine publié — le refus est de nouveau muet : ' + r.sortie);
+  assert.deepStrictEqual(e, { etat, code }, 'état publié inattendu : ' + r.sortie);
 }
 
 verifier('un push du rail publie le réveil — le cas qui marchait déjà', () => {
@@ -186,6 +213,7 @@ verifier('une branche étrangère au lot reste muette', () => {
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(r.publie, '',
     'une branche qui ne porte pas la demande a publié : ' + r.sortie);
+  exigerEtat(r, 'NO_WORK', 'REF_NON_PORTEUSE');
   assert.ok(/ne porte pas la demande du lot/.test(r.sortie), r.sortie);
 });
 
@@ -210,7 +238,7 @@ verifier('une demande non identifiable fait taire tout le monde', () => {
   }) });
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(r.publie, '', r.sortie);
-  assert.ok(/pas identifiable/.test(r.sortie), r.sortie);
+  exigerEtat(r, 'BLOCKED', 'DEMANDE_NON_IDENTIFIABLE');
 });
 
 verifier('git muet ne plante pas l’étape, il la fait taire', () => {
@@ -226,13 +254,14 @@ verifier('rien à réveiller : aucune publication', () => {
   const r = lancer({ ref: RAIL, json: jsonDuLot(j => { j.reveil = false; }) });
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(r.publie, '', r.sortie);
-  assert.ok(/rien à réveiller/.test(r.sortie), r.sortie);
+  exigerEtat(r, 'NO_WORK', 'RIEN_A_REVEILLER');
 });
 
 verifier('le même réveil déjà publié ne repart pas', () => {
   const r = lancer({ ref: RUN, commentaires: 'un vieux commentaire\n' + marque(CORPS) + '\n' });
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(r.publie, '', 'réveil republié à l’identique : ' + r.sortie);
+  exigerEtat(r, 'NO_WORK', 'REVEIL_DEJA_PUBLIE');
   assert.ok(/déjà publié/.test(r.sortie), r.sortie);
 });
 

@@ -308,18 +308,48 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          refus() { echo "Pas de publication : $1"; exit 0; }
+          # §4 — AUCUN REFUS SILENCIEUX. Jusqu'ici ce refus écrivait une phrase
+          # au journal et sortait en 0 : le run restait vert, et personne ne
+          # pouvait savoir, sans ouvrir le journal d'une étape parmi soixante,
+          # que le réveil n'était pas parti. Quatre jours d'arrêt se sont logés
+          # exactement là.
+          #
+          # Deux régimes, et la différence porte tout :
+          #   refus  -> NO_WORK  : il n'y a légitimement rien à faire. Ce run
+          #                        n'est pas sur la branche porteuse, ou le
+          #                        réveil est déjà publié. Ce n'est pas un
+          #                        incident, et en faire un rouge apprendrait
+          #                        à l'équipe à ignorer le rouge.
+          #   arret  -> BLOCKED  : quelque chose attend et n'avancera pas seul.
+          #                        Exige les six champs : condition, sha,
+          #                        branche, lot, maillon, prochaine action.
+          # Les deux sortent en 0. La couleur n'est pas le signal — l'état l'est.
+          M=reveil-orchestrateur
+          refus() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }
+          arret() {
+            node outils/etat-maillon.js BLOCKED "$1" --maillon "$M" \
+              --condition "$2" --prochaine-action "$3" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" \
+              --lot "${LOT:-(lot non lisible)}"
+            exit 0
+          }
 
           J=$(node outils/reveil-orchestrateur.js --json)
-          [ "$(jq -r '.reveil' <<<"$J")" = "true" ] || refus "rien à réveiller."
+          LOT=$(jq -r '.lots[0].lot // .lot // empty' <<<"$J")
+          [ "$(jq -r '.reveil' <<<"$J")" = "true" ] \
+            || refus RIEN_A_REVEILLER "aucune demande en vol : le rail est au repos."
 
           RAIL=$(jq -r '.lots[0].branche // empty' <<<"$J")
-          [ -n "$RAIL" ] || refus "le lot ne déclare aucune branche."
+          [ -n "$RAIL" ] || arret LOT_SANS_BRANCHE \
+            "le lot déclare la branche où le lire" \
+            "déclarer la branche du lot au registre du Handoff"
 
           # Sans empreinte, tout ce qui porte le NOM du fichier entre dans
           # `memes` : un homonyme parlerait pour le lot. On se tait.
           [ "$(jq -r '.lots[0].refs_reelles.identifiable' <<<"$J")" = "true" ] \
-            || refus "la demande n'est pas identifiable ; un homonyme parlerait pour le lot."
+            || arret DEMANDE_NON_IDENTIFIABLE \
+                 "la demande est identifiable par empreinte, pas seulement par nom" \
+                 "lever l'homonymie : deux fichiers portent ce nom avec des contenus différents"
 
           # La ref courante doit figurer parmi celles qui PORTENT la demande.
           # `origin/<ref>` compte : c'est sous ce nom que la ref poussée est
@@ -328,30 +358,44 @@ jobs:
             '[.lots[0].refs_reelles.memes[]? | select(. == $ref or . == "origin/" + $ref)] | length' \
             <<<"$J")
           [ "$PORTEUSE" != "0" ] \
-            || refus "'$GITHUB_REF_NAME' ne porte pas la demande du lot (rail déclaré : '$RAIL')."
+            || refus REF_NON_PORTEUSE \
+                 "'$GITHUB_REF_NAME' ne porte pas la demande du lot (rail déclaré : '$RAIL')."
 
           ADRESSE=$(jq -r '.lots[0].adresse // empty' <<<"$J")
-          [ -n "$ADRESSE" ] || refus "aucune adresse déclarée par le rail."
+          [ -n "$ADRESSE" ] || arret RAIL_SANS_ADRESSE \
+            "le rail déclare l'adresse où publier le réveil" \
+            "déclarer l'adresse du destinataire au registre du Handoff"
           case "$ADRESSE" in
             "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/"[0-9]*) : ;;
-            *) refus "l'adresse déclarée sort de ce dépôt : $ADRESSE" ;;
+            *) arret ADRESSE_HORS_DEPOT \
+                 "l'adresse déclarée appartient à ce dépôt" \
+                 "corriger l'adresse au registre : « $ADRESSE » sort de $GITHUB_REPOSITORY" ;;
           esac
           NUM=${ADRESSE##*/}
 
           CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention)
+          # Le seul rouge de cette étape, et il le mérite : publier ce corps
+          # relancerait Claude sur son propre réveil. C'est une boucle, pas un
+          # arrêt — elle ne se signale pas, elle s'empêche.
           if printf '%s' "$CORPS" | grep -q '@claude'; then
-            echo "REFUS : le corps porte la mention qui redéclenche Claude." >&2
+            node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \
+              --condition "le corps du réveil ne porte pas la mention qui relance Claude" \
+              --prochaine-action "retirer la mention du gabarit de réveil" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
             exit 1
           fi
 
           MARQUE="<!-- nexus-reveil: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
           DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
                    --jq '.[].body' | grep -cF "$MARQUE" || true)
-          [ "$DEJA" = "0" ] || refus "ce réveil exact est déjà publié."
+          [ "$DEJA" = "0" ] || refus REVEIL_DEJA_PUBLIE \
+            "ce réveil exact est déjà publié sur $ADRESSE."
 
           printf '%s\n\n%s\n' "$CORPS" "$MARQUE" \
             | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
-          echo "Réveil publié sur $ADRESSE"
+          node outils/etat-maillon.js EXECUTE REVEIL_PUBLIE --maillon "$M" \
+            --motif "réveil publié sur $ADRESSE" \
+            --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par
@@ -444,8 +488,41 @@ jobs:
       - name: Épreuves du Guardian Philosophie
         run: node test_guardian_philosophie_20260908.js
 
-      - name: Branches de travail en rade — rapport
-        run: node outils/garde-branches-en-rade.js || true
+      # §4 — CE CAPTEUR ÉTAIT LE SEUL À VOIR LA RUPTURE, ET IL ÉTAIT BÂILLONNÉ.
+      # `|| true` avalait son code 1 depuis le premier jour. Il voyait 64
+      # branches portant du travail absent du rail, et le run restait vert :
+      # l'unique instrument capable de dire « la chaîne est cassée » était
+      # précisément celui qu'on avait rendu muet.
+      #
+      # On ne le rend pas bloquant pour autant, et ce n'est pas une facilité.
+      # Son premier verdict est rouge — 64 branches héritées que ce lot n'a
+      # pas le droit de trancher seul. La leçon de Q71 est explicite : une
+      # garde dont le premier verdict est rouge se fait retirer, et emporte
+      # avec elle les découvertes qu'elle aurait faites ensuite.
+      #
+      # On ne change donc pas la COULEUR, on change le SIGNAL. L'arrêt cesse
+      # d'être une phrase perdue dans le journal d'une étape parmi soixante :
+      # il devient un état machine, annoté au niveau du run, résumé, et
+      # lisible par l'outil d'aval.
+      - name: Branches de travail en rade — état de maillon
+        run: |
+          set -uo pipefail
+          RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?
+          printf '%s\n' "$RAPPORT"
+          if [ "$CODE" = "0" ]; then
+            node outils/etat-maillon.js NO_WORK AUCUNE_BRANCHE_EN_RADE \
+              --maillon branches-en-rade \
+              --motif "toute branche porteuse est rapatriée vers son rail ou classée au registre."
+          else
+            N=$(printf '%s' "$RAPPORT" | sed -n 's/^\([0-9][0-9]*\) branche(s) en rade.*/\1/p' | tail -1)
+            node outils/etat-maillon.js BLOCKED RAPATRIEMENT_EN_ATTENTE \
+              --maillon branches-en-rade \
+              --motif "${N:-plusieurs} branche(s) portent du travail absent de leur rail." \
+              --condition "toute branche porteuse est rapatriée vers son rail, ou son sort est inscrit au registre" \
+              --prochaine-action "qualifier puis rapatrier (outils/qualifier-rapatriement.js), ou inscrire le sort dans docs/handoff/BRANCHES-CLASSEES.json" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" \
+              --lot "(transverse — ce maillon n'est rattaché à aucun lot)"
+          fi
 
       - name: Épreuves de la garde des branches en rade
         run: node test_garde_branches_en_rade_20260908.js

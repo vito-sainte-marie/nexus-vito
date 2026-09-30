@@ -249,6 +249,18 @@ t('les six refus sont là, et ils se TAISENT au lieu d’échouer', () => {
   assert.ok(/refus\(\)\s*\{[^}]*exit 0/.test(etape),
     'un refus doit sortir en 0 : ne rien avoir à publier n’est pas une panne');
 
+  // 30/09/2026 — LES SIX REFUS SE SONT SÉPARÉS EN DEUX RÉGIMES, et c'est le
+  // cœur de §4. Sortir en 0 sans rien dire, c'était le défaut : quatre jours
+  // d'arrêt se sont logés derrière un « success » parfaitement sincère.
+  // Désormais :
+  //   refus -> NO_WORK : il n'y a légitimement rien à faire ;
+  //   arret -> BLOCKED : quelque chose attend et n'avancera pas tout seul.
+  // Les deux sortent toujours en 0 — cette épreuve continue de l'exiger, pour
+  // la raison inchangée ci-dessus. Ce qui change n'est pas la couleur du run,
+  // c'est qu'il existe enfin un signal à lire dedans.
+  assert.ok(/arret\(\)\s*\{[\s\S]*?exit 0\n\s*\}/.test(etape),
+    'un arrêt doit lui aussi sortir en 0 : il se signale, il ne casse pas la CI');
+
   const attendus = {
     'rien à réveiller': /\.reveil.*\|\| refus/s,
     // 30/09/2026 — cette ligne portait `/GITHUB_REF_NAME" = "\$RAIL"/`, sous le
@@ -261,7 +273,7 @@ t('les six refus sont là, et ils se TAISENT au lieu d’échouer', () => {
     // l’étape — c’est `test_reveil_publication_ref_20260930.js`.
     'la ref courante ne porte pas la demande': /refs_reelles\.memes/,
     'la demande n’est pas identifiable': /refs_reelles\.identifiable/,
-    'aucune adresse déclarée par le rail': /ADRESSE" \]\s*\|\| refus/,
+    'aucune adresse déclarée par le rail': /ADRESSE" \]\s*\|\| arret/,
     'l’adresse sort de ce dépôt': /GITHUB_SERVER_URL\/\$GITHUB_REPOSITORY\/issues\//,
     'ce réveil est déjà publié': /DEJA" = "0" \]\s*\|\| refus/,
   };
@@ -280,7 +292,14 @@ t('la garde de BOUCLE fait ÉCHOUER l’étape, et mesure le corps réellement p
   // le jour où quelqu'un pose un PAT. La garde ne s'y adosse pas.
   const i = etape.search(/grep -q '@claude'/);
   assert.ok(i > 0, 'aucune garde ne vérifie que le corps ne porte pas la mention');
-  assert.ok(/exit 1/.test(etape.slice(i, i + 300)),
+  // 30/09/2026 — l'échec ne suffit plus, il doit se NOMMER. Un `exit 1` seul
+  // laisse un run rouge sans code lisible en aval ; §4 exige l'état machine.
+  // La fenêtre s'élargit en conséquence : la publication de l'état s'intercale
+  // désormais entre le test et la sortie.
+  const garde = etape.slice(i, i + 900);
+  assert.ok(/etat-maillon\.js FAILED MENTION_REDECLENCHANTE/.test(garde),
+    'la garde de boucle doit publier un FAILED nommé, pas seulement échouer');
+  assert.ok(/exit 1/.test(garde),
     'la garde de boucle doit ÉCHOUER, pas se taire : un emballement n’est pas ' +
     'une absence de réveil');
 

@@ -37,8 +37,9 @@ const { spawnSync } = require('child_process');
 const QUALIF = 'outils/qualifier-rapatriement.js';
 const ETAT = 'outils/etat-maillon.js';
 const WATCH = 'outils/watchdog-stagnation.js';
+const WORKFLOW = '.github/workflows/tests.yml';
 const EPREUVES = ['test_qualifier_rapatriement_20260930.js', 'test_etat_maillon_20260930.js',
-  'test_watchdog_stagnation_20260930.js'];
+  'test_watchdog_stagnation_20260930.js', 'test_cablage_maillons_20260930.js'];
 
 // Chaque mutation : le fichier, le texte exact remplacé, son remplacement
 // permissif, et l'épreuve qui DOIT rougir.
@@ -148,16 +149,34 @@ const MUTATIONS = [
   { nom: 'la porte avale le code de sortie d’un FAILED', f: ETAT,
     de: "    process.exitCode = principal(process.argv.slice(2));",
     a:  "    principal(process.argv.slice(2)); process.exitCode = 0;" },
+
+  // ── LE CÂBLAGE, PAS SEULEMENT LES MODULES ──────────────────────────────────
+  // Les quatre mutations qui suivent ne touchent aucun module : elles rebranchent
+  // le workflow tel qu'il était pendant les quatre jours d'arrêt. C'est là que le
+  // défaut vivait réellement — les modules, eux, ont toujours été corrects.
+  { nom: 'le capteur des branches en rade est rebâillonné par « || true »', f: WORKFLOW,
+    de: "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1); CODE=$?",
+    a:  "RAPPORT=$(node outils/garde-branches-en-rade.js 2>&1 || true); CODE=$?" },
+  { nom: 'un refus du réveil redevient un echo sans état', f: WORKFLOW,
+    de: 'refus() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }',
+    a:  'refus() { echo "rien à faire : $1 — $2"; exit 0; }' },
+  { nom: 'la boucle de réveil est rétrogradée en simple information', f: WORKFLOW,
+    de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\',
+    a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\' },
+  { nom: 'un arrêt est publié sans prochaine action', f: WORKFLOW,
+    de: '--prochaine-action "qualifier puis rapatrier (outils/qualifier-rapatriement.js), ou inscrire le sort dans docs/handoff/BRANCHES-CLASSEES.json" \\',
+    a:  '\\' },
 ];
 
 // Les modules dont dépendent les épreuves recopiées. `transport-autorise.js`
 // n'est pas muté, mais le qualifieur l'exige : un bac incomplet rougirait
 // partout, et ce rouge-là ne mesurerait rien.
-const COPIES = [QUALIF, ETAT, WATCH, 'outils/transport-autorise.js', ...EPREUVES];
-const MUTABLES = [QUALIF, ETAT, WATCH];
+const COPIES = [QUALIF, ETAT, WATCH, 'outils/transport-autorise.js', WORKFLOW, ...EPREUVES];
+const MUTABLES = [QUALIF, ETAT, WATCH, WORKFLOW];
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-mutation-'));
 fs.mkdirSync(path.join(BAC, 'outils'), { recursive: true });
+fs.mkdirSync(path.join(BAC, '.github/workflows'), { recursive: true });
 for (const c of COPIES) fs.copyFileSync(c, path.join(BAC, c));
 
 const empreinte = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
