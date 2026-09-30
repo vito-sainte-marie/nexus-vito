@@ -211,7 +211,25 @@ function observer(options = {}) {
   const rail = pin.rail;
   if (options.fetch !== false) exec('git', ['fetch', '--quiet', 'origin', rail]);
 
-  const head = texte(exec('git', ['rev-parse', branche]));
+  // UN NOM DE BRANCHE DÉSIGNE PARFOIS DEUX COMMITS.
+  // En CI, la branche de run est celle qui est extraite : « claude/issue-… »
+  // existe en local et `rev-parse` répond. Lancé depuis un poste, le même
+  // nom n'existe souvent que sous `origin/`, et `rev-parse` échoue — le
+  // mécanisme concluait alors HEAD_INCONNU sur une branche parfaitement
+  // transportable. Le repli vers la ref distante est donc explicite, et la ref
+  // retenue est NOMMÉE dans le dossier : on ne transporte pas « la branche »,
+  // on transporte un commit, et on doit pouvoir dire lequel et d'où il vient.
+  // Si les deux refs existent ET divergent, le nom est ambigu : choisir
+  // reviendrait à décider à la place d'un humain lequel des deux travaux part.
+  const refLocale = exec('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branche}`]);
+  const refDistante = exec('git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branche}`]);
+  const shaLocal = refLocale.code === 0 ? texte(refLocale) : '';
+  const shaDistant = refDistante.code === 0 ? texte(refDistante) : '';
+  if (shaLocal && shaDistant && shaLocal !== shaDistant) {
+    return { _headAmbigu: { local: shaLocal, distant: shaDistant }, branche, rail };
+  }
+  const refHead = shaLocal ? `refs/heads/${branche}` : (shaDistant ? `refs/remotes/origin/${branche}` : null);
+  const head = shaLocal || shaDistant || texte(exec('git', ['rev-parse', branche]));
   const railSha = texte(exec('git', ['rev-parse', `origin/${rail}`]));
   const baseSha = texte(exec('git', ['merge-base', head, `origin/${rail}`]));
 
@@ -240,6 +258,7 @@ function observer(options = {}) {
     rail,
     railSha,
     head,
+    refHead,
     baseBranch: pin.origine === 'DECLENCHEUR' ? rail : (options.baseBranch || ''),
     baseSha,
     railEstAncetre: ancetre(`origin/${rail}`, head),
@@ -349,6 +368,20 @@ function rapatrier(options = {}) {
   const entree = options.entree || observer({ ...options, exec });
 
   if (entree.refus) return etatDeRefusDeDesignation(entree.refus, entree.branche);
+
+  if (entree._headAmbigu) {
+    const { local, distant } = entree._headAmbigu;
+    return etat({
+      etat: 'BLOCKED', maillon: MAILLON, code: 'HEAD_AMBIGU',
+      condition: 'HEAD Claude exact identifié',
+      motif: `« ${entree.branche} » désigne deux commits différents : ${local.slice(0, 8)} `
+        + `en local et ${distant.slice(0, 8)} sur origin. Transporter l'un des deux `
+        + `serait choisir à la place d'un humain lequel des deux travaux part.`,
+      sha: distant, branche: entree.branche, lot: '(non déterminé)',
+      prochaine_action: 'Aligner la branche locale sur origin (ou l’inverse), puis relancer.',
+      details: { sha_local: local, sha_distant: distant },
+    });
+  }
 
   if (entree._ambigu) {
     return etat({

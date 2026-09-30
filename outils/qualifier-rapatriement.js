@@ -169,12 +169,31 @@ function qualifier(e) {
       details: { fichiers: sentinelles } });
   }
 
+  // « INTRODUITE PAR LE DIFF » N'EST PAS « PRÉSENTE DANS LE FICHIER ».
+  // Cette garde lisait le contenu ENTIER de chaque fichier touché. Elle
+  // accusait donc une branche d'introduire ce que le rail portait déjà :
+  // mesuré le 30/09/2026, deux branches de run sur trois étaient refusées
+  // parce que docs/handoff/CURRENT.md nomme le projet Supabase de Production
+  // depuis des semaines. Une garde qui refuse toute la documentation du dépôt
+  // n'est pas stricte, elle est inutilisable — et une garde inutilisable finit
+  // désarmée. On mesure donc les LIGNES AJOUTÉES, ce que la garde a toujours
+  // dit mesurer.
+  // Le repli reste conservateur : si le relevé ne porte pas les lignes (un
+  // appelant qui ne fournit que des chemins), on relit le fichier entier.
+  // Une garde qui ne sait pas doit trop refuser, jamais trop peu.
   const lire = typeof a.contenus === 'function' ? a.contenus : () => '';
+  const parChemin = new Map((a.diff || [])
+    .filter((d) => d && typeof d === 'object')
+    .map((d) => [d.chemin, d]));
   const versProduction = [];
   for (const c of touches) {
-    const texte = String(lire(c) || '');
+    const d = parChemin.get(c);
+    const surAjouts = d && Array.isArray(d.lignes_ajoutees);
+    const texte = surAjouts ? d.lignes_ajoutees.join('\n') : String(lire(c) || '');
     for (const m of MARQUEURS_PRODUCTION) {
-      if (m.motif.test(texte)) versProduction.push({ chemin: c, marqueur: m.nom });
+      if (m.motif.test(texte)) {
+        versProduction.push({ chemin: c, marqueur: m.nom, mesure: surAjouts ? 'lignes ajoutées' : 'fichier entier' });
+      }
     }
   }
   if (versProduction.length) {

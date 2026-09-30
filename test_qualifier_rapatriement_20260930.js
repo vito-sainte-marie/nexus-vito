@@ -185,6 +185,44 @@ ep('MUTATION — introduire la cible Supabase Production est une décision rése
   assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION');
 });
 
+// Les trois bords de « INTRODUITE ». Aucun ne tient sans les deux autres :
+// le premier seul rendrait la garde muette, le deuxième seul la rendrait
+// inutilisable, le troisième interdit de devenir muet quand on ne sait pas.
+ep('une cible Production déjà présente n’est pas introduite par la branche', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'docs/handoff/CURRENT.md', statut: 'M',
+      lignes_ajoutees: ['Rien de nouveau ici.'],
+      lignes_supprimees: [] }],
+    // Le fichier NOMME la Production, et la nommait déjà sur le rail.
+    contenus: () => 'Projet Supabase Production : uzhjpqpctpvxytxpxoqz\nRien de nouveau ici.',
+  }));
+  assert.notStrictEqual(r.code, 'CHANGEMENT_PRODUCTION',
+    'accuser une branche de ce que le rail porte déjà refuserait toute la documentation');
+});
+
+ep('MUTATION — la même cible, cette fois AJOUTÉE, est bien refusée', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'docs/handoff/CURRENT.md', statut: 'M',
+      lignes_ajoutees: ['Projet Supabase Production : uzhjpqpctpvxytxpxoqz'],
+      lignes_supprimees: [] }],
+    contenus: () => 'Projet Supabase Production : uzhjpqpctpvxytxpxoqz',
+  }));
+  assert.strictEqual(r.etat, 'HUMAN_DECISION_REQUIRED');
+  assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION');
+  assert.strictEqual(r.details.cibles[0].mesure, 'lignes ajoutées',
+    'le dossier doit dire sur quoi la garde a conclu');
+});
+
+ep('un relevé sans lignes retombe sur le fichier entier, jamais sur le silence', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'outils/x.js', statut: 'M' }],
+    contenus: () => 'const p = "uzhjpqpctpvxytxpxoqz";',
+  }));
+  assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION',
+    'une garde qui ne sait pas doit trop refuser, jamais trop peu');
+  assert.strictEqual(r.details.cibles[0].mesure, 'fichier entier');
+});
+
 // ── AFFAIBLISSEMENT DE GARDE ─────────────────────────────────────────────────
 ep('MUTATION — un `|| true` ajouté sur une garde est un affaiblissement', () => {
   const r = qualifier(scenario({

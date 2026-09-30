@@ -67,6 +67,20 @@ function depot(sur = {}) {
     if (cmd !== 'git') return { code: 0, sortie: '' };
     if (a === '--abbrev-ref HEAD' || a === 'rev-parse --abbrev-ref HEAD') return { code: 0, sortie: BRANCHE };
     if (args[0] === 'fetch') return { code: 0, sortie: '' };
+    // Le banc modélise le cas de la CI : la branche de run est EXTRAITE, donc
+    // sa ref locale existe et la ref distante peut être absente. Les surcharges
+    // `refLocale`/`refDistante` permettent de jouer l'autre bord (poste de
+    // travail) et la divergence des deux.
+    if (args[0] === 'rev-parse' && args[1] === '--verify') {
+      const ref = args[3] || '';
+      if (ref === `refs/heads/${BRANCHE}`) {
+        return m.refLocale === null ? { code: 1, sortie: '' } : { code: 0, sortie: m.refLocale || m.head };
+      }
+      if (ref === `refs/remotes/origin/${BRANCHE}`) {
+        return m.refDistante ? { code: 0, sortie: m.refDistante } : { code: 1, sortie: '' };
+      }
+      return { code: 1, sortie: '' };
+    }
     if (args[0] === 'rev-parse' && args[1] === BRANCHE) return { code: 0, sortie: m.head };
     if (args[0] === 'rev-parse') return { code: 0, sortie: m.railSha };
     if (args[0] === 'merge-base' && args[1] === '--is-ancestor') {
@@ -370,6 +384,42 @@ verifier('seul FAILED rougit la CI ; BLOCKED se voit sans casser le run', () => 
 // Les deux épreuves qui suivent exécutent donc l'exécuteur RÉEL. Elles
 // n'appellent ni `gh` ni le réseau : un `node -e` suffit à produire un flot
 // plus gros que l'ancien tampon, ce qui les rend déterministes partout.
+// ── QUEL COMMIT, ET D’OÙ ────────────────────────────────────────────────────
+// Le 30/09/2026, les trois branches réelles ont franchi le refus de désignation
+// puis buté sur HEAD_INCONNU : lancé depuis un poste, « claude/issue-… » n'existe
+// que sous `origin/`, et `rev-parse` échouait. Le mécanisme déclarait donc
+// inconnu un HEAD parfaitement connu. Les trois épreuves ci-dessous tiennent les
+// trois cas, y compris celui où le nom désigne deux commits.
+console.log('\n── A-bis. QUEL COMMIT, ET D’OÙ ─────────────────────────────────────');
+
+verifier('en CI la ref locale est retenue, et elle est nommée', () => {
+  const d = depot();
+  const e = observer({ exec: d.exec, branche: BRANCHE, commentaires: declencheur,
+    analyse: ANALYSE, verifications: [], fetch: false });
+  assert.strictEqual(e.head, HEAD);
+  assert.strictEqual(e.refHead, `refs/heads/${BRANCHE}`,
+    'le dossier doit dire d’où vient le commit transporté, pas seulement lequel');
+});
+
+verifier('hors CI, la ref distante sert de repli — sans être devinée', () => {
+  const d = depot({ refLocale: null, refDistante: HEAD });
+  const e = observer({ exec: d.exec, branche: BRANCHE, commentaires: declencheur,
+    analyse: ANALYSE, verifications: [], fetch: false });
+  assert.strictEqual(e.head, HEAD, 'une branche absente en local reste transportable');
+  assert.strictEqual(e.refHead, `refs/remotes/origin/${BRANCHE}`);
+});
+
+verifier('un nom qui désigne deux commits est refusé, jamais arbitré', () => {
+  const autre = 'c'.repeat(40);
+  const d = depot({ refLocale: HEAD, refDistante: autre });
+  const r = rapatrier({ exec: d.exec, branche: BRANCHE, commentaires: declencheur,
+    analyse: ANALYSE, verifications: [], fetch: false });
+  assert.strictEqual(r.etat, 'BLOCKED');
+  assert.strictEqual(r.code, 'HEAD_AMBIGU');
+  assert.ok(!d.appels.some((a) => a.startsWith('git push')),
+    'aucun des deux commits ne doit partir');
+});
+
 console.log('\nL’exécuteur réel — ce qu’un faux exécuteur ne peut pas mesurer');
 
 verifier('un flot plus gros que l’ancien tampon d’1 Mio est lu en entier', () => {
