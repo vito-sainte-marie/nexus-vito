@@ -38,8 +38,11 @@ const QUALIF = 'outils/qualifier-rapatriement.js';
 const ETAT = 'outils/etat-maillon.js';
 const WATCH = 'outils/watchdog-stagnation.js';
 const WORKFLOW = '.github/workflows/tests.yml';
+const DESIG = 'outils/designation-rail.js';
+const RAPAT = 'outils/rapatrier-vers-rail.js';
 const EPREUVES = ['test_qualifier_rapatriement_20260930.js', 'test_etat_maillon_20260930.js',
-  'test_watchdog_stagnation_20260930.js', 'test_cablage_maillons_20260930.js'];
+  'test_watchdog_stagnation_20260930.js', 'test_cablage_maillons_20260930.js',
+  'test_designation_rail_20260930.js', 'test_rapatriement_vers_rail_20260930.js'];
 
 // Chaque mutation : le fichier, le texte exact remplacé, son remplacement
 // permissif, et l'épreuve qui DOIT rougir.
@@ -150,6 +153,51 @@ const MUTATIONS = [
     de: "    process.exitCode = principal(process.argv.slice(2));",
     a:  "    principal(process.argv.slice(2)); process.exitCode = 0;" },
 
+  // ── LA DÉSIGNATION DU RAIL ─────────────────────────────────────────────────
+  // Six gardes, et une leçon : « une désignation ne se recalcule pas ». Chacune
+  // de ces mutations est exactement le raccourci qu'un auteur pressé écrirait.
+  { nom: 'corpus non lu confondu avec un corpus vide', f: DESIG,
+    de: "  if (!Array.isArray(commentaires)) {",
+    a:  "  commentaires = Array.isArray(commentaires) ? commentaires : [];\n  if (false) {" },
+  { nom: 'un repli remplace la désignation absente', f: DESIG,
+    de: "  if (nommes.length === 0) {",
+    a:  "  if (nommes.length === 0) { return { rail: 'handoff-continuite-20260920', origine: 'REPLI' }; }\n  if (false) {" },
+  { nom: 'tolérance élargie : un déclencheur étranger s’épingle', f: DESIG,
+    de: "  const tol = (typeof tolerance === 'number' ? tolerance : TOLERANCE_SECONDES) * 1000;",
+    a:  "  const tol = 86400 * 1000;" },
+  { nom: 'filtre d’auteur supprimé', f: DESIG,
+    de: "    .filter((c) => !auteurAutorise || c.auteur === auteurAutorise)",
+    a:  "    .filter(() => true)" },
+  { nom: 'rails protégés rendus désignables', f: DESIG,
+    de: "const RAILS_INTERDITS = Object.freeze(['main', 'production']);",
+    a:  "const RAILS_INTERDITS = Object.freeze([]);" },
+  { nom: 'la grammaire cesse de lire la forme « : »', f: DESIG,
+    de: "  /NEXUS_BASE_BRANCH[ \\t]*[:=][ \\t]*[`\"']?([A-Za-z0-9._/-]+)/g;",
+    a:  "  /NEXUS_BASE_BRANCH[ \\t]*[=][ \\t]*[`\"']?([A-Za-z0-9._/-]+)/g;" },
+
+  // ── LE RAPATRIEMENT LUI-MÊME ───────────────────────────────────────────────
+  { nom: 'le transport devient armé par défaut', f: RAPAT,
+    de: "  if (!options.transporter) {",
+    a:  "  if (false) {" },
+  { nom: 'la destination n’est plus relue après le geste', f: RAPAT,
+    de: "  const relu = texte(exec('git', ['ls-remote', 'origin', `refs/heads/${rail}`])).split(/\\s+/)[0] || '';",
+    a:  "  const relu = head;" },
+  { nom: 'toutes les vérifications sont écartées, pas seulement le run courant', f: RAPAT,
+    de: "  const aEcarter = runCourant ? new RegExp(`/runs/${runCourant}(/|$)`) : null;",
+    a:  "  const aEcarter = /.*/;" },
+  { nom: 'le diff est réduit aux chemins : plus aucun contenu inspecté', f: RAPAT,
+    de: "  for (const l of texte(exec('git', ['diff', '--unified=0', plage])).split('\\n')) {",
+    a:  "  for (const l of []) {" },
+  // Celle-ci ne se mesure QUE par l'exécuteur réel : avec un faux exécuteur,
+  // aucune épreuve n'aurait rougi. C'est précisément le trou qui a laissé
+  // passer le défaut du 30/09, et cette ligne est ce qui le referme.
+  { nom: 'le tampon revient à sa taille par défaut, et le mur se retait', f: RAPAT,
+    de: "const TAMPON = 64 * 1024 * 1024;",
+    a:  "const TAMPON = 1024 * 1024;" },
+  { nom: 'un débordement cesse de se nommer', f: RAPAT,
+    de: "      const tronque = err && (err.code === 'ENOBUFS' || /ENOBUFS/.test(String(err.message || '')));",
+    a:  "      const tronque = false;" },
+
   // ── LE CÂBLAGE, PAS SEULEMENT LES MODULES ──────────────────────────────────
   // Les quatre mutations qui suivent ne touchent aucun module : elles rebranchent
   // le workflow tel qu'il était pendant les quatre jours d'arrêt. C'est là que le
@@ -171,8 +219,8 @@ const MUTATIONS = [
 // Les modules dont dépendent les épreuves recopiées. `transport-autorise.js`
 // n'est pas muté, mais le qualifieur l'exige : un bac incomplet rougirait
 // partout, et ce rouge-là ne mesurerait rien.
-const COPIES = [QUALIF, ETAT, WATCH, 'outils/transport-autorise.js', WORKFLOW, ...EPREUVES];
-const MUTABLES = [QUALIF, ETAT, WATCH, WORKFLOW];
+const COPIES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, 'outils/transport-autorise.js', WORKFLOW, ...EPREUVES];
+const MUTABLES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, WORKFLOW];
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-mutation-'));
 fs.mkdirSync(path.join(BAC, 'outils'), { recursive: true });

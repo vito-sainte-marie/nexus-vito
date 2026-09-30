@@ -166,6 +166,42 @@ verifier('sans aucun déclencheur antérieur, on refuse au lieu de deviner', () 
   assert.strictEqual(r.code, 'DECLENCHEUR_INTROUVABLE');
 });
 
+// ── LA DISTINCTION QUI A COÛTÉ TROIS FAUX REFUS ─────────────────────────────
+// Le 30/09/2026, trois branches réelles ont été refusées pour
+// DECLENCHEUR_INTROUVABLE alors que leurs déclencheurs existaient : la lecture
+// des commentaires avait débordé du tampon d'`execFileSync`, rendu `null`, et
+// `null` était devenu `[]` en chemin. Le module affirmait donc une absence
+// qu'il n'avait jamais mesurée. Les deux épreuves ci-dessous tiennent les deux
+// bords de la distinction : liste vide = mesure, absence de liste = pas de
+// mesure. Aucune des deux ne peut passer sans l'autre.
+verifier('une liste vide reste une mesure : elle conclut à l’absence', () => {
+  const r = D.epingler({ branche: BRANCHE, auteurAutorise: AUTEUR, commentaires: [] });
+  assert.strictEqual(r.code, 'DECLENCHEUR_INTROUVABLE');
+});
+
+verifier('un corpus non lu ne conclut à rien', () => {
+  for (const absent of [null, undefined]) {
+    const r = D.epingler({ branche: BRANCHE, auteurAutorise: AUTEUR, commentaires: absent });
+    assert.strictEqual(r.code, 'CORPUS_NON_MESURE',
+      `${String(absent)} doit refuser faute de mesure, pas conclure à l'absence`);
+    assert.ok(!/DECLENCHEUR_INTROUVABLE/.test(r.code));
+  }
+});
+
+verifier('un corpus non lu remonte tel quel jusqu’à resoudre', () => {
+  const r = D.resoudre({ branche: BRANCHE, auteurAutorise: AUTEUR, commentaires: null });
+  assert.strictEqual(r.rail, null);
+  assert.strictEqual(r.code, 'CORPUS_NON_MESURE');
+});
+
+verifier('un rail imposé n’a pas besoin du corpus', () => {
+  // L'override est une désignation à lui seul : exiger une mesure de plus
+  // bloquerait un transport pourtant explicitement autorisé.
+  const r = D.resoudre({ branche: BRANCHE, commentaires: null, override: RAIL });
+  assert.strictEqual(r.rail, RAIL);
+  assert.strictEqual(r.origine, 'IMPOSE');
+});
+
 verifier('un déclencheur trop lointain ne s’épingle pas', () => {
   const r = D.epingler({
     branche: BRANCHE,

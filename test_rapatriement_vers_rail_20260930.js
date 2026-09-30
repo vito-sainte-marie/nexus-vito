@@ -11,7 +11,7 @@
  */
 
 const assert = require('assert');
-const { rapatrier, observer, relever, verificationsDuHead } = require('./outils/rapatrier-vers-rail.js');
+const { rapatrier, observer, relever, verificationsDuHead, executeurReel } = require('./outils/rapatrier-vers-rail.js');
 const { codeSortie, ETATS } = require('./outils/etat-maillon.js');
 
 let reussites = 0; const echecs = [];
@@ -358,6 +358,55 @@ verifier('seul FAILED rougit la CI ; BLOCKED se voit sans casser le run', () => 
   assert.strictEqual(codeSortie(lancer({ pushCode: 1 }, { transporter: true }).r), 1);
   assert.strictEqual(codeSortie(lancer({}, { commentaires: [] }).r), 0);
   assert.strictEqual(codeSortie(lancer({}, {}).r), 0);
+});
+
+
+// ── L'EXÉCUTEUR RÉEL, ET LE MUR QUI SE TAISAIT ──────────────────────────────
+// Toutes les épreuves ci-dessus injectent un faux exécuteur : c'est ce qui les
+// rend hermétiques, et c'est aussi ce qui les a rendues aveugles. Le 30/09/2026
+// les 37 épreuves étaient vertes pendant que le mécanisme, lancé pour de vrai,
+// refusait trois branches sur trois pour un motif faux — `execFileSync`
+// s'arrêtait à 1 Mio, et cette panne prenait la forme d'un simple « non ».
+// Les deux épreuves qui suivent exécutent donc l'exécuteur RÉEL. Elles
+// n'appellent ni `gh` ni le réseau : un `node -e` suffit à produire un flot
+// plus gros que l'ancien tampon, ce qui les rend déterministes partout.
+console.log('\nL’exécuteur réel — ce qu’un faux exécuteur ne peut pas mesurer');
+
+verifier('un flot plus gros que l’ancien tampon d’1 Mio est lu en entier', () => {
+  const exec = executeurReel();
+  const octets = 3 * 1024 * 1024;
+  const r = exec(process.execPath, ['-e', `process.stdout.write('x'.repeat(${octets}))`]);
+  assert.strictEqual(r.code, 0,
+    `la lecture a échoué (${r.erreur || 'sans message'}) : le tampon est trop petit`);
+  assert.strictEqual(r.sortie.length, octets);
+  assert.ok(!r.tronque, 'une lecture complète ne doit pas se déclarer tronquée');
+});
+
+verifier('un débordement se nomme, au lieu de ressembler à un échec ordinaire', () => {
+  // Avec un tampon volontairement minuscule, on force le mur. Ce qui compte
+  // n'est pas que ça échoue — c'est que l'échec SE DISE, sans quoi l'appelant
+  // le confondrait avec un `gh` ayant répondu « non ».
+  const exec = executeurReel();
+  const r = exec(process.execPath, ['-e', "process.stdout.write('x'.repeat(4096))"], { maxBuffer: 16 });
+  assert.notStrictEqual(r.code, 0);
+  assert.strictEqual(r.tronque, true,
+    'un débordement muet redeviendrait indiscernable d’une réponse négative');
+});
+
+verifier('un corpus illisible ne fait pas conclure la qualification', () => {
+  // Le bout en bout du défaut : lecture impossible → `null` → refus pour
+  // absence de MESURE, et non pour absence de déclencheur.
+  const r = rapatrier({
+    branche: BRANCHE, depot: 'vito-sainte-marie/nexus-vito',
+    exec: (commande, args) => (commande === 'gh'
+      ? { code: 1, sortie: '', erreur: 'spawnSync gh ENOBUFS', tronque: true }
+      : { code: 0, sortie: '' }),
+  });
+  assert.strictEqual(r.etat, 'BLOCKED');
+  assert.strictEqual(r.code, 'CORPUS_NON_MESURE',
+    `refuser en ${r.code} affirmerait une absence jamais mesurée`);
+  assert.ok(!/introuvable/i.test(String(r.motif)),
+    'le motif ne doit pas dire « introuvable » : rien n’a été cherché');
 });
 
 console.log(`\n${echecs.length === 0 ? '✅' : '❌'} ${reussites} réussite(s), ${echecs.length} échec(s)\n`);

@@ -935,3 +935,101 @@ jobs:
           # ce que decision-2.md du lot CARB-004 interdit explicitement.
           NEXUS_COMMIT_ATTENDU: ${{ github.sha }}
         run: node outils/recette-navigateur-test.js
+
+      # ══════════════════════════════════════════════════════════════════════
+      # M7 — RAMENER LE TRAVAIL SUR SON RAIL.
+      #
+      # Le maillon qui manquait. Jusqu'ici la chaîne s'arrêtait ici : Claude
+      # produisait un commit sur `claude/issue-*`, la CI le jugeait, et plus
+      # rien. Le rail ne le voyait jamais. Personne n'était en faute — aucune
+      # étape n'avait ce travail pour mission. 64 branches sur 137 dorment
+      # ainsi.
+      #
+      # Trois principes gouvernent cette étape, et expliquent sa longueur :
+      #
+      # 1. ELLE NE SE SAUTE PAS. Un `if:` de step qui écarte les branches
+      #    ordinaires rendrait `skipped`, et `skipped` n'est ni vert ni rouge :
+      #    c'est l'invisible. Le tri se fait donc DANS l'étape, et une branche
+      #    qui n'a rien à rapatrier le DIT (`NO_WORK`).
+      #
+      # 2. ELLE NE JUGE PAS SON PROPRE RUN. Cette étape est elle-même une
+      #    vérification de ce commit ; s'interroger sur son propre verdict
+      #    reviendrait à se demander si l'on a fini de parler. Le verdict des
+      #    étapes précédentes est donc lu dans `job.status`, et l'outil écarte
+      #    des vérifications GitHub celle qui porte `GITHUB_RUN_ID`.
+      #
+      # 3. ELLE NE S'AUTORISE RIEN. Le transport effectif exige
+      #    `contents: write`, que ce workflow n'a pas et que Claude ne peut pas
+      #    s'accorder (CLAUDE.md). Tant que le geste humain n'est pas posé,
+      #    l'étape QUALIFIE et publie `HUMAN_DECISION_REQUIRED` en nommant
+      #    exactement ce qui manque — plutôt que de se taire, ou de faire
+      #    croire que le maillon fonctionne.
+      # ══════════════════════════════════════════════════════════════════════
+      - name: Rapatriement vers le rail — qualifier, et ne transporter que si c'est prouvé
+        # `!cancelled()` et non `success()` : sur un run rouge, `success()`
+        # sauterait l'étape, et le maillon bloqué deviendrait invisible au
+        # moment précis où il importe le plus de le voir.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXUS_ETAT_FICHIER: ${{ runner.temp }}/rapatriement.json
+          # Variable de dépôt, absente par défaut. Elle n'accorde aucun droit :
+          # elle exprime l'intention. Sans `contents: write`, l'armer ferait
+          # échouer le push — visiblement (`TRANSPORT_REFUSE_PAR_ORIGIN`), ce
+          # qui reste préférable à un refus muet.
+          NEXUS_RAPATRIEMENT_ARME: ${{ vars.NEXUS_RAPATRIEMENT_ARME }}
+          ETAT_DU_JOB: ${{ job.status }}
+        run: |
+          set -uo pipefail
+          MAILLON=rapatriement-claude-vers-rail
+          SHA="${GITHUB_SHA:-(sha non lisible)}"
+          BR="${GITHUB_REF_NAME:-(branche non lisible)}"
+
+          # ── Le tri, dit à voix haute ───────────────────────────────────────
+          case "$BR" in
+            claude/issue-*) : ;;
+            *)
+              node outils/etat-maillon.js NO_WORK PAS_UNE_BRANCHE_DE_RUN \
+                --maillon "$MAILLON" \
+                --motif "« $BR » n'est pas une branche de run Claude : il n'y a rien à rapatrier depuis ici."
+              exit 0
+              ;;
+          esac
+
+          # ── Le verdict des étapes précédentes ──────────────────────────────
+          if [ "$ETAT_DU_JOB" != "success" ]; then
+            node outils/etat-maillon.js BLOCKED CI_NON_VERTE \
+              --maillon "$MAILLON" \
+              --motif "Une étape de ce run a échoué. Un travail dont les épreuves ne passent pas ne remonte pas sur le rail, quelle que soit la qualité du reste." \
+              --condition "tests déterministes requis verts" \
+              --prochaine-action "corriger le rouge sur « $BR », pousser, et laisser ce workflow rejuger" \
+              --sha "$SHA" --branche "$BR" \
+              --lot "(lot non déterminé — la qualification n'a pas été lancée)"
+            exit 0
+          fi
+
+          # ── Le geste, ou sa qualification ─────────────────────────────────
+          if [ "${NEXUS_RAPATRIEMENT_ARME:-}" = "oui" ]; then
+            node outils/rapatrier-vers-rail.js \
+              --branche "$BR" --depot "${GITHUB_REPOSITORY:-}" --transporter
+            exit $?
+          fi
+
+          node outils/rapatrier-vers-rail.js --branche "$BR" --depot "${GITHUB_REPOSITORY:-}"
+          CODE=$?
+
+          # Un refus de qualification se suffit à lui-même : il a déjà nommé sa
+          # condition. Seul le cas « tout est prouvé, et pourtant rien ne part »
+          # a besoin d'être expliqué, sans quoi il ressemblerait à un succès.
+          LU=$(node -e "try{const r=JSON.parse(require('fs').readFileSync(process.env.NEXUS_ETAT_FICHIER,'utf8'));process.stdout.write((r.etat||'')+'|'+(r.code||'')+'|'+(r.lot||(r.details&&r.details.lot)||''))}catch(e){process.stdout.write('||')}")
+          ETAT=${LU%%|*}; RESTE=${LU#*|}; LOT=${RESTE#*|}
+          if [ "$ETAT" = "EXECUTE" ]; then
+            node outils/etat-maillon.js HUMAN_DECISION_REQUIRED TRANSPORT_NON_ARME \
+              --maillon "$MAILLON" \
+              --motif "Le travail de « $BR » remplit toutes les conditions de rapatriement, et il reste pourtant sur place : ce workflow n'a pas le droit d'écrire dans le dépôt." \
+              --condition "permissions.contents: write dans .github/workflows/tests.yml, et variable de dépôt NEXUS_RAPATRIEMENT_ARME = oui" \
+              --prochaine-action "geste humain réservé à Frédéric (élargissement de la surface du jeton, CLAUDE.md) — à défaut, rapatrier à la main : git push origin $SHA:refs/heads/<rail>" \
+              --sha "$SHA" --branche "$BR" \
+              --lot "${LOT:-(lot non publié par la qualification)}"
+          fi
+          exit $CODE

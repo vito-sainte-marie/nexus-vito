@@ -57,15 +57,31 @@ const MAILLON = 'rapatriement-claude-vers-rail';
 // dépôt, et surtout pas d'un réseau. Il rend `{ code, sortie }` plutôt que de
 // jeter, parce qu'ici un code non nul est très souvent une RÉPONSE
 // (`--is-ancestor` répond « non » par 1) et pas une panne.
+//
+// LE TAMPON EST UN MUR, ET UN MUR QUI SE TAIT MENT.
+// `execFileSync` s'arrête à 1 Mio par défaut et jette alors `ENOBUFS`, avec
+// `err.status === null` : sans précaution, cette panne prend la forme d'un
+// banal `code: 1`, indiscernable d'un `gh` qui aurait répondu « non ».
+// Mesuré le 30/09/2026 : le corpus de commentaires de l'issue #28 pesait
+// 1 022 127 octets, et les trois branches essayées ont toutes été refusées
+// pour DECLENCHEUR_INTROUVABLE alors que leurs déclencheurs existaient.
+// Le tampon est donc élargi — mais élargir ne fait que déplacer le mur, et
+// un corpus finit toujours par grandir. Le débordement est donc aussi
+// NOMMÉ (`tronque`), pour que l'appelant puisse dire « je n'ai pas pu
+// mesurer » au lieu de répondre à la place de GitHub.
+const TAMPON = 64 * 1024 * 1024;
+
 function executeurReel() {
   return (commande, args, options = {}) => {
     try {
       const sortie = execFileSync(commande, args, {
-        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options,
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: TAMPON, ...options,
       });
       return { code: 0, sortie: String(sortie) };
     } catch (err) {
+      const tronque = err && (err.code === 'ENOBUFS' || /ENOBUFS/.test(String(err.message || '')));
       return { code: typeof err.status === 'number' ? err.status : 1,
+        tronque: tronque || undefined,
         sortie: String(err.stdout || ''), erreur: String(err.stderr || err.message || '') };
     }
   };
@@ -266,8 +282,16 @@ function etatDeRefusDeDesignation(refus, branche) {
     sha: '(non résolu — la destination manque)',
     branche: branche || '(inconnue)',
     lot: '(non déterminé)',
-    prochaine_action: 'Redéclencher le run avec un commentaire portant '
-      + '`NEXUS_BASE_BRANCH=<rail>`. Un rail se désigne, il ne se devine pas.',
+    // Un refus de mesure et un refus de désignation ne demandent pas le même
+    // geste : le premier veut qu'on relance la lecture, le second qu'un humain
+    // écrive le rail. Servir la même phrase aux deux enverrait Frédéric
+    // redéclencher un run alors que le déclencheur existait déjà.
+    prochaine_action: refus.code === 'CORPUS_NON_MESURE'
+      ? 'Relire les commentaires de l\'issue (droits du jeton, débit GitHub, '
+        + 'taille du corpus) puis relancer la qualification. Ne rien conclure '
+        + 'sur cette branche tant que la lecture n\'a pas abouti.'
+      : 'Redéclencher le run avec un commentaire portant '
+        + '`NEXUS_BASE_BRANCH=<rail>`. Un rail se désigne, il ne se devine pas.',
   });
 }
 

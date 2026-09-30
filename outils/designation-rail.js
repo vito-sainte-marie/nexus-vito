@@ -124,7 +124,26 @@ function epingler({ branche, commentaires, auteurAutorise, tolerance } = {}) {
     };
   }
 
-  const recevables = (Array.isArray(commentaires) ? commentaires : [])
+  // UNE QUESTION SANS RÉPONSE N'EST PAS UNE RÉPONSE NÉGATIVE.
+  // Le lecteur de commentaires rend `null` quand GitHub n'a pas répondu, ou
+  // quand sa réponse a débordé du tampon. Traiter ce `null` comme une liste
+  // vide ferait dire « aucun déclencheur n'existe » à une mesure qui n'a
+  // simplement pas eu lieu, et la branche serait refusée pour un motif faux —
+  // le refus le plus coûteux qui soit, parce qu'il est confiant. C'est le
+  // même soin que `ASCENDANCE_NON_MESUREE` et `CI_NON_MESUREE` en aval :
+  // « je ne sais pas » se dit, il ne se traduit pas en « non ».
+  // Une vraie liste vide, elle, reste une mesure : elle passe et donne
+  // DECLENCHEUR_INTROUVABLE, qui est alors exact.
+  if (!Array.isArray(commentaires)) {
+    return {
+      code: 'CORPUS_NON_MESURE',
+      motif: `les commentaires de l'issue n'ont pas pu être lus : sans corpus, `
+        + `« ${branche} » n'est ni épinglable ni non épinglable. Rien ici ne `
+        + `permet de dire qu'aucun déclencheur n'existe.`,
+    };
+  }
+
+  const recevables = commentaires
     .map((c) => ({ ...c, t: versInstant(c && c.date) }))
     .filter((c) => c.t !== null)
     .filter((c) => !auteurAutorise || c.auteur === auteurAutorise)
