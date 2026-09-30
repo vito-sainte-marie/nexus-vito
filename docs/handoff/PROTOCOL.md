@@ -427,10 +427,17 @@ dépôt jetable — demande déposée, réveil calculé, rail identifié depuis 
 déclencheur humain, branche de travail épinglée à ce déclencheur, CI verte,
 qualification, transport armé, destination relue, empreinte de progression
 changée. Aucune Production n'y figure, et l'épreuve le vérifie. Casser
-volontairement un maillon la rend rouge ; c'est sa raison d'être. Elle est le
-dernier banc de `test_mutations_rapatriement_20260930.js` : quand c'est elle qui
-mord et qu'aucun banc unitaire ne l'a précédée, la mutation portait sur un
-**câblage**, et prouver la fonction n'aurait pas suffi.
+volontairement un maillon la rend rouge ; c'est sa raison d'être, et elle porte
+ses propres maillons cassés — M1, M3, M4, M5, M6, M7 — sans dépendre d'un
+harnais extérieur.
+
+Elle **n'est plus un banc de** `test_mutations_rapatriement_20260930.js`. Elle
+l'a été, et l'y laisser coûtait 17 s à chaque mutation pour ne rien démontrer :
+depuis que chaque mutation nomme le banc qui doit rougir, aucune ne la désigne,
+donc aucune ne la faisait mordre. Ce qui fonde sa nécessité n'est donc pas le
+harnais mais un fait mesuré : elle a trouvé un dossier `FAST_FORWARD` qui ne
+nommait aucune ref source, que six bancs unitaires avaient laissé passer. Un
+câblage ne se prouve pas en prouvant ses pièces.
 
 ## Gate humaine
 

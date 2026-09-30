@@ -360,7 +360,15 @@ epreuve('M7 — un rail qui a divergé sous le run n’est pas résolu automatiq
   git(b.depot, 'commit', '--quiet', '-m', 'Le rail avance sous le run');
   git(b.depot, 'push', '--quiet', 'origin', RAIL);
   git(b.depot, 'fetch', '--quiet', 'origin');
-  const bouge = railDistant(b);
+  // L'attendu de la comparaison finale ne doit PAS sortir de `railDistant`.
+  // Guardian QA l'a dit le 30/09 : opposer une expression à elle-même ne
+  // prouve rien, même quand un geste s'insère entre les deux lectures — le
+  // lecteur ne peut pas distinguer « le rail n'a pas bougé » de « j'ai relu la
+  // même chose ». On nomme donc le commit attendu à sa source : ce que git dit
+  // avoir commis en local, avant toute relecture du distant.
+  const bouge = git(b.depot, 'rev-parse', 'HEAD');
+  assert.strictEqual(railDistant(b), bouge,
+    'le bac n’a pas publié sur le rail le commit qu’il vient de créer');
   assert.notStrictEqual(bouge, avant, 'le bac n’a pas réussi à faire diverger le rail');
 
   const r = rapatrier(b, { transporter: true, branche: c.nom });
