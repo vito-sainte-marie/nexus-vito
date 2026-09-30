@@ -312,6 +312,24 @@ function qualifier(e) {
   }
 
   // ── G. FORME DU TRANSPORT ─────────────────────────────────────────────────
+  // UNE QUESTION SANS RÉPONSE N'EST PAS UNE RÉPONSE NÉGATIVE. L'interrogation
+  // d'ascendance (`--is-ancestor`) rend 0 pour oui, 1 pour non, et tout autre
+  // code pour « je
+  // n'ai pas pu répondre » : objet absent, dépôt incomplet, fetch manquant.
+  // L'observation remonte alors `null`. Le traduire en « ils ont divergé »
+  // fabriquerait une histoire mesurée à partir d'une mesure absente, et le
+  // motif se contredirait lui-même (« le rail a avancé de X à X »).
+  if (a.railEstAncetre === null || a.railEstAncetre === undefined
+    || (a.railEstAncetre !== true && a.baseEstAncetreDuRail !== true && a.baseEstAncetreDuRail !== false)) {
+    return R('BLOCKED', { code: 'ASCENDANCE_NON_MESUREE',
+      condition: 'absence de divergence incompatible',
+      motif: `L’ascendance entre « ${a.branche} » et « ${a.rail} » n’a pas pu être mesurée. `
+        + 'Aucune forme de transport ne peut être établie sur une question restée sans réponse.',
+      prochaine_action: 'Compléter le dépôt du run (`git fetch origin <rail>` avec l’historique nécessaire) et relancer la qualification.',
+      details: { rail_sha: a.railSha, base_sha: a.baseSha, head: a.head,
+        rail_est_ancetre: a.railEstAncetre === undefined ? null : a.railEstAncetre,
+        base_est_ancetre_du_rail: a.baseEstAncetreDuRail === undefined ? null : a.baseEstAncetreDuRail } });
+  }
   if (a.railEstAncetre !== true) {
     const perime = a.baseEstAncetreDuRail === true;
     return R('BLOCKED', {
