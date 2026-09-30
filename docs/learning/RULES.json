@@ -259,6 +259,19 @@
       "severity": "blocking",
       "rule": "A test must never require a known defect to be PRESENT. Asserting that the repository still contains the bug locks it in: the day it is fixed, that test breaks and CI reports the fix as a regression. Prove the detector with synthetic fixtures; use the real repository to check the defect does not COME BACK.",
       "source": "2026-09-08: closing CARB-007 removed the copied truck capacity from a screen, and test_guardian_regles_metier failed with « la capacité camion recopiée hors du moteur doit rester visible » — the fix was flagged as a new failing test"
+    },
+    {
+      "id": "GOV-006",
+      "scope": [
+        "orchestrator",
+        "handoff",
+        "github"
+      ],
+      "trigger": "automatic_wake_comment",
+      "module": "orchestration",
+      "severity": "blocking",
+      "rule": "A wake-up comment able to trigger claude.yml must never rely on an operator retyping NEXUS_BASE_BRANCH from memory. When outils/reveil-orchestrateur.js can determine a unique non-run rail, it must emit the exact `NEXUS_BASE_BRANCH=` line (mechanised since 2026-09-26); when it cannot, the prepared comment must say so explicitly and must not be auto-posted carrying the @claude mention. The durable close of this gap — an author-filtered auto-mention plus an audible refusal step in claude.yml — is fully drafted (outils/reveil-refus-audible-claude-yml-candidat.yml and its companion .md) but was still not applied to claude.yml on main as of 2026-09-30: applying it is a main-branch workflow edit, a human gate (GOV-003), not something Claude's own GitHub App permissions or this rule can close by itself.",
+      "source": "runs 36139253850 (2026-09-25) and 36723214334 (2026-09-30), issue #28 — same silent pre-checkout refusal, twice"
     }
   ]
 }

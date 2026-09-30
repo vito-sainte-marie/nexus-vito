@@ -1803,6 +1803,94 @@ verifier('génération et contrôle dérivent du même calcul', () => {
     'le contrôle doit comparer à ce que `miroirsAttendus` calcule, pas à sa propre idée');
 });
 
+// ── Simulation du réveil automatique : la désignation est-elle PARSABLE ? ──
+// Issue #28, run 36723214334 (30/09/2026) : un déclencheur `@claude` a atteint
+// `claude.yml` sans `NEXUS_BASE_BRANCH=`, l'étape « Résoudre le rail NEXUS
+// désigné » a refusé — c'est son rôle — mais SANS l'étape audible préparée
+// le 26/09 (`outils/reveil-refus-audible-claude-yml-a-appliquer-sur-main.md`,
+// jamais appliquée à `claude.yml` sur `main`), ce refus est resté muet. C'est
+// exactement la récidive du run 36139253850 du 25/09.
+//
+// Cette section ne rejoue pas cette application (elle exige d'éditer
+// `.github/workflows/claude.yml` sur `main` : hors de portée de cet outil, et
+// une gate humaine par construction). Elle vérifie la moitié qui EST du
+// ressort du producteur : quand `outils/reveil-orchestrateur.js` compose un
+// réveil, la désignation qu'il émet doit être celle que le PARSEUR RÉEL du
+// candidat de workflow retiendrait — pas une regex recopiée dans ce test, qui
+// divergerait au premier changement du candidat, mais le fragment shell
+// littéralement extrait de son fichier.
+function extraireCalculDesignations() {
+  const yml = fs.readFileSync(path.join(RACINE, 'outils',
+    'reveil-refus-audible-claude-yml-candidat.yml'), 'utf8');
+  const debut = yml.indexOf('designations="$(');
+  assert.notStrictEqual(debut, -1,
+    'le candidat de workflow ne porte plus le calcul de désignation attendu — ' +
+    'cette épreuve doit être mise à jour AVEC lui, pas contourner sa disparition');
+  const fin = yml.indexOf(')"', debut);
+  assert.notStrictEqual(fin, -1, 'fermeture du calcul introuvable dans le candidat');
+  return yml.slice(debut, fin + 2);
+}
+
+// Exécute le fragment shell RÉEL (pas une copie) contre un corps de
+// déclencheur donné, et rend exactement ce que `claude.yml` calculerait dans
+// `$designations` — vide s'il n'y en a aucune, multiligne si ambiguë.
+function designationsReellementParsees(corpsDeclencheur) {
+  const script = extraireCalculDesignations() + '\nprintf \'%s\' "$designations"';
+  return execFileSync('bash', ['-c', script],
+    { encoding: 'utf8', env: { ...process.env, NEXUS_TRIGGER_BODY: corpsDeclencheur } });
+}
+
+verifier('quand le réveil détermine un rail unique, le parseur réel du candidat claude.yml le lit sans ambiguïté', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-continuite-20260920'],
+                                distants: ['origin/handoff-continuite-20260920'],
+                                homonymes: [], identifiable: true });
+  assert.ok(/@claude/.test(corps), 'ce corps simule le commentaire déclencheur : il doit porter la mention');
+  const d = designationsReellementParsees(corps);
+  assert.strictEqual(d, 'handoff-continuite-20260920',
+    'le parseur réel de claude.yml n’a pas isolé exactement une désignation :\n' + JSON.stringify(d));
+});
+
+// Contre-témoin : moins évident qu'il paraît. Le producteur peut composer un
+// corps SANS mention mais AVEC une désignation correcte (le chemin publié par
+// tests.yml, --sans-mention) — ce n'est pas un défaut : c'est ce corps précis
+// que le réveil demande explicitement à l'humain de préfixer de `@claude`
+// avant de le poster. Le vérifier ici prouve que la désignation elle-même
+// n'est jamais perdue par le retrait de la mention.
+verifier('le corps publiable par la CI (sans mention) porte quand même une désignation parsable une fois la mention rajoutée', () => {
+  const refs = { memes: ['origin/handoff-continuite-20260920'],
+                 distants: ['origin/handoff-continuite-20260920'],
+                 homonymes: [], identifiable: true };
+  const publiable = reveilJetable(refs, null, { mention: false });
+  assert.ok(!/@claude/.test(publiable), 'précondition : ce corps ne porte pas la mention');
+  const d = designationsReellementParsees('@claude ' + publiable);
+  assert.strictEqual(d, 'handoff-continuite-20260920',
+    'la désignation a disparu quand la mention est rajoutée par l’humain, comme demandé :\n' + JSON.stringify(d));
+});
+
+// Et le cas qui a produit le silence du 25/09 comme du 30/09 : aucun rail
+// unique déterminable. Le producteur ne doit alors produire AUCUNE ligne que
+// le parseur lirait — sinon il fabriquerait un rail deviné, exactement ce que
+// toute cette plomberie existe pour interdire.
+verifier('quand le réveil ne détermine aucun rail, le parseur réel ne trouve rien à lire — il ne devine pas à sa place', () => {
+  const corps = reveilJetable({ memes: ['rail-local-seulement'], distants: [],
+                                homonymes: [], identifiable: true });
+  const d = designationsReellementParsees(corps);
+  assert.strictEqual(d, '',
+    'un corps sans désignation a néanmoins produit une valeur parsable pour claude.yml — ' +
+    'un rail se serait alors deviné, pas désigné :\n' + JSON.stringify(d));
+});
+
+// Et l'ambiguïté véritable (deux rails distants équivalents) ne doit pas non
+// plus se résoudre au hasard, y compris vue depuis le parseur réel.
+verifier('deux rails distants ambigus restent illisibles pour le parseur réel, pas résolus au premier venu', () => {
+  const corps = reveilJetable({ memes: ['origin/handoff-a', 'origin/handoff-b'],
+                                distants: ['origin/handoff-a', 'origin/handoff-b'],
+                                homonymes: [], identifiable: true });
+  const d = designationsReellementParsees(corps);
+  assert.strictEqual(d, '',
+    'le corps ne porte aucune ligne NEXUS_BASE_BRANCH — le parseur ne doit donc rien y lire :\n' + JSON.stringify(d));
+});
+
 if (echecs.length) {
   console.error(`\n${echecs.length} épreuve(s) en échec sur ${passes + echecs.length} :`);
   for (const e of echecs) console.error(`\n— ${e.nom}\n  ${String(e.message).split('\n').join('\n  ')}`);
