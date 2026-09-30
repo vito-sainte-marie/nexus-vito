@@ -176,6 +176,212 @@ async function nexusRemplirNomDuCommerce(employee) {
   document.querySelectorAll('.nexus-nom-commerce').forEach(el => { el.textContent = nom; });
 }
 
+// ════════════════════════════════════════════════════════════════════
+// RÈGLE D'ACCÈS — L'AUTHENTIFICATION N'EST JAMAIS UNE PREUVE DE PRÉSENCE
+// (16/09/2026)
+//
+//   « L'authentification n'est jamais une preuve de présence.
+//
+//     La navigation dans NEXUS, la consultation du Cockpit ou l'accès à
+//     l'espace personnel ne doivent créer ni service, ni shift, ni
+//     pointage, ni retard, ni variable de paie.
+//
+//     Après connexion et avant toute prise de poste, NEXUS présente deux
+//     chemins distincts :
+//       1. Consulter NEXUS — navigation sans preuve de présence ;
+//       2. Commencer mon service — action explicite créant le service
+//          opérationnel.
+//
+//     Aucun service ne peut être créé implicitement par le login, le
+//     chargement d'un écran, une redirection ou la consultation d'une
+//     donnée.
+//
+//     Cette règle s'applique aux employés comme aux managers. »
+//
+// CE QUE LA RÈGLE CORRIGE. Jusqu'au 16/09/2026, `nexusRequireAuth()` — la
+// porte unique des 52 écrans authentifiés — traitait TOUTE page de la même
+// façon : pas de service courant ⇒ renvoi vers la prise de poste. Un
+// employé qui voulait seulement relire ses écarts validés devait donc
+// d'abord ouvrir un service, et la simple consultation fabriquait la
+// preuve de présence qu'elle n'aurait jamais dû produire. La garde n'était
+// pas mal placée — elle est bien centralisée depuis S-4 — elle était trop
+// LARGE : elle confondait « consulter ses propres données » et « agir sur
+// le terrain ».
+//
+// POURQUOI UNE LISTE EN DUR. La catégorie d'un écran est une propriété de
+// l'écran, jamais une donnée de la requête : aucun paramètre d'URL, aucun
+// champ de formulaire, aucune valeur de `localStorage` n'entre dans
+// `nexusCategorieAcces()`. Un utilisateur qui modifierait sa requête ne
+// peut pas se déclarer « en consultation » sur un écran opérationnel.
+//
+// CE QUE CETTE CLASSIFICATION N'EST PAS. Ce n'est pas une autorisation
+// d'accès aux données. Elle ne décide que d'une REDIRECTION de navigation.
+// L'autorisation reste entièrement du côté Supabase — RLS et `auth.uid()`
+// — et ne dépend d'aucune valeur venue du navigateur. Relâcher la
+// redirection ne rend pas une ligne de plus.
+//
+// PAR DÉFAUT, UN ÉCRAN NON CLASSÉ EST OPÉRATIONNEL : l'oubli conserve
+// l'ancien contrat au lieu de l'ouvrir. `test_acces_hors_service_20260916.js`
+// vérifie de surcroît que les quatre listes couvrent TOUS les écrans du
+// dépôt, pour qu'un écran nouveau soit classé sciemment, pas par défaut.
+// ════════════════════════════════════════════════════════════════════
+/* NEXUS-ACCES-REGLE:DEBUT — bloc pur, extrait et exécuté tel quel par les épreuves */
+const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
+
+// CONSULTATION — l'employé y lit ce qui le concerne, le manager y pilote et
+// y administre. Aucun de ces écrans n'exige d'être en service : les ouvrir
+// ne crée ni service, ni shift, ni pointage, ni retard, ni variable de paie.
+const NEXUS_PAGES_CONSULTATION = [
+  // Espace personnel de l'employé + accueil (qui porte les deux chemins).
+  'NEXUS-App-v1.html',
+  'NEXUS-Mon-Evolution-v1.html',
+  'NEXUS-Mon-Planning-v1.html',
+  'NEXUS-Progression-v1.html',
+  'NEXUS-Apprentissage-v1.html',
+  'NEXUS-Boite-Reception-v1.html',
+  'NEXUS-Documentation-v1.html',
+  // Pilotage et contrôle du manager — nommés par l'arbitrage du 16/09/2026 :
+  // « le manager doit pouvoir consulter le Cockpit, contrôler Verify,
+  // regarder les carburants, consulter les employés, analyser les résultats,
+  // effectuer une tâche administrative, sans être automatiquement considéré
+  // comme présent ou en service. »
+  'NEXUS-Cockpit-v2.html',
+  'NEXUS-Verify-v1.html',
+  'NEXUS-Carburants-Pilotage-v1.html',
+  'NEXUS-Resultats-Equipe-v1.html',
+  'NEXUS-Evaluation-Employe-v1.html',
+  'NEXUS-Analyse-Ecarts-v1.html',
+  'NEXUS-FDJ-Analyse-v1.html',
+  'NEXUS-Centre-Intelligence-v1.html',
+  'NEXUS-Radar-Manager-v1.html',
+  'NEXUS-Capital-v1.html',
+  'NEXUS-Rapport-v1.html',
+  'NEXUS-Journal-v1.html',
+  'NEXUS-Tracabilite-v1.html',
+  // Tâches administratives.
+  'NEXUS-Planning-v1.html',
+  'NEXUS-Assignations-v1.html',
+  'NEXUS-Paye-v1.html',
+  'NEXUS-Campagne-v1.html',
+  'NEXUS-Import-v1.html',
+  'NEXUS-Admin-API-v1.html',
+  'NEXUS-Admin-Sites-v1.html',
+  'NEXUS-Parametres-Station-v1.html',
+  'NEXUS-Parametres-Inventaire-v1.html',
+  'NEXUS-Parametres-Rappels-v1.html',
+  'NEXUS-Parametres-Comptes-Clients-v1.html',
+  'NEXUS-FDJ-Parametres-v1.html',
+  'NEXUS-Debug-v1.html',
+  'NEXUS-Debug-Createur-v1.html',
+];
+
+// OPÉRATIONNEL — le geste de terrain d'un quart. La garde reste ENTIÈRE :
+// ces écrans continuent d'exiger un service ouvert et le pointage d'arrivée.
+// C'est la moitié de l'arbitrage qu'il ne faut pas perdre de vue : dissocier
+// n'est pas désarmer.
+const NEXUS_PAGES_OPERATIONNELLES = [
+  'NEXUS-Missions-v1.html',
+  'NEXUS-Brief-v1.html',
+  'NEXUS-Inventaire-v1.html',
+  'NEXUS-Inventaire-Manager-v1.html',
+  'NEXUS-Scanner-v1.html',
+  'NEXUS-Scanner-Stock-v1.html',
+  'NEXUS-Stock-Localise-v1.html',
+  'NEXUS-Rayon-v1.html',
+  'NEXUS-Produits-v1.html',
+  'NEXUS-Carburants-v1.html',
+  'NEXUS-Carburant-Reception-v1.html',
+  'NEXUS-FDJ-v1.html',
+  'NEXUS-FDJ-Manager-v1.html',
+  'NEXUS-Coach-FDJ-v1.html',
+  'NEXUS-Comptes-Clients-v1.html',
+  'NEXUS-Tempo-v1.html',
+];
+
+// PUBLIQUES — aucune session n'y est exigée : elles n'appellent pas
+// `nexusRequireAuth()`. Elles ne sont listées que pour qu'aucun écran du
+// dépôt n'échappe au classement, et donc à la relecture.
+const NEXUS_PAGES_PUBLIQUES = [
+  'NEXUS-Login-v1.html',
+  'NEXUS-Home-Concept-v1.html',
+  'NEXUS-API-v1.html',
+  'NEXUS-CGU-v1.html',
+  'NEXUS-Confidentialite-v1.html',
+  'NEXUS-Mentions-Legales-v1.html',
+  'NEXUS-FAQ-v1.html',
+  'NEXUS-Feuille-de-Route-v1.html',
+  'NEXUS-Propos-v1.html',
+];
+
+/**
+ * À quelle catégorie d'accès appartient cet écran ?
+ *
+ * 'sequence'     — les deux écrans du parcours de prise de poste eux-mêmes ;
+ *                  les garder gardés provoquerait une boucle de redirection.
+ * 'consultation' — lecture de ses propres données, pilotage, administration.
+ * 'publique'     — pas de session exigée.
+ * 'operationnel' — geste de terrain : la garde s'applique. C'est AUSSI le
+ *                  défaut, pour qu'un écran oublié reste fermé.
+ */
+function nexusCategorieAcces(page){
+  if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page))return 'sequence';
+  if(NEXUS_PAGES_CONSULTATION.includes(page))return 'consultation';
+  if(NEXUS_PAGES_PUBLIQUES.includes(page))return 'publique';
+  return 'operationnel';
+}
+
+/**
+ * Cet écran exige-t-il un service opérationnel ouvert ?
+ *
+ * LA question des trois portes — celle de la prise de poste, celle du
+ * pointage d'arrivée, et celle de l'accueil. Elles posaient la même question
+ * de trois façons ; elles la posent désormais une seule fois, ici.
+ */
+function nexusPageExigeServiceOperationnel(page){
+  return nexusCategorieAcces(page) === 'operationnel';
+}
+/**
+ * Un ecran OPERATIONNEL est-il reellement ATTEIGNABLE dans cet etat ?
+ *
+ * Les deux gardes de `nexusRequireAuth` posent DEUX questions, pas une :
+ * `nexusPriseDePosteManquante` exige un service ouvert, puis
+ * `nexusPointageArriveeManquant` exige, EN PLUS, l'arrivee pointee du jour.
+ * Un service ouvert ne suffit donc pas — et c'est exactement le defaut releve
+ * le 18/09/2026 par le parcours connecte sur Test : un pompiste en service
+ * dont l'arrivee n'etait pas pointee (S2), puis une caissiere `professional`
+ * dans le meme etat (S5), recevaient les tuiles Missions, Inventaire, FDJ et
+ * Reception — et les quatre ecrans rebondissaient vers
+ * `NEXUS-Pointage-v1.html`. Le lot du matin n'avait ferme que la premiere
+ * porte. Le contre-temoin S6, arrivee pointee, ouvre les memes ecrans sans
+ * rebond : la condition du defaut est « en service + arrivee non pointee ».
+ *
+ * Fonction PURE : ni horloge, ni base, ni `window`. Elle repond sur des faits
+ * que l'appelant a deja etablis, et elle n'accorde AUCUN droit — la RLS ne la
+ * lit pas. C'est la regle d'AFFICHAGE, ecrite ici, a cote des deux gardes
+ * qu'elle resume, plutot que redevinee une troisieme fois par un ecran.
+ *
+ * `etat` = { enService, arriveePointeeJour, pointageActif, consultationExterne,
+ * estManager }. `arriveePointeeJour` est bien l'arrivee de la JOURNEE, comme
+ * la garde : celui qui a pointe son arrivee sur un premier service du jour
+ * n'est pas renvoye au pointage par le second — meme si l'accueil compte ses
+ * etapes de progression par service (correctif du 13/09/2026).
+ */
+function nexusEcranOperationnelAtteignable(etat){
+  const e = etat || {};
+  // Les deux gardes s'effacent pour un manager et pour une consultation
+  // externe : chez eux, un ecran operationnel ne rebondit pas.
+  if(e.estManager || e.consultationExterne) return true;
+  // Premiere porte — aucun service ouvert aujourd'hui.
+  if(!e.enService) return false;
+  // Seconde porte. Un site sans pointage ne l'exige jamais
+  // (`pointage_actif = false`) ; partout ailleurs l'arrivee du jour est
+  // exigee. Le defaut est donc « pointage exige » : une erreur reseau ou une
+  // colonne absente ne doit pas faire promettre un ecran que la garde, elle,
+  // refermera.
+  if(e.pointageActif === false) return true;
+  return !!e.arriveePointeeJour;
+}
+/* NEXUS-ACCES-REGLE:FIN */
 // Manager ou gérant — LA réponse, une seule fois. Elle était écrite deux
 // fois dans ce fichier et une fois de plus dans chaque écran qui en a besoin.
 // Ce n'est pas une habilitation : les droits réels sont ceux de la RLS, qui
@@ -185,8 +391,23 @@ function nexusEstManager(employee){
   return !!employee && (employee.role === 'manager' || employee.role === 'gerant');
 }
 
-const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
-async function nexusPointageArriveeManquant(employee){if(NexusPage.est(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;
+  // 19/09/2026 — LE FUSEAU NE VIENT PLUS DE CETTE REQUETE. Il venait de la
+  // meme lecture `station_config`, ce qui coutait zero requete mais lisait la
+  // colonne DEPRECIEE, dont la ligne peut manquer. L'autorite est
+  // `sites.timezone` : une requete de plus au premier appel de la page, une
+  // seule, et le cache par site sert tout le reste de l'ecran.
+  const fuseau=await nexusFuseauSite(siteId);
+  if(!fuseau){
+    // Jour de la station indetermine : NEXUS ne peut pas savoir si l'arrivee
+    // du jour manque. Il ne reclame donc rien. Reclamer un pointage contre un
+    // jour devine est pire que se taire, et cette garde n'ouvre aucune porte
+    // — elle affiche une relance, elle n'autorise rien.
+    console.error('Pointage arrivee manquant : jour de la station indetermine \u2014 aucune relance.');
+    return false;
+  }
+  const today=nexusJourDansFuseau(new Date(), fuseau);
+  const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
 // ────────────────────────────────────────────────────────────────────
 // S-4 (05/09/2026) — LE service courant. Une seule définition.
 //
@@ -215,11 +436,6 @@ async function nexusPointageArriveeManquant(employee){if(NexusPage.est(NEXUS_PAG
 // défense de lecture contre un historique imparfait ou un import.
 //
 // Retour : { service } | { aucun: true } | { erreur: true }
-function nexusDateLocaleISO(d){
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-}
-
 // ============================================================================
 // CYCLE DE VIE DES SERVICES PENDANT LA PHASE PILOTE (16/09/2026)
 //
@@ -713,7 +929,7 @@ async function nexusServiceCourant(employee){
   return { service: services[0] };
 }
 
-async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE)||employee.consultation_externe)return false;const manager=nexusEstManager(employee);if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
+async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=nexusEstManager(employee);if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
   // l'existence d'un service dans la journée de l'appareil. Après un
   // pointage de départ, l'employé n'a plus de service courant : s'il
   // revient sur un parcours qui en exige un, il est renvoyé vers la prise
@@ -747,7 +963,18 @@ async function nexusPriseDePosteManquante(employee){if(NexusPage.est(NEXUS_PAGES
  */
 async function nexusDepartPointeAujourdhui(employee){
   if(!employee||!employee.id)return false;
-  const journee = nexusDateLocaleISO(new Date());
+  // `pointages.date` est ecrite dans le jour de la station : la relire dans
+  // celui de l'appareil ferait manquer le depart pointe le soir meme, et la
+  // porte de la prise de poste se refermerait sur quelqu'un qui vient de
+  // partir.
+  const fuseau = await nexusFuseauSite(employee.site_id);
+  if(!fuseau){
+    // Meme contrat que l'erreur de lecture ci-dessous : on ne relache pas une
+    // porte parce qu'on n'a pas su dater la journee.
+    console.error('Depart du jour : jour de la station indetermine \u2014 depart repute non pointe.');
+    return false;
+  }
+  const journee = nexusJourDansFuseau(new Date(), fuseau);
   const { data, error } = await nexusClient
     .from('pointages').select('id')
     .eq('employee_id', employee.id).eq('date', journee).eq('type', 'depart').limit(1);
