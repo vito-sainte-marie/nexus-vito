@@ -330,6 +330,13 @@ function qualifier(e) {
       details: { non_vertes: pasVertes } });
   }
 
+  // Ce qui n'est pas requis ne bloque pas — mais doit se VOIR. Le 30/09/2026,
+  // `Supabase Preview` arrêtait tout transport vers le rail en étant exigé par
+  // aucune autorité ; une fois démoté, l'effacer du dossier remplacerait un faux
+  // refus par un silence, et le silence est le défaut le plus coûteux de ce
+  // dépôt. Un check tiers qui rougit reste une information : elle voyage.
+  const nonRequises = verifs.filter((v) => v.requis === false);
+
   // ── G. FORME DU TRANSPORT ─────────────────────────────────────────────────
   // UNE QUESTION SANS RÉPONSE N'EST PAS UNE RÉPONSE NÉGATIVE. L'interrogation
   // d'ascendance (`--is-ancestor`) rend 0 pour oui, 1 pour non, et tout autre
@@ -373,7 +380,14 @@ function qualifier(e) {
     // commits ; dire « on a transporté la branche » ne permet à personne de refaire
     // le geste. Dire de quelle ref le commit a été lu, si.
     details: { mode: 'FAST_FORWARD', destination: a.rail, destination_sha_attendu: a.head,
-      ref_head: a.refHead || null, fichiers: touches.length } });
+      ref_head: a.refHead || null, fichiers: touches.length,
+      // Qui a exigé quoi, et sous quelle autorité. Sans ces deux listes, un
+      // lecteur du dossier ne peut pas distinguer « tout était vert » de
+      // « rien n'était exigé » — c'est exactement la confusion qu'on répare.
+      ci_requises: requis.map((v) => ({ nom: v.nom, conclusion: v.conclusion,
+        autorite: v.autorite || null })),
+      ci_non_requises: nonRequises.map((v) => ({ nom: v.nom, conclusion: v.conclusion,
+        autorite: v.autorite || null })) } });
 }
 
 module.exports = {

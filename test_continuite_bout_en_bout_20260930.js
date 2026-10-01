@@ -112,9 +112,12 @@ function bac(mut = {}) {
         'Question posee dans le bac a sable.', ''].join('\n'));
   }
 
-  // Le faux GitHub. Il ne sert QUE ce que GitHub seul peut dire.
+  // Le faux GitHub. Il ne sert QUE ce que GitHub seul peut dire — et l'autorité
+  // qui déclare quelles vérifications sont requises sur une branche en fait
+  // partie : c'est le ruleset de la DESTINATION, que GitHub seul détient.
   ecrire(path.join(bin, 'gh'), ['#!/bin/bash', 'ARGS="$*"', 'case "$ARGS" in',
     '  *"/issues/"*"/comments"*) exec cat "$NEXUS_BAC_COMMENTAIRES" ;;',
+    '  *"/rules/branches/"*)     exec cat "$NEXUS_BAC_REGLES" ;;',
     '  *"/check-runs"*)          exec cat "$NEXUS_BAC_VERIFICATIONS" ;;',
     '  *) echo "faux gh : appel non prevu : $ARGS" >&2; exit 1 ;;', 'esac', ''].join('\n'));
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
@@ -128,11 +131,34 @@ function bac(mut = {}) {
   ecrire(path.join(dir, 'commentaires.json'),
     `${JSON.stringify({ date: INSTANT_DECLENCHEUR, auteur, corps })}\n`);
 
+  // L'autorité : ce que la branche de DESTINATION déclare requis. Le 30/09/2026
+  // le rail n'en déclarait rien, et l'outil en déduisait que TOUT check accroché
+  // au commit était obligatoire — y compris `Supabase Preview`, braqué sur le
+  // projet Supabase de Production, structurellement `skipped`, exigé par
+  // personne. Chaque transport vers le rail en mourait, avec un
+  // `prochaine_action` que nul ne pouvait exécuter.
+  //
+  // `autoriteMuette` : GitHub ne répond pas → on retombe sur la déclaration
+  // datée de l'outil, qui est stricte, jamais vide.
+  // `autoriteExigeLeTiers` : la destination déclare requis le check tiers
+  // `skipped`. Il doit alors bloquer. C'est la preuve que la démotion vient de
+  // la déclaration lue, et non d'une liste d'exceptions cachée dans le code.
+  const regles = mut.autoriteExigeLeTiers ? ['Aperçu tiers'] : ['Tests'];
+  ecrire(path.join(dir, 'regles.json'), `${JSON.stringify(regles)}\n`);
+  if (mut.autoriteMuette) fs.rmSync(path.join(dir, 'regles.json'));
+
   // M6 cassé : la CI est rouge, ou elle n'a pas répondu du tout.
+  //
+  // `Aperçu tiers` modélise `Supabase Preview` : accroché au commit, `skipped`,
+  // et requis par aucune autorité. Il est présent dans le bac NOMINAL — donc
+  // toute épreuve verte ci-dessous prouve qu'un tiers muet ne bloque plus rien,
+  // et reste pourtant dans le dossier.
+  const tiers = { nom: 'Aperçu tiers', conclusion: 'skipped',
+    url: 'https://un-tiers.example/dashboard/project/zzz/branches' };
   const verifs = mut.ciRouge
-    ? [{ nom: 'Tests', conclusion: 'failure', url: 'https://x/y/runs/999' }]
+    ? [{ nom: 'Tests', conclusion: 'failure', url: 'https://x/y/runs/999' }, tiers]
     : [{ nom: 'Tests', conclusion: 'success', url: 'https://x/y/runs/999' },
-      { nom: 'Immuabilité', conclusion: 'success', url: 'https://x/y/runs/998' }];
+      { nom: 'Immuabilité', conclusion: 'success', url: 'https://x/y/runs/998' }, tiers];
   ecrire(path.join(dir, 'verifications.json'),
     `${verifs.map((v) => JSON.stringify(v)).join('\n')}\n`);
   if (mut.ciMuette) fs.rmSync(path.join(dir, 'verifications.json'));
@@ -145,6 +171,7 @@ function bac(mut = {}) {
 
   return { dir, origin, depot, bin,
     commentaires: path.join(dir, 'commentaires.json'),
+    regles: path.join(dir, 'regles.json'),
     verifications: path.join(dir, 'verifications.json') };
 }
 
@@ -169,6 +196,7 @@ function rapatrier(b, opts = {}) {
       PATH: `${b.bin}:${process.env.PATH}`,
       NEXUS_BAC_COMMENTAIRES: b.commentaires,
       NEXUS_BAC_VERIFICATIONS: b.verifications,
+      NEXUS_BAC_REGLES: b.regles,
       NEXUS_ETAT_FICHIER: etatFichier,
       GITHUB_STEP_SUMMARY: resume,
       GITHUB_OUTPUT: sortieEtape,
@@ -241,6 +269,21 @@ epreuve('M2/M3 — le rail est identifié depuis le déclencheur, pas deviné', 
 epreuve('M5/M6 — la branche de travail est épinglée à son déclencheur et sa CI est verte', () => {
   assert.strictEqual(nominal.m7qualif.etat.code, 'QUALIFIE_NON_TRANSPORTE');
   assert.strictEqual(nominal.m7qualif.etat.branche, BRANCHE);
+});
+
+// Le défaut du 30/09/2026, en une épreuve. Il n’a jamais été « la CI est rouge » :
+// `Supabase Preview` était `skipped`, exigé par aucun ruleset, et braqué sur le
+// projet Supabase de Production — il ne jugeait pas la branche. L’outil le rendait
+// pourtant obligatoire, faute de déclarer quoi que ce soit. Ce qui n’est pas exigé
+// doit se VOIR sans BLOQUER : les deux moitiés comptent, car l’effacer serait un
+// mensonge d’une autre sorte.
+epreuve('M6 — un check tiers que personne n’exige est rapporté, et ne bloque pas', () => {
+  assert.strictEqual(nominal.m7transport.etat.etat, 'EXECUTE',
+    `un tiers \`skipped\` non requis a bloqué le transport :\n${nominal.m7transport.sortie}`);
+  const vu = JSON.stringify(nominal.m7qualif.etat);
+  assert.ok(vu.includes('Aperçu tiers'),
+    `le check non requis a disparu du dossier — ne pas bloquer n’autorise pas à effacer :\n${vu}`);
+  assert.ok(vu.includes('Tests'), 'le dossier ne nomme pas la vérification requise qui a fait foi');
 });
 
 epreuve('une qualification ne touche PAS la destination', () => {
@@ -336,6 +379,27 @@ refuse('M5 cassé — une branche hors forme de run n’est rattachable à aucun
 refuse('M6 cassé — une CI rouge arrête le transport', { ciRouge: true }, 'CI_NON_VERTE');
 
 refuse('M6 muet — une CI non mesurée n’est pas un feu vert', { ciMuette: true }, 'CI_NON_MESUREE');
+
+// Les deux faces de l’autorité. Le 30/09/2026, le défaut n’était pas de refuser :
+// c’était de DEVINER qui exige quoi. Ces deux refus bornent la réparation des
+// deux côtés, et seuls les deux ensemble la prouvent.
+//
+// Autorité muette : on ne sait pas ce qui est exigé, donc on retombe sur la
+// déclaration datée de l’outil — `non-regression`, qu’aucun check de ce bac ne
+// porte. Rien de requis n’est donc mesuré, et ça s’arrête là. Une absence de
+// mesure ne doit JAMAIS ressembler à un feu vert : si cette épreuve passait
+// `EXECUTE`, le repli ouvrirait un trou au lieu de serrer.
+refuse('M6 — une autorité muette retombe sur une déclaration stricte, pas sur zéro contrôle',
+  { autoriteMuette: true }, 'CI_NON_MESUREE');
+
+// L’autre face, et la plus importante : si la destination déclare requis le
+// check tiers `skipped`, il BLOQUE. Le tiers est le même objet, au même état,
+// dans le même bac que le trajet nominal qui passe. Seule la déclaration change.
+// C’est la seule façon de prouver que la démotion vient de l’autorité LUE, et
+// non d’une liste d’exceptions tapie dans le code : un `Supabase Preview`
+// ignoré en dur aurait l’air identique tant que personne ne l’exige.
+refuse('M6 — un check déclaré requis par la destination bloque, même `skipped`',
+  { autoriteExigeLeTiers: true }, 'CI_NON_VERTE');
 
 refuse('M7 cassé — un travail qui introduit une cible Production est arrêté',
   { versProduction: true }, 'CHANGEMENT_PRODUCTION');

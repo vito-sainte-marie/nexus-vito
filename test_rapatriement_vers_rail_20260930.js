@@ -11,7 +11,8 @@
  */
 
 const assert = require('assert');
-const { rapatrier, observer, relever, verificationsDuHead, executeurReel } = require('./outils/rapatrier-vers-rail.js');
+const { rapatrier, observer, relever, verificationsDuHead, requisDeclares,
+  REQUIS_A_DEFAUT_20260930, executeurReel } = require('./outils/rapatrier-vers-rail.js');
 const { codeSortie, ETATS } = require('./outils/etat-maillon.js');
 
 let reussites = 0; const echecs = [];
@@ -163,6 +164,127 @@ verifier('le run courant est écarté de ses propres vérifications', () => {
 
 verifier('GitHub muet rend « non mesuré », jamais un vert par défaut', () => {
   assert.strictEqual(verificationsDuHead(() => ({ code: 1, sortie: '' }), 'o/r', HEAD, null), null);
+});
+
+// ── QUI EXIGE QUOI — la réparation du 30/09/2026 ─────────────────────────────
+//
+// Mesuré ce jour-là : `verificationsDuHead` rendait tous les check-runs du
+// commit sans jamais marquer `requis`, et `qualifier` traite l'absence de
+// `requis` comme « requis » — défaut sûr, et qui reste. Tout ce que GitHub
+// accrochait au commit devenait donc obligatoire, dont `Supabase Preview` :
+// structurellement `skipped`, braqué sur le projet Supabase de PRODUCTION, exigé
+// par aucun ruleset. Chaque transport vers le rail en mourait, et la
+// `prochaine_action` publiée désignait un travail que personne ne pouvait faire.
+//
+// Une désignation ne se recalcule pas : elle se déclare. Ces épreuves tiennent
+// les deux bouts — la désignation est LUE sur la destination, et à défaut elle
+// retombe sur une constante qui SERRE.
+
+// Un faux `gh` : il distingue la question posée au ruleset de celle posée aux
+// check-runs, parce que l'outil réel pose les deux et qu'un simulateur qui les
+// confond ne mesurerait rien.
+function fauxGh(opts) {
+  return (cmd, args) => {
+    const t = (args || []).join(' ');
+    if (t.includes('/rules/branches/')) {
+      return opts.regles === undefined
+        ? { code: 1, sortie: '' }
+        : { code: 0, sortie: `${JSON.stringify(opts.regles)}\n` };
+    }
+    return { code: 0, sortie: (opts.checks || []).map((c) => JSON.stringify(c)).join('\n') };
+  };
+}
+
+verifier('l’autorité requise est LUE sur la branche de destination', () => {
+  const l = requisDeclares(fauxGh({ regles: ['non-regression', 'Construire'] }), 'o/r', 'rail');
+  assert.deepStrictEqual(l, ['non-regression', 'Construire']);
+});
+
+verifier('une destination qui n’exige rien rend une liste vide, pas « non mesuré »', () => {
+  assert.deepStrictEqual(requisDeclares(fauxGh({ regles: [] }), 'o/r', 'rail'), [],
+    '« GitHub n’exige rien ici » est une mesure ; la confondre avec une absence de mesure efface un fait');
+});
+
+verifier('une autorité injoignable rend « non mesuré », jamais une liste vide', () => {
+  assert.strictEqual(requisDeclares(fauxGh({}), 'o/r', 'rail'), null);
+  assert.strictEqual(requisDeclares(fauxGh({ regles: ['x'] }), 'o/r', ''), null,
+    'sans destination nommée il n’y a personne à interroger : ne rien inventer');
+});
+
+verifier('un check tiers que la destination n’exige pas voyage requis: false', () => {
+  const exec = fauxGh({ regles: ['non-regression'], checks: [
+    { nom: 'non-regression', conclusion: 'success', url: 'https://x/runs/1/job/1' },
+    { nom: 'Supabase Preview', conclusion: 'skipped',
+      url: 'https://supabase.com/dashboard/project/zzz/branches' },
+  ] });
+  const v = verificationsDuHead(exec, 'o/r', HEAD, null, { destination: 'rail' });
+  assert.deepStrictEqual(v, [
+    { nom: 'non-regression', conclusion: 'success', requis: true, autorite: 'RULESET:rail' },
+    { nom: 'Supabase Preview', conclusion: 'skipped', requis: false, autorite: 'RULESET:rail' },
+  ], 'c’est exactement le relevé qui bloquait tout transport le 30/09/2026');
+});
+
+verifier('ce qui n’est pas requis est démoti, jamais effacé', () => {
+  const v = verificationsDuHead(fauxGh({ regles: ['non-regression'], checks: [
+    { nom: 'Cloudflare Pages', conclusion: 'failure', url: 'https://x/1' },
+  ] }), 'o/r', HEAD, null, { destination: 'rail' });
+  assert.strictEqual(v.length, 1, 'un check non requis qui rougit doit se VOIR sans BLOQUER');
+  assert.strictEqual(v[0].requis, false);
+  assert.strictEqual(v[0].conclusion, 'failure', 'sa conclusion réelle est conservée telle quelle');
+});
+
+verifier('l’autorité non mesurée retombe sur une déclaration datée, et elle SERRE', () => {
+  assert.ok(REQUIS_A_DEFAUT_20260930.length > 0,
+    'à défaut de mesure on exige PLUS, pas moins : une constante vide rendrait zéro contrôle obligatoire');
+  const v = verificationsDuHead(fauxGh({ checks: [
+    { nom: REQUIS_A_DEFAUT_20260930[0], conclusion: 'success', url: 'https://x/1' },
+    { nom: 'Aperçu tiers', conclusion: 'skipped', url: 'https://x/2' },
+  ] }), 'o/r', HEAD, null, { destination: 'rail' });
+  assert.strictEqual(v[0].requis, true);
+  assert.strictEqual(v[0].autorite, 'DEFAUT_DECLARE_20260930_AUTORITE_NON_MESUREE',
+    'le dossier doit dire que l’autorité n’a pas répondu, pas prétendre l’avoir lue');
+  assert.strictEqual(v[1].requis, false);
+});
+
+verifier('une destination qui n’exige rien retombe aussi sur la déclaration datée', () => {
+  const v = verificationsDuHead(fauxGh({ regles: [], checks: [
+    { nom: 'Aperçu tiers', conclusion: 'skipped', url: 'https://x/2' },
+  ] }), 'o/r', HEAD, null, { destination: 'rail' });
+  assert.strictEqual(v[0].autorite, 'DEFAUT_DECLARE_20260930',
+    'zéro exigence déclarée ne doit pas devenir zéro contrôle obligatoire');
+  assert.strictEqual(v[0].requis, false);
+});
+
+verifier('le verdict du run courant revient SOUS LE NOM QUE GITHUB DONNE au check', () => {
+  // Un run ne peut pas conclure sur lui-même avant de finir : son propre check
+  // est `in_progress` ici, donc écarté. L'écarter sans rien à la place laisse
+  // zéro vérification requise — le refus changerait de nom, pas de nature. Le
+  // workflow mesure le verdict ailleurs (`job.status`) et le passe ici.
+  const exec = fauxGh({ regles: ['non-regression'], checks: [
+    { nom: 'non-regression', conclusion: null, url: 'https://x/runs/777/job/5' },
+  ] });
+  const v = verificationsDuHead(exec, 'o/r', HEAD, '777',
+    { destination: 'rail', etatDuJob: 'Success' });
+  assert.deepStrictEqual(v, [{ nom: 'non-regression', conclusion: 'success', requis: true,
+    autorite: 'RULESET:rail', provenance: 'ETAT_DU_JOB' }],
+    'le nom doit venir de GitHub et la provenance être dite : le dossier ne doit jamais '
+    + 'prétendre que l’API des check-runs a conclu ce que le job a conclu');
+});
+
+verifier('sans verdict mesuré, le check du run courant reste écarté', () => {
+  const exec = fauxGh({ regles: ['non-regression'], checks: [
+    { nom: 'non-regression', conclusion: null, url: 'https://x/runs/777/job/5' },
+  ] });
+  const v = verificationsDuHead(exec, 'o/r', HEAD, '777', { destination: 'rail' });
+  assert.deepStrictEqual(v, [], 'une absence de mesure ne s’invente pas — l’appelant dira CI_NON_MESUREE');
+});
+
+verifier('appelée sans options, la fonction se comporte comme avant le 30/09/2026', () => {
+  const v = verificationsDuHead(fauxGh({ checks: [
+    { nom: 'Tests', conclusion: 'success', url: 'https://x/1' },
+  ] }), 'o/r', HEAD, null);
+  assert.deepStrictEqual(v, [{ nom: 'Tests', conclusion: 'success' }],
+    'les appels d’avant ne doivent pas changer de réponse : la compatibilité est un contrat');
 });
 
 verifier('une ligne SQL « -- » n’est pas prise pour un en-tête de diff', () => {

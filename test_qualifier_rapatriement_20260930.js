@@ -110,6 +110,37 @@ ep('MUTATION — zéro vérification REQUISE n’est pas « tout est vert »', (
   assert.strictEqual(r.code, 'CI_NON_MESUREE');
 });
 
+// ── CE QUI N'EST PAS EXIGÉ DOIT QUAND MÊME SE VOIR ───────────────────────────
+//
+// Le 30/09/2026, `Supabase Preview` — `skipped`, braqué sur Production, exigé par
+// aucun ruleset — bloquait tout transport vers le rail. Le démoter était juste.
+// L'effacer du dossier aurait remplacé un faux refus par un silence : plus
+// personne n'aurait pu distinguer « tout ce qui était exigé était vert » de
+// « rien n'était exigé ». Le dossier doit donc porter les DEUX listes.
+ep('un EXECUTE dit qui exigeait quoi, et sous quelle autorité', () => {
+  const r = qualifier(scenario({ ci: { verifications: [
+    { nom: 'non-regression', conclusion: 'success', requis: true, autorite: `RULESET:${RAIL}` },
+    { nom: 'Supabase Preview', conclusion: 'skipped', requis: false, autorite: `RULESET:${RAIL}` },
+  ] } }));
+  assert.strictEqual(r.etat, 'EXECUTE', `attendu EXECUTE : ${r.code} — ${r.motif}`);
+  assert.deepStrictEqual(r.details.ci_requises,
+    [{ nom: 'non-regression', conclusion: 'success', autorite: `RULESET:${RAIL}` }],
+    'un succès muet sur ce qui a fait foi ne vaut pas mieux qu’un refus sans motif');
+  assert.deepStrictEqual(r.details.ci_non_requises,
+    [{ nom: 'Supabase Preview', conclusion: 'skipped', autorite: `RULESET:${RAIL}` }],
+    'ne pas bloquer n’autorise pas à effacer : le check démoti reste nommé dans le dossier');
+});
+ep('un check non requis qui ROUGIT est rapporté sans bloquer', () => {
+  const r = qualifier(scenario({ ci: { verifications: [
+    { nom: 'Tests', conclusion: 'success', requis: true },
+    { nom: 'Cloudflare Pages', conclusion: 'failure', requis: false },
+  ] } }));
+  assert.strictEqual(r.etat, 'EXECUTE', 'un tiers que personne n’exige ne décide pas du transport');
+  assert.deepStrictEqual(r.details.ci_non_requises,
+    [{ nom: 'Cloudflare Pages', conclusion: 'failure', autorite: null }],
+    'son rouge est une information : elle voyage, avec son autorité inconnue dite telle quelle');
+});
+
 // ── MUTATION 5 — changement hors périmètre ───────────────────────────────────
 ep('MUTATION — un chemin hors du périmètre déclaré est refusé', () => {
   const r = qualifier(scenario({

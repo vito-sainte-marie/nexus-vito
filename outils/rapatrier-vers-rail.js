@@ -101,11 +101,76 @@ function commentairesDeLIssue(exec, issue, depot) {
   }).filter(Boolean);
 }
 
-// Les vérifications du HEAD, moins celles du run courant. Rend `null` quand
-// GitHub n'a pas répondu : `null` veut dire « non mesuré », et `qualifier`
-// distingue `CI_NON_MESUREE` de `CI_NON_VERTE`. Confondre les deux ferait
-// passer une absence de mesure pour un feu vert.
-function verificationsDuHead(exec, depot, head, runCourant) {
+// ── CE QUI FAIT FOI POUR UN TRANSPORT ────────────────────────────────────────
+//
+// Déclaré le 30/09/2026, après qu'un transport réellement armé a été refusé
+// `CI_NON_VERTE` au motif que `Supabase Preview` était `skipped`.
+//
+// Le défaut n'était pas le refus : c'était l'inférence. Cette fonction rendait
+// tous les check-runs du commit sans jamais marquer `requis`, et `qualifier`
+// traite l'absence de `requis` comme « requis » — défaut sûr, et qui reste.
+// Donc TOUT ce que GitHub accroche au commit devenait obligatoire, y compris une
+// intégration tierce qui ne juge pas ce dépôt. Le `prochaine_action` publié
+// — « corriger la cause du rouge sur la branche de run » — désignait alors un
+// travail que personne ne pouvait faire : le rouge n'était pas sur la branche.
+//
+// Mesuré le 30/09/2026, `repos/<depot>/rules/branches/<branche>` à la main :
+//   · `handoff-continuite-20260920` → `[]` (le rail n'a aucun ruleset)
+//   · `claude/issue-28-20260930-1350` → `[]`
+//   · `main` → `deletion`, `non_fast_forward`, et AUCUNE vérification requise
+//   · `production` → `non-regression` et « Construire et éprouver l'artefact »
+// `Supabase Preview` n'est donc exigé par AUCUNE autorité, et son
+// `details_url` pointe le projet Supabase de Production : il ne juge pas cette
+// branche. `Cloudflare Pages` n'est exigé par rien non plus, et il est rouge
+// sur toute la branche `production` depuis toujours sans rien publier.
+//
+// Une désignation ne se recalcule pas : elle se déclare. L'autorité est donc
+// lue sur la branche de DESTINATION — GitHub la détient, et lui seul — et à
+// défaut dans la constante ci-dessous, qui porte un nom et une date. Cette
+// constante n'est jamais vide : à défaut de mesure, on exige plus, pas moins.
+//
+// Rien n'est effacé. Ce qui n'est pas requis voyage `requis: false` et reste
+// dans le dossier : un check non requis qui rougit doit se VOIR sans BLOQUER.
+const REQUIS_A_DEFAUT_20260930 = ['non-regression'];
+
+// Les vérifications que la branche de DESTINATION déclare requises. Rend
+// `null` quand la question n'a pas pu être posée — l'appelant retombe alors sur
+// la constante, qui est plus stricte que rien. Une liste vide n'est pas `null` :
+// « GitHub n'exige rien ici » est une mesure, pas une absence de mesure.
+function requisDeclares(exec, depot, destination) {
+  if (!depot || !destination) return null;
+  const r = exec('gh', ['api', `repos/${depot}/rules/branches/${destination}`,
+    '--jq', '[.[] | select(.type == "required_status_checks")'
+      + ' | .parameters.required_status_checks[]?.context] | tostring']);
+  if (r.code !== 0) return null;
+  try {
+    const dernier = r.sortie.trim().split('\n').filter(Boolean).pop();
+    const l = JSON.parse(dernier || 'null');
+    return Array.isArray(l) ? l.map(String) : null;
+  } catch (_) { return null; }
+}
+
+// Les vérifications du HEAD, moins celle du run courant, chacune marquée
+// `requis` ou non d'après l'autorité déclarée. Rend `null` quand GitHub n'a pas
+// répondu : `null` veut dire « non mesuré », et `qualifier` distingue
+// `CI_NON_MESUREE` de `CI_NON_VERTE`. Confondre les deux ferait passer une
+// absence de mesure pour un feu vert.
+//
+// `options.destination` nomme la branche dont l'autorité fait foi.
+//
+// `options.etatDuJob` porte le verdict du run courant, mesuré AILLEURS. Un run
+// ne peut pas conclure sur lui-même avant de finir : son propre check est
+// `in_progress` ici, et le compter donnerait `CI_NON_VERTE` à tous les coups.
+// C'est pourquoi il est écarté — mais l'écarter sans rien à la place laisserait
+// zéro vérification requise, donc `CI_NON_MESUREE` : le refus changerait de nom
+// sans changer de nature. Le workflow lit ce verdict dans `job.status` et le
+// passe ici. Il est réinjecté SOUS LE NOM QUE GITHUB DONNE au check, pas sous un
+// nom deviné ici, et marqué `provenance` pour que le dossier ne prétende
+// jamais que l'API des check-runs l'a dit. Sans ce verdict, le check courant
+// reste écarté : une absence de mesure ne s'invente pas.
+//
+// Appelée sans `options`, la fonction se comporte comme avant le 30/09/2026.
+function verificationsDuHead(exec, depot, head, runCourant, options) {
   const r = exec('gh', ['api', '--paginate',
     `repos/${depot}/commits/${head}/check-runs`,
     '--jq', '.check_runs[] | {nom: .name, conclusion: .conclusion, url: .details_url} | tostring']);
@@ -114,9 +179,24 @@ function verificationsDuHead(exec, depot, head, runCourant) {
     try { return JSON.parse(l); } catch (_) { return null; }
   }).filter(Boolean);
   const aEcarter = runCourant ? new RegExp(`/runs/${runCourant}(/|$)`) : null;
-  return toutes
-    .filter((v) => !(aEcarter && aEcarter.test(String(v.url || ''))))
-    .map((v) => ({ nom: v.nom, conclusion: v.conclusion }));
+  const sienne = (v) => Boolean(aEcarter && aEcarter.test(String(v.url || '')));
+  const autres = toutes.filter((v) => !sienne(v));
+  if (!options) return autres.map((v) => ({ nom: v.nom, conclusion: v.conclusion }));
+
+  const declares = requisDeclares(exec, depot, options.destination);
+  const mesure = Array.isArray(declares) && declares.length > 0;
+  const contextes = mesure ? declares : REQUIS_A_DEFAUT_20260930;
+  const autorite = mesure ? `RULESET:${options.destination}`
+    : (Array.isArray(declares) ? 'DEFAUT_DECLARE_20260930'
+      : 'DEFAUT_DECLARE_20260930_AUTORITE_NON_MESUREE');
+  const marquer = (nom, conclusion, extra) => Object.assign(
+    { nom, conclusion, requis: contextes.includes(nom), autorite }, extra || {});
+
+  const liste = autres.map((v) => marquer(v.nom, v.conclusion));
+  const verdict = String(options.etatDuJob || '').trim().toLowerCase();
+  const mienne = toutes.find(sienne);
+  if (mienne && verdict) liste.push(marquer(mienne.nom, verdict, { provenance: 'ETAT_DU_JOB' }));
+  return liste;
 }
 
 // Le lot auquel ce travail se rattache. On ne le déclare pas : on demande au
@@ -267,7 +347,8 @@ function observer(options = {}) {
     contenus: (chemin) => texte(exec('git', ['show', `${head}:${chemin}`])),
     ci: { verifications: options.verifications !== undefined
       ? options.verifications
-      : verificationsDuHead(exec, depot, head, options.runCourant || process.env.GITHUB_RUN_ID) },
+      : verificationsDuHead(exec, depot, head, options.runCourant || process.env.GITHUB_RUN_ID,
+        { destination: rail, etatDuJob: options.etatDuJob || process.env.ETAT_DU_JOB }) },
     lot: rattachement.lot ? rattachement.lot.lot : null,
     perimetre: rattachement.lot ? (rattachement.lot.perimetre || null) : null,
     refs: rattachement.lot ? rattachement.lot.refs_reelles : { memes: [], homonymes: [] },
@@ -407,8 +488,9 @@ function rapatrier(options = {}) {
   return pousser(entree, resultat, exec);
 }
 
-module.exports = { MAILLON, observer, rapatrier, pousser, lotDeLaBranche, relever,
-  issueDeLaBranche, verificationsDuHead, commentairesDeLIssue, executeurReel };
+module.exports = { MAILLON, REQUIS_A_DEFAUT_20260930, observer, rapatrier, pousser,
+  lotDeLaBranche, relever, issueDeLaBranche, verificationsDuHead, requisDeclares,
+  commentairesDeLIssue, executeurReel };
 
 if (require.main === module) {
   const arg = (n) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : undefined; };

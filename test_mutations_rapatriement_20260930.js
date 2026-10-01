@@ -234,6 +234,33 @@ const MUTATIONS = [
   { nom: 'un débordement cesse de se nommer', f: RAPAT, rouge: X_RAPAT,
     de: "      const tronque = err && (err.code === 'ENOBUFS' || /ENOBUFS/.test(String(err.message || '')));",
     a:  "      const tronque = false;" },
+  // ── QUI EXIGE QUOI — la réparation du 30/09/2026 ────────────────────────────
+  //
+  // Mesuré ce jour-là : tout check accroché au commit était tenu pour requis, donc
+  // `Supabase Preview` — structurellement `skipped`, braqué sur le projet
+  // Supabase de PRODUCTION, exigé par aucun ruleset — arrêtait chaque transport
+  // vers le rail. Les six mutations qui suivent attaquent la réparation par ses
+  // deux faces : la désignation doit être LUE sur la destination, et à défaut
+  // retomber sur une constante qui SERRE. Une réparation dont on peut supprimer
+  // un morceau sans rien rougir n'est pas une réparation.
+  { nom: 'tout check accroché au commit redevient requis — le défaut du 30/09', f: RAPAT, rouge: X_RAPAT,
+    de: "    { nom, conclusion, requis: contextes.includes(nom), autorite }, extra || {});",
+    a:  "    { nom, conclusion, requis: true, autorite }, extra || {});" },
+  { nom: 'la déclaration de repli se vide : zéro contrôle obligatoire', f: RAPAT, rouge: X_RAPAT,
+    de: "const REQUIS_A_DEFAUT_20260930 = ['non-regression'];",
+    a:  "const REQUIS_A_DEFAUT_20260930 = [];" },
+  { nom: 'l’autorité lue est ignorée : on retombe toujours sur le repli', f: RAPAT, rouge: X_RAPAT,
+    de: "  const mesure = Array.isArray(declares) && declares.length > 0;",
+    a:  "  const mesure = false;" },
+  { nom: 'le dossier prétend avoir lu une autorité qui n’a pas répondu', f: RAPAT, rouge: X_RAPAT,
+    de: "    : (Array.isArray(declares) ? 'DEFAUT_DECLARE_20260930'",
+    a:  "    : (true ? 'DEFAUT_DECLARE_20260930'" },
+  { nom: 'le verdict du run courant n’est plus réinjecté : écarté sans remplaçant', f: RAPAT, rouge: X_RAPAT,
+    de: "  if (mienne && verdict) liste.push(marquer(mienne.nom, verdict, { provenance: 'ETAT_DU_JOB' }));",
+    a:  "  if (false) liste.push(marquer(mienne.nom, verdict, { provenance: 'ETAT_DU_JOB' }));" },
+  { nom: 'le check démoti est effacé du dossier au lieu d’être rapporté', f: QUALIF, rouge: X_QUALIF,
+    de: "  const nonRequises = verifs.filter((v) => v.requis === false);",
+    a:  "  const nonRequises = [];" },
 
   // ── LE CÂBLAGE, PAS SEULEMENT LES MODULES ──────────────────────────────────
   // Les quatre mutations qui suivent ne touchent aucun module : elles rebranchent
