@@ -159,3 +159,12 @@ semaine.
 crée aucun objet nommé. Une migration de droits purs échappe donc à la
 détection de dépendance du code. Limite assumée et écrite ici plutôt que
 découverte plus tard.
+
+## Premier préflight écrit sous cette règle
+
+`docs/deploiement/preflight-20260919103000-production.md` applique la grille
+ci-dessus à la migration de #65, au SHA `5dcdaaa55f5804f88594c91c272439cf77a123b0`.
+Conclusion : `NO_GO_MIGRATION_PRODUCTION`, non parce que la migration serait
+défectueuse — elle est additive, idempotente, applicable avant le code — mais
+parce que l'état AVANT de Production n'a jamais été mesuré. La règle s'est donc
+d'abord appliquée à son propre cas.
