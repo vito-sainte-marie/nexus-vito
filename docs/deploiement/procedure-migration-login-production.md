@@ -91,15 +91,78 @@ c'est aussi l'état de la fuite d'annuaire — la vue est encore une porte anony
 
 ## 4. Jouer l'artefact
 
+**Correction du 01/10/2026 — ce que cette section disait avant, et pourquoi ça ne suffisait
+pas.** Cette section prescrivait jusqu'ici :
+
 ```bash
 psql "$URL_PRODUCTION" -v ON_ERROR_STOP=1 -f outils/migration-login-production-a-executer-par-frederic.sql
 ```
 
-**`-v ON_ERROR_STOP=1` est conseillé, pas requis.** La sûreté de la base est assurée par la
-transaction (`begin;` … `commit;`), qui ne dépend pas du client. L'option sert à autre chose :
-sans elle, **`psql` sort avec le code 0 même quand le fichier a refusé**. C'est mesuré, pas
-supposé : voir §6. Si vous ne pouvez pas la passer, lisez **la dernière ligne** de la sortie —
-la section 6 l'écrit pour ça.
+`$URL_PRODUCTION` n'a jamais été défini nulle part dans ce dépôt. `psql` a reçu une chaîne
+vide — ce qui **ne lève aucune erreur de variable manquante**, puisque `"${URL_PRODUCTION}"` se
+développe simplement en rien — et s'est rabattu sur ses paramètres de connexion par défaut,
+rendant un message qui ne nommait ni la variable en cause ni la cible visée. L'artefact SQL
+n'était pour rien dans cet échec ; le défaut vivait dans **cette phrase de documentation**, qui
+prescrivait une variable que personne n'avait définie nulle part. Un script qui implémente une
+phrase de documentation n'a mesuré personne (même famille de défaut que celui déjà consigné le
+01/10/2026 dans `docs/deploiement/README.md` pour le `revoke` de régularisation réception).
+
+**Ce qui remplace cette instruction : un véhicule qui mesure avant d'écrire, et qui refuse
+plutôt que de deviner.**
+
+```bash
+# Mesure seule — ne demande ni ne fait aucune écriture.
+bash outils/appliquer-migration-login-production-a-executer-par-frederic.sh
+
+# Une fois la mesure jugée conforme, exécute réellement l'artefact ci-dessus, inchangé.
+bash outils/appliquer-migration-login-production-a-executer-par-frederic.sh --appliquer
+```
+
+Avant toute connexion, le véhicule refuse une URL qui ne nomme pas explicitement le projet
+Production (`uzhjpqpctpvxytxpxoqz`) ou qui nomme une identité de lecture seule connue. Une fois
+connecté, il mesure `current_database()`, `current_user`, `transaction_read_only`,
+`pg_is_in_recovery()` et `has_schema_privilege(current_user,'public','CREATE')`, et refuse un
+rôle en lecture seule, un réplica, ou une identité sans `CREATE`. Sans `--appliquer`, il
+s'arrête après cette mesure : **aucune écriture par défaut**. Avec `--appliquer`, il ne lance
+l'artefact que si la mesure a été jugée conforme.
+
+**La source du secret suit le même contrat que la lecture seule** (fichier
+`lecture-apres-migration-20260919103000.sh`) : `NEXUS_PROD_DB_URL_WRITE` prime, sinon le
+trousseau macOS (service `nexus-prod-db-write`, compte `nexus`) peut contenir soit l'URL
+complète, soit le seul mot de passe — l'URL est alors composée avec l'utilisateur `postgres`
+(ou `NEXUS_PROD_DB_USER_WRITE` s'il doit être différent). **`$URL_PRODUCTION` n'est jamais lu**
+par ce véhicule, qu'il soit vide, absent, ou défini : c'est précisément la variable qui a piégé
+le 01/10/2026, et ce n'est pas une variable que ce dépôt prescrit encore nulle part.
+
+**Le code de sortie du véhicule dit le verdict réel, pas celui de `psql`.** Le véhicule appelle
+`psql` **sans** `-v ON_ERROR_STOP=1` — avec cette option, `psql` s'arrêterait avant la section 6
+sur un refus, et la dernière ligne ne serait jamais écrite (voir §6 ci-dessous). Il lit à la
+place le texte de cette dernière ligne et en déduit son propre code de sortie :
+
+| Code | Signification |
+| --- | --- |
+| `0` | mesure conforme sans `--appliquer` (rien écrit), ou `ETAT_FINAL MIGRATION_LOGIN_APPLIQUEE` |
+| `1` | usage invalide |
+| `2` | `psql` introuvable |
+| `3` | `SECRET_ABSENT` — ni `NEXUS_PROD_DB_URL_WRITE`, ni le trousseau |
+| `4` | `--appliquer` demandé mais l'artefact est absent du disque |
+| `5` | `CIBLE_INATTENDUE` — mauvaise référence de projet, ou identité de lecture seule refusée avant connexion |
+| `6` | `CONNEXION_IMPOSSIBLE` — la sonde de mesure a échoué |
+| `7` | `PREFLIGHT_REFUS` — mesuré : lecture seule, réplica, ou pas de `CREATE` |
+| `30`/`31`/`32` | `ETAT_FINAL` vaut respectivement `NON_APPLIQUEE` / `INCOMPLETE` / `INCOHERENTE` |
+| `33` | aucune ligne `ETAT_FINAL` reconnue — **jamais traité comme un succès**, même si `psql` est sorti en 0 |
+
+Les épreuves déterministes de ce véhicule (secret absent, URL vide, mauvaise cible, lecture
+seule, artefact absent, refus/rollback malgré un `psql` sorti en 0, nominal simulé) sont dans
+`test_vehicule_migration_login_production_20261001.js`, jouées contre des leurres et des
+connexions mortes — jamais contre une vraie base.
+
+**`-v ON_ERROR_STOP=1` reste conseillé si vous invoquez `psql` vous-même sans ce véhicule** —
+mais ce n'est plus le chemin recommandé. La sûreté de la base est assurée par la transaction
+(`begin;` … `commit;`), qui ne dépend pas du client ; l'option sert à autre chose : sans elle,
+**`psql` sort avec le code 0 même quand le fichier a refusé**. C'est mesuré, pas supposé : voir
+§6. Si vous jouez l'artefact à la main, lisez **la dernière ligne** de la sortie — la section 6
+l'écrit pour ça.
 
 L'artefact fait trois choses, dans cet ordre, et uniquement elles :
 

@@ -769,3 +769,68 @@ dans la procédure, avec ses champs de mesure vides. Le `_lecture` du fichier de
 qualification l'interdit en toutes lettres, et un rapport d'absence transmis par
 un tiers est une donnée, pas une `mesure`. Elle ira **sous la clé
 `20260904175747` dans `migrations`** — **jamais en éditant `20260919103000`**.
+
+## 01/10/2026 — une instruction de documentation prescrivait une variable que personne n'avait définie
+
+La procédure de remise en service du login (`procedure-migration-login-production.md`, §4)
+disait de jouer l'artefact ainsi :
+
+```bash
+psql "$URL_PRODUCTION" -v ON_ERROR_STOP=1 -f outils/migration-login-production-a-executer-par-frederic.sql
+```
+
+`$URL_PRODUCTION` n'a jamais été défini nulle part dans ce dépôt. `psql` a reçu une chaîne
+vide — ce qui **ne lève aucune erreur de variable manquante**, un paramètre d'environnement
+absent se développant simplement en rien — et s'est rabattu sur ses paramètres de connexion par
+défaut, rendant un message de refus qui ne nommait ni la variable en cause ni la cible visée.
+L'artefact SQL, lui, n'était pour rien dans cet échec : six contrôles de précondition, une
+transaction unique, une relecture terminale hors transaction — rien de tout cela n'a été
+sollicité, puisque la connexion elle-même n'a jamais eu de quoi aboutir.
+
+**Ce n'est pas une négligence isolée, c'est la même famille de défaut que celle déjà consignée
+plus haut dans ce fichier pour le `revoke` de régularisation réception du même jour : « un
+script qui implémente une phrase de documentation n'a mesuré personne ».** Ici, la phrase de
+documentation n'implémentait même pas un script — elle était la commande elle-même, recopiée
+dans un terminal, sans qu'aucun outil n'ait jamais vérifié que la variable qu'elle nommait
+existait.
+
+### La règle
+
+**Toute migration Production se joue désormais par un véhicule qui mesure avant d'écrire, et
+qui refuse plutôt que de deviner — jamais par une invocation `psql` brute recopiée dans la
+documentation.** Un véhicule conforme à cette règle :
+
+1. ne fait AUCUNE écriture par défaut — l'écriture exige un opt-in explicite (`--appliquer`) ;
+2. mesure, avant toute possibilité d'écriture, la cible (référence de projet), l'identité
+   connectée, et sa capacité réelle à écrire (`transaction_read_only`, `pg_is_in_recovery()`,
+   le privilège requis) — et refuse si l'une de ces mesures ne correspond pas à ce qui est
+   attendu ;
+3. décide son code de sortie sur le **texte** du verdict final que l'artefact écrit
+   lui-même, jamais sur le code de sortie de `psql`, qui vaut 0 même sur un refus sans
+   `-v ON_ERROR_STOP=1` (leçon déjà écrite plus haut dans ce fichier, à propos du login
+   lui-même) ;
+4. ne recrée ni ne réécrit l'artefact SQL canonique qu'il joue ;
+5. est éprouvé par des épreuves déterministes hors Production — secret absent, cible erronée,
+   rôle en lecture seule, artefact absent, refus/rollback malgré un client sorti en 0, nominal
+   simulé — jouées contre des leurres et des connexions mortes, jamais contre une vraie base.
+
+Premier véhicule conforme : `outils/appliquer-migration-login-production-a-executer-par-frederic.sh`,
+éprouvé par `test_vehicule_migration_login_production_20261001.js`. Il réutilise le contrat déjà
+établi par `outils/lecture-apres-migration-20260919103000.sh` pour la résolution du secret
+(trousseau macOS, distinction URL / mot de passe, composition explicite de l'URL) plutôt que
+d'en inventer un second.
+
+### Ce qu'une mutation réelle a trouvé pendant l'écriture de ce véhicule
+
+Une première version appelait `psql` pour jouer l'artefact sous `set -e` sans précaution : si
+`psql` sortait en échec sans qu'aucune ligne `ETAT_FINAL` ne soit reconnue, l'affectation
+`SORTIE=$(…)` faisait terminer le script immédiatement avec le code de sortie **brut** de la
+tuyauterie `psql | sed` — qui pouvait, par coïncidence, recouvrir un code déjà attribué par
+ailleurs dans ce même véhicule (ici, `2`, identique à `PSQL_INTROUVABLE`). Une épreuve qui
+simule un tel échec (`psql` sorti en 2, aucune transcription) l'a trouvé en exigeant le code
+`33` (« aucun `ETAT_FINAL` reconnu, jamais un succès ») et en obtenant `2`. Corrigé en isolant
+cette seule commande entre `set +e` / `set -e`, pour que le véhicule reste maître de son propre
+code de sortie même quand son client sort en échec. **Une garde qui n'a jamais été mise en
+situation d'échec n'a pas prouvé qu'elle refuse pour la bonne raison** — même règle que celle
+déjà tirée plus haut dans ce fichier à propos des mutations sur `garde-ordre-migration-code.js`
+et `garde-revoke-fonction-roles-nommes.js`.
