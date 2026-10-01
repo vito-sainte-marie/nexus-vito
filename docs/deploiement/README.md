@@ -224,3 +224,37 @@ vaut **-1** sur une table jamais analysée, et -1 n'est pas « petit ».
 
 Détail et bloc de lecture exécutable :
 `preflight-20260919103000-production.md` §16.
+
+## 01/10/2026 — relire un bloc comme un geste à frapper, pas comme un texte
+
+Les blocs SQL des §11 et §16.5 du préflight `20260919103000` avaient été
+écrits, relus, et jamais relus **comme un geste qu'on va frapper**. Relus à ce
+titre au moment de livrer l'application, ils portaient quatre défauts.
+
+| défaut | ce que le bloc faisait | ce qu'il prétendait faire |
+|---|---|---|
+| noms de contraintes croisés entre les deux tables, un troisième absent | rubrique vide **quoi qu'il arrive** | constater l'absence des 3 contraintes |
+| `select 'temps_reel' is distinct from 'regularisation'` | `true`, toujours | témoin de non-régression du trigger |
+| 3 `count(*)` sur 8 colonnes, 3 contraintes, 1 trigger | 12 objets mesurés | « 13 objets attendus » |
+| `information_schema.columns` | dépend d'un privilège | compter des colonnes |
+
+Trois règles en sortent.
+
+**Une rubrique vide ne prouve rien tant que la requête n'a pas été prouvée
+capable de rendre quelque chose.** Un nom d'objet mal orthographié produit
+exactement la même lecture qu'une absence réelle — et c'est l'absence qui
+ouvre la porte. Tout contrôle dont le résultat attendu est « vide » ou « 0 »
+doit être éprouvé une fois contre un état où il doit rendre non-vide.
+
+**Un contrôle qui ne référence que des littéraux n'est pas un contrôle.** Si
+l'expression ne cite ni table, ni catalogue, ni colonne, son résultat est
+décidé à l'écriture, pas à l'exécution. Elle figurait pourtant dans le critère
+de validation du `commit`.
+
+**Compter les objets annoncés.** Le texte disait 13, les contrôles en
+mesuraient 12 ; l'objet manquant était la fonction, c'est-à-dire la garde
+elle-même. L'écart se voit en additionnant, pas en relisant.
+
+Le biais commun aux trois premiers : **le défaut penche vers le GO.**
+Troisième occurrence documentée sur ce même dossier. Quand une erreur de
+mesure a une direction, c'est toujours celle qui débloque.

@@ -843,3 +843,210 @@ Frédéric. Rubriques 3 à 6 vides avec rubrique 1 renseignée →
 Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
 n'a été lancée. Aucun `grant` n'a été appliqué. #65 n'est pas fusionnée.
 Production n'est pas déployée. Aucune garde n'a été affaiblie.
+
+## 17. Dossier d'application — 01/10/2026
+
+GO reçu de Frédéric : « go migration ». Section ajoutée, rien de réécrit.
+
+### 17.1 Ce que le GO lève, et ce qu'il ne lève pas
+
+Il lève l'interdit portant sur la migration Supabase Production, et lui seul.
+Restent interdits sans GO distinct : la fusion de #65, le déploiement Pages,
+toute modification de données Production, Pages/DNS/secrets/règles GitHub.
+
+Le motif unique du `NO_GO` tenait debout : **la lecture AVANT n'a jamais été
+jouée sur Production.** Ce n'est pas une formalité. La migration est
+idempotente ; si un des 13 objets existe déjà avec une définition divergente,
+elle passera dessus **sans rien dire**, et le `commit` sera frappé sur un
+total conforme. L'idempotence ne rend pas l'état inconnu sûr, elle le rend
+muet. La lecture AVANT est donc l'étape 1 de l'application, pas un préalable
+qui la retarde : les trois étapes ci-dessous s'enchaînent en une seule séance.
+
+### 17.2 Par quel chemin une migration atteint Production — mesuré
+
+Aucune automatisation n'applique de SQL à Production.
+`.github/workflows/deploiement-production.yml` publie un artefact GitHub Pages
+et **exclut explicitement** `supabase/`, le SQL, `docs/` et `outils/` de cet
+artefact. Un balayage de `db push|migration up|psql.*migrations|apply_migration`
+sur `.github/`, `outils/` et `docs/deploiement/` ne rencontre **que le présent
+document**. Conforme à ce qui était déjà su : seul le connecteur écrit en
+Production.
+
+L'application est donc un **geste manuel**, la voie 2 du §9 — transaction
+explicite puis inscription de l'estampille — seule voie permettant de poser un
+`lock_timeout` et des contrôles avant `commit`.
+
+### 17.3 Quatre défauts dans les blocs d'application, relevés avant de les livrer
+
+Les blocs des §11 et §16.5 n'avaient jamais été relus comme un geste à frapper.
+Relus à ce titre, ils portent quatre défauts. Le premier est le mien, écrit
+hier dans la correction même qui devait fermer ce genre de trou.
+
+**D1 — §16.5, rubrique 4 : deux noms de contraintes croisés, un troisième
+absent.** Le bloc interroge `carburant_reception_mesures_mode_saisie_check` et
+`carburant_reception_visites_source_check`. Ces deux noms **n'existent pas** :
+les préfixes de table ont été intervertis. Les noms réels, extraits de la
+migration auditée, sont `carburant_reception_visites_mode_saisie_check`,
+`carburant_reception_visites_regularisation_coherente_check` et
+`carburant_reception_mesures_source_check` — le troisième n'était pas
+interrogé du tout. Conséquence : **la rubrique 4 revient vide quoi qu'il
+arrive**, y compris si les trois contraintes sont déjà en place. Or le §16.6
+lit une rubrique 4 vide comme un feu vert. Le défaut penche vers le GO, comme
+les deux précédents du §15 et du §16 — troisième occurrence du même biais.
+
+**D2 — §11, le « témoin de non-régression » est une tautologie.** Le contrôle
+`select 'temps_reel' is distinct from 'regularisation'` ne compare que deux
+littéraux. Il ne référence ni `pg_trigger`, ni la fonction, ni la table. Il
+rend `true` que le trigger existe, soit absent, soit cassé. Il figure pourtant
+dans le critère de validation « 8 / 3 / 1 / **true** » : ce `true` est gratuit.
+Une garde qui ne peut pas rougir ne garde rien.
+
+**D3 — §11 ne mesure que 12 des 13 objets.** Les trois `count(*)` couvrent 8
+colonnes, 3 contraintes et 1 trigger. **La fonction
+`nexus_garde_regularisation_reception` — objet n° 13 — n'est contrôlée par
+aucun des quatre contrôles avant `commit`.** Elle ne l'est qu'au §12, après.
+
+**D4 — §11 lit `information_schema.columns`, et ne nomme pas qui lit.** Dans
+ce contexte précis l'identité qui vient de frapper le `alter table` détient les
+privilèges, donc la lecture rendra 8 : ce n'est pas un faux négatif ici. C'est
+une fragilité — un contrôle dont le résultat dépend d'un privilège alors que le
+fait mesuré n'en dépend pas — et une incohérence avec la règle posée au §16.
+Corrigé par durcissement, et `current_user` ajouté pour que la lecture soit
+attribuable.
+
+### 17.4 Étape 1 — lecture AVANT, corrigée (D1), et qui fait office de porte
+
+Le §16.5 s'applique **avec sa rubrique 4 remplacée** par celle-ci. Le reste du
+bloc est inchangé.
+
+```sql
+union all
+select 4, 'contrainte',
+       c.relname || ' : ' || k.conname || ' — ' || pg_get_constraintdef(k.oid)
+  from pg_constraint k
+  join pg_class     c on c.oid = k.conrelid
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and k.conname in ('carburant_reception_visites_mode_saisie_check',
+                     'carburant_reception_visites_regularisation_coherente_check',
+                     'carburant_reception_mesures_source_check')
+```
+
+Conditions d'arrêt : celles du §16.6, inchangées. Porte de passage :
+**rubrique 1 renseignée avec les deux tables, rubriques 3, 4, 5 et 6 vides.**
+Toute autre lecture → arrêt, et le GO n'est pas consommé.
+
+### 17.5 Étape 2 — la transaction du §11, avec ses quatre contrôles refaits
+
+Corps inchangé : le fichier audité au SHA `5dcdaaa55f5804f88594c91c272439cf77a123b0`
+(blob sha256 `1a02adca37af32b6ea3ffa3ec41b43968502d75bd515877b47e1d4073a8d6caf`),
+sans la moindre retouche, puis l'inscription de l'estampille. Seuls les
+contrôles avant `commit` changent.
+
+```sql
+begin;
+set local lock_timeout = '3s';
+set local statement_timeout = '60s';
+
+-- >>> contenu intégral du fichier audité, inchangé  (cf. §11)
+-- >>> puis l'insert dans supabase_migrations.schema_migrations  (cf. §11)
+
+-- Contrôle 0 — qui frappe. Une lecture non attribuée n'est pas recevable.
+select current_user as identite, current_database() as base,
+       current_setting('server_version') as moteur;
+
+-- Contrôle 1 — 8 colonnes, par pg_attribute (D4). Indépendant des privilèges.
+select count(*) as colonnes_attendues_8
+  from pg_attribute a
+  join pg_class     c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public' and a.attnum > 0 and not a.attisdropped
+   and ( (c.relname = 'carburant_reception_visites'
+          and a.attname in ('mode_saisie','regularisation_motif','regularisation_par',
+                            'regularisation_par_nom','regularisation_le',
+                            'controle_terrain_par','justificatif_url'))
+      or (c.relname = 'carburant_reception_mesures' and a.attname = 'source') );
+
+-- Contrôle 2 — 3 contraintes, qualifiées par leur table (même soin qu'en D1).
+select count(*) as contraintes_attendues_3
+  from pg_constraint k
+  join pg_class     c on c.oid = k.conrelid
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and k.conname in ('carburant_reception_visites_mode_saisie_check',
+                     'carburant_reception_visites_regularisation_coherente_check',
+                     'carburant_reception_mesures_source_check');
+
+-- Contrôle 3 — le trigger ET la fonction qu'il appelle (D2 + D3).
+-- Remplace la tautologie. Rend 0 ligne si le trigger manque ; rend false si
+-- le trigger est désactivé, si la fonction n'est pas security definer, ou si
+-- son search_path n'est pas figé. Ce contrôle peut rougir.
+select t.tgenabled = 'O'                         as trigger_actif,
+       p.prosecdef                               as fonction_security_definer,
+       p.proconfig @> array['search_path=public'] as search_path_fige,
+       p.proname                                 as fonction_appelee
+  from pg_trigger   t
+  join pg_class     c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  join pg_proc      p on p.oid = t.tgfoid
+ where n.nspname = 'public'
+   and c.relname = 'carburant_reception_visites'
+   and t.tgname  = 'trg_garde_regularisation_reception'
+   and not t.tgisinternal;
+
+-- commit;   <- seulement si : 8 / 3 / une ligne portant t,t,t,
+--                             nexus_garde_regularisation_reception
+-- rollback; <- dans tous les autres cas, sans exception
+```
+
+**`lock_timeout = '3s'` reste une proposition à ratifier**, pas la citation
+d'une règle NEXUS : le dépôt n'en fixe aucun (§11). Le ratifier ou le changer
+est un arbitrage de Frédéric, pas un défaut à corriger.
+
+**Ce que le contrôle 3 ne fait toujours pas.** Il prouve le câblage, pas le
+comportement : il n'établit pas qu'une réception nominale passe la garde. Le
+seul témoin comportemental véritable est l'insertion d'une ligne
+`temps_reel` nominale sous `savepoint`, suivie d'un `rollback to savepoint`.
+Il exige de connaître les colonnes `not null` de la table, et doit être
+**répété sur Test avant d'être frappé sur Production** — jamais improvisé là.
+Préparé, non livré ici : l'écrire à l'aveugle serait refaire D2 sous une
+forme plus crédible.
+
+### 17.6 Étape 3 — lecture APRÈS
+
+Le §12, inchangé, rejoué sous la même identité. L'ACL qui en ressort est la
+dette du §8 : la retrouver telle quelle confirme l'effet habituel de la
+migration, elle n'est pas la cible souhaitée. Sa correction
+(`revoke all on function … from anon, authenticated`) reste un geste distinct,
+qui ne passe **jamais** par une modification de `20260919103000`.
+
+Retour arrière : §13, réel et sans perte tant qu'aucune ligne
+`regularisation` n'existe — donc pendant toute la fenêtre entre cette
+migration et le déploiement du code #65.
+
+### 17.7 Ce que je ne peux pas faire, et pourquoi je ne le contourne pas
+
+Je ne peux exécuter aucune des trois étapes. Je ne détiens aucun identifiant
+d'écriture sur la base Production ; le rôle de lecture a été mesuré
+`must be owner of table` ; et l'accès en lecture à Production m'est refusé par
+le harnais. Ce refus porte sur **le résultat**, pas sur la commande : il ne se
+contourne ni par un autre outil, ni par le serveur MCP Supabase — dont
+`apply_migration` et `execute_sql` restent non utilisés — ni par un
+sous-agent, ni par un tour ultérieur. Les trois étapes sont des gestes de
+Frédéric.
+
+### 17.8 Verdict
+
+`GO_CONDITIONNEL_A_LA_LECTURE_AVANT`.
+
+Le GO de Frédéric est enregistré et le geste est prêt, blocs corrigés. Il se
+consomme en une séance : étape 1, et si la porte du §17.4 s'ouvre — rubrique 1
+renseignée, rubriques 3 à 6 vides — étapes 2 et 3 enchaînent sans nouvelle
+autorisation. Si la porte ne s'ouvre pas, le GO n'est pas consommé et l'écart
+constaté revient en arbitrage.
+
+Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
+n'a été lancée. Aucun `grant` n'a été appliqué. #65 n'est pas fusionnée.
+Production n'est pas déployée. Aucune garde n'a été affaiblie.
