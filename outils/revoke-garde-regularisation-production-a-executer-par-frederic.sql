@@ -45,6 +45,78 @@
 -- IDEMPOTENTS : exécuter l'un puis l'autre ne produit aucune erreur.
 --
 -- ---------------------------------------------------------------------------
+-- TRANSACTION UNIQUE — pourquoi le `begin` ci-dessous n'est pas decoratif.
+--
+-- Mesure du 01/10/2026, sur banc, base sans la fonction : la garde de la
+-- section 0 levait bien son exception, et le script CONTINUAIT quand meme.
+-- Le refus defilait hors de l'ecran, les sections 1, 3 et 4 affichaient des
+-- tableaux vides, et la derniere chose visible etait un « DO » tranquille.
+-- Code de sortie du client : 0. Autrement dit : une garde qui refuse sans
+-- rien arreter, c'est-a-dire le defaut meme que ce chantier traque.
+--
+-- `ON_ERROR_STOP` corrigerait cela, mais c'est une option de `psql`, et ce
+-- fichier est destine a l'editeur SQL de Supabase. Une garde ne doit pas
+-- dependre du client qui la lance. La transaction, elle, est tenue par le
+-- serveur : toute exception levee ci-dessous annule l'integralite du fichier,
+-- et le `commit` final n'est atteint que si chaque verdict a ete bon.
+--
+-- CONSEQUENCE A CONNAITRE : si vous voyez « current transaction is aborted »
+-- apres une erreur, ce n'est pas une seconde panne — c'est la transaction qui
+-- tient bon. Rien n'a ete applique. Lisez la PREMIERE erreur, pas la derniere.
+-- ---------------------------------------------------------------------------
+begin;
+
+-- ---------------------------------------------------------------------------
+-- 0. GARDE DE PRECONDITION — refuser plutot que ne rien faire.
+--    Mesure du 01/10/2026 : lance depuis le home, un chemin relatif au depot a
+--    rendu « No such file or directory », et une URL qui ne designait pas le
+--    projet attendu a provoque un arret. Les deux fois, l'arret etait le bon
+--    comportement. Ce bloc met le meme arret DANS le SQL, pour le cas ou ce
+--    fichier serait colle dans l'editeur SQL d'un autre projet : sans la
+--    fonction, les sections 2 et 3 ne diraient rien d'utile, et un `notice`
+--    « fonction ABSENTE » se relit trop facilement comme un succes.
+--
+--    CE QUE CE BLOC NE PEUT PAS FAIRE : nommer le projet. Rien dans la base ne
+--    designe de facon fiable `uzhjpqpctpvxytxpxoqz`. L'environnement est donc
+--    DESIGNE PAR VOUS — barre d'adresse de l'editeur SQL, ou URL passee a psql.
+--    Une designation ne se recalcule pas depuis le contexte ambiant.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_fonction_presente boolean;
+  v_estampille_presente boolean;
+begin
+  select exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname = 'nexus_garde_regularisation_reception'
+       and p.pronargs = 0
+  ) into v_fonction_presente;
+
+  -- `supabase_migrations.schema_migrations` peut ne pas exister (base nue, banc
+  -- jetable, environnement non gere par le CLI). Y acceder sans precaution fait
+  -- echouer ce bloc sur « relation does not exist », c'est-a-dire sur un message
+  -- qui parle du registre alors que la question porte sur la fonction. Mesure du
+  -- 01/10/2026 sur banc : c'est exactement ce qui se produisait.
+  if to_regclass('supabase_migrations.schema_migrations') is null then
+    v_estampille_presente := null;
+  else
+    execute $q$ select exists (
+      select 1 from supabase_migrations.schema_migrations where version = '20260919103000'
+    ) $q$ into v_estampille_presente;
+  end if;
+
+  raise notice 'Identite de session : current_user=% session_user=%', current_user, session_user;
+  raise notice 'Estampille 20260919103000 au registre : %', coalesce(v_estampille_presente::text, '(registre de migrations absent de cette base)');
+  raise notice 'Fonction nexus_garde_regularisation_reception() presente : %', v_fonction_presente;
+
+  if not v_fonction_presente then
+    raise exception 'ARRET — la fonction public.nexus_garde_regularisation_reception() est ABSENTE de cette base. Il n''y a aucun droit a retirer ici, et ce n''est pas un succes de fermeture. Verifiez que vous etes bien sur le projet uzhjpqpctpvxytxpxoqz.';
+  end if;
+end
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 1. LECTURE AVANT — ne rien appliquer sans avoir vu l'état de départ.
 -- ---------------------------------------------------------------------------
 select
@@ -131,6 +203,70 @@ join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public'
   and t.tgname = 'trg_garde_regularisation_reception'
   and not t.tgisinternal;
+
+-- ---------------------------------------------------------------------------
+-- 5. VERDICT QUI ENGAGE — la section 3 affiche, celle-ci decide.
+--    Un tableau se lit avec les yeux et s'oublie. Ce bloc-ci refuse de
+--    confirmer la transaction si l'ACL n'est pas exactement celle attendue, ou
+--    si le trigger n'est plus actif. Le revoke est alors annule : mieux vaut
+--    repartir d'un etat connu que committer une fermeture a moitie faite.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_acl text;
+  v_trigger_actif boolean;
+begin
+  select array_to_string(p.proacl, ',') into v_acl
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname = 'nexus_garde_regularisation_reception'
+     and p.pronargs = 0;
+
+  if v_acl is null then
+    raise exception 'ARRET — ACL nulle apres le revoke : tous les droits explicites ont disparu, y compris ceux de postgres et service_role. Ce n''est pas l''etat voulu. Transaction annulee.';
+  end if;
+
+  if v_acl like '%anon=%' then
+    raise exception 'ARRET — `anon` figure toujours dans l''ACL apres le revoke : %. Transaction annulee.', v_acl;
+  end if;
+
+  if v_acl like '%authenticated=%' then
+    raise exception 'ARRET — `authenticated` figure toujours dans l''ACL apres le revoke : %. Transaction annulee.', v_acl;
+  end if;
+
+  if v_acl not like '%service_role=X%' then
+    raise exception 'ARRET — `service_role` a perdu EXECUTE : %. La fonction exempte explicitement ce role, il doit le garder. Transaction annulee.', v_acl;
+  end if;
+
+  if v_acl not like '%postgres=X%' then
+    raise exception 'ARRET — `postgres` a perdu EXECUTE : %. Transaction annulee.', v_acl;
+  end if;
+
+  select (t.tgenabled = 'O') into v_trigger_actif
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and t.tgname = 'trg_garde_regularisation_reception'
+     and not t.tgisinternal;
+
+  if v_trigger_actif is null then
+    raise exception 'ARRET — le trigger trg_garde_regularisation_reception est introuvable apres le revoke. Transaction annulee.';
+  end if;
+
+  if not v_trigger_actif then
+    raise exception 'ARRET — le trigger trg_garde_regularisation_reception n''est plus actif apres le revoke. Transaction annulee.';
+  end if;
+
+  raise notice 'VERDICT ENGAGEANT : ACL = %, trigger actif. La transaction peut etre confirmee.', v_acl;
+end
+$$;
+
+commit;
+
+-- A LIRE EN DERNIER. Si la ligne ci-dessus a bien ete executee, l'etat est
+-- ferme et durable. Si vous avez vu une erreur commencant par « ARRET », rien
+-- n'a ete applique : la base est exactement dans l'etat ou vous l'avez trouvee.
 
 -- CE QUI RESTE OUVERT APRÈS CE FICHIER. 17 autres fonctions du dépôt portent
 -- encore le même silence (18 avant celle-ci). Elles ne sont PAS à refermer en

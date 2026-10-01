@@ -496,3 +496,64 @@ Ce qu'il faut en retenir au-delà du shell : **un dispositif de mesure se mesure
 aussi.** J'ai proposé un instrument de contrôle sans le vérifier sur l'hôte où
 il devait servir — exactement le reproche que ce chantier fait aux gardes qui
 passent à vide.
+
+### Le même jour, un troisième cran — la garde refusait sans rien arrêter
+
+Le fichier `outils/revoke-garde-regularisation-production-a-executer-par-frederic.sql`
+a reçu une garde de précondition : si la fonction visée est absente de la base,
+elle lève une exception plutôt que d'afficher un `notice` qui se lit comme un
+succès. Écrite, elle paraissait suffisante. Répétée sur banc, elle ne l'était pas.
+
+Mesure du 01/10/2026, base sans la fonction, client lancé **sans
+`ON_ERROR_STOP`** — c'est-à-dire dans les conditions de l'éditeur SQL de
+Supabase, qui n'est pas `psql` :
+
+| ce qu'on attendait | ce qui s'est produit |
+| --- | --- |
+| le script s'arrête | le script **continue** jusqu'à la fin |
+| l'erreur est le dernier mot | l'`ARRET` défile hors de l'écran |
+| les sections suivantes ne tournent pas | elles tournent et affichent des tableaux **vides** |
+| code de sortie non nul | code de sortie **0** |
+
+Les trois dernières lignes visibles étaient trois tableaux à `(0 rows)` et un
+`DO` tranquille. **Un refus invisible n'est pas un refus.** C'est exactement le
+reproche que ce chantier adresse aux gardes qui passent à vide, cette fois dans
+le dispositif censé l'empêcher.
+
+**1. Une garde ne doit pas dépendre du client qui la lance.** `ON_ERROR_STOP`
+aurait corrigé le symptôme, mais c'est une option de `psql`. Le fichier est
+destiné à un éditeur web. Ce qui tient quel que soit le client est tenu par le
+serveur : le fichier est désormais une **transaction unique**, et toute exception
+annule l'intégralité du passage.
+
+**2. Afficher un verdict et engager un verdict sont deux actes différents.** La
+section 3 imprimait `FERME` dans un tableau. Un tableau se lit avec les yeux et
+s'oublie. Une section 5 a été ajoutée : elle relit l'ACL et le trigger, et
+**refuse de confirmer la transaction** si l'état n'est pas exactement celui
+attendu. Trois mutations l'ont vérifiée — revoke redevenu `from public`, trigger
+désactivé, `service_role` privé d'`EXECUTE` — et les trois finissent sur
+`ROLLBACK` avec l'ACL inchangée. Une garde qui n'a jamais refusé n'est pas une
+garde.
+
+**3. Accéder au registre des migrations pouvait faire échouer la garde sur la
+mauvaise question.** `supabase_migrations.schema_migrations` n'existe pas
+partout. Sans précaution, le bloc échouait sur « relation does not exist » : un
+message qui parle du registre alors que la question porte sur la fonction. Le
+test passe par `to_regclass`, et une base sans registre affiche désormais
+« registre de migrations absent » puis continue, parce que la précondition
+réelle est la présence de la fonction, pas celle de l'estampille.
+
+**4. L'exposition fermée est bien nulle, et c'est maintenant mesuré.** Après le
+revoke, sur banc : l'appel direct par `authenticated` est refusé
+(`permission denied for function`), le **trigger mord toujours** sur une
+régularisation sans relevé, et une insertion légitime passe. PostgreSQL ne
+vérifie pas `EXECUTE` quand un trigger se déclenche. Le revoke est donc une
+affaire d'hygiène et de cohérence dépôt/base, pas une urgence — affirmation déjà
+écrite plus haut, désormais adossée à trois observations plutôt qu'à un
+raisonnement.
+
+**5. Un banc qu'on démonte est un banc qu'il faut remonter.** J'avais détruit le
+conteneur de répétition en clôturant le lot, puis modifié le fichier sans le
+rejouer. Les trois défauts ci-dessus étaient tous invisibles à la lecture. Le
+coût d'un banc est de deux minutes ; le coût d'un refus muet appliqué à
+Production ne se mesure pas à l'avance.
