@@ -557,3 +557,79 @@ conteneur de répétition en clôturant le lot, puis modifié le fichier sans le
 rejouer. Les trois défauts ci-dessus étaient tous invisibles à la lecture. Le
 coût d'un banc est de deux minutes ; le coût d'un refus muet appliqué à
 Production ne se mesure pas à l'avance.
+
+### Le même jour, l'épilogue — le `revoke` a été appliqué, et c'est un rapport, pas ma mesure
+
+Le 01/10/2026 vers 16 h 48 UTC, Frédéric a appliqué le `revoke` directement sur
+Supabase Production `uzhjpqpctpvxytxpxoqz` et en a publié le compte rendu depuis
+son compte, en commentaire de l'issue #28 (identifiant `5936147053`). Les deux
+états qu'il rapporte :
+
+| | ACL de `public.nexus_garde_regularisation_reception()` |
+| --- | --- |
+| avant | `postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres` |
+| après | `postgres=X/postgres,service_role=X/postgres` |
+
+L'état d'après est **exactement** ce que la section 5 du script exige : ni `anon=`
+ni `authenticated=` dans l'ACL, `service_role=X` et `postgres=X` conservés,
+trigger `trg_garde_regularisation_reception` toujours `tgenabled='O'`. Le compte
+rendu ajoute « transaction terminée sans exception », ce qui est la description
+juste du `begin; … commit;` installé le même jour.
+
+**1. Un détail faux de mon côté authentifie le rapport.** Le compte rendu situe
+le trigger sur `carburant_reception_visites`. Mon banc jetable, lui, avait
+utilisé `carburant_receptions` — un nom que j'avais inventé pour la répétition.
+La migration `20260919103000` tranche à ses lignes 143-146 : la vraie table est
+`carburant_reception_visites`. Le rapport est donc exact sur un point où je me
+trompais, ce qu'un compte rendu recopié depuis mes propres écrits n'aurait pas pu
+être.
+
+**2. Ce n'est pas pour autant une mesure.** Je n'ai aucun chemin de lecture vers
+Production, et je ne dois pas en chercher. Ce qui est consigné ici est donc une
+**observation datée, rapportée par un humain** — pas une propriété constatée par
+l'outillage. Elle se convertit en mesure pour un coût nul : le script est
+idempotent, et le rejouer sur une base déjà fermée repasse par la section 2 sans
+rien changer, puis par la section 5 qui relit l'ACL et affiche le même
+`VERDICT ENGAGEANT`. Une seconde exécution ne prouve pas plus que la première,
+mais elle fait exister la preuve dans le dossier.
+
+**3. L'effet est en Production, l'estampille n'y est pas.** La migration
+`supabase/migrations/20261001160000_revoque_garde_regularisation_reception_anon_authenticated.sql`
+porte désormais une intention déjà réalisée sur la cible, sans figurer au
+registre `supabase_migrations.schema_migrations`. C'est la classe de divergence
+déjà connue — un changement appliqué hors bande. Elle est ici **sans
+conséquence**, et il faut le dire précisément plutôt que de s'en inquiéter : le
+corps de cette migration est un `if exists … revoke all … from anon,
+authenticated`, strictement idempotent. Quand elle passera par le chemin normal,
+elle ne fera rien et dira qu'elle n'a rien fait. Ce qui reste vrai, en revanche,
+c'est que `origin/production` compte toujours 277 estampilles et que la garde
+d'ordre continuera, légitimement, à présenter `20261001160000` comme nouvelle.
+
+**4. Le champ `reserve` de la fiche `20260919103000` n'est pas corrigé.** Il dit
+que la dette est « désormais CONSTATEE en Production ». C'était vrai à la date de
+la mesure, et une fiche de qualification est un relevé daté : la réécrire
+effacerait l'observation au lieu de la prolonger. Rien ne lit ce champ — les
+occurrences de `reserve` dans le dépôt désignent un `validated_with_reserve`
+d'inventaire, sans rapport. C'est ce paragraphe-ci qui porte la suite.
+
+### Et le run rouge du même soir n'était pas une panne
+
+Le run Claude `36894784954`, déclenché à 16 h 48 UTC par ce même commentaire,
+s'est terminé en `failure` au bout de **onze secondes**. Ce n'est pas un run qui
+a échoué, c'est un run qui n'a pas commencé :
+
+```
+##[error]Aucun rail NEXUS désigné dans le déclencheur. Ajoutez NEXUS_BASE_BRANCH=<branche>
+         au commentaire. Aucun repli n'est appliqué : un rail se désigne, il ne se devine pas.
+...
+Refus publié sur #28.
+```
+
+**5. Le même mécanisme a dit oui trois heures plus tôt.** Le commentaire
+`5933837032`, du 01/10 à 14 h 45 UTC, portait `NEXUS_BASE_BRANCH=handoff-continuite-20260920`
+et le réveil a répondu en vingt-deux secondes. Celui de 16 h 48 ne le portait
+pas et a été refusé. Deux issues opposées, le même jour, pour le même workflow,
+selon la seule présence de la désignation : c'est la démonstration la plus nette
+que le dispositif de refus du 26/09 fonctionne. Le défaut n'est pas dans le rail,
+il est dans le déclencheur — et un futur lecteur qui verrait ce rouge comme une
+régression à réparer casserait une garde qui fait son travail.
