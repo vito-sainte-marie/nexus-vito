@@ -193,3 +193,34 @@ absence constatée.
 
 Le correctif de requête est au §15.5 du préflight. Le verdict
 `NO_GO_MIGRATION_PRODUCTION` est maintenu : l'état AVANT reste non mesuré.
+
+## 01/10/2026 — accorder un droit peut supprimer une condition d'arrêt
+
+Pour renseigner la rubrique de volume d'un préflight, il avait été envisagé
+d'accorder `SELECT` au rôle de lecture seule sur les deux tables visées. Mesuré
+en conteneur jetable, sur une fixture reproduisant la forme Production (RLS
+activée, policy `using (site = (select current_employee_site_id()))`, fonction
+du socle `select site_id from employees where id = auth.uid()`, rôle `login
+nobypassrls`), avec **2 400** et **6 800** lignes réellement présentes :
+
+| rubrique | sans `grant` | avec `grant select` |
+|---|---|---|
+| `count(*)` | `permission denied` | **`0`** |
+
+Le `grant` ne rend pas la table lisible : il rend le refus silencieux. Une
+connexion `psql` n'a pas de jeton, `auth.uid()` vaut NULL, la policy ne retient
+aucune ligne. Et `0` satisfait une condition d'arrêt formulée « moins de 1 M
+lignes ».
+
+**Règle.** Avant d'élargir un droit pour rendre une mesure possible, mesurer ce
+que ce droit change — et vérifier qu'il ne transforme pas un refus en valeur
+plausible. Un `permission denied` est une condition d'arrêt qui fonctionne ;
+une valeur obtenue en la supprimant vaut moins que le refus qu'elle remplace.
+
+**Corollaire.** Un volume ne se lit pas par `count(*)` sous RLS. Il se lit par
+`pg_stat_user_tables.n_live_tup` et `pg_total_relation_size()`, qui ne sont
+filtrés ni par privilège ni par RLS — et jamais par `pg_class.reltuples`, qui
+vaut **-1** sur une table jamais analysée, et -1 n'est pas « petit ».
+
+Détail et bloc de lecture exécutable :
+`preflight-20260919103000-production.md` §16.

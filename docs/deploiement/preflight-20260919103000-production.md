@@ -627,3 +627,219 @@ maintient le NO-GO et ouvre la comparaison de définitions.
 Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
 n'a été lancée. #65 n'est pas fusionnée. Production n'est pas déployée. Aucune
 garde n'a été affaiblie.
+
+---
+
+## 16. Le `grant select` : mesuré, puis écarté — 01/10/2026
+
+Frédéric a donné le GO pour la voie 2 du §15.8 (`grant select` sur les deux
+tables à `nexus_prod_readonly`). Avant de préparer le geste, j'ai mesuré ce
+qu'il achète. **Il n'achète rien, et il coûte une condition d'arrêt.** Le GO
+est fondé dans son intention — rendre la lecture possible — mais il porte sur
+un geste qui ne la rend pas possible.
+
+### 16.1 Pourquoi le `SELECT` ne suffit pas : la policy repose sur `auth.uid()`
+
+Le corps de la fonction est enfin localisé. Il n'était pas dans les migrations
+du lot, mais dans le socle :
+`supabase/migrations/20260101000000_baseline_pre_existing_schema.sql:201`.
+
+```sql
+CREATE OR REPLACE FUNCTION "public"."current_employee_site_id"() RETURNS "text"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  select site_id from employees where id = auth.uid();
+$$;
+```
+
+Les deux tables cibles ont RLS activée (`20260815114849_carburant_receptions_visite_v2.sql:142`
+et `:145`) et leur policy de lecture est
+`using (site = (select current_employee_site_id()))`.
+
+Une connexion `psql` n'a pas de jeton : `auth.uid()` rend NULL, donc
+`current_employee_site_id()` rend NULL, donc `site = NULL` n'est jamais vrai.
+**Le rôle verrait zéro ligne même avec le `SELECT` accordé.** C'est exactement
+ce qui avait été constaté le 11/09 sur cinq autres tables
+(`docs/handoff/lots/NEXUS-POINTAGE-CORRECTIF-1-20260911/role-lecture-seule-production-1.md`,
+« Le rôle ne voit aucune ligne »), sans que la cause en soit alors établie.
+Elle l'est maintenant.
+
+### 16.2 Mesure, pas déduction — conteneur jetable `nexus-preuve-grant`
+
+Image `supabase/postgres:17.6.1.175`, port 55434, détruit après la mesure.
+Fixture reproduisant la forme Production : l'`auth.uid()` **native de l'image**
+(non simulée), la fonction du socle, la policy du `do $$ … foreach t in array … $$`
+de `20260815114849`, RLS activée, et un rôle `sonde_lecture` `login nobypassrls`
+avec `default_transaction_read_only = on`, à l'image de `nexus_prod_readonly_login`.
+
+Données réellement présentes dans les tables : **2 400** visites, **6 800** mesures.
+
+| mesure | identité | sans `grant` | avec `grant select` |
+|---|---|---|---|
+| rubrique 2 — `count(*)` visites | `sonde_lecture` | **`permission denied`** | **`0`** |
+| rubrique 2 — `count(*)` mesures | `sonde_lecture` | *(non atteint)* | **`0`** |
+
+**Le `grant` transforme un refus bruyant en un zéro silencieux, sur 2 400 et
+6 800 lignes bien présentes.** Sans lui, la condition d'arrêt « lecture
+impossible / incomplète → STOP » du §10 se déclenche correctement. Avec lui, la
+lecture rend `0`, `0` satisfait « bien en dessous de 1 M lignes », et la
+condition d'arrêt passe — **pour la mauvaise raison**.
+
+C'est le défaut du §15 réintroduit une couche plus bas : là où
+`information_schema` rendait vide pour invisible, le `grant` ferait rendre zéro
+pour masqué. Et comme au §15, le faux négatif penche vers le GO.
+
+### 16.3 Ce que la même identité lit déjà, sans aucun `grant`
+
+Même conteneur, même rôle, **après révocation** du `grant` :
+
+| rubrique | source | témoin `postgres` | `sonde_lecture` sans aucun privilège |
+|---|---|---|---|
+| 3 — colonnes (§15.5) | `pg_attribute` + `pg_attrdef` | 6 | **6** |
+| 3 — variante abandonnée | `information_schema.columns` | 6 | **0** |
+| 4 — contraintes | `pg_constraint` | 2 | **2** |
+| 5 — fonctions | `pg_proc` | 1 | **1** |
+| 6 — triggers | `pg_trigger` | 0 | **0** |
+| 2 — volume | `pg_stat_user_tables.n_live_tup` | 2 400 / 6 800 | **2 400 / 6 800** |
+| 2 — volume | `pg_total_relation_size()` | 311 296 / 802 816 o | **311 296 / 802 816 o** |
+| 2 — volume | `pg_class.reltuples` | **-1** | **-1** |
+
+**Les rubriques 3, 4, 5 et 6 — celles qui portent le verdict — sont déjà
+lisibles par `nexus_prod_readonly_login` en l'état.** Le `grant` leur est
+inutile.
+
+La rubrique 2 l'est aussi, mais par `pg_stat_user_tables.n_live_tup`, pas par
+`count(*)`. `n_live_tup` n'est pas filtré par privilège **et** n'est pas filtré
+par RLS : il a rendu les 2 400 et 6 800 lignes réelles là où le `count(*)`
+privilégié rendait `0`. `reltuples` reste inutilisable : **-1** sur une table
+jamais analysée, et -1 n'est pas « petit ».
+
+### 16.4 Décision
+
+**Le `grant select` n'est pas appliqué.** Il est inutile aux rubriques 3 à 6,
+insuffisant à la rubrique 2, et il supprime une condition d'arrêt qui
+fonctionne. Il élargirait la surface de sécurité Production sans contrepartie
+de mesure.
+
+Le §15.8 avait tort sur un point et il est corrigé ici : il exigeait « une
+identité détenant `SELECT` sur les deux tables — c'est-à-dire **pas**
+`nexus_prod_readonly_login` en l'état ». C'est faux. L'identité en l'état
+suffit, pourvu que la requête lise `pg_catalog` et non `information_schema`.
+
+Si Frédéric veut malgré tout accorder le `SELECT`, le geste reste celui du
+§15.8 voie 2, assorti de sa révocation — mais il ne doit alors **pas** servir à
+renseigner la rubrique 2, dont le `0` serait trompeur.
+
+**Je ne peux pas exécuter ce `grant` moi-même**, et ce n'est pas une préférence :
+le rôle de lecture a été mesuré le 11/09 incapable de modifier quoi que ce soit
+(`must be owner of table`), et l'accès à la base Production depuis cette session
+est refusé au niveau du harnais, motif `[Production Reads]`. Ce refus porte sur
+le résultat, pas sur la commande : il ne se contourne ni par un autre outil, ni
+par un sous-agent, ni par un tour ultérieur.
+
+### 16.5 La lecture AVANT, en un seul bloc, sans aucun `grant`
+
+À exécuter par Frédéric sous `nexus_prod_readonly_login`, sur la base
+Production `uzhjpqpctpvxytxpxoqz`. Remplace intégralement le §10 et le §15.8.
+
+```sql
+select 1 as ordre, 'contexte' as rubrique,
+       'identite=' || current_user || ' base=' || current_database()
+         || ' moteur=' || current_setting('server_version')
+         || ' le=' || now()::timestamptz(0)::text as detail
+union all
+select 1, 'contexte',
+       'table presente : ' || c.relname
+         || ' (rls=' || c.relrowsecurity || ')'
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+union all
+select 2, 'volume',
+       c.relname || ' : ~' || coalesce(s.n_live_tup, -1) || ' lignes vivantes, '
+         || pg_size_pretty(pg_total_relation_size(c.oid))
+         || ', reltuples=' || c.reltuples
+         || ', analyse=' || coalesce(greatest(s.last_analyze, s.last_autoanalyze)::text, 'jamais')
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  left join pg_stat_user_tables s on s.relid = c.oid
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+union all
+select 3, 'colonne',
+       c.relname || '.' || a.attname || ' ' || format_type(a.atttypid, a.atttypmod)
+         || case when a.attnotnull then ' NOT NULL' else ' NULL' end
+         || coalesce(' DEFAULT ' || pg_get_expr(d.adbin, d.adrelid), '')
+  from pg_attribute a
+  join pg_class     c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and a.attnum > 0 and not a.attisdropped
+   and a.attname in ('mode_saisie','regularisation_motif','regularisation_par',
+                     'regularisation_par_nom','regularisation_le',
+                     'controle_terrain_par','justificatif_url','source')
+union all
+select 4, 'contrainte',
+       c.relname || ' : ' || k.conname || ' — ' || pg_get_constraintdef(k.oid)
+  from pg_constraint k
+  join pg_class     c on c.oid = k.conrelid
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and k.conname in ('carburant_reception_mesures_mode_saisie_check',
+                     'carburant_reception_visites_source_check')
+union all
+select 5, 'fonction',
+       p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+         || ' secdef=' || p.prosecdef
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'nexus_garde_regularisation_reception'
+union all
+select 6, 'trigger', c.relname || ' : ' || t.tgname
+  from pg_trigger t
+  join pg_class     c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and not t.tgisinternal
+   and t.tgname like '%regularisation%'
+order by ordre, detail;
+```
+
+**Lecture attendue** si la migration `20260919103000` n'est pas appliquée :
+rubrique 1 renseignée (identité + les **deux** tables présentes), rubrique 2
+renseignée, **rubriques 3, 4, 5 et 6 vides**.
+
+### 16.6 Conditions d'arrêt — remplacent celles du §10
+
+| lecture | décision |
+|---|---|
+| rubrique 1 ne nomme pas l'identité | **STOP.** Lecture non attribuée, donc non recevable. |
+| rubrique 1 ne liste pas les **deux** tables | **STOP.** Une rubrique 3 vide ne dirait alors rien sur les colonnes. |
+| toute rubrique 3, 4, 5 ou 6 **non vide** | **STOP.** L'objet existe déjà : comparer les définitions avant toute idempotence. |
+| rubrique 2 : `n_live_tup` négatif, ou `analyse = jamais` **et** taille > 100 Mo | **STOP.** Volume non établi. |
+| rubrique 2 : plus de 1 M lignes vivantes sur l'une des tables | **STOP.** Arbitrage de fenêtre. |
+| moteur Production ≠ celui mesuré sur Test (17.6) | **STOP.** La contradiction du §15.3 doit être tranchée, pas contournée. |
+| la lecture échoue, ou une rubrique ne rend rien **sans** que la rubrique 1 soit renseignée | **STOP.** État inconnu = refus fermé. |
+
+Un `0` à la rubrique 2 n'est **pas** une lecture valide de volume si l'identité
+détient `SELECT` : ce serait la RLS, pas la table. C'est la raison pour
+laquelle la rubrique 2 se lit par `n_live_tup` et jamais par `count(*)`.
+
+### 16.7 Verdict — inchangé
+
+`NO_GO_MIGRATION_PRODUCTION` est **maintenu**. Aucune mesure de ce §16 ne porte
+sur l'état réel de Production : toutes ont été prises en conteneur jetable, sur
+une fixture. Elles établissent ce que la lecture vaut, pas ce qu'elle rendra.
+
+Le verdict basculera sur la seule lecture du §16.5, jouée sur Production, par
+Frédéric. Rubriques 3 à 6 vides avec rubrique 1 renseignée →
+`PRET_POUR_MIGRATION_PRODUCTION`.
+
+Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
+n'a été lancée. Aucun `grant` n'a été appliqué. #65 n'est pas fusionnée.
+Production n'est pas déployée. Aucune garde n'a été affaiblie.
