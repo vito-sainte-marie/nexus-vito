@@ -168,3 +168,28 @@ Conclusion : `NO_GO_MIGRATION_PRODUCTION`, non parce que la migration serait
 défectueuse — elle est additive, idempotente, applicable avant le code — mais
 parce que l'état AVANT de Production n'a jamais été mesuré. La règle s'est donc
 d'abord appliquée à son propre cas.
+
+## 01/10/2026 — la rubrique 3 du préflight pouvait rendre vide pour invisible
+
+Section ajoutée, rien au-dessus n'est réécrit.
+
+Le préflight `preflight-20260919103000-production.md` lisait les colonnes de
+l'état AVANT dans `information_schema.columns`. Cette vue **ne montre que les
+objets sur lesquels le rôle courant détient un privilège**. Mesuré le
+01/10/2026 en conteneur jetable `supabase/postgres:17.6.1.175`, objets créés à
+l'image des réels, rôle sonde sans privilège dessus : `information_schema`
+rend **0** colonne là où `pg_attribute` en rend **6**.
+
+Conséquence : un rôle sans droit produit une rubrique 3 vide, et le préflight
+lit « rubriques 3 à 6 vides » comme une autorisation. **Le faux négatif penche
+vers le GO.** `pg_constraint`, `pg_proc` et `pg_trigger` ne sont pas filtrés
+par privilège — les rubriques 4, 5 et 6 étaient honnêtes.
+
+**Règle ajoutée à cet axe.** Une mesure catalogue produite pour trancher une
+absence doit être lue dans `pg_catalog`, jamais dans `information_schema`, et
+l'identité qui la joue doit être nommée dans le rapport. Une rubrique vide sans
+identité nommée est une **lecture incomplète**, donc un refus fermé — pas une
+absence constatée.
+
+Le correctif de requête est au §15.5 du préflight. Le verdict
+`NO_GO_MIGRATION_PRODUCTION` est maintenu : l'état AVANT reste non mesuré.

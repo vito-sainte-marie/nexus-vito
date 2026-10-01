@@ -466,3 +466,164 @@ et ouvre une comparaison de définitions.
 Aucune écriture Supabase Production n'a été lancée. #65 n'est pas fusionnée.
 Production n'est pas déployée. Rien n'a été force-pushé. Aucune garde n'a été
 affaiblie.
+
+---
+
+## 15. Confrontation du 01/10/2026 — ce que les mesures déjà prises répondent
+
+Section ajoutée, aucune section ci-dessus n'est réécrite. Le dossier a été
+transporté sur le rail `handoff-continuite-20260920` ; **son sujet ne l'a pas
+été** : `supabase/migrations/20260919103000_….sql` est absent du rail et
+n'existe que sur le candidat #65. Vérifié ce jour.
+
+### 15.1 Ce qui a été re-mesuré aujourd'hui, pas cité
+
+| constat | valeur |
+|---|---|
+| `origin/production` | **276** fichiers de migration ; `20260919103000` **absent** ; dernier par nom `20260920140000_bascule_source_precedente_et_change_le.sql` |
+| blob audité | `git cat-file blob 5dcdaaa…` → sha256 `1a02adca37af32b6ea3ffa3ec41b43968502d75bd515877b47e1d4073a8d6caf` — **identique à l'en-tête** |
+| PR #65 | OPEN, base `production`, `headRefOid` **`5dcdaaa55f5804f88594c91c272439cf77a123b0`** — le SHA audité est toujours la tête |
+| garde rejouée | candidat 277 / cible 276 → 1 nouvelle, 0 retirée, 13 objets, **9** identifiants du code en dépendent, `REFUS [ETAT_INCONNU]`, sortie 1 |
+
+L'autorisation du préflight n'a donc pas péri sur un SHA déplacé, et le refus
+se reproduit à l'identique.
+
+### 15.2 Chaque contrôle, contre la mesure réellement en main
+
+« Nature » dit **d'où** vient la preuve. Un arbre Git dit quels fichiers
+existent, jamais ce qui a été appliqué ; une réplique jetable dit ce que
+produisent les 276 fichiers, jamais ce que contient Production.
+
+| § | contrôle | nature de la preuve | date | tranché ? |
+|---|---|---|---|---|
+| 2 | purement additive ; les lignes existantes prennent le défaut, les 4 colonnes du `else` sont NULL partout | raisonnement + **réplique jetable** PG 17.6 (différentiel inverse vide) | 22/09 | **oui** — ne dépend pas du volume |
+| 3 | aucun chemin Production cassé ; zéro trigger existant sur les deux tables | **arbre** `origin/production` (0 occurrence des nouvelles colonnes ; 30 `create trigger` extraits) | 01/10 | **partiellement** — aveugle au hors-bande |
+| 4 | ordre contraint migration → code | **arbre**, garde statique rejouée | 01/10 | **oui** |
+| 5 | verrous et volumes | **aucune** mesure Production ; `volumes-production-mesures.json` (09/09) ne cite pas `carburant` ; Test porte 1 visite et 2 mesures | — | **non** |
+| 6 | idempotence | lecture du fichier | 30/09 | **oui** — et c'est précisément ce qui rend l'état AVANT nécessaire |
+| 7 | dépendances (`current_employee_role`, les deux tables, `heure_fin`) | **arbre** `origin/production` | 30/09 | **partiellement** — aveugle au hors-bande |
+| 8 | ACL de la fonction | **Test** (30/09) et **réplique** (22/09) — jamais Production | 30/09 | **non** pour Production ; portée faible, correction préparée à part |
+| 9 | estampille hors ordre | **arbre** Production re-mesuré | 01/10 | **oui** |
+
+Les seules mesures **catalogue Production** existantes datent du **09/09/2026**
+(`mesures-production-lecture-seule-1.md`, `volumes-production-mesures.json`) et
+portent sur `shifts`, `mission_catalog`, `sites` et les services — **d'autres
+tables**. Elles ont trois semaines, contre une péremption de 72 h posée par ce
+même axe. Elles ne répondent à aucune des six rubriques du §10.
+
+### 15.3 Une contradiction entre deux de mes documents
+
+`preuve-65-schema-jetable.md` §1 écrit « PostgreSQL 17.6 — identique à
+Production (`server_version_num` 170006) » **sans source pour la moitié
+Production**. Le §5 ci-dessus écrit « mesuré sur Test ; la version Production
+fait partie de la lecture AVANT ». C'est le §5 qui est prudent. La rubrique 1
+reste **non tranchée** ; la condition d'arrêt « PG < 11 » n'est pas levée par
+une mesure, seulement par une attente.
+
+### 15.4 Le défaut trouvé dans la lecture du §10 — et il penche du mauvais côté
+
+Le rôle préparé pour cette lecture, `nexus_prod_readonly_login`
+(`role-lecture-seule-production-1.md`, 11/09), **n'a de `SELECT` ni sur
+`carburant_reception_visites` ni sur `carburant_reception_mesures`** : ses
+droits couvrent 7 tables, aucune des deux. Il est de surcroît resté sans ligne
+visible, la RLS n'accordant rien à une connexion sans `auth.uid()`.
+
+La question n'est donc pas seulement « peut-il lire ? », mais **que rend la
+requête du §10 quand elle est jouée par un rôle sans privilège ?**
+
+Mesuré aujourd'hui, conteneur jetable `supabase/postgres:17.6.1.175`, objets
+créés à l'image des réels, rôle sonde sans aucun privilège dessus :
+
+| rubrique | source | `postgres` (témoin) | rôle sans privilège |
+|---|---|---|---|
+| 3 — colonnes | `information_schema.columns` | **6** | **0** |
+| 3 bis — colonnes | `pg_attribute` (catalogue) | 6 | **6** |
+| 4 — contraintes | `pg_constraint` | 1 | 1 |
+| 5 — fonction | `pg_proc` | 1 | 1 |
+| 6 — trigger | `pg_trigger` | 1 | 1 |
+| 2 — volume | `count(*)` | 0 | **permission denied** |
+
+`information_schema` ne montre que les objets sur lesquels le rôle courant
+détient un privilège. Les six colonnes **existent** et la rubrique 3 rend
+**vide**. Or le §10 lit « rubriques 3 à 6 vides » comme
+`PRET_POUR_MIGRATION_PRODUCTION` : **un rôle sans droit produit exactement la
+lecture qui autorise la migration.** C'est une garde qui ne mord pas, et elle
+penche vers le GO.
+
+Deux choses la retiennent aujourd'hui, aucune par conception : la requête est
+un seul `union all`, donc le `permission denied` de la rubrique 2 avorte le
+tout ; et le geste est celui de Frédéric, qui lit probablement sous une
+identité privilégiée. Mais le réflexe naturel devant ce refus — retirer la
+rubrique 2 pour « au moins voir le schéma » — débloque le faux vert.
+
+`pg_constraint`, `pg_proc` et `pg_trigger` ne sont pas filtrés par privilège :
+les rubriques 4, 5 et 6 sont honnêtes telles quelles.
+
+### 15.5 Correctif de la rubrique 3 — à substituer avant toute lecture
+
+```sql
+select 3 as ordre, 'colonne' as rubrique,
+       c.relname || '.' || a.attname || ' ' || format_type(a.atttypid, a.atttypmod)
+         || case when a.attnotnull then ' NOT NULL' else ' NULL' end
+         || coalesce(' DEFAULT ' || pg_get_expr(d.adbin, d.adrelid), '') as detail
+  from pg_attribute a
+  join pg_class     c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+ where n.nspname = 'public'
+   and c.relname in ('carburant_reception_visites','carburant_reception_mesures')
+   and a.attnum > 0 and not a.attisdropped
+   and a.attname in ('mode_saisie','regularisation_motif','regularisation_par',
+                     'regularisation_par_nom','regularisation_le',
+                     'controle_terrain_par','justificatif_url','source')
+```
+
+Pour la rubrique 2, `count(*)` exige `SELECT`. L'estimation catalogue
+`pg_class.reltuples` ne l'exige pas — mais elle vaut **-1** sur une table
+jamais analysée, et **-1 n'est pas « petit »**. Si elle est employée, la
+condition d'arrêt devient : `reltuples < 0` → **STOP, volume inconnu**.
+
+### 15.6 Ce que cela ajoute aux conditions d'arrêt du §10
+
+Sans réécrire le tableau du §10, trois conditions s'y ajoutent :
+
+| constat | décision |
+|---|---|
+| la lecture n'est pas jouée sous une identité détenant `SELECT` sur les deux tables | **STOP.** Une rubrique vide ne distingue plus « absent » de « invisible ». |
+| rubrique 2 en `permission denied`, ou rubrique 3 lue par `information_schema` | **STOP.** Lecture incomplète — la version du §15.5 est obligatoire. |
+| `reltuples` négatif employé en remplacement du `count(*)` | **STOP.** Volume inconnu. |
+
+### 15.7 Verdict pour la migration seule — `NO_GO_MIGRATION_PRODUCTION` maintenu
+
+Portée : **la migration `20260919103000` seule**. Ni la fusion de #65, ni le
+déploiement Pages, ni le rail.
+
+Le verdict ne change pas, et pour la raison inchangée : **l'état AVANT de
+Production n'est pas mesuré**, et aucune des mesures déjà prises ne le couvre.
+L'idempotence du fichier ne sauve pas cet inconnu — elle le rend muet.
+
+Ce qui change, c'est que le dossier **ne pouvait pas se conclure même si le
+geste avait été fait** : le rôle prévu n'ouvre pas les deux tables, et la
+requête prévue aurait rendu « vide » pour « invisible ». La « prochaine action
+— une seule » du §14 était mal spécifiée. Elle est corrigée ici.
+
+### 15.8 Prochaine action — corrigée
+
+Exécuter la lecture AVANT du §10 **avec la rubrique 3 remplacée par le
+§15.5**, sous une identité détenant `SELECT` sur les deux tables — c'est-à-dire
+**pas** `nexus_prod_readonly_login` en l'état. Geste de Frédéric.
+
+Deux voies, au choix, et aucune n'est à prendre de ma part :
+1. lecture depuis le Dashboard Supabase, sous une identité privilégiée ;
+2. `grant select on public.carburant_reception_visites,
+   public.carburant_reception_mesures to nexus_prod_readonly;` — **élargit la
+   surface de sécurité Production**, donc geste humain explicite, et à révoquer
+   après la lecture.
+
+Rubriques 3 à 6 vides **sous une identité qui aurait vu les objets s'ils
+existaient** → `PRET_POUR_MIGRATION_PRODUCTION`. Toute rubrique non vide
+maintient le NO-GO et ouvre la comparaison de définitions.
+
+Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
+n'a été lancée. #65 n'est pas fusionnée. Production n'est pas déployée. Aucune
+garde n'a été affaiblie.
