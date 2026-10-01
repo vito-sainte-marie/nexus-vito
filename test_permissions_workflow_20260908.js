@@ -21,8 +21,16 @@ function t(nom, fn) { fn(); n++; console.log('OK — ' + nom); }
 
 // Vocabulaire FERMÉ : ce que le jeton a le droit d'être. Une permission
 // nouvelle est un geste humain, pas un ajustement d'outillage.
-const PERMISSIONS_AUTORISEES = { contents: 'read', actions: 'read', issues: 'write' };
+const PERMISSIONS_AUTORISEES = { contents: 'write', actions: 'read', issues: 'write' };
 
+// `contents: write` accordé par Frédéric Bragance le 30/09/2026, pour le seul
+// rapatriement vers le rail. C'est la permission que la ligne 51 ci-dessous
+// citait en exemple du pire — « la ligne qu'on ajoute un soir pour débloquer une
+// étape ». Elle n'a pas été ajoutée un soir : elle a été demandée, nommée,
+// datée, bornée dans l'autorisation elle-même, et l'outil qui s'en sert continue
+// de répondre à l'autorité DÉCLARÉE et non à la permission technique. Ce que
+// cette épreuve mesure est inchangé : que la surface soit restée CELLE-LÀ.
+//
 // `issues: write` accordé par Frédéric Bragance le 26/09/2026. Le vocabulaire
 // s'élargit d'une entrée, il ne s'ouvre pas : ce qui suit reste un ensemble
 // FERMÉ, et les épreuves qui gardaient l'écriture n'ont pas été retirées —
@@ -70,7 +78,11 @@ t('l’autorisation humaine est INSCRITE à côté de la permission', () => {
   // permission que quelqu'un s'est donnée.
   const avant = yml.slice(0, yml.indexOf('\npermissions:'));
   for (const cle of Object.keys(PERMISSIONS_AUTORISEES)) {
-    if (cle === 'contents') continue; // `contents: read` est le défaut de tout workflow.
+    // `contents: read` est le défaut de tout workflow : il n'élargit rien, donc
+    // il n'a aucune autorité humaine à inscrire. `contents: write` en a une, et
+    // l'exempter ferait entrer la seule permission vraiment dangereuse du
+    // fichier sans qu'aucune épreuve n'exige le nom de qui l'a accordée.
+    if (cle === 'contents' && PERMISSIONS_AUTORISEES[cle] === 'read') continue;
     const val = PERMISSIONS_AUTORISEES[cle];
     assert.ok(new RegExp('`?' + cle + ': ' + val + '`?[^]*?AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE \\d\\d/\\d\\d/\\d{4}').test(avant),
       `\`${cle}: ${val}\` doit être accompagné du nom de l’autorité humaine et de sa date`);

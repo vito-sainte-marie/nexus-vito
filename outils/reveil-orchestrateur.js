@@ -35,6 +35,17 @@
 // jeton : un geste humain (CLAUDE.md) que Claude ne peut pas s'accorder. La
 // variante est préparée et attend ce geste, elle n'est pas câblée.
 //
+// AMENDEMENT DU 30/09/2026 — le paragraphe ci-dessus décrit l'état de son
+// écriture, et deux de ses faits ont depuis changé. `issues: write` a été
+// accordée le 26/09/2026 : la variante n'attend plus rien, le réveil est
+// réellement publié en commentaire sur #28. Et `contents: write` a été accordée
+// le 30/09/2026 pour le seul rapatriement vers le rail — le jeton ne garde donc
+// plus `contents: read`. Ce que ce paragraphe affirmait du TRANSPORT DU RÉVEIL
+// reste exact et c'est son sujet : l'écriture dans `$GITHUB_STEP_SUMMARY` ne
+// coûte aucune permission. L'autorité, le périmètre et la date de chacune des
+// trois permissions sont inscrits dans `.github/workflows/tests.yml`, qui est
+// la source unique sur ce point ; ce commentaire-ci n'en est pas une.
+//
 // CE N'EST DONC PAS UN RÉVEIL AUTOMATIQUE, et il ne doit être présenté nulle
 // part comme tel. `schedule` ne vit toujours que sur la branche par défaut,
 // fermée par `decision-1.md` du lot NEXUS-ORCHESTRATION-AUTONOMIE-1-20260907.

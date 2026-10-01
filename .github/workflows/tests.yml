@@ -17,10 +17,13 @@
 # la dette reste visible plutôt que de s'installer.
 name: Tests
 
-# Aucun secret n'est référencé, et le jeton n'a que la lecture du dépôt :
-# ce workflow ne peut ni écrire dans le dépôt, ni publier, ni atteindre quoi
-# que ce soit hors de la machine de build. Les tests sont purement locaux —
-# aucun n'ouvre de connexion réseau ni ne parle à Supabase (vérifié).
+# Aucun secret n'est référencé. Les tests sont purement locaux — aucun n'ouvre
+# de connexion réseau ni ne parle à Supabase (vérifié).
+#
+# Les trois permissions ci-dessous sont le périmètre EXACT du jeton. Chacune a
+# été accordée nommément par un humain, à une date, pour un usage écrit en
+# toutes lettres, et aucune n'ouvre : pousser sur `main` ou `production`,
+# déployer, atteindre Supabase, ni lire un secret.
 # `actions: read` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 08/09/2026, à sa demande
 # explicite. C'est un élargissement de la surface du jeton du workflow, donc un
 # geste humain (CLAUDE.md) : Claude ne pouvait pas se l'accorder.
@@ -49,9 +52,36 @@ name: Tests
 # porte pas — il faut que quelqu'un aille l'y lire. Le sens Claude →
 # Orchestrateur restait donc suspendu à un geste humain, quand le sens inverse
 # était automatique depuis le 06/09. C'est cette asymétrie que la permission
-# supprime, et rien d'autre.
+# supprime, et rien d'autre.# `contents: write` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 30/09/2026, à sa demande
+# explicite (« GO pour armer uniquement le transport déterministe Claude → rail
+# […] Autorisation limitée à contents: write strictement nécessaire au
+# rapatriement vers handoff-continuite-20260920, avec NEXUS_RAPATRIEMENT_ARME=oui »).
+# Troisième élargissement de la surface du jeton, donc un geste humain
+# (CLAUDE.md) : Claude ne pouvait pas se l'accorder — il en avait la capacité
+# technique pour les trois, et ne s'en est accordé aucune.
+#
+# Ce qu'elle ouvre exactement : un `git push` depuis la CI vers une branche de
+# ce dépôt. Rien d'autre — aucun secret, aucun déploiement, aucun Supabase.
+#
+# CE QU'ELLE N'AUTORISE PAS, dans les mots mêmes de l'autorisation : « ni
+# push/merge Production, ni déploiement Production, ni écriture Supabase
+# Production, ni affaiblissement d'une garde. » Ces interdits ne tiennent pas à
+# la permission — GitHub, lui, laisserait passer — mais à l'outil qui s'en sert :
+# `outils/transport-autorise.js` ne reconnaît qu'un rail DÉSIGNÉ par Frédéric
+# dans le commentaire déclencheur, `outils/qualifier-rapatriement.js` refuse
+# `main`, `production`, tout diff qui touche Production et tout diff qui
+# affaiblit une garde, et le transport n'a lieu que si la variable de dépôt
+# `NEXUS_RAPATRIEMENT_ARME` vaut `oui`. UNE CAPACITÉ CONSTATÉE N'EST JAMAIS UNE
+# AUTORISATION : cette ligne donne la capacité, l'autorité reste ailleurs, et
+# elle doit y rester même si une permission technique s'élargit encore.
+#
+# Pourquoi elle est nécessaire : sans elle, le dernier maillon de la chaîne
+# Handoff s'arrêtait en `HUMAN_DECISION_REQUIRED / TRANSPORT_NON_ARME`. Le
+# travail de Claude restait sur sa branche de run et attendait que Frédéric
+# fasse le fast-forward à la main — c'est la rupture silencieuse que la mission
+# du 30/09/2026 nomme. Cette permission ferme ce maillon, et lui seul.
 permissions:
-  contents: read
+  contents: write
   actions: read
   issues: write
 
@@ -967,12 +997,17 @@ jobs:
       #    étapes précédentes est donc lu dans `job.status`, et l'outil écarte
       #    des vérifications GitHub celle qui porte `GITHUB_RUN_ID`.
       #
-      # 3. ELLE NE S'AUTORISE RIEN. Le transport effectif exige
-      #    `contents: write`, que ce workflow n'a pas et que Claude ne peut pas
-      #    s'accorder (CLAUDE.md). Tant que le geste humain n'est pas posé,
-      #    l'étape QUALIFIE et publie `HUMAN_DECISION_REQUIRED` en nommant
-      #    exactement ce qui manque — plutôt que de se taire, ou de faire
-      #    croire que le maillon fonctionne.
+      # 3. ELLE NE S'AUTORISE RIEN — et le 30/09/2026 n'y change rien. Le
+      #    transport effectif exige `contents: write` ; ce droit est désormais
+      #    accordé, par Frédéric, nommément, à cette date, et inscrit en tête de
+      #    ce fichier. Claude ne se l'est pas accordé, et la capacité qu'il donne
+      #    n'est toujours pas l'autorisation : l'étape ne transporte que vers un
+      #    rail DÉSIGNÉ dans le commentaire déclencheur, après les conditions de
+      #    `qualifier-rapatriement.js`, et seulement si la variable de dépôt
+      #    `NEXUS_RAPATRIEMENT_ARME` vaut `oui`. Si l'une de ces trois choses
+      #    manque, l'étape QUALIFIE et publie `HUMAN_DECISION_REQUIRED` en
+      #    nommant exactement ce qui manque — plutôt que de se taire, ou de
+      #    faire croire que le maillon fonctionne.
       # ══════════════════════════════════════════════════════════════════════
       - name: Rapatriement vers le rail — qualifier, et ne transporter que si c'est prouvé
         # `!cancelled()` et non `success()` : sur un run rouge, `success()`
@@ -983,9 +1018,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NEXUS_ETAT_FICHIER: ${{ runner.temp }}/rapatriement.json
           # Variable de dépôt, absente par défaut. Elle n'accorde aucun droit :
-          # elle exprime l'intention. Sans `contents: write`, l'armer ferait
-          # échouer le push — visiblement (`TRANSPORT_REFUSE_PAR_ORIGIN`), ce
-          # qui reste préférable à un refus muet.
+          # elle exprime l'intention, et se retire sans toucher à ce fichier.
+          # `contents: write` dit que GitHub laissera passer ; cette variable dit
+          # que Frédéric le veut. Les deux sont nécessaires, et aucune ne
+          # remplace la désignation du rail. Si elle est armée alors que le droit
+          # manque, le push échoue VISIBLEMENT (`TRANSPORT_REFUSE_PAR_ORIGIN`),
+          # ce qui reste préférable à un refus muet.
           NEXUS_RAPATRIEMENT_ARME: ${{ vars.NEXUS_RAPATRIEMENT_ARME }}
           ETAT_DU_JOB: ${{ job.status }}
         run: |

@@ -259,9 +259,17 @@ avec le vocabulaire de preuve du protocole lui-même :
 | Vérification destination | `git ls-remote` dans `pousser()` | `DECLARED` |
 | Veille de stagnation | `outils/watchdog-stagnation.js` | `DECLARED` |
 
-Les deux dernières lignes sont `DECLARED` et non `VERIFIED` pour une raison
+Les trois dernières lignes sont `DECLARED` et non `VERIFIED` pour une raison
 précise : le code est éprouvé, mais le geste réel n'a jamais été posé sur le
 dépôt, faute d'armement. Voir « Ce que l'autonomie n'autorise pas » plus bas.
+
+**Le 30/09/2026, l'armement a été accordé** (voir « L'armement du transport »
+plus bas). Les deux lignes « Transport vers le rail » et « Vérification
+destination » restent néanmoins `DECLARED` à cette minute : une permission
+accordée n'est pas un transport constaté. Elles ne passeront à `VERIFIED`
+qu'une fois un run réel franchi, et ce document nommera alors le run, la branche
+source et le SHA de destination relu. Classer avant de mesurer serait
+exactement l'erreur que ce tableau existe pour empêcher.
 
 Quatre remarques que le schéma seul ne dit pas.
 
@@ -419,6 +427,35 @@ Le corollaire tient en une phrase, et il vaut pour tout ce document :
 workflow puisse écrire ne dit rien de ce qu'il a le droit d'écrire ;
 `outils/transport-autorise.js` répond à l'autorité déclarée dans la mission,
 indépendamment de toute permission technique.
+
+### L'armement du transport — ce qui a été accordé le 30/09/2026
+
+Frédéric Bragance a accordé, le 30/09/2026, et dans ces termes :
+
+> GO pour armer uniquement le transport déterministe Claude → rail selon le
+> mécanisme validé du dossier §10. Autorisation limitée à `contents: write`
+> strictement nécessaire au rapatriement vers `handoff-continuite-20260920`,
+> avec `NEXUS_RAPATRIEMENT_ARME=oui`. Cette autorisation ne vaut ni push/merge
+> Production, ni déploiement Production, ni écriture Supabase Production, ni
+> affaiblissement d'une garde.
+
+Deux choses ont donc changé, et deux seulement : `permissions.contents` passe à
+`write` dans `.github/workflows/tests.yml`, et la variable de dépôt
+`NEXUS_RAPATRIEMENT_ARME` vaut `oui`. L'autorité humaine est inscrite dans le
+workflow lui-même, à côté de la permission, comme pour `actions: read`
+(08/09/2026) et `issues: write` (26/09/2026) ;
+`test_permissions_workflow_20260908.js` l'exige désormais aussi pour
+`contents: write` — il en exemptait `contents` tant que la valeur était `read`,
+qui est le défaut de tout workflow et n'élargit rien.
+
+**Ce que l'armement ne déplace pas.** La liste des interdits ci-dessus est
+inchangée, et aucun des trois verrous du transport n'a été touché : le rail doit
+être DÉSIGNÉ par Frédéric dans le commentaire déclencheur — rien dans le dépôt
+ne peut le deviner ni l'imposer depuis la CI — les conditions de
+`qualifier-rapatriement.js` refusent `main`, `production`, tout diff qui touche
+Production et tout diff qui affaiblit une garde, et la destination est RELUE
+après le push. Retirer la variable désarme le transport sans toucher au
+workflow ; retirer la permission le fait échouer visiblement, pas silencieusement.
 
 ### Preuve de continuité
 
