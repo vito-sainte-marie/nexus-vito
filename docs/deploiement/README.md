@@ -467,3 +467,32 @@ plausible et faux (un `| wc -l` avait rendu « 0 » sur une panne DNS au lieu de
 la signaler). La règle : **le code de sortie d'une garde se mesure sans pipe**,
 en redirigeant vers un fichier, ou avec `PIPESTATUS`. Une garde « vérifiée
 câblée » à travers un pipe n'est pas vérifiée.
+
+#### Correctif du même jour — le remède proposé était lui aussi faux
+
+Quelques minutes après avoir écrit la règle ci-dessus, je l'ai appliquée pour
+mesurer un `git push` : `… | sed …` puis `echo "${PIPESTATUS[0]}"`. Résultat
+affiché : **rien**. Le shell de cet hôte est `zsh`, où les tableaux sont indexés
+à partir de 1 et où la variable s'appelle `pipestatus` ; `${PIPESTATUS[0]}` n'y
+désigne aucun élément et rend la chaîne vide. Mesuré des deux côtés :
+
+| shell | `false \| true` puis… | rend |
+|---|---|---|
+| zsh | `${PIPESTATUS[0]}` | *(vide)* |
+| zsh | `${pipestatus[1]}` | `1` |
+| bash | `${PIPESTATUS[0]}` | `1` |
+
+Une chaîne vide dans un `echo` ne ressemble pas à une erreur : elle ressemble à
+un champ non renseigné. C'est le même piège que celui que la note dénonçait,
+d'un cran plus bas — **la quatrième occurrence**, et cette fois dans le remède
+lui-même.
+
+Donc la règle, resserrée : **rediriger vers un fichier et lire `$?` sur une
+commande sans pipe.** C'est la seule forme qui ne dépend ni du shell, ni de
+l'indexation d'un tableau, ni de la mémoire de celui qui relit. `PIPESTATUS`
+reste correct sous `bash -c '…'` explicite, et nulle part ailleurs ici.
+
+Ce qu'il faut en retenir au-delà du shell : **un dispositif de mesure se mesure
+aussi.** J'ai proposé un instrument de contrôle sans le vérifier sur l'hôte où
+il devait servir — exactement le reproche que ce chantier fait aux gardes qui
+passent à vide.
