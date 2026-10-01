@@ -59,6 +59,7 @@
 // second employé, et la règle qui valait hier vaut encore aujourd'hui.
 
 const path = require('path');
+const { createHash } = require('crypto');
 
 const SECRETS_REQUIS = ['NEXUS_TEST_URL', 'NEXUS_TEST_MANAGER_NOM', 'NEXUS_TEST_CREATEUR_NOM', 'NEXUS_TEST_MANAGER_PIN', 'NEXUS_TEST_CREATEUR_PIN'];
 
@@ -155,6 +156,57 @@ async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pa
   return { servie: false, commit: vu };
 }
 
+// Un 200 ne prouve pas que l'écran est là. L'hébergeur du candidat répond 200
+// à TOUT chemin absent en servant la page commerciale : un nom de fichier
+// inventé et `NEXUS-Live-Developpement-v1.html` rendent le même corps, octet
+// pour octet. Une recette qui enchaîne alors sur `waitForFunction` attend 30 s
+// un élément qui n'arrivera jamais, et rapporte « Timeout 30000ms exceeded » :
+// un rouge qui n'accuse rien, et qu'on est tenté d'aller chercher dans l'écran
+// plutôt que dans son absence.
+//
+// On relève donc une fois, à l'exécution, le corps servi pour un chemin qui ne
+// PEUT pas exister, et tout écran dont le corps lui est identique est déclaré
+// ABSENT. Le témoin ne dépend ni du code HTTP, ni d'un marqueur propre à
+// chaque écran, ni de l'hébergeur : il se mesure là où la recette s'exécute.
+async function empreinteServie(url) {
+  const reponse = await fetch(url, { cache: 'no-store' });
+  const corps = await reponse.text();
+  return {
+    statut: reponse.status,
+    taille: corps.length,
+    sha: createHash('sha256').update(corps).digest('hex').slice(0, 12)
+  };
+}
+
+let TEMOIN_ABSENCE = null;
+
+async function releverTemoinAbsence(base) {
+  const invente = 'NEXUS-CHEMIN-QUI-NE-PEUT-PAS-EXISTER-' + Date.now() + '.html';
+  try {
+    TEMOIN_ABSENCE = await empreinteServie(new URL(invente, base).href);
+  } catch (e) {
+    // Pas de témoin mesurable : on n'invente pas d'absence, la recette
+    // continue exactement comme avant ce garde-fou.
+    TEMOIN_ABSENCE = null;
+  }
+  return TEMOIN_ABSENCE;
+}
+
+async function exigerEcranServi(base, fichier) {
+  if (!TEMOIN_ABSENCE) return null;
+  const vu = await empreinteServie(new URL(fichier, base).href);
+  if (vu.sha === TEMOIN_ABSENCE.sha) {
+    throw new Error(
+      "L'écran " + fichier + " n'est pas déployé sur cette base." +
+      '\n  Base     : ' + base +
+      '\n  Servi    : HTTP ' + vu.statut + ', ' + vu.taille + ' octets, sha256:' + vu.sha +
+      '\n  Témoin   : un chemin inventé rend le MÊME corps (sha256:' + TEMOIN_ABSENCE.sha + ')' +
+      "\n  Lecture  : l'hébergeur répond 200 sur un fichier absent. Ce n'est pas" +
+      "\n             l'écran qui est cassé, c'est l'artefact qui n'est pas là.");
+  }
+  return vu;
+}
+
 async function connecter(page, base, identifiant, pin) {
   await page.goto(new URL('NEXUS-Login-v1.html', base).href, { waitUntil: 'domcontentloaded' });
   // Sélection par type et par ordre plutôt que par un id qui n'existe pas :
@@ -185,15 +237,72 @@ async function connecter(page, base, identifiant, pin) {
 // affiché : le texte peut être juste pour de mauvaises raisons (arrondi vers
 // le haut plutôt que récupération du reliquat, par exemple — c'est
 // exactement ce qui a failli passer le 07/09).
-async function lireRecommandation(page, base) {
-  await page.goto(new URL(ECRAN_CARBURANTS, base).href, { waitUntil: 'networkidle' });
-  await page.waitForFunction(
-    () => typeof NexusCarburantCommandeDonnees === 'object' && typeof nexusClient === 'object'
-      && typeof SITE_ID !== 'undefined' && typeof FUSEAU_STATION !== 'undefined',
-    null, { timeout: 30000 });
 
-  const p0 = await page.evaluate(() => typeof NexusCarburantsP0 !== 'undefined' && NexusCarburantsP0.actif === true);
-  if (!p0) throw new Error('La couche P0 n\'est pas installée sur l\'écran : la recette n\'exercerait pas la chaîne réelle.');
+// État de l'écran au moment où une attente échoue. Un rouge qui dit
+// seulement « Timeout 30000ms exceeded » n'est pas attribuable : il ne
+// distingue pas « la page n'est plus l'écran visé » de « un script n'a pas
+// exporté son symbole ». On ne rapporte ici que des URL, des résultats de
+// `typeof` et des messages émis par le code de l'écran : aucune valeur
+// saisie ne peut transiter par ce chemin.
+// Chaque `typeof` est isolé : sur une déclaration `let` restée en zone morte
+// temporelle (script interrompu avant sa ligne), `typeof` lève au lieu de
+// rendre 'undefined' — et c'est précisément le signal qu'on veut voir.
+async function etatEcran(page) {
+  return page.evaluate(() => {
+    const lire = f => { try { return f(); } catch (e) { return 'LEVE(' + e.name + ')'; } };
+    return {
+      href: location.href,
+      titre: (document.title || '').slice(0, 80),
+      scripts: document.scripts.length,
+      symboles: {
+        NexusCarburantCommandeDonnees: lire(() => typeof NexusCarburantCommandeDonnees),
+        nexusClient: lire(() => typeof nexusClient),
+        SITE_ID: lire(() => typeof SITE_ID),
+        FUSEAU_STATION: lire(() => typeof FUSEAU_STATION),
+        NexusCarburantsP0: lire(() => typeof NexusCarburantsP0),
+        NexusPage: lire(() => typeof NexusPage),
+        NEXUS_CONFIG: lire(() => typeof NEXUS_CONFIG),
+        NexusBuild: lire(() => typeof NexusBuild)
+      }
+    };
+  }).catch(e => ({ href: '(page illisible)', titre: '', scripts: -1, symboles: { lecture: String(e && e.message) } }));
+}
+
+function decrireEtat(etat, incidents) {
+  const sym = Object.keys(etat.symboles).map(n => n + '=' + etat.symboles[n]).join(' ');
+  return '\n  Page     : ' + etat.href +
+         '\n  Titre    : ' + etat.titre +
+         '\n  Scripts  : ' + etat.scripts +
+         '\n  Symboles : ' + sym +
+         '\n  Incidents: ' + (incidents.length ? incidents.slice(0, 8).join('\n             ') : '(aucun)');
+}
+
+async function lireRecommandation(page, base) {
+  const incidents = [];
+  const surConsole = m => { if (m.type() === 'error') incidents.push('console: ' + m.text()); };
+  const surErreur = e => incidents.push('exception: ' + (e && e.message ? e.message : String(e)));
+  page.on('console', surConsole);
+  page.on('pageerror', surErreur);
+  try {
+    await exigerEcranServi(base, ECRAN_CARBURANTS);
+    await page.goto(new URL(ECRAN_CARBURANTS, base).href, { waitUntil: 'networkidle' });
+    try {
+      await page.waitForFunction(
+        () => typeof NexusCarburantCommandeDonnees === 'object' && typeof nexusClient === 'object'
+          && typeof SITE_ID !== 'undefined' && typeof FUSEAU_STATION !== 'undefined',
+        null, { timeout: 30000 });
+    } catch (e) {
+      throw new Error('L\'écran Carburants n\'a pas exposé ses symboles en 30 s.' +
+        decrireEtat(await etatEcran(page), incidents));
+    }
+
+    const p0 = await page.evaluate(() => typeof NexusCarburantsP0 !== 'undefined' && NexusCarburantsP0.actif === true);
+    if (!p0) throw new Error('La couche P0 n\'est pas installée sur l\'écran : la recette n\'exercerait pas la chaîne réelle.' +
+      decrireEtat(await etatEcran(page), incidents));
+  } finally {
+    page.off('console', surConsole);
+    page.off('pageerror', surErreur);
+  }
 
   return page.evaluate(async () => {
     const r = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(
@@ -288,6 +397,7 @@ async function observerLive(navigateur, base, nom, pin) {
   const page = await contexte.newPage();
   try {
     await connecter(page, base, nom, pin);
+    await exigerEcranServi(base, ECRAN_LIVE);
     await page.goto(new URL(ECRAN_LIVE, base).href, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => {
       const r = document.getElementById('root');
@@ -330,6 +440,37 @@ async function observerLive(navigateur, base, nom, pin) {
   } finally {
     await contexte.close();
   }
+}
+
+// Un lot qui n'embarque pas un écran n'a aucune raison de l'éprouver — mais il
+// n'a pas non plus le droit de laisser croire qu'il l'a éprouvé. Le candidat #65
+// est un lot Carburants : `NEXUS-Live-Developpement-v1.html` n'est pas dans son
+// arbre, l'hébergeur répond 200 sur son chemin absent, et la recette y attendait
+// 30 s un écran qui n'arrivera jamais.
+//
+// La sortie n'est donc PAS de supprimer l'étape. Supprimer effacerait aussi la
+// preuve Live du rail le jour où ces branches se rejoignent, et un saut muet se
+// lirait comme un vert. On DÉCLARE, dans le workflow du candidat et nulle part
+// ailleurs, que ce lot n'éprouve pas Live ; la recette s'abstient alors bruyam-
+// ment. Le rail, qui ne déclare rien, est inchangé.
+//
+// L'abstention retire DEUX preuves, pas une : l'accès ACCORDÉ au Créateur, et
+// le refus OPPOSÉ au manager. Le motif doit nommer les deux, sinon la moitié
+// manquante se lit comme acquise.
+const MOTIF_LIVE_HORS_LOT =
+  'NEXUS Live NON ÉPREUVÉ — écran déclaré hors de ce lot par le runner '
+  + '(NEXUS_RECETTE_SANS_LIVE). DEUX preuves sont donc MANQUANTES, aucune n\'est '
+  + "satisfaite : l'accès ACCORDÉ au Créateur, et l'accès REFUSÉ au manager. "
+  + "L'écran n'est pas dans l'arbre de ce candidat ; son absence n'est pas un "
+  + 'verdict sur le contrôle d\'accès, et ne doit jamais en tenir lieu.';
+
+// La déclaration est LUE, jamais devinée. Dériver « ce lot n'a pas Live » du nom
+// de la branche, ou de l'absence constatée de l'écran, ferait taire la preuve
+// toute seule le jour d'un déploiement incomplet du rail — exactement le défaut
+// qu'on répare. Seul un humain, dans un fichier de workflow, peut la poser.
+function liveHorsLot(env) {
+  const v = String((env || {}).NEXUS_RECETTE_SANS_LIVE || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'oui';
 }
 
 // Vocabulaire FERMÉ. Un état d'attente que la recette ne connaît pas ne doit
@@ -857,6 +998,11 @@ async function executer(env = process.env) {
     console.log(`Version servie confirmée : ${v.commit}`);
   }
 
+  const temoin = await releverTemoinAbsence(base);
+  console.log(temoin
+    ? `Témoin d'absence relevé : HTTP ${temoin.statut}, ${temoin.taille} octets, sha256:${temoin.sha}`
+    : "Témoin d'absence non mesurable : le contrôle de présence des écrans est inactif.");
+
   const navigateur = await chromium.launch();
   try {
     const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
@@ -880,18 +1026,28 @@ async function executer(env = process.env) {
     // serait pire encore. C'est une capacité Test indisponible au sens
     // ENV-003 : non bloquante, mais la preuve positive est alors déclarée
     // MANQUANTE — jamais satisfaite par défaut.
-    const manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+    let manager = null;
     let createur = null;
     let createurIndisponible = null;
-    try {
-      createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_CREATEUR_PIN);
-    } catch (e) {
-      createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
-        + 'il existe dans `employees` mais sans identité `auth.users`. '
-        + 'La PREUVE D\'ACCÈS POSITIVE À NEXUS LIVE RESTE NON SATISFAITE. '
-        + 'Créer ce compte demande de fixer un PIN — geste humain, hors périmètre de Claude.';
+    let echecsLive = [];
+    const liveAbstenu = liveHorsLot(env);
+    if (liveAbstenu) {
+      // On n'observe rien, donc on ne juge rien — et on le DIT. `bloquant` ne
+      // bouge pas : l'abstention n'accuse pas l'écran. Mais elle ne le blanchit
+      // pas non plus : les deux lignes du rapport diront NON ÉPREUVÉE.
+      createurIndisponible = MOTIF_LIVE_HORS_LOT;
+    } else {
+      manager = await observerLive(navigateur, base, env.NEXUS_TEST_MANAGER_NOM, env.NEXUS_TEST_MANAGER_PIN);
+      try {
+        createur = await observerLive(navigateur, base, env.NEXUS_TEST_CREATEUR_NOM, env.NEXUS_TEST_CREATEUR_PIN);
+      } catch (e) {
+        createurIndisponible = `Compte Créateur de recette « ${env.NEXUS_TEST_CREATEUR_NOM} » non connectable : `
+          + 'il existe dans `employees` mais sans identité `auth.users`. '
+          + 'La PREUVE D\'ACCÈS POSITIVE À NEXUS LIVE RESTE NON SATISFAITE. '
+          + 'Créer ce compte demande de fixer un PIN — geste humain, hors périmètre de Claude.';
+      }
+      echecsLive = verifierLive(createur, manager);
     }
-    const echecsLive = createur ? verifierLive(createur, manager) : verifierLive(null, manager);
 
     // Scénario employé — optionnel, et sa propre dégradation.
     let employe = null, echecsEmploye = [], employeIndisponible = null;
@@ -932,13 +1088,13 @@ async function executer(env = process.env) {
     const indisponibilites = [carburantsNonAttribuable, createurIndisponible, employeIndisponible].filter(Boolean);
     return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
       vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
-      live: { createur, manager }, employe };
+      live: liveAbstenu ? null : { createur, manager }, liveAbstenu, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, jugerCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer, releverTemoinAbsence, exigerEcranServi, liveHorsLot, MOTIF_LIVE_HORS_LOT };
 
 if (require.main === module) {
   executer().then(r => {
@@ -958,15 +1114,19 @@ if (require.main === module) {
         + (r.semisFait === false && (r.indisponibilites || []).some(i => /Jeu de recette NON semé/.test(i))
           ? 'NON SATISFAITE — jeu de recette non semé'
           : 'satisfaite'));
-      console.log('  · Accès Live REFUSÉ au manager : satisfaite');
+      const LIVE_ABSTENU = 'NON ÉPREUVÉE — écran hors de ce lot, voir ci-dessus';
+      console.log('  · Accès Live REFUSÉ au manager : '
+        + (r.liveAbstenu ? LIVE_ABSTENU : 'satisfaite'));
       console.log('  · Accès Live ACCORDÉ au Créateur : '
-        + ((r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
+        + (r.liveAbstenu ? LIVE_ABSTENU
+          : (r.live && r.live.createur) ? 'satisfaite' : 'NON SATISFAITE — voir ci-dessus'));
       // Ce que l'écran annonce et ce qu'il propose. Sans cette ligne, la preuve
       // existait dans le code mais restait invisible dans le rapport que
       // Frédéric lit — et une preuve qu'on ne lit pas ne rassure personne.
       const c = r.live && r.live.createur;
       console.log('  · Cohérence question/bouton dans Live : '
-        + (!c ? 'NON SATISFAITE — Créateur non observé'
+        + (r.liveAbstenu ? LIVE_ABSTENU
+          : !c ? 'NON SATISFAITE — Créateur non observé'
           : !c.attente ? 'NON SATISFAITE — l’écran ne déclare pas ce qu’il attend'
           : c.attente === 'arbitrage'
             ? `un arbitrage est annoncé, bouton ${c.boutonAutoriser ? 'présent' : 'ABSENT'}`

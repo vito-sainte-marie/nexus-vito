@@ -2950,7 +2950,9 @@
     // d'ouverture. "Livraison du jour" (qui affirmait un moment précis) est
     // donc remplacé par une formulation neutre sur le "quand".
     DERNIERE_LIVRAISON_AFFICHEE = { date: releve.date, estAujourdhui };
-    const libelleSource = DERNIERE_LIVRAISON_SOURCE === 'terrain' ? 'réception terrain confirmée' : 'saisie manager';
+    const libelleSource = DERNIERE_LIVRAISON_SOURCE === 'terrain'
+      ? (estVisiteRegularisee(DERNIERE_VISITE) ? "réception terrain régularisée d'après un relevé manuscrit" : 'réception terrain confirmée')
+      : 'saisie manager';
     // 20/08/2026, demande de Frédéric : "la zone 'Dernière livraison'
     // devrait elle-même afficher le lien logique vers le nouveau relevé —
     // Jaugeage post-livraison : effectué à 11:xx · Voir le contrôle de
@@ -2958,7 +2960,7 @@
     // jaugeage post-livraison → nouvelle situation physique (cartes
     // "Situation aujourd'hui", voir chargerControleEtAutonomie).
     const jaugeagePostLivraison = (DERNIERE_LIVRAISON_SOURCE === 'terrain' && DERNIERE_VISITE)
-      ? `<div class="section-note" style="margin:6px 0 0;">Jaugeage post-livraison effectué le ${formaterDateHeureFr(DERNIERE_VISITE.heure_fin)} — <a href="#" id="lienControleReception">voir le contrôle de réception</a></div>`
+      ? `<div class="section-note" style="margin:6px 0 0;">Jaugeage post-livraison effectué le ${formaterDateHeureFr(DERNIERE_VISITE.heure_fin)}${estVisiteRegularisee(DERNIERE_VISITE) ? ` sur le terrain, saisi dans NEXUS le ${formaterDateHeureFr(DERNIERE_VISITE.regularisation_le || DERNIERE_VISITE.created_at)}` : ''} — <a href="#" id="lienControleReception">voir le contrôle de réception</a></div>`
       : '';
     zone.innerHTML = `
       <div class="livraison-carte">
@@ -2985,6 +2987,39 @@
   // chargerEtRendreQualiteReceptions() une fois DERNIERE_VISITE disponible
   // (chargement parallèle, Promise.all — l'ordre d'arrivée n'est jamais
   // garanti).
+  // ------------------------------------------------------------
+  // PROVENANCE D'UNE RÉCEPTION (19/09/2026, régularisation d'une réception
+  // passée)
+  // ------------------------------------------------------------
+  // Une réception saisie plusieurs jours après le dépotage, à partir d'un
+  // relevé terrain manuscrit, produit exactement les mêmes chiffres qu'une
+  // réception normale — c'est voulu : Performance doit l'utiliser comme
+  // n'importe quelle réception historique, sans traitement de faveur. Ce
+  // qui change est ce que Pilotage en DIT. Sans ces mentions, un manager
+  // qui relit l'écran ou le PDF croirait que les jaugeages ont été relevés
+  // dans NEXUS le jour même ; les trois dates (livraison réelle, mesures
+  // terrain, saisie NEXUS) resteraient indiscernables à l'affichage alors
+  // qu'elles sont bien distinctes en base.
+  function estVisiteRegularisee(visite) {
+    return !!visite && visite.mode_saisie === 'regularisation';
+  }
+  // Mention courte, pour une carte déjà dense.
+  function mentionRegularisation(visite) {
+    if (!estVisiteRegularisee(visite)) return '';
+    const le = visite.regularisation_le ? formaterDateHeureFr(visite.regularisation_le) : '';
+    return ` · régularisée${le ? ` le ${le}` : ''} d'après un relevé terrain manuscrit`;
+  }
+  // Ces champs-ci sont de la saisie libre (motif, nom du contrôleur
+  // terrain) et l'URL du justificatif vient de la base : ils sont rendus
+  // échappés, et le lien n'est proposé que pour une URL https réelle —
+  // jamais un href reconstruit à partir de ce qu'on trouve en base.
+  function echapperTexte(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+  }
+  function urlJustificatifSure(u) {
+    return (typeof u === 'string' && /^https:\/\//i.test(u)) ? u : null;
+  }
+
   function rafraichirNoteTerrainLivraison() {
     const el = document.getElementById('livraisonNoteTerrain');
     if (!el || !DERNIERE_LIVRAISON_AFFICHEE) return;
@@ -3043,14 +3078,14 @@
     }
     const M = NexusReceptionMoteur;
     const dateTxt = (visite.date_visite || '').split('-').reverse().join('/');
-    const enTete = `<div class="section-note" style="margin:0 0 4px;">Visite du ${dateTxt}${visite.transporteur ? ` — ${visite.transporteur}` : ''}${visite.statut === 'terminee_avec_derogation' ? ' · dérogation manager tracée' : ''}</div>`;
+    const enTete = `<div class="section-note" style="margin:0 0 4px;">Visite du ${dateTxt}${visite.transporteur ? ` — ${visite.transporteur}` : ''}${visite.statut === 'terminee_avec_derogation' ? ' · dérogation manager tracée' : ''}${mentionRegularisation(visite)}</div>`;
 
     const cartesCarburant = (visite.lignes || []).map(ligne => {
       const libelle = M.libelleStatutReception(ligne.statut);
       const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
       const mesuresLignes = (visite.mesures || []).filter(m => m.carburant === ligne.carburant).map(m => `
         <div class="qualite-reception-ligne">
-          <span>Cuve ${m.cuve_id}</span>
+          <span>Cuve ${m.cuve_id}${m.source === 'releve_manuscrit' ? ' — relevé manuscrit' : ''}</span>
           <span>${m.jaugeage_avant_l != null ? fmtL(m.jaugeage_avant_l) : '—'} → ${m.jaugeage_apres_l != null ? fmtL(m.jaugeage_apres_l) : '—'}${m.delta_mesure_l != null ? ` (${m.delta_mesure_l >= 0 ? '+' : ''}${fmtL(m.delta_mesure_l)})` : ''}</span>
         </div>`).join('');
       return `
@@ -3385,6 +3420,16 @@
       <div class="controle-ligne"><span>Immatriculation</span><span>${visite.immatriculation || '—'}</span></div>
       <div class="controle-ligne"><span>Bon de livraison</span><span>${visite.bon_livraison_reference || '—'}</span></div>
       <div class="controle-ligne"><span>Statut de la visite</span><span>${visite.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée'}</span></div>
+      ${estVisiteRegularisee(visite) ? `
+      <div class="controle-cause">Réception du ${dateTxt} régularisée${visite.regularisation_le ? ` le ${formaterDateHeureFr(visite.regularisation_le)}` : ''} à partir d'un relevé terrain manuscrit : les jaugeages ont été relevés sur place, puis recopiés dans NEXUS après coup.</div>
+      <div class="controle-ligne"><span>Régularisée par</span><span>${echapperTexte(visite.regularisation_par_nom) || '—'}</span></div>
+      <div class="controle-ligne"><span>Contrôle terrain réalisé par</span><span>${echapperTexte(visite.controle_terrain_par) || '—'}</span></div>
+      <div class="controle-ligne"><span>Saisie enregistrée dans NEXUS le</span><span>${formaterDateHeureFr(visite.created_at) || '—'}</span></div>
+      <div class="controle-ligne"><span>Motif</span><span>${echapperTexte(visite.regularisation_motif) || '—'}</span></div>
+      ${urlJustificatifSure(visite.justificatif_url)
+        ? `<div class="lien-historique-neutralise"><a href="${echapperTexte(urlJustificatifSure(visite.justificatif_url))}" target="_blank" rel="noopener noreferrer">Voir le justificatif joint</a></div>`
+        : `<div class="section-note" style="margin:4px 0 0;">Aucun justificatif joint à cette régularisation.</div>`}
+      ` : ''}
       ${lignesHTML}
       ${compartimentsNonReceptionnes.length ? `<div class="controle-cause">${compartimentsNonReceptionnes.length} compartiment(s) non réceptionné(s) — dérogation manager tracée.</div>` : ''}
       <div id="controleModalPdfZone"></div>
@@ -3537,6 +3582,18 @@
     c.ligneCle('Immatriculation', visite.immatriculation || '—');
     c.ligneCle('Bon de livraison', visite.bon_livraison_reference || '—');
     c.ligneCle('Statut', visite.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée');
+    // Un PDF sort de NEXUS et circule seul : s'il ne portait pas la
+    // provenance, il présenterait une régularisation comme une saisie
+    // faite pendant le dépotage.
+    if (estVisiteRegularisee(visite)) {
+      c.sectionTitre('PROVENANCE');
+      c.paragraphe(`Réception réellement effectuée le ${dateTxt}, régularisée dans NEXUS${visite.regularisation_le ? ` le ${formaterDateHeureFr(visite.regularisation_le)}` : ''} à partir d'un relevé terrain manuscrit. Les jaugeages ci-dessous ont été relevés sur le terrain au moment de la livraison, puis recopiés dans NEXUS après coup.`, { taille: 9.5, couleur: NexusPdfMoteur.COULEUR.ambre });
+      c.ligneCle('Régularisée par', visite.regularisation_par_nom || '—');
+      c.ligneCle('Contrôle terrain réalisé par', visite.controle_terrain_par || '—');
+      c.ligneCle('Saisie enregistrée dans NEXUS le', formaterDateHeureFr(visite.created_at) || '—');
+      c.ligneCle('Motif', visite.regularisation_motif || '—');
+      c.ligneCle('Justificatif', visite.justificatif_url ? 'Joint à la réception dans NEXUS' : 'Aucun');
+    }
 
     (visite.lignes || []).forEach(ligne => {
       c.sectionTitre((NOM_CARBURANT[ligne.carburant] || ligne.carburant).toUpperCase());
@@ -4235,7 +4292,8 @@
     if (visites.length) {
       const cartes = visites.map(v => {
         const dateTxt = formaterDateFrCourt(v.date_visite);
-        const statutTxt = v.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée';
+        const statutTxt = (v.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée')
+          + (estVisiteRegularisee(v) ? ' · régularisée d\'après un relevé manuscrit' : '');
         return `
           <div class="historique-recep-carte" data-visite-id="${v.id}">
             <div class="historique-pz-tete">

@@ -14,6 +14,14 @@
 // PARTIE 2 — nexus-carburant-donnees.js : enregistrerReleveDepuisReception
 //   Livraison (idempotence stricte par visite, additivité de livraison_*,
 //   versionnement réutilisé tel quel).
+//
+// 19/09/2026 — étendu pour la régularisation d'une réception passée
+// (mandat "Régularisation d'une réception passée", tests obligatoires n°8,
+// n°9 et n°11). Le piège central : le relevé physique du 19/09 contient
+// DÉJÀ le carburant livré le 18/09. Reconstruire l'historique ne doit donc
+// jamais revenir à faire "stock du 19/09 + livraison du 18/09", ni déplacer
+// l'instant de mesure de la ligne du 18/09 vers le jour de la saisie, ni
+// réécrire une version antérieure.
 
 const path = require('path');
 const assert = require('assert');
@@ -116,6 +124,42 @@ testSync('patchReleveDepuisReceptionMesures : liste vide/undefined -> patch vide
   assert.deepStrictEqual(M.patchReleveDepuisReceptionMesures(undefined, undefined), { stockReel: {}, livraison: {} });
 });
 
+// ------------------------------------------------------------
+// referencePhysiqueDuJour — versant LECTURE du test obligatoire n°8 du
+// 19/09/2026 : "relevé physique J+1 prioritaire pour le stock courant".
+// Une réception régularisée après coup porte la date de la livraison
+// passée. Si Pilotage la retenait comme référence physique du jour, les
+// cartes du haut afficheraient un jaugeage d'avant-hier à la place du
+// relevé de ce matin — et, pire, le stock d'après dépotage du 18/09
+// alors que les ventes du 18 et du 19 ont déjà eu lieu depuis.
+// ------------------------------------------------------------
+
+const VISITE_REGUL_1809 = {
+  date_visite: '2026-09-18', statut: 'terminee', mode_saisie: 'regularisation',
+  heure_fin: '2026-09-18T15:15:00.000Z',
+};
+const RELEVE_PHYSIQUE_1909 = { date: '2026-09-19', created_at: '2026-09-19T10:05:00.000Z' };
+
+testSync('referencePhysiqueDuJour : une réception régularisée du 18/09 ne devient JAMAIS la référence physique du 19/09 (test obligatoire n°8)', () => {
+  const r = M.referencePhysiqueDuJour(RELEVE_PHYSIQUE_1909, VISITE_REGUL_1809, '2026-09-19');
+  assert.strictEqual(r.source, 'ouverture',
+    'Le relevé physique du jour prime : la livraison du 18/09 est déjà dans les cuves qu\'il a mesurées');
+  assert.strictEqual(r.heure, '2026-09-19T10:05:00.000Z');
+});
+
+testSync('referencePhysiqueDuJour : sans relevé du jour, une réception régularisée d\'hier ne comble pas le vide (jamais une fausse référence)', () => {
+  const r = M.referencePhysiqueDuJour(null, VISITE_REGUL_1809, '2026-09-19');
+  assert.strictEqual(r.source, null, 'Aucune mesure d\'aujourd\'hui : NEXUS doit le dire, pas ressortir celle d\'hier');
+  assert.strictEqual(r.heure, null);
+});
+
+testSync('referencePhysiqueDuJour : le jour même, une réception terminée plus récente que le jaugeage d\'ouverture reste prioritaire (non-régression du 20/08)', () => {
+  const visiteDuJour = { date_visite: '2026-09-19', statut: 'terminee', heure_fin: '2026-09-19T14:00:00.000Z' };
+  const r = M.referencePhysiqueDuJour(RELEVE_PHYSIQUE_1909, visiteDuJour, '2026-09-19');
+  assert.strictEqual(r.source, 'reception');
+  assert.strictEqual(r.heure, '2026-09-19T14:00:00.000Z');
+});
+
 console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
 
 // ------------------------------------------------------------
@@ -156,6 +200,11 @@ function creerClientMock(reponses) {
         select() { return b(table, 'select'); },
         insert(payload) { return b(table, 'insert', payload); },
         upsert(payload) { return b(table, 'upsert', payload); },
+        // 19/09/2026 — enregistrés, et non absents : une garde « aucune
+        // réécriture de l'historique » posée sur un mock qui ignore update et
+        // delete ne mordrait jamais.
+        update(payload) { return b(table, 'update', payload); },
+        delete() { return b(table, 'delete'); },
       };
     },
   };
@@ -272,6 +321,161 @@ const MESURES_VISITE_2008 = [
     assert.strictEqual(insertVersion.payload.livraison_sp95, 21007 + 6444, 'Deux livraisons SP95 le même jour -> somme des deux, ni perdue ni écrasée');
     assert.strictEqual(insertVersion.payload.livraison_go, 14938, 'GO non concerné par cette deuxième visite -> repris tel quel');
     assert.strictEqual(insertVersion.payload.visite_reception_id, 'visite-2');
+  });
+
+  // ------------------------------------------------------------
+  // 19/09/2026 — régularisation d'une réception passée (mandat du 19/09,
+  // tests obligatoires n°8 et n°9). Le piège est précis : le relevé
+  // physique du 19/09 CONTIENT DÉJÀ le carburant livré le 18/09. Le pont ne
+  // doit donc jamais faire « stock du 19/09 + livraison du 18/09 » — il doit
+  // reconstruire la ligne du 18/09, à sa propre date, avec l'instant de
+  // mesure du relevé manuscrit.
+  // ------------------------------------------------------------
+  const MESURES_REGUL_1809 = [
+    { cuve_id: 'unique', carburant: 'sp95', jaugeage_apres_l: 14950, delta_mesure_l: 11950 },
+    { cuve_id: 'cuve1', carburant: 'go', jaugeage_apres_l: 12980, delta_mesure_l: 9980 },
+    { cuve_id: 'cuve2', carburant: 'go', jaugeage_apres_l: 8990, delta_mesure_l: 5990 },
+  ];
+  const JAUGEAGE_TERRAIN_1809 = '2026-09-18T15:15:00.000Z'; // fin du dépotage, relevé manuscrit
+
+  await testAsync('régularisation 18/09 : la ligne de stock est écrite à la DATE DE LA LIVRAISON, jamais à celle de la saisie (test obligatoire n°8)', async () => {
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: null, error: null }],
+      carburant_releves: [
+        { data: null, error: null },              // aucun relevé au 18/09
+        { data: { id: 'regul-1809' }, error: null },
+      ],
+    });
+    const r = await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-09-18', employeeId: 'mgr1', visiteId: 'visite-regul-1809',
+      mesures: MESURES_REGUL_1809, cuvesGo: CUVES_GO_VITO, mesureLe: JAUGEAGE_TERRAIN_1809,
+    });
+    assert.strictEqual(r.ok, true);
+
+    // Aucune lecture ni écriture ne doit toucher le 19/09 : le relevé
+    // physique du lendemain est la vérité du stock courant, et il reste
+    // intact. C'est lui qui prime, pas cette reconstruction historique.
+    const datesTouchees = new Set();
+    client.appels.forEach(a => {
+      if (a.eq && a.eq.date) datesTouchees.add(a.eq.date);
+      if (a.payload && a.payload.date) datesTouchees.add(a.payload.date);
+    });
+    assert.ok(!datesTouchees.has('2026-09-19'),
+      'Une régularisation du 18/09 ne doit ni lire ni écrire la ligne du 19/09 — "stock 19/09 + livraison 18/09" est précisément le double comptage interdit');
+    assert.deepStrictEqual([...datesTouchees], ['2026-09-18']);
+
+    const insertVersion = client.appels.find(a => a.table === 'carburant_releve_versions' && a.type === 'insert');
+    assert.strictEqual(insertVersion.payload.date, '2026-09-18');
+    const upsertReleve = client.appels.find(a => a.table === 'carburant_releves' && a.type === 'upsert');
+    assert.strictEqual(upsertReleve.payload.date, '2026-09-18');
+  });
+
+  await testAsync('régularisation 18/09 : mesure_le est l\'instant du jaugeage manuscrit, pas celui de la saisie (test obligatoire n°9)', async () => {
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: null, error: null }],
+      carburant_releves: [{ data: null, error: null }, { data: { id: 'regul-1809' }, error: null }],
+    });
+    const avant = Date.now();
+    await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-09-18', employeeId: 'mgr1', visiteId: 'visite-regul-1809b',
+      mesures: MESURES_REGUL_1809, cuvesGo: CUVES_GO_VITO, mesureLe: JAUGEAGE_TERRAIN_1809,
+    });
+    const insertVersion = client.appels.find(a => a.table === 'carburant_releve_versions' && a.type === 'insert');
+    const upsertReleve = client.appels.find(a => a.table === 'carburant_releves' && a.type === 'upsert');
+    assert.strictEqual(insertVersion.payload.mesure_le, JAUGEAGE_TERRAIN_1809);
+    assert.strictEqual(upsertReleve.payload.mesure_le, JAUGEAGE_TERRAIN_1809);
+    assert.ok(new Date(upsertReleve.payload.mesure_le).getTime() < avant,
+      'Poser l\'instant de saisie ici ferait de la ligne du 18/09 la mesure la plus récente et étendrait sa fenêtre de ventes jusqu\'au jour de la régularisation');
+  });
+
+  await testAsync('régularisation 18/09 : la livraison s\'additionne au relevé DU 18/09, pas au stock du lendemain', async () => {
+    // Relevé d'ouverture du 18/09 (avant la livraison), tel qu'il existait.
+    const ouverture1809 = {
+      version_num: 1, stock_reel_go_cuve1: 3000, stock_reel_go_cuve2: 3000, stock_reel_sp95: 3000, stock_reel_gnr: 4371,
+      livraison_go: 0, livraison_sp95: 0, livraison_gnr: 0, mouvement_go: 0, mouvement_sp95: 0, mouvement_gnr: 0,
+      motif_mouvement: null, commentaire: null,
+    };
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: null, error: null }],
+      carburant_releves: [{ data: ouverture1809, error: null }, { data: { id: 'r-1809-v2' }, error: null }],
+    });
+    await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-09-18', employeeId: 'mgr1', visiteId: 'visite-regul-1809c',
+      mesures: MESURES_REGUL_1809, cuvesGo: CUVES_GO_VITO, mesureLe: JAUGEAGE_TERRAIN_1809,
+    });
+    const insertVersion = client.appels.find(a => a.table === 'carburant_releve_versions' && a.type === 'insert');
+    assert.strictEqual(insertVersion.payload.livraison_sp95, 11950);
+    assert.strictEqual(insertVersion.payload.livraison_go, 9980 + 5990);
+    assert.strictEqual(insertVersion.payload.stock_reel_sp95, 14950, 'Le jaugeage manuscrit d\'après dépotage devient le stock du 18/09');
+    assert.strictEqual(insertVersion.payload.stock_reel_gnr, 4371, 'Le GNR, absent de cette livraison, est repris du relevé du 18/09');
+    assert.strictEqual(insertVersion.payload.type_version, 'correction_manager');
+  });
+
+  await testAsync('régularisation rejouée (même visite) : aucune seconde application, la livraison n\'est jamais comptée deux fois', async () => {
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: { id: 'version-regul-deja-la' }, error: null }],
+    });
+    const r = await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-09-18', employeeId: 'mgr1', visiteId: 'visite-regul-1809',
+      mesures: MESURES_REGUL_1809, cuvesGo: CUVES_GO_VITO, mesureLe: JAUGEAGE_TERRAIN_1809,
+    });
+    assert.strictEqual(r.dejaAJour, true);
+    assert.strictEqual(client.appels.filter(a => a.type === 'insert' || a.type === 'upsert').length, 0);
+  });
+
+  await testAsync('temps réel inchangé : sans mesureLe, l\'instant reste celui de la saisie (non-régression du parcours nominal)', async () => {
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: null, error: null }],
+      carburant_releves: [{ data: null, error: null }, { data: { id: 'r-tr' }, error: null }],
+    });
+    const avant = Date.now();
+    await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-08-20', employeeId: 'emp1', visiteId: 'visite-tr', mesures: MESURES_VISITE_2008, cuvesGo: CUVES_GO_VITO,
+    });
+    const apres = Date.now();
+    const upsertReleve = client.appels.find(a => a.table === 'carburant_releves' && a.type === 'upsert');
+    const t = new Date(upsertReleve.payload.mesure_le).getTime();
+    assert.ok(t >= avant && t <= apres, 'En temps réel, mesure_le reste new Date() — rien n\'a changé pour le parcours du jour');
+  });
+
+  await testAsync('régularisation 18/09 : l\'historique s\'empile, il ne se réécrit pas (test obligatoire n°11)', async () => {
+    const ouverture1809 = {
+      version_num: 3, stock_reel_go_cuve1: 3000, stock_reel_go_cuve2: 3000, stock_reel_sp95: 3000, stock_reel_gnr: 4371,
+      livraison_go: 0, livraison_sp95: 0, livraison_gnr: 0, mouvement_go: 0, mouvement_sp95: 0, mouvement_gnr: 0,
+      motif_mouvement: null, commentaire: 'Jaugeage d\'ouverture',
+    };
+    const client = creerClientMock({
+      carburant_releve_versions: [{ data: null, error: null }],
+      carburant_releves: [{ data: ouverture1809, error: null }, { data: { id: 'r-1809-v4' }, error: null }],
+    });
+    await Donnees.enregistrerReleveDepuisReceptionLivraison(client, 'vito-sainte-marie', {
+      date: '2026-09-18', employeeId: 'mgr1', visiteId: 'visite-regul-1809d',
+      mesures: MESURES_REGUL_1809, cuvesGo: CUVES_GO_VITO, mesureLe: JAUGEAGE_TERRAIN_1809,
+    });
+
+    // Une régularisation intervient APRÈS coup, sur des lignes que d'autres
+    // ont déjà signées. Si elle pouvait modifier ou supprimer l'existant,
+    // elle effacerait la trace de ce qui avait été constaté sur le moment.
+    const interdits = client.appels.filter(a => a.type === 'update' || a.type === 'delete');
+    assert.deepStrictEqual(interdits, [],
+      'Le pont ne doit jamais modifier ni supprimer une version antérieure : l\'historique s\'empile');
+
+    const insertVersion = client.appels.find(a => a.table === 'carburant_releve_versions' && a.type === 'insert');
+    assert.strictEqual(insertVersion.payload.version_num, 4, 'La version régularisée prend le numéro suivant');
+    assert.strictEqual(insertVersion.payload.auteur, 'mgr1', 'L\'auteur de la régularisation est tracé');
+    assert.strictEqual(insertVersion.payload.origine, 'reception_livraison');
+    assert.strictEqual(insertVersion.payload.visite_reception_id, 'visite-regul-1809d',
+      'La version reste rattachable à la réception qui l\'a produite');
+    assert.ok(insertVersion.payload.motif_correction, 'Une correction sans motif serait un trou dans l\'audit');
+
+    // Le diff nomme précisément ce qui change — et seulement cela.
+    const diff = insertVersion.payload.diff_vs_precedent;
+    assert.ok(diff && typeof diff === 'object', 'Une correction doit produire un diff exploitable');
+    assert.deepStrictEqual(diff.livraison_sp95, { avant: 0, apres: 11950 });
+    assert.deepStrictEqual(diff.stock_reel_sp95, { avant: 3000, apres: 14950 });
+    assert.ok(!('stock_reel_gnr' in diff), 'Le GNR n\'a pas bougé : il ne doit pas apparaître dans le diff');
+    assert.ok(!('commentaire' in diff), 'Le commentaire d\'ouverture est repris tel quel, pas réécrit');
+    assert.strictEqual(insertVersion.payload.commentaire, 'Jaugeage d\'ouverture');
   });
 
   await testAsync('enregistrerReleveDepuisReceptionLivraison : NexusCarburantMoteur absent -> erreur explicite plutôt qu\'une exception non gérée', async () => {

@@ -896,7 +896,7 @@
   // M.patchReleveDepuisReceptionMesures. Ne fixe jamais mouvement_*/motif_
   // mouvement/commentaire (repris du relevé du jour s'il existe) : une
   // livraison n'est jamais un mouvement exceptionnel.
-  async function enregistrerReleveDepuisReceptionLivraison(client, siteId, { date, employeeId, visiteId, mesures, cuvesGo }) {
+  async function enregistrerReleveDepuisReceptionLivraison(client, siteId, { date, employeeId, visiteId, mesures, cuvesGo, mesureLe: mesureLeReelle }) {
     const M = global.NexusCarburantMoteur;
     if (!M) { console.error('NexusCarburantMoteur non chargé — pont réception carburant impossible.'); return { ok: false, error: new Error('moteur carburant absent') }; }
     if (!visiteId) { console.error('Pont réception carburant : visiteId requis pour l’idempotence.'); return { ok: false, error: new Error('visiteId manquant') }; }
@@ -925,7 +925,19 @@
     // convention que l'écran manager (`NEXUS-Carburants-v1.html`,
     // `mesure_le: new Date().toISOString()` au moment de l'enregistrement) —
     // Article 11, jamais une deuxième convention de capture d'instant.
-    const mesureLe = new Date().toISOString();
+    //
+    // 19/09/2026 — régularisation d'une réception passée : `new Date()` n'est
+    // la bonne réponse QUE lorsque la saisie suit le dépotage. Quand le
+    // manager régularise après coup une réception réellement effectuée
+    // plusieurs jours plus tôt (relevé terrain manuscrit), l'instant de la
+    // mesure est celui du jaugeage final noté sur le papier, PAS celui de la
+    // saisie NEXUS. Poser la date de saisie ici ferait de cette ligne du
+    // 18/09 la mesure la plus récente et étendrait sa fenêtre de ventes
+    // jusqu'au jour de la régularisation — exactement le double comptage que
+    // la reconstruction historique doit éviter. L'appelant fournit donc
+    // `mesureLe` dans ce cas ; sans lui, le comportement temps réel d'origine
+    // est inchangé.
+    const mesureLe = mesureLeReelle || new Date().toISOString();
 
     const nouveauSnapshot = {
       stock_reel_go_cuve1: patch.stockReel.go_cuve1 != null ? patch.stockReel.go_cuve1 : (precedent ? precedent.stock_reel_go_cuve1 : null),

@@ -1,0 +1,25 @@
+{
+  "_pourquoi": "Instantané de la configuration RÉELLE de nexus-station-test, relevé le 2026-09-08. Le scénario de recette Carburants a été calibré CONTRE CE FICHIER, et non contre la configuration d'une autre station. Le 07/09/2026, le scénario avait été calculé avec les cuves de vito-sainte-marie (SP95 limite 28 761 L) puis semé dans la station Test (23 750 L) : il recommandait 24 000 L dans une cuve qui n'en accepte que 23 750, et personne ne pouvait s'en apercevoir parce que rien ne comparait les deux. La CI vérifie désormais que cet instantané correspond toujours à la base Test ; s'il dérive, elle le dit avant que la recette n'aille chercher un défaut imaginaire dans le moteur.",
+  "site": "nexus-station-test",
+  "releve_le": "2026-09-08",
+  "fuseau_horaire": "America/Martinique",
+  "horaires": {
+    "quart1": { "normal": "06:00", "fin_normal": "13:00" },
+    "quart2": { "normal": "13:00", "fin_normal": "20:00" }
+  },
+  "cuves_carburants": {
+    "sp95": { "actif": true, "label": "Sans plomb (SP95)", "cuves": [{ "id": "unique", "label": "Cuve A", "capacite": 25000, "limite_remplissage": 23750 }] },
+    "go": { "actif": true, "label": "Gasoil (GO)", "cuves": [{ "id": "cuve1", "label": "Cuve B", "capacite": 15000, "limite_remplissage": 14250 }, { "id": "cuve2", "label": "Cuve C", "capacite": 8000, "limite_remplissage": 7600 }] },
+    "gnr": { "actif": false, "label": "Gasoil non routier (GNR)", "cuves": [{ "id": "unique", "label": "Cuve D", "capacite": 10000, "limite_remplissage": 9500 }] }
+  },
+  "carburant_commande_config": {
+    "cutoff_heure": "11:00",
+    "jours_commande_iso": [1, 2, 3, 4, 5],
+    "jours_livraison_iso": [1, 2, 3, 4, 5],
+    "maximum_camion_litres": 36000,
+    "minimum_camion_litres": 3000,
+    "stock_securite_jours_normal": 2,
+    "stock_securite_jours_fin_mois": 1,
+    "compartiments_disponibles_litres": [2000, 5000, 7000]
+  }
+}

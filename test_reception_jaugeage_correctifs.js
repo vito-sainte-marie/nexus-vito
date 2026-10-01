@@ -162,6 +162,11 @@ scriptSrc += `
   allerEtape, demarrerVisite,
 };
 `;
+// L'ecran charge nexus-auth.js avant son propre <script> (balise en tete du
+// HTML) : la sandbox execute donc la VRAIE definition de `nexusEstManager`,
+// extraite du fichier, plutot qu'une enieme copie de la regle de role.
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8')
+  .match(/function nexusEstManager\([\s\S]*?\n}/)[0], sandbox);
 vm.runInContext(scriptSrc, sandbox);
 
 async function attendreInit() {

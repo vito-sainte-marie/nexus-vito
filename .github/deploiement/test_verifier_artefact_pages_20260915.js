@@ -63,12 +63,26 @@ function controler(cible, mode, options = []) {
   return { code: r.status, sortie: `${r.stdout}${r.stderr}` };
 }
 
+// ── Motif d'un échec : entier, jamais sa première ligne ────────────────────
+// Ne garder que `message.split('\n')[0]`, c'est rapporter « refusé » sans dire
+// pourquoi : le 30/09/2026 cette épreuve a annoncé pendant des jours un échec
+// dont le motif — « [A1] … cet arbre doit être construit » — n'apparaissait
+// nulle part, parce que la règle violée est nommée quelques lignes après le
+// début du message. Un refus dont le motif est effacé est un refus silencieux.
+const LIGNES_MOTIF = 40;
+function motif(erreur) {
+  const lignes = String(erreur && erreur.message).split('\n');
+  const gardees = lignes.slice(0, LIGNES_MOTIF).map(l => `    ${l}`);
+  if (lignes.length > LIGNES_MOTIF) gardees.push(`    … (${lignes.length - LIGNES_MOTIF} ligne(s) de plus)`);
+  return gardees.join('\n');
+}
+
 let total = 0;
 const echecs = [];
 function cas(intitule, fn) {
   total++;
   try { fn(); process.stdout.write('.'); }
-  catch (e) { echecs.push(`${intitule}\n    ${e.message.split('\n')[0]}`); process.stdout.write('x'); }
+  catch (e) { echecs.push(`${intitule}\n${motif(e)}`); process.stdout.write('x'); }
 }
 
 function exigerRefus(intitule, regle, racine, mode, options = []) {
@@ -420,15 +434,64 @@ cas('Discrétion · la valeur suspecte n\'est jamais imprimée', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// L'ARBRE RÉEL — la garde doit accepter ce qui est servi aujourd'hui
+// L'ARBRE RÉEL — la garde doit accepter ce qui part réellement vers le site
 // ═══════════════════════════════════════════════════════════════════════════
 // Sans ce cas, rien ne dirait que la bascule d'hébergement est possible : une
 // garde calibrée sur des arbres fabriqués peut parfaitement refuser le seul
-// arbre qui compte. Ce cas vérifie du même coup que ce fichier de test, qui
-// manipule des appâts, n'empoisonne pas l'artefact qu'il protège.
-cas('Réel · l\'arbre de cette branche est acceptable en mode « à l\'identique »', () => {
-  const { code, sortie } = controler(RACINE_DEPOT, 'a-l-identique');
-  assert.strictEqual(code, 0, `l'arbre réel a été refusé :\n${sortie}`);
+// arbre qui compte.
+//
+// CE CAS A DÉJÀ ÉTÉ FAUX UNE FOIS, ET C'EST TOUT SON SUJET. Il demandait
+// « l'arbre de cette branche est-il acceptable en mode à l'identique ? ». Le
+// 22/09/2026, `290a217` a porté la chaîne de build sur cette branche : à
+// partir de ce commit `outils/build.sh` existe, et la règle A1 refuse — à bon
+// droit — de publier brut un arbre qui sait se construire. La réponse
+// attendue n'avait pas changé, la QUESTION était devenue caduque. Une
+// question codée en dur se périme sans prévenir ; une question dérivée de
+// l'arbre, non. Le mode n'est donc plus écrit ici : il est déduit, exactement
+// comme `.github/workflows/deploiement-production.yml` le déduit.
+//
+// Ce que ce cas ne peut PAS demander : la cohérence d'environnement (C2, C3)
+// se juge sur un `nexus-config.js` de Production, que seule la chaîne de
+// déploiement produit, avec des secrets qu'une épreuve n'a pas et ne doit pas
+// avoir. Le `nexus-config.js` de l'artefact contrôlé ici est donc TOUJOURS
+// remplacé par l'appât `CONFIG_OK` — jamais « celui qui s'y trouve » : en CI
+// la suite tourne après `outils/build.sh`, qui en écrit un d'environnement
+// « test », et un banc dont le verdict dépend de ce qui a tourné avant lui
+// est vert par tirage au sort.
+const MODE_REEL = fs.existsSync(path.join(RACINE_DEPOT, 'outils', 'build.sh'))
+  ? 'construit'
+  : 'a-l-identique';
+
+cas('Réel · le mode de publication se déduit de `outils/build.sh`, comme dans le workflow', () => {
+  const workflow = fs.readFileSync(
+    path.join(RACINE_DEPOT, '.github', 'workflows', 'deploiement-production.yml'), 'utf8');
+  assert.ok(/if \[ -f outils\/build\.sh \]/.test(workflow),
+    'le workflow ne déduit plus le mode de la présence de `outils/build.sh` : le cas « Réel » ne le refléterait plus');
+  assert.ok(/mode=construit/.test(workflow) && /racine=_site/.test(workflow),
+    'le workflow n\'associe plus le mode « construit » à la racine `_site`');
+  assert.ok(/mode=a-l-identique/.test(workflow) && /racine=\./.test(workflow),
+    'le workflow n\'associe plus le mode « à l\'identique » à la racine du dépôt');
+});
+
+cas(`Réel · l'artefact composé depuis cette branche est acceptable en mode « ${MODE_REEL} »`, () => {
+  // L'artefact n'est pas l'arbre du dépôt : depuis que `composer-artefact-public.js`
+  // existe, ce qui part vers le site est ce qu'il compose. Contrôler la racine
+  // du dépôt reviendrait à éprouver un artefact que personne ne publie.
+  const compositeur = path.join(__dirname, 'composer-artefact-public.js');
+  assert.ok(fs.existsSync(compositeur), '.github/deploiement/composer-artefact-public.js introuvable');
+  const destination = path.join(BAC, 'artefact-reel');
+  const c = spawnSync(process.execPath,
+    [compositeur, `--source=${RACINE_DEPOT}`, `--destination=${destination}`, '--vider'],
+    { encoding: 'utf8' });
+  assert.strictEqual(c.status, 0, `la composition de l'artefact réel a échoué :\n${c.stdout}${c.stderr}`);
+
+  const configArtefact = path.join(destination, 'nexus-config.js');
+  if (MODE_REEL === 'construit') fs.writeFileSync(configArtefact, CONFIG_OK);
+  else fs.rmSync(configArtefact, { force: true });
+
+  const { code, sortie } = controler(
+    { racine: destination, options: [`--arbre-source=${RACINE_DEPOT}`] }, MODE_REEL);
+  assert.strictEqual(code, 0, `l'artefact réel a été refusé :\n${sortie}`);
 });
 
 // ── Verdict ────────────────────────────────────────────────────────────────
