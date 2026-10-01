@@ -255,21 +255,53 @@ avec le vocabulaire de preuve du protocole lui-même :
 | Consommation | `outils/handoff.js consommer` | `VERIFIED` |
 | Réveil de l'Orchestrateur | `tests.yml` → `reveil-orchestrateur.js`, publié sur #28 | `VERIFIED` |
 | Qualification d'un retour | `tests.yml` → `qualifier-rapatriement.js` | `VERIFIED` |
-| Transport vers le rail | `tests.yml` → `rapatrier-vers-rail.js` | `DECLARED` |
-| Vérification destination | `git ls-remote` dans `pousser()` | `DECLARED` |
+| Transport vers le rail | `tests.yml` → `rapatrier-vers-rail.js` | `VERIFIED` |
+| Vérification destination | `git ls-remote` dans `pousser()` | `VERIFIED` |
 | Veille de stagnation | `outils/watchdog-stagnation.js` | `DECLARED` |
 
-Les trois dernières lignes sont `DECLARED` et non `VERIFIED` pour une raison
-précise : le code est éprouvé, mais le geste réel n'a jamais été posé sur le
-dépôt, faute d'armement. Voir « Ce que l'autonomie n'autorise pas » plus bas.
+La ligne « Veille de stagnation » est `DECLARED` et non `VERIFIED` pour une
+raison précise : le code est éprouvé, mais aucun workflow ne l'appelle. Voir
+« Ce que l'autonomie n'autorise pas » plus bas.
 
-**Le 30/09/2026, l'armement a été accordé** (voir « L'armement du transport »
-plus bas). Les deux lignes « Transport vers le rail » et « Vérification
-destination » restent néanmoins `DECLARED` à cette minute : une permission
-accordée n'est pas un transport constaté. Elles ne passeront à `VERIFIED`
-qu'une fois un run réel franchi, et ce document nommera alors le run, la branche
-source et le SHA de destination relu. Classer avant de mesurer serait
-exactement l'erreur que ce tableau existe pour empêcher.
+**Le 30/09/2026, l'armement a été accordé, puis le geste a été posé** (voir
+« L'armement du transport » plus bas). Les deux lignes « Transport vers le
+rail » et « Vérification destination » passent à `VERIFIED` parce qu'un run
+réel a été franchi, et ce document le nomme, comme il s'y était engagé :
+
+| Ce qui a été mesuré | Valeur relevée |
+| --- | --- |
+| Run | `36805064153`, étape « Rapatriement vers le rail », `completed/success` |
+| Branche source | `claude/issue-28-20260930-1350` |
+| Destination | `handoff-continuite-20260920` |
+| SHA transporté | `eea776a2a3e2e7b8dc148329c4208202d089ace9` |
+| Destination avant | `4f30d17e…` |
+| Destination relue après | `eea776a2a3e2e7b8dc148329c4208202d089ace9` |
+| État publié | `EXECUTE` / `TRANSPORTE` |
+
+La relecture de destination a été refaite une seconde fois hors du run, par un
+`git ls-remote origin refs/heads/handoff-continuite-20260920` indépendant : elle
+rend le même SHA. C'est ce qui distingue ici `VERIFIED` de `DECLARED` — non pas
+que l'outil l'affirme, mais que la destination le porte quand on la rouvre.
+
+Deux réserves, qui ne retirent rien à la classe mais la bornent.
+
+**Une capacité constatée n'est pas une autorisation.** Ce transport a été
+possible parce que `NEXUS_RAPATRIEMENT_ARME` valait `oui` et que `tests.yml`
+déclarait `contents: write`. Retirer l'un des deux rend le maillon
+`HUMAN_DECISION_REQUIRED`, et c'est le comportement voulu : la permission
+technique ne décide de rien, l'autorité déclarée dans la mission décide.
+
+**Et c'est une observation datée.** `VERIFIED` ici veut dire « franchi le
+30/09/2026 », pas « franchissable ». Un transport qui échouerait en octobre ne
+contredirait pas cette ligne : il demanderait une nouvelle mesure.
+
+**Ce que le run ne montre pas encore.** Depuis le 30/09/2026, la qualification
+publie `details.ci_requises` et `details.ci_non_requises` — qui exigeait quoi,
+et sous quelle autorité. Ces deux listes vont dans l'état machine
+(`$NEXUS_ETAT_FICHIER`), qu'aucune étape ne recopie dans le journal. Un humain
+qui lit le run voit donc le verdict du transport, mais pas ce qui l'a rendu
+vert. La preuve existe et reste illisible à l'œil : c'est une lacune
+d'observabilité nommée, pas un transport non prouvé.
 
 Quatre remarques que le schéma seul ne dit pas.
 
@@ -456,6 +488,24 @@ ne peut le deviner ni l'imposer depuis la CI — les conditions de
 Production et tout diff qui affaiblit une garde, et la destination est RELUE
 après le push. Retirer la variable désarme le transport sans toucher au
 workflow ; retirer la permission le fait échouer visiblement, pas silencieusement.
+
+**Ce que l'armement a réellement produit, le jour même.** L'armement n'est pas
+resté une capacité : le run `36805064153` a transporté
+`eea776a2a3e2e7b8dc148329c4208202d089ace9` de
+`claude/issue-28-20260930-1350` vers `handoff-continuite-20260920`, et la
+destination relue — dans le run, puis une seconde fois hors du run — porte ce
+SHA. Le rail a avancé par machine, sans geste humain, pour la première fois.
+Le détail de la mesure est au tableau des maillons.
+
+**Et ce transport n'aurait pas pu partir la veille.** Ce n'est pas l'armement
+seul qui l'a débloqué : `verificationsDuHead()` rendait les contrôles accrochés
+au commit sans dire lesquels étaient *requis*, et le défaut `requis !== false`
+les rendait donc tous obligatoires. `Supabase Preview` — structurellement
+`skipped`, exigé par aucun ruleset, et dont le `details_url` pointe vers le
+projet Supabase de Production — bloquait ainsi tout transport, avec un conseil
+que personne ne pouvait suivre. L'autorité requise est désormais LUE sur la
+branche de destination, et à défaut de mesure elle retombe sur une déclaration
+datée non vide : à défaut de mesure, on exige plus, pas moins.
 
 ### Preuve de continuité
 
