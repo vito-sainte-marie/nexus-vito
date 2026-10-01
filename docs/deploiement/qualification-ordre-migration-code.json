@@ -11,10 +11,38 @@
   ],
   "migrations": {
     "20260919103000": {
-      "etat": "etat_inconnu",
-      "justification": "Audit du fichier termine le 30/09/2026 au SHA 5dcdaaa55f5804f88594c91c272439cf77a123b0 (blob sha256 1a02adca37af32b6ea3ffa3ec41b43968502d75bd515877b47e1d4073a8d6caf) : la migration est purement additive, idempotente, et le code de origin/production ne nomme aucun de ses 13 objets - elle est donc applicable AVANT le code. Ce qui manque n'est pas l'audit du fichier, c'est l'etat AVANT de la base cible : aucune mesure catalogue de Production n'a pu etre prise. Et l'idempotence aggrave l'inconnu au lieu de le couvrir : un 'add column if not exists' passe en silence sur une colonne deja presente avec une AUTRE definition. Etat inconnu = refus ferme, par application de la regle a son propre cas.",
-      "prochaine_action": "Mesure catalogue en lecture seule sur Production (uzhjpqpctpvxytxpxoqz), selon le preflight SS10 AVEC la rubrique 3 remplacee par celle du SS15.5 : pg_attribute/pg_attrdef au lieu de information_schema.columns. Mesure du 01/10/2026 en conteneur jetable : information_schema ne montre que les objets sur lesquels le role courant detient un privilege, donc un role sans droit rend la rubrique 3 VIDE alors que les colonnes existent - soit exactement la lecture qui autorise la migration. La lecture doit etre jouee sous une identite detenant SELECT sur carburant_reception_visites et carburant_reception_mesures ; nexus_prod_readonly_login ne l'a pas. Geste de Frederic."
+      "etat": "migration_deja_appliquee",
+      "justification": "Mesure prise sur le catalogue Production (uzhjpqpctpvxytxpxoqz) le 01/10/2026 a 15 h 01 UTC par Frederic, avec outils/lecture-apres-migration-20260919103000.sh. L'identite de connexion a ete CONSTATEE et non supposee : current_user = nexus_prod_readonly_login, default_transaction_read_only = on, moteur 17.6. Les 13 objets que la migration cree sont presents, et la correspondance a ete verifiee NOM PAR NOM contre extraireObjets() de la garde, pas par egalite de comptes : 0 attendu non constate, 0 constate non attendu. Les 8 colonnes sont lues sur pg_attribute/pg_attrdef (SS15.5) et non sur information_schema, qui ne montre que ce que le role peut voir. Les 3 contraintes sont convalidees (convalidated = t), la fonction est SECURITY DEFINER avec search_path=public, le trigger trg_garde_regularisation_reception est actif, BEFORE INSERT OR UPDATE, et appelle bien cette fonction - le cablage est constate, pas deduit du seul nom. Etat precedent : etat_inconnu.",
+      "prochaine_action": "Mesure catalogue en lecture seule sur Production (uzhjpqpctpvxytxpxoqz), selon le preflight SS10 AVEC la rubrique 3 remplacee par celle du SS15.5 : pg_attribute/pg_attrdef au lieu de information_schema.columns. Mesure du 01/10/2026 en conteneur jetable : information_schema ne montre que les objets sur lesquels le role courant detient un privilege, donc un role sans droit rend la rubrique 3 VIDE alors que les colonnes existent - soit exactement la lecture qui autorise la migration. La lecture doit etre jouee sous une identite detenant SELECT sur carburant_reception_visites et carburant_reception_mesures ; nexus_prod_readonly_login ne l'a pas. Geste de Frederic.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-01T15:01:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "frederic",
+        "outil": "outils/lecture-apres-migration-20260919103000.sh",
+        "identite_constatee": "nexus_prod_readonly_login",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "MIGRATION_APPLIQUEE — 13/13",
+        "expire_le": "2026-10-04T15:01:04Z"
+      },
+      "objets_constates": [
+        "mode_saisie",
+        "regularisation_motif",
+        "regularisation_par",
+        "regularisation_par_nom",
+        "regularisation_le",
+        "controle_terrain_par",
+        "justificatif_url",
+        "source",
+        "carburant_reception_visites_mode_saisie_check",
+        "carburant_reception_visites_regularisation_coherente_check",
+        "carburant_reception_mesures_source_check",
+        "nexus_garde_regularisation_reception",
+        "trg_garde_regularisation_reception"
+      ],
+      "reserve": "La meme mesure montre que la fonction de garde porte toujours EXECUTE pour anon et authenticated (acl {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}). C'est la dette SS8/SS4.1, desormais CONSTATEE en Production et non plus seulement supposee. Elle ne remet pas en cause l'application de la migration : elle se corrige par un revoke separe, jamais en editant 20260919103000."
     }
   },
-  "prochaine_action": "Jouer « bash outils/lecture-apres-migration-20260919103000.sh » sur Production (geste de Frederic ; la lecture Production est refusee a Claude par le harnais). Le script accepte l'entree de trousseau « nexus-prod-db-readonly » sous ses DEUX formes : URL complete, ou mot de passe seul (forme reellement constatee le 01/10/2026) — voir §19. Il imprime la cible ET l'identite reellement connectee avant toute lecture ; sans cette ligne, il n'y a pas de verdict a interpreter. Ne pas rejouer le SQL du §12 sous le role de lecture seule : son count(*) meurt en permission denied et son information_schema rend zero ligne (voir §18.1). Verdicts et ce qu'ils autorisent : §18.4."
+  "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000. La migration est appliquee en Production, constatee sur le catalogue le 01/10/2026 15 h 01 UTC, 13/13 objets, correspondance nom par nom. ATTENTION - CETTE MESURE EXPIRE : la garde exige une fraicheur de 72 h (NEXUS_QUALIFICATION_HEURES), donc elle cesse de qualifier le 04/10/2026 a 15 h 01 UTC. Passe ce delai la garde refuse de nouveau, et c'est voulu : une mesure est une observation datee, pas une propriete de la base. Rejouer alors le meme outil. CE QUE CELA N'AUTORISE PAS : l'approbation du deploiement github-pages en attente reste un geste de Frederic, soumis a un GO distinct ; 13/13 ne leve que l'axe de l'ordre migration/code. RESTE A FAIRE, separement : (1) le revoke des EXECUTE anon/authenticated sur nexus_garde_regularisation_reception, dette constatee en Production par cette meme lecture (voir reserve) ; (2) les 11 migrations du rail toujours non qualifiees ; (3) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20."
 }

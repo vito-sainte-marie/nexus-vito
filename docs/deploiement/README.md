@@ -312,3 +312,78 @@ Trois règles en sortent.
    l'attendu, et la liste blanche refuse `postgres` avant même la connexion —
    une capacité constatée n'est jamais une autorisation. Chaque refus a son
    propre code de sortie, pour qu'il rougisse en disant lequel.
+
+## 01/10/2026 — la mesure a eu lieu : une qualification se prouve acceptée, et elle périme
+
+La lecture APRÈS a été jouée par Frédéric le 01/10/2026 à 15 h 01 UTC et a
+rendu `MIGRATION_APPLIQUEE — 13/13`. L'état `etat_inconnu` de
+`qualification-ordre-migration-code.json` a été remplacé par
+`migration_deja_appliquee`. Trois règles sont sorties de cette consommation,
+et aucune n'était évidente avant de l'avoir faite.
+
+1. **Un compte n'est pas une correspondance.** « 13 constatés pour 13
+   attendus » ne dit rien : deux ensembles de treize peuvent différer. La
+   liste attendue a donc été dérivée du fichier de migration par
+   `extraireObjets()` — la fonction de la garde elle-même, pas une liste
+   recopiée à la main — puis comparée **nom par nom** aux treize mesurés :
+   zéro attendu non constaté, zéro constaté non attendu. Le fichier de
+   qualification porte cette phrase, pour que personne ne relise l'égalité des
+   comptes comme une preuve.
+2. **Une qualification écrite n'est pas une qualification acceptée.** Le seul
+   contrôle qui vaut est de rejouer la garde sur la situation qu'elle juge —
+   ici le candidat qui introduit la migration contre son parent réel, pas
+   contre une cible devinée — et de lire `ok=true code=QUALIFIE`. Trois
+   contre-témoins ont ensuite montré qu'elle mord encore, chacun rouge par son
+   propre motif : un objet retiré de la liste → `OBJETS_NON_CONSTATES` nommant
+   l'objet manquant ; la mesure vieillie à 73 h → `MESURE_PERIMEE` ; la source
+   passée de `catalogue` à `registre` → `MESURE_NON_RECEVABLE`. Un vert
+   obtenu sans contre-témoin ne distingue pas une garde satisfaite d'une garde
+   débranchée.
+3. **Une mesure est une observation datée, pas une propriété de la base.** La
+   qualification cesse de qualifier le 04/10/2026 à 15 h 01 UTC, et la garde
+   refusera de nouveau. Ce n'est pas une régression à corriger : c'est le
+   dispositif qui fonctionne. La renouveler ne demande aucun nouvel outil,
+   seulement de rejouer celui qui existe.
+
+Une réserve a été consignée au même endroit : la même lecture constate — et ne
+suppose plus — que `anon` et `authenticated` détiennent toujours `EXECUTE` sur
+`nexus_garde_regularisation_reception` en Production. Cette dette se ferme par
+un `revoke` nommant les deux rôles, jamais en éditant `20260919103000`.
+
+Enfin, la portée du verdict. `13/13` ne lève que l'axe « ordre migration →
+code » du préflight. Il n'autorise ni la fusion, ni l'approbation du
+déploiement `github-pages` en attente, qui restent des gestes humains sous GO
+distincts.
+
+## 01/10/2026 — une option mal nommée a produit un REFUS crédible
+
+Immédiatement après, en rejouant la garde sur l'état qui allait être commité,
+l'appel a été écrit `controler({ candidat, cible })`. L'option s'appelait
+`candidate`. Elle a donc été ignorée sans un mot, le candidat est retombé sur
+`HEAD`, et la garde a rendu un refus parfaitement crédible : vingt migrations
+non qualifiées, chacune nommée, chacune motivée. Rien dans ce refus n'était
+faux — il ne portait simplement pas sur la PR jugée. Il n'a été démasqué que
+parce que la sortie imprime les refs réellement reçues : `candidat : HEAD`.
+
+La réparation n'est pas de mieux écrire l'appel.
+
+1. **Un appel mal nommé doit être incapable de produire un verdict**, vert ou
+   rouge. `controler()` refuse désormais toute clé hors contrat et lève, au
+   lieu de compléter les trous par des valeurs par défaut. Un défaut de
+   programmation ne doit pas pouvoir s'exprimer dans le vocabulaire des
+   verdicts, parce qu'il s'y lit comme un verdict.
+2. **Une valeur par défaut est un piège quand elle est plausible.** `HEAD`
+   était un repli raisonnable pour un usage en ligne de commande ; c'est ce
+   caractère raisonnable qui a rendu le faux refus indétectable à la lecture.
+3. **Le vocabulaire doit être d'une seule langue.** Toutes les autres options
+   sont françaises — `cible`, `depot`, `qualification`, `maintenant`,
+   `heures` ; `candidate` était la seule anglaise. `candidat` est maintenant
+   accepté et désigne la même ref ; les deux orthographes en désaccord lèvent,
+   la garde ne choisit pas.
+4. **Une sortie doit nommer ses entrées.** C'est la seule raison pour laquelle
+   ce défaut a été vu plutôt que cru. Toute garde qui résout une ref doit
+   imprimer la ref résolue, pas celle qu'on croit lui avoir passée.
+
+Trois épreuves (G1, G2, G3) couvrent ces règles, et chacune a été vérifiée
+rouge isolément contre la garde d'avant le correctif — G1 masquait G2, qui
+masquait G3, donc les trois ont été mesurées séparément.

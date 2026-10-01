@@ -299,9 +299,31 @@ function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, 
   return sortie;
 }
 
-function controler({ candidate, cible, depot, qualification, maintenant, heures } = {}) {
+// Noms d'options reconnus. Une clé hors de cette liste n'est pas tolérée : la
+// garde a déjà rendu un REFUS plausible pour avoir reçu `candidat` au lieu de
+// `candidate` — l'option inconnue était ignorée en silence, le candidat
+// retombait sur `HEAD`, et le rouge obtenu ne parlait pas de la PR jugée. Un
+// verdict pour la mauvaise raison coûte plus cher qu'une panne : un appel mal
+// nommé doit donc être incapable de produire un verdict, vert OU rouge.
+const OPTIONS_RECONNUES = new Set([
+  'candidat', 'candidate', 'cible', 'depot', 'qualification', 'maintenant', 'heures',
+]);
+
+function controler(options = {}) {
+  const inconnues = Object.keys(options).filter(k => !OPTIONS_RECONNUES.has(k));
+  if (inconnues.length) {
+    throw new Error('garde-ordre-migration-code : option(s) non reconnue(s) : '
+      + inconnues.join(', ') + '. Attendu : ' + [...OPTIONS_RECONNUES].join(', ')
+      + '. Refus d\u2019\u00e9mettre un verdict sur un appel mal nomm\u00e9.');
+  }
+  const { candidat, candidate, cible, depot, qualification, maintenant, heures } = options;
+  if (candidat !== undefined && candidate !== undefined && candidat !== candidate) {
+    throw new Error('garde-ordre-migration-code : `candidat` et `candidate` re\u00e7us '
+      + 'avec des valeurs diff\u00e9rentes (' + candidat + ' / ' + candidate
+      + '). Un candidat ne se devine pas entre deux orthographes.');
+  }
   const racine = depot || RACINE;
-  const refCandidate = candidate || 'HEAD';
+  const refCandidate = candidat || candidate || 'HEAD';
   const refCible = cible || 'origin/production';
   const fichier = qualification
     || process.env.NEXUS_QUALIFICATION

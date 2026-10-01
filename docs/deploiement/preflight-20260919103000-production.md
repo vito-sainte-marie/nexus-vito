@@ -1210,3 +1210,153 @@ bash outils/lecture-apres-migration-20260919103000.sh
 Elle imprime désormais, avant toute lecture, la cible **et l'identité
 réellement connectée**. Si cette ligne n'apparaît pas, aucune rubrique n'a été
 lue et il n'y a pas de verdict à interpréter.
+
+## 20. La lecture a eu lieu — 01/10/2026, 15 h 01 UTC
+
+Frédéric a lancé `outils/lecture-apres-migration-20260919103000.sh` sur
+Production. **Verdict : `MIGRATION_APPLIQUEE — 13/13`.** Ce n'est pas moi qui
+l'ai mesuré : la lecture Production est son geste, et c'est sa sortie qui fait
+foi ici.
+
+### 20.1 L'identité, constatée avant toute lecture
+
+    Cible : Production - lecture du catalogue seule, aucune ecriture.
+    Identite connectee : nexus_prod_readonly_login (conforme a l'attendu).
+
+Rubrique 0, demandée au serveur :
+
+| `current_user` | base | moteur | `lecture_seule` | lu le |
+|---|---|---|---|---|
+| `nexus_prod_readonly_login` | `postgres` | 17.6 | `on` | 2026-10-01 15:01:04.519735+00 |
+
+C'est la garde du §19 qui parle, et elle parle **en premier**. L'identité n'est
+pas celle qu'on a composée dans l'URL : c'est celle sous laquelle le serveur a
+accepté la session. Les deux lignes d'en-tête valent autant que les sept
+rubriques qui suivent — sans elles, on lirait un catalogue sans savoir qui l'a
+lu.
+
+### 20.2 Treize objets, comparés nom par nom — pas treize contre treize
+
+`13/13` ne prouve rien tout seul : deux ensembles de treize éléments peuvent
+différer. La comparaison a donc été faite contre `extraireObjets()` de
+`outils/garde-ordre-migration-code.js`, qui dérive la liste attendue **du
+fichier de migration lui-même** :
+
+| | |
+|---|---|
+| attendus par la garde | 13 |
+| constatés en Production | 13 |
+| attendus **non** constatés | aucun |
+| constatés **non** attendus | aucun |
+
+Correspondance exacte, objet par objet.
+
+| rubrique | objet | constat |
+|---|---|---|
+| 1 | les 2 tables | vues, 12 et 21 colonnes |
+| 2 | volume (`n_live_tup`) | 26 et 9 lignes — le témoin de capacité répond |
+| 3 | les 8 colonnes | présentes, lues sur `pg_attribute`/`pg_attrdef` (§15.5), pas sur `information_schema` |
+| 4 | les 3 contraintes | présentes et **convalidées** (`t`), définitions conformes |
+| 5 | la fonction | `security definer`, `search_path=public` |
+| 6 | le trigger | actif, `before insert or update`, et **appelle bien** `nexus_garde_regularisation_reception` |
+| 7 | verdict | `2 \| 8 \| 3 \| 1 \| 1 \| 13` → `MIGRATION_APPLIQUEE` |
+
+La rubrique 6 est celle qui compte le plus : elle ne constate pas qu'un trigger
+du bon nom existe, elle constate **quelle fonction il appelle**. Un trigger
+correctement nommé qui appellerait autre chose aurait passé les rubriques 5 et 6
+prises séparément.
+
+### 20.3 Ce que la même lecture révèle en passant — dette confirmée
+
+Rubrique 5, colonne `acl` :
+
+    {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+
+`anon` et `authenticated` ont toujours `EXECUTE` sur la fonction de garde.
+C'est la dette du §8 / §4.1, qui cesse ici d'être supposée : elle est
+**constatée en Production**. Elle ne remet pas en cause l'application de la
+migration, et elle ne se corrige pas en éditant `20260919103000` — un `revoke`
+séparé, sous GO distinct (cf. mémoire « `revoke from public` ne ferme pas
+`anon` » : viser `anon` et `authenticated` nommément).
+
+### 20.4 La garde consommée, et prouvée mordante
+
+`qualification-ordre-migration-code.json` passe de `etat_inconnu` à
+`migration_deja_appliquee`, avec la mesure datée, la cible, l'identité
+constatée et les 13 `objets_constates`.
+
+Mais une qualification écrite n'est pas une qualification acceptée. La garde a
+donc été exécutée sur la situation qu'elle est faite pour juger — un candidat
+portant la migration, une cible ne la portant pas : `fbf113b` contre son
+premier parent `52cd4a4`.
+
+    1 nouvelle(s), 0 retirée(s)
+    état déclaré : migration_deja_appliquee
+      · mesure sur « catalogue », 0 h, cible uzhjpqpctpvxytxpxoqz
+      · 13 objet(s) constaté(s) un par un
+    Ordre migration → code qualifié pour 1 migration(s).
+    ok=true  code=QUALIFIE
+
+Et trois contre-témoins, pour que ce vert se distingue d'un vert pour la
+mauvaise raison :
+
+| mutation | code obtenu |
+|---|---|
+| un seul objet retiré de `objets_constates` (`trg_garde_…`) | `OBJETS_NON_CONSTATES` |
+| mesure vieillie à 73 h | `MESURE_PERIMEE` |
+| `source` ramenée à `registre` | `MESURE_NON_RECEVABLE` |
+
+Chacun rougit par son propre motif. Les copies mutées ont vécu dans un
+`mktemp -d` et ont été détruites.
+
+### 20.5 Cette qualification expire — c'est voulu
+
+La garde exige une fraîcheur de 72 h (`NEXUS_QUALIFICATION_HEURES`). La mesure
+du 01/10 à 15 h 01 UTC **cesse de qualifier le 04/10/2026 à 15 h 01 UTC**, et
+la garde refusera de nouveau. Ce n'est pas une régression : une mesure est une
+observation datée, pas une propriété de la base. Pour la renouveler, rejouer le
+même outil — aucun nouveau dispositif.
+
+### 20.6 Ce que `13/13` n'autorise pas
+
+Le verdict lève **le seul axe du §4 : l'ordre migration → code** pour
+`20260919103000`. Il ne lève rien d'autre.
+
+- Le déploiement `github-pages` en attente reste **le geste de Frédéric**,
+  sous GO distinct. `13/13` n'est pas une autorisation de déployer.
+- Les 11 migrations du rail restent non qualifiées (mesuré au passage :
+  rail contre `origin/production`, 11 nouvelles **et 1 retirée** — le rail ne
+  porte pas encore `20260919103000`).
+- Le `revoke` du §20.3 reste à appliquer séparément.
+- Le câblage de `garde-ordre-migration-code.js` dans
+  `deploiement-production.yml` reste un geste à part.
+
+## 21. Pourquoi la preuve du §20.4 tient — et ce qui a été réparé après
+
+Le rejeu du §20.4 a été refait une dernière fois sur l'état exact qui part au
+dépôt. Le premier de ces rejeux a rendu un REFUS : `20 migration(s) non
+qualifiée(s)`. Ce refus était faux, et il était crédible.
+
+Cause : l'appel passait `candidat`, l'option s'appelle `candidate`. La clé
+inconnue était ignorée en silence et le candidat retombait sur `HEAD` — soit
+le rail entier, 287 migrations contre 267 sur la cible, donc vingt migrations
+nouvelles effectivement non qualifiées. La garde disait vrai sur une question
+qu'on ne lui avait pas posée.
+
+Ce qui a permis de le voir : la ligne que la garde imprime en tête,
+`candidat : HEAD   cible : 52cd4a4…`. L'affirmation du §20.4 tient pour la
+même raison — le run qui y est cité imprime `candidat :
+fbf113b44068b3507cb6289e2c18d57a6901c069   cible :
+52cd4a43d87d89d51a95e7911e7eb3714ec0f160`, c'est-à-dire les deux refs
+attendues, et non un repli. **La preuve du §20.4 n'est pas « la garde a dit
+QUALIFIE » ; c'est « la garde a dit QUALIFIE sur ces deux refs-là, qu'elle
+nomme elle-même ».**
+
+Réparation portée à `outils/garde-ordre-migration-code.js` : toute option hors
+contrat lève au lieu de produire un verdict ; `candidat` est accepté comme
+l'orthographe de la maison et désigne la même ref ; les deux orthographes en
+désaccord lèvent. Trois épreuves (`test_garde_ordre_migration_code_20260930.js`,
+G1 à G3) ont été vérifiées rouges isolément contre la garde d'avant.
+
+Verdict du §20 inchangé : `ok=true code=QUALIFIE`, sur `fbf113b` contre
+`52cd4a4`, 1 migration nouvelle, 0 retirée, 13 objets constatés un par un.

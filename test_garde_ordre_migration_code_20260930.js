@@ -379,5 +379,43 @@ const D = depotJetable();
   ok('F2 — la garde n’ouvre aucune base, ne nomme aucun secret, n’a aucun accès réseau');
 }
 
+// ------------------------------------------------------------------
+// G. 01/10/2026 — l'option mal nommée. La garde a rendu un REFUS plausible
+//    pour avoir reçu `candidat` au lieu de `candidate` : l'option inconnue
+//    était ignorée, le candidat retombait sur `HEAD`, et le rouge obtenu ne
+//    parlait pas de la PR jugée. Un verdict pour la mauvaise raison est pire
+//    qu'une panne, parce qu'il se lit comme un verdict.
+// ------------------------------------------------------------------
+{
+  // Une clé hors contrat ne doit pas produire de verdict — ni vert, ni rouge.
+  assert.throws(
+    () => controler({ depot: D, refCandidat: 'candidat', cible: 'cible', maintenant: MAINTENANT }),
+    /option\(s\) non reconnue\(s\) : refCandidat/,
+    'une option inconnue doit lever, pas retomber sur HEAD en silence');
+  ok('G1 — une option non reconnue est incapable de produire un verdict');
+}
+
+{
+  // `candidat` est l'orthographe de la maison — toutes les autres options de
+  // la garde sont françaises. Elle doit désigner le MÊME candidat, pas être
+  // avalée. C'est l'assertion qui rougit sans le correctif.
+  const q = qualifier(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE });
+  const fr = controler({ depot: D, candidat: 'candidat', cible: 'cible', qualification: q, maintenant: MAINTENANT });
+  const en = controler({ depot: D, candidate: 'candidat', cible: 'cible', qualification: q, maintenant: MAINTENANT });
+  assert.strictEqual(fr.ok, en.ok, '`candidat` et `candidate` doivent rendre le même verdict');
+  assert.strictEqual(fr.message, en.message, '`candidat` doit désigner la même ref que `candidate`');
+  assert.ok(/candidat : candidat\s/.test(fr.message), 'la ref reçue doit être celle passée : ' + fr.message);
+  ok('G2 — `candidat` désigne la même ref que `candidate`, il n’est pas avalé');
+}
+
+{
+  // Deux orthographes contradictoires : la garde ne choisit pas pour nous.
+  assert.throws(
+    () => controler({ depot: D, candidat: 'candidat', candidate: 'cible', cible: 'cible', maintenant: MAINTENANT }),
+    /valeurs diff\u00e9rentes/,
+    'deux orthographes en désaccord doivent lever');
+  ok('G3 — `candidat` et `candidate` en désaccord : refus de deviner');
+}
+
 fs.rmSync(D, { recursive: true, force: true });
 console.log(`\n${n} tests passés.`);
