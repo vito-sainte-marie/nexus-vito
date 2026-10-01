@@ -467,6 +467,33 @@ Trois règles en sortent, toutes vérifiées par
    Une garde qui laisse passer sans le dire redevient indistinguable d'une garde
    absente.
 
+**La correction s'est heurtée à elle-même, et c'est le meilleur contrôle qu'on
+en ait.** Mesurée sur son propre diff, elle se refusait son propre transport :
+la garde porte les cinq motifs d'adresse, et l'épreuve qui prouve qu'elle mord
+porte quatre vraies adresses en contre-témoins. On ne reconnaît pas une adresse
+sans l'écrire. D'où un **corpus de reconnaissance** — une liste **close et
+nommée** de deux chemins, jamais un motif : `test_*.js` laisserait n'importe
+quelle épreuve future embarquer une chaîne de connexion. Dans ces deux fichiers
+seulement, la forme actionnable est un spécimen, publié sous
+`details.specimens`. Un cliquet épingle le contenu exact de la liste : toute
+entrée supplémentaire rougit la suite et appelle un humain. Le corpus excuse
+l'adresse — publique dans ce dépôt — jamais ce qui permet d'y entrer : la garde
+des secrets reste entière au-dessus.
+
+**Et la même mesure a trouvé l'étage d'après — qui se règle autrement.** La
+version portant le corpus a été refusée à son tour, `BLOCKED
+(SECRET_DETECTE)` : le contre-témoin qui prouve qu'un secret reste un secret
+écrivait une chaîne de connexion en toutes lettres. La garde avait raison, et le
+corpus ne l'excusait pas — par construction, puisque ce contre-témoin-là l'exige.
+Élargir `MOTIFS_SECRET` pour faire passer son propre test aurait été affaiblir la
+garde : `MOTIFS_SECRET` est inchangé. Le contre-témoin **compose** désormais la
+chaîne à l'exécution ; la garde reçoit exactement ce qu'elle doit refuser, et le
+fichier n'en porte aucune forme. Un cliquet lit la source de l'épreuve et rougit
+si le littéral revient. **La ligne de partage est là, et elle vaut au-delà de ce
+cas** : nommer une adresse publique est du vocabulaire et s'excuse par une liste
+close ; écrire ce qui permet d'entrer ne s'excuse jamais, et se contourne en ne
+l'écrivant pas.
+
 **Comment cette classe se détecte désormais.** Le capteur `branches-en-rade`
 publie à chaque run la liste des branches Claude non rapatriées. Une branche qui
 reste `EN RADE` alors qu'elle est **verte, destinée au rail et fast-forwardable**

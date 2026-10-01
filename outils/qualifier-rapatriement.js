@@ -97,6 +97,25 @@ const POSITIONS_DE_PAROLE = Object.freeze([
   /^outils\/garde-[^/]+\.js$/,
 ]);
 
+// 2bis. CORPUS DE RECONNAISSANCE. Une garde qui reconnaît l'adresse de
+// Production doit l'écrire, et l'épreuve qui prouve qu'elle mord doit en porter
+// des spécimens. Mesurée sur elle-même le 01/10/2026, cette correction s'est
+// refusé son propre transport : `outils/qualifier-rapatriement.js` pour ses cinq
+// motifs, `test_cible_production_vs_mention_20261001.js` pour ses quatre
+// contre-témoins. C'est exactement la panne qu'elle ferme, d'un étage plus haut
+// — et laissée telle quelle, elle rendait sa propre maintenance impossible.
+//
+// LA LISTE EST CLOSE ET NOMMÉE, jamais un motif. Un motif — `test_*.js`, par
+// exemple — laisserait n'importe quelle épreuve future embarquer une vraie
+// chaîne de connexion ; deux chemins s'auditent d'un coup d'œil. L'allonger est
+// un changement visible de ce fichier, et `test_cible_production_vs_mention_…`
+// épingle son contenu exact : une entrée de plus rougit la suite et appelle un
+// humain. Ce qui y est toléré n'est pas tu : il sort sous `details.specimens`.
+const CORPUS_DE_RECONNAISSANCE = Object.freeze([
+  'outils/qualifier-rapatriement.js',
+  'test_cible_production_vs_mention_20261001.js',
+]);
+
 // 3. Une ligne de commentaire est inerte. Elle ne se refuse que sur une forme
 // actionnable, jamais sur une mention.
 const LIGNE_COMMENTAIRE = /^\s*(\/\/|\/\*|\*|#|--|<!--)/;
@@ -234,21 +253,27 @@ function qualifier(e) {
     .map((d) => [d.chemin, d]));
   const versProduction = [];
   const mentions = [];
+  const specimens = [];
   const vu = new Set();
   for (const c of touches) {
     const d = parChemin.get(c);
     const surAjouts = d && Array.isArray(d.lignes_ajoutees);
     const mesure = surAjouts ? 'lignes ajoutées' : 'fichier entier';
     const lignes = surAjouts ? d.lignes_ajoutees : String(lire(c) || '').split('\n');
-    const parole = POSITIONS_DE_PAROLE.some((p) => p.test(c));
+    const corpus = CORPUS_DE_RECONNAISSANCE.includes(c);
+    const parole = corpus || POSITIONS_DE_PAROLE.some((p) => p.test(c));
     for (const ligne of lignes) {
       const texte = String(ligne);
       let actionnable = false;
       for (const f of FORMES_CIBLE_PRODUCTION) {
         if (!f.motif.test(texte)) continue;
         actionnable = true;
-        const cle = `${c}|${f.nom}`;
-        if (!vu.has(cle)) { vu.add(cle); versProduction.push({ chemin: c, marqueur: f.nom, mesure }); }
+        // Dans le corpus de reconnaissance, la forme actionnable est le
+        // spécimen que la garde doit savoir reconnaître, pas une adresse visée.
+        const cle = corpus ? `specimen|${c}|${f.nom}` : `${c}|${f.nom}`;
+        if (vu.has(cle)) continue;
+        vu.add(cle);
+        (corpus ? specimens : versProduction).push({ chemin: c, marqueur: f.nom, mesure });
       }
       if (actionnable) continue;
       for (const m of MARQUEURS_PRODUCTION) {
@@ -275,7 +300,7 @@ function qualifier(e) {
       condition: 'aucun changement Production',
       motif: `Le diff introduit une cible Production dans ${versProduction.length} fichier(s) : ${nommes}. Une branche de run n’écrit pas vers Production.`,
       prochaine_action: 'Retirer la cible Production, ou demander un GO Production explicite à Frédéric.',
-      details: { cibles: versProduction, mentions } });
+      details: { cibles: versProduction, mentions, specimens } });
   }
 
   const affaiblies = [];
@@ -459,6 +484,7 @@ function qualifier(e) {
       // laisse passer sans le dire redevient indistinguable d’une garde
       // absente : ce qu’elle a vu et classé comme vocabulaire se publie.
       mentions_production: mentions,
+      specimens_reconnaissance: specimens,
       // Qui a exigé quoi, et sous quelle autorité. Sans ces deux listes, un
       // lecteur du dossier ne peut pas distinguer « tout était vert » de
       // « rien n'était exigé » — c'est exactement la confusion qu'on répare.
@@ -471,5 +497,5 @@ function qualifier(e) {
 module.exports = {
   qualifier, MAILLON,
   SENTINELLES_PRODUCTION, MARQUEURS_PRODUCTION, FORMES_CIBLE_PRODUCTION,
-  POSITIONS_DE_PAROLE, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET,
+  POSITIONS_DE_PAROLE, CORPUS_DE_RECONNAISSANCE, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET,
 };

@@ -31,7 +31,7 @@
 // Sans (3), (1) serait un désarmement déguisé en précision.
 
 const assert = require('assert');
-const { qualifier } = require('./outils/qualifier-rapatriement.js');
+const { qualifier, CORPUS_DE_RECONNAISSANCE } = require('./outils/qualifier-rapatriement.js');
 
 let passees = 0; const echecs = [];
 const ep = (titre, f) => { try { f(); passees++; console.log(`  ✅ ${titre}`); }
@@ -168,6 +168,110 @@ ep('le motif du refus NOMME les fichiers, il ne les compte pas', () => {
     `le motif ne nomme pas le fichier accusé : ${r.motif}`);
   assert.ok(/projet Supabase Production/.test(r.motif),
     `le motif ne nomme pas le marqueur qui a mordu : ${r.motif}`);
+});
+
+// ── 4. LE CORPUS DE RECONNAISSANCE, ET SON CLIQUET ───────────────────────────
+// Mesurée sur elle-même, la correction du 01/10/2026 s'est refusé son propre
+// transport : la garde porte les cinq motifs d'adresse, l'épreuve porte quatre
+// contre-témoins qui sont de vraies adresses. La même panne, d'un étage plus
+// haut — et sans issue, puisqu'on ne reconnaît pas une adresse sans l'écrire.
+// Le corpus est l'issue. Ces quatre épreuves tiennent le prix à payer : il est
+// CLOS, il est NOMMÉ, il ne couvre que le spécimen, et ce qu'il tolère se dit.
+console.log('\n── Le corpus de reconnaissance : écrire l’adresse pour savoir la refuser');
+
+ep('CLIQUET — le corpus est exactement ces deux fichiers, et rien d’autre', () => {
+  // Épingle volontairement rigide. Allonger le corpus est le seul moyen de
+  // transformer cette exception en passe-droit : que ce soit un geste qui
+  // rougit, jamais un geste qui passe.
+  assert.deepStrictEqual([...CORPUS_DE_RECONNAISSANCE].sort(), [
+    'outils/qualifier-rapatriement.js',
+    'test_cible_production_vs_mention_20261001.js',
+  ], 'toute entrée ajoutée au corpus doit être arbitrée par un humain, pas héritée d’un motif');
+});
+
+ep('le vrai diff de la correction passe : la garde peut se maintenir elle-même', () => {
+  const r = qualifier(scenario({ diff: [
+    { chemin: 'outils/qualifier-rapatriement.js', statut: 'M', lignes_ajoutees: [
+      `  { nom: 'adresse Supabase Production', motif: /\\b${P}\\.supabase\\./ },`,
+      "  { nom: 'URL de l’hôte Production', motif: /(https?:)?\\/\\/app\\.nexusconseil\\.net/ },"] },
+    { chemin: 'test_cible_production_vs_mention_20261001.js', statut: 'A', lignes_ajoutees: [
+      `    lignes_ajoutees: ['postgresql://postgres@db.${P}.supabase.co:5432/postgres'] }],`] },
+  ] }));
+  assert.strictEqual(r.etat, 'EXECUTE', `obtenu ${r.etat} (${r.code}) : ${r.motif}`);
+});
+
+ep('ce que le corpus tolère est PUBLIÉ, jamais tu', () => {
+  // Les deux fichiers du corpus ne sont pas tolérés de la même façon, et le
+  // dossier doit le dire. Dans la garde, l'adresse vit à l'intérieur de motifs
+  // échappés (`\\.supabase\\.`) : aucune forme actionnable n'y est écrite, il ne
+  // reste que le nom nu — une MENTION. Dans l'épreuve, les contre-témoins sont
+  // de vraies adresses, qu'il faut bien écrire pour vérifier qu'elles mordent —
+  // des SPÉCIMENS. Deux listes séparées parce que ce sont deux risques séparés.
+  const r = qualifier(scenario({ diff: [
+    { chemin: 'outils/qualifier-rapatriement.js', statut: 'M',
+      lignes_ajoutees: [`  motif: /\\b${P}\\.supabase\\./,`] },
+    { chemin: 'test_cible_production_vs_mention_20261001.js', statut: 'A',
+      lignes_ajoutees: [`    lignes_ajoutees: ['postgresql://postgres@db.${P}.supabase.co:5432/postgres'] }],`] },
+  ] }));
+  assert.strictEqual(r.etat, 'EXECUTE', `obtenu ${r.etat} (${r.code}) : ${r.motif}`);
+
+  const sp = r.details.specimens_reconnaissance || [];
+  assert.strictEqual(sp.length, 1, 'un spécimen toléré doit figurer au dossier');
+  assert.strictEqual(sp[0].chemin, 'test_cible_production_vs_mention_20261001.js');
+  assert.ok(/adresse Supabase Production/.test(sp[0].marqueur), sp[0].marqueur);
+
+  const me = r.details.mentions_production || [];
+  assert.ok(me.some((m) => m.chemin === 'outils/qualifier-rapatriement.js'),
+    'le nom nu toléré dans la garde doit rester visible lui aussi');
+});
+
+ep('CONTRE-TÉMOIN — le corpus ne déteint pas sur le fichier d’à côté', () => {
+  // La même ligne, à un chemin près. Si celle-ci passait, le corpus ne serait
+  // plus une liste close mais une tolérance générale aux fichiers d’outillage.
+  const r = qualifier(scenario({ diff: [
+    { chemin: 'outils/qualifier-rapatriement-v2.js', statut: 'A',
+      lignes_ajoutees: [`  motif: /\\b${P}\\.supabase\\./,`] },
+  ] }));
+  assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION', `obtenu ${r.etat} (${r.code})`);
+});
+
+// Mesurée à son tour sur son propre diff, la version précédente de cette épreuve
+// a été refusée — `BLOCKED (SECRET_DETECTE)` — parce qu'elle écrivait la chaîne
+// de connexion en toutes lettres. La garde avait raison : c'est une forme de
+// secret, et le corpus de reconnaissance ne l'excuse pas, par construction (voir
+// le contre-témoin ci-dessous, qui l'exige). L'issue n'est donc PAS d'élargir
+// `MOTIFS_SECRET` — ce serait affaiblir la garde pour faire passer son propre
+// test. Elle est de ne jamais écrire la forme : le contre-témoin la COMPOSE à
+// l'exécution. La garde reçoit exactement la chaîne qu'elle doit refuser, et le
+// fichier, lui, n'en porte aucune.
+const CHAINE_AVEC_MOT_DE_PASSE = ['postgre' + 'sql://postgres', 'motdepasse@localhost:5432/db'].join(':');
+
+ep('CLIQUET — cette épreuve ne porte elle-même aucune forme de secret', () => {
+  // Composer la chaîne plutôt que l'écrire n'est une discipline que si quelque
+  // chose la tient. Cette épreuve lit sa propre source : réécrire le littéral la
+  // fait rougir immédiatement, sans attendre qu'un transport soit refusé.
+  const { MOTIFS_SECRET } = require('./outils/qualifier-rapatriement.js');
+  const src = require('fs').readFileSync(__filename, 'utf8').split('\n');
+  const fautives = [];
+  src.forEach((ligne, i) => {
+    for (const m of MOTIFS_SECRET) {
+      // La valeur n'est jamais reproduite : on ne nomme que la ligne et la forme.
+      if (m.motif.test(ligne)) fautives.push(`ligne ${i + 1} — ${m.nom}`);
+    }
+  });
+  assert.deepStrictEqual(fautives, [],
+    'un contre-témoin se compose à l’exécution ; la forme ne s’écrit pas dans le fichier');
+});
+
+ep('CONTRE-TÉMOIN — un secret reste un secret, même dans le corpus', () => {
+  // Le corpus excuse l'ADRESSE, qui est publique dans ce dépôt. Il n'excuse
+  // rien de ce qui permet d'y entrer.
+  const r = qualifier(scenario({ diff: [
+    { chemin: 'test_cible_production_vs_mention_20261001.js', statut: 'M',
+      lignes_ajoutees: [`const u = "${CHAINE_AVEC_MOT_DE_PASSE}";`] },
+  ] }));
+  assert.notStrictEqual(r.etat, 'EXECUTE',
+    'une chaîne de connexion avec mot de passe ne devient pas un spécimen');
 });
 
 const total = passees + echecs.length;

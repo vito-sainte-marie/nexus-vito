@@ -248,6 +248,16 @@ const MUTATIONS = [
   // Le refus cesse de désigner. Il reste publié, et redevient inactionnable :
   // c'est ce qui a obligé à rejouer la qualification en local le 01/10 pour
   // savoir quels fichiers corriger.
+  // ── LE CORPUS DE RECONNAISSANCE (01/10/2026) ──────────────────────────────
+  // Une exception close se garde par ses deux bords : elle doit couvrir ce
+  // qu'elle déclare, et rien de plus. L'un rend la garde immaintenable, l'autre
+  // en fait un passe-droit.
+  { nom: 'le corpus de reconnaissance avale n’importe quel fichier', f: QUALIF, rouge: X_CIBLE,
+    de: "    const corpus = CORPUS_DE_RECONNAISSANCE.includes(c);",
+    a:  "    const corpus = true;" },
+  { nom: 'le corpus ne couvre plus rien — la garde ne peut plus se maintenir', f: QUALIF, rouge: X_CIBLE,
+    de: "    const corpus = CORPUS_DE_RECONNAISSANCE.includes(c);",
+    a:  "    const corpus = false;" },
   { nom: 'le refus compte les fichiers au lieu de les nommer', f: QUALIF, rouge: X_CIBLE,
     de: "dans ${versProduction.length} fichier(s) : ${nommes}.",
     a:  "dans ${versProduction.length} fichier(s)." },
