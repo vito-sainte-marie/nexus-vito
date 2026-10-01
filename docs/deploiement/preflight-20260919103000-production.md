@@ -1360,3 +1360,166 @@ G1 à G3) ont été vérifiées rouges isolément contre la garde d'avant.
 
 Verdict du §20 inchangé : `ok=true code=QUALIFIE`, sur `fbf113b` contre
 `52cd4a4`, 1 migration nouvelle, 0 retirée, 13 objets constatés un par un.
+
+## 22. Le revoke sur `anon` et `authenticated` — 01/10/2026
+
+GO de Frédéric, 01/10/2026 : « GO pour le revoke sur anon et authenticated ».
+
+### 22.1 Ce que la lecture du §20 a montré, et qui n'était pas la migration
+
+La lecture du 01/10 à 15 h 01 UTC rendait `MIGRATION_APPLIQUEE — 13/13`. Elle
+rendait aussi, dans la même rubrique, l'ACL de la fonction de garde :
+
+```
+{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+```
+
+Or la migration `20260919103000` contient, à sa ligne 141 :
+
+```sql
+revoke all on function public.nexus_garde_regularisation_reception() from public;
+```
+
+Le dépôt a donc **écrit l'intention de fermer** cette fonction, et la base dit
+que l'intention n'a pas pris effet. Ce n'est pas une dérive : c'est le mauvais
+instrument. Supabase installe un `ALTER DEFAULT PRIVILEGES … GRANT EXECUTE ON
+FUNCTIONS TO anon, authenticated, service_role`. L'`EXECUTE` de ces rôles est
+donc un **grant nommé**, jamais l'entrée pseudo-rôle `PUBLIC`. `from public`
+retire quelque chose qui n'a jamais été accordé par là.
+
+C'est la **quatrième** occurrence du même motif. La leçon était déjà écrite en
+prose dans `20260916210000`, « apres trois occurrences du meme motif ». Une
+leçon qu'aucune machine ne mesure n'est pas une leçon, c'est un souvenir : le
+19/09 a commis la quatrième avec la leçon sous les yeux.
+
+### 22.2 La proportion, dite avant le remède
+
+**L'exposition pratique fermée par ce revoke est nulle**, et il faut le dire
+avant de décrire le travail, pas après.
+
+`nexus_garde_regularisation_reception()` est une fonction `returns trigger`.
+Elle ne peut être appelée d'aucune autre manière qu'en tant que trigger — un
+appel direct échoue à la compilation, avant toute logique. Et PostgreSQL **ne
+consulte pas `EXECUTE` quand un trigger se déclenche**. Détenir `EXECUTE` sur
+cette fonction n'ouvre donc rien à personne.
+
+Ce qui est réel n'est pas un risque, c'est une **divergence entre ce que le
+dépôt affirme et ce que la base fait**. C'est une dette de cohérence. Elle se
+ferme parce qu'une intention écrite qui n'agit pas est pire qu'une intention
+absente : elle se relit comme une protection.
+
+### 22.3 Ce qui a été mesuré, et où
+
+La lecture Production dit ce que la base **porte**. Elle ne dit pas ce que le
+revoke **ferait**. Cette seconde question ne se devine pas, et je n'ai aucun
+chemin d'écriture vers Production — ni ne dois en chercher un.
+
+Elle a été répétée sur un banc jetable `supabase/postgres:17.6.1.175` (même
+famille de moteur que Production, 17.6), où l'ACL de la fonction a été
+reproduite **octet pour octet** identique à la lecture du §20. Chaque objet du
+banc a été vérifié un par un — table, fonction `security definer`, trigger
+actif, ACL — et non déduit du fait qu'une requête ait répondu. Cette précaution
+n'est pas rhétorique : au premier essai, la fonction du banc avait **disparu**
+entre deux fenêtres, et la répétition exerçait la branche « fonction absente »
+en croyant exercer l'autre.
+
+Quatre témoins avant, cinq après :
+
+| | AVANT le revoke | APRÈS |
+|---|---|---|
+| ACL de la fonction | `postgres, anon, authenticated, service_role` | `postgres, service_role` |
+| appel direct par `authenticated` | `trigger functions can only be called as triggers` | `permission denied for function` |
+| employé sous `authenticated` | refusé, 42501, message propre de la garde | refusé, **identique** |
+| employé sous `anon` | refusé | refusé, **identique** |
+| manager régularise | `INSERE` | `INSERE` |
+| `temps_reel` | `INSERE` | `INSERE` |
+
+La deuxième ligne est le discriminant, et il tranche dans les deux sens. Avant,
+l'appel direct échoue sur la **compilation** : le contrôle d'ACL avait donc été
+*passé*, ce qui prouve que le rôle détenait réellement `EXECUTE`. Après, il
+échoue sur l'ACL : le revoke **mord**. Sans cette paire, un « ça refuse dans les
+deux cas » aurait été lu comme « rien n'a changé ».
+
+Les trois lignes suivantes sont la non-régression : le trigger continue de se
+déclencher et de refuser, exactement comme avant.
+
+### 22.4 Ce qui a été écrit
+
+1. `supabase/migrations/20261001160000_revoque_garde_regularisation_reception_anon_authenticated.sql`
+   — le revoke, nommant les deux rôles, gardé par un test d'existence de la
+   fonction. **La migration `20260919103000` n'est pas éditée**, et ne doit
+   jamais l'être : elle est appliquée en Production, et un fichier appliqué ne
+   se réécrit pas.
+2. `outils/revoke-garde-regularisation-production-a-executer-par-frederic.sql`
+   — la procédure, en quatre sections qui se jugent elles-mêmes : lecture AVANT
+   (`TROU CONFIRME` / `DEJA FERME` / `ACL NULLE — s'arrêter`), le revoke,
+   lecture APRÈS (`FERME` seulement si l'ACL ne porte plus ni `anon=` ni
+   `authenticated=` **et** porte encore `service_role=X` et `postgres=X`),
+   non-régression du trigger (`INTACT`). Rejouer est idempotent, vérifié.
+3. La fiche de qualification `20261001160000`, en `atomique_ou_procedure_speciale`.
+
+### 22.5 Pourquoi la fiche n'est pas « additive »
+
+`extraireObjets()` rend **zéro objet** sur ce fichier : un revoke ne crée rien.
+Donc `additive_compatible_avant_code` serait passée **à vide** — aucun DDL
+destructif à trouver, aucune colonne `NOT NULL` sans défaut, aucune cible déjà
+dépendante. Un vert obtenu par absence de matière n'est pas un vert.
+
+`atomique_ou_procedure_speciale` exige une `procedure` dont la garde vérifie
+l'existence **sur disque**. C'est le seul état qui exerce un contrôle réel ici.
+
+Cinq mutations ont été passées sur la fiche. Quatre étaient attrapées :
+procédure retirée (`PROCEDURE_ABSENTE`), procédure qui ne désigne aucun fichier
+(`PROCEDURE_INTROUVABLE`), mesure vieille de 11 jours (`MESURE_PERIMEE`),
+mesure prise sur le registre des migrations (`MESURE_NON_RECEVABLE`).
+
+**La cinquième ne l'était pas.** Déclarer `migration_deja_appliquee` passait, en
+annonçant « 0 objet(s) constaté(s) un par un ». « Déjà appliquée » est une
+affirmation de fait sur la base, et la seule manière de la vérifier est de
+constater les objets ; sans objet, il n'y a rien à constater, donc rien qui
+puisse démentir la déclaration. Le contrôle ne contrôlait rien et l'annonçait
+comme un succès. Corrigé le 01/10 : `DEJA_APPLIQUEE_SANS_OBJET_MESURABLE`,
+épreuve E5, vérifiée rouge contre la garde d'avant le correctif.
+
+### 22.6 La réparation de fond : le silence, pas le grant
+
+Le dépôt a été mesuré en entier. **28 fonctions** portent un `revoke` ; sur
+ces 28, **18 ne nomment ni `anon` ni `authenticated`**, dont 11 nomment
+`public` et l'un des deux rôles seulement — le défaut à moitié corrigé.
+
+Fermer les 18 serait un colmatage, et serait faux : `mes_ecarts_caisse()` est
+une RPC appelée par un écran connecté, `authenticated` **doit** la garder.
+
+Le défaut à réparer n'est donc pas le grant, c'est le **silence sur
+l'intention**. `outils/garde-revoke-fonction-roles-nommes.js` exige désormais
+de tout `revoke` de fonction qu'il **dise** ce qu'il veut pour les deux rôles :
+soit le rôle est nommé dans le `revoke`, soit une marque déclare le grant
+conservé **avec son motif** —
+
+```sql
+-- nexus-acl-intention: public.mes_ecarts_caisse() garde authenticated (RPC appelee par l ecran Mes ecarts)
+```
+
+La garde BLOQUE à partir de l'estampille `20261001000000` et **gèle la dette
+historique à 18**. Le gel plutôt que la tolérance au cas par cas : un contrôle
+positionnel rendrait le nombre de dérogations non borné. Et le compte est
+comparé **dans les deux sens** — une dette qui diminue en silence est aussi
+invisible qu'une dette qui grandit.
+
+Dix épreuves (R1–R10) couvrent la garde, chacune étant un couple forme correcte
+/ mutation minimale. La garde elle-même a été mutée **huit fois, une à la
+fois**, avec témoin vert avant et contre-témoin restauré au sha256 identique
+après ; les huit rougissent. Une prédiction s'est révélée fausse — la mutation
+« un seul rôle à statuer » rougit R1 et non R2, parce que R1 exige déjà que les
+**deux** rôles soient cités dans le refus ; c'est noté ici plutôt que corrigé
+après coup.
+
+### 22.7 Ce que ce GO n'autorise pas
+
+L'application à Production du revoke est le **geste de Frédéric**, sous la gate
+humaine. Claude n'a aucun chemin d'écriture vers Production, le refus portant
+sur le **résultat** et non sur la commande : il ne se contourne ni par un autre
+outil, ni par le serveur MCP Supabase, ni en le découpant en morceaux.
+
+Et il reste sans rapport avec le déploiement `github-pages` en attente, qui
+demeure soumis à un GO distinct.

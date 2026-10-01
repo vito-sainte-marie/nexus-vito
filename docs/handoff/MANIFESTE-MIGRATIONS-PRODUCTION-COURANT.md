@@ -91,3 +91,70 @@ d'elles ne se déclare Test/CI, ce qui est un fait mécanique, pas un jugement.
 La décision de les inclure réellement dans une release reste une gate
 Orchestrator/Frédéric distincte, comme pour toutes les entrées du manifeste
 historique.
+
+---
+
+## Addendum du 01/10/2026 — deux migrations, deux statuts opposés
+
+Ce lot ajoute deux estampilles au dépôt, et il importe qu'elles ne soient pas
+classées ensemble : l'une est **déjà en Production**, l'autre **ne l'est pas**.
+
+### Déjà appliquée en Production — constatée, pas promue (1 migration)
+
+1. `20260919103000_carburant_reception_regularisation_releve_manuscrit`
+
+**Ce fichier n'est pas une nouveauté : c'est une absence réparée.** Il est
+enregistré en Production (lecture du 01/10/2026 15 h 01 UTC, verdict
+`MIGRATION_APPLIQUEE — 13/13`, 13 objets constatés nom par nom) et il existait
+sur `production` sans exister sur le rail. `test_migrations_immuables_20260905.js`
+le signalait depuis le 20/09 : « Migrations de production absentes de cette
+branche ». Mesuré rouge sur le rail propre à `f6e3f33`, avant toute écriture de
+ce lot — ce rouge n'appartenait pas à ce lot, il l'attendait.
+
+Le fichier a été **copié verbatim** depuis `origin/production`, et l'identité a
+été vérifiée par l'objet git lui-même : blob `b51aaec6` des deux côtés, 8988
+octets, sha256 identique. Une migration appliquée est immuable dans son
+identité : elle se copie, elle ne se réécrit pas.
+
+Ce classement **ne promeut rien** — la cible la porte déjà. Il rend le dépôt
+véridique sur ce que la base fait.
+
+### Proposée incluse dans une future release Production (1 migration)
+
+2. `20261001160000_revoque_garde_regularisation_reception_anon_authenticated`
+
+Un `revoke` pur : aucun objet créé, modifié ou supprimé. Elle retire
+l'`EXECUTE` de `anon` et `authenticated` sur
+`public.nexus_garde_regularisation_reception()`, que la migration n° 1 avait
+voulu fermer par `revoke … from public` — un instrument qui ne pouvait pas
+mordre, Supabase accordant ces `EXECUTE` par grants **nommés**.
+
+Elle ne se déclare pas Test/CI et ne touche pas `nexus_ci_recette` : même
+critère déterministe que les 14 de l'addendum du 21/09, rejoué, pas réinventé.
+
+**Pourquoi l'ordre entre les deux compte.** La n° 2 agit sur une fonction que
+la n° 1 crée. Tant que le rail ne portait pas la n° 1, le dépôt contenait un
+`revoke` visant une fonction qu'aucune de ses migrations ne crée : rejoué sur
+une base vierge, le garde `if exists` de la n° 2 aurait rendu son avis
+« fonction ABSENTE » et le lot aurait **réussi sans rien fermer**. C'est
+précisément le faux succès que la procédure de la n° 2 refuse de compter.
+Descendre la n° 1 n'est donc pas un à-côté : c'est ce qui rend la n° 2
+falsifiable.
+
+### Proportion, à dire honnêtement
+
+L'exposition pratique fermée par la n° 2 est **nulle** :
+`nexus_garde_regularisation_reception()` est `returns trigger`, un appel direct
+échoue à la compilation, et PostgreSQL ne consulte pas `EXECUTE` quand un
+trigger se déclenche. Ce qui est réel est la divergence entre ce que le dépôt
+affirme et ce que la base fait. Une intention écrite qui n'agit pas est pire
+qu'une intention absente : elle se relit comme une protection.
+
+### Ce que cet addendum ne fait pas
+
+Il ne promeut rien, n'exécute aucun SQL, ne modifie ni le manifeste historique
+ni `main`/`production`, et ne tranche pas la fenêtre de déploiement. L'application
+du `revoke` à Production reste le geste de Frédéric
+(`outils/revoke-garde-regularisation-production-a-executer-par-frederic.sql`),
+sous la gate humaine, et le GO du 01/10/2026 porte sur le revoke seul — ni
+fusion, ni déploiement.

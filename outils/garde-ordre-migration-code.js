@@ -279,6 +279,16 @@ function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, 
   }
 
   if (etat === ETATS.DEJA_APPLIQUEE) {
+    // « Deja appliquee » est une affirmation de FAIT sur la base, et la seule maniere de la
+    // verifier est de constater les objets un par un. Une migration qui ne cree aucun objet
+    // n'offre rien a constater : l'affirmation devient infalsifiable, et le controle ci-dessous
+    // passerait a vide en annoncant « 0 objet(s) constate(s) », ce qui ressemble a un vert.
+    // Mesure du 01/10/2026 : une migration de revoke pur (0 objet) obtenait ce vert-la.
+    // Un tel fichier doit se qualifier autrement — par une procedure que la garde peut voir.
+    if (analyse.objets.length === 0) {
+      sortie.refus = { code: 'DEJA_APPLIQUEE_SANS_OBJET_MESURABLE' };
+      return sortie;
+    }
     const attendus = analyse.objets.map(o => o.nom.toLowerCase());
     const constates = new Set((fiche.objets_constates || []).map(s => String(s).toLowerCase()));
     const manquants = [...new Set(attendus)].filter(a => !constates.has(a));
@@ -438,6 +448,10 @@ function explique(refus) {
         + 'ce n’est pas un choix d’ordre mais une panne en cours.';
     case 'OBJETS_NON_CONSTATES':
       return 'déclarée déjà appliquée sans avoir constaté : ' + refus.manquants.join(', ');
+    case 'DEJA_APPLIQUEE_SANS_OBJET_MESURABLE':
+      return 'déclarée déjà appliquée, mais cette migration ne crée aucun objet : il n’y a rien à '
+        + 'constater, donc rien qui puisse démentir la déclaration. Qualifier autrement — '
+        + '« atomique_ou_procedure_speciale » avec une procédure que la garde peut lire sur disque.';
     default: return '';
   }
 }

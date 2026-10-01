@@ -387,3 +387,83 @@ La réparation n'est pas de mieux écrire l'appel.
 Trois épreuves (G1, G2, G3) couvrent ces règles, et chacune a été vérifiée
 rouge isolément contre la garde d'avant le correctif — G1 masquait G2, qui
 masquait G3, donc les trois ont été mesurées séparément.
+
+## 01/10/2026 — un `revoke` qui n'a jamais mordu, et la garde qui le dira désormais
+
+La lecture Production du 01/10 rendait `MIGRATION_APPLIQUEE — 13/13`. Dans la
+même rubrique, elle rendait l'ACL de la fonction de garde :
+`{postgres=X,anon=X,authenticated=X,service_role=X}` — alors que la migration
+`20260919103000` contient `revoke all on function … from public;`.
+
+Le dépôt a écrit l'intention de fermer. La base dit que rien ne s'est fermé.
+
+**1. `revoke … from public` ne ferme ni `anon` ni `authenticated`.** Supabase
+accorde `EXECUTE` par `ALTER DEFAULT PRIVILEGES … TO anon, authenticated,
+service_role` : ce sont des **grants nommés**, pas l'entrée pseudo-rôle
+`PUBLIC`. Retirer à `public` retire quelque chose qui n'a jamais été donné là.
+C'est la **quatrième** occurrence. La leçon était déjà écrite en prose dans
+`20260916210000` — « apres trois occurrences du meme motif ». Elle était sous
+les yeux de qui a écrit la quatrième. **Une leçon qu'aucune machine ne mesure
+n'est pas une leçon, c'est un souvenir.**
+
+**2. La proportion se dit avant le remède, pas après.** L'exposition pratique
+fermée ici est **nulle** : la fonction est `returns trigger`, un appel direct
+échoue à la compilation, et PostgreSQL ne consulte pas `EXECUTE` quand un
+trigger se déclenche. Ce qui est réel, c'est la **divergence entre ce que le
+dépôt affirme et ce que la base fait** — et une intention écrite qui n'agit pas
+est pire qu'une intention absente, parce qu'elle se relit comme une protection.
+
+**3. Le discriminant doit trancher dans les deux sens.** Avant le revoke, un
+appel direct par `authenticated` échoue sur `trigger functions can only be
+called as triggers` : le contrôle d'ACL a donc été **passé**, preuve que le rôle
+détenait bien `EXECUTE`. Après, il échoue sur `permission denied for function`.
+Sans cette paire, « ça refuse dans les deux cas » se lirait « rien n'a changé ».
+Mesuré sur banc `supabase/postgres:17.6.1.175`, ACL reproduite octet pour octet,
+chaque objet du banc vérifié **un par un** — au premier essai la fonction avait
+disparu entre deux fenêtres, et la répétition exerçait la branche « absente » en
+croyant exercer l'autre.
+
+**4. Le défaut à réparer n'est pas le grant, c'est le silence.** 28 fonctions du
+dépôt portent un `revoke` ; **18 ne nomment ni `anon` ni `authenticated`**, dont
+11 nomment `public` et un seul des deux rôles. Les fermer en bloc serait faux :
+`mes_ecarts_caisse()` est une RPC appelée par un écran connecté,
+`authenticated` **doit** la garder. `outils/garde-revoke-fonction-roles-nommes.js`
+exige donc que l'intention soit **dite** — rôle nommé dans le `revoke`, ou
+marque `-- nexus-acl-intention: … garde <rôle> (motif)`. Un motif vide est un
+refus. La garde BLOQUE à partir de `20261001000000` et **gèle la dette à 18**,
+comparée **dans les deux sens** : une dette qui diminue en silence est aussi
+invisible qu'une dette qui grandit.
+
+**5. Un état de qualification peut être vrai par absence de matière.** Un
+`revoke` ne crée aucun objet. `migration_deja_appliquee` passait donc en
+annonçant « 0 objet(s) constaté(s) un par un » : le seul contrôle de cet état
+est un constat objet par objet, et sur un ensemble vide il ne peut rien
+démentir. `additive_compatible_avant_code` passait pour la même raison — rien à
+trouver. **Un vert obtenu par absence n'est pas un vert.** Corrigé :
+`DEJA_APPLIQUEE_SANS_OBJET_MESURABLE`, et la fiche est qualifiée
+`atomique_ou_procedure_speciale`, le seul état qui exerce ici un contrôle réel
+(`fs.existsSync` sur la procédure).
+
+Le trou du point 5 n'a pas été trouvé en relisant la garde : il a été trouvé en
+la **mutant**. Quatre mutations sur cinq étaient attrapées ; la cinquième ne
+l'était pas. Dix épreuves (R1–R10) couvrent la nouvelle garde, l'épreuve E5
+couvre le correctif, et chacune a été vérifiée rouge isolément contre la version
+d'avant. Une prédiction s'est révélée fausse en chemin — une mutation rougissait
+R1 et non R2 — et c'est noté plutôt que corrigé après coup.
+
+L'application du revoke à Production reste le geste de Frédéric.
+
+### Note de méthode — un `| tail` fait mentir le code de sortie
+
+En vérifiant les deux gardes de ce lot, j'ai écrit qu'`garde-ordre-migration-code.js`
+« rend 0 sur un REFUS » — ce qui aurait été un défaut grave, une garde qui refuse
+sans rien arrêter. C'était faux. La commande était
+`node garde.js 2>&1 | tail -40; echo $?` : en shell, `$?` après un pipe rend le
+code du **dernier** élément, c'est-à-dire celui de `tail`, toujours 0. Mesurée
+sans pipe, la garde rend bien 1.
+
+C'est la **troisième** fois dans ce chantier qu'un pipe rend un chiffre
+plausible et faux (un `| wc -l` avait rendu « 0 » sur une panne DNS au lieu de
+la signaler). La règle : **le code de sortie d'une garde se mesure sans pipe**,
+en redirigeant vers un fichier, ou avec `PIPESTATUS`. Une garde « vérifiée
+câblée » à travers un pipe n'est pas vérifiée.

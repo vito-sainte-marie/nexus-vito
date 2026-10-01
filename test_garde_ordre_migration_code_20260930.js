@@ -417,5 +417,44 @@ const D = depotJetable();
   ok('G3 — `candidat` et `candidate` en désaccord : refus de deviner');
 }
 
+{
+  // Une migration qui ne crée AUCUN objet — un revoke pur, par exemple — ne
+  // peut pas se déclarer « déjà appliquée » : il n'y a rien à constater, donc
+  // rien qui puisse démentir la déclaration. Avant le correctif du 01/10/2026,
+  // ce cas passait en annonçant « 0 objet(s) constaté(s) un par un », ce qui
+  // ressemble à un vert alors que c'est un contrôle qui n'a rien contrôlé.
+  const vide = { objets: [], destructifs: [], colonnesNotNullSansDefaut: [] };
+  const menteuse = classer({
+    estampille: '20261001160000',
+    fiche: { etat: ETATS.DEJA_APPLIQUEE, mesure: MESURE_BONNE },
+    analyse: vide,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+  });
+  assert.strictEqual(menteuse.refus && menteuse.refus.code, 'DEJA_APPLIQUEE_SANS_OBJET_MESURABLE',
+    'une migration sans objet ne peut pas se dire déjà appliquée : ' + JSON.stringify(menteuse.refus));
+
+  // Le contre-témoin : la MÊME migration sans objet, qualifiée « atomique »
+  // avec une procédure que la garde peut lire, passe. Le refus ci-dessus
+  // porte donc sur la DÉCLARATION, pas sur le fait de ne rien créer.
+  const honnete = classer({
+    estampille: '20261001160000',
+    fiche: { etat: ETATS.ATOMIQUE, mesure: MESURE_BONNE, procedure: 'docs/deploiement/procedure.md' },
+    analyse: vide,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+  });
+  assert.strictEqual(honnete.refus, null, 'sans objet + atomique + procédure : la garde laisse passer');
+
+  // Et la non-régression : une migration qui crée vraiment des objets garde
+  // le contrôle nom par nom, qui reste le vrai contrôle de cet état.
+  const reelle = classer({
+    estampille: '20260919103000',
+    fiche: { etat: ETATS.DEJA_APPLIQUEE, mesure: MESURE_BONNE, objets_constates: ['mode_saisie'] },
+    analyse: { objets: [{ genre: 'colonne', nom: 'mode_saisie' }], destructifs: [], colonnesNotNullSansDefaut: [] },
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+  });
+  assert.strictEqual(reelle.refus, null, 'objet constaté nom par nom : doit passer');
+  ok('E5 — « déjà appliquée » sans aucun objet est un contrôle à vide : refusé, et « atomique » reste ouvert');
+}
+
 fs.rmSync(D, { recursive: true, force: true });
 console.log(`\n${n} tests passés.`);
