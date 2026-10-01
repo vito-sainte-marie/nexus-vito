@@ -258,3 +258,29 @@ elle-même. L'écart se voit en additionnant, pas en relisant.
 Le biais commun aux trois premiers : **le défaut penche vers le GO.**
 Troisième occurrence documentée sur ce même dossier. Quand une erreur de
 mesure a une direction, c'est toujours celle qui débloque.
+
+## 01/10/2026 — une requête d'audit se relit sous l'identité qui la jouera
+
+Le bloc de lecture APRÈS du préflight #65 était exact — pour le rôle qui
+applique la migration. Sous le rôle de lecture seule qui doit réellement
+l'exécuter, il rendait une lecture fausse de deux façons, et aucune des deux
+ne se voit à l'œil.
+
+| rubrique | sous un rôle restreint | ce qu'on aurait lu |
+|---|---|---|
+| `count(*)` sur une table hors liste blanche | `permission denied` | la requête entière meurt — rien n'est mesuré |
+| `information_schema.columns` | ne montre que les objets privilégiés | « colonnes absentes » sur une base où elles existent |
+
+Trois règles qui en sortent :
+
+1. **Une requête d'audit se relit sous l'identité qui la jouera**, pas sous
+   celle qui l'a écrite. `pg_catalog` n'est pas filtré par les privilèges ;
+   `information_schema` l'est.
+2. **Un audit ne lit jamais une donnée métier pour mesurer une structure.**
+   Un volume se lit par `n_live_tup`, jamais par `count(*)` : le `count(*)`
+   échoue, ou se tait sous RLS, et dans les deux cas il emporte la mesure.
+3. **Un verdict se répète avant d'être proposé**, sur un environnement où la
+   réponse est connue, avec au moins un contre-témoin qui le fait sortir du
+   vert. Un contre-témoin a montré ici qu'une lecture visant des tables
+   inexistantes annonçait « 1/13 » — un état partiel imaginaire — tant que la
+   garde de capacité n'existait pas.

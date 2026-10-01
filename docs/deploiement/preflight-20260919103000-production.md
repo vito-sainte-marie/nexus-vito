@@ -1050,3 +1050,86 @@ constaté revient en arbitrage.
 Aucune écriture Supabase Production n'a été lancée. Aucune lecture Production
 n'a été lancée. Aucun `grant` n'a été appliqué. #65 n'est pas fusionnée.
 Production n'est pas déployée. Aucune garde n'a été affaiblie.
+
+## 18. La lecture APRÈS, outillée — 01/10/2026
+
+Demandée : « lance la lecture APRÈS pour confirmer la migration ». Je ne l'ai
+pas lancée sur Production, et la raison n'a pas changé depuis le §17.7 : la
+lecture de la base Production m'est refusée par le harnais, le refus porte sur
+le résultat et non sur la commande, et il ne se contourne ni par un autre
+outil, ni par le serveur MCP Supabase, ni en découpant la mesure, ni en la
+rejouant à un tour suivant. Ce qui a changé, c'est que le geste est désormais
+**une seule commande**, qu'il rend **un verdict** et non huit tableaux à
+interpréter, et qu'il a été **répété sur Test** avant d'être proposé.
+
+### 18.1 Le §12 est faux sous l'identité qui doit le jouer
+
+Le bloc du §12 hérite du §10, écrit pour l'identité qui *applique* la
+migration. Joué sous `nexus_prod_readonly_login`, il est faux deux fois :
+
+| rubrique du §12 | sous le rôle de lecture seule | conséquence |
+|---|---|---|
+| `volume` par `count(*)` sur les deux tables | `permission denied` — les deux tables ne sont pas dans la liste blanche du rôle (§ `role-lecture-seule-production-1.md`) | la requête **entière** meurt ; rien n'est mesuré |
+| `colonne` par `information_schema.columns` | la vue ne montre que les objets sur lesquels le rôle détient un privilège : **zéro ligne**, migration appliquée ou non | on lit « colonnes absentes » sur une base où elles existent |
+
+C'est le défaut du 29/09 — `information_schema` ment par omission — rencontré
+une seconde fois, et cette fois il penche vers le NO-GO au lieu du GO. Les
+deux rubriques sont refaites sur `pg_catalog`, qui n'est pas filtré par les
+privilèges, et le volume se lit par `n_live_tup`.
+
+### 18.2 `outils/lecture-apres-migration-20260919103000.sh`
+
+Lecture du catalogue seule. Aucune écriture, aucune lecture de donnée métier,
+aucun `count(*)`. `default_transaction_read_only = on`, `statement_timeout`
+à 60 s. L'URL vient du trousseau, n'est jamais affichée, et la sortie est
+filtrée. Le script refuse de se connecter si l'URL ne désigne pas le projet
+attendu — garde posée **avant** la connexion, pas après.
+
+Il imprime d'abord son identité (rôle, base, moteur), puis un **témoin de
+capacité** : le nombre total de colonnes des deux tables. Si ce compte n'est
+pas 2 tables vues, le verdict est `LECTURE_AVEUGLE` et non « migration
+absente ». Une rubrique vide ne prouve rien tant que la requête n'a pas montré
+qu'elle sait rendre du non-vide.
+
+### 18.3 Répétition sur Test, et deux contre-témoins
+
+`--repetition-test` joue la même lecture sur `nexus-test`, où la migration est
+appliquée depuis le 30/09.
+
+| essai | lecture | attendu | obtenu |
+|---|---|---|---|
+| répétition | Test, inchangé | 13/13 | **13/13 — `MIGRATION_APPLIQUEE`** |
+| contre-témoin A | une colonne attendue mal orthographiée | ne doit pas rendre 13 | **12/13 — `ETAT_PARTIEL`** |
+| contre-témoin B | les deux tables renommées (inexistantes) | ne doit pas rendre « non appliquée » | **`LECTURE_AVEUGLE`** |
+
+Le contre-témoin B est le plus instructif : il rend tout de même
+`fonction_sur_1 = 1`, parce qu'une fonction n'est pas portée par une table.
+Sans la garde de capacité, cette lecture aurait annoncé « 1/13 » — un état
+partiel imaginaire sur une base parfaitement saine.
+
+La sortie de la répétition reproduit le §12 **ligne pour ligne**, ACL du §8
+comprise. Le §12 n'est donc pas démenti : il est rejouable, mais pas par le
+bloc qu'il porte.
+
+### 18.4 Ce que chaque verdict autorise
+
+| verdict | ce qu'il établit | suite |
+|---|---|---|
+| `MIGRATION_APPLIQUEE — 13/13` | le catalogue Production porte les 13 objets ; l'ordre migration→code du §4 est respecté | le déploiement en attente peut être approuvé sur cet axe — **approbation qui reste un geste de Frédéric** |
+| `MIGRATION_NON_APPLIQUEE — 0/13` | le code de #65 est fusionné sans son schéma | **ne pas approuver le déploiement.** Jouer d'abord le §17.4 puis le §17.5 |
+| `ETAT_PARTIEL` | ni appliquée ni absente | **STOP.** L'idempotence masquerait l'écart au lieu de le corriger (§10, conditions d'arrêt) |
+| `LECTURE_AVEUGLE` | la mesure n'a rien vu | **STOP.** État inconnu = refus fermé. Ne pas lire ce résultat comme une absence |
+
+### 18.5 La commande
+
+```
+bash outils/lecture-apres-migration-20260919103000.sh
+```
+
+Elle exige l'entrée de trousseau `nexus-prod-db-readonly` (compte `nexus`),
+contenant l'URL complète du rôle `nexus_prod_readonly_login`. Si cette entrée
+n'existe pas encore, le script s'arrête en le disant, sans rien deviner.
+
+Tant que ce verdict n'est pas lu, l'état de la migration en Production reste
+`etat_inconnu`, et « Migration #65 : ✅ » n'est appuyé que par la présence du
+fichier dans l'arbre de `origin/production` — l'arbre, pas le catalogue.
