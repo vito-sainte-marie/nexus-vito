@@ -284,3 +284,33 @@ Trois règles qui en sortent :
    vert. Un contre-témoin a montré ici qu'une lecture visant des tables
    inexistantes annonçait « 1/13 » — un état partiel imaginaire — tant que la
    garde de capacité n'existait pas.
+
+## 01/10/2026 — un troisième axe : le front peut appeler ce qu'aucune migration ne crée
+
+Après #65, la connexion NEXUS est tombée en Production : le code promu
+appelait `public.nexus_identifiant_de_connexion`, et aucune migration de
+l'arbre fusionné ne la créait. Dossier complet :
+`preflight-20260904175747-production-login.md`.
+
+**Pourquoi ni l'axe « appartenance à la release » ni l'axe « ordre
+migration → code » (ci-dessus) ne l'ont vu.** Les deux comparent un candidat à
+une cible — un fichier de migration apparaît ou pas, est qualifié ou pas. Ce
+trou est différent : la migration manquante n'était dans **aucune des deux**
+listes. Rien à comparer, donc rien à qualifier. C'est un défaut de
+**complétude interne** à un seul arbre, pas un défaut d'ordre entre deux refs.
+
+`outils/garde-rpc-orpheline.js` couvre cet axe, statique, sans réseau ni
+secret : pour une ref donnée, chaque appel `.rpc("nom", …)` du front
+réellement publié sur Pages doit être couvert par une fonction créée dans
+`supabase/migrations/` du même arbre. Rejouée sur le commit réel qui a cassé
+la Production (`5dcdaaa5`, tête du candidat #65), elle refuse exactement ce
+cas. Rejouée sur HEAD de ce rail, elle est verte — calibrée à zéro faux
+positif sur les 10 appels RPC réellement présents dans ce dépôt.
+
+Les trois axes restent séparés et **ne doivent pas se citer l'un l'autre**
+dans leur logique : celui-ci répond à *le front cite-t-il une fonction que son
+propre arbre ne crée pas ?*, jamais à *cette migration appartient-elle à la
+release* ni à *dans quel ordre l'appliquer contre une base mesurée*.
+
+Non câblée en CI pour la même raison que l'axe précédent : le câblage est un
+geste distinct, documenté dans le dossier d'incident, pas inclus ici.
