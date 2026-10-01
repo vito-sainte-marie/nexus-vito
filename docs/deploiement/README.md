@@ -284,3 +284,31 @@ Trois règles qui en sortent :
    vert. Un contre-témoin a montré ici qu'une lecture visant des tables
    inexistantes annonçait « 1/13 » — un état partiel imaginaire — tant que la
    garde de capacité n'existait pas.
+
+## 01/10/2026 — un refus mal motivé coûte plus cher qu'une panne
+
+La lecture APRÈS de #65 a refusé de s'exécuter en annonçant « l'URL ne désigne
+pas le projet attendu ». La garde avait raison de s'arrêter et tort sur le
+motif : l'entrée de trousseau ne contenait pas une URL du tout, mais un mot de
+passe. Aucune référence de projet ne pouvait s'y trouver.
+
+Trois règles en sortent.
+
+1. **Avant de corriger ce qui est refusé, mesurer ce qui refuse.** Deux
+   hypothèses opposées existaient — référence attendue fausse, ou valeur
+   stockée inattendue. Corriger la mauvaise aurait cassé la garde au lieu du
+   script. La référence a donc été vérifiée contre l'arbre du dépôt, et la
+   valeur contre sa seule forme (longueur, classes de caractères), jamais
+   contre son contenu.
+2. **Un script qui implémente une phrase de documentation n'a mesuré personne.**
+   Le document de rôle annonçait « contenant l'URL complète » ; la convention
+   réellement en usage dépose le mot de passe. Le même fichier portait les
+   deux : la branche Test faisait juste, trois lignes au-dessus de la branche
+   Production qui faisait faux. Relire la voie qui échoue à la lumière de la
+   voie jumelle qui marche.
+3. **Choisir une identité n'est pas la constater.** Composer une URL avec un
+   rôle de lecture seule ne dit pas sous quelle identité le serveur accepte la
+   session. `current_user` est désormais demandé au serveur et comparé à
+   l'attendu, et la liste blanche refuse `postgres` avant même la connexion —
+   une capacité constatée n'est jamais une autorisation. Chaque refus a son
+   propre code de sortie, pour qu'il rougisse en disant lequel.

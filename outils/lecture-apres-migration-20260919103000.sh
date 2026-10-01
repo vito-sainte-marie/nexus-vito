@@ -29,8 +29,13 @@
 # les colonnes TOTALES des deux tables : si ce compte est nul, la lecture est
 # aveugle (mauvaise base, table absente) et le script s'arrête sans verdict.
 #
-# LE SECRET NE SORT PAS. L'URL vient du trousseau, n'est jamais affichée, et
+# LE SECRET NE SORT PAS. Le trousseau fournit soit l'URL complète, soit le
+# seul mot de passe (forme réellement constatée le 01/10/2026) ; dans ce cas
+# il passe par PGPASSWORD et l'URL est composée ici. Rien n'est affiché, et
 # toute sortie est filtrée.
+#
+# L'IDENTITÉ EST VÉRIFIÉE APRÈS CONNEXION, pas seulement choisie avant : le
+# script refuse de lire si le serveur l'accepte sous une autre identité.
 #
 # Usage :   bash outils/lecture-apres-migration-20260919103000.sh
 set -euo pipefail
@@ -54,8 +59,22 @@ if [ "${1:-}" = "--repetition-test" ]; then
   CIBLE="TEST (repetition - aucun verdict Production ne sort d ici)"
 fi
 
+# L'IDENTITÉ DE CONNEXION EST DÉCLARÉE, JAMAIS DEVINÉE — et surtout jamais
+# repliée sur `postgres`. Le document de rôle (garantie 7, 11/09/2026) nomme
+# l'identité qui s'est réellement connectée : `nexus_prod_readonly_login`,
+# hôte direct. Toute autre valeur est refusée AVANT la connexion.
+UTILISATEUR_PROD="${NEXUS_PROD_DB_USER:-nexus_prod_readonly_login}"
+case "$UTILISATEUR_PROD" in
+  nexus_prod_readonly_login|nexus_prod_readonly) : ;;
+  *) echo "Identité « $UTILISATEUR_PROD » refusée. Ce script ne se connecte qu'avec" >&2
+     echo "un rôle de lecture seule documenté : nexus_prod_readonly_login." >&2
+     exit 5 ;;
+esac
+IDENTITE_ATTENDUE="$UTILISATEUR_PROD"
+
 URL="${NEXUS_PROD_DB_URL_READONLY:-}"
 if [ "${1:-}" = "--repetition-test" ]; then
+  IDENTITE_ATTENDUE="postgres"
   URL="${NEXUS_TEST_DB_URL:-}"
   if [ -z "$URL" ]; then
     MDP="$(security find-generic-password -a nexus -s nexus-test-db -w 2>/dev/null || true)"
@@ -64,26 +83,65 @@ if [ "${1:-}" = "--repetition-test" ]; then
     URL="postgresql://postgres@db.${REF_ATTENDUE}.supabase.co:5432/postgres?sslmode=require"
   fi
 fi
+
+# CE QUE CONTIENT L'ENTRÉE DE TROUSSEAU N'EST PAS CE QUI ÉTAIT ÉCRIT.
+# Le document de rôle annonçait « contenant l'URL complète ». Mesuré le
+# 01/10/2026 : l'entrée contient un MOT DE PASSE — 43 caractères, aucun « @ »,
+# aucun « :// ». Le script lisait le contrat au lieu de la réalité, et son
+# refus de projet se déclenchait sur une valeur qui ne pouvait désigner aucun
+# projet. Les DEUX formes sont désormais acceptées, et c'est la forme qui
+# décide, jamais une convention supposée.
 if [ -z "$URL" ]; then
-  URL="$(security find-generic-password -a nexus -s nexus-prod-db-readonly -w 2>/dev/null || true)"
+  SECRET="$(security find-generic-password -a nexus -s nexus-prod-db-readonly -w 2>/dev/null || true)"
+  if [ -n "$SECRET" ]; then
+    case "$SECRET" in
+      postgres://*|postgresql://*)
+        URL="$SECRET" ;;
+      *)
+        export PGPASSWORD="$SECRET"
+        URL="postgresql://${UTILISATEUR_PROD}@db.${REF_ATTENDUE}.supabase.co:5432/postgres?sslmode=require" ;;
+    esac
+  fi
+  SECRET=""
+  unset SECRET
 fi
 if [ -z "$URL" ]; then
   echo "Aucun moyen de lire Production en lecture seule." >&2
   echo "Attendu : l'entrée de trousseau « nexus-prod-db-readonly » (compte « nexus »)," >&2
-  echo "contenant l'URL complète du rôle nexus_prod_readonly_login." >&2
+  echo "contenant SOIT l'URL complète du rôle nexus_prod_readonly_login," >&2
+  echo "SOIT son seul mot de passe (l'URL est alors composée ici)." >&2
   exit 4
 fi
 
-# REFUS AVANT CONNEXION : ce script ne doit jamais viser Test par mégarde, et
-# ne doit jamais s'exécuter sous une identité d'écriture.
+# REFUS AVANT CONNEXION : ce script ne doit jamais viser Test par mégarde.
 case "$URL" in
   *"$REF_ATTENDUE"*) : ;;
   *) echo "L'URL fournie ne désigne pas le projet attendu ($REF_ATTENDUE). Arrêt." >&2
+     echo "Si elle vient du trousseau, vérifier qu'elle désigne bien ce projet ;" >&2
+     echo "une entrée réduite au mot de passe est acceptée et compose l'URL ici." >&2
      exit 5 ;;
 esac
 echo "Cible : $CIBLE - lecture du catalogue seule, aucune ecriture."
 
 filtre() { sed -E 's#postgres[^:]*:[^@]*@#postgres:***@#g'; }
+
+# GARDE D'IDENTITÉ — MESURÉE, PAS DÉCLARÉE. Composer une URL ne prouve pas
+# sous quelle identité le serveur nous accepte. On la demande, et on refuse de
+# lire quoi que ce soit si elle n'est pas celle attendue. Cette sonde sert
+# aussi de test de connexion : son message d'erreur, filtré, dit pourquoi.
+IDENTITE_REELLE="$("$PSQL" "$URL" -At --quiet --no-psqlrc \
+  -c 'select current_user' 2>&1 | filtre)" || {
+  echo "Connexion impossible. Message du serveur (filtré) :" >&2
+  echo "$IDENTITE_REELLE" >&2
+  echo "Note : db.<ref>.supabase.co est joignable en IPv6 seulement et peut expirer." >&2
+  exit 6
+}
+if [ "$IDENTITE_REELLE" != "$IDENTITE_ATTENDUE" ]; then
+  echo "Identité connectée « $IDENTITE_REELLE » au lieu de « $IDENTITE_ATTENDUE »." >&2
+  echo "Arrêt avant toute lecture : une capacité constatée n'est pas une autorisation." >&2
+  exit 7
+fi
+echo "Identite connectee : $IDENTITE_REELLE (conforme a l'attendu)."
 
 SQL=$(cat <<'REQ'
 \set ON_ERROR_STOP on

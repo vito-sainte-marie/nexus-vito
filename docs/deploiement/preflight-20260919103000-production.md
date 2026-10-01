@@ -1133,3 +1133,80 @@ n'existe pas encore, le script s'arrête en le disant, sans rien deviner.
 Tant que ce verdict n'est pas lu, l'état de la migration en Production reste
 `etat_inconnu`, et « Migration #65 : ✅ » n'est appuyé que par la présence du
 fichier dans l'arbre de `origin/production` — l'arbre, pas le catalogue.
+
+## 19. Le refus qui n'était pas le bon — 01/10/2026
+
+Frédéric a lancé la lecture du §18. Elle a répondu :
+
+```
+L'URL fournie ne désigne pas le projet attendu (uzhjpqpctpvxytxpxoqz). Arrêt.
+```
+
+Le refus a eu lieu **avant toute connexion**, donc la garde a fonctionné. Mais
+elle refusait pour une raison fausse, et c'est plus grave qu'une panne : un
+refus mal motivé se lit comme « mauvaise base » alors qu'il disait « je ne sais
+pas lire ce qu'on m'a donné ».
+
+### 19.1 Ce qui a été mesuré, et dans quel ordre
+
+Deux hypothèses opposées, et il fallait trancher avant de toucher à quoi que
+ce soit — car si la référence attendue était fausse, corriger le trousseau
+aurait été l'erreur exacte.
+
+| hypothèse | mesure | résultat |
+|---|---|---|
+| ma référence Production est fausse | occurrences dans l'arbre du dépôt | `uzhjpqpctpvxytxpxoqz` × 3 — **attendue juste** |
+| l'entrée de trousseau ne contient pas une URL | forme de la valeur, classes de caractères seules | 43 caractères · 17 min · 18 MAJ · 8 chiffres · **0 autre** · ni `@` ni `://` |
+
+L'entrée `nexus-prod-db-readonly` contient donc **un mot de passe**, pas une
+URL. Aucune référence de projet ne pouvait s'y trouver : le `case` du script
+ne pouvait que refuser, quelle que soit la base visée.
+
+### 19.2 Le défaut réel : un script qui lit le contrat au lieu de la réalité
+
+Le document de rôle du 11/09 écrit, à l'étape 2 des gestes de Frédéric :
+« dépose l'entrée `nexus-prod-db-readonly` dans son trousseau, **contenant
+l'URL complète** ». Mon script a implémenté cette phrase. Le trousseau, lui,
+contient le mot de passe — ce qui est la convention réellement en usage dans
+la maison, celle qu'emploie `outils/reconstruire-base-test.sh` et que ma
+propre branche `--repetition-test` appliquait **trois lignes plus haut dans le
+même fichier**.
+
+La leçon n'est pas « la documentation était périmée ». C'est que **le même
+fichier contenait les deux conventions**, et que je n'ai pas relu la branche
+Production à la lumière de la branche Test qui, elle, marchait.
+
+### 19.3 Ce qui a été corrigé
+
+| correction | pourquoi |
+|---|---|
+| les deux formes du secret sont acceptées, **la forme décide** | une convention supposée ne doit pas pouvoir faire échouer une mesure |
+| l'identité de connexion est **déclarée** (`nexus_prod_readonly_login`), jamais devinée | composer une URL avec `postgres` aurait ouvert une session capable d'écrire |
+| liste blanche d'identités : tout autre nom est refusé **avant** la connexion | `NEXUS_PROD_DB_USER=postgres` → arrêt, code 5 |
+| `current_user` est **demandé au serveur** et comparé à l'attendu | choisir une identité ne prouve pas sous laquelle le serveur nous accepte |
+| la sonde d'identité sert de test de connexion, message filtré | une panne réseau IPv6 ne doit plus ressembler à un refus de garde |
+| quatre codes de sortie distincts | un refus doit rougir, et dire *lequel* |
+
+### 19.4 Répétition et contre-témoins — mesurés, pas annoncés
+
+| épreuve | attendu | obtenu |
+|---|---|---|
+| répétition sur Test, mesure inchangée | `MIGRATION_APPLIQUEE — 13/13`, code 0 | **13/13, code 0** |
+| identité `postgres` demandée sur la voie Production | refus avant connexion, code 5 | **code 5** |
+| identité connectée non conforme (mutation du harnais) | arrêt avant lecture, code 7 | **code 7** |
+| hôte injoignable (mutation du harnais) | connexion impossible, code 6 | **code 6** |
+
+Le contre-témoin d'identité valait la peine : sans la comparaison au serveur,
+une URL composée avec le bon nom d'utilisateur mais acceptée sous un autre
+rôle aurait rendu un verdict chiffré, crédible, et mesuré sous une identité
+que personne n'avait autorisée.
+
+### 19.5 La commande, inchangée dans sa forme
+
+```
+bash outils/lecture-apres-migration-20260919103000.sh
+```
+
+Elle imprime désormais, avant toute lecture, la cible **et l'identité
+réellement connectée**. Si cette ligne n'apparaît pas, aucune rubrique n'a été
+lue et il n'y a pas de verdict à interpréter.
