@@ -1,0 +1,19 @@
+{
+  "_lecture": [
+    "Fichier de qualification de l'ordre migration -> code. Voir docs/deploiement/README.md.",
+    "N'INSCRIT PAS l'appartenance a une release : cet axe vit au manifeste de promotion.",
+    "Une entree sans mesure catalogue datee ne qualifie rien. Le registre des migrations",
+    "n'est pas une source recevable : mesure du 30/09/2026 sur Test, le schema portait tous",
+    "les objets de 20260919103000 alors que l'estampille etait absente du registre.",
+    "Les 11 estampilles hors-bande du rail ne figurent volontairement pas ici : les qualifier",
+    "demanderait une mesure catalogue sur Production, et les declarer sans mesure serait la",
+    "faute meme que cette garde existe pour empecher."
+  ],
+  "migrations": {
+    "20260919103000": {
+      "etat": "etat_inconnu",
+      "justification": "Audit du fichier termine le 30/09/2026 au SHA 5dcdaaa55f5804f88594c91c272439cf77a123b0 (blob sha256 1a02adca37af32b6ea3ffa3ec41b43968502d75bd515877b47e1d4073a8d6caf) : la migration est purement additive, idempotente, et le code de origin/production ne nomme aucun de ses 13 objets - elle est donc applicable AVANT le code. Ce qui manque n'est pas l'audit du fichier, c'est l'etat AVANT de la base cible : aucune mesure catalogue de Production n'a pu etre prise. Et l'idempotence aggrave l'inconnu au lieu de le couvrir : un 'add column if not exists' passe en silence sur une colonne deja presente avec une AUTRE definition. Etat inconnu = refus ferme, par application de la regle a son propre cas.",
+      "prochaine_action": "Mesure catalogue en lecture seule sur Production (uzhjpqpctpvxytxpxoqz) : colonnes + defauts + nullabilite de carburant_reception_visites et carburant_reception_mesures, definition des 3 contraintes check, ACL de nexus_garde_regularisation_reception, presence de trg_garde_regularisation_reception. Geste de Frederic : les lectures Production ne me sont pas ouvertes."
+    }
+  }
+}
