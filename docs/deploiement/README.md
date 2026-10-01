@@ -633,3 +633,139 @@ selon la seule présence de la désignation : c'est la démonstration la plus ne
 que le dispositif de refus du 26/09 fonctionne. Le défaut n'est pas dans le rail,
 il est dans le déclencheur — et un futur lecteur qui verrait ce rouge comme une
 régression à réparer casserait une garde qui fait son travail.
+
+## 01/10/2026 — « code promu d'abord, migration ensuite » n'a été exécuté qu'à moitié
+
+La fusion de la PR #65, le 01/10 à 13 h 49 UTC, a mis la connexion Production
+hors service. Le symptôme terrain était « Connexion au serveur impossible », ce
+qui désigne un réseau. Ce n'était pas le réseau.
+
+### Ce que la mesure dit
+
+`origin/production` est à `adee9bbcb6fd7e0af7632730ede185e655d04580`. Son
+parent `2bc7b39dd73a` portait **276** migrations ; `adee9bb` en porte **277**.
+La seule migration que la fusion a transportée est celle du lot
+`20260919103000`, déjà appliquée. **La fusion de #65 n'a transporté aucune
+migration du login.**
+
+Or l'artefact servi à Production appelle, ligne 146 de `NEXUS-Login-v1.html`,
+la fonction `public.nexus_identifiant_de_connexion(p_prenom)`. La lecture
+datée du catalogue Production — prise le 01/10 à 15 h 01 UTC avec l'identité
+`nexus_prod_readonly_login` — ne la trouve pas. Le front appelle une fonction
+qui n'existe pas sur sa cible.
+
+### Pourquoi personne n'a été averti
+
+Trois causes, et elles s'additionnent.
+
+**L'ordre était écrit, pas outillé.** La migration
+`20260904175747_login_non_enumerable.sql` dit elle-même, dans son en-tête :
+« Les deux vont ensemble, dans cet ordre : code promu, puis migration
+appliquée. » La phrase est exacte. Elle était dans un commentaire. Rien ne
+mesurait qu'on l'avait suivie, et la seconde moitié n'a pas eu lieu.
+
+**La migration n'était pas dans le lot.** Elle vit sur le rail, pas sur la
+branche de #65. Une PR qui promeut du code appelant une RPC absente de sa
+cible était, jusqu'à aujourd'hui, un état parfaitement vert.
+
+**La porte était restée ouverte « provisoirement ».** La migration
+antérieure `20260904105148` écrit : « On ne conserve QUE le SELECT, dont
+l'écran de connexion a besoin — provisoirement… ». Ce provisoire a duré
+**27 jours**, et c'est lui qui a permis à l'écran de fonctionner sans la
+fonction jusqu'au 01/10. Autrement dit : la panne n'est pas apparue quand la
+dépendance a été créée, mais quand le palliatif a été retiré. Un provisoire
+sans date d'expiration est une panne différée.
+
+### Le cas qui aurait dû bloquer ce déploiement
+
+`outils/garde-rpc-front-definie-sur-la-cible.js`, exercée sur les références
+réelles — `--candidat adee9bb --cible 2bc7b39` — rend **un BLOCK,
+`RPC_FRONT_REFUS`, code de sortie 1**. Le contre-témoin sur le rail rend
+`RPC_FRONT_CONFORME`, code 0. La garde existait donc déjà, et la question
+n'était pas de l'écrire mais de la **placer avant le build** : c'est l'objet
+du correctif `docs/deploiement/cablage-garde-rpc-production.patch`, mesuré par
+`test_cablage_garde_rpc_production_20261001.js`.
+
+Ce correctif voyage comme un **patch** et non comme une édition, parce que
+`.github/workflows/deploiement-production.yml` n'existe **que sur
+`origin/production`** : il est absent du rail, comme tout `.github/deploiement/`.
+Une épreuve mesure le patch ; elle ne peut pas mesurer un fichier qui n'est pas
+là.
+
+### Le point aveugle, nommé
+
+`extraireObjets()`, dans `outils/garde-ordre-migration-code.js`, ne voit ni
+`revoke` ni `alter view`. Deux instructions décisives de la migration du login
+lui sont donc invisibles :
+
+```sql
+revoke select on public.employees_public from anon;
+alter view public.employees_public set (security_invoker = true);
+```
+
+Conséquence à écrire noir sur blanc : la garde **serait incapable de refuser
+l'ordre inverse**. Élargir `extraireObjets()` est un travail distinct, pas
+encore fait.
+
+Autre mesure du même genre : **aucun fichier du front, sur `adee9bb`, ne nomme
+`employees_public`**. La vue n'est plus lue par l'écran ; seule la RPC l'est.
+Le `revoke` ne casse donc rien côté écran — et c'est ce qui rend le correctif
+petit.
+
+### Deux leçons du banc, qui dépassent ce lot
+
+Le banc jetable (`supabase/postgres:17.6.1.175`, sept passages, 01/10) a
+démenti deux choses que je croyais acquises.
+
+**Une garde qui lit le texte de l'ACL est verte pour la mauvaise raison.**
+`\ddp` sur ce moteur montre, pour le schéma `public` et le propriétaire
+`postgres`, des default privileges `function → postgres=X, anon=X,
+authenticated=X, service_role=X`. Une fonction créée dans `public` porte donc
+`anon=X` **avant tout `grant`**. Chercher `anon=X` dans `proacl` reste vert
+même quand les deux `grant execute` ont disparu — c'est la mutation M5 du
+banc, et elle **passe**. La seule lecture saine est
+`has_function_privilege(role, signature, 'EXECUTE')`. Même famille que le
+`revoke … from public` qui ne ferme pas `anon` : à chaque fois, c'est **le rôle
+nommé** qu'il faut interroger.
+
+**Un `raise exception` n'arrête pas un fichier `.sql`, et `psql` sort 0.** Le
+refus défile hors de l'écran et le code de sortie ment. La transaction protège
+la base — elle est la seule garde indépendante du client — mais elle ne rend
+pas le refus visible. D'où une relecture terminale placée **après le `commit;`**,
+qui imprime `ETAT_FINAL …` en dernière ligne dans tous les cas. Le code de
+sortie est une observation, pas une garantie du fichier.
+
+### Ce qui rend une recette possible sans aucun compte
+
+L'écran de connexion déployé distingue deux échecs par deux messages
+différents, et c'est une chance :
+
+| ce qui s'affiche | ce que ça prouve |
+| --- | --- |
+| « Connexion au serveur impossible… » | l'appel RPC a échoué — la fonction manque |
+| « Prénom ou code PIN incorrect. » | l'appel RPC a **répondu** — la fonction est là |
+
+Un prénom volontairement inexistant et n'importe quoi en guise de code suffisent
+donc à discriminer AVANT et APRÈS, **sans toucher un compte réel et sans saisir
+un PIN réel**. C'est la recette de
+`docs/deploiement/procedure-migration-login-production.md`, §7.
+
+### Ce qui reste ouvert, et ce n'est pas un oubli
+
+`authenticated` garde le SELECT sur `employees_public` : la porte est
+rétrécie, pas condamnée — largement neutralisée par `security_invoker = true`,
+mais pas fermée. L'énumération n'est que **partiellement** close : on supprime
+la possibilité de *lister*, pas celle de *confirmer* un prénom deviné. Le
+remplacement durable — Edge Function, limitation de tentatives atomique,
+verrouillage de compte, réponse et délai homogènes — est un **lot séparé**.
+
+Enfin, l'estampille `20260904175747` ne sera **pas** posée au registre par cet
+artefact. Production portera donc l'effet sans la trace : une divergence
+**nommée**, exactement du même genre que celle de `20261001160000`. Une
+divergence nommée n'est pas une dérive.
+
+La fiche de qualification de `20260904175747` est **préparée et non insérée**,
+dans la procédure, avec ses champs de mesure vides. Le `_lecture` du fichier de
+qualification l'interdit en toutes lettres, et un rapport d'absence transmis par
+un tiers est une donnée, pas une `mesure`. Elle ira **sous la clé
+`20260904175747` dans `migrations`** — **jamais en éditant `20260919103000`**.
