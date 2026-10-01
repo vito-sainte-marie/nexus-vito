@@ -1,0 +1,41 @@
+{
+  "objet": "RPC appelees par le front dont aucune migration du depot ne porte la definition. Ce fichier ne cree rien et n'autorise rien : il rend explicite un silence deja present, pour que la garde outils/garde-rpc-front-definie-sur-la-cible.js distingue un silence connu d'une panne neuve.",
+  "ce_que_ce_fichier_ne_dit_pas": "Il ne dit pas que ces fonctions existent sur Production. Aucune des mesures ci-dessous n'a ete prise sur Production : je n'ai pas de chemin de lecture vers la base Production et je ne dois pas en chercher un. Une entree declaree reste une dette ouverte, pas une conformite.",
+  "regle": "Une entree exige fonction, constatee_le, environnement_mesure et motif. Une entree incomplete est refusee par la garde, pas ignoree : une exemption sans date ni environnement de mesure fabrique une preuve.",
+  "fonctions": [
+    {
+      "fonction": "stats_fondateur",
+      "appelee_par": "NEXUS-Admin-Sites-v1.html",
+      "premier_appel_au_depot": "2026-07-16",
+      "constatee_le": "2026-10-01 17:31:53 UTC",
+      "environnement_mesure": "Test (nexus-test, udljdqxerrbbbajxubfn) — lecture catalogue en lecture seule",
+      "signature_constatee": "stats_fondateur()",
+      "environnement_non_mesure": "Production (uzhjpqpctpvxytxpxoqz) — NON mesuree",
+      "motif": "Fonction creee hors bande : en service depuis le 16/07/2026 sans migration au depot. L'ecran fonctionne, donc la fonction est en base. Le defaut est documentaire, pas fonctionnel : la definition canonique n'existe nulle part au depot et personne ne peut la rejouer sur une base neuve.",
+      "dette": "Rapatrier la definition dans une migration idempotente apres lecture du catalogue. Tant que ce n'est pas fait, un environnement reconstruit depuis le depot seul n'aura pas cet ecran."
+    },
+    {
+      "fonction": "calculer_caisse_sante",
+      "appelee_par": "NEXUS-Centre-Intelligence-v1.html, NEXUS-Debug-Createur-v1.html, NEXUS-Debug-v1.html",
+      "premier_appel_au_depot": "2026-07-20",
+      "constatee_le": "2026-10-01 17:31:53 UTC",
+      "environnement_mesure": "Test (nexus-test, udljdqxerrbbbajxubfn) — lecture catalogue en lecture seule",
+      "signature_constatee": "calculer_caisse_sante(p_site text, p_mois date)",
+      "environnement_non_mesure": "Production (uzhjpqpctpvxytxpxoqz) — NON mesuree",
+      "motif": "Fonction creee hors bande : en service depuis le 20/07/2026 sans migration au depot. Meme classe que stats_fondateur.",
+      "dette": "Rapatrier la definition dans une migration idempotente apres lecture du catalogue."
+    },
+    {
+      "fonction": "verifier_depassements_heures",
+      "appelee_par": "NEXUS-Planning-v1.html",
+      "premier_appel_au_depot": "2026-07-20",
+      "constatee_le": "2026-10-01 17:31:53 UTC",
+      "environnement_mesure": "Test (nexus-test, udljdqxerrbbbajxubfn) — lecture catalogue en lecture seule",
+      "signature_constatee": "verifier_depassements_heures(p_site text, p_mois date)",
+      "environnement_non_mesure": "Production (uzhjpqpctpvxytxpxoqz) — NON mesuree",
+      "motif": "Fonction creee hors bande : en service depuis le 20/07/2026 sans migration au depot. Meme classe que stats_fondateur.",
+      "dette": "Rapatrier la definition dans une migration idempotente apres lecture du catalogue."
+    }
+  ],
+  "pourquoi_nexus_identifiant_de_connexion_n_y_figure_pas": "Parce que ce n'est pas la meme chose. Sa definition canonique EXISTE au depot (supabase/migrations/20260904175747_login_non_enumerable.sql), elle est appliquee sur Test, et elle est absente de Production parce que la migration n'y a jamais ete appliquee. Ce n'est pas un silence a declarer, c'est une moitie d'ordre non executee : le code a ete promu le 01/10/2026 a 13h49 UTC par la fusion #65, la migration ne l'a pas suivi. L'inscrire ici ferait taire la panne au lieu de la corriger."
+}
