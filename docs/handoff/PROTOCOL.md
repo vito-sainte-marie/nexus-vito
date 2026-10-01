@@ -420,6 +420,61 @@ champs : `condition`, `sha`, `branche`, `lot`, `maillon`, `prochaine_action`.
 `outils/etat-maillon.js` lève si l'un manque, et publie sur quatre canaux —
 annotation de run, résumé de job, sortie d'étape, fichier JSON.
 
+### Un refus audible peut être faux — la classe de panne du 01/10/2026
+
+« Aucun refus silencieux » répond à une panne : le système se tait. Il en existe
+une seconde, qui se présente exactement comme un fonctionnement correct — le
+système parle, sur les quatre canaux, avec cause et prochaine action, **et il a
+tort**.
+
+Le 30/09/2026, le travail `119b2f8f` était terminé, sa CI verte, le transport
+armé, et il était fast-forwardable depuis le rail. Il n'est jamais parti.
+L'étape de rapatriement a publié, dans un run vert :
+
+> `[HUMAN_DECISION_REQUIRED] rapatriement-claude-vers-rail (CHANGEMENT_PRODUCTION)`
+> `— Le diff introduit une cible Production dans 5 fichier(s).`
+
+Aucun maillon n'était muet, aucune permission ne manquait, aucun `exit 0` ne
+masquait quoi que ce soit. Les cinq lignes accusées étaient une cellule de
+tableau Markdown, deux phrases de prose, un commentaire `//` et une fixture de
+test : la garde confondait **nommer** Production et **la viser**. Le fichier le
+plus abusivement accusé était `outils/garde-ordre-migration-code.js` — la garde
+qui protège la migration Production, refusée au transport pour avoir nommé
+Production dans un commentaire.
+
+**La portée est ce qui compte.** Ce n'était pas un incident : tout travail
+*portant sur* la procédure Production devenait non transportable, puisqu'un tel
+travail doit nommer Production pour exister. La documentation de Production, ses
+gardes et ses épreuves étaient structurellement exclues du rail.
+
+Trois règles en sortent, toutes vérifiées par
+`test_cible_production_vs_mention_20261001.js` et gardées par quatre mutations.
+
+1. **Une écriture vers Production exige une adresse ou un pointeur.** Le nom nu
+   du projet n'est ni l'un ni l'autre. Sont refusées partout, commentaires et
+   prose compris, les formes actionnables : adresse `….supabase.…`, chaîne de
+   connexion, URL de l'hôte, drapeau d'outil ou réglage pointé vers Production —
+   un commentaire se décommente, une URL se copie. Le nom nu n'est une cible que
+   là où une machine exécute la ligne : hors commentaire, et hors **position de
+   parole** (`docs/`, `*.md`, `test_*.js`, `outils/garde-*.js`), dont le rôle
+   est précisément de parler de Production.
+2. **Un refus doit désigner.** Le motif nomme les fichiers et le marqueur qui a
+   mordu ; « 5 fichier(s) » a obligé à rejouer la qualification en local pour
+   savoir quoi corriger. Un refus qu'on ne peut pas instruire n'est pas
+   actionnable.
+3. **Ce qu'une garde laisse passer se publie.** Les mentions classées comme
+   vocabulaire figurent dans `details.mentions_production` de l'état `EXECUTE`.
+   Une garde qui laisse passer sans le dire redevient indistinguable d'une garde
+   absente.
+
+**Comment cette classe se détecte désormais.** Le capteur `branches-en-rade`
+publie à chaque run la liste des branches Claude non rapatriées. Une branche qui
+reste `EN RADE` alors qu'elle est **verte, destinée au rail et fast-forwardable**
+est le signal : le transport a conclu, et il a conclu faux. On ne la rapatrie
+pas à la main — on relit l'état machine du run qui l'a refusée, on reproduit la
+qualification sur la vraie plage, et on corrige la règle. Rapatrier à la main
+masquerait la classe de panne au lieu de la fermer.
+
 ### Stagnation : la chaîne sait qu'elle est arrêtée
 
 `outils/watchdog-stagnation.js` distingue le repos normal du travail en attente.

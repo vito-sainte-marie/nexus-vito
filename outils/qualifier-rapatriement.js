@@ -54,6 +54,53 @@ const MARQUEURS_PRODUCTION = Object.freeze([
   { nom: 'hôte Production', motif: /app\.nexusconseil\.net/ },
 ]);
 
+// NOMMER PRODUCTION N'EST PAS LA VISER.
+// Mesuré le 01/10/2026 : le commit 119b2f8f a été refusé au transport pour
+// cinq lignes ajoutées, dont une cellule de tableau Markdown, un commentaire
+// `//`, une phrase adressée à un humain dans un champ `prochaine_action`, et
+// une fixture de test. Aucune ne portait d'adresse, de chaîne de connexion ni
+// de drapeau d'outil. Le fichier le plus abusivement accusé était
+// `outils/garde-ordre-migration-code.js` : la garde qui protège la migration
+// Production, refusée au transport pour avoir nommé Production dans un
+// commentaire. Le défaut n'est donc pas incident, il est structurel — tout
+// travail PORTANT SUR la procédure Production devient non transportable, car
+// il doit nommer Production pour exister.
+//
+// On ne retire rien à la garde : on lui donne l'axe qui lui manquait. Une
+// écriture vers Production exige une ADRESSE ou un POINTEUR. Le nom nu du
+// projet n'est ni l'un ni l'autre — c'est le vocabulaire sans lequel aucune
+// documentation, aucune garde et aucune épreuve ne peut parler de Production.
+
+// 1. FORMES ACTIONNABLES. Le nom devenu adresse, chaîne de connexion ou valeur
+// d'un drapeau qui pointe un outil vers Production. Refusées PARTOUT, y compris
+// en prose et en commentaire : un commentaire se décommente, une URL se copie.
+const FORMES_CIBLE_PRODUCTION = Object.freeze([
+  { nom: 'adresse Supabase Production', motif: /\buzhjpqpctpvxytxpxoqz\.supabase\./ },
+  { nom: 'adresse Supabase Production', motif: /\bdb\.uzhjpqpctpvxytxpxoqz\./ },
+  { nom: 'URL de l’hôte Production', motif: /(https?:)?\/\/app\.nexusconseil\.net/ },
+  { nom: 'drapeau pointé vers Production',
+    motif: /--(project[-_]ref|project[-_]id|db[-_]url)[=\s]+["'’]?uzhjpqpctpvxytxpxoqz/ },
+  { nom: 'réglage pointé vers Production',
+    motif: /\b(project[-_]?(ref|id)|SUPABASE_URL|SUPABASE_PROJECT[A-Z_]*|DATABASE_URL|PGHOST|PGDATABASE)\b\s*[:=]\s*["'’]?uzhjpqpctpvxytxpxoqz/i },
+]);
+
+// 2. POSITIONS DE PAROLE. Fichiers dont le rôle EST de parler de Production :
+// la documentation, les épreuves et les gardes. Une machine ne les lit pas pour
+// atteindre Production ; aucune ne porte de secret. Le nom nu y est un mot.
+// Ces deux familles sont déjà reconnues comme une classe à part dans ce
+// fichier : supprimer un `outils/garde-*.js` ou un `test_*.js` y est déjà un
+// affaiblissement. On ne crée pas une exception, on réutilise une distinction.
+const POSITIONS_DE_PAROLE = Object.freeze([
+  /^docs\//,
+  /\.md$/,
+  /^test_[^/]*\.js$/,
+  /^outils\/garde-[^/]+\.js$/,
+]);
+
+// 3. Une ligne de commentaire est inerte. Elle ne se refuse que sur une forme
+// actionnable, jamais sur une mention.
+const LIGNE_COMMENTAIRE = /^\s*(\/\/|\/\*|\*|#|--|<!--)/;
+
 // Motifs d'affaiblissement de garde. Chacun a déjà servi dans ce dépôt : le
 // `|| true` neutralise `garde-branches-en-rade.js` depuis des semaines en
 // sortant pourtant en 1, et cinq étapes profondes sont passées `skipped`
@@ -186,22 +233,49 @@ function qualifier(e) {
     .filter((d) => d && typeof d === 'object')
     .map((d) => [d.chemin, d]));
   const versProduction = [];
+  const mentions = [];
+  const vu = new Set();
   for (const c of touches) {
     const d = parChemin.get(c);
     const surAjouts = d && Array.isArray(d.lignes_ajoutees);
-    const texte = surAjouts ? d.lignes_ajoutees.join('\n') : String(lire(c) || '');
-    for (const m of MARQUEURS_PRODUCTION) {
-      if (m.motif.test(texte)) {
-        versProduction.push({ chemin: c, marqueur: m.nom, mesure: surAjouts ? 'lignes ajoutées' : 'fichier entier' });
+    const mesure = surAjouts ? 'lignes ajoutées' : 'fichier entier';
+    const lignes = surAjouts ? d.lignes_ajoutees : String(lire(c) || '').split('\n');
+    const parole = POSITIONS_DE_PAROLE.some((p) => p.test(c));
+    for (const ligne of lignes) {
+      const texte = String(ligne);
+      let actionnable = false;
+      for (const f of FORMES_CIBLE_PRODUCTION) {
+        if (!f.motif.test(texte)) continue;
+        actionnable = true;
+        const cle = `${c}|${f.nom}`;
+        if (!vu.has(cle)) { vu.add(cle); versProduction.push({ chemin: c, marqueur: f.nom, mesure }); }
+      }
+      if (actionnable) continue;
+      for (const m of MARQUEURS_PRODUCTION) {
+        if (!m.motif.test(texte)) continue;
+        // Une mention nue est une cible là où une machine exécute la ligne :
+        // hors position de parole, et hors commentaire.
+        if (!parole && !LIGNE_COMMENTAIRE.test(texte)) {
+          const cle = `${c}|${m.nom}`;
+          if (!vu.has(cle)) { vu.add(cle); versProduction.push({ chemin: c, marqueur: m.nom, mesure }); }
+        } else {
+          const cle = `mention|${c}|${m.nom}`;
+          if (!vu.has(cle)) { vu.add(cle); mentions.push({ chemin: c, marqueur: m.nom, mesure }); }
+        }
       }
     }
   }
   if (versProduction.length) {
+    // LE MOTIF NOMME LES FICHIERS. Le 01/10/2026, le refus annonçait
+    // « 5 fichier(s) » sans dire lesquels : `details.cibles` n'atteignait que le
+    // fichier d'état, et il a fallu rejouer la qualification en local pour
+    // savoir quoi corriger. Un refus qui ne désigne pas n'est pas actionnable.
+    const nommes = versProduction.map((v) => `${v.chemin} (${v.marqueur})`).join(', ');
     return R('HUMAN_DECISION_REQUIRED', { code: 'CHANGEMENT_PRODUCTION',
       condition: 'aucun changement Production',
-      motif: `Le diff introduit une cible Production dans ${versProduction.length} fichier(s). Une branche de run n’écrit pas vers Production.`,
+      motif: `Le diff introduit une cible Production dans ${versProduction.length} fichier(s) : ${nommes}. Une branche de run n’écrit pas vers Production.`,
       prochaine_action: 'Retirer la cible Production, ou demander un GO Production explicite à Frédéric.',
-      details: { cibles: versProduction } });
+      details: { cibles: versProduction, mentions } });
   }
 
   const affaiblies = [];
@@ -381,6 +455,10 @@ function qualifier(e) {
     // le geste. Dire de quelle ref le commit a été lu, si.
     details: { mode: 'FAST_FORWARD', destination: a.rail, destination_sha_attendu: a.head,
       ref_head: a.refHead || null, fichiers: touches.length,
+      // Les mentions de Production qui n’ont PAS bloqué. Une garde qui
+      // laisse passer sans le dire redevient indistinguable d’une garde
+      // absente : ce qu’elle a vu et classé comme vocabulaire se publie.
+      mentions_production: mentions,
       // Qui a exigé quoi, et sous quelle autorité. Sans ces deux listes, un
       // lecteur du dossier ne peut pas distinguer « tout était vert » de
       // « rien n'était exigé » — c'est exactement la confusion qu'on répare.
@@ -392,5 +470,6 @@ function qualifier(e) {
 
 module.exports = {
   qualifier, MAILLON,
-  SENTINELLES_PRODUCTION, MARQUEURS_PRODUCTION, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET,
+  SENTINELLES_PRODUCTION, MARQUEURS_PRODUCTION, FORMES_CIBLE_PRODUCTION,
+  POSITIONS_DE_PAROLE, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET,
 };

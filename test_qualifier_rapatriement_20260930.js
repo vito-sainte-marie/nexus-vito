@@ -221,27 +221,54 @@ ep('MUTATION — introduire la cible Supabase Production est une décision rése
 // inutilisable, le troisième interdit de devenir muet quand on ne sait pas.
 ep('une cible Production déjà présente n’est pas introduite par la branche', () => {
   const r = qualifier(scenario({
-    diff: [{ chemin: 'docs/handoff/CURRENT.md', statut: 'M',
-      lignes_ajoutees: ['Rien de nouveau ici.'],
+    // SUR DU CODE VIVANT, et non sur de la documentation. Ce bord mesure l'axe
+    // « ajoutée vs déjà présente ». Depuis le 01/10/2026, une documentation qui
+    // nomme Production n'est plus une cible du tout : posé sur un `.md`, ce
+    // bord serait resté vert même en lisant le fichier entier, c'est-à-dire
+    // qu'il aurait cessé de mesurer son axe. Sur `outils/sonde.js`, seule la
+    // distinction ajouté/présent le tient encore.
+    diff: [{ chemin: 'outils/sonde.js', statut: 'M',
+      lignes_ajoutees: ['const a = 1;'],
       lignes_supprimees: [] }],
     // Le fichier NOMME la Production, et la nommait déjà sur le rail.
-    contenus: () => 'Projet Supabase Production : uzhjpqpctpvxytxpxoqz\nRien de nouveau ici.',
+    contenus: () => 'const PROJET = "uzhjpqpctpvxytxpxoqz";\nconst a = 1;',
   }));
   assert.notStrictEqual(r.code, 'CHANGEMENT_PRODUCTION',
     'accuser une branche de ce que le rail porte déjà refuserait toute la documentation');
 });
 
+// CETTE ÉPREUVE ENCODAIT LE DÉFAUT. Écrite le 30/09/2026, elle affirmait qu'une
+// phrase de documentation nommant le projet Supabase de Production suffisait à
+// refuser le transport. Le 01/10/2026, c'est précisément cette règle qui a
+// retenu `119b2f8f` entre Claude et le rail, pour cinq lignes de vocabulaire
+// dont un commentaire de `outils/garde-ordre-migration-code.js`. Son INTENTION
+// restait juste — une cible AJOUTÉE se refuse là où la même cible déjà présente
+// ne se refuse pas — et c'est elle qu'on conserve, en la visant sur une vraie
+// cible. Le cas documentaire devient le bord de non-régression juste en dessous.
+// Voir `test_cible_production_vs_mention_20261001.js` pour le cas complet.
 ep('MUTATION — la même cible, cette fois AJOUTÉE, est bien refusée', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'outils/sonde.js', statut: 'M',
+      lignes_ajoutees: ['const PROJET = "uzhjpqpctpvxytxpxoqz";'],
+      lignes_supprimees: [] }],
+    contenus: () => 'const PROJET = "uzhjpqpctpvxytxpxoqz";',
+  }));
+  assert.strictEqual(r.etat, 'HUMAN_DECISION_REQUIRED');
+  assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION');
+  assert.strictEqual(r.details.cibles[0].mesure, 'lignes ajoutées',
+    'le dossier doit dire sur quoi la garde a conclu');
+});
+
+ep('NON-RÉGRESSION — nommer Production dans une phrase de documentation n’est pas la viser', () => {
   const r = qualifier(scenario({
     diff: [{ chemin: 'docs/handoff/CURRENT.md', statut: 'M',
       lignes_ajoutees: ['Projet Supabase Production : uzhjpqpctpvxytxpxoqz'],
       lignes_supprimees: [] }],
     contenus: () => 'Projet Supabase Production : uzhjpqpctpvxytxpxoqz',
   }));
-  assert.strictEqual(r.etat, 'HUMAN_DECISION_REQUIRED');
-  assert.strictEqual(r.code, 'CHANGEMENT_PRODUCTION');
-  assert.strictEqual(r.details.cibles[0].mesure, 'lignes ajoutées',
-    'le dossier doit dire sur quoi la garde a conclu');
+  assert.strictEqual(r.etat, 'EXECUTE', `obtenu ${r.etat} (${r.code}) : ${r.motif}`);
+  assert.strictEqual((r.details.mentions_production || []).length, 1,
+    'une mention laissée passer doit rester visible dans le dossier');
 });
 
 ep('un relevé sans lignes retombe sur le fichier entier, jamais sur le silence', () => {

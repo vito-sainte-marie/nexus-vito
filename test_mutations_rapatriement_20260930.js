@@ -68,6 +68,7 @@ const X_CABLAGE = 'test_cablage_maillons_20260930.js';
 const X_DESIG = 'test_designation_rail_20260930.js';
 const X_RAPAT = 'test_rapatriement_vers_rail_20260930.js';
 const X_PERM = 'test_permissions_workflow_20260908.js';
+const X_CIBLE = 'test_cible_production_vs_mention_20261001.js';
 
 // Chaque mutation : le fichier, le texte exact remplacé, son remplacement
 // permissif, et l'épreuve qui DOIT rougir.
@@ -220,8 +221,36 @@ const MUTATIONS = [
     de: "const TAMPON = 64 * 1024 * 1024;",
     a:  "const TAMPON = 1024 * 1024;" },
   { nom: 'la cible Production est cherchée dans tout le fichier, pas dans l’ajout', f: QUALIF, rouge: X_QUALIF,
-    de: "    const texte = surAjouts ? d.lignes_ajoutees.join('\\n') : String(lire(c) || '');",
-    a:  "    const texte = String(lire(c) || '');" },
+    de: "    const lignes = surAjouts ? d.lignes_ajoutees : String(lire(c) || '').split('\\n');",
+    a:  "    const lignes = String(lire(c) || '').split('\\n');" },
+
+  // ── NOMMER PRODUCTION N'EST PAS LA VISER (01/10/2026) ──────────────────────
+  // Les quatre mutations qui gardent la correction du refus de `119b2f8f`.
+  // Chacune rend la garde soit aveugle, soit inutilisable — les deux façons
+  // dont elle a déjà échoué.
+  //
+  // Celle-ci EST le défaut du 30/09, à la ligne près : la mention nue redevient
+  // une cible partout, y compris dans un commentaire et dans la documentation.
+  { nom: 'la mention nue de Production redevient une cible partout', f: QUALIF, rouge: X_CIBLE,
+    de: "        if (!parole && !LIGNE_COMMENTAIRE.test(texte)) {",
+    a:  "        if (true) {" },
+  // L'inverse : la garde cesse de voir les formes actionnables et ne juge plus
+  // que des mentions. Une adresse `…​.supabase.co` passerait alors en prose.
+  { nom: 'les formes actionnables ne sont plus cherchées', f: QUALIF, rouge: X_CIBLE,
+    de: "      for (const f of FORMES_CIBLE_PRODUCTION) {",
+    a:  "      for (const f of []) {" },
+  // Le motif de commentaire reconnaît toute ligne. C'est l'erreur réellement
+  // commise en écrivant la correction : l'alternative `\\*` du motif signifiait
+  // « zéro backslash ou plus ». La garde était désarmée sans rien en dire.
+  { nom: 'toute ligne est tenue pour un commentaire inerte', f: QUALIF, rouge: X_CIBLE,
+    de: "const LIGNE_COMMENTAIRE = /^\\s*(\\/\\/|\\/\\*|\\*|#|--|<!--)/;",
+    a:  "const LIGNE_COMMENTAIRE = /^/;" },
+  // Le refus cesse de désigner. Il reste publié, et redevient inactionnable :
+  // c'est ce qui a obligé à rejouer la qualification en local le 01/10 pour
+  // savoir quels fichiers corriger.
+  { nom: 'le refus compte les fichiers au lieu de les nommer', f: QUALIF, rouge: X_CIBLE,
+    de: "dans ${versProduction.length} fichier(s) : ${nommes}.",
+    a:  "dans ${versProduction.length} fichier(s)." },
   { nom: 'le repli conservateur devient un silence quand les lignes manquent', f: QUALIF, rouge: X_QUALIF,
     de: "    const surAjouts = d && Array.isArray(d.lignes_ajoutees);",
     a:  "    const surAjouts = true; if (!d || !Array.isArray(d.lignes_ajoutees)) continue;" },
@@ -326,7 +355,7 @@ const MUTATIONS = [
 // `path.join` sur un message qui ne nommait ni la mutation ni le manque. Une
 // omission doit se dénoncer là où elle se produit, avec le nom de ce qui
 // manque.
-const BANCS_CONNUS = [X_QUALIF, X_ETAT, X_WATCH, X_CABLAGE, X_DESIG, X_RAPAT, X_PERM];
+const BANCS_CONNUS = [X_QUALIF, X_ETAT, X_WATCH, X_CABLAGE, X_DESIG, X_RAPAT, X_PERM, X_CIBLE];
 const orphelines = MUTATIONS.filter(m => !BANCS_CONNUS.includes(m.rouge));
 if (orphelines.length) {
   console.error(`ÉPINGLE MANQUANTE — ${orphelines.length} mutation(s) ne désignent aucun banc connu :`);
