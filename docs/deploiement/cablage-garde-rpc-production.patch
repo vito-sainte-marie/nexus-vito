@@ -1,0 +1,138 @@
+diff --git a/.github/workflows/deploiement-production.yml b/.github/workflows/deploiement-production.yml
+index ef0f899..88e644b 100644
+--- a/.github/workflows/deploiement-production.yml
++++ b/.github/workflows/deploiement-production.yml
+@@ -124,6 +124,17 @@ on:
+         description: "Référence à construire pour répétition (branche ou SHA). NE DÉPLOIE JAMAIS — sert à éprouver le build et l'artefact."
+         required: false
+         type: string
++
++      # La cible de la garde RPC, quand l'événement ne la donne pas. Sur un
++      # `push` et sur une `pull_request`, l'état publié précédent est connu de
++      # l'événement lui-même ; sur une répétition manuelle, il n'existe aucune
++      # valeur à déduire. Elle est donc DEMANDÉE, jamais devinée : un repli
++      # codé en dur ferait porter le verdict sur une autre question que celle
++      # qu'on croit poser.
++      ref_cible_rpc:
++        description: "Référence de l'état DÉJÀ publié, pour la garde RPC (branche ou SHA). Obligatoire en répétition manuelle : sans elle, la garde refuse."
++        required: false
++        type: string
+       deployer:
+         description: "Déployer réellement (exige aussi la branche production et l'approbation de l'environnement github-pages)"
+         required: false
+@@ -184,6 +195,115 @@ jobs:
+           fi
+           echo "sha_construit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+ 
++
++      # ─── GARDE RPC FRONT / CIBLE ────────────────────────────────────────
++      # Pourquoi elle existe : le 01/10/2026, la fusion de la PR #65 a promu
++      # un écran de connexion qui appelle
++      # `public.nexus_identifiant_de_connexion(p_prenom)`, alors que la
++      # migration qui crée cette fonction n'a jamais été appliquée à la base
++      # Production. Le site a été publié, l'écran a répondu « Connexion au
++      # serveur impossible », et AUCUNE garde de ce fichier ne pouvait le
++      # voir : elles mesurent toutes l'artefact — sa complétude, ses
++      # références, ses clés, son empreinte — jamais la base que cet artefact
++      # va interroger. Pages publie le front seul ; les migrations sont un
++      # geste séparé. Cet écart-là est structurel, donc il faut une garde qui
++      # le regarde.
++      #
++      # Ce qu'elle mesure : pour chaque `.rpc("…")` appelé par un écran du
++      # candidat, la fonction est-elle créée par une migration présente sur
++      # l'état cible — ou DÉCLARÉE hors-bande par le candidat, avec sa date et
++      # son environnement de mesure ? Un appel que le candidat INTRODUIT et
++      # que la cible ne peut pas prouver est un BLOCK. Un appel préexistant
++      # non prouvable est un WARN : il tourne peut-être depuis des mois sur
++      # une fonction créée hors-bande, et le refuser ici arrêterait le
++      # déploiement pour une dette qui n'est pas celle de ce candidat.
++      #
++      # CE QU'ELLE NE PROUVE PAS, et il faut le dire : elle lit des ARBRES
++      # GIT, pas la base. Une migration présente sur la cible n'a pas
++      # forcément été appliquée. La garde ferme donc le cas « le front et sa
++      # migration ont voyagé séparément » — exactement #65 — et pas le cas
++      # « la migration est au dépôt mais pas en base », qui relève de
++      # `outils/garde-ordre-migration-code.js` et d'une lecture de catalogue.
++      #
++      # LA CIBLE N'EST JAMAIS DEVINÉE. Elle vient de l'événement :
++      #   · `push`         → `github.event.before`, l'état d'où `production`
++      #                      vient. C'est la bonne cible pour la question
++      #                      « ce que ce push ajoute, la base le connaît-elle ? » ;
++      #   · `pull_request` → `base.sha`. C'est la position la plus utile du
++      #                      dispositif : le refus apparaît sur la PR, AVANT
++      #                      la fusion. Pour #65, le rouge aurait été lisible
++      #                      avant le geste qui a cassé le site ;
++      #   · manuel         → l'entrée `ref_cible_rpc`, et rien d'autre. Un
++      #                      repli silencieux vers une branche supposée est le
++      #                      défaut qui a déjà coûté quatre réparations dans
++      #                      ce dépôt : une cible absente REFUSE.
++      #
++      # ÉCHEC FERMÉ. Cible vide, SHA de création (quarante zéros), référence
++      # introuvable, événement inconnu : la garde refuse. `if: always()` serait
++      # ici une faute, comme pour la garde anti-obsolescence.
++      #
++      # PLACÉE AVANT `Construire`, et dans `construire` plutôt que dans
++      # `deployer`, pour trois raisons :
++      #   · elle mesure des refs via `git archive`, jamais l'arbre de travail :
++      #     ni le build ni la composition de l'artefact ne peuvent la perturber,
++      #     donc rien n'oblige à l'exécuter tard ;
++      #   · un arbre dont un écran appellerait dans le vide n'a aucune raison
++      #     d'être construit, ni composé, ni emballé ;
++      #   · surtout, le refus arrive AVANT l'approbation humaine de
++      #     l'environnement `github-pages`. Une garde qui rougit après le clic
++      #     gâche le geste et apprend à cliquer quand même.
++      #
++      # Aucune permission : lecture seule de l'arbre déjà récupéré, aucun
++      # réseau, aucun secret. `permissions: {}` du fichier reste intact.
++      - name: Garde RPC — les fonctions appelées par le front existent-elles sur la cible ?
++        env:
++          EVENEMENT: ${{ github.event_name }}
++          CANDIDAT: ${{ steps.mode.outputs.sha_construit }}
++          CIBLE_PUSH: ${{ github.event.before }}
++          CIBLE_PR: ${{ github.event.pull_request.base.sha }}
++          CIBLE_DEMANDEE: ${{ inputs.ref_cible_rpc }}
++        run: |
++          set -euo pipefail
++
++          case "${EVENEMENT}" in
++            push)
++              CIBLE="${CIBLE_PUSH}"
++              ORIGINE="github.event.before — l'état d'où ce push fait sortir \`production\`" ;;
++            pull_request)
++              CIBLE="${CIBLE_PR}"
++              ORIGINE="github.event.pull_request.base.sha — l'état que cette PR viserait" ;;
++            workflow_dispatch)
++              CIBLE="${CIBLE_DEMANDEE}"
++              ORIGINE="entrée \`ref_cible_rpc\` — désignée à la main" ;;
++            *)
++              echo "::error title=Garde RPC::Événement « ${EVENEMENT} » non prévu : aucune cible ne peut en être déduite. Échec fermé plutôt que cible devinée."
++              exit 1 ;;
++          esac
++
++          if [ -z "${CIBLE}" ]; then
++            if [ "${EVENEMENT}" = "workflow_dispatch" ]; then
++              echo "::error title=Garde RPC::Aucune cible désignée. En répétition manuelle, renseignez \`ref_cible_rpc\` avec la référence de l'état déjà publié. Rien n'est déduit : une cible devinée ferait porter le verdict sur une autre question."
++            else
++              echo "::error title=Garde RPC::L'événement ${EVENEMENT} n'a pas fourni de cible (${ORIGINE} est vide). Échec fermé."
++            fi
++            exit 1
++          fi
++
++          # Quarante zéros : GitHub les envoie dans `before` quand la branche
++          # vient d'être créée. Il n'existe alors aucun état antérieur, donc
++          # aucun delta mesurable. Le dire explicitement vaut mieux que
++          # laisser la garde répondre « référence introuvable », qui enverrait
++          # chercher une panne de clone là où il n'y a qu'une première poussée.
++          if [ "${CIBLE}" = "0000000000000000000000000000000000000000" ]; then
++            echo "::error title=Garde RPC::La cible est le SHA nul : \`production\` vient d'être créée et il n'existe aucun état antérieur à comparer. Désignez explicitement la cible par une répétition manuelle avec \`ref_cible_rpc\`."
++            exit 1
++          fi
++
++          echo "::notice title=Garde RPC::Candidat ${CANDIDAT} — cible ${CIBLE} (${ORIGINE})."
++          node outils/garde-rpc-front-definie-sur-la-cible.js \
++            --candidat "${CANDIDAT}" \
++            --cible "${CIBLE}"
++
+       - name: Construire (NEXUS_ENV=production)
+         if: steps.mode.outputs.mode == 'construit'
+         env:

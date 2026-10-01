@@ -252,6 +252,33 @@ function parSeverite(r, s) { return r.constats.filter((c) => c.severite === s); 
   assert.strictEqual(neuf.verdict, 'RPC_FRONT_REFUS',
     'une déclaration ne doit jamais exempter un appel introduit par le candidat');
   ok('C6 ter — un candidat ne peut pas s\'exempter d\'un appel neuf en le déclarant');
+
+  // C6 quater — DE QUEL CÔTÉ la déclaration est-elle lue ?
+  //
+  // La question n'est pas cosmétique. `rpc-hors-bande-constatees.json` est un
+  // acte du CANDIDAT : c'est lui qui affirme « j'ai constaté cette fonction en
+  // base, tel jour, sur tel environnement ». La cible, elle, ne déclare rien —
+  // elle est mesurée. Tant que le compte des déclarations était imprimé sur la
+  // ligne de la cible, qui lisait « cible — 0 déclarée(s) » allait chercher le
+  // fichier dans la branche cible, où il n'a jamais eu à être, et concluait à
+  // une absence qui n'existait pas.
+  const declSeule = { fonction: 'venue_hors_bande', constatee_le: '2026-10-01 17:31:53 UTC', environnement_mesure: 'Test', motif: 'creee hors bande' };
+  const cote = juger({ ...socle, ...front }, { ...socle, ...front, ...decl(declSeule) });
+  assert.strictEqual(cote.candidat.declarees, 1,
+    'le compte des déclarations appartient au candidat, qui porte le fichier');
+  assert.strictEqual(cote.cibleMesuree.declarees, undefined,
+    'la cible ne déclare rien : lui attribuer un compte envoie le lecteur dans le mauvais arbre');
+  ok('C6 quater — le compte des déclarations est attribué au candidat, pas à la cible');
+
+  // MUTATION : la même déclaration posée sur la CIBLE seule. Elle ne doit rien
+  // exempter — sinon il suffirait qu'un fichier traîne sur la branche cible
+  // pour qu'un candidat hérite d'une exemption qu'il n'a pas écrite.
+  const aCote = juger({ ...socle, ...front, ...decl(declSeule) }, { ...socle, ...front });
+  assert.strictEqual(aCote.candidat.declarees, 0);
+  assert.strictEqual(constat(aCote, CODES.RPC_HORS_BANDE_DECLAREE), undefined,
+    'une déclaration présente seulement sur la cible n\'exempte rien');
+  assert.strictEqual(constat(aCote, CODES.RPC_INTROUVABLE_SUR_LA_CIBLE).severite, SEVERITES.WARN);
+  ok('C6 quater muté — une déclaration posée sur la cible seule n\'exempte aucun appel');
 }
 
 // ------------------------------------------------------------------

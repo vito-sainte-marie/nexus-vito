@@ -21,7 +21,9 @@
 //
 //   appels(candidat)   = les `.rpc("…")` des écrans du candidat
 //   prouvables(cible)  = les fonctions créées par une migration présente sur la
-//                        branche cible, PLUS celles déclarées hors-bande
+//                        branche cible, PLUS celles que le CANDIDAT déclare
+//                        hors-bande. La déclaration est un acte du candidat :
+//                        la cible est mesurée, elle n'affirme rien.
 //
 //   Un appel qui n'est pas prouvable est classé selon qu'il est NOUVEAU ou
 //   PRÉEXISTANT, parce que les deux ne disent pas la même chose :
@@ -331,8 +333,14 @@ function controler(options = {}) {
     return {
       ok: bloquants.length === 0,
       verdict: bloquants.length === 0 ? 'RPC_FRONT_CONFORME' : 'RPC_FRONT_REFUS',
-      candidat: { ref: refCandidat, sha: shaCandidat },
-      cibleMesuree: { ref: refCible, sha: shaCible, migrations: nombreMigrations, fonctions: definies.size, declarees: declarees.size },
+      // `declarees` est porté par le CANDIDAT, pas par la cible : c'est le
+      // candidat qui contient `docs/deploiement/rpc-hors-bande-constatees.json`,
+      // donc lui qui DÉCLARE ce qu'il affirme avoir constaté sur la cible.
+      // L'inscrire du côté de la cible attribuait la mesure au mauvais arbre :
+      // qui lisait « cible — 0 déclarée(s) » allait chercher le fichier dans la
+      // branche cible, où il n'a jamais eu à être.
+      candidat: { ref: refCandidat, sha: shaCandidat, declarees: declarees.size },
+      cibleMesuree: { ref: refCible, sha: shaCible, migrations: nombreMigrations, fonctions: definies.size },
       appels: appelsCandidat.size,
       constats
     };
@@ -372,8 +380,8 @@ if (require.main === module) {
   const r = controler(lu.opts);
   console.log('── Garde RPC front / cible ─────────────────────────────────────');
   if (r.cibleMesuree) {
-    console.log(`  candidat : ${r.candidat.ref} (${r.candidat.sha.slice(0, 12)}) — ${r.appels} RPC appelée(s)`);
-    console.log(`  cible    : ${r.cibleMesuree.ref} (${r.cibleMesuree.sha.slice(0, 12)}) — ${r.cibleMesuree.migrations} migration(s), ${r.cibleMesuree.fonctions} fonction(s) prouvable(s), ${r.cibleMesuree.declarees} déclarée(s) hors-bande`);
+    console.log(`  candidat : ${r.candidat.ref} (${r.candidat.sha.slice(0, 12)}) — ${r.appels} RPC appelée(s), ${r.candidat.declarees} déclarée(s) hors-bande`);
+    console.log(`  cible    : ${r.cibleMesuree.ref} (${r.cibleMesuree.sha.slice(0, 12)}) — ${r.cibleMesuree.migrations} migration(s), ${r.cibleMesuree.fonctions} fonction(s) prouvable(s)`);
   }
   console.log('');
   for (const ordre of [SEVERITES.BLOCK, SEVERITES.WARN, SEVERITES.INFO]) {
