@@ -138,10 +138,50 @@ t('un argument inconnu refuse en USAGE (exit 1), sans toucher au réseau', () =>
 });
 
 // ── B. psql introuvable ─────────────────────────────────────────────────
-t('psql introuvable (ni PATH ni repli Homebrew) → PSQL_INTROUVABLE (exit 2)', () => {
-  const r = lancer([], { PATH: PATH_SANS_RIEN });
+// CE CONTRÔLE NE PEUT PAS ÊTRE UN SIMPLE `PATH` VIDE. Le véhicule porte un
+// repli ABSOLU codé en dur (/opt/homebrew/opt/libpq/bin/psql). Sur un poste où
+// libpq est installé — celui de Frédéric — vider `PATH` ne rend donc PAS psql
+// introuvable : le repli existe, le véhicule le trouve, et il a raison de le
+// trouver. La première écriture de ce contrôle postulait le contraire et
+// rougissait ici en obtenant 3 (SECRET_ABSENT) : elle mesurait la machine, pas
+// la garde. Pour mesurer « psql introuvable » il faut rendre le repli absent,
+// dans un bac, comme le fait la mutation de la section L.
+t('psql introuvable (ni PATH ni repli) → PSQL_INTROUVABLE (exit 2)', () => {
+  const REPLI = '/opt/homebrew/opt/libpq/bin/psql';
+  assert.ok(SRC.includes(REPLI),
+    `le repli ${REPLI} n'est plus dans la source : ce contrôle ne désigne plus rien`);
+  const sansRepli = SRC.split(REPLI).join(path.join(DOSSIER_VIDE, 'psql-absent-de-ce-poste'));
+  assert.notStrictEqual(sansRepli, SRC,
+    'la substitution du repli n\'a rien changé : elle ne prouve rien');
+
+  const bac = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-login-sans-psql-'));
+  const script = path.join(bac, 'sans-psql.sh');
+  fs.writeFileSync(script, sansRepli);
+  fs.chmodSync(script, 0o755);
+  const syntaxe = spawnSync(BASH_BIN, ['-n', script], { encoding: 'utf8' });
+  assert.strictEqual(syntaxe.status, 0,
+    `le script sans repli ne compile plus : on mesurerait une faute de frappe. ${syntaxe.stderr}`);
+
+  const r = spawnSync(BASH_BIN, [script], {
+    env: envPropre({ PATH: PATH_SANS_RIEN }), encoding: 'utf8', timeout: 20000, cwd: RACINE,
+  });
+  fs.rmSync(bac, { recursive: true, force: true });
   assert.strictEqual(r.status, 2, `attendu 2, obtenu ${r.status} : ${r.stderr}`);
   assert.ok(/psql introuvable/.test(r.stderr));
+});
+// LE CONTRE-TÉMOIN. Sans lui, le rouge ci-dessus pourrait venir d'autre chose
+// que de la substitution. Le motif 2 doit suivre l'existence RÉELLE du repli
+// sur ce poste, jamais le seul contenu de `PATH`.
+t('contre-témoin : le motif 2 suit l\'existence réelle du repli, pas le PATH', () => {
+  const replExiste = fs.existsSync('/opt/homebrew/opt/libpq/bin/psql');
+  const r = lancer([], { PATH: PATH_SANS_RIEN });
+  if (replExiste) {
+    assert.notStrictEqual(r.status, 2,
+      'le repli existe sur ce poste : refuser en 2 signifierait que le véhicule ne le voit pas');
+  } else {
+    assert.strictEqual(r.status, 2,
+      `aucun psql sur ce poste, ni dans PATH ni au repli : le refus attendu est 2, obtenu ${r.status}`);
+  }
 });
 
 // ── C. Artefact absent (seulement pertinent avec --appliquer) ──────────
@@ -320,4 +360,8 @@ for (const d of [LEURRES, PSQL_LEURRE_DIR, DOSSIER_VIDE, CWD_TMP]) {
   fs.rmSync(d, { recursive: true, force: true });
 }
 
-console.log(`\n${passes} vérifications passées — le véhicule mesure avant d'écrire, et ne ment jamais sur ce qu'il a fait.`);
+if (process.exitCode) {
+  console.error(`\nÉCHEC — ${passes} vérification(s) passée(s), mais au moins une a refusé ci-dessus.`);
+} else {
+  console.log(`\n${passes} vérifications passées — le véhicule mesure avant d'écrire, et ne ment jamais sur ce qu'il a fait.`);
+}
