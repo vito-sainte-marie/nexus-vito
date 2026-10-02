@@ -431,14 +431,36 @@ function pousser(entree, resultat, exec) {
     });
   }
 
+  // LA PHRASE QUI MENTAIT, TROUVÉE LE 02/10/2026. Ce push est émis par `git
+  // push origin <head>:<rail>` depuis une étape de `tests.yml` qui tourne sur
+  // `branche` (une `claude/issue-*`), authentifiée par le remote posé par
+  // `actions/checkout` — c'est-à-dire par `github.token`, le même jeton que
+  // `tests.yml` nomme lui-même, ailleurs dans ce fichier, comme celui pour
+  // lequel « GitHub n'enchaîne pas les workflows déclenchés ». Cette règle de
+  // plateforme ne vise pas que la publication de réveil : elle s'applique à
+  // CE push-ci aussi, et sans exception puisque `push` n'en a aucune (contrairement
+  // à `workflow_dispatch`/`repository_dispatch`). Dire « la CI reprend la
+  // chaîne » était donc faux à chaque transport, pas seulement parfois — et
+  // c'est précisément pourquoi la recette navigateur connectée, gardée par
+  // `NEXUS_REF_EST_LE_RAIL`, n'a jamais pu juger un commit rapatrié par ce
+  // chemin : aucun run n'existe sur le rail pour le juger. Le geste a réussi,
+  // la destination porte le bon SHA — mais la suite n'est pas automatique, et
+  // prétendre l'inverse faisait croire la recette connectée obtenue quand elle
+  // ne l'était pas.
   return etat({
     etat: 'EXECUTE', maillon: MAILLON, code: 'TRANSPORTE',
     condition: 'destination relue au SHA attendu',
     motif: `« ${rail} » avance jusqu'à ${head.slice(0, 8)} en avance rapide, et la `
       + 'destination relue porte bien ce SHA.',
     sha: head, branche, lot: lot || '(inconnu)',
-    prochaine_action: `La CI de « ${rail} » reprend la chaîne à partir de ${head.slice(0, 8)}.`,
-    details: { ...(resultat.details || {}), destination: rail, sha_verifie: relu },
+    prochaine_action: `« ${rail} » porte désormais ${head.slice(0, 8)}, mais ce push est `
+      + 'authentifié par github.token : GitHub N\'ENCHAÎNE PAS de nouveau run sur ce push '
+      + '(propriété de plateforme, aucune exception pour push). La recette connectée '
+      + `(NEXUS_REF_EST_LE_RAIL) n'a donc PAS tourné sur ${head.slice(0, 8)} par ce geste seul. `
+      + `Pour l'obtenir : déclencher manuellement « gh workflow run tests.yml --ref ${rail} » `
+      + '(ou équivalent UI Actions) depuis un compte humain — jamais en élargissant la '
+      + 'permission de ce jeton.',
+    details: { ...(resultat.details || {}), destination: rail, sha_verifie: relu, continuation_automatique: false },
   });
 }
 

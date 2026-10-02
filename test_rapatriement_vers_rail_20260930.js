@@ -437,6 +437,29 @@ verifier('la destination est RELUE après le geste', () => {
     'un push qui rend 0 dit que la commande s’est bien passée, pas que la branche porte ce SHA');
 });
 
+// ── LA PHRASE QUI MENTAIT — la réparation du 02/10/2026 ──────────────────────
+//
+// Mesuré ce jour-là : `prochaine_action` affirmait « la CI du rail reprend la
+// chaîne » après un transport réussi. Faux à chaque transport, pas seulement
+// parfois — ce push est authentifié par `github.token` (remote posé par
+// `actions/checkout`, aucun jeton personnel ni PAT en jeu), et GitHub
+// n'enchaîne pas de nouveau run sur un push authentifié ainsi, sans exception.
+// La recette navigateur connectée (gardée par `NEXUS_REF_EST_LE_RAIL`) ne
+// pouvait donc jamais juger un commit rapatrié par ce seul geste — et rien ne
+// le disait : un succès affiché à la place d'un silence.
+verifier('un transport réussi ne prétend plus que la CI du rail va reprendre seule', () => {
+  const { r } = lancer({}, { transporter: true });
+  assert.strictEqual(r.code, 'TRANSPORTE');
+  assert.ok(!/\breprend la chaîne\b/i.test(r.prochaine_action),
+    'cette affirmation est fausse : github.token n’enchaîne aucun nouveau run sur ce push');
+  assert.ok(/github\.token/.test(r.prochaine_action) && /N'ENCHAÎNE PAS|n'enchaîne pas/i.test(r.prochaine_action),
+    'la vraie contrainte de plateforme doit être nommée, pas seulement retirée');
+  assert.ok(/workflow_dispatch|workflow run/i.test(r.prochaine_action),
+    'le geste humain qui débloque réellement la recette connectée doit être nommé');
+  assert.strictEqual(r.details.continuation_automatique, false,
+    'un lecteur programmatique doit pouvoir le vérifier sans relire la prose');
+});
+
 verifier('origin qui refuse l’avance rapide rougit franchement', () => {
   const { r } = lancer({ pushCode: 1 }, { transporter: true });
   assert.strictEqual(r.etat, 'FAILED');
