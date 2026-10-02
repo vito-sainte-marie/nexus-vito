@@ -1,5 +1,27 @@
 # Le refus muet de `claude.yml` — à appliquer sur `main`
 
+> ## CONSOMMÉ — 02/10/2026
+>
+> **Ce geste a été fait.** Frédéric a collé `.github/workflows/claude.yml` sur
+> `main` ; le fichier a atterri au commit `d6093b7`
+> (« fix(ci): aligner Claude sur le contrat NEXUS Test et workflow dispatch »),
+> et son sha256 est identique de part et d'autre.
+>
+> Mesuré sur `origin/main:.github/workflows/claude.yml` (275 lignes), les sept
+> repères que cette fiche prescrit sont **tous présents** : l'étape
+> « Résoudre le rail NEXUS désigné », l'étape « Rendre le refus de rail
+> audible », le fichier `nexus-refus.md`, l'appel
+> `gh api repos/…/issues/${ADRESSE}/comments`, la permission `issues: write`,
+> `gh workflow run` et `SUPABASE_TEST_DB_URL_READONLY`.
+>
+> **Donc : ne pas rejouer ce geste.** La fiche est conservée comme trace du
+> défaut et de son raisonnement, pas comme une tâche. L'encadré « État :
+> préparé, NON appliqué » qui suit est **historique** : il décrit l'état du
+> 26/09, plus celui d'aujourd'hui.
+>
+> Un run rouge sur l'étape « Résoudre le rail » n'est désormais plus une panne
+> muette : c'est un **refus publié**, et il faut le lire comme tel.
+
 > **État : préparé, NON appliqué.** Ce document décrit une modification de
 > `.github/workflows/claude.yml`, fichier qui vit sur `main` et **seulement**
 > sur `main`. Le GO de transport du 26/09/2026 borne explicitement la
