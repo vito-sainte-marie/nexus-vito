@@ -1065,6 +1065,222 @@ function verifierInvitation(vue) {
   return echecs;
 }
 
+const ECRAN_PARAMETRES_STATION = 'NEXUS-Parametres-Station-v1.html';
+
+// ---------------------------------------------------------------------------
+// ENREGISTREMENT DES PRIX CARBURANTS (Paramètres Station) — PREUVE CONNECTÉE
+//
+// POURQUOI CETTE ÉTAPE EXISTE
+// L'écran enregistre les prix SP/GO/GNR par un upsert sur `station_config`
+// avec `onConflict: 'site'`, et cet upsert ne fournit pas toutes les colonnes
+// NOT NULL de la table. Or `ON CONFLICT DO UPDATE` valide la ligne PROPOSÉE
+// — colonnes absentes remplies par défaut ou NULL — AVANT de détecter le
+// conflit. Une colonne NOT NULL sans défaut et sans écrivain casse donc
+// l'upsert, QUE LA LIGNE EXISTE DÉJÀ OU NON. Mesuré sur nexus-test le
+// 02/10/2026 : 23502 sur `fuseau_horaire`, y compris sur un conflit réel
+// (voir outils/epreuve-station-config-upsert-fuseau-horaire-23502-20261002.sql).
+//
+// CE QUE CETTE ÉTAPE AJOUTE À L'ÉPREUVE SQL
+// L'épreuve SQL prouve le mécanisme EN BASE. Elle ne prouve pas que l'écran
+// le rencontre : le chemin réel traverse PostgREST, la RLS et le profil
+// connecté. Une preuve statique ne remplace pas une preuve connectée, et
+// c'est la remise en cuve de Nexus Verify qui est inutilisable en bout de
+// chaîne — pas une contrainte de schéma abstraite.
+//
+// LE REFUS N'EST PAS DANS LE DOM
+// Le gestionnaire de `#sauvegarderPrix` rend l'erreur par `alert()`, jamais
+// par du texte de page. Une assertion sur `innerText` ne verrait RIEN et
+// concluerait au succès. D'où `page.on('dialog', …)` : sans cet écouteur,
+// cette étape serait VERTE À TORT, et c'est exactement le mode de panne que
+// la recette doit cesser de produire. L'épreuve associée vérifie le câblage
+// de l'écouteur, pas seulement le verdict.
+// ---------------------------------------------------------------------------
+
+// Les trois prix écrits QUAND LA BASE N'EN PORTE AUCUN pour le mois courant.
+// Dans ce cas seulement cette étape change une valeur métier de Test — ce que
+// le rapport déclare, parce qu'un effet de bord silencieux n'est pas un effet
+// de bord acceptable.
+const PRIX_DE_RECETTE = { sp: '1,790', go: '1,650', gnr: '1,210' };
+
+// Le refus de contrainte, par son code ET par son texte : PostgREST rend
+// parfois l'un sans l'autre, et le gestionnaire se replie sur `error.code`
+// quand `error.message` est absent.
+const REFUS_NOT_NULL = /23502|null value in column|violates not-null/i;
+// « Horaires de quart non configurés pour ce commerce. » — alerte de
+// `horairesObligatoires()`, qui s'interpose AVANT l'upsert. Troisième issue,
+// ni succès ni défaut mesuré ici.
+const ALERTE_HORAIRES = /horaires de quart non configur/i;
+// « Renseignez les 3 nouveaux prix (SP, GO, GNR). » — l'écran a jugé la
+// saisie invalide avant toute écriture.
+const ALERTE_SAISIE = /renseignez les 3/i;
+
+// L'alerte porte son détail technique APRÈS un saut de ligne
+// (« Erreur — réessayez.\n\nDétail technique … : <message> »). Ne garder que
+// la première ligne jetterait précisément ce qui nomme la cause.
+//
+// Aucune valeur saisie ne peut transiter ici : le texte vient de l'écran, qui
+// compose son alerte à partir de `error.message`/`error.code`/`error.hint` —
+// jamais à partir du contenu d'un champ. Le PIN ne peut pas en sortir.
+function messageAlerte(texte) {
+  return String(texte || '').split('\n').map(l => l.trim()).filter(Boolean).join(' / ');
+}
+
+async function observerEnregistrementPrix(page, base) {
+  const alertes = [];
+  const surDialogue = async (d) => { alertes.push(d.message()); await d.dismiss().catch(() => {}); };
+  page.on('dialog', surDialogue);
+  const nonJuge = (motif) => ({ tente: false, motif, alertes: alertes.slice(),
+    reecrit: null, note: false, statut: '', boutonDesactive: false, chemin: null });
+  try {
+    try {
+      await page.goto(new URL(ECRAN_PARAMETRES_STATION, base).href, { waitUntil: 'domcontentloaded' });
+    } catch (e) {
+      return nonJuge(`écran ${ECRAN_PARAMETRES_STATION} inatteignable : ${(e.message || '').split('\n')[0]}`);
+    }
+    // LE MOTIF PORTE LE CHEMIN RÉELLEMENT ATTEINT, pas l'URL demandée. La
+    // garde de l'écran exige `manager` ou `gerant` et redirige sinon ; un
+    // diagnostic qui ne nomme pas ce qu'il a regardé ne diagnostique rien.
+    // LE CHEMIN, PAS L'URL ENTIÈRE : une chaîne de requête n'est pas une
+    // destination.
+    let chemin = page.url();
+    try { chemin = new URL(page.url()).pathname.split('/').filter(Boolean).pop() || chemin; }
+    catch (e) { /* URL non analysable : la chaîne brute reste le meilleur témoin */ }
+    if (!/Parametres-Station/i.test(chemin)) {
+      return nonJuge(/Login/i.test(chemin)
+        ? `redirigé vers ${chemin} : session manager perdue avant l’écran des réglages`
+        : `page inattendue après navigation : ${chemin}`);
+    }
+    const renseignable = await page.waitForFunction(() => {
+      const b = document.getElementById('sauvegarderPrix');
+      return !!(b && !b.disabled && document.getElementById('prix_sp')
+        && document.getElementById('prix_go') && document.getElementById('prix_gnr'));
+    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (!renseignable) {
+      return nonJuge(`la carte « Prix carburants — mois en cours » n’est pas renseignable sur ${chemin} `
+        + '(#sauvegarderPrix ou #prix_sp/#prix_go/#prix_gnr absents, ou bouton déjà désactivé)');
+    }
+    // Laisser `initPrixCarburants` reporter ce qu'elle trouve en base. Les
+    // champs ne sont préremplis QUE si `prix.mois` est le mois courant : un
+    // mois périmé les laisse VIDES tout en affichant un statut.
+    await page.waitForFunction(() => {
+      const s = document.getElementById('statutPrixMois');
+      return !!(s && s.textContent.trim());
+    }, null, { timeout: 20000 }).catch(() => {});
+    const avant = await page.evaluate(() => {
+      const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
+      return { sp: v('prix_sp'), go: v('prix_go'), gnr: v('prix_gnr'),
+        statut: ((document.getElementById('statutPrixMois') || {}).textContent || '').trim() };
+    });
+    // NE JAMAIS CHANGER UNE VALEUR MÉTIER POUR MESURER UN CHEMIN D'ÉCRITURE.
+    // Quand la base porte déjà les prix du mois, on réécrit LES MÊMES : seuls
+    // `maj_par` et `maj_le` bougent, que le gestionnaire rafraîchit de toute
+    // façon. Sinon il n'y a rien à préserver — et le rapport le dit.
+    const dejaEnBase = !!(avant.sp && avant.go && avant.gnr);
+    const aEcrire = dejaEnBase ? { sp: avant.sp, go: avant.go, gnr: avant.gnr } : PRIX_DE_RECETTE;
+    for (const [id, valeur] of [['prix_sp', aEcrire.sp], ['prix_go', aEcrire.go], ['prix_gnr', aEcrire.gnr]]) {
+      await page.locator('#' + id).fill(valeur);
+    }
+    await page.locator('#sauvegarderPrix').click();
+    // TROIS SORTIES, ET AUCUNE NE SE DEVINE : la note de succès
+    // (#savedNotePrix passe en display:block pendant 3 s), une `alert()`, ou
+    // rien. « Rien » EST une réponse : un état qui refuse de conclure ne
+    // rougit jamais, et c'est ainsi qu'un défaut survit des semaines.
+    const limite = Date.now() + 20000;
+    let note = false;
+    do {
+      note = await page.evaluate(() => {
+        const n = document.getElementById('savedNotePrix');
+        return !!(n && getComputedStyle(n).display !== 'none');
+      }).catch(() => false);
+      if (note || alertes.length) break;
+      await page.waitForTimeout(250);
+    } while (Date.now() < limite);
+    const apres = await page.evaluate(() => ({
+      statut: ((document.getElementById('statutPrixMois') || {}).textContent || '').trim(),
+      boutonDesactive: !!(document.getElementById('sauvegarderPrix') || {}).disabled,
+    }));
+    return { tente: true, motif: null, alertes: alertes.slice(), note,
+      reecrit: dejaEnBase ? 'identiques' : 'nouveaux',
+      statut: apres.statut, boutonDesactive: apres.boutonDesactive, chemin };
+  } finally {
+    page.off('dialog', surDialogue);
+  }
+}
+
+// Trois états, jamais deux : conforme, fautif, ou non jugé. Ranger le
+// troisième avec le deuxième rougirait la recette tous les jours sur un site
+// de Test incomplet ; ranger le DEUXIÈME avec le troisième laisserait le
+// défaut 23502 vivre derrière un « indisponible » — c'est l'erreur que cette
+// fonction refuse explicitement de commettre (voir `verifierPrix`).
+function indisponibilitePrix(vue) {
+  if (!vue) return 'Enregistrement des prix NON JUGÉ : étape non exécutée.';
+  if (!vue.tente) {
+    return `Enregistrement des prix NON JUGÉ — ${vue.motif || 'motif non rendu'}. `
+      + 'Ne pas lire cette absence comme « l’écran enregistre ».';
+  }
+  if ((vue.alertes || []).some(a => ALERTE_HORAIRES.test(a))) {
+    return 'Enregistrement des prix NON JUGÉ : ce site de Test n’a pas d’horaires de quart '
+      + 'configurés, et `station_config.horaires` est NOT NULL — l’écran s’arrête AVANT '
+      + 'l’upsert. Le refus observé n’est donc pas celui que cette étape mesure. '
+      + (vue.boutonDesactive
+        ? 'À noter, défaut latent indépendant : le bouton reste désactivé sur ce chemin, '
+          + 'le `return` précédant la remise à `disabled = false`. '
+        : '')
+      + 'Configurer les horaires du site de recette lèverait cette indisponibilité.';
+  }
+  return null;
+}
+
+// Verdict pur, éprouvable sans navigateur. `indisponible` n'est pas un échec,
+// MAIS un refus de la base en est un : un 23502 n'est jamais « non jugé ».
+function verifierPrix(vue) {
+  const echecs = [];
+  if (!vue || !vue.tente) return echecs;                                  // voir indisponibilitePrix
+  const alertes = vue.alertes || [];
+  if (alertes.some(a => ALERTE_HORAIRES.test(a))) return echecs;          // autre cause, voir indisponibilitePrix
+  const notNull = alertes.find(a => REFUS_NOT_NULL.test(a));
+  if (notNull) {
+    echecs.push('PRIX-001 : l’enregistrement des prix SP/GO/GNR est REFUSÉ par la base — '
+      + messageAlerte(notNull)
+      + ' — l’upsert de `station_config` n’alimente pas toutes ses colonnes NOT NULL et '
+      + '`ON CONFLICT DO UPDATE` valide la ligne proposée AVANT de détecter le conflit : '
+      + 'la remise en cuve de Nexus Verify est inutilisable.');
+  } else if (alertes.some(a => ALERTE_SAISIE.test(a))) {
+    echecs.push('PRIX-002 : l’écran a rejeté trois décimales valides comme saisie incomplète — '
+      + messageAlerte(alertes.find(a => ALERTE_SAISIE.test(a)))
+      + ' — soit `numFR` ne lit pas le format rendu par la recette, soit les champs n’ont pas '
+      + 'été remplis. Dans les deux cas quelqu’un doit regarder : ce n’est pas une indisponibilité.');
+  } else if (alertes.length) {
+    echecs.push('PRIX-003 : l’écran a refusé l’enregistrement des prix pour une cause non '
+      + 'classée ici — ' + messageAlerte(alertes[0]));
+  }
+  if (!alertes.length && !vue.note) {
+    echecs.push('PRIX-004 : ni confirmation ni erreur 20 s après le clic sur « Enregistrer les '
+      + 'prix du mois » — l’écran ne conclut pas. Un état qui ne conclut jamais ne rougit '
+      + 'jamais : il rougit ici.');
+  }
+  if (alertes.length && vue.note) {
+    echecs.push('PRIX-005 : l’écran affiche la confirmation ET une alerte — '
+      + messageAlerte(alertes[0]));
+  }
+  return echecs;
+}
+
+// Le résumé est rendu ICI, à côté du verdict et de l'indisponibilité : deux
+// endroits qui jugent la même chose divergeront de nouveau. L'affichage se
+// contente de l'imprimer.
+function resumePrix(vue) {
+  const echecs = verifierPrix(vue);
+  if (echecs.length) return 'NON SATISFAITE — ' + echecs[0];
+  const indisponible = indisponibilitePrix(vue);
+  if (indisponible) return 'NON JUGÉE — ' + indisponible;
+  return 'satisfaite — prix du mois '
+    + (vue.reecrit === 'identiques'
+      ? 'réécrits à l’identique (aucune valeur métier de Test changée)'
+      : 'ENREGISTRÉS, la base n’en portait aucun pour ce mois (valeurs de recette écrites)')
+    + ', confirmation affichée, aucun refus de contrainte NOT NULL';
+}
+
 async function executer(env = process.env) {
   const manquants = secretsManquants(env);
   if (manquants.length) {
@@ -1130,6 +1346,12 @@ async function executer(env = process.env) {
     const echecs = jugement.echecs;
     const carburantsNonAttribuable = jugement.indisponibilite;
 
+    // Enregistrement des prix SP/GO/GNR : meme `page`, session manager deja
+    // ouverte, AVANT les observations Live qui ouvrent d’autres contextes.
+    const vuePrix = await observerEnregistrementPrix(page, base);
+    const echecsPrix = verifierPrix(vuePrix);
+    const prixIndisponible = indisponibilitePrix(vuePrix);
+
     // NEXUS Live — accès positif Créateur, puis refus manager.
     //
     // Un compte de recette INCONNECTABLE et un écran qui REFUSE le Créateur
@@ -1190,17 +1412,17 @@ async function executer(env = process.env) {
       }
     }
 
-    const indisponibilites = [carburantsNonAttribuable, createurIndisponible, employeIndisponible].filter(Boolean);
-    return { executee: true, bloquant: (echecs.length + echecsLive.length + echecsEmploye.length) > 0,
-      vu, echecs: echecs.concat(echecsLive, echecsEmploye), semisFait, indisponibilites,
-      preuveCarburants: etatPreuveCarburants(jugement),
+    const indisponibilites = [carburantsNonAttribuable, prixIndisponible, createurIndisponible, employeIndisponible].filter(Boolean);
+    return { executee: true, bloquant: (echecs.length + echecsPrix.length + echecsLive.length + echecsEmploye.length) > 0,
+      vu, echecs: echecs.concat(echecsPrix, echecsLive, echecsEmploye), semisFait, indisponibilites,
+      preuveCarburants: etatPreuveCarburants(jugement), prix: vuePrix,
       live: { createur, manager, nom: env.NEXUS_TEST_MANAGER_NOM, connecte: managerConnecte }, employe };
   } finally {
     await navigateur.close();
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, indisponibiliteCompteManager, etatAccesLiveManager, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, indisponibiliteCompteManager, etatAccesLiveManager, jugerCarburants, jugerObservation, etatPreuveCarburants, observerEnregistrementPrix, verifierPrix, indisponibilitePrix, resumePrix, messageAlerte, ECRAN_PARAMETRES_STATION, PRIX_DE_RECETTE, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
@@ -1217,6 +1439,7 @@ if (require.main === module) {
       // manquer la moitié de la démonstration.
       console.log('\nCe qui est prouvé, et ce qui ne l\'est pas :');
       console.log('  · UI Carburants (CARB-004) : ' + r.preuveCarburants);
+      console.log('  · Enregistrement des prix SP/GO/GNR (Paramètres Station) : ' + resumePrix(r.prix));
       // La connexion « Manager Test » est la première chose que fait la
       // recette. Elle ne figurait nulle part dans ce bilan : le rapport
       // laissait croire qu'aucune session manager n'était ouverte.
