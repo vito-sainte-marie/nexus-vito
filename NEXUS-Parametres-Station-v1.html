@@ -2053,8 +2053,14 @@
       seuil_ecart_mesure_pct: seuilMesure,
       ordre_cuves: RECEPTION_ORDRE_CUVES_ACTUEL.map(cu => ({ carburant: cu.carburant, cuve_id: cu.id })),
     };
+    // station_config.horaires est NOT NULL sans défaut : un upsert qui ne le
+    // fournirait pas échoue (23502), que la ligne existe déjà ou non (voir
+    // migration 20261002000000). Même précaution que les autres upserts de
+    // cet écran (ex. "Prix carburants", "Cuves").
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, reception_carburant_config, updated_at: new Date().toISOString() },
+      { site: employee.site_id, reception_carburant_config, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2110,8 +2116,12 @@
     const btn = document.getElementById('sauvegarderConsignesReception');
     const consignes = RECEPTION_CONSIGNES_ACTUELLES.map(c => ({ theme: (c.theme || '').trim(), texte: (c.texte || '').trim() })).filter(c => c.texte);
     btn.disabled = true;
+    // station_config.horaires est NOT NULL sans défaut (voir migration
+    // 20261002000000) : sans lui, cet upsert échoue toujours (23502).
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, consignes_securite_reception: consignes, updated_at: new Date().toISOString() },
+      { site: employee.site_id, consignes_securite_reception: consignes, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2142,8 +2152,12 @@
     const nom = document.getElementById('contactReceptionNom').value.trim();
     const telephone = document.getElementById('contactReceptionTel').value.trim();
     btn.disabled = true;
+    // station_config.horaires est NOT NULL sans défaut (voir migration
+    // 20261002000000) : sans lui, cet upsert échoue toujours (23502).
+    const horairesUpsert = horairesObligatoires();
+    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, contact_manager_reception: { nom, telephone }, updated_at: new Date().toISOString() },
+      { site: employee.site_id, contact_manager_reception: { nom, telephone }, horaires: horairesUpsert, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;

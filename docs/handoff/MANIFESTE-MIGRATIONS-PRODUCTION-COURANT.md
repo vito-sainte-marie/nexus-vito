@@ -158,3 +158,36 @@ du `revoke` à Production reste le geste de Frédéric
 (`outils/revoke-garde-regularisation-production-a-executer-par-frederic.sql`),
 sous la gate humaine, et le GO du 01/10/2026 porte sur le revoke seul — ni
 fusion, ni déploiement.
+
+---
+
+## Addendum du 02/10/2026 — correctif anomalie terrain Carburants (issue #28)
+
+### Proposée incluse dans une future release Production (1 migration)
+
+1. `20261002000000_station_config_fuseau_horaire_nullable`
+
+Corrige l'anomalie terrain « Enregistrer les prix du mois » (HTTP 400,
+PostgREST 23502 sur `station_config?on_conflict=site`). Cause racine :
+`20260905131500_fuseau_horaire_par_site` avait fait `DROP DEFAULT` sur
+`station_config.fuseau_horaire` sans le `DROP NOT NULL` compagnon, alors que
+le client avait, le même jour, cessé d'écrire cette colonne — rendant
+impossible TOUT upsert `station_config` (`INSERT ... ON CONFLICT DO UPDATE`
+valide la ligne proposée, défauts/NULL compris, avant même de vérifier le
+conflit). Cette migration ne fait qu'`ALTER COLUMN fuseau_horaire DROP NOT
+NULL` : aucune table créée, aucun défaut réintroduit, aucune donnée touchée.
+
+Elle ne se déclare pas Test/CI et ne touche pas `nexus_ci_recette` : même
+critère déterministe que les entrées précédentes de cet addendum, rejoué, pas
+réinventé.
+
+### Ce que cet addendum ne fait pas
+
+Il ne promeut rien, n'exécute aucun SQL (aucun accès Supabase depuis le canal
+GitHub Issue qui a produit ce correctif), ne modifie ni le manifeste
+historique ni `main`/`production`. La preuve de la cause racine est statique
+(`test_station_config_upsert_fuseau_horaire_23502_20261002.js`, rejoue le
+schéma réel et les 15 payloads d'upsert réels du dépôt) ; la preuve
+comportementale SQL (`outils/epreuve-station-config-upsert-fuseau-horaire-
+23502-20261002.sql`) reste à exécuter par quiconque dispose d'un accès réel à
+`nexus-test`, ce que ce canal n'a jamais eu.
