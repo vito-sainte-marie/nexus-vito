@@ -392,7 +392,7 @@ fi
 # ligne ETAT_FINAL que l'artefact écrit lui-même. Le mien est un unique bloc
 # `do $$ … $$;` : la première erreur doit arrêter, et le verdict ne vient de
 # toute façon pas d'ici — il vient de la mesure qui suit le commit.
-echo "Application de $ARTEFACT sur $BASE ($REF_ATTENDUE), en tant que $IDENTITE…"
+echo "Application de $ARTEFACT sur $BASE ($REF_ATTENDUE), en tant que ${IDENTITE}…"
 set +e
 SORTIE="$("$PSQL" "$URL" -v ON_ERROR_STOP=1 --quiet --no-psqlrc --pset=pager=off -f "$ARTEFACT" 2>&1 | filtre)"
 CODE_PSQL=$?

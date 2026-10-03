@@ -68,7 +68,11 @@ function envPropre(ajouts) {
   for (const v of ['NEXUS_TEST_DB_URL_WRITE', 'NEXUS_TEST_DB_USER_WRITE', 'URL_PRODUCTION',
                    'SUPABASE_TEST_DB_URL_WRITE', 'NEXUS_PROD_DB_URL_WRITE', 'PGPASSWORD',
                    'DATABASE_URL']) delete e[v];
-  return { ...e, ...ajouts };
+  // La locale de Frédéric, pas celle du banc : sous bash 3.2 en UTF-8, `$X…`
+  // avale le premier octet de « … » dans le nom de variable (03/10/2026, le
+  // véhicule a planté en `IDENTITE\xe2: unbound variable` à son premier usage
+  // réel, alors que cette épreuve, jouée en locale C, était verte).
+  return { ...e, LANG: 'fr_FR.UTF-8', LC_ALL: 'fr_FR.UTF-8', ...ajouts };
 }
 
 // `security` : absent (127) sauf si FAKE_SECURITY_SECRET est fourni.
@@ -375,6 +379,21 @@ for (const [reg, attendu] of [
     assert.ok(attendu.test(req) && /'20261003170000'/.test(req) && /on conflict \(version\) do nothing/.test(req), req);
   });
 }
+
+// ── I bis. Locale ────────────────────────────────────────────────────────
+t('aucune expansion $NOM n\'est collée à un caractère non ASCII (bash 3.2 en UTF-8 l\'avale)', () => {
+  const fautifs = SRC.split('\n').map((l, i) => [i + 1, l])
+    .filter(([, l]) => /\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]/.test(l));
+  assert.deepStrictEqual(fautifs, [], `expansions à accolader : ${fautifs.map(([n]) => n).join(', ')}`);
+});
+// Le contre-témoin n'a de sens que là où le geste a lieu : le bash 3.2 de macOS.
+// Sur le runner Linux (bash 5, fr_FR.UTF-8 pas forcément généré), c'est
+// l'assertion statique ci-dessus qui porte seule la propriété.
+t('contre-témoin (macOS) : la locale du banc reproduit bien le défaut (sinon l\'épreuve ne prouve rien)', () => {
+  if (process.platform !== 'darwin') { console.log('    (hors macOS : porté par l\'assertion statique)'); return; }
+  const r = spawnSync(BASH_BIN, ['-uc', 'X=a; echo "$X\u2026"'], { env: envPropre({}), encoding: 'utf8' });
+  assert.notStrictEqual(r.status, 0, 'en fr_FR.UTF-8, bash n\'avale plus l\'octet : le banc ne reproduit pas la condition réelle');
+});
 
 // ── J. La migration et les constantes du véhicule disent la même chose ───
 t('les constantes du véhicule recopient les bornes de la migration', () => {
