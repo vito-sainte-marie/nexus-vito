@@ -874,6 +874,51 @@ jobs:
           echo "NEXUS_BORNAGE_SEC021_FAIT=1" >> "$GITHUB_ENV"
           echo "Bornage SEC-023 : SUCCESS — l'écriture de recette sur station_config est refusée partout sauf sur les deux identifiants synthétiques."
 
+      # CONDITION P0 DE LA DETTE TRUNCATE (audit Handoff du 03/10/2026).
+      #
+      # `anon` et `authenticated` détiennent TRUNCATE sur 144 tables `public`
+      # (défaut Supabase), et TRUNCATE ignore la RLS. Qualifiée P2 le
+      # 03/10/2026 parce qu'aucun chemin ne permet de l'émettre sous ces rôles.
+      # Le seul chemin qui reste est une fonction `public` exécutable par l'un
+      # d'eux qui porte `EXECUTE` (SQL dynamique) ou `TRUNCATE`. Cette étape
+      # refuse qu'elle existe : un rouge ici n'est pas une dette à classer,
+      # c'est le passage en P0 (STOP).
+      #
+      # Lecture du catalogue seulement ; témoin (`realtime`) et contre-témoin
+      # (fonction fautive dans pg_temp, annulée) dans le même fichier, pour
+      # qu'un vert ne puisse pas venir d'un instrument aveugle.
+      - name: Aucune fonction public exécutable par anon/authenticated ne fait de SQL dynamique (P0 TRUNCATE)
+        if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        run: |
+          set -uo pipefail
+          FICHIER_SQLDYN="outils/epreuve-sql-dynamique-public-20261003.sql"
+          if [ ! -f "$FICHIER_SQLDYN" ]; then
+            echo "ÉCHEC — fichier canonique absent : $FICHIER_SQLDYN"
+            exit 1
+          fi
+          if ! sonde=$(psql -v ON_ERROR_STOP=1 -c 'select 1' 2>&1 >/dev/null); then
+            if grep -qiE 'network is unreachable|could not translate host name|connection timed out|no route to host' <<<"$sonde"; then
+              echo "::warning::ENV-003 — base Test INJOIGNABLE depuis le runner : $sonde"
+              echo "::warning::Condition P0 TRUNCATE NON mesurée — la preuve reste ouverte, non fabriquée."
+              exit 0
+            fi
+            echo "La base Test a RÉPONDU, et elle a refusé — ce n'est pas une indisponibilité :"
+            echo "$sonde"
+            exit 1
+          fi
+          if ! sortie=$(psql -v ON_ERROR_STOP=1 -f "$FICHIER_SQLDYN" 2>&1); then
+            printf '%s\n' "$sortie"
+            echo "ÉCHEC — condition P0 TRUNCATE : le code SQLDYN-00x exact est dans la sortie ci-dessus."
+            exit 1
+          fi
+          printf '%s\n' "$sortie"
+          if ! printf '%s\n' "$sortie" | grep -qF 'ÉPREUVE SQL DYNAMIQUE PUBLIC : toutes les parties ont passé.'; then
+            echo "ÉCHEC — épreuve SQL dynamique non menée à terme : marqueur terminal absent."
+            exit 1
+          fi
+          echo "Condition P0 TRUNCATE : SUCCESS — aucune fonction public exécutable par anon/authenticated ne porte EXECUTE ni TRUNCATE."
+
       - name: Semer le scénario Carburants sur Supabase Test
         if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
         shell: bash
