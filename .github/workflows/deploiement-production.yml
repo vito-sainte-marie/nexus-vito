@@ -147,6 +147,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Lecture seule des déploiements : la garde ordre migration → code a
+      # besoin du SHA réellement servi par Pages (voir l'étape). Aucune
+      # écriture — ce job ne crée ni ne modifie aucun déploiement.
+      deployments: read
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
       racine: ${{ steps.mode.outputs.racine }}
@@ -183,6 +187,97 @@ jobs:
             echo "::notice title=Mode::a-l-identique (TEMPORAIRE, première bascule seulement) — pas de outils/build.sh, l'arbre est publié tel quel, à l'identique de ce que Pages sert aujourd'hui."
           fi
           echo "sha_construit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # ─── Garde ordre migration → code (câblée le 03/10/2026) ──────────────
+      # Deux migrations ont déjà exigé un ordre (`login_non_enumerable`,
+      # `pointage_exige_service`) : le code qui les suppose, servi avant que la
+      # base les porte, casse l'écran pour tout le monde. La garde
+      # `outils/garde-ordre-migration-code.js` refuse un candidat qui ajoute
+      # une migration que `docs/deploiement/qualification-ordre-migration-code.json`
+      # ne qualifie pas pour le SHA et le blob exacts de ce fichier.
+      #
+      # Prouver que la garde fonctionne ne prouve pas qu'elle tourne : avant ce
+      # câblage, elle n'était lancée par personne au moment de publier.
+      #
+      # LA CIBLE est le SHA du dernier déploiement `github-pages` dont le
+      # dernier statut est `success` — ce que Pages sert réellement. Deux
+      # cibles plus évidentes sont FAUSSES :
+      #   · `origin/production` : dans un run `push`, c'est le commit même
+      #     qu'on publie. La garde compare l'arbre à lui-même, trouve zéro
+      #     migration nouvelle, et ne peut jamais refuser ;
+      #   · `github.event.before` : si un push précédent n'a jamais été
+      #     approuvé, ses migrations sont déjà « avant » sans avoir été
+      #     servies — elles disparaîtraient de la comparaison.
+      # La même règle vaut pour `push`, `pull_request` et le déclenchement
+      # manuel : un seul calcul, pas trois.
+      #
+      # ÉCHEC FERMÉ, à chaque maillon : API injoignable, aucun déploiement
+      # réussi, SHA mal formé, commit absent de l'historique récupéré, ou garde
+      # absente de l'arbre candidat (une répétition d'une ref antérieure au
+      # câblage échoue donc ici — c'est voulu, elle ne saurait pas se garder).
+      # Ni `if:`, ni `continue-on-error`, ni `|| true` : refuser est le but.
+      - name: Garde ordre migration → code — ce que l'artefact ajoute, la base le porte-t-elle ?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # `^[0-9a-f]{40}$`, écrit de façon portable — même définition que la
+          # garde anti-obsolescence du job `deployer`.
+          est_sha() {
+            case "$1" in
+              "" | *[!0-9a-f]*) return 1 ;;
+            esac
+            [ ${#1} -eq 40 ]
+          }
+
+          if [ ! -f outils/garde-ordre-migration-code.js ]; then
+            echo "::error title=Garde ordre migration → code::outils/garde-ordre-migration-code.js est absent de l'arbre candidat. Échec fermé : un arbre qui ne porte pas sa garde ne se publie pas."
+            exit 1
+          fi
+
+          # Les déploiements sont rendus du plus récent au plus ancien ; le
+          # premier dont le dernier statut est `success` est ce que Pages sert.
+          if ! DEPLOIEMENTS=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=30" --jq '.[] | "\(.id) \(.sha)"'); then
+            echo "::error title=Garde ordre migration → code::Impossible de lire les déploiements github-pages. Échec fermé : sans cible, on ne compare rien."
+            exit 1
+          fi
+
+          CIBLE=""
+          ID_CIBLE=""
+          while read -r ID SHA; do
+            [ -n "${ID}" ] || continue
+            if ! ETAT=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${ID}/statuses?per_page=1" --jq '.[0].state // ""'); then
+              echo "::error title=Garde ordre migration → code::Impossible de lire le statut du déploiement ${ID}. Échec fermé."
+              exit 1
+            fi
+            if [ "${ETAT}" = "success" ]; then
+              CIBLE="${SHA}"
+              ID_CIBLE="${ID}"
+              break
+            fi
+          done <<< "${DEPLOIEMENTS}"
+
+          if ! est_sha "${CIBLE}"; then
+            echo "::error title=Garde ordre migration → code::Aucun déploiement github-pages réussi parmi les 30 derniers, ou SHA mal formé : « ${CIBLE} ». Échec fermé."
+            exit 1
+          fi
+
+          if ! git cat-file -e "${CIBLE}^{commit}"; then
+            echo "::error title=Garde ordre migration → code::Le SHA servi ${CIBLE} est absent de l'historique récupéré. Échec fermé : une comparaison contre une ref introuvable rendrait zéro migration et passerait."
+            exit 1
+          fi
+
+          {
+            echo "### Garde ordre migration → code"
+            echo ""
+            echo "| Champ | Valeur |"
+            echo "|---|---|"
+            echo "| Candidat | \`$(git rev-parse HEAD)\` |"
+            echo "| Cible (servie par Pages) | \`${CIBLE}\` (déploiement ${ID_CIBLE}) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          node outils/garde-ordre-migration-code.js HEAD "${CIBLE}"
 
       - name: Construire (NEXUS_ENV=production)
         if: steps.mode.outputs.mode == 'construit'
