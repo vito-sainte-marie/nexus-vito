@@ -1,0 +1,71 @@
+{
+  "_lecture": [
+    "Fichier de qualification de l'ordre migration -> code. Voir docs/deploiement/README.md.",
+    "N'INSCRIT PAS l'appartenance a une release : cet axe vit au manifeste de promotion.",
+    "Une entree sans mesure catalogue datee ne qualifie rien. Le registre des migrations",
+    "n'est pas une source recevable : mesure du 30/09/2026 sur Test, le schema portait tous",
+    "les objets de 20260919103000 alors que l'estampille etait absente du registre.",
+    "Les 11 estampilles hors-bande du rail ne figurent volontairement pas ici : les qualifier",
+    "demanderait une mesure catalogue sur Production, et les declarer sans mesure serait la",
+    "faute meme que cette garde existe pour empecher.",
+    "Depuis le 03/10/2026 une mesure ne perime plus a l'horloge (ex-72 h) : elle porte mesure.blob_migration, l'empreinte Git (git rev-parse <ref>:<chemin>) du fichier de migration qualifie, et la garde refuse des que le fichier du candidat differe. Une base qui bouge sans que le depot bouge n'est PAS vue par la garde : elle se rattrape par la relecture que toute procedure d'application fait avant d'ecrire."
+  ],
+  "migrations": {
+    "20260919103000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Mesure prise sur le catalogue Production (uzhjpqpctpvxytxpxoqz) le 01/10/2026 a 15 h 01 UTC par Frederic, avec outils/lecture-apres-migration-20260919103000.sh. L'identite de connexion a ete CONSTATEE et non supposee : current_user = nexus_prod_readonly_login, default_transaction_read_only = on, moteur 17.6. Les 13 objets que la migration cree sont presents, et la correspondance a ete verifiee NOM PAR NOM contre extraireObjets() de la garde, pas par egalite de comptes : 0 attendu non constate, 0 constate non attendu. Les 8 colonnes sont lues sur pg_attribute/pg_attrdef (SS15.5) et non sur information_schema, qui ne montre que ce que le role peut voir. Les 3 contraintes sont convalidees (convalidated = t), la fonction est SECURITY DEFINER avec search_path=public, le trigger trg_garde_regularisation_reception est actif, BEFORE INSERT OR UPDATE, et appelle bien cette fonction - le cablage est constate, pas deduit du seul nom. Etat precedent : etat_inconnu.",
+      "prochaine_action": "Mesure catalogue en lecture seule sur Production (uzhjpqpctpvxytxpxoqz), selon le preflight SS10 AVEC la rubrique 3 remplacee par celle du SS15.5 : pg_attribute/pg_attrdef au lieu de information_schema.columns. Mesure du 01/10/2026 en conteneur jetable : information_schema ne montre que les objets sur lesquels le role courant detient un privilege, donc un role sans droit rend la rubrique 3 VIDE alors que les colonnes existent - soit exactement la lecture qui autorise la migration. La lecture doit etre jouee sous une identite detenant SELECT sur carburant_reception_visites et carburant_reception_mesures ; nexus_prod_readonly_login ne l'a pas. Geste de Frederic.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-01T15:01:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "frederic",
+        "outil": "outils/lecture-apres-migration-20260919103000.sh",
+        "identite_constatee": "nexus_prod_readonly_login",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "MIGRATION_APPLIQUEE — 13/13",
+        "blob_migration": "b51aaec69bd9a8250a22613b63a37555f48c1fb9",
+        "blob_provenance": "Fichier inchange depuis fbf113b (19/09/2026), identique sur origin/production, sur le rail et sur ce candidat : c'est bien le fichier dont les 13 objets ont ete constates le 01/10."
+      },
+      "objets_constates": [
+        "mode_saisie",
+        "regularisation_motif",
+        "regularisation_par",
+        "regularisation_par_nom",
+        "regularisation_le",
+        "controle_terrain_par",
+        "justificatif_url",
+        "source",
+        "carburant_reception_visites_mode_saisie_check",
+        "carburant_reception_visites_regularisation_coherente_check",
+        "carburant_reception_mesures_source_check",
+        "nexus_garde_regularisation_reception",
+        "trg_garde_regularisation_reception"
+      ],
+      "reserve": "La meme mesure montre que la fonction de garde porte toujours EXECUTE pour anon et authenticated (acl {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}). C'est la dette SS8/SS4.1, desormais CONSTATEE en Production et non plus seulement supposee. Elle ne remet pas en cause l'application de la migration : elle se corrige par un revoke separe, jamais en editant 20260919103000. MISE A JOUR DU 03/10/2026 : relue en lecture seule a 20 h 59 UTC, cette ACL est desormais {postgres=X/postgres,service_role=X/postgres} - voir 20261001160000."
+    },
+    "20261001160000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Revoke d'un privilege EXECUTE, rien d'autre : la migration ne cree, ne modifie et ne supprime aucun objet (extraireObjets() de la garde rend 0 objet, 0 destructif, 0 colonne NOT NULL sans defaut). L'etat additive_compatible_avant_code passerait donc A VIDE, par absence de matiere a controler, et un vert obtenu par absence n'est pas un vert : c'est pourquoi l'etat retenu est atomique_ou_procedure_speciale, qui exige une procedure dont la garde verifie l'existence sur disque. POURQUOI UNE PROCEDURE ET NON UNE APPLICATION ORDINAIRE : la migration ne peut pas etre appliquee a Production par Claude, qui n'a aucun chemin d'ecriture vers Production et ne doit pas en chercher un. Le fichier de migration existe pour que le depot et la base cessent de divergeer ; l'effet sur Production passe par la procedure, geste de Frederic sous la gate humaine. ORDRE VIS-A-VIS DU CODE : aucun. Aucun code du candidat n'appelle public.nexus_garde_regularisation_reception() - c'est une fonction returns trigger, qu'un appel direct refuse par construction. La migration peut donc passer avant ou apres le code sans consequence, et cette independance a ete MESUREE, pas supposee (voir repetition).",
+      "prochaine_action": "Plus de revoke a jouer : l'effet est constate en Production le 03/10/2026 (ACL fermee, trigger intact). Si la procedure est rejouee un jour, sa section AVANT rend DEJA FERME et le revoke est sans effet, c'est prevu. Estampille : inscrite au registre de Production le 03/10/2026 vers 21 h 10 UTC, sur GO de Frederic (insert seul de version et name, statements NULL comme les lignes hors-bande voisines ; registre 280 -> 281). Effet inchange : l'ACL etait deja fermee.",
+      "procedure": "outils/revoke-garde-regularisation-production-a-executer-par-frederic.sql",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-03T20:59:19Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "connecteur Supabase, begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "FERME — acl {postgres=X/postgres,service_role=X/postgres} sur public.nexus_garde_regularisation_reception() ; trigger trg_garde_regularisation_reception actif (O) et appelle bien cette fonction. ESTAMPILLE 20261001160000 ABSENTE du registre (280 lignes) : le revoke a pris effet hors bande.",
+        "mesure_precedente": "01/10/2026 15 h 01 UTC, nexus_prod_readonly_login : TROU CONFIRME — acl {postgres=X,anon=X,authenticated=X,service_role=X}. Perimee par la base, pas par le depot : le fichier n'a pas change.",
+        "blob_migration": "83053e3f2a32bf6b49e8fd54d8835b0b230c3460"
+      },
+      "repetition": "La mesure ci-dessus dit ce que Production PORTE ; elle ne dit pas ce que le revoke FERAIT. Cette seconde question a ete repetee le 01/10/2026 sur un banc jetable supabase/postgres:17.6.1.175 (meme famille de moteur que Production, 17.6), ou l'ACL de la fonction a ete reproduite OCTET POUR OCTET identique a la lecture Production, chaque objet verifie un par un et non deduit du fait qu'une requete ait repondu. Quatre temoins avant, cinq apres. APRES le revoke nomme : acl exactement {postgres=X/postgres,service_role=X/postgres} ; un appel direct par authenticated echoue desormais sur permission denied for function, alors qu'il echouait avant sur trigger functions can only be called as triggers - ce qui prouve dans les deux sens que le role detenait bien EXECUTE et que le revoke mord ; le trigger continue de se declencher et de REFUSER l'employe sous authenticated comme sous anon (42501, message propre de la garde) ; le manager regularise toujours ; temps_reel passe toujours ; rejouer est idempotent. PostgreSQL ne verifie pas EXECUTE quand un trigger se declenche : c'est ce qui rend ce revoke sans effet de bord.",
+      "reserve": "PROPORTION, A DIRE HONNETEMENT : l'exposition pratique fermee par cette migration est NULLE. Une fonction returns trigger ne peut etre appelee d'aucune autre maniere qu'en tant que trigger, et le declenchement d'un trigger ne consulte pas EXECUTE. Ce qui est reel n'est pas un risque, c'est une divergence : la migration 20260919103000 a ECRIT l'intention de fermer cette fonction, avec revoke ... from public, qui ne ferme ni anon ni authenticated parce que Supabase accorde EXECUTE par grants NOMMES via ALTER DEFAULT PRIVILEGES. L'intention n'a donc jamais pris effet, et la base contredit le depot. CE QUI RESTE OUVERT : 17 autres fonctions du depot portent un revoke qui ne nomme ni anon ni authenticated. Elles ne sont PAS a refermer en bloc - mes_ecarts_caisse() par exemple est une RPC appelee par un ecran connecte, authenticated doit la garder. Le defaut a reparer n'est pas le grant, c'est le SILENCE sur l'intention : c'est l'objet de outils/garde-revoke-fonction-roles-nommes.js, qui exige desormais de chaque revoke de fonction qu'il DISE ce qu'il veut pour les deux roles, et qui gele la dette historique a 18 pour qu'elle rougisse si le compte bouge dans un sens comme dans l'autre."
+    }
+  },
+  "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20."
+}
