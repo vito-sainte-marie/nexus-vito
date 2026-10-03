@@ -502,6 +502,77 @@ pas à la main — on relit l'état machine du run qui l'a refusée, on reprodui
 qualification sur la vraie plage, et on corrige la règle. Rapatrier à la main
 masquerait la classe de panne au lieu de la fermer.
 
+### Un maillon bloqué n'est pas une chaîne bloquée — la classe de panne du 02/10/2026
+
+**Le geste manquant existait ; c'est son acheminement qui manquait.** Le 02/10/2026, le
+correctif `station_config.fuseau_horaire` était écrit, prouvé par deux épreuves et présent
+sur le rail. Son application sur `nexus-test` a été **refusée à ce maillon-ci** — refus
+audible, motif `[Modify Shared Resources]`, aucune tentative de contournement. La chaîne
+s'est arrêtée là. Elle n'a repris que parce qu'un humain a relayé le refus en conversation
+et a demandé le geste à un autre maillon, qui l'a fait sans difficulté. **Ce relais humain
+n'est pas un rail : c'est son absence qui s'est fait sentir.**
+
+La classe de panne n'est donc pas « un agent n'a pas le droit ». C'est : *un agent sans le
+droit s'arrête au lieu de désigner qui l'a.*
+
+**1. Deux états que rien ne distinguait, et qui ne valent pas la même chose.**
+« Droits réellement absents » est un des cinq seuls motifs d'interruption anticipée — mais
+c'est une propriété de **la chaîne** : personne, nulle part, ne peut faire le geste. « Ce
+maillon-ci ne peut pas » est une propriété **du maillon**, et ce n'est pas un motif
+d'interruption : c'est une obligation d'acheminement. Les confondre transforme une
+permission locale en blocage global. Le refus du 02/10 était du second type, et a été traité
+comme du premier.
+
+**2. Un maillon bloqué doit émettre une demande routable, avec l'enveloppe qui existe
+déjà.** Rien n'est à construire — `outils/handoff.js` porte le véhicule complet :
+
+    node outils/handoff.js demande <LOT> <corps.md> \
+      --wake-to <destinataire> \
+      --preuve <id>:HUMAN:<ce que le geste exige>
+
+`HUMAN` appartient depuis toujours à `CLASSES_PREUVE`
+(`VERIFIED | DECLARED | HUMAN | NOT_APPLICABLE`) : c'est exactement la classe d'une preuve
+qu'un autre maillon doit produire. La réponse revient par
+`handoff.js decision <LOT> <corps.md> --decision … --closes … --en-reponse-a request-N.md`,
+où `in_reply_to` « n'est pas qu'une exigence de forme : c'est la désignation ». Le corps doit
+nommer **le geste, ses préconditions et la preuve attendue** — pas la gêne du maillon.
+
+**3. L'instrument de détection était déjà là, et il n'avait pas servi.** `handoff.js`
+avertit déjà, à chaque invocation, qu'un lot est inacheminable :
+
+> lots/<LOT> attend un arbitrage et aucun de ses échanges ne déclare `wake_to` — le réveil de
+> l'Orchestrateur ne peut pas nommer de destinataire, donc il refuse de le composer.
+
+Ce refus de composer est correct : une adresse ne se devine pas, pas plus qu'un rail. Ce qui
+manquait n'était donc pas une mesure à construire, mais une mesure à **prendre**. `wake_to`
+est une adresse libre, sans vocabulaire clos, précisément pour que désigner un maillon
+n'exige pas d'étendre le protocole.
+
+**4. Le maillon qui exécute le geste doit publier son effet mesuré, pas son intention.**
+Le geste du 02/10 a bien été fait, et il a été rapporté comme « la migration
+`20261002000000` a été appliquée ». Le registre Test porte `20261002233051` ; l'estampille
+`20261002000000` n'y existe pas. Le nom du fichier n'est pas l'estampille — douzième
+divergence de cette forme. Un rapport d'intention laisse le maillon suivant croire qu'il
+peut citer le nom de fichier comme une preuve. Ce qui se publie est ce que le maillon
+suivant pourra **re-mesurer** : l'estampille réellement posée, lue à la base.
+
+**La portée est ce qui compte.** Rien de tout cela ne relâche une interdiction. Acheminer un
+geste n'est pas l'accomplir : un maillon qui émet une demande ne s'octroie aucun droit, et
+une demande acheminée reste sans effet jusqu'à sa décision. Et le refus lui-même reste une
+**observation datée** : `[Modify Shared Resources]` le 02/10 ne devient jamais « cet agent ne
+peut pas appliquer de migration » en novembre sans nouvelle mesure. La journée le démontre
+dans les deux sens — le refus était réel, et le geste a eu lieu le même jour par un autre
+maillon.
+
+**Comment cette classe se détecte — et ce qui n'est pas encore gardé.** Un lot sans `wake_to`
+est déjà détecté par `handoff.js` et l'avertissement s'imprime en clair, jamais silencieux.
+**En revanche, rien ne mesure aujourd'hui qu'un maillon refusé a émis une demande plutôt que
+de s'arrêter** : le dire fait partie du contrat, comme pour le watchdog qui n'a pas de
+déclencheur. Un refus suivi d'un silence et un refus suivi d'une demande produisent
+actuellement le même registre. Fermer la classe demandera une garde qui tienne le maillon
+pour responsable de son acheminement, pas de sa permission — et cette garde n'est pas
+écrite. Tant qu'elle ne l'est pas, c'est une discipline, pas une garantie.
+
 ### Stagnation : la chaîne sait qu'elle est arrêtée
 
 `outils/watchdog-stagnation.js` distingue le repos normal du travail en attente.
