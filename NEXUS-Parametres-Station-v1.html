@@ -2376,7 +2376,13 @@
       { onConflict: 'site' }
     );
     btn.disabled = false;
-    if (error) { console.error('Enregistrement prix_carburants:', error); alert('Erreur — réessayez.'); return; }
+    if (error) {
+      console.error('Enregistrement prix_carburants:', error);
+      alert('Erreur — réessayez.\n\nDétail technique (à transmettre à NEXUS) : '
+        + (error.message || error.code || 'inconnu')
+        + (error.hint ? '\n' + error.hint : ''));
+      return;
+    }
     const note = document.getElementById('savedNotePrix');
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 3000);
