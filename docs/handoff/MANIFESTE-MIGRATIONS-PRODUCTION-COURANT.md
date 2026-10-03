@@ -346,3 +346,52 @@ déploiement, ni application sur une base. À l'heure où il est écrit, la
 migration qu'il classe est **écrite et non appliquée** : l'appliquer sur
 `nexus-test` et rejouer l'épreuve request-20 sous `nexus_ci_recette` sont deux
 gestes distincts, et le second est la seule preuve qui compte.
+
+---
+
+## Addendum du 03/10/2026, 18 h — la lecture que `excluded.*` exige (SEC-023 bis)
+
+### EXCLUE — Test/CI uniquement (1 migration)
+
+1. `20261003180000_lecture_excluded_station_config_recette_23502` — **EXCLUE — Test/CI**
+
+**Ce qui restait refusé, mesuré.** `20261003170000` a été appliquée sur
+`nexus-test`. Au run Tests `37143142272`, tentative 2 (rail
+`58899b5adc1db5d097480607990b27c6b2d923d8`, job `111261916475`), l'épreuve
+request-20 échoue encore, au premier upsert, en
+`ERROR: 42501: permission denied for table station_config`, localisé
+`aclcheck_error, aclchk.c:2843`. Les droits d'écriture étaient là ; c'est une
+**lecture** qui manquait.
+
+**Cause, prouvée.** Dans `on conflict (site) do update set col = excluded.col`,
+`excluded.col` est une lecture de `col`, et PostgreSQL exige le droit SELECT de
+colonne. L'épreuve lit `excluded.prix_carburants`, `excluded.horaires` et
+`excluded.updated_at`. `20261003170000` n'ouvrait en lecture que
+`prix_carburants`, parce que son raisonnement ne regardait que les projections
+de la PARTIE B. La preuve a été rejouée dans un conteneur `postgres:17` jetable,
+avec les vrais fichiers et un rôle `nexus_ci_recette` `nobypassrls` :
+
+- avec `20261003170000` seule, même 42501 au même `aclchk.c:2843` ;
+- après `20261003180000`, l'épreuve request-20 est menée à terme ;
+- l'épreuve de bornage passe BORNAGE-000 à 006 ;
+- aucune ligne synthétique ne subsiste ;
+- la migration est rejouable.
+
+**Pourquoi une seconde migration.** `20261003170000` est appliquée et
+estampillée : on ne la retouche pas. `20261003180000` rejoue sa borne entière
+(mêmes droits, mêmes trois politiques) et y ajoute
+`select (horaires, updated_at)`.
+
+**Effet de bord déclaré.** La politique préexistante
+`lecture_recette_station_test` (SEC-018) rend désormais lisibles `horaires` et
+`updated_at` de la ligne `nexus-station-test` pour `nexus_ci_recette`. C'est une
+lecture seulement : l'écriture y reste refusée (BORNAGE-003 et BORNAGE-004).
+Aucun site réel n'est lisible.
+
+**Garde ajoutée.** Dans `test_vehicule_migration_ecriture_bornee_test_20261003.js`,
+toute colonne lue par `excluded.*` dans les deux épreuves doit appartenir à
+`SELECT_ATTENDU`. Une mutation (retirer `updated_at`) la fait rougir.
+
+**EXCLUE pour le même motif que `20261003170000`.** Son en-tête déclare
+« TEST/CI UNIQUEMENT ». Cet addendum ne vaut ni fusion, ni déploiement, ni
+application.

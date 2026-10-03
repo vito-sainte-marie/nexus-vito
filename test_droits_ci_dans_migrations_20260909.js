@@ -147,13 +147,26 @@ const IDS_SYNTHETIQUES_23502 = ['nexus-test-repro-23502-neuf', 'nexus-test-repro
 const ECRITURE_STATION_CONFIG =
   /grant\s+(insert|update|delete|truncate|references|trigger|all)[^;']*on\s+public\.station_config\s+to\s+nexus_ci_recette/i;
 
-t('une seule migration ouvre une écriture sur station_config, et elle est bornée', () => {
-  const porteuses = migrations.filter(m => ECRITURE_STATION_CONFIG.test(sansCommentaires(m.sql)));
-  assert.strictEqual(porteuses.length, 1,
-    'exactement UNE migration doit ouvrir une écriture de recette sur station_config ; '
-    + `trouvé ${porteuses.length} : ${porteuses.map(m => m.nom).join(', ') || '(aucune)'}. `
-    + 'Plus d’une, et le bornage ne se lit plus en un seul endroit.');
-  const m = porteuses[0];
+// AJUSTÉ LE 03/10/2026 (SEC-023 bis), ET C'EST UN DURCISSEMENT, PAS UN RELÂCHEMENT.
+// L'assertion exigeait « exactement UNE » porteuse. 20261003170000 est
+// appliquée et estampillée sur Test ; le complément `excluded.*` ne pouvait
+// donc pas la retoucher sans créer un fichier qui ne dit plus ce que la base a
+// reçu. 20261003180000 REJOUE toute la borne et y ajoute deux colonnes de
+// LECTURE. Le motif de l'ancienne règle — « le bornage se lit en un seul
+// endroit » — est conservé autrement : la DERNIÈRE porteuse doit porter seule
+// la borne complète, CHAQUE porteuse doit être bornée (une ancienne ne peut pas
+// rester large sous prétexte qu'une récente l'est), et aucune ancienne ne peut
+// accorder une colonne d'écriture que la dernière n'accorde pas. Lire la
+// dernière suffit donc à connaître le plafond.
+const grantsEcriture = (sql, verbe) => {
+  const m = sql.match(new RegExp(`grant ${verbe} \\(([^)]*)\\)\\s+on\\s+public\\.station_config`, 'i'));
+  return m ? m[1].split(',').map(c => c.trim()).sort() : [];
+};
+const porteusesEcriture = () => migrations
+  .filter(m => ECRITURE_STATION_CONFIG.test(sansCommentaires(m.sql)))
+  .sort((a, b) => a.nom.localeCompare(b.nom));
+
+function assertBornee(m) {
   const sql = sansCommentaires(m.sql);
 
   // BORNAGE EN COLONNES — l'axe que seul le GRANT peut tenir.
@@ -181,19 +194,40 @@ t('une seule migration ouvre une écriture sur station_config, et elle est born�
     assert.ok(!/nexus-station-test/.test(p),
       `${m.nom} : aucune politique d’ÉCRITURE ne doit désigner « nexus-station-test » — l’autorisation exclut tout droit d’écriture sur un site réel`);
   }
+}
+
+t('chaque migration qui ouvre une écriture sur station_config est bornée, et la dernière porte le plafond', () => {
+  const porteuses = porteusesEcriture();
+  assert.ok(porteuses.length >= 1,
+    'aucune migration n’ouvre l’écriture de recette sur station_config : l’épreuve request-20 serait refusée en 42501');
+  for (const m of porteuses) assertBornee(m);
+  const derniere = porteuses[porteuses.length - 1];
+  const dsql = sansCommentaires(derniere.sql);
+  for (const m of porteuses.slice(0, -1)) {
+    const sql = sansCommentaires(m.sql);
+    for (const verbe of ['insert', 'update', 'select']) {
+      const plafond = new Set(grantsEcriture(dsql, verbe));
+      for (const c of grantsEcriture(sql, verbe)) {
+        assert.ok(plafond.has(c),
+          `${m.nom} accorde ${verbe} (${c}) que la dernière porteuse ${derniere.nom} n’accorde pas : `
+          + 'le plafond ne se lirait plus en un seul endroit');
+      }
+    }
+  }
 });
 
 t('SEC-023 porte son autorisation, sa limite et sa rejouabilité', () => {
-  const m = migrations.filter(x => ECRITURE_STATION_CONFIG.test(sansCommentaires(x.sql)))[0];
-  assert.ok(/AUTORISATION HUMAINE : Frédéric Bragance/.test(m.sql),
-    'une écriture accordée sans trace de qui l’a accordée ne se distingue pas d’une écriture qu’on s’est donnée');
-  assert.ok(/à ne PAS appliquer en Production/i.test(m.sql),
-    'cette autorisation ne concerne que nexus-test : la migration doit le dire');
-  assert.ok(/pg_roles where rolname = 'nexus_ci_recette'/.test(m.sql),
-    'le rôle peut ne pas exister : la migration doit le constater, pas le supposer');
-  const drops = (sansCommentaires(m.sql).match(/drop policy if exists/gi) || []).length;
-  assert.ok(drops >= 3,
-    `chaque politique doit être précédée de son \`drop policy if exists\` (trouvé ${drops}) : sans quoi un second passage échoue`);
+  for (const m of porteusesEcriture()) {
+    assert.ok(/AUTORISATION HUMAINE : Frédéric Bragance/.test(m.sql),
+      `${m.nom} : une écriture accordée sans trace de qui l’a accordée ne se distingue pas d’une écriture qu’on s’est donnée`);
+    assert.ok(/à ne PAS appliquer en Production/i.test(m.sql),
+      `${m.nom} : cette autorisation ne concerne que nexus-test : la migration doit le dire`);
+    assert.ok(/pg_roles where rolname = 'nexus_ci_recette'/.test(m.sql),
+      `${m.nom} : le rôle peut ne pas exister : la migration doit le constater, pas le supposer`);
+    const drops = (sansCommentaires(m.sql).match(/drop policy if exists/gi) || []).length;
+    assert.ok(drops >= 3,
+      `${m.nom} : chaque politique doit être précédée de son \`drop policy if exists\` (trouvé ${drops}) : sans quoi un second passage échoue`);
+  }
 });
 
 // CE QU'UNE GARDE STATIQUE NE PEUT PAS PROUVER, ET QUI DOIT DONC ÊTRE CÂBLÉ.

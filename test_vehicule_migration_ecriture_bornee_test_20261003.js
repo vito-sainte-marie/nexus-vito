@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Le véhicule qui applique 20261003170000 (écriture bornée du rôle CI sur
-// station_config) sur nexus-test — mis en situation, jamais lu.
+// Le véhicule qui applique 20261003180000 (écriture bornée du rôle CI sur
+// station_config, avec la lecture que `excluded.*` exige — elle rejoue et
+// complète 20261003170000) sur nexus-test — mis en situation, jamais lu.
 //
 // CONSTAT (03/10/2026, request-20). L'épreuve request-20 échoue en 42501 sous
 // `nexus_ci_recette`. La migration qui lui donne une écriture bornée aux deux
@@ -47,7 +48,9 @@ const SECRET_TEMOIN = 'MotDePasseTemoin-7f3a9c';
 // depuis la migration, pour qu'une dérive des constantes du véhicule rougisse.
 const INS = 'fuseau_horaire,horaires,prix_carburants,site,updated_at';
 const UPD = 'horaires,prix_carburants,updated_at';
-const SEL = 'carburant_commande_config,cuves_carburants,fuseau_horaire,prix_carburants,site';
+const SEL = 'carburant_commande_config,cuves_carburants,fuseau_horaire,horaires,prix_carburants,site,updated_at';
+// Les quatre colonnes lisibles depuis SEC-018 (20260909110000), hors de cette migration.
+const SEL_SEC018 = 'carburant_commande_config,cuves_carburants,fuseau_horaire,site';
 const bornes = (o = {}) => [
   o.table || 'AUCUN_DROIT_DE_TABLE', o.ins ?? INS, o.upd ?? UPD, o.sel ?? SEL,
   o.pol || '7', o.miennes || '3', o.est || 'ESTAMPILLE_PRESENTE',
@@ -55,6 +58,11 @@ const bornes = (o = {}) => [
 const BORNES_AVANT = bornes({ ins: '-', upd: '-',
   sel: 'carburant_commande_config,cuves_carburants,fuseau_horaire,site',
   pol: '4', miennes: '0', est: 'ESTAMPILLE_ABSENTE' });
+// L'état RÉEL de nexus-test le 03/10/2026 après 20261003170000 seule : écriture
+// posée, lecture `excluded.*` manquante, estampille 20261003180000 absente.
+const BORNES_APRES_170000 = bornes({
+  sel: 'carburant_commande_config,cuves_carburants,fuseau_horaire,prix_carburants,site',
+  est: 'ESTAMPILLE_ABSENTE' });
 
 let passes = 0;
 function t(nom, fn) {
@@ -308,6 +316,14 @@ t('sans --appliquer, migration déjà en place → le dit, et n\'écrit toujours
   assert.ok(/ETAT_DES_BORNES: ECRITURE_BORNEE_APPLIQUEE/.test(r.stdout) && /DÉJÀ appliquée/.test(r.stdout));
   assert.deepStrictEqual(lireJournal(j).map((l) => l.split('|')[0]), ['mesure', 'bornes']);
 });
+t('sans --appliquer, état de Test après 20261003170000 seule → INCOMPLETE nommant la lecture, sans écriture', () => {
+  const j = journal();
+  const r = lancer([], { ...EN_LEURRE, FAKE_JOURNAL: j, FAKE_BORNES: BORNES_APRES_170000 });
+  assert.strictEqual(r.status, 0);
+  assert.ok(/ETAT_DES_BORNES: ECRITURE_BORNEE_INCOMPLETE/.test(r.stdout), r.stdout);
+  assert.ok(!/DÉJÀ appliquée/.test(r.stdout), 'un état sans la lecture excluded.* ne doit pas se dire appliqué');
+  assert.deepStrictEqual(lireJournal(j).map((l) => l.split('|')[0]), ['mesure', 'bornes']);
+});
 t('sans --appliquer, bornes illisibles → le dit, mot de passe masqué, toujours exit 0 sans écriture', () => {
   const r = lancer([], { ...EN_LEURRE, FAKE_ECHEC: 'bornes' });
   assert.strictEqual(r.status, 0);
@@ -326,8 +342,9 @@ for (const [cas, b, code, verdict] of [
   ['droit de TABLE présent', bornes({ table: 'DROIT_DE_TABLE_PRESENT' }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
   ['UPDATE sur site (hors bornes)', bornes({ upd: 'horaires,prix_carburants,site,updated_at' }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
   ['INSERT sur une colonne étrangère', bornes({ ins: `${INS},id` }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
-  ['SELECT sur une colonne étrangère', bornes({ sel: `${SEL},horaires` }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
+  ['SELECT sur une colonne étrangère', bornes({ sel: `${SEL},planning_source` }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
   ['huit politiques', bornes({ pol: '8' }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
+  ['état après 20261003170000 seule (lecture excluded.* absente)', BORNES_APRES_170000, 31, 'ECRITURE_BORNEE_INCOMPLETE'],
   ['bornes exactes, estampille absente', bornes({ est: 'ESTAMPILLE_ABSENTE' }), 34, 'ECRITURE_BORNEE_SANS_ESTAMPILLE'],
   ['bornes exactes, registre absent', bornes({ est: 'REGISTRE_ABSENT' }), 34, 'ECRITURE_BORNEE_SANS_ESTAMPILLE'],
   ['mesure finale vide', '', 33, 'ETAT_FINAL_ABSENT_OU_IMPREVU'],
@@ -376,7 +393,7 @@ for (const [reg, attendu] of [
     fs.rmSync(temoin, { recursive: true, force: true });
     fs.rmSync(`${j}.req`, { force: true });
     assert.strictEqual(r.status, 0);
-    assert.ok(attendu.test(req) && /'20261003170000'/.test(req) && /on conflict \(version\) do nothing/.test(req), req);
+    assert.ok(attendu.test(req) && /'20261003180000'/.test(req) && /on conflict \(version\) do nothing/.test(req), req);
   });
 }
 
@@ -400,12 +417,15 @@ t('les constantes du véhicule recopient les bornes de la migration', () => {
   const m = SRC.match(/^ARTEFACT="([^"]+)"/m);
   const sql = fs.readFileSync(path.join(RACINE, m[1]), 'utf8');
   const cols = (verbe) => {
-    const x = sql.match(new RegExp(`grant ${verbe} \\(([^)]+)\\)`, 'i'));
+    // Hors commentaires : l'en-tête cite des `grant` qui ne sont pas exécutés.
+    const x = sql.replace(/^\s*--.*$/gm, '').match(new RegExp(`grant ${verbe} \\(([^)]+)\\)`, 'i'));
     assert.ok(x, `grant ${verbe} introuvable dans la migration`);
     return x[1].split(',').map((s) => s.trim()).sort().join(',');
   };
   assert.strictEqual(cols('insert'), INS);
   assert.strictEqual(cols('update'), UPD);
+  const lues = [...new Set([...SEL_SEC018.split(','), ...cols('select').split(',')])].sort().join(',');
+  assert.strictEqual(lues, SEL, 'grant select de la migration + SEC-018 ≠ SELECT_ATTENDU');
   for (const [c, v] of [['INSERT_ATTENDU', INS], ['UPDATE_ATTENDU', UPD], ['SELECT_ATTENDU', SEL]]) {
     assert.ok(SRC.includes(`${c}="${v}"`), `${c} du véhicule ne vaut pas ${v}`);
   }
@@ -414,6 +434,31 @@ t('les constantes du véhicule recopient les bornes de la migration', () => {
   }
   assert.ok(!/nexus-station-test'/.test(sql.replace(/^\s*--.*$/gm, '')),
     'la migration nomme nexus-station-test hors commentaire');
+});
+
+// Le défaut du run 37143142272 : `on conflict … do update set col = excluded.col`
+// LIT `col`, donc exige SELECT sur `col`. 20261003170000 l'avait oublié pour
+// `horaires` et `updated_at`. Toute colonne lue par `excluded.*` dans les deux
+// épreuves qui écrivent sous ce rôle doit être dans la borne de lecture.
+t('toute colonne lue par excluded.* dans les épreuves est dans SELECT_ATTENDU', () => {
+  const lisibles = new Set(SEL.split(','));
+  let vues = 0;
+  for (const f of ['outils/epreuve-station-config-upsert-fuseau-horaire-23502-20261002.sql',
+                   'outils/epreuve-bornage-ecriture-recette-station-config-20261003.sql']) {
+    const sql = fs.readFileSync(path.join(RACINE, f), 'utf8').replace(/^\s*--.*$/gm, '');
+    for (const m of sql.matchAll(/\bexcluded\.([a-z_]+)/g)) {
+      vues++;
+      assert.ok(lisibles.has(m[1]), `${f} lit excluded.${m[1]}, absent de SELECT_ATTENDU : 42501 assuré`);
+    }
+  }
+  assert.ok(vues >= 6, `seulement ${vues} lecture(s) excluded.* trouvée(s) : le motif ne voit plus les épreuves`);
+});
+t('MUTATION : retirer updated_at de la borne de lecture → la garde excluded.* mord', () => {
+  const sans = SEL.split(',').filter((c) => c !== 'updated_at');
+  const sql = fs.readFileSync(path.join(RACINE,
+    'outils/epreuve-station-config-upsert-fuseau-horaire-23502-20261002.sql'), 'utf8').replace(/^\s*--.*$/gm, '');
+  const manquantes = [...sql.matchAll(/\bexcluded\.([a-z_]+)/g)].map((m) => m[1]).filter((c) => !sans.includes(c));
+  assert.ok(manquantes.includes('updated_at'), 'la mutation n\'a rien fait rougir');
 });
 
 // ── K. MUTATIONS NÉGATIVES — chaque garde doit mordre ────────────────────

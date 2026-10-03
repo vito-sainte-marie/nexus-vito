@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# APPLIQUER 20261003170000 — l'écriture bornée du rôle CI sur station_config —
+# APPLIQUER 20261003180000 — l'écriture bornée du rôle CI sur station_config,
+# avec la lecture que `excluded.*` exige (complète 20261003170000) —
 # SUR nexus-test, ET SUR RIEN D'AUTRE.
 #
 # À EXÉCUTER PAR FRÉDÉRIC SUR nexus-test. Ce geste exige une connexion
@@ -100,9 +101,15 @@
 
 set -euo pipefail
 
-ARTEFACT="supabase/migrations/20261003170000_ecriture_bornee_station_config_recette_23502.sql"
-VERSION="20261003170000"
-NOM_MIGRATION="ecriture_bornee_station_config_recette_23502"
+# 20261003180000 rejoue toute la borne de 20261003170000 et y ajoute
+# `select (horaires, updated_at)` : un `on conflict … do update set
+# col = excluded.col` LIT `col`, et le run Tests 37143142272 (tentative 2) a
+# rendu 42501 tant que ces deux colonnes manquaient. Le véhicule vise donc la
+# migration la plus récente ; 20261003170000, déjà estampillée, n'est pas
+# rejouée sous son propre numéro.
+ARTEFACT="supabase/migrations/20261003180000_lecture_excluded_station_config_recette_23502.sql"
+VERSION="20261003180000"
+NOM_MIGRATION="lecture_excluded_station_config_recette_23502"
 
 REF_ATTENDUE="udljdqxerrbbbajxubfn"   # nexus-test, et uniquement nexus-test.
 REF_PRODUCTION="uzhjpqpctpvxytxpxoqz" # nommée ICI pour être refusée, jamais visée.
@@ -112,7 +119,7 @@ REF_PRODUCTION="uzhjpqpctpvxytxpxoqz" # nommée ICI pour être refusée, jamais 
 # impression.
 INSERT_ATTENDU="fuseau_horaire,horaires,prix_carburants,site,updated_at"
 UPDATE_ATTENDU="horaires,prix_carburants,updated_at"
-SELECT_ATTENDU="carburant_commande_config,cuves_carburants,fuseau_horaire,prix_carburants,site"
+SELECT_ATTENDU="carburant_commande_config,cuves_carburants,fuseau_horaire,horaires,prix_carburants,site,updated_at"
 POLITIQUES_ATTENDUES="7"   # 4 préexistantes + 3 de cette migration.
 MIENNES_ATTENDUES="3"
 
