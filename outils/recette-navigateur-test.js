@@ -1106,9 +1106,11 @@ const PRIX_DE_RECETTE = { sp: '1,790', go: '1,650', gnr: '1,210' };
 // parfois l'un sans l'autre, et le gestionnaire se replie sur `error.code`
 // quand `error.message` est absent.
 const REFUS_NOT_NULL = /23502|null value in column|violates not-null/i;
-// « Horaires de quart non configurés pour ce commerce. » — alerte de
-// `horairesObligatoires()`, qui s'interpose AVANT l'upsert. Troisième issue,
-// ni succès ni défaut mesuré ici.
+// « Horaires de quart non configurés pour ce commerce. » — ancienne alerte de
+// `horairesObligatoires()`, qui s'interposait AVANT l'upsert. Retirée du code
+// le 03/10/2026 (`horaires` nullable depuis 20261003120000) ; le motif reste
+// reconnu parce que la recette juge un artefact DÉPLOYÉ, qui peut être plus
+// ancien que le dépôt. Troisième issue, ni succès ni défaut mesuré ici.
 const ALERTE_HORAIRES = /horaires de quart non configur/i;
 // « Renseignez les 3 nouveaux prix (SP, GO, GNR). » — l'écran a jugé la
 // saisie invalide avant toute écriture.

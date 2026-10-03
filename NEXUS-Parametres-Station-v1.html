@@ -1188,50 +1188,20 @@
   }
 
 
-  // A3 / C2-1 — `station_config.horaires` est NOT NULL : tous les
-  // enregistrements de cet écran (prix, raccourcis, drapeaux, Sheets…)
-  // renvoient les horaires courants pour ne pas violer la contrainte quand
-  // la ligne du site n'existe pas encore.
+  // Horaires actuellement configurés, pour pré-remplir le formulaire.
   //
-  // Depuis C2-1, ces horaires peuvent légitimement être ABSENTS. On ne les
-  // remplace pas par ceux d'une autre station : on refuse l'enregistrement
-  // et on dit quoi faire. Un seul point de contrôle, pour que les
-  // enregistrements concernés ne divergent pas.
-  //
-  // L'enregistrement des horaires eux-mêmes n'appelle PAS cette garde : il
-  // écrit `horaires: config`, c'est-à-dire précisément ce qui manque.
-  function horairesObligatoires() {
-    if (CONFIG_HORAIRES_ACTUEL) return CONFIG_HORAIRES_ACTUEL;
-    alert('Horaires de quart non configurés pour ce commerce.\n\n'
-      + 'NEXUS ne peut pas créer la configuration de ce site sans eux, et il ne '
-      + 'reprendra pas ceux d’une autre station. Renseignez les horaires de quart, '
-      + 'enregistrez-les, puis recommencez.');
-    return null;
-  }
-
-  // Garde les horaires actuellement charges en memoire, pour que les upserts qui
-  // ne possedent PAS cette donnee puissent quand meme la joindre.
-  //
-  // Ce commentaire disait « echouerait si la ligne n'existe pas encore pour ce
-  // site ». C'etait FAUX, et faux dans le sens qui rassure. MESURE le 03/10/2026
-  // en conteneur jetable (section F) : `ON CONFLICT (site) DO UPDATE` construit
-  // et VALIDE la ligne candidate entiere — colonnes absentes remplies par defaut,
-  // ou NULL faute de defaut — AVANT de chercher le conflit. Le 23502 est donc
-  // leve meme quand la ligne existe deja. Pre-inserer la ligne ne distingue rien.
-  //
-  // La cause a ete corrigee a la base par
-  // `supabase/migrations/20261003120000_station_config_horaires_nullable.sql` :
-  // `horaires` est desormais nullable, et le moteur unique de 20260919160000
-  // tolere explicitement NULL (`if v_horaires is null then return;`). Aucun
-  // DEFAULT ne doit jamais y etre pose : il substituerait des horaires muets.
-  //
-  // Ce colmatage reste donc en place A TITRE TRANSITOIRE, et son retrait est
-  // ORDONNE : la migration doit avoir atteint la base visee AVANT que le code
-  // cesse de fournir la colonne. L'inverse casse tous les upserts de la table.
-  // Tant que ce n'est pas fait, QUATORZE appels joignent ici une donnee qui ne
-  // leur appartient pas ; un seul la possede legitimement, l'enregistrement des
-  // horaires lui-meme.
-  let { horaires: CONFIG_HORAIRES_ACTUEL } = await chargerConfig();
+  // Les QUATORZE autres enregistrements de `station_config` (prix, raccourcis,
+  // drapeaux, Sheets…) ne joignent plus `horaires` : la colonne est nullable
+  // depuis `supabase/migrations/20261003120000_station_config_horaires_nullable.sql`
+  // (appliquée sur Test puis en Production le 03/10/2026, AVANT ce retrait —
+  // l'ordre inverse cassait tous les upserts de la table). `ON CONFLICT DO
+  // UPDATE` ne touche que les colonnes citées : une ligne existante garde ses
+  // horaires ; une ligne neuve naît sans, ce que le moteur tolère
+  // (`if v_horaires is null then return;`). Seul l'enregistrement des horaires
+  // les écrit. Aucun DEFAULT ne doit jamais y être posé : il substituerait des
+  // horaires muets. L'épreuve test_station_config_horaires_proprietaire_unique
+  // refuse qu'un autre appel les joigne de nouveau.
+  const { horaires: CONFIG_HORAIRES_ACTUEL } = await chargerConfig();
 
   // A3 / C1c-3 — le fuseau, lu à sa source unique. Absence VISIBLE mais NON
   // BLOQUANTE : c'est l'écran de configuration, il doit montrer le trou.
@@ -1359,10 +1329,8 @@
     document.getElementById('sauvegarderRaccourcis').addEventListener('click', async () => {
       const btn = document.getElementById('sauvegarderRaccourcis');
       btn.disabled = true;
-      const horairesUpsert = horairesObligatoires();
-      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: SELECTION_RACCOURCIS.length ? SELECTION_RACCOURCIS : null, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       btn.disabled = false;
@@ -1373,10 +1341,8 @@
     });
 
     document.getElementById('reinitialiserRaccourcis').addEventListener('click', async () => {
-      const horairesUpsert = horairesObligatoires();
-      if (!horairesUpsert) return;
       const { error } = await nexusClient.from('station_config').upsert(
-        { site: siteId, raccourcis: null, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+        { site: siteId, raccourcis: null, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       if (error) { console.error('Réinitialisation raccourcis:', error); alert('Erreur — réessayez.'); return; }
@@ -1412,7 +1378,6 @@
     );
     btn.disabled = false;
     if (error) { console.error('Enregistrement station_config:', error); alert('Erreur — réessayez.'); return; }
-    CONFIG_HORAIRES_ACTUEL = config;
     const note = document.getElementById('savedNote');
     note.textContent = '✓ Horaires enregistrés — pris en compte sur tous les appareils au prochain pointage';
     note.style.display = 'block';
@@ -1464,10 +1429,8 @@
   document.getElementById('pointageActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, pointage_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, pointage_actif: actif, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1508,10 +1471,8 @@
   document.getElementById('managerPointageRequis').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, manager_pointage_requis: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, manager_pointage_requis: actif, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1557,10 +1518,8 @@
   document.getElementById('jaugeageCarburantActif').addEventListener('change', async (e) => {
     const actif = e.target.checked;
     e.target.disabled = true;
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, jaugeage_carburant_actif: actif, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -1718,10 +1677,8 @@
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, prix_carburants, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, prix_carburants, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1888,16 +1845,13 @@
     });
     if (erreur) { alert('Renseignez une capacité positive pour chaque cuve active.'); return; }
     btn.disabled = true;
-    // Même précaution que Prix carburants : on renvoie aussi horaires et
-    // prix_carburants déjà connus pour ne jamais les vider par inadvertance
-    // via l'upsert (station_config n'a qu'une ligne par site).
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
-    const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants').eq('site', employee.site_id).maybeSingle();
+    // On renvoie aussi prix_carburants déjà connu (station_config n'a qu'une
+    // ligne par site). `horaires` n'est plus joint : la colonne est nullable
+    // depuis 20261003120000, et seul l'enregistrement des horaires l'écrit.
+    const { data: existant } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id).maybeSingle();
     const { error } = await nexusClient.from('station_config').upsert(
       {
         site: employee.site_id, cuves_carburants: config,
-        horaires: (existant && existant.horaires) || horairesUpsert,
         prix_carburants: existant ? existant.prix_carburants : null,
         updated_at: new Date().toISOString(),
       },
@@ -1955,13 +1909,10 @@
       const precedente = document.querySelector('#cardReceptionCarburantRole .role-chip.actif');
       const valeurPrecedente = precedente ? precedente.dataset.valeur : 'employe';
       majChipsReceptionCarburantRole(valeur); // optimiste, annulé ci-dessous en cas d'erreur
-      const horairesUpsert = horairesObligatoires();
-      if (!horairesUpsert) return;
-      const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants,cuves_carburants').eq('site', employee.site_id).maybeSingle();
+      const { data: existant } = await nexusClient.from('station_config').select('prix_carburants,cuves_carburants').eq('site', employee.site_id).maybeSingle();
       const { error } = await nexusClient.from('station_config').upsert(
         {
           site: employee.site_id, reception_carburant_role: valeur,
-          horaires: (existant && existant.horaires) || horairesUpsert,
           prix_carburants: existant ? existant.prix_carburants : null,
           cuves_carburants: existant ? existant.cuves_carburants : null,
           updated_at: new Date().toISOString(),
@@ -2075,10 +2026,8 @@
     // fournirait pas échoue (23502), que la ligne existe déjà ou non (voir
     // migration 20261002000000). Même précaution que les autres upserts de
     // cet écran (ex. "Prix carburants", "Cuves").
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, reception_carburant_config, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, reception_carburant_config, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2136,10 +2085,8 @@
     btn.disabled = true;
     // station_config.horaires est NOT NULL sans défaut (voir migration
     // 20261002000000) : sans lui, cet upsert échoue toujours (23502).
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, consignes_securite_reception: consignes, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, consignes_securite_reception: consignes, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2172,10 +2119,8 @@
     btn.disabled = true;
     // station_config.horaires est NOT NULL sans défaut (voir migration
     // 20261002000000) : sans lui, cet upsert échoue toujours (23502).
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, contact_manager_reception: { nom, telephone }, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, contact_manager_reception: { nom, telephone }, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2309,10 +2254,8 @@
     }
     btn.disabled = true;
     const google_sheet_id = actif ? idSaisi : null;
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -2344,10 +2287,8 @@
     // serveur. On enregistre donc d'abord l'identifiant saisi (même si la
     // synchronisation n'est pas encore activée) pour que le test porte
     // bien sur CE classeur.
-    const horairesUpsert = horairesObligatoires();
-    if (!horairesUpsert) return;
     const { error: saveErr } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id, google_sheet_id: idSaisi, horaires: horairesUpsert, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id: idSaisi, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (saveErr) {
