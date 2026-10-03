@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Le véhicule qui applique 20261003180000 (écriture bornée du rôle CI sur
-// station_config, avec la lecture que `excluded.*` exige — elle rejoue et
-// complète 20261003170000) sur nexus-test — mis en situation, jamais lu.
+// Le véhicule qui applique 20261003190000 (écriture bornée du rôle CI sur
+// station_config, avec la lecture que `excluded.*` exige et l'exécution que
+// les CHECK exigent — elle rejoue et complète 20261003170000 puis
+// 20261003180000) sur nexus-test — mis en situation, jamais lu.
 //
 // CONSTAT (03/10/2026, request-20). L'épreuve request-20 échoue en 42501 sous
 // `nexus_ci_recette`. La migration qui lui donne une écriture bornée aux deux
@@ -53,16 +54,20 @@ const SEL = 'carburant_commande_config,cuves_carburants,fuseau_horaire,horaires,
 const SEL_SEC018 = 'carburant_commande_config,cuves_carburants,fuseau_horaire,site';
 const bornes = (o = {}) => [
   o.table || 'AUCUN_DROIT_DE_TABLE', o.ins ?? INS, o.upd ?? UPD, o.sel ?? SEL,
-  o.pol || '7', o.miennes || '3', o.est || 'ESTAMPILLE_PRESENTE',
+  o.pol || '7', o.miennes || '3', o.exe || 'EXECUTE_MAPPAGE_PRESENT', o.est || 'ESTAMPILLE_PRESENTE',
 ].join('|');
 const BORNES_AVANT = bornes({ ins: '-', upd: '-',
   sel: 'carburant_commande_config,cuves_carburants,fuseau_horaire,site',
-  pol: '4', miennes: '0', est: 'ESTAMPILLE_ABSENTE' });
+  pol: '4', miennes: '0', exe: 'EXECUTE_MAPPAGE_ABSENT', est: 'ESTAMPILLE_ABSENTE' });
 // L'état RÉEL de nexus-test le 03/10/2026 après 20261003170000 seule : écriture
 // posée, lecture `excluded.*` manquante, estampille 20261003180000 absente.
 const BORNES_APRES_170000 = bornes({
   sel: 'carburant_commande_config,cuves_carburants,fuseau_horaire,prix_carburants,site',
-  est: 'ESTAMPILLE_ABSENTE' });
+  exe: 'EXECUTE_MAPPAGE_ABSENT', est: 'ESTAMPILLE_ABSENTE' });
+// L'état RÉEL de nexus-test le 03/10/2026 après 20261003180000 : toutes les
+// colonnes, mais pas l'EXECUTE de planning_mappage_est_valide que les deux
+// CHECK exigent (run 37144179897) ; estampille 20261003190000 absente.
+const BORNES_APRES_180000 = bornes({ exe: 'EXECUTE_MAPPAGE_ABSENT', est: 'ESTAMPILLE_ABSENTE' });
 
 let passes = 0;
 function t(nom, fn) {
@@ -324,6 +329,13 @@ t('sans --appliquer, état de Test après 20261003170000 seule → INCOMPLETE no
   assert.ok(!/DÉJÀ appliquée/.test(r.stdout), 'un état sans la lecture excluded.* ne doit pas se dire appliqué');
   assert.deepStrictEqual(lireJournal(j).map((l) => l.split('|')[0]), ['mesure', 'bornes']);
 });
+t('sans --appliquer, état réel après 20261003180000 → INCOMPLETE, exit 0, aucune écriture', () => {
+  const j = journal();
+  const r = lancer([], { ...EN_LEURRE, FAKE_JOURNAL: j, FAKE_BORNES: BORNES_APRES_180000 });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.ok(/ETAT_DES_BORNES: ECRITURE_BORNEE_INCOMPLETE/.test(r.stdout) && /EXECUTE_MAPPAGE_ABSENT/.test(r.stdout), r.stdout);
+  assert.deepStrictEqual(lireJournal(j).map((l) => l.split('|')[0]), ['mesure', 'bornes']);
+});
 t('sans --appliquer, bornes illisibles → le dit, mot de passe masqué, toujours exit 0 sans écriture', () => {
   const r = lancer([], { ...EN_LEURRE, FAKE_ECHEC: 'bornes' });
   assert.strictEqual(r.status, 0);
@@ -345,6 +357,8 @@ for (const [cas, b, code, verdict] of [
   ['SELECT sur une colonne étrangère', bornes({ sel: `${SEL},planning_source` }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
   ['huit politiques', bornes({ pol: '8' }), 32, 'ECRITURE_BORNEE_DEBORDANTE'],
   ['état après 20261003170000 seule (lecture excluded.* absente)', BORNES_APRES_170000, 31, 'ECRITURE_BORNEE_INCOMPLETE'],
+  ['état après 20261003180000 (EXECUTE des CHECK absent)', BORNES_APRES_180000, 31, 'ECRITURE_BORNEE_INCOMPLETE'],
+  ['fonction des CHECK absente de la base', bornes({ exe: 'FONCTION_MAPPAGE_ABSENTE' }), 31, 'ECRITURE_BORNEE_INCOMPLETE'],
   ['bornes exactes, estampille absente', bornes({ est: 'ESTAMPILLE_ABSENTE' }), 34, 'ECRITURE_BORNEE_SANS_ESTAMPILLE'],
   ['bornes exactes, registre absent', bornes({ est: 'REGISTRE_ABSENT' }), 34, 'ECRITURE_BORNEE_SANS_ESTAMPILLE'],
   ['mesure finale vide', '', 33, 'ETAT_FINAL_ABSENT_OU_IMPREVU'],
@@ -393,7 +407,7 @@ for (const [reg, attendu] of [
     fs.rmSync(temoin, { recursive: true, force: true });
     fs.rmSync(`${j}.req`, { force: true });
     assert.strictEqual(r.status, 0);
-    assert.ok(attendu.test(req) && /'20261003180000'/.test(req) && /on conflict \(version\) do nothing/.test(req), req);
+    assert.ok(attendu.test(req) && /'20261003190000'/.test(req) && /on conflict \(version\) do nothing/.test(req), req);
   });
 }
 
@@ -459,6 +473,52 @@ t('MUTATION : retirer updated_at de la borne de lecture → la garde excluded.* 
     'outils/epreuve-station-config-upsert-fuseau-horaire-23502-20261002.sql'), 'utf8').replace(/^\s*--.*$/gm, '');
   const manquantes = [...sql.matchAll(/\bexcluded\.([a-z_]+)/g)].map((m) => m[1]).filter((c) => !sans.includes(c));
   assert.ok(manquantes.includes('updated_at'), 'la mutation n\'a rien fait rougir');
+});
+
+// Le défaut du run 37144179897 : une contrainte CHECK s'évalue avec les droits
+// de l'ÉCRIVAIN. Les CHECK de station_config appellent
+// `planning_mappage_est_valide(jsonb)` ; sans EXECUTE, l'insertion rend 42501
+// avant toute RLS. Toute fonction appelée par un CHECK de station_config, dans
+// l'ensemble des migrations, doit recevoir EXECUTE dans l'artefact du véhicule.
+const MIGRATIONS = path.join(RACINE, 'supabase', 'migrations');
+function fonctionsDesCheckStationConfig() {
+  const vues = new Set();
+  for (const f of fs.readdirSync(MIGRATIONS).filter((x) => x.endsWith('.sql')).sort()) {
+    const sql = fs.readFileSync(path.join(MIGRATIONS, f), 'utf8').replace(/^\s*--.*$/gm, '');
+    for (const m of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?station_config\b([\s\S]*?);/gi)) {
+      for (const c of m[1].matchAll(/\bcheck\s*\(([\s\S]*?)\)\s*(?:,|$|not\s+valid)/gi)) {
+        for (const fn of c[1].matchAll(/\b(?:public\.)?([a-z_][a-z0-9_]*)\s*\(/gi)) {
+          // Mots-clés et fonctions intégrées (EXECUTE à PUBLIC par défaut) : pas des droits à accorder.
+          if (!/^(in|any|all|array|exists|and|or|not|coalesce|nullif|length|char_length|lower|upper|btrim|trim|jsonb_typeof|array_length|cardinality|now)$/i.test(fn[1])) vues.add(fn[1]);
+        }
+      }
+    }
+  }
+  return vues;
+}
+function executeAccordes(sql) {
+  const corps = sql.replace(/^\s*--.*$/gm, '');
+  return new Set([...corps.matchAll(/grant\s+execute\s+on\s+function\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*\([^)]*\)\s+to\s+nexus_ci_recette/gi)].map((m) => m[1]));
+}
+const SQL_ARTEFACT = fs.readFileSync(path.join(RACINE, SRC.match(/^ARTEFACT="([^"]+)"/m)[1]), 'utf8');
+t('toute fonction appelée par un CHECK de station_config reçoit EXECUTE dans l\'artefact', () => {
+  const fns = fonctionsDesCheckStationConfig();
+  assert.ok(fns.has('planning_mappage_est_valide'),
+    `le scan ne voit plus planning_mappage_est_valide (vues : ${[...fns].join(',') || 'aucune'}) : le motif est aveugle`);
+  const accordees = executeAccordes(SQL_ARTEFACT);
+  for (const fn of fns) assert.ok(accordees.has(fn), `CHECK de station_config appelle ${fn} sans EXECUTE à nexus_ci_recette : 42501 assuré`);
+});
+t('MUTATION : retirer le grant execute de l\'artefact → la garde des CHECK mord', () => {
+  const mute = SQL_ARTEFACT.replace(/execute 'grant execute on function[^']*';/, '');
+  assert.notStrictEqual(mute, SQL_ARTEFACT, 'ancre du grant execute introuvable');
+  assert.ok(!executeAccordes(mute).has('planning_mappage_est_valide'), 'la mutation n\'a rien fait rougir');
+});
+t('MUTATION : juger_bornes sans exigence d\'EXECUTE → l\'état après 180000 passerait pour APPLIQUEE', () => {
+  const { f, bac } = variante(' && [ "$exe" = "EXECUTE_MAPPAGE_PRESENT" ]', '');
+  const r = executer(f, ['--appliquer'], { ...EN_LEURRE,
+    FAKE_BORNES: bornes({ exe: 'EXECUTE_MAPPAGE_ABSENT' }) });
+  fs.rmSync(bac, { recursive: true, force: true });
+  assert.notStrictEqual(r.status, 31, 'sans l\'exigence, l\'EXECUTE absent est encore vu : la mutation est mal visée');
 });
 
 // ── K. MUTATIONS NÉGATIVES — chaque garde doit mordre ────────────────────

@@ -395,3 +395,52 @@ toute colonne lue par `excluded.*` dans les deux épreuves doit appartenir à
 **EXCLUE pour le même motif que `20261003170000`.** Son en-tête déclare
 « TEST/CI UNIQUEMENT ». Cet addendum ne vaut ni fusion, ni déploiement, ni
 application.
+
+## Addendum du 03/10/2026, 19 h — l'exécution que les CHECK exigent (SEC-023 ter)
+
+### EXCLUE — Test/CI uniquement (1 migration)
+
+1. `20261003190000_execute_mappage_station_config_recette_23502` — **EXCLUE — Test/CI**
+
+**Ce qui restait refusé, mesuré.** `20261003180000` a été appliquée sur
+`nexus-test` (véhicule : `ECRITURE_BORNEE_APPLIQUEE`). Au run Tests
+`37144179897` (rail `65854d03f77f979afc9399372b55c417ef96b850`, job
+`111264611567`), l'épreuve request-20 échoue encore, ligne 59, en
+`ERROR: 42501: permission denied for function planning_mappage_est_valide`
+(`aclchk.c:2843`). Les droits de colonne sont là ; c'est un droit sur une
+**fonction** qui manque.
+
+**Cause.** Deux contraintes CHECK de `station_config`
+(`station_config_planning_alias_check` et
+`station_config_planning_codes_sites_check`, posées par `20260919180000`)
+appellent `public.planning_mappage_est_valide(jsonb)`. Une contrainte CHECK
+s'évalue avec les droits de l'écrivain. Or cette fonction n'est accordée qu'à
+`authenticated` et `service_role`.
+
+**Seul privilège manquant, d'après l'inventaire lu sur Test.**
+
+- `station_config` a quatre CHECK, dont deux seulement appellent une fonction
+  non intégrée.
+- Ses deux triggers sont `security definer`.
+- Les défauts de colonne sont des constantes.
+
+La fonction est `immutable` et en `sql`. Elle ne lit aucune table, donc
+l'EXECUTE ne divulgue rien.
+
+**Pourquoi une troisième migration.** `20261003190000` rejoue la borne entière
+de `20261003180000` : mêmes colonnes et mêmes trois politiques. Elle y ajoute
+`grant execute on function public.planning_mappage_est_valide(jsonb) to
+nexus_ci_recette`. Elle devient la dernière porteuse, donc le plafond. Elle
+n'apporte aucun effet de bord nouveau.
+
+**Gardes ajoutées** dans `test_vehicule_migration_ecriture_bornee_test_20261003.js` :
+
+- Toute fonction appelée par un CHECK de `station_config`, dans l'ensemble des
+  migrations, doit recevoir EXECUTE dans l'artefact du véhicule.
+- Le véhicule mesure cet EXECUTE (8e colonne). Il ne rend
+  `ECRITURE_BORNEE_APPLIQUEE` que s'il est présent.
+- Deux mutations les font rougir : retirer le grant, et retirer l'exigence.
+
+**EXCLUE pour le même motif que `20261003170000`.** Son en-tête déclare
+« TEST/CI UNIQUEMENT ». Cet addendum ne vaut ni fusion, ni déploiement, ni
+application.

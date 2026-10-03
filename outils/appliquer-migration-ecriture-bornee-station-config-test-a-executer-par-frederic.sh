@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# APPLIQUER 20261003180000 — l'écriture bornée du rôle CI sur station_config,
-# avec la lecture que `excluded.*` exige (complète 20261003170000) —
+# APPLIQUER 20261003190000 — l'écriture bornée du rôle CI sur station_config,
+# avec la lecture que `excluded.*` exige et l'exécution que les contraintes
+# CHECK exigent (rejoue et complète 20261003170000 puis 20261003180000) —
 # SUR nexus-test, ET SUR RIEN D'AUTRE.
 #
 # À EXÉCUTER PAR FRÉDÉRIC SUR nexus-test. Ce geste exige une connexion
@@ -107,9 +108,16 @@ set -euo pipefail
 # rendu 42501 tant que ces deux colonnes manquaient. Le véhicule vise donc la
 # migration la plus récente ; 20261003170000, déjà estampillée, n'est pas
 # rejouée sous son propre numéro.
-ARTEFACT="supabase/migrations/20261003180000_lecture_excluded_station_config_recette_23502.sql"
-VERSION="20261003180000"
-NOM_MIGRATION="lecture_excluded_station_config_recette_23502"
+#
+# 20261003190000 rejoue à son tour 20261003180000 et y ajoute `grant execute`
+# sur `public.planning_mappage_est_valide(jsonb)` : deux contraintes CHECK de
+# station_config l'appellent avec les droits de l'ÉCRIVAIN, et le run Tests
+# 37144179897 a rendu `42501 permission denied for function
+# planning_mappage_est_valide` tant que ce droit manquait. Même règle : le
+# véhicule vise la plus récente, et le verdict mesure ce droit (8e colonne).
+ARTEFACT="supabase/migrations/20261003190000_execute_mappage_station_config_recette_23502.sql"
+VERSION="20261003190000"
+NOM_MIGRATION="execute_mappage_station_config_recette_23502"
 
 REF_ATTENDUE="udljdqxerrbbbajxubfn"   # nexus-test, et uniquement nexus-test.
 REF_PRODUCTION="uzhjpqpctpvxytxpxoqz" # nommée ICI pour être refusée, jamais visée.
@@ -278,7 +286,10 @@ if [ "$ROLE_CI" != "ROLE_PRESENT" ]; then
   exit 7
 fi
 
-# ── L'état des bornes : sept colonnes, la seule source du verdict ─────────
+# ── L'état des bornes : huit colonnes, la seule source du verdict ─────────
+# La 7e mesure l'EXECUTE de la fonction appelée par les CHECK. `to_regprocedure`
+# d'abord : sur une base où la fonction n'existe pas, `has_function_privilege`
+# lèverait une erreur et rendrait toute la mesure illisible.
 REQUETE_BORNES="select \
 case when has_table_privilege('nexus_ci_recette','public.station_config','select') \
        or has_table_privilege('nexus_ci_recette','public.station_config','insert') \
@@ -298,6 +309,9 @@ coalesce((select string_agg(a.attname, ',' order by a.attname) from pg_attribute
 (select count(*)::text from pg_policies where schemaname = 'public' and tablename = 'station_config'), \
 (select count(*)::text from pg_policies where schemaname = 'public' and tablename = 'station_config' \
    and policyname in ('ecriture_recette_23502_insert','ecriture_recette_23502_update','lecture_recette_23502_select')), \
+case when to_regprocedure('public.planning_mappage_est_valide(jsonb)') is null then 'FONCTION_MAPPAGE_ABSENTE' \
+     when has_function_privilege('nexus_ci_recette','public.planning_mappage_est_valide(jsonb)','execute') \
+     then 'EXECUTE_MAPPAGE_PRESENT' else 'EXECUTE_MAPPAGE_ABSENT' end, \
 case when to_regclass('supabase_migrations.schema_migrations') is null then 'REGISTRE_ABSENT' \
      when exists (select 1 from supabase_migrations.schema_migrations where version = '$VERSION') \
      then 'ESTAMPILLE_PRESENTE' else 'ESTAMPILLE_ABSENTE' end;"
@@ -317,9 +331,9 @@ deborde() {
   return 1
 }
 
-# Rend le verdict dans $VERDICT à partir des sept colonnes mesurées.
+# Rend le verdict dans $VERDICT à partir des huit colonnes mesurées.
 juger_bornes() {
-  local t="$1" ins="$2" upd="$3" sel="$4" pol="$5" miennes="$6" est="$7"
+  local t="$1" ins="$2" upd="$3" sel="$4" pol="$5" miennes="$6" exe="$7" est="$8"
 
   if [ "$t" != "AUCUN_DROIT_DE_TABLE" ]; then
     VERDICT="ECRITURE_BORNEE_DEBORDANTE"
@@ -344,7 +358,7 @@ juger_bornes() {
   fi
   if [ "$ins" = "$INSERT_ATTENDU" ] && [ "$upd" = "$UPDATE_ATTENDU" ] \
      && [ "$sel" = "$SELECT_ATTENDU" ] && [ "$pol" = "$POLITIQUES_ATTENDUES" ] \
-     && [ "$miennes" = "$MIENNES_ATTENDUES" ]; then
+     && [ "$miennes" = "$MIENNES_ATTENDUES" ] && [ "$exe" = "EXECUTE_MAPPAGE_PRESENT" ]; then
     if [ "$est" = "ESTAMPILLE_PRESENTE" ]; then
       VERDICT="ECRITURE_BORNEE_APPLIQUEE"
       MOTIF="bornes exactes sur les deux axes, estampille enregistrée"
@@ -355,7 +369,7 @@ juger_bornes() {
     return
   fi
   VERDICT="ECRITURE_BORNEE_INCOMPLETE"
-  MOTIF="insert=[$ins] update=[$upd] select=[$sel] politiques=$pol miennes=$miennes"
+  MOTIF="insert=[$ins] update=[$upd] select=[$sel] politiques=$pol miennes=$miennes execute=[$exe]"
 }
 
 mesurer_bornes() {
@@ -366,13 +380,13 @@ mesurer_bornes() {
   set +e
   BORNES="$("$PSQL" "$URL" -At -F'|' --quiet --no-psqlrc -c "$REQUETE_BORNES" 2>&1 | filtre)"
   set -e
-  IFS='|' read -r B_TABLE B_INS B_UPD B_SEL B_POL B_MIENNES B_EST <<<"$BORNES"
-  if [ -z "${B_TABLE:-}" ] || [ -z "${B_EST:-}" ] || [ -z "${B_MIENNES:-}" ]; then
+  IFS='|' read -r B_TABLE B_INS B_UPD B_SEL B_POL B_MIENNES B_EXEC B_EST <<<"$BORNES"
+  if [ -z "${B_TABLE:-}" ] || [ -z "${B_EST:-}" ] || [ -z "${B_MIENNES:-}" ] || [ -z "${B_EXEC:-}" ]; then
     VERDICT="ETAT_FINAL_ABSENT_OU_IMPREVU"
-    MOTIF="la mesure des bornes n'a pas rendu ses sept colonnes"
+    MOTIF="la mesure des bornes n'a pas rendu ses huit colonnes"
     return 1
   fi
-  juger_bornes "$B_TABLE" "$B_INS" "$B_UPD" "$B_SEL" "$B_POL" "$B_MIENNES" "$B_EST"
+  juger_bornes "$B_TABLE" "$B_INS" "$B_UPD" "$B_SEL" "$B_POL" "$B_MIENNES" "$B_EXEC" "$B_EST"
   return 0
 }
 
@@ -437,7 +451,7 @@ if ! mesurer_bornes; then
   exit 33
 fi
 
-echo "Bornes mesurées — table : $B_TABLE | insert : $B_INS | update : $B_UPD | select : $B_SEL | politiques : $B_POL (dont $B_MIENNES de recette) | $B_EST"
+echo "Bornes mesurées — table : $B_TABLE | insert : $B_INS | update : $B_UPD | select : $B_SEL | politiques : $B_POL (dont $B_MIENNES de recette) | $B_EXEC | $B_EST"
 
 case "$VERDICT" in
   ECRITURE_BORNEE_APPLIQUEE)
