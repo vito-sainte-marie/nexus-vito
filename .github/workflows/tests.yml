@@ -52,7 +52,9 @@ name: Tests
 # porte pas — il faut que quelqu'un aille l'y lire. Le sens Claude →
 # Orchestrateur restait donc suspendu à un geste humain, quand le sens inverse
 # était automatique depuis le 06/09. C'est cette asymétrie que la permission
-# supprime, et rien d'autre.# `contents: write` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 30/09/2026, à sa demande
+# supprime, et rien d'autre.
+#
+# `contents: write` AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 30/09/2026, à sa demande
 # explicite (« GO pour armer uniquement le transport déterministe Claude → rail
 # […] Autorisation limitée à contents: write strictement nécessaire au
 # rapatriement vers handoff-continuite-20260920, avec NEXUS_RAPATRIEMENT_ARME=oui »).
