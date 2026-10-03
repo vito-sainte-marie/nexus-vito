@@ -32,155 +32,20 @@ const MIGRATION_CORRECTIF = '20261002000000_station_config_fuseau_horaire_nullab
 let passes = 0;
 function verifier(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
 
-// ── Découpe une liste séparée par une virgule, en respectant la profondeur
-// des parenthèses et le contenu des chaînes — sinon `default jsonb_build_
-// object('a', 1, 'b', 2)` se découperait n'importe où.
-function decouperNiveauSuperieur(s, sep) {
-  const parts = [];
-  let profondeur = 0, courant = '', dansChaine = false, guillemet = '';
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (dansChaine) {
-      courant += c;
-      if (c === guillemet) dansChaine = false;
-      continue;
-    }
-    if (c === "'" || c === '"') { dansChaine = true; guillemet = c; courant += c; continue; }
-    if (c === '(') { profondeur++; courant += c; continue; }
-    if (c === ')') { profondeur--; courant += c; continue; }
-    if (c === sep && profondeur === 0) { parts.push(courant); courant = ''; continue; }
-    courant += c;
-  }
-  if (courant.trim() !== '') parts.push(courant);
-  return parts;
-}
-
-// ── Colonnes déclarées par un CREATE TABLE (schéma de départ).
-function colonnesDepuisCreateTable(src, table) {
-  const cols = new Map();
-  const re = new RegExp(
-    'create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?:["\']?public["\']?\\.)?["\']?' + table + '["\']?\\s*\\(([\\s\\S]*?)\\);',
-    'i'
-  );
-  const m = src.match(re);
-  if (!m) return cols;
-  const lignes = decouperNiveauSuperieur(m[1], ',').map((c) => c.trim()).filter(Boolean);
-  for (const ligne of lignes) {
-    const mm = ligne.match(/^["']?(\w+)["']?\s+(.+)$/i);
-    if (!mm) continue;
-    const [, nom, reste] = mm;
-    if (/^(primary|unique|check|constraint|foreign)$/i.test(nom)) continue;
-    cols.set(nom, { notNull: /not\s+null/i.test(reste), hasDefault: /\bdefault\b/i.test(reste) });
-  }
-  return cols;
-}
-
-// ── Rejoue TOUTES les migrations (triées par nom = par date) pour obtenir
-// l'état FINAL de chaque colonne de `station_config` : NOT NULL ? défaut ?
-// `exclure` permet de rejouer « sans le correctif » pour reproduire l'ancien
-// contrat.
-function colonnesStationConfig(migrationsDir, exclure) {
-  const exclusion = exclure || [];
-  const fichiers = fs.readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.sql') && !exclusion.includes(f))
-    .sort();
-  const cols = new Map();
-  for (const f of fichiers) {
-    const src = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
-    for (const [nom, info] of colonnesDepuisCreateTable(src, 'station_config')) {
-      cols.set(nom, info);
-    }
-    const reAlter = /alter\s+table\s+(?:["']?public["']?\.)?["']?station_config["']?\s+([\s\S]*?);/gi;
-    let m;
-    while ((m = reAlter.exec(src))) {
-      const clauses = decouperNiveauSuperieur(m[1], ',').map((c) => c.trim()).filter(Boolean);
-      for (const clause of clauses) {
-        let mm = clause.match(/^add\s+column\s+(?:if\s+not\s+exists\s+)?(\w+)\s+([\w.]+)([\s\S]*)$/i);
-        if (mm) {
-          const [, nom, , reste] = mm;
-          cols.set(nom, { notNull: /not\s+null/i.test(reste), hasDefault: /\bdefault\b/i.test(reste) });
-          continue;
-        }
-        mm = clause.match(/^alter\s+column\s+(\w+)\s+(.+)$/i);
-        if (mm) {
-          const [, nom, action] = mm;
-          const existant = cols.get(nom) || { notNull: false, hasDefault: false };
-          if (/^drop\s+default/i.test(action)) existant.hasDefault = false;
-          else if (/^set\s+default/i.test(action)) existant.hasDefault = true;
-          else if (/^drop\s+not\s+null/i.test(action)) existant.notNull = false;
-          else if (/^set\s+not\s+null/i.test(action)) existant.notNull = true;
-          cols.set(nom, existant);
-        }
-      }
-    }
-  }
-  return cols;
-}
-
-// ── Colonnes qui FONT SAUTER tout upsert qui les omettrait (NOT NULL, sans
-// défaut), hors clé primaire (toujours fournie, c'est la cible du conflit).
-function colonnesDangereuses(cols) {
-  return [...cols.entries()]
-    .filter(([nom, info]) => info.notNull && !info.hasDefault && nom !== 'site')
-    .map(([nom]) => nom);
-}
-
-// ── Trouve tous les appels `.from('station_config').upsert({...})` d'un
-// fichier et extrait les clés de premier niveau du payload (forme `cle:
-// valeur` ET forme raccourcie `cle` seule, ex. `{ site, horaires }`).
-function appelsUpsertStationConfig(src) {
-  const appels = [];
-  const re = /from\(\s*['"]station_config['"]\s*\)\s*\.\s*upsert\s*\(/g;
-  let m;
-  while ((m = re.exec(src))) {
-    const debut = src.indexOf('{', m.index);
-    assert.ok(debut !== -1, 'Appel upsert sans objet littéral trouvé');
-    let profondeur = 0, i = debut, dansChaine = false, guillemet = '';
-    for (; i < src.length; i++) {
-      const c = src[i];
-      if (dansChaine) { if (c === guillemet && src[i - 1] !== '\\') dansChaine = false; continue; }
-      if (c === "'" || c === '"' || c === '`') { dansChaine = true; guillemet = c; continue; }
-      if (c === '{') profondeur++;
-      else if (c === '}') { profondeur--; if (profondeur === 0) break; }
-    }
-    const objetSrc = src.slice(debut + 1, i);
-    const ligne = src.slice(0, m.index).split('\n').length;
-    const cles = decouperNiveauSuperieur(objetSrc, ',')
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .map((p) => {
-        const mm = p.match(/^(\w+)\s*:/) || p.match(/^(\w+)$/);
-        return mm ? mm[1] : null;
-      })
-      .filter(Boolean);
-    appels.push({ ligne, cles });
-  }
-  return appels;
-}
-
-// ── Liste, sur tout le dépôt (hors .git/node_modules), les fichiers qui
-// contiennent au moins un appel `.from('station_config').upsert(`. Déduit du
-// contenu réel, jamais une liste écrite à la main — sinon un futur appel
-// ajouté ailleurs échapperait silencieusement à cette épreuve.
-function fichiersAvecUpsertStationConfig(racine) {
-  const resultat = [];
-  (function parcourir(dir) {
-    for (const entree of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entree.name === '.git' || entree.name === 'node_modules') continue;
-      const chemin = path.join(dir, entree.name);
-      if (entree.isDirectory()) { parcourir(chemin); continue; }
-      // Exclut les harnais de test (test_*.js) : ce ne sont jamais des
-      // appelants applicatifs, et plusieurs — dont ce fichier-ci — CITENT le
-      // motif recherché dans leur propre code source (le texte même de cette
-      // regex), ce qui les ferait matcher à tort sur eux-mêmes.
-      if (/^test_/.test(entree.name)) continue;
-      if (!/\.(html|js)$/.test(entree.name)) continue;
-      const src = fs.readFileSync(chemin, 'utf8');
-      if (/from\(\s*['"]station_config['"]\s*\)\s*\.\s*upsert\s*\(/.test(src)) resultat.push(chemin);
-    }
-  })(racine);
-  return resultat;
-}
+// ── Le parseur DDL/upsert vit désormais dans outils/schema-station-config.js.
+// MESURÉ le 03/10/2026 : ces 149 lignes étaient dupliquées à l'identique dans
+// l'épreuve sœur `test_station_config_horaires_nullable_et_site_pk_20261003.js`.
+// Deux copies d'un instrument, c'est deux instruments : celui qu'on corrige et
+// celui qu'on oublie. L'extraction a d'ailleurs révélé deux défauts que la
+// duplication masquait — un `site` codé en dur là où `COLONNE_CLE_PRIMAIRE`
+// était due, et un `assert` utilisé sans être requis (il était en portée
+// ambiante tant que le code vivait dans un fichier `test_*`).
+const {
+  colonnesStationConfig,
+  colonnesDangereuses,
+  appelsUpsertStationConfig,
+  fichiersAvecUpsertStationConfig,
+} = require('./outils/schema-station-config.js');
 
 // ═══════════════════════════════════════════════════════════════════════
 // 1. Preuve de la cause racine : reproduction de l'ancien contrat
@@ -241,7 +106,32 @@ verifier('nouveau contrat : aucun défaut n’est réintroduit sur fuseau_horair
 verifier('nouveau contrat : AUCUN upsert station_config du dépôt n’omet une colonne dangereuse (15+ appels, découverts, pas supposés)', () => {
   const actuel = colonnesStationConfig(MIGRATIONS_DIR, []);
   const dangereuses = colonnesDangereuses(actuel);
-  assert.deepStrictEqual(dangereuses, ['horaires'], 'Jeu de colonnes dangereuses inattendu : ' + JSON.stringify(dangereuses));
+
+  // `dangereuses` n'est ici que le MATÉRIAU de la boucle qui suit — aucune
+  // assertion ne porte sur sa composition, et c'est délibéré.
+  //
+  // La version précédente figeait le jeu complet à `['horaires']` : un
+  // instantané du 02/10, périmé dès que `20261003120000` a rendu `horaires`
+  // nullable. Une épreuve qui fige l'état d'un voisin rougit à la correction
+  // du voisin, et accuse alors le correctif.
+  //
+  // J'ai d'abord écrit à la place un `assert.ok(!dangereuses.includes(
+  // 'fuseau_horaire'))`. MESURÉ le 03/10/2026 par mutation (une migration
+  // rendant la colonne à nouveau `NOT NULL`) : c'est l'assertion
+  // « fuseau_horaire doit être nullable avec le correctif », douze lignes plus
+  // haut, qui rougit la première. L'assertion était donc **impliquée** par sa
+  // voisine, donc infalsifiable, donc sans valeur — règle QA du dépôt rappelée
+  // au §3 ci-dessous. Retirée plutôt que gardée pour la forme.
+  //
+  // La composition du jeu est tenue en UN seul endroit, l'épreuve sœur
+  // `test_station_config_horaires_nullable_et_site_pk_20261003.js`, qui
+  // l'affirme des deux côtés : `[]` aujourd'hui, `['horaires','fuseau_horaire']`
+  // quand on retire les deux correctifs.
+  //
+  // La boucle, elle, est un cliquet : vide aujourd'hui puisque plus aucune
+  // colonne n'est dangereuse, elle mord au premier `NOT NULL` sans défaut
+  // réintroduit. Que le mécanisme morde est prouvé par la contre-épreuve du §3,
+  // pas supposé.
 
   const fichiers = fichiersAvecUpsertStationConfig(RACINE);
   assert.ok(fichiers.length >= 2, 'Au moins NEXUS-App-v1.html et NEXUS-Parametres-Station-v1.html attendus');

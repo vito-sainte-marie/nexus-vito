@@ -191,3 +191,86 @@ schéma réel et les 15 payloads d'upsert réels du dépôt) ; la preuve
 comportementale SQL (`outils/epreuve-station-config-upsert-fuseau-horaire-
 23502-20261002.sql`) reste à exécuter par quiconque dispose d'un accès réel à
 `nexus-test`, ce que ce canal n'a jamais eu.
+
+---
+
+## Addendum du 03/10/2026 — même famille, deux cas différents (`horaires`, `site`)
+
+### Proposée incluse dans une future release Production (1 migration)
+
+1. `20261003120000_station_config_horaires_nullable`
+
+Ferme le second cas de la famille ouverte par l'addendum du 02/10 :
+`station_config.horaires` était `NOT NULL` **sans défaut**, sans aucun écrivain
+qui le possède, donc tout upsert de la table devait le joindre pour passer.
+Mesuré en conteneur jetable le 03/10/2026 : l'échec `23502` survient **aussi
+quand la ligne existe déjà** (`ON CONFLICT (site) DO UPDATE` construit et valide
+la ligne candidate entière avant de chercher le conflit) — le commentaire du
+dépôt qui disait « échouerait si la ligne n'existe pas encore » était faux, et
+faux dans le sens qui rassure. Il a été corrigé dans
+`NEXUS-Parametres-Station-v1.html`.
+
+La migration ne fait qu'`ALTER COLUMN horaires DROP NOT NULL`. Aucun défaut n'y
+est posé, et ne doit jamais l'être : le moteur unique de
+`20260919160000_horaires_moteur_unique_et_retard_nullable` tolère déjà NULL
+explicitement (`if v_horaires is null then return;`), tandis qu'un DEFAULT
+substituerait des horaires muets à une absence que l'arbitrage du 19/09/2026
+(option b1) veut visible. `DROP NOT NULL` n'efface aucune donnée existante :
+re-mesuré une troisième fois.
+
+Elle ne se déclare pas Test/CI et ne touche pas `nexus_ci_recette` : même
+critère déterministe que les entrées précédentes, rejoué, pas réinventé.
+
+### Correction d'un verdict antérieur : `site` n'a PAS besoin de migration
+
+Le verdict du 02/10 classait `horaires` et `site` « même famille de défaut »,
+les deux `NOT NULL` sans défaut sur la même table. **C'était faux pour `site`**,
+et il importe de dire pourquoi, parce que le défaut penchait du côté de l'action.
+
+`site` est la **clé primaire** de `station_config` (`station_config_pkey
+PRIMARY KEY (site)`, déclarée exactement une fois dans tout le jeu de
+migrations, par la baseline). Son `NOT NULL` n'est pas une contrainte oubliée :
+c'est la cible du `ON CONFLICT`. Postgres **refuse** de le relâcher — mesuré :
+`ERROR: column "site" is in a primary key`, et l'attribut reste `NOT NULL`
+après la tentative. Les 15 appels upsert du dépôt le fournissent tous, 15 sur
+15.
+
+L'erreur venait du prédicat de mesure, pas de la base : `attnotnull AND NOT
+atthasdef` ne distingue pas une clé primaire d'une contrainte résiduelle. Le
+dépôt le savait déjà — son propre détecteur excluait `site` nommément. Ce
+prédicat naïf est désormais **reproduit exprès** dans
+`test_station_config_horaires_nullable_et_site_pk_20261003.js`, qui affirme
+qu'il signale bien `site` là où le détecteur du dépôt ne le fait jamais : une
+garde dont on ne peut pas montrer ce qu'elle retient n'est pas une garde. La
+même épreuve vérifie qu'**aucune** migration du jeu ne relâche la clé primaire,
+et sa contre-épreuve prouve que ce détecteur mord sur une migration inventée.
+
+Ce que `site` demande n'est donc pas une migration mais une garde : elle existe,
+et une mutation a dû être **réaimée** avant de la croire muette (le premier
+mutant frappait un upsert sur une autre table, 276 lignes plus loin).
+
+### Retrait du colmatage : une dépendance d'ORDRE, pas un reste de ménage
+
+Quatorze des quinze appels upsert joignent `horaires` sans le posséder — onze via
+la variable `horairesUpsert`, deux via une relecture `existant`, un via
+`chargerHorairesPourUpsert()` dans App. Un seul le possède légitimement,
+l'enregistrement des horaires lui-même. Tout cet appareil n'existe que parce que
+la colonne était `NOT NULL` sans défaut.
+
+Son retrait n'est **pas** inclus dans ce lot, et l'ordre est contraignant : la
+migration doit avoir atteint la base visée **avant** que le code cesse de
+fournir la colonne. L'inverse casse tous les upserts de la table, y compris sur
+les lignes existantes (voir ci-dessus). Le colmatage reste donc en place,
+désormais documenté comme transitoire à son propre emplacement.
+
+### Ce que cet addendum ne fait pas
+
+Il ne promeut rien, n'exécute aucun SQL sur Production ni sur `nexus-test`, ne
+modifie ni le manifeste historique ni `main`/`production`, et ne retire aucun
+colmatage. Les preuves de cause et de contrat sont statiques
+(`test_station_config_horaires_nullable_et_site_pk_20261003.js`, 16
+vérifications, ses cinq gardes éprouvées par mutation) et comportementales en
+conteneur jetable local. La relecture de la structure sur `nexus-test` lui-même
+reste à prendre : l'hôte direct du projet Test était injoignable sur le port
+5432 le 03/10/2026 alors qu'IPv6 fonctionnait par ailleurs — observation de
+transport datée, jamais « Test est injoignable ».
