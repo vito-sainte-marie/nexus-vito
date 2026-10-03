@@ -70,17 +70,55 @@
   // réelle. Nouvelle règle : "Voir : seulement après clôture. Avant
   // clôture : uniquement des erreurs de saisie pures (champ manquant,
   // quantité impossible), jamais la valeur attendue ni l'écart."
-  // "Clôture" = le quart lui-même clôturé (transmis) par l'employé
-  // (fdj_shifts.statut === 'valide') — l'action "CLÔTURER MA CAISSE", pas
-  // la validation manager de la caisse. Une fois clôturé, l'employé ne
-  // peut corriger uniquement sa caisse réellement comptée après avoir vu
-  // l'écart. La première déclaration reste immuable et chaque correction
-  // produit une nouvelle version de son relevé. Source unique consommée par
-  // les deux écrans (Article 11) plutôt que deux implémentations du même
-  // bout de phrase.
-  function permissionsEcartCaisseEmploye(shift) {
-    const valide = !!(shift && shift.statut === 'valide');
-    return { voir: valide, corrigerDirectement: true, correctionTracee: valide, demanderCorrection: false };
+  // "Clôture" = le quart lui-même transmis par l'employé
+  // (fdj_shifts.statut === 'valide'), pas la validation manager de la
+  // caisse. Source unique consommée par les écrans (Article 11) plutôt que
+  // deux implémentations du même bout de phrase.
+  //
+  // 17/09/2026, Vague 1 — cette fonction raisonnait sur fdj_shifts.statut,
+  // dont la valeur 'valide' veut dire "transmis par l'employé" et non
+  // "validé par le manager". Le même mot pour deux faits distincts a
+  // produit assez de confusion pour qu'on cesse de s'y fier : la règle
+  // raisonne désormais sur l'ÉTAPE du cycle de vie de la caisse, telle que
+  // le serveur la publie (fdj_ma_caisse().etape) :
+  //   saisie_a_commencer / brouillon        → rien n'est établi, rien à voir
+  //   en_attente_controle_manager           → écart PROVISOIRE visible,
+  //                                           correction directe possible
+  //   validee                               → écart RETENU visible, plus
+  //                                           aucune modification : un
+  //                                           signalement, pas une correction
+  // L'ancienne forme d'appel (un objet fdj_shifts) reste acceptée pour ne
+  // casser aucun appelant : elle se traduit dans le même vocabulaire.
+  //
+  // Ce qui n'a pas changé depuis le 28/08 : avant la confirmation, aucun
+  // résultat n'est montré. Ce qui a été corrigé le 17/09 : après la
+  // confirmation et tant que le manager n'a pas contrôlé, l'employé voit
+  // son écart provisoire ET corrige lui-même — sa première confirmation
+  // étant conservée à côté, jamais remplacée.
+  const ETAPES_CAISSE_FDJ = ['saisie_a_commencer', 'brouillon', 'en_attente_controle_manager', 'validee'];
+  function etapeCaisseFdj(entree) {
+    if (!entree) return 'saisie_a_commencer';
+    if (typeof entree === 'string') {
+      return ETAPES_CAISSE_FDJ.indexOf(entree) >= 0 ? entree : 'saisie_a_commencer';
+    }
+    if (entree.etape && ETAPES_CAISSE_FDJ.indexOf(entree.etape) >= 0) return entree.etape;
+    // Forme historique : un enregistrement fdj_shifts. 'valide' = transmis.
+    if (entree.statut === 'valide') return 'en_attente_controle_manager';
+    return 'brouillon';
+  }
+  function permissionsEcartCaisseEmploye(entree) {
+    const etape = etapeCaisseFdj(entree);
+    const confirmee = etape === 'en_attente_controle_manager';
+    const validee = etape === 'validee';
+    return {
+      etape: etape,
+      voir: confirmee || validee,
+      provisoire: confirmee,
+      corrigerDirectement: !validee,
+      correctionTracee: confirmee,
+      signalerApresValidation: validee,
+      demanderCorrection: false,
+    };
   }
 
   // ------------------------------------------------------------
@@ -1915,7 +1953,7 @@
   }
 
   global.NexusFdjMoteur = {
-    calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
+    calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye, etapeCaisseFdj,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
