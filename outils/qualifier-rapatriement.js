@@ -132,6 +132,16 @@ const MOTIFS_AFFAIBLISSEMENT = Object.freeze([
   { nom: 'contrôle git contourné', motif: /--no-verify\b/ },
 ]);
 
+// Une ligne de PROSE ne s'exécute pas : elle ne peut pas desserrer une garde,
+// seulement en parler. Mesuré le 03/10/2026 : 3e75034 (FDJ-VAGUE1-REPRISE)
+// était refusé GARDE_AFFAIBLIE pour une phrase de DECISION.md qui DÉCRIVAIT la
+// neutralisation existante de `garde-portee-site.js`. C'est la distinction
+// mention / cible déjà tenue plus haut, appliquée ici. Plus étroite que
+// POSITIONS_DE_PAROLE à dessein : une épreuve ou une garde s'exécutent, et un
+// fichier de `docs/` peut être lu par une garde (JSON). Seul le `.md` est muet.
+// La suppression d'une garde ou d'une épreuve reste jugée sur son chemin.
+const PROSE = /\.md$/;
+
 // Motifs de secret. On rapporte le FICHIER et la LIGNE, JAMAIS la valeur : un
 // détecteur qui cite ce qu'il a trouvé publie le secret qu'il dénonce.
 const MOTIFS_SECRET = Object.freeze([
@@ -311,6 +321,7 @@ function qualifier(e) {
       affaiblies.push({ chemin, motif: 'garde ou épreuve supprimée' });
       continue;
     }
+    if (PROSE.test(chemin)) continue;
     const ajoutees = (typeof d === 'string' ? [] : (d.lignes_ajoutees || []));
     for (const ligne of ajoutees) {
       for (const m of MOTIFS_AFFAIBLISSEMENT) {
@@ -497,5 +508,5 @@ function qualifier(e) {
 module.exports = {
   qualifier, MAILLON,
   SENTINELLES_PRODUCTION, MARQUEURS_PRODUCTION, FORMES_CIBLE_PRODUCTION,
-  POSITIONS_DE_PAROLE, CORPUS_DE_RECONNAISSANCE, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET,
+  POSITIONS_DE_PAROLE, CORPUS_DE_RECONNAISSANCE, MOTIFS_AFFAIBLISSEMENT, MOTIFS_SECRET, PROSE,
 };

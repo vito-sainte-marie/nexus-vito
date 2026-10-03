@@ -15,7 +15,7 @@
 // sert pas la table neuve. »
 
 const assert = require('assert');
-const { qualifier, MAILLON } = require('./outils/qualifier-rapatriement.js');
+const { qualifier, MAILLON, PROSE } = require('./outils/qualifier-rapatriement.js');
 
 let passees = 0; const echecs = [];
 const ep = (titre, f) => { try { f(); passees++; } catch (e) { echecs.push(`${titre} — ${e.message}`); } };
@@ -307,6 +307,45 @@ ep('MUTATION — retirer l’APPEL d’une garde est un affaiblissement', () => 
     perimetre: null,
   }));
   assert.strictEqual(r.code, 'GARDE_AFFAIBLIE');
+});
+
+// Une ligne de prose ne s'exécute pas. Mesuré le 03/10/2026 : 3e75034 refusé
+// pour une phrase de DECISION.md qui DÉCRIVAIT une neutralisation existante.
+// Le motif est composé à l'exécution pour ne pas l'écrire dans cette source.
+const NEUTRALISATION = '|' + '| true';
+const PHRASE = '- `garde-portee-site.js`, qui est consultative (`' + NEUTRALISATION + '`) :';
+ep('TÉMOIN — une phrase `.md` qui MENTIONNE une neutralisation n’est pas un affaiblissement', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'docs/handoff/DECISION.md', statut: 'M', lignes_ajoutees: [PHRASE] }],
+  }));
+  assert.strictEqual(r.etat, 'EXECUTE', `attendu EXECUTE, obtenu ${r.etat} (${r.code}) : ${r.motif}`);
+  assert.strictEqual(r.code, 'FAST_FORWARD');
+});
+ep('TÉMOIN — `continue-on-error: true` cité dans un `.md` n’est pas un affaiblissement', () => {
+  const r = qualifier(scenario({
+    diff: [{ chemin: 'docs/handoff/lots/X/request-1.md', statut: 'A', lignes_ajoutees: ['citer `continue-on-error: true` ici'] }],
+  }));
+  assert.strictEqual(r.etat, 'EXECUTE', `${r.code} : ${r.motif}`);
+});
+for (const chemin of ['.github/workflows/tests.yml', 'outils/x.sh', 'outils/x.js', 'docs/handoff/STATE.json', 'docs/handoff/DECISION.md.js']) {
+  ep(`CONTRE-TÉMOIN — la même ligne dans ${chemin} reste un affaiblissement`, () => {
+    const r = qualifier(scenario({
+      diff: [{ chemin, statut: 'M', lignes_ajoutees: ['node outils/garde-x.js ' + NEUTRALISATION] }],
+      perimetre: null,
+    }));
+    assert.strictEqual(r.code, 'GARDE_AFFAIBLIE', `${chemin} : ${r.code}`);
+  });
+}
+ep('CONTRE-TÉMOIN — l’exemption de prose ne couvre pas la suppression d’une garde ou d’une épreuve', () => {
+  const r = qualifier(scenario({ diff: [
+    { chemin: 'docs/handoff/DECISION.md', statut: 'M', lignes_ajoutees: [PHRASE] },
+    { chemin: 'outils/garde-branches-en-rade.js', statut: 'D' },
+  ] }));
+  assert.strictEqual(r.code, 'GARDE_AFFAIBLIE');
+});
+ep('CONTRE-TÉMOIN — PROSE ne reconnaît que l’extension `.md` finale', () => {
+  assert.ok(PROSE.test('docs/handoff/CURRENT.md'));
+  for (const c of ['docs/handoff/STATE.json', 'x.md.sh', 'outils/garde-x.js', 'test_x.js', 'README.mdx']) assert.ok(!PROSE.test(c), c);
 });
 
 // ── SECRETS ──────────────────────────────────────────────────────────────────
