@@ -378,6 +378,11 @@ l'estampille `20261001160000` est absente du registre (280 lignes) : le revoke
 a été appliqué hors bande. L'inscrire au registre est une écriture Production,
 soumise au GO de Frédéric.*
 
+*Addendum du 03/10/2026, 21 h 10 UTC : l'estampille `20261001160000` est
+inscrite au registre sur GO de Frédéric (`version` et `name` seuls,
+`statements` NULL comme les lignes hors bande voisines) ; registre 280 → 281.
+Aucun effet sur l'ACL, déjà fermée.*
+
 Enfin, la portée du verdict. `13/13` ne lève que l'axe « ordre migration →
 code » du préflight. Il n'autorise ni la fusion, ni l'approbation du
 déploiement `github-pages` en attente, qui restent des gestes humains sous GO
