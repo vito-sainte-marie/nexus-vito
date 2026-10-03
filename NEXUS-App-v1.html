@@ -3336,21 +3336,6 @@
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
-      // A3 / C2-4 (05/09/2026) — HORAIRES_DEFAUT_RAPPEL supprimé.
-      //
-      // C'était un TROISIÈME jeu d'horaires, incomplet (ni fin_normal ni
-      // fin_etendu), servant à satisfaire la contrainte NOT NULL de
-      // station_config.horaires lors d'un upsert de PRIX carburants. Un écran
-      // qui enregistre des prix n'a aucune raison de décider des horaires
-      // d'un commerce — et encore moins de ceux d'une autre station.
-      //
-      // Sans horaires configurés, l'enregistrement est refusé et dit pourquoi.
-      async function chargerHorairesPourUpsert() {
-        const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
-        if (error) { console.error('Chargement horaires (rappel prix) :', error); return null; }
-        return (data && data.horaires) || null;
-      }
-
       async function chargerPrixCarburantsRappel() {
         const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', siteId).maybeSingle();
         if (error) { console.error('Chargement prix_carburants:', error); return null; }
@@ -3391,17 +3376,11 @@
           const btn = document.getElementById('rappelSauvegarderPrix');
           btn.disabled = true;
           const prix_carburants = { mois: moisCourant, sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
-          const horaires = await chargerHorairesPourUpsert();
-          if (!horaires) {
-            btn.disabled = false;
-            alert('Horaires de quart non configurés pour ce commerce.\n\n'
-              + 'NEXUS ne peut pas créer la configuration de ce site à partir d’un '
-              + 'enregistrement de prix, et il ne reprendra pas les horaires d’une '
-              + 'autre station. Un manager doit les renseigner dans Paramètres Station.');
-            return;
-          }
+          // N'écrit que prix_carburants. Jusqu'au 03/10/2026 cet écran exigeait
+          // des horaires (station_config.horaires était NOT NULL) et refusait
+          // d'enregistrer des prix sur un site sans horaires configurés.
           const { error } = await nexusClient.from('station_config').upsert(
-            { site: siteId, prix_carburants, horaires, updated_at: new Date().toISOString() },
+            { site: siteId, prix_carburants, updated_at: new Date().toISOString() },
             { onConflict: 'site' }
           );
           btn.disabled = false;

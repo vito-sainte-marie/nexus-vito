@@ -1,27 +1,32 @@
 // ÉPREUVE DE L'ÉCRAN PARAMÈTRES STATION — LES HORAIRES NE SONT PAS UNE
-// DÉPENDANCE DES AUTRES RÉGLAGES. 16/09/2026.
+// DÉPENDANCE DES AUTRES RÉGLAGES. 16/09/2026, révisée le 03/10/2026.
 //
-// `station_config.horaires` est NOT NULL, et `station_config` n'a qu'une
-// ligne par site. De ces deux faits est né un réflexe : tout upsert de cet
-// écran fournissait `horaires`, sans quoi la création de la ligne échouait
-// (23502). Le réflexe était juste ; sa mise en œuvre ne l'était pas. La
-// valeur fournie venait d'un instantané mémoire pris UNE FOIS au chargement
-// de la page, et huit réglages sans rapport la réécrivaient.
+// HISTOIRE. `station_config.horaires` était NOT NULL, et `station_config` n'a
+// qu'une ligne par site. De là un réflexe : tout upsert de cet écran
+// fournissait `horaires`, sans quoi la création de la ligne échouait (23502).
+// La valeur venait d'abord d'un instantané mémoire pris UNE FOIS au chargement
+// de la page : un onglet ouvert avant une correction d'horaires la défaisait
+// au premier réglage touché (un prix, un identifiant Sheet), sans erreur. Le
+// 16/09/2026, un relecteur `horairesPourEcriture` a remplacé l'instantané par
+// une relecture juste avant chaque écriture — onze écritures.
 //
-// LE DÉFAUT N'EST PAS VISIBLE TANT QUE PERSONNE NE MODIFIE LES HORAIRES
-// AILLEURS. Il le devient le jour où quelqu'un le fait — depuis un autre
-// appareil, ou par une écriture appliquée directement en base. Un onglet
-// Paramètres ouvert AVANT ce changement rétablit alors l'ancienne valeur au
-// premier réglage touché : un prix de carburant, un identifiant Google
-// Sheet. Aucune erreur, aucun message, et un geste sans le moindre rapport
-// visible avec les horaires.
+// RÉVISION DU 03/10/2026. `20261003120000_station_config_horaires_nullable`
+// a relâché la contrainte, sur Test (292) puis en Production (280), AVANT que
+// le code cesse de fournir la colonne. `ON CONFLICT DO UPDATE` ne touche que
+// les colonnes citées : une écriture qui ne cite pas `horaires` le laisse
+// intact. La relecture n'avait plus d'objet — elle ne faisait que réécrire à
+// l'identique une valeur lue un instant plus tôt, avec la même fenêtre de
+// course qu'elle prétendait fermer. Le relecteur est retiré, et les onze
+// écritures ne citent plus `horaires`. Les anciennes assertions « toute
+// écriture fournit horaires » et « passe par le relecteur » encodaient la
+// contrainte NOT NULL ; elles sont INVERSÉES, pas supprimées : le défaut
+// d'origine (un réglage qui réécrit des horaires qu'il ne possède pas) reste
+// exactement ce que cette épreuve refuse.
 //
 // CE QUE CETTE ÉPREUVE PEUT, ET CE QU'ELLE NE PEUT PAS. Elle n'ouvre aucune
-// connexion et ne rend aucun DOM : elle lit le source. Elle ne dit donc pas
-// que l'écran fonctionne — elle dit qu'aucune écriture de réglage ne prend
-// `horaires` dans un cache. C'est une garde de forme, et elle est posée
-// ainsi délibérément : le défaut EST une forme, et il reviendra par la même
-// porte, le jour où l'on ajoutera un neuvième réglage à cet écran.
+// connexion et ne rend aucun DOM : elle lit le source. C'est une garde de
+// forme, posée délibérément : le défaut EST une forme, et il reviendra par la
+// même porte le jour où l'on ajoutera un réglage à cet écran.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -40,79 +45,46 @@ const brut = fs.readFileSync(CHEMIN, 'utf8');
 // Les commentaires de ce fichier CITENT les anciennes valeurs et le nom du
 // cache, pour expliquer précisément ce qui a été corrigé. Une garde qui
 // balaierait le fichier entier se déclencherait donc sur son propre récit.
-// C'est une erreur déjà commise deux fois sur ce dépôt : on ne lit ici que
-// les lignes de code.
+// On ne lit ici que les lignes de code.
 const src = brut.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
 
-// ─── 1. LE RELECTEUR EXISTE, ET IL RELIT VRAIMENT LA BASE ───────────────────
-const corps = (src.match(/async function horairesPourEcriture\(site\) \{[\s\S]*?\n  \}/) || [])[0] || '';
-verifier('un relecteur `horairesPourEcriture(site)` est défini', corps.length > 0);
-verifier('il lit `horaires` dans station_config pour CE site — il n’invente pas la valeur',
-  /from\('station_config'\)\.select\('horaires'\)\.eq\('site', site\)/.test(corps));
+// ─── 1. LE RELECTEUR A DISPARU ──────────────────────────────────────────────
+verifier('plus aucun relecteur `horairesPourEcriture` n’est défini ni appelé',
+  !/horairesPourEcriture\s*\(/.test(src));
+verifier('plus aucune écriture ne se conditionne à une erreur de relecture d’horaires',
+  !/errHoraires/.test(src));
 
-// Le verbe, pas la place. Une première version de cette épreuve n'aurait
-// vérifié que la présence du `if (error)`. Or c'est précisément le repli
-// silencieux sur le cache qui EST le défaut : un relecteur qui, ne pouvant
-// pas lire, écrirait quand même l'instantané mémoire ne corrigerait rien du
-// tout — il déplacerait le défaut d'une ligne.
-const brancheErreur = (corps.match(/if \(error\)[^\n]*/) || [])[0] || '';
-verifier('lecture impossible ⇒ le relecteur rend l’erreur et n’écrit rien',
-  /return \{ error \}/.test(brancheErreur));
-verifier('lecture impossible ⇒ il ne se rabat PAS sur le cache mémoire',
-  brancheErreur.length > 0 && !/CONFIG_HORAIRES_ACTUEL/.test(brancheErreur));
-
-// Le repli sur le cache subsiste — mais seulement là où il est légitime :
-// la ligne station_config n'existe pas encore pour ce site, cas qui a motivé
-// ce champ. `data` absent, pas `error`.
-verifier('le repli sur le cache ne sert plus qu’à la création de la ligne (aucune ligne lue)',
-  /return \{ horaires: \(data && data\.horaires\) \|\| CONFIG_HORAIRES_ACTUEL \}/.test(corps));
-
-// ─── 2. PLUS AUCUNE ÉCRITURE DE RÉGLAGE NE PUISE DANS LE CACHE ──────────────
-// On isole d'abord les objets réellement ÉCRITS dans station_config. Une
-// première version de cette épreuve balayait le fichier entier et comptait
-// seize écritures là où il y en a huit : en JavaScript, la destructuration
-// `const { horaires: horairesFrais } = ...` a exactement la même forme
-// textuelle que le littéral `{ ..., horaires: horairesFrais, ... }` qu'elle
-// alimente. Une garde qui cherche une forme trouve tout ce qui a cette
-// forme, y compris ce qui ne l'écrit pas.
+// ─── 2. AUCUNE ÉCRITURE DE RÉGLAGE NE CITE `horaires` ───────────────────────
+// On isole d'abord les objets réellement ÉCRITS dans station_config : la
+// destructuration `const { horaires: x } = ...` a la même forme textuelle que
+// le littéral qu'elle alimentait, et une garde qui cherche une forme trouve
+// tout ce qui a cette forme.
 const lignes = src.split('\n');
 const ecrits = lignes
   .map((l, i) => ({ l, i }))
   .filter(({ l, i }) => /^\s*\{ site: /.test(l)
     && /from\('station_config'\)\.upsert\($/.test((lignes[i - 1] || '').trim()));
 
-verifier('les onze écritures de réglages sont bien là où on les cherche', ecrits.length >= 11);
+// Onze réglages, plus l'écran Horaires et « Réinitialiser » (section 3).
+verifier('les écritures de réglages sont bien là où on les cherche', ecrits.length >= 13);
 
-// La garde qui compte, et la seule qui tiendra dans le temps : elle vise la
-// forme fautive elle-même, pas les huit endroits où elle se trouvait. Un
-// neuvième réglage ajouté demain avec le même réflexe la fera tomber.
 verifier('aucune écriture ne fournit `horaires: CONFIG_HORAIRES_ACTUEL` — la forme fautive a disparu',
   ecrits.every(({ l }) => !/horaires: CONFIG_HORAIRES_ACTUEL\b/.test(l)));
 
-// La colonne est NOT NULL et la ligne peut ne pas exister : une écriture qui
-// omettrait `horaires` échouerait en 23502 sur un site neuf. C'est le réflexe
-// d'origine, et il reste juste — c'est sa source qui était fausse.
-//
-// Cette garde-ci a mordu la première fois qu'elle a été posée : TROIS
-// écritures de l'onglet Réception (config, consignes, contact manager)
-// n'avaient jamais fourni `horaires`. C'est le défaut symétrique de celui
-// qui a motivé cette épreuve — là où huit écritures livraient une valeur
-// périmée, trois n'en livraient aucune — et il ne se serait vu que sur un
-// site neuf, c'est-à-dire le jour où NEXUS en aurait eu un second.
-verifier('toute écriture fournit `horaires` — la colonne est NOT NULL, le réflexe d’origine était juste',
-  ecrits.every(({ l }) => /horaires: /.test(l)));
+// Les seules écritures autorisées à citer `horaires` sont celles dont c'est
+// l'objet : la saisie du formulaire et la réinitialisation (section 3).
+const porteurs = ecrits.filter(({ l }) => /\bhoraires\s*:/.test(l));
+verifier('seules les deux écritures propriétaires citent `horaires` (formulaire, réinitialisation)',
+  porteurs.length === 2
+  && porteurs.every(({ l }) => /\{ site: employee\.site_id, horaires: (config|HORAIRES_DEFAUT), updated_at:/.test(l)));
 
-const appels = (src.match(/await horairesPourEcriture\(/g) || []).length;
-const frais = ecrits.filter(({ l }) => /horaires: horairesFrais\b/.test(l)).length;
-verifier('les onze écritures de réglages passent par le relecteur', appels === 11 && frais === 11);
-
-// Chaque écriture doit être précédée de SON appel, et non d'un appel lointain :
-// la valeur doit être fraîche à l'instant de l'écriture, sinon on a recréé un
-// cache, simplement plus court.
-const orphelins = ecrits.filter(({ l, i }) =>
-  /horaires: horairesFrais\b/.test(l)
-  && !/await horairesPourEcriture\(/.test(lignes.slice(Math.max(0, i - 3), i).join('\n'))).length;
-verifier('la relecture précède immédiatement l’écriture qui l’utilise', orphelins === 0);
+// Une écriture sur plusieurs lignes échapperait au filtre ci-dessus (qui ne lit
+// que la ligne `{ site: ...`). Les deux relectures « cuves » et « rôle de
+// réception » avaient précisément cette forme jusqu'au 03/10/2026.
+verifier('aucune écriture ne relit un instantané de la ligne pour le réécrire',
+  !/existant\s*&&\s*existant\.horaires/.test(src)
+  && !/existant\s*\?\s*existant\.(prix|cuves)_carburants/.test(src)
+  && !/select\('horaires,/.test(src));
 
 // ─── 3. LES DEUX ÉCRITURES QUI ONT LE DROIT DE TOUCHER AUX HORAIRES ─────────
 // L'écran Horaires lui-même, et le bouton « Réinitialiser ». Ceux-là écrivent
