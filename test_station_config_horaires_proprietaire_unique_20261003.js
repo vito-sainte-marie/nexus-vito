@@ -20,7 +20,11 @@
 //   1. qu'un autre upsert que le propriétaire cite `horaires` ;
 //   2. que le propriétaire disparaisse (sinon le 1 serait vrai sur une base vide) ;
 //   3. que les colmatages reviennent (`horairesObligatoires`,
-//      `chargerHorairesPourUpsert`, la relecture d'horaires avant upsert).
+//      `chargerHorairesPourUpsert`, la relecture d'horaires avant upsert) ;
+//   4. qu'un upsert écrive plus d'un réglage. Le même jour, les cuves et le
+//      rôle de réception relisaient puis réécrivaient prix_carburants (et
+//      cuves_carburants) : un prix enregistré entre la lecture et l'écriture
+//      depuis un autre écran était écrasé. Un réglage = un écrivain.
 //
 // Le contrôle 1 porte sur l'INSTRUMENT partagé (outils/schema-station-config.js),
 // pas sur un motif textuel local : c'est l'instrument qui voit les 15 appels.
@@ -42,6 +46,7 @@ const {
 
 function porteursHoraires(racine) {
   const porteurs = [];
+  const multiples = [];
   let total = 0;
   for (const f of fichiersAvecUpsertStationConfig(racine)) {
     const src = fs.readFileSync(path.resolve(racine, f), "utf8");
@@ -49,12 +54,14 @@ function porteursHoraires(racine) {
     for (const appel of appelsUpsertStationConfig(src)) {
       total++;
       if (appel.cles.includes('horaires')) porteurs.push({ fichier: rel, ligne: appel.ligne, cles: appel.cles });
+      const reglages = appel.cles.filter(c => c !== 'site' && c !== 'updated_at');
+      if (reglages.length !== 1) multiples.push({ fichier: rel, ligne: appel.ligne, cles: appel.cles });
     }
   }
-  return { porteurs, total };
+  return { porteurs, multiples, total };
 }
 
-const { porteurs, total } = porteursHoraires(RACINE);
+const { porteurs, multiples, total } = porteursHoraires(RACINE);
 
 verifier('l’instrument voit des upserts station_config (sinon l’épreuve est vide)', () => {
   // 15 au 03/10/2026. Un plancher, pas une égalité : ajouter un réglage ne
@@ -96,6 +103,16 @@ verifier('les colmatages NOT NULL ne reviennent pas', () => {
   }
 });
 
+verifier('chaque upsert station_config écrit un seul réglage (pas de réécriture d’un instantané voisin)', () => {
+  assert.deepStrictEqual(multiples, [],
+    'upserts qui écrivent plusieurs réglages : ' + JSON.stringify(multiples));
+  for (const f of fichiersAvecUpsertStationConfig(RACINE)) {
+    const src = fs.readFileSync(path.resolve(RACINE, f), 'utf8');
+    assert.ok(!/existant\s*\?\s*existant\.(prix|cuves)_carburants/.test(src),
+      `${f} réécrit de nouveau un instantané de prix ou de cuves`);
+  }
+});
+
 // Contre-témoin : l'épreuve doit rougir si un écran non propriétaire joint de
 // nouveau horaires. Joué sur une copie jetable, jamais sur le dépôt.
 verifier('contre-témoin : réintroduire horaires dans un upsert de prix est détecté', () => {
@@ -114,6 +131,27 @@ verifier('contre-témoin : réintroduire horaires dans un upsert de prix est dé
     fs.writeFileSync(cible, src.replace(ancre, '{ site: siteId, prix_carburants, horaires: h, updated_at:'));
     const muté = porteursHoraires(dir);
     assert.strictEqual(muté.porteurs.length, 2, 'la mutation n’a pas été vue : ' + JSON.stringify(muté.porteurs));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+verifier('contre-témoin : rejoindre prix_carburants à l’upsert des cuves est détecté', () => {
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reglage-unique-'));
+  try {
+    for (const f of fichiersAvecUpsertStationConfig(RACINE)) {
+      const rel = path.relative(RACINE, path.resolve(RACINE, f));
+      fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+      fs.copyFileSync(path.resolve(RACINE, f), path.join(dir, rel));
+    }
+    const cible = path.join(dir, ECRAN_PROPRIETAIRE);
+    const src = fs.readFileSync(cible, 'utf8');
+    const ancre = '{ site: employee.site_id, cuves_carburants: config, updated_at:';
+    assert.strictEqual(src.split(ancre).length - 1, 1, 'ancre du contre-témoin non unique ou absente');
+    fs.writeFileSync(cible, src.replace(ancre, '{ site: employee.site_id, cuves_carburants: config, prix_carburants: p, updated_at:'));
+    const muté = porteursHoraires(dir);
+    assert.strictEqual(muté.multiples.length, 1, 'la mutation n’a pas été vue : ' + JSON.stringify(muté.multiples));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

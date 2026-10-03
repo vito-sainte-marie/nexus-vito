@@ -1845,16 +1845,12 @@
     });
     if (erreur) { alert('Renseignez une capacité positive pour chaque cuve active.'); return; }
     btn.disabled = true;
-    // On renvoie aussi prix_carburants déjà connu (station_config n'a qu'une
-    // ligne par site). `horaires` n'est plus joint : la colonne est nullable
-    // depuis 20261003120000, et seul l'enregistrement des horaires l'écrit.
-    const { data: existant } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id).maybeSingle();
+    // N'écrit que cuves_carburants : `ON CONFLICT DO UPDATE` ne touche que les
+    // colonnes citées, chaque réglage garde donc son propre écrivain. Jusqu'au
+    // 03/10/2026 cet upsert relisait puis réécrivait prix_carburants, et
+    // écrasait un prix enregistré entre-temps depuis un autre écran.
     const { error } = await nexusClient.from('station_config').upsert(
-      {
-        site: employee.site_id, cuves_carburants: config,
-        prix_carburants: existant ? existant.prix_carburants : null,
-        updated_at: new Date().toISOString(),
-      },
+      { site: employee.site_id, cuves_carburants: config, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -1909,14 +1905,9 @@
       const precedente = document.querySelector('#cardReceptionCarburantRole .role-chip.actif');
       const valeurPrecedente = precedente ? precedente.dataset.valeur : 'employe';
       majChipsReceptionCarburantRole(valeur); // optimiste, annulé ci-dessous en cas d'erreur
-      const { data: existant } = await nexusClient.from('station_config').select('prix_carburants,cuves_carburants').eq('site', employee.site_id).maybeSingle();
+      // N'écrit que reception_carburant_role (voir l'enregistrement des cuves).
       const { error } = await nexusClient.from('station_config').upsert(
-        {
-          site: employee.site_id, reception_carburant_role: valeur,
-          prix_carburants: existant ? existant.prix_carburants : null,
-          cuves_carburants: existant ? existant.cuves_carburants : null,
-          updated_at: new Date().toISOString(),
-        },
+        { site: employee.site_id, reception_carburant_role: valeur, updated_at: new Date().toISOString() },
         { onConflict: 'site' }
       );
       if (error) {
