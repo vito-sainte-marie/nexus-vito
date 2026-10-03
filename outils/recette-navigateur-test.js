@@ -1150,14 +1150,48 @@ async function observerEnregistrementPrix(page, base) {
         ? `redirigé vers ${chemin} : session manager perdue avant l’écran des réglages`
         : `page inattendue après navigation : ${chemin}`);
     }
-    const renseignable = await page.waitForFunction(() => {
+    const present = await page.waitForFunction(() => {
       const b = document.getElementById('sauvegarderPrix');
       return !!(b && !b.disabled && document.getElementById('prix_sp')
         && document.getElementById('prix_go') && document.getElementById('prix_gnr'));
     }, null, { timeout: 30000 }).then(() => true).catch(() => false);
-    if (!renseignable) {
+    if (!present) {
       return nonJuge(`la carte « Prix carburants — mois en cours » n’est pas renseignable sur ${chemin} `
         + '(#sauvegarderPrix ou #prix_sp/#prix_go/#prix_gnr absents, ou bouton déjà désactivé)');
+    }
+    // CET ÉCRAN EST UN ACCORDÉON, ET SEULE « Général » EST DÉPLIÉE AU
+    // CHARGEMENT : `.psec-body{display:none}`, `.psec.open .psec-body{display:
+    // block}`, et seul `#secGeneral` porte `open`. La carte des prix vit dans
+    // `#secCarburants` : ses champs EXISTENT dans le DOM et ne sont pas
+    // VISIBLES. Mesuré le 02/10/2026, run 37077466591 : l’attente de
+    // visibilité de locator.fill sur #prix_sp a expiré au bout de 30 s sur
+    // « element is not visible », et la garde ci-dessus ne voyait rien parce
+    // qu’elle ne mesurait que la PRÉSENCE. Le geste est celui du manager :
+    // on déplie la section avant de saisir.
+    const entete = page.locator('#secCarburants .psec-head');
+    if ((await entete.count()) === 0) {
+      return nonJuge(`la section « Carburants » est absente de ${chemin} : la carte des `
+        + 'prix ne peut pas être dépliée (#secCarburants .psec-head introuvable)');
+    }
+    const dejaOuverte = await page.evaluate(() => {
+      const s = document.getElementById('secCarburants');
+      return !!(s && s.classList.contains('open'));
+    }).catch(() => false);
+    if (!dejaOuverte) await entete.first().click();
+    // LA PRÉSENCE N’EST PAS LA VISIBILITÉ. `offsetParent === null` dit
+    // exactement ce que le navigateur attend avant d’accepter une saisie ; le
+    // dire ICI produit un motif lisible, au lieu d’un délai qui expire.
+    const visible = await page.waitForFunction(() => {
+      const vu = (id) => {
+        const e = document.getElementById(id);
+        return !!(e && e.offsetParent !== null);
+      };
+      return vu('prix_sp') && vu('prix_go') && vu('prix_gnr') && vu('sauvegarderPrix');
+    }, null, { timeout: 15000 }).then(() => true).catch(() => false);
+    if (!visible) {
+      return nonJuge('la carte « Prix carburants — mois en cours » reste invisible après '
+        + `ouverture de la section « Carburants » sur ${chemin} : les champs existent `
+        + 'dans le DOM, aucun n’est affiché (accordéon non déplié, ou ancêtre masqué)');
     }
     // Laisser `initPrixCarburants` reporter ce qu'elle trouve en base. Les
     // champs ne sont préremplis QUE si `prix.mois` est le mois courant : un
@@ -1202,6 +1236,18 @@ async function observerEnregistrementPrix(page, base) {
     return { tente: true, motif: null, alertes: alertes.slice(), note,
       reecrit: dejaEnBase ? 'identiques' : 'nouveaux',
       statut: apres.statut, boutonDesactive: apres.boutonDesactive, chemin };
+  } catch (e) {
+    // L’OBSERVATEUR NE DOIT PAS JETER, ET LE 02/10/2026 IL A JETÉ. Run
+    // 37077466591 : l’attente de visibilité de locator.fill sur #prix_sp a
+    // expiré, l’exception est remontée à travers un `try … finally` SANS
+    // rattrapage, et la recette ENTIÈRE est morte sur un message de
+    // bibliothèque nu — sans publier un seul code PRIX-00x, donc sans rien
+    // dire de ce qu’elle mesurait. L’épreuve croyait couvrir le cas en
+    // cherchant un mot-clé d’exception dans la source : une attente qui
+    // expire ne l’écrit pas. Une interruption du navigateur est une
+    // OBSERVATION, pas une panne de la recette : elle se rend en motif.
+    return nonJuge('l’étape a été interrompue par le navigateur : '
+      + (e && e.message ? String(e.message) : String(e)).split('\n')[0]);
   } finally {
     page.off('dialog', surDialogue);
   }

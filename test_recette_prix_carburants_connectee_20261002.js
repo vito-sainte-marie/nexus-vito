@@ -168,6 +168,78 @@ verifier('l’observateur ne jette jamais et rend un motif', () => {
   assert.ok(!/throw /.test(SRC_OBS), 'l’observateur ne doit pas jeter');
 });
 
+// --- 4 bis. L'INTERRUPTION DU NAVIGATEUR EST UNE OBSERVATION -------------
+// Mesuré le 02/10/2026, run 37077466591 : l'attente de visibilité d'un champ
+// de prix a expiré — la carte vit dans l'accordéon `#secCarburants`, replié
+// au chargement, donc le champ EXISTE et n'est pas VISIBLE. L'exception est
+// remontée à travers un `try … finally` SANS rattrapage et la recette
+// entière est morte sans publier un seul code PRIX-00x. Le contrôle
+// ci-dessus ne voyait rien : il cherche un mot-clé d'exception dans la
+// source, et une attente qui expire ne l'écrit pas. C'est l'angle mort
+// d'un scan de mot-clé, et il se ferme par une mutation.
+const OUTER_CATCH = /\n  \} catch \(\s*[A-Za-z_$][\w$]*\s*\)\s*\{([\s\S]*?)\n  \} finally \{/;
+
+// Le rattrapage attendu est celui du PREMIER NIVEAU de la fonction — à la
+// hauteur du `finally` qui débranche le dialogue, deux espaces d'indentation.
+// Un motif plus lâche ne mord pas : mesuré: il attrapait le rattrapage
+// INTERNE de l'analyse d'URL (plus profond), suivi plus loin d'un
+// `return nonJuge(`, et passait VERT sur la recette d'avant correctif.
+const rattrape = (t) => {
+  const m = OUTER_CATCH.exec(t);
+  return !!m && /return nonJuge\(/.test(m[1]);
+};
+
+verifier('témoin — une interruption du navigateur devient un motif non jugé', () => {
+  assert.ok(rattrape(SRC_OBS),
+    'une attente qui expire doit devenir un motif, pas la mort de la recette');
+});
+
+verifier('contre-témoin — le rattrapage retiré rougit le contrôle', () => {
+  // On retire LE BLOC entier, pas un caractère : « débrancher l'aide ».
+  const mute = SRC_OBS.replace(OUTER_CATCH, '\n  } finally {');
+  assert.notStrictEqual(mute, SRC_OBS, 'la mutation doit porter : bloc de rattrapage introuvable');
+  assert.strictEqual(rattrape(mute), false, 'le contrôle ne verrait pas le rattrapage manquant');
+});
+
+// --- 4 ter. DÉPLIER LA SECTION, ET MESURER LA VISIBILITÉ ------------------
+const ANCRE_SECTION = '#secCarburants .psec-head';
+const ANCRE_VISIBILITE = 'offsetParent !== null';
+
+// Le contrôle est une FONCTION, pour qu'un contre-témoin puisse l'évaluer sur
+// une source mutée. Un contre-témoin qui se contenterait de réaffirmer sa
+// propre mutation ne mesurerait pas le contrôle, seulement lui-même.
+const deplieEtVoitAvantDeSaisir = (t) => {
+  const iOuvre = t.indexOf(ANCRE_SECTION);
+  const iVoit = t.indexOf(ANCRE_VISIBILITE);
+  const iSaisit = t.indexOf('.fill(');
+  return iOuvre > 0 && iVoit > 0 && iSaisit > 0 && iOuvre < iSaisit && iVoit < iSaisit;
+};
+
+verifier('témoin — l’étape déplie « Carburants » et mesure la visibilité avant de saisir', () => {
+  assert.ok(SRC_OBS.indexOf(ANCRE_SECTION) > 0,
+    'la section « Carburants » doit être dépliée par son entête');
+  assert.ok(SRC_OBS.indexOf(ANCRE_VISIBILITE) > 0,
+    'la visibilité doit être mesurée, pas la seule présence dans le DOM');
+  assert.ok(deplieEtVoitAvantDeSaisir(SRC_OBS),
+    'déplier ou vérifier la visibilité APRÈS la saisie ne protège de rien');
+});
+
+verifier('contre-témoin — l’ouverture de la section retirée rougit le contrôle', () => {
+  const mute = SRC_OBS.split('\n').filter(l => l.indexOf(ANCRE_SECTION) === -1).join('\n');
+  assert.notStrictEqual(mute, SRC_OBS, 'la mutation doit porter : ouverture introuvable');
+  assert.strictEqual(deplieEtVoitAvantDeSaisir(mute), false,
+    'le contrôle ne verrait pas la section restée repliée');
+});
+
+verifier('contre-témoin — la mesure de visibilité retirée rougit le contrôle', () => {
+  // C'est LE défaut du 02/10/2026 : la garde de présence restait verte pendant
+  // que le champ était invisible. La retirer doit se voir.
+  const mute = SRC_OBS.split('\n').filter(l => l.indexOf(ANCRE_VISIBILITE) === -1).join('\n');
+  assert.notStrictEqual(mute, SRC_OBS, 'la mutation doit porter : mesure de visibilité introuvable');
+  assert.strictEqual(deplieEtVoitAvantDeSaisir(mute), false,
+    'le contrôle ne verrait pas une garde qui ne mesure que la présence');
+});
+
 // --- 5. CÂBLAGE dans executer() ------------------------------------------
 verifier('témoin — l’étape est branchée dans executer() et pèse sur le verdict', () => {
   assert.ok(/const vuePrix = await observerEnregistrementPrix\(page, base\);/.test(SOURCE),
