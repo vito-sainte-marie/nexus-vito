@@ -259,9 +259,13 @@
       "consomme_le": "2026-10-03T18:44:05.636Z"
     },
     "FDJ-VAGUE1-REPRISE-20261003": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "7fdb1f6f515e30563a696fe9d47894265c4be6ed",
+      "consomme_le": "2026-10-03T23:41:43.749Z"
     }
   },
   "artefacts_hors_registre": [
