@@ -274,3 +274,75 @@ conteneur jetable local. La relecture de la structure sur `nexus-test` lui-même
 reste à prendre : l'hôte direct du projet Test était injoignable sur le port
 5432 le 03/10/2026 alors qu'IPv6 fonctionnait par ailleurs — observation de
 transport datée, jamais « Test est injoignable ».
+
+---
+
+## Addendum du 03/10/2026, 17 h — écriture de recette bornée sur `station_config` (SEC-023)
+
+### EXCLUE — Test/CI uniquement (1 migration)
+
+1. `20261003170000_ecriture_bornee_station_config_recette_23502` — **EXCLUE — Test/CI**
+
+Première entrée **EXCLUE** de cet addendum : les quatre sections datées qui
+précèdent classaient toutes « Proposée incluse ». La marque est donc portée
+deux fois, sur le titre **et** sur la ligne, parce que le contrôle réel
+(`test_manifeste_migrations_complet_20260909.js`) l'accepte sur la ligne **ou**
+sur le titre le plus proche : une classification ne doit pas dépendre de celle
+des deux lectures qui se trouve marcher.
+
+**Ce qu'elle débloque, mesuré.** À l'étape 52 du run Tests `37131612297`
+(rail `620b8418b681cafa327079be0a18698903d96274`, 03/10/2026 14 h 59 UTC),
+l'épreuve request-20 est refusée à sa première écriture :
+`ERROR: permission denied for table station_config` — SQLSTATE **42501**, pas
+23502. Relevé en base : le rôle `nexus_ci_recette` ne détient **aucun droit de
+table** sur `public.station_config`, seulement quatre droits de **colonne** en
+lecture posés par `20260909110000`. Sa politique `lecture_recette_station_test`
+est donc inerte faute de droit derrière elle. Piège de lecture à ne pas
+refaire : `information_schema.role_table_grants` n'énumère pas les droits de
+colonne et rendait une rubrique vide, indiscernable d'une absence.
+
+**Autorisation humaine.** Frédéric Bragance, 03/10/2026, verbatim : « une
+capacité d'écriture TEST strictement minimale permettant à l'épreuve request-20
+d'exécuter ses deux cas synthétiques sur public.station_config », bornée aux
+deux identifiants `nexus-test-repro-23502-neuf` et
+`nexus-test-repro-23502-existant`, sans aucun droit d'écriture sur
+`nexus-station-test` ni sur un site réel, et traçable par migration.
+
+**Pourquoi EXCLUE, et pourquoi ce n'est pas un choix de confort.** Elle
+n'accorde de droits qu'au rôle `nexus_ci_recette`, qui n'existe pas en
+Production : son corps s'ouvre sur un `if not exists (select 1 from pg_roles …)
+then raise notice … return`, donc appliquée là-bas elle ne ferait rien. Mais
+« elle ne ferait rien » n'est pas une raison de la promouvoir : son en-tête
+déclare **« TEST/CI UNIQUEMENT — à ne PAS appliquer en Production »**, et c'est
+cette déclaration, pas son innocuité supposée, qui exige la marque ci-dessus.
+Même critère déterministe que les quatre migrations EXCLUES du 09/09/2026 dans
+le manifeste historique, rejoué, pas réinventé.
+
+**Bornée sur les deux axes à la fois, comme SEC-018.** Les droits sont bornés
+aux seules colonnes que l'épreuve renseigne, et les lignes aux deux seuls
+identifiants synthétiques par trois politiques RLS. Un droit sans politique
+écrirait partout ; une politique sans droit ne s'appliquerait à rien. Aucun
+`DELETE`, aucun `TRUNCATE`, aucun droit de table, aucun élargissement général
+de `nexus_ci_recette`.
+
+**Sa preuve de bornage est désignée, et elle ne peut pas vivre sur un poste.**
+`outils/epreuve-bornage-ecriture-recette-station-config-20261003.sql` refuse de
+conclure si `current_user` n'est pas `nexus_ci_recette` ou si le rôle contourne
+la RLS (code `BORNAGE-000`, contre-témoigné : lancée sous `postgres` elle sort
+en 3). Depuis ce Mac, `set role nexus_ci_recette` est refusé par PostgreSQL 16
+— `pg_has_role(…,'MEMBER')` vaut vrai, `USAGE` vaut faux — et `postgres` porte
+`rolbypassrls` : une mesure prise d'ici ne prouverait donc rien du bornage.
+Elle est pour cette raison câblée dans la CI, à l'étape « Bornage de l'écriture
+de recette sur station_config (SEC-023) ». Son versant statique est
+`test_droits_ci_dans_migrations_20260909.js` — 10/10, éprouvé par cinq
+mutations qui rougissent chacune sur sa propre cible.
+
+### Ce que cet addendum ne fait pas
+
+Il ne promeut rien et ne modifie pas le manifeste historique, dont l'empreinte
+reste celle figée plus haut. Il ne classe pas les onze migrations du rail encore
+non qualifiées. Il ne vaut ni autorisation de fusion, ni autorisation de
+déploiement, ni application sur une base. À l'heure où il est écrit, la
+migration qu'il classe est **écrite et non appliquée** : l'appliquer sur
+`nexus-test` et rejouer l'épreuve request-20 sous `nexus_ci_recette` sont deux
+gestes distincts, et le second est la seule preuve qui compte.

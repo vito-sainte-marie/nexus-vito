@@ -23,6 +23,17 @@
 -- ligne fabriquée n'est jamais laissée en base, quel que soit le résultat.
 -- `site` utilisé : une valeur manifestement de test, jamais un site réel.
 
+-- VERBOSITÉ VERBEUSE — AJOUT DU 03/10/2026, ET CE N'EST PAS UN CONFORT.
+-- À la verbosité par défaut, psql n'imprime PAS le SQLSTATE : une vraie
+-- violation de non-nullité s'affiche
+--     ERROR:  null value in column "horaires" of relation "station_config" ...
+-- sans le code. Le garde-fou de l'étape 52 de `tests.yml` cherchait pourtant la
+-- chaîne « 23502 » dans cette sortie : il était AVEUGLE au défaut qu'il est
+-- censé détecter. Avec `VERBOSITY verbose`, la même erreur s'imprime
+--     ERROR:  23502: null value in column "horaires" ...
+-- et le code devient observable. Mesuré les deux fois, pas déduit.
+\set VERBOSITY verbose
+
 \set site_neuf 'nexus-test-repro-23502-neuf'
 \set site_existant 'nexus-test-repro-23502-existant'
 
@@ -102,6 +113,8 @@ on conflict (site) do update set
   updated_at = excluded.updated_at;
 -- ATTENDU après correctif : SUCCÈS (INSERT 0 1 ou équivalent), fuseau_horaire
 -- de la ligne créée vaut NULL — jamais une valeur devinée.
+\echo ''
+\echo 'REQUEST-20 CAS-1 — INSERT site neuf : ligne relue ci-dessous.'
 select site, fuseau_horaire, prix_carburants is not null as a_un_prix
   from station_config where site = :'site_neuf';
 
@@ -122,10 +135,49 @@ on conflict (site) do update set
 -- ATTENDU après correctif : SUCCÈS. fuseau_horaire reste 'America/Martinique'
 -- (valeur déjà en base, NON écrasée — l'upsert ne liste pas cette colonne
 -- dans son SET, PostgREST/Supabase ne modifie que les colonnes du payload).
+\echo ''
+\echo 'REQUEST-20 CAS-2 — INSERT ... ON CONFLICT site existant : ligne relue ci-dessous.'
 select site, fuseau_horaire, prix_carburants is not null as a_un_prix
   from station_config where site = :'site_existant';
 
 rollback;
+
+-- PARTIE D — APRÈS L'ANNULATION : AUCUNE DONNÉE SYNTHÉTIQUE NE SURVIT.
+-- Ajoutée le 03/10/2026. Ce n'est pas une redite du `rollback` qui précède :
+-- c'est la seule partie de l'épreuve qui MESURE son innocuité au lieu de la
+-- supposer. Elle s'exécute hors transaction, donc elle voit l'état réel.
+--
+-- Les deux identifiants sont RÉÉCRITS EN CLAIR ici, et non repris de
+-- :'site_neuf' / :'site_existant'. Mesuré le 03/10/2026, pas supposé : psql
+-- n'interpole PAS ses variables dans une chaîne dollar-quotée —
+--     do $x$ begin raise notice '%', :'site_neuf'; end $x$;
+--     ERROR:  syntax error at or near ":"
+-- Toute tentative de les factoriser ici casserait l'épreuve.
+do $$
+declare
+  n integer;
+begin
+  select count(*) into n from station_config
+    where site in ('nexus-test-repro-23502-neuf', 'nexus-test-repro-23502-existant');
+  if n <> 0 then
+    raise exception using errcode = 'P0001', message = format(
+      'REQUEST-20 ÉCHEC : %s ligne(s) synthétique(s) ont survécu à l''épreuve — l''annulation n''a pas tenu.',
+      n);
+  end if;
+  raise notice 'REQUEST-20 : aucune ligne synthétique résiduelle (0 sur les deux identifiants).';
+end
+$$;
+
+-- MARQUEUR TERMINAL — LU PAR L'ÉTAPE 52 DE `tests.yml`, C'EST SON VERSANT POSITIF.
+-- Avec `ON_ERROR_STOP=1`, atteindre cette ligne prouve que TOUTES les
+-- instructions qui précèdent ont réussi : les deux `insert`, l'`on conflict`,
+-- les trois `rollback` et le contrôle d'innocuité ci-dessus.
+-- Pourquoi un versant positif est indispensable : une épreuve qui n'aurait rien
+-- exécuté du tout rendrait une sortie vide, et une sortie vide ne contient aucun
+-- « 23502 » — l'ancien garde-fou l'aurait donc déclarée VERTE.
+\echo ''
+\echo 'REQUEST-20 : ÉPREUVE MENÉE À TERME — les deux cas ont été joués, puis annulés.'
+
 
 -- Aucune ligne de ce fichier ne survit à son exécution (ROLLBACK systématique
 -- en fin de chaque partie) : aucune donnée fabriquée n'est laissée en base,

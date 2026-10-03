@@ -770,13 +770,109 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$sortie"
-          if printf '%s' "$sortie" | grep -qi '23502'; then
-            echo "ÉCHEC — 23502 détecté dans la sortie malgré un exit 0."
+          # DEUX VERSANTS, ET C'EST LA CORRECTION D'UN DÉFAUT MESURÉ LE 03/10/2026.
+          #
+          # Le contrôle précédent était `grep -qi '23502'` sur la sortie entière.
+          # Il n'avait AUCUN chemin vert, et il était simultanément aveugle au
+          # défaut qu'il cherche :
+          #
+          #   1. FAUX POSITIF GARANTI. Les deux identifiants synthétiques de
+          #      l'épreuve s'appellent `nexus-test-repro-23502-neuf` et
+          #      `nexus-test-repro-23502-existant`, sa PARTIE C les RELIT et les
+          #      imprime, et le nom du fichier lui-même porte « 23502 » — donc
+          #      chaque message psql préfixé du chemin en contient un. Mesuré sur
+          #      une exécution réussie : 3 occurrences de la chaîne nue. Le garde
+          #      matchait sa propre fixture : une épreuve parfaitement réussie
+          #      était déclarée ÉCHEC.
+          #   2. FAUX NÉGATIF GARANTI. À la verbosité psql par défaut, une vraie
+          #      violation de non-nullité s'imprime SANS son SQLSTATE
+          #      (`ERROR:  null value in column "horaires" …`). La chaîne
+          #      « 23502 » n'y figure pas. L'épreuve porte donc désormais
+          #      `\set VERBOSITY verbose`, et c'est une clause du contrat de ce
+          #      garde, pas un confort.
+          #
+          # Versant NÉGATIF : le code d'erreur, ancré sur la forme que psql
+          # imprime réellement (`ERROR:  23502: …`, éventuellement préfixé
+          # `psql:<fichier>:<ligne>: `), et non la chaîne nue n'importe où.
+          if printf '%s\n' "$sortie" | grep -qiE '^(psql:[^ ]*:[0-9]+: )?ERROR: +23502:'; then
+            echo "ÉCHEC — SQLSTATE 23502 levé par l'épreuve malgré un exit 0."
+            echo "NEXUS_EPREUVE_23502_FAITE=0" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          # Versant POSITIF, indispensable : une sortie VIDE ne contient aucun
+          # code d'erreur non plus. Sans ce contrôle, une épreuve qui n'aurait
+          # rien exécuté du tout serait déclarée verte. Avec `ON_ERROR_STOP=1`,
+          # ce marqueur terminal ne peut être atteint que si les deux `insert`,
+          # l'`on conflict`, les trois `rollback` ET le contrôle d'innocuité
+          # (PARTIE D : aucune ligne synthétique résiduelle) ont tous réussi.
+          if ! printf '%s\n' "$sortie" | grep -qF 'REQUEST-20 : ÉPREUVE MENÉE À TERME'; then
+            echo "ÉCHEC — épreuve request-20 NON menée à terme : marqueur terminal absent de la sortie."
             echo "NEXUS_EPREUVE_23502_FAITE=0" >> "$GITHUB_ENV"
             exit 1
           fi
           echo "NEXUS_EPREUVE_23502_FAITE=1" >> "$GITHUB_ENV"
           echo "Épreuve station_config 23502 (request-20) : SUCCESS — INSERT et ON CONFLICT réussissent sans 23502, sous ROLLBACK."
+
+      # ÉPREUVE DE BORNAGE SEC-023 — ET POURQUOI ELLE NE PEUT VIVRE QU'ICI.
+      #
+      # La migration `20261003170000` accorde au rôle `nexus_ci_recette` une
+      # écriture sur `public.station_config`, bornée sur DEUX axes à la fois :
+      # en colonnes par le GRANT, en lignes par trois politiques RLS limitées
+      # aux deux identifiants synthétiques de l'épreuve ci-dessus. C'est ce
+      # bornage que cette étape mesure — pas la réussite de l'épreuve, le
+      # REFUS de tout le reste.
+      #
+      # Elle est ici et pas sur un poste parce que le bornage ne s'observe que
+      # SOUS `nexus_ci_recette`. Mesuré le 03/10/2026 depuis un poste :
+      # `pg_has_role('nexus_ci_recette','MEMBER')` rend `t`, et pourtant
+      # `set role nexus_ci_recette;` rend
+      # `ERROR: permission denied to set role "nexus_ci_recette"` — PostgreSQL 16
+      # sépare l'appartenance (MEMBER) du droit de l'endosser (USAGE, mesuré `f`).
+      # Et sous `postgres`, qui porte `rolbypassrls`, CHAQUE écriture passerait :
+      # le vert signifierait l'inverse de ce qu'il affirme. L'épreuve refuse donc
+      # de conclure sous une autre identité (`BORNAGE-000`) — contre-témoin pris
+      # avant tout usage : lancée sous `postgres`, elle sort en code 3.
+      #
+      # Le RUNNER est le seul maillon qui se connecte nativement comme
+      # `nexus_ci_recette` (cf. le step de connexion ci-dessus, qui décompose
+      # SUPABASE_TEST_DB_URL_WRITE). Un garde non câblé ne prouve rien.
+      - name: Bornage de l'écriture de recette sur station_config (SEC-023)
+        if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        run: |
+          set -uo pipefail
+          FICHIER_BORNAGE="outils/epreuve-bornage-ecriture-recette-station-config-20261003.sql"
+          if [ ! -f "$FICHIER_BORNAGE" ]; then
+            echo "ÉCHEC — fichier canonique absent : $FICHIER_BORNAGE"
+            exit 1
+          fi
+          if ! sonde=$(psql -v ON_ERROR_STOP=1 -c 'select 1' 2>&1 >/dev/null); then
+            if grep -qiE 'network is unreachable|could not translate host name|connection timed out|no route to host' <<<"$sonde"; then
+              echo "::warning::ENV-003 — base Test INJOIGNABLE depuis le runner : $sonde"
+              echo "::warning::Bornage SEC-023 NON mesuré — la preuve reste ouverte, non fabriquée."
+              echo "NEXUS_BORNAGE_SEC021_FAIT=0" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "La base Test a RÉPONDU, et elle a refusé — ce n'est pas une indisponibilité :"
+            echo "$sonde"
+            exit 1
+          fi
+          if ! sortie=$(psql -v ON_ERROR_STOP=1 -f "$FICHIER_BORNAGE" 2>&1); then
+            printf '%s\n' "$sortie"
+            echo "ÉCHEC — le bornage SEC-023 n'est pas prouvé. Le code BORNAGE-00x exact est dans la sortie ci-dessus."
+            echo "NEXUS_BORNAGE_SEC021_FAIT=0" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          printf '%s\n' "$sortie"
+          # Même raison qu'à l'étape précédente : une sortie vide ne porte aucun
+          # échec. Le marqueur terminal de l'épreuve est son seul versant positif.
+          if ! printf '%s\n' "$sortie" | grep -qF 'ÉPREUVE DE BORNAGE SEC-023 : toutes les parties ont passé.'; then
+            echo "ÉCHEC — bornage SEC-023 non mené à terme : marqueur terminal absent."
+            echo "NEXUS_BORNAGE_SEC021_FAIT=0" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          echo "NEXUS_BORNAGE_SEC021_FAIT=1" >> "$GITHUB_ENV"
+          echo "Bornage SEC-023 : SUCCESS — l'écriture de recette sur station_config est refusée partout sauf sur les deux identifiants synthétiques."
 
       - name: Semer le scénario Carburants sur Supabase Test
         if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
