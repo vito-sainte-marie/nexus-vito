@@ -738,6 +738,44 @@ jobs:
       # Un refus d'authentification, un droit manquant, une erreur SQL : tout
       # cela reste bloquant. C'est la différence entre « je n'ai pas pu
       # demander » et « on m'a répondu non » — la seconde est un vrai défaut.
+      # Épreuve transactionnelle request-20 — station_config / 23502.
+      # Exécute le véhicule canonique tel quel sur nexus-test ; aucune duplication SQL.
+      - name: Épreuve station_config 23502 (request-20) — INSERT et ON CONFLICT sous ROLLBACK
+        if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
+        shell: bash
+        run: |
+          set -uo pipefail
+          FICHIER_EPREUVE="outils/epreuve-station-config-upsert-fuseau-horaire-23502-20261002.sql"
+          if [ ! -f "$FICHIER_EPREUVE" ]; then
+            echo "ÉCHEC — fichier canonique absent : $FICHIER_EPREUVE"
+            exit 1
+          fi
+          if ! sonde=$(psql -v ON_ERROR_STOP=1 -c 'select 1' 2>&1 >/dev/null); then
+            if grep -qiE 'network is unreachable|could not translate host name|connection timed out|no route to host' <<<"$sonde"; then
+              echo "::warning::ENV-003 — base Test INJOIGNABLE depuis le runner : $sonde"
+              echo "::warning::Épreuve 23502 (request-20) NON exécutée — la preuve comportementale reste ouverte, non fabriquée."
+              echo "NEXUS_EPREUVE_23502_FAITE=0" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "La base Test a RÉPONDU, et elle a refusé — ce n'est pas une indisponibilité :"
+            echo "$sonde"
+            exit 1
+          fi
+          if ! sortie=$(psql -v ON_ERROR_STOP=1 -f "$FICHIER_EPREUVE" 2>&1); then
+            printf '%s\n' "$sortie"
+            echo "ÉCHEC — l'épreuve SQL request-20 n'a pas passé ON_ERROR_STOP. Le SQLSTATE exact est dans la sortie ci-dessus."
+            echo "NEXUS_EPREUVE_23502_FAITE=0" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          printf '%s\n' "$sortie"
+          if printf '%s' "$sortie" | grep -qi '23502'; then
+            echo "ÉCHEC — 23502 détecté dans la sortie malgré un exit 0."
+            echo "NEXUS_EPREUVE_23502_FAITE=0" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          echo "NEXUS_EPREUVE_23502_FAITE=1" >> "$GITHUB_ENV"
+          echo "Épreuve station_config 23502 (request-20) : SUCCESS — INSERT et ON CONFLICT réussissent sans 23502, sous ROLLBACK."
+
       - name: Semer le scénario Carburants sur Supabase Test
         if: env.NEXUS_REF_EST_LE_RAIL == '1' && env.NEXUS_SEMIS_DISPONIBLE == '1'
         shell: bash
