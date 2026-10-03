@@ -59,8 +59,25 @@
 // CE QU'ELLE NE FAIT PAS. Elle ne se connecte à aucune base, ne lit aucun
 // secret, n'exécute aucun SQL, ne touche à rien. Elle lit des refs Git et un
 // fichier de qualification, et sort 0 ou 1. La mesure du catalogue est un
-// geste humain ou de CI ; la garde vérifie seulement qu'il a été fait, qu'il
-// portait sur le bon objet et qu'il est récent.
+// geste humain ou de CI ; la garde vérifie seulement qu'il a été fait et qu'il
+// portait sur le bon objet — le fichier de migration EXACT du candidat.
+//
+// QUAND UNE MESURE PÉRIME. Jusqu'au 03/10/2026, au bout de 72 h, quoi qu'il
+// arrive. Une qualification exacte retombait donc en refus sans que rien n'ait
+// changé, et chaque relecture se redemandait à Frédéric pour une raison
+// d'horloge. Désormais elle périme quand son PÉRIMÈTRE change : la mesure porte
+// `blob_migration`, l'empreinte Git du fichier mesuré, et la garde la compare à
+// `git rev-parse <candidat>:<chemin>`. Modifier la migration, même d'un octet,
+// fait tomber la qualification ; le temps qui passe, non.
+//
+// CE QUE CE CHOIX NE VOIT PAS, ET QUI L'A DÉMONTRÉ. Une base qui bouge SANS que
+// le dépôt bouge. Le 03/10/2026, la mesure du 01/10 disait « trou confirmé »
+// pour 20261001160000 ; relue en lecture seule, la fonction était déjà fermée —
+// révoquée hors bande, estampille absente du registre. Une garde statique ne
+// peut pas le voir, l'horloge de 72 h ne le voyait pas mieux : elle refusait
+// tout, sans dire quoi. Cette dérive se rattrape là où elle peut agir : toute
+// procédure d'application relit la base avant d'écrire (préflight, section
+// AVANT des scripts à exécuter par Frédéric).
 //
 //   node outils/garde-ordre-migration-code.js <ref-candidate> <ref-cible>
 //
@@ -68,7 +85,6 @@
 //   NEXUS_DEPOT                répertoire du dépôt (défaut : racine du projet)
 //   NEXUS_QUALIFICATION        chemin du fichier de qualification
 //                              (défaut : docs/deploiement/qualification-ordre-migration-code.json)
-//   NEXUS_QUALIFICATION_HEURES fraîcheur maximale d'une mesure (défaut : 72)
 //
 // FORME DU FICHIER DE QUALIFICATION :
 //   {
@@ -79,7 +95,8 @@
 //           "source": "catalogue",          // "registre" seul = REFUS
 //           "le": "2026-09-30T14:00:00Z",
 //           "cible": "uzhjpqpctpvxytxpxoqz",
-//           "par": "frederic"
+//           "par": "frederic",
+//           "blob_migration": "<40 hex>"   // git rev-parse <ref>:<chemin>
 //         },
 //         "objets_constates": ["mode_saisie", "..."],   // si deja_appliquee
 //         "procedure": "docs/deploiement/....md",       // si code_d_abord / atomique
@@ -213,7 +230,11 @@ function lireQualification(chemin) {
   return { migrations };
 }
 
-function mesureValide(mesure, maintenant, heures) {
+const BLOB = /^[0-9a-f]{40}$/;
+
+// `blobAttendu` : empreinte Git du fichier de migration sur le candidat. Une
+// mesure ne qualifie que le fichier qu'elle a lu.
+function mesureValide(mesure, maintenant, blobAttendu) {
   if (!mesure || typeof mesure !== 'object') return { ok: false, code: 'MESURE_ABSENTE' };
   const source = String(mesure.source || '').toLowerCase().trim();
   if (!source) return { ok: false, code: 'MESURE_ABSENTE' };
@@ -222,14 +243,20 @@ function mesureValide(mesure, maintenant, heures) {
   }
   const le = Date.parse(mesure.le || '');
   if (!Number.isFinite(le)) return { ok: false, code: 'MESURE_SANS_DATE' };
-  const ageHeures = (maintenant - le) / 3600000;
-  if (ageHeures > heures) return { ok: false, code: 'MESURE_PERIMEE', ageHeures: Math.round(ageHeures) };
-  if (ageHeures < -1) return { ok: false, code: 'MESURE_DANS_LE_FUTUR' };
+  if ((maintenant - le) / 3600000 < -1) return { ok: false, code: 'MESURE_DANS_LE_FUTUR' };
   if (!String(mesure.cible || '').trim()) return { ok: false, code: 'MESURE_SANS_CIBLE' };
-  return { ok: true, ageHeures: Math.round(ageHeures) };
+  const blob = String(mesure.blob_migration || '').toLowerCase().trim();
+  if (!BLOB.test(blob)) return { ok: false, code: 'MESURE_SANS_PERIMETRE' };
+  // Sans empreinte du candidat, la comparaison n'a pas eu lieu : ce n'est pas
+  // une égalité, c'est un refus.
+  if (!BLOB.test(String(blobAttendu || ''))) return { ok: false, code: 'PERIMETRE_INCALCULABLE' };
+  if (blob !== blobAttendu) {
+    return { ok: false, code: 'MESURE_HORS_PERIMETRE', mesure: blob, candidat: blobAttendu };
+  }
+  return { ok: true, blob };
 }
 
-function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, maintenant, heures }) {
+function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, maintenant, blobCandidat }) {
   const sortie = { estampille, etat: null, refus: null, notes: [] };
   if (!fiche || typeof fiche !== 'object') {
     sortie.refus = { code: 'MIGRATION_NON_QUALIFIEE' };
@@ -246,9 +273,10 @@ function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, 
     return sortie;
   }
 
-  const m = mesureValide(fiche.mesure, maintenant, heures);
+  const m = mesureValide(fiche.mesure, maintenant, blobCandidat);
   if (!m.ok) { sortie.refus = m; return sortie; }
-  sortie.notes.push('mesure sur « ' + fiche.mesure.source + ' », ' + m.ageHeures + ' h, cible ' + fiche.mesure.cible);
+  sortie.notes.push('mesure sur « ' + fiche.mesure.source + ' » le ' + fiche.mesure.le
+    + ', cible ' + fiche.mesure.cible + ', fichier ' + m.blob.slice(0, 12) + ' identique au candidat');
 
   const procedureExigee = (etat === ETATS.EXIGE_CODE_D_ABORD || etat === ETATS.ATOMIQUE);
   if (procedureExigee) {
@@ -316,7 +344,7 @@ function classer({ estampille, fiche, analyse, nommePar, nommeParCible, racine, 
 // verdict pour la mauvaise raison coûte plus cher qu'une panne : un appel mal
 // nommé doit donc être incapable de produire un verdict, vert OU rouge.
 const OPTIONS_RECONNUES = new Set([
-  'candidat', 'candidate', 'cible', 'depot', 'qualification', 'maintenant', 'heures',
+  'candidat', 'candidate', 'cible', 'depot', 'qualification', 'maintenant',
 ]);
 
 function controler(options = {}) {
@@ -326,7 +354,7 @@ function controler(options = {}) {
       + inconnues.join(', ') + '. Attendu : ' + [...OPTIONS_RECONNUES].join(', ')
       + '. Refus d\u2019\u00e9mettre un verdict sur un appel mal nomm\u00e9.');
   }
-  const { candidat, candidate, cible, depot, qualification, maintenant, heures } = options;
+  const { candidat, candidate, cible, depot, qualification, maintenant } = options;
   if (candidat !== undefined && candidate !== undefined && candidat !== candidate) {
     throw new Error('garde-ordre-migration-code : `candidat` et `candidate` re\u00e7us '
       + 'avec des valeurs diff\u00e9rentes (' + candidat + ' / ' + candidate
@@ -338,7 +366,6 @@ function controler(options = {}) {
   const fichier = qualification
     || process.env.NEXUS_QUALIFICATION
     || path.join(racine, FICHIER_DEFAUT);
-  const maxHeures = Number(heures || process.env.NEXUS_QUALIFICATION_HEURES || 72);
   const instant = maintenant || Date.now();
 
   const surCandidate = new Set(migrationsDe(refCandidate, racine));
@@ -378,6 +405,7 @@ function controler(options = {}) {
   for (const chemin of nouvelles) {
     const estampille = estampilleDe(chemin);
     const sql = gitTolerant(['show', refCandidate + ':' + chemin], racine);
+    const blobCandidat = gitTolerant(['rev-parse', refCandidate + ':' + chemin], racine).trim();
     const analyse = extraireObjets(sql);
     const identifiants = [...new Set(analyse.objets.map(o => o.nom))];
     const nommePar = codeQuiNomme(refCandidate, identifiants, racine);
@@ -385,7 +413,7 @@ function controler(options = {}) {
     const fiche = estampille ? q.migrations[estampille] : null;
     const verdict = classer({
       estampille, fiche, analyse, nommePar, nommeParCible,
-      racine, maintenant: instant, heures: maxHeures,
+      racine, maintenant: instant, blobCandidat,
     });
     resultats.push({ chemin, estampille, analyse, nommePar, nommeParCible, ...verdict });
   }
@@ -432,7 +460,15 @@ function explique(refus) {
         + 'l’estampille, et 286/287 lignes du registre ont statements à NULL. '
         + 'Source attendue : catalogue.';
     case 'MESURE_SANS_DATE':   return 'mesure sans date : une mesure est datée ou n’est pas une mesure.';
-    case 'MESURE_PERIMEE':     return 'mesure vieille de ' + refus.ageHeures + ' h. Une base bouge.';
+    case 'MESURE_SANS_PERIMETRE':
+      return 'mesure sans `blob_migration` (40 hex, `git rev-parse <ref>:<chemin>`) : on ne sait '
+        + 'pas QUEL fichier a été qualifié, donc pas si c’est celui du candidat.';
+    case 'PERIMETRE_INCALCULABLE':
+      return 'empreinte du fichier sur le candidat introuvable : comparaison impossible.';
+    case 'MESURE_HORS_PERIMETRE':
+      return 'la migration a changé depuis la mesure (mesuré ' + refus.mesure.slice(0, 12)
+        + ', candidat ' + refus.candidat.slice(0, 12) + ') : la qualification portait sur un autre '
+        + 'fichier. Remesurer.';
     case 'MESURE_DANS_LE_FUTUR': return 'mesure datée dans le futur.';
     case 'MESURE_SANS_CIBLE':  return 'mesure sans cible : on ne sait pas QUELLE base a été lue.';
     case 'PROCEDURE_ABSENTE':  return 'l’état « ' + refus.etat + ' » exige une procédure écrite.';

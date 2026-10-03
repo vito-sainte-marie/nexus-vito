@@ -94,11 +94,15 @@ function qualifier(depot, fiche) {
 function lancer(depot, fiche, extra) {
   return controler(Object.assign({
     depot, candidate: 'candidat', cible: 'cible',
-    qualification: qualifier(depot, fiche), maintenant: MAINTENANT, heures: 72,
+    qualification: qualifier(depot, fiche), maintenant: MAINTENANT,
   }, extra || {}));
 }
 
 const D = depotJetable();
+const CHEMIN_65 = 'supabase/migrations/20260919103000_carburant_reception_regularisation_releve_manuscrit.sql';
+// Une mesure ne qualifie que le fichier qu'elle a lu : son empreinte Git.
+const BLOB_65 = git(D, ['rev-parse', 'candidat:' + CHEMIN_65]).trim();
+MESURE_BONNE.blob_migration = BLOB_65;
 
 // ------------------------------------------------------------------
 // A. L'extraction : la garde voit-elle vraiment ce que la migration fait ?
@@ -230,31 +234,72 @@ const D = depotJetable();
   }
   ok('D1 — une qualification mesurée sur le registre est REFUSÉE ; sur le catalogue, acceptée');
 
-  assert.ok(mesureValide({ source: 'schema', le: '2026-09-30T14:00:00Z', cible: 'x' }, MAINTENANT, 72).ok,
+  assert.ok(mesureValide({ source: 'schema', le: '2026-09-30T14:00:00Z', cible: 'x', blob_migration: BLOB_65 }, MAINTENANT, BLOB_65).ok,
     '« schema » est accepté comme synonyme de catalogue');
   ok('D2 — « catalogue », « schema » et « schéma » sont les seules sources recevables');
 }
 
 {
-  // Une observation est datée. « Une impossibilité constatée le 28 septembre
-  // ne doit jamais devenir une propriété permanente en octobre sans nouvelle
-  // mesure. » Une base bouge : la qualification périme.
+  // Une observation est datée et désigne ce qu'elle a lu. Depuis le
+  // 03/10/2026 elle ne périme plus à l'horloge (72 h) mais quand son
+  // périmètre change : le fichier de migration mesuré n'est plus celui du
+  // candidat.
+  const AUTRE_BLOB = 'f'.repeat(40);
+  const b = { blob_migration: BLOB_65 };
   const cas = [
-    ['sans mesure du tout',  {},                                                          'MESURE_ABSENTE'],
-    ['sans date',            { source: 'catalogue', cible: 'x' },                          'MESURE_SANS_DATE'],
-    ['sans cible',           { source: 'catalogue', le: '2026-09-30T14:00:00Z' },          'MESURE_SANS_CIBLE'],
-    ['vieille de 5 jours',   { source: 'catalogue', le: '2026-09-25T14:00:00Z', cible: 'x' }, 'MESURE_PERIMEE'],
-    ['datée dans le futur',  { source: 'catalogue', le: '2026-10-05T14:00:00Z', cible: 'x' }, 'MESURE_DANS_LE_FUTUR'],
+    ['sans mesure du tout',  {},                                                               'MESURE_ABSENTE'],
+    ['sans date',            Object.assign({ source: 'catalogue', cible: 'x' }, b),             'MESURE_SANS_DATE'],
+    ['sans cible',           Object.assign({ source: 'catalogue', le: '2026-09-30T14:00:00Z' }, b), 'MESURE_SANS_CIBLE'],
+    ['datée dans le futur',  Object.assign({ source: 'catalogue', le: '2026-10-05T14:00:00Z', cible: 'x' }, b), 'MESURE_DANS_LE_FUTUR'],
+    ['sans périmètre',       { source: 'catalogue', le: '2026-09-30T14:00:00Z', cible: 'x' },   'MESURE_SANS_PERIMETRE'],
+    ['périmètre abrégé',     { source: 'catalogue', le: '2026-09-30T14:00:00Z', cible: 'x', blob_migration: BLOB_65.slice(0, 12) }, 'MESURE_SANS_PERIMETRE'],
+    ['autre fichier mesuré', { source: 'catalogue', le: '2026-09-30T14:00:00Z', cible: 'x', blob_migration: AUTRE_BLOB }, 'MESURE_HORS_PERIMETRE'],
   ];
   for (const [quoi, mesure, attendu] of cas) {
     const r = lancer(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure });
     assert.ok(!r.ok, quoi + ' : devait être refusé');
     assert.strictEqual(r.code, attendu, quoi + ' : attendu ' + attendu + ', obtenu ' + r.code);
   }
-  // Mutation inverse : la même mesure, de 4 h d'âge, passe.
   const frais = lancer(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE });
-  assert.ok(frais.ok, 'une mesure de 4 h passe — la péremption n’est pas un refus permanent');
-  ok('D3 — une mesure sans date, sans cible, périmée ou future est refusée ; fraîche, elle passe');
+  assert.ok(frais.ok, 'la mesure du bon fichier passe');
+  ok('D3 — une mesure sans date, sans cible, future ou sans/hors périmètre est refusée ; sur le bon fichier, elle passe');
+}
+
+{
+  // Le temps ne fait plus périmer : la même mesure, vieille de 5 jours puis
+  // de 90, passe tant que le fichier n'a pas bougé.
+  for (const le of ['2026-09-25T14:00:00Z', '2026-07-02T14:00:00Z']) {
+    const r = lancer(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: Object.assign({}, MESURE_BONNE, { le }) });
+    assert.ok(r.ok, 'mesure du ' + le + ' sur le même fichier : ' + r.code);
+  }
+  ok('D4 — une mesure ancienne sur le même fichier reste acquise : pas de péremption à l’horloge');
+}
+
+{
+  // Le vrai défaut à refuser : la migration est modifiée APRÈS la mesure.
+  // Joué sur le dépôt, pas sur un champ : c'est `git rev-parse` sur le
+  // candidat qui doit voir le changement.
+  git(D, ['checkout', '-q', '-b', 'candidat-modifie', 'candidat']);
+  fs.appendFileSync(path.join(D, CHEMIN_65), '\nalter table public.carburant_reception_visites add column if not exists source text;\n');
+  git(D, ['add', '-A']); git(D, ['commit', '-q', '-m', 'migration retouchée après la mesure']);
+  git(D, ['checkout', '-q', 'candidat']);
+  const r = lancer(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE }, { candidate: 'candidat-modifie' });
+  assert.ok(!r.ok, 'une migration modifiée depuis la mesure devait être refusée');
+  assert.strictEqual(r.code, 'MESURE_HORS_PERIMETRE', r.code);
+  assert.ok(/la migration a changé depuis la mesure/.test(r.message), r.message);
+  // Contre-témoin : la même qualification, sur le candidat intact, passe.
+  assert.ok(lancer(D, { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE }).ok);
+  ok('D5 — modifier la migration après la mesure fait tomber la qualification ; intacte, elle tient');
+
+  // Sans empreinte du candidat, la comparaison n'a pas eu lieu : refus, pas égalité.
+  const sansEmpreinte = classer({
+    estampille: '20260919103000',
+    fiche: { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE },
+    analyse: { objets: [], destructifs: [], colonnesNotNullSansDefaut: [] },
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: '',
+  });
+  assert.strictEqual(sansEmpreinte.refus && sansEmpreinte.refus.code, 'PERIMETRE_INCALCULABLE');
+  ok('D6 — empreinte du candidat absente : refus, jamais une égalité par défaut');
 }
 
 // ------------------------------------------------------------------
@@ -311,7 +356,7 @@ const D = depotJetable();
     estampille: '20260919103000',
     fiche: { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE },
     analyse: { objets: [], destructifs: ['drop_column'], colonnesNotNullSansDefaut: [] },
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(avecDestruction.refus && avecDestruction.refus.code, 'ADDITIVE_IMPOSSIBLE_DDL_DESTRUCTIF',
     'additive + drop column = contradiction');
@@ -320,7 +365,7 @@ const D = depotJetable();
     estampille: '20260919103000',
     fiche: { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE },
     analyse: { objets: [], destructifs: [], colonnesNotNullSansDefaut: ['x'] },
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(notNull.refus && notNull.refus.code, 'ADDITIVE_IMPOSSIBLE_NOT_NULL_SANS_DEFAUT',
     'additive + NOT NULL sans défaut = contradiction');
@@ -331,7 +376,7 @@ const D = depotJetable();
     estampille: '20260919103000',
     fiche: { etat: ETATS.ATOMIQUE, mesure: MESURE_BONNE, procedure: 'docs/deploiement/procedure.md' },
     analyse: { objets: [], destructifs: ['drop_column'], colonnesNotNullSansDefaut: [] },
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(atomique.refus, null, 'destructif + atomique + procédure : la garde laisse passer');
   ok('E3 — « additive » est contredite mécaniquement par un DDL destructif ; « atomique » l’assume');
@@ -346,7 +391,7 @@ const D = depotJetable();
     fiche: { etat: ETATS.ADDITIVE_AVANT_CODE, mesure: MESURE_BONNE },
     analyse: { objets: [{ genre: 'colonne', nom: 'mode_saisie' }], destructifs: [], colonnesNotNullSansDefaut: [] },
     nommePar: [], nommeParCible: [{ identifiant: 'mode_saisie', fichiers: ['cible:ecran.html'] }],
-    racine: D, maintenant: MAINTENANT, heures: 72,
+    racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(r.refus && r.refus.code, 'CIBLE_DEJA_DEPENDANTE', 'cible déjà dépendante : ' + JSON.stringify(r.refus));
   ok('E4 — une cible dont le code nomme déjà les nouveaux objets est signalée comme panne en cours');
@@ -428,7 +473,7 @@ const D = depotJetable();
     estampille: '20261001160000',
     fiche: { etat: ETATS.DEJA_APPLIQUEE, mesure: MESURE_BONNE },
     analyse: vide,
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(menteuse.refus && menteuse.refus.code, 'DEJA_APPLIQUEE_SANS_OBJET_MESURABLE',
     'une migration sans objet ne peut pas se dire déjà appliquée : ' + JSON.stringify(menteuse.refus));
@@ -440,7 +485,7 @@ const D = depotJetable();
     estampille: '20261001160000',
     fiche: { etat: ETATS.ATOMIQUE, mesure: MESURE_BONNE, procedure: 'docs/deploiement/procedure.md' },
     analyse: vide,
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(honnete.refus, null, 'sans objet + atomique + procédure : la garde laisse passer');
 
@@ -450,7 +495,7 @@ const D = depotJetable();
     estampille: '20260919103000',
     fiche: { etat: ETATS.DEJA_APPLIQUEE, mesure: MESURE_BONNE, objets_constates: ['mode_saisie'] },
     analyse: { objets: [{ genre: 'colonne', nom: 'mode_saisie' }], destructifs: [], colonnesNotNullSansDefaut: [] },
-    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, heures: 72,
+    nommePar: [], nommeParCible: [], racine: D, maintenant: MAINTENANT, blobCandidat: BLOB_65,
   });
   assert.strictEqual(reelle.refus, null, 'objet constaté nom par nom : doit passer');
   ok('E5 — « déjà appliquée » sans aucun objet est un contrôle à vide : refusé, et « atomique » reste ouvert');

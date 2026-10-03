@@ -90,13 +90,32 @@ atteste qu'un outil a inscrit une ligne. Il n'atteste pas qu'un objet existe,
 ni qu'il a la définition attendue. Seul le catalogue
 (`information_schema`, `pg_catalog`) répond à la question posée.
 
-### Pourquoi une mesure périme
+### Quand une mesure périme
 
-`mesure.le` est obligatoire, doit être lisible, non future, et plus récente
-que `NEXUS_QUALIFICATION_HEURES` (défaut **72 h**) — sinon
-`MESURE_SANS_DATE`, `MESURE_DANS_LE_FUTUR`, `MESURE_PERIMEE`.
-`mesure.cible` est obligatoire : une mesure prise sur Test ne qualifie pas
-Production.
+`mesure.le` est obligatoire, lisible et non future (`MESURE_SANS_DATE`,
+`MESURE_DANS_LE_FUTUR`). `mesure.cible` est obligatoire : une mesure prise sur
+Test ne qualifie pas Production.
+
+Depuis le 03/10/2026, une mesure ne périme plus à l'horloge. Jusque-là, elle
+tombait au bout de 72 h. Elle porte désormais `mesure.blob_migration`,
+l'empreinte Git du fichier de migration qu'elle a qualifié
+(`git rev-parse <ref>:<chemin>`). La garde la compare au même fichier dans le
+candidat :
+
+- empreinte absente ou abrégée → `MESURE_SANS_PERIMETRE` ;
+- empreinte du candidat incalculable → `PERIMETRE_INCALCULABLE` ;
+- fichier différent → `MESURE_HORS_PERIMETRE`.
+
+Une preuve reste acquise tant qu'aucun changement n'affecte ce qu'elle
+vérifie. L'horloge faisait tomber l'axe le 04/10/2026 alors que rien n'avait
+bougé.
+
+**Ce que la garde ne voit pas.** Une base modifiée sans que le dépôt bouge.
+L'horloge ne la voyait pas non plus : elle refusait au hasard du calendrier,
+pas à la dérive. Le 03/10/2026, une relecture a trouvé le revoke
+`20261001160000` déjà effectif en Production, alors que la mesure du 01/10
+disait « trou confirmé ». Cette dérive est rattrapée par la relecture que
+chaque procédure d'application fait avant d'écrire, pas par cette garde.
 
 C'est l'invariant déclaré par Frédéric, appliqué ici : *le résultat d'une
 mesure est une observation datée, pas une propriété permanente du canal. Une
@@ -335,7 +354,7 @@ et aucune n'était évidente avant de l'avoir faite.
    contre une cible devinée — et de lire `ok=true code=QUALIFIE`. Trois
    contre-témoins ont ensuite montré qu'elle mord encore, chacun rouge par son
    propre motif : un objet retiré de la liste → `OBJETS_NON_CONSTATES` nommant
-   l'objet manquant ; la mesure vieillie à 73 h → `MESURE_PERIMEE` ; la source
+   l'objet manquant ; la mesure vieillie à 73 h → `MESURE_PERIMEE` (refus retiré le 03/10/2026, remplacé par l'empreinte du fichier : une migration retouchée → `MESURE_HORS_PERIMETRE`) ; la source
    passée de `catalogue` à `registre` → `MESURE_NON_RECEVABLE`. Un vert
    obtenu sans contre-témoin ne distingue pas une garde satisfaite d'une garde
    débranchée.
@@ -344,11 +363,20 @@ et aucune n'était évidente avant de l'avoir faite.
    refusera de nouveau. Ce n'est pas une régression à corriger : c'est le
    dispositif qui fonctionne. La renouveler ne demande aucun nouvel outil,
    seulement de rejouer celui qui existe.
+   *Addendum du 03/10/2026 : cette échéance est levée. La qualification
+   dure désormais tant que le fichier de migration ne change pas (voir « Quand
+   une mesure périme »).*
 
 Une réserve a été consignée au même endroit : la même lecture constate — et ne
 suppose plus — que `anon` et `authenticated` détiennent toujours `EXECUTE` sur
 `nexus_garde_regularisation_reception` en Production. Cette dette se ferme par
 un `revoke` nommant les deux rôles, jamais en éditant `20260919103000`.
+
+*Addendum du 03/10/2026 : une relecture seule à 20 h 59 UTC constate l'ACL
+fermée (`{postgres=X/postgres,service_role=X/postgres}`), alors que
+l'estampille `20261001160000` est absente du registre (280 lignes) : le revoke
+a été appliqué hors bande. L'inscrire au registre est une écriture Production,
+soumise au GO de Frédéric.*
 
 Enfin, la portée du verdict. `13/13` ne lève que l'axe « ordre migration →
 code » du préflight. Il n'autorise ni la fusion, ni l'approbation du
