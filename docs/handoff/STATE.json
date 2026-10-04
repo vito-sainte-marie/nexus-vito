@@ -268,8 +268,8 @@
       "consomme_le": "2026-10-04T12:40:47.437Z"
     },
     "SECURITE-ANON5-20261004": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",

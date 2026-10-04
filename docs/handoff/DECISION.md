@@ -1,42 +1,40 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-ANON5-20261004/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: FDJ-VAGUE1-REPRISE-20261003
-seq: 6
+lot_id: SECURITE-ANON5-20261004
+seq: 1
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: false
-in_reply_to: request-6.md
+in_reply_to: request-1.md
 ---
-# Décision — `request-6.md` : geste 1 (12 migrations Production) approuvé
-
-## Verdict
+# decision-1 — GO migration Production anon5 (geste 1 seulement)
 
 `APPROVED`, `closes: false`.
 
 Frédéric Bragance a rendu cet arbitrage en session, le 04/10/2026. Verbatim :
 
-> GO decision-6 : migrations Production
+> GO migration Production anon5 au SHA 7b96872
 
 ## Ce que la décision autorise
 
-Le **geste 1 seulement** de `docs/deploiement/procedure-fdj-62-production.md`, au SHA candidat `f3e128e3e95b848150f43c5415697d3637c9ea64` :
+Le **geste 1 seulement** du §10 de `request-1.md`, au SHA candidat `7b96872aef5f3de00949cdb56b0340721104a5ad` :
 
-- appliquer en Production (projet `uzhjpqpctpvxytxpxoqz`) les 12 migrations `20260916220000` → `20260916221100`, dans l'ordre du §3, chacune à l'octet près du fichier au SHA candidat ;
-- les lectures seules AVANT et APRÈS du §3.
+- appliquer en Production (projet `uzhjpqpctpvxytxpxoqz`) `supabase/migrations/20261004130000_revoquer_anon_quatre_fonctions_hors_fdj.sql`, à l'octet près du fichier au SHA candidat (sha256 `43489265936d14bcc06b4804d31f8e511505605d296c694bd39b70d8e74730b1`), en une seule transaction avec son estampille ;
+- les lectures seules AVANT et APRÈS ;
+- les contrôles par rôle C01 à C05 et C12, sous `begin` … `rollback`.
 
-Si `origin/rebuild/fdj-62-20260922` ne vaut plus `f3e128e` au moment d'écrire, l'autorisation tombe.
+Si `origin/claude/securite-anon-5-fonctions-20261004` ne vaut plus `7b96872` au moment d'écrire, l'autorisation tombe.
 
 ## Ce qu'elle n'autorise pas
 
-- `20261004120000` (geste 4) : GO séparé.
-- La fusion de la PR #73 vers `production` (geste 2) : GO séparé.
-- Le déploiement GitHub Pages (geste 3) : GO séparé.
-- Aucune application ni modification de la Phase C, aucun élargissement de `nexus_ci_recette`.
+- La fusion vers `production` (geste 2) : GO séparé.
+- Le déploiement GitHub Pages (geste 3, non applicable au sens servi) : GO séparé si la fusion déclenche la gate.
+- Aucune modification de `nexus_identifiant_de_connexion`, ni de `run_scheduled_inventory_reviews`, aucun élargissement de `nexus_ci_recette`.
 
 ## Suite
 
-Le résultat sera rapporté par `request-7.md`.
+Le résultat sera rapporté par `request-2.md`.
