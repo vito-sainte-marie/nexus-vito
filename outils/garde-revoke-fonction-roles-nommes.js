@@ -59,7 +59,14 @@ const SEUIL = '20261001000000';
 // et `20261004120000` en retire 1. Aucune n'est ouverte à `anon` en Production
 // (lecture seule du 04/10) ; détail : addendum du 04/10 de
 // docs/handoff/MANIFESTE-MIGRATIONS-PRODUCTION-COURANT.md.
-const DETTE_GELEE = 23;
+// Re-mesuré le 04/10/2026, après correction de la lecture des boucles
+// `execute format(...)` : 47 = 23 − 1 (l'entrée fantôme `%s`) + 25 fonctions
+// réelles qu'elle masquait (30 résolues, dont 5 où la boucle révoque aussi
+// `authenticated`). Les 25 révoquent `public` et `anon` et accordent
+// `authenticated` sans le déclarer : marqueur d'intention manquant, pas
+// exposition. Aucune migration n'a changé : seule la lecture est corrigée.
+// Détail : addendum du 04/10 (suite) du même manifeste.
+const DETTE_GELEE = 47;
 
 const ROLES_A_STATUER = ['anon', 'authenticated'];
 
@@ -74,6 +81,17 @@ const REVOKE = /revoke\s+(?:all\s+privileges|all|execute)\s+on\s+function\s+([\s
 // `-- nexus-acl-intention: <signature> garde <rôle> (<motif>)`
 const INTENTION = /--\s*nexus-acl-intention\s*:\s*(.+?)\s+(garde|ferme)\s+(anon|authenticated)\s*(\(([^)]*)\))?/gi;
 
+// `execute format('revoke ... on function %s from <rôles>', <variable>)`.
+// Leçon du 04/10/2026 : la forme statique ci-dessus lisait l'intérieur de la
+// chaîne et prenait le gabarit `%s` pour une signature. Cinq migrations FDJ du
+// 16/09 révoquent ainsi, par une boucle `foreach v_sig in array v_signatures`
+// : leurs trente fonctions étaient fondues en une seule entrée `%s`, donc
+// INVISIBLES. Ignorer le gabarit les aurait laissées invisibles ; la garde
+// résout donc la boucle et juge chaque fonction réelle.
+const REVOKE_DYNAMIQUE = /execute\s+format\s*\(\s*'\s*revoke\s+(?:all\s+privileges|all|execute)\s+on\s+function\s+%[sIL]\s+from\s+([^']+?)\s*'\s*,\s*([a-z_][a-z0-9_]*)\s*\)/gi;
+// Un gabarit de format reste un gabarit : jamais une signature.
+const GABARIT = /%[sIL]/;
+
 // Le texte d'une migration parle de SQL ET de prose. Les commentaires `--`
 // citent volontiers l'instruction qu'ils expliquent : les lire comme du code
 // ferait inventer des violations. Les marqueurs d'intention, eux, vivent
@@ -84,6 +102,21 @@ function sansCommentaires(sql) {
 
 function normaliserSignature(sig) {
   return sig.replace(/"/g, '').replace(/\s+/g, '').toLowerCase();
+}
+
+// Les littéraux d'un tableau `<nom> text[] := array[ '...', ... ]` qui
+// alimente `foreach <variable> in array <nom>`, déclarés AVANT `position`.
+// Rend null si l'une des deux déclarations manque : un gabarit qu'on ne sait
+// pas résoudre doit être refusé, jamais deviné ni écarté.
+function resoudreBoucle(code, variable, position) {
+  const avant = code.slice(0, position);
+  const foreachs = [...avant.matchAll(new RegExp('foreach\\s+' + variable + '\\s+in\\s+array\\s+([a-z_][a-z0-9_]*)', 'gi'))];
+  if (!foreachs.length) return null;
+  const tableau = foreachs[foreachs.length - 1];
+  const decl = [...avant.slice(0, tableau.index).matchAll(new RegExp(tableau[1] + '\\s+text\\s*\\[\\s*\\]\\s*:=\\s*array\\s*\\[([^\\]]*)\\]', 'gi'))];
+  if (!decl.length) return null;
+  const litteraux = [...decl[decl.length - 1][1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  return litteraux.length ? litteraux : null;
 }
 
 function estampille(nom) {
@@ -98,18 +131,37 @@ function estampille(nom) {
 function relever(dossier) {
   const fichiers = fs.readdirSync(dossier).filter(f => f.endsWith('.sql')).sort();
   const parFonction = new Map();
+  // Gabarits dynamiques qu'aucune boucle lisible n'alimente. Exposé sur la
+  // Map pour garder l'interface `relever(...).get(signature)`.
+  const nonResolus = [];
+  const noter = (sig, roles, nom) => {
+    if (!parFonction.has(sig)) parFonction.set(sig, { signature: sig, revoques: new Set(), intentions: new Map(), migrations: [] });
+    const f = parFonction.get(sig);
+    roles.forEach(r => f.revoques.add(r));
+    if (!f.migrations.includes(nom)) f.migrations.push(nom);
+  };
   for (const nom of fichiers) {
     const brut = fs.readFileSync(path.join(dossier, nom), 'utf8');
-    const code = sansCommentaires(brut);
+    let code = sansCommentaires(brut);
     let m;
+    REVOKE_DYNAMIQUE.lastIndex = 0;
+    const dynamiques = [];
+    while ((m = REVOKE_DYNAMIQUE.exec(code))) dynamiques.push({ index: m.index, texte: m[0], roles: m[1], variable: m[2] });
+    for (const d of dynamiques) {
+      const roles = d.roles.split(',').map(r => normaliserSignature(r)).filter(Boolean);
+      const sigs = resoudreBoucle(code, d.variable, d.index);
+      if (!sigs) { nonResolus.push({ migration: nom, gabarit: d.texte.replace(/\s+/g, ' ') }); continue; }
+      sigs.forEach(s => noter(normaliserSignature(s), roles, nom));
+    }
+    // Effacées, à longueur égale, avant la lecture statique : sinon elle relit
+    // l'intérieur de la chaîne et y retrouve `%s`.
+    for (const d of dynamiques) code = code.slice(0, d.index) + ' '.repeat(d.texte.length) + code.slice(d.index + d.texte.length);
     REVOKE.lastIndex = 0;
     while ((m = REVOKE.exec(code))) {
+      if (GABARIT.test(m[1])) { nonResolus.push({ migration: nom, gabarit: m[0].replace(/\s+/g, ' ') }); continue; }
       const sig = normaliserSignature(m[1]);
       const roles = m[2].split(',').map(r => normaliserSignature(r)).filter(Boolean);
-      if (!parFonction.has(sig)) parFonction.set(sig, { signature: sig, revoques: new Set(), intentions: new Map(), migrations: [] });
-      const f = parFonction.get(sig);
-      roles.forEach(r => f.revoques.add(r));
-      if (!f.migrations.includes(nom)) f.migrations.push(nom);
+      noter(sig, roles, nom);
     }
     INTENTION.lastIndex = 0;
     while ((m = INTENTION.exec(brut))) {
@@ -120,6 +172,7 @@ function relever(dossier) {
       if (!f.migrations.includes(nom)) f.migrations.push(nom);
     }
   }
+  parFonction.nonResolus = nonResolus;
   return parFonction;
 }
 
@@ -167,6 +220,10 @@ function controler(options = {}) {
   }
 
   const codes = [];
+  // Quelle que soit l'estampille : une garde qui ne sait pas lire une
+  // instruction ne peut rien conclure sur la fonction qu'elle vise.
+  const nonResolus = parFonction.nonResolus || [];
+  if (nonResolus.length) codes.push('REVOKE_DYNAMIQUE_NON_RESOLU');
   if (refus.length) codes.push('REVOKE_INCOMPLET');
   if (dette.length !== detteAttendue) codes.push('DETTE_NON_CONFORME_A_LA_MESURE');
 
@@ -178,13 +235,14 @@ function controler(options = {}) {
     fonctionsVisees: parFonction.size,
     refus,
     dette,
+    nonResolus,
     detteAttendue,
     detteMesuree: dette.length,
-    message: rendre({ codes, seuil, parFonction, refus, dette, detteAttendue }),
+    message: rendre({ codes, seuil, parFonction, refus, dette, nonResolus, detteAttendue }),
   };
 }
 
-function rendre({ codes, seuil, parFonction, refus, dette, detteAttendue }) {
+function rendre({ codes, seuil, parFonction, refus, dette, nonResolus = [], detteAttendue }) {
   const l = [];
   l.push('── Garde : un revoke sur fonction nomme anon ET authenticated ──');
   l.push('  dossier mesuré   : ' + parFonction.size + ' fonction(s) visée(s) par un revoke');
@@ -199,6 +257,11 @@ function rendre({ codes, seuil, parFonction, refus, dette, detteAttendue }) {
         l.push('      ' + r.signature + ' — rôle « ' + m.role + ' » : ' + motifDe(m.code, m.role));
       }
     }
+  }
+  if (nonResolus.length) {
+    l.push('');
+    l.push('  [REVOKE_DYNAMIQUE_NON_RESOLU] gabarit `%s` sans tableau lisible qui l’alimente :');
+    for (const n of nonResolus) l.push('    ' + n.migration + ' — ' + n.gabarit);
   }
   if (codes.includes('DETTE_NON_CONFORME_A_LA_MESURE')) {
     l.push('');

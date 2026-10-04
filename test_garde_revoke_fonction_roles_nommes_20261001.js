@@ -228,4 +228,97 @@ console.log('\nGarde : un revoke sur fonction nomme anon ET authenticated\n');
   ok('R10 — la garde est purement `fs` : aucun secret, aucun réseau, aucun sous-processus');
 }
 
+// ------------------------------------------------------------------
+// R11 — le gabarit `%s` n'est pas une signature (04/10/2026). Reproduction
+// sur le fichier RÉEL `20260916221100` : sa boucle
+// `foreach v_sig in array v_signatures` révoque par
+// `execute format('revoke all on function %s from anon', v_sig)`. La garde
+// lisait `%s` comme une fonction, avec les « rôles » `anon'` et `v_sig)`, et
+// les deux fonctions réelles restaient invisibles.
+// Mutation visée : « ignorer `%s` ». Elle ferait disparaître l'entrée
+// fantôme ET les deux fonctions : c'est la seconde moitié qui la refuse.
+// ------------------------------------------------------------------
+{
+  const dossier = path.join(__dirname, 'supabase', 'migrations');
+  const nom = fs.readdirSync(dossier).find(f => f.startsWith('20260916221100'));
+  assert.ok(nom, 'la migration 20260916221100 doit exister');
+  const r = juger({ [nom]: fs.readFileSync(path.join(dossier, nom), 'utf8') }, { dette: 2 });
+  const d = bac({ [nom]: fs.readFileSync(path.join(dossier, nom), 'utf8') });
+  let p;
+  try { p = relever(d); } finally { fs.rmSync(d, { recursive: true, force: true }); }
+  assert.ok(![...p.keys()].some(k => /%/.test(k)), 'aucune signature ne doit contenir `%` : ' + [...p.keys()].join(' | '));
+  for (const sig of ['public.fdj_saisir_caisse_manager(uuid,numeric,text,numeric,text,text,text)',
+                     'public.fdj_demandes_correction_du_quart(uuid)']) {
+    const f = p.get(sig);
+    assert.ok(f, 'la fonction réelle doit être relevée par la boucle : ' + sig);
+    assert.ok(f.revoques.has('public') && f.revoques.has('anon'), 'public et anon sont révoqués par la boucle : ' + sig);
+    assert.deepStrictEqual(statuer(f).map(m => m.role), ['authenticated'],
+      'authenticated reste NON statué (accordé, jamais déclaré) : ' + sig);
+  }
+  assert.ok(r.ok && r.detteMesuree === 2 && r.nonResolus.length === 0,
+    'deux entrées de dette, aucun gabarit non résolu : ' + r.message);
+  ok('R11 — 20260916221100 : `%s` disparaît, ses 2 fonctions réelles sont jugées (authenticated non statué)');
+}
+
+// ------------------------------------------------------------------
+// R12 — un gabarit qu'aucun tableau lisible n'alimente est REFUSÉ, quelle
+// que soit l'estampille : ne pas savoir lire n'est pas « rien à dire ».
+// ------------------------------------------------------------------
+{
+  const boucle = (decl) => FONCTION + `do $$ declare v_sig text;${decl}
+begin foreach v_sig in array v_signatures loop
+  execute format('revoke all on function %s from public', v_sig);
+  execute format('revoke all on function %s from anon', v_sig);
+  execute format('revoke all on function %s from authenticated', v_sig);
+end loop; end; $$;\n`;
+  const lisible = juger({ [AVANT]: boucle(" v_signatures text[] := array['public.ma_fonction()'];") });
+  assert.ok(lisible.ok && lisible.nonResolus.length === 0, 'boucle lisible et complète : ' + lisible.message);
+
+  // Mutation : le tableau vient d'ailleurs (paramètre, requête) — illisible.
+  const opaque = juger({ [AVANT]: boucle('') });
+  assert.strictEqual(opaque.ok, false, 'un gabarit non résolu doit rougir même sous le seuil');
+  assert.deepStrictEqual(opaque.codes, ['REVOKE_DYNAMIQUE_NON_RESOLU']);
+  assert.ok(opaque.message.includes(AVANT), 'le refus nomme la migration : ' + opaque.message);
+
+  // Mutation : un `%s` hors `execute format` (la forme statique) — jamais une signature.
+  const nu = juger({ [AVANT]: "revoke all on function %s from anon, authenticated;\n" });
+  assert.deepStrictEqual(nu.codes, ['REVOKE_DYNAMIQUE_NON_RESOLU']);
+  ok('R12 — gabarit non résolu (boucle opaque ou `%s` nu) : REVOKE_DYNAMIQUE_NON_RESOLU, jamais écarté');
+}
+
+// ------------------------------------------------------------------
+// R13 — la résolution ne MASQUE aucune absence réelle. Au-delà du seuil, une
+// boucle qui oublie `authenticated` est refusée comme sa forme statique.
+// ------------------------------------------------------------------
+{
+  const boucle = (roles) => FONCTION + `do $$ declare v_sig text; v_signatures text[] := array['public.ma_fonction()'];
+begin foreach v_sig in array v_signatures loop
+${roles.map(r => `  execute format('revoke all on function %s from ${r}', v_sig);`).join('\n')}
+end loop; end; $$;\n`;
+  const complet = juger({ [APRES]: boucle(['public', 'anon', 'authenticated']) });
+  assert.ok(complet.ok, 'boucle complète au-delà du seuil : ' + complet.message);
+
+  const oubli = juger({ [APRES]: boucle(['public', 'anon']) });
+  assert.strictEqual(oubli.ok, false, 'une boucle qui oublie authenticated doit être refusée');
+  assert.deepStrictEqual(oubli.codes, ['REVOKE_INCOMPLET']);
+  assert.ok(/public\.ma_fonction\(\)/.test(oubli.message), 'le refus nomme la fonction réelle : ' + oubli.message);
+  ok('R13 — boucle sans authenticated après le seuil : REVOKE_INCOMPLET sur la fonction réelle');
+}
+
+// ------------------------------------------------------------------
+// R14 — le dépôt réel : plus aucune signature `%`, aucun gabarit non résolu,
+// et les boucles qui révoquent authenticated (220600 bloc 2, 221000 bloc 2)
+// statuent leurs fonctions.
+// ------------------------------------------------------------------
+{
+  const p = relever(path.join(__dirname, 'supabase', 'migrations'));
+  assert.deepStrictEqual([...p.keys()].filter(k => /%/.test(k)), []);
+  assert.deepStrictEqual(p.nonResolus, []);
+  for (const sig of ['public.fdj_calculer_caisse(uuid,numeric,numeric)', 'public.fdj_cle_idempotence(text,text)']) {
+    assert.ok(p.get(sig), 'relevée : ' + sig);
+    assert.deepStrictEqual(statuer(p.get(sig)), [], 'statuée par sa boucle : ' + sig);
+  }
+  ok('R14 — dépôt réel : 0 signature `%`, 0 gabarit non résolu, boucles fermantes statuées');
+}
+
 console.log(`\n${n} tests passés.`);
