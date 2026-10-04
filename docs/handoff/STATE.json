@@ -268,13 +268,13 @@
       "consomme_le": "2026-10-04T12:40:47.437Z"
     },
     "SECURITE-ANON5-20261004": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-4.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-3.md",
+      "derniere_decision": "decision-4.md",
       "source_decision": "registre",
-      "commit_decision": "1f4eb1bec85f51879cf53a871dbfb5e14622edb9",
-      "consomme_le": "2026-10-04T16:27:35.426Z"
+      "commit_decision": "1801c7142706c3c033845634fbc1ce946a122d75",
+      "consomme_le": "2026-10-04T16:38:29.339Z"
     }
   },
   "artefacts_hors_registre": [
