@@ -517,3 +517,105 @@ seule une migration nouvelle pourrait poser le marqueur.
 
 Il ne vaut ni fusion, ni déploiement, ni application, ni écriture en
 Production.
+
+## Addendum du 04/10/2026 (suite) — la garde lisait `%s` comme une fonction : dette réelle 47
+
+L'addendum précédent signalait un défaut de la garde REVOKE-FONCTION-RÔLES-NOMMÉS
+sans le corriger : l'entrée `%s` de `20260916221100`. Il est corrigé dans
+`outils/garde-revoke-fonction-roles-nommes.js`. Aucune migration n'est modifiée.
+
+### Ce qui était faux
+
+`20260916221100` révoque deux fonctions dans une boucle :
+`foreach v_sig in array v_sigs loop execute format('revoke all on function %s
+from public, anon', v_sig)`. La garde lisait le `%s` comme une signature. Elle
+comptait une fonction fictive et ne voyait pas les deux vraies.
+
+Le défaut était plus large que ce fichier. Six migrations FDJ du 16/09 suivent
+le même modèle. En tout, **30 fonctions réelles** n'étaient lues par la garde
+qu'à travers ce fantôme.
+
+### La correction
+
+- Un revoke `execute format('revoke … on function %s|%I|%L from <rôles>', <var>)`
+  est résolu par la boucle `foreach <var> in array <tableau>` qui le précède,
+  puis par la déclaration `<tableau> text[] := array['…', …]`. Chaque
+  littéral devient une entrée réelle, avec les rôles écrits dans le gabarit.
+- Un gabarit que la garde ne sait pas résoudre bloque, au lieu d'être compté
+  ou ignoré : code `REVOKE_DYNAMIQUE_NON_RESOLU`, **quelle que soit
+  l'estampille**, même sous le seuil. Une signature contenant `%` n'est donc
+  plus jamais relevée ni mise en dette.
+- La règle du seuil ne change pas. Au-delà de `20261001000000`, une boucle qui
+  oublie `authenticated` rend `REVOKE_INCOMPLET` (épreuve R13).
+
+Épreuves ajoutées dans `test_garde_revoke_fonction_roles_nommes_20261001.js` :
+
+- **R11** rejoue le fichier réel `20260916221100` : aucune clé ne contient `%`,
+  et les deux vraies fonctions sont relevées avec `public` et `anon` révoqués ;
+- **R12** : une boucle non résoluble et un `%s` nu bloquent, même sous le seuil ;
+- **R13** : au-delà du seuil, une boucle incomplète est refusée ;
+- **R14** : sur le dépôt réel, il ne reste aucun `%` et aucun non résolu.
+
+Contre-épreuve par mutation : on débranche la résolution et on remet le
+`continue` silencieux sur un gabarit. R8 rougit alors (la dette mesurée
+s'effondre). Si l'on ajuste en plus la dette pour faire passer R8, c'est R11
+qui rougit, car `fdj_saisir_caisse_manager` n'est plus relevée.
+
+### Dette recalculée : 23 → 47
+
+La garde vise 63 fonctions par un revoke.
+
+| | Entrées |
+|---|---|
+| Dette annoncée par l'addendum précédent | 23 |
+| − l'entrée fantôme `%s` | −1 |
+| + fonctions FDJ réelles masquées et non statuées pour `authenticated` | +25 |
+| **Dette mesurée et gelée (`DETTE_GELEE`)** | **47** |
+
+Parmi les 30 fonctions résolues, 5 sont conformes et ne comptent pas.
+`fdj_calculer_caisse` et `fdj_cle_idempotence` révoquent `public`, `anon` **et**
+`authenticated` dans leur boucle. Les 25 autres révoquent `public` et `anon`,
+puis accordent explicitement `authenticated` sans le marqueur
+`nexus-acl-intention`.
+
+La dette se répartit ainsi : **30 entrées FDJ** (5 statiques déjà comptées et
+25 issues des boucles) et **17 hors FDJ**, inchangées.
+
+### Exposition réelle — mesure en Production, lecture seule (04/10/2026)
+
+`has_function_privilege` a été mesuré sur les 47 signatures, sous
+`begin read only`, projet `uzhjpqpctpvxytxpxoqz`.
+
+| | Nombre |
+|---|---|
+| Signatures absentes de Production | 1 : `basculer_source_planning(text,text,text)`, seule la surcharge à 4 arguments existe |
+| `anon` peut exécuter | **5** |
+| `authenticated` peut exécuter | 45 |
+| Ni l'un ni l'autre | 1 : `run_scheduled_inventory_reviews()`, ACL `{postgres=X}` |
+
+**Les 30 entrées FDJ, une par une : `anon` = faux, `authenticated` = vrai.**
+Aucune n'est une exposition. Chacune est un **marqueur d'intention manquant**.
+L'accès `authenticated` est voulu et écrit en SQL par un `grant`, mais il n'est
+pas déclaré sous `nexus-acl-intention`, qui a été créé après ces fichiers.
+
+Les **5 ouvertures à `anon`** sont toutes hors FDJ. Elles figuraient déjà parmi
+les 23 de l'addendum précédent : la correction ne les crée pas et ne les masque
+pas.
+
+- `_generate_inventory_review_core(text,date,date,text)`,
+  `generate_inventory_review(text,date,date,text)` et `stats_fondateur()` :
+  SECURITY DEFINER, ACL `{postgres,anon,authenticated,service_role}=X` ;
+- `inventaire_enregistrer_transfert_localise(…)` : documentée le 11/09
+  (`lots/NEXUS-POINTAGE-CORRECTIF-1-20260911/securite-fonctions-security-definer-1.md`),
+  la fonction vérifie `auth.uid()`, et rien n'y a été touché sans GO ;
+- `nexus_identifiant_de_connexion(text)` : ouverte à `anon` **par conception**.
+  C'est le login non énumérable, appelé avant toute session.
+
+Ces cinq ouvertures sont une dette préexistante. Elles sont signalées ici sans
+être traitées : les fermer exigerait une migration Production et un GO par
+geste, hors du périmètre de cette correction.
+
+### Ce que cet addendum ne fait pas
+
+Il ne requalifie aucune entrée et ne vaut ni fusion, ni déploiement, ni
+migration, ni écriture en Production. Il ne modifie aucun fichier de migration.
