@@ -1,43 +1,39 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FDJ-VAGUE1-REPRISE-20261003
-seq: 1
+seq: 2
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: false
-in_reply_to: request-1.md
+in_reply_to: request-2.md
 ---
-# Décision — `request-1.md` : les trois gestes du §6 sont approuvés
+# Décision — `request-2.md` : option A approuvée
 
 ## Verdict
 
 `APPROVED`, `closes: false`.
 
-Arbitrage de Frédéric Bragance, donné en session le 03/10/2026, verbatim :
+Frédéric Bragance a rendu cet arbitrage en session, le 03/10/2026. Verbatim :
 
-> GO decision-1 : gestes 1-2-3
+> GO decision-2 : option A
 
-Il porte sur les trois gestes proposés au §6 de `request-1.md`, dans l'ordre où ils y figurent :
+## Ce que l'option A autorise
 
-1. **Isolation Test sur le candidat FDJ** — porter les 7 fichiers mécaniques du geste `290a217`
-   (`nexus-auth.js`, `nexus-page.js`, `nexus-bandeau-environnement.js`, `outils/build.sh`,
-   `outils/generer-config.js`, `outils/poser-build-id.js`, `_headers`) sur la branche candidate
-   `rebuild/fdj-62-20260922`, sans toucher au delta métier FDJ.
-2. **Remesurer sur Test** — essai à blanc des 12 migrations sur le schéma Test réel, recette
-   navigateur réelle sur le candidat isolé (dont : aucun champ réservé au manager visible côté
-   employé), constantes de `.github/deploiement/test_empreinte_artefact_20260915.js` remesurées.
-3. **Remesurer les six écarts `a_regulariser`** en lecture seule sur Production.
+1. Appliquer durablement sur nexus-test (`udljdqxerrbbbajxubfn`) les 12 migrations `20260916220000` → `20260916221100` du candidat `9ffee7e`.
+   - L'application se fait en une transaction unique, et les estampilles sont inscrites dans `supabase_migrations.schema_migrations`.
+2. Exécuter la recette navigateur, Cas 1 à 5 de `request-1.md`, sur l'alias `rebuild-fdj-62-20260922.nexus-test-ddf.pages.dev`.
+3. Consigner la divergence Test/rail qui en résulte : Test portera 12 migrations que le rail ne porte pas encore.
 
-## Ce que cette décision n'autorise pas
+## Ce qu'elle n'autorise pas
 
-Les interdits permanents du lot restent entiers : aucune écriture, migration, fusion ni
-déploiement Production ; aucun droit sur un site réel ; aucun élargissement général de
-`nexus_ci_recette` ; aucun force ni skip ; aucune reclassification d'un nouveau rouge en dette
-connue. La lecture du geste 3 se fait sous `begin read only`. Toute fusion de #62 ou de son
-successeur exigera un GO distinct, puis un GO de déploiement distinct.
+- Aucune écriture, fusion, déploiement ou migration en Production.
+- Aucun élargissement de `nexus_ci_recette`.
+- Aucune autre écriture sur Test que ces 12 migrations et les données de recette créées par l'écran.
 
-Le lot reste ouvert : la suite est le compte rendu mesuré de ces trois gestes (`request-2.md`).
+## Suite
+
+Le résultat de la recette sera rapporté par `request-3.md`.
