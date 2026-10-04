@@ -293,6 +293,16 @@
   let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
   let soldesCarnets = {};       // game_id -> { bureau, confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsAvecReference
   let activationsEnCours = new Set(); // FDJ Fiabilisation Étape 5 : game_id en cours d'activation — garde-fou anti double-tap dans executerActivationCarnet
+  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026, dette §8 fermée) — même
+  // discipline que jetonsRetourBloque (NEXUS-FDJ-Manager-v1.html) : pas de
+  // formulaire persistant ici (ces deux écritures sont déclenchées par un
+  // tap ou une queue, pas une saisie longue), le jeton par jeu est conservé
+  // tant que l'écriture n'a pas réussi, pour qu'un rejeu réseau ou un second
+  // tap après erreur réutilisent la même clé plutôt que d'en minter une
+  // neuve. Supprimé après succès (y compris 23505) : une activation
+  // réellement distincte du même jeu repart ensuite d'un jeton neuf.
+  let jetonsActivationCarnet = {};     // game_id -> jeton en attente, executerActivationCarnetInterne
+  let jetonsActivationImplicite = {};  // game_id -> jeton en attente, creerActivationImplicite
   let derniereReference = null; // dernière "Inventaire de référence" validée (point zéro physique) — voir chargerDerniereReference
   let exceptionCarnetEnCours = null; // game_id en attente d'un motif (voir demarrerExceptionCarnet)
   let motifExceptionChoisi = null;
@@ -1409,7 +1419,11 @@
   // fdj_audit_log ("avec trace dans le Journal", demande de Frédéric).
   async function creerActivationImplicite(gameId, quantiteCarnets, motifException) {
     const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 : jeton stable par jeu (voir
+    // déclaration de jetonsActivationImplicite) — jamais régénéré avant un
+    // succès, pour qu'un rejeu réseau retombe sur la même clé.
+    if (!jetonsActivationImplicite[gameId]) jetonsActivationImplicite[gameId] = genererIdempotencyKey();
+    const idempotencyKey = jetonsActivationImplicite[gameId];
     const { error } = await nexusClient.from('fdj_stock_movements').insert({
       site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: quantiteCarnets,
       location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
@@ -1417,8 +1431,9 @@
       idempotency_key: idempotencyKey,
       justification: `Activation déduite automatiquement de l'appro saisi à la clôture (${shiftRow.date} · Quart ${shiftRow.quart}) — aucune activation correspondante enregistrée pendant le quart.${motifException ? ` Anomalie signalée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
     });
-    if (error && error.code === '23505') return; // rejeu réseau idempotent — même lecture que les autres écritures FDJ (voir executerActivationCarnetInterne)
-    if (error) { console.error('Activation implicite depuis appro FDJ:', error); alert("Erreur d'enregistrement d'une activation détectée automatiquement à partir de l'appro. Réessayez."); return; }
+    if (error && error.code === '23505') { delete jetonsActivationImplicite[gameId]; return; } // rejeu réseau idempotent — même lecture que les autres écritures FDJ (voir executerActivationCarnetInterne)
+    if (error) { console.error('Activation implicite depuis appro FDJ:', error); alert("Erreur d'enregistrement d'une activation détectée automatiquement à partir de l'appro. Réessayez."); return; } // jeton conservé : un rejeu réel réutilisera la même clé
+    delete jetonsActivationImplicite[gameId];
 
     if (motifException) {
       // Même type d'alerte que l'exception carnet en direct
@@ -1580,7 +1595,12 @@
     const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
     if (label) label.textContent = '…';
     const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 : jeton stable par jeu (voir
+    // déclaration de jetonsActivationCarnet) — jamais régénéré avant un
+    // succès, pour qu'un second tap après erreur (rejeu réel, pas une
+    // nouvelle intention) retombe sur la même clé.
+    if (!jetonsActivationCarnet[gameId]) jetonsActivationCarnet[gameId] = genererIdempotencyKey();
+    const idempotencyKey = jetonsActivationCarnet[gameId];
     const { error } = await nexusClient.from('fdj_stock_movements').insert({
       site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: 1,
       location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
@@ -1593,6 +1613,7 @@
       // déjà eu lieu au premier passage, y compris l'incrément d'appro —
       // rien à refaire ici, ce n'est jamais une vraie erreur (même lecture
       // du code 23505 que fdj_releves_cloture, voir plus bas dans ce fichier).
+      delete jetonsActivationCarnet[gameId];
       if (label) { label.textContent = 'Activer'; }
       return;
     }
@@ -1600,8 +1621,9 @@
       console.error('Activation carnet FDJ:', error);
       if (label) label.textContent = 'Activer';
       alert("Erreur d'enregistrement. Réessayez.");
-      return;
+      return; // jeton conservé : un second tap réel réutilisera la même clé
     }
+    delete jetonsActivationCarnet[gameId];
 
     // Exception tracée (09/08/2026, demande de Frédéric) — l'activation
     // s'est faite sans carnet confié enregistré : signale automatiquement

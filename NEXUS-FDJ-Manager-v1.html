@@ -357,6 +357,11 @@
   // saisie persistant comme les formulaires ci-dessus — voir jetonIntention
   // et retournerDepuisBloque.
   const jetonsRetourBloque = {};
+  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026, dette §8 fermée) : même
+  // discipline, pour creerActivationReconstitueeCorrectionManager, déclenché
+  // depuis enregistrerEdition (pas un formulaire dédié) — jeton conservé par
+  // jeu jusqu'au succès.
+  const jetonsCorrectionManager = {};
   let filtreHistorique = { periode: '7j', debut: null, fin: null }; // (20/08/2026) : 'aujourdhui' | '7j' | '30j' | 'dates'
   let vue = 'liste'; // 'liste' | 'continuite-stock' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation' | 'historique-mouvements'
   // Détail de continuité de stock ouvert depuis le badge d'un quart
@@ -633,15 +638,20 @@
   // ledgers append-only du projet, ex. fdj_releves_cloture).
   async function creerActivationReconstitueeCorrectionManager(gameId, shift, quantite, justification) {
     const caisse = emplacementParType('caisse');
-    const idempotencyKey = genererIdempotencyKey();
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 : jeton stable par jeu (voir
+    // jetonsCorrectionManager) — jamais régénéré avant un succès, pour qu'un
+    // rejeu réseau retombe sur la même clé.
+    if (!jetonsCorrectionManager[gameId]) jetonsCorrectionManager[gameId] = genererIdempotencyKey();
+    const idempotencyKey = jetonsCorrectionManager[gameId];
     const { error } = await nexusClient.from('fdj_stock_movements').insert({
       site: siteId, game_id: gameId, shift_id: shift.id, type_mouvement: quantite >= 0 ? 'activation' : 'correction', quantite,
       location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
       methode_identification: 'reconstituee_correction_manager', booklet_id: null, employee_id: managerCourant.id,
       idempotency_key: idempotencyKey, justification,
     });
-    if (error && error.code === '23505') return true; // rejeu réseau idempotent
-    if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; }
+    if (error && error.code === '23505') { delete jetonsCorrectionManager[gameId]; return true; } // rejeu réseau idempotent
+    if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; } // jeton conservé : un rejeu réel réutilisera la même clé
+    delete jetonsCorrectionManager[gameId];
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shift.id, entite_type: 'fdj_stock_movement', entite_id: null,
       action: quantite >= 0 ? 'fdj_activation_reconstituee_correction_manager' : 'fdj_activation_reconstituee_annulee_correction_manager',

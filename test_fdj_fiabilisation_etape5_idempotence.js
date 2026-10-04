@@ -112,11 +112,17 @@ function nouveauContexte({ tables, shiftCounts, cryptoFixe }) {
     extraire('emplacementParType'),
     extraire('genererIdempotencyKey'),
     extraire('incrementerApproAutomatique'),
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) : jetonsActivationCarnet
+    // est désormais déclaré au niveau module dans NEXUS-FDJ-v1.html (voir son
+    // en-tête, à côté d'activationsEnCours) — même discipline que
+    // jetonsRetourBloque côté manager, injecté tel quel ici.
+    'let jetonsActivationCarnet = {};',
     extraire('executerActivationCarnetInterne'),
     extraire('executerActivationCarnet'),
     'globalThis.__executerActivationCarnet = executerActivationCarnet;',
     'globalThis.__incrementerApproAutomatique = incrementerApproAutomatique;',
     'globalThis.__genererIdempotencyKey = genererIdempotencyKey;',
+    'globalThis.__jetonsActivationCarnet = jetonsActivationCarnet;',
   ].join('\n\n');
   vm.runInNewContext(src, ctx);
   return { ctx, compteurs, alertesAppelees };
