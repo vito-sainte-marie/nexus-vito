@@ -118,7 +118,10 @@ function renderEmployee(f){
  const statut=pillStatut(f.statut);
  const v=inclus?NexusPayeMoteur.variablesComptables(f):null;
  const corps=!inclus
-  ?`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`
+  // Un hors-paie déduit du rôle (vacataire…) n'est pas confirmé : le moteur
+  // le bloque, l'écran doit donc offrir de quoi le confirmer — ou le réinclure.
+  ?`${f.reglage.confirme?'':'<div class="alert">Hors paie proposé d’après le rôle, jamais confirmé : confirmez-le pour débloquer le dossier du mois.</div>'}<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`
+   +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`
   :`${f.reglage.confirme?'':'<div class="alert">Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.</div>'}${renderVariables(v)}`
    +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
    +`<div class="detail-zone" data-emp="${id}" hidden>${f.items.length?f.items.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
