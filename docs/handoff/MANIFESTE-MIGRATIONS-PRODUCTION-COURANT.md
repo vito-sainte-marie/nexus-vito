@@ -444,3 +444,76 @@ n'apporte aucun effet de bord nouveau.
 **EXCLUE pour le même motif que `20261003170000`.** Son en-tête déclare
 « TEST/CI UNIQUEMENT ». Cet addendum ne vaut ni fusion, ni déploiement, ni
 application.
+
+---
+
+## Addendum du 04/10/2026 — rapatriement des 13 migrations FDJ de Production
+
+### Déjà appliquées en Production — constatées, pas promues (13 migrations)
+
+1. `20260916220000_fdj_quart_relie_a_la_prise_de_poste` (blob `da63f087`)
+2. `20260916220100_fdj_caisse_cycle_de_vie_colonnes` (blob `9ab34b4d`)
+3. `20260916220200_fdj_caisse_journal_evenements` (blob `b135172f`)
+4. `20260916220300_fdj_demandes_correction_apres_validation` (blob `583e71a4`)
+5. `20260916220400_fdj_mouvements_auteur_et_date_effet` (blob `ab9cb103`)
+6. `20260916220500_fdj_commande_ouverture_quart` (blob `42597c1d`)
+7. `20260916220600_fdj_commandes_caisse_employe` (blob `a957e5dc`)
+8. `20260916220700_fdj_commandes_caisse_manager` (blob `e0137d73`)
+9. `20260916220800_fdj_projection_employe` (blob `dfdbfb7c`)
+10. `20260916220900_fdj_projection_progression` (blob `4268f62f`)
+11. `20260916221000_fdj_commandes_activations_et_mouvements` (blob `43aa4fc5`)
+12. `20260916221100_fdj_commande_saisie_caisse_manager` (blob `7015d459`)
+13. `20261004120000_fdj_fermer_ancienne_correction_caisse_employe` (blob `357766cf`)
+
+**Même cas que `20260919103000` à l'addendum du 01/10 : une absence réparée,
+pas une nouveauté.** Ces fichiers sont arrivés sur `production` par la fusion
+de la PR #73 (`638f3f4`, 04/10/2026 11 h 18 UTC) sans exister sur le rail.
+`test_migrations_immuables_20260905.js` rougissait donc le rail depuis cette
+fusion.
+
+**Constat en Production, en lecture seule** (`begin read only`, 04/10/2026
+14 h 12 UTC) : les 13 versions sont enregistrées dans
+`supabase_migrations.schema_migrations`, pour un registre de 294 lignes.
+
+**Identité vérifiée** : chaque fichier a été copié verbatim depuis
+`origin/production` (`30544c9`). Pour les 13, le blob calculé dans le rail est
+identique à l'objet git de `production`. Aucun fichier ne se déclare Test/CI
+et aucun ne touche `nexus_ci_recette`.
+
+Ce classement **ne promeut rien**, puisque la cible porte déjà ces migrations.
+Il rend le rail véridique sur ce que la base fait.
+
+### Effet sur la garde REVOKE-FONCTION-RÔLES-NOMMÉS
+
+Les douze fichiers du 16/09 précèdent le seuil `20261001000000` de
+`outils/garde-revoke-fonction-roles-nommes.js`. La garde les compte donc en
+dette, et la dette mesurée passe de 18 à 23 (+6, −1) :
+
+- **−1** : `public.fdj_corriger_caisse_employe(uuid,numeric,text,text)` est
+  fermée par `20261004120000`, postérieure au seuil et conforme.
+- **+5** : `fdj_date_metier`, `fdj_numero_quart_depuis_prise_de_poste`,
+  `fdj_ouvrir_quart_depuis_prise_de_poste`,
+  `fdj_transferer_responsabilite_quart` et `fdj_ma_progression_caisse`. Elles
+  ont toutes la même forme : `revoke … from public`, `revoke … from anon`,
+  puis `grant execute … to authenticated` explicite. L'intention de garder
+  `authenticated` est écrite en SQL, mais pas sous le marqueur
+  `nexus-acl-intention` (créé le 01/10, après elles).
+- **+1** : `%s`, de `20260916221100`. **C'est un artefact de la garde**, pas
+  une fonction. Un bloc `do` y applique ce même schéma ACL à deux fonctions
+  par `execute format('revoke all on function %s …', v_sig)`, et la garde lit
+  le paramètre de format comme une signature. Défaut de la garde laissé
+  ouvert, signalé, non corrigé ici.
+
+**Mesure en Production, en lecture seule** (04/10/2026) : sur les sept
+fonctions concernées, plus `fdj_saisir_caisse_manager` et
+`fdj_demandes_correction_du_quart` couvertes par le `%s`,
+`has_function_privilege('anon', …, 'EXECUTE')` est **faux partout**, et vrai
+pour `authenticated`. `fdj_corriger_caisse_employe` est fermée aux deux.
+L'augmentation de dette est **formelle** (intention non marquée) : elle ne
+correspond à aucune exposition à `anon`. Ces fichiers sont immuables, et
+seule une migration nouvelle pourrait poser le marqueur.
+
+### Ce que cet addendum ne fait pas
+
+Il ne vaut ni fusion, ni déploiement, ni application, ni écriture en
+Production.

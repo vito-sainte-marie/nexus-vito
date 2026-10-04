@@ -53,7 +53,13 @@ const SEUIL = '20261001000000';
 // moins un `revoke`, dont 18 où `anon` et/ou `authenticated` n'est jamais
 // nommé — 7 ne nomment que `public`, 11 nomment `anon` et oublient
 // `authenticated`. Ce nombre est une mesure datée, pas une propriété du dépôt.
-const DETTE_GELEE = 18;
+// Re-mesuré le 04/10/2026 : 23. Les 12 migrations FDJ du 16/09, rapatriées de
+// `production` (déjà appliquées, immuables, antérieures au seuil), ajoutent 6
+// entrées, dont `%s` (artefact : un `execute format(...)` lu comme signature),
+// et `20261004120000` en retire 1. Aucune n'est ouverte à `anon` en Production
+// (lecture seule du 04/10) ; détail : addendum du 04/10 de
+// docs/handoff/MANIFESTE-MIGRATIONS-PRODUCTION-COURANT.md.
+const DETTE_GELEE = 23;
 
 const ROLES_A_STATUER = ['anon', 'authenticated'];
 
