@@ -65,7 +65,242 @@
       },
       "repetition": "La mesure ci-dessus dit ce que Production PORTE ; elle ne dit pas ce que le revoke FERAIT. Cette seconde question a ete repetee le 01/10/2026 sur un banc jetable supabase/postgres:17.6.1.175 (meme famille de moteur que Production, 17.6), ou l'ACL de la fonction a ete reproduite OCTET POUR OCTET identique a la lecture Production, chaque objet verifie un par un et non deduit du fait qu'une requete ait repondu. Quatre temoins avant, cinq apres. APRES le revoke nomme : acl exactement {postgres=X/postgres,service_role=X/postgres} ; un appel direct par authenticated echoue desormais sur permission denied for function, alors qu'il echouait avant sur trigger functions can only be called as triggers - ce qui prouve dans les deux sens que le role detenait bien EXECUTE et que le revoke mord ; le trigger continue de se declencher et de REFUSER l'employe sous authenticated comme sous anon (42501, message propre de la garde) ; le manager regularise toujours ; temps_reel passe toujours ; rejouer est idempotent. PostgreSQL ne verifie pas EXECUTE quand un trigger se declenche : c'est ce qui rend ce revoke sans effet de bord.",
       "reserve": "PROPORTION, A DIRE HONNETEMENT : l'exposition pratique fermee par cette migration est NULLE. Une fonction returns trigger ne peut etre appelee d'aucune autre maniere qu'en tant que trigger, et le declenchement d'un trigger ne consulte pas EXECUTE. Ce qui est reel n'est pas un risque, c'est une divergence : la migration 20260919103000 a ECRIT l'intention de fermer cette fonction, avec revoke ... from public, qui ne ferme ni anon ni authenticated parce que Supabase accorde EXECUTE par grants NOMMES via ALTER DEFAULT PRIVILEGES. L'intention n'a donc jamais pris effet, et la base contredit le depot. CE QUI RESTE OUVERT : 17 autres fonctions du depot portent un revoke qui ne nomme ni anon ni authenticated. Elles ne sont PAS a refermer en bloc - mes_ecarts_caisse() par exemple est une RPC appelee par un ecran connecte, authenticated doit la garder. Le defaut a reparer n'est pas le grant, c'est le SILENCE sur l'intention : c'est l'objet de outils/garde-revoke-fonction-roles-nommes.js, qui exige desormais de chaque revoke de fonction qu'il DISE ce qu'il veut pour les deux roles, et qui gele la dette historique a 18 pour qu'elle rougisse si le compte bouge dans un sens comme dans l'autre."
+    },
+    "20260916220000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "da63f08760690fe987d8302d36047dd448752eff"
+      }
+    },
+    "20260916220100": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "9ab34b4d4dad0b2ed09a2e3e1f008b515b0b975f"
+      }
+    },
+    "20260916220200": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "b135172f27332355555cc5ac5d00cf9b2964199e"
+      }
+    },
+    "20260916220300": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "583e71a48d6ef9cf07f589de9d1e280120620c9a"
+      }
+    },
+    "20260916220400": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "ab9cb103320b176435492cf162b2920e0a992953"
+      }
+    },
+    "20260916220500": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "42597c1de8f847fa6237d3fdcb5a9258c4450498"
+      }
+    },
+    "20260916220600": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "a957e5dcbdbfd105630ab39cd46b53cd83536167"
+      }
+    },
+    "20260916220700": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "e0137d739b882360a0487bd95f0ef6d7020698be"
+      }
+    },
+    "20260916220800": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "dfdbfb7c7605bcb53b2c6165201ceaa341f76555"
+      }
+    },
+    "20260916220900": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "4268f62f7b11dfbe6c299f24fb6cdb6c494a1c46"
+      }
+    },
+    "20260916221000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "43aa4fc54543176d71796c43c8bf44cc6a93973b"
+      }
+    },
+    "20260916221100": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Une des 12 migrations FDJ Vague 1, a appliquer en serie ordonnee 220000 -> 221100 AVANT le code (l ecran du candidat appelle les 36 fonctions qu elles creent). Etat atomique retenu plutot qu additive_compatible_avant_code pour deux raisons : la serie forme un tout dont l arret au milieu doit etre gere par la procedure ; et la garde detecte des DDL destructifs dans 220000/220200/220300/220400, qui sont les blocs de retour arriere COMMENTES (faux positif de la regex, non corrige dans ce lot). Compatibilite de la fenetre mesuree : aucun droit retire sur un objet existant, contrainte de statut elargie (8 -> 10 valeurs, sur-ensemble), aucune DML a l application ; l ecran servi continue de fonctionner jusqu au deploiement.",
+      "prochaine_action": "Geste 1 de docs/deploiement/procedure-fdj-62-production.md : AVANT relu, puis application dans l ordre, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:44:04Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "psql nexus_prod_readonly_login (10:39:58 UTC) puis connecteur Supabase (10:44:04 UTC), begin read only ... rollback (lecture seule AUTO, GO du 03/10/2026)",
+        "identite_constatee": "nexus_prod_readonly_login puis postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "ABSENTE — aucun des objets de la migration n existe dans le catalogue (fonctions, tables, trigger, index, colonnes sur fdj_shifts/fdj_cash_controls/fdj_stock_movements) ; estampille absente du registre ; donnees compatibles (statuts existants : a_regulariser, conforme, regularise, valide_avec_ecart ; index unique d idempotence deja present)",
+        "blob_migration": "7015d459956d60b94118bcea768a1e687323f38c"
+      }
+    },
+    "20261004120000": {
+      "etat": "exige_code_d_abord",
+      "justification": "Revoke d EXECUTE de authenticated (et anon) sur fdj_corriger_caisse_employe(uuid, numeric, text, text), rien d autre (0 objet extrait). L ecran SERVI en Production (NEXUS-FDJ-v1.html:878 sur production 2f27e5c) appelle cette fonction : appliquee avant le deploiement du candidat, elle casse le bouton « Corriger et inscrire sur mon releve ». L ecran du candidat ne l appelle plus (il passe par fdj_corriger_caisse_confirmee). Ordre STRICT : code d abord, migration ensuite. L avertissement de la garde (aucun code du candidat ne nomme ses objets) est attendu : la dependance est dans le code SERVI, pas dans le candidat. Le commentaire du fichier (« Aucun ecran ne l appelle ») est vrai du candidat et faux de l ecran servi ; il n est pas retouche pour ne pas faire tomber cette qualification.",
+      "prochaine_action": "Geste 4 de docs/deploiement/procedure-fdj-62-production.md : apres le deploiement du candidat constate par sha256, sur GO distinct de Frederic.",
+      "procedure": "docs/deploiement/procedure-fdj-62-production.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-04T10:33:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "connecteur Supabase, begin read only ... rollback (decision-4)",
+        "identite_constatee": "postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "OUVERTE — acl {postgres,anon,authenticated,service_role}=X ; fdj_corriger_caisse_confirmee absente ; estampille absente du registre",
+        "blob_migration": "357766cf650b8edd5b7e79ea285e8ff2286fe4e7"
+      },
+      "reserve": "anon est neutralise par auth.uid() is null -> raise ; authenticated est reellement ouvert : la caissiere peut devalider une caisse validee tant que ce geste n est pas fait."
     }
   },
-  "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20."
+  "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
 }
