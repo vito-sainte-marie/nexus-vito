@@ -1,17 +1,17 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-6.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FDJ-VAGUE1-REPRISE-20261003
-seq: 5
+seq: 6
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: false
-in_reply_to: request-5.md
+in_reply_to: request-6.md
 ---
-# Décision — `request-5.md` : option A approuvée
+# Décision — `request-6.md` : geste 1 (12 migrations Production) approuvé
 
 ## Verdict
 
@@ -19,31 +19,24 @@ in_reply_to: request-5.md
 
 Frédéric Bragance a rendu cet arbitrage en session, le 04/10/2026. Verbatim :
 
-> GO decision-5 : option A
+> GO decision-6 : migrations Production
 
-## Ce que l'option A autorise (`request-5.md` §5)
+## Ce que la décision autorise
 
-Fermer l'ancienne porte par le candidat, ce qui veut dire **préparer** la fusion et le déploiement du candidat `rebuild/fdj-62-20260922` (`4c63621`). Concrètement :
+Le **geste 1 seulement** de `docs/deploiement/procedure-fdj-62-production.md`, au SHA candidat `f3e128e3e95b848150f43c5415697d3637c9ea64` :
 
-1. Mesurer l'intégration du candidat dans `production` (`2f27e5c`) : base commune, conflits, fichiers touchés, mode de déploiement.
-2. Qualifier ses migrations au sens de la garde ordre migration → code (#70), par des lectures seules de Production (`begin read only`) et par Test.
-3. Écrire l'ordre d'application imposé au §3 de `request-5` :
-   - les migrations hors `20261004120000` ;
-   - puis l'écran ;
-   - puis `20261004120000`.
-4. Ouvrir, si l'intégration le permet, une PR vers `production`, **sans la fusionner**.
-5. Rapporter le tout dans un dossier de décision, via `request-6.md`.
+- appliquer en Production (projet `uzhjpqpctpvxytxpxoqz`) les 12 migrations `20260916220000` → `20260916221100`, dans l'ordre du §3, chacune à l'octet près du fichier au SHA candidat ;
+- les lectures seules AVANT et APRÈS du §3.
 
-Le dossier dira explicitement où se trouve la Phase C par rapport à ce geste. Son arbitrage (constat §5 de `request-3.md`) n'est pas rendu par cette décision.
+Si `origin/rebuild/fdj-62-20260922` ne vaut plus `f3e128e` au moment d'écrire, l'autorisation tombe.
 
 ## Ce qu'elle n'autorise pas
 
-- Aucune écriture, aucune migration, aucun grant ni revoke en Production.
-- Aucune fusion vers `production`, aucun déploiement. Chacun de ces gestes exigera son GO, et un GO tombe si le SHA bouge.
-- Aucune écriture sur Test hors transaction annulée.
-- Aucune application ni modification de la Phase C.
-- Aucun élargissement de `nexus_ci_recette`.
+- `20261004120000` (geste 4) : GO séparé.
+- La fusion de la PR #73 vers `production` (geste 2) : GO séparé.
+- Le déploiement GitHub Pages (geste 3) : GO séparé.
+- Aucune application ni modification de la Phase C, aucun élargissement de `nexus_ci_recette`.
 
 ## Suite
 
-Le résultat sera rapporté par `request-6.md`.
+Le résultat sera rapporté par `request-7.md`.
