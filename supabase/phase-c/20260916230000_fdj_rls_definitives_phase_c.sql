@@ -146,10 +146,25 @@
 --      complet brouillon → confirmation → correction → validation par les
 --      seules commandes serveur.
 --
---  C5. L'écran NEXUS-Progression-v1.html RÉELLEMENT SERVI appelle
---      fdj_ma_progression_caisse() et ne contient plus aucune occurrence
---      de fdj_cash_controls(*) ni de .from('fdj_shifts'). Se vérifie sur
---      l'URL servie, pas sur le disque.
+--  C5. Ma Progression RÉELLEMENT SERVIE obtient la caisse FDJ de
+--      l'employé EXCLUSIVEMENT par fdj_ma_progression_caisse(), sans
+--      lecture directe de fdj_cash_controls. Ce qui se vérifie est le
+--      CHEMIN SERVI, pas le fichier qui porte l'appel : au 04/10/2026,
+--      NEXUS-Progression-v1.html charge nexus-caisse-source.js, dont
+--      chargerServicesCaisseFdj appelle .rpc('fdj_ma_progression_caisse')
+--      quand l'employé consulte sa propre page. Aucun fichier servi de
+--      cette chaîne n'emploie fdj_cash_controls(*). Une jointure
+--      .from('fdj_shifts') n'y est admise que sur le chemin manager (un
+--      manager qui consulte un autre employé), en colonnes nommées, sans
+--      motif_ecart_texte, resultat_controle, valide_par ni controle_par ;
+--      la RLS du §2 la garde. Se vérifie sur les URL servies, pas sur le
+--      disque.
+--
+--      Libellé réécrit le 04/10/2026, objectif inchangé. L'ancien
+--      exigeait l'appel DANS NEXUS-Progression-v1.html : il donnait un
+--      faux rouge depuis que l'appel a migré dans nexus-caisse-source.js,
+--      et un faux vert, puisqu'il ne voyait pas la lecture manager que
+--      porte ce même fichier.
 --
 --      Cette condition a changé de sens le 17/09/2026. Elle disait
 --      jusqu'ici l'inverse : « l'écran lit fdj_cash_controls par
@@ -182,6 +197,8 @@
 --      fdj_activer_carnet et fdj_enregistrer_mouvement_stock. Sinon,
 --      activer un carnet échoue en 42501 (la lecture, elle, reste
 --      ouverte au site : l'écran n'affiche pas moins, il n'écrit plus).
+--      fdj_enregistrer_mouvement_stock est aussi appelée depuis
+--      NEXUS-FDJ-Manager-v1.html servi : la vérifier sur les deux écrans.
 --
 -- HORS PÉRIMÈTRE de ce fichier : aucune donnée n'est lue, modifiée,
 -- déplacée ou supprimée. Il ne touche que des politiques, deux fonctions
