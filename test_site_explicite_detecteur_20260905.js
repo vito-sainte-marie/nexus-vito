@@ -122,10 +122,34 @@ verifier('le dépôt réel donne le chiffre annoncé', () => {
     // d'un litteral, et la reprise de la file (`viderLaFile`). Les deux
     // portent `site: siteId`, resolu depuis l'employe connecte, exactement
     // comme avant : la portee de site n'est ni elargie ni contournee.
+    //
+    // 04/10/2026, FDJ-CARNETS-LEDGER-AUDIT-1-20261004 : 50 → 47, 37 → 36.
+    // Les 6 écritures manager « hors quart » de NEXUS-FDJ-Manager-v1.html
+    // (réception, réapprovisionnement, retrait, blocage, retour depuis
+    // bloqué, rapprochement) appellent désormais la commande serveur
+    // `fdj_enregistrer_mouvement_stock` (migration 20260916221000) au lieu
+    // d'un insert direct — elle résout le site depuis `employees.site_id`
+    // côté serveur, ce paramètre n'étant plus reçu du navigateur du tout.
+    // Trois de ces six (`enregistrerReappro`, `enregistrerRetraitCaisse`,
+    // `enregistrerReception`, lignes 3444/3617/3910 avant ce lot) passaient
+    // leurs lignes par une variable (`.insert(lignes)`), ce que ce
+    // détecteur ne peut pas lire au travers (`SITE_FOURNI` cherche `site`
+    // dans la fenêtre de l'appel, pas dans la construction antérieure du
+    // tableau) : elles étaient donc comptées ici comme « sans site
+    // explicite » alors que le site y était bel et bien fourni. Les trois
+    // autres passaient un littéral inline et n'étaient déjà pas comptées.
+    // Les faire disparaître du recensement est donc la correction d'un faux
+    // positif structurel, pas une perte de couverture — et la portée de
+    // site y est désormais plus forte qu'un littéral vérifiable
+    // statiquement : résolue côté serveur, jamais reçue du client.
+    // `fdj_stock_movements` disparaît des tables recensées pour ce fichier
+    // en conséquence (ces trois lignes étaient ses seules occurrences ici ;
+    // la reconstitution manager, inchangée dans ce lot, écrit toujours un
+    // littéral avec `site:` explicite et n'a donc jamais été comptée).
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
-  assert.strictEqual(t.length, 50, `50 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
-  assert.strictEqual(tables.size, 37, `37 tables attendues, ${tables.size} trouvées`);
+  assert.strictEqual(t.length, 47, `47 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
+  assert.strictEqual(tables.size, 36, `36 tables attendues, ${tables.size} trouvées`);
 });
 
 console.log(`\n${passes} vérifications passées — le détecteur est éprouvé, pas cru sur parole.`);
