@@ -33,7 +33,7 @@
 const path = require('path');
 const {
   urlTestDuRail, secretsManquants, attendreVersionServie, SECRETS_REQUIS,
-} = require('./outils/recette-navigateur-test.js');
+} = require('./recette-navigateur-test.js');
 
 // `connecter` n'est pas exporté par outils/recette-navigateur-test.js —
 // reproduit ici à l'identique (même sélecteurs, même attente de sortie
