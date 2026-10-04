@@ -45,13 +45,36 @@ function extraire(nomFonction) {
 }
 
 // ------------------------------------------------------------
+// 0) GARDE STRUCTURELLE (PR #62, point 4) — l'écran manager ne doit plus
+//    écrire directement dans `fdj_cash_controls`. C'est la table du cycle
+//    de caisse : la RLS y est refermée par la Phase C et les seules
+//    écritures admises passent par les commandes serveur. Cette garde-ci
+//    est statique et ne coûte rien : elle relit le script de l'écran et
+//    exige que CHAQUE accès à la table soit suivi d'un `.select`. Elle
+//    mordrait immédiatement si quelqu'un réintroduisait un `.update`
+//    « juste pour ce cas-là » — c'est exactement ainsi que la dernière
+//    écriture directe avait survécu.
+// ------------------------------------------------------------
+(() => {
+  const occurrences = [...script.matchAll(/from\(\s*'fdj_cash_controls'\s*\)/g)];
+  assert.ok(occurrences.length > 0, 'La table de caisse doit toujours être lue par cet écran — une garde qui ne voit rien ne garde rien.');
+  for (const m of occurrences) {
+    const suite = script.slice(m.index + m[0].length).replace(/^[\s\r\n]*/, '');
+    assert.ok(suite.startsWith('.select'),
+      `Écriture directe sur fdj_cash_controls : accès suivi de « ${suite.slice(0, 48)} » au lieu de « .select ». `
+      + 'Les écritures du cycle de caisse passent par les commandes serveur (fdj_corriger_caisse_manager, fdj_valider_caisse, …).');
+  }
+  console.log(`OK — les ${occurrences.length} accès de l'écran manager à fdj_cash_controls sont des lectures ; aucune écriture directe.`);
+})();
+
+// ------------------------------------------------------------
 // FAUX CLIENT SUPABASE — générique, en mémoire, suffisant pour
 // select/eq/in/order/limit/maybeSingle/single/update/insert/upsert. Ne
 // simule qu'un filtrage exact par égalité (aucune requête de ce lot n'a
 // besoin de plus), fidèle au style déjà établi dans ce projet (jamais
 // jsdom, uniquement des objets minimaux).
 // ------------------------------------------------------------
-function creerNexusClientFake(tables) {
+function creerNexusClientFake(tables, obtenirJeux) {
   function correspond(ligne, filtres) { return filtres.every(([c, v]) => ligne[c] === v); }
   function from(table) {
     tables[table] = tables[table] || [];
@@ -82,6 +105,12 @@ function creerNexusClientFake(tables) {
         return api;
       },
       update(patch) {
+        // Contrepartie dynamique de la garde 0 : si un chemin d'exécution
+        // atteignait malgré tout la table de caisse en écriture, le test
+        // s'arrête ici plutôt que de valider un résultat obtenu par le
+        // mauvais moyen.
+        assert.notStrictEqual(table, 'fdj_cash_controls',
+          'Écriture directe sur fdj_cash_controls pendant le test : le recalcul doit passer par fdj_corriger_caisse_manager.');
         const filtres = [];
         const api = {
           eq(c, v) { filtres.push([c, v]); return api; },
@@ -111,7 +140,113 @@ function creerNexusClientFake(tables) {
       },
     };
   }
-  return { from };
+  return { from, rpc: creerRpc(tables, obtenirJeux) };
+}
+
+// ------------------------------------------------------------
+// FAUSSE COMMANDE SERVEUR `fdj_corriger_caisse_manager`
+//
+// Portage fidèle de supabase/migrations/20260916220700_fdj_commandes_caisse_manager.sql
+// (et, pour la formule, de `fdj_calculer_caisse` — 20260916220600). Ce qui
+// compte ici n'est pas d'imiter PostgreSQL mais de reproduire les quatre
+// comportements dont l'écran dépend :
+//   · le motif est exigé (≥ 5 caractères utiles) ;
+//   · une caisse non confirmée n'est pas corrigeable — la commande répond
+//     `caisse_non_confirmee` au lieu d'écrire ;
+//   · la caisse est RECALCULÉE depuis les comptages (jamais depuis les
+//     valeurs déjà stockées), donc depuis ce que les deux boucles de
+//     correction viennent de rétablir ;
+//   · `ecart_origine` / `caisse_reelle_origine` ne figurent pas dans le
+//     calcul, donc ne peuvent pas être réécrits — la sentinelle des tests
+//     le vérifie côté appelant.
+// La trace d'audit porte l'action réelle de la commande,
+// `fdj_caisse_corrigee_par_manager` : ce n'est plus l'écran qui nomme le
+// geste, et l'acteur n'est plus `null`.
+// ------------------------------------------------------------
+const UID_MANAGER_TEST = 'mgr-test';
+
+function creerRpc(tables, obtenirJeux) {
+  const gestionnaires = {
+    async fdj_corriger_caisse_manager({ p_shift_id, p_motif, p_caisse_reelle, p_regularisations, p_commentaire }) {
+      if (!p_motif || String(p_motif).trim().length < 5) {
+        return { data: null, error: { code: '22023', message: 'Une correction managériale exige un motif explicite.' } };
+      }
+      tables.fdj_cash_controls = tables.fdj_cash_controls || [];
+      const avant = tables.fdj_cash_controls.find(c => c.shift_id === p_shift_id);
+      if (!avant) return { data: null, error: { code: 'P0002', message: 'Aucune caisse pour ce quart.' } };
+      if (!avant.confirme_le) {
+        return { data: { corrige: false, motif: 'caisse_non_confirmee', message: 'La caisse de ce quart n\'est pas encore confirmée.' }, error: null };
+      }
+      const valeursAvant = { ...avant };
+
+      const jeux = await obtenirJeux();
+      const counts = (tables.fdj_shift_counts || []).filter(c => c.shift_id === p_shift_id);
+      let ventes = 0;
+      for (const c of counts) {
+        const jeu = (jeux || []).find(j => j.id === c.game_id);
+        if (!jeu) continue; // `join fdj_games` : un comptage sans jeu ne compte pas
+        const v = NexusFdjMoteur.calculerVentesJeu(
+          { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }, jeu.prix);
+        ventes += (v.valeur || 0);
+      }
+      const reports = (tables.fdj_reports || []).filter(r => r.shift_id === p_shift_id);
+      const agrege = (type, colonne) => {
+        const valeurs = reports.filter(r => r.type_rapport === type).map(r => r[colonne]).filter(v => v !== null && v !== undefined);
+        return valeurs.length ? Math.max(...valeurs) : null; // max(...) filter (where …), fidèle au SQL
+      };
+      const lots = agrege('journalier', 'lots_payes_grattage');
+      const tirages = agrege('temps_reel', 'caisse_tirages');
+      const regul = (p_regularisations === null || p_regularisations === undefined) ? (avant.regularisations || 0) : p_regularisations;
+      const reelle = (p_caisse_reelle === null || p_caisse_reelle === undefined) ? avant.caisse_reelle : p_caisse_reelle;
+      const grattage = lots === null ? null : ventes - lots;
+      const attendue = (grattage === null || tirages === null) ? null : grattage + tirages + regul;
+      const ecart = (attendue === null || reelle === null || reelle === undefined)
+        ? null : Math.round((reelle - attendue) * 100) / 100;
+
+      const calc = {
+        ventes_grattage_valeur: ventes, lots_payes_grattage: lots, caisse_tirages: tirages,
+        caisse_grattage: grattage, regularisations: regul, caisse_attendue: attendue,
+        caisse_reelle: reelle, ecart,
+      };
+      // `update … set` de la commande : exactement ces colonnes. Ni
+      // `ecart_origine`, ni `caisse_reelle_origine` n'y sont.
+      Object.assign(avant, calc, {
+        version: (avant.version || 0) + 1,
+        nb_corrections: (avant.nb_corrections || 0) + 1,
+        derniere_correction_le: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      tables.fdj_caisse_evenements = tables.fdj_caisse_evenements || [];
+      tables.fdj_caisse_evenements.push({
+        shift_id: p_shift_id, evenement: 'correction_manager', acteur_id: UID_MANAGER_TEST,
+        metadata: { source: 'fdj_corriger_caisse_manager', motif: p_motif, commentaire: p_commentaire || null },
+      });
+      tables.fdj_audit_log = tables.fdj_audit_log || [];
+      tables.fdj_audit_log.push({
+        site: avant.site || 'site-test', shift_id: p_shift_id,
+        entite_type: 'fdj_cash_controls', entite_id: avant.id || null,
+        action: 'fdj_caisse_corrigee_par_manager', acteur_id: UID_MANAGER_TEST,
+        motif: p_motif, commentaire: p_commentaire || null,
+        ancienne_valeur: valeursAvant, nouvelle_valeur: calc,
+      });
+
+      return {
+        data: {
+          corrige: true, version_precedente: valeursAvant.version || 0, version: avant.version,
+          ecart_avant: valeursAvant.ecart, ecart,
+          caisse_reelle_origine_preservee: avant.caisse_reelle_origine ?? null,
+          ecart_origine_preserve: avant.ecart_origine ?? null,
+        },
+        error: null,
+      };
+    },
+  };
+  return (nom, params) => {
+    const gestionnaire = gestionnaires[nom];
+    assert.ok(gestionnaire, `RPC ${nom} non simulé dans ce test — une bascule vers une commande serveur n'a pas été répercutée ici.`);
+    return gestionnaire(params || {});
+  };
 }
 
 function nouveauContexte(tables, jeuxInitiaux) {
@@ -120,7 +255,7 @@ function nouveauContexte(tables, jeuxInitiaux) {
     NexusFdjMoteur,
     siteId: 'site-test',
     jeux: jeuxInitiaux || [],
-    nexusClient: creerNexusClientFake(tables),
+    nexusClient: creerNexusClientFake(tables, () => (ctx.jeux && ctx.jeux.length) ? ctx.jeux : ctx.chargerJeux()),
     chargerJeux: async () => ctx.jeux,
   };
   ctx.globalThis = ctx;
@@ -174,6 +309,11 @@ async function test2() {
     ],
     fdj_cash_controls: [
       { shift_id: 'cur1', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999,
+        // `confirme_le` : depuis la Vague 1, une caisse non confirmée n'est
+        // pas corrigeable par la commande serveur (elle répond
+        // `caisse_non_confirmee` au lieu d'écrire). Le quart de ce test est
+        // validé, donc confirmé — c'est bien le cas nominal du recalcul.
+        confirme_le: '2026-08-16T20:00:00.000Z', version: 3,
         ecart_origine: -1.23, caisse_reelle_origine: 111.11 }, // constat d'origine — sentinelle, ne doit JAMAIS bouger
     ],
     fdj_audit_log: [],
@@ -199,9 +339,19 @@ async function test2() {
   assert.strictEqual(cash.ecart_origine, -1.23, 'ecart_origine (constat d\'origine, v2.108) ne doit JAMAIS être réécrit automatiquement');
   assert.strictEqual(cash.caisse_reelle_origine, 111.11, 'caisse_reelle_origine ne doit JAMAIS être réécrit automatiquement');
 
-  const logRecalcul = tables.fdj_audit_log.find(l => l.action === 'fdj_ecart_recalcule_apres_retablissement_chaine');
+  // La trace n'est plus posée par l'écran sous un nom à lui avec un acteur
+  // `null` : c'est la commande serveur qui journalise, sous son action et
+  // sous l'identité réelle de l'appelant.
+  const logRecalcul = tables.fdj_audit_log.find(l => l.action === 'fdj_caisse_corrigee_par_manager');
   assert.ok(logRecalcul, 'Une trace d\'audit doit être posée pour le recalcul automatique (jamais un écrasement silencieux)');
   assert.strictEqual(logRecalcul.nouvelle_valeur.ecart, 5, 'La trace d\'audit doit porter le nouvel écart');
+  assert.strictEqual(logRecalcul.ancienne_valeur.ecart, 999, 'La trace doit aussi porter l\'écart d\'avant — sinon la correction n\'est pas relisible');
+  assert.ok(logRecalcul.acteur_id, 'La trace doit nommer un acteur : la commande journalise sous l\'identité du manager, jamais sous un acteur anonyme');
+  assert.ok(/Recalcul automatique après rétablissement de chaîne/.test(logRecalcul.motif || ''),
+    'Le motif transmis à la commande doit dire pourquoi la caisse est recalculée');
+  const evtRecalcul = (tables.fdj_caisse_evenements || []).find(e => e.evenement === 'correction_manager');
+  assert.ok(evtRecalcul, 'Le recalcul doit produire un événement de journal de caisse — l\'écriture directe n\'en produisait aucun');
+  assert.strictEqual(evtRecalcul.metadata.source, 'fdj_corriger_caisse_manager');
 
   console.log('OK — appliquerCorrectionsAutomatiquesContinuite corrige stock+ventes et RÉÉCRIT l\'écart, sans jamais toucher le constat d\'origine.');
 }
@@ -229,7 +379,7 @@ async function test3() {
       { shift_id: 'cur1', type_rapport: 'temps_reel', caisse_tirages: 20 },
     ],
     fdj_cash_controls: [
-      { shift_id: 'cur1', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999 },
+      { shift_id: 'cur1', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999, confirme_le: '2026-08-16T20:00:00.000Z' },
     ],
     fdj_audit_log: [],
   };
@@ -297,7 +447,7 @@ async function test4() {
       { shift_id: 'cur2', type_rapport: 'temps_reel', caisse_tirages: 20 },
     ],
     fdj_cash_controls: [
-      { shift_id: 'cur2', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999 },
+      { shift_id: 'cur2', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999, confirme_le: '2026-08-16T20:00:00.000Z' },
     ],
     fdj_audit_log: [],
     // Relevé posé par l'employé PENDANT que la chaîne était encore rompue
