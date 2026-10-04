@@ -1,17 +1,17 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-VAGUE1-REPRISE-20261003/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FDJ-VAGUE1-REPRISE-20261003
-seq: 3
+seq: 4
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: false
-in_reply_to: request-3.md
+in_reply_to: request-4.md
 ---
-# Décision — `request-3.md` : option A approuvée
+# Décision — `request-4.md` : option A approuvée
 
 ## Verdict
 
@@ -19,25 +19,23 @@ in_reply_to: request-3.md
 
 Frédéric Bragance a rendu cet arbitrage en session, le 04/10/2026. Verbatim :
 
-> GO decision-3 : option A
+> GO decision-4 : option A
 
-## Ce que l'option A autorise (`request-3.md` §6)
+## Ce que l'option A autorise (`request-4.md`)
 
-1. Sur le candidat `rebuild/fdj-62-20260922` (`9ffee7e`), ajouter un commit qui porte trois choses :
-   - une 13e migration additive : `revoke execute on function public.fdj_corriger_caisse_employe(uuid,numeric,text,text) from public, anon, authenticated` ;
-   - une épreuve qui rougit si cette fonction redevient exécutable par `anon` ou `authenticated` ;
-   - la mise à jour des constantes de manifeste et d'empreinte que cet ajout fait bouger.
-2. Prouver que l'épreuve mord, par la mutation « ré-accorder ».
-3. Appliquer cette seule migration sur nexus-test (`udljdqxerrbbbajxubfn`), avec son estampille. La base passe de 304 à 305.
-4. Rejouer sur Test le cas « ancienne porte » : refus attendu. Rejouer ensuite la recette serveur, dans une transaction annulée.
+1. Une lecture seule de Production (`uzhjpqpctpvxytxpxoqz`), enveloppée dans `begin read only … rollback`. L'identité sera constatée par `current_user`. La lecture porte sur :
+   - l'existence de `public.fdj_corriger_caisse_employe(uuid,numeric,text,text)` ;
+   - `has_function_privilege` pour `anon`, `authenticated` et `service_role` ;
+   - le `proacl` de cette fonction.
+2. Le rapport du résultat dans `request-5.md`. Si la fonction est ouverte, ce rapport présentera les options de fermeture côté Production, et chacune exigera ses propres GO.
 
 ## Ce qu'elle n'autorise pas
 
-- Aucune écriture, fusion, déploiement ou migration en Production.
+- Aucune écriture, aucun grant ni revoke, aucune migration, fusion ou déploiement en Production.
+- Aucune écriture sur Test.
+- Aucune modification de la Phase C : le constat §5 de `request-3.md` reste ouvert.
 - Aucun élargissement de `nexus_ci_recette`.
-- Aucune autre écriture sur Test.
-- Aucune modification de la Phase C. Le constat §5 de `request-3.md` reste ouvert, à arbitrer avant toute application de la Phase C.
 
 ## Suite
 
-Le résultat sera rapporté par `request-4.md`.
+Le résultat sera rapporté par `request-5.md`.
