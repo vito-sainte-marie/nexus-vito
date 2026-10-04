@@ -619,3 +619,91 @@ geste, hors du périmètre de cette correction.
 
 Il ne requalifie aucune entrée et ne vaut ni fusion, ni déploiement, ni
 migration, ni écriture en Production. Il ne modifie aucun fichier de migration.
+
+## Addendum du 04/10/2026 (lot anon5) — fermer `anon` sur quatre des cinq ouvertures hors FDJ
+
+Lot sécurité indépendant du chantier FDJ et de la Phase C (C4, carnets FDJ,
+Point Zéro inventaire) : rien ici ne les touche.
+
+### Proposée incluse dans une future release Production (1 migration)
+
+1. `20261004130000_revoquer_anon_quatre_fonctions_hors_fdj`
+   (sha256 `43489265936d14bcc06b4804d31f8e511505605d296c694bd39b70d8e74730b1`)
+
+Elle traite les cinq ouvertures à `anon` relevées par l'addendum précédent.
+Elles ont été re-mesurées en Production le 04/10/2026, en lecture seule
+(`begin read only`, `uzhjpqpctpvxytxpxoqz`) : les cinq fonctions sont SECURITY
+DEFINER, propriété de `postgres`, avec l'ACL
+`{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}`
+et PUBLIC absent. Les md5 de `prosrc` sont égaux en Production et sur
+nexus-test.
+
+| Fonction | ACL cible | Exposition `anon` |
+|---|---|---|
+| `_generate_inventory_review_core(text,date,date,text)` | `service_role` seul | **accidentelle, grave** : aucun contrôle, agrégats d'inventaire de n'importe quel site, appelée seulement par deux SECURITY DEFINER de `postgres` et le cron |
+| `generate_inventory_review(text,date,date,text)` | `authenticated`, `service_role` | accidentelle : `revoke … from public` seul (20260803020504/021549) |
+| `inventaire_enregistrer_transfert_localise(…)` | `authenticated`, `service_role` | accidentelle : `revoke … from public` seul (20260831102427/102512) |
+| `stats_fondateur()` | `authenticated`, `service_role` | accidentelle : `GRANT ALL TO anon` de la baseline 20260101000000 |
+| `nexus_identifiant_de_connexion(text)` | **inchangée** | **voulue** : login non énumérable, appelé avant toute session (20260904175747) |
+
+La migration est strictement additive (revoke et grant seulement). Elle porte
+un marqueur `nexus-acl-intention … garde authenticated (motif)` pour chacune
+des trois RPC conservées. Garde : `test_securite_anon_quatre_fonctions_20261004.js`.
+
+### Dette de la garde revoke : 47 → 43
+
+Les listes avant et après ont été comparées. Exactement quatre signatures
+sortent : les quatre fonctions que la migration statue nommément. Aucune autre
+n'entre ni ne sort. La dette baisse donc pour une cause démontrée : ce n'est pas
+une reclassification.
+
+### Recette nexus-test (`udljdqxerrbbbajxubfn`), 04/10/2026
+
+La migration a été appliquée par psql `--single-transaction`, estampille
+comprise (registre 305 → 306). Les cas ont été joués avant et après
+l'application, chacun dans une transaction annulée.
+
+| Cas | Avant | Après |
+|---|---|---|
+| anon → core | EXECUTE OK (lecture inter-site) | REFUS 42501 |
+| anon → generate_inventory_review | atteinte (`accès refusé`) | REFUS 42501 |
+| anon → transfert | atteinte (`AUTH_REQUISE`) | REFUS 42501 |
+| anon → stats_fondateur | atteinte (`Non autorisé`) | REFUS 42501 |
+| anon → nexus_identifiant_de_connexion | EXECUTE OK | EXECUTE OK |
+| manager-test → core en direct | EXECUTE OK | REFUS 42501 |
+| manager-test → generate_inventory_review (son site) | OK (rapport rendu) | OK, core atteinte via le DEFINER |
+| manager-test → generate_inventory_review (autre site) | `accès refusé` | `accès refusé` |
+| manager-test → transfert réel sur fixtures annulées | — | OK, stock 10 → 7, mouvement créé |
+| anon → transfert sur le même jeu | — | REFUS 42501 |
+| test-createur → stats_fondateur | OK (3 sites) | OK (3 sites) |
+| manager-test → stats_fondateur | `Non autorisé` | `Non autorisé` |
+| service_role → core | EXECUTE OK | EXECUTE OK |
+| postgres → run_scheduled_inventory_reviews (cron) | EXECUTE OK | EXECUTE OK |
+
+Les fixtures du transfert ne laissent aucun résidu : 0 zone et 0 produit
+`ANON5` mesurés après l'annulation.
+
+**Absence de régression causale.** Avant le correctif, `anon` n'obtenait déjà
+aucun résultat utile des trois RPC : leur corps le refusait. Aucun parcours
+fonctionnel ne pouvait donc dépendre de cet accès. Seule `core` rendait des
+données à `anon`, et aucun écran ne l'appelle. Les appelants servis sont
+`nexus-inventaire-manager-donnees.js`, `nexus-rapport-direction-donnees.js`,
+`nexus-inventaire-stock-transfert-v2.js` et `NEXUS-Admin-Sites-v1.html`. Tous
+passent par `nexus-auth.js` ou `getSession`, donc par le rôle `authenticated`
+simulé ci-dessus.
+
+Limite : le parcours a été prouvé au niveau RPC, avec le rôle et le JWT que
+PostgREST transmet. Aucune recette navigateur connectée n'a été jouée.
+
+### Divergence propre à nexus-test, hors périmètre
+
+`run_scheduled_inventory_reviews()` est ouverte à `anon`, `authenticated` et
+`service_role` sur Test (md5 `bb5fa665…`). En Production, elle est fermée
+(`{postgres=X}`, md5 `45707923…`). Elle est signalée ici, pas traitée.
+
+### Ce que cet addendum ne fait pas
+
+Il ne vaut ni fusion, ni déploiement, ni migration, ni écriture en Production.
+Il ne modifie aucune migration historique. Il ne traite pas
+`current_employee_role()`, `current_employee_site_id()` ni `je_suis_createur()`,
+exécutables par PUBLIC et `anon` mais hors du périmètre des cinq.
