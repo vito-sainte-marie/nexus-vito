@@ -1,0 +1,27 @@
+-- FDJ-CARNETS-LEDGER-AUDIT-1-20261004 — qualification nexus-test, decision-1.md.
+--
+-- Constat fait en recette : les écrans FDJ (NEXUS-FDJ-v1.html,
+-- NEXUS-FDJ-Manager-v1.html) sont gardés par NexusForfait.nexusRequireProfessional
+-- (nexus-forfait.js) depuis le 09/08/2026. La migration qui a créé la colonne
+-- (20260726061316_ajouter_forfait_sites.sql) ne mettait 'professional' que pour
+-- `vito-sainte-marie` (le client Production réel) — tout autre site, 'essential'
+-- par défaut, y compris 'nexus-station-test'. Résultat : une session Manager Test
+-- réelle qui navigue vers NEXUS-FDJ-Manager-v1.html était jusqu'ici renvoyée sans
+-- condition vers NEXUS-App-v1.html?forfait_requis=..., AVANT même d'atteindre le
+-- code FDJ lui-même — indépendant de la correction ledger/idempotence de ce lot,
+-- et probablement vrai depuis la création du module (09/08/2026). Aucun lot FDJ
+-- précédent (dont FDJ-VAGUE1-REPRISE-20261003) n'avait donc jamais pu exécuter
+-- une qualification navigateur réelle sur ce site.
+--
+-- Portée strictement limitée à 'nexus-station-test' (recette), jamais 'production'
+-- ni un site client réel — même geste que la migration d'origine pour
+-- 'vito-sainte-marie', reproduit ici pour le site de recette. Idempotent (une
+-- deuxième exécution ne change rien) ; ne touche aucune ligne appartenant à une
+-- autre recette.
+--
+-- TEST/CI UNIQUEMENT — à ne PAS appliquer en Production : 'nexus-station-test'
+-- n'existe pas en Production, et le forfait d'un site client réel relève
+-- exclusivement d'une décision du créateur (NEXUS-Admin-Sites-v1.html), jamais
+-- d'une migration automatique.
+
+update sites set forfait = 'professional' where site_id = 'nexus-station-test';

@@ -707,3 +707,53 @@ Il ne vaut ni fusion, ni déploiement, ni migration, ni écriture en Production.
 Il ne modifie aucune migration historique. Il ne traite pas
 `current_employee_role()`, `current_employee_site_id()` ni `je_suis_createur()`,
 exécutables par PUBLIC et `anon` mais hors du périmètre des cinq.
+
+## Addendum du 04/10/2026 (lot FDJ-CARNETS-LEDGER-AUDIT-1-20261004) — qualification nexus-test
+
+### EXCLUES — Test/CI uniquement (2 migrations)
+
+1. `20261004200000_forfait_professional_nexus_station_test` — **EXCLUE — Test/CI**
+2. `20261004200100_fdj_jeux_et_emplacements_nexus_station_test` — **EXCLUE — Test/CI**
+
+Les deux sont apparues en cours de qualification navigateur réelle de la
+correction ledger carnets (decision-1.md du lot, GO recette de Frédéric) :
+une session Manager Test authentifiée qui navigue vers
+`NEXUS-FDJ-Manager-v1.html` était systématiquement renvoyée vers
+`NEXUS-App-v1.html?forfait_requis=...` — `sites.forfait` vaut `'essential'`
+pour `'nexus-station-test'`, et FDJ rejoint `PAGES_PROFESSIONAL` depuis le
+09/08/2026 (`nexus-forfait.js`). La migration d'origine
+(`20260726061316_ajouter_forfait_sites.sql`) ne mettait `'professional'` que
+pour `'vito-sainte-marie'` : aucun site de recette n'a jamais eu l'accès réel
+à l'écran. Une fois ce premier blocage levé, `fdj_games`/`fdj_locations`
+étaient vides pour ce site (seul `'vito-sainte-marie'` avait été peuplé par
+`20260809130521_seed_fdj_jeux_et_emplacements.sql`) — sans jeu ni
+emplacement, aucune des 9 écritures FDJ n'est exerçable, qualification réelle
+ou non.
+
+**EXCLUES pour le même motif que les migrations Test/CI précédentes de ce
+manifeste.** `'nexus-station-test'` n'existe pas en Production ; le forfait
+et le catalogue de jeux d'un site client réel relèvent exclusivement d'une
+décision du créateur (`NEXUS-Admin-Sites-v1.html` / Paramètres FDJ), jamais
+d'une migration automatique. Chaque en-tête porte la déclaration canonique
+« TEST/CI UNIQUEMENT — à ne PAS appliquer en Production ».
+
+**Autorisation.** CLAUDE.md, pré-autorisation 1 (« Alimenter, réinitialiser ou
+corriger la base de recette Test ») : jeu de données versionné dans le
+dépôt (ces deux fichiers), idempotent (`where not exists` — aucune contrainte
+unique native sur `(site, nom)` pour `fdj_games`/`fdj_locations`), et qui ne
+détruit ni ne touche aucune ligne appartenant à un autre site ou à une autre
+recette (portée strictement filtrée par `site_id`/`site = 'nexus-station-test'`).
+
+**Appliquées en base Test, pas seulement écrites comme fichiers** : via la
+session Créateur Test pour le forfait (RLS `createur_update_sites`), via la
+session Manager Test pour le catalogue FDJ (RLS `insert_fdj_games`/
+`insert_fdj_locations`, bornée à `site = current_employee_site_id()`) — le
+rôle `nexus_ci_recette` n'intervient pas ici, ce n'est pas une épreuve de
+bornage CI comme SEC-023.
+
+### Ce que cet addendum ne fait pas
+
+Il ne vaut ni fusion, ni déploiement, ni migration, ni écriture en Production.
+Il ne modifie aucune migration historique. Il ne corrige pas le ledger/
+l'idempotence des carnets FDJ (objet propre du lot, traité par
+`nexus-fdj-moteur.js`, hors périmètre de ce manifeste).
