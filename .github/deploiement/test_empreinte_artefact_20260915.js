@@ -555,6 +555,13 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   migration commune aux deux lignes, donc aucun recouvrement à retrancher —
 //   et ce compte est MESURÉ sur l'arbre fusionné, pas déduit d'une addition.
 //
+//   04/10/2026 — fermeture de l'ancienne porte de correction employé
+//   (decision-3, lot FDJ-VAGUE1-REPRISE-20261003) :
+//   + 1  `20261004120000_fdj_fermer_ancienne_correction_caisse_employe.sql`
+//        additive — trois revoke et un grant, aucune fonction supprimée
+//   ───
+//    290
+//
 //   Au passage : #62 et `production` ont tous deux annoncé 276 le 22/09, par
 //   deux chemins sans aucun fichier commun. Le nombre seul ne les distinguait
 //   pas ; les empreintes, si.
@@ -571,8 +578,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 289;
-const MIGRATIONS_REELLES_EMPREINTE = 'd234cb72bcea36d4de22373aa555f284b0f7491abd1b59b314b528265fce78cb';
+const MIGRATIONS_REELLES_NOMBRE = 290;
+const MIGRATIONS_REELLES_EMPREINTE = 'f28f26b1eaca4c84d020e830acc8ade945cd49c421e23a08a0838c1eac4e447a';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
