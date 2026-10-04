@@ -66,7 +66,13 @@ const SEUIL = '20261001000000';
 // `authenticated` sans le déclarer : marqueur d'intention manquant, pas
 // exposition. Aucune migration n'a changé : seule la lecture est corrigée.
 // Détail : addendum du 04/10 (suite) du même manifeste.
-const DETTE_GELEE = 47;
+// Re-mesuré le 04/10/2026, lot sécurité anon5 : 43 = 47 − 4. La migration
+// 20261004130000 statue nommément les quatre fonctions hors FDJ qu'elle
+// ferme à `anon` (_generate_inventory_review_core, generate_inventory_review,
+// inventaire_enregistrer_transfert_localise, stats_fondateur) ; aucune autre
+// signature n'entre ni ne sort de la dette (diff des deux listes). Détail :
+// addendum du 04/10 (lot anon5) du même manifeste.
+const DETTE_GELEE = 43;
 
 const ROLES_A_STATUER = ['anon', 'authenticated'];
 
