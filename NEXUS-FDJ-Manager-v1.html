@@ -352,6 +352,11 @@
   let historiqueEmploye = null; // { employeeId, moisISO ('YYYY-MM'), shifts, dernierPdf }
   let caisseReelleSemaine = null; // F2 (20/08/2026) : { periode: {debut, fin, label}, shifts, totaux }
   let retraitCaisse = null; // (20/08/2026) : { soldes, quantites: {gameId: qty}, motif }
+  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) : jeton stable par jeu
+  // pour "Retourner au bureau depuis la zone bloquée", qui n'a pas d'état de
+  // saisie persistant comme les formulaires ci-dessus — voir jetonIntention
+  // et retournerDepuisBloque.
+  const jetonsRetourBloque = {};
   let filtreHistorique = { periode: '7j', debut: null, fin: null }; // (20/08/2026) : 'aujourdhui' | '7j' | '30j' | 'dates'
   let vue = 'liste'; // 'liste' | 'continuite-stock' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation' | 'historique-mouvements'
   // Détail de continuité de stock ouvert depuis le badge d'un quart
@@ -601,6 +606,19 @@
   // deuxième façon de fabriquer une clé d'idempotence.
   function genererIdempotencyKey() {
     return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) : jeton STABLE d'une
+  // intention de saisie en cours — jamais régénéré pendant la vie de l'état
+  // (reappro / retraitCaisse / reception / blocage / rapprochement), pour
+  // qu'un rejeu réseau ou un double clic sur le MÊME formulaire retombe sur
+  // la même clé côté serveur (fdj_cle_idempotence, migration 20260916221000)
+  // au lieu d'un jeton frais à chaque appel, qui annulerait toute protection
+  // contre le rejeu. L'état est remis à `null` après succès (ou par Annuler/
+  // Retour) : la prochaine intention repart donc d'un jeton neuf.
+  function jetonIntention(etat) {
+    if (!etat.jeton) etat.jeton = genererIdempotencyKey();
+    return etat.jeton;
   }
 
   // Écrit le mouvement de stock d'une synchronisation Appro <-> Activation
@@ -3428,20 +3446,23 @@
 
   async function enregistrerReappro() {
     const btn = document.getElementById('btnConfirmerReappro');
-    const bureau = emplacementParType('bureau');
-    const caisse = emplacementParType('caisse');
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) : branché sur la
+    // commande serveur fdj_enregistrer_mouvement_stock (déployée le
+    // 16/09/2026, jusqu'ici inutilisée) plutôt qu'un insert direct — c'est
+    // elle qui résout site/employee_id/created_by/effective_at et qui porte
+    // désormais une idempotency_key réellement protectrice contre un rejeu
+    // réseau (gap #4 de l'audit : 6 écritures manager hors quart n'en
+    // envoyaient aucune). Les emplacements ne sont plus composés ici : c'est
+    // l'opération nommée 'reappro_caisse' qui les détermine côté serveur.
     const lignes = Object.entries(reappro.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'transfert', quantite: qte,
-        location_source_id: bureau ? bureau.id : null, location_destination_id: caisse ? caisse.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        justification: `Réapprovisionnement caisse — carnets non activés (manager).`,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à transférer.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'reappro_caisse', p_lignes: lignes, p_jeton: jetonIntention(reappro),
+    });
     if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reappro = null;
     renderAccueil();
@@ -3600,21 +3621,17 @@
 
   async function enregistrerRetraitCaisse() {
     const btn = document.getElementById('btnConfirmerRetraitCaisse');
-    const bureau = emplacementParType('bureau');
-    const caisse = emplacementParType('caisse');
-    const justification = `Retrait caisse → bureau (manager)${retraitCaisse.motif ? ` — ${labelMotifRetraitCaisse(retraitCaisse.motif)}` : ''}.`;
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) — voir enregistrerReappro.
     const lignes = Object.entries(retraitCaisse.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: qte,
-        location_source_id: caisse ? caisse.id : null, location_destination_id: bureau ? bureau.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        justification,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à retirer.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'retrait_caisse', p_lignes: lignes, p_jeton: jetonIntention(retraitCaisse),
+      p_motif: retraitCaisse.motif ? labelMotifRetraitCaisse(retraitCaisse.motif) : null,
+    });
     if (error) { console.error('Retrait caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le retrait'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; retraitCaisse = null;
     renderAccueil();
@@ -3894,20 +3911,17 @@
 
   async function enregistrerReception() {
     const btn = document.getElementById('btnConfirmerReception');
-    const bureau = emplacementParType('bureau');
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) — voir enregistrerReappro.
     const lignes = Object.entries(reception.quantites)
       .filter(([, qte]) => qte > 0)
-      .map(([gameId, qte]) => ({
-        site: siteId, game_id: gameId, type_mouvement: 'reception', quantite: qte,
-        location_source_id: null, location_destination_id: bureau ? bureau.id : null,
-        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-        source: reception.source || null,
-        justification: `Réception FDJ (manager)${reception.source ? ` — ${reception.source}` : ''}.`,
-      }));
+      .map(([gameId, qte]) => ({ game_id: gameId, quantite: qte }));
     if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité reçue.'); return; }
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'reception', p_lignes: lignes, p_jeton: jetonIntention(reception),
+      p_source: reception.source || null,
+    });
     if (error) { console.error('Réception FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer la réception'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reception = null;
     renderAccueil();
@@ -4073,7 +4087,7 @@
     `;
     document.getElementById('btnRetourStockEtat').addEventListener('click', () => { vue = 'liste'; stockEtat = null; stockEtatFiltre = 'tous'; renderAccueil(); });
     document.getElementById('btnOuvrirBlocage').addEventListener('click', () => ouvrirBlocage());
-    document.querySelectorAll('[data-retourner]').forEach(btn => btn.addEventListener('click', () => retournerDepuisBloque(btn.dataset.retourner)));
+    document.querySelectorAll('[data-retourner]').forEach(btn => btn.addEventListener('click', () => retournerDepuisBloque(btn.dataset.retourner, btn)));
     document.querySelectorAll('[data-rapprocher]').forEach(btn => btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const estime = btn.dataset.estime ? Number(btn.dataset.estime) : null;
@@ -4208,12 +4222,16 @@
     const btn = document.getElementById('btnValiderRapprochement');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const caisse = emplacementParType('caisse');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: rapprochement.gameId, shift_id: null, type_mouvement: 'activation', quantite: rapprochement.quantite,
-      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
-      methode_identification: 'saisie_manuelle', employee_id: null,
-      justification: `Rapprochement manuel manager — quart(s) complété(s)/corrigé(s) après coup sans mouvement tracé.${rapprochement.justification ? ` ${rapprochement.justification}` : ''}`,
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) — voir enregistrerReappro.
+    // employee_id reste NULL côté serveur pour cette opération précise (le
+    // rapprochement reconstitue le geste d'un employé resté inconnu) — exactement
+    // le comportement déjà en place ici, désormais garanti par la commande plutôt
+    // que par cet écran.
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'rapprochement_activation',
+      p_lignes: [{ game_id: rapprochement.gameId, quantite: rapprochement.quantite }],
+      p_jeton: jetonIntention(rapprochement),
+      p_motif: rapprochement.justification || null,
     });
     if (error) {
       console.error('Rapprochement stock FDJ:', error);
@@ -4269,32 +4287,36 @@
     const btn = document.getElementById('btnConfirmerBlocage');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-    const source = emplacementParType(blocage.emplacement);
-    const zoneBloquee = emplacementParType('bloque');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: blocage.gameId, type_mouvement: 'blocage', quantite: blocage.quantite,
-      location_source_id: source ? source.id : null, location_destination_id: zoneBloquee ? zoneBloquee.id : null,
-      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-      justification: `Retrait/blocage (manager) — ${blocage.motif}`,
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) — voir enregistrerReappro.
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'blocage',
+      p_lignes: [{ game_id: blocage.gameId, quantite: blocage.quantite }],
+      p_jeton: jetonIntention(blocage),
+      p_motif: blocage.motif,
+      p_emplacement_source: blocage.emplacement,
     });
     if (error) { console.error('Blocage FDJ:', error); btn.disabled = false; btn.textContent = 'Signaler'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'stock-etat'; blocage = null;
     await ouvrirStockEtat();
   }
 
-  async function retournerDepuisBloque(gameId) {
+  async function retournerDepuisBloque(gameId, btn) {
     const solde = stockEtat.soldes[gameId];
     if (!solde || !(solde.bloques > 0)) return;
     if (!confirm(`Retourner les ${solde.bloques} carnet(s) bloqué(s) de ce jeu au Bureau ?`)) return;
-    const zoneBloquee = emplacementParType('bloque');
-    const bureau = emplacementParType('bureau');
-    const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: solde.bloques,
-      location_source_id: zoneBloquee ? zoneBloquee.id : null, location_destination_id: bureau ? bureau.id : null,
-      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
-      justification: 'Retour au bureau depuis la zone bloquée (manager).',
+    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (04/10/2026) — voir enregistrerReappro.
+    // Pas d'état de saisie persistant ici (appel direct depuis la liste) :
+    // le jeton est conservé par jeu dans jetonsRetourBloque tant que le
+    // retour n'a pas réussi, pour qu'un rejeu/retry réutilise la même clé.
+    if (btn) btn.disabled = true;
+    if (!jetonsRetourBloque[gameId]) jetonsRetourBloque[gameId] = genererIdempotencyKey();
+    const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+      p_operation: 'retour_bloque',
+      p_lignes: [{ game_id: gameId, quantite: solde.bloques }],
+      p_jeton: jetonsRetourBloque[gameId],
     });
-    if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; }
+    if (error) { console.error('Retour depuis bloqué FDJ:', error); if (btn) btn.disabled = false; alert("Erreur d'enregistrement. Réessayez."); return; }
+    delete jetonsRetourBloque[gameId];
     await ouvrirStockEtat();
   }
 
