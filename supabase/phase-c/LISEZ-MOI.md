@@ -31,11 +31,14 @@ inadvertance. Ce n'est pas une convention : c'est la garde.
 
 ## Comment l'appliquer, le jour venu
 
-1. Lire les **conditions C1 à C5** en tête du fichier et les vérifier une par
+1. Lire les **conditions C1 à C7** en tête du fichier et les vérifier une par
    une. Elles portent sur l'état réel de la base et sur le fichier réellement
    **servi**, pas sur le contenu du dépôt. C5 est la plus facile à oublier, et
    elle a changé de sens le 17/09/2026 : l'écran *Ma Progression* ne lit plus
    `fdj_cash_controls` par jointure, il appelle `fdj_ma_progression_caisse()`.
+   Depuis le 04/10/2026, son libellé vise le **chemin servi** et non le fichier
+   qui porte l'appel : aujourd'hui l'appel est dans `nexus-caisse-source.js`,
+   que la page charge.
    La fermeture réserve donc la lecture des caisses au manager — mais si
    l'écran **servi** est encore l'ancien, il n'en sortira aucune erreur,
    seulement une ligne imbriquée vide, en silence. C'est le même piège,
