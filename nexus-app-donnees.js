@@ -160,7 +160,7 @@
   // nexus-desktop.js/nexusVerifierAlertesFdj) — jamais un second calcul.
   async function chargerAlertesFdjNonVuesHome(client, siteId) {
     const { count, error } = await client.from('fdj_alertes')
-      .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('vue', false);
+      .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('vue', false).eq('resolue_automatiquement', false);
     if (error) { console.error('Chargement alertes FDJ non vues (accueil):', error); return null; }
     return count;
   }

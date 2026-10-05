@@ -365,7 +365,7 @@ async function nexusVerifierAlertesFdj() {
     const { data: employee, error: eEmp } = await nexusClient.from('employees').select('site_id').eq('id', session.user.id).maybeSingle();
     if (eEmp || !employee) return;
     const { count, error } = await nexusClient.from('fdj_alertes')
-      .select('id', { count: 'exact', head: true }).eq('site', employee.site_id).eq('vue', false);
+      .select('id', { count: 'exact', head: true }).eq('site', employee.site_id).eq('vue', false).eq('resolue_automatiquement', false);
     if (error) { console.error('Vérification alertes FDJ (sidebar):', error); return; }
     if (!count) return;
     const lien = document.querySelector('.nexus-sidebar-link[href="NEXUS-FDJ-Manager-v1.html"]');

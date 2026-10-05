@@ -153,7 +153,13 @@
       const qte = Number(m.quantite) || 0;
       if (m.type_mouvement === 'transfert' && m.location_destination_id === locationCaisseId) {
         assurer(m.game_id).confies += qte;
-      } else if (m.type_mouvement === 'activation') {
+      } else if (m.type_mouvement === 'activation' || m.type_mouvement === 'correction') {
+        // 'correction' est l'écriture compensatoire de
+        // creerActivationReconstitueeCorrectionManager quand le manager annule
+        // une activation reconstituée à tort (quantite alors négative) — voir
+        // le même correctif, daté et justifié, sur soldesCarnetsAvecReference
+        // juste au-dessous. Les deux fonctions partagent la même table et le
+        // même contrat ; diverger entre elles reproduirait exactement le bug.
         assurer(m.game_id).actives += qte;
       } else if (m.type_mouvement === 'retour' && m.location_source_id === locationCaisseId) {
         assurer(m.game_id).confies -= qte;
@@ -165,6 +171,17 @@
   function soldeCarnetsJeu(mouvements, locationCaisseId, gameId) {
     const soldes = soldesCarnetsParJeu(mouvements, locationCaisseId);
     return soldes[gameId] || { confies: 0, actives: 0, nonActives: 0 };
+  }
+
+  // Date métier d'un mouvement — 05/10/2026, lot FDJ-CARNETS-LEDGER-AUDIT-1.
+  // Un carnet reçu le 02/10, activé le 03/10 et saisi le 05/10 avec effet au
+  // 02/10 doit compter au 02/10 : `effective_at` (posée par le serveur depuis
+  // 20260916220400) prime, `created_at` (instant de saisie) n'est que le repli
+  // des mouvements antérieurs à la colonne. Même règle que
+  // fdj_reconcilier_caisse_jeu (20261005090000) : un seul calendrier.
+  function instantEffetMouvement(m) {
+    if (!m) return null;
+    return m.effective_at || m.created_at || null;
   }
 
   // ------------------------------------------------------------
@@ -209,13 +226,33 @@
     };
     const seuil = reference && reference.creeLe ? new Date(reference.creeLe).getTime() : null;
     (mouvements || []).forEach(m => {
-      if (seuil !== null && m.created_at && new Date(m.created_at).getTime() <= seuil) return; // avant le point zéro : déjà incorporé dans la référence
+      const instant = instantEffetMouvement(m);
+      if (seuil !== null && instant && new Date(instant).getTime() <= seuil) return; // effet avant le point zéro : déjà incorporé dans la référence
       const qte = Number(m.quantite) || 0;
       const s = assurer(m.game_id);
       if (m.type_mouvement === 'transfert' && m.location_destination_id === locations.caisse) {
         s.confies += qte;
         if (m.location_source_id === locations.bureau) s.bureau -= qte;
-      } else if (m.type_mouvement === 'activation') {
+      } else if (m.type_mouvement === 'activation' || m.type_mouvement === 'correction') {
+        // 'correction' — 04/10/2026, anomalie terrain remontée sur
+        // l'inventaire/mouvements de carnets. Jusqu'ici routé vers
+        // confies/bureau par emplacement de destination, comme un
+        // réapprovisionnement. Mais le seul producteur réel de 'correction'
+        // est creerActivationReconstitueeCorrectionManager
+        // (NEXUS-FDJ-Manager-v1.html, "Modifier ce quart FDJ") : il écrit
+        // TOUJOURS location_source_id = location_destination_id = caisse
+        // (aucun déplacement physique, seul l'état du carnet change — même
+        // convention que 'activation'), et sert exclusivement à annuler
+        // (quantite négative) une activation reconstituée à tort. L'ancien
+        // routage ne touchait jamais `actives` : l'activation fautive y
+        // restait comptée pour toujours, tandis que `confies` était
+        // décrémenté comme si des carnets avaient physiquement quitté la
+        // caisse — ce qui n'était jamais le cas. Deux chiffres faussés par
+        // la même écriture, dans des sens différents, sans qu'aucun test ne
+        // le voie (soldesCarnetsAvecReference n'avait aucune couverture sur
+        // 'correction'). 'correction' doit donc annuler exactement ce
+        // qu'une 'activation' du même montant aurait compté — jamais un
+        // second mécanisme de comptage (Article 11).
         s.actives += qte;
       } else if (m.type_mouvement === 'retour') {
         if (m.location_source_id === locations.caisse) {
@@ -231,9 +268,6 @@
       } else if (m.type_mouvement === 'blocage') {
         if (m.location_source_id === locations.bureau) { s.bureau -= qte; s.bloques += qte; }
         else if (m.location_source_id === locations.caisse) { s.confies -= qte; s.bloques += qte; }
-      } else if (m.type_mouvement === 'correction') {
-        if (m.location_destination_id === locations.caisse) s.confies += qte;
-        else if (m.location_destination_id === locations.bureau) s.bureau += qte;
       }
     });
     if (reference && reference.lignes) Object.keys(reference.lignes).forEach(id => assurer(id));
@@ -921,8 +955,9 @@
     const debutMs = referenceMs !== null ? Math.max(debutFenetreMs, referenceMs) : debutFenetreMs;
     let total = 0;
     (mouvements || []).forEach(m => {
-      if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !m.created_at) return;
-      const t = new Date(m.created_at).getTime();
+      const instant = instantEffetMouvement(m);
+      if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !instant) return;
+      const t = new Date(instant).getTime();
       if (t > debutMs && t <= maintenantMs) total += Number(m.quantite) || 0;
     });
     const joursEcoules = Math.max((maintenantMs - debutMs) / 86400000, 1);
@@ -1954,7 +1989,7 @@
 
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye, etapeCaisseFdj,
-    soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
+    soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference, instantEffetMouvement,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
