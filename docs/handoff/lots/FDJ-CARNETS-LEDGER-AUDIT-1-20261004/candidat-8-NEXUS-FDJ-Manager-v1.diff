@@ -1,0 +1,135 @@
+--- .scratch-fdj/prod-manager.html	2026-10-05 10:39:17.810538777 +0000
++++ .scratch-fdj/candidate-manager.html	2026-10-05 10:44:55.537781207 +0000
+@@ -352,6 +352,17 @@
+   let historiqueEmploye = null; // { employeeId, moisISO ('YYYY-MM'), shifts, dernierPdf }
+   let caisseReelleSemaine = null; // F2 (20/08/2026) : { periode: {debut, fin, label}, shifts, totaux }
+   let retraitCaisse = null; // (20/08/2026) : { soldes, quantites: {gameId: qty}, motif }
++  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (2026-10-05, reconstruit contre le
++  // code réel de production — préserve l'architecture RPC de PR #62, ne
++  // touche que la gestion du jeton d'idempotence) : jeton stable par jeu
++  // pour les écritures qui n'ont pas de formulaire persistant comme ceux
++  // ci-dessus — voir jetonIntention plus bas pour les formulaires, et
++  // retournerDepuisBloque / creerActivationReconstitueeCorrectionManager
++  // pour l'usage de ces deux dictionnaires. Conservé tant que l'écriture
++  // n'a pas réussi, pour qu'un rejeu réseau ou un second tap réutilisent
++  // la même clé plutôt que d'en minter une neuve côté client.
++  const jetonsRetourBloque = {};
++  const jetonsCorrectionManager = {};
+   let filtreHistorique = { periode: '7j', debut: null, fin: null }; // (20/08/2026) : 'aujourdhui' | '7j' | '30j' | 'dates'
+   let vue = 'liste'; // 'liste' | 'continuite-stock' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation' | 'historique-mouvements'
+   // Détail de continuité de stock ouvert depuis le badge d'un quart
+@@ -653,6 +664,20 @@
+     return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+   }
+ 
++  // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (2026-10-05) : jeton STABLE d'une
++  // intention de saisie en cours — jamais régénéré pendant la vie de l'état
++  // (reappro / retraitCaisse / reception / blocage / rapprochement), pour
++  // qu'un rejeu réseau ou un second clic sur le MÊME formulaire retombe sur
++  // la même clé côté serveur (fdj_enregistrer_mouvement_stock, migration
++  // 20260916221000, déjà en place via PR #62) au lieu d'un jeton frais à
++  // chaque appel, qui annulerait toute protection contre le rejeu réseau.
++  // L'état est remis à `null` après succès (ou par Annuler/Retour) : la
++  // prochaine intention repart donc d'un jeton neuf.
++  function jetonIntention(etat) {
++    if (!etat.jeton) etat.jeton = genererIdempotencyKey();
++    return etat.jeton;
++  }
++
+   // Écrit le mouvement de stock d'une synchronisation Appro <-> Activation
+   // décidée par `NexusFdjMoteur.decisionSynchronisationApproActivation` (voir
+   // son en-tête, 27/08/2026, demande de Frédéric) — jamais appelée sans
+@@ -670,18 +695,24 @@
+     // responsable opérationnel d'une activation qu'il n'a jamais faite, et
+     // c'est exactement ce que la commande corrige — `employee_id` reste le
+     // titulaire du quart, `created_by` devient le manager.
++    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (2026-10-05, dette fraîche-vs-
++    // stable fermée) : jeton stable par jeu (jetonsCorrectionManager) —
++    // jamais régénéré avant un succès, pour qu'un rejeu réseau retombe sur
++    // la même clé.
++    if (!jetonsCorrectionManager[gameId]) jetonsCorrectionManager[gameId] = genererIdempotencyKey();
+     const { data: retour, error } = await nexusClient.rpc('fdj_activer_carnet', {
+       p_shift_id: shift.id,
+       p_game_id: gameId,
+       p_quantite: quantite,
+       p_methode: 'reconstituee_correction_manager',
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonsCorrectionManager[gameId],
+       p_justification: justification,
+     });
+-    if (!error && retour && retour.idempotent) return true; // rejeu réseau, reconnu par la commande
+-    if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; }
++    if (!error && retour && retour.idempotent) { delete jetonsCorrectionManager[gameId]; return true; } // rejeu réseau, reconnu par la commande
++    if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; } // jeton conservé : un rejeu réel réutilisera la même clé
+     // Le `fdj_audit_log` qui suivait est retiré : la commande journalise les
+     // deux mêmes actions, dans la transaction du mouvement.
++    delete jetonsCorrectionManager[gameId];
+     return true;
+   }
+   // Solde confiés/activés/non-activés (09/08/2026, précision de Frédéric :
+@@ -3506,7 +3537,7 @@
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'reappro_caisse',
+       p_lignes: lignes,
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonIntention(reappro),
+     });
+     if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
+     vue = 'liste'; reappro = null;
+@@ -3678,7 +3709,7 @@
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'retrait_caisse',
+       p_lignes: lignes,
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonIntention(retraitCaisse),
+       p_motif: retraitCaisse.motif ? labelMotifRetraitCaisse(retraitCaisse.motif) : null,
+     });
+     if (error) { console.error('Retrait caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le retrait'; alert("Erreur d'enregistrement. Réessayez."); return; }
+@@ -3975,7 +4006,7 @@
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'reception',
+       p_lignes: lignes,
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonIntention(reception),
+       p_source: reception.source || null,
+     });
+     if (error) { console.error('Réception FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer la réception'; alert("Erreur d'enregistrement. Réessayez."); return; }
+@@ -4287,7 +4318,7 @@
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'rapprochement_activation',
+       p_lignes: [{ game_id: rapprochement.gameId, quantite: rapprochement.quantite }],
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonIntention(rapprochement),
+       p_motif: rapprochement.justification || null,
+     });
+     if (error) {
+@@ -4354,7 +4385,7 @@
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'blocage',
+       p_lignes: [{ game_id: blocage.gameId, quantite: blocage.quantite }],
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonIntention(blocage),
+       p_motif: blocage.motif,
+       p_emplacement_source: blocage.emplacement,
+     });
+@@ -4371,12 +4402,18 @@
+     // Le sens du mouvement (zone bloquée → bureau) est fixé par l'opération :
+     // il n'est plus possible d'écrire par erreur un `retour` qui viderait le
+     // bureau vers la zone bloquée en inversant deux variables.
++    // FDJ-CARNETS-LEDGER-AUDIT-1-20261004 (2026-10-05) — pas d'état de
++    // saisie persistant ici (appel direct depuis la liste) : le jeton est
++    // conservé par jeu dans jetonsRetourBloque tant que le retour n'a pas
++    // réussi, pour qu'un rejeu réseau réutilise la même clé.
++    if (!jetonsRetourBloque[gameId]) jetonsRetourBloque[gameId] = genererIdempotencyKey();
+     const { error } = await nexusClient.rpc('fdj_enregistrer_mouvement_stock', {
+       p_operation: 'retour_bloque',
+       p_lignes: [{ game_id: gameId, quantite: solde.bloques }],
+-      p_jeton: genererIdempotencyKey(),
++      p_jeton: jetonsRetourBloque[gameId],
+     });
+-    if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; }
++    if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; } // jeton conservé : un rejeu réel réutilisera la même clé
++    delete jetonsRetourBloque[gameId];
+     await ouvrirStockEtat();
+   }
+ 

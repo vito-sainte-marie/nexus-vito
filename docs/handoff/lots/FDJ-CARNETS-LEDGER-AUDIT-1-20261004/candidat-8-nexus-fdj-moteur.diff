@@ -1,0 +1,55 @@
+--- .scratch-fdj/prod-moteur.js	2026-10-05 10:38:00.397389747 +0000
++++ .scratch-fdj/candidate-moteur.js	2026-10-05 10:38:59.837734338 +0000
+@@ -153,7 +153,13 @@
+       const qte = Number(m.quantite) || 0;
+       if (m.type_mouvement === 'transfert' && m.location_destination_id === locationCaisseId) {
+         assurer(m.game_id).confies += qte;
+-      } else if (m.type_mouvement === 'activation') {
++      } else if (m.type_mouvement === 'activation' || m.type_mouvement === 'correction') {
++        // 'correction' est l'écriture compensatoire de
++        // creerActivationReconstitueeCorrectionManager quand le manager annule
++        // une activation reconstituée à tort (quantite alors négative) — voir
++        // le même correctif, daté et justifié, sur soldesCarnetsAvecReference
++        // juste au-dessous. Les deux fonctions partagent la même table et le
++        // même contrat ; diverger entre elles reproduirait exactement le bug.
+         assurer(m.game_id).actives += qte;
+       } else if (m.type_mouvement === 'retour' && m.location_source_id === locationCaisseId) {
+         assurer(m.game_id).confies -= qte;
+@@ -215,7 +221,26 @@
+       if (m.type_mouvement === 'transfert' && m.location_destination_id === locations.caisse) {
+         s.confies += qte;
+         if (m.location_source_id === locations.bureau) s.bureau -= qte;
+-      } else if (m.type_mouvement === 'activation') {
++      } else if (m.type_mouvement === 'activation' || m.type_mouvement === 'correction') {
++        // 'correction' — 04/10/2026, anomalie terrain remontée sur
++        // l'inventaire/mouvements de carnets. Jusqu'ici routé vers
++        // confies/bureau par emplacement de destination, comme un
++        // réapprovisionnement. Mais le seul producteur réel de 'correction'
++        // est creerActivationReconstitueeCorrectionManager
++        // (NEXUS-FDJ-Manager-v1.html, "Modifier ce quart FDJ") : il écrit
++        // TOUJOURS location_source_id = location_destination_id = caisse
++        // (aucun déplacement physique, seul l'état du carnet change — même
++        // convention que 'activation'), et sert exclusivement à annuler
++        // (quantite négative) une activation reconstituée à tort. L'ancien
++        // routage ne touchait jamais `actives` : l'activation fautive y
++        // restait comptée pour toujours, tandis que `confies` était
++        // décrémenté comme si des carnets avaient physiquement quitté la
++        // caisse — ce qui n'était jamais le cas. Deux chiffres faussés par
++        // la même écriture, dans des sens différents, sans qu'aucun test ne
++        // le voie (soldesCarnetsAvecReference n'avait aucune couverture sur
++        // 'correction'). 'correction' doit donc annuler exactement ce
++        // qu'une 'activation' du même montant aurait compté — jamais un
++        // second mécanisme de comptage (Article 11).
+         s.actives += qte;
+       } else if (m.type_mouvement === 'retour') {
+         if (m.location_source_id === locations.caisse) {
+@@ -231,9 +256,6 @@
+       } else if (m.type_mouvement === 'blocage') {
+         if (m.location_source_id === locations.bureau) { s.bureau -= qte; s.bloques += qte; }
+         else if (m.location_source_id === locations.caisse) { s.confies -= qte; s.bloques += qte; }
+-      } else if (m.type_mouvement === 'correction') {
+-        if (m.location_destination_id === locations.caisse) s.confies += qte;
+-        else if (m.location_destination_id === locations.bureau) s.bureau += qte;
+       }
+     });
+     if (reference && reference.lignes) Object.keys(reference.lignes).forEach(id => assurer(id));
