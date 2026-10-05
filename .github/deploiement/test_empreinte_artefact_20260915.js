@@ -571,6 +571,14 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ───
 //    291
 //
+//   05/10/2026 — seule une prise de poste « caissiere » ouvre un quart FDJ
+//   (arbitrage de Frédéric) :
+//   + 1  `20261005180000_fdj_ouverture_quart_caissiere_seule.sql`
+//        une RPC redéfinie à signature, retour et droits identiques — aucune
+//        table, colonne ni droit nouveau
+//   ───
+//    292
+//
 //   Au passage : #62 et `production` ont tous deux annoncé 276 le 22/09, par
 //   deux chemins sans aucun fichier commun. Le nombre seul ne les distinguait
 //   pas ; les empreintes, si.
@@ -587,8 +595,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 291;
-const MIGRATIONS_REELLES_EMPREINTE = '8d1c4690a2c88c36000df72582844cb0a67f2374431139d6f851df04c5fee3fe';
+const MIGRATIONS_REELLES_NOMBRE = 292;
+const MIGRATIONS_REELLES_EMPREINTE = '2425d4ccdca92a23fc8bac325c7f91a72533b08a00c405513d6c083ba9f5c59f';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
