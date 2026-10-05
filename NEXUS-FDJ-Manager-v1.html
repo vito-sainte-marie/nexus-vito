@@ -5306,6 +5306,8 @@
       <div class="champ-note" style="margin:0 0 8px;">Changer le titulaire d'un quart déjà ouvert est un <b>transfert de responsabilité</b> : ${nomEmployeSite(edition.employeeIdOrigine)} reste responsable de ce qui a été fait avant. Le motif est obligatoire et rejoint le journal.</div>
       <label class="champ-label">Motif du transfert de responsabilité *</label>
       <input class="champ-input" id="champMotifTransfert" type="text" style="margin-bottom:16px;" placeholder="Ex. : absence imprévue, renfort de fin de quart…" value="${(edition.motifTransfert || '').replace(/"/g, '&quot;')}">
+      <button type="button" class="btn-modifier" id="btnTransfererSeulement" style="margin:-8px 0 6px;">Transférer seulement</button>
+      <div class="champ-note" style="margin:0 0 16px;">Change uniquement le titulaire : aucun verdict, aucun montant, aucun comptage n'est enregistré.</div>
       ` : ''}
 
       <div class="champ-sep"></div>
@@ -5609,6 +5611,8 @@
     document.getElementById('champEmploye').addEventListener('change', e => { edition.employeeId = e.target.value; renderEdition(); });
     const champMotifTransfert = document.getElementById('champMotifTransfert');
     if (champMotifTransfert) champMotifTransfert.addEventListener('input', e => { edition.motifTransfert = e.target.value; });
+    const btnTransfererSeulement = document.getElementById('btnTransfererSeulement');
+    if (btnTransfererSeulement) btnTransfererSeulement.addEventListener('click', transfererSeulement);
     // "État de saisie" (ex-"Statut du quart") conditionne "État du quart"
     // (badge dérivé) — re-rendu complet pour rester cohérent partout.
     document.getElementById('champStatutShift').addEventListener('change', e => { edition.statutShift = e.target.value; renderEdition(); });
@@ -5766,6 +5770,43 @@
       return;
     }
     await ouvrirEditionExistant(shift);
+  }
+
+  // 05/10/2026 : transférer le titulaire d'un quart ouvert par erreur ne
+  // doit exiger ni verdict ni enregistrement du quart. Passer par
+  // enregistrerEdition imposait un verdict et écrivait comptages préremplis,
+  // rapports vides, saisie de caisse et audit `correction_manager` pour un
+  // simple changement de titulaire. Ce geste n'appelle que la commande de
+  // transfert (motif, journal, responsable précédent), puis relit le quart.
+  async function transfererSeulement() {
+    if (!transfertEnCours()) return;
+    const motif = (edition.motifTransfert || '').trim();
+    if (motif.length < 5) {
+      alert('Indiquez un motif d\'au moins 5 caract\u00e8res. Il rejoint le journal du quart.');
+      const champMotifT = document.getElementById('champMotifTransfert');
+      if (champMotifT) champMotifT.focus();
+      return;
+    }
+    if (!confirm('Transf\u00e9rer ce quart \u00e0 ' + nomEmployeSite(edition.employeeId) + ' ?\n\nSeul le titulaire change. Les autres modifications non enregistr\u00e9es de cet \u00e9cran seront abandonn\u00e9es.')) return;
+    const btnT = document.getElementById('btnTransfererSeulement');
+    if (btnT) { btnT.disabled = true; btnT.textContent = 'Transfert\u2026'; }
+    const { data: rTransfert, error: eTransfert } = await nexusClient.rpc('fdj_transferer_responsabilite_quart', {
+      p_shift_id: edition.shiftId,
+      p_nouveau_responsable_id: edition.employeeId,
+      p_motif: motif,
+    });
+    if (eTransfert) {
+      console.error('Transfert de responsabilité du quart FDJ:', eTransfert);
+      if (btnT) { btnT.disabled = false; btnT.textContent = 'Transférer seulement'; }
+      alert('Le transfert de responsabilit\u00e9 a \u00e9t\u00e9 refus\u00e9 : ' + (eTransfert.message || 'raison inconnue'));
+      return;
+    }
+    if (rTransfert && rTransfert.transfere === false && rTransfert.motif !== 'deja_responsable') {
+      if (btnT) { btnT.disabled = false; btnT.textContent = 'Transférer seulement'; }
+      alert('Transfert refus\u00e9 : ' + (rTransfert.message || rTransfert.motif));
+      return;
+    }
+    await rechargerQuartEdition();
   }
 
   async function enregistrerEdition() {
