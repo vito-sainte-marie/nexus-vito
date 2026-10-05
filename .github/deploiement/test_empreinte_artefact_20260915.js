@@ -562,6 +562,15 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ───
 //    290
 //
+//   05/10/2026 — réconciliation canonique de la caisse FDJ (decision-9, lot
+//   FDJ-CARNETS-LEDGER-AUDIT-1-20261004) :
+//   + 1  `20261005090000_fdj_reconciliation_canonique_caisse.sql`
+//        un helper interne (service_role seul) et deux RPC redéfinies à
+//        signature et retour identiques — aucune table, colonne ni droit
+//        navigateur nouveau
+//   ───
+//    291
+//
 //   Au passage : #62 et `production` ont tous deux annoncé 276 le 22/09, par
 //   deux chemins sans aucun fichier commun. Le nombre seul ne les distinguait
 //   pas ; les empreintes, si.
@@ -578,8 +587,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 290;
-const MIGRATIONS_REELLES_EMPREINTE = 'f28f26b1eaca4c84d020e830acc8ade945cd49c421e23a08a0838c1eac4e447a';
+const MIGRATIONS_REELLES_NOMBRE = 291;
+const MIGRATIONS_REELLES_EMPREINTE = '8d1c4690a2c88c36000df72582844cb0a67f2374431139d6f851df04c5fee3fe';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);

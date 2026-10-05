@@ -91,7 +91,7 @@
     const [locations, reference, { data: mouvements, error }] = await Promise.all([
       chargerEmplacementsCoach(client, site),
       chargerReferenceCoach(client, site),
-      client.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', site),
+      client.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at, effective_at').eq('site', site),
     ]);
     if (error) { console.error('Coach FDJ — chargement mouvements stock:', error); return {}; }
     return global.NexusFdjMoteur.soldesCarnetsAvecReference(mouvements || [], locations, reference);

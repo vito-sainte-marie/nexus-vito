@@ -214,6 +214,7 @@ function nouveauContexte({ tables, shiftCounts, cryptoFixe, etatServeur }) {
     countsSaisie: {},
     carnetsDeclaresCeQuart: 0,
     activationsEnCours: new Set(),
+    jetonsActivationCarnet: {}, // état module de NEXUS-FDJ-v1.html (jeton stable par jeu, 2026-10-05)
     MOTIFS_EXCEPTION_CARNET: [],
     fmtNum: (n) => String(n),
     nexusClient: creerNexusClientFake(tables, {

@@ -416,7 +416,7 @@
       client.from('view_fdj_daily_summary').select('*').eq('site', siteId).gte('date', iso(debutComp)).lte('date', iso(finActuelle)),
       client.from('view_fdj_game_daily').select('game_id, ca, date').eq('site', siteId).gte('date', iso(debutActuelle)).lte('date', iso(finActuelle)),
       client.from('fdj_locations').select('id, type').eq('site', siteId).eq('actif', true),
-      client.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', siteId),
+      client.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at, effective_at').eq('site', siteId),
       chargerDerniereReferenceFdj(client, siteId),
     ]);
     if (e1 || e2 || e3 || e4 || e5) { [e1, e2, e3, e4, e5].forEach(e => { if (e) console.error('Chargement données FDJ (Brief):', e); }); return { candidats: [], resume: null }; }
