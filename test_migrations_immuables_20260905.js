@@ -19,6 +19,33 @@
 //
 // Ce contrôle ne dépend d'aucun secret ni d'aucun accès base : il compare la
 // branche `production` à la branche courante. Il aurait arrêté 95cc92a.
+//
+// SÉPARATION D'AUTORITÉ (GO request-1, lot `GOUVERNANCE-REFERENCE-CODE-
+// 20261005`, arbitrage de Frédéric du 05/10/2026). `origin/production` est
+// désormais l'autorité du code applicatif et des migrations ; le rail
+// (`handoff-continuite-20260920`) est l'autorité du seul protocole Handoff —
+// il ne prétend plus porter une copie complète des migrations Production.
+// CI `37356858235` l'a rendu rouge : Production comptait 292 migrations, le
+// rail n'en portait pas 2 (`20261005090000_fdj_reconciliation_canonique_
+// caisse.sql`, `20261005180000_fdj_ouverture_quart_caissiere_seule.sql`),
+// ajoutées en Production APRÈS la divergence du rail, jamais transportées —
+// jamais supprimées. L'ancienne comparaison (production au tip COURANT contre
+// le système de fichiers local) confondait les deux : sous l'ancien modèle,
+// où chaque branche était censée mirer l'intégralité de l'applicatif, une
+// absence locale ne pouvait signifier qu'une suppression. Ce n'est plus vrai
+// pour une branche qui a sciemment divergé de `production` en autorité.
+//
+// LA RÉFÉRENCE CORRIGÉE : production AU POINT OÙ CETTE BRANCHE A DIVERGÉ
+// (`git merge-base production HEAD`), pas au tip courant. Une branche reste
+// strictement responsable de ne rien perdre de ce qui existait en production
+// au moment où elle s'en est détachée — c'est l'invariant réel, et celui que
+// 95cc92a aurait toujours violé (la migration renommée existait déjà en
+// production avant la divergence). Une migration ajoutée à `production`
+// APRÈS cette divergence n'est simplement pas encore connue de la branche :
+// son absence n'est pas une suppression, et ce contrôle ne la voit plus
+// comme telle. Pour une branche applicative qui descend de la production
+// courante (merge-base = tip), rien ne change : la comparaison reste
+// intégrale.
 'use strict';
 
 const assert = require('assert');
@@ -57,19 +84,47 @@ const REF = refProduction({ git });
 assert.ok(REF, 'La référence de production est introuvable. En CI, récupérer la branche '
   + '(`git fetch origin production` ou `fetch-depth: 0`) : sans elle, ce '
   + 'contrôle ne peut pas savoir quelles migrations sont déjà appliquées en production.');
-console.log(`Référence de production : ${REF}\n`);
+
+// La référence d'immuabilité n'est pas le tip courant de production, mais
+// production AU POINT DE DIVERGENCE de cette branche — voir le commentaire
+// d'en-tête (séparation d'autorité, GO request-1 du 05/10/2026). Si HEAD
+// descend de production (branche applicative à jour), le merge-base EST le
+// tip : rien ne change. Si HEAD a divergé (rail Handoff, ou tout ce qui en
+// descend), le merge-base fige l'état de production à cette date-là, et les
+// migrations ajoutées depuis ne sont simplement pas évaluées par ce contrôle.
+let REF_BASE;
+try {
+  REF_BASE = git('merge-base', REF, 'HEAD').trim();
+} catch (e) {
+  throw new Error(`Point de divergence introuvable entre ${REF} et HEAD : ${e.message}. `
+    + 'En CI, vérifier que `fetch-depth` est suffisant pour atteindre un ancêtre commun — '
+    + 'sans lui, ce contrôle ne peut pas savoir quelle production cette branche doit honorer.');
+}
+console.log(`Référence de production (tip) : ${REF}`);
+console.log(`Référence d'immuabilité (point de divergence, merge-base) : ${REF_BASE}\n`);
 
 // ── Inventaire des deux côtés ────────────────────────────────────────────
-const enProduction = git('ls-tree', '--name-only', REF, `${DOSSIER}/`)
+const enProductionTip = git('ls-tree', '--name-only', REF, `${DOSSIER}/`)
+  .split('\n').filter(l => l.endsWith('.sql')).map(l => path.basename(l));
+const enProduction = git('ls-tree', '--name-only', REF_BASE, `${DOSSIER}/`)
   .split('\n').filter(l => l.endsWith('.sql')).map(l => path.basename(l));
 const enLocal = fs.readdirSync(path.join(RACINE, DOSSIER)).filter(f => f.endsWith('.sql'));
 
-verifier(`la branche production porte des migrations (${enProduction.length})`, enProduction.length > 0);
+verifier(`la branche production porte des migrations (${enProductionTip.length} au tip, ${enProduction.length} au point de divergence)`,
+  enProductionTip.length > 0 && enProduction.length > 0);
+
+const ajouteesDepuisLaDivergence = enProductionTip.filter(f => !enProduction.includes(f));
+if (ajouteesDepuisLaDivergence.length) {
+  console.log(`Migrations ajoutées à production depuis la divergence de cette branche `
+    + `(non évaluées par ce contrôle, ${ajouteesDepuisLaDivergence.length}) :`);
+  ajouteesDepuisLaDivergence.forEach(f => console.log(`  · ${f}`));
+  console.log('');
+}
 
 const empreinte = contenu => crypto.createHash('sha256').update(contenu).digest('hex');
 const contenuProduction = new Map();
 for (const f of enProduction) {
-  contenuProduction.set(f, empreinte(git('show', `${REF}:${DOSSIER}/${f}`)));
+  contenuProduction.set(f, empreinte(git('show', `${REF_BASE}:${DOSSIER}/${f}`)));
 }
 const contenuLocal = new Map();
 for (const f of enLocal) {
@@ -125,4 +180,6 @@ verifier('la migration `fermer_lecture_anonyme_sites` porte le numéro de produc
   enLocal.includes('20260904130807_fermer_lecture_anonyme_sites.sql')
   && !enLocal.includes('20260904140000_fermer_lecture_anonyme_sites.sql'));
 
-console.log(`\n${ok} vérifications passées — ${enProduction.length} migrations de production contrôlées.`);
+console.log(`\n${ok} vérifications passées — ${enProduction.length} migrations de production contrôlées `
+  + `(point de divergence), ${ajouteesDepuisLaDivergence.length} ajoutées depuis et non évaluées, `
+  + `${enProductionTip.length} au tip courant de production.`);
