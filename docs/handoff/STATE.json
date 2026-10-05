@@ -286,9 +286,13 @@
       "consomme_le": "2026-10-05T23:15:51.693Z"
     },
     "GOUVERNANCE-REFERENCE-CODE-20261005": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "b6ff9033b8245d12c476264613d5b6b80ed3d0c2",
+      "consomme_le": "2026-10-05T23:18:05.512Z"
     }
   },
   "artefacts_hors_registre": [
