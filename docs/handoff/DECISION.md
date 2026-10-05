@@ -1,119 +1,102 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CARNETS-LEDGER-AUDIT-1-20261004/decision-7.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CARNETS-LEDGER-AUDIT-1-20261004/decision-8.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FDJ-CARNETS-LEDGER-AUDIT-1-20261004
-seq: 7
+seq: 8
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-7.md
+in_reply_to: request-8.md
 ---
-# decision-7 — GO préparation/qualification du correctif FDJ reconstruit contre le code réel de Production
+# decision-8 — GO transport/qualification du candidat FDJ reconstruit (request-8), toujours sans fusion Production
 
 `APPROVED_WITH_CONDITIONS`, `closes: false`.
 
-Le lot reste ouvert : cette décision accepte le diagnostic de `request-7.md`
-(STOP sans fusion était la bonne réponse — `production` porte déjà sa
-propre bascule RPC indépendante issue de PR #62) et autorise une nouvelle
-séquence de préparation/qualification, strictement non-fusionnante. Elle se
-referme sur l'arbitrage qui suivra le rapport attendu en réponse (candidat
-minimal reconstruit, matrice 9/9, verdict de readiness).
+Le lot reste ouvert : cette décision accepte le constat de `request-8.md`
+(candidat minimal reconstruit contre le code réel de `production`, prouvé
+par exécution réelle, matrice 9/9 verte, mais `NON_PRET_POUR_FUSION_PRODUCTION`
+faute de qualification nexus-test/CI réelle) et autorise une nouvelle
+séquence strictement non-fusionnante : transport effectif du candidat sous
+forme de branche/PR minimale basée sur le HEAD Production réellement
+vérifié, exécution des gates déterministes disponibles, et vérification
+d'absence de contamination du diff.
 
 Frédéric Bragance a rendu cet arbitrage dans l'issue #28 (2026-10-05). Verbatim :
 
-> ARBITRAGE HUMAIN — GO REQUEST-7 FDJ CARNETS
+> GO TRANSPORT / QUALIFICATION REQUEST-8 — FDJ CARNETS
 >
 > Lot : FDJ-CARNETS-LEDGER-AUDIT-1-20261004
-> Réponse à : request-7.md
-> Décision humaine explicite de Frédéric : « Go request 7 ».
+> Réponse à : request-8.md
+> Décision humaine explicite de Frédéric : « GO transport request-8 ».
 >
-> Le diagnostic de request-7 est accepté : ne pas cherry-pick aveuglément
-> 7e41b3b/b445860 sur Production. La suite doit être reconstruite contre le
-> code RÉEL actuellement présent sur production, en préservant PR #62.
+> État canonique vérifié avant ce GO :
+> - rail handoff-continuite-20260920 = a1ce903c3e777e51fb1f01781b79ab9bfaedb824 ;
+> - STATE.json blob = 2b2202646f63d55a12ac77bcf9d65af80a5d1317 ;
+> - lot = ATTENTE_DECISION, request-8.md active ;
+> - decision-7 = d959d8be213b32de9b182614a80dfbfb7addead4, consommée ;
+> - production = 30544c9af7ebf83d8ec1ba3882418252380036f1, inchangée.
 >
-> AUTORISATION LIMITÉE À LA PRÉPARATION/QUALIFICATION — PAS DE FUSION
-> PRODUCTION DANS CE GESTE
+> Important : le candidat/request-8 EST désormais transporté sur le rail
+> canonique. Ne pas refaire ni dupliquer ce transport.
 >
-> 1. Déposer/consommer la décision canonique en réponse à request-7.md via
->    outils/handoff.js, verdict APPROVED_WITH_CONDITIONS, closes=false.
+> AUTORISATION LIMITÉE
+> 1. Déposer/consommer la décision canonique en réponse à request-8.md, closes=false.
+> 2. Revalider que les artefacts du candidat minimal sont présents et cohérents
+>    sur le rail a1ce903..., notamment les snapshots/diffs et la matrice 9/9.
+> 3. Matérialiser, si le protocole le permet, une branche/PR candidate MINIMALE
+>    basée sur le HEAD production réellement vérifié, contenant uniquement :
+>    - correction ledger de nexus-fdj-moteur.js ;
+>    - stabilisation des idempotency_key dans NEXUS-FDJ-v1.html et
+>      NEXUS-FDJ-Manager-v1.html ;
+>    en préservant strictement l'architecture RPC de PR #62.
+> 4. Exécuter les gates CI/guardians et la qualification nexus-test disponible.
+>    Si une recette navigateur nexus-test est techniquement disponible,
+>    l'exécuter et documenter les preuves ; sinon classer explicitement la
+>    limite, sans simulation.
+> 5. Vérifier que le diff candidat vers production n'introduit aucun
+>    fichier/hunk étranger, aucune ancienne écriture .insert() directe, aucune
+>    migration Test-only et aucun artefact Handoff/gouvernance.
+> 6. Publier la request suivante avec SHA base Production, SHA candidat/branche/PR
+>    éventuelle, diff exhaustif, run IDs, résultats CI/guardians/recette, matrice
+>    9/9 et verdict clair PRET ou NON_PRET POUR FUSION PRODUCTION.
+> 7. STOP et attendre un nouvel arbitrage humain.
 >
-> 2. Revalider au démarrage le HEAD exact de production. Si différent de
->    30544c9af7ebf83d8ec1ba3882418252380036f1, recalculer le diagnostic
->    contre le nouveau HEAD et signaler toute conséquence.
+> INTERDICTIONS ABSOLUES DANS CE GESTE :
+> - aucune fusion vers production ;
+> - aucun déploiement Production ;
+> - aucune migration Production ;
+> - aucune écriture/réparation de données Production ;
+> - aucun Point Zéro ;
+> - aucun traitement de 20261004130000 / ANON5.
 >
-> 3. Construire un correctif FDJ MINIMAL basé sur le code réel de
->    production :
->    a) nexus-fdj-moteur.js : corriger uniquement le routage ledger
->       'correction' déjà démontré compatible ;
->    b) NEXUS-FDJ-v1.html et NEXUS-FDJ-Manager-v1.html : conserver
->       intégralement l'architecture RPC issue de PR #62 et modifier
->       uniquement la gestion des idempotency_key afin qu'une même
->       intention/retry réutilise le même jeton jusqu'au succès, tandis
->       qu'une nouvelle intention obtient un nouveau jeton.
->    Ne réintroduire aucun ancien .insert() direct.
->
-> 4. Couvrir explicitement les chemins concernés, y compris les 6
->    écritures manager déjà RPC et les 3 chemins dont la clé fraîche a été
->    identifiée. Produire une matrice 9/9 indiquant pour chacun : RPC réel,
->    cycle du jeton, retry, succès/reset, nouvelle intention.
->
-> 5. Ajouter/adapter des tests causaux contre CETTE implémentation
->    Production, avec mutation négative si proportionnée. Vérifier qu'ils
->    échouent si la stabilisation est retirée.
->
-> 6. Qualifier sur nexus-test/CI autant que le canal le permet. Ne pas
->    fabriquer de doublons inutiles. Toute limite navigateur doit rester
->    explicite.
->
-> 7. Préparer un diff/branche/PR candidat minimal dont la base est le HEAD
->    Production réellement vérifié. Exclure strictement :
->    - migrations Test-only 20261004200000 / 20261004200100 ;
->    - Handoff/gouvernance hors nécessité de preuve ;
->    - Point Zéro ;
->    - 20261004130000 / ANON5 ;
->    - tout changement étranger au lot.
->
-> 8. Publier une nouvelle request canonique avec : base Production exacte,
->    SHA candidat, liste exhaustive des fichiers/hunks, tests/CI/run IDs,
->    matrice 9/9, preuve qu'aucun travail PR #62 n'est supprimé, état du
->    transport et verdict PRET_OU_NON_PRET_POUR_FUSION_PRODUCTION.
->
-> 9. STOP et attendre un nouvel arbitrage humain. Ne pas fusionner dans ce
->    geste.
->
-> INTERDICTIONS : aucune fusion Production, aucun déploiement Production,
-> aucune migration Production, aucune écriture/réparation de données
-> Production, aucun Point Zéro, aucun traitement de 20261004130000.
->
-> Objectif : transformer la divergence détectée par request-7 en un
-> candidat FDJ propre, minimal et réellement basé sur Production, sans
-> contourner la garde qui vient de fonctionner.
+> Tout mouvement inattendu de production, conflit, contamination du diff ou
+> nouvel échec CI => STOP et rapport canonique.
 
 ## Ce que la décision autorise (et uniquement cela)
 
 1. Déposer/consommer cette décision canonique via `outils/handoff.js`,
    `closes: false` ;
-2. Revalider le HEAD réel de `production` avant tout code ;
-3. Reconstruire, contre le code réel de `production`, un correctif minimal :
-   routage ledger `correction` dans `nexus-fdj-moteur.js`, et un cycle de
-   jeton stable par intention superposé à l'architecture RPC déjà en place
-   (PR #62), sans réintroduire d'`.insert()` direct ;
-4. Produire la matrice 9/9 (6 écritures manager + 3 chemins à clé fraîche) ;
-5. Ajouter des tests causaux avec mutation négative contre cette
-   implémentation réelle ;
-6. Qualifier dans la limite du canal, en signalant explicitement toute
-   limite navigateur ;
-7. Préparer un diff/branche candidat minimal, base = HEAD Production
-   réellement vérifié, avec les exclusions listées au point 7 du verbatim ;
-8. Publier une nouvelle request canonique avec le verdict de readiness ;
-9. STOP — aucun nouvel arbitrage de fusion n'est pris par ce geste.
+2. Revalider les artefacts déjà présents du candidat minimal (diffs,
+   snapshots, matrice 9/9) par exécution réelle, pas par confiance ;
+3. Matérialiser, si l'outillage de ce canal le permet réellement, une
+   branche/PR candidate minimale basée sur le HEAD `production` revalidé,
+   limitée aux 3 fichiers déjà cités (ledger + idempotency_key), PR #62
+   strictement préservée ;
+4. Exécuter les gates déterministes (suite complète, Guardians, Handoff)
+   et la qualification nexus-test/CI dans la limite réelle de ce canal,
+   sans simulation d'une capacité absente ;
+5. Vérifier l'absence de contamination du diff (fichier étranger,
+   `.insert()` réintroduit, migration Test-only, artefact Handoff/gouvernance) ;
+6. Publier une nouvelle request canonique avec le verdict de readiness
+   (PRET ou NON_PRET POUR FUSION PRODUCTION) ;
+7. STOP — aucun arbitrage de fusion n'est pris par ce geste.
 
 ## Ce qu'elle n'autorise pas
 
 Aucune fusion Production, aucun déploiement Production, aucune migration
 Production, aucune écriture/réparation de données Production, aucun Point
-Zéro, aucun traitement de l'écart `20261004130000`, aucun secret
+Zéro, aucun traitement de l'écart `20261004130000`/ANON5, aucun secret
 créé/lu/exposé.

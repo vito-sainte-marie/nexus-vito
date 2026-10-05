@@ -277,13 +277,13 @@
       "consomme_le": "2026-10-04T17:28:33.798Z"
     },
     "FDJ-CARNETS-LEDGER-AUDIT-1-20261004": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-8.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-7.md",
+      "derniere_decision": "decision-8.md",
       "source_decision": "registre",
-      "commit_decision": "d959d8be213b32de9b182614a80dfbfb7addead4",
-      "consomme_le": "2026-10-05T10:36:53.621Z"
+      "commit_decision": "74896288770ff76a8f76139abe6710744fa307a7",
+      "consomme_le": "2026-10-05T11:25:08.745Z"
     }
   },
   "artefacts_hors_registre": [
