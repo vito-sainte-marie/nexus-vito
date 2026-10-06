@@ -121,13 +121,17 @@ def _periode_document_id(sb, site: str) -> str | None:
     if mois == 0:
         mois = 12
         annee -= 1
+    # 06/10/2026 — supabase-py ≥ 2 : maybe_single().execute() rend None (et non
+    # une réponse à data vide) quand aucune ligne ne correspond.
     existante = sb.table("billing_periods").select("id").eq("site", site).eq("mois", mois).eq("annee", annee).maybe_single().execute()
-    if existante.data:
+    if existante and existante.data:
         return existante.data["id"]
     # 13/08/2026 — même bug que NEXUS-Boite-Reception-v1.html : 'ouverte' viole la
     # contrainte CHECK de billing_periods (en_cours/pret/envoye/cloture uniquement).
-    creee = sb.table("billing_periods").insert({"site": site, "mois": mois, "annee": annee, "statut": "en_cours"}).select("id").single().execute()
-    return creee.data["id"] if creee.data else None
+    # 06/10/2026 — insert() n'a ni .select() ni .single() en supabase-py ≥ 2
+    # (AttributeError) ; il renvoie déjà la ligne insérée dans data[0].
+    creee = sb.table("billing_periods").insert({"site": site, "mois": mois, "annee": annee, "statut": "en_cours"}).execute()
+    return creee.data[0]["id"] if creee.data else None
 
 
 def _uploader(sb, bucket: str, chemin_storage: str, contenu: bytes, content_type: str) -> bool:
@@ -197,16 +201,20 @@ def _traiter_un_fichier(sb, site: str, bucket: str, chemin: Path) -> bool:
     try:
         file_ocr = sb.table("documents_ocr_file").insert({
             "site": site, "fichier_path": chemin_storage, "type_document": "bon_livraison", "depose_par": None,
-        }).select("id").single().execute()
+        }).execute()  # 06/10/2026 — voir _periode_document_id : pas de .select().single()
         sb.table("supporting_documents").insert({
             # 13/08/2026 — même correctif que ci-dessus : la contrainte CHECK de
             # supporting_documents.type_document n'accepte que 'bon'/'facture'/'autre'
             # (jamais 'bon_livraison', qui reste correct pour documents_ocr_file
             # ci-dessus — cette colonne-là n'a pas de contrainte, voir le même
             # commentaire côté NEXUS-Boite-Reception-v1.html).
+            # 06/10/2026 — client_id reste None par conception : un scan n'a aucun
+            # texte avant l'OCR, on ne devine jamais le client. Le bon apparaît dans
+            # la section « Bons sans client » de la Boîte de réception (PR #78), où
+            # il doit être rattaché avant l'envoi ; sinon l'Edge Function répond 409.
             "client_id": None, "billing_period_id": periode_id, "type_document": "bon",
             "fichier_path": chemin_storage, "fichier_hash": fichier_hash, "statut_extraction": "en_attente",
-            "documents_ocr_file_id": file_ocr.data["id"],
+            "documents_ocr_file_id": file_ocr.data[0]["id"],
         }).execute()
     except Exception:
         logger.exception("Échec mise en file OCR (dossier surveillé) pour %s", chemin.name)
