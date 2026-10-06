@@ -1,115 +1,83 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: GOUVERNANCE-REFERENCE-CODE-20261005
-seq: 2
+seq: 3
 author: NEXUS Orchestrator
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-2.md
+in_reply_to: request-3.md
 ---
-# Décision — rouge CI qualifié par mesure locale ; run GitHub Actions réel toujours HUMAN
+# Décision — GO request-3 ratifié ; mandat d'enchaînement conditionnel ouvert
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-2.md`.
+`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-3.md`.
 
-Frédéric a donné le GO explicite (« Go request ») le 06/10/2026, sur la base
-du constat mesuré par `request-2.md` : transport canonique des six commits
-(FDJ `decision-10.md`, `GOUVERNANCE-REFERENCE-CODE-20261005/request-1.md` et
-`decision-1.md`, correctif de la garde d'immuabilité) et correction du rouge
-CI `37356858235` par changement de référence de comparaison (point de
-divergence avec Production, plus son tip courant).
+Frédéric a donné le GO explicite (« go request 3, demande lui de te
+déclencher et accepte les request si pas d'anomalie ») le 06/10/2026, dans
+l'issue #28, sur la base du constat mesuré par `request-3.md` : transport des
+deux commits de `decision-2.md` déjà intégré au rail (vérifié, pas supposé —
+voir §1), refs protégées inchangées (`main=d6093b7`, `production=c259476`),
+rouge CI `37356858235` requalifié par mesure locale (`296/305`, `4/4` preuve
+causale), run GitHub Actions réel toujours `HUMAN`.
 
 ## 1. Vérification de l'état canonique avant arbitrage
 
-Ce réveil a commencé par revérifier, sans confiance aveugle dans ce que
-`request-2.md` déclarait :
+Revérifié dans ce réveil, sans confiance aveugle dans `request-3.md` :
 
-- HEAD de ce checkout = `origin/handoff-continuite-20260920` =
-  `17638d56a19a97ceb714ccbafa1fbc74794c6eae` — **le transport annoncé comme
-  « prouvé, pas encore intégré » dans `request-2.md` §1 est en réalité déjà
-  intégré au rail.** Les six commits cités (`27ca3ca`, `7fa73c6`, `1f835a0`,
-  `b6ff903`, `fdebb7f`, `b25096d`) sont tous présents dans l'historique de
-  `handoff-continuite-20260920`, plus le commit de dépôt de `request-2.md`
-  lui-même (`17638d5`). Aucune duplication n'a donc été faite.
-- `origin/production` = `c259476fa51e46f3b30fdd93918f2f78b88aec04`,
-  `origin/main` = `d6093b76519826c4f820e00f5bca9fb8148b1f96` — tous deux
-  identiques aux valeurs déclarées par `request-2.md` (preuve
-  `refs-protegees`). Aucun mouvement de Production depuis ce lot.
-- `node outils/handoff.js verifier` : conforme avant tout dépôt (36 lots,
-  16 avertissements — tous préexistants —, 11 dérogations, 0 nouvelle
-  erreur). Le seul avertissement propre à ce lot (`wake_to` absent) est de
-  forme, non bloquant.
-
-## 2. Qualification du correctif de la garde d'immuabilité — rejouée, pas supposée
-
-Rejoué réellement sur ce HEAD, pas recopié du rapport :
-
-- `node test_migrations_immuables_20260905.js` : vert — 240 migrations de
-  production contrôlées au point de divergence, 52 ajoutées depuis et non
-  évaluées, 292 au tip courant de Production. Confirme que le correctif
-  décrit par `request-2.md` §2 (comparer au point de divergence
-  `git merge-base origin/production HEAD`, pas au tip courant) est bien en
-  vigueur sur ce HEAD.
-- `node test_garde_immuabilite_merge_base_20261005.js` : **4/4** — les
-  quatre scénarios causaux (migration post-divergence tolérée, suppression
-  pré-divergence toujours détectée, altération de contenu pré-divergence
-  toujours détectée, absence de divergence inchangée) sont confirmés par
-  exécution réelle du fichier de garde actuel.
-- `node run-tests.js` : **296/305** — les 9 échecs strictement identiques à
-  la liste historique tolérée (`docs/qa/ECHECS-CONNUS.json`), 0 régression.
-- `node outils/verifier-apprentissage.js` : conforme, **21 règles**, aucun
+- HEAD canonique au départ = `origin/handoff-continuite-20260920` =
+  `40a064c75e05a8fa16e0bcb5e70aa8f674ece1bf`. Le blob de `request-3.md` à
+  cette révision (`cd9996af77f0059f4c006ed8044f1f9cbc655975`) est identique à
+  celui déclaré par le mandat — aucune divergence.
+- `origin/main` = `d6093b76519826c4f820e00f5bca9fb8148b1f96`, `origin/production`
+  = `c259476fa51e46f3b30fdd93918f2f78b88aec04` — identiques aux valeurs
+  déclarées par `request-3.md` et par le mandat. Aucun mouvement de Production
+  ou de `main`.
+- `node run-tests.js` : **296/305**, les 9 échecs strictement identiques à
+  `docs/qa/ECHECS-CONNUS.json` — 0 régression, rejoué réellement sur ce HEAD.
+- `node outils/verifier-apprentissage.js` : conforme, 21 règles, aucun
   doublon, aucune récurrence non promue.
-- `node outils/guardians-router.js` : 0 finding sur le diff du dernier
-  commit du rail (dépôt de `request-2.md` seul, scope `orchestrator` /
-  `handoff`) — cohérent, ce commit ne touche aucun fichier applicatif.
+- `node outils/guardians-router.js` : 0 finding sur le diff du dernier commit
+  du rail avant ce réveil (dépôt de `request-3.md`, scopes
+  `orchestrator`/`handoff`).
+- `node outils/handoff.js verifier` : conforme avant tout dépôt (36 lots, 16
+  avertissements — tous préexistants —, 11 dérogations, 0 nouvelle erreur).
 
-**Sur cette base, la correction de la garde d'immuabilité et la qualification
-du rouge CI `37356858235` sont tenues pour mesurées et acquises par
-exécution locale réelle.**
+**Aucune anomalie, aucune divergence inattendue, aucun nouveau rouge, aucune
+contamination de périmètre, aucune preuve bloquante manquante autre que le
+point déjà classé `HUMAN` (§2) n'a été trouvée.** Les conditions d'arrêt du
+mandat de Frédéric ne sont donc pas réunies.
 
-## 3. Run GitHub Actions réel — toujours HUMAN, non fabriqué
+## 2. Run GitHub Actions réel — toujours HUMAN, non fabriqué
 
-Conformément à l'autorisation limitée (point 4) : ce canal (`issue_comment`
-sur `claude.yml`) a été vérifié à nouveau comme ne pouvant ni déclencher ni
-observer de run GitHub Actions — toute invocation `gh` (y compris
-`gh auth status`, sans argument sensible) est bloquée par une approbation
-qu'aucun humain ne peut donner dans ce run automatisé. Aucune tentative de
-contournement du bac à sable n'a été faite.
+Conformément au point 2 du mandat (« geste minimal... uniquement si
+techniquement permis par ce canal et sans contourner une protection ») :
+`gh auth status` a été retenté dans ce réveil et reste bloqué par une
+approbation qu'aucun humain ne peut donner dans ce run automatisé ; un essai
+réseau direct (`curl` vers `api.github.com`) est bloqué de la même façon.
+Aucun contournement du bac à sable n'a été tenté. **La gate CI réelle reste
+`HUMAN`** — à obtenir par une session disposant d'un accès réseau/`gh`
+fonctionnel, sur le HEAD intégré résultant de ce lot.
 
-**La gate CI réelle n'est donc PAS qualifiée comme franchie.** Elle reste
-`HUMAN` — à obtenir par la session qui dispose d'un accès réseau/`gh`
-fonctionnel, sur le HEAD canonique actuel (`17638d5...`) ou tout HEAD
-postérieur qui en descend sans modification applicative. Les mesures
-locales du §2 ne la remplacent pas ; elles réduisent le risque qu'un run
-CI réel révèle une surprise, sans se substituer à lui.
+## 3. Mandat d'enchaînement conditionnel — ratifié tel que transmis
 
-## 4. Migrations rail-only et périmètre applicatif
-
-Conformément au point 5 de l'autorisation : les 20 migrations rail-only
-n'ont été ni traitées ni recopiées dans ce réveil. Aucun fichier
-applicatif n'a été touché — seule la lecture (`git log`, `git rev-parse`,
-exécution de tests déjà existants) a eu lieu.
-
-## 5. Retour attendu et blocages restants
-
-1. **Run GitHub Actions réel sur `17638d5` (ou un HEAD postérieur
-   équivalent)** — seul point encore `HUMAN`. Prochain geste minimal
-   recommandé : déclencher ou laisser se déclencher la CI GitHub Actions
-   sur `handoff-continuite-20260920` à ce HEAD, puis rapporter le run ID et
-   sa conclusion exacte.
-2. Mécanique outillée de déclaration automatique du merge-base à
-   l'ouverture d'un lot (`request-1.md` §3) : toujours non construite,
-   reste posée pour un lot d'outillage séparé — non traitée ici,
-   conformément au périmètre de ce GO.
+Le mandat de Frédéric (issue #28, 06/10/2026) autorise la poursuite autonome
+du cycle Handoff pour ce lot tant qu'aucune des conditions d'arrêt qu'il
+énumère n'apparaît (nouveau rouge inexpliqué, mouvement inattendu de
+`main`/`production`, conflit/non-fast-forward, changement applicatif non
+prévu, gate/preuve bloquante absente, opération Supabase en écriture, geste
+Production, décision métier nouvelle ou élargissement de périmètre). Cette
+décision matérialise ce GO dans le registre ; elle ne l'étend à aucun autre
+lot et n'autorise aucun geste Production.
 
 ## Interdictions (inchangées)
 
 Aucune fusion Production, aucun déploiement Production, aucune
-migration/écriture/réparation Production, aucune mutation Supabase Test non
-strictement requise, aucune autorisation implicite de fusion/déploiement à
-partir de cette décision. Tout mouvement inattendu de Production,
-divergence du rail, contamination applicative ou nouvel échec CI inexpliqué
-impose un **STOP** immédiat.
+migration/écriture/réparation Production, aucune mutation Supabase
+Production, aucune autorisation implicite de promotion Production. Les 20
+migrations rail-only restent hors décision. Tout mouvement inattendu de
+Production, divergence du rail, contamination applicative ou nouvel échec CI
+inexpliqué impose un **STOP** immédiat et un retour à l'arbitrage explicite
+de Frédéric.
