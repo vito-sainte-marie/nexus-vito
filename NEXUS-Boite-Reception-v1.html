@@ -73,6 +73,9 @@
   .cd-sans-client{border-color:var(--amber);}
   .cd-alerte{font-size:12px; font-weight:600; color:var(--amber); margin-top:8px; line-height:1.5;}
   .bandeau-sans-client{background:var(--amber-dim); border:1px solid var(--amber); border-radius:10px; padding:12px 14px; font-size:12.5px; font-weight:600; color:var(--amber); line-height:1.6;}
+  .cd-actions{display:flex; align-items:center; gap:18px; margin-top:10px;}
+  .cd-voir{font-family:var(--mono); font-size:10px; font-weight:700; color:var(--cyan); text-transform:uppercase; letter-spacing:0.03em; cursor:pointer; background:none; border:none; padding:0;}
+  .cd-actions .cd-supprimer{margin-top:0;}
   .cd-supprimer{margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--red); text-transform:uppercase; letter-spacing:0.03em; cursor:pointer; background:none; border:none; padding:0;}
 
   .empty-state{text-align:center; padding:40px 24px; color:var(--text-dim);}
@@ -115,6 +118,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-voir-document.js?v=20261006"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
   // ============================================================
@@ -513,6 +517,14 @@
     return options.join('');
   }
 
+  // 06/10/2026 — « Voir » ouvre le fichier déposé (nexus-voir-document.js).
+  // Le chemin passe par un attribut échappé, jamais dans le code du onclick.
+  function boutonVoir(chemin) {
+    if (!chemin) return '';
+    const attr = String(chemin).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    return `<button type="button" class="cd-voir" data-chemin="${attr}" onclick="nexusVoirDocument(this.dataset.chemin)">Voir</button>`;
+  }
+
   function carteBon(d) {
     const nom = nomFichier(d.fichier_path);
     const statutOcr = libelleStatutOcr(d.ocr);
@@ -522,7 +534,7 @@
       ${sansClient ? `<div class="cd-alerte">⚠ Bon sans client — il ne partira pas avec la facture. Choisissez son client ci-dessous.</div>` : ''}
       <div class="cd-sous">Bon de livraison — ${d.ocr && d.ocr.status === 'erreur' ? (d.ocr.erreur_message || 'erreur inconnue') : 'traité par le moteur documentaire de l\'iMac.'}${sansClient ? ` Déposé le ${new Date(d.created_at).toLocaleDateString('fr-FR')}.` : ''}</div>
       <div class="cd-client"><select onchange="changerClientDocument('bon','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
-      <button class="cd-supprimer" onclick="supprimerDocument('bon','${d.id}','${d.fichier_path}')">Supprimer</button>
+      <div class="cd-actions">${boutonVoir(d.fichier_path)}<button class="cd-supprimer" onclick="supprimerDocument('bon','${d.id}','${d.fichier_path}')">Supprimer</button></div>
     </div>`;
   }
 
@@ -552,7 +564,7 @@
               <div class="cd-head"><div class="cd-nom">${nom}</div>${badge}</div>
               <div class="cd-sous">${sousTexte}</div>
               <div class="cd-client"><select onchange="changerClientDocument('facture','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
-              <button class="cd-supprimer" onclick="supprimerDocument('facture','${d.id}','${d.fichier_path}')">Supprimer</button>
+              <div class="cd-actions">${boutonVoir(d.fichier_path)}<button class="cd-supprimer" onclick="supprimerDocument('facture','${d.id}','${d.fichier_path}')">Supprimer</button></div>
             </div>`;
           }
           return carteBon(d);
