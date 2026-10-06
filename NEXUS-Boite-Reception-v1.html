@@ -119,6 +119,8 @@
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-voir-document.js?v=20261006"></script>
+<script src="nexus-identification-client.js?v=20261006"></script>
+<script src="nexus-doublons-documents.js?v=20261006"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
   // ============================================================
@@ -147,18 +149,20 @@
 
   const BUCKET = 'documents-a-traiter';
   const SEUIL_CARACTERES_TEXTE_NATIF = 60; // en dessous, on considère qu'il n'y a pas de vraie couche de texte
-  const REGEX_SIRET = /\b\d{14}\b/;
-  const REGEX_EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
   let employeeCourant = null;
   let siteId = null;
   let clientsListe = [];
+  let contactsListe = []; // e-mails des comptes du site, pour nexusIdentifierClient
   let documentsRecents = []; // fusion invoices + supporting_documents, triés par date
   // 06/10/2026 — bons sans client, TOUS (pas seulement les 20 récents) : un bon
   // non rattaché n'est jamais joint à la facture du client. Ils restaient
   // invisibles une fois sortis de la liste récente — d'où des factures parties
   // sans leurs bons depuis août.
   let bonsSansClient = [];
+  // 06/10/2026 — même fichier déposé deux fois (nexus-doublons-documents.js) :
+  // tous les doublons du site, pas seulement ceux des 20 documents récents.
+  let doublons = [];
   let etatMoteur = null; // ligne moteur_documentaire_etat du site (widget "État du moteur documentaire", 07/08/2026)
   const SEUIL_HORS_LIGNE_S = 120; // 2 minutes sans battement de cœur → considéré hors ligne (voir note de conception §7)
 
@@ -188,9 +192,15 @@
   })();
 
   async function chargerClients() {
-    const { data, error } = await nexusClient.from('clients').select('id, raison_sociale, nom_commercial, siret').eq('site', siteId).eq('actif', true).order('raison_sociale');
-    if (error) { console.error('Chargement clients (boîte de réception):', error); clientsListe = []; return; }
+    const { data, error } = await nexusClient.from('clients').select('id, code_client, raison_sociale, nom_commercial, siret').eq('site', siteId).eq('actif', true).order('raison_sociale');
+    if (error) { console.error('Chargement clients (boîte de réception):', error); clientsListe = []; contactsListe = []; return; }
     clientsListe = data || [];
+    contactsListe = [];
+    if (clientsListe.length) {
+      const { data: contacts, error: e2 } = await nexusClient.from('client_contacts').select('client_id, email_principal, email_secondaire').in('client_id', clientsListe.map(c => c.id));
+      if (e2) console.error('Chargement contacts (boîte de réception):', e2);
+      contactsListe = contacts || [];
+    }
   }
 
   // Période de facturation du document (07/08/2026, révisé le 13/08/2026 —
@@ -242,6 +252,15 @@
       .eq('type_document', 'bon').is('client_id', null)
       .order('created_at', { ascending: false }).limit(200);
     if (e3) console.error('Chargement bons sans client:', e3);
+    const [{ data: hF, error: e4 }, { data: hB, error: e5 }] = await Promise.all([
+      nexusClient.from('invoices').select('id, fichier_hash, fichier_path, client_id, statut, created_at').not('fichier_hash', 'is', null).limit(2000),
+      nexusClient.from('supporting_documents').select('id, fichier_hash, fichier_path, client_id, documents_ocr_file_id, created_at').not('fichier_hash', 'is', null).limit(2000),
+    ]);
+    if (e4 || e5) console.error('Chargement des empreintes (doublons):', e4 || e5);
+    doublons = nexusDoublonsDocuments([
+      ...(hF || []).map(f => Object.assign({ type: 'facture' }, f)),
+      ...(hB || []).map(b => Object.assign({ type: 'bon' }, b)),
+    ]);
 
     const idsOcr = [...(bons || []), ...(orphelins || [])].map(b => b.documents_ocr_file_id).filter(Boolean);
     let etatsOcr = [];
@@ -300,28 +319,32 @@
     }
   }
 
-  // Détection du client (07/08/2026, "tri automatique") : SIRET exact en
-  // priorité (le plus fiable), sinon e-mail détecté comparé aux
-  // interlocuteurs connus. Aucune correspondance approximative sur le nom —
-  // trop de faux positifs entre deux enseignes au nom proche. Si rien ne
-  // correspond, le document reste "à confirmer" — jamais une supposition
-  // silencieuse sur un document financier.
-  async function detecterClient(siret, email) {
-    if (siret) {
-      const trouve = clientsListe.find(c => c.siret && c.siret.replace(/\s/g, '') === siret);
-      if (trouve) return { clientId: trouve.id, methode: 'siret', confiance: 1 };
-    }
-    if (email && clientsListe.length) {
-      const { data } = await nexusClient.from('client_contacts').select('client_id, email_principal, email_secondaire').in('client_id', clientsListe.map(c => c.id));
-      const match = (data || []).find(c => [c.email_principal, c.email_secondaire].filter(Boolean).map(e => e.toLowerCase()).includes(email.toLowerCase()));
-      if (match) return { clientId: match.client_id, methode: 'email', confiance: 0.8 };
-    }
-    return { clientId: null, methode: 'manuel', confiance: null };
+  // 06/10/2026 — DEJA_INGERE. Le 06/10 à 20:54, onze factures et deux bons
+  // déjà reçus ont été redéposés ici : la Boîte de réception ne vérifiait pas
+  // l'empreinte (le worker de l'iMac, lui, le faisait), d'où onze factures en
+  // double, dont une sous le mauvais compte. Un fichier déjà connu — même
+  // contenu, quel que soit son nom — n'est ni envoyé ni enregistré.
+  // Erreur de lecture : on refuse le dépôt plutôt que de risquer un doublon.
+  async function dejaIngere(hash) {
+    const [{ data: f, error: e1 }, { data: b, error: e2 }] = await Promise.all([
+      nexusClient.from('invoices').select('id').eq('fichier_hash', hash).limit(1),
+      nexusClient.from('supporting_documents').select('id').eq('fichier_hash', hash).limit(1),
+    ]);
+    if (e1 || e2) { console.error('Vérification des doublons:', e1 || e2); return null; }
+    return (f && f.length > 0) || (b && b.length > 0);
   }
+
+  // Deux dépôts simultanés du même fichier passent tous deux dejaIngere ;
+  // l'index unique sur fichier_hash refuse le second (23505).
+  const estDoublonBase = err => !!err && err.code === '23505';
+  const DEJA_RECU = nom => ({ ok: false, deja: true, nom, raison: 'Déjà reçu — rien de nouveau enregistré (DEJA_INGERE)' });
 
   async function deposerFichier(file) {
     const arrayBuffer = await file.arrayBuffer();
     const hash = await sha256Hex(arrayBuffer);
+    const connu = await dejaIngere(hash);
+    if (connu === null) return { ok: false, nom: file.name, raison: 'Vérification des doublons impossible — réessayez' };
+    if (connu) return DEJA_RECU(file.name);
     const estPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 
     let texteNatif = '';
@@ -337,11 +360,7 @@
       const { error: erreurUpload } = await nexusClient.storage.from(BUCKET).upload(chemin, file, { contentType: file.type || 'application/pdf' });
       if (erreurUpload) { console.error('Upload facture:', erreurUpload); return { ok: false, nom: file.name, raison: "Échec de l'envoi" }; }
 
-      const siretMatch = texteNatif.match(REGEX_SIRET);
-      const emailMatch = texteNatif.match(REGEX_EMAIL);
-      const siret = siretMatch ? siretMatch[0] : null;
-      const email = emailMatch ? emailMatch[0] : null;
-      const { clientId, methode, confiance } = await detecterClient(siret, email);
+      const { clientId, methode, confiance, siret, email, motif, candidats } = nexusIdentifierClient(texteNatif, clientsListe, contactsListe);
       const periodeId = await periodeDocumentId();
 
       const { data: creee, error: erreurInsert } = await nexusClient.from('invoices').insert({
@@ -356,9 +375,14 @@
         // valeurs autorisées les plus proches de l'intention d'origine.
         confiance_identification: confiance, statut: clientId ? 'identifiee' : 'a_verifier',
       }).select('id').single();
+      if (estDoublonBase(erreurInsert)) {
+        // Le navigateur n'a pas le droit d'effacer dans le stockage : la copie envoyée reste, signalée.
+        return Object.assign(DEJA_RECU(file.name), { orphelin: chemin });
+      }
       if (erreurInsert) { console.error('Insertion facture:', erreurInsert); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
 
-      return { ok: true, nom: file.name, type: 'facture', clientTrouve: !!clientId };
+      const ambigus = motif === 'AMBIGU_METIER' ? candidats.map(id => (clientsListe.find(c => c.id === id) || {}).raison_sociale).filter(Boolean) : [];
+      return { ok: true, nom: file.name, type: 'facture', clientTrouve: !!clientId, ambigus };
     }
 
     // ---- Chemin BON : image ou PDF scanné, direction la file OCR ----
@@ -381,6 +405,12 @@
       client_id: null, billing_period_id: periodeId, type_document: 'bon',
       fichier_path: chemin, fichier_hash: hash, statut_extraction: 'en_attente', documents_ocr_file_id: fileOcr.id,
     });
+    if (estDoublonBase(erreurDoc)) {
+      // Retirer de la file OCR l'entrée créée pour ce doublon (droit du manager du site).
+      const { error: eFile } = await nexusClient.from('documents_ocr_file').delete().eq('id', fileOcr.id);
+      if (eFile) console.error('Retrait de la file OCR:', eFile);
+      return Object.assign(DEJA_RECU(file.name), { orphelin: chemin });
+    }
     if (erreurDoc) { console.error('Insertion bon:', erreurDoc); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
 
     return { ok: true, nom: file.name, type: 'bon', clientTrouve: false };
@@ -399,12 +429,15 @@
 
     if (zone) zone.style.pointerEvents = '';
     const lignes = resultats.map(r => {
+      if (r.deja) return `<div class="info-note">↺ ${r.nom} — ${r.raison}${r.orphelin ? ` (copie envoyée à retirer du stockage : ${r.orphelin})` : ''}</div>`;
       if (!r.ok) return `<div class="info-note" style="border-color:var(--red); color:var(--red);">✗ ${r.nom} — ${r.raison}</div>`;
       const typeTxt = r.type === 'facture' ? 'Facture (texte natif détecté)' : 'Bon — envoyé au moteur OCR de l\'iMac';
       if (r.type === 'bon') {
         return `<div class="info-note" style="border-color:var(--amber); color:var(--amber);">✓ ${r.nom} — ${typeTxt}. ⚠ Choisissez son client dans « Bons sans client » ci-dessous : sans client, ce bon ne partira pas avec la facture.</div>`;
       }
-      const clientTxt = r.clientTrouve ? 'Client identifié automatiquement.' : 'Client à confirmer ci-dessous.';
+      const clientTxt = r.clientTrouve ? 'Client identifié automatiquement.'
+        : r.ambigus && r.ambigus.length ? `Plusieurs comptes possibles (${r.ambigus.join(', ')}) — choisissez ci-dessous.`
+        : 'Client à confirmer ci-dessous.';
       return `<div class="info-note" style="border-color:var(--green); color:var(--green);">✓ ${r.nom} — ${typeTxt}. ${clientTxt}</div>`;
     });
     if (resultatsEl) resultatsEl.innerHTML = lignes.join('');
@@ -429,10 +462,51 @@
 
   async function supprimerDocument(type, id, cheminFichier) {
     if (!confirm('Supprimer ce document déposé ? Cette action est irréversible.')) return;
+    await effacerDocument(type, id, cheminFichier);
+    await chargerDocumentsRecents();
+    render();
+  }
+
+  // 06/10/2026 — suppression commune. Un bon emporte sa ligne de file OCR
+  // (documents_ocr_file), qui restait sinon orpheline. Le fichier n'est
+  // retiré du stockage que si aucune autre ligne ne le cite.
+  async function effacerDocument(type, id, cheminFichier) {
     const table = type === 'facture' ? 'invoices' : 'supporting_documents';
-    const { error } = await nexusClient.from(table).delete().eq('id', id);
-    if (error) { console.error('Suppression document:', error); return; }
-    await nexusClient.storage.from(BUCKET).remove([cheminFichier]);
+    let ocrId = null;
+    if (type === 'bon') {
+      const { data } = await nexusClient.from('supporting_documents').select('documents_ocr_file_id').eq('id', id).maybeSingle();
+      ocrId = data ? data.documents_ocr_file_id : null;
+    }
+    const { data: supprimees, error } = await nexusClient.from(table).delete().eq('id', id).select('id');
+    if (error || !supprimees || supprimees.length !== 1) {
+      console.error('Suppression document:', error || 'aucune ligne supprimée');
+      alert('La suppression a échoué : ' + (error ? error.message : 'document introuvable ou non autorisé.'));
+      return false;
+    }
+    if (ocrId) {
+      const { error: eOcr } = await nexusClient.from('documents_ocr_file').delete().eq('id', ocrId);
+      if (eOcr) console.error('Suppression de la ligne OCR du bon:', eOcr);
+    }
+    const [{ count: nF }, { count: nB }] = await Promise.all([
+      nexusClient.from('invoices').select('id', { count: 'exact', head: true }).eq('fichier_path', cheminFichier),
+      nexusClient.from('supporting_documents').select('id', { count: 'exact', head: true }).eq('fichier_path', cheminFichier),
+    ]);
+    if (!nF && !nB) {
+      const { data: retires } = await nexusClient.storage.from(BUCKET).remove([cheminFichier]);
+      if (!retires || !retires.length) console.warn('Fichier conservé dans le stockage (suppression non autorisée) :', cheminFichier);
+    }
+    return true;
+  }
+
+  async function supprimerDoublon(type, id) {
+    const d = doublons.find(x => x.doublon.type === type && x.doublon.id === id);
+    if (!d || !d.supprimable) return;
+    // La ligne conservée doit toujours exister : on ne supprime jamais les deux.
+    const table = type === 'facture' ? 'invoices' : 'supporting_documents';
+    const { data: garde } = await nexusClient.from(table).select('id').eq('id', d.garde.id).eq('fichier_hash', d.doublon.fichier_hash).maybeSingle();
+    if (!garde) { alert('La ligne à conserver a disparu — rien n\'a été supprimé. Rechargez la page.'); return; }
+    if (!confirm(`Supprimer le doublon « ${nomFichier(d.doublon.fichier_path)} » ? Le premier dépôt est conservé.`)) return;
+    await effacerDocument(type, id, d.doublon.fichier_path);
     await chargerDocumentsRecents();
     render();
   }
@@ -548,6 +622,20 @@
         </div>`
       : '';
 
+    const dateCourte = iso => iso ? new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    const libelleClient = id => { const c = clientsListe.find(x => x.id === id); return c ? c.raison_sociale : 'sans client'; };
+    const sectionDoublons = doublons.length
+      ? `<div class="section" id="doublons">
+          <div class="bandeau-sans-client">⚠ ${doublons.length} doublon${doublons.length > 1 ? 's' : ''} — le même fichier a été déposé plusieurs fois. Le premier dépôt est conservé ; supprimez les copies.</div>
+          ${doublons.map(({ garde, doublon, supprimable }) => `<div class="carte-doc">
+            <div class="cd-head"><div class="cd-nom">${nomFichier(doublon.fichier_path)}</div><span class="cd-badge b-amber">${doublon.type === 'facture' ? 'Facture' : 'Bon'} en double</span></div>
+            <div class="cd-sous">Déposé le ${dateCourte(doublon.created_at)} (${libelleClient(doublon.client_id)}). Même fichier que celui déposé le ${dateCourte(garde.created_at)} (${libelleClient(garde.client_id)}), qui est conservé.</div>
+            ${supprimable ? '' : `<div class="cd-alerte">Les deux exemplaires ont été envoyés au client — à trancher à la main.</div>`}
+            <div class="cd-actions">${boutonVoir(doublon.fichier_path)}${supprimable ? `<button class="cd-supprimer" onclick="supprimerDoublon('${doublon.type}','${doublon.id}')">Supprimer ce doublon</button>` : ''}</div>
+          </div>`).join('')}
+        </div>`
+      : '';
+
     const listeDocs = documentsRecents.length
       ? documentsRecents.map(d => {
           const nom = nomFichier(d.fichier_path);
@@ -585,6 +673,7 @@
         <div id="resultatsDepot"></div>
         <div class="info-note">Une facture PDF avec du texte natif est lue directement dans le navigateur. Une photo ou un PDF scanné part dans la file du moteur OCR (iMac) — le résultat apparaît ci-dessous une fois traité.</div>
       </div>
+      ${sectionDoublons}
       ${sectionSansClient}
       <div class="section">
         <div class="section-label">📋 Documents récents</div>
