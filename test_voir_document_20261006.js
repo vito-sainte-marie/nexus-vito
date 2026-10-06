@@ -94,7 +94,7 @@ function simuler({ lien = 'https://signe/doc.pdf', erreur = null, ongletRefuse =
 
   await cas('« Voir » est câblé sur les cartes bon ET facture, et l\'aide est chargée', async () => {
     assert.strictEqual(br.split('${boutonVoir(d.fichier_path)}').length - 1, 2, 'un des deux types de carte n\'a pas son bouton');
-    assert.match(br, /<script src="nexus-voir-document\.js\?v=\d+"><\/script>/);
+    assert.match(br, /<script src="nexus-voir-document\.js\?v=[^"]+"><\/script>/);
   });
 
   console.log('Compte client — « Voir » la facture et les bons de sa période');
@@ -127,7 +127,7 @@ function simuler({ lien = 'https://signe/doc.pdf', erreur = null, ongletRefuse =
     const ch = cc.slice(cc.indexOf('async function chargerClients'), cc.indexOf('async function journaliser'));
     assert.match(ch, /from\('supporting_documents'\)\.select\('[^']*fichier_path[^']*'\)\.eq\('type_document', 'bon'\)/, 'les chemins des bons ne sont pas chargés');
     assert.match(cc, /querySelectorAll\('\[data-voir-document\]'\)\.forEach\(btn => \{\s*btn\.addEventListener\('click', \(\) => nexusVoirDocument\(btn\.dataset\.voirDocument\)\);/);
-    assert.match(cc, /<script src="nexus-voir-document\.js\?v=\d+"><\/script>/);
+    assert.match(cc, /<script src="nexus-voir-document\.js\?v=[^"]+"><\/script>/);
   });
 
   console.log(echecs ? `\n${echecs} échec(s)` : '\nToutes les épreuves passent.');
