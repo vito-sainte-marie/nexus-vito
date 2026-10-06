@@ -1,83 +1,35 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: GOUVERNANCE-REFERENCE-CODE-20261005
-seq: 3
-author: NEXUS Orchestrator
+seq: 4
+author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
+status: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-3.md
+responds_to: request-4.md
 ---
-# Décision — GO request-3 ratifié ; mandat d'enchaînement conditionnel ouvert
+# decision-4 — CI canonique acquise ; poursuite gouvernance autorisée sans Production
 
-`APPROVED_WITH_CONDITIONS`, `closes: false`, en réponse à `request-3.md`.
+## Arbitrage
 
-Frédéric a donné le GO explicite (« go request 3, demande lui de te
-déclencher et accepte les request si pas d'anomalie ») le 06/10/2026, dans
-l'issue #28, sur la base du constat mesuré par `request-3.md` : transport des
-deux commits de `decision-2.md` déjà intégré au rail (vérifié, pas supposé —
-voir §1), refs protégées inchangées (`main=d6093b7`, `production=c259476`),
-rouge CI `37356858235` requalifié par mesure locale (`296/305`, `4/4` preuve
-causale), run GitHub Actions réel toujours `HUMAN`.
+**APPROVED_WITH_CONDITIONS — closes: false.**
 
-## 1. Vérification de l'état canonique avant arbitrage
+La gate CI qui restait classée HUMAN dans request-4 est désormais satisfaite par une preuve GitHub réelle : workflow `Tests`, run `37401991101`, exécuté sur `handoff-continuite-20260920` au SHA `19e8f4da899d6f0285b2face9d8878b49c0918a1`, conclusion `success`.
 
-Revérifié dans ce réveil, sans confiance aveugle dans `request-3.md` :
+## Conditions
 
-- HEAD canonique au départ = `origin/handoff-continuite-20260920` =
-  `40a064c75e05a8fa16e0bcb5e70aa8f674ece1bf`. Le blob de `request-3.md` à
-  cette révision (`cd9996af77f0059f4c006ed8044f1f9cbc655975`) est identique à
-  celui déclaré par le mandat — aucune divergence.
-- `origin/main` = `d6093b76519826c4f820e00f5bca9fb8148b1f96`, `origin/production`
-  = `c259476fa51e46f3b30fdd93918f2f78b88aec04` — identiques aux valeurs
-  déclarées par `request-3.md` et par le mandat. Aucun mouvement de Production
-  ou de `main`.
-- `node run-tests.js` : **296/305**, les 9 échecs strictement identiques à
-  `docs/qa/ECHECS-CONNUS.json` — 0 régression, rejoué réellement sur ce HEAD.
-- `node outils/verifier-apprentissage.js` : conforme, 21 règles, aucun
-  doublon, aucune récurrence non promue.
-- `node outils/guardians-router.js` : 0 finding sur le diff du dernier commit
-  du rail avant ce réveil (dépôt de `request-3.md`, scopes
-  `orchestrator`/`handoff`).
-- `node outils/handoff.js verifier` : conforme avant tout dépôt (36 lots, 16
-  avertissements — tous préexistants —, 11 dérogations, 0 nouvelle erreur).
+1. Reclasser la preuve CI réelle de HUMAN à VERIFIED en conservant le run ID, le SHA et la conclusion exacte.
+2. Ne pas propager comme fait l'affirmation de request-4 selon laquelle une PR d'intégration aurait été ouverte : le contrôle indépendant n'a pas établi l'existence de cette PR. Cette mention doit être traitée comme une incohérence documentaire, sans effet sur la validité du transport déjà présent sur le rail.
+3. Maintenir `origin/production` comme autorité du code applicatif, des migrations applicatives et des tests applicatifs de référence ; maintenir `handoff-continuite-20260920` comme autorité du protocole Handoff.
+4. Les 20 migrations rail-only restent hors décision et ne doivent pas être traitées dans ce lot.
+5. La poursuite est autorisée uniquement sur le périmètre gouvernance/Handoff, notamment la mécanique de déclaration outillée de la référence/merge-base si elle constitue la prochaine étape du lot.
+6. STOP et retour à arbitrage en cas de nouveau rouge CI inexpliqué, divergence d'autorité, contamination applicative du rail ou mouvement inattendu de Production.
 
-**Aucune anomalie, aucune divergence inattendue, aucun nouveau rouge, aucune
-contamination de périmètre, aucune preuve bloquante manquante autre que le
-point déjà classé `HUMAN` (§2) n'a été trouvée.** Les conditions d'arrêt du
-mandat de Frédéric ne sont donc pas réunies.
+## Limites
 
-## 2. Run GitHub Actions réel — toujours HUMAN, non fabriqué
+Cette décision n'autorise **aucune fusion Production, aucune migration Production, aucune écriture Supabase Production, aucun déploiement Production et aucune promotion applicative**.
 
-Conformément au point 2 du mandat (« geste minimal... uniquement si
-techniquement permis par ce canal et sans contourner une protection ») :
-`gh auth status` a été retenté dans ce réveil et reste bloqué par une
-approbation qu'aucun humain ne peut donner dans ce run automatisé ; un essai
-réseau direct (`curl` vers `api.github.com`) est bloqué de la même façon.
-Aucun contournement du bac à sable n'a été tenté. **La gate CI réelle reste
-`HUMAN`** — à obtenir par une session disposant d'un accès réseau/`gh`
-fonctionnel, sur le HEAD intégré résultant de ce lot.
-
-## 3. Mandat d'enchaînement conditionnel — ratifié tel que transmis
-
-Le mandat de Frédéric (issue #28, 06/10/2026) autorise la poursuite autonome
-du cycle Handoff pour ce lot tant qu'aucune des conditions d'arrêt qu'il
-énumère n'apparaît (nouveau rouge inexpliqué, mouvement inattendu de
-`main`/`production`, conflit/non-fast-forward, changement applicatif non
-prévu, gate/preuve bloquante absente, opération Supabase en écriture, geste
-Production, décision métier nouvelle ou élargissement de périmètre). Cette
-décision matérialise ce GO dans le registre ; elle ne l'étend à aucun autre
-lot et n'autorise aucun geste Production.
-
-## Interdictions (inchangées)
-
-Aucune fusion Production, aucun déploiement Production, aucune
-migration/écriture/réparation Production, aucune mutation Supabase
-Production, aucune autorisation implicite de promotion Production. Les 20
-migrations rail-only restent hors décision. Tout mouvement inattendu de
-Production, divergence du rail, contamination applicative ou nouvel échec CI
-inexpliqué impose un **STOP** immédiat et un retour à l'arbitrage explicite
-de Frédéric.
+Le lot reste ouvert (`closes: false`) jusqu'à qualification explicite de la dette de gouvernance restante ou décision de la sortir formellement du périmètre.
