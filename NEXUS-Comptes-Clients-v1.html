@@ -125,6 +125,9 @@
   .facture-nom{font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .facture-meta{font-size:11px; color:var(--text-mid); margin-top:2px;}
   .btn-envoyer{flex-shrink:0; font-family:var(--sans); font-size:11.5px; font-weight:700; color:#062026; background:var(--cyan); border:none; border-radius:9px; padding:8px 12px; cursor:pointer;}
+  /* 06/10/2026 — « Voir » la facture et les bons de sa période (nexus-voir-document.js). */
+  .btn-voir{flex-shrink:0; font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--cyan); background:none; border:1px solid var(--cyan); border-radius:9px; padding:7px 11px; cursor:pointer;}
+  .lien-bon{font-family:var(--mono); font-size:10.5px; font-weight:700; color:var(--cyan); background:none; border:none; padding:0; margin-right:12px; cursor:pointer; text-transform:uppercase; letter-spacing:0.03em;}
   .btn-envoyer:disabled{background:var(--panel-raised); color:var(--text-dim); cursor:default;}
 
   input[type=text], input[type=email], input[type=tel], input, select, textarea{
@@ -179,6 +182,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-voir-document.js?v=20261006"></script>
 <script>
   // ============================================================
   // NEXUS COMPTES CLIENTS — v1 (07/08/2026)
@@ -264,7 +268,7 @@
       factures = f || [];
       // 06/10/2026 — même règle que nexus-envoyer-facture (étape 6bis) : un
       // bon compte s'il porte le client ET la période de la facture.
-      const { data: b, error: eB } = await nexusClient.from('supporting_documents').select('id, client_id, billing_period_id').eq('type_document', 'bon').in('client_id', ids);
+      const { data: b, error: eB } = await nexusClient.from('supporting_documents').select('id, client_id, billing_period_id, fichier_path, created_at').eq('type_document', 'bon').in('client_id', ids);
       bonsLisibles = !eB;
       if (eB) console.error('Chargement bons:', eB);
       bons = b || [];
@@ -605,6 +609,9 @@
     document.querySelectorAll('[data-envoyer-facture]').forEach(btn => {
       btn.addEventListener('click', () => envoyerFacture(btn.dataset.envoyerFacture, btn));
     });
+    document.querySelectorAll('[data-voir-document]').forEach(btn => {
+      btn.addEventListener('click', () => nexusVoirDocument(btn.dataset.voirDocument));
+    });
   }
 
   // ------------------------------------------------------------
@@ -622,6 +629,17 @@
   function statutFacture(f) {
     return LIBELLES_STATUT_FACTURE[f.statut] || { classe: 'st-orange', texte: "En attente d'envoi" };
   }
+  // 06/10/2026 — les bons de la même période que la facture, chacun ouvrable :
+  // ce sont ceux que nexus-envoyer-facture joint à l'e-mail (étape 6bis).
+  function lignesBonsDeLaFacture(c, f) {
+    if (!f.billing_period_id) return '';
+    const bons = (c.bons || []).filter(b => b.billing_period_id === f.billing_period_id && b.fichier_path)
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    if (!bons.length) return '';
+    const liens = bons.map((b, i) => `<button type="button" class="lien-bon" data-voir-document="${escHtml(b.fichier_path)}">Voir bon${bons.length > 1 ? ' ' + (i + 1) : ''}</button>`).join('');
+    return `<div class="facture-meta">Bons de la période : ${liens}</div>`;
+  }
+
   function renderFacturesBloc(c) {
     const factures = c.factures || [];
     if (!factures.length) {
@@ -642,8 +660,10 @@
             <div class="facture-meta">${f.montant_total !== null && f.montant_total !== undefined ? Number(f.montant_total).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : 'Montant non extrait'}</div>
             ${!dejaEnvoyee && facturesSansBons(c).includes(f) ? `<div class="facture-meta" style="color:var(--red);">⚠ Aucun bon rattaché pour cette période — l'envoi vous demandera confirmation. Rattachez les bons dans la Boîte de réception.</div>` : ''}
             ${factureEnvoyeeSansBons(c, f) ? `<div class="facture-meta" style="color:var(--red);">⚠ Envoyée sans ses bons.</div>` : ''}
+            ${lignesBonsDeLaFacture(c, f)}
           </div>
           <span class="cc-statut ${st.classe}">${st.texte}</span>
+          ${f.fichier_path ? `<button type="button" class="btn-voir" data-voir-document="${escHtml(f.fichier_path)}">Voir</button>` : ''}
           <button type="button" class="btn-envoyer" data-envoyer-facture="${f.id}" ${dejaEnvoyee ? 'disabled' : ''}>${dejaEnvoyee ? 'Envoyée' : 'Envoyer'}</button>
         </div>
       `;
