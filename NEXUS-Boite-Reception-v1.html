@@ -70,6 +70,9 @@
   .cd-sous{font-size:11.5px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
   .cd-client{margin-top:10px;}
   .cd-client select{font-size:13px; padding:9px 10px;}
+  .cd-sans-client{border-color:var(--amber);}
+  .cd-alerte{font-size:12px; font-weight:600; color:var(--amber); margin-top:8px; line-height:1.5;}
+  .bandeau-sans-client{background:var(--amber-dim); border:1px solid var(--amber); border-radius:10px; padding:12px 14px; font-size:12.5px; font-weight:600; color:var(--amber); line-height:1.6;}
   .cd-supprimer{margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--red); text-transform:uppercase; letter-spacing:0.03em; cursor:pointer; background:none; border:none; padding:0;}
 
   .empty-state{text-align:center; padding:40px 24px; color:var(--text-dim);}
@@ -147,6 +150,11 @@
   let siteId = null;
   let clientsListe = [];
   let documentsRecents = []; // fusion invoices + supporting_documents, triés par date
+  // 06/10/2026 — bons sans client, TOUS (pas seulement les 20 récents) : un bon
+  // non rattaché n'est jamais joint à la facture du client. Ils restaient
+  // invisibles une fois sortis de la liste récente — d'où des factures parties
+  // sans leurs bons depuis août.
+  let bonsSansClient = [];
   let etatMoteur = null; // ligne moteur_documentaire_etat du site (widget "État du moteur documentaire", 07/08/2026)
   const SEUIL_HORS_LIGNE_S = 120; // 2 minutes sans battement de cœur → considéré hors ligne (voir note de conception §7)
 
@@ -225,8 +233,13 @@
     ]);
     if (e1) console.error('Chargement factures récentes:', e1);
     if (e2) console.error('Chargement bons récents:', e2);
+    const { data: orphelins, error: e3 } = await nexusClient.from('supporting_documents')
+      .select('id, fichier_path, type_document, statut_extraction, client_id, documents_ocr_file_id, created_at')
+      .eq('type_document', 'bon').is('client_id', null)
+      .order('created_at', { ascending: false }).limit(200);
+    if (e3) console.error('Chargement bons sans client:', e3);
 
-    const idsOcr = (bons || []).map(b => b.documents_ocr_file_id).filter(Boolean);
+    const idsOcr = [...(bons || []), ...(orphelins || [])].map(b => b.documents_ocr_file_id).filter(Boolean);
     let etatsOcr = [];
     if (idsOcr.length) {
       const { data } = await nexusClient.from('documents_ocr_file').select('id, status, erreur_message').in('id', idsOcr);
@@ -238,10 +251,14 @@
       created_at: f.created_at, statut: f.statut, siret_detecte: f.siret_detecte, email_detecte: f.email_detecte,
       methode_identification: f.methode_identification,
     }));
-    const bonsFmt = (bons || []).map(b => ({
+    const formaterBon = b => ({
       type: 'bon', id: b.id, fichier_path: b.fichier_path, client_id: b.client_id, created_at: b.created_at,
       ocr: etatsOcr.find(o => o.id === b.documents_ocr_file_id) || null,
-    }));
+    });
+    bonsSansClient = (orphelins || []).map(formaterBon);
+    const idsSansClient = new Set(bonsSansClient.map(b => b.id));
+    // Un bon sans client figure dans sa section dédiée, jamais deux fois.
+    const bonsFmt = (bons || []).filter(b => b.client_id || !idsSansClient.has(b.id)).map(formaterBon);
     documentsRecents = [...facturesFmt, ...bonsFmt].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 20);
   }
 
@@ -380,6 +397,9 @@
     const lignes = resultats.map(r => {
       if (!r.ok) return `<div class="info-note" style="border-color:var(--red); color:var(--red);">✗ ${r.nom} — ${r.raison}</div>`;
       const typeTxt = r.type === 'facture' ? 'Facture (texte natif détecté)' : 'Bon — envoyé au moteur OCR de l\'iMac';
+      if (r.type === 'bon') {
+        return `<div class="info-note" style="border-color:var(--amber); color:var(--amber);">✓ ${r.nom} — ${typeTxt}. ⚠ Choisissez son client dans « Bons sans client » ci-dessous : sans client, ce bon ne partira pas avec la facture.</div>`;
+      }
       const clientTxt = r.clientTrouve ? 'Client identifié automatiquement.' : 'Client à confirmer ci-dessous.';
       return `<div class="info-note" style="border-color:var(--green); color:var(--green);">✓ ${r.nom} — ${typeTxt}. ${clientTxt}</div>`;
     });
@@ -493,8 +513,28 @@
     return options.join('');
   }
 
+  function carteBon(d) {
+    const nom = nomFichier(d.fichier_path);
+    const statutOcr = libelleStatutOcr(d.ocr);
+    const sansClient = !d.client_id;
+    return `<div class="carte-doc${sansClient ? ' cd-sans-client' : ''}">
+      <div class="cd-head"><div class="cd-nom">${nom}</div><span class="cd-badge ${statutOcr.classe}">${statutOcr.texte}</span></div>
+      ${sansClient ? `<div class="cd-alerte">⚠ Bon sans client — il ne partira pas avec la facture. Choisissez son client ci-dessous.</div>` : ''}
+      <div class="cd-sous">Bon de livraison — ${d.ocr && d.ocr.status === 'erreur' ? (d.ocr.erreur_message || 'erreur inconnue') : 'traité par le moteur documentaire de l\'iMac.'}${sansClient ? ` Déposé le ${new Date(d.created_at).toLocaleDateString('fr-FR')}.` : ''}</div>
+      <div class="cd-client"><select onchange="changerClientDocument('bon','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
+      <button class="cd-supprimer" onclick="supprimerDocument('bon','${d.id}','${d.fichier_path}')">Supprimer</button>
+    </div>`;
+  }
+
   function render() {
     const app = document.getElementById('app');
+
+    const sectionSansClient = bonsSansClient.length
+      ? `<div class="section" id="bonsSansClient">
+          <div class="bandeau-sans-client">⚠ ${bonsSansClient.length} bon${bonsSansClient.length > 1 ? 's' : ''} sans client — à rattacher avant l'envoi des factures. Un client qui reçoit ses bons par e-mail ne peut pas recevoir sa facture tant que ses bons du mois ne sont pas rattachés.</div>
+          ${bonsSansClient.map(carteBon).join('')}
+        </div>`
+      : '';
 
     const listeDocs = documentsRecents.length
       ? documentsRecents.map(d => {
@@ -515,13 +555,7 @@
               <button class="cd-supprimer" onclick="supprimerDocument('facture','${d.id}','${d.fichier_path}')">Supprimer</button>
             </div>`;
           }
-          const statutOcr = libelleStatutOcr(d.ocr);
-          return `<div class="carte-doc">
-            <div class="cd-head"><div class="cd-nom">${nom}</div><span class="cd-badge ${statutOcr.classe}">${statutOcr.texte}</span></div>
-            <div class="cd-sous">Bon de livraison — ${d.ocr && d.ocr.status === 'erreur' ? (d.ocr.erreur_message || 'erreur inconnue') : 'traité par le moteur documentaire de l\'iMac.'}</div>
-            <div class="cd-client"><select onchange="changerClientDocument('bon','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
-            <button class="cd-supprimer" onclick="supprimerDocument('bon','${d.id}','${d.fichier_path}')">Supprimer</button>
-          </div>`;
+          return carteBon(d);
         }).join('')
       : `<div class="empty-state"><div class="es-icon">📭</div><div class="es-desc">Aucun document déposé pour l'instant.</div></div>`;
 
@@ -539,6 +573,7 @@
         <div id="resultatsDepot"></div>
         <div class="info-note">Une facture PDF avec du texte natif est lue directement dans le navigateur. Une photo ou un PDF scanné part dans la file du moteur OCR (iMac) — le résultat apparaît ci-dessous une fois traité.</div>
       </div>
+      ${sectionSansClient}
       <div class="section">
         <div class="section-label">📋 Documents récents</div>
         ${listeDocs}
