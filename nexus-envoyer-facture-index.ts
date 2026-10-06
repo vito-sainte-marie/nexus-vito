@@ -39,10 +39,23 @@ const MOIS_FR = [
   "juillet", "août", "septembre", "octobre", "novembre", "décembre",
 ];
 
+// CORS — indispensable ici : NEXUS-Comptes-Clients-v1.html appelle cette
+// fonction via fetch() direct (pas nexusClient.functions.invoke) avec un
+// en-tête Authorization personnalisé, ce qui déclenche systématiquement une
+// requête de pré-vérification OPTIONS côté navigateur. Sans ces en-têtes sur
+// CHAQUE réponse (y compris OPTIONS), le navigateur bloque l'appel avant
+// même qu'il n'atteigne cette fonction — bug réel rencontré le 13/08/2026
+// (405 sur le préflight OPTIONS), corrigé en reprenant exactement la même
+// convention que google-sheets-sync.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
@@ -89,12 +102,45 @@ function composerSignature(parametres: Parametres): string {
   return substituerModele(gabarit, vars);
 }
 
+function echapperHtml(texte: string): string {
+  return (texte || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Mise en page HTML du message (13/08/2026, demande de Frédéric : "améliore la
+// mise en page de l'envoi"). Avant ce correctif, nodemailer n'envoyait que
+// `text:` (texte brut) — d'où le rendu sans aucune mise en forme dans la boîte
+// de réception. Important : une vraie ligne "Objet" d'e-mail ne peut
+// techniquement pas être mise en gras (limitation du protocole/MIME, pas de
+// NEXUS) — en compensation, l'objet substitué (déjà en majuscules sur
+// {{mois}}, voir plus bas) est repris en gras en tête du corps HTML, ce qui
+// donne le même effet visuel une fois l'e-mail ouvert. Le reste du texte
+// composé depuis le modèle (Paramètres > Comptes Clients) est conservé mot
+// pour mot, seuls les sauts de ligne sont préservés (white-space:pre-line)
+// plutôt que d'être remplacés un par un par des <br>.
+function composerCorpsHtml(objet: string, corps: string): string {
+  return `<div style="font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:1.6; color:#1a1a1a; max-width:600px;">` +
+    `<div style="font-size:16px; font-weight:700; margin:0 0 6px 0;">${echapperHtml(objet)}</div>` +
+    `<div style="border-bottom:2px solid #e2e2e2; margin-bottom:16px;"></div>` +
+    `<div style="white-space:pre-line;">${echapperHtml(corps)}</div>` +
+    `</div>`;
+}
+
 Deno.serve(async (req: Request) => {
+  // Requête de pré-vérification CORS — le navigateur l'envoie avant tout
+  // POST avec en-tête Authorization personnalisé. Doit être répondue avant
+  // toute autre logique, sans authentification.
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Méthode non autorisée." }, 405);
   }
 
-  let body: { invoiceId?: string };
+  let body: { invoiceId?: string; envoyerSansBons?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -102,6 +148,8 @@ Deno.serve(async (req: Request) => {
   }
   const invoiceId = body && body.invoiceId;
   if (!invoiceId) return jsonResponse({ error: "invoiceId manquant." }, 400);
+  // 06/10/2026 — confirmation explicite d'un envoi sans bons (voir 6bis).
+  const envoyerSansBons = body.envoyerSansBons === true;
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return jsonResponse({ error: "Non authentifié." }, 401);
@@ -168,20 +216,85 @@ Deno.serve(async (req: Request) => {
   const fichierBuffer = new Uint8Array(await fichier.arrayBuffer());
   const nomFichier = invoice.fichier_path.split("/").pop() || "facture.pdf";
 
+  // 6bis) Bons justificatifs — 13/08/2026, bug réel signalé par Frédéric (la
+  // facture RMSJ est partie sans ses bons) : cette fonction ne lisait jamais
+  // client_preferences.bons_joindre_email, alors que cette préférence pilote
+  // déjà l'affichage "bons joints" dans NEXUS-Comptes-Clients. Si activée, on
+  // joint tous les bons (supporting_documents, type_document 'bon') de la
+  // MÊME période de facturation que la facture — jamais deviné, uniquement
+  // ceux réellement rattachés à ce client pour cette période précise.
+  //
+  // 06/10/2026 — un client ne recevait plus ses bons depuis août : un bon
+  // déposé dans la Boîte de réception naît sans client (client_id null), la
+  // recherche ci-dessous ne le trouvait donc pas, et la facture partait seule
+  // avec un "envoi_reussi". Désormais, quand le client attend ses bons par
+  // e-mail et qu'aucun bon n'est trouvé (ou que la facture n'a pas de
+  // période), l'envoi s'arrête et demande confirmation (409, code
+  // BONS_MANQUANTS) ; confirmé (envoyerSansBons), la facture part seule et
+  // l'envoi est tracé "envoi_sans_bons" — compté dans le KPI « Envoyées sans
+  // bons » de Comptes Clients. Un bon illisible ou une lecture en échec
+  // restent refusés sans confirmation possible : jamais un envoi à moitié.
+  const attachments: { filename: string; content: Uint8Array }[] = [
+    { filename: nomFichier, content: fichierBuffer },
+  ];
+  const { data: preferences, error: ePref } = await supabase
+    .from("client_preferences").select("bons_joindre_email").eq("client_id", client.id).maybeSingle();
+  if (ePref) {
+    return jsonResponse({ error: "Impossible de lire les préférences d'envoi de ce client — facture non envoyée, réessayez." }, 500);
+  }
+  let motifSansBons: string | null = null;
+  if (preferences && preferences.bons_joindre_email && !invoice.billing_period_id) {
+    if (!envoyerSansBons) {
+      return jsonResponse({ code: "BONS_MANQUANTS", error: "Ce client reçoit ses bons avec la facture, mais cette facture n'a pas de période (mois) : impossible de retrouver ses bons. Facture non envoyée — rattachez-la à sa période depuis la Boîte de réception." }, 409);
+    }
+    motifSansBons = "Facture sans période — envoyée sans bons sur confirmation";
+  } else if (preferences && preferences.bons_joindre_email) {
+    const { data: bons, error: eBons } = await supabase
+      .from("supporting_documents").select("fichier_path")
+      .eq("client_id", client.id).eq("billing_period_id", invoice.billing_period_id).eq("type_document", "bon");
+    if (eBons) {
+      return jsonResponse({ error: "Impossible de lire les bons de ce client — facture non envoyée, réessayez." }, 500);
+    }
+    if ((!bons || bons.length === 0) && !envoyerSansBons) {
+      return jsonResponse({ code: "BONS_MANQUANTS", error: "Ce client reçoit ses bons avec la facture, mais aucun bon n'est rattaché à ce client pour ce mois. Facture non envoyée. Dans la Boîte de réception, choisissez le client de chaque bon « sans client », puis renvoyez — ou, s'il ne doit plus les recevoir, modifiez sa fiche client (Bons justificatifs : autre choix que « Joindre aux e-mails »)." }, 409);
+    }
+    if (!bons || bons.length === 0) motifSansBons = "Aucun bon rattaché pour ce mois — envoyée sans bons sur confirmation";
+    for (const bon of bons || []) {
+      const { data: fichierBon, error: eBon } = await supabase
+        .storage.from("documents-a-traiter").download(bon.fichier_path);
+      if (eBon || !fichierBon) {
+        console.error("Bon illisible, envoi refusé:", bon.fichier_path, eBon);
+        return jsonResponse({ error: `Impossible de récupérer le bon « ${bon.fichier_path.split("/").pop()} » — facture non envoyée, pour ne pas partir sans ses bons. Réessayez, ou redéposez ce bon dans la Boîte de réception.` }, 500);
+      }
+      attachments.push({
+        filename: bon.fichier_path.split("/").pop() || "bon.pdf",
+        content: new Uint8Array(await fichierBon.arrayBuffer()),
+      });
+    }
+  }
+
   // 7) Message — mêmes variables et même logique de composition que
   // l'aperçu affiché dans Paramètres > Comptes Clients (voir en-tête).
-  const variables: Record<string, string> = {
+  const moisTexte = billingPeriod ? MOIS_FR[(billingPeriod.mois || 1) - 1] : "";
+  const variablesCorps: Record<string, string> = {
     "{{interlocuteur}}": composerFormuleAppel(contact),
     "{{compte_client}}": client.raison_sociale,
-    "{{mois}}": billingPeriod ? MOIS_FR[(billingPeriod.mois || 1) - 1] : "",
+    "{{mois}}": moisTexte,
     "{{année}}": billingPeriod ? String(billingPeriod.annee) : "",
     "{{établissement}}": parametres.nom_etablissement || "",
     "{{signature}}": composerSignature(parametres),
   };
+  // 13/08/2026, demande de Frédéric : "mets dans l'objet le mois en
+  // majuscule" — uniquement l'objet, jamais le corps (la phrase "pour le mois
+  // de juillet 2026" reste en minuscules dans le message). On clone donc les
+  // variables pour l'objet avec {{mois}} en majuscules, sans toucher au reste
+  // du modèle ni à celles utilisées pour le corps.
+  const variablesObjet: Record<string, string> = { ...variablesCorps, "{{mois}}": moisTexte.toUpperCase() };
   const objetDefaut = "Votre facture — {{compte_client}}";
   const corpsDefaut = "{{interlocuteur}}\n\nVeuillez trouver ci-joint votre facture.\n\n{{signature}}";
-  const objet = substituerModele((template && template.objet) || objetDefaut, variables);
-  const corps = substituerModele((template && template.corps) || corpsDefaut, variables);
+  const objet = substituerModele((template && template.objet) || objetDefaut, variablesObjet);
+  const corps = substituerModele((template && template.corps) || corpsDefaut, variablesCorps);
+  const corpsHtml = composerCorpsHtml(objet, corps);
 
   // 8) Envoi SMTP via Gmail.
   try {
@@ -198,7 +311,8 @@ Deno.serve(async (req: Request) => {
       cc: contact.email_cc || undefined,
       subject: objet,
       text: corps,
-      attachments: [{ filename: nomFichier, content: fichierBuffer }],
+      html: corpsHtml,
+      attachments,
     });
   } catch (erreurEnvoi) {
     console.error("Échec envoi SMTP:", erreurEnvoi);
@@ -215,8 +329,17 @@ Deno.serve(async (req: Request) => {
   await supabase.from("client_comptes_audit_logs").insert({
     site: client.site, client_id: client.id, entite_type: "invoice", entite_id: invoice.id,
     action: "envoi_reussi",
-    nouvelle_valeur: `Envoyée à ${contact.email_principal}`,
+    nouvelle_valeur: `Envoyée à ${contact.email_principal}` + (attachments.length > 1 ? ` — ${attachments.length - 1} bon(s) joint(s)` : ""),
   });
+  if (motifSansBons) {
+    const { error: eTrace } = await supabase.from("client_comptes_audit_logs").insert({
+      site: client.site, client_id: client.id, entite_type: "invoice", entite_id: invoice.id,
+      action: "envoi_sans_bons",
+      nouvelle_valeur: `Envoyée à ${contact.email_principal} sans bons`,
+      motif: motifSansBons,
+    });
+    if (eTrace) console.error("Trace envoi_sans_bons non écrite:", eTrace);
+  }
 
   return jsonResponse({ success: true, destinataire: contact.email_principal });
 });
