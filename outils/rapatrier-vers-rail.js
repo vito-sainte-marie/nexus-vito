@@ -214,6 +214,89 @@ function lotDeLaBranche(branche, analyse) {
   return { lot: lots[0] || null, aucun: true };
 }
 
+// LE RUN QUI CONSOMME SON LOT NE TROUVAIT PLUS SON LOT — MESURÉ LE 07/10/2026.
+//
+// `lotDeLaBranche` interroge le réveil, et le réveil lit le registre de
+// l'ARBRE EXTRAIT : celui de la branche de run. Or le travail typique d'un run
+// déclenché par une décision est justement de la consommer — `STATE.json`
+// passe à `DECISION_CONSOMMEE`, le lot ne figure plus parmi les attentes, et
+// la qualification concluait `LOT_NON_RATTACHABLE — Aucun lot déclaré`. Un
+// avertissement, donc une étape verte : le travail restait sur
+// `claude/issue-*`, et il ne restait sur l'issue que le lien « Create PR » de
+// l'action. Run 37680418292 (claude/issue-28-20261007-2008, cd89ed1,
+// decision-6 de GOUVERNANCE-REFERENCE-CODE-20261005) : refusé ainsi, rapatrié
+// à la main. Le même défaut pour chaque run qui fermait un lot.
+//
+// Le lot ne se lit donc pas seulement dans l'état d'ARRIVÉE, mais dans l'état
+// de DÉPART : le registre du rail, à `railSha`. Un lot se rattache par ce
+// chemin quand, et seulement quand :
+//   · le diff `railSha..head` le touche — son dossier, ou son entrée de
+//     `STATE.json` — et n'en touche AUCUN autre (sinon : ambigu, comme avant) ;
+//   · il était OUVERT sur le rail (statut autre que `DECISION_CONSOMMEE`) : un
+//     lot clos qu'on retouche n'est pas une consommation ;
+//   · sa dernière demande existe sur le rail. Les octets sont ensuite
+//     comparés : identiques, la branche est rangée dans `memes` ; différents,
+//     dans `homonymes` — et `qualifier` refuse alors `LOT_AMBIGU` comme pour
+//     tout homonyme. Rien n'est relâché : seule la source change.
+// Toute question que git ne peut pas trancher rend `null`, et le refus
+// d'origine s'applique inchangé.
+const LOTS_GIT = 'docs/handoff/lots/';
+const ETAT_GIT = 'docs/handoff/STATE.json';
+
+function lotDuRail(exec, branche, railSha, head, diff) {
+  if (!railSha || !head) return null;
+  const json = (sha) => {
+    const r = exec('git', ['show', `${sha}:${ETAT_GIT}`]);
+    if (r.code !== 0) return null;
+    try { const e = JSON.parse(r.sortie); return e && typeof e.lots === 'object' ? e : null; }
+    catch (_) { return null; }
+  };
+  const avant = json(railSha);
+  const apres = json(head);
+  if (!avant || !apres) return null;
+
+  const touches = new Set();
+  for (const f of diff || []) {
+    const m = String(f.chemin || '').startsWith(LOTS_GIT)
+      && /^docs\/handoff\/lots\/([^/]+)\//.exec(f.chemin);
+    if (m) touches.add(m[1]);
+  }
+  const noms = new Set([...Object.keys(avant.lots || {}), ...Object.keys(apres.lots || {})]);
+  for (const n of noms) {
+    if (JSON.stringify((avant.lots || {})[n]) !== JSON.stringify((apres.lots || {})[n])) touches.add(n);
+  }
+  if (touches.size === 0) return null;
+  if (touches.size > 1) return { ambigu: [...touches].sort() };
+
+  const lot = [...touches][0];
+  const ouvert = (avant.lots || {})[lot];
+  if (!ouvert || ouvert.statut === 'DECISION_CONSOMMEE') return null;
+
+  const liste = exec('git', ['ls-tree', '--name-only', railSha, '--', `${LOTS_GIT}${lot}/`]);
+  if (liste.code !== 0) return null;
+  const demandes = liste.sortie.split('\n').map((l) => l.trim())
+    .map((p) => ({ p, m: /\/request-(\d+)\.md$/.exec(p) })).filter((x) => x.m)
+    .sort((a, b) => Number(a.m[1]) - Number(b.m[1]));
+  if (!demandes.length) return null;
+  const demande = demandes[demandes.length - 1].p;
+
+  const blob = (sha) => {
+    const r = exec('git', ['rev-parse', '--verify', '--quiet', `${sha}:${demande}`]);
+    return r.code === 0 ? r.sortie.trim() : '';
+  };
+  const surRail = blob(railSha);
+  if (!surRail) return null;
+  const memes = blob(head) === surRail;
+  return { lot: {
+    lot,
+    demande: demande.slice(demande.lastIndexOf('/') + 1),
+    source: 'REGISTRE_DU_RAIL',
+    refs_reelles: memes
+      ? { memes: [branche, `origin/${branche}`], homonymes: [] }
+      : { memes: [], homonymes: [branche, `origin/${branche}`] },
+  } };
+}
+
 // LE DIFF, ET POURQUOI ON NE SE CONTENTE PAS DES CHEMINS.
 // `qualifier` sait refuser une garde affaiblie — mais seulement si on lui donne
 // les LIGNES. Lui passer la seule liste des fichiers rendrait ce contrôle muet
@@ -323,8 +406,15 @@ function observer(options = {}) {
 
   const diff = relever(exec, railSha, head);
 
-  const rattachement = options.rattachement
+  let rattachement = options.rattachement
     || lotDeLaBranche(branche, options.analyse || analyseDuReveil(options));
+  // Le réveil ne voit que les lots encore en attente dans l'arbre de la
+  // branche ; un run qui a consommé sa décision y a effacé son propre lot.
+  // On relit alors le registre du rail (voir `lotDuRail`).
+  if (!options.rattachement && rattachement.aucun) {
+    const duRail = lotDuRail(exec, branche, railSha, head, diff);
+    if (duRail) rattachement = duRail;
+  }
 
   // L'autorité : la phrase de l'humain, ou une déclaration explicite. Jamais
   // la capacité technique d'écrire sur la branche.
@@ -511,7 +601,7 @@ function rapatrier(options = {}) {
 }
 
 module.exports = { MAILLON, REQUIS_A_DEFAUT_20260930, observer, rapatrier, pousser,
-  lotDeLaBranche, relever, issueDeLaBranche, verificationsDuHead, requisDeclares,
+  lotDeLaBranche, lotDuRail, relever, issueDeLaBranche, verificationsDuHead, requisDeclares,
   commentairesDeLIssue, executeurReel };
 
 if (require.main === module) {
