@@ -1,0 +1,9 @@
+{
+  "protocol": "nexus-handoff/2",
+  "note": "Résolution d'une adresse `wake_to` LOGIQUE (un rôle : ChatGPT, Claude) vers un canal de transport CONCRET (une URL postable). PROTOCOL.md pose `wake_to` comme une adresse libre — « une URL d'issue aujourd'hui, autre chose demain » — et interdit qu'un outil code un destinataire en dur. Ce fichier est le fait écrit qui rend cette liberté exploitable sans coder de destinataire dans `outils/` : changer de canal est une édition de ce fichier, jamais une modification de code. Modifier ce fichier est un acte humain/Orchestrateur, au même titre qu'une dérogation du registre.",
+  "cause": "FAST-TRACK-ANTI-PAUSE-1-20261007 — request-6.md de GOUVERNANCE-REFERENCE-CODE-20261005 déclarait `wake_to: ChatGPT`, et la publication CI (.github/workflows/tests.yml, étape « Réveil Orchestrateur — publication au destinataire déclaré ») n'accepte qu'une adresse de la forme exacte `<serveur>/<dépôt>/issues/<numéro>`. Un rôle logique non résolu y échouait en BLOCKED/ADRESSE_HORS_DEPOT — visible seulement dans le résumé du run, jamais publié sur l'issue : la relance réciproque Claude→ChatGPT ne se produisait pas, malgré une CI verte et un wake_to déclaré.",
+  "canaux": {
+    "ChatGPT": "https://github.com/vito-sainte-marie/nexus-vito/issues/28",
+    "Claude": "https://github.com/vito-sainte-marie/nexus-vito/issues/28"
+  }
+}

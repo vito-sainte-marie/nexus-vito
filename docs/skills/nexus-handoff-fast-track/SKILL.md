@@ -160,6 +160,15 @@ d'attente passive.**
 12. Cette règle n'ajoute aucune autorité Production ou Supabase Production,
     ni à Claude ni à ChatGPT (inchangé par rapport à « Séparation des
     rôles » § 8 et à la Frontière absolue ci-dessous).
+13. `wake_to` est un rôle (« ChatGPT », « Claude »), pas forcément un canal
+    postable. `docs/handoff/CANAUX.json` porte sa résolution vers une adresse
+    concrète ; `outils/reveil-orchestrateur.js` la lit avant de publier. Un
+    rôle sans entrée résolue, ou un destinataire qui est l'acteur courant lui-
+    même, est un **`BLOCKED_TECHNIQUE`** (personne à relayer) — à distinguer
+    du **`CHANNEL_LIMITATION`** (un relais résolu existe, exécuter sans
+    attendre Frédéric). `outils/classification-canal.js` mécanise cette
+    distinction ; aucun STOP de la liste fermée n'est jamais contourné par un
+    canal qui marche (GOV-006, FAST-TRACK-ANTI-PAUSE-1-20261007).
 
 ## Requalification des mouvements
 

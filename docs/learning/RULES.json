@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-09-08",
+  "updated_at": "2026-10-07",
   "rules": [
     {
       "id": "ENV-001",
@@ -259,6 +259,19 @@
       "severity": "blocking",
       "rule": "A test must never require a known defect to be PRESENT. Asserting that the repository still contains the bug locks it in: the day it is fixed, that test breaks and CI reports the fix as a regression. Prove the detector with synthetic fixtures; use the real repository to check the defect does not COME BACK.",
       "source": "2026-09-08: closing CARB-007 removed the copied truck capacity from a screen, and test_guardian_regles_metier failed with « la capacité camion recopiée hors du moteur doit rester visible » — the fix was flagged as a new failing test"
+    },
+    {
+      "id": "GOV-006",
+      "scope": [
+        "gouvernance",
+        "orchestration",
+        "github"
+      ],
+      "trigger": "wake_relay",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "A declared wake_to is a logical role (ChatGPT, Claude), not necessarily a postable channel. Before treating a blocked next action as requiring a human STOP, resolve the role to a concrete, reachable address through a committed fact (never a hard-coded destination in tooling); only when no resolution exists is the stoppage BLOCKED_TECHNIQUE rather than CHANNEL_LIMITATION. A closed-list STOP motive always wins over a resolved channel.",
+      "source": "2026-10-07: GOUVERNANCE-REFERENCE-CODE-20261005/request-6.md declared wake_to: ChatGPT with green local CI; tests.yml's publication step only accepts a literal <server>/<repo>/issues/<n> address, so the wake stayed confined to the run summary and the chain stalled despite an available channel — fixed by docs/handoff/CANAUX.json + outils/reveil-orchestrateur.js::resoudreCanal, mechanised by outils/classification-canal.js"
     }
   ]
 }

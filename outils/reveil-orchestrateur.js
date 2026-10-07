@@ -256,6 +256,51 @@ function refsContenant(lot, fichier) {
 // Si le lot ne dit rien, NEXUS_HANDOFF_WAKE_TO peut router sans toucher aux
 // fichiers. Si personne ne dit rien, l'outil l'annonce et n'invente pas
 // d'adresse : un réveil envoyé au hasard réveille le mauvais agent.
+//
+// RÉSOLUTION — FAST-TRACK-ANTI-PAUSE-1-20261007.
+//
+// `wake_to` est délibérément une adresse LIBRE (PROTOCOL.md) : « ChatGPT »,
+// « Claude », une URL. C'est un rôle lisible par un humain, pas forcément un
+// canal postable. Or l'étape CI qui publie le réveil (tests.yml, « Réveil
+// Orchestrateur — publication au destinataire déclaré ») n'accepte qu'une
+// adresse de la forme exacte `<serveur>/<dépôt>/issues/<numéro>` — tout le
+// reste tombe dans son refus `ADRESSE_HORS_DEPOT`, qui ne rougit pas (c'est un
+// arrêt légitime, pas une panne) mais qui, surtout, NE PUBLIE RIEN sur
+// l'issue : le réveil reste cantonné au résumé du run, que personne ne lit
+// sans savoir qu'il faut l'y chercher. C'est exactement ce qui a stoppé
+// `GOUVERNANCE-REFERENCE-CODE-20261005/request-6.md` (`wake_to: ChatGPT`,
+// 07/10/2026) : une limitation de CANAL, pas un blocage réel — le canal de
+// l'issue existe et fonctionne, seule la traduction du rôle vers son adresse
+// manquait.
+//
+// `docs/handoff/CANAUX.json` porte cette traduction comme un FAIT ÉCRIT DANS
+// LE RAIL (PROTOCOL.md : « aucun outil ne code de destinataire en dur »). Ce
+// fichier ne fait que la LIRE ; changer de canal reste une édition de ce
+// fichier, jamais de ce code. Absent, illisible, ou sans entrée pour le rôle
+// déclaré : la résolution échoue proprement et l'adresse brute est rendue
+// inchangée — exactement le comportement d'avant cette correction, jamais
+// une régression silencieuse.
+function canauxConnus() {
+  try {
+    const brut = JSON.parse(fs.readFileSync(path.join(handoff.CHEMINS.HANDOFF, 'CANAUX.json'), 'utf8'));
+    return (brut && typeof brut.canaux === 'object' && brut.canaux) || {};
+  } catch (e) { return {}; }
+}
+
+// Pure et testable séparément : donne l'adresse déclarée, dit si elle a été
+// résolue, et ne perd jamais le rôle d'origine — `corpsReveil` en a besoin
+// pour rester lisible par un humain (« Adressé à: ChatGPT » reste vrai même
+// une fois résolu vers une URL).
+function resoudreCanal(adresseBrute) {
+  if (!adresseBrute) return { adresse: adresseBrute, role: null, resolue: false };
+  const cle = String(adresseBrute).trim();
+  const canaux = canauxConnus();
+  if (canaux[cle] && String(canaux[cle]).trim()) {
+    return { adresse: String(canaux[cle]).trim(), role: cle, resolue: true };
+  }
+  return { adresse: cle, role: null, resolue: false };
+}
+
 function adresseReveil(lot) {
   // La déclaration du registre se lit dans outils/handoff.js, seul lecteur du
   // registre (ARCH-001) — ce fichier la rescannait pour son compte, et le
@@ -263,10 +308,16 @@ function adresseReveil(lot) {
   // consommateurs : `handoff.js verifier` avertit quand un lot en attente n'a
   // pas d'adresse, et ce réveil l'utilise. Ils ne peuvent plus diverger.
   const declaree = handoff.adresseDeReveil(lot);
-  if (declaree.adresse) return declaree;
+  if (declaree.adresse) {
+    const r = resoudreCanal(declaree.adresse);
+    return { adresse: r.adresse, source: declaree.source, role: r.role, resolue: r.resolue };
+  }
   const env = process.env.NEXUS_HANDOFF_WAKE_TO;
-  if (env && env.trim()) return { adresse: env.trim(), source: 'NEXUS_HANDOFF_WAKE_TO' };
-  return { adresse: null, source: null };
+  if (env && env.trim()) {
+    const r = resoudreCanal(env.trim());
+    return { adresse: r.adresse, source: 'NEXUS_HANDOFF_WAKE_TO', role: r.role, resolue: r.resolue };
+  }
+  return { adresse: null, source: null, role: null, resolue: false };
 }
 
 // Une demande appelle l'Orchestrateur quand elle est la dernière du lot et
@@ -299,6 +350,8 @@ function examiner(etat) {
       refs_reelles: refs,
       adresse: ou.adresse,
       adresse_source: ou.source,
+      adresse_role: ou.role,
+      adresse_resolue: ou.resolue,
       // Vrai seulement si le document est lisible sur AU MOINS une ref et que
       // la branche déclarée n'en fait pas partie. `null` (git muet) n'est pas un
       // écart — et « sur aucune ref » n'est pas une déclaration trompeuse : c'est
@@ -417,7 +470,9 @@ function corpsReveil(r, opts) {
     'NEXUS Orchestrator — réveil Handoff (sens Claude → Orchestrateur).',
     '',
     l.adresse
-      ? `Adressé à: ${l.adresse}  _(déclaré par \`${l.adresse_source}\`)_`
+      ? (l.adresse_resolue
+          ? `Adressé à: ${l.adresse_role} (résolu vers \`${l.adresse}\`, voir \`docs/handoff/CANAUX.json\`)  _(déclaré par \`${l.adresse_source}\`)_`
+          : `Adressé à: ${l.adresse}  _(déclaré par \`${l.adresse_source}\`)_`)
       : "Adressé à: **non déclaré** — aucun échange du lot ne porte `wake_to`, et NEXUS_HANDOFF_WAKE_TO n'est pas posé. Ce réveil n'a pas de destinataire : il ne doit pas être publié au hasard.",
     '',
     `LOT_ID: \`${l.lot}\``,
@@ -466,7 +521,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes };
+module.exports = { analyser, examiner, corpsReveil, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes, resoudreCanal, canauxConnus, adresseReveil };
 
 if (require.main === module) {
   const r = analyser();
