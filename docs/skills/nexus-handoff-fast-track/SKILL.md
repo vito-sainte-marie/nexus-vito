@@ -145,9 +145,8 @@ d'attente passive.**
 8. Une limitation de canal n'autorise jamais l'attente passive : chercher le
    canal autorisé (voir règle anti-inertie et § TRANSPORT) ou transmettre
    immédiatement au bon acteur.
-9. Chaque relais doit porter au minimum : le lot/`request` active, le
-   HEAD/lease exact, l'état des gates/CI, l'action précise attendue, et les
-   frontières STOP applicables. Un relais incomplet n'est pas un relais.
+9. Chaque relais porte un `NEXT_ACTION_CONTRACT` complet (section suivante).
+   Un relais incomplet n'est pas un relais.
 10. Frédéric n'est réveillé que pour un motif du palier Frédéric ci-dessous,
     nommé par son code (`node outils/escalade-humaine.js --motif <CODE>`). Une simple alternance Claude ↔ ChatGPT n'est jamais,
     à elle seule, un motif de retour humain.
@@ -169,6 +168,45 @@ d'attente passive.**
     attendre Frédéric). `outils/classification-canal.js` mécanise cette
     distinction ; aucun STOP de la liste fermée n'est jamais contourné par un
     canal qui marche (GOV-006, FAST-TRACK-ANTI-PAUSE-1-20261007).
+
+## Fast Track v2 — relais, preuves, file de travail
+
+Arbitrage ChatGPT v2, transmis par Frédéric le 07/10/2026. Principe : v2
+retire plus d'étapes qu'elle n'en ajoute. Aucune nouvelle plateforme.
+
+**NEXT_ACTION_CONTRACT** — le relais universel. Les champs sont générés par
+`outils/escalade-humaine.js` (`CHAMPS_CONTRAT`) et envoyés dans chaque réveil :
+`DECISION`, `CLOSES`, `LOT`, `REQUEST`, `HEAD`, `LEASE`, `GATE_STATE`,
+`PROOF_STATE`, `CONDITIONS`, `BLOCKER`, `STOP_REQUIRED`, `OWNER_NEXT`,
+`ACTION_NEXT`. ChatGPT décide et rend le contrat ; Claude matérialise par
+`outils/handoff.js decision --auteur ChatGPT --decision <DECISION> --closes
+<CLOSES> --wake-to <OWNER_NEXT>`. Traductions : HOLD → `NEEDS_EVIDENCE` ;
+STOP_REQUIRED → `BLOCKED` avec `OWNER_NEXT: Frédéric` et un code du palier
+Frédéric.
+
+**Gates.** G0 : information, aucun arrêt. G1 : contrôle local, Claude. G2 :
+arbitrage, ChatGPT. G3 : Frédéric, uniquement pour le palier Frédéric.
+
+**MINIMIZE_HANDOFFS / MAX_SAFE_BATCH.** Un relais par changement d'autorité,
+jamais par étape. Regrouper dans une seule request tout ce qui partage le même
+TOUCH_SET (fichiers touchés) et la même gate ; séparer ce qui touche une
+migration, la sécurité ou un autre module.
+
+**PROOF_CACHE.** Une preuve reste `PROOF_VALID` tant qu'aucun fichier de son
+domaine n'a changé. Un changement la rend `PROOF_REFRESH_REQUIRED` pour ce
+domaine seulement : `docs/handoff/**` n'invalide pas une preuve Paye ou FDJ. Un
+fichier de migration modifié la rend `PROOF_INVALIDATED`.
+
+**PROGRESS_FINGERPRINT.** LOT + REQUEST + HEAD + GATE_STATE + BLOCKER +
+ACTION_NEXT. Le même fingerprint deux fois de suite donne `FAST_TRACK_STALL` :
+diagnostiquer la cause racine avant tout nouveau réveil (règle 11).
+
+**WORK_QUEUE et PRODUCT_FIRST.** Ordre de la file : P1 Paye, P2 Cockpit &
+Brief, P3 FDJ, P4 Client en compte, P5 Verify, P6 Planning, P7 Carburants, P8
+Inventaire, P9 Pointage. Un chantier en attente (`WAIT_AUTHORITY`,
+`WAIT_EXTERNAL`) ne bloque pas le suivant (`ACTIONABLE`). Après une correction
+de gouvernance : FIX → PROOF → RETURN_TO_PRODUCT. Le travail Handoff n'est
+jamais une fin en soi.
 
 ## Requalification des mouvements
 
@@ -195,7 +233,10 @@ Le routage fait foi dans `docs/handoff/ARBITRAGES-ACQUIS.json` (`routage`) ;
 - secret, permission, ou élargissement de la surface de sécurité ;
 - armement d'une boucle automatique agissant au nom de Frédéric ;
 - nouvelle décision métier non déjà arbitrée ;
-- changement de doctrine ou de philosophie NEXUS.
+- changement de doctrine ou de philosophie NEXUS ;
+- opération irréversible significative ;
+- divergence d'autorité inexpliquée ;
+- régression produit importante restée inexpliquée après diagnostic.
 
 **Palier arbitre** — stopper la boucle, mais l'arbitre (ChatGPT) tranche :
 - extension substantielle de périmètre ;

@@ -103,6 +103,29 @@ function verifierRegistre(registre, racine, motifsFermes) {
   return defauts;
 }
 
+// NEXT_ACTION_CONTRACT (Fast Track v2, 07/10/2026) : le relais universel.
+// L'arbitre le rend dans sa réponse ; Claude le matérialise par
+// `outils/handoff.js decision` (DECISION → --decision, CLOSES → --closes,
+// OWNER_NEXT → --wake-to). L'arbitre ne dépose aucun fichier lui-même.
+// Les résultats v2 se traduisent dans le vocabulaire canonique :
+// HOLD → NEEDS_EVIDENCE ; STOP_REQUIRED → BLOCKED, OWNER_NEXT Frédéric et un
+// code du palier `frederic` dans STOP_REQUIRED.
+const CHAMPS_CONTRAT = Object.freeze([
+  ['DECISION', 'APPROVED | APPROVED_WITH_CONDITIONS | BLOCKED | NEEDS_EVIDENCE'],
+  ['CLOSES', 'true | false'],
+  ['LOT', 'le LOT_ID du réveil'],
+  ['REQUEST', 'request-N.md arbitrée'],
+  ['HEAD', 'SHA du rail lu'],
+  ['LEASE', 'lease ou « aucun »'],
+  ['GATE_STATE', 'G0 | G1 | G2 | G3, et l\'état CI'],
+  ['PROOF_STATE', 'PROOF_VALID | PROOF_REFRESH_REQUIRED | PROOF_INVALIDATED'],
+  ['CONDITIONS', 'conditions vérifiables, ou « aucune »'],
+  ['BLOCKER', 'obstacle concret, ou « aucun »'],
+  ['STOP_REQUIRED', 'code du palier Frédéric, ou « non »'],
+  ['OWNER_NEXT', 'Claude | Frédéric'],
+  ['ACTION_NEXT', 'le geste minimal suivant, en une phrase'],
+]);
+
 /** Le mandat que le réveil envoie à l'arbitre. Généré, jamais recopié. */
 function blocMandat(registre, lot) {
   const reg = registre || chargerRegistre();
@@ -116,6 +139,11 @@ function blocMandat(registre, lot) {
     '- Tout autre obstacle (CI rouge, conflit, preuve manquante, périmètre) se',
     '  tranche ici : refuse, ou demande la preuve, ou approuve avec conditions.',
     '- Une condition ne doit jamais exiger un GO humain hors de ces motifs.',
+    '- Tu ne déposes aucun fichier : termine ta réponse par ce contrat, Claude le',
+    '  matérialise via `outils/handoff.js decision` sans en changer le verdict.',
+    '  HOLD se dit NEEDS_EVIDENCE ; STOP_REQUIRED se dit BLOCKED + OWNER_NEXT Frédéric.',
+    '  NEXT_ACTION_CONTRACT',
+    ...CHAMPS_CONTRAT.map(([k, v]) => `  ${k}: <${v}>`),
     '',
     'Arbitrages déjà rendus :',
     ...reg.acquis.filter(a => acquisApplicable(a, lot))
@@ -123,7 +151,7 @@ function blocMandat(registre, lot) {
   ].join('\n');
 }
 
-module.exports = { VERDICTS, FICHIER_REGISTRE, chargerRegistre, escalader, verifierRegistre, blocMandat };
+module.exports = { VERDICTS, FICHIER_REGISTRE, CHAMPS_CONTRAT, chargerRegistre, escalader, verifierRegistre, blocMandat };
 
 if (require.main === module) {
   const arg = n => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };

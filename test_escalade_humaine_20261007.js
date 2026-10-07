@@ -13,7 +13,10 @@
 //      cité — aucun acquis ne délègue la Production ;
 //   C. sans motif codé, ou avec un motif inconnu, Frédéric n'est JAMAIS réveillé ;
 //   D. le corps du réveil porte réellement le mandat (câblage, pas seulement
-//      fonction : la mutation est « débrancher l'appel »).
+//      fonction : la mutation est « débrancher l'appel ») ;
+//   E. Fast Track v2 : le réveil, SKILL.md et ARBITRE-CHATGPT.md portent le
+//      même NEXT_ACTION_CONTRACT et les mêmes motifs Frédéric, et l'arbitre
+//      ne dépose plus lui-même decision-N.md.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -190,6 +193,50 @@ epreuve('D — mutation : l’appel au mandat débranché est détecté', () => 
     adresse: 'https://example.invalid/issues/28', adresse_source: 'request-7.md', refs_reelles: null,
     motif: 'DEMANDE_NON_ARBITREE' }] });
   assert.ok(!corps.includes('Mandat de l\'arbitre'), 'la mutation devait retirer le mandat du corps');
+});
+
+console.log('E — Fast Track v2 : l’arbitre décide, Claude matérialise');
+
+// Écarts entre le contrat de relais, le corps du réveil et les deux textes
+// qui le décrivent. Rendre une liste plutôt que lever permet aux mutations de
+// vérifier que l'écart est bien vu, et pas seulement qu'une erreur est levée.
+const ARBITRE = 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md';
+const SKILL = 'docs/skills/nexus-handoff-fast-track/SKILL.md';
+function ecartsV2(corps, champs, r, texteArbitre, skill) {
+  const e = [];
+  if (!corps.includes('NEXT_ACTION_CONTRACT')) e.push('réveil sans NEXT_ACTION_CONTRACT');
+  for (const k of ['DECISION', 'CLOSES', 'OWNER_NEXT', 'ACTION_NEXT', 'STOP_REQUIRED']) {
+    if (!champs.some(([c]) => c === k)) e.push(`champ ${k} absent du contrat`);
+  }
+  for (const [k] of champs) {
+    if (!corps.includes(`  ${k}: <`)) e.push(`champ ${k} absent du réveil`);
+    if (!skill.includes('`' + k + '`')) e.push(`champ ${k} absent de SKILL.md`);
+  }
+  for (const m of r.routage.frederic) if (!texteArbitre.includes('`' + m + '`')) e.push(`motif ${m} absent de ARBITRE-CHATGPT.md`);
+  if (/Tu déposes `decision-N\.md`/.test(texteArbitre)) e.push('ARBITRE-CHATGPT.md fait encore déposer la décision par l’arbitre');
+  return e;
+}
+const lire = f => fs.readFileSync(path.join(RACINE, f), 'utf8');
+
+epreuve('E — le réveil, le skill et le texte de l’arbitre portent le même contrat et les mêmes motifs', () => {
+  assert.deepStrictEqual(ecartsV2(reveil(), esc.CHAMPS_CONTRAT, registre(), lire(ARBITRE), lire(SKILL)), []);
+});
+
+epreuve('E — mutation : un champ retiré du contrat est détecté', () => {
+  const tmp = variante('outils/escalade-humaine.js', "  ['OWNER_NEXT', 'Claude | Frédéric'],\n", '');
+  const muté = require(path.join(tmp, 'outils', 'escalade-humaine.js'));
+  assert.ok(ecartsV2(reveil(), muté.CHAMPS_CONTRAT, registre(), lire(ARBITRE), lire(SKILL)).some(x => x.includes('OWNER_NEXT')));
+});
+
+epreuve('E — mutation : un motif Frédéric ajouté sans le dire à l’arbitre est détecté', () => {
+  const r = clone(registre());
+  r.routage.frederic.push('MOTIF_NOUVEAU_NON_TRANSMIS');
+  assert.ok(ecartsV2(reveil(), esc.CHAMPS_CONTRAT, r, lire(ARBITRE), lire(SKILL)).some(x => x.includes('MOTIF_NOUVEAU_NON_TRANSMIS')));
+});
+
+epreuve('E — mutation : l’ancienne consigne « tu déposes decision-N.md » est détectée', () => {
+  const ancien = lire(ARBITRE) + '\nTu déposes `decision-N.md` dans le même lot.\n';
+  assert.ok(ecartsV2(reveil(), esc.CHAMPS_CONTRAT, registre(), ancien, lire(SKILL)).some(x => x.includes('déposer')));
 });
 
 console.log(`\nEscalade humaine — ${reussites} épreuve(s) passée(s), ${echecs.length} échec(s).`);

@@ -74,12 +74,20 @@ les lui rappelait.
   promotion Production ; mutation Supabase Production ; violation
   sécurité/RLS/`site_id` ; secret, permission ou élargissement de la surface de
   sécurité ; armement d'une boucle automatique agissant en son nom ; nouvelle
-  décision métier non arbitrée ; changement de doctrine.
+  décision métier non arbitrée ; changement de doctrine ; et, depuis
+  l'arbitrage Fast Track v2 transmis par Frédéric le 07/10/2026 au soir,
+  opération irréversible significative, divergence d'autorité inexpliquée,
+  régression produit importante restée inexpliquée après diagnostic.
 - **Palier arbitre** — tout autre STOP du §3 (changement non attribué,
   conflit ou lease, régression CI, preuve impossible, extension de périmètre,
   modification hors périmètre) est tranché par l'arbitre désigné, sans
   Frédéric. L'arbitre peut refuser, demander une preuve, ou remonter au palier
   Frédéric **en nommant le motif codé** qui l'y autorise.
+
+Une régression **produit** est un comportement métier qui change (calcul,
+écran, donnée) ; un rouge de banc diagnostiqué (délai d'exécution, épreuve
+préexistante reproduite sur la base) reste au palier arbitre comme
+`REGRESSION_CI_NOUVELLE_INEXPLIQUEE`.
 
 Un commit ou un push sur le rail Handoff n'appelle aucun GO humain ; seuls
 `main` et `production` restent gardés.

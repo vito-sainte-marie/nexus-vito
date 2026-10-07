@@ -11,7 +11,10 @@
       "DECISION_METIER_NON_ARBITREE",
       "SECRET_PERMISSION_SURFACE_SECURITE",
       "ARMEMENT_BOUCLE_AU_NOM_DE_FREDERIC",
-      "CHANGEMENT_DOCTRINE"
+      "CHANGEMENT_DOCTRINE",
+      "OPERATION_IRREVERSIBLE_SIGNIFICATIVE",
+      "DIVERGENCE_AUTORITE_INEXPLIQUEE",
+      "REGRESSION_PRODUIT_IMPORTANTE_INEXPLIQUEE"
     ],
     "arbitre": [
       "EXTENSION_PERIMETRE_SUBSTANTIELLE",
@@ -86,6 +89,13 @@
       "reponse": "Non : elle est applicative et explicitement hors périmètre de ce lot.",
       "source": { "fichier": "docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-5.md", "ancre": "**D4 — explicitement hors périmètre de ce lot.**" },
       "portee": "GOUVERNANCE-REFERENCE-CODE-20261005"
+    },
+    {
+      "id": "CHATGPT_DECIDE_CLAUDE_MATERIALISE",
+      "question": "L'arbitre doit-il déposer lui-même decision-N.md dans le dépôt ?",
+      "reponse": "Non. L'arbitre rend sa décision et un NEXT_ACTION_CONTRACT dans sa réponse ; Claude la matérialise via `outils/handoff.js decision --auteur ChatGPT`, sans en changer le verdict.",
+      "source": { "fichier": "docs/skills/nexus-handoff-fast-track/SKILL.md", "ancre": "Claude matérialise ensuite" },
+      "portee": "tous lots"
     }
   ]
 }
