@@ -206,7 +206,8 @@ Brief, P3 FDJ, P4 Client en compte, P5 Verify, P6 Planning, P7 Carburants, P8
 Inventaire, P9 Pointage. Un chantier en attente (`WAIT_AUTHORITY`,
 `WAIT_EXTERNAL`) ne bloque pas le suivant (`ACTIONABLE`). Après une correction
 de gouvernance : FIX → PROOF → RETURN_TO_PRODUCT. Le travail Handoff n'est
-jamais une fin en soi.
+jamais une fin en soi. Une file sans geste actionnable ne se comble pas par du
+travail inventé : l'état se dit, et on attend l'apport terrain.
 
 ## Requalification des mouvements
 

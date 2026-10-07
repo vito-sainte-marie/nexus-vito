@@ -92,6 +92,18 @@ préexistante reproduite sur la base) reste au palier arbitre comme
 Un commit ou un push sur le rail Handoff n'appelle aucun GO humain ; seuls
 `main` et `production` restent gardés.
 
+**Confirmation de Frédéric du 07/10/2026** (réponse au compte rendu v2) :
+les trois motifs secret/permission, boucle armée en son nom et changement de
+doctrine restent au palier Frédéric ; la séparation des régressions est
+confirmée (régression produit réelle → remontée ; échec de test déjà
+diagnostiqué et attribué → arbitrage sans lui). La condition 5 de
+`GOUVERNANCE-REFERENCE-CODE-20261005/decision-5.md` (« un GO humain par
+push ») est levée : le transport canonique Handoff commit et pousse sans
+nouveau GO tant qu'il reste dans le périmètre préautorisé et sous lease. Cette
+levée ne donne aucune autorité Production. Un sujet étranger au lot (par
+exemple une facture à traiter) ne bloque pas le Fast Track s'il n'en est pas
+une dépendance, et une file vide ne se comble pas par du travail inventé.
+
 Une question déjà tranchée ne se repose pas : `docs/handoff/ARBITRAGES-ACQUIS.json`
 liste les arbitrages rendus avec leur source, et `outils/escalade-humaine.js`
 répond `DEJA_ARBITRE` pour eux. Une escalade sans motif codé n'atteint pas

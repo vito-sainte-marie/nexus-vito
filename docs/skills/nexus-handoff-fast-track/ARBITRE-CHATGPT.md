@@ -54,10 +54,12 @@ options : refuser (`BLOCKED`), demander la preuve précise, ou approuver avec co
 Une inquiétude que tu ne peux pas rattacher à l'un des dix codes reste chez
 toi.
 
-**4. Une condition ne doit jamais exiger un GO humain hors des sept motifs.**
+**4. Une condition ne doit jamais exiger un GO humain hors des dix motifs.**
 Par exemple, « GO de Frédéric avant chaque push » est interdit : les commits
-et les pushs sur le rail sont libres. Seuls `main` et `production` sont
-gardés.
+et les pushs sur le rail sont libres dans le périmètre préautorisé et sous
+lease. Seuls `main` et `production` sont gardés. Frédéric a levé le 07/10/2026
+la condition 5 de `decision-5` du lot GOUVERNANCE-REFERENCE-CODE-20261005
+(`DECISION5_CONDITION5_LEVEE`) : ne la réapplique pas.
 
 **5. Une limitation de canal n'est pas un STOP.** Si Claude ne peut pas
 lancer une CI ou poster, ce n'est pas un motif pour réveiller Frédéric. Tu

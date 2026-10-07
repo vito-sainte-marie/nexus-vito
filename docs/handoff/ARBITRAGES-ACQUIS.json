@@ -96,6 +96,27 @@
       "reponse": "Non. L'arbitre rend sa décision et un NEXT_ACTION_CONTRACT dans sa réponse ; Claude la matérialise via `outils/handoff.js decision --auteur ChatGPT`, sans en changer le verdict.",
       "source": { "fichier": "docs/skills/nexus-handoff-fast-track/SKILL.md", "ancre": "Claude matérialise ensuite" },
       "portee": "tous lots"
+    },
+    {
+      "id": "DECISION5_CONDITION5_LEVEE",
+      "question": "La condition 5 de GOUVERNANCE-REFERENCE-CODE-20261005/decision-5.md (un GO humain par push) s'applique-t-elle encore ?",
+      "reponse": "Non, levée par Frédéric le 07/10/2026 : le transport canonique Handoff commit et pousse sans nouveau GO dans le périmètre préautorisé et sous lease. Aucune autorité Production n'en découle.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "est levée : le transport canonique Handoff commit et pousse sans" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "REGRESSION_PRODUIT_VS_BANC",
+      "question": "Un test rouge doit-il remonter à Frédéric ?",
+      "reponse": "Seulement s'il traduit une régression produit réelle (calcul, écran, donnée). Un échec de test déjà diagnostiqué et attribué se tranche chez l'arbitre, sans Frédéric.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "la séparation des régressions est" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "SUJET_ETRANGER_NE_BLOQUE_PAS",
+      "question": "Un sujet en attente hors du lot (facture, ajustement terrain non transmis) bloque-t-il le Fast Track, ou faut-il inventer du travail pour l'occuper ?",
+      "reponse": "Ni l'un ni l'autre : un sujet étranger ne bloque pas s'il n'est pas une dépendance, et une file vide ne se comble pas par du travail inventé.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "une file vide ne se comble pas par du travail inventé" },
+      "portee": "tous lots"
     }
   ]
 }
