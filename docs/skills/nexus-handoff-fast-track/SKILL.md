@@ -114,6 +114,53 @@ Une limitation d'outil/canal doit déclencher la recherche du prochain canal aut
 
 Si aucun canal autorisé n'existe, alors seulement signaler le blocage concret.
 
+## Continuité active — anti-pause
+
+Cette section précise la règle anti-inertie ci-dessus : elle fixe comment ne
+jamais s'arrêter en silence entre deux étapes déjà autorisées. Elle ne crée
+aucune gate supplémentaire — elle interdit seulement l'attente passive là où
+le rail a déjà le droit d'avancer.
+
+**Principe : fin d'étape = action suivante ou relais explicite. Jamais
+d'attente passive.**
+
+1. À la fin de chaque étape Fast Track, identifier immédiatement le prochain
+   acteur et le prochain geste minimal.
+2. Si l'acteur courant peut exécuter ce geste dans son autorité et son
+   canal : l'exécuter immédiatement.
+3. S'il ne peut pas l'exécuter mais que l'autre acteur le peut : le réveiller
+   immédiatement, sans demander de nouveau GO à Frédéric.
+4. Claude → ChatGPT : réveil obligatoire dès qu'une `request-N` qualifiée dont
+   Claude est l'auteur nécessite l'arbitrage indépendant de ChatGPT (règles 2
+   et 3 de « Séparation des rôles »).
+5. ChatGPT → Claude : réveil obligatoire immédiatement après arbitrage, pour
+   matérialisation via `outils/handoff.js decision`, consommation, transport
+   et obtention de la preuve CI.
+6. Après CI verte, l'acteur qui constate le vert doit enchaîner lui-même vers
+   la `request` suivante, ou réveiller immédiatement l'acteur capable de le
+   faire. Ne pas rester inactif entre ces étapes.
+7. Tout run qui se termine avec du travail Fast Track encore actionnable,
+   mais sans exécution ni relais explicite, est une anomalie
+   **`FAST_TRACK_PAUSE`** — à éviter, pas à documenter après coup.
+8. Une limitation de canal n'autorise jamais l'attente passive : chercher le
+   canal autorisé (voir règle anti-inertie et § TRANSPORT) ou transmettre
+   immédiatement au bon acteur.
+9. Chaque relais doit porter au minimum : le lot/`request` active, le
+   HEAD/lease exact, l'état des gates/CI, l'action précise attendue, et les
+   frontières STOP applicables. Un relais incomplet n'est pas un relais.
+10. Frédéric n'est réveillé que pour les STOP déjà définis dans la liste
+    fermée ci-dessous. Une simple alternance Claude ↔ ChatGPT n'est jamais,
+    à elle seule, un motif de retour humain.
+11. Ne jamais créer une boucle de réveils sans progrès : chaque relais doit
+    correspondre à un changement d'autorité réellement nécessaire, ou à une
+    action concrète non encore exécutée. Si le même relais revient sans
+    qu'aucun progrès n'ait eu lieu entre les deux occurrences, classer
+    **`FAST_TRACK_STALL`** et diagnostiquer la cause technique avant toute
+    nouvelle relance — ne pas simplement répéter le même réveil.
+12. Cette règle n'ajoute aucune autorité Production ou Supabase Production,
+    ni à Claude ni à ChatGPT (inchangé par rapport à « Séparation des
+    rôles » § 8 et à la Frontière absolue ci-dessous).
+
 ## Requalification des mouvements
 
 Un mouvement de Production/main/rail n'est pas une anomalie par nature.

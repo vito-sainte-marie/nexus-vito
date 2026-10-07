@@ -141,6 +141,11 @@ La vitesse de croisière est considérée atteinte lorsque :
   § « Séparation des rôles », qui fait foi sur qui peut arbitrer quoi ;
 - les STOP correspondent à des anomalies réelles ;
 - l'état de qualification de chaque module est explicite ;
-- le socle multisite reste protégé à chaque étape.
+- le socle multisite reste protégé à chaque étape ;
+- aucune étape déjà autorisée ne se termine en silence : fin d'étape signifie
+  action suivante ou relais explicite vers l'acteur capable d'agir — voir
+  `docs/skills/nexus-handoff-fast-track/SKILL.md` § « Continuité active —
+  anti-pause », qui fait foi sur la mécanique du relais (`FAST_TRACK_PAUSE`,
+  `FAST_TRACK_STALL`) sans introduire de gate supplémentaire.
 
 L'accélération ne réduit jamais les exigences RLS, `site_id`, sécurité, traçabilité, CI ou append-only du Handoff.
