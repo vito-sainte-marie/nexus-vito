@@ -143,6 +143,37 @@ function valeurRetenue(ou, regle, champ) {
   return v === undefined || v === null || !String(v).trim() ? null : { valeur: String(v).trim(), derogation: d };
 }
 function git(...args) { return execFileSync('git', args, { cwd: RACINE, encoding: 'utf8' }).trim(); }
+// GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 1 (D1).
+//
+// request-1.md pose la règle : origin/production fait autorité pour le code
+// applicatif, le rail fait autorité pour le protocole Handoff. Elle demande
+// en §3, « à construire dans un lot d'outillage séparé », un calcul outillé
+// du merge-base et du diff applicatif, pour remplacer la vérification
+// manuelle refaite à chaque dépôt. Ceci construit ce calcul seul — pas le
+// refus automatique de request-1 §1, qui suppose de savoir quels fichiers
+// sont « touchés par le lot », une donnée que `demande` ne reçoit pas.
+//
+// Échoue silencieusement (disponible:false) si origin/production n'est pas
+// résolvable depuis ce checkout : c'est le cas vécu par plusieurs sessions
+// de ce même fil, et un calcul qui ferait planter `handoff.js demande`
+// chaque fois que ce ref manque serait pire que son absence.
+const MOTIFS_APPLICATIFS = [/^NEXUS-.*\.html$/, /^nexus-.*\.js$/];
+function estFichierApplicatif(f) {
+  if (f.startsWith('supabase/migrations/')) return true;
+  const base = path.basename(f);
+  return MOTIFS_APPLICATIFS.some(m => m.test(base));
+}
+function calculerReferenceProduction() {
+  try {
+    const mergeBase = git('merge-base', 'HEAD', 'origin/production');
+    const diff = execFileSync('git', ['diff', '--name-only', 'HEAD', 'origin/production'], { cwd: RACINE, encoding: 'utf8' }).trim();
+    const fichiers = diff ? diff.split('\n') : [];
+    const applicatifs = fichiers.filter(estFichierApplicatif);
+    return { disponible: true, mergeBase, nbApplicatifs: applicatifs.length };
+  } catch (e) {
+    return { disponible: false };
+  }
+}
 function lireEnveloppe(fichier) {
   const brut = fs.readFileSync(fichier, 'utf8'); const lignes = brut.split('\n');
   if (lignes[0].trim() !== '---') return { absente: true, corps: brut };
@@ -555,7 +586,16 @@ function rattraperDemande(lot) {
 }
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
-  const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} a une décision (${d.fichier}) qui n'est pas consommée.`); console.error('Consommez-la avant d\'ouvrir un nouveau lot : le protocole ne tient qu\'un lot actif.'); process.exit(1); } }
+  // GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 3 (D3). Ce test
+  // ne regarde QUE l'existence d'une décision dans l'historique d'un autre
+  // lot encore actif (v.statut ∈ STATUTS_LOT_ACTIFS) — pas si cette décision
+  // précise reste à consommer. Un lot dont la dernière décision a déjà été
+  // consommée revient en ATTENTE_DECISION dès qu'une nouvelle demande y est
+  // déposée (nouvelleDemande, plus bas) : son fichier decision-N.md le plus
+  // récent existe toujours, bien que déjà consommé. L'ancien message
+  // affirmait donc parfois une non-consommation fausse. Le message décrit
+  // maintenant ce que le test mesure réellement.
+  const etatAvant = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} }; for (const [autre, v] of Object.entries(etatAvant.lots || {})) { if (autre === lot || !STATUTS_LOT_ACTIFS.includes(v.statut)) continue; const d = dernier(echanges(autre, 'decision')); if (d) { console.error(`REFUS — le lot ${autre} est actif (${v.statut}) et porte déjà une décision dans son historique (${d.fichier}).`); console.error('Un seul lot actif à la fois : terminez ce lot (consommez sa décision la plus récente, ou laissez-le sans nouvelle demande) avant d\'en ouvrir un autre.'); process.exit(1); } }
   let rail;
   if (options.rail !== undefined) {
     if (!railSecurise(options.rail)) refuserRail(options.rail);
@@ -564,7 +604,19 @@ function nouvelleDemande(lot, corpsFichier, options) {
     rail = options.rail;
   } else rail = exigerRailSecurise(etatAvant, lot);
   const dir = path.join(LOTS, lot); fs.mkdirSync(dir, { recursive: true }); const seq = (dernier(echanges(lot, 'request')) || { seq: 0 }).seq + 1, fichier = `request-${seq}.md`, cible = path.join(dir, fichier); if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
-  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' '), preuves = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }].concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
+  // GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 1 (D1) :
+  // merge-base et diff applicatif calculés automatiquement, plus à la main.
+  const refs = REFS_PROTEGEES.map(r => `${r}=${git('rev-parse', '--short', `origin/${r}`)}`).join(' ');
+  const refProd = calculerReferenceProduction();
+  const preuvesAuto = [{ id: 'refs-protegees', classe: 'VERIFIED', valeur: refs }];
+  if (refProd.disponible) {
+    preuvesAuto.push({ id: 'merge-base-production', classe: 'VERIFIED', valeur: refProd.mergeBase });
+    preuvesAuto.push({ id: 'diff-applicatif-production', classe: 'VERIFIED', valeur: `${refProd.nbApplicatifs}-fichiers` });
+  } else {
+    preuvesAuto.push({ id: 'merge-base-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
+    preuvesAuto.push({ id: 'diff-applicatif-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
+  }
+  const preuves = preuvesAuto.concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
 // `wake_to` est une ADRESSE LIBRE (PROTOCOL.md) : aucun vocabulaire clos, une
@@ -668,7 +720,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 

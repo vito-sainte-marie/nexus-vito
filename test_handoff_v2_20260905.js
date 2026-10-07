@@ -200,7 +200,7 @@ verifier('ouvrir un lot est refusé si un autre lot attend la consommation de sa
       { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');
-  assert.ok(/n’est pas consommée|n'est pas consommée/.test(sortie), sortie);
+  assert.ok(/est actif .* et porte déjà une décision/.test(sortie), sortie);
 });
 
 verifier('les miroirs v1 restent produits et signalés comme non canoniques', () => {
@@ -493,7 +493,7 @@ verifier('ouvrir un lot est refusé si une décision attend d’être consommée
       { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');
-  assert.ok(/n’est pas consommée|n'est pas consommée/.test(sortie), sortie);
+  assert.ok(/est actif .* et porte déjà une décision/.test(sortie), sortie);
 });
 
 verifier('consommer n’est pas bloqué par la règle qu’il va lui-même résoudre', () => {
