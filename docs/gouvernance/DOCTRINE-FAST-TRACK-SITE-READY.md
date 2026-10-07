@@ -108,3 +108,36 @@ Ces opérations restent soumises aux autorisations humaines explicites applicabl
 **Attribuer avant de bloquer. Requalifier avant de stopper. Stopper sur une anomalie réelle, pas sur le simple mouvement d'une référence.**
 
 Le but est de maintenir un rail rapide, traçable et sûr afin de préparer NEXUS à sa mise en service sur plusieurs sites.
+
+
+## 9. Portefeuille prioritaire et vitesse de croisière
+
+La procédure Fast Track est une **priorité opérationnelle NEXUS** : elle doit permettre d'avancer concrètement sur plusieurs chantiers sans sérialiser artificiellement les travaux indépendants.
+
+### Priorités explicites
+
+1. **NEXUS Paye** — priorité fonctionnelle. Des ajustements restent à réaliser ; le module doit être rapproché du planning officiel et des règles métier déjà décidées, puis progresser vers `SITE_READY`.
+2. **Cockpit & Brief** — priorité moteur. Ces composants constituent le moteur principal de pilotage et de synthèse NEXUS et doivent être améliorés en continu, avec contrats stables pour les modules consommateurs.
+3. **Chantiers métier actifs** — notamment FDJ, Client en compte, Verify, Planning, Carburants, Inventaire et Pointage : progression parallèle autorisée lorsque les périmètres sont indépendants.
+
+### Règle d'orchestration
+
+Un chantier prioritaire ne doit pas attendre la clôture d'un autre chantier indépendant. L'orchestrateur doit :
+- identifier les dépendances réelles avant de sérialiser ;
+- maintenir des lots distincts et attribuables ;
+- transporter et arbitrer les preuves par lot ;
+- requalifier les mouvements de références protégées selon la présente doctrine ;
+- éviter qu'une recette terrain différée sur un module bloque les autres ;
+- remonter immédiatement les collisions réelles plutôt que créer des blocages préventifs globaux.
+
+### Cadence mesurable
+
+La vitesse de croisière est considérée atteinte lorsque :
+- plusieurs lots indépendants peuvent avancer sans interférence ;
+- chaque lot connaît son prochain geste minimal ;
+- les demandes propres sont arbitrables sans GO humain répétitif lorsqu'une délégation existe ;
+- les STOP correspondent à des anomalies réelles ;
+- l'état de qualification de chaque module est explicite ;
+- le socle multisite reste protégé à chaque étape.
+
+L'accélération ne réduit jamais les exigences RLS, `site_id`, sécurité, traçabilité, CI ou append-only du Handoff.
