@@ -10,17 +10,55 @@ Principe : **si la prochaine action est autorisée, prouvée et réversible dans
 
 Rail canonique : `handoff-continuite-20260920`.
 
-La délégation Fast Track couvre :
-- arbitrage des `request-N` propres ;
-- émission du GO `decision-N` correspondant ;
-- consommation canonique des décisions ;
+La délégation Fast Track couvre, **réparties entre deux rôles distincts** (voir
+« Séparation des rôles » ci-dessous) :
+- production, qualification et préparation des preuves d'une `request-N` ;
+- matérialisation et consommation canonique des décisions ;
 - transport fast-forward propre vers le rail ;
 - déclenchement/obtention des preuves CI sur le HEAD exact du rail ;
 - poursuite vers la request suivante ;
 - requalification des SHA après mouvements attribués ;
-- réveil de Claude/ChatGPT quand le protocole l'exige.
+- réveil de Claude/ChatGPT quand le protocole l'exige ;
+- arbitrage indépendant (émission du GO `decision-N`) d'une `request-N` dont
+  l'auteur n'est pas l'arbitre lui-même.
 
 Elle ne couvre jamais implicitement Production ou Supabase Production.
+
+## Séparation des rôles — règle normative
+
+Cette section fixe qui fait quoi. Elle prime sur toute formulation plus
+générale du reste de ce skill, et sur toute doctrine Handoff canonique qui
+emploierait une formulation équivalente sans nommer l'acteur.
+
+1. **Claude** peut produire une `request-N`, la qualifier, préparer ses
+   preuves, matérialiser et consommer une `decision-N` déjà prononcée,
+   transporter sous lease et poursuivre la boucle.
+2. **Claude ne doit jamais arbitrer ni approuver une `request-N` dont il est
+   l'auteur.** Produire la demande et trancher la demande sont deux rôles
+   qui ne peuvent jamais être tenus par le même acteur sur le même échange.
+3. Pour toute `request-N` dont Claude est l'auteur et qui est couverte par la
+   délégation Fast Track de Frédéric, **ChatGPT est l'arbitre indépendant
+   pré-autorisé**. Aucune nouvelle confirmation « GO request-N » de Frédéric
+   n'est requise si les gates sont vertes et qu'aucun critère STOP n'est
+   présent.
+4. ChatGPT prononce l'arbitrage automatique ; Claude matérialise ensuite
+   cette décision **exclusivement via `outils/handoff.js decision`**. Aucune
+   décision Handoff ne doit jamais être créée à la main.
+5. Après matérialisation, la boucle continue sans attente : consommation
+   canonique -> transport fast-forward sous lease -> preuve CI réelle sur le
+   HEAD exact du rail -> request suivante -> réveil de ChatGPT pour arbitrage
+   si la nouvelle request est, elle aussi, de Claude. Ne pas rester inactif
+   entre ces étapes.
+6. Si ChatGPT dispose d'un canal GitHub autorisé pour un transport Handoff
+   déjà délégué, une limitation de canal côté Claude ne doit jamais devenir
+   une nouvelle gate humaine : chercher le prochain canal autorisé.
+7. Frédéric n'est sollicité que pour la liste STOP fermée (voir plus bas) :
+   Production/migration/Supabase Production/déploiement, choix métier non
+   pré-autorisé, extension substantielle de périmètre, divergence inexpliquée,
+   CI rouge nouvelle et inexpliquée, sécurité/RLS/`site_id`, conflit/lease non
+   résoluble, preuve obligatoire impossible à obtenir.
+8. Cette séparation des rôles ne donne **aucune autorité Production**, ni à
+   Claude ni à ChatGPT.
 
 ## Boucle nominale — chemin court
 
@@ -43,8 +81,14 @@ Contrôle minimal suffisant :
 Réutiliser les preuves fraîches. Ne pas répéter des audits lourds sans cause.
 
 ### DECISION
-Si propre et couvert par la délégation : prononcer immédiatement `GO decision-N`.
-La décision doit être matérialisée par le mécanisme canonique Handoff. Append-only.
+Si la `request-N` est propre (Claude n'en est pas l'auteur) et couverte par la
+délégation : l'arbitre (Claude) prononce immédiatement `GO decision-N`.
+
+Si la `request-N` est **de Claude**, Claude ne prononce jamais son propre
+arbitrage (règle 2 de « Séparation des rôles ») : ChatGPT est l'arbitre
+pré-autorisé (règle 3). Claude réveille ChatGPT si nécessaire, puis
+**matérialise** l'arbitrage de ChatGPT — jamais ne l'invente ni ne le
+pré-empte — exclusivement via `outils/handoff.js decision` (règle 4). Append-only.
 
 ### CONSUME
 Consommer immédiatement la décision selon le protocole canonique si aucune anomalie n'apparaît.

@@ -135,7 +135,10 @@ Un chantier prioritaire ne doit pas attendre la clôture d'un autre chantier ind
 La vitesse de croisière est considérée atteinte lorsque :
 - plusieurs lots indépendants peuvent avancer sans interférence ;
 - chaque lot connaît son prochain geste minimal ;
-- les demandes propres sont arbitrables sans GO humain répétitif lorsqu'une délégation existe ;
+- les `request-N` propres à un chantier délégué sont arbitrées sans nouveau GO
+  humain répétitif lorsqu'une délégation existe — **par l'arbitre désigné,
+  jamais par l'auteur de la demande** : voir `docs/skills/nexus-handoff-fast-track/SKILL.md`
+  § « Séparation des rôles », qui fait foi sur qui peut arbitrer quoi ;
 - les STOP correspondent à des anomalies réelles ;
 - l'état de qualification de chaque module est explicite ;
 - le socle multisite reste protégé à chaque étape.
