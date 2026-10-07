@@ -286,13 +286,13 @@
       "consomme_le": "2026-10-05T23:15:51.693Z"
     },
     "GOUVERNANCE-REFERENCE-CODE-20261005": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-6.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-5.md",
+      "derniere_decision": "decision-6.md",
       "source_decision": "registre",
-      "commit_decision": "dd33e1a7a5673f65d31aaff953021bb549e1fcfe",
-      "consomme_le": "2026-10-07T01:01:00.943Z"
+      "commit_decision": "81ac1363c8d3fbcac545e9edb9986c9644d39f67",
+      "consomme_le": "2026-10-07T20:13:05.686Z"
     }
   },
   "artefacts_hors_registre": [
