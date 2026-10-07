@@ -61,6 +61,35 @@ Retour obligatoire à l'autorité humaine en cas de :
 - nouvelle décision métier ou extension de périmètre ;
 - opération Production non couverte par une autorisation humaine explicite.
 
+## 3 bis. Escalade à deux paliers
+
+**Demande de Frédéric du 07/10/2026** : « que le handoff fonctionne sans moi
+sauf vraiment production ou changement de philosophie ». Motif mesuré :
+l'arbitre redemandait à Frédéric des arbitrages déjà rendus, parce que rien ne
+les lui rappelait.
+
+« Autorité humaine » au §3 désigne désormais deux paliers distincts :
+
+- **Palier Frédéric** — seul motif qui le réveille : fusion, déploiement ou
+  promotion Production ; mutation Supabase Production ; violation
+  sécurité/RLS/`site_id` ; secret, permission ou élargissement de la surface de
+  sécurité ; armement d'une boucle automatique agissant en son nom ; nouvelle
+  décision métier non arbitrée ; changement de doctrine.
+- **Palier arbitre** — tout autre STOP du §3 (changement non attribué,
+  conflit ou lease, régression CI, preuve impossible, extension de périmètre,
+  modification hors périmètre) est tranché par l'arbitre désigné, sans
+  Frédéric. L'arbitre peut refuser, demander une preuve, ou remonter au palier
+  Frédéric **en nommant le motif codé** qui l'y autorise.
+
+Un commit ou un push sur le rail Handoff n'appelle aucun GO humain ; seuls
+`main` et `production` restent gardés.
+
+Une question déjà tranchée ne se repose pas : `docs/handoff/ARBITRAGES-ACQUIS.json`
+liste les arbitrages rendus avec leur source, et `outils/escalade-humaine.js`
+répond `DEJA_ARBITRE` pour eux. Une escalade sans motif codé n'atteint pas
+Frédéric. Ce paragraphe ne retire rien au §7 : aucune opération Production
+n'est jamais déléguée.
+
 ## 4. Qualification modulaire
 
 Les modules NEXUS doivent pouvoir progresser indépendamment selon une qualification explicite :

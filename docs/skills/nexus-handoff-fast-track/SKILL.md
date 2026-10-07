@@ -52,11 +52,11 @@ emploierait une formulation équivalente sans nommer l'acteur.
 6. Si ChatGPT dispose d'un canal GitHub autorisé pour un transport Handoff
    déjà délégué, une limitation de canal côté Claude ne doit jamais devenir
    une nouvelle gate humaine : chercher le prochain canal autorisé.
-7. Frédéric n'est sollicité que pour la liste STOP fermée (voir plus bas) :
-   Production/migration/Supabase Production/déploiement, choix métier non
-   pré-autorisé, extension substantielle de périmètre, divergence inexpliquée,
-   CI rouge nouvelle et inexpliquée, sécurité/RLS/`site_id`, conflit/lease non
-   résoluble, preuve obligatoire impossible à obtenir.
+7. Frédéric n'est sollicité que pour le **palier Frédéric** de la liste STOP
+   (voir plus bas) : Production, Supabase Production, sécurité/RLS/`site_id`,
+   secret ou surface de sécurité, boucle armée en son nom, choix métier non
+   arbitré, changement de doctrine. Les autres STOP se tranchent par
+   l'arbitre, sans lui (doctrine § 3 bis, 07/10/2026).
 8. Cette séparation des rôles ne donne **aucune autorité Production**, ni à
    Claude ni à ChatGPT.
 
@@ -148,8 +148,8 @@ d'attente passive.**
 9. Chaque relais doit porter au minimum : le lot/`request` active, le
    HEAD/lease exact, l'état des gates/CI, l'action précise attendue, et les
    frontières STOP applicables. Un relais incomplet n'est pas un relais.
-10. Frédéric n'est réveillé que pour les STOP déjà définis dans la liste
-    fermée ci-dessous. Une simple alternance Claude ↔ ChatGPT n'est jamais,
+10. Frédéric n'est réveillé que pour un motif du palier Frédéric ci-dessous,
+    nommé par son code (`node outils/escalade-humaine.js --motif <CODE>`). Une simple alternance Claude ↔ ChatGPT n'est jamais,
     à elle seule, un motif de retour humain.
 11. Ne jamais créer une boucle de réveils sans progrès : chaque relais doit
     correspondre à un changement d'autorité réellement nécessaire, ou à une
@@ -182,21 +182,43 @@ Avant STOP :
 
 Mouvement attribué + invariants intacts = continuer Fast Track.
 
-## STOP humain — liste fermée
+## STOP — liste fermée, deux paliers
 
-Stopper et demander Frédéric uniquement pour :
+Le routage fait foi dans `docs/handoff/ARBITRAGES-ACQUIS.json` (`routage`) ;
+`outils/escalade-humaine.js` le mécanise et l'épreuve
+`test_escalade_humaine_20261007.js` refuse tout motif fermé non routé.
+
+**Palier Frédéric** — stopper et le réveiller uniquement pour :
 - opération de fusion/déploiement/promotion Production ;
 - migration, écriture, réparation ou mutation Supabase Production ;
+- violation sécurité/RLS/site_id/multisite ;
+- secret, permission, ou élargissement de la surface de sécurité ;
+- armement d'une boucle automatique agissant au nom de Frédéric ;
 - nouvelle décision métier non déjà arbitrée ;
+- changement de doctrine ou de philosophie NEXUS.
+
+**Palier arbitre** — stopper la boucle, mais l'arbitre (ChatGPT) tranche :
 - extension substantielle de périmètre ;
 - changement non attribué/inexpliqué ;
 - régression CI nouvelle et inexpliquée ;
 - conflit/non-fast-forward ou lease divergent non résoluble proprement ;
-- violation sécurité/RLS/site_id/multisite ;
 - preuve obligatoire impossible à obtenir ;
 - modification applicative inattendue hors périmètre.
 
+L'arbitre remonte au palier Frédéric seulement en nommant le motif codé qui
+l'y autorise. Une inquiétude sans code reste chez l'arbitre.
+
 Ne pas élargir cette liste par prudence abstraite.
+
+## Arbitrages acquis — ne jamais reposer une question tranchée
+
+Avant toute demande d'arbitrage à Frédéric, consulter
+`docs/handoff/ARBITRAGES-ACQUIS.json`. Une question qui y figure reçoit la
+réponse inscrite, citée par son identifiant (`DEJA_ARBITRE`). Le réveil
+Orchestrateur envoie ce registre à l'arbitre à chaque fois ; les consignes à
+coller dans le projet ChatGPT sont dans `ARBITRE-CHATGPT.md`, à côté de ce
+fichier. Un acquis s'ajoute en citant une décision déjà écrite ailleurs, jamais
+en l'inventant dans le registre.
 
 ## Fast Track multisite
 

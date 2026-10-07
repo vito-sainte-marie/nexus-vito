@@ -463,6 +463,21 @@ function blocRetour(l, opts) {
 // fichier, la branche où le lire, et il rappelle les interdits permanents.
 // Il ne résume PAS la demande — un résumé écrit par le demandeur est une
 // façon polie de décider à la place de celui qui arbitre.
+// Le mandat de l'arbitre. Mesuré le 07/10/2026 : sans lui, l'arbitre ne
+// recevait que « Arbitre cette demande » et redemandait à Frédéric des
+// arbitrages déjà rendus. Il est GÉNÉRÉ depuis ARBITRAGES-ACQUIS.json, jamais
+// écrit ici — ce n'est donc pas une seconde source de vérité. Un registre
+// illisible ne bloque pas le réveil : il le dit.
+function mandatArbitre(l, opts) {
+  try {
+    const { blocMandat } = require('./escalade-humaine.js');
+    return blocMandat(opts && opts.registre, l.lot);
+  } catch (e) {
+    return `⚠️ Mandat de l'arbitre indisponible (\`docs/handoff/ARBITRAGES-ACQUIS.json\` illisible : ${e.message}). ` +
+      'Consulte ce fichier avant de solliciter Frédéric.';
+  }
+}
+
 function corpsReveil(r, opts) {
   if (!r.reveil) return r.message;
   const l = r.lots[0];
@@ -504,6 +519,8 @@ function corpsReveil(r, opts) {
     '',
     'Arbitre cette demande avec le protocole `nexus-handoff/2` et dépose la',
     'décision correspondante dans le même lot.',
+    '',
+    mandatArbitre(l, opts),
     '',
     blocRetour(l, opts),
     '',

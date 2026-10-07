@@ -1,0 +1,91 @@
+{
+  "_lire": "Arbitrages déjà rendus et routage des STOP. Source unique : outils/escalade-humaine.js et le corps du réveil Orchestrateur la lisent, aucun des deux ne la recopie. Chaque acquis cite un fichier du dépôt et une ancre littérale que l'épreuve test_escalade_humaine_20261007.js retrouve dans ce fichier : un acquis dont la source a disparu ou changé rougit, il ne survit pas en silence. Ajouter un acquis = citer une décision déjà écrite ailleurs, jamais en créer une ici.",
+  "version": 1,
+  "etabli_le": "2026-10-07",
+  "routage": {
+    "_lire": "Partition des motifs STOP. `frederic` : seul motif qui réveille Frédéric. `arbitre` : tranché par l'arbitre désigné (ChatGPT) sans Frédéric. Chaque code de MOTIFS_STOP_FERMES (outils/classification-canal.js) figure dans exactement une liste ; les codes `frederic` absents de MOTIFS_STOP_FERMES sont les gates humaines de CLAUDE.md qui n'y avaient pas de code.",
+    "frederic": [
+      "PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION",
+      "SUPABASE_PRODUCTION_MUTATION",
+      "SECURITE_RLS_SITE_ID",
+      "DECISION_METIER_NON_ARBITREE",
+      "SECRET_PERMISSION_SURFACE_SECURITE",
+      "ARMEMENT_BOUCLE_AU_NOM_DE_FREDERIC",
+      "CHANGEMENT_DOCTRINE"
+    ],
+    "arbitre": [
+      "EXTENSION_PERIMETRE_SUBSTANTIELLE",
+      "CHANGEMENT_NON_ATTRIBUE",
+      "REGRESSION_CI_NOUVELLE_INEXPLIQUEE",
+      "CONFLIT_LEASE_NON_RESOLUBLE",
+      "PREUVE_OBLIGATOIRE_IMPOSSIBLE",
+      "MODIFICATION_APPLICATIVE_HORS_PERIMETRE"
+    ],
+    "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "## 3 bis. Escalade à deux paliers" }
+  },
+  "acquis": [
+    {
+      "id": "PALIER_HUMAIN_RESTREINT",
+      "question": "Faut-il le GO de Frédéric pour une étape hors Production, hors secret/sécurité, hors doctrine et hors choix métier nouveau ?",
+      "reponse": "Non. Frédéric n'est réveillé que pour un motif du palier `frederic` ; tout le reste se tranche par l'arbitre désigné.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "## 3 bis. Escalade à deux paliers" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "DELEGATION_ARBITRE",
+      "question": "ChatGPT peut-il approuver une request de Claude sans « GO request-N » de Frédéric ?",
+      "reponse": "Oui : ChatGPT est l'arbitre indépendant pré-autorisé pour toute request de Claude couverte par la délégation Fast Track.",
+      "source": { "fichier": "docs/skills/nexus-handoff-fast-track/SKILL.md", "ancre": "délégation Fast Track de Frédéric, **ChatGPT est l'arbitre indépendant" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "COMMIT_PUSH_RAIL_SANS_GO",
+      "question": "Chaque commit ou push sur le rail (ou une branche de travail) exige-t-il son propre GO humain ?",
+      "reponse": "Non. Code, tests, branche, commit et push sur le rail Handoff sont hors palier humain ; seuls `main` et `production` restent gardés. Une condition de décision qui exigerait un GO humain par push est à lever dans la décision suivante, pas à appliquer.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "Un commit ou un push sur le rail Handoff n'appelle aucun GO humain" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "OUTILLAGE_A_POSTERIORI",
+      "question": "Un lot purement outillage/garde/test/CI doit-il attendre une décision préalable ?",
+      "reponse": "Non : il s'exécute puis s'arbitre a posteriori, si les quatre conditions (aucun choix métier, aucun secret, aucune Production, pas `main`) tiennent ensemble.",
+      "source": { "fichier": "CLAUDE.md", "ancre": "## Arbitrage a posteriori — EN VIGUEUR depuis le 08/09/2026" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "PREAUTORISATIONS_CLAUDE",
+      "question": "Claude peut-il seul alimenter la base Test, déroger à un défaut de forme d'enveloppe, câbler outils/gardes/épreuves (y compris tests.yml), faire la recette navigateur Test, publier une demande et consommer une décision ?",
+      "reponse": "Oui, ce sont les cinq pré-autorisations du 07/09/2026.",
+      "source": { "fichier": "CLAUDE.md", "ancre": "## Pré-autorisations — ce que Claude décide seul" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "MOUVEMENT_REF_ATTRIBUE",
+      "question": "`production` ou une ref protégée a bougé : est-ce un STOP ?",
+      "reponse": "Non si le mouvement est attribuable à un chantier autorisé : mesurer, attribuer, rafraîchir les preuves touchées, continuer.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "Le changement de SHA seul ne constitue donc plus un STOP global." },
+      "portee": "tous lots"
+    },
+    {
+      "id": "LIMITATION_CANAL_NON_STOP",
+      "question": "Le canal de Claude ne peut pas lancer la CI ou poster : faut-il demander à Frédéric ?",
+      "reponse": "Non. C'est une CHANNEL_LIMITATION : chercher le prochain canal autorisé (CI du rail, ChatGPT, issue #28). Seule l'absence de tout destinataire résolu est un BLOCKED_TECHNIQUE, et même lui ne réveille pas Frédéric s'il n'est pas un motif du palier `frederic`.",
+      "source": { "fichier": "docs/skills/nexus-handoff-fast-track/SKILL.md", "ancre": "une limitation de canal côté Claude ne doit jamais devenir" },
+      "portee": "tous lots"
+    },
+    {
+      "id": "PRIORITES_PORTEFEUILLE",
+      "question": "Quel chantier passe en premier ?",
+      "reponse": "NEXUS Paye, puis Cockpit & Brief, puis les chantiers métier actifs (FDJ, Client en compte, Verify, Planning, Carburants, Inventaire, Pointage) en parallèle s'ils sont indépendants.",
+      "source": { "fichier": "docs/gouvernance/DOCTRINE-FAST-TRACK-SITE-READY.md", "ancre": "1. **NEXUS Paye** — priorité fonctionnelle." },
+      "portee": "tous lots"
+    },
+    {
+      "id": "D4_HORS_PERIMETRE",
+      "question": "La divergence rail ↔ production (D4) se traite-t-elle dans le lot de gouvernance ?",
+      "reponse": "Non : elle est applicative et explicitement hors périmètre de ce lot.",
+      "source": { "fichier": "docs/handoff/lots/GOUVERNANCE-REFERENCE-CODE-20261005/decision-5.md", "ancre": "**D4 — explicitement hors périmètre de ce lot.**" },
+      "portee": "GOUVERNANCE-REFERENCE-CODE-20261005"
+    }
+  ]
+}
