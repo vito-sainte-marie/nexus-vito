@@ -1,5 +1,3 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/ARMEMENT-ARBITRAGE-AUTONOME-1-20261008/request-1.md
-     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
