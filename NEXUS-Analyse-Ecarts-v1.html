@@ -118,6 +118,14 @@
   .edg-valeur.pos{color:var(--cyan);} .edg-valeur.neg{color:var(--red);}
   .btn-comprendre{width:100%; background:none; border:1px solid var(--hairline); color:var(--cyan); font-family:var(--mono); font-size:11px; padding:9px; border-radius:6px; cursor:pointer;}
 
+  /* Relevé paie des régularisations (B6, mandat consolidé §8). */
+  .regul-onglets{display:flex; gap:6px; margin-bottom:10px;}
+  .regul-onglets button{flex:1; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); background:none; border:1px solid var(--hairline); border-radius:6px; padding:7px 6px; cursor:pointer;}
+  .regul-onglets button.actif{color:var(--cyan); border-color:var(--cyan);}
+  .regul-employe{font-size:11.5px; color:var(--text-mid); margin:-4px 0 8px;}
+  .regul-historique{margin:0; padding-left:16px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6;}
+  .regul-avertissement{font-size:11px; color:var(--text-mid); line-height:1.5; margin-bottom:10px;}
+
   .chargement{text-align:center; padding:30px 0; color:var(--text-dim); font-family:var(--mono); font-size:11.5px;}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
@@ -162,6 +170,8 @@
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
+<script src="nexus-station.js?v=20260904-0104"></script>
+<script src="nexus-paye-regularisations.js?v=20261008-b6"></script>
 </head>
 <body>
 <div class="phone">
@@ -289,9 +299,22 @@
     <div class="section-label" style="margin-top:6px;">Par employé</div>
     <div id="listeParEmploye"><div class="chargement">Chargement…</div></div>
 
+    <!-- RELEVÉ PAIE DES RÉGULARISATIONS (B6, mandat consolidé §8) -->
+    <div id="sectionRegularisations">
+      <div class="section-label" style="margin-top:6px;">Régularisations — relevé paie</div>
+      <div class="regul-avertissement">Écarts et versements de régularisation, au fuseau de la station. Excédents et manques ne se compensent pas ; un écart collectif n'est attribué à personne. Aucune déduction ni retenue n'est calculée.</div>
+      <div class="regul-onglets" id="regulVue">
+        <button type="button" data-vue="ecarts" class="actif">Par écart</button>
+        <button type="button" data-vue="hebdo">Par semaine</button>
+        <button type="button" data-vue="mois">Par mois</button>
+      </div>
+      <div id="listeRegularisations"><div class="chargement">Chargement…</div></div>
+      <button type="button" class="btn-reinit" id="btnExportRegul">Exporter le relevé (CSV)</button>
+    </div>
+
   </div>
 
-  <footer>NEXUS · Analyse des écarts — v2.269</footer>
+  <footer>NEXUS · Analyse des écarts — v2.270</footer>
 </div>
 
 <!-- Panneau "Composition du montant" (§1, §4) -->
@@ -436,6 +459,7 @@
       renderListeAVerifier(lignes);
       renderParEmploye(lignes);
       renderControleCoherence(); // toujours sur TOUTES_LES_LIGNES, jamais filtré (§12)
+      renderRegularisations(lignes);
       return lignes;
     } catch (e) {
       console.error('Affichage Analyse des écarts:', e);
@@ -692,7 +716,66 @@
     });
   }
 
+  // --- Régularisations — relevé paie (B6, mandat consolidé §8) ---
+  // Lecture seule : versements et restitutions du site (RLS manager/gérant
+  // du même site). Les jours sont ceux de la station ; sans fuseau, rien
+  // n'est daté et la section le dit.
+  let FUSEAU_STATION = null;
+  let OPERATIONS_REGUL = null;
+  let ERREUR_REGUL = null;
+  let VUE_REGUL = 'ecarts';
+  let RELEVE_REGUL = null;
+
+  async function chargerRegularisations() {
+    ERREUR_REGUL = null;
+    try {
+      const f = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+      FUSEAU_STATION = f.timezone || null;
+      OPERATIONS_REGUL = await NexusPayeRegularisations.chargerOperations(nexusClient, SITE_ACTUEL);
+    } catch (e) {
+      console.error('Chargement des régularisations:', e);
+      ERREUR_REGUL = (e && e.message) || String(e);
+      OPERATIONS_REGUL = null;
+    }
+  }
+
+  function renderRegularisations(lignes) {
+    const zone = document.getElementById('listeRegularisations');
+    RELEVE_REGUL = null;
+    if (ERREUR_REGUL) { zone.innerHTML = '<div class="card"><div class="liste-vide">Régularisations illisibles — réessayez.</div></div>'; return; }
+    if (!OPERATIONS_REGUL) { zone.innerHTML = '<div class="chargement">Chargement…</div>'; return; }
+    if (!FUSEAU_STATION) { zone.innerHTML = '<div class="card"><div class="liste-vide">Fuseau de la station non configuré : le relevé ne peut pas être daté.</div></div>'; return; }
+    RELEVE_REGUL = NexusPayeRegularisations.construireReleve(lignes, OPERATIONS_REGUL, { fuseau: FUSEAU_STATION });
+    const jour = j => j ? `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}` : '';
+    let html;
+    if (VUE_REGUL === 'hebdo') html = NexusPayeRegularisations.renderVue(NexusPayeRegularisations.vueHebdomadaire(RELEVE_REGUL), g => `Semaine du ${jour(g.du)} au ${jour(g.au)}`);
+    else if (VUE_REGUL === 'mois') html = NexusPayeRegularisations.renderVue(NexusPayeRegularisations.vueMensuelle(RELEVE_REGUL), g => `Mois ${g.periode.slice(5, 7)}/${g.periode.slice(0, 4)}`);
+    else html = NexusPayeRegularisations.renderLignes(RELEVE_REGUL);
+    const orphelines = RELEVE_REGUL.operationsSansEcart.length;
+    if (orphelines) html = `<div class="emp-bandeau-inhabituel">${orphelines} opération(s) de régularisation rattachée(s) à un écart hors de la sélection.</div>` + html;
+    zone.innerHTML = html;
+  }
+
+  function brancherRegularisations() {
+    document.querySelectorAll('#regulVue button').forEach(b => b.addEventListener('click', () => {
+      VUE_REGUL = b.dataset.vue;
+      document.querySelectorAll('#regulVue button').forEach(x => x.classList.toggle('actif', x === b));
+      renderRegularisations(NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, litFiltresDepuisFormulaire()));
+    }));
+    document.getElementById('btnExportRegul').addEventListener('click', () => {
+      if (!RELEVE_REGUL) return;
+      const blob = new Blob(['\ufeff' + NexusPayeRegularisations.exporterCsv(RELEVE_REGUL)], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `releve-regularisations-${SITE_ACTUEL}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+  }
+  // --- Fin régularisations ---
+
   async function rechargerEtRafraichir() {
+    await chargerRegularisations();
     try {
       TOUTES_LES_LIGNES = await NexusEcartsDonnees.chargerEcartsConsolides(nexusClient, SITE_ACTUEL, {});
     } catch (e) {
@@ -733,6 +816,7 @@
       branchierFiltres();
       brancherPanneau();
       brancherKpisCliquables();
+      brancherRegularisations();
 
       const { data: employes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
       EMPLOYES_SITE = employes || [];
