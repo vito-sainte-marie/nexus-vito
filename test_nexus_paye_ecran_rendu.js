@@ -118,7 +118,7 @@ verifier('le bouton principal génère le dossier comptable', contient('Génére
 verifier('le CSV est explicitement présenté comme technique', contient('Export CSV (technique)'));
 
 // P1 — variables comptables agrégées sur la carte salarié.
-['Présence', 'Absence non déclarée', 'Congés payés', 'Maladie / maternité', 'Retards',
+['Présence', 'Présence à vérifier', 'Congés payés', 'Maladie / maternité', 'Retards',
   'Heures supplémentaires', 'Jours fériés', 'Éléments financiers'].forEach(v => {
   verifier(`la carte salarié affiche « ${v} »`, contient(v));
 });

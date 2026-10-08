@@ -113,20 +113,25 @@
   }
 
   function cleJour(employeeId, date) { return `${employeeId}|${date}`; }
-  function cleQuart(employeeId, date, quart) { return `${employeeId}|${date}|${quart || ''}`; }
 
-  function activitesAudit(audits) {
-    const parQuart = new Map();
+  // Activités Verify par JOUR (08/10/2026, règles SMU §2-§3). Le quart du
+  // planning (« renfort », « quart1 »…) n'a pas le vocabulaire des quarts
+  // Verify (« 1 », « 2 ») : chercher l'activité par la clé du quart planifié
+  // ne la trouvait jamais, et le statut du planning l'emportait alors sur ce
+  // que Verify avait constaté. Verify ne porte aucune heure : le jour est la
+  // granularité la plus fine qui ne soit pas inventée.
+  function activitesAuditParJour(audits) {
+    const parJour = new Map();
     (audits || []).forEach(a => {
       ['piste', 'boutique'].forEach(activite => {
         extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
-          const cle = cleQuart(employeeId, a.date, a.quart);
-          if (!parQuart.has(cle)) parQuart.set(cle, new Set());
-          parQuart.get(cle).add(activite);
+          const cle = cleJour(employeeId, a.date);
+          if (!parJour.has(cle)) parJour.set(cle, new Set());
+          parJour.get(cle).add(activite);
         });
       });
     });
-    return parQuart;
+    return parJour;
   }
 
   function indexerArbitrages(items) {
@@ -158,33 +163,20 @@
     const settings = new Map((entree.settings || []).map(s => [s.employee_id, s]));
     const arbitrages = indexerArbitrages(entree.items || []);
     const audits = (entree.audits || []).filter(a => dateDansMois(a.date, periode));
-    const activiteParQuart = activitesAudit(audits);
+    const activiteParJour = activitesAuditParJour(audits);
     const preuveJour = new Map();
-    const retardParJour = new Map();
+    // Un shift de renfort se reconnaît à son statut ou à son quart dédié.
+    const estShiftRenfort = s => s.statut === 'renfort' || s.quart === config.quart_exclu_heure_supp;
 
     (entree.pointages || []).filter(p => dateDansMois(p.date, periode)).forEach(p => {
       if (p.type === 'arrivee') {
         const cle = cleJour(p.employee_id, p.date);
         preuveJour.set(cle, { type: 'pointage', ligne: p });
-        // NULL = retard non calculable (colonne nullable depuis le
-        // 19/09/2026). Un retard non calculable n'est ni un retard à
-        // retenir ni une preuve de ponctualité : la journée n'entre pas
-        // dans `retardParJour`, et l'absence de clé y signifie « rien de
-        // mesuré », pas « zéro minute ».
-        //
-        // Cette ligne est une CEINTURE, pas le mécanisme : `retard > 0`
-        // ci-dessous écarte déjà un NULL tout seul (en JS `null > 0` est
-        // faux), et la mutation qui la supprime ne change aucune sortie du
-        // moteur — test_retard_null_consommateurs_20260919.js le démontre
-        // plutôt que de le supposer. Elle reste parce que la règle doit
-        // être lisible là où elle s'applique, et pour qu'un futur
-        // `retard >= 0` ne réintroduise pas un zéro de commodité en
-        // silence. Ce qui porte réellement le comportement, et ce que le
-        // test juge, c'est que `preuveJour.set` soit AU-DESSUS de ce
-        // `return` : un retard non calculable n'efface pas la présence.
-        if (!Number.isFinite(p.retard_min)) return;
-        const retard = p.retard_min;
-        if (retard > 0) retardParJour.set(cle, Math.max(retardParJour.get(cle) || 0, retard));
+        // Aucun retard n'est déduit du pointage (08/10/2026, règles SMU §4) :
+        // le retard vaut zéro par défaut et seul le manager le déclare, comme
+        // variable manuelle. `retard_min` n'est donc plus lu ici, qu'il soit
+        // calculé ou NULL. Le pointage d'arrivée reste une preuve de présence
+        // quand il existe ; son absence n'est jamais une anomalie.
       }
     });
     audits.forEach(a => {
@@ -249,7 +241,7 @@
       const reglage = reglageEmploye(employee, settings.get(employee.id));
       const fiche = {
         employee, reglage, heuresConfirmees: 0, joursConfirmes: new Set(),
-        presencesMesurees: 0, presencesReconstituees: 0, items: [],
+        presencesMesurees: 0, presencesReconstituees: 0, presencesPlanifiees: 0, items: [],
       };
       if (!reglage.inclus || reglage.modePresence === 'exclu') {
         employes.push(fiche);
@@ -287,6 +279,26 @@
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
         } else if (shiftsTravail.length && !preuve && !indispo) {
+          // Renfort (08/10/2026, règles SMU §2) : le planning officiel fait
+          // foi pour les heures prévues, sans Verify ni pointage. Un renfort
+          // planifié est donc compté, jamais signalé comme absent. Seuls les
+          // shifts de caisse ou de piste attendent une preuve Verify.
+          const renforts = shiftsTravail.filter(estShiftRenfort);
+          const autres = shiftsTravail.filter(s => !estShiftRenfort(s));
+          if (renforts.length) {
+            fiche.joursConfirmes.add(date);
+            fiche.presencesPlanifiees += 1;
+            let heuresRenfort = renforts.reduce((s, p) => s + Number(p.duree_heures || 0), 0);
+            // Barème renfort seulement si la journée n'est QUE du renfort :
+            // un barème journalier ne se découpe pas entre deux fonctions.
+            if (!(heuresRenfort > 0) && !autres.length) {
+              const bareme = heuresParDefautJour('renfort', date);
+              heuresRenfort = bareme.heures;
+              fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
+            }
+            fiche.heuresConfirmees += heuresRenfort;
+          }
+          if (!autres.length) return;
           // `!indispo` : une absence déjà expliquée par un événement RH
           // déclaré n'est pas une anomalie. NEXUS neutralise l'alerte plutôt
           // que de demander au manager d'arbitrer une journée dont la cause
@@ -330,28 +342,22 @@
           });
         }
 
-        const retard = retardParJour.get(cle);
-        if (retard) {
-          const incoherent = retard > Number(config.retard_max_coherent_min || 180);
-          fiche.items.push({
-            sourceCle: `retard:${employee.id}:${date}`, typeItem: incoherent ? 'retard_incoherent' : 'retard', origine: 'pointage',
-            date, libelle: incoherent ? `Retard incohérent détecté (${retard} min)` : `Retard détecté (${retard} min)`,
-            quantiteMinutes: retard, statut: 'a_verifier', impactPaye: false, bloquantTechnique: incoherent,
-          });
-        }
-
         if (preuve && shiftsTravail.length) {
           const jour = new Date(`${date}T12:00:00`).getDay();
           const eligibleJour = (config.jours_heure_supp || []).map(Number).includes(jour);
-          const activites = new Set();
-          let activiteMesureeParVerify = false;
-          shiftsTravail.forEach(s => {
-            const auditActs = activiteParQuart.get(cleQuart(employee.id, date, s.quart));
-            if (auditActs) { activiteMesureeParVerify = true; auditActs.forEach(a => activites.add(a)); }
-            else if (s.tache === 'piste') activites.add('piste');
+          // Verify prime sur le planning pour la fonction exercée (08/10/2026,
+          // règles SMU §2, « Caisse / Piste > Renfort ») : une renfort que
+          // Verify place en caisse ou sur piste ce jour-là n'est pas un
+          // renfort pour les heures supplémentaires. Le planning ne décide
+          // que lorsque Verify n'a rien constaté.
+          const auditActs = activiteParJour.get(cle);
+          const activiteMesureeParVerify = !!auditActs;
+          const activites = new Set(auditActs || []);
+          if (!activiteMesureeParVerify) shiftsTravail.forEach(s => {
+            if (s.tache === 'piste') activites.add('piste');
             else if (s.tache === 'caisse') activites.add('boutique');
           });
-          const estRenfort = shiftsTravail.every(s => s.quart === config.quart_exclu_heure_supp || s.statut === 'renfort');
+          const estRenfort = !activiteMesureeParVerify && shiftsTravail.every(estShiftRenfort);
           const activiteEligible = [...activites].some(a => (config.activites_heure_supp || []).includes(a));
           if (eligibleJour && activiteEligible && !estRenfort) {
             fiche.items.push({
@@ -416,11 +422,14 @@
           date: serie.debut, dateFin: multi ? serie.fin : null,
           joursMois: serie.jours.length, joursPlanifiesMois: serie.jours.length,
           serieAbsence: true, jours: serie.jours,
+          // « Présence à vérifier », jamais « absence » (08/10/2026, règles
+          // SMU) : un jour de caisse ou de piste sans Verify est une question
+          // posée au manager, pas une absence que NEXUS déclarerait seul.
           libelle: multi
-            ? `Absence non déclarée du ${jjmmaaaa(serie.debut)} au ${jjmmaaaa(serie.fin)}`
-            : 'Présence prévue sans preuve Verify/Pointage',
+            ? `Présence à vérifier du ${jjmmaaaa(serie.debut)} au ${jjmmaaaa(serie.fin)}`
+            : 'Présence à vérifier : caisse ou piste prévue sans Verify',
           detail: multi
-            ? `${serie.jours.length} jours planifiés sans aucune preuve de présence · à déclarer comme événement RH pour ne plus la revoir chaque mois`
+            ? `${serie.jours.length} jours de caisse ou de piste planifiés sans audit Verify · si c'est une absence, déclarez un événement RH pour ne plus la revoir chaque mois`
             : null,
           statut: 'a_verifier', impactPaye: false,
         });
@@ -492,6 +501,10 @@
         id: i.id, sourceCle: i.source_cle, typeItem: i.type_item, origine: 'manuel', date: i.date_evenement,
         libelle: i.libelle, quantiteMinutes: i.quantite_minutes, montantCentimes: i.montant_centimes,
         statut: i.statut, impactPaye: !!i.impact_paye, note: i.note || null,
+        // Auteur et date de la saisie (08/10/2026, règles SMU §4 : un retard
+        // se conserve avec sa date, sa durée et son auteur). Ils étaient en
+        // base depuis toujours, mais le moteur ne les relayait pas.
+        auteurId: i.cree_par || null, creeLe: i.cree_le || null,
       }));
       fiche.items.push(...manuels);
       fiche.items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.typeItem.localeCompare(b.typeItem));
@@ -573,6 +586,7 @@
         quantite_minutes: i.quantiteMinutes == null ? '' : i.quantiteMinutes,
         montant_euros: i.montantCentimes == null ? '' : (i.montantCentimes / 100).toFixed(2),
         impact_paye: i.impactPaye ? 'oui' : 'information', commentaire: i.note || i.libelle,
+        auteur: i.auteurId || '', saisi_le: i.creeLe || '',
       }));
     });
     return lignes;
@@ -634,6 +648,7 @@
         heures: Math.round(Number(fiche.heuresConfirmees || 0) * 100) / 100,
         joursMesures: fiche.presencesMesurees || 0,
         joursReconstitues: fiche.presencesReconstituees || 0,
+        joursPlanifies: fiche.presencesPlanifiees || 0,
         heuresParDefaut: Math.round(Number(fiche.heuresParDefaut || 0) * 100) / 100,
       },
       absence: {

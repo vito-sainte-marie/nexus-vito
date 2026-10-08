@@ -34,7 +34,8 @@ const RUDDY = { id: 'e-ruddy', nom: 'Ruddy', role: 'pompiste', actif: true };
 const ANGELIQUE = { id: 'e-angelique', nom: 'Angélique', role: 'renfort', actif: true };
 
 // Camille : cinq jours travaillés du lundi 03 au vendredi 07 août, plus le
-// samedi 15 août (férié). Un retard de 12 min le mardi 04.
+// samedi 15 août (férié). Un retard de 12 min le mardi 04, déclaré par le
+// manager (règles SMU du 08/10, §4 : le pointage ne produit plus de retard).
 const JOURS_CAMILLE = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-15'];
 
 const PLANNING = JOURS_CAMILLE.map(date => ({
@@ -62,7 +63,7 @@ const CONGES_RUDDY = {
 
 // Arbitrages déjà rendus par le manager sur le mois de Camille.
 const ARBITRAGES = [
-  { id: 'a1', employee_id: CAMILLE.id, periode: PERIODE, origine: 'pointage', source_cle: `retard:${CAMILLE.id}:2026-08-04`, type_item: 'retard', statut: 'valide', impact_paye: true, quantite_minutes: 12 },
+  { id: 'a1', employee_id: CAMILLE.id, periode: PERIODE, origine: 'manuel', source_cle: 'manuel:g0:2026-08-04', type_item: 'retard', date_evenement: '2026-08-04', libelle: 'Retard déclaré par le manager', statut: 'valide', impact_paye: false, quantite_minutes: 12, cree_par: 'u-manager', cree_le: '2026-08-04T10:00:00Z' },
   { id: 'a2', employee_id: CAMILLE.id, periode: PERIODE, origine: 'planning', source_cle: `heure-supp:${CAMILLE.id}:2026-08-06`, type_item: 'heure_supplementaire', statut: 'valide', impact_paye: true, quantite_minutes: 60 },
   { id: 'a3', employee_id: CAMILLE.id, periode: PERIODE, origine: 'planning', source_cle: `heure-supp:${CAMILLE.id}:2026-08-07`, type_item: 'heure_supplementaire', statut: 'valide', impact_paye: true, quantite_minutes: 60 },
   { id: 'a4', employee_id: CAMILLE.id, periode: PERIODE, origine: 'planning', source_cle: `heure-supp:${CAMILLE.id}:2026-08-15`, type_item: 'heure_supplementaire', statut: 'valide', impact_paye: true, quantite_minutes: 60 },
@@ -158,12 +159,17 @@ verifier('Angélique, jamais rattachée, est une donnée manquante',
 verifier('le mois n’est pas prêt tant qu’un salarié ne l’est pas',
   R.synthese.statutMois === 'donnee_manquante');
 
-const avecRetardNonArbitre = M.dossierComptable(rapport({ items: ARBITRAGES.filter(a => a.id !== 'a1') }));
-verifier('un retard non arbitré fait passer le salarié « à vérifier »',
-  avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').statut === 'a_verifier');
-verifier('et ce retard n’est PAS compté dans les variables transmises',
-  avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').variables.retards.minutes === 0
-  && avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').variables.retards.enAttente === 1);
+// Règles SMU du 08/10, §4 : sans saisie du manager, le retard vaut 0, même
+// si le pointage en mesurait un ; et le salarié n'est pas mis « à vérifier »
+// pour autant.
+const sansRetardDeclare = M.dossierComptable(rapport({ items: ARBITRAGES.filter(a => a.id !== 'a1') }));
+const camilleSansRetard = sansRetardDeclare.salaries.find(s => s.nom === 'Camille');
+verifier('sans retard déclaré, le pointage seul ne produit aucun retard',
+  camilleSansRetard.variables.retards.minutes === 0
+  && camilleSansRetard.variables.retards.occurrences === 0
+  && camilleSansRetard.variables.retards.enAttente === 0);
+verifier('et Camille reste prête : un retard non déclaré n’est pas une anomalie',
+  camilleSansRetard.statut === 'pret');
 
 // ── 4. La synthèse mensuelle est la somme exacte des fiches ──────────────
 // Angélique est « renfort » : NEXUS la PROPOSE d'office en paie, mais tant

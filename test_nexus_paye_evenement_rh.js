@@ -144,7 +144,7 @@ const constatee = M.construireRapport({
 const serie = constatee.employes[0].items.filter(i => i.typeItem === 'absence_a_verifier');
 verifier('12 jours d’absence non déclarée donnent une seule carte', serie.length === 1);
 verifier('la carte annonce la période constatée',
-  serie[0].libelle === 'Absence non déclarée du 01/09/2026 au 12/09/2026');
+  serie[0].libelle === 'Présence à vérifier du 01/09/2026 au 12/09/2026');
 verifier('elle porte ses bornes, exploitables pour déclarer l’événement',
   serie[0].date === '2026-09-01' && serie[0].dateFin === '2026-09-12' && serie[0].serieAbsence === true);
 verifier('« À vérifier » compte 1, pas 12', constatee.synthese.aVerifier === 1);
@@ -169,7 +169,7 @@ const isolee = M.construireRapport({
 });
 const seule = isolee.employes[0].items.find(i => i.typeItem === 'absence_a_verifier');
 verifier('une absence d’un seul jour garde son libellé simple',
-  seule.libelle === 'Présence prévue sans preuve Verify/Pointage' && seule.dateFin === null);
+  seule.libelle === 'Présence à vérifier : caisse ou piste prévue sans Verify' && seule.dateFin === null);
 
 // 13) Garde-fou de modèle (03/09/2026). L'écran proposait encore « congé
 //     payé » et « arrêt maladie » comme des variables saisissables JOUR PAR

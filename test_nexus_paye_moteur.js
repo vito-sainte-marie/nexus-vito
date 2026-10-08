@@ -47,10 +47,11 @@ r = rapport({
 });
 assert.ok(!r.items.some(i => i.typeItem === 'heure_supplementaire'));
 
-// Retard aberrant isolé, jamais transmis automatiquement.
+// Aucun retard n'est déduit du pointage, même aberrant (08/10/2026, règles
+// SMU §4 : le retard vaut 0 par défaut, seul le manager le déclare). Avant,
+// ce pointage produisait un `retard_incoherent` bloquant.
 r = rapport({ pointages: [{ employee_id: 'e1', date: '2026-08-10', type: 'arrivee', retard_min: 5754 }] });
-const retard = r.items.find(i => i.typeItem === 'retard_incoherent');
-assert.ok(retard && retard.bloquantTechnique && retard.impactPaye === false);
+assert.ok(!r.items.some(i => i.typeItem === 'retard' || i.typeItem === 'retard_incoherent'));
 
 // Écart : montant de référence uniquement, zéro impact paie par défaut.
 r = rapport({ ecarts: [{ id: 'verify-a-piste', employeeId: 'e1', date: '2026-08-12', activite: 'piste', sourceModule: 'verify', montantRetenu: -36.65, statut: 'cloture_non_explique' }] });

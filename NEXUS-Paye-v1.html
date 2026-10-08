@@ -32,13 +32,15 @@
 </div>
 <script>
 let EMPLOYEE, SITE, RAPPORT, MOIS = NexusPayeMoteur.moisISO(new Date());
-const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Absence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
+const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Présence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
 const INFOS={dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.']};
 // Les seuls types encore saisissables JOURNÉE PAR JOURNÉE. Congés,
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
 // (03/09/2026). Le refus est aussi posé dans nexus-paye-donnees.js.
-const TYPES_VARIABLE_MANUELLE=['presence_exceptionnelle','heure_supplementaire','jour_ferie','acompte','dette','autre'];
+// « retard » y entre le 08/10/2026 (règles SMU §4) : NEXUS ne déduit
+// plus aucun retard du pointage ; seul le manager le déclare, ici.
+const TYPES_VARIABLE_MANUELLE=['presence_exceptionnelle','retard','heure_supplementaire','jour_ferie','acompte','dette','autre'];
 const MOTIFS_RH=[['conge_maternite','Congé maternité'],['arret_maladie','Arrêt maladie'],['conge','Congé'],['conge_paternite','Congé paternité'],['formation','Formation'],['autre','Autre']];
 const STATUTS_SALARIE={pret:['Prêt','green'],a_verifier:['À vérifier','amber'],donnee_manquante:['Donnée manquante','red'],hors_paie:['Hors paie','']};
 const ECHAPPE=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -100,7 +102,7 @@ function renderVariables(v){
  const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
  return `<div class="vars">`
   +tuile('Présence',`${v.presence.heures} h`,`${pluriel(v.presence.jours,'jour')} confirmé${v.presence.jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`,{vide:!v.presence.heures})
-  +tuile('Absence non déclarée',String(v.absence.jours),attente(v.absence.enAttente)||(v.absence.jours?'retenue en paie':'aucune'),{vide:!v.absence.jours,attente:!!v.absence.enAttente})
+  +tuile('Présence à vérifier',String(v.absence.jours),attente(v.absence.enAttente)||(v.absence.jours?'retenue en paie':'aucune'),{vide:!v.absence.jours,attente:!!v.absence.enAttente})
   +tuile('Congés payés',String(v.congesPayes.jours),v.congesPayes.evenements?`${pluriel(v.congesPayes.evenements,'événement')}`:'aucun',{vide:!v.congesPayes.jours})
   +tuile('Maladie / maternité',String(v.maladieMaternite.jours),v.maladieMaternite.detail.map(e=>e.libelle).join(' · ')||'aucune',{vide:!v.maladieMaternite.jours})
   +tuile('Retards',v.retards.minutes?`${v.retards.minutes} min`:'0',attente(v.retards.enAttente)||(v.retards.occurrences?`sur ${pluriel(v.retards.occurrences,'jour')}`:'aucun'),{vide:!v.retards.minutes,attente:!!v.retards.enAttente})
@@ -357,6 +359,7 @@ async function addManual(){
  if(dateDebut<MOIS||dateFin>dernierJourMois())return nexusErreur('Période hors du mois','Une variable du mois doit rester dans le mois affiché. Une absence qui déborde relève d’un événement RH.');
  if(montant!==''&&dates.length>1)return nexusErreur('Montant sur plusieurs jours','Un montant en euros doit être rattaché à une seule date, pour éviter de le répéter chaque jour.');
  if(['acompte','dette'].includes(typeItem)&&montant==='')return nexusErreur('Montant obligatoire','Le montant est obligatoire pour une dette ou un acompte.');
+ if(typeItem==='retard'&&!(Number(min)>0))return nexusErreur('Durée obligatoire','Un retard se déclare avec sa durée en minutes, supérieure à zéro.');
  const m=montant===''?null:Math.round(Number(String(montant).replace(',','.'))*100);
  if(montant!==''&&!Number.isFinite(m))return nexusErreur('Montant invalide','Saisissez un montant en euros, par exemple 50 ou 50,00.');
  const btn=document.getElementById('addManual');btn.disabled=true;
@@ -421,6 +424,6 @@ async function genererDossierPdf(){
  finally{btn.disabled=false;btn.textContent='2 · Générer le dossier comptable'}
 }
 function csvCell(v){const s=String(v??'');return `"${s.replace(/"/g,'""')}"`}
-function exportCSV(){const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;const lignes=snap&&snap.lignes?snap.lignes:NexusPayeMoteur.lignesExport(RAPPORT);const cols=['employe','type','date','source','ecart_initial','ecart_final','statut','quantite_minutes','montant_euros','impact_paye','commentaire'];const csv='\uFEFF'+[cols.join(';'),...lignes.map(l=>cols.map(c=>csvCell(l[c])).join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`NEXUS-Paye-${SITE}-${MOIS.slice(0,7)}.csv`;a.click();URL.revokeObjectURL(a.href)}
+function exportCSV(){const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;const lignes=snap&&snap.lignes?snap.lignes:NexusPayeMoteur.lignesExport(RAPPORT);const cols=['employe','type','date','source','ecart_initial','ecart_final','statut','quantite_minutes','montant_euros','impact_paye','commentaire','auteur','saisi_le'];const csv='\uFEFF'+[cols.join(';'),...lignes.map(l=>cols.map(c=>csvCell(l[c])).join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`NEXUS-Paye-${SITE}-${MOIS.slice(0,7)}.csv`;a.click();URL.revokeObjectURL(a.href)}
 nexusRequireAuth().then(async employee=>{if(!employee)return;if(!['manager','gerant'].includes(employee.role)){document.getElementById('app').innerHTML='<div class="alert">NEXUS PAYE est réservé aux managers et gérants.</div>';return}EMPLOYEE=employee;SITE=employee.site_id;await reload()}).catch(e=>{document.getElementById('app').innerHTML=`<div class="alert">Session indisponible : ${ECHAPPE(e.message||e)}</div>`});
 </script></body></html>
