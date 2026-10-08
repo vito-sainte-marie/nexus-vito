@@ -314,8 +314,12 @@
     },
     "ARMEMENT-ARBITRAGE-AUTONOME-1-20261008": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "derniere_demande": "request-2.md",
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "7b8b5a159357606fb4b8a3661139b1725d3f0c08",
+      "consomme_le": "2026-10-08T14:30:00.359Z"
     }
   },
   "artefacts_hors_registre": [
