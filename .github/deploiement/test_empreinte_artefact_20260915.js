@@ -586,6 +586,14 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 //   ───
 //    293
 //
+//   08/10/2026 — versements de régularisation, restitutions de trop-perçu et
+//   transferts tiroir → coffre (arbitrages de Frédéric du 08/10) :
+//   + 1  `20261008120000_ecarts_versements_regularisation.sql`
+//        trois tables en ajout seul, lisibles par les managers du site,
+//        écrites uniquement par huit RPC réservées aux managers et gérants
+//   ───
+//    294
+//
 //   Au passage : #62 et `production` ont tous deux annoncé 276 le 22/09, par
 //   deux chemins sans aucun fichier commun. Le nombre seul ne les distinguait
 //   pas ; les empreintes, si.
@@ -602,8 +610,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 293;
-const MIGRATIONS_REELLES_EMPREINTE = '86e6183e08a96a78f723d636913e5424bde3efbcc152d6ec6b7daa47f7990151';
+const MIGRATIONS_REELLES_NOMBRE = 294;
+const MIGRATIONS_REELLES_EMPREINTE = '33479262b15c906fa77c9db32f86042f954f62041f47023aa363c21b4a1fdae5';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
