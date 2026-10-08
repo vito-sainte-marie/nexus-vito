@@ -60,7 +60,8 @@ function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:
 function render(){
  const s=RAPPORT.synthese, statut=etatPeriode();
  const decisions=RAPPORT.items.filter(i=>i.statut==='a_verifier'||i.contestationOuverte);
- const informations=RAPPORT.items.filter(i=>i.statut==='information');
+ const signales=RAPPORT.items.filter(i=>i.signale&&i.statut==='information');
+ const informations=RAPPORT.items.filter(i=>i.statut==='information'&&!i.signale);
  const blocagesSysteme=RAPPORT.bloqueurs.filter(b=>b.categorie==='configuration'||(!b.categorie&&!b.sourceCle));
  document.getElementById('app').innerHTML=`
  <div class="period"><button id="prev">←</button><strong>${moisLabel()}</strong><span class="status ${statut}">${LIBELLE_STATUT_DOSSIER[statut]||statut}</span><button id="next">→</button></div>
@@ -72,6 +73,8 @@ function render(){
  <section>${blocagesSysteme.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div><button class="btn jump-employees" style="margin-top:8px">Configurer</button></div>`).join('')}</section>`:''}
  <div class="section-head" id="reviewSection"><div class="section-label">Éléments de paie à vérifier${decisions.length?` · ${decisions.length}`:''}</div>${infoBtn('arbitrage','arbitrages')}</div>
  <section>${!decisions.length?'<div class="card ok">✓ Aucun arbitrage en attente.</div>':decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}</section>
+ ${signales.length?`<div class="section-head" id="signalSection"><div class="section-label">Signalés pour vérification · ${signales.length}</div></div>
+ <section><div class="help" style="margin:0 0 9px">Verify fait foi : ces jours sont déjà comptés et ne bloquent pas le dossier. Régularisez le planning, ou marquez l’écart vérifié en donnant le motif.</div>${signales.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}</section>`:''}
  ${informations.length?`<section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin:0 0 9px">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}</section>`:''}
  <div class="section-head" id="employeesSection"><div class="section-label">Salariés · ${s.salariesPrets}/${s.salariesInclus} prêts</div>${infoBtn('statutSalarie','statut du salarié')}</div>
  <section>${RAPPORT.employes.map(renderEmployee).join('')}</section>
@@ -168,7 +171,7 @@ function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
   statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',
   ecart=i.typeItem==='ecart_caisse',
-  actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',
+  actions=i.signale&&i.statut==='information'?`<div class="item-actions"><button class="btn primary verify-signal" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Marquer vérifié</button></div>`:i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',
   source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';
  // Un événement RH se lit en trois lignes — motif, période couverte,
  // nombre de jours — et non comme une phrase datée noyée dans un libellé
@@ -185,7 +188,7 @@ function renderItem(f,i){
    +`<div class="rh-periode">${jjmmaaaaFR(i.date)} → ${jjmmaaaaFR(i.dateFin||i.date)}</div>`
    +`<div class="rh-couverture">${pluriel(i.joursMois||0,'jour')} couvert${(i.joursMois||0)>1?'s':''}${debordement.length?` · ${ECHAPPE(debordement.join(' · '))}`:''}</div></div>`;
  }else{
-  entete=`<div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${periode&&i.joursMois?pluriel(i.joursMois,'jour'):(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>`;
+  entete=`<div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}${i.signale?` <span class="pill ${i.statut==='information'?'amber':'green'}">${i.statut==='information'?'Signalé':'Vérifié'}</span>`:''}</div><div class="item-date">${periode&&i.joursMois?pluriel(i.joursMois,'jour'):(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>`;
  }
  // Pour un événement RH, le décompte est déjà dans l'en-tête : on ne
  // garde du détail que ce qu'il n'a pas dit.
@@ -314,7 +317,7 @@ function bind(){
  document.getElementById('infoModal').onclick=e=>{if(e.target.id==='infoModal')e.currentTarget.hidden=true};
  document.querySelectorAll('.employee-head').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
  document.querySelectorAll('.configure').forEach(b=>b.onclick=async e=>{e.stopPropagation();const f=RAPPORT.employes.find(x=>x.employee.id===b.dataset.id);const choix=await ouvrirDialogue({titre:`Rattachement de ${f.employee.nom}`,texte:'Réglage permanent, pas un arbitrage du mois : il vaut pour tous les mois suivants tant que vous ne le changez pas.',champs:[{cle:'mode',label:'Ce salarié figure-t-il dans le dossier de paie ?',type:'select',valeur:f.reglage.inclus?(f.reglage.modePresence==='manuel'?'manuel':'automatique'):'exclu',options:[['automatique','Inclus — heures calculées par NEXUS'],['manuel','Inclus — heures saisies manuellement'],['exclu','Hors paie de la station']],aide:'« Heures saisies manuellement » convient à un salarié dont ni le planning ni Verify ne couvrent le temps de travail.'}],libelleValider:'Enregistrer le rattachement'});if(!choix)return;await NexusPayeDonnees.enregistrerReglageEmploye(nexusClient,{siteId:SITE,employeeId:f.employee.id,inclusPaye:choix.mode!=='exclu',modePresence:choix.mode,commentaire:null,actorId:EMPLOYEE.id});reload()});
- document.querySelectorAll('.validate').forEach(b=>b.onclick=async()=>decision(b,true));document.querySelectorAll('.exclude').forEach(b=>b.onclick=async()=>decision(b,false));
+ document.querySelectorAll('.validate').forEach(b=>b.onclick=async()=>decision(b,true));document.querySelectorAll('.exclude').forEach(b=>b.onclick=async()=>decision(b,false));document.querySelectorAll('.verify-signal').forEach(b=>b.onclick=async()=>verifierSignalement(b));
  document.getElementById('manualDateDebut').onchange=e=>{const fin=document.getElementById('manualDateFin');fin.min=e.target.value||MOIS;if(!fin.value||fin.value<e.target.value)fin.value=e.target.value;majPeriodeManuelle()};
  document.getElementById('manualDateFin').onchange=majPeriodeManuelle;
  document.getElementById('addManual').onclick=addManual;
@@ -327,6 +330,22 @@ function bind(){
  document.getElementById('reopen').onclick=async()=>{if(!await nexusConfirmer('Rouvrir le dossier ?','Le dossier repasse en brouillon et l’instantané validé est supprimé. Les arbitrages déjà rendus, eux, sont conservés.','Rouvrir le dossier',true))return;await NexusPayeDonnees.enregistrerPeriode(nexusClient,{siteId:SITE,periode:MOIS,statut:'brouillon',snapshot:null,actorId:EMPLOYEE.id});reload()};
  document.getElementById('export').onclick=exportCSV;
  document.getElementById('dossierPdf').onclick=genererDossierPdf;
+}
+// Un conflit que Verify a tranché (08/10/2026, décision de Frédéric) ne
+// bloque pas, mais le manager doit le voir. Le marquer vérifié exige un
+// motif : l'auteur et la date sont ceux de la décision enregistrée. Rien
+// n'est ajouté à la paie (impact nul) ; les heures sont déjà comptées.
+async function verifierSignalement(btn){
+ const item=trouver(btn.dataset.emp,btn.dataset.key);if(!item)return;
+ const reponse=await ouvrirDialogue({titre:'Marquer l’écart vérifié',
+  texte:`${item.libelle}\n\nVerify reste retenu et le jour reste compté. Si le planning est faux, corrigez-le plutôt : le signalement disparaîtra de lui-même.`,
+  champs:[{cle:'motif',label:'Motif',type:'textarea',placeholder:'Pourquoi cet écart est justifié'}],
+  libelleValider:'Marquer vérifié',
+  verifier:v=>String(v.motif||'').trim()?null:'Le motif est obligatoire.'});
+ if(!reponse)return;
+ btn.disabled=true;
+ try{await NexusPayeDonnees.enregistrerDecision(nexusClient,{siteId:SITE,employeeId:btn.dataset.emp,periode:MOIS,item,statut:'valide',impactPaye:false,montantCentimes:null,note:`Écart vérifié : ${String(reponse.motif).trim()}`,actorId:EMPLOYEE.id});await reload()}
+ catch(e){console.error('NEXUS PAYE — vérification du signalement :',e);btn.disabled=false;nexusErreur('Vérification non enregistrée',`NEXUS n'a pas pu enregistrer cette vérification : ${messageErreur(e)}\n\nRien n'a été modifié.`)}
 }
 async function decision(btn,valider){
  const item=trouver(btn.dataset.emp,btn.dataset.key);if(!item)return;

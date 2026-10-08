@@ -283,6 +283,28 @@
           fiche.heuresConfirmees += heuresJour;
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
+          // Conflit d'affectation (§3) : un renfort planifié le jour où Verify
+          // place la personne en caisse ou sur piste. Verify fait foi pour la
+          // fonction (heure supplémentaire ci-dessous) ; les heures du jour
+          // sont celles du planning, comptées UNE fois, jamais renfort plus
+          // caisse. Verify ne porte aucune heure : le chevauchement exact ne
+          // se découpe pas sans inventer. L'anomalie est signalée pour que le
+          // manager régularise le planning ou justifie l'écart, sans bloquer
+          // le salarié (08/10/2026, décision de Frédéric). Type `autre` : la
+          // contrainte nexus_paye_items_type_item_check n'en connaît pas
+          // d'autre, et cet élément n'entre dans aucune variable comptable.
+          // Un jour mixte (renfort + caisse) est signalé aussi : Verify ne
+          // confirme pas la part renfort, et le signalement ne bloque rien.
+          const activitesVerify = activiteParJour.get(cle);
+          if (activitesVerify && shiftsTravail.some(estShiftRenfort)) {
+            const constate = [...activitesVerify].map(a => (a === 'boutique' ? 'caisse' : a)).sort().join(' et ');
+            fiche.items.push({
+              sourceCle: `conflit-affectation:${employee.id}:${date}`, typeItem: 'autre', origine: 'verify',
+              date, libelle: `Conflit d'affectation : renfort planifié, ${constate} constatée par Verify`,
+              detail: 'Verify retenu pour la fonction · heures du jour comptées une seule fois · régularisez le planning ou justifiez l\'écart',
+              statut: 'information', impactPaye: false, signale: true, anomalie: 'conflit_affectation',
+            });
+          }
         } else if (shiftsTravail.length && !preuve && !indispo) {
           // Renfort (08/10/2026, règles SMU §2) : le planning officiel fait
           // foi pour les heures prévues, sans Verify ni pointage. Un renfort
@@ -334,12 +356,23 @@
           // décision de Frédéric). Un jour que Verify constate et qu'AUCUN
           // shift ne couvre est une présence établie : ses heures sont
           // comptées au barème du poste constaté, et le fait reste tracé sans
-          // bloquer le salarié. Un shift non travaillé (repos, congé) que
-          // Verify contredit reste à vérifier : c'est le conflit du §3.
-          const etablieParVerify = preuve.type.includes('verify') && !shifts.length && !!bareme;
+          // bloquer le salarié.
+          //
+          // Un shift non travaillé (repos, congé) que Verify contredit est un
+          // conflit (§3). Verify y a priorité, le jour est compté de même,
+          // mais le conflit est SIGNALÉ pour vérification sans bloquer
+          // (08/10/2026, décision de Frédéric). Seul un pointage, ou un poste
+          // sans barème, laisse le jour à vérifier : rien n'en établit les
+          // heures.
+          const verifyEtBareme = preuve.type.includes('verify') && !!bareme;
+          const etablieParVerify = verifyEtBareme && !shifts.length;
+          const conflitPlanning = verifyEtBareme && shifts.length > 0;
+          const statutsPlanifies = [...new Set(shifts.map(s => s.statut).filter(Boolean))].join(', ');
           fiche.items.push({
             sourceCle: `presence-exceptionnelle:${employee.id}:${date}`, typeItem: 'presence_exceptionnelle', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
-            date, libelle: etablieParVerify ? 'Présence constatée par Verify, sans planning' : 'Présence constatée hors planning de travail',
+            date, libelle: etablieParVerify ? 'Présence constatée par Verify, sans planning'
+              : conflitPlanning ? `Conflit planning / Verify : ${statutsPlanifies || 'non travaillé'} planifié, présence constatée par Verify`
+              : 'Présence constatée hors planning de travail',
             poste: poste || null, heuresAttribuees: bareme ? bareme.heures : null,
             // Portées en minutes pour que « Confirmer » enregistre vraiment
             // la durée retenue, et non une décision sans quantité.
@@ -350,7 +383,8 @@
                 + (bareme.heuresSupplementaires ? ` (7 h + ${bareme.heuresSupplementaires} h supplémentaire)` : '')
                 + (poste !== String(employee.role || '').toLowerCase() ? ` · poste constaté dans Verify, différent du rôle « ${employee.role || '—'} »` : '')
               : `Aucun barème applicable : poste du jour inconnu, heures à saisir manuellement`,
-            statut: etablieParVerify ? 'information' : 'a_verifier', impactPaye: false,
+            statut: verifyEtBareme ? 'information' : 'a_verifier', impactPaye: false,
+            ...(conflitPlanning ? { signale: true, anomalie: 'conflit_planning_verify' } : {}),
           });
         }
 
@@ -573,6 +607,9 @@
         heuresConfirmees: Math.round(employes.reduce((s, f) => s + f.heuresConfirmees, 0) * 100) / 100,
         variablesValidees: itemsGlobaux.filter(i => i.statut === 'valide').length,
         informations: itemsGlobaux.filter(i => i.statut === 'information').length,
+        // Conflits que Verify a tranchés seul : comptés, non bloquants, mais
+        // présentés au manager tant qu'il ne les a pas marqués vérifiés.
+        signalements: itemsGlobaux.filter(i => i.signale && i.statut === 'information').length,
         // On compte des DÉCISIONS, pas des lignes techniques : le manager
         // doit voir le nombre de choses qu'il a réellement à trancher.
         aVerifier: bloqueurs.filter(b => b.categorie === 'element').length,

@@ -174,14 +174,113 @@ scenario('sans planning, un jour Verify est compté et ne bloque pas le salarié
   assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
 });
 
-scenario('un jour de repos planifié que Verify contredit reste à vérifier (§3)', () => {
+// « Le conflit trace une anomalie sans bloquer ; priorité à Verify, mais
+// signalé quand même pour vérification » (Frédéric, 08/10).
+const signales = r => r.items.filter(i => i.signale && i.statut === 'information');
+
+scenario('un repos planifié que Verify contredit : compté, signalé, non bloquant (§3)', () => {
   const r = run({
     planning: [{ employee_id: 'e1', date: LUNDI, quart: 'quart1', statut: 'repos', duree_heures: null }],
     audits: [AUDIT_BOUTIQUE(LUNDI)],
   });
   const item = fiche(r).items.find(i => i.typeItem === 'presence_exceptionnelle');
+  assert.strictEqual(item.statut, 'information');
+  assert.strictEqual(item.signale, true);
+  assert.strictEqual(item.anomalie, 'conflit_planning_verify');
+  assert.strictEqual(item.libelle, 'Conflit planning / Verify : repos planifié, présence constatée par Verify');
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+  assert.strictEqual(r.synthese.signalements, 1);
+  assert.strictEqual(r.bloqueurs.length, 0);
+});
+
+scenario('un repos contredit par un pointage seul reste à vérifier : rien ne l’établit', () => {
+  const r = run({
+    planning: [{ employee_id: 'e1', date: LUNDI, quart: 'quart1', statut: 'repos', duree_heures: null }],
+    pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }],
+  });
+  const item = fiche(r).items.find(i => i.typeItem === 'presence_exceptionnelle');
   assert.strictEqual(item.statut, 'a_verifier');
+  assert.ok(!item.signale);
   assert.strictEqual(M.statutSalarie(fiche(r)), 'a_verifier');
+});
+
+scenario('un renfort que Verify place en caisse : anomalie signalée, heures comptées une fois', () => {
+  const r = run({ planning: [renfort(LUNDI, 7)], audits: [AUDIT_BOUTIQUE(LUNDI)] });
+  const conflits = fiche(r).items.filter(i => i.anomalie === 'conflit_affectation');
+  assert.strictEqual(conflits.length, 1);
+  const c = conflits[0];
+  assert.strictEqual(c.typeItem, 'autre');
+  assert.strictEqual(c.origine, 'verify');
+  assert.strictEqual(c.statut, 'information');
+  assert.strictEqual(c.signale, true);
+  assert.strictEqual(c.impactPaye, false);
+  assert.strictEqual(c.sourceCle, `conflit-affectation:e1:${LUNDI}`);
+  assert.strictEqual(c.libelle, 'Conflit d’affectation : renfort planifié, caisse constatée par Verify'.replace('’', "'"));
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(fiche(r).joursConfirmes.size, 1);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+  assert.strictEqual(r.synthese.signalements, 1);
+});
+
+scenario('le conflit d’affectation n’entre dans aucune variable comptable', () => {
+  const avec = run({ planning: [renfort(LUNDI, 7)], audits: [AUDIT_BOUTIQUE(LUNDI)] });
+  const sans = fiche(avec);
+  const temoin = Object.assign({}, sans, { items: sans.items.filter(i => i.anomalie !== 'conflit_affectation') });
+  assert.notStrictEqual(temoin.items.length, sans.items.length);
+  assert.deepStrictEqual(M.variablesComptables(sans), M.variablesComptables(temoin));
+});
+
+scenario('un renfort que Verify place sur piste un vendredi : HS et anomalie, pas de double jour', () => {
+  const r = run({
+    planning: [renfort(VENDREDI, 7)],
+    audits: [{ id: 'p', date: VENDREDI, quart: '1', employes_piste: ['e1'], employes_boutique: [] }],
+  });
+  assert.ok(typeItems(r).includes('heure_supplementaire'));
+  const c = fiche(r).items.find(i => i.anomalie === 'conflit_affectation');
+  assert.ok(/piste constatée par Verify/.test(c.libelle));
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(fiche(r).joursConfirmes.size, 1);
+});
+
+scenario('renfort + caisse planifiés, Verify en caisse : signalé (part renfort non confirmée), sans bloquer', () => {
+  const r = run({ planning: [renfort(LUNDI, 3), caisse(LUNDI, 4)], audits: [AUDIT_BOUTIQUE(LUNDI)] });
+  assert.strictEqual(fiche(r).items.filter(i => i.anomalie === 'conflit_affectation').length, 1);
+  assert.strictEqual(r.synthese.signalements, 1);
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+});
+
+scenario('caisse planifiée seule, Verify en caisse : aucun signalement', () => {
+  const r = run({ planning: [caisse(LUNDI, 7)], audits: [AUDIT_BOUTIQUE(LUNDI)] });
+  assert.ok(!fiche(r).items.some(i => i.signale));
+  assert.strictEqual(r.synthese.signalements, 0);
+});
+
+scenario('un renfort sans Verify, pointage seul : aucun conflit signalé', () => {
+  const r = run({ planning: [renfort(LUNDI, 7)], pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }] });
+  assert.ok(!fiche(r).items.some(i => i.signale));
+});
+
+scenario('marqué vérifié par le manager, le conflit sort des signalements sans rien bloquer', () => {
+  const r = run({
+    planning: [renfort(LUNDI, 7)], audits: [AUDIT_BOUTIQUE(LUNDI)],
+    items: [{ employee_id: 'e1', source_cle: `conflit-affectation:e1:${LUNDI}`, type_item: 'autre', statut: 'valide', impact_paye: false, date_evenement: LUNDI, libelle: 'x' }],
+  });
+  const c = fiche(r).items.find(i => i.anomalie === 'conflit_affectation');
+  assert.strictEqual(c.statut, 'valide');
+  assert.strictEqual(r.synthese.signalements, 0);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+});
+
+scenario('l’écran sépare les signalés et exige un motif pour les marquer vérifiés', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Paye-v1.html'), 'utf8');
+  assert.ok(/const signales=RAPPORT\.items\.filter\(i=>i\.signale&&i\.statut==='information'\)/.test(html));
+  assert.ok(/const informations=RAPPORT\.items\.filter\(i=>i\.statut==='information'&&!i\.signale\)/.test(html));
+  assert.ok(html.includes('Signalés pour vérification'));
+  assert.ok(/querySelectorAll\('\.verify-signal'\)\.forEach\(b=>b\.onclick=async\(\)=>verifierSignalement\(b\)\)/.test(html));
+  assert.ok(/verifier:v=>String\(v\.motif\|\|''\)\.trim\(\)\?null:'Le motif est obligatoire\.'/.test(html));
+  assert.ok(/statut:'valide',impactPaye:false,montantCentimes:null,note:`Écart vérifié : /.test(html));
 });
 
 scenario('un pointage seul, pointage actif, ne vaut pas Verify : jamais établi', () => {
