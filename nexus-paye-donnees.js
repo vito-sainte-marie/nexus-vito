@@ -21,7 +21,7 @@
       client.from('audits_caisse').select('id, date, quart, statut, employes_piste, employes_boutique').eq('site', siteId).gte('date', debut).lt('date', fin),
       client.from('nexus_paye_items').select('*').eq('site_id', siteId).eq('periode', debut),
       client.from('nexus_paye_periodes').select('*').eq('site_id', siteId).eq('periode', debut).maybeSingle(),
-      client.from('station_config').select('paye_config,planning_source,planning_google_sheet_url,planning_google_sheet_id').eq('site', siteId).maybeSingle(),
+      client.from('station_config').select('paye_config,planning_source,planning_google_sheet_url,planning_google_sheet_id,pointage_actif').eq('site', siteId).maybeSingle(),
       global.NexusEcartsDonnees.chargerEcartsConsolides(client, siteId, { dateDebut: debut, dateFin: fin }),
     ]);
     [emp, settings, planning, pointages, indispos, audits, items, periodeRes, configRes].forEach(r => { if (r.error) throw r.error; });
@@ -29,6 +29,7 @@
       periode: debut, employees: emp.data || [], settings: settings.data || [], planning: planning.data || [],
       pointages: pointages.data || [], indisponibilites: indispos.data || [], audits: audits.data || [],
       items: items.data || [], config: (configRes.data && configRes.data.paye_config) || {}, ecarts: ecarts || [],
+      pointageActif: !(configRes.data && configRes.data.pointage_actif === false),
     });
     rapport.periodeEnregistree = periodeRes.data || null;
     rapport.config = (configRes.data && configRes.data.paye_config) || {};

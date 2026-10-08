@@ -156,4 +156,73 @@ scenario('un jour Verify avec deux shifts compte ses heures une seule fois', () 
   assert.ok(!typeItems(r).includes('absence_a_verifier'));
 });
 
+// ── Décisions de Frédéric du 08/10 sur les questions ouvertes ────────────
+// « Paye ne peut fonctionner sans Verify mais il peut fonctionner sans
+// planning » ; « si le pointage est inactif, il ne prouve rien ».
+const AUDIT_BOUTIQUE = date => ({ id: `a-${date}`, date, quart: '1', employes_piste: [], employes_boutique: ['e1'] });
+
+scenario('sans planning, un jour Verify est compté et ne bloque pas le salarié', () => {
+  const r = run({ audits: [AUDIT_BOUTIQUE(LUNDI), AUDIT_BOUTIQUE(VENDREDI)] });
+  assert.strictEqual(fiche(r).heuresConfirmees, 7 + 8);
+  assert.strictEqual(fiche(r).joursConfirmes.size, 2);
+  const items = fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle');
+  assert.strictEqual(items.length, 2);
+  items.forEach(i => {
+    assert.strictEqual(i.statut, 'information');
+    assert.strictEqual(i.libelle, 'Présence constatée par Verify, sans planning');
+  });
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+});
+
+scenario('un jour de repos planifié que Verify contredit reste à vérifier (§3)', () => {
+  const r = run({
+    planning: [{ employee_id: 'e1', date: LUNDI, quart: 'quart1', statut: 'repos', duree_heures: null }],
+    audits: [AUDIT_BOUTIQUE(LUNDI)],
+  });
+  const item = fiche(r).items.find(i => i.typeItem === 'presence_exceptionnelle');
+  assert.strictEqual(item.statut, 'a_verifier');
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'a_verifier');
+});
+
+scenario('un pointage seul, pointage actif, ne vaut pas Verify : jamais établi', () => {
+  const r = run({ pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }] });
+  const item = fiche(r).items.find(i => i.typeItem === 'presence_exceptionnelle');
+  assert.strictEqual(item.statut, 'a_verifier');
+});
+
+scenario('pointage inactif : une caisse planifiée avec pointage seul reste à vérifier', () => {
+  const entree = {
+    planning: [caisse(LUNDI, 7)],
+    pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }],
+  };
+  assert.strictEqual(fiche(run(entree)).heuresConfirmees, 7, 'témoin : pointage actif, la présence est confirmée');
+  const r = run(Object.assign({ pointageActif: false }, entree));
+  assert.strictEqual(fiche(r).heuresConfirmees, 0);
+  assert.ok(typeItems(r).includes('absence_a_verifier'));
+});
+
+scenario('pointage inactif : un pointage hors planning ne crée aucune présence', () => {
+  const r = run({ pointageActif: false, pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }] });
+  assert.strictEqual(fiche(r).joursConfirmes.size, 0);
+  assert.ok(!typeItems(r).includes('presence_exceptionnelle'));
+});
+
+scenario('pointage inactif : Verify seul fait foi, sans être compté comme mesuré deux fois', () => {
+  const r = run({
+    pointageActif: false,
+    planning: [caisse(LUNDI, 7)],
+    pointages: [{ employee_id: 'e1', date: LUNDI, type: 'arrivee' }],
+    audits: [AUDIT_BOUTIQUE(LUNDI)],
+  });
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(fiche(r).presencesMesurees, 0);
+  assert.strictEqual(fiche(r).presencesReconstituees, 1);
+});
+
+scenario('le chargeur transmet station_config.pointage_actif au moteur', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'nexus-paye-donnees.js'), 'utf8');
+  assert.ok(/from\('station_config'\)\.select\('[^']*\bpointage_actif\b/.test(src), 'pointage_actif non lu');
+  assert.ok(/pointageActif:\s*!\(configRes\.data && configRes\.data\.pointage_actif === false\)/.test(src), 'pointageActif non transmis');
+});
+
 console.log(`\nNEXUS PAYE — règles SMU du 08/10 : ${passes}/${passes} scénarios passent.`);

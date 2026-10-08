@@ -168,7 +168,12 @@
     // Un shift de renfort se reconnaît à son statut ou à son quart dédié.
     const estShiftRenfort = s => s.statut === 'renfort' || s.quart === config.quart_exclu_heure_supp;
 
-    (entree.pointages || []).filter(p => dateDansMois(p.date, periode)).forEach(p => {
+    // Un pointage inactif ne prouve rien (08/10/2026, décision de Frédéric) :
+    // quand `station_config.pointage_actif` vaut false, les lignes qui
+    // subsistent dans `pointages` ne confirment aucune présence. Seul Verify
+    // fait alors foi pour la caisse et la piste.
+    const pointageActif = entree.pointageActif !== false;
+    (pointageActif ? (entree.pointages || []) : []).filter(p => dateDansMois(p.date, periode)).forEach(p => {
       if (p.type === 'arrivee') {
         const cle = cleJour(p.employee_id, p.date);
         preuveJour.set(cle, { type: 'pointage', ligne: p });
@@ -325,9 +330,16 @@
             fiche.heuresSupplementairesParDefaut = (fiche.heuresSupplementairesParDefaut || 0) + bareme.heuresSupplementaires;
           }
           const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
+          // Paye fonctionne sans planning, jamais sans Verify (08/10/2026,
+          // décision de Frédéric). Un jour que Verify constate et qu'AUCUN
+          // shift ne couvre est une présence établie : ses heures sont
+          // comptées au barème du poste constaté, et le fait reste tracé sans
+          // bloquer le salarié. Un shift non travaillé (repos, congé) que
+          // Verify contredit reste à vérifier : c'est le conflit du §3.
+          const etablieParVerify = preuve.type.includes('verify') && !shifts.length && !!bareme;
           fiche.items.push({
             sourceCle: `presence-exceptionnelle:${employee.id}:${date}`, typeItem: 'presence_exceptionnelle', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
-            date, libelle: 'Présence constatée hors planning de travail',
+            date, libelle: etablieParVerify ? 'Présence constatée par Verify, sans planning' : 'Présence constatée hors planning de travail',
             poste: poste || null, heuresAttribuees: bareme ? bareme.heures : null,
             // Portées en minutes pour que « Confirmer » enregistre vraiment
             // la durée retenue, et non une décision sans quantité.
@@ -338,7 +350,7 @@
                 + (bareme.heuresSupplementaires ? ` (7 h + ${bareme.heuresSupplementaires} h supplémentaire)` : '')
                 + (poste !== String(employee.role || '').toLowerCase() ? ` · poste constaté dans Verify, différent du rôle « ${employee.role || '—'} »` : '')
               : `Aucun barème applicable : poste du jour inconnu, heures à saisir manuellement`,
-            statut: 'a_verifier', impactPaye: false,
+            statut: etablieParVerify ? 'information' : 'a_verifier', impactPaye: false,
           });
         }
 
