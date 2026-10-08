@@ -92,6 +92,16 @@
   .btn-remove{flex-shrink:0; width:32px; height:32px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--red); border-radius:8px; cursor:pointer; font-size:14px;}
   .btn-add{width:100%; padding:9px; border-radius:8px; border:1px dashed rgba(79,195,217,0.4); background:transparent; color:var(--cyan); font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:10px;}
   .btn-add:active{background:rgba(79,195,217,0.08);}
+  /* Factures différées boutique (B4, 08/10/2026) — cinq champs par ligne :
+     grille qui passe sur deux colonnes en largeur téléphone (Safari iOS). */
+  .ligne-facture{display:grid; grid-template-columns:110px 1fr 1fr 1fr 32px; gap:8px; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--hairline);}
+  .ligne-facture input{margin-bottom:0;}
+  .ligne-facture .presence-facture{grid-column:1 / -2; display:flex; gap:8px; align-items:center; font-family:var(--sans); font-size:12px; color:var(--text-mid);}
+  .ligne-facture .presence-facture input{width:auto;}
+  .ligne-facture .trace-facture{grid-column:1 / -1; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .ligne-facture .erreur-facture{grid-column:1 / -1; font-family:var(--sans); font-size:11.5px; color:var(--red);}
+  @media (max-width:600px){ .ligne-facture{grid-template-columns:1fr 1fr 32px;} .ligne-facture .montant-facture{grid-column:1 / 3;} }
+  .aide-info{display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-left:6px; border-radius:50%; color:var(--cyan); cursor:pointer; font-size:14px;}
   .total-ligne{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); text-align:right;}
 
   /* NEXUS Data Connector (01/08/2026, recommandations de conception) —
@@ -466,7 +476,7 @@
 <!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+<script src="nexus-verify-moteur.js?v=20261008-b4"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -713,6 +723,28 @@
         <div id="reglementCompteListe"></div>
         <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
         <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
+      </div>
+    </div>
+
+    <!-- Factures différées boutique (mandat consolidé §4, B4, 08/10/2026) :
+         une vente facturée dans le Back-office Décenium sans argent dans le
+         tiroir de ce quart. Pas de soustraction automatique : seule une
+         facture dont la présence dans la vente boutique du quart est cochée
+         entre dans l'écart ; les autres restent « à vérifier ». Le serveur
+         (trg_audits_caisse_factures_differees) refait les contrôles, pose
+         auteur et horodatage, et refuse un numéro déjà saisi ailleurs. -->
+    <div class="card card-collapsible" id="cardFacturesDifferees">
+      <div class="card-toggle" data-toggle="cardFacturesDifferees">
+        <div class="card-toggle-label">Factures différées (boutique)<span class="aide-info" role="button" tabindex="0" aria-label="Aide : factures différées" aria-controls="aideFacturesDifferees" title="Ventes facturées dans Décenium Back-office, non encaissées sur ce quart.">ⓘ</span></div>
+        <span class="card-toggle-total" id="v_apercu_factures">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="note" id="aideFacturesDifferees" hidden>Ventes facturées dans Décenium Back-office, non encaissées sur ce quart.</div>
+      <div class="card-body">
+        <div class="note">Ventes facturées dans Décenium Back-office, non encaissées sur ce quart. Une ligne par facture : montant, client, numéro de facture et justificatif. Cochez la présence seulement après avoir vérifié que la facture figure dans la vente boutique Décenium de ce quart — sinon elle reste « à vérifier » et ne change pas l'écart. À la piste, le pupitre prime : rien à saisir ici.</div>
+        <div id="facturesDiffereesListe"></div>
+        <button type="button" class="btn-add" id="btnAddFactureDifferee">+ Ajouter une facture</button>
+        <div class="total-ligne">Confirmées : <span id="totalFacturesConfirmees">0,00 €</span> · À vérifier : <span id="totalFacturesAVerifier">0,00 €</span></div>
       </div>
     </div>
 
@@ -2581,6 +2613,75 @@
       input.focus();
     });
 
+    // Factures différées boutique (B4) — voir la carte. `trace` porte les
+    // champs posés par le serveur (auteur, horodatages) pour les afficher
+    // en modification ; ils ne repartent jamais vers la base.
+    function ajouterLigneFactureDifferee(f) {
+      const conteneur = document.getElementById('facturesDiffereesListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-facture';
+      ligne.innerHTML = `
+        <input type="text" inputmode="decimal" class="montant-facture" placeholder="Montant" aria-label="Montant de la facture">
+        <input type="text" class="client-facture" placeholder="Client" aria-label="Client">
+        <input type="text" class="numero-facture" placeholder="N° de facture" aria-label="Numéro de facture" autocapitalize="characters">
+        <input type="text" class="justificatif-facture" placeholder="Justificatif" aria-label="Justificatif">
+        <button type="button" class="btn-remove" aria-label="Retirer la facture">✕</button>
+        <label class="presence-facture"><input type="checkbox" class="incluse-facture"> Présente dans la vente boutique Décenium de ce quart</label>
+        <div class="trace-facture"></div>
+        <div class="erreur-facture" hidden></div>`;
+      if (f) {
+        ligne.querySelector('.montant-facture').value = f.montant != null ? String(f.montant).replace('.', ',') : '';
+        ligne.querySelector('.client-facture').value = f.client || '';
+        ligne.querySelector('.numero-facture').value = f.numero_facture || '';
+        ligne.querySelector('.justificatif-facture').value = f.justificatif || '';
+        ligne.querySelector('.incluse-facture').checked = f.incluse_dans_ventes === true;
+        // Fuseau de la station seulement : sans lui, pas d'heure du tout
+        // plutôt que celle de l'appareil.
+        const quand = d => (d && FUSEAU_STATION) ? ' le ' + new Date(d).toLocaleString('fr-FR', { timeZone: FUSEAU_STATION }) : '';
+        if (f.saisie_le) {
+          ligne.querySelector('.trace-facture').textContent = 'Saisie' + quand(f.saisie_le)
+            + (f.modifie_le ? ' · modifiée' + quand(f.modifie_le) : '');
+        }
+      }
+      conteneur.appendChild(ligne);
+      ligne.querySelectorAll('input').forEach(el => el.addEventListener('input', () => majTotauxListes()));
+      ligne.querySelector('.incluse-facture').addEventListener('change', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return ligne.querySelector('.montant-facture');
+    }
+    document.getElementById('btnAddFactureDifferee').addEventListener('click', () => {
+      const input = ajouterLigneFactureDifferee();
+      majTotauxListes();
+      input.focus();
+    });
+    document.querySelectorAll('.aide-info').forEach(el => {
+      const basculer = (e) => {
+        e.preventDefault(); e.stopPropagation(); // ne replie pas la carte
+        const aide = document.getElementById(el.getAttribute('aria-controls'));
+        if (aide) aide.hidden = !aide.hidden;
+      };
+      el.addEventListener('click', basculer);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') basculer(e); });
+    });
+    // Lignes saisies, lignes entièrement vides écartées (une ligne ajoutée
+    // puis laissée vide n'est pas une facture).
+    function lireFacturesDifferees() {
+      const lignes = [];
+      document.querySelectorAll('#facturesDiffereesListe .ligne-facture').forEach(el => {
+        const brut = el.querySelector('.montant-facture').value.trim();
+        const client = el.querySelector('.client-facture').value.trim();
+        const numero_facture = el.querySelector('.numero-facture').value.trim();
+        const justificatif = el.querySelector('.justificatif-facture').value.trim();
+        if (!brut && !client && !numero_facture && !justificatif) return;
+        lignes.push({
+          numero_facture, client, justificatif: justificatif || null,
+          montant: brut ? numFR(brut) : null,
+          incluse_dans_ventes: el.querySelector('.incluse-facture').checked,
+        });
+      });
+      return lignes;
+    }
+
     function sommeBons() {
       const conteneur = document.getElementById('bonsPisteListe');
       let total = 0;
@@ -2640,6 +2741,12 @@
       document.getElementById('totalReglementBoutique').textContent = reglementBoutique.toFixed(2).replace('.', ',') + ' €';
       const apercuReglement = document.getElementById('v_apercu_reglement');
       if (apercuReglement) apercuReglement.textContent = (reglementPiste + reglementBoutique).toFixed(2).replace('.', ',') + ' €';
+
+      const factures = NexusVerifyMoteur.controlerFacturesDifferees(lireFacturesDifferees(), 0);
+      document.getElementById('totalFacturesConfirmees').textContent = factures.confirme.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalFacturesAVerifier').textContent = factures.aVerifier.toFixed(2).replace('.', ',') + ' €';
+      const apercuFactures = document.getElementById('v_apercu_factures');
+      if (apercuFactures) apercuFactures.textContent = (factures.confirme + factures.aVerifier).toFixed(2).replace('.', ',') + ' €';
     }
 
     // Réinitialisation complète du formulaire "Nouvel audit" (13/08/2026,
@@ -2672,12 +2779,13 @@
       document.getElementById('vacataireListe').innerHTML = ''; ajouterLigneVacataire();
       document.getElementById('carteFideliteListe').innerHTML = ''; ajouterLigneCarteFidelite();
       document.getElementById('reglementCompteListe').innerHTML = ''; ajouterLigneReglementCompte();
+      document.getElementById('facturesDiffereesListe').innerHTML = ''; // aucune ligne par défaut : une facture différée est rare
       majTotauxListes();
 
       // Cartes repliables — repartent fermées, comme à l'arrivée sur un
       // formulaire vierge (voir prefillFormPourModification, qui les rouvre
       // au contraire quand la donnée existe réellement).
-      ['cardReglementCompte', 'cardDepenses', 'cardCuve', 'cardAutres'].forEach(id => {
+      ['cardReglementCompte', 'cardFacturesDifferees', 'cardDepenses', 'cardCuve', 'cardAutres'].forEach(id => {
         const c = document.getElementById(id); if (c) c.classList.remove('open');
       });
       majAffichageCuve();
@@ -2859,6 +2967,17 @@
       const drop_boutique_chq = v('v_drop_boutique_chq'), drop_boutique_cb = v('v_drop_boutique_cb');
       const depense_boutique = sommeDepenses('boutique');
 
+      // Factures différées (B4) — contrôlées ici avec les règles du serveur,
+      // pour un refus explicite avant d'écrire. Seules les confirmées
+      // expliquent la vente boutique ; les « à vérifier » ne changent rien.
+      const facturesDifferees = NexusVerifyMoteur.controlerFacturesDifferees(lireFacturesDifferees(), vente_boutique);
+      if (facturesDifferees.erreurs.length) {
+        alert('Factures différées : ' + [...new Set(facturesDifferees.erreurs.map(e => NexusVerifyMoteur.messageFactureDifferee(e.code)))].join(' '));
+        const c = document.getElementById('cardFacturesDifferees'); if (c) c.classList.add('open');
+        return;
+      }
+      const factures_differees_boutique = facturesDifferees.confirme;
+
       // Paiement vacataire / heures supplementaires en especes — sort
       // physiquement d'une caisse (piste ou boutique, choisi a chaque
       // audit), donc s'ajoute a l'explique de cette caisse, comme une
@@ -2909,7 +3028,7 @@
       // compte client boutique ci-dessus : celui-la concerne une vente a
       // credit DU JOUR MEME, deja incluse par Decenium dans vente_boutique.)
       const expliqueBoutique = drop_boutique_billets + drop_boutique_pieces + drop_boutique_chq + drop_boutique_cb
-        + depense_boutique + vacataire_boutique;
+        + depense_boutique + vacataire_boutique + factures_differees_boutique;
       const attenduBoutique = vente_boutique + transfert + reglement_compte_anterieur_boutique;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
@@ -3029,6 +3148,9 @@
         clients_compte_boutique: 0, depense_ponctuelle_boutique: depense_boutique,
         paiement_vacataire_piste: vacataire_piste, paiement_vacataire_boutique: vacataire_boutique,
         remise_cuve, remise_cuve_detail,
+        // Le serveur recalcule factures_differees_boutique : on n'envoie
+        // que les lignes, jamais la somme ni l'auteur.
+        factures_differees: facturesDifferees.lignes,
         ecart_piste, ecart_boutique, ecart_total,
         ecart_piste_origine, ecart_boutique_origine,
         ...reconciliation.patch,
@@ -3040,7 +3162,10 @@
 
       if (error) {
         console.error('Enregistrement audit caisse:', error);
-        box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">Erreur d'enregistrement — réessayez.</div></div>`;
+        // Un refus métier (facture déjà saisie ailleurs…) se dit tel quel :
+        // « réessayez » ferait rejouer la même saisie refusée.
+        const refusFacture = NexusVerifyMoteur.messageFactureDifferee(error.message);
+        box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">${refusFacture ? 'Enregistrement refusé — ' + NexusVerifyMoteur.echapperHtml(refusFacture) : "Erreur d'enregistrement — réessayez."}</div></div>`;
         return;
       }
 
@@ -3670,6 +3795,15 @@
       if (!a.reglement_compte_anterieur_piste && !a.reglement_compte_anterieur_boutique) ajouterLigneReglementCompte();
       if (a.reglement_compte_anterieur_piste || a.reglement_compte_anterieur_boutique) {
         const c = document.getElementById('cardReglementCompte'); if (c) c.classList.add('open');
+      }
+
+      // Factures différées (B4) — stockées ligne à ligne, reconstruites telles
+      // quelles avec leur trace serveur.
+      document.getElementById('facturesDiffereesListe').innerHTML = '';
+      const facturesExistantes = Array.isArray(a.factures_differees) ? a.factures_differees : [];
+      facturesExistantes.forEach(f => ajouterLigneFactureDifferee(f));
+      if (facturesExistantes.length) {
+        const c = document.getElementById('cardFacturesDifferees'); if (c) c.classList.add('open');
       }
 
       majTotauxListes();

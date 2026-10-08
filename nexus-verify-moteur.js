@@ -435,6 +435,70 @@
       .map(([c, libelle]) => ({ champ: c, libelle, avant: avant[c] == null ? null : Number(avant[c]), apres: apres[c] == null ? null : Number(apres[c]) }));
   }
 
+  // ------------------------------------------------------------
+  // Factures différées en Boutique (mandat consolidé §4, B4) : ventes
+  // facturées dans Décenium Back-office, non encaissées sur ce quart. Le
+  // serveur (trg_audits_caisse_factures_differees) refait ces contrôles et
+  // recalcule la somme ; l'écran ne fait que prévenir avant d'envoyer.
+  // Pas de soustraction automatique : seule une facture dont le manager a
+  // confirmé la présence dans la vente boutique du quart entre dans l'écart.
+  // ------------------------------------------------------------
+  const MESSAGES_FACTURES_DIFFEREES = {
+    FACTURES_FORMAT: 'Les factures différées sont mal formées.',
+    FACTURE_MONTANT_INVALIDE: 'Montant de facture différée invalide : un montant positif, au centime.',
+    FACTURE_CLIENT_REQUIS: 'Indiquez le client de chaque facture différée.',
+    FACTURE_NUMERO_REQUIS: 'Indiquez le numéro de chaque facture différée.',
+    FACTURE_PRESENCE_NON_DITE: 'Indiquez si chaque facture figure dans la vente boutique Décenium du quart.',
+    FACTURE_EN_DOUBLE: 'La même facture est saisie deux fois sur ce quart.',
+    FACTURE_DEJA_SAISIE: 'Cette facture est déjà saisie sur un autre quart de la station.',
+    FACTURES_SUPERIEURES_VENTES: 'Les factures différées confirmées dépassent la vente boutique du quart.',
+  };
+
+  /**
+   * controlerFacturesDifferees(lignes, venteBoutique) — fonction pure.
+   * `lignes` : [{ montant, client, numero_facture, justificatif,
+   * incluse_dans_ventes }]. Rend { lignes (normalisées), confirme,
+   * aVerifier, erreurs: [{ code, index }] } avec les mêmes règles et les
+   * mêmes codes que le serveur. Les montants sont en euros, calculés au
+   * centime.
+   */
+  function controlerFacturesDifferees(lignes, venteBoutique) {
+    const erreurs = [];
+    const vus = new Set();
+    let confirme = 0, aVerifier = 0;
+    const sortie = (lignes || []).map((l, index) => {
+      const c = centimes(l && l.montant);
+      const montant = c == null ? null : c / 100;
+      const exact = c != null && Math.abs(Number(l.montant) * 100 - c) < 1e-6;
+      if (c == null || c <= 0 || !exact) erreurs.push({ code: 'FACTURE_MONTANT_INVALIDE', index });
+      const client = String((l && l.client) || '').trim();
+      if (!client) erreurs.push({ code: 'FACTURE_CLIENT_REQUIS', index });
+      const numero = String((l && l.numero_facture) || '').trim().toUpperCase();
+      if (!numero) erreurs.push({ code: 'FACTURE_NUMERO_REQUIS', index });
+      else if (vus.has(numero)) erreurs.push({ code: 'FACTURE_EN_DOUBLE', index });
+      vus.add(numero);
+      const incluse = l ? l.incluse_dans_ventes : undefined;
+      if (typeof incluse !== 'boolean') erreurs.push({ code: 'FACTURE_PRESENCE_NON_DITE', index });
+      if (c != null && c > 0) { if (incluse === true) confirme += c; else aVerifier += c; }
+      const justificatif = String((l && l.justificatif) || '').trim() || null;
+      return { numero_facture: numero, montant, client, justificatif, incluse_dans_ventes: incluse };
+    });
+    if (confirme > (centimes(venteBoutique) || 0)) erreurs.push({ code: 'FACTURES_SUPERIEURES_VENTES', index: null });
+    return { lignes: sortie, confirme: confirme / 100, aVerifier: aVerifier / 100, erreurs };
+  }
+
+  /**
+   * messageFactureDifferee(texte) — fonction pure. Message explicite pour
+   * un code de refus (« FACTURE_DEJA_SAISIE ») ou un message serveur qui en
+   * porte un (« [FACTURE_DEJA_SAISIE] … ») ; null sinon.
+   */
+  function messageFactureDifferee(texte) {
+    const t = String(texte || '');
+    const code = Object.keys(MESSAGES_FACTURES_DIFFEREES)
+      .find(k => t === k || t.includes('[' + k + ']'));
+    return code ? MESSAGES_FACTURES_DIFFEREES[code] : null;
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
@@ -442,5 +506,6 @@
     CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets, estReportDateRisque,
     brutAuDerniereValidation, auditEstValide, reconcilierValidationApresModification,
     libelleSignalementValidation, mentionsEcartCarte, diffEcartsVersion, formatEuroSigne, echapperHtml,
+    MESSAGES_FACTURES_DIFFEREES, controlerFacturesDifferees, messageFactureDifferee,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
