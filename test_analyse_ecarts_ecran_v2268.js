@@ -112,6 +112,11 @@ function construireContexte() {
     extraire(script, 'renderListeAVerifier'),
     extraire(script, 'renderControleCoherence'),
     extraire(script, 'renderParEmploye'),
+    // v2.271 (B7) : chaque ligne porte le bouton de régularisation, offert
+    // aux seuls managers ; hors manager il ne touche pas au module de saisie.
+    'let EST_MANAGER = false; let LIGNES_COMPOSITION = [];',
+    extraire(script, 'regulBouton'),
+    extraire(script, 'brancherRegul'),
     extraire(script, 'renderLigneComposition'),
     extraire(script, 'brancherQualification'),
     extraire(script, 'ouvrirPanneau'),

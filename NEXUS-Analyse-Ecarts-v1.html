@@ -162,6 +162,31 @@
   .qualif-bloc textarea{resize:vertical; min-height:40px;}
   .btn-qualifier{width:100%; background:var(--amber); color:#2b1c02; border:none; border-radius:6px; padding:9px; font-weight:700; font-size:12px; cursor:pointer;}
   .qualif-deja{font-size:11px; color:var(--green); margin-top:8px; padding-top:8px; border-top:1px dashed var(--hairline);}
+
+  /* Versements de régularisation (mandat §2, §9 — B7). Réservé aux
+     managers et gérants ; le serveur décide, l'écran explique. */
+  .btn-regul{display:block; width:100%; margin-top:8px; background:transparent; color:var(--cyan); border:1px solid var(--cyan); border-radius:6px; padding:9px; font-weight:700; font-size:12px; cursor:pointer;}
+  .aide-info{display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-left:6px; border-radius:50%; color:var(--cyan); cursor:pointer; font-size:14px; background:transparent; border:none; padding:0; vertical-align:middle;}
+  .regul-aide-texte{font-size:11.5px; color:var(--text-mid); line-height:1.5; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px; margin:4px 0 8px;}
+  .regul-etat{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:4px 10px 8px; margin-bottom:10px;}
+  .regul-etat-titre, .regul-ops-titre, .regul-form-titre{font-size:12.5px; font-weight:700; margin:10px 0 6px;}
+  .regul-op{padding:9px 10px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; margin-bottom:6px; font-size:12px;}
+  .regul-op.annulee, .regul-op-sous.annulee{opacity:0.55; text-decoration:line-through;}
+  .regul-op-note{font-size:11px; color:var(--text-mid); margin-top:3px;}
+  .regul-op-sous{font-size:11.5px; margin-top:5px; padding-left:8px; border-left:2px solid var(--hairline);}
+  .regul-op-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:7px;}
+  .regul-op-actions button, .regul-op-sous button{background:transparent; color:var(--text); border:1px solid var(--hairline); border-radius:6px; padding:6px 9px; font-size:11.5px; cursor:pointer;}
+  .regul-form{margin-top:12px; padding-top:10px; border-top:1px dashed var(--hairline);}
+  .regul-champ{display:block; font-size:11.5px; color:var(--text-mid); margin-bottom:8px;}
+  .regul-champ input[type=text], .regul-champ input[type=date], .regul-champ select{display:block; width:100%; margin-top:4px; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:9px; color:var(--text); font-family:var(--sans); font-size:16px; box-sizing:border-box;}
+  .regul-case{display:flex; align-items:center; gap:6px;}
+  .regul-quart{display:grid; grid-template-columns:2fr 1fr; gap:8px;}
+  .regul-quart[hidden], .regul-tiers[hidden], .regul-erreur[hidden], .regul-aide-texte[hidden]{display:none;}
+  .regul-erreur{font-size:12px; color:var(--red); background:rgba(255,80,80,0.08); border:1px solid rgba(255,80,80,0.35); border-radius:6px; padding:8px; margin-bottom:8px; line-height:1.5;}
+  .regul-code{font-family:var(--mono); font-size:10px; opacity:0.7; margin-top:3px;}
+  .regul-bloque{font-size:12px; color:var(--amber); border:1px solid rgba(245,166,35,0.4); border-radius:6px; padding:9px; line-height:1.5; margin-top:10px;}
+  .regul-envoyer{width:100%; background:var(--cyan); color:#02232b; border:none; border-radius:6px; padding:11px; font-weight:700; font-size:13px; cursor:pointer;}
+  .regul-envoyer:disabled, .btn-regul:disabled{opacity:0.6; cursor:wait;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
@@ -172,6 +197,7 @@
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-paye-regularisations.js?v=20261008-b6"></script>
+<script src="nexus-regularisation-saisie.js?v=20261008-b7"></script>
 </head>
 <body>
 <div class="phone">
@@ -314,7 +340,7 @@
 
   </div>
 
-  <footer>NEXUS · Analyse des écarts — v2.270</footer>
+  <footer>NEXUS · Analyse des écarts — v2.271</footer>
 </div>
 
 <!-- Panneau "Composition du montant" (§1, §4) -->
@@ -330,6 +356,8 @@
 <script>
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par défaut (de-Vito-isation)
   let EMPLOYEE_ID_COURANT = null;
+  // Affichage seulement : la RLS et les RPC tranchent les droits (nexus-auth.js).
+  let EST_MANAGER = false;
   let TOUTES_LES_LIGNES = [];
   let EMPLOYES_SITE = [];
 
@@ -616,8 +644,49 @@
         <div class="pd-ligne-cycle">${cycle}</div>
         <a class="pd-ligne-lien" href="${l.deepLink}">Voir le contrôle source →</a>
         ${qualifBloc}
+        ${regulBouton(l)}
       </div>
     `;
+  }
+
+  // B7 (mandat §2, §9) — un manque peut être régularisé par un versement
+  // volontaire ; le bouton n'est proposé qu'aux managers et gérants.
+  let LIGNES_COMPOSITION = [];
+  function regulBouton(l) {
+    if (!EST_MANAGER || !(l.ecartFinal < 0) || !NexusRegularisationSaisie.origineDepuisLigne(l)) return '';
+    return `<button type="button" class="btn-regul" data-regul-ligne="${LIGNES_COMPOSITION.indexOf(l)}">Versement de régularisation</button>`;
+  }
+
+  async function ouvrirDossierRegularisation(l) {
+    const origine = NexusRegularisationSaisie.origineDepuisLigne(l);
+    const titre = `Régularisation — ${l.employeeNom || 'écart'} · ${fmtDateCourt(l.date)} Q${l.quart} · ${labelActivite(l.activite)}`;
+    ouvrirPanneau(titre, '<div class="chargement">Chargement…</div>');
+    let dossier;
+    try {
+      dossier = await NexusRegularisationSaisie.chargerDossier(nexusClient, origine);
+    } catch (e) {
+      const err = NexusRegularisationSaisie.lireErreur(e);
+      ouvrirPanneau(titre, `<div class="regul-erreur" role="alert"><b>${err.message}</b>${err.conseil ? '<br>' + err.conseil : ''}</div>`);
+      return;
+    }
+    const aujourdhui = FUSEAU_STATION ? NexusStation.dateLocaleStation(FUSEAU_STATION, new Date()) : null;
+    ouvrirPanneau(titre, `<div class="pd-ligne-meta">Écart ${fmtEuro(l.ecartFinal)} · ${l.employeeNom || ''}</div>`
+      + NexusRegularisationSaisie.renderDossier(dossier, l, { estManager: EST_MANAGER, aujourdhui }));
+    NexusRegularisationSaisie.brancherDossier(document.getElementById('pdCorps'), {
+      client: nexusClient, origine, dossier, aujourdhui,
+      // Après un succès : tout l'écran est relu (relevé Paye compris), puis le
+      // dossier est rouvert sur l'état que le serveur vient de calculer.
+      apresSucces: async () => { await rechargerEtRafraichir(); await ouvrirDossierRegularisation(l); },
+    });
+  }
+
+  function brancherRegul(conteneur) {
+    conteneur.querySelectorAll('.btn-regul').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const l = LIGNES_COMPOSITION[Number(btn.dataset.regulLigne)];
+        if (l) ouvrirDossierRegularisation(l);
+      });
+    });
   }
 
   function brancherQualification(conteneur) {
@@ -649,6 +718,7 @@
       ouvrirPanneau(titre, '<div class="liste-vide">Aucune ligne pour cette composition.</div>');
       return;
     }
+    LIGNES_COMPOSITION = triees;
     const k = NexusEcartsMoteur.calculerKpisEcarts(triees);
     const total = totalLabel === 'volume' ? k.volume : (k.positifs.total + k.negatifs.total);
     const html = triees.map(renderLigneComposition).join('') + `
@@ -656,6 +726,7 @@
     `;
     ouvrirPanneau(titre, html);
     brancherQualification(document.getElementById('pdCorps'));
+    brancherRegul(document.getElementById('pdCorps'));
   }
 
   function ouvrirDecompositionSolde(lignes) {
@@ -812,6 +883,7 @@
     try {
       SITE_ACTUEL = employee.site_id;
       EMPLOYEE_ID_COURANT = employee.id;
+      EST_MANAGER = nexusEstManager(employee);
 
       branchierFiltres();
       brancherPanneau();
