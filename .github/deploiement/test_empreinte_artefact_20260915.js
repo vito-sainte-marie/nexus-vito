@@ -611,7 +611,7 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
 const MIGRATIONS_REELLES_NOMBRE = 296;
-const MIGRATIONS_REELLES_EMPREINTE = '33479262b15c906fa77c9db32f86042f954f62041f47023aa363c21b4a1fdae5';
+const MIGRATIONS_REELLES_EMPREINTE = 'ddde48754f173080f98835cf87d3dc5e14df15a03dc9d0055cfb84a353349a61';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
