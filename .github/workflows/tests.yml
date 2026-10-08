@@ -335,6 +335,7 @@ jobs:
       # gouvernance identifiée, elle appartient à Frédéric. On répare le canal
       # de réveil, pas la politique de fusion.
       - name: Réveil Orchestrateur — publication au destinataire déclaré
+        id: publication_reveil
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -420,13 +421,101 @@ jobs:
           MARQUE="<!-- nexus-reveil: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
           DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
                    --jq '.[].body' | grep -cF "$MARQUE" || true)
-          [ "$DEJA" = "0" ] || refus REVEIL_DEJA_PUBLIE \
-            "ce réveil exact est déjà publié sur $ADRESSE."
+          # `numero` n'est écrit que lorsque le réveil EST sur l'issue : déjà
+          # publié, ou publié à l'instant. Le relais vers l'arbitre en dépend ;
+          # un réveil non publié ne se relaie pas.
+          [ "$DEJA" = "0" ] || echo "numero=$NUM" >> "$GITHUB_OUTPUT"
+          [ "$DEJA" = "0" ] || refus REVEIL_DEJA_PUBLIE "ce réveil exact est déjà publié sur $ADRESSE."
 
           printf '%s\n\n%s\n' "$CORPS" "$MARQUE" \
             | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
+          echo "numero=$NUM" >> "$GITHUB_OUTPUT"
           node outils/etat-maillon.js EXECUTE REVEIL_PUBLIE --maillon "$M" \
             --motif "réveil publié sur $ADRESSE" \
+            --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
+
+      # Relais du réveil vers l'arbitre ChatGPT, par l'API OpenAI — câblé le
+      # 07/10/2026 sur GO de Frédéric (« GO câblage »), NON ARMÉ.
+      #
+      # Pourquoi une étape et pas un workflow `issue_comment` : un commentaire
+      # posté avec GITHUB_TOKEN ne déclenche aucun autre workflow. Le relais
+      # vit donc dans le même job que la publication, juste après elle, et ne
+      # tourne que si le réveil est sur l'issue (`numero`).
+      #
+      # Deux verrous, tous deux humains, aucun posé par Claude :
+      #   - secrets.OPENAI_API_KEY          (SECRET_PERMISSION_SURFACE_SECURITE)
+      #   - vars.NEXUS_RELAIS_OPENAI=arme   (ARMEMENT_BOUCLE_AU_NOM_DE_FREDERIC)
+      # Sans la variable, l'étape est sautée ; sans le secret, le script se tait
+      # (« non armé ») et la voie manuelle reste ouverte.
+      #
+      # Stade (b) : le relais POSTE la réponse, il ne dépose aucune décision.
+      # La matérialisation (`handoff.js decision --auteur ChatGPT`) reste à
+      # Claude, sur un contrat réel. Le stade (a) exige un GO distinct.
+      - name: Réveil Orchestrateur — relais vers l'arbitre (API OpenAI)
+        if: always() && vars.NEXUS_RELAIS_OPENAI == 'arme' && steps.publication_reveil.outputs.numero != ''
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXUS_RELAIS_OPENAI: ${{ vars.NEXUS_RELAIS_OPENAI }}
+          NEXUS_RELAIS_MODELE: ${{ vars.NEXUS_RELAIS_MODELE }}
+          NUM: ${{ steps.publication_reveil.outputs.numero }}
+        run: |
+          set -euo pipefail
+          # §4 — aucun refus silencieux, ici non plus : chaque sortie publie
+          # son état. NO_WORK quand il n'y a rien à relayer, FAILED (six
+          # champs) quand le relais n'a pas pu rendre une réponse exploitable,
+          # EXECUTE quand la réponse est postée.
+          M=relais-arbitre
+          rien() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }
+          echec() {
+            node outils/etat-maillon.js FAILED "$1" --maillon "$M" \
+              --condition "$2" --prochaine-action "$3" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" \
+              --lot "${LOT:-(lot non lisible)}"
+            exit 1
+          }
+          LOT=$(node outils/reveil-orchestrateur.js --json | jq -r '.lots[0].lot // .lot // empty')
+          # Le corps est déterministe : c'est celui que la publication a posté.
+          CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention)
+          # Une seule consultation de l'arbitre par corps de réveil : le coût
+          # est borné par le nombre de réveils distincts, pas par les runs.
+          MARQUE="<!-- nexus-arbitrage: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
+          DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
+                   --jq '.[].body' | grep -cF "$MARQUE" || true)
+          [ "$DEJA" = "0" ] || rien ARBITRAGE_DEJA_RELAYE "ce réveil a déjà été soumis à l'arbitre (issue #$NUM)."
+          # Le script lit un texte venu de l'extérieur : il ne tient pas le
+          # jeton GitHub. Seule l'étape, après validation, écrit sur l'issue.
+          set +e
+          printf '%s' "$CORPS" | env -u GH_TOKEN node outils/relais-arbitre-openai.js > reponse.txt
+          CODE=$?
+          set -e
+          [ "$CODE" != "1" ] || echec RELAIS_EN_PANNE \
+            "l'API OpenAI rend une réponse à partir du corps du réveil" \
+            "lire le journal du run $GITHUB_RUN_ID ; la voie manuelle (coller le réveil dans ChatGPT) reste ouverte"
+          # Non armé (secret absent) : rien envoyé, rien à poster.
+          [ -s reponse.txt ] || rien RELAIS_NON_ARME "secret OPENAI_API_KEY absent : rien envoyé à l'arbitre."
+          # Garde redondante, même règle que la publication du réveil : jamais
+          # de mention qui relancerait Claude.
+          if grep -qi '@claude' reponse.txt; then
+            node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \
+              --condition "la réponse de l'arbitre ne porte pas la mention qui relance Claude" \
+              --prochaine-action "recopier la réponse à la main sans la mention, ou relancer l'arbitre" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
+            exit 1
+          fi
+          if [ "$CODE" = "2" ]; then
+            ENTETE="⚠️ Réponse de l'arbitre NON CONFORME au NEXT_ACTION_CONTRACT : rien ne sera matérialisé. Voir le journal du run $GITHUB_RUN_ID."
+          else
+            ENTETE="Réponse de l'arbitre (ChatGPT, via l'API, run $GITHUB_RUN_ID). Contrat validé par le relais ; matérialisation par Claude."
+          fi
+          printf '%s\n\n%s\n\n%s\n' "$ENTETE" "$(cat reponse.txt)" "$MARQUE" \
+            | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
+          [ "$CODE" = "0" ] || echec CONTRAT_NON_CONFORME \
+            "la réponse de l'arbitre porte un NEXT_ACTION_CONTRACT valide" \
+            "faire réarbitrer la demande ; la réponse non conforme est postée sur #$NUM, marquée « rien ne sera matérialisé »"
+          node outils/etat-maillon.js EXECUTE ARBITRAGE_RELAYE --maillon "$M" \
+            --motif "réponse de l'arbitre postée sur l'issue #$NUM" \
             --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :

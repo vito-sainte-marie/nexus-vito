@@ -113,6 +113,13 @@ const ETAPES_AVEC_JETON = [
   'Publier le journal NEXUS Live',
   'Réveil Orchestrateur — publication au destinataire déclaré',
   "Rapatriement vers le rail — qualifier, et ne transporter que si c'est prouvé",
+  // 07/10/2026, câblé sur GO de Frédéric (« GO câblage ») : le relais vers
+  // l'arbitre LIT les commentaires de l'issue du réveil (marque anti-doublon)
+  // et y POSTE un commentaire, la réponse de l'arbitre. Aucune permission
+  // nouvelle : `issues: write` servait déjà la publication du réveil. La
+  // contrepartie est mesurée plus bas : le script qui manipule le texte venu
+  // d'OpenAI ne reçoit pas le jeton, et l'étape n'écrit qu'un commentaire.
+  "Réveil Orchestrateur — relais vers l'arbitre (API OpenAI)",
 ];
 
 t('le jeton n’est donné qu’aux étapes désignées, jamais au job', () => {
@@ -155,6 +162,37 @@ t('le jeton du rapatriement ne sert qu’à lire', () => {
   // Et l'écriture, elle, existe — mais ailleurs, et derrière l'armement.
   assert.ok(/git'?,\s*\[\s*'push'|'push'/.test(src),
     'le module doit bien porter un geste d’écriture, sinon cette épreuve ne garde rien');
+});
+
+// Contrepartie du jeton confié au relais (07/10/2026). Le texte qui revient
+// d'OpenAI est une entrée extérieure : le code qui le lit ne doit pas tenir
+// le jeton. On le mesure aux deux bouts — le script n'a aucun moyen d'appeler
+// GitHub, et l'étape le lance sans GH_TOKEN dans son environnement — puis on
+// borne ce que l'étape fait du jeton : une lecture, un commentaire, rien
+// d'autre. Et le secret OpenAI ne va qu'à cette étape.
+t('le jeton du relais ne touche pas le texte de l’arbitre, et n’écrit qu’un commentaire', () => {
+  // Les commentaires expliquent pourquoi GITHUB_TOKEN ne déclenche rien : on
+  // mesure le code, pas la prose.
+  const src = fs.readFileSync(path.join(__dirname, 'outils', 'relais-arbitre-openai.js'), 'utf8')
+    .split('\n').filter(x => !/^\s*\/\//.test(x)).join('\n');
+  assert.ok(!/child_process|GH_TOKEN|GITHUB_TOKEN|\bgh\b/.test(src),
+    'le script du relais ne doit disposer d’aucune voie vers GitHub');
+  const l = yml.split('\n');
+  const i = l.findIndex(x => /^ {6}- name: Réveil Orchestrateur — relais vers l'arbitre/.test(x));
+  assert.ok(i >= 0, 'étape du relais introuvable');
+  const fin = l.findIndex((x, k) => k > i && /^ {6}- name:/.test(x));
+  const code = l.slice(i, fin).filter(x => !/^\s*#/.test(x)).join('\n');
+  const appels = code.split('\n').filter(x => /relais-arbitre-openai\.js/.test(x));
+  assert.ok(appels.length === 1 && /env -u GH_TOKEN node outils\/relais-arbitre-openai\.js/.test(appels[0]),
+    'le relais doit être lancé sans GH_TOKEN : ' + JSON.stringify(appels));
+  const gh = code.match(/\bgh (\w+)( \w+)?/g) || [];
+  assert.deepStrictEqual(gh.map(x => x.replace(/^gh api.*/, 'gh api')).sort(), ['gh api', 'gh issue comment'],
+    'usages de gh dans l’étape : ' + JSON.stringify(gh));
+  assert.ok(!/--method|\s-X\s|\s-f\s|--field|--raw-field|\s-F\s/.test(code),
+    'verbe d’écriture dans un `gh api` du relais');
+  const porteurs = l.filter(x => /secrets\.OPENAI_API_KEY/.test(x) && !/^\s*#/.test(x));
+  assert.strictEqual(porteurs.length, 1, 'le secret OpenAI ne va qu’à l’étape du relais');
+  assert.ok(code.includes('secrets.OPENAI_API_KEY'), 'le secret OpenAI hors de l’étape du relais');
 });
 
 t('le producteur ne demande à GitHub que des métadonnées', () => {

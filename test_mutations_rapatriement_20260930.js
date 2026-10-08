@@ -324,9 +324,14 @@ const MUTATIONS = [
   { nom: 'un refus du réveil redevient un echo sans état', f: WORKFLOW, rouge: X_CABLAGE,
     de: 'refus() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }',
     a:  'refus() { echo "rien à faire : $1 — $2"; exit 0; }' },
+  // 07/10/2026 — le relais vers l'arbitre porte la même garde : l'ancre nomme
+  // désormais sa `--condition` pour viser chaque étape séparément.
   { nom: 'la boucle de réveil est rétrogradée en simple information', f: WORKFLOW, rouge: X_CABLAGE,
-    de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\',
-    a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\' },
+    de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\\n              --condition "le corps du réveil',
+    a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\\n              --condition "le corps du réveil' },
+  { nom: 'la boucle du relais vers l’arbitre est rétrogradée en simple information', f: WORKFLOW, rouge: X_CABLAGE,
+    de: 'node outils/etat-maillon.js FAILED MENTION_REDECLENCHANTE --maillon "$M" \\\n              --condition "la réponse de l\'arbitre',
+    a:  'node outils/etat-maillon.js NO_WORK MENTION_REDECLENCHANTE --maillon "$M" \\\n              --condition "la réponse de l\'arbitre' },
   // ── Mutations de CÂBLAGE ─────────────────────────────────────────
   // Celles-ci ne cassent pas un contrôle isolé : elles cassent le LIEN entre deux
   // maillons. On les a ajoutées en pariant que seule l'épreuve de bout en bout les

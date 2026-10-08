@@ -83,10 +83,18 @@ question. Une preuve encore valide ne se redemande pas (`PROOF_STATE:
 PROOF_VALID`) : une modification de `docs/handoff/**` n'invalide pas une
 preuve Paye ou FDJ.
 
-**7. Pour rendre la main à Claude,** tu postes sur l'issue #28 un commentaire
-qui commence par `@claude`. Il contient la ligne
-`NEXUS_BASE_BRANCH=handoff-continuite-20260920`, ou la branche que le réveil
-désigne. Sans cette ligne, le workflow refuse dès sa première étape.
+**7. Ta réponse est le livrable : tu ne postes rien.** Tu n'as accès ni au
+dépôt ni à l'issue #28, et tu n'en as pas besoin. Ta réponse revient à Claude
+par l'un de deux chemins, sans que tu choisisses :
+- le relais de la CI (`outils/relais-arbitre-openai.js`) la poste sur #28,
+  après avoir vérifié ton `NEXT_ACTION_CONTRACT` ;
+- ou Frédéric la recopie.
+
+Dans les deux cas, n'écris jamais la mention de Claude (l'arobase suivie de
+son nom). Une réponse qui la porte relancerait Claude sur elle-même : le relais
+la refuse et rien n'est publié. N'ajoute pas non plus de ligne
+`NEXUS_BASE_BRANCH` : le rail est dans le réveil, et c'est Claude qui le
+reprend en matérialisant ta décision.
 
 **8. Tu n'arbitres jamais ta propre demande.** Claude n'arbitre jamais la
 sienne non plus.

@@ -144,6 +144,10 @@ function lancer(options) {
   fs.writeFileSync(fCorps, corps);
   fs.writeFileSync(fComm, o.commentaires || '');
   fs.writeFileSync(trace, '');
+  // 07/10/2026 — le relais lit `steps.publication_reveil.outputs.numero` : on
+  // donne à l'étape un vrai GITHUB_OUTPUT et on rend ce qu'elle y a écrit.
+  const sorties = path.join(dir, 'github_output.txt');
+  fs.writeFileSync(sorties, '');
 
   const r = spawnSync('bash', ['-c', SCRIPT], {
     encoding: 'utf8',
@@ -154,6 +158,7 @@ function lancer(options) {
       GITHUB_SERVER_URL: 'https://github.com',
       GITHUB_REPOSITORY: DEPOT,
       GH_TOKEN: 'jeton-factice',
+      GITHUB_OUTPUT: sorties,
       NEXUS_FAUX_JSON: fJson,
       NEXUS_FAUX_CORPS: fCorps,
       NEXUS_FAUX_COMMENTAIRES: fComm,
@@ -166,6 +171,7 @@ function lancer(options) {
     code: r.status,
     sortie: (r.stdout || '') + (r.stderr || ''),
     publie: fs.readFileSync(trace, 'utf8'),
+    sorties: fs.readFileSync(sorties, 'utf8'),
   };
 }
 
@@ -190,6 +196,8 @@ verifier('un push du rail publie le réveil — le cas qui marchait déjà', () 
   assert.strictEqual(r.code, 0, r.sortie);
   assert.ok(r.publie.includes('réveil Handoff'),
     'le rail ne publie plus rien : ' + r.sortie);
+  assert.ok(/^numero=28$/m.test(r.sorties),
+    'réveil publié sans `numero` : le relais ne saura pas où lire : ' + JSON.stringify(r.sorties));
 });
 
 // LE TÉMOIN. Rétablir `[ "$GITHUB_REF_NAME" = "$RAIL" ]` rend ce cas rouge, et
@@ -263,6 +271,10 @@ verifier('le même réveil déjà publié ne repart pas', () => {
   assert.strictEqual(r.publie, '', 'réveil republié à l’identique : ' + r.sortie);
   exigerEtat(r, 'NO_WORK', 'REVEIL_DEJA_PUBLIE');
   assert.ok(/déjà publié/.test(r.sortie), r.sortie);
+  // Le réveil EST sur l'issue : le relais doit pouvoir y arbitrer (un relaunch
+  // après une panne de l'API ne doit pas rester sans suite).
+  assert.ok(/^numero=28$/m.test(r.sorties),
+    'réveil déjà présent mais `numero` absent : le relais ne repasserait jamais : ' + JSON.stringify(r.sorties));
 });
 
 // La garde de BOUCLE, mesurée depuis la branche de run : c'est justement le cas
@@ -273,6 +285,20 @@ verifier('un corps portant la mention fait ÉCHOUER l’étape, depuis un run au
   assert.strictEqual(r.code, 1,
     'la garde de boucle doit faire échouer l’étape, pas se taire : ' + r.sortie);
   assert.strictEqual(r.publie, '', 'un corps qui relance Claude a été publié : ' + r.publie);
+  assert.ok(!/numero=/.test(r.sorties), 'garde de boucle : `numero` écrit, le relais partirait : ' + r.sorties);
+});
+
+// Le relais ne part que si `numero` existe. Aucun refus ni arrêt ne doit l'écrire.
+verifier('aucun refus n’écrit `numero` : le relais reste à quai', () => {
+  const cas = [
+    lancer({ ref: 'rebuild/carburants-65-20260922' }),
+    lancer({ ref: 'claude/issue-28-20260924-2119' }),
+    lancer({ ref: RAIL, json: jsonDuLot(j => { j.lots[0].refs_reelles.identifiable = false; }) }),
+    lancer({ ref: RAIL, json: jsonDuLot(j => { j.lots[0].refs_reelles = null; }) }),
+    lancer({ ref: RAIL, json: jsonDuLot(j => { j.reveil = false; }) }),
+  ];
+  // La porte d'état écrit ses propres `etat*` : seul `numero` est interdit ici.
+  for (const r of cas) assert.ok(!/^numero=/m.test(r.sorties), 'refus qui écrit `numero` : ' + r.sorties + '\n' + r.sortie);
 });
 
 verifier('ce qui est publié, c’est le corps composé plus sa marque', () => {

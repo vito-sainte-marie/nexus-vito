@@ -119,9 +119,18 @@ ep('la mention redéclenchante reste un rouge franc', () => {
   const texte = etapes.map(e => e.texte).join('\n');
   assert.ok(/MENTION_REDECLENCHANTE/.test(texte),
     'la garde contre la boucle a disparu des étapes du réveil');
-  const site = texte.split('\n').find(l => l.includes('MENTION_REDECLENCHANTE') && l.includes(PORTE));
-  assert.ok(site && /\bFAILED\b/.test(site),
-    'la mention redéclenchante ne doit pas être publiée autrement qu’en FAILED');
+  // 07/10/2026 — TOUS les sites, plus seulement le premier : le relais vers
+  // l'arbitre (qui invoque aussi le réveil, pour lire le lot) porte sa propre
+  // garde, et un `.find` ne voyait que celle de la publication.
+  const sites = texte.split('\n').filter(l => l.includes('MENTION_REDECLENCHANTE') && l.includes(PORTE));
+  assert.ok(sites.length > 0, 'la garde contre la boucle n’est plus publiée par la porte');
+  for (const site of sites) assert.ok(/\bFAILED\b/.test(site),
+    'la mention redéclenchante ne doit pas être publiée autrement qu’en FAILED : ' + site.trim());
+  const relais = etapesQuiInvoquent('outils/relais-arbitre-openai.js');
+  assert.ok(relais.length > 0, 'étape du relais vers l’arbitre introuvable');
+  for (const e of relais) assert.ok(e.texte.split('\n').some(l =>
+    l.includes('MENTION_REDECLENCHANTE') && l.includes(PORTE) && /\bFAILED\b/.test(l)),
+    'le relais publie la réponse de l’arbitre sans garde FAILED contre la boucle');
 });
 
 // ── 6. AUCUN CHEMIN DE SORTIE MUET ───────────────────────────────────────────
