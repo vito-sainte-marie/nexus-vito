@@ -459,10 +459,11 @@ function blocRetour(l, opts) {
     .filter(x => x !== null).join('\n');
 }
 
-// Le corps du réveil. Volontairement factuel et court : il nomme le lot, le
-// fichier, la branche où le lire, et il rappelle les interdits permanents.
-// Il ne résume PAS la demande — un résumé écrit par le demandeur est une
-// façon polie de décider à la place de celui qui arbitre.
+// Le corps du réveil. Factuel : il nomme le lot, le fichier, la branche où le
+// lire, et il rappelle les interdits permanents. Il ne RÉSUME pas la demande —
+// un résumé écrit par le demandeur est une façon polie de décider à la place
+// de celui qui arbitre. Depuis le 07/10/2026 il la RECOPIE, intégralement
+// (voir `blocDemande`) : copier n'est pas résumer.
 // Le mandat de l'arbitre. Mesuré le 07/10/2026 : sans lui, l'arbitre ne
 // recevait que « Arbitre cette demande » et redemandait à Frédéric des
 // arbitrages déjà rendus. Il est GÉNÉRÉ depuis ARBITRAGES-ACQUIS.json, jamais
@@ -476,6 +477,50 @@ function mandatArbitre(l, opts) {
     return `⚠️ Mandat de l'arbitre indisponible (\`docs/handoff/ARBITRAGES-ACQUIS.json\` illisible : ${e.message}). ` +
       'Consulte ce fichier avant de solliciter Frédéric.';
   }
+}
+
+// Le texte intégral de la demande. Mesuré le 07/10/2026 sur FAST-TRACK
+// request-1 : le réveil ne portait que son NOM. L'arbitre, qui ne lit pas le
+// dépôt, ne pouvait que constater « une demande attend » — et c'est ce qu'il a
+// répondu, sans verdict ni contrat. Un réveil qui oblige à aller chercher ce
+// qu'il faut juger n'est pas une demande d'arbitrage, c'est une notification.
+//
+// Trois refus plutôt qu'un extrait : un texte trop long, illisible, ou pas
+// encore lisible à distance n'est JAMAIS tronqué — décider sur un extrait,
+// c'est arbitrer autre chose que la demande. L'empreinte (blob git) permet à
+// l'arbitre comme au matérialisateur de vérifier qu'il s'agit des octets du rail.
+const LIMITE_DEMANDE = 45000; // caractères ; un commentaire GitHub plafonne à 65 536
+function blocDemande(l, opts) {
+  const titre = `--- Texte intégral de \`${l.demande}\` ---`;
+  if (l.non_publiee || (l.refs_reelles && l.refs_reelles.lisible_a_distance === false)) {
+    return [titre, 'Non recopié : cette demande n\'est pas encore poussée. Attends le push — n\'arbitre rien en attendant.'].join('\n');
+  }
+  const fichier = path.join((opts && opts.lots) || handoff.CHEMINS.LOTS, l.lot, l.demande);
+  let octets;
+  try { octets = fs.readFileSync(fichier); }
+  catch (e) {
+    return [titre, `Non recopié : fichier illisible ici (${e.code || e.message}). Lis-le sur la branche indiquée ; ne décide jamais sur un extrait.`].join('\n');
+  }
+  const empreinte = require('crypto').createHash('sha1')
+    .update(Buffer.concat([Buffer.from(`blob ${octets.length}\0`), octets])).digest('hex');
+  const texte = octets.toString('utf8');
+  if (texte.length > LIMITE_DEMANDE) {
+    return [titre, `Empreinte (blob git): \`${empreinte}\``,
+      `Non recopié : ${texte.length} caractères, au-delà de ${LIMITE_DEMANDE}. Lis-la sur la branche indiquée ; ne décide jamais sur un extrait.`].join('\n');
+  }
+  // Une clôture plus longue que toute suite de backticks du texte : la demande
+  // ne peut pas refermer le bloc elle-même.
+  const plusLongue = Math.max(2, ...(texte.match(/`+/g) || []).map(x => x.length));
+  const cloture = '`'.repeat(plusLongue + 1);
+  // Une demande qui cite `@claude` relancerait Claude sur son propre réveil
+  // (et la CI refuse ce corps : MENTION_REDECLENCHANTE). On casse la mention
+  // par une espace de largeur nulle, et on le DIT : le texte recopié n'est plus
+  // octet pour octet celui de l'empreinte, qui reste celle du rail.
+  let neutralisees = 0;
+  const recopie = texte.replace(/\n$/, '').replace(/@(claude)/gi, (_, m) => { neutralisees++; return '@\u200b' + m; });
+  return [titre, `Empreinte (blob git): \`${empreinte}\``,
+    neutralisees ? `${neutralisees} mention(s) de Claude neutralisée(s) par une espace de largeur nulle après l'arobase ; rien d'autre n'est modifié.` : null,
+    '', cloture + 'markdown', recopie, cloture].filter(x => x !== null).join('\n');
 }
 
 function corpsReveil(r, opts) {
@@ -517,8 +562,16 @@ function corpsReveil(r, opts) {
     `Motif: \`${l.motif}\`` + (l.derniere_decision ? ` (dernière décision \`${l.derniere_decision}\`, qui ne lui répond pas)` : ''),
     l.token_mode ? `token_mode demandé: \`${l.token_mode}\`` : null,
     '',
-    'Arbitre cette demande avec le protocole `nexus-handoff/2` et dépose la',
-    'décision correspondante dans le même lot.',
+    // L'ancienne ligne disait « dépose la décision dans le même lot » : une
+    // consigne que le mandat interdit (« tu ne déposes aucun fichier »). Entre
+    // deux consignes contradictoires, l'arbitre a choisi la troisième voie :
+    // ne rien trancher.
+    'Arbitre cette demande maintenant, avec le protocole `nexus-handoff/2` : son',
+    'texte intégral est ci-dessous. Ne signale pas qu\'elle attend — rends un',
+    'verdict et termine par le NEXT_ACTION_CONTRACT rempli. Tu ne déposes aucun',
+    'fichier : Claude matérialise ta décision.',
+    '',
+    blocDemande(l, opts),
     '',
     mandatArbitre(l, opts),
     '',
@@ -538,7 +591,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes, resoudreCanal, canauxConnus, adresseReveil };
+module.exports = { analyser, examiner, corpsReveil, blocDemande, LIMITE_DEMANDE, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes, resoudreCanal, canauxConnus, adresseReveil };
 
 if (require.main === module) {
   const r = analyser();
