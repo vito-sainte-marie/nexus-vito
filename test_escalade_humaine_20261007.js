@@ -169,7 +169,7 @@ epreuve('C — un acquis borné à un lot ne vaut pas ailleurs', () => {
 console.log('D — le réveil porte le mandat');
 
 epreuve('D — le corps du réveil contient le mandat, chaque code Frédéric et chaque acquis applicable', () => {
-  const corps = reveil();
+  const corps = reveil({ integral: true });
   const r = registre();
   assert.ok(corps.includes('Mandat de l\'arbitre'), 'mandat absent');
   assert.ok(corps.includes('Ta décision tient lieu de GO'));

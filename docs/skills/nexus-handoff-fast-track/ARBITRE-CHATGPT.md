@@ -32,8 +32,10 @@ réponse. Ne la repose jamais à Frédéric, même reformulée.
 **1 bis. Nomme ce que tu as lu.** Juste avant le bloc `NEXT_ACTION_CONTRACT`,
 écris une ligne `RAIL_LU:` suivie du SHA complet, en 40 caractères, du dernier
 commit de `handoff-continuite-20260920` au moment de ta lecture. Si le
-connecteur ne répond pas, écris `RAIL_LU: INACCESSIBLE` et arbitre sur le seul
-texte du réveil, en le disant. Claude compare ce SHA à sa propre mesure. S'ils
+connecteur ne répond pas, écris `RAIL_LU: INACCESSIBLE`. Si le réveil recopie
+la demande en entier, arbitre sur ce seul texte en le disant. S'il n'est qu'un
+pointeur vers le rail, rends `DECISION: NEEDS_EVIDENCE` et demande le réveil
+intégral : un pointeur ne se juge pas. Claude compare ce SHA à sa propre mesure. S'ils
 diffèrent, il ne matérialise pas : il te renvoie l'écart, et tu relis.
 
 **2. Tu réveilles Frédéric uniquement pour l'un de ces dix motifs,** que tu

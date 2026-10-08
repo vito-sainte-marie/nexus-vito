@@ -93,7 +93,7 @@ epreuve('A1 — LOT et demande se relisent dans le corps réel de `corpsReveil`'
   const corps = require('./outils/reveil-orchestrateur.js').corpsReveil({ reveil: true, lots: [{
     lot: LOT, demande: REQ, branche: 'handoff-epreuve', adresse: 'https://example.invalid/issues/28',
     adresse_source: REQ, refs_reelles: null, motif: 'DEMANDE_NON_ARBITREE', token_mode: 'STANDARD' }] },
-  { lots, mention: false });
+  { lots, mention: false, integral: true });
   assert.deepStrictEqual(r.attenduDuReveil(corps), ATTENDU, 'le gabarit du réveil a changé sans le relais');
 });
 

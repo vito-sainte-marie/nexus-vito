@@ -463,7 +463,9 @@ function blocRetour(l, opts) {
 // lire, et il rappelle les interdits permanents. Il ne RÉSUME pas la demande —
 // un résumé écrit par le demandeur est une façon polie de décider à la place
 // de celui qui arbitre. Depuis le 07/10/2026 il la RECOPIE, intégralement
-// (voir `blocDemande`) : copier n'est pas résumer.
+// (voir `blocDemande`) : copier n'est pas résumer. Depuis le 08/10/2026 cette
+// recopie n'est faite que sur demande (`integral`) ; par défaut le réveil
+// pointe vers le rail (voir `blocPointeur`).
 // Le mandat de l'arbitre. Mesuré le 07/10/2026 : sans lui, l'arbitre ne
 // recevait que « Arbitre cette demande » et redemandait à Frédéric des
 // arbitrages déjà rendus. Il est GÉNÉRÉ depuis ARBITRAGES-ACQUIS.json, jamais
@@ -472,7 +474,7 @@ function blocRetour(l, opts) {
 function mandatArbitre(l, opts) {
   try {
     const { blocMandat } = require('./escalade-humaine.js');
-    return blocMandat(opts && opts.registre, l.lot);
+    return blocMandat(opts && opts.registre, l.lot, !(opts && opts.integral));
   } catch (e) {
     return `⚠️ Mandat de l'arbitre indisponible (\`docs/handoff/ARBITRAGES-ACQUIS.json\` illisible : ${e.message}). ` +
       'Consulte ce fichier avant de solliciter Frédéric.';
@@ -523,9 +525,30 @@ function blocDemande(l, opts) {
     '', cloture + 'markdown', recopie, cloture].filter(x => x !== null).join('\n');
 }
 
+// Le pointeur. 08/10/2026 (GO de Frédéric « raccourcir le réveil ») : depuis
+// que le connecteur GitHub de ChatGPT lit le rail, recopier la demande, le
+// mandat complet et les acquis ne fait que doubler ce qu'il lit à la source —
+// et une copie peut vieillir, la source non. Le réveil ne dit plus que QUOI
+// lire et OÙ ; le texte intégral reste disponible (`--integral`) pour qui ne
+// lit pas le dépôt : le relais par API, ou une recopie sans connecteur.
+function blocPointeur(l) {
+  return [
+    'Lis, sur la branche indiquée ci-dessus et jamais sur `main`, avec ton',
+    'connecteur GitHub :',
+    `- \`docs/handoff/lots/${l.lot}/${l.demande}\` — la demande à arbitrer ;`,
+    '- `docs/handoff/STATE.json` — il prime sur la prose de la demande ;',
+    '- `docs/handoff/ARBITRAGES-ACQUIS.json` — les arbitrages déjà rendus.',
+    'Écris `RAIL_LU: <SHA complet du rail lu>` juste avant le contrat. Si ton',
+    'connecteur ne lit pas le rail, écris `RAIL_LU: INACCESSIBLE`, rends',
+    '`DECISION: NEEDS_EVIDENCE` et demande le réveil intégral : n\'arbitre jamais',
+    'sur ce seul pointeur.',
+  ].join('\n');
+}
+
 function corpsReveil(r, opts) {
   if (!r.reveil) return r.message;
   const l = r.lots[0];
+  const integral = !!(opts && opts.integral);
   return [
     'NEXUS Orchestrator — réveil Handoff (sens Claude → Orchestrateur).',
     '',
@@ -566,12 +589,13 @@ function corpsReveil(r, opts) {
     // consigne que le mandat interdit (« tu ne déposes aucun fichier »). Entre
     // deux consignes contradictoires, l'arbitre a choisi la troisième voie :
     // ne rien trancher.
-    'Arbitre cette demande maintenant, avec le protocole `nexus-handoff/2` : son',
-    'texte intégral est ci-dessous. Ne signale pas qu\'elle attend — rends un',
-    'verdict et termine par le NEXT_ACTION_CONTRACT rempli. Tu ne déposes aucun',
-    'fichier : Claude matérialise ta décision.',
+    'Arbitre cette demande maintenant, avec le protocole `nexus-handoff/2`' +
+      (integral ? ' : son texte intégral est ci-dessous.' : '.'),
+    'Ne signale pas qu\'elle attend — rends un verdict et termine par le',
+    'NEXT_ACTION_CONTRACT rempli. Tu ne déposes aucun fichier : Claude',
+    'matérialise ta décision.',
     '',
-    blocDemande(l, opts),
+    integral ? blocDemande(l, opts) : blocPointeur(l),
     '',
     mandatArbitre(l, opts),
     '',
@@ -591,7 +615,7 @@ function ecrireSortieActions(r) {
   fs.appendFileSync(fichier, [`reveil=${r.reveil}`, `motif=${r.motif}`, `lot=${r.lot || ''}`].join('\n') + '\n');
 }
 
-module.exports = { analyser, examiner, corpsReveil, blocDemande, LIMITE_DEMANDE, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes, resoudreCanal, canauxConnus, adresseReveil };
+module.exports = { analyser, examiner, corpsReveil, blocDemande, blocPointeur, LIMITE_DEMANDE, blocRetour, railDeRetour, blobsParRef, classerRefs, refsDistantes, resoudreCanal, canauxConnus, adresseReveil };
 
 if (require.main === module) {
   const r = analyser();
@@ -599,7 +623,9 @@ if (require.main === module) {
   else if (process.argv.includes('--message')) {
     // `--sans-mention` : le corps destiné à être PUBLIÉ par la CI.
     const mention = !process.argv.includes('--sans-mention');
-    console.log(corpsReveil(r, { mention }));
+    // `--integral` : la demande, le mandat et les acquis recopiés, pour un
+    // arbitre qui ne lit pas le dépôt (relais par API, recopie sans connecteur).
+    console.log(corpsReveil(r, { mention, integral: process.argv.includes('--integral') }));
   }
   else {
     console.log(r.message);

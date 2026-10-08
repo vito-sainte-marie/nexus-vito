@@ -126,14 +126,16 @@ const CHAMPS_CONTRAT = Object.freeze([
   ['ACTION_NEXT', 'le geste minimal suivant, en une phrase'],
 ]);
 
-/** Le mandat que le réveil envoie à l'arbitre. Généré, jamais recopié. */
-function blocMandat(registre, lot) {
+/** Le mandat que le réveil envoie à l'arbitre. Généré, jamais recopié.
+ *  `pointeur` (08/10/2026) : l'arbitre lit le rail par son connecteur GitHub ;
+ *  les acquis ne sont plus recopiés, il les lit dans le registre lui-même. */
+function blocMandat(registre, lot, pointeur) {
   const reg = registre || chargerRegistre();
   return [
     'Mandat de l\'arbitre (généré depuis `docs/handoff/ARBITRAGES-ACQUIS.json`) :',
     '- Tu es l\'arbitre pré-autorisé de cette demande. Ta décision tient lieu de GO :',
     '  ne demande pas à Frédéric de la confirmer.',
-    '- Ne repose aucune question déjà tranchée ci-dessous ; cite l\'acquis et avance.',
+    '- Ne repose aucune question déjà tranchée ' + (pointeur ? 'au registre' : 'ci-dessous') + ' ; cite l\'acquis et avance.',
     '- Réveille Frédéric UNIQUEMENT pour l\'un de ces motifs, nommé dans ta décision :',
     '  ' + reg.routage.frederic.map(m => '`' + m + '`').join(', ') + '.',
     '- Tout autre obstacle (CI rouge, conflit, preuve manquante, périmètre) se',
@@ -145,9 +147,12 @@ function blocMandat(registre, lot) {
     '  NEXT_ACTION_CONTRACT',
     ...CHAMPS_CONTRAT.map(([k, v]) => `  ${k}: <${v}>`),
     '',
-    'Arbitrages déjà rendus :',
-    ...reg.acquis.filter(a => acquisApplicable(a, lot))
-      .map(a => `- \`${a.id}\` — ${a.question} → ${a.reponse} _(source : \`${a.source.fichier}\`)_`),
+    ...(pointeur
+      ? ['Arbitrages déjà rendus : lis `docs/handoff/ARBITRAGES-ACQUIS.json` sur le rail et',
+         'cite-les par leur identifiant. Ils ne sont pas recopiés ici.']
+      : ['Arbitrages déjà rendus :',
+         ...reg.acquis.filter(a => acquisApplicable(a, lot))
+           .map(a => `- \`${a.id}\` — ${a.question} → ${a.reponse} _(source : \`${a.source.fichier}\`)_`)]),
   ].join('\n');
 }
 

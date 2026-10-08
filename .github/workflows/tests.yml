@@ -476,8 +476,10 @@ jobs:
             exit 1
           }
           LOT=$(node outils/reveil-orchestrateur.js --json | jq -r '.lots[0].lot // .lot // empty')
-          # Le corps est déterministe : c'est celui que la publication a posté.
-          CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention)
+          # Le corps INTÉGRAL (08/10/2026) : la publication ne poste qu'un
+          # pointeur vers le rail, que l'API ne peut pas suivre — elle ne lit
+          # pas le dépôt. Déterministe : une marque par corps intégral.
+          CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention --integral)
           # Une seule consultation de l'arbitre par corps de réveil : le coût
           # est borné par le nombre de réveils distincts, pas par les runs.
           MARQUE="<!-- nexus-arbitrage: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
