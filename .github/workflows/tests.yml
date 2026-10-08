@@ -1100,6 +1100,9 @@ jobs:
 
       - name: Installer Playwright
         if: env.NEXUS_REF_EST_LE_RAIL == '1'
+        # 07/10 : run 37683039287 a pendu 1 h 38 ici (téléchargement apt/CDN
+        # muet). Sans borne, le job attend les 6 h de GitHub et bloque le rail.
+        timeout-minutes: 15
         run: npm install --no-save --silent playwright && npx --yes playwright install --with-deps chromium
 
       # Bloquante quand les secrets sont là : une preuve qui s'excuse ne prouve

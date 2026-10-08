@@ -441,6 +441,7 @@ function verifier(ignorer) {
   validerRegistre(etat, artefactsValides); validerEtatContenu(etat);
   signalerLotsSansAdresseDeReveil(etat);
   signalerMiroirsPerimes(etat);
+  signalerFileEnAttente(etat);
   if (etat && etat.lot_actif) signalerEnvDivergent(etat.lot_actif, railDuLot(etat, etat.lot_actif), avertir);
   if (etat && etat.lot_actif) { const d = dernier(echanges(etat.lot_actif, 'request')); if (d) { const r = lireEnveloppe(path.join(LOTS, etat.lot_actif, d.fichier)), p = ((r.env && r.env.preuves) || []).find(x => x.id === 'suite'), sortie = process.env.NEXUS_SORTIE_SUITE; if (p && sortie && fs.existsSync(sortie)) { const m = fs.readFileSync(sortie, 'utf8').match(/(\d+)\/(\d+) tests passent/); if (m && p.valeur.trim() !== `${m[1]}/${m[2]}`) avertir(`suite déclarée ${p.valeur.trim()}, mesurée ${m[1]}/${m[2]} — lot d'observation : avertissement, pas blocage.`); } } }
   const derogations = etat && Array.isArray(etat.derogations) ? etat.derogations : [], restantes = [];
@@ -454,6 +455,76 @@ function consommer(lot) {
   const source = dec ? 'registre' : 'legacy', cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION); let commit; try { commit = git('log', '-1', '--format=%H', '--', cible); } catch (e) { commit = ''; } if (!commit) { console.error(`Aucun commit trouvé pour ${cible} — refus de marquer une consommation invérifiable.`); process.exit(1); }
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
   v.statut = 'DECISION_CONSOMMEE'; v.derniere_decision = dec ? dec.fichier : null; v.source_decision = source; v.commit_decision = commit; v.consomme_le = new Date().toISOString(); fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}.`);
+  const publication = publierEnAttente(); if (publication) process.exit(publication);
+}
+// LA FILE D'ATTENTE A UN CONSOMMATEUR.
+//
+// 07/10/2026. `docs/handoff/en-attente/` est née le jour où `demande` a
+// refusé FAST-TRACK-ANTI-PAUSE-1-20261007 parce que GOUVERNANCE-REFERENCE-
+// CODE-20261005 occupait le registre (PLUSIEURS_LOTS_ACTIFS, volontaire). Le
+// corps a été rangé là avec, en prose, la consigne de le publier « dès que
+// GOUVERNANCE se ferme ». GOUVERNANCE s'est fermée (decision-6, closes: true,
+// consommée en cd89ed1) — et rien ne s'est passé : aucun outil ne lisait ce
+// répertoire, aucune garde ne voyait qu'il attendait une condition déjà
+// remplie. Le lot n'était pas bloqué : il était oublié, et l'oubli était
+// vert. Une consigne en prose n'a pas de consommateur.
+//
+// La file a désormais une forme et un consommateur :
+//   — forme : `<LOT_ID>-request-<N>.md`, première ligne
+//     `<!-- en-attente wake_to: <adresse> -->` (ôtée à la publication) ;
+//   — consommateur : `consommer` publie l'entrée la plus ancienne dès que sa
+//     décision libère le registre (closes: true), par `nouvelleDemande` —
+//     jamais à la main dans `lots/` — puis retire l'entrée de la file ;
+//     `publier-en-attente` fait la même chose à la demande ;
+//   — garde : `verifier` rougit EN_ATTENTE_NON_PUBLIEE quand une entrée
+//     attend alors que plus rien ne l'en empêche, et EN_ATTENTE_MALFORMEE
+//     quand une entrée ne pourrait jamais être publiée.
+// Le rail du nouveau lot est celui du lot qui vient de libérer le registre :
+// un fait du registre, pas de l'environnement.
+const EN_ATTENTE = path.join(HANDOFF, 'en-attente');
+const FORME_EN_ATTENTE = /^([A-Z0-9][A-Z0-9-]{2,63})-request-([1-9]\d*)\.md$/;
+const MARQUE_EN_ATTENTE = /^<!-- en-attente wake_to: (\S.*?) -->\r?\n/;
+function fileEnAttente() {
+  if (!fs.existsSync(EN_ATTENTE)) return [];
+  return fs.readdirSync(EN_ATTENTE).filter(f => f.endsWith('.md')).sort().map(fichier => {
+    const m = fichier.match(FORME_EN_ATTENTE), brut = fs.readFileSync(path.join(EN_ATTENTE, fichier), 'utf8'), w = brut.match(MARQUE_EN_ATTENTE);
+    const defaut = !m ? 'nom hors forme <LOT_ID>-request-<N>.md' : !w ? 'première ligne sans « <!-- en-attente wake_to: <adresse> --> »' : null;
+    return { fichier, source: path.join(EN_ATTENTE, fichier), lot: m && m[1], seq: m && Number(m[2]), wakeTo: w && w[1], corps: w ? brut.slice(w[0].length) : brut, defaut };
+  });
+}
+// Le registre est libre quand aucun lot n'attend de décision ET que le
+// dernier lot actif a été fermé. Une décision `closes: false` consommée rend
+// la main à son propre lot : sa suite lui revient, pas à la file.
+function registreLibre(etat) {
+  const actif = Object.entries(etat.lots || {}).find(([, v]) => STATUTS_LOT_ACTIFS.includes(v.statut));
+  if (actif) return { libre: false, motif: `${actif[0]} est actif (${actif[1].statut})` };
+  const precedent = etat.lot_actif;
+  if (!precedent || !etat.lots[precedent]) return { libre: false, motif: 'STATE.json ne désigne aucun lot précédent dont hériter le rail' };
+  const d = dernier(echanges(precedent, 'decision'));
+  const r = d && lireEnveloppe(path.join(LOTS, precedent, d.fichier));
+  if (!r || !r.env || String(r.env.closes) !== 'true') return { libre: false, motif: `${precedent} n'est pas fermé (${d ? `${d.fichier} : closes ≠ true` : 'aucune décision'}) — sa suite lui revient` };
+  return { libre: true, rail: railDuLot(etat, precedent), precedent };
+}
+function signalerFileEnAttente(etat) {
+  if (!etat || !etat.lots) return;
+  const file = fileEnAttente();
+  for (const e of file) if (e.defaut) bloquant(`en-attente/${e.fichier} : ${e.defaut} — la file ne pourra jamais la publier`, 'EN_ATTENTE_MALFORMEE', `en-attente/${e.fichier}`);
+  const suivante = file.find(e => !e.defaut);
+  if (suivante && registreLibre(etat).libre) bloquant(`en-attente/${suivante.fichier} attend alors que plus aucun lot n'occupe le registre — publier : node outils/handoff.js publier-en-attente`, 'EN_ATTENTE_NON_PUBLIEE', `en-attente/${suivante.fichier}`);
+}
+function publierEnAttente() {
+  const file = fileEnAttente();
+  const suivante = file.find(e => !e.defaut);
+  if (!suivante) { if (file.length) console.error(`File en-attente : ${file.length} entrée(s) malformée(s), aucune publiable — handoff.js verifier les détaille.`); return file.length ? 1 : 0; }
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), r = registreLibre(etat);
+  if (!r.libre) { console.log(`File en-attente : ${suivante.fichier} reste en attente — ${r.motif}.`); return 0; }
+  const attendu = (dernier(echanges(suivante.lot, 'request')) || { seq: 0 }).seq + 1;
+  if (suivante.seq !== attendu) { console.error(`REFUS — en-attente/${suivante.fichier} se déclare request-${suivante.seq}, mais ${suivante.lot} attend request-${attendu}.`); return 1; }
+  console.log(`File en-attente : ${r.precedent} est fermé — publication de ${suivante.fichier} (rail ${r.rail}, wake_to ${suivante.wakeTo}).`);
+  nouvelleDemande(suivante.lot, suivante.source, { preuves: [], rail: r.rail, wakeTo: suivante.wakeTo, corps: suivante.corps });
+  fs.unlinkSync(suivante.source);
+  console.log(`en-attente/${suivante.fichier} retiré de la file.`);
+  return 0;
 }
 // Dépose une DÉCISION avec une enveloppe conforme par construction.
 //
@@ -616,7 +687,7 @@ function nouvelleDemande(lot, corpsFichier, options) {
     preuvesAuto.push({ id: 'merge-base-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
     preuvesAuto.push({ id: 'diff-applicatif-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
   }
-  const preuves = preuvesAuto.concat(options.preuves); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
+  const preuves = preuvesAuto.concat(options.preuves || []); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + (options.corps !== undefined ? options.corps : fs.readFileSync(corpsFichier, 'utf8')));
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
 // `wake_to` est une ADRESSE LIBRE (PROTOCOL.md) : aucun vocabulaire clos, une
@@ -733,8 +804,9 @@ switch (commande) {
   case 'declarer-rail': declarerRail(arg1, arg2); break;
   case 'rail': imprimerRail(arg1); break;
   case 'rattraper-demande': rattraperDemande(arg1); break;
+  case 'publier-en-attente': process.exit(publierEnAttente()); break;
   case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|publier-en-attente|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
 }

@@ -194,6 +194,25 @@ la porte de sortie qu'il est précisément censé ne pas être.
 la consommation d'une décision que le protocole refuse serait exactement le
 silence que ce protocole existe pour supprimer.
 
+### File d'attente — `en-attente/`
+
+Un lot prêt alors que le registre est occupé (`PLUSIEURS_LOTS_ACTIFS`) attend
+dans `docs/handoff/en-attente/<LOT>-request-<n>.md`. Première ligne
+obligatoire : `<!-- en-attente wake_to: <destinataire> -->` ; le reste est le
+corps de la demande.
+
+- `consommer` d'une décision `closes: true` publie la file **dans le même
+  geste** (une entrée par fermeture, ordre alphabétique), sur le rail du lot
+  qui libère le registre, puis retire l'entrée.
+- `node outils/handoff.js publier-en-attente` fait la même chose à la demande.
+- `verifier` rougit (`EN_ATTENTE_NON_PUBLIEE`) quand une entrée attend alors que
+  plus aucun lot n'occupe le registre, et (`EN_ATTENTE_MALFORMEE`) sur une
+  entrée sans marque ou mal nommée.
+
+07/10/2026 : FAST-TRACK-ANTI-PAUSE-1 attendait « la fermeture de
+GOUVERNANCE-REFERENCE-CODE » ; GOUVERNANCE s'est fermée et rien ne l'a publié,
+faute de consommateur. La consigne en prose ne suffisait pas.
+
 ## Couche événementielle — et sa limite
 
 - `event detected` — la CI a validé une demande ou une décision.
