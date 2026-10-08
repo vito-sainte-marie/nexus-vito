@@ -3219,7 +3219,12 @@
       el.innerHTML = sectionATerminer + sectionClotures;
 
       el.querySelectorAll('.histo-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          // 08/10/2026 (mandat consolidé §5) : un clic dans le détail déplié
+          // (menu « Pourquoi cet écart ? », champ, bouton) remontait jusqu'ici
+          // et repliait la carte, rendant la validation de la piste
+          // impossible. Seul l'en-tête de la carte plie et déplie.
+          if (e.target.closest('.histo-detail')) return;
           const idx = item.dataset.idx;
           document.getElementById(`detail-${idx}`).classList.toggle('open');
           // v2.272 — chargement paresseux de l'historique des modifications
@@ -3368,7 +3373,7 @@
         return `
           <div class="motif-ecart-bloc" style="margin:10px 0; padding:10px; border-radius:8px; background:rgba(46,125,50,0.08);">
             <div style="font-size:13px; color:var(--green); margin-bottom:6px;">✅ Écart initial (${origineTxt}) corrigé après vérification — quelle est la cause ?</div>
-            <label>Pourquoi cet écart ?</label>
+            <label>Pourquoi cet écart ? <span style="font-weight:normal; color:var(--text2);">(facultatif)</span></label>
             <select id="causeCode-${type}-${i}">${optsHtml}</select>
           </div>
         `;
@@ -3453,11 +3458,10 @@
             const situation = NexusEcartsMoteur.situationVerificationEcart(ecartValide, ecartOrigine);
             if (situation === 'corrige_a_zero') {
               const selectCause = document.getElementById(`causeCode-${type}-${idx}`);
-              causeCode = selectCause ? selectCause.value : '';
-              if (!causeCode) {
-                alert('Merci d\'indiquer la cause de la correction avant de valider.');
-                return;
-              }
+              // 08/10/2026 (mandat consolidé §5) : un écart ramené à 0,00 €
+              // se valide sans motif artificiel. La cause reste proposée
+              // mais n'est plus exigée ; vide, elle n'est pas inventée.
+              causeCode = (selectCause && selectCause.value) || null;
             } else {
               causeCode = 'non_explique';
             }

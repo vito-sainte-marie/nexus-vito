@@ -125,14 +125,18 @@
     { value: 'erreur_montant_caisse', label: 'Erreur sur le montant caisse' },
     { value: 'vente_non_enregistree', label: 'Vente ou article non enregistré' },
   ];
+  // 08/10/2026 : « remboursement » seul se confondait avec le versement de
+  // régularisation d'un employé ; ce motif désigne un remboursement fait à
+  // un client et oublié en caisse. La valeur stockée ne change pas.
+  const LABEL_REMBOURSEMENT_CLIENT = 'Remboursement client non saisi';
   function motifsEcartCorrigeDisponiblesVerify(ecartInitial) {
     const base = [{ value: '', label: 'Choisir un motif…' }, ...MOTIFS_ECART_CORRIGE_VERIFY];
     return global.NexusEcartsMoteur
-      ? global.NexusEcartsMoteur.ajouterRemboursementSiManque(base, ecartInitial)
-      : (typeof ecartInitial === 'number' && ecartInitial < 0 ? [...base, { value: 'remboursement', label: 'Remboursement' }] : base);
+      ? global.NexusEcartsMoteur.ajouterRemboursementSiManque(base, ecartInitial, LABEL_REMBOURSEMENT_CLIENT)
+      : (typeof ecartInitial === 'number' && ecartInitial < 0 ? [...base, { value: 'remboursement', label: LABEL_REMBOURSEMENT_CLIENT }] : base);
   }
   function labelMotifEcartVerify(v) {
-    if (v === 'remboursement') return 'Remboursement';
+    if (v === 'remboursement') return LABEL_REMBOURSEMENT_CLIENT;
     if (v === 'non_explique') return 'Origine non identifiée';
     const m = MOTIFS_ECART_CORRIGE_VERIFY.find(x => x.value === v);
     return m ? m.label : (v || '—');
