@@ -392,6 +392,7 @@
   .histo-version-action{font-size:12px; font-weight:600; color:var(--text);}
   .histo-version-instant{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
   .histo-version-auteur{font-size:11px; color:var(--text-mid); margin-top:2px;}
+  .histo-version-diff{font-size:11px; color:var(--text); margin-top:2px; font-variant-numeric:tabular-nums;}
   .btn-restaurer-version{margin-top:6px; padding:6px 10px; background:transparent; color:var(--amber); border:1px solid rgba(245,166,35,0.3); border-radius:6px; font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer;}
   .histo-detail{display:none; margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
   .histo-detail.open{display:block;}
@@ -1230,16 +1231,22 @@
       zone.innerHTML = `
         <div class="histo-versions-titre">Historique des modifications</div>
         <button type="button" class="btn-annuler-derniere" data-idx="${i}">↩️ Annuler la dernière modification</button>
-        ${timeline.map(v => `
+        ${timeline.map((v, k) => {
+          // Chaque version est l'état AVANT son action : l'état qui l'a
+          // suivie est la version plus récente, ou l'audit actuel.
+          const diff = NexusVerifyMoteur.diffEcartsVersion(v.valeurs, k === 0 ? a : timeline[k - 1].valeurs);
+          const fmt = (x) => x == null ? '—' : NexusVerifyMoteur.formatEuroSigne(x);
+          return `
           <div class="histo-version-item">
             <div class="histo-version-top">
               <span class="histo-version-action">${v.libelleAction}</span>
               <span class="histo-version-instant">${new Date(v.instant).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div class="histo-version-auteur">${v.auteurNom}${v.motif ? ` — ${v.motif}` : ''}</div>
+            <div class="histo-version-auteur">${NexusVerifyMoteur.echapperHtml(v.auteurNom)}${v.motif ? ` — ${NexusVerifyMoteur.echapperHtml(v.motif)}` : ''}</div>
+            ${diff.map(d => `<div class="histo-version-diff">${d.libelle} : ${fmt(d.avant)} → ${fmt(d.apres)}</div>`).join('')}
             <button type="button" class="btn-restaurer-version" data-version-id="${v.id}" data-idx="${i}">Restaurer cet état →</button>
           </div>
-        `).join('')}
+        `; }).join('')}
       `;
 
       zone.querySelector('.btn-annuler-derniere').addEventListener('click', (e) => {
@@ -2956,8 +2963,41 @@
         .eq('site', SITE_ACTUEL).eq('date', date).eq('quart', quart).maybeSingle();
       const ecart_piste_origine = (auditExistant && auditExistant.ecart_piste_origine != null) ? auditExistant.ecart_piste_origine : ecart_piste;
       const ecart_boutique_origine = (auditExistant && auditExistant.ecart_boutique_origine != null) ? auditExistant.ecart_boutique_origine : ecart_boutique;
+      // 08/10/2026 (décision de Frédéric : « Conserver les écarts d'origine
+      // et les validations manuelles ») — modifier un audit déjà validé
+      // réaligne l'écart validé quand le manager avait accepté le calcul, et
+      // conserve (en le signalant) celui qu'il avait saisi à la main. Voir
+      // NexusVerifyMoteur.reconcilierValidationApresModification. Un motif
+      // est exigé : il est porté par la version 'modification'.
+      let reconciliation = { patch: {}, caisses: {}, signalements: [] };
+      let motifModification = null;
+      if (auditExistant && NexusVerifyMoteur.auditEstValide(auditExistant)) {
+        const { data: versionsAudit, error: eVersions } = await nexusClient.from('audits_caisse_versions')
+          .select('action, created_at, valeurs').eq('audit_id', auditExistant.id);
+        if (eVersions) {
+          console.error('Modification audit validé — lecture des versions:', eVersions);
+          btn.disabled = false; btn.textContent = 'Calculer et enregistrer';
+          box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">Impossible de lire l'historique de cet audit validé — rien n'a été enregistré. Réessayez.</div></div>`;
+          return;
+        }
+        reconciliation = NexusVerifyMoteur.reconcilierValidationApresModification(
+          auditExistant,
+          { piste: ecart_piste, boutique: ecart_boutique },
+          { brutAuValidation: {
+            piste: NexusVerifyMoteur.brutAuDerniereValidation(versionsAudit, 'piste'),
+            boutique: NexusVerifyMoteur.brutAuDerniereValidation(versionsAudit, 'boutique'),
+          } });
+        const apercu = reconciliation.signalements.map(NexusVerifyMoteur.libelleSignalementValidation).join('\n');
+        motifModification = prompt(`Cet audit est déjà validé. Motif de la modification (obligatoire) :${apercu ? '\n\n' + apercu : ''}`, '');
+        if (motifModification === null || !motifModification.trim()) {
+          btn.disabled = false; btn.textContent = 'Calculer et enregistrer';
+          box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--amber);">Modification non enregistrée : un motif est requis pour modifier un audit déjà validé.</div></div>`;
+          return;
+        }
+        motifModification = motifModification.trim();
+      }
       if (auditExistant) {
-        await snapshotAuditAvantEcriture(auditExistant, 'modification', null);
+        await snapshotAuditAvantEcriture(auditExistant, 'modification', motifModification);
       }
 
       const { error } = await nexusClient.from('audits_caisse').upsert({
@@ -2991,6 +3031,7 @@
         remise_cuve, remise_cuve_detail,
         ecart_piste, ecart_boutique, ecart_total,
         ecart_piste_origine, ecart_boutique_origine,
+        ...reconciliation.patch,
         employes_piste: [...employesSelectionnes.piste], employes_boutique: [...employesSelectionnes.boutique],
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
@@ -3024,9 +3065,14 @@
         ? `<div class="resume-line" style="color:var(--amber); margin-bottom:12px;"><b>⚠ À vérifier</b> — normalement toujours renseigné(s), actuellement à 0 : ${champsManquants.join(', ')}. Enregistré quand même, mais vérifie qu'il ne s'agit pas d'un oubli de saisie.</div>`
         : '';
 
+      const alerteValidationHtml = reconciliation.signalements.length
+        ? `<div class="resume-line alerte-validation-modifiee" style="color:var(--amber); margin-bottom:12px;"><b>Audit déjà validé</b> — motif : ${NexusVerifyMoteur.echapperHtml(motifModification || '')}<br>${reconciliation.signalements.map(sg => NexusVerifyMoteur.echapperHtml(NexusVerifyMoteur.libelleSignalementValidation(sg))).join('<br>')}</div>`
+        : '';
+
       box.innerHTML = `
         <div class="resume-box">
           <div class="resume-line">Quart ${quart} du ${new Date(date + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>
+          ${alerteValidationHtml}
           ${alerteChampsHtml}
 
           <div class="ecart-bloc">
@@ -3103,8 +3149,16 @@
         const ecB = ecartEffectif(a, 'boutique');
         const stP = classifierEcart(Math.abs(ecP));
         const stB = classifierEcart(Math.abs(ecB));
-        const corrigePiste = a.ecart_piste_valide != null && Number(a.ecart_piste_valide) !== Number(a.ecart_piste);
-        const corrigeBoutique = a.ecart_boutique_valide != null && Number(a.ecart_boutique_valide) !== Number(a.ecart_boutique);
+        // 08/10/2026 — la mention dit désormais ce qui diffère : l'écart
+        // calculé quand le manager a retenu une autre valeur, et le constat
+        // initial (_origine) quand une modification l'a fait évoluer. Elle
+        // n'est plus déduite d'un validé figé que la modification n'avait
+        // pas suivi (défaut corrigé à l'enregistrement).
+        const mentionsHtml = (type) => {
+          const m = NexusVerifyMoteur.mentionsEcartCarte(a, type);
+          return (m.ecartCalcule != null ? `<div class="histo-ecart-corrige">Retenu par le manager · écart calculé : ${NexusVerifyMoteur.formatEuroSigne(m.ecartCalcule)}</div>` : '')
+            + (m.constatInitial != null ? `<div class="histo-ecart-corrige">Constat initial : ${NexusVerifyMoteur.formatEuroSigne(m.constatInitial)}</div>` : '');
+        };
         return `
         <div class="histo-item" data-idx="${i}" data-date="${a.date}" data-quart="${a.quart}">
           <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
@@ -3117,7 +3171,7 @@
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_piste)}</div>
               <div class="histo-ecart" style="color:${Math.abs(ecP)<=2?'var(--green)':'var(--red)'};">${ecP>=0?'+':''}${ecP.toFixed(2)} €</div>
-              ${corrigePiste ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_piste>=0?'+':''}${Number(a.ecart_piste).toFixed(2)} €</div>` : ''}
+              ${mentionsHtml('piste')}
             </div>
             <div class="histo-ecart-item">
               <div class="histo-ecart-top">
@@ -3126,7 +3180,7 @@
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_boutique)}</div>
               <div class="histo-ecart" style="color:${Math.abs(ecB)<=2?'var(--green)':'var(--red)'};">${ecB>=0?'+':''}${ecB.toFixed(2)} €</div>
-              ${corrigeBoutique ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_boutique>=0?'+':''}${Number(a.ecart_boutique).toFixed(2)} €</div>` : ''}
+              ${mentionsHtml('boutique')}
             </div>
           </div>
           <div class="histo-detail" id="detail-${i}">
