@@ -8,7 +8,7 @@ do $$ declare r jsonb; e jsonb; begin
   r := pg_temp.verser(20);
   perform pg_temp.ok((r->>'reste_du')::numeric = 0, 'reste dû nul après versement intégral : ' || r::text);
   e := pg_temp.etat();
-  perform pg_temp.ok(e->>'statut' = 'regularise', 'statut régularisé : ' || e::text);
+  perform pg_temp.ok(e->>'statut' = 'regularise' and e->>'statut_regularisation' = 'SOLDE', 'statut régularisé : ' || e::text);
   perform pg_temp.ok((select ecart_piste_valide = -20 and ecart_piste = -20 from public.audits_caisse
                        where id = 'ad000000-0000-0000-0000-000000000001'), 'écart d''origine conservé');
   perform pg_temp.ok((select employee_id = 'a0000000-0000-0000-0000-000000000003' and auteur_id = 'a0000000-0000-0000-0000-000000000001'
@@ -23,12 +23,14 @@ begin; \i fixtures.sql
 do $$ declare e jsonb; begin
   perform pg_temp.verser(8);
   e := pg_temp.etat();
-  perform pg_temp.ok(e->>'statut' = 'partiellement_regularise' and (e->>'reste_du')::numeric = 12, 'partiel : ' || e::text);
+  perform pg_temp.ok(e->>'statut' = 'partiellement_regularise' and e->>'statut_regularisation' = 'PARTIELLEMENT_REGULARISE'
+                     and (e->>'reste_du')::numeric = 12, 'partiel : ' || e::text);
   raise notice 'OK PARTIEL';
   perform pg_temp.verser(12, 'coffre');
   e := pg_temp.etat();
   perform pg_temp.ok(e->>'statut' = 'regularise' and (e->>'versements')::numeric = 20, 'deux versements soldent : ' || e::text);
-  perform pg_temp.refus($q$ select pg_temp.verser(0.01) $q$, '[PLAFOND_DEPASSE]');
+  -- Règle 1 : un écart soldé n'est plus éligible, et le dit.
+  perform pg_temp.refus($q$ select pg_temp.verser(0.01) $q$, '[ECART_SOLDE]');
   raise notice 'OK MULTIPLE';
 end $$;
 rollback;
@@ -63,7 +65,8 @@ do $$ declare id uuid; e jsonb; begin
   perform pg_temp.refus(format('select public.annuler_versement_regularisation(%L, %L)', id, 'non'), '[JUSTIFICATION_REQUISE]');
   perform public.annuler_versement_regularisation(id, 'saisi sur le mauvais écart');
   e := pg_temp.etat();
-  perform pg_temp.ok(e->>'statut' = 'non_regularise' and (e->>'reste_du')::numeric = 20, 'reste dû rétabli : ' || e::text);
+  perform pg_temp.ok(e->>'statut' = 'non_regularise' and e->>'statut_regularisation' = 'OUVERT'
+                     and (e->>'reste_du')::numeric = 20, 'reste dû rétabli : ' || e::text);
   perform pg_temp.refus(format('select public.annuler_versement_regularisation(%L, %L)', id, 'deuxième fois'), '[DEJA_ANNULE]');
   perform pg_temp.ok((select count(*) = 1 and bool_and(annule_par = 'a0000000-0000-0000-0000-000000000001')
                         from public.ecarts_versements_regularisation), 'la ligne reste, annulée et signée');
@@ -259,5 +262,64 @@ do $$ begin
   perform pg_temp.verser(5);
   perform pg_temp.ok((select count(*) = 1 from public.ecarts_versements_regularisation), 'gérant accepté');
   raise notice 'OK ROLES';
+end $$;
+rollback;
+
+-- Règle 1 : un contrôle FDJ renvoyé « à revoir » porte un résultat mais
+-- aucune validation ; il n'est pas éligible et son tiroir reste ouvert.
+begin; \i fixtures.sql
+do $$ declare e jsonb; begin
+  perform pg_temp.refus($q$ select public.enregistrer_versement_regularisation(null, null, 'fc000000-0000-0000-0000-000000000003',
+    5, 'especes', null, 'coffre', null, null, gen_random_uuid()) $q$, '[ECART_NON_CLOTURE]');
+  e := public.ecart_regularisation_etat(null, null, 'fc000000-0000-0000-0000-000000000003');
+  perform pg_temp.ok(not (e->>'cloture')::boolean, 'à revoir n''est pas clôturé : ' || e::text);
+  perform pg_temp.verser(1, dest => 'tiroir_fdj', d => pg_temp.j(-5));
+  raise notice 'OK NONVALIDE';
+end $$;
+rollback;
+
+-- Règle 5 : la chronologie se juge au quart près ; le même quart est permis ;
+-- un quart antérieur exige une correction de datation documentée, conservée.
+begin; \i fixtures.sql
+do $$ declare r jsonb; begin
+  perform pg_temp.refus($q$ select pg_temp.verser(1, audit => 'ad000000-0000-0000-0000-000000000007', dest => 'tiroir_verify_boutique',
+    d => pg_temp.j(-6), q => '1') $q$, '[QUART_RECEPTEUR_ANTERIEUR]');
+  perform pg_temp.verser(1, audit => 'ad000000-0000-0000-0000-000000000007', dest => 'tiroir_verify_boutique', d => pg_temp.j(-6), q => '2');
+  perform pg_temp.refus($q$ select public.enregistrer_versement_regularisation('ad000000-0000-0000-0000-000000000007', 'piste', null,
+    1, 'especes', null, 'tiroir_verify_boutique', pg_temp.j(-7), '2', gen_random_uuid(), p_correction_datation => 'ab') $q$,
+    '[QUART_RECEPTEUR_ANTERIEUR]');
+  r := public.enregistrer_versement_regularisation('ad000000-0000-0000-0000-000000000007', 'piste', null,
+    1, 'especes', null, 'tiroir_verify_boutique', pg_temp.j(-7), '2', gen_random_uuid(),
+    p_correction_datation => 'versement remis la veille, saisi après l''audit');
+  perform pg_temp.ok((select correction_datation is not null from public.ecarts_versements_regularisation
+                       where id = (r->>'versement_id')::uuid), 'correction de datation conservée');
+  perform pg_temp.ok((select count(*) = 1 from public.ecarts_versements_regularisation where correction_datation is null),
+    'le même quart n''exige aucune correction');
+  raise notice 'OK CHRONOLOGIE';
+end $$;
+rollback;
+
+-- Règle 2 : la restitution va au payeur réel ; un tiers exige d'être nommé et
+-- autorisé, et la chronologie s'applique aussi au tiroir d'où sort l'argent.
+begin; \i fixtures.sql
+do $$ declare rid uuid; begin
+  perform pg_temp.verser(20);
+  update public.audits_caisse set ecart_piste_valide = -5 where id = 'ad000000-0000-0000-0000-000000000001';
+  perform pg_temp.refus($q$ select public.enregistrer_restitution_trop_percu('ad000000-0000-0000-0000-000000000001', 'piste', null,
+    5, 'especes', 'audit corrigé', 'coffre', null, null, gen_random_uuid(), p_beneficiaire_tiers => 'Conjoint du payeur') $q$,
+    '[AUTORISATION_TIERS_REQUISE]');
+  perform pg_temp.refus($q$ select public.enregistrer_restitution_trop_percu('ad000000-0000-0000-0000-000000000001', 'piste', null,
+    5, 'especes', 'audit corrigé', 'coffre', null, null, gen_random_uuid(), p_autorisation_tiers => 'procuration écrite') $q$,
+    '[TIERS_NON_DESIGNE]');
+  perform pg_temp.refus(format($q$ select public.enregistrer_restitution_trop_percu('ad000000-0000-0000-0000-000000000001', 'piste', null,
+    5, 'especes', 'audit corrigé', 'tiroir_verify_boutique', %L, '1', gen_random_uuid()) $q$, pg_temp.j(-11)), '[QUART_RECEPTEUR_ANTERIEUR]');
+  perform pg_temp.ok((select count(*) = 0 from public.ecarts_restitutions_trop_percu), 'aucun refus n''écrit');
+  rid := (public.enregistrer_restitution_trop_percu('ad000000-0000-0000-0000-000000000001', 'piste', null,
+    5, 'especes', 'audit corrigé', 'coffre', null, null, gen_random_uuid(),
+    p_beneficiaire_tiers => 'Conjoint du payeur', p_autorisation_tiers => 'procuration écrite du payeur')->>'restitution_id')::uuid;
+  perform pg_temp.ok((select employee_id = 'a0000000-0000-0000-0000-000000000003' and beneficiaire_tiers = 'Conjoint du payeur'
+                        and autorisation_tiers is not null from public.ecarts_restitutions_trop_percu where id = rid),
+    'payeur réel conservé, tiers et autorisation tracés');
+  raise notice 'OK TIERS';
 end $$;
 rollback;

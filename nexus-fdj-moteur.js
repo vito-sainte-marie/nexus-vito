@@ -1795,6 +1795,11 @@
   // l'écart initial était un MANQUE (négatif : la caisse employé avait
   // moins que prévu, expliqué a posteriori par un remboursement client non
   // enregistré au moment du contrôle) ; jamais proposé pour un excédent.
+  // 08/10/2026, mandat §2 : le code 'remboursement' reste (données
+  // passées, liste serveur), le libellé devient celui arrêté par Frédéric ;
+  // le mot « remboursement » n'est plus affiché. FDJ Manager porte le même
+  // libellé dans MOTIFS_ECART_FDJ (égalité vérifiée par le test v2267).
+  const LABEL_MOTIF_VERSEMENT_REGULARISATION = "Versement volontaire de régularisation d'un écart antérieur";
   const MOTIFS_ECART_CORRIGE_FDJ = [
     { value: '', label: 'Choisir un motif…' },
     { value: 'erreur_comptage', label: 'Erreur de comptage' },
@@ -1804,7 +1809,7 @@
   ];
   function motifsEcartCorrigeDisponibles(ecartInitial) {
     const liste = MOTIFS_ECART_CORRIGE_FDJ.slice();
-    if (typeof ecartInitial === 'number' && ecartInitial < 0) liste.push({ value: 'remboursement', label: 'Remboursement' });
+    if (typeof ecartInitial === 'number' && ecartInitial < 0) liste.push({ value: 'remboursement', label: LABEL_MOTIF_VERSEMENT_REGULARISATION });
     return liste;
   }
 
@@ -2012,7 +2017,7 @@
     signalCritiqueFdjAujourdhui,
     RESULTATS_CONTROLE_FDJ, labelResultatControle,
     optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
-    situationVerificationEcart, MOTIFS_ECART_CORRIGE_FDJ, motifsEcartCorrigeDisponibles,
+    situationVerificationEcart, MOTIFS_ECART_CORRIGE_FDJ, motifsEcartCorrigeDisponibles, LABEL_MOTIF_VERSEMENT_REGULARISATION,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
     etatAlerteContinuite, labelEtatAlerteContinuite,
     LABEL_TYPE_MOUVEMENT, ecartsReferenceLignes, trajetMouvement,

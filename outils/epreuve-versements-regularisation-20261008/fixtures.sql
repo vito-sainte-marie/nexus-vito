@@ -49,15 +49,20 @@ insert into public.audits_caisse (id, site, date, quart, employes_piste, ecart_p
   -- quart récepteur déjà validé (J−2, Q1)
   ('ad000000-0000-0000-0000-000000000005', 'site-a', pg_temp.j(-2),  '1', '["a0000000-0000-0000-0000-000000000006"]', 0, 0, now()),
   -- écart de la station B
-  ('ad000000-0000-0000-0000-000000000006', 'site-b', pg_temp.j(-10), '1', '["b0000000-0000-0000-0000-000000000002"]', -30, -30, now());
+  ('ad000000-0000-0000-0000-000000000006', 'site-b', pg_temp.j(-10), '1', '["b0000000-0000-0000-0000-000000000002"]', -30, -30, now()),
+  -- écart du quart 2 (J−6), piste validée, boutique ouverte : chronologie au quart près
+  ('ad000000-0000-0000-0000-000000000007', 'site-a', pg_temp.j(-6),  '2', '["a0000000-0000-0000-0000-000000000003"]', -8, -8, now());
 
 -- FDJ : un quart à régulariser (−15 €) et un quart clôturé à J−3.
 insert into public.fdj_shifts (id, site, date, quart, employee_id, statut) values
   ('fd000000-0000-0000-0000-000000000001', 'site-a', pg_temp.j(-10), '1', 'a0000000-0000-0000-0000-000000000004', 'valide'),
-  ('fd000000-0000-0000-0000-000000000002', 'site-a', pg_temp.j(-3),  '1', 'a0000000-0000-0000-0000-000000000004', 'valide');
+  ('fd000000-0000-0000-0000-000000000002', 'site-a', pg_temp.j(-3),  '1', 'a0000000-0000-0000-0000-000000000004', 'valide'),
+  ('fd000000-0000-0000-0000-000000000003', 'site-a', pg_temp.j(-5),  '1', 'a0000000-0000-0000-0000-000000000004', 'valide');
 insert into public.fdj_cash_controls (id, site, shift_id, ecart, resultat_controle, valide_par, valide_le) values
   ('fc000000-0000-0000-0000-000000000001', 'site-a', 'fd000000-0000-0000-0000-000000000001', -15, 'a_regulariser', 'a0000000-0000-0000-0000-000000000001', now()),
-  ('fc000000-0000-0000-0000-000000000002', 'site-a', 'fd000000-0000-0000-0000-000000000002', 0, 'conforme', 'a0000000-0000-0000-0000-000000000001', now());
+  ('fc000000-0000-0000-0000-000000000002', 'site-a', 'fd000000-0000-0000-0000-000000000002', 0, 'conforme', 'a0000000-0000-0000-0000-000000000001', now()),
+  -- renvoyé « à revoir » : resultat_controle posé, AUCUNE validation (comme fdj_valider_caisse)
+  ('fc000000-0000-0000-0000-000000000003', 'site-a', 'fd000000-0000-0000-0000-000000000003', -10, 'a_revoir', null, null);
 
 -- Versement Verify piste de l'audit −20, reçu par défaut dans le tiroir piste de J−1 Q1.
 create function pg_temp.verser(m numeric, dest text default 'tiroir_verify_piste', d date default pg_temp.j(-1),

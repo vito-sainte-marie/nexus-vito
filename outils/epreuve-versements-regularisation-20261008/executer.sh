@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Épreuve des versements de régularisation, restitutions et transferts au coffre
-# (20261008120000). Rejoue, dans un conteneur Postgres JETABLE, toutes les
+# (20261008120000, règles 20261008130000). Rejoue, dans un conteneur Postgres JETABLE, toutes les
 # migrations du dépôt puis les scénarios ; puis, pour chaque fichier de
 # mutations/, débranche une règle et vérifie que rougissent EXACTEMENT les blocs
 # que son en-tête annonce (« Rougit : … »).
@@ -35,7 +35,7 @@ for f in $(cd "$RACINE/supabase/migrations" && ls *.sql | sort); do
 done
 echo "migrations appliquées : $n"
 
-ATTENDUS="ANNULATION DROITS FDJVERIFY IDEMPOTENCE IMMUABLE INTEGRAL MODES MULTIPLE ORIGINE PARTIEL PLAFOND RECEPTEUR RESPONSABLE ROLES SITES TRANSFERT TROPPERCU"
+ATTENDUS="ANNULATION CHRONOLOGIE DROITS FDJVERIFY IDEMPOTENCE IMMUABLE INTEGRAL MODES MULTIPLE NONVALIDE ORIGINE PARTIEL PLAFOND RECEPTEUR RESPONSABLE ROLES SITES TIERS TRANSFERT TROPPERCU"
 oks() { grep -o "NOTICE:  OK [A-Z]*" "$1" | sed 's/NOTICE:  OK //' | sort | tr '\n' ' ' | sed 's/ $//'; }
 mots() { tr ' ' '\n' | grep . | sort; }
 
