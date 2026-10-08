@@ -502,7 +502,26 @@
           : (indispo.type === 'conge' ? 'Congé déclaré' : 'Indisponibilité déclarée');
         // Une présence constatée PENDANT une absence déclarée est la seule
         // vraie contradiction : celle-là doit être signalée (Article 5).
+        // Elle suit la règle des conflits planning / Verify (08/10/2026,
+        // décision de Frédéric) : Verify fait foi, le jour est déjà compté
+        // par la boucle des jours, et la contradiction est SIGNALÉE sans
+        // bloquer. Elle ne rouvre donc plus la décision sur l'événement :
+        // son statut ne dépend que de sa qualification.
+        //
+        // Un élément signalé par jour, et non un drapeau sur l'événement : la
+        // clé `indispo:<id>` vaut pour toute la période, si bien que marquer
+        // l'événement « vérifié » éteindrait aussi les contradictions des
+        // mois suivants, que personne n'aurait vues.
         const contradiction = joursAvecPreuve.length > 0;
+        joursAvecPreuve.forEach(d => {
+          fiche.items.push({
+            sourceCle: `conflit-rh:${indispo.id}:${d}`, typeItem: 'autre', origine: 'verify',
+            date: d, evenementId: indispo.id,
+            libelle: `Conflit RH / Verify : ${libelleMotif.toLowerCase()}, présence constatée`,
+            detail: 'Verify retenu · jour compté comme travaillé · corrigez l\'événement RH ou justifiez l\'écart',
+            statut: 'information', impactPaye: false, signale: true, anomalie: 'conflit_rh_verify',
+          });
+        });
         fiche.items.push({
           // La clé ne porte plus la date : un arbitrage posé une fois vaut
           // pour toute la période, et le mois suivant retrouve le même
@@ -536,9 +555,9 @@
             + (joursPlanifies ? ` · ${joursPlanifies} normalement travaillé${joursPlanifies > 1 ? 's' : ''}` : '')
             + (contradiction ? ` · ${joursAvecPreuve.length} jour(s) avec présence constatée` : ''),
           contradiction,
-          // Qualifié et sans contradiction : information, plus jamais une
-          // décision à reprendre. Le manager ne revalide que ce qui change.
-          statut: (qualifie && !contradiction) ? 'information' : 'a_verifier',
+          // Qualifié : information, plus jamais une décision à reprendre. Une
+          // contradiction est portée par ses propres éléments signalés.
+          statut: qualifie ? 'information' : 'a_verifier',
           impactPaye: false,
         });
       });

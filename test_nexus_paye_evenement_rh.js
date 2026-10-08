@@ -80,15 +80,54 @@ verifier('aucune alerte « présence prévue sans preuve » sur une absence déc
 verifier('les jours normalement travaillés sont comptés dans le détail',
   avecPlanning.employes[0].items.find(i => i.origine === 'indisponibilite').joursPlanifiesMois === 3);
 
-// 5) La seule vraie contradiction reste signalée.
+// 5) La seule vraie contradiction reste signalée — sans bloquer (08/10/2026,
+// décision de Frédéric : « une absence RH contredite par Verify suit la même
+// règle » que le conflit planning / Verify : Verify fait foi, signalé).
 const avecPreuve = rapport({
   planning,
   audits: [{ date: '2026-09-02', quart: '1', employes_piste: [VANESSA.id], site: 'vito-sainte-marie' }],
   indisponibilites: [Object.assign({}, INDISPO, { motif: 'conge_maternite', confirme_le: '2026-09-01T08:00:00Z' })],
 });
-const contradictoire = avecPreuve.employes[0].items.find(i => i.origine === 'indisponibilite');
-verifier('une présence constatée pendant l’absence rouvre la décision',
-  contradictoire.contradiction === true && contradictoire.statut === 'a_verifier');
+const ficheContradiction = avecPreuve.employes[0];
+const contradictoire = ficheContradiction.items.find(i => i.origine === 'indisponibilite');
+verifier('une présence constatée pendant l’absence est relevée sur l’événement',
+  contradictoire.contradiction === true && /1 jour\(s\) avec présence constatée/.test(contradictoire.detail));
+verifier('mais ne rouvre pas la décision : l’événement qualifié reste une information',
+  contradictoire.statut === 'information');
+const conflitsRh = ficheContradiction.items.filter(i => i.anomalie === 'conflit_rh_verify');
+verifier('le jour contredit est signalé, une fois, à sa date',
+  conflitsRh.length === 1 && conflitsRh[0].date === '2026-09-02'
+  && conflitsRh[0].sourceCle === 'conflit-rh:ind-1:2026-09-02');
+verifier('signalé en information, type autre, sans impact paie',
+  conflitsRh[0].signale === true && conflitsRh[0].statut === 'information'
+  && conflitsRh[0].typeItem === 'autre' && conflitsRh[0].impactPaye === false);
+verifier('Verify fait foi : le jour est compté travaillé, au planning, une seule fois',
+  ficheContradiction.joursConfirmes.size === 1 && ficheContradiction.heuresConfirmees === 7);
+verifier('le salarié n’est pas bloqué par la contradiction',
+  M.statutSalarie(ficheContradiction) === 'pret');
+verifier('la contradiction est comptée dans les signalements',
+  avecPreuve.synthese.signalements === 1);
+
+// 5 bis) Un événement non qualifié reste à qualifier : la contradiction ne
+// le libère pas plus qu'elle ne le bloque.
+const nonQualifieContredit = rapport({
+  planning,
+  audits: [{ date: '2026-09-02', quart: '1', employes_piste: [VANESSA.id], site: 'vito-sainte-marie' }],
+});
+verifier('un événement non qualifié contredit reste à vérifier pour sa qualification',
+  nonQualifieContredit.employes[0].items.find(i => i.origine === 'indisponibilite').statut === 'a_verifier'
+  && nonQualifieContredit.employes[0].items.some(i => i.anomalie === 'conflit_rh_verify'));
+
+// 5 ter) Marquer le jour vérifié ne touche pas l'événement, et l'événement
+// arbitré n'éteint pas le jour : les deux clés sont distinctes.
+const verifie = rapport({
+  planning,
+  audits: [{ date: '2026-09-02', quart: '1', employes_piste: [VANESSA.id], site: 'vito-sainte-marie' }],
+  indisponibilites: [Object.assign({}, INDISPO, { motif: 'conge_maternite', confirme_le: '2026-09-01T08:00:00Z' })],
+  items: [{ employee_id: VANESSA.id, source_cle: 'indispo:ind-1', type_item: 'absence_qualifiee', statut: 'valide', impact_paye: false, date_evenement: '2026-09-01', libelle: 'x' }],
+});
+verifier('un arbitrage de l’événement laisse le jour contredit signalé',
+  verifie.synthese.signalements === 1);
 
 // 6) Configuration et arbitrages du mois ne sont plus mélangés.
 const nonConfirme = rapport({ settings: [] });
