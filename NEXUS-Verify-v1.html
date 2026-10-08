@@ -916,6 +916,14 @@
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
   }
 
+  // Même règle pour une date (B5, 08/10/2026) : jour de la station, ou rien.
+  function fmtDateFuseau(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || !FUSEAU_STATION) return '—';
+    return d.toLocaleDateString('fr-FR', { timeZone: FUSEAU_STATION });
+  }
+
   // ------------------------------------------------------------
   // RAPPORT PDF (10/08/2026) — réutilise le moteur PDF partagé
   // (nexus-pdf-moteur.js, ConstructeurRapportUnePage) déjà construit pour
@@ -3449,6 +3457,22 @@
       const premiereValidationLe = a[`premiere_validation_le_${type}`];
       if (valideLe) {
         const ajuste = premiereValidationLe && new Date(premiereValidationLe).getTime() !== new Date(valideLe).getTime();
+        // 08/10/2026 (mandat consolidé §6, B5) : le serveur pose
+        // revalidation_requise_*_le quand le résultat d'une caisse validée
+        // change (trg_audits_caisse_revalidation, 20261008150000). Tant
+        // qu'un manager n'a pas validé de nouveau, la validation n'est plus
+        // affichée comme acquise et aucune régularisation n'est acceptée.
+        const revalidationLe = a[`revalidation_requise_${type}_le`];
+        if (revalidationLe) {
+          return `
+          <div class="validation-ligne alerte-revalidation">
+            <span style="color:var(--amber); font-weight:600;">⚠️ ${label} : résultat modifié après validation — nouvelle validation requise</span> (modifié le ${fmtDateFuseau(revalidationLe)} ; validation précédente le ${fmtDateFuseau(valideLe)} — ${nomAuteurValidation(a[`valide_par_${type}`])}).
+            <br>Aucun versement ni restitution n'est accepté sur cet écart avant la nouvelle validation.
+            <br><button type="button" class="btn-valider-audit" data-idx="${i}" data-type="${type}">✅ Valider de nouveau ${label}</button>
+          </div>
+          ${renderFormValidationCaisse(a, i, type)}
+        `;
+        }
         return `
           <div class="validation-ligne">
             <span class="validation-badge-ok">✅ ${label}${ajuste ? ' ajustée' : ' validée'}</span> le ${new Date(valideLe).toLocaleDateString('fr-FR')} — ${nomAuteurValidation(a[`valide_par_${type}`])}.

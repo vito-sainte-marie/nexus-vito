@@ -123,7 +123,8 @@ rollback;
 begin; \i fixtures.sql
 do $$ declare vid uuid; rid uuid; e jsonb; begin
   vid := (pg_temp.verser(20)->>'versement_id')::uuid;
-  update public.audits_caisse set ecart_piste_valide = -5 where id = 'ad000000-0000-0000-0000-000000000001';
+  -- B5 : un résultat modifié exige une nouvelle validation (valide_le_piste renouvelé).
+  update public.audits_caisse set ecart_piste_valide = -5, valide_le_piste = clock_timestamp() where id = 'ad000000-0000-0000-0000-000000000001';
   e := pg_temp.etat();
   perform pg_temp.ok(e->>'statut' = 'trop_percu' and (e->>'trop_percu')::numeric = 15, 'trop-perçu signalé : ' || e::text);
   perform pg_temp.ok((select count(*) = 1 and sum(trop_percu) = 15 from public.ecarts_trop_percus('site-a')), 'liste des trop-perçus');
@@ -304,7 +305,8 @@ rollback;
 begin; \i fixtures.sql
 do $$ declare rid uuid; begin
   perform pg_temp.verser(20);
-  update public.audits_caisse set ecart_piste_valide = -5 where id = 'ad000000-0000-0000-0000-000000000001';
+  -- B5 : un résultat modifié exige une nouvelle validation (valide_le_piste renouvelé).
+  update public.audits_caisse set ecart_piste_valide = -5, valide_le_piste = clock_timestamp() where id = 'ad000000-0000-0000-0000-000000000001';
   perform pg_temp.refus($q$ select public.enregistrer_restitution_trop_percu('ad000000-0000-0000-0000-000000000001', 'piste', null,
     5, 'especes', 'audit corrigé', 'coffre', null, null, gen_random_uuid(), p_beneficiaire_tiers => 'Conjoint du payeur') $q$,
     '[AUTORISATION_TIERS_REQUISE]');

@@ -386,10 +386,10 @@
   function libelleSignalementValidation(s) {
     const caisse = s.caisse === 'piste' ? 'Piste' : 'Boutique';
     if (s.code === 'validation_realignee') {
-      return `${caisse} : écart validé recalculé ${formatEuroSigne(s.avant)} → ${formatEuroSigne(s.apres)}. La validation portait sur le calcul, elle suit donc la correction.`;
+      return `${caisse} : écart validé recalculé ${formatEuroSigne(s.avant)} → ${formatEuroSigne(s.apres)}. La validation portait sur le calcul : le résultat ayant changé, un manager doit la valider de nouveau avant toute régularisation.`;
     }
     if (s.code === 'validation_manuelle_conservee') {
-      return `${caisse} : validation manuelle conservée à ${formatEuroSigne(s.valide)} — le recalcul donne ${formatEuroSigne(s.recalcul)}. Si la correction doit s'appliquer, corrige la validation de cette caisse.`;
+      return `${caisse} : validation manuelle conservée à ${formatEuroSigne(s.valide)} — le recalcul donne ${formatEuroSigne(s.recalcul)}. Le calcul ayant changé, un manager doit valider de nouveau cette caisse avant toute régularisation.`;
     }
     return `${caisse} : ${s.code}`;
   }

@@ -176,6 +176,15 @@ const v = (action, created_at, valeurs) => ({ action, created_at, valeurs });
   assert.strictEqual(M.formatEuroSigne(-0.03), '-0,03 €');
   assert.ok(M.libelleSignalementValidation({ caisse: 'piste', code: 'validation_realignee', avant: 0.4, apres: 1.9 }).includes('+0,40 € → +1,90 €'));
   assert.ok(M.libelleSignalementValidation({ caisse: 'boutique', code: 'validation_manuelle_conservee', valide: 3.1, recalcul: 0.68 }).includes('conservée à +3,10 €'));
+  // B5 (20261008150000) : un résultat changé n'est plus « suivi » par la
+  // validation, il exige une nouvelle validation avant toute régularisation.
+  for (const sg of [{ caisse: 'piste', code: 'validation_realignee', avant: 0.4, apres: 1.9 },
+                    { caisse: 'boutique', code: 'validation_manuelle_conservee', valide: 3.1, recalcul: 0.68 }]) {
+    const t = M.libelleSignalementValidation(sg);
+    assert.ok(t.includes('valider de nouveau'), t);
+    assert.ok(t.includes('avant toute régularisation'), t);
+    assert.ok(!t.includes('elle suit donc la correction'), t);
+  }
   assert.strictEqual(M.echapperHtml(`<img src=x onerror="a('b')">&`), '&lt;img src=x onerror=&quot;a(&#39;b&#39;)&quot;&gt;&amp;');
   assert.strictEqual(M.echapperHtml(null), '');
   ok('libellés et échappement HTML');
