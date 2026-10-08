@@ -304,9 +304,13 @@
       "consomme_le": "2026-10-08T12:01:47.486Z"
     },
     "FAST-TRACK-CYCLE-POINTEUR-1-20261008": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "13227349cea49e6e7b798f4e29625cc01d222275",
+      "consomme_le": "2026-10-08T13:31:59.387Z"
     }
   },
   "artefacts_hors_registre": [
