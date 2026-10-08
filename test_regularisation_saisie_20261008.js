@@ -32,6 +32,11 @@ function unique(source, motif) {
   assert.strictEqual(source.indexOf(motif, i + 1), -1, `Ancre non unique : ${motif}`);
   return i;
 }
+function uniqueRe(source, re) {
+  const trouves = [...source.matchAll(re)];
+  assert.strictEqual(trouves.length, 1, `Attendu une seule occurrence de ${re}, trouvé ${trouves.length}`);
+  return trouves[0].index;
+}
 function extraireBloc(source, debutMotif) {
   const debut = unique(source, debutMotif);
   let j = source.indexOf('{', debut) + 1, profondeur = 1;
@@ -365,8 +370,10 @@ const MUTANTS = [
 
 function integration(html) {
   // Le module est chargé après le relevé Paye et avant le script de l'écran.
-  const iPaye = unique(html, '<script src="nexus-paye-regularisations.js?v=20261008-b6"></script>');
-  const iSaisie = unique(html, '<script src="nexus-regularisation-saisie.js?v=20261008-b7"></script>');
+  // Le paramètre `?v=` est réécrit par outils/build.sh avant la suite (la CI
+  // mesure l'arbre construit) : on ancre sur le nom du module, pas sur sa version.
+  const iPaye = uniqueRe(html, /<script src="nexus-paye-regularisations\.js\?v=[^"]+"><\/script>/g);
+  const iSaisie = uniqueRe(html, /<script src="nexus-regularisation-saisie\.js\?v=[^"]+"><\/script>/g);
   assert.ok(iPaye < iSaisie && iSaisie < unique(html, 'let EMPLOYEE_ID_COURANT = null;'));
   assert.ok(html.includes('NEXUS · Analyse des écarts — v2.271'));
   assert.ok(/\.aide-info\{[^}]*background:transparent; border:none/.test(html), 'le (i) est un vrai bouton, sans fond');
