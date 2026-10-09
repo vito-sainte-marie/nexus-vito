@@ -241,8 +241,12 @@
       "consomme_le": "2026-10-09T14:04:20.476Z"
     },
     "NEXUS-PAYE-COCKPIT-PRODUCTION-1-20261009": {
-      "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md"
+      "statut": "DECISION_CONSOMMEE",
+      "derniere_demande": "request-1.md",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "8c7e8ef8821f95ea8e02521e1e70f97e01ee2d10",
+      "consomme_le": "2026-10-09T19:24:38.373Z"
     }
   },
   "artefacts_hors_registre": [
