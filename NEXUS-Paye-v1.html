@@ -21,6 +21,13 @@
    en fiches empilées (navigation adaptée), règle NEXUS inchangée. */
 body{display:block}
 .cockpit{width:100%;max-width:1680px;margin:0 auto;min-height:100vh;border-left:0;border-right:0}
+/* Vue bureau (09/10/2026, signalé par Frédéric sur Safari) : le
+   `body{display:block}` ci-dessus annulait la coquille de nexus-desktop.js,
+   qui suppose un body en flex — la barre latérale s'empilait au-dessus et
+   repoussait tout l'écran sous ses 1 600 px. On rend le flex à la coquille
+   et le cockpit prend la largeur restante. */
+body.nexus-desktop{display:flex}
+body.nexus-desktop>.cockpit{flex:1;min-width:0;max-width:none;margin:0}
 main{padding:12px 18px 20px}
 /* Bannière : identité, mois, état du dossier, actions principales. */
 .topbar{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;gap:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:9px}
@@ -106,8 +113,14 @@ footer{padding:12px;font-size:9.5px}
  .kpirow{grid-template-columns:repeat(2,minmax(0,1fr))}
  table.sal thead{display:none}
  table.sal tbody tr{display:grid;grid-template-columns:1fr;gap:3px;padding:9px 10px;border-bottom:1px solid var(--line)}
- table.sal tbody td{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border:0;padding:3px 0;min-height:22px}
- table.sal tbody td::before{content:attr(data-col);font:9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);flex:none}
+ /* Une cellule porte souvent plusieurs blocs (poste + barème, plusieurs
+    pastilles) : en flex `space-between` ils s'étalaient sur la ligne et le
+    premier flottait au milieu. L'en-tête reste à gauche, toutes les valeurs
+    s'empilent à droite. */
+ table.sal tbody td{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:3px;align-items:baseline;border:0;padding:3px 0;min-height:22px}
+ table.sal tbody td::before{content:attr(data-col);font:9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);grid-column:1;grid-row:1;align-self:start;padding-top:2px}
+ table.sal tbody td>*{grid-column:2;justify-self:end;text-align:right}
+ table.sal tbody td.cell-first>*{grid-column:1 / -1;justify-self:start;text-align:left}
  table.sal tbody td.cell-first::before{display:none}
  .monthnav button,.topacts .btn,button.filtre,button.tab{min-height:44px}
  /* Le compte y était pour la barre du haut seulement : les commandes du
@@ -459,7 +472,7 @@ function ligneSalarie(f){
  return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}">`
  +`<td class="cell-first" data-col="Salarié"><div class="cell-nom">${ECHAPPE(f.employee.nom)}</div><div class="cell-sub">${inclus?`${pluriel(jours,'jour')} confirmé${jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`:'Ne figure pas au dossier de paie'}</div></td>`
  +`<td data-col="Affectation"><div>${ECHAPPE(f.employee.role||'Poste non renseigné')}</div><div class="cell-sub">${mode}${hp?` · ${pluriel(hp,'jour')} hors planning`:''}</div></td>`
- +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}">${inclus?`${H2(v.presence.heures)} h`:'Non concerné'}${inclus&&v.heuresSupplementaires.heures?`<div class="cell-sub">+${H2(v.heuresSupplementaires.heures)} h supp.</div>`:''}</td>`
+ +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}"><span>${inclus?`${H2(v.presence.heures)} h`:'Non concerné'}</span>${inclus&&v.heuresSupplementaires.heures?`<div class="cell-sub">+${H2(v.heuresSupplementaires.heures)} h supp.</div>`:''}</td>`
  +`<td data-col="Absences">${inclus?celluleAbsences(v):'<span class="flag vide">Non concerné</span>'}</td>`
  +`<td data-col="Éléments à vérifier">${celluleAttente(f)}</td>`
  +`<td data-col="Statut"><span class="flag ${ton}">${lib}</span></td></tr>`;
