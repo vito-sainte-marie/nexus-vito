@@ -1,0 +1,171 @@
+{
+  "protocol": "nexus-handoff/2",
+  "_lire": "Enveloppe de CAPACITÉS de chaque canal. CANAUX.json dit où poster un rôle ; ce fichier dit ce que ce canal peut réellement FAIRE. Les deux questions sont distinctes, et les confondre a coûté un run : le 09/10/2026, le GO Production G1 de Frédéric est arrivé en commentaire d'issue, donc dans le canal GitHub Actions, dont l'enveloppe Supabase est « Test, lecture seule ». Claude s'y est arrêté sans écrire — correctement — mais le geste mandaté était impossible par construction, et personne ne l'avait su avant de brûler le run. Une autorisation ne confère pas une capacité. Ce fichier est le fait écrit qui permet à outils/classification-canal.js de refuser de mandater un geste dans un canal incapable, et de nommer à la place le canal qui en est capable. Chaque valeur OUI/NON porte sa preuve : EXERCEE cite une commande et une date, ENVELOPPE cite le fichier qui borne le canal et que l'épreuve test_routage_capacites_canal_20261009.js relit sur le vrai dépôt. Une capacité déclarée est une opinion ; une capacité exercée est un fait.",
+  "version": 1,
+  "etabli_le": "2026-10-09",
+  "cause": "GO-G1-MIGRATIONS-REGULARISATION-1-20261009/request-2.md — Claude, réveillé dans le canal issue_comment avec le GO explicite de Frédéric, a rendu quatre preuves NOT_APPLICABLE : gh-run-view-refuse-approbation-impossible-en-run-automatise, aucune-connexion-supabase-depuis-ce-canal-par-construction, printenv-refuse-par-le-bac-a-sable, aucune-migration-executee. Ces quatre refus ne sont pas des pannes : ils sont l'enveloppe du canal. Ce fichier les écrit une fois pour que le routage ne les redécouvre plus à chaque réveil.",
+  "capacites": {
+    "DEPOT_LECTURE": "Lire le dépôt au SHA du rail.",
+    "DEPOT_ECRITURE_RAIL": "Commiter et pousser sur le rail ou une branche de travail (jamais main ni production).",
+    "CANAL_PUBLICATION": "Publier un corps de réveil ou une décision sur le canal de transport déclaré.",
+    "CI_LECTURE_RUN": "Lire le détail d'un run GitHub Actions (gh run view), au-delà de son seul statut.",
+    "SUPABASE_TEST_LECTURE": "Interroger la base Test en lecture.",
+    "SUPABASE_TEST_ECRITURE": "Muter la base Test (alimentation, réinitialisation, migration de recette).",
+    "SUPABASE_PRODUCTION_LECTURE": "Rejouer les contrôles Production en lecture seule (registre de migrations, RLS, permissions, advisors).",
+    "SUPABASE_PRODUCTION_ECRITURE": "Appliquer une migration ou toute transaction écrivante sur Supabase Production.",
+    "PRODUCTION_FUSION_DEPLOIEMENT": "Fusionner vers production, déployer, ou promouvoir en Production."
+  },
+  "canaux": {
+    "github-actions-claude": {
+      "role": "Claude",
+      "quoi": "Claude réveillé par `@claude` dans un commentaire d'issue ou de PR, exécuté par .github/workflows/claude.yml sur main.",
+      "capacites": {
+        "DEPOT_LECTURE": "OUI",
+        "DEPOT_ECRITURE_RAIL": "OUI",
+        "CANAL_PUBLICATION": "OUI",
+        "CI_LECTURE_RUN": "NON",
+        "SUPABASE_TEST_LECTURE": "OUI",
+        "SUPABASE_TEST_ECRITURE": "NON",
+        "SUPABASE_PRODUCTION_LECTURE": "NON",
+        "SUPABASE_PRODUCTION_ECRITURE": "NON",
+        "PRODUCTION_FUSION_DEPLOIEMENT": "NON"
+      },
+      "preuves": {
+        "CI_LECTURE_RUN": {
+          "type": "EXERCEE",
+          "commande": "gh run view 37866619689",
+          "date": "2026-10-09",
+          "resultat": "refus — approbation impossible dans un run automatisé",
+          "source": "docs/handoff/lots/GO-G1-MIGRATIONS-REGULARISATION-1-20261009/request-2.md"
+        },
+        "SUPABASE_PRODUCTION_LECTURE": {
+          "type": "EXERCEE",
+          "commande": "controles-production-lecture-seule",
+          "date": "2026-10-09",
+          "resultat": "aucune connexion Supabase depuis ce canal, par construction",
+          "source": "docs/handoff/lots/GO-G1-MIGRATIONS-REGULARISATION-1-20261009/request-2.md"
+        },
+        "SUPABASE_PRODUCTION_ECRITURE": {
+          "type": "ENVELOPPE",
+          "fichier": ".github/workflows/claude.yml",
+          "ref": "origin/main",
+          "motif": "Le canal ne référence que cinq secrets, tous Test ou d'authentification Claude, et cinq permissions GitHub. Aucun token Management API, aucun service_role, aucune URL ni mot de passe Production n'y est injecté. La liste est CLOSE : l'apparition d'un sixième secret ou d'une sixième permission rougit l'épreuve, quel qu'en soit le nom — c'est ainsi qu'un élargissement de surface cesse d'être silencieux.",
+          "secrets_autorises": [
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "NEXUS_TEST_CREATEUR_PIN",
+            "NEXUS_TEST_EMPLOYEE_A_PIN",
+            "NEXUS_TEST_MANAGER_PIN",
+            "SUPABASE_TEST_DB_URL_READONLY"
+          ],
+          "permissions_autorisees": [
+            "actions: write",
+            "contents: write",
+            "id-token: write",
+            "issues: write",
+            "pull-requests: write"
+          ],
+          "exige": [
+            "TEST_READ_ONLY"
+          ]
+        },
+        "SUPABASE_TEST_ECRITURE": {
+          "type": "ENVELOPPE",
+          "fichier": ".github/workflows/claude.yml",
+          "ref": "origin/main",
+          "motif": "Le seul secret Supabase du canal est SUPABASE_TEST_DB_URL_READONLY : son rôle est en lecture seule, et NEXUS_SUPABASE_SCOPE=TEST_READ_ONLY le dit à Claude au démarrage.",
+          "exige": [
+            "SUPABASE_TEST_DB_URL_READONLY",
+            "TEST_READ_ONLY"
+          ]
+        },
+        "PRODUCTION_FUSION_DEPLOIEMENT": {
+          "type": "ENVELOPPE",
+          "fichier": "CLAUDE.md",
+          "motif": "Gate humaine jamais pré-autorisée : toute modification de main ou production, toute promotion en Production."
+        }
+      },
+      "enveloppe_par_defaut": "Run GitHub Actions non interactif : aucune approbation humaine n'y est possible, et aucun secret hors de la liste close ci-dessus n'y est injecté."
+    },
+    "session-claude-habilitee": {
+      "role": "Claude",
+      "quoi": "Session Claude disposant des connecteurs Supabase (execute_sql, list_migrations, get_advisors) et du dépôt local. C'est elle qui a exécuté G1 le 09/10/2026.",
+      "capacites": {
+        "DEPOT_LECTURE": "OUI",
+        "DEPOT_ECRITURE_RAIL": "OUI",
+        "CANAL_PUBLICATION": "OUI",
+        "CI_LECTURE_RUN": "OUI",
+        "SUPABASE_TEST_LECTURE": "OUI",
+        "SUPABASE_TEST_ECRITURE": "OUI",
+        "SUPABASE_PRODUCTION_LECTURE": "OUI",
+        "SUPABASE_PRODUCTION_ECRITURE": "OUI",
+        "PRODUCTION_FUSION_DEPLOIEMENT": "NON"
+      },
+      "preuves": {
+        "SUPABASE_PRODUCTION_LECTURE": {
+          "type": "EXERCEE",
+          "commande": "preflight G1 — registre de migrations, version la plus récente, md5 de fdj_calculer_caisse",
+          "date": "2026-10-09",
+          "resultat": "registre 298, dernière version 20261006220000, md5 0418bed1d0316063def74ab81cfe71e1",
+          "source": "docs/handoff/lots/GO-G1-MIGRATIONS-REGULARISATION-1-20261009/request-3.md"
+        },
+        "SUPABASE_PRODUCTION_ECRITURE": {
+          "type": "EXERCEE",
+          "commande": "execute_sql — six migrations G1, une transaction chacune",
+          "date": "2026-10-09",
+          "resultat": "registre 298 puis 304, mesuré à 10:38:29Z, contrôles postérieurs verts",
+          "source": "docs/handoff/lots/GO-G1-MIGRATIONS-REGULARISATION-1-20261009/request-3.md"
+        },
+        "PRODUCTION_FUSION_DEPLOIEMENT": {
+          "type": "ENVELOPPE",
+          "fichier": "CLAUDE.md",
+          "motif": "Gate humaine jamais pré-autorisée, quelle que soit la session."
+        }
+      },
+      "enveloppe_par_defaut": "Session interactive outillée : ce qu'elle ne peut pas franchir est une gate humaine, pas une limite technique."
+    },
+    "arbitre-chatgpt": {
+      "role": "ChatGPT",
+      "quoi": "Arbitre pré-autorisé. Lit le rail, rend un verdict, le publie sur le canal ; Claude le matérialise.",
+      "capacites": {
+        "DEPOT_LECTURE": "OUI",
+        "DEPOT_ECRITURE_RAIL": "NON",
+        "CANAL_PUBLICATION": "OUI",
+        "CI_LECTURE_RUN": "NON",
+        "SUPABASE_TEST_LECTURE": "NON",
+        "SUPABASE_TEST_ECRITURE": "NON",
+        "SUPABASE_PRODUCTION_LECTURE": "NON",
+        "SUPABASE_PRODUCTION_ECRITURE": "NON",
+        "PRODUCTION_FUSION_DEPLOIEMENT": "NON"
+      },
+      "preuves": {
+        "DEPOT_ECRITURE_RAIL": {
+          "type": "ENVELOPPE",
+          "fichier": "docs/handoff/ARBITRAGES-ACQUIS.json",
+          "motif": "Acquis CHATGPT_DECIDE_CLAUDE_MATERIALISE — l'arbitre ne dépose aucun fichier."
+        }
+      },
+      "enveloppe_par_defaut": "Canal conversationnel : l'arbitre lit le rail et publie un verdict. Il n'a ni dépôt en écriture, ni connexion Supabase, ni accès à l'API GitHub — acquis CHATGPT_DECIDE_CLAUDE_MATERIALISE."
+    },
+    "frederic": {
+      "role": "Frédéric",
+      "quoi": "Le seul canal qui franchit les gates humaines.",
+      "capacites": {
+        "DEPOT_LECTURE": "OUI",
+        "DEPOT_ECRITURE_RAIL": "OUI",
+        "CANAL_PUBLICATION": "OUI",
+        "CI_LECTURE_RUN": "OUI",
+        "SUPABASE_TEST_LECTURE": "OUI",
+        "SUPABASE_TEST_ECRITURE": "OUI",
+        "SUPABASE_PRODUCTION_LECTURE": "OUI",
+        "SUPABASE_PRODUCTION_ECRITURE": "OUI",
+        "PRODUCTION_FUSION_DEPLOIEMENT": "OUI"
+      },
+      "preuves": {}
+    }
+  },
+  "gestes": {
+    "_lire": "Traduction d'un motif STOP fermé vers la capacité que le geste suivant exige RÉELLEMENT une fois l'autorisation acquise. Sans cette table, un GO obtenu sur un motif Production se renvoie au canal qui a posé la question — celui qui ne peut pas l'exécuter.",
+    "SUPABASE_PRODUCTION_MUTATION": "SUPABASE_PRODUCTION_ECRITURE",
+    "PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION": "PRODUCTION_FUSION_DEPLOIEMENT"
+  }
+}
