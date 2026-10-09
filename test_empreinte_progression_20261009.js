@@ -113,7 +113,9 @@ epreuve('C — deux corps différents, même état : une seule empreinte', () =>
   assert.notStrictEqual(sha(corpsA), sha(corpsB),
     'les deux corps devaient différer : sinon l’épreuve ne mesure rien');
   // L'état, lui, n'a pas bougé. L'empreinte ne bouge pas non plus.
-  assert.strictEqual(emp.empreinte(ETAT), emp.empreinte(ETAT));
+  // Une copie neuve de l'état (aucun corps de message n'y entre) rend la
+  // même empreinte : seul l'état la détermine, pas l'objet ni le texte.
+  assert.strictEqual(emp.empreinte(JSON.parse(JSON.stringify(ETAT))), emp.empreinte(ETAT));
   assert.strictEqual(emp.decider(ETAT, emp.marque(emp.empreinte(ETAT))).etat, 'FAST_TRACK_STALL',
     'le vecteur réel de l’incident resterait ouvert');
 });
