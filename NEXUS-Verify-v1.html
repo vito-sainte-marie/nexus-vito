@@ -92,6 +92,16 @@
   .btn-remove{flex-shrink:0; width:32px; height:32px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--red); border-radius:8px; cursor:pointer; font-size:14px;}
   .btn-add{width:100%; padding:9px; border-radius:8px; border:1px dashed rgba(79,195,217,0.4); background:transparent; color:var(--cyan); font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:10px;}
   .btn-add:active{background:rgba(79,195,217,0.08);}
+  /* Factures différées boutique (B4, 08/10/2026) — cinq champs par ligne :
+     grille qui passe sur deux colonnes en largeur téléphone (Safari iOS). */
+  .ligne-facture{display:grid; grid-template-columns:110px 1fr 1fr 1fr 32px; gap:8px; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--hairline);}
+  .ligne-facture input{margin-bottom:0;}
+  .ligne-facture .presence-facture{grid-column:1 / -2; display:flex; gap:8px; align-items:center; font-family:var(--sans); font-size:12px; color:var(--text-mid);}
+  .ligne-facture .presence-facture input{width:auto;}
+  .ligne-facture .trace-facture{grid-column:1 / -1; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .ligne-facture .erreur-facture{grid-column:1 / -1; font-family:var(--sans); font-size:11.5px; color:var(--red);}
+  @media (max-width:600px){ .ligne-facture{grid-template-columns:1fr 1fr 32px;} .ligne-facture .montant-facture{grid-column:1 / 3;} }
+  .aide-info{display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-left:6px; border-radius:50%; color:var(--cyan); cursor:pointer; font-size:14px;}
   .total-ligne{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); text-align:right;}
 
   /* NEXUS Data Connector (01/08/2026, recommandations de conception) —
@@ -392,6 +402,7 @@
   .histo-version-action{font-size:12px; font-weight:600; color:var(--text);}
   .histo-version-instant{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
   .histo-version-auteur{font-size:11px; color:var(--text-mid); margin-top:2px;}
+  .histo-version-diff{font-size:11px; color:var(--text); margin-top:2px; font-variant-numeric:tabular-nums;}
   .btn-restaurer-version{margin-top:6px; padding:6px 10px; background:transparent; color:var(--amber); border:1px solid rgba(245,166,35,0.3); border-radius:6px; font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer;}
   .histo-detail{display:none; margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
   .histo-detail.open{display:block;}
@@ -465,7 +476,7 @@
 <!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
-<script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+<script src="nexus-verify-moteur.js?v=20261008-b8"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -715,6 +726,28 @@
       </div>
     </div>
 
+    <!-- Factures différées boutique (mandat consolidé §4, B4, 08/10/2026) :
+         une vente facturée dans le Back-office Décenium sans argent dans le
+         tiroir de ce quart. Pas de soustraction automatique : seule une
+         facture dont la présence dans la vente boutique du quart est cochée
+         entre dans l'écart ; les autres restent « à vérifier ». Le serveur
+         (trg_audits_caisse_factures_differees) refait les contrôles, pose
+         auteur et horodatage, et refuse un numéro déjà saisi ailleurs. -->
+    <div class="card card-collapsible" id="cardFacturesDifferees">
+      <div class="card-toggle" data-toggle="cardFacturesDifferees">
+        <div class="card-toggle-label">Factures différées (boutique)<span class="aide-info" role="button" tabindex="0" aria-label="Aide : factures différées" aria-controls="aideFacturesDifferees" title="Ventes facturées dans Décenium Back-office, non encaissées sur ce quart.">ⓘ</span></div>
+        <span class="card-toggle-total" id="v_apercu_factures">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="note" id="aideFacturesDifferees" hidden>Ventes facturées dans Décenium Back-office, non encaissées sur ce quart.</div>
+      <div class="card-body">
+        <div class="note">Ventes facturées dans Décenium Back-office, non encaissées sur ce quart. Une ligne par facture : montant, client, numéro de facture et justificatif. Cochez la présence seulement après avoir vérifié que la facture figure dans la vente boutique Décenium de ce quart — sinon elle reste « à vérifier » et ne change pas l'écart. À la piste, le pupitre prime : rien à saisir ici.</div>
+        <div id="facturesDiffereesListe"></div>
+        <button type="button" class="btn-add" id="btnAddFactureDifferee">+ Ajouter une facture</button>
+        <div class="total-ligne">Confirmées : <span id="totalFacturesConfirmees">0,00 €</span> · À vérifier : <span id="totalFacturesAVerifier">0,00 €</span></div>
+      </div>
+    </div>
+
     <div class="card card-collapsible" id="cardDepenses">
       <div class="card-toggle" data-toggle="cardDepenses">
         <div class="card-toggle-label">Dépenses ponctuelles / Règlements fournisseurs</div>
@@ -864,6 +897,15 @@
 
   // Langage NEXUS — explique le constat avant d'alerter, distingue le fait
   // de l'hypothese, ne accuse jamais. Cf. annexe langage NEXUS.
+  // B8 (§3) : ce que les régularisations ont ajouté à l'attendu du tiroir,
+  // par mode ; rien quand aucune opération ne le touche.
+  function ligneRegularisations(lu) {
+    const phrase = NexusVerifyMoteur.phraseRegularisationsTiroir(lu);
+    if (!phrase) return '';
+    const net = lu.net;
+    return `<div class="resume-line regularisations-tiroir" style="margin:6px 0 0;">Régularisations comprises dans l'attendu : <b>${net >= 0 ? '+' : ''}${net.toFixed(2).replace('.', ',')} €</b> (${NexusVerifyMoteur.echapperHtml(phrase)})</div>`;
+  }
+
   function phraseComposant(nom, ecart) {
     const abs = Math.abs(ecart);
     if (abs <= 2) return `${nom} : conforme.`;
@@ -881,6 +923,14 @@
     // Sans fuseau résolu, on n'affiche pas une heure fausse — on n'affiche rien.
     if (!FUSEAU_STATION) return '—';
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
+  }
+
+  // Même règle pour une date (B5, 08/10/2026) : jour de la station, ou rien.
+  function fmtDateFuseau(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || !FUSEAU_STATION) return '—';
+    return d.toLocaleDateString('fr-FR', { timeZone: FUSEAU_STATION });
   }
 
   // ------------------------------------------------------------
@@ -1230,16 +1280,22 @@
       zone.innerHTML = `
         <div class="histo-versions-titre">Historique des modifications</div>
         <button type="button" class="btn-annuler-derniere" data-idx="${i}">↩️ Annuler la dernière modification</button>
-        ${timeline.map(v => `
+        ${timeline.map((v, k) => {
+          // Chaque version est l'état AVANT son action : l'état qui l'a
+          // suivie est la version plus récente, ou l'audit actuel.
+          const diff = NexusVerifyMoteur.diffEcartsVersion(v.valeurs, k === 0 ? a : timeline[k - 1].valeurs);
+          const fmt = (x) => x == null ? '—' : NexusVerifyMoteur.formatEuroSigne(x);
+          return `
           <div class="histo-version-item">
             <div class="histo-version-top">
               <span class="histo-version-action">${v.libelleAction}</span>
               <span class="histo-version-instant">${new Date(v.instant).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div class="histo-version-auteur">${v.auteurNom}${v.motif ? ` — ${v.motif}` : ''}</div>
+            <div class="histo-version-auteur">${NexusVerifyMoteur.echapperHtml(v.auteurNom)}${v.motif ? ` — ${NexusVerifyMoteur.echapperHtml(v.motif)}` : ''}</div>
+            ${diff.map(d => `<div class="histo-version-diff">${d.libelle} : ${fmt(d.avant)} → ${fmt(d.apres)}</div>`).join('')}
             <button type="button" class="btn-restaurer-version" data-version-id="${v.id}" data-idx="${i}">Restaurer cet état →</button>
           </div>
-        `).join('')}
+        `; }).join('')}
       `;
 
       zone.querySelector('.btn-annuler-derniere').addEventListener('click', (e) => {
@@ -1277,7 +1333,8 @@
       const { error: eMaj } = await nexusClient.from('audits_caisse').update(patch).eq('id', auditId);
       if (eMaj) {
         console.error('Restauration audit — écriture:', eMaj);
-        alert('Erreur lors de la restauration — réessayez.');
+        const refusRegul = NexusVerifyMoteur.messageRegularisationsTiroir(eMaj.message);
+        alert(refusRegul ? 'Restauration refusée — ' + refusRegul : 'Erreur lors de la restauration — réessayez.');
         return;
       }
       VERSIONS_CHARGEES.delete(auditId);
@@ -2574,6 +2631,75 @@
       input.focus();
     });
 
+    // Factures différées boutique (B4) — voir la carte. `trace` porte les
+    // champs posés par le serveur (auteur, horodatages) pour les afficher
+    // en modification ; ils ne repartent jamais vers la base.
+    function ajouterLigneFactureDifferee(f) {
+      const conteneur = document.getElementById('facturesDiffereesListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-facture';
+      ligne.innerHTML = `
+        <input type="text" inputmode="decimal" class="montant-facture" placeholder="Montant" aria-label="Montant de la facture">
+        <input type="text" class="client-facture" placeholder="Client" aria-label="Client">
+        <input type="text" class="numero-facture" placeholder="N° de facture" aria-label="Numéro de facture" autocapitalize="characters">
+        <input type="text" class="justificatif-facture" placeholder="Justificatif" aria-label="Justificatif">
+        <button type="button" class="btn-remove" aria-label="Retirer la facture">✕</button>
+        <label class="presence-facture"><input type="checkbox" class="incluse-facture"> Présente dans la vente boutique Décenium de ce quart</label>
+        <div class="trace-facture"></div>
+        <div class="erreur-facture" hidden></div>`;
+      if (f) {
+        ligne.querySelector('.montant-facture').value = f.montant != null ? String(f.montant).replace('.', ',') : '';
+        ligne.querySelector('.client-facture').value = f.client || '';
+        ligne.querySelector('.numero-facture').value = f.numero_facture || '';
+        ligne.querySelector('.justificatif-facture').value = f.justificatif || '';
+        ligne.querySelector('.incluse-facture').checked = f.incluse_dans_ventes === true;
+        // Fuseau de la station seulement : sans lui, pas d'heure du tout
+        // plutôt que celle de l'appareil.
+        const quand = d => (d && FUSEAU_STATION) ? ' le ' + new Date(d).toLocaleString('fr-FR', { timeZone: FUSEAU_STATION }) : '';
+        if (f.saisie_le) {
+          ligne.querySelector('.trace-facture').textContent = 'Saisie' + quand(f.saisie_le)
+            + (f.modifie_le ? ' · modifiée' + quand(f.modifie_le) : '');
+        }
+      }
+      conteneur.appendChild(ligne);
+      ligne.querySelectorAll('input').forEach(el => el.addEventListener('input', () => majTotauxListes()));
+      ligne.querySelector('.incluse-facture').addEventListener('change', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return ligne.querySelector('.montant-facture');
+    }
+    document.getElementById('btnAddFactureDifferee').addEventListener('click', () => {
+      const input = ajouterLigneFactureDifferee();
+      majTotauxListes();
+      input.focus();
+    });
+    document.querySelectorAll('.aide-info').forEach(el => {
+      const basculer = (e) => {
+        e.preventDefault(); e.stopPropagation(); // ne replie pas la carte
+        const aide = document.getElementById(el.getAttribute('aria-controls'));
+        if (aide) aide.hidden = !aide.hidden;
+      };
+      el.addEventListener('click', basculer);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') basculer(e); });
+    });
+    // Lignes saisies, lignes entièrement vides écartées (une ligne ajoutée
+    // puis laissée vide n'est pas une facture).
+    function lireFacturesDifferees() {
+      const lignes = [];
+      document.querySelectorAll('#facturesDiffereesListe .ligne-facture').forEach(el => {
+        const brut = el.querySelector('.montant-facture').value.trim();
+        const client = el.querySelector('.client-facture').value.trim();
+        const numero_facture = el.querySelector('.numero-facture').value.trim();
+        const justificatif = el.querySelector('.justificatif-facture').value.trim();
+        if (!brut && !client && !numero_facture && !justificatif) return;
+        lignes.push({
+          numero_facture, client, justificatif: justificatif || null,
+          montant: brut ? numFR(brut) : null,
+          incluse_dans_ventes: el.querySelector('.incluse-facture').checked,
+        });
+      });
+      return lignes;
+    }
+
     function sommeBons() {
       const conteneur = document.getElementById('bonsPisteListe');
       let total = 0;
@@ -2633,6 +2759,12 @@
       document.getElementById('totalReglementBoutique').textContent = reglementBoutique.toFixed(2).replace('.', ',') + ' €';
       const apercuReglement = document.getElementById('v_apercu_reglement');
       if (apercuReglement) apercuReglement.textContent = (reglementPiste + reglementBoutique).toFixed(2).replace('.', ',') + ' €';
+
+      const factures = NexusVerifyMoteur.controlerFacturesDifferees(lireFacturesDifferees(), 0);
+      document.getElementById('totalFacturesConfirmees').textContent = factures.confirme.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalFacturesAVerifier').textContent = factures.aVerifier.toFixed(2).replace('.', ',') + ' €';
+      const apercuFactures = document.getElementById('v_apercu_factures');
+      if (apercuFactures) apercuFactures.textContent = (factures.confirme + factures.aVerifier).toFixed(2).replace('.', ',') + ' €';
     }
 
     // Réinitialisation complète du formulaire "Nouvel audit" (13/08/2026,
@@ -2665,12 +2797,13 @@
       document.getElementById('vacataireListe').innerHTML = ''; ajouterLigneVacataire();
       document.getElementById('carteFideliteListe').innerHTML = ''; ajouterLigneCarteFidelite();
       document.getElementById('reglementCompteListe').innerHTML = ''; ajouterLigneReglementCompte();
+      document.getElementById('facturesDiffereesListe').innerHTML = ''; // aucune ligne par défaut : une facture différée est rare
       majTotauxListes();
 
       // Cartes repliables — repartent fermées, comme à l'arrivée sur un
       // formulaire vierge (voir prefillFormPourModification, qui les rouvre
       // au contraire quand la donnée existe réellement).
-      ['cardReglementCompte', 'cardDepenses', 'cardCuve', 'cardAutres'].forEach(id => {
+      ['cardReglementCompte', 'cardFacturesDifferees', 'cardDepenses', 'cardCuve', 'cardAutres'].forEach(id => {
         const c = document.getElementById(id); if (c) c.classList.remove('open');
       });
       majAffichageCuve();
@@ -2852,6 +2985,34 @@
       const drop_boutique_chq = v('v_drop_boutique_chq'), drop_boutique_cb = v('v_drop_boutique_cb');
       const depense_boutique = sommeDepenses('boutique');
 
+      // Factures différées (B4) — contrôlées ici avec les règles du serveur,
+      // pour un refus explicite avant d'écrire. Seules les confirmées
+      // expliquent la vente boutique ; les « à vérifier » ne changent rien.
+      const facturesDifferees = NexusVerifyMoteur.controlerFacturesDifferees(lireFacturesDifferees(), vente_boutique);
+      if (facturesDifferees.erreurs.length) {
+        alert('Factures différées : ' + [...new Set(facturesDifferees.erreurs.map(e => NexusVerifyMoteur.messageFactureDifferee(e.code)))].join(' '));
+        const c = document.getElementById('cardFacturesDifferees'); if (c) c.classList.add('open');
+        return;
+      }
+      const factures_differees_boutique = facturesDifferees.confirme;
+
+      // Régularisations du tiroir (08/10/2026, mandat consolidé §3, B8) —
+      // un versement de régularisation reçu dans le tiroir de ce quart y
+      // est physiquement : il augmente l'attendu ; une restitution payée ou
+      // un transfert vers le coffre en sort : il le diminue. Le net vient du
+      // serveur (regularisations_tiroirs), jamais d'un calcul de l'écran ;
+      // s'il est illisible, rien n'est enregistré plutôt que de supposer 0.
+      const { data: regulTiroirs, error: eRegul } = await nexusClient.rpc('regularisations_tiroirs', { p_site: SITE_ACTUEL, p_date: date, p_quart: quart });
+      const regulPiste = eRegul ? null : NexusVerifyMoteur.lireRegularisationsTiroir(regulTiroirs && regulTiroirs.tiroir_verify_piste);
+      const regulBoutique = eRegul ? null : NexusVerifyMoteur.lireRegularisationsTiroir(regulTiroirs && regulTiroirs.tiroir_verify_boutique);
+      if (!regulPiste || !regulBoutique) {
+        console.error('Régularisations du tiroir — lecture:', eRegul || regulTiroirs);
+        const raison = eRegul ? (NexusVerifyMoteur.messageRegularisationsTiroir(eRegul.message) || eRegul.message) : 'réponse incomplète du serveur.';
+        alert("Impossible de lire les régularisations du tiroir (versements, restitutions, transferts au coffre) — rien n'a été enregistré. " + raison);
+        return;
+      }
+      const regularisations_piste = regulPiste.net, regularisations_boutique = regulBoutique.net;
+
       // Paiement vacataire / heures supplementaires en especes — sort
       // physiquement d'une caisse (piste ou boutique, choisi a chaque
       // audit), donc s'ajoute a l'explique de cette caisse, comme une
@@ -2881,7 +3042,9 @@
       // piste pour solder une facture d'un mois anterieur, jamais compte dans
       // vente_piste (deja comptabilisee le mois precedent) — meme logique
       // que reglement_compte_anterieur_boutique, symetrique en piste.
-      const attenduPiste = vente_piste - transfert - remise_cuve + reglement_compte_anterieur_piste;
+      // regularisations_piste : net des régularisations du tiroir piste de
+      // ce quart (B8), lu plus haut sur le serveur.
+      const attenduPiste = vente_piste - transfert - remise_cuve + reglement_compte_anterieur_piste + regularisations_piste;
       const ecart_piste = expliquePiste - attenduPiste;
 
       // Boutique : compare a Decenium. Le meme transfert s'ajoute ici,
@@ -2902,8 +3065,8 @@
       // compte client boutique ci-dessus : celui-la concerne une vente a
       // credit DU JOUR MEME, deja incluse par Decenium dans vente_boutique.)
       const expliqueBoutique = drop_boutique_billets + drop_boutique_pieces + drop_boutique_chq + drop_boutique_cb
-        + depense_boutique + vacataire_boutique;
-      const attenduBoutique = vente_boutique + transfert + reglement_compte_anterieur_boutique;
+        + depense_boutique + vacataire_boutique + factures_differees_boutique;
+      const attenduBoutique = vente_boutique + transfert + reglement_compte_anterieur_boutique + regularisations_boutique;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
       const ecart_total = ecart_piste + ecart_boutique;
@@ -2956,8 +3119,41 @@
         .eq('site', SITE_ACTUEL).eq('date', date).eq('quart', quart).maybeSingle();
       const ecart_piste_origine = (auditExistant && auditExistant.ecart_piste_origine != null) ? auditExistant.ecart_piste_origine : ecart_piste;
       const ecart_boutique_origine = (auditExistant && auditExistant.ecart_boutique_origine != null) ? auditExistant.ecart_boutique_origine : ecart_boutique;
+      // 08/10/2026 (décision de Frédéric : « Conserver les écarts d'origine
+      // et les validations manuelles ») — modifier un audit déjà validé
+      // réaligne l'écart validé quand le manager avait accepté le calcul, et
+      // conserve (en le signalant) celui qu'il avait saisi à la main. Voir
+      // NexusVerifyMoteur.reconcilierValidationApresModification. Un motif
+      // est exigé : il est porté par la version 'modification'.
+      let reconciliation = { patch: {}, caisses: {}, signalements: [] };
+      let motifModification = null;
+      if (auditExistant && NexusVerifyMoteur.auditEstValide(auditExistant)) {
+        const { data: versionsAudit, error: eVersions } = await nexusClient.from('audits_caisse_versions')
+          .select('action, created_at, valeurs').eq('audit_id', auditExistant.id);
+        if (eVersions) {
+          console.error('Modification audit validé — lecture des versions:', eVersions);
+          btn.disabled = false; btn.textContent = 'Calculer et enregistrer';
+          box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">Impossible de lire l'historique de cet audit validé — rien n'a été enregistré. Réessayez.</div></div>`;
+          return;
+        }
+        reconciliation = NexusVerifyMoteur.reconcilierValidationApresModification(
+          auditExistant,
+          { piste: ecart_piste, boutique: ecart_boutique },
+          { brutAuValidation: {
+            piste: NexusVerifyMoteur.brutAuDerniereValidation(versionsAudit, 'piste'),
+            boutique: NexusVerifyMoteur.brutAuDerniereValidation(versionsAudit, 'boutique'),
+          } });
+        const apercu = reconciliation.signalements.map(NexusVerifyMoteur.libelleSignalementValidation).join('\n');
+        motifModification = prompt(`Cet audit est déjà validé. Motif de la modification (obligatoire) :${apercu ? '\n\n' + apercu : ''}`, '');
+        if (motifModification === null || !motifModification.trim()) {
+          btn.disabled = false; btn.textContent = 'Calculer et enregistrer';
+          box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--amber);">Modification non enregistrée : un motif est requis pour modifier un audit déjà validé.</div></div>`;
+          return;
+        }
+        motifModification = motifModification.trim();
+      }
       if (auditExistant) {
-        await snapshotAuditAvantEcriture(auditExistant, 'modification', null);
+        await snapshotAuditAvantEcriture(auditExistant, 'modification', motifModification);
       }
 
       const { error } = await nexusClient.from('audits_caisse').upsert({
@@ -2989,8 +3185,15 @@
         clients_compte_boutique: 0, depense_ponctuelle_boutique: depense_boutique,
         paiement_vacataire_piste: vacataire_piste, paiement_vacataire_boutique: vacataire_boutique,
         remise_cuve, remise_cuve_detail,
+        // Le serveur recalcule factures_differees_boutique : on n'envoie
+        // que les lignes, jamais la somme ni l'auteur.
+        factures_differees: facturesDifferees.lignes,
+        // B8 : la valeur ajoutée à l'attendu ; le serveur la refuse
+        // [REGULARISATIONS_PERIMEES] si une opération est arrivée depuis.
+        regularisations_piste, regularisations_boutique,
         ecart_piste, ecart_boutique, ecart_total,
         ecart_piste_origine, ecart_boutique_origine,
+        ...reconciliation.patch,
         employes_piste: [...employesSelectionnes.piste], employes_boutique: [...employesSelectionnes.boutique],
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
@@ -2999,7 +3202,11 @@
 
       if (error) {
         console.error('Enregistrement audit caisse:', error);
-        box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">Erreur d'enregistrement — réessayez.</div></div>`;
+        // Un refus métier (facture déjà saisie ailleurs…) se dit tel quel :
+        // « réessayez » ferait rejouer la même saisie refusée.
+        const refusFacture = NexusVerifyMoteur.messageFactureDifferee(error.message)
+          || NexusVerifyMoteur.messageRegularisationsTiroir(error.message);
+        box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">${refusFacture ? 'Enregistrement refusé — ' + NexusVerifyMoteur.echapperHtml(refusFacture) : "Erreur d'enregistrement — réessayez."}</div></div>`;
         return;
       }
 
@@ -3024,9 +3231,14 @@
         ? `<div class="resume-line" style="color:var(--amber); margin-bottom:12px;"><b>⚠ À vérifier</b> — normalement toujours renseigné(s), actuellement à 0 : ${champsManquants.join(', ')}. Enregistré quand même, mais vérifie qu'il ne s'agit pas d'un oubli de saisie.</div>`
         : '';
 
+      const alerteValidationHtml = reconciliation.signalements.length
+        ? `<div class="resume-line alerte-validation-modifiee" style="color:var(--amber); margin-bottom:12px;"><b>Audit déjà validé</b> — motif : ${NexusVerifyMoteur.echapperHtml(motifModification || '')}<br>${reconciliation.signalements.map(sg => NexusVerifyMoteur.echapperHtml(NexusVerifyMoteur.libelleSignalementValidation(sg))).join('<br>')}</div>`
+        : '';
+
       box.innerHTML = `
         <div class="resume-box">
           <div class="resume-line">Quart ${quart} du ${new Date(date + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>
+          ${alerteValidationHtml}
           ${alerteChampsHtml}
 
           <div class="ecart-bloc">
@@ -3036,6 +3248,7 @@
             </div>
             <div class="ecart-montant" style="color:${Math.abs(ecart_piste)<=2?'var(--green)':'var(--red)'};">${ecart_piste>=0?'+':''}${ecart_piste.toFixed(2)} €</div>
             <div class="resume-line" style="margin-bottom:0;">${phraseComposant('Caisse piste (vs pupitre)', ecart_piste)}</div>
+            ${ligneRegularisations(regulPiste)}
           </div>
 
           <div class="ecart-bloc" style="margin-bottom:0;">
@@ -3045,6 +3258,7 @@
             </div>
             <div class="ecart-montant" style="color:${Math.abs(ecart_boutique)<=2?'var(--green)':'var(--red)'};">${ecart_boutique>=0?'+':''}${ecart_boutique.toFixed(2)} €</div>
             <div class="resume-line" style="margin-bottom:0;">${phraseComposant('Caisse boutique (vs Decenium)', ecart_boutique)}</div>
+            ${ligneRegularisations(regulBoutique)}
           </div>
 
           <div class="resume-line">Présents piste : <b>${nomsEmployes([...employesSelectionnes.piste])}</b></div>
@@ -3103,8 +3317,16 @@
         const ecB = ecartEffectif(a, 'boutique');
         const stP = classifierEcart(Math.abs(ecP));
         const stB = classifierEcart(Math.abs(ecB));
-        const corrigePiste = a.ecart_piste_valide != null && Number(a.ecart_piste_valide) !== Number(a.ecart_piste);
-        const corrigeBoutique = a.ecart_boutique_valide != null && Number(a.ecart_boutique_valide) !== Number(a.ecart_boutique);
+        // 08/10/2026 — la mention dit désormais ce qui diffère : l'écart
+        // calculé quand le manager a retenu une autre valeur, et le constat
+        // initial (_origine) quand une modification l'a fait évoluer. Elle
+        // n'est plus déduite d'un validé figé que la modification n'avait
+        // pas suivi (défaut corrigé à l'enregistrement).
+        const mentionsHtml = (type) => {
+          const m = NexusVerifyMoteur.mentionsEcartCarte(a, type);
+          return (m.ecartCalcule != null ? `<div class="histo-ecart-corrige">Retenu par le manager · écart calculé : ${NexusVerifyMoteur.formatEuroSigne(m.ecartCalcule)}</div>` : '')
+            + (m.constatInitial != null ? `<div class="histo-ecart-corrige">Constat initial : ${NexusVerifyMoteur.formatEuroSigne(m.constatInitial)}</div>` : '');
+        };
         return `
         <div class="histo-item" data-idx="${i}" data-date="${a.date}" data-quart="${a.quart}">
           <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
@@ -3117,7 +3339,7 @@
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_piste)}</div>
               <div class="histo-ecart" style="color:${Math.abs(ecP)<=2?'var(--green)':'var(--red)'};">${ecP>=0?'+':''}${ecP.toFixed(2)} €</div>
-              ${corrigePiste ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_piste>=0?'+':''}${Number(a.ecart_piste).toFixed(2)} €</div>` : ''}
+              ${mentionsHtml('piste')}
             </div>
             <div class="histo-ecart-item">
               <div class="histo-ecart-top">
@@ -3126,7 +3348,7 @@
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_boutique)}</div>
               <div class="histo-ecart" style="color:${Math.abs(ecB)<=2?'var(--green)':'var(--red)'};">${ecB>=0?'+':''}${ecB.toFixed(2)} €</div>
-              ${corrigeBoutique ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_boutique>=0?'+':''}${Number(a.ecart_boutique).toFixed(2)} €</div>` : ''}
+              ${mentionsHtml('boutique')}
             </div>
           </div>
           <div class="histo-detail" id="detail-${i}">
@@ -3165,7 +3387,12 @@
       el.innerHTML = sectionATerminer + sectionClotures;
 
       el.querySelectorAll('.histo-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          // 08/10/2026 (mandat consolidé §5) : un clic dans le détail déplié
+          // (menu « Pourquoi cet écart ? », champ, bouton) remontait jusqu'ici
+          // et repliait la carte, rendant la validation de la piste
+          // impossible. Seul l'en-tête de la carte plie et déplie.
+          if (e.target.closest('.histo-detail')) return;
           const idx = item.dataset.idx;
           document.getElementById(`detail-${idx}`).classList.toggle('open');
           // v2.272 — chargement paresseux de l'historique des modifications
@@ -3265,6 +3492,22 @@
       const premiereValidationLe = a[`premiere_validation_le_${type}`];
       if (valideLe) {
         const ajuste = premiereValidationLe && new Date(premiereValidationLe).getTime() !== new Date(valideLe).getTime();
+        // 08/10/2026 (mandat consolidé §6, B5) : le serveur pose
+        // revalidation_requise_*_le quand le résultat d'une caisse validée
+        // change (trg_audits_caisse_revalidation, 20261008150000). Tant
+        // qu'un manager n'a pas validé de nouveau, la validation n'est plus
+        // affichée comme acquise et aucune régularisation n'est acceptée.
+        const revalidationLe = a[`revalidation_requise_${type}_le`];
+        if (revalidationLe) {
+          return `
+          <div class="validation-ligne alerte-revalidation">
+            <span style="color:var(--amber); font-weight:600;">⚠️ ${label} : résultat modifié après validation — nouvelle validation requise</span> (modifié le ${fmtDateFuseau(revalidationLe)} ; validation précédente le ${fmtDateFuseau(valideLe)} — ${nomAuteurValidation(a[`valide_par_${type}`])}).
+            <br>Aucun versement ni restitution n'est accepté sur cet écart avant la nouvelle validation.
+            <br><button type="button" class="btn-valider-audit" data-idx="${i}" data-type="${type}">✅ Valider de nouveau ${label}</button>
+          </div>
+          ${renderFormValidationCaisse(a, i, type)}
+        `;
+        }
         return `
           <div class="validation-ligne">
             <span class="validation-badge-ok">✅ ${label}${ajuste ? ' ajustée' : ' validée'}</span> le ${new Date(valideLe).toLocaleDateString('fr-FR')} — ${nomAuteurValidation(a[`valide_par_${type}`])}.
@@ -3314,7 +3557,7 @@
         return `
           <div class="motif-ecart-bloc" style="margin:10px 0; padding:10px; border-radius:8px; background:rgba(46,125,50,0.08);">
             <div style="font-size:13px; color:var(--green); margin-bottom:6px;">✅ Écart initial (${origineTxt}) corrigé après vérification — quelle est la cause ?</div>
-            <label>Pourquoi cet écart ?</label>
+            <label>Pourquoi cet écart ? <span style="font-weight:normal; color:var(--text2);">(facultatif)</span></label>
             <select id="causeCode-${type}-${i}">${optsHtml}</select>
           </div>
         `;
@@ -3399,11 +3642,10 @@
             const situation = NexusEcartsMoteur.situationVerificationEcart(ecartValide, ecartOrigine);
             if (situation === 'corrige_a_zero') {
               const selectCause = document.getElementById(`causeCode-${type}-${idx}`);
-              causeCode = selectCause ? selectCause.value : '';
-              if (!causeCode) {
-                alert('Merci d\'indiquer la cause de la correction avant de valider.');
-                return;
-              }
+              // 08/10/2026 (mandat consolidé §5) : un écart ramené à 0,00 €
+              // se valide sans motif artificiel. La cause reste proposée
+              // mais n'est plus exigée ; vide, elle n'est pas inventée.
+              causeCode = (selectCause && selectCause.value) || null;
             } else {
               causeCode = 'non_explique';
             }
@@ -3449,7 +3691,10 @@
           const { error } = await nexusClient.from('audits_caisse').update(patch).eq('id', a.id);
           if (error) {
             console.error('Validation audit caisse (par composante):', error);
-            alert('Erreur lors de la validation — réessayez.');
+            // B8 : une opération reçue depuis le calcul se dit telle quelle ;
+            // « réessayez » rejouerait la même validation refusée.
+            const refusRegul = NexusVerifyMoteur.messageRegularisationsTiroir(error.message);
+            alert(refusRegul ? 'Validation refusée — ' + refusRegul : 'Erreur lors de la validation — réessayez.');
             btn.disabled = false; btn.textContent = `Confirmer la validation ${label}`;
             return;
           }
@@ -3612,6 +3857,15 @@
       if (!a.reglement_compte_anterieur_piste && !a.reglement_compte_anterieur_boutique) ajouterLigneReglementCompte();
       if (a.reglement_compte_anterieur_piste || a.reglement_compte_anterieur_boutique) {
         const c = document.getElementById('cardReglementCompte'); if (c) c.classList.add('open');
+      }
+
+      // Factures différées (B4) — stockées ligne à ligne, reconstruites telles
+      // quelles avec leur trace serveur.
+      document.getElementById('facturesDiffereesListe').innerHTML = '';
+      const facturesExistantes = Array.isArray(a.factures_differees) ? a.factures_differees : [];
+      facturesExistantes.forEach(f => ajouterLigneFactureDifferee(f));
+      if (facturesExistantes.length) {
+        const c = document.getElementById('cardFacturesDifferees'); if (c) c.classList.add('open');
       }
 
       majTotauxListes();

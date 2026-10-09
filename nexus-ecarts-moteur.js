@@ -75,7 +75,7 @@
     return situationVerificationEcart(ecartFinal, ecartInitial) !== 'aucun_ecart';
   }
 
-  // Ajoute "Remboursement" à une liste de causes de base UNIQUEMENT si
+  // Ajoute le motif de code 'remboursement' à une liste de causes de base UNIQUEMENT si
   // l'écart initial était un MANQUE (négatif) — jamais pour un excédent.
   // Utilisé par chaque module (FDJ, Verify...) sur SA propre liste de
   // causes de base, qui reste spécifique au module (le vocabulaire des
@@ -83,7 +83,7 @@
   function ajouterRemboursementSiManque(causesBase, ecartInitial, labelRemboursement) {
     const liste = (causesBase || []).slice();
     if (typeof ecartInitial === 'number' && ecartInitial < 0) {
-      liste.push({ value: 'remboursement', label: labelRemboursement || 'Remboursement' });
+      liste.push({ value: 'remboursement', label: labelRemboursement || "Versement volontaire de régularisation d'un écart antérieur" });
     }
     return liste;
   }

@@ -28,6 +28,9 @@
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
 <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
+<!-- B8 (08/10/2026) : lecture des versements de régularisation d'un tiroir,
+     la même que Verify (Article 11). Module pur, sans accès Supabase. -->
+<script src="nexus-verify-moteur.js?v=20261008-b8"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
 <style>
@@ -447,7 +450,9 @@
   // de l'historique.
   const MOTIFS_ECART_FDJ = [
     { value: '', label: 'Choisir un motif…' },
-    { value: 'remboursement', label: 'Remboursement' },
+    // 08/10/2026, mandat §2 : même code, libellé arrêté par Frédéric (identique
+    // à NexusFdjMoteur.LABEL_MOTIF_VERSEMENT_REGULARISATION).
+    { value: 'remboursement', label: "Versement volontaire de régularisation d'un écart antérieur" },
     { value: 'erreur_saisie', label: 'Erreur de saisie' },
     { value: 'erreur_comptage', label: 'Erreur de comptage' },
     { value: 'erreur_montant_caisse', label: 'Erreur sur le montant de caisse' },
@@ -5057,6 +5062,8 @@
     // comprise (voir chargerStockInitialHerite — traité comme 0 ici, sans
     // confirmation contrairement à l'écran employé).
     await reprefillStockInitial();
+    edition.versementsRegul = await chargerVersementsTiroirFdj();
+    edition.versementsRegulIllisibles = !edition.versementsRegul;
     vue = 'edition';
     renderEdition();
   }
@@ -5190,6 +5197,8 @@
       // décident, à l'enregistrement, de la commande serveur employée.
       confirmeLe: cash ? (cash.confirme_le || null) : null,
       valideLe: cash ? (cash.valide_le || null) : null,
+      // B8 : net des versements retenu par le dernier calcul serveur.
+      versementsRegulRetenus: cash ? (cash.versements_regularisation || 0) : 0,
       employeeIdOrigine: shift.employee_id,
       motifTransfert: '',
       estNouveau: false,
@@ -5210,6 +5219,8 @@
     // du quart 2" — un stock initial déjà saisi par un employé n'est jamais
     // touché, seules les cases jamais remplies héritent automatiquement.
     await reprefillStockInitial();
+    edition.versementsRegul = await chargerVersementsTiroirFdj();
+    edition.versementsRegulIllisibles = !edition.versementsRegul;
     vue = 'edition';
     renderEdition();
   }
@@ -5241,7 +5252,33 @@
   }
   function ventesGrattageTotalEdition() { return NexusFdjMoteur.ventesGrattageTotal(jeux, edition.counts); }
   function caisseGrattageEdition() { return NexusFdjMoteur.caisseGrattage(ventesGrattageTotalEdition(), edition.lotsPayes); }
-  function caisseAttendueEdition() { return NexusFdjMoteur.caisseAttendue(caisseGrattageEdition(), edition.caisseTirages, edition.regularisations); }
+  // B8 (08/10/2026, §3) : l'attendu du tiroir FDJ comprend les versements
+  // de régularisation reçus (moins restitutions et transferts au coffre).
+  // Le serveur les ajoute de lui-même (fdj_calculer_caisse) ; l'écran les
+  // ajoute ici pour que la caisse affichée soit celle que le serveur établit.
+  function versementsRegulEdition() { return edition && edition.versementsRegul ? edition.versementsRegul.net : 0; }
+  function caisseAttendueEdition() {
+    const a = NexusFdjMoteur.caisseAttendue(caisseGrattageEdition(), edition.caisseTirages, edition.regularisations);
+    return a === null ? null : Math.round((a + versementsRegulEdition()) * 100) / 100;
+  }
+  // Lecture serveur du tiroir FDJ du quart édité. null quand la lecture
+  // échoue : l'écran ne suppose jamais 0 à la place du serveur.
+  async function chargerVersementsTiroirFdj() {
+    const { data, error } = await nexusClient.rpc('regularisations_tiroirs', { p_site: siteId, p_date: edition.date, p_quart: String(edition.quart) });
+    if (error) { console.error('Lecture des versements de régularisation (tiroir FDJ):', error); return null; }
+    return NexusVerifyMoteur.lireRegularisationsTiroir(data && data.tiroir_fdj);
+  }
+  function ligneVersementsRegulEdition() {
+    const lu = edition && edition.versementsRegul;
+    if (!lu) {
+      return edition && edition.versementsRegulIllisibles
+        ? `<div class="stat-row"><div class="stat-label">Versements de régularisation</div><div class="stat-value amber">illisibles</div></div>`
+        : '';
+    }
+    if (!lu.net && !lu.modes.length) return '';
+    const phrase = NexusVerifyMoteur.phraseRegularisationsTiroir(lu);
+    return `<div class="stat-row"><div class="stat-label">Versements de régularisation${phrase ? `<br><span style="color:var(--text-dim);font-size:11px;">${NexusVerifyMoteur.echapperHtml(phrase)}</span>` : ''}</div><div class="stat-value">${lu.net > 0 ? '+' : ''}${fmtEuro(lu.net)}</div></div>`;
+  }
   function ecartCaisseEdition() { return NexusFdjMoteur.ecartCaisse(edition.caisseReelle, caisseAttendueEdition()); }
   // Ventes négatives = anomalie (09/08/2026, demande de Frédéric) — même
   // règle que côté employé : jamais corrigée toute seule, juste signalée.
@@ -5345,6 +5382,7 @@
       <div class="resume-card">
         <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
+        ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
         <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
       </div>
@@ -5561,6 +5599,7 @@
       resume.innerHTML = `
         <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
+        ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
         <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
       `;
@@ -6086,10 +6125,21 @@
       const { error: eOuv } = await nexusClient.rpc('fdj_ouvrir_controle_caisse', { p_shift_id: shift.id });
       if (eOuv) { console.error('Prise en contrôle caisse FDJ:', eOuv); echecCaisse('La prise en contr\u00f4le a \u00e9t\u00e9 refus\u00e9e : ' + (eOuv.message || 'raison inconnue')); return; }
 
-      if (montantsCaisseModifies()) {
+      // B8 : un versement reçu sur le tiroir depuis le dernier calcul
+      // ferait refuser la validation [REGULARISATIONS_PERIMEES] —
+      // fdj_valider_caisse ne recalcule pas. On relit le tiroir et, s'il a
+      // bougé, la correction manager recalcule d'abord, motif à l'appui.
+      const versementsLus = await chargerVersementsTiroirFdj();
+      if (!versementsLus) { echecCaisse("Impossible de lire les versements de r\u00e9gularisation du tiroir FDJ \u2014 rien n'a \u00e9t\u00e9 valid\u00e9. R\u00e9essayez."); return; }
+      const versementsARecalculer = NexusVerifyMoteur.regularisationsARecalculer(edition.versementsRegulRetenus, versementsLus);
+      edition.versementsRegul = versementsLus;
+      if (montantsCaisseModifies() || versementsARecalculer) {
+        const motifRecalcul = versementsARecalculer
+          ? `${motifCaisseManager()} \u2014 recalcul : versements de r\u00e9gularisation du tiroir ${fmtEuro(versementsLus.net)} (calcul pr\u00e9c\u00e9dent ${fmtEuro(edition.versementsRegulRetenus)})`
+          : motifCaisseManager();
         const { data: rCorr, error: eCorr } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
           p_shift_id: shift.id,
-          p_motif: motifCaisseManager(),
+          p_motif: motifRecalcul,
           p_caisse_reelle: edition.caisseReelle,
           p_regularisations: edition.regularisations || 0,
           p_commentaire: edition.motifEcartTexte || null,
@@ -6104,7 +6154,7 @@
         p_motif_interne: edition.motifEcartTexte || null,
         p_motif_ecart: edition.motifEcart || '',
       });
-      if (eVal) { console.error('Validation caisse FDJ:', eVal); echecCaisse('La validation a \u00e9t\u00e9 refus\u00e9e : ' + (eVal.message || 'raison inconnue')); return; }
+      if (eVal) { console.error('Validation caisse FDJ:', eVal); echecCaisse('La validation a \u00e9t\u00e9 refus\u00e9e : ' + (NexusVerifyMoteur.messageRegularisationsTiroir(eVal.message, NexusVerifyMoteur.MESSAGES_REGULARISATIONS_FDJ) || eVal.message || 'raison inconnue')); return; }
       if (rVal && rVal.valide === false) { echecCaisse('Caisse non valid\u00e9e : ' + (rVal.message || rVal.motif)); return; }
     } else {
       // C) La caisse est validée. `fdj_valider_caisse` est alors IDEMPOTENTE :

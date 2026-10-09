@@ -125,14 +125,18 @@
     { value: 'erreur_montant_caisse', label: 'Erreur sur le montant caisse' },
     { value: 'vente_non_enregistree', label: 'Vente ou article non enregistré' },
   ];
+  // 08/10/2026 : « remboursement » seul se confondait avec le versement de
+  // régularisation d'un employé ; ce motif désigne un remboursement fait à
+  // un client et oublié en caisse. La valeur stockée ne change pas.
+  const LABEL_REMBOURSEMENT_CLIENT = 'Remboursement client non saisi';
   function motifsEcartCorrigeDisponiblesVerify(ecartInitial) {
     const base = [{ value: '', label: 'Choisir un motif…' }, ...MOTIFS_ECART_CORRIGE_VERIFY];
     return global.NexusEcartsMoteur
-      ? global.NexusEcartsMoteur.ajouterRemboursementSiManque(base, ecartInitial)
-      : (typeof ecartInitial === 'number' && ecartInitial < 0 ? [...base, { value: 'remboursement', label: 'Remboursement' }] : base);
+      ? global.NexusEcartsMoteur.ajouterRemboursementSiManque(base, ecartInitial, LABEL_REMBOURSEMENT_CLIENT)
+      : (typeof ecartInitial === 'number' && ecartInitial < 0 ? [...base, { value: 'remboursement', label: LABEL_REMBOURSEMENT_CLIENT }] : base);
   }
   function labelMotifEcartVerify(v) {
-    if (v === 'remboursement') return 'Remboursement';
+    if (v === 'remboursement') return LABEL_REMBOURSEMENT_CLIENT;
     if (v === 'non_explique') return 'Origine non identifiée';
     const m = MOTIFS_ECART_CORRIGE_VERIFY.find(x => x.value === v);
     return m ? m.label : (v || '—');
@@ -270,10 +274,337 @@
     return { bloquer: alertes.length > 0, alertes };
   }
 
+  // ------------------------------------------------------------
+  // Modification d'un audit déjà validé (08/10/2026, décision de Frédéric :
+  // « Conserver les écarts d'origine et les validations manuelles »).
+  //
+  // Défaut corrigé : l'upsert de modification recalculait ecart_piste /
+  // ecart_boutique mais jamais ecart_*_valide. Or tout NEXUS lit « validé,
+  // sinon brut » : l'ancien écart validé masquait le nouveau calcul, et la
+  // carte affichait « corrigé » alors que personne n'avait corrigé.
+  //
+  // Règle, caisse par caisse :
+  //  - pas d'écart validé → rien à réaligner ;
+  //  - écart validé égal (au centime) au brut AU MOMENT DE LA VALIDATION →
+  //    le manager avait accepté le calcul : on suit le nouveau calcul ;
+  //  - sinon c'est une validation manuelle (valeur saisie par le manager) :
+  //    elle est conservée telle quelle, et l'écart avec le recalcul est
+  //    signalé — jamais écrasé en silence.
+  // La référence « brut au moment de la validation » vient de la dernière
+  // version validation_* (audits_caisse_versions.valeurs = état AVANT
+  // l'écriture, donc le brut sur lequel le manager a statué). À défaut
+  // (validation antérieure au versionnement du 29/08, ou restauration
+  // postérieure), le brut actuel de la ligne sert de référence.
+  // ------------------------------------------------------------
+  const CAISSES_AUDIT = ['piste', 'boutique'];
+
+  function centimes(x) {
+    if (x === null || x === undefined || x === '') return null;
+    const n = Number(x);
+    return Number.isFinite(n) ? Math.round(n * 100) : null;
+  }
+
+  /**
+   * brutAuDerniereValidation(versions, type) — fonction pure. Écart brut
+   * de la caisse `type` sur lequel la dernière validation a statué, ou
+   * null s'il n'est pas déterminable. Une restauration plus récente que la
+   * dernière validation rend la référence indéterminable (l'état restauré
+   * n'est pas dans le snapshot de restauration).
+   */
+  function brutAuDerniereValidation(versions, type) {
+    const tri = [...(versions || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    for (const v of tri) {
+      if (v.action === 'restauration') return null;
+      if (v.action === `validation_${type}` || (v.action && v.action.indexOf('validation_') === 0)) {
+        const brut = v.valeurs ? v.valeurs[`ecart_${type}`] : null;
+        // Validation de l'AUTRE caisse : elle n'a posé l'écart validé de
+        // cette caisse que s'il n'existait pas encore (recopie du brut).
+        if (v.action !== `validation_${type}` && v.valeurs && v.valeurs[`ecart_${type}_valide`] != null) continue;
+        return centimes(brut) === null ? null : Number(brut);
+      }
+    }
+    return null;
+  }
+
+  function auditEstValide(audit) {
+    return !!(audit && (audit.valide_le || audit.valide_le_piste || audit.valide_le_boutique
+      || audit.ecart_piste_valide != null || audit.ecart_boutique_valide != null));
+  }
+
+  /**
+   * reconcilierValidationApresModification(auditExistant, nouveauxEcarts, ctx)
+   * — fonction pure. `nouveauxEcarts` : { piste, boutique } recalculés.
+   * `ctx.brutAuValidation` : { piste, boutique } (brutAuDerniereValidation).
+   * Retourne { patch, caisses, signalements } : `patch` ne contient que les
+   * ecart_*_valide à réécrire (jamais les champs _origine, jamais valide_le).
+   * Etats : non_validee | inchangee | realignee | manuelle_conservee.
+   */
+  function reconcilierValidationApresModification(auditExistant, nouveauxEcarts, ctx) {
+    const patch = {};
+    const caisses = {};
+    const signalements = [];
+    const refs = (ctx && ctx.brutAuValidation) || {};
+    CAISSES_AUDIT.forEach(type => {
+      const brutApres = Number(nouveauxEcarts[type]);
+      const valideAvant = auditExistant ? auditExistant[`ecart_${type}_valide`] : null;
+      if (valideAvant === null || valideAvant === undefined) {
+        caisses[type] = { etat: 'non_validee', valideAvant: null, valideApres: null, brutApres };
+        return;
+      }
+      // La validation suit le calcul si elle vaut le brut sur lequel la
+      // dernière validation a statué, OU le brut actuel : après un premier
+      // réalignement, validé = brut courant, mais ≠ brut de la validation
+      // d'origine — sans ce second critère, la 2e modification d'un audit
+      // le prendrait pour une saisie manuelle et le figerait.
+      const brutAvant = auditExistant[`ecart_${type}`];
+      const ref = centimes(refs[type]) !== null ? refs[type] : brutAvant;
+      const manuelle = centimes(valideAvant) !== centimes(ref) && centimes(valideAvant) !== centimes(brutAvant);
+      if (manuelle) {
+        caisses[type] = { etat: 'manuelle_conservee', valideAvant: Number(valideAvant), valideApres: Number(valideAvant), brutApres, reference: Number(ref) };
+        if (centimes(valideAvant) !== centimes(brutApres)) {
+          signalements.push({ caisse: type, code: 'validation_manuelle_conservee', valide: Number(valideAvant), recalcul: brutApres });
+        }
+        return;
+      }
+      patch[`ecart_${type}_valide`] = brutApres;
+      const change = centimes(valideAvant) !== centimes(brutApres);
+      caisses[type] = { etat: change ? 'realignee' : 'inchangee', valideAvant: Number(valideAvant), valideApres: brutApres, brutApres, reference: Number(ref) };
+      if (change) signalements.push({ caisse: type, code: 'validation_realignee', avant: Number(valideAvant), apres: brutApres });
+    });
+    return { patch, caisses, signalements };
+  }
+
+  function echapperHtml(x) {
+    return String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function formatEuroSigne(x) {
+    const n = Number(x);
+    return `${n >= 0 ? '+' : ''}${n.toFixed(2).replace('.', ',')} €`;
+  }
+
+  function libelleSignalementValidation(s) {
+    const caisse = s.caisse === 'piste' ? 'Piste' : 'Boutique';
+    if (s.code === 'validation_realignee') {
+      return `${caisse} : écart validé recalculé ${formatEuroSigne(s.avant)} → ${formatEuroSigne(s.apres)}. La validation portait sur le calcul : le résultat ayant changé, un manager doit la valider de nouveau avant toute régularisation.`;
+    }
+    if (s.code === 'validation_manuelle_conservee') {
+      return `${caisse} : validation manuelle conservée à ${formatEuroSigne(s.valide)} — le recalcul donne ${formatEuroSigne(s.recalcul)}. Le calcul ayant changé, un manager doit valider de nouveau cette caisse avant toute régularisation.`;
+    }
+    return `${caisse} : ${s.code}`;
+  }
+
+  /**
+   * mentionsEcartCarte(audit, type) — fonction pure de présentation. Ne
+   * déduit plus « corrigé » d'une simple différence validé/brut sans dire
+   * laquelle : expose l'écart qui compte, l'écart calculé quand le manager
+   * a retenu autre chose, et le constat initial (_origine) quand une
+   * modification l'a fait évoluer.
+   */
+  function mentionsEcartCarte(audit, type) {
+    const brut = audit[`ecart_${type}`];
+    const valide = audit[`ecart_${type}_valide`];
+    const origine = audit[`ecart_${type}_origine`];
+    const effectif = valide != null ? Number(valide) : Number(brut);
+    const retenuManuellement = valide != null && centimes(valide) !== centimes(brut);
+    const origineDistincte = origine != null && centimes(origine) !== centimes(brut) && centimes(origine) !== centimes(effectif);
+    return {
+      effectif,
+      retenuManuellement,
+      ecartCalcule: retenuManuellement ? Number(brut) : null,
+      constatInitial: origineDistincte ? Number(origine) : null,
+    };
+  }
+
+  const CHAMPS_DIFF_VERSION = [
+    ['ecart_piste', 'Écart piste calculé'],
+    ['ecart_boutique', 'Écart boutique calculé'],
+    ['ecart_piste_valide', 'Écart piste validé'],
+    ['ecart_boutique_valide', 'Écart boutique validé'],
+  ];
+
+  /**
+   * diffEcartsVersion(avant, apres) — fonction pure. Écarts qui ont changé
+   * entre deux états d'un audit (l'état avant une action et l'état qui l'a
+   * suivie), au centime près.
+   */
+  function diffEcartsVersion(avant, apres) {
+    if (!avant || !apres) return [];
+    return CHAMPS_DIFF_VERSION
+      .filter(([c]) => centimes(avant[c]) !== centimes(apres[c]))
+      .map(([c, libelle]) => ({ champ: c, libelle, avant: avant[c] == null ? null : Number(avant[c]), apres: apres[c] == null ? null : Number(apres[c]) }));
+  }
+
+  // ------------------------------------------------------------
+  // Factures différées en Boutique (mandat consolidé §4, B4) : ventes
+  // facturées dans Décenium Back-office, non encaissées sur ce quart. Le
+  // serveur (trg_audits_caisse_factures_differees) refait ces contrôles et
+  // recalcule la somme ; l'écran ne fait que prévenir avant d'envoyer.
+  // Pas de soustraction automatique : seule une facture dont le manager a
+  // confirmé la présence dans la vente boutique du quart entre dans l'écart.
+  // ------------------------------------------------------------
+  const MESSAGES_FACTURES_DIFFEREES = {
+    FACTURES_FORMAT: 'Les factures différées sont mal formées.',
+    FACTURE_MONTANT_INVALIDE: 'Montant de facture différée invalide : un montant positif, au centime.',
+    FACTURE_CLIENT_REQUIS: 'Indiquez le client de chaque facture différée.',
+    FACTURE_NUMERO_REQUIS: 'Indiquez le numéro de chaque facture différée.',
+    FACTURE_PRESENCE_NON_DITE: 'Indiquez si chaque facture figure dans la vente boutique Décenium du quart.',
+    FACTURE_EN_DOUBLE: 'La même facture est saisie deux fois sur ce quart.',
+    FACTURE_DEJA_SAISIE: 'Cette facture est déjà saisie sur un autre quart de la station.',
+    FACTURES_SUPERIEURES_VENTES: 'Les factures différées confirmées dépassent la vente boutique du quart.',
+  };
+
+  /**
+   * controlerFacturesDifferees(lignes, venteBoutique) — fonction pure.
+   * `lignes` : [{ montant, client, numero_facture, justificatif,
+   * incluse_dans_ventes }]. Rend { lignes (normalisées), confirme,
+   * aVerifier, erreurs: [{ code, index }] } avec les mêmes règles et les
+   * mêmes codes que le serveur. Les montants sont en euros, calculés au
+   * centime.
+   */
+  function controlerFacturesDifferees(lignes, venteBoutique) {
+    const erreurs = [];
+    const vus = new Set();
+    let confirme = 0, aVerifier = 0;
+    const sortie = (lignes || []).map((l, index) => {
+      const c = centimes(l && l.montant);
+      const montant = c == null ? null : c / 100;
+      const exact = c != null && Math.abs(Number(l.montant) * 100 - c) < 1e-6;
+      if (c == null || c <= 0 || !exact) erreurs.push({ code: 'FACTURE_MONTANT_INVALIDE', index });
+      const client = String((l && l.client) || '').trim();
+      if (!client) erreurs.push({ code: 'FACTURE_CLIENT_REQUIS', index });
+      const numero = String((l && l.numero_facture) || '').trim().toUpperCase();
+      if (!numero) erreurs.push({ code: 'FACTURE_NUMERO_REQUIS', index });
+      else if (vus.has(numero)) erreurs.push({ code: 'FACTURE_EN_DOUBLE', index });
+      vus.add(numero);
+      const incluse = l ? l.incluse_dans_ventes : undefined;
+      if (typeof incluse !== 'boolean') erreurs.push({ code: 'FACTURE_PRESENCE_NON_DITE', index });
+      if (c != null && c > 0) { if (incluse === true) confirme += c; else aVerifier += c; }
+      const justificatif = String((l && l.justificatif) || '').trim() || null;
+      return { numero_facture: numero, montant, client, justificatif, incluse_dans_ventes: incluse };
+    });
+    if (confirme > (centimes(venteBoutique) || 0)) erreurs.push({ code: 'FACTURES_SUPERIEURES_VENTES', index: null });
+    return { lignes: sortie, confirme: confirme / 100, aVerifier: aVerifier / 100, erreurs };
+  }
+
+  /**
+   * messageFactureDifferee(texte) — fonction pure. Message explicite pour
+   * un code de refus (« FACTURE_DEJA_SAISIE ») ou un message serveur qui en
+   * porte un (« [FACTURE_DEJA_SAISIE] … ») ; null sinon.
+   */
+  function messageFactureDifferee(texte) {
+    const t = String(texte || '');
+    const code = Object.keys(MESSAGES_FACTURES_DIFFEREES)
+      .find(k => t === k || t.includes('[' + k + ']'));
+    return code ? MESSAGES_FACTURES_DIFFEREES[code] : null;
+  }
+
+  // ------------------------------------------------------------
+  // Régularisations reçues ou sorties par tiroir (mandat consolidé §3, B8).
+  // Le serveur (regularisations_tiroirs, migration 20261008160000) rend,
+  // pour le tiroir piste et le tiroir boutique d'un quart, le net des
+  // versements de régularisation reçus, moins les restitutions payées et
+  // les transferts vers le coffre, ventilé par mode. Ce net s'ajoute à
+  // l'attendu du tiroir ; l'écran envoie la valeur retenue
+  // (regularisations_piste / _boutique) et le serveur la refuse
+  // [REGULARISATIONS_PERIMEES] si elle n'est plus la sienne.
+  // ------------------------------------------------------------
+  const LIBELLES_MODE_REGULARISATION = {
+    especes: 'Espèces', carte_bancaire: 'Carte bancaire', cheque: 'Chèque',
+    virement: 'Virement', autre: 'Autre', sans_mode: 'Sans mode',
+  };
+
+  const MESSAGES_REGULARISATIONS = {
+    REGULARISATIONS_PERIMEES: "Un versement de régularisation, une restitution ou un transfert au coffre a été enregistré sur ce tiroir depuis le calcul de l'écart. Rouvrez l'audit, recalculez l'écart (« Calculer et enregistrer »), puis validez.",
+    QUART_INVALIDE: "La date et le quart (1 ou 2) sont obligatoires pour lire les régularisations du tiroir.",
+  };
+
+  // Même code serveur, autre écran : la caisse FDJ se recalcule par la
+  // correction manager, que FDJ Manager déclenche lui-même avant de valider.
+  const MESSAGES_REGULARISATIONS_FDJ = {
+    REGULARISATIONS_PERIMEES: "Un versement de régularisation, une restitution ou un transfert au coffre a été enregistré sur le tiroir FDJ depuis le dernier calcul de la caisse. Rechargez le quart puis enregistrez de nouveau : la caisse sera recalculée avant la validation.",
+    QUART_INVALIDE: MESSAGES_REGULARISATIONS.QUART_INVALIDE,
+  };
+
+  /**
+   * lireRegularisationsTiroir(detail) — fonction pure. `detail` est un
+   * élément rendu par regularisations_tiroirs ({ net, entrees, sorties,
+   * par_mode: { mode: { entrees, sorties, net } } }). Rend { net, entrees,
+   * sorties, modes: [{ mode, libelle, entrees, sorties, net }] } au centime,
+   * modes triés par libellé. Un détail absent ou mal formé rend null :
+   * l'écran ne doit jamais supposer 0 à la place du serveur.
+   */
+  function lireRegularisationsTiroir(detail) {
+    if (!detail || typeof detail !== 'object') return null;
+    const net = centimes(detail.net);
+    if (net == null) return null;
+    const parMode = detail.par_mode && typeof detail.par_mode === 'object' ? detail.par_mode : {};
+    const modes = Object.keys(parMode).map(mode => ({
+      mode,
+      libelle: LIBELLES_MODE_REGULARISATION[mode] || mode,
+      entrees: (centimes(parMode[mode] && parMode[mode].entrees) || 0) / 100,
+      sorties: (centimes(parMode[mode] && parMode[mode].sorties) || 0) / 100,
+      net: (centimes(parMode[mode] && parMode[mode].net) || 0) / 100,
+    })).sort((x, y) => x.libelle.localeCompare(y.libelle, 'fr'));
+    return {
+      net: net / 100,
+      entrees: (centimes(detail.entrees) || 0) / 100,
+      sorties: (centimes(detail.sorties) || 0) / 100,
+      modes,
+    };
+  }
+
+  /**
+   * phraseRegularisationsTiroir(lu) — fonction pure. Une ligne lisible :
+   * « Espèces : reçu 30,00 € ; Carte bancaire : reçu 20,00 €, sorti
+   * 5,00 € » ; null quand aucune opération ne touche le tiroir.
+   */
+  function phraseRegularisationsTiroir(lu) {
+    if (!lu || !lu.modes.length) return null;
+    const eur = x => x.toFixed(2).replace('.', ',') + ' €';
+    return lu.modes.map(m => {
+      const parts = [];
+      if (m.entrees) parts.push('reçu ' + eur(m.entrees));
+      if (m.sorties) parts.push('sorti ' + eur(m.sorties));
+      return `${m.libelle} : ${parts.join(', ') || eur(0)}`;
+    }).join(' ; ');
+  }
+
+  /**
+   * messageRegularisationsTiroir(texte) — fonction pure. Message explicite
+   * pour un code (« REGULARISATIONS_PERIMEES ») ou un message serveur qui en
+   * porte un ; null sinon.
+   */
+  function messageRegularisationsTiroir(texte, messages) {
+    const t = String(texte || '');
+    const table = messages || MESSAGES_REGULARISATIONS;
+    const code = Object.keys(table)
+      .find(k => t === k || t.includes('[' + k + ']'));
+    return code ? table[code] : null;
+  }
+
+  /**
+   * regularisationsARecalculer(retenu, lu) — fonction pure. Vrai quand le
+   * net retenu par le dernier calcul (colonne posée par le serveur) diffère
+   * du net lu à l'instant : la validation serait refusée
+   * [REGULARISATIONS_PERIMEES], il faut recalculer d'abord. Une lecture
+   * absente (lu null) rend vrai : on ne présume jamais l'égalité.
+   */
+  function regularisationsARecalculer(retenu, lu) {
+    if (!lu) return true;
+    return (centimes(retenu) || 0) !== Math.round(lu.net * 100);
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
     libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
     CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets, estReportDateRisque,
+    brutAuDerniereValidation, auditEstValide, reconcilierValidationApresModification,
+    libelleSignalementValidation, mentionsEcartCarte, diffEcartsVersion, formatEuroSigne, echapperHtml,
+    MESSAGES_FACTURES_DIFFEREES, controlerFacturesDifferees, messageFactureDifferee,
+    LIBELLES_MODE_REGULARISATION, MESSAGES_REGULARISATIONS, lireRegularisationsTiroir,
+    phraseRegularisationsTiroir, messageRegularisationsTiroir,
+    MESSAGES_REGULARISATIONS_FDJ, regularisationsARecalculer,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

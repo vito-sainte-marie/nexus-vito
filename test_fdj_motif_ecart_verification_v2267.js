@@ -40,6 +40,13 @@ assert.deepStrictEqual(optsPositif.map(o => o.value), ['', 'erreur_comptage', 'e
 const optsNegatif = M.motifsEcartCorrigeDisponibles(-8);
 assert.strictEqual(optsNegatif.some(o => o.value === 'remboursement'), true, 'Écart initial MANQUE -> "Remboursement" proposé en plus');
 assert.strictEqual(optsNegatif[optsNegatif.length - 1].value, 'remboursement', 'Remboursement ajouté en dernier, jamais substitué aux 4 causes de base');
+assert.strictEqual(optsNegatif[optsNegatif.length - 1].label, "Versement volontaire de régularisation d'un écart antérieur", 'Mandat §2 : libellé arrêté, code inchangé');
+assert.strictEqual(M.LABEL_MOTIF_VERSEMENT_REGULARISATION, optsNegatif[optsNegatif.length - 1].label);
+{
+  const manager = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-FDJ-Manager-v1.html'), 'utf8');
+  const m = manager.match(/\{ value: 'remboursement', label: (["'])(.*?)\1 \}/);
+  assert.ok(m && m[2] === M.LABEL_MOTIF_VERSEMENT_REGULARISATION, 'FDJ Manager affiche le même libellé que le moteur : ' + (m && m[2]));
+}
 console.log('OK — motifsEcartCorrigeDisponibles : "Remboursement" seulement si l\'écart initial était un manque (négatif).');
 
 assert.strictEqual(M.motifEcartObligatoire(0, 12), true, 'Corrigé à zéro -> une cause reste obligatoire');
@@ -120,8 +127,9 @@ console.log('OK — écran : écart corrigé à 0 (excédent initial) -> menu r�
 
 // 3) Corrigé à zéro, écart initial négatif -> Remboursement proposé en plus.
 bloc = t.renderBlocMotifEcart(0, -8.00);
-assert.ok(bloc.includes('Remboursement'), 'Manque initial -> "Remboursement" doit être proposé');
-console.log('OK — écran : écart corrigé à 0 (manque initial) -> "Remboursement" proposé en plus.');
+assert.ok(bloc.includes('Versement volontaire de régularisation d'), 'Manque initial -> le versement de régularisation doit être proposé');
+assert.ok(!/rembours/i.test(bloc.replace(/value="remboursement"/g, '')), 'Mandat §2 : le mot « remboursement » n\'est jamais affiché');
+console.log('OK — écran : écart corrigé à 0 (manque initial) -> « Versement volontaire de régularisation d\'un écart antérieur » proposé en plus.');
 
 // 4) Restant, excédent -> badge "Excédent non expliqué", pas de <select>.
 bloc = t.renderBlocMotifEcart(2.00, null);
