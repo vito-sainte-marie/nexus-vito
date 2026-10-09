@@ -278,10 +278,56 @@ function permissionsDeclarees(texte) {
   return [...trouves].sort();
 }
 
+// QUI EXÉCUTE LA SUITE. C'est la pièce qui manquait le 09/10/2026 : le contrat
+// nommait un rôle (« Claude »), et « Claude » désigne trois canaux aux pouvoirs
+// différents. Ici on nomme le canal, jamais le rôle seul.
+//
+// L'ORDRE N'EST PAS ARBITRAIRE. Entre deux canaux capables, le palier humain
+// passe en dernier : `PALIER_HUMAIN_RESTREINT` dit que Frédéric ne se réveille
+// pas pour ce qu'un autre canal sait faire. Quand il est le seul capable, c'est
+// alors une vraie gate humaine, et le dire est exact.
+function executantSuivant(reg, cap) {
+  const candidats = canauxCapables(reg, cap);
+  const humains = candidats.filter(k => reg.canaux[k].role === 'Frédéric');
+  const autres = candidats.filter(k => reg.canaux[k].role !== 'Frédéric');
+  const ordonnes = [...autres, ...humains];
+  const executant = ordonnes[0] || null;
+  const owner = !executant ? null : reg.canaux[executant].role === 'Frédéric' ? 'Frédéric' : 'Claude';
+  return { executant, owner, candidats: ordonnes };
+}
+
+// Le routage d'un geste, de bout en bout : le motif STOP dit le geste, la table
+// dit la capacité, le registre dit qui la détient, et `classifierCapacite` dit
+// si l'arrêt est une limitation de canal ou un vrai blocage technique.
+function routerGeste(reg, geste, canal) {
+  const cap = capaciteDuGeste(reg, geste);
+  if (!cap) return { geste, capacite: null, defaut: `geste inconnu de la table \`gestes\` : ${geste}` };
+  const { etat, motif, detail } = require('./classification-canal.js')
+    .classifierCapacite({ capaciteRequise: cap, canalCible: canal, registreCapacites: reg })
+    || { etat: 'OK', motif: 'CANAL_COURANT_CAPABLE', detail: canal };
+  const suite = executantSuivant(reg, cap);
+  return { geste, capacite: cap, canal, etat, motif, detail, ...suite };
+}
+
 // ── PORTE D'ENTRÉE ───────────────────────────────────────────────────────────
 function principal(argv) {
   const racine = path.resolve(__dirname, '..');
   const reg = chargerRegistre(racine);
+  const valeur = (nom) => { const i = argv.indexOf(nom); return i >= 0 ? argv[i + 1] : undefined; };
+  const geste = valeur('--geste');
+  if (geste) {
+    const r = routerGeste(reg, geste, valeur('--canal') || canalCourant() || '');
+    if (argv.includes('--json')) { process.stdout.write(JSON.stringify(r) + '\n'); return r.defaut || !r.executant ? 1 : 0; }
+    if (r.defaut) { process.stdout.write(`Routage impossible — ${r.defaut}\n`); return 1; }
+    process.stdout.write(`Geste            : ${r.geste}\n`);
+    process.stdout.write(`CAPACITE_REQUISE : ${r.capacite}\n`);
+    process.stdout.write(`Canal courant    : ${r.canal || '(non identifié)'}\n`);
+    process.stdout.write(`Verdict          : ${r.etat} / ${r.motif}\n`);
+    process.stdout.write(`OWNER_NEXT       : ${r.owner || 'aucun'}\n`);
+    process.stdout.write(`EXECUTANT_NEXT   : ${r.executant || 'aucun'}\n`);
+    if (r.candidats.length > 1) process.stdout.write(`Autres capables  : ${r.candidats.slice(1).join(', ')}\n`);
+    return r.executant ? 0 : 1;
+  }
   if (argv.includes('--json')) {
     process.stdout.write(JSON.stringify({ canal_courant: canalCourant(), ecarts: verifierRegistre(reg, racine) }) + '\n');
     return 0;
@@ -304,5 +350,6 @@ module.exports = {
   FICHIER_REGISTRE, VALEURS, CAPACITES_SENSIBLES,
   chargerRegistre, capacitesConnues, canauxConnus, capacite, capable,
   canauxCapables, capaciteDuGeste, canalCourant, lireAuRef, verifierRegistre,
+  executantSuivant, routerGeste,
   secretsReferences, permissionsDeclarees,
 };
