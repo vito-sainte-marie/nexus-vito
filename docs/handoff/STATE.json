@@ -340,9 +340,13 @@
       "consomme_le": "2026-10-09T22:44:52.045Z"
     },
     "EPREUVE-STADE-A-MATERIALISATION-20261009": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c068c74323eede8960a1705015c702e48575be19",
+      "consomme_le": "2026-10-09T23:15:23.425Z"
     }
   },
   "artefacts_hors_registre": [
