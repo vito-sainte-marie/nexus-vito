@@ -1,0 +1,16 @@
+psql:scenarios.sql:59: NOTICE:  OK BROUILLON
+psql:scenarios.sql:59: NOTICE:  OK VUN
+psql:scenarios.sql:59: NOTICE:  OK VDEUX
+psql:scenarios.sql:59: NOTICE:  OK SEULMANAGER
+psql:scenarios.sql:59: NOTICE:  OK VALIDEE
+psql:scenarios.sql:85: NOTICE:  OK PARTIEL
+psql:scenarios.sql:110: NOTICE:  OK TROPPERCU
+psql:scenarios.sql:129: NOTICE:  OK COFFRE
+psql:scenarios.sql:147: NOTICE:  OK NONAUTORISE
+psql:scenarios.sql:168: NOTICE:  OK AUTRESITE
+psql:scenarios.sql:194: NOTICE:  OK QDEUXSEPT
+psql:scenarios.sql:213: NOTICE:  OK QDEUXSIX
+contre-témoin sans-factures-confirmees.sql : QDEUXSIX tombe(nt)
+contre-témoin sans-revalidation.sql : QDEUXSEPT tombe(nt)
+contre-témoin sans-rls-audits.sql : AUTRESITE NONAUTORISE QDEUXSIX tombe(nt)
+RECETTE VERTE (AUTRESITE BROUILLON COFFRE NONAUTORISE PARTIEL QDEUXSEPT QDEUXSIX SEULMANAGER TROPPERCU VALIDEE VDEUX VUN)
