@@ -9,7 +9,122 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--line:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--cyan:#4FC3D9;--amber:#F5A623;--red:#F0546B;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}html,body{background:var(--bg);color:var(--text);font-family:var(--sans)}body{display:flex;justify-content:center;min-height:100vh}.phone{width:100%;max-width:760px;min-height:100vh;border-left:1px solid var(--line);border-right:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}.header{padding:20px;position:relative}.menu{position:absolute;right:18px;top:18px;color:var(--cyan);border:1px solid rgba(79,195,217,.3);background:rgba(79,195,217,.1);padding:7px 12px;border-radius:20px;text-decoration:none;font:600 10.5px var(--mono)}.eyebrow,.section-label{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--cyan)}h1{font-size:22px;margin-top:4px}.subtitle{font:11px/1.55 var(--mono);color:var(--dim);margin-top:5px;max-width:620px}.divider{height:1px;background:var(--line)}main{padding:16px 20px 28px}.period{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.period button,.btn{border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:8px;padding:10px 12px;cursor:pointer;font:600 11px var(--mono)}.period strong{font:700 14px var(--mono);text-transform:capitalize}.status{font:700 10px var(--mono);padding:5px 9px;border-radius:12px;background:rgba(245,166,35,.14);color:var(--amber)}.status.verifie{background:rgba(52,211,153,.14);color:var(--green)}.status.transmis{background:rgba(79,195,217,.14);color:var(--cyan)}.hero{padding:16px;background:linear-gradient(135deg,rgba(79,195,217,.12),rgba(52,211,153,.05));border:1px solid rgba(79,195,217,.28);border-radius:13px;margin-bottom:10px}.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.hero h2{font-size:16px;margin-bottom:5px}.hero p{font:10.5px/1.5 var(--mono);color:var(--mid)}.quick-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0 14px}.quick-nav button{border:1px solid var(--line);background:var(--panel);color:var(--mid);border-radius:9px;padding:10px 6px;font:600 10px var(--mono);cursor:pointer}.quick-nav button:first-child{color:var(--amber);border-color:rgba(245,166,35,.25)}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px}.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase}.kpi b{display:block;font:700 20px var(--mono);margin-top:5px}.kpi.warn b{color:var(--amber)}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:14px}.section-head{display:flex;align-items:center;gap:7px;margin:18px 0 10px;scroll-margin-top:12px}.section-head .section-label{margin:0}.section-label{color:var(--dim);margin-bottom:11px}.info-btn{width:22px;height:22px;border:1px solid rgba(79,195,217,.35);border-radius:50%;background:rgba(79,195,217,.09);color:var(--cyan);font:700 10px var(--mono);cursor:pointer;flex:none}.alert{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:9px;padding:11px 12px;color:var(--amber);font-size:12px;line-height:1.5;margin-bottom:8px}.ok{color:var(--green);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#071217}.btn.success{background:var(--green);border-color:var(--green);color:#07150f}.btn.danger{color:var(--red)}.btn:disabled{opacity:.35;cursor:not-allowed}.review-card{background:var(--panel);border:1px solid rgba(245,166,35,.26);border-radius:11px;padding:12px;margin-bottom:8px}.review-system{border-color:var(--line)}.review-name{font-size:11px;color:var(--mid);margin-bottom:5px}.employee{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:11px;overflow:hidden}.employee-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px;cursor:pointer}.employee-name{font-weight:700;text-transform:capitalize}.meta{font:10.5px/1.5 var(--mono);color:var(--mid);margin-top:3px}.summary-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.summary-chip{font:9px var(--mono);color:var(--mid);background:var(--raised);padding:4px 6px;border-radius:7px}.pill{font:700 9px var(--mono);padding:4px 7px;border-radius:9px;background:var(--raised);color:var(--mid);white-space:nowrap}.pill.green{color:var(--green);background:rgba(52,211,153,.12)}.pill.amber{color:var(--amber);background:rgba(245,166,35,.12)}.pill.info{color:var(--cyan);background:rgba(79,195,217,.12)}.employee-body{display:none;border-top:1px solid var(--line);padding:12px 14px}.employee.open .employee-body{display:block}.item{padding:10px;background:var(--raised);border:1px solid var(--line);border-radius:8px;margin-bottom:7px}.item-top{display:flex;justify-content:space-between;gap:10px}.item-title{font-size:12.5px;font-weight:600}.item-date{font:10px var(--mono);color:var(--dim);white-space:nowrap}.item-meta{font:10.5px/1.5 var(--mono);color:var(--mid);margin-top:4px}.ecart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.ecart-cell{background:var(--panel);border-radius:7px;padding:7px}.ecart-cell span{display:block;font:8px var(--mono);color:var(--dim);text-transform:uppercase}.ecart-cell b{display:block;font:11px var(--mono);margin-top:3px}.source-link{display:inline-block;color:var(--cyan);font:600 9.5px var(--mono);text-decoration:none;margin-top:7px}.item-actions{display:flex;gap:6px;margin-top:8px}.item-actions .btn{padding:7px 9px;font-size:9.5px}.item.valide{border-color:rgba(52,211,153,.3)}.item.information{border-color:rgba(79,195,217,.25)}.item.exclu{opacity:.65}.item.blocked{border-color:rgba(240,84,107,.45)}.empty{font-size:12px;color:var(--dim);font-style:italic}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.date-range{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field label{display:block;font:9.5px var(--mono);text-transform:uppercase;color:var(--dim);margin-bottom:4px}.field input,.field select,.field textarea{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:9px;font:12px var(--sans)}.field.full{grid-column:1/-1}.help{font:10.5px/1.55 var(--mono);color:var(--dim);margin-top:8px}.accountant-list{display:grid;gap:7px;margin:10px 0 12px}.accountant-line{display:flex;align-items:center;gap:8px;color:var(--mid);font-size:11px}.accountant-line::before{content:'✓';color:var(--green);font-weight:700}.modal{position:fixed;inset:0;background:rgba(3,8,12,.76);display:flex;align-items:center;justify-content:center;padding:22px;z-index:50}.modal[hidden]{display:none}.modal-card{width:min(430px,100%);background:var(--panel);border:1px solid rgba(79,195,217,.35);border-radius:14px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.45)}.modal-card h3{font-size:15px;margin-bottom:8px}.modal-card p{font:11px/1.65 var(--mono);color:var(--mid);white-space:pre-line}.modal-card .btn{margin-top:14px}.modal-card.large{width:min(540px,100%);max-height:86vh;overflow:auto}.modal-card.danger{border-color:rgba(240,84,107,.45)}.modal-champ{margin-top:12px;text-align:left}.modal-champ label{display:block;font:9.5px var(--mono);text-transform:uppercase;color:var(--dim);margin-bottom:4px}.modal-champ .aide{font:10px/1.5 var(--mono);color:var(--dim);margin-top:4px}.modal-card input,.modal-card select,.modal-card textarea{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:9px;font:12px var(--sans)}.modal-champ.case{display:flex;align-items:center;gap:8px}.modal-champ.case input{width:auto}.modal-champ.case label{margin:0;text-transform:none;font:11px var(--mono);color:var(--mid)}.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}.modal-actions .btn{margin-top:0}.modal-erreur{color:var(--red);font:10.5px/1.5 var(--mono);margin-top:10px}.modal-erreur[hidden]{display:none}.pill.red{color:var(--red);background:rgba(240,84,107,.12)}.vars{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:10px}.var{background:var(--raised);border:1px solid var(--line);border-radius:9px;padding:9px}.var span{display:block;font:8.5px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}.var b{display:block;font:700 15px var(--mono);margin-top:4px}.var small{display:block;font:9px/1.4 var(--mono);color:var(--mid);margin-top:3px}.var.vide b{color:var(--dim)}.var.attente{border-color:rgba(245,166,35,.32)}.var.attente small{color:var(--amber)}.var.pleine{grid-column:1/-1}.detail-zone{margin-top:11px;border-top:1px solid var(--line);padding-top:11px}.detail-zone[hidden]{display:none}.rh-bloc{display:grid;gap:3px;margin-bottom:6px}.rh-motif-titre{font-size:13.5px;font-weight:700}.rh-periode{font:600 11.5px var(--mono);color:var(--cyan)}.rh-couverture{font:10.5px var(--mono);color:var(--mid)}.loading{text-align:center;padding:44px 10px;color:var(--dim);font:11px var(--mono)}footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var(--dim);font:10px var(--mono)}@media(max-width:620px){.kpis{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.quick-nav{position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;margin-top:2px}.ecart-grid{grid-template-columns:1fr 1fr}.ecart-cell:last-child{grid-column:1/-1}}
+:root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--line:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--cyan:#4FC3D9;--amber:#F5A623;--red:#F0546B;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}html,body{background:var(--bg);color:var(--text);font-family:var(--sans)}body{display:flex;justify-content:center;min-height:100vh}.phone{width:100%;max-width:760px;min-height:100vh;border-left:1px solid var(--line);border-right:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}.header{padding:20px;position:relative}.menu{position:absolute;right:18px;top:18px;color:var(--cyan);border:1px solid rgba(79,195,217,.3);background:rgba(79,195,217,.1);padding:7px 12px;border-radius:20px;text-decoration:none;font:600 10.5px var(--mono)}.eyebrow,.section-label{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--cyan)}h1{font-size:22px;margin-top:4px}.subtitle{font:11px/1.55 var(--mono);color:var(--dim);margin-top:5px;max-width:620px}.divider{height:1px;background:var(--line)}main{padding:16px 20px 28px}.period{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.period button,.btn{border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:8px;padding:10px 12px;cursor:pointer;font:600 11px var(--mono)}.period strong{font:700 14px var(--mono);text-transform:capitalize}.status{font:700 10px var(--mono);padding:5px 9px;border-radius:12px;background:rgba(245,166,35,.14);color:var(--amber)}.status.verifie{background:rgba(52,211,153,.14);color:var(--green)}.status.transmis{background:rgba(79,195,217,.14);color:var(--cyan)}.hero{padding:16px;background:linear-gradient(135deg,rgba(79,195,217,.12),rgba(52,211,153,.05));border:1px solid rgba(79,195,217,.28);border-radius:13px;margin-bottom:10px}.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.hero h2{font-size:16px;margin-bottom:5px}.hero p{font:10.5px/1.5 var(--mono);color:var(--mid)}.quick-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0 14px}.quick-nav button{border:1px solid var(--line);background:var(--panel);color:var(--mid);border-radius:9px;padding:10px 6px;font:600 10px var(--mono);cursor:pointer}.quick-nav button:first-child{color:var(--amber);border-color:rgba(245,166,35,.25)}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px}.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase}.kpi b{display:block;font:700 20px var(--mono);margin-top:5px}.kpi.warn b{color:var(--amber)}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:14px}.section-head{display:flex;align-items:center;gap:7px;margin:18px 0 10px;scroll-margin-top:12px}.section-head .section-label{margin:0}.section-label{color:var(--dim);margin-bottom:11px}.info-btn{width:22px;height:22px;border:1px solid rgba(79,195,217,.35);border-radius:50%;background:rgba(79,195,217,.09);color:var(--cyan);font:700 10px var(--mono);cursor:pointer;flex:none}.alert{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:9px;padding:11px 12px;color:var(--amber);font-size:12px;line-height:1.5;margin-bottom:8px}.ok{color:var(--green);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#071217}.btn.success{background:var(--green);border-color:var(--green);color:#07150f}.btn.danger{color:var(--red)}.btn:disabled{opacity:.35;cursor:not-allowed}.review-card{background:var(--panel);border:1px solid rgba(245,166,35,.26);border-radius:11px;padding:12px;margin-bottom:8px}.review-system{border-color:var(--line)}.review-name{font-size:11px;color:var(--mid);margin-bottom:5px}.employee{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:11px;overflow:hidden}.employee-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px;cursor:pointer}.employee-name{font-weight:700;text-transform:capitalize}.meta{font:10.5px/1.5 var(--mono);color:var(--mid);margin-top:3px}.summary-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.summary-chip{font:9px var(--mono);color:var(--mid);background:var(--raised);padding:4px 6px;border-radius:7px}.pill{font:700 9px var(--mono);padding:4px 7px;border-radius:9px;background:var(--raised);color:var(--mid);white-space:nowrap}.pill.green{color:var(--green);background:rgba(52,211,153,.12)}.pill.amber{color:var(--amber);background:rgba(245,166,35,.12)}.pill.info{color:var(--cyan);background:rgba(79,195,217,.12)}.employee-body{display:none;border-top:1px solid var(--line);padding:12px 14px}.employee.open .employee-body{display:block}.item{padding:10px;background:var(--raised);border:1px solid var(--line);border-radius:8px;margin-bottom:7px}.item-top{display:flex;justify-content:space-between;gap:10px}.item-title{font-size:12.5px;font-weight:600}.item-date{font:10px var(--mono);color:var(--dim);white-space:nowrap}.item-meta{font:10.5px/1.5 var(--mono);color:var(--mid);margin-top:4px}.ecart-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}.ecart-cell{background:var(--panel);border-radius:7px;padding:7px}.ecart-cell span{display:block;font:8px var(--mono);color:var(--dim);text-transform:uppercase}.ecart-cell b{display:block;font:11px var(--mono);margin-top:3px}.source-link{display:inline-block;color:var(--cyan);font:600 9.5px var(--mono);text-decoration:none;margin-top:7px}.item-actions{display:flex;gap:6px;margin-top:8px}.item-actions .btn{padding:7px 9px;font-size:9.5px}.item.valide{border-color:rgba(52,211,153,.3)}.item.information{border-color:rgba(79,195,217,.25)}.item.exclu{opacity:.65}.item.blocked{border-color:rgba(240,84,107,.45)}.empty{font-size:12px;color:var(--dim);font-style:italic}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.date-range{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field label{display:block;font:9.5px var(--mono);text-transform:uppercase;color:var(--dim);margin-bottom:4px}.field input,.field select,.field textarea{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:9px;font:12px var(--sans)}.field.full{grid-column:1/-1}.help{font:10.5px/1.55 var(--mono);color:var(--dim);margin-top:8px}.accountant-list{display:grid;gap:7px;margin:10px 0 12px}.accountant-line{display:flex;align-items:center;gap:8px;color:var(--mid);font-size:11px}.accountant-line::before{content:'✓';color:var(--green);font-weight:700}.modal{position:fixed;inset:0;background:rgba(3,8,12,.76);display:flex;align-items:center;justify-content:center;padding:22px;z-index:50}.modal[hidden]{display:none}.modal-card{width:min(430px,100%);background:var(--panel);border:1px solid rgba(79,195,217,.35);border-radius:14px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.45)}.modal-card h3{font-size:15px;margin-bottom:8px}.modal-card p{font:11px/1.65 var(--mono);color:var(--mid);white-space:pre-line}.modal-card .btn{margin-top:14px}.modal-card.large{width:min(540px,100%);max-height:86vh;overflow:auto}.modal-card.danger{border-color:rgba(240,84,107,.45)}.modal-champ{margin-top:12px;text-align:left}.modal-champ label{display:block;font:9.5px var(--mono);text-transform:uppercase;color:var(--dim);margin-bottom:4px}.modal-champ .aide{font:10px/1.5 var(--mono);color:var(--dim);margin-top:4px}.modal-card input,.modal-card select,.modal-card textarea{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:9px;font:12px var(--sans)}.modal-champ.case{display:flex;align-items:center;gap:8px}.modal-champ.case input{width:auto}.modal-champ.case label{margin:0;text-transform:none;font:11px var(--mono);color:var(--mid)}.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}.modal-actions .btn{margin-top:0}.modal-erreur{color:var(--red);font:10.5px/1.5 var(--mono);margin-top:10px}.modal-erreur[hidden]{display:none}.pill.red{color:var(--red);background:rgba(240,84,107,.12)}.vars{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:10px}.var{background:var(--raised);border:1px solid var(--line);border-radius:9px;padding:9px}.var span{display:block;font:8.5px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}.var b{display:block;font:700 15px var(--mono);margin-top:4px}.var small{display:block;font:9px/1.4 var(--mono);color:var(--mid);margin-top:3px}.var.vide b{color:var(--dim)}.var.attente{border-color:rgba(245,166,35,.32)}.var.attente small{color:var(--amber)}.var.pleine{grid-column:1/-1}.detail-zone{margin-top:11px;border-top:1px solid var(--line);padding-top:11px}.detail-zone[hidden]{display:none}.rh-bloc{display:grid;gap:3px;margin-bottom:6px}.rh-motif-titre{font-size:13.5px;font-weight:700}.rh-periode{font:600 11.5px var(--mono);color:var(--cyan)}.rh-couverture{font:10.5px var(--mono);color:var(--mid)}.loading{text-align:center;padding:44px 10px;color:var(--dim);font:11px var(--mono)}footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var(--dim);font:10px var(--mono)}@media(max-width:620px){.kpis{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.quick-nav{position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;margin-top:2px}.ecart-grid{grid-template-columns:1fr 1fr}.ecart-cell:last-child{grid-column:1/-1}}
+
+/* ── Cockpit bureau (09/10/2026, mandat Fast Track de Frédéric) ──────────
+   Avant : quarante cartes verticales, un écran de plusieurs mètres, le même
+   geste répété carte après carte. Après : une bannière compacte, une ligne
+   d'indicateurs cliquables, un tableau dense des salariés et un panneau
+   contextuel. Rien n'est recalculé ici — la présentation change, le moteur
+   métier (nexus-paye-moteur.js) n'est pas touché.
+   Le mobile ne reçoit JAMAIS le tableau compressé : les colonnes se replient
+   en fiches empilées (navigation adaptée), règle NEXUS inchangée. */
+body{display:block}
+.cockpit{width:100%;max-width:1680px;margin:0 auto;min-height:100vh;border-left:0;border-right:0}
+main{padding:12px 18px 20px}
+/* Bannière : identité, mois, état du dossier, actions principales. */
+.topbar{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;gap:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:9px}
+.topbar .brand{display:flex;align-items:baseline;gap:9px;min-width:0}
+.topbar .brand b{font:700 15px var(--sans)}
+.topbar .brand .eyebrow{color:var(--cyan)}
+.topbar .station{font:600 10.5px var(--mono);color:var(--mid);background:var(--raised);border:1px solid var(--line);border-radius:7px;padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.monthnav{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.monthnav button{border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer;font:600 11px var(--mono)}
+.monthnav strong{font:700 13.5px var(--mono);text-transform:capitalize;min-width:150px;text-align:center}
+.topacts{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.topacts .btn{padding:7px 10px;font-size:10px}
+.topbar .menu{position:static;padding:6px 10px}
+/* Indicateurs : cinq, tous cliquables, tous reliés à une donnée réelle. */
+.kpirow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:9px}
+button.kpi{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer;color:var(--text);font-family:var(--sans)}
+button.kpi:hover,button.kpi:focus-visible{border-color:rgba(79,195,217,.45);outline:none}
+button.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+button.kpi b{display:block;font:700 19px var(--mono);margin-top:3px}
+button.kpi small{display:block;font:9.5px/1.35 var(--mono);color:var(--mid);margin-top:2px}
+button.kpi.actif{border-color:var(--cyan);background:rgba(79,195,217,.08)}
+button.kpi.warn b{color:var(--amber)}
+button.kpi.money b{color:var(--cyan)}
+/* Espace de travail : tableau à gauche, panneau contextuel à droite. */
+.workspace{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(360px,1fr);gap:10px;align-items:start}
+.tablewrap,.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.tabletools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;border-bottom:1px solid var(--line)}
+.tabletools input[type="search"]{flex:1 1 170px;min-width:140px;background:var(--raised);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:7px 9px;font:12px var(--sans)}
+.filtres{display:flex;gap:5px;flex-wrap:wrap}
+button.filtre{border:1px solid var(--line);background:var(--raised);color:var(--mid);border-radius:8px;padding:6px 9px;cursor:pointer;font:600 9.5px var(--mono)}
+button.filtre[aria-pressed="true"]{color:#071217;background:var(--cyan);border-color:var(--cyan)}
+.tablescroll{overflow:auto;max-height:calc(100vh - 322px);-webkit-overflow-scrolling:touch}
+table.sal{width:100%;border-collapse:collapse}
+table.sal th,table.sal td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:12.5px}
+table.sal thead th{position:sticky;top:0;z-index:2;background:var(--raised);font:600 9px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+table.sal thead th button.tri{all:unset;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit}
+table.sal thead th button.tri:focus-visible{outline:1px solid var(--cyan);outline-offset:2px}
+table.sal tbody tr{cursor:pointer}
+table.sal tbody tr:hover{background:var(--raised)}
+table.sal tbody tr.selected{background:rgba(79,195,217,.1);box-shadow:inset 2px 0 0 var(--cyan)}
+table.sal tbody tr:focus-visible{outline:1px solid var(--cyan);outline-offset:-1px}
+table.sal tbody tr.horspaie{opacity:.62}
+.cell-nom{font-weight:600;text-transform:capitalize;font-size:12.5px}
+.cell-sub{font:9.5px/1.35 var(--mono);color:var(--dim)}
+.cell-num{font:600 12px var(--mono);white-space:nowrap}
+.cell-num.zero{color:var(--dim)}
+.flag{display:inline-block;font:700 9px var(--mono);padding:3px 6px;border-radius:7px;background:var(--raised);color:var(--mid);white-space:nowrap}
+.flag.amber{color:var(--amber);background:rgba(245,166,35,.13)}
+.flag.red{color:var(--red);background:rgba(240,84,107,.13)}
+.flag.cyan{color:var(--cyan);background:rgba(79,195,217,.13)}
+.flag.vide{color:var(--dim);background:none;padding-left:0}
+/* Panneau contextuel : trois onglets, une seule décision par anomalie. */
+.paneltabs{display:flex;gap:5px;padding:8px 9px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+button.tab{border:1px solid var(--line);background:var(--raised);color:var(--mid);border-radius:8px;padding:7px 10px;cursor:pointer;font:600 10px var(--mono)}
+button.tab[aria-selected="true"]{color:#071217;background:var(--cyan);border-color:var(--cyan)}
+button.tab .n{font-weight:700}
+.panelbody{overflow:auto;max-height:calc(100vh - 322px);padding:11px 12px;-webkit-overflow-scrolling:touch}
+.panelbody>section{margin-bottom:12px}
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;margin-bottom:9px}
+.panel-head h2{font-size:15.5px;text-transform:capitalize}
+.bloc-titre{display:flex;align-items:center;gap:6px;font:600 9.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin:0 0 7px}
+.lignes{display:grid;gap:4px;margin-bottom:8px}
+.ligne{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--mid);background:var(--raised);border-radius:7px;padding:6px 8px}
+.ligne b{font:600 11.5px var(--mono);color:var(--text);white-space:nowrap}
+.ligne.muet b{color:var(--dim)}
+.vars{grid-template-columns:repeat(2,minmax(0,1fr))}
+.var b{font-size:14px}
+.ecart-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.item{margin-bottom:6px}
+.drawer{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-top:9px;overflow:hidden}
+.drawer[hidden]{display:none}
+.drawer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px}
+.empty-state{padding:26px 14px;text-align:center;color:var(--dim);font:11px/1.6 var(--mono)}
+footer{padding:12px;font-size:9.5px}
+@media(max-width:1180px){.kpirow{grid-template-columns:repeat(3,minmax(0,1fr))}.workspace{grid-template-columns:1fr}.tablescroll,.panelbody{max-height:none}}
+@media(max-width:1000px){.drawer-grid{grid-template-columns:1fr}}
+/* Mobile : plus de tableau — une fiche par salarié, en-têtes repliés dans
+   chaque cellule. Zones tactiles ≥ 44 px, comme partout dans NEXUS. */
+@media(max-width:820px){
+ main{padding:10px 12px 18px}
+ .topbar{grid-template-columns:1fr;gap:8px}
+ .topacts{justify-content:flex-start}
+ .kpirow{grid-template-columns:repeat(2,minmax(0,1fr))}
+ table.sal thead{display:none}
+ table.sal tbody tr{display:grid;grid-template-columns:1fr;gap:3px;padding:9px 10px;border-bottom:1px solid var(--line)}
+ table.sal tbody td{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border:0;padding:3px 0;min-height:22px}
+ table.sal tbody td::before{content:attr(data-col);font:9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);flex:none}
+ table.sal tbody td.cell-first::before{display:none}
+ .monthnav button,.topacts .btn,button.filtre,button.tab{min-height:44px}
+ .vars{grid-template-columns:1fr}
+ .ecart-grid{grid-template-columns:1fr 1fr}
+}
+/* Barre d'application statique : elle reste visible pendant le chargement
+   et en cas d'erreur, pour qu'on puisse toujours ressortir par le Menu. */
+.appbar{display:flex;align-items:center;gap:12px;padding:7px 18px;border-bottom:1px solid var(--line)}
+.appbar .brand-static{display:flex;align-items:baseline;gap:8px;flex:none}
+.appbar .brand-static .eyebrow{margin:0}
+.appbar .brand-static b{font:700 15px var(--sans);color:var(--text)}
+.appbar .baseline{flex:1;min-width:0;font:9.5px/1.4 var(--mono);color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appbar .menu{position:static;flex:none;margin:0}
+@media(max-width:820px){.appbar{padding:7px 12px}.appbar .baseline{display:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+button.lien-salarie{all:unset;cursor:pointer;color:var(--cyan);font:11px var(--mono);text-decoration:underline}
+button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -24,16 +139,15 @@
 <script src="nexus-paye-donnees.js?v=20260904-0104"></script>
 <script src="nexus-paye-dossier-pdf.js?v=20260904-0104"></script>
 </head>
-<body><div class="phone">
-<header class="header"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><div class="eyebrow">NEXUS · Manager</div><h1>Paye</h1><div class="subtitle">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div></header>
-<div class="divider"></div>
+<body><div class="cockpit">
+<header class="appbar"><div class="brand-static"><span class="eyebrow">NEXUS · Manager</span><b>Paye</b></div><div class="baseline">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a></header>
 <main id="app"><div class="loading">Chargement du dossier mensuel…</div></main>
 <footer>NEXUS prépare les variables · la comptable établit le bulletin</footer>
 </div>
 <script>
 let EMPLOYEE, SITE, RAPPORT, MOIS = NexusPayeMoteur.moisISO(new Date());
 const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Absence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
-const INFOS={dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.']};
+const INFOS={dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptable.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles reconstituées à partir du barème de la station quand la preuve manque. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
 // Les seuls types encore saisissables JOURNÉE PAR JOURNÉE. Congés,
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
@@ -55,41 +169,231 @@ function moisLabel(){return new Date(`${MOIS}T12:00:00`).toLocaleDateString('fr-
 function dernierJourMois(){const d=new Date(`${NexusPayeMoteur.finMoisISO(MOIS)}T12:00:00`);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)}
 function etatPeriode(){return (RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.statut)||'brouillon';}
 function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:'';const m=i.montantCentimes!=null?`${(i.montantCentimes/100).toFixed(2)} €`:'';return [LIBELLES[i.typeItem]||i.typeItem,q,m,i.contestationOuverte?'Contestation ouverte — transmission bloquée':''].filter(Boolean).join(' · ')}
+// ─── Cockpit mensuel (09/10/2026, mandat Fast Track de Frédéric) ──────────
+// Avant ce lot, l'écran empilait quarante cartes verticales : il fallait
+// défiler plusieurs écrans pour savoir ce qui manquait. Le cockpit tient
+// la même vérité sur une seule page — bannière, cinq indicateurs
+// cliquables, tableau dense des salariés, panneau contextuel.
+// Tout ce qui suit est de la PRÉSENTATION. Les totaux, les statuts et les
+// arbitrages viennent de NexusPayeMoteur ; aucun calcul métier n'est
+// refait ici, et aucun chiffre affiché n'est inventé.
+let SELECTION=null, ONGLET='fiche', FILTRE='tous', RECHERCHE='', TRI={cle:'nom',sens:1}, COMMERCE='';
+const SANS_ACCENT=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const H2=n=>Number(n||0).toFixed(2);
+const ONGLETS=[['fiche','Fiche salarié'],['decisions','Décisions'],['dossier','Dossier comptable']];
+// Ordre de lecture du tableau (présentation, pas une règle métier) :
+// ce qui manque d'abord, ce qui est prêt ensuite, hors paie en dernier.
+const RANG_STATUT={donnee_manquante:0,a_verifier:1,pret:2,hors_paie:3};
+const FILTRES=[['tous','Tous'],['a_verifier','À vérifier'],['prets','Prêts'],['hors_paie','Hors paie']];
+// Le statut affiché dans la bannière est celui du dossier, pas celui d'un
+// salarié : préparation tant qu'un paramétrage manque, vérification dès
+// qu'un arbitrage est en attente, prêt quand le mois est validé.
+function etatDossier(statut){
+ if(statut!=='brouillon')return LIBELLE_STATUT_DOSSIER[statut]||statut;
+ const s=RAPPORT.synthese;
+ if(s.configurationRequise)return 'en préparation';
+ if(s.aVerifier)return 'en vérification';
+ return 'en préparation · prêt à valider';
+}
+function trouverFiche(id){return (RAPPORT.employes||[]).find(f=>f.employee.id===id)||null}
+function selectionParDefaut(){
+ const l=RAPPORT.employes||[];
+ const f=l.find(x=>x.statut==='a_verifier')||l.find(x=>x.statut==='donnee_manquante')||l.find(x=>x.reglage.inclus)||l[0];
+ return f?f.employee.id:null;
+}
+function itemsEnAttente(f){return (f.items||[]).filter(i=>i.statut==='a_verifier'||i.contestationOuverte)}
+function bloqueursConfig(id){return (RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration'&&b.employeeId===id)}
+function horsPlanning(f){return (f.items||[]).filter(i=>i.typeItem==='presence_exceptionnelle').length}
+// Écarts de caisse : la régularisation réellement encaissée est la
+// différence entre l'écart initial et l'écart final validé par Verify
+// (−50 € d'écart, final −20 € ⇒ 30 € versés). PAYE ne recalcule rien et
+// ne réécrit jamais l'écart d'origine : les deux montants restent
+// attachés à leur période, le versement se lit à côté.
+function versementCentimes(i){
+ if(i.ecartInitialCentimes==null||i.ecartFinalCentimes==null)return null;
+ const v=i.ecartFinalCentimes-i.ecartInitialCentimes;
+ return v===0?null:v;
+}
+function totauxEcarts(){
+ const l=(RAPPORT.items||[]).filter(i=>i.typeItem==='ecart_caisse');
+ let initial=0,solde=0,versements=0,retenu=0,aAttribuer=0,enAttente=0;
+ l.forEach(i=>{
+  if(i.ecartInitialCentimes!=null)initial+=i.ecartInitialCentimes;
+  if(i.ecartFinalCentimes!=null)solde+=i.ecartFinalCentimes;
+  const v=versementCentimes(i);if(v!=null)versements+=v;
+  if(i.impactPaye&&i.montantCentimes!=null)retenu+=i.montantCentimes;
+  if(i.attributionRequise)aAttribuer++;
+  if(i.statut==='a_verifier'||i.contestationOuverte)enAttente++;
+ });
+ return {lignes:l,initial,solde,versements,retenu,aAttribuer,enAttente};
+}
+function agregats(){
+ let jours=0,mesures=0,reconstitues=0,supp=0,horsPaie=0,horsPlan=0;
+ (RAPPORT.employes||[]).forEach(f=>{
+  if(!f.reglage.inclus){horsPaie++;return}
+  const v=NexusPayeMoteur.variablesComptables(f);
+  jours+=Number(v.presence.jours||0);mesures+=Number(v.presence.joursMesures||0);
+  reconstitues+=Number(v.presence.joursReconstitues||0);supp+=Number(v.heuresSupplementaires.heures||0);
+  horsPlan+=horsPlanning(f);
+ });
+ return {jours,mesures,reconstitues,supp:Math.round(supp*100)/100,horsPaie,horsPlan};
+}
+// Tri et filtres : l'ordre par défaut remonte les salariés qui attendent
+// une décision, et renvoie les hors paie en fin de liste — visibles,
+// jamais au premier plan (ils ne doivent pas gêner la lecture du reste).
+function fichesAffichees(){
+ const q=SANS_ACCENT(RECHERCHE).trim();
+ let l=(RAPPORT.employes||[]).filter(f=>{
+  if(FILTRE==='hors_paie'&&f.reglage.inclus)return false;
+  if(FILTRE==='a_verifier'&&!(f.reglage.inclus&&(itemsEnAttente(f).length||bloqueursConfig(f.employee.id).length)))return false;
+  if(FILTRE==='prets'&&f.statut!=='pret')return false;
+  if(!q)return true;
+  return SANS_ACCENT(`${f.employee.nom} ${f.employee.role||''}`).includes(q);
+ });
+ const rang=f=>RANG_STATUT[f.statut]==null?99:RANG_STATUT[f.statut];
+ const cle=f=>{
+  if(TRI.cle==='heures')return Number(f.heuresConfirmees||0);
+  if(TRI.cle==='anomalies')return itemsEnAttente(f).length+bloqueursConfig(f.employee.id).length;
+  if(TRI.cle==='statut')return rang(f);
+  return SANS_ACCENT(f.employee.nom);
+ };
+ l.sort((a,b)=>{
+  if(a.reglage.inclus!==b.reglage.inclus)return a.reglage.inclus?-1:1;
+  const ka=cle(a),kb=cle(b);
+  if(ka<kb)return -1*TRI.sens; if(ka>kb)return 1*TRI.sens;
+  return SANS_ACCENT(a.employee.nom)<SANS_ACCENT(b.employee.nom)?-1:1;
+ });
+ return l;
+}
+function fleche(c){return TRI.cle===c?(TRI.sens>0?' ↑':' ↓'):''}
+function libelleCompte(l){
+ const inclus=l.filter(f=>f.reglage.inclus).length;
+ return `${pluriel(l.length,'ligne')} affichée${l.length>1?'s':''} · ${inclus} dans la paie · ${l.length-inclus} hors paie`;
+}
+function corpsTable(l){
+ if(!l.length)return `<tr><td colspan="6"><div class="empty-state">Aucun salarié ne correspond à ce filtre.</div></td></tr>`;
+ return l.map(ligneSalarie).join('');
+}
+function renderTable(){
+ const s=RAPPORT.synthese, l=fichesAffichees();
+ return `<div class="tabletools">
+  <div class="section-label" style="margin:0">Salariés · ${s.salariesPrets}/${s.salariesInclus} prêts</div>${infoBtn('statutSalarie','statut du salarié')}
+  <input id="recherche" type="search" placeholder="Rechercher un salarié…" aria-label="Rechercher un salarié" value="${ECHAPPE(RECHERCHE)}">
+  <div class="filtres" role="group" aria-label="Filtrer les salariés">${FILTRES.map(([v,lib])=>`<button type="button" class="filtre" data-filtre="${v}" aria-pressed="${FILTRE===v}">${lib}</button>`).join('')}</div>
+ </div>
+ <div class="tablescroll"><table class="sal"><caption class="sr">Salariés du mois</caption><thead><tr>
+  <th scope="col"><button type="button" class="tri" data-tri="nom" data-lib="Salarié">Salarié${fleche('nom')}</button></th>
+  <th scope="col">Affectation</th>
+  <th scope="col"><button type="button" class="tri" data-tri="heures" data-lib="Heures">Heures${fleche('heures')}</button></th>
+  <th scope="col">Absences</th>
+  <th scope="col"><button type="button" class="tri" data-tri="anomalies" data-lib="Éléments à vérifier">Éléments à vérifier${fleche('anomalies')}</button></th>
+  <th scope="col"><button type="button" class="tri" data-tri="statut" data-lib="Statut">Statut${fleche('statut')}</button></th>
+ </tr></thead><tbody id="tbody">${corpsTable(l)}</tbody></table></div>
+ <div class="help" id="tableCount" style="padding:0 11px 9px;margin:0">${libelleCompte(l)}</div>`;
+}
+function renderKpis(s,ec,a){
+ const dec=s.aVerifier+s.configurationRequise;
+ return `<div class="kpirow" role="group" aria-label="Indicateurs du mois">
+ <button type="button" class="kpi${FILTRE==='tous'?' actif':''}" data-kpi="salaries"><span>Salariés concernés</span><b>${s.salariesInclus}</b><small>${a.horsPaie} hors paie · ${a.jours} jours confirmés</small></button>
+ <button type="button" class="kpi${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures confirmées</span><b>${s.heuresConfirmees} h</b><small>${a.mesures} jours mesurés · ${a.reconstitues} reconstitués${a.supp?` · +${H2(a.supp)} h supp. arbitrées`:''}</small></button>
+ <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Éléments nécessitant une décision</span><b>${dec}</b><small>${s.aVerifier} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
+ <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b><small>${s.salariesAVerifier} à vérifier · ${s.salariesDonneeManquante} donnée manquante</small></button>
+ <button type="button" class="kpi money" data-kpi="ecarts"><span>Écarts de caisse et régularisations</span><b>${euros(ec.solde)}</b><small>initial ${euros(ec.initial)} · versé ${euros(ec.versements)}${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small></button>
+ </div>`;
+}
+function renderPanneau(){
+ const f=trouverFiche(SELECTION);
+ return `<div class="paneltabs" role="tablist" aria-label="Panneau de travail">${ONGLETS.map(([v,lib])=>`<button type="button" class="tab" role="tab" data-onglet="${v}" aria-selected="${ONGLET===v}">${lib}</button>`).join('')}</div>
+ <div class="panelbody">
+  <div id="ficheSection" role="tabpanel" ${ONGLET==='fiche'?'':'hidden'}>${renderFiche(f)}</div>
+  <div id="reviewSection" role="tabpanel" ${ONGLET==='decisions'?'':'hidden'}>${renderDecisions()}</div>
+  <div id="accountantSection" role="tabpanel" ${ONGLET==='dossier'?'':'hidden'}>${renderDossier()}</div>
+ </div>`;
+}
+function renderDecisions(){
+ const s=RAPPORT.synthese, ec=totauxEcarts();
+ const tous=RAPPORT.items||[];
+ const decisions=tous.filter(i=>i.typeItem!=='ecart_caisse'&&(i.statut==='a_verifier'||i.contestationOuverte));
+ const informations=tous.filter(i=>i.typeItem!=='ecart_caisse'&&i.statut==='information');
+ const conf=(RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration'||(!b.categorie&&!b.sourceCle));
+ return `<div class="bloc-titre">Éléments de paie à vérifier${decisions.length?` · ${decisions.length}`:''} ${infoBtn('arbitrage','arbitrages')}</div>
+ ${RAPPORT.bloqueurs.length?`<div class="alert">${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} à traiter avant de valider le mois.${s.salariesDonneeManquante?`<br>${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.`:''}<br><button class="btn jump-review" style="margin-top:8px">Examiner les points à vérifier</button></div>`:'<div class="ok">✓ Aucun arbitrage en attente.</div>'}
+ ${decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}
+ ${conf.length?`<div class="bloc-titre">Configuration requise · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div><button class="btn jump-employees" style="margin-top:8px">Configurer</button></div>`).join('')}`:''}
+ <div class="bloc-titre" id="ecartsBloc">Écarts de caisse et régularisations${ec.lignes.length?` · ${ec.lignes.length}`:''} ${infoBtn('regularisation','écarts et régularisations')}</div>
+ <div class="lignes">
+  <div class="ligne">Écart initial de la période<b>${euros(ec.initial)}</b></div>
+  <div class="ligne${ec.versements?'':' muet'}">Régularisations encaissées<b>${euros(ec.versements)}</b></div>
+  <div class="ligne">Solde restant (final validé)<b>${euros(ec.solde)}</b></div>
+  <div class="ligne${ec.retenu?'':' muet'}">Montant transmis à la comptable, saisi par le manager<b>${euros(ec.retenu)}</b></div>
+ </div>
+ <div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale : rien n’est transmis sans un montant saisi ici, en connaissance de cause.</div>
+ ${ec.lignes.length?ec.lignes.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join(''):'<div class="ok">✓ Aucun écart de caisse sur la période.</div>'}
+ ${informations.length?`<div class="bloc-titre">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin-top:0">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}`:''}`;
+}
+function renderDossier(){
+ const s=RAPPORT.synthese, statut=etatPeriode(), p=RAPPORT.periodeEnregistree||null;
+ const inclus=(RAPPORT.employes||[]).filter(f=>f.reglage.inclus);
+ const bloques=inclus.filter(f=>f.statut!=='pret');
+ let transmis=0,nonRetenus=0,justificatifs=0;
+ inclus.forEach(f=>(f.items||[]).forEach(i=>{
+  if(i.statut==='valide')transmis++; else if(i.statut==='exclu')nonRetenus++;
+  if(i.deepLink||i.evenementRH)justificatifs++;
+ }));
+ const hist=[];
+ if(p&&p.verifie_le)hist.push(`Mois validé le ${jjmmaaaaFR(p.verifie_le)}`);
+ if(p&&p.transmis_le)hist.push(`Dossier transmis le ${jjmmaaaaFR(p.transmis_le)}`);
+ if(p&&p.updated_at&&!hist.length)hist.push(`Dernière mise à jour le ${jjmmaaaaFR(p.updated_at)}`);
+ return `<div class="bloc-titre">Dossier comptable ${infoBtn('export','export comptable')}</div>
+ ${RAPPORT.bloqueurs.length?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point(s) empêchent encore la préparation finale.</b><br>Traitez l’onglet « Décisions » avant de valider le mois.</div>`:'<div class="ok">✓ Toutes les variables sont arbitrées. Le mois peut être validé.</div>'}
+ <div class="lignes">
+  <div class="ligne">Salariés prêts<b>${s.salariesPrets}/${s.salariesInclus}</b></div>
+  <div class="ligne${bloques.length?'':' muet'}">Salariés encore bloqués<b>${bloques.length}</b></div>
+  <div class="ligne${s.salariesDonneeManquante?'':' muet'}">Dont données manquantes<b>${s.salariesDonneeManquante}</b></div>
+  <div class="ligne">Éléments transmis (arbitrés « retenu »)<b>${transmis}</b></div>
+  <div class="ligne${nonRetenus?'':' muet'}">Éléments non retenus<b>${nonRetenus}</b></div>
+  <div class="ligne${justificatifs?'':' muet'}">Éléments avec justificatif ou source consultable<b>${justificatifs}</b></div>
+ </div>
+ ${bloques.length?`<div class="bloc-titre">Salariés bloqués</div><div class="lignes">${bloques.map(f=>`<div class="ligne"><button type="button" class="lien-salarie" data-employee="${ECHAPPE(f.employee.id)}">${ECHAPPE(f.employee.nom)}</button>${pillStatut(f.statut)}</div>`).join('')}</div>`:''}
+ <div class="bloc-titre">Ce que contient le dossier</div>
+ <div class="accountant-list"><div class="accountant-line">Synthèse mensuelle : totaux et statut de chaque salarié</div><div class="accountant-line">Une fiche par salarié : présence, absences, retards, heures supplémentaires, éléments financiers</div><div class="accountant-line">Événements RH reportés en une ligne, avec leur période réelle</div><div class="accountant-line">Écarts de caisse et régularisations présentés à part, comme informations de contrôle</div><div class="accountant-line">Historique figé au moment de la validation du mois</div></div>
+ <div class="actions"><button class="btn success" id="ready" ${RAPPORT.bloqueurs.length||statut!=='brouillon'?'disabled':''}>1 · Valider le mois</button><button class="btn primary" id="dossierPdf" ${statut==='brouillon'?'disabled':''}>2 · Générer le dossier comptable</button><button class="btn" id="sent" ${statut!=='verifie'?'disabled':''}>3 · Marquer transmis</button></div>
+ <div class="actions" style="margin-top:8px"><button class="btn" id="export" ${statut==='brouillon'?'disabled':''}>Export CSV (technique)</button><button class="btn danger" id="reopen" ${statut==='brouillon'?'disabled':''}>Rouvrir</button></div>
+ <div class="help">Le dossier comptable PDF est la sortie destinée à la comptable. Le CSV reste disponible pour un import dans un logiciel de paie.</div>
+ ${hist.length?`<div class="bloc-titre">Historique de préparation</div><div class="lignes">${hist.map(l=>`<div class="ligne muet">${ECHAPPE(l)}</div>`).join('')}</div>`:''}`;
+}
+function renderSaisie(){
+ const options=RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('');
+ return `<div class="drawer-grid">
+ <section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Déclarer un événement RH ${infoBtn('evenementRH','événement RH')}</div><div class="help" style="margin:0 0 10px">Absence longue, congé, maternité, paternité, formation, arrêt maladie : <b>un seul événement</b>, avec sa date de début et sa date de fin. NEXUS en déduit les jours de chaque mois — vous ne le ressaisirez jamais.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="rhEmployee">${options}</select></div><div class="field"><label>Motif</label><select id="rhMotif">${MOTIFS_RH.map(([v,l])=>`<option value="${v}">${ECHAPPE(l)}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="rhDebut" type="date"></div><div class="field"><label>Au</label><input id="rhFin" type="date"></div></div><div class="field full"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font:11px var(--mono);color:var(--mid)"><input type="checkbox" id="rhIndetermine" style="width:auto"> Date de retour non connue</label></div><div class="field full"><label>Commentaire (facultatif)</label><textarea id="rhCommentaire" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addRH" style="margin-top:10px">Déclarer l’événement RH</button><div class="help" id="rhResume">L’événement peut déborder du mois affiché : NEXUS ne compte que les jours qui tombent dans chaque période de paie.</div></section>
+ <section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Ajouter une variable du mois ${infoBtn('periode','saisie manuelle')}</div><div class="form-grid"><div class="field"><label>Employé</label><select id="manualEmployee">${options}</select></div><div class="field"><label>Type</label><select id="manualType">${TYPES_VARIABLE_MANUELLE.map(t=>`<option value="${t}">${LIBELLES[t]}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="manualDateDebut" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Au</label><input id="manualDateFin" type="date" min="${MOIS}" max="${dernierJourMois()}"></div></div><div class="field full"><div class="help" id="manualPeriodSummary" style="margin-top:0;">Choisissez la date de début et la date de fin.</div></div><div class="field"><label>Minutes par jour</label><input id="manualMinutes" type="number" min="0" step="1" placeholder="facultatif"></div><div class="field"><label>Montant €</label><input id="manualAmount" type="number" step="0.01" placeholder="facultatif"></div><div class="field full"><label>Libellé / justificatif</label><textarea id="manualLabel" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addManual" style="margin-top:10px">Ajouter et valider</button><div class="help">Un montant en euros reste limité à une seule date pour éviter toute duplication. Une absence ou un congé ne se saisit pas ici : utilisez « Déclarer un événement RH ».</div></section>
+ </div>`;
+}
 function render(){
- const s=RAPPORT.synthese, statut=etatPeriode();
- const decisions=RAPPORT.items.filter(i=>i.statut==='a_verifier'||i.contestationOuverte);
- const informations=RAPPORT.items.filter(i=>i.statut==='information');
- const blocagesSysteme=RAPPORT.bloqueurs.filter(b=>b.categorie==='configuration'||(!b.categorie&&!b.sourceCle));
+ const s=RAPPORT.synthese, statut=etatPeriode(), ec=totauxEcarts(), a=agregats();
+ if(!SELECTION||!trouverFiche(SELECTION))SELECTION=selectionParDefaut();
+ const dec=s.aVerifier+s.configurationRequise;
  document.getElementById('app').innerHTML=`
- <div class="period"><button id="prev">←</button><strong>${moisLabel()}</strong><span class="status ${statut}">${LIBELLE_STATUT_DOSSIER[statut]||statut}</span><button id="next">→</button></div>
- <section class="hero"><div class="hero-top"><div><h2>${RAPPORT.bloqueurs.length?`${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} à traiter`:'Mois prêt à être validé'}</h2><p>${RAPPORT.bloqueurs.length?`NEXUS a regroupé les décisions nécessaires. ${s.salariesDonneeManquante?`${s.salariesDonneeManquante} salarié(s) attendent une donnée, ${s.salariesAVerifier} un arbitrage.`:'Commencez par la boîte À vérifier.'}`:'Toutes les variables connues sont arbitrées. Validez le mois, puis générez le dossier comptable.'}</p></div>${infoBtn('dossier','dossier mensuel')}</div>${RAPPORT.bloqueurs.length?'<button class="btn primary jump-review" style="margin-top:12px">Examiner les points à vérifier</button>':''}</section>
- <nav class="quick-nav" aria-label="Navigation PAYE"><button data-jump="reviewSection">À vérifier${s.aVerifier?` · ${s.aVerifier}`:''}</button><button data-jump="employeesSection">Salariés</button><button data-jump="accountantSection">Dossier comptable</button></nav>
- ${RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source==='google_sheets'?`<div class="card"><div class="section-label">Planning officiel</div><div class="help" style="margin:0;">Google Sheets est la prévision officielle. PAYE la rapproche toujours des preuves réelles Verify et Pointage.${lienPlanningSecurise()?` <a href="${ECHAPPE(lienPlanningSecurise())}" target="_blank" rel="noopener" style="color:var(--green);">Ouvrir le planning ↗</a>`:''}</div></div>`:''}
- <div class="kpis"><div class="kpi"><span>Salariés suivis</span><b>${s.salariesInclus}</b></div><div class="kpi"><span>Heures confirmées</span><b>${s.heuresConfirmees} h</b></div><div class="kpi"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b></div><div class="kpi warn"><span>À vérifier</span><b>${s.aVerifier}</b></div></div>${s.salariesDonneeManquante?`<div class="alert">${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.</div>`:''}
- ${blocagesSysteme.length?`<div class="section-head"><div class="section-label">Configuration requise · ${blocagesSysteme.length}</div></div>
- <section>${blocagesSysteme.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div><button class="btn jump-employees" style="margin-top:8px">Configurer</button></div>`).join('')}</section>`:''}
- <div class="section-head" id="reviewSection"><div class="section-label">Éléments de paie à vérifier${decisions.length?` · ${decisions.length}`:''}</div>${infoBtn('arbitrage','arbitrages')}</div>
- <section>${!decisions.length?'<div class="card ok">✓ Aucun arbitrage en attente.</div>':decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}</section>
- ${informations.length?`<section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin:0 0 9px">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}</section>`:''}
- <div class="section-head" id="employeesSection"><div class="section-label">Salariés · ${s.salariesPrets}/${s.salariesInclus} prêts</div>${infoBtn('statutSalarie','statut du salarié')}</div>
- <section>${RAPPORT.employes.map(renderEmployee).join('')}</section>
- <div class="section-head" id="accountantSection"><div class="section-label">Dossier comptable</div>${infoBtn('export','export comptable')}</div>
- <section class="card">${RAPPORT.bloqueurs.length?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point(s) empêchent encore la préparation finale.</b><br>Traitez la boîte « À vérifier » avant de valider le mois.</div>`:'<div class="ok">✓ Toutes les variables sont arbitrées. Le mois peut être validé.</div>'}<div class="accountant-list"><div class="accountant-line">Synthèse mensuelle : totaux et statut de chaque salarié</div><div class="accountant-line">Une fiche par salarié : présence, absences, retards, heures supplémentaires, éléments financiers</div><div class="accountant-line">Événements RH reportés en une ligne, avec leur période réelle</div><div class="accountant-line">Historique figé au moment de la validation du mois</div></div><div class="actions"><button class="btn success" id="ready" ${RAPPORT.bloqueurs.length||statut!=='brouillon'?'disabled':''}>1 · Valider le mois</button><button class="btn primary" id="dossierPdf" ${statut==='brouillon'?'disabled':''}>2 · Générer le dossier comptable</button><button class="btn" id="sent" ${statut!=='verifie'?'disabled':''}>3 · Marquer transmis</button></div><div class="actions" style="margin-top:8px"><button class="btn" id="export" ${statut==='brouillon'?'disabled':''}>Export CSV (technique)</button><button class="btn danger" id="reopen" ${statut==='brouillon'?'disabled':''}>Rouvrir</button></div><div class="help">Le dossier comptable PDF est la sortie destinée à la comptable. Le CSV reste disponible pour un import dans un logiciel de paie.</div></section>
- <div class="section-head"><div class="section-label">Déclarer un événement RH</div>${infoBtn('evenementRH','événement RH')}</div>
- <section class="card"><div class="help" style="margin:0 0 10px">Absence longue, congé, maternité, paternité, formation, arrêt maladie : <b>un seul événement</b>, avec sa date de début et sa date de fin. NEXUS en déduit les jours de chaque mois — vous ne le ressaisirez jamais.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="rhEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Motif</label><select id="rhMotif">${MOTIFS_RH.map(([v,l])=>`<option value="${v}">${ECHAPPE(l)}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="rhDebut" type="date"></div><div class="field"><label>Au</label><input id="rhFin" type="date"></div></div><div class="field full"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font:11px var(--mono);color:var(--mid)"><input type="checkbox" id="rhIndetermine" style="width:auto"> Date de retour non connue</label></div><div class="field full"><label>Commentaire (facultatif)</label><textarea id="rhCommentaire" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addRH" style="margin-top:10px">Déclarer l’événement RH</button><div class="help" id="rhResume">L’événement peut déborder du mois affiché : NEXUS ne compte que les jours qui tombent dans chaque période de paie.</div></section>
- <div class="section-head"><div class="section-label">Ajouter une variable du mois</div>${infoBtn('periode','saisie manuelle')}</div>
- <section class="card"><div class="form-grid"><div class="field"><label>Employé</label><select id="manualEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Type</label><select id="manualType">${TYPES_VARIABLE_MANUELLE.map(t=>`<option value="${t}">${LIBELLES[t]}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="manualDateDebut" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Au</label><input id="manualDateFin" type="date" min="${MOIS}" max="${dernierJourMois()}"></div></div><div class="field full"><div class="help" id="manualPeriodSummary" style="margin-top:0;">Choisissez la date de début et la date de fin.</div></div><div class="field"><label>Minutes par jour</label><input id="manualMinutes" type="number" min="0" step="1" placeholder="facultatif"></div><div class="field"><label>Montant €</label><input id="manualAmount" type="number" step="0.01" placeholder="facultatif"></div><div class="field full"><label>Libellé / justificatif</label><textarea id="manualLabel" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addManual" style="margin-top:10px">Ajouter et valider</button><div class="help">Un montant en euros reste limité à une seule date pour éviter toute duplication. Une absence ou un congé ne se saisit pas ici : utilisez « Déclarer un événement RH ».</div></section>
+ <div class="topbar">
+  <div class="brand"><span class="eyebrow">Dossier mensuel</span><span class="station">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span></div>
+  <div class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div>
+  <div class="topacts"><button type="button" class="btn" id="toggleSaisie" aria-expanded="false" aria-controls="drawerSaisie">+ Nouvelle saisie</button><button type="button" class="btn${dec?' primary':''}" data-onglet="decisions">Vérifications${dec?` · ${dec}`:''}</button><button type="button" class="btn" data-onglet="dossier">Transmettre à la comptable</button></div>
+ </div>
+ ${renderKpis(s,ec,a)}
+ <div class="workspace">
+  <div class="tablewrap" id="employeesSection">${renderTable()}</div>
+  <aside class="panel" id="panelInner" aria-label="Panneau de travail">${renderPanneau()}</aside>
+ </div>
+ <div class="drawer" id="drawerSaisie" hidden>${renderSaisie()}</div>
  <div class="modal" id="infoModal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="infoTitle"><h3 id="infoTitle"></h3><p id="infoText"></p><button class="btn primary" id="closeInfo">J’ai compris</button></div></div>`;
  bind();
 }
-// Carte salarié (03/09/2026, P1 demandé par Frédéric). Elle affiche
-// désormais directement les VARIABLES COMPTABLES agrégées — présence,
-// absence, CP, maladie/maternité, retards, heures supplémentaires, jours
-// fériés, éléments financiers — c'est-à-dire ce que la comptable recopie.
-// Les événements journaliers et leurs sources ne disparaissent pas : ils
-// passent au second plan, derrière « Voir le détail ». L'agrégation vient
-// de NexusPayeMoteur.variablesComptables, la même que celle du dossier
-// PDF : l'écran et le document ne peuvent pas diverger.
+// Tuiles de variables comptables (03/09/2026, P1 demandé par Frédéric).
+// Elles affichent les VARIABLES AGRÉGÉES — présence, absence, CP,
+// maladie/maternité, retards, heures supplémentaires, jours fériés,
+// éléments financiers — c'est-à-dire ce que la comptable recopie.
+// L'agrégation vient de NexusPayeMoteur.variablesComptables, la même que
+// celle du dossier PDF : l'écran et le document ne peuvent pas diverger.
 function tuile(label,valeur,sous,options){
  const o=options||{};
  return `<div class="var${o.vide?' vide':''}${o.attente?' attente':''}${o.pleine?' pleine':''}"><span>${ECHAPPE(label)}</span><b>${ECHAPPE(valeur)}</b>${sous?`<small>${ECHAPPE(sous)}</small>`:''}</div>`;
@@ -110,22 +414,90 @@ function renderVariables(v){
   +(v.autresAbsences.jours?tuile('Autres absences qualifiées',String(v.autresAbsences.jours),v.autresAbsences.detail.map(e=>e.libelle).join(' · '),{pleine:true}):'')
   +`</div>`;
 }
-function renderEmployee(f){
- const inclus=f.reglage.inclus,id=f.employee.id;
- // Trois statuts, et trois seulement (P1) : le badge dit toujours Prêt,
- // À vérifier ou Donnée manquante — un rattachement jamais confirmé EST
- // une donnée manquante, pas une nuance de plus.
- const statut=pillStatut(f.statut);
- const v=inclus?NexusPayeMoteur.variablesComptables(f):null;
- const corps=!inclus
-  // Un hors-paie déduit du rôle (vacataire…) n'est pas confirmé : le moteur
-  // le bloque, l'écran doit donc offrir de quoi le confirmer — ou le réinclure.
-  ?`${f.reglage.confirme?'':'<div class="alert">Hors paie proposé d’après le rôle, jamais confirmé : confirmez-le pour débloquer le dossier du mois.</div>'}<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`
-   +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`
-  :`${f.reglage.confirme?'':'<div class="alert">Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.</div>'}${renderVariables(v)}`
-   +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
-   +`<div class="detail-zone" data-emp="${id}" hidden>${f.items.length?f.items.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
- return `<article class="employee" data-employee="${id}"><div class="employee-head"><div><div class="employee-name">${ECHAPPE(f.employee.nom)}</div><div class="meta">${ECHAPPE(f.employee.role||'')}${inclus?` · ${f.heuresConfirmees.toFixed(2)} h · ${pluriel(f.joursConfirmes.size,'jour')}`:''}</div></div>${statut}</div><div class="employee-body">${corps}</div></article>`;
+// Ligne du tableau central (09/10/2026). Elle remplace la carte verticale
+// par six colonnes : Salarié, Affectation, Heures, Absences, Éléments à
+// vérifier, Statut. Les chiffres viennent de variablesComptables — la même
+// agrégation que le dossier PDF : l'écran et le document ne peuvent pas
+// diverger. Le détail complet s'ouvre dans le panneau, sans changer de page.
+function celluleAbsences(v){
+ const p=[];
+ if(v.congesPayes.jours)p.push(`<span class="flag cyan">CP ${v.congesPayes.jours} j</span>`);
+ if(v.maladieMaternite.jours)p.push(`<span class="flag cyan">Maladie/maternité ${v.maladieMaternite.jours} j</span>`);
+ if(v.autresAbsences.jours)p.push(`<span class="flag cyan">Autres ${v.autresAbsences.jours} j</span>`);
+ if(v.absence.jours)p.push(`<span class="flag amber">Non déclarée ${v.absence.jours} j</span>`);
+ if(v.joursFeries.jours)p.push(`<span class="flag">Férié ${v.joursFeries.jours} j</span>`);
+ return p.length?p.join(' '):'<span class="flag vide">Aucune</span>';
+}
+function celluleAttente(f){
+ const att=itemsEnAttente(f), conf=bloqueursConfig(f.employee.id);
+ if(!att.length&&!conf.length)return '<span class="flag vide">Rien à vérifier</span>';
+ const chips=[];
+ if(conf.length)chips.push('<span class="flag red">Paramétrage</span>');
+ const libs=[];
+ att.forEach(i=>{const l=LIBELLES[i.typeItem]||i.typeItem;if(!libs.includes(l))libs.push(l)});
+ libs.slice(0,2).forEach(l=>chips.push(`<span class="flag amber">${ECHAPPE(l)}</span>`));
+ if(libs.length>2)chips.push(`<span class="flag">+${libs.length-2}</span>`);
+ if(att.some(i=>i.contestationOuverte))chips.push('<span class="flag red">Contestation ouverte</span>');
+ return chips.join(' ');
+}
+function ligneSalarie(f){
+ const id=f.employee.id, inclus=!!f.reglage.inclus;
+ const v=NexusPayeMoteur.variablesComptables(f);
+ const [lib,ton]=STATUTS_SALARIE[f.statut]||STATUTS_SALARIE.hors_paie;
+ const mode=!inclus?'Hors paie':(f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station');
+ const hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
+ return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}">`
+ +`<td class="cell-first" data-col="Salarié"><div class="cell-nom">${ECHAPPE(f.employee.nom)}</div><div class="cell-sub">${inclus?`${pluriel(jours,'jour')} confirmé${jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`:'Ne figure pas au dossier de paie'}</div></td>`
+ +`<td data-col="Affectation"><div>${ECHAPPE(f.employee.role||'Poste non renseigné')}</div><div class="cell-sub">${mode}${hp?` · ${pluriel(hp,'jour')} hors planning`:''}</div></td>`
+ +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}">${inclus?`${H2(v.presence.heures)} h`:'Non concerné'}${inclus&&v.heuresSupplementaires.heures?`<div class="cell-sub">+${H2(v.heuresSupplementaires.heures)} h supp.</div>`:''}</td>`
+ +`<td data-col="Absences">${inclus?celluleAbsences(v):'<span class="flag vide">Non concerné</span>'}</td>`
+ +`<td data-col="Éléments à vérifier">${celluleAttente(f)}</td>`
+ +`<td data-col="Statut"><span class="flag ${ton}">${lib}</span></td></tr>`;
+}
+// Fiche salarié : tout ce que le manager doit voir pour trancher, dans le
+// panneau latéral. Chaque élément n'apparaît qu'une fois — les anomalies à
+// résoudre en haut, les écarts de caisse à part (ils ne sont pas de la
+// rémunération), le reste derrière « Voir le détail ».
+function renderFiche(f){
+ if(!f)return '<div class="empty-state">Sélectionnez un salarié dans le tableau pour ouvrir sa fiche.</div>';
+ const id=f.employee.id, inclus=!!f.reglage.inclus;
+ const v=NexusPayeMoteur.variablesComptables(f);
+ const conf=bloqueursConfig(id), items=f.items||[];
+ const ecarts=items.filter(i=>i.typeItem==='ecart_caisse');
+ const anomalies=items.filter(i=>i.typeItem!=='ecart_caisse'&&(i.statut==='a_verifier'||i.contestationOuverte));
+ const reste=items.filter(i=>i.typeItem!=='ecart_caisse'&&!(i.statut==='a_verifier'||i.contestationOuverte));
+ const lien=lienPlanningSecurise(), hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
+ const src=(RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source)||'nexus';
+ const tete=`<div class="panel-head"><div><h2>${ECHAPPE(f.employee.nom)}</h2><div class="meta">${ECHAPPE(f.employee.role||'Poste non renseigné')}${inclus?` · ${H2(v.presence.heures)} h · ${pluriel(jours,'jour')}`:''}</div></div>${pillStatut(f.statut)}</div>`
+ +`${inclus?'':`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`}`
+ // Un rattachement jamais confirmé bloque le dossier du mois. Le statut le
+ // dit déjà en une pastille ; la fiche doit dire quoi faire, et où.
+ +`${f.reglage.confirme?'':`<div class="alert">${inclus?'Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.':'Hors paie proposé d’après le rôle, jamais confirmé : confirmez-le pour débloquer le dossier du mois.'}</div>`}`
+ +`${conf.length?`<div class="alert">${conf.map(b=>ECHAPPE(b.libelle)).join('<br>')}<br>Réglage permanent à compléter une fois — ce n’est pas un arbitrage du mois.</div>`:''}`;
+ if(!inclus)return tete+`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`;
+ return tete
+ +`<div class="bloc-titre">Synthèse mensuelle ${infoBtn('statutSalarie','statut du salarié')}</div>${renderVariables(v)}`
+ +`<div class="bloc-titre">Heures retenues ${infoBtn('heuresRetenues','heures retenues')}</div>`
+ +`<div class="lignes">`
+  +`<div class="ligne">Heures confirmées sur le mois<b>${H2(v.presence.heures)} h</b></div>`
+  +`<div class="ligne${v.presence.heuresParDefaut?'':' muet'}">dont heures issues du barème de la station<b>${H2(v.presence.heuresParDefaut)} h</b></div>`
+  +`<div class="ligne${v.heuresSupplementaires.heuresDejaIncluses?'':' muet'}">dont heures supplémentaires déjà comptées dans le barème<b>${H2(v.heuresSupplementaires.heuresDejaIncluses)} h</b></div>`
+  +`<div class="ligne${v.heuresSupplementaires.heures?'':' muet'}">Heures supplémentaires arbitrées, en plus<b>${H2(v.heuresSupplementaires.heures)} h</b></div>`
+  +`<div class="ligne${v.retards.minutes?'':' muet'}">Retards retenus<b>${v.retards.minutes} min</b></div>`
+ +`</div>`
+ +`<div class="bloc-titre">Planning officiel et affectations</div>`
+ +`<div class="lignes">`
+  +`<div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div>`
+  +`<div class="ligne">Mode de présence<b>${f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station'}</b></div>`
+  +`<div class="ligne">Jours confirmés<b>${v.presence.joursMesures} mesuré${v.presence.joursMesures>1?'s':''} · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}</b></div>`
+  +`<div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div>`
+ +`</div>`
+ +`${lien?`<div class="help" style="margin-top:0"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`
+ +`<div class="bloc-titre">Anomalies à résoudre${anomalies.length?` · ${anomalies.length}`:''}</div>`
+ +`${anomalies.length?anomalies.map(i=>renderItem(f,i)).join(''):'<div class="ok">✓ Aucune anomalie à résoudre pour ce salarié.</div>'}`
+ +`${ecarts.length?`<div class="bloc-titre">Écarts de caisse et régularisations · ${ecarts.length} ${infoBtn('regularisation','écarts et régularisations')}</div><div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale.</div>${ecarts.map(i=>renderItem(f,i)).join('')}`:''}`
+ +`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
+ +`<div class="detail-zone" data-emp="${id}" hidden><div class="bloc-titre">Historique des décisions, sources et justificatifs</div>${reste.length?reste.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
 }
 // Qualifier une période une seule fois. Le manager choisit un motif puis
 // confirme ; NEXUS écrit sur l'ÉVÉNEMENT, ce qui vaut pour tous les mois
@@ -197,7 +569,7 @@ function renderItem(f,i){
  return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}">${entete}`
   +`${detail?`<div class="item-meta">${ECHAPPE(detail)}${i.heuresAttribuees!=null?` <button class="h-edit" data-key="${ECHAPPE(i.sourceCle)}" title="Corriger les heures retenues" aria-label="Corriger les heures retenues" style="background:none;border:0;color:inherit;opacity:.7;cursor:pointer;padding:0 2px">✎</button>`:''}</div>`:''}`
   +`${i.heuresAttribuees!=null?`<div class="h-box" data-key="${ECHAPPE(i.sourceCle)}" hidden style="display:flex;align-items:center;gap:6px;margin:2px 0 6px"><input class="h-val" type="number" min="0" max="24" step="0.25" value="${i.heuresAttribuees}" style="width:72px;padding:6px;border-radius:8px"><span style="font-size:11px;opacity:.7">h retenues</span><button class="btn h-save" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Enregistrer</button></div>`:''}`
-  +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
+  +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Régularisations encaissées</span><b>${euros(versementCentimes(i))}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
   +`<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`;
 }
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
@@ -325,6 +697,72 @@ function bind(){
  document.getElementById('reopen').onclick=async()=>{if(!await nexusConfirmer('Rouvrir le dossier ?','Le dossier repasse en brouillon et l’instantané validé est supprimé. Les arbitrages déjà rendus, eux, sont conservés.','Rouvrir le dossier',true))return;await NexusPayeDonnees.enregistrerPeriode(nexusClient,{siteId:SITE,periode:MOIS,statut:'brouillon',snapshot:null,actorId:EMPLOYEE.id});reload()};
  document.getElementById('export').onclick=exportCSV;
  document.getElementById('dossierPdf').onclick=genererDossierPdf;
+ bindCockpit();
+}
+// Interactions du cockpit (09/10/2026). Deux rafraîchissements ciblés —
+// le corps du tableau, le panneau — plutôt qu'un render() complet : la
+// recherche garde le focus et la frappe ne saute pas. Aucune de ces
+// fonctions n'écrit en base ; les décisions restent celles de decision()
+// et des formulaires, une par une, jamais groupées.
+function majTable(){
+ const l=fichesAffichees(), corps=document.getElementById('tbody');
+ if(corps)corps.innerHTML=corpsTable(l);
+ const c=document.getElementById('tableCount');if(c)c.textContent=libelleCompte(l);
+ document.querySelectorAll('.filtre').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filtre===FILTRE)));
+ document.querySelectorAll('button.tri').forEach(b=>{b.textContent=`${b.dataset.lib}${fleche(b.dataset.tri)}`});
+ document.querySelectorAll('[data-kpi]').forEach(b=>{
+  const actif=(b.dataset.kpi==='salaries'&&FILTRE==='tous')||(b.dataset.kpi==='decisions'&&FILTRE==='a_verifier')||(b.dataset.kpi==='prets'&&FILTRE==='prets')||(b.dataset.kpi==='heures'&&TRI.cle==='heures');
+  b.classList.toggle('actif',!!actif);
+ });
+ bindLignes();
+}
+function majPanneau(){
+ const p=document.getElementById('panelInner');
+ if(!p)return;
+ p.innerHTML=renderPanneau();
+ bind();
+}
+function selectionner(id,onglet){
+ if(!trouverFiche(id))return;
+ SELECTION=id;ONGLET=onglet||'fiche';
+ majTable();majPanneau();
+}
+function bindLignes(){
+ document.querySelectorAll('tr[data-employee]').forEach(tr=>{
+  tr.onclick=()=>selectionner(tr.dataset.employee);
+  tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectionner(tr.dataset.employee)}};
+ });
+}
+function ouvrirOnglet(onglet,ancre){
+ ONGLET=onglet;majPanneau();
+ if(ancre){const el=document.getElementById(ancre);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'start'})}
+}
+function bindCockpit(){
+ const r=document.getElementById('recherche');
+ if(r)r.oninput=e=>{RECHERCHE=e.target.value||'';majTable()};
+ document.querySelectorAll('.filtre').forEach(b=>b.onclick=()=>{FILTRE=b.dataset.filtre;majTable()});
+ document.querySelectorAll('button.tri').forEach(b=>b.onclick=()=>{
+  if(TRI.cle===b.dataset.tri)TRI.sens=-TRI.sens; else TRI={cle:b.dataset.tri,sens:b.dataset.tri==='nom'?1:-1};
+  majTable();
+ });
+ document.querySelectorAll('[data-onglet]').forEach(b=>b.onclick=()=>ouvrirOnglet(b.dataset.onglet));
+ document.querySelectorAll('.lien-salarie').forEach(b=>b.onclick=()=>selectionner(b.dataset.employee));
+ document.querySelectorAll('[data-kpi]').forEach(b=>b.onclick=()=>{
+  const k=b.dataset.kpi;
+  if(k==='salaries'){FILTRE='tous';RECHERCHE='';majTable();const i=document.getElementById('recherche');if(i)i.value=''}
+  else if(k==='heures'){TRI={cle:'heures',sens:-1};majTable()}
+  else if(k==='decisions'){FILTRE='a_verifier';majTable();ouvrirOnglet('decisions','reviewSection')}
+  else if(k==='prets'){FILTRE='prets';majTable()}
+  else if(k==='ecarts'){ouvrirOnglet('decisions','ecartsBloc')}
+ });
+ const t=document.getElementById('toggleSaisie'), d=document.getElementById('drawerSaisie');
+ if(t&&d)t.onclick=()=>{d.hidden=!d.hidden;t.setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden&&d.scrollIntoView)d.scrollIntoView({behavior:'smooth',block:'nearest'})};
+ // Les deux raccourcis héritaient d'un scrollIntoView sur une section de
+ // page ; dans le cockpit, la cible vit dans le panneau — on ouvre
+ // l'onglet, sinon le clic ne faisait plus rien.
+ document.querySelectorAll('.jump-review').forEach(b=>b.onclick=()=>ouvrirOnglet('decisions','reviewSection'));
+ document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='tous';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
+ bindLignes();
 }
 async function decision(btn,valider){
  const item=trouver(btn.dataset.emp,btn.dataset.key);if(!item)return;
@@ -422,5 +860,5 @@ async function genererDossierPdf(){
 }
 function csvCell(v){const s=String(v??'');return `"${s.replace(/"/g,'""')}"`}
 function exportCSV(){const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;const lignes=snap&&snap.lignes?snap.lignes:NexusPayeMoteur.lignesExport(RAPPORT);const cols=['employe','type','date','source','ecart_initial','ecart_final','statut','quantite_minutes','montant_euros','impact_paye','commentaire'];const csv='\uFEFF'+[cols.join(';'),...lignes.map(l=>cols.map(c=>csvCell(l[c])).join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`NEXUS-Paye-${SITE}-${MOIS.slice(0,7)}.csv`;a.click();URL.revokeObjectURL(a.href)}
-nexusRequireAuth().then(async employee=>{if(!employee)return;if(!['manager','gerant'].includes(employee.role)){document.getElementById('app').innerHTML='<div class="alert">NEXUS PAYE est réservé aux managers et gérants.</div>';return}EMPLOYEE=employee;SITE=employee.site_id;await reload()}).catch(e=>{document.getElementById('app').innerHTML=`<div class="alert">Session indisponible : ${ECHAPPE(e.message||e)}</div>`});
+nexusRequireAuth().then(async employee=>{if(!employee)return;if(!['manager','gerant'].includes(employee.role)){document.getElementById('app').innerHTML='<div class="alert">NEXUS PAYE est réservé aux managers et gérants.</div>';return}EMPLOYEE=employee;SITE=employee.site_id;COMMERCE=SITE;nomDuCommerce().then(n=>{COMMERCE=n;const el=document.querySelector('.topbar .station');if(el)el.textContent=n}).catch(()=>{});await reload()}).catch(e=>{document.getElementById('app').innerHTML=`<div class="alert">Session indisponible : ${ECHAPPE(e.message||e)}</div>`});
 </script></body></html>

@@ -87,6 +87,10 @@ vm.runInContext(`
   RAPPORT = NexusPayeMoteur.construireRapport(__donnees);
   RAPPORT.periodeEnregistree = null;
   RAPPORT.planningOfficiel = { source: 'nexus', url: null };
+  // Le cockpit n'ouvre qu'une fiche à la fois : on demande celle de Vanessa,
+  // sinon la sélection par défaut tomberait sur un autre salarié et son
+  // événement RH ne serait pas dans le rendu.
+  SELECTION = 'e2';
   render();
 `, ctx);
 
@@ -107,9 +111,9 @@ verifier('… son motif seul, sans phrase datée', contient('Congé maternité')
 verifier('… sa période couverte dans le mois', contient('01/08/2026 → 31/08/2026'));
 verifier('… et son nombre de jours couverts', contient('31 jours couverts'));
 verifier('… en rappelant qu’il a commencé avant le mois', contient('commencé le 21/07/2026'));
-// L'événement apparaît deux fois — dans la liste du mois et dans la fiche
-// du salarié — et deux fois seulement. Avant ce lot, les 31 jours d'août
-// produisaient 31 blocs.
+// L'événement apparaît deux fois — dans les informations du mois et dans la
+// fiche du salarié ouverte — et deux fois seulement. Avant le lot du
+// 03/09/2026, les 31 jours d'août produisaient 31 blocs.
 verifier('aucune carte n’est produite par journée d’absence',
   (ecran.match(/class="rh-bloc"/g) || []).length === 2);
 

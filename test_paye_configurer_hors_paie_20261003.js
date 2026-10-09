@@ -38,7 +38,7 @@ const ctx = {
     createElement: () => element('cree'), body: { appendChild() {} },
     addEventListener() {}, removeEventListener() {},
   },
-  navigator: {}, nexusClient: {},
+  navigator: {}, nexusClient: {}, URL,
   nexusRequireAuth: () => ({ then: () => ({ catch: () => {} }) }),
 };
 ctx.window = ctx; ctx.globalThis = ctx;
@@ -73,10 +73,21 @@ vm.runInContext(`
 
 const ecran = rendu.app;
 assert.ok(ecran && ecran.length > 1000, 'l’écran ne s’est pas rendu');
+// Depuis le cockpit (09/10/2026), la fiche d'un salarié n'est plus une
+// carte empilée dans la page : c'est le panneau latéral, qui s'ouvre sur
+// la ligne sélectionnée. On l'ouvre donc, salarié par salarié.
 function fiche(id) {
-  const m = ecran.match(new RegExp(`<article class="employee" data-employee="${id}">[\\s\\S]*?</article>`));
-  assert.ok(m, 'fiche introuvable : ' + id);
-  return m[0];
+  vm.runInContext(`SELECTION = ${JSON.stringify(id)}; ONGLET = 'fiche'; render();`, ctx);
+  assert.strictEqual(vm.runInContext('SELECTION', ctx), id, 'la sélection n’a pas pris : ' + id);
+  // Le panneau est rendu DANS la page, pas dans un conteneur à part : on
+  // le découpe du rendu courant plutôt que de guetter une mise à jour
+  // partielle qui n'a pas lieu ici.
+  const page = rendu.app || '';
+  const d = page.indexOf('id="panelInner"');
+  assert.ok(d > 0, 'panneau latéral absent du rendu');
+  const panneau = page.slice(d, page.indexOf('</aside>', d));
+  assert.ok(panneau.length > 200, 'fiche introuvable : ' + id);
+  return panneau;
 }
 
 let ok = 0;
@@ -86,17 +97,19 @@ function verifier(libelle, condition) {
   ok++;
 }
 
-const terry = fiche('v1'), alex = fiche('v2');
+const terry = fiche('v1');
 const bloqueursTerry = vm.runInContext('RAPPORT.bloqueurs', ctx).filter(b => /Terry/.test(b.libelle || b));
 
 verifier('le moteur bloque bien sur le rattachement non confirmé de Terry', bloqueursTerry.length === 1);
 verifier('la fiche de Terry offre « Configurer le rattachement »',
   terry.includes('class="btn configure" data-id="v1"'));
 verifier('… et dit pourquoi il faut confirmer', terry.includes('jamais confirmé'));
+const alex = fiche('v2');
 verifier('un hors-paie confirmé (Alex) garde le bouton pour être réinclus',
   alex.includes('class="btn configure" data-id="v2"'));
 verifier('… sans alerte de confirmation', !alex.includes('jamais confirmé'));
+const tout = ecran + terry + alex;
 verifier('le rendu ne contient ni « undefined » ni « NaN »',
-  !ecran.includes('undefined') && !ecran.includes('NaN'));
+  !tout.includes('undefined') && !tout.includes('NaN'));
 
 console.log(`\nNEXUS PAYE — configurer un hors-paie : ${ok}/${ok} vérifications passent.`);
