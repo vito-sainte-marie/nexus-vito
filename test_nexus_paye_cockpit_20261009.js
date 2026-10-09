@@ -359,4 +359,38 @@ verifier(`les ${attendus.length} identifiants pilotés par bind() sont tous rend
 verifier('le rendu ne contient ni « undefined » ni « NaN »',
   !dans(ecran(), 'undefined') && !dans(ecran(), 'NaN'));
 
+// ── Téléphone et Safari iOS : ce que le navigateur ne dira pas ici ─────
+// Mesuré dans Chrome à 390 x 844, les 37 commandes de l'écran font 44 px
+// de cible. Rien dans un bac à sable ne mesure une hauteur : on tient donc
+// les règles qui produisent ce résultat, celles dont la disparition le
+// ferait retomber sans bruit.
+const bloc820 = (html.match(/@media\(max-width:820px\)\{([\s\S]*?)\n\}/) || [])[1] || '';
+verifier('le bloc téléphone existe', bloc820.length > 100);
+verifier('le tableau se replie en fiches sous le pouce',
+  dans(bloc820, 'table.sal thead{display:none}') && dans(bloc820, 'table.sal tbody tr{display:grid'));
+verifier('… et chaque cellule porte le nom de sa colonne',
+  dans(bloc820, "td::before{content:attr(data-col)") && compter(html, /data-col="/g) >= 6);
+verifier('les commandes, la recherche et les menus font 44 px de haut',
+  dans(bloc820, '.btn,.menu,input,select{min-height:44px}'));
+verifier('les bulles (i) gardent leur dessin et étendent leur aire de frappe',
+  dans(bloc820, ".info-btn::after{content:'';position:absolute;inset:-11px}")
+  && dans(bloc820, ".h-edit::after{content:'';position:absolute;inset:-14px}"));
+verifier('les liens de source sont touchables eux aussi',
+  dans(bloc820, '.source-link,button.lien-salarie,.help a{display:inline-flex'));
+// Safari iOS compte sa barre d'outils dans 100vh ; le conteneur déborderait
+// du visible. On redit la même borne en dvh, après : les Safari anciens
+// ignorent la seconde, les récents la prennent.
+verifier('les deux zones de défilement bornent leur hauteur en vh puis en dvh',
+  compter(html, /max-height:calc\(100vh - 322px\);max-height:calc\(100dvh - 322px\)/g) === 2);
+verifier('le défilement interne reste inertiel sur iOS',
+  compter(html, /-webkit-overflow-scrolling:touch/g) === 2);
+verifier('sous 1180 px ces bornes s’effacent, le flux redevient naturel',
+  dans(html, '.tablescroll,.panelbody{max-height:none}'));
+// Un écran qui tient dans l'encoche : déjà en production, on le garde.
+verifier('la page tient compte des bords sûrs du téléphone',
+  dans(html, 'viewport-fit=cover') && dans(html, 'env(safe-area-inset-bottom)'));
+// Rien de ce que Safari iOS a reçu tard : la refonte n'en introduit aucun.
+verifier('aucune construction que Safari iOS ne sait pas lire',
+  !/:has\(|backdrop-filter|\.toSorted\(|\.at\(|structuredClone\(|Object\.groupBy/.test(html));
+
 console.log(`\nNEXUS PAYE — cockpit mensuel : ${ok}/${ok} vérifications passent.`);

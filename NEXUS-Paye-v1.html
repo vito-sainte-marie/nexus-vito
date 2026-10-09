@@ -52,7 +52,7 @@ button.kpi.money b{color:var(--cyan)}
 .filtres{display:flex;gap:5px;flex-wrap:wrap}
 button.filtre{border:1px solid var(--line);background:var(--raised);color:var(--mid);border-radius:8px;padding:6px 9px;cursor:pointer;font:600 9.5px var(--mono)}
 button.filtre[aria-pressed="true"]{color:#071217;background:var(--cyan);border-color:var(--cyan)}
-.tablescroll{overflow:auto;max-height:calc(100vh - 322px);-webkit-overflow-scrolling:touch}
+.tablescroll{overflow:auto;max-height:calc(100vh - 322px);max-height:calc(100dvh - 322px);-webkit-overflow-scrolling:touch}
 table.sal{width:100%;border-collapse:collapse}
 table.sal th,table.sal td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:12.5px}
 table.sal thead th{position:sticky;top:0;z-index:2;background:var(--raised);font:600 9px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
@@ -77,7 +77,7 @@ table.sal tbody tr.horspaie{opacity:.62}
 button.tab{border:1px solid var(--line);background:var(--raised);color:var(--mid);border-radius:8px;padding:7px 10px;cursor:pointer;font:600 10px var(--mono)}
 button.tab[aria-selected="true"]{color:#071217;background:var(--cyan);border-color:var(--cyan)}
 button.tab .n{font-weight:700}
-.panelbody{overflow:auto;max-height:calc(100vh - 322px);padding:11px 12px;-webkit-overflow-scrolling:touch}
+.panelbody{overflow:auto;max-height:calc(100vh - 322px);max-height:calc(100dvh - 322px);padding:11px 12px;-webkit-overflow-scrolling:touch}
 .panelbody>section{margin-bottom:12px}
 .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;margin-bottom:9px}
 .panel-head h2{font-size:15.5px;text-transform:capitalize}
@@ -110,6 +110,16 @@ footer{padding:12px;font-size:9.5px}
  table.sal tbody td::before{content:attr(data-col);font:9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);flex:none}
  table.sal tbody td.cell-first::before{display:none}
  .monthnav button,.topacts .btn,button.filtre,button.tab{min-height:44px}
+ /* Le compte y était pour la barre du haut seulement : les commandes du
+    panneau, les bulles (i) et la recherche restaient sous le pouce. La
+    cible fait 44 px partout ; quand le dessin doit rester petit, c'est
+    l'aire de frappe qu'on étend, jamais le symbole. */
+ .btn,.menu,input,select{min-height:44px}
+ .menu{display:inline-flex;align-items:center}
+ .info-btn,.h-edit{position:relative}
+ .info-btn::after{content:'';position:absolute;inset:-11px}
+ .h-edit::after{content:'';position:absolute;inset:-14px}
+ .source-link,button.lien-salarie,.help a{display:inline-flex;align-items:center;min-height:44px}
  .vars{grid-template-columns:1fr}
  .ecart-grid{grid-template-columns:1fr 1fr}
 }
