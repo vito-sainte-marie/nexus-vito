@@ -385,7 +385,7 @@ function integration(html) {
   const iPaye = uniqueRe(html, /<script src="nexus-paye-regularisations\.js\?v=[^"]+"><\/script>/g);
   const iSaisie = uniqueRe(html, /<script src="nexus-regularisation-saisie\.js\?v=[^"]+"><\/script>/g);
   assert.ok(iPaye < iSaisie && iSaisie < unique(html, 'let EMPLOYEE_ID_COURANT = null;'));
-  assert.ok(html.includes('NEXUS · Analyse des écarts — v2.271'));
+  assert.ok(html.includes('NEXUS · Analyse des écarts — v2.27'));
   assert.ok(/\.aide-info\{[^}]*background:transparent; border:none/.test(html), 'le (i) est un vrai bouton, sans fond');
   assert.ok(/\.regul-champ input\[type=text\][^{]*\{[^}]*font-size:16px/.test(html), 'Safari iOS ne zoome pas sous 16 px');
   // EST_MANAGER vient de nexusEstManager, jamais d'un rôle recodé à l'écran.
