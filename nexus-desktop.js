@@ -135,6 +135,9 @@ const NEXUS_SIDEBAR_GROUPES = [
     items: [
       { label: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png', desc: 'Évalue la réalisation et la qualité du travail.' },
       { label: 'Résultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
+      // Paye (09/10/2026, demande de Frédéric) : l'écran n'était joignable que
+      // par le menu ☰ de l'accueil. Pas d'icône dédiée dans assets/icons.
+      { label: 'Paye', href: 'NEXUS-Paye-v1.html', icon: null, emoji: '💶', desc: 'Prépare les variables de paye du mois pour la comptable.' },
     ],
   },
   {
