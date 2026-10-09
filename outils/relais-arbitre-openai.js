@@ -111,7 +111,7 @@ async function principal() {
     console.error('Relais OpenAI non armé (variable NEXUS_RELAIS_OPENAI ou secret OPENAI_API_KEY absent) : rien envoyé.');
     return 0;
   }
-  const corps = fs.readFileSync(0, 'utf8');
+  const corps = require('./lire-entree').lireEntreeStandard();
   const attendu = attenduDuReveil(corps);
   if (!attendu.lot || !attendu.request) { console.error('Corps de réveil illisible : LOT_ID ou demande introuvable.'); return 1; }
   let texte;

@@ -145,8 +145,8 @@ function principal(argv, stdin) {
 if (require.main === module) {
   const argv = process.argv.slice(2);
   const lireStdin = argv.includes('--marques') && argv[argv.indexOf('--marques') + 1] === '-';
-  const stdin = lireStdin && !process.stdin.isTTY ? require('fs').readFileSync(0, 'utf8') : '';
   try {
+    const stdin = lireStdin && !process.stdin.isTTY ? require('./lire-entree').lireEntreeStandard() : '';
     process.exitCode = principal(argv, stdin);
   } catch (err) {
     process.stdout.write(`::error::empreinte de progression incalculable — ${err.message}\n`);
