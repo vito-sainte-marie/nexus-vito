@@ -4,7 +4,8 @@ const fs = require('fs');
 const html = fs.readFileSync('NEXUS-Paye-v1.html', 'utf8');
 
 assert.ok(html.includes('id="reviewSection"') && html.includes('id="employeesSection"') && html.includes('id="accountantSection"'));
-assert.ok(html.includes('Examiner les points à vérifier'));
+// Finition du 09/10 (§4 du mandat) : l'action principale nomme ce qu'elle fait.
+assert.ok(html.includes('Traiter les'));
 assert.ok(html.includes('Informations sans impact paie'));
 assert.ok(html.includes('Transmettre à la comptable') && html.includes('Sans impact paie'));
 assert.ok(html.includes('Écart de caisse') && html.includes('ne devient jamais automatiquement une dette'));

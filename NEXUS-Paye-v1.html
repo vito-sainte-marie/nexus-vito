@@ -47,6 +47,7 @@ button.kpi{display:block;width:100%;text-align:left;background:var(--panel);bord
 button.kpi:hover,button.kpi:focus-visible{border-color:rgba(79,195,217,.45);outline:none}
 button.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 button.kpi b{display:block;font:700 19px var(--mono);margin-top:3px}
+.kpi-attente{font-style:normal;font-size:10.5px;font-weight:600;color:var(--amber);white-space:nowrap}
 button.kpi small{display:block;font:9.5px/1.35 var(--mono);color:var(--mid);margin-top:2px}
 button.kpi.actif{border-color:var(--cyan);background:rgba(79,195,217,.08)}
 button.kpi.warn b{color:var(--amber)}
@@ -69,9 +70,16 @@ table.sal tbody tr{cursor:pointer}
 table.sal tbody tr:hover{background:var(--raised)}
 table.sal tbody tr.selected{background:rgba(79,195,217,.1);box-shadow:inset 2px 0 0 var(--cyan)}
 table.sal tbody tr:focus-visible{outline:1px solid var(--cyan);outline-offset:-1px}
-table.sal tbody tr.horspaie{opacity:.62}
+table.sal tbody tr.horspaie{opacity:.78}
 .cell-nom{font-weight:600;text-transform:capitalize;font-size:12.5px}
-.cell-sub{font:9.5px/1.35 var(--mono);color:var(--dim)}
+.cell-sub{font:9.5px/1.35 var(--mono);color:var(--mid)}
+/* Une ligne qui attend une décision se repère sans lire : filet ambre à gauche. */
+table.sal tbody tr.prioritaire{box-shadow:inset 3px 0 0 var(--amber)}
+table.sal tbody tr.prioritaire.selected{box-shadow:inset 3px 0 0 var(--cyan)}
+.flag.compte{color:#071217;background:var(--amber)}
+.zeros{font:10px/1.5 var(--mono);color:var(--mid);padding:6px 2px 0}
+.sous-titre{font:700 9.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mid);margin:10px 0 6px}
+.regul-etat{font:11px/1.5 var(--mono);color:var(--amber);padding:6px 0}
 .cell-num{font:600 12px var(--mono);white-space:nowrap}
 .cell-num.zero{color:var(--dim)}
 .flag{display:inline-block;font:700 9px var(--mono);padding:3px 6px;border-radius:7px;background:var(--raised);color:var(--mid);white-space:nowrap}
@@ -161,6 +169,8 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 <script src="nexus-paye-moteur.js?v=20260904-0104"></script>
 <script src="nexus-paye-donnees.js?v=20260904-0104"></script>
 <script src="nexus-paye-dossier-pdf.js?v=20260904-0104"></script>
+<script src="nexus-station.js?v=20260904-0104"></script>
+<script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
 </head>
 <body><div class="cockpit">
 <header class="appbar"><div class="brand-static"><span class="eyebrow">NEXUS · Manager</span><b>Paye</b></div><div class="baseline">Préparer les variables pour la comptable à partir des faits disponibles. NEXUS distingue toujours ce qui est mesuré, reconstitué et arbitré.</div><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a></header>
@@ -170,7 +180,7 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 <script>
 let EMPLOYEE, SITE, RAPPORT, MOIS = NexusPayeMoteur.moisISO(new Date());
 const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Absence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
-const INFOS={dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptable.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles reconstituées à partir du barème de la station quand la preuve manque. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
+const INFOS={heures:['Comment lire les heures','Mesurée : jour prouvé par Verify ou le pointage. Reconstituée : jour déduit du planning faute de preuve directe, signalé comme tel. Confirmée : jour retenu après ces contrôles. Hors planning : présence constatée un jour non planifié ; ses heures proposées par le barème restent en attente tant que vous n’avez pas tranché. Retenue : ce qui part à la comptable — uniquement les heures sans réserve et celles que vous avez confirmées.'],dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptable.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles reconstituées à partir du barème de la station quand la preuve manque. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
 // Les seuls types encore saisissables JOURNÉE PAR JOURNÉE. Congés,
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
@@ -227,39 +237,63 @@ function selectionParDefaut(){
 function itemsEnAttente(f){return (f.items||[]).filter(i=>i.statut==='a_verifier'||i.contestationOuverte)}
 function bloqueursConfig(id){return (RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration'&&b.employeeId===id)}
 function horsPlanning(f){return (f.items||[]).filter(i=>i.typeItem==='presence_exceptionnelle').length}
-// Écarts de caisse : la régularisation réellement encaissée est la
-// différence entre l'écart initial et l'écart final validé par Verify
-// (−50 € d'écart, final −20 € ⇒ 30 € versés). PAYE ne recalcule rien et
-// ne réécrit jamais l'écart d'origine : les deux montants restent
-// attachés à leur période, le versement se lit à côté.
-function versementCentimes(i){
+// Écarts de caisse (09/10/2026). La différence entre l'écart initial et
+// l'écart final validé est une CORRECTION faite à la validation (recomptage,
+// erreur de saisie…), pas un encaissement : la présenter comme « versée »
+// fabriquait un paiement que personne n'avait reçu. Les encaissements réels
+// viennent des opérations de régularisation (NexusPayeRegularisations), sur
+// l'univers complet des écarts de la station : un versement de ce mois pour
+// un écart d'un mois antérieur reste lié à son écart.
+function correctionValidationCentimes(i){
  if(i.ecartInitialCentimes==null||i.ecartFinalCentimes==null)return null;
  const v=i.ecartFinalCentimes-i.ecartInitialCentimes;
  return v===0?null:v;
 }
 function totauxEcarts(){
  const l=(RAPPORT.items||[]).filter(i=>i.typeItem==='ecart_caisse');
- let initial=0,solde=0,versements=0,retenu=0,aAttribuer=0,enAttente=0;
+ let initial=0,retenu=0,aAttribuer=0,enAttente=0;
  l.forEach(i=>{
   if(i.ecartInitialCentimes!=null)initial+=i.ecartInitialCentimes;
-  if(i.ecartFinalCentimes!=null)solde+=i.ecartFinalCentimes;
-  const v=versementCentimes(i);if(v!=null)versements+=v;
   if(i.impactPaye&&i.montantCentimes!=null)retenu+=i.montantCentimes;
   if(i.attributionRequise)aAttribuer++;
   if(i.statut==='a_verifier'||i.contestationOuverte)enAttente++;
  });
- return {lignes:l,initial,solde,versements,retenu,aAttribuer,enAttente};
+ return {lignes:l,initial,retenu,aAttribuer,enAttente};
+}
+// Ne lève jamais : un état explicite remplace des zéros trompeurs.
+let REGUL={etat:'chargement'};
+async function chargerRegularisationsPaye(){
+ try{
+  const f=await NexusStation.fuseauDeLaStation(SITE);
+  if(!f||!f.timezone)return {etat:f&&f.indetermine==='reseau'?'erreur':'sans_fuseau'};
+  const [univers,ops]=await Promise.all([NexusEcartsDonnees.chargerEcartsConsolides(nexusClient,SITE,{}),NexusPayeRegularisations.chargerOperations(nexusClient,SITE)]);
+  return {etat:'ok',synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),{fuseau:f.timezone,dateDebut:MOIS,dateFin:dernierJourMois()})};
+ }catch(e){console.error(e);return {etat:'erreur',message:(e&&e.message)||String(e)}}
+}
+function regulOk(){return !!(REGUL&&REGUL.etat==='ok'&&REGUL.synthese)}
+function raisonRegul(){
+ const e=REGUL&&REGUL.etat;
+ if(e==='sans_fuseau')return 'Fuseau horaire de la station non configuré : les régularisations ne peuvent pas être datées.';
+ if(e==='erreur')return 'Régularisations indisponibles (lecture impossible) : aucun montant n’est affiché plutôt qu’un zéro trompeur.';
+ return 'Régularisations en cours de chargement…';
+}
+// Heures d'une présence hors planning : le barème les propose, le moteur
+// les compte déjà dans la présence (règle inchangée, soumise à arbitrage).
+// L'écran les sépare tant que la décision n'est pas prise.
+function heuresEnAttente(f){
+ return (f.items||[]).filter(i=>i.typeItem==='presence_exceptionnelle'&&i.statut==='a_verifier'&&i.heuresAttribuees!=null)
+  .reduce((t,i)=>t+Number(i.heuresAttribuees||0),0);
 }
 function agregats(){
- let jours=0,mesures=0,reconstitues=0,supp=0,horsPaie=0,horsPlan=0;
+ let jours=0,mesures=0,reconstitues=0,supp=0,horsPaie=0,horsPlan=0,attente=0;
  (RAPPORT.employes||[]).forEach(f=>{
   if(!f.reglage.inclus){horsPaie++;return}
   const v=NexusPayeMoteur.variablesComptables(f);
   jours+=Number(v.presence.jours||0);mesures+=Number(v.presence.joursMesures||0);
   reconstitues+=Number(v.presence.joursReconstitues||0);supp+=Number(v.heuresSupplementaires.heures||0);
-  horsPlan+=horsPlanning(f);
+  horsPlan+=horsPlanning(f);attente+=heuresEnAttente(f);
  });
- return {jours,mesures,reconstitues,supp:Math.round(supp*100)/100,horsPaie,horsPlan};
+ return {jours,mesures,reconstitues,supp:Math.round(supp*100)/100,horsPaie,horsPlan,attente:Math.round(attente*100)/100};
 }
 // Tri et filtres : l'ordre par défaut remonte les salariés qui attendent
 // une décision, et renvoie les hors paie en fin de liste — visibles,
@@ -317,11 +351,11 @@ function renderTable(){
 function renderKpis(s,ec,a){
  const dec=s.aVerifier+s.configurationRequise;
  return `<div class="kpirow" role="group" aria-label="Indicateurs du mois">
- <button type="button" class="kpi${FILTRE==='tous'?' actif':''}" data-kpi="salaries"><span>Salariés concernés</span><b>${s.salariesInclus}</b><small>${a.horsPaie} hors paie · ${a.jours} jours confirmés</small></button>
- <button type="button" class="kpi${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures confirmées</span><b>${s.heuresConfirmees} h</b><small>${a.mesures} jours mesurés · ${a.reconstitues} reconstitués${a.supp?` · +${H2(a.supp)} h supp. arbitrées`:''}</small></button>
+ <button type="button" class="kpi${FILTRE==='tous'?' actif':''}" data-kpi="salaries"><span>Salariés dans la paie</span><b>${s.salariesInclus}</b><small>${s.salariesInclus+a.horsPaie} salariés : ${s.salariesInclus} dans la paie + ${a.horsPaie} hors paie</small></button>
+ <button type="button" class="kpi${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures confirmées</span><b>${H2(s.heuresConfirmees-a.attente)} h${a.attente?` <em class="kpi-attente" title="Heures de présence hors planning en attente d’arbitrage : non comptées tant qu’aucune décision n’est prise">+ ${H2(a.attente)} h à arbitrer</em>`:''}</b><small>${a.mesures} jours mesurés · ${a.reconstitues} reconstitués${a.supp?` · +${H2(a.supp)} h supp. arbitrées`:''}</small></button>
  <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Éléments nécessitant une décision</span><b>${dec}</b><small>${s.aVerifier} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
  <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b><small>${s.salariesAVerifier} à vérifier · ${s.salariesDonneeManquante} donnée manquante</small></button>
- <button type="button" class="kpi money" data-kpi="ecarts"><span>Écarts de caisse et régularisations</span><b>${euros(ec.solde)}</b><small>initial ${euros(ec.initial)} · versé ${euros(ec.versements)}${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small></button>
+ <button type="button" class="kpi money" data-kpi="ecarts"><span>Solde des écarts de caisse</span>${regulOk()?`<b>${euros(-REGUL.synthese.soldeFinPeriode.resteDuCentimes)}</b><small>encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
  </div>`;
 }
 function renderPanneau(){
@@ -333,6 +367,17 @@ function renderPanneau(){
   <div id="accountantSection" role="tabpanel" ${ONGLET==='dossier'?'':'hidden'}>${renderDossier()}</div>
  </div>`;
 }
+function renderLignesRegul(ec){
+ const initial=`<div class="ligne">Écarts initiaux de la période (avant validation)<b>${euros(ec.initial)}</b></div>`;
+ if(!regulOk())return initial+`<div class="regul-etat">${ECHAPPE(raisonRegul())}</div>`;
+ const r=REGUL.synthese, c=r.constates, e=r.encaissements, sf=r.soldeFinPeriode;
+ const ant=(e.detail||[]).filter(d=>d.ecartAnterieur).length;
+ const att=c.enAttente&&c.enAttente.nb?` · ${pluriel(c.enAttente.nb,'écart')} en attente de validation`:'';
+ return initial
+  +`<div class="ligne">Écarts validés de la période${att}<b>${euros(c.manquesCentimes)} (${pluriel(c.nbManques,'manque')}) · ${euros(c.excedentsCentimes)} (${pluriel(c.nbExcedents,'excédent')})</b></div>`
+  +`<div class="ligne${e.netCentimes?'':' muet'}">Régularisations réellement encaissées ce mois${ant?` (dont ${ant} sur un écart antérieur)`:''}<b>${euros(e.netCentimes)}</b></div>`
+  +`<div class="ligne">Solde restant au ${jjmmaaaaFR(r.au)}<b>${euros(-sf.resteDuCentimes)}${sf.tropPercuCentimes?` · trop-perçu ${euros(sf.tropPercuCentimes)}`:''}</b></div>`;
+}
 function renderDecisions(){
  const s=RAPPORT.synthese, ec=totauxEcarts();
  const tous=RAPPORT.items||[];
@@ -340,15 +385,13 @@ function renderDecisions(){
  const informations=tous.filter(i=>i.typeItem!=='ecart_caisse'&&i.statut==='information');
  const conf=(RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration'||(!b.categorie&&!b.sourceCle));
  return `<div class="bloc-titre">Éléments de paie à vérifier${decisions.length?` · ${decisions.length}`:''} ${infoBtn('arbitrage','arbitrages')}</div>
- ${RAPPORT.bloqueurs.length?`<div class="alert">${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} à traiter avant de valider le mois.${s.salariesDonneeManquante?`<br>${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.`:''}<br><button class="btn jump-review" style="margin-top:8px">Examiner les points à vérifier</button></div>`:'<div class="ok">✓ Aucun arbitrage en attente.</div>'}
+ ${RAPPORT.bloqueurs.length?`<div class="alert">${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} à traiter avant de valider le mois.${s.salariesDonneeManquante?`<br>${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.`:''}<br><button class="btn primary jump-first" style="margin-top:8px">Traiter les ${RAPPORT.bloqueurs.length} élément${RAPPORT.bloqueurs.length>1?'s':''}</button></div>`:'<div class="ok">✓ Aucun arbitrage en attente.</div>'}
  ${decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}
  ${conf.length?`<div class="bloc-titre">Configuration requise · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div><button class="btn jump-employees" style="margin-top:8px">Configurer</button></div>`).join('')}`:''}
  <div class="bloc-titre" id="ecartsBloc">Écarts de caisse et régularisations${ec.lignes.length?` · ${ec.lignes.length}`:''} ${infoBtn('regularisation','écarts et régularisations')}</div>
  <div class="lignes">
-  <div class="ligne">Écart initial de la période<b>${euros(ec.initial)}</b></div>
-  <div class="ligne${ec.versements?'':' muet'}">Régularisations encaissées<b>${euros(ec.versements)}</b></div>
-  <div class="ligne">Solde restant (final validé)<b>${euros(ec.solde)}</b></div>
-  <div class="ligne${ec.retenu?'':' muet'}">Montant transmis à la comptable, saisi par le manager<b>${euros(ec.retenu)}</b></div>
+  ${renderLignesRegul(ec)}
+  <div class="ligne${ec.retenu?'':' muet'}">Transmis à la comptable, saisi par le manager — sans incidence automatique<b>${euros(ec.retenu)}</b></div>
  </div>
  <div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale : rien n’est transmis sans un montant saisi ici, en connaissance de cause.</div>
  ${ec.lignes.length?ec.lignes.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join(''):'<div class="ok">✓ Aucun écart de caisse sur la période.</div>'}
@@ -421,21 +464,37 @@ function tuile(label,valeur,sous,options){
  const o=options||{};
  return `<div class="var${o.vide?' vide':''}${o.attente?' attente':''}${o.pleine?' pleine':''}"><span>${ECHAPPE(label)}</span><b>${ECHAPPE(valeur)}</b>${sous?`<small>${ECHAPPE(sous)}</small>`:''}</div>`;
 }
-function renderVariables(v){
+// Trois sections (09/10/2026) : temps de travail, absences, éléments
+// financiers. Les variables à zéro ne prennent plus une tuile chacune :
+// elles tiennent sur une ligne compacte sous leur section.
+function section(titre,tuiles){
+ const pleines=tuiles.filter(t=>!t.vide), vides=tuiles.filter(t=>t.vide);
+ return `<div class="sous-titre">${ECHAPPE(titre)}</div>`
+  +(pleines.length?`<div class="vars">${pleines.map(t=>tuile(t.label,t.valeur,t.sous,t)).join('')}</div>`:'')
+  +(vides.length?`<div class="zeros">${vides.map(t=>`${ECHAPPE(t.label)} 0`).join(' · ')}</div>`:'');
+}
+function renderVariables(v,f){
  const attente=n=>n?`${n} en attente d’arbitrage`:'';
  const fin=v.financier, totalFin=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;
  const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
- return `<div class="vars">`
-  +tuile('Présence',`${v.presence.heures} h`,`${pluriel(v.presence.jours,'jour')} confirmé${v.presence.jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`,{vide:!v.presence.heures})
-  +tuile('Absence non déclarée',String(v.absence.jours),attente(v.absence.enAttente)||(v.absence.jours?'retenue en paie':'aucune'),{vide:!v.absence.jours,attente:!!v.absence.enAttente})
-  +tuile('Congés payés',String(v.congesPayes.jours),v.congesPayes.evenements?`${pluriel(v.congesPayes.evenements,'événement')}`:'aucun',{vide:!v.congesPayes.jours})
-  +tuile('Maladie / maternité',String(v.maladieMaternite.jours),v.maladieMaternite.detail.map(e=>e.libelle).join(' · ')||'aucune',{vide:!v.maladieMaternite.jours})
-  +tuile('Retards',v.retards.minutes?`${v.retards.minutes} min`:'0',attente(v.retards.enAttente)||(v.retards.occurrences?`sur ${pluriel(v.retards.occurrences,'jour')}`:'aucun'),{vide:!v.retards.minutes,attente:!!v.retards.enAttente})
-  +tuile('Heures supplémentaires',`${v.heuresSupplementaires.heures} h`,attente(v.heuresSupplementaires.enAttente)||(v.heuresSupplementaires.heuresDejaIncluses?`${v.heuresSupplementaires.heuresDejaIncluses} h déjà comprises dans la présence`:'validées'),{vide:!v.heuresSupplementaires.heures,attente:!!v.heuresSupplementaires.enAttente})
-  +tuile('Jours fériés',String(v.joursFeries.jours),attente(v.joursFeries.enAttente)||'travaillés',{vide:!v.joursFeries.jours,attente:!!v.joursFeries.enAttente})
-  +tuile('Éléments financiers',totalFin?euros(totalFin):'—',attente(fin.enAttente)||detailFin||'aucun',{vide:!totalFin,attente:!!fin.enAttente})
-  +(v.autresAbsences.jours?tuile('Autres absences qualifiées',String(v.autresAbsences.jours),v.autresAbsences.detail.map(e=>e.libelle).join(' · '),{pleine:true}):'')
-  +`</div>`;
+ const hAtt=f?heuresEnAttente(f):0;
+ const temps=[
+  {label:'Heures confirmées',valeur:`${H2(v.presence.heures-hAtt)} h`,sous:`${pluriel(v.presence.joursMesures,'jour')} mesuré${v.presence.joursMesures>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`,vide:!v.presence.heures},
+  {label:'En attente d’arbitrage',valeur:`${H2(hAtt)} h`,sous:'hors planning, proposées par le barème',vide:!hAtt,attente:!!hAtt},
+  {label:'Heures supplémentaires',valeur:`${v.heuresSupplementaires.heures} h`,sous:attente(v.heuresSupplementaires.enAttente)||(v.heuresSupplementaires.heuresDejaIncluses?`${v.heuresSupplementaires.heuresDejaIncluses} h déjà comprises dans la présence`:'validées'),vide:!v.heuresSupplementaires.heures&&!v.heuresSupplementaires.enAttente,attente:!!v.heuresSupplementaires.enAttente},
+  {label:'Retards',valeur:`${v.retards.minutes} min`,sous:attente(v.retards.enAttente)||(v.retards.occurrences?`sur ${pluriel(v.retards.occurrences,'jour')}`:''),vide:!v.retards.minutes&&!v.retards.enAttente,attente:!!v.retards.enAttente},
+  {label:'Jours fériés',valeur:String(v.joursFeries.jours),sous:attente(v.joursFeries.enAttente)||'travaillés',vide:!v.joursFeries.jours&&!v.joursFeries.enAttente,attente:!!v.joursFeries.enAttente}
+ ];
+ const absences=[
+  {label:'Congés payés',valeur:`${v.congesPayes.jours} j`,sous:v.congesPayes.evenements?pluriel(v.congesPayes.evenements,'événement'):'',vide:!v.congesPayes.jours},
+  {label:'Maladie / maternité',valeur:`${v.maladieMaternite.jours} j`,sous:v.maladieMaternite.detail.map(e=>e.libelle).join(' · '),vide:!v.maladieMaternite.jours},
+  {label:'Autres absences qualifiées',valeur:`${v.autresAbsences.jours} j`,sous:v.autresAbsences.detail.map(e=>e.libelle).join(' · '),vide:!v.autresAbsences.jours},
+  {label:'Absence non déclarée',valeur:`${v.absence.jours} j`,sous:attente(v.absence.enAttente)||'retenue en paie',vide:!v.absence.jours&&!v.absence.enAttente,attente:!!v.absence.enAttente}
+ ];
+ const financier=[
+  {label:'Éléments financiers',valeur:totalFin?euros(totalFin):'—',sous:attente(fin.enAttente)||detailFin,vide:!totalFin&&!fin.enAttente&&!fin.ecartsInformatifs,attente:!!fin.enAttente}
+ ];
+ return section('Temps de travail',temps)+section('Absences',absences)+section('Éléments financiers et décisions',financier);
 }
 // Ligne du tableau central (09/10/2026). Elle remplace la carte verticale
 // par six colonnes : Salarié, Affectation, Heures, Absences, Éléments à
@@ -454,12 +513,12 @@ function celluleAbsences(v){
 function celluleAttente(f){
  const att=itemsEnAttente(f), conf=bloqueursConfig(f.employee.id);
  if(!att.length&&!conf.length)return '<span class="flag vide">Rien à vérifier</span>';
- const chips=[];
+ const n=att.length+conf.length, chips=[`<span class="flag compte">${n} à traiter</span>`];
  if(conf.length)chips.push('<span class="flag red">Paramétrage</span>');
  const libs=[];
  att.forEach(i=>{const l=LIBELLES[i.typeItem]||i.typeItem;if(!libs.includes(l))libs.push(l)});
- libs.slice(0,2).forEach(l=>chips.push(`<span class="flag amber">${ECHAPPE(l)}</span>`));
- if(libs.length>2)chips.push(`<span class="flag">+${libs.length-2}</span>`);
+ libs.slice(0,1).forEach(l=>chips.push(`<span class="flag amber">${ECHAPPE(l)}</span>`));
+ if(libs.length>1)chips.push(`<span class="flag">+${libs.length-1}</span>`);
  if(att.some(i=>i.contestationOuverte))chips.push('<span class="flag red">Contestation ouverte</span>');
  return chips.join(' ');
 }
@@ -469,10 +528,10 @@ function ligneSalarie(f){
  const [lib,ton]=STATUTS_SALARIE[f.statut]||STATUTS_SALARIE.hors_paie;
  const mode=!inclus?'Hors paie':(f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station');
  const hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
- return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}">`
+ return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}${inclus&&(itemsEnAttente(f).length||bloqueursConfig(id).length)?' prioritaire':''}">`
  +`<td class="cell-first" data-col="Salarié"><div class="cell-nom">${ECHAPPE(f.employee.nom)}</div><div class="cell-sub">${inclus?`${pluriel(jours,'jour')} confirmé${jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`:'Ne figure pas au dossier de paie'}</div></td>`
  +`<td data-col="Affectation"><div>${ECHAPPE(f.employee.role||'Poste non renseigné')}</div><div class="cell-sub">${mode}${hp?` · ${pluriel(hp,'jour')} hors planning`:''}</div></td>`
- +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}"><span>${inclus?`${H2(v.presence.heures)} h`:'Non concerné'}</span>${inclus&&v.heuresSupplementaires.heures?`<div class="cell-sub">+${H2(v.heuresSupplementaires.heures)} h supp.</div>`:''}</td>`
+ +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}"><span>${inclus?`${H2(v.presence.heures)} h`:'Non concerné'}</span>${inclus&&(v.heuresSupplementaires.heures||heuresEnAttente(f))?`<div class="cell-sub">${[v.heuresSupplementaires.heures?`+${H2(v.heuresSupplementaires.heures)} h supp.`:'',heuresEnAttente(f)?`dont ${H2(heuresEnAttente(f))} h en attente`:''].filter(Boolean).join(' · ')}</div>`:''}</td>`
  +`<td data-col="Absences">${inclus?celluleAbsences(v):'<span class="flag vide">Non concerné</span>'}</td>`
  +`<td data-col="Éléments à vérifier">${celluleAttente(f)}</td>`
  +`<td data-col="Statut"><span class="flag ${ton}">${lib}</span></td></tr>`;
@@ -488,6 +547,8 @@ function renderFiche(f){
  const conf=bloqueursConfig(id), items=f.items||[];
  const ecarts=items.filter(i=>i.typeItem==='ecart_caisse');
  const anomalies=items.filter(i=>i.typeItem!=='ecart_caisse'&&(i.statut==='a_verifier'||i.contestationOuverte));
+ // Même compte que la ligne du tableau : un écart de caisse à valider est aussi une décision.
+ const aTraiter=itemsEnAttente(f).length+conf.length;
  const reste=items.filter(i=>i.typeItem!=='ecart_caisse'&&!(i.statut==='a_verifier'||i.contestationOuverte));
  const lien=lienPlanningSecurise(), hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
  const src=(RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source)||'nexus';
@@ -499,16 +560,18 @@ function renderFiche(f){
  +`${conf.length?`<div class="alert">${conf.map(b=>ECHAPPE(b.libelle)).join('<br>')}<br>Réglage permanent à compléter une fois — ce n’est pas un arbitrage du mois.</div>`:''}`;
  if(!inclus)return tete+`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`;
  return tete
- +`<div class="bloc-titre">Synthèse mensuelle ${infoBtn('statutSalarie','statut du salarié')}</div>${renderVariables(v)}`
+ +`<div class="bloc-titre">Synthèse mensuelle ${infoBtn('heures','lecture des heures')}</div>${aTraiter?`<button class="btn primary jump-first" style="margin:0 0 8px">Traiter les ${aTraiter} élément${aTraiter>1?'s':''}</button>`:''}${renderVariables(v,f)}`
  +`<div class="bloc-titre">Heures retenues ${infoBtn('heuresRetenues','heures retenues')}</div>`
  +`<div class="lignes">`
-  +`<div class="ligne">Heures confirmées sur le mois<b>${H2(v.presence.heures)} h</b></div>`
+  +`<div class="ligne">Heures confirmées sans réserve<b>${H2(v.presence.heures-heuresEnAttente(f))} h</b></div>`
+  +`${heuresEnAttente(f)?`<div class="ligne">Heures hors planning en attente de votre décision<b>${H2(heuresEnAttente(f))} h</b></div>`:''}`
   +`<div class="ligne${v.presence.heuresParDefaut?'':' muet'}">dont heures issues du barème de la station<b>${H2(v.presence.heuresParDefaut)} h</b></div>`
   +`<div class="ligne${v.heuresSupplementaires.heuresDejaIncluses?'':' muet'}">dont heures supplémentaires déjà comptées dans le barème<b>${H2(v.heuresSupplementaires.heuresDejaIncluses)} h</b></div>`
   +`<div class="ligne${v.heuresSupplementaires.heures?'':' muet'}">Heures supplémentaires arbitrées, en plus<b>${H2(v.heuresSupplementaires.heures)} h</b></div>`
   +`<div class="ligne${v.retards.minutes?'':' muet'}">Retards retenus<b>${v.retards.minutes} min</b></div>`
  +`</div>`
  +`<div class="bloc-titre">Planning officiel et affectations</div>`
+ +`${v.presence.joursMesures+v.presence.joursReconstitues===0&&hp?`<div class="alert">Aucun jour planifié confirmé ce mois : les ${pluriel(hp,'présence')} constatée${hp>1?'s':''} sont hors planning et attendent votre décision.</div>`:''}`
  +`<div class="lignes">`
   +`<div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div>`
   +`<div class="ligne">Mode de présence<b>${f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station'}</b></div>`
@@ -592,11 +655,12 @@ function renderItem(f,i){
  return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}">${entete}`
   +`${detail?`<div class="item-meta">${ECHAPPE(detail)}${i.heuresAttribuees!=null?` <button class="h-edit" data-key="${ECHAPPE(i.sourceCle)}" title="Corriger les heures retenues" aria-label="Corriger les heures retenues" style="background:none;border:0;color:inherit;opacity:.7;cursor:pointer;padding:0 2px">✎</button>`:''}</div>`:''}`
   +`${i.heuresAttribuees!=null?`<div class="h-box" data-key="${ECHAPPE(i.sourceCle)}" hidden style="display:flex;align-items:center;gap:6px;margin:2px 0 6px"><input class="h-val" type="number" min="0" max="24" step="0.25" value="${i.heuresAttribuees}" style="width:72px;padding:6px;border-radius:8px"><span style="font-size:11px;opacity:.7">h retenues</span><button class="btn h-save" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Enregistrer</button></div>`:''}`
-  +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Régularisations encaissées</span><b>${euros(versementCentimes(i))}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
+  +`${i.typeItem==='presence_exceptionnelle'&&i.statut==='a_verifier'&&i.heuresAttribuees!=null?`<div class="item-meta">Proposition (barème, non décidée) : ${H2(i.heuresAttribuees)} h — confirmez, corrigez ✎ ou ne retenez pas.</div>`:''}`
+  +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Correction à la validation</span><b>${euros(correctionValidationCentimes(i))}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
   +`<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`;
 }
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
-async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
+async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{[RAPPORT,REGUL]=await Promise.all([NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS),chargerRegularisationsPaye()]);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 // ─── Modales NEXUS (03/09/2026) ────────────────────────────────────────
 // Les boîtes natives du navigateur (prompt / alert / confirm) sont
 // bannies de PAYE : elles ne portent ni le vocabulaire ni les garde-fous
@@ -784,6 +848,7 @@ function bindCockpit(){
  // page ; dans le cockpit, la cible vit dans le panneau — on ouvre
  // l'onglet, sinon le clic ne faisait plus rien.
  document.querySelectorAll('.jump-review').forEach(b=>b.onclick=()=>ouvrirOnglet('decisions','reviewSection'));
+ document.querySelectorAll('.jump-first').forEach(b=>b.onclick=()=>{ouvrirOnglet('decisions','reviewSection');const c=document.querySelector('#reviewSection .review-card .btn, #reviewSection .review-card select');if(c&&c.focus)c.focus({preventScroll:true})});
  document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='tous';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
  bindLignes();
 }
