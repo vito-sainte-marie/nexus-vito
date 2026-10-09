@@ -476,7 +476,7 @@
 <!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
-<script src="nexus-verify-moteur.js?v=20261008-b4"></script>
+<script src="nexus-verify-moteur.js?v=20261008-b8"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -897,6 +897,15 @@
 
   // Langage NEXUS — explique le constat avant d'alerter, distingue le fait
   // de l'hypothese, ne accuse jamais. Cf. annexe langage NEXUS.
+  // B8 (§3) : ce que les régularisations ont ajouté à l'attendu du tiroir,
+  // par mode ; rien quand aucune opération ne le touche.
+  function ligneRegularisations(lu) {
+    const phrase = NexusVerifyMoteur.phraseRegularisationsTiroir(lu);
+    if (!phrase) return '';
+    const net = lu.net;
+    return `<div class="resume-line regularisations-tiroir" style="margin:6px 0 0;">Régularisations comprises dans l'attendu : <b>${net >= 0 ? '+' : ''}${net.toFixed(2).replace('.', ',')} €</b> (${NexusVerifyMoteur.echapperHtml(phrase)})</div>`;
+  }
+
   function phraseComposant(nom, ecart) {
     const abs = Math.abs(ecart);
     if (abs <= 2) return `${nom} : conforme.`;
@@ -1324,7 +1333,8 @@
       const { error: eMaj } = await nexusClient.from('audits_caisse').update(patch).eq('id', auditId);
       if (eMaj) {
         console.error('Restauration audit — écriture:', eMaj);
-        alert('Erreur lors de la restauration — réessayez.');
+        const refusRegul = NexusVerifyMoteur.messageRegularisationsTiroir(eMaj.message);
+        alert(refusRegul ? 'Restauration refusée — ' + refusRegul : 'Erreur lors de la restauration — réessayez.');
         return;
       }
       VERSIONS_CHARGEES.delete(auditId);
@@ -2986,6 +2996,23 @@
       }
       const factures_differees_boutique = facturesDifferees.confirme;
 
+      // Régularisations du tiroir (08/10/2026, mandat consolidé §3, B8) —
+      // un versement de régularisation reçu dans le tiroir de ce quart y
+      // est physiquement : il augmente l'attendu ; une restitution payée ou
+      // un transfert vers le coffre en sort : il le diminue. Le net vient du
+      // serveur (regularisations_tiroirs), jamais d'un calcul de l'écran ;
+      // s'il est illisible, rien n'est enregistré plutôt que de supposer 0.
+      const { data: regulTiroirs, error: eRegul } = await nexusClient.rpc('regularisations_tiroirs', { p_site: SITE_ACTUEL, p_date: date, p_quart: quart });
+      const regulPiste = eRegul ? null : NexusVerifyMoteur.lireRegularisationsTiroir(regulTiroirs && regulTiroirs.tiroir_verify_piste);
+      const regulBoutique = eRegul ? null : NexusVerifyMoteur.lireRegularisationsTiroir(regulTiroirs && regulTiroirs.tiroir_verify_boutique);
+      if (!regulPiste || !regulBoutique) {
+        console.error('Régularisations du tiroir — lecture:', eRegul || regulTiroirs);
+        const raison = eRegul ? (NexusVerifyMoteur.messageRegularisationsTiroir(eRegul.message) || eRegul.message) : 'réponse incomplète du serveur.';
+        alert("Impossible de lire les régularisations du tiroir (versements, restitutions, transferts au coffre) — rien n'a été enregistré. " + raison);
+        return;
+      }
+      const regularisations_piste = regulPiste.net, regularisations_boutique = regulBoutique.net;
+
       // Paiement vacataire / heures supplementaires en especes — sort
       // physiquement d'une caisse (piste ou boutique, choisi a chaque
       // audit), donc s'ajoute a l'explique de cette caisse, comme une
@@ -3015,7 +3042,9 @@
       // piste pour solder une facture d'un mois anterieur, jamais compte dans
       // vente_piste (deja comptabilisee le mois precedent) — meme logique
       // que reglement_compte_anterieur_boutique, symetrique en piste.
-      const attenduPiste = vente_piste - transfert - remise_cuve + reglement_compte_anterieur_piste;
+      // regularisations_piste : net des régularisations du tiroir piste de
+      // ce quart (B8), lu plus haut sur le serveur.
+      const attenduPiste = vente_piste - transfert - remise_cuve + reglement_compte_anterieur_piste + regularisations_piste;
       const ecart_piste = expliquePiste - attenduPiste;
 
       // Boutique : compare a Decenium. Le meme transfert s'ajoute ici,
@@ -3037,7 +3066,7 @@
       // credit DU JOUR MEME, deja incluse par Decenium dans vente_boutique.)
       const expliqueBoutique = drop_boutique_billets + drop_boutique_pieces + drop_boutique_chq + drop_boutique_cb
         + depense_boutique + vacataire_boutique + factures_differees_boutique;
-      const attenduBoutique = vente_boutique + transfert + reglement_compte_anterieur_boutique;
+      const attenduBoutique = vente_boutique + transfert + reglement_compte_anterieur_boutique + regularisations_boutique;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
       const ecart_total = ecart_piste + ecart_boutique;
@@ -3159,6 +3188,9 @@
         // Le serveur recalcule factures_differees_boutique : on n'envoie
         // que les lignes, jamais la somme ni l'auteur.
         factures_differees: facturesDifferees.lignes,
+        // B8 : la valeur ajoutée à l'attendu ; le serveur la refuse
+        // [REGULARISATIONS_PERIMEES] si une opération est arrivée depuis.
+        regularisations_piste, regularisations_boutique,
         ecart_piste, ecart_boutique, ecart_total,
         ecart_piste_origine, ecart_boutique_origine,
         ...reconciliation.patch,
@@ -3172,7 +3204,8 @@
         console.error('Enregistrement audit caisse:', error);
         // Un refus métier (facture déjà saisie ailleurs…) se dit tel quel :
         // « réessayez » ferait rejouer la même saisie refusée.
-        const refusFacture = NexusVerifyMoteur.messageFactureDifferee(error.message);
+        const refusFacture = NexusVerifyMoteur.messageFactureDifferee(error.message)
+          || NexusVerifyMoteur.messageRegularisationsTiroir(error.message);
         box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">${refusFacture ? 'Enregistrement refusé — ' + NexusVerifyMoteur.echapperHtml(refusFacture) : "Erreur d'enregistrement — réessayez."}</div></div>`;
         return;
       }
@@ -3215,6 +3248,7 @@
             </div>
             <div class="ecart-montant" style="color:${Math.abs(ecart_piste)<=2?'var(--green)':'var(--red)'};">${ecart_piste>=0?'+':''}${ecart_piste.toFixed(2)} €</div>
             <div class="resume-line" style="margin-bottom:0;">${phraseComposant('Caisse piste (vs pupitre)', ecart_piste)}</div>
+            ${ligneRegularisations(regulPiste)}
           </div>
 
           <div class="ecart-bloc" style="margin-bottom:0;">
@@ -3224,6 +3258,7 @@
             </div>
             <div class="ecart-montant" style="color:${Math.abs(ecart_boutique)<=2?'var(--green)':'var(--red)'};">${ecart_boutique>=0?'+':''}${ecart_boutique.toFixed(2)} €</div>
             <div class="resume-line" style="margin-bottom:0;">${phraseComposant('Caisse boutique (vs Decenium)', ecart_boutique)}</div>
+            ${ligneRegularisations(regulBoutique)}
           </div>
 
           <div class="resume-line">Présents piste : <b>${nomsEmployes([...employesSelectionnes.piste])}</b></div>
@@ -3656,7 +3691,10 @@
           const { error } = await nexusClient.from('audits_caisse').update(patch).eq('id', a.id);
           if (error) {
             console.error('Validation audit caisse (par composante):', error);
-            alert('Erreur lors de la validation — réessayez.');
+            // B8 : une opération reçue depuis le calcul se dit telle quelle ;
+            // « réessayez » rejouerait la même validation refusée.
+            const refusRegul = NexusVerifyMoteur.messageRegularisationsTiroir(error.message);
+            alert(refusRegul ? 'Validation refusée — ' + refusRegul : 'Erreur lors de la validation — réessayez.');
             btn.disabled = false; btn.textContent = `Confirmer la validation ${label}`;
             return;
           }

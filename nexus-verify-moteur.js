@@ -499,6 +499,102 @@
     return code ? MESSAGES_FACTURES_DIFFEREES[code] : null;
   }
 
+  // ------------------------------------------------------------
+  // Régularisations reçues ou sorties par tiroir (mandat consolidé §3, B8).
+  // Le serveur (regularisations_tiroirs, migration 20261008160000) rend,
+  // pour le tiroir piste et le tiroir boutique d'un quart, le net des
+  // versements de régularisation reçus, moins les restitutions payées et
+  // les transferts vers le coffre, ventilé par mode. Ce net s'ajoute à
+  // l'attendu du tiroir ; l'écran envoie la valeur retenue
+  // (regularisations_piste / _boutique) et le serveur la refuse
+  // [REGULARISATIONS_PERIMEES] si elle n'est plus la sienne.
+  // ------------------------------------------------------------
+  const LIBELLES_MODE_REGULARISATION = {
+    especes: 'Espèces', carte_bancaire: 'Carte bancaire', cheque: 'Chèque',
+    virement: 'Virement', autre: 'Autre', sans_mode: 'Sans mode',
+  };
+
+  const MESSAGES_REGULARISATIONS = {
+    REGULARISATIONS_PERIMEES: "Un versement de régularisation, une restitution ou un transfert au coffre a été enregistré sur ce tiroir depuis le calcul de l'écart. Rouvrez l'audit, recalculez l'écart (« Calculer et enregistrer »), puis validez.",
+    QUART_INVALIDE: "La date et le quart (1 ou 2) sont obligatoires pour lire les régularisations du tiroir.",
+  };
+
+  // Même code serveur, autre écran : la caisse FDJ se recalcule par la
+  // correction manager, que FDJ Manager déclenche lui-même avant de valider.
+  const MESSAGES_REGULARISATIONS_FDJ = {
+    REGULARISATIONS_PERIMEES: "Un versement de régularisation, une restitution ou un transfert au coffre a été enregistré sur le tiroir FDJ depuis le dernier calcul de la caisse. Rechargez le quart puis enregistrez de nouveau : la caisse sera recalculée avant la validation.",
+    QUART_INVALIDE: MESSAGES_REGULARISATIONS.QUART_INVALIDE,
+  };
+
+  /**
+   * lireRegularisationsTiroir(detail) — fonction pure. `detail` est un
+   * élément rendu par regularisations_tiroirs ({ net, entrees, sorties,
+   * par_mode: { mode: { entrees, sorties, net } } }). Rend { net, entrees,
+   * sorties, modes: [{ mode, libelle, entrees, sorties, net }] } au centime,
+   * modes triés par libellé. Un détail absent ou mal formé rend null :
+   * l'écran ne doit jamais supposer 0 à la place du serveur.
+   */
+  function lireRegularisationsTiroir(detail) {
+    if (!detail || typeof detail !== 'object') return null;
+    const net = centimes(detail.net);
+    if (net == null) return null;
+    const parMode = detail.par_mode && typeof detail.par_mode === 'object' ? detail.par_mode : {};
+    const modes = Object.keys(parMode).map(mode => ({
+      mode,
+      libelle: LIBELLES_MODE_REGULARISATION[mode] || mode,
+      entrees: (centimes(parMode[mode] && parMode[mode].entrees) || 0) / 100,
+      sorties: (centimes(parMode[mode] && parMode[mode].sorties) || 0) / 100,
+      net: (centimes(parMode[mode] && parMode[mode].net) || 0) / 100,
+    })).sort((x, y) => x.libelle.localeCompare(y.libelle, 'fr'));
+    return {
+      net: net / 100,
+      entrees: (centimes(detail.entrees) || 0) / 100,
+      sorties: (centimes(detail.sorties) || 0) / 100,
+      modes,
+    };
+  }
+
+  /**
+   * phraseRegularisationsTiroir(lu) — fonction pure. Une ligne lisible :
+   * « Espèces : reçu 30,00 € ; Carte bancaire : reçu 20,00 €, sorti
+   * 5,00 € » ; null quand aucune opération ne touche le tiroir.
+   */
+  function phraseRegularisationsTiroir(lu) {
+    if (!lu || !lu.modes.length) return null;
+    const eur = x => x.toFixed(2).replace('.', ',') + ' €';
+    return lu.modes.map(m => {
+      const parts = [];
+      if (m.entrees) parts.push('reçu ' + eur(m.entrees));
+      if (m.sorties) parts.push('sorti ' + eur(m.sorties));
+      return `${m.libelle} : ${parts.join(', ') || eur(0)}`;
+    }).join(' ; ');
+  }
+
+  /**
+   * messageRegularisationsTiroir(texte) — fonction pure. Message explicite
+   * pour un code (« REGULARISATIONS_PERIMEES ») ou un message serveur qui en
+   * porte un ; null sinon.
+   */
+  function messageRegularisationsTiroir(texte, messages) {
+    const t = String(texte || '');
+    const table = messages || MESSAGES_REGULARISATIONS;
+    const code = Object.keys(table)
+      .find(k => t === k || t.includes('[' + k + ']'));
+    return code ? table[code] : null;
+  }
+
+  /**
+   * regularisationsARecalculer(retenu, lu) — fonction pure. Vrai quand le
+   * net retenu par le dernier calcul (colonne posée par le serveur) diffère
+   * du net lu à l'instant : la validation serait refusée
+   * [REGULARISATIONS_PERIMEES], il faut recalculer d'abord. Une lecture
+   * absente (lu null) rend vrai : on ne présume jamais l'égalité.
+   */
+  function regularisationsARecalculer(retenu, lu) {
+    if (!lu) return true;
+    return (centimes(retenu) || 0) !== Math.round(lu.net * 100);
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
@@ -507,5 +603,8 @@
     brutAuDerniereValidation, auditEstValide, reconcilierValidationApresModification,
     libelleSignalementValidation, mentionsEcartCarte, diffEcartsVersion, formatEuroSigne, echapperHtml,
     MESSAGES_FACTURES_DIFFEREES, controlerFacturesDifferees, messageFactureDifferee,
+    LIBELLES_MODE_REGULARISATION, MESSAGES_REGULARISATIONS, lireRegularisationsTiroir,
+    phraseRegularisationsTiroir, messageRegularisationsTiroir,
+    MESSAGES_REGULARISATIONS_FDJ, regularisationsARecalculer,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
