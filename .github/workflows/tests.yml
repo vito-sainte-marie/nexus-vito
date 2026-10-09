@@ -418,16 +418,61 @@ jobs:
             exit 1
           fi
 
+          # L'historique du canal se lit UNE fois : les deux gardes qui suivent
+          # s'y répondent toutes deux, et une page d'API de moins est une panne
+          # de moins.
+          HISTORIQUE=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" --jq '.[].body')
+
           MARQUE="<!-- nexus-reveil: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
-          DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
-                   --jq '.[].body' | grep -cF "$MARQUE" || true)
+          DEJA=$(printf '%s' "$HISTORIQUE" | grep -cF "$MARQUE" || true)
           # `numero` n'est écrit que lorsque le réveil EST sur l'issue : déjà
           # publié, ou publié à l'instant. Le relais vers l'arbitre en dépend ;
           # un réveil non publié ne se relaie pas.
           [ "$DEJA" = "0" ] || echo "numero=$NUM" >> "$GITHUB_OUTPUT"
           [ "$DEJA" = "0" ] || refus REVEIL_DEJA_PUBLIE "ce réveil exact est déjà publié sur $ADRESSE."
 
-          printf '%s\n\n%s\n' "$CORPS" "$MARQUE" \
+          # §11 — UN RÉVEIL NE SE RÉPÈTE PAS SANS PROGRÈS.
+          #
+          # L'empreinte ci-dessus porte sur le TEXTE : elle ne mord que sur un
+          # corps identique au caractère près. Or ce corps liste les refs qui
+          # portent la demande. Une ref de plus — une branche de travail créée,
+          # par exemple — et le corps est neuf, l'empreinte autre, le même
+          # réveil repart : le Handoff, lui, n'a pas bougé d'un octet.
+          #
+          # L'empreinte de progression porte sur l'ÉTAT. Elle mécanise la règle
+          # 11 du skill Fast Track et son PROGRESS_FINGERPRINT, qui n'étaient
+          # jusqu'ici que de la prose : aucune fonction, aucune garde, aucune
+          # épreuve ne les portait, et GOV-001 dit déjà ce que vaut une règle
+          # qui repose sur l'attention de celui qui la lit.
+          #
+          # `head` est le dernier commit du DOMAINE du handoff, non le SHA du
+          # push. Pris au push, il changerait à chaque commit, l'empreinte
+          # aussi, et la garde ne mordrait jamais : un commit sur un écran Paye
+          # suffirait à feindre un progrès du Handoff. C'est exactement la
+          # portée par domaine que PROOF_CACHE applique déjà aux preuves.
+          HEAD_HANDOFF=$(git log -1 --format=%H -- docs/handoff || true)
+          # ACTION_NEXT, pour un réveil, c'est QUI doit agir et SUR QUOI : le
+          # rôle adressé et l'état d'enveloppe attendu. Dès que l'un des deux
+          # bouge, l'empreinte bouge — et le réveil repart légitimement.
+          EMP=$(printf '%s' "$HISTORIQUE" | node outils/empreinte-progression.js --json \
+                  --lot "$LOT" \
+                  --request "$(jq -r '.lots[0].demande // empty' <<<"$J")" \
+                  --head "${HEAD_HANDOFF:-}" \
+                  --gate-state "$(jq -r '.lots[0].statut_registre // empty' <<<"$J")" \
+                  --blocker "$(jq -r '.lots[0].motif // empty' <<<"$J")" \
+                  --action-next "$(jq -r '.lots[0].adresse_role // empty' <<<"$J") -> $(jq -r '.lots[0].statut_enveloppe // empty' <<<"$J")" \
+                  --marques -)
+          MARQUE_ETAT=$(jq -r '.marque' <<<"$EMP")
+          if [ "$(jq -r '.etat' <<<"$EMP")" = "FAST_TRACK_STALL" ]; then
+            # Ici, délibérément, PAS de `numero` : l'écrire relancerait le
+            # relais vers l'arbitre sur une question déjà posée dans les mêmes
+            # termes. Un STALL arrête la boucle, il ne la nourrit pas.
+            arret FAST_TRACK_STALL \
+              "un réveil ne se répète pas sans progrès du Handoff" \
+              "diagnostiquer la cause technique avant toute relance : empreinte $(jq -r '.empreinte' <<<"$EMP") déjà présente $(jq -r '.anterieures' <<<"$EMP") fois sur $ADRESSE"
+          fi
+
+          printf '%s\n\n%s\n%s\n' "$CORPS" "$MARQUE" "$MARQUE_ETAT" \
             | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
           echo "numero=$NUM" >> "$GITHUB_OUTPUT"
           node outils/etat-maillon.js EXECUTE REVEIL_PUBLIE --maillon "$M" \

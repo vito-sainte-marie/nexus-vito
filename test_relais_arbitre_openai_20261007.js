@@ -35,7 +35,9 @@ const ATTENDU = { lot: LOT, request: REQ };
 function contrat(champs) {
   const c = { DECISION: 'APPROVED', CLOSES: 'false', LOT, REQUEST: REQ, HEAD: 'fe30802', LEASE: 'aucun',
     GATE_STATE: 'GREEN', PROOF_STATE: 'PROOF_VALID', CONDITIONS: 'aucune', BLOCKER: 'aucun',
-    STOP_REQUIRED: 'aucun', OWNER_NEXT: 'Claude', ACTION_NEXT: 'matérialiser la décision', ...champs };
+    STOP_REQUIRED: 'aucun', CAPACITE_REQUISE: 'aucune',
+    OWNER_NEXT: 'Claude', EXECUTANT_NEXT: 'github-actions-claude',
+    ACTION_NEXT: 'matérialiser la décision', ...champs };
   return 'Analyse.\n\nNEXT_ACTION_CONTRACT\n' + Object.entries(c).filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n';
 }
 const refuse = (texte, motif) => {

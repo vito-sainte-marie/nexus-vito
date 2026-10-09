@@ -122,7 +122,15 @@ const CHAMPS_CONTRAT = Object.freeze([
   ['CONDITIONS', 'conditions vérifiables, ou « aucune »'],
   ['BLOCKER', 'obstacle concret, ou « aucun »'],
   ['STOP_REQUIRED', 'code du palier Frédéric, ou « non »'],
+  // Ajoutés le 09/10/2026, après l'incident G1. Le contrat nommait un RÔLE
+  // (`OWNER_NEXT: Frédéric`) et jamais un POUVOIR. Le GO est donc revenu par
+  // un commentaire d'issue, dans le seul canal dont l'enveloppe Supabase est
+  // Test en lecture seule : la décision était juste, le destinataire incapable
+  // de l'exécuter. Un rôle dit qui tranche ; une capacité dit qui peut agir.
+  // Les deux manquaient d'être distinguées, et le lot s'est arrêté là.
+  ['CAPACITE_REQUISE', 'la capacité qu\'exige ACTION_NEXT au registre des capacités, ou « aucune »'],
   ['OWNER_NEXT', 'Claude | Frédéric'],
+  ['EXECUTANT_NEXT', 'le canal qui détient cette capacité, ou « aucun »'],
   ['ACTION_NEXT', 'le geste minimal suivant, en une phrase'],
 ]);
 

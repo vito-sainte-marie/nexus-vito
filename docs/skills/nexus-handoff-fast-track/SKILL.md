@@ -177,12 +177,27 @@ retire plus d'étapes qu'elle n'en ajoute. Aucune nouvelle plateforme.
 **NEXT_ACTION_CONTRACT** — le relais universel. Les champs sont générés par
 `outils/escalade-humaine.js` (`CHAMPS_CONTRAT`) et envoyés dans chaque réveil :
 `DECISION`, `CLOSES`, `LOT`, `REQUEST`, `HEAD`, `LEASE`, `GATE_STATE`,
-`PROOF_STATE`, `CONDITIONS`, `BLOCKER`, `STOP_REQUIRED`, `OWNER_NEXT`,
-`ACTION_NEXT`. ChatGPT décide et rend le contrat ; Claude matérialise par
+`PROOF_STATE`, `CONDITIONS`, `BLOCKER`, `STOP_REQUIRED`, `CAPACITE_REQUISE`,
+`OWNER_NEXT`, `EXECUTANT_NEXT`, `ACTION_NEXT`. ChatGPT décide et rend le contrat ; Claude matérialise par
 `outils/handoff.js decision --auteur ChatGPT --decision <DECISION> --closes
 <CLOSES> --wake-to <OWNER_NEXT>`. Traductions : HOLD → `NEEDS_EVIDENCE` ;
 STOP_REQUIRED → `BLOCKED` avec `OWNER_NEXT: Frédéric` et un code du palier
 Frédéric.
+
+**CAPACITE_REQUISE / EXECUTANT_NEXT — ajoutés le 09/10/2026.** Un rôle dit
+qui tranche ; une capacité dit qui peut agir. Le contrat ne nommait qu'un
+rôle, et l'incident G1 du 09/10/2026 est né là : le GO Production était
+donné, `OWNER_NEXT` disait `Frédéric`, et le GO est revenu par un
+commentaire d'issue — donc dans `claude.yml`, le seul canal dont l'enveloppe
+Supabase est Test en lecture seule. La décision était juste, le destinataire
+incapable de l'exécuter. Les capacités de chaque canal sont désormais
+déclarées et prouvées dans `docs/handoff/CAPACITES-CANAL.json`, lues par
+`outils/capacites-canal.js`. `outils/classification-canal.js` pose la
+question en quatrième position — après le STOP, avant le destinataire : un
+geste qu'un AUTRE canal peut exécuter rend `CHANNEL_LIMITATION`, jamais
+`BLOCKED_TECHNIQUE`, car ce qu'il faut n'est pas une décision mais un
+exécutant. Une capacité déclarée `OUI` sur un pouvoir sensible exige une
+preuve nommée ; l'enveloppe par défaut ne couvre que les `NON`.
 
 **Gates.** G0 : information, aucun arrêt. G1 : contrôle local, Claude. G2 :
 arbitrage, ChatGPT. G3 : Frédéric, uniquement pour le palier Frédéric.
@@ -199,7 +214,16 @@ fichier de migration modifié la rend `PROOF_INVALIDATED`.
 
 **PROGRESS_FINGERPRINT.** LOT + REQUEST + HEAD + GATE_STATE + BLOCKER +
 ACTION_NEXT. Le même fingerprint deux fois de suite donne `FAST_TRACK_STALL` :
-diagnostiquer la cause racine avant tout nouveau réveil (règle 11).
+diagnostiquer la cause racine avant tout nouveau réveil (règle 11). Câblé le
+09/10/2026 par `outils/empreinte-progression.js`, dont la marque
+`<!-- nexus-empreinte: … -->` voyage dans le commentaire publié : l'historique
+du canal suffit donc à répondre, sans mémoire d'agent. Jusque-là la règle
+n'existait qu'ici, en prose, et la seule garde câblée portait sur le TEXTE du
+réveil — qu'une ref de plus porte la demande, et le corps changeait, et le
+même réveil repartait sur un Handoff immobile. `HEAD` est pris comme le
+dernier commit du DOMAINE `docs/handoff/**`, non comme le SHA du push : pris
+au push, il changerait à chaque commit et la garde ne mordrait jamais. C'est
+la portée par domaine que PROOF_CACHE applique déjà aux preuves.
 
 **WORK_QUEUE et PRODUCT_FIRST.** Ordre de la file : P1 Paye, P2 Cockpit &
 Brief, P3 FDJ, P4 Client en compte, P5 Verify, P6 Planning, P7 Carburants, P8
