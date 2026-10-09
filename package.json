@@ -4,8 +4,9 @@
   "description": "NEXUS OS — plateforme d'exploitation ViTO Sainte-Marie. Application sans étape de build : les écrans HTML/JS sont servis tels quels. Ce package.json n'existe que pour lancer la suite de non-régression.",
   "scripts": {
     "test": "node run-tests.js && npm run simulations --silent",
-    "simulations": "node outils/poser-build-id.js --verifier && node simulations/executer-carburant.js && node simulations/executer-ventilation.js && node simulations/executer-couverture.js && node simulations/executer-paye.js",
-    "epingles": "node outils/poser-build-id.js --verifier",
-    "build-id": "node outils/poser-build-id.js"
+    "simulations": "node simulations/executer-carburant.js && node simulations/executer-ventilation.js && node simulations/executer-couverture.js && node simulations/executer-paye.js",
+    "epingles": "node test_build_tracabilite_20260905.js",
+    "build-id": "node outils/poser-build-id.js",
+    "build": "bash outils/build.sh"
   }
 }

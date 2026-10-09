@@ -1,0 +1,795 @@
+// NEXUS — Projection Live (07/09/2026)
+//
+// Origine : lot NEXUS-LIVE-CONTROL-CENTER-1-20260906, spec-1.md §6.
+// Réduit un journal d'événements `nexus-execution-event/1` (déjà validés,
+// cf. nexus-live-evenement.js) en une projection structurée unique. Ne relit
+// jamais de texte libre : uniquement les champs structurés du contrat.
+//
+// « Le Centre de contrôle lit la vérité d'exécution ; il ne pilote pas
+// l'exécution nominale. » (spec-1.md §5) — ce module ne fait donc que
+// projeter, jamais décider.
+
+(function (global) {
+  'use strict';
+
+  const STATUT_SYSTEME = { AUTONOME: 'AUTONOMOUS', HUMAIN_REQUIS: 'HUMAN_REQUIRED', BLOQUE: 'FAIL_CLOSED', REPOS: 'IDLE' };
+
+  function projectionVide() {
+    return {
+      system_status: STATUT_SYSTEME.REPOS,
+      active_lots: [],
+      active_actor: null,
+      current_phase: null,
+      guardians: {},
+      tests: {},
+      ci: {},
+      next_automatic_step: null,
+      last_event_id: null,
+      updated_at: null,
+      // DÉCLARÉ, et non simplement absent. `human_gate` n'existait dans la
+      // projection que lorsqu'un gate était ouvert : « rien ne t'attend » et
+      // « je n'ai pas regardé » rendaient tous deux `undefined`. Un champ
+      // tantôt présent tantôt absent est exactement l'ambiguïté que NEXUS
+      // combat ailleurs.
+      human_gate: null,
+    };
+  }
+
+  function parAntecedenceOccurredAt(a, b) {
+    return Date.parse(a.occurred_at) - Date.parse(b.occurred_at);
+  }
+
+  // events : liste d'événements déjà validés (nexus-live-evenement.js).
+  // Événements non conformes ou non fournis => projection vide (fail
+  // closed sur l'affichage, jamais une projection inventée).
+  function construireProjectionLive(events) {
+    if (!Array.isArray(events) || events.length === 0) return projectionVide();
+
+    const tries = events.slice().sort(parAntecedenceOccurredAt);
+    const parLot = new Map();
+    for (const evt of tries) {
+      if (!parLot.has(evt.lot_id)) parLot.set(evt.lot_id, []);
+      parLot.get(evt.lot_id).push(evt);
+    }
+
+    const dernier = tries[tries.length - 1];
+    const projection = projectionVide();
+    projection.active_lots = Array.from(parLot.keys());
+    projection.last_event_id = dernier.event_id;
+    projection.updated_at = dernier.occurred_at;
+    projection.current_phase = dernier.phase;
+    projection.active_actor = dernier.actor ? dernier.actor.id : null;
+    projection.next_automatic_step = dernier.next_step != null ? dernier.next_step : null;
+
+    // Guardians : dernier statut connu par acteur de rôle "guardian" et par lot.
+    for (const evt of tries) {
+      if (evt.actor && evt.actor.role === 'guardian') {
+        projection.guardians[evt.actor.id] = evt.status;
+      }
+    }
+
+    // Tests/CI : dernier statut connu pour les phases TEST / CI.
+    for (const evt of tries) {
+      if (evt.phase === 'TEST') projection.tests[evt.lot_id] = evt.status;
+      if (evt.phase === 'CI') projection.ci[evt.lot_id] = evt.status;
+    }
+
+    // Gate humain : un événement human_gate.required=true non suivi d'un
+    // événement plus récent qui le referme reste actif. On ne referme un
+    // gate que si un événement postérieur du même lot déclare
+    // human_gate.required=false ou atteint DONE.
+    let gateActif = null;
+    for (const evt of tries) {
+      if (evt.human_gate && evt.human_gate.required) {
+        // `event_id` transporté : une autorisation doit pouvoir DÉSIGNER la
+        // question à laquelle elle répond. Sans cette référence, elle flotte
+        // sans objet et rien ne permet de rapprocher la réponse du gate.
+        //
+        // `source` : QUI pose la question. C'est par elle, et par elle seule,
+        // qu'on saura plus tard si la cause a disparu.
+        gateActif = { event_id: evt.event_id || null, lot_id: evt.lot_id,
+          reason_code: evt.human_gate.reason_code || null, question: evt.human_gate.question,
+          source: sourceDe(evt), repondu: null };
+      } else if (gateActif && causeLevee(evt, gateActif)) {
+        // La cause a disparu, constatée par la garde qui l'avait signalée.
+        gateActif = null;
+      } else if (gateActif && estAutorisation(evt)) {
+        // Une autorisation n'agit QUE sur la question qu'elle désigne. Sans
+        // cette clause, une réponse à un autre gate refermait celui-ci par la
+        // règle historique (`human_gate.required === false`), qu'elle porte
+        // elle aussi. Répondre à une question n'a jamais éteint une autre.
+        if (!estAutorisationDe(evt, gateActif)) continue;
+        // Un gate sans cause observable n'a pas d'autre issue que la réponse :
+        // faute de garde pouvant le lever, on s'en remet à la parole humaine.
+        if (!gateActif.source) { gateActif = null; continue; }
+        // RÉPONDRE N'EST PAS RÉSOUDRE. Le 08/09/2026, Frédéric a autorisé un
+        // gate sur des branches en rade : le gate s'est refermé, les branches
+        // sont restées en rade, et la garde n'a plus rien pu dire — les
+        // `event_id` étant déterministes sur la cause, son signalement suivant
+        // était un doublon écarté à l'ingestion. Un clic éteignait donc
+        // définitivement une alarme qui restait vraie. C'est exactement le
+        // silence rassurant que NEXUS combat partout ailleurs.
+        gateActif = Object.assign({}, gateActif, {
+          repondu: { occurredAt: evt.occurred_at,
+            par: (evt.actor && evt.actor.id) || null,
+            event_id: evt.event_id || null },
+        });
+      // `evt.lot_id === gateActif.lot_id` : le commentaire ci-dessus promettait
+      // « du même lot » depuis le premier jour, le code ne le vérifiait pas.
+      // N'importe quel événement DONE, même d'un autre lot, éteignait donc le
+      // gate — et avec lui le compteur « en attente de ton arbitrage ».
+      } else if (gateActif && evt.lot_id === gateActif.lot_id
+        && (evt.phase === 'DONE' || (evt.human_gate && evt.human_gate.required === false))) {
+        gateActif = null;
+      }
+    }
+
+    projection.human_gate = gateActif;
+
+    if (dernier.status === 'BLOCKED' && !gateActif) {
+      projection.system_status = STATUT_SYSTEME.BLOQUE;
+    } else if (gateActif) {
+      projection.system_status = STATUT_SYSTEME.HUMAIN_REQUIS;
+    } else if (dernier.phase === 'DONE' && dernier.status === 'PASSED') {
+      projection.system_status = STATUT_SYSTEME.REPOS;
+    } else {
+      projection.system_status = STATUT_SYSTEME.AUTONOME;
+    }
+
+    return projection;
+  }
+
+  // ── Répondre n'est pas résoudre ─────────────────────────────────────
+  //
+  // Un gate est posé par une GARDE, identifiée par la référence de sa preuve
+  // (`evidence.ref`). C'est cette référence — et non le lot, ni la phase — qui
+  // désigne la CAUSE. Une garde qui a signalé un problème est la seule à
+  // pouvoir déclarer qu'il a disparu.
+
+  function sourceDe(evt) {
+    const e = evt && evt.evidence;
+    return e && e.ref ? String(e.ref) : null;
+  }
+
+  // La cause est levée quand la MÊME garde repasse au vert. Un gate sans source
+  // identifiable ne peut pas être résolu de cette façon : il reste soumis à la
+  // règle historique (DONE du même lot, ou human_gate.required=false), faute de
+  // quoi il resterait ouvert pour toujours et Frédéric n'aurait aucune sortie.
+  function causeLevee(evt, gate) {
+    if (!gate || !gate.source) return false;
+    return sourceDe(evt) === gate.source
+      && evt.status === 'PASSED'
+      && !(evt.human_gate && evt.human_gate.required);
+  }
+
+  // Une autorisation DÉSIGNE la question à laquelle elle répond. On ne la
+  // reconnaît pas à ses mots — un résumé se reformule — mais à cette
+  // désignation, qui est un contrat.
+  function estAutorisation(evt) {
+    const e = evt && evt.evidence;
+    return !!(e && e.type === 'autorisation');
+  }
+
+  function estAutorisationDe(evt, gate) {
+    if (!estAutorisation(evt) || !gate || !gate.event_id) return false;
+    return String(evt.evidence.ref) === String(gate.event_id);
+  }
+
+  // ── Fraîcheur du journal ────────────────────────────────────────────
+  //
+  // Le 08/09/2026, l'écran Live affichait huit événements vieux de treize
+  // heures sans le dire : un journal mort ressemblait exactement à un journal
+  // vivant. C'est le mode de défaillance que NEXUS combat partout ailleurs —
+  // « une anomalie ne doit jamais être masquée par un affichage rassurant »
+  // (Bible, Philosophie).
+  //
+  // Cette fonction ne décide de rien : elle rend l'âge et un niveau, l'écran
+  // choisit comment le montrer. Sans horodatage exploitable, elle rend
+  // `INCONNU` — jamais « frais ».
+  const SEUIL_TIEDE_MIN = 30;
+  const SEUIL_FROID_MIN = 180;
+
+  function fraicheurJournal(events, maintenantISO) {
+    const t1 = Date.parse(maintenantISO);
+    if (!Array.isArray(events) || !events.length || !Number.isFinite(t1)) {
+      return { niveau: 'INCONNU', ageMinutes: null, dernierISO: null };
+    }
+    let dernier = null;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (!Number.isFinite(t)) continue;
+      if (dernier === null || t > dernier) dernier = t;
+    }
+    if (dernier === null) return { niveau: 'INCONNU', ageMinutes: null, dernierISO: null };
+    const ageMinutes = Math.max(0, Math.round((t1 - dernier) / 60000));
+    const niveau = ageMinutes >= SEUIL_FROID_MIN ? 'FROID'
+      : ageMinutes >= SEUIL_TIEDE_MIN ? 'TIEDE' : 'FRAIS';
+    return { niveau, ageMinutes, dernierISO: new Date(dernier).toISOString() };
+  }
+
+  // ── Bloc « Déploiements » ───────────────────────────────────────────
+  //
+  // Les trois compteurs demandés par Frédéric. Ils sont LUS dans la preuve du
+  // dernier événement de type `deploiement`, jamais recalculés ici : leur
+  // propriétaire logique est `outils/etat-deploiement.js` (Bible,
+  // « Architecture de vérité »).
+  //
+  // En l'absence d'un tel événement, on rend `null` — et l'écran doit alors
+  // dire qu'il ne sait pas, jamais afficher trois zéros. Un tableau de bord
+  // qui montre des zéros faute de données ment plus qu'un tableau vide.
+  function extraireDeploiements(events) {
+    if (!Array.isArray(events)) return null;
+    let retenu = null, tRetenu = -Infinity;
+    for (const e of events) {
+      const ev = e && e.evidence;
+      if (!ev || ev.type !== 'deploiement' || !ev.compteurs) continue;
+      const t = Date.parse(e.occurred_at);
+      if (!Number.isFinite(t) || t < tRetenu) continue;
+      retenu = e; tRetenu = t;
+    }
+    if (!retenu) return null;
+    const ev = retenu.evidence;
+    return {
+      compteurs: ev.compteurs,
+      dette: ev.dette || null,
+      ecart: ev.ecart || null,
+      // Jamais un fait : l'écran doit l'afficher comme une proposition.
+      pretProductionEstUneProposition: ev.pret_production_est_une_proposition !== false,
+      occurredAt: retenu.occurred_at,
+      source: ev.ref || null,
+    };
+  }
+
+  // ── LE VERDICT (08/09/2026) ─────────────────────────────────────────
+  //
+  // Retour de Frédéric en regardant l'écran : « on lit SYSTÈME AUTONOME, puis
+  // juste dessous "Prochaine étape automatique : —", puis 0 en développement,
+  // puis deux Guardians BLOCKED. Pour un humain, ces quatre éléments réunis
+  // créent une question immédiate : est-ce que ça fonctionne réellement ou
+  // est-ce que c'est bloqué ? Un système NEXUS ne devrait jamais laisser cette
+  // ambiguïté. »
+  //
+  // Le bloc du haut doit donc rendre un JUGEMENT, pas des données. Et ce
+  // jugement se CALCULE à partir des faits — un verdict affirmé serait
+  // exactement le « chiffre inventé » que la Bible interdit ailleurs.
+  //
+  // Trois niveaux, et l'ordre compte : ce qui attend Frédéric l'emporte sur
+  // tout le reste, puis un invariant non garanti, puis une simple vigilance.
+  const VERDICT = { NORMAL: 'NORMAL', VIGILANCE: 'VIGILANCE', INTERVENTION: 'INTERVENTION' };
+
+  // Traduction des statuts d'événement en langage d'exploitant.
+  //
+  // `BLOCKED` est le mot le plus trompeur du vocabulaire : le producteur
+  // l'emploie pour une garde de RAPPORT qui a trouvé quelque chose — elle n'a
+  // rien bloqué du tout. Frédéric l'a relevé : « BLOCKED est beaucoup trop
+  // violent et trop ambigu ; cela peut signifier qu'ils ont découvert une
+  // violation, qu'ils ne sont pas exécutables, qu'ils attendent, ou qu'ils ont
+  // bloqué le pipeline. Ces situations sont radicalement différentes. »
+  //
+  // La traduction se fait ici et pas dans le producteur : changer le
+  // vocabulaire du contrat demanderait une migration de la contrainte
+  // `status` en base (même famille que LIVE-001). L'information, elle, est
+  // déjà portée par le résumé de l'événement.
+  function libelleStatutGarde(evt) {
+    const s = evt && evt.status;
+    if (s === 'PASSED') return { texte: 'Conforme', ton: 'ok' };
+    if (s === 'FAILED') return { texte: 'Action requise', ton: 'grave' };
+    if (s === 'BLOCKED') return { texte: 'À surveiller', ton: 'vigilance' };
+    if (s === 'WAITING') return { texte: 'En attente', ton: 'attente' };
+    if (s === 'STARTED' || s === 'PROGRESS') return { texte: 'En cours', ton: 'attente' };
+    // Statut inconnu : on ne traduit pas ce qu'on ne comprend pas.
+    return { texte: 'État non interprété', ton: 'inconnu' };
+  }
+
+  // Risques STRUCTURELS — ceux qui ne doivent jamais rester enfouis dans un
+  // journal. Frédéric : « ce message ne doit absolument pas être enfoui dans
+  // la timeline. C'est un risque structurel majeur. »
+  function risquesStructurels(events) {
+    const risques = [];
+    if (!Array.isArray(events)) return risques;
+    let barriere = null, tBarriere = -Infinity;
+    for (const e of events) {
+      const ev = e && e.evidence;
+      if (!ev || ev.type !== 'protection') continue;
+      const t = Date.parse(e.occurred_at);
+      if (!Number.isFinite(t) || t < tBarriere) continue;
+      barriere = e; tBarriere = t;
+    }
+    if (barriere && barriere.status === 'BLOCKED') {
+      risques.push({
+        code: 'PRODUCTION_NON_PROTEGEE',
+        titre: 'Protection Production incomplète',
+        texte: 'Un push direct vers la branche Production reste techniquement possible. '
+          + 'Aucun passage en Production ne peut être garanti tant que cette protection n’est pas en place.',
+      });
+    // NE PAS SAVOIR N'EST PAS UN RISQUE STRUCTUREL, et ce n'est pas non plus
+    // une conformité. Le 08/09/2026, une lecture impossible était devenue
+    // « Production sans protection » : l'écran a crié au feu six heures durant
+    // pendant qu'un ruleset actif tenait la branche. Une alarme qui se
+    // déclenche sans raison finit par ne plus être lue — et ne sera pas crue le
+    // jour où elle aura raison. L'ignorance se dit, elle ne s'accuse pas.
+    } else if (barriere && /NON VÉRIFIÉE/.test(barriere.summary || '')) {
+      risques.push({
+        code: 'PROTECTION_NON_VERIFIEE',
+        titre: 'Protection Production non vérifiée',
+        texte: 'NEXUS n’a pas pu interroger GitHub sur la protection de la branche Production. '
+          + 'Il ne conclut donc rien : ni qu’elle est tenue, ni qu’elle ne l’est pas. '
+          + 'La dernière lecture réussie fait foi jusqu’à la prochaine.',
+      });
+    }
+    return risques;
+  }
+
+  // `events` : journal validé. `projection` : sortie de construireProjectionLive.
+  // `deploiements` : sortie de extraireDeploiements (peut être null).
+  function verdictLive({ events, projection, deploiements, fraicheur }) {
+    const proj = projection || projectionVide();
+    const risques = risquesStructurels(events);
+    const gardes = Object.entries((proj.guardians) || {});
+    const enEchec = gardes.filter(([, s]) => s === 'FAILED').map(([id]) => id);
+    const aSurveiller = gardes.filter(([, s]) => s === 'BLOCKED').map(([id]) => id);
+    const attend = proj.human_gate || null;
+
+    // 1. Ce qui attend Frédéric passe avant tout.
+    if (attend) {
+      return { niveau: VERDICT.INTERVENTION, risques, enEchec, aSurveiller,
+        titre: 'Une décision t’attend',
+        explication: attend.question,
+        decisions: 1 };
+    }
+    // 2. Une garde réellement en échec bloque la chaîne.
+    if (enEchec.length) {
+      return { niveau: VERDICT.INTERVENTION, risques, enEchec, aSurveiller,
+        titre: 'La chaîne est arrêtée',
+        explication: `${enEchec.length} contrôle(s) en échec : ${enEchec.join(', ')}. `
+          + 'Rien ne progresse tant qu’ils ne sont pas corrigés.',
+        decisions: 0 };
+    }
+    // 3. Un invariant non garanti interdit de dire « tout va bien ».
+    //
+    // Frédéric : « le statut global ne devrait probablement pas être vert
+    // "système autonome" tant qu'un invariant aussi important n'est pas
+    // garanti ». Le verdict le dit donc littéralement : autonome EN TEST.
+    if (risques.length) {
+      return { niveau: VERDICT.VIGILANCE, risques, enEchec, aSurveiller,
+        titre: 'Autonome en Test',
+        explication: 'La chaîne travaille seule sur Test. Mais un invariant de Production n’est pas garanti : '
+          + risques.map(r => r.titre.toLowerCase()).join(', ') + '.',
+        decisions: 0 };
+    }
+    // 4. Des signalements sans blocage : à surveiller, pas à craindre.
+    if (aSurveiller.length) {
+      return { niveau: VERDICT.VIGILANCE, risques, enEchec, aSurveiller,
+        titre: 'La chaîne avance, avec des points à surveiller',
+        explication: `${aSurveiller.length} contrôle(s) ont signalé quelque chose sans rien bloquer. `
+          + 'Aucune décision ne t’est demandée.',
+        decisions: 0 };
+    }
+    // 5. Rien à signaler — et on le DIT, plutôt que de laisser une page vide.
+    const age = fraicheur && fraicheur.niveau !== 'INCONNU' ? fraicheur : null;
+    return { niveau: VERDICT.NORMAL, risques, enEchec, aSurveiller,
+      titre: 'La chaîne fonctionne normalement',
+      explication: 'Claude et les Guardians poursuivent sans intervention.'
+        + (age ? '' : ' L’âge du journal n’a pas pu être déterminé.'),
+      decisions: 0 };
+  }
+
+  // ── LA TIMELINE RÉSUMÉE (08/09/2026) ────────────────────────────────
+  //
+  // Retour de Frédéric : « la timeline est le point le moins NEXUS de la page.
+  // Elle montre plusieurs fois "Déploiements — 0 en développement, 24 clos,
+  // 29 dettes", puis 30, puis 30 dont 20 P0, puis 31 dont 21 P0. Techniquement
+  // je comprends : ce sont des snapshots successifs. Mais pour moi, cela
+  // ressemble à du bruit. Ce n'est d'ailleurs pas vraiment une timeline, c'est
+  // un journal système brut. »
+  //
+  // Ce que fait ce résumé :
+  //   · il groupe les contrôles d'un même instant en UNE ligne ;
+  //   · il ne montre un état de déploiement que s'il a CHANGÉ, et décrit
+  //     alors le changement plutôt que de répéter l'état ;
+  //   · il traduit chaque type d'événement en langage d'exploitant.
+  //
+  // CE QU'IL NE FAIT PAS : perdre de l'information en silence. Les répétitions
+  // écartées sont COMPTÉES et rendues avec le résumé (`masques`), et le
+  // journal technique complet reste accessible. Un résumé qui escamote sans
+  // le dire serait la même faute que les cartes qui disparaissaient.
+  //
+  // Un type d'événement inconnu n'est jamais écarté : il est rendu tel quel et
+  // marqué comme non interprété — on ne cache pas ce qu'on ne comprend pas.
+
+  function compteursIdentiques(a, b) {
+    if (!a || !b) return false;
+    return a.en_developpement === b.en_developpement
+      && a.attente_arbitrage === b.attente_arbitrage
+      && a.clos === b.clos;
+  }
+
+  function detteIdentique(a, b) {
+    const va = a && a.total, vb = b && b.total;
+    const pa = a && a.p0, pb = b && b.p0;
+    return va === vb && pa === pb;
+  }
+
+  function phraseChangement(avant, apres) {
+    const morceaux = [];
+    const d = (x, y) => (Number(y) || 0) - (Number(x) || 0);
+    const dDette = avant && avant.dette && apres.dette ? d(avant.dette.total, apres.dette.total) : null;
+    const dP0 = avant && avant.dette && apres.dette ? d(avant.dette.p0, apres.dette.p0) : null;
+    if (dDette) {
+      morceaux.push(`${Math.abs(dDette)} sujet${Math.abs(dDette) > 1 ? 's' : ''} `
+        + `${dDette > 0 ? 'ajouté' : 'retiré'}${Math.abs(dDette) > 1 ? 's' : ''} au suivi`
+        + (dP0 ? ` (dont ${Math.abs(dP0)} prioritaire${Math.abs(dP0) > 1 ? 's' : ''})` : ''));
+    }
+    const dDev = avant ? d(avant.compteurs.en_developpement, apres.compteurs.en_developpement) : null;
+    const dArb = avant ? d(avant.compteurs.attente_arbitrage, apres.compteurs.attente_arbitrage) : null;
+    const dClos = avant ? d(avant.compteurs.clos, apres.compteurs.clos) : null;
+    if (dArb) morceaux.push(`${Math.abs(dArb)} arbitrage${Math.abs(dArb) > 1 ? 's' : ''} ${dArb > 0 ? 'en attente de plus' : 'de moins'}`);
+    if (dClos) morceaux.push(`${Math.abs(dClos)} lot${Math.abs(dClos) > 1 ? 's' : ''} ${dClos > 0 ? 'terminé' : 'rouvert'}${Math.abs(dClos) > 1 ? 's' : ''}`);
+    if (dDev) morceaux.push(`${Math.abs(dDev)} lot${Math.abs(dDev) > 1 ? 's' : ''} ${dDev > 0 ? 'ouvert' : 'refermé'}${Math.abs(dDev) > 1 ? 's' : ''}`);
+    return morceaux.join(', ');
+  }
+
+  function resumerTimeline(events) {
+    if (!Array.isArray(events) || !events.length) return { entrees: [], masques: 0 };
+    const tries = events.slice().sort(parAntecedenceOccurredAt);
+    const entrees = [];
+    let masques = 0;
+    let dernierDeploiement = null;
+    let gardesEnCours = null;
+
+    const viderGardes = () => {
+      if (!gardesEnCours) return;
+      const { moment, ok, surveiller, echec } = gardesEnCours;
+      const parts = [];
+      if (ok) parts.push(`${ok} conforme${ok > 1 ? 's' : ''}`);
+      if (surveiller) parts.push(`${surveiller} à surveiller`);
+      if (echec) parts.push(`${echec} en échec`);
+      entrees.push({
+        occurredAt: moment,
+        titre: `Contrôles automatiques — ${parts.join(', ')}`,
+        detail: echec ? 'La chaîne est arrêtée tant qu’ils ne passent pas.'
+          : surveiller ? 'Signalements sans blocage : rien n’est arrêté.'
+          : 'Aucun signalement.',
+        ton: echec ? 'grave' : surveiller ? 'vigilance' : 'ok',
+      });
+      gardesEnCours = null;
+    };
+
+    for (const e of tries) {
+      const ev = (e && e.evidence) || {};
+      const type = ev.type;
+
+      // Les contrôles d'un même instant forment UNE ligne.
+      if (type === 'garde') {
+        if (gardesEnCours && gardesEnCours.moment !== e.occurred_at) viderGardes();
+        if (!gardesEnCours) gardesEnCours = { moment: e.occurred_at, ok: 0, surveiller: 0, echec: 0 };
+        if (e.status === 'FAILED') gardesEnCours.echec++;
+        else if (e.status === 'BLOCKED') gardesEnCours.surveiller++;
+        else gardesEnCours.ok++;
+        continue;
+      }
+      viderGardes();
+
+      if (type === 'deploiement') {
+        const apres = { compteurs: ev.compteurs, dette: ev.dette };
+        if (dernierDeploiement
+          && compteursIdentiques(dernierDeploiement.compteurs, apres.compteurs)
+          && detteIdentique(dernierDeploiement.dette, apres.dette)) {
+          masques++; // relevé identique : répéter l'état n'apprend rien
+          continue;
+        }
+        const changement = dernierDeploiement ? phraseChangement(dernierDeploiement, apres) : '';
+        entrees.push({
+          occurredAt: e.occurred_at,
+          titre: dernierDeploiement
+            ? (changement || 'État des lots mis à jour')
+            : 'État des lots relevé',
+          detail: `${apres.compteurs.en_developpement} en développement, `
+            + `${apres.compteurs.attente_arbitrage} en attente d’arbitrage, `
+            + `${apres.compteurs.clos} terminés.`,
+          ton: 'neutre',
+        });
+        dernierDeploiement = apres;
+        continue;
+      }
+
+      if (type === 'protection') {
+        entrees.push({
+          occurredAt: e.occurred_at,
+          titre: e.status === 'BLOCKED' ? 'Risque Production détecté' : 'Protection de Production vérifiée',
+          detail: e.status === 'BLOCKED'
+            ? 'Un push direct vers la branche Production reste possible.'
+            : 'La branche est tenue : aucun passage direct.',
+          ton: e.status === 'BLOCKED' ? 'grave' : 'ok',
+        });
+        continue;
+      }
+
+      if (type === 'ci') {
+        const t = { PASSED: ['Intégration continue réussie', 'ok'], FAILED: ['Intégration continue en échec', 'grave'] }[e.status]
+          || ['Intégration continue en cours', 'attente'];
+        entrees.push({ occurredAt: e.occurred_at, titre: t[0], detail: e.summary, ton: t[1] });
+        continue;
+      }
+
+      if (type === 'autorisation') {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Autorisation accordée',
+          detail: e.summary, ton: 'ok' });
+        continue;
+      }
+
+      // Le travail Claude vu depuis GitHub, avant tout retour Handoff — cf.
+      // `evenementsAgentGithub` (producteur). C'est le fait le plus tôt que
+      // Live puisse montrer : rien ne l'a encore confirmé côté registre, donc
+      // le ton reste « attente », jamais « ok ».
+      if (type === 'github_run') {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Claude travaille',
+          detail: e.summary, ton: 'attente' });
+        continue;
+      }
+
+      if (e.human_gate && e.human_gate.required) {
+        entrees.push({ occurredAt: e.occurred_at, titre: 'Arbitrage demandé',
+          detail: e.human_gate.question, ton: 'vigilance' });
+        continue;
+      }
+
+      // Type non interprété : rendu tel quel, et DIT comme tel. On ne cache
+      // pas ce qu'on ne comprend pas.
+      entrees.push({ occurredAt: e.occurred_at, titre: e.summary || 'Événement sans résumé',
+        detail: null, ton: 'inconnu', nonInterprete: true });
+    }
+    viderGardes();
+    return { entrees, masques };
+  }
+
+  // ── LE FLUX VERS PRODUCTION (08/09/2026) ────────────────────────────
+  //
+  // Frédéric : « je voudrais voir Demande → Orchestrator → Claude → Guardians
+  // → Test → Prêt Production → Frédéric → Production, avec l'étape courante
+  // visuellement mise en évidence. C'est particulièrement important parce que
+  // NEXUS Live est justement censé matérialiser cette chaîne que nous avons
+  // construite. Aujourd'hui, la chaîne existe dans l'infrastructure, mais elle
+  // n'est pas visible dans l'interface. »
+  //
+  // L'ÉTAPE COURANTE SE DÉDUIT DES FAITS, elle ne se déclare pas. Et quand les
+  // faits ne permettent pas de la situer, on le DIT — une chaîne qui désigne
+  // une étape au hasard vaut moins qu'une chaîne qui admet ne pas savoir.
+  //
+  // DEUX ÉTAPES NE SONT JAMAIS MARQUÉES « FAITE » AUTOMATIQUEMENT : celle de
+  // Frédéric et celle de Production. Aucune décision de recette ne vaut
+  // autorisation de production ; laisser l'écran cocher ces cases tout seul
+  // serait fabriquer l'autorisation qu'il a mission de seulement transmettre.
+  const ETAPES = [
+    { cle: 'DEMANDE', libelle: 'Demande', qui: 'Un besoin est formulé' },
+    { cle: 'ORCHESTRATOR', libelle: 'Arbitrage', qui: 'L’Orchestrator tranche la conception' },
+    { cle: 'CLAUDE', libelle: 'Développement', qui: 'Claude écrit et prouve' },
+    { cle: 'GUARDIANS', libelle: 'Contrôles', qui: 'Les Guardians relisent automatiquement' },
+    { cle: 'TEST', libelle: 'Test', qui: 'La recette juge sur l’environnement réel' },
+    { cle: 'PRET_PRODUCTION', libelle: 'Prêt pour Production', qui: 'Une proposition, jamais une autorisation' },
+    { cle: 'FREDERIC', libelle: 'Ton autorisation', qui: 'Toi seul' },
+    { cle: 'PRODUCTION', libelle: 'Production', qui: 'Mise en service' },
+  ];
+
+  // AUCUNE phase ne désigne « Ton autorisation » ni « Production », et c'est
+  // l'invariant qui compte dans tout ce flux : ces deux étapes appartiennent à
+  // un humain et à une mise en service réelle. Un événement d'exécution ne
+  // peut donc jamais les rendre « courantes », ni marquer comme « faites »
+  // celles qui les précèdent au-delà de ce que les faits permettent.
+  //
+  // Une première version portait un garde explicite (`if (FREDERIC ||
+  // PRODUCTION) etat = 'a_venir'`). Une mutation l'a supprimé sans qu'aucune
+  // épreuve ne bronche : il était INATTEIGNABLE, puisque aucune phase ne mène
+  // à ces étapes. Une protection qu'aucun cas ne peut atteindre n'est pas une
+  // protection, c'est un décor. L'invariant est donc porté par cette table —
+  // vérifiable, et éprouvé par un contrat de source.
+  const PHASE_VERS_ETAPE = {
+    ANALYSE: 'CLAUDE', EXECUTION: 'CLAUDE', TEST: 'TEST',
+    GUARDIAN_REVIEW: 'GUARDIANS', CI: 'TEST',
+  };
+  const ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT = ['FREDERIC', 'PRODUCTION'];
+
+  function etapeCourante(events, projection) {
+    const proj = projection || projectionVide();
+    // Ce qui attend un humain situe la chaîne mieux que tout le reste.
+    if (proj.human_gate) {
+      const qui = String(proj.human_gate.who || '').toLowerCase();
+      if (qui === 'frederic') return 'FREDERIC';
+      return 'ORCHESTRATOR';
+    }
+    if (!Array.isArray(events) || !events.length) return null;
+    let dernier = null, t0 = -Infinity;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (!Number.isFinite(t) || t < t0) continue;
+      dernier = e; t0 = t;
+    }
+    if (!dernier) return null;
+    // Un GATE sans human_gate exploitable ne situe rien : on ne devine pas.
+    return PHASE_VERS_ETAPE[dernier.phase] || null;
+  }
+
+  function fluxLive({ events, projection, deploiements }) {
+    const courante = etapeCourante(events, projection);
+    const iCourante = ETAPES.findIndex(e => e.cle === courante);
+    const bloquees = new Set();
+    // Une garde en échec bloque l'étape des contrôles, pas les autres.
+    const gardes = Object.values((projection && projection.guardians) || {});
+    if (gardes.includes('FAILED')) bloquees.add('GUARDIANS');
+    // Un risque structurel de Production marque l'étape Production.
+    if (risquesStructurels(events).length) bloquees.add('PRODUCTION');
+
+    return {
+      inconnue: iCourante < 0,
+      etapes: ETAPES.map((e, i) => {
+        let etat;
+        if (bloquees.has(e.cle)) etat = 'bloquee';
+        else if (iCourante < 0) etat = 'inconnue';
+        else if (i < iCourante) etat = 'faite';
+        else if (i === iCourante) etat = 'courante';
+        else etat = 'a_venir';
+        return { ...e, etat };
+      }),
+    };
+  }
+
+  // ── LE TRAVAIL VIVANT (08/09/2026) ──────────────────────────────────
+  //
+  // Frédéric : « ton écran affiche "Agent actif : etat-deploiement", mais ce
+  // n'est pas ce que toi tu veux savoir. Tu veux savoir : que fait
+  // actuellement l'équipe IA ? Le nom technique de l'agent peut rester
+  // accessible en détail. »
+  //
+  // Le nom du lot est transformé MÉCANIQUEMENT, jamais réécrit à la main :
+  // « NEXUS-ORCHESTRATION-GUARDIANS-1-20260907 » devient « Orchestration
+  // Guardians ». Inventer un joli titre reviendrait à raconter autre chose que
+  // ce que le registre contient ; l'identifiant technique reste rendu à côté.
+  function nommerLot(lotId) {
+    if (typeof lotId !== 'string' || !lotId.trim()) return null;
+    const sansDate = lotId.trim()
+      .replace(/^NEXUS[-_]/i, '')
+      .replace(/[-_]\d+[-_]\d{8}$/, '')   // « -1-20260907 »
+      .replace(/[-_]\d{8}$/, '');          // « -20260907 »
+    const mots = sansDate.split(/[-_]+/).filter(Boolean);
+    if (!mots.length) return null;
+    return mots.map(m => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()).join(' ');
+  }
+
+  function travailVivant({ events, projection }) {
+    const proj = projection || projectionVide();
+    if (!Array.isArray(events) || !events.length) {
+      return { inconnu: true, titre: null, lignes: [], acteursTechniques: [] };
+    }
+    // Le dernier lot d'événements — ceux qui partagent l'horodatage le plus
+    // récent. Découper autrement (« les 10 derniers », « depuis 5 minutes »)
+    // ferait dépendre l'affichage d'un réglage arbitraire.
+    let dernier = -Infinity;
+    for (const e of events) {
+      const t = Date.parse(e && e.occurred_at);
+      if (Number.isFinite(t) && t > dernier) dernier = t;
+    }
+    if (!Number.isFinite(dernier)) return { inconnu: true, titre: null, lignes: [], acteursTechniques: [] };
+    const lot = events.filter(e => Date.parse(e && e.occurred_at) === dernier);
+
+    const roles = {};
+    const acteurs = new Set();
+    for (const e of lot) {
+      const r = e.actor && e.actor.role;
+      if (!r) continue;
+      roles[r] = (roles[r] || 0) + 1;
+      if (e.actor.id) acteurs.add(e.actor.id);
+    }
+
+    const lignes = [];
+    if (proj.human_gate) {
+      const qui = String(proj.human_gate.who || '').toLowerCase();
+      lignes.push(qui === 'frederic' ? 'En attente de ta décision' : 'L’Orchestrator arbitre');
+    }
+    if (roles.execution) lignes.push('Claude développe');
+    if (roles.guardian) {
+      lignes.push(`${roles.guardian} Guardian${roles.guardian > 1 ? 's' : ''} contrôlent automatiquement`);
+    }
+    if (roles.ci) lignes.push('L’intégration continue vérifie');
+    if (roles.orchestrator && !proj.human_gate) lignes.push('L’Orchestrator suit le registre');
+
+    // Aucune activité reconnue : on le DIT, plutôt que de laisser un bloc vide
+    // qui se lirait « rien ne fonctionne ».
+    if (!lignes.length) {
+      lignes.push('Aucune activité reconnue dans le dernier relevé');
+    }
+
+    const lotActif = (proj.active_lots && proj.active_lots[0]) || (lot[0] && lot[0].lot_id) || null;
+    return {
+      inconnu: false,
+      titre: nommerLot(lotActif),
+      lotTechnique: lotActif,
+      lignes,
+      acteursTechniques: [...acteurs].sort(),
+    };
+  }
+
+  // ——— Le vocabulaire du cockpit ————————————————————————————————————————
+  // Retour de Frédéric du 08/09/2026 : « "Dette", "entrée(s)", "P0" … je les
+  // comprends, mais pas comme langage principal du cockpit. Les SHA doivent
+  // être du niveau expert. » Ces mots ne DISPARAISSENT pas — ils descendent
+  // d'un étage. Ici on ne fabrique aucun chiffre : on ne fait que nommer, en
+  // français, des mesures relevées ailleurs.
+
+  // Un nombre absent n'est pas un nombre nul (RULES QA/DATA) : sans mesure, on
+  // ne dit rien plutôt que d'annoncer un zéro rassurant qui serait faux.
+  function mesureAbsente(v) {
+    return typeof v !== 'number' || !Number.isFinite(v);
+  }
+
+  function accord(n, singulier, pluriel) {
+    return `${n} ${Math.abs(n) > 1 ? pluriel : singulier}`;
+  }
+
+  function formulerDeploiements(dep) {
+    if (!dep || !dep.compteurs) {
+      return { inconnu: true, compteurs: [], phrases: [], technique: [] };
+    }
+    const c = dep.compteurs;
+    const compteurs = [
+      { n: c.en_developpement, libelle: 'En développement' },
+      { n: c.attente_arbitrage, libelle: 'En attente de ton arbitrage' },
+      // « Lots clos » se lisait comme un classement administratif. Ce sont des
+      // travaux terminés : c'est ce mot-là qui dit ce qui s'est passé.
+      { n: c.clos, libelle: 'Terminés' },
+    ];
+
+    const phrases = [];
+
+    // « 29 dettes dont 18 P0 » devient « 29 sujets restent à traiter, dont 18
+    // prioritaires ». Le mot « dette » n'apprend rien à qui ne le connaît pas ;
+    // « reste à traiter » se comprend sans glossaire.
+    const d = dep.dette;
+    if (d && !mesureAbsente(d.total)) {
+      if (d.total === 0) {
+        phrases.push('Aucun sujet en attente de traitement.');
+      } else {
+        const p0 = !mesureAbsente(d.p0) && d.p0 > 0
+          ? `, dont ${accord(d.p0, 'prioritaire', 'prioritaires')}`
+          : '';
+        phrases.push(`${accord(d.total, 'sujet reste', 'sujets restent')} à traiter${p0}.`);
+      }
+    }
+
+    // Deux empreintes de commit ne disent pas à un humain que Production est en
+    // retard. Le retard, lui, se dit. Les empreintes descendent au détail.
+    const e = dep.ecart;
+    if (e && !mesureAbsente(e.commits)) {
+      if (e.commits === 0) {
+        phrases.push('Production est à jour avec la version de travail.');
+      } else {
+        const f = !mesureAbsente(e.fichiers) && e.fichiers > 0
+          ? ` (${accord(e.fichiers, 'fichier concerné', 'fichiers concernés')})`
+          : '';
+        phrases.push('Production est en retard sur la version de travail : '
+          + `${accord(e.commits, 'évolution sépare', 'évolutions séparent')} les deux états${f}.`);
+      }
+    }
+
+    const technique = [];
+    if (e && e.production) technique.push({ libelle: 'Production', valeur: e.production });
+    if (e && e.canonique) technique.push({ libelle: 'Version de travail', valeur: e.canonique });
+    if (d && !mesureAbsente(d.total)) {
+      technique.push({ libelle: 'Backlog', valeur: `${d.total} entrée(s)`
+        + (mesureAbsente(d.p0) ? '' : `, ${d.p0} en P0`) });
+    }
+
+    return { inconnu: false, compteurs, phrases, technique };
+  }
+
+  const api = { STATUT_SYSTEME_LIVE: STATUT_SYSTEME, projectionVide, construireProjectionLive,
+    travailVivant, nommerLot, formulerDeploiements,
+    sourceDe, causeLevee, estAutorisation, estAutorisationDe,
+    fluxLive, etapeCourante, ETAPES_FLUX: ETAPES, PHASE_VERS_ETAPE,
+    ETAPES_JAMAIS_ATTEINTES_PAR_UN_EVENEMENT,
+    resumerTimeline,
+    VERDICT, verdictLive, risquesStructurels, libelleStatutGarde,
+    fraicheurJournal, extraireDeploiements, SEUIL_TIEDE_MIN, SEUIL_FROID_MIN };
+
+  global.NexusLiveProjection = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);

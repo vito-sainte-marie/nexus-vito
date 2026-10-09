@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <style>
@@ -158,7 +159,7 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Prise de poste v1 · Vito Sainte-Marie Usine · <a href="#" id="logout" style="color:var(--cyan); text-decoration:none;">Se déconnecter</a></footer>
+  <footer>NEXUS Prise de poste v1 · <span class="nexus-nom-commerce">Ma station</span> · <a href="#" id="logout" style="color:var(--cyan); text-decoration:none;">Se déconnecter</a></footer>
 </div>
 
 <script>
@@ -188,14 +189,111 @@
   // l'admin) n'est pas deja manager ou gerant. Sans ce filtre, n'importe
   // quel employe pouvait selectionner Manager a la prise de poste et
   // voir la vue manager de Missions, meme sans y etre habilite.
+  // Correspondance entre le rôle ADMINISTRATIF (employees.role, fixé par
+  // l'admin) et le rôle du jour proposé ici. La base écrit 'caissier' au
+  // masculin, l'écran propose 'caissiere' : sans cette table, aucun des deux
+  // ne reconnaît l'autre.
+  const ROLE_ADMIN_VERS_JOUR = { pompiste: 'pompiste', caissier: 'caissiere', caissiere: 'caissiere', renfort: 'renfort' };
+
+  /**
+   * Les rôles réellement proposables à CETTE employée.
+   *
+   * LE DÉFAUT, relevé le 11/09/2026 : le filtre ne retirait que 'manager',
+   * une valeur qui n'existe même pas dans ROLES. Il ne retirait donc rien.
+   * Une caissière se voyait offrir « Pompiste », « Caissière » et « Renfort
+   * opérationnel », les trois sélectionnables, et pouvait se déclarer
+   * pompiste pour la journée. Le rôle du jour est écrit dans shifts.role et
+   * commande les missions : c'est une auto-attribution d'habilitation.
+   *
+   * LA RÈGLE : le rôle administratif de l'employée, et lui seul. Les
+   * managers et gérants gardent l'accès à tout : c'est leur métier de
+   * remplacer au pied levé.
+   *
+   * CE QUI RESTE À ARBITRER, et que ce code ne tranche pas : le renfort.
+   * Il est ajouté ici pour tout le monde, comme avant, parce que « le
+   * renfort ne se déduit pas de l'horloge, c'est une décision de planning »
+   * (arbitrage du 09/09/2026), et qu'aucun planning n'est lu sur cet
+   * écran. Le restreindre demanderait de décider QUI peut être renfort, et
+   * cette décision appartient à Frédéric Bragance, pas à ce fichier.
+   */
   function rolesDisponibles() {
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
-    return estManager ? ROLES : ROLES.filter(r => r.value !== 'manager');
+    if (estManager) return ROLES;
+    const admin = (employeeCourant && employeeCourant.role) || '';
+    const sien = ROLE_ADMIN_VERS_JOUR[admin];
+    // Rôle administratif inconnu de la table : on ne devine pas, et on ne
+    // referme pas non plus la porte au point d'empêcher la prise de poste.
+    // On rend l'ancienne liste et on le dit, plutôt que de bloquer.
+    if (!sien) {
+      console.error('Prise de poste : rôle administratif « ' + admin + ' » inconnu, aucun filtrage appliqué.');
+      return ROLES.filter(r => r.value !== 'manager');
+    }
+    return ROLES.filter(r => r.value === sien || r.value === 'renfort');
   }
 
+  // A3 / C2-3 (05/09/2026) — le cas le plus lourd de conséquences des six :
+  // cette valeur est ÉCRITE dans shifts.quart, donc dans le rôle du jour.
+  //
+  // Elle valait :
+  //     const h = new Date().getHours(); return h < 13 ? 'matin' : 'soir';
+  //
+  // Ni configuration, ni fuseau, et un 13 h qui ne venait de nulle part —
+  // ni de station_config (12:40 en production), ni de la fixture de recette
+  // (13:00, coïncidence). L'heure était celle du téléphone : un employé de
+  // Martinique dont l'appareil est réglé sur Paris enregistrait « soir »
+  // dès 9 h du matin.
+  //
+  // Désormais : heure locale de la station, seuil configuré du site, et
+  // aucun quart si l'un des deux manque.
+  //
+  // 09/09/2026 — LE PLANNING DÉCIDE, L'HORLOGE EST LE REPLI. Arbitrage de
+  // Frédéric Bragance : le renfort est un quart de plein droit. Aucune heure ne
+  // permet de le reconnaître — à 10 h, un pompiste du quart 1 et un renfort
+  // travaillent tous les deux. On lit donc le quart PLANIFIÉ, et l'on ne
+  // retombe sur l'horloge que si le planning ne dit rien.
+  let FUSEAU_STATION_PDP = null;
+  let BASCULE_QUART2_PDP = null;
+  let QUART_PLANIFIE_PDP = null;
+
   function quartDuMoment() {
-    const h = new Date().getHours();
-    return h < 13 ? 'matin' : 'soir';
+    if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) return null;
+    const r = NexusStation.quartDuJour({
+      planifie: QUART_PLANIFIE_PDP,
+      minutesMaintenant: NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP),
+      minutesBascule: BASCULE_QUART2_PDP,
+    });
+    if (!r) return null;
+    // Le vocabulaire de CET écran ne change pas pour les deux quarts
+    // existants : « matin » et « soir » sont déjà écrits dans l'historique de
+    // shifts.quart, et les renommer réécrirait le passé sans rien gagner.
+    // « renfort » s'ajoute, il ne remplace rien.
+    return r.quart === 'quart1' ? 'matin' : r.quart === 'quart2' ? 'soir' : 'renfort';
+  }
+
+  async function resoudreContexteQuart(employee) {
+    const fuseau = await NexusStation.fuseauDeLaStation(employee.site_id);
+    FUSEAU_STATION_PDP = fuseau.timezone || null;
+    // Verify (05/09/2026) — le seuil vient de NexusStation, comme partout
+    // ailleurs. Cet écran garde sa résolution en deux temps — lire une fois,
+    // trancher à trois endroits sans réseau — mais il ne réassemble plus la
+    // règle : il lit le même seuil, par le même chemin.
+    // Le fuseau est passé depuis le 09/09/2026 : sans lui, le seuil ne peut
+    // pas savoir quel jour il est CHEZ LA STATION, et le régime jeudi–samedi
+    // resterait invisible.
+    const seuil = await NexusStation.seuilDeBascule(employee.site_id, undefined, FUSEAU_STATION_PDP);
+    BASCULE_QUART2_PDP = seuil.indetermine ? null : seuil.minutes;
+    // Le quart planifié, lu UNE fois comme le reste du contexte. Son absence
+    // n'est pas une erreur : elle ramène au comportement d'avant. Une panne de
+    // planning ne doit jamais empêcher quelqu'un de prendre son poste.
+    if (FUSEAU_STATION_PDP) {
+      QUART_PLANIFIE_PDP = await NexusStation.quartPlanifie(
+        employee.id, NexusStation.dateLocaleStation(FUSEAU_STATION_PDP));
+    }
+    if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
+      console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');
+      return false;
+    }
+    return true;
   }
 
   async function chargerCatalogue() {
@@ -362,6 +460,19 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
+    // A3 / C2-3 : sans fuseau ni horaires, la prise de poste écrirait un
+    // quart deviné dans shifts — donc dans le rôle du jour. On s'arrête.
+    if (!(await resoudreContexteQuart(employee))) {
+      document.getElementById('content').innerHTML =
+        '<div class="loading" style="text-align:left; max-width:520px; margin:12vh auto; line-height:1.55;">'
+        + '<strong>Prise de poste impossible</strong><br><br>'
+        + 'Il manque le fuseau horaire du commerce ou ses horaires de quart.<br><br>'
+        + 'Votre prise de poste enregistre le quart travaillé : sans ces deux '
+        + 'informations, NEXUS ne peut pas savoir si vous prenez le matin ou le '
+        + 'soir, et il ne le devinera pas.<br><br>'
+        + 'Un manager doit les renseigner dans <b>Paramètres Station</b>.</div>';
+      return;
+    }
     catalogue = await chargerCatalogue();
     renderChoixRole();
   });

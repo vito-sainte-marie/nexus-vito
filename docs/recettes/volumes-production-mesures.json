@@ -1,0 +1,17 @@
+{
+  "note": "Volumes MESURÉS en Production (uzhjpqpctpvxytxpxoqz) en LECTURE SEULE. Le jeu de répétition PREPROD reproduit ces formes et ces nombres ; il ne copie aucune donnée. Ce fichier existe pour que le jeu et la mesure ne puissent pas diverger en silence.",
+  "avertissement": "CES NOMBRES VIEILLISSENT. `services_ouverts` valait 13 le 08/09 et 17 le 09/09 : Production en accumule deux à quatre par jour. Une répétition appuyée sur un instantané périmé mesure l'impact d'hier. À re-mesurer au plus près de l'autorisation, jamais à reprendre de confiance.",
+  "mesure_le": "2026-09-09",
+  "mesure_par": "Requête SELECT seule, autorisée par Frédéric Bragance le 09/09/2026.",
+  "volumes": {
+    "missions_divergentes": 89,
+    "services_divergents": 17,
+    "services_ouverts": 17
+  },
+  "ventilation": {
+    "missions_divergentes": "site = vito-sainte-marie, site_id = site-fantome-test. Copies du catalogue faites pour le site de test, dont la colonne `site` est restée sur la station.",
+    "services_divergents": "site = site-fantome-test, site_id = vito-sainte-marie — le SENS INVERSE. Du 03/08 au 30/08/2026.",
+    "services_ouverts": "site = site_id = vito-sainte-marie, sur des employés dont compte_test vaut FALSE. Du 04/09 au 09/09/2026. Ce ne sont PAS des restes du site fantôme : c'est l'historique réel de l'équipe. Au moins deux employés ont deux services ouverts le même jour — la forme exacte que l'index d'unicité viendra interdire."
+  },
+  "origine_du_site_fantome": "Créé délibérément par Frédéric Bragance pour ses propres tests, avant l'existence de nexus-test. Ce n'est pas une dérive accidentelle. Son retrait de Production est une décision distincte de cette release."
+}

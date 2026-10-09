@@ -4,7 +4,7 @@
 // total = paquets saisis + cartouches × facteur propre au produit (10P, 8P, 5P…).
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Inventaire-v1.html') return;
+  if(!NexusPage.est('NEXUS-Inventaire-v1.html')) return;
 
   const cache=new Map();
   let employee=null;

@@ -97,7 +97,11 @@ async function test2() {
   vm.runInNewContext(src, ctx);
   const p = await ctx.__chargerParametresFdjSite();
   assert.strictEqual(p.fenetre_acces_quart_min, 30, 'Repli par défaut : 30 minutes, comportement historique inchangé');
-  assert.strictEqual(p.horaire_bascule_quart2_repli, '12:40');
+  // A3 / C2-4 (05/09/2026) : ce champ n'existe plus dans le repli. La bascule
+  // quart 1 → 2 vient de station_config.horaires depuis C2-2 ; le garder ici
+  // aurait fait passer un réglage sans effet pour un comportement attendu.
+  assert.strictEqual(p.horaire_bascule_quart2_repli, undefined,
+    'le repli ne doit plus porter d’horaire de bascule');
   console.log('OK — chargerParametresFdjSite() : repli par défaut inclut fenetre_acces_quart_min: 30.');
 }
 

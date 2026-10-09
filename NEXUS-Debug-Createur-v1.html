@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <style>
   :root{
@@ -456,7 +457,13 @@
       return;
     }
     SITES = await chargerSites();
-    if (SITES.length > 0) SITE_ACTUEL = (SITES.find(s => s.site_id === (employee.site_id || 'vito-sainte-marie')) || SITES[0]).site_id;
+    // A3 (05/09/2026) : le créateur voit tous les sites. Présélectionner le
+    // sien est utile ; retomber sur Sainte-Marie quand il n'en a pas ferait
+    // d'un commerce le défaut implicite de tous les autres. Sans site propre,
+    // aucune présélection — le choix reste explicite.
+    const siteDuCreateur = NexusStation.siteDe(employee);
+    const prefere = siteDuCreateur ? SITES.find(s => s.site_id === siteDuCreateur) : null;
+    SITE_ACTUEL = prefere ? prefere.site_id : (SITES.length > 0 ? SITES[0].site_id : null);
     renderRoot();
   });
 </script>

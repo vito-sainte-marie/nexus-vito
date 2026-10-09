@@ -103,17 +103,37 @@
     </div>
   </div>
 
-  <footer>NEXUS Mon Évolution v1 · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Mon Évolution v1 · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<!-- ARCH-003 (audit Guardian Architecture du 06/09/2026, rapatrié le 08/09) :
+     cet écran classait les écarts de caisse avec SES PROPRES seuils, sans
+     charger le moteur. Un écart de 3 € s'y affichait vert « conforme » alors
+     qu'il est « à surveiller » partout ailleurs dans NEXUS — une anomalie
+     masquée par un affichage rassurant, ce que la Bible interdit. -->
+<script src="nexus-verify-moteur.js"></script>
 <script>
+  // La gravité est DÉCIDÉE par `nexus-verify-moteur.js`, propriétaire unique de
+  // cette vérité (Bible, « Architecture de vérité » ; Constitution, article 11).
+  // Cet écran ne fait que choisir une couleur pour le statut rendu : redéfinir
+  // les seuils ici avait produit deux échelles divergentes, et c'est toujours
+  // la copie qui se trompe.
+  const COULEUR_STATUT = {
+    conforme: 'var(--green)',
+    surveiller: 'var(--amber)',
+    anomalie: 'var(--amber)',
+    critique: 'var(--rouge)',
+  };
+
   function classifierEcart(montantAbs) {
-    if (montantAbs <= 2) return 'var(--green)';
-    if (montantAbs <= 20) return 'var(--amber)';
-    return 'var(--rouge)';
+    // Sans le moteur, on ne DEVINE pas : une couleur inventée ici rejouerait
+    // exactement la divergence qu'on vient de fermer.
+    if (!window.NexusVerifyMoteur) return 'var(--text-dim)';
+    return COULEUR_STATUT[window.NexusVerifyMoteur.classifierEcart(montantAbs)] || 'var(--text-dim)';
   }
 
   // Mêmes paliers que la carte "Conseiller NEXUS" de l'écran Missions —
@@ -124,7 +144,12 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     document.getElementById('empName').textContent = employee.nom;
 
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    // A3 (05/09/2026) : plus de repli vers Sainte-Marie. Un employé
+    // authentifié sans site est un état impossible — on bloque au lieu de
+    // lui montrer la progression d'un autre commerce.
+    const siteId = NexusStation.exigerSite(employee,
+      'Votre fiche ne rattache votre compte à aucun commerce. Votre progression ne peut donc pas être calculée.');
+    if (!siteId) return;
 
     // ------------------------------------------------------------
     // Progression des missions — remplace le 21/07/2026 l'ancienne

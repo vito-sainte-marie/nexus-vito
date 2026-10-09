@@ -490,6 +490,156 @@
   }
 
   // ------------------------------------------------------------
+  // CONTINUITÉ DE STOCK — RÉÉVALUATION D'UNE ALERTE DÉJÀ POSÉE
+  // (10/09/2026, constat de Frédéric sur la Production : le quart 2 du
+  // 09/09/2026 affichait encore « Continuité de stock à vérifier » alors
+  // que la valeur avait été corrigée le lendemain — et l'écran affichait
+  // en même temps « Chaîne continue ».)
+  //
+  // Cause : `reconcilierAlertesChaine` rouvre et referme les alertes
+  // 'chaine_interrompue', et peut POSER des alertes
+  // 'continuite_stock_a_verifier' — mais rien, nulle part, ne les
+  // rouvrait ensuite pour vérifier si l'écart existait toujours. Une
+  // alerte de stock restait donc ouverte à vie, indépendamment de l'état
+  // réel des compteurs. `ecartsContinuiteStock` (ci-dessus) répond à la
+  // question « y a-t-il un écart ? » sur un lot de jeux ; cette fonction
+  // répond à la question distincte « CETTE alerte-là est-elle encore
+  // justifiée ? », à partir des valeurs lues MAINTENANT et jamais des
+  // valeurs figées dans l'alerte au moment de la détection.
+  //
+  // `mesure` = {
+  //   stockFinalPrecedent : fdj_shift_counts.stock_final du quart
+  //     précédent pour ce jeu, tel qu'il est en base à cet instant,
+  //   stockInitialActuel  : fdj_shift_counts.stock_initial du quart
+  //     concerné pour ce jeu, idem,
+  //   shiftPrecedentId    : fdj_alertes.shift_precedent_id — sans lui,
+  //     il n'y a rien à comparer.
+  // }
+  //
+  // Trois issues, une seule autorise la résolution — Article 5, on ne
+  // remplace jamais une valeur absente par 0, ce qui inventerait aussi
+  // bien une égalité rassurante qu'un écart fictif :
+  //   - 'donnee_manquante' : le quart précédent est inconnu, ou l'une des
+  //     deux valeurs n'est pas renseignée. On ne compare pas, on ne résout
+  //     pas, et on NOMME l'élément qui manque.
+  //   - 'ecart_reel'       : les deux valeurs sont connues et diffèrent.
+  //     L'alerte reste ouverte : c'est exactement son rôle.
+  //   - 'resolu'           : les deux valeurs sont connues et strictement
+  //     égales. L'alerte est périmée, NEXUS peut la clore lui-même.
+  function verdictContinuiteStock(mesure) {
+    const m = mesure || {};
+    const absent = (v) => v === undefined || v === null || v === '';
+    if (absent(m.shiftPrecedentId)) {
+      return { verdict: 'donnee_manquante', ecart: null, elementManquant: 'quart précédent non rattaché à l’alerte' };
+    }
+    if (absent(m.stockFinalPrecedent)) {
+      return { verdict: 'donnee_manquante', ecart: null, elementManquant: 'stock final du quart précédent non renseigné' };
+    }
+    if (absent(m.stockInitialActuel)) {
+      return { verdict: 'donnee_manquante', ecart: null, elementManquant: 'stock initial du quart suivant non renseigné' };
+    }
+    const f = Number(m.stockFinalPrecedent), i = Number(m.stockInitialActuel);
+    if (!Number.isFinite(f) || !Number.isFinite(i)) {
+      return { verdict: 'donnee_manquante', ecart: null, elementManquant: 'valeur de stock illisible (non numérique)' };
+    }
+    if (f === i) return { verdict: 'resolu', ecart: 0, elementManquant: null };
+    return { verdict: 'ecart_reel', ecart: f - i, elementManquant: null };
+  }
+
+  // Emplacement concerné par une alerte de continuité de stock. Réponse
+  // structurelle et unique : `fdj_shift_counts` (stock_initial / appro /
+  // stock_final) est le compteur de TICKETS tenu à la CAISSE d'un quart à
+  // l'autre — le Bureau, lui, n'est jamais compté par quart mais par
+  // mouvements de carnets (fdj_stock_movements) et inventaires de
+  // référence (fdj_stock_references). Une continuité de stock ne peut
+  // donc porter que sur la caisse. Nommé ici plutôt qu'écrit en dur dans
+  // l'écran : le jour où un comptage par quart existera au Bureau, cette
+  // fonction sera le seul endroit à corriger.
+  const EMPLACEMENTS_FDJ = { caisse: 'Caisse', bureau: 'Bureau' };
+  function emplacementContinuiteStock() {
+    return { cle: 'caisse', libelle: EMPLACEMENTS_FDJ.caisse };
+  }
+
+  // Origine d'une valeur de stock affichée dans le détail d'une alerte —
+  // demande du 10/09/2026 : « origine de chaque valeur : saisie humaine ou
+  // valeur héritée/automatique ». Deux cas structurellement différents :
+  //   - stock_initial du quart concerné : `stock_initial_auto` dit si la
+  //     valeur est encore celle héritée du quart précédent (jamais
+  //     touchée) ou si un humain l'a tapée / confirmée. C'est la même
+  //     colonne qui sert de ligne rouge à `ecartsContinuiteAAppliquer` :
+  //     NEXUS ne réécrit jamais tout seul une valeur humaine.
+  //   - stock_final du quart précédent : aucune colonne équivalente, et
+  //     ce n'est pas un oubli — `stock_final` n'est écrit QUE par une
+  //     saisie d'écran (employé à la clôture, ou manager en édition).
+  //     Aucun automatisme de NEXUS ne l'écrit : ni la correction
+  //     automatique de continuité (qui ne touche que stock_initial et les
+  //     ventes), ni la propagation amont. Son origine est donc toujours
+  //     humaine, et c'est affirmable sans deviner.
+  function origineStockInitial(stockInitialAuto) {
+    return stockInitialAuto === true
+      ? { cle: 'heritee', libelle: 'héritée automatiquement du quart précédent' }
+      : { cle: 'saisie_humaine', libelle: 'saisie ou confirmée par un humain' };
+  }
+  function origineStockFinal() {
+    return { cle: 'saisie_humaine', libelle: 'saisie humaine (comptage de fin de quart)' };
+  }
+
+  // Détail complet d'une alerte de continuité de stock — alimente le
+  // panneau ouvert en cliquant sur le badge du quart (10/09/2026). Pure :
+  // l'écran fournit tout, rien n'est interrogé ici. Ne masque JAMAIS
+  // l'écart d'origine : `valeursDetectees` conserve ce que l'alerte avait
+  // enregistré, `mesure` porte ce qui est vrai maintenant, et `aDerive`
+  // dit si les deux diffèrent — c'est précisément la troisième situation
+  // que Frédéric demande de distinguer (« écart de stock désormais
+  // corrigé mais alerte restée ouverte »).
+  function detailContinuiteStock(entree) {
+    const e = entree || {};
+    const a = e.alerte || {};
+    const v = verdictContinuiteStock(e.mesure);
+    const nombreOuNull = (x) => (x === undefined || x === null || x === '' ? null : Number(x));
+    const detecteFinal = nombreOuNull(a.valeur_quart_precedent);
+    const detecteInitial = nombreOuNull(a.valeur_saisie);
+    const actuelFinal = nombreOuNull((e.mesure || {}).stockFinalPrecedent);
+    const actuelInitial = nombreOuNull((e.mesure || {}).stockInitialActuel);
+    return {
+      alerteId: a.id || null,
+      jeu: e.jeuNom || 'Jeu inconnu',
+      emplacement: emplacementContinuiteStock(),
+      verdict: v.verdict,
+      ecart: v.ecart,
+      elementManquant: v.elementManquant,
+      precedent: {
+        date: (e.quartPrecedent || {}).date || null,
+        quart: (e.quartPrecedent || {}).quart || null,
+        employe: e.employePrecedent || null,
+        valeur: actuelFinal,
+        origine: origineStockFinal(),
+      },
+      suivant: {
+        date: (e.quartActuel || {}).date || null,
+        quart: (e.quartActuel || {}).quart || null,
+        employe: e.employeActuel || null,
+        valeur: actuelInitial,
+        origine: origineStockInitial(e.stockInitialAuto),
+      },
+      valeursDetectees: { stockFinalPrecedent: detecteFinal, stockInitialActuel: detecteInitial },
+      aDerive: (detecteFinal !== actuelFinal) || (detecteInitial !== actuelInitial),
+      resolueLe: a.resolue_le || null,
+    };
+  }
+
+  // Libellés d'état, en un seul endroit — les trois situations que
+  // Frédéric demande de ne plus confondre (10/09/2026).
+  const LIBELLE_VERDICT_CONTINUITE_STOCK = {
+    ecart_reel: 'Écart de stock encore réel',
+    resolu: 'Écart corrigé, continuité de stock rétablie',
+    donnee_manquante: 'Donnée manquante : comparaison impossible',
+  };
+  function libelleVerdictContinuiteStock(verdict) {
+    return LIBELLE_VERDICT_CONTINUITE_STOCK[verdict] || 'État inconnu';
+  }
+
+  // ------------------------------------------------------------
   // APPRO NON TRACÉE — 13/08/2026, capture d'écran de Frédéric : après avoir
   // complété un quart FDJ ancien (rattrapage ou correction manager), l'écran
   // "État du stock" continuait d'afficher "OK" pour CASH alors qu'en réalité
@@ -1770,6 +1920,8 @@
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
+    verdictContinuiteStock, detailContinuiteStock, emplacementContinuiteStock,
+    origineStockInitial, origineStockFinal, libelleVerdictContinuiteStock, EMPLACEMENTS_FDJ,
     approNonTraceParJeu, lignesApproNonTracees, reconciliationApproActivation, decisionSynchronisationApproActivation,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,

@@ -87,7 +87,7 @@ function verifier(libelle, condition) {
   const ctxE = creerContexte(S.MODULES_ECRAN);
   if (ctxE.NexusCarburantsP0Fixes && ctxE.NexusCarburantsP0Fixes.installer) ctxE.NexusCarburantsP0Fixes.installer();
   const clientE = creerFauxClient(tablesE);
-  const e = await ctxE.NexusCarburantDonnees.chargerControleJour(clientE, S.SITE, '2026-09-02');
+  const e = await ctxE.NexusCarburantDonnees.chargerControleJour(clientE, S.SITE, '2026-09-02', 'America/Martinique');
 
   console.log('\n### E · Ventilation estimée disponible à côté du calcul mesuré');
   const nb = v => (v == null ? '—' : Math.round(v).toLocaleString('fr-FR'));

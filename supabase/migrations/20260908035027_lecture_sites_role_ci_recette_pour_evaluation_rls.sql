@@ -1,0 +1,40 @@
+-- TEST/CI UNIQUEMENT — à ne PAS appliquer en Production : le rôle
+-- `nexus_ci_recette` n'y existe pas, et l'y promouvoir échouerait.
+--
+-- Déclaration ajoutée le 09/09/2026. Le manifeste de promotion excluait bien
+-- cette migration, mais le FICHIER était muet : qui l'ouvrait seul n'avait
+-- aucun moyen de savoir qu'elle ne va pas en Production. Une exclusion qui ne
+-- vit que dans un document se perd le jour où l'on regarde le code plutôt que
+-- le document. Ni le nom ni l'effet de la migration ne changent — elle n'est
+-- pas appliquée en Production, l'invariant d'immuabilité n'est pas touché.
+
+-- Droit de LECTURE sur `sites` pour le rôle CI de recette — et rien de plus.
+--
+-- POURQUOI C'EST NÉCESSAIRE. Les politiques de `carburant_releves` sont
+-- déclarées `TO PUBLIC`, contrairement à celles de `audits_caisse` qui visent
+-- `authenticated`. Elles s'appliquent donc aussi au rôle CI. L'une d'elles,
+-- `select_carburant_releves`, contient `EXISTS (SELECT 1 FROM sites ...)`.
+-- PostgreSQL combine les politiques permissives par OU et évalue cette
+-- sous-requête ; sans droit de lecture sur `sites`, l'évaluation échoue avec
+-- `permission denied for table sites` — avant même de pouvoir conclure.
+--
+-- POURQUOI CELA N'EXPOSE RIEN. RLS est active sur `sites` et TOUTES ses
+-- politiques visent `authenticated`, dont ce rôle n'est pas membre. Aucune
+-- politique ne le concernant, il ne verra jamais une seule ligne : ce droit
+-- lui permet d'ÉVALUER la sous-requête, pas d'en lire le contenu.
+--
+-- Et cette affirmation n'est pas laissée en commentaire : la CI l'exige en
+-- preuve à chaque passage, `count(*) = 0` sur `sites` depuis ce rôle. Si un
+-- jour une politique `TO PUBLIC` ou `TO nexus_ci_recette` était ajoutée sur
+-- `sites`, la lecture cesserait d'être vide et la CI le dirait le jour même.
+--
+-- CE QUE CELA RÉVÈLE, ET QUI DÉPASSE CE SEMIS. Une politique `TO PUBLIC`
+-- s'applique à TOUT rôle présent et futur, y compris les rôles techniques
+-- créés plus tard. Sur `carburant_releves`, la portée réelle dépasse donc
+-- l'intention, et personne ne l'avait vu parce qu'aucun rôle non applicatif
+-- n'avait jamais touché ces tables. Tracé en SEC-017 au Backlog ; cette
+-- migration ne touche pas à ces politiques, qui servent l'application.
+--
+-- Autorisée explicitement par Frédéric Bragance le 08/09/2026. TEST
+-- UNIQUEMENT — ce rôle n'existe pas en Production.
+grant select on public.sites to nexus_ci_recette;

@@ -4,7 +4,7 @@
 // propose uniquement des transferts internes Bureau -> Boutique en cartouches.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Inventaire-Manager-v1.html') return;
+  if(!NexusPage.est('NEXUS-Inventaire-Manager-v1.html')) return;
 
   const AGE_MAX_HEURES=36; // fraîcheur opérationnelle : au-delà, pas d'alerte de rupture affirmée.
   let site=null, employee=null, observer=null, raf=null, renduEnCours=false;

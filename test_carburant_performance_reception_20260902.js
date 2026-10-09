@@ -52,7 +52,7 @@ function query(table) {
 
 (async () => {
   const client = { from: query };
-  const controle = await D.chargerControleJour(client, 'vito-sainte-marie', '2026-09-02');
+  const controle = await D.chargerControleJour(client, 'vito-sainte-marie', '2026-09-02', 'America/Martinique');
   assert.strictEqual(controle.parCarburant.go.dernierReel, 23536, 'GO repart du jaugeage post-livraison, cuves sommées');
   assert.strictEqual(controle.parCarburant.sp95.dernierReel, 25280, 'SP95 repart du jaugeage post-livraison');
   ['go', 'sp95'].forEach(cle => {

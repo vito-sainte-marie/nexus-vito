@@ -401,7 +401,7 @@
   <div class="section" id="risquesQualifiesSection"></div>
   <div class="divider"></div>
   <div class="section">
-    <div class="section-title">Plan d'exploitation du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
+    <div class="section-title">Plan d'exploitation du jour <span class="badge badge-real">NEXUS Directeur d’Exploitation · toutes catégories</span></div>
     <div id="plansAction"></div>
     <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
     <!-- Rappels manuels (28/07/2026, retour de Frédéric — "tu aurais dû
@@ -421,7 +421,7 @@
   <div class="divider"></div>
   <div class="section" id="mentorSection"></div>
   </div>
-  <footer>Cockpit NEXUS v2 · Toutes catégories · S1 2026 · Vito Sainte-Marie Usine</footer>
+  <footer>Cockpit NEXUS v2 · Toutes catégories · S1 2026 · <span class="nexus-nom-commerce">Ma station</span></footer>
 <script>
     const PHRASES_MENTOR = [
       "Un client qui revient n'achète pas un produit. Il renouvelle une confiance.",
@@ -625,7 +625,7 @@
       document.getElementById('mentorSection').innerHTML = `
         <div class="mentor-card">
           <div class="mentor-quote">"${phraseDuJour()}"</div>
-          <div class="mentor-sign">Conseiller NEXUS</div>
+          <div class="mentor-sign">NEXUS Directeur d’Exploitation</div>
         </div>`;
     }
     // Moteur R2/R3/R4 déplacé dans nexus-conseiller.js le 26/07/2026
@@ -667,6 +667,22 @@
       return ok;
     }
     let employeeCourantId = null;
+
+  // Poste du jour = rôle du SERVICE en cours. Lecture explicite, locale et
+  // sans repli : tant que la primitive NexusRole n'est pas arbitrée (audit
+  // A11), chaque écran nomme ce qu'il consomme plutôt que d'hériter d'une
+  // fonction qui déciderait à sa place.
+  async function lirePosteDuJour(employee) {
+    const d = new Date();
+    // S-4 (05/09/2026) : le rôle du jour vient du service RÉELLEMENT actif,
+    // via la primitive unique de nexus-auth.js. Ce lecteur bornait à minuit
+    // local de l'APPAREIL ; depuis que S-2 et S-3 clôturent, cette borne
+    // aurait renvoyé le rôle d'un service terminé.
+    const r = await nexusServiceCourant(employee);
+    return r.service ? r.service.role : null;
+  }
+
+
     let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
     let MEILLEUR_SUCCES = null;
     let PIRE_RISQUE = null;
@@ -731,7 +747,7 @@
       // NEXUS-Brief-v1.html, extrait le 11/08/2026 dans
       // NexusConseillerDonnees.chargerProduitsBrut (Article 11).
       const rowsBrut = await NexusConseillerDonnees.chargerProduitsBrut(nexusClient, SITE_ACTUEL);
-      if (!rowsBrut.length) { console.error('Chargement products (plans action) : aucune ligne exploitable.'); return []; }
+      if (!rowsBrut.length) { console.info('Chargement products (plans action) : aucune donnée disponible pour ce site.'); return []; }
       // ------------------------------------------------------------
       // CORRECTIF 23/07/2026 (audit général NEXUS) : comparer aveuglément
       // les deux périodes les plus récentes fabrique des évolutions fausses
@@ -749,7 +765,7 @@
       // pour la même règle de comparaison de durées.)
       // ------------------------------------------------------------
       const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
-      if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+      if (!periodeAffichage) { console.warn('products : des lignes existent mais aucune période exploitable n’a pu être déterminée — données incohérentes, pas une absence.'); return []; }
       TENDANCE_DISPONIBLE = !!paire;
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
       PIRE_RISQUE = null;
@@ -1433,7 +1449,7 @@
     const STATION_CONFIG = {
       manager_prenom: "",
       manager_role: "",
-      station_nom: "VITO SAINTE-MARIE USINE",
+      station_nom: 'Ma station',   // A3 / B1 : libellé neutre, jamais le nom d'un commerce
       logo_url: ""
     };
     // ------------------------------------------------------------
@@ -1496,9 +1512,37 @@
       PLANS_ACTION = await construirePlansAction();
       renderPlansAction();
       STATION_CONFIG.manager_prenom = employee.nom;
-      STATION_CONFIG.manager_role = employee.role;
-      const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
-      if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+      // Ce badge décrit l'ACTIVITÉ EN COURS, pas le statut administratif : il
+      // affiche donc le poste du jour, celui que la prise de poste a fixé.
+      // Audit A11 (05/09/2026) : un employé habituellement caissier ayant pris
+      // un poste de pompiste s'y voyait annoncé « CAISSIER », alors que
+      // l'Accueil et Missions disaient « pompiste ». Aucune permission ne
+      // dépend de ce badge — les habilitations restent lues sur la fiche.
+      // À défaut de service du jour, on n'invente rien : le badge reste vide.
+      STATION_CONFIG.manager_role = await lirePosteDuJour(employee) || '';
+      // A3 / B1 (05/09/2026) — le nom d'un autre commerce ne sert plus de
+      // valeur de secours.
+      //
+      // Le libellé « VITO SAINTE-MARIE USINE » était écrit en dur et n'était
+      // remplacé que si la lecture RÉUSSISSAIT et rapportait un nom. Sur
+      // échec réseau, ou sur un site sans nom_entreprise, un client voyait le
+      // nom d'un autre client en en-tête. Le mécanisme était présentationnel,
+      // le mode de défaillance ne l'était pas.
+      //
+      // Trois branches, selon la règle A4-bis : l'échec de la requête est une
+      // panne technique (error) ; une lecture réussie sans nom est une
+      // configuration incomplète (warn). Le repli est l'identifiant du
+      // commerce COURANT — jamais celui d'un autre, jamais une chaîne vide.
+      const { data: siteActuel, error: erreurSite } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
+      if (erreurSite) {
+        console.error('Lecture identité du commerce :', erreurSite);
+        STATION_CONFIG.station_nom = SITE_ACTUEL || 'Commerce non identifié';
+      } else if (!siteActuel || !siteActuel.nom_entreprise) {
+        console.warn('Identité du commerce non configurée — en-tête neutre.');
+        STATION_CONFIG.station_nom = SITE_ACTUEL || 'Commerce non identifié';
+      } else {
+        STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+      }
       if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
       const header = document.getElementById('nexus-header');
       header.innerHTML = `

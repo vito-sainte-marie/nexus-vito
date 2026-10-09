@@ -400,7 +400,7 @@
         y -= 60;
       }
 
-      const acc = this._assainir(accroche || 'Propulsé par le Conseiller NEXUS', true);
+      const acc = this._assainir(accroche || 'Propulsé par NEXUS Directeur d’Exploitation', true);
       this.page.drawText(acc, { x: centrer(acc, this.policeGrasse, 11), y, size: 11, font: this.policeGrasse, color: COULEUR.texte });
       y -= 16;
       const sAcc = this._assainir(sousAccroche || 'Des données aux décisions.', false);

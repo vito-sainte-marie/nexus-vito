@@ -2,7 +2,7 @@
 // Utilisé depuis Contrôle inventaire pour aller directement du besoin à l'action.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Stock-Localise-v1.html') return;
+  if(!NexusPage.est('NEXUS-Stock-Localise-v1.html')) return;
   const qs=new URLSearchParams(location.search);
   const produit=qs.get('reassort_produit'),source=qs.get('reassort_source'),destination=qs.get('reassort_destination');
   const cartouches=Number(qs.get('reassort_cartouches')),facteur=Number(qs.get('reassort_facteur'));

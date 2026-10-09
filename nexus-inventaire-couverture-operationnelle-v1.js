@@ -3,7 +3,7 @@
 // en horizon terrain (ex. Mardi · Quart 1). Le calcul de couverture reste inchangé.
 (function(){
   'use strict';
-  if((location.pathname.split('/').pop()||'')!=='NEXUS-Inventaire-Manager-v1.html') return;
+  if(!NexusPage.est('NEXUS-Inventaire-Manager-v1.html')) return;
 
   let enCours=false;
 

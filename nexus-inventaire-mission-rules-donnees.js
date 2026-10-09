@@ -154,7 +154,7 @@
 // le parcours existant sait déjà évaluer (+, -, ×, ÷) puis enregistrer.
 if (typeof document !== 'undefined' && /NEXUS-Inventaire-v1\.html$/i.test(location.pathname)) {
   const fluidite = document.createElement('script');
-  fluidite.src = 'nexus-inventaire-fluidite.js';
+  fluidite.src = NexusBuild.versionner('nexus-inventaire-fluidite.js');
   fluidite.defer = true;
   document.head.appendChild(fluidite);
 }

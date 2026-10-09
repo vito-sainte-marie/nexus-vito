@@ -157,9 +157,9 @@
   <div class="verdict-row" id="verdictRow"></div>
 
   <div class="conseiller-mini">
-    <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+    <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="NEXUS Directeur d’Exploitation">
     <div class="conseiller-bubble">
-      <div class="conseiller-label">Conseiller NEXUS</div>
+      <div class="conseiller-label">NEXUS Directeur d’Exploitation</div>
       <div class="conseiller-text" id="conseillerRayonMsg">Chargement…</div>
       <div class="conseiller-more" id="conseillerToggle" style="display:none;">Voir l'analyse complète ›</div>
       <div class="conseiller-more" id="pourquoiToggle" style="display:none;">Pourquoi ? ›</div>
@@ -180,7 +180,7 @@
     <div class="tabpanel" data-panel="terrain" id="panelTerrain" style="display:none;"></div>
   </div>
 
-  <footer>NEXUS Rayon v1 · Données réelles S1 2026 · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Rayon v1 · Données réelles S1 2026 · <span class="nexus-nom-commerce">Ma station</span></footer>
 </div>
 
 <script>
@@ -212,7 +212,8 @@ async function construireRayons() {
     .eq('site', SITE_ACTUEL)
     .order('periode_debut', { ascending: false })
     .order('article', { ascending: true }));
-  if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
+  if (error) { console.error('Chargement products : erreur technique', error); return { rayons: {}, magasin: null }; }
+  if (!data || !data.length) { console.info('Chargement products : aucune donnée disponible pour ce site.'); return { rayons: {}, magasin: null }; }
   return NexusRayonMoteur.construireRayonsDepuisLignes(data);
 }
 
@@ -504,7 +505,7 @@ nexusRequireAuth().then(async employee => {
         <div style="margin-top:8px; font-family:var(--mono); font-size:10px; color:var(--text-dim);">Période affichée : ${MAGASIN.periodeAffichage.debut} → ${MAGASIN.periodeAffichage.fin} (${MAGASIN.periodeAffichage.duree}j)</div>
         ${fiabiliteHtml}
         <div style="margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);">
-          ${r.nb_references} références · ${r.nb_decisions_actives} décisions prioritaires (Conseiller NEXUS)
+          ${r.nb_references} références · ${r.nb_decisions_actives} décisions prioritaires (NEXUS Directeur d’Exploitation)
         </div>
       </div>
 

@@ -259,7 +259,7 @@ function creerClientAuditsCaisseVide() {
       audits_caisse: [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }],
       carburant_commandes: [{ data: [], error: null }],
     });
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-28', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'UTC', dateISO: '2026-08-28', heureHHMM: '09:00' });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.parCarburant.go.diagnosticEcart.cas, 'releve_non_valide', 'relevé terrain non validé -> releve_non_valide, même si aucun avis Verify n\'existe par ailleurs : ' + JSON.stringify(r.parCarburant.go.diagnosticEcart));
     ok('evaluerCommandeCarburantSite — relevé ancre non validé (origine terrain_pompiste) -> diagnosticEcart releve_non_valide');
@@ -289,7 +289,7 @@ function creerClientAuditsCaisseVide() {
       ],
       carburant_commandes: [{ data: [], error: null }],
     });
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-28', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'UTC', dateISO: '2026-08-28', heureHHMM: '09:00' });
     assert.strictEqual(r.parCarburant.go.diagnosticEcart.cas, 'verify_incomplet', 'relevé validé + Quart 2 du 27/08 non contrôlé -> verify_incomplet : ' + JSON.stringify(r.parCarburant.go.diagnosticEcart));
     assert.strictEqual(r.parCarburant.go.diagnosticEcart.verifyManquants[0].quart, '2');
     assert.strictEqual(r.parCarburant.go.diagnosticEcart.verifyManquants[0].date, '2026-08-27');
@@ -316,7 +316,7 @@ function creerClientAuditsCaisseVide() {
       ],
       carburant_commandes: [{ data: [], error: null }],
     });
-    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { dateISO: '2026-08-28', heureHHMM: '09:00' });
+    const r = await Donnees.evaluerCommandeCarburantSite(client, 'vito-sainte-marie', { timezone: 'UTC', dateISO: '2026-08-28', heureHHMM: '09:00' });
     assert.strictEqual(r.parCarburant.go.diagnosticEcart.cas, 'anomalie_a_investiguer', 'relevé validé + Verify complet + écart persistant -> anomalie à investiguer : ' + JSON.stringify(r.parCarburant.go.diagnosticEcart));
     // Point 6 : la commande reste "à confirmer" (jamais confirmée
     // silencieusement) tant qu'un problème quelconque subsiste sur GO — ici

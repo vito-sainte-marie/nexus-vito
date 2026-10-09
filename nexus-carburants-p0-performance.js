@@ -13,16 +13,18 @@
 
   function clePeriode(debut, fin) { return String(debut || '') + '|' + String(fin || ''); }
 
-  function dateLocaleISO(fuseau) {
-    try {
-      var parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: fuseau || 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit'
-      }).formatToParts(new Date()).reduce(function (a, p) { a[p.type] = p.value; return a; }, {});
-      return parts.year + '-' + parts.month + '-' + parts.day;
-    } catch (e) {
-      var d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  // A3 / C1c-1 (05/09/2026) — fonction PURE : `timezone` est obligatoire.
+  // Mêmes deux replis supprimés qu'en C1-5 : Sainte-Marie par défaut, et le
+  // `catch` qui retombait sur la date du NAVIGATEUR. Cette fonction décide
+  // quel jour on est : une date fausse déplace un quart entier.
+  function dateLocaleISO(timezone) {
+    if (typeof timezone !== 'string' || !timezone.trim()) {
+      throw new TypeError('dateLocaleISO : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation avant d’appeler.');
     }
+    var parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date()).reduce(function (a, p) { a[p.type] = p.value; return a; }, {});
+    return parts.year + '-' + parts.month + '-' + parts.day;
   }
 
   function joursISO(debut, fin) {
@@ -79,9 +81,9 @@
       return refs;
     };
 
-    ND.chargerVentesPeriode = async function (client, siteId, debut, fin) {
+    ND.chargerVentesPeriode = async function (client, siteId, debut, fin, timezone) {
       var requetes = await Promise.all([
-        client.from('station_config').select('horaires,fuseau_horaire').eq('site', siteId).maybeSingle(),
+        client.from('station_config').select('horaires').eq('site', siteId).maybeSingle(),
         client.from('audits_caisse')
           .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
           .eq('site', siteId).gte('date', debut).lte('date', fin),
@@ -96,8 +98,13 @@
       }
 
       var cfg = qCfg && !qCfg.error && qCfg.data ? qCfg.data : {};
-      var fuseau = cfg.fuseau_horaire || 'America/Martinique';
-      var today = dateLocaleISO(fuseau);
+      // A3 / C1c-4b : le fuseau vient de l'appelant, plus de station_config.
+      // Sans lui, cette fonction ne peut produire qu'une date fausse — et une
+      // date fausse déplace un quart entier. Elle lève plutôt que de deviner.
+      if (typeof timezone !== 'string' || !timezone.trim()) {
+        throw new TypeError('chargerVentesPeriode : timezone obligatoire. Résolvez-la avec NexusStation.fuseauDeLaStation avant d’appeler.');
+      }
+      var today = dateLocaleISO(timezone);
       var quartsAttendus = quartsDepuisHoraires(cfg.horaires || {});
       var lignes = qData.data || [];
       var estReference = REFERENCES.has(clePeriode(debut, fin));

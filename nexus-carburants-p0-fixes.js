@@ -254,8 +254,12 @@
     // 2) Contrôle inter-relevés : la livraison vient directement des BL des
     // réceptions terminées depuis l'ancre précédente. Aucun recopiage dans
     // carburant_releves n'est nécessaire.
-    NCD.chargerControleJour = async function (client, siteId, date) {
-      var base = await originalControleJour(client, siteId, date);
+    // A3 / C1c-5 : cette enveloppe NOMME ses paramètres au lieu de faire
+    // apply(this, arguments) comme les deux autres — elle laissait donc
+    // tomber le 4ᵉ argument en silence. `timezone` doit y figurer
+    // explicitement, sinon le correctif P0 rétablit l'ancien défaut.
+    NCD.chargerControleJour = async function (client, siteId, date, timezone) {
+      var base = await originalControleJour(client, siteId, date, timezone);
       if (!base || base.aucunReleve || !base.parCarburant) return base;
       if (base.referenceCertifieeCeJour || base.ancreEstPointZero) return base;
 
