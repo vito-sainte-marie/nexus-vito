@@ -9,8 +9,8 @@
 // Ce test exécute le script de l'écran sur un DOM minimal, avec une recette
 // qui contient tous les cas de la §9 du mandat : plusieurs salariés, un
 // salarié hors paie, des heures hors planning, un congé, un salarié à
-// plusieurs anomalies, et un écart de caisse partiellement régularisé
-// (−50 € à l'origine, +30 € encaissés, −20 € de solde). Il vérifie la
+// plusieurs anomalies, et un écart de caisse corrigé à la validation
+// (−50 € constatés, −20 € validés). Il vérifie la
 // STRUCTURE du cockpit et les RÈGLES de lecture — jamais un calcul de paie,
 // qui reste la propriété du moteur.
 'use strict';
@@ -91,8 +91,10 @@ ctx.__donnees = {
     id: 'i1', employee_id: 'e2', date_debut: '2026-07-21', date_fin: '2027-01-03',
     type: 'indisponible', motif: 'conge_maternite', confirme_le: '2026-07-21T09:00:00Z',
   }],
-  // L'exemple exact du mandat : écart initial −50 €, versement réellement
-  // encaissé +30 €, solde restant −20 €.
+  // Écart constaté −50 €, validé −20 € : les +30 € sont une CORRECTION À LA
+  // VALIDATION, pas un versement. Jusqu'au 09/10 l'écran les présentait comme
+  // « Régularisations encaissées » alors qu'aucun versement n'existait
+  // (0 en Production) : le défaut est corrigé et ce test l'interdit désormais.
   ecarts: [{
     id: 'ec1', employeeId: 'e5', date: '2026-08-11', activite: 'boutique', quart: 'quart1',
     sourceModule: 'verify', montantRetenu: -20, ecartInitial: -50, ecartFinal: -20,
@@ -134,8 +136,11 @@ verifier('les cinq indicateurs sont sur une seule ligne',
   dans(ecran(), 'class="kpirow"') && compter(ecran(), /data-kpi="/g) === 5);
 verifier('… et chacun est un bouton, donc cliquable au clavier comme à la souris',
   compter(ecran(), /<button type="button" class="kpi/g) === 5);
-['Salariés concernés', 'Heures confirmées', 'Éléments nécessitant une décision',
-  'Salariés prêts', 'Écarts de caisse et régularisations'].forEach(k => {
+// Libellés de la finition du 09/10 : « dans la paie » rend explicite que les
+// salariés hors paie sont décomptés à part (17 = 9 + 8), et l'indicateur
+// d'écarts porte le SOLDE réel issu des régularisations, non un total d'écarts.
+['Salariés dans la paie', 'Heures confirmées', 'Éléments nécessitant une décision',
+  'Salariés prêts', 'Solde des écarts de caisse'].forEach(k => {
   verifier(`l’indicateur « ${k} » est présent`, dans(ecran(), `<span>${k}</span>`));
 });
 verifier('les écarts de caisse sont tenus à l’écart des éléments de rémunération',
@@ -188,21 +193,27 @@ verifier('chaque volet n’offre qu’une paire d’actions par élément',
   && compter(volets[1], /validate" data-emp="e5" data-key="ecart:ec1"/g) === 1
   && compter(volets[1], /exclude" data-emp="e5" data-key="ecart:ec1"/g) === 1);
 
-// ── §5 — l’écart initial reste, le versement s’affiche, le solde se lit ─
+// ── §5 — l’écart initial reste ; aucun versement n’est fabriqué ──────────
+// Les versements réels et le solde viennent de NexusPayeRegularisations
+// (REGUL), jamais d'une soustraction final − initial.
 const t = vm.runInContext('totauxEcarts()', ctx);
 verifier('l’écart initial de la période est conservé', t.initial === -5000);
-verifier('le versement encaissé est présenté comme une régularisation', t.versements === 3000);
-verifier('le solde restant est le final validé', t.solde === -2000);
+verifier('les totaux ne fabriquent plus de versement ni de solde',
+  !('versements' in t) && !('solde' in t));
 verifier('aucune retenue sur salaire n’est générée automatiquement', t.retenu === 0);
 verifier('… et le moteur ne retient rien non plus',
   vm.runInContext("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5')).financier.retenueEcartCentimes", ctx) === 0);
 verifier('l’écart se lit en quatre cases',
-  dans(ecran(), '<span>Initial</span>') && dans(ecran(), '<span>Régularisations encaissées</span>')
+  dans(ecran(), '<span>Initial</span>') && dans(ecran(), '<span>Correction à la validation</span>')
+  && !dans(ecran(), '<span>Régularisations encaissées</span>')
   && dans(ecran(), '<span>Final validé</span>') && dans(ecran(), '<span>Impact paie</span>'));
 verifier('… avec les montants du mandat', dans(ecran(), '-50.00 €') && dans(ecran(), '+30.00 €') && dans(ecran(), '-20.00 €'));
-verifier('un écart sans historique de régularisation n’invente pas de versement',
-  vm.runInContext("versementCentimes({ecartInitialCentimes:null,ecartFinalCentimes:-2000})", ctx) === null
-  && vm.runInContext("versementCentimes({ecartInitialCentimes:-2000,ecartFinalCentimes:-2000})", ctx) === null);
+verifier('la correction à la validation est final − initial, et rien sans les deux',
+  vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:-5000,ecartFinalCentimes:-2000})", ctx) === 3000
+  && vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:null,ecartFinalCentimes:-2000})", ctx) === null
+  && vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:-2000,ecartFinalCentimes:-2000})", ctx) === null);
+verifier('l’ancienne fonction qui fabriquait un versement a disparu',
+  vm.runInContext("typeof versementCentimes", ctx) === 'undefined');
 verifier('la règle est écrite à l’écran, pas seulement dans le code',
   dans(ecran(), 'ne devient jamais automatiquement une dette'));
 
