@@ -94,7 +94,7 @@
   .btn-add:active{background:rgba(79,195,217,0.08);}
   /* Factures différées boutique (B4, 08/10/2026) — cinq champs par ligne :
      grille qui passe sur deux colonnes en largeur téléphone (Safari iOS). */
-  .ligne-facture{display:grid; grid-template-columns:110px 1fr 1fr 1fr 32px; gap:8px; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--hairline);}
+  .ligne-facture{display:grid; grid-template-columns:110px 1fr 1fr 32px; gap:8px; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--hairline);}
   .ligne-facture input{margin-bottom:0;}
   .ligne-facture .presence-facture{grid-column:1 / -2; display:flex; gap:8px; align-items:center; font-family:var(--sans); font-size:12px; color:var(--text-mid);}
   .ligne-facture .presence-facture input{width:auto;}
@@ -741,7 +741,7 @@
       </div>
       <div class="note" id="aideFacturesDifferees" hidden>Ventes facturées dans Décenium Back-office, non encaissées sur ce quart.</div>
       <div class="card-body">
-        <div class="note">Ventes facturées dans Décenium Back-office, non encaissées sur ce quart. Une ligne par facture : montant, client, numéro de facture et justificatif. Cochez la présence seulement après avoir vérifié que la facture figure dans la vente boutique Décenium de ce quart — sinon elle reste « à vérifier » et ne change pas l'écart. À la piste, le pupitre prime : rien à saisir ici.</div>
+        <div class="note">Ventes facturées dans Décenium Back-office, non encaissées sur ce quart. Une ligne par facture : montant, client et numéro de facture — la pièce reste dans Décenium. Cochez la présence seulement après avoir vérifié que la facture figure dans la vente boutique Décenium de ce quart — sinon elle reste « à vérifier » et ne change pas l'écart. À la piste, le pupitre prime : rien à saisir ici.</div>
         <div id="facturesDiffereesListe"></div>
         <button type="button" class="btn-add" id="btnAddFactureDifferee">+ Ajouter une facture</button>
         <div class="total-ligne">Confirmées : <span id="totalFacturesConfirmees">0,00 €</span> · À vérifier : <span id="totalFacturesAVerifier">0,00 €</span></div>
@@ -2634,6 +2634,10 @@
     // Factures différées boutique (B4) — voir la carte. `trace` porte les
     // champs posés par le serveur (auteur, horodatages) pour les afficher
     // en modification ; ils ne repartent jamais vers la base.
+    // Pas de champ justificatif (arbitrage de Frédéric, 09/10/2026) : Verify
+    // ne se substitue pas à Décenium, la pièce y reste. Un justificatif déjà
+    // enregistré est seulement conservé (`data-justificatif`), jamais effacé
+    // par une modification de l'audit.
     function ajouterLigneFactureDifferee(f) {
       const conteneur = document.getElementById('facturesDiffereesListe');
       const ligne = document.createElement('div');
@@ -2642,7 +2646,6 @@
         <input type="text" inputmode="decimal" class="montant-facture" placeholder="Montant" aria-label="Montant de la facture">
         <input type="text" class="client-facture" placeholder="Client" aria-label="Client">
         <input type="text" class="numero-facture" placeholder="N° de facture" aria-label="Numéro de facture" autocapitalize="characters">
-        <input type="text" class="justificatif-facture" placeholder="Justificatif" aria-label="Justificatif">
         <button type="button" class="btn-remove" aria-label="Retirer la facture">✕</button>
         <label class="presence-facture"><input type="checkbox" class="incluse-facture"> Présente dans la vente boutique Décenium de ce quart</label>
         <div class="trace-facture"></div>
@@ -2651,7 +2654,7 @@
         ligne.querySelector('.montant-facture').value = f.montant != null ? String(f.montant).replace('.', ',') : '';
         ligne.querySelector('.client-facture').value = f.client || '';
         ligne.querySelector('.numero-facture').value = f.numero_facture || '';
-        ligne.querySelector('.justificatif-facture').value = f.justificatif || '';
+        if (f.justificatif) ligne.dataset.justificatif = f.justificatif;
         ligne.querySelector('.incluse-facture').checked = f.incluse_dans_ventes === true;
         // Fuseau de la station seulement : sans lui, pas d'heure du tout
         // plutôt que celle de l'appareil.
@@ -2689,8 +2692,8 @@
         const brut = el.querySelector('.montant-facture').value.trim();
         const client = el.querySelector('.client-facture').value.trim();
         const numero_facture = el.querySelector('.numero-facture').value.trim();
-        const justificatif = el.querySelector('.justificatif-facture').value.trim();
-        if (!brut && !client && !numero_facture && !justificatif) return;
+        const justificatif = (el.dataset && el.dataset.justificatif) || '';
+        if (!brut && !client && !numero_facture) return;
         lignes.push({
           numero_facture, client, justificatif: justificatif || null,
           montant: brut ? numFR(brut) : null,

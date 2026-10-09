@@ -2,7 +2,8 @@
 // Boutique. Cas de référence : Sainte-Marie Usine, 06/10 Q2, une facture
 // de 58,00 € facturée dans Décenium Back-office et non encaissée sur le
 // quart. Exigences : champ dans Boutique avec l'aide (i) exacte ; montant,
-// client, n° de facture, justificatif ; pas de soustraction automatique
+// client, n° de facture (pas de justificatif saisi : arbitrage du 09/10,
+// Verify ne se substitue pas à Décenium) ; pas de soustraction automatique
 // (seule une facture dont la présence dans la vente du quart est cochée
 // entre dans l'écart) ; refus explicites, mêmes codes que le serveur
 // (migration 20261008140000, banc outils/epreuve-factures-differees-20261008).
@@ -105,7 +106,8 @@ const facture58 = { numero_facture: 'FAC-2026-2384081', montant: 58, client: 'Cl
 // 5. lireFacturesDifferees, exécutée depuis le vrai HTML sur un faux DOM.
 {
   const src = extraireBloc(html, 'function lireFacturesDifferees() {');
-  const ligne = (champs) => ({
+  const ligne = (champs, dataset = {}) => ({
+    dataset,
     querySelector(sel) {
       const cle = sel.slice(1);
       if (cle === 'incluse-facture') return { checked: !!champs.incluse };
@@ -113,9 +115,10 @@ const facture58 = { numero_facture: 'FAC-2026-2384081', montant: 58, client: 'Cl
     },
   });
   const lignes = [
-    ligne({ 'montant-facture': '58,00', 'client-facture': ' Client fictif ', 'numero-facture': 'FAC-2026-2384081', 'justificatif-facture': '', incluse: true }),
+    ligne({ 'montant-facture': '58,00', 'client-facture': ' Client fictif ', 'numero-facture': 'FAC-2026-2384081', incluse: true }),
     ligne({}),
-    ligne({ 'montant-facture': '12,5', 'client-facture': 'Autre', 'numero-facture': 'F2', 'justificatif-facture': 'BL 4', incluse: false }),
+    // Justificatif déjà en base : conservé tel quel, jamais effacé.
+    ligne({ 'montant-facture': '12,5', 'client-facture': 'Autre', 'numero-facture': 'F2', incluse: false }, { justificatif: 'BL 4' }),
   ];
   const ctx = { document: { querySelectorAll: sel => { assert.strictEqual(sel, '#facturesDiffereesListe .ligne-facture'); return lignes; } },
     numFR: x => Number(String(x).replace(',', '.')) };
@@ -126,6 +129,15 @@ const facture58 = { numero_facture: 'FAC-2026-2384081', montant: 58, client: 'Cl
     { numero_facture: 'F2', client: 'Autre', justificatif: 'BL 4', montant: 12.5, incluse_dans_ventes: false },
   ]);
   ok('lecture de l’écran : ligne vide écartée, montant à la française, aucune clé d’auteur ni d’horodatage');
+}
+
+// 5bis. Aucun champ justificatif à l'écran (arbitrage du 09/10/2026) ; un
+// justificatif déjà enregistré est repris de la ligne, pas d'un champ.
+{
+  assert.ok(!html.includes('justificatif-facture'), 'aucun champ justificatif dans la carte');
+  const ajout = extraireBloc(html, 'function ajouterLigneFactureDifferee(f) {');
+  assert.ok(ajout.includes('if (f.justificatif) ligne.dataset.justificatif = f.justificatif;'), 'un justificatif existant est conservé');
+  ok('pas de saisie de justificatif ; l’existant est conservé, jamais effacé');
 }
 
 // 6. Câblage du calcul et de l'écriture dans le vrai gestionnaire.
