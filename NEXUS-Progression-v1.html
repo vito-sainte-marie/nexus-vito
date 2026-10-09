@@ -29,6 +29,12 @@
 <!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
      lui-même entre les lignes brutes et la projection employé. -->
 <script src="nexus-caisse-source.js?v=20260904-0104"></script>
+<!-- Mes régularisations (complément G3, 09/10/2026) : les MÊMES modules que
+     l'écran manager Analyse des écarts — aucune formule propre à cet écran.
+     nexus-ecarts-moteur.js est déjà chargé plus haut (v2.286). -->
+<script src="nexus-station.js?v=20261009-g3"></script>
+<script src="nexus-ecarts-donnees.js?v=20261009-g3"></script>
+<script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -138,6 +144,24 @@
   .stat-label{font-family:var(--mono); font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; margin-top:3px; line-height:1.4;}
   .protection-note{font-size:11px; line-height:1.55; color:var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline);}
   .info-dot{cursor:help; color:var(--cyan); border-bottom:1px dotted var(--cyan);}
+
+  /* Mes régularisations (complément G3, 09/10/2026) — mêmes classes que la
+     synthèse d'Analyse des écarts, bornées à cette section. */
+  #mesRegularisations .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:12px;}
+  #mesRegularisations .liste-vide{font-size:12px; color:var(--text-dim); font-style:italic; padding:10px 2px;}
+  #mesRegularisations .emp-detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; font-size:11.5px; margin-bottom:10px;}
+  #mesRegularisations .edg-label{color:var(--text-mid); font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:2px;}
+  #mesRegularisations .edg-valeur{font-family:var(--mono); font-weight:700; font-size:13px;}
+  #mesRegularisations .edg-valeur.pos{color:var(--cyan);} #mesRegularisations .edg-valeur.neg{color:var(--red);}
+  #mesRegularisations .regul-synthese-periode{font-size:12px; font-weight:700; margin:2px 0 8px;}
+  #mesRegularisations .regul-note{font-size:11px; color:var(--text-mid); line-height:1.5; margin-top:6px;}
+  #mesRegularisations .emp-bandeau-inhabituel{background:var(--amber-dim); border:1px solid rgba(245,166,35,0.35); border-radius:8px; padding:9px 10px; margin:8px 0; font-size:11.5px; line-height:1.5;}
+  #mesRegularisations .regul-historique{margin:0; padding-left:0; list-style:none; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6; margin-top:8px;}
+  #mesRegularisations .regul-op{padding:9px 10px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; margin-bottom:6px;}
+  #mesRegularisations .regul-op span{display:inline-block; margin-right:8px;}
+  .regul-periode-choix{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .regul-periode-choix label{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .regul-periode-choix input{display:block; width:100%; margin-top:4px; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px; color:var(--text); font-family:var(--sans); font-size:16px;}
   .fiabilite-line{font-family:var(--mono); font-size:10.5px; color:var(--gold); margin-top:12px;}
   .statut-badge-caisse{font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; padding:4px 9px; border-radius:20px; white-space:nowrap; flex-shrink:0;}
   .statut-badge-caisse.provisoire{color:var(--amber); background:var(--amber-dim);}
@@ -267,6 +291,50 @@
       <span class="comp-nom">${nom}</span>
       <span class="comp-statut" style="color:${c};">${libelle}${resultat.detail ? `<span class="comp-detail">${resultat.detail}</span>` : ''}</span>
     </div>`;
+  }
+
+  async function chargerMesRegularisations(moi) {
+    const zone = document.getElementById('mesRegularisations');
+    const R = NexusPayeRegularisations;
+    let fuseau = null, projection = null;
+    try {
+      const f = await NexusStation.fuseauDeLaStation(moi.site_id);
+      fuseau = f.timezone || null;
+      const { data, error } = await nexusClient.rpc('mes_regularisations');
+      if (error) throw error;
+      projection = data || {};
+    } catch (e) {
+      console.error('Mes régularisations :', e);
+      zone.innerHTML = '<div class="card"><div class="liste-vide">Synthèse indisponible — réessayez plus tard.</div></div>';
+      return;
+    }
+    if (!fuseau) { zone.innerHTML = '<div class="card"><div class="liste-vide">Fuseau de la station non configuré : la synthèse ne peut pas être datée.</div></div>'; return; }
+    let ecarts, operations;
+    try {
+      ecarts = R.ecartsDeLaProjection(projection, { id: moi.id, nom: moi.nom });
+      operations = R.operationsDeLUnivers(ecarts, projection);
+    } catch (e) {
+      console.error('Mes régularisations :', e);
+      zone.innerHTML = '<div class="card"><div class="liste-vide">Synthèse indisponible — module de calcul absent.</div></div>';
+      return;
+    }
+    const nom = id => id === moi.id ? moi.nom : (id === 'manager' ? 'manager' : null);
+    const du = document.getElementById('regulDu'), au = document.getElementById('regulAu');
+    const aujourdhui = R.jourStation(new Date().toISOString(), fuseau);
+    du.value = aujourdhui.slice(0, 8) + '01';
+    au.value = aujourdhui;
+    const rendre = () => {
+      try {
+        zone.innerHTML = R.renderSynthese(
+          R.syntheseRegularisationsPeriode(ecarts, operations, { fuseau, dateDebut: du.value, dateFin: au.value }),
+          { nomEmploye: nom });
+      } catch (e) {
+        zone.innerHTML = `<div class="card"><div class="liste-vide">${String((e && e.message) || e).replace(/[<>&]/g, '')}</div></div>`;
+      }
+    };
+    du.addEventListener('change', rendre);
+    au.addEventListener('change', rendre);
+    rendre();
   }
 
   nexusRequireAuth().then(async employee => {
@@ -943,6 +1011,17 @@
 
       ${mesResultatsHtml}
 
+      <div class="section-label">${vueManager ? 'Ses régularisations' : 'Mes régularisations'}</div>
+      ${vueManager
+        ? `<div class="coach-card"><div class="caisses-sub">Écarts, versements et solde de ${cible.nom} : voir <a class="info-dot" href="NEXUS-Analyse-Ecarts-v1.html">Analyse des écarts</a>, filtré sur l'employé — mêmes montants que ceux qu'il voit ici.</div></div>`
+        : `<div class="coach-card" style="padding-bottom:6px;">
+            <div class="regul-periode-choix">
+              <label>Du<input type="date" id="regulDu"></label>
+              <label>Au<input type="date" id="regulAu"></label>
+            </div>
+          </div>
+          <div id="mesRegularisations"><div class="empty-note">Chargement…</div></div>`}
+
       <div class="section-label">${vueManager ? 'Ses réussites' : 'Vos réussites'}</div>
       <div class="badges-grid">
         ${badges.map(b => `
@@ -954,6 +1033,15 @@
         `).join('')}
       </div>
     `;
+
+    // ------------------------------------------------------------
+    // Mes régularisations (complément G3, 09/10/2026) : « un employé doit
+    // voir les mêmes montants que son manager pour ses propres écarts ».
+    // `mes_regularisations()` rend les lignes SOURCES de l'appelant ; elles
+    // passent par la normalisation et la synthèse de l'écran manager
+    // (NexusPayeRegularisations), jamais par un calcul d'ici.
+    // ------------------------------------------------------------
+    if (!vueManager) chargerMesRegularisations(cible);
 
     // Ouvrir/fermer le détail d'une ligne d'historique (clic sur la ligne)
     // — même mécanisme que l'historique de NEXUS-Verify-v1.html.

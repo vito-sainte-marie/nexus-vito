@@ -125,6 +125,11 @@
   .regul-employe{font-size:11.5px; color:var(--text-mid); margin:-4px 0 8px;}
   .regul-historique{margin:0; padding-left:16px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6;}
   .regul-avertissement{font-size:11px; color:var(--text-mid); line-height:1.5; margin-bottom:10px;}
+  /* Synthèse de période (G3, 09/10) : constaté / encaissé / solde à date. */
+  .regul-synthese-periode, .regul-releve-titre{font-size:12px; font-weight:700; margin:2px 0 8px;}
+  .regul-note{font-size:11px; color:var(--text-mid); line-height:1.5; margin-top:6px;}
+  .regul-encaissements{list-style:none; padding-left:0; margin-top:8px;}
+  .regul-encaissements .regul-op span{display:inline-block; margin-right:8px;}
 
   .chargement{text-align:center; padding:30px 0; color:var(--text-dim); font-family:var(--mono); font-size:11.5px;}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
@@ -196,7 +201,7 @@
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
-<script src="nexus-paye-regularisations.js?v=20261008-b6"></script>
+<script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
 <script src="nexus-regularisation-saisie.js?v=20261008-b7"></script>
 </head>
 <body>
@@ -340,7 +345,7 @@
 
   </div>
 
-  <footer>NEXUS · Analyse des écarts — v2.271</footer>
+  <footer>NEXUS · Analyse des écarts — v2.272</footer>
 </div>
 
 <!-- Panneau "Composition du montant" (§1, §4) -->
@@ -824,7 +829,25 @@
     else html = NexusPayeRegularisations.renderLignes(RELEVE_REGUL);
     const orphelines = RELEVE_REGUL.operationsSansEcart.length;
     if (orphelines) html = `<div class="emp-bandeau-inhabituel">${orphelines} opération(s) de régularisation rattachée(s) à un écart hors de la sélection.</div>` + html;
-    zone.innerHTML = html;
+    // G3 (complément métier du 09/10) : la période ne filtre pas l'univers
+    // des écarts — un versement du jeudi pour un écart du lundi reste lié à
+    // son écart. Les dates bornent seulement ce qui est compté : écarts
+    // constatés par leur date, encaissements par leur jour, solde arrêté à la
+    // fin de période (jamais construit avec un versement postérieur).
+    const f = litFiltresDepuisFormulaire();
+    const univers = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, Object.assign({}, f, { dateDebut: '', dateFin: '' }));
+    const noms = {};
+    TOUTES_LES_LIGNES.forEach(l => { if (l.employeeId) noms[l.employeeId] = l.employeeNom; });
+    let synthese;
+    try {
+      synthese = NexusPayeRegularisations.renderSynthese(
+        NexusPayeRegularisations.syntheseRegularisationsPeriode(univers, NexusPayeRegularisations.operationsDeLUnivers(univers, OPERATIONS_REGUL), { fuseau: FUSEAU_STATION, dateDebut: f.dateDebut, dateFin: f.dateFin }),
+        { nomEmploye: id => noms[id] || null });
+    } catch (e) {
+      synthese = `<div class="card"><div class="liste-vide">${String((e && e.message) || e).replace(/[<>&]/g, '')}</div></div>`;
+    }
+    const titre = VUE_REGUL === 'ecarts' ? '<div class="regul-releve-titre">État actuel par écart de la sélection</div>' : '';
+    zone.innerHTML = synthese + titre + html;
   }
 
   function brancherRegularisations() {

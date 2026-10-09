@@ -173,11 +173,13 @@
       if (l.ecartCorrigeCentimes > 0) { g.excedentsCentimes += l.ecartCorrigeCentimes; g.nbExcedents++; }
       if (l.ecartCorrigeCentimes < 0) { g.manquesCentimes += l.ecartCorrigeCentimes; g.nbManques++; }
       g.ecarts.push(l.cle);
+      // 09/10 (G3) : une opération annulée a bien eu lieu à son jour ; sa
+      // contre-écriture (montant négatif) compte au jour de l'annulation.
+      // Effacer les deux réécrivait la période d'origine après coup.
       l.historique.forEach(h => {
-        if (h.annule) return;
         const gOp = groupe(clePeriode(h.jour), l);
-        if (h.nature === 'versement') gOp.verseCentimes += h.montantCentimes;
-        if (h.nature === 'restitution') gOp.restitueCentimes += h.montantCentimes;
+        if (h.nature === 'versement' || h.nature === 'annulation_versement') gOp.verseCentimes += h.montantCentimes;
+        if (h.nature === 'restitution' || h.nature === 'annulation_restitution') gOp.restitueCentimes += h.montantCentimes;
       });
     });
     return Object.values(groupes).sort((a, b) =>
@@ -189,6 +191,140 @@
   }
   function vueMensuelle(releve) {
     return agreger(releve, jour => jour.slice(0, 7), mois => ({ du: `${mois}-01`, au: null }));
+  }
+
+  // ------------------------------------------------------------
+  // Synthèse d'une période (09/10/2026, G3 — vérité comptable commune
+  // employé / manager). Trois lectures distinctes, jamais confondues :
+  //   - écarts constatés : écarts dont le quart tombe dans [du, au] ;
+  //     manques et excédents séparés, écarts non clôturés à part ;
+  //   - régularisations encaissées : opérations dont le jour de la station
+  //     tombe dans [du, au], quel que soit l'âge de l'écart régularisé ;
+  //     une annulation compte au jour de l'annulation ;
+  //   - solde restant à régulariser, à une date de référence explicite :
+  //     écarts clôturés datés au plus tard ce jour-là, opérations et
+  //     annulations survenues au plus tard ce jour-là. Un versement futur
+  //     ne modifie jamais un solde historique.
+  // Le solde restant n'est donc pas « écarts de la période − versements de
+  // la période ». Il est calculé par construireReleve, sans seconde formule.
+  //
+  // ecarts : l'univers de l'écran (filtres appliqués SAUF les dates) — tout
+  //   le site pour un manager, ses propres écarts pour un employé.
+  // ------------------------------------------------------------
+  function operationsAuJour(operations, fuseau, reference) {
+    const garder = (op, champ) => jourStation(op[champ], fuseau) <= reference;
+    // Une annulation postérieure à la référence n'existait pas encore.
+    const figer = op => (op.annule_le && jourStation(op.annule_le, fuseau) > reference)
+      ? Object.assign({}, op, { annule_le: null, annule_par: null, motif_annulation: null }) : op;
+    return {
+      versements: ((operations && operations.versements) || []).filter(op => garder(op, 'encaisse_le')).map(figer),
+      restitutions: ((operations && operations.restitutions) || []).filter(op => garder(op, 'restitue_le')).map(figer),
+    };
+  }
+
+  function estCloture(e) { return e.statut !== 'a_verifier'; }
+
+  function soldeAuJour(ecarts, operations, fuseau, reference) {
+    const univers = (ecarts || []).filter(e => e.date <= reference && estCloture(e));
+    const releve = construireReleve(univers, operationsAuJour(operations, fuseau, reference), { fuseau });
+    const r = { reference, resteDuCentimes: 0, tropPercuCentimes: 0, nbOuverts: 0, dontNonImputeCentimes: 0 };
+    releve.lignes.forEach(l => {
+      // Par écart : un trop-perçu ici ne rembourse jamais un reste dû ailleurs.
+      if (l.soldeCentimes > 0) {
+        r.resteDuCentimes += l.soldeCentimes; r.nbOuverts++;
+        if (l.nonImpute) r.dontNonImputeCentimes += l.soldeCentimes;
+      }
+      if (l.soldeCentimes < 0) r.tropPercuCentimes += -l.soldeCentimes;
+    });
+    return r;
+  }
+
+  // Restreint les opérations à celles qui portent sur un écart de l'univers.
+  // Le manager charge tout le site, l'employé seulement ses propres écarts :
+  // passer par ici rend les deux entrées identiques pour une même sélection,
+  // donc les mêmes montants et les mêmes bandeaux (complément G3, 09/10).
+  function operationsDeLUnivers(ecarts, operations) {
+    const cles = new Set((ecarts || []).map(e => e.id));
+    const garde = op => cles.has(cleOrigine(op));
+    return {
+      versements: ((operations && operations.versements) || []).filter(garde),
+      restitutions: ((operations && operations.restitutions) || []).filter(garde),
+    };
+  }
+
+  // Écarts de l'employé à partir de `mes_regularisations()` (complément G3,
+  // 09/10). Aucun calcul propre : les lignes sources passent par les MÊMES
+  // normalisations que l'écran manager (NexusEcartsDonnees), puis l'appelant
+  // les donne à syntheseRegularisationsPeriode comme le manager.
+  //   projection : { audits, fdj, versements, restitutions }
+  //   employe    : { id, nom }
+  function ecartsDeLaProjection(projection, employe) {
+    const D = global.NexusEcartsDonnees;
+    if (!D) throw new Error('NexusEcartsDonnees absent : la synthèse employé ne peut pas être calculée.');
+    // Sans moteur, les normaliseurs rendent [] en silence : l'employé lirait
+    // 0 € là où son manager lit -50 €. Un zéro muet est pire qu'un refus.
+    if (!global.NexusEcartsMoteur) throw new Error('NexusEcartsMoteur absent : la synthèse employé ne peut pas être calculée.');
+    const p = projection || {};
+    const noms = { [employe.id]: employe.nom };
+    return [
+      ...D.normaliserAuditsVerify(p.audits || [], noms, {}),
+      ...D.normaliserControlesFdj(p.fdj || [], noms, {}),
+    ];
+  }
+
+  function syntheseRegularisationsPeriode(ecarts, operations, options) {
+    const o = options || {};
+    const fuseau = o.fuseau;
+    if (!fuseau) throw new Error('Fuseau de la station inconnu : la synthèse ne peut pas être datée.');
+    const aujourdhui = o.aujourdhui || jourStation(new Date().toISOString(), fuseau);
+    const du = o.dateDebut || '';
+    const au = o.dateFin || aujourdhui;
+    if (du && du > au) throw new Error(`Période inversée : ${du} > ${au}.`);
+    const dans = j => (!du || j >= du) && j <= au;
+    const univers = ecarts || [];
+
+    const constates = { manquesCentimes: 0, nbManques: 0, excedentsCentimes: 0, nbExcedents: 0,
+      enAttente: { nb: 0, manquesCentimes: 0, excedentsCentimes: 0 }, dontNonImputeCentimes: 0 };
+    univers.filter(e => dans(e.date)).forEach(e => {
+      const c = centimes(e.ecartFinal) || 0;
+      if (!estCloture(e)) {
+        constates.enAttente.nb++;
+        if (c < 0) constates.enAttente.manquesCentimes += c;
+        if (c > 0) constates.enAttente.excedentsCentimes += c;
+        return;
+      }
+      if (c < 0) { constates.manquesCentimes += c; constates.nbManques++; if (!e.employeeId) constates.dontNonImputeCentimes += c; }
+      if (c > 0) { constates.excedentsCentimes += c; constates.nbExcedents++; }
+    });
+
+    // Toutes les opérations rattachées à l'univers ; seules celles de la
+    // période comptent, au jour où elles ont eu lieu.
+    const complet = construireReleve(univers, operations, { fuseau });
+    const encaissements = { versementsCentimes: 0, annulationsVersementsCentimes: 0,
+      restitutionsCentimes: 0, annulationsRestitutionsCentimes: 0, netCentimes: 0, detail: [] };
+    complet.lignes.forEach(l => l.historique.forEach(h => {
+      if (!dans(h.jour)) return;
+      if (h.nature === 'versement') encaissements.versementsCentimes += h.montantCentimes;
+      if (h.nature === 'annulation_versement') encaissements.annulationsVersementsCentimes += h.montantCentimes;
+      if (h.nature === 'restitution') encaissements.restitutionsCentimes += h.montantCentimes;
+      if (h.nature === 'annulation_restitution') encaissements.annulationsRestitutionsCentimes += h.montantCentimes;
+      encaissements.detail.push(Object.assign({}, h, {
+        ecartCle: l.cle, ecartDate: l.date, ecartQuart: l.quart, ecartActivite: l.activite,
+        ecartEmployeeId: l.employeeId, ecartEmployeeNom: l.employeeNom, ecartNonImpute: l.nonImpute,
+        ecartInitialCentimes: l.ecartInitialCentimes, ecartCorrigeCentimes: l.ecartCorrigeCentimes,
+        ecartAnterieur: !!du && l.date < du,
+      }));
+    }));
+    encaissements.netCentimes = encaissements.versementsCentimes + encaissements.annulationsVersementsCentimes
+      - encaissements.restitutionsCentimes - encaissements.annulationsRestitutionsCentimes;
+    encaissements.detail.sort((a, b) => String(a.horodatage).localeCompare(String(b.horodatage)));
+
+    const soldeFinPeriode = soldeAuJour(univers, operations, fuseau, au);
+    const soldeActuel = au >= aujourdhui ? soldeFinPeriode : soldeAuJour(univers, operations, fuseau, aujourdhui);
+    return {
+      fuseau, du, au, aujourdhui, constates, encaissements, soldeFinPeriode, soldeActuel,
+      operationsHorsUnivers: complet.operationsSansEcart.filter(h => dans(h.jour)).length,
+    };
   }
 
   // ------------------------------------------------------------
@@ -244,15 +380,61 @@
         <div class="emp-head"><span class="emp-nom">${esc(fmtJour(l.date))} · Q${esc(l.quart)} · ${esc(l.activite)}</span><span class="emp-role">${esc(l.libelleStatut)}</span></div>
         <div class="regul-employe">${esc(l.nonImpute ? `Collectif — non imputé${l.employeeNom ? ` (${l.employeeNom})` : ''}` : (l.employeeNom || ''))}</div>
         <div class="emp-detail-grid">
-          <div><div class="edg-label">Écart initial</div><div class="edg-valeur">${fmt(l.ecartInitialCentimes)}</div></div>
+          <div><div class="edg-label">Écart initial constaté</div><div class="edg-valeur">${fmt(l.ecartInitialCentimes)}</div></div>
           <div><div class="edg-label">Écart corrigé</div><div class="edg-valeur">${fmt(l.ecartCorrigeCentimes)}</div></div>
-          <div><div class="edg-label">Versé</div><div class="edg-valeur">${fmt(l.verseCentimes)}</div></div>
+          <div><div class="edg-label">Régularisations validées</div><div class="edg-valeur">${fmt(l.verseCentimes)}</div></div>
           <div><div class="edg-label">Restitué</div><div class="edg-valeur">${fmt(l.restitueCentimes)}</div></div>
-          <div><div class="edg-label">Solde</div><div class="edg-valeur">${l.soldeCentimes > 0 ? `${fmt(-l.soldeCentimes)} restant` : l.soldeCentimes < 0 ? `${fmt(-l.soldeCentimes)} trop-perçu` : '0,00 €'}</div></div>
+          <div><div class="edg-label">Solde restant à régulariser</div><div class="edg-valeur">${l.soldeCentimes > 0 ? fmt(-l.soldeCentimes) : l.soldeCentimes < 0 ? `${fmt(-l.soldeCentimes)} trop-perçu` : '0,00 €'}</div></div>
           <div><div class="edg-label">Motif</div><div class="edg-valeur">${esc(l.motif || '—')}</div></div>
         </div>
         ${l.historique.length ? `<ul class="regul-historique">${l.historique.map(h => `<li>${esc(fmtJour(h.jour))} — ${esc(h.nature.replace('_', ' '))} ${esc(fmt(h.montantCentimes))}${h.mode ? ` · ${esc(MODES[h.mode] || h.mode)}` : ''} · ${esc(h.statut)}${h.motif ? ` · ${esc(h.motif)}` : ''}</li>`).join('')}</ul>` : ''}
       </div>`).join('');
+  }
+
+  // Rendu de la synthèse — le même pour l'écran manager et l'écran
+  // employé : une seule présentation des trois lectures.
+  //   options.nomEmploye(id) : nom à afficher pour un identifiant (facultatif)
+  const NATURES = {
+    versement: 'Versement', annulation_versement: 'Annulation de versement',
+    restitution: 'Restitution', annulation_restitution: 'Annulation de restitution',
+  };
+  function renderSynthese(s, options) {
+    const nom = (options && options.nomEmploye) || (() => null);
+    const c = s.constates, e = s.encaissements, f = s.soldeFinPeriode, a = s.soldeActuel;
+    const periode = s.du ? `du ${fmtJour(s.du)} au ${fmtJour(s.au)}` : `jusqu'au ${fmtJour(s.au)}`;
+    const solde = r => (r.resteDuCentimes ? fmt(-r.resteDuCentimes) : '0,00 €');
+    const actuelDiffere = a.reference !== f.reference
+      && (a.resteDuCentimes !== f.resteDuCentimes || a.tropPercuCentimes !== f.tropPercuCentimes);
+    const detail = e.detail.map(h => {
+      const verseur = h.employeeId && h.employeeId !== h.ecartEmployeeId ? ` · versé par ${esc(nom(h.employeeId) || 'un tiers')}` : '';
+      return `<li class="regul-op" data-nature="${esc(h.nature)}">
+        <span class="regul-op-jour">${esc(fmtJour(h.jour))}</span>
+        <span class="regul-op-nature">${esc(NATURES[h.nature] || h.nature)}</span>
+        <span class="regul-op-montant">${esc(fmt(h.montantCentimes))}</span>
+        ${h.mode ? `<span>${esc(MODES[h.mode] || h.mode)}</span>` : ''}
+        <span>${esc(h.ecartNonImpute ? 'Collectif — non imputé' : (h.ecartEmployeeNom || ''))}${verseur}</span>
+        <span>écart du ${esc(fmtJour(h.ecartDate))} · Q${esc(h.ecartQuart)} · ${esc(h.ecartActivite)} (${esc(fmt(h.ecartInitialCentimes))})${h.ecartAnterieur ? ' · antérieur à la période' : ''}</span>
+        <span>${esc(h.statut)}${h.auteurId ? ` · saisi par ${esc(nom(h.auteurId) || 'manager')}` : ''}${h.motif && h.nature.startsWith('annulation') ? ` · ${esc(h.motif)}` : ''}</span>
+      </li>`;
+    }).join('');
+    return `
+      <div class="card regul-synthese" data-du="${esc(s.du)}" data-au="${esc(s.au)}">
+        <div class="regul-synthese-periode">Période ${esc(periode)} — jours de la station</div>
+        <div class="emp-detail-grid">
+          <div data-mesure="ecarts-manques"><div class="edg-label">Écarts constatés — manques (${c.nbManques})</div><div class="edg-valeur neg">${fmt(c.manquesCentimes)}</div></div>
+          <div data-mesure="ecarts-excedents"><div class="edg-label">Écarts constatés — excédents (${c.nbExcedents})</div><div class="edg-valeur pos">${fmt(c.excedentsCentimes)}</div></div>
+          <div data-mesure="regularisations"><div class="edg-label">Régularisations encaissées</div><div class="edg-valeur">${fmt(e.netCentimes)}</div></div>
+          <div data-mesure="solde-fin"><div class="edg-label">Solde restant à régulariser au ${esc(fmtJour(f.reference))}</div><div class="edg-valeur neg">${solde(f)}</div></div>
+        </div>
+        ${c.enAttente.nb ? `<div class="regul-note" data-mesure="en-attente">${c.enAttente.nb} écart(s) de la période non clôturé(s) (${fmt(c.enAttente.manquesCentimes)} / ${fmt(c.enAttente.excedentsCentimes)}) : hors solde tant qu'ils ne sont pas validés.</div>` : ''}
+        ${e.annulationsVersementsCentimes || e.restitutionsCentimes || e.annulationsRestitutionsCentimes ? `<div class="regul-note">Dont versements ${fmt(e.versementsCentimes)}, annulations ${fmt(e.annulationsVersementsCentimes)}, restitutions ${fmt(-e.restitutionsCentimes)}${e.annulationsRestitutionsCentimes ? `, annulations de restitution ${fmt(-e.annulationsRestitutionsCentimes)}` : ''}.</div>` : ''}
+        ${f.tropPercuCentimes ? `<div class="regul-note" data-mesure="trop-percu">Trop-perçu à restituer au ${esc(fmtJour(f.reference))} : ${fmt(f.tropPercuCentimes)} (jamais déduit d'un autre écart).</div>` : ''}
+        ${f.dontNonImputeCentimes ? `<div class="regul-note">Dont ${fmt(-f.dontNonImputeCentimes)} sur des écarts collectifs, imputés à personne.</div>` : ''}
+        ${actuelDiffere ? `<div class="regul-note" data-mesure="solde-actuel">Solde actuel au ${esc(fmtJour(a.reference))} : ${solde(a)}${a.tropPercuCentimes ? ` · trop-perçu ${fmt(a.tropPercuCentimes)}` : ''}.</div>` : ''}
+        ${s.operationsHorsUnivers ? `<div class="emp-bandeau-inhabituel">${s.operationsHorsUnivers} opération(s) de la période portent sur des écarts hors de la sélection : non comptées ici.</div>` : ''}
+        <div class="regul-note">Le solde restant n'est pas « écarts de la période − régularisations de la période » : il porte sur tous les écarts validés jusqu'à sa date, et ignore toute opération postérieure.</div>
+        ${detail ? `<ul class="regul-historique regul-encaissements">${detail}</ul>` : '<div class="liste-vide">Aucune régularisation encaissée sur la période.</div>'}
+      </div>`;
   }
 
   async function chargerOperations(client, siteId) {
@@ -268,6 +450,7 @@
   global.NexusPayeRegularisations = {
     STATUTS, ANNULE_PAR_CONTRE_ECRITURE, LIBELLE_VERSEMENT,
     jourStation, lundiDe, construireReleve, vueHebdomadaire, vueMensuelle,
+    syntheseRegularisationsPeriode, renderSynthese, operationsDeLUnivers, ecartsDeLaProjection,
     exporterCsv, renderVue, renderLignes, chargerOperations,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
