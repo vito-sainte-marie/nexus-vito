@@ -331,9 +331,13 @@
       "consomme_le": "2026-10-09T17:39:21.968Z"
     },
     "FAST-TRACK-ROUTAGE-CAPACITES-1-20261009": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "588ea15c953e95a4bbc704a846978d5087361307",
+      "consomme_le": "2026-10-09T22:44:52.045Z"
     }
   },
   "artefacts_hors_registre": [
