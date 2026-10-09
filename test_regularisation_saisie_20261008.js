@@ -195,6 +195,15 @@ const VERIFICATIONS = {
     const a = M2.nouvelleCle(), b = M2.nouvelleCle();
     assert.ok(UUID_V4.test(a), a);
     assert.notStrictEqual(a, b);
+    // Octets imposés : sur un tirage aléatoire, un repli qui oublie la version
+    // passe une fois sur seize (le quartet tiré vaut 4 par hasard) et le
+    // contre-témoin rougissait la CI au hasard (run 37920029490). 0x00 et 0xff
+    // n'ont jamais par hasard ni la version 4 ni la variante 10xx.
+    for (const octet of [0x00, 0xff]) {
+      const M3 = charger(src, { getRandomValues: t => t.fill(octet) });
+      const c = M3.nouvelleCle();
+      assert.ok(UUID_V4.test(c), `octets ${octet} : ${c}`);
+    }
   },
   renduManager(M) {
     const html = M.renderDossier(DOSSIER_VIDE, LIGNE_PISTE, { estManager: true, aujourdhui: '2026-10-08' });
@@ -362,6 +371,7 @@ const MUTANTS = [
   ['transfert annulé décompté', '.filter(t => t.versement_id === v.id && !t.annule_le)', '.filter(t => t.versement_id === v.id)', 'annotation'],
   ['motif d\'annulation non contrôlé', "if (String(motif).trim().length < 5) { (ctx.alerter", "if (false) { (ctx.alerter", 'annulation'],
   ['repli Safari sans version 4', 'b[6] = (b[6] & 0x0f) | 0x40;', '', 'cleSansRandomUUID'],
+  ['repli Safari sans variante', ' b[8] = (b[8] & 0x3f) | 0x80;', '', 'cleSansRandomUUID'],
   ['réseau sans conseil', "const reseau = /Failed to fetch|NetworkError|Load failed/i.test(brut);", 'const reseau = false;', 'erreurs'],
   ['site FDJ filtré par audit', "? requete.eq('fdj_cash_control_id', origine.p_fdj_cash_control_id)", "? requete.eq('audit_id', origine.p_audit_id)", 'chargement'],
 ];
