@@ -195,6 +195,31 @@ t('le jeton du relais ne touche pas le texte de l’arbitre, et n’écrit qu’
   assert.ok(code.includes('secrets.OPENAI_API_KEY'), 'le secret OpenAI hors de l’étape du relais');
 });
 
+// Stade (a), AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 09/10/2026 : second usage de
+// `contents: write`, sans permission nouvelle. L'étape qui dépose la décision
+// de l'arbitre lit un texte venu d'OpenAI : elle ne tient ni GH_TOKEN, ni
+// secret, ni `gh`, n'est armée que par la variable que Frédéric pose, et ne
+// pousse qu'en avance rapide sur la branche du run — que l'outil a confrontée
+// au rail `handoff-*` du registre.
+t('la matérialisation (stade a) pousse sans jeton ni force, et seulement armée', () => {
+  const l = yml.split('\n');
+  const i = l.findIndex(x => /^ {6}- name: Réveil Orchestrateur — matérialisation de la décision/.test(x));
+  assert.ok(i >= 0, 'étape de matérialisation introuvable');
+  const fin = l.findIndex((x, k) => k > i && /^ {6}- name:/.test(x));
+  const code = l.slice(i, fin < 0 ? l.length : fin).filter(x => !/^\s*#/.test(x)).join('\n');
+  assert.ok(/^\s+if: .*vars\.NEXUS_MATERIALISATION_CI == 'arme'/m.test(code), 'étape non gardée par la variable d’armement');
+  assert.ok(/^\s+if: .*env\.NEXUS_REF_EST_LE_RAIL == '1'/m.test(code), 'étape non bornée au rail');
+  assert.ok(/^\s+if: .*steps\.relais_arbitre\.outputs\.contrat_valide == '1'/m.test(code), 'étape non bornée à un contrat validé par le relais');
+  assert.ok(!/GH_TOKEN|GITHUB_TOKEN|secrets\./.test(code), 'jeton ou secret dans l’étape de matérialisation');
+  assert.ok(!/\bgh\s/.test(code), '`gh` dans l’étape de matérialisation');
+  const pushes = code.split('\n').filter(x => /\bgit push\b/.test(x));
+  assert.deepStrictEqual(pushes.map(x => x.trim()), ['git push --quiet origin "HEAD:refs/heads/$B" \\'],
+    'un seul push, sans force, vers la branche du run : ' + JSON.stringify(pushes));
+  assert.ok(!/--force|\s-f\s|\+HEAD|--no-verify/.test(code), 'push forcé ou contourné');
+  assert.ok(/materialiser-decision-ci\.js .*--rail-du-run "\$B"/.test(code.replace(/\\\n\s*/g, ' ')),
+    'l’outil doit confronter la branche du run au rail du registre');
+});
+
 t('le producteur ne demande à GitHub que des métadonnées', () => {
   // Le droit de lire ne dispense pas de ne lire que le nécessaire. Aucun log,
   // aucun contenu de run : quatre champs, et le contrat le dit.

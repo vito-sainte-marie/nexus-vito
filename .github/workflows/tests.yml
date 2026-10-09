@@ -82,6 +82,13 @@ name: Tests
 # travail de Claude restait sur sa branche de run et attendait que Frédéric
 # fasse le fast-forward à la main — c'est la rupture silencieuse que la mission
 # du 30/09/2026 nomme. Cette permission ferme ce maillon, et lui seul.
+#
+# Second usage de `contents: write`, stade (a) de l'arbitrage autonome :
+# AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 09/10/2026 (« autorise le stade (a) »).
+# Aucune permission nouvelle. L'étape « matérialisation de la décision »
+# pousse la décision de l'arbitre sur le rail Handoff du lot — `handoff-*`
+# seulement, jamais `main` ni `production`, sans force — derrière la variable
+# `NEXUS_MATERIALISATION_CI=arme`, que seul Frédéric pose.
 permissions:
   contents: write
   actions: read
@@ -494,9 +501,12 @@ jobs:
       # (« non armé ») et la voie manuelle reste ouverte.
       #
       # Stade (b) : le relais POSTE la réponse, il ne dépose aucune décision.
-      # La matérialisation (`handoff.js decision --auteur ChatGPT`) reste à
-      # Claude, sur un contrat réel. Le stade (a) exige un GO distinct.
+      # Le stade (a) — AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE 09/10/2026 — est
+      # l'étape suivante : elle matérialise la décision quand le contrat est
+      # valide. Le relais lui passe deux sorties, `contrat_valide` et
+      # `commentaire` (l'URL du commentaire posté), et rien de plus.
       - name: Réveil Orchestrateur — relais vers l'arbitre (API OpenAI)
+        id: relais_arbitre
         if: always() && vars.NEXUS_RELAIS_OPENAI == 'arme' && steps.publication_reveil.outputs.numero != ''
         timeout-minutes: 5
         env:
@@ -554,16 +564,102 @@ jobs:
           if [ "$CODE" = "2" ]; then
             ENTETE="⚠️ Réponse de l'arbitre NON CONFORME au NEXT_ACTION_CONTRACT : rien ne sera matérialisé. Voir le journal du run $GITHUB_RUN_ID."
           else
-            ENTETE="Réponse de l'arbitre (ChatGPT, via l'API, run $GITHUB_RUN_ID). Contrat validé par le relais ; matérialisation par Claude."
+            ENTETE="Réponse de l'arbitre (ChatGPT, via l'API, run $GITHUB_RUN_ID). Contrat validé par le relais ; matérialisation par la CI si NEXUS_MATERIALISATION_CI=arme, sinon par Claude."
           fi
-          printf '%s\n\n%s\n\n%s\n' "$ENTETE" "$(cat reponse.txt)" "$MARQUE" \
-            | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -
+          URL_COMMENTAIRE=$(printf '%s\n\n%s\n\n%s\n' "$ENTETE" "$(cat reponse.txt)" "$MARQUE" \
+            | gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body-file -)
           [ "$CODE" = "0" ] || echec CONTRAT_NON_CONFORME \
             "la réponse de l'arbitre porte un NEXT_ACTION_CONTRACT valide" \
             "faire réarbitrer la demande ; la réponse non conforme est postée sur #$NUM, marquée « rien ne sera matérialisé »"
           node outils/etat-maillon.js EXECUTE ARBITRAGE_RELAYE --maillon "$M" \
             --motif "réponse de l'arbitre postée sur l'issue #$NUM" \
             --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "${GITHUB_REF_NAME:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
+          { echo "contrat_valide=1"; echo "commentaire=$URL_COMMENTAIRE"; } >> "$GITHUB_OUTPUT"
+
+      # Stade (a) de l'arbitrage autonome — AUTORISÉ PAR FRÉDÉRIC BRAGANCE LE
+      # 09/10/2026 (« autorise le stade (a) »). Mesuré sur
+      # FAST-TRACK-ROUTAGE-CAPACITES-1 : verdict rendu à 17:57, déposé à la
+      # main à 22:44. Le commentaire du relais, posté avec GITHUB_TOKEN, ne
+      # réveille personne ; cette étape dépose donc la décision elle-même.
+      #
+      # Aucune permission nouvelle : c'est un second usage de `contents:
+      # write` (30/09/2026), borné de la même façon — un rail `handoff-*`
+      # seulement, celui du lot AU REGISTRE et celui du run, jamais `main` ni
+      # `production`, push sans force. Un rail qui a avancé pendant le run
+      # fait refuser le push : FAILED, et la réponse reste sur l'issue.
+      #
+      # L'étape ne tient ni GH_TOKEN, ni secret, ni `gh` : le texte venu
+      # d'OpenAI n'est lu que par `outils/materialiser-decision-ci.js`, qui
+      # n'a aucune voie réseau. Le push passe par les identifiants que
+      # `actions/checkout` a laissés dans la configuration git.
+      #
+      # Ce qu'elle ne fait PAS : vérifier les CONDITIONS du verdict (elles
+      # lient l'exécutant suivant, et le corps de la décision le dit), et
+      # relancer quoi que ce soit — un push fait avec GITHUB_TOKEN ne
+      # déclenche ni la CI ni Claude. Un verdict `closes: false` est déposé
+      # sans être consommé : sa consommation revient à l'exécutant.
+      #
+      # Verrou humain, aucun posé par Claude : vars.NEXUS_MATERIALISATION_CI=arme.
+      - name: Réveil Orchestrateur — matérialisation de la décision (stade a)
+        if: always() && vars.NEXUS_MATERIALISATION_CI == 'arme' && env.NEXUS_REF_EST_LE_RAIL == '1' && steps.relais_arbitre.outputs.contrat_valide == '1'
+        timeout-minutes: 5
+        env:
+          COMMENTAIRE: ${{ steps.relais_arbitre.outputs.commentaire }}
+        run: |
+          set +e
+          set -uo pipefail
+          M=materialisation-decision
+          B="${GITHUB_REF_NAME:-(branche non lisible)}"
+          LOT="(lot non lisible)"
+          rien() { node outils/etat-maillon.js NO_WORK "$1" --maillon "$M" --motif "$2"; exit 0; }
+          echec() {
+            node outils/etat-maillon.js FAILED "$1" --maillon "$M" \
+              --condition "$2" --prochaine-action "$3" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
+            exit 1
+          }
+          A_LA_MAIN="matérialiser à la main la réponse postée sur $COMMENTAIRE (handoff.js decision --auteur ChatGPT)"
+          REPONSE="$GITHUB_WORKSPACE/reponse.txt"
+          CORPS_DECISION="$RUNNER_TEMP/corps-decision.md"
+          WT="$RUNNER_TEMP/rail-materialisation"
+          # La tête du rail, pas le SHA du run : le registre a pu avancer. Dans
+          # `origin/$B` et non FETCH_HEAD, parce que handoff.js résout le rail
+          # par ce nom ; `main` et `production`, qu'il résout aussi, sont déjà
+          # là (checkout en fetch-depth 0).
+          git fetch --quiet origin "+refs/heads/$B:refs/remotes/origin/$B" \
+            || echec RAIL_ILLISIBLE "la tête du rail $B se lit depuis origin" "$A_LA_MAIN"
+          git worktree add --quiet --detach "$WT" "refs/remotes/origin/$B" \
+            || echec RAIL_ILLISIBLE "la tête du rail $B s'extrait dans un worktree" "$A_LA_MAIN"
+          cd "$WT"
+          JUGEMENT=$(node outils/materialiser-decision-ci.js --reponse "$REPONSE" --sortie "$CORPS_DECISION" \
+            --rail-du-run "$B" --run "$GITHUB_RUN_ID" --commentaire "$COMMENTAIRE")
+          CODE=$?
+          [ "$CODE" != "3" ] || rien DECISION_DEJA_MATERIALISEE "$JUGEMENT"
+          [ "$CODE" = "0" ] || echec CONTRAT_NON_MATERIALISABLE \
+            "la réponse vise la demande que le registre attend, sur le rail du run : $JUGEMENT" "$A_LA_MAIN"
+          LOT=$(jq -r .lot <<<"$JUGEMENT"); REQUEST=$(jq -r .request <<<"$JUGEMENT")
+          DECISION=$(jq -r .decision <<<"$JUGEMENT"); CLOSES=$(jq -r .closes <<<"$JUGEMENT")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node outils/handoff.js decision "$LOT" "$CORPS_DECISION" --decision "$DECISION" \
+              --closes "$CLOSES" --en-reponse-a "$REQUEST" --auteur ChatGPT \
+            && node outils/handoff.js miroirs \
+            && git add -A docs/handoff \
+            && git commit --quiet -m "handoff($LOT): décision de l'arbitre sur $REQUEST — $DECISION (matérialisée par la CI, stade a, run $GITHUB_RUN_ID)" \
+            || echec DEPOT_REFUSE "handoff.js accepte la décision et la commite" "$A_LA_MAIN"
+          if [ "$CLOSES" = "true" ]; then
+            node outils/handoff.js consommer "$LOT" \
+              && git add -A docs/handoff \
+              && git commit --quiet -m "handoff($LOT): décision consommée — lot clos (CI, stade a, run $GITHUB_RUN_ID)" \
+              || echec CONSOMMATION_REFUSEE "handoff.js consomme la décision qui clôt le lot" "$A_LA_MAIN"
+          fi
+          node outils/handoff.js verifier \
+            || echec REGISTRE_INVALIDE "le registre valide après le dépôt" "$A_LA_MAIN"
+          git push --quiet origin "HEAD:refs/heads/$B" \
+            || echec PUSH_REFUSE "le rail $B n'a pas avancé pendant le run (push sans force)" "$A_LA_MAIN"
+          node outils/etat-maillon.js EXECUTE DECISION_MATERIALISEE --maillon "$M" \
+            --motif "$LOT : décision $DECISION sur $REQUEST déposée sur $B ($(git rev-parse --short HEAD)), closes=$CLOSES" \
+            --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par

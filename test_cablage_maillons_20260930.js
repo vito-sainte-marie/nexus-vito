@@ -33,6 +33,7 @@ const OPTIONS_D_ARRET = ['--condition', '--sha', '--branche', '--lot', '--procha
 const MAILLONS = Object.freeze([
   { outil: 'outils/reveil-orchestrateur.js', role: 'calcule et publie le réveil de l’Orchestrateur' },
   { outil: 'outils/garde-branches-en-rade.js', role: 'constate le travail resté hors du rail' },
+  { outil: 'outils/materialiser-decision-ci.js', role: 'dépose la décision de l’arbitre sur le rail (stade a, 09/10/2026)' },
 ]);
 
 const echecs = [];
