@@ -1,4 +1,24 @@
-<!-- en-attente wake_to: ChatGPT -->
+---
+protocol: nexus-handoff/2
+kind: request
+lot_id: FAST-TRACK-ROUTAGE-CAPACITES-1-20261009
+seq: 1
+author: Claude
+branch: handoff-continuite-20260920
+status: AWAITING_DECISION
+token_mode: STANDARD
+wake_to: ChatGPT
+preuves:
+  - id: refs-protegees
+    classe: VERIFIED
+    valeur: main=d6093b7 production=63d9de3
+  - id: merge-base-production
+    classe: VERIFIED
+    valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
+  - id: diff-applicatif-production
+    classe: VERIFIED
+    valeur: 140-fichiers
+---
 # request-1 — une autorisation n'est pas une capacité : routage Fast Track par capacité de canal
 
 ## Pourquoi ce lot est en attente, pas publié directement
