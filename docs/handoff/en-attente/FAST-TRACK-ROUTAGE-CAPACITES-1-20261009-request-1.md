@@ -55,9 +55,11 @@ Quatre défauts, nommés :
 
 ## Ce qui est corrigé, et comment c'est prouvé
 
-Un commit sur le rail : `b910ae9` — 10 fichiers, 1312 insertions, 9 suppressions.
-Branche `claude/fast-track-routage-capacites-20261009`, basée sur le rail
-`58a828b`. Rien n'est poussé, `main` et `production` ne sont pas touchés.
+Trois commits sur `claude/fast-track-routage-capacites-20261009`, basée sur le
+rail `58a828b` : `b910ae9` (le mécanisme — 10 fichiers, 1312 insertions, 9
+suppressions), `0a8fc97` (cette demande rangée dans la file), `2a251c6` (le
+routage qui nomme l'exécutant). Rien n'est poussé, `main` et `production` ne
+sont pas touchés.
 
 **D1 — `docs/handoff/CAPACITES-CANAL.json` + `outils/capacites-canal.js`.**
 Chaque canal déclare ses capacités avec une **preuve** typée : `ENVELOPPE` (le
@@ -84,6 +86,16 @@ exécuter rend `CHANNEL_LIMITATION / CAPACITE_CANAL_INSUFFISANTE` — jamais
 `BLOCKED_TECHNIQUE`, conformément à l'acquis `LIMITATION_CANAL_NON_STOP`.
 Seul « personne n'en est capable » rend `BLOCKED_TECHNIQUE`.
 
+Et le routage **nomme** désormais cet exécutant :
+`node outils/capacites-canal.js --geste SUPABASE_PRODUCTION_MUTATION` traverse
+la chaîne entière — motif STOP, capacité, registre, verdict — et rend, sur le
+vecteur exact du 09/10 : `CHANNEL_LIMITATION / CAPACITE_CANAL_INSUFFISANTE`,
+`OWNER_NEXT: Claude`, `EXECUTANT_NEXT: session-claude-habilitee`. Là où
+l'incident ne laissait voir qu'une autorisation à redemander, il y a maintenant
+un canal à saisir. Sur `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`, dont Frédéric
+est le seul détenteur, le même outil rend `OWNER_NEXT: Frédéric` — une vraie
+gate humaine, annoncée comme telle.
+
 **D4 — `outils/empreinte-progression.js`, câblé dans `tests.yml`.** L'empreinte
 est le SHA-256 tronqué de six champs normalisés (LOT, REQUEST, HEAD, GATE_STATE,
 BLOCKER, ACTION_NEXT) ; elle voyage dans le corps publié sous
@@ -99,7 +111,7 @@ l'incident — corps changé, état inchangé — rend désormais
 restitue le défaut : republication et `numero=28` écrit. Le détecteur a été
 calibré sur le vrai dépôt avant d'être câblé.
 
-Épreuves : `test_routage_capacites_canal_20261009.js` 24/24,
+Épreuves : `test_routage_capacites_canal_20261009.js` 30/30,
 `test_empreinte_progression_20261009.js` 25/25,
 `test_relais_arbitre_openai_20261007.js` réparé 19/19 (le passage à 15 champs
 cassait sa fixture — vraie régression, vraiment corrigée). Les trois tournent en
@@ -156,6 +168,48 @@ chemin à préflight rafraîchi des gates restantes (G2 PR/déploiement, G3 rece
 navigateur, G4/G5 reprises d'audit) — chacune sous son propre GO. Rejouer les
 migrations serait à la fois inutile et contraire à la consigne.
 
+## Préparation de la reprise de G1 — préparée, pas exécutée
+
+Ce que la reprise N'EST PAS : rejouer les six migrations. Elles sont appliquées,
+le registre Production est à 304, et les rejouer serait à la fois inutile et
+contraire à la consigne de Frédéric sur ce lot d'infrastructure. Aucune
+opération Supabase Production n'a été faite ici — pas même une lecture : lire
+Production est une gate humaine, et ce correctif ne la franchit pas.
+
+**Le geste immédiat** est une `decision-2.md` en réponse à `request-3.md`.
+Capacité requise : `CANAL_PUBLICATION`. Exécutant : `arbitre-chatgpt`. Aucune
+capacité Production n'y est engagée, aucun GO n'y est nécessaire.
+
+**Ensuite, gate par gate, le routage calculé par l'outil** — pas déduit d'un
+rôle :
+
+| gate | geste | capacité | exécutant |
+|---|---|---|---|
+| G2 — PR `verify-versement-regularisation-20261008` → `production`, fusion, déploiement Pages | `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION` | `PRODUCTION_FUSION_DEPLOIEMENT` | `frederic` — seul détenteur, donc vraie gate humaine |
+| toute mutation Supabase Production ultérieure | `SUPABASE_PRODUCTION_MUTATION` | `SUPABASE_PRODUCTION_ECRITURE` | `session-claude-habilitee`, sous GO — **jamais** `github-actions-claude` |
+| G3 recette navigateur manager, G4-A1..A3, G5 `debd3038` | non cartographiés | — | **limite assumée** : la table `gestes` ne couvre aujourd'hui que les deux gestes Production. Les cartographier demande de nommer leurs capacités, ce qui est un lot d'outillage à part — et un geste non cartographié rend un défaut nommé, jamais un exécutant deviné. |
+
+Chacune de ces gates exige un GO distinct de Frédéric : `request-3.md` le dit
+déjà, et le GO G1 ne couvre ni G2 ni aucun retour arrière.
+
+**Rafraîchir les contrôles préflight avant d'agir**, dans cet ordre, par
+l'environnement habilité :
+
+1. `node outils/capacites-canal.js --geste <MOTIF_STOP>` — confirmer que le
+   canal courant détient bien la capacité. Un geste ne se tente pas depuis un
+   canal dont on suppose les pouvoirs.
+2. `node outils/preflight-capacites.js` — exercer réellement l'écriture de ref
+   (`refs/preflight/<id>`, poussée puis supprimée). Une capacité déclarée est
+   une opinion ; celle-ci s'établit en l'exerçant, avec sa commande et son
+   horodatage.
+3. Remesurer les trois quantités de `request-3.md` — nombre de migrations au
+   registre, dernière version, md5 du fichier FDJ — et les comparer à
+   `304, derniere=20261008160000`. Un écart dit que quelque chose a bougé entre
+   le GO et le geste ; c'est précisément ce qu'un préflight sert à voir.
+4. Reprendre un instantané advisors AVANT le geste. La limite énoncée dans
+   `request-3.md` — aucun instantané d'avant-G1 — ne doit pas se répéter : sans
+   référence antérieure, « rien de nouveau » n'est pas une mesure.
+
 ## Choix de conception soumis à arbitrage
 
 1. **`HEAD` est porté au domaine, non au push.** L'empreinte prend
@@ -183,8 +237,16 @@ migrations serait à la fois inutile et contraire à la consigne.
    un fichier candidat plus une note « à appliquer sur `main` » pour Frédéric,
    suivant le motif existant. **Question : vaut-il la peine ?**
 
+5. **L'ordre entre canaux capables.** Quand deux canaux détiennent la capacité,
+   le routage met le palier humain en dernier, en invoquant
+   `PALIER_HUMAIN_RESTREINT` : Frédéric ne se réveille pas pour un geste qu'un
+   autre canal sait faire. L'ordre ne dépend pas de la position dans le registre
+   mais du rôle — une épreuve permute le registre pour le prouver.
+   **Question : confirmez-vous que `PALIER_HUMAIN_RESTREINT` porte aussi ce
+   choix d'ordre, et non seulement le choix de ne pas poser la question ?**
+
 ## Ce qui est demandé
 
-Un arbitrage a posteriori sur `b910ae9`, et une réponse aux quatre questions
+Un arbitrage a posteriori sur `b910ae9`, `0a8fc97` et `2a251c6`, et une réponse aux cinq questions
 ci-dessus. Si l'arbitrage est favorable et la décision `closes: true`, la suite
 est la clôture de G1, puis les gates restantes sous leurs GO respectifs.
