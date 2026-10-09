@@ -11,7 +11,7 @@
 // Le contrat, lui, ne nommait qu'un RÔLE (`OWNER_NEXT: Frédéric`). Un rôle dit
 // qui tranche. Il ne dit jamais qui PEUT.
 //
-// Cette épreuve tient huit propriétés, chacune par une mutation qui mord :
+// Cette épreuve tient neuf propriétés, chacune par une mutation qui mord :
 //   A. le registre des capacités est sain sur le VRAI dépôt — calibration
 //      d'abord : une garde qui rend des faux positifs se fait débrancher, et
 //      emporte avec elle les vrais écarts qu'elle aurait trouvés ensuite ;
@@ -22,7 +22,8 @@
 //      ajoutés au workflow automatique rendent l'épreuve rouge ;
 //   F. un pouvoir sensible déclaré `OUI` exige une preuve nommée ;
 //   G. le palier Frédéric passe AVANT la capacité ;
-//   H. chaque geste du registre mène à une capacité connue et à un exécutant.
+//   H. chaque geste du registre mène à une capacité connue et à un exécutant ;
+//   I. le routage NOMME cet exécutant, et le palier humain passe en dernier.
 'use strict';
 const fs = require('fs');
 const assert = require('assert');
@@ -252,6 +253,66 @@ epreuve('H — le geste du GO G1 est bien celui que le canal automatique n’a p
   const c = cap.capaciteDuGeste(r, 'SUPABASE_PRODUCTION_MUTATION');
   assert.strictEqual(c, POUVOIR);
   assert.ok(!cap.capable(r, INCAPABLE, c));
+});
+
+// ── I. LE ROUTAGE NOMME L'EXÉCUTANT ─────────────────────────────────────────
+//
+// Nommer la capacité ne suffisait pas : il fallait que quelque chose réponde
+// « qui ». Et entre deux canaux capables, l'ordre est doctrinal, pas esthétique :
+// `PALIER_HUMAIN_RESTREINT` interdit de réveiller Frédéric pour un geste qu'un
+// autre canal sait faire.
+
+epreuve('I — le vecteur de l’incident route vers la session habilitée, pas vers Frédéric', () => {
+  const r = cap.routerGeste(registre(), 'SUPABASE_PRODUCTION_MUTATION', INCAPABLE);
+  assert.strictEqual(r.capacite, POUVOIR);
+  assert.strictEqual(r.etat, 'CHANNEL_LIMITATION', 'un geste qu’un autre canal sait faire n’est pas un blocage technique');
+  assert.strictEqual(r.motif, 'CAPACITE_CANAL_INSUFFISANTE');
+  assert.strictEqual(r.executant, HABILITE, 'c’est le canal habilité qui exécute, pas le palier humain');
+  assert.strictEqual(r.owner, 'Claude');
+  assert.ok(r.candidats.indexOf('frederic') > r.candidats.indexOf(HABILITE), 'le palier humain doit passer en dernier');
+});
+
+epreuve('I — quand Frédéric est le seul capable, le routage le dit', () => {
+  const r = cap.routerGeste(registre(), 'PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION', INCAPABLE);
+  assert.strictEqual(r.executant, 'frederic');
+  assert.strictEqual(r.owner, 'Frédéric', 'une vraie gate humaine doit s’annoncer comme telle');
+  assert.deepStrictEqual(r.candidats, ['frederic']);
+});
+
+epreuve('I — le canal déjà capable n’est pas renvoyé ailleurs', () => {
+  const r = cap.routerGeste(registre(), 'SUPABASE_PRODUCTION_MUTATION', HABILITE);
+  assert.strictEqual(r.etat, 'OK');
+  assert.strictEqual(r.motif, 'CANAL_COURANT_CAPABLE');
+  assert.strictEqual(r.executant, HABILITE);
+});
+
+epreuve('I — un geste hors table est un défaut nommé, jamais un exécutant deviné', () => {
+  const r = cap.routerGeste(registre(), 'GESTE_QUI_N_EXISTE_PAS', INCAPABLE);
+  assert.strictEqual(r.capacite, null);
+  assert.ok(/geste inconnu/.test(r.defaut), `défaut attendu, reçu : ${JSON.stringify(r)}`);
+  assert.ok(!r.executant, 'aucun exécutant ne doit sortir d’un geste inconnu');
+});
+
+epreuve('I — l’ordre survit à une permutation du registre : c’est le rôle qui décide, pas la position', () => {
+  const r = registre();
+  const permute = { ...r, canaux: {} };
+  for (const k of ['frederic', ...Object.keys(r.canaux).filter(k => k !== 'frederic')]) permute.canaux[k] = r.canaux[k];
+  assert.strictEqual(Object.keys(permute.canaux)[0], 'frederic', 'la permutation doit mordre');
+  assert.strictEqual(cap.executantSuivant(permute, POUVOIR).executant, HABILITE,
+    'déclaré en premier, Frédéric doit tout de même passer après un canal capable');
+});
+
+epreuve('I — personne de capable : aucun exécutant inventé', () => {
+  const r = registre();
+  const prive = { ...r, canaux: {} };
+  for (const [k, v] of Object.entries(r.canaux)) prive.canaux[k] = { ...v, capacites: { ...v.capacites, [POUVOIR]: 'NON' } };
+  assert.ok(!cap.canauxCapables(prive, POUVOIR).length, 'la mutation doit mordre : plus personne ne détient le pouvoir');
+  const s = cap.executantSuivant(prive, POUVOIR);
+  assert.strictEqual(s.executant, null);
+  assert.strictEqual(s.owner, null);
+  const route = cap.routerGeste(prive, 'SUPABASE_PRODUCTION_MUTATION', INCAPABLE);
+  assert.strictEqual(route.etat, 'BLOCKED_TECHNIQUE', 'sans aucun exécutant, c’est un vrai blocage technique');
+  assert.strictEqual(route.motif, 'CAPACITE_SANS_EXECUTANT');
 });
 
 console.log(`\nRoutage par capacité — ${reussites} épreuve(s) passée(s), ${echecs.length} échec(s).`);

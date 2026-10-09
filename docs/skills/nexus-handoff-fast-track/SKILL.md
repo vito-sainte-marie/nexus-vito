@@ -198,6 +198,11 @@ geste qu'un AUTRE canal peut exécuter rend `CHANNEL_LIMITATION`, jamais
 `BLOCKED_TECHNIQUE`, car ce qu'il faut n'est pas une décision mais un
 exécutant. Une capacité déclarée `OUI` sur un pouvoir sensible exige une
 preuve nommée ; l'enveloppe par défaut ne couvre que les `NON`.
+`node outils/capacites-canal.js --geste <MOTIF_STOP>` nomme l'exécutant :
+entre deux canaux capables, le palier humain passe en dernier —
+`PALIER_HUMAIN_RESTREINT` interdit de réveiller Frédéric pour un geste qu'un
+autre canal sait faire ; quand il est le seul capable, c'est une vraie gate
+humaine et le routage le dit.
 
 **Gates.** G0 : information, aucun arrêt. G1 : contrôle local, Claude. G2 :
 arbitrage, ChatGPT. G3 : Frédéric, uniquement pour le palier Frédéric.
