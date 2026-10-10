@@ -122,7 +122,7 @@ function renderVariables(v,f){
   +tuile('Heures de caisse',`${arrondi(f&&f.heuresCaisse)} h`,'journées de caisse constatées dans Verify',{vide:!(f&&f.heuresCaisse)})
   +tuile('Heures de piste',`${arrondi(f&&f.heuresPiste)} h`,'journées de piste constatées dans Verify',{vide:!(f&&f.heuresPiste)})
   +tuile('Heures de renfort',`${arrondi(f&&f.heuresRenfort)} h`,'renforts retenus, déclarés ou prévus',{vide:!(f&&f.heuresRenfort)})
-  +tuile('Corrections du manager',`${arrondi(f&&f.heuresExceptionnelles)} h`,(f&&f.heuresExceptionnelles)?'horaires exceptionnels saisis, durée nette recalculée':'aucun horaire exceptionnel',{vide:!(f&&f.heuresExceptionnelles)})
+  +tuile('Dont corrections du manager',`${arrondi(f&&f.heuresExceptionnelles)} h`,(f&&f.heuresExceptionnelles)?'horaires exceptionnels saisis, durée nette recalculée, déjà comprises dans les trois lignes ci-dessus':'aucun horaire exceptionnel',{vide:!(f&&f.heuresExceptionnelles)})
   +tuile('Écarts à examiner',String(ecartsAExaminer(f)),ecartsAExaminer(f)?'concordance Verify / planning, sans impact sur les heures':'aucun',{vide:!ecartsAExaminer(f)})
   +tuile('Absence non déclarée',String(v.absence.jours),attente(v.absence.enAttente)||(v.absence.jours?'retenue en paie':'aucune'),{vide:!v.absence.jours,attente:!!v.absence.enAttente})
   +tuile('Congés payés',String(v.congesPayes.jours),v.congesPayes.evenements?`${pluriel(v.congesPayes.evenements,'événement')}`:'aucun',{vide:!v.congesPayes.jours})

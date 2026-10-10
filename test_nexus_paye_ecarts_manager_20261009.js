@@ -129,12 +129,18 @@ verifier('aucune source ne s’affiche sous forme de clé technique brute',
   !/source : duree_reference|source : horaire_exceptionnel|source : undefined/.test(rendu.app));
 
 // ── §9 : la ventilation des heures par origine ───────────────────────────
-for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Corrections du manager', 'Écarts à examiner'])
+for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Dont corrections du manager', 'Écarts à examiner'])
   verifier(`la fiche salarié ventile « ${t} »`, rendu.app.includes(t));
 verifier('les heures de piste valent le total, la caisse reste à zéro',
   /Heures de piste<\/span>[\s\S]{0,80}?15 h/.test(rendu.app) && /Heures de caisse<\/span>[\s\S]{0,80}?0 h/.test(rendu.app));
 verifier('l’écart non traité est compté comme « à examiner », sans retirer d’heure',
   /Écarts à examiner<\/span>[\s\S]{0,60}?>1</.test(rendu.app));
+// Les heures corrigées par le manager comptent une fois dans le total et se
+// lisent aussi sous leur poste : la tuile doit dire « dont », sinon le
+// manager additionnerait deux fois la même journée.
+verifier('la tuile des corrections annonce qu’elle ne s’ajoute pas aux trois précédentes',
+  /Dont corrections du manager/.test(rendu.app)
+  && !/>Corrections du manager</.test(rendu.app));
 
 // ── §5.4 et §9 : rien n’est proposé que l’écran ne puisse enregistrer ───
 verifier('sans la migration, le formulaire d’horaire exceptionnel n’est pas proposé',
