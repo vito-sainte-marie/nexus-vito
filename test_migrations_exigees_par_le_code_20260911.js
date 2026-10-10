@@ -30,13 +30,26 @@ const VERSION_PRODUCTION = '20260904175722';
 
 /** Colonnes que le code applicatif écrit réellement dans une table donnée. */
 function colonnesEcritesParLeCode(table) {
-  const ecrans = fs.readdirSync(RACINE).filter(f => /\.html$/.test(f) && !f.startsWith('test_'));
+  // Deux angles morts corrigés le 09/10/2026, après avoir mesuré que cette
+  // fonction ne voyait NI audits_caisse.employes_renfort NI
+  // nexus_paye_items.detail, deux colonnes que le code écrit pourtant :
+  //  - elle ne lisait que les .html, alors que la moitié du code vit dans les
+  //    modules nexus-*.js voisins ;
+  //  - elle n'attrapait qu'un champ en début de ligne, alors qu'un payload
+  //    court s'écrit `.update({ employes_renfort: ids })` sur une seule ligne.
+  // Une garde aveugle est pire qu'absente : elle rassure.
+  const sources = fs.readdirSync(RACINE)
+    .filter(f => /^(NEXUS-.*\.html|nexus-.*\.js)$/.test(f) && !f.startsWith('test_'));
   const trouvees = new Set();
-  for (const f of ecrans) {
+  for (const f of sources) {
     const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
     if (!src.includes(`from('${table}')`)) continue;
     // Les champs d'un objet inséré : `nom_colonne: …` en début de ligne.
     for (const m of src.matchAll(/^\s{4,}([a-z_]+):\s/gm)) trouvees.add(m[1]);
+    // Et ceux d'un payload court, écrit en ligne derrière insert/update/upsert.
+    for (const m of src.matchAll(/\.(?:insert|update|upsert)\(\s*\{([^}]*)\}/g)) {
+      for (const champ of m[1].matchAll(/([a-z_]+):/g)) trouvees.add(champ[1]);
+    }
   }
   return trouvees;
 }
@@ -47,8 +60,12 @@ function migrationsQuiCreent(table, colonne) {
     .filter(f => f.endsWith('.sql') && f.split('_')[0] > VERSION_PRODUCTION)
     .filter(f => {
       const sql = fs.readFileSync(path.join(MIGRATIONS, f), 'utf8').toLowerCase();
-      return new RegExp(`alter table (public\\.)?${table}[\\s\\S]{0,200}add column[\\s\\S]{0,80}\\b${colonne}\\b`)
-        .test(sql);
+      // Resserré le 09/10/2026 : la fenêtre de 80 caractères après `add column`
+      // était satisfaite par le `comment on column …detail is` qui suit, si bien
+      // qu'une colonne renommée restait vue comme créée. On exige désormais le
+      // nom dans la clause elle-même, sans rien entre les deux.
+      if (!new RegExp(`alter table (public\\.)?${table}\\b`).test(sql)) return false;
+      return new RegExp(`add column\\s+(if not exists\\s+)?"?${colonne}"?[\\s(]`).test(sql);
     });
 }
 
@@ -103,6 +120,76 @@ t('leur ordre et leurs dépendances sont écrits, pas supposés', () => {
     `l'ordre du manifeste ne suit pas l'ordre d'application : ${cites.join(' → ')}`);
 });
 
+// ---------------------------------------------------------------------------
+// Les colonnes dont la migration attend encore une gate humaine.
+//
+// 20261009120000 ajoute audits_caisse.employes_renfort et
+// nexus_paye_items.detail. Elle n'est appliquée à AUCUN environnement et ne
+// peut pas l'être : toute opération sur Supabase Production est une gate
+// humaine. Elle n'est donc citée à aucun manifeste de promotion, et c'est
+// exact — pas un oubli.
+//
+// Ce qui rend cette attente tenable n'est pas une promesse, c'est une sonde :
+// chaque écran interroge la colonne avant de l'écrire, et masque la
+// fonctionnalité si la base ne la connaît pas. L'invariant jugé ici est donc
+// une alternative, et non un relâchement : une colonne que le code écrit
+// voyage avec sa migration CITÉE INCLUSE, ou bien le code la sonde et se
+// masque sans elle. Le jour où la migration entre à un manifeste, la première
+// branche prend le relais — cette garde ne devient jamais fausse par un
+// progrès correct, et elle ne devient jamais muette non plus.
+const COLONNES_SOUS_SONDE = [
+  { table: 'audits_caisse', colonne: 'employes_renfort' },
+  { table: 'nexus_paye_items', colonne: 'detail' },
+];
+
+/** Vrai si le code interroge cette colonne dans un .select(…) — la sonde. */
+function sondeeParLeCode(colonne) {
+  const sources = fs.readdirSync(RACINE)
+    .filter(f => /^(NEXUS-.*\.html|nexus-.*\.js)$/.test(f) && !f.startsWith('test_'));
+  return sources.some(f => {
+    const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+    return new RegExp(`\\.select\\((['"\`])[^'"\`]*\\b${colonne}\\b[^'"\`]*\\1`).test(src);
+  });
+}
+
+t('les colonnes du 09/10 sont bien écrites par le code', () => {
+  // Même raison qu'au-dessus : une garde qui ne surveille plus rien doit le
+  // dire. Ces deux colonnes avaient d'ailleurs échappé à la détection jusqu'à
+  // ce qu'elle soit élargie, ce jour-là.
+  for (const { table, colonne } of COLONNES_SOUS_SONDE) {
+    assert.ok(colonnesEcritesParLeCode(table).has(colonne),
+      `le code n'écrit plus ${table}.${colonne} : cette garde ne surveille plus rien`);
+  }
+});
+
+t('chacune a sa migration, et le code se masque tant qu’elle n’est pas passée', () => {
+  for (const { table, colonne } of COLONNES_SOUS_SONDE) {
+    const migrations = migrationsQuiCreent(table, colonne);
+    assert.ok(migrations.length >= 1,
+      `le code écrit ${table}.${colonne}, mais aucune migration de la promotion ne la crée`);
+    // Écrit en disjonction, et non en `if … continue` : une campagne de
+    // mutation a montré qu'un branchement passé à vrai rendait la seconde
+    // moitié du jugement silencieuse sans qu'aucun témoin ne s'en plaigne.
+    const toutesCitees = migrations.every(citeeCommeIncluse);
+    const sondee = sondeeParLeCode(colonne);
+    assert.ok(toutesCitees || sondee,
+      `${migrations.join(', ')} crée ${table}.${colonne} sans être citée INCLUSE, et le code ` +
+      `ne sonde pas cette colonne : l'écran casserait sur une base qui ne la connaît pas.`);
+    console.log(`      ${table}.${colonne} — ${toutesCitees
+      ? 'migration citée INCLUSE au manifeste'
+      : 'migration en attente de gate humaine, colonne sondée avant écriture'}`);
+  }
+});
+
+t('MUTATION : une colonne écrite sans migration ni sonde est bien détectée', () => {
+  // Le témoin porte sur les deux moitiés de l'alternative, car une garde qui
+  // accepterait tout serait exactement aussi verte que celle-ci.
+  assert.strictEqual(migrationsQuiCreent('audits_caisse', 'colonne_jamais_creee').length, 0,
+    'une colonne inexistante trouve une migration : la détection accepte tout');
+  assert.strictEqual(sondeeParLeCode('colonne_jamais_sondee'), false,
+    'une colonne jamais sondée est vue comme sondée : le témoin ne prouve rien');
+});
+
 t('MUTATION : une migration déclassée est bien détectée', () => {
   // Sans ce témoin, une garde qui rendrait toujours vrai passerait.
   const faux = MANIFESTE.replace('20260911180000_pointages_service_id.sql', 'autre-chose.sql');
@@ -111,4 +198,4 @@ t('MUTATION : une migration déclassée est bien détectée', () => {
   assert.strictEqual(trouvee, false, 'la mutation ne change rien : le témoin ne prouve rien');
 });
 
-console.log(`\n${passes}/5 vérifications passées — une colonne que le code exige ne peut plus partir sans sa migration.`);
+console.log(`\n${passes}/8 vérifications passées — une colonne que le code exige ne peut plus partir sans sa migration.`);
