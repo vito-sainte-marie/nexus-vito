@@ -31,7 +31,7 @@ Le lot précédent, BOUCLE-AUTONOME-ESSAI-1-20261010, a épuisé ses 3 tours san
 - `--allowedTools Read,…,Bash(git add:*),…` non quoté devenait `"Bash(git"` + `"add:*)"` : **aucune** règle `git …` ni `gh …` n'était appliquée (18 refus au tour 2, 26 au tour 3) ;
 - [PR #94](https://github.com/vito-sainte-marie/nexus-vito/pull/94), fusionnée sur GO de Frédéric (`main` c516322), met la valeur entre guillemets aux lignes 307 et 354 de `claude.yml`. Aucune règle n'est ajoutée : vérifié avec le parseur réel de l'action, 0 règle git/gh intacte avant, 15 (boucle) et 16 (commentaire) après.
 
-decision-3 d'ESSAI-1 reste non consommée ; ce lot ne la reprend pas : ESSAI-1 est épuisé.
+decision-3 d'ESSAI-1 (18d047c) est consommée dans le même commit par une **session Claude locale**, sur ce GO, sans request-4 : le lot a épuisé ses 3 tours, et l'outil refuse d'ouvrir un lot tant qu'un autre attend une décision. Ce n'est pas un tour autonome.
 
 ## Ce qui est demandé à l'arbitre
 
