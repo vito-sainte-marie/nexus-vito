@@ -14,15 +14,48 @@
       client.from('audits_caisse').select('id, date, quart, statut, employes_piste, employes_boutique').eq('site', siteId).gte('date', debut).lt('date', fin),
       client.from('nexus_paye_items').select('*').eq('site_id', siteId).eq('periode', debut),
       client.from('nexus_paye_periodes').select('*').eq('site_id', siteId).eq('periode', debut).maybeSingle(),
-      client.from('station_config').select('paye_config,planning_source,planning_google_sheet_url,planning_google_sheet_id').eq('site', siteId).maybeSingle(),
+      client.from('station_config').select('paye_config,horaires,planning_source,planning_google_sheet_url,planning_google_sheet_id').eq('site', siteId).maybeSingle(),
       global.NexusEcartsDonnees.chargerEcartsConsolides(client, siteId, { dateDebut: debut, dateFin: fin }),
     ]);
     [emp, settings, planning, pointages, indispos, audits, items, periodeRes, configRes].forEach(r => { if (r.error) throw r.error; });
+
+    // Les renforts déclarés à la clôture Verify se lisent À PART, et leur
+    // absence ne casse rien.
+    //
+    // `audits_caisse.employes_renfort` est créée par la migration du
+    // 09/10/2026, qui n'est appliquée nulle part : elle attend sa gate
+    // humaine. Demandée dans le select principal, une colonne inexistante
+    // fait échouer TOUTE la requête (PostgREST 42703) — et Paye ne
+    // s'ouvrirait plus du tout, faute d'une colonne qui ne sert qu'à une
+    // rubrique. Le mois entier deviendrait illisible pour un renfort.
+    //
+    // D'où cette seconde lecture, isolée : avant la migration elle échoue
+    // seule, le rapport le DIT, et le reste du mois se calcule. Après, les
+    // renforts arrivent sans rien changer d'autre. C'est ce que le cahier
+    // des charges appelle une évolution compatible avec les enregistrements
+    // existants.
+    let renforts = null;
+    try {
+      const r = await client.from('audits_caisse')
+        .select('id, date, quart, employes_renfort')
+        .eq('site', siteId).gte('date', debut).lt('date', fin);
+      if (!r.error) renforts = r.data || [];
+    } catch (e) { renforts = null; }
+
+    const parCle = new Map();
+    (renforts || []).forEach(l => parCle.set(`${l.date}|${l.quart}`, l.employes_renfort));
+    const auditsEnrichis = (audits.data || []).map(a => (parCle.has(`${a.date}|${a.quart}`)
+      ? Object.assign({}, a, { employes_renfort: parCle.get(`${a.date}|${a.quart}`) })
+      : a));
     const rapport = M.construireRapport({
       periode: debut, employees: emp.data || [], settings: settings.data || [], planning: planning.data || [],
-      pointages: pointages.data || [], indisponibilites: indispos.data || [], audits: audits.data || [],
+      pointages: pointages.data || [], indisponibilites: indispos.data || [], audits: auditsEnrichis,
       items: items.data || [], config: (configRes.data && configRes.data.paye_config) || {}, ecarts: ecarts || [],
+      horaires: (configRes.data && configRes.data.horaires) || null,
     });
+    // Le manager doit savoir qu'il lit un mois sans renforts PARCE QUE la
+    // colonne manque, et non parce qu'il n'y en a pas eu.
+    rapport.renfortsLisibles = renforts !== null;
     rapport.periodeEnregistree = periodeRes.data || null;
     rapport.config = (configRes.data && configRes.data.paye_config) || {};
     rapport.planningOfficiel = {

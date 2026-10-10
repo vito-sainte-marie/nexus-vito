@@ -218,6 +218,9 @@
 <script src="nexus-reception-moteur.js?v=20260904-0104"></script>
 <script src="nexus-progression.js?v=20260904-0104"></script>
 <script src="nexus-planning-sheets-moteur.js?v=20260904-0104"></script>
+<!-- Chargé pour que les durées de référence affichées par cet écran soient
+     CELLES du moteur de paye, et non une table recopiée (§2, 09/10/2026). -->
+<script src="nexus-paye-moteur.js?v=20261009-0001"></script>
 </head>
 <body>
 <div class="phone">
@@ -378,6 +381,47 @@
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
     <button class="btn btn-secondary" id="reinitialiser">Pré-remplir avec les valeurs de référence</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
+
+    <!-- ------------------------------------------------------------
+         Durées de référence par jour travaillé (09/10/2026).
+
+         Le cahier des charges du 09/10/2026 les fixe : dimanche à mercredi
+         7 h, jeudi à samedi 8 h, renfort 7 h. Elles ne vivaient que dans le
+         code de nexus-paye-moteur.js, où aucun manager ne pouvait ni les
+         lire ni les corriger. Le §2 demande l'inverse : des règles d'heures
+         centralisées dans les Paramètres Station, « réutilisés par Verify et
+         Paye, sans duplication de règles contradictoires ».
+
+         Un champ vide n'est PAS un trou, et c'est ce qui distingue cette
+         carte des horaires de quart juste au-dessus. Là, une absence empêche
+         NEXUS de rattacher un pointage à un quart : elle bloque. Ici,
+         l'absence laisse s'appliquer la table du cahier des charges, qui est
+         écrite, mesurée et testée. Les valeurs grises des champs disent
+         laquelle s'applique ; elles ne sont pas pré-remplies, pour qu'un
+         chiffre affiché en noir reste toujours une décision du commerce
+         (même doctrine que A3 / C2-1 sur les horaires).
+         ------------------------------------------------------------ -->
+    <div class="card">
+      <div class="section-label">Durées de référence par jour travaillé</div>
+      <div class="note">Heures retenues pour une journée de travail constatée dans Verify, en caisse ou en piste. Un jour laissé vide applique la durée de référence NEXUS, rappelée en gris dans le champ.</div>
+      <div class="row"><label>Dimanche</label><input type="number" id="dr_0" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Lundi</label><input type="number" id="dr_1" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Mardi</label><input type="number" id="dr_2" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Mercredi</label><input type="number" id="dr_3" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Jeudi</label><input type="number" id="dr_4" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Vendredi</label><input type="number" id="dr_5" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="row"><label>Samedi</label><input type="number" id="dr_6" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="note" style="margin-top:12px;">Ces durées sont des heures de travail de référence. Leur qualification en heures normales, complémentaires ou supplémentaires relève d’un calcul distinct, fondé sur les règles légales et contractuelles : NEXUS ne transforme pas en heure supplémentaire majorée une heure qui dépasse le planning.</div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Renfort : heures retenues</div>
+      <div class="note">Heures nettes d’un renfort déclaré à la clôture Verify. Laisser vide pour les déduire de l’horaire de renfort ci-dessus, pause retirée.</div>
+      <div class="row"><label>Heures</label><input type="number" id="dr_renfort" min="0" max="24" step="0.25" style="width:80px;"></div>
+      <div class="note" id="noteDureeRenfortCalculee"></div>
+      <button class="btn btn-primary" id="sauvegarderDurees" style="margin-top:12px;">Enregistrer les durées de référence</button>
+      <div class="saved-note" id="savedNoteDurees">✓ Durées enregistrées, appliquées au prochain calcul de paie</div>
+    </div>
 
         <div class="psec-subgroup-label" style="margin-top:20px;">Pointage</div>
 
@@ -1156,11 +1200,11 @@
     // A3 / C1c-3 : le fuseau ne vient plus d'ici. station_config reste la
     // source des horaires ; le fuseau est lu séparément dans sites.timezone
     // par le contrat NexusStation.
-    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('horaires,paye_config').eq('site', employee.site_id).maybeSingle();
     // A3 / C2-1 : plus de substitution. `null` dit « pas configuré », et
     // l'écran le montre — c'est sa raison d'être.
-    if (error) { console.error('Chargement station_config:', error); return { horaires: null }; }
-    return { horaires: (data && data.horaires) || null };
+    if (error) { console.error('Chargement station_config:', error); return { horaires: null, payeConfig: null }; }
+    return { horaires: (data && data.horaires) || null, payeConfig: (data && data.paye_config) || null };
   }
 
   // A3 / C2-1 : un champ sans valeur configurée reste VIDE. Il n'emprunte
@@ -1190,6 +1234,37 @@
 
   // Horaires actuellement configurés, pour pré-remplir le formulaire.
   //
+  // Durées de référence (09/10/2026).
+  //
+  // Le gris des champs vient de DUREES_REFERENCE_DEFAUT, la constante du
+  // moteur, et non d'une table recopiée dans cet écran. C'est la raison pour
+  // laquelle nexus-paye-moteur.js est chargé ici : le §2 du cahier des charges
+  // demande des règles d'heures centralisées, « sans duplication de règles
+  // contradictoires ». Un second exemplaire du 7 h / 8 h dans ce fichier
+  // serait exactement cette duplication, et il dériverait un jour.
+  function remplirFormulaireDurees(payeConfig, horaires) {
+    const M = window.NexusPayeMoteur;
+    const brutes = (payeConfig && payeConfig.durees_reference) || null;
+    for (let jour = 0; jour < 7; jour++) {
+      const champ = document.getElementById('dr_' + jour);
+      if (!champ) continue;
+      const v = Array.isArray(brutes) ? brutes[jour] : (brutes ? brutes[String(jour)] : undefined);
+      champ.value = Number(v) > 0 ? String(Number(v)) : '';
+      champ.placeholder = M ? String(M.DUREES_REFERENCE_DEFAUT[jour]) : '';
+    }
+    const champRenfort = document.getElementById('dr_renfort');
+    const saisi = Number(payeConfig && payeConfig.heures_renfort);
+    if (champRenfort) champRenfort.value = saisi > 0 ? String(saisi) : '';
+    const note = document.getElementById('noteDureeRenfortCalculee');
+    if (!note || !M) return;
+    // Ce que le calcul retiendrait MAINTENANT, champ vide compris. Le manager
+    // doit voir la durée qui s'applique, pas seulement celle qu'il a tapée.
+    const regles = M.reglesHeures(payeConfig || {}, horaires || null);
+    note.textContent = saisi > 0
+      ? 'Durée saisie : ' + regles.heuresRenfort + ' h. Elle a priorité sur l’horaire de renfort ci-dessus.'
+      : 'Aucune durée saisie. Le calcul retient ' + regles.heuresRenfort + ' h, déduits de l’horaire de renfort ci-dessus, pause retirée.';
+  }
+
   // Les QUATORZE autres enregistrements de `station_config` (prix, raccourcis,
   // drapeaux, Sheets…) ne joignent plus `horaires` : la colonne est nullable
   // depuis `supabase/migrations/20261003120000_station_config_horaires_nullable.sql`
@@ -1201,13 +1276,14 @@
   // les écrit. Aucun DEFAULT ne doit jamais y être posé : il substituerait des
   // horaires muets. L'épreuve test_station_config_horaires_proprietaire_unique
   // refuse qu'un autre appel les joigne de nouveau.
-  const { horaires: CONFIG_HORAIRES_ACTUEL } = await chargerConfig();
+  let { horaires: CONFIG_HORAIRES_ACTUEL, payeConfig: PAYE_CONFIG_ACTUEL } = await chargerConfig();
 
   // A3 / C1c-3 — le fuseau, lu à sa source unique. Absence VISIBLE mais NON
   // BLOQUANTE : c'est l'écran de configuration, il doit montrer le trou.
   const fuseauStation = await NexusStation.fuseauDeLaStation(employee.site_id);
   let FUSEAU_ACTUEL = fuseauStation.timezone || '';
   remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
+  remplirFormulaireDurees(PAYE_CONFIG_ACTUEL, CONFIG_HORAIRES_ACTUEL);
   // A3 / C1c-3 — affichage informatif, pas un sélecteur désactivé.
   //
   // Un `<select disabled>` reste un contrôle de saisie : il suggère qu'on
@@ -1383,6 +1459,63 @@
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 3000);
   });
+
+  // Enregistrement des durées : lecture, modification, réécriture.
+  //
+  // `paye_config` porte d'autres réglages que ces durées : seuil de retard
+  // incohérent, jours fériés, drapeau d'activation. Un upsert qui écrirait un
+  // objet neuf les effacerait en silence. On repart donc de l'objet chargé,
+  // et les clés qu'on ne connaît pas survivent.
+  document.getElementById('sauvegarderDurees').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderDurees');
+    const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const lire = (id) => {
+      const champ = document.getElementById(id);
+      const brut = champ ? String(champ.value).trim() : '';
+      if (brut === '') return { vide: true };
+      const n = Number(brut.replace(',', '.'));
+      return n > 0 && n <= 24 ? { valeur: Math.round(n * 100) / 100 } : { invalide: brut };
+    };
+    const durees = [];
+    let saisieUtile = false;
+    for (let jour = 0; jour < 7; jour++) {
+      const lu = lire('dr_' + jour);
+      // Une valeur hors bornes serait repliée en silence par le moteur sur la
+      // table de référence : le manager croirait avoir changé la durée du jour,
+      // et la paie se calculerait sur une autre. On refuse, et on dit quoi.
+      if (lu.invalide !== undefined) {
+        alert(JOURS[jour] + ' : « ' + lu.invalide + ' » n’est pas une durée exploitable.\n\n'
+          + 'Attendu : un nombre d’heures supérieur à 0 et au plus 24, ou un champ vide '
+          + 'pour appliquer la durée de référence NEXUS.');
+        return;
+      }
+      if (lu.vide) { durees.push(null); } else { durees.push(lu.valeur); saisieUtile = true; }
+    }
+    const renfort = lire('dr_renfort');
+    if (renfort.invalide !== undefined) {
+      alert('Renfort : « ' + renfort.invalide + ' » n’est pas une durée exploitable.\n\n'
+        + 'Attendu : un nombre d’heures supérieur à 0 et au plus 24, ou un champ vide '
+        + 'pour déduire la durée de l’horaire de renfort.');
+      return;
+    }
+    const payeConfig = Object.assign({}, PAYE_CONFIG_ACTUEL || {}, {
+      durees_reference: saisieUtile ? durees : null,
+      heures_renfort: renfort.vide ? 0 : renfort.valeur,
+    });
+    btn.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, paye_config: payeConfig, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement durées de référence:', error); alert('Erreur, réessayez.'); return; }
+    PAYE_CONFIG_ACTUEL = payeConfig;
+    remplirFormulaireDurees(PAYE_CONFIG_ACTUEL, CONFIG_HORAIRES_ACTUEL);
+    const noteDurees = document.getElementById('savedNoteDurees');
+    noteDurees.style.display = 'block';
+    setTimeout(() => noteDurees.style.display = 'none', 3000);
+  });
+
 
   // A3 / B3 (05/09/2026) — le bouton PRÉ-REMPLIT, il n'enregistre plus.
   //
