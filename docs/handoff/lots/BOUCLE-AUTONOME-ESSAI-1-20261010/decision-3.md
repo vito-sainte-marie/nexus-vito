@@ -1,5 +1,3 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/BOUCLE-AUTONOME-ESSAI-1-20261010/decision-3.md
-     Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
