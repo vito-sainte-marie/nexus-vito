@@ -27,6 +27,10 @@
 // `retard_min || 0`, qui fabrique un zéro avant que le moindre calcul
 // commence.
 //
+// Depuis le 08/10/2026 (règles SMU §4), le moteur de Paye ne lit plus du
+// tout `retard_min` : le §2 garde désormais que ni un NULL ni une mesure ne
+// produisent de retard. Le paragraphe suivant décrit l'état du 19/09.
+//
 // Éprouvé par mutation le 19/09/2026 : 13 mutations, 11 tuées. Les deux
 // survivantes sont la même, et elles sont ÉQUIVALENTES — supprimer le garde
 // `if (!Number.isFinite(p.retard_min)) return;` de nexus-paye-moteur.js ne
@@ -257,14 +261,17 @@ const p2 = [
     assert.ok(!r.items.some(i => i.typeItem === 'absence_a_verifier'),
       'la journée est remontée en absence à vérifier alors que l\'employé a pointé');
   }),
-  t('un retard mesuré est toujours porté au dossier', () => {
+  // Retourné le 08/10/2026 (règles SMU §4) : la Paye ne lit plus aucun
+  // retard du pointage, mesuré ou non. Le retard vaut 0 par défaut et seul
+  // le manager le déclare ; la journée, elle, reste prouvée par le pointage.
+  t('un retard mesuré par le pointage n\'est plus porté au dossier', () => {
     const r = rapportPaye({
       planning: [SHIFT_LUNDI],
       pointages: [{ employee_id: 'e1', date: '2026-09-07', type: 'arrivee', retard_min: 23 }],
     });
-    const item = r.items.find(i => i.typeItem === 'retard');
-    assert.ok(item, 'le retard mesuré ne remonte plus : la correction a trop pris');
-    assert.strictEqual(item.quantiteMinutes, 23);
+    assert.ok(!r.items.some(i => i.typeItem === 'retard' || i.typeItem === 'retard_incoherent'),
+      'un retard a été déduit du pointage : seul le manager déclare un retard');
+    assert.strictEqual(r.employes[0].heuresConfirmees, 7, 'la journée pointée reste prouvée');
   }),
   t('un 0 mesuré ne produit pas d\'item — et n\'en produisait pas davantage avant', () => {
     const r = rapportPaye({

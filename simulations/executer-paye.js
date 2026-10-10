@@ -38,13 +38,14 @@ scenario('renfort reste à 7 h sans heure supplémentaire',()=>{
  const r=run({planning:[{employee_id:'e1',date:'2026-08-07',quart:'renfort',statut:'renfort',duree_heures:7}],pointages:[{employee_id:'e1',date:'2026-08-07',type:'arrivee',retard_min:0}]});
  assert.ok(!r.items.some(i=>i.typeItem==='heure_supplementaire'));
 });
-scenario('retard cohérent est proposé à arbitrage',()=>{
- const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:12}]});
- assert.ok(r.items.some(i=>i.typeItem==='retard'&&i.quantiteMinutes===12));
+// Règles SMU du 08/10, §4 : retard 0 par défaut, déclaré par le manager seul.
+scenario('le pointage ne produit aucun retard, même aberrant',()=>{
+ const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:12},{employee_id:'e1',date:'2026-08-09',type:'arrivee',retard_min:5754}]});
+ assert.ok(!r.items.some(i=>i.typeItem==='retard'||i.typeItem==='retard_incoherent'));
 });
-scenario('retard aberrant est bloqué techniquement',()=>{
- const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:5754}]});
- assert.ok(r.items.some(i=>i.typeItem==='retard_incoherent'&&i.bloquantTechnique));
+scenario('retard saisi par le manager est compté avec son auteur',()=>{
+ const r=run({items:[{id:'m1',employee_id:'e1',periode:'2026-08-01',origine:'manuel',source_cle:'manuel:m1:2026-08-08',type_item:'retard',date_evenement:'2026-08-08',statut:'valide',impact_paye:false,quantite_minutes:12,cree_par:'u-manager'}]});
+ const i=r.items.find(x=>x.typeItem==='retard');assert.strictEqual(i.quantiteMinutes,12);assert.strictEqual(i.auteurId,'u-manager');
 });
 scenario('congé déclaré n’est pas transformé en absence certaine',()=>{
  const r=run({indisponibilites:[{id:'c1',employee_id:'e1',date_debut:'2026-08-09',date_fin:'2026-08-09',type:'conge'}]});
