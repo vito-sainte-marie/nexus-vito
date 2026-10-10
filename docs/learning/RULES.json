@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-10-07",
+  "updated_at": "2026-10-10",
   "rules": [
     {
       "id": "ENV-001",
@@ -272,6 +272,44 @@
       "severity": "blocking",
       "rule": "A declared wake_to is a logical role (ChatGPT, Claude), not necessarily a postable channel. Before treating a blocked next action as requiring a human STOP, resolve the role to a concrete, reachable address through a committed fact (never a hard-coded destination in tooling); only when no resolution exists is the stoppage BLOCKED_TECHNIQUE rather than CHANNEL_LIMITATION. A closed-list STOP motive always wins over a resolved channel.",
       "source": "2026-10-07: GOUVERNANCE-REFERENCE-CODE-20261005/request-6.md declared wake_to: ChatGPT with green local CI; tests.yml's publication step only accepts a literal <server>/<repo>/issues/<n> address, so the wake stayed confined to the run summary and the chain stalled despite an available channel — fixed by docs/handoff/CANAUX.json + outils/reveil-orchestrateur.js::resoudreCanal, mechanised by outils/classification-canal.js"
+    },
+    {
+      "id": "GOV-007",
+      "scope": [
+        "gouvernance",
+        "handoff",
+        "ci"
+      ],
+      "trigger": "arbitrage_conditionnel",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "A condition an arbiter retained as the basis of a favourable verdict is not a control until code enforces it. Before declaring a preparation compliant with the arbiter's conditions, locate each retained condition in executable code; a condition that exists only in the request's prose, in the decision's prose or in a comment must be reported as ABSENT, never counted as held. The same applies to a substitute control a decision claims to have performed by hand: if nothing re-performs it, the next deposit is unprotected.",
+      "source": "2026-10-10: ARMEMENT-ARBITRAGE-AUTONOME-1-20261008/request-1.md announced five refusals for stade (a) and decision-1.md retained them as conditions of its APPROVED (SHA comparison, no automatic consumption, fast-forward only); stade (a) was then armed and materialised three decisions on the rail while outils/materialiser-decision-ci.js enforced none of RAIL_LU, the SHA comparison or the human tier — fixed by lectureDuRail/relaieUnHumain plus exit code 4 and its CI wiring, proven by mutation (M12-M20, X2, X3)"
+    },
+    {
+      "id": "QA-012",
+      "scope": [
+        "qa",
+        "gardes",
+        "handoff"
+      ],
+      "trigger": "nouvelle_garde",
+      "module": "outils",
+      "severity": "blocking",
+      "rule": "Calibrate a guard on the artefacts the repository really holds, on the field's real POSITION and not the one its documentation implies, before wiring it. Read the two or three authentic files, print what the guard reads from them, and lock that measurement into an epreuve so the guard dies if it stops measuring the real form. A guard that refuses every genuine artefact gets disarmed within the week, and takes with it the true findings it would have made later.",
+      "source": "2026-10-10: the RAIL_LU guard was first written to read the field from the parsed NEXT_ACTION_CONTRACT block; both authentic decisions of ARMEMENT-ARBITRAGE-AUTONOME-1-20261008 write RAIL_LU BEFORE that line (decision-1.md:70 vs :73, decision-2.md:38 vs :40), where lireContrat never reaches it, so the guard would have refused every real verdict — found by grep before committing, fixed by lireRailLu over the whole text, calibration locked into epreuve M17"
+    },
+    {
+      "id": "QA-013",
+      "scope": [
+        "qa",
+        "outillage"
+      ],
+      "trigger": "script_de_patch",
+      "module": "outils",
+      "severity": "advisory",
+      "rule": "In a patch or migration script, a global string replace also rewrites longer identifiers that contain the anchor and the author's own deliberately-written call sites. Assert the expected occurrence count for every anchor before replacing, and refuse the patch when the count differs; a protective no-op replace of the longer form protects nothing. Prefer a raw-string Python patch to a shell heredoc when the target contains JS template literals, where backticks and ${} are inert.",
+      "source": "2026-10-10: while extending test_materialiser_decision_ci_20261009.js, replacing 'm.juger(' with 'jg(' also rewrote the inside of 'mm.juger(' into 'mjg(' (3 call sites broken) and rewrote epreuve M15's deliberately unwrapped m.juger call, which then silently received default SHAs and reported a passing fail-closed test as 0 instead of 2; found by running the harness (17/21), fixed with per-anchor occurrence assertions"
     }
   ]
 }

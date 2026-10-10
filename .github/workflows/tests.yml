@@ -619,6 +619,14 @@ jobs:
               --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
             exit 1
           }
+          # Un verdict qui revient à un humain n'est pas une panne : la chaîne
+          # s'arrête, le texte de l'arbitre reste posté, et la CI ne rougit pas.
+          palier() {
+            node outils/etat-maillon.js HUMAN_DECISION_REQUIRED "$1" --maillon "$M" \
+              --motif "$2" --condition "$3" --prochaine-action "$4" \
+              --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
+            exit 0
+          }
           A_LA_MAIN="matérialiser à la main la réponse postée sur $COMMENTAIRE (handoff.js decision --auteur ChatGPT)"
           REPONSE="$GITHUB_WORKSPACE/reponse.txt"
           CORPS_DECISION="$RUNNER_TEMP/corps-decision.md"
@@ -632,12 +640,29 @@ jobs:
           git worktree add --quiet --detach "$WT" "refs/remotes/origin/$B" \
             || echec RAIL_ILLISIBLE "la tête du rail $B s'extrait dans un worktree" "$A_LA_MAIN"
           cd "$WT"
+          # La tête du rail à cet instant. Vide si git a échoué : l'outil se
+          # ferme alors au lieu de laisser passer (une garde privée de sa
+          # donnée ne garde rien), et le refus le nomme.
+          TETE_RAIL=$(git rev-parse HEAD)
           JUGEMENT=$(node outils/materialiser-decision-ci.js --reponse "$REPONSE" --sortie "$CORPS_DECISION" \
-            --rail-du-run "$B" --run "$GITHUB_RUN_ID" --commentaire "$COMMENTAIRE")
+            --rail-du-run "$B" --sha-du-run "${GITHUB_SHA:-}" --sha-du-rail "$TETE_RAIL" \
+            --run "$GITHUB_RUN_ID" --commentaire "$COMMENTAIRE")
           CODE=$?
           [ "$CODE" != "3" ] || rien DECISION_DEJA_MATERIALISEE "$JUGEMENT"
+          # Code 4 : `DECISION: BLOCKED`, `OWNER_NEXT: Frédéric` ou un
+          # `STOP_REQUIRED` renseigné. `request-1.md` du lot
+          # ARMEMENT-ARBITRAGE-AUTONOME-1-20261008 l'écrivait — « ces décisions
+          # restent à un humain, elles sont seulement postées » — et rien ne le
+          # codait. Le lot vient du jugement : un arrêt qui ne nomme pas son lot
+          # n'est pas actionnable.
+          if [ "$CODE" = "4" ]; then
+            LOT=$(jq -r '.lot // "(lot non lisible)"' <<<"$JUGEMENT")
+            palier DECISION_RESERVEE_A_UN_HUMAIN "$JUGEMENT" \
+              "la décision de l'arbitre ne franchit aucun palier humain" \
+              "Frédéric tranche, puis matérialise à la main : $A_LA_MAIN"
+          fi
           [ "$CODE" = "0" ] || echec CONTRAT_NON_MATERIALISABLE \
-            "la réponse vise la demande que le registre attend, sur le rail du run : $JUGEMENT" "$A_LA_MAIN"
+            "la réponse vise la demande que le registre attend, sur le rail du run, et prouve la lecture du rail : $JUGEMENT" "$A_LA_MAIN"
           LOT=$(jq -r .lot <<<"$JUGEMENT"); REQUEST=$(jq -r .request <<<"$JUGEMENT")
           DECISION=$(jq -r .decision <<<"$JUGEMENT"); CLOSES=$(jq -r .closes <<<"$JUGEMENT")
           git config user.name "github-actions[bot]"
@@ -650,11 +675,16 @@ jobs:
             || echec DEPOT_REFUSE "handoff.js accepte la décision et la commite" "$A_LA_MAIN"
           DEPOSEE=$(git diff-tree --no-commit-id --name-only -r HEAD -- "docs/handoff/lots/$LOT" \
             | grep -oE 'decision-[0-9]+\.md$' | head -n 1)
+          # La CI ne consomme PAS, même quand la décision clôt le lot.
+          # `decision-1.md:54` du lot ARMEMENT-ARBITRAGE-AUTONOME-1-20261008
+          # retient « aucune consommation automatique » comme condition de son
+          # avis favorable, et `request-1.md:124` l'écrit : « personne ne
+          # consomme : la décision attend Claude au prochain passage. C'est
+          # voulu (pas de boucle vers Claude), mais c'est un arrêt. »
+          # Un arrêt voulu se dit, il ne se tait pas.
           if [ "$CLOSES" = "true" ]; then
-            node outils/handoff.js consommer "$LOT" \
-              && git add -A docs/handoff \
-              && git commit --quiet -m "handoff($LOT): décision consommée — lot clos (CI, stade a, run $GITHUB_RUN_ID)" \
-              || echec CONSOMMATION_REFUSEE "handoff.js consomme la décision qui clôt le lot" "$A_LA_MAIN"
+            echo "::notice::$LOT — la décision clôt le lot, mais la CI ne la consomme pas :" \
+              "elle attend Claude au prochain passage (condition retenue, decision-1.md:54)"
           fi
           node outils/handoff.js verifier \
             || echec REGISTRE_INVALIDE "le registre valide après le dépôt" "$A_LA_MAIN"
