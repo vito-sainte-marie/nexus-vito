@@ -385,13 +385,13 @@
       "consomme_le": "2026-10-10T16:47:09.634Z"
     },
     "BOUCLE-AUTONOME-ESSAI-2-20261010": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "df1d1c4588ded4cb2619d66557a9eb4dc6f4af6e",
-      "consomme_le": "2026-10-10T17:12:29.004Z"
+      "commit_decision": "130feff97952ee21f374e8f942e2d222522932ce",
+      "consomme_le": "2026-10-10T17:27:07.062Z"
     }
   },
   "artefacts_hors_registre": [
