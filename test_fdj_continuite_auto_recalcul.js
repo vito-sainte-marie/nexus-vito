@@ -74,6 +74,14 @@ function extraire(nomFonction) {
 // besoin de plus), fidèle au style déjà établi dans ce projet (jamais
 // jsdom, uniquement des objets minimaux).
 // ------------------------------------------------------------
+// Tables dont l'écriture directe est fermée (20261008125000, 20261010150000) :
+// le faux client refuse, comme la base, tout insert/update/upsert.
+const TABLES_SANS_ECRITURE_DIRECTE = ['fdj_cash_controls', 'fdj_shifts', 'fdj_shift_counts'];
+function refuserEcritureDirecte(table) {
+  assert.ok(!TABLES_SANS_ECRITURE_DIRECTE.includes(table),
+    `Écriture directe sur ${table} pendant le test : passer par la commande serveur (fdj_corriger_caisse_manager, fdj_manager_corriger_comptages, …).`);
+}
+
 function creerNexusClientFake(tables, obtenirJeux) {
   function correspond(ligne, filtres) { return filtres.every(([c, v]) => ligne[c] === v); }
   function from(table) {
@@ -109,8 +117,7 @@ function creerNexusClientFake(tables, obtenirJeux) {
         // atteignait malgré tout la table de caisse en écriture, le test
         // s'arrête ici plutôt que de valider un résultat obtenu par le
         // mauvais moyen.
-        assert.notStrictEqual(table, 'fdj_cash_controls',
-          'Écriture directe sur fdj_cash_controls pendant le test : le recalcul doit passer par fdj_corriger_caisse_manager.');
+        refuserEcritureDirecte(table);
         const filtres = [];
         const api = {
           eq(c, v) { filtres.push([c, v]); return api; },
@@ -122,12 +129,14 @@ function creerNexusClientFake(tables, obtenirJeux) {
         return api;
       },
       insert(lignesEntree) {
+        refuserEcritureDirecte(table);
         const arr = Array.isArray(lignesEntree) ? lignesEntree : [lignesEntree];
         const inserees = arr.map(l => ({ id: l.id || `id-${Math.random().toString(36).slice(2, 8)}`, ...l }));
         tables[table].push(...inserees);
         return Promise.resolve({ data: inserees, error: null });
       },
       upsert(lignesEntree) {
+        refuserEcritureDirecte(table);
         const arr = Array.isArray(lignesEntree) ? lignesEntree : [lignesEntree];
         arr.forEach(l => {
           const idx = tables[table].findIndex(x => l.game_id !== undefined
@@ -167,6 +176,26 @@ const UID_MANAGER_TEST = 'mgr-test';
 
 function creerRpc(tables, obtenirJeux) {
   const gestionnaires = {
+    // Portage de 20261010150000 : seules les clés présentes sont réécrites,
+    // parmi stock_initial, ventes_qte et ventes_valeur ; aucune ligne n'est
+    // créée ; renvoie le nombre de lignes touchées.
+    async fdj_manager_corriger_comptages({ p_shift_id, p_corrections }) {
+      if (!Array.isArray(p_corrections)) {
+        return { data: null, error: { code: '22023', message: 'Corrections attendues sous forme de tableau.' } };
+      }
+      let n = 0;
+      for (const corr of p_corrections) {
+        for (const c of (tables.fdj_shift_counts || [])) {
+          if (c.shift_id !== p_shift_id || c.game_id !== corr.game_id) continue;
+          for (const k of ['stock_initial', 'ventes_qte', 'ventes_valeur']) {
+            if (Object.prototype.hasOwnProperty.call(corr, k)) c[k] = corr[k];
+          }
+          c.updated_at = new Date().toISOString();
+          n += 1;
+        }
+      }
+      return { data: n, error: null };
+    },
     async fdj_corriger_caisse_manager({ p_shift_id, p_motif, p_caisse_reelle, p_regularisations, p_commentaire }) {
       if (!p_motif || String(p_motif).trim().length < 5) {
         return { data: null, error: { code: '22023', message: 'Une correction managériale exige un motif explicite.' } };

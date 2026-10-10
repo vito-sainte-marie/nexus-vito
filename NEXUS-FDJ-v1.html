@@ -725,9 +725,13 @@
     // voir Étape 6 "Gestion des quarts manquants" de l'audit). N'écrit
     // qu'une fois (shiftRow.previous_shift_id encore vide) pour ne jamais
     // écraser un lien déjà posé par un replay futur (Étape 4).
-    if (!chaineRompue.rompue && shiftRow.previous_shift_id == null) {
-      const { error: eLien } = await nexusClient.from('fdj_shifts')
-        .update({ previous_shift_id: prevShift.id }).eq('id', shiftRow.id);
+    // 10/10/2026 : commande serveur, réservée au titulaire d'un quart encore
+    // ouvert — un collègue qui consulte le quart ne le lie plus.
+    if (!chaineRompue.rompue && shiftRow.previous_shift_id == null
+        && !quartTenuParUnCollegue && shiftRow.statut !== 'valide') {
+      const { error: eLien } = await nexusClient.rpc('fdj_lier_quart_precedent', {
+        p_shift_id: shiftRow.id, p_previous_shift_id: prevShift.id
+      });
       if (eLien) console.error('Lien previous_shift_id FDJ:', eLien);
       else shiftRow.previous_shift_id = prevShift.id;
     }
@@ -1417,21 +1421,18 @@
     const lignes = jeux
       .filter(j => countsSaisie[j.id] && countsSaisie[j.id].stock_initial !== null && countsSaisie[j.id].stock_initial !== undefined)
       .map(j => ({
-        site: siteId, shift_id: shiftRow.id, game_id: j.id,
+        game_id: j.id,
         stock_initial: countsSaisie[j.id].stock_initial, appro: countsSaisie[j.id].appro || 0,
-        stock_final: countsSaisie[j.id].stock_final ?? null, updated_at: new Date().toISOString(),
+        stock_final: countsSaisie[j.id].stock_final ?? null,
         // 16/08/2026 : défaut prudent à false si l'information manque (ex.
         // brouillon local sauvegardé avant ce lot) — ne jamais présumer
         // qu'une valeur est sans risque à réécrire automatiquement.
         stock_initial_auto: countsSaisie[j.id].stock_initial_auto === true,
       }));
-    if (lignes.length) {
-      const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
-      if (error) { console.error('Enregistrement stock de départ FDJ:', error); btn.disabled = false; btn.textContent = 'Valider mon stock de départ'; alert("Erreur d'enregistrement. Réessayez."); return; }
-    }
-
-    const { error: eShift } = await nexusClient.from('fdj_shifts').update({ ouverture_validee: true, ouverture_validee_le: new Date().toISOString() }).eq('id', shiftRow.id);
-    if (eShift) console.error('Validation ouverture FDJ:', eShift);
+    // 10/10/2026 : comptages et ouverture_validee en une seule commande
+    // serveur (même transaction), réservée au titulaire du quart ouvert.
+    const { error } = await nexusClient.rpc('fdj_valider_ouverture_quart', { p_shift_id: shiftRow.id, p_comptages: lignes });
+    if (error) { console.error('Enregistrement stock de départ FDJ:', error); btn.disabled = false; btn.textContent = 'Valider mon stock de départ'; alert("Erreur d'enregistrement. Réessayez."); return; }
     shiftRow.ouverture_validee = true;
 
     if (jeuxModifies.length) {

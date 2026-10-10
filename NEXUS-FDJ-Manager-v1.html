@@ -1720,9 +1720,9 @@
     if (!jeux.length) jeux = await chargerJeux();
 
     for (const e of applicables) {
-      const { error } = await nexusClient.from('fdj_shift_counts')
-        .update({ stock_initial: e.stock_final_precedent, updated_at: new Date().toISOString() })
-        .eq('shift_id', shiftId).eq('game_id', e.game_id);
+      const { error } = await nexusClient.rpc('fdj_manager_corriger_comptages', {
+        p_shift_id: shiftId, p_corrections: [{ game_id: e.game_id, stock_initial: e.stock_final_precedent }]
+      });
       if (error) console.error('Correction auto stock_initial FDJ:', error);
     }
 
@@ -1740,9 +1740,9 @@
       const jeu = jeux.find(j => j.id === e.game_id);
       if (!jeu) continue;
       const v = NexusFdjMoteur.calculerVentesJeu(countsParJeu[e.game_id], jeu.prix);
-      const { error } = await nexusClient.from('fdj_shift_counts')
-        .update({ ventes_qte: v.qte, ventes_valeur: v.valeur, updated_at: new Date().toISOString() })
-        .eq('shift_id', shiftId).eq('game_id', e.game_id);
+      const { error } = await nexusClient.rpc('fdj_manager_corriger_comptages', {
+        p_shift_id: shiftId, p_corrections: [{ game_id: e.game_id, ventes_qte: v.qte, ventes_valeur: v.valeur }]
+      });
       if (error) console.error('Recalcul ventes auto FDJ:', error);
     }
 
@@ -2180,7 +2180,7 @@
     if (existant && existant.length) {
       // Le relevé existe déjà (écriture finalement réussie, ou reprise
       // concurrente) — on corrige seulement le suivi, jamais de doublon.
-      await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+      await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'ok' });
       return { ok: true, dejaPresent: true };
     }
 
@@ -2232,14 +2232,14 @@
       if (eReleve.code === '23505') {
         // Idempotence (point 5) : une validation employé vient d'apparaître
         // entre notre vérification et cet insert — jamais une erreur.
-        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+        await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'ok' });
         return { ok: true, dejaPresent: true };
       }
       console.error('Reprise relevé de clôture FDJ:', eReleve);
-      await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'erreur' }).eq('id', shift.id);
+      await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'erreur' });
       return { ok: false, motif: "L'écriture a de nouveau échoué. Réessayez, ou contactez le support si le problème persiste." };
     }
-    await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+    await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'ok' });
     return { ok: true };
   }
 
@@ -3204,9 +3204,7 @@
           btn.disabled = true;
           const shiftId = btn.dataset.recalculerReplay;
           const ok = await rejouerReleveApresPropagation(shiftId, null);
-          await nexusClient.from('fdj_shifts').update(
-            ok ? { needs_replay: false, last_replayed_at: new Date().toISOString() } : { needs_replay: true }
-          ).eq('id', shiftId);
+          await nexusClient.rpc('fdj_manager_marquer_replay', { p_shift_id: shiftId, p_succes: !!ok });
           if (!ok) { btn.disabled = false; return; }
           renderAccueil();
         });
@@ -5911,12 +5909,14 @@
     // un écrasement silencieux de l'autre quart.
     let shift;
     if (edition.shiftId) {
-      const { data, error } = await nexusClient.from('fdj_shifts')
-        // Vague 1 (17/09/2026) : `employee_id` est SORTI de cet UPDATE. Le
-        // titulaire d'un quart ouvert ne se réécrit plus par une colonne —
-        // il se transfère, avec motif et journal, juste après ce bloc.
-        .update({ date: edition.date, quart: edition.quart, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
-        .eq('id', edition.shiftId).select().single();
+      // Vague 1 (17/09/2026) : `employee_id` est SORTI de cette mise à jour.
+      // Le titulaire d'un quart ouvert ne se réécrit plus par une colonne —
+      // il se transfère, avec motif et journal, juste après ce bloc.
+      // 10/10/2026 : commande serveur (l'écriture directe est fermée) ;
+      // valide_le suit le statut côté serveur.
+      const { data, error } = await nexusClient.rpc('fdj_manager_modifier_quart', {
+        p_shift_id: edition.shiftId, p_date: edition.date, p_quart: edition.quart, p_statut: edition.statutShift
+      });
       if (error) {
         console.error('Mise à jour quart FDJ:', error);
         btn.disabled = false; btn.textContent = libelleBouton;
@@ -5939,15 +5939,16 @@
           alert(`Un quart FDJ existe d\u00e9j\u00e0 pour cette date et ce quart, au nom de ${nomEmployeSite(existant.employee_id)}.\n\nChanger de titulaire est un transfert de responsabilit\u00e9 : ouvrez ce quart depuis la liste et indiquez-y le motif. Il rejoindra le journal.`);
           return;
         }
-        const { data, error } = await nexusClient.from('fdj_shifts')
-          .update({ statut: edition.statutShift })
-          .eq('id', existant.id).select().single();
+        const { data, error } = await nexusClient.rpc('fdj_manager_changer_statut_quart', {
+          p_shift_id: existant.id, p_statut: edition.statutShift
+        });
         if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = libelleBouton; return; }
         shift = data;
       } else {
-        const { data, error } = await nexusClient.from('fdj_shifts')
-          .insert({ site: siteId, date: edition.date, quart: edition.quart, employee_id: edition.employeeId, statut: edition.statutShift, ouvert_le: new Date().toISOString() })
-          .select().single();
+        // Le site est celui du manager, lu en base par la commande.
+        const { data, error } = await nexusClient.rpc('fdj_manager_creer_quart', {
+          p_date: edition.date, p_quart: edition.quart, p_employee_id: edition.employeeId || null, p_statut: edition.statutShift
+        });
         if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur de création du quart. Réessayez.'); return; }
         shift = data;
       }
@@ -5993,10 +5994,11 @@
       // reconcilierAlertesChaine sache, après coup, si ce stock_initial
       // reste éligible à une réécriture automatique lors d'un futur
       // rétablissement de chaîne, ou s'il a été confirmé par un humain.
-      return { site: siteId, shift_id: shift.id, game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, stock_initial_auto: !!edition.stockInitialAuto[j.id], updated_at: new Date().toISOString() };
+      return { game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, stock_initial_auto: !!edition.stockInitialAuto[j.id] };
     });
     if (lignes.length) {
-      const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
+      // 10/10/2026 : commande serveur — site et quart vérifiés en base.
+      const { error } = await nexusClient.rpc('fdj_manager_enregistrer_comptages', { p_shift_id: shift.id, p_comptages: lignes });
       if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur le grattage. Réessayez.'); return; }
     }
 
@@ -6287,13 +6289,13 @@
       // 'erreur' sinon, jamais silencieux.
       if (eReleve) {
         if (eReleve.code === '23505') {
-          await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+          await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'ok' });
         } else {
           console.error('Relevé de clôture FDJ (version manager):', eReleve);
-          await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'erreur' }).eq('id', shift.id);
+          await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'erreur' });
         }
       } else {
-        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+        await nexusClient.rpc('fdj_manager_marquer_releve_cloture', { p_shift_id: shift.id, p_statut: 'ok' });
       }
     }
 
@@ -6327,7 +6329,7 @@
         // jusqu'ici jamais consommée. Un marqueur "ce quart a été corrigé
         // N fois", pas un second historique complet (déjà couvert par
         // fdj_audit_log + fdj_releves_cloture ci-dessus, Article 11).
-        await nexusClient.from('fdj_shifts').update({ version: (shift.version || 0) + 1 }).eq('id', shift.id);
+        await nexusClient.rpc('fdj_manager_incrementer_version', { p_shift_id: shift.id });
 
         const suivant = NexusFdjMoteur.quartSuivant(shift.date, shift.quart);
         const { data: shiftSuivant } = await nexusClient.from('fdj_shifts').select('*')
@@ -6344,7 +6346,7 @@
 
           if (applicables.length) {
             await appliquerCorrectionsAutomatiquesContinuite(shiftSuivant.id, applicables);
-            await nexusClient.from('fdj_shifts').update({ version: (shiftSuivant.version || 0) + 1 }).eq('id', shiftSuivant.id);
+            await nexusClient.rpc('fdj_manager_incrementer_version', { p_shift_id: shiftSuivant.id });
             await nexusClient.from('fdj_audit_log').insert({
               site: siteId, shift_id: shiftSuivant.id, entite_type: 'fdj_shift_counts', entite_id: shiftSuivant.id,
               action: 'fdj_propagation_correction_stock_amont', acteur_id: managerCourant.id,
@@ -6360,9 +6362,7 @@
             // échoue, needs_replay reste true — la Boîte d'exceptions
             // (catégorie "replay requis") offre alors un "Recalculer" manuel.
             const replaySucces = await rejouerReleveApresPropagation(shiftSuivant.id, applicables.map(a => a.game_id));
-            await nexusClient.from('fdj_shifts').update(
-              replaySucces ? { needs_replay: false, last_replayed_at: new Date().toISOString() } : { needs_replay: true }
-            ).eq('id', shiftSuivant.id);
+            await nexusClient.rpc('fdj_manager_marquer_replay', { p_shift_id: shiftSuivant.id, p_succes: !!replaySucces });
           }
 
           if (aRevoir.length) {
@@ -6385,10 +6385,9 @@
             // manager, même si son propre statut reste 'valide'
             // (orthogonal, jamais fusionné avec le statut — même
             // discipline que le reste du schéma FDJ).
-            await nexusClient.from('fdj_shifts').update({
-              a_revoir: true, a_revoir_motif: 'correction_amont_stock_initial_deja_confirme',
-              a_revoir_depuis_le: new Date().toISOString(),
-            }).eq('id', shiftSuivant.id);
+            await nexusClient.rpc('fdj_manager_marquer_a_revoir', {
+              p_shift_id: shiftSuivant.id, p_motif: 'correction_amont_stock_initial_deja_confirme',
+            });
           }
         }
       }
