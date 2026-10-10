@@ -322,6 +322,13 @@ jobs:
         with:
           base_branch: ${{ env.NEXUS_CLAUDE_BASE_BRANCH }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Le dispatch part de `tests.yml` avec GITHUB_TOKEN : l'acteur est
+          # donc `github-actions[bot]`, que l'action refuse par défaut
+          # (run 38056682231, 10/10). On l'autorise lui seul, et seulement
+          # sur cette étape. Jamais '*' : n'importe quelle App pourrait
+          # alors lancer une session. L'étape des commentaires garde son
+          # refus des bots.
+          allowed_bots: github-actions[bot]
           prompt: |
             Boucle autonome NEXUS — réveil par la CI, pas par un humain.
 
