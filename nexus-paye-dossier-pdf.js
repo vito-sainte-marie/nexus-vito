@@ -77,7 +77,7 @@
   function lignesVariables(v) {
     const lignes = [
       { variable: 'Présence confirmée', valeur: v.presence.jours ? `${nombre(v.presence.jours, 'jour')} · ${heures(v.presence.heures)}` : '0' },
-      { variable: 'Absence non déclarée', valeur: nombre(v.absence.jours, 'jour') },
+      { variable: 'Présence à vérifier', valeur: nombre(v.absence.jours, 'jour') },
       { variable: 'Congés payés', valeur: nombre(v.congesPayes.jours, 'jour') },
       { variable: 'Maladie / maternité / paternité', valeur: nombre(v.maladieMaternite.jours, 'jour') },
       { variable: 'Autres absences qualifiées', valeur: nombre(v.autresAbsences.jours, 'jour') },
@@ -128,6 +128,7 @@
 
     const notes = [];
     if (v.presence.joursReconstitues) notes.push(`${v.presence.joursReconstitues} journée(s) confirmée(s) par une seule source — Verify ou pointage, pas les deux.`);
+    if (v.presence.joursPlanifies) notes.push(`${v.presence.joursPlanifies} journée(s) de renfort comptée(s) sur le seul planning officiel, qui fait foi pour le renfort.`);
     if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} attribuées au barème par poste, faute de durée au planning.`);
     if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} supplémentaires sont déjà comprises dans les heures de présence (barème jeudi/vendredi/samedi).`);
     if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
