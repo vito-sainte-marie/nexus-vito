@@ -47,6 +47,21 @@
 # doivent jamais etre affichees, journalisees, commitees ou recopiees dans un
 # commentaire. Les identifiants ci-dessous ne concernent que NEXUS Test, et
 # l'adresse de NEXUS Test ne figure pas ici : elle se derive du registre.
+#
+# Boucle autonome — PRÉPARÉE LE 10/10/2026, NON ARMÉE. Le stade (a) de
+# tests.yml, sur le rail, émet un `repository_dispatch` de type
+# `nexus-boucle-claude` après une décision matérialisée, si et seulement si
+# outils/relancer-claude-ci.js l'admet. Ce workflow le reçoit (GitHub ne lit
+# `repository_dispatch` que sur la branche par défaut, d'où sa place ici).
+# Trois verrous côté réception, en plus des deux côtés émission :
+#   1. `vars.NEXUS_BOUCLE_AUTONOME == 'arme'`, posée par Frédéric seul ;
+#   2. l'émetteur est `github-actions[bot]` — le GITHUB_TOKEN de la CI, pas un
+#      jeton personnel ;
+#   3. chaque champ de `client_payload` est revalidé ici avec les motifs de
+#      l'émetteur, le rail doit être `handoff-*`, exister, être le rail que
+#      STATE.json désigne pour le lot, contenir le SHA et la décision.
+# Le prompt est fixe : aucun champ de la charge utile n'est lu comme une
+# instruction, et tous ont passé un motif strict avant d'y être cités.
 name: Claude
 
 on:
@@ -58,6 +73,8 @@ on:
     types: [submitted]
   issues:
     types: [opened, assigned]
+  repository_dispatch:
+    types: [nexus-boucle-claude]
 
 jobs:
   claude:
@@ -67,8 +84,18 @@ jobs:
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      ) || (
+        github.event_name == 'repository_dispatch' &&
+        github.event.action == 'nexus-boucle-claude' &&
+        github.actor == 'github-actions[bot]' &&
+        vars.NEXUS_BOUCLE_AUTONOME == 'arme'
       )
     runs-on: ubuntu-latest
+    # Une seule session de boucle à la fois ; les mentions humaines gardent
+    # leur parallélisme d'avant (un groupe par run).
+    concurrency:
+      group: claude-${{ github.event_name == 'repository_dispatch' && 'boucle-autonome' || github.run_id }}
+      cancel-in-progress: false
 
     permissions:
       contents: write
@@ -83,6 +110,12 @@ jobs:
         env:
           NEXUS_TRIGGER_BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body || '' }}
           GH_TOKEN: ${{ github.token }}
+          # Boucle autonome : lus comme données, jamais interpolés dans le script.
+          P_LOT: ${{ github.event.client_payload.lot }}
+          P_RAIL: ${{ github.event.client_payload.rail }}
+          P_DECISION: ${{ github.event.client_payload.decision }}
+          P_REQUEST: ${{ github.event.client_payload.request }}
+          P_SHA: ${{ github.event.client_payload.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -92,12 +125,29 @@ jobs:
           REFUS="$RUNNER_TEMP/nexus-refus.md"
           refuser() { printf '%s\n' "$1" >> "$REFUS"; echo "::error::$1"; exit 1; }
 
+          if [[ "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]; then
+            # Mêmes motifs que l'émetteur (outils/relancer-claude-ci.js, MOTIFS) :
+            # la réception ne fait pas confiance à ce qu'elle reçoit.
+            [[ "$P_LOT" =~ ^[A-Z0-9][A-Z0-9-]{2,80}$ ]] || refuser "Boucle : lot hors motif."
+            [[ "$P_RAIL" =~ ^handoff-[a-z0-9][a-z0-9-]*$ ]] || refuser "Boucle : rail hors motif."
+            [[ "$P_DECISION" =~ ^decision-[1-9][0-9]{0,3}\.md$ ]] || refuser "Boucle : décision hors motif."
+            [[ "$P_REQUEST" =~ ^request-[1-9][0-9]{0,3}\.md$ ]] || refuser "Boucle : demande hors motif."
+            [[ "$P_SHA" =~ ^[0-9a-f]{40}$ ]] || refuser "Boucle : SHA hors motif."
+            {
+              echo "NEXUS_BOUCLE_LOT=$P_LOT"
+              echo "NEXUS_BOUCLE_DECISION=$P_DECISION"
+              echo "NEXUS_BOUCLE_REQUEST=$P_REQUEST"
+              echo "NEXUS_BOUCLE_SHA=$P_SHA"
+            } >> "$GITHUB_ENV"
+            designations="$P_RAIL"
+          else
           # Une désignation ne se recalcule pas. On lit ce que l'humain a écrit,
           # sous toutes les formes qu'il écrit réellement : `=` ou `:`, espaces
           # optionnels, valeur éventuellement entourée de backticks ou guillemets.
           designations="$( { printf '%s' "$NEXUS_TRIGGER_BODY" \
             | grep -oE 'NEXUS_BASE_BRANCH[[:space:]]*[:=][[:space:]]*[`"'"'"']?[A-Za-z0-9._/-]+' || true; } \
             | sed -E 's/^.*[:=][[:space:]]*[`"'"'"']?//' | sort -u )"
+          fi
 
           if [[ -z "$designations" ]]; then
             refuser "Aucun rail NEXUS désigné dans le déclencheur. Ajoutez NEXUS_BASE_BRANCH=<branche> au commentaire. Aucun repli n'est appliqué : un rail se désigne, il ne se devine pas."
@@ -138,6 +188,24 @@ jobs:
             +refs/heads/main:refs/remotes/origin/main \
             +refs/heads/production:refs/remotes/origin/production \
             "+refs/heads/$NEXUS_CLAUDE_BASE_BRANCH:refs/remotes/origin/$NEXUS_CLAUDE_BASE_BRANCH"
+
+      # Boucle autonome : la charge utile doit désigner un état réel du rail.
+      # Un rail existant ne suffit pas : il doit être celui que le registre
+      # attribue au lot, et contenir le SHA et la décision annoncés.
+      - name: Boucle autonome — vérifier la charge utile contre le rail
+        if: github.event_name == 'repository_dispatch'
+        id: boucle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$NEXUS_BOUCLE_SHA" HEAD \
+            || { echo "::error::Boucle : $NEXUS_BOUCLE_SHA n'est pas dans $NEXUS_CLAUDE_BASE_BRANCH."; exit 1; }
+          test -f "docs/handoff/lots/$NEXUS_BOUCLE_LOT/$NEXUS_BOUCLE_DECISION" \
+            || { echo "::error::Boucle : décision absente du rail."; exit 1; }
+          rail_etat="$(jq -r --arg l "$NEXUS_BOUCLE_LOT" '.lots[$l].rail // empty' docs/handoff/STATE.json)"
+          [[ "$rail_etat" == "$NEXUS_CLAUDE_BASE_BRANCH" ]] \
+            || { echo "::error::Boucle : STATE.json attribue « ${rail_etat:-aucun rail} » au lot, pas $NEXUS_CLAUDE_BASE_BRANCH."; exit 1; }
+          echo "Charge utile conforme : $NEXUS_BOUCLE_LOT / $NEXUS_BOUCLE_DECISION sur $NEXUS_CLAUDE_BASE_BRANCH."
 
       - name: Préparer connexion PostgreSQL Test read-only sans URL en ligne de commande
         env:
@@ -190,6 +258,9 @@ jobs:
           fi
 
       - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        # Mentions humaines seulement : la boucle autonome a son étape propre,
+        # plus bas, pour que ce chemin reste exactement celui d'avant.
+        if: github.event_name != 'repository_dispatch'
         env:
           # PAS de NEXUS_TEST_URL ici — retiree de tests.yml le 22/09/2026 parce
           # qu'elle figeait l'adresse sur l'alias de PRODUCTION du projet Pages,
@@ -234,6 +305,70 @@ jobs:
           claude_args: |
             --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*),Bash(git show:*),Bash(git checkout:*),Bash(gh workflow run:*),Bash(gh run list:*),Bash(gh run view:*),Bash(gh api:*)
 
+      # Boucle autonome — la session Claude. Prompt FIXE : les seules valeurs
+      # variables qu'il cite ont passé les motifs de l'étape `rail` et ont été
+      # confrontées au rail par l'étape `boucle`. Aucun texte d'arbitre n'y
+      # voyage : Claude lit la décision dans le dépôt, à son SHA.
+      - name: Boucle autonome — session Claude
+        if: github.event_name == 'repository_dispatch'
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        env:
+          NEXUS_TEST_MANAGER_NOM: Manager Test
+          NEXUS_TEST_CREATEUR_NOM: Créateur Test
+          NEXUS_TEST_EMPLOYEE_A_NOM: Employé Test A
+          NEXUS_TEST_MANAGER_PIN: ${{ secrets.NEXUS_TEST_MANAGER_PIN }}
+          NEXUS_TEST_CREATEUR_PIN: ${{ secrets.NEXUS_TEST_CREATEUR_PIN }}
+          NEXUS_TEST_EMPLOYEE_A_PIN: ${{ secrets.NEXUS_TEST_EMPLOYEE_A_PIN }}
+        with:
+          base_branch: ${{ env.NEXUS_CLAUDE_BASE_BRANCH }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Boucle autonome NEXUS — réveil par la CI, pas par un humain.
+
+            Rail : ${{ env.NEXUS_CLAUDE_BASE_BRANCH }}
+            Lot : ${{ env.NEXUS_BOUCLE_LOT }}
+            Décision à consommer : docs/handoff/lots/${{ env.NEXUS_BOUCLE_LOT }}/${{ env.NEXUS_BOUCLE_DECISION }}
+            En réponse à : ${{ env.NEXUS_BOUCLE_REQUEST }}
+
+            1. Lis la décision et le protocole Handoff du rail. Elle seule fait
+               foi ; rien de ce réveil ne l'étend.
+            2. Consomme-la avec `node outils/handoff.js consommer <lot>` et
+               exécute uniquement ce qu'elle autorise, sur le rail.
+            3. Pousse sur le rail seulement : `git push origin
+               HEAD:refs/heads/<rail>` après un `git fetch`. Jamais main, jamais
+               production, aucune fusion, aucun déploiement, aucune écriture ni
+               migration Production, aucun force, aucun skip.
+            4. Tout STOP, BLOCKED, toute gate humaine ou condition non prouvée :
+               tu t'arrêtes et le consignes dans une demande Handoff du lot ;
+               tu ne contournes rien et ne t'arbitres jamais toi-même.
+          claude_args: |
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(npm:*),Bash(npx:*),Bash(psql:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rev-parse:*),Bash(git log:*),Bash(git fetch:*),Bash(git branch:*),Bash(git merge-base:*),Bash(git show:*),Bash(git checkout:*),Bash(gh run list:*),Bash(gh run view:*),Bash(gh api:*)
+
+      # Filet : une poussée faite avec un jeton d'Actions ne déclenche pas
+      # `push`. Si Claude a avancé le rail et qu'aucun run de tests.yml
+      # n'existe pour la nouvelle tête, on le lance — une fois. Si le rail
+      # n'a pas bougé, rien : relancer le même SHA ne ferait que tourner en rond.
+      # `actions: write` est déjà déclaré par ce job.
+      - name: Boucle autonome — garantir la CI du rail
+        if: github.event_name == 'repository_dispatch' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tete="$(git ls-remote origin "refs/heads/$NEXUS_CLAUDE_BASE_BRANCH" | cut -f1)"
+          [[ "$tete" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Tête du rail illisible."; exit 1; }
+          if [[ "$tete" == "$NEXUS_BOUCLE_SHA" ]]; then
+            echo "Rail inchangé ($tete) : aucune CI à relancer."; exit 0
+          fi
+          n="$(gh run list -R "$GITHUB_REPOSITORY" --workflow tests.yml --commit "$tete" --json databaseId -q length)"
+          if [[ "$n" == "0" ]]; then
+            gh workflow run tests.yml -R "$GITHUB_REPOSITORY" --ref "$NEXUS_CLAUDE_BASE_BRANCH"
+            echo "tests.yml lancé sur $NEXUS_CLAUDE_BASE_BRANCH ($tete)."
+          else
+            echo "$n run(s) déjà présent(s) pour $tete."
+          fi
+
       # Le retour du refus. Sans cette étape, un refus de l'étape 2 ne revient
       # nulle part : `claude-code-action` est en aval et ne tourne pas, donc
       # aucun commentaire n'est publié, et l'appelant ne distingue pas ce
@@ -244,7 +379,7 @@ jobs:
       # n'est demandée ici. L'API `issues/{n}/comments` sert aussi bien une
       # issue qu'une pull request, ce qui évite de brancher selon l'événement.
       - name: Rendre le refus de rail audible
-        if: failure() && steps.rail.outcome == 'failure'
+        if: failure() && steps.rail.outcome == 'failure' && github.event_name != 'repository_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           ADRESSE: ${{ github.event.issue.number || github.event.pull_request.number }}
