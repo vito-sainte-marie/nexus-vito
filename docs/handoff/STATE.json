@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "EPREUVE-STADE-A-MATERIALISATION-20261009",
+  "lot_actif": "NEXUS-PAYE-COCKPIT-PRODUCTION-1-20261009",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -347,6 +347,11 @@
       "source_decision": "registre",
       "commit_decision": "c068c74323eede8960a1705015c702e48575be19",
       "consomme_le": "2026-10-09T23:15:23.425Z"
+    },
+    "NEXUS-PAYE-COCKPIT-PRODUCTION-1-20261009": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "config-par-environnement"
     }
   },
   "artefacts_hors_registre": [
