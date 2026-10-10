@@ -1,6 +1,6 @@
 # Procédure — 20261010150000, écriture directe fermée sur `fdj_shifts` et `fdj_shift_counts` (Production)
 
-**Statut : non exécutée.** Chaque geste exige un GO distinct de Frédéric. Projet `uzhjpqpctpvxytxpxoqz`.
+**Statut : exécutée le 10/10/2026** (Test puis Production, GO « migration Test puis Production »). Journal en fin de document. Projet `uzhjpqpctpvxytxpxoqz`.
 Fichier : `supabase/migrations/20261010150000_fdj_shifts_counts_ecriture_directe_fermee.sql`, blob git `79fc02bb727af3ed8c942bf88d06358bc6ebb660`.
 
 ## Pourquoi une procédure
@@ -37,3 +37,23 @@ Sur GO distinct :
 - suppression de la ligne du registre.
 
 Les écrans du candidat ne fonctionnent plus après ce retour arrière : il s'accompagne du retour de l'écran.
+
+## Journal d'exécution
+
+Application par `execute_sql`, bloc `DO` gardé : registre exact, estampille absente, md5 du texte transmis `545eef8f3ffb93391fe4383481fe6cc2` (20734 octets, blob `79fc02b`), md5 de l'appro en place `775d78d5103b3b9056fa43c9089db08d`. Le texte est exécuté par `execute t`, puis la ligne du registre est insérée, dans la même transaction.
+
+| Base | Préflight | Application | Registre |
+|---|---|---|---|
+| Test `udljdqxerrbbbajxubfn` | 19:40:07Z | 19:40–19:42Z | 315 → 316 |
+| Production `uzhjpqpctpvxytxpxoqz` | 19:42:45Z | 19:43:49Z | 305 → 306 |
+
+Constat, identique sur les deux bases :
+- les quinze fonctions sont `security definer`, `search_path=""` ;
+- les douze commandes ont l'ACL `{postgres=X, authenticated=X, service_role=X}` ;
+- les trois aides internes (`fdj_quart_ouvert_de_l_employe`, `fdj_site_du_manager`, `fdj_exiger_jeu_du_site`) ont `{postgres=X, service_role=X}`. C'est voulu : elles ne sont appelées que par les commandes, qui sont propriété de postgres ;
+- sur `fdj_shifts` et `fdj_shift_counts`, `information_schema` ne montre plus que `SELECT` pour `authenticated`, et rien pour `anon` ni `PUBLIC` ;
+- l'estampille `20261010150000 fdj_shifts_counts_ecriture_directe_fermee` figure au registre.
+
+Résidu observé dans `pg_class.relacl`, sur les deux bases : `anon=m` et `authenticated=rm`. `m` est le privilège `MAINTAIN` (PostgreSQL 17 : VACUUM, ANALYZE, REINDEX, LOCK TABLE), qu'`information_schema` ne montre pas. Il n'ouvre aucune écriture de données et n'est pas atteignable par PostgREST. Il reste hors lot ; c'est une dette de même nature que `TRUNCATE` sur 144 tables.
+
+Recette navigateur : à faire (geste 6).
