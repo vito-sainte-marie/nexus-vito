@@ -107,6 +107,9 @@ const STATUTS_DEMANDE = ['AWAITING_DECISION'];
 const STATUTS_LOT_ACTIFS = ['ATTENTE_DECISION', 'ATTENTE_CONSOMMATION_DECISION'];
 const STATUTS_LOT = [...STATUTS_LOT_ACTIFS, 'DECISION_CONSOMMEE', 'CLOS'];
 const TOKEN_MODES = ['LEAN', 'STANDARD', 'DEEP'];
+// Les trois preuves que `nouvelleDemande` injecte lui-même. Un appelant qui en
+// redonne une crée un doublon silencieux (ARCH-003) : la liste sert au refus.
+const PREUVES_AUTO_IDS = ['refs-protegees', 'merge-base-production', 'diff-applicatif-production'];
 const CLASSES_PREUVE = ['VERIFIED', 'DECLARED', 'HUMAN', 'NOT_APPLICABLE'];
 const LOT_ID_VALIDE = /^[A-Z0-9][A-Z0-9-]{2,63}$/;
 const erreurs = [];
@@ -371,7 +374,7 @@ function validerRegistre(etat, artefactsValides) {
 function validerEtatContenu(etat) {
   if (!etat) return etat;
   if (etat.protocol !== PROTOCOLE) bloquant(`STATE.json : protocol doit valoir ${PROTOCOLE}`); if (!etat.lots || typeof etat.lots !== 'object') { bloquant('STATE.json : lots manquant'); return etat; }
-  const actifs = Object.entries(etat.lots).filter(([, v]) => STATUTS_LOT_ACTIFS.includes(v.statut)).map(([k]) => k); if (actifs.length > 1) bloquant(`STATE.json : ${actifs.length} lots en attente (${actifs.join(', ')}) — un seul lot actif dans cette version`, 'PLUSIEURS_LOTS_ACTIFS'); if (etat.lot_actif && !etat.lots[etat.lot_actif]) bloquant(`STATE.json : lot_actif ${etat.lot_actif} absent de lots`);
+  const actifs = Object.entries(etat.lots).filter(([, v]) => STATUTS_LOT_ACTIFS.includes(v.statut)).map(([k]) => k); if (actifs.length > 1) bloquant(`STATE.json : ${actifs.length} lots en attente (${actifs.join(', ')}) — un seul lot actif dans cette version`, 'PLUSIEURS_LOTS_ACTIFS'); if (etat.lot_actif && !etat.lots[etat.lot_actif]) bloquant(`STATE.json : lot_actif ${etat.lot_actif} absent de lots`); if (actifs.length === 1 && etat.lot_actif !== actifs[0]) bloquant(`STATE.json : lot_actif ${etat.lot_actif || "(aucun)"} alors que ${actifs[0]} attend une décision — les miroirs v1 rendraient la demande d'un autre lot à l'arbitre`, 'LOT_ACTIF_PERIME');
   for (const [lot, v] of Object.entries(etat.lots)) { const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'); if (v.derniere_demande) { if (!demandes.find(d => d.fichier === v.derniere_demande)) bloquant(`STATE.json : ${lot}.derniere_demande ${v.derniere_demande} absente du registre`); else if (v.derniere_demande !== dernier(demandes).fichier) bloquant(`STATE.json : ${lot}.derniere_demande ${v.derniere_demande} n'est pas la plus récente (${dernier(demandes).fichier})`); } if (v.derniere_decision && v.source_decision === 'registre' && !decisions.find(d => d.fichier === v.derniere_decision)) bloquant(`STATE.json : ${lot}.derniere_decision ${v.derniere_decision} absente du registre`); if (v.consomme_le && !v.commit_decision) bloquant(`STATE.json : ${lot} marqué consommé sans commit_decision`); if (!STATUTS_LOT.includes(v.statut)) bloquant(`STATE.json : ${lot}.statut ${JSON.stringify(v.statut)} hors vocabulaire`);
     // Un rail déclaré pour un lot SANS répertoire échapperait à validerRegistre,
     // qui n'itère que sur le disque. Là où le répertoire existe, la violation a
@@ -615,7 +618,14 @@ function enregistrerLot(lot, railDemande) {
   }
   const demandes = echanges(lot, 'request'), decisions = echanges(lot, 'decision'), derniereDemande = dernier(demandes);
   etat.lots[lot] = { statut: 'ATTENTE_DECISION', derniere_demande: derniereDemande.fichier, rail };
+  // Un lot qui passe en ATTENTE_DECISION EST le lot actif : l'invariant « un
+  // seul lot actif » le garantit unique. Laisser `lot_actif` sur le lot
+  // precedent faisait rendre a `miroirs` la demande d'hier, et `verifier`
+  // repondait « conforme » — l'arbitre lisait CURRENT.md sans jamais voir la
+  // demande qu'on venait d'adopter. Le registre etait juste, le miroir mentait.
+  etat.lot_actif = lot;
   fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n');
+  regenererMiroirs();
   console.log(`${lot} enregistré dans STATE.json.lots (rail ${rail}, derniere_demande ${derniereDemande.fichier}${decisions.length ? `, ${decisions.length} décision(s) déjà déposée(s) — à consommer via handoff.js consommer` : ', aucune décision déposée'}).`);
 }
 // Rattrape `STATE.json.lots[lot].derniere_demande` quand un request-N.md a
@@ -652,11 +662,27 @@ function rattraperDemande(lot) {
   if (etat.lots[lot].derniere_demande === derniereDemande.fichier) { console.error(`REFUS — ${lot}.derniere_demande est déjà à jour (${derniereDemande.fichier}) ; rien à rattraper.`); process.exit(1); }
   etat.lots[lot].statut = 'ATTENTE_DECISION';
   etat.lots[lot].derniere_demande = derniereDemande.fichier;
+  etat.lot_actif = lot;
   fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n');
+  regenererMiroirs();
   console.log(`${lot}.derniere_demande rattrapé à ${derniereDemande.fichier} (statut ATTENTE_DECISION).`);
 }
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
+  // ARCH-003. `lireEnveloppe` ne retient que la PREMIÈRE occurrence d'une clé :
+  // une preuve dont l'id est déjà pris ne serait jamais relue, et la demande
+  // afficherait une ligne que la validation ignore — or une preuve qui ne juge
+  // rien se lit comme un jugement. Cette version injecte TROIS ids ; les
+  // redonner à la main est le cas le plus fréquent. Le refus précède tout
+  // mkdir, pour qu'un appel rejeté ne laisse aucune trace sur le disque.
+  const idsPreuvesVus = new Set(PREUVES_AUTO_IDS);
+  for (const p of (options.preuves || [])) {
+    if (idsPreuvesVus.has(p.id)) {
+      console.error(`REFUS — preuve ${p.id} en double${PREUVES_AUTO_IDS.includes(p.id) ? " (l'outil l'injecte lui-meme)" : ''} ; la validation ne lirait que la premiere. Rien n'est ecrit.`);
+      process.exit(1);
+    }
+    idsPreuvesVus.add(p.id);
+  }
   // GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 3 (D3). Ce test
   // ne regarde QUE l'existence d'une décision dans l'historique d'un autre
   // lot encore actif (v.statut ∈ STATUTS_LOT_ACTIFS) — pas si cette décision
