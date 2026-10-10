@@ -367,9 +367,13 @@
       "consomme_le": "2026-10-10T11:55:43.352Z"
     },
     "BOUCLE-AUTONOME-FAST-TRACK-PREPARATION-1-20261010": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "68955f8007ab02ab540a57eaabc9cee422770cf9",
+      "consomme_le": "2026-10-10T13:24:24.024Z"
     }
   },
   "artefacts_hors_registre": [
