@@ -220,5 +220,100 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee };
+
+  // Sonde de la migration du 09/10/2026 (§5.4 et §9).
+  //
+  // Les deux saisies que cette migration rend possibles, l'horaire
+  // exceptionnel et le marquage d'une anomalie, ont besoin l'une de la
+  // colonne `detail`, l'autre des trois statuts de traitement. Les deux
+  // arrivent par le MÊME fichier de migration : une seule sonde suffit donc
+  // à savoir si l'une ou l'autre est offrable.
+  //
+  // On sonde la colonne plutôt que la contrainte, parce qu'une contrainte
+  // CHECK ne se teste qu'en écrivant, et qu'on n'écrit pas pour voir.
+  //
+  // Avant la migration, la fonction répond false et l'écran n'offre pas ces
+  // saisies : mieux vaut ne rien proposer que proposer un bouton qui perdra
+  // ce que le manager vient de taper.
+  async function sonderSaisiesManager(client) {
+    try {
+      const { error } = await client.from('nexus_paye_items').select('detail').limit(1);
+      if (error) { console.warn('PAYE : colonne detail absente, saisies manager masquées.', error.message); return false; }
+      return true;
+    } catch (e) {
+      console.warn('PAYE : sonde des saisies manager impossible.', e && e.message);
+      return false;
+    }
+  }
+
+  // Horaire exceptionnel saisi par le manager (§5.4).
+  //
+  // Le moteur RECALCULE la durée nette à partir de debut, fin et pause : on
+  // n'enregistre donc pas d'heures ici, seulement ce qui a été saisi. Et
+  // `heures_initiales` garde la valeur d'avant correction, pour que
+  // l'historique du changement soit lisible sans journal séparé.
+  //
+  // impact_paye reste faux : ces heures entrent dans le calcul par la durée
+  // du jour, pas comme une variable qui s'additionne. Le mettre à vrai
+  // paierait la même journée deux fois.
+  async function enregistrerHoraireExceptionnel(client, payload) {
+    const { siteId, employeeId, periode, date, debut, fin, pauseMinutes, motif, heuresInitiales, actorId } = payload;
+    if (!siteId || !employeeId || !periode || !date) throw new Error('Salarié et date sont obligatoires');
+    if (!/^\d{2}:\d{2}$/.test(String(debut || '')) || !/^\d{2}:\d{2}$/.test(String(fin || ''))) throw new Error('Heures de début et de fin attendues au format HH:MM');
+    if (!motif) throw new Error('Un horaire exceptionnel doit porter son motif');
+    const pause = pauseMinutes == null || pauseMinutes === '' ? 0 : Number(pauseMinutes);
+    if (!Number.isFinite(pause) || pause < 0) throw new Error('Pause invalide');
+    const M = global.NexusPayeMoteur;
+    const nette = M && M.dureeNetteHeures ? M.dureeNetteHeures(debut, fin, pause) : null;
+    if (nette == null) throw new Error('La fin doit suivre le début, pause déduite');
+    const maintenant = new Date().toISOString();
+    const ligne = {
+      site_id: siteId, employee_id: employeeId, periode, date_evenement: date,
+      type_item: 'horaire_exceptionnel', origine: 'manuel',
+      source_cle: `horaire-exceptionnel:${employeeId}:${date}`,
+      libelle: `Horaire exceptionnel ${debut} à ${fin}`,
+      quantite_minutes: Math.round(nette * 60),
+      statut: 'valide', impact_paye: false, note: motif,
+      detail: {
+        debut, fin, pause_minutes: pause, motif,
+        auteur: actorId || null, saisi_le: maintenant,
+        heures_initiales: heuresInitiales == null || heuresInitiales === '' ? null : Number(heuresInitiales),
+      },
+      cree_par: actorId, modifie_par: actorId, modifie_le: maintenant,
+    };
+    const { error } = await client.from('nexus_paye_items').upsert(ligne, { onConflict: 'site_id,periode,employee_id,source_cle' });
+    if (error) throw error;
+    return nette;
+  }
+
+  // Marquage du traitement d'une anomalie de concordance (§9).
+  //
+  // « Le traitement d'une anomalie ne doit pas modifier silencieusement les
+  // heures. » C'est exactement pourquoi cette fonction écrit un statut de
+  // traitement et une justification, et RIEN d'autre : ni quantité, ni
+  // montant, ni impact_paye. L'écart reste l'écart ; seule sa lecture par le
+  // manager change.
+  //
+  // `exclu` restait auparavant le seul moyen de solder une ligne, et exclure
+  // retire des heures. Les trois statuts existent pour cette raison.
+  const STATUTS_TRAITEMENT = ['examine', 'corrige', 'justifie'];
+
+  async function marquerTraitementAnomalie(client, payload) {
+    const { siteId, employeeId, periode, item, statut, justification, actorId } = payload;
+    if (!STATUTS_TRAITEMENT.includes(statut)) throw new Error('Statut de traitement inconnu');
+    if (!item || !item.sourceCle) throw new Error('Anomalie sans clé de source');
+    const maintenant = new Date().toISOString();
+    const ligne = {
+      site_id: siteId, employee_id: employeeId, periode,
+      date_evenement: item.date || null, type_item: item.typeItem, origine: item.origine || 'verify',
+      source_cle: item.sourceCle, libelle: item.libelle,
+      quantite_minutes: item.quantiteMinutes == null ? null : item.quantiteMinutes,
+      statut, impact_paye: false, note: justification || null,
+      modifie_par: actorId, modifie_le: maintenant,
+    };
+    const { error } = await client.from('nexus_paye_items').upsert(ligne, { onConflict: 'site_id,periode,employee_id,source_cle' });
+    if (error) throw error;
+  }
+
+  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee, sonderSaisiesManager, enregistrerHoraireExceptionnel, marquerTraitementAnomalie, STATUTS_TRAITEMENT };
 })(typeof window !== 'undefined' ? window : globalThis);

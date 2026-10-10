@@ -38,7 +38,9 @@ const INFOS={dossier:['Dossier mensuel','NEXUS prépare les variables et les pre
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
 // (03/09/2026). Le refus est aussi posé dans nexus-paye-donnees.js.
-const TYPES_VARIABLE_MANUELLE=['presence_exceptionnelle','heure_supplementaire','jour_ferie','acompte','dette','autre'];
+const LIBELLE_STATUT_ITEM={a_verifier:'à vérifier',information:'information',valide:'validé',examine:'examiné',corrige:'corrigé',justifie:'justifié',exclu:'sans impact paie'};
+const LIBELLE_SOURCE={verify:'Verify',pointage:'Pointage',planning:'Planning officiel',duree_reference:'Durée de référence de la station',horaire_exceptionnel:'Horaire exceptionnel saisi par le manager',fdj:'FDJ',manuel:'Saisie manager',renfort:'Renfort déclaré dans Verify'};
+const TYPES_VARIABLE_MANUELLE=['presence_exceptionnelle','heure_supplementaire','retard','jour_ferie','acompte','dette','autre'];
 const MOTIFS_RH=[['conge_maternite','Congé maternité'],['arret_maladie','Arrêt maladie'],['conge','Congé'],['conge_paternite','Congé paternité'],['formation','Formation'],['autre','Autre']];
 const STATUTS_SALARIE={pret:['Prêt','green'],a_verifier:['À vérifier','amber'],donnee_manquante:['Donnée manquante','red'],hors_paie:['Hors paie','']};
 const ECHAPPE=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -58,12 +60,13 @@ function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:
 function render(){
  const s=RAPPORT.synthese, statut=etatPeriode();
  const decisions=RAPPORT.items.filter(i=>i.statut==='a_verifier'||i.contestationOuverte);
- const informations=RAPPORT.items.filter(i=>i.statut==='information');
+ const informations=RAPPORT.items.filter(i=>i.statut==='information'&&i.rubrique!==NexusPayeMoteur.RUBRIQUE_ECART);
+ const ecarts=(RAPPORT.ecartsVerifyPlanning||[]);
  const blocagesSysteme=RAPPORT.bloqueurs.filter(b=>b.categorie==='configuration'||(!b.categorie&&!b.sourceCle));
  document.getElementById('app').innerHTML=`
  <div class="period"><button id="prev">←</button><strong>${moisLabel()}</strong><span class="status ${statut}">${LIBELLE_STATUT_DOSSIER[statut]||statut}</span><button id="next">→</button></div>
  <section class="hero"><div class="hero-top"><div><h2>${RAPPORT.bloqueurs.length?`${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} à traiter`:'Mois prêt à être validé'}</h2><p>${RAPPORT.bloqueurs.length?`NEXUS a regroupé les décisions nécessaires. ${s.salariesDonneeManquante?`${s.salariesDonneeManquante} salarié(s) attendent une donnée, ${s.salariesAVerifier} un arbitrage.`:'Commencez par la boîte À vérifier.'}`:'Toutes les variables connues sont arbitrées. Validez le mois, puis générez le dossier comptable.'}</p></div>${infoBtn('dossier','dossier mensuel')}</div>${RAPPORT.bloqueurs.length?'<button class="btn primary jump-review" style="margin-top:12px">Examiner les points à vérifier</button>':''}</section>
- <nav class="quick-nav" aria-label="Navigation PAYE"><button data-jump="reviewSection">À vérifier${s.aVerifier?` · ${s.aVerifier}`:''}</button><button data-jump="employeesSection">Salariés</button><button data-jump="accountantSection">Dossier comptable</button></nav>
+ <nav class="quick-nav" aria-label="Navigation PAYE"><button data-jump="reviewSection">À vérifier${s.aVerifier?` · ${s.aVerifier}`:''}</button><button data-jump="ecartsSection">Écarts${ecarts.length?` · ${ecarts.length}`:''}</button><button data-jump="employeesSection">Salariés</button><button data-jump="accountantSection">Dossier comptable</button></nav>
  ${RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source==='google_sheets'?`<div class="card"><div class="section-label">Planning officiel</div><div class="help" style="margin:0;">Google Sheets est la prévision officielle. PAYE la rapproche toujours des preuves réelles Verify et Pointage.${lienPlanningSecurise()?` <a href="${ECHAPPE(lienPlanningSecurise())}" target="_blank" rel="noopener" style="color:var(--green);">Ouvrir le planning ↗</a>`:''}</div></div>`:''}
  <div class="kpis"><div class="kpi"><span>Salariés suivis</span><b>${s.salariesInclus}</b></div><div class="kpi"><span>Heures confirmées</span><b>${s.heuresConfirmees} h</b></div><div class="kpi"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b></div><div class="kpi warn"><span>À vérifier</span><b>${s.aVerifier}</b></div></div>${s.salariesDonneeManquante?`<div class="alert">${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.</div>`:''}
  ${blocagesSysteme.length?`<div class="section-head"><div class="section-label">Configuration requise · ${blocagesSysteme.length}</div></div>
@@ -71,6 +74,15 @@ function render(){
  <div class="section-head" id="reviewSection"><div class="section-label">Éléments de paie à vérifier${decisions.length?` · ${decisions.length}`:''}</div>${infoBtn('arbitrage','arbitrages')}</div>
  <section>${!decisions.length?'<div class="card ok">✓ Aucun arbitrage en attente.</div>':decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}</section>
  ${informations.length?`<section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin:0 0 9px">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}</section>`:''}
+ <div class="section-head" id="ecartsSection"><div class="section-label">Écarts Verify / Planning${ecarts.length?` · ${ecarts.length}`:''}</div>${infoBtn('ecart','écarts informatifs')}</div>
+ <section class="card">
+  <div class="help" style="margin:0 0 9px">Ce que Verify a constaté, mis en regard de ce que le planning prévoyait. Ces écarts ne modifient aucune heure et ne bloquent pas la préparation de la paie : les heures affichées plus haut restent celles que Verify justifie.</div>
+  ${RAPPORT.renfortsLisibles===false?`<div class="alert">Les renforts déclarés dans Verify ne sont pas lisibles pour l’instant : la colonne attend sa migration. Les écarts ci-dessous ne tiennent donc pas compte des renforts.</div>`:''}
+  ${!ecarts.length?'<div class="ok">✓ Aucun écart de concordance sur ce mois.</div>':ecarts.map(renderEcart).join('')}
+  ${SAISIES_MANAGER?'':`<div class="help" style="margin-top:9px">Le marquage « examiné / corrigé / justifié » et la saisie d’un horaire exceptionnel attendent la migration du 09/10/2026. Jusque-là ils ne sont pas proposés, plutôt que de perdre ce que vous auriez saisi.</div>`}
+ </section>
+ ${SAISIES_MANAGER?`<div class="section-head"><div class="section-label">Horaire exceptionnel d’une journée</div></div>
+ <section class="card"><div class="help" style="margin:0 0 10px">Réservé aux exceptions : une journée dont les horaires réels diffèrent de la durée de référence. NEXUS recalcule la durée nette à partir du début, de la fin et de la pause. Les paramètres standards de la station ne changent pas.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="hxEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Date</label><input id="hxDate" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Début</label><input id="hxDebut" type="time" value="${(RAPPORT.regles&&RAPPORT.regles.renfortDebut)||'09:00'}"></div><div class="field"><label>Fin</label><input id="hxFin" type="time" value="${(RAPPORT.regles&&RAPPORT.regles.renfortFin)||'17:00'}"></div><div class="field"><label>Pause (minutes)</label><input id="hxPause" type="number" min="0" step="5" value="${(RAPPORT.regles&&RAPPORT.regles.renfortPauseMinutes)!=null?RAPPORT.regles.renfortPauseMinutes:60}"></div><div class="field full"><label>Motif</label><textarea id="hxMotif" rows="2" placeholder="Pourquoi cette journée fait exception"></textarea></div></div><button class="btn primary" id="addHoraire" style="margin-top:10px">Enregistrer l’horaire exceptionnel</button><div class="help" id="hxResume">La durée nette se calcule à l’enregistrement, et la valeur initiale reste conservée.</div></section>`:''}
  <div class="section-head" id="employeesSection"><div class="section-label">Salariés · ${s.salariesPrets}/${s.salariesInclus} prêts</div>${infoBtn('statutSalarie','statut du salarié')}</div>
  <section>${RAPPORT.employes.map(renderEmployee).join('')}</section>
  <div class="section-head" id="accountantSection"><div class="section-label">Dossier comptable</div>${infoBtn('export','export comptable')}</div>
@@ -78,7 +90,7 @@ function render(){
  <div class="section-head"><div class="section-label">Déclarer un événement RH</div>${infoBtn('evenementRH','événement RH')}</div>
  <section class="card"><div class="help" style="margin:0 0 10px">Absence longue, congé, maternité, paternité, formation, arrêt maladie : <b>un seul événement</b>, avec sa date de début et sa date de fin. NEXUS en déduit les jours de chaque mois — vous ne le ressaisirez jamais.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="rhEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Motif</label><select id="rhMotif">${MOTIFS_RH.map(([v,l])=>`<option value="${v}">${ECHAPPE(l)}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="rhDebut" type="date"></div><div class="field"><label>Au</label><input id="rhFin" type="date"></div></div><div class="field full"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font:11px var(--mono);color:var(--mid)"><input type="checkbox" id="rhIndetermine" style="width:auto"> Date de retour non connue</label></div><div class="field full"><label>Commentaire (facultatif)</label><textarea id="rhCommentaire" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addRH" style="margin-top:10px">Déclarer l’événement RH</button><div class="help" id="rhResume">L’événement peut déborder du mois affiché : NEXUS ne compte que les jours qui tombent dans chaque période de paie.</div></section>
  <div class="section-head"><div class="section-label">Ajouter une variable du mois</div>${infoBtn('periode','saisie manuelle')}</div>
- <section class="card"><div class="form-grid"><div class="field"><label>Employé</label><select id="manualEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Type</label><select id="manualType">${TYPES_VARIABLE_MANUELLE.map(t=>`<option value="${t}">${LIBELLES[t]}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="manualDateDebut" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Au</label><input id="manualDateFin" type="date" min="${MOIS}" max="${dernierJourMois()}"></div></div><div class="field full"><div class="help" id="manualPeriodSummary" style="margin-top:0;">Choisissez la date de début et la date de fin.</div></div><div class="field"><label>Minutes par jour</label><input id="manualMinutes" type="number" min="0" step="1" placeholder="facultatif"></div><div class="field"><label>Montant €</label><input id="manualAmount" type="number" step="0.01" placeholder="facultatif"></div><div class="field full"><label>Libellé / justificatif</label><textarea id="manualLabel" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addManual" style="margin-top:10px">Ajouter et valider</button><div class="help">Un montant en euros reste limité à une seule date pour éviter toute duplication. Une absence ou un congé ne se saisit pas ici : utilisez « Déclarer un événement RH ».</div></section>
+ <section class="card"><div class="form-grid"><div class="field"><label>Employé</label><select id="manualEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Type</label><select id="manualType">${TYPES_VARIABLE_MANUELLE.map(t=>`<option value="${t}">${LIBELLES[t]}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="manualDateDebut" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Au</label><input id="manualDateFin" type="date" min="${MOIS}" max="${dernierJourMois()}"></div></div><div class="field full"><div class="help" id="manualPeriodSummary" style="margin-top:0;">Choisissez la date de début et la date de fin.</div></div><div class="field"><label>Minutes par jour</label><input id="manualMinutes" type="number" min="0" step="1" placeholder="facultatif"></div><div class="field"><label>Montant €</label><input id="manualAmount" type="number" step="0.01" placeholder="facultatif"></div><div class="field full"><label>Libellé / justificatif</label><textarea id="manualLabel" rows="2" placeholder="Ce que la comptable doit comprendre"></textarea></div></div><button class="btn primary" id="addManual" style="margin-top:10px">Ajouter et valider</button><div class="help">Un montant en euros reste limité à une seule date pour éviter toute duplication. Une absence ou un congé ne se saisit pas ici : utilisez « Déclarer un événement RH ». Un retard n’est jamais déduit d’un pointage ni d’un écart avec le planning : il ne compte que si vous le saisissez ici, en minutes et avec son motif.</div></section>
  <div class="modal" id="infoModal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="infoTitle"><h3 id="infoTitle"></h3><p id="infoText"></p><button class="btn primary" id="closeInfo">J’ai compris</button></div></div>`;
  bind();
 }
@@ -94,12 +106,24 @@ function tuile(label,valeur,sous,options){
  const o=options||{};
  return `<div class="var${o.vide?' vide':''}${o.attente?' attente':''}${o.pleine?' pleine':''}"><span>${ECHAPPE(label)}</span><b>${ECHAPPE(valeur)}</b>${sous?`<small>${ECHAPPE(sous)}</small>`:''}</div>`;
 }
-function renderVariables(v){
+// Ventilation des heures (§9 du cahier des charges du 09/10/2026). Le
+// manager doit lire d'où viennent les heures retenues, pas seulement leur
+// total : la caisse, la piste et le renfort se comptent séparément, et le
+// moteur les ventile déjà. On les affiche, on ne les recalcule pas.
+//
+// Les écarts restant à examiner sont comptés ici mais ne retirent aucune
+// heure : c'est une liste de choses à regarder, pas un blocage.
+function renderVariables(v,f){
  const attente=n=>n?`${n} en attente d’arbitrage`:'';
  const fin=v.financier, totalFin=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;
  const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
  return `<div class="vars">`
   +tuile('Présence',`${v.presence.heures} h`,`${pluriel(v.presence.jours,'jour')} confirmé${v.presence.jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`,{vide:!v.presence.heures})
+  +tuile('Heures de caisse',`${arrondi(f&&f.heuresCaisse)} h`,'journées de caisse constatées dans Verify',{vide:!(f&&f.heuresCaisse)})
+  +tuile('Heures de piste',`${arrondi(f&&f.heuresPiste)} h`,'journées de piste constatées dans Verify',{vide:!(f&&f.heuresPiste)})
+  +tuile('Heures de renfort',`${arrondi(f&&f.heuresRenfort)} h`,'renforts retenus, déclarés ou prévus',{vide:!(f&&f.heuresRenfort)})
+  +tuile('Corrections du manager',`${arrondi(f&&f.heuresExceptionnelles)} h`,(f&&f.heuresExceptionnelles)?'horaires exceptionnels saisis, durée nette recalculée':'aucun horaire exceptionnel',{vide:!(f&&f.heuresExceptionnelles)})
+  +tuile('Écarts à examiner',String(ecartsAExaminer(f)),ecartsAExaminer(f)?'concordance Verify / planning, sans impact sur les heures':'aucun',{vide:!ecartsAExaminer(f)})
   +tuile('Absence non déclarée',String(v.absence.jours),attente(v.absence.enAttente)||(v.absence.jours?'retenue en paie':'aucune'),{vide:!v.absence.jours,attente:!!v.absence.enAttente})
   +tuile('Congés payés',String(v.congesPayes.jours),v.congesPayes.evenements?`${pluriel(v.congesPayes.evenements,'événement')}`:'aucun',{vide:!v.congesPayes.jours})
   +tuile('Maladie / maternité',String(v.maladieMaternite.jours),v.maladieMaternite.detail.map(e=>e.libelle).join(' · ')||'aucune',{vide:!v.maladieMaternite.jours})
@@ -110,6 +134,12 @@ function renderVariables(v){
   +(v.autresAbsences.jours?tuile('Autres absences qualifiées',String(v.autresAbsences.jours),v.autresAbsences.detail.map(e=>e.libelle).join(' · '),{pleine:true}):'')
   +`</div>`;
 }
+function arrondi(x){return Math.round(Number(x||0)*100)/100}
+function ecartsAExaminer(f){
+ if(!f)return 0;
+ const id=f.employee.id;
+ return (RAPPORT.ecartsVerifyPlanning||[]).filter(i=>i.employeeId===id&&(!i.statut||i.statut==='information')).length;
+}
 function renderEmployee(f){
  const inclus=f.reglage.inclus,id=f.employee.id;
  // Trois statuts, et trois seulement (P1) : le badge dit toujours Prêt,
@@ -119,7 +149,7 @@ function renderEmployee(f){
  const v=inclus?NexusPayeMoteur.variablesComptables(f):null;
  const corps=!inclus
   ?`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`
-  :`${f.reglage.confirme?'':'<div class="alert">Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.</div>'}${renderVariables(v)}`
+  :`${f.reglage.confirme?'':'<div class="alert">Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.</div>'}${renderVariables(v,f)}`
    +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
    +`<div class="detail-zone" data-emp="${id}" hidden>${f.items.length?f.items.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
  return `<article class="employee" data-employee="${id}"><div class="employee-head"><div><div class="employee-name">${ECHAPPE(f.employee.nom)}</div><div class="meta">${ECHAPPE(f.employee.role||'')}${inclus?` · ${f.heuresConfirmees.toFixed(2)} h · ${pluriel(f.joursConfirmes.size,'jour')}`:''}</div></div>${statut}</div><div class="employee-body">${corps}</div></article>`;
@@ -161,7 +191,7 @@ function blocQualification(i){
  </div>`}
 function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
-  statut=i.statut==='a_verifier'?'à vérifier':i.statut==='information'?'information':i.statut==='valide'?'validé':'sans impact paie',
+  statut=LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie',
   ecart=i.typeItem==='ecart_caisse',
   actions=i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',
   source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';
@@ -197,8 +227,51 @@ function renderItem(f,i){
   +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
   +`<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`;
 }
+// Rendu d'un écart de concordance (§9 du cahier des charges du 09/10/2026).
+//
+// Chaque écart nomme le salarié, la date, la fonction prévue et la fonction
+// constatée, LA SOURCE DE CHACUNE de ces informations, la différence
+// mesurée, son statut de traitement et la justification du manager. Nommer
+// la source est le point : sans elle, le manager arbitre entre deux
+// chiffres sans savoir lequel vient d'une observation et lequel d'une
+// prévision.
+//
+// Le marquage n'écrit qu'un statut et une justification. Il ne touche pas
+// aux heures : le traitement d'une anomalie ne doit pas modifier
+// silencieusement les heures.
+function cellule(libelle,valeur,source){
+ return `<div class="ecart-cell"><span>${ECHAPPE(libelle)}</span><b>${ECHAPPE(valeur==null||valeur===''?'non renseigné':String(valeur))}</b>${source?`<span style="opacity:.6">source : ${ECHAPPE(LIBELLE_SOURCE[source]||source)}</span>`:''}</div>`;
+}
+function renderEcart(i){
+ const emp=i.employeeId||'', cle=ECHAPPE(i.sourceCle),
+  jour=i.date?new Date(`${i.date}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'date inconnue',
+  prevu=i.fonctionPrevue?(NexusPayeMoteur.LIBELLE_POSTE[i.fonctionPrevue]||i.fonctionPrevue):(i.sourceFonctionPrevue?null:'absent du planning'),
+  constate=i.fonctionConstatee?(NexusPayeMoteur.LIBELLE_POSTE[i.fonctionConstatee]||i.fonctionConstatee):null,
+  delta=Math.round((Number(i.heuresRetenues||0)-Number(i.heuresPlanning||0))*100)/100;
+ return `<div class="review-card" data-ecart="${cle}">
+  <div class="review-name">${ECHAPPE(i.employeeNom||'Salarié à identifier')}</div>
+  <div class="item-title">${ECHAPPE(i.libelle)}</div>
+  <div class="item-meta">${ECHAPPE(jour)} · ${LIBELLE_STATUT_ITEM[i.statut]||'information'}${i.impactPaye?'':' · aucune heure modifiée'}</div>
+  <div class="ecart-grid">
+   ${cellule('Fonction prévue',prevu,i.sourceFonctionPrevue)}
+   ${cellule('Fonction constatée',constate,i.sourceFonctionConstatee)}
+   ${cellule('Heures retenues',`${i.heuresRetenues||0} h`,i.sourceHeuresRetenues)}
+   ${cellule('Heures au planning',`${i.heuresPlanning||0} h`,i.sourceFonctionPrevue?'planning':null)}
+   ${cellule('Différence constatée',`${delta>0?'+':''}${delta} h`,null)}
+  </div>
+  ${i.detail?`<div class="item-meta">${ECHAPPE(i.detail)}</div>`:''}
+  ${i.note?`<div class="item-meta">Justification du manager : ${ECHAPPE(i.note)}</div>`:''}
+  ${i.decisionAnterieure?`<div class="item-meta">Décision enregistrée lors d’un calcul antérieur${i.dejaIncluseDansHeures?', déjà comptée dans les heures ci-dessus':''}.</div>`:''}
+  ${SAISIES_MANAGER?`<div class="field full" style="margin-top:8px"><textarea class="ecart-motif" data-key="${cle}" rows="2" placeholder="Justification (obligatoire pour « corrigé » et « justifié »)">${ECHAPPE(i.note||'')}</textarea></div>
+  <div class="item-actions"><button class="btn ecart-marquer" data-emp="${emp}" data-key="${cle}" data-statut="examine">Examiné</button><button class="btn ecart-marquer" data-emp="${emp}" data-key="${cle}" data-statut="corrige">Corrigé</button><button class="btn primary ecart-marquer" data-emp="${emp}" data-key="${cle}" data-statut="justifie">Justifié</button></div>`:''}
+ </div>`;
+}
+function trouverEcart(key){return (RAPPORT.ecartsVerifyPlanning||[]).find(i=>i.sourceCle===key)}
 function trouver(emp,key){return RAPPORT.items.find(i=>i.sourceCle===key&&(!emp||i.employeeId===emp))}
-async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
+// L'écran ne propose une saisie que s'il peut l'enregistrer. La sonde ne
+// coûte qu'une requête par session : son résultat est mémorisé.
+let SAISIES_MANAGER=false, SONDE_FAITE=false;
+async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{if(!SONDE_FAITE){SAISIES_MANAGER=await NexusPayeDonnees.sonderSaisiesManager(nexusClient);SONDE_FAITE=true;}RAPPORT=await NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS);render()}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 // ─── Modales NEXUS (03/09/2026) ────────────────────────────────────────
 // Les boîtes natives du navigateur (prompt / alert / confirm) sont
 // bannies de PAYE : elles ne portent ni le vocabulaire ni les garde-fous
@@ -313,6 +386,9 @@ function bind(){
  document.getElementById('manualDateDebut').onchange=e=>{const fin=document.getElementById('manualDateFin');fin.min=e.target.value||MOIS;if(!fin.value||fin.value<e.target.value)fin.value=e.target.value;majPeriodeManuelle()};
  document.getElementById('manualDateFin').onchange=majPeriodeManuelle;
  document.getElementById('addManual').onclick=addManual;
+ const boutonHoraire=document.getElementById('addHoraire');
+ if(boutonHoraire)boutonHoraire.onclick=addHoraireExceptionnel;
+ document.querySelectorAll('.ecart-marquer').forEach(b=>b.onclick=()=>marquerEcart(b));
  document.getElementById('addRH').onclick=addRH;
  document.getElementById('rhDebut').onchange=e=>{const fin=document.getElementById('rhFin');fin.min=e.target.value||'';if(fin.value&&fin.value<e.target.value)fin.value=e.target.value};
  document.getElementById('rhIndetermine').onchange=e=>{const fin=document.getElementById('rhFin');fin.disabled=e.target.checked;if(e.target.checked)fin.value=''};
@@ -344,6 +420,46 @@ async function decision(btn,valider){
  catch(e){console.error('NEXUS PAYE — enregistrement de la décision :',e);btn.disabled=false;nexusErreur('Décision non enregistrée',`NEXUS n'a pas pu enregistrer cette décision : ${messageErreur(e)}\n\nRien n'a été modifié.`)}
 }
 function majPeriodeManuelle(){const debut=document.getElementById('manualDateDebut').value,fin=document.getElementById('manualDateFin').value,resume=document.getElementById('manualPeriodSummary'),btn=document.getElementById('addManual');if(!debut||!fin){resume.textContent='Choisissez la date de début et la date de fin.';btn.textContent='Ajouter et valider';return}try{const dates=NexusPayeDonnees.datesInclusives(debut,fin);resume.textContent=dates.length===1?'1 journée sélectionnée.':`${dates.length} jours sélectionnés, du ${new Date(`${debut}T12:00:00`).toLocaleDateString('fr-FR')} au ${new Date(`${fin}T12:00:00`).toLocaleDateString('fr-FR')}.`;btn.textContent=dates.length===1?'Ajouter et valider':`Ajouter ${dates.length} jours et valider`}catch(_){resume.textContent='La date de fin doit être postérieure ou égale à la date de début.';btn.textContent='Ajouter et valider'}}
+// Marquage d'un écart. Rien d'autre que le statut et la justification ne
+// part en base : ni quantité, ni montant, ni impact paie.
+async function marquerEcart(b){
+ const key=b.dataset.key, statut=b.dataset.statut, item=trouverEcart(key);
+ if(!item){nexusErreur('Écart introuvable','Cet écart n’est plus dans le dossier affiché. Actualisez la page.');return;}
+ const zone=document.querySelector(`.ecart-motif[data-key="${CSS.escape(key)}"]`);
+ const motif=zone?String(zone.value||'').trim():'';
+ if((statut==='corrige'||statut==='justifie')&&!motif){nexusErreur('Justification attendue','Un écart corrigé ou justifié doit dire pourquoi. Écrivez la justification, puis recommencez.');return;}
+ const boutons=document.querySelectorAll(`.ecart-marquer[data-key="${CSS.escape(key)}"]`);
+ boutons.forEach(x=>x.disabled=true);
+ try{
+  await NexusPayeDonnees.marquerTraitementAnomalie(nexusClient,{siteId:SITE,employeeId:item.employeeId||b.dataset.emp,periode:MOIS,item,statut,justification:motif,actorId:EMPLOYEE.id});
+  await reload();
+ }catch(e){console.error('NEXUS PAYE : marquage d un ecart :',e);boutons.forEach(x=>x.disabled=false);
+  nexusErreur('Marquage impossible',`NEXUS n’a pas pu enregistrer ce traitement : ${messageErreur(e)}\n\nAucune heure n’a été modifiée, et votre justification est restée dans le champ.`);}
+}
+
+// Horaire exceptionnel (§5.4). La durée nette est recalculée par le moteur,
+// jamais saisie, et la valeur initiale est conservée dans le detail.
+async function addHoraireExceptionnel(){
+ const emp=document.getElementById('hxEmployee').value, date=document.getElementById('hxDate').value,
+  debut=document.getElementById('hxDebut').value, fin=document.getElementById('hxFin').value,
+  pause=document.getElementById('hxPause').value, motif=String(document.getElementById('hxMotif').value||'').trim();
+ if(!emp||!date){nexusErreur('Salarié et date obligatoires','Choisissez le salarié et la journée concernée.');return;}
+ if(!motif){nexusErreur('Motif obligatoire','Un horaire exceptionnel doit porter son motif : la comptable doit pouvoir le relire dans six mois.');return;}
+ const nette=NexusPayeMoteur.dureeNetteHeures(debut,fin,Number(pause||0));
+ if(nette==null){nexusErreur('Horaires invalides','La fin doit suivre le début, pause déduite.');return;}
+ const fiche=RAPPORT.employes.find(f=>f.employee.id===emp);
+ const jour=fiche?(fiche.items||[]).find(i=>i.date===date&&i.heuresAttribuees!=null):null;
+ const initiales=jour?jour.heuresAttribuees:null;
+ const ok=await nexusConfirmer('Enregistrer cet horaire exceptionnel',`${debut} à ${fin}, pause ${Number(pause||0)} min, soit ${nette} h nettes${initiales!=null?` au lieu de ${initiales} h`:''}.\n\nLes paramètres standards de la station ne changent pas.`,'Enregistrer');
+ if(!ok)return;
+ const btn=document.getElementById('addHoraire');btn.disabled=true;
+ try{
+  await NexusPayeDonnees.enregistrerHoraireExceptionnel(nexusClient,{siteId:SITE,employeeId:emp,periode:MOIS,date,debut,fin,pauseMinutes:Number(pause||0),motif,heuresInitiales:initiales,actorId:EMPLOYEE.id});
+  await reload();
+ }catch(e){console.error('NEXUS PAYE : horaire exceptionnel :',e);btn.disabled=false;
+  nexusErreur('Enregistrement impossible',`NEXUS n’a pas pu enregistrer cet horaire : ${messageErreur(e)}\n\nRien n’a été modifié.`);}
+}
+
 async function addManual(){
  const employeeId=document.getElementById('manualEmployee').value,typeItem=document.getElementById('manualType').value,
   dateDebut=document.getElementById('manualDateDebut').value,dateFin=document.getElementById('manualDateFin').value||dateDebut,
@@ -354,12 +470,15 @@ async function addManual(){
  if(dateDebut<MOIS||dateFin>dernierJourMois())return nexusErreur('Période hors du mois','Une variable du mois doit rester dans le mois affiché. Une absence qui déborde relève d’un événement RH.');
  if(montant!==''&&dates.length>1)return nexusErreur('Montant sur plusieurs jours','Un montant en euros doit être rattaché à une seule date, pour éviter de le répéter chaque jour.');
  if(['acompte','dette'].includes(typeItem)&&montant==='')return nexusErreur('Montant obligatoire','Le montant est obligatoire pour une dette ou un acompte.');
+ // §7 : par défaut le retard est de 0 minute. Il n'en vaut donc un que si
+ // le manager en saisit la durée, et le libelle en porte le motif.
+ if(typeItem==='retard'&&!(Number(min)>0))return nexusErreur('Minutes obligatoires','Un retard se compte en minutes. Par défaut il est de 0 : il ne compte que si vous en saisissez la durée.');
  const m=montant===''?null:Math.round(Number(String(montant).replace(',','.'))*100);
  if(montant!==''&&!Number.isFinite(m))return nexusErreur('Montant invalide','Saisissez un montant en euros, par exemple 50 ou 50,00.');
  const btn=document.getElementById('addManual');btn.disabled=true;
  try{await NexusPayeDonnees.ajouterItemsManuels(nexusClient,{siteId:SITE,employeeId,periode:MOIS,dates,typeItem,libelle,
    quantiteMinutes:min===''?null:Number(min),montantCentimes:m,
-   impactPaye:['acompte','dette','heure_supplementaire','jour_ferie'].includes(typeItem),note:libelle,actorId:EMPLOYEE.id});
+   impactPaye:['acompte','dette','heure_supplementaire','jour_ferie','retard'].includes(typeItem),note:libelle,actorId:EMPLOYEE.id});
   await reload()}
  catch(e){console.error('NEXUS PAYE — ajout manuel :',e);btn.disabled=false;nexusErreur('Ajout impossible',messageErreur(e))}
 }

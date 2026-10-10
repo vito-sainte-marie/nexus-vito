@@ -128,8 +128,8 @@
 
     const notes = [];
     if (v.presence.joursReconstitues) notes.push(`${v.presence.joursReconstitues} journée(s) confirmée(s) par une seule source — Verify ou pointage, pas les deux.`);
-    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} attribuées au barème par poste, faute de durée au planning.`);
-    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} supplémentaires sont déjà comprises dans les heures de présence (barème jeudi/vendredi/samedi).`);
+    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} chiffrées par la durée de référence du jour, pour les journées constatées dans Verify.`);
+    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} supplémentaires sont déjà comprises dans les heures de présence, au titre des durées de référence de la station. Leur qualification en heures normales, complémentaires ou supplémentaires majorées relève des règles légales et contractuelles, et non de ce calcul.`);
     if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
     if (notes.length) rapport.encadre(notes.map(n => ({ texte: `- ${n}` })));
   }

@@ -1013,5 +1013,5 @@
   }
 
   global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, reglesHeures, dureeNetteHeures, minutesHoraire, DUREES_REFERENCE_DEFAUT, HEURES_RENFORT_DEFAUT, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
-    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
+    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, LIBELLE_POSTE, RUBRIQUE_ECART, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
 })(typeof window !== 'undefined' ? window : globalThis);
