@@ -51,14 +51,28 @@ const WORKFLOW = '.github/workflows/claude.yml';
 // Mute le TEXTE que le registre prétend vérifier, sans toucher au dépôt :
 // `verifierRegistre` reçoit son lecteur par injection, précisément pour que
 // l'épreuve puisse mentir au validateur et voir s'il s'en aperçoit.
-function lecteurMute(avant, apres) {
+function lecteurMute(avant, apres, rang) {
   const vrai = cap.lireAuRef(RACINE, 'origin/main', WORKFLOW);
   assert.ok(vrai, `${WORKFLOW} illisible sur origin/main — l'épreuve ne peut rien mesurer`);
   if (avant === null) return () => null;
-  assert.strictEqual(vrai.split(avant).length - 1, 1, `ancre de mutation non unique ou absente dans ${WORKFLOW}`);
-  const muté = vrai.replace(avant, apres);
+  const morceaux = vrai.split(avant);
+  if (rang === undefined) {
+    assert.strictEqual(morceaux.length - 1, 1, `ancre de mutation non unique ou absente dans ${WORKFLOW}`);
+    rang = 0;
+  }
+  // Rang explicite : l'ancre peut se répéter (deux étapes portent le même
+  // jeton), mais la mutation vise une occurrence désignée, jamais « la première
+  // venue » — `str.replace` choisirait seul, et en silence.
+  assert.ok(rang >= 0 && rang < morceaux.length - 1, `occurrence ${rang} absente dans ${WORKFLOW}`);
+  const muté = morceaux.slice(0, rang + 1).join(avant) + apres + morceaux.slice(rang + 1).join(avant);
   assert.notStrictEqual(muté, vrai, 'mutation sans effet');
   return () => muté;
+}
+
+function occurrences(ancre) {
+  const vrai = cap.lireAuRef(RACINE, 'origin/main', WORKFLOW);
+  assert.ok(vrai, `${WORKFLOW} illisible sur origin/main — l'épreuve ne peut rien mesurer`);
+  return vrai.split(ancre).length - 1;
 }
 
 // ── A. CALIBRATION SUR LE VRAI DÉPÔT ────────────────────────────────────────
@@ -169,12 +183,18 @@ epreuve('D — sans capacité exigée, la classification d’avant est inchangé
 
 // ── E. L'ENVELOPPE DU WORKFLOW AUTOMATIQUE ──────────────────────────────────
 
-epreuve('E — mutation : un secret ajouté au workflow automatique est détecté', () => {
-  const lire = lecteurMute('${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}',
-    '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}${{ secrets.SUPABASE_PRODUCTION_SERVICE_ROLE }}');
-  const ecarts = cap.verifierRegistre(registre(), RACINE, { lire });
-  assert.ok(ecarts.some(x => x.includes('SUPABASE_PRODUCTION_SERVICE_ROLE')),
-    'un secret Production pourrait entrer dans le canal automatique sans un mot');
+epreuve('E — mutation : un secret ajouté au workflow automatique est détecté, à chaque étape qui porte le jeton', () => {
+  // Chaque étape qui reçoit le jeton Claude est une porte d'entrée distincte :
+  // la mutation est rejouée sur chacune, pas seulement sur la première.
+  const ancre = '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}';
+  const n = occurrences(ancre);
+  assert.ok(n >= 1, `ancre de mutation absente dans ${WORKFLOW}`);
+  for (let k = 0; k < n; k++) {
+    const lire = lecteurMute(ancre, ancre + '${{ secrets.SUPABASE_PRODUCTION_SERVICE_ROLE }}', k);
+    const ecarts = cap.verifierRegistre(registre(), RACINE, { lire });
+    assert.ok(ecarts.some(x => x.includes('SUPABASE_PRODUCTION_SERVICE_ROLE')),
+      `un secret Production pourrait entrer dans le canal automatique sans un mot (occurrence ${k + 1}/${n})`);
+  }
 });
 
 epreuve('E — mutation : une permission ajoutée au workflow automatique est détectée', () => {
