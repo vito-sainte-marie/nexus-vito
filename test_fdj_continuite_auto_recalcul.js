@@ -10,6 +10,14 @@
 // (stock_initial_auto=false), qui suivent le flux d'alerte manuelle
 // existant, inchangé.
 //
+// AMENDÉ par l'arbitrage définitif du 10/10/2026 (continuité Q1/Q2) : le
+// stock initial du quart suivant fait autorité et n'est JAMAIS réécrit
+// depuis le quart précédent, même hérité (stock_initial_auto=true). Tout
+// écart part au flux d'alerte manuelle ; c'est la fin du quart précédent
+// qu'on rapproche, côté serveur (fdj_manager_aligner_fin_quart_precedent).
+// La correction automatique appliquerCorrectionsAutomatiquesContinuite est
+// supprimée de l'écran.
+//
 // Extrait les fonctions réelles (jamais réécrites à la main) de
 // NEXUS-FDJ-Manager-v1.html via regex + comptage d'accolades, comme tous
 // les tests de ce module. Consomme le vrai nexus-fdj-moteur.js (require()
@@ -290,11 +298,9 @@ function nouveauContexte(tables, jeuxInitiaux) {
   ctx.globalThis = ctx;
   const src = [
     extraire('ecartsContinuiteStockQuart'),
-    extraire('appliquerCorrectionsAutomatiquesContinuite'),
     extraire('synchroniserRelevesApresRetablissementChaine'),
     extraire('reconcilierAlertesChaine'),
     'globalThis.__ecartsContinuiteStockQuart = ecartsContinuiteStockQuart;',
-    'globalThis.__appliquerCorrectionsAutomatiquesContinuite = appliquerCorrectionsAutomatiquesContinuite;',
     'globalThis.__synchroniserRelevesApresRetablissementChaine = synchroniserRelevesApresRetablissementChaine;',
     'globalThis.__reconcilierAlertesChaine = reconcilierAlertesChaine;',
   ].join('\n\n');
@@ -303,9 +309,8 @@ function nouveauContexte(tables, jeuxInitiaux) {
 }
 
 // ------------------------------------------------------------
-// 1) NexusFdjMoteur.ecartsContinuiteAAppliquer — fonction pure : sépare les
-//    jeux en écart selon stock_initial_auto (true = éligible à la
-//    correction automatique, false/absent = reste à revoir manuellement).
+// 1) NexusFdjMoteur.ecartsContinuiteAAppliquer — depuis le 10/10/2026, rien
+//    n'est jamais applicable automatiquement : tout écart est à revoir.
 // ------------------------------------------------------------
 (() => {
   const ecarts = [
@@ -313,77 +318,21 @@ function nouveauContexte(tables, jeuxInitiaux) {
     { game_id: 'g2', stock_final_precedent: 100, stock_initial_actuel: 90 },
     { game_id: 'g3', stock_final_precedent: 10, stock_initial_actuel: 8 },
   ];
-  const autoMap = { g1: true, g2: false }; // g3 absent du map -> traité comme non-auto
+  const autoMap = { g1: true, g2: false }; // g3 absent du map
   const { applicables, aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
-  assert.deepStrictEqual(applicables.map(e => e.game_id), ['g1'], 'Seul g1 (stock_initial_auto=true) doit être auto-corrigé');
-  assert.deepStrictEqual(aRevoir.map(e => e.game_id), ['g2', 'g3'], 'g2 (false) et g3 (absent du map) doivent rester à revoir manuellement');
-  console.log('OK — ecartsContinuiteAAppliquer sépare correctement auto vs à revoir (jeu absent du map = prudence, jamais auto).');
+  assert.deepStrictEqual(applicables, [], 'Le stock initial du quart suivant n\'est jamais réécrit, même hérité (arbitrage du 10/10/2026)');
+  assert.deepStrictEqual(aRevoir.map(e => e.game_id), ['g1', 'g2', 'g3'], 'Tout écart reste à revoir');
+  console.log('OK — ecartsContinuiteAAppliquer ne rend plus rien d\'applicable : tout écart est à revoir.');
 })();
 
 // ------------------------------------------------------------
-// 2) appliquerCorrectionsAutomatiquesContinuite — corrige stock_initial +
-//    ventes du jeu concerné, puis recalcule ET RÉÉCRIT l'écart de caisse du
-//    quart entier (décision explicite de Frédéric), sans jamais toucher
-//    ecart_origine/caisse_reelle_origine (constat d'origine, v2.108).
+// 2) La correction automatique du stock initial a quitté l'écran.
 // ------------------------------------------------------------
-async function test2() {
-  const tables = {
-    fdj_shift_counts: [
-      { shift_id: 'cur1', game_id: 'g1', stock_initial: 35, appro: 5, stock_final: 20, ventes_qte: 20, ventes_valeur: 40, stock_initial_auto: true },
-      { shift_id: 'cur1', game_id: 'g2', stock_initial: 90, appro: 0, stock_final: 50, ventes_qte: 40, ventes_valeur: 120, stock_initial_auto: false },
-    ],
-    fdj_reports: [
-      { shift_id: 'cur1', type_rapport: 'journalier', lots_payes_grattage: 10 },
-      { shift_id: 'cur1', type_rapport: 'temps_reel', caisse_tirages: 20 },
-    ],
-    fdj_cash_controls: [
-      { shift_id: 'cur1', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999,
-        // `confirme_le` : depuis la Vague 1, une caisse non confirmée n'est
-        // pas corrigeable par la commande serveur (elle répond
-        // `caisse_non_confirmee` au lieu d'écrire). Le quart de ce test est
-        // validé, donc confirmé — c'est bien le cas nominal du recalcul.
-        confirme_le: '2026-08-16T20:00:00.000Z', version: 3,
-        ecart_origine: -1.23, caisse_reelle_origine: 111.11 }, // constat d'origine — sentinelle, ne doit JAMAIS bouger
-    ],
-    fdj_audit_log: [],
-  };
-  const ctx = nouveauContexte(tables, [{ id: 'g1', prix: 2 }, { id: 'g2', prix: 3 }]);
-
-  await ctx.__appliquerCorrectionsAutomatiquesContinuite('cur1', [
-    { game_id: 'g1', stock_final_precedent: 40, stock_initial_actuel: 35 },
-  ]);
-
-  const g1 = tables.fdj_shift_counts.find(c => c.game_id === 'g1');
-  const g2 = tables.fdj_shift_counts.find(c => c.game_id === 'g2');
-  assert.strictEqual(g1.stock_initial, 40, 'g1.stock_initial doit être corrigé avec le stock_final réel du quart précédent');
-  assert.strictEqual(g1.ventes_qte, 25, 'g1.ventes_qte doit être recalculé avec le stock_initial corrigé (40+5-20)');
-  assert.strictEqual(g1.ventes_valeur, 50, 'g1.ventes_valeur doit être recalculé (25 × prix 2€)');
-  assert.strictEqual(g2.stock_initial, 90, 'g2 (non concerné par cette correction) ne doit jamais être touché');
-
-  const cash = tables.fdj_cash_controls[0];
-  assert.strictEqual(cash.ventes_grattage_valeur, 170, 'Ventes grattage totales recalculées (g1 corrigé 50€ + g2 inchangé 120€)');
-  assert.strictEqual(cash.caisse_grattage, 160, 'Caisse grattage recalculée (170 - 10 lots payés)');
-  assert.strictEqual(cash.caisse_attendue, 185, 'Caisse attendue recalculée (160 + 20 tirages + 5 régularisations)');
-  assert.strictEqual(cash.ecart, 5, "Écart RÉÉCRIT avec la valeur recalculée (190 caisse réelle - 185 attendue), même si le quart était déjà validé — décision explicite de Frédéric");
-  assert.strictEqual(cash.ecart_origine, -1.23, 'ecart_origine (constat d\'origine, v2.108) ne doit JAMAIS être réécrit automatiquement');
-  assert.strictEqual(cash.caisse_reelle_origine, 111.11, 'caisse_reelle_origine ne doit JAMAIS être réécrit automatiquement');
-
-  // La trace n'est plus posée par l'écran sous un nom à lui avec un acteur
-  // `null` : c'est la commande serveur qui journalise, sous son action et
-  // sous l'identité réelle de l'appelant.
-  const logRecalcul = tables.fdj_audit_log.find(l => l.action === 'fdj_caisse_corrigee_par_manager');
-  assert.ok(logRecalcul, 'Une trace d\'audit doit être posée pour le recalcul automatique (jamais un écrasement silencieux)');
-  assert.strictEqual(logRecalcul.nouvelle_valeur.ecart, 5, 'La trace d\'audit doit porter le nouvel écart');
-  assert.strictEqual(logRecalcul.ancienne_valeur.ecart, 999, 'La trace doit aussi porter l\'écart d\'avant — sinon la correction n\'est pas relisible');
-  assert.ok(logRecalcul.acteur_id, 'La trace doit nommer un acteur : la commande journalise sous l\'identité du manager, jamais sous un acteur anonyme');
-  assert.ok(/Recalcul automatique après rétablissement de chaîne/.test(logRecalcul.motif || ''),
-    'Le motif transmis à la commande doit dire pourquoi la caisse est recalculée');
-  const evtRecalcul = (tables.fdj_caisse_evenements || []).find(e => e.evenement === 'correction_manager');
-  assert.ok(evtRecalcul, 'Le recalcul doit produire un événement de journal de caisse — l\'écriture directe n\'en produisait aucun');
-  assert.strictEqual(evtRecalcul.metadata.source, 'fdj_corriger_caisse_manager');
-
-  console.log('OK — appliquerCorrectionsAutomatiquesContinuite corrige stock+ventes et RÉÉCRIT l\'écart, sans jamais toucher le constat d\'origine.');
-}
+assert.ok(!script.includes('appliquerCorrectionsAutomatiquesContinuite'),
+  'appliquerCorrectionsAutomatiquesContinuite réécrivait le stock initial du quart suivant : elle ne doit pas revenir');
+assert.ok(!script.includes("'fdj_manager_corriger_comptages'"),
+  'Aucune réécriture des comptages du quart suivant depuis la réconciliation de chaîne');
+console.log('OK — plus aucune réécriture automatique du stock initial dans l\'écran manager.');
 
 // ------------------------------------------------------------
 // 3) reconcilierAlertesChaine — bout en bout : chaîne rétablie, DEUX jeux
@@ -429,10 +378,14 @@ async function test3() {
   assert.ok(alerteResolue.resolue_le, 'resolue_le doit être posé');
   assert.ok(tables.fdj_audit_log.some(l => l.action === 'fdj_chaine_retablie_automatiquement'), 'Trace d\'audit de rétablissement de chaîne');
 
-  // g1 (stock_initial_auto=true) : corrigé automatiquement, JAMAIS d'alerte manuelle posée.
+  // g1 (stock_initial_auto=true) : depuis le 10/10/2026, jamais réécrit ;
+  // l'écart est signalé comme pour un stock confirmé.
   const g1 = tables.fdj_shift_counts.find(c => c.shift_id === 'cur1' && c.game_id === 'g1');
-  assert.strictEqual(g1.stock_initial, 40, 'g1 doit être corrigé automatiquement (stock_initial_auto=true)');
-  assert.ok(!tables.fdj_alertes.some(a => a.type === 'continuite_stock_a_verifier' && a.game_id === 'g1'), 'g1 ne doit jamais recevoir d\'alerte manuelle — il a été corrigé tout seul');
+  assert.strictEqual(g1.stock_initial, 35, 'g1 hérité ne doit plus être réécrit : le stock initial du quart suivant fait autorité');
+  const alerteG1 = tables.fdj_alertes.find(a => a.type === 'continuite_stock_a_verifier' && a.game_id === 'g1');
+  assert.ok(alerteG1, 'g1 doit recevoir l\'alerte de rupture de continuité');
+  assert.strictEqual(alerteG1.valeur_quart_precedent, 40);
+  assert.strictEqual(alerteG1.valeur_saisie, 35);
 
   // g2 (stock_initial_auto=false) : jamais touché, alerte manuelle posée à la place.
   const g2 = tables.fdj_shift_counts.find(c => c.shift_id === 'cur1' && c.game_id === 'g2');
@@ -443,11 +396,12 @@ async function test3() {
   assert.strictEqual(alerteG2.valeur_quart_precedent, 100);
   assert.strictEqual(alerteG2.valeur_saisie, 90);
 
-  // Écart de caisse recalculé et réécrit (résolution + recalcul indissociables).
+  // Aucun stock n'ayant changé, la caisse du quart suivant n'est pas touchée.
   const cash = tables.fdj_cash_controls[0];
-  assert.strictEqual(cash.ecart, 5, 'L\'écart de caisse doit être recalculé avec la correction de g1 appliquée');
+  assert.strictEqual(cash.ecart, 999, 'Aucun stock du quart suivant n\'a changé : sa caisse ne doit pas être réécrite');
+  assert.ok(!tables.fdj_audit_log.some(l => l.action === 'fdj_caisse_corrigee_par_manager'), 'Aucune correction de caisse sans changement de stock');
 
-  console.log('OK — reconcilierAlertesChaine : résolution de l\'alerte, recalcul de l\'écart et flux manuel pour les jeux non-auto sont bien indissociables et corrects, bout en bout.');
+  console.log('OK — reconcilierAlertesChaine : chaîne résolue, aucun stock initial réécrit, chaque écart signalé.');
 }
 
 // ------------------------------------------------------------
@@ -515,19 +469,18 @@ async function test4() {
   assert.strictEqual(v2.version_num, 2);
   assert.strictEqual(v2.type_version, 'recalcul_automatique_chaine', 'La nouvelle version doit être posée par NEXUS lui-même, jamais qualifiée de régularisation manager');
   assert.strictEqual(v2.cree_par, null, 'Aucun acteur humain — recalcul système (signature.role="system")');
-  assert.strictEqual(v2.caractere, 'definitif', 'Chaîne rétablie ET aucune anomalie de stock restante -> le relevé devient enfin définitif');
-  assert.strictEqual(v2.stock_initial_par_jeu.g1, 40, 'Le nouveau relevé reflète le stock_initial corrigé (40, hérité du vrai stock final du quart précédent)');
-  assert.strictEqual(v2.ecart, 125, 'Le nouveau relevé porte l\'écart RECALCULÉ (190 caisse réelle - 65 attendue avec le stock corrigé)');
-  assert.ok(v2.diff_vs_precedent, 'Un différentiel doit être posé (quelque chose a réellement changé)');
-  assert.deepStrictEqual(v2.diff_vs_precedent.stock_initial_par_jeu, { g1: { avant: 35, apres: 40 } }, 'Diff : stock initial CASH-like 35 -> 40, exactement le mécanisme demandé par Frédéric');
-  assert.deepStrictEqual(v2.diff_vs_precedent.ecart, { avant: 135, apres: 125 }, 'Diff : écart original 135€ -> écart recalculé 125€, les deux restent lisibles (v1 jamais effacée)');
+  // 10/10/2026 : l'écart de stock 40/35 subsiste (Q2 n'est plus réécrit) ;
+  // la chaîne est rétablie mais le relevé ne peut pas devenir définitif.
+  assert.strictEqual(v2.caractere, 'provisoire', 'Une rupture de continuité de stock subsiste : le relevé ne doit pas devenir définitif');
+  assert.strictEqual(v2.stock_initial_par_jeu.g1, 35, 'Le stock initial du quart suivant fait autorité : il reste à 35');
   assert.strictEqual(v2.signature.role, 'system', 'Signature explicite "system" — jamais attribuée à un humain qui n\'a rien fait');
+  assert.ok(tables.fdj_alertes.some(a => a.type === 'continuite_stock_a_verifier' && a.game_id === 'g1' && a.shift_id === 'cur2'),
+    'La rupture 40/35 doit rester signalée au manager');
 
-  console.log('OK — synchroniserRelevesApresRetablissementChaine : nouvelle version définitive posée après rétablissement de chaîne, version provisoire originale jamais réécrite, diff exact.');
+  console.log('OK — synchroniserRelevesApresRetablissementChaine : nouvelle version posée, toujours provisoire tant que la rupture de stock subsiste ; v1 jamais réécrite.');
 }
 
 (async () => {
-  await test2();
   await test3();
   await test4();
   console.log('\nTous les tests "continuité FDJ v2 — recalcul automatique" passent.');
