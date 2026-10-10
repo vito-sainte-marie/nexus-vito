@@ -601,6 +601,7 @@ jobs:
       #
       # Verrou humain, aucun posé par Claude : vars.NEXUS_MATERIALISATION_CI=arme.
       - name: Réveil Orchestrateur — matérialisation de la décision (stade a)
+        id: materialisation
         if: always() && vars.NEXUS_MATERIALISATION_CI == 'arme' && env.NEXUS_REF_EST_LE_RAIL == '1' && steps.relais_arbitre.outputs.contrat_valide == '1'
         timeout-minutes: 5
         env:
@@ -647,6 +648,8 @@ jobs:
             && git add -A docs/handoff \
             && git commit --quiet -m "handoff($LOT): décision de l'arbitre sur $REQUEST — $DECISION (matérialisée par la CI, stade a, run $GITHUB_RUN_ID)" \
             || echec DEPOT_REFUSE "handoff.js accepte la décision et la commite" "$A_LA_MAIN"
+          DEPOSEE=$(git diff-tree --no-commit-id --name-only -r HEAD -- "docs/handoff/lots/$LOT" \
+            | grep -oE 'decision-[0-9]+\.md$' | head -n 1)
           if [ "$CLOSES" = "true" ]; then
             node outils/handoff.js consommer "$LOT" \
               && git add -A docs/handoff \
@@ -657,9 +660,68 @@ jobs:
             || echec REGISTRE_INVALIDE "le registre valide après le dépôt" "$A_LA_MAIN"
           git push --quiet origin "HEAD:refs/heads/$B" \
             || echec PUSH_REFUSE "le rail $B n'a pas avancé pendant le run (push sans force)" "$A_LA_MAIN"
+          # Ce que l'étape suivante (boucle autonome) relit. Des identifiants
+          # seulement : le texte de l'arbitre reste dans le fichier déposé.
+          {
+            echo "depose=1"; echo "lot=$LOT"; echo "decision=$DEPOSEE"; echo "rail=$B"
+            echo "sha=$(git rev-parse HEAD)"; echo "wt=$WT"
+          } >> "$GITHUB_OUTPUT"
           node outils/etat-maillon.js EXECUTE DECISION_MATERIALISEE --maillon "$M" \
             --motif "$LOT : décision $DECISION sur $REQUEST déposée sur $B ($(git rev-parse --short HEAD)), closes=$CLOSES" \
             --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
+
+      # Boucle autonome — PRÉPARÉE LE 10/10/2026, NON ARMÉE. À autoriser par
+      # Frédéric (vars.NEXUS_BOUCLE_AUTONOME = arme).
+      #
+      # Après une décision déposée par le stade (a), relance Claude par
+      # `repository_dispatch` (type nexus-boucle-claude, reçu par claude.yml
+      # sur main) si et seulement si outils/relancer-claude-ci.js l'admet. Les
+      # gardes communes (interrupteur, STOP du palier Frédéric, décision déjà
+      # traitée, verdict répété, CI verte, plafonds 3 par lot et 10 par jour)
+      # sont celles d'outils/garde-boucle-autonome.js, sur un journal relu dans
+      # l'historique git du rail ; le juge y ajoute BLOCKED, STOP de l'arbitre,
+      # canal capable, lot clos et conditions antérieures prouvées. Deux verrous : ce `if:` et la même variable relue
+      # par l'outil. Aucune permission nouvelle : POST /dispatches n'exige que
+      # `contents: write`, déjà accordé. La charge utile est le fichier rendu
+      # par l'outil, cinq identifiants à motif fermé, jamais le texte de
+      # l'arbitre. Un arrêt qui demande Frédéric (palier Frédéric, BLOCKED,
+      # plafond, verdict répété, conditions non prouvées) rend
+      # HUMAN_DECISION_REQUIRED : la boucle s'arrête, elle ne prévient pas
+      # encore Frédéric par un canal dont la réception est prouvée.
+      - name: Boucle autonome — relancer Claude (repository_dispatch)
+        if: always() && vars.NEXUS_BOUCLE_AUTONOME == 'arme' && steps.materialisation.outputs.depose == '1'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXUS_BOUCLE_AUTONOME: ${{ vars.NEXUS_BOUCLE_AUTONOME }}
+          CI_DU_JOB: ${{ job.status }}
+          LOT: ${{ steps.materialisation.outputs.lot }}
+          DECISION: ${{ steps.materialisation.outputs.decision }}
+          RAIL: ${{ steps.materialisation.outputs.rail }}
+          SHA_RAIL: ${{ steps.materialisation.outputs.sha }}
+          WT: ${{ steps.materialisation.outputs.wt }}
+        run: |
+          set +e
+          set -uo pipefail
+          M=boucle-autonome
+          CHARGE="$RUNNER_TEMP/charge-boucle.json"
+          # Chaque publication est écrite en entier, état littéral et six champs
+          # sur une ligne : test_cablage_maillons_20260930.js les lit ainsi.
+          cd "$WT" || { node outils/etat-maillon.js FAILED RAIL_ILLISIBLE --maillon "$M" --motif "worktree du stade (a) absent" --condition "worktree du stade (a) absent" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "relancer Claude à la main"; exit 1; }
+          JUGE=$(node outils/relancer-claude-ci.js --lot "$LOT" --decision "$DECISION" --rail "$RAIL" \
+            --sha "$SHA_RAIL" --ci "$CI_DU_JOB" --sortie "$CHARGE")
+          [ $? = 0 ] || { node outils/etat-maillon.js FAILED JUGE_ILLISIBLE --maillon "$M" --motif "relancer-claude-ci.js a échoué : rien n'est parti" --condition "juge illisible" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "relancer Claude à la main"; exit 1; }
+          relancer=$(jq -r .relancer <<<"$JUGE"); verdict=$(jq -r .verdict <<<"$JUGE")
+          motif=$(jq -r .motif <<<"$JUGE"); notifier=$(jq -r .notifier <<<"$JUGE")
+          if [ "$relancer" = true ]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input "$CHARGE" \
+              || { node outils/etat-maillon.js FAILED DISPATCH_REFUSE --maillon "$M" --motif "$verdict : $motif — envoi refusé" --condition "dispatch refusé" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "relancer Claude à la main"; exit 1; }
+            node outils/etat-maillon.js EXECUTE CLAUDE_RELANCE --maillon "$M" --motif "$motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
+          elif [ "$notifier" = true ]; then
+            node outils/etat-maillon.js HUMAN_DECISION_REQUIRED BOUCLE_ARRETEE --maillon "$M" --motif "$verdict : $motif" --condition "$verdict" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "Frédéric tranche ; la boucle reste arrêtée"
+          else
+            node outils/etat-maillon.js NO_WORK BOUCLE_AU_REPOS --maillon "$M" --motif "$verdict : $motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
+          fi
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par

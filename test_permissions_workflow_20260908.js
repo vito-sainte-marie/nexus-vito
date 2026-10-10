@@ -120,6 +120,12 @@ const ETAPES_AVEC_JETON = [
   // contrepartie est mesurée plus bas : le script qui manipule le texte venu
   // d'OpenAI ne reçoit pas le jeton, et l'étape n'écrit qu'un commentaire.
   "Réveil Orchestrateur — relais vers l'arbitre (API OpenAI)",
+  // 10/10/2026, PRÉPARÉ, NON ARMÉ, à autoriser par Frédéric : la boucle
+  // autonome relance Claude par POST /dispatches. Aucune permission
+  // nouvelle (`contents: write` suffit). Contrepartie mesurée dans
+  // test_boucle_autonome_20261010.js : un seul appel `gh api`, POST
+  // /dispatches, charge rendue par relancer-claude-ci.js, aucun secret.
+  'Boucle autonome — relancer Claude (repository_dispatch)',
 ];
 
 t('le jeton n’est donné qu’aux étapes désignées, jamais au job', () => {
