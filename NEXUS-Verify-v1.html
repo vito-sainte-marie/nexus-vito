@@ -217,6 +217,15 @@
   .emp-checkbox{width:18px; height:18px; border:1.5px solid var(--text-dim); border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px;}
   .emp-checkbox.checked{background:var(--cyan); border-color:var(--cyan); color:#04141a;}
   .emp-empty{padding:10px 6px; color:var(--text-dim); font-size:12px;}
+  /* Recherche rapide dans une liste de salariés (§5.1 et §8.2 du 09/10/2026).
+     Le champ vit EN DEHORS du conteneur que renderMenuEmployes() réécrit :
+     dedans, chaque frappe le détruirait et emporterait le focus avec lui. */
+  .emp-recherche{width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:9px 10px; margin-bottom:4px; color:var(--text); font-family:var(--sans); font-size:13px; min-height:40px;}
+  /* Bloc Renfort : secondaire par construction. Deux cibles tactiles larges
+     (§8.2), et rien d'autre à l'écran tant que « Non » est actif (§8.1). */
+  .renfort-choix{display:flex; gap:8px; margin-bottom:8px;}
+  .renfort-btn{flex:1; min-height:44px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; color:var(--text-mid); font-family:var(--sans); font-size:13px; cursor:pointer;}
+  .renfort-btn.actif{background:var(--cyan); border-color:var(--cyan); color:#04141a; font-weight:600;}
 
   /* Cartes repliables (02/08/2026, demande de Frédéric) — les sections
      "épisode rare" (dépenses ponctuelles, remise en cuve, autres éléments)
@@ -466,6 +475,14 @@
      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-verify-moteur.js?v=20260904-0104"></script>
+<!-- Le moteur de paye, pour ses règles d'heures et rien d'autre. Verify doit
+     afficher la durée standard d'un renfort ; cette durée vit dans les
+     Paramètres Station, et c'est reglesHeures() qui sait la lire. La retaper
+     ici créerait une seconde règle, contradictoire au premier changement de
+     paramètre (§2 du 09/10/2026 : « sans duplication de règles
+     contradictoires »). Le module est une IIFE pure du dépôt : il pose
+     window.NexusPayeMoteur et rien de plus, ne lit ni n'écrit aucune donnée. -->
+<script src="nexus-paye-moteur.js?v=20261009"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -619,6 +636,31 @@
       <div class="emp-dropdown" id="dropEmployesBoutique">
         <div class="emp-dropdown-toggle"><span id="labelEmployesBoutique">Sélectionner les employés</span><span class="chevron">▾</span></div>
         <div class="emp-dropdown-menu" id="menuEmployesBoutique"></div>
+      </div>
+
+      <!-- Renfort déclaré à la clôture (§5 et §8 du 09/10/2026). Le planning
+           n'est jamais consulté ici : son indisponibilité ne doit pas
+           empêcher la déclaration. « Non » par défaut n'affiche aucun autre
+           champ ; c'est « Oui » qui révèle la liste. Le bloc reste masqué
+           tant que la colonne qui le stocke n'existe pas. -->
+      <div id="blocRenfort" style="display:none; border-top:1px solid var(--hairline); margin-top:14px; padding-top:12px;">
+        <label class="f">Renfort présent pendant ce service ?</label>
+        <div class="renfort-choix">
+          <button type="button" class="renfort-btn actif" id="renfortNon">Non</button>
+          <button type="button" class="renfort-btn" id="renfortOui">Oui</button>
+        </div>
+        <div id="zoneRenfort" style="display:none;">
+          <div class="emp-dropdown" id="dropEmployesRenfort">
+            <div class="emp-dropdown-toggle"><span id="labelEmployesRenfort">Sélectionner le renfort</span><span class="chevron">▾</span></div>
+            <div class="emp-dropdown-menu">
+              <input type="search" id="rechercheRenfort" class="emp-recherche" placeholder="Rechercher un salarié" autocomplete="off">
+              <div id="menuEmployesRenfort"></div>
+            </div>
+          </div>
+          <div class="note" id="noteRenfortHoraire"></div>
+          <div class="note" id="noteRenfortDejaDeclare" style="display:none;"></div>
+          <div class="note" id="noteRenfortDoublon" style="display:none; color:var(--amber);"></div>
+        </div>
       </div>
     </div>
 
@@ -1148,8 +1190,28 @@
     // Tous les employés actifs du site sauf le gérant.
     // ------------------------------------------------------------
     let EMPLOYES_SITE = [];
-    const employesSelectionnes = { piste: new Set(), boutique: new Set() };
-    const CLE_CAISSE = { piste: 'Piste', boutique: 'Boutique' };
+    // Le renfort est une troisième « caisse » au sens de ces structures. Il
+    // n'en est pas une, mais il se sélectionne exactement pareil, et le
+    // faire passer par le même chemin évite d'ouvrir un second chemin de
+    // code dans la clôture de caisse : le §8 du 09/10/2026 pose en exigence
+    // prioritaire que la nouveauté ne complique pas cette clôture.
+    const employesSelectionnes = { piste: new Set(), boutique: new Set(), renfort: new Set() };
+    const CLE_CAISSE = { piste: 'Piste', boutique: 'Boutique', renfort: 'Renfort' };
+    const PLACEHOLDER_EMPLOYES = { piste: 'Sélectionner les employés', boutique: 'Sélectionner les employés', renfort: 'Sélectionner le renfort' };
+    // Filtre de recherche rapide, par liste. Seule la liste renfort porte un
+    // champ de recherche ; les deux autres restent à chaîne vide, donc
+    // strictement inchangées.
+    const FILTRE_EMPLOYES = { piste: '', boutique: '', renfort: '' };
+    // Règles d'heures du renfort, lues une fois dans les Paramètres Station.
+    let REGLES_RENFORT = null;
+    // La colonne audits_caisse.employes_renfort existe-t-elle ? Tant que sa
+    // migration attend sa gate humaine, non. Et une colonne inconnue
+    // demandée dans l'upsert principal ferait échouer TOUTE l'écriture
+    // (PostgREST 42703), donc la clôture de caisse elle-même. Sondée une
+    // fois au chargement : à défaut, le bloc n'est pas offert du tout,
+    // plutôt qu'offert pour perdre la déclaration en silence.
+    let COLONNE_RENFORT_DISPONIBLE = false;
+    let RENFORT_ACTIF = false;
     // v2.273 (§1, retour de Frédéric — contexte quart persistant). Déclarée
     // ici (tôt dans le script) et non près de majContexteSticky() plus bas
     // : majContexteSticky() est appelée juste après le chargement des
@@ -1287,13 +1349,22 @@
     function majLabelEmployes(caisse) {
       const label = document.getElementById(`labelEmployes${CLE_CAISSE[caisse]}`);
       const set = employesSelectionnes[caisse];
-      label.textContent = set.size === 0 ? 'Sélectionner les employés' : nomsEmployes([...set]);
+      label.textContent = set.size === 0 ? PLACEHOLDER_EMPLOYES[caisse] : nomsEmployes([...set]);
     }
 
     function renderMenuEmployes(caisse) {
       const menu = document.getElementById(`menuEmployes${CLE_CAISSE[caisse]}`);
+      if (!menu) return;
       if (EMPLOYES_SITE.length === 0) { menu.innerHTML = `<div class="emp-empty">Aucun employé actif trouvé pour ce site.</div>`; return; }
-      menu.innerHTML = EMPLOYES_SITE.map(e => {
+      // EMPLOYES_SITE ne contient que les salariés actifs de CE site : la
+      // requête est déjà filtrée sur site_id et actif. La recherche ne fait
+      // que réduire cette liste, elle ne peut pas l'élargir. Un salarié
+      // inactif, ou d'un autre site sans autorisation, reste donc
+      // introuvable ici par construction (§5.1 et §10).
+      const filtre = normaliserTexte(FILTRE_EMPLOYES[caisse] || '');
+      const liste = filtre ? EMPLOYES_SITE.filter(e => normaliserTexte(e.nom).includes(filtre)) : EMPLOYES_SITE;
+      if (liste.length === 0) { menu.innerHTML = `<div class="emp-empty">Aucun salarié ne correspond à cette recherche.</div>`; return; }
+      menu.innerHTML = liste.map(e => {
         const checked = employesSelectionnes[caisse].has(e.id);
         return `<div class="emp-item" data-id="${e.id}">
           <div class="emp-checkbox ${checked?'checked':''}">${checked?'✓':''}</div>
@@ -1308,12 +1379,17 @@
           if (set.has(id)) set.delete(id); else set.add(id);
           renderMenuEmployes(caisse);
           majLabelEmployes(caisse);
+          // Le croisement caisse / renfort se recalcule à chaque coche, dans
+          // les deux sens : cocher en caisse quelqu'un déjà déclaré renfort
+          // doit le dire aussi (§6).
+          if (RENFORT_ACTIF) majNotesRenfort();
         });
       });
     }
 
-    ['piste', 'boutique'].forEach(caisse => {
+    ['piste', 'boutique', 'renfort'].forEach(caisse => {
       const drop = document.getElementById(`dropEmployes${CLE_CAISSE[caisse]}`);
+      if (!drop) return;
       drop.querySelector('.emp-dropdown-toggle').addEventListener('click', (e) => {
         e.stopPropagation();
         const estOuvert = drop.classList.contains('open');
@@ -1325,9 +1401,168 @@
       document.querySelectorAll('.emp-dropdown.open').forEach(d => d.classList.remove('open'));
     });
 
+    // ------------------------------------------------------------
+    // RENFORT DÉCLARÉ À LA CLÔTURE — §5, §6, §8 et §10 du cahier des
+    // charges du 09/10/2026.
+    //
+    // Verify est la source opérationnelle de vérité : une présence qu'il
+    // constate est constatée, même absente du planning. Le planning n'est
+    // donc jamais lu ici, et son indisponibilité n'empêche rien (§8.3).
+    // ------------------------------------------------------------
+
+    // Sonde la colonne une fois. Un select ciblé échoue proprement (42703)
+    // sans rien écrire ; c'est le seul moyen de savoir si la migration est
+    // passée, et il ne coûte qu'une ligne lue.
+    async function sonderColonneRenfort() {
+      try {
+        const { error } = await nexusClient.from('audits_caisse')
+          .select('employes_renfort').eq('site', SITE_ACTUEL).limit(1);
+        if (error) { console.warn('Renfort Verify : colonne employes_renfort absente, bloc masqué.', error.message); return false; }
+        return true;
+      } catch (e) {
+        console.warn('Renfort Verify : sonde de colonne impossible, bloc masqué.', e);
+        return false;
+      }
+    }
+
+    // Les heures standard du renfort ne sont PAS retapées ici : elles
+    // viennent des Paramètres Station, lues par reglesHeures() du moteur de
+    // paye. Une seule règle, un seul endroit où la changer (§2 et §5.2).
+    // Le caissier n'a donc aucun horaire à saisir à la clôture.
+    async function chargerReglesRenfort() {
+      let config = null, horaires = null;
+      try {
+        const { data, error } = await nexusClient.from('station_config')
+          .select('horaires,paye_config').eq('site', SITE_ACTUEL).maybeSingle();
+        if (!error && data) { horaires = data.horaires || null; config = data.paye_config || null; }
+      } catch (e) {
+        console.warn('Renfort Verify : paramètres station illisibles, repli sur la durée par défaut.', e);
+      }
+      const M = window.NexusPayeMoteur;
+      const regles = M ? M.reglesHeures(config, horaires) : null;
+      const horaire = (horaires && horaires.renfort) || null;
+      let pause = null;
+      if (M && horaire) {
+        if (horaire.pause_minutes != null) pause = Math.max(0, Number(horaire.pause_minutes) || 0);
+        else {
+          const pd = M.minutesHoraire(horaire.pause_debut), pf = M.minutesHoraire(horaire.pause_fin);
+          if (pd !== null && pf !== null && pf > pd) pause = pf - pd;
+        }
+      }
+      return {
+        heures: regles ? regles.heuresRenfort : (M ? M.HEURES_RENFORT_DEFAUT : 7),
+        debut: horaire && horaire.debut ? String(horaire.debut).slice(0, 5) : null,
+        fin: horaire && horaire.fin ? String(horaire.fin).slice(0, 5) : null,
+        pause,
+      };
+    }
+
+    function texteHoraireRenfort() {
+      const r = REGLES_RENFORT || { heures: 7 };
+      const heures = `soit ${String(r.heures).replace('.', ',')} h`;
+      if (!r.debut || !r.fin) return `Horaire standard de la station : ${heures} nettes. Rien à saisir.`;
+      const pause = r.pause ? `, pause ${String(Math.round(r.pause / 6) / 10).replace('.', ',')} h` : '';
+      return `Horaire standard : ${r.debut} à ${r.fin}${pause}, ${heures}. Rien à saisir.`;
+    }
+
+    // Renforts déjà déclarés le même jour sur les AUTRES quarts. Affichés
+    // pour qu'un même renfort ne soit pas déclaré deux fois (§6 et §8.1).
+    // Lecture isolée : si elle échoue, la déclaration reste possible.
+    async function chargerRenfortsDejaDeclares(date, quart) {
+      if (!COLONNE_RENFORT_DISPONIBLE || !date) return [];
+      try {
+        const { data, error } = await nexusClient.from('audits_caisse')
+          .select('quart, employes_renfort').eq('site', SITE_ACTUEL).eq('date', date);
+        if (error) { console.warn('Renfort Verify : renforts du jour illisibles.', error.message); return []; }
+        return (data || [])
+          .filter(l => String(l.quart) !== String(quart) && (l.employes_renfort || []).length)
+          .map(l => ({ quart: l.quart, ids: l.employes_renfort || [] }));
+      } catch (e) {
+        console.warn('Renfort Verify : renforts du jour illisibles.', e);
+        return [];
+      }
+    }
+
+    async function majNotesRenfort() {
+      const horaire = document.getElementById('noteRenfortHoraire');
+      if (horaire) horaire.textContent = texteHoraireRenfort();
+
+      // Doublon interne à cette clôture : quelqu'un coché en caisse et aussi
+      // déclaré renfort. Le moteur consolide déjà (caisse constatée
+      // l'emporte sur renfort, §6). C'est donc une information, jamais un
+      // blocage, et surtout jamais une suppression silencieuse.
+      const doublon = document.getElementById('noteRenfortDoublon');
+      if (doublon) {
+        const tenus = new Set([...employesSelectionnes.piste, ...employesSelectionnes.boutique]);
+        const croises = [...employesSelectionnes.renfort].filter(id => tenus.has(id));
+        if (croises.length) {
+          doublon.style.display = '';
+          doublon.textContent = `${nomsEmployes(croises)} tient déjà une caisse sur ce service : la journée sera comptée en caisse, pas deux fois. Vous pouvez laisser la déclaration.`;
+        } else { doublon.style.display = 'none'; doublon.textContent = ''; }
+      }
+
+      const deja = document.getElementById('noteRenfortDejaDeclare');
+      if (!deja) return;
+      const champDate = document.getElementById('v_date'), champQuart = document.getElementById('v_quart');
+      const autres = await chargerRenfortsDejaDeclares(champDate ? champDate.value : '', champQuart ? String(champQuart.value).trim() : '');
+      if (!autres.length) { deja.style.display = 'none'; deja.textContent = ''; return; }
+      deja.style.display = '';
+      deja.textContent = `Déjà déclaré ce jour : ${autres.map(a => `quart ${a.quart}, ${nomsEmployes(a.ids)}`).join(' · ')}.`;
+    }
+
+    function basculerRenfort(actif) {
+      RENFORT_ACTIF = !!actif;
+      const zone = document.getElementById('zoneRenfort');
+      const oui = document.getElementById('renfortOui'), non = document.getElementById('renfortNon');
+      if (zone) zone.style.display = RENFORT_ACTIF ? '' : 'none';
+      if (oui) oui.classList.toggle('actif', RENFORT_ACTIF);
+      if (non) non.classList.toggle('actif', !RENFORT_ACTIF);
+      // « Non » ne garde aucun renfort en mémoire : ce qui sera enregistré
+      // est ce que l'écran montre, pas le reste caché d'une hésitation.
+      if (!RENFORT_ACTIF) {
+        employesSelectionnes.renfort = new Set();
+        FILTRE_EMPLOYES.renfort = '';
+        const champ = document.getElementById('rechercheRenfort');
+        if (champ) champ.value = '';
+        renderMenuEmployes('renfort'); majLabelEmployes('renfort');
+      } else {
+        majNotesRenfort();
+      }
+    }
+
+    (function cablerRenfort() {
+      const oui = document.getElementById('renfortOui'), non = document.getElementById('renfortNon');
+      if (oui) oui.addEventListener('click', () => basculerRenfort(true));
+      if (non) non.addEventListener('click', () => basculerRenfort(false));
+      const champ = document.getElementById('rechercheRenfort');
+      if (champ) {
+        champ.addEventListener('input', () => { FILTRE_EMPLOYES.renfort = champ.value || ''; renderMenuEmployes('renfort'); });
+        // Taper dans le champ ne doit pas refermer le menu : le listener de
+        // fermeture vit sur document, et c'est lui qu'on arrête ici.
+        ['click', 'mousedown', 'touchstart'].forEach(ev => champ.addEventListener(ev, e => e.stopPropagation()));
+      }
+      const drop = document.getElementById('dropEmployesRenfort');
+      if (drop) {
+        const menu = drop.querySelector('.emp-dropdown-menu');
+        if (menu) menu.addEventListener('click', e => e.stopPropagation());
+      }
+    })();
+
     EMPLOYES_SITE = await chargerEmployesSite();
     renderMenuEmployes('piste');
     renderMenuEmployes('boutique');
+
+    // Le bloc Renfort ne s'offre que si la colonne qui le stocke existe.
+    COLONNE_RENFORT_DISPONIBLE = await sonderColonneRenfort();
+    if (COLONNE_RENFORT_DISPONIBLE) {
+      REGLES_RENFORT = await chargerReglesRenfort();
+      const bloc = document.getElementById('blocRenfort');
+      if (bloc) bloc.style.display = '';
+      const noteH = document.getElementById('noteRenfortHoraire');
+      if (noteH) noteH.textContent = texteHoraireRenfort();
+      renderMenuEmployes('renfort');
+      majLabelEmployes('renfort');
+    }
     majContexteSticky(); // v2.273 (§1) — affiche le contexte dès l'arrivée sur "Nouvel audit"
     chargerReprendreQuart(); // v2.273 (§9) — "Reprendre Q2" : propose le dernier quart non clôturé sans que le manager ait à le retrouver dans l'historique
 
@@ -2681,6 +2916,9 @@
       employesSelectionnes.boutique = new Set();
       renderMenuEmployes('piste'); renderMenuEmployes('boutique');
       majLabelEmployes('piste'); majLabelEmployes('boutique');
+      // Renfort : revient à « Non », qui vide la sélection et le champ de
+      // recherche. Un formulaire vierge ne porte aucune déclaration héritée.
+      if (COLONNE_RENFORT_DISPONIBLE) basculerRenfort(false);
 
       // Valeur de repli / prix figé d'une éventuelle correction passée —
       // jamais hérités par un nouvel audit.
@@ -3003,6 +3241,29 @@
         return;
       }
 
+      // Le renfort s'écrit À PART, et seulement après que la clôture a
+      // réussi. Jamais dans l'upsert ci-dessus : tant que la migration
+      // attend sa gate humaine, la colonne n'existe pas, et une colonne
+      // inconnue fait échouer TOUTE la requête (PostgREST 42703) — la
+      // clôture de caisse avec elle. Le §8.3 du 09/10/2026 l'interdit : une
+      // erreur ne doit pas faire perdre les autres données de clôture. Donc
+      // un échec ici laisse la clôture enregistrée, et se dit à l'écran.
+      // renfortEnregistre reste null quand il n'y avait rien à écrire.
+      let renfortEnregistre = null;
+      if (COLONNE_RENFORT_DISPONIBLE) {
+        const idsRenfort = RENFORT_ACTIF ? [...employesSelectionnes.renfort] : [];
+        try {
+          const { error: eRenfort } = await nexusClient.from('audits_caisse')
+            .update({ employes_renfort: idsRenfort })
+            .eq('site', SITE_ACTUEL).eq('date', date).eq('quart', quart);
+          renfortEnregistre = !eRenfort;
+          if (eRenfort) console.error('Enregistrement renfort (Verify):', eRenfort);
+        } catch (e) {
+          renfortEnregistre = false;
+          console.error('Enregistrement renfort (Verify):', e);
+        }
+      }
+
       // Repart propre pour la prochaine saisie — plus de valeur de repli ni
       // de prix figé hérités d'une éventuelle correction d'audit ancien.
       VENTE_PISTE_LEGACY = null;
@@ -3048,7 +3309,10 @@
           </div>
 
           <div class="resume-line">Présents piste : <b>${nomsEmployes([...employesSelectionnes.piste])}</b></div>
-          <div class="resume-line" style="margin-bottom:0;">Présents boutique : <b>${nomsEmployes([...employesSelectionnes.boutique])}</b></div>
+          <div class="resume-line"${renfortEnregistre === null ? ' style="margin-bottom:0;"' : ''}>Présents boutique : <b>${nomsEmployes([...employesSelectionnes.boutique])}</b></div>
+          ${renfortEnregistre === null ? '' : (renfortEnregistre
+            ? `<div class="resume-line" style="margin-bottom:0;">Renfort déclaré : <b>${RENFORT_ACTIF && employesSelectionnes.renfort.size ? nomsEmployes([...employesSelectionnes.renfort]) : 'aucun'}</b> ✓ enregistré</div>`
+            : `<div class="resume-line" style="margin-bottom:0; color:var(--red);">Le renfort n’a pas pu être enregistré. La clôture de caisse, elle, est bien enregistrée. Rouvrez cet audit depuis l’Historique pour redéclarer le renfort.</div>`)}
 
           ${statut !== 'conforme' ? `<div class="resume-line" style="color:var(--amber); margin-top:12px;"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : `<div class="resume-line" style="color:var(--green); margin-top:12px;">Les deux caisses sont rapprochées sans écart significatif. ✓ Enregistré.</div>`}
         </div>`;
@@ -3631,6 +3895,18 @@
       employesSelectionnes.boutique = new Set(a.employes_boutique || []);
       renderMenuEmployes('piste'); renderMenuEmployes('boutique');
       majLabelEmployes('piste'); majLabelEmployes('boutique');
+
+      // Renfort d'une clôture rouverte : réaffiché tel qu'il a été déclaré,
+      // avec « Oui » déjà actif, pour qu'une correction ne l'efface pas par
+      // omission (§5.3, §10 : préserver, jamais détruire). La ligne vient d'un
+      // select('*') : la colonne arrive d'elle-même une fois la migration
+      // passée, sans rien changer ici.
+      if (COLONNE_RENFORT_DISPONIBLE) {
+        const idsRenfort = a.employes_renfort || [];
+        basculerRenfort(idsRenfort.length > 0);
+        employesSelectionnes.renfort = new Set(idsRenfort);
+        renderMenuEmployes('renfort'); majLabelEmployes('renfort');
+      }
 
       // Bascule sur "Nouvel audit" avec un bandeau de contexte, pour ne pas
       // confondre une correction avec un nouvel enregistrement distinct.
