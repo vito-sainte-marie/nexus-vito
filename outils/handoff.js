@@ -101,6 +101,31 @@ function exigerRailSecurise(etat, lot) {
   signalerEnvDivergent(lot, rail, m => console.error(`AVERTISSEMENT — ${m}`));
   return rail;
 }
+// LE LOT ACTIF NE DÉPLACE PAS LE RAIL EN SILENCE.
+//
+// 10/10/2026. `handoff.js rail` lit le rail du lot actif, et tests.yml s'en
+// sert pour savoir si un run tourne SUR le rail : les étapes qui lui sont
+// réservées (matérialisation stade a, recette, écritures Test) n'y
+// s'exécutent qu'à cette condition. Le 10/10 à 03:14Z, un rapatriement a
+// enregistré NEXUS-HEURES-VERIFY-PAYE-1 sans `--rail` : le lot a reçu la
+// branche historique, puis est devenu actif. Le rail déclaré est passé de
+// handoff-continuite-20260920 à config-par-environnement sans que personne
+// l'ait désigné, et chaque push du vrai rail s'est cru ailleurs : le verdict
+// de l'arbitre (run 38046356168) n'a pas été matérialisé, en run VERT.
+//
+// Un rail ne se déduit pas d'une valeur par défaut. Toute commande qui rend
+// un lot actif refuse donc de changer le rail déclaré, sauf si l'appelant
+// l'a désigné lui-même (`--rail`) ; un lot déjà enregistré change de rail
+// par `declarer-rail`, jamais par effet de bord.
+function garderRailActif(etat, lot, rail, railDesigne) {
+  const ancien = etat && etat.lot_actif;
+  if (railDesigne || !ancien || ancien === lot || !etat.lots || !etat.lots[ancien]) return;
+  const railAncien = railDuLot(etat, ancien);
+  if (railAncien === rail) return;
+  console.error(`REFUS — rendre ${lot} actif ferait passer le rail déclaré de ${railAncien} (lot actif ${ancien}) à ${rail}, sans que personne l'ait désigné.`);
+  console.error(`Désignez le rail : --rail ${railAncien} (ou un autre rail voulu), ou handoff.js declarer-rail ${lot} <rail> avant la commande.`);
+  process.exit(1);
+}
 const DECISIONS_CANONIQUES = ['APPROVED', 'APPROVED_WITH_CONDITIONS', 'BLOCKED', 'NEEDS_EVIDENCE'];
 const DECISIONS_LEGACY = ['APPROVED_CLOSED'];
 const STATUTS_DEMANDE = ['AWAITING_DECISION'];
@@ -608,6 +633,7 @@ function enregistrerLot(lot, railDemande) {
   const horsRegistre = Array.isArray(etat.artefacts_hors_registre) ? etat.artefacts_hors_registre : [];
   if (horsRegistre.some(a => a && a.lot_id === lot)) { console.error(`REFUS — ${lot} est déclaré dans artefacts_hors_registre : un lot est soit canonique soit hors registre, jamais les deux.`); process.exit(1); }
   const rail = railDemande !== undefined ? railDemande : BRANCHE_HISTORIQUE;
+  garderRailActif(etat, lot, rail, railDemande !== undefined);
   erreurs.length = 0; avertissements.length = 0;
   validerEnveloppesLot(lot, rail);
   if (erreurs.length) {
@@ -650,6 +676,7 @@ function rattraperDemande(lot) {
   etat.lots = etat.lots || {};
   if (!etat.lots[lot]) { console.error(`REFUS — ${lot} n'est pas encore enregistré dans STATE.json.lots ; utilisez enregistrer-lot.`); process.exit(1); }
   const rail = exigerRailSecurise(etat, lot);
+  garderRailActif(etat, lot, rail, false);
   erreurs.length = 0; avertissements.length = 0;
   validerEnveloppesLot(lot, rail);
   if (erreurs.length) {
@@ -700,6 +727,7 @@ function nouvelleDemande(lot, corpsFichier, options) {
     if (deja.rail !== undefined && deja.rail !== options.rail) { console.error(`REFUS — ${lot} déclare déjà le rail ${deja.rail} au registre. Changer de rail est un acte à part : handoff.js declarer-rail ${lot} ${options.rail}`); process.exit(1); }
     rail = options.rail;
   } else rail = exigerRailSecurise(etatAvant, lot);
+  garderRailActif(etatAvant, lot, rail, options.rail !== undefined);
   const dir = path.join(LOTS, lot); fs.mkdirSync(dir, { recursive: true }); const seq = (dernier(echanges(lot, 'request')) || { seq: 0 }).seq + 1, fichier = `request-${seq}.md`, cible = path.join(dir, fichier); if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
   // GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 1 (D1) :
   // merge-base et diff applicatif calculés automatiquement, plus à la main.
