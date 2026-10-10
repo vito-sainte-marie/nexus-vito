@@ -376,9 +376,13 @@
       "consomme_le": "2026-10-10T13:24:24.024Z"
     },
     "BOUCLE-AUTONOME-ESSAI-1-20261010": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "7506f635d35fc19d825bdac1a8b55019a7a270c9",
+      "consomme_le": "2026-10-10T14:24:25.605Z"
     }
   },
   "artefacts_hors_registre": [
