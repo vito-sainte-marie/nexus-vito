@@ -1,53 +1,47 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/BOUCLE-AUTONOME-ESSAI-2-20261010/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-A6-ECRITURE-DIRECTE-20261011/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: BOUCLE-AUTONOME-ESSAI-2-20261010
-seq: 2
-author: ChatGPT
+lot_id: FDJ-A6-ECRITURE-DIRECTE-20261011
+seq: 1
+author: Frédéric Bragance
 branch: handoff-continuite-20260920
-decision: APPROVED
+decision: APPROVED_WITH_CONDITIONS
 closes: true
 in_reply_to: request-2.md
 ---
-# Décision sur request-2.md — APPROVED, lot clos
+# Décision — Lot A6 (PR #99) : clos sur les GO de Frédéric
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38070992863), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6100141151. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+## Verdict
 
-## Ce que la CI a contrôlé
+**APPROVED_WITH_CONDITIONS — lot clos.**
 
-- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `BOUCLE-AUTONOME-ESSAI-2-20261010`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
-- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `d84c72f2626efe613c101e799819d35ffc494143`, tête du rail `d84c72f2626efe613c101e799819d35ffc494143`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
-- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
+request-2 demandait le GO TEST. L'arbitre ChatGPT y a répondu vers 03:20Z le 11/10 par `BLOCKED`, `STOP_REQUIRED: SECRET_PERMISSION_SURFACE_SECURITE`, `OWNER_NEXT: Frédéric` : la migration révoque des droits et accorde EXECUTE, ce qui relève du palier humain. Cette réponse n'a pas été matérialisée sur le rail. Frédéric a ensuite donné, étape par étape, tous les GO du lot. La présente décision les consigne et ferme le lot.
 
-## Ce que la CI n'a PAS contrôlé
+## GO donnés et preuves
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
-- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
+| Étape | GO | Preuve |
+|---|---|---|
+| Migration Test | GO TEST | `20261011090000` appliquée à 10:42:10Z, registre Test 317 → 318 ; sonde Employé Test A `42501` sur les 3 tables ; épreuve rejouée 129 essais, 0 écart |
+| Recette Test | — | employé (11:07Z, commentaire #99 6108383480) et manager (11:11Z, commentaire 6108412655) : les 4 RPC prouvées, aucun `42501` légitime |
+| Fusion | GO fusion #99 | `ccfd46edc60a93026b267c9d2d374547ecdb844d` dans `production` à 11:14:25Z |
+| Déploiement | approbation `github-pages` | run 38134830727, servi à 11:15:34Z (`ccfd46e`, génération `85c9a29ea116`) |
+| Migration Production | GO migration Production A6 | ~11:18Z, transaction gardée ; registre 306 → 307, max `20261011090000` ; 4 RPC secdef `search_path=""` ; ACL des 3 tables `{postgres=arwdDxtm,authenticated=r,service_role=arwdDxtm}` ; décomptes 191 / 260 / 619 inchangés |
+| Recette Production sans écriture | GO recette Production A6 | sonde anonyme `42501` (insert, select, rpc) ; écrans servis conformes à `ccfd46e` |
 
-## Texte de l'arbitre
+## Condition restante
 
-La demande intégrale fournie dans le réveil suffit à l’arbitrage ; le connecteur GitHub n’est pas accessible dans cette session.
+Frédéric a écarté toute recette qui écrit en Production (11:25Z). Reste un **constat passif** au premier quart FDJ réel : l'audit postérieur à 11:18Z doit porter `via` ∈ {`fdj_journaliser_ouverture_validee`, `fdj_manager_journaliser`}. Une ligne sans `via` serait un contournement. Critères et requête consignés sur #99 (commentaire 6108518291). Ce constat ne rouvre pas le lot ; un écart ouvrirait un lot nouveau.
 
-Le critère d’arrêt est satisfait : le tour CI déclenché par `repository_dispatch` a consommé `decision-1.md`, matérialisé la demande et poussé sur le rail. Cela relève des acquis `COMMIT_PUSH_RAIL_SANS_GO`, `PREAUTORISATIONS_CLAUDE` et `DECISION5_CONDITION5_LEVEE`. Aucun armement supplémentaire, changement de permission, accès Production ou autre motif de palier humain n’est demandé. Le lot peut être clôturé.
+## Hors du lot
 
-RAIL_LU: INACCESSIBLE
-NEXT_ACTION_CONTRACT
-DECISION: APPROVED
-CLOSES: true
-LOT: BOUCLE-AUTONOME-ESSAI-2-20261010
-REQUEST: request-2.md
-HEAD: INACCESSIBLE
-LEASE: aucun
-GATE_STATE: G3, CI in_progress lors de la preuve
-PROOF_STATE: PROOF_VALID
-CONDITIONS: aucune
-BLOCKER: aucun
-STOP_REQUIRED: non
-CAPACITE_REQUISE: matérialisation de décision Handoff sur le rail
-OWNER_NEXT: Claude
-EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision de clôture avec outils/handoff.js decision --auteur ChatGPT.
+- `fdj_alertes`, `fdj_corrections` et les autres tables `fdj_*` encore écrivables directement : lot suivant, sur GO distinct.
+- Défaut préexistant : l'édition manager omet un jeu inactif qui porte des ventes (faux écart).
+
+## Livrées hors Handoff (mention)
+
+- **#98** (continuité des stocks FDJ Q1/Q2) : fusionnée `8e34c9a`, déployée, migration Production appliquée (308) le 11/10 ; recette à faire.
+- **#100** (garde de page sans extension) : fusionnée et déployée `9f2e7ec` le 11/10.
+
+Aucun lot n'est créé après coup pour elles. Refs constatées au dépôt de cette décision : `main` = `c516322`, `production` = `9f2e7ec`.
