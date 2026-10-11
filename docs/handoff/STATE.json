@@ -394,9 +394,13 @@
       "consomme_le": "2026-10-10T17:27:07.062Z"
     },
     "FDJ-A6-ECRITURE-DIRECTE-20261011": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "868553049bfa04d51aa256a734509efe9f48e0a4",
+      "consomme_le": "2026-10-11T12:29:30.022Z"
     }
   },
   "artefacts_hors_registre": [
