@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-A6-ECRITURE-DIRECTE-20261011/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-RELEVE-CLOTURE-A4-RECTO-20261011/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: FDJ-A6-ECRITURE-DIRECTE-20261011
-seq: 2
+lot_id: FDJ-RELEVE-CLOTURE-A4-RECTO-20261011
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,143 +13,77 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=c516322 production=6a59137
+    valeur: main=c516322 production=9f2e7ec
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 142-fichiers
-  - id: pr99-tete
+    valeur: 144-fichiers
+  - id: pr101-tete
     classe: VERIFIED
-    valeur: aa0a9d8316573b313612d80efa55782ce3501148
-  - id: epreuve-rollback-test
+    valeur: c623307596863378f384c4e7a5499ba700304159
+  - id: ci-pr101
     classe: VERIFIED
-    valeur: 129-essais-0-ecart
-  - id: registre-test
+    valeur: artefact-nonregression-cloudflare-success
+  - id: run-tests
     classe: VERIFIED
-    valeur: 317
-  - id: registre-production
+    valeur: 262-269-identique-socle
+  - id: pdf-cas-a
     classe: VERIFIED
-    valeur: 306
-  - id: reveil-request-1-bloque
-    classe: VERIFIED
-    valeur: run-38107401271-RAIL_SANS_ADRESSE
+    valeur: 1-page-29-jeux
 ---
-## Pourquoi cette request-2
+## Objet
 
-`request-1.md` (ce4447d) ne déclarait pas `wake_to` : la CI a refusé de composer le réveil (`[BLOCKED] reveil-orchestrateur (RAIL_SANS_ADRESSE)`, run 38107401271), et l'arbitre n'a rien reçu. Les échanges poussés sont immuables ; cette request-2 reprend **la même demande, sans changement de fond**, avec l'adresse posée. request-1 n'appelle pas de décision distincte.
+Lot mandaté par Frédéric le 11/10/2026 : **refondre le PDF du relevé de clôture d'un quart FDJ en une seule page A4 paysage, recto, avec le détail intégral des jeux.** Il ne doit plus y avoir de troncature ni de « + N autres — voir le détail dans l'app ».
 
-## État mesuré (11/10/2026, avant le dépôt)
+Je demande **un arbitrage sur la PR [#101](https://github.com/vito-sainte-marie/nexus-vito/pull/101)**. Le geste recommandé est le **GO de fusion** dans `production`, puis le **GO de déploiement**, qui est un geste distinct. Il n'y a **aucune migration** et aucune écriture en base.
+
+## État mesuré (11/10/2026)
 
 | Fait | Valeur | Comment |
 |---|---|---|
-| PR | [#99](https://github.com/vito-sainte-marie/nexus-vito/pull/99), OPEN vers `production`, MERGEABLE, **non fusionnée** | `gh pr view 99` |
-| Tête | `aa0a9d8316573b313612d80efa55782ce3501148` (branche `fdj-a6-ecriture-directe-releves-reports-audit-20261011`, base `6a59137`) | `gh pr view` |
-| CI de #99 | non-regression ×2 SUCCESS, Cloudflare Pages SUCCESS, Supabase Preview SKIPPED | `statusCheckRollup` |
-| Migration | `supabase/migrations/20261011090000_fdj_a6_ecriture_directe_releves_reports_audit_fermee.sql` | — |
-| Registre Test | **317**, dernière `20261010170000` (inchangé après l'épreuve) | psql Test |
-| Registre Production | **306**, défaut A6 présent (grants mesurés en lecture seule à 02:58:48Z) | `execute_sql` en `begin read only` |
-| PR #98 | non fusionnée (consigne de Frédéric) | — |
+| PR | #101, OPEN vers `production`, MERGEABLE, **non fusionnée** | `gh pr view 101` |
+| Tête | `c623307596863378f384c4e7a5499ba700304159` (branche `fdj-releve-cloture-a4-recto-20261011`, base `9f2e7ec`) | — |
+| CI de #101 | Construire et éprouver l'artefact SUCCESS, non-regression ×2 SUCCESS, Cloudflare Pages SUCCESS ; GitHub Pages et Supabase Preview SKIPPED | `statusCheckRollup` |
+| Fichiers | `NEXUS-FDJ-Manager-v1.html`, `test_fdj_releve_cloture_paysage_1page.js` (réécrit), `test_fdj_releve_manager_ecran.js` | — |
+| run-tests local | 262/269, **identique** au socle `origin/production` 9f2e7ec : les 7 mêmes rouges connus, aucun nouveau | — |
 
-## Objet
+## Diagnostic
 
-Le correctif de sécurité **A6**, mandaté par Frédéric le 11/10. Un caissier peut écrire directement dans trois tables : `fdj_releves_cloture`, `fdj_reports` et `fdj_audit_log`. Il peut y faire un INSERT, un UPDATE, un DELETE ou un TRUNCATE. Production et Test sont tous deux concernés.
+Le PDF de référence est le Q1 du 10/10, quart de Loane : 29 jeux, caisse 1 501,50 / 1 501,50, deux versions dont une régularisation manager. `construireReleveClotureQuartPdf` n'imprimait que les 10 premiers jeux. Il mêlait les quantités et les euros dans une même cellule, et affichait un écart signé.
 
-La PR #99 est prête. Je demande le **GO TEST** : appliquer `20261011090000` sur la base **Test seulement**. La sonde navigateur du vrai caissier pourra alors être rejouée sur la base corrigée.
+## Changement (un générateur, même moteur pdf-lib)
 
-## 1) Le défaut, mesuré par un vrai caissier
+- **En-tête compact** : station, quart, employé, validation, identifiant abrégé, `Version N/total · Définitif|Provisoire`.
+- **Gauche (65 %)** : un tableau de stock intégral sur 7 colonnes. Les jeux sans vente sont présents et le total grattage figure en pied de tableau. Les incohérences quantité/montant sont **signalées**, jamais corrigées.
+- **Droite (35 %)** : la synthèse caisse (« Caisse conforme / Excédent constaté / Manquant constaté », écart en valeur absolue), les contrôles, puis l'historique des versions. L'historique est complet s'il tient ; sinon il est condensé, avec le nombre réel de versions, l'initiale, la dernière et un renvoi vers NEXUS.
+- **Donnée absente** : affichée « non saisi » ou « indisponible » et comptée en anomalie.
+- **Contenu impossible à tenir sur une page** : le relevé **n'est pas généré**, et un conflit explicite est remonté (« rien n'a été tronqué »). Il n'y a ni annexe, ni réduction arbitraire des polices.
 
-Session navigateur ouverte sur NEXUS Test avec **Employé Test A** (rôle caissier, site `nexus-station-test`). Les insertions de sonde ne portent que `site`. Elles franchissent donc les droits et la RLS, puis échouent sur une contrainte NOT NULL, et rien n'est écrit.
+## Recette (vrais PDF générés avec pdf-lib)
 
-| Table | Résultat | Lecture |
-|---|---|---|
-| `fdj_releves_cloture` | `23502` | droit et RLS franchis : **A6 ouvert** |
-| `fdj_reports` | `23502` | idem |
-| `fdj_audit_log` | `23502` | idem |
-
-`anon` et `authenticated` disposent de INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER et SELECT sur les trois tables. Aucune politique DELETE n'existe. TRUNCATE ne passe pas par la RLS.
-
-## 2) Le correctif (#99)
-
-**Quatre RPC** `SECURITY DEFINER`, avec `search_path=""` et EXECUTE accordé à `authenticated` et `service_role` seulement :
-- `fdj_manager_journaliser` ;
-- `fdj_journaliser_ouverture_validee` ;
-- `fdj_manager_poser_releve_cloture` ;
-- `fdj_manager_enregistrer_rapports`.
-
-**Révocations** sur les trois tables :
-- `insert`, `update`, `delete`, `truncate`, `references`, `trigger` et `maintain`, retirés à `public`, `anon` et `authenticated` ;
-- `select`, retiré à `public` et `anon`.
-
-**Écrans** :
-- `NEXUS-FDJ-Manager-v1.html` : 13 écritures directes passent par les RPC ;
-- `NEXUS-FDJ-v1.html` : 1 écriture directe passe par une RPC.
-
-## 3) Résultats de sécurité
-
-Épreuve sur Test dans une **transaction annulée** : la migration est chargée par `\i`, puis tout est annulé par `rollback`. Je l'ai rejouée moi-même sur `aa0a9d8` : **129 essais, 0 écart, rc=0**. Le registre Test reste à 317.
-
-| Famille | Essais | Résultat |
-|---|---|---|
-| Défaut reproduit avant la migration (caissier) | 48 | INSERT, UPDATE, DELETE et TRUNCATE acceptés, y compris TRUNCATE |
-| Droits après la migration | 6 | fermés |
-| **Refus après la migration** (caissier, manager et `anon` × 4 verbes × 3 tables) | 48 | **`42501` dans tous les cas** |
-| Refus des RPC | 13 | caissier `42501` ; `anon` `42501` ; action hors liste, autre entité ou version hors séquence `22023` ; version déjà prise `23505` ; type `correction_employe` `22023` |
-| **Parcours légitimes** (P1 à P14 : ouverture, clôture, relevés, rapports, synchronisation des relevés courants, commandes caisse) | 14 | **tous OK** |
-
-**Autres contrôles :**
-- `test_fdj_a6_ecriture_directe_fermee_20261011.js` : 19 vérifications, 0 échec. Douze mutations contrôlées rougissent bien ce test.
-- `run-tests` : 260/267, aucun nouveau rouge. Les 7 rouges sont préexistants (inventaire ×4, réception ×3), identiques au socle.
-- Garde d'ordre de migration : rc=0.
-- Empreinte : 32/32.
-
-## 4) A5 : d'autres chemins contournent-ils A6 ?
-
-Non, aucun chemin ne contourne la correction A6.
-
-- `fdj_cash_controls` et `fdj_shift_counts` refusent l'écriture directe avec `42501` : lot du 10/10.
-- L'appel direct d'une fonction de déclencheur rend `0A000`.
-
-**Reste ouvert, hors A6 :** `fdj_alertes`, `fdj_corrections` et d'autres tables `fdj_*` restent écrivables directement. C'est le même motif de défaut, à traiter dans un lot suivant. Je ne l'élargis pas ici.
-
-## 5) Régressions et risques
-
-1. **Ordre de déploiement : le code d'abord, la migration aussitôt.** Les écrans actuels écrivent directement dans les trois tables. Appliquée seule, la migration les fait échouer en `42501` sur ces écritures (clôture, rapports, journal manager).
-2. **Conséquence sur Test.** `nexus-test-ddf.pages.dev` sert la branche gelée `18ce051`, pas #99. Après application sur Test, les écritures FDJ de l'écran servi échoueront en `42501`, tant que #99 n'est pas servie sur Test. C'est voulu sur une base de recette : cela prouve la fermeture. Mais la recette FDJ navigateur de #98 sur l'écran servi (clôture manager) cessera de fonctionner sur ces trois chemins.
-3. **Conflit textuel avec #98.** Les deux PR touchent `NEXUS-FDJ-Manager-v1.html` et la qualification d'ordre. Celle qui fusionnera en second devra être rebasée, avec recalcul de l'empreinte et de `blob_migration`.
-4. **`anon` perd SELECT** sur les trois tables. Les écrans FDJ les lisent sous session authentifiée ; une lecture sans session éventuelle n'a pas été inventoriée écran par écran.
-5. Les politiques RLS d'écriture deviennent **inertes**, puisque le droit sous-jacent est retiré. Elles sont conservées, sans effet.
-6. Le **snapshot** d'un relevé reste calculé par le client. La RPC valide le rang, le type et le droit, pas le contenu. C'est une limite connue.
-7. Les fonctions de déclencheur restent exécutables par PUBLIC. C'est préexistant et sans effet, puisqu'elles ne peuvent pas être appelées directement.
-
-## Ce qui est demandé à l'arbitre
-
-Un verdict sur **une seule chose** : le GO TEST pour appliquer `20261011090000` sur la base **Test** (`udljdqxerrbbbajxubfn`), selon le protocole déjà suivi pour #98 :
-
-1. **Préflight en lecture seule.** Base Test, site `nexus-station-test` présent, registre 317, dernière estampille `20261010170000`, `20261011090000` absente, les quatre RPC absentes. Toute valeur différente arrête la procédure.
-2. **Application** par psql vers Test, en une transaction : bloc `DO` gardé, texte du fichier au blob de `aa0a9d8`, ligne du registre. Attendu : 317 → 318.
-3. **Constat.** Les quatre RPC sont présentes (`secdef`, `search_path=""`, EXECUTE). Les grants des trois tables sont fermés pour `anon` et `authenticated`.
-4. **Sonde navigateur** d'Employé Test A rejouée. Attendu : `42501` sur les trois tables, au lieu de `23502`.
-5. Rapport consigné dans la PR #99, puis `request-2`.
-
-**Hors du ressort de ce verdict**, et réservés à Frédéric : la fusion de #99, le déploiement, l'application en Production, et toute action sur #98.
-
-Si l'arbitre juge que le motif `SECURITE_RLS_SITE_ID` s'applique à une **fermeture** de droits sur Test, le verdict attendu est `STOP_REQUIRED: oui` avec ce motif, et Frédéric arbitre.
-
-| Champ | Valeur attendue pour un GO |
+| Cas | Résultat |
 |---|---|
-| `DECISION` | `APPROVED` ou `APPROVED_WITH_CONDITIONS` |
-| `CLOSES` | `false` |
-| `STOP_REQUIRED` | `non` |
-| `OWNER_NEXT` | `Claude` |
-| `EXECUTANT_NEXT` | `session-claude-habilitee`. Le canal `github-actions-claude` n'a pas `SUPABASE_TEST_ECRITURE` : il donnerait `CANAL_INCAPABLE`. |
-| `CAPACITE_REQUISE` | `SUPABASE_TEST_ECRITURE` |
+| A — Q1 du 10/10, données Production lues en `begin read only` | 1 page 841,89 × 595,28, 29/29 jeux, Caisse conforme, Version 2/2 · Définitif |
+| B — mouvements (approvisionnements) | 1 page |
+| C — manquant −37,50 / excédent +12,00 | libellés et écart absolu corrects |
+| D — 6 versions ; D' — 21 versions | liste complète ; historique condensé « 21 versions au total » |
+| E — noms longs, montants ×1000 | 1 page |
+| F — 149 jeux ; F' — 29 stocks finaux absents | conflit levé, aucun PDF |
 
-## Guardians
+**Frontières mesurées.** Les noms tiennent jusqu'à environ 51 caractères avec des montants ×1000 ; le plus long nom réel en Production fait 22 caractères. Au-delà d'environ 19 à 22 anomalies d'une ligne, le conflit est levé ; le cas réel en compte 1.
 
-- **Architecture** : aucun changement de schéma de table. Quatre fonctions et des révocations.
-- **Security & Isolation** : fermeture stricte des droits. Aucun droit élargi, aucun site réel touché, aucun élargissement de `nexus_ci_recette`.
-- **Business Rules** : les parcours FDJ légitimes sont prouvés par P1 à P14.
-- **QA/Regression** : 129/129, 260/267 au socle. Le seul effet visible est le risque 2 (l'écran servi sur Test).
-- **Production** : intacte (306). Aucune fusion, aucun déploiement.
+**Mutations, dans une copie jetable.** Tronquer à 10 jeux, signer l'écart, tronquer l'historique, couper les anomalies, neutraliser la garde du tableau : **toutes rougissent**.
+
+## Hors périmètre, inchangé
+
+Règles FDJ, calcul de caisse, stocks, priorité Q2/Q1, RLS, certification, régularisations, écritures fermées par A6. Il n'y a aucune migration.
+
+## Prochain geste recommandé
+
+1. **GO de fusion de #101** (Frédéric ou arbitre).
+2. Puis le **GO de déploiement** : l'approbation de l'environnement `github-pages` reste un geste humain distinct.
+3. Après le déploiement : comparer le HTML servi à `production` sans les lignes `<script src>` entières, puis générer un relevé réel en lecture seule.
+
+Je ne fusionne ni ne déploie quoi que ce soit sans ce GO.
