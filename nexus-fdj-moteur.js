@@ -550,15 +550,15 @@
   //     arbitrage manager.
   // `stockInitialAutoParJeu` : { [game_id]: boolean } du quart ACTUEL
   // uniquement (celui dont le stock_initial est en jeu, pas le précédent).
+  //
+  // ARBITRAGE DÉFINITIF du 10/10/2026 (continuité des stocks Q1/Q2) : le
+  // stock initial de Q2, dès qu'il existe, fait autorité ; il n'est JAMAIS
+  // réécrit à partir de Q1, hérité ou non. `applicables` reste dans la
+  // forme de retour pour les appelants, mais est désormais toujours vide :
+  // tout écart devient une rupture signalée (`aRevoir`), que le manager
+  // résout en rapprochant la fin de Q1 (voir rapprochementFinQ1).
   function ecartsContinuiteAAppliquer(ecarts, stockInitialAutoParJeu) {
-    const auto = stockInitialAutoParJeu || {};
-    const applicables = [];
-    const aRevoir = [];
-    (ecarts || []).forEach(e => {
-      if (auto[e.game_id] === true) applicables.push(e);
-      else aRevoir.push(e);
-    });
-    return { applicables, aRevoir };
+    return { applicables: [], aRevoir: (ecarts || []).slice() };
   }
 
   // ------------------------------------------------------------
@@ -1338,13 +1338,86 @@
       if (c.game_id === undefined || c.game_id === null) return;
       const ctx = contexte[c.game_id];
       if (!ctx) return; // le quart suivant n'a pas encore de ligne pour ce jeu -> rien à propager pour l'instant
-      if (ctx.stock_initial_auto === true) {
-        applicables.push({ game_id: c.game_id, stock_final_precedent: c.nouvelle_valeur });
-      } else if (ctx.stock_initial !== c.nouvelle_valeur) {
+      // Arbitrage du 10/10/2026 : « Ne jamais écraser une valeur initiale
+      // Q2 déjà enregistrée à partir d'une modification de Q1. » Hérité ou
+      // confirmé, Q2 reste tel quel ; une divergence est signalée.
+      if (ctx.stock_initial === undefined || ctx.stock_initial === null) return;
+      if (Number(ctx.stock_initial) !== Number(c.nouvelle_valeur)) {
         aRevoir.push({ game_id: c.game_id, valeur_quart_precedent: c.nouvelle_valeur, valeur_saisie: ctx.stock_initial });
       }
     });
     return { applicables, aRevoir };
+  }
+
+  // ============================================================
+  // CONTINUITÉ DES STOCKS Q1/Q2 — ARBITRAGE DÉFINITIF du 10/10/2026
+  // (Frédéric). Remplace la règle « priorité au stock initial du quart
+  // suivant » du même jour. Fonctions pures ; l'écran et la RPC
+  // fdj_manager_aligner_fin_quart_precedent portent le reste (motif, journal, recalcul).
+  // ============================================================
+
+  const absentStock = (v) => v === undefined || v === null || v === '' || !Number.isFinite(Number(v));
+
+  // §1 — Initialisation bidirectionnelle, jeu par jeu.
+  //   - fin Q1 absente, début Q2 présent -> 'renseigner_fin_q1' (valeur = début Q2)
+  //   - début Q2 absent, fin Q1 présente -> 'preremplir_debut_q2' (valeur = fin Q1)
+  //   - les deux présents et différents  -> 'rupture' (Q2 fait autorité)
+  //   - égaux, ou les deux absents       -> 'aucune'
+  // Jamais 0 par défaut : une valeur absente ne s'invente pas.
+  function initialisationContinuite(finQ1, debutQ2) {
+    const f = absentStock(finQ1) ? null : Number(finQ1);
+    const d = absentStock(debutQ2) ? null : Number(debutQ2);
+    if (f === null && d === null) return { action: 'aucune', valeur: null };
+    if (f === null) return { action: 'renseigner_fin_q1', valeur: d };
+    if (d === null) return { action: 'preremplir_debut_q2', valeur: f };
+    if (f !== d) return { action: 'rupture', valeur: d, ecart: f - d };
+    return { action: 'aucune', valeur: d };
+  }
+
+  // §2 — Autorité du début Q2. `debutsQ2` : { game_id: stock_initial Q2 } ;
+  // `finsQ1` : { game_id: stock_final Q1 actuel }. Rend la liste des fins
+  // de Q1 à aligner. `alerteManager` est vrai dès qu'une fin de Q1 DÉJÀ
+  // ENREGISTRÉE est corrigée (§3 : « Alerter le manager lorsqu'une
+  // modification du début Q2 entraîne une correction de la fin Q1 ») ; une
+  // fin absente simplement renseignée n'alerte pas.
+  function rapprochementFinQ1(debutsQ2, finsQ1) {
+    const debuts = debutsQ2 || {};
+    const fins = finsQ1 || {};
+    const corrections = [];
+    Object.keys(debuts).forEach(gameId => {
+      const d = debuts[gameId];
+      if (absentStock(d)) return;
+      const f = fins[gameId];
+      if (absentStock(f)) {
+        corrections.push({ game_id: gameId, ancienne_valeur: null, nouvelle_valeur: Number(d), correction_valeur_enregistree: false });
+      } else if (Number(f) !== Number(d)) {
+        corrections.push({ game_id: gameId, ancienne_valeur: Number(f), nouvelle_valeur: Number(d), correction_valeur_enregistree: true });
+      }
+    });
+    return { corrections, alerteManager: corrections.some(c => c.correction_valeur_enregistree) };
+  }
+
+  // §3 — Une correction d'une valeur déjà enregistrée exige un motif.
+  // `avant` / `apres` : { game_id: { stock_initial, stock_final } }. Ne
+  // compte que les champs dont l'ancienne valeur existait (renseigner un
+  // champ vide n'est pas corriger).
+  const MOTIF_CORRECTION_STOCK_MIN = 5;
+  function correctionsValeursEnregistrees(avant, apres) {
+    const a = avant || {};
+    const b = apres || {};
+    const out = [];
+    Object.keys(b).forEach(gameId => {
+      ['stock_initial', 'stock_final'].forEach(champ => {
+        const ancien = a[gameId] ? a[gameId][champ] : undefined;
+        const nouveau = b[gameId] ? b[gameId][champ] : undefined;
+        if (absentStock(ancien) || absentStock(nouveau)) return;
+        if (Number(ancien) !== Number(nouveau)) out.push({ game_id: gameId, champ, ancienne_valeur: Number(ancien), nouvelle_valeur: Number(nouveau) });
+      });
+    });
+    return out;
+  }
+  function motifCorrectionStockValide(motif) {
+    return typeof motif === 'string' && motif.trim().length >= MOTIF_CORRECTION_STOCK_MIN;
   }
 
   // ============================================================
@@ -1992,6 +2065,27 @@
     return evts;
   }
 
+  // Libellé d'un écart de caisse (revue du 10/10/2026). Écart = compté −
+  // théorique, jamais inversé : négatif = manquant, positif = excédent. Le
+  // montant est affiché sans signe, le sens est porté par le mot. Un manquant
+  // n'est ni une dette ni une retenue. Mêmes textes que la base
+  // (fdj_libelle_ecart_manager) pour le public 'manager'.
+  //   reference : « Excédent de caisse » / « Manquant de caisse » / « Caisse conforme »
+  //   employe   : « Écart en plus » / « Écart en moins »
+  //   manager   : « Excédent constaté » / « Manquant constaté »
+  const LIBELLES_ECART_CAISSE = {
+    reference: { plus: 'Excédent de caisse', moins: 'Manquant de caisse' },
+    employe: { plus: 'Écart en plus', moins: 'Écart en moins' },
+    manager: { plus: 'Excédent constaté', moins: 'Manquant constaté' },
+  };
+  function libelleEcartCaisse(ecart, publicVise) {
+    if (ecart === null || ecart === undefined || ecart === '' || !Number.isFinite(Number(ecart))) return 'Non comparable';
+    const e = Math.round(Number(ecart) * 100) / 100;
+    if (e === 0) return 'Caisse conforme';
+    const l = LIBELLES_ECART_CAISSE[publicVise] || LIBELLES_ECART_CAISSE.reference;
+    return `${e > 0 ? l.plus : l.moins} : ${Math.abs(e).toFixed(2).replace('.', ',')} €`;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye, etapeCaisseFdj,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference, instantEffetMouvement,
@@ -2008,7 +2102,10 @@
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
+    LIBELLES_ECART_CAISSE, libelleEcartCaisse,
     propagationCorrectionStock,
+    initialisationContinuite, rapprochementFinQ1, correctionsValeursEnregistrees,
+    MOTIF_CORRECTION_STOCK_MIN, motifCorrectionStockValide, absentStock,
     syntheseExceptionsManager,
     caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,
     progressionComptageQuart,
