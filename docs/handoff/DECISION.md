@@ -1,56 +1,48 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-RELEVE-CLOTURE-A4-RECTO-20261011/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: FDJ-RELEVE-CLOTURE-A4-RECTO-20261011
-seq: 3
-author: ChatGPT
+lot_id: FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011
+seq: 1
+author: Frédéric Bragance
 branch: handoff-continuite-20260920
-decision: APPROVED
-closes: true
-in_reply_to: request-3.md
+decision: APPROVED_WITH_CONDITIONS
+closes: false
+in_reply_to: request-1.md
+wake_to: ChatGPT
 ---
-# Décision sur request-3.md — APPROVED, lot clos
+## Provenance
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38153421798), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6110872513. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+Texte collé par Frédéric dans la session Claude Code le 11/10/2026, sans autre message. Il répond aux « Points soumis à l'arbitre » de `request-1.md`. Sa rédaction est peut-être celle de l'arbitre ChatGPT, mais aucun contrat `NEXT_ACTION_CONTRACT` ne l'accompagne et je n'ai aucun moyen de le vérifier. Il est donc attribué à Frédéric, qui l'a transmis. Claude le matérialise sans rien en retrancher, mais **ne l'arbitre pas**.
 
-## Ce que la CI a contrôlé
+## Portée (lecture de Claude, à corriger par l'arbitre si elle est fausse)
 
-- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `FDJ-RELEVE-CLOTURE-A4-RECTO-20261011`, `REQUEST` = `request-3.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
-- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `48728a288f4f06c30a03e5dd10180bb46ff61f92`, tête du rail `48728a288f4f06c30a03e5dd10180bb46ff61f92`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
-- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
+- **Accordé** : implémenter et éprouver la nouvelle règle **en développement et sur Test**, sur la branche de #102.
+- **Non accordé** : les GO 2 à 6 de `request-1.md` (migration Production, fusion de #102, déploiement GitHub Pages, recette Production, régularisation de `539e87bc`). Le texte se termine par « Aucun GO Production implicite. » Une `request-2` présentera le nouvel état et redemandera chaque GO séparément.
+- La règle `inconnu` de `20261011200000`, qui laisse le début NULL et lève l'alerte `continuite_stock_a_verifier`, ne s'applique plus qu'aux fins NULL **historiques** avec stock restant. Une telle fin est une « incohérence réelle qui subsiste » (règle 10). Après cette étape, aucune nouvelle fin NULL ne peut être validée.
 
-## Ce que la CI n'a PAS contrôlé
+## Texte de l'arbitrage (verbatim)
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`Claude`), qui les vérifie avant d'agir.
-- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
+NEXUS FDJ — Nouvel arbitrage métier : confirmation des stocks finaux avant clôture
 
-## Texte de l'arbitre
+Cette décision remplace la proposition précédente consistant à générer systématiquement une anomalie manager pour une fin de stock vide.
 
-DECISION: APPROVED.
+Objectif : résoudre les omissions de saisie au moment de la validation du quart FDJ, sans intervention manager ultérieure.
 
-J’arbitre sur le texte intégral de `request-3.md` et le mandat reproduits dans le réveil, le connecteur au rail n’étant pas accessible ici. Les preuves indiquent que la fusion et le déploiement Production ont déjà été autorisés par Frédéric dans `decision-2`, exécutés avec succès, puis validés par une recette conforme. La décision présente clôt uniquement le lot et n’autorise aucune nouvelle opération Production.
+Règles :
 
-Les acquis `DELEGATION_ARBITRE`, `CHATGPT_DECIDE_CLAUDE_MATERIALISE` et `COMMIT_PUSH_RAIL_SANS_GO` s’appliquent. Le constat passif du premier relevé imprimé ne constitue pas une dépendance de clôture.
+1. Si stock disponible = 0 et stock final vide, enregistrer automatiquement un stock final explicite de 0.
+2. Si stock disponible > 0 et stock final vide, afficher avant validation une confirmation : « Le stock final de [JEU] est-il bien de 0 ticket, ou avez-vous oublié de le renseigner ? »
+3. Proposer deux choix :
+   * « Confirmer 0 » : enregistrer explicitement 0 et tracer la confirmation.
+   * « Corriger la saisie » : revenir au jeu concerné sans clôturer le quart.
+4. Si plusieurs jeux sont concernés, afficher une fenêtre unique avec tous les jeux et une décision explicite pour chacun. Aucun choix ne doit être présélectionné.
+5. La validation finale doit être impossible tant qu'une quantité finale demeure indéterminée.
+6. Appliquer les mêmes règles aux validations employé et manager, ainsi qu'aux régularisations autorisées.
+7. Après validation, la continuité Q1 → Q2 doit reprendre les stocks finaux explicites, sans créer de nouvelles fins NULL.
+8. Préserver l'historique, les droits, les certifications et les protections A6.
+9. Tester les cas stock nul, stock positif, un ou plusieurs champs vides, confirmation 0, retour à la saisie et ouverture du quart suivant.
+10. Conserver un signalement manager uniquement pour les incohérences réelles qui subsistent après cette étape.
 
-RAIL_LU: INACCESSIBLE
-
-NEXT_ACTION_CONTRACT
-DECISION: APPROVED
-CLOSES: true
-LOT: FDJ-RELEVE-CLOTURE-A4-RECTO-20261011
-REQUEST: request-3.md
-HEAD: INACCESSIBLE
-LEASE: aucun
-GATE_STATE: G3, déploiement CI réussi et recette après déploiement conforme
-PROOF_STATE: PROOF_VALID
-CONDITIONS: aucune
-BLOCKER: aucun
-STOP_REQUIRED: non
-CAPACITE_REQUISE: écriture et push sur le rail Handoff
-OWNER_NEXT: Claude
-EXECUTANT_NEXT: Claude
-ACTION_NEXT: Matérialiser cette décision APPROVED avec clôture du lot via `outils/handoff.js decision --auteur ChatGPT`, puis la pousser sur le rail.
+Implémenter et tester sur branche de travail via le Handoff canonique. Aucun GO Production implicite.

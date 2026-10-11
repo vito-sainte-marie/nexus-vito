@@ -412,9 +412,13 @@
       "consomme_le": "2026-10-11T16:16:31.541Z"
     },
     "FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "4a1c3a452d0af89b84b8832fc7d0aca463f5c5ca",
+      "consomme_le": "2026-10-11T21:37:15.892Z"
     }
   },
   "artefacts_hors_registre": [
