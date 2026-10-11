@@ -60,13 +60,17 @@ assert.ok(NexusFdjMoteur && typeof NexusFdjMoteur.labelResultatControle === 'fun
 
 let pagesCreees = [];
 let textes = [];
+let traces = [];
+let rectangles = [];
 const fakeFont = { widthOfTextAtSize: (t, s) => String(t).length * s * 0.5 };
 function fakeDoc() {
   const pages = [];
   return {
     addPage: (dims) => {
       pagesCreees.push(dims);
-      const p = { drawText: (t) => textes.push(String(t)), drawRectangle: () => {}, drawLine: () => {}, drawImage: () => {} };
+      const p = {
+        drawText: (t, o = {}) => { textes.push(String(t)); traces.push({ t: String(t), taille: o.size, couleur: o.color, x: o.x, y: o.y }); },
+        drawRectangle: (o) => rectangles.push(o), drawLine: () => {}, drawImage: () => {} };
       pages.push(p);
       return p;
     },
@@ -115,7 +119,7 @@ const shift = { id: '84e16ef6-4fc3-473d-baff-02c5b9e69ca3', date: '2026-10-10', 
 // sans aucun mouvement (ils doivent rester imprimés). `nbRegul` : nombre
 // de régularisations manager après la V1. `ecart` : réelle − attendue.
 function scenario(opts) {
-  const { n = 29, prefixe = '', ecart = 0, nbRegul = 1, sansVente = 0, finalAbsent = false, caractere = 'definitif' } = opts || {};
+  const { n = 29, prefixe = '', ecart = 0, nbRegul = 1, sansVente = 0, finalAbsent = false, videZero = false, caractere = 'definitif' } = opts || {};
   const jeux = Array.from({ length: n }, (_, k) => ({ id: `j${k}`, nom: prefixe + (NOMS[k] || `JEU SUPPLÉMENTAIRE ${k}`), prix: PRIX[k] || 5, actif: true, ordre_affichage: 10 * (k + 1) }));
   const cartes = { stock_initial_par_jeu: {}, appro_par_jeu: {}, stock_final_par_jeu: {}, ventes_par_jeu: {} };
   let ventes = 0;
@@ -126,6 +130,17 @@ function scenario(opts) {
     cartes.ventes_par_jeu[j.id] = { qte: q, valeur: q * j.prix };
     ventes += q * j.prix;
   });
+  // videZero : cas MISSION PATRIMOINE 15 € du relevé de référence — stock
+  // initial 0, approvisionnement, stock final, quantité et montant non
+  // renseignés (le jeu ne porte aucune vente dans le total).
+  if (videZero) {
+    const der = jeux[n - 1].id;
+    ventes -= cartes.ventes_par_jeu[der].valeur;
+    cartes.stock_initial_par_jeu[der] = 0;
+    cartes.appro_par_jeu[der] = null;
+    cartes.stock_final_par_jeu[der] = null;
+    cartes.ventes_par_jeu[der] = { qte: null, valeur: null };
+  }
   if (finalAbsent) {
     const der = jeux[n - 1].id;
     cartes.stock_final_par_jeu[der] = null;
@@ -150,9 +165,35 @@ function scenario(opts) {
 async function produire(sc, sansContexte) {
   pagesCreees = [];
   textes = [];
+  traces = [];
+  rectangles = [];
   const gen = generateur(sc.jeux, employesSite);
   const pdf = sansContexte ? await gen(shift, sc.versions) : await gen(shift, sc.versions, sc.contexte);
   return { pdf, tout: textes.join(' ') };
+}
+
+// Bandeau ÉCART CONSTATÉ : état, couleur, signe, taille, pleine largeur, et
+// placé entre le corps et le pied de page (jamais sur le contenu).
+const C = NexusPdfMoteur.COULEUR;
+function bandeauEcart(cas, { mot, montant, encre, fond }) {
+  const tMot = traces.find(x => x.t === mot);
+  const tMontant = traces.find(x => x.t === montant);
+  const tTitre = traces.find(x => x.t === 'ÉCART CONSTATÉ');
+  assert.ok(tTitre, `${cas} : bandeau « ÉCART CONSTATÉ » imprimé`);
+  assert.ok(tMot && tMot.couleur === encre && tMot.taille >= 18, `${cas} : état « ${mot} » en gros, dans la bonne couleur`);
+  assert.ok(tMontant && tMontant.couleur === encre && tMontant.taille >= 20, `${cas} : montant « ${montant} » en gros, dans la bonne couleur`);
+  const r = rectangles.find(x => x.color === fond && x.borderColor === encre);
+  assert.ok(r, `${cas} : fond du bandeau de la couleur de l'état`);
+  assert.ok(r.width > 841.89 - 2 * NexusPdfMoteur.MARGE_1P - 4, `${cas} : bandeau sur toute la largeur utile (${r.width})`);
+  const pied = traces.find(x => x.t.startsWith('NEXUS FDJ · Relevé de clôture'));
+  assert.ok(pied.y < r.y, `${cas} : bandeau au-dessus du pied de page`);
+  const auDessus = traces.filter(x => x !== pied && !x.t.startsWith('Édité le') && x.y > r.y + r.height);
+  const dedans = traces.filter(x => x.y >= r.y && x.y <= r.y + r.height);
+  assert.ok(dedans.every(x => [tTitre, tMot, tMontant].includes(x) || x.t === 'caisse réelle - caisse attendue'), `${cas} : rien d'autre ne s'imprime dans le bandeau (${dedans.map(x => x.t).join(' | ')})`);
+  assert.ok(auDessus.length > 0 && auDessus.every(x => x.y - 2 > r.y + r.height), `${cas} : le corps reste au-dessus du bandeau`);
+  for (const c of [C.vert, C.ambre, C.rouge].filter(c => c !== encre)) {
+    assert.ok(!rectangles.some(x => x.borderColor === c && x.width > 700), `${cas} : aucune autre couleur d'état sur le bandeau`);
+  }
 }
 
 function unePageA4Paysage(cas) {
@@ -171,7 +212,9 @@ async function run() {
     assert.ok(!/autres?\s+—\s+voir|voir le détail dans l'app/i.test(tout), 'A : aucun renvoi « + N autres — voir le détail dans l\'app »');
     assert.ok(tout.includes('DÉTAIL INTÉGRAL (29 jeux)'), 'A : le titre annonce le détail intégral et le nombre de jeux');
     assert.ok(tout.includes('Total ventes grattage'), 'A : total grattage en pied de tableau');
-    assert.ok(tout.includes('Caisse conforme'), 'A : écart nul → « Caisse conforme »');
+    bandeauEcart('A', { mot: 'CONFORME', montant: '0,00 €', encre: C.vert, fond: C.fondVert });
+    assert.ok(!tout.includes('Écart constaté'), 'A : l\'écart n\'est plus répété dans la synthèse de caisse');
+    assert.ok(tout.includes('Caisse attendue') && tout.includes('Caisse réelle'), 'A : caisse attendue et caisse réelle conservées');
     assert.ok(tout.includes('Version 2/2 · Définitif'), 'A : en-tête « Version 2/2 · Définitif »');
     assert.ok(/Certifiée « Conforme » par Fred/.test(tout), 'A : certification de la caisse avec son auteur');
     assert.ok(tout.includes('Anomalies à traiter par le manager (0)'), 'A : aucune anomalie inventée');
@@ -179,15 +222,15 @@ async function run() {
     console.log('OK — A : 29 jeux (dont 10 sans vente) tous imprimés en entier sur 1 page A4 paysage, aucun renvoi, caisse conforme, Version 2/2.');
   }
 
-  // C. Manquant et excédent : terme exact, écart en valeur absolue.
-  for (const [ecart, terme, absolu] of [[-37.5, 'Manquant constaté', '37,50'], [12, 'Excédent constaté', '12,00']]) {
+  // C. Excédent et manquant (écart = caisse réelle − caisse attendue) :
+  // ambre « EXCÉDENT » +montant, rouge « MANQUANT » −montant ; jamais inversés.
+  for (const [ecart, mot, montant, encre, fond] of [[-37.5, 'MANQUANT', '-37,50 €', C.rouge, C.fondRouge], [12, 'EXCÉDENT', '+12,00 €', C.ambre, C.fondAmbre]]) {
     const { tout } = await produire(scenario({ ecart }));
-    unePageA4Paysage(terme);
-    assert.ok(tout.includes(terme), `C : écart ${ecart} → « ${terme} »`);
-    assert.ok(!tout.includes('Caisse conforme'), `C : écart ${ecart} ne doit pas afficher « Caisse conforme »`);
-    assert.ok(tout.includes(absolu), `C : l'écart ${absolu} doit être imprimé`);
-    assert.ok(!new RegExp(`[-−]\\s?${absolu}`).test(tout), `C : l'écart est imprimé en valeur absolue (aucun signe moins devant ${absolu})`);
-    console.log(`OK — C : écart ${ecart} → « ${terme} », montant ${absolu} en valeur absolue.`);
+    unePageA4Paysage(mot);
+    bandeauEcart(`C ${ecart}`, { mot, montant, encre, fond });
+    assert.ok(!tout.includes('CONFORME') && !tout.includes(mot === 'MANQUANT' ? 'EXCÉDENT' : 'MANQUANT'), `C : écart ${ecart} → seul l'état « ${mot} »`);
+    assert.ok(tout.includes('Anomalies à traiter par le manager (0)'), `C : écart ${ecart} cohérent avec réelle − attendue, aucune anomalie`);
+    console.log(`OK — C : écart ${ecart} → bandeau ${mot} ${montant}, couleur de l'état, pleine largeur, au-dessus du pied.`);
   }
 
   // D. Plusieurs régularisations : chaque version listée.
@@ -220,13 +263,26 @@ async function run() {
     console.log('OK — E : 29 noms longs imprimés en entier, 1 page.');
   }
 
-  // Donnée absente : signalée, jamais inventée.
+  // Arbitrage du 11/10 : quantité de stock NON RENSEIGNÉE = 0. Le jeu sans
+  // aucune donnée s'imprime à 0 partout, 0,00 € de ventes, sans anomalie.
+  {
+    const { tout } = await produire(scenario({ videZero: true }));
+    unePageA4Paysage('Non renseigné = 0');
+    assert.ok(!tout.includes('non saisi'), 'Non renseigné = 0 : aucune cellule « non saisi »');
+    assert.ok(tout.includes('Anomalies à traiter par le manager (0)'), 'Non renseigné = 0 : aucune anomalie « données non saisies »');
+    bandeauEcart('Non renseigné = 0', { mot: 'CONFORME', montant: '0,00 €', encre: C.vert, fond: C.fondVert });
+    console.log('OK — non renseigné = 0 : jeu vide imprimé à 0 / 0,00 €, aucune anomalie, caisse conforme.');
+  }
+
+  // …mais ce 0 ne masque pas une vente : stock final absent sur un jeu en
+  // stock → la vente qu'il fait apparaître reste une anomalie à vérifier.
   {
     const { tout } = await produire(scenario({ finalAbsent: true }));
     unePageA4Paysage('Absente');
-    assert.ok(tout.includes('non saisi'), 'Absente : la cellule manquante est marquée « non saisi »');
+    assert.ok(/stock final non saisi, compté 0 : \d+ vendu\(s\) déduit\(s\), à vérifier/.test(tout), 'Absente : la vente déduite du 0 est signalée');
     assert.ok(/Anomalies à traiter par le manager \([1-9]\d*\)/.test(tout), 'Absente : l\'anomalie est remontée au manager');
-    console.log('OK — donnée absente marquée « non saisi » et remontée en anomalie, jamais inventée.');
+    assert.ok(/Total du tableau [^.]* ventes grattage du relevé/.test(tout), 'Absente : l\'écart avec le total du relevé est signalé');
+    console.log('OK — stock final absent sur un jeu en stock : compté 0, vente déduite signalée, écart de total signalé.');
   }
 
   // Provisoire : bandeau et en-tête, toujours une page.

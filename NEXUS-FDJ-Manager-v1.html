@@ -4532,8 +4532,9 @@
   // toucherait Inventaire, FDJ Analyse et Verify.
   // Règles : aucune valeur recalculée à la place du snapshot (les
   // incohérences sont SIGNALÉES, jamais corrigées) ; un nom n'est jamais
-  // tronqué (retour à la ligne) ; une donnée absente s'affiche « non
-  // saisi » et remonte dans les anomalies ; si le contenu ne tient pas sur
+  // tronqué (retour à la ligne) ; une quantité de stock non renseignée
+  // vaut 0 (arbitrage du 11/10), les autres données absentes s'affichent
+  // « non saisi » et remontent dans les anomalies ; si le contenu ne tient pas sur
   // la page à la taille minimale lisible, la génération ÉCHOUE avec un
   // message explicite plutôt que de masquer une ligne ou réduire la police.
   // Seul l'historique des versions peut être condensé (nombre total,
@@ -4573,17 +4574,30 @@
       ...jeuxOrdonnes.map(j => ({ id: j.id, nom: j.actif === false ? `${j.nom} (inactif)` : j.nom, prix: j.prix })),
       ...inconnus.map(id => ({ id, nom: `Jeu inconnu (${id.slice(0, 8)})`, prix: null })),
     ].map(j => {
-      const initial = (dernier.stock_initial_par_jeu || {})[j.id];
-      const appro = (dernier.appro_par_jeu || {})[j.id];
-      const final = (dernier.stock_final_par_jeu || {})[j.id];
+      // Arbitrage métier du 11/10 : une quantité de stock NON RENSEIGNÉE vaut 0.
+      // Normalisation à l'affichage seulement (le snapshot n'est pas réécrit).
+      // Quantité et montant absents se dérivent par la règle existante ; si ce
+      // 0 fait apparaître une vente, l'anomalie reste signalée (rien de masqué).
+      const brut = {
+        initial: (dernier.stock_initial_par_jeu || {})[j.id],
+        appro: (dernier.appro_par_jeu || {})[j.id],
+        final: (dernier.stock_final_par_jeu || {})[j.id],
+      };
       const v = (dernier.ventes_par_jeu || {})[j.id] || {};
-      const ligne = { ...j, initial, appro, final, qte: v.qte, valeur: v.valeur, incoherent: false };
-      const manque = [['stock initial', initial], ['stock final', final], ['quantité vendue', v.qte], ['montant', v.valeur]].filter(([, x]) => estNul(x)).map(([l]) => l);
-      if (manque.length) anomalies.push(`${j.nom} : ${manque.join(', ')} non saisi${manque.length > 1 ? 's' : ''}.`);
-      if (!estNul(initial) && !estNul(final) && !estNul(v.qte)) {
-        const attendu = NexusFdjMoteur.calculerVentesJeu({ stock_initial: initial, appro, stock_final: final }, 0).qte;
-        if (!egalCentimes(attendu, v.qte)) { ligne.incoherent = true; anomalies.push(`${j.nom} : quantité vendue ${fmtNum(v.qte)} ≠ initial + appro − final (${fmtNum(attendu)}).`); }
+      const initial = estNul(brut.initial) ? 0 : brut.initial;
+      const appro = estNul(brut.appro) ? 0 : brut.appro;
+      const final = estNul(brut.final) ? 0 : brut.final;
+      const vides = [['stock initial', brut.initial], ['approvisionnement', brut.appro], ['stock final', brut.final]].filter(([, x]) => estNul(x)).map(([l]) => l);
+      const attendu = NexusFdjMoteur.calculerVentesJeu({ stock_initial: initial, appro, stock_final: final }, 0).qte;
+      const qte = estNul(v.qte) ? attendu : v.qte;
+      const valeur = estNul(v.valeur) && !estNul(j.prix) ? Number(qte) * Number(j.prix) : v.valeur;
+      const ligne = { ...j, initial, appro, final, qte, valeur, incoherent: false };
+      if (vides.length && !egalCentimes(attendu, 0)) {
+        ligne.incoherent = true;
+        anomalies.push(`${j.nom} : ${vides.join(', ')} non saisi${vides.length > 1 ? 's' : ''}, compté${vides.length > 1 ? 's' : ''} 0 : ${fmtNum(attendu)} vendu(s) déduit(s), à vérifier.`);
       }
+      if (estNul(valeur)) anomalies.push(`${j.nom} : montant non calculable (prix indisponible).`);
+      if (!estNul(v.qte) && !egalCentimes(attendu, v.qte)) { ligne.incoherent = true; anomalies.push(`${j.nom} : quantité vendue ${fmtNum(v.qte)} ≠ initial + appro − final (${fmtNum(attendu)}).`); }
       if (!estNul(v.qte) && !estNul(v.valeur) && !estNul(j.prix) && !egalCentimes(Number(v.qte) * Number(j.prix), v.valeur)) {
         ligne.incoherent = true;
         anomalies.push(`${j.nom} : montant ${fmtEuro(v.valeur)} ≠ quantité × prix (${fmtEuro(Number(v.qte) * Number(j.prix))}).`);
@@ -4669,7 +4683,34 @@
     trait(X0, yPied + 8, X1, yPied + 8);
     p._texte('NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique. Lecture seule : aucune valeur recalculée.', X0, yPied, { taille: 6.5, couleur: COULEUR.texteDim });
     p._texteDroite(`Édité le ${dateHeure(new Date().toISOString())} · page 1/1`, X1, yPied, { taille: 6.5, couleur: COULEUR.texteDim });
-    const yBasCorps = yPied + 14;
+
+    // ---- Bandeau ÉCART CONSTATÉ (pleine largeur, juste au-dessus du pied).
+    // Réservé AVANT les colonnes : il ne peut ni être coupé ni passer en page 2.
+    // Écart = caisse réelle − caisse attendue. Vert CONFORME (0), ambre
+    // EXCÉDENT (> 0, signe +), rouge MANQUANT (< 0, signe -) — jamais
+    // inversé. En noir et blanc, le mot d'état, le signe et l'épaisseur du
+    // cadre portent seuls le sens.
+    const ecart = dernier.ecart;
+    const ecartConnu = !estNul(ecart) && Number.isFinite(Number(ecart));
+    const ecartArrondi = ecartConnu ? Math.round(Number(ecart) * 100) / 100 + 0 : null;
+    if (!ecartConnu) anomalies.push('Écart de caisse non calculable (donnée absente du relevé).');
+    else if (!estNul(dernier.caisse_reelle) && !estNul(dernier.caisse_attendue)
+      && !egalCentimes(Number(dernier.caisse_reelle) - Number(dernier.caisse_attendue), ecartArrondi)) {
+      anomalies.push(`Écart du relevé ${fmtEuro(ecartArrondi)} ≠ caisse réelle − caisse attendue (${fmtEuro(Number(dernier.caisse_reelle) - Number(dernier.caisse_attendue))}).`);
+    }
+    const etatEcart = !ecartConnu ? { mot: 'NON CALCULABLE', montant: '—', fond: COULEUR.fondEntete, encre: COULEUR.texte, cadre: 1 }
+      : ecartArrondi === 0 ? { mot: 'CONFORME', montant: fmtEuro(0), fond: COULEUR.fondVert, encre: COULEUR.vert, cadre: 1.5 }
+      : ecartArrondi > 0 ? { mot: 'EXCÉDENT', montant: `+${fmtEuro(ecartArrondi)}`, fond: COULEUR.fondAmbre, encre: COULEUR.ambre, cadre: 2.5 }
+      : { mot: 'MANQUANT', montant: `-${fmtEuro(Math.abs(ecartArrondi))}`, fond: COULEUR.fondRouge, encre: COULEUR.rouge, cadre: 3.5 };
+    const H_BANDEAU = 34;
+    const yBandeau = yPied + 14;
+    page.drawRectangle({ x: X0 + etatEcart.cadre / 2, y: yBandeau + etatEcart.cadre / 2, width: X1 - X0 - etatEcart.cadre, height: H_BANDEAU - etatEcart.cadre, color: etatEcart.fond, borderColor: etatEcart.encre, borderWidth: etatEcart.cadre });
+    const yMilieu = yBandeau + H_BANDEAU / 2;
+    p._texte('ÉCART CONSTATÉ', X0 + 12, yMilieu + 1, { taille: 11, gras: true });
+    p._texte('caisse réelle − caisse attendue', X0 + 12, yMilieu - 9.5, { taille: 7.5, couleur: COULEUR.texte });
+    p._texteCentre(etatEcart.mot, (X0 + X1) / 2, yMilieu - 7, { taille: 20, gras: true, couleur: etatEcart.encre });
+    p._texteDroite(etatEcart.montant, X1 - 12, yMilieu - 8, { taille: 24, gras: true, couleur: etatEcart.encre });
+    const yBasCorps = yBandeau + H_BANDEAU + 6;
 
     // ---- Colonnes 65 / 35
     const gouttiere = 14;
@@ -4681,7 +4722,7 @@
     const yHautCorps = y;
 
     // ================= GAUCHE : STOCK PAR JEU — DÉTAIL INTÉGRAL
-    const T_CORPS = 8.5, T_TETE = 7, INTERLIGNE = 10, PAD_MAX = 4.5, PAD_MIN = 1.5, PAD_CELL = 4;
+    const T_CORPS = 8.5, T_TETE = 7, INTERLIGNE = 10, PAD_MAX = 4.5, PAD_MIN = 1.25, PAD_CELL = 4;
     const nonSaisi = 'non saisi';
     const cellules = lignesJeux.map(l => ({
       prix: estNul(l.prix) ? 'non connu' : fmtEuro(l.prix),
@@ -4712,7 +4753,7 @@
     if (largeurJeu < 90) throw conflit(`colonne Jeu réduite à ${Math.round(largeurJeu)} pt par des montants trop larges`);
     const nomsDecoupes = lignesJeux.map(l => lignesDe(`${l.nom}${l.incoherent ? ' *' : ''}`, T_CORPS, largeurJeu - PAD_CELL * 2));
     const nbLignesTexte = nomsDecoupes.reduce((s, n) => s + n.length, 0);
-    const hTitre = 13, hTete = 2 * (T_TETE + 1) + 6, hTotal = INTERLIGNE + 2 * PAD_MAX + 2;
+    const hTitre = 13, hTete = 2 * (T_TETE + 1) + 6, hTotal = INTERLIGNE + 2 * 2 + 2;
     const dispoLignes = (yHautCorps - yBasCorps) - hTitre - hTete - hTotal;
     const n = Math.max(1, lignesJeux.length);
     const pad = Math.min(PAD_MAX, (dispoLignes - nbLignesTexte * INTERLIGNE) / (2 * n));
@@ -4747,7 +4788,7 @@
       trait(xG, yG, xGFin, yG, 0.3);
     });
     trait(xG, yG, xGFin, yG, 0.8, COULEUR.texte);
-    const yTotal = yG - PAD_MAX - T_CORPS + 1;
+    const yTotal = yG - 2 - T_CORPS + 1;
     p._texte('Total ventes grattage', xG + PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
     p._texteDroite(totalCellules.qte, xCol[4] - PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
     p._texteDroite(totalCellules.valeur, xCol[5] - PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
@@ -4775,18 +4816,8 @@
     yD -= 1;
     ligneMontant('Caisse attendue', fmtEuro(dernier.caisse_attendue), { gras: true, taille: 9.5 });
     ligneMontant('Caisse réelle', fmtEuro(dernier.caisse_reelle), { gras: true, taille: 9.5 });
-    const ecart = dernier.ecart;
-    const ecartConnu = !estNul(ecart) && Number.isFinite(Number(ecart));
-    const ecartArrondi = ecartConnu ? Math.round(Number(ecart) * 100) / 100 : null;
-    ligneMontant('Écart constaté', ecartConnu ? fmtEuro(Math.abs(ecartArrondi)) : 'non calculable');
-    const resultat = !ecartConnu ? 'Écart non calculable'
-      : (ecartArrondi === 0 ? 'Caisse conforme' : (ecartArrondi > 0 ? 'Excédent constaté' : 'Manquant constaté'));
-    if (!ecartConnu) anomalies.push('Écart de caisse non calculable (donnée absente du relevé).');
-    const hRes = 20;
-    page.drawRectangle({ x: xD, y: yD - hRes + 9, width: largeurDroite, height: hRes, borderColor: COULEUR.texte, borderWidth: ecartArrondi === 0 ? 1 : 2, color: COULEUR.blanc });
-    p._texte(resultat, xD + 6, yD - 4, { taille: 10.5, gras: true });
-    if (ecartConnu && ecartArrondi !== 0) p._texteDroite(fmtEuro(Math.abs(ecartArrondi)), xDFin - 6, yD - 4, { taille: 10.5, gras: true });
-    yD -= hRes + 8;
+    // L'écart n'est pas répété ici : il a son bandeau en bas de page.
+    yD -= 6;
 
     // B. Contrôles
     titreBloc('CONTRÔLES');
