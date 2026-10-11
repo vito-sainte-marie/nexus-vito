@@ -101,6 +101,28 @@ test('Recalcul des ventes de Q1 après alignement (prix réels : 10 € et 15 �
   assert.deepStrictEqual(M.calculerVentesJeu({ stock_initial: 20, appro: 0, stock_final: 18 }, 15), { qte: 2, valeur: 30 });
 });
 
+// Revue du 10/10 : écart = compté − théorique, signe jamais inversé, montant
+// sans signe, sens porté par le mot.
+test('Libellés d\'écart : 12 attendus, 10 comptés -> « Manquant de caisse : 2,00 € »', () => {
+  const ecart = M.ecartCaisse(10, 12);
+  assert.strictEqual(ecart, -2);
+  assert.strictEqual(M.libelleEcartCaisse(ecart), 'Manquant de caisse : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(ecart, 'employe'), 'Écart en moins : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(ecart, 'manager'), 'Manquant constaté : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(M.ecartCaisse(14, 12)), 'Excédent de caisse : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(2, 'employe'), 'Écart en plus : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(2, 'manager'), 'Excédent constaté : 2,00 €');
+  assert.strictEqual(M.libelleEcartCaisse(M.ecartCaisse(12, 12)), 'Caisse conforme');
+  assert.strictEqual(M.libelleEcartCaisse(-0.001), 'Caisse conforme', 'arrondi au centime');
+  assert.strictEqual(M.libelleEcartCaisse(null), 'Non comparable');
+  assert.strictEqual(M.libelleEcartCaisse(M.ecartCaisse(null, 12)), 'Non comparable');
+  assert.strictEqual(M.libelleEcartCaisse(-1234.5, 'manager'), 'Manquant constaté : 1234,50 €');
+  ['reference', 'employe', 'manager'].forEach(p => {
+    const l = M.libelleEcartCaisse(-2, p);
+    assert.ok(!/dette|retenue|-/i.test(l), `${p} : « ${l} » parle de dette, de retenue ou garde le signe`);
+  });
+});
+
 // Câblage : les fonctions pures ne prouvent rien si l'écran ne les appelle pas.
 const html = fs.readFileSync(path.join(__dirname, 'NEXUS-FDJ-Manager-v1.html'), 'utf8');
 test('Câblage écran : rapprochement serveur après enregistrement, motif exigé avant', () => {
@@ -119,6 +141,16 @@ test('Migration : contrôle d\'accès, motif, journal, caisse, valide_le', () =>
   assert.ok(/coalesce\(valide_le, now\(\)\)/.test(sql), 'valide_le préservé');
   assert.ok(!/update public\.fdj_shift_counts[\s\S]{0,200}stock_initial\s*=/.test(sql), 'Q2 ne doit jamais être réécrit');
   assert.ok(/revoke all on function public\.fdj_manager_aligner_fin_quart_precedent\(uuid, text\) from anon/.test(sql), 'anon fermé');
+});
+
+test('Migration (revue) : origine, certification retirée, stock incohérent, motif du relevé', () => {
+  assert.ok(sql.includes("'propagation_q1_q2'") && sql.includes('nexus.fdj_origine_correction'), 'origine propagation Q1/Q2 tracée');
+  assert.ok(sql.includes("'recalcul_automatique_chaine'"), 'relevé de propagation typé');
+  assert.ok(sql.includes('certification_retiree'), 'retrait de certification signalé dans le relevé');
+  assert.ok(/valide_le\s*=\s*case when v_revoquer then null/.test(sql) && /valide_par\s*=\s*case when v_revoquer then null/.test(sql), 'certification révoquée quand le résultat change');
+  assert.ok(sql.includes('stock_incoherent') && sql.includes('nb_stocks_incoherents'), 'stock incohérent signalé');
+  assert.ok(/coalesce\(nullif\(btrim\(v_motif\), ''\)/.test(sql), 'le relevé porte le motif du manager');
+  assert.ok(/set_config\('nexus\.fdj_origine_correction', ''/.test(sql), 'origine remise à zéro après alignement');
 });
 
 console.log(`\n${nbOk}/${nbTests} tests OK`);

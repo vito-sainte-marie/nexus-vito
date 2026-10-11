@@ -3284,7 +3284,7 @@
         ${integrite && integrite.integrite !== 'OK' ? `<div style="margin:4px 0;">${badgeIntegrite(integrite, shift)}</div>` : ''}
         <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockDebut)} Stock début</span><span>${texteEtatComptage(prog.stockDebut)}</span></div>
         <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockFin)} Stock final</span><span>${texteEtatComptage(prog.stockFin)}</span></div>
-        <div class="carte-quart-ligne"><span>📝 Caisse</span><span class="${!estBrouillon && classe ? classe : ''}">${libelleCaisse}${!estBrouillon && ecart !== null ? ` · ${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : ''}</span></div>
+        <div class="carte-quart-ligne"><span>📝 Caisse</span><span class="${!estBrouillon && classe ? classe : ''}">${libelleCaisse}${!estBrouillon && ecart !== null ? ` · ${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : ''}</span></div>
         <div class="carte-quart-etape">${etapeActuelleQuart(shift, prog)}</div>
         <button type="button" class="btn-modifier carte-quart-action" data-action-quart="${quart}">${libelleActionCarteQuartJour(quart, shift, prog)}</button>
       </div>
@@ -3306,7 +3306,7 @@
             <div class="histo-sub">${nomEmploye(s.employee_id)}</div>
           </div>
           <div style="text-align:right;">
-            <div class="histo-ecart ${estBrouillon ? '' : classe}">${estBrouillon ? '—' : (ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—')}</div>
+            <div class="histo-ecart ${estBrouillon ? '' : classe}">${estBrouillon ? '—' : (ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—')}</div>
             <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
             ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:4px;">${badgeIntegrite(integrite, s)}</div>` : ''}
           </div>
@@ -4446,7 +4446,7 @@
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(dernier.regularisations)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(dernier.caisse_attendue)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(dernier.caisse_reelle)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
         ${libelleAnomalieChaine(dernier.anomalie_chaine).map(l => `<div class="stat-row"><div class="stat-label">${l.label}</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${l.valeur}</div></div>`).join('')}
       </div>
 
@@ -4648,7 +4648,7 @@
             <div class="stat-row"><div class="stat-label">Quart ${shift.quart}</div><div class="stat-value">${nomEmploye(shift.employee_id)}</div></div>
             ${dernier ? `
               <div class="stat-row"><div class="stat-label">Caractère</div><div class="stat-value"><span class="badge-caractere ${dernier.caractere}">${libelleCaractereReleve(dernier.caractere)}</span></div></div>
-              <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+              <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null && ecart !== undefined ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
             ` : `<div class="empty">Aucun relevé de clôture pour ce quart.</div>`}
           </div>
         `;
@@ -4812,7 +4812,7 @@
               <div class="histo-top">
                 <div><div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div></div>
                 <div style="text-align:right;">
-                  <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
+                  <div class="histo-ecart ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div>
                   <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
                 </div>
               </div>
@@ -5316,7 +5316,7 @@
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
         ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       </div>
 
       <div id="blocMotifEcart">${renderBlocMotifEcart(ecart, edition.ecartOrigine)}</div>
@@ -5518,13 +5518,13 @@
     if (situation === 'restant') {
       return `
         <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart final</div><div class="stat-value ${classe}">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart final</div><div class="stat-value ${classe}">${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}</div></div>
         <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Origine</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">Non identifiée</div></div>
       `;
     }
     return `
       <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
-      <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+      <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       <div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${edition.motifEcart ? labelMotifEcart(edition.motifEcart) : '—'}</div></div>
     `;
   }
@@ -5542,7 +5542,7 @@
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
         ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       `;
     }
     const synthese = document.getElementById('resumeCardSynthese');

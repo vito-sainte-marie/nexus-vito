@@ -2065,6 +2065,27 @@
     return evts;
   }
 
+  // Libellé d'un écart de caisse (revue du 10/10/2026). Écart = compté −
+  // théorique, jamais inversé : négatif = manquant, positif = excédent. Le
+  // montant est affiché sans signe, le sens est porté par le mot. Un manquant
+  // n'est ni une dette ni une retenue. Mêmes textes que la base
+  // (fdj_libelle_ecart_manager) pour le public 'manager'.
+  //   reference : « Excédent de caisse » / « Manquant de caisse » / « Caisse conforme »
+  //   employe   : « Écart en plus » / « Écart en moins »
+  //   manager   : « Excédent constaté » / « Manquant constaté »
+  const LIBELLES_ECART_CAISSE = {
+    reference: { plus: 'Excédent de caisse', moins: 'Manquant de caisse' },
+    employe: { plus: 'Écart en plus', moins: 'Écart en moins' },
+    manager: { plus: 'Excédent constaté', moins: 'Manquant constaté' },
+  };
+  function libelleEcartCaisse(ecart, publicVise) {
+    if (ecart === null || ecart === undefined || ecart === '' || !Number.isFinite(Number(ecart))) return 'Non comparable';
+    const e = Math.round(Number(ecart) * 100) / 100;
+    if (e === 0) return 'Caisse conforme';
+    const l = LIBELLES_ECART_CAISSE[publicVise] || LIBELLES_ECART_CAISSE.reference;
+    return `${e > 0 ? l.plus : l.moins} : ${Math.abs(e).toFixed(2).replace('.', ',')} €`;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye, etapeCaisseFdj,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference, instantEffetMouvement,
@@ -2081,6 +2102,7 @@
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
+    LIBELLES_ECART_CAISSE, libelleEcartCaisse,
     propagationCorrectionStock,
     initialisationContinuite, rapprochementFinQ1, correctionsValeursEnregistrees,
     MOTIF_CORRECTION_STOCK_MIN, motifCorrectionStockValide, absentStock,

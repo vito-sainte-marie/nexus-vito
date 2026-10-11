@@ -31,7 +31,7 @@ Le tableau métier cité par l'arbitrage n'a pas été fourni : ces cinq situati
 
 ## Suite automatique
 
-- `test_fdj_priorite_stock_initial_suivant_20261010.js` : 9/9 (situations, ventes, câblage écran, contenu de la migration). Mutation contrôlée : renommer la RPC dans le HTML rougit le test de câblage.
+- `test_fdj_priorite_stock_initial_suivant_20261010.js` : 11/11 (situations, ventes, libellés d'écart, câblage écran, contenu de la migration). Mutation contrôlée : renommer la RPC dans le HTML rougit le test de câblage.
 - `test_fdj_continuite_auto_recalcul.js` et `test_fdj_fiabilisation_etape2_propagation.js` : réécrits pour la nouvelle règle (la décision du 16/08 de réécrire un Q2 hérité est abandonnée).
 - `test_fdj_masquage_ecart_cloture_v2266.js` : le libellé « Certifier le contrôle » est désormais celui de la case, le bouton porte `libelleBoutonEdition()`.
 
@@ -41,12 +41,42 @@ Le tableau métier cité par l'arbitrage n'a pas été fourni : ces cinq situati
 2. **Correction et renseignement.** G10 25 → 26 (ventes recalculées, 90 €) et G15 absent → 18 (30 €) ; `alerte_manager = true` ; Q2 intact ; `fdj_audit_log` (`alignement_fin_sur_quart_suivant`) et `fdj_corrections` (`stock_final_aligne_quart_suivant`) présents avec ancienne valeur, nouvelle valeur, auteur, motif.
 3. **Rejeu.** Second appel : `deja_continu`, rien d'écrit.
 4. **`valide_le`.** Un quart validé réenregistré garde sa date de validation.
-5. **Caisse confirmée.** Ventes 160 → 120, attendue 200 → 160, écart +40 ; `caisse_reelle` et son origine préservées ; `valide_le`/`valide_par` de la caisse inchangés ; relevé de clôture en version 2 (`correction_manager`).
+5. **Caisse confirmée.** Ventes 160 → 120, attendue 200 → 160, écart +40 ; `caisse_reelle` et son origine préservées ; relevé de clôture en version 2. *Corrigé par la revue : une caisse certifiée dont le résultat change perd sa certification (voir C16), et une propagation écrit `recalcul_automatique_chaine`, pas `correction_manager` (voir C06f).*
 6. **Accès.** Employé et appel sans session : `42501`.
 
 ## Points ouverts
 
-- Une caisse déjà validée reste « conforme » après une correction qui crée un écart (+40 dans l'essai) : comportement existant, la correction ne recertifie ni ne décertifie.
+- ~~Une caisse déjà validée reste « conforme » après une correction qui crée un écart~~ : corrigé par la revue (C16). La certification est retirée quand le résultat change ; elle est gardée quand il ne change pas (C09).
 - Un simple renseignement d'une fin absente prend un motif par défaut (« Fin de quart renseignée depuis le début du quart suivant »).
 - Un retour en brouillon remet `valide_le` à NULL, comme avant.
 - Ordre de déploiement : la migration doit précéder le code (l'écran appelle la nouvelle RPC). Application Test puis Production sur autorisation distincte. Servi sans la migration, l'écran enregistre le quart puis signale que la fin du quart précédent n'a pas été rapprochée : rien ne casse, mais rien n'est aligné.
+
+## Revue obligatoire du 10/10/2026 — essais base sous rollback (nexus-test)
+
+Rejoués le 11/10 vers 00:10Z avec la migration corrigée : **39 cas, rc=0, transaction annulée**. Le registre Test n'a pas bougé (316).
+
+| Cas | Ce qui est éprouvé | Résultat |
+|---|---|---|
+| C01 | libellés manager | « Caisse conforme », « Excédent constaté : 2,00 € », « Manquant constaté : 2,00 € » |
+| C02–C03 | anon, caissier sur l'alignement | `42501` |
+| C04–C05b | motif absent ou court | `22023`, rien écrit |
+| C06–C06h | alignement avec motif | fin Q1 20 → 18 corrigée, Q2 intact ; caisse recalculée (−2 → −4, compté conservé) ; événement `reouverture`, audit, `fdj_corrections` avec l'origine `propagation_q1_q2` ; relevé `recalcul_automatique_chaine` ; GUC d'origine remise à vide ; `valide_le` du quart préservé |
+| C07–C07b | double clic / rejeu | `deja_continu`, rien écrit |
+| C08–C08b | excédent, caisse non certifiée | « Excédent constaté : 4,00 € », compté et origine conservés |
+| C09–C09b | caisse certifiée, résultat inchangé | certification gardée |
+| C10 | caissier corrige une caisse | `42501` |
+| C11 | `fdj_manager_modifier_quart` | `valide_le` gardé |
+| C12–C12c | stock incohérent (fin > début + appro) | ventes négatives signalées `stock_incoherent`, `nb_stocks_incoherents` |
+| C16–C16e | correction d'une caisse certifiée | `valide_le` et `valide_par` vidés, `fdj_caisse_certification_revoquee`, relevé `certification_retiree` |
+| C17 | écriture directe sur `fdj_cash_controls` | `42501` |
+| C13–C14b | suppression de l'historique (événements, audit, relevés) | refusée ou 0 ligne |
+| C15 | autres stations | empreintes identiques |
+| **C17b–C17d** | **un caissier écrit directement dans `fdj_releves_cloture`, `fdj_reports`, `fdj_audit_log`** | **accepté (A6, critique, préexistant ; grants identiques en Production)** |
+
+Écarts restants, hors de ce lot :
+- **A6** : écriture directe par un caissier, ci-dessus. Lot séparé, bloquant avant Production.
+- **Libellé employé côté serveur.** `fdj_libelle_ecart_employe` renvoie « Écart provisoire en plus : +2.00 € ». Ce n'est pas le vocabulaire de la revue (« Écart en plus : 2,00 € »).
+- Badges « Manque non expliqué » de l'écran Manager, figés par deux tests existants.
+- Exports PDF : le montant reste signé.
+- La concurrence est garantie par la structure (verrou `for update` sur le quart et la caisse), pas par un essai à deux sessions.
+
