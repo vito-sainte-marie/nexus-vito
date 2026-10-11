@@ -41,7 +41,8 @@ Les littéraux écrits sont autorisés par les CHECK mesurés en Production le 1
 ## Gestes (chacun sur GO distinct de Frédéric)
 
 1. **Préflight en lecture seule** (`begin read only … rollback`), rejoué juste avant d'écrire. Toute valeur différente arrête la procédure.
-   - registre = 306, dernière estampille `20261010150000`, `20261010170000` absente ;
+   - registre = 307, dernière estampille `20261011090000` (A6, appliquée le 11/10 vers 11:18Z), `20261010170000` absente ;
+   - l'estampille de cette migration est antérieure à la dernière du registre : c'est attendu, les deux lots ne partagent aucune fonction (préflight remesuré le 11/10 à 11:28:31Z : quatre md5 inchangés) ;
    - `fdj_manager_aligner_fin_quart_precedent` absente ;
    - les quatre md5 du tableau ci-dessus.
 2. **Application Test, puis Production**, par le connecteur `execute_sql` (jamais `apply_migration`), en une transaction :
@@ -76,11 +77,8 @@ Les lignes déjà écrites restent en place (historique immuable) :
 
 L'écran du candidat retombe alors dans le cas « code d'abord » ci-dessus.
 
-## Hors périmètre, bloquant avant Production (revue A6)
+## A6 : fermé en Production le 11/10
 
-La revue a confirmé sur Test, et par les grants mesurés en Production, qu'un caissier peut écrire directement dans trois tables. Les grants INSERT, UPDATE, DELETE et TRUNCATE à `anon` et `authenticated` le permettent :
-- `fdj_releves_cloture` ;
-- `fdj_reports` ;
-- `fdj_audit_log`.
+La revue avait établi qu'un caissier pouvait écrire directement dans `fdj_releves_cloture`, `fdj_reports` et `fdj_audit_log`. Ce lot séparé (#99, migration `20261011090000`) est fusionné, déployé et appliqué en Production le 11/10 (registre 307).
 
-Cette migration ne l'aggrave pas et ne le corrige pas. C'est un lot séparé.
+Conséquence pour ce lot, après fusion de `production` dans sa branche : la trace d'audit de l'étape 5 de l'édition manager passe par `fdj_manager_journaliser`, qui n'accepte pas de `metadata`. Le détail des corrections de stock est porté par `nouvelle_valeur.correction_stock`.

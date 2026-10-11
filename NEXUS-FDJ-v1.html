@@ -1470,11 +1470,11 @@
       else verrouJour = verrouCree;
     }
 
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_shift', entite_id: shiftRow.id,
-      action: 'ouverture_validee', acteur_id: employeeCourant.id,
-      nouvelle_valeur: { jeux_modifies: jeuxModifies.map(j => j.id) },
+    // A6 (11/10/2026) : trace posée par la base (titulaire du quart ouvert).
+    const { error: eTrace } = await nexusClient.rpc('fdj_journaliser_ouverture_validee', {
+      p_shift_id: shiftRow.id, p_jeux_modifies: jeuxModifies.map(j => j.id),
     });
+    if (eTrace) console.error('Trace ouverture validée FDJ:', eTrace); // non bloquant, comme avant
 
     effacerDraft();
     renderConfirmationOuverture(jeuxModifies);

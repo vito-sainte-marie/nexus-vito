@@ -47,6 +47,8 @@ function extraire(nomFonction) {
 // avec en plus `.is(colonne, null)` (utilisé par les chargeurs d'alertes
 // ouvertes) et un `maybeSingle()` qui respecte tous les filtres posés.
 // ------------------------------------------------------------
+const { creerCommandesA6 } = require('./outils/epreuve-fdj-a6-ecriture-directe-20261011/commandes-simulees.js');
+
 function creerNexusClientFake(tables, options) {
   const opts = options || {};
   function correspond(ligne, filtres) {
@@ -104,7 +106,13 @@ function creerNexusClientFake(tables, options) {
       },
     };
   }
-  return { from };
+  // A6 (20261011090000) : relevés, rapports et audit passent par commande.
+  const commandes = creerCommandesA6(tables, { site: 'site-test' });
+  function rpc(nom, params) {
+    assert.ok(commandes[nom], `RPC ${nom} non simulé dans ce test.`);
+    return Promise.resolve(commandes[nom](params || {}));
+  }
+  return { from, rpc };
 }
 
 // Faux DOM minimal : `renderDetailContinuiteStock` écrit dans #content et
