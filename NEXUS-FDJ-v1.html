@@ -735,11 +735,12 @@
       if (eLien) console.error('Lien previous_shift_id FDJ:', eLien);
       else shiftRow.previous_shift_id = prevShift.id;
     }
-    const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prevShift.id);
+    // 11/10/2026 (handoff MISSION PATRIMOINE) : une fin absente à stock nul
+    // (début + appro = 0) est héritée comme 0 au lieu d'écarter le jeu ;
+    // voir NexusFdjMoteur.stocksFinauxHerites.
+    const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_initial, appro, stock_final').eq('shift_id', prevShift.id);
     if (e2) { console.error('Comptage précédent FDJ:', e2); return {}; }
-    const map = {};
-    (counts || []).forEach(c => { if (c.stock_final !== null) map[c.game_id] = c.stock_final; });
-    return map;
+    return NexusFdjMoteur.stocksFinauxHerites(counts || []);
   }
 
   // Jeux dont le stock initial saisi s'écarte de la valeur héritée du
