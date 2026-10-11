@@ -167,12 +167,16 @@ async function runVoletPdf() {
     extraire('nomJeu'),
     extraire('nomEmploye'),
     extraire('jeuxDuSnapshot'),
+    extraire('idsJeuxReleve'),
     extraire('construireReleveClotureQuartPdf'),
     extraire('construireExportJourneePdf'),
     'function fmtEuro(n) { return (n === null || n === undefined || n === \'\' || isNaN(n)) ? \'—\' : `${Number(n).toLocaleString(\'fr-FR\', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }',
     'function fmtNum(n) { return (n === null || n === undefined) ? \'—\' : Number(n).toLocaleString(\'fr-FR\', { maximumFractionDigits: 2 }); }',
   ].join('\n');
-  const ctx = { jeux, employesSite, NexusPdfMoteur, console };
+  // 11/10/2026 (lot FDJ-RELEVE-CLOTURE-A4-RECTO) : le relevé contrôle
+  // chaque ligne avec le vrai moteur FDJ (calculerVentesJeu).
+  require(`${CHEMIN_BASE}/nexus-fdj-moteur.js`);
+  const ctx = { jeux, employesSite, NexusPdfMoteur, NexusFdjMoteur: globalThis.NexusFdjMoteur, siteId: 'site-test', console };
   ctx.globalThis = ctx;
   const fn = new (require('vm').Script)(`${src}\nglobalThis.__construireReleveClotureQuartPdf = construireReleveClotureQuartPdf; globalThis.__construireExportJourneePdf = construireExportJourneePdf;`);
   require('vm').createContext(ctx);

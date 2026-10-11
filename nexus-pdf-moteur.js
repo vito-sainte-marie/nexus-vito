@@ -65,6 +65,10 @@
     ligne: rgb(0.86, 0.88, 0.9),
     fondEntete: rgb(0.94, 0.96, 0.97),
     fondAlterne: rgb(0.97, 0.98, 0.98),
+    // Fonds clairs des bandeaux d'état (texte foncé de même teinte dessus).
+    fondVert: rgb(0.85, 0.94, 0.88),
+    fondAmbre: rgb(1, 0.91, 0.66),
+    fondRouge: rgb(0.98, 0.84, 0.84),
     blanc: rgb(1, 1, 1),
   };
 
@@ -123,6 +127,10 @@
   const REMPLACEMENTS_STRUCTURANTS = [
     [/[→⇒➜➔]/g, '-'],
     [/[←⇐]/g, '-'],
+    // Relevé FDJ du 11/10 : « Total X ≠ ventes Y » s'imprimait « Total X
+    // ventes Y » et « initial + appro − final » perdait son signe moins.
+    [/≠/g, '<>'],
+    [/[−–]/g, '-'],
   ];
 
   function assainirWinAnsi(texte) {
