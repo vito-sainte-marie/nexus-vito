@@ -158,7 +158,13 @@ function extraireManager(nomFonction) {
 
 const srcRenderEdition = extraireManager('renderEdition');
 assert.ok(srcRenderEdition.includes("'Contrôler la clôture'"), 'Le titre doit rester "Contrôler la clôture" pour un quart existant');
-assert.ok(srcRenderEdition.includes("'Certifier le contrôle'"), 'Le bouton doit rester "Certifier le contrôle" pour un quart existant');
+// 10/10/2026 (arbitrage continuité Q1/Q2) : « Ne jamais certifier
+// automatiquement un quart lors d'une correction ». La certification est une
+// case explicite, le bouton d'un quart existant enregistre la correction.
+assert.ok(srcRenderEdition.includes('Certifier le contrôle') && srcRenderEdition.includes('id="champCertifier"'), 'La certification doit rester proposée, par une case explicite');
+assert.ok(srcRenderEdition.includes('libelleBoutonEdition()'), 'Le libellé du bouton vient de libelleBoutonEdition');
+const srcLibelle = extraireManager('libelleBoutonEdition');
+assert.ok(srcLibelle.includes("'Enregistrer la correction'") && srcLibelle.includes("'Enregistrer et certifier'"), 'Le bouton dit si l\'enregistrement certifie ou non');
 assert.ok(srcRenderEdition.includes("'Nouveau quart FDJ'"), 'La création directe manager (pouvoir total, sans confirmation employé) reste un cas distinct');
 assert.ok(!srcRenderEdition.includes('Modifier ce quart FDJ'), 'L\'ancien libellé générique ne doit plus être affiché');
 assert.ok(!srcRenderEdition.includes('Valider le contrôle du quart'), 'L\'ancien libellé de bouton ne doit plus être affiché');

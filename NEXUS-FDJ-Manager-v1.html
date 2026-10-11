@@ -553,6 +553,25 @@
     if (brut.length >= 5) return brut;
     return `Saisie manager du ${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${edition.quart}`;
   }
+  // Arbitrage du 10/10/2026 (continuité des stocks Q1/Q2) : corriger une
+  // valeur de stock déjà enregistrée exige un motif, et une correction ne
+  // certifie jamais d'elle-même. Le cas B (caisse confirmée, non validée)
+  // est le seul où l'enregistrement pouvait certifier : il ne le fait plus
+  // que si le manager coche « Certifier le contrôle ».
+  function correctionsStockEdition() {
+    if (!edition || edition.estNouveau || !edition.avant) return [];
+    return NexusFdjMoteur.correctionsValeursEnregistrees(edition.avant.counts || {}, edition.counts || {});
+  }
+  function controleCaisseEnCours() {
+    return !!(edition && !edition.estNouveau && edition.confirmeLe && !edition.valideLe);
+  }
+  function certificationDemandee() {
+    return !controleCaisseEnCours() || !!edition.certifier;
+  }
+  function libelleBoutonEdition() {
+    if (edition.estNouveau) return 'Enregistrer';
+    return certificationDemandee() && controleCaisseEnCours() ? 'Enregistrer et certifier' : 'Enregistrer la correction';
+  }
   function labelMotifException(v) { const m = MOTIFS_EXCEPTION_CARNET.find(x => x.value === v); return m ? m.label : (v || '—'); }
   function labelMotifDerogationQuart(v) { const m = MOTIFS_DEROGATION_QUART.find(x => x.value === v); return m ? m.label : (v || '—'); }
   function labelMotifCorrectionCaisse(v) { const m = MOTIFS_CORRECTION_CAISSE.find(x => x.value === v); return m ? m.label : (v || '—'); }
@@ -1698,88 +1717,11 @@
     return { ecarts, autoMap };
   }
 
-  // CORRECTION AUTOMATIQUE — 16/08/2026, décision explicite de Frédéric
-  // face au cas le plus sensible (quart déjà validé par un manager avec un
-  // écart potentiellement faux) : "Recalculer et réécrire automatiquement"
-  // plutôt que de se contenter d'alerter. Ne s'applique QU'aux jeux dont le
-  // stock_initial actuel est encore "hérité automatiquement" — jamais
-  // confirmé par un humain (voir migration stock_initial_auto +
-  // NexusFdjMoteur.ecartsContinuiteAAppliquer, seule ligne rouge qui reste
-  // même après cette décision). Trois temps, jamais un raccourci :
-  //  1) corrige fdj_shift_counts.stock_initial + ventes du/des jeu(x)
-  //     concerné(s) avec le stock_final réel du quart précédent ;
-  //  2) recalcule l'écart de caisse du quart ENTIER via le moteur partagé
-  //     (Article 11 — jamais une formule locale) et le RÉÉCRIT, même si le
-  //     quart était déjà validé ;
-  //  3) ne touche JAMAIS fdj_cash_controls.ecart_origine ni
-  //     caisse_reelle_origine (constat d'origine, jamais effacé — v2.108) —
-  //     seul l'écart COURANT est mis à jour, avec une trace d'audit
-  //     explicite (jamais un écrasement silencieux, même en pouvoir total).
-  async function appliquerCorrectionsAutomatiquesContinuite(shiftId, applicables) {
-    if (!applicables.length) return;
-    if (!jeux.length) jeux = await chargerJeux();
-
-    for (const e of applicables) {
-      const { error } = await nexusClient.rpc('fdj_manager_corriger_comptages', {
-        p_shift_id: shiftId, p_corrections: [{ game_id: e.game_id, stock_initial: e.stock_final_precedent }]
-      });
-      if (error) console.error('Correction auto stock_initial FDJ:', error);
-    }
-
-    // `fdj_reports` ne fait plus partie de cette lecture : les montants de
-    // caisse ne sont plus recomposés ici, ils sont recalculés par le
-    // serveur en fin de fonction.
-    const [{ data: counts }, { data: cash }] = await Promise.all([
-      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftId),
-      nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle(),
-    ]);
-    const countsParJeu = {};
-    (counts || []).forEach(c => { countsParJeu[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
-
-    for (const e of applicables) {
-      const jeu = jeux.find(j => j.id === e.game_id);
-      if (!jeu) continue;
-      const v = NexusFdjMoteur.calculerVentesJeu(countsParJeu[e.game_id], jeu.prix);
-      const { error } = await nexusClient.rpc('fdj_manager_corriger_comptages', {
-        p_shift_id: shiftId, p_corrections: [{ game_id: e.game_id, ventes_qte: v.qte, ventes_valeur: v.valeur }]
-      });
-      if (error) console.error('Recalcul ventes auto FDJ:', error);
-    }
-
-    if (!cash) return; // caisse pas encore saisie pour ce quart -> rien à réécrire côté écart
-
-    // Vague 1 (17/09/2026) — ce recalcul n'écrit plus lui-même dans
-    // `fdj_cash_controls`. C'était la dernière écriture directe du dépôt
-    // sur une table du cycle de caisse, et elle n'était pas « hors du
-    // cycle » : elle réécrivait l'écart. L'écran demande donc au serveur
-    // de rejouer le calcul à partir des comptages que les deux boucles
-    // ci-dessus viennent de corriger — `fdj_corriger_caisse_manager`
-    // appelle `fdj_calculer_caisse` et réécrit ventes, caisse grattage,
-    // caisse attendue et écart sans toucher au constat d'origine :
-    // exactement les quatre colonnes que cet écran réécrivait à la main,
-    // mais avec le motif, la version de relevé et l'événement de journal
-    // que l'écriture directe n'avait pas.
-    //
-    // Deux différences assumées avec le comportement précédent :
-    //  · une caisse non confirmée n'est pas corrigeable — la commande
-    //    répond `caisse_non_confirmee`. Ce n'est pas une perte : la
-    //    confirmation recalcule elle-même tout depuis les comptages, donc
-    //    les valeurs rétablies ci-dessus seront prises en compte à ce
-    //    moment-là. On n'insiste pas et on ne contourne pas ;
-    //  · la trace n'est plus un `insert` direct dans `fdj_audit_log` avec
-    //    `acteur_id: null` : la commande journalise sous l'identité réelle
-    //    du manager connecté, ce qui vaut mieux qu'un acteur anonyme.
-    const motifRecalcul = `Recalcul automatique après rétablissement de chaîne — jeux corrigés : ${applicables.map(a => a.game_id).join(', ')}`;
-    const { data: rRecalcul, error: eRecalcul } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
-      p_shift_id: shiftId,
-      p_motif: motifRecalcul,
-      p_commentaire: 'Écart recalculé par NEXUS depuis les comptages rétablis ; les montants comptés ne sont pas touchés.',
-    });
-    if (eRecalcul) { console.error('Recalcul serveur de l\'écart FDJ:', eRecalcul); return; }
-    if (rRecalcul && rRecalcul.corrige === false && rRecalcul.motif !== 'caisse_non_confirmee') {
-      console.error('Recalcul serveur de l\'écart FDJ refusé:', rRecalcul);
-    }
-  }
+  // La correction automatique du 16/08/2026 (« recalculer et réécrire
+  // automatiquement » un stock_initial encore hérité) a été retirée par
+  // l'arbitrage du 10/10/2026 : le stock initial du quart suivant fait
+  // autorité et n'est jamais réécrit depuis la fin du quart précédent.
+  // Tout écart de continuité devient une alerte manager.
 
   // ============================================================
   // FDJ Fiabilisation — Étape 4 : needs_replay + recalcul du relevé après
@@ -1796,10 +1738,8 @@
   // réellement en cache, et donc réellement périssable, est
   // `fdj_releves_cloture` — un ledger VERSIONNÉ par construction. Un seul
   // trou concret a été trouvé en explorant ce module avant de coder : la
-  // propagation automatique de l'Étape 2 (`propagationCorrectionStock`, cas
-  // `applicables` de `enregistrerEdition`) corrige silencieusement
-  // ventes/écart du quart suivant via `appliquerCorrectionsAutomatiquesContinuite`,
-  // mais ne posait jamais de nouvelle version de `fdj_releves_cloture` — le
+  // propagation automatique de l'Étape 2 (retirée le 10/10/2026) corrigeait
+  // silencieusement ventes/écart du quart suivant, mais ne posait jamais de nouvelle version de `fdj_releves_cloture` — le
   // relevé affiché à l'écran et exporté en PDF restait périmé, sans aucune
   // alerte. Cette fonction comble précisément ce trou, en réutilisant le
   // même schéma de snapshot/diff que `synchroniserRelevesApresRetablissementChaine`
@@ -1918,18 +1858,11 @@
           // 16/08/2026 : "une chaîne rétablie ne signifie pas forcément que
           // les anciens écarts calculés pendant la rupture sont
           // automatiquement valides [...] résolution de l'alerte + recalcul
-          // des données doivent être indissociables." Sépare les jeux en
-          // écart selon qu'une main humaine a déjà confirmé leur
-          // stock_initial ou non (voir NexusFdjMoteur.ecartsContinuiteAAppliquer) :
-          // les uns sont corrigés tout seuls (voir
-          // appliquerCorrectionsAutomatiquesContinuite), les autres suivent
-          // le flux d'alerte manuelle existant, inchangé.
-          const { applicables, aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
-
-          if (applicables.length) {
-            await appliquerCorrectionsAutomatiquesContinuite(a.shift_id, applicables);
-            mutations = true;
-          }
+          // des données doivent être indissociables."
+          // Arbitrage du 10/10/2026 : le stock initial de Q2 fait autorité.
+          // Plus aucune réécriture automatique de Q2 depuis Q1 : tout écart
+          // devient une alerte manager (`applicables` est toujours vide).
+          const { aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
 
           if (aRevoir.length) {
             aRevoirEnAttente = true;
@@ -1991,9 +1924,8 @@
   //     laisse l'alerte ouverte et l'élément manquant est nommé.
   //  2. On ne touche JAMAIS fdj_shift_counts ici. Faire disparaître une
   //     alerte en réécrivant un comptage humain serait exactement
-  //     l'inverse de ce qui est demandé — la correction automatique de
-  //     stock existe déjà ailleurs (appliquerCorrectionsAutomatiquesContinuite),
-  //     strictement bornée aux valeurs encore héritées.
+  //     l'inverse de ce qui est demandé ; depuis le 10/10/2026, aucune
+  //     correction de stock n'est plus automatique, nulle part.
   //  3. `vue` et `resolue_automatiquement` restent deux choses distinctes.
   //     Ce chargeur ignore délibérément `vue` : un manager qui a cliqué
   //     « Vérifié ☑ » a accusé réception, il n'a rien résolu — et à
@@ -3352,7 +3284,7 @@
         ${integrite && integrite.integrite !== 'OK' ? `<div style="margin:4px 0;">${badgeIntegrite(integrite, shift)}</div>` : ''}
         <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockDebut)} Stock début</span><span>${texteEtatComptage(prog.stockDebut)}</span></div>
         <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockFin)} Stock final</span><span>${texteEtatComptage(prog.stockFin)}</span></div>
-        <div class="carte-quart-ligne"><span>📝 Caisse</span><span class="${!estBrouillon && classe ? classe : ''}">${libelleCaisse}${!estBrouillon && ecart !== null ? ` · ${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : ''}</span></div>
+        <div class="carte-quart-ligne"><span>📝 Caisse</span><span class="${!estBrouillon && classe ? classe : ''}">${libelleCaisse}${!estBrouillon && ecart !== null ? ` · ${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : ''}</span></div>
         <div class="carte-quart-etape">${etapeActuelleQuart(shift, prog)}</div>
         <button type="button" class="btn-modifier carte-quart-action" data-action-quart="${quart}">${libelleActionCarteQuartJour(quart, shift, prog)}</button>
       </div>
@@ -3374,7 +3306,7 @@
             <div class="histo-sub">${nomEmploye(s.employee_id)}</div>
           </div>
           <div style="text-align:right;">
-            <div class="histo-ecart ${estBrouillon ? '' : classe}">${estBrouillon ? '—' : (ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—')}</div>
+            <div class="histo-ecart ${estBrouillon ? '' : classe}">${estBrouillon ? '—' : (ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—')}</div>
             <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
             ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:4px;">${badgeIntegrite(integrite, s)}</div>` : ''}
           </div>
@@ -4514,7 +4446,7 @@
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(dernier.regularisations)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(dernier.caisse_attendue)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(dernier.caisse_reelle)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
         ${libelleAnomalieChaine(dernier.anomalie_chaine).map(l => `<div class="stat-row"><div class="stat-label">${l.label}</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${l.valeur}</div></div>`).join('')}
       </div>
 
@@ -4716,7 +4648,7 @@
             <div class="stat-row"><div class="stat-label">Quart ${shift.quart}</div><div class="stat-value">${nomEmploye(shift.employee_id)}</div></div>
             ${dernier ? `
               <div class="stat-row"><div class="stat-label">Caractère</div><div class="stat-value"><span class="badge-caractere ${dernier.caractere}">${libelleCaractereReleve(dernier.caractere)}</span></div></div>
-              <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+              <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null && ecart !== undefined ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
             ` : `<div class="empty">Aucun relevé de clôture pour ce quart.</div>`}
           </div>
         `;
@@ -4880,7 +4812,7 @@
               <div class="histo-top">
                 <div><div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div></div>
                 <div style="text-align:right;">
-                  <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
+                  <div class="histo-ecart ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div>
                   <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
                 </div>
               </div>
@@ -5203,6 +5135,8 @@
       historiqueAudit,
       demandesCorrection,
       motifReouverture: '',
+      motifCorrectionStock: '',
+      certifier: false,
     };
     // Instantané "avant" pour la trace d'audit — jamais un écrasement
     // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
@@ -5382,7 +5316,7 @@
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
         ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       </div>
 
       <div id="blocMotifEcart">${renderBlocMotifEcart(ecart, edition.ecartOrigine)}</div>
@@ -5411,7 +5345,16 @@
 
       ${renderHistoriqueAuditFdj()}
 
-      <button class="btn-primary" id="btnEnregistrer">${edition.estNouveau ? 'Enregistrer' : 'Certifier le contrôle'}</button>
+      ${edition.estNouveau ? '' : `
+      <div class="champ-sep"></div>
+      <label class="champ-label" for="champMotifCorrectionStock">Motif de correction des stocks</label>
+      <input class="champ-input" id="champMotifCorrectionStock" type="text" style="margin-bottom:12px;" placeholder="Obligatoire si un stock déjà enregistré change (5 caractères au moins)…" value="${(edition.motifCorrectionStock || '').replace(/"/g, '&quot;')}">`}
+      ${controleCaisseEnCours() ? `
+      <label class="champ-label" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <input type="checkbox" id="champCertifier" ${edition.certifier ? 'checked' : ''}> Certifier le contrôle
+      </label>` : ''}
+
+      <button class="btn-primary" id="btnEnregistrer">${libelleBoutonEdition()}</button>
       <button class="btn-ghost" id="btnAnnuler">Annuler</button>
     `;
 
@@ -5575,13 +5518,13 @@
     if (situation === 'restant') {
       return `
         <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart final</div><div class="stat-value ${classe}">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart final</div><div class="stat-value ${classe}">${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}</div></div>
         <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Origine</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">Non identifiée</div></div>
       `;
     }
     return `
       <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
-      <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+      <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       <div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${edition.motifEcart ? labelMotifEcart(edition.motifEcart) : '—'}</div></div>
     `;
   }
@@ -5599,7 +5542,7 @@
         <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
         ${ligneVersementsRegulEdition()}
         <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${NexusFdjMoteur.libelleEcartCaisse(ecart, 'manager')}` : '—'}</div></div>
       `;
     }
     const synthese = document.getElementById('resumeCardSynthese');
@@ -5717,6 +5660,13 @@
     document.getElementById('champCaisseReelle').addEventListener('input', e => { edition.caisseReelle = e.target.value === '' ? null : Number(e.target.value); majResume(); });
 
     document.getElementById('btnEnregistrer').addEventListener('click', enregistrerEdition);
+    const champMotifStock = document.getElementById('champMotifCorrectionStock');
+    if (champMotifStock) champMotifStock.addEventListener('input', e => { edition.motifCorrectionStock = e.target.value; });
+    const champCertifier = document.getElementById('champCertifier');
+    if (champCertifier) champCertifier.addEventListener('change', e => {
+      edition.certifier = e.target.checked;
+      document.getElementById('btnEnregistrer').textContent = libelleBoutonEdition();
+    });
 
     // Vague 1 (17/09/2026) — les deux gestes qui ne passent pas par le
     // bouton d'enregistrement, parce qu'ils ne sont pas une saisie : ils
@@ -5854,13 +5804,16 @@
     // comme le reste des validations de ce formulaire (ex. contrainte
     // unique date/quart, gérée par la base plus bas).
     const ecartValidation = ecartCaisseEdition();
-    if (!edition.resultatControle) {
+    // 10/10/2026 : une correction sans certification (cas B, case décochée)
+    // n'écrit aucun verdict ; elle n'a donc pas à en exiger un.
+    const certifie = certificationDemandee();
+    if (certifie && !edition.resultatControle) {
       alert('Choisissez un verdict du contrôle (Conforme / Conforme avec écart justifié / Écart à régulariser) avant d\'enregistrer.');
       const selVerdict = document.getElementById('champResultatControle');
       if (selVerdict) selVerdict.focus();
       return;
     }
-    if (!NexusFdjMoteur.verdictCoherentAvecEcart(edition.resultatControle, ecartValidation)) {
+    if (certifie && !NexusFdjMoteur.verdictCoherentAvecEcart(edition.resultatControle, ecartValidation)) {
       alert('Le verdict choisi ne correspond plus à l\'écart actuel (' + fmtEuro(ecartValidation) + ') — le formulaire vient de le recalculer, vérifiez-le avant d\'enregistrer.');
       renderEdition();
       return;
@@ -5891,6 +5844,50 @@
       if (champMotifT) champMotifT.focus();
       return;
     }
+    // Arbitrage du 10/10/2026 : toute correction d'une valeur de stock déjà
+    // enregistrée exige un motif, conservé avec l'ancienne et la nouvelle
+    // valeur. Refusé ici, avant tout appel réseau, champ sous les yeux.
+    const correctionsStock = correctionsStockEdition();
+    if (correctionsStock.length && !NexusFdjMoteur.motifCorrectionStockValide(edition.motifCorrectionStock)) {
+      alert('Vous modifiez ' + correctionsStock.length + ' valeur(s) de stock d\u00e9j\u00e0 enregistr\u00e9e(s) : indiquez un motif de correction d\'au moins ' + NexusFdjMoteur.MOTIF_CORRECTION_STOCK_MIN + ' caract\u00e8res.');
+      const champM = document.getElementById('champMotifCorrectionStock');
+      if (champM) champM.focus();
+      return;
+    }
+    const motifStock = correctionsStock.length ? edition.motifCorrectionStock.trim() : null;
+    // Arbitrage du 10/10/2026, §2 : dès qu'un stock initial est renseigné ou
+    // modifié, il fait autorité sur la fin du quart précédent, rapprochée
+    // après l'enregistrement (étape 8). Si ce rapprochement corrige une fin
+    // DÉJÀ ENREGISTRÉE, le motif est exigé ici, avant tout appel d'écriture.
+    const debutsModifies = jeux.filter(j => {
+      const apres = edition.counts[j.id] ? edition.counts[j.id].stock_initial : null;
+      if (NexusFdjMoteur.absentStock(apres)) return false;
+      if (edition.estNouveau || !edition.avant || !edition.avant.counts) return true;
+      const avant = edition.avant.counts[j.id] ? edition.avant.counts[j.id].stock_initial : null;
+      return NexusFdjMoteur.absentStock(avant) || Number(avant) !== Number(apres);
+    });
+    let motifAlignement = motifStock;
+    if (debutsModifies.length) {
+      const prec = NexusFdjMoteur.quartPrecedentAttendu(edition.date, edition.quart);
+      const { data: shiftPrec } = await nexusClient.from('fdj_shifts').select('id')
+        .eq('site', siteId).eq('date', prec.date).eq('quart', prec.quart).maybeSingle();
+      if (shiftPrec) {
+        const { data: countsPrec } = await nexusClient.from('fdj_shift_counts')
+          .select('game_id, stock_final').eq('shift_id', shiftPrec.id);
+        const finsQ1 = {};
+        (countsPrec || []).forEach(c => { finsQ1[c.game_id] = c.stock_final; });
+        const debutsQ2 = {};
+        jeux.forEach(j => { if (edition.counts[j.id] && finsQ1.hasOwnProperty(j.id)) debutsQ2[j.id] = edition.counts[j.id].stock_initial; });
+        const { alerteManager } = NexusFdjMoteur.rapprochementFinQ1(debutsQ2, finsQ1);
+        if (alerteManager && !NexusFdjMoteur.motifCorrectionStockValide(edition.motifCorrectionStock)) {
+          alert('Ce stock initial corrigera la fin d\u00e9j\u00e0 enregistr\u00e9e du quart pr\u00e9c\u00e9dent : indiquez un motif de correction d\'au moins ' + NexusFdjMoteur.MOTIF_CORRECTION_STOCK_MIN + ' caract\u00e8res.');
+          const champM = document.getElementById('champMotifCorrectionStock');
+          if (champM) champM.focus();
+          return;
+        }
+        if (alerteManager) motifAlignement = edition.motifCorrectionStock.trim();
+      }
+    }
     const btn = document.getElementById('btnEnregistrer');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
@@ -5898,7 +5895,7 @@
     // edition.estNouveau que le rendu initial du bouton (Article 11, une
     // seule règle de libellé, jamais un "Enregistrer" générique qui
     // contredirait le titre "Contrôler la clôture").
-    const libelleBouton = edition.estNouveau ? 'Enregistrer' : 'Certifier le contrôle';
+    const libelleBouton = libelleBoutonEdition();
 
     // 1) Résoudre le quart (existant ou nouveau). Date et quart sont inclus
     // dans le même UPDATE ... WHERE id= (09/08/2026, demande de Frédéric) :
@@ -6136,9 +6133,10 @@
       const versementsARecalculer = NexusVerifyMoteur.regularisationsARecalculer(edition.versementsRegulRetenus, versementsLus);
       edition.versementsRegul = versementsLus;
       if (montantsCaisseModifies() || versementsARecalculer) {
+        const motifBase = motifStock || motifCaisseManager();
         const motifRecalcul = versementsARecalculer
-          ? `${motifCaisseManager()} \u2014 recalcul : versements de r\u00e9gularisation du tiroir ${fmtEuro(versementsLus.net)} (calcul pr\u00e9c\u00e9dent ${fmtEuro(edition.versementsRegulRetenus)})`
-          : motifCaisseManager();
+          ? `${motifBase} \u2014 recalcul : versements de r\u00e9gularisation du tiroir ${fmtEuro(versementsLus.net)} (calcul pr\u00e9c\u00e9dent ${fmtEuro(edition.versementsRegulRetenus)})`
+          : motifBase;
         const { data: rCorr, error: eCorr } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
           p_shift_id: shift.id,
           p_motif: motifRecalcul,
@@ -6150,6 +6148,10 @@
         if (rCorr && rCorr.corrige === false) { echecCaisse('Correction refus\u00e9e : ' + (rCorr.message || rCorr.motif)); return; }
       }
 
+      // Arbitrage du 10/10/2026 : jamais de certification implicite. Sans la
+      // case « Certifier le contrôle », la caisse reste confirmée, non
+      // validée, montants recalculés.
+      if (edition.certifier) {
       const { data: rVal, error: eVal } = await nexusClient.rpc('fdj_valider_caisse', {
         p_shift_id: shift.id,
         p_resultat_controle: edition.resultatControle,
@@ -6158,6 +6160,7 @@
       });
       if (eVal) { console.error('Validation caisse FDJ:', eVal); echecCaisse('La validation a \u00e9t\u00e9 refus\u00e9e : ' + (NexusVerifyMoteur.messageRegularisationsTiroir(eVal.message, NexusVerifyMoteur.MESSAGES_REGULARISATIONS_FDJ) || eVal.message || 'raison inconnue')); return; }
       if (rVal && rVal.valide === false) { echecCaisse('Caisse non valid\u00e9e : ' + (rVal.message || rVal.motif)); return; }
+      }
     } else {
       // C) La caisse est validée. `fdj_valider_caisse` est alors IDEMPOTENTE :
       // elle ne réécrit ni le verdict, ni le motif, et renvoie un succès. Un
@@ -6172,7 +6175,7 @@
       if (montantsCaisseModifies()) {
         const { data: rCorr, error: eCorr } = await nexusClient.rpc('fdj_corriger_caisse_manager', {
           p_shift_id: shift.id,
-          p_motif: motifCaisseManager(),
+          p_motif: motifStock || motifCaisseManager(),
           p_caisse_reelle: edition.caisseReelle,
           p_regularisations: edition.regularisations || 0,
           p_commentaire: edition.motifEcartTexte || null,
@@ -6190,7 +6193,8 @@
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
       action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
-      motif: edition.motifEcart || null,
+      motif: motifStock || edition.motifEcart || null,
+      metadata: correctionsStock.length ? { corrections_stock: correctionsStock, motif_correction_stock: motifStock, certifie: !!(controleCaisseEnCours() && edition.certifier) } : null,
       ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, motifEcartTexte: edition.motifEcartTexte, resultatControle: edition.resultatControle, employeeId: edition.employeeId, ecart },
     });
 
@@ -6299,21 +6303,13 @@
       }
     }
 
-    // 7) Propagation automatique + versionnage + repassage a_revoir +
-    // alerte manager (18/08/2026, FDJ Fiabilisation Étape 2 — cahier
-    // `NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf`, désigné par
-    // Frédéric dans le cadrage de l'Étape 1 comme "le vrai cœur du risque
-    // signalé"). Jusqu'ici, seule une chaîne qui se RÉTABLIT après rupture
-    // déclenchait une réconciliation (reconcilierAlertesChaine, Continuité
-    // FDJ v2) — une régularisation manager directe sur un quart déjà lié à
-    // son suivant ne propageait rien : le stock_initial du quart suivant
-    // pouvait rester silencieusement incohérent avec le stock_final tout
-    // juste corrigé. Ne s'applique qu'à une régularisation d'un quart
-    // EXISTANT (une création n'a pas de "avant" à comparer) et seulement
-    // si au moins un stock_final a réellement changé (Article 5). Même
-    // sens de propagation que ecartsContinuiteAAppliquer/
-    // appliquerCorrectionsAutomatiquesContinuite déjà existants — du quart
-    // corrigé vers celui qui le suit immédiatement (Article 11).
+    // 7) Versionnage + signalement au quart suivant (FDJ Fiabilisation
+    // Étape 2, 18/08/2026 ; règle remplacée par l'arbitrage du 10/10/2026).
+    // Ne s'applique qu'à une régularisation d'un quart EXISTANT et seulement
+    // si au moins un stock_final a réellement changé. Le stock initial du
+    // quart suivant fait autorité : il n'est jamais réécrit depuis une
+    // correction de la fin de ce quart. Une rupture est seulement signalée
+    // (alerte continuite_stock_a_verifier + a_revoir) pour le manager.
     if (!edition.estNouveau && edition.avant && edition.avant.counts) {
       const corrections = [];
       jeux.forEach(j => {
@@ -6342,28 +6338,10 @@
           const contexteSuivant = {};
           (countsSuivant || []).forEach(c => { contexteSuivant[c.game_id] = { stock_initial: c.stock_initial, stock_initial_auto: c.stock_initial_auto === true }; });
 
-          const { applicables, aRevoir } = NexusFdjMoteur.propagationCorrectionStock(corrections, contexteSuivant);
-
-          if (applicables.length) {
-            await appliquerCorrectionsAutomatiquesContinuite(shiftSuivant.id, applicables);
-            await nexusClient.rpc('fdj_manager_incrementer_version', { p_shift_id: shiftSuivant.id });
-            await nexusClient.from('fdj_audit_log').insert({
-              site: siteId, shift_id: shiftSuivant.id, entite_type: 'fdj_shift_counts', entite_id: shiftSuivant.id,
-              action: 'fdj_propagation_correction_stock_amont', acteur_id: managerCourant.id,
-              motif: `Propagation automatique après correction manager du quart précédent (${libelleQuart(shift)}) — stock_initial encore hérité, jamais confirmé par un humain.`,
-              ancienne_valeur: null, nouvelle_valeur: { jeux: applicables.map(a => a.game_id) },
-            });
-
-            // FDJ Fiabilisation — Étape 4 : le quart suivant vient d'être
-            // recalculé silencieusement (ventes/écart) — son relevé de
-            // clôture, s'il existe déjà, doit refléter ce nouvel état,
-            // sinon l'écran "Relevé de clôture" et son export PDF
-            // resteraient périmés sans aucune alerte visible. Si l'écriture
-            // échoue, needs_replay reste true — la Boîte d'exceptions
-            // (catégorie "replay requis") offre alors un "Recalculer" manuel.
-            const replaySucces = await rejouerReleveApresPropagation(shiftSuivant.id, applicables.map(a => a.game_id));
-            await nexusClient.rpc('fdj_manager_marquer_replay', { p_shift_id: shiftSuivant.id, p_succes: !!replaySucces });
-          }
+          // Arbitrage du 10/10/2026 : le stock initial de Q2 fait autorité.
+          // Une correction de la fin de Q1 ne le réécrit jamais, même hérité :
+          // l'écart éventuel est seulement signalé (alerte + a_revoir).
+          const { aRevoir } = NexusFdjMoteur.propagationCorrectionStock(corrections, contexteSuivant);
 
           if (aRevoir.length) {
             const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
@@ -6390,6 +6368,33 @@
             });
           }
         }
+      }
+    }
+
+    // 8) Rapprochement de la fin du quart précédent (arbitrage du
+    // 10/10/2026, §2-§4). Le serveur lit les deux quarts en base, aligne la
+    // fin de Q1 sur le début de Q2 (jamais l'inverse), journalise ancienne
+    // et nouvelle valeur, auteur et motif, et recalcule la caisse de Q1 si
+    // elle est confirmée — sans jamais la certifier.
+    if (debutsModifies.length) {
+      const { data: alignement, error: eAlign } = await nexusClient.rpc('fdj_manager_aligner_fin_quart_precedent', {
+        p_shift_id: shift.id, p_motif: motifAlignement || null,
+      });
+      if (eAlign) {
+        console.error('Rapprochement fin du quart précédent FDJ:', eAlign);
+        alert('Le quart est enregistr\u00e9, mais la fin du quart pr\u00e9c\u00e9dent n\'a pas \u00e9t\u00e9 rapproch\u00e9e : ' + (eAlign.message || eAlign) + '\nLa rupture de continuit\u00e9 reste \u00e0 traiter.');
+      } else if (alignement && alignement.aligne && alignement.alerte_manager) {
+        const nomJeu = id => { const j = jeux.find(x => x.id === id); return j ? j.nom : id; };
+        const lignes = (alignement.corrections || []).filter(c => c.correction_valeur_enregistree)
+          .map(c => '\u2022 ' + nomJeu(c.game_id) + ' : ' + c.ancienne_valeur + ' \u2192 ' + c.nouvelle_valeur);
+        let texte = 'Le stock initial de ce quart a corrig\u00e9 la fin du quart pr\u00e9c\u00e9dent :\n' + lignes.join('\n');
+        const caisse = alignement.caisse;
+        if (caisse && caisse.corrige) {
+          const fmt = v => (v === null || v === undefined) ? '\u2014' : Number(v).toFixed(2) + ' \u20ac';
+          texte += '\n\nCaisse du quart pr\u00e9c\u00e9dent recalcul\u00e9e : \u00e9cart ' + fmt(caisse.ecart_avant) + ' \u2192 ' + fmt(caisse.ecart)
+            + (caisse.libelle_ecart ? ' (' + caisse.libelle_ecart + ')' : '') + '. Le montant compt\u00e9 est conserv\u00e9 ; la caisse n\'est pas recertifi\u00e9e.';
+        }
+        alert(texte);
       }
     }
 

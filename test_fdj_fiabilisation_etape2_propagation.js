@@ -3,6 +3,10 @@
 // Couvre NexusFdjMoteur.propagationCorrectionStock : quand un manager corrige
 // le stock_final d'un jeu sur un quart déjà clos, comment cette correction se
 // propage (ou non) vers le stock_initial du quart suivant.
+// Arbitrage définitif du 10/10/2026 (continuité Q1/Q2) : le stock initial
+// du quart suivant n'est JAMAIS réécrit depuis une correction du quart
+// précédent, même hérité (stock_initial_auto=true). `applicables` reste
+// donc toujours vide ; tout écart part dans `aRevoir`.
 // Charge le vrai fichier moteur (jamais réécrit à la main), comme tous les
 // tests de ce module.
 
@@ -28,14 +32,12 @@ function test(nom, fn) {
   }
 }
 
-test('stock_initial_auto === true -> correction applicable automatiquement', () => {
+test('stock_initial_auto === true et valeur différente -> à revoir, jamais réécrit (arbitrage du 10/10/2026)', () => {
   const corrections = [{ game_id: 'g1', nouvelle_valeur: 12 }];
   const contexte = { g1: { stock_initial: 5, stock_initial_auto: true } };
   const r = M.propagationCorrectionStock(corrections, contexte);
-  assert.strictEqual(r.applicables.length, 1);
-  assert.strictEqual(r.applicables[0].game_id, 'g1');
-  assert.strictEqual(r.applicables[0].stock_final_precedent, 12);
-  assert.strictEqual(r.aRevoir.length, 0);
+  assert.strictEqual(r.applicables.length, 0);
+  assert.deepStrictEqual(r.aRevoir, [{ game_id: 'g1', valeur_quart_precedent: 12, valeur_saisie: 5 }]);
 });
 
 test('stock_initial_auto === false et valeur différente -> à revoir par le manager (jamais auto-écrasé)', () => {
@@ -89,10 +91,8 @@ test('Plusieurs jeux mélangés (auto + à revoir + coïncident + sans contexte)
     coincidence: { stock_initial: 30, stock_initial_auto: false },
   };
   const r = M.propagationCorrectionStock(corrections, contexte);
-  assert.strictEqual(r.applicables.length, 1);
-  assert.strictEqual(r.applicables[0].game_id, 'auto');
-  assert.strictEqual(r.aRevoir.length, 1);
-  assert.strictEqual(r.aRevoir[0].game_id, 'revoir');
+  assert.strictEqual(r.applicables.length, 0);
+  assert.deepStrictEqual(r.aRevoir.map(a => a.game_id), ['auto', 'revoir']);
 });
 
 console.log(`\n${nbOk}/${nbTests} tests réussis`);
