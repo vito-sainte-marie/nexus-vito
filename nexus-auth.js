@@ -324,9 +324,19 @@ const NEXUS_PAGES_PUBLIQUES = [
  *                  défaut, pour qu'un écran oublié reste fermé.
  */
 function nexusCategorieAcces(page){
-  if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page))return 'sequence';
-  if(NEXUS_PAGES_CONSULTATION.includes(page))return 'consultation';
-  if(NEXUS_PAGES_PUBLIQUES.includes(page))return 'publique';
+  // 11/10/2026 — on compare des IDENTIFIANTS de page, jamais des noms de
+  // fichier : Cloudflare Pages sert `/NEXUS-Prise-De-Poste-v1` (308 depuis
+  // `.html`), et un `includes()` sur les listes ci-dessus classait alors
+  // l'écran de séquence en 'operationnel' par défaut — la prise de poste se
+  // redirigeait vers elle-même, sans fin (#99, alias Test). La normalisation
+  // est celle de nexus-page.js, appliquée des DEUX côtés de la comparaison.
+  // `identifiant()` sans argument lirait `location` : on lui passe toujours
+  // une chaîne, et le bloc reste pur.
+  const id=NexusPage.identifiant(page==null?'':page);
+  const dans=liste=>!!id&&liste.some(nom=>NexusPage.identifiant(nom)===id);
+  if(dans(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE))return 'sequence';
+  if(dans(NEXUS_PAGES_CONSULTATION))return 'consultation';
+  if(dans(NEXUS_PAGES_PUBLIQUES))return 'publique';
   return 'operationnel';
 }
 
@@ -391,7 +401,7 @@ function nexusEstManager(employee){
   return !!employee && (employee.role === 'manager' || employee.role === 'gerant');
 }
 
-async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;
+async function nexusPointageArriveeManquant(employee){const page=NexusPage.identifiant();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;
   // 19/09/2026 — LE FUSEAU NE VIENT PLUS DE CETTE REQUETE. Il venait de la
   // meme lecture `station_config`, ce qui coutait zero requete mais lisait la
   // colonne DEPRECIEE, dont la ligne peut manquer. L'autorite est
@@ -929,7 +939,7 @@ async function nexusServiceCourant(employee){
   return { service: services[0] };
 }
 
-async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=nexusEstManager(employee);if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
+async function nexusPriseDePosteManquante(employee){const page=NexusPage.identifiant();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const manager=nexusEstManager(employee);if(manager)return false;// S-4 / Q2 : la porte d'accès regarde le service RÉELLEMENT actif, plus
   // l'existence d'un service dans la journée de l'appareil. Après un
   // pointage de départ, l'employé n'a plus de service courant : s'il
   // revient sur un parcours qui en exige un, il est renvoyé vers la prise

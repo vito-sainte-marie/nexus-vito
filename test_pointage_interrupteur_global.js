@@ -101,6 +101,13 @@ async function executer(scenario, employee, pageActuelle = 'NEXUS-Missions-v1.ht
     globalThis: {},
     console: { log: () => {}, warn: () => {}, error: (...a) => ERREURS.push(a.join(' ')) },
     window: { location: { pathname: '/' + pageActuelle } },
+    // 11/10/2026 — la garde identifie la page par nexus-page.js : le banc
+    // charge le vrai fichier, avec la même `location` que la page simulée.
+    NexusPage: (() => {
+      const c = { window: { location: { pathname: '/' + pageActuelle } } };
+      vm.runInNewContext(fs.readFileSync(__dirname + '/nexus-page.js', 'utf8'), c);
+      return c.window.NexusPage;
+    })(),
     nexusClient: fauxClient(scenario),
   };
   ctx.globalThis = ctx;
