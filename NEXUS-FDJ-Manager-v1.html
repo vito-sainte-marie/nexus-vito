@@ -4478,143 +4478,396 @@
     `;
     document.getElementById('btnRetourReleve').addEventListener('click', () => { vue = 'liste'; releveQuart = null; renderAccueil(); });
     document.getElementById('btnGenererPdfReleve').addEventListener('click', () => {
-      genererEtAfficherPdf(document.getElementById('zoneActionsPdfReleve'), () => construireReleveClotureQuartPdf(shift, releves), releveQuart);
+      genererEtAfficherPdf(document.getElementById('zoneActionsPdfReleve'), async () => construireReleveClotureQuartPdf(shift, releves, await chargerContexteReleveQuart(shift, releves)), releveQuart);
     });
   }
 
-  // Composition PDF du relevé d'un quart — 21/08/2026, demande de
-  // Frédéric : "en A4 paysage, une seule feuille à l'impression".
-  // Reconstruit sur ConstructeurRapportUnePage (déjà utilisé en
-  // production par Inventaire/FDJ Analyse/Verify pour leurs synthèses
-  // "toujours 1 page", nexus-pdf-moteur.js — Article 11, un seul
-  // mécanisme "1 page", jamais un second réécrit ici) plutôt que
-  // ConstructeurRapport (pagination libre, utilisé jusqu'ici) : un
-  // relevé à N versions ne peut pas garantir 1 page avec un historique
-  // de diff illimité comme avant. Chaque bloc reçoit ici un budget de
-  // hauteur FIXE ; l'historique des versions est plafonné avec un
-  // renvoi explicite ("+N autres — voir dans l'app") plutôt que de
-  // déborder sur une 2e page ou tronquer silencieusement (Article 5).
-  // Écart assumé et documenté (Data Dictionary) : le détail ligne à
-  // ligne des diffs entre versions (visible à l'écran, renderReleveQuart)
-  // n'apparaît plus dans ce PDF — seul un résumé par version (auteur,
-  // date, motif) y figure ; le diff complet reste consultable dans l'app.
-  async function construireReleveClotureQuartPdf(shift, releves) {
+  // Contexte en LECTURE SEULE du relevé PDF (11/10/2026, lot
+  // FDJ-RELEVE-CLOTURE-A4-RECTO) : nom de la station, contrôle de caisse
+  // (certification) et jeux devenus inactifs encore présents dans le
+  // snapshot (chargerJeux ne rend que les actifs). Chargé au clic, jamais
+  // déduit de la forme du `shift` reçu (certains appelants portent `.cash`,
+  // d'autres non). Une lecture en échec n'arrête pas le relevé : la donnée
+  // est marquée indisponible et le PDF le dit, jamais une valeur inventée.
+  async function chargerContexteReleveQuart(shift, releves) {
+    const contexte = { nomStation: null, cash: null, cashLu: false, jeuxSupplementaires: [] };
+    try {
+      const { data, error } = await nexusClient.from('sites').select('nom_entreprise').eq('site_id', shift.site || siteId).maybeSingle();
+      if (!error && data && data.nom_entreprise) contexte.nomStation = data.nom_entreprise;
+    } catch (e) { console.error('Relevé PDF — nom de station :', e); }
+    try {
+      const { data, error } = await nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shift.id);
+      if (!error) { contexte.cash = (data || [])[0] || null; contexte.cashLu = true; }
+    } catch (e) { console.error('Relevé PDF — contrôle de caisse :', e); }
+    const connus = new Set(jeux.map(j => j.id));
+    const manquants = [...idsJeuxReleve(releves[releves.length - 1])].filter(id => !connus.has(id));
+    if (manquants.length) {
+      try {
+        const { data, error } = await nexusClient.from('fdj_games').select('id, nom, prix, actif, ordre_affichage').in('id', manquants);
+        if (!error) contexte.jeuxSupplementaires = (data || []).slice().sort((a, b) => (a.ordre_affichage ?? 0) - (b.ordre_affichage ?? 0));
+      } catch (e) { console.error('Relevé PDF — jeux inactifs :', e); }
+    }
+    return contexte;
+  }
+
+  // Tous les game_id cités par le snapshot, y compris ceux qui n'ont
+  // qu'une entrée de ventes — distinct de jeuxDuSnapshot (partagé avec
+  // l'export journée, inchangé).
+  function idsJeuxReleve(snapshot) {
+    return new Set([
+      ...Object.keys(snapshot.stock_initial_par_jeu || {}),
+      ...Object.keys(snapshot.appro_par_jeu || {}),
+      ...Object.keys(snapshot.stock_final_par_jeu || {}),
+      ...Object.keys(snapshot.ventes_par_jeu || {}),
+    ]);
+  }
+
+  // Composition PDF du relevé d'un quart — refondue le 11/10/2026 (lot
+  // Handoff FDJ-RELEVE-CLOTURE-A4-RECTO, demande de Frédéric) : UNE page
+  // A4 paysage, recto, les jeux du snapshot TOUS affichés ligne par ligne
+  // (plus de plafond à 10 ni de renvoi « +N autres — voir dans l'app »).
+  // Toujours ConstructeurRapportUnePage, mais le tableau de stock et la
+  // colonne de droite sont dessinés ici : tableauCompact/listePoints
+  // plafonnent et tronquent par conception, et changer leur comportement
+  // toucherait Inventaire, FDJ Analyse et Verify.
+  // Règles : aucune valeur recalculée à la place du snapshot (les
+  // incohérences sont SIGNALÉES, jamais corrigées) ; un nom n'est jamais
+  // tronqué (retour à la ligne) ; une donnée absente s'affiche « non
+  // saisi » et remonte dans les anomalies ; si le contenu ne tient pas sur
+  // la page à la taille minimale lisible, la génération ÉCHOUE avec un
+  // message explicite plutôt que de masquer une ligne ou réduire la police.
+  // Seul l'historique des versions peut être condensé (nombre total,
+  // version initiale, dernière version, renvoi vers l'historique intégral
+  // dans NEXUS), jamais présenté comme complet quand il ne l'est pas.
+  async function construireReleveClotureQuartPdf(shift, releves, contexte) {
+    // Sans contexte (appel hérité), chaque donnée de contexte est signalée indisponible.
+    contexte = contexte || {};
     const dernier = releves[releves.length - 1];
-    const jeuxListe = jeuxDuSnapshot(dernier);
-    const dateLabel = new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR');
-    const { COULEUR, MARGE_1P, ZONES_1P, MM } = NexusPdfMoteur;
-    const ecart = dernier.ecart;
-    const dateCourte = iso => iso ? new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
     const premier = releves[0];
-    const heureValidation = premier && premier.signature && premier.signature.date_heure
-      ? new Date(premier.signature.date_heure).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '—';
+    const { COULEUR, MARGE_1P } = NexusPdfMoteur;
+    const dateLabel = new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR');
+    const dateHeure = iso => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      return `${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    };
+    const estNul = v => v === null || v === undefined || v === '';
+    const egalCentimes = (a, b) => Math.abs(Number(a) - Number(b)) < 0.005;
+    const auteurVersion = r => (r.signature && r.signature.nom) ? r.signature.nom : (r.cree_par && nomEmploye(r.cree_par) !== '—' ? nomEmploye(r.cree_par) : 'auteur non renseigné');
+    const nomEmployeQuart = nomEmploye(shift.employee_id) !== '—'
+      ? nomEmploye(shift.employee_id)
+      : ((premier && premier.signature && premier.signature.nom) || 'non identifié');
+    const cash = contexte.cash || null;
+    const anomalies = [];
+
+    // ---- Lignes du tableau : chaque jeu du snapshot, dans l'ordre d'affichage
+    const ids = idsJeuxReleve(dernier);
+    const supplementaires = contexte.jeuxSupplementaires || [];
+    const jeuxOrdonnes = [
+      ...jeux.filter(j => ids.has(j.id)),
+      ...supplementaires.filter(j => ids.has(j.id) && !jeux.some(x => x.id === j.id)),
+    ];
+    const inconnus = [...ids].filter(id => !jeuxOrdonnes.some(j => j.id === id)).sort();
+    inconnus.forEach(id => anomalies.push(`Jeu inconnu du référentiel (${id.slice(0, 8)}) : nom et prix indisponibles.`));
+    const lignesJeux = [
+      ...jeuxOrdonnes.map(j => ({ id: j.id, nom: j.actif === false ? `${j.nom} (inactif)` : j.nom, prix: j.prix })),
+      ...inconnus.map(id => ({ id, nom: `Jeu inconnu (${id.slice(0, 8)})`, prix: null })),
+    ].map(j => {
+      const initial = (dernier.stock_initial_par_jeu || {})[j.id];
+      const appro = (dernier.appro_par_jeu || {})[j.id];
+      const final = (dernier.stock_final_par_jeu || {})[j.id];
+      const v = (dernier.ventes_par_jeu || {})[j.id] || {};
+      const ligne = { ...j, initial, appro, final, qte: v.qte, valeur: v.valeur, incoherent: false };
+      const manque = [['stock initial', initial], ['stock final', final], ['quantité vendue', v.qte], ['montant', v.valeur]].filter(([, x]) => estNul(x)).map(([l]) => l);
+      if (manque.length) anomalies.push(`${j.nom} : ${manque.join(', ')} non saisi${manque.length > 1 ? 's' : ''}.`);
+      if (!estNul(initial) && !estNul(final) && !estNul(v.qte)) {
+        const attendu = NexusFdjMoteur.calculerVentesJeu({ stock_initial: initial, appro, stock_final: final }, 0).qte;
+        if (!egalCentimes(attendu, v.qte)) { ligne.incoherent = true; anomalies.push(`${j.nom} : quantité vendue ${fmtNum(v.qte)} ≠ initial + appro − final (${fmtNum(attendu)}).`); }
+      }
+      if (!estNul(v.qte) && !estNul(v.valeur) && !estNul(j.prix) && !egalCentimes(Number(v.qte) * Number(j.prix), v.valeur)) {
+        ligne.incoherent = true;
+        anomalies.push(`${j.nom} : montant ${fmtEuro(v.valeur)} ≠ quantité × prix (${fmtEuro(Number(v.qte) * Number(j.prix))}).`);
+      }
+      return ligne;
+    });
+    const totalQte = lignesJeux.reduce((s, l) => s + (estNul(l.qte) ? 0 : Number(l.qte)), 0);
+    const totalValeur = lignesJeux.reduce((s, l) => s + (estNul(l.valeur) ? 0 : Number(l.valeur)), 0);
+    if (!estNul(dernier.ventes_grattage_valeur) && !egalCentimes(totalValeur, dernier.ventes_grattage_valeur)) {
+      anomalies.push(`Total du tableau ${fmtEuro(totalValeur)} ≠ ventes grattage du relevé ${fmtEuro(dernier.ventes_grattage_valeur)}.`);
+    }
+    const a = dernier.anomalie_chaine || null;
+    ((a && a.manquants) || []).forEach(m => anomalies.push(`Quart manquant dans la chaîne : ${typeof m === 'string' ? m : JSON.stringify(m)}.`));
+    if (dernier.caractere === 'provisoire') anomalies.push('Relevé provisoire : continuité à régulariser.');
+    if (!contexte.cashLu) anomalies.push('Contrôle de caisse non lu : certification indisponible.');
 
     const p = await NexusPdfMoteur.creerRapportUnePage({
       titre: `NEXUS FDJ — Relevé de clôture — ${shift.date} Quart ${shift.quart}`,
       sujet: 'Relevé de clôture FDJ — Trace de contrôle',
       orientation: 'paysage',
     });
-
-    const zEntete = p.allouerZone(ZONES_1P.entete);
-    p.entete(zEntete, {
-      app: 'NEXUS FDJ · RELEVÉ DE CLÔTURE',
-      ligne1: `${dateLabel} · Quart ${shift.quart} · ${nomEmploye(shift.employee_id)}`,
-      ligne2: `Identifiant ${shift.id} · Validé le ${heureValidation}`,
-    });
-
-    // Zone allouée seulement si nécessaire — un relevé définitif (cas
-    // normal) rend directement cette hauteur au corps du relevé plutôt
-    // que de laisser un blanc inutile.
-    if (dernier.caractere === 'provisoire') {
-      const zNote = p.allouerZone(MM * 7);
-      p.paragraphe(zNote, {
-        texte: 'Relevé PROVISOIRE — continuité de chaîne à régulariser au moment de ce constat. Recalcul automatique dès que le quart manquant sera complété.',
-        taille: 7.8, interligne: 9.5, couleur: COULEUR.ambre,
+    const page = p.page;
+    const X0 = MARGE_1P;
+    const X1 = p.pageLargeur - MARGE_1P;
+    const Y_BAS = MARGE_1P;
+    const trait = (xa, ya, xb, yb, epaisseur = 0.5, couleur = COULEUR.ligne) => page.drawLine({ start: { x: xa, y: ya }, end: { x: xb, y: yb }, thickness: epaisseur, color: couleur });
+    // Découpe en lignes SANS troncature ; un mot plus large que la colonne
+    // est lui-même coupé (un nom de jeu sans espace ne déborde jamais).
+    const lignesDe = (texte, taille, largeurMax, gras = false) => {
+      const sortie = [];
+      let courante = '';
+      const pousserMot = mot => {
+        while (p._largeurTexte(mot, taille, gras) > largeurMax && mot.length > 1) {
+          let n = mot.length - 1;
+          while (n > 1 && p._largeurTexte(mot.slice(0, n), taille, gras) > largeurMax) n--;
+          if (courante) { sortie.push(courante); courante = ''; }
+          sortie.push(mot.slice(0, n));
+          mot = mot.slice(n);
+        }
+        return mot;
+      };
+      String(texte == null ? '' : texte).split(/\s+/).filter(Boolean).forEach(motBrut => {
+        const essai = courante ? `${courante} ${motBrut}` : motBrut;
+        if (p._largeurTexte(essai, taille, gras) <= largeurMax) { courante = essai; return; }
+        if (courante) { sortie.push(courante); courante = ''; }
+        courante = pousserMot(motBrut);
       });
+      if (courante) sortie.push(courante);
+      return sortie.length ? sortie : [''];
+    };
+    const conflit = detail => new Error(`Relevé non généré — le contenu ne tient pas sur une page A4 sans masquer de donnée (${detail}). Arbitrage de mise en page requis ; rien n'a été tronqué.`);
+
+    // ---- En-tête compact (3 lignes)
+    let y = p.pageHauteur - MARGE_1P;
+    const statutTexte = labelStatutRelevecloture(dernier.statut);
+    const droiteEntete = `Version ${dernier.version_num}/${releves.length} · ${dernier.caractere === 'provisoire' ? 'Provisoire' : 'Définitif'} · ${statutTexte}`;
+    y -= 12;
+    p._texte('NEXUS FDJ — RELEVÉ DE CLÔTURE', X0, y, { taille: 12.5, gras: true });
+    p._texteDroite(droiteEntete, X1, y, { taille: 9, gras: true, couleur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.texte });
+    y -= 13;
+    const station = contexte.nomStation || `${shift.site || siteId} (nom de station indisponible)`;
+    p._texte(`Station : ${station}   ·   Quart ${shift.quart} du ${dateLabel}   ·   Employé : ${nomEmployeQuart}`, X0, y, { taille: 9 });
+    y -= 11;
+    const validation = dateHeure(premier.signature && premier.signature.date_heure) || dateHeure(premier.cree_le);
+    const ligne3 = [
+      validation ? `Validé le ${validation.replace(' ', ' à ')}` : 'Date de validation non renseignée',
+      releves.length > 1 && dateHeure(dernier.cree_le) ? `dernière version le ${dateHeure(dernier.cree_le).replace(' ', ' à ')}` : null,
+      `Réf. quart ${String(shift.id).slice(0, 8)}`,
+      dernier.id ? `Réf. relevé ${String(dernier.id).slice(0, 8)}` : null,
+    ].filter(Boolean).join('   ·   ');
+    p._texte(ligne3, X0, y, { taille: 7.5, couleur: COULEUR.texteDim });
+    y -= 6;
+    trait(X0, y, X1, y, 1, COULEUR.texte);
+    y -= 4;
+    if (dernier.caractere === 'provisoire') {
+      y -= 9;
+      p._texte('RELEVÉ PROVISOIRE — continuité de chaîne à régulariser au moment de ce constat ; recalcul automatique (nouvelle version) dès que le quart manquant sera complété.', X0, y, { taille: 7.5, gras: true, couleur: COULEUR.ambre });
+      y -= 5;
     }
 
-    const zKpi = p.allouerZone(ZONES_1P.kpi);
-    p.ligneKpi(zKpi, [
-      { label: 'STATUT', valeur: labelStatutRelevecloture(dernier.statut) },
-      { label: 'CARACTÈRE', valeur: libelleCaractereReleve(dernier.caractere), couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert },
-      { label: 'CAISSE ATTENDUE', valeur: fmtEuro(dernier.caisse_attendue), couleurValeur: COULEUR.cyan },
-      { label: 'CAISSE RÉELLE', valeur: fmtEuro(dernier.caisse_reelle) },
-      { label: 'ÉCART', valeur: ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—', couleurValeur: ecart === null || ecart === undefined ? COULEUR.texte : (ecart === 0 ? COULEUR.vert : COULEUR.ambre) },
-    ]);
+    // ---- Pied de page
+    const yPied = Y_BAS + 4;
+    trait(X0, yPied + 8, X1, yPied + 8);
+    p._texte('NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique. Lecture seule : aucune valeur recalculée.', X0, yPied, { taille: 6.5, couleur: COULEUR.texteDim });
+    p._texteDroite(`Édité le ${dateHeure(new Date().toISOString())} · page 1/1`, X1, yPied, { taille: 6.5, couleur: COULEUR.texteDim });
+    const yBasCorps = yPied + 14;
 
-    // Le corps prend TOUT l'espace vertical restant jusqu'au pied de page
-    // (calculé, jamais une hauteur devinée) — garantit que la page ne
-    // déborde jamais, que le bandeau provisoire ait été affiché ou non.
-    const hauteurPied = ZONES_1P.piedDePage;
-    const hauteurCorps = Math.max(0, (p.y - MARGE_1P) - hauteurPied);
-    const zCorps = p.allouerZone(hauteurCorps);
-    const { gauche, droite } = p.diviserColonnes(zCorps, { gouttiere: 16, ratioGauche: 0.52 });
-    const [zStock, zSynthese] = p.diviserLignes(gauche, [gauche.hauteur * 0.55, gauche.hauteur * 0.45]);
+    // ---- Colonnes 65 / 35
+    const gouttiere = 14;
+    const largeurUtile = X1 - X0;
+    const largeurGauche = (largeurUtile - gouttiere) * 0.65;
+    const xG = X0, xGFin = X0 + largeurGauche;
+    const xD = xGFin + gouttiere, xDFin = X1;
+    const largeurDroite = xDFin - xD;
+    const yHautCorps = y;
 
-    p.tableauCompact(zStock, {
-      titre: 'STOCK PAR JEU',
-      colonnes: [
-        { label: 'Jeu', cle: 'nom', largeur: 0.32 },
-        { label: 'Initial', cle: 'initial', largeur: 0.17, align: 'droite' },
-        { label: 'Appro', cle: 'appro', largeur: 0.16, align: 'droite' },
-        { label: 'Final', cle: 'final', largeur: 0.17, align: 'droite' },
-        { label: 'Ventes', cle: 'ventes', largeur: 0.18, align: 'droite' },
-      ],
-      lignes: jeuxListe.map(j => {
-        const v = (dernier.ventes_par_jeu || {})[j.id] || {};
-        return {
-          nom: j.nom,
-          initial: fmtNum((dernier.stock_initial_par_jeu || {})[j.id]),
-          appro: fmtNum((dernier.appro_par_jeu || {})[j.id]),
-          final: fmtNum((dernier.stock_final_par_jeu || {})[j.id]),
-          ventes: v.valeur !== undefined && v.valeur !== null ? fmtEuro(v.valeur) : '—',
-        };
-      }),
-      max: 10,
-      texteRenvoi: 'voir le détail dans l\'app',
+    // ================= GAUCHE : STOCK PAR JEU — DÉTAIL INTÉGRAL
+    const T_CORPS = 8.5, T_TETE = 7, INTERLIGNE = 10, PAD_MAX = 4.5, PAD_MIN = 1.5, PAD_CELL = 4;
+    const nonSaisi = 'non saisi';
+    const cellules = lignesJeux.map(l => ({
+      prix: estNul(l.prix) ? 'non connu' : fmtEuro(l.prix),
+      initial: estNul(l.initial) ? nonSaisi : fmtNum(l.initial),
+      appro: estNul(l.appro) ? nonSaisi : fmtNum(l.appro),
+      final: estNul(l.final) ? nonSaisi : fmtNum(l.final),
+      qte: estNul(l.qte) ? nonSaisi : fmtNum(l.qte),
+      valeur: estNul(l.valeur) ? nonSaisi : fmtEuro(l.valeur),
+    }));
+    const totalCellules = { qte: fmtNum(totalQte), valeur: fmtEuro(totalValeur) };
+    const colonnesNum = [
+      { cle: 'prix', tete: ['Prix', 'unitaire'] },
+      { cle: 'initial', tete: ['Stock', 'initial'] },
+      { cle: 'appro', tete: ['Approvision-', 'nements'] },
+      { cle: 'final', tete: ['Stock', 'final'] },
+      { cle: 'qte', tete: ['Quantité', 'vendue'] },
+      { cle: 'valeur', tete: ['Montant', 'des ventes'] },
+    ].map(c => {
+      const largeurs = [
+        ...c.tete.map(t => p._largeurTexte(t, T_TETE, true)),
+        ...cellules.map(x => p._largeurTexte(x[c.cle], T_CORPS, false)),
+        totalCellules[c.cle] ? p._largeurTexte(totalCellules[c.cle], T_CORPS, true) : 0,
+      ];
+      return { ...c, largeur: Math.max(...largeurs) + PAD_CELL * 2 };
     });
+    const largeurNum = colonnesNum.reduce((s, c) => s + c.largeur, 0);
+    const largeurJeu = largeurGauche - largeurNum;
+    if (largeurJeu < 90) throw conflit(`colonne Jeu réduite à ${Math.round(largeurJeu)} pt par des montants trop larges`);
+    const nomsDecoupes = lignesJeux.map(l => lignesDe(`${l.nom}${l.incoherent ? ' *' : ''}`, T_CORPS, largeurJeu - PAD_CELL * 2));
+    const nbLignesTexte = nomsDecoupes.reduce((s, n) => s + n.length, 0);
+    const hTitre = 13, hTete = 2 * (T_TETE + 1) + 6, hTotal = INTERLIGNE + 2 * PAD_MAX + 2;
+    const dispoLignes = (yHautCorps - yBasCorps) - hTitre - hTete - hTotal;
+    const n = Math.max(1, lignesJeux.length);
+    const pad = Math.min(PAD_MAX, (dispoLignes - nbLignesTexte * INTERLIGNE) / (2 * n));
+    if (pad < PAD_MIN) throw conflit(`${lignesJeux.length} jeux sur ${nbLignesTexte} lignes de texte pour ${Math.round(dispoLignes)} pt disponibles`);
 
-    const lignesSynthese = [
-      { poste: 'Ventes grattage', montant: fmtEuro(dernier.ventes_grattage_valeur) },
-      { poste: 'Lots payés', montant: fmtEuro(dernier.lots_payes_grattage) },
-      { poste: 'Caisse tirages', montant: fmtEuro(dernier.caisse_tirages) },
-      { poste: 'Régularisations', montant: fmtEuro(dernier.regularisations) },
-      { poste: 'Caisse attendue', montant: fmtEuro(dernier.caisse_attendue) },
-      { poste: 'Caisse réelle', montant: fmtEuro(dernier.caisse_reelle) },
-      { poste: 'Écart', montant: ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—' },
-      ...libelleAnomalieChaine(dernier.anomalie_chaine).map(l => ({ poste: l.label, montant: l.valeur })),
-    ];
-    p.tableauCompact(zSynthese, {
-      titre: 'SYNTHÈSE CAISSE',
-      colonnes: [
-        { label: 'Poste', cle: 'poste', largeur: 0.62 },
-        { label: 'Montant', cle: 'montant', largeur: 0.38, align: 'droite' },
-      ],
-      lignes: lignesSynthese,
-      max: 12,
+    let yG = yHautCorps - 10;
+    p._texte(`STOCK PAR JEU — DÉTAIL INTÉGRAL (${lignesJeux.length} jeu${lignesJeux.length > 1 ? 'x' : ''})`, xG, yG, { taille: 9, gras: true });
+    yG -= 3;
+    page.drawRectangle({ x: xG, y: yG - hTete, width: largeurGauche, height: hTete, color: COULEUR.fondEntete });
+    const xCol = [];
+    let xc = xG + largeurJeu;
+    colonnesNum.forEach(c => { xc += c.largeur; xCol.push(xc); });
+    p._texte('Jeu', xG + PAD_CELL, yG - hTete / 2 - 2.5, { taille: T_TETE, gras: true });
+    colonnesNum.forEach((c, i) => {
+      p._texteDroite(c.tete[0], xCol[i] - PAD_CELL, yG - T_TETE - 2, { taille: T_TETE, gras: true });
+      p._texteDroite(c.tete[1], xCol[i] - PAD_CELL, yG - 2 * T_TETE - 3.5, { taille: T_TETE, gras: true });
     });
-
-    p.listePoints(droite, {
-      titre: `HISTORIQUE DES VERSIONS (${releves.length})`,
-      points: releves.slice().reverse().map(r => {
-        const auteur = r.signature && r.signature.nom ? r.signature.nom : (r.cree_par ? nomEmploye(r.cree_par) : '—');
-        const base = `V${r.version_num} — ${libelleTypeVersionReleve(r.type_version)} — ${dateCourte(r.cree_le)} — ${auteur}`;
-        return r.motif_regularisation ? `${base} — ${r.motif_regularisation}` : base;
-      }),
-      max: 10,
-      texteRenvoi: 'voir l\'historique complet dans l\'app',
+    yG -= hTete;
+    trait(xG, yG, xGFin, yG, 0.8, COULEUR.texte);
+    lignesJeux.forEach((l, i) => {
+      const nl = nomsDecoupes[i].length;
+      const h = nl * INTERLIGNE + 2 * pad;
+      if (i % 2 === 1) page.drawRectangle({ x: xG, y: yG - h, width: largeurGauche, height: h, color: COULEUR.fondAlterne });
+      const yTexte = yG - pad - T_CORPS + 1;
+      nomsDecoupes[i].forEach((t, k) => p._texte(t, xG + PAD_CELL, yTexte - k * INTERLIGNE, { taille: T_CORPS, gras: l.incoherent, couleur: l.incoherent ? COULEUR.ambre : COULEUR.texte }));
+      colonnesNum.forEach((c, j) => {
+        const valeur = cellules[i][c.cle];
+        const absente = valeur === nonSaisi || valeur === 'non connu';
+        p._texteDroite(valeur, xCol[j] - PAD_CELL, yTexte, { taille: T_CORPS, couleur: absente ? COULEUR.ambre : COULEUR.texte, gras: c.cle === 'valeur' && !absente });
+      });
+      yG -= h;
+      trait(xG, yG, xGFin, yG, 0.3);
     });
+    trait(xG, yG, xGFin, yG, 0.8, COULEUR.texte);
+    const yTotal = yG - PAD_MAX - T_CORPS + 1;
+    p._texte('Total ventes grattage', xG + PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
+    p._texteDroite(totalCellules.qte, xCol[4] - PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
+    p._texteDroite(totalCellules.valeur, xCol[5] - PAD_CELL, yTotal, { taille: T_CORPS, gras: true });
+    yG -= hTotal;
+    if (yG < yBasCorps - 0.5) throw conflit('tableau de stock');
+    // Séparateur vertical discret entre les deux colonnes
+    trait(xGFin + gouttiere / 2, yHautCorps - 4, xGFin + gouttiere / 2, yBasCorps, 0.3);
 
-    const zPied = p.allouerZone(hauteurPied);
-    p.piedDePage(zPied, 'NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique.', dateLabel);
+    // ================= DROITE
+    let yD = yHautCorps - 10;
+    const titreBloc = t => { p._texte(t, xD, yD, { taille: 9, gras: true }); yD -= 4; trait(xD, yD, xDFin, yD, 0.6, COULEUR.texte); yD -= 10; };
+    const ligneMontant = (libelle, valeur, { gras = false, taille = 8.5 } = {}) => {
+      p._texte(libelle, xD, yD, { taille, gras });
+      p._texteDroite(valeur, xDFin, yD, { taille, gras });
+      yD -= taille + 3.5;
+    };
+
+    // A. Synthèse caisse
+    titreBloc('SYNTHÈSE CAISSE');
+    ligneMontant('Ventes grattage', fmtEuro(dernier.ventes_grattage_valeur));
+    ligneMontant('Lots payés', fmtEuro(dernier.lots_payes_grattage));
+    ligneMontant('Caisse tirages', fmtEuro(dernier.caisse_tirages));
+    ligneMontant('Régularisations', fmtEuro(dernier.regularisations));
+    trait(xD, yD + 8.5, xDFin, yD + 8.5, 0.3);
+    yD -= 1;
+    ligneMontant('Caisse attendue', fmtEuro(dernier.caisse_attendue), { gras: true, taille: 9.5 });
+    ligneMontant('Caisse réelle', fmtEuro(dernier.caisse_reelle), { gras: true, taille: 9.5 });
+    const ecart = dernier.ecart;
+    const ecartConnu = !estNul(ecart) && Number.isFinite(Number(ecart));
+    const ecartArrondi = ecartConnu ? Math.round(Number(ecart) * 100) / 100 : null;
+    ligneMontant('Écart constaté', ecartConnu ? fmtEuro(Math.abs(ecartArrondi)) : 'non calculable');
+    const resultat = !ecartConnu ? 'Écart non calculable'
+      : (ecartArrondi === 0 ? 'Caisse conforme' : (ecartArrondi > 0 ? 'Excédent constaté' : 'Manquant constaté'));
+    if (!ecartConnu) anomalies.push('Écart de caisse non calculable (donnée absente du relevé).');
+    const hRes = 20;
+    page.drawRectangle({ x: xD, y: yD - hRes + 9, width: largeurDroite, height: hRes, borderColor: COULEUR.texte, borderWidth: ecartArrondi === 0 ? 1 : 2, color: COULEUR.blanc });
+    p._texte(resultat, xD + 6, yD - 4, { taille: 10.5, gras: true });
+    if (ecartConnu && ecartArrondi !== 0) p._texteDroite(fmtEuro(Math.abs(ecartArrondi)), xDFin - 6, yD - 4, { taille: 10.5, gras: true });
+    yD -= hRes + 8;
+
+    // B. Contrôles
+    titreBloc('CONTRÔLES');
+    const T_CTRL = 7.5, IL_CTRL = 9.2;
+    const blocTexte = (libelle, texte, { couleur = COULEUR.texte } = {}) => {
+      const lib = `${libelle} :`;
+      // _assainir retire l'espace final : l'espacement après les deux-points est ajouté ici.
+      const wLib = p._largeurTexte(lib, T_CTRL, true) + T_CTRL * 0.35;
+      const lignes = lignesDe(texte, T_CTRL, largeurDroite - wLib);
+      p._texte(lib, xD, yD, { taille: T_CTRL, gras: true });
+      lignes.forEach((t, k) => p._texte(t, xD + wLib, yD - k * IL_CTRL, { taille: T_CTRL, couleur }));
+      yD -= lignes.length * IL_CTRL + 1.5;
+    };
+    const continuite = !a ? 'non renseignée'
+      : ('continuite_stock_a_verifier' in a ? (a.continuite_stock_a_verifier ? 'à vérifier' : 'vérifiée (aucune reprise de stock à vérifier)') : 'non renseignée (ancien format)');
+    const chaine = !a ? 'non renseignée'
+      : ('chaine_interrompue' in a ? (a.chaine_interrompue ? 'interrompue' : 'intacte') : (a.rompue ? 'interrompue' : 'intacte'));
+    blocTexte('Continuité des stocks', continuite, { couleur: a && a.continuite_stock_a_verifier ? COULEUR.ambre : COULEUR.texte });
+    blocTexte('Chaîne de contrôle', chaine, { couleur: a && (a.chaine_interrompue || a.rompue) ? COULEUR.ambre : COULEUR.texte });
+    blocTexte('Relevé', `${dernier.caractere === 'provisoire' ? 'Provisoire' : 'Définitif'} · statut « ${statutTexte} »`);
+    let certification;
+    if (!contexte.cashLu) certification = 'indisponible (lecture du contrôle de caisse impossible)';
+    else if (!cash) certification = 'aucun contrôle de caisse enregistré';
+    else if (cash.resultat_controle && (cash.controle_le || cash.valide_le)) {
+      const qui = cash.controle_par ? nomEmploye(cash.controle_par) : (cash.valide_par ? nomEmploye(cash.valide_par) : '—');
+      certification = `Certifiée « ${NexusFdjMoteur.labelResultatControle(cash.resultat_controle)} »${qui !== '—' ? ` par ${qui}` : ''} le ${dateHeure(cash.controle_le || cash.valide_le)}`;
+    } else certification = 'Non certifiée';
+    if (cash && Number(cash.nb_corrections) > 0) {
+      certification += ` · caisse en version ${cash.version ?? '?'}, ${cash.nb_corrections} correction${Number(cash.nb_corrections) > 1 ? 's' : ''}${cash.derniere_correction_le ? ` (dernière le ${dateHeure(cash.derniere_correction_le)})` : ''}`;
+    }
+    blocTexte('Certification de la caisse', certification);
+    const texteAnomalies = anomalies.length ? anomalies : ['Aucune anomalie relevée.'];
+    p._texte(`Anomalies à traiter par le manager (${anomalies.length}) :`, xD, yD, { taille: T_CTRL, gras: true });
+    yD -= IL_CTRL;
+    texteAnomalies.forEach(t => {
+      const lignes = lignesDe(t, T_CTRL, largeurDroite - 8);
+      if (anomalies.length) p._texte('-', xD + 1, yD, { taille: T_CTRL, couleur: COULEUR.ambre });
+      lignes.forEach((s, k) => p._texte(s, xD + 8, yD - k * IL_CTRL, { taille: T_CTRL, couleur: anomalies.length ? COULEUR.ambre : COULEUR.texte }));
+      yD -= lignes.length * IL_CTRL;
+    });
+    if (yD < yBasCorps) throw conflit(`${anomalies.length} anomalies dans la colonne de droite`);
+    yD -= 8;
+
+    // C. Historique des versions
+    const libelleVersion = r => {
+      const base = `V${r.version_num} — ${libelleTypeVersionReleve(r.type_version)} — ${auteurVersion(r)} — ${dateHeure(r.cree_le) || 'date non renseignée'}`;
+      return r.motif_regularisation ? `${base} — Motif : ${r.motif_regularisation}` : base;
+    };
+    const T_H = 7.5, IL_H = 9.2;
+    const blocs = releves.map(r => lignesDe(libelleVersion(r), T_H, largeurDroite - 4));
+    const hDispoHisto = yD - 14 - yBasCorps;
+    const hComplet = blocs.reduce((s, b) => s + b.length * IL_H + 2, 0);
+    let aDessiner;
+    if (hComplet <= hDispoHisto) aDessiner = blocs;
+    else {
+      const derniereCorrection = releves.slice(1).reverse().find(r => r.type_version === 'regularisation_manager') || null;
+      const retenus = [releves[0], derniereCorrection, dernier].filter((r, i, t) => r && t.indexOf(r) === i);
+      const omis = releves.length - retenus.length;
+      aDessiner = [
+        lignesDe(`${releves.length} versions au total — historique condensé :`, T_H, largeurDroite - 4),
+        ...retenus.map((r, i) => {
+          const prefixe = i === 0 ? 'Initiale : ' : (r === dernier ? 'Dernière : ' : 'Dernière correction : ');
+          return lignesDe(`${prefixe}${libelleVersion(r)}`, T_H, largeurDroite - 4);
+        }),
+        lignesDe(`${omis} version${omis > 1 ? 's' : ''} non reproduite${omis > 1 ? 's' : ''} ici — historique intégral dans NEXUS (FDJ Manager › Historique › relevé du quart).`, T_H, largeurDroite - 4),
+      ];
+      if (aDessiner.reduce((s, b) => s + b.length * IL_H + 2, 0) > hDispoHisto) throw conflit('historique des versions, même condensé');
+    }
+    titreBloc(`HISTORIQUE DES VERSIONS (${releves.length})`);
+    aDessiner.forEach(b => {
+      b.forEach((t, k) => p._texte(t, xD, yD - k * IL_H, { taille: T_H }));
+      yD -= b.length * IL_H + 2;
+    });
+    if (yD < yBasCorps - 0.5) throw conflit('colonne de droite');
 
     const bytes = await NexusPdfMoteur.finaliser(p);
     const nomFichier = `NEXUS-FDJ-Releve-${shift.date}-Q${shift.quart}.pdf`;
     return {
       bytes, nomFichier,
       titre: `NEXUS FDJ — Relevé de clôture ${dateLabel} Quart ${shift.quart}`,
-      texte: `Relevé de clôture FDJ — ${nomEmploye(shift.employee_id)} — ${dateLabel} Quart ${shift.quart}`,
+      texte: `Relevé de clôture FDJ — ${nomEmployeQuart} — ${dateLabel} Quart ${shift.quart}`,
     };
   }
 
