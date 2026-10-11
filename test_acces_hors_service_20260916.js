@@ -45,6 +45,17 @@ const F = AUTH.indexOf('/* NEXUS-ACCES-REGLE:FIN */');
 assert.ok(D !== -1 && F > D, 'le bloc de règle d\'accès a disparu de nexus-auth.js');
 const BLOC = AUTH.slice(D, F);
 
+// 11/10/2026 — la règle compare des identifiants de page normalisés par
+// nexus-page.js. Le banc charge le VRAI fichier, comme le navigateur le fait
+// avant nexus-auth.js, avec la `location` de la page simulée (ou aucune : le
+// bloc pur ne doit jamais avoir besoin de la lire).
+const PAGE_SRC = fs.readFileSync(path.join(RACINE, 'nexus-page.js'), 'utf8');
+function nexusPagePour(location) {
+  const c = { window: location ? { location } : {} };
+  vm.runInNewContext(PAGE_SRC, c);
+  return c.window.NexusPage;
+}
+
 // 18/09/2026 — la porte du pointage d'arrivee ne lit plus le jour de
 // l'appareil mais celui du SITE. Elle depend donc des primitives de fuseau,
 // bornees dans `nexus-auth.js` exactement comme la regle d'acces. On les
@@ -57,7 +68,7 @@ const FUSEAU = AUTH.slice(DF, FF);
 
 // Le bloc seul, exécuté hors navigateur : il est PUR par construction.
 function chargerRegle() {
-  const ctx = { console };
+  const ctx = { console, NexusPage: nexusPagePour(null) };
   vm.runInNewContext(
     BLOC + '\nthis.nexusCategorieAcces = nexusCategorieAcces;' +
            '\nthis.nexusPageExigeServiceOperationnel = nexusPageExigeServiceOperationnel;' +
@@ -160,6 +171,7 @@ async function porte1(page, employee, { service, departPointe }) {
   const ctx = {
     console,
     window: { location: { pathname: '/' + page } },
+    NexusPage: nexusPagePour({ pathname: '/' + page }),
     __lectures: [],
   };
   const code = [
@@ -208,6 +220,7 @@ async function porte2(page, employee, { config, arrivee, fuseauSite = FUSEAU_APP
   const ctx = {
     console: { log: () => {}, warn: () => {}, error: (...a) => refus.push(a.join(' ')) },
     window: { location: { pathname: '/' + page } },
+    NexusPage: nexusPagePour({ pathname: '/' + page }),
     __lectures: [],
     nexusClient: { from: (table) => { ctx.__lectures.push(table); return chain(table); } },
   };
