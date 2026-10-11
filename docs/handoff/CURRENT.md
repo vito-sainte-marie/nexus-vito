@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-RELEVE-CLOTURE-A4-RECTO-20261011/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-RELEVE-CLOTURE-A4-RECTO-20261011/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: FDJ-RELEVE-CLOTURE-A4-RECTO-20261011
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,73 +13,52 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=c516322 production=9f2e7ec
+    valeur: main=c516322 production=866b153
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 144-fichiers
-  - id: pr101-tete
-    classe: VERIFIED
-    valeur: f9804e756f3671624142d810a943ac530a87d8e8
   - id: fusion-production
     classe: VERIFIED
     valeur: 866b153843adcffded43548de98431d461eb508b
-  - id: ci-pr101
-    classe: VERIFIED
-    valeur: artefact-nonregression-cloudflare-success
   - id: deploiement
     classe: VERIFIED
-    valeur: run-38152602971-waiting-non-approuve
-  - id: run-tests
+    valeur: run-38152602971-success-2026-10-11T15:54:06Z
+  - id: html-servi
     classe: VERIFIED
-    valeur: 262-269-identique-socle
-  - id: pdf-trois-ecarts
+    valeur: identique-866b153-hors-script-src
+  - id: pdf-moteur-servi
     classe: VERIFIED
-    valeur: 1-page-29-jeux-nul-plus12-moins37.50
-  - id: mutations
+    valeur: identique-866b153
+  - id: releve-reel-servi
     classe: VERIFIED
-    valeur: 7-sur-7-rouges
+    valeur: 1-page-29-jeux-CONFORME-0,00
+  - id: decision-2
+    classe: VERIFIED
+    valeur: 2a8ff1a-consommee
 ---
 ## Objet
 
-Les conditions de decision-1 sont remplies et #101 est **fusionnée**. Je demande maintenant le **GO de déploiement**, c'est-à-dire l'approbation de l'environnement `github-pages` pour le run 38152602971, qui est en attente. C'est un geste humain : Frédéric.
+Je demande la **clôture du lot** `FDJ-RELEVE-CLOTURE-A4-RECTO-20261011` (`closes: true`). La PR #101 est fusionnée (`866b153`) et déployée : Frédéric a approuvé le déploiement, consigné en decision-2. La recette après déploiement est conforme.
 
-## État mesuré (11/10/2026, 15:46Z)
+## Recette après déploiement (11/10/2026)
 
-| Fait | Valeur |
+| Contrôle | Résultat |
 |---|---|
-| Tête fusionnée | `f9804e756f3671624142d810a943ac530a87d8e8` ; CI de #101 : artefact, non-régression ×2 et Cloudflare en SUCCESS |
-| Fusion | `866b153843adcffded43548de98431d461eb508b` dans `production` à 15:45:15Z (merge commit, verrouillé sur la tête) |
-| Tests sur `production` | run 38152603041 SUCCESS |
-| Déploiement | run 38152602971 `waiting` : **non approuvé** |
-| run-tests local | 262/269, les 7 mêmes rouges que le socle |
+| Run de déploiement 38152602971 | `completed / success`, 15:54:06Z, sur `866b153` |
+| `NEXUS-FDJ-Manager-v1.html` servi par app.nexusconseil.net | identique à `866b153`, hors lignes `<script src>` entières et suffixes `?v=` réécrits par le build |
+| `nexus-pdf-moteur.js` servi | identique à `866b153` (même normalisation) ; contient `fondAmbre` |
+| `nexus-fdj-moteur.js` servi | identique à `866b153` |
+| Relevé réel : Q1 du 10/10, données Production lues en `begin read only`, généré avec les **fichiers servis** | 1 page A4 paysage 841,89 × 595,28, 29/29 jeux, bandeau « ÉCART CONSTATÉ » CONFORME 0,00 € en vert, MISSION PATRIMOINE 0 / 0,00 €, Anomalies (0), Version 2/2 · Définitif |
 
-## Conditions de decision-1 et preuves
+Il n'y a eu aucune écriture en base, aucune migration, et aucune écriture Production en dehors du déploiement approuvé par Frédéric.
 
-1. **NON RENSEIGNÉ = 0** : un stock initial, un approvisionnement ou un stock final absent vaut 0 à l'affichage, sans écriture en base.
-   - Sur le Q1 réel du 10/10, MISSION PATRIMOINE 15 € affiche 0 / 0 / 0 / 0 / 0,00 € et la synthèse indique « Anomalies (0) ».
-   - Garde-fou contre le masquage : une vente déduite d'un stock final compté 0 reste une anomalie (« compté 0 : N vendu(s) déduit(s), à vérifier »), et l'écart au total des ventes du relevé la rattrape aussi.
-2. **Bandeau « ÉCART CONSTATÉ »** : pleine largeur, au-dessus du pied de page. Il est réservé avant les colonnes : il n'est jamais coupé ni reporté.
-   - Il vaut caisse réelle − caisse attendue, sens confirmé par le schéma `fdj_cash_controls` (`ecart = caisse_reelle - caisse_attendue`).
-   - Écart nul : CONFORME en vert. Positif : EXCÉDENT en ambre, avec « + ». Négatif : MANQUANT en rouge, avec « - ».
-   - En noir et blanc, le mot, le signe et l'épaisseur du cadre portent le sens.
-   - L'écart n'est plus répété dans la synthèse.
-3. **Recette visuelle sur trois PDF** : écart nul sur le Q1 réel, +12,00 € et −37,50 €. Chacun fait 1 page de 841,89 × 595,28, avec 29/29 jeux, et les rendus ont été inspectés. Les autres cas (B, D, G, E, sans contexte) font aussi 1 page ; F lève toujours le conflit.
-4. **Mutations** : 7 nouvelles, qui rougissent toutes : garde non renseigné, couleurs inversées, signe +, sens inversé, bandeau non réservé, écart répété, montant en petit.
+## Reste
 
-## Effet de bord, commun
+Il reste un constat passif : le premier relevé imprimé par un manager sur un quart réel après le déploiement. Il ne bloque pas la clôture.
 
-Le moteur `nexus-pdf-moteur.js` remplace désormais « ≠ » et « − » par « <> » et « - ». Avant, ces caractères hors WinAnsi étaient retirés silencieusement de tous les PDF.
+## Geste attendu
 
-## Prochain geste
-
-1. **GO de déploiement** par Frédéric : approuver `github-pages` sur le run 38152602971.
-2. Ensuite :
-   - comparer le HTML servi à `866b153` sans les lignes `<script src>` entières ;
-   - vérifier que `nexus-pdf-moteur.js` est bien servi ;
-   - générer un relevé réel en lecture seule ;
-   - clore le lot.
-
-Je n'approuve pas le déploiement moi-même.
+L'arbitre (ChatGPT ou Frédéric) dépose une decision `APPROVED` avec `closes: true`. Claude ne s'arbitre pas.
