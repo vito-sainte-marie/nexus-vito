@@ -1,6 +1,6 @@
 # Procédure — 20261010170000, continuité des stocks Q1/Q2 (Production)
 
-**Statut : non exécutée.** Projet `uzhjpqpctpvxytxpxoqz`.
+**Statut : non exécutée en Production.** Projet `uzhjpqpctpvxytxpxoqz`. Appliquée sur Test le 11/10/2026 à 02:34Z (registre 316 → 317) ; md5 obtenus après application consignés dans `docs/recette/fdj-priorite-stock-initial-suivant-20261010.md`. En Production, le constat du geste 3 doit retrouver ces mêmes md5.
 Fichier : `supabase/migrations/20261010170000_fdj_continuite_stock_q1_q2.sql`. Le blob git est celui qu'enregistre `qualification-ordre-migration-code.json` (`mesure.blob_migration`) : un fichier ne peut pas nommer sa propre empreinte, et toute retouche de la migration fait tomber la qualification.
 
 Version corrigée après la revue obligatoire du 10/10/2026. Elle remplace la procédure de 03ca722, qui ne couvrait que deux fonctions.

@@ -7,7 +7,7 @@
 3. **Contrôle et traçabilité.** Rupture signalée ; manager alerté quand une fin Q1 enregistrée est corrigée ; motif exigé pour toute correction d'une valeur enregistrée ; ancienne et nouvelle valeur, auteur, horodatage et motif conservés ; aucune certification automatique ; `valide_le` préservé.
 4. **Recalculs financiers.** Ventes, caisse théorique et écart du quart corrigé recalculés ; montants comptés et historiques de clôture préservés.
 
-**Environnement.** Base Test `udljdqxerrbbbajxubfn`, site `nexus-station-test`, 30 jeux copiés de Production (« Jeu Recette FDJ » désactivé). Aucun essai en Production. **La migration `20261010170000_fdj_continuite_stock_q1_q2.sql` n'est appliquée nulle part** : les essais base ont été faits dans une transaction annulée.
+**Environnement.** Base Test `udljdqxerrbbbajxubfn`, site `nexus-station-test`, 30 jeux copiés de Production (« Jeu Recette FDJ » désactivé). Aucun essai en Production. **La migration `20261010170000_fdj_continuite_stock_q1_q2.sql` est appliquée sur Test le 11/10/2026 à 02:34Z (GO TEST de Frédéric), pas en Production** : voir la dernière section. Les essais antérieurs ont été faits dans une transaction annulée.
 
 ## Ce qui a changé
 
@@ -80,3 +80,25 @@ Rejoués le 11/10 vers 00:10Z avec la migration corrigée : **39 cas, rc=0, tran
 - Exports PDF : le montant reste signé.
 - La concurrence est garantie par la structure (verrou `for update` sur le quart et la caisse), pas par un essai à deux sessions.
 
+## Application sur Test du 11/10/2026 (GO TEST, Production inchangée)
+
+Commit testé `a753bf259c74dc40dadd533d1921ac56326a154d`, blob de la migration `fd0e1e7a2205539572b3606a980739cf67a2c0dd`. PR #98 non fusionnée.
+
+1. **Préflight en lecture seule** : base Test (`udljdqxerrbbbajxubfn`, site `nexus-station-test` présent), registre 316, dernière estampille `20261010150000`, `20261010170000` absente, fonction d'alignement absente, quatre md5 `pg_get_functiondef` égaux à ceux du tableau de la procédure (identiques à Production).
+2. **Application** par psql vers Test, en une transaction : bloc `DO` gardé (site Test, registre exact, version et fonction absentes, quatre md5), texte du fichier, ligne du registre (`version`, `name`, comme les lignes voisines). `ON_ERROR_STOP`, rc=0.
+3. **Constat** : registre **317**, dernière estampille `20261010170000`.
+
+| Fonction | secdef | search_path | EXECUTE | md5 après |
+|---|---|---|---|---|
+| `fdj_manager_aligner_fin_quart_precedent(uuid,text)` | oui | `""` | postgres, authenticated, service_role | `1fdf48c170120387b37e5bc65a29f969` |
+| `fdj_manager_modifier_quart(uuid,date,text,text)` | oui | `""` | inchangé | `c19f7b24bae242456f50a002ef980d22` |
+| `fdj_corriger_caisse_manager(uuid,text,numeric,numeric,text)` | oui | `""` | inchangé | `70d5dd41aec171c43ac575932a37f4cc` |
+| `fdj_libelle_ecart_manager(numeric)` | non | `""` | inchangé | `eccb4bc1cc706efd3357a130c9877896` |
+| `fdj_sync_releve_apres_cash_control()` | oui | `public` | inchangé (PUBLIC, préexistant) | `5722cb598bdc545f1a50bac1829bf52a` |
+
+   Nouveau commentaire du libellé présent ; `fdj_libelle_ecart_manager` rend « Manquant constaté : 2,00 € », « Excédent constaté : 2,00 € », « Caisse conforme », « Non comparable » ; déclencheur actif.
+4. **Rejeu des 39 cas sous rollback**, migration servie et non rechargée : rc=0, résultats identiques à l'essai de référence une fois identifiants et horodatages normalisés. Seule différence : l'ordre des trois actions de C16e, triées par `id` (uuid aléatoire), contenu identique. C17b–C17d toujours acceptés (A6).
+5. **Suites** : ciblée 11/11, empreinte 32/32, garde d'ordre verte, suite complète 260/267 (sept échecs préexistants : inventaire ×4, réception ×3).
+6. **Production** relue en lecture seule après coup : registre 306, quatre md5 d'origine, fonction d'alignement absente.
+
+Retour arrière sur Test : celui de la procédure, registre ramené à 316.
