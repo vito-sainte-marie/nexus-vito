@@ -1573,11 +1573,13 @@
   }
 
   async function revaliderEcartRecalcule(releveId, shiftId) {
-    const { error } = await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shiftId, entite_type: 'fdj_releves_cloture', entite_id: releveId,
-      action: 'exception_ecart_recalcule_revalide', acteur_id: managerCourant.id,
-      motif: "Écart recalculé automatiquement après rétablissement de chaîne, revu par le manager (boîte d'exceptions).",
-      ancienne_valeur: null, nouvelle_valeur: null,
+    // A6 (11/10/2026) : le journal ne s'écrit plus en direct — commande
+    // serveur, site et acteur posés en base.
+    const { error } = await nexusClient.rpc('fdj_manager_journaliser', {
+      p_shift_id: shiftId, p_entite_type: 'fdj_releves_cloture', p_entite_id: releveId,
+      p_action: 'exception_ecart_recalcule_revalide',
+      p_motif: "Écart recalculé automatiquement après rétablissement de chaîne, revu par le manager (boîte d'exceptions).",
+      p_ancienne_valeur: null, p_nouvelle_valeur: null,
     });
     if (error) { console.error('Revalidation écart recalculé FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return false; }
     return true;
@@ -1856,14 +1858,15 @@
       session_id: null, quart_id: shiftId,
       message_confirmation: "Recalcul automatique après correction manager d'un quart antérieur (propagation de stock, Étape 2).",
     };
-    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
-      site: siteId, shift_id: shiftId, date: precedent.date, quart: precedent.quart, employee_id: precedent.employee_id,
-      version_num: versionNum, type_version: 'recalcul_automatique_chaine', cree_par: null,
+    // A6 (11/10/2026) : commande serveur ; date, quart et employé sont repris
+    // de la dernière version par la base, cree_par reste null.
+    const { error: eReleve } = await nexusClient.rpc('fdj_manager_poser_releve_cloture', { p_shift_id: shiftId, p_releve: {
+      version_num: versionNum, type_version: 'recalcul_automatique_chaine',
       ...nouveauSnapshot,
       motif_regularisation: `Recalcul automatique après propagation d'une correction du quart précédent${gameIdsCorriges && gameIdsCorriges.length ? ` — jeux concernés : ${gameIdsCorriges.join(', ')}` : ''}.`,
       diff_vs_precedent: diff,
       signature,
-    });
+    } });
     if (eReleve) { console.error('Relevé de clôture FDJ (recalcul après propagation):', eReleve); return false; }
     return true;
   }
@@ -1902,11 +1905,11 @@
         .update({ resolue_automatiquement: true, resolue_le: maintenant }).eq('id', a.id);
       if (eResolution) { console.error('Résolution auto alerte chaîne FDJ:', eResolution); continue; }
       mutations = true;
-      await nexusClient.from('fdj_audit_log').insert({
-        site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
-        action: 'fdj_chaine_retablie_automatiquement', acteur_id: null,
-        ancienne_valeur: { type: 'chaine_interrompue', resolue_automatiquement: false },
-        nouvelle_valeur: { resolue_automatiquement: true, resolue_le: maintenant },
+      await nexusClient.rpc('fdj_manager_journaliser', {
+        p_shift_id: a.shift_id, p_entite_type: 'fdj_alerte', p_entite_id: a.id,
+        p_action: 'fdj_chaine_retablie_automatiquement', p_motif: null,
+        p_ancienne_valeur: { type: 'chaine_interrompue', resolue_automatiquement: false },
+        p_nouvelle_valeur: { resolue_automatiquement: true, resolue_le: maintenant },
       });
 
       const predAttendu = NexusFdjMoteur.quartPrecedentAttendu(quartActuelInfo.date, quartActuelInfo.quart);
@@ -1944,10 +1947,10 @@
             if (nouvelles.length) {
               const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
               if (eInsert) console.error('Insertion anomalies continuité stock FDJ:', eInsert);
-              else await nexusClient.from('fdj_audit_log').insert({
-                site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
-                action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
-                ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
+              else await nexusClient.rpc('fdj_manager_journaliser', {
+                p_shift_id: a.shift_id, p_entite_type: 'fdj_alerte', p_entite_id: a.id,
+                p_action: 'fdj_continuite_stock_a_verifier_posee', p_motif: null,
+                p_ancienne_valeur: null, p_nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
               });
             }
           }
@@ -2059,14 +2062,14 @@
       // L'alerte n'est jamais supprimée : elle reste en base avec ses
       // valeurs d'origine, et l'audit conserve à la fois ce qui avait été
       // détecté et ce qui est vrai maintenant.
-      await nexusClient.from('fdj_audit_log').insert({
-        site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
-        action: 'fdj_continuite_stock_retablie_automatiquement', acteur_id: null,
-        ancienne_valeur: {
+      await nexusClient.rpc('fdj_manager_journaliser', {
+        p_shift_id: a.shift_id, p_entite_type: 'fdj_alerte', p_entite_id: a.id,
+        p_action: 'fdj_continuite_stock_retablie_automatiquement', p_motif: null,
+        p_ancienne_valeur: {
           type: 'continuite_stock_a_verifier', resolue_automatiquement: false,
           valeur_quart_precedent: a.valeur_quart_precedent, valeur_saisie: a.valeur_saisie,
         },
-        nouvelle_valeur: {
+        p_nouvelle_valeur: {
           resolue_automatiquement: true, resolue_le: maintenant,
           game_id: a.game_id, shift_precedent_id: a.shift_precedent_id,
           stock_final_precedent_constate: mesure.stockFinalPrecedent,
@@ -2152,14 +2155,14 @@
       session_id: null, quart_id: shiftId,
       message_confirmation: 'Recalcul automatique après rétablissement de la chaîne de continuité FDJ.',
     };
-    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
-      site: siteId, shift_id: shiftId, date: precedent.date, quart: precedent.quart, employee_id: precedent.employee_id,
-      version_num: versionNum, type_version: 'recalcul_automatique_chaine', cree_par: null,
+    // A6 (11/10/2026) : commande serveur (voir rejouerReleveApresPropagation).
+    const { error: eReleve } = await nexusClient.rpc('fdj_manager_poser_releve_cloture', { p_shift_id: shiftId, p_releve: {
+      version_num: versionNum, type_version: 'recalcul_automatique_chaine',
       ...nouveauSnapshot,
       motif_regularisation: 'Chaîne FDJ rétablie automatiquement — stocks et écart recalculés à partir des données désormais complètes.',
       diff_vs_precedent: diff,
       signature,
-    });
+    } });
     if (eReleve) console.error('Relevé de clôture FDJ (version recalcul automatique):', eReleve);
   }
 
@@ -2216,9 +2219,10 @@
       // 'manager', qui documente honnêtement qui a déclenché la reprise.
       message_confirmation: "Reprise manager d'un relevé de clôture manquant (échec d'écriture initial). Données reconstruites depuis le comptage et le contrôle de caisse déjà enregistrés par l'employé — aucune valeur saisie n'a été modifiée.",
     };
-    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
-      site: siteId, shift_id: shift.id, date: shift.date, quart: shift.quart, employee_id: shift.employee_id,
-      version_num: 1, type_version: 'validation_employe', cree_par: shift.employee_id,
+    // A6 (11/10/2026) : commande serveur ; date, quart, employé et cree_par
+    // (le titulaire) sont lus sur le quart par la base. 23505 inchangé.
+    const { error: eReleve } = await nexusClient.rpc('fdj_manager_poser_releve_cloture', { p_shift_id: shift.id, p_releve: {
+      version_num: 1, type_version: 'validation_employe',
       stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
       ventes_grattage_valeur: cash.ventes_grattage_valeur, lots_payes_grattage: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisse_tirages: repTempsReel ? repTempsReel.caisse_tirages : null, regularisations: cash.regularisations || 0,
@@ -2227,7 +2231,7 @@
       caractere: NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: chaineInterrompueOuverte, continuiteStockAVerifier: continuiteStockAVerifierOuverte }),
       statut: NexusFdjMoteur.statutRelevecloture(1, ecart, 'validation_employe'),
       signature,
-    });
+    } });
     if (eReleve) {
       if (eReleve.code === '23505') {
         // Idempotence (point 5) : une validation employé vient d'apparaître
@@ -2499,11 +2503,11 @@
       return;
     }
 
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, entite_type: 'fdj_employee_shift_lock', entite_id: derogation.verrouId,
-      action: 'derogation_manager', acteur_id: managerCourant.id, motif: derogation.motif,
-      ancienne_valeur: verrouAvant || { quart: derogation.quartActuel, source_lock: null },
-      nouvelle_valeur: { quart: derogation.autreQuart, source_lock: 'override_manager', override_manager_id: managerCourant.id, override_motif: derogation.motif },
+    await nexusClient.rpc('fdj_manager_journaliser', {
+      p_shift_id: null, p_entite_type: 'fdj_employee_shift_lock', p_entite_id: derogation.verrouId,
+      p_action: 'derogation_manager', p_motif: derogation.motif,
+      p_ancienne_valeur: verrouAvant || { quart: derogation.quartActuel, source_lock: null },
+      p_nouvelle_valeur: { quart: derogation.autreQuart, source_lock: 'override_manager', override_manager_id: managerCourant.id, override_motif: derogation.motif },
     });
 
     vue = 'liste'; derogation = null;
@@ -3911,10 +3915,10 @@
     const { error: eLignes } = await nexusClient.from('fdj_stock_reference_lignes').insert(lignes);
     if (eLignes) { console.error('Enregistrement lignes inventaire de référence FDJ:', eLignes); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement des lignes. Réessayez."); return; }
 
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: null, entite_type: 'fdj_stock_reference', entite_id: ref.id,
-      action: 'inventaire_reference_valide', acteur_id: managerCourant.id,
-      nouvelle_valeur: { date: ref.date, type, motif: motif || null, reference_precedente_id: referencePrecedenteId, lignes: lignes.map(l => ({ game_id: l.game_id, bureau_reel: l.bureau_reel, caisse_reel: l.caisse_reel, ecart_bureau: l.bureau_reel - (l.stock_theorique_bureau_avant || 0), ecart_caisse: l.caisse_reel - (l.stock_theorique_caisse_avant || 0) })) },
+    await nexusClient.rpc('fdj_manager_journaliser', {
+      p_shift_id: null, p_entite_type: 'fdj_stock_reference', p_entite_id: ref.id,
+      p_action: 'inventaire_reference_valide', p_motif: null, p_ancienne_valeur: null,
+      p_nouvelle_valeur: { date: ref.date, type, motif: motif || null, reference_precedente_id: referencePrecedenteId, lignes: lignes.map(l => ({ game_id: l.game_id, bureau_reel: l.bureau_reel, caisse_reel: l.caisse_reel, ecart_bureau: l.bureau_reel - (l.stock_theorique_bureau_avant || 0), ecart_caisse: l.caisse_reel - (l.stock_theorique_caisse_avant || 0) })) },
     });
 
     vue = 'liste'; inventaireRef = null;
@@ -6072,10 +6076,10 @@
     }
 
     // 3) Rapports.
-    const { error: eRep } = await nexusClient.from('fdj_reports').upsert([
-      { site: siteId, shift_id: shift.id, type_rapport: 'journalier', lots_payes_grattage: edition.lotsPayes, saisi_par: managerCourant.id },
-      { site: siteId, shift_id: shift.id, type_rapport: 'temps_reel', caisse_tirages: edition.caisseTirages, saisi_par: managerCourant.id },
-    ], { onConflict: 'shift_id,type_rapport' });
+    // A6 (11/10/2026) : commande serveur ; saisi_par = le manager authentifié.
+    const { error: eRep } = await nexusClient.rpc('fdj_manager_enregistrer_rapports', {
+      p_shift_id: shift.id, p_lots_payes_grattage: edition.lotsPayes, p_caisse_tirages: edition.caisseTirages,
+    });
     if (eRep) { console.error('Enregistrement rapports FDJ (manager):', eRep); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur les tirages. Réessayez.'); return; }
 
     // 4) Rapprochement caisse — Vague 1 (17/09/2026). L'écran n'écrit plus
@@ -6187,11 +6191,11 @@
     // ne doit pas signifier pouvoir effacer la vérité précédente" — motif
     // désormais inclus (colonne dédiée + instantanés), sinon un changement
     // de motif seul ne laissait aucune trace.
-    await nexusClient.from('fdj_audit_log').insert({
-      site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
-      action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
-      motif: edition.motifEcart || null,
-      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, motifEcartTexte: edition.motifEcartTexte, resultatControle: edition.resultatControle, employeeId: edition.employeeId, ecart },
+    await nexusClient.rpc('fdj_manager_journaliser', {
+      p_shift_id: shift.id, p_entite_type: 'fdj_shift', p_entite_id: shift.id,
+      p_action: edition.estNouveau ? 'creation_manager' : 'correction_manager',
+      p_motif: edition.motifEcart || null,
+      p_ancienne_valeur: edition.avant, p_nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, motifEcartTexte: edition.motifEcartTexte, resultatControle: edition.resultatControle, employeeId: edition.employeeId, ecart },
     });
 
     // 6) Relevé de clôture FDJ / Trace de contrôle FDJ — version
@@ -6269,14 +6273,15 @@
         quart_id: shift.id,
         message_confirmation: precedent ? 'Régularisation manager du quart (pouvoir total, constat d\'origine jamais effacé).' : 'Création/complétion du quart par le manager (pouvoir total).',
       };
-      const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
-        site: siteId, shift_id: shift.id, date: edition.date, quart: edition.quart, employee_id: edition.employeeId,
-        version_num: versionNum, type_version: 'regularisation_manager', cree_par: managerCourant.id,
+      // A6 (11/10/2026) : commande serveur ; date, quart et employé lus sur le
+      // quart (déjà mis à jour à l'étape 1), cree_par = le manager authentifié.
+      const { error: eReleve } = await nexusClient.rpc('fdj_manager_poser_releve_cloture', { p_shift_id: shift.id, p_releve: {
+        version_num: versionNum, type_version: 'regularisation_manager',
         ...nouveauSnapshot,
         motif_regularisation: precedent ? (edition.motifEcart || null) : null,
         diff_vs_precedent: diff,
         signature,
-      });
+      } });
       // Non bloquant (le quart est déjà enregistré à ce stade) mais jamais
       // silencieux — la fiche de clôture est une preuve, pas un à-côté.
       // 17/08/2026, correctif demandé par Frédéric : ce site d'écriture ne
@@ -6347,11 +6352,11 @@
           if (applicables.length) {
             await appliquerCorrectionsAutomatiquesContinuite(shiftSuivant.id, applicables);
             await nexusClient.rpc('fdj_manager_incrementer_version', { p_shift_id: shiftSuivant.id });
-            await nexusClient.from('fdj_audit_log').insert({
-              site: siteId, shift_id: shiftSuivant.id, entite_type: 'fdj_shift_counts', entite_id: shiftSuivant.id,
-              action: 'fdj_propagation_correction_stock_amont', acteur_id: managerCourant.id,
-              motif: `Propagation automatique après correction manager du quart précédent (${libelleQuart(shift)}) — stock_initial encore hérité, jamais confirmé par un humain.`,
-              ancienne_valeur: null, nouvelle_valeur: { jeux: applicables.map(a => a.game_id) },
+            await nexusClient.rpc('fdj_manager_journaliser', {
+              p_shift_id: shiftSuivant.id, p_entite_type: 'fdj_shift_counts', p_entite_id: shiftSuivant.id,
+              p_action: 'fdj_propagation_correction_stock_amont',
+              p_motif: `Propagation automatique après correction manager du quart précédent (${libelleQuart(shift)}) — stock_initial encore hérité, jamais confirmé par un humain.`,
+              p_ancienne_valeur: null, p_nouvelle_valeur: { jeux: applicables.map(a => a.game_id) },
             });
 
             // FDJ Fiabilisation — Étape 4 : le quart suivant vient d'être
