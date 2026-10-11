@@ -1,0 +1,148 @@
+migration : blob b6b021c866f8d90ee72ba423fb1768a57cc2222d
+ECRIT|audit|alignement_fin_sur_quart_suivant|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=(serveur)
+ECRIT|audit|correction_stock_initial|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=(serveur)
+ECRIT|audit|creation_manager|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=fdj_manager_journaliser
+ECRIT|audit|exception_ecart_recalcule_revalide|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=fdj_manager_journaliser
+ECRIT|audit|fdj_caisse_confirmee_par_employe|acteur=868d0b92-bf65-4c99-be43-656911919afd|via=(serveur)
+ECRIT|audit|fdj_caisse_corrigee_par_manager|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=(serveur)
+ECRIT|audit|fdj_caisse_corrigee_par_manager|acteur=28810f30-8182-4126-920f-051a4c7cb596|via=(serveur)
+ECRIT|audit|fdj_chaine_retablie_automatiquement|acteur=-|via=fdj_manager_journaliser
+ECRIT|audit|ouverture_validee|acteur=868d0b92-bf65-4c99-be43-656911919afd|via=fdj_journaliser_ouverture_validee
+ECRIT|releve|v1|validation_employe|valide_avec_ecart|cree_par=868d0b92-bf65-4c99-be43-656911919afd
+ECRIT|releve|v2|regularisation_manager|regularise|cree_par=28810f30-8182-4126-920f-051a4c7cb596
+ECRIT|releve|v3|recalcul_automatique_chaine|recalcule_automatiquement|cree_par=-
+ECRIT|releve|v4|regularisation_manager|regularise|cree_par=28810f30-8182-4126-920f-051a4c7cb596
+ECRIT|releve|v5|recalcul_automatique_chaine|recalcule_automatiquement|cree_par=28810f30-8182-4126-920f-051a4c7cb596
+ECRIT|reports|journalier|lots=6|tirages=-|saisi_par=28810f30-8182-4126-920f-051a4c7cb596
+ECRIT|reports|temps_reel|lots=-|tirages=21|saisi_par=28810f30-8182-4126-920f-051a4c7cb596
+COMPTE|avant=27/2/2|apres=36/7/4
+J|avant|fdj_audit_log INSERT|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_audit_log UPDATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_audit_log DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_audit_log TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture INSERT|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_releves_cloture UPDATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_reports INSERT (upsert)|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_reports UPDATE|authenticated|OK (défaut)|OK|n=2
+J|avant|fdj_reports DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_reports TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|avant|A5 fdj_cash_controls INSERT|authenticated|42501|42501|permission denied for table fdj_cash_controls
+J|avant|A5 fdj_cash_controls UPDATE (déclencheur → relevé)|authenticated|42501|42501|permission denied for table fdj_cash_controls
+J|avant|A5 fdj_shift_counts UPDATE (déclencheur → audit)|authenticated|42501|42501|permission denied for table fdj_shift_counts
+J|avant|A5 appel direct fdj_sync_releve_apres_cash_control()|authenticated|0A000|0A000|trigger functions can only be called as triggers
+J|avant|A5 appel direct fdj_tracer_correction_stock_initial()|authenticated|0A000|0A000|trigger functions can only be called as triggers
+J|avant|A5 fdj_synchroniser_releves_courants(site)|authenticated|P0001|P0001|Accès manager requis
+J|avant|fdj_audit_log INSERT|anon|OK (défaut ; INSERT refusé par la policy)|42501|new row violates row-level security policy for table "fdj_audit_log"
+J|avant|fdj_audit_log UPDATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_audit_log DELETE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_audit_log TRUNCATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_releves_cloture INSERT|anon|OK (défaut ; INSERT refusé par la policy)|42501|new row violates row-level security policy for table "fdj_releves_cloture"
+J|avant|fdj_releves_cloture UPDATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_releves_cloture DELETE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_releves_cloture TRUNCATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_reports INSERT (upsert)|anon|OK (défaut ; INSERT refusé par la policy)|42501|new row violates row-level security policy for table "fdj_reports"
+J|avant|fdj_reports UPDATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_reports DELETE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|fdj_reports TRUNCATE|anon|OK (défaut ; INSERT refusé par la policy)|OK|n=0
+J|avant|A5 fdj_cash_controls INSERT|anon|42501|42501|permission denied for table fdj_cash_controls
+J|avant|A5 fdj_cash_controls UPDATE (déclencheur → relevé)|anon|42501|42501|permission denied for table fdj_cash_controls
+J|avant|A5 fdj_shift_counts UPDATE (déclencheur → audit)|anon|42501|42501|permission denied for table fdj_shift_counts
+J|avant|A5 appel direct fdj_sync_releve_apres_cash_control()|anon|0A000|0A000|trigger functions can only be called as triggers
+J|avant|A5 appel direct fdj_tracer_correction_stock_initial()|anon|0A000|0A000|trigger functions can only be called as triggers
+J|avant|A5 fdj_synchroniser_releves_courants(site)|anon|42501|P0001|Authentification requise
+J|avant|fdj_audit_log INSERT|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_audit_log UPDATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_audit_log DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_audit_log TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture INSERT|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_releves_cloture UPDATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_releves_cloture TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_reports INSERT (upsert)|authenticated|OK (défaut)|OK|n=1
+J|avant|fdj_reports UPDATE|authenticated|OK (défaut)|OK|n=2
+J|avant|fdj_reports DELETE|authenticated|OK (défaut)|OK|n=0
+J|avant|fdj_reports TRUNCATE|authenticated|OK (défaut)|OK|n=0
+J|droits|fdj_reports|anon|aucune écriture|fermé|select=false acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|droits|fdj_reports|authenticated|aucune écriture|fermé|select=true acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|droits|fdj_audit_log|anon|aucune écriture|fermé|select=false acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|droits|fdj_audit_log|authenticated|aucune écriture|fermé|select=true acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|droits|fdj_releves_cloture|anon|aucune écriture|fermé|select=false acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|droits|fdj_releves_cloture|authenticated|aucune écriture|fermé|select=true acl={postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}
+J|apres|fdj_audit_log INSERT|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log UPDATE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log DELETE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log TRUNCATE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_releves_cloture INSERT|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture UPDATE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture DELETE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture TRUNCATE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_reports INSERT (upsert)|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports UPDATE|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports DELETE|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports TRUNCATE|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|A5 fdj_cash_controls INSERT|authenticated|42501|42501|permission denied for table fdj_cash_controls
+J|apres|A5 fdj_cash_controls UPDATE (déclencheur → relevé)|authenticated|42501|42501|permission denied for table fdj_cash_controls
+J|apres|A5 fdj_shift_counts UPDATE (déclencheur → audit)|authenticated|42501|42501|permission denied for table fdj_shift_counts
+J|apres|A5 appel direct fdj_sync_releve_apres_cash_control()|authenticated|0A000|0A000|trigger functions can only be called as triggers
+J|apres|A5 appel direct fdj_tracer_correction_stock_initial()|authenticated|0A000|0A000|trigger functions can only be called as triggers
+J|apres|A5 fdj_synchroniser_releves_courants(site)|authenticated|P0001|P0001|Accès manager requis
+J|apres|fdj_audit_log INSERT|anon|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log UPDATE|anon|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log DELETE|anon|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log TRUNCATE|anon|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_releves_cloture INSERT|anon|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture UPDATE|anon|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture DELETE|anon|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture TRUNCATE|anon|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_reports INSERT (upsert)|anon|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports UPDATE|anon|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports DELETE|anon|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports TRUNCATE|anon|42501|42501|permission denied for table fdj_reports
+J|apres|A5 fdj_cash_controls INSERT|anon|42501|42501|permission denied for table fdj_cash_controls
+J|apres|A5 fdj_cash_controls UPDATE (déclencheur → relevé)|anon|42501|42501|permission denied for table fdj_cash_controls
+J|apres|A5 fdj_shift_counts UPDATE (déclencheur → audit)|anon|42501|42501|permission denied for table fdj_shift_counts
+J|apres|A5 appel direct fdj_sync_releve_apres_cash_control()|anon|0A000|0A000|trigger functions can only be called as triggers
+J|apres|A5 appel direct fdj_tracer_correction_stock_initial()|anon|0A000|0A000|trigger functions can only be called as triggers
+J|apres|A5 fdj_synchroniser_releves_courants(site)|anon|42501|42501|permission denied for function fdj_synchroniser_releves_courants
+J|apres|fdj_audit_log INSERT|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log UPDATE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log DELETE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_audit_log TRUNCATE|authenticated|42501|42501|permission denied for table fdj_audit_log
+J|apres|fdj_releves_cloture INSERT|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture UPDATE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture DELETE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_releves_cloture TRUNCATE|authenticated|42501|42501|permission denied for table fdj_releves_cloture
+J|apres|fdj_reports INSERT (upsert)|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports UPDATE|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports DELETE|authenticated|42501|42501|permission denied for table fdj_reports
+J|apres|fdj_reports TRUNCATE|authenticated|42501|42501|permission denied for table fdj_reports
+J|positif|P1 fdj_manager_creer_quart Q1|authenticated|OK|OK|449a71ea-ac3a-409e-97b7-da223d787b70
+J|positif|P2 fdj_manager_journaliser creation_manager|authenticated|OK|OK|3d768585-5bb6-47c3-95fd-316a23d568ca
+J|positif|P3 fdj_valider_ouverture_quart|authenticated|OK|OK|{"shift_id": "449a71ea-ac3a-409e-97b7-da223d787b70", "comptages": 1}
+J|positif|P4 fdj_journaliser_ouverture_validee|authenticated|OK|OK|22343184-546f-4cb4-ab4d-55ce556777f5
+J|positif|P5 fdj_confirmer_caisse (clôture employé)|authenticated|OK|OK|{"statut": "confirmee", "message": "Cette caisse reste en attente du contrôle du manager.", "version": 1, "confirme": true, "shift_id": "449a71ea-ac3a-409e-97b7-da223d787b70", "idempotent": false, "confirme_le": "2026-10-11T02:53:09.640667+00:00", "ecart_provisoire": -11.00, "en_attente_controle_manager": true}
+J|positif|P6 fdj_manager_enregistrer_rapports|authenticated|OK|OK|
+J|positif|P7 fdj_corriger_caisse_manager (déclencheur → relevé)|authenticated|OK|OK|{"ecart": -10.00, "statut": "confirmee", "corrige": true, "version": 2, "ecart_avant": -11.00, "libelle_ecart": "Manquant constaté : 10,00 €", "caisse_attendue": 41, "version_precedente": 1, "caisse_attendue_avant": 41, "certification_revoquee": false, "ecart_origine_preserve": -11.00, "caisse_reelle_origine_preservee": 30}
+J|positif|P8 fdj_manager_poser_releve_cloture recalcul|authenticated|OK|OK|3e75a144-52ee-4b09-ba1b-3a31cc122570
+J|positif|P9 fdj_manager_poser_releve_cloture régularisation|authenticated|OK|OK|66e96a07-6cf5-4079-916e-02df54990328
+J|positif|P10 fdj_manager_journaliser exception_ecart_recalcule_revalide|authenticated|OK|OK|95c8d996-6c43-4ca0-a1ef-e52ea4a58a37
+J|positif|P11 alerte (écriture directe A5) puis fdj_manager_journaliser auto|authenticated|OK|OK|4826f9e8-f002-4a5a-a4ec-fca6cd95435b
+J|positif|P12 fdj_manager_aligner_fin_quart_precedent (Q1 → Q2)|authenticated|OK|OK|{"aligne": true, "caisse": {"ecart": -4.00, "statut": "confirmee", "corrige": true, "version": 3, "ecart_avant": -10.00, "libelle_ecart": "Manquant constaté : 4,00 €", "caisse_attendue": 35, "version_precedente": 2, "caisse_attendue_avant": 41, "certification_revoquee": false, "ecart_origine_preserve": -11.00, "caisse_reelle_origine_preservee": 30}, "corrections": [{"game_id": "bb98cf3e-cd43-4736-
+J|positif|P13 fdj_manager_corriger_comptages (déclencheur → audit)|authenticated|OK|OK|1
+J|positif|P14 fdj_synchroniser_releves_courants (manager)|authenticated|OK|OK|0
+J|rpc|R1 caissier → fdj_manager_journaliser|authenticated|42501|42501|Seul un manager habilité peut effectuer cette opération.
+J|rpc|R2 caissier → fdj_manager_poser_releve_cloture|authenticated|42501|42501|Seul un manager habilité peut effectuer cette opération.
+J|rpc|R3 caissier → fdj_manager_enregistrer_rapports|authenticated|42501|42501|Seul un manager habilité peut effectuer cette opération.
+J|rpc|R4 caissier → trace d'ouverture sur quart validé (Q2)|authenticated|42501|42501|Ce quart FDJ est validé : seul un manager peut encore le corriger.
+J|rpc|R5 anon → fdj_manager_journaliser|anon|42501|42501|permission denied for function fdj_manager_journaliser
+J|rpc|R6 anon → fdj_journaliser_ouverture_validee|anon|42501|42501|permission denied for function fdj_journaliser_ouverture_validee
+J|rpc|R7 anon → fdj_manager_poser_releve_cloture|anon|42501|42501|permission denied for function fdj_manager_poser_releve_cloture
+J|rpc|R8 anon → fdj_manager_enregistrer_rapports|anon|42501|42501|permission denied for function fdj_manager_enregistrer_rapports
+J|rpc|R9 manager → action d'audit hors liste|authenticated|22023|22023|Action d'audit FDJ non prévue : falsification_a6
+J|rpc|R10 manager → trace de quart sur une autre entité|authenticated|22023|22023|Une trace de quart porte sur le quart lui-même.
+J|rpc|R11 manager → version de relevé qui saute un rang|authenticated|22023|22023|Version 10 hors séquence (dernière : 5).
+J|rpc|R12 manager → version de relevé déjà prise|authenticated|23505|23505|duplicate key value violates unique constraint "fdj_releves_cloture_shift_id_version_num_key"
+J|rpc|R13 manager → type correction_employe|authenticated|22023|22023|Type de version non autorisé : correction_employe
+essais : 129, écarts : 0

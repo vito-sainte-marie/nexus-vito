@@ -76,7 +76,9 @@ function extraire(nomFonction) {
 // ------------------------------------------------------------
 // Tables dont l'écriture directe est fermée (20261008125000, 20261010150000) :
 // le faux client refuse, comme la base, tout insert/update/upsert.
-const TABLES_SANS_ECRITURE_DIRECTE = ['fdj_cash_controls', 'fdj_shifts', 'fdj_shift_counts'];
+const TABLES_SANS_ECRITURE_DIRECTE = ['fdj_cash_controls', 'fdj_shifts', 'fdj_shift_counts',
+  // A6 (20261011090000) : relevés, rapports et journal d'audit.
+  'fdj_releves_cloture', 'fdj_reports', 'fdj_audit_log'];
 function refuserEcritureDirecte(table) {
   assert.ok(!TABLES_SANS_ECRITURE_DIRECTE.includes(table),
     `Écriture directe sur ${table} pendant le test : passer par la commande serveur (fdj_corriger_caisse_manager, fdj_manager_corriger_comptages, …).`);
@@ -173,9 +175,12 @@ function creerNexusClientFake(tables, obtenirJeux) {
 // geste, et l'acteur n'est plus `null`.
 // ------------------------------------------------------------
 const UID_MANAGER_TEST = 'mgr-test';
+const { creerCommandesA6 } = require('./outils/epreuve-fdj-a6-ecriture-directe-20261011/commandes-simulees.js');
 
 function creerRpc(tables, obtenirJeux) {
   const gestionnaires = {
+    // A6 (20261011090000) : relevés, rapports et audit passent par commande.
+    ...creerCommandesA6(tables, { acteurId: UID_MANAGER_TEST, site: 'site-test' }),
     // Portage de 20261010150000 : seules les clés présentes sont réécrites,
     // parmi stock_initial, ventes_qte et ventes_valeur ; aucune ligne n'est
     // créée ; renvoie le nombre de lignes touchées.

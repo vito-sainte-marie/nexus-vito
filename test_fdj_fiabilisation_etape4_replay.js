@@ -42,6 +42,8 @@ function extraire(nomFonction) {
 // ------------------------------------------------------------
 // FAUX CLIENT SUPABASE — même style minimal que test_fdj_continuite_auto_recalcul.js.
 // ------------------------------------------------------------
+const { creerCommandesA6 } = require('./outils/epreuve-fdj-a6-ecriture-directe-20261011/commandes-simulees.js');
+
 function creerNexusClientFake(tables) {
   function correspond(ligne, filtres) { return filtres.every(([c, v]) => ligne[c] === v); }
   function from(table) {
@@ -85,7 +87,13 @@ function creerNexusClientFake(tables) {
       },
     };
   }
-  return { from };
+  // A6 (20261011090000) : relevés, rapports et audit passent par commande.
+  const commandes = creerCommandesA6(tables, { site: 'site-test' });
+  function rpc(nom, params) {
+    assert.ok(commandes[nom], `RPC ${nom} non simulé dans ce test.`);
+    return Promise.resolve(commandes[nom](params || {}));
+  }
+  return { from, rpc };
 }
 
 function nouveauContexte(tables) {
