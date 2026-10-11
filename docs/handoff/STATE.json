@@ -403,13 +403,13 @@
       "consomme_le": "2026-10-11T12:29:30.022Z"
     },
     "FDJ-RELEVE-CLOTURE-A4-RECTO-20261011": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "c59151cbbe635487573bd0cf7f9201a704805b3a",
-      "consomme_le": "2026-10-11T15:44:21.916Z"
+      "commit_decision": "2a8ff1a9837a3f32c3a41a8285d558ae74336e77",
+      "consomme_le": "2026-10-11T15:56:42.807Z"
     }
   },
   "artefacts_hors_registre": [
