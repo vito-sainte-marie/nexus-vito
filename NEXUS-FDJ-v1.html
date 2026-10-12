@@ -222,6 +222,15 @@
   .cloture-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
   .cloture-avertissement{font-size:12.5px; color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.5;}
   .cloture-actions .btn-ghost, .cloture-actions .btn-primary{margin-top:8px;}
+  /* Stocks finaux à confirmer (decision-1, 11/10/2026) : une décision
+     explicite par jeu, aucune présélection. */
+  .cloture-modal.stocks-finaux{max-height:88vh; overflow-y:auto;}
+  .stock-final-choix{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:10px;}
+  .stock-final-question{font-size:13.5px; line-height:1.5; margin-bottom:4px;}
+  .stock-final-dispo{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-bottom:10px;}
+  .stock-final-boutons{display:flex; gap:8px;}
+  .stock-final-bouton{flex:1; padding:10px 8px; border-radius:8px; border:1px solid var(--hairline); background:transparent; color:var(--text-mid); font-size:13px; font-weight:600; cursor:pointer;}
+  .stock-final-bouton[aria-pressed="true"]{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan);}
 </style>
 </head>
 <body>
@@ -885,8 +894,6 @@
     const s = countsSaisie[jeu.id];
     return !!s && s.stock_initial !== null && s.stock_initial !== undefined && s.stock_final !== null && s.stock_final !== undefined;
   }
-  // Jeux "à moitié comptés" (stock initial connu, stock final jamais tapé)
-  // — candidats à la confirmation "plus de stock" avant de continuer.
   // Ventes négatives = anomalie (09/08/2026, demande de Frédéric) : un jeu
   // ne peut jamais "vendre" un nombre négatif de tickets — si stock_final
   // dépasse stock_initial + appro, quelque chose est mal saisi (appro
@@ -894,12 +901,6 @@
   // jamais tout seul, il montre l'anomalie clairement.
   function jeuxAvecVentesNegatives() {
     return jeux.filter(j => { const v = calculerVentes(j.id); return v.qte !== null && v.qte < 0; });
-  }
-  function jeuxSansStockFinal() {
-    return jeux.filter(j => {
-      const s = countsSaisie[j.id];
-      return s && s.stock_initial !== null && s.stock_initial !== undefined && (s.stock_final === null || s.stock_final === undefined);
-    });
   }
 
   // ------------------------------------------------------------
@@ -1743,9 +1744,9 @@
   // à faire ou déjà traité), 'annule' (l'employé a choisi "Corriger l'appro",
   // reste sur Grattage) ou 'exception' (redirigé vers
   // demarrerExceptionsCloture, qui ramènera lui-même à Tirages une fois la
-  // queue vidée). Même philosophie que le contrôle "stock final manquant"
-  // juste au-dessus dans btnSuiteGrattage : un seul confirm() combiné pour
-  // tous les jeux concernés, jamais une popup par jeu.
+  // queue vidée). Même philosophie que la confirmation des stocks finaux
+  // juste au-dessus dans btnSuiteGrattage : une seule question pour tous les
+  // jeux concernés, jamais une popup par jeu.
   async function verifierReconciliationApproActivation() {
     const anomalies = calculerAnomaliesApproActivation();
     const nonCouverts = anomalies.filter(a => a.reconciliation.etat === 'appro_non_couvert');
@@ -1975,6 +1976,10 @@
       Object.keys(draft.countsSaisie || {}).forEach(gid => {
         if (!countsSaisie[gid]) countsSaisie[gid] = { stock_initial: null, appro: 0, stock_final: null };
         countsSaisie[gid].stock_final = draft.countsSaisie[gid].stock_final;
+        // Une confirmation « 0 » (decision-1) ne survit qu'avec son 0.
+        if (draft.countsSaisie[gid].stock_final_confirme_zero && draft.countsSaisie[gid].stock_final === 0) {
+          countsSaisie[gid].stock_final_confirme_zero = true;
+        }
       });
       reportJournalier = draft.reportJournalier || reportJournalier;
       reportTempsReel = draft.reportTempsReel || reportTempsReel;
@@ -2033,18 +2038,25 @@
     document.getElementById('btnSuiteGrattage').addEventListener('click', async () => {
       // Case vide ≠ zéro deviné (09/08/2026, demande de Frédéric) : un stock
       // final laissé vide peut aussi bien vouloir dire "je n'ai pas encore
-      // compté ce jeu" que "il n'en reste plus, j'ai oublié de taper 0" —
-      // les deux se ressemblent sur la feuille papier réelle. NEXUS ne
-      // tranche jamais seul : il demande, une seule fois, pour tous les
-      // jeux concernés d'un coup plutôt qu'une popup par jeu.
-      const manquants = jeuxSansStockFinal();
-      if (manquants.length) {
-        const message = manquants.length === 1
-          ? `${manquants[0].nom} : aucun stock final renseigné. Confirmez-vous qu'il n'y a plus aucun carnet en stock (0) ?`
-          : `${manquants.length} jeux sans stock final renseigné :\n${manquants.map(j => `• ${j.nom}`).join('\n')}\n\nConfirmez-vous qu'il n'y a plus de stock (0) pour ces jeux ?`;
-        if (!confirm(message)) return; // reste sur l'écran, l'employé va vérifier ces jeux
-        manquants.forEach(j => { countsSaisie[j.id].stock_final = 0; });
-        sauvegarderDraft();
+      // compté ce jeu" que "il n'en reste plus, j'ai oublié de taper 0".
+      // decision-1 de l'arbitre (11/10/2026) : sans stock disponible, la fin
+      // vide est un 0 que le serveur pose et trace lui-même ; sinon, une
+      // seule fenêtre pour tous les jeux concernés, « Confirmer 0 » ou
+      // « Corriger la saisie » pour chacun, rien de présélectionné. Le
+      // stock de départ inconnu compte comme du stock disponible.
+      const { aConfirmer } = NexusFdjMoteur.stocksFinauxAConfirmer(
+        jeux.map(j => Object.assign({ game_id: j.id }, countsSaisie[j.id]))
+      );
+      if (aConfirmer.length) {
+        const parId = new Map(jeux.map(j => [j.id, j]));
+        const reponse = await resoudreStocksFinaux(aConfirmer.map(a => ({
+          game_id: a.game_id,
+          nom: parId.get(a.game_id).nom,
+          libelleDispo: libelleDisponible(a.disponible),
+        })));
+        if (!reponse) return; // reste sur l'écran, rien n'est décidé
+        appliquerChoixStocksFinaux(reponse);
+        if (reponse.corriger.length) { revenirAuJeuACorriger(reponse.corriger[0]); return; }
       }
       // Réconciliation appro ↔ activation (20/08/2026, demande de Frédéric)
       // — même logique "un seul prompt combiné" que ci-dessus, voir
@@ -2094,6 +2106,8 @@
         const val = input.value === '' ? null : Number(input.value);
         if (!countsSaisie[gameId]) countsSaisie[gameId] = { stock_initial: null, appro: 0, stock_final: null };
         countsSaisie[gameId][champ] = val;
+        // Toute frappe dans le stock final remplace une confirmation « 0 ».
+        if (champ === 'stock_final') delete countsSaisie[gameId].stock_final_confirme_zero;
         sauvegarderDraft();
         const row = input.closest('.jeu-row');
         const venteEl = row.querySelector('.jeu-ventes');
@@ -2283,6 +2297,127 @@
   }
 
   // ------------------------------------------------------------
+  // STOCKS FINAUX À CONFIRMER — decision-1 de l'arbitre (11/10/2026).
+  //
+  // Une fin laissée vide alors qu'il restait du stock peut être un oubli ou
+  // un vrai 0 : NEXUS ne tranche pas seul. Une seule fenêtre liste tous les
+  // jeux concernés ; pour chacun, « Confirmer 0 » (0 explicite, tracé par le
+  // serveur grâce au marqueur stock_final_confirme_zero) ou « Corriger la
+  // saisie » (retour au jeu, rien n'est clôturé). Aucun choix présélectionné,
+  // et « Valider ces choix » reste inactif tant qu'un jeu n'a pas le sien.
+  // ------------------------------------------------------------
+  function libelleDisponible(disponible) {
+    if (disponible === null || disponible === undefined) return 'stock de départ inconnu';
+    if (Number(disponible) === 1) return '1 ticket disponible';
+    return `${fmtNum(disponible)} tickets disponibles`;
+  }
+
+  // `liste` : [{ game_id, nom, libelleDispo }]. Rend { confirmes: [game_id],
+  // corriger: [game_id] }, ou null si l'employé referme la fenêtre.
+  function resoudreStocksFinaux(liste) {
+    return new Promise(resolve => {
+      const choix = new Map();
+      const overlay = document.createElement('div');
+      overlay.className = 'cloture-overlay';
+      const modal = document.createElement('div');
+      modal.className = 'cloture-modal stocks-finaux';
+      const titre = document.createElement('div');
+      titre.className = 'cloture-titre';
+      titre.textContent = liste.length === 1
+        ? 'Un stock final n\'est pas renseigné'
+        : `${liste.length} stocks finaux ne sont pas renseignés`;
+      const texte = document.createElement('div');
+      texte.className = 'cloture-texte';
+      texte.textContent = 'Le quart ne peut pas être clôturé tant qu\'une quantité finale reste inconnue. Indiquez votre choix pour chaque jeu.';
+      modal.append(titre, texte);
+
+      const valider = document.createElement('button');
+      valider.type = 'button';
+      valider.className = 'btn-primary';
+      valider.id = 'btnStocksFinauxValider';
+      valider.textContent = 'Valider ces choix';
+      valider.disabled = true;
+
+      liste.forEach(item => {
+        const bloc = document.createElement('div');
+        bloc.className = 'stock-final-choix';
+        bloc.dataset.jeu = item.game_id;
+        const question = document.createElement('div');
+        question.className = 'stock-final-question';
+        question.textContent = `Le stock final de ${item.nom} est-il bien de 0 ticket, ou avez-vous oublié de le renseigner ?`;
+        const dispo = document.createElement('div');
+        dispo.className = 'stock-final-dispo';
+        dispo.textContent = item.libelleDispo;
+        const boutons = document.createElement('div');
+        boutons.className = 'stock-final-boutons';
+        [['confirmer', 'Confirmer 0'], ['corriger', 'Corriger la saisie']].forEach(([valeur, libelle]) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'stock-final-bouton';
+          b.dataset.choix = valeur;
+          b.setAttribute('aria-pressed', 'false');
+          b.textContent = libelle;
+          b.addEventListener('click', () => {
+            choix.set(item.game_id, valeur);
+            boutons.querySelectorAll('.stock-final-bouton').forEach(x => {
+              x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+            });
+            valider.disabled = liste.some(l => !choix.has(l.game_id));
+          });
+          boutons.appendChild(b);
+        });
+        bloc.append(question, dispo, boutons);
+        modal.appendChild(bloc);
+      });
+
+      const retour = document.createElement('button');
+      retour.type = 'button';
+      retour.className = 'btn-ghost';
+      retour.textContent = 'Retour';
+      const actions = document.createElement('div');
+      actions.className = 'cloture-actions';
+      actions.append(valider, retour);
+      modal.appendChild(actions);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      const fermer = (resultat) => { overlay.remove(); resolve(resultat); };
+      valider.addEventListener('click', () => {
+        if (liste.some(l => !choix.has(l.game_id))) return;
+        fermer({
+          confirmes: liste.filter(l => choix.get(l.game_id) === 'confirmer').map(l => l.game_id),
+          corriger: liste.filter(l => choix.get(l.game_id) === 'corriger').map(l => l.game_id),
+        });
+      });
+      retour.addEventListener('click', () => fermer(null));
+      overlay.addEventListener('click', e => { if (e.target === overlay) fermer(null); });
+    });
+  }
+
+  // « Confirmer 0 » : 0 explicite, marqué pour que le serveur le trace. Une
+  // frappe ultérieure dans le champ efface le marqueur (wireJeuInputs).
+  function appliquerChoixStocksFinaux(reponse) {
+    reponse.confirmes.forEach(gid => {
+      if (!countsSaisie[gid]) countsSaisie[gid] = {};
+      countsSaisie[gid].stock_final = 0;
+      countsSaisie[gid].stock_final_confirme_zero = true;
+    });
+    sauvegarderDraft();
+  }
+
+  // « Corriger la saisie » : retour au grattage, sur le premier jeu concerné.
+  function revenirAuJeuACorriger(gameId) {
+    phase = 'grattage';
+    renderGrattage();
+    const champ = Array.from(document.querySelectorAll('.champ-stock-final'))
+      .find(el => el.dataset.jeu === String(gameId));
+    if (champ) {
+      champ.scrollIntoView({ block: 'center' });
+      champ.focus();
+    }
+  }
+
+  // ------------------------------------------------------------
   // SORTIE DE CAISSE — Vague 1 (17/09/2026).
   //
   // Trois fonctions ont disparu ici : enregistrerCaisseQuart(),
@@ -2307,22 +2442,36 @@
   // — les recevoir du navigateur reviendrait à laisser déclarer son propre
   // résultat. Le prix d'un jeu vient du catalogue, jamais de l'écran.
   // ------------------------------------------------------------
-  function construireComptagesAEnvoyer() {
-    return jeux.filter(jeuEstCompte).map(j => {
-      const s = countsSaisie[j.id] || {};
-      return {
+  //
+  // decision-1 (11/10/2026) : un jeu n'est plus écarté parce que son début
+  // ou sa fin manque — il part dès qu'une de ses quantités est saisie, et le
+  // serveur complète le début, pose les 0 à stock nul et refuse une fin
+  // indéterminée. Un 0 confirmé part avec le marqueur à la validation ; en
+  // brouillon, il part vide et sans marqueur : rien n'est tracé tant que la
+  // caisse n'est pas confirmée, et la question est reposée à ce moment-là.
+  function construireComptagesAEnvoyer(pourBrouillon) {
+    const vide = v => v === undefined || v === null || v === '';
+    return jeux.filter(j => {
+      const s = countsSaisie[j.id];
+      return !!s && (!vide(s.stock_initial) || !vide(s.stock_final) || Number(s.appro || 0) !== 0);
+    }).map(j => {
+      const s = countsSaisie[j.id];
+      const confirmeZero = s.stock_final_confirme_zero === true && s.stock_final === 0;
+      const ligne = {
         game_id: j.id,
-        stock_initial: (s.stock_initial === undefined ? null : s.stock_initial),
+        stock_initial: vide(s.stock_initial) ? null : s.stock_initial,
         appro: s.appro || 0,
-        stock_final: (s.stock_final === undefined ? null : s.stock_final),
+        stock_final: (vide(s.stock_final) || (pourBrouillon && confirmeZero)) ? null : s.stock_final,
       };
+      if (confirmeZero && !pourBrouillon) ligne.stock_final_confirme_zero = true;
+      return ligne;
     });
   }
 
-  function chargeUtileCaisse() {
+  function chargeUtileCaisse(pourBrouillon) {
     return {
       p_shift_id: shiftRow.id,
-      p_comptages: construireComptagesAEnvoyer(),
+      p_comptages: construireComptagesAEnvoyer(pourBrouillon),
       p_lots_payes_grattage: reportJournalier.lots_payes_grattage,
       p_caisse_tirages: reportTempsReel.caisse_tirages,
       p_caisse_reelle: caisseReelle,
@@ -2343,7 +2492,26 @@
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
 
     const rpc = choix === 'valider' ? 'fdj_confirmer_caisse' : 'fdj_enregistrer_brouillon_caisse';
-    const { data, error } = await nexusClient.rpc(rpc, chargeUtileCaisse());
+    let { data, error } = await nexusClient.rpc(rpc, chargeUtileCaisse(choix === 'brouillon'));
+    // decision-1 (11/10/2026) : le serveur fait foi sur les fins à confirmer
+    // (jeu sans ligne locale, début complété depuis le quart précédent). Il
+    // rend la liste ; l'écran pose la question une fois et ne renvoie qu'une
+    // seule fois. Un second refus s'affiche tel quel.
+    if (!error && data && data.confirme === false && data.motif === 'stocks_finaux_a_confirmer'
+        && Array.isArray(data.jeux) && data.jeux.length) {
+      btn.disabled = false; btn.textContent = libelleInitial;
+      const reponse = await resoudreStocksFinaux(data.jeux.map(j => ({
+        game_id: j.game_id,
+        nom: j.nom,
+        libelleDispo: libelleDisponible(j.disponible),
+      })));
+      if (!reponse) return; // fenêtre refermée : le brouillon serveur reste, rien n'est validé
+      appliquerChoixStocksFinaux(reponse);
+      if (reponse.corriger.length) { revenirAuJeuACorriger(reponse.corriger[0]); return; }
+      btn.disabled = true;
+      btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+      ({ data, error } = await nexusClient.rpc(rpc, chargeUtileCaisse(false)));
+    }
     if (error) {
       console.error('Sortie de caisse FDJ (' + rpc + '):', error);
       btn.disabled = false; btn.textContent = libelleInitial;
@@ -2352,7 +2520,8 @@
     }
     // Refus métier : la commande a répondu, mais l'état ne permettait pas
     // l'opération (caisse déjà confirmée, saisie incomplète, quart non
-    // modifiable). Le message vient du serveur — l'écran ne le réécrit pas.
+    // modifiable, stock final encore indéterminé). Le message vient du
+    // serveur — l'écran ne le réécrit pas.
     if (data && (data.enregistre === false || data.confirme === false)) {
       btn.disabled = false; btn.textContent = libelleInitial;
       alert(data.message || "Cette caisse ne peut pas être enregistrée dans son état actuel.");

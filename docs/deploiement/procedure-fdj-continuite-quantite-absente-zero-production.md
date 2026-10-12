@@ -1,8 +1,10 @@
-# Procédure — 20261011200000, continuité FDJ : quantité absente traitée comme 0 (Production)
+# Procédure — 20261011200000 et 20261011220000, continuité FDJ : quantité absente traitée comme 0, stocks finaux confirmés (Production)
 
 **Statut : non exécutée en Production. Aucun GO Production donné** (handoff MISSION PATRIMOINE du 11/10/2026 : « GO pour corriger le défaut de continuité du stock FDJ en développement et en Test. Aucun GO Production »). Projet `uzhjpqpctpvxytxpxoqz`.
 
-Appliquée sur Test le 11/10/2026 à 20:20:01Z (registre 318 → 319). Les md5 obtenus après application sont consignés dans `docs/recette/fdj-continuite-quantite-absente-zero-20261011.md`. En Production, le constat du geste 3 doit retrouver ces mêmes md5.
+Les deux migrations forment un seul lot : 200000 sécurise la continuité, 220000 (decision-1 de l'arbitre, APPROVED_WITH_CONDITIONS) empêche qu'un quart soit validé avec une fin indéterminée. Leur ordre est imposé (§ Ordre global).
+
+200000 appliquée sur Test le 11/10/2026 à 20:20:01Z (registre 318 → 319). Les md5 obtenus après application sont consignés dans `docs/recette/fdj-continuite-quantite-absente-zero-20261011.md`. En Production, le constat du geste 3 doit retrouver ces mêmes md5.
 
 Fichier : `supabase/migrations/20261011200000_fdj_continuite_quantite_absente_zero.sql`. Le blob git est celui qu'enregistre `qualification-ordre-migration-code.json` (`mesure.blob_migration`) : un fichier ne peut pas nommer sa propre empreinte, et toute retouche de la migration fait tomber la qualification.
 
@@ -102,12 +104,89 @@ Fenêtre d'exposition : tant que la migration n'est pas appliquée, chaque quart
 - correction manager de la fin MP à 0 sur `539e87bc` ;
 - relevé v2 `regularisation_manager`, résultat financier inchangé (stock 0, appro 0, aucune vente).
 
-## Points soumis à l'arbitre
+## Points soumis à l'arbitre (200000) — tranchés par decision-1
+
+Les points ci-dessous ont été tranchés par decision-1 et sont traités par 220000 :
+- « inconnu » : la validation est refusée tant que la fin n'est ni saisie ni confirmée à 0 ;
+- `fdj_manager_enregistrer_comptages` est gardée.
+
+Texte d'origine :
 
 - **« inconnu »** : la règle littérale dit « non renseigné = 0 ». Quand il restait du stock, poser 0 fabriquerait une vente ; la base pose NULL et lève une alerte. 0 cas en Production.
 - **Création manager à 0** (`NEXUS-FDJ-Manager-v1.html` l.1290) : vaut 0 pour une fin NULL même quand il restait du stock, en divergence avec « inconnu ».
 - **Détection d'écart manager** (l.1712) : ignore les fins NULL ; angle mort de détection, pas d'exclusion.
 - **`fdj_manager_enregistrer_comptages`** non modifiée : elle continue de créer des fins NULL ; la base les lit désormais comme 0.
+
+## 20261011220000 — stocks finaux confirmés avant clôture (decision-1)
+
+**Statut : appliquée sur Test le 12/10/2026 (registre 319 → 320), non exécutée en Production, aucun GO.** Fichier : `supabase/migrations/20261011220000_fdj_confirmation_stocks_finaux.sql`. Son blob est enregistré dans la qualification (`20261011220000`, `etat` = `exige_code_d_abord`).
+
+### Ce que la migration touche
+
+| Objet | Nature | Texte remplacé | md5 servi en Production (12/10 03:58:32Z) | ACL Production |
+|---|---|---|---|---|
+| `fdj_stocks_finaux_a_confirmer(uuid, jsonb, boolean)` | **créée**, `stable` | — | absente | — |
+| `fdj_poser_stocks_finaux_confirmes(uuid, jsonb, text, uuid, boolean, boolean)` | **créée** | — | absente | — |
+| `fdj_exiger_stocks_finaux_determines(uuid, jsonb, text, uuid, boolean)` | **créée** | — | absente | — |
+| `fdj_confirmer_caisse` | remplacée | `20261011200000` (absente en Production avant 200000) | `ebe560a12a7ac29ba3a61804957d939e` | `{postgres=X,authenticated=X,service_role=X}` |
+| `fdj_corriger_caisse_confirmee` | remplacée | `20260916220600` | `cd097747679824e418fb0f8ecc8150da` | idem |
+| `fdj_manager_creer_quart` | remplacée | `20261010150000` | `e668aa912e292f0428eb8688431150c2` | idem |
+| `fdj_manager_modifier_quart` | remplacée | `20261010170000` | `c19f7b24bae242456f50a002ef980d22` | idem |
+| `fdj_manager_changer_statut_quart` | remplacée | `20261010150000` | `86be1550d7b98b1d6448e4c53b2204aa` | idem |
+| `fdj_manager_enregistrer_comptages` | remplacée | `20261010150000` | `92bcd8aaaa5814272dc9e63dee616074` | idem |
+
+Le md5 de `fdj_confirmer_caisse` relevé ici est celui d'avant 200000. Le préflight de 220000 doit le comparer au md5 servi **après** 200000, c'est-à-dire au md5 Test d'avant 220000.
+
+Les trois aides sont réservées à `service_role` : `authenticated` et `anon` sont refusés (42501, recette C11). Les ACL des six commandes sont réaffirmées à l'identique (A6).
+
+md5 servis sur Test après application (12/10) ; le constat Production doit retrouver les mêmes :
+
+| Fonction | md5 Test |
+|---|---|
+| `fdj_stocks_finaux_a_confirmer` | `2f04e3d19d9e73e8cc4496a808d13661` |
+| `fdj_poser_stocks_finaux_confirmes` | `65553ae634724f88df4c27313c7c9dad` |
+| `fdj_exiger_stocks_finaux_determines` | `281c7ae368b7a5cfc2a4096e2037e7fb` |
+| `fdj_confirmer_caisse` | `70d6a4edf3a1c0de5c7f49dec1ae16ef` |
+| `fdj_corriger_caisse_confirmee` | `7057bac5a4c07deb207c806456cb81f7` |
+| `fdj_manager_creer_quart` | `8a71c6475363eb09dbfa680086b864ab` |
+| `fdj_manager_modifier_quart` | `ffaf90e11869867028241c961e1a63a4` |
+| `fdj_manager_changer_statut_quart` | `f893d77b2b5d2d462d1aa912c8bb973e` |
+| `fdj_manager_enregistrer_comptages` | `cb05426296f01526f7cf20be295e6876` |
+
+### Pourquoi le code d'abord
+
+- L'écran manager servi passe un quart à `valide` **avant** d'écrire ses comptages. Avec 220000 en place, cette étape est refusée (23514) dès qu'une fin est vide (recette M5).
+- L'écran employé servi ne connaît pas le motif `stocks_finaux_a_confirmer` : il afficherait le message, sans proposer le choix « Confirmer 0 / Corriger la saisie ».
+- Le code du candidat fonctionne sur une base sans 220000 :
+  - le marqueur `stock_final_confirme_zero` est ignoré, et la ligne complète porte déjà `stock_final` 0 ;
+  - le contrôle se fait côté client avant l'envoi (recette M4).
+
+### Ordre global (chaque geste sur GO distinct de Frédéric)
+
+1. **200000** : gestes 1 à 3 ci-dessus (préflight 308, application, constat 309).
+2. **Fusion et déploiement du code** : geste 4 ci-dessus, avec en plus le sha256 de `NEXUS-FDJ-Manager-v1.html` servi.
+3. **220000 — préflight en lecture seule** :
+   - registre = 309, dernière `20261011200000`, `20261011220000` absente ;
+   - les trois aides absentes ;
+   - md5 et ACL des six commandes égaux aux valeurs servies sur Test avant 220000 : celles du tableau ci-dessus, et pour `fdj_confirmer_caisse` celle que 200000 a posée ;
+   - **code servi constaté** (étape 2) ; sinon, arrêt.
+4. **220000 — application** : connecteur `execute_sql`, une transaction, avec un bloc `DO` gardé (registre, absence, md5), le texte du fichier et la ligne de registre `('20261011220000', 'fdj_confirmation_stocks_finaux')`.
+5. **220000 — constat en lecture seule** : les neuf md5 Test ci-dessus, les ACL, registre = 310, aucune ligne `fdj_shift_counts` ni `fdj_audit_log` écrite par la migration.
+6. **Recette sur désignation**, ou constat passif au premier quart suivant. Une clôture avec une fin vide et du stock disponible doit présenter la fenêtre « Confirmer 0 / Corriger la saisie ». Une fin vide à stock nul doit devenir 0, avec une trace `stock_final_zero_automatique`.
+
+### Retour arrière 220000 (GO distinct)
+
+C'est celui de l'en-tête de la migration :
+1. rétablir les six commandes depuis leurs migrations d'origine (`fdj_confirmer_caisse` ← 200000) et leurs commentaires ;
+2. supprimer `fdj_exiger_stocks_finaux_determines`, `fdj_poser_stocks_finaux_confirmes` puis `fdj_stocks_finaux_a_confirmer` ;
+3. supprimer la ligne du registre ;
+4. vérifier les md5.
+
+Les fins posées à 0 et les traces écrites entre-temps restent (historique immuable). Le code du candidat continue de fonctionner sans 220000.
+
+### Impact sur les quarts existants
+
+La migration ne fait que (re)définir des fonctions : aucune donnée existante n'est réécrite. Les gardes ne jouent qu'au **passage** à `valide`, ou lors d'une régularisation de comptages d'un quart validé, et seulement sur les jeux envoyés. Un quart validé ne bouge pas tant que personne ne l'écrit. Les transitions `valide → valide` et `valide → brouillon` ne sont pas gardées.
 
 ## Limites hors lot
 

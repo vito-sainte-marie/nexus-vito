@@ -98,3 +98,86 @@ Les ACL de A6 sont respectées : aucune fonction n'est ouverte à `anon`, sauf l
 - **Création manager à 0** (`NEXUS-FDJ-Manager-v1.html` l.1290) : une fin NULL y vaut 0 même s'il restait du stock.
 - **Détection d'écart manager** (l.1712) : les fins NULL sont ignorées.
 - **`fdj_manager_enregistrer_comptages`** n'est pas modifiée : elle crée toujours des fins NULL, que la base lit désormais comme 0.
+
+Ces quatre points sont **tranchés par decision-1** (APPROVED_WITH_CONDITIONS, 11/10). Ils sont traités par `20261011220000`, ci-dessous.
+
+## 20261011220000 — stocks finaux confirmés avant clôture (decision-1)
+
+**Appliquée sur Test le 12/10/2026 (registre 319 → 320)**, blob `217887edf68aea556d35705001d8799948e4977b`, par une transaction gardée : base Test, registre 319 exact, version et aides absentes, md5 attendus. Production non touchée (registre 308 mesuré le 12/10 à 03:58:32Z).
+
+Règle (decision-1) : à la validation, aucune quantité finale ne reste indéterminée.
+- Fin vide et stock disponible nul : 0 explicite, posé automatiquement et tracé (`stock_final_zero_automatique`).
+- Fin vide et stock disponible positif, ou stock de départ inconnu : refus `stocks_finaux_a_confirmer`. L'écran ouvre une fenêtre unique, avec un choix explicite par jeu et aucun choix présélectionné :
+  - « Confirmer 0 » : 0 explicite, trace `confirmation_stock_final_zero` ;
+  - « Corriger la saisie » : retour au jeu, quart non clôturé.
+- Une quantité saisie n'est jamais remplacée. Les mêmes règles valent pour l'employé (confirmer, corriger) et pour le manager (créer, modifier, changer de statut, régulariser les comptages).
+
+### Recette base après application — 55 OK, 0 KO, 3 INFO
+
+`recette_220000.sql`, chaque scénario dans une transaction annulée :
+
+| Cas | Ce qui est vérifié |
+|---|---|
+| C1 | Clôture employé sans MP envoyé : MP complété, 0 automatique tracé, continuité Q1 → Q2 reprise de la fin explicite, rejeu idempotent |
+| C2, C3 | Un ou deux jeux à fin vide avec du stock : refus listant les jeux dans l'ordre de l'écran, brouillon conservé, aucune trace |
+| C4 | « Confirmer 0 » : ventes 5 × prix, traces utilisateur et automatique, quart suivant sans début vide |
+| C5, C6 | « Corriger la saisie » puis fin saisie : aucune trace ; une quantité saisie reste intacte |
+| C7 | Correction d'une caisse confirmée vers une fin vide refusée ; avec « Confirmer 0 » : version 2 tracée |
+| C8a–C8e | Manager : changer statut, modifier, créer validé (accepté ou refusé), régulariser un quart validé |
+| C9 | Jeu inactif envoyé sans ligne : « stock de départ inconnu » |
+| C10 | Idempotence de la pose |
+| C11 | Les trois aides sont refusées à `authenticated` et `anon` (42501) |
+| C12 | Témoins hors transaction intacts ; empreintes et droits attendus |
+
+INFO, non bloquants :
+- **C8a** : `fdj_manager_changer_statut_quart` ne pose pas `valide_le`. C'est préexistant et inchangé ; `modifier` et `creer` le posent.
+- **C8e** : la saisie manager stocke `ventes_qte` tel qu'envoyé (NULL possible). Préexistant.
+- **C10** : deux envois successifs « fin vide + Confirmer 0 » sur un brouillon produisent deux traces. Chaque envoi revide la fin, puis la confirme : ce sont deux confirmations réelles.
+
+### Mutations — D1 à D9 : toutes mordent
+
+Chaque mutation est chargée dans la transaction, puis annulée. KO obtenus :
+
+| D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 |
+|---|---|---|---|---|---|---|---|---|
+| 6 | 12 | 2 | 4 | 4 | 1 | 3 | 3 | 2 |
+
+### Recette 200000 rejouée après 220000 — 54 OK, 0 KO
+
+Rejouée telle quelle, elle a donné 48 OK et 5 KO (S1b, S1c, S3a, S4, S7). Ces cinq assertions affirmaient le comportement que decision-1 remplace :
+- une fin MP laissée NULL ;
+- le refus `saisie_incomplete` ;
+- une confirmation acceptée avec un départ inconnu.
+
+Elles ont été réécrites sur la règle arbitrée, sans reclassification en dette. Par exemple, S1b attend désormais « MP 0 / 0 / 0 explicite, un zéro automatique tracé ». S9 (droits A6) est inchangé et vert.
+
+### Écran manager (`ecran_mgr_220000.sql`) — 19 OK, 0 KO
+
+Ce script rejoue la séquence d'appels de l'écran :
+- M3 : validé, A confirmé à 0 et tracé une fois, B saisi et non tracé ;
+- M4 : contrôle client résolu avant envoi, validation du premier coup ;
+- **M5 : l'ancien écran (`valide` envoyé avant les comptages) est refusé (23514)**. D'où l'ordre « code d'abord » ;
+- MZ : rien ne persiste.
+
+### Suite automatique
+
+- `test_fdj_confirmation_stocks_finaux_20261011.js` : **7/7 tests du moteur, 77/77 vérifications** (29 contrôles et 48 mutations du câblage des écrans et de la migration).
+- `run-tests.js` : seuls les 7 rouges préexistants (voir le corps de PR).
+
+### md5 servis sur Test après application
+
+| Fonction | md5 | ACL |
+|---|---|---|
+| `fdj_stocks_finaux_a_confirmer` | `2f04e3d19d9e73e8cc4496a808d13661` | `postgres`, `service_role` |
+| `fdj_poser_stocks_finaux_confirmes` | `65553ae634724f88df4c27313c7c9dad` | `postgres`, `service_role` |
+| `fdj_exiger_stocks_finaux_determines` | `281c7ae368b7a5cfc2a4096e2037e7fb` | `postgres`, `service_role` |
+| `fdj_confirmer_caisse` | `70d6a4edf3a1c0de5c7f49dec1ae16ef` | `postgres`, `authenticated`, `service_role` |
+| `fdj_corriger_caisse_confirmee` | `7057bac5a4c07deb207c806456cb81f7` | idem |
+| `fdj_manager_creer_quart` | `8a71c6475363eb09dbfa680086b864ab` | idem |
+| `fdj_manager_modifier_quart` | `ffaf90e11869867028241c961e1a63a4` | idem |
+| `fdj_manager_changer_statut_quart` | `f893d77b2b5d2d462d1aa912c8bb973e` | idem |
+| `fdj_manager_enregistrer_comptages` | `cb05426296f01526f7cf20be295e6876` | idem |
+
+### Limite restante
+
+Un jeu actif sans ligne est listé « stock de départ inconnu » : seule une confirmation explicite le ferme. C'est voulu (règle 2 de decision-1).
