@@ -24,7 +24,7 @@
         "DEPOT_ECRITURE_RAIL": "OUI",
         "CANAL_PUBLICATION": "OUI",
         "CI_LECTURE_RUN": "NON",
-        "SUPABASE_TEST_LECTURE": "NON",
+        "SUPABASE_TEST_LECTURE": "OUI",
         "SUPABASE_TEST_ECRITURE": "NON",
         "SUPABASE_PRODUCTION_LECTURE": "NON",
         "SUPABASE_PRODUCTION_ECRITURE": "NON",
@@ -33,10 +33,32 @@
       "preuves": {
         "SUPABASE_TEST_LECTURE": {
           "type": "EXERCEE",
-          "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+          "commande": "run GitHub Actions 38311137673 (workflow Claude, job claude, issue #28, rail handoff-continuite-20260920) — variables PG* déjà exportées par l'étape « Préparer connexion PostgreSQL Test read-only » avant l'invocation de Claude, puis `psql -c \"select 1\"`, `\\\\conninfo`, `show transaction_read_only`, `show default_transaction_read_only`, `select current_user, current_database(), inet_server_addr(), inet_server_port()`, `select has_schema_privilege(...)`/`has_database_privilege(...)` sur les schémas système, agrégat `has_table_privilege(...)` SELECT/INSERT/UPDATE/DELETE/TRUNCATE sur les 169 tables de base de `public`, `select rolsuper, rolcreatedb, rolcreaterole, rolbypassrls from pg_roles`, résolution DNS de PGHOST (node:dns, hors connexion), et vérification de présence de `public.nexus_live_events` (table créée uniquement par une migration Test-only, exclue de Production par docs/handoff/lots/NEXUS-PRODUCTION-READINESS-1-20260908/manifeste-migrations-production-1.md #18/#21). Aucune valeur de PGPASSWORD ni URL complète lue ni affichée ; aucun DML/DDL exécuté.",
           "date": "2026-10-12",
-          "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue.",
-          "source": "docs/gouvernance/NEXUS-EXECUTOR-SUPABASE-1-audit-et-architecture.md"
+          "resultat": "PASS. Secret SUPABASE_TEST_DB_URL_READONLY corrigé par l'humain pour pointer sur le Session Pooler IPv4 (aws-0-us-east-1.pooler.supabase.com, résolu en 3 adresses IPv4 par DNS) avec le rôle dédié nexus_executor_readonly. Connexion TLS établie (psql \\\\conninfo : TLSv1.3, cipher TLS_AES_256_GCM_SHA384, adresse IPv4 44.216.29.125:5432, via Supavisor). Identité du projet confirmée par deux témoins indépendants : (1) connexion — PGUSER porte le suffixe .udljdqxerrbbbajxubfn, exactement ENVS.test de outils/ordre-execution.js (jamais ENVS.production=uzhjpqpctpvxytxpxoqz) ; l'authentification aurait échoué sur un suffixe de projet erroné ; (2) base — public.nexus_live_events existe (migration Test-only #18, absente par construction de Production selon le manifeste canonique). current_user=nexus_executor_readonly (suffixe pooler correctement dépouillé côté serveur, aucun écart). transaction_read_only=on et default_transaction_read_only=on (lecture seule imposée au niveau moteur, pas seulement déclarative). ACL mesurée sur les 169 tables de base de public : SELECT=169/169, INSERT=0, UPDATE=0, DELETE=0, TRUNCATE=0. has_schema_privilege : USAGE=oui sur public seulement (CREATE=non sur public et sur auth/storage/vault/extensions/graphql/realtime, tous NON). pg_roles : rolsuper=f, rolcreatedb=f, rolcreaterole=f, rolbypassrls=f (RLS non contournée : select count(*) from public.sites a rendu 0 ligne malgré has_table_privilege SELECT=oui, signe d'isolation par policy plutôt que d'absence de droit). Aucun écart d'authentification, de suffixe ou d'ACL observé.",
+          "source": "issue #28, NEXUS EXECUTOR — relance preflight Supabase Test read-only après correction session pooler (2026-10-12)",
+          "historique": [
+            {
+              "date": "2026-10-12",
+              "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+              "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue."
+            },
+            {
+              "date": "2026-10-12",
+              "commande": "run GitHub Actions 38303032196 (job claude, issue #28) — lecture des variables PG* exportées par l'étape « Préparer connexion PostgreSQL Test read-only », puis `psql \"sslmode=require connect_timeout=8\" -c \"select 1\"` depuis le job",
+              "resultat": "NEXUS_TEST_DB_AVAILABLE=1, NEXUS_SUPABASE_SCOPE=TEST_READ_ONLY, PGUSER=nexus_executor_readonly, PGDATABASE=postgres, PGPORT=5432 : le secret, actualisé par l'humain, passe désormais la validation Python. Mais la connexion échoue : PGHOST ne mesure que 4 caractères (« hote », gabarit non renseigné resté littéralement dans la valeur stockée du secret), pas un nom d'hôte Supabase réel. Correctif identifié : remplacer le segment hôte par le nom réel du projet Test."
+            },
+            {
+              "date": "2026-10-12",
+              "commande": "run 38305962853 : variables PG* déjà exportées par l'étape « Préparer connexion PostgreSQL Test read-only » avant l'invocation de Claude, puis psql -c \"select 1\" et une connexion TCP directe (node:net) vers l'hôte résolu. Aucune valeur de secret lue ni affichée.",
+              "resultat": "secret corrigé (hôte gabarit disparu) : NEXUS_TEST_DB_AVAILABLE=1, PGHOST=db.udljdqxerrbbbajxubfn.supabase.co — référence TEST attendue (ENVS.test), jamais Production. Connexion réelle toujours impossible : l'hôte direct ne résout qu'en IPv6 (aucun enregistrement A ; TCP ENETUNREACH), et une tentative de repli vers le Session Pooler IPv4 (aws-0-us-east-1.pooler.supabase.com) a été refusée par le bac à sable réseau de ce canal avant toute tentative (approbation requise, indisponible dans ce run automatisé). Aucun SELECT n'a abouti ; aucun DML/DDL tenté."
+            },
+            {
+              "date": "2026-10-12",
+              "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+              "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue."
+            }
+          ]
         },
         "CI_LECTURE_RUN": {
           "type": "EXERCEE",
