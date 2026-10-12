@@ -14,11 +14,13 @@ const mesurer = (lecteur, ordre) => {
 };
 
 // État de rejeu/incertitude dérivé des execution-*.json déjà déposés dans le lot (aucune autre source).
+// Échoue FERMÉ : un retour illisible ou sans hash peut être celui qui consomme l'ordre ; l'ignorer rouvrirait le rejeu.
 function etatDepuisLot(dir) {
   const etat = { consommes: [], verrou: null, incertains: [] };
   if (!fs.existsSync(dir)) return etat;
   for (const f of fs.readdirSync(dir).filter((x) => /^execution-.*\.json$/.test(x)).sort()) {
-    let e; try { e = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (_) { continue; }
+    let e; try { e = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (x) { throw new Error(`${f} illisible : état de rejeu indéterminable, aucune exécution possible (${String(x && x.message || x).slice(0, 120)})`); }
+    if (!e || typeof e !== 'object' || typeof e.operation_hash !== 'string' || !e.operation_hash) throw new Error(`${f} sans operation_hash : état de rejeu indéterminable, aucune exécution possible`);
     if (e.etat === 'EXECUTE') etat.consommes.push(e.operation_hash);
     else if (e.etat === 'EXECUTION_INCERTAINE') etat.incertains.push(e.operation_hash);
   }
@@ -55,7 +57,15 @@ function consommer({ ordre, go, lecteur, ecrivain, etat, habilites, mode = 'blan
   // Réel : AUTORISE → EXECUTION_EN_COURS ; l'écrivain est appelé une seule fois.
   O.transition('AUTORISE', 'demarre');
   let ecritures = 0, etatFinal, apres = {}, detail;
-  try { ecritures = 1; ecrivain(ordre); } catch (e) {
+  try {
+    ecritures = 1; const retour = ecrivain(ordre);
+    // Un écrivain asynchrone (connecteur MCP) n'est pas attendu ici : relire maintenant constaterait un état
+    // intermédiaire. L'issue est inconnue → EXECUTION_INCERTAINE, et le rejet éventuel est capté, pas perdu.
+    if (retour && typeof retour.then === 'function') {
+      if (typeof retour.catch === 'function') retour.catch(() => {});
+      etatFinal = O.transition('EXECUTION_EN_COURS', 'interrompu'); detail = 'écrivain asynchrone non attendu : issue inconnue, réconcilier en lecture seule';
+    }
+  } catch (e) {
     etatFinal = O.transition('EXECUTION_EN_COURS', 'interrompu'); detail = `écriture interrompue : ${String(e && e.message || e).slice(0, 200)}`;
   }
   if (!etatFinal) {

@@ -34,6 +34,9 @@ function preparer({ reg, io, opts, lot, seq, canal, maintenant = new Date() }) {
   const { operations, refus } = detecter(changements, opts.cibleEnv);
   if (refus.length) return { erreurs: refus.map((r) => `${r.code}${r.chemin ? ` (${r.chemin})` : ''}`) };
   if (!operations.length) return { ordres: [], erreurs: [] };
+  // Pré- et postconditions sont données une fois pour la demande : elles ne décrivent qu'UNE opération. Avec deux,
+  // l'ordre 2 attendrait l'état d'avant l'ordre 1 et rendrait PRECONDITION_FAUSSE. Une migration par demande.
+  if (operations.length > 1) return { erreurs: [`DEMANDE_MULTI_OPERATIONS (${operations.length} : ${operations.map((op) => op.chemin).join(', ')}) — une seule migration par demande`] };
   const pre = mesures(opts.preconditions, 'precondition'), post = mesures(opts.postconditions, 'postcondition');
   if (pre.erreur || post.erreur) return { erreurs: [pre.erreur || post.erreur].filter(Boolean) };
   if (!opts.retourArriere) return { erreurs: ['--retour-arriere manquant (référence, ou « aucun, justifié : … »)'] };

@@ -13,6 +13,7 @@
 //      la réconciliation en lecture seule distingue APPLIQUEE / NON_APPLIQUEE / INDETERMINE.
 //   J. Le retour execution-N est refusé s'il ne cite pas le hash, le GO et les mesures.
 //   K. Le hash ne dépend pas de l'ordre des clés.
+//   M. Une postcondition doit être fausse au départ (et nommer la version migrée) ; une mesure absente ne vaut rien.
 const assert = require('assert');
 const O = require('./outils/ordre-execution');
 
@@ -23,8 +24,8 @@ const base = (env = 'production') => O.construire({
   operation: 'MIGRATION_APPLY', lot: 'LOT-X', request: 'request-3',
   cible: { env, project_ref: O.ENVS[env] },
   artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: BLOB, commit: COMMIT },
-  preconditions: { registre_taille: 310, 'fonction_md5.fdj_exemple': 'abc' },
-  postconditions: { registre_taille: 311 },
+  preconditions: { registre_taille: 310, registre_derniere_version: '20261011000000', 'fonction_md5.fdj_exemple': 'abc' },
+  postconditions: { registre_taille: 311, registre_derniere_version: '20261012000000' },
   retour_arriere: 'aucun, justifié : migration additive',
   cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z',
 });
@@ -67,7 +68,7 @@ refuse(O.autoriser(mut(o, (c) => { c.lot = 'AUTRE'; }), go(o), opts), 'HASH_ORDR
 // G
 refuse(O.peutExecuter(o, go(o), { ...reel(o), project_ref: O.ENVS.test }, etat0(), opts), 'PROJET_REEL_DIFFERENT', 'G projet réel');
 refuse(O.peutExecuter(o, go(o), { ...reel(o), blob: 'd'.repeat(40) }, etat0(), opts), 'BLOB_REEL_DIFFERENT', 'G blob réel');
-refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: { registre_taille: 311, 'fonction_md5.fdj_exemple': 'abc' } }, etat0(), opts), 'PRECONDITION_FAUSSE', 'G précondition');
+refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: { ...o.preconditions, registre_taille: 311 } }, etat0(), opts), 'PRECONDITION_FAUSSE', 'G précondition');
 refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: {} }, etat0(), opts), 'PRECONDITION_FAUSSE', 'G mesure absente');
 // H
 refuse(O.peutExecuter(o, go(o), reel(o), { ...etat0(), consommes: [o.operation_hash] }, opts), 'DEJA_CONSOMME', 'H rejeu');
@@ -79,18 +80,18 @@ assert.throws(() => O.transition('EXECUTION_INCERTAINE', 'demarre'), /interdite/
 assert.throws(() => O.transition('EXECUTE', 'demarre'), /interdite/, 'I: ordre exécuté non rejouable');
 assert.throws(() => O.transition('EXECUTION_EN_COURS', 'reconcilie_non_appliquee'), /interdite/);
 assert.strictEqual(O.transition('EXECUTION_INCERTAINE', 'reconcilie_non_appliquee'), 'AUTORISE');
-assert.strictEqual(O.reconcilier(o, { registre_taille: 311 }), 'APPLIQUEE');
+assert.strictEqual(O.reconcilier(o, o.postconditions), 'APPLIQUEE');
 assert.strictEqual(O.reconcilier(o, o.preconditions), 'NON_APPLIQUEE');
 assert.strictEqual(O.reconcilier(o, { registre_taille: 312 }), 'INDETERMINE', 'I: état ambigu jamais deviné');
 // J
 const exec = { operation_hash: o.operation_hash, etat: 'EXECUTE', executant: 'session-claude-habilitee', go: go(o),
-  mesures_avant: o.preconditions, mesures_apres: { registre_taille: 311 }, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
+  mesures_avant: o.preconditions, mesures_apres: o.postconditions, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
   reprise: { prochaine_action: 'constat passif' } };
 const dec = { hashesApprouves: [o.operation_hash] };
 assert.deepStrictEqual(O.validerExecution(exec, o, dec), [], 'J: retour complet recevable');
 refuse(O.validerExecution({ ...exec, operation_hash: 'f'.repeat(64) }, o, dec), 'GO_HASH_DIFFERENT', 'J hash');
 refuse(O.validerExecution({ ...exec, go: undefined }, o, dec), 'GO_ABSENT', 'J go');
-refuse(O.validerExecution({ ...exec, mesures_apres: { registre_taille: 310 } }, o, dec), 'PRECONDITION_FAUSSE', 'J postcondition non tenue');
+refuse(O.validerExecution({ ...exec, mesures_apres: { ...o.postconditions, registre_taille: 310 } }, o, dec), 'PRECONDITION_FAUSSE', 'J postcondition non tenue');
 refuse(O.validerExecution({ ...exec, reprise: undefined }, o, dec), 'ORDRE_MALFORME', 'J reprise');
 refuse(O.validerExecution({ ...exec, etat: 'REFUSE', refus: 'inventé' }, o, dec), 'ORDRE_MALFORME', 'J refus sans code connu');
 // J2 — le GO d'un retour est contrôlé comme celui de l'exécutant : environnement, habilitation, décision (Production).
@@ -130,4 +131,59 @@ refuse(O.valider(recalc(mut(lec, (c) => { c.controle = 'N_IMPORTE_QUOI'; })), { 
   } finally { global.Date = RD; }
 }
 
-console.log('ordre-execution : toutes les propriétés A–K tiennent');
+// M. Postconditions probantes (audit 12/10, point 6). Une postcondition que l'état de départ satisfait déjà ferait
+//    dire APPLIQUEE à `reconcilier` avant toute écriture, et une mesure absente ne doit jamais valoir une valeur.
+//    Chaque garde est prouvée par sa mutation : retirée, le cas refusé ci-dessous redevient recevable.
+{
+  const fs = require('fs'), path = require('path');
+  const val = (x, mod = O) => mod.valider(x, { maintenant: MAINT });
+  const V = (f) => recalc(mut(o, f));
+  const egalPre = V((c) => { c.postconditions = { ...c.preconditions }; });
+  const disjointes = V((c) => { c.preconditions = { registre_taille: 310 }; c.postconditions = { registre_derniere_version: '20261012000000' }; });
+  const sansVersion = V((c) => { c.postconditions = { registre_taille: 311 }; });
+  const autreVersion = V((c) => { c.postconditions = { registre_taille: 311, registre_derniere_version: '20261013000000' }; });
+  const vide = V((c) => { c.preconditions.registre_taille = ''; });
+  const textes = ['undefined', 'null', 'NaN'].map((t) => V((c) => { c.postconditions['fonction_md5.fdj_exemple'] = t; c.preconditions['fonction_md5.fdj_exemple'] = 'abc'; }));
+  // Ordre forgé (hash recalculé, jamais validé) : `reconcilier` ne valide pas, il doit tenir seul.
+  const forge = V((c) => { c.preconditions = { registre_taille: 'x' }; c.postconditions = { registre_taille: 'undefined' }; });
+
+  refuse(val(egalPre), 'POSTCONDITION_INSUFFISANTE', 'M postconditions = préconditions');
+  refuse(val(disjointes), 'POSTCONDITION_INSUFFISANTE', 'M aucune mesure commune ne change');
+  refuse(val(sansVersion), 'POSTCONDITION_INSUFFISANTE', 'M migration sans registre_derniere_version');
+  refuse(val(autreVersion), 'POSTCONDITION_INSUFFISANTE', 'M registre_derniere_version ≠ version du fichier');
+  refuse(val(vide), 'ORDRE_MALFORME', 'M valeur vide');
+  for (const t of textes) refuse(val(t), 'ORDRE_MALFORME', `M valeur « ${t.postconditions['fonction_md5.fdj_exemple']} »`);
+  assert.strictEqual(O.reconcilier(forge, {}), 'INDETERMINE', 'M: une mesure absente ne vaut jamais « undefined »');
+  refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: { registre_taille: 310 } }, etat0(), opts), 'PRECONDITION_FAUSSE', 'M précondition non mesurée');
+  assert.strictEqual(O.validerExecution({ operation_hash: o.operation_hash, etat: 'EXECUTE', executant: 'x', go: go(o), mesures_avant: o.preconditions, mesures_apres: { registre_taille: 311 }, debut: 'a', fin: 'b' }, o, { habilites: HAB, hashesApprouves: [o.operation_hash] }).includes('PRECONDITION_FAUSSE'), true, 'M: postcondition non mesurée = non tenue');
+
+  const SRC = fs.readFileSync(path.join(__dirname, 'outils', 'ordre-execution.js'), 'utf8');
+  let k = 0;
+  const muter = (ancre, remplacement, epreuve) => {
+    assert.strictEqual(SRC.split(ancre).length, 2, `M: ancre de mutation unique — ${ancre}`);
+    const tmp = path.join(__dirname, 'outils', `.mut-ordre-${process.pid}-${++k}.js`);
+    fs.writeFileSync(tmp, SRC.replace(ancre, remplacement));
+    try { epreuve(require(tmp)); } finally { fs.rmSync(tmp, { force: true }); }
+  };
+  muter("  else if (ordre.operation !== 'LECTURE_CONTROLE' && !postconditionsSuffisantes(ordre)) r.push('POSTCONDITION_INSUFFISANTE');\n", '', (Mu) => {
+    assert.deepStrictEqual(val(egalPre, Mu), [], 'mutation : sans la garde, post = pre redevient recevable');
+    assert.strictEqual(Mu.reconcilier(egalPre, egalPre.preconditions), 'APPLIQUEE', 'mutation : …et la base intacte se réconcilie APPLIQUEE');
+  });
+  muter('    if (String(post.registre_derniere_version) !== version) return false;\n', '', (Mu) => {
+    assert.deepStrictEqual(val(sansVersion, Mu), [], 'mutation : sans contrôle de version, une migration sans version passe');
+    assert.deepStrictEqual(val(autreVersion, Mu), [], 'mutation : …et une version étrangère au fichier aussi');
+  });
+  muter('const RE_VALEUR = /^[A-Za-z0-9_.:\\-]{1,128}$/;', 'const RE_VALEUR = /^[A-Za-z0-9_.:\\-]{0,128}$/;', (Mu) => {
+    assert.ok(!val(vide, Mu).includes('ORDRE_MALFORME'), 'mutation : longueur 0 admise, la valeur vide passe');
+  });
+  muter(" && !VALEURS_VIDES.includes(String(m[k]))", '', (Mu) => {
+    for (const t of textes) assert.ok(!val(t, Mu).includes('ORDRE_MALFORME'), 'mutation : « undefined »/« null »/« NaN » redeviennent des valeurs');
+  });
+  muter('const mesureEgale = (mesures, k, v) => !!mesures && Object.prototype.hasOwnProperty.call(mesures, k) && mesures[k] !== undefined && mesures[k] !== null && String(mesures[k]) === String(v);',
+    'const mesureEgale = (mesures, k, v) => String((mesures || {})[k]) === String(v);', (Mu) => {
+    assert.strictEqual(Mu.reconcilier(forge, {}), 'APPLIQUEE', 'mutation : sans contrôle de présence, rien mesuré = APPLIQUEE');
+  });
+  console.log('  ✅ M — postconditions probantes : cinq gardes, cinq mutations qui les rendent muettes');
+}
+
+console.log('ordre-execution : toutes les propriétés A–M tiennent');

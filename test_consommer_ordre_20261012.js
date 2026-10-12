@@ -8,7 +8,7 @@ const BLOB = 'a'.repeat(40), COMMIT = 'b'.repeat(40), MAINT = new Date('2026-10-
 const HAB = { production: ['vito-sainte-marie'], test: ['arbitre-chatgpt', 'vito-sainte-marie'] };
 const mk = (env) => O.construire({ operation: 'MIGRATION_APPLY', lot: 'LOT-X', request: 'request-3', cible: { env, project_ref: O.ENVS[env] },
   artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: BLOB, commit: COMMIT },
-  preconditions: { registre_taille: 310 }, postconditions: { registre_taille: 311 }, retour_arriere: 'aucun, justifié : additive',
+  preconditions: { registre_taille: 310, registre_derniere_version: '20261011000000' }, postconditions: { registre_taille: 311, registre_derniere_version: '20261012000000' }, retour_arriere: 'aucun, justifié : additive',
   cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
 const go = (o) => ({ operation_hash: o.operation_hash, env: o.cible.env, acteur: 'vito-sainte-marie' });
 const etat0 = () => ({ consommes: [], verrou: null, incertains: [] });
@@ -16,7 +16,7 @@ const etat0 = () => ({ consommes: [], verrou: null, incertains: [] });
 function monde(o, { taille = 310, projet, blob = BLOB, ecrit = 'ok' } = {}) {
   const s = { taille, appels: 0 };
   return { s,
-    lecteur: { projet: () => projet || o.cible.project_ref, blob: () => blob, mesures: (n) => Object.fromEntries(n.map((k) => [k, s.taille])) },
+    lecteur: { projet: () => projet || o.cible.project_ref, blob: () => blob, mesures: (n) => Object.fromEntries(n.map((k) => [k, k === 'registre_derniere_version' ? (s.taille >= 311 ? '20261012000000' : '20261011000000') : s.taille])) },
     ecrivain: () => { s.appels++; if (ecrit === 'ok') s.taille = 311; else if (ecrit === 'throw') throw new Error('connexion perdue'); } };
 }
 const run = (o, m, extra = {}) => C.consommer({ ordre: o, go: go(o), lecteur: m.lecteur, ecrivain: m.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', ...extra });
@@ -54,7 +54,7 @@ ok('onze refus codés + lecture impossible : aucune écriture dans aucun cas');
 // Réel heureux : EXECUTE, retour recevable, relecture mesurée.
 o = mk('test'); m = monde(o); r = run(o, m, { mode: 'reel' });
 assert.strictEqual(r.verdict, 'EXECUTE'); assert.strictEqual(m.s.appels, 1); assert.deepStrictEqual(O.validerExecution(r.execution, o, { hashesApprouves: [o.operation_hash] }), []);
-assert.deepStrictEqual(r.execution.mesures_avant, { registre_taille: 310 }); assert.deepStrictEqual(r.execution.mesures_apres, { registre_taille: 311 });
+assert.deepStrictEqual(r.execution.mesures_avant, o.preconditions); assert.deepStrictEqual(r.execution.mesures_apres, o.postconditions);
 ok('réel : EXECUTE, un seul appel, mesures avant/après, retour recevable');
 
 // Interruption : INCERTAINE, jamais rejouable aveuglément.
@@ -86,4 +86,58 @@ try {
   assert.ok(m.s.appels >= 1, 'mutation : sans les gardes l\'écrivain est appelé (donc les refus ci-dessus prouvent la garde)');
 } finally { fs.rmSync(tmp, { force: true }); }
 ok('mutation « retirer les gardes » : l\'écrivain est alors appelé sans GO — les refus ci-dessus mesurent bien la garde');
-console.log(`\nconsommer-ordre : ${n} groupes d'épreuves passés.`);
+// Point 7 de l'audit : l'état de rejeu échoue FERMÉ. Un retour illisible ou sans hash peut être celui qui consomme
+// l'ordre ; l'ignorer rendrait l'ordre rejouable.
+{
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'e4-'));
+  fs.writeFileSync(path.join(d, 'execution-1-1.json'), '{ tronqué');
+  assert.throws(() => C.etatDepuisLot(d), /execution-1-1\.json illisible : état de rejeu indéterminable/);
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'e4-'));
+  fs.writeFileSync(path.join(d2, 'execution-1-1.json'), JSON.stringify({ etat: 'EXECUTE' }));
+  assert.throws(() => C.etatDepuisLot(d2), /execution-1-1\.json sans operation_hash : état de rejeu indéterminable/);
+  ok('lot illisible ou retour sans hash : état de rejeu refusé, jamais deviné vide');
+}
+
+// Point 3 de l'audit (partiel) : un écrivain asynchrone n'est pas attendu. Ici il a déjà touché la base puis son
+// issue rejette : relire tout de suite dirait EXECUTE alors que l'écriture a échoué. Seule issue honnête : INCERTAINE.
+const asynchrone = (o2) => { const m2 = monde(o2); m2.ecrivain = () => { m2.s.appels++; m2.s.taille = 311; return Promise.reject(new Error('commit refusé')); }; return m2; };
+let rejetNonCapte = false; const surRejet = () => { rejetNonCapte = true; }; process.on('unhandledRejection', surRejet);
+o = mk('test'); m = asynchrone(o); r = run(o, m, { mode: 'reel' });
+assert.strictEqual(r.verdict, 'INCERTAIN'); assert.strictEqual(r.execution.etat, 'EXECUTION_INCERTAINE');
+assert.match(r.execution.detail, /écrivain asynchrone non attendu : issue inconnue/);
+
+// Mutations : chaque garde retirée laisse passer ce qu'elle refuse.
+const SRCC = fs.readFileSync(path.join(__dirname, 'outils', 'consommer-ordre.js'), 'utf8');
+const muterC = (ancre, remplacement, nom, epreuve) => {
+  assert.strictEqual(SRCC.split(ancre).length, 2, `ancre unique — ${nom}`);
+  const t = path.join(__dirname, 'outils', `.mut-consommer-${nom}.js`);
+  fs.writeFileSync(t, SRCC.replace(ancre, remplacement)); try { epreuve(require(t)); } finally { fs.rmSync(t, { force: true }); }
+};
+muterC("throw new Error(`${f} illisible : état de rejeu indéterminable, aucune exécution possible (${String(x && x.message || x).slice(0, 120)})`); }", 'continue; }', 'illisible', (M) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'e4-')); fs.writeFileSync(path.join(d, 'execution-1-1.json'), '{ tronqué');
+  assert.deepStrictEqual(M.etatDepuisLot(d).consommes, [], 'mutation : le retour illisible est ignoré, l\'ordre redevient rejouable');
+});
+muterC("    if (!e || typeof e !== 'object' || typeof e.operation_hash !== 'string' || !e.operation_hash) throw new Error(`${f} sans operation_hash : état de rejeu indéterminable, aucune exécution possible`);\n", '', 'sans-hash', (M) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'e4-')); fs.writeFileSync(path.join(d, 'execution-1-1.json'), JSON.stringify({ etat: 'EXECUTE' }));
+  assert.doesNotThrow(() => M.etatDepuisLot(d), 'mutation : un retour sans hash est accepté en silence');
+});
+const consommerAvec = (M, o2, m2) => M.consommer({ ordre: o2, go: go(o2), lecteur: m2.lecteur, ecrivain: m2.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', mode: 'reel' });
+// Le rejet n'est observable qu'au tour suivant de la boucle d'événements : chaque étape attend le sien.
+setImmediate(() => {
+  assert.strictEqual(rejetNonCapte, false, 'le rejet de l\'écrivain asynchrone est capté, pas perdu');
+  muterC("      if (typeof retour.catch === 'function') retour.catch(() => {});\n", '', 'rejet', (M) => {
+    const o2 = mk('test'); assert.strictEqual(consommerAvec(M, o2, asynchrone(o2)).execution.etat, 'EXECUTION_INCERTAINE');
+  });
+  setImmediate(() => {
+    assert.strictEqual(rejetNonCapte, true, 'mutation : sans .catch le rejet de l\'écrivain devient un unhandledRejection');
+    muterC("    if (retour && typeof retour.then === 'function') {", '    if (false) {', 'asynchrone', (M) => {
+      const o2 = mk('test');
+      assert.strictEqual(consommerAvec(M, o2, asynchrone(o2)).verdict, 'EXECUTE', 'mutation : sans la garde, une écriture rejetée est déclarée EXECUTE');
+    });
+    setImmediate(() => {
+      process.removeListener('unhandledRejection', surRejet);
+      ok('écrivain asynchrone : EXECUTION_INCERTAINE et rejet capté ; quatre mutations (illisible, sans hash, .catch, asynchrone) rendent les gardes muettes');
+      console.log(`\nconsommer-ordre : ${n} groupes d'épreuves passés.`);
+    });
+  });
+});

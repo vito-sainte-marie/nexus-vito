@@ -40,7 +40,9 @@ const CHAMPS_ORDRE = Object.freeze([
   'preconditions', 'postconditions', 'retour_arriere', 'cree_le', 'expire_le', 'usage_unique', 'operation_hash',
 ]);
 const RE_MESURE = /^(registre_taille|registre_derniere_version|fonction_md5\.[a-z_0-9]{1,63}|objet_absent\.[a-z_0-9]{1,63}\.[a-z_0-9]{1,63})$/;
-const RE_VALEUR = /^[A-Za-z0-9_.:\-]{0,128}$/;
+// Une valeur vide, ou un « undefined »/« null » sorti d'un String() sur une mesure absente, ne désigne rien.
+const RE_VALEUR = /^[A-Za-z0-9_.:\-]{1,128}$/;
+const VALEURS_VIDES = Object.freeze(['undefined', 'null', 'NaN']);
 const RE_CHEMIN = /^supabase\/migrations\/[0-9]{14}_[a-z0-9_]+\.sql$/;
 const RE_SHA1 = /^[0-9a-f]{40}$/;
 const RE_VERSION = /^[0-9]{14}$/;
@@ -51,7 +53,7 @@ const CODES_REFUS = Object.freeze([
   'HASH_ABSENT', 'HASH_ORDRE_INVALIDE', 'EXPIRE', 'USAGE_UNIQUE_REQUIS', 'ARTEFACT_INVALIDE',
   'GO_ABSENT', 'GO_HASH_DIFFERENT', 'GO_ACTEUR_NON_HABILITE', 'GO_ENV_DIFFERENT',
   'PROJET_REEL_DIFFERENT', 'BLOB_REEL_DIFFERENT', 'PRECONDITION_FAUSSE',
-  'DEJA_CONSOMME', 'EXECUTION_CONCURRENTE', 'EXECUTION_INCERTAINE_NON_RECONCILIEE',
+  'DEJA_CONSOMME', 'EXECUTION_CONCURRENTE', 'EXECUTION_INCERTAINE_NON_RECONCILIEE', 'POSTCONDITION_INSUFFISANTE',
 ]);
 
 function canonique(v) {
@@ -70,7 +72,22 @@ function mesuresValides(m) {
   if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
   const cles = Object.keys(m);
   if (cles.length === 0) return false;
-  return cles.every((k) => RE_MESURE.test(k) && ['string', 'number'].includes(typeof m[k]) && RE_VALEUR.test(String(m[k])));
+  return cles.every((k) => RE_MESURE.test(k) && ['string', 'number'].includes(typeof m[k]) && RE_VALEUR.test(String(m[k])) && !VALEURS_VIDES.includes(String(m[k])));
+}
+// Une mesure présente vaut sa valeur attendue ; une mesure absente n'est jamais égale à rien.
+const mesureEgale = (mesures, k, v) => !!mesures && Object.prototype.hasOwnProperty.call(mesures, k) && mesures[k] !== undefined && mesures[k] !== null && String(mesures[k]) === String(v);
+
+// Une écriture doit laisser une trace que l'état de départ ne peut pas avoir : au moins une mesure commune aux
+// pré- et postconditions change de valeur. Sinon `reconcilier` dirait APPLIQUEE avant toute écriture. Une migration
+// doit en outre nommer sa propre version comme dernière version du registre.
+function postconditionsSuffisantes(ordre) {
+  const pre = ordre.preconditions, post = ordre.postconditions;
+  if (!Object.keys(post).some((k) => Object.prototype.hasOwnProperty.call(pre, k) && String(pre[k]) !== String(post[k]))) return false;
+  if (ordre.operation === 'MIGRATION_APPLY') {
+    const version = ((ordre.artefact && ordre.artefact.chemin) || '').replace(/^supabase\/migrations\//, '').slice(0, 14);
+    if (String(post.registre_derniere_version) !== version) return false;
+  }
+  return true;
 }
 
 // Validation structurelle. Rend la liste des codes de refus ; vide = recevable.
@@ -93,6 +110,7 @@ function valider(ordre, { maintenant = new Date() } = {}) {
   if (ordre.operation === 'LECTURE_CONTROLE' && !CONTROLES_LECTURE.includes(ordre.controle)) r.push('TYPE_INCONNU');
   if (ordre.operation === 'SYNC_REGISTRE' && !(Array.isArray(ordre.versions) && ordre.versions.length > 0 && ordre.versions.every((v) => RE_VERSION.test(v)))) r.push('ORDRE_MALFORME');
   if (!mesuresValides(ordre.preconditions) || !mesuresValides(ordre.postconditions)) r.push('ORDRE_MALFORME');
+  else if (ordre.operation !== 'LECTURE_CONTROLE' && !postconditionsSuffisantes(ordre)) r.push('POSTCONDITION_INSUFFISANTE');
   if (typeof ordre.retour_arriere !== 'string' || !ordre.retour_arriere) r.push('ORDRE_MALFORME');
   if (ordre.usage_unique !== true) r.push('USAGE_UNIQUE_REQUIS');
   const exp = Date.parse(ordre.expire_le), cree = Date.parse(ordre.cree_le);
@@ -135,7 +153,7 @@ function peutExecuter(ordre, go, reel, etat, { habilites, maintenant = new Date(
   if (!reel || reel.project_ref !== ordre.cible.project_ref) return ['PROJET_REEL_DIFFERENT'];
   if (ordre.operation === 'MIGRATION_APPLY' && reel.blob !== ordre.artefact.blob) return ['BLOB_REEL_DIFFERENT'];
   const m = reel.mesures || {};
-  for (const [k, v] of Object.entries(ordre.preconditions)) if (String(m[k]) !== String(v)) return ['PRECONDITION_FAUSSE'];
+  for (const [k, v] of Object.entries(ordre.preconditions)) if (!mesureEgale(m, k, v)) return ['PRECONDITION_FAUSSE'];
   return [];
 }
 
@@ -156,7 +174,7 @@ function transition(etat, evenement) {
 
 // Lecture seule. N'écrit rien, ne relance rien : classe l'état réel.
 function reconcilier(ordre, mesures) {
-  const egal = (cond) => Object.entries(cond).every(([k, v]) => String((mesures || {})[k]) === String(v));
+  const egal = (cond) => Object.entries(cond).every(([k, v]) => mesureEgale(mesures, k, v));
   if (egal(ordre.postconditions)) return 'APPLIQUEE';
   if (egal(ordre.preconditions)) return 'NON_APPLIQUEE';
   return 'INDETERMINE';
@@ -183,7 +201,7 @@ function validerExecution(exec, ordre, { habilites = HABILITES, hashesApprouves 
   const d = Date.parse(exec.debut), f = Date.parse(exec.fin);
   if (Number.isNaN(d) || Number.isNaN(f) || f < d) r.push('ORDRE_MALFORME');
   if (exec.etat === 'EXECUTE') {
-    for (const [k, v] of Object.entries(ordre.postconditions)) if (String((exec.mesures_apres || {})[k]) !== String(v)) r.push('PRECONDITION_FAUSSE');
+    for (const [k, v] of Object.entries(ordre.postconditions)) if (!mesureEgale(exec.mesures_apres, k, v)) r.push('PRECONDITION_FAUSSE');
   }
   if (exec.etat === 'REFUSE' && !CODES_REFUS.includes(exec.refus)) r.push('ORDRE_MALFORME');
   if (!exec.reprise || !exec.reprise.prochaine_action) r.push('ORDRE_MALFORME');

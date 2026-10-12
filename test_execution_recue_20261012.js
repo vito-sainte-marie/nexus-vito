@@ -17,11 +17,11 @@ let n = 0; const ok = (m) => { n++; console.log(`  ✅ ${m}`); };
 
 const ordre = O.construire({ operation: 'MIGRATION_APPLY', lot: LOT, request: 'request-1', cible: { env: 'test', project_ref: O.ENVS.test },
   artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: 'a'.repeat(40), commit: 'b'.repeat(40) },
-  preconditions: { registre_taille: 310 }, postconditions: { registre_taille: 311 }, retour_arriere: 'aucun, justifié : additive',
+  preconditions: { registre_taille: 310, registre_derniere_version: '20261011000000' }, postconditions: { registre_taille: 311, registre_derniere_version: '20261012000000' }, retour_arriere: 'aucun, justifié : additive',
   cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
 const exec = (etat = 'EXECUTE', extra = {}) => ({ operation_hash: ordre.operation_hash, etat, executant: 'session-claude-habilitee',
-  go: { operation_hash: ordre.operation_hash, env: 'test', acteur: 'arbitre-chatgpt' }, mesures_avant: { registre_taille: 310 },
-  mesures_apres: { registre_taille: etat === 'EXECUTE' ? 311 : 310 }, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
+  go: { operation_hash: ordre.operation_hash, env: 'test', acteur: 'arbitre-chatgpt' }, mesures_avant: { registre_taille: 310, registre_derniere_version: '20261011000000' },
+  mesures_apres: etat === 'EXECUTE' ? { registre_taille: 311, registre_derniere_version: '20261012000000' } : { registre_taille: 310, registre_derniere_version: '20261011000000' }, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
   reprise: { prochaine_action: 'constat passif' }, ...extra });
 
 function registre(statut = 'DECISION_CONSOMMEE', avecOrdre = true, corps = 'Demande d\'épreuve E5.\n') {
@@ -109,7 +109,7 @@ try {
 // G : le GO inscrit dans le retour est contrôlé (environnement, habilitation, décision citant le hash pour Production)
 const ordreProd = O.construire({ operation: 'MIGRATION_APPLY', lot: LOT, request: 'request-1', cible: { env: 'production', project_ref: O.ENVS.production },
   artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: 'a'.repeat(40), commit: 'b'.repeat(40) },
-  preconditions: { registre_taille: 310 }, postconditions: { registre_taille: 311 }, retour_arriere: 'aucun, justifié : additive',
+  preconditions: { registre_taille: 310, registre_derniere_version: '20261011000000' }, postconditions: { registre_taille: 311, registre_derniere_version: '20261012000000' }, retour_arriere: 'aucun, justifié : additive',
   cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
 const goProd = (extra = {}) => ({ operation_hash: ordreProd.operation_hash, env: 'production', acteur: 'vito-sainte-marie', ...extra });
 const execProd = (go = goProd()) => exec('EXECUTE', { operation_hash: ordreProd.operation_hash, go });
