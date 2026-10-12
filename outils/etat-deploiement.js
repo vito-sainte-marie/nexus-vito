@@ -72,6 +72,7 @@ function classer(v, decisions) {
     if (derniere && v.derniere_decision !== derniere) return 'en_developpement';
     return 'attente_arbitrage';
   }
+  if (v.statut === 'EXECUTION_RECUE') return 'attente_arbitrage';
   if (v.statut === 'ATTENTE_CONSOMMATION_DECISION') return 'en_developpement';
   if (v.statut === 'DECISION_CONSOMMEE' || v.statut === 'CLOS') return 'clos';
   return 'inconnu';

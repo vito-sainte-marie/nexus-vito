@@ -66,7 +66,7 @@ function examiner(etat) {
     const decisions = handoff.echanges(lot, 'decision');
     const derniere = handoff.dernier(decisions);
     if (!derniere) continue;
-    if (v.statut === 'DECISION_CONSOMMEE' && v.derniere_decision === derniere.fichier) continue;
+    if ((v.statut === 'DECISION_CONSOMMEE' || v.statut === 'EXECUTION_RECUE') && v.derniere_decision === derniere.fichier) continue;
 
     const demandes = handoff.echanges(lot, 'request');
     const active = handoff.dernier(demandes);

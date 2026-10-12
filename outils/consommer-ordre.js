@@ -71,10 +71,10 @@ function consommer({ ordre, go, lecteur, ecrivain, etat, habilites, mode = 'blan
   return { verdict: etatFinal === 'EXECUTE' ? 'EXECUTE' : 'INCERTAIN', mode, ecritures, execution };
 }
 
-function deposerExecution(dir, seq, k, execution, ordre) {
+function deposerExecution(dir, seq, k, execution, ordre, suffixe = '') {
   const e = O.validerExecution(execution, ordre);
   if (execution.etat === 'EXECUTE' && e.length) throw new Error(`retour execution refusé : ${e.join(',')}`);
-  const f = path.join(dir, `execution-${seq}-${k}.json`);
+  const f = path.join(dir, `execution-${seq}-${k}${suffixe}.json`);
   if (fs.existsSync(f)) throw new Error(`${f} existe déjà : un retour ne s'écrase pas`);
   fs.writeFileSync(f, JSON.stringify(execution, null, 2) + '\n');
   return f;

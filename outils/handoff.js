@@ -129,7 +129,8 @@ function garderRailActif(etat, lot, rail, railDesigne) {
 const DECISIONS_CANONIQUES = ['APPROVED', 'APPROVED_WITH_CONDITIONS', 'BLOCKED', 'NEEDS_EVIDENCE'];
 const DECISIONS_LEGACY = ['APPROVED_CLOSED'];
 const STATUTS_DEMANDE = ['AWAITING_DECISION'];
-const STATUTS_LOT_ACTIFS = ['ATTENTE_DECISION', 'ATTENTE_CONSOMMATION_DECISION'];
+// EXECUTION_RECUE (E5 de NEXUS-EXECUTOR-SUPABASE-1) : l'exécutant a rendu `execution-N` ; le lot attend de nouveau l'arbitre.
+const STATUTS_LOT_ACTIFS = ['ATTENTE_DECISION', 'ATTENTE_CONSOMMATION_DECISION', 'EXECUTION_RECUE'];
 const STATUTS_LOT = [...STATUTS_LOT_ACTIFS, 'DECISION_CONSOMMEE', 'CLOS'];
 const TOKEN_MODES = ['LEAN', 'STANDARD', 'DEEP'];
 // Les trois preuves que `nouvelleDemande` injecte lui-même. Un appelant qui en
@@ -419,7 +420,7 @@ function validerEtatContenu(etat) {
 function signalerLotsSansAdresseDeReveil(etat) {
   if (!etat || !etat.lots || typeof etat.lots !== 'object') return;
   for (const [lot, v] of Object.entries(etat.lots)) {
-    if (!v || v.statut !== 'ATTENTE_DECISION') continue;
+    if (!v || !['ATTENTE_DECISION', 'EXECUTION_RECUE'].includes(v.statut)) continue;
     if (!fs.existsSync(path.join(LOTS, lot))) continue;
     if (adresseDeReveil(lot).adresse) continue;
     avertir(`lots/${lot} attend un arbitrage et aucun de ses échanges ne déclare \`wake_to\` — le réveil de l'Orchestrateur ne peut pas nommer de destinataire, donc il refuse de le composer. Posez l'adresse sur un échange du lot : handoff.js demande ${lot} <corps.md> --wake-to <adresse>`);
@@ -468,6 +469,7 @@ function verifier(ignorer) {
   const artefactsValides = artefactsHorsRegistreValides(etat);
   validerRegistre(etat, artefactsValides); validerEtatContenu(etat);
   signalerLotsSansAdresseDeReveil(etat);
+  validerExecutionsEtOrdres(etat);
   signalerMiroirsPerimes(etat);
   signalerFileEnAttente(etat);
   if (etat && etat.lot_actif) signalerEnvDivergent(etat.lot_actif, railDuLot(etat, etat.lot_actif), avertir);
@@ -694,6 +696,77 @@ function rattraperDemande(lot) {
   regenererMiroirs();
   console.log(`${lot}.derniere_demande rattrapé à ${derniereDemande.fichier} (statut ATTENTE_DECISION).`);
 }
+// E5 de NEXUS-EXECUTOR-SUPABASE-1 — retour d'exécution et reprise.
+//
+// Un `execution-N` n'est lu que contre l'ordre qu'il cite : même hash, ordre intact, GO lié, mesures et reprise
+// présents (`validerExecution`). Un retour sans ordre, ou qui contredit son ordre, est un BLOQUANT — jamais une
+// simple prose. Et une capacité Supabase déclarée par le lot actif sans AUCUN ordre dans le lot est la forme
+// que prenait le « BLOCKED sans issue » : elle est refusée ici, pas seulement évitée à la génération.
+const ETATS_RETOUR = ['EXECUTE', 'REFUSE', 'EXECUTION_INCERTAINE'];
+function lireOrdresDuLot(lot) {
+  const dir = path.join(LOTS, lot), r = [];
+  if (!fs.existsSync(dir)) return r;
+  for (const f of fs.readdirSync(dir).filter(x => /^order-\d+-\d+\.json$/.test(x)).sort()) {
+    try { r.push({ fichier: f, ordre: JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) }); } catch (_) { r.push({ fichier: f, ordre: null }); }
+  }
+  return r;
+}
+function validerExecutionsEtOrdres(etat) {
+  if (!etat || !etat.lots || typeof etat.lots !== 'object') return;
+  const O = require('./ordre-execution');
+  for (const lot of Object.keys(etat.lots)) {
+    const dir = path.join(LOTS, lot); if (!fs.existsSync(dir)) continue;
+    const ordres = lireOrdresDuLot(lot);
+    for (const o of ordres) if (!o.ordre || O.hashOrdre(o.ordre) !== o.ordre.operation_hash) bloquant(`lots/${lot}/${o.fichier} : ordre illisible ou hash altéré — un ordre modifié après coup n'est plus l'ordre qu'un GO a désigné`, 'ORDRE_ALTERE', `lots/${lot}/${o.fichier}`);
+    for (const f of fs.readdirSync(dir).filter(x => /^execution-.*\.json$/.test(x)).sort()) {
+      const ou = `lots/${lot}/${f}`; let e;
+      try { e = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (x) { bloquant(`${ou} : illisible (${x.message})`, 'EXECUTION_INCOHERENTE', ou); continue; }
+      const m = f.match(/^execution-(\d+)-(\d+)(?:-r\d+)?\.json$/);
+      const o = ordres.find(x => x.ordre && x.ordre.operation_hash === e.operation_hash);
+      if (!m || !o) { bloquant(`${ou} : ne cite aucun ordre du lot (hash ${JSON.stringify(e && e.operation_hash)}) — un retour sans ordre ne prouve rien`, 'EXECUTION_ORPHELINE', ou); continue; }
+      if (o.fichier !== `order-${m[1]}-${m[2]}.json`) bloquant(`${ou} : son nom désigne order-${m[1]}-${m[2]}.json mais son hash est celui de ${o.fichier}`, 'EXECUTION_INCOHERENTE', ou);
+      if (!ETATS_RETOUR.includes(e.etat)) bloquant(`${ou} : état ${JSON.stringify(e.etat)} hors ${ETATS_RETOUR.join(' | ')}`, 'EXECUTION_INCOHERENTE', ou);
+      const err = O.validerExecution(e, o.ordre); if (err.length) bloquant(`${ou} : le retour contredit ${o.fichier} (${err.join(', ')})`, 'EXECUTION_INCOHERENTE', ou);
+    }
+  }
+  // Capacité Supabase déclarée sans ordre : lot actif seulement, déclaration la plus récente seulement.
+  for (const [lot, v] of Object.entries(etat.lots)) {
+    if (!v || !STATUTS_LOT_ACTIFS.includes(v.statut) || !fs.existsSync(path.join(LOTS, lot))) continue;
+    if (lireOrdresDuLot(lot).length) continue;
+    for (const e of [dernier(echanges(lot, 'request')), dernier(echanges(lot, 'decision'))]) {
+      if (!e) continue;
+      const corps = fs.readFileSync(path.join(LOTS, lot, e.fichier), 'utf8');
+      const m = corps.match(/^\W*CAPACITE_REQUISE\W*:\s*`?(SUPABASE_[A-Z_]+)/m);
+      if (m) bloquant(`lots/${lot}/${e.fichier} : exige la capacité ${m[1]} et le lot ne porte aucun order-*.json — un blocage de capacité sans ordre n'a pas de prochaine action. Générez l'ordre : handoff.js demande ${lot} <corps.md> --depuis <ref> --cible-env <env> …`, 'CAPACITE_SANS_ORDRE', `lots/${lot}/${e.fichier}`);
+    }
+  }
+}
+// Dépôt du retour par l'exécutant. Refuse avant toute écriture ; ne remplace jamais un retour ; un retour
+// EXECUTION_INCERTAINE peut être suivi d'un retour réconcilié (-r2, -r3…), un EXECUTE ou un REFUSE est terminal.
+function deposerRetourExecution(lot, fichierExecution) {
+  const refus = (m) => { console.error(`REFUS — ${m}`); process.exit(1); };
+  if (!fichierExecution || !fs.existsSync(fichierExecution)) refus(`retour introuvable : ${fichierExecution}`);
+  if (!fs.existsSync(ETAT)) refus('STATE.json absent');
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots && etat.lots[lot];
+  if (!v) refus(`lot ${lot} inconnu.`);
+  if (!['DECISION_CONSOMMEE', 'EXECUTION_RECUE'].includes(v.statut)) refus(`${lot} est ${v.statut} : consommez la décision (handoff.js consommer ${lot}) avant de déposer un retour d'exécution — consommer avant de déposer la suite.`);
+  for (const [autre, w] of Object.entries(etat.lots)) if (autre !== lot && STATUTS_LOT_ACTIFS.includes(w.statut)) refus(`le lot ${autre} est actif (${w.statut}) ; un seul lot actif à la fois.`);
+  const O = require('./ordre-execution'), { deposerExecution } = require('./consommer-ordre');
+  let e; try { e = JSON.parse(fs.readFileSync(fichierExecution, 'utf8')); } catch (x) { refus(`retour illisible : ${x.message}`); }
+  const ordres = lireOrdresDuLot(lot), o = ordres.find(x => x.ordre && x.ordre.operation_hash === e.operation_hash);
+  if (!o) refus(`aucun ordre du lot ${lot} ne porte le hash ${JSON.stringify(e.operation_hash)} : un retour sans ordre ne prouve rien.`);
+  if (O.hashOrdre(o.ordre) !== o.ordre.operation_hash) refus(`${o.fichier} a été altéré après son hash (ORDRE_ALTERE).`);
+  if (!ETATS_RETOUR.includes(e.etat)) refus(`état ${JSON.stringify(e.etat)} hors ${ETATS_RETOUR.join(' | ')}.`);
+  const err = O.validerExecution(e, o.ordre); if (err.length) refus(`le retour contredit ${o.fichier} : ${err.join(', ')}.`);
+  const [, seq, k] = o.fichier.match(/^order-(\d+)-(\d+)\.json$/), dir = path.join(LOTS, lot);
+  const deja = fs.readdirSync(dir).filter(x => new RegExp(`^execution-${seq}-${k}(-r\\d+)?\\.json$`).test(x)).sort();
+  for (const f of deja) { let p; try { p = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (_) { p = {}; } if (p.etat !== 'EXECUTION_INCERTAINE') refus(`${f} (${p.etat}) est déjà le retour terminal de ${o.fichier} : un ordre à usage unique ne se rejoue pas.`); }
+  const suffixe = deja.length ? `-r${deja.length + 1}` : '';
+  const f = deposerExecution(dir, seq, k, e, o.ordre, suffixe), nom = path.basename(f);
+  Object.assign(v, { statut: 'EXECUTION_RECUE', derniere_execution: nom, execution_recue_le: new Date().toISOString() }); etat.lot_actif = lot;
+  fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs();
+  console.log(`${lot}/${nom} déposé (${e.etat}) — ${lot} passe à EXECUTION_RECUE ; l'arbitre est attendu${e.etat === 'EXECUTION_INCERTAINE' ? ' — NE PAS REJOUER : réconcilier en lecture seule' : ''}.`);
+}
 function preparerOrdresDeLaDemande(lot, seq, options) {
   const { preparer } = require('./preparer-ordres');
   const { chargerRegistre, canalCourant } = require('./capacites-canal');
@@ -880,6 +953,7 @@ switch (commande) {
   case 'publier-en-attente': process.exit(publierEnAttente()); break;
   case 'demande': { const args = process.argv.slice(5), preuves = [], ord = {}; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else if (args[i] === '--depuis') ord.depuis = args[++i]; else if (args[i] === '--cible-env') ord.cibleEnv = args[++i]; else if (args[i] === '--canal') ord.canal = args[++i]; else if (args[i] === '--precondition') (ord.preconditions = ord.preconditions || []).push(args[++i]); else if (args[i] === '--postcondition') (ord.postconditions = ord.postconditions || []).push(args[++i]); else if (args[i] === '--retour-arriere') ord.retourArriere = args[++i]; else if (args[i] === '--expire-heures') ord.expireHeures = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo, ...ord }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
+  case 'execution': deposerRetourExecution(arg1, arg2); break;
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
   default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|publier-en-attente|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE] [--depuis REF --cible-env test|production --precondition k=v… --postcondition k=v… --retour-arriere TXT [--expire-heures N] [--canal C]]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
 }
