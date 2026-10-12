@@ -33,10 +33,10 @@
       "preuves": {
         "SUPABASE_TEST_LECTURE": {
           "type": "EXERCEE",
-          "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+          "commande": "run 38305962853 : variables PG* déjà exportées par l'étape « Préparer connexion PostgreSQL Test read-only » avant l'invocation de Claude, puis psql -c \"select 1\" et une connexion TCP directe (node:net) vers l'hôte résolu. Aucune valeur de secret lue ni affichée.",
           "date": "2026-10-12",
-          "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue.",
-          "source": "docs/gouvernance/NEXUS-EXECUTOR-SUPABASE-1-audit-et-architecture.md"
+          "resultat": "secret SUPABASE_TEST_DB_URL_READONLY corrigé depuis le run 38303032196 (l'hôte gabarit « hote » a disparu) : NEXUS_TEST_DB_AVAILABLE=1, PGHOST=db.udljdqxerrbbbajxubfn.supabase.co — la référence TEST de outils/ordre-execution.js (ENVS.test), jamais la référence Production. La connexion réelle reste impossible : l'hôte direct ne résout qu'en IPv6 (aucun enregistrement A ; TCP ENETUNREACH, psql « Network is unreachable »), et une tentative de repli vers le Session Pooler IPv4 (aws-0-us-east-1.pooler.supabase.com) a été refusée par le bac à sable réseau de ce canal avant toute tentative (approbation requise, indisponible dans ce run automatisé). Aucun SELECT n'a abouti ; aucun DML/DDL tenté. La cause du NON est désormais réseau/sandbox, plus le secret lui-même.",
+          "source": "issue #28, NEXUS EXECUTOR — reprise preflight Supabase Test read-only (2026-10-12)"
         },
         "CI_LECTURE_RUN": {
           "type": "EXERCEE",
