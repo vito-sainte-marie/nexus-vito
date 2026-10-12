@@ -694,6 +694,21 @@ function rattraperDemande(lot) {
   regenererMiroirs();
   console.log(`${lot}.derniere_demande rattrapé à ${derniereDemande.fichier} (statut ATTENTE_DECISION).`);
 }
+function preparerOrdresDeLaDemande(lot, seq, options) {
+  const { preparer } = require('./preparer-ordres');
+  const { chargerRegistre, canalCourant } = require('./capacites-canal');
+  const reg = chargerRegistre(RACINE);
+  const io = {
+    changements: (depuis) => {
+      let sortie; try { sortie = git('diff', '--name-status', '--no-renames', `${depuis}..HEAD`, '--', 'supabase/migrations'); } catch (e) { console.error(`REFUS — diff ${depuis}..HEAD illisible : ${depuis} n'est pas une ref résolvable.`); process.exit(1); }
+      return sortie.split('\n').filter(Boolean).map(l => { const [statut, ...r] = l.split('\t'); return { statut, chemin: r.join('\t') }; });
+    },
+    blob: (chemin) => git('rev-parse', `HEAD:${chemin}`), commit: () => git('rev-parse', 'HEAD'),
+  };
+  const r = preparer({ reg, io, opts: options, lot, seq, canal: options.canal || canalCourant() || 'session-claude-habilitee' });
+  if (r.erreurs.length) { console.error('REFUS — ordre d\'exécution non constructible, rien n\'est écrit :'); for (const e of r.erreurs) console.error(`  - ${e}`); process.exit(1); }
+  return r.ordres.map((o, i) => ({ ...o, index: i + 1 }));
+}
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
   // ARCH-003. `lireEnveloppe` ne retient que la PREMIÈRE occurrence d'une clé :
@@ -741,7 +756,11 @@ function nouvelleDemande(lot, corpsFichier, options) {
     preuvesAuto.push({ id: 'merge-base-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
     preuvesAuto.push({ id: 'diff-applicatif-production', classe: 'NOT_APPLICABLE', valeur: 'origin-production-non-resolvable-depuis-ce-checkout' });
   }
+  // E3 (NEXUS-EXECUTOR-SUPABASE-1) : l'opération se lit dans le diff, jamais dans la prose. Le refus précède toute écriture.
+  const ordresPrepares = preparerOrdresDeLaDemande(lot, seq, options);
+  for (const o of ordresPrepares) preuvesAuto.push({ id: `ordre-${seq}-${o.index}`, classe: 'VERIFIED', valeur: o.ordre.operation_hash }, { id: `executant-${seq}-${o.index}`, classe: 'DECLARED', valeur: `${o.route.executant}-pour-${o.route.capacite}` });
   const preuves = preuvesAuto.concat(options.preuves || []); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + (options.corps !== undefined ? options.corps : fs.readFileSync(corpsFichier, 'utf8')));
+  for (const o of ordresPrepares) { fs.writeFileSync(path.join(dir, o.fichier), JSON.stringify(o.ordre, null, 2) + '\n'); console.log(`${lot}/${o.fichier} : ${o.ordre.operation} ${o.ordre.cible.env} — hash ${o.ordre.operation_hash} — CAPACITE_REQUISE ${o.route.capacite}, EXECUTANT_NEXT ${o.route.executant}. Un ordre n'est pas une autorisation : GO lié à ce hash exigé.`); }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
 // `wake_to` est une ADRESSE LIBRE (PROTOCOL.md) : aucun vocabulaire clos, une
@@ -859,8 +878,8 @@ switch (commande) {
   case 'rail': imprimerRail(arg1); break;
   case 'rattraper-demande': rattraperDemande(arg1); break;
   case 'publier-en-attente': process.exit(publierEnAttente()); break;
-  case 'demande': { const args = process.argv.slice(5), preuves = []; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo }); break; }
+  case 'demande': { const args = process.argv.slice(5), preuves = [], ord = {}; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else if (args[i] === '--depuis') ord.depuis = args[++i]; else if (args[i] === '--cible-env') ord.cibleEnv = args[++i]; else if (args[i] === '--canal') ord.canal = args[++i]; else if (args[i] === '--precondition') (ord.preconditions = ord.preconditions || []).push(args[++i]); else if (args[i] === '--postcondition') (ord.postconditions = ord.postconditions || []).push(args[++i]); else if (args[i] === '--retour-arriere') ord.retourArriere = args[++i]; else if (args[i] === '--expire-heures') ord.expireHeures = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo, ...ord }); break; }
   case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
-  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|publier-en-attente|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
+  default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|publier-en-attente|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE] [--depuis REF --cible-env test|production --precondition k=v… --postcondition k=v… --retour-arriere TXT [--expire-heures N] [--canal C]]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
 }
