@@ -1,0 +1,107 @@
+// Ordre d'exécution Supabase (NEXUS-EXECUTOR-SUPABASE-1, E1) — un ordre n'est jamais une autorisation.
+//
+// PROPRIÉTÉS MESURÉES (chacune par une mutation qui doit être refusée, pas seulement par un cas heureux) :
+//   A. Un ordre intact et un GO lié à son hash exact passent.
+//   B. Hash altéré / champ modifié après calcul du hash → refus.
+//   C. Aucun SQL libre : un champ sql/query/script, ou tout champ inconnu → refus.
+//   D. Projet croisé (env test avec le ref Production, et inversement) → refus.
+//   E. Ordre expiré → refus ; usage_unique absent → refus.
+//   F. GO : absent, hash d'un autre ordre, autre environnement, acteur non habilité → refus.
+//   G. Réel : projet mesuré différent, blob différent, précondition fausse → refus.
+//   H. Rejeu (déjà consommé), exécution concurrente, incertaine non réconciliée → refus.
+//   I. Interruption : EXECUTION_EN_COURS --interrompu--> EXECUTION_INCERTAINE, jamais de retour direct à AUTORISE ;
+//      la réconciliation en lecture seule distingue APPLIQUEE / NON_APPLIQUEE / INDETERMINE.
+//   J. Le retour execution-N est refusé s'il ne cite pas le hash, le GO et les mesures.
+//   K. Le hash ne dépend pas de l'ordre des clés.
+const assert = require('assert');
+const O = require('./outils/ordre-execution');
+
+const BLOB = 'a'.repeat(40), COMMIT = 'b'.repeat(40);
+const HAB = { production: ['vito-sainte-marie'], test: ['arbitre-chatgpt', 'vito-sainte-marie'] };
+const MAINT = new Date('2026-10-12T12:00:00Z');
+const base = (env = 'production') => O.construire({
+  operation: 'MIGRATION_APPLY', lot: 'LOT-X', request: 'request-3',
+  cible: { env, project_ref: O.ENVS[env] },
+  artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: BLOB, commit: COMMIT },
+  preconditions: { registre_taille: 310, 'fonction_md5.fdj_exemple': 'abc' },
+  postconditions: { registre_taille: 311 },
+  retour_arriere: 'aucun, justifié : migration additive',
+  cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z',
+});
+const reel = (o) => ({ project_ref: o.cible.project_ref, blob: BLOB, mesures: { ...o.preconditions } });
+const etat0 = () => ({ consommes: [], verrou: null, incertains: [] });
+const go = (o, extra = {}) => ({ operation_hash: o.operation_hash, env: o.cible.env, acteur: 'vito-sainte-marie', ...extra });
+const refuse = (codes, code, msg) => assert.ok(codes.includes(code), `${msg} : attendu ${code}, obtenu [${codes}]`);
+const mut = (o, f) => { const c = JSON.parse(JSON.stringify(o)); f(c); return c; };
+const recalc = (o) => { o.operation_hash = O.hashOrdre(o); return o; };
+const opts = { habilites: HAB, maintenant: MAINT };
+
+// A
+let o = base();
+assert.deepStrictEqual(O.valider(o, { maintenant: MAINT }), [], 'A: ordre intact recevable');
+assert.deepStrictEqual(O.peutExecuter(o, go(o), reel(o), etat0(), opts), [], 'A: exécution permise avec GO lié');
+// B
+refuse(O.valider(mut(o, (c) => { c.operation_hash = '0'.repeat(64); }), { maintenant: MAINT }), 'HASH_ORDRE_INVALIDE', 'B hash altéré');
+refuse(O.valider(mut(o, (c) => { c.artefact.blob = 'c'.repeat(40); }), { maintenant: MAINT }), 'HASH_ORDRE_INVALIDE', 'B blob modifié sans recalcul');
+refuse(O.valider(mut(o, (c) => { delete c.operation_hash; }), { maintenant: MAINT }), 'HASH_ABSENT', 'B hash absent');
+// C
+refuse(O.valider(recalc(mut(o, (c) => { c.sql = 'drop table x'; })), { maintenant: MAINT }), 'SQL_LIBRE', 'C sql libre');
+refuse(O.valider(recalc(mut(o, (c) => { c.query = 'select 1'; })), { maintenant: MAINT }), 'SQL_LIBRE', 'C query');
+refuse(O.valider(recalc(mut(o, (c) => { c.autre = 1; })), { maintenant: MAINT }), 'CHAMP_INCONNU', 'C champ inconnu');
+refuse(O.valider(recalc(mut(o, (c) => { c.operation = 'EXECUTE_SQL'; })), { maintenant: MAINT }), 'TYPE_INCONNU', 'C type hors liste');
+refuse(O.valider(recalc(mut(o, (c) => { c.preconditions = { 'select 1; drop table x': 1 }; })), { maintenant: MAINT }), 'ORDRE_MALFORME', 'C mesure hors grammaire');
+refuse(O.valider(recalc(mut(o, (c) => { c.artefact.chemin = '../../etc/passwd'; })), { maintenant: MAINT }), 'ARTEFACT_INVALIDE', 'C chemin hors migrations');
+// D
+refuse(O.valider(recalc(mut(o, (c) => { c.cible.env = 'test'; })), { maintenant: MAINT }), 'PROJET_INCOHERENT', 'D env test + ref Production');
+refuse(O.valider(recalc(mut(base('test'), (c) => { c.cible.env = 'production'; })), { maintenant: MAINT }), 'PROJET_INCOHERENT', 'D env production + ref Test');
+refuse(O.valider(recalc(mut(o, (c) => { c.cible.env = 'staging'; })), { maintenant: MAINT }), 'CIBLE_INCONNUE', 'D env inconnu');
+// E
+refuse(O.valider(o, { maintenant: new Date('2026-10-14T00:00:00Z') }), 'EXPIRE', 'E expiré');
+refuse(O.valider(recalc(mut(o, (c) => { c.usage_unique = false; })), { maintenant: MAINT }), 'USAGE_UNIQUE_REQUIS', 'E usage unique');
+// F
+refuse(O.autoriser(o, null, { habilites: HAB }), 'GO_ABSENT', 'F go absent');
+refuse(O.autoriser(o, go(o, { operation_hash: base('test').operation_hash }), { habilites: HAB }), 'GO_HASH_DIFFERENT', 'F go d\'un autre ordre');
+refuse(O.autoriser(o, go(o, { env: 'test' }), { habilites: HAB }), 'GO_ENV_DIFFERENT', 'F go autre env');
+refuse(O.autoriser(o, go(o, { acteur: 'arbitre-chatgpt' }), { habilites: HAB }), 'GO_ACTEUR_NON_HABILITE', 'F arbitre ne donne pas un GO Production');
+refuse(O.autoriser(mut(o, (c) => { c.lot = 'AUTRE'; }), go(o), { habilites: HAB }), 'HASH_ORDRE_INVALIDE', 'F ordre modifié après le GO');
+// G
+refuse(O.peutExecuter(o, go(o), { ...reel(o), project_ref: O.ENVS.test }, etat0(), opts), 'PROJET_REEL_DIFFERENT', 'G projet réel');
+refuse(O.peutExecuter(o, go(o), { ...reel(o), blob: 'd'.repeat(40) }, etat0(), opts), 'BLOB_REEL_DIFFERENT', 'G blob réel');
+refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: { registre_taille: 311, 'fonction_md5.fdj_exemple': 'abc' } }, etat0(), opts), 'PRECONDITION_FAUSSE', 'G précondition');
+refuse(O.peutExecuter(o, go(o), { ...reel(o), mesures: {} }, etat0(), opts), 'PRECONDITION_FAUSSE', 'G mesure absente');
+// H
+refuse(O.peutExecuter(o, go(o), reel(o), { ...etat0(), consommes: [o.operation_hash] }, opts), 'DEJA_CONSOMME', 'H rejeu');
+refuse(O.peutExecuter(o, go(o), reel(o), { ...etat0(), verrou: { operation_hash: 'x', project_ref: o.cible.project_ref } }, opts), 'EXECUTION_CONCURRENTE', 'H concurrence');
+refuse(O.peutExecuter(o, go(o), reel(o), { ...etat0(), incertains: [o.operation_hash] }, opts), 'EXECUTION_INCERTAINE_NON_RECONCILIEE', 'H incertaine');
+// I
+assert.strictEqual(O.transition('EXECUTION_EN_COURS', 'interrompu'), 'EXECUTION_INCERTAINE');
+assert.throws(() => O.transition('EXECUTION_INCERTAINE', 'demarre'), /interdite/, 'I: pas de redémarrage aveugle');
+assert.throws(() => O.transition('EXECUTE', 'demarre'), /interdite/, 'I: ordre exécuté non rejouable');
+assert.throws(() => O.transition('EXECUTION_EN_COURS', 'reconcilie_non_appliquee'), /interdite/);
+assert.strictEqual(O.transition('EXECUTION_INCERTAINE', 'reconcilie_non_appliquee'), 'AUTORISE');
+assert.strictEqual(O.reconcilier(o, { registre_taille: 311 }), 'APPLIQUEE');
+assert.strictEqual(O.reconcilier(o, o.preconditions), 'NON_APPLIQUEE');
+assert.strictEqual(O.reconcilier(o, { registre_taille: 312 }), 'INDETERMINE', 'I: état ambigu jamais deviné');
+// J
+const exec = { operation_hash: o.operation_hash, etat: 'EXECUTE', executant: 'session-claude-habilitee', go: go(o),
+  mesures_avant: o.preconditions, mesures_apres: { registre_taille: 311 }, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
+  reprise: { prochaine_action: 'constat passif' } };
+assert.deepStrictEqual(O.validerExecution(exec, o), [], 'J: retour complet recevable');
+refuse(O.validerExecution({ ...exec, operation_hash: 'f'.repeat(64) }, o), 'GO_HASH_DIFFERENT', 'J hash');
+refuse(O.validerExecution({ ...exec, go: undefined }, o), 'GO_ABSENT', 'J go');
+refuse(O.validerExecution({ ...exec, mesures_apres: { registre_taille: 310 } }, o), 'PRECONDITION_FAUSSE', 'J postcondition non tenue');
+refuse(O.validerExecution({ ...exec, reprise: undefined }, o), 'ORDRE_MALFORME', 'J reprise');
+refuse(O.validerExecution({ ...exec, etat: 'REFUSE', refus: 'inventé' }, o), 'ORDRE_MALFORME', 'J refus sans code connu');
+// K
+const rev = (v) => (Array.isArray(v) ? v.map(rev) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).reverse().map((k) => [k, rev(v[k])])) : v);
+const permute = rev(o);
+assert.notDeepStrictEqual(Object.keys(permute), Object.keys(o), 'K: la permutation change bien l\'ordre');
+assert.strictEqual(O.hashOrdre(permute), o.operation_hash, 'K: hash indépendant de l\'ordre des clés');
+// Les autres types sont recevables sous la même discipline
+const lec = O.construire({ operation: 'LECTURE_CONTROLE', lot: 'L', request: 'request-1', controle: 'MD5_FONCTIONS',
+  cible: { env: 'production', project_ref: O.ENVS.production }, preconditions: { registre_taille: 1 }, postconditions: { registre_taille: 1 },
+  retour_arriere: 'sans objet : lecture seule', cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
+assert.deepStrictEqual(O.valider(lec, { maintenant: MAINT }), []);
+refuse(O.valider(recalc(mut(lec, (c) => { c.controle = 'N_IMPORTE_QUOI'; })), { maintenant: MAINT }), 'TYPE_INCONNU', 'contrôle hors catalogue');
+
+console.log('ordre-execution : toutes les propriétés A–K tiennent');
