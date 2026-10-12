@@ -59,11 +59,11 @@ refuse(O.valider(recalc(mut(o, (c) => { c.cible.env = 'staging'; })), { maintena
 refuse(O.valider(o, { maintenant: new Date('2026-10-14T00:00:00Z') }), 'EXPIRE', 'E expiré');
 refuse(O.valider(recalc(mut(o, (c) => { c.usage_unique = false; })), { maintenant: MAINT }), 'USAGE_UNIQUE_REQUIS', 'E usage unique');
 // F
-refuse(O.autoriser(o, null, { habilites: HAB }), 'GO_ABSENT', 'F go absent');
-refuse(O.autoriser(o, go(o, { operation_hash: base('test').operation_hash }), { habilites: HAB }), 'GO_HASH_DIFFERENT', 'F go d\'un autre ordre');
-refuse(O.autoriser(o, go(o, { env: 'test' }), { habilites: HAB }), 'GO_ENV_DIFFERENT', 'F go autre env');
-refuse(O.autoriser(o, go(o, { acteur: 'arbitre-chatgpt' }), { habilites: HAB }), 'GO_ACTEUR_NON_HABILITE', 'F arbitre ne donne pas un GO Production');
-refuse(O.autoriser(mut(o, (c) => { c.lot = 'AUTRE'; }), go(o), { habilites: HAB }), 'HASH_ORDRE_INVALIDE', 'F ordre modifié après le GO');
+refuse(O.autoriser(o, null, opts), 'GO_ABSENT', 'F go absent');
+refuse(O.autoriser(o, go(o, { operation_hash: base('test').operation_hash }), opts), 'GO_HASH_DIFFERENT', 'F go d\'un autre ordre');
+refuse(O.autoriser(o, go(o, { env: 'test' }), opts), 'GO_ENV_DIFFERENT', 'F go autre env');
+refuse(O.autoriser(o, go(o, { acteur: 'arbitre-chatgpt' }), opts), 'GO_ACTEUR_NON_HABILITE', 'F arbitre ne donne pas un GO Production');
+refuse(O.autoriser(mut(o, (c) => { c.lot = 'AUTRE'; }), go(o), opts), 'HASH_ORDRE_INVALIDE', 'F ordre modifié après le GO');
 // G
 refuse(O.peutExecuter(o, go(o), { ...reel(o), project_ref: O.ENVS.test }, etat0(), opts), 'PROJET_REEL_DIFFERENT', 'G projet réel');
 refuse(O.peutExecuter(o, go(o), { ...reel(o), blob: 'd'.repeat(40) }, etat0(), opts), 'BLOB_REEL_DIFFERENT', 'G blob réel');
@@ -103,5 +103,24 @@ const lec = O.construire({ operation: 'LECTURE_CONTROLE', lot: 'L', request: 're
   retour_arriere: 'sans objet : lecture seule', cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
 assert.deepStrictEqual(O.valider(lec, { maintenant: MAINT }), []);
 refuse(O.valider(recalc(mut(lec, (c) => { c.controle = 'N_IMPORTE_QUOI'; })), { maintenant: MAINT }), 'TYPE_INCONNU', 'contrôle hors catalogue');
+
+// L. `maintenant` est la SEULE horloge : ni autoriser ni peutExecuter ne lisent l'horloge réelle (audit 12/10, point 1).
+//    Régression : l'horloge réelle est simulée bien après toutes les expirations de ce fichier (2027-03-01) ; un ordre
+//    encore valide à `maintenant` doit rester autorisé, et un ordre réellement expiré à `maintenant` doit rester refusé.
+{
+  const RD = Date, APRES = RD.parse('2027-03-01T00:00:00Z');
+  global.Date = class extends RD { constructor(...a) { super(...(a.length ? a : [APRES])); } static now() { return APRES; } };
+  try {
+    assert.ok(new Date().getTime() > Date.parse(o.expire_le), 'L: horloge réelle simulée après l\'expiration');
+    assert.deepStrictEqual(O.autoriser(o, go(o), opts), [], 'L: autoriser ne lit pas l\'horloge réelle');
+    assert.deepStrictEqual(O.peutExecuter(o, go(o), reel(o), etat0(), opts), [], 'L: peutExecuter ne lit pas l\'horloge réelle');
+    const APRES_EXP = new RD(RD.parse(o.expire_le) + 1000), PILE = new RD(o.expire_le);
+    refuse(O.autoriser(o, go(o), { habilites: HAB, maintenant: APRES_EXP }), 'EXPIRE', 'L autoriser : ordre expiré refusé');
+    refuse(O.peutExecuter(o, go(o), reel(o), etat0(), { habilites: HAB, maintenant: APRES_EXP }), 'EXPIRE', 'L peutExecuter : ordre expiré refusé');
+    refuse(O.peutExecuter(o, go(o), reel(o), etat0(), { habilites: HAB, maintenant: PILE }), 'EXPIRE', 'L peutExecuter : expiré à l\'instant exact');
+    // Sans `maintenant` explicite, l'horloge réelle reste le défaut — et un ordre expiré est refusé.
+    refuse(O.autoriser(o, go(o), { habilites: HAB }), 'EXPIRE', 'L défaut = horloge réelle : ordre expiré refusé');
+  } finally { global.Date = RD; }
+}
 
 console.log('ordre-execution : toutes les propriétés A–K tiennent');

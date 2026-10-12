@@ -111,8 +111,8 @@ function construire(spec) {
 
 // Un GO n'est valable que pour le hash qu'il cite, dans l'environnement qu'il
 // vise, donné par un acteur habilité pour cet environnement.
-function autoriser(ordre, go, { habilites }) {
-  const r = valider(ordre);
+function autoriser(ordre, go, { habilites, maintenant = new Date() }) {
+  const r = valider(ordre, { maintenant });
   if (r.length) return r;
   if (!go || typeof go !== 'object') return ['GO_ABSENT'];
   if (go.operation_hash !== ordre.operation_hash) return ['GO_HASH_DIFFERENT'];
@@ -125,7 +125,7 @@ function autoriser(ordre, go, { habilites }) {
 // Dernier rempart avant toute écriture, rejoué par l'exécutant sur du réel.
 // `etat` = { consommes:[hash], verrou:{operation_hash,project_ref}|null, incertains:[hash] }.
 function peutExecuter(ordre, go, reel, etat, { habilites, maintenant = new Date() }) {
-  const a = autoriser(ordre, go, { habilites });
+  const a = autoriser(ordre, go, { habilites, maintenant });
   if (a.length) return a;
   const e = valider(ordre, { maintenant });
   if (e.length) return e;

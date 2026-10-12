@@ -41,7 +41,7 @@ ok('A — un ordre par migration, hashs distincts, fichiers hors migrations igno
 r = prep([{ statut: 'A', chemin: CH }], { cibleEnv: 'production' });
 assert.strictEqual(r.ordres[0].ordre.cible.project_ref, O.ENVS.production);
 assert.strictEqual(r.ordres[0].route.capacite, 'SUPABASE_PRODUCTION_ECRITURE');
-assert.strictEqual(O.autoriser(r.ordres[0].ordre, null, { habilites: { production: ['vito-sainte-marie'] } })[0], 'GO_ABSENT', 'E: un ordre n\'est pas une autorisation');
+assert.strictEqual(O.autoriser(r.ordres[0].ordre, null, { habilites: { production: ['vito-sainte-marie'] }, maintenant: MAINT })[0], 'GO_ABSENT', 'E: un ordre n\'est pas une autorisation');
 ok('A/E — Production : ordre produit, mais sans GO lié au hash rien ne s\'autorise');
 
 // B
@@ -91,7 +91,7 @@ const fich = ordres(dir); assert.ok(fich.length >= 2, `D: au moins les deux migr
 const env = fs.readFileSync(path.join(dir, 'lots', LOT, 'request-1.md'), 'utf8');
 for (const [i, f] of fich.entries()) {
   const ordre = JSON.parse(fs.readFileSync(path.join(dir, 'lots', LOT, f), 'utf8'));
-  assert.deepStrictEqual(O.valider(ordre, { maintenant: new Date() }), [], `D: ${f} valide`);
+  assert.deepStrictEqual(O.valider(ordre, { maintenant: new Date(ordre.cree_le) }), [], `D: ${f} valide`);
   assert.strictEqual(ordre.artefact.blob, execFileSync('git', ['rev-parse', `HEAD:${ordre.artefact.chemin}`], { cwd: RACINE, encoding: 'utf8' }).trim(), 'D: blob = HEAD:chemin');
   assert.ok(env.includes(`id: ordre-1-${i + 1}`) && env.includes(ordre.operation_hash), `D: l'enveloppe cite le hash de ${f}`);
   assert.ok(env.includes(`id: executant-1-${i + 1}`) && env.includes('session-claude-habilitee-pour-SUPABASE_TEST_ECRITURE'), 'D: exécutant désigné dans l\'enveloppe');
