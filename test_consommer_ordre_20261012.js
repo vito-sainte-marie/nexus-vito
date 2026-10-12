@@ -4,7 +4,8 @@
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path');
 const O = require('./outils/ordre-execution');
 const C = require('./outils/consommer-ordre');
-const BLOB = 'a'.repeat(40), COMMIT = 'b'.repeat(40), MAINT = new Date('2026-10-12T12:00:00Z');
+const P = require('./outils/preflight-reel');
+const SQL = '-- exemple\nselect 1;\n', BLOB = P.blobGit(SQL), COMMIT = 'b'.repeat(40), MAINT = new Date('2026-10-12T12:00:00Z');
 const HAB = { production: ['vito-sainte-marie'], test: ['arbitre-chatgpt', 'vito-sainte-marie'] };
 const mk = (env) => O.construire({ operation: 'MIGRATION_APPLY', lot: 'LOT-X', request: 'request-3', cible: { env, project_ref: O.ENVS[env] },
   artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: BLOB, commit: COMMIT },
@@ -19,7 +20,12 @@ function monde(o, { taille = 310, projet, blob = BLOB, ecrit = 'ok' } = {}) {
     lecteur: { projet: () => projet || o.cible.project_ref, blob: () => blob, mesures: (n) => Object.fromEntries(n.map((k) => [k, k === 'registre_derniere_version' ? (s.taille >= 311 ? '20261012000000' : '20261011000000') : s.taille])) },
     ecrivain: () => { s.appels++; if (ecrit === 'ok') s.taille = 311; else if (ecrit === 'throw') throw new Error('connexion perdue'); } };
 }
-const run = (o, m, extra = {}) => C.consommer({ ordre: o, go: go(o), lecteur: m.lecteur, ecrivain: m.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', ...extra });
+// PREFLIGHT-REEL-1 : en mode réel, une preuve émise par `preflight` (doubles : témoins et git) et un répertoire de
+// verrous neuf par appel. Identité et provenance sont éprouvées dans test_preflight_reel_20261012.js.
+const prouver = (o) => P.preflight({ ordre: o, temoins: { connexion: () => o.cible.project_ref, sentinelle: () => o.cible.project_ref },
+  git: { estAncetre: () => true, blobA: () => BLOB, contenu: () => SQL } }).preuve;
+const tmpd = () => fs.mkdtempSync(path.join(os.tmpdir(), 'e4-'));
+const run = (o, m, extra = {}) => C.consommer({ ordre: o, go: go(o), lecteur: m.lecteur, ecrivain: m.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', preuve: prouver(o), dirVerrous: tmpd(), ...extra });
 let n = 0; const ok = (t) => { n++; console.log(`  ✅ ${t}`); };
 
 // Essai à blanc : APTE, zéro écriture, même avec un écrivain fourni.
@@ -38,18 +44,20 @@ o = mk('production');
 refus('sans GO', 'GO_ABSENT', o, monde(o), { go: null });
 refus('GO autre hash', 'GO_HASH_DIFFERENT', o, monde(o), { go: { ...go(o), operation_hash: mk('test').operation_hash } });
 refus('arbitre ne donne pas un GO Production', 'GO_ACTEUR_NON_HABILITE', o, monde(o), { go: { ...go(o), acteur: 'arbitre-chatgpt' } });
-refus('projet réel différent', 'PROJET_REEL_DIFFERENT', o, monde(o, { projet: O.ENVS.test }));
-refus('blob différent', 'BLOB_REEL_DIFFERENT', o, monde(o, { blob: 'd'.repeat(40) }));
+refus('sans preuve de preflight', 'PREFLIGHT_ABSENT', o, monde(o), { preuve: undefined });
+refus('preuve recopiée à la main', 'PREFLIGHT_ABSENT', o, monde(o), { preuve: { ...prouver(o) } });
+refus('preuve d\'un autre ordre', 'PREFLIGHT_ABSENT', o, monde(o), { preuve: prouver(mk('test')) });
+refus('mode réel sans répertoire de verrous', 'ORDRE_MALFORME', o, monde(o), { dirVerrous: undefined });
 refus('précondition fausse', 'PRECONDITION_FAUSSE', o, monde(o, { taille: 311 }));
 refus('rejeu', 'DEJA_CONSOMME', o, monde(o), { etat: { ...etat0(), consommes: [o.operation_hash] } });
-refus('concurrence', 'EXECUTION_CONCURRENTE', o, monde(o), { etat: { ...etat0(), verrou: { project_ref: o.cible.project_ref } } });
+{ const dv = tmpd(); P.prendreVerrou(dv, { project_ref: o.cible.project_ref, operation_hash: 'f'.repeat(64) }); refus('concurrence (verrou persistant tenu)', 'EXECUTION_CONCURRENTE', o, monde(o), { dirVerrous: dv }); }
 refus('incertaine non réconciliée', 'EXECUTION_INCERTAINE_NON_RECONCILIEE', o, monde(o), { etat: { ...etat0(), incertains: [o.operation_hash] } });
 refus('ordre expiré', 'EXPIRE', o, monde(o), { maintenant: new Date('2026-10-14T00:00:00Z') });
 refus('ordre altéré', 'HASH_ORDRE_INVALIDE', Object.assign(JSON.parse(JSON.stringify(o)), { lot: 'AUTRE' }), monde(o));
 refus('mode réel sans écrivain', 'ORDRE_MALFORME', o, monde(o), { ecrivain: undefined });
 const mil = monde(o); mil.lecteur.mesures = () => { throw new Error('réseau'); };
 refus('lecture impossible = refus, pas supposition', 'PRECONDITION_FAUSSE', o, mil);
-ok('onze refus codés + lecture impossible : aucune écriture dans aucun cas');
+ok('treize refus codés + lecture impossible : aucune écriture dans aucun cas');
 
 // Réel heureux : EXECUTE, retour recevable, relecture mesurée.
 o = mk('test'); m = monde(o); r = run(o, m, { mode: 'reel' });
@@ -76,13 +84,13 @@ ok('un retour EXECUTE déposé rend l\'ordre consommé (usage unique)');
 
 // Mutation de câblage : si les gardes sont court-circuitées, l'écrivain est appelé sur un refus → l'épreuve le verrait.
 const src = fs.readFileSync(path.join(__dirname, 'outils', 'consommer-ordre.js'), 'utf8');
-const cible = 'if (codes.length) return refus(codes, undefined, avant);';
+const cible = '  if (codes.length) return refus(codes, etatR.verrou';
 assert.strictEqual(src.split(cible).length, 2, 'ancre unique');
 const tmp = path.join(__dirname, 'outils', '.mut-consommer.js');
-fs.writeFileSync(tmp, src.replace(cible, ''));
+fs.writeFileSync(tmp, src.replace(cible, '  if (false) return refus(codes, etatR.verrou'));
 try {
   const M = require(tmp); o = mk('production'); m = monde(o, { taille: 999 });
-  const y = M.consommer({ ordre: o, go: null, lecteur: m.lecteur, ecrivain: m.ecrivain, etat: etat0(), habilites: HAB, mode: 'reel', maintenant: MAINT });
+  const y = M.consommer({ ordre: o, go: null, lecteur: m.lecteur, ecrivain: m.ecrivain, etat: etat0(), habilites: HAB, mode: 'reel', maintenant: MAINT, preuve: P.preflight({ ordre: o, temoins: { connexion: () => o.cible.project_ref, sentinelle: () => o.cible.project_ref }, git: { estAncetre: () => true, blobA: () => BLOB, contenu: () => SQL } }).preuve, dirVerrous: tmpd() });
   assert.ok(m.s.appels >= 1, 'mutation : sans les gardes l\'écrivain est appelé (donc les refus ci-dessus prouvent la garde)');
 } finally { fs.rmSync(tmp, { force: true }); }
 ok('mutation « retirer les gardes » : l\'écrivain est alors appelé sans GO — les refus ci-dessus mesurent bien la garde');
@@ -121,22 +129,22 @@ muterC("    if (!e || typeof e !== 'object' || typeof e.operation_hash !== 'stri
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'e4-')); fs.writeFileSync(path.join(d, 'execution-1-1.json'), JSON.stringify({ etat: 'EXECUTE' }));
   assert.doesNotThrow(() => M.etatDepuisLot(d), 'mutation : un retour sans hash est accepté en silence');
 });
-const consommerAvec = (M, o2, m2) => M.consommer({ ordre: o2, go: go(o2), lecteur: m2.lecteur, ecrivain: m2.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', mode: 'reel' });
+const consommerAvec = (M, o2, m2) => M.consommer({ ordre: o2, go: go(o2), lecteur: m2.lecteur, ecrivain: m2.ecrivain, etat: etat0(), habilites: HAB, maintenant: MAINT, executant: 'session-claude-habilitee', mode: 'reel', preuve: prouver(o2), dirVerrous: tmpd() });
 // Le rejet n'est observable qu'au tour suivant de la boucle d'événements : chaque étape attend le sien.
 setImmediate(() => {
   assert.strictEqual(rejetNonCapte, false, 'le rejet de l\'écrivain asynchrone est capté, pas perdu');
-  muterC("      if (typeof retour.catch === 'function') retour.catch(() => {});\n", '', 'rejet', (M) => {
+  muterC("return Promise.resolve(promesse).then(() => noter({ issue: 'resolu' }), (e) => noter({ issue: 'rejete', erreur: court(e) }));", "return Promise.resolve(promesse).then(() => noter({ issue: 'resolu' }));", 'rejet', (M) => {
     const o2 = mk('test'); assert.strictEqual(consommerAvec(M, o2, asynchrone(o2)).execution.etat, 'EXECUTION_INCERTAINE');
   });
   setImmediate(() => {
-    assert.strictEqual(rejetNonCapte, true, 'mutation : sans .catch le rejet de l\'écrivain devient un unhandledRejection');
-    muterC("    if (retour && typeof retour.then === 'function') {", '    if (false) {', 'asynchrone', (M) => {
+    assert.strictEqual(rejetNonCapte, true, 'mutation : sans gestionnaire de rejet le rejet de l\'écrivain devient un unhandledRejection');
+    muterC("  if (retour && typeof retour.then === 'function') {", '  if (false) {', 'asynchrone', (M) => {
       const o2 = mk('test');
       assert.strictEqual(consommerAvec(M, o2, asynchrone(o2)).verdict, 'EXECUTE', 'mutation : sans la garde, une écriture rejetée est déclarée EXECUTE');
     });
     setImmediate(() => {
       process.removeListener('unhandledRejection', surRejet);
-      ok('écrivain asynchrone : EXECUTION_INCERTAINE et rejet capté ; quatre mutations (illisible, sans hash, .catch, asynchrone) rendent les gardes muettes');
+      ok('écrivain asynchrone : EXECUTION_INCERTAINE et rejet capté ; quatre mutations (illisible, sans hash, rejet, asynchrone) rendent les gardes muettes');
       console.log(`\nconsommer-ordre : ${n} groupes d'épreuves passés.`);
     });
   });
