@@ -173,6 +173,9 @@
   "gestes": {
     "_lire": "Traduction d'un motif STOP fermé vers la capacité que le geste suivant exige RÉELLEMENT une fois l'autorisation acquise. Sans cette table, un GO obtenu sur un motif Production se renvoie au canal qui a posé la question — celui qui ne peut pas l'exécuter.",
     "SUPABASE_PRODUCTION_MUTATION": "SUPABASE_PRODUCTION_ECRITURE",
-    "PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION": "PRODUCTION_FUSION_DEPLOIEMENT"
+    "PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION": "PRODUCTION_FUSION_DEPLOIEMENT",
+    "SUPABASE_TEST_MIGRATION": "SUPABASE_TEST_ECRITURE",
+    "SUPABASE_TEST_CONTROLE": "SUPABASE_TEST_LECTURE",
+    "SUPABASE_PRODUCTION_CONTROLE": "SUPABASE_PRODUCTION_LECTURE"
   }
 }
