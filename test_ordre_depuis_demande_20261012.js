@@ -97,6 +97,12 @@ const gitC = (...a) => execFileSync('git', ['-c', 'user.name=epreuve-e3', '-c', 
 execFileSync('git', ['clone', '-q', '--shared', '--no-checkout', RACINE, CLONE], { stdio: 'ignore' });
 gitC('checkout', '-q', '--detach', execFileSync('git', ['rev-parse', 'HEAD'], { cwd: RACINE, encoding: 'utf8' }).trim());
 fs.cpSync(path.join(RACINE, 'outils'), path.join(CLONE, 'outils'), { recursive: true });
+// Le clone a RACINE pour origin : ses origin/* sont les branches LOCALES de RACINE, absentes en CI (seules les
+// refs distantes y existent). handoff.js lit origin/main et origin/production : on les recopie depuis RACINE.
+for (const b of ['main', 'production']) {
+  const sha = execFileSync('git', ['rev-parse', `refs/remotes/origin/${b}`], { cwd: RACINE, encoding: 'utf8' }).trim();
+  gitC('update-ref', `refs/remotes/origin/${b}`, sha);
+}
 const REF = gitC('rev-parse', 'HEAD');
 const CH_CLONE = 'supabase/migrations/20261012000000_epreuve_e3.sql';
 fs.writeFileSync(path.join(CLONE, CH_CLONE), '-- épreuve E3 : jamais appliquée\nselect 1;\n');
