@@ -392,7 +392,12 @@ const COPIES = [WORKFLOW, ...EPREUVES];
 const MUTABLES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, WORKFLOW];
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-mutation-'));
-fs.cpSync('outils', path.join(BAC, 'outils'), { recursive: true });
+// `filter` exclut les fichiers « point » : un mutant éphémère d'une autre
+// épreuve parallèle (ex. outils/.mut-handoff.js) ne doit jamais être recopié
+// ni faire échouer ce cpSync par un ENOENT de course (défaut §10 du
+// 10/09/2026, même mécanisme, ici côté lecteur).
+fs.cpSync('outils', path.join(BAC, 'outils'),
+  { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
 fs.mkdirSync(path.join(BAC, '.github/workflows'), { recursive: true });
 for (const c of COPIES) fs.copyFileSync(c, path.join(BAC, c));
 

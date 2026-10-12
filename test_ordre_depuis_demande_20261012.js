@@ -96,7 +96,13 @@ process.on('exit', () => fs.rmSync(CLONE, { recursive: true, force: true }));
 const gitC = (...a) => execFileSync('git', ['-c', 'user.name=epreuve-e3', '-c', 'user.email=epreuve-e3@invalid', '-c', 'commit.gpgsign=false', '-C', CLONE, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 execFileSync('git', ['clone', '-q', '--shared', '--no-checkout', RACINE, CLONE], { stdio: 'ignore' });
 gitC('checkout', '-q', '--detach', execFileSync('git', ['rev-parse', 'HEAD'], { cwd: RACINE, encoding: 'utf8' }).trim());
-fs.cpSync(path.join(RACINE, 'outils'), path.join(CLONE, 'outils'), { recursive: true });
+// `filter` exclut les fichiers « point » : un mutant éphémère écrit par une
+// autre épreuve parallèle (ex. outils/.mut-handoff.js, outils/.mut-preparer.js
+// de ce même fichier, ligne plus bas) ne doit jamais être recopié ni faire
+// échouer ce cpSync par un ENOENT de course (défaut §10 du 10/09/2026, même
+// mécanisme, ici côté lecteur).
+fs.cpSync(path.join(RACINE, 'outils'), path.join(CLONE, 'outils'),
+  { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
 // Le clone a RACINE pour origin : ses origin/* sont les branches LOCALES de RACINE, absentes en CI (seules les
 // refs distantes y existent). handoff.js lit origin/main et origin/production : on les recopie depuis RACINE.
 for (const b of ['main', 'production']) {

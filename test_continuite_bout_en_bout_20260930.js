@@ -91,7 +91,16 @@ function bac(mut = {}) {
 
   // Les outils RÉELS du dépôt sous test. C'est ce qui rend l'épreuve sensible
   // à une mutation de la source : casser un module ici casse la chaîne là-bas.
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(depot, 'outils'), { recursive: true });
+  //
+  // `filter` exclut les fichiers « point » : plusieurs épreuves de ce dépôt
+  // (ex. test_handoff_rail_actif_20261010.js) écrivent un mutant éphémère
+  // `outils/.xxx-<pid>.js` le temps d'une assertion, PUIS le suppriment —
+  // jamais un fichier réel de `outils/` ne commence par un point. `run-tests.js`
+  // exécute les fichiers en parallèle : un `cpSync` récursif qui croise cette
+  // écriture/suppression lève un ENOENT intermittent (même mécanisme, même
+  // défaut que §10 du 10/09/2026, commit 51f0ac0 — cette fois côté lecteur).
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(depot, 'outils'),
+    { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
 
   const registre = {
     protocol: 'nexus-handoff/2',

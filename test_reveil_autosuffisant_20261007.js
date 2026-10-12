@@ -43,7 +43,12 @@ const blob = s => crypto.createHash('sha1').update(`blob ${Buffer.byteLength(s)}
 function module_(mutation, remplacement) {
   if (!mutation) return require('./outils/reveil-orchestrateur.js');
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'reveil-mut-')));
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true });
+  // `filter` exclut les fichiers « point » : un mutant éphémère d'une autre
+  // épreuve parallèle (ex. outils/.mut-handoff.js) ne doit jamais être recopié
+  // ni faire échouer ce cpSync par un ENOENT de course (défaut §10 du
+  // 10/09/2026, même mécanisme, ici côté lecteur).
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'),
+    { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
   fs.mkdirSync(path.join(tmp, 'docs', 'handoff'), { recursive: true });
   fs.copyFileSync(path.join(RACINE, 'docs', 'handoff', 'ARBITRAGES-ACQUIS.json'), path.join(tmp, 'docs', 'handoff', 'ARBITRAGES-ACQUIS.json'));
   const cible = path.join(tmp, 'outils', 'reveil-orchestrateur.js');

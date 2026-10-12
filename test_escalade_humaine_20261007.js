@@ -44,7 +44,12 @@ const LOT_D4 = 'GOUVERNANCE-REFERENCE-CODE-20261005';
 // qui ne s'applique pas rendrait un vert sans rien mesurer.
 function variante(fichier, avant, apres) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'escalade-'));
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true });
+  // `filter` exclut les fichiers « point » : un mutant éphémère d'une autre
+  // épreuve parallèle (ex. outils/.mut-handoff.js) ne doit jamais être recopié
+  // ni faire échouer ce cpSync par un ENOENT de course (défaut §10 du
+  // 10/09/2026, même mécanisme, ici côté lecteur).
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'),
+    { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
   fs.mkdirSync(path.join(tmp, 'docs', 'handoff'), { recursive: true });
   fs.copyFileSync(path.join(RACINE, esc.FICHIER_REGISTRE), path.join(tmp, esc.FICHIER_REGISTRE));
   const cible = path.join(tmp, fichier);

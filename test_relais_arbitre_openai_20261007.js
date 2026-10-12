@@ -104,7 +104,12 @@ function relais(env, entree, mutation) {
   let racine = RACINE;
   if (mutation) {
     racine = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'relais-mut-')));
-    fs.cpSync(path.join(RACINE, 'outils'), path.join(racine, 'outils'), { recursive: true });
+    // `filter` exclut les fichiers « point » : un mutant éphémère d'une autre
+    // épreuve parallèle (ex. outils/.mut-handoff.js) ne doit jamais être
+    // recopié ni faire échouer ce cpSync par un ENOENT de course (défaut §10
+    // du 10/09/2026, même mécanisme, ici côté lecteur).
+    fs.cpSync(path.join(RACINE, 'outils'), path.join(racine, 'outils'),
+      { recursive: true, filter: (f) => !path.basename(f).startsWith('.') });
     for (const f of ['docs/handoff/ARBITRAGES-ACQUIS.json', 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md']) {
       fs.mkdirSync(path.dirname(path.join(racine, f)), { recursive: true });
       fs.copyFileSync(path.join(RACINE, f), path.join(racine, f));
