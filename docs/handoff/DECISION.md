@@ -1,48 +1,37 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011
-seq: 1
+seq: 3
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-1.md
+in_reply_to: request-3.md
 wake_to: ChatGPT
 ---
 ## Provenance
 
-Texte collé par Frédéric dans la session Claude Code le 11/10/2026, sans autre message. Il répond aux « Points soumis à l'arbitre » de `request-1.md`. Sa rédaction est peut-être celle de l'arbitre ChatGPT, mais aucun contrat `NEXT_ACTION_CONTRACT` ne l'accompagne et je n'ai aucun moyen de le vérifier. Il est donc attribué à Frédéric, qui l'a transmis. Claude le matérialise sans rien en retrancher, mais **ne l'arbitre pas**.
+Message de Frédéric dans la session Claude Code, le 12/10/2026 : « go 220000 », reconfirmé après le déploiement de #102 (main/production à `13a4e56`). Attribué à Frédéric, auteur direct du GO. Claude le matérialise et ne l'arbitre pas.
 
-## Portée (lecture de Claude, à corriger par l'arbitre si elle est fausse)
+## Accordé (et rien d'autre)
 
-- **Accordé** : implémenter et éprouver la nouvelle règle **en développement et sur Test**, sur la branche de #102.
-- **Non accordé** : les GO 2 à 6 de `request-1.md` (migration Production, fusion de #102, déploiement GitHub Pages, recette Production, régularisation de `539e87bc`). Le texte se termine par « Aucun GO Production implicite. » Une `request-2` présentera le nouvel état et redemandera chaque GO séparément.
-- La règle `inconnu` de `20261011200000`, qui laisse le début NULL et lève l'alerte `continuite_stock_a_verifier`, ne s'applique plus qu'aux fins NULL **historiques** avec stock restant. Une telle fin est une « incohérence réelle qui subsiste » (règle 10). Après cette étape, aucune nouvelle fin NULL ne peut être validée.
+- Migration Production **`20261011220000`** seule, gestes de la section 220000 de `docs/deploiement/procedure-fdj-continuite-quantite-absente-zero-production.md` :
+  1. préflight en lecture seule, rejoué juste avant d'écrire (registre 309, version absente, trois aides absentes, six md5 attendus) ;
+  2. application par le connecteur `execute_sql`, en une transaction gardée, avec la ligne de registre ;
+  3. constat en lecture seule (neuf md5 identiques à Test, ACL, registre 310).
+- Arrêt après le constat.
 
-## Texte de l'arbitrage (verbatim)
+## Exécuté le 12/10/2026
 
-NEXUS FDJ — Nouvel arbitrage métier : confirmation des stocks finaux avant clôture
+- Préflight conforme, puis application en une transaction gardée (garde passée, aucune exception).
+- Constat : registre 310, dernière version `20261011220000` ; neuf md5 = Test (`2f04e3d1…`, `65553ae6…`, `281c7ae3…`, `70d6a4ed…`, `7057bac5…`, `8a71c647…`, `ffaf90e1…`, `f893d77b…`, `cb054262…`) ; trois aides `service_role` seul ; six commandes `authenticated` + `service_role` ; `SECURITY DEFINER`, `search_path=""` ; quarts `a646dfd7` et `64138d8c` toujours en brouillon ; aucune ligne `confirmation_stock_final_zero` / `stock_final_zero_automatique` écrite.
 
-Cette décision remplace la proposition précédente consistant à générer systématiquement une anomalie manager pour une fin de stock vide.
+## Non accordé
 
-Objectif : résoudre les omissions de saisie au moment de la validation du quart FDJ, sans intervention manager ultérieure.
-
-Règles :
-
-1. Si stock disponible = 0 et stock final vide, enregistrer automatiquement un stock final explicite de 0.
-2. Si stock disponible > 0 et stock final vide, afficher avant validation une confirmation : « Le stock final de [JEU] est-il bien de 0 ticket, ou avez-vous oublié de le renseigner ? »
-3. Proposer deux choix :
-   * « Confirmer 0 » : enregistrer explicitement 0 et tracer la confirmation.
-   * « Corriger la saisie » : revenir au jeu concerné sans clôturer le quart.
-4. Si plusieurs jeux sont concernés, afficher une fenêtre unique avec tous les jeux et une décision explicite pour chacun. Aucun choix ne doit être présélectionné.
-5. La validation finale doit être impossible tant qu'une quantité finale demeure indéterminée.
-6. Appliquer les mêmes règles aux validations employé et manager, ainsi qu'aux régularisations autorisées.
-7. Après validation, la continuité Q1 → Q2 doit reprendre les stocks finaux explicites, sans créer de nouvelles fins NULL.
-8. Préserver l'historique, les droits, les certifications et les protections A6.
-9. Tester les cas stock nul, stock positif, un ou plusieurs champs vides, confirmation 0, retour à la saisie et ouverture du quart suivant.
-10. Conserver un signalement manager uniquement pour les incohérences réelles qui subsistent après cette étape.
-
-Implémenter et tester sur branche de travail via le Handoff canonique. Aucun GO Production implicite.
+- Recette Production.
+- Régularisation de `539e87bc`.
+- Tout retour arrière.
+- Aucun GO Production implicite.
