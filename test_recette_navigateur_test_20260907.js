@@ -1003,6 +1003,42 @@ epreuveAttendue('une adresse qui RÉPOND avec une autre version le dit autrement
   assert.strictEqual(b.servie, true, 'la version attendue est servie : ce doit être un succès');
 });
 
+// LE DÉFAUT, mesuré le 12/10/2026 : l'épreuve ci-dessus a rougi une fois sur
+// la suite complète (« la version attendue est servie », false !== true) et
+// passé 3/3 isolée. `timeoutMs = 1` : si l'horloge avançait d'une
+// milliseconde avant le premier `Date.now() < limite`, la boucle ne faisait
+// AUCUNE tentative. On rend la course déterministe : une horloge qui avance
+// de 2 ms à chaque lecture dépasse toujours l'échéance avant le premier test.
+async function sousHorlogeRapide(fn) {
+  const reel = Date.now;
+  let t = reel.call(Date);
+  Date.now = () => (t += 2);
+  try { return await fn(); } finally { Date.now = reel; }
+}
+const SERVI_ATTENDU = async () => ({ ok: true, status: 200, text: async () => "commit: '18db37a'," });
+
+epreuveAttendue('une échéance déjà dépassée fait quand même UNE tentative', async () => {
+  const b = await sousFetch(SERVI_ATTENDU, () => sousHorlogeRapide(
+    () => attendreVersionServie('https://x/', '18db37a9f0c1', 1, 1)));
+  assert.strictEqual(b.servie, true, 'aucune tentative : verdict rendu sans mesure');
+  assert.strictEqual(b.joint, true);
+});
+
+epreuveAttendue('MUTATION : la boucle `while` d’origine ne tente rien sous horloge rapide', async () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const mute = src.replace('  for (;;) {\n', '  while (Date.now() < limite) {\n');
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  const ctx = { module: { exports: {} }, require, console, RegExp, Error, URL, Date, Math, JSON, process,
+                setTimeout, fetch: SERVI_ATTENDU,
+                __dirname: path.join(__dirname, 'outils'), __filename: OUTIL };
+  ctx.exports = ctx.module.exports;
+  require('vm').runInNewContext(mute, ctx);
+  const b = await sousHorlogeRapide(
+    () => ctx.module.exports.attendreVersionServie('https://x/', '18db37a9f0c1', 1, 1));
+  assert.deepStrictEqual({ ...b }, { servie: false, commit: null, joint: false, panne: null },
+    'le code muté devait rendre un verdict sans tentative ; l’épreuve ne détecte donc pas ce défaut');
+});
+
 epreuve('MUTATION : sans la dérivation, la recette repart sur l’alias gelé', () => {
   const src = fs.readFileSync(OUTIL, 'utf8');
   const mute = src.replace(

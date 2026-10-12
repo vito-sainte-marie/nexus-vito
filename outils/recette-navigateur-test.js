@@ -239,11 +239,17 @@ function extraireCommitServi(source) {
 // Et une adresse qui ne répond JAMAIS n'est pas un déploiement lent : c'est une
 // adresse qui ne mène nulle part. Avaler l'erreur réseau — ce que faisait le
 // `catch` vide — rendait les deux cas identiques au bout de quatre minutes.
+//
+// L'échéance borne les tentatives SUIVANTES, jamais la première : avec
+// `while (Date.now() < limite)`, une horloge qui avance d'une milliseconde
+// avant le premier test rendait `servie: false, joint: false, panne: null`
+// sans qu'aucune requête soit partie — un verdict sans mesure (12/10, banc
+// rouge une fois sur la suite complète, vert isolé).
 async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pasMs = 15000) {
   const url = new URL('nexus-build.js', base).href;
   const limite = Date.now() + timeoutMs;
   let vu = null, joint = false, panne = null;
-  while (Date.now() < limite) {
+  for (;;) {
     try {
       const reponse = await fetch(url, { cache: 'no-store' });
       if (reponse.ok) {
@@ -254,6 +260,7 @@ async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pa
         panne = `HTTP ${reponse.status}`;
       }
     } catch (e) { panne = String(e && e.message || e).split('\n')[0]; }
+    if (Date.now() >= limite) break;
     await new Promise(r => setTimeout(r, pasMs));
   }
   return { servie: false, commit: vu, joint, panne };
