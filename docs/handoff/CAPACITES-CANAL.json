@@ -33,9 +33,16 @@
       "preuves": {
         "SUPABASE_TEST_LECTURE": {
           "type": "EXERCEE",
-          "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+          "commande": "run GitHub Actions 38303032196 (job claude, issue #28) — lecture des variables PG* exportées par l'étape « Préparer connexion PostgreSQL Test read-only », puis `psql \"sslmode=require connect_timeout=8\" -c \"select 1\"` depuis le job",
           "date": "2026-10-12",
-          "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue.",
+          "resultat": "NEXUS_TEST_DB_AVAILABLE=1, NEXUS_SUPABASE_SCOPE=TEST_READ_ONLY, PGUSER=nexus_executor_readonly, PGDATABASE=postgres, PGPORT=5432 : le secret, actualisé par l'humain, passe désormais la validation Python (schéma + composantes toutes présentes). Mais la connexion échoue : `psql: error: could not translate host name \"hote\" to address: Temporary failure in name resolution`. PGHOST ne mesure que 4 caractères, sans point — ce n'est pas un nom d'hôte Supabase (ni direct `db.<ref>.supabase.co`, ni pooler), c'est un gabarit non renseigné (le mot « hôte » sans accent) resté littéralement dans la valeur stockée du secret SUPABASE_TEST_DB_URL_READONLY. Cause isolée au segment hôte de l'URL du secret, pas à `claude.yml` (le parsing Python fait exactement ce qu'il doit : `urlparse(...).hostname` restitue fidèlement ce qui est stocké) ni à ce canal. Aucune variable PGPASSWORD ni URL complète lue dans ce rapport ; PGHOST n'est cité qu'après confirmation qu'il s'agit d'un gabarit, pas d'une donnée d'infrastructure réelle. Correctif : remplacer, côté secret GitHub (geste humain, hors de la capacité de ce canal), le segment hôte par le nom réel du projet Test `udljdqxerrbbbajxubfn` ; aucune autre composante de l'URL n'est mise en cause par cette mesure.",
+          "historique": [
+            {
+              "date": "2026-10-12",
+              "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+              "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue."
+            }
+          ],
           "source": "docs/gouvernance/NEXUS-EXECUTOR-SUPABASE-1-audit-et-architecture.md"
         },
         "CI_LECTURE_RUN": {
