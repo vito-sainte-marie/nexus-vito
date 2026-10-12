@@ -142,29 +142,53 @@ function cheminGit(lot, fichier) {
 // défaut corrigé le 25/09/2026 vivait ici — dans une requête qui demandait
 // « ce chemin existe-t-il ? » au lieu de « que vaut-il ? ». Une garde qui ne
 // peut pas rejouer ce défaut-là ne garde rien.
+//
+// Trois git par appel, quel que soit le nombre de refs. La version d'origine
+// lançait, PAR REF, un `ls-tree -r` puis un `rev-parse` : sur un clone de 343
+// refs, chaque réveil coûtait 343 arbres listés en entier (8 s sur macOS), et
+// test_fast_track_anti_pause — 7 réveils, 2 401 `ls-tree` — était tué au délai
+// de 90 s de la suite le 12/10/2026. Désormais :
+//   1. les chemins CANDIDATS viennent d'une seule lecture de l'historique de
+//      toutes les refs. Un chemin présent à la pointe d'une ref y a été ajouté
+//      par un commit qu'elle atteint ; `--full-history -m` interdit à git de
+//      sauter ce commit, fût-il une fusion ;
+//   2. chaque couple ref × candidat est résolu par UN `cat-file --batch-check`.
+// Le premier candidat présent dans l'ordre de l'arbre (octets du chemin
+// complet, l'ordre de `ls-tree -r`) est celui que `.find` aurait retenu.
 function blobsParRef(racine, chemin, suffixe) {
   const gitLa = (args, opts) => execFileSync('git', args,
-    Object.assign({ cwd: racine, encoding: 'utf8' }, opts || {}));
+    Object.assign({ cwd: racine, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, opts || {}));
   const trouves = new Map();
   const refs = gitLa(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'])
     .split('\n').map(x => x.trim()).filter(Boolean);
-  for (const r of refs) {
-    let ou = chemin;
-    if (!ou && suffixe) {
-      // Registre hors dépôt : on retrouve le fichier par son suffixe plutôt
-      // que de présumer où les lots vivent.
-      try {
-        ou = gitLa(['ls-tree', '-r', '--name-only', r]).split('\n')
-          .find(l => l.endsWith(suffixe)) || null;
-      } catch (e) { ou = null; }
-    }
-    if (!ou) continue;
-    // stderr muet : « absent de cette ref » est une réponse attendue, pas une
-    // panne — la laisser parler noierait le réveil sous des `fatal:`.
+  let candidats = [];
+  if (chemin) candidats = [chemin];
+  else if (suffixe) {
+    // Registre hors dépôt : on retrouve le fichier par son suffixe plutôt
+    // que de présumer où les lots vivent.
     try {
-      const blob = gitLa(['rev-parse', `${r}:${ou}`], { stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-      if (blob) trouves.set(r, blob);
-    } catch (e) { /* absente de cette ref : c'est une réponse, pas une panne */ }
+      candidats = [...new Set(gitLa(['log', '--all', '--full-history', '-m', '--format=', '--name-only',
+        '--', `:(glob)**${suffixe.replace(/[*?[\]\\]/g, '\\$&')}`]).split('\n').map(x => x.trim())
+        .filter(l => l.endsWith(suffixe)))]
+        .sort((x, y) => Buffer.compare(Buffer.from(x), Buffer.from(y)));
+    } catch (e) { candidats = []; }
+  }
+  if (!refs.length || !candidats.length) return trouves;
+  const requetes = [];
+  for (const r of refs) for (const c of candidats) requetes.push(`${r}:${c}`);
+  // « absent de cette ref » est une réponse attendue, pas une panne : batch-check
+  // l'écrit `<requête> missing` sur sa sortie, sans `fatal:` sur stderr.
+  const lignes = gitLa(['cat-file', '--batch-check=%(objectname) %(objecttype)'],
+    { input: requetes.join('\n') + '\n' }).split('\n');
+  let i = 0;
+  for (const r of refs) {
+    for (let k = 0; k < candidats.length; k++, i++) {
+      if (trouves.has(r)) continue;
+      const l = lignes[i] || '';
+      if (/ missing$/.test(l) || l === `${requetes[i]} ambiguous`) continue;
+      const blob = l.split(' ')[0];
+      if (/^[0-9a-f]{40,64}$/.test(blob)) trouves.set(r, blob);
+    }
   }
   return trouves;
 }
