@@ -1374,6 +1374,54 @@
     return { action: 'aucune', valeur: d };
   }
 
+  // Stocks de départ hérités du quart précédent validé (handoff MISSION
+  // PATRIMOINE, 11/10/2026). `lignes` : [{ game_id, stock_initial, appro,
+  // stock_final }] de ce quart. Rend { game_id: stock hérité }.
+  //   - fin renseignée                  -> cette fin ;
+  //   - fin absente, début + appro = 0  -> 0 (quantité absente = 0 : il ne
+  //                                         restait rien à vendre) ;
+  //   - fin absente, il restait du stock -> absent (0 fabriquerait une vente).
+  // Avant, une fin absente faisait disparaître le jeu, sans invite, de ce
+  // quart et de tous les suivants. Miroir d'affichage de l'autorité serveur
+  // fdj_stock_initial_herite (20261011200000), qui complète de toute façon
+  // le quart à l'écriture.
+  function stocksFinauxHerites(lignes) {
+    const map = {};
+    (lignes || []).forEach(c => {
+      if (!c || !c.game_id) return;
+      if (!absentStock(c.stock_final)) { map[c.game_id] = Number(c.stock_final); return; }
+      if (absentStock(c.stock_initial)) return;
+      const appro = absentStock(c.appro) ? 0 : Number(c.appro);
+      if (Number(c.stock_initial) + appro === 0) map[c.game_id] = 0;
+    });
+    return map;
+  }
+
+  // Stocks finaux à confirmer avant la validation d'un quart (arbitrage du
+  // 11/10/2026, decision-1 du lot FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011).
+  // `lignes` : [{ game_id, stock_initial, appro, stock_final }] du quart à
+  // valider. Rend { zeroAutomatique: [game_id], aConfirmer: [{ game_id,
+  // disponible }] } :
+  //   - fin renseignée                 -> rien (jamais remplacée) ;
+  //   - fin absente, début + appro = 0 -> 0 automatique (règle 1) ;
+  //   - fin absente, il reste du stock, ou disponible inconnu -> question
+  //     posée avant validation (règles 2 à 5).
+  // Miroir d'affichage de fdj_confirmer_caisse / fdj_manager_enregistrer_
+  // comptages (20261011220000), qui refusent de toute façon une fin NULL.
+  function stocksFinauxAConfirmer(lignes) {
+    const zeroAutomatique = [];
+    const aConfirmer = [];
+    (lignes || []).forEach(c => {
+      if (!c || !c.game_id) return;
+      if (!absentStock(c.stock_final)) return;
+      if (absentStock(c.stock_initial)) { aConfirmer.push({ game_id: c.game_id, disponible: null }); return; }
+      const disponible = Number(c.stock_initial) + (absentStock(c.appro) ? 0 : Number(c.appro));
+      if (disponible === 0) zeroAutomatique.push(c.game_id);
+      else aConfirmer.push({ game_id: c.game_id, disponible });
+    });
+    return { zeroAutomatique, aConfirmer };
+  }
+
   // §2 — Autorité du début Q2. `debutsQ2` : { game_id: stock_initial Q2 } ;
   // `finsQ1` : { game_id: stock_final Q1 actuel }. Rend la liste des fins
   // de Q1 à aligner. `alerteManager` est vrai dès qu'une fin de Q1 DÉJÀ
@@ -2104,7 +2152,7 @@
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
     LIBELLES_ECART_CAISSE, libelleEcartCaisse,
     propagationCorrectionStock,
-    initialisationContinuite, rapprochementFinQ1, correctionsValeursEnregistrees,
+    initialisationContinuite, stocksFinauxHerites, stocksFinauxAConfirmer, rapprochementFinQ1, correctionsValeursEnregistrees,
     MOTIF_CORRECTION_STOCK_MIN, motifCorrectionStockValide, absentStock,
     syntheseExceptionsManager,
     caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,

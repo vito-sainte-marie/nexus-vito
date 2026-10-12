@@ -280,6 +280,21 @@
   .btn-loading-dots i:nth-child(2){animation-delay:0.15s;} .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
   @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
 
+  /* Stocks finaux à confirmer (decision-1, 11/10/2026) : même fenêtre que
+     l'écran employé — une décision explicite par jeu, aucune présélection. */
+  .cloture-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .cloture-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom));}
+  .cloture-titre{font-size:16.5px; font-weight:700; margin-bottom:14px;}
+  .cloture-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+  .cloture-actions .btn-ghost, .cloture-actions .btn-primary{margin-top:8px;}
+  .cloture-modal.stocks-finaux{max-height:88vh; overflow-y:auto;}
+  .stock-final-choix{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:10px;}
+  .stock-final-question{font-size:13.5px; line-height:1.5; margin-bottom:4px;}
+  .stock-final-dispo{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-bottom:10px;}
+  .stock-final-boutons{display:flex; gap:8px;}
+  .stock-final-bouton{flex:1; padding:10px 8px; border-radius:8px; border:1px solid var(--hairline); background:transparent; color:var(--text-mid); font-size:13px; font-weight:600; cursor:pointer;}
+  .stock-final-bouton[aria-pressed="true"]{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan);}
+
   .champ-sep{height:1px; background:var(--hairline); margin:18px 0;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
@@ -5257,6 +5272,9 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     edition = {
       shiftId: null, date: dateOverride || dateISO(), quart: quartOverride || '1', employeeId: employesSite[0] ? employesSite[0].id : null,
+      // decision-1 (11/10/2026) : statut lu en base, pour distinguer un
+      // passage à 'valide' d'une régularisation (voir enregistrerEdition).
+      statutShiftBase: null,
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
       caisseReelle: null, motifEcart: '', motifEcartTexte: '', resultatControle: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
       caisseReelleOrigine: null, ecartOrigine: null,
@@ -5393,6 +5411,7 @@
     edition = {
       shiftId: shift.id, date: shift.date, quart: shift.quart, employeeId: shift.employee_id,
       statutShift: shift.statut, counts: countsMap, stockInitialAuto: stockInitialAutoCharge,
+      statutShiftBase: shift.statut,
       lotsPayes: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisseTirages: repTempsReel ? repTempsReel.caisse_tirages : null,
       regularisations: cash ? cash.regularisations : 0,
@@ -5907,6 +5926,9 @@
         // plus une valeur héritée automatiquement — un futur changement de
         // date/quart ne doit plus jamais l'écraser.
         if (champ === 'stock_initial') { edition.stockInitialAuto[gameId] = false; input.classList.remove('auto'); }
+        // decision-1 : un 0 confirmé n'est plus une confirmation dès que la
+        // fin est ressaisie.
+        if (champ === 'stock_final') delete edition.counts[gameId].stock_final_confirme_zero;
         const row = input.closest('.jeu-row');
         const v = calculerVentesEdition(gameId);
         const anomalie = v.qte !== null && v.qte < 0;
@@ -6047,6 +6069,145 @@
     await ouvrirEditionExistant(shift);
   }
 
+  // ------------------------------------------------------------
+  // STOCKS FINAUX À CONFIRMER — decision-1 de l'arbitre (11/10/2026).
+  // À la validation d'un quart (passage à « Validé », ou régularisation
+  // d'un quart déjà validé), aucune quantité finale ne reste indéterminée :
+  //   · fin vide et stock disponible nul -> 0, posé et tracé par le serveur ;
+  //   · fin vide et stock disponible (ou départ inconnu) -> une fenêtre
+  //     unique, une décision explicite par jeu, aucune présélection :
+  //     « Confirmer 0 » (0 explicite, marqueur stock_final_confirme_zero,
+  //     tracé par le serveur) ou « Corriger la saisie » (retour au jeu, rien
+  //     n'est validé).
+  // Le serveur applique la même règle (check_violation 23514, liste dans
+  // error.details) : cette fenêtre en est le premier rideau, pas le seul.
+  // ------------------------------------------------------------
+  function libelleDisponible(disponible) {
+    if (disponible === null || disponible === undefined) return 'stock de départ inconnu';
+    if (Number(disponible) === 1) return '1 ticket disponible';
+    return `${fmtNum(disponible)} tickets disponibles`;
+  }
+  // Rend { confirmes, corriger } (game_id), ou null si le manager referme
+  // la fenêtre sans décider.
+  function resoudreStocksFinaux(liste) {
+    return new Promise(resolve => {
+      const choix = new Map();
+      const overlay = document.createElement('div');
+      overlay.className = 'cloture-overlay';
+      const modal = document.createElement('div');
+      modal.className = 'cloture-modal stocks-finaux';
+      const titre = document.createElement('div');
+      titre.className = 'cloture-titre';
+      titre.textContent = liste.length === 1
+        ? 'Un stock final n\'est pas renseigné'
+        : `${liste.length} stocks finaux ne sont pas renseignés`;
+      const texte = document.createElement('div');
+      texte.className = 'cloture-texte';
+      texte.textContent = 'Le quart ne peut pas être validé tant qu\'une quantité finale reste inconnue. Indiquez votre choix pour chaque jeu.';
+      modal.append(titre, texte);
+      const valider = document.createElement('button');
+      valider.type = 'button'; valider.className = 'btn-primary'; valider.id = 'btnStocksFinauxValider';
+      valider.textContent = 'Valider ces choix'; valider.disabled = true;
+      liste.forEach(item => {
+        const bloc = document.createElement('div'); bloc.className = 'stock-final-choix'; bloc.dataset.jeu = item.game_id;
+        const question = document.createElement('div'); question.className = 'stock-final-question';
+        question.textContent = `Le stock final de ${item.nom} est-il bien de 0 ticket, ou avez-vous oublié de le renseigner ?`;
+        const dispo = document.createElement('div'); dispo.className = 'stock-final-dispo'; dispo.textContent = item.libelleDispo;
+        const boutons = document.createElement('div'); boutons.className = 'stock-final-boutons';
+        [['confirmer', 'Confirmer 0'], ['corriger', 'Corriger la saisie']].forEach(([valeur, libelle]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'stock-final-bouton';
+          b.dataset.choix = valeur; b.setAttribute('aria-pressed', 'false'); b.textContent = libelle;
+          b.addEventListener('click', () => {
+            choix.set(item.game_id, valeur);
+            boutons.querySelectorAll('.stock-final-bouton').forEach(x => { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+            valider.disabled = liste.some(l => !choix.has(l.game_id));
+          });
+          boutons.appendChild(b);
+        });
+        bloc.append(question, dispo, boutons); modal.appendChild(bloc);
+      });
+      const retour = document.createElement('button'); retour.type = 'button'; retour.className = 'btn-ghost'; retour.textContent = 'Retour';
+      const actions = document.createElement('div'); actions.className = 'cloture-actions'; actions.append(valider, retour);
+      modal.appendChild(actions); overlay.appendChild(modal); document.body.appendChild(overlay);
+      const fermer = (resultat) => { overlay.remove(); resolve(resultat); };
+      valider.addEventListener('click', () => {
+        if (liste.some(l => !choix.has(l.game_id))) return;
+        fermer({ confirmes: liste.filter(l => choix.get(l.game_id) === 'confirmer').map(l => l.game_id),
+                 corriger: liste.filter(l => choix.get(l.game_id) === 'corriger').map(l => l.game_id) });
+      });
+      retour.addEventListener('click', () => fermer(null));
+      overlay.addEventListener('click', e => { if (e.target === overlay) fermer(null); });
+    });
+  }
+  // « Confirmer 0 » : seule une fin vide devient 0 ; une quantité saisie
+  // n'est jamais remplacée.
+  function appliquerChoixStocksFinauxEdition(reponse) {
+    (reponse.confirmes || []).forEach(gid => {
+      if (!edition.counts[gid]) edition.counts[gid] = { stock_initial: null, appro: 0, stock_final: null };
+      const s = edition.counts[gid];
+      if (!NexusFdjMoteur.absentStock(s.stock_final) && Number(s.stock_final) !== 0) return;
+      s.stock_final = 0;
+      s.stock_final_confirme_zero = true;
+    });
+  }
+  function revenirAuJeuACorrigerEdition(gid) {
+    renderEdition();
+    const champ = Array.from(document.querySelectorAll('.jeu-input[data-champ="stock_final"]')).find(i => i.dataset.jeu === gid);
+    if (champ) { champ.scrollIntoView({ block: 'center' }); champ.focus(); }
+  }
+  // Lignes de comptage envoyées au serveur : les jeux réellement touchés
+  // par le manager, avec le marqueur d'un 0 confirmé.
+  function lignesComptagesEdition() {
+    return jeux.filter(j => {
+      const s = edition.counts[j.id];
+      return s && (s.stock_initial !== null || s.appro || s.stock_final !== null);
+    }).map(j => {
+      const s = edition.counts[j.id];
+      const v = calculerVentesEdition(j.id);
+      // 16/08/2026 : persiste enfin edition.stockInitialAuto (jusqu'ici
+      // uniquement en mémoire) — condition nécessaire pour que
+      // reconcilierAlertesChaine sache, après coup, si ce stock_initial
+      // reste éligible à une réécriture automatique lors d'un futur
+      // rétablissement de chaîne, ou s'il a été confirmé par un humain.
+      const ligne = { game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, stock_initial_auto: !!edition.stockInitialAuto[j.id] };
+      if (s.stock_final_confirme_zero && s.stock_final === 0) ligne.stock_final_confirme_zero = true;
+      return ligne;
+    });
+  }
+  // Jeux à fin indéterminée côté écran, hors 0 déjà confirmés. Passage à
+  // « Validé » : tous les jeux actifs ; régularisation : les jeux envoyés.
+  function stocksFinauxAConfirmerEdition(passeAValide) {
+    const lignes = passeAValide
+      ? jeux.map(j => Object.assign({ game_id: j.id }, edition.counts[j.id] || { stock_initial: null, appro: 0, stock_final: null }))
+      : lignesComptagesEdition();
+    const { aConfirmer } = NexusFdjMoteur.stocksFinauxAConfirmer(lignes);
+    return aConfirmer.map(x => {
+      const j = jeux.find(g => g.id === x.game_id);
+      return { game_id: x.game_id, nom: j ? j.nom : x.game_id, libelleDispo: libelleDisponible(x.disponible) };
+    });
+  }
+  // Refus serveur 23514 : la liste des jeux arrive dans error.details.
+  // Rend null pour toute autre erreur.
+  function stocksFinauxDepuisErreur(error) {
+    if (!error || error.code !== '23514' || !error.details) return null;
+    let liste;
+    try { liste = JSON.parse(error.details); } catch (e) { return null; }
+    if (!Array.isArray(liste)) return null;
+    liste = liste.filter(x => x && x.game_id);
+    if (!liste.length) return null;
+    return liste.map(x => ({ game_id: x.game_id, nom: x.nom || x.game_id, libelleDispo: libelleDisponible(x.disponible) }));
+  }
+  // Ouvre la fenêtre et applique les choix. 'ok' : tous les jeux sont
+  // confirmés à 0 ; 'stop' : fenêtre refermée, ou au moins un jeu à
+  // corriger (l'écran revient sur le premier).
+  async function resoudreListeStocksFinaux(liste) {
+    const reponse = await resoudreStocksFinaux(liste);
+    if (!reponse) return 'stop';
+    appliquerChoixStocksFinauxEdition(reponse);
+    if (reponse.corriger.length) { revenirAuJeuACorrigerEdition(reponse.corriger[0]); return 'stop'; }
+    return 'ok';
+  }
+
   // 05/10/2026 : transférer le titulaire d'un quart ouvert par erreur ne
   // doit exiger ni verdict ni enregistrement du quart. Passer par
   // enregistrerEdition imposait un verdict et écrivait comptages préremplis,
@@ -6176,6 +6337,19 @@
         if (alerteManager) motifAlignement = edition.motifCorrectionStock.trim();
       }
     }
+    // decision-1 (11/10/2026), règles 2 à 6 : aucune quantité finale ne
+    // reste indéterminée quand le quart est validé. Passage à « Validé » :
+    // tous les jeux actifs ; régularisation d'un quart validé : les jeux
+    // envoyés. Une fin vide à stock nul n'est pas demandée : le serveur
+    // pose 0 et le trace. Le serveur refait le contrôle (23514, plus bas).
+    const passeAValide = edition.statutShift === 'valide' && edition.statutShiftBase !== 'valide';
+    if (edition.statutShift === 'valide') {
+      const aConfirmer = stocksFinauxAConfirmerEdition(passeAValide);
+      if (aConfirmer.length) {
+        if (await resoudreListeStocksFinaux(aConfirmer) === 'stop') return;
+        renderEdition();
+      }
+    }
     const btn = document.getElementById('btnEnregistrer');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
@@ -6199,8 +6373,12 @@
       // il se transfère, avec motif et journal, juste après ce bloc.
       // 10/10/2026 : commande serveur (l'écriture directe est fermée) ;
       // valide_le suit le statut côté serveur.
+      // decision-1 (11/10/2026) : un passage à « Validé » garde ici le
+      // statut lu en base ; la validation suit l'écriture des comptages
+      // (étape 2 ter), car le serveur la refuse tant qu'une fin manque.
       const { data, error } = await nexusClient.rpc('fdj_manager_modifier_quart', {
-        p_shift_id: edition.shiftId, p_date: edition.date, p_quart: edition.quart, p_statut: edition.statutShift
+        p_shift_id: edition.shiftId, p_date: edition.date, p_quart: edition.quart,
+        p_statut: passeAValide ? (edition.statutShiftBase || 'brouillon') : edition.statutShift
       });
       if (error) {
         console.error('Mise à jour quart FDJ:', error);
@@ -6225,19 +6403,23 @@
           return;
         }
         const { data, error } = await nexusClient.rpc('fdj_manager_changer_statut_quart', {
-          p_shift_id: existant.id, p_statut: edition.statutShift
+          p_shift_id: existant.id,
+          p_statut: (edition.statutShift === 'valide' && existant.statut !== 'valide') ? existant.statut : edition.statutShift
         });
         if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = libelleBouton; return; }
         shift = data;
       } else {
         // Le site est celui du manager, lu en base par la commande.
         const { data, error } = await nexusClient.rpc('fdj_manager_creer_quart', {
-          p_date: edition.date, p_quart: edition.quart, p_employee_id: edition.employeeId || null, p_statut: edition.statutShift
+          p_date: edition.date, p_quart: edition.quart, p_employee_id: edition.employeeId || null,
+          p_statut: passeAValide ? 'brouillon' : edition.statutShift
         });
         if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur de création du quart. Réessayez.'); return; }
         shift = data;
       }
     }
+    // decision-1 : le quart doit être validé après ses comptages (étape 2 ter).
+    const validerApresComptages = edition.statutShift === 'valide' && shift.statut !== 'valide';
 
     // 1 bis) Transfert de responsabilité — Vague 1 (17/09/2026). Le seul
     // chemin par lequel le titulaire d'un quart ouvert peut changer. La
@@ -6267,24 +6449,57 @@
       edition.motifTransfert = '';
     }
 
-    // 2) Comptages — upsert des jeux réellement touchés par le manager.
-    const lignes = jeux.filter(j => {
-      const s = edition.counts[j.id];
-      return s && (s.stock_initial !== null || s.appro || s.stock_final !== null);
-    }).map(j => {
-      const s = edition.counts[j.id];
-      const v = calculerVentesEdition(j.id);
-      // 16/08/2026 : persiste enfin edition.stockInitialAuto (jusqu'ici
-      // uniquement en mémoire) — condition nécessaire pour que
-      // reconcilierAlertesChaine sache, après coup, si ce stock_initial
-      // reste éligible à une réécriture automatique lors d'un futur
-      // rétablissement de chaîne, ou s'il a été confirmé par un humain.
-      return { game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, stock_initial_auto: !!edition.stockInitialAuto[j.id] };
-    });
+    // 2) Comptages — upsert des jeux réellement touchés par le manager
+    // (lignesComptagesEdition, avec le marqueur d'un 0 confirmé).
+    const lignes = lignesComptagesEdition();
     if (lignes.length) {
       // 10/10/2026 : commande serveur — site et quart vérifiés en base.
-      const { error } = await nexusClient.rpc('fdj_manager_enregistrer_comptages', { p_shift_id: shift.id, p_comptages: lignes });
-      if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur le grattage. Réessayez.'); return; }
+      let { error } = await nexusClient.rpc('fdj_manager_enregistrer_comptages', { p_shift_id: shift.id, p_comptages: lignes });
+      // decision-1 : régularisation d'un quart validé refusée par le serveur
+      // (fin indéterminée, rien n'est écrit) -> la même fenêtre, puis une
+      // seule relance si tout est confirmé à 0.
+      const aConfirmer = stocksFinauxDepuisErreur(error);
+      if (aConfirmer) {
+        if (await resoudreListeStocksFinaux(aConfirmer) === 'stop') {
+          btn.disabled = false; btn.textContent = libelleBouton;
+          alert('Les comptages de cette régularisation n\'ont pas été enregistrés. Indiquez le stock final de chaque jeu signalé, ou confirmez 0, puis enregistrez à nouveau.');
+          return;
+        }
+        renderEdition();
+        ({ error } = await nexusClient.rpc('fdj_manager_enregistrer_comptages', { p_shift_id: shift.id, p_comptages: lignesComptagesEdition() }));
+      }
+      if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = libelleBouton; alert(/^Stock final non déterminé/.test(error.message || '') ? error.message : 'Erreur sur le grattage. Réessayez.'); return; }
+    }
+
+    // 2 ter) Validation du quart — decision-1 (11/10/2026), règle 5. Après
+    // les comptages : le serveur complète la continuité, refuse s'il reste
+    // une fin indéterminée (23514, rien n'est validé), pose 0 sur les fins
+    // vides à stock nul (tracé), puis valide et date la validation.
+    if (validerApresComptages) {
+      const validerQuart = () => nexusClient.rpc('fdj_manager_modifier_quart', {
+        p_shift_id: shift.id, p_date: shift.date, p_quart: shift.quart, p_statut: 'valide'
+      });
+      let { data, error } = await validerQuart();
+      const aConfirmer = stocksFinauxDepuisErreur(error);
+      if (aConfirmer) {
+        if (await resoudreListeStocksFinaux(aConfirmer) === 'stop') {
+          btn.disabled = false; btn.textContent = libelleBouton;
+          alert('Le quart reste en brouillon : ses comptages sont enregistrés, mais un stock final n\'est pas déterminé. Indiquez-le, ou confirmez 0, puis enregistrez à nouveau.');
+          return;
+        }
+        renderEdition();
+        // Quart encore brouillon : le serveur pose et trace les 0 confirmés.
+        const { error: eConf } = await nexusClient.rpc('fdj_manager_enregistrer_comptages', { p_shift_id: shift.id, p_comptages: lignesComptagesEdition() });
+        if (eConf) { console.error('Confirmation des stocks finaux FDJ (manager):', eConf); btn.disabled = false; btn.textContent = libelleBouton; alert('Le quart reste en brouillon : la confirmation des stocks finaux a échoué. Réessayez.'); return; }
+        ({ data, error } = await validerQuart());
+      }
+      if (error) {
+        console.error('Validation quart FDJ (manager):', error);
+        btn.disabled = false; btn.textContent = libelleBouton;
+        alert('Le quart reste en brouillon : ' + (/^Stock final non déterminé/.test(error.message || '') ? error.message : 'la validation a échoué. Réessayez.'));
+        return;
+      }
+      shift = data;
     }
 
     // 2bis) SYNCHRONISATION CONTRÔLÉE APPRO <-> ACTIVATION (27/08/2026,
