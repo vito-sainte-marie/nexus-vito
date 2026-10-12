@@ -1624,6 +1624,50 @@ verifier('une empreinte inconnue n’accuse personne', () => {
     'et il faut le DIRE, sinon le réveil affirme une certitude qu’il n’a pas');
 });
 
+// Couverture de la résolution par SUFFIXE (12/10/2026). blobsParRef résout toutes
+// les refs en trois git ; son risque propre n'est plus le nom mais l'absence :
+// une ref qui ne porte pas le fichier doit rester HORS de la Map, et quand
+// plusieurs chemins se terminent par le suffixe, c'est le premier dans l'ordre
+// de l'arbre (octets) qui fait foi — celui que `ls-tree -r | find` retenait.
+// Retirer les filtres « missing » ou « hexadécimal » laissait tout vert.
+function depotJetableAvecAbsentEtCandidats() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'suffixe-'));
+  const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_NAME: 'e', GIT_AUTHOR_EMAIL: 'e@e',
+           GIT_COMMITTER_NAME: 'e', GIT_COMMITTER_EMAIL: 'e@e' } });
+  const ecrire = (rel, txt) => { const f = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, txt); };
+  g('init', '-q', '-b', 'rail');
+  ecrire('b/lots/L/f.md', 'B\n'); ecrire('LISEZMOI.md', 'x\n');
+  g('add', '-A'); g('commit', '-qm', 'rail');
+  g('checkout', '-q', '-b', 'sans-le-fichier'); g('rm', '-q', '-r', 'b');
+  g('commit', '-qm', 'retiré');
+  g('checkout', '-q', '-b', 'deux-chemins', 'rail');
+  ecrire('a/lots/L/f.md', 'A\n'); g('add', '-A'); g('commit', '-qm', 'a');
+  g('checkout', '-q', 'rail');
+  return { dir, bB: g('hash-object', '--', path.join(dir, 'b/lots/L/f.md')).trim() };
+}
+
+verifier('par suffixe : une ref SANS le fichier reste hors de la Map', () => {
+  const d = depotJetableAvecAbsentEtCandidats();
+  const blobs = blobsParRef(d.dir, null, '/lots/L/f.md');
+  assert.ok(blobs.has('rail'), 'la ref qui porte le fichier est rapportée');
+  assert.ok(!blobs.has('sans-le-fichier'),
+    'une ref d\u2019où le fichier a été retiré ne doit pas apparaître (ni avec un blob vide, ni avec "missing")');
+  for (const [r, b] of blobs) assert.match(b, /^[0-9a-f]{40,64}$/, `${r} : une empreinte, rien d\u2019autre`);
+  assert.strictEqual(blobsParRef(d.dir, null, '/lots/L/inconnu.md').size, 0,
+    'un suffixe que personne ne porte rend une Map vide');
+});
+
+verifier('par suffixe : plusieurs chemins candidats, le premier dans l\u2019ordre de l\u2019arbre fait foi', () => {
+  const d = depotJetableAvecAbsentEtCandidats();
+  const blobs = blobsParRef(d.dir, null, '/lots/L/f.md');
+  const aA = execFileSync('git', ['rev-parse', 'deux-chemins:a/lots/L/f.md'], { cwd: d.dir, encoding: 'utf8' }).trim();
+  assert.strictEqual(blobs.get('deux-chemins'), aA,
+    '« a/… » précède « b/… » : c\u2019est lui que ls-tree -r | find retenait');
+  assert.strictEqual(blobs.get('rail'), d.bB, 'et une ref qui n\u2019a que « b/… » rend celui-là');
+});
+
 
 // « Lisible ici » n'est pas « lisible là où l'arbitre se tient ».
 //
