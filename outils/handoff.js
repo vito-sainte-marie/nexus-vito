@@ -281,6 +281,17 @@ function validerPreuves(ou, preuves) {
 }
 // L'empreinte est une preuve historique. Un avancement fast-forward est légitime ;
 // un SHA inconnu ou une divergence/réécriture de l'histoire échoue fermé.
+// 134 enveloppes déclaraient 31 paires distinctes : sans mémoire, `verifier`
+// lançait 804 git (18 s sur macOS, 2,1 s de git réel) et la suite tuait au
+// délai de 90 s les épreuves qui l'invoquent. Le cache vit le temps d'un
+// `verifier()` : une ref qui bouge entre deux vérifications est relue.
+// L'échec est mémorisé comme le succès — un SHA inconnu le reste.
+const gitRefsMemo = new Map();
+function gitRefs(...args) {
+  const cle = args.join('\0');
+  if (!gitRefsMemo.has(cle)) { try { gitRefsMemo.set(cle, { ok: git(...args) }); } catch (err) { gitRefsMemo.set(cle, { err }); } }
+  const r = gitRefsMemo.get(cle); if (r.err) throw r.err; return r.ok;
+}
 function verifierRefsProtegees(ou, valeur) {
   const brut = String(valeur || '').trim();
   const m = brut.match(/^main=([0-9a-f]{7,40})\s+production=([0-9a-f]{7,40})$/i);
@@ -288,9 +299,9 @@ function verifierRefsProtegees(ou, valeur) {
   const attendues = { main: m[1], production: m[2] };
   for (const ref of REFS_PROTEGEES) {
     let historique, courant;
-    try { historique = git('rev-parse', '--verify', `${attendues[ref]}^{commit}`); courant = git('rev-parse', '--verify', `origin/${ref}^{commit}`); }
+    try { historique = gitRefs('rev-parse', '--verify', `${attendues[ref]}^{commit}`); courant = gitRefs('rev-parse', '--verify', `origin/${ref}^{commit}`); }
     catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — impossible de résoudre ${ref}=${attendues[ref]} ou origin/${ref}`, 'REFS_ILLISIBLES', ou); continue; }
-    try { git('merge-base', '--is-ancestor', historique, courant); }
+    try { gitRefs('merge-base', '--is-ancestor', historique, courant); }
     catch (err) { bloquant(`${ou} : refs protégées déclarées ${JSON.stringify(brut)} — ${ref} historique ${attendues[ref]} n'est pas ancêtre de la ref actuelle ${courant.slice(0, 7)}`, 'REFS_PROTEGEES', ou); }
   }
 }
@@ -462,7 +473,7 @@ function signalerMiroirsPerimes(etat) {
   }
 }
 function verifier(ignorer) {
-  erreurs.length = 0; avertissements.length = 0;
+  erreurs.length = 0; avertissements.length = 0; gitRefsMemo.clear();
   let etat = null;
   if (!fs.existsSync(ETAT)) bloquant('docs/handoff/STATE.json absent');
   else { try { etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); } catch (e) { bloquant(`STATE.json illisible : ${e.message}`); } }

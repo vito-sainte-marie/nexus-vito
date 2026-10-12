@@ -136,8 +136,11 @@ const sequentiel = process.argv.includes('--sequentiel');
 const PARALLELE = Math.max(1, Math.min(8, require('os').cpus().length));
 
 function lancer(f) {
+  // Au-delà du délai, `execFile` tue l'épreuve : ce n'est pas un échec
+  // d'assertion, et la cause le dit comme tel (lue ici, jamais recopiée).
+  const options = { cwd: __dirname, timeout: 90000 };
   return new Promise((resolve) => {
-    execFile('node', [f], { cwd: __dirname, timeout: 90000 }, (err, stdout, stderr) => {
+    execFile('node', [f], options, (err, stdout, stderr) => {
       if (!err) return resolve({ f, ok: true });
       const sortie = `${stdout || ''}${stderr || ''}`;
       // « sortie non nulle » ne dit rien à personne. Le 09/09/2026, deux
@@ -147,7 +150,15 @@ function lancer(f) {
       // laisse attraper ; les épreuves qui rapportent elles-mêmes leurs échecs
       // — la moitié de cette suite — n'écrivent jamais ce mot. On lit donc
       // aussi leur ligne de refus, et à défaut la dernière ligne écrite.
-      const cause =
+      // Une épreuve tuée au délai n'écrit pas sa fin : la « dernière ligne »
+      // était alors un `✅` intermédiaire, et le 12/10/2026 deux épreuves
+      // Handoff ont passé pour des rouges « préexistants qui passent seuls »
+      // alors que `execFile` les avait tuées à 90 s (`killed`, SIGTERM, code
+      // null). Le délai se nomme donc avant toute lecture de la sortie.
+      const delai = err.killed
+        ? `DÉLAI DÉPASSÉ (${options.timeout / 1000} s) — épreuve tuée par ${err.signal || 'signal inconnu'}`
+        : null;
+      const cause = delai ||
         (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || [])[0] ||
         (sortie.match(/^\s*✗[^\n]{0,110}/m) || [])[0]?.trim() ||
         sortie.split('\n').filter(l => l.trim()).pop()?.slice(0, 110) ||
