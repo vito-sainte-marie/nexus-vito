@@ -71,7 +71,7 @@ ok('B — six refus, aucune écriture');
 dir = registre(); assert.strictEqual(depose(dir, exec()).code, 0);
 x = depose(dir, exec()); assert.notStrictEqual(x.code, 0); assert.match(x.sortie, /terminal/); assert.deepStrictEqual(fichiers(dir), ['execution-1-1.json']);
 dir = registre(); assert.strictEqual(depose(dir, exec('EXECUTION_INCERTAINE')).code, 0);
-assert.match(depose(dir, exec('EXECUTION_INCERTAINE')).sortie, /r2/, 'C: second incertain accepté sous -r2');
+assert.match(depose(dir, exec('EXECUTION_INCERTAINE')).sortie, /execution-1-1-r2\.json déposé/, 'C: second incertain accepté sous -r2');
 assert.deepStrictEqual(fichiers(dir), ['execution-1-1-r2.json', 'execution-1-1.json'].sort());
 assert.strictEqual(depose(dir, exec('EXECUTE')).code, 0);
 assert.ok(fichiers(dir).includes('execution-1-1-r3.json'));
