@@ -86,12 +86,19 @@ assert.strictEqual(O.reconcilier(o, { registre_taille: 312 }), 'INDETERMINE', 'I
 const exec = { operation_hash: o.operation_hash, etat: 'EXECUTE', executant: 'session-claude-habilitee', go: go(o),
   mesures_avant: o.preconditions, mesures_apres: { registre_taille: 311 }, debut: '2026-10-12T11:00:00Z', fin: '2026-10-12T11:00:05Z',
   reprise: { prochaine_action: 'constat passif' } };
-assert.deepStrictEqual(O.validerExecution(exec, o), [], 'J: retour complet recevable');
-refuse(O.validerExecution({ ...exec, operation_hash: 'f'.repeat(64) }, o), 'GO_HASH_DIFFERENT', 'J hash');
-refuse(O.validerExecution({ ...exec, go: undefined }, o), 'GO_ABSENT', 'J go');
-refuse(O.validerExecution({ ...exec, mesures_apres: { registre_taille: 310 } }, o), 'PRECONDITION_FAUSSE', 'J postcondition non tenue');
-refuse(O.validerExecution({ ...exec, reprise: undefined }, o), 'ORDRE_MALFORME', 'J reprise');
-refuse(O.validerExecution({ ...exec, etat: 'REFUSE', refus: 'inventé' }, o), 'ORDRE_MALFORME', 'J refus sans code connu');
+const dec = { hashesApprouves: [o.operation_hash] };
+assert.deepStrictEqual(O.validerExecution(exec, o, dec), [], 'J: retour complet recevable');
+refuse(O.validerExecution({ ...exec, operation_hash: 'f'.repeat(64) }, o, dec), 'GO_HASH_DIFFERENT', 'J hash');
+refuse(O.validerExecution({ ...exec, go: undefined }, o, dec), 'GO_ABSENT', 'J go');
+refuse(O.validerExecution({ ...exec, mesures_apres: { registre_taille: 310 } }, o, dec), 'PRECONDITION_FAUSSE', 'J postcondition non tenue');
+refuse(O.validerExecution({ ...exec, reprise: undefined }, o, dec), 'ORDRE_MALFORME', 'J reprise');
+refuse(O.validerExecution({ ...exec, etat: 'REFUSE', refus: 'inventé' }, o, dec), 'ORDRE_MALFORME', 'J refus sans code connu');
+// J2 — le GO d'un retour est contrôlé comme celui de l'exécutant : environnement, habilitation, décision (Production).
+refuse(O.validerExecution({ ...exec, go: go(o, { env: 'test' }) }, o, dec), 'GO_ENV_DIFFERENT', 'J2 GO d\'un autre environnement');
+refuse(O.validerExecution({ ...exec, go: go(o, { acteur: 'inconnu-quelconque' }) }, o, dec), 'GO_ACTEUR_NON_HABILITE', 'J2 acteur non habilité pour Production');
+refuse(O.validerExecution({ ...exec, go: go(o, { acteur: 'arbitre-chatgpt' }) }, o, dec), 'GO_ACTEUR_NON_HABILITE', 'J2 habilité Test mais pas Production');
+refuse(O.validerExecution(exec, o), 'GO_SANS_DECISION', 'J2 Production sans décision citant le hash');
+refuse(O.validerExecution(exec, o, { hashesApprouves: ['a'.repeat(64)] }), 'GO_SANS_DECISION', 'J2 décision citant un autre hash');
 // K
 const rev = (v) => (Array.isArray(v) ? v.map(rev) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).reverse().map((k) => [k, rev(v[k])])) : v);
 const permute = rev(o);

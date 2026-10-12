@@ -71,8 +71,10 @@ function consommer({ ordre, go, lecteur, ecrivain, etat, habilites, mode = 'blan
   return { verdict: etatFinal === 'EXECUTE' ? 'EXECUTE' : 'INCERTAIN', mode, ecritures, execution };
 }
 
+// Le dépôt local ne voit pas les décisions du lot : il ne contrôle que l'environnement et l'habilitation.
+// L'existence d'une décision citant le hash est exigée par `handoff.js execution` / `verifier`, qui relisent le lot.
 function deposerExecution(dir, seq, k, execution, ordre, suffixe = '') {
-  const e = O.validerExecution(execution, ordre);
+  const e = O.validerExecution(execution, ordre, { hashesApprouves: [ordre.operation_hash] });
   if (execution.etat === 'EXECUTE' && e.length) throw new Error(`retour execution refusé : ${e.join(',')}`);
   const f = path.join(dir, `execution-${seq}-${k}${suffixe}.json`);
   if (fs.existsSync(f)) throw new Error(`${f} existe déjà : un retour ne s'écrase pas`);
@@ -91,7 +93,7 @@ if (require.main === module) {
   const lire = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
   const ordre = lire(fichier), reel = lire(opt('--reel')), go = opt('--go') ? lire(opt('--go')) : null;
   const r = consommer({ ordre, go, mode: 'blanc', executant: 'essai-a-blanc', etat: etatDepuisLot(path.dirname(fichier)),
-    habilites: { production: ['vito-sainte-marie'], test: ['arbitre-chatgpt', 'vito-sainte-marie'] },
+    habilites: O.HABILITES,
     lecteur: { projet: () => reel.project_ref, blob: () => reel.blob, mesures: (n) => Object.fromEntries(n.map((k) => [k, (reel.mesures || {})[k]])) } });
   console.log(JSON.stringify(r.verdict === 'APTE' ? { verdict: r.verdict, ecritures: 0, mesures_avant: r.mesures_avant } : { verdict: r.verdict, ecritures: 0, codes: r.execution.codes, detail: r.execution.detail }, null, 2));
   process.exit(r.verdict === 'APTE' ? 0 : 1);

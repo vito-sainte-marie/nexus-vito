@@ -53,7 +53,7 @@ ok('onze refus codés + lecture impossible : aucune écriture dans aucun cas');
 
 // Réel heureux : EXECUTE, retour recevable, relecture mesurée.
 o = mk('test'); m = monde(o); r = run(o, m, { mode: 'reel' });
-assert.strictEqual(r.verdict, 'EXECUTE'); assert.strictEqual(m.s.appels, 1); assert.deepStrictEqual(O.validerExecution(r.execution, o), []);
+assert.strictEqual(r.verdict, 'EXECUTE'); assert.strictEqual(m.s.appels, 1); assert.deepStrictEqual(O.validerExecution(r.execution, o, { hashesApprouves: [o.operation_hash] }), []);
 assert.deepStrictEqual(r.execution.mesures_avant, { registre_taille: 310 }); assert.deepStrictEqual(r.execution.mesures_apres, { registre_taille: 311 });
 ok('réel : EXECUTE, un seul appel, mesures avant/après, retour recevable');
 

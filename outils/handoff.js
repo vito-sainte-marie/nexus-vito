@@ -263,6 +263,17 @@ function echanges(lot, genre) {
   const prefixe = genre === 'request' ? 'request-' : 'decision-';
   return fs.readdirSync(dir).filter(f => f.startsWith(prefixe) && f.endsWith('.md')).map(f => ({ fichier: f, seq: parseInt(f.slice(prefixe.length, -3), 10) })).filter(e => Number.isInteger(e.seq) && e.seq > 0).sort((a, b) => a.seq - b.seq);
 }
+// Hashes d'ordre cités par une décision APPROVED / APPROVED_WITH_CONDITIONS du lot : le GO Production de Frédéric
+// « cite le hash exact ». Un hash cité par une décision BLOCKED ou NEEDS_EVIDENCE n'autorise rien.
+function hashesApprouves(lot) {
+  const r = [];
+  for (const d of echanges(lot, 'decision')) {
+    const f = path.join(LOTS, lot, d.fichier), env = lireEnveloppe(f);
+    if (!env.env || !['APPROVED', 'APPROVED_WITH_CONDITIONS', 'APPROVED_CLOSED'].includes(env.env.decision)) continue;
+    r.push(...(fs.readFileSync(f, 'utf8').match(/\b[0-9a-f]{64}\b/g) || []));
+  }
+  return r;
+}
 const dernier = liste => liste.length ? liste[liste.length - 1] : null;
 function validerCommuns(lot, e, env, genre, rail) {
   const ou = `${lot}/${e.fichier}`;
@@ -737,7 +748,7 @@ function validerExecutionsEtOrdres(etat) {
       if (!m || !o) { bloquant(`${ou} : ne cite aucun ordre du lot (hash ${JSON.stringify(e && e.operation_hash)}) — un retour sans ordre ne prouve rien`, 'EXECUTION_ORPHELINE', ou); continue; }
       if (o.fichier !== `order-${m[1]}-${m[2]}.json`) bloquant(`${ou} : son nom désigne order-${m[1]}-${m[2]}.json mais son hash est celui de ${o.fichier}`, 'EXECUTION_INCOHERENTE', ou);
       if (!ETATS_RETOUR.includes(e.etat)) bloquant(`${ou} : état ${JSON.stringify(e.etat)} hors ${ETATS_RETOUR.join(' | ')}`, 'EXECUTION_INCOHERENTE', ou);
-      const err = O.validerExecution(e, o.ordre); if (err.length) bloquant(`${ou} : le retour contredit ${o.fichier} (${err.join(', ')})`, 'EXECUTION_INCOHERENTE', ou);
+      const err = O.validerExecution(e, o.ordre, { hashesApprouves: hashesApprouves(lot) }); if (err.length) bloquant(`${ou} : le retour contredit ${o.fichier} (${err.join(', ')})`, 'EXECUTION_INCOHERENTE', ou);
     }
   }
   // Capacité Supabase déclarée sans ordre : lot actif seulement, déclaration la plus récente seulement.
@@ -768,7 +779,7 @@ function deposerRetourExecution(lot, fichierExecution) {
   if (!o) refus(`aucun ordre du lot ${lot} ne porte le hash ${JSON.stringify(e.operation_hash)} : un retour sans ordre ne prouve rien.`);
   if (O.hashOrdre(o.ordre) !== o.ordre.operation_hash) refus(`${o.fichier} a été altéré après son hash (ORDRE_ALTERE).`);
   if (!ETATS_RETOUR.includes(e.etat)) refus(`état ${JSON.stringify(e.etat)} hors ${ETATS_RETOUR.join(' | ')}.`);
-  const err = O.validerExecution(e, o.ordre); if (err.length) refus(`le retour contredit ${o.fichier} : ${err.join(', ')}.`);
+  const err = O.validerExecution(e, o.ordre, { hashesApprouves: hashesApprouves(lot) }); if (err.length) refus(`le retour contredit ${o.fichier} : ${err.join(', ')}.`);
   const [, seq, k] = o.fichier.match(/^order-(\d+)-(\d+)\.json$/), dir = path.join(LOTS, lot);
   const deja = fs.readdirSync(dir).filter(x => new RegExp(`^execution-${seq}-${k}(-r\\d+)?\\.json$`).test(x)).sort();
   for (const f of deja) { let p; try { p = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (_) { p = {}; } if (p.etat !== 'EXECUTION_INCERTAINE') refus(`${f} (${p.etat}) est déjà le retour terminal de ${o.fichier} : un ordre à usage unique ne se rejoue pas.`); }

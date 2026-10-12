@@ -106,4 +106,49 @@ try {
   ok('F — mutation « débrancher le contrôle de verifier » : l\'épreuve D le verrait');
 } finally { fs.rmSync(MUT, { force: true }); }
 
+// G : le GO inscrit dans le retour est contrôlé (environnement, habilitation, décision citant le hash pour Production)
+const ordreProd = O.construire({ operation: 'MIGRATION_APPLY', lot: LOT, request: 'request-1', cible: { env: 'production', project_ref: O.ENVS.production },
+  artefact: { chemin: 'supabase/migrations/20261012000000_exemple.sql', blob: 'a'.repeat(40), commit: 'b'.repeat(40) },
+  preconditions: { registre_taille: 310 }, postconditions: { registre_taille: 311 }, retour_arriere: 'aucun, justifié : additive',
+  cree_le: '2026-10-12T10:00:00Z', expire_le: '2026-10-13T10:00:00Z' });
+const goProd = (extra = {}) => ({ operation_hash: ordreProd.operation_hash, env: 'production', acteur: 'vito-sainte-marie', ...extra });
+const execProd = (go = goProd()) => exec('EXECUTE', { operation_hash: ordreProd.operation_hash, go });
+function registreProd(decisionCitee) {
+  const d = registre(); fs.writeFileSync(path.join(lot(d), 'order-1-1.json'), JSON.stringify(ordreProd, null, 2) + '\n');
+  if (decisionCitee) fs.writeFileSync(path.join(lot(d), 'decision-1.md'), `---\nprotocol: nexus-handoff/2\nkind: decision\nlot_id: ${LOT}\nseq: 1\nauthor: Frédéric\nbranch: handoff-continuite-20260920\ndecision: ${decisionCitee.decision}\ncloses: false\nin_reply_to: request-1.md\n---\n\nGO Production pour ${decisionCitee.hash}.\n`);
+  return d;
+}
+const SANS = /le retour contredit order-1-1\.json[^\n]*GO_SANS_DECISION/, ENVD = /le retour contredit order-1-1\.json[^\n]*GO_ENV_DIFFERENT/, NHAB = /le retour contredit order-1-1\.json[^\n]*GO_ACTEUR_NON_HABILITE/;
+// Production sans décision : refus à la commande, sans écriture ; verifier refuse un retour déjà posé
+dir = registreProd(null); x = depose(dir, execProd()); assert.notStrictEqual(x.code, 0, 'G: sans décision, refus'); assert.match(x.sortie, SANS); assert.deepStrictEqual(fichiers(dir), []);
+dir = registreProd(null); fs.writeFileSync(path.join(lot(dir), 'execution-1-1.json'), JSON.stringify(execProd()));
+x = verifier(dir); assert.notStrictEqual(x.code, 0); assert.match(x.sortie, SANS, 'G: verifier refuse un GO Production sans décision');
+// décision qui cite un autre hash, ou qui bloque : n'autorise rien
+dir = registreProd({ decision: 'APPROVED', hash: 'c'.repeat(64) }); assert.match(depose(dir, execProd()).sortie, SANS, 'G: décision citant un autre hash');
+dir = registreProd({ decision: 'BLOCKED', hash: ordreProd.operation_hash }); assert.match(depose(dir, execProd()).sortie, SANS, 'G: décision BLOCKED citant le hash');
+// décision approuvée qui cite le hash exact : le retour passe
+dir = registreProd({ decision: 'APPROVED_WITH_CONDITIONS', hash: ordreProd.operation_hash }); x = depose(dir, execProd());
+assert.strictEqual(x.code, 0, `G: décision citant le hash\n${x.sortie}`); assert.deepStrictEqual(fichiers(dir), ['execution-1-1.json']);
+// environnement et habilitation, y compris avec une décision en règle
+dir = registreProd({ decision: 'APPROVED', hash: ordreProd.operation_hash });
+x = depose(dir, execProd(goProd({ env: 'test' }))); assert.notStrictEqual(x.code, 0); assert.match(x.sortie, ENVD, 'G: GO d\'un autre environnement');
+x = depose(dir, execProd(goProd({ acteur: 'arbitre-chatgpt' }))); assert.notStrictEqual(x.code, 0); assert.match(x.sortie, NHAB, 'G: acteur habilité Test seulement');
+x = depose(dir, execProd(goProd({ acteur: 'inconnu-quelconque' }))); assert.notStrictEqual(x.code, 0); assert.match(x.sortie, NHAB, 'G: acteur inconnu');
+assert.deepStrictEqual(fichiers(dir), [], 'G: aucun retour refusé n\'est écrit');
+// un ordre Test n'exige pas de décision (le GO de l'arbitre suffit) mais reste soumis à l'habilitation
+dir = registre(); x = depose(dir, exec('EXECUTE', { go: { operation_hash: ordre.operation_hash, env: 'test', acteur: 'inconnu-quelconque' } }));
+assert.notStrictEqual(x.code, 0); assert.match(x.sortie, /le retour contredit order-1-1\.json[^\n]*GO_ACTEUR_NON_HABILITE/, 'G: Test, acteur inconnu');
+ok('G — GO du retour : environnement, habilitation, décision approuvée citant le hash (Production)');
+
+// H : débrancher le calcul des décisions, aux deux appels : le contrôle devient décoratif, l'épreuve G le verrait
+const appel = '{ hashesApprouves: hashesApprouves(lot) }';
+assert.strictEqual(src.split(appel).length, 3, 'H: deux appels, ancre exacte');
+fs.writeFileSync(MUT, src.split(appel).join('{ hashesApprouves: [o.ordre.operation_hash] }'));
+try {
+  dir = registreProd(null); assert.strictEqual(depose(dir, execProd(), MUT).code, 0, 'H: contrôle débranché → Production sans décision passe : l\'épreuve G rougirait');
+  dir = registreProd(null); fs.writeFileSync(path.join(lot(dir), 'execution-1-1.json'), JSON.stringify(execProd()));
+  assert.ok(!SANS.test(verifier(dir, MUT).sortie), 'H: idem côté verifier');
+  ok('H — mutation « débrancher les décisions du lot » : l\'épreuve G la verrait, aux deux appels');
+} finally { fs.rmSync(MUT, { force: true }); }
+
 console.log(`\nexécution reçue : ${n} groupes d'épreuves passés.`);

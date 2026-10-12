@@ -162,13 +162,23 @@ function reconcilier(ordre, mesures) {
   return 'INDETERMINE';
 }
 
+// Qui peut donner un GO, par environnement. Source unique : le CLI de consommer-ordre.js la relit ici.
+const HABILITES = Object.freeze({ production: ['vito-sainte-marie'], test: ['arbitre-chatgpt', 'vito-sainte-marie'] });
+
 // Retour `execution-N` : doit être vérifiable et permettre la reprise.
-function validerExecution(exec, ordre) {
+// Le GO qu'il porte n'est pas cru sur parole : même environnement que l'ordre, acteur habilité, et pour
+// Production une décision approuvée du lot qui cite le hash exact (`hashesApprouves`, calculé par l'appelant).
+function validerExecution(exec, ordre, { habilites = HABILITES, hashesApprouves } = {}) {
   const r = [];
   if (!exec || typeof exec !== 'object') return ['ORDRE_MALFORME'];
   if (exec.operation_hash !== ordre.operation_hash) r.push('GO_HASH_DIFFERENT');
   if (!Object.keys(TRANSITIONS).includes(exec.etat)) r.push('ORDRE_MALFORME');
   if (!exec.executant || !exec.go || !exec.go.acteur || exec.go.operation_hash !== ordre.operation_hash) r.push('GO_ABSENT');
+  if (exec.go && exec.go.acteur && exec.go.operation_hash === ordre.operation_hash) {
+    if (exec.go.env !== ordre.cible.env) r.push('GO_ENV_DIFFERENT');
+    if (!((habilites || {})[ordre.cible.env] || []).includes(exec.go.acteur)) r.push('GO_ACTEUR_NON_HABILITE');
+  }
+  if (ordre.cible.env === 'production' && !(hashesApprouves || []).includes(ordre.operation_hash)) r.push('GO_SANS_DECISION');
   if (!exec.mesures_avant || !exec.mesures_apres) r.push('ORDRE_MALFORME');
   const d = Date.parse(exec.debut), f = Date.parse(exec.fin);
   if (Number.isNaN(d) || Number.isNaN(f) || f < d) r.push('ORDRE_MALFORME');
@@ -181,6 +191,6 @@ function validerExecution(exec, ordre) {
 }
 
 module.exports = {
-  TYPES, ENVS, CONTROLES_LECTURE, CODES_REFUS, TRANSITIONS,
+  TYPES, ENVS, CONTROLES_LECTURE, CODES_REFUS, TRANSITIONS, HABILITES,
   canonique, hashOrdre, construire, valider, autoriser, peutExecuter, transition, reconcilier, validerExecution,
 };
