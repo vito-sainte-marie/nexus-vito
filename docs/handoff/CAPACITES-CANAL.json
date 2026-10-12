@@ -24,13 +24,20 @@
         "DEPOT_ECRITURE_RAIL": "OUI",
         "CANAL_PUBLICATION": "OUI",
         "CI_LECTURE_RUN": "NON",
-        "SUPABASE_TEST_LECTURE": "OUI",
+        "SUPABASE_TEST_LECTURE": "NON",
         "SUPABASE_TEST_ECRITURE": "NON",
         "SUPABASE_PRODUCTION_LECTURE": "NON",
         "SUPABASE_PRODUCTION_ECRITURE": "NON",
         "PRODUCTION_FUSION_DEPLOIEMENT": "NON"
       },
       "preuves": {
+        "SUPABASE_TEST_LECTURE": {
+          "type": "EXERCEE",
+          "commande": "gh run view 38234629984 --log (job 114762162104, étape « Préparer connexion PostgreSQL Test read-only »)",
+          "date": "2026-10-12",
+          "resultat": "avertissement « Supabase Test read-only configuration is invalid » puis NEXUS_TEST_DB_AVAILABLE=0 : le secret SUPABASE_TEST_DB_URL_READONLY existe mais son contenu ne passe pas la validation (schéma ou composantes manquantes) ; aucune variable PG* exportée, aucune lecture Test possible depuis ce canal. Valeur jamais lue.",
+          "source": "docs/gouvernance/NEXUS-EXECUTOR-SUPABASE-1-audit-et-architecture.md"
+        },
         "CI_LECTURE_RUN": {
           "type": "EXERCEE",
           "commande": "gh run view 37866619689",

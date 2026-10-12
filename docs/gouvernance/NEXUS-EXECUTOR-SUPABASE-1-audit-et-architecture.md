@@ -79,6 +79,7 @@ L'exécutant dépose `execution-N.json|md` dans le lot (hash, mesures avant/apr�
 ## 4. Plan par étapes (un GO par étape)
 
 - **E0 — Mesure.** Lire le journal du dernier run `claude.yml` (état de `NEXUS_TEST_DB_AVAILABLE`, sans valeur), corriger `CAPACITES-CANAL.json` avec une preuve EXERCEE. Doc/registre seulement.
+  - **Résultat (12/10) :** run 38234629984, job 114762162104 : l'étape « Préparer connexion » émet « configuration is invalid » puis `NEXUS_TEST_DB_AVAILABLE=0`. Le secret existe mais son contenu est rejeté par la validation (schéma/composantes) ; la capacité n'est donc pas exercée. `SUPABASE_TEST_LECTURE` passe à NON avec preuve EXERCEE. Réparer le contenu du secret est un changement de secret : hors périmètre, à décider séparément.
 - **E1 — Schéma de l'ordre.** `outils/ordre-execution.js` pur (construction, hash canonique, validation, refus codés) + épreuves, dont mutations : hash altéré, blob différent, projet croisé, ordre expiré, rejeu. Aucun accès base.
 - **E2 — Catalogue et détection.** Étendre `gestes` ; détecter le type par nature d'artefact ; épreuve « débrancher l'aide » (preuve de câblage, pas seulement de fonction).
 - **E3 — Câblage du routage.** `handoff.js demande` appelle le classifieur et génère l'ordre au lieu d'un `BLOCKED` sans issue ; `verifier` refuse un `BLOCKED` de capacité sans ordre.
