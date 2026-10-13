@@ -91,6 +91,18 @@
     return { montant, affectations: lu.affectations, affecte, surplus, problemes: p };
   }
 
+  // Le transfert est plafonné au versement reçu ; le serveur déduit en plus ce
+  // qui est déjà parti (PLAFOND_DEPASSE) et reste seul juge.
+  function controlerTransfertGroupe(s, g) {
+    const p = [];
+    const montant = Number(String(s.montant ?? '').replace(',', '.'));
+    const ok = Number.isFinite(montant) && montant > 0 && Math.abs(montant * 100 - Math.round(montant * 100)) < 1e-6;
+    if (!ok) p.push('Montant invalide : un nombre positif, au centime.');
+    else if (g && montant > Number(g.montant)) p.push(`Le transfert dépasse le versement reçu (${eur(g.montant)}).`);
+    if (String(s.motif || '').trim().length < 5) p.push('Un transfert exige un motif (au moins 5 caractères).');
+    return { montant: ok ? montant : null, problemes: p };
+  }
+
   function parametresGroupe(employeeId, domaine, s, controle, cle) {
     const coffre = s.emplacement === 'coffre';
     return {
@@ -194,6 +206,7 @@
         <div class="regul-op-note">Affecté ${eur(g.affecte)}${Number(g.surplus) > 0 ? ` · <b>surplus ${eur(g.surplus)}</b> suivi à part` : ''}</div>
         ${g.annule_le ? `<div class="regul-op-note">Annulé : ${esc(g.motif_annulation)}</div>` : `<div class="regul-op-actions">
           ${Number(g.surplus) > 0 ? `<button type="button" class="rg-surplus" data-id="${esc(g.id)}">Affecter le surplus</button>` : ''}
+          ${g.destination !== 'coffre' ? `<button type="button" class="rg-coffre" data-id="${esc(g.id)}">Transférer au coffre</button>` : ''}
           <button type="button" class="rg-annuler" data-id="${esc(g.id)}">Annuler le versement</button></div>`}
       </div>`).join('')}`;
   }
@@ -306,6 +319,32 @@
         btn.disabled = false;
       }
     }));
+    conteneur.querySelectorAll('.rg-coffre').forEach(btn => btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const g = groupes.find(x => x.id === btn.dataset.id);
+      if (!g) return;
+      const demander = ctx.demanderMotif || global.prompt;
+      const alerter = ctx.alerter || global.alert;
+      const brut = demander(`Montant à transférer au coffre (maximum ${eur(g.montant)}) :`, String(g.montant));
+      if (brut == null) return;
+      const controle = controlerTransfertGroupe({ montant: brut, motif: 'xxxxx' }, g);
+      if (controle.montant == null || controle.problemes.some(m => /Montant|dépasse/.test(m))) { alerter(controle.problemes.filter(m => /Montant|dépasse/.test(m)).join('\n')); return; }
+      const motif = demander('Motif du transfert (au moins 5 caractères) :');
+      if (motif == null) return;
+      if (String(motif).trim().length < 5) { alerter('Un transfert exige un motif (au moins 5 caractères).'); return; }
+      btn.disabled = true;
+      try {
+        const cle = (ctx.nouvelleCle || (() => global.crypto.randomUUID()))();
+        const { error } = await ctx.client.rpc('enregistrer_transfert_coffre_groupe', {
+          p_groupe_id: g.id, p_montant: controle.montant, p_motif: String(motif).trim(), p_idempotency_key: cle });
+        if (error) throw error;
+        await ctx.apresSucces();
+      } catch (e) {
+        const r = lireErreur(e);
+        alerter(`${r.message}${r.conseil ? '\n' + r.conseil : ''}`);
+        btn.disabled = false;
+      }
+    }));
     conteneur.querySelectorAll('.rg-surplus').forEach(btn => btn.addEventListener('click', () => {
       const g = groupes.find(x => x.id === btn.dataset.id);
       if (g && ctx.ouvrirSurplus) ctx.ouvrirSurplus(g);
@@ -314,7 +353,7 @@
 
   global.NexusRegularisationGroupe = {
     DOMAINES, CONSEILS, cleEcart, libOrigine, lireAffectations, sommeAffectations,
-    controlerGroupe, parametresGroupe, lireErreur, chargerEcartsOuverts, chargerGroupes,
+    controlerGroupe, controlerTransfertGroupe, parametresGroupe, lireErreur, chargerEcartsOuverts, chargerGroupes,
     renderFormulaire, renderEcarts, renderPied, renderGroupes, brancher, brancherGroupes,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

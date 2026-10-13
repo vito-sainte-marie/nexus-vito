@@ -459,7 +459,43 @@
     return { versements: v.data || [], restitutions: r.data || [] };
   }
 
+  // Statut de qualification d'un écart de caisse (cahier du 13/10) : calculé,
+  // jamais stocké. « Justifié » n'est pas « régularisé » : un écart justifié
+  // dont le solde reste dû garde `nonRegularise`. Ne touche aucun calcul de paie.
+  const QUALIFICATION = {
+    A_EXAMINER: 'À examiner', JUSTIFIE: 'Justifié', PARTIEL: 'Partiellement régularisé',
+    REGULARISE: 'Régularisé', TRANSMIS: 'Transmis à la comptable', CORRIGE: 'Annulé / corrigé',
+  };
+  const JUSTIFICATION_MIN = 5;
+  function statutQualification(item, situation) {
+    const it = item || {};
+    const verse = situation && Number(situation.versementsCentimes) > 0;
+    const resteDu = situation && situation.resteDuCentimes != null ? Number(situation.resteDuCentimes) : null;
+    const solde = verse && resteDu === 0;
+    if (it.statut === 'corrige') return { statut: QUALIFICATION.CORRIGE, nonRegularise: false };
+    if (it.statut === 'valide') return { statut: QUALIFICATION.TRANSMIS, nonRegularise: !solde && resteDu !== 0 && resteDu != null };
+    if (solde) return { statut: QUALIFICATION.REGULARISE, nonRegularise: false };
+    if (verse) return { statut: QUALIFICATION.PARTIEL, nonRegularise: true };
+    if (it.statut === 'justifie' || it.statut === 'exclu') return { statut: QUALIFICATION.JUSTIFIE, nonRegularise: true };
+    return { statut: QUALIFICATION.A_EXAMINER, nonRegularise: false };
+  }
+  // « Sans impact paie » et la transmission exigent une justification écrite.
+  function justificationRequise(action, texte) {
+    const exigee = action === 'sans_impact' || action === 'transmettre';
+    return !exigee || String(texte || '').trim().length >= JUSTIFICATION_MIN;
+  }
+  // Deux compteurs distincts : une décision de paie n'est pas un écart de caisse à qualifier.
+  function compteursQualification(items, nbParametrages) {
+    const l = items || [];
+    const enAttente = i => i.statut === 'a_verifier' || i.contestationOuverte;
+    return {
+      decisionsPaie: l.filter(i => i.typeItem !== 'ecart_caisse' && enAttente(i)).length + (nbParametrages || 0),
+      ecartsAQualifier: l.filter(i => i.typeItem === 'ecart_caisse' && enAttente(i)).length,
+    };
+  }
+
   global.NexusPayeRegularisations = {
+    QUALIFICATION, JUSTIFICATION_MIN, statutQualification, justificationRequise, compteursQualification,
     STATUTS, ANNULE_PAR_CONTRE_ECRITURE, LIBELLE_VERSEMENT,
     jourStation, lundiDe, construireReleve, vueHebdomadaire, vueMensuelle,
     syntheseRegularisationsPeriode, syntheseParDomaine, renderSynthese, operationsDeLUnivers, ecartsDeLaProjection,

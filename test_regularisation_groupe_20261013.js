@@ -35,6 +35,14 @@ c = G.controlerGroupe({ ...base, mode: 'autre', saisies: s2.saisies, surplusConf
 ok(c.problemes.some(p => /justification/.test(p)), 'mode autre sans justification refusé');
 ok(G.lireErreur({ message: 'x [SURPLUS_NON_CONFIRME]' }).conseil, 'conseil pour un code du groupe');
 ok(/<form/.test(G.renderFormulaire({ employes: [], aujourdhui: '2026-10-13', cle: 'c' })), 'formulaire rendu');
+// Bouton du coffre : plafonné au versement reçu, motif obligatoire.
+const gr = { id: 'g1', employee_id: 'e1', domaine: 'fdj', montant: 10, destination: 'tiroir_fdj', affecte: 8, surplus: 2, nb_affectations: 2, annule_le: null };
+ok(/rg-coffre/.test(G.renderGroupes([gr], () => 'A')), 'bouton « Transférer au coffre » présent sur un tiroir');
+ok(!/rg-coffre/.test(G.renderGroupes([{ ...gr, destination: 'coffre' }], () => 'A')), 'absent si le versement est déjà au coffre');
+ok(!/rg-coffre/.test(G.renderGroupes([{ ...gr, annule_le: '2026-10-13' }], () => 'A')), 'absent si le versement est annulé');
+ok(G.controlerTransfertGroupe({ montant: '10,01', motif: 'remise coffre' }, gr).problemes.some(p => /dépasse/.test(p)), 'transfert supérieur au versement refusé');
+ok(G.controlerTransfertGroupe({ montant: '10', motif: 'abc' }, gr).problemes.some(p => /motif/.test(p)), 'motif trop court refusé');
+ok(G.controlerTransfertGroupe({ montant: '10', motif: 'remise coffre' }, gr).problemes.length === 0, 'transfert valide');
 console.log(`${n} épreuves vertes`);
 
 // Synthèse Paye par domaine : deux univers disjoints, surplus absent.
@@ -47,3 +55,21 @@ const ec = [
 const d = P.syntheseParDomaine(ec, { versements: [], restitutions: [] }, { fuseau: 'Europe/Paris', dateDebut: '2026-10-01', dateFin: '2026-10-31', aujourdhui: '2026-10-13' });
 assert.strictEqual(d.fdj.constates.manquesCentimes, -400); assert.strictEqual(d.verify.constates.manquesCentimes, -600);
 console.log('OK synthèse Paye séparée Verify / FDJ');
+
+// Statuts, justification et compteurs séparés (Paye, lecture seule).
+{
+  const R = globalThis.NexusPayeRegularisations;
+  const st = (i, s) => R.statutQualification(i, s).statut;
+  ok(st({ statut: 'a_verifier' }, null) === 'À examiner', 'statut À examiner');
+  ok(st({ statut: 'justifie' }, null) === 'Justifié' && R.statutQualification({ statut: 'justifie' }, null).nonRegularise, 'Justifié ≠ régularisé');
+  ok(st({ statut: 'a_verifier' }, { versementsCentimes: 400, resteDuCentimes: 400 }) === 'Partiellement régularisé', 'partiel');
+  ok(st({ statut: 'a_verifier' }, { versementsCentimes: 800, resteDuCentimes: 0 }) === 'Régularisé', 'régularisé');
+  ok(st({ statut: 'valide' }, null) === 'Transmis à la comptable', 'transmis');
+  ok(R.statutQualification({ statut: 'valide' }, { versementsCentimes: 400, resteDuCentimes: 400 }).nonRegularise, 'transmis non régularisé marqué');
+  ok(st({ statut: 'corrige' }, null) === 'Annulé / corrigé', 'annulé / corrigé');
+  ok(!R.justificationRequise('sans_impact', '  ') && !R.justificationRequise('transmettre', 'abc') && R.justificationRequise('transmettre', 'accord gérant'), 'justification obligatoire');
+  const items = [{ typeItem: 'ecart_caisse', statut: 'a_verifier' }, { typeItem: 'ecart_caisse', statut: 'valide' }, { typeItem: 'retard', statut: 'a_verifier' }, { typeItem: 'retard', contestationOuverte: true, statut: 'valide' }];
+  const c = R.compteursQualification(items, 2);
+  ok(c.decisionsPaie === 4 && c.ecartsAQualifier === 1, 'deux compteurs séparés');
+  console.log(`${n} épreuves vertes`);
+}

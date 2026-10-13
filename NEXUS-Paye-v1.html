@@ -42,7 +42,7 @@ main{padding:12px 18px 20px}
 .topacts .btn{padding:7px 10px;font-size:10px}
 .topbar .menu{position:static;padding:6px 10px}
 /* Indicateurs : cinq, tous cliquables, tous reliés à une donnée réelle. */
-.kpirow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:9px}
+.kpirow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:9px}
 button.kpi{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer;color:var(--text);font-family:var(--sans)}
 button.kpi:hover,button.kpi:focus-visible{border-color:rgba(79,195,217,.45);outline:none}
 button.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
@@ -354,11 +354,12 @@ function renderTable(){
  <div class="help" id="tableCount" style="padding:0 11px 9px;margin:0">${libelleCompte(l)}</div>`;
 }
 function renderKpis(s,ec,a){
- const dec=s.aVerifier+s.configurationRequise;
+ const cq=(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.compteursQualification?NexusPayeRegularisations.compteursQualification(RAPPORT.items,s.configurationRequise):{decisionsPaie:s.aVerifier+s.configurationRequise,ecartsAQualifier:0}), dec=cq.decisionsPaie;
  return `<div class="kpirow" role="group" aria-label="Indicateurs du mois">
  <button type="button" class="kpi${FILTRE==='tous'?' actif':''}" data-kpi="salaries"><span>Salariés dans la paie</span><b>${s.salariesInclus}</b><small>${s.salariesInclus+a.horsPaie} salariés : ${s.salariesInclus} dans la paie + ${a.horsPaie} hors paie</small></button>
  <button type="button" class="kpi${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures confirmées</span><b>${H2(s.heuresConfirmees-a.attente)} h${a.attente?` <em class="kpi-attente" title="Heures de présence hors planning en attente d’arbitrage : non comptées tant qu’aucune décision n’est prise">+ ${H2(a.attente)} h à arbitrer</em>`:''}</b><small>${a.mesures} jours mesurés · ${a.reconstitues} reconstitués${a.supp?` · +${H2(a.supp)} h supp. arbitrées`:''}</small></button>
- <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Éléments nécessitant une décision</span><b>${dec}</b><small>${s.aVerifier} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
+ <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Décisions de paie à traiter</span><b>${dec}</b><small>${dec-s.configurationRequise} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
+ <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
  <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b><small>${s.salariesAVerifier} à vérifier · ${s.salariesDonneeManquante} donnée manquante</small></button>
  <button type="button" class="kpi money" data-kpi="ecarts"><span>Solde des écarts de caisse</span>${regulOk()?`<b>${euros(-REGUL.synthese.soldeFinPeriode.resteDuCentimes)}</b><small>encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
  </div>`;
@@ -680,8 +681,8 @@ function blocQualification(i){
  </div>`}
 function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
-  statut=LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie',
   ecart=i.typeItem==='ecart_caisse',
+  statut=ecart?(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.statutQualification?(q=>q.statut+(q.nonRegularise?' · non régularisé':''))(NexusPayeRegularisations.statutQualification(i,null)):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie')):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie'),
   actions=i.signale&&i.statut==='information'?`<div class="item-actions"><button class="btn primary verify-signal" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Marquer vérifié</button></div>`:i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',
   source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';
  // Un événement RH se lit en trois lignes — motif, période couverte,
@@ -973,6 +974,7 @@ function bindCockpit(){
   else if(k==='decisions'){FILTRE='a_verifier';majTable();ouvrirOnglet('decisions','reviewSection')}
   else if(k==='prets'){FILTRE='prets';majTable()}
   else if(k==='ecarts'){ouvrirOnglet('decisions','ecartsBloc')}
+  else if(k==='ecarts-qualifier'){ouvrirOnglet('decisions','ecartsBloc')}
  });
  const t=document.getElementById('toggleSaisie'), d=document.getElementById('drawerSaisie');
  if(t&&d)t.onclick=()=>{d.hidden=!d.hidden;t.setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden&&d.scrollIntoView)d.scrollIntoView({behavior:'smooth',block:'nearest'})};
@@ -1004,20 +1006,28 @@ async function decision(btn,valider){
  const item=trouver(btn.dataset.emp,btn.dataset.key);if(!item)return;
  if(valider&&item.contestationOuverte){nexusErreur('Transmission bloquée','La contestation de cet écart est encore ouverte. Traitez-la dans Verify avant de trancher ici.');return}
  if(valider&&item.typeItem==='retard_incoherent'){nexusErreur('Retard incohérent','Ce retard est techniquement incohérent. Corrigez le pointage source ou excluez ce signal, mais ne le validez pas.');return}
- let montant=null,impact=false;
+ let montant=null,impact=false,justif=null;
  if(valider&&item.typeItem==='ecart_caisse'){
   // Le montant n'est JAMAIS repris automatiquement : le manager saisit ce
   // qu'il transmet, en connaissance de cause (doctrine PAYE inchangée).
   const reponse=await ouvrirDialogue({titre:'Montant à transmettre à la comptable',
    texte:`${item.libelle}\n\nNEXUS ne reprend pas automatiquement le montant de référence : saisissez le montant exact que vous transmettez, en euros.`,
-   champs:[{cle:'montant',label:'Montant transmis (€)',type:'number',pas:'0.01',min:'0',placeholder:'0,00'}],
+   champs:[{cle:'montant',label:'Montant transmis (€)',type:'number',pas:'0.01',min:'0',placeholder:'0,00'},{cle:'justification',label:'Justification (obligatoire)',type:'textarea',placeholder:'Pourquoi cet écart est transmis à la comptable'}],
    libelleValider:'Transmettre ce montant',
-   verifier:v=>{const n=Number(String(v.montant).replace(',','.'));return (v.montant!==''&&Number.isFinite(n)&&n>=0)?null:'Saisissez un montant positif, en euros.'}});
+   verifier:v=>{const n=Number(String(v.montant).replace(',','.'));if(!(v.montant!==''&&Number.isFinite(n)&&n>=0))return 'Saisissez un montant positif, en euros.';return NexusPayeRegularisations.justificationRequise('transmettre',v.justification)?null:'La transmission exige une justification (au moins 5 caractères).'}});
   if(!reponse)return;
   montant=Math.round(Number(String(reponse.montant).replace(',','.'))*100);impact=true;
+  justif=String(reponse.justification||'').trim();
  }else if(valider&&['heure_supplementaire','retard','absence_a_verifier','conge_paye','arret_maladie','jour_ferie','acompte','dette'].includes(item.typeItem)){impact=true}
+ if(!valider&&item.typeItem==='ecart_caisse'){
+  const r=await ouvrirDialogue({titre:'Écart sans impact paie',texte:`${item.libelle}\n\nUn écart classé sans impact paie doit dire pourquoi : l'auteur, la date et le statut précédent sont conservés.`,
+   champs:[{cle:'justification',label:'Justification (obligatoire)',type:'textarea',placeholder:'Pourquoi cet écart est sans impact paie'}],
+   libelleValider:'Classer sans impact paie',
+   verifier:v=>NexusPayeRegularisations.justificationRequise('sans_impact',v.justification)?null:'La justification est obligatoire (au moins 5 caractères).'});
+  if(!r)return;justif=String(r.justification).trim();
+ }
  btn.disabled=true;
- try{await NexusPayeDonnees.enregistrerDecision(nexusClient,{siteId:SITE,employeeId:btn.dataset.emp,periode:MOIS,item,statut:valider?'valide':'exclu',impactPaye:impact,montantCentimes:montant,note:null,actorId:EMPLOYEE.id});await reload()}
+ try{await NexusPayeDonnees.enregistrerDecision(nexusClient,{siteId:SITE,employeeId:btn.dataset.emp,periode:MOIS,item,statut:valider?'valide':'exclu',impactPaye:impact,montantCentimes:montant,note:justif,actorId:EMPLOYEE.id});await reload()}
  catch(e){console.error('NEXUS PAYE — enregistrement de la décision :',e);btn.disabled=false;nexusErreur('Décision non enregistrée',`NEXUS n'a pas pu enregistrer cette décision : ${messageErreur(e)}\n\nRien n'a été modifié.`)}
 }
 function majPeriodeManuelle(){const debut=document.getElementById('manualDateDebut').value,fin=document.getElementById('manualDateFin').value,resume=document.getElementById('manualPeriodSummary'),btn=document.getElementById('addManual');if(!debut||!fin){resume.textContent='Choisissez la date de début et la date de fin.';btn.textContent='Ajouter et valider';return}try{const dates=NexusPayeDonnees.datesInclusives(debut,fin);resume.textContent=dates.length===1?'1 journée sélectionnée.':`${dates.length} jours sélectionnés, du ${new Date(`${debut}T12:00:00`).toLocaleDateString('fr-FR')} au ${new Date(`${fin}T12:00:00`).toLocaleDateString('fr-FR')}.`;btn.textContent=dates.length===1?'Ajouter et valider':`Ajouter ${dates.length} jours et valider`}catch(_){resume.textContent='La date de fin doit être postérieure ou égale à la date de début.';btn.textContent='Ajouter et valider'}}
