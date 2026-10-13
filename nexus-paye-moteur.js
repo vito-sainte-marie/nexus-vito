@@ -87,6 +87,9 @@
   //      plus annoncée comme supplémentaire : elle est la durée du jeudi.
   const DUREES_REFERENCE_DEFAUT = [7, 7, 7, 7, 8, 8, 8]; // dim, lun, mar, mer, jeu, ven, sam
   const HEURES_RENFORT_DEFAUT = 7;
+  // Le renfort n'existe dans le classeur qu'à partir d'octobre 2026 (13/10/2026) : avant, la colonne D
+  // est POMPISTE. Défaut d'un réglage de config (renfort_effectif_depuis), donc surchargeable par site.
+  const RENFORT_EFFECTIF_DEPUIS_DEFAUT = '2026-10-01';
   const HEURES_BASE_JOUR = 7; // heures normales d'une journée ; au-delà, heures supplémentaires (Q1, 10/10/2026)
 
   // « 09:00 » → 540. Rend null sur tout ce qui n'est pas un horaire lisible,
@@ -374,6 +377,7 @@
     const config = Object.assign({
       retard_max_coherent_min: 180, jours_feries: [],
       durees_reference: null, heures_renfort: 0,
+      renfort_effectif_depuis: RENFORT_EFFECTIF_DEPUIS_DEFAUT,
     }, entree.config || {});
     // Les durées de référence et l'horaire standard du renfort viennent des
     // Paramètres Station. Une seule lecture, un seul jeu de règles, partagé
@@ -401,6 +405,8 @@
         // Décision du 10/10/2026 : le renfort ne vaut qu'au quart 1. Un renfort
         // déclaré au quart 2 est ignoré, il n'ouvre aucune journée payée.
         if (activite === 'renfort' && String(a.quart) === '2') return;
+        // Le renfort n'est effectif qu'à partir de renfort_effectif_depuis (13/10/2026) : une date antérieure est ignorée.
+        if (activite === 'renfort' && config.renfort_effectif_depuis && String(a.date).slice(0, 10) < config.renfort_effectif_depuis) return;
         const cle = cleJour(employeeId, a.date);
         if (!postesVerifyParJour.has(cle)) postesVerifyParJour.set(cle, new Set());
         postesVerifyParJour.get(cle).add(COLONNES_POSTE[activite]);

@@ -28,9 +28,9 @@ function verifier(libelle, condition) {
 }
 
 const SITE = 'vito-sainte-marie';
-const PERIODE = '2026-09-01';
+const PERIODE = '2026-10-01'; // octobre : le renfort n'est effectif qu'à partir du 01/10/2026
 // Septembre 2026 : le 7 est un lundi, le 10 un jeudi, le 11 un vendredi.
-const LUNDI = '2026-09-07', JEUDI = '2026-09-10', VENDREDI = '2026-09-11', SAMEDI = '2026-09-12';
+const LUNDI = '2026-10-05', JEUDI = '2026-10-08', VENDREDI = '2026-10-09', SAMEDI = '2026-10-10';
 const NOMS = { [LUNDI]: 'lundi', [JEUDI]: 'jeudi', [VENDREDI]: 'vendredi', [SAMEDI]: 'samedi' };
 for (const d of [LUNDI, JEUDI, VENDREDI, SAMEDI])
   verifier(`le calendrier de l’épreuve est juste : le ${d.slice(8)}/09/2026 est un ${NOMS[d]}`,

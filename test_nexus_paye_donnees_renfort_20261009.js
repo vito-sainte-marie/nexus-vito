@@ -30,7 +30,7 @@ ctx.NexusEcartsDonnees = { chargerEcartsConsolides: async () => [] };
 
 const D = ctx.NexusPayeDonnees;
 const SITE = 'vito-sainte-marie';
-const PERIODE = '2026-09-01';
+const PERIODE = '2026-10-01';
 
 const EMPLOYES = [
   { id: 'e-caisse', nom: 'Camille', role: 'caissier', actif: true, site_id: SITE },
@@ -41,7 +41,7 @@ const REGLAGES = [
   { employee_id: 'e-renfort', site_id: SITE, inclus_paye: true, mode_presence: 'automatique' },
 ];
 // Mardi 01/09/2026 : la caissière est en boutique, un renfort est déclaré.
-const AUDIT = { id: 'a1', date: '2026-09-01', quart: '1', statut: 'cloture',
+const AUDIT = { id: 'a1', date: '2026-10-06', quart: '1', statut: 'cloture',
                 employes_piste: [], employes_boutique: ['e-caisse'] };
 
 // 08:00 -> 16:30 moins 30 min de pause = 8 h nettes, et NON 7 h.
@@ -82,7 +82,7 @@ function client({ colonneRenfort }) {
         return { data: null, error: { code: '42703',
           message: 'column audits_caisse.employes_renfort does not exist' } };
       }
-      return { data: [{ id: 'a1', date: '2026-09-01', quart: '1',
+      return { data: [{ id: 'a1', date: '2026-10-06', quart: '1',
                         employes_renfort: ['e-renfort'] }], error: null };
     }
     const par = {
