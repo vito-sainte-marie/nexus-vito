@@ -45,6 +45,6 @@ Voir l'en-tête de la migration : retirer les RPC, recréer `_regul_tiroir_detai
 
 ## 6. Reste à décider
 
-- Restitution du surplus : hors lot (source du décaissement à fixer).
+- Surplus : suivi à part, sans restitution ni écriture associée (décision du 13/10/2026).
 - Véhicule de code : la branche part du rail ; une PR vers `production` exige un portage depuis `origin/production`.
 - Trois GO distincts de Frédéric : application de la migration, fusion, déploiement Pages.
