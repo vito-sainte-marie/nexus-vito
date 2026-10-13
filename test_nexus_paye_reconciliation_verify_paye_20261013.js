@@ -1,6 +1,6 @@
 'use strict';
 // NEXUS PAYE : les règles de réconciliation Verify / Paye du 10/10/2026 que
-// les épreuves du 09/10 ne jouaient pas : renfort Q2 ignoré, sources
+// les épreuves du 09/10 ne jouaient pas : renfort Q2 compté comme Q1, sources
 // contradictoires nommées, journée de plus de 12 h signalée sans plafond.
 const assert = require('assert');
 const fs = require('fs');
@@ -30,7 +30,7 @@ const natures = f => f.items.map(i => i.nature);
   const q1 = rapport({ employees: [emp('x', 'renfort')], settings: [reg('x')], audits: [audit('a', VENDREDI, { employes_renfort: ['x'] })] }).employes[0];
   const q2 = rapport({ employees: [emp('x', 'renfort')], settings: [reg('x')], audits: [audit('a', VENDREDI, { quart: '2', employes_renfort: ['x'] })] }).employes[0];
   verifier('renfort au quart 1 : 7 h', q1.heuresConfirmees === 7);
-  verifier('renfort déclaré au quart 2 : ignoré, aucune heure ni journée payée', q2.heuresConfirmees === 0 && q2.joursConfirmes.size === 0);
+  verifier('renfort déclaré au quart 2 seul (décision du 13/10) : 7 h, une journée', q2.heuresConfirmees === 7 && q2.joursConfirmes.size === 1);
   const mixte = rapport({ employees: [emp('x', 'renfort')], settings: [reg('x')], audits: [
     audit('a', VENDREDI, { employes_renfort: ['x'] }), audit('b', VENDREDI, { quart: '2', employes_renfort: ['x'] })] }).employes[0];
   verifier('renfort aux deux quarts : une seule journée de 7 h, jamais 14 h', mixte.heuresConfirmees === 7);

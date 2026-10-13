@@ -1564,7 +1564,10 @@
       const autres = await chargerRenfortsDejaDeclares(champDate ? champDate.value : '', champQuart ? String(champQuart.value).trim() : '');
       if (!autres.length) { deja.style.display = 'none'; deja.textContent = ''; return; }
       deja.style.display = '';
-      deja.textContent = `Déjà déclaré ce jour : ${autres.map(a => `quart ${a.quart}, ${nomsEmployes(a.ids)}`).join(' · ')}.`;
+      const detail = autres.map(a => `quart ${a.quart}, ${nomsEmployes(a.ids)}`).join(' · ');
+      // Le renfort est celui de la journée : désigné à un quart, il vaut 7 h
+      // pour tout le jour. Le redéclarer à l'autre quart n'ajoute rien.
+      deja.textContent = `Déjà renfort de la journée (${detail}). Il vaut 7 h pour le jour entier : ne le déclarez pas une seconde fois ici.`;
     }
 
     function basculerRenfort(actif) {
