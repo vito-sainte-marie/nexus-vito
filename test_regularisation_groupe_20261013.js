@@ -37,6 +37,9 @@ ok(G.lireErreur({ message: 'x [SURPLUS_NON_CONFIRME]' }).conseil, 'conseil pour 
 ok(/<form/.test(G.renderFormulaire({ employes: [], aujourdhui: '2026-10-13', cle: 'c' })), 'formulaire rendu');
 // Bouton du coffre : plafonné au versement reçu, motif obligatoire.
 const gr = { id: 'g1', employee_id: 'e1', domaine: 'fdj', montant: 10, destination: 'tiroir_fdj', affecte: 8, surplus: 2, nb_affectations: 2, annule_le: null };
+const tr = { id: 't1', groupe_id: gr.id, montant: 6, motif: 'Mise en sécurité', annule_le: null };
+ok(/rg-annuler-transfert/.test(G.renderGroupes([{ ...gr, transferts: [tr] }], () => 'A')), 'un transfert actif porte son bouton « Annuler le transfert »');
+ok(!/rg-annuler-transfert/.test(G.renderGroupes([{ ...gr, transferts: [{ ...tr, annule_le: '2026-10-13', motif_annulation: 'erreur' }] }], () => 'A')), 'un transfert annulé n\'a plus de bouton');
 ok(/rg-coffre/.test(G.renderGroupes([gr], () => 'A')), 'bouton « Transférer au coffre » présent sur un tiroir');
 ok(!/rg-coffre/.test(G.renderGroupes([{ ...gr, destination: 'coffre' }], () => 'A')), 'absent si le versement est déjà au coffre');
 ok(!/rg-coffre/.test(G.renderGroupes([{ ...gr, annule_le: '2026-10-13' }], () => 'A')), 'absent si le versement est annulé');
