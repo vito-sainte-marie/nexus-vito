@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-13.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 13
+lot_id: NEXUS-REGUL-GROUPES-1-20261013
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,57 +13,70 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=c516322 production=b4ebdcd
+    valeur: main=e1251e2 production=7e37b88
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 147-fichiers
+  - id: pr-portage
+    classe: VERIFIED
+    valeur: PR 109 tete b73c50e base production
+  - id: migration-blob
+    classe: VERIFIED
+    valeur: 20261013140000 eccdbafc53e9e34d365a49aa5c6d3708cc731d03
+  - id: banc-sql
+    classe: VERIFIED
+    valeur: 24/24 scenarios et contre-temoins conformes
+  - id: recette-test
+    classe: VERIFIED
+    valeur: cas Angelique, Paye deux compteurs, refus, export CSV sur NEXUS Test
+  - id: mesures-production
+    classe: VERIFIED
+    valeur: lecture seule 13/10 311 migrations objets de groupe absents
+  - id: aucun-go-production
+    classe: DECLARED
+    valeur: migration, fusion et Pages non accordes
 ---
-# Clôture du lot — Q2 arbitrée, PR #107 fusionnée, déployée et recettée en Production
+# Régularisation différée des écarts de caisse (versements groupés) — verdict sur la migration et le véhicule de portage
 
-Ce texte se suffit. Demande de verdict de clôture ; elle n'autorise aucun geste supplémentaire.
+**Ceci n'est ni un GO Production ni une demande d'exécution.** Aucun environnement
+Production n'a été modifié. La migration est appliquée sur NEXUS Test seulement.
 
-## Arbitrage de Frédéric : Q2, mois déjà validés
+## 1. Pièces soumises
 
-Relayé par Frédéric le 13/10/2026 : **aucun mois clos n'est recalculé.**
+- PR #109, branche `regularisation-differee-groupes-20261013`, tête `b73c50e`, base `production` (non fusionnable en l'état : la branche part du rail).
+- Migration `supabase/migrations/20261013140000_versements_groupes_regularisation.sql`, blob `eccdbafc53e9e34d365a49aa5c6d3708cc731d03` : table `versements_regularisation_groupes`, colonnes nullables `groupe_id`, CHECK `ctc_versement_ou_groupe`, triggers d'immuabilité, `_regul_tiroir_detail` remplacée, 6 RPC.
+- Dossier `docs/deploiement/promotion-versements-groupes-production-20261013.md` (ordre de pose, retour arrière, reste à décider).
+- Fiche `docs/deploiement/qualification-ordre-migration-code.json`, entrée `20261013140000` : `atomique_ou_procedure_speciale`.
+- Empreinte d'artefact re-mesurée : 307 migrations, `ca778d6c…2acc86b`.
 
-- Un changement de règle ne réécrit jamais un mois déjà validé. Le dossier comptable PDF reste régénéré depuis l'instantané figé à la validation du mois.
-- Cela confirme la proposition de `request-1.md` (Q2) et clôt la question laissée ouverte par `decision-1.md`.
-- Aucun recalcul à la demande n'est ouvert. Si un recalcul devenait nécessaire un jour, ce serait un nouveau lot, avec la condition 5 de la decision-1 (règles de clôture et effets sur les rapports existants) et un GO Production distinct.
-- Mesuré : #105 et #107 n'écrivent aucun mois validé et ne rouvrent rien. Octobre 2026 est « en préparation », donc non validé. Les règles du lot ne valent qu'à partir du 01/10/2026 (`renfort_effectif_depuis`). Les mois validés antérieurs n'ont pas été relus.
+## 2. Règles métier tenues
 
-## Mise en œuvre de #107, conditions de la decision-7
+Jamais d'affectation automatique (confirmation explicite du manager) ; pas de quart récepteur futur, antérieur à l'écart ou validé ; pas de double enregistrement ; pas d'affectation supérieure au solde ; transfert coffre plafonné au versement ; surplus suivi à part, ni transmis à Paye ni à la comptable ; annulation par contre-écriture. Paye en lecture seule, deux compteurs séparés, aucune retenue automatique.
 
-| Condition | État |
-|---|---|
-| 1. Regrouper Q4 | faite : une synthèse par salarié et par période, sans quantité ni heure, `impactPaye false` |
-| 2. Refuser B si l'historique est illisible, épreuves successives et concurrentes | faite : « Historique illisible : modification refusée » ; conflit détecté par `modifie_le` ou 23505 |
-| 3. Recette navigateur Q4 sur Test | faite sur l'aperçu `ec69152` : Employé Test B, 7 h conservées, information non bloquante, aucune absence ni retenue, aucun dossier bloqué par Q4 (les 17 points du dossier = 11 présences d'Employé Test A hors planning + 6 paramétrages de rattachement) |
-| 4. B présenté comme compris dans les heures retenues | faite : « Dont heures exceptionnelles (saisies par le manager) », tuile « Autres heures exceptionnelles » supprimée |
-| 5. CI et intégration sur la tête de `production` | CI verte sur `ec69152`, 0 commit de retard au moment de la fusion |
+## 3. Preuves
 
-## GO nominatifs de Frédéric
+- Banc Postgres jetable : 24/24 scénarios, contre-témoins conformes.
+- 37 épreuves JS vertes ; CI de la PR #109 verte.
+- Mesures Production en lecture seule (13/10) : 311 migrations, dernière `20261013152155`, objets de groupe absents.
+- Recette NEXUS Test : cas Angélique (écarts 01/10 et 02/10 de −4 €, excédent 10 €, 8 € affectés, 2 € de surplus), vue Paye à deux compteurs, surplus exclu de l'export, export CSV (pied « Aucune déduction ni retenue »).
+- Refus prouvés sur Test (transactions annulées) : `PLAFOND_DEPASSE`, `QUART_RECEPTEUR_FUTUR`, `QUART_RECEPTEUR_CLOTURE`, `QUART_RECEPTEUR_ANTERIEUR`, `AFFECTATION_DOUBLON`, `ECART_SOLDE`, `SURPLUS_NON_CONFIRME` ; rejeu de clé d'idempotence → `rejoue:true`.
 
-- Fusion de #107 : donnée le 13/10/2026. Merge commit `b4ebdcd3ea6e6199c223e038d435a50c86c37367` sur `production`. « Tests » vert sur ce commit.
-- Déploiement Pages : donné le 13/10/2026. Workflow « Déploiement Production (GitHub Pages) » terminé en succès sur `b4ebdcd`.
+## 4. Ce qui est demandé à l'arbitre
 
-## Recette Production, lecture seule (13/10/2026)
+1. Confirmer l'état `atomique_ou_procedure_speciale` : la garde ordre-migration signale `drop_column`/`drop_table`/`truncate`, faux positifs (le texte apparaît dans des commentaires et des gardes, pas en exécution).
+2. Confirmer l'ordre de pose : migration d'abord, puis code (le code ne tourne pas sans les RPC).
+3. Arbitrer le véhicule de portage : la PR #109 part du rail, pas de `production` ; portage depuis `origin/production` requis.
 
-URL `https://app.nexusconseil.net/NEXUS-Paye-v1`, Octobre 2026, session connectée. Contenu servi contrôlé avec un paramètre anti-cache : `regrouperPlanningNonRenseigne` dans `nexus-paye-moteur.js`, « Historique illisible » dans `nexus-paye-donnees.js`, « Dont heures exceptionnelles » dans l'écran, ancienne tuile absente. La page de Production n'affiche pas de numéro de commit.
+## 5. Trois GO distincts, non accordés
 
-- Angelique (renfort) : 06/10 renfort 7 h, 0 h sup ; jeudi→samedi 8 h de présence (7 h + 1 h sup) ; autres jours 7 h. Total 63 h normales + 4 h sup = 67 h, sans double comptage. Aucune anomalie, aucune absence ni retenue automatique. Heures exceptionnelles : 0.
-- **Non exercés en Production** : le cas Q4 (aucun salarié n'a de jour « présence confirmée, planning non renseigné » aujourd'hui) et B (aucune heure exceptionnelle saisie, aucune créée pour la recette). Q4 et B ne sont donc prouvés que par la recette Test et les épreuves.
-- Aucune saisie, validation ni écriture n'a été faite.
+(a) application de la migration sur Production ; (b) fusion du portage ; (c) déploiement Pages. Chacun relève du palier Frédéric.
 
-## Statut réel de Production
+## 6. Limites connues
 
-- Code : #105, #106 et #107 fusionnés et déployés. `production` est à `b4ebdcd`.
-- Aucune migration ni écriture Supabase Production n'a eu lieu pour #107. Les colonnes nécessaires étaient déjà posées.
-- Reste dans la base Test, jamais en Production : une ligne `horaire_exceptionnel` de recette (7,5 h, 13/10).
-- Limites : suite complète locale non lancée pour #107 ; l'historique des heures exceptionnelles n'a été constaté qu'en base, pas à l'écran.
-
-## Geste demandé
-
-Verdict de clôture du lot `NEXUS-HEURES-VERIFY-PAYE-1-20261009` : Q2, Q4 et B sont arbitrées et mises en œuvre. Aucune autre décision n'est ouverte à ma connaissance. Rien n'est fusionné ni déployé par cette demande.
+- Écart d'estampille : `20261013140000` au dépôt, `20261013220411` sur Test (appliquée via le connecteur).
+- Le quart partiellement affecté est prouvé par le banc, non rejoué sur Test.
+- Données de recette `5eed…` encore présentes sur Test ; nettoyage en attente d'accord.
+- Restitution du surplus : hors lot, à décider.
