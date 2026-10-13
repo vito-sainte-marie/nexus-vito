@@ -136,7 +136,16 @@
   async function chargerGroupes(client, site, employeeId) {
     const { data, error } = await client.rpc('versements_groupes', { p_site: site, p_employee_id: employeeId || null });
     if (error) throw error;
-    return data || [];
+    const groupes = data || [];
+    const ids = groupes.map(g => g.id);
+    let transferts = [];
+    if (ids.length) {
+      const t = await client.from('caisse_transferts_coffre')
+        .select('id, groupe_id, montant, motif, annule_le, motif_annulation, created_at').in('groupe_id', ids).order('created_at');
+      if (t.error) throw t.error;
+      transferts = t.data || [];
+    }
+    return groupes.map(g => ({ ...g, transferts: transferts.filter(x => x.groupe_id === g.id) }));
   }
 
   // ---------------------------------------------------------------- rendu
@@ -204,6 +213,7 @@
       <div class="regul-op${g.annule_le ? ' annulee' : ''}" data-groupe="${esc(g.id)}">
         <div><b>${eur(g.montant)}</b> · ${esc(nomEmploye(g.employee_id) || '—')} · ${esc(g.domaine === 'fdj' ? 'FDJ' : 'Verify')} · ${g.nb_affectations} écart(s)</div>
         <div class="regul-op-note">Affecté ${eur(g.affecte)}${Number(g.surplus) > 0 ? ` · <b>surplus ${eur(g.surplus)}</b> suivi à part` : ''}</div>
+        ${(g.transferts || []).map(t => `<div class="regul-op-sous${t.annule_le ? ' annulee' : ''}" data-transfert="${esc(t.id)}">→ Coffre ${eur(t.montant)} · ${esc(t.motif)}${t.annule_le ? ` · annulé : ${esc(t.motif_annulation)}` : (g.annule_le ? '' : ` <button type="button" class="rg-annuler-transfert" data-id="${esc(t.id)}">Annuler le transfert</button>`)}</div>`).join('')}
         ${g.annule_le ? `<div class="regul-op-note">Annulé : ${esc(g.motif_annulation)}</div>` : `<div class="regul-op-actions">
           ${Number(g.surplus) > 0 ? `<button type="button" class="rg-surplus" data-id="${esc(g.id)}">Affecter le surplus</button>` : ''}
           ${g.destination !== 'coffre' ? `<button type="button" class="rg-coffre" data-id="${esc(g.id)}">Transférer au coffre</button>` : ''}
@@ -311,6 +321,22 @@
       btn.disabled = true;
       try {
         const { error } = await ctx.client.rpc('annuler_versement_groupe', { p_groupe_id: btn.dataset.id, p_motif: String(motif).trim() });
+        if (error) throw error;
+        await ctx.apresSucces();
+      } catch (e) {
+        const r = lireErreur(e);
+        (ctx.alerter || global.alert)(`${r.message}${r.conseil ? '\n' + r.conseil : ''}`);
+        btn.disabled = false;
+      }
+    }));
+    conteneur.querySelectorAll('.rg-annuler-transfert').forEach(btn => btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const motif = (ctx.demanderMotif || global.prompt)('Motif de l\'annulation du transfert (au moins 5 caractères) :');
+      if (motif == null) return;
+      if (String(motif).trim().length < 5) { (ctx.alerter || global.alert)('Un motif d\'annulation exige au moins 5 caractères.'); return; }
+      btn.disabled = true;
+      try {
+        const { error } = await ctx.client.rpc('annuler_transfert_coffre', { p_transfert_id: btn.dataset.id, p_motif: String(motif).trim() });
         if (error) throw error;
         await ctx.apresSucces();
       } catch (e) {
