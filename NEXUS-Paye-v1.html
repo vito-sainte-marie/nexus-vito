@@ -272,7 +272,7 @@ async function chargerRegularisationsPaye(){
   if(!f||!f.timezone)return {etat:f&&f.indetermine==='reseau'?'erreur':'sans_fuseau'};
   const [univers,ops]=await Promise.all([NexusEcartsDonnees.chargerEcartsConsolides(nexusClient,SITE,{}),NexusPayeRegularisations.chargerOperations(nexusClient,SITE)]);
   const opt={fuseau:f.timezone,dateDebut:MOIS,dateFin:dernierJourMois()};
-  return {etat:'ok',synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),opt),domaines:NexusPayeRegularisations.syntheseParDomaine(univers,ops,opt)};
+  return {etat:'ok',situations:NexusPayeRegularisations.situationsParEcart(univers,ops,opt),synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),opt),domaines:NexusPayeRegularisations.syntheseParDomaine(univers,ops,opt)};
  }catch(e){console.error(e);return {etat:'erreur',message:(e&&e.message)||String(e)}}
 }
 function regulOk(){return !!(REGUL&&REGUL.etat==='ok'&&REGUL.synthese)}
@@ -682,7 +682,7 @@ function blocQualification(i){
 function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
   ecart=i.typeItem==='ecart_caisse',
-  statut=ecart?(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.statutQualification?(q=>q.statut+(q.nonRegularise?' · non régularisé':''))(NexusPayeRegularisations.statutQualification(i,null)):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie')):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie'),
+  statut=ecart?(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.statutQualification?(q=>q.statut+(q.nonRegularise?' · non régularisé':''))(NexusPayeRegularisations.statutQualification(i,(REGUL&&REGUL.situations&&REGUL.situations[i.sourceCle])||null)):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie')):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie'),
   actions=i.signale&&i.statut==='information'?`<div class="item-actions"><button class="btn primary verify-signal" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Marquer vérifié</button></div>`:i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptable':'Confirmer'}</button></div>`):'',
   source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';
  // Un événement RH se lit en trois lignes — motif, période couverte,
