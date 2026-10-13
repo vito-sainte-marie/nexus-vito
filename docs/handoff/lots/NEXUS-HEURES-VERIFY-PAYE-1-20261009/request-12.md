@@ -28,8 +28,8 @@ preuves:
     classe: HUMAN
     valeur: relaye-par-Frederic-13-10
   - id: recette-pr107-servie
-    classe: HUMAN
-    valeur: non-faite
+    classe: VERIFIED
+    valeur: B-verifie-Q4-non-couvert-sur-Test
 ---
 # Demande d'arbitrage — PR #107 : Q4 (case vide) et B (heures exceptionnelles), arbitrages relayés par Frédéric
 
@@ -57,7 +57,18 @@ Les deux choix ci-dessous ont été **relayés par Frédéric le 13/10/2026** ap
 | CI | « Construire et éprouver l'artefact » SUCCESS ; `non-regression` SUCCESS (×2) ; Cloudflare Pages SUCCESS ; Pages et Supabase Preview SKIPPED (attendu) |
 | épreuves ciblées | règles SMU 30/30 ; cockpit/écarts manager 61/61 |
 | suite complète en local | non lancée ; les autres épreuves `test_paye*` n'ont pas de contrôle de code de sortie fiable en local |
-| recette navigateur sur URL servie | non faite |
+| recette navigateur sur l'aperçu Test de la PR | faite le 13/10 pour B ; Q4 non couvert (voir section suivante) ; pas de recette sur Production |
+
+## Recette navigateur sur NEXUS Test (13/10, aperçu `q4-b-heures-verify-paye-2026.nexus-test-ddf.pages.dev`)
+
+Contenu servi contrôlé (redirection 308 puis 200 ; `hxJustification` et le libellé « Présence confirmée sans planning renseigné » présents ; `nexus-config.js` vise la base Test `udljdqxerrbbbajxubfn`). Session manager de Test, écran Paye d'octobre, Employé Test A.
+
+- **B, justification obligatoire** : saisie sans justification refusée (« Justification obligatoire »).
+- **B, saisie avec justification** (13/10, 09:00–18:00, pause 60 min, 8 h nettes) : total 97 h → 98 h (+1 h, pas +8 h), heures normales 91 h → 84 h, tuile « Heures exceptionnelles (saisies par le manager) » 8 h, heures supplémentaires inchangées à 6 h. Pas de double comptage.
+- **B, seconde saisie du même jour** (09:00–17:30) : la tuile passe à 7,5 h, la saisie remplace la précédente sans s'y ajouter. Lecture en base Test : une seule ligne `horaire_exceptionnel`, `provenance: manuelle`, justification, motif, auteur, date ; la première saisie est conservée dans `detail.historique`.
+- **Q4 : non couvert sur Test.** Employé Test A a 0 jour mesuré par Verify et 13 reconstitués : le cas « présence confirmée sans planning renseigné » ne se produit pas avec cette donnée. Seules les épreuves unitaires (30/30) le couvrent.
+- **Limite d'affichage** : l'historique n'a été constaté qu'en base ; je ne l'ai pas vu à l'écran.
+- **Trace laissée dans Test** : une ligne `horaire_exceptionnel` (7,5 h, 13/10) dans `nexus_paye_items`. Rien en Production.
 
 ## Points que je ne tranche pas
 
