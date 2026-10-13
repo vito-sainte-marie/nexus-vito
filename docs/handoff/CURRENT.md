@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-REGUL-GROUPES-1-20261013
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -22,61 +22,41 @@ preuves:
     valeur: 147-fichiers
   - id: pr-portage
     classe: VERIFIED
-    valeur: PR 109 tete b73c50e base production
+    valeur: PR-112-tete-30f7a5e-base-production
   - id: migration-blob
     classe: VERIFIED
-    valeur: 20261013140000 eccdbafc53e9e34d365a49aa5c6d3708cc731d03
-  - id: banc-sql
+    valeur: 20261013140000-eccdbafc53e9e34d365a49aa5c6d3708cc731d03
+  - id: ci-pr-112
     classe: VERIFIED
-    valeur: 24/24 scenarios et contre-temoins conformes
-  - id: recette-test
-    classe: VERIFIED
-    valeur: cas Angelique, Paye deux compteurs, refus, export CSV sur NEXUS Test
-  - id: mesures-production
-    classe: VERIFIED
-    valeur: lecture seule 13/10 311 migrations objets de groupe absents
+    valeur: non-regression-et-artefact-verts
+  - id: condition-5
+    classe: DECLARED
+    valeur: raisonnement-non-rejoue
   - id: aucun-go-production
     classe: DECLARED
-    valeur: migration, fusion et Pages non accordes
+    valeur: migration-fusion-pages-non-accordes
 ---
-# Régularisation différée des écarts de caisse (versements groupés) — verdict sur la migration et le véhicule de portage
+# Régularisation différée (versements groupés) — portage depuis `origin/production` et condition 5
 
-**Ceci n'est ni un GO Production ni une demande d'exécution.** Aucun environnement
-Production n'a été modifié. La migration est appliquée sur NEXUS Test seulement.
+**Ceci n'est ni un GO Production ni une demande d'exécution.** Aucune migration, fusion ni déploiement Pages n'a été effectué ni n'est demandé.
 
-## 1. Pièces soumises
+## 1. Réponse aux conditions de decision-1
 
-- PR #109, branche `regularisation-differee-groupes-20261013`, tête `b73c50e`, base `production` (non fusionnable en l'état : la branche part du rail).
-- Migration `supabase/migrations/20261013140000_versements_groupes_regularisation.sql`, blob `eccdbafc53e9e34d365a49aa5c6d3708cc731d03` : table `versements_regularisation_groupes`, colonnes nullables `groupe_id`, CHECK `ctc_versement_ou_groupe`, triggers d'immuabilité, `_regul_tiroir_detail` remplacée, 6 RPC.
-- Dossier `docs/deploiement/promotion-versements-groupes-production-20261013.md` (ordre de pose, retour arrière, reste à décider).
-- Fiche `docs/deploiement/qualification-ordre-migration-code.json`, entrée `20261013140000` : `atomique_ou_procedure_speciale`.
-- Empreinte d'artefact re-mesurée : 307 migrations, `ca778d6c…2acc86b`.
+- Condition 3 : portage propre depuis `origin/production` (`7e37b88`), PR #112 en brouillon (base `production`), branche `portage-regularisation-groupes-20261013`, tête `30f7a5e`. La PR #109 n'est pas fusionnée.
+- Condition 4 : blob de la migration `20261013140000` inchangé (`eccdbafc53e9e34d365a49aa5c6d3708cc731d03`). Écart d'estampille propre à Test documenté dans le dossier. Empreinte d'artefact re-mesurée : 307 migrations, `ca778d6c…2acc86b`. CI de la PR #112 verte (non-regression, construction de l'artefact, aperçu Cloudflare) ; déploiement Pages et Supabase Preview ignorés.
+- Conditions 1 et 2 : classement `atomique_ou_procedure_speciale` conservé ; ordre migration puis code.
+- Conditions 6 et 7 : respectées ; la restitution du surplus reste hors lot.
 
-## 2. Règles métier tenues
+## 2. Condition 5 — intervalle « migration posée, code non déployé »
 
-Jamais d'affectation automatique (confirmation explicite du manager) ; pas de quart récepteur futur, antérieur à l'écart ou validé ; pas de double enregistrement ; pas d'affectation supérieure au solde ; transfert coffre plafonné au versement ; surplus suivi à part, ni transmis à Paye ni à la comptable ; annulation par contre-écriture. Paye en lecture seule, deux compteurs séparés, aucune retenue automatique.
+Lectures seules sur Production le 13/10 : `groupe_id` et la table des groupes absents ; `ecarts_versements_regularisation` et `caisse_transferts_coffre` à 0 ligne ; aucune vue dépendante ; seuls triggers existants : l'immuabilité.
 
-## 3. Preuves
+Raisonnement : migration additive ; les nouveaux triggers sortent immédiatement quand `groupe_id` est nul ; le CHECK `ctc_versement_ou_groupe` est vrai pour toute ligne sans groupe ; `_regul_tiroir_detail` garde signature et forme de sortie, résultats identiques sans groupe ; seules les nouvelles RPC créent un groupe et aucun écran actuel ne les appelle. Le retour arrière de l'en-tête de la migration est sans perte tant que la table des groupes est vide.
 
-- Banc Postgres jetable : 24/24 scénarios, contre-témoins conformes.
-- 37 épreuves JS vertes ; CI de la PR #109 verte.
-- Mesures Production en lecture seule (13/10) : 311 migrations, dernière `20261013152155`, objets de groupe absents.
-- Recette NEXUS Test : cas Angélique (écarts 01/10 et 02/10 de −4 €, excédent 10 €, 8 € affectés, 2 € de surplus), vue Paye à deux compteurs, surplus exclu de l'export, export CSV (pied « Aucune déduction ni retenue »).
-- Refus prouvés sur Test (transactions annulées) : `PLAFOND_DEPASSE`, `QUART_RECEPTEUR_FUTUR`, `QUART_RECEPTEUR_CLOTURE`, `QUART_RECEPTEUR_ANTERIEUR`, `AFFECTATION_DOUBLON`, `ECART_SOLDE`, `SURPLUS_NON_CONFIRME` ; rejeu de clé d'idempotence → `rejoue:true`.
+**Limites déclarées (statut : raisonnement, pas rejeu)** : la définition Production de `_regul_tiroir_detail` n'a pas été comparée au texte de `20261008160000` ; les six fonctions citant les tables avec `select … into` / `%rowtype` n'ont pas été relues une à une ; les scénarios existants n'ont pas été rejoués sur une copie de Production avec la migration seule.
 
-## 4. Ce qui est demandé à l'arbitre
+## 3. Question à l'arbitre
 
-1. Confirmer l'état `atomique_ou_procedure_speciale` : la garde ordre-migration signale `drop_column`/`drop_table`/`truncate`, faux positifs (le texte apparaît dans des commentaires et des gardes, pas en exécution).
-2. Confirmer l'ordre de pose : migration d'abord, puis code (le code ne tourne pas sans les RPC).
-3. Arbitrer le véhicule de portage : la PR #109 part du rail, pas de `production` ; portage depuis `origin/production` requis.
+La condition 5 est-elle suffisamment instruite par ce raisonnement, ou exige-t-elle, avant toute proposition d'exécution, les trois vérifications ci-dessus (comparaison de définition, relecture des six fonctions, rejeu sur copie) ? Je les mènerai sur ta demande ; je ne les déclare pas acquises.
 
-## 5. Trois GO distincts, non accordés
-
-(a) application de la migration sur Production ; (b) fusion du portage ; (c) déploiement Pages. Chacun relève du palier Frédéric.
-
-## 6. Limites connues
-
-- Écart d'estampille : `20261013140000` au dépôt, `20261013220411` sur Test (appliquée via le connecteur).
-- Le quart partiellement affecté est prouvé par le banc, non rejoué sur Test.
-- Données de recette `5eed…` encore présentes sur Test ; nettoyage en attente d'accord.
-- Restitution du surplus : hors lot, à décider.
+Aucun GO n'est sollicité pour : SUPABASE_PRODUCTION_MUTATION, fusion vers `production`, déploiement Pages.

@@ -422,8 +422,12 @@
     },
     "NEXUS-REGUL-GROUPES-1-20261013": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "derniere_demande": "request-2.md",
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "ee45976e6fcde552960e8fd18a0750788147c767",
+      "consomme_le": "2026-10-13T22:58:01.752Z"
     }
   },
   "artefacts_hors_registre": [
