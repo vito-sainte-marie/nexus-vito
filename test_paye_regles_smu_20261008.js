@@ -69,15 +69,17 @@ scenario('une caisse planifiée sans Verify reste « Présence à vérifier »',
 });
 
 // ── Correction 2 : Verify prime pour la fonction exercée ─────────────────
-scenario('une renfort que Verify place en boutique un vendredi ouvre l’heure supplémentaire', () => {
+scenario('une renfort que Verify place en boutique un vendredi compte 8 h dont 1 h supplémentaire, sans double comptage', () => {
   const r = run({
     planning: [renfort(VENDREDI, 7)],
     audits: [{ id: 'a', date: VENDREDI, quart: 'quart1', employes_piste: [], employes_boutique: ['e1'] }],
   });
-  const hs = fiche(r).items.find(i => i.typeItem === 'heure_supplementaire');
-  assert.ok(hs, 'heure supplémentaire attendue');
-  assert.strictEqual(hs.origine, 'verify');
-  assert.strictEqual(hs.quantiteMinutes, 60);
+  // Le barème compte désormais cette heure dans la présence (7 h + 1 h le
+  // vendredi, 13/10/2026) : la proposer aussi en item la compterait deux fois.
+  assert.ok(!typeItems(r).includes('heure_supplementaire'), 'aucune heure supplémentaire proposée en double');
+  const v = M.variablesComptables(fiche(r));
+  assert.strictEqual(v.presence.heures, 8);
+  assert.strictEqual(v.heuresSupplementaires.heures, 1);
 });
 
 scenario('la même renfort sans Verify (pointage seul) n’en ouvre aucune', () => {
@@ -231,15 +233,20 @@ scenario('le conflit d’affectation n’entre dans aucune variable comptable', 
   assert.deepStrictEqual(M.variablesComptables(sans), M.variablesComptables(temoin));
 });
 
-scenario('un renfort que Verify place sur piste un vendredi : HS et anomalie, pas de double jour', () => {
+// Règle du lot du 10/10/2026 : Verify fait foi pour la journée, qui vaut sa
+// durée de référence (7 h + 1 h supplémentaire le vendredi) ; le planning ne
+// la plafonne plus. L'heure n'est donc plus proposée en item : la proposer
+// aussi la compterait deux fois. Le conflit reste signalé, la journée unique.
+scenario('un renfort que Verify place sur piste un vendredi : 8 h dont 1 h sup, anomalie, pas de double jour', () => {
   const r = run({
     planning: [renfort(VENDREDI, 7)],
     audits: [{ id: 'p', date: VENDREDI, quart: '1', employes_piste: ['e1'], employes_boutique: [] }],
   });
-  assert.ok(typeItems(r).includes('heure_supplementaire'));
+  assert.ok(!typeItems(r).includes('heure_supplementaire'));
   const c = fiche(r).items.find(i => i.anomalie === 'conflit_affectation');
   assert.ok(/piste constatée par Verify/.test(c.libelle));
-  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(fiche(r).heuresConfirmees, 8);
+  assert.strictEqual(M.variablesComptables(fiche(r)).heuresSupplementaires.heures, 1);
   assert.strictEqual(fiche(r).joursConfirmes.size, 1);
 });
 

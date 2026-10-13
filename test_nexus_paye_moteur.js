@@ -15,7 +15,7 @@ function rapport(overrides = {}) {
   return M.construireRapport(Object.assign({
     periode: '2026-08-01', employees, settings, planning: [], pointages: [],
     indisponibilites: [], audits: [], items: [], ecarts: [],
-    config: { jours_heure_supp: [4, 5, 6], minutes_heure_supp: 60, activites_heure_supp: ['piste', 'boutique'], quart_exclu_heure_supp: 'renfort', retard_max_coherent_min: 180, jours_feries: [] },
+    config: { retard_max_coherent_min: 180, jours_feries: [] },
   }, overrides));
 }
 
@@ -35,23 +35,33 @@ r = rapport({
 assert.strictEqual(r.employes[0].heuresConfirmees, 7);
 assert.strictEqual(r.items.length, 0);
 
-// Vendredi piste = +1 h proposée ; renfort exclu.
+// Vendredi piste = 8 h de durée de référence, et aucune heure qualifiée
+// supplémentaire. Le moteur rend des heures de travail ; leur qualification en
+// heures normales, complémentaires ou supplémentaires relève d'un calcul
+// distinct, fondé sur les règles légales et contractuelles (09/10/2026).
+// Elle était jusque-là proposée deux fois : dans le barème et dans un item.
 r = rapport({
   planning: [{ employee_id: 'e1', date: '2026-08-07', quart: 'quart1', statut: 'travail_normal', duree_heures: 8, tache: 'piste' }],
   pointages: [{ employee_id: 'e1', date: '2026-08-07', type: 'arrivee', retard_min: 0 }],
 });
-assert.strictEqual(r.items.find(i => i.typeItem === 'heure_supplementaire').quantiteMinutes, 60);
+assert.strictEqual(r.employes[0].heuresConfirmees, 8);
+assert.ok(!r.items.some(i => i.typeItem === 'heure_supplementaire'));
 r = rapport({
   planning: [{ employee_id: 'e1', date: '2026-08-07', quart: 'renfort', statut: 'renfort', duree_heures: 7 }],
   pointages: [{ employee_id: 'e1', date: '2026-08-07', type: 'arrivee', retard_min: 0 }],
 });
 assert.ok(!r.items.some(i => i.typeItem === 'heure_supplementaire'));
 
-// Aucun retard n'est déduit du pointage, même aberrant (08/10/2026, règles
-// SMU §4 : le retard vaut 0 par défaut, seul le manager le déclare). Avant,
-// ce pointage produisait un `retard_incoherent` bloquant.
+// Aucun retard ne se déduit d'un pointage. Par défaut le retard est de zéro
+// minute, et seul le manager peut en enregistrer un retenu pour la paie
+// (09/10/2026). Un retard_min aberrant en base ne produit donc plus ni item,
+// ni verrou : la journée reste constatée, ses heures restent calculées.
 r = rapport({ pointages: [{ employee_id: 'e1', date: '2026-08-10', type: 'arrivee', retard_min: 5754 }] });
-assert.ok(!r.items.some(i => i.typeItem === 'retard' || i.typeItem === 'retard_incoherent'));
+assert.ok(!r.items.some(i => i.typeItem === 'retard_incoherent' || i.typeItem === 'retard'));
+assert.strictEqual(r.employes[0].heuresConfirmees, 7);
+// Un pointage seul n'établit pas la journée (règles SMU, 08/10/2026) : elle
+// est comptée mais reste « à vérifier », donc visible comme bloqueur d'élément.
+assert.deepStrictEqual(r.bloqueurs.map(b => b.type), ['presence_exceptionnelle']);
 
 // Écart : montant de référence uniquement, zéro impact paie par défaut.
 r = rapport({ ecarts: [{ id: 'verify-a-piste', employeeId: 'e1', date: '2026-08-12', activite: 'piste', sourceModule: 'verify', montantRetenu: -36.65, statut: 'cloture_non_explique' }] });
