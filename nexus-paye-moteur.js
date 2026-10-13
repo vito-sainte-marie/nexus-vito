@@ -446,9 +446,10 @@
     const COLONNES_POSTE = { piste: 'pompiste', boutique: 'caissier', renfort: 'renfort' };
     audits.forEach(a => {
       Object.keys(COLONNES_POSTE).forEach(activite => extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
-        // Décision du 10/10/2026 : le renfort ne vaut qu'au quart 1. Un renfort
-        // déclaré au quart 2 est ignoré, il n'ouvre aucune journée payée.
-        if (activite === 'renfort' && String(a.quart) === '2') return;
+        // Décision du 13/10/2026 (remplace celle du 10/10) : un renfort déclaré au
+        // quart 2 vaut comme celui du quart 1 (cas rare : pas de renfort au
+        // quart 1). Le Set par salarié et par jour ci-dessous garantit qu'un
+        // renfort déclaré aux deux quarts ne vaut qu'une journée, jamais 14 h.
         // Le renfort n'est effectif qu'à partir de renfort_effectif_depuis (13/10/2026) : une date antérieure est ignorée.
         if (activite === 'renfort' && config.renfort_effectif_depuis && String(a.date).slice(0, 10) < config.renfort_effectif_depuis) return;
         const cle = cleJour(employeeId, a.date);
