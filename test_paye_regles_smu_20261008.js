@@ -167,13 +167,22 @@ scenario('sans planning, un jour Verify est compté et ne bloque pas le salarié
   const r = run({ audits: [AUDIT_BOUTIQUE(LUNDI), AUDIT_BOUTIQUE(VENDREDI)] });
   assert.strictEqual(fiche(r).heuresConfirmees, 7 + 8);
   assert.strictEqual(fiche(r).joursConfirmes.size, 2);
-  const items = fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle');
-  assert.strictEqual(items.length, 2);
-  items.forEach(i => {
-    assert.strictEqual(i.statut, 'information');
-    assert.strictEqual(i.libelle, 'Présence constatée par Verify, sans planning');
-  });
+  // Verify fait foi, le planning ne sert qu'à rapprocher (Frédéric, 13/10) :
+  // sans aucun planning ce jour-là, la présence n'est pas « hors planning ».
+  assert.strictEqual(fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle').length, 0);
   assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+});
+
+scenario('planning renseigné pour un collègue, pas pour elle : présence signalée hors planning', () => {
+  const r = run({
+    planning: [{ employee_id: 'e2', date: LUNDI, quart: 'quart1', statut: 'travail', duree_heures: 7 }],
+    audits: [AUDIT_BOUTIQUE(LUNDI)],
+  });
+  const items = fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle');
+  assert.strictEqual(items.length, 1);
+  assert.strictEqual(items[0].statut, 'information');
+  assert.strictEqual(items[0].libelle, 'Présence constatée par Verify, sans planning');
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
 });
 
 // « Le conflit trace une anomalie sans bloquer ; priorité à Verify, mais

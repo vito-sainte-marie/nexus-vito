@@ -74,7 +74,7 @@ const shift = (employee_id, date, champs) => Object.assign({ employee_id, date, 
   verifier('§11.1 — une caissière constatée le lundi vaut 7 h', c.heuresConfirmees === 15 && c.heuresCaisse === 15);
   verifier('§11.2 — un pompiste constaté le jeudi vaut 8 h', p.heuresConfirmees === 8 && p.heuresPiste === 8);
   verifier('§11.3 — une caissière constatée le vendredi vaut 8 h',
-    c.items.filter(i => i.date === VENDREDI && i.heuresAttribuees === 8).length === 1);
+    c.detailJours.filter(j => j.date === VENDREDI && j.presence === 8).length === 1);
   verifier('les heures de la caissière ne sont jamais ventilées en piste', c.heuresPiste === 0);
 }
 
@@ -121,7 +121,7 @@ const shift = (employee_id, date, champs) => Object.assign({ employee_id, date, 
   verifier('§11.6 — un renfort déclaré est retenu à l’horaire standard de la station : 8 h nettes',
     f.heuresConfirmees === 8 && f.heuresRenfort === 8);
   verifier('§11.7 — aucun planning n’était disponible, la déclaration est conservée malgré tout',
-    f.items.some(i => i.date === LUNDI && i.heuresAttribuees === 8));
+    f.detailJours.some(j => j.date === LUNDI && j.presence === 8));
   verifier('§11.7 — et l’absence de planning ne produit pas de blocage', r.bloqueurs.length === 0);
 }
 
@@ -149,7 +149,7 @@ const shift = (employee_id, date, champs) => Object.assign({ employee_id, date, 
   verifier('§11.8 — elles restent rattachées au poste tenu, sans s’ajouter au total',
     f.heuresRenfort === 4.5 && f.heuresConfirmees === 4.5);
   verifier('§11.8 — la correction ne paie pas la journée une seconde fois : un seul item porte les heures',
-    f.items.filter(i => i.date === LUNDI && Number(i.heuresAttribuees) > 0).length === 1);
+    f.detailJours.filter(j => j.date === LUNDI && j.presence > 0).length === 1);
 }
 
 // ── §11.9 : caisse constatée par Verify l’emporte sur un renfort ────────
@@ -177,7 +177,7 @@ const shift = (employee_id, date, champs) => Object.assign({ employee_id, date, 
   verifier('§11.10 — deux clôtures du même jour déclarant le même renfort ne valent qu’une journée : 8 h',
     f.heuresConfirmees === 8 && f.heuresRenfort === 8);
   verifier('§11.10 — un seul item porte les heures de cette journée',
-    f.items.filter(i => i.date === LUNDI && Number(i.heuresAttribuees) > 0).length === 1);
+    f.detailJours.filter(j => j.date === LUNDI && j.presence > 0).length === 1);
   verifier('§11.10 — le doublon n’apparaît pas non plus comme deux journées confirmées', f.joursConfirmes.size === 1);
 }
 

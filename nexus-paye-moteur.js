@@ -297,6 +297,12 @@
         });
         return;
       }
+      // Verify confirme la présence et aucun planning n'existe ce jour-là :
+      // aucune anomalie à signaler, les heures sont déjà comptées.
+      if (!ctx.planningRenseigne && !ctx.statutsPlanifies) {
+        if (!(ctx.heuresRetenues > 0)) ajouterAnomalieDonnee(fiche, employee, date, commun, 'Poste du jour introuvable dans Verify');
+        return;
+      }
       fiche.items.push(Object.assign({}, commun, {
         sourceCle: `presence-exceptionnelle:${employee.id}:${date}`,
         typeItem: 'presence_exceptionnelle', nature: 'hors_planning',
@@ -482,6 +488,15 @@
       planningParEmployeJour.get(cle).push(p);
     });
 
+    // Jours où le planning est renseigné pour quelqu'un. Verify fait foi ;
+    // le planning ne sert qu'à rapprocher et signaler. Tant qu'aucun planning
+    // n'existe pour un jour, une présence confirmée par Verify n'est pas
+    // « hors planning » : il n'y a rien auquel la comparer.
+    // Une personne déjà présente au planning d'autres jours du mois est
+    // rapprochée : son jour manquant reste un écart réel.
+    const joursPlanningRenseigne = new Set(planning.map(p => p.date));
+    const employesAvecPlanning = new Set(planning.map(p => p.employee_id));
+
     const indispoParJour = new Map();
     // Un événement RH est une PÉRIODE, jamais une collection de journées
     // (03/09/2026, retour de Frédéric sur le congé maternité de Vanessa :
@@ -658,7 +673,8 @@
             fonctionPrevue: null, fonctionConstatee: poste,
             heuresPlanning: 0, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
             origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
-            planningConnu: false, exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
+            planningConnu: false, planningRenseigne: joursPlanningRenseigne.has(date) || employesAvecPlanning.has(employee.id),
+            exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
             statutsPlanifies: [...new Set(shifts.map(s => s.statut).filter(Boolean))].join(', '),
           });
         }

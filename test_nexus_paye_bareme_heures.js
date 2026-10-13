@@ -106,25 +106,20 @@ const rapport = M.construireRapport({
   pointages: [], items: [], config: {},
 });
 const fiche = rapport.employes[0];
-const item = fiche.items.find(i => i.typeItem === 'presence_exceptionnelle');
+// Verify fait foi : sans planning, plus d'item « hors planning » ; le jour se lit dans detailJours.
+const item = { poste: fiche.detailJours[0].poste, heuresRetenues: fiche.detailJours[0].presence };
 
 verifier('le poste vient de Verify, pas du rôle NEXUS', item.poste === 'caissier');
 verifier('7 h lui sont retenues — boutique le mardi', item.heuresRetenues === 7);
 verifier('et comptées dans ses heures confirmées', fiche.heuresConfirmees === 7);
 verifier('ventilées en heures de caisse, pas en heures de renfort',
   fiche.heuresCaisse === 7 && fiche.heuresRenfort === 0 && fiche.heuresPiste === 0);
-verifier('la carte explique le calcul en clair',
-  /7 h retenues — boutique le mardi/.test(item.detail));
-verifier('et signale que le poste diffère du rôle inscrit',
-  /différent du rôle « renfort »/.test(item.detail));
-verifier('la durée est portée en minutes, pour que « Confirmer » l’enregistre',
-  item.quantiteMinutes === 420);
-verifier('la journée hors planning est une information, pas un arbitrage',
-  item.statut === 'information' && item.rubrique === 'ecart_verify_planning');
+verifier('aucune carte « hors planning » : Verify fait foi et aucun planning n’existe',
+  !fiche.items.some(i => i.typeItem === 'presence_exceptionnelle'));
+verifier('la durée du jour est portée en minutes dans le détail des jours',
+  fiche.detailJours[0].presence * 60 === 420);
 verifier('et elle ne bloque donc pas la préparation de la paie',
   rapport.bloqueurs.length === 0);
-verifier('son identifiant de source est inchangé, pour que l’historique se rattache',
-  item.sourceCle === `presence-exceptionnelle:${ANGELIQUE.id}:2026-09-01`);
 
 // Verify prime sur le rôle dans l'autre sens aussi : une caissière placée en
 // piste un jeudi fait 8 h de piste, pas 7 h de boutique.
@@ -138,7 +133,7 @@ const piste = M.construireRapport({
   pointages: [], items: [], config: {},
 });
 const fichePiste = piste.employes[0];
-const itemPiste = fichePiste.items.find(i => i.typeItem === 'presence_exceptionnelle');
+const itemPiste = { poste: fichePiste.detailJours[0].poste, heuresRetenues: fichePiste.detailJours[0].presence, heuresSupplementaires: fichePiste.detailJours[0].supplementaires };
 verifier('une caissière placée en piste un jeudi -> 8 h de piste',
   itemPiste.poste === 'pompiste' && itemPiste.heuresRetenues === 8);
 verifier('ventilées en heures de piste',
