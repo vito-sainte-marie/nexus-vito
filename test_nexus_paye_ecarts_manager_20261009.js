@@ -129,7 +129,7 @@ verifier('aucune source ne s’affiche sous forme de clé technique brute',
   !/source : duree_reference|source : horaire_exceptionnel|source : undefined/.test(rendu.app));
 
 // ── §9 : la ventilation des heures par origine ───────────────────────────
-for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Dont corrections du manager', 'Écarts à examiner'])
+for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Heures exceptionnelles (saisies par le manager)', 'Écarts à examiner'])
   verifier(`la fiche salarié ventile « ${t} »`, rendu.app.includes(t));
 verifier('les heures de piste valent le total, la caisse reste à zéro',
   /Heures de piste<\/span>[\s\S]{0,80}?15 h/.test(rendu.app) && /Heures de caisse<\/span>[\s\S]{0,80}?0 h/.test(rendu.app));
@@ -139,7 +139,7 @@ verifier('l’écart non traité est compté comme « à examiner », sans retir
 // lisent aussi sous leur poste : la tuile doit dire « dont », sinon le
 // manager additionnerait deux fois la même journée.
 verifier('la tuile des corrections annonce qu’elle ne s’ajoute pas aux trois précédentes',
-  /Dont corrections du manager/.test(rendu.app)
+  /Heures exceptionnelles \(saisies par le manager\)/.test(rendu.app)
   && !/>Corrections du manager</.test(rendu.app));
 
 // ── §5.4 et §9 : rien n’est proposé que l’écran ne puisse enregistrer ───
@@ -186,7 +186,9 @@ function clientFaux(options) {
       return {
         select(cols) {
           trace.selects.push({ table, cols });
-          return { limit: () => Promise.resolve(o.erreurSonde ? { error: { message: o.erreurSonde } } : { data: [], error: null }) };
+          const chaine = { limit: () => Promise.resolve(o.erreurSonde ? { error: { message: o.erreurSonde } } : { data: [], error: null }),
+            eq: () => chaine, maybeSingle: () => Promise.resolve({ data: o.avant ? { detail: o.avant } : null, error: null }) };
+          return chaine;
         },
         upsert(ligne, conf) {
           trace.upserts.push({ table, ligne, conf });
@@ -241,7 +243,7 @@ const D = lire('NexusPayeDonnees');
     });
 
   // L'horaire exceptionnel.
-  const base = { siteId: 's', employeeId: 'e1', periode: '2026-08-01', date: '2026-08-06', debut: '09:00', fin: '17:00', pauseMinutes: 60, motif: 'inventaire', heuresInitiales: 8, actorId: 'manager-1' };
+  const base = { siteId: 's', employeeId: 'e1', periode: '2026-08-01', date: '2026-08-06', debut: '09:00', fin: '17:00', pauseMinutes: 60, motif: 'inventaire', justification: 'accord du gérant du 06/08', heuresInitiales: 8, actorId: 'manager-1' };
   await verifierAsync('la durée nette est recalculée, jamais saisie : 9 h à 17 h moins 1 h font 7 h',
     async () => {
       const c = clientFaux();
@@ -273,6 +275,28 @@ const D = lire('NexusPayeDonnees');
     async () => {
       try { await D.enregistrerHoraireExceptionnel(clientFaux(), Object.assign({}, base, { motif: '' })); return false; }
       catch (e) { return /motif/.test(e.message); }
+    });
+  // Arbitrage B (13/10/2026) : provenance manuelle, justification, historique.
+  await verifierAsync('B : provenance manuelle, justification et plage portées par une ligne distincte',
+    async () => {
+      const c = clientFaux();
+      await D.enregistrerHoraireExceptionnel(c, base);
+      const l = c.trace.upserts[0].ligne;
+      return l.type_item === 'horaire_exceptionnel' && l.origine === 'manuel' && l.detail.provenance === 'manuelle'
+        && l.detail.justification === 'accord du gérant du 06/08' && Array.isArray(l.detail.historique) && l.detail.historique.length === 0;
+    });
+  await verifierAsync('B : un horaire sans justification est refusé',
+    async () => {
+      try { await D.enregistrerHoraireExceptionnel(clientFaux(), Object.assign({}, base, { justification: '' })); return false; }
+      catch (e) { return /justification/.test(e.message); }
+    });
+  await verifierAsync('B : une nouvelle saisie du même jour empile la précédente dans l’historique',
+    async () => {
+      const avant = { debut: '08:00', fin: '18:00', pause_minutes: 30, motif: 'ancien', justification: 'ancienne', auteur: 'm0', saisi_le: '2026-08-06T10:00:00Z', historique: [] };
+      const c = clientFaux({ avant });
+      await D.enregistrerHoraireExceptionnel(c, base);
+      const h = c.trace.upserts[0].ligne.detail.historique;
+      return h.length === 1 && h[0].debut === '08:00' && h[0].motif === 'ancien' && h[0].auteur === 'm0';
     });
   // Une fin antérieure au début est lue comme un service de nuit : le moteur
   // enroule à 24 h, et c'est voulu pour les renforts qui passent minuit. On

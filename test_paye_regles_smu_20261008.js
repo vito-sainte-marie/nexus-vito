@@ -173,16 +173,41 @@ scenario('sans planning, un jour Verify est compté et ne bloque pas le salarié
   assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
 });
 
-scenario('planning renseigné pour un collègue, pas pour elle : présence signalée hors planning', () => {
+scenario('planning renseigné pour un collègue, pas pour elle : présence confirmée, planning non renseigné (Q4, option C)', () => {
   const r = run({
     planning: [{ employee_id: 'e2', date: LUNDI, quart: 'quart1', statut: 'travail', duree_heures: 7 }],
     audits: [AUDIT_BOUTIQUE(LUNDI)],
   });
-  const items = fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle');
+  // Une case vide n'est pas un repos : ce n'est ni une présence « hors planning » ni une anomalie.
+  assert.strictEqual(fiche(r).items.filter(i => i.typeItem === 'presence_exceptionnelle').length, 0);
+  const items = fiche(r).items.filter(i => i.nature === 'planning_non_renseigne');
+  assert.strictEqual(items.length, 1);
+  assert.strictEqual(items[0].typeItem, 'ecart_verify_planning');
+  assert.strictEqual(items[0].statut, 'information');
+  assert.ok(!items[0].signale);
+  assert.strictEqual(items[0].libelle, 'Présence confirmée sans planning renseigné');
+  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+  assert.strictEqual(r.bloqueurs.length, 0);
+});
+
+scenario('Q4 : une case vide ne génère ni absence, ni retenue, ni heure de renfort', () => {
+  const r = run({
+    planning: [{ employee_id: 'e2', date: LUNDI, quart: 'quart1', statut: 'travail', duree_heures: 7 }],
+    audits: [AUDIT_BOUTIQUE(LUNDI)],
+  });
+  assert.ok(!typeItems(r).includes('absence_a_verifier'));
+  assert.ok(!typeItems(r).includes('retenue'));
+  assert.strictEqual(M.variablesComptables(fiche(r)).presence.joursPlanifies, 0);
+  assert.ok(!fiche(r).heuresRenfort);
+});
+
+scenario('Q4 : sans aucun planning, la présence confirmée est tracée sans bloquer', () => {
+  const r = run({ audits: [AUDIT_BOUTIQUE(LUNDI)] });
+  const items = fiche(r).items.filter(i => i.nature === 'planning_non_renseigne');
   assert.strictEqual(items.length, 1);
   assert.strictEqual(items[0].statut, 'information');
-  assert.strictEqual(items[0].libelle, 'Présence constatée par Verify, sans planning');
-  assert.strictEqual(fiche(r).heuresConfirmees, 7);
+  assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
 });
 
 // « Le conflit trace une anomalie sans bloquer ; priorité à Verify, mais

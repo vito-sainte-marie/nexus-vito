@@ -297,18 +297,27 @@
         });
         return;
       }
-      // Verify confirme la présence et aucun planning n'existe ce jour-là :
-      // aucune anomalie à signaler, les heures sont déjà comptées.
-      if (!ctx.planningRenseigne && !ctx.statutsPlanifies) {
+      // Arbitrage Q4, option C (13/10/2026) : une case vide au planning
+      // signifie « non renseigné », jamais « repos ». Verify confirme la
+      // présence : elle est conservée telle quelle, avec une information non
+      // bloquante. Une case vide ne génère ni absence, ni retenue, ni heure
+      // de renfort, et n'est pas comptée comme « hors planning ». Seul un
+      // repos ou une absence EXPLICITES contredits par Verify sont une
+      // anomalie à arbitrer (branche suivante).
+      if (!ctx.statutsPlanifies) {
+        fiche.items.push(Object.assign({}, commun, {
+          sourceCle: `planning-non-renseigne:${employee.id}:${date}`,
+          typeItem: 'ecart_verify_planning', nature: 'planning_non_renseigne',
+          libelle: 'Présence confirmée sans planning renseigné',
+          detail: `${ctx.heuresRetenues > 0 ? `${ctx.heuresRetenues} h retenues` : 'Heures à saisir'} — ${posteLu || 'poste inconnu'} le ${jourNom}, présence confirmée par Verify · information non bloquante, aucune absence ni retenue`,
+        }));
         if (!(ctx.heuresRetenues > 0)) ajouterAnomalieDonnee(fiche, employee, date, commun, 'Poste du jour introuvable dans Verify');
         return;
       }
       fiche.items.push(Object.assign({}, commun, {
         sourceCle: `presence-exceptionnelle:${employee.id}:${date}`,
         typeItem: 'presence_exceptionnelle', nature: 'hors_planning',
-        libelle: ctx.statutsPlanifies
-          ? `Conflit planning / Verify : ${ctx.statutsPlanifies} planifié, présence constatée par Verify`
-          : 'Présence constatée par Verify, sans planning',
+        libelle: `Conflit planning / Verify : ${ctx.statutsPlanifies} planifié, présence constatée par Verify`,
         // Un shift non travaillé (repos, congé) que Verify contredit est un
         // conflit signalé, non bloquant (08/10/2026, règles SMU §3).
         ...(ctx.statutsPlanifies ? { signale: true, anomalie: 'conflit_planning_verify' } : {}),
@@ -896,11 +905,16 @@
           item.heuresRecalculees = nette;
           item.heuresInitiales = d.heures_initiales != null ? Number(d.heures_initiales) : null;
           item.motif = d.motif || null;
+          item.justification = d.justification || null;
+          item.provenance = d.provenance || 'manuelle';
+          item.historique = Array.isArray(d.historique) ? d.historique : [];
           item.auteur = d.auteur || null;
           item.detail = `${d.debut || 'début absent'} → ${d.fin || 'fin absente'}, pause ${d.pause_minutes != null ? d.pause_minutes : pauseMinutes(d)} min`
             + (nette != null ? ` · ${nette} h nettes retenues` : ' · durée illisible, rien n\'a été retenu')
             + (item.heuresInitiales != null ? ` · valeur initiale ${item.heuresInitiales} h` : '')
-            + (d.motif ? ` · motif : ${d.motif}` : '');
+            + (d.motif ? ` · motif : ${d.motif}` : '')
+            + (d.justification ? ` · justification : ${d.justification}` : '')
+            + (item.historique.length ? ` · ${item.historique.length} saisie(s) précédente(s) conservée(s)` : '');
         }
         return item;
       });
