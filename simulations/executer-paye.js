@@ -66,7 +66,9 @@ scenario('aucun retard n’est déduit d’un pointage',()=>{
 scenario('un retard aberrant en base ne bloque plus et ne retire aucune heure',()=>{
  const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:5754}]});
  assert.ok(!r.items.some(i=>i.typeItem==='retard_incoherent'));
- assert.strictEqual(r.bloqueurs.length,0);
+ // Le pointage seul reste un bloqueur « présence exceptionnelle » (règle du lot : jamais payé sans
+ // preuve de poste) ; ce que le scénario établit est que le retard aberrant, lui, ne bloque rien.
+ assert.ok(!r.bloqueurs.some(b=>b.type==='retard_incoherent'));
  assert.strictEqual(r.employes[0].heuresConfirmees,8);
 });
 scenario('congé déclaré n’est pas transformé en absence certaine',()=>{
