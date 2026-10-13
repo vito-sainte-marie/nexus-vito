@@ -285,6 +285,9 @@
   function renfortDepuisCellule(valeur, quart) {
     const brut = valeur == null ? '' : String(valeur).trim();
     if (!brut) return { noms: [], ignore: null };
+    // Le classeur écrit « vérrouillée » (sic) dans la cellule du quart 2 : c'est
+    // un marqueur de mise en page, pas un nom, et il ne dit rien (vu le 13/10).
+    if (/^ver+ouill/.test(brut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())) return { noms: [], ignore: null };
     if (String(quart).trim() !== '1') return { noms: [], ignore: 'quart_2' };
     const vus = new Set(), noms = [];
     brut.split(/\s*(?:[,;/+&]|\bet\b)\s*/i).map(n => n.trim()).filter(Boolean).forEach(n => {

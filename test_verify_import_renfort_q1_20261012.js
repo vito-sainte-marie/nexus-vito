@@ -18,6 +18,10 @@ verifier('cellule vide en Q2 : rien non plus, sans motif d’ignorance',
   R('', '2').noms.length === 0 && R('', '2').ignore === null);
 verifier('plusieurs noms séparés par , ; / + & et « et »',
   JSON.stringify(R('Ana, Bob; Cy / Di + Ed & Flo et Gus', '1').noms) === '["Ana","Bob","Cy","Di","Ed","Flo","Gus"]');
+verifier('le marqueur « vérrouillée » du classeur réel n’est ni un nom ni un motif, en Q1 comme en Q2',
+  ['vérrouillée', 'verrouillée', 'Vérouillée', ' VERROUILLEE '].every(v => ['1', '2'].every(q => R(v, q).noms.length === 0 && R(v, q).ignore === null)));
+verifier('les prénoms seuls du classeur réel sont retenus en Q1 (Angelique, Loane, Ruddy, Samantha)',
+  ['Angelique', 'Loane', 'Ruddy', 'Samantha'].every(v => R(v, '1').noms[0] === v));
 verifier('un même nom répété n’est retenu qu’une fois (pas de double renfort)', R('Ana, ANA', '1').noms.length === 1);
 verifier('le quart peut arriver en nombre', R('Ana', 1).noms.length === 1 && R('Ana', 2).noms.length === 0);
 
