@@ -193,37 +193,3 @@ rattachées. 6 lit `new.service_id` : elle ne peut pas précéder 1.
 `NOT VALID` : sa validation exige le traitement explicite des lignes
 existantes incompatibles, et n'est pas incluse. Les 17 exceptions historiques
 ne sont jamais rattachées.
-
----
-
-## EXCLUE de cette release — refonte heures Verify / Paye du 09/10/2026 (1 migration)
-
-| migration | classement | pourquoi |
-|---|---|---|
-| `20261009120000_nexus_paye_items_types_heures_verify.sql` | **EXCLUE** | écrite par le lot « heures Verify / Paye », appliquée nulle part à ce jour |
-
-**Ce qu'elle contient.** Quatre changements, tous additifs :
-`audits_caisse.employes_renfort` (jsonb, sur le modèle existant de
-`employes_piste` et `employes_boutique`) ; `nexus_paye_items.detail` (jsonb) ;
-le `CHECK` sur `statut` étendu à `examine`, `corrige`, `justifie` ; le `CHECK`
-sur `type_item` reconduisant les 14 valeurs existantes et ajoutant
-`ecart_verify_planning` et `horaire_exceptionnel`.
-
-**Pourquoi EXCLUE, et non incluse.** Elle n'est appliquée nulle part par son
-lot. Toute opération sur Supabase Production reste une gate humaine, et le
-cahier des charges du 09/10/2026 le dit lui-même : il ne vaut pas autorisation
-de modifier la Production, ses données, ses migrations ou son déploiement. La
-classer INCLUSE la ferait voyager avec une release qu'elle n'a pas été mesurée
-pour accompagner.
-
-**Ce que son exclusion coûte, et qu'il faut savoir avant de la lever.** Les
-écrans de la refonte écriront `employes_renfort` à la clôture Verify et
-`detail` sur les éléments de paie. Le jour où ce code part en Production, cette
-migration devient **exigée par le code** au sens de
-`test_migrations_exigees_par_le_code_20260911.js` : son classement devra passer
-à INCLUSE, et la garde devra surveiller ces colonnes comme elle surveille
-`pointages.service_id`. Déployer les écrans sans elle ferait échouer toute
-clôture Verify portant un renfort.
-
-Aucune de ces deux choses n'est faite ici. Elles sont nommées pour que
-l'exclusion ne se transforme pas en oubli.
