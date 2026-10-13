@@ -297,11 +297,38 @@
     return { noms, ignore: null };
   }
 
+  // ------------------------------------------------------------
+  // Renfort ET poste le même jour (cas Ruddy, 02/10/2026, arbitré le 13/10) :
+  // un renfort du quart 1 qui tient aussi la piste ou la caisse, à n'importe
+  // quel quart de la journée, est calculé sur le poste, jamais additionné.
+  // Le moteur Paye applique déjà cette priorité ; cette fonction ne calcule
+  // aucune heure, elle DIT le croisement au manager au moment de la synchro.
+  // `jour` = lignes du classeur de la même date : [{ quart, renfort, pompiste, caissier }].
+  // Rend [{ nom, poste, quartPoste }], une entrée par croisement.
+  // ------------------------------------------------------------
+  function croisementsRenfortPoste(jour) {
+    const cle = (n) => String(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const noms = (v) => String(v == null ? '' : v).split(/\s*(?:[,;/+&]|\bet\b)\s*/i).map(x => x.trim()).filter(Boolean);
+    const rendu = [];
+    (jour || []).forEach(l => {
+      renfortDepuisCellule(l.renfort, l.quart).noms.forEach(nom => {
+        (jour || []).forEach(m => {
+          [['pompiste', 'pompiste'], ['caissier', 'caissier']].forEach(([champ, poste]) => {
+            if (noms(m[champ]).some(x => cle(x) === cle(nom))) rendu.push({ nom, poste, quartPoste: String(m.quart).trim() });
+          });
+        });
+      });
+    });
+    return rendu;
+  }
+
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
     libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
     CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets, estReportDateRisque,
     renfortDepuisCellule,
+    croisementsRenfortPoste,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

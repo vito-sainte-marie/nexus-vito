@@ -1915,6 +1915,20 @@
       if (caissierNomPeek) previewChamps.push({ label: 'Employé Boutique', valeur: caissierNomPeek });
       // Colonne RENFORT : règle dans le moteur (Q1 seulement, vide = rien).
       const renfortLu = NexusVerifyMoteur.renfortDepuisCellule(g('renfort'), quartStr);
+      // Même journée, autre quart compris : un renfort qui tient aussi la piste ou
+      // la caisse est calculé sur ce poste, sans cumul. Dit ici, avant application.
+      const joursLignes = [];
+      for (let i = dernierDateVueIdx; i >= 0 && i < lignes.length; i++) {
+        const l = lignes[i];
+        if (!l) continue;
+        if (i > dernierDateVueIdx && l[cols.date] instanceof Date) break;
+        const lec = (k) => (cols[k] !== undefined ? l[cols[k]] : null);
+        const q = cols.quart !== undefined ? l[cols.quart] : null;
+        if (q != null) joursLignes.push({ quart: String(q).trim(), renfort: lec('renfort'), pompiste: lec('pompiste'), caissier: lec('caissier') });
+      }
+      const croisements = NexusVerifyMoteur.croisementsRenfortPoste(joursLignes);
+      const texteCroisement = (c) => `${c.nom} : renfort au quart 1 et ${c.poste === 'pompiste' ? 'pompiste' : 'caissier'} au quart ${c.quartPoste} le ${dateResolueTexte}. Calculé en ${c.poste === 'pompiste' ? 'piste' : 'boutique'}, sans additionner le renfort`;
+      croisements.forEach(c => previewChamps.push({ label: 'Renfort et poste le même jour', valeur: texteCroisement(c) }));
       if (renfortLu.noms.length) previewChamps.push({ label: 'Renfort (Q1, 7 h)', valeur: renfortLu.noms.join(', ') });
       else if (renfortLu.ignore === 'quart_2') previewChamps.push({ label: 'Renfort', valeur: `« ${String(g('renfort')).trim()} » ignoré : le renfort ne s'applique qu'au quart 1` });
 
@@ -2029,6 +2043,7 @@
       // inconnu est un doute à lever, pas un vacataire à inventer). Rien n'est
       // écrit ici : la déclaration passe par le bloc Renfort, enregistré avec
       // la clôture comme n'importe quelle déclaration manuelle.
+      croisements.forEach(c => messagesEmp.push(`À vérifier : ${texteCroisement(c)}`));
       if (renfortLu.noms.length) {
         if (!COLONNE_RENFORT_DISPONIBLE) {
           messagesEmp.push(`Renfort : ${renfortLu.noms.join(', ')} lu dans le classeur, non appliqué (déclaration de renfort pas encore disponible)`);
