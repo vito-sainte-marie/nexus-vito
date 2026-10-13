@@ -265,32 +265,63 @@
   // du jour, pas comme une variable qui s'additionne. Le mettre à vrai
   // paierait la même journée deux fois.
   async function enregistrerHoraireExceptionnel(client, payload) {
-    const { siteId, employeeId, periode, date, debut, fin, pauseMinutes, motif, heuresInitiales, actorId } = payload;
+    const { siteId, employeeId, periode, date, debut, fin, pauseMinutes, motif, justification, heuresInitiales, actorId } = payload;
     if (!siteId || !employeeId || !periode || !date) throw new Error('Salarié et date sont obligatoires');
     if (!/^\d{2}:\d{2}$/.test(String(debut || '')) || !/^\d{2}:\d{2}$/.test(String(fin || ''))) throw new Error('Heures de début et de fin attendues au format HH:MM');
     if (!motif) throw new Error('Un horaire exceptionnel doit porter son motif');
+    if (!justification) throw new Error('Un horaire exceptionnel doit porter sa justification');
     const pause = pauseMinutes == null || pauseMinutes === '' ? 0 : Number(pauseMinutes);
     if (!Number.isFinite(pause) || pause < 0) throw new Error('Pause invalide');
     const M = global.NexusPayeMoteur;
     const nette = M && M.dureeNetteHeures ? M.dureeNetteHeures(debut, fin, pause) : null;
     if (nette == null) throw new Error('La fin doit suivre le début, pause déduite');
     const maintenant = new Date().toISOString();
+    const sourceCle = `horaire-exceptionnel:${employeeId}:${date}`;
+    // Historique (arbitrage B, 13/10/2026) : une nouvelle saisie du même jour
+    // ne perd jamais la précédente, elle est empilée dans `historique`.
+    // Condition 2 de la decision-7 : si l'historique précédent ne peut pas
+    // être lu, la modification est REFUSÉE. Enregistrer quand même perdrait
+    // la saisie antérieure sans trace.
+    let historique = [];
+    const { data: avant, error: errLecture } = await client.from('nexus_paye_items').select('detail, modifie_le')
+      .eq('site_id', siteId).eq('periode', periode).eq('employee_id', employeeId).eq('source_cle', sourceCle).maybeSingle();
+    if (errLecture) throw new Error('Historique illisible : modification refusée, rien n\'a été enregistré');
+    const d = avant && avant.detail;
+    if (d) {
+      historique = Array.isArray(d.historique) ? d.historique.slice() : [];
+      historique.push({ debut: d.debut, fin: d.fin, pause_minutes: d.pause_minutes, motif: d.motif, justification: d.justification || null, auteur: d.auteur || null, saisi_le: d.saisi_le || null });
+    }
     const ligne = {
       site_id: siteId, employee_id: employeeId, periode, date_evenement: date,
       type_item: 'horaire_exceptionnel', origine: 'manuel',
-      source_cle: `horaire-exceptionnel:${employeeId}:${date}`,
+      source_cle: sourceCle,
       libelle: `Horaire exceptionnel ${debut} à ${fin}`,
       quantite_minutes: Math.round(nette * 60),
       statut: 'valide', impact_paye: false, note: motif,
       detail: {
-        debut, fin, pause_minutes: pause, motif,
+        debut, fin, pause_minutes: pause, motif, justification,
+        provenance: 'manuelle', historique,
         auteur: actorId || null, saisi_le: maintenant,
         heures_initiales: heuresInitiales == null || heuresInitiales === '' ? null : Number(heuresInitiales),
       },
       cree_par: actorId, modifie_par: actorId, modifie_le: maintenant,
     };
-    const { error } = await client.from('nexus_paye_items').upsert(ligne, { onConflict: 'site_id,periode,employee_id,source_cle' });
-    if (error) throw error;
+    // Écriture à verrou optimiste : deux modifications concurrentes ne se
+    // remplacent pas en silence. Sur une ligne existante, la mise à jour ne
+    // passe que si `modifie_le` est celui qui vient d'être lu ; sur une
+    // ligne absente, l'insertion échoue si l'autre saisie l'a créée entre-temps.
+    const CONFLIT = 'Cette saisie a été modifiée entre-temps : rechargez et recommencez';
+    if (avant) {
+      let q = client.from('nexus_paye_items').update(ligne)
+        .eq('site_id', siteId).eq('periode', periode).eq('employee_id', employeeId).eq('source_cle', sourceCle);
+      q = avant.modifie_le == null ? q.is('modifie_le', null) : q.eq('modifie_le', avant.modifie_le);
+      const { data: maj, error } = await q.select('source_cle');
+      if (error) throw error;
+      if (!maj || !maj.length) throw new Error(CONFLIT);
+    } else {
+      const { error } = await client.from('nexus_paye_items').insert(ligne);
+      if (error) throw (error.code === '23505' ? new Error(CONFLIT) : error);
+    }
     return nette;
   }
 

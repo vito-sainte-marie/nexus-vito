@@ -231,6 +231,29 @@
   // Le cas « constaté hors planning » garde volontairement son ancienne clé
   // de source et son ancien type : les décisions déjà enregistrées par le
   // manager continuent de se rattacher à leur journée.
+  // Condition 1 de la decision-7 (13/10/2026) : sans planning du mois, une
+  // présence Verify ne produit pas un message par jour mais une seule
+  // synthèse non bloquante par salarié et par période. Le détail des jours
+  // reste consultable (`jours`). Les heures ne bougent pas (la synthèse ne
+  // porte aucune quantité) et les conflits explicites ne sont pas touchés.
+  function regrouperPlanningNonRenseigne(fiche, employee, periode) {
+    const jours = fiche.items.filter(i => i.nature === 'planning_non_renseigne');
+    if (!jours.length) return;
+    fiche.items = fiche.items.filter(i => i.nature !== 'planning_non_renseigne');
+    const dates = jours.map(i => i.date).sort();
+    const n = dates.length;
+    const base = jours[0];
+    fiche.items.push(Object.assign({}, base, {
+      sourceCle: `planning-non-renseigne:${employee.id}:${periode}`,
+      date: dates[0], nature: 'planning_non_renseigne',
+      libelle: `${n} présence${n > 1 ? 's' : ''} confirmée${n > 1 ? 's' : ''}, planning non renseigné`,
+      detail: `Présence confirmée par Verify, planning non renseigné · information non bloquante, aucune absence ni retenue · ${dates.join(', ')}`,
+      jours: jours.map(i => ({ date: i.date, heuresRetenues: i.heuresRetenues, poste: i.poste, detail: i.detail })),
+      quantiteMinutes: null, heuresAttribuees: 0, heuresRetenues: 0, heuresSupplementaires: 0,
+      statut: 'information', impactPaye: false,
+    }));
+  }
+
   function itemEcart(fiche, employee, date, ctx) {
     const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
     const posteLu = LIBELLE_POSTE[ctx.fonctionConstatee] || ctx.fonctionConstatee || null;
@@ -297,18 +320,27 @@
         });
         return;
       }
-      // Verify confirme la présence et aucun planning n'existe ce jour-là :
-      // aucune anomalie à signaler, les heures sont déjà comptées.
-      if (!ctx.planningRenseigne && !ctx.statutsPlanifies) {
+      // Arbitrage Q4, option C (13/10/2026) : une case vide au planning
+      // signifie « non renseigné », jamais « repos ». Verify confirme la
+      // présence : elle est conservée telle quelle, avec une information non
+      // bloquante. Une case vide ne génère ni absence, ni retenue, ni heure
+      // de renfort, et n'est pas comptée comme « hors planning ». Seul un
+      // repos ou une absence EXPLICITES contredits par Verify sont une
+      // anomalie à arbitrer (branche suivante).
+      if (!ctx.statutsPlanifies) {
+        fiche.items.push(Object.assign({}, commun, {
+          sourceCle: `planning-non-renseigne:${employee.id}:${date}`,
+          typeItem: 'ecart_verify_planning', nature: 'planning_non_renseigne',
+          libelle: 'Présence confirmée sans planning renseigné',
+          detail: `${ctx.heuresRetenues > 0 ? `${ctx.heuresRetenues} h retenues` : 'Heures à saisir'} — ${posteLu || 'poste inconnu'} le ${jourNom}, présence confirmée par Verify · information non bloquante, aucune absence ni retenue`,
+        }));
         if (!(ctx.heuresRetenues > 0)) ajouterAnomalieDonnee(fiche, employee, date, commun, 'Poste du jour introuvable dans Verify');
         return;
       }
       fiche.items.push(Object.assign({}, commun, {
         sourceCle: `presence-exceptionnelle:${employee.id}:${date}`,
         typeItem: 'presence_exceptionnelle', nature: 'hors_planning',
-        libelle: ctx.statutsPlanifies
-          ? `Conflit planning / Verify : ${ctx.statutsPlanifies} planifié, présence constatée par Verify`
-          : 'Présence constatée par Verify, sans planning',
+        libelle: `Conflit planning / Verify : ${ctx.statutsPlanifies} planifié, présence constatée par Verify`,
         // Un shift non travaillé (repos, congé) que Verify contredit est un
         // conflit signalé, non bloquant (08/10/2026, règles SMU §3).
         ...(ctx.statutsPlanifies ? { signale: true, anomalie: 'conflit_planning_verify' } : {}),
@@ -896,15 +928,21 @@
           item.heuresRecalculees = nette;
           item.heuresInitiales = d.heures_initiales != null ? Number(d.heures_initiales) : null;
           item.motif = d.motif || null;
+          item.justification = d.justification || null;
+          item.provenance = d.provenance || 'manuelle';
+          item.historique = Array.isArray(d.historique) ? d.historique : [];
           item.auteur = d.auteur || null;
           item.detail = `${d.debut || 'début absent'} → ${d.fin || 'fin absente'}, pause ${d.pause_minutes != null ? d.pause_minutes : pauseMinutes(d)} min`
             + (nette != null ? ` · ${nette} h nettes retenues` : ' · durée illisible, rien n\'a été retenu')
             + (item.heuresInitiales != null ? ` · valeur initiale ${item.heuresInitiales} h` : '')
-            + (d.motif ? ` · motif : ${d.motif}` : '');
+            + (d.motif ? ` · motif : ${d.motif}` : '')
+            + (d.justification ? ` · justification : ${d.justification}` : '')
+            + (item.historique.length ? ` · ${item.historique.length} saisie(s) précédente(s) conservée(s)` : '');
         }
         return item;
       });
       fiche.items.push(...manuels);
+      regrouperPlanningNonRenseigne(fiche, employee, periode);
       fiche.items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.typeItem.localeCompare(b.typeItem));
       itemsGlobaux.push(...fiche.items.map(i => Object.assign({ employeeId: employee.id, employeeNom: employee.nom }, i)));
       employes.push(fiche);
