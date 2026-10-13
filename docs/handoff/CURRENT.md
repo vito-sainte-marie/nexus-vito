@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-REGUL-GROUPES-1-20261013
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -22,41 +22,46 @@ preuves:
     valeur: 147-fichiers
   - id: pr-portage
     classe: VERIFIED
-    valeur: PR-112-tete-30f7a5e-base-production
+    valeur: PR-112-tete-5e78898-base-production
   - id: migration-blob
     classe: VERIFIED
     valeur: 20261013140000-eccdbafc53e9e34d365a49aa5c6d3708cc731d03
   - id: ci-pr-112
     classe: VERIFIED
-    valeur: non-regression-et-artefact-verts
-  - id: condition-5
-    classe: DECLARED
-    valeur: raisonnement-non-rejoue
+    valeur: tests-et-deploiement-production-verts-5e78898
+  - id: condition-5-a-md5
+    classe: VERIFIED
+    valeur: 94db6478-identique-20261008160000
+  - id: condition-5-c-epreuves
+    classe: VERIFIED
+    valeur: 3-epreuves-vertes-16-6-12-contre-temoins
+  - id: condition-5-reversibilite
+    classe: VERIFIED
+    valeur: catalogue-identique-4487
   - id: aucun-go-production
     classe: DECLARED
     valeur: migration-fusion-pages-non-accordes
 ---
-# Régularisation différée (versements groupés) — portage depuis `origin/production` et condition 5
+# Régularisation différée (versements groupés) — condition 5 rejouée (réponse à decision-2)
 
 **Ceci n'est ni un GO Production ni une demande d'exécution.** Aucune migration, fusion ni déploiement Pages n'a été effectué ni n'est demandé.
 
-## 1. Réponse aux conditions de decision-1
+## 1. Les trois vérifications exigées par decision-2
 
-- Condition 3 : portage propre depuis `origin/production` (`7e37b88`), PR #112 en brouillon (base `production`), branche `portage-regularisation-groupes-20261013`, tête `30f7a5e`. La PR #109 n'est pas fusionnée.
-- Condition 4 : blob de la migration `20261013140000` inchangé (`eccdbafc53e9e34d365a49aa5c6d3708cc731d03`). Écart d'estampille propre à Test documenté dans le dossier. Empreinte d'artefact re-mesurée : 307 migrations, `ca778d6c…2acc86b`. CI de la PR #112 verte (non-regression, construction de l'artefact, aperçu Cloudflare) ; déploiement Pages et Supabase Preview ignorés.
-- Conditions 1 et 2 : classement `atomique_ou_procedure_speciale` conservé ; ordre migration puis code.
-- Conditions 6 et 7 : respectées ; la restitution du surplus reste hors lot.
+Tête du portage : PR #112 (brouillon, base `production`), `5e78898`. Blob de la migration `20261013140000` inchangé : `eccdbafc53e9e34d365a49aa5c6d3708cc731d03`. CI à `5e78898` verte (Tests ×2, job Déploiement Production ; Pages non déployé).
 
-## 2. Condition 5 — intervalle « migration posée, code non déployé »
+- **(a) `_regul_tiroir_detail`** : la définition de Production (md5 `94db6478…`) est identique au texte de `20261008160000`. Une première lecture divergente (`2dcaf86a…`) venait de la méthode de mesure (hors `pg_get_functiondef`) ; elle est abandonnée et documentée. Les 8 autres fonctions ont le même md5 avant et après la migration ; seule `_regul_tiroir_detail` passe à `8f8a8156…`, par construction.
+- **(b) Six fonctions `select … into` / `%rowtype`** : relues une à une, ainsi que les 8 anciennes fonctions touchant les deux tables ; aucune incompatibilité avec les colonnes `groupe_id` nullables.
+- **(c) Rejeu des épreuves existantes avec la migration seule** : les 3 anciennes épreuves restent vertes (16 + 6 + 12 contre-témoins). Défaut trouvé et corrigé : 2 contre-témoins périmés (`mode-transfert.sql`, `sans-transferts.sql`) visaient une expression que la migration réécrit ; ils sont ré-ancrés sur `coalesce(v.mode_encaissement, g.mode_encaissement, 'sans_mode')`. Cette épreuve n'est pas câblée à la CI.
+- **(d) Réversibilité** : script `docs/deploiement/retour-arriere-versements-groupes-20261013.sql` (une transaction : RPC, `_regul_tiroir_detail` d'origine, triggers, CHECK, colonnes, garde « table des groupes vide », table). Catalogue identique avant migration et après retour arrière (4487 éléments) tant que la table des groupes est vide. La migration modifie 62 lignes du relevé.
 
-Lectures seules sur Production le 13/10 : `groupe_id` et la table des groupes absents ; `ecarts_versements_regularisation` et `caisse_transferts_coffre` à 0 ligne ; aucune vue dépendante ; seuls triggers existants : l'immuabilité.
+## 2. Limites déclarées
 
-Raisonnement : migration additive ; les nouveaux triggers sortent immédiatement quand `groupe_id` est nul ; le CHECK `ctc_versement_ou_groupe` est vrai pour toute ligne sans groupe ; `_regul_tiroir_detail` garde signature et forme de sortie, résultats identiques sans groupe ; seules les nouvelles RPC créent un groupe et aucun écran actuel ne les appelle. Le retour arrière de l'en-tête de la migration est sans perte tant que la table des groupes est vide.
-
-**Limites déclarées (statut : raisonnement, pas rejeu)** : la définition Production de `_regul_tiroir_detail` n'a pas été comparée au texte de `20261008160000` ; les six fonctions citant les tables avec `select … into` / `%rowtype` n'ont pas été relues une à une ; les scénarios existants n'ont pas été rejoués sur une copie de Production avec la migration seule.
+- Le rejeu s'est fait dans un conteneur Postgres jetable avec les migrations du dépôt, **pas sur une copie des données de Production** ; les 22 migrations de Production sans fichier ne sont pas rejouées. Production n'a de toute façon aucune ligne dans les deux tables concernées (lecture seule du 13/10).
+- Le retour arrière avec des groupes existants est refusé par la garde, volontairement : il détruirait des écritures.
 
 ## 3. Question à l'arbitre
 
-La condition 5 est-elle suffisamment instruite par ce raisonnement, ou exige-t-elle, avant toute proposition d'exécution, les trois vérifications ci-dessus (comparaison de définition, relecture des six fonctions, rejeu sur copie) ? Je les mènerai sur ta demande ; je ne les déclare pas acquises.
+Cette instruction de la condition 5 suffit-elle pour que je prépare une proposition d'exécution (séquence migration puis code, fenêtre, retour arrière), ou exiges-tu une copie plus représentative de Production ? Dans ce cas, précise laquelle (schéma seul restauré, ou données comprises).
 
 Aucun GO n'est sollicité pour : SUPABASE_PRODUCTION_MUTATION, fusion vers `production`, déploiement Pages.
