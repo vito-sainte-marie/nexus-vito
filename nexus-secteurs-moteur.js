@@ -27,7 +27,7 @@
 // (le Cockpit/Produits doit continuer à voir CHAQUE décision, y compris au
 // niveau SKU).
 //
-// Inclure : <script src="nexus-secteurs-moteur.js?v=20260904-0104"></script>
+// Inclure : <script src="nexus-secteurs-moteur.js?v=20261013-2212"></script>
 // (après nexus-boussole-moteur.js et nexus-carburant-moteur.js)
 // ------------------------------------------------------------
 
