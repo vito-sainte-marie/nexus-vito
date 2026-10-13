@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-12.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-13.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 12
+seq: 13
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,75 +13,57 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=c516322 production=e5276c5
+    valeur: main=c516322 production=b4ebdcd
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 147-fichiers
-  - id: pr107-tete
-    classe: VERIFIED
-    valeur: 986ac6ab014c27bc349bb4e21c9bdb9a7433f2f1
-  - id: pr107-ci
-    classe: VERIFIED
-    valeur: build-SUCCESS-non-regression-SUCCESS
-  - id: arbitrage-q4-b
-    classe: HUMAN
-    valeur: relaye-par-Frederic-13-10
-  - id: recette-pr107-servie
-    classe: VERIFIED
-    valeur: B-verifie-Q4-non-couvert-sur-Test
 ---
-# Demande d'arbitrage — PR #107 : Q4 (case vide) et B (heures exceptionnelles), arbitrages relayés par Frédéric
+# Clôture du lot — Q2 arbitrée, PR #107 fusionnée, déployée et recettée en Production
 
-Ce texte se suffit. Demande d'arbitrage seulement ; ni GO ni ordre d'exécution.
+Ce texte se suffit. Demande de verdict de clôture ; elle n'autorise aucun geste supplémentaire.
 
-## Provenance des choix
+## Arbitrage de Frédéric : Q2, mois déjà validés
 
-Les deux choix ci-dessous ont été **relayés par Frédéric le 13/10/2026** après que Q4 et B lui eurent été exposées sans recommandation fermée. Ils ne sont pas de moi. Cette demande soumet leur mise en œuvre à vérification et demande le verdict d'arbitrage ; elle ne les rend pas définitifs par elle-même.
+Relayé par Frédéric le 13/10/2026 : **aucun mois clos n'est recalculé.**
 
-- **Q4, option C** : une case vide au planning signifie « non renseigné », jamais « repos ». La présence Verify caisse/piste est conservée, avec l'information non bloquante « Présence confirmée sans planning renseigné ». Un repos ou une absence explicites contredits par Verify restent une anomalie à arbitrer. Une case vide ne génère ni absence, ni retenue, ni heure de renfort.
-- **B, option 2** : les heures exceptionnelles sont des lignes distinctes `horaire_exceptionnel`, de provenance manuelle, avec plage, motif, auteur, justification et historique. Jamais d'écrasement de Verify ni du planning, jamais de double comptage. La qualification en heures supplémentaires reste indépendante. Paye distingue normales, supplémentaires et exceptionnelles. Un planning non renseigné ne bloque pas les dossiers comptables.
+- Un changement de règle ne réécrit jamais un mois déjà validé. Le dossier comptable PDF reste régénéré depuis l'instantané figé à la validation du mois.
+- Cela confirme la proposition de `request-1.md` (Q2) et clôt la question laissée ouverte par `decision-1.md`.
+- Aucun recalcul à la demande n'est ouvert. Si un recalcul devenait nécessaire un jour, ce serait un nouveau lot, avec la condition 5 de la decision-1 (règles de clôture et effets sur les rapports existants) et un GO Production distinct.
+- Mesuré : #105 et #107 n'écrivent aucun mois validé et ne rouvrent rien. Octobre 2026 est « en préparation », donc non validé. Les règles du lot ne valent qu'à partir du 01/10/2026 (`renfort_effectif_depuis`). Les mois validés antérieurs n'ont pas été relus.
 
-## Ce que fait la PR #107 (`q4-b-heures-verify-paye-20261013` vers `production`, tête `986ac6a`, 1 commit)
+## Mise en œuvre de #107, conditions de la decision-7
 
-- `nexus-paye-moteur.js` : sans planning connu ni statut planifié, la journée émet un item informatif `ecart_verify_planning` / `planning_non_renseigné` (non bloquant, sans impact paye). Libellé de conflit reformulé. L'item d'horaire exceptionnel porte justification, provenance (`manuelle`) et historique.
-- `nexus-paye-donnees.js` : `enregistrerHoraireExceptionnel` exige une justification ; la saisie précédente est empilée dans `detail.historique` au lieu d'être écrasée. Aucune migration : `nexus_paye_items.detail` et le type `horaire_exceptionnel` existent déjà dans `20261009120000`.
-- `NEXUS-Paye-v1.html` : champ « Justification » obligatoire ; tuile « Heures exceptionnelles (saisies par le manager) », durée nette déjà comprise dans les heures, jamais ajoutée.
-- Aucun taux, aucune majoration, aucune retenue, aucune écriture Production.
-
-## État mesuré
-
-| Mesure | Valeur |
+| Condition | État |
 |---|---|
-| PR | OPEN, CLEAN, tête `986ac6ab014c27bc349bb4e21c9bdb9a7433f2f1` |
-| CI | « Construire et éprouver l'artefact » SUCCESS ; `non-regression` SUCCESS (×2) ; Cloudflare Pages SUCCESS ; Pages et Supabase Preview SKIPPED (attendu) |
-| épreuves ciblées | règles SMU 30/30 ; cockpit/écarts manager 61/61 |
-| suite complète en local | non lancée ; les autres épreuves `test_paye*` n'ont pas de contrôle de code de sortie fiable en local |
-| recette navigateur sur l'aperçu Test de la PR | faite le 13/10 pour B ; Q4 non couvert (voir section suivante) ; pas de recette sur Production |
+| 1. Regrouper Q4 | faite : une synthèse par salarié et par période, sans quantité ni heure, `impactPaye false` |
+| 2. Refuser B si l'historique est illisible, épreuves successives et concurrentes | faite : « Historique illisible : modification refusée » ; conflit détecté par `modifie_le` ou 23505 |
+| 3. Recette navigateur Q4 sur Test | faite sur l'aperçu `ec69152` : Employé Test B, 7 h conservées, information non bloquante, aucune absence ni retenue, aucun dossier bloqué par Q4 (les 17 points du dossier = 11 présences d'Employé Test A hors planning + 6 paramétrages de rattachement) |
+| 4. B présenté comme compris dans les heures retenues | faite : « Dont heures exceptionnelles (saisies par le manager) », tuile « Autres heures exceptionnelles » supprimée |
+| 5. CI et intégration sur la tête de `production` | CI verte sur `ec69152`, 0 commit de retard au moment de la fusion |
 
-## Recette navigateur sur NEXUS Test (13/10, aperçu `q4-b-heures-verify-paye-2026.nexus-test-ddf.pages.dev`)
+## GO nominatifs de Frédéric
 
-Contenu servi contrôlé (redirection 308 puis 200 ; `hxJustification` et le libellé « Présence confirmée sans planning renseigné » présents ; `nexus-config.js` vise la base Test `udljdqxerrbbbajxubfn`). Session manager de Test, écran Paye d'octobre, Employé Test A.
+- Fusion de #107 : donnée le 13/10/2026. Merge commit `b4ebdcd3ea6e6199c223e038d435a50c86c37367` sur `production`. « Tests » vert sur ce commit.
+- Déploiement Pages : donné le 13/10/2026. Workflow « Déploiement Production (GitHub Pages) » terminé en succès sur `b4ebdcd`.
 
-- **B, justification obligatoire** : saisie sans justification refusée (« Justification obligatoire »).
-- **B, saisie avec justification** (13/10, 09:00–18:00, pause 60 min, 8 h nettes) : total 97 h → 98 h (+1 h, pas +8 h), heures normales 91 h → 84 h, tuile « Heures exceptionnelles (saisies par le manager) » 8 h, heures supplémentaires inchangées à 6 h. Pas de double comptage.
-- **B, seconde saisie du même jour** (09:00–17:30) : la tuile passe à 7,5 h, la saisie remplace la précédente sans s'y ajouter. Lecture en base Test : une seule ligne `horaire_exceptionnel`, `provenance: manuelle`, justification, motif, auteur, date ; la première saisie est conservée dans `detail.historique`.
-- **Q4 : non couvert sur Test.** Employé Test A a 0 jour mesuré par Verify et 13 reconstitués : le cas « présence confirmée sans planning renseigné » ne se produit pas avec cette donnée. Seules les épreuves unitaires (30/30) le couvrent.
-- **Limite d'affichage** : l'historique n'a été constaté qu'en base ; je ne l'ai pas vu à l'écran.
-- **Trace laissée dans Test** : une ligne `horaire_exceptionnel` (7,5 h, 13/10) dans `nexus_paye_items`. Rien en Production.
+## Recette Production, lecture seule (13/10/2026)
 
-## Points que je ne tranche pas
+URL `https://app.nexusconseil.net/NEXUS-Paye-v1`, Octobre 2026, session connectée. Contenu servi contrôlé avec un paramètre anti-cache : `regrouperPlanningNonRenseigne` dans `nexus-paye-moteur.js`, « Historique illisible » dans `nexus-paye-donnees.js`, « Dont heures exceptionnelles » dans l'écran, ancienne tuile absente. La page de Production n'affiche pas de numéro de commit.
 
-1. **Q2 reste ouverte** (mois déjà validés) : cette PR ne la tranche pas, ni explicitement ni implicitement.
-2. Quand aucun planning n'existe pour le mois, chaque journée Verify émet maintenant l'information « planning non renseigné ». C'est conforme à Q4-C mais bruyant en octobre. Souhaité ou à regrouper ? À arbitrer.
-3. Un item `planning_non_renseigné` est informatif : il ne bloque aucun dossier, conformément à la consigne.
+- Angelique (renfort) : 06/10 renfort 7 h, 0 h sup ; jeudi→samedi 8 h de présence (7 h + 1 h sup) ; autres jours 7 h. Total 63 h normales + 4 h sup = 67 h, sans double comptage. Aucune anomalie, aucune absence ni retenue automatique. Heures exceptionnelles : 0.
+- **Non exercés en Production** : le cas Q4 (aucun salarié n'a de jour « présence confirmée, planning non renseigné » aujourd'hui) et B (aucune heure exceptionnelle saisie, aucune créée pour la recette). Q4 et B ne sont donc prouvés que par la recette Test et les épreuves.
+- Aucune saisie, validation ni écriture n'a été faite.
 
-## Dépendances
+## Statut réel de Production
 
-La PR #107 modifie `nexus-paye-moteur.js` aux abords de #105 (request-10) et #106 (request-11). Ordre de fusion et rebase éventuel à confirmer par le verdict.
+- Code : #105, #106 et #107 fusionnés et déployés. `production` est à `b4ebdcd`.
+- Aucune migration ni écriture Supabase Production n'a eu lieu pour #107. Les colonnes nécessaires étaient déjà posées.
+- Reste dans la base Test, jamais en Production : une ligne `horaire_exceptionnel` de recette (7,5 h, 13/10).
+- Limites : suite complète locale non lancée pour #107 ; l'historique des heures exceptionnelles n'a été constaté qu'en base, pas à l'écran.
 
 ## Geste demandé
 
-Verdict sur la mise en œuvre de Q4-C et B-2 ; puis, séparément, GO nominatifs de Frédéric pour la fusion de #107 et le déploiement Pages. Rien n'est fusionné ni déployé par cette demande. Aucune migration ni mutation Supabase Production n'est requise ni demandée.
+Verdict de clôture du lot `NEXUS-HEURES-VERIFY-PAYE-1-20261009` : Q2, Q4 et B sont arbitrées et mises en œuvre. Aucune autre décision n'est ouverte à ma connaissance. Rien n'est fusionné ni déployé par cette demande.
