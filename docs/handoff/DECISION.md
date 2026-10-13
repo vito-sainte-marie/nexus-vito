@@ -1,110 +1,60 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 1
-author: Frédéric Bragance
-branch: config-par-environnement
+seq: 2
+author: ChatGPT
+branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-3.md
+in_reply_to: request-4.md
 ---
-# Décisions humaines de Frédéric — matérialisées depuis l'issue #28
+# Décision sur request-4.md — APPROVED_WITH_CONDITIONS
 
-**Les décisions ci-dessous ne viennent pas de Claude.** Frédéric Bragance les a
-publiées sur l'issue #28 le 10/10/2026. Claude les recopie ici pour qu'elles
-existent comme un échange du lot. Il n'arbitre rien et n'ajoute aucune
-interprétation. En cas d'écart, les deux commentaires d'origine font foi :
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38416158300), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6148255999. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
-- 11:36:58Z — https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6097088628
-- 11:40:30Z — https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6097114977
+## Ce que la CI a contrôlé
 
-Le verdict retenu est `APPROVED_WITH_CONDITIONS` et `closes: false`, pour deux
-raisons :
+- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
+- `LOT` = `NEXUS-HEURES-VERIFY-PAYE-1-20261009`, `REQUEST` = `request-4.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
+- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `b038fd4d58f939bb6775a032b501723638d66f4d`, tête du rail `b038fd4d58f939bb6775a032b501723638d66f4d`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
-- les décisions posent des conditions impératives avant toute écriture en
-  Production ;
-- Q2, Q4 et B restent ouvertes, comme Frédéric le dit lui-même.
+## Ce que la CI n'a PAS contrôlé
 
-## Décidé
+- Les conditions du verdict (« Conserver la qualification atomique_ou_procedure_speciale limitée au blob indiqué et documenter les deux faux positifs; corriger l’épreuve de provenance pour le manifeste réel de 306 migrations sans désactiver ni assouplir globalement la garde, puis obtenir une nouvelle exécution CI; vérifier et consigner la parité du portage manuel sur les deux moteurs et trois écrans; laisser Q4 et B hors implémentation; n’effectuer aucune migration, fusion ou mise en ligne Production sous cette décision. »). Elles lient l'exécutant suivant (`Claude`), qui les vérifie avant d'agir.
+- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
-**Q1 — 8ᵉ heure** (`request-1.md`). Pour les jours à barème 8 h, la 8ᵉ heure
-**est** une heure supplémentaire.
+## Texte de l'arbitre
 
-- Elle se compte comme 7 h de base + 1 h supplémentaire, sans double comptage
-  dans les heures de présence.
-- Elle s'affiche séparément dans le dossier comptable et dans les exports.
-- Le taux et la majoration suivent le cadre légal et la convention applicable.
-  Aucun taux ne doit être inventé.
-- Cette décision **inverse** la proposition de `request-1.md`, qui voulait
-  retirer la qualification.
+**Verdict : APPROVED_WITH_CONDITIONS.**
 
-**Q3 — Items déjà enregistrés.** Frédéric autorise la remise à zéro des
-anciens retards et des heures supplémentaires générés automatiquement. Il les
-juge incohérents.
+J’arbitre sur le texte intégral de `request-4.md` recopié dans le réveil ; le connecteur au rail n’est pas accessible dans cette session.
 
-- Cette décision **inverse** la proposition « les laisser visibles tels quels ».
-- Le second commentaire en fait un GO **de principe**. Il prend effet le
-  2026-10-01 :
-  - septembre 2026 et les mois antérieurs sont un historique à préserver, hors
-    des calculs actifs ;
-  - octobre 2026 et la suite sont à assainir et à recalculer.
-- Les sources ne se suppriment jamais : Verify, audits_caisse, planning,
-  mouvements, pointages bruts et données des autres moteurs.
-- Toute donnée manuelle fiable est préservée.
+- L’état `atomique_ou_procedure_speciale` est accepté pour la migration au blob `fe205ec861e8c81d240d929b0b98343dd0f653cd`, compte tenu des deux faux positifs identifiés dans la garde. Cette qualification ne vaut pas dérogation générale.
+- Le rouge de provenance 305→306 est diagnostiqué et reste du ressort de l’arbitre conformément à `REGRESSION_PRODUIT_VS_BANC`. Il peut être corrigé sans réveiller Frédéric, sans neutraliser ni assouplir globalement la garde.
+- La réécriture manuelle du portage doit faire l’objet d’une vérification de parité fonctionnelle ciblée sur les deux moteurs et trois écrans concernés.
+- Q4 et B restent explicitement ouverts et hors du périmètre du portage. Aucune sémantique nouvelle ne doit être introduite pour les résoudre implicitement.
+- Cette décision n’autorise ni migration Supabase Production, ni fusion dans `production`, ni déploiement Pages. Chacun de ces gestes nécessitera un arbitrage Production distinct relevant respectivement de `SUPABASE_PRODUCTION_MUTATION` ou `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`.
 
-**A — Durées supérieures à 12 h** (`request-2.md` §5 A). Ces durées viennent
-de pointages jamais arrêtés, pas d'heures réellement travaillées.
+RAIL_LU: INACCESSIBLE
 
-- Un pointage ouvert ne devient jamais automatiquement une heure payée ou
-  supplémentaire.
-- L'anomalie est signalée, et le manager la corrige à partir des preuves
-  Verify et du planning officiel.
-- Aucun plafonnement arbitraire n'est appliqué à une durée réellement
-  justifiée.
-
-**Principes posés pour la période qui démarre en octobre 2026.**
-
-- Les données viennent des autorités métier :
-  - Verify pour la caisse et la piste ;
-  - le planning officiel pour le renfort ;
-  - les corrections du manager, qui restent tracées.
-- Aucun retard n'est déduit du pointage.
-
-## Conditions impératives avant toute écriture Supabase Production
-
-Ces conditions sont reprises du commentaire de 11:40:30Z :
-
-1. inventaire des tables, lignes, périodes et provenance à modifier ;
-2. sauvegarde ou export réversible, et journal d'audit ;
-3. analyse des dépendances et preuve de non-régression pour Verify, la caisse,
-   le planning, les autres moteurs et les exports ;
-4. préflight, plan SQL idempotent à portée limitée et contrôle après
-   exécution ;
-5. vérification des règles de clôture des mois déjà validés et des effets sur
-   les rapports existants.
-
-Le travail s'arrête (**STOP**) dans trois cas :
-
-- une dépendance n'est pas maîtrisée ;
-- des données manuelles fiables seraient touchées ;
-- le périmètre est ambigu.
-
-Ce GO de principe n'autorise pas une purge SQL. Un plan d'exécution chiffré
-doit être présenté pour validation avant toute mutation en Production
-(`STOP SUPABASE_PRODUCTION_MUTATION`). Ces décisions n'autorisent non plus
-aucune fusion, aucun déploiement et aucune migration en Production.
-
-Mandat donné à Claude : préparer le dossier et les tests sans attendre un
-autre GO documentaire. Ensuite, notifier explicitement le STOP dès que
-l'exécution en Production est prête.
-
-## Toujours ouvert
-
-- **Q2** — mois déjà validés : faut-il ne recalculer aucun mois clos ? La
-  condition 5 ci-dessus y touche sans la trancher.
-- **Q4** — le sens d'une case vide au planning.
-- **B** (`request-2.md` §5 B) — `heuresExceptionnelles` : colonne de
-  provenance ou ligne distincte ?
+NEXT_ACTION_CONTRACT  
+DECISION: APPROVED_WITH_CONDITIONS  
+CLOSES: false  
+LOT: NEXUS-HEURES-VERIFY-PAYE-1-20261009  
+REQUEST: request-4.md  
+HEAD: INACCESSIBLE  
+LEASE: aucun  
+GATE_STATE: G1, CI non-regression rouge diagnostiquée à 31/32 et artefact vert  
+PROOF_STATE: PROOF_REFRESH_REQUIRED  
+CONDITIONS: Conserver la qualification atomique_ou_procedure_speciale limitée au blob indiqué et documenter les deux faux positifs; corriger l’épreuve de provenance pour le manifeste réel de 306 migrations sans désactiver ni assouplir globalement la garde, puis obtenir une nouvelle exécution CI; vérifier et consigner la parité du portage manuel sur les deux moteurs et trois écrans; laisser Q4 et B hors implémentation; n’effectuer aucune migration, fusion ou mise en ligne Production sous cette décision.  
+BLOCKER: aucun  
+STOP_REQUIRED: non  
+CAPACITE_REQUISE: écriture, commit et push sur le rail Handoff  
+OWNER_NEXT: Claude  
+EXECUTANT_NEXT: Claude  
+ACTION_NEXT: Matérialiser cette décision sur le rail avec l’outil Handoff.
