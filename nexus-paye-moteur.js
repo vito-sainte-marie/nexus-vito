@@ -250,6 +250,29 @@
       statut: 'information', impactPaye: false,
     };
 
+    // Deux signalements de réconciliation, informatifs : ils ne retirent ni
+    // ne bloquent aucune heure, et ne plafonnent rien.
+    // - caisse ET piste constatées le même jour : la piste l'emporte
+    //   (priorité des postes), mais deux sources se contredisent, le
+    //   manager arbitre.
+    // - une journée de plus de 12 h est signalée telle quelle.
+    if (ctx.postesVerify && ctx.postesVerify.has('pompiste') && ctx.postesVerify.has('caissier')) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `anomalie-sources:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'sources_contradictoires',
+        libelle: 'Caisse et piste constatées le même jour',
+        detail: `Verify place cette personne en caisse et en piste le ${jourNom} · calculé en piste, sans cumul · à arbitrer par le manager`,
+      }));
+    }
+    if (Number(ctx.heuresRetenues) > 12) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `anomalie-duree:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'duree_superieure_12h',
+        libelle: `Journée de ${ctx.heuresRetenues} h, au-delà de 12 h`,
+        detail: `${ctx.heuresRetenues} h retenues le ${jourNom} · aucune heure n'est plafonnée · à vérifier par le manager`,
+      }));
+    }
+
     // 1. Journée constatée par Verify, absente du planning de travail.
     if (!ctx.planningConnu) {
       fiche.items.push(Object.assign({}, commun, {
@@ -375,6 +398,9 @@
     const COLONNES_POSTE = { piste: 'pompiste', boutique: 'caissier', renfort: 'renfort' };
     audits.forEach(a => {
       Object.keys(COLONNES_POSTE).forEach(activite => extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
+        // Décision du 10/10/2026 : le renfort ne vaut qu'au quart 1. Un renfort
+        // déclaré au quart 2 est ignoré, il n'ouvre aucune journée payée.
+        if (activite === 'renfort' && String(a.quart) === '2') return;
         const cle = cleJour(employeeId, a.date);
         if (!postesVerifyParJour.has(cle)) postesVerifyParJour.set(cle, new Set());
         postesVerifyParJour.get(cle).add(COLONNES_POSTE[activite]);
@@ -512,7 +538,7 @@
             fonctionPrevue: fonctionPrevue(shiftsTravail), fonctionConstatee: poste,
             heuresPlanning, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
             origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
-            planningConnu: true, exceptionnel: exceptionnel || null,
+            planningConnu: true, exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
           });
         } else if (shiftsTravail.length && !preuve && !indispo) {
           // `!indispo` : une absence déjà expliquée par un événement RH
@@ -555,7 +581,7 @@
             fonctionPrevue: null, fonctionConstatee: poste,
             heuresPlanning: 0, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
             origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
-            planningConnu: false, exceptionnel: exceptionnel || null,
+            planningConnu: false, exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
           });
         }
 
