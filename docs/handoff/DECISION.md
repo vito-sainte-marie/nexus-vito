@@ -1,62 +1,54 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-REGUL-GROUPES-1-20261013
-seq: 1
+seq: 2
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-1.md
+closes: true
+in_reply_to: request-2.md
 ---
-# Décision sur request-1.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-2.md — APPROVED_WITH_CONDITIONS, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38479137955), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6156741457. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38481291656), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6157008223. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `NEXUS-REGUL-GROUPES-1-20261013`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `NEXUS-REGUL-GROUPES-1-20261013`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `114eb7bd3b5eb176c5db3b1c1ba52b3ead306537`, tête du rail `114eb7bd3b5eb176c5db3b1c1ba52b3ead306537`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `f6ae64b7a9c256895fc0c6acabf0ab729e4313b9`, tête du rail `f6ae64b7a9c256895fc0c6acabf0ab729e4313b9`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« créer le portage depuis la tête mesurée de origin/production; conserver le blob fonctionnel canonique de la migration; documenter l’écart d’estampille Test; vérifier le diff et repasser la CI; prouver la compatibilité migration-seule avec le code Production actuel ou formaliser une séquence atomique avec retour arrière; aucune fusion, migration Production ou mise en ligne n’est autorisée par cette décision »). Elles lient l'exécutant suivant (`Claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict (« Avant toute proposition d’exécution, comparer la définition Production de _regul_tiroir_detail au texte attendu et documenter les écarts; relire les six fonctions utilisant select … into ou %rowtype et démontrer l’absence de dépendance incompatible à la forme des lignes; rejouer les scénarios existants sur une copie représentative de Production avec la migration seule et consigner les résultats, y compris la réversibilité tant que la table des groupes reste vide. »). Elles lient l'exécutant suivant (`Claude via le canal Production en lecture seule`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-J’arbitre sur le texte intégral recopié dans le réveil, le connecteur au rail n’étant pas accessible ici.
+J’arbitre sur le texte intégral recopié dans le réveil, le connecteur au rail n’étant pas accessible dans cette session.
 
-**Verdict : APPROVED_WITH_CONDITIONS.**
-
-1. Le classement `atomique_ou_procedure_speciale` est confirmé à titre conservatoire. Les occurrences `drop_column` / `drop_table` / `truncate` décrites comme commentaires ou gardes ne constituent pas, à elles seules, des opérations exécutées.
-2. L’ordre de pose retenu est **migration puis code**, puisque le nouveau code dépend des RPC introduites par la migration.
-3. Le véhicule correct est un **portage propre depuis `origin/production`**, et non la fusion directe de la PR #109 issue du rail.
-4. Le portage doit conserver le contenu canonique de la migration `20261013140000`, documenter l’écart d’estampille propre à Test et repasser la CI ainsi que la vérification du diff.
-5. Avant toute proposition d’exécution Production, la procédure devra prouver soit la compatibilité du code Production actuel pendant l’intervalle « migration posée, nouveau code non encore déployé », soit prévoir une séquence atomique ou une fenêtre maîtrisée avec retour arrière.
-6. Cette décision n’autorise ni migration Supabase Production, ni fusion vers `production`, ni déploiement Pages. Ces gestes futurs relèveraient respectivement de `SUPABASE_PRODUCTION_MUTATION` et `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`.
-7. La restitution du surplus est hors lot et ne bloque pas ce portage, conformément à `SUJET_ETRANGER_NE_BLOQUE_PAS`.
+**Décision : APPROVED_WITH_CONDITIONS.** Le raisonnement établit une compatibilité plausible, mais les trois limites explicitement déclarées empêchent de considérer la condition 5 comme démontrée avant toute proposition d’exécution. Les vérifications complémentaires sont donc requises. Elles restent hors palier humain tant qu’elles sont limitées à des lectures et à un rejeu sur copie, sans mutation, fusion ni déploiement Production.
 
 RAIL_LU: INACCESSIBLE
 
 NEXT_ACTION_CONTRACT  
 DECISION: APPROVED_WITH_CONDITIONS  
-CLOSES: false  
+CLOSES: true  
 LOT: NEXUS-REGUL-GROUPES-1-20261013  
-REQUEST: request-1.md  
+REQUEST: request-2.md  
 HEAD: INACCESSIBLE  
 LEASE: aucun  
-GATE_STATE: G2, CI de la PR #109 verte; CI du portage à exécuter  
-PROOF_STATE: PROOF_VALID  
-CONDITIONS: créer le portage depuis la tête mesurée de origin/production; conserver le blob fonctionnel canonique de la migration; documenter l’écart d’estampille Test; vérifier le diff et repasser la CI; prouver la compatibilité migration-seule avec le code Production actuel ou formaliser une séquence atomique avec retour arrière; aucune fusion, migration Production ou mise en ligne n’est autorisée par cette décision  
-BLOCKER: aucun  
+GATE_STATE: G2, CI de la PR #112 verte  
+PROOF_STATE: PROOF_REFRESH_REQUIRED  
+CONDITIONS: Avant toute proposition d’exécution, comparer la définition Production de `_regul_tiroir_detail` au texte attendu et documenter les écarts; relire les six fonctions utilisant `select … into` ou `%rowtype` et démontrer l’absence de dépendance incompatible à la forme des lignes; rejouer les scénarios existants sur une copie représentative de Production avec la migration seule et consigner les résultats, y compris la réversibilité tant que la table des groupes reste vide.  
+BLOCKER: aucun pour poursuivre les vérifications; la preuve de compatibilité de l’intervalle « migration posée, code non déployé » reste incomplète pour une future proposition d’exécution  
 STOP_REQUIRED: non  
-CAPACITE_REQUISE: écriture Git sur une branche de travail  
+CAPACITE_REQUISE: lecture seule Supabase Production  
 OWNER_NEXT: Claude  
-EXECUTANT_NEXT: Claude  
-ACTION_NEXT: créer une branche de portage propre depuis la tête mesurée de origin/production et y reporter le lot sans fusionner vers production.
+EXECUTANT_NEXT: Claude via le canal Production en lecture seule  
+ACTION_NEXT: Comparer la définition Production de `_regul_tiroir_detail` au texte attendu par la migration et consigner tout écart sémantique.
