@@ -192,6 +192,10 @@
   .regul-bloque{font-size:12px; color:var(--amber); border:1px solid rgba(245,166,35,0.4); border-radius:6px; padding:9px; line-height:1.5; margin-top:10px;}
   .regul-envoyer{width:100%; background:var(--cyan); color:#02232b; border:none; border-radius:6px; padding:11px; font-weight:700; font-size:13px; cursor:pointer;}
   .regul-envoyer:disabled, .btn-regul:disabled{opacity:0.6; cursor:wait;}
+  .rg-ligne{border:1px solid var(--border,#ddd); border-radius:8px; padding:8px; margin-top:6px;}
+  .rg-ligne.coche{border-color:var(--cyan);}
+  .rg-chiffres{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; margin-top:4px;}
+  .rg-pied{margin-top:10px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
@@ -203,6 +207,7 @@
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
 <script src="nexus-regularisation-saisie.js?v=20261008-b7"></script>
+<script src="nexus-regularisation-groupe.js?v=20261013-g1"></script>
 </head>
 <body>
 <div class="phone">
@@ -339,6 +344,7 @@
         <button type="button" data-vue="hebdo">Par semaine</button>
         <button type="button" data-vue="mois">Par mois</button>
       </div>
+      <div id="zoneVersementGroupe"></div>
       <div id="listeRegularisations"><div class="chargement">Chargement…</div></div>
       <button type="button" class="btn-reinit" id="btnExportRegul">Exporter le relevé (CSV)</button>
     </div>
@@ -685,6 +691,37 @@
     });
   }
 
+  // Versement de régularisation groupé : un salarié verse, le manager coche
+  // les anciens écarts à solder. Le serveur décide ; l'écran ne fait que proposer.
+  async function ouvrirVersementGroupe() {
+    const G = NexusRegularisationGroupe;
+    const aujourdhui = FUSEAU_STATION ? NexusStation.dateLocaleStation(FUSEAU_STATION, new Date()) : null;
+    const ctx = {
+      client: nexusClient, site: SITE_ACTUEL, aujourdhui,
+      apresSucces: async () => { await rechargerEtRafraichir(); await afficherGroupes(); },
+    };
+    ouvrirPanneau('Versement de régularisation', G.renderFormulaire({
+      employes: EMPLOYES_SITE, aujourdhui, cle: NexusRegularisationSaisie.nouvelleCle(),
+    }));
+    G.brancher(document.getElementById('pdCorps'), ctx);
+  }
+
+  async function afficherGroupes() {
+    const zone = document.getElementById('zoneVersementGroupe');
+    if (!zone || !EST_MANAGER) return;
+    const G = NexusRegularisationGroupe;
+    let groupes = [];
+    try { groupes = await G.chargerGroupes(nexusClient, SITE_ACTUEL, null); }
+    catch (e) { console.error('Versements groupés:', e); }
+    const nom = id => (EMPLOYES_SITE.find(e => e.id === id) || {}).nom;
+    zone.innerHTML = `<button type="button" class="btn-regul" id="btnVersementGroupe">Enregistrer un versement de régularisation</button>`
+      + G.renderGroupes(groupes.slice(0, 10), nom);
+    document.getElementById('btnVersementGroupe').addEventListener('click', ouvrirVersementGroupe);
+    G.brancherGroupes(zone, {
+      client: nexusClient, apresSucces: async () => { await rechargerEtRafraichir(); await afficherGroupes(); },
+    }, groupes);
+  }
+
   function brancherRegul(conteneur) {
     conteneur.querySelectorAll('.btn-regul').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -879,6 +916,7 @@
     }
     fermerPanneau();
     rafraichirEcran();
+    await afficherGroupes();
   }
 
   function branchierFiltres() {
