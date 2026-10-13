@@ -43,6 +43,22 @@ ok(!/rg-coffre/.test(G.renderGroupes([{ ...gr, annule_le: '2026-10-13' }], () =>
 ok(G.controlerTransfertGroupe({ montant: '10,01', motif: 'remise coffre' }, gr).problemes.some(p => /dépasse/.test(p)), 'transfert supérieur au versement refusé');
 ok(G.controlerTransfertGroupe({ montant: '10', motif: 'abc' }, gr).problemes.some(p => /motif/.test(p)), 'motif trop court refusé');
 ok(G.controlerTransfertGroupe({ montant: '10', motif: 'remise coffre' }, gr).problemes.length === 0, 'transfert valide');
+// --- Affectation du surplus d'un versement déjà enregistré ---
+{
+  const g = { id: 'g1', employee_id: 'e1', domaine: 'fdj', montant: 10, surplus: 2 };
+  let r = G.controlerSurplus(g, ecarts, {});
+  ok(r.affectations.length === 0 && r.problemes.length > 0, 'surplus : rien coché par défaut, refus');
+  r = G.controlerSurplus(g, ecarts, { f1: { coche: true, montant: '2' } });
+  ok(r.problemes.length === 0 && r.affecte === 2 && r.reste === 0, 'surplus : 2 € affectés, reste 0');
+  r = G.controlerSurplus(g, ecarts, { f1: { coche: true, montant: '2' }, f2: { coche: true, montant: '1' } });
+  ok(r.problemes.some(p => /dépasse le surplus/.test(p)), 'surplus : total supérieur au surplus refusé');
+  r = G.controlerSurplus(g, ecarts, { f1: { coche: true, montant: '' } });
+  ok(r.problemes.some(p => /invalide/.test(p)), 'surplus : montant vide refusé, jamais le solde par défaut');
+  r = G.controlerSurplus(g, ecarts, { f1: { coche: true, montant: '1' } });
+  const prm = G.parametresSurplus(g, r, 'cle-1');
+  ok(prm.p_groupe_id === 'g1' && prm.p_idempotency_key === 'cle-1' && prm.p_affectations[0].fdj_cash_control_id === 'f1' && r.reste === 1, 'surplus : paramètres du RPC, reste suivi à part');
+  ok(/Affecter le surplus/.test(G.renderSurplus(g)) && /2,00 €/.test(G.renderSurplus(g)), 'surplus : formulaire rendu');
+}
 console.log(`${n} épreuves vertes`);
 
 // Synthèse Paye par domaine : deux univers disjoints, surplus absent.
