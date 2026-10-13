@@ -358,13 +358,13 @@
       "consomme_le": "2026-10-10T03:14:05.466Z"
     },
     "NEXUS-HEURES-VERIFY-PAYE-1-20261009": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-13.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-7.md",
+      "derniere_decision": "decision-8.md",
       "source_decision": "registre",
-      "commit_decision": "1e6d1f1461dba8686899f4573cfc76aa77182417",
-      "consomme_le": "2026-10-13T19:35:24.546Z"
+      "commit_decision": "786dbfb5d63c3abff3024c7a9b783128c893abd7",
+      "consomme_le": "2026-10-13T19:52:51.835Z"
     },
     "BOUCLE-AUTONOME-FAST-TRACK-PREPARATION-1-20261010": {
       "statut": "DECISION_CONSOMMEE",
