@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REGUL-GROUPES-1-20261013/request-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-REGUL-GROUPES-1-20261013
-seq: 3
+seq: 4
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -26,42 +26,64 @@ preuves:
   - id: migration-blob
     classe: VERIFIED
     valeur: 20261013140000-eccdbafc53e9e34d365a49aa5c6d3708cc731d03
-  - id: ci-pr-112
+  - id: decision-3
     classe: VERIFIED
-    valeur: tests-et-deploiement-production-verts-5e78898
-  - id: condition-5-a-md5
-    classe: VERIFIED
-    valeur: 94db6478-identique-20261008160000
-  - id: condition-5-c-epreuves
-    classe: VERIFIED
-    valeur: 3-epreuves-vertes-16-6-12-contre-temoins
-  - id: condition-5-reversibilite
-    classe: VERIFIED
-    valeur: catalogue-identique-4487
+    valeur: APPROVED_WITH_CONDITIONS-PROOF_VALID-a285137
   - id: aucun-go-production
     classe: DECLARED
     valeur: migration-fusion-pages-non-accordes
 ---
-# Régularisation différée (versements groupés) — condition 5 rejouée (réponse à decision-2)
+# Régularisation différée (versements groupés) — proposition d'exécution NON EXÉCUTOIRE (réponse à decision-3)
 
-**Ceci n'est ni un GO Production ni une demande d'exécution.** Aucune migration, fusion ni déploiement Pages n'a été effectué ni n'est demandé.
+**Ceci n'est ni un GO ni une exécution.** Rien n'a été appliqué sur Production. Cette proposition sépare migration, code et déploiement, et nomme les autorisations distinctes que seul Frédéric peut accorder (`SUPABASE_PRODUCTION_MUTATION`, `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`). Elle suit les conditions de decision-3.
 
-## 1. Les trois vérifications exigées par decision-2
+Support : PR #112 (brouillon, base `production`, tête `5e78898`), dossier `docs/deploiement/promotion-versements-groupes-production-20261013.md`, retour arrière `docs/deploiement/retour-arriere-versements-groupes-20261013.sql`, migration `20261013140000` (blob `eccdbafc53e9e34d365a49aa5c6d3708cc731d03`, à garder identique).
 
-Tête du portage : PR #112 (brouillon, base `production`), `5e78898`. Blob de la migration `20261013140000` inchangé : `eccdbafc53e9e34d365a49aa5c6d3708cc731d03`. CI à `5e78898` verte (Tests ×2, job Déploiement Production ; Pages non déployé).
+## 0. Précontrôle Production en lecture seule (juste avant toute exécution)
 
-- **(a) `_regul_tiroir_detail`** : la définition de Production (md5 `94db6478…`) est identique au texte de `20261008160000`. Une première lecture divergente (`2dcaf86a…`) venait de la méthode de mesure (hors `pg_get_functiondef`) ; elle est abandonnée et documentée. Les 8 autres fonctions ont le même md5 avant et après la migration ; seule `_regul_tiroir_detail` passe à `8f8a8156…`, par construction.
-- **(b) Six fonctions `select … into` / `%rowtype`** : relues une à une, ainsi que les 8 anciennes fonctions touchant les deux tables ; aucune incompatibilité avec les colonnes `groupe_id` nullables.
-- **(c) Rejeu des épreuves existantes avec la migration seule** : les 3 anciennes épreuves restent vertes (16 + 6 + 12 contre-témoins). Défaut trouvé et corrigé : 2 contre-témoins périmés (`mode-transfert.sql`, `sans-transferts.sql`) visaient une expression que la migration réécrit ; ils sont ré-ancrés sur `coalesce(v.mode_encaissement, g.mode_encaissement, 'sans_mode')`. Cette épreuve n'est pas câblée à la CI.
-- **(d) Réversibilité** : script `docs/deploiement/retour-arriere-versements-groupes-20261013.sql` (une transaction : RPC, `_regul_tiroir_detail` d'origine, triggers, CHECK, colonnes, garde « table des groupes vide », table). Catalogue identique avant migration et après retour arrière (4487 éléments) tant que la table des groupes est vide. La migration modifie 62 lignes du relevé.
+Exécuté par moi sous `begin read only … rollback` (AUTO, lectures seules). Un seul écart = arrêt, retour à l'arbitre. Il couvre, dans l'ordre :
 
-## 2. Limites déclarées
+1. **Schéma réel** : table `versements_regularisation_groupes` absente ; colonne `groupe_id` absente sur `ecarts_versements_regularisation` et `caisse_transferts_coffre` ; contrainte `ctc_versement_ou_groupe` absente ; les 6 RPC et les 2 fonctions d'appui absentes. Dernière migration appliquée relevée et comparée à celle du 13/10 (311 / `20261013152155`) : toute migration nouvelle depuis, notamment parmi les 22 sans fichier, est listée et lue avant de continuer.
+2. **Dépendances** : aucune vue ni fonction nouvelle ne cite les deux tables au-delà des neuf fonctions connues ; triggers existants limités à l'immuabilité.
+3. **Définitions des fonctions** : md5 de `pg_get_functiondef` des neuf fonctions qui citent les tables, comparés à ceux du dépôt avant migration. `_regul_tiroir_detail` attendue à `94db6478036dbdb1d427b5b8b8b8ae58`. Toute dérive = arrêt et relecture.
+4. **Volumétrie** : nombre de lignes des deux tables (0 au 13/10). Si une ligne existe, le CHECK et les triggers sont réévalués avant de poursuivre.
+5. **Applicabilité de la garde de retour arrière** : la table des groupes n'existe pas encore, donc le retour arrière est trivialement sans perte ; le script est relu à l'identique du dépôt et la garde « table des groupes vide » est confirmée sur le texte.
 
-- Le rejeu s'est fait dans un conteneur Postgres jetable avec les migrations du dépôt, **pas sur une copie des données de Production** ; les 22 migrations de Production sans fichier ne sont pas rejouées. Production n'a de toute façon aucune ligne dans les deux tables concernées (lecture seule du 13/10).
-- Le retour arrière avec des groupes existants est refusé par la garde, volontairement : il détruirait des écritures.
+Le résultat est consigné sur le rail avant toute demande de GO.
 
-## 3. Question à l'arbitre
+## 1. Étape A — Migration (autorisation : `SUPABASE_PRODUCTION_MUTATION`)
 
-Cette instruction de la condition 5 suffit-elle pour que je prépare une proposition d'exécution (séquence migration puis code, fenêtre, retour arrière), ou exiges-tu une copie plus représentative de Production ? Dans ce cas, précise laquelle (schéma seul restauré, ou données comprises).
+- Véhicule : le connecteur Supabase (seul écrivain Production), fichier `20261013140000` tel quel. Production recevra l'estampille posée par le connecteur (écart d'estampille déjà documenté pour Test).
+- Compatibilité du code actuel sur le nouveau schéma : instruite (decision-3, `PROOF_VALID`) : additive, colonnes nullables, triggers sans effet quand `groupe_id` est nul, `_regul_tiroir_detail` de même signature et même sortie hors groupe, aucun écran actuel n'appelle les nouvelles RPC.
+- Contrôle après pose, lecture seule : objets présents, `_regul_tiroir_detail` à `8f8a8156…`, huit autres fonctions inchangées, deux tables toujours à 0 ligne, grants des 6 RPC (aucune ouverte à `anon`).
+- **Arrêt après A.** Production tient sans nouveau code. Le code n'est déployé qu'après le contrôle.
+
+## 2. Étape B — Code (autorisation : `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`, fusion)
+
+- Condition : étape A contrôlée, CI de la PR #112 re-verte sur la tête à fusionner, PR sortie du brouillon par Frédéric ou sur son GO.
+- Fusion de #112 vers `production` (ordre migration puis code, jamais l'inverse : l'écran Écarts appelle des RPC absentes avant A).
+
+## 3. Étape C — Déploiement Pages (même famille d'autorisation, GO distinct)
+
+- Production est servie brute par GitHub Pages, sans construction. Après publication : comparer le contenu servi au fichier de `production` (un 200 ne prouve pas le contenu), jamais l'URL seule.
+- Recette Production en lecture seule d'abord (écran Écarts, vue Paye à deux compteurs), aucune écriture de test sans GO.
+
+## 4. Fenêtre
+
+Le code actuel est compatible avec le schéma migré, donc l'intervalle A→B n'est pas critique ; je propose néanmoins d'enchaîner A, contrôle, B, C dans la même séance, hors de la saisie de caisse en cours (Verify, FDJ), pour borner l'intervalle. Aucune fenêtre d'arrêt de service n'est nécessaire.
+
+## 5. Retour arrière par étape
+
+- Après A seulement : `retour-arriere-versements-groupes-20261013.sql` (une transaction, garde « table des groupes vide »). Sans perte tant qu'aucun groupe n'existe, ce que garantit l'absence de nouveau code.
+- Après B/C : d'abord revenir au code précédent (revert de la fusion sur `production`, republication Pages, contenu servi comparé), puis, si des groupes n'existent pas, le script. **Si des groupes existent**, le script refuse (volontairement : les lignes sont immuables) ; il faudrait alors sauvegarde et accord distinct, hors de cette proposition.
+- Limite connue : rejeu fait en conteneur jetable, pas sur copie de données ; levée en partie par le précontrôle §0.
+
+## 6. Ce qui reste hors lot
+
+La restitution du surplus (décision du 13/10 : aucune écriture ni trace). Aucune modification de Paye au-delà de la lecture à deux compteurs.
+
+## 7. Question à l'arbitre
+
+Cette séquence (précontrôle, A, contrôle, B, C, retours arrière) est-elle conforme à decision-3 pour être soumise telle quelle au palier humain de Frédéric ? Je ne sollicite aucun GO ici.
 
 Aucun GO n'est sollicité pour : SUPABASE_PRODUCTION_MUTATION, fusion vers `production`, déploiement Pages.
