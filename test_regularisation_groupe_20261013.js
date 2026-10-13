@@ -36,3 +36,14 @@ ok(c.problemes.some(p => /justification/.test(p)), 'mode autre sans justificatio
 ok(G.lireErreur({ message: 'x [SURPLUS_NON_CONFIRME]' }).conseil, 'conseil pour un code du groupe');
 ok(/<form/.test(G.renderFormulaire({ employes: [], aujourdhui: '2026-10-13', cle: 'c' })), 'formulaire rendu');
 console.log(`${n} épreuves vertes`);
+
+// Synthèse Paye par domaine : deux univers disjoints, surplus absent.
+require('./nexus-paye-regularisations.js');
+const P = globalThis.NexusPayeRegularisations;
+const ec = [
+  { id: 'fdj-f1', date: '2026-10-01', quart: '1', activite: 'fdj', ecartInitial: -4, ecartFinal: -4, statut: 'valide', employeeId: 'e1', employeeNom: 'A' },
+  { id: 'verify-a1-piste', date: '2026-10-02', quart: '1', activite: 'piste', ecartInitial: -6, ecartFinal: -6, statut: 'valide', employeeId: 'e1', employeeNom: 'A' },
+];
+const d = P.syntheseParDomaine(ec, { versements: [], restitutions: [] }, { fuseau: 'Europe/Paris', dateDebut: '2026-10-01', dateFin: '2026-10-31', aujourdhui: '2026-10-13' });
+assert.strictEqual(d.fdj.constates.manquesCentimes, -400); assert.strictEqual(d.verify.constates.manquesCentimes, -600);
+console.log('OK synthèse Paye séparée Verify / FDJ');

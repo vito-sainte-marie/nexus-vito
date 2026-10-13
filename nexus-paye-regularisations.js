@@ -327,6 +327,18 @@
     };
   }
 
+  // Lecture consolidée séparée (13/10/2026) : Boutique/Piste (Verify) et FDJ.
+  // Aucun calcul propre : la même synthèse, sur deux univers disjoints. Seules
+  // les affectations par écart y figurent — le surplus d'un versement groupé,
+  // lié à aucun écart, n'entre jamais ici, donc n'est jamais transmis.
+  function syntheseParDomaine(ecarts, operations, options) {
+    const part = pre => {
+      const u = (ecarts || []).filter(e => String(e.id).startsWith(pre));
+      return syntheseRegularisationsPeriode(u, operationsDeLUnivers(u, operations), options);
+    };
+    return { verify: part('verify-'), fdj: part('fdj-') };
+  }
+
   // ------------------------------------------------------------
   // Export CSV (séparateur ;, décimales à la virgule, montants en euros).
   // ------------------------------------------------------------
@@ -450,7 +462,7 @@
   global.NexusPayeRegularisations = {
     STATUTS, ANNULE_PAR_CONTRE_ECRITURE, LIBELLE_VERSEMENT,
     jourStation, lundiDe, construireReleve, vueHebdomadaire, vueMensuelle,
-    syntheseRegularisationsPeriode, renderSynthese, operationsDeLUnivers, ecartsDeLaProjection,
+    syntheseRegularisationsPeriode, syntheseParDomaine, renderSynthese, operationsDeLUnivers, ecartsDeLaProjection,
     exporterCsv, renderVue, renderLignes, chargerOperations,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
