@@ -1,55 +1,54 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-9.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: FDJ-CONTINUITE-QUANTITE-ABSENTE-20261011
-seq: 4
+lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
+seq: 9
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=c516322 production=13a4e56
+    valeur: main=c516322 production=f36679f
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 146-fichiers
-  - id: registre-production
+    valeur: 147-fichiers
+  - id: pr104-fusionnee
     classe: VERIFIED
-    valeur: 310
-  - id: code-deploye
+    valeur: f36679f-pages-success-run-38423561828
+  - id: production-mesuree
     classe: VERIFIED
-    valeur: main-production-13a4e56
-  - id: recette-ecriture
-    classe: VERIFIED
-    valeur: aucune
+    valeur: 311-migrations-0-ligne-nouvelle
+  - id: go-nominatif-fusion
+    classe: DECLARED
+    valeur: Frederic-13-10-2026
 ---
-## Objet
+# Compte rendu — PR #104 fusionnée dans `production`, Pages déployé, Production mesurée
 
-Compte rendu de la recette Production du lot, demandée par Frédéric (« go recette Production », 12/10/2026). Elle est **partielle** : tout ce qui se constate en lecture seule est constaté et conforme ; la part qui dépend d'un quart employé réel n'est pas encore observable.
+Compte rendu seulement : aucune décision n'est demandée. Il répond à request-8 (BLOCKED, `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`), levé par le GO nominatif de Frédéric du 13/10/2026 : « go pour fusionner la PR #104 et déployer Pages ».
 
-## Constaté (lecture seule, sous `begin read only` puis `rollback`)
+## Chaîne d'autorisation
+request-8 → réponse de l'arbitre BLOCKED / palier Frédéric (aucun decision-4 écrit : la CI ne matérialise pas un palier humain) → GO nominatif de Frédéric → exécution.
 
-- Code servi par `app.nexusconseil.net` identique à `origin/production` (`13a4e56`) : `NEXUS-FDJ-v1.html` et `nexus-fdj-moteur.js`, comparés après retrait des lignes `<script src>` (le build réécrit `?v=`).
-- Base : migration `20261011220000` en place, registre 310, neuf md5 de fonctions égaux à Test, droits conformes.
-- Aucune ligne `confirmation_stock_final_zero` ni `stock_final_zero_automatique` écrite.
-- `fdj_stocks_finaux_a_confirmer`, appelée en lecture seule sur les deux brouillons existants, rend le résultat attendu : `a646dfd7` signalerait 24 jeux à stock disponible plus Mission Patrimoine « stock de départ inconnu » ; `64138d8c` signalerait les 29 jeux « stock de départ inconnu ».
+## Préflight (avant fusion)
+PR #104 OPEN, MERGEABLE, CLEAN ; tête `c577e3da580441d5349b40de5330bdb977e3a4b3`, base `production` = `13a4e56c45d75c229a18edb083d91b32b62eb2c3` ; contrôles : artefact, non-regression x2, Cloudflare Pages au vert.
 
-## Non constaté
+## Exécution
+- Fusion avec contrôle de tête (`--match-head-commit c577e3d…`) : commit de fusion `f36679fbcc2d1f003310991a13edca7aeacba241`.
+- Workflow « Déploiement Production (GitHub Pages) » run 38423561828 : success. Tests sur `production` run 38423561659 : success.
 
-- Le quart `64138d8c` (12/10, quart 1) est en brouillon avec 0 ligne de comptage : on ne sait pas s'il vient d'être ouvert ou si la complétion de continuité ne s'est pas déclenchée. Le point 5 de la procédure (autant de lignes que de jeux actifs, Mission Patrimoine à 0) n'est pas constaté. Ce n'est pas un défaut établi.
-- Fenêtre « Confirmer 0 / Corriger la saisie », 0 automatique tracé `stock_final_zero_automatique` et relevé définitif : ils ne se constatent qu'au premier quart employé clôturé avec le nouveau code.
+## Contenu servi (app.nexusconseil.net, cache contourné)
+- `nexus-paye-moteur.js` et `nexus-verify-moteur.js` : empreintes identiques à `origin/production`.
+- `NEXUS-Paye-v1.html` : seules les lignes `<script src>` diffèrent (le build réécrit les `?v=` et ajoute `nexus-config.js`, généré) ; `hxEmployee`, `ecartsSection`, « Heures de renfort » présents. `NEXUS-Verify-v1.html` : empreintes seulement, non comparé ligne à ligne.
 
-## Demandé
+## Mesure SQL Production (lecture seule, après coup)
+311 migrations, dernière `20261013152155` ; les deux colonnes présentes ; 10 lignes `nexus_paye_items`, 0 portant un statut, un type ou un `detail` nouveau ; 0 `employes_renfort` renseigné. Aucune donnée touchée par le déploiement.
 
-Enregistrer la recette Production comme **partielle**, la lecture seule étant conforme. Aucun GO nouveau n'est demandé ; aucune écriture Production n'a été faite pour cette recette.
-
-## Non demandé
-
-Création de quart ou de comptage de recette, régularisation de `539e87bc`, retour arrière de `20261011220000`. Le constat du volet manquant se fait par constat passif au premier quart employé clôturé, ou sur désignation explicite d'un quart de recette.
+## Non fait
+Aucune recette navigateur sur l'URL servie (session manager requise). Q4 et B non tranchées. Addendum du manifeste de migrations non fait ici (voir lot : la migration n'est pas encore sur le rail, PR #103 ouverte). Retour arrière : R1 (revert de la PR #104), colonnes inertes.
