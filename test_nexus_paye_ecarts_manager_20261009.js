@@ -129,7 +129,7 @@ verifier('aucune source ne s’affiche sous forme de clé technique brute',
   !/source : duree_reference|source : horaire_exceptionnel|source : undefined/.test(rendu.app));
 
 // ── §9 : la ventilation des heures par origine ───────────────────────────
-for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Heures exceptionnelles (saisies par le manager)', 'Écarts à examiner'])
+for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Dont heures exceptionnelles (saisies par le manager)', 'Écarts à examiner'])
   verifier(`la fiche salarié ventile « ${t} »`, rendu.app.includes(t));
 verifier('les heures de piste valent le total, la caisse reste à zéro',
   /Heures de piste<\/span>[\s\S]{0,80}?15 h/.test(rendu.app) && /Heures de caisse<\/span>[\s\S]{0,80}?0 h/.test(rendu.app));
@@ -139,7 +139,7 @@ verifier('l’écart non traité est compté comme « à examiner », sans retir
 // lisent aussi sous leur poste : la tuile doit dire « dont », sinon le
 // manager additionnerait deux fois la même journée.
 verifier('la tuile des corrections annonce qu’elle ne s’ajoute pas aux trois précédentes',
-  /Heures exceptionnelles \(saisies par le manager\)/.test(rendu.app)
+  /Dont heures exceptionnelles \(saisies par le manager\)/.test(rendu.app)
   && !/>Corrections du manager</.test(rendu.app));
 
 // ── §5.4 et §9 : rien n’est proposé que l’écran ne puisse enregistrer ───
@@ -180,21 +180,48 @@ verifier('aucun retard n’est calculé sur ce mois, bien que des pointages exis
 function clientFaux(options) {
   const o = options || {};
   const trace = { upserts: [], selects: [] };
+  // `store` simule la ligne d'horaire exceptionnel ; `o.store` permet à deux
+  // clients de partager la même base (modifications concurrentes).
+  const store = o.store || { ligne: o.avant ? { detail: o.avant, modifie_le: o.modifieLe || 'T0' } : null };
   const client = {
-    trace,
+    trace, store,
     from(table) {
       return {
         select(cols) {
           trace.selects.push({ table, cols });
           const chaine = { limit: () => Promise.resolve(o.erreurSonde ? { error: { message: o.erreurSonde } } : { data: [], error: null }),
-            eq: () => chaine, maybeSingle: () => Promise.resolve({ data: o.avant ? { detail: o.avant } : null, error: null }) };
+            eq: () => chaine,
+            maybeSingle: () => Promise.resolve(o.erreurLecture
+              ? { data: null, error: { message: o.erreurLecture } }
+              : { data: store.ligne ? { detail: store.ligne.detail, modifie_le: store.ligne.modifie_le } : null, error: null }) };
           return chaine;
         },
         upsert(ligne, conf) {
           trace.upserts.push({ table, ligne, conf });
           return Promise.resolve(o.erreurEcriture ? { error: { message: o.erreurEcriture } } : { error: null });
         },
-        update() { trace.upserts.push({ table, interdit: 'update' }); return { eq: () => Promise.resolve({ error: null }) }; },
+        insert(ligne) {
+          trace.upserts.push({ table, ligne, mode: 'insert' });
+          if (o.erreurEcriture) return Promise.resolve({ error: { message: o.erreurEcriture } });
+          if (store.ligne) return Promise.resolve({ error: { code: '23505', message: 'duplicate key' } });
+          store.ligne = { detail: ligne.detail, modifie_le: ligne.modifie_le };
+          return Promise.resolve({ error: null });
+        },
+        update(ligne) {
+          let attendu; let verifie = false;
+          const q = {
+            eq(col, v) { if (col === 'modifie_le') { attendu = v; verifie = true; } return q; },
+            is() { attendu = null; verifie = true; return q; },
+            select() {
+              trace.upserts.push({ table, ligne, mode: 'update' });
+              if (o.erreurEcriture) return Promise.resolve({ error: { message: o.erreurEcriture } });
+              if (!store.ligne || (verifie && store.ligne.modifie_le !== attendu)) return Promise.resolve({ data: [], error: null });
+              store.ligne = { detail: ligne.detail, modifie_le: ligne.modifie_le };
+              return Promise.resolve({ data: [{ source_cle: ligne.source_cle }], error: null });
+            },
+          };
+          return q;
+        },
       };
     },
   };
@@ -297,6 +324,50 @@ const D = lire('NexusPayeDonnees');
       await D.enregistrerHoraireExceptionnel(c, base);
       const h = c.trace.upserts[0].ligne.detail.historique;
       return h.length === 1 && h[0].debut === '08:00' && h[0].motif === 'ancien' && h[0].auteur === 'm0';
+    });
+  // Condition 2 de la decision-7 (13/10/2026).
+  await verifierAsync('B : si l’historique précédent est illisible, la modification est refusée et rien n’est écrit',
+    async () => {
+      const c = clientFaux({ avant: { debut: '08:00', fin: '18:00', historique: [] }, erreurLecture: 'réseau coupé' });
+      try { await D.enregistrerHoraireExceptionnel(c, base); return false; }
+      catch (e) { return /Historique illisible/.test(e.message) && c.trace.upserts.length === 0; }
+    });
+  await verifierAsync('B : deux modifications successives conservent les deux versions précédentes',
+    async () => {
+      const c = clientFaux();
+      await D.enregistrerHoraireExceptionnel(c, Object.assign({}, base, { debut: '08:00', fin: '16:00' }));
+      await new Promise(r => setTimeout(r, 5));
+      await D.enregistrerHoraireExceptionnel(c, Object.assign({}, base, { debut: '09:00', fin: '17:00' }));
+      await new Promise(r => setTimeout(r, 5));
+      await D.enregistrerHoraireExceptionnel(c, Object.assign({}, base, { debut: '10:00', fin: '18:00' }));
+      const h = c.store.ligne.detail.historique;
+      return h.length === 2 && h[0].debut === '08:00' && h[1].debut === '09:00' && c.store.ligne.detail.debut === '10:00';
+    });
+  await verifierAsync('B : deux modifications concurrentes ne s’écrasent pas — la seconde est refusée',
+    async () => {
+      const depart = { debut: '08:00', fin: '16:00', pause_minutes: 60, motif: 'm', justification: 'j', auteur: 'a', saisi_le: 'x', historique: [] };
+      const partage = { ligne: { detail: depart, modifie_le: 'T0' } };
+      const c1 = clientFaux({ store: partage }); const c2 = clientFaux({ store: partage });
+      // Les deux ont lu T0 avant que l'une n'écrive : on force l'entrelacement.
+      const lire1 = c1.from('nexus_paye_items'); const lire2 = c2.from('nexus_paye_items');
+      void lire1; void lire2;
+      const p1 = D.enregistrerHoraireExceptionnel(c1, Object.assign({}, base, { debut: '09:00', fin: '17:00' }));
+      const p2 = D.enregistrerHoraireExceptionnel(c2, Object.assign({}, base, { debut: '10:00', fin: '18:00' }));
+      const r = await Promise.allSettled([p1, p2]);
+      const ok = r.filter(x => x.status === 'fulfilled').length;
+      const refus = r.filter(x => x.status === 'rejected' && /modifiée entre-temps/.test(x.reason.message)).length;
+      return ok === 1 && refus === 1 && partage.ligne.detail.historique.length === 1;
+    });
+  await verifierAsync('B : création concurrente d’une ligne absente — la seconde insertion est refusée',
+    async () => {
+      const partage = { ligne: null };
+      const c1 = clientFaux({ store: partage }); const c2 = clientFaux({ store: partage });
+      const r = await Promise.allSettled([
+        D.enregistrerHoraireExceptionnel(c1, base),
+        D.enregistrerHoraireExceptionnel(c2, Object.assign({}, base, { debut: '10:00', fin: '18:00' })),
+      ]);
+      return r.filter(x => x.status === 'fulfilled').length === 1
+        && r.filter(x => x.status === 'rejected' && /modifiée entre-temps/.test(x.reason.message)).length === 1;
     });
   // Une fin antérieure au début est lue comme un service de nuit : le moteur
   // enroule à 24 h, et c'est voulu pour les renforts qui passent minuit. On

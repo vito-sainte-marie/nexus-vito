@@ -231,6 +231,29 @@
   // Le cas « constaté hors planning » garde volontairement son ancienne clé
   // de source et son ancien type : les décisions déjà enregistrées par le
   // manager continuent de se rattacher à leur journée.
+  // Condition 1 de la decision-7 (13/10/2026) : sans planning du mois, une
+  // présence Verify ne produit pas un message par jour mais une seule
+  // synthèse non bloquante par salarié et par période. Le détail des jours
+  // reste consultable (`jours`). Les heures ne bougent pas (la synthèse ne
+  // porte aucune quantité) et les conflits explicites ne sont pas touchés.
+  function regrouperPlanningNonRenseigne(fiche, employee, periode) {
+    const jours = fiche.items.filter(i => i.nature === 'planning_non_renseigne');
+    if (!jours.length) return;
+    fiche.items = fiche.items.filter(i => i.nature !== 'planning_non_renseigne');
+    const dates = jours.map(i => i.date).sort();
+    const n = dates.length;
+    const base = jours[0];
+    fiche.items.push(Object.assign({}, base, {
+      sourceCle: `planning-non-renseigne:${employee.id}:${periode}`,
+      date: dates[0], nature: 'planning_non_renseigne',
+      libelle: `${n} présence${n > 1 ? 's' : ''} confirmée${n > 1 ? 's' : ''}, planning non renseigné`,
+      detail: `Présence confirmée par Verify, planning non renseigné · information non bloquante, aucune absence ni retenue · ${dates.join(', ')}`,
+      jours: jours.map(i => ({ date: i.date, heuresRetenues: i.heuresRetenues, poste: i.poste, detail: i.detail })),
+      quantiteMinutes: null, heuresAttribuees: 0, heuresRetenues: 0, heuresSupplementaires: 0,
+      statut: 'information', impactPaye: false,
+    }));
+  }
+
   function itemEcart(fiche, employee, date, ctx) {
     const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
     const posteLu = LIBELLE_POSTE[ctx.fonctionConstatee] || ctx.fonctionConstatee || null;
@@ -919,6 +942,7 @@
         return item;
       });
       fiche.items.push(...manuels);
+      regrouperPlanningNonRenseigne(fiche, employee, periode);
       fiche.items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.typeItem.localeCompare(b.typeItem));
       itemsGlobaux.push(...fiche.items.map(i => Object.assign({ employeeId: employee.id, employeeNom: employee.nom }, i)));
       employes.push(fiche);

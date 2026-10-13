@@ -185,7 +185,7 @@ scenario('planning renseigné pour un collègue, pas pour elle : présence confi
   assert.strictEqual(items[0].typeItem, 'ecart_verify_planning');
   assert.strictEqual(items[0].statut, 'information');
   assert.ok(!items[0].signale);
-  assert.strictEqual(items[0].libelle, 'Présence confirmée sans planning renseigné');
+  assert.strictEqual(items[0].libelle, '1 présence confirmée, planning non renseigné');
   assert.strictEqual(fiche(r).heuresConfirmees, 7);
   assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
   assert.strictEqual(r.bloqueurs.length, 0);
@@ -208,6 +208,20 @@ scenario('Q4 : sans aucun planning, la présence confirmée est tracée sans blo
   assert.strictEqual(items.length, 1);
   assert.strictEqual(items[0].statut, 'information');
   assert.strictEqual(M.statutSalarie(fiche(r)), 'pret');
+});
+
+scenario('Q4 : trois jours sans planning = une seule synthèse par salarié, heures inchangées (decision-7)', () => {
+  const J = ['2026-08-03', '2026-08-04', '2026-08-05'];
+  const seul = run({ audits: [AUDIT_BOUTIQUE(J[0])] });
+  const trois = run({ audits: J.map(AUDIT_BOUTIQUE) });
+  const items = fiche(trois).items.filter(i => i.nature === 'planning_non_renseigne');
+  assert.strictEqual(items.length, 1);
+  assert.strictEqual(items[0].libelle, '3 présences confirmées, planning non renseigné');
+  assert.strictEqual(items[0].jours.length, 3);
+  assert.strictEqual(items[0].statut, 'information');
+  assert.strictEqual(fiche(trois).heuresConfirmees, fiche(seul).heuresConfirmees * 3);
+  assert.strictEqual(M.statutSalarie(fiche(trois)), 'pret');
+  assert.strictEqual(trois.bloqueurs.length, 0);
 });
 
 // « Le conflit trace une anomalie sans bloquer ; priorité à Verify, mais
