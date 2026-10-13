@@ -132,14 +132,14 @@ verifier('le bandeau porte l’état du dossier',
   /en préparation|en vérification|prêt pour comptabilité|transmis/.test(ecran()));
 verifier('le bandeau porte les trois actions principales',
   dans(ecran(), 'Nouvelle saisie') && dans(ecran(), 'Vérifications') && dans(ecran(), 'Transmettre à la comptable'));
-verifier('les cinq indicateurs sont sur une seule ligne',
-  dans(ecran(), 'class="kpirow"') && compter(ecran(), /data-kpi="/g) === 5);
+verifier('les six indicateurs sont sur une seule ligne',
+  dans(ecran(), 'class="kpirow"') && compter(ecran(), /data-kpi="/g) === 6);
 verifier('… et chacun est un bouton, donc cliquable au clavier comme à la souris',
-  compter(ecran(), /<button type="button" class="kpi/g) === 5);
+  compter(ecran(), /<button type="button" class="kpi/g) === 6);
 // Libellés de la finition du 09/10 : « dans la paie » rend explicite que les
 // salariés hors paie sont décomptés à part (17 = 9 + 8), et l'indicateur
 // d'écarts porte le SOLDE réel issu des régularisations, non un total d'écarts.
-['Salariés dans la paie', 'Heures confirmées', 'Éléments nécessitant une décision',
+['Salariés dans la paie', 'Heures confirmées', 'Décisions de paie à traiter', 'Écarts de caisse à qualifier',
   'Salariés prêts', 'Solde des écarts de caisse'].forEach(k => {
   verifier(`l’indicateur « ${k} » est présent`, dans(ecran(), `<span>${k}</span>`));
 });
