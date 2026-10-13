@@ -244,7 +244,7 @@ async function chargement(fuseau, echec) {
   vm.runInContext('SELECTION = null; ONGLET = "decisions"; render();', ctx);
   const nBloq = vm.runInContext('RAPPORT.bloqueurs.length', ctx);
   verifier('le volet décisions annonce un seul nombre, écart de caisse compris',
-    dans(ecran(), `${nBloq} points à traiter avant de valider le mois.`)
+    dans(ecran(), `${vm.runInContext('RAPPORT.synthese.aVerifier', ctx)} à arbitrer · ${vm.runInContext('RAPPORT.synthese.configurationRequise', ctx)} paramétrage`)
     && dans(ecran(), `Traiter les ${nBloq} éléments</button>`) && !dans(ecran(), `Traiter les ${nBloq - 1} éléments`));
   vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; render();', ctx);
 
