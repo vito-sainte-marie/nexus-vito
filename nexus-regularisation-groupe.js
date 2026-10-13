@@ -351,9 +351,84 @@
     }));
   }
 
+  // Affectation du surplus d'un versement déjà enregistré : aucune coche par
+  // défaut, plafond = surplus restant ; le serveur reste seul juge.
+  function controlerSurplus(g, ecarts, saisies) {
+    const lu = lireAffectations(ecarts, saisies || {});
+    const p = [...lu.problemes];
+    const affecte = sommeAffectations(lu.affectations);
+    const surplus = Number(g.surplus);
+    if (!lu.affectations.length && !lu.problemes.length) p.push('Cochez au moins un écart à régulariser.');
+    if (cents(affecte) > cents(surplus)) p.push(`Le total affecté (${eur(affecte)}) dépasse le surplus disponible (${eur(surplus)}).`);
+    return { affectations: lu.affectations, affecte, reste: deCents(Math.max(0, cents(surplus) - cents(affecte))), problemes: p };
+  }
+
+  function parametresSurplus(g, controle, cle) {
+    return { p_groupe_id: g.id, p_affectations: controle.affectations, p_idempotency_key: cle };
+  }
+
+  function renderSurplus(g) {
+    return `
+      <form class="rg-surplus-form" novalidate>
+        <div class="pd-ligne-meta">Surplus disponible <b>${eur(g.surplus)}</b> sur un versement de ${eur(g.montant)}.</div>
+        <div class="rg-liste"><div class="chargement">Chargement…</div></div>
+        <div class="rg-pied-zone"></div>
+        <div class="regul-erreur" role="alert" hidden></div>
+        <button type="submit" class="regul-envoyer">Affecter le surplus</button>
+      </form>`;
+  }
+
+  async function brancherSurplus(conteneur, ctx, g) {
+    const form = conteneur.querySelector('.rg-surplus-form');
+    const liste = form.querySelector('.rg-liste'); const zone = form.querySelector('.rg-pied-zone');
+    const saisies = {}; let ecarts = [];
+    const cle = (ctx.nouvelleCle || (() => global.crypto.randomUUID()))();
+    function recalcul() {
+      const c = controlerSurplus(g, ecarts, saisies);
+      zone.innerHTML = `<div class="rg-pied">
+        <div class="pd-breakdown-row"><span>Affecté aux écarts</span><b>${eur(c.affecte)}</b></div>
+        <div class="pd-breakdown-row"><span>Surplus qui reste suivi à part</span><b>${eur(c.reste)}</b></div></div>`;
+    }
+    function dessiner() {
+      liste.innerHTML = renderEcarts(ecarts, saisies);
+      liste.querySelectorAll('.rg-ligne').forEach(div => {
+        const k = div.dataset.cle;
+        const coche = div.querySelector('.rg-coche'); const champ = div.querySelector('.rg-ligne-montant');
+        coche.addEventListener('change', () => {
+          const e = ecarts.find(x => cleEcart(x) === k);
+          const place = Math.min(Number(e.solde), Number(g.surplus));
+          saisies[k] = { coche: coche.checked, montant: coche.checked ? place.toFixed(2).replace('.', ',') : '' };
+          dessiner();
+        });
+        champ.addEventListener('input', () => { saisies[k].montant = champ.value; recalcul(); });
+      });
+      recalcul();
+    }
+    try { ecarts = await chargerEcartsOuverts(ctx.client, g.employee_id, g.domaine); }
+    catch (e) { liste.innerHTML = `<div class="regul-erreur"><b>${esc(lireErreur(e).message)}</b></div>`; return; }
+    dessiner();
+    form.addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const bouton = form.querySelector('.regul-envoyer');
+      if (bouton.disabled) return;
+      const c = controlerSurplus(g, ecarts, saisies);
+      if (c.problemes.length) { montrerErreur(form, c.problemes); return; }
+      bouton.disabled = true; const texte = bouton.textContent; bouton.textContent = 'Enregistrement…';
+      try {
+        const { error } = await ctx.client.rpc('affecter_surplus_groupe', parametresSurplus(g, c, cle));
+        if (error) throw error;
+        await ctx.apresSucces();
+      } catch (e) {
+        montrerErreur(form, lireErreur(e));
+        bouton.disabled = false; bouton.textContent = texte;
+      }
+    });
+  }
+
   global.NexusRegularisationGroupe = {
     DOMAINES, CONSEILS, cleEcart, libOrigine, lireAffectations, sommeAffectations,
     controlerGroupe, controlerTransfertGroupe, parametresGroupe, lireErreur, chargerEcartsOuverts, chargerGroupes,
     renderFormulaire, renderEcarts, renderPied, renderGroupes, brancher, brancherGroupes,
+    controlerSurplus, parametresSurplus, renderSurplus, brancherSurplus,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -717,8 +717,16 @@
     zone.innerHTML = `<button type="button" class="btn-regul" id="btnVersementGroupe">Enregistrer un versement de régularisation</button>`
       + G.renderGroupes(groupes.slice(0, 10), nom);
     document.getElementById('btnVersementGroupe').addEventListener('click', ouvrirVersementGroupe);
+    const apresSucces = async () => { await rechargerEtRafraichir(); await afficherGroupes(); };
     G.brancherGroupes(zone, {
-      client: nexusClient, apresSucces: async () => { await rechargerEtRafraichir(); await afficherGroupes(); },
+      client: nexusClient, apresSucces,
+      ouvrirSurplus: g => {
+        ouvrirPanneau('Affecter le surplus', G.renderSurplus(g));
+        G.brancherSurplus(document.getElementById('pdCorps'), {
+          client: nexusClient, nouvelleCle: NexusRegularisationSaisie.nouvelleCle,
+          apresSucces: async () => { fermerPanneau(); await apresSucces(); },
+        }, g);
+      },
     }, groupes);
   }
 
