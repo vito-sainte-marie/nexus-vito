@@ -184,8 +184,10 @@ return enregistrer({
     ligne.paye_config.actif === true
     && ligne.paye_config.retard_max_coherent_min === 180
     && JSON.stringify(ligne.paye_config.jours_feries) === JSON.stringify(['2026-08-15']));
-  verifier('les horaires voyagent avec, parce que la colonne est NOT NULL',
-    ligne.horaires === HORAIRES && r.upserts[0].opts.onConflict === 'site');
+  // Depuis 20261003120000 la colonne est nullable : l'enregistrement des durées ne joint PAS `horaires`
+  // (ON CONFLICT DO UPDATE ne touche que les colonnes citées, une ligne existante garde les siens).
+  verifier('les horaires ne voyagent pas avec : un seul écrivain, l’enregistrement des horaires',
+    !('horaires' in ligne) && r.upserts[0].opts.onConflict === 'site');
   verifier('et l’écran confirme visiblement l’enregistrement',
     r.doc.elements.savedNoteDurees.style.display === 'none'
     && r.doc.elements.sauvegarderDurees.disabled === false);
@@ -232,8 +234,8 @@ return enregistrer({
   const sansHoraires = await enregistrer({
     saisie: Object.assign({}, JOURS_PLEINS, { dr_renfort: '7' }), horairesManquants: true,
   });
-  verifier('sans horaires de quart déclarés, aucun upsert n’est tenté',
-    sansHoraires.upserts.length === 0);
+  verifier('sans horaires de quart déclarés, les durées s’enregistrent quand même, sans les inventer',
+    sansHoraires.upserts.length === 1 && !('horaires' in sansHoraires.upserts[0].ligne));
 
   const enPanne = await enregistrer({
     saisie: Object.assign({}, JOURS_PLEINS, { dr_renfort: '7' }),
@@ -249,7 +251,7 @@ return enregistrer({
   verifier('l’écran charge le moteur de paye, sinon le gris des champs serait vide',
     /<script src="nexus-paye-moteur\.js/.test(html));
   verifier('et il lit paye_config, sinon il n’aurait rien à relire',
-    /select\('horaires,paye_config'\)/.test(html));
+    /select\('paye_config,horaires'\)/.test(html));
 
   console.log('\n' + n + ' vérifications passées.');
 });

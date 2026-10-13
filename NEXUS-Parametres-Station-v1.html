@@ -1200,7 +1200,7 @@
     // A3 / C1c-3 : le fuseau ne vient plus d'ici. station_config reste la
     // source des horaires ; le fuseau est lu séparément dans sites.timezone
     // par le contrat NexusStation.
-    const { data, error } = await nexusClient.from('station_config').select('horaires,paye_config').eq('site', employee.site_id).maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('paye_config,horaires').eq('site', employee.site_id).maybeSingle();
     // A3 / C2-1 : plus de substitution. `null` dit « pas configuré », et
     // l'écran le montre — c'est sa raison d'être.
     if (error) { console.error('Chargement station_config:', error); return { horaires: null, payeConfig: null }; }
