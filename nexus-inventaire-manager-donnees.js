@@ -43,7 +43,7 @@
 // exactement le risque de divergence que l'Article 11 interdit.
 //
 // Inclure après nexus-auth.js (nexusClient) :
-// <script src="nexus-inventaire-manager-donnees.js?v=20260904-0104"></script>
+// <script src="nexus-inventaire-manager-donnees.js?v=20261013-2212"></script>
 // ------------------------------------------------------------
 
 (function (global) {

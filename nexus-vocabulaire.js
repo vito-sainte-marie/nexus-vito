@@ -18,7 +18,7 @@
 // la variété entre rayons différents, pas un texte qui change à chaque
 // rechargement pour le même rayon.
 //
-// Inclure dans une page : <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
+// Inclure dans une page : <script src="nexus-vocabulaire.js?v=20261013-2212"></script>
 // (même mécanisme que nexus-auth.js, chargé une fois par page).
 // ============================================================
 
@@ -41,11 +41,11 @@
   // niveau attendu : 'excellent' | 'bon' | 'moyen' | 'faible' | 'critique'
   // ------------------------------------------------------------
   const POOL_ETAT = {
-    excellent: ['Situation excellente.', 'Performance remarquable.', 'Les indicateurs sont au vert.', 'La tendance est solide.', 'Les résultats dépassent les attentes.'],
-    bon: ['La situation est saine.', 'Les résultats sont satisfaisants.', 'Les fondamentaux sont solides.', 'La dynamique reste positive.', 'Les performances restent stables.'],
-    moyen: ['La situation reste sous contrôle.', 'Quelques signaux méritent une attention.', 'Le potentiel n\'est pas pleinement exploité.', 'Une amélioration est possible.'],
-    faible: ['Les performances ralentissent.', 'Plusieurs indicateurs se dégradent.', 'Le potentiel est insuffisamment exploité.', 'Une intervention est recommandée.'],
-    critique: ['Une action rapide est nécessaire.', 'Les résultats deviennent préoccupants.', 'Le niveau de risque augmente.', 'Une vérification terrain est prioritaire.'],
+    excellent: ['Très bon niveau.', 'Les indicateurs sont au vert.'],
+    bon: ['Bon niveau.', 'Les résultats sont satisfaisants.'],
+    moyen: ['Résultat moyen.', 'Quelques points à reprendre.'],
+    faible: ['Niveau faible.', 'Une intervention est recommandée.'],
+    critique: ['À traiter rapidement.', 'Une vérification sur place est prioritaire.'],
   };
   NexusVocab.etatGeneral = function (niveau, seed) { return pick(POOL_ETAT[niveau], seed); };
 
@@ -184,8 +184,8 @@
   // niveau : 'eleve' | 'modere' | 'faible'
   // ------------------------------------------------------------
   const POOL_OPPORTUNITE = {
-    eleve: ['Potentiel élevé.', 'Fort potentiel.', 'Levier de croissance.'],
-    modere: ['Possibilité d\'amélioration.', 'Gisement de marge.'],
+    eleve: ['Potentiel élevé.'],
+    modere: ['Marge à aller chercher.'],
     faible: ['Opportunité commerciale limitée.'],
   };
   NexusVocab.opportunite = function (niveau, seed) { return pick(POOL_OPPORTUNITE[niveau], seed); };
@@ -222,7 +222,7 @@
   // ------------------------------------------------------------
   const POOL_MANAGEMENT = {
     critique: ['Informez le responsable.', 'Priorisez ce rayon.'],
-    attention: ['Prioriser ce rayon.', 'Sensibilisez les collaborateurs concernés.'],
+    attention: ['Traitez ce rayon en premier.', 'Parlez-en aux employés concernés.'],
     normal: ['Aucune intervention nécessaire.'],
   };
   NexusVocab.management = function (niveau, seed) { return pick(POOL_MANAGEMENT[niveau], seed); };
@@ -241,12 +241,8 @@
   // 16. Réalité vs instinct — spécifique à NEXUS.
   // ------------------------------------------------------------
   const POOL_REALITE = [
-    'L\'impression du terrain diffère des chiffres.',
-    'Les chiffres racontent une autre histoire.',
-    'Ce produit paraît important, mais les chiffres nuancent.',
-    'Ce rayon est souvent sous-estimé.',
-    'Attention aux biais de perception.',
-    'Les apparences sont trompeuses ici.',
+    'Les chiffres ne confirment pas l\'impression du terrain.',
+    'Ce produit paraît important, mais les chiffres disent autre chose.',
   ];
   NexusVocab.realiteVsInstinct = function (seed) { return pick(POOL_REALITE, seed); };
 

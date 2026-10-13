@@ -58,7 +58,7 @@
 // table nexus_risk_signals).
 //
 // Inclure après nexus-marge.js et nexus-verify-moteur.js :
-// <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
+// <script src="nexus-risques-moteur.js?v=20261013-2212"></script>
 // ------------------------------------------------------------
 
 (function (global) {
