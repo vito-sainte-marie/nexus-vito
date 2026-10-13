@@ -1651,6 +1651,7 @@
         const h = normaliserTexte(val);
         if (!h) return;
         if (h.includes('date') && cols.date === undefined) cols.date = idx;
+        else if (h === 'renfort' || h === 'renforts') cols.renfort = idx;
         else if (h === 'quart') cols.quart = idx;
         else if (h.includes('pompiste')) cols.pompiste = idx;
         else if (h.includes('piste') && h.includes('cb')) cols.pisteCb = idx;
@@ -1912,6 +1913,10 @@
       if (commentairePeek) previewChamps.push({ label: 'Commentaire', valeur: commentairePeek });
       if (pompisteNomPeek) previewChamps.push({ label: 'Employé Piste', valeur: pompisteNomPeek });
       if (caissierNomPeek) previewChamps.push({ label: 'Employé Boutique', valeur: caissierNomPeek });
+      // Colonne RENFORT : règle dans le moteur (Q1 seulement, vide = rien).
+      const renfortLu = NexusVerifyMoteur.renfortDepuisCellule(g('renfort'), quartStr);
+      if (renfortLu.noms.length) previewChamps.push({ label: 'Renfort (Q1, 7 h)', valeur: renfortLu.noms.join(', ') });
+      else if (renfortLu.ignore === 'quart_2') previewChamps.push({ label: 'Renfort', valeur: `« ${String(g('renfort')).trim()} » ignoré : le renfort ne s'applique qu'au quart 1` });
 
       // Cohérence personnel (§2) : compare le nom importé à ce qui est
       // DÉJÀ sélectionné sur cette caisse au moment du clic — jamais à un
@@ -2019,6 +2024,24 @@
         const { emp, nouveau, erreur } = await trouverOuCreerEmploye(caissierNom);
         if (emp) { employesSelectionnes.boutique.add(emp.id); messagesEmp.push(`Boutique : ${emp.nom}${nouveau ? ' (nouveau vacataire)' : ''} ✓`); }
         else messagesEmp.push(`Boutique : "${caissierNom}" — échec de création (${erreur || 'erreur inconnue'})`);
+      }
+      // Renfort : un salarié connu du site, jamais créé à la volée (un renfort
+      // inconnu est un doute à lever, pas un vacataire à inventer). Rien n'est
+      // écrit ici : la déclaration passe par le bloc Renfort, enregistré avec
+      // la clôture comme n'importe quelle déclaration manuelle.
+      if (renfortLu.noms.length) {
+        if (!COLONNE_RENFORT_DISPONIBLE) {
+          messagesEmp.push(`Renfort : ${renfortLu.noms.join(', ')} lu dans le classeur, non appliqué (déclaration de renfort pas encore disponible)`);
+        } else {
+          const connus = [];
+          renfortLu.noms.forEach(nom => {
+            const emp = trouverEmployeParNom(nom);
+            if (emp) { employesSelectionnes.renfort.add(emp.id); connus.push(emp.nom); }
+            else messagesEmp.push(`Renfort : "${nom}" introuvable parmi les salariés du site — à déclarer à la main`);
+          });
+          if (connus.length) { basculerRenfort(true); messagesEmp.push(`Renfort : ${connus.join(', ')} ✓`); }
+          renderMenuEmployes('renfort'); majLabelEmployes('renfort');
+        }
       }
       renderMenuEmployes('piste'); majLabelEmployes('piste');
       renderMenuEmployes('boutique'); majLabelEmployes('boutique');

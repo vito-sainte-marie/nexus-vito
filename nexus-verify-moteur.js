@@ -270,10 +270,35 @@
     return { bloquer: alertes.length > 0, alertes };
   }
 
+  // ------------------------------------------------------------
+  // Colonne RENFORT du tableau des recettes (FAST TRACK MÉTIER, 12/10/2026).
+  // Règle unique, ici et nulle part ailleurs (Article 11) :
+  //   - quart 1 : les noms de la cellule sont des renforts (7 h, durée lue
+  //     dans les Paramètres Station, jamais retapée ici) ;
+  //   - quart 2 : ignoré, la colonne n'a pas de sens sur ce quart ;
+  //   - cellule vide : aucun effet — ni renfort, ni absence, ni déduction.
+  // Le format de cellule n'a pas été vu sur le classeur réel : une cellule
+  // peut porter un nom, ou plusieurs séparés par , ; / + & ou « et ».
+  // Rend { noms, ignore } ; `ignore` dit POURQUOI une valeur présente n'est
+  // pas retenue, pour que l'aperçu le montre au lieu de le taire.
+  // ------------------------------------------------------------
+  function renfortDepuisCellule(valeur, quart) {
+    const brut = valeur == null ? '' : String(valeur).trim();
+    if (!brut) return { noms: [], ignore: null };
+    if (String(quart).trim() !== '1') return { noms: [], ignore: 'quart_2' };
+    const vus = new Set(), noms = [];
+    brut.split(/\s*(?:[,;/+&]|\bet\b)\s*/i).map(n => n.trim()).filter(Boolean).forEach(n => {
+      const k = n.toLowerCase();
+      if (!vus.has(k)) { vus.add(k); noms.push(n); }
+    });
+    return { noms, ignore: null };
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
     libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
     CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets, estReportDateRisque,
+    renfortDepuisCellule,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
