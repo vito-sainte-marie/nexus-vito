@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-10.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-11.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 10
+seq: 11
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,49 +20,52 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 147-fichiers
-  - id: pr105-tete
+  - id: pr106-tete
     classe: VERIFIED
-    valeur: a02deb2101d175a6e533910ae2552aa2e6bfa4c6
-  - id: pr105-ci
+    valeur: c857f4135733e87743eba2963e640a2547ba955c
+  - id: pr106-ci
     classe: VERIFIED
-    valeur: build-SUCCESS-non-regression-SUCCESS-CLEAN
-  - id: recette-q2-servie
+    valeur: build-SUCCESS-non-regression-SUCCESS
+  - id: recette-pr106-servie
     classe: HUMAN
     valeur: non-faite
 ---
-# Demande d'arbitrage — PR #105 : le renfort déclaré au Q2 vaut 7 h (remplace la règle du 10/10)
+# Demande d'arbitrage — PR #106 : une présence Verify n'est pas « hors planning » sans planning
 
 Ce texte se suffit. Demande d'arbitrage seulement ; ni GO ni ordre d'exécution.
 
-## Changement de règle demandé
+## Constat
 
-La règle posée le 10/10 ignorait un renfort déclaré au quart 2. Frédéric a tranché le 13/10 : un renfort est désigné au Q1 ; il ne doit pas être enregistré aux deux quarts ; le formulaire Q2 doit dire que la personne est déjà renfort ; sans renfort au Q1, la saisie manuelle au Q2 reste possible (rare). Choix (a) : Paye compte un renfort déclaré au Q2 comme renfort de journée, 7 h normales, 0 h sup.
+Dans Paye, les éléments à traiter d'une salariée présente dans Verify affichaient « Fonction prévue : absent du planning ». Cause mesurée en lecture seule : aucun planning n'est publié depuis septembre (`planning_shifts` s'arrête au 31/08, le reste est en brouillon) et le classeur de planning n'a pas d'onglet octobre. Paye comparait chaque journée Verify à un planning vide.
 
-## Ce que fait la PR #105 (`renfort-q2-manuel-20261013` vers `production`, tête `a02deb2`, 1 commit)
+## Règle posée par Frédéric (13/10)
 
-- Verify : la note du Q2 indique « Déjà renfort de la journée (quart N, noms). Il vaut 7 h pour le jour entier : ne le déclarez pas une seconde fois ici. »
-- Paye (`nexus-paye-moteur.js`) : le renfort Q2 n'est plus ignoré. Le jeu par salarié et par jour garantit qu'un renfort aux deux quarts ne vaut qu'une journée. Caisse/piste prime toujours sans cumul. Aucun taux, aucune retenue.
-- Épreuve `test_nexus_paye_reconciliation_verify_paye_20261013.js` : Q2 → 7 h, 1 jour.
+Verify fait foi. Le planning sert à rapprocher les informations et à faire remonter des anomalies. Une personne présente dans Verify le jour J ne peut pas être considérée comme hors planning quand aucun planning n'existe.
+
+## Ce que fait la PR #106 (`paye-verify-sans-planning-20261013` vers `production`, tête `c857f41`, 1 commit, partie de `f36679f`)
+
+- `nexus-paye-moteur.js` : la carte « hors planning » n'est plus émise quand aucun planning n'existe pour le jour et que la personne n'a aucun shift sur le mois. Les heures ne changent pas.
+- Restent signalés : absente alors qu'un collègue est planifié le jour même ; planifiée d'autres jours du mois ; repos ou congé contredit par Verify ; caisse et piste le même jour ; journée de plus de 12 h ; poste introuvable.
+- Quatre épreuves réalignées (lecture de `detailJours` au lieu de la carte supprimée), une ajoutée (collègue planifié, pas elle : une carte).
+- Aucun taux, aucune retenue, aucune écriture Production.
 
 ## État mesuré
 
 | Mesure | Valeur |
 |---|---|
-| PR | OPEN, MERGEABLE, CLEAN, tête `a02deb2101d175a6e533910ae2552aa2e6bfa4c6` |
-| contrôles | « Construire et éprouver l'artefact » SUCCESS ; `non-regression` SUCCESS ; Cloudflare Pages SUCCESS ; Pages SKIPPED (attendu) |
-| épreuves ciblées | 5 vertes |
-| suite complète | 7 rouges inventaire/réception, identiques sur `origin/production` (préexistants, non causés) |
-| données Production | 9 renforts Q1 du 01 au 12/10 écrits dans `audits_caisse.employes_renfort` sur instruction de Frédéric ; relus dans Paye : 7 h normales, 0 h sup, comptés une fois |
-| recette navigateur Q2 sur URL servie | non faite |
+| épreuves Paye ciblées | vertes ; 17/17 simulations Paye |
+| suite complète | 7 rouges inventaire/réception, identiques sur `origin/production` |
+| CI de la PR | « Construire et éprouver l'artefact » SUCCESS ; `non-regression` SUCCESS (2 exécutions) ; Cloudflare Pages SUCCESS ; Pages SKIPPED (attendu) |
+| recette navigateur sur URL servie | non faite |
 
-## Dépendance
+## Effet de bord à connaître
 
-La PR #105 repose sur le code de la PR #104 (request-8), non encore fusionnée au moment de cette demande : #105 ne se fusionne qu'après #104, ou le verdict doit le dire.
+Les décisions déjà enregistrées par le manager sur d'anciennes cartes « hors planning » ne se rattachent plus à rien : ces cartes ne sont plus générées. Les heures ne sont pas touchées.
 
 ## Geste demandé
 
-Verdict sur le changement de règle (Q2 compté 7 h sans cumul) puis, séparément, GO nominatifs pour la fusion de #105 et pour le déploiement Pages. Rien n'est fusionné ni déployé par cette demande.
+Verdict sur la règle, puis, séparément, GO nominatifs pour la fusion de #106 et pour le déploiement Pages. Rien n'est fusionné ni déployé par cette demande. Indépendante de #105 (request-10) : les deux touchent `nexus-paye-moteur.js` à des endroits distincts.
 
 ## Hors périmètre, non tranché
 
-Q4 (case vide au planning) et B (heures exceptionnelles : colonne de provenance ou ligne distincte) restent ouvertes, sans recommandation fermée.
+Publication d'un planning d'octobre (décision de Frédéric ; rien importé ni inventé). Q4 et B restent ouvertes.
