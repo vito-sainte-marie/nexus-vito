@@ -494,9 +494,24 @@
     };
   }
 
+  // Situation réelle de chaque écart (versé net, reste dû), indexée par la
+  // sourceCle des items de Paye (`ecart:<id>`). Lecture seule : aucun calcul de
+  // paie n'en dépend ; un écart absent de l'univers n'a pas de situation.
+  function situationsParEcart(ecarts, operations, options) {
+    const releve = construireReleve(ecarts, operations, options);
+    const out = {};
+    releve.lignes.forEach(l => {
+      out[`ecart:${l.cle}`] = {
+        versementsCentimes: Math.max(0, l.verseCentimes - l.restitueCentimes),
+        resteDuCentimes: Math.max(0, l.soldeCentimes),
+      };
+    });
+    return out;
+  }
+
   global.NexusPayeRegularisations = {
     QUALIFICATION, JUSTIFICATION_MIN, statutQualification, justificationRequise, compteursQualification,
-    STATUTS, ANNULE_PAR_CONTRE_ECRITURE, LIBELLE_VERSEMENT,
+    situationsParEcart, STATUTS, ANNULE_PAR_CONTRE_ECRITURE, LIBELLE_VERSEMENT,
     jourStation, lundiDe, construireReleve, vueHebdomadaire, vueMensuelle,
     syntheseRegularisationsPeriode, syntheseParDomaine, renderSynthese, operationsDeLUnivers, ecartsDeLaProjection,
     exporterCsv, renderVue, renderLignes, chargerOperations,

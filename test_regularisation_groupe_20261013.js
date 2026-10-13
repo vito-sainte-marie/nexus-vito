@@ -87,5 +87,13 @@ console.log('OK synthèse Paye séparée Verify / FDJ');
   const items = [{ typeItem: 'ecart_caisse', statut: 'a_verifier' }, { typeItem: 'ecart_caisse', statut: 'valide' }, { typeItem: 'retard', statut: 'a_verifier' }, { typeItem: 'retard', contestationOuverte: true, statut: 'valide' }];
   const c = R.compteursQualification(items, 2);
   ok(c.decisionsPaie === 4 && c.ecartsAQualifier === 1, 'deux compteurs séparés');
+  {
+    const univers = [{ id: 'fdj-f1', date: '2026-10-01', quart: '1', sourceModule: 'fdj', employeeId: 'e1', ecartInitial: -4, ecartFinal: -4 }];
+    const op = { versements: [{ id: 'v1', module_origine: 'fdj', fdj_cash_control_id: 'f1', montant: 1, encaisse_le: '2026-10-13T10:00:00Z', mode_encaissement: 'especes', destination: 'tiroir_fdj' }], restitutions: [] };
+    const sit = R.situationsParEcart(univers, op, { fuseau: 'Europe/Paris' });
+    ok(sit['ecart:fdj-f1'].versementsCentimes === 100 && sit['ecart:fdj-f1'].resteDuCentimes === 300, 'situation réelle : 1 € versé, 3 € restent dus');
+    ok(R.statutQualification({ statut: 'a_verifier' }, sit['ecart:fdj-f1']).statut === 'Partiellement régularisé', 'la situation réelle pilote le statut');
+    ok(sit['ecart:autre'] === undefined, 'écart inconnu : pas de situation inventée');
+  }
   console.log(`${n} épreuves vertes`);
 }
