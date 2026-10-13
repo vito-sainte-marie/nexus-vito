@@ -2037,7 +2037,7 @@
           renfortLu.noms.forEach(nom => {
             const emp = trouverEmployeParNom(nom);
             if (emp) { employesSelectionnes.renfort.add(emp.id); connus.push(emp.nom); }
-            else messagesEmp.push(`Renfort : "${nom}" introuvable parmi les salariés du site — à déclarer à la main`);
+            else messagesEmp.push(`Renfort : "${nom}" introuvable parmi les salariés du site : à déclarer à la main`);
           });
           if (connus.length) { basculerRenfort(true); messagesEmp.push(`Renfort : ${connus.join(', ')} ✓`); }
           renderMenuEmployes('renfort'); majLabelEmployes('renfort');

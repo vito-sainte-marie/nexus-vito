@@ -77,12 +77,15 @@
   function lignesVariables(v) {
     const lignes = [
       { variable: 'Présence confirmée', valeur: v.presence.jours ? `${nombre(v.presence.jours, 'jour')} · ${heures(v.presence.heures)}` : '0' },
+      { variable: 'Heures normales retenues', valeur: heures(v.presence.heuresNormales) },
       { variable: 'Absence non déclarée', valeur: nombre(v.absence.jours, 'jour') },
       { variable: 'Congés payés', valeur: nombre(v.congesPayes.jours, 'jour') },
       { variable: 'Maladie / maternité / paternité', valeur: nombre(v.maladieMaternite.jours, 'jour') },
       { variable: 'Autres absences qualifiées', valeur: nombre(v.autresAbsences.jours, 'jour') },
       { variable: 'Retards', valeur: v.retards.occurrences ? `${minutes(v.retards.minutes)} sur ${nombre(v.retards.occurrences, 'jour')}` : '—' },
-      { variable: 'Heures supplémentaires', valeur: v.heuresSupplementaires.heures ? heures(v.heuresSupplementaires.heures) : '—' },
+      { variable: 'Heures supplémentaires', valeur: v.heuresSupplementaires.heures ? `${heures(v.heuresSupplementaires.heures)} (comprises dans la présence)` : 'aucune' },
+      { variable: 'Heures supplémentaires en attente d’arbitrage', valeur: v.heuresSupplementaires.enAttente ? nombre(v.heuresSupplementaires.enAttente, 'élément') : 'aucun' },
+      { variable: 'Détail par date (normales / sup.)', valeur: (v.presence.detailJours || []).length ? v.presence.detailJours.map(j => `${j.date} ${j.normales} h + ${j.supplementaires} h`).join(' ; ') : 'aucune journée' },
       { variable: 'Jours fériés travaillés', valeur: nombre(v.joursFeries.jours, 'jour') },
       { variable: 'Acomptes', valeur: v.financier.acompteCentimes ? euros(v.financier.acompteCentimes) : '—' },
       { variable: 'Dettes / avances', valeur: v.financier.detteCentimes ? euros(v.financier.detteCentimes) : '—' },
@@ -129,7 +132,7 @@
     const notes = [];
     if (v.presence.joursReconstitues) notes.push(`${v.presence.joursReconstitues} journée(s) confirmée(s) par une seule source — Verify ou pointage, pas les deux.`);
     if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} chiffrées par la durée de référence du jour, pour les journées constatées dans Verify.`);
-    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} supplémentaires sont déjà comprises dans les heures de présence, au titre des durées de référence de la station. Leur qualification en heures normales, complémentaires ou supplémentaires majorées relève des règles légales et contractuelles, et non de ce calcul.`);
+    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} d’une décision antérieure décrivent la même heure que la 8e heure du barème : elles ne sont pas ajoutées. Aucun taux de majoration n’est appliqué ici : il relève du cadre légal et de la convention.`);
     if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
     if (notes.length) rapport.encadre(notes.map(n => ({ texte: `- ${n}` })));
   }

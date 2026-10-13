@@ -113,12 +113,25 @@ function tuile(label,valeur,sous,options){
 //
 // Les écarts restant à examiner sont comptés ici mais ne retirent aucune
 // heure : c'est une liste de choses à regarder, pas un blocage.
+// Indicateur unique « 23 h · dont 2 h sup. » : la présence n'est jamais comptée deux fois,
+// les supplémentaires sont une PART de la présence, pas un ajout.
+function libelleHeures(v){const h=v.presence.heures,sp=v.heuresSupplementaires.heures;return `${h} h`+(sp?` · dont ${sp} h sup.`:'');}
+function renderHeures(v){
+ const d=v.presence.detailJours||[];
+ const att=v.heuresSupplementaires.enAttente?`<p class="meta">${pluriel(v.heuresSupplementaires.enAttente,'élément')} d’heures supplémentaires en attente d’arbitrage.</p>`:'';
+ const lignes=d.map(j=>`<tr><td>${ECHAPPE(j.date)}</td><td>${ECHAPPE(j.poste||'sans poste')}</td><td>${j.presence} h</td><td>${j.normales} h</td><td>${j.supplementaires?`<b>${j.supplementaires} h</b>`:'0'}</td></tr>`).join('');
+ return `<section class="heures"><h4>Heures : ${libelleHeures(v)}</h4>${att}`
+  +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Supplémentaires</th></tr></thead><tbody>${lignes}</tbody></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
+  +`</section>`;
+}
 function renderVariables(v,f){
  const attente=n=>n?`${n} en attente d’arbitrage`:'';
  const fin=v.financier, totalFin=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;
  const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
- return `<div class="vars">`
+ return renderHeures(v)+`<div class="vars">`
   +tuile('Présence',`${v.presence.heures} h`,`${pluriel(v.presence.jours,'jour')} confirmé${v.presence.jours>1?'s':''}${v.presence.joursReconstitues?` · ${v.presence.joursReconstitues} reconstitué${v.presence.joursReconstitues>1?'s':''}`:''}`,{vide:!v.presence.heures})
+  +tuile('Heures normales retenues',`${v.presence.heuresNormales} h`,'7 h de base par journée, supplémentaire exclue',{vide:!v.presence.heuresNormales})
+  +tuile('Autres heures exceptionnelles',`${v.presence.heuresAutres} h`,v.presence.heuresAutres?'horaires saisis par le manager, ni normales ni supplémentaires d’office':'aucune',{vide:!v.presence.heuresAutres})
   +tuile('Heures de caisse',`${arrondi(f&&f.heuresCaisse)} h`,'journées de caisse constatées dans Verify',{vide:!(f&&f.heuresCaisse)})
   +tuile('Heures de piste',`${arrondi(f&&f.heuresPiste)} h`,'journées de piste constatées dans Verify',{vide:!(f&&f.heuresPiste)})
   +tuile('Heures de renfort',`${arrondi(f&&f.heuresRenfort)} h`,'renforts retenus, déclarés ou prévus',{vide:!(f&&f.heuresRenfort)})
@@ -128,7 +141,7 @@ function renderVariables(v,f){
   +tuile('Congés payés',String(v.congesPayes.jours),v.congesPayes.evenements?`${pluriel(v.congesPayes.evenements,'événement')}`:'aucun',{vide:!v.congesPayes.jours})
   +tuile('Maladie / maternité',String(v.maladieMaternite.jours),v.maladieMaternite.detail.map(e=>e.libelle).join(' · ')||'aucune',{vide:!v.maladieMaternite.jours})
   +tuile('Retards',v.retards.minutes?`${v.retards.minutes} min`:'0',attente(v.retards.enAttente)||(v.retards.occurrences?`sur ${pluriel(v.retards.occurrences,'jour')}`:'aucun'),{vide:!v.retards.minutes,attente:!!v.retards.enAttente})
-  +tuile('Heures supplémentaires',`${v.heuresSupplementaires.heures} h`,attente(v.heuresSupplementaires.enAttente)||(v.heuresSupplementaires.heuresDejaIncluses?`${v.heuresSupplementaires.heuresDejaIncluses} h déjà comprises dans la présence`:'validées'),{vide:!v.heuresSupplementaires.heures,attente:!!v.heuresSupplementaires.enAttente})
+  +tuile('Heures supplémentaires',`${v.heuresSupplementaires.heures} h`,attente(v.heuresSupplementaires.enAttente)||(v.heuresSupplementaires.heuresBareme?`${v.heuresSupplementaires.heuresBareme} h = 8e heure du jeudi au samedi, comprises dans la présence${v.heuresSupplementaires.heuresDejaIncluses?` · ${v.heuresSupplementaires.heuresDejaIncluses} h d’une décision antérieure, même heure, non ajoutée`:''}`:'validées'),{vide:!v.heuresSupplementaires.heures,attente:!!v.heuresSupplementaires.enAttente})
   +tuile('Jours fériés',String(v.joursFeries.jours),attente(v.joursFeries.enAttente)||'travaillés',{vide:!v.joursFeries.jours,attente:!!v.joursFeries.enAttente})
   +tuile('Éléments financiers',totalFin?euros(totalFin):'—',attente(fin.enAttente)||detailFin||'aucun',{vide:!totalFin,attente:!!fin.enAttente})
   +(v.autresAbsences.jours?tuile('Autres absences qualifiées',String(v.autresAbsences.jours),v.autresAbsences.detail.map(e=>e.libelle).join(' · '),{pleine:true}):'')
@@ -152,7 +165,7 @@ function renderEmployee(f){
   :`${f.reglage.confirme?'':'<div class="alert">Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.</div>'}${renderVariables(v,f)}`
    +`<div class="actions"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
    +`<div class="detail-zone" data-emp="${id}" hidden>${f.items.length?f.items.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
- return `<article class="employee" data-employee="${id}"><div class="employee-head"><div><div class="employee-name">${ECHAPPE(f.employee.nom)}</div><div class="meta">${ECHAPPE(f.employee.role||'')}${inclus?` · ${f.heuresConfirmees.toFixed(2)} h · ${pluriel(f.joursConfirmes.size,'jour')}`:''}</div></div>${statut}</div><div class="employee-body">${corps}</div></article>`;
+ return `<article class="employee" data-employee="${id}"><div class="employee-head"><div><div class="employee-name">${ECHAPPE(f.employee.nom)}</div><div class="meta">${ECHAPPE(f.employee.role||'')}${inclus?` · ${libelleHeures(v)} · ${pluriel(f.joursConfirmes.size,'jour')}`:''}</div></div>${statut}</div><div class="employee-body">${corps}</div></article>`;
 }
 // Qualifier une période une seule fois. Le manager choisit un motif puis
 // confirme ; NEXUS écrit sur l'ÉVÉNEMENT, ce qui vaut pour tous les mois

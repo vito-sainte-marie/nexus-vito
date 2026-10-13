@@ -4,12 +4,8 @@
 // 7 h, jeudi au samedi 8 h, renfort 7 h tous les jours. Deux choses ont changé,
 // et ce fichier les tient :
 //
-//   1. La 8ᵉ heure n'est plus qualifiée supplémentaire d'office. « Le système
-//      ne doit pas transformer automatiquement toute heure au-delà du planning
-//      en heure supplémentaire majorée » : la qualification en heures normales,
-//      complémentaires ou supplémentaires relève d'un calcul distinct, fondé
-//      sur les règles légales et contractuelles. Le moteur rend des heures de
-//      travail de référence, et rien de plus.
+//   1. Renversé par Q1 (10/10/2026) : la 8ᵉ heure EST supplémentaire — 7 h de base
+//      + 1 h, sans taux ni majoration inventés, sans double comptage.
 //
 //   2. Les durées ne sont plus en dur. Elles viennent des Paramètres Station,
 //      réutilisés par Verify et par Paye sans règle dupliquée. La table reste
@@ -52,13 +48,21 @@ verifier('renfort le jeudi -> 7 h', H('renfort', '2026-09-03').heures === 7);
 verifier('renfort le dimanche -> 7 h', H('renfort', '2026-09-06').heures === 7);
 verifier('poste inconnu -> aucun barème inventé', H(null, '2026-09-01') === null);
 
-// La règle de qualification, celle qui a changé. Aucun jour, aucun poste ne
-// rend une heure supplémentaire : ce n'est plus au moteur d'en décider.
+// Q1 (décision de Frédéric du 10/10/2026) : la 8e heure EST supplémentaire.
+// 7 h de base + 1 h supplémentaire le jeudi, vendredi et samedi ; jamais 8 h + 1 h.
 const TOUS_LES_JOURS = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04',
                         '2026-09-05', '2026-09-06', '2026-09-07'];
-verifier('aucune heure n’est qualifiée supplémentaire d’office, aucun jour, aucun poste',
-  ['caissier', 'pompiste', 'renfort'].every(poste =>
-    TOUS_LES_JOURS.every(d => H(poste, d).heuresSupplementaires === 0)));
+const JOURS_8H = ['2026-09-03', '2026-09-04', '2026-09-05']; // jeu, ven, sam
+for (const poste of ['caissier', 'pompiste']) {
+  verifier(`${poste} : 7 h normales + 1 h supplémentaire du jeudi au samedi`,
+    JOURS_8H.every(d => H(poste, d).heuresNormales === 7 && H(poste, d).heuresSupplementaires === 1 && H(poste, d).heures === 8));
+  verifier(`${poste} : 7 h normales, 0 supplémentaire les autres jours`,
+    TOUS_LES_JOURS.filter(d => !JOURS_8H.includes(d)).every(d => H(poste, d).heuresNormales === 7 && H(poste, d).heuresSupplementaires === 0));
+}
+verifier('renfort Q1 : 7 h normales, aucune supplémentaire automatique',
+  TOUS_LES_JOURS.every(d => H('renfort', d).heures === 7 && H('renfort', d).heuresNormales === 7 && H('renfort', d).heuresSupplementaires === 0));
+verifier('normales + supplémentaires = présence, jamais plus (pas de double comptage)',
+  ['caissier', 'pompiste', 'renfort'].every(p => TOUS_LES_JOURS.every(d => H(p, d).heuresNormales + H(p, d).heuresSupplementaires === H(p, d).heures)));
 
 // Les durées viennent des Paramètres Station quand ils les portent.
 const reglesStation = M.reglesHeures(
@@ -139,8 +143,9 @@ verifier('une caissière placée en piste un jeudi -> 8 h de piste',
   itemPiste.poste === 'pompiste' && itemPiste.heuresRetenues === 8);
 verifier('ventilées en heures de piste',
   fichePiste.heuresPiste === 8 && fichePiste.heuresCaisse === 0);
-verifier('et toujours aucune heure supplémentaire déduite de la 8ᵉ heure',
-  itemPiste.heuresSupplementaires === 0
+verifier('Q1 : la 8ᵉ heure est la part supplémentaire de la journée, sans carte à arbitrer ni double comptage',
+  itemPiste.heuresSupplementaires === 1 && fichePiste.heuresConfirmees === 8
+  && fichePiste.heuresNormales === 7 && fichePiste.heuresSuppBareme === 1
   && !fichePiste.items.some(i => i.typeItem === 'heure_supplementaire'));
 
 console.log(`\n${ok} vérifications passées.`);

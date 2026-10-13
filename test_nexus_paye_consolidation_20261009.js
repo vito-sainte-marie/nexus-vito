@@ -90,7 +90,9 @@ const shift = (employee_id, date, champs) => Object.assign({ employee_id, date, 
   verifier('§11.4 — le planning prévoit 7 h, Verify constate le vendredi : 8 h retenues', c.heuresConfirmees === 8);
   verifier('§11.4 — et l’écart est signalé au manager', !!e && e.heuresPlanning === 7 && e.heuresRetenues === 8);
   verifier('§11.4 — l’écart ne retire ni ne bloque aucune heure', e.impactPaye === false && r.bloqueurs.length === 0);
-  verifier('§11.4 — l’écart n’est pas requalifié en heure supplémentaire majorée', e.heuresSupplementaires === 0);
+  verifier('§11.4 — l’écart n’est pas une heure supplémentaire : seule la 8e heure du barème l’est (Q1), sans carte ni montant',
+    e.heuresSupplementaires === 1 && c.heuresSuppBareme === 1 && e.montantCentimes == null
+    && !c.items.some(i => i.typeItem === 'heure_supplementaire'));
 }
 
 // ── §11.5 : une journée absente du planning reste constatée ─────────────

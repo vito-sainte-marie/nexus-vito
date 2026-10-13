@@ -87,6 +87,7 @@
   //      plus annoncée comme supplémentaire : elle est la durée du jeudi.
   const DUREES_REFERENCE_DEFAUT = [7, 7, 7, 7, 8, 8, 8]; // dim, lun, mar, mer, jeu, ven, sam
   const HEURES_RENFORT_DEFAUT = 7;
+  const HEURES_BASE_JOUR = 7; // heures normales d'une journée ; au-delà, heures supplémentaires (Q1, 10/10/2026)
 
   // « 09:00 » → 540. Rend null sur tout ce qui n'est pas un horaire lisible,
   // afin qu'une donnée abîmée devienne une anomalie et non un zéro silencieux.
@@ -144,10 +145,14 @@
   function heuresParDefautJour(poste, dateISO, regles) {
     if (!poste || !dateISO) return null;
     const r = regles || reglesHeures(null, null);
-    if (poste === 'renfort') return { heures: r.heuresRenfort, heuresSupplementaires: 0, poste };
+    if (poste === 'renfort') return { heures: r.heuresRenfort, heuresNormales: r.heuresRenfort, heuresSupplementaires: 0, poste };
     if (poste !== 'pompiste' && poste !== 'caissier') return null;
     const jour = new Date(`${dateISO}T12:00:00`).getDay();
-    return { heures: r.durees[jour], heuresSupplementaires: 0, poste };
+    // Décision du 10/10/2026 (Q1) : sur un jour à 8 h, la 8e heure EST une heure
+    // supplémentaire — 7 h de base + 1 h supplémentaire, jamais 8 h + 1 h.
+    // Le taux et la majoration restent hors de ce moteur.
+    const d = r.durees[jour], base = Math.min(d, HEURES_BASE_JOUR);
+    return { heures: d, heuresNormales: base, heuresSupplementaires: Math.round((d - base) * 100) / 100, poste };
   }
 
   // Un même salarié ne peut tenir qu'un poste par journée pour le calcul :
@@ -185,6 +190,21 @@
 
   // Ventilation des heures retenues par poste tenu. Le total ne change pas :
   // on le rend lisible, c'est tout.
+  // Ventilation d'une journée retenue : la présence est UNIQUE (déjà consolidée
+  // par posteDuJour) ; elle se découpe en normales + supplémentaires sans jamais
+  // les additionner à elle-même. Un horaire exceptionnel saisi par le manager n'est
+  // ni normal ni supplémentaire d'office : il reste sur son propre axe.
+  const suppDuJour = (source, bareme) => (source === 'duree_reference' && bareme ? bareme.heuresSupplementaires : 0);
+
+  function enregistrerJour(fiche, date, poste, presence, source, bareme) {
+    let normales = 0, supp = 0, autres = 0;
+    if (source === 'duree_reference' && bareme) { normales = bareme.heuresNormales; supp = bareme.heuresSupplementaires; }
+    else if (source === 'horaire_exceptionnel') autres = presence;
+    else normales = presence;
+    fiche.heuresNormales += normales; fiche.heuresSuppBareme += supp;
+    fiche.detailJours.push({ date, poste: poste || null, presence, normales, supplementaires: supp, autres, source });
+  }
+
   function ventiler(fiche, poste, heures) {
     if (!(heures > 0)) return;
     if (poste === 'caissier') fiche.heuresCaisse += heures;
@@ -226,7 +246,7 @@
       heuresAttribuees: Number(ctx.heuresRetenues || 0),
       sourceHeuresRetenues: ctx.sourceHeures,
       quantiteMinutes: ctx.heuresRetenues > 0 ? Math.round(Number(ctx.heuresRetenues) * 60) : null,
-      heuresSupplementaires: 0,
+      heuresSupplementaires: Number(ctx.heuresSupplementaires || 0),
       statut: 'information', impactPaye: false,
     };
 
@@ -436,7 +456,7 @@
         // Ventilation demandée par le cockpit manager (§9) : on veut lire
         // d'où viennent les heures retenues, pas seulement leur total.
         heuresCaisse: 0, heuresPiste: 0, heuresRenfort: 0, heuresExceptionnelles: 0,
-        heuresSupplementairesParDefaut: 0,
+        heuresSupplementairesParDefaut: 0, heuresNormales: 0, heuresSuppBareme: 0, detailJours: [],
       };
       if (!reglage.inclus || reglage.modePresence === 'exclu') {
         employes.push(fiche);
@@ -485,11 +505,12 @@
           }
           fiche.heuresConfirmees += heuresJour;
           ventiler(fiche, poste, heuresJour);
+          enregistrerJour(fiche, date, poste, heuresJour, sourceHeures, bareme);
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
           itemEcart(fiche, employee, date, {
             fonctionPrevue: fonctionPrevue(shiftsTravail), fonctionConstatee: poste,
-            heuresPlanning, heuresRetenues: heuresJour, sourceHeures,
+            heuresPlanning, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
             origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
             planningConnu: true, exceptionnel: exceptionnel || null,
           });
@@ -529,9 +550,10 @@
           }
           fiche.heuresConfirmees += heuresJour;
           ventiler(fiche, poste, heuresJour);
+          enregistrerJour(fiche, date, poste, heuresJour, sourceHeures, bareme);
           itemEcart(fiche, employee, date, {
             fonctionPrevue: null, fonctionConstatee: poste,
-            heuresPlanning: 0, heuresRetenues: heuresJour, sourceHeures,
+            heuresPlanning: 0, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
             origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
             planningConnu: false, exceptionnel: exceptionnel || null,
           });
@@ -829,6 +851,22 @@
         quantite_minutes: Math.round(f.heuresConfirmees * 60), montant_euros: '',
         impact_paye: 'information', commentaire: `${f.joursConfirmes.size} jour(s) confirmé(s)`,
       });
+      // Q1 (10/10/2026) : normales et supplémentaires en lignes nominatives distinctes. La supplémentaire est une
+      // PART de la présence : ces deux lignes se somment en `presence_confirmee`, elles ne s'y ajoutent pas.
+      const norm = Math.round(Number(f.heuresNormales || 0) * 60), supp = Math.round(Number(f.heuresSuppBareme || 0) * 60);
+      lignes.push({
+        employe: f.employee.nom, type: 'heures_normales', date: '', quantite_minutes: norm, montant_euros: '',
+        impact_paye: 'information', commentaire: 'part de la présence confirmée, hors 8e heure',
+      });
+      lignes.push({
+        employe: f.employee.nom, type: 'heures_supplementaires_bareme', date: '', quantite_minutes: supp, montant_euros: '',
+        impact_paye: 'information', commentaire: '8e heure du jeudi au samedi, comprise dans la présence ; aucune majoration appliquée',
+      });
+      (f.detailJours || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date))).forEach(j => lignes.push({
+        employe: f.employee.nom, type: 'detail_jour', date: j.date, source: j.source || '',
+        quantite_minutes: Math.round(j.presence * 60), montant_euros: '', impact_paye: 'information',
+        commentaire: `${j.poste || 'sans poste'} · ${j.normales} h normales · ${j.supplementaires} h sup.${j.autres ? ` · ${j.autres} h exceptionnelles` : ''}`,
+      }));
       valides.forEach(i => lignes.push({
         employe: f.employee.nom, type: i.typeItem, date: i.date || '', source: i.origine || '',
         ecart_initial: i.ecartInitialCentimes == null ? '' : (i.ecartInitialCentimes / 100).toFixed(2),
@@ -898,6 +936,10 @@
         joursMesures: fiche.presencesMesurees || 0,
         joursReconstitues: fiche.presencesReconstituees || 0,
         heuresParDefaut: Math.round(Number(fiche.heuresParDefaut || 0) * 100) / 100,
+        heuresNormales: Math.round(Number(fiche.heuresNormales || 0) * 100) / 100,
+        heuresSupplementairesBareme: Math.round(Number(fiche.heuresSuppBareme || 0) * 100) / 100,
+        heuresAutres: Math.round(Number(fiche.heuresExceptionnelles || 0) * 100) / 100,
+        detailJours: (fiche.detailJours || []).slice().sort((a, b) => a.date < b.date ? -1 : 1),
       },
       absence: {
         jours: absencesNonDeclarees.reduce((s, i) => s + Number(i.joursMois || 1), 0),
@@ -909,7 +951,12 @@
       autresAbsences: groupeEvenements(i => i.motif && i.motif !== 'conge' && !MOTIFS_MALADIE.includes(i.motif)),
       retards: { minutes: sommeMinutes(retards), occurrences: retards.length, enAttente: enAttente('retard') + enAttente('retard_incoherent') },
       heuresSupplementaires: {
-        heures: enHeures(sommeMinutes(supp)), minutes: sommeMinutes(supp), occurrences: supp.length,
+        // Total = 8e heure du barème (Q1) + heures validées par le manager qui ne sont
+        // PAS déjà dans la présence. Une décision antérieure « déjà incluse » décrit la
+        // même heure que le barème : elle reste visible mais n'est jamais ajoutée.
+        heures: Math.round((Number(fiche.heuresSuppBareme || 0) + enHeures(sommeMinutes(supp.filter(i => !i.dejaIncluseDansHeures)))) * 100) / 100,
+        heuresBareme: Math.round(Number(fiche.heuresSuppBareme || 0) * 100) / 100,
+        minutes: sommeMinutes(supp), occurrences: supp.length,
         // Les heures supplémentaires du barème par défaut sont DÉJÀ dans
         // les heures confirmées : les afficher à part évite de les compter
         // deux fois tout en gardant l'information visible.
