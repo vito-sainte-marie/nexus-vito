@@ -271,7 +271,8 @@ async function chargerRegularisationsPaye(){
   const f=await NexusStation.fuseauDeLaStation(SITE);
   if(!f||!f.timezone)return {etat:f&&f.indetermine==='reseau'?'erreur':'sans_fuseau'};
   const [univers,ops]=await Promise.all([NexusEcartsDonnees.chargerEcartsConsolides(nexusClient,SITE,{}),NexusPayeRegularisations.chargerOperations(nexusClient,SITE)]);
-  return {etat:'ok',synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),{fuseau:f.timezone,dateDebut:MOIS,dateFin:dernierJourMois()})};
+  const opt={fuseau:f.timezone,dateDebut:MOIS,dateFin:dernierJourMois()};
+  return {etat:'ok',synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),opt),domaines:NexusPayeRegularisations.syntheseParDomaine(univers,ops,opt)};
  }catch(e){console.error(e);return {etat:'erreur',message:(e&&e.message)||String(e)}}
 }
 function regulOk(){return !!(REGUL&&REGUL.etat==='ok'&&REGUL.synthese)}
@@ -380,7 +381,15 @@ function renderLignesRegul(ec){
  return initial
   +`<div class="ligne">Écarts validés de la période${att}<b>${euros(c.manquesCentimes)} (${pluriel(c.nbManques,'manque')}) · ${euros(c.excedentsCentimes)} (${pluriel(c.nbExcedents,'excédent')})</b></div>`
   +`<div class="ligne${e.netCentimes?'':' muet'}">Régularisations réellement encaissées ce mois${ant?` (dont ${ant} sur un écart antérieur)`:''}<b>${euros(e.netCentimes)}</b></div>`
-  +`<div class="ligne">Solde restant au ${jjmmaaaaFR(r.au)}<b>${euros(-sf.resteDuCentimes)}${sf.tropPercuCentimes?` · trop-perçu ${euros(sf.tropPercuCentimes)}`:''}</b></div>`;
+  +`<div class="ligne">Solde restant au ${jjmmaaaaFR(r.au)}<b>${euros(-sf.resteDuCentimes)}${sf.tropPercuCentimes?` · trop-perçu ${euros(sf.tropPercuCentimes)}`:''}</b></div>`
+  +ligneDomaine('Boutique / piste (Verify)',REGUL.domaines&&REGUL.domaines.verify)
+  +ligneDomaine('FDJ',REGUL.domaines&&REGUL.domaines.fdj)
+  +`<div class="regul-etat">Paye consolide en lecture seule : la saisie se fait dans Verify ou FDJ. Aucun montant n'est retenu sur la paie ; un surplus de versement n'est pas transmis.</div>`;
+}
+function ligneDomaine(titre,d){
+ if(!d)return '';
+ const c=d.constates,e=d.encaissements,sf=d.soldeFinPeriode;
+ return `<div class="ligne" data-domaine="${ECHAPPE(titre)}">${ECHAPPE(titre)} — manques ${euros(c.manquesCentimes)}, excédents ${euros(c.excedentsCentimes)}, versements ${euros(e.netCentimes)}<b>solde ${euros(-sf.resteDuCentimes)}</b></div>`;
 }
 function renderDecisions(){
  const s=RAPPORT.synthese, ec=totauxEcarts();
