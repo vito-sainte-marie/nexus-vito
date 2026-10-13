@@ -48,3 +48,11 @@ Voir l'en-tête de la migration : retirer les RPC, recréer `_regul_tiroir_detai
 - Surplus : suivi à part, sans restitution ni écriture associée (décision du 13/10/2026).
 - Véhicule de code : la branche part du rail ; une PR vers `production` exige un portage depuis `origin/production`.
 - Trois GO distincts de Frédéric : application de la migration, fusion, déploiement Pages.
+
+## Portage depuis `origin/production` (decision-1, conditions 3 et 4)
+
+- Base : `origin/production` à `7e37b88` ; les 9 commits du lot y sont reportés par cherry-pick sans conflit (neuf fichiers modifiés ou ajoutés hors épreuves).
+- Blob de la migration inchangé : `eccdbafc53e9e34d365a49aa5c6d3708cc731d03`.
+- Écart d'estampille : la migration est appliquée sur Test sous la version `20261013220411` (horodatage d'application), le fichier du dépôt porte `20261013140000`. Production recevra le fichier tel quel ; aucune réécriture du fichier.
+- Empreinte : l'arbre de `production` compte 306 migrations, le portage 307 ; les constantes mesurées sur le rail (307, `ca778d6c…`) tiennent dans cet arbre (épreuve 32/32).
+- Condition 5 (compatibilité de l'intervalle « migration posée, nouveau code non déployé ») : NON encore prouvée. Aucun GO Production (migration, fusion, Pages) n'est accordé.
