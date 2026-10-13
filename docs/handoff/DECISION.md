@@ -1,26 +1,26 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 3
+seq: 4
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: true
-in_reply_to: request-7.md
+in_reply_to: request-9.md
 ---
-# Décision sur request-7.md — APPROVED, lot clos
+# Décision sur request-9.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38421605486), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6149010433. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38424282054), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6149375198. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `NEXUS-HEURES-VERIFY-PAYE-1-20261009`, `REQUEST` = `request-7.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `NEXUS-HEURES-VERIFY-PAYE-1-20261009`, `REQUEST` = `request-9.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `0be28be3554ca9990d5852258c07c3ba152b6515`, tête du rail `0be28be3554ca9990d5852258c07c3ba152b6515`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `INACCESSIBLE`, `HEAD` = `INACCESSIBLE`, SHA du run `5e3c543004012a3350b363f63e57d0d004781dd3`, tête du rail `5e3c543004012a3350b363f63e57d0d004781dd3`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
@@ -30,11 +30,9 @@ _Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38421605486), post
 
 ## Texte de l'arbitre
 
-Arbitrage rendu sur le texte intégral recopié dans le réveil, le connecteur au rail n’étant pas accessible ici.
+Arbitrage rendu sur le texte intégral fourni dans le réveil, le connecteur GitHub n’étant pas accessible ici.
 
-La mutation Supabase Production relevait bien du palier `SUPABASE_PRODUCTION_MUTATION`. Ce palier a été respecté : l’arbitre l’a bloquée pour décision humaine, puis Frédéric a donné le GO nominatif avant l’exécution. La relecture postérieure confirme l’application de la migration et l’absence de modification des dix lignes existantes. L’écart d’estampille est identifié et attribué au connecteur ; il devra être reflété ultérieurement dans le manifeste, sans invalider la preuve actuelle.
-
-Cette approbation clôt uniquement la trace d’application de la migration. Elle n’autorise ni fusion de la PR #104, ni déploiement, ni promotion vers Production.
+Le compte rendu est accepté. La fusion et le déploiement Production étaient couverts par le GO nominatif de Frédéric du 13/10/2026 ; aucun nouveau palier humain n’est requis. Le mouvement de `production` est attribué et mesuré conformément à l’acquis `MOUVEMENT_REF_ATTRIBUE`. Les éléments non réalisés (recette navigateur, Q4/B et addendum de migration) sont explicitement circonscrits et ne remettent pas en cause cette preuve d’exécution.
 
 RAIL_LU: INACCESSIBLE
 
@@ -42,15 +40,15 @@ NEXT_ACTION_CONTRACT
 DECISION: APPROVED
 CLOSES: true
 LOT: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-REQUEST: request-7.md
+REQUEST: request-9.md
 HEAD: INACCESSIBLE
 LEASE: aucun
-GATE_STATE: G3, relecture Production valide ; CI non pertinente pour ce compte rendu
+GATE_STATE: G3, CI Production et déploiement Pages au vert d’après les preuves fournies
 PROOF_STATE: PROOF_VALID
 CONDITIONS: aucune
 BLOCKER: aucun
 STOP_REQUIRED: non
-CAPACITE_REQUISE: écriture sur le rail Handoff
+CAPACITE_REQUISE: matérialisation d’une décision Handoff sur le rail
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: Claude
-ACTION_NEXT: Matérialiser cette décision sur le rail avec l’outil Handoff.
+ACTION_NEXT: Matérialiser cette décision avec `outils/handoff.js decision --auteur ChatGPT`.
