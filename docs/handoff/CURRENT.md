@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-HEURES-VERIFY-PAYE-1-20261009/request-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-HEURES-VERIFY-PAYE-1-20261009
-seq: 4
+seq: 5
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -22,49 +22,48 @@ preuves:
     valeur: 146-fichiers
   - id: pr-portage
     classe: VERIFIED
-    valeur: PR 104 tete 45c707850be166f65d07618c20d70d9c4bbbdb11 base production 13a4e56
+    valeur: PR 104 tete c577e3da580441d5349b40de5330bdb977e3a4b3 base production 13a4e56
   - id: migration-blob
     classe: VERIFIED
     valeur: 20261013132532 fe205ec861e8c81d240d929b0b98343dd0f653cd
-  - id: production-intacte
-    classe: DECLARED
-    valeur: aucune ecriture Production, mesures en lecture seule le 13-10-2026
   - id: ci-pr-104
     classe: VERIFIED
-    valeur: non-regression rouge (provenance migrations 305 vers 306), artefact vert
+    valeur: non-regression x2 et artefact verts sur c577e3d
+  - id: parite
+    classe: DECLARED
+    valeur: docs/deploiement/parite-portage-heures-renfort-20261013.md comparaison de lignes, pas de recette navigateur
+  - id: production-intacte
+    classe: DECLARED
+    valeur: aucune ecriture Production, mesures en lecture seule du 13-10-2026
 ---
-# Promotion Production — heures supplémentaires, renfort Q1, réconciliation Verify / Paye : demande de verdict
+# Arbitrage Production — migration, fusion et déploiement du lot heures / renfort Q1
 
-**Ceci n'est ni un GO Production ni une demande d'exécution.** Rien n'a été écrit en Production : ni migration, ni donnée, ni code, ni Pages. Frédéric a demandé la transmission du dossier au Handoff le 13/10/2026 ; l'arbitrage reste à ChatGPT ou à Frédéric, je ne m'arbitre pas moi-même.
+**Suite de request-4 / decision-2 (APPROVED_WITH_CONDITIONS, consommée).** Les quatre conditions sont remplies. Cette demande sollicite un verdict d'arbitrage sur les gestes Production ; **elle n'est ni un GO ni un ordre d'exécution, et rien n'a été écrit en Production.** Les trois GO de Frédéric restent distincts et non accordés.
 
-## 1 · Ce qui est soumis
+## 1 · Conditions de la decision-2 : état
 
-| Pièce | Référence |
-|---|---|
-| Dossier de promotion | `docs/deploiement/promotion-heures-renfort-production-20261013.md` (PR #103 vers le rail, tête `a2710e9`) |
-| Véhicule de portage | PR #104 vers `production`, branche `portage-heures-renfort-20261013`, tête `45c7078`, partie de `origin/production` (`13a4e56`) |
-| Migration | `supabase/migrations/20261013132532_nexus_paye_items_types_heures_verify.sql`, blob `fe205ec861e8c81d240d929b0b98343dd0f653cd` |
-| Fiche de qualification | `docs/deploiement/qualification-ordre-migration-code.json`, entrée `migrations["20261013132532"]`, commit `45c7078` |
+| Condition | État | Preuve |
+|---|---|---|
+| Qualification `atomique_ou_procedure_speciale` limitée au blob, faux positifs documentés | faite | fiche `docs/deploiement/qualification-ordre-migration-code.json`, entrée `20261013132532`, blob `fe205ec861e8c81d240d929b0b98343dd0f653cd` ; garde non modifiée |
+| Épreuve de provenance corrigée pour 306 migrations, sans assouplir la garde, nouvelle CI | faite | `test_empreinte_artefact_20260915.js` : 306 / empreinte `c0fb4e90…`, 32/32 en local ; CI de la PR #104 verte sur `c577e3d` (`non-regression` ×2, `Construire et éprouver l'artefact`, Cloudflare) |
+| Parité du portage manuel (deux moteurs, trois écrans) | consignée | `docs/deploiement/parite-portage-heures-renfort-20261013.md` : 33 lignes sur 1 076 non retrouvées à l'identique, toutes recomposées pour la version Production ; dix épreuves vertes |
+| Q4 et B hors implémentation | respectée | aucune sémantique nouvelle |
 
-La migration est additive (deux colonnes `jsonb` nullables, deux CHECK élargis en sur-ensembles). Appliquée sur Test seulement. Mesures Production du 13/10/2026, en lecture seule : colonnes absentes, 10 lignes dans `nexus_paye_items`, 0 ligne qui sortirait des nouvelles listes, 310 migrations appliquées, dernière `20261011220000`.
+**Limite de la parité, à ne pas lire comme une preuve** : la méthode compare des lignes, pas un comportement, et aucune recette navigateur n'a été rejouée sur le portage lui-même.
 
-## 2 · Règles métier portées (rappel des instructions de Frédéric)
+## 2 · Ce que l'arbitre doit trancher
 
-Renfort Q1 = 9 h–17 h moins 1 h de pause = 7 h normales ; jeudi→samedi : 7 h + 1 h sup ; dimanche→mercredi : 7 h. Q2 ignoré. La caisse / piste confirmée dans Verify prime, sans cumul. Effectif au 01/10/2026 pour Paye ; historique avant octobre préservé. Aucun taux ni majoration inventé, aucune retenue automatique.
+Deux gestes distincts, chacun avec son propre verdict :
 
-## 3 · Ce qui est demandé à l'arbitre
+1. **`SUPABASE_PRODUCTION_MUTATION`** — appliquer la migration `20261013132532` en Production (`uzhjpqpctpvxytxpxoqz`). Additive : deux colonnes `jsonb` nullables, deux CHECK élargis en sur-ensembles. Mesures du 13/10/2026 en lecture seule : colonnes absentes, 10 lignes dans `nexus_paye_items`, 0 ligne hors des nouvelles listes, 310 migrations, dernière `20261011220000`. Ordre : migration d'abord, code ensuite. L'estampille posée sera celle du connecteur, postérieure à la dernière ; le fichier porte une estampille antérieure, écart à constater comme pour les lots précédents. Préflight : relire la base juste avant d'écrire, les mesures du 13/10 pouvant avoir bougé.
+2. **`PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`** — fusionner la PR #104 (tête `c577e3d`, base `production` à `13a4e56`) puis déployer Pages. Le déploiement ne vient qu'après la migration. À vérifier après coup : le contenu servi, pas seulement le code HTTP.
 
-1. **Choix d'état de la fiche.** L'état additif est refusé par la garde (`CIBLE_DEJA_DEPENDANTE`) à cause de deux faux positifs : le mot `detail` et un nom de contrainte cité en commentaire dans la cible. J'ai retenu `atomique_ou_procedure_speciale`, avec la procédure et la justification dans la fiche, sans modifier la garde. À confirmer ou à corriger.
-2. **Addendum pour les épreuves de manifeste de migrations.** La CI `non-regression` est rouge (31/32 sur la PR #104) pour une seule cause connue : le contrôle de provenance compte 306 migrations au lieu de 305. Je ne l'ai pas corrigée ni reclassée en dette. `Construire et éprouver l'artefact` passe ; les 7 rouges préexistants de Production pure sont inchangés.
-3. **Véhicule de portage.** Revue de la branche de portage et de son écart avec la branche de la PR #103 (réécrite à la main sur les deux moteurs et trois écrans, parce que 12 commits sur 13 conflictent sur `production`).
-4. **Questions laissées ouvertes, sans recommandation fermée de ma part.**
-   - Q4 : case vide au planning, ni absence ni déduction aujourd'hui.
-   - B : heures exceptionnelles, colonne de provenance ou ligne distincte.
+Retour arrière R1 (revert de la PR), R2 (rétablir les CHECK, seulement si aucune ligne ne porte les nouvelles valeurs) et R3 (supprimer les colonnes, déconseillé, destructif) : voir §6 du dossier. Le retour arrière est lui-même une écriture Production et demande son propre verdict.
 
-## 4 · Trois GO distincts, aucun accordé
+## 3 · Ce qui n'est pas demandé
 
-(a) application de la migration en Production ; (b) fusion de la PR #104 ; (c) déploiement Pages. Ordre prévu : migration, puis code. Retour arrière R1–R3 décrit au §6 du dossier ; R3 (suppression des colonnes) déconseillé.
+Aucune décision sur Q4 (case vide au planning) ni sur B (heures exceptionnelles) : elles restent ouvertes. Aucune exécution : un verdict favorable n'autorise l'écriture que par le GO nommé de Frédéric et un ordre lié à son hash.
 
-## 5 · Limite connue
+## 4 · Limites connues
 
-Test porte 11 migrations hors bande : la recette Test ne prouve pas à elle seule l'état de Production, d'où les mesures du 13/10.
+La recette Test ne prouve pas à elle seule l'état de Production (11 migrations hors bande sur Test) ; les mesures du §2 y suppléent. Le registre des migrations de Production divergeant du dépôt, l'estampille réellement posée devra être relue après application.
