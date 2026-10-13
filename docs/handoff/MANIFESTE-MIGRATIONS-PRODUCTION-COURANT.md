@@ -757,3 +757,29 @@ Il ne vaut ni fusion, ni déploiement, ni migration, ni écriture en Production.
 Il ne modifie aucune migration historique. Il ne corrige pas le ledger/
 l'idempotence des carnets FDJ (objet propre du lot, traité par
 `nexus-fdj-moteur.js`, hors périmètre de ce manifeste).
+
+## INCLUSES — addendum du 13/10/2026 : heures, renfort Q1 et réconciliation Verify / Paye
+
+| Fichier | Classement | État réel |
+|---|---|---|
+| `20261009120000_nexus_paye_items_types_heures_verify.sql` | INCLUSE | appliquée en Production le 13/10/2026 |
+
+Migration additive et rejouable : `audits_caisse.employes_renfort jsonb`,
+`nexus_paye_items.detail jsonb`, CHECK `statut` élargi à six valeurs, CHECK
+`type_item` élargi à seize. Aucune donnée supprimée.
+
+**Écart d'estampille, constaté et non corrigé.** Le fichier du rail porte
+`20261009120000`, inférieure à la dernière version de Production au moment de
+la pose. Le portage appliqué a reçu `20261013132532` à la rédaction et
+l'estampille posée par le connecteur est `20261013152155`. Les trois valeurs
+désignent le même contenu (blob `fe205ec8…`).
+
+**Constat en Production** (13/10/2026, lecture seule) : 311 migrations
+appliquées ; les deux colonnes présentes ; 10 lignes de `nexus_paye_items`,
+aucune hors des nouvelles listes ; 0 `employes_renfort` renseigné. Le code
+correspondant est arrivé par la PR #104 (`f36679f`), après la migration.
+
+Cet addendum remplace la section « EXCLUE de cette release » qui avait été
+ajoutée à l'historique clos : l'historique n'est pas modifié. Il ne vaut ni
+fusion, ni déploiement, ni écriture en Production. Q4 (case vide au planning)
+et B (heures exceptionnelles) restent des décisions ouvertes.

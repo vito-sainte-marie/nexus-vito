@@ -124,12 +124,41 @@ verifier('qualifiée, elle est une information — plus jamais un arbitrage',
 const camille = parNom('Camille');
 verifier('Camille : 6 jours de présence confirmés',
   camille.variables.presence.jours === 6);
-verifier('Camille : 42 h confirmées (6 × 7 h au planning)',
-  camille.variables.presence.heures === 42);
+// 45 h, et non 42 : « le planning ne doit pas plafonner les heures
+// justifiées par Verify » (09/10/2026). Les six journées sont constatées, et
+// chacune vaut sa durée de référence — 7 h du lundi au mercredi, 8 h du jeudi
+// au samedi. Le planning annonçait 7 h partout ; l'écart des trois journées à
+// 8 h est signalé au manager, il ne retire pas les heures.
+verifier('Camille : 45 h confirmées (durées de référence, planning non plafonnant)',
+  camille.variables.presence.heures === 45);
+const itemsCamille = R.employes.find(f => f.employee.id === CAMILLE.id).items;
+const ecartsCamille = itemsCamille.filter(i => i.rubrique === 'ecart_verify_planning'
+  && i.nature === 'duree_divergente');
+verifier('les trois journées à 8 h sont signalées en écart Verify / planning',
+  ecartsCamille.length === 3
+  && ecartsCamille.every(i => i.ecartHeures === 1 && i.heuresPlanning === 7
+    && i.heuresRetenues === 8 && i.sourceHeuresRetenues === 'duree_reference'));
+verifier('et cet écart est une information, sans impact paie',
+  ecartsCamille.every(i => i.statut === 'information' && i.impactPaye === false));
 verifier('Camille : 12 minutes de retard, sur une seule journée',
   camille.variables.retards.minutes === 12 && camille.variables.retards.occurrences === 1);
-verifier('Camille : 3 h supplémentaires (jeudi, vendredi, samedi)',
-  camille.variables.heuresSupplementaires.heures === 3);
+// Ses 3 h supplémentaires avaient été validées par le manager sous l'ancienne
+// règle, sur ces mêmes jeudi, vendredi et samedi. Elles restent dues et
+// visibles — on ne retire pas à un salarié ce qu'un humain lui a accordé —
+// mais elles décrivent la même heure que la 8ᵉ heure désormais retenue. Le
+// dossier les déclare donc déjà comprises : additionner 45 et 3 paierait deux
+// fois trois heures.
+verifier('Camille : 3 h supplémentaires, validées sous l’ancienne règle',
+  camille.variables.heuresSupplementaires.heures === 3
+  && camille.variables.heuresSupplementaires.occurrences === 3);
+verifier('et déclarées déjà comprises dans les 45 h, pour ne pas les payer deux fois',
+  camille.variables.heuresSupplementaires.heuresDejaIncluses === 3);
+const anterieures = itemsCamille.filter(i => i.decisionAnterieure);
+verifier('les quatre décisions du manager survivent au changement de règle',
+  anterieures.length === 4 && anterieures.every(i => i.statut === 'valide'));
+verifier('aucune décision antérieure ne bloque le mois',
+  camille.statut === 'pret'
+  && !R.bloqueurs.some(b => b.employeeId === CAMILLE.id));
 verifier('Camille : 1 jour férié travaillé',
   camille.variables.joursFeries.jours === 1);
 verifier('Camille : acompte de 50 € porté en éléments financiers',
@@ -158,12 +187,35 @@ verifier('Angélique, jamais rattachée, est une donnée manquante',
 verifier('le mois n’est pas prêt tant qu’un salarié ne l’est pas',
   R.synthese.statutMois === 'donnee_manquante');
 
-const avecRetardNonArbitre = M.dossierComptable(rapport({ items: ARBITRAGES.filter(a => a.id !== 'a1') }));
-verifier('un retard non arbitré fait passer le salarié « à vérifier »',
-  avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').statut === 'a_verifier');
-verifier('et ce retard n’est PAS compté dans les variables transmises',
-  avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').variables.retards.minutes === 0
-  && avecRetardNonArbitre.salaries.find(s => s.nom === 'Camille').variables.retards.enAttente === 1);
+// Retirer la décision du manager ne fait pas revenir le retard par la porte du
+// pointage. Camille a bien 12 minutes de retard inscrites sur son pointage du
+// 04/08 ; depuis le 09/10/2026, « aucun retard ne doit être déduit d'une
+// absence de pointage » ni d'un écart, « par défaut le retard est de 0 minute
+// et seul le manager peut enregistrer un retard retenu pour la paie ». Sans sa
+// décision, il n'y a donc plus rien à arbitrer : la journée reste constatée,
+// ses heures restent calculées, et le mois n'est pas bloqué par une carte que
+// personne n'a demandée.
+const sansDecisionRetard = rapport({ items: ARBITRAGES.filter(a => a.id !== 'a1') });
+const camilleSansRetard = M.dossierComptable(sansDecisionRetard)
+  .salaries.find(s => s.nom === 'Camille');
+verifier('sans décision du manager, aucun retard n’est déduit du pointage',
+  camilleSansRetard.variables.retards.minutes === 0
+  && camilleSansRetard.variables.retards.occurrences === 0
+  && camilleSansRetard.variables.retards.enAttente === 0);
+verifier('et aucune carte « retard » n’est proposée à l’arbitrage',
+  !sansDecisionRetard.employes.find(f => f.employee.id === CAMILLE.id)
+    .items.some(i => i.typeItem === 'retard'));
+verifier('le salarié reste prêt, et ses heures intactes',
+  camilleSansRetard.statut === 'pret' && camilleSansRetard.variables.presence.heures === 45);
+
+// Un retard que le manager a saisi mais pas encore confirmé, en revanche,
+// reste visible et en attente — sans jamais être compté.
+const retardEnAttente = M.dossierComptable(rapport({
+  items: ARBITRAGES.map(a => (a.id === 'a1' ? Object.assign({}, a, { statut: 'a_verifier' }) : a)),
+})).salaries.find(s => s.nom === 'Camille');
+verifier('un retard non confirmé est signalé en attente, et jamais compté',
+  retardEnAttente.variables.retards.minutes === 0
+  && retardEnAttente.variables.retards.enAttente === 1);
 
 // ── 4. La synthèse mensuelle est la somme exacte des fiches ──────────────
 // Angélique est « renfort » : NEXUS la PROPOSE d'office en paie, mais tant
@@ -175,7 +227,7 @@ verifier('synthèse : 4 salariés au dossier, dont un rattachement à confirmer'
 verifier('Angélique apparaît bien au dossier, en donnée manquante',
   parNom('Angélique') && parNom('Angélique').statut === 'donnee_manquante');
 verifier('synthèse : 3 salariés prêts', D.synthese.prets === 3);
-verifier('synthèse : 42 h confirmées sur le mois', D.synthese.heuresConfirmees === 42);
+verifier('synthèse : 45 h confirmées sur le mois', D.synthese.heuresConfirmees === 45);
 verifier('synthèse : 5 jours de congés payés', D.synthese.joursCongesPayes === 5);
 verifier('synthèse : 31 jours de maladie/maternité', D.synthese.joursMaladieMaternite === 31);
 verifier('synthèse : 12 minutes de retard cumulées', D.synthese.retardsMinutes === 12);

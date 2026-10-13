@@ -65,35 +65,119 @@
   const TYPES_ITEM_EVENEMENT_RH = ['conge_paye', 'arret_maladie', 'conge_maternite',
     'conge_paternite', 'formation', 'absence_a_verifier', 'absence_a_qualifier', 'absence_qualifiee'];
 
-  // Barème d'heures par défaut, quand aucun planning ne donne de durée
-  // (03/09/2026, règle de Frédéric). Deux principes :
+  // Durées de référence de la journée travaillée, indexées par jour de la
+  // semaine au sens de getDay() : dimanche 0 … samedi 6. Cahier des charges
+  // du 09/10/2026 : lundi, mardi, mercredi et dimanche 7 h ; jeudi, vendredi
+  // et samedi 8 h.
+  //
+  // Trois principes, et le troisième est neuf.
   //
   //   1. C'est le POSTE RÉELLEMENT TENU qui compte, pas le rôle général
   //      inscrit dans NEXUS. Angélique est « renfort » dans la fiche, mais si
   //      Verify la place en boutique un mardi, elle est payée comme une
   //      caissière ce jour-là. Le rôle NEXUS n'est qu'un repli quand aucune
   //      preuve ne dit où la personne a travaillé.
-  //   2. Piste et boutique font 7 h du dimanche au mercredi, 8 h du jeudi au
-  //      samedi (7 h + 1 h supplémentaire). Le renfort fait 7 h tous les
-  //      jours, sans heure supplémentaire automatique.
-  const JOURS_HUIT_HEURES = [4, 5, 6]; // jeudi, vendredi, samedi
-  function heuresParDefautJour(poste, dateISO) {
-    if (!poste || !dateISO) return null;
-    if (poste === 'renfort') return { heures: 7, heuresSupplementaires: 0, poste };
-    if (poste !== 'pompiste' && poste !== 'caissier') return null;
-    const jour = new Date(`${dateISO}T12:00:00`).getDay();
-    const supp = JOURS_HUIT_HEURES.includes(jour) ? 1 : 0;
-    return { heures: 7 + supp, heuresSupplementaires: supp, poste };
+  //   2. C'est la journée constatée dans Verify qui ouvre le droit, jamais la
+  //      durée inscrite au planning. Le planning sert à confronter la
+  //      prévision au réel ; il ne plafonne pas les heures justifiées.
+  //   3. Ces durées sont des HEURES DE TRAVAIL DE RÉFÉRENCE, rien de plus.
+  //      Leur qualification en heures normales, complémentaires ou
+  //      supplémentaires relève d'un calcul légal et contractuel distinct,
+  //      que ce moteur ne fait pas. La huitième heure du jeudi n'est donc
+  //      plus annoncée comme supplémentaire : elle est la durée du jeudi.
+  const DUREES_REFERENCE_DEFAUT = [7, 7, 7, 7, 8, 8, 8]; // dim, lun, mar, mer, jeu, ven, sam
+  const HEURES_RENFORT_DEFAUT = 7;
+  // Le renfort n'existe dans le classeur qu'à partir d'octobre 2026 (13/10/2026) : avant, la colonne D
+  // est POMPISTE. Défaut d'un réglage de config (renfort_effectif_depuis), donc surchargeable par site.
+  const RENFORT_EFFECTIF_DEPUIS_DEFAUT = '2026-10-01';
+  const HEURES_BASE_JOUR = 7; // heures normales d'une journée ; au-delà, heures supplémentaires (Q1, 10/10/2026)
+
+  // « 09:00 » → 540. Rend null sur tout ce qui n'est pas un horaire lisible,
+  // afin qu'une donnée abîmée devienne une anomalie et non un zéro silencieux.
+  function minutesHoraire(valeur) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(valeur == null ? '' : valeur).trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (!(h >= 0 && h <= 24) || !(min >= 0 && min < 60)) return null;
+    return h * 60 + min;
   }
 
+  function pauseMinutes(horaire) {
+    if (!horaire) return 0;
+    if (horaire.pause_minutes != null) return Math.max(0, Number(horaire.pause_minutes) || 0);
+    const pd = minutesHoraire(horaire.pause_debut);
+    const pf = minutesHoraire(horaire.pause_fin);
+    if (pd !== null && pf !== null && pf > pd) return pf - pd;
+    return 0;
+  }
+
+  // Durée nette en heures, pause déduite. Un service à cheval sur minuit est
+  // accepté ; une durée nulle ou négative est refusée plutôt que corrigée.
+  function dureeNetteHeures(debut, fin, minutesDePause) {
+    const d = minutesHoraire(debut);
+    const f = minutesHoraire(fin);
+    if (d === null || f === null) return null;
+    let brut = f - d;
+    if (brut < 0) brut += 24 * 60;
+    const net = brut - Math.max(0, Number(minutesDePause || 0));
+    if (!(net > 0)) return null;
+    return Math.round((net / 60) * 100) / 100;
+  }
+
+  // Les règles d'heures viennent des Paramètres Station, pas du code. Le code
+  // ne garde que le repli, pour qu'une station non paramétrée calcule quand
+  // même — et que le repli soit, au mot près, la table du cahier des charges.
+  function reglesHeures(config, horaires) {
+    const brutes = (config && config.durees_reference) || null;
+    const durees = DUREES_REFERENCE_DEFAUT.map((defaut, jour) => {
+      const v = Array.isArray(brutes) ? brutes[jour] : (brutes ? brutes[String(jour)] : undefined);
+      const n = Number(v);
+      return n > 0 && n <= 24 ? n : defaut;
+    });
+    let heuresRenfort = Number((config && config.heures_renfort) || 0);
+    const renfort = horaires && horaires.renfort;
+    if (!(heuresRenfort > 0) && renfort) {
+      const nette = dureeNetteHeures(renfort.debut, renfort.fin, pauseMinutes(renfort));
+      if (nette > 0) heuresRenfort = nette;
+    }
+    if (!(heuresRenfort > 0)) heuresRenfort = HEURES_RENFORT_DEFAUT;
+    return { durees, heuresRenfort };
+  }
+
+  function heuresParDefautJour(poste, dateISO, regles) {
+    if (!poste || !dateISO) return null;
+    const r = regles || reglesHeures(null, null);
+    if (poste === 'renfort') return { heures: r.heuresRenfort, heuresNormales: r.heuresRenfort, heuresSupplementaires: 0, poste };
+    if (poste !== 'pompiste' && poste !== 'caissier') return null;
+    const jour = new Date(`${dateISO}T12:00:00`).getDay();
+    // Décision du 10/10/2026 (Q1) : sur un jour à 8 h, la 8e heure EST une heure
+    // supplémentaire — 7 h de base + 1 h supplémentaire, jamais 8 h + 1 h.
+    // Le taux et la majoration restent hors de ce moteur.
+    const d = r.durees[jour], base = Math.min(d, HEURES_BASE_JOUR);
+    return { heures: d, heuresNormales: base, heuresSupplementaires: Math.round((d - base) * 100) / 100, poste };
+  }
+
+  // Un même salarié ne peut tenir qu'un poste par journée pour le calcul :
+  // sans quoi une caissière déclarée aussi en renfort serait payée deux fois.
+  // Priorité du cahier des charges §6 : caisse ou piste constatée par Verify
+  // l'emporte sur un renfort prévu ou déclaré.
+  const PRIORITE_POSTE = ['pompiste', 'caissier', 'renfort'];
+
   // Poste réellement tenu ce jour-là, dans l'ordre de fiabilité : ce que
-  // Verify a constaté, puis ce que le planning prévoyait, puis le rôle
-  // général. On ne devine jamais au-delà (Article 5).
-  function posteDuJour(employeeId, preuve, shifts, employee) {
+  // Verify a constaté sur l'ensemble de la journée, puis ce que le planning
+  // prévoyait, puis le rôle général. On ne devine jamais au-delà (Article 5).
+  function posteDuJour(employeeId, preuve, shifts, employee, postesVerify) {
+    if (postesVerify && postesVerify.size) {
+      for (let i = 0; i < PRIORITE_POSTE.length; i++) {
+        if (postesVerify.has(PRIORITE_POSTE[i])) return PRIORITE_POSTE[i];
+      }
+    }
     const ligne = preuve && preuve.ligne;
     if (ligne) {
       if (extraireEmployeeIds(ligne.employes_piste).includes(employeeId)) return 'pompiste';
       if (extraireEmployeeIds(ligne.employes_boutique).includes(employeeId)) return 'caissier';
+      if (extraireEmployeeIds(ligne.employes_renfort).includes(employeeId)) return 'renfort';
     }
     const shiftRenfort = (shifts || []).find(sh => sh.statut === 'renfort');
     if (shiftRenfort) return 'renfort';
@@ -107,26 +191,166 @@
   const LIBELLE_POSTE = { pompiste: 'piste', caissier: 'boutique', renfort: 'renfort' };
   const NOM_JOUR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
+  // Ventilation des heures retenues par poste tenu. Le total ne change pas :
+  // on le rend lisible, c'est tout.
+  // Ventilation d'une journée retenue : la présence est UNIQUE (déjà consolidée
+  // par posteDuJour) ; elle se découpe en normales + supplémentaires sans jamais
+  // les additionner à elle-même. Un horaire exceptionnel saisi par le manager n'est
+  // ni normal ni supplémentaire d'office : il reste sur son propre axe.
+  const suppDuJour = (source, bareme) => (source === 'duree_reference' && bareme ? bareme.heuresSupplementaires : 0);
+
+  function enregistrerJour(fiche, date, poste, presence, source, bareme) {
+    let normales = 0, supp = 0, autres = 0;
+    if (source === 'duree_reference' && bareme) { normales = bareme.heuresNormales; supp = bareme.heuresSupplementaires; }
+    else if (source === 'horaire_exceptionnel') autres = presence;
+    else normales = presence;
+    fiche.heuresNormales += normales; fiche.heuresSuppBareme += supp;
+    fiche.detailJours.push({ date, poste: poste || null, presence, normales, supplementaires: supp, autres, source });
+  }
+
+  function ventiler(fiche, poste, heures) {
+    if (!(heures > 0)) return;
+    if (poste === 'caissier') fiche.heuresCaisse += heures;
+    else if (poste === 'pompiste') fiche.heuresPiste += heures;
+    else if (poste === 'renfort') fiche.heuresRenfort += heures;
+  }
+
+  const RUBRIQUE_ECART = 'ecart_verify_planning';
+
+  // Rubrique « Écarts Verify / Planning » (§4 et §9). Trois principes, qui
+  // sont la raison d'être de cette fonction :
+  //
+  //   - elle ne touche JAMAIS aux heures. Elle décrit un écart déjà calculé.
+  //   - elle produit une information, pas une décision à prendre : le statut
+  //     est « information », et la construction des bloqueurs écarte cette
+  //     rubrique. Une journée confirmée par Verify ne devient pas « non
+  //     validée » parce qu'elle manque au planning.
+  //   - elle nomme les deux sources en regard, afin que le manager voie
+  //     d'où vient chaque chiffre avant de régulariser.
+  //
+  // Le cas « constaté hors planning » garde volontairement son ancienne clé
+  // de source et son ancien type : les décisions déjà enregistrées par le
+  // manager continuent de se rattacher à leur journée.
+  function itemEcart(fiche, employee, date, ctx) {
+    const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
+    const posteLu = LIBELLE_POSTE[ctx.fonctionConstatee] || ctx.fonctionConstatee || null;
+    const postePrevu = LIBELLE_POSTE[ctx.fonctionPrevue] || ctx.fonctionPrevue || null;
+    const ecartHeures = Math.round((Number(ctx.heuresRetenues || 0) - Number(ctx.heuresPlanning || 0)) * 100) / 100;
+
+    const commun = {
+      rubrique: RUBRIQUE_ECART, origine: ctx.origine, date,
+      poste: ctx.fonctionConstatee || null,
+      fonctionPrevue: ctx.fonctionPrevue || null,
+      fonctionConstatee: ctx.fonctionConstatee || null,
+      sourceFonctionPrevue: ctx.planningConnu ? 'planning' : null,
+      sourceFonctionConstatee: ctx.origine,
+      heuresPlanning: Number(ctx.heuresPlanning || 0),
+      heuresRetenues: Number(ctx.heuresRetenues || 0),
+      heuresAttribuees: Number(ctx.heuresRetenues || 0),
+      sourceHeuresRetenues: ctx.sourceHeures,
+      quantiteMinutes: ctx.heuresRetenues > 0 ? Math.round(Number(ctx.heuresRetenues) * 60) : null,
+      heuresSupplementaires: Number(ctx.heuresSupplementaires || 0),
+      statut: 'information', impactPaye: false,
+    };
+
+    // Deux signalements de réconciliation, informatifs : ils ne retirent ni
+    // ne bloquent aucune heure, et ne plafonnent rien.
+    // - caisse ET piste constatées le même jour : la piste l'emporte
+    //   (priorité des postes), mais deux sources se contredisent, le
+    //   manager arbitre.
+    // - une journée de plus de 12 h est signalée telle quelle.
+    if (ctx.postesVerify && ctx.postesVerify.has('pompiste') && ctx.postesVerify.has('caissier')) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `anomalie-sources:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'sources_contradictoires',
+        libelle: 'Caisse et piste constatées le même jour',
+        detail: `Verify place cette personne en caisse et en piste le ${jourNom} · calculé en piste, sans cumul · à arbitrer par le manager`,
+      }));
+    }
+    if (Number(ctx.heuresRetenues) > 12) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `anomalie-duree:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'duree_superieure_12h',
+        libelle: `Journée de ${ctx.heuresRetenues} h, au-delà de 12 h`,
+        detail: `${ctx.heuresRetenues} h retenues le ${jourNom} · aucune heure n'est plafonnée · à vérifier par le manager`,
+      }));
+    }
+
+    // 1. Journée constatée par Verify, absente du planning de travail.
+    if (!ctx.planningConnu) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `presence-exceptionnelle:${employee.id}:${date}`,
+        typeItem: 'presence_exceptionnelle', nature: 'hors_planning',
+        libelle: 'Journée constatée par Verify, absente du planning',
+        detail: (ctx.heuresRetenues > 0
+          ? `${ctx.heuresRetenues} h retenues — ${posteLu || 'poste inconnu'} le ${jourNom}, durée de référence du jour`
+          : `Poste du jour inconnu : aucune durée de référence applicable, heures à saisir par le manager`)
+          + (posteLu && ctx.fonctionConstatee !== String(employee.role || '').toLowerCase()
+            ? ` · poste constaté dans Verify, différent du rôle « ${employee.role || '—'} »` : ''),
+      }));
+      if (!(ctx.heuresRetenues > 0)) ajouterAnomalieDonnee(fiche, employee, date, commun, 'Poste du jour introuvable dans Verify');
+      return;
+    }
+
+    // 2. Fonction prévue au planning différente de la fonction constatée.
+    if (ctx.fonctionPrevue && ctx.fonctionConstatee && ctx.fonctionPrevue !== ctx.fonctionConstatee) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `ecart-verify-planning:fonction:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'fonction_divergente',
+        libelle: `Fonction prévue ${postePrevu}, fonction constatée ${posteLu}`,
+        detail: `Planning : ${postePrevu} · Verify : ${posteLu} le ${jourNom} · ${ctx.heuresRetenues} h retenues sur la durée de référence`,
+      }));
+    }
+
+    // 3. Durée inscrite au planning différente de la durée retenue. On la
+    //    signale dans les deux sens : le planning sous-estimait, ou il
+    //    annonçait davantage que la journée constatée ne justifie.
+    if (ctx.heuresPlanning > 0 && Math.abs(ecartHeures) > 0.01) {
+      fiche.items.push(Object.assign({}, commun, {
+        sourceCle: `ecart-verify-planning:duree:${employee.id}:${date}`,
+        typeItem: 'ecart_verify_planning', nature: 'duree_divergente',
+        libelle: `Planning ${ctx.heuresPlanning} h, heures retenues ${ctx.heuresRetenues} h`,
+        detail: `Écart de ${ecartHeures > 0 ? '+' : ''}${ecartHeures} h le ${jourNom} · planning : ${ctx.heuresPlanning} h · retenu : ${ctx.heuresRetenues} h (${ctx.sourceHeures === 'horaire_exceptionnel' ? 'horaire exceptionnel saisi par le manager' : 'durée de référence du jour'})`,
+        ecartHeures,
+      }));
+    }
+
+    // 4. Journée confirmée dont aucune source ne permet de tirer une durée.
+    if (!(ctx.heuresRetenues > 0)) ajouterAnomalieDonnee(fiche, employee, date, commun, 'Ni poste constaté ni durée au planning');
+  }
+
+  // Une anomalie de données n'est pas un écart de concordance : l'information
+  // est absente, invalide ou contradictoire, et il faut la corriger à la
+  // source. Elle reste informative — elle ne bloque pas le mois, mais elle ne
+  // se confond pas avec un écart Verify / planning (§4).
+  function ajouterAnomalieDonnee(fiche, employee, date, commun, cause) {
+    fiche.items.push(Object.assign({}, commun, {
+      sourceCle: `anomalie-donnee:${employee.id}:${date}`,
+      typeItem: 'ecart_verify_planning', nature: 'donnee_absente',
+      libelle: 'Heures incalculables pour cette journée',
+      detail: `${cause} · la journée est confirmée, ses heures restent à saisir par le manager`,
+      quantiteMinutes: null, heuresRetenues: 0, heuresAttribuees: null,
+    }));
+  }
+
   function jjmmaaaa(iso) {
     const p = String(iso || '').slice(0, 10).split('-');
     return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso || '');
   }
 
   function cleJour(employeeId, date) { return `${employeeId}|${date}`; }
-  function cleQuart(employeeId, date, quart) { return `${employeeId}|${date}|${quart || ''}`; }
 
-  function activitesAudit(audits) {
-    const parQuart = new Map();
-    (audits || []).forEach(a => {
-      ['piste', 'boutique'].forEach(activite => {
-        extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
-          const cle = cleQuart(employeeId, a.date, a.quart);
-          if (!parQuart.has(cle)) parQuart.set(cle, new Set());
-          parQuart.get(cle).add(activite);
-        });
-      });
-    });
-    return parQuart;
+  // Fonction prévue au planning pour la journée, quand le planning en dit
+  // quelque chose. Elle ne décide d'aucune heure : elle sert uniquement à
+  // nommer l'écart entre la prévision et ce que Verify a constaté.
+  function fonctionPrevue(shiftsTravail) {
+    for (let i = 0; i < (shiftsTravail || []).length; i++) {
+      const s = shiftsTravail[i];
+      if (s.tache === 'piste') return 'pompiste';
+      if (s.tache === 'caisse') return 'caissier';
+      if (s.statut === 'renfort' || s.quart === 'renfort') return 'renfort';
+    }
+    return null;
   }
 
   function indexerArbitrages(items) {
@@ -151,31 +375,59 @@
   function construireRapport(entree) {
     const periode = moisISO(entree.periode);
     const config = Object.assign({
-      jours_heure_supp: [4, 5, 6], minutes_heure_supp: 60,
-      activites_heure_supp: ['piste', 'boutique'], quart_exclu_heure_supp: 'renfort',
       retard_max_coherent_min: 180, jours_feries: [],
+      durees_reference: null, heures_renfort: 0,
+      renfort_effectif_depuis: RENFORT_EFFECTIF_DEPUIS_DEFAUT,
     }, entree.config || {});
+    // Les durées de référence et l'horaire standard du renfort viennent des
+    // Paramètres Station. Une seule lecture, un seul jeu de règles, partagé
+    // par tout le calcul : c'est la condition pour que Verify et Paye ne
+    // divergent pas (cahier des charges du 09/10/2026, §2).
+    const regles = reglesHeures(config, entree.horaires);
     const settings = new Map((entree.settings || []).map(s => [s.employee_id, s]));
     const arbitrages = indexerArbitrages(entree.items || []);
     const audits = (entree.audits || []).filter(a => dateDansMois(a.date, periode));
-    const activiteParQuart = activitesAudit(audits);
     const preuveJour = new Map();
-    const retardParJour = new Map();
 
     (entree.pointages || []).filter(p => dateDansMois(p.date, periode)).forEach(p => {
       if (p.type === 'arrivee') {
-        const cle = cleJour(p.employee_id, p.date);
-        preuveJour.set(cle, { type: 'pointage', ligne: p });
-        const retard = Number(p.retard_min || 0);
-        if (retard > 0) retardParJour.set(cle, Math.max(retardParJour.get(cle) || 0, retard));
+        preuveJour.set(cleJour(p.employee_id, p.date), { type: 'pointage', ligne: p });
       }
     });
+    // Postes constatés par Verify sur la journée entière, toutes clôtures
+    // confondues. Un Set, et non une somme : une renfort déclarée deux fois
+    // le même jour par deux clôtures ne vaut qu'une journée de renfort, et
+    // une caissière aussi déclarée en renfort ne tient qu'un poste (§6).
+    const postesVerifyParJour = new Map();
+    const COLONNES_POSTE = { piste: 'pompiste', boutique: 'caissier', renfort: 'renfort' };
     audits.forEach(a => {
-      ['piste', 'boutique'].forEach(activite => extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
+      Object.keys(COLONNES_POSTE).forEach(activite => extraireEmployeeIds(a[`employes_${activite}`]).forEach(employeeId => {
+        // Décision du 10/10/2026 : le renfort ne vaut qu'au quart 1. Un renfort
+        // déclaré au quart 2 est ignoré, il n'ouvre aucune journée payée.
+        if (activite === 'renfort' && String(a.quart) === '2') return;
+        // Le renfort n'est effectif qu'à partir de renfort_effectif_depuis (13/10/2026) : une date antérieure est ignorée.
+        if (activite === 'renfort' && config.renfort_effectif_depuis && String(a.date).slice(0, 10) < config.renfort_effectif_depuis) return;
         const cle = cleJour(employeeId, a.date);
+        if (!postesVerifyParJour.has(cle)) postesVerifyParJour.set(cle, new Set());
+        postesVerifyParJour.get(cle).add(COLONNES_POSTE[activite]);
         const precedent = preuveJour.get(cle);
-        preuveJour.set(cle, { type: precedent ? 'verify+pointage' : 'verify', ligne: a });
+        const avaitPointage = !!precedent && String(precedent.type).indexOf('pointage') !== -1;
+        preuveJour.set(cle, { type: avaitPointage ? 'verify+pointage' : 'verify', ligne: a });
       }));
+    });
+
+    // Horaires exceptionnels saisis par le manager (§5.4). Indexés AVANT la
+    // boucle des journées, parce que les items manuels ne sont rattachés à la
+    // fiche qu'après : sans cet index, la durée nette corrigée arriverait
+    // trop tard pour remplacer la durée de référence du jour.
+    const horairesExceptionnels = new Map();
+    (entree.items || []).filter(i => i.origine === 'manuel' && i.type_item === 'horaire_exceptionnel'
+        && i.periode === periode && i.statut !== 'exclu' && i.date_evenement).forEach(i => {
+      const d = i.detail || {};
+      const nette = dureeNetteHeures(d.debut, d.fin, d.pause_minutes != null ? d.pause_minutes : pauseMinutes(d));
+      const heures = nette != null ? nette
+        : (Number(i.quantite_minutes) > 0 ? Math.round((Number(i.quantite_minutes) / 60) * 100) / 100 : null);
+      if (heures != null) horairesExceptionnels.set(cleJour(i.employee_id, i.date_evenement), { heures, item: i, detail: d });
     });
 
     const planning = (entree.planning || []).filter(p => dateDansMois(p.date, periode));
@@ -233,6 +485,10 @@
       const fiche = {
         employee, reglage, heuresConfirmees: 0, joursConfirmes: new Set(),
         presencesMesurees: 0, presencesReconstituees: 0, items: [],
+        // Ventilation demandée par le cockpit manager (§9) : on veut lire
+        // d'où viennent les heures retenues, pas seulement leur total.
+        heuresCaisse: 0, heuresPiste: 0, heuresRenfort: 0, heuresExceptionnelles: 0,
+        heuresSupplementairesParDefaut: 0, heuresNormales: 0, heuresSuppBareme: 0, detailJours: [],
       };
       if (!reglage.inclus || reglage.modePresence === 'exclu') {
         employes.push(fiche);
@@ -254,21 +510,42 @@
 
         if (shiftsTravail.length && preuve) {
           fiche.joursConfirmes.add(date);
+          // Renversement du 09/10/2026. C'est la journée constatée par Verify
+          // qui ouvre le droit, et la durée de référence du jour qui la
+          // chiffre. La durée inscrite au planning ne plafonne plus rien :
+          // elle devient un terme de comparaison, et l'écart est nommé.
           const heuresPlanning = shiftsTravail.reduce((s, p) => s + Number(p.duree_heures || 0), 0);
-          // Un planning sans durée ne vaut pas zéro heure travaillée : le
-          // barème par poste prend le relais, et le fait est tracé.
-          let heuresJour = heuresPlanning;
-          if (!(heuresPlanning > 0)) {
-            const bareme = heuresParDefautJour(posteDuJour(employee.id, preuve, shifts, employee), date);
-            if (bareme) {
-              heuresJour = bareme.heures;
-              fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
-              fiche.heuresSupplementairesParDefaut = (fiche.heuresSupplementairesParDefaut || 0) + bareme.heuresSupplementaires;
-            }
+          const poste = posteDuJour(employee.id, preuve, shifts, employee, postesVerifyParJour.get(cle));
+          const bareme = heuresParDefautJour(poste, date, regles);
+          const exceptionnel = horairesExceptionnels.get(cle);
+          let heuresJour = 0;
+          let sourceHeures = null;
+          if (exceptionnel) {
+            heuresJour = exceptionnel.heures;
+            sourceHeures = 'horaire_exceptionnel';
+            fiche.heuresExceptionnelles += exceptionnel.heures;
+          } else if (bareme) {
+            heuresJour = bareme.heures;
+            sourceHeures = 'duree_reference';
+            fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
+          } else if (heuresPlanning > 0) {
+            // Verify confirme la journée mais ne dit pas quel poste était
+            // tenu : plutôt que de rendre zéro, on retient ce que le planning
+            // prévoyait, et l'on dit d'où vient le chiffre.
+            heuresJour = heuresPlanning;
+            sourceHeures = 'planning';
           }
           fiche.heuresConfirmees += heuresJour;
+          ventiler(fiche, poste, heuresJour);
+          enregistrerJour(fiche, date, poste, heuresJour, sourceHeures, bareme);
           if (preuve.type === 'verify+pointage') fiche.presencesMesurees += 1;
           else fiche.presencesReconstituees += 1;
+          itemEcart(fiche, employee, date, {
+            fonctionPrevue: fonctionPrevue(shiftsTravail), fonctionConstatee: poste,
+            heuresPlanning, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
+            origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
+            planningConnu: true, exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
+          });
         } else if (shiftsTravail.length && !preuve && !indispo) {
           // `!indispo` : une absence déjà expliquée par un événement RH
           // déclaré n'est pas une anomalie. NEXUS neutralise l'alerte plutôt
@@ -284,71 +561,49 @@
         } else if (!shiftsTravail.length && preuve) {
           fiche.joursConfirmes.add(date);
           fiche.presencesReconstituees += 1;
-          // Aucun planning ne dit combien d'heures : le poste réellement tenu
-          // ce jour-là, lu dans Verify, décide du barème. Le rôle général de
-          // la fiche n'est qu'un repli — une renfort placée en boutique est
-          // payée comme une caissière ce jour-là.
-          const poste = posteDuJour(employee.id, preuve, shifts, employee);
-          const bareme = heuresParDefautJour(poste, date);
-          if (bareme) {
-            fiche.heuresConfirmees += bareme.heures;
+          // Journée confirmée par Verify, absente du planning. Elle est
+          // CONSTATÉE : ses heures entrent dans le décompte, et l'écart avec
+          // le planning est signalé au manager sans rien bloquer (§4). Le
+          // poste réellement tenu, lu dans Verify, décide de la durée ; le
+          // rôle général de la fiche n'est qu'un repli.
+          const poste = posteDuJour(employee.id, preuve, shifts, employee, postesVerifyParJour.get(cle));
+          const bareme = heuresParDefautJour(poste, date, regles);
+          const exceptionnel = horairesExceptionnels.get(cle);
+          let heuresJour = 0;
+          let sourceHeures = null;
+          if (exceptionnel) {
+            heuresJour = exceptionnel.heures;
+            sourceHeures = 'horaire_exceptionnel';
+            fiche.heuresExceptionnelles += exceptionnel.heures;
+          } else if (bareme) {
+            heuresJour = bareme.heures;
+            sourceHeures = 'duree_reference';
             fiche.heuresParDefaut = (fiche.heuresParDefaut || 0) + bareme.heures;
-            fiche.heuresSupplementairesParDefaut = (fiche.heuresSupplementairesParDefaut || 0) + bareme.heuresSupplementaires;
           }
-          const jourNom = NOM_JOUR[new Date(`${date}T12:00:00`).getDay()];
-          fiche.items.push({
-            sourceCle: `presence-exceptionnelle:${employee.id}:${date}`, typeItem: 'presence_exceptionnelle', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
-            date, libelle: 'Présence constatée hors planning de travail',
-            poste: poste || null, heuresAttribuees: bareme ? bareme.heures : null,
-            // Portées en minutes pour que « Confirmer » enregistre vraiment
-            // la durée retenue, et non une décision sans quantité.
-            quantiteMinutes: bareme ? Math.round(bareme.heures * 60) : null,
-            heuresSupplementaires: bareme ? bareme.heuresSupplementaires : 0,
-            detail: bareme
-              ? `${bareme.heures} h attribuées — ${LIBELLE_POSTE[poste] || poste} le ${jourNom}`
-                + (bareme.heuresSupplementaires ? ` (7 h + ${bareme.heuresSupplementaires} h supplémentaire)` : '')
-                + (poste !== String(employee.role || '').toLowerCase() ? ` · poste constaté dans Verify, différent du rôle « ${employee.role || '—'} »` : '')
-              : `Aucun barème applicable : poste du jour inconnu, heures à saisir manuellement`,
-            statut: 'a_verifier', impactPaye: false,
+          fiche.heuresConfirmees += heuresJour;
+          ventiler(fiche, poste, heuresJour);
+          enregistrerJour(fiche, date, poste, heuresJour, sourceHeures, bareme);
+          itemEcart(fiche, employee, date, {
+            fonctionPrevue: null, fonctionConstatee: poste,
+            heuresPlanning: 0, heuresRetenues: heuresJour, sourceHeures, heuresSupplementaires: suppDuJour(sourceHeures, bareme),
+            origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
+            planningConnu: false, exceptionnel: exceptionnel || null, postesVerify: postesVerifyParJour.get(cle),
           });
         }
 
-        const retard = retardParJour.get(cle);
-        if (retard) {
-          const incoherent = retard > Number(config.retard_max_coherent_min || 180);
-          fiche.items.push({
-            sourceCle: `retard:${employee.id}:${date}`, typeItem: incoherent ? 'retard_incoherent' : 'retard', origine: 'pointage',
-            date, libelle: incoherent ? `Retard incohérent détecté (${retard} min)` : `Retard détecté (${retard} min)`,
-            quantiteMinutes: retard, statut: 'a_verifier', impactPaye: false, bloquantTechnique: incoherent,
-          });
-        }
+        // Plus aucun retard n'est déduit d'un pointage, ni d'un écart entre
+        // Verify et le planning : par défaut le retard est de 0 minute, et
+        // seul le manager peut en enregistrer un (§7). Les retards déjà
+        // enregistrés restent visibles — ils arrivent par la voie des items
+        // manuels, comme toute décision du manager.
 
-        if (preuve && shiftsTravail.length) {
-          const jour = new Date(`${date}T12:00:00`).getDay();
-          const eligibleJour = (config.jours_heure_supp || []).map(Number).includes(jour);
-          const activites = new Set();
-          let activiteMesureeParVerify = false;
-          shiftsTravail.forEach(s => {
-            const auditActs = activiteParQuart.get(cleQuart(employee.id, date, s.quart));
-            if (auditActs) { activiteMesureeParVerify = true; auditActs.forEach(a => activites.add(a)); }
-            else if (s.tache === 'piste') activites.add('piste');
-            else if (s.tache === 'caisse') activites.add('boutique');
+        // Un férié travaillé reste un élément de paie à arbitrer, et il l'est
+        // désormais même sans planning : c'est Verify qui atteste la journée.
+        if (preuve && (config.jours_feries || []).includes(date)) {
+          fiche.items.push({
+            sourceCle: `jour-ferie:${employee.id}:${date}`, typeItem: 'jour_ferie', origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
+            date, libelle: 'Jour férié travaillé', statut: 'a_verifier', impactPaye: false,
           });
-          const estRenfort = shiftsTravail.every(s => s.quart === config.quart_exclu_heure_supp || s.statut === 'renfort');
-          const activiteEligible = [...activites].some(a => (config.activites_heure_supp || []).includes(a));
-          if (eligibleJour && activiteEligible && !estRenfort) {
-            fiche.items.push({
-              sourceCle: `heure-supp:${employee.id}:${date}`, typeItem: 'heure_supplementaire', origine: activiteMesureeParVerify ? 'verify' : 'planning',
-              date, libelle: 'Heure supplémentaire jeudi/vendredi/samedi',
-              quantiteMinutes: Number(config.minutes_heure_supp || 60), statut: 'a_verifier', impactPaye: false,
-            });
-          }
-          if ((config.jours_feries || []).includes(date)) {
-            fiche.items.push({
-              sourceCle: `jour-ferie:${employee.id}:${date}`, typeItem: 'jour_ferie', origine: preuve.type.includes('verify') ? 'verify' : 'pointage',
-              date, libelle: 'Jour férié travaillé', statut: 'a_verifier', impactPaye: false,
-            });
-          }
         }
       });
 
@@ -370,7 +625,46 @@
         });
       });
 
+      const rattaches = new Set(fiche.items.map(i => i.sourceCle));
       fiche.items = fiche.items.map(i => appliquerArbitrage(i, arbitrages));
+
+      // Une décision rendue par le manager ne s'évapore pas parce que le
+      // moteur ne propose plus la carte qui l'a fait naître. Les règles de
+      // calcul ont changé le 09/10/2026 : la 8e heure n'est plus proposée en
+      // heure supplémentaire, le retard ne se déduit plus d'un pointage. Les
+      // arbitrages déjà enregistrés sur ces cartes restent dus, et visibles.
+      // Les laisser tomber retirerait au salarié des heures ou des minutes
+      // qu'un humain avait validées, sans que personne ne l'ait demandé.
+      (entree.items || []).filter(a => a.origine !== 'manuel'
+          && a.employee_id === employee.id && moisISO(a.periode) === periode
+          && !rattaches.has(a.source_cle)).forEach(a => {
+        const dateLue = a.date_evenement || (/(\d{4}-\d{2}-\d{2})/.exec(a.source_cle || '') || [])[1] || null;
+        const dejaIncluse = a.type_item === 'heure_supplementaire' && a.statut === 'valide'
+          && Number(a.quantite_minutes) > 0 && dateLue != null && fiche.joursConfirmes.has(dateLue);
+        fiche.items.push({
+          id: a.id, sourceCle: a.source_cle, typeItem: a.type_item, origine: a.origine,
+          date: dateLue, libelle: a.libelle || 'Décision antérieure du manager',
+          quantiteMinutes: a.quantite_minutes != null ? a.quantite_minutes : null,
+          montantCentimes: a.montant_centimes != null ? a.montant_centimes : null,
+          statut: a.statut, impactPaye: !!a.impact_paye, note: a.note || null,
+          decisionAnterieure: true,
+          dejaIncluseDansHeures: dejaIncluse,
+          detail: 'Décision enregistrée sous une règle de calcul antérieure. '
+            + 'Elle reste retenue telle qu’elle a été validée, et n’est plus recalculée.'
+            + (dejaIncluse ? ' Ces minutes sont déjà comprises dans la durée de référence du jour : '
+              + 'les additionner paierait deux fois la même heure.' : ''),
+        });
+        // Le 09/10/2026, la 8e heure du jeudi, du vendredi et du samedi est
+        // devenue une heure de travail de référence, retenue dans les heures
+        // confirmées. Une heure supplémentaire validée sous l'ancienne règle
+        // sur l'un de ces jours décrit donc la MÊME heure. Elle reste
+        // affichée, parce qu'un humain l'a validée, mais elle est signalée
+        // comme déjà comprise : c'est le mécanisme qui existait déjà pour le
+        // barème, et il sert exactement à ne pas payer deux fois.
+        if (dejaIncluse) {
+          fiche.heuresSupplementairesParDefaut += Math.round((Number(a.quantite_minutes) / 60) * 100) / 100;
+        }
+      });
       // Séries d'absences non déclarées. Une journée avec preuve de présence
       // rompt la série : « absent du X au Y sans aucune présence constatée
       // entre les deux » est un fait vérifiable, contrairement à une fusion
@@ -471,11 +765,32 @@
         });
       });
 
-      const manuels = (entree.items || []).filter(i => i.origine === 'manuel' && i.employee_id === employee.id && i.periode === periode).map(i => ({
-        id: i.id, sourceCle: i.source_cle, typeItem: i.type_item, origine: 'manuel', date: i.date_evenement,
-        libelle: i.libelle, quantiteMinutes: i.quantite_minutes, montantCentimes: i.montant_centimes,
-        statut: i.statut, impactPaye: !!i.impact_paye, note: i.note || null,
-      }));
+      const manuels = (entree.items || []).filter(i => i.origine === 'manuel' && i.employee_id === employee.id && i.periode === periode).map(i => {
+        const d = i.detail || null;
+        const item = {
+          id: i.id, sourceCle: i.source_cle, typeItem: i.type_item, origine: 'manuel', date: i.date_evenement,
+          libelle: i.libelle, quantiteMinutes: i.quantite_minutes, montantCentimes: i.montant_centimes,
+          statut: i.statut, impactPaye: !!i.impact_paye, note: i.note || null,
+          detailSaisie: d,
+        };
+        // Horaire exceptionnel (§5.4) : le moteur RECALCULE la durée nette à
+        // partir du début, de la fin et de la pause saisis, plutôt que de
+        // faire confiance à une quantité enregistrée. La valeur initiale
+        // reste lisible à côté de la valeur corrigée : l'historique du
+        // changement fait partie de l'information, pas de ses coulisses.
+        if (i.type_item === 'horaire_exceptionnel' && d) {
+          const nette = dureeNetteHeures(d.debut, d.fin, d.pause_minutes != null ? d.pause_minutes : pauseMinutes(d));
+          item.heuresRecalculees = nette;
+          item.heuresInitiales = d.heures_initiales != null ? Number(d.heures_initiales) : null;
+          item.motif = d.motif || null;
+          item.auteur = d.auteur || null;
+          item.detail = `${d.debut || 'début absent'} → ${d.fin || 'fin absente'}, pause ${d.pause_minutes != null ? d.pause_minutes : pauseMinutes(d)} min`
+            + (nette != null ? ` · ${nette} h nettes retenues` : ' · durée illisible, rien n\'a été retenu')
+            + (item.heuresInitiales != null ? ` · valeur initiale ${item.heuresInitiales} h` : '')
+            + (d.motif ? ` · motif : ${d.motif}` : '');
+        }
+        return item;
+      });
       fiche.items.push(...manuels);
       fiche.items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.typeItem.localeCompare(b.typeItem));
       itemsGlobaux.push(...fiche.items.map(i => Object.assign({ employeeId: employee.id, employeeNom: employee.nom }, i)));
@@ -507,7 +822,13 @@
       if (f.reglage.inclus && f.reglage.modePresence === 'manuel' && !f.items.some(i => i.origine === 'manuel' && i.statut === 'valide' && i.quantiteMinutes > 0)) {
         bloqueurs.push({ categorie: 'configuration', type: 'heures_manuelles', employeeId: f.employee.id, libelle: `${f.employee.nom} : heures mensuelles à confirmer manuellement` });
       }
-      f.items.filter(i => i.statut === 'a_verifier' || i.contestationOuverte).forEach(i => bloqueurs.push({ categorie: 'element', type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
+      // La rubrique « Écarts Verify / Planning » est consultable, filtrable
+      // et documentée, mais elle ne bloque pas la préparation de la paie
+      // (§4). Et cela vaut même si une décision ancienne, enregistrée du
+      // temps où ces journées étaient « à valider », porte encore ce statut.
+      f.items.filter(i => i.rubrique !== RUBRIQUE_ECART && !i.decisionAnterieure
+          && (i.statut === 'a_verifier' || i.contestationOuverte))
+        .forEach(i => bloqueurs.push({ categorie: 'element', type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
     });
     ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
 
@@ -517,11 +838,17 @@
     employes.forEach(f => { f.statut = statutSalarie(f); });
     const statutsInclus = employes.filter(f => f.reglage.inclus).map(f => f.statut);
 
+    const ecartsVerifyPlanning = itemsGlobaux.filter(i => i.rubrique === RUBRIQUE_ECART);
+
     return {
       periode,
       employes,
       items: itemsGlobaux,
       bloqueurs,
+      // Les règles d'heures effectivement appliquées, pour que l'écran
+      // affiche le rappel de l'horaire standard sans le redéclarer.
+      regles,
+      ecartsVerifyPlanning,
       synthese: {
         salariesInclus: employes.filter(f => f.reglage.inclus).length,
         statutMois: statutGlobal(statutsInclus),
@@ -535,6 +862,13 @@
         // doit voir le nombre de choses qu'il a réellement à trancher.
         aVerifier: bloqueurs.filter(b => b.categorie === 'element').length,
         configurationRequise: bloqueurs.filter(b => b.categorie === 'configuration').length,
+        // Les écarts se comptent, mais ils ne comptent pas comme des
+        // décisions à prendre : ils ne gonflent pas `aVerifier`.
+        ecartsVerifyPlanning: ecartsVerifyPlanning.length,
+        anomaliesDonnees: ecartsVerifyPlanning.filter(i => i.nature === 'donnee_absente').length,
+        heuresCaisse: Math.round(employes.reduce((s, f) => s + Number(f.heuresCaisse || 0), 0) * 100) / 100,
+        heuresPiste: Math.round(employes.reduce((s, f) => s + Number(f.heuresPiste || 0), 0) * 100) / 100,
+        heuresRenfort: Math.round(employes.reduce((s, f) => s + Number(f.heuresRenfort || 0), 0) * 100) / 100,
       },
       ecartsNonAttribues,
     };
@@ -549,6 +883,22 @@
         quantite_minutes: Math.round(f.heuresConfirmees * 60), montant_euros: '',
         impact_paye: 'information', commentaire: `${f.joursConfirmes.size} jour(s) confirmé(s)`,
       });
+      // Q1 (10/10/2026) : normales et supplémentaires en lignes nominatives distinctes. La supplémentaire est une
+      // PART de la présence : ces deux lignes se somment en `presence_confirmee`, elles ne s'y ajoutent pas.
+      const norm = Math.round(Number(f.heuresNormales || 0) * 60), supp = Math.round(Number(f.heuresSuppBareme || 0) * 60);
+      lignes.push({
+        employe: f.employee.nom, type: 'heures_normales', date: '', quantite_minutes: norm, montant_euros: '',
+        impact_paye: 'information', commentaire: 'part de la présence confirmée, hors 8e heure',
+      });
+      lignes.push({
+        employe: f.employee.nom, type: 'heures_supplementaires_bareme', date: '', quantite_minutes: supp, montant_euros: '',
+        impact_paye: 'information', commentaire: '8e heure du jeudi au samedi, comprise dans la présence ; aucune majoration appliquée',
+      });
+      (f.detailJours || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date))).forEach(j => lignes.push({
+        employe: f.employee.nom, type: 'detail_jour', date: j.date, source: j.source || '',
+        quantite_minutes: Math.round(j.presence * 60), montant_euros: '', impact_paye: 'information',
+        commentaire: `${j.poste || 'sans poste'} · ${j.normales} h normales · ${j.supplementaires} h sup.${j.autres ? ` · ${j.autres} h exceptionnelles` : ''}`,
+      }));
       valides.forEach(i => lignes.push({
         employe: f.employee.nom, type: i.typeItem, date: i.date || '', source: i.origine || '',
         ecart_initial: i.ecartInitialCentimes == null ? '' : (i.ecartInitialCentimes / 100).toFixed(2),
@@ -618,6 +968,10 @@
         joursMesures: fiche.presencesMesurees || 0,
         joursReconstitues: fiche.presencesReconstituees || 0,
         heuresParDefaut: Math.round(Number(fiche.heuresParDefaut || 0) * 100) / 100,
+        heuresNormales: Math.round(Number(fiche.heuresNormales || 0) * 100) / 100,
+        heuresSupplementairesBareme: Math.round(Number(fiche.heuresSuppBareme || 0) * 100) / 100,
+        heuresAutres: Math.round(Number(fiche.heuresExceptionnelles || 0) * 100) / 100,
+        detailJours: (fiche.detailJours || []).slice().sort((a, b) => a.date < b.date ? -1 : 1),
       },
       absence: {
         jours: absencesNonDeclarees.reduce((s, i) => s + Number(i.joursMois || 1), 0),
@@ -629,7 +983,12 @@
       autresAbsences: groupeEvenements(i => i.motif && i.motif !== 'conge' && !MOTIFS_MALADIE.includes(i.motif)),
       retards: { minutes: sommeMinutes(retards), occurrences: retards.length, enAttente: enAttente('retard') + enAttente('retard_incoherent') },
       heuresSupplementaires: {
-        heures: enHeures(sommeMinutes(supp)), minutes: sommeMinutes(supp), occurrences: supp.length,
+        // Total = 8e heure du barème (Q1) + heures validées par le manager qui ne sont
+        // PAS déjà dans la présence. Une décision antérieure « déjà incluse » décrit la
+        // même heure que le barème : elle reste visible mais n'est jamais ajoutée.
+        heures: Math.round((Number(fiche.heuresSuppBareme || 0) + enHeures(sommeMinutes(supp.filter(i => !i.dejaIncluseDansHeures)))) * 100) / 100,
+        heuresBareme: Math.round(Number(fiche.heuresSuppBareme || 0) * 100) / 100,
+        minutes: sommeMinutes(supp), occurrences: supp.length,
         // Les heures supplémentaires du barème par défaut sont DÉJÀ dans
         // les heures confirmées : les afficher à part évite de les compter
         // deux fois tout en gardant l'information visible.
@@ -665,7 +1024,11 @@
     if (fiche.reglage.modePresence === 'manuel' && !heuresManuelles) return 'donnee_manquante';
     const aDesElements = (fiche.items || []).length > 0;
     if (!Number(fiche.heuresConfirmees || 0) && !(fiche.joursConfirmes && fiche.joursConfirmes.size) && !aDesElements) return 'donnee_manquante';
-    if ((fiche.items || []).some(i => i.statut === 'a_verifier' || i.contestationOuverte)) return 'a_verifier';
+    // Un écart de concordance n'empêche pas un salarié d'être prêt : il est
+    // signalé au manager, qui intervient sur les exceptions et non pour
+    // reconfirmer des heures déjà justifiées (§4, §14).
+    if ((fiche.items || []).some(i => i.rubrique !== 'ecart_verify_planning' && !i.decisionAnterieure
+        && (i.statut === 'a_verifier' || i.contestationOuverte))) return 'a_verifier';
     return 'pret';
   }
 
@@ -728,6 +1091,6 @@
     };
   }
 
-  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
-    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
+  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, reglesHeures, dureeNetteHeures, minutesHoraire, DUREES_REFERENCE_DEFAUT, HEURES_RENFORT_DEFAUT, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
+    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, LIBELLE_POSTE, RUBRIQUE_ECART, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
 })(typeof window !== 'undefined' ? window : globalThis);

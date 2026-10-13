@@ -30,21 +30,35 @@ scenario('Verify peut reconstituer une présence sans pointage',()=>{
  const r=run({planning:[{employee_id:'e1',date:'2026-08-05',quart:'quart1',statut:'travail_normal',duree_heures:7,tache:'piste'}],audits:[{id:'a',date:'2026-08-05',quart:'quart1',employes_piste:['e1'],employes_boutique:[]}]});
  assert.strictEqual(r.employes[0].presencesReconstituees,1);
 });
-scenario('vendredi piste propose une heure supplémentaire',()=>{
+// Le vendredi vaut toujours 8 h de référence, mais ces 8 h ne sont plus
+// qualifiées. « Le système ne doit pas transformer automatiquement toute heure
+// au-delà du planning en heure supplémentaire majorée » (§3, 09/10/2026) : la
+// répartition entre heures normales, complémentaires et supplémentaires relève
+// des règles légales et contractuelles, pas du moteur.
+scenario('vendredi piste rend 8 h de référence, sans qualifier d’heure supplémentaire',()=>{
  const r=run({planning:[{employee_id:'e1',date:'2026-08-07',quart:'quart1',statut:'travail_normal',duree_heures:8,tache:'piste'}],pointages:[{employee_id:'e1',date:'2026-08-07',type:'arrivee',retard_min:0}]});
- assert.strictEqual(r.items.find(i=>i.typeItem==='heure_supplementaire').quantiteMinutes,60);
+ assert.strictEqual(r.synthese.heuresConfirmees,8);
+ assert.ok(!r.items.some(i=>i.typeItem==='heure_supplementaire'));
 });
 scenario('renfort reste à 7 h sans heure supplémentaire',()=>{
  const r=run({planning:[{employee_id:'e1',date:'2026-08-07',quart:'renfort',statut:'renfort',duree_heures:7}],pointages:[{employee_id:'e1',date:'2026-08-07',type:'arrivee',retard_min:0}]});
  assert.ok(!r.items.some(i=>i.typeItem==='heure_supplementaire'));
 });
-scenario('retard cohérent est proposé à arbitrage',()=>{
+// Aucun pointage n'alimente plus les retards de paye (§7, 09/10/2026). Par
+// défaut le retard est de zéro minute, et seul le manager peut en enregistrer
+// un retenu pour la paie. Un retard_min en base n'est donc plus une source.
+scenario('aucun retard n’est déduit d’un pointage',()=>{
  const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:12}]});
- assert.ok(r.items.some(i=>i.typeItem==='retard'&&i.quantiteMinutes===12));
+ assert.ok(!r.items.some(i=>i.typeItem==='retard'||i.typeItem==='retard_incoherent'));
+ assert.strictEqual(r.employes[0].heuresConfirmees,8);
 });
-scenario('retard aberrant est bloqué techniquement',()=>{
+// Corollaire : une valeur aberrante héritée du pointage ne verrouille plus
+// rien, et ne retire aucune heure. La journée du samedi reste constatée à 8 h.
+scenario('un retard aberrant en base ne bloque plus et ne retire aucune heure',()=>{
  const r=run({pointages:[{employee_id:'e1',date:'2026-08-08',type:'arrivee',retard_min:5754}]});
- assert.ok(r.items.some(i=>i.typeItem==='retard_incoherent'&&i.bloquantTechnique));
+ assert.ok(!r.items.some(i=>i.typeItem==='retard_incoherent'));
+ assert.strictEqual(r.bloqueurs.length,0);
+ assert.strictEqual(r.employes[0].heuresConfirmees,8);
 });
 scenario('congé déclaré n’est pas transformé en absence certaine',()=>{
  const r=run({indisponibilites:[{id:'c1',employee_id:'e1',date_debut:'2026-08-09',date_fin:'2026-08-09',type:'conge'}]});
