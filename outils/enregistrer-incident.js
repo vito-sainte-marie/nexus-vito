@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { classerArret } = require('./watchdog-stagnation.js');
+const { compter: compterRepetition } = require('./compteur-repetitions.js');
 
 const RACINE = process.env.NEXUS_DEPOT ? path.resolve(process.env.NEXUS_DEPOT) : path.resolve(__dirname, '..');
 const JOURNAL = ['docs', 'learning', 'INCIDENTS.jsonl'];
@@ -65,7 +66,14 @@ function enregistrer(e, o) {
     fs.mkdirSync(path.dirname(fichier), { recursive: true });
     fs.appendFileSync(fichier, JSON.stringify(ligne) + '\n');
   }
-  return { etat: 'ENREGISTRE', id, ligne, classement: c };
+  // Compteur append-only des répétitions (item 2, lot NEXUS-INCIDENTS-CI-1).
+  // `dejaVus` vient de la lecture déjà faite ci-dessus : un seul classeur, un
+  // seul lecteur du journal des incidents.
+  const repetition = compterRepetition(
+    { id, code: c.code, date: ligne.date },
+    { racine, ecrire: opts.ecrire, dejaVus: existants.map(x => x.code) },
+  );
+  return { etat: 'ENREGISTRE', id, ligne, classement: c, repetition };
 }
 
 module.exports = { enregistrer, identifiant, lire, JOURNAL };
