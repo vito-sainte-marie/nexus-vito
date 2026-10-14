@@ -39,11 +39,10 @@ t('l’arrêt du 14/10 (CONDITIONS_NON_PROUVEES, 70 min) est enregistré, qualif
 
 t('le rejeu ne change pas un octet', () => {
   const r = racine();
-  enregistrer(base, { racine: r });
-  const avant = octets(r);
+  const premier = enregistrer(base, { racine: r });
   const res = enregistrer(base, { racine: r });
   assert.strictEqual(res.etat, 'DEJA_ENREGISTRE');
-  assert.strictEqual(octets(r), avant);
+  assert.strictEqual(octets(r), JSON.stringify(premier.ligne) + '\n');
 });
 
 t('un autre sha est un autre incident : ajout, sans toucher à la première ligne', () => {
