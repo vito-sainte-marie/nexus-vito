@@ -103,6 +103,15 @@ on:
 jobs:
   non-regression:
     runs-on: ubuntu-latest
+    # Publication, vers le job `enregistrement-incident`, de l'arrêt que la
+    # boucle autonome vient de classer à notifier. Des sorties, pas une
+    # permission : le bloc `permissions:` du workflow n'est pas touché.
+    outputs:
+      incident_a_enregistrer: ${{ steps.boucle_autonome.outputs.incident_a_enregistrer }}
+      incident_code: ${{ steps.boucle_autonome.outputs.motif }}
+      incident_lot: ${{ steps.boucle_autonome.outputs.lot }}
+      incident_rail: ${{ steps.boucle_autonome.outputs.rail }}
+      incident_sha: ${{ steps.boucle_autonome.outputs.sha }}
     steps:
       # `fetch-depth: 0` récupère tout l'historique, branche `production`
       # comprise : le contrôle d'immuabilité des migrations la compare à la
@@ -752,6 +761,7 @@ jobs:
           elif [ "$notifier" = true ]; then
             echo "alerte_humaine=1" >> "$GITHUB_OUTPUT"
             echo "motif=$verdict" >> "$GITHUB_OUTPUT"
+            { echo "incident_a_enregistrer=1"; echo "lot=$LOT"; echo "rail=$RAIL"; echo "sha=$SHA_RAIL"; } >> "$GITHUB_OUTPUT"
             node outils/etat-maillon.js HUMAN_DECISION_REQUIRED BOUCLE_ARRETEE --maillon "$M" --motif "$verdict : $motif" --condition "$verdict" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "Frédéric tranche ; la boucle reste arrêtée"
           else
             node outils/etat-maillon.js NO_WORK BOUCLE_AU_REPOS --maillon "$M" --motif "$verdict : $motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
@@ -1640,3 +1650,57 @@ jobs:
               --lot "${LOT:-(lot non publié par la qualification)}"
           fi
           exit $CODE
+
+  # ── Enregistrement automatique des incidents (lot NEXUS-INCIDENTS-CI-1, item 1) ──
+  # Un arrêt que la boucle autonome classe à notifier est qualifié par
+  # `classerArret` (outils/enregistrer-incident.js, un seul classeur) ; si ce
+  # n'est pas un arrêt humain voulu, UNE ligne est ajoutée à
+  # docs/learning/INCIDENTS.jsonl et poussée sur le rail Handoff seulement.
+  #
+  # Lease : le job relit la tête du rail lui-même (checkout de `ref`), pas celle
+  # que `non-regression` a vue ; le push est SANS FORCE, refusé si le rail a
+  # avancé, et n'est pas retenté dans le même run.
+  # Concurrence dédiée : groupe propre, sans annulation du run en cours.
+  # Idempotence : seul le verdict `ENREGISTRE` committe ; un rejeu
+  # (`DEJA_ENREGISTRE`) ou un arrêt humain (`NON_ENREGISTRE`) ne touche rien.
+  # Pas de récursion : le push utilise le jeton du workflow (GITHUB_TOKEN), qui
+  # ne redéclenche ni la CI ni Claude ; ce job n'appelle ni `gh`, ni
+  # `repository_dispatch`, ni `workflow_dispatch`.
+  # Aucune permission nouvelle : pas de bloc `permissions:` de job, héritage de
+  # celui du workflow, inchangé.
+  enregistrement-incident:
+    needs: non-regression
+    if: ${{ always() && needs.non-regression.outputs.incident_a_enregistrer == '1' && startsWith(needs.non-regression.outputs.incident_rail, 'handoff-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: nexus-incidents-enregistrement-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.non-regression.outputs.incident_rail }}
+      - name: Enregistrer l'incident et pousser sur le rail (sans force)
+        env:
+          CODE: ${{ needs.non-regression.outputs.incident_code }}
+          LOT: ${{ needs.non-regression.outputs.incident_lot }}
+          RAIL: ${{ needs.non-regression.outputs.incident_rail }}
+          SHA_RAIL: ${{ needs.non-regression.outputs.incident_sha }}
+        run: |
+          # Sous le `-e` de GitHub un `RC=$?` placé après une commande qui échoue
+          # n'est jamais atteint : `set +e`, et chaque échec est traité à la main.
+          set +e
+          set -uo pipefail
+          R=$(node outils/enregistrer-incident.js --code "$CODE" --lot "$LOT" --sha "$SHA_RAIL" \
+            --branche "$RAIL" --run "$GITHUB_RUN_ID" --maintenant "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --ecrire)
+          RC=$?
+          echo "$R"
+          [ "$RC" = 0 ] || { echo "::error::enregistrement refusé : rien n'est poussé"; exit 1; }
+          ETAT=$(jq -r .etat <<<"$R")
+          [ "$ETAT" = "ENREGISTRE" ] || { echo "::notice::$ETAT : aucun fichier modifié, rien à pousser"; exit 0; }
+          git config user.name "nexus-incidents"
+          git config user.email "nexus-incidents@users.noreply.github.com"
+          git add docs/learning
+          git commit -m "incident: $(jq -r .id <<<"$R") ($CODE, lot $LOT)"
+          git push origin "HEAD:refs/heads/$RAIL" \
+            || { echo "::error::PUSH_REFUSE : le rail a avancé, l'incident sera enregistré au prochain arrêt identique"; exit 1; }
