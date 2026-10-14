@@ -96,11 +96,11 @@ x = verifier(dir); assert.ok(!/aucun order-\*\.json/.test(x.sortie), 'E: lot clo
 ok('E — CAPACITE_SANS_ORDRE refusé sur lot actif, tu sur lot clos');
 
 // E2 : un précontrôle strictement en lecture seule n'exige pas d'ordre ; toute capacité mutante (même mêlée à une lecture) l'exige encore.
-for (const cap of ['SUPABASE_PRODUCTION_READ_ONLY', 'SUPABASE_TEST_READ_ONLY']) {
+for (const cap of ['SUPABASE_PRODUCTION_READ_ONLY', 'SUPABASE_TEST_READ_ONLY', 'SUPABASE_TEST_LECTURE', 'SUPABASE_PRODUCTION_LECTURE']) {
   dir = registre('ATTENTE_DECISION', false, corps(cap));
   x = verifier(dir); assert.ok(!/aucun order-\*\.json/.test(x.sortie), `E2: ${cap} sans ordre accepté\n${x.sortie}`);
 }
-for (const cap of ['SUPABASE_PRODUCTION_MUTATION', 'SUPABASE_PRODUCTION_READ_ONLY_ET_ECRITURE', 'SUPABASE_PRODUCTION_ECRITURE']) {
+for (const cap of ['SUPABASE_PRODUCTION_MUTATION', 'SUPABASE_PRODUCTION_READ_ONLY_ET_ECRITURE', 'SUPABASE_PRODUCTION_ECRITURE', 'SUPABASE_TEST_ECRITURE', 'SUPABASE_TEST_LECTURE_ET_ECRITURE']) {
   dir = registre('ATTENTE_DECISION', false, corps(cap));
   x = verifier(dir); assert.match(x.sortie, /aucun order-\*\.json/, `E2: ${cap} sans ordre refusé\n${x.sortie}`);
 }
