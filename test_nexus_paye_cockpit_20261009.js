@@ -134,7 +134,7 @@ verifier('le bandeau porte le mois et sa navigation',
 verifier('le bandeau porte l’état du dossier',
   /en préparation|en vérification|prêt pour comptabilité|transmis/.test(ecran()));
 verifier('le bandeau porte les trois actions principales',
-  dans(ecran(), 'Nouvelle saisie') && dans(ecran(), 'Vérifications') && dans(ecran(), 'Transmettre à la comptable'));
+  dans(ecran(), 'Nouvelle saisie') && dans(ecran(), 'Vérifications') && dans(ecran(), 'Transmettre à la comptabilité'));
 verifier('les six indicateurs sont sur une seule ligne',
   dans(ecran(), 'class="kpirow"') && compter(ecran(), /data-kpi="/g) === 6);
 verifier('… et chacun est un bouton, donc cliquable au clavier comme à la souris',
@@ -182,8 +182,8 @@ verifier('une anomalie d’heures offre Confirmer, Ne pas retenir et Corriger',
 // vocabulaire reste celui de la doctrine PAYE — on transmet un montant
 // saisi, ou l'on déclare l'écart sans impact paie.
 vm.runInContext(`SELECTION = 'e5'; ONGLET = 'fiche'; render();`, ctx);
-verifier('un écart offre Sans impact paie, Transmettre à la comptable et sa source',
-  dans(ecran(), '>Sans impact paie<') && dans(ecran(), '>Transmettre à la comptable<')
+verifier('un écart offre Sans impact paie, Transmettre à la comptabilité et sa source',
+  dans(ecran(), '>Sans impact paie<') && dans(ecran(), '>Transmettre à la comptabilité<')
   && dans(ecran(), 'Voir le contrôle Verify ↗'));
 // L'écart se lit depuis la fiche du salarié ET depuis la liste du mois :
 // deux chemins de lecture, une seule décision. Ce qui est interdit, c'est
@@ -321,7 +321,7 @@ vm.runInContext("SITE = 'vito-sainte-marie'; render();", ctx);
 // contrôle — avec son initial et son final — et non comme une retenue.
 const lignes = vm.runInContext("NexusPayeMoteur.lignesExport(RAPPORT)", ctx);
 verifier('l’export comptable produit des lignes', Array.isArray(lignes) && lignes.length > 0);
-verifier('un écart encore à arbitrer ne part pas chez la comptable',
+verifier('un écart encore à arbitrer ne part pas chez la comptabilité',
   !lignes.some(l => l.type === 'ecart_caisse'));
 
 // Une fois l'écart arbitré, il doit partir — mais comme information de

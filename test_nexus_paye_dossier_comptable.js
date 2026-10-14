@@ -1,7 +1,7 @@
 // NEXUS PAYE — recette du dossier comptable sur AOÛT 2026 (03/09/2026).
 //
 // Mois de référence demandé par Frédéric : NEXUS doit retrouver, salarié
-// par salarié, les variables réellement communiquées à la comptable —
+// par salarié, les variables réellement communiquées à la comptabilité —
 // présence, absences, congés, maladie/maternité, retards, heures
 // supplémentaires, jours fériés, éléments financiers — et rien d'autre.
 //
@@ -220,7 +220,7 @@ verifier('un retard non confirmé est signalé en attente, et jamais compté',
 // ── 4. La synthèse mensuelle est la somme exacte des fiches ──────────────
 // Angélique est « renfort » : NEXUS la PROPOSE d'office en paie, mais tant
 // que personne n'a confirmé son rattachement elle figure au dossier avec
-// le statut « donnée manquante » — la comptable doit la voir, pas la
+// le statut « donnée manquante » — la comptabilité doit la voir, pas la
 // découvrir absente.
 verifier('synthèse : 4 salariés au dossier, dont un rattachement à confirmer',
   D.synthese.salaries === 4 && D.synthese.donneeManquante === 1);

@@ -199,7 +199,7 @@ async function chargement(fuseau, echec) {
     && dans(ecran(), 'Reste à régulariser au 31/08/2026'));
   verifier('l’écart en attente de validation est nommé, pas compté', dans(ecran(), '1 écart en attente de validation'));
   verifier('ce que le manager transmet reste séparé et sans incidence automatique',
-    dans(ecran(), 'Transmis à la comptable, saisi par le manager — sans incidence automatique'));
+    dans(ecran(), 'Transmis à la comptabilité, saisi par le manager — sans incidence automatique'));
 
   // ── 2. Aucun versement fabriqué par la correction à la validation ───────
   verifier('aucune case « Régularisations encaissées » ne survit dans l’écran',

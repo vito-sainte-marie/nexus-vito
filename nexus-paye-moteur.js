@@ -1068,7 +1068,7 @@
 
   // ───────────────────────────────────────────────────────────────────────
   // Variables comptables agrégées (03/09/2026, « dernier kilomètre »
-  // demandé par Frédéric). La comptable ne lit pas des événements
+  // demandé par Frédéric). La comptabilité ne lit pas des événements
   // journaliers : elle lit, salarié par salarié, un petit nombre de
   // variables. Ce bloc en est la SEULE source — la carte salarié à
   // l'écran et le dossier comptable PDF consomment le même calcul, jamais
@@ -1092,7 +1092,7 @@
     const enAttente = type => attente.filter(i => i.typeItem === type).length;
 
     // Un événement RH compte ses JOURS COUVERTS DANS LE MOIS, pas son
-    // nombre de lignes : c'est ce que la comptable reporte.
+    // nombre de lignes : c'est ce que la comptabilité reporte.
     const groupeEvenements = filtre => {
       const evts = retenus.filter(i => i.evenementRH && filtre(i));
       return {

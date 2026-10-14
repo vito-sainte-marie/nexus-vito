@@ -56,7 +56,7 @@
     return v ? `${v} ${unite}${v > 1 && unite !== 'h' ? 's' : ''}` : '—';
   }
 
-  // Période couverte par un événement RH, exprimée telle que la comptable
+  // Période couverte par un événement RH, exprimée telle que la comptabilité
   // en a besoin : ce qui tombe DANS le mois, plus le rappel de la période
   // réelle quand l'événement déborde (une maternité de juillet à janvier
   // ne doit pas ressembler à une absence d'un mois).
@@ -148,7 +148,7 @@
     const label = moisLabel(dossier.periode);
     const rapport = await global.NexusPdfMoteur.creerRapport({
       titre: `NEXUS PAYE — Dossier comptable ${label}`,
-      sujet: 'Variables de paie préparées par NEXUS — la comptable établit le bulletin.',
+      sujet: 'Variables de paie préparées par NEXUS — la comptabilité établit le bulletin.',
       entete: { app: 'NEXUS PAYE', sousTitre: `Dossier comptable · ${label}` },
     });
 
@@ -162,7 +162,7 @@
       nomEntreprise: opts.nomEntreprise || opts.site || 'Commerce non identifié',
       periodeBornes: label.charAt(0).toUpperCase() + label.slice(1),
       accroche: 'Variables de paie préparées par NEXUS',
-      sousAccroche: 'La comptable reste responsable du bulletin.',
+      sousAccroche: 'La comptabilité reste responsable du bulletin.',
       mentionBas: `Généré le ${jjmmaaaa(String(dossier.genereLe).slice(0, 10))}`,
     });
 

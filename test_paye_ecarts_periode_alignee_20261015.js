@@ -93,3 +93,15 @@ console.log(n + ' vérifications OK');
   assert.ok(/\.lien-lisible\{color:var\(--cyan\)/.test(h),'couleur du lien du bas absente');
   console.log('lien du bas lisible : OK');
 }
+
+// Langage manager : plus de message technique, infobulle dédiée, vocabulaire neutre (« comptabilité »).
+{
+  const fs=require('fs'),assert=require('assert');
+  const h=fs.readFileSync(__dirname+'/NEXUS-Paye-v1.html','utf8');
+  assert.ok(!/consolide en lecture seule/.test(h),'message technique encore présent');
+  assert.ok(/Comprendre les écarts de caisse/.test(h) && /Les écarts ne sont pas automatiquement déduits du salaire/.test(h));
+  assert.ok(/ecartsCalcul:\['Comment sont calculés les écarts \?'/.test(h) && /surplus de versement/.test(h),'infobulle technique absente');
+  for(const f of ['NEXUS-Paye-v1.html','nexus-paye-moteur.js','nexus-paye-dossier-pdf.js','nexus-paye-regularisations.js','NEXUS-App-v1.html','nexus-desktop.js'])
+    assert.ok(!/\b[Ll]a comptable\b/.test(fs.readFileSync(__dirname+'/'+f,'utf8')),'formulation genrée dans '+f);
+  console.log('message manager et vocabulaire neutre : OK');
+}

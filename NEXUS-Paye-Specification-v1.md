@@ -1,6 +1,6 @@
 # NEXUS Paye — Spécification de cadrage v1
 
-**Statut au 02/09/2026 : socle v1 construit.** L'écran `NEXUS-Paye-v1.html`, son moteur pur, son chargeur de données et son schéma Supabase réalisent désormais la préparation mensuelle. PAYE reste volontairement un préparateur de variables pour la comptable : il ne fabrique aucun bulletin et n'applique aucune retenue automatiquement.
+**Statut au 02/09/2026 : socle v1 construit.** L'écran `NEXUS-Paye-v1.html`, son moteur pur, son chargeur de données et son schéma Supabase réalisent désormais la préparation mensuelle. PAYE reste volontairement un préparateur de variables pour la comptabilité : il ne fabrique aucun bulletin et n'applique aucune retenue automatiquement.
 
 Origine : demande de Frédéric le 29/08/2026, après la correction du P0 v2.285 (attribution des écarts Verify), posant la question « les employés voient-ils exactement les mêmes écarts que le manager ? » et proposant, si ce n'est pas le cas, une architecture "une seule vérité, plusieurs vues" avec `discrepancy_id`, statut `CONTESTÉ`, verrou PAYE et contrôle de cohérence automatique.
 
@@ -152,7 +152,7 @@ La saisie manuelle accepte une période inclusive `Du / Au`. NEXUS crée une lig
 
 ## 11. Dernier kilomètre : d'un moteur de contrôle à un produit comptable (03/09/2026)
 
-Retour de Frédéric après recette : le moteur métier est jugé proche de la validation, la gestion des absences longues va dans la bonne direction, mais l'interface reste à simplifier et **la sortie destinée à la comptable n'est pas validée, parce que le résultat principal du module est encore un CSV**. Le moteur existant est conservé — aucune reprise à zéro.
+Retour de Frédéric après recette : le moteur métier est jugé proche de la validation, la gestion des absences longues va dans la bonne direction, mais l'interface reste à simplifier et **la sortie destinée à la comptabilité n'est pas validée, parce que le résultat principal du module est encore un CSV**. Le moteur existant est conservé — aucune reprise à zéro.
 
 ### 11.1 Un événement RH est une période, jamais une collection de journées (P0)
 
@@ -196,11 +196,11 @@ Trois statuts, et trois seulement :
 | **À vérifier** | Les données sont là, un arbitrage reste à rendre. |
 | **Donnée manquante** | Il manque un paramétrage (rattachement non confirmé, heures manuelles absentes) ou toute donnée du mois. |
 
-Le statut du mois est celui du salarié **le plus en retard**, jamais une moyenne. Un salarié proposé d'office par son rôle mais dont le rattachement n'a jamais été confirmé figure au dossier en « donnée manquante » : la comptable doit le voir, pas le découvrir absent.
+Le statut du mois est celui du salarié **le plus en retard**, jamais une moyenne. Un salarié proposé d'office par son rôle mais dont le rattachement n'a jamais été confirmé figure au dossier en « donnée manquante » : la comptabilité doit le voir, pas le découvrir absent.
 
 ### 11.5 Modales NEXUS à la place des boîtes du navigateur (P1)
 
-`prompt()`, `alert()` et `confirm()` ont disparu de l'écran PAYE (13 appels supprimés, aucun restant). Toutes les saisies — date de reprise, montant transmis à la comptable, rattachement d'un salarié, réouverture du dossier, messages d'erreur — passent par une modale graphique à champs typés, avec validation avant fermeture. Motif : ces boîtes ne portent ni le vocabulaire ni les garde-fous de NEXUS, et sur iOS en PWA elles sont parfois purement ignorées — un manager pouvait croire avoir répondu à une question qui ne lui avait jamais été posée.
+`prompt()`, `alert()` et `confirm()` ont disparu de l'écran PAYE (13 appels supprimés, aucun restant). Toutes les saisies — date de reprise, montant transmis à la comptabilité, rattachement d'un salarié, réouverture du dossier, messages d'erreur — passent par une modale graphique à champs typés, avec validation avant fermeture. Motif : ces boîtes ne portent ni le vocabulaire ni les garde-fous de NEXUS, et sur iOS en PWA elles sont parfois purement ignorées — un manager pouvait croire avoir répondu à une question qui ne lui avait jamais été posée.
 
 ### 11.6 Vocabulaire (P2)
 
@@ -214,7 +214,7 @@ Le statut du mois est celui du salarié **le plus en retard**, jamais une moyenn
 
 Le mois de référence est encodé dans deux tests rejouables :
 
-- `test_nexus_paye_dossier_comptable.js` — 35 vérifications : l'événement RH reste unique et borné au mois, chaque salarié retrouve les variables réellement communiquées à la comptable, les statuts se déduisent correctement et la synthèse est la somme exacte des fiches ;
+- `test_nexus_paye_dossier_comptable.js` — 35 vérifications : l'événement RH reste unique et borné au mois, chaque salarié retrouve les variables réellement communiquées à la comptabilité, les statuts se déduisent correctement et la synthèse est la somme exacte des fiches ;
 - `test_nexus_paye_ecran_rendu.js` — 27 vérifications : l'écran est **réellement exécuté** sur un DOM minimal, ce qu'aucun test ne faisait jusqu'ici. Un gabarit peut contenir tous les bons mots et lever une exception à l'exécution ; le manager voit alors un écran vide, sans le moindre message.
 
 Ces deux tests s'ajoutent à `test_nexus_paye_evenement_rh.js` (44 vérifications, dont le refus du dépliage par journée) et à `test_nexus_paye_periode_manuelle.js`, dont le scénario encodait l'ancien comportement — un congé saisi jour par jour — et encode désormais son refus.

@@ -7,7 +7,7 @@ assert.ok(html.includes('id="reviewSection"') && html.includes('id="employeesSec
 // Finition du 09/10 (§4 du mandat) : l'action principale nomme ce qu'elle fait.
 assert.ok(html.includes('Traiter les'));
 assert.ok(html.includes('Informations sans impact paie'));
-assert.ok(html.includes('Transmettre à la comptable') && html.includes('Sans impact paie'));
+assert.ok(html.includes('Transmettre à la comptabilité') && html.includes('Sans impact paie'));
 assert.ok(html.includes('Écart de caisse') && html.includes('ne devient jamais automatiquement une dette'));
 assert.ok(html.includes('Initial') && html.includes('Final validé') && html.includes('Impact paie'));
 assert.ok(html.includes('infoModal') && html.includes('data-info='));
