@@ -32,6 +32,9 @@
  */
 
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 
 const assert = require('assert');
 const fs = require('fs');
@@ -91,7 +94,7 @@ function bac(mut = {}) {
 
   // Les outils RÉELS du dépôt sous test. C'est ce qui rend l'épreuve sensible
   // à une mutation de la source : casser un module ici casse la chaîne là-bas.
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(depot, 'outils'), { recursive: true });
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(depot, 'outils'), { recursive: true, filter: horsMutants });
 
   const registre = {
     protocol: 'nexus-handoff/2',

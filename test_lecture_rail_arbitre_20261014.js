@@ -8,6 +8,9 @@
 // dépôt git jetable qui contient une copie des outils. Les mutations
 // débranchent chaque garde dans cette copie : chacune doit rougir son épreuve.
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -33,7 +36,7 @@ const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', env: 
 // docs/handoff, un lien symbolique, un seul commit.
 function depot(mutation) {
   const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rail-arbitre-')));
-  fs.cpSync(path.join(SRC, 'outils'), path.join(d, 'outils'), { recursive: true });
+  fs.cpSync(path.join(SRC, 'outils'), path.join(d, 'outils'), { recursive: true, filter: horsMutants });
   const ecrire = (f, t) => { fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true }); fs.writeFileSync(path.join(d, f), t); };
   fs.mkdirSync(path.join(d, 'docs/skills/nexus-handoff-fast-track'), { recursive: true });
   ecrire('docs/handoff/ARBITRAGES-ACQUIS.json', '{"arbitrages":[]}\n');
