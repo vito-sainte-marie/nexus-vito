@@ -103,16 +103,6 @@ on:
 jobs:
   non-regression:
     runs-on: ubuntu-latest
-    # Quatre identifiants, pour le seul job qui en a besoin
-    # (enregistrement-incident, needs: non-regression). Aucune permission
-    # nouvelle : un output de job n'ouvre aucun droit, il transporte une
-    # valeur déjà écrite par une étape de ce job vers un job qui la lit.
-    outputs:
-      incident_a_enregistrer: ${{ steps.boucle_autonome.outputs.alerte_humaine }}
-      incident_code: ${{ steps.boucle_autonome.outputs.motif }}
-      incident_lot: ${{ steps.boucle_autonome.outputs.lot }}
-      incident_rail: ${{ steps.boucle_autonome.outputs.rail }}
-      incident_sha: ${{ steps.boucle_autonome.outputs.sha }}
     steps:
       # `fetch-depth: 0` récupère tout l'historique, branche `production`
       # comprise : le contrôle d'immuabilité des migrations la compare à la
@@ -762,13 +752,6 @@ jobs:
           elif [ "$notifier" = true ]; then
             echo "alerte_humaine=1" >> "$GITHUB_OUTPUT"
             echo "motif=$verdict" >> "$GITHUB_OUTPUT"
-            # Trois identifiants de plus, lus par le job d'enregistrement
-            # d'incident (needs: non-regression) : il ne voit pas les env de
-            # cette étape, seulement ce qui est publié ici. `motif` sert déjà
-            # de `code` à classerArret — c'est la même valeur que `$verdict`.
-            echo "lot=$LOT" >> "$GITHUB_OUTPUT"
-            echo "rail=$RAIL" >> "$GITHUB_OUTPUT"
-            echo "sha=$SHA_RAIL" >> "$GITHUB_OUTPUT"
             node outils/etat-maillon.js HUMAN_DECISION_REQUIRED BOUCLE_ARRETEE --maillon "$M" --motif "$verdict : $motif" --condition "$verdict" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "Frédéric tranche ; la boucle reste arrêtée"
           else
             node outils/etat-maillon.js NO_WORK BOUCLE_AU_REPOS --maillon "$M" --motif "$verdict : $motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
@@ -1657,127 +1640,3 @@ jobs:
               --lot "${LOT:-(lot non publié par la qualification)}"
           fi
           exit $CODE
-
-  # ── Enregistrement automatique d'incident — condition 4, lot successeur de
-  # decision-4 (NEXUS-REPARATION-HANDOFF-1-20261014), implémenté dans
-  # NEXUS-INCIDENTS-CI-1-20261014. ──────────────────────────────────────────
-  #
-  # Jusqu'ici `outils/enregistrer-incident.js` qualifiait un arrêt et savait
-  # écrire une ligne, mais rien ne l'appelait en CI : l'unique incident réel
-  # (INC-1b3e3a7d6d30) a été enregistré par un commit manuel d'une session
-  # Claude. Ce job ferme ce dernier maillon, pour UN SEUL point d'entrée : le
-  # `verdict` que la boucle autonome (job non-regression, étape
-  # `boucle_autonome`) classe elle-même comme devant notifier un humain
-  # (`notifier=true`, publié ici sous `motif`). `classerArret` (P3,
-  # watchdog-stagnation.js) décide seul si ce verdict est un arrêt humain
-  # voulu — alors `NON_ENREGISTRE`, rien n'est écrit — ou un incident système.
-  # Aucun second classeur : ce job ne fait que transporter les cinq
-  # identifiants déjà publiés par `non-regression` et appeler l'outil.
-  #
-  # LEASE. Le `checkout` de ce job lit la tête du rail au moment où ce job
-  # démarre (pas celle lue par `non-regression`, qui peut avoir vieilli
-  # pendant la file d'attente de concurrency ci-dessous) : c'est elle, la
-  # lease. Le commit automatique est construit SUR cette tête, et le `push`
-  # final est SANS FORCE — s'il échoue, c'est que le rail a bougé sous la
-  # lease, et ce run s'arrête (FAILED, PUSH_REFUSE) plutôt que de forcer.
-  # Même principe, même forme que l'étape « matérialisation » du job
-  # `non-regression` (lease = tête lue juste avant d'écrire, push sans force).
-  #
-  # CONCURRENCE DÉDIÉE. Un groupe `concurrency` propre à CE job, distinct de
-  # celui (absent) du job `non-regression` : deux runs concurrents de ce job
-  # sur la même branche se mettent en FILE, jamais en annulation
-  # (`cancel-in-progress: false`) — annuler effacerait un enregistrement en
-  # cours d'écriture sans que personne ne le revoie. Le job `non-regression`,
-  # lui, continue de tourner sans file d'attente : cette concurrence ne
-  # touche QUE l'enregistrement d'incident, jamais la suite de tests.
-  #
-  # IDEMPOTENCE. L'identifiant d'un incident est `hash(code, lot, sha)`
-  # (identique pour tout rejeu) ; `enregistrer-incident.js` ne commit QUE
-  # lorsque son propre verdict est `ENREGISTRE` — `DEJA_ENREGISTRE` et
-  # `NON_ENREGISTRE` ne touchent aucun fichier, donc ce job rend `NO_WORK` sans
-  # geste git. Un rejeu de ce job (reprise manuelle, re-run GitHub) sur le même
-  # verdict ne change donc pas un octet.
-  #
-  # ABSENCE DE RÉCURSION ET DE RELANCE. Ce job n'a ni `GH_TOKEN`, ni `gh`, ni
-  # appel à `repository_dispatch` ou `workflow_dispatch` : le seul geste
-  # d'écriture est un `git push` avec les identifiants persistés par
-  # `actions/checkout`, qui ne déclenche aucun workflow sur ce dépôt (même
-  # garantie que l'étape « matérialisation »). Une seule tentative : un push
-  # refusé s'arrête (FAILED), il ne boucle pas sur un nouveau fetch dans le
-  # même run — la reprise est le prochain push sur le rail, pas une boucle
-  # locale.
-  #
-  # AUCUNE PERMISSION NOUVELLE NI ÉLARGIE. Ce job ne déclare pas de
-  # `permissions:` propre : il hérite du bloc `permissions:` du workflow,
-  # inchangé par ce lot (diff strictement vide, mesuré par
-  # `test_permissions_workflow_20260908.js`, qui scanne tout le fichier et pas
-  # seulement ce bloc). Un `permissions:` de job aurait AJOUTÉ une occurrence
-  # de `contents: write` que cette épreuve aurait comptée comme une permission
-  # intruse — la single source de vérité du jeton reste le bloc du haut.
-  enregistrement-incident:
-    needs: non-regression
-    if: always() && needs.non-regression.outputs.incident_a_enregistrer == '1'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: nexus-incidents-enregistrement-${{ github.ref }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ needs.non-regression.outputs.incident_rail }}
-          fetch-depth: 1
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-
-      - name: Enregistrer l'incident classé par la boucle autonome (lease sur le rail)
-        id: enregistrement
-        env:
-          CODE: ${{ needs.non-regression.outputs.incident_code }}
-          LOT: ${{ needs.non-regression.outputs.incident_lot }}
-          RAIL: ${{ needs.non-regression.outputs.incident_rail }}
-          SHA_SOURCE: ${{ needs.non-regression.outputs.incident_sha }}
-        run: |
-          set +e
-          set -uo pipefail
-          M=enregistrement-incident
-          echec() {
-            node outils/etat-maillon.js FAILED "$1" --maillon "$M" \
-              --condition "$2" --prochaine-action "$3" \
-              --sha "${SHA_SOURCE:-(sha non lisible)}" --branche "${RAIL:-(branche non lisible)}" --lot "${LOT:-(lot non lisible)}"
-            exit 1
-          }
-          [ -n "${CODE:-}" ] && [ -n "${LOT:-}" ] && [ -n "${RAIL:-}" ] && [ -n "${SHA_SOURCE:-}" ] \
-            || echec IDENTIFIANTS_INCOMPLETS \
-              "code, lot, rail et sha sont tous publiés par l'étape boucle_autonome du job non-regression" \
-              "relire la sortie du job non-regression ; aucun enregistrement sans les quatre identifiants"
-          MAINTENANT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          # `--derniere-activite` = l'instant courant : ce job réagit au même
-          # verdict que celui qui vient d'être classé, dans la même minute —
-          # ce n'est pas la mesure de l'ancienneté d'une orpheline (watchdog,
-          # hors du périmètre de ce lot), seulement l'horloge exigée par
-          # `classerArret` pour calculer `minutes`.
-          RESULTAT=$(node outils/enregistrer-incident.js --code "$CODE" --lot "$LOT" --sha "$SHA_SOURCE" \
-            --branche "$RAIL" --run "$GITHUB_RUN_ID" --maintenant "$MAINTENANT" --derniere-activite "$MAINTENANT" --ecrire)
-          [ $? = 0 ] || echec OUTIL_REFUSE "enregistrer-incident.js rend un verdict exploitable" "lire le journal de ce run ; rien n'a été écrit"
-          ETAT=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).etat)" "$RESULTAT")
-          if [ "$ETAT" != "ENREGISTRE" ]; then
-            node outils/etat-maillon.js NO_WORK "$ETAT" --maillon "$M" \
-              --motif "$CODE sur $LOT : $RESULTAT" --sha "$SHA_SOURCE" --branche "$RAIL" --lot "$LOT"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/learning/INCIDENTS.jsonl
-          [ -f docs/learning/REPETITIONS.jsonl ] && git add docs/learning/REPETITIONS.jsonl
-          git commit --quiet -m "learning($LOT): enregistrement automatique d'un incident ($CODE, run $GITHUB_RUN_ID)" \
-            || echec COMMIT_REFUSE "git commit accepte la ligne ajoutée par enregistrer-incident.js" "rejouer ce job ; rien n'a été poussé"
-          # Le push EST la lease : sans force, il échoue si le rail a bougé
-          # depuis le checkout de ce job, et ce run s'arrête au lieu de forcer.
-          git push --quiet origin "HEAD:refs/heads/$RAIL" \
-            || echec PUSH_REFUSE "le rail $RAIL n'a pas avancé pendant ce job (push sans force — lease)" \
-              "rejouer ce job : il relira le rail à jour et rendra DEJA_ENREGISTRE si l'incident a déjà été écrit par un autre run"
-          node outils/etat-maillon.js EXECUTE INCIDENT_ENREGISTRE --maillon "$M" \
-            --motif "$LOT : incident $CODE enregistré sur $RAIL ($(git rev-parse --short HEAD))" \
-            --sha "$SHA_SOURCE" --branche "$RAIL" --lot "$LOT"

@@ -201,18 +201,8 @@ function examiner(e) {
 // détection et une trace : l'état rendu n'arrête jamais la CI.
 const SEUIL_ORPHELINE_MINUTES = 30;    // provisoire (decision-2)
 
-// STOP_HUMAIN, VERDICT_REPETE, PLAFOND_LOT_ATTEINT et PLAFOND_JOUR_ATTEINT
-// ajoutés le 14/10/2026 (lot NEXUS-INCIDENTS-CI-1) : ce sont les quatre codes
-// de `garde-boucle-autonome.js` que `relancer-claude-ci.js` place dans
-// `A_NOTIFIER` — donc les seuls, avec BLOQUE et CONDITIONS_NON_PROUVEES, que
-// le câblage CI de l'enregistrement d'incident peut recevoir. Sans cette
-// entrée ils tombaient en famille INCONNU, `humain` valait `false`, et un
-// plafond de sécurité délibéré (3 tours/lot, 10/jour) ou un verdict répété
-// se serait enregistré comme un incident système — exactement ce que la
-// condition « arrêts de sécurité préservés en NON_ENREGISTRE » interdit.
 const FAMILLES = Object.freeze({
-  DECISION_HUMAINE: ['DECISION_RESERVEE_A_UN_HUMAIN', 'STOP_ARBITRE', 'BLOQUE', 'DECISION_HUMAINE_REQUISE', 'REPRISES_EPUISEES',
-    'STOP_HUMAIN', 'VERDICT_REPETE', 'PLAFOND_LOT_ATTEINT', 'PLAFOND_JOUR_ATTEINT'],
+  DECISION_HUMAINE: ['DECISION_RESERVEE_A_UN_HUMAIN', 'STOP_ARBITRE', 'BLOQUE', 'DECISION_HUMAINE_REQUISE', 'REPRISES_EPUISEES'],
   OUBLI_DE_FORMAT:  ['CONDITIONS_NON_PROUVEES', 'IDENTIFIANT_INVALIDE', 'EXECUTANT_INCONNU', 'CAPACITE_INCONNUE'],
   CAPACITE_MANQUANTE: ['CANAL_INCAPABLE'],
   CI_ROUGE:         ['CI_ROUGE'],
