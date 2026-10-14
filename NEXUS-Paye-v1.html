@@ -420,7 +420,7 @@ function renderDecisions(){
   ${renderLignesRegul(ec)}
   <div class="ligne${ec.retenu?'':' muet'}">Transmis à la comptable, saisi par le manager — sans incidence automatique<b>${euros(ec.retenu)}</b></div>
  </div>
- <div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale : rien n’est transmis sans un montant saisi ici, en connaissance de cause.</div>
+ <div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale : rien n’est transmis sans un montant saisi ici, en connaissance de cause. <a id="lienAnalyseEcarts" href="NEXUS-Analyse-Ecarts-v1.html?periode=perso&amp;date_debut=${MOIS}&amp;date_fin=${dernierJourMois()}">Voir l’analyse des écarts de cette même période</a>.</div>
  ${ec.lignes.length?ec.lignes.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join(''):'<div class="ok">✓ Aucun écart de caisse sur la période.</div>'}
  ${informations.length?`<div class="bloc-titre">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin-top:0">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}`:''}`;
 }

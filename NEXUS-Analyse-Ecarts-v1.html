@@ -196,6 +196,11 @@
   .rg-ligne.coche{border-color:var(--cyan);}
   .rg-chiffres{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; margin-top:4px;}
   .rg-pied{margin-top:10px;}
+.periode-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .periode-chips button { font:inherit; font-size:12px; padding:7px 11px; border-radius:999px; border:1px solid var(--border, #2a3340); background:transparent; color:var(--text-mid, inherit); cursor:pointer; }
+  .periode-chips button.actif { background:var(--cyan, #22d3ee); color:#06202a; border-color:var(--cyan, #22d3ee); font-weight:700; }
+  .periode-libelle { font-size:15px; font-weight:700; }
+  .periode-note { font-size:11px; line-height:1.5; color:var(--text-mid, inherit); margin-top:6px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
@@ -221,6 +226,18 @@
 
   <div class="section">
 
+    <!-- PÉRIODE ANALYSÉE — mois civil courant par défaut (station), historique sur choix explicite -->
+    <div class="card" id="cartePeriode">
+      <div class="periode-chips" id="periodeChips" role="group" aria-label="Période analysée">
+        <button type="button" data-periode="mois">Ce mois</button>
+        <button type="button" data-periode="precedent">Mois précédent</button>
+        <button type="button" data-periode="perso">Période personnalisée</button>
+        <button type="button" data-periode="tout">Tout l'historique</button>
+      </div>
+      <div class="periode-libelle" id="periodeLibelle">…</div>
+      <div class="periode-note" id="periodeNote">Écarts constatés à leur date ; versements de régularisation comptés au jour de leur encaissement, même s'ils soldent un écart d'un mois antérieur. Le solde restant est un état arrêté à la fin de la période, pas un mouvement du mois.</div>
+    </div>
+
     <!-- FILTRES (§12) -->
     <div class="card">
       <div class="filtres-toggle" id="filtresToggle">
@@ -230,11 +247,11 @@
       <div class="filtres-corps" id="filtresCorps">
         <div class="filtre-row">
           <div>
-            <label>Depuis</label>
+            <label>Depuis (période personnalisée)</label>
             <input type="date" id="fDateDebut">
           </div>
           <div>
-            <label>Jusqu'à</label>
+            <label>Jusqu'au (période personnalisée)</label>
             <input type="date" id="fDateFin">
           </div>
         </div>
@@ -300,9 +317,9 @@
           <div class="kpi-sous">Somme signée — ne remplace jamais les lectures ci-dessous.</div>
         </div>
         <div class="kpi-card large montant-retenu" id="kpiCardRetenu">
-          <div class="kpi-label"><span>Montant retenu</span><span class="kpi-fleche">Détail →</span></div>
+          <div class="kpi-label"><span>Manques validés</span><span class="kpi-fleche">Détail →</span></div>
           <div class="kpi-valeur" id="kpiMontantRetenu">…</div>
-          <div class="kpi-sous">Un excédent n'est jamais un crédit automatique — seul un manque retenu compte ici.</div>
+          <div class="kpi-sous">Manques de caisse validés seulement. Ni dette du salarié, ni retenue sur salaire : aucune déduction n'est décidée ici.</div>
         </div>
         <div class="kpi-card" id="kpiCardPositifs">
           <div class="kpi-label"><span>Excédents</span><span class="kpi-fleche">→</span></div>
@@ -422,9 +439,68 @@
   // ------------------------------------------------------------
   // FILTRES — lus/écrits dans l'URL (§12).
   // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // PÉRIODE ANALYSÉE — mois civil courant par défaut, au jour de la station.
+  // Les champs date du formulaire restent la source unique lue par les
+  // indicateurs, les listes et le relevé : un seul intervalle pour tous.
+  // ------------------------------------------------------------
+  let PERIODE_MODE = 'mois';
+  let FUSEAU_PERIODE = NexusEcartsDonnees.FUSEAU_PAR_DEFAUT;
+  const CLE_PERIODE_SESSION = 'nexus.analyse-ecarts.periode';
+
+  function jourCourantStation() {
+    return NexusEcartsDonnees.jourDeLaStation(new Date(), FUSEAU_PERIODE);
+  }
+  function memoriserPeriode() {
+    try {
+      sessionStorage.setItem(CLE_PERIODE_SESSION, JSON.stringify({
+        mode: PERIODE_MODE,
+        dateDebut: document.getElementById('fDateDebut').value || '',
+        dateFin: document.getElementById('fDateFin').value || '',
+      }));
+    } catch (e) { /* stockage indisponible : la période reste dans l'URL */ }
+  }
+  function periodeMemorisee() {
+    try { return JSON.parse(sessionStorage.getItem(CLE_PERIODE_SESSION) || 'null') || {}; } catch (e) { return {}; }
+  }
+  // Mois courant / précédent : bornes recalculées au jour de la station à
+  // chaque rafraîchissement (une page restée ouverte après minuit reste juste).
+  function synchroniserPeriode() {
+    if (PERIODE_MODE === 'mois' || PERIODE_MODE === 'precedent') {
+      const b = NexusEcartsDonnees.bornesDePeriode(PERIODE_MODE, jourCourantStation());
+      document.getElementById('fDateDebut').value = b.dateDebut;
+      document.getElementById('fDateFin').value = b.dateFin;
+    } else if (PERIODE_MODE === 'tout') {
+      document.getElementById('fDateDebut').value = '';
+      document.getElementById('fDateFin').value = '';
+    }
+    const d = document.getElementById('fDateDebut').value || '';
+    const fin = document.getElementById('fDateFin').value || '';
+    document.getElementById('periodeLibelle').textContent =
+      NexusEcartsDonnees.libellePeriode({ mode: PERIODE_MODE, dateDebut: d, dateFin: fin });
+    document.querySelectorAll('#periodeChips button').forEach(b => b.classList.toggle('actif', b.dataset.periode === PERIODE_MODE));
+    memoriserPeriode();
+  }
+  function choisirPeriode(mode) {
+    PERIODE_MODE = mode;
+    if (mode === 'perso') {
+      // Part de la période affichée, que le manager ajuste ensuite.
+      document.getElementById('filtresCorps').classList.add('ouvert');
+    }
+    rafraichirEcran();
+  }
+  function ouvrirSurPeriode(filtresUrl) {
+    const r = NexusEcartsDonnees.resoudrePeriode(filtresUrl, jourCourantStation(), periodeMemorisee());
+    PERIODE_MODE = r.mode;
+    filtresUrl.dateDebut = r.dateDebut;
+    filtresUrl.dateFin = r.dateFin;
+    return filtresUrl;
+  }
+
   function litFiltresDepuisUrl() {
     const p = new URLSearchParams(window.location.search);
     return {
+      periode: p.get('periode') || '',
       dateDebut: p.get('date_debut') || '',
       dateFin: p.get('date_fin') || '',
       quart: p.get('quart') || '',
@@ -436,8 +512,13 @@
   }
   function ecritFiltresDansUrl(f) {
     const p = new URLSearchParams();
-    if (f.dateDebut) p.set('date_debut', f.dateDebut);
-    if (f.dateFin) p.set('date_fin', f.dateFin);
+    // Le mode porte la période ; les dates ne sont écrites que pour une
+    // période personnalisée (un mois courant se recalcule à chaque ouverture).
+    if (f.periode) p.set('periode', f.periode);
+    if (f.periode === 'perso') {
+      if (f.dateDebut) p.set('date_debut', f.dateDebut);
+      if (f.dateFin) p.set('date_fin', f.dateFin);
+    }
     if (f.quart) p.set('quart', f.quart);
     if (f.activite) p.set('activite', f.activite);
     if (f.employeeId) p.set('employe', f.employeeId);
@@ -448,6 +529,7 @@
   }
   function litFiltresDepuisFormulaire() {
     return {
+      periode: PERIODE_MODE,
       dateDebut: document.getElementById('fDateDebut').value || '',
       dateFin: document.getElementById('fDateFin').value || '',
       quart: document.getElementById('fQuart').value || '',
@@ -471,7 +553,10 @@
   // (observé à tort comme si "0" concernait les écarts). Le badge est
   // maintenant masqué à zéro, et explicite ("2 filtres actifs") sinon.
   function majBadgeFiltresActifs(f) {
-    const n = Object.values(f).filter(Boolean).length;
+    // La période a son propre bandeau : seuls les autres filtres comptent,
+    // plus un si la période n'est pas le mois courant par défaut.
+    const n = ['quart', 'activite', 'employeeId', 'signe', 'statut'].filter(k => f[k]).length
+      + (f.periode && f.periode !== 'mois' ? 1 : 0);
     const el = document.getElementById('filtresCompte');
     if (n === 0) { el.style.display = 'none'; el.textContent = ''; return; }
     el.style.display = 'inline-block';
@@ -489,6 +574,7 @@
   // try/catch dupliqué à chaque site d'appel.
   function rafraichirEcran() {
     try {
+      synchroniserPeriode();
       const f = litFiltresDepuisFormulaire();
       ecritFiltresDansUrl(f);
       majBadgeFiltresActifs(f);
@@ -603,7 +689,7 @@
           <div><div class="edg-label">Excédents constatés</div><div class="edg-valeur pos">${fmtEuro(a.excedentsConstates)}</div></div>
           <div><div class="edg-label">Manques constatés</div><div class="edg-valeur neg">${fmtEuro(a.manquesConstates)}</div></div>
           <div><div class="edg-label">Régularisés</div><div class="edg-valeur">${a.regularises}</div></div>
-          <div><div class="edg-label">Montant retenu</div><div class="edg-valeur ${a.montantRetenu < 0 ? 'neg' : ''}">${fmtEuro(a.montantRetenu)}</div></div>
+          <div><div class="edg-label">Manques validés</div><div class="edg-valeur ${a.montantRetenu < 0 ? 'neg' : ''}">${fmtEuro(a.montantRetenu)}</div></div>
         </div>
         <button type="button" class="btn-comprendre" data-employee="${a.employeeId}">Comprendre ${fmtEuro(montantAExpliquer)} →</button>
       </div>
@@ -785,7 +871,7 @@
       <div class="pd-breakdown-row"><span>Excédents</span><b class="pos">${fmtEuroAbs(k.positifs.total)}</b></div>
       <div class="pd-breakdown-row"><span>Manques</span><b class="neg">${fmtEuroAbs(Math.abs(k.negatifs.total))}</b></div>
       <div class="pd-breakdown-row"><span>Solde opérationnel</span><b class="${k.soldeOperationnel > 0 ? 'pos' : (k.soldeOperationnel < 0 ? 'neg' : '')}">${fmtEuro(k.soldeOperationnel)}</b></div>
-      <div class="pd-note">Le solde opérationnel additionne excédents et manques — il sert à l'analyse, jamais au traitement retenu. Un excédent restant n'est jamais transformé en crédit : voir « Montant retenu » (${fmtEuro(k.montantRetenu)}).</div>
+      <div class="pd-note">Le solde opérationnel additionne excédents et manques — il sert à l'analyse, jamais au traitement retenu. Un excédent restant n'est jamais transformé en crédit : voir « Manques validés » (${fmtEuro(k.montantRetenu)}), qui n'est ni une dette ni une retenue sur salaire.</div>
     `;
     ouvrirPanneau('Solde opérationnel — composition', html);
   }
@@ -833,7 +919,7 @@
     document.getElementById('kpiCardRetenu').addEventListener('click', () => {
       const f = litFiltresDepuisFormulaire();
       const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
-      ouvrirCompositionListe('Montant retenu — composition', lignes.filter(l => l.montantRetenu < 0));
+      ouvrirCompositionListe('Manques validés — composition', lignes.filter(l => l.montantRetenu < 0));
     });
   }
 
@@ -931,11 +1017,20 @@
     document.getElementById('filtresToggle').addEventListener('click', () => {
       document.getElementById('filtresCorps').classList.toggle('ouvert');
     });
-    ['fDateDebut', 'fDateFin', 'fQuart', 'fActivite', 'fEmploye', 'fSigne', 'fStatut'].forEach(id => {
+    ['fQuart', 'fActivite', 'fEmploye', 'fSigne', 'fStatut'].forEach(id => {
       document.getElementById(id).addEventListener('change', rafraichirEcran);
     });
+    // Saisir une date, c'est choisir une période personnalisée.
+    ['fDateDebut', 'fDateFin'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => { PERIODE_MODE = 'perso'; rafraichirEcran(); });
+    });
+    document.querySelectorAll('#periodeChips button').forEach(b => {
+      b.addEventListener('click', () => choisirPeriode(b.dataset.periode));
+    });
+    // Réinitialiser revient à la période par défaut (mois courant), jamais à l'historique.
     document.getElementById('btnReinitFiltres').addEventListener('click', () => {
       appliqueFiltresAuFormulaire({});
+      PERIODE_MODE = 'mois';
       rafraichirEcran();
     });
   }
@@ -968,9 +1063,13 @@
         selEmp.appendChild(opt);
       });
 
-      const filtresUrl = litFiltresDepuisUrl();
+      try {
+        const fz = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+        if (fz && fz.timezone) FUSEAU_PERIODE = fz.timezone;
+      } catch (e) { /* fuseau par défaut : America/Martinique */ }
+      const filtresUrl = ouvrirSurPeriode(litFiltresDepuisUrl());
       appliqueFiltresAuFormulaire(filtresUrl);
-      if (Object.values(filtresUrl).some(Boolean)) {
+      if (['quart', 'activite', 'employeeId', 'signe', 'statut'].some(k => filtresUrl[k]) || PERIODE_MODE === 'perso') {
         document.getElementById('filtresCorps').classList.add('ouvert');
       }
 

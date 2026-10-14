@@ -246,7 +246,80 @@
     });
   }
 
+  // ------------------------------------------------------------
+  // PÉRIODE D'ANALYSE (14/10/2026) — par défaut le mois civil courant,
+  // du 1er au jour d'aujourd'hui, au fuseau de la station (jamais celui de
+  // l'appareil). L'historique complet n'est servi que sur choix explicite.
+  // Fonctions pures : le jour courant est TOUJOURS passé par l'appelant.
+  // ------------------------------------------------------------
+  const FUSEAU_PAR_DEFAUT = 'America/Martinique';
+  const MODES_PERIODE = ['mois', 'precedent', 'perso', 'tout'];
+
+  function jourDeLaStation(instant, fuseau) {
+    const d = instant instanceof Date ? instant : new Date(instant);
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: fuseau || FUSEAU_PAR_DEFAUT, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+  function dernierJourDuMois(annee, mois) {
+    return new Date(Date.UTC(annee, mois, 0)).getUTCDate();
+  }
+  const deuxChiffres = n => String(n).padStart(2, '0');
+
+  // aujourdhui : 'AAAA-MM-JJ' (jour de la station). Retourne { mode, dateDebut, dateFin }.
+  function bornesDePeriode(mode, aujourdhui, perso) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(aujourdhui || '')) throw new TypeError('bornesDePeriode : jour de la station obligatoire (AAAA-MM-JJ).');
+    const annee = Number(aujourdhui.slice(0, 4)), mois = Number(aujourdhui.slice(5, 7));
+    if (mode === 'tout') return { mode, dateDebut: '', dateFin: '' };
+    if (mode === 'perso') {
+      const p = perso || {};
+      return { mode, dateDebut: p.dateDebut || '', dateFin: p.dateFin || '' };
+    }
+    if (mode === 'precedent') {
+      const a = mois === 1 ? annee - 1 : annee, m = mois === 1 ? 12 : mois - 1;
+      return { mode, dateDebut: `${a}-${deuxChiffres(m)}-01`, dateFin: `${a}-${deuxChiffres(m)}-${deuxChiffres(dernierJourDuMois(a, m))}` };
+    }
+    return { mode: 'mois', dateDebut: `${annee}-${deuxChiffres(mois)}-01`, dateFin: aujourdhui };
+  }
+
+  // Détermine la période d'ouverture. Priorité : `periode` de l'URL, puis des
+  // dates explicites d'une URL ancienne (période personnalisée), puis le choix
+  // mémorisé de la session, puis le mois courant. Jamais l'historique par défaut.
+  function resoudrePeriode(params, aujourdhui, memorise) {
+    const p = params || {};
+    const mode = MODES_PERIODE.indexOf(p.periode) !== -1 ? p.periode : '';
+    if (mode === 'perso' || (!mode && (p.dateDebut || p.dateFin))) {
+      return bornesDePeriode('perso', aujourdhui, { dateDebut: p.dateDebut, dateFin: p.dateFin });
+    }
+    if (mode) return bornesDePeriode(mode, aujourdhui);
+    const m = memorise || {};
+    if (MODES_PERIODE.indexOf(m.mode) !== -1) {
+      return bornesDePeriode(m.mode, aujourdhui, m);
+    }
+    return bornesDePeriode('mois', aujourdhui);
+  }
+
+  const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function jourFr(iso) { return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`; }
+  function libellePeriode(per) {
+    if (per.mode === 'tout' || (!per.dateDebut && !per.dateFin)) return 'Tout l\u2019historique — depuis l\u2019origine des modules';
+    if (per.dateDebut && per.dateFin) {
+      const nom = per.mode === 'mois' || per.mode === 'precedent'
+        ? `${MOIS_FR[Number(per.dateDebut.slice(5, 7)) - 1]} ${per.dateDebut.slice(0, 4)} · ` : '';
+      return `${nom}du ${jourFr(per.dateDebut)} au ${jourFr(per.dateFin)}`;
+    }
+    if (per.dateDebut) return `depuis le ${jourFr(per.dateDebut)}`;
+    return `jusqu\u2019au ${jourFr(per.dateFin)}`;
+  }
+
   global.NexusEcartsDonnees = {
+    jourDeLaStation,
+    bornesDePeriode,
+    resoudrePeriode,
+    libellePeriode,
+    MODES_PERIODE,
+    FUSEAU_PAR_DEFAUT,
     chargerEcartsConsolides,
     appliquerFiltresEcarts,
     enregistrerQualificationActiviteInhabituelle,
