@@ -794,6 +794,7 @@ jobs:
           curl --silent --show-error --fail --max-time 15 \
             --output /dev/null --request POST \
             --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "disable_web_page_preview=true" \
             --data-urlencode "text=$MESSAGE" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             || { echo "::warning::Notification Telegram échouée (sans impact sur le Handoff)"; exit 0; }

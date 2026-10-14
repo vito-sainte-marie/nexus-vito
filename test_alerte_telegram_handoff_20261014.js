@@ -72,6 +72,10 @@ ep('le palier de matérialisation publie alerte_humaine', () => {
   const p = SRC.slice(SRC.indexOf('palier() {'), SRC.indexOf('A_LA_MAIN="matérialiser'));
   assert(/alerte_humaine=1/.test(p) && /GITHUB_OUTPUT/.test(p), 'palier() ne publie pas la sortie');
 });
+ep('l\'aperçu de lien est désactivé', () => {
+  const r = lancer({ RELAIS: 'failure' });
+  assert(/disable_web_page_preview=true/.test(r.out), 'requête sans disable_web_page_preview=true');
+});
 
 console.log(`${passees} vérifications passées.`);
 if (echecs.length) { for (const e of echecs) console.log(`FAIL — ${e}`); process.exit(1); }
