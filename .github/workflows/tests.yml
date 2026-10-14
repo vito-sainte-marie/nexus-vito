@@ -783,12 +783,12 @@ jobs:
           else
             RAISON="Décision humaine requise : ${MOTIF:-motif non renseigné}"
           fi
-          MESSAGE=$(printf 'NEXUS — Handoff interrompu\\nLot : %s\\nMotif : %s\\nRun : https://github.com/%s/actions/runs/%s' "${LOT:-non renseigné}" "$RAISON" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
-          curl --silent --show-error --fail --max-time 15 \\
-            --output /dev/null --request POST \\
-            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \\
-            --data-urlencode "text=$MESSAGE" \\
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \\
+          MESSAGE=$(printf 'NEXUS — Handoff interrompu\nLot : %s\nMotif : %s\nRun : https://github.com/%s/actions/runs/%s' "${LOT:-non renseigné}" "$RAISON" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          curl --silent --show-error --fail --max-time 15 \
+            --output /dev/null --request POST \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "text=$MESSAGE" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             || { echo "::warning::Notification Telegram échouée (sans impact sur le Handoff)"; exit 0; }
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
