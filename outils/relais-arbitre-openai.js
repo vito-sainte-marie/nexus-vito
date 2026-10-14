@@ -33,6 +33,7 @@ const path = require('path');
 const RACINE = path.join(__dirname, '..');
 const esc = require('./escalade-humaine.js');
 const rail = require('./lecture-rail-arbitre.js');
+const cap = require('./capacites-canal.js');
 // Le vocabulaire est celui que `handoff.js decision` acceptera : une réponse
 // validée ici ne peut pas être refusée à la matérialisation.
 const DECISIONS = require('./handoff.js').DECISIONS_CANONIQUES;
@@ -43,6 +44,49 @@ const DELAI_MS = 180000;
 // gabarit deviné qui validerait à côté.
 const champsContrat = () => esc.CHAMPS_CONTRAT.map(([k]) => k);
 const motifsFrederic = () => esc.chargerRegistre(RACINE).routage.frederic;
+
+// ── Exécutants : liste FERMÉE, tirée du registre des capacités (P1, 14/10/2026) ──
+// L'arbitre écrivait EXECUTANT_NEXT en prose libre (« Claude », « connecteur
+// Supabase en lecture seule »…) : 8 arrêts sur 10 de la boucle, à l'aval, en
+// CANAL_INCAPABLE — jamais vus de l'arbitre, donc jamais corrigés. La valeur
+// est désormais vérifiée ICI, contre les canaux et capacités du registre. Un
+// refus porte un code structuré, que l'arbitre reçoit pour se corriger.
+const AUCUN = /^(aucune?|none|n\/a|-)$/i;
+const CODES_REARBITRABLES = ['EXECUTANT_INCONNU', 'CAPACITE_INCONNUE', 'CANAL_INCAPABLE'];
+// Les précontrôles en lecture seule gardent leur nom historique (handoff.js).
+const LECTURE_SEULE = /^SUPABASE_(TEST|PRODUCTION)_READ_ONLY$/;
+const registre = () => cap.chargerRegistre(RACINE);
+
+function refusExecutant(c, reg) {
+  const refus = [];
+  const nets = k => String(c[k] || '').replace(/`/g, '').trim();
+  const executant = nets('EXECUTANT_NEXT'), requise = nets('CAPACITE_REQUISE');
+  const canaux = cap.canauxConnus(reg);
+  const sansCapacite = !requise || AUCUN.test(requise);
+  if (executant && !AUCUN.test(executant) && !canaux.includes(executant)) {
+    refus.push(`EXECUTANT_INCONNU : EXECUTANT_NEXT ${JSON.stringify(executant)} n'est pas un canal du registre (${canaux.join(' | ')}, ou « aucun »)`);
+  }
+  if (!sansCapacite && !cap.capacitesConnues(reg).includes(requise) && !LECTURE_SEULE.test(requise)) {
+    refus.push(`CAPACITE_INCONNUE : CAPACITE_REQUISE ${JSON.stringify(requise)} n'est pas une capacité du registre (${cap.capacitesConnues(reg).join(' | ')}, ou « aucune »)`);
+  }
+  if (!sansCapacite && canaux.includes(executant) && cap.capacitesConnues(reg).includes(requise) && !cap.capable(reg, executant, requise)) {
+    const capables = cap.canauxCapables(reg, requise);
+    refus.push(`CANAL_INCAPABLE : ${executant} ne détient pas ${requise} au registre (canaux capables : ${capables.length ? capables.join(' | ') : 'aucun'})`);
+  }
+  return refus;
+}
+
+// Ce que l'arbitre doit savoir AVANT de répondre : les valeurs admises.
+function noteExecutants(reg) {
+  const canaux = cap.canauxConnus(reg).map(k => {
+    const oui = Object.entries(reg.canaux[k].capacites || {}).filter(([, v]) => v === 'OUI').map(([n]) => n);
+    return `- \`${k}\` — capacités : ${oui.length ? oui.join(', ') : 'aucune'}`;
+  });
+  return ['', '## Exécutants admis (liste fermée, tirée du registre des capacités)',
+    "`EXECUTANT_NEXT` vaut EXACTEMENT l'un de ces identifiants, ou « aucun » ; jamais une description :", ...canaux,
+    "`CAPACITE_REQUISE` vaut l'une des capacités du registre ou « aucune », et l'exécutant désigné doit la détenir.",
+    "Une valeur hors liste est refusée par le relais avec un code (EXECUTANT_INCONNU, CAPACITE_INCONNUE, CANAL_INCAPABLE) et te sera renvoyée une seule fois pour correction."].join('\n');
+}
 
 // Le DERNIER bloc NEXT_ACTION_CONTRACT de la réponse : l'arbitre peut citer le
 // gabarit plus haut ; seul le dernier est son verdict.
@@ -71,6 +115,7 @@ function valider(texte, attendu) {
     if (c.DECISION !== 'BLOCKED') refus.push('OWNER_NEXT Frédéric exige DECISION BLOCKED');
     if (!motifsFrederic().includes(c.STOP_REQUIRED)) refus.push(`STOP_REQUIRED ${JSON.stringify(c.STOP_REQUIRED)} n'est pas un motif du palier Frédéric`);
   }
+  refus.push(...refusExecutant(c, registre()));
   // Un corps qui relancerait Claude ne se publie pas (même garde que le réveil).
   if (/@claude/i.test(texte)) refus.push('la réponse porte une mention de Claude : publication interdite (boucle)');
   return { ok: refus.length === 0, refus, contrat: c };
@@ -108,13 +153,13 @@ async function appelHttp(charge, signal) {
 // Boucle d'outil : l'API demande des lectures, la CI les exécute sur la base
 // d'objets git au SHA du run et rend le contenu réel. `store: false` impose de
 // rejouer les éléments de sortie (raisonnement chiffré compris) à chaque tour.
-async function appeler(corps, session, api) {
-  const instructions = fs.readFileSync(path.join(RACINE, 'docs', 'skills', 'nexus-handoff-fast-track', 'ARBITRE-CHATGPT.md'), 'utf8') + NOTE_OUTIL;
+async function appeler(corps, session, api, complement) {
+  const instructions = fs.readFileSync(path.join(RACINE, 'docs', 'skills', 'nexus-handoff-fast-track', 'ARBITRE-CHATGPT.md'), 'utf8') + NOTE_OUTIL + noteExecutants(registre());
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), DELAI_MS);
   const appel = api || appelHttp;
   try {
-    let input = [{ role: 'user', content: corps }];
+    let input = [{ role: 'user', content: corps }].concat(complement || []);
     for (let tour = 0; tour <= rail.MAX_APPELS + 1; tour++) {
       const j = await appel({ model: MODELE, instructions, input, tools: [rail.DEFINITION], max_output_tokens: 6000, store: false,
         include: ['reasoning.encrypted_content'] }, ctl.signal);
@@ -162,13 +207,37 @@ async function principal() {
   if (!attendu.lot || !attendu.request) { console.error('Corps de réveil illisible : LOT_ID ou demande introuvable.'); return 1; }
   let texte, session;
   try { session = ouvrirSession(RACINE, process.env); texte = await appeler(corps, session); } catch (e) { console.error(`Panne du relais : ${e.message}`); return 1; }
-  const v = valider(texte, attendu);
-  if (v.ok) v.refus.push(...rail.controlerLecture(v.contrat, require('./materialiser-decision-ci.js').lireRailLu(texte), session, rail.requis(attendu.lot, attendu.request)));
-  v.ok = v.refus.length === 0;
-  if (!v.ok) { console.error('Réponse non conforme :\n- ' + v.refus.join('\n- ')); process.stdout.write(texte); return 2; }
+  let v = jugerReponse(texte, attendu, session);
+  // Réarbitrage contrôlé : UNE seule relance, et seulement si tous les refus sont
+  // des erreurs d'exécutant que l'arbitre peut corriger seul. Jamais de boucle.
+  if (!v.ok && estRearbitrable(v.refus)) {
+    console.error('Refus d\'exécutant — réarbitrage unique :\n- ' + v.refus.join('\n- '));
+    try { texte = await appeler(corps, session, undefined, complementDeRefus(texte, v.refus)); } catch (e) { console.error(`Panne du relais (réarbitrage) : ${e.message}`); return 1; }
+    v = jugerReponse(texte, attendu, session);
+  }
+  if (!v.ok) {
+    console.error('Réponse non conforme :\n- ' + v.refus.join('\n- '));
+    process.stdout.write(texte + '\n\nREFUS_DU_RELAIS (rien ne sera matérialisé) :\n' + v.refus.map(x => `- ${x}`).join('\n') + '\n');
+    return 2;
+  }
   process.stdout.write(texte);
   return 0;
 }
 
-module.exports = { lireContrat, valider, attenduDuReveil, appeler, ouvrirSession };
+function jugerReponse(texte, attendu, session) {
+  const v = valider(texte, attendu);
+  if (v.ok) v.refus.push(...rail.controlerLecture(v.contrat, require('./materialiser-decision-ci.js').lireRailLu(texte), session, rail.requis(attendu.lot, attendu.request)));
+  v.ok = v.refus.length === 0;
+  return v;
+}
+
+const estRearbitrable = refus => refus.length > 0 && refus.every(x => CODES_REARBITRABLES.some(c => x.startsWith(c + ' :')));
+
+function complementDeRefus(texte, refus) {
+  return [{ role: 'assistant', content: texte },
+    { role: 'user', content: "Le relais refuse ton NEXT_ACTION_CONTRACT :\n" + refus.map(x => `- ${x}`).join('\n') +
+      "\nCorrige UNIQUEMENT EXECUTANT_NEXT et/ou CAPACITE_REQUISE avec les valeurs de la liste fermée, sans changer ni DECISION, ni CLOSES, ni les conditions. Rends l'analyse puis le contrat complet. Si aucun canal n'est capable, ne force pas : rends DECISION BLOCKED, OWNER_NEXT Frédéric et le motif de palier qui convient." }];
+}
+
+module.exports = { lireContrat, valider, refusExecutant, noteExecutants, estRearbitrable, complementDeRefus, attenduDuReveil, appeler, ouvrirSession };
 if (require.main === module) principal().then(c => process.exit(c), e => { console.error(e.message); process.exit(1); });
