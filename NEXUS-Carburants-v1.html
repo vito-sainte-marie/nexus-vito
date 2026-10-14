@@ -69,6 +69,17 @@
   .carb-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px;}
   .carb-nom{font-size:15px; font-weight:700;}
   .carb-cuve{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  /* Identité visuelle par carburant : présentation seule (encadré, fond, repère du titre). */
+  .carb-card[data-carb="sp95"]{--carb-rgb:22,167,101;}
+  .carb-card[data-carb="go"]{--carb-rgb:232,183,70;}
+  .carb-card[data-carb="gnr"]{--carb-rgb:228,91,96;}
+  .carb-card[data-carb]{
+    border:1px solid rgba(var(--carb-rgb),0.45);
+    background:linear-gradient(180deg, rgba(var(--carb-rgb),0.07), rgba(var(--carb-rgb),0.02)), var(--panel);
+    box-shadow:0 0 0 1px rgba(var(--carb-rgb),0.06), 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .carb-card[data-carb] .carb-nom{display:inline-flex; align-items:center; gap:8px;}
+  .carb-card[data-carb] .carb-nom::before{content:""; width:4px; height:16px; border-radius:2px; background:rgb(var(--carb-rgb)); flex:none;}
 
   .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin:12px 0 6px; letter-spacing:0.03em;}
   .champ-input{
@@ -536,7 +547,7 @@
         : `<input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`stock_reel_${carb.cle}`] != null ? String(RELEVE_CIBLE[`stock_reel_${carb.cle}`]) : ''}">`;
 
       return `
-        <div class="carb-card">
+        <div class="carb-card" data-carb="${carb.cle}">
           <div class="carb-head"><span class="carb-nom">${carb.nom}</span></div>
           <div class="carb-cuve">${carb.cuve}</div>
           <div class="champ-label">Stock réel mesuré (jaugeage) — litres</div>
