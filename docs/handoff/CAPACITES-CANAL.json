@@ -56,13 +56,15 @@
           "type": "ENVELOPPE",
           "fichier": ".github/workflows/claude.yml",
           "ref": "origin/main",
-          "motif": "Le canal ne référence que cinq secrets, tous Test ou d'authentification Claude, et cinq permissions GitHub. Aucun token Management API, aucun service_role, aucune URL ni mot de passe Production n'y est injecté. La liste est CLOSE : l'apparition d'un sixième secret ou d'une sixième permission rougit l'épreuve, quel qu'en soit le nom — c'est ainsi qu'un élargissement de surface cesse d'être silencieux.",
+          "motif": "Le canal ne référence que sept secrets — cinq Test ou d'authentification Claude, plus les deux d'alerte Telegram (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ajoutés par la PR #125 pour rendre audible un refus de rail ; ils n'ouvrent aucune écriture de données) — et cinq permissions GitHub. Aucun token Management API, aucun service_role, aucune URL ni mot de passe Production n'y est injecté. La liste est CLOSE : l'apparition d'un huitième secret ou d'une sixième permission rougit l'épreuve, quel qu'en soit le nom — c'est ainsi qu'un élargissement de surface cesse d'être silencieux.",
           "secrets_autorises": [
             "CLAUDE_CODE_OAUTH_TOKEN",
             "NEXUS_TEST_CREATEUR_PIN",
             "NEXUS_TEST_EMPLOYEE_A_PIN",
             "NEXUS_TEST_MANAGER_PIN",
-            "SUPABASE_TEST_DB_URL_READONLY"
+            "SUPABASE_TEST_DB_URL_READONLY",
+            "TELEGRAM_BOT_TOKEN",
+            "TELEGRAM_CHAT_ID"
           ],
           "permissions_autorisees": [
             "actions: write",
