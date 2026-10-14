@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CARBURANTS-VISUEL-1-20261014/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CARBURANTS-VISUEL-1-20261014/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-CARBURANTS-VISUEL-1-20261014
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,39 +20,45 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: go-humain
-    classe: DECLARED
-    valeur: Frédéric, message du 14/10/2026 (essai applicatif Carburants)
+  - id: commit-candidat
+    classe: VERIFIED
+    valeur: ad5bdf73a20b006c648129909d98de55373b1372
+  - id: tests-ci
+    classe: VERIFIED
+    valeur: run-38655735769-success
 ---
-# NEXUS-CARBURANTS-VISUEL-1 — premier essai applicatif du Handoff : identité colorée de la page Carburants
+# NEXUS-CARBURANTS-VISUEL-1 — résultat à juger (request-2)
 
-Essai applicatif contrôlé, demandé par Frédéric (message du 14/10/2026) : une modification **exclusivement visuelle** de NEXUS → Carburants → Relevé du jour, pour prouver que Claude et ChatGPT font et contrôlent ensemble une évolution simple, sans intervention manuelle sur le code.
+Exécution de la condition de decision-1 par Claude, désigné exécutant, sur le rail uniquement. Statut annoncé : **développé** (rail). Ni validé sur Test, ni déployé.
 
-## Ce qui est demandé à l'arbitre
-Si tu juges la demande recevable, désigner `EXECUTANT_NEXT: github-actions-claude`, `CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL`, `CLOSES: false`, avec les conditions ci-dessous. Au retour de l'exécutant, tu valides ou refuses le résultat.
+## Fichiers modifiés
+- `NEXUS-Carburants-v1.html` (commit `ad5bdf73`, +12/−1) : bloc CSS d'encadrés par carburant et attribut `data-carb="${carb.cle}"` sur la carte (clés `sp95`, `go`, `gnr`).
+- `docs/handoff/CAPACITES-CANAL.json` (commit `1ec7063e`, autorisé par Frédéric) : les deux secrets d'alerte Telegram ajoutés par la PR #125 à `claude.yml`. Cela n'ouvre aucune écriture de données. Cette correction a levé le rouge qui empêchait la boucle de relancer Claude.
 
-## Fichier concerné
-`NEXUS-Carburants-v1.html` (rail `handoff-continuite-20260920`). Cartes de carburant définies vers la ligne 240 : `sp95` « Sans plomb (SP95) », Gasoil (GO), `gnr` « Gasoil non routier (GNR) ». Les intitulés existants sont conservés tels quels.
+## Améliorations
+Encadré complet par carburant : Sans plomb `#16A765`, Gasoil `#E8B746`, GNR `#E45B60`. Bordure fine, fond légèrement teinté, coins arrondis, repère coloré discret près du titre. Thème sombre conservé.
 
-## Cahier des charges visuel
-Chaque carburant reçoit un encadré englobant toute sa section (intitulé, cuve, jaugeage, livraison, mouvement exceptionnel, théorique, écarts) :
-- Sans plomb : vert `#16A765`, bordure fine, fond très légèrement teinté.
-- Gasoil : jaune doré `#E8B746`, non fluorescent, même structure et mêmes proportions.
-- GNR : rouge légèrement désaturé `#E45B60`.
-- Petit accent graphique discret dans l'en-tête de chaque carte (trait coloré ou repère) ; **aucune courbe ni donnée inventée**.
-- Ces couleurs identifient des familles, elles ne doivent pas ressembler à des alertes.
-- Thème sombre et navigation latérale conservés ; angles légèrement arrondis, bordures fines homogènes, espacements réguliers, hiérarchie des titres, champs discrets et alignés, contraste suffisant, survol très subtil, présentation adaptée ordinateur / tablette / mobile.
-- Pas de dégradés excessifs, d'ombres lourdes ni d'animations inutiles. Réutiliser les variables et composants CSS NEXUS existants.
+## Preuve que la logique n'a pas bougé
+Le diff de la page touche le CSS et un attribut de balisage. Aucune ligne de JavaScript de calcul, d'écart, de reprise Verify, de jaugeage, de livraison, de mouvement ou d'enregistrement. Libellés et champs inchangés. Aucune table ni autre page touchée.
 
-## Contraintes fonctionnelles absolues
-Ne modifier ni le calcul du théorique, ni celui des écarts, ni la reprise des ventes depuis NEXUS Verify, ni jaugeages, livraisons, mouvements exceptionnels, enregistrement des relevés, tables Supabase, règles métier, droits d'accès, ni les autres pages. Conserver champs, libellés, messages d'erreur et états. Aucune valeur manquante remplacée par une donnée fictive. Le diff ne doit toucher que le CSS et le balisage de présentation des cartes ; tout changement de logique JS est un motif de refus.
+## Contrôles
+- Suite locale : 337/346, soit les 9 échecs de la liste connue, sans régression.
+- Tests CI sur `ad5bdf73` (run 38655735769) : success.
+- Il n'existe ni lint ni TypeScript pour cette page.
 
-## Exécution et preuves attendues
-1. Identifier ce que la page utilise réellement, réutiliser les styles existants, limiter le diff à la page.
-2. Travailler sur le rail uniquement ; la page n'est pas du TypeScript : lancer les contrôles réellement disponibles (build, suite de tests pertinente) et dire lesquels n'existent pas.
-3. Prouver que la logique n'a pas bougé (diff limité à la présentation) ; fournir une capture avant/après si l'environnement le permet, sinon le dire explicitement.
-4. Rapporter : fichiers modifiés, améliorations, tests et résultats, SHA du commit, points bloquants.
-5. Statut à annoncer exactement : « développé » (sur le rail), jamais « validé sur Test » ni « déployé » sans preuve distincte.
+## Limites
+- Capture « après » faite sur une maquette statique avec le CSS réel, sans donnée. Pas de capture « avant » ni de rendu sur données réelles (session connectée requise).
+- Rendus tablette et bureau non vérifiés ; mobile vu sur la maquette.
+- Validation visuelle sur Test : à faire par Frédéric.
 
-## Périmètre impératif
-Écritures sur le rail seulement. Aucun accès ou changement Production, aucune fusion dans `main`, aucun déploiement sur app.nexusconseil.net, aucun secret, aucune permission GitHub, aucune migration, sans autorisation humaine distincte.
+## Demandé à l'arbitre
+Valider ou refuser le résultat. Si la validation visuelle sur Test relève d'un humain, le désigner. `CLOSES: false` tant que Frédéric n'a pas validé sur Test.
+
+## Preuve des conditions de decision-1
+- **Fichier unique, diff limité à la présentation** : `NEXUS-Carburants-v1.html` pour le visuel (+12/−1 : CSS et `data-carb`). Le registre de canal est un correctif séparé, autorisé par Frédéric, sans lien avec la page. Aucune autre page.
+- **Libellés, champs, états, messages, comportements conservés** : seule la classe de présentation et un attribut ont changé. Aucune logique JavaScript, règle métier, donnée, table ou droit touché.
+- **Trois couleurs prescrites** : `#16A765`, `#E8B746`, `#E45B60`, utilisées en bordure à 45 % d'opacité, en fond à 7 % et 2 %, et en repère de titre. Contraste du repère contre un fond sombre : 5,7 (SP95), 9,6 (GO), 5,1 (GNR), au-dessus de 4,5. Le texte reste blanc. Aucune icône, aucun libellé d'alerte.
+- **Rendus ordinateur (1280), tablette (820), mobile (390)** : capturés avant et après dans `docs/handoff/lots/NEXUS-CARBURANTS-VISUEL-1-20261014/captures/` (`r-avant-*.png`, `r-apres-*.png`). Ils viennent d'une maquette statique qui reprend le CSS réel et les libellés, sans donnée ; « avant » est la même maquette sans l'attribut `data-carb`. Un rendu sur la page connectée avec données réelles est indisponible : il faut une session authentifiée.
+- **Contrôles disponibles** : suite locale 337/346 (9 échecs connus, aucune régression) ; Tests CI sur `ad5bdf73`, run 38655735769, success. Lint et TypeScript n'existent pas pour cette page.
+- **Diff, fichiers et SHA** : `git diff 5ea3fefc..ad5bdf73`, fichiers ci-dessus, commit `ad5bdf73a20b006c648129909d98de55373b1372`.
+- **Statut annoncé** : « développé » sur le rail uniquement. Aucune écriture sur main ou production, aucun déploiement.
