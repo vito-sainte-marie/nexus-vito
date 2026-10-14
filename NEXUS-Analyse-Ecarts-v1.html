@@ -484,6 +484,11 @@
   function choisirPeriode(mode) {
     PERIODE_MODE = mode;
     if (mode === 'perso') {
+      if (!document.getElementById('fDateDebut').value && !document.getElementById('fDateFin').value) {
+        const b = NexusEcartsDonnees.bornesDePeriode('mois', jourCourantStation());
+        document.getElementById('fDateDebut').value = b.dateDebut;
+        document.getElementById('fDateFin').value = b.dateFin;
+      }
       // Part de la période affichée, que le manager ajuste ensuite.
       document.getElementById('filtresCorps').classList.add('ouvert');
     }
