@@ -165,7 +165,7 @@ epreuve('M3 — sans le motif renvoyé, R1 rougit', () => {
 
 // ── Compatibilité avec l'existant (correction 1 de l'arbitre) ───────────────
 // Un arrêt humain ne part vers aucun exécutant : « Frédéric » y est légitime.
-const HUMAIN = contrat({ DECISION: 'BLOCKED', BLOCKER: 'GO humain requis', STOP_REQUIRED: 'SECRET_PERMISSION_SURFACE_SECURITE', OWNER_NEXT: 'Frédéric', EXECUTANT_NEXT: 'Frédéric', ACTION_NEXT: 'attendre le GO' });
+const HUMAIN = contrat({ DECISION: 'NEEDS_EVIDENCE', BLOCKER: 'GO humain requis', STOP_REQUIRED: 'SECRET_PERMISSION_SURFACE_SECURITE', OWNER_NEXT: 'Frédéric', EXECUTANT_NEXT: 'Frédéric', ACTION_NEXT: 'attendre le GO' });
 epreuve('E7 — BLOCKED / OWNER_NEXT Frédéric : « Frédéric » comme exécutant n\'est pas refusé', () => {
   assert.deepStrictEqual(r.refusExecutant(r.lireContrat(HUMAIN), cap.chargerRegistre(__dirname)), []);
   const p = relais([HUMAIN]);
