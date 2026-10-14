@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-10-10",
+  "updated_at": "2026-10-14",
   "rules": [
     {
       "id": "ENV-001",
@@ -310,6 +310,19 @@
       "severity": "advisory",
       "rule": "In a patch or migration script, a global string replace also rewrites longer identifiers that contain the anchor and the author's own deliberately-written call sites. Assert the expected occurrence count for every anchor before replacing, and refuse the patch when the count differs; a protective no-op replace of the longer form protects nothing. Prefer a raw-string Python patch to a shell heredoc when the target contains JS template literals, where backticks and ${} are inert.",
       "source": "2026-10-10: while extending test_materialiser_decision_ci_20261009.js, replacing 'm.juger(' with 'jg(' also rewrote the inside of 'mm.juger(' into 'mjg(' (3 call sites broken) and rewrote epreuve M15's deliberately unwrapped m.juger call, which then silently received default SHAs and reported a passing fail-closed test as 0 instead of 2; found by running the harness (17/21), fixed with per-anchor occurrence assertions"
+    },
+    {
+      "id": "GOV-008",
+      "scope": [
+        "gouvernance",
+        "handoff",
+        "ci"
+      ],
+      "trigger": "request_apres_decision_conditionnelle",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "A request deposited after a decision APPROVED_WITH_CONDITIONS or NEEDS_EVIDENCE must carry a section '## Preuve des conditions de decision-N' (exact title, own line). The deposit tool refuses it before writing, and the autonomous loop's judge stops with CONDITIONS_NON_PROUVEES; both read the same rule in outils/preuve-conditions.js. A loop stop that a human can only repair by redepositing must be caught by the guard, not discovered by the judge.",
+      "source": "2026-10-14: request-2 of NEXUS-REPARATION-HANDOFF-1-20261014 (run 38587248558) lacked the proof section for decision-1; the loop stopped at 15:14:09Z (INC-1b3e3a7d6d30) — guard in handoff.js aligned with the judge, 9 tests and 3 mutations"
     }
   ]
 }
