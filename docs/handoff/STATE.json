@@ -421,13 +421,13 @@
       "consomme_le": "2026-10-12T11:11:04.042Z"
     },
     "NEXUS-REGUL-GROUPES-1-20261013": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-4.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-3.md",
+      "derniere_decision": "decision-4.md",
       "source_decision": "registre",
-      "commit_decision": "a28513738eeb14d6775a479a39cdd41b44a020c7",
-      "consomme_le": "2026-10-13T23:24:50.961Z"
+      "commit_decision": "d22b8875bba443af1f2b81feb271c191e82b6dca",
+      "consomme_le": "2026-10-14T10:28:41.269Z"
     }
   },
   "artefacts_hors_registre": [
