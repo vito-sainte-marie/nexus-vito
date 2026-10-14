@@ -430,13 +430,13 @@
       "consomme_le": "2026-10-14T10:56:00.020Z"
     },
     "NEXUS-REPARATION-HANDOFF-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "d89e1b53d8c5b7915c4b8a2d5a5cdc9f3c637751",
-      "consomme_le": "2026-10-14T16:10:08.004Z"
+      "commit_decision": "14cbdaa48420c2aaafdeecddb1424b443b9a9aec",
+      "consomme_le": "2026-10-14T16:20:53.519Z"
     }
   },
   "artefacts_hors_registre": [
