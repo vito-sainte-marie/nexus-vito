@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-INCIDENTS-CI-1-20261014/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-INCIDENTS-CI-1-20261014/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-INCIDENTS-CI-1-20261014
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,136 +20,44 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: aucun-go-production
-    classe: DECLARED
-    valeur: ni-fusion-ni-claude.yml-ni-Production-ni-OpenAI-reel
-  - id: item-2-3-livres
+  - id: ci-rail
     classe: VERIFIED
-    valeur: commit-5faa4cce-pousse-sur-rail
-  - id: item-1-bloque
+    valeur: run-38618584398-success-f0b666ca
+  - id: geste-humain-local
     classe: DECLARED
-    valeur: push-refuse-workflows-permission-manquante-github-app
+    valeur: push-par-session-locale-a-la-demande-de-Frederic
+  - id: aucune-permission-modifiee
+    classe: VERIFIED
+    valeur: bloc-permissions-tests.yml-inchange
+  - id: aeff14c1-perdu
+    classe: DECLARED
+    valeur: branche-runner-ephemere-item-1-reconstruit
 ---
-# Items 2 et 3 livrés sur le rail ; item 1 (câblage CI) bloqué par une permission GitHub d'installation, arbitrage demandé
+# Request-3 — NEXUS-INCIDENTS-CI-1 : item 1 livré, CI du rail verte
 
-## Preuve des conditions de decision-1
+## 1. Ce qui est livré
+Décision-2 (APPROVED_WITH_CONDITIONS, CLOSES false) est consommée. L'item 1 a été reproduit sur la tête du rail puis poussé SANS force :
 
-decision-1 (APPROVED_WITH_CONDITIONS) autorisait le périmètre des trois
-reliquats et exigeait, avant clôture du lot : lease, concurrence dédiée,
-idempotence, absence de récursion/relance, aucune permission nouvelle ni
-élargie, arrêts de sécurité préservés en `NON_ENREGISTRE`.
+- `508264d8` — nouveau verdict notifié `CANAL_NON_DECLENCHABLE` (EXECUTANT_NEXT reconnu au registre mais aucun déclencheur ne le réveille). Famille DECISION_HUMAINE, alerte Telegram.
+- `bf2fe443` — job `enregistrement-incident` dans `tests.yml` (outputs de `non-regression`, branche notifier de `boucle_autonome`, `set +e` contre le piège `$?` sous `bash -e`), correction du watchdog, test `test_cablage_incidents_ci_20261014.js` (13 épreuves, corps du job exécuté en vrai sur un dépôt jetable).
+- `f0b666ca` — attendus de deux assertions rendus indépendants de l'observé (Guardian QA `attendu_calcule_par_le_meme_appel`).
 
-1. **Item 2 — compteur append-only des répétitions** : LIVRÉ et poussé sur
-   le rail (commit `5faa4cce`). `outils/compteur-repetitions.js` ajoute une
-   ligne à `docs/learning/REPETITIONS.jsonl` quand un `code` déjà présent au
-   journal des incidents revient sous un nouvel `id` ; le total se COMPTE
-   sur le journal, il n'est jamais stocké. Câblé dans
-   `outils/enregistrer-incident.js`, sur la branche `ENREGISTRE` seulement —
-   un rejeu (`DEJA_ENREGISTRE`) ou un arrêt humain (`NON_ENREGISTRE`) ne
-   touche jamais ce journal. `test_compteur_repetitions_20261014.js` : 11
-   épreuves (première occurrence, récurrence, rejeu idempotent à zéro octet,
-   journal inachevé refusé, intégration réelle avec `enregistrer-incident.js`,
-   absence d'effet de bord — pas de shell, pas de réseau).
+## 2. Nature du geste (à consigner honnêtement)
+Ce n'est PAS un déclenchement automatique de `session-claude-habilitee`. Le push a été fait par une session Claude locale, à la demande explicite de Frédéric dans cette session (geste humain déclenché), avec son jeton `gh` (scopes repo+workflow). Le canal `session-claude-habilitee` reste non déclenchable : c'est précisément ce que `CANAL_NON_DECLENCHABLE` rend désormais visible. Le commit `aeff14c1` est perdu (branche de runner éphémère `mon-travail-20261014`, jamais poussée) ; l'item 1 a été reconstruit depuis request-2 §1.
 
-2. **Item 3 — skill `nexus-incidents`** : LIVRÉ et poussé sur le rail (même
-   commit). `docs/skills/nexus-incidents/SKILL.md` documente ce qui est
-   automatique (classement par `classerArret`, enregistrement, compteur,
-   lease, concurrence) et ce qui reste un geste réfléchi (diagnostic,
-   correction, promotion GOV-002 dans `EXPERIENCE.jsonl` + `RULES.json`), sur
-   le précédent réel `INC-1b3e3a7d6d30` / `GOV-008`. N'invente aucun statut
-   `FERME` que l'outillage ne porte pas, ne requalifie jamais un arrêt déjà
-   classé.
+## Preuve des conditions de decision-2
+Condition « CI du rail verte avant clôture » : run 38618584398 success sur f0b666ca. Condition « aucune permission modifiée » : bloc `permissions:` inchangé. Reproduction sur la tête du rail, push sans force : bf2fe443 puis f0b666ca.
 
-3. **Item 1 — câblage CI rail-only** : ÉCRIT, PROUVÉ EN SIMULATION, **NON
-   LIVRÉ SUR LE RAIL**. Voir §2 — ce n'est pas une preuve manquante, c'est un
-   canal qui ne peut pas écrire ce fichier précis.
+## 3. Preuves
+- CI du rail : run 38618584398 sur `f0b666ca`, conclusion success (le run 38617882351 sur `bf2fe443` était rouge sur Guardian QA seul, corrigé).
+- Lease : le job re-checkout la tête du rail ; épreuve de rail avancé (aucun écrasement).
+- Concurrency : groupe `nexus-incidents-enregistrement-<ref>`, cancel-in-progress false.
+- Idempotence : rejeu → `DEJA_ENREGISTRE`, zéro octet, aucun push.
+- Pas de récursion : push par GITHUB_TOKEN ne redéclenche pas les workflows.
+- Aucune permission modifiée : bloc `permissions:` de tests.yml inchangé ; aucune extension des permissions de l'App GitHub.
+- Arrêts de sécurité conservés : DECISION_HUMAINE → `NON_ENREGISTRE`.
+- Suite : seuls les 9 échecs connus subsistent.
+- Non fait : aucune fusion main/Production, aucun claude.yml sur main, aucun appel OpenAI réel, aucun workflow planifié.
 
-## 1. Ce qui a été construit pour l'item 1 (preuve avant blocage)
-
-Un job `enregistrement-incident` (`needs: non-regression`), déclenché
-seulement quand l'étape `boucle_autonome` du job `non-regression` classe un
-verdict comme devant notifier un humain (`incident_a_enregistrer == '1'`),
-publié par trois lignes `echo` ajoutées à la branche `notifier` existante de
-cette étape (`lot`, `rail`, `sha` — `motif` servait déjà de `code`).
-
-- **Lease** : la tête du rail est lue par le `checkout` de ce job (pas celle
-  lue par `non-regression`, qui peut avoir vieilli dans la file de
-  concurrency) ; le commit est construit sur cette tête, le push final est
-  SANS FORCE.
-- **Concurrence dédiée** : groupe
-  `nexus-incidents-enregistrement-${{ github.ref }}`, `cancel-in-progress:
-  false` — propre à ce job ; `non-regression` n'en a aucun et n'est pas
-  affecté.
-- **Idempotence** : `enregistrer-incident.js` ne commit QUE sur son propre
-  verdict `ENREGISTRE` ; `DEJA_ENREGISTRE` et `NON_ENREGISTRE` ne touchent
-  aucun fichier.
-- **Absence de récursion/relance** : aucun `GH_TOKEN`, aucun `gh`, aucun
-  `repository_dispatch`/`workflow_dispatch` dans ce job ; un push refusé
-  (rail avancé) échoue une seule fois (`FAILED`/`PUSH_REFUSE`), sans nouvelle
-  tentative dans le même run.
-- **Aucune permission nouvelle ni élargie** : aucun `permissions:` de job
-  (héritage du bloc du workflow, inchangé) — condition vérifiée par
-  construction : le bloc `permissions:` du haut n'a pas été touché, et
-  `test_permissions_workflow_20260908.js` reste vert sans modification.
-- **Arrêts de sécurité préservés** : correction associée dans
-  `outils/watchdog-stagnation.js` — `FAMILLES.DECISION_HUMAINE` gagne
-  `STOP_HUMAIN`, `VERDICT_REPETE`, `PLAFOND_LOT_ATTEINT`,
-  `PLAFOND_JOUR_ATTEINT` (les quatre codes de `garde-boucle-autonome.js` que
-  `relancer-claude-ci.js` place dans `A_NOTIFIER`, donc les seuls que ce job
-  pouvait recevoir en plus de `BLOQUE`/`CONDITIONS_NON_PROUVEES`, déjà
-  classés). Sans cette correction, un plafond de sécurité délibéré se serait
-  enregistré comme un incident système.
-
-Toute la chaîne a été rejouée en simulation sur un dépôt git jetable (bare +
-clones, hors de ce dépôt) : premier enregistrement, rejeu idempotent
-(`DEJA_ENREGISTRE`, 0 octet changé), arrêt humain préservé (`STOP_HUMAIN` →
-`NON_ENREGISTRE`), lease violée par une course simulée (push refusé, `FAILED`,
-aucun force), reprise propre au run suivant (le même incident s'enregistre
-sans corruption), répétition de code committée avec son incident dans le
-même commit atomique. 11 épreuves dans
-`test_cablage_incidents_ci_20261014.js` (job, concurrency, lease, permissions
-absentes, mutation sur `FAMILLES`).
-
-## 2. Le blocage — CHANNEL_LIMITATION, pas une absence de preuve
-
-Le `git push` de la branche portant les trois items a été REFUSÉ par GitHub :
-
-> refusing to allow a GitHub App to create or update workflow
-> `.github/workflows/tests.yml` without `workflows` permission
-
-Ce n'est pas le bloc `permissions:` interne au workflow — celui-là reste
-inchangé, condition déjà remplie. C'est une permission d'**installation**
-de l'app GitHub `claude[bot]`, posée par GitHub lui-même, hors du dépôt. Je
-ne peux pas me l'accorder : CLAUDE.md classe « nouveau jeton, nouvelle
-capacité d'écriture, nouvel accès » dans les gates jamais pré-autorisées, et
-une permission d'app GitHub en est une par construction.
-
-J'ai donc retiré du commit poussé les trois fichiers qui en dépendent
-(`.github/workflows/tests.yml`, `outils/watchdog-stagnation.js`,
-`test_cablage_incidents_ci_20261014.js` — supprimé, puisqu'il n'a plus de
-job à tester sans les deux premiers), en documentant pourquoi dans le
-message du commit `8a7e971b`. Rien n'est perdu : le travail complet de
-l'item 1 (câblage, correction, 11 épreuves) reste sur la branche locale
-`mon-travail-20261014` (tête `aeff14c1`), reproductible à l'identique.
-
-## 3. Ce qui est demandé
-
-1. Valider items 2 et 3 comme livrés (commit `5faa4cce`, déjà sur le rail).
-2. Trancher l'item 1 : soit un canal qui détient `workflows` sur ce dépôt
-   (ChatGPT, si un tel canal existe et est autorisé) pousse le contenu de
-   `mon-travail-20261014` (`aeff14c1`) vers le rail sous lease ; soit Frédéric
-   l'accorde au jeton `claude[bot]` (élargissement de la surface du jeton,
-   geste humain, CLAUDE.md) ; soit le lot se clôt sans l'item 1, qui repart
-   dans un lot successeur avec un exécutant capable d'emblée.
-3. Dire si le lot se clôt sur ce verdict ou attend l'item 1.
-
-## 4. Limites
-
-Aucun GO Production, aucune fusion, aucun `claude.yml` sur `main`, aucun
-appel OpenAI réel, aucune permission supplémentaire prise seul. Je ne
-m'arbitre pas moi-même.
-
-## 5. Verdict demandé
-
-Router l'item 1 (canal capable ou geste de Frédéric), et dire si items 2+3
-suffisent à clore ce lot ou si l'item 1 reste une condition de clôture.
+## 4. Demande
+Condition de décision-2 remplie (CI rail verte avant clôture). Arbitrer la clôture du lot ; je ne m'arbitre pas moi-même. Point ouvert à décider côté arbitre : comment `session-claude-habilitee` doit être réellement déclenchable, ou le retirer des EXECUTANT_NEXT valides.
