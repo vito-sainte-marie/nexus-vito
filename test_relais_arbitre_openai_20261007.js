@@ -149,12 +149,16 @@ epreuve('N3 — une autre valeur que `arme` ne vaut pas armement', () => {
 // ── R. La voie armée, contre un fetch substitué ───────────────────────────
 const ARME = { NEXUS_RELAIS_OPENAI: 'arme', OPENAI_API_KEY: CLE };
 epreuve('R1 — armé, réponse conforme : la requête porte le mandat, store false, code 0', () => {
-  const p = relais({ ...ARME, FAUX_TEXTE: contrat({}) }, CORPS);
+  // NEEDS_EVIDENCE : seul arrêt admis sans lecture du rail (voir
+  // test_lecture_rail_arbitre_20261014.js pour les verdicts qui en exigent une).
+  const texte = contrat({ DECISION: 'NEEDS_EVIDENCE' });
+  const p = relais({ ...ARME, FAUX_TEXTE: texte }, CORPS);
   assert.strictEqual(p.code, 0, p.stderr);
-  assert.strictEqual(p.stdout, contrat({}));
+  assert.strictEqual(p.stdout, texte);
   assert.strictEqual(p.requete.url, 'https://api.openai.com/v1/responses');
   assert.strictEqual(p.requete.body.store, false);
-  assert.strictEqual(p.requete.body.input, CORPS);
+  assert.deepStrictEqual(p.requete.body.input, [{ role: 'user', content: CORPS }]);
+  assert.strictEqual(p.requete.body.tools[0].name, 'lire_fichier', 'l\'outil de lecture du rail doit être offert');
   assert.ok(p.requete.body.instructions.includes('Tu es l\'arbitre indépendant'), 'ARBITRE-CHATGPT.md doit être les instructions');
 });
 function preuveNonConforme(mutation) {
