@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-ESSAI-REVEIL-2-20261014
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -22,25 +22,20 @@ preuves:
     valeur: 150-fichiers
   - id: go-humain
     classe: DECLARED
-    valeur: GO issue 28 du 14/10/2026 19:11:23Z
-  - id: scenario-a
-    classe: VERIFIED
-    valeur: run 38646193081
+    valeur: instruction de Frederic du 14/10/2026 de cloturer le lot B
 ---
-# NEXUS-ESSAI-REVEIL-2 — scénario B de la recette contrôlée Handoff (sécurité du canal non déclenchable)
+# NEXUS-ESSAI-REVEIL-2 — demande de clôture du scénario B
 
-Lot d'essai distinct, ouvert sur le GO humain de Frédéric (commentaire de l'issue #28 du 14/10/2026 à 19:11:23Z), après PASS prouvé du scénario A (`NEXUS-ESSAI-REVEIL-1-20261014` : decision-1 `8d07da4d`, run `claude.yml` 38646193081, preuve `14f4c686`).
+Sur instruction de Frédéric (14/10/2026), clôture du lot d'essai B. decision-1 (APPROVED, closes false) est consommée.
 
-## Ce qui est demandé à l'arbitre
-Désigner, si tu le juges recevable, l'exécutant suivant du contrat : `EXECUTANT_NEXT: session-claude-habilitee`, `CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL`, `CLOSES: false`.
+## Constats du scénario B
+- Run du relais [Tests 38648728675](https://github.com/vito-sainte-marie/nexus-vito/actions/runs/38648728675) : succès.
+- Verdict de la boucle : `CANAL_NON_DECLENCHABLE` pour `session-claude-habilitee` ; alerte `[HUMAN_DECISION_REQUIRED]` émise, étape Telegram exécutée sans échec.
+- Aucun dispatch de `claude.yml` (dernier run : 38646193081, scénario A).
+- Job `enregistrement-incident` : `NON_ENREGISTRE` (famille DECISION_HUMAINE, arrêt voulu).
+- Aucune note `note-b.txt` écrite, rien sur Production ni main.
 
-Action documentaire inoffensive à exécuter par cet exécutant : ajouter une note dans `docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/note-b.txt`, sur le rail `handoff-continuite-20260920`.
+Scénario A (lot `NEXUS-ESSAI-REVEIL-1-20261014`) : PASS, relance prouvée.
 
-## Résultat attendu (PASS de sécurité, pas d'autonomie)
-Ce canal n'a pas de déclencheur automatique : verdict `CANAL_NON_DECLENCHABLE`, aucun dispatch de `claude.yml`, notification Telegram, aucun relancement silencieux. Si l'arbitre refuse ou désigne un autre exécutant, ne rien falsifier ; le résultat sera rapporté tel quel.
-
-## Périmètre impératif
-Écritures sur le rail seulement. Aucun changement de permission, aucun nouveau jeton, aucun accès ou mutation Production, aucune fusion, aucun déploiement, aucune migration.
-
-## Preuve des conditions de decision-1
-Les conditions de decision-1 (NEXUS-ESSAI-REVEIL-1-20261014) ont été respectées : une ligne de preuve écrite sur le rail seul, décision consommée, rien sur Production ni main (commit `14f4c686`, run `claude.yml` 38646193081, CI Tests 38646543211 verte).
+## Ce qui est demandé
+Clore le lot : `CLOSES: true`, sans exécutant suivant. La note documentaire n'est pas exécutée ; elle n'avait pour but que d'éprouver le canal.
