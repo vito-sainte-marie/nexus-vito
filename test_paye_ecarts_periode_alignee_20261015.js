@@ -83,3 +83,13 @@ ok(/indicateursEcarts:\['Manques validés et solde opérationnel'/.test(paye) &&
 ok(!/toISOString\(\)\.slice\(0,10\)\}\s*\nfunction etatPeriode/.test(paye) && /function dernierJourMois\(\)\{return NexusEcartsDonnees\.bornesDuMois\(MOIS\)\.dateFin\}/.test(paye), 'fin de mois sans Date locale');
 ok(/MOIS = NexusEcartsDonnees\.bornesDuMois\(NexusEcartsDonnees\.jourDeLaStation\(new Date\(\)\)\)\.dateDebut/.test(paye), 'mois courant = jour de la station');
 console.log(n + ' vérifications OK');
+
+// Lisibilité : aucun lien du bas de page ne retombe sur le bleu par défaut du navigateur, et l'id n'est pas dupliqué.
+{
+  const fs=require('fs'),assert=require('assert');
+  const h=fs.readFileSync(__dirname+'/NEXUS-Paye-v1.html','utf8');
+  assert.strictEqual((h.match(/id="lienAnalyseEcarts"/g)||[]).length,1,'id lienAnalyseEcarts dupliqué');
+  assert.ok(/<a class="source-link lien-lisible" href="\$\{lienAnalyseEcarts\(\)\}">Voir l’analyse/.test(h),'lien du bas non stylé ou sans contexte employé');
+  assert.ok(/\.lien-lisible\{color:var\(--cyan\)/.test(h),'couleur du lien du bas absente');
+  console.log('lien du bas lisible : OK');
+}
