@@ -187,4 +187,67 @@ function examiner(e) {
   }, base));
 }
 
-module.exports = { examiner, empreinte, MAILLON, TERMINAUX, CONTINUATION, MAX_REPRISES, CYCLES_SANS_PROGRES };
+// ── P3 : CLASSER L'ARRÊT, SIGNALER L'ORPHELINE ───────────────────────────────
+// Ajouté le 14/10/2026 (decision-2 du lot NEXUS-REPARATION-HANDOFF-1) :
+// extension de ce watchdog, pas un second classeur. Il y avait deux questions
+// que l'audit du 14/10 n'arrivait pas à poser proprement :
+//   1. de quelle famille est cet arrêt ? (un oubli de format n'est pas une
+//      décision humaine, et ne doit plus être relayé à Frédéric comme tel) ;
+//   2. une décision matérialisée que personne ne reprend est-elle orpheline ?
+// Deux limites, posées par l'arbitre. Une décision humaine n'est JAMAIS
+// orpheline : elle attend un humain, pas la machine. Et classer n'autorise
+// jamais une relance : `relance_permise` ne dit que « rien ne l'interdit » ;
+// l'appelant décide, et une action sensible reste fermée. P6 est une
+// détection et une trace : l'état rendu n'arrête jamais la CI.
+const SEUIL_ORPHELINE_MINUTES = 30;    // provisoire (decision-2)
+
+const FAMILLES = Object.freeze({
+  DECISION_HUMAINE: ['DECISION_RESERVEE_A_UN_HUMAIN', 'STOP_ARBITRE', 'BLOQUE', 'DECISION_HUMAINE_REQUISE', 'REPRISES_EPUISEES'],
+  OUBLI_DE_FORMAT:  ['CONDITIONS_NON_PROUVEES', 'IDENTIFIANT_INVALIDE', 'EXECUTANT_INCONNU', 'CAPACITE_INCONNUE'],
+  CAPACITE_MANQUANTE: ['CANAL_INCAPABLE'],
+  CI_ROUGE:         ['CI_ROUGE'],
+});
+const SENSIBLE = /PRODUCTION|SECRET|MIGRATION|DEPLOI|FUSION|MERGE|ARMEMENT|PERMISSION/i;
+
+function famille(code) {
+  const c = String(code || '').trim();
+  for (const [nom, codes] of Object.entries(FAMILLES)) if (codes.includes(c)) return nom;
+  return 'INCONNU';
+}
+
+function classerArret(e) {
+  const a = e || {};
+  const code = vide(a.code) ? '(sans code)' : String(a.code).trim();
+  const fam = famille(code);
+  const humain = fam === 'DECISION_HUMAINE';
+  const sensible = SENSIBLE.test(String(a.capacite || ''));
+  const maintenant = instant(a.maintenant);
+  const activite = instant(a.derniereActivite);
+  const minutes = (maintenant === null || activite === null) ? null : Math.max(0, Math.round((maintenant - activite) / 60000));
+  const orpheline = !humain && minutes !== null && minutes >= SEUIL_ORPHELINE_MINUTES;
+  const trace = `arret=${code} famille=${fam} humain=${humain} orpheline=${orpheline} minutes=${minutes === null ? 'inconnu' : minutes} sensible=${sensible}`;
+  return {
+    code, famille: fam, humain, orpheline, minutes, sensible,
+    // Un arrêt humain est justifié par construction ; les autres sont des
+    // fautes du système ou du dépôt, à analyser, pas à relayer.
+    justifie: humain,
+    relance_permise: !humain && !sensible,
+    seuil_minutes: SEUIL_ORPHELINE_MINUTES,
+    trace,
+  };
+}
+
+// P6 : détection et traçabilité. NO_WORK : l'état rendu ne rougit jamais la CI.
+function signaler(e) {
+  const c = classerArret(e);
+  const a = e || {};
+  const base = {
+    sha: vide(a.sha) ? '(inconnu)' : String(a.sha).trim(),
+    branche: vide(a.branche) ? '(inconnue)' : String(a.branche).trim(),
+    lot: vide(a.lot) ? '(inconnu)' : String(a.lot).trim(), maillon: MAILLON,
+  };
+  const code = c.humain ? 'ARRET_HUMAIN_ATTENDU' : (c.orpheline ? 'ORPHELINE_SIGNALEE' : 'ARRET_RECENT');
+  return Object.assign({}, etat(Object.assign({ etat: 'NO_WORK', code, condition: c.trace }, base)), { classement: c });
+}
+
+module.exports = { classerArret, signaler, famille, FAMILLES, SEUIL_ORPHELINE_MINUTES, examiner, empreinte, MAILLON, TERMINAUX, CONTINUATION, MAX_REPRISES, CYCLES_SANS_PROGRES };
