@@ -153,7 +153,7 @@ epreuve('M1 — sans l\'appel à refusExecutant, E2 rougit', () => {
   const ancre = '  refus.push(...refusExecutant(c, registre()));\n';
   assert.strictEqual(SRC.split(ancre).length, 2);
   const p = relais([MAUVAIS], [ancre, '']);
-  assert.strictEqual(p.code, 0, 'sans la garde, un exécutant libre passerait');
+  assert.strictEqual(p.code, 0, 'sans la garde, un exécutant libre passerait : ' + String(p.stderr).slice(0, 400));
   assert.strictEqual(relais([MAUVAIS]).requetes.length, 2);
 });
 epreuve('M2 — si tout refus est renvoyé, R4 rougit', () => {
