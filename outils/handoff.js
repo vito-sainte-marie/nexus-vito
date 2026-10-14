@@ -807,8 +807,35 @@ function preparerOrdresDeLaDemande(lot, seq, options) {
   if (r.erreurs.length) { console.error('REFUS — ordre d\'exécution non constructible, rien n\'est écrit :'); for (const e of r.erreurs) console.error(`  - ${e}`); process.exit(1); }
   return r.ordres.map((o, i) => ({ ...o, index: i + 1 }));
 }
+// P8 condition 1 (decision-3, lot NEXUS-REPARATION-HANDOFF-1-20261014) :
+// refuser AU DÉPÔT, avant tout appel à l'arbitre, une demande qui suit une
+// décision à conditions (APPROVED_WITH_CONDITIONS, lot non fermé) sans sa
+// section de preuve. Le 14/10/2026, request-2.md est parti sans
+// « ## Preuve des conditions de decision-1 » : l'oubli de format a été
+// traité comme un arrêt (`CONDITIONS_NON_PROUVEES`, famille OUBLI_DE_FORMAT
+// dans `watchdog-stagnation.js`), relayé plus d'une heure avant correction.
+// Le refus porte ici — avant l'écriture, avant la CI, avant l'arbitre — pas
+// après coup par un watchdog qui ne fait que nommer l'arrêt déjà survenu.
+function exigerPreuveConditions(lot, corpsTexte) {
+  const dec = dernier(echanges(lot, 'decision'));
+  if (!dec) return; // première demande du lot : rien à prouver
+  const r = lireEnveloppe(path.join(LOTS, lot, dec.fichier));
+  if (!r || !r.env) return; // enveloppe illisible : affaire de `verifier`, pas de cette garde
+  const { decision } = normaliserDecision(r.env.decision);
+  if (decision !== 'APPROVED_WITH_CONDITIONS') return;
+  if (String(r.env.closes) === 'true') return; // lot fermé : la suite n'est plus celle qui prouve ces conditions
+  const attendu = `Preuve des conditions de decision-${dec.seq}`;
+  const titre = new RegExp(`^##\\s+${attendu.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
+  if (!titre.test(corpsTexte)) {
+    console.error(`REFUS — ${dec.fichier} est APPROVED_WITH_CONDITIONS et n'est pas fermé (closes: ${r.env.closes}) ; le corps déposé ne porte pas de section « ## ${attendu} ». Rien n'est écrit.`);
+    console.error('Prouver les conditions avant tout appel à l’arbitre : ajouter cette section au corps plutôt que de déposer sans elle.');
+    process.exit(1);
+  }
+}
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
+  const corpsTexte = options.corps !== undefined ? options.corps : fs.readFileSync(corpsFichier, 'utf8');
+  exigerPreuveConditions(lot, corpsTexte);
   // ARCH-003. `lireEnveloppe` ne retient que la PREMIÈRE occurrence d'une clé :
   // une preuve dont l'id est déjà pris ne serait jamais relue, et la demande
   // afficherait une ligne que la validation ignore — or une preuve qui ne juge
@@ -857,7 +884,7 @@ function nouvelleDemande(lot, corpsFichier, options) {
   // E3 (NEXUS-EXECUTOR-SUPABASE-1) : l'opération se lit dans le diff, jamais dans la prose. Le refus précède toute écriture.
   const ordresPrepares = preparerOrdresDeLaDemande(lot, seq, options);
   for (const o of ordresPrepares) preuvesAuto.push({ id: `ordre-${seq}-${o.index}`, classe: 'VERIFIED', valeur: o.ordre.operation_hash }, { id: `executant-${seq}-${o.index}`, classe: 'DECLARED', valeur: `${o.route.executant}-pour-${o.route.capacite}` });
-  const preuves = preuvesAuto.concat(options.preuves || []); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + (options.corps !== undefined ? options.corps : fs.readFileSync(corpsFichier, 'utf8')));
+  const preuves = preuvesAuto.concat(options.preuves || []); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + corpsTexte);
   for (const o of ordresPrepares) { fs.writeFileSync(path.join(dir, o.fichier), JSON.stringify(o.ordre, null, 2) + '\n'); console.log(`${lot}/${o.fichier} : ${o.ordre.operation} ${o.ordre.cible.env} — hash ${o.ordre.operation_hash} — CAPACITE_REQUISE ${o.route.capacite}, EXECUTANT_NEXT ${o.route.executant}. Un ordre n'est pas une autorisation : GO lié à ce hash exigé.`); }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
