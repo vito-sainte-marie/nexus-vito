@@ -629,10 +629,8 @@
     // Manques constatés pas encore validés : somme directe des lignes concernées
     // (statut « à vérifier », écart final négatif) — jamais une soustraction
     // entre deux agrégats de natures différentes.
-    let cNonValides = 0, nbNonValides = 0;
-    lignes.forEach(l => {
-      if (l.statut === 'a_verifier' && l.ecartFinal != null && l.ecartFinal < 0) { cNonValides += Math.round(l.ecartFinal * 100); nbNonValides++; }
-    });
+    const nv = NexusEcartsDonnees.manquesNonValides(lignes);
+    const cNonValides = Math.round(nv.montant * 100), nbNonValides = nv.nb;
     document.getElementById('kpiNonValides').textContent = nbNonValides
       ? `Manques constatés non encore validés : ${fmtEuroAbs(Math.abs(cNonValides) / 100)} (${nbNonValides} écart${nbNonValides > 1 ? 's' : ''}), non inclus ci-dessus.`
       : 'Aucun manque constaté en attente de validation.';

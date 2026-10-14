@@ -83,7 +83,7 @@ console.log('OK synthèse Paye séparée Verify / FDJ');
   ok(st({ statut: 'justifie' }, null) === 'Justifié' && R.statutQualification({ statut: 'justifie' }, null).nonRegularise, 'Justifié ≠ régularisé');
   ok(st({ statut: 'a_verifier' }, { versementsCentimes: 400, resteDuCentimes: 400 }) === 'Partiellement régularisé', 'partiel');
   ok(st({ statut: 'a_verifier' }, { versementsCentimes: 800, resteDuCentimes: 0 }) === 'Régularisé', 'régularisé');
-  ok(st({ statut: 'valide' }, null) === 'Transmis à la comptable', 'transmis');
+  ok(st({ statut: 'valide' }, null) === 'Transmis à la comptabilité', 'transmis');
   ok(R.statutQualification({ statut: 'valide' }, { versementsCentimes: 400, resteDuCentimes: 400 }).nonRegularise, 'transmis non régularisé marqué');
   ok(st({ statut: 'corrige' }, null) === 'Annulé / corrigé', 'annulé / corrigé');
   ok(!R.justificationRequise('sans_impact', '  ') && !R.justificationRequise('transmettre', 'abc') && R.justificationRequise('transmettre', 'accord gérant'), 'justification obligatoire');

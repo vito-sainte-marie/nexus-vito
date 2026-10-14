@@ -85,6 +85,7 @@ function construireContexte() {
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(ecartsMoteurSrc, ctx);
+  vm.runInContext(require('fs').readFileSync(require('path').join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
 
   const elements = {};
   function fabriquerElement(id) {

@@ -67,7 +67,7 @@ assert.ok(/Manques validés/.test(html) && /Ni dette du salarié, ni retenue sur
 ok('libellés financiers clarifiés');
 
 // Paye → Verify : même intervalle que le mois de paye affiché
-assert.ok(/NEXUS-Analyse-Ecarts-v1\.html\?periode=perso&amp;date_debut=\$\{MOIS\}&amp;date_fin=\$\{dernierJourMois\(\)\}/.test(paye));
+assert.ok(/periode:'perso',date_debut:MOIS,date_fin:dernierJourMois\(\)/.test(paye) && (paye.match(/lienAnalyseEcarts\(\)/g)||[]).length>=2);
 ok('navigation Paye → Analyse des écarts sur le même intervalle');
 
 console.log(`\n${n} vérifications OK`);

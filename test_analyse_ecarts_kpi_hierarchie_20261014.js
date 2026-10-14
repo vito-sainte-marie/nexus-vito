@@ -12,7 +12,7 @@ ok(html.includes("Résultat signé de tous les écarts constatés, positifs et n
 ok((html.match(/<button type="button" class="info-i"[^>]*aria-controls=/g) || []).length === 2, 'deux boutons (i) clavier');
 ok((html.match(/role="tooltip"/g) || []).length === 2, 'deux bulles role=tooltip');
 ok(/stopPropagation/.test(html) && /Escape/.test(html), 'clic isolé de la carte, Échap ferme');
-ok(/kpiNonValides/.test(html) && /statut === 'a_verifier' && l\.ecartFinal != null && l\.ecartFinal < 0/.test(html), 'non validés sommés sur les lignes, sans soustraction');
+ok(/kpiNonValides/.test(html) && /NexusEcartsDonnees\.manquesNonValides\(lignes\)/.test(html) && /statut === 'a_verifier' && l\.ecartFinal != null && l\.ecartFinal < 0/.test(require('fs').readFileSync(require('path').join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8')), 'non validés sommés sur les lignes, sans soustraction (fonction partagée avec Paye)');
 for (const id of ['kpiCardPositifs', 'kpiCardNegatifs', 'kpiCardInvestiguer', 'kpiCardVolume']) ok(html.includes('id="' + id + '"'), id + ' conservée');
 console.log(n + ' vérifications OK');
 assert.ok(/\.kpi-card\.principal \.kpi-valeur\.neg\{color:var\(--red\)/.test(html), 'rouge seulement si manque');

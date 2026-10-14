@@ -464,7 +464,7 @@
   // dont le solde reste dû garde `nonRegularise`. Ne touche aucun calcul de paie.
   const QUALIFICATION = {
     A_EXAMINER: 'À examiner', JUSTIFIE: 'Justifié', PARTIEL: 'Partiellement régularisé',
-    REGULARISE: 'Régularisé', TRANSMIS: 'Transmis à la comptable', CORRIGE: 'Annulé / corrigé',
+    REGULARISE: 'Régularisé', TRANSMIS: 'Transmis à la comptabilité', CORRIGE: 'Annulé / corrigé',
   };
   const JUSTIFICATION_MIN = 5;
   function statutQualification(item, situation) {

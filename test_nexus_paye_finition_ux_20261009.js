@@ -46,7 +46,7 @@ const nexusClient = new Proxy({}, { get: (_, k) => () => { ecritures.push(String
 // Les échecs simulés journalisent : on les garde pour les compter, pas pour bruiter.
 const journal = [];
 const ctx = {
-  console: Object.assign({}, console, { error: (...a) => journal.push(a) }), URL, Intl, Date, Math, Number, String, Object, Array, Promise, Error,
+  console: Object.assign({}, console, { error: (...a) => journal.push(a) }), URL, URLSearchParams, Intl, Date, Math, Number, String, Object, Array, Promise, Error,
   document: {
     getElementById: element, querySelector: () => element('q'), querySelectorAll: () => [],
     createElement: () => element('cree'), body: { appendChild() {} },
@@ -57,6 +57,9 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
+const ECARTS_REEL = ctx.NexusEcartsDonnees;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-regularisations.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
@@ -148,7 +151,7 @@ vm.runInContext(`
 async function chargement(fuseau, echec) {
   const appels = [];
   ctx.NexusStation = { fuseauDeLaStation: async s => { appels.push(['fuseau', s]); return fuseau; } };
-  ctx.NexusEcartsDonnees = { chargerEcartsConsolides: async (_c, s) => { appels.push(['ecarts', s]); if (echec) throw new Error('réseau'); return ctx.__univers; } };
+  ctx.NexusEcartsDonnees = { ...ECARTS_REEL, chargerEcartsConsolides: async (_c, s) => { appels.push(['ecarts', s]); if (echec) throw new Error('réseau'); return ctx.__univers; } };
   ctx.NexusPayeRegularisations.chargerOperations = async (_c, s) => { appels.push(['ops', s]); return ctx.__ops; };
   const r = await vm.runInContext('chargerRegularisationsPaye()', ctx);
   return { r, appels };
@@ -168,7 +171,7 @@ async function chargement(fuseau, echec) {
   verifier('en erreur, l’indicateur d’écarts affiche « — » et sa raison, jamais 0',
     dans(kpiEcarts, '<b>—</b>') && dans(kpiEcarts, 'Régularisations indisponibles') && !/0\.00 €/.test(kpiEcarts));
   verifier('… et le volet décisions ne fabrique aucune ligne de solde',
-    !dans(ecran(), 'Solde restant au') && !dans(ecran(), 'Régularisations réellement encaissées'));
+    !dans(ecran(), 'Reste à régulariser au') && !dans(ecran(), 'Régularisations réellement encaissées'));
   ctx.__r = sans.r;
   vm.runInContext('REGUL = __r; render();', ctx);
   verifier('sans fuseau, la raison est nommée', dans(ecran(), 'Fuseau horaire de la station non configuré'));
@@ -187,16 +190,16 @@ async function chargement(fuseau, echec) {
   ctx.__r = bon.r;
   vm.runInContext('REGUL = __r; SELECTION = null; render();', ctx);
   const kpi = (ecran().match(/data-kpi="ecarts">([\s\S]*?)<\/button>/) || [])[1] || '';
-  verifier('l’indicateur porte le solde réel et l’encaissé du mois',
-    dans(kpi, '<b>-55.00 €</b>') && dans(kpi, 'encaissé +35.00 €'));
+  verifier('l’indicateur porte les manques validés du mois (même fonction qu’Analyse), le solde opérationnel et l’encaissé',
+    dans(kpi, 'Manques validés du mois') && dans(kpi, '<b>-50.00 €</b>') && dans(kpi, 'solde opérationnel -58.00 €') && dans(kpi, 'encaissé +35.00 €'));
   verifier('les quatre lectures sont distinctes à l’écran',
     dans(ecran(), 'Écarts initiaux de la période (avant validation)')
-    && dans(ecran(), 'Écarts validés de la période')
+    && dans(ecran(), 'Manques validés du mois') && dans(ecran(), 'Solde opérationnel du mois')
     && dans(ecran(), 'Régularisations réellement encaissées ce mois (dont 1 sur un écart antérieur)')
-    && dans(ecran(), 'Solde restant au 31/08/2026'));
+    && dans(ecran(), 'Reste à régulariser au 31/08/2026'));
   verifier('l’écart en attente de validation est nommé, pas compté', dans(ecran(), '1 écart en attente de validation'));
   verifier('ce que le manager transmet reste séparé et sans incidence automatique',
-    dans(ecran(), 'Transmis à la comptable, saisi par le manager — sans incidence automatique'));
+    dans(ecran(), 'Transmis à la comptabilité, saisi par le manager — sans incidence automatique'));
 
   // ── 2. Aucun versement fabriqué par la correction à la validation ───────
   verifier('aucune case « Régularisations encaissées » ne survit dans l’écran',

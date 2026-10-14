@@ -23,6 +23,9 @@ const ctx = { console, document: { getElementById: element, querySelector: () =>
   navigator: {}, nexusClient: {}, nexusRequireAuth: () => ({ then: () => ({ catch: () => {} }) }) };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
+if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
