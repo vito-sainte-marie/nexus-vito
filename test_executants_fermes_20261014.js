@@ -107,7 +107,7 @@ function relais(textes, mutation) {
   const propre = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(OPENAI_API_KEY|NEXUS_RELAIS_)/.test(k)));
   const p = spawnSync('node', ['-r', faux, path.join(racine, 'outils', 'relais-arbitre-openai.js')], {
     input: `Réveil.\n\nLOT_ID: \`${LOT}\`\nDemande en attente: \`${REQ}\`\n`, encoding: 'utf8',
-    env: { ...propre, NEXUS_RELAIS_OPENAI: 'arme', OPENAI_API_KEY: 'cle-factice', FAUX_TEXTES: JSON.stringify(textes) } });
+    env: { ...propre, NEXUS_RELAIS_OPENAI: 'arme', OPENAI_API_KEY: 'cle-factice', FAUX_TEXTES: JSON.stringify(textes), ...(mutation ? { GITHUB_SHA: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: racine, encoding: 'utf8' }).stdout.trim() } : {}) } });
   return { code: p.status, stdout: p.stdout, stderr: p.stderr, requetes: fs.existsSync(trace) ? JSON.parse(fs.readFileSync(trace, 'utf8')) : [] };
 }
 const MAUVAIS = contrat({ EXECUTANT_NEXT: 'connecteur Supabase en lecture seule' });
