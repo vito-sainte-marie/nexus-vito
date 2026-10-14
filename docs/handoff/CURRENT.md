@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-1-20261014/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-ESSAI-REVEIL-1-20261014
+lot_id: NEXUS-ESSAI-REVEIL-2-20261014
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -22,28 +22,25 @@ preuves:
     valeur: 150-fichiers
   - id: go-humain
     classe: DECLARED
-    valeur: issue-28-commentaire-2026-10-14T19:11:23Z
-  - id: essai-precedent
+    valeur: GO issue 28 du 14/10/2026 19:11:23Z
+  - id: scenario-a
     classe: VERIFIED
-    valeur: run-38621556443-refus-NEXUS_BASE_BRANCH-absent
+    valeur: run 38646193081
 ---
-# NEXUS-ESSAI-REVEIL-1 — scénario A de la recette contrôlée Handoff (chemin nominal)
+# NEXUS-ESSAI-REVEIL-2 — scénario B de la recette contrôlée Handoff (sécurité du canal non déclenchable)
 
-Lot d'essai distinct, ouvert sur GO humain explicite de Frédéric (commentaire de l'issue #28 du 14/10/2026 à 19:11:23Z). Il ne livre rien d'applicatif : il sert à prouver que la boucle relance Claude toute seule.
-
-## Contexte
-- Lot précédent clos : `NEXUS-INCIDENTS-CI-1-20261014/decision-3.md` (APPROVED, closes true), décision consommée.
-- Un premier déclenchement par commentaire `@claude` sur l'issue #28 (run `claude.yml` 38621556443, 19:11Z) a été refusé : aucun `NEXUS_BASE_BRANCH` désigné. Refus voulu, publié, sans effet sur le rail. Classé NON_CONCLUANT : il ne prouve ni ne réfute la relance. Le présent dépôt par le canal habituel remplace ce déclenchement (pas de `@claude` supplémentaire, pour ne pas créer de réveil concurrent).
+Lot d'essai distinct, ouvert sur le GO humain de Frédéric (commentaire de l'issue #28 du 14/10/2026 à 19:11:23Z), après PASS prouvé du scénario A (`NEXUS-ESSAI-REVEIL-1-20261014` : decision-1 `8d07da4d`, run `claude.yml` 38646193081, preuve `14f4c686`).
 
 ## Ce qui est demandé à l'arbitre
-Désigner, si tu le juges recevable, l'exécutant suivant du contrat : `EXECUTANT_NEXT: github-actions-claude`, `CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL`, `CLOSES: false`.
+Désigner, si tu le juges recevable, l'exécutant suivant du contrat : `EXECUTANT_NEXT: session-claude-habilitee`, `CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL`, `CLOSES: false`.
 
-Action sans effet métier à exécuter par cet exécutant : écrire UNE seule ligne de preuve (lot, run, SHA de la décision, horodatage UTC) dans `docs/handoff/lots/NEXUS-ESSAI-REVEIL-1-20261014/preuve-reveil.txt` sur le rail `handoff-continuite-20260920`, consommer la décision, rendre un compte rendu, sans clore le lot.
+Action documentaire inoffensive à exécuter par cet exécutant : ajouter une note dans `docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/note-b.txt`, sur le rail `handoff-continuite-20260920`.
 
-Tu restes libre de ton verdict : si tu refuses ou désignes un autre exécutant, ne rien falsifier ; le résultat sera rapporté tel quel.
+## Résultat attendu (PASS de sécurité, pas d'autonomie)
+Ce canal n'a pas de déclencheur automatique : verdict `CANAL_NON_DECLENCHABLE`, aucun dispatch de `claude.yml`, notification Telegram, aucun relancement silencieux. Si l'arbitre refuse ou désigne un autre exécutant, ne rien falsifier ; le résultat sera rapporté tel quel.
 
 ## Périmètre impératif
-Écritures sur le rail `handoff-continuite-20260920` seulement. Aucun changement de permission, aucun nouveau jeton, aucun accès ou mutation Production, aucune fusion, aucun déploiement, aucune migration. Plafonds et gates de sécurité préservés. Le scénario B ne part qu'après un PASS prouvé de A.
+Écritures sur le rail seulement. Aucun changement de permission, aucun nouveau jeton, aucun accès ou mutation Production, aucune fusion, aucun déploiement, aucune migration.
 
-## Preuves attendues pour A
-demande, appel OpenAI, décision matérialisée, verdict de relance, `CLAUDE_RELANCE`/`repository_dispatch`, démarrage du run `claude.yml`, consommation, commit de preuve, suite ou clôture explicite.
+## Preuve des conditions de decision-1
+Les conditions de decision-1 (NEXUS-ESSAI-REVEIL-1-20261014) ont été respectées : une ligne de preuve écrite sur le rail seul, décision consommée, rien sur Production ni main (commit `14f4c686`, run `claude.yml` 38646193081, CI Tests 38646543211 verte).
