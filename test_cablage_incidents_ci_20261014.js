@@ -107,19 +107,20 @@ if (jq) {
   t('exécution réelle : un arrêt non humain est enregistré et poussé sans force ; le rejeu ne change pas un octet', () => {
     const w = monde(), c1 = w.clone('c1'); sh(c1, 'config', 'user.name', 't');
     let r = jouer(c1, 'CI_ROUGE'); assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-    const tete = sh(w.origin, 'rev-parse', 'handoff-x');
+    assert.strictEqual(sh(w.origin, 'rev-list', '--count', 'handoff-x'), '2', 'graine + un commit d\'incident');
+    assert.strictEqual(sh(w.origin, 'rev-parse', 'handoff-x'), sh(c1, 'rev-parse', 'HEAD'), 'le rail porte le commit du clone');
     assert.ok(/"code":"CI_ROUGE"/.test(sh(w.origin, 'show', 'handoff-x:docs/learning/INCIDENTS.jsonl')));
     const c2 = w.clone('c2'); r = jouer(c2, 'CI_ROUGE'); assert.strictEqual(r.status, 0, r.stdout + r.stderr);
     assert.ok(r.stdout.includes('DEJA_ENREGISTRE'));
-    assert.strictEqual(sh(w.origin, 'rev-parse', 'handoff-x'), tete, 'le rejeu a poussé');
+    assert.strictEqual(sh(w.origin, 'rev-list', '--count', 'handoff-x'), '2', 'le rejeu a poussé');
   });
   t('exécution réelle : un arrêt humain voulu (STOP_HUMAIN, plafond) n\'est jamais enregistré', () => {
     const w = monde();
     for (const code of ['STOP_HUMAIN', 'VERDICT_REPETE', 'PLAFOND_LOT_ATTEINT', 'PLAFOND_JOUR_ATTEINT', 'BLOQUE', 'CANAL_NON_DECLENCHABLE']) {
-      const c = w.clone('c-' + code), avant = sh(w.origin, 'rev-parse', 'handoff-x');
+      const c = w.clone('c-' + code);
       const r = jouer(c, code); assert.strictEqual(r.status, 0, code + r.stdout + r.stderr);
       assert.ok(r.stdout.includes('NON_ENREGISTRE'), code + ' : ' + r.stdout);
-      assert.strictEqual(sh(w.origin, 'rev-parse', 'handoff-x'), avant, code + ' a poussé');
+      assert.strictEqual(sh(w.origin, 'rev-list', '--count', 'handoff-x'), '1', code + ' a poussé');
     }
   });
   t('exécution réelle : lease violée (le rail a avancé) → push refusé, échec franc, rien forcé', () => {
@@ -127,9 +128,8 @@ if (jq) {
     // c1 prépare, mais c2 avance le rail avant le push de c1 : on simule en poussant d'abord depuis c2.
     sh(c2, 'config', 'user.name', 't'); sh(c2, 'config', 'user.email', 't@t');
     fs.writeFileSync(path.join(c2, 'autre.txt'), 'x'); sh(c2, 'add', '-A'); sh(c2, 'commit', '-q', '-m', 'avance'); sh(c2, 'push', '-q', 'origin', 'handoff-x');
-    const avance = sh(w.origin, 'rev-parse', 'handoff-x');
     const r = jouer(c1, 'CI_ROUGE'); assert.notStrictEqual(r.status, 0, 'devait échouer');
-    assert.strictEqual(sh(w.origin, 'rev-parse', 'handoff-x'), avance, 'le rail avancé a été écrasé');
+    assert.strictEqual(sh(w.origin, 'rev-parse', 'handoff-x'), sh(c2, 'rev-parse', 'HEAD'), 'le rail avancé a été écrasé');
   });
 } else console.log('  (jq absent : les épreuves d\'exécution sont sautées)');
 
