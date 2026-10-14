@@ -15,3 +15,4 @@ ok(/stopPropagation/.test(html) && /Escape/.test(html), 'clic isolé de la carte
 ok(/kpiNonValides/.test(html) && /statut === 'a_verifier' && l\.ecartFinal != null && l\.ecartFinal < 0/.test(html), 'non validés sommés sur les lignes, sans soustraction');
 for (const id of ['kpiCardPositifs', 'kpiCardNegatifs', 'kpiCardInvestiguer', 'kpiCardVolume']) ok(html.includes('id="' + id + '"'), id + ' conservée');
 console.log(n + ' vérifications OK');
+assert.ok(/\.kpi-card\.principal \.kpi-valeur\.neg\{color:var\(--red\)/.test(html), 'rouge seulement si manque');
