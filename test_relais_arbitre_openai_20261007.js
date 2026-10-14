@@ -108,7 +108,7 @@ function relais(env, entree, mutation) {
   if (mutation) {
     racine = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'relais-mut-')));
     fs.cpSync(path.join(RACINE, 'outils'), path.join(racine, 'outils'), { recursive: true, filter: horsMutants });
-    for (const f of ['docs/handoff/ARBITRAGES-ACQUIS.json', 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md']) {
+    for (const f of ['docs/handoff/ARBITRAGES-ACQUIS.json', 'docs/handoff/CAPACITES-CANAL.json', 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md']) {
       fs.mkdirSync(path.dirname(path.join(racine, f)), { recursive: true });
       fs.copyFileSync(path.join(RACINE, f), path.join(racine, f));
     }
