@@ -78,6 +78,22 @@
   .kpi-valeur.neg{color:var(--red);}
   .kpi-valeur.amber{color:var(--amber);}
   .kpi-card.montant-retenu{border-color:rgba(240,84,107,0.3);}
+  /* Hiérarchie : Manques validés = indicateur principal ; Solde opérationnel = lecture secondaire. */
+  .kpi-card.principal{border-color:rgba(240,84,107,0.45); background:var(--panel-raised); padding:14px;}
+  .kpi-card.principal .kpi-label{font-size:11px; color:var(--text);}
+  .kpi-card.principal .kpi-valeur{font-size:34px; line-height:1.15;}
+  .kpi-card.principal .kpi-valeur.neg{color:var(--red);}
+  .kpi-card.principal .kpi-sous{font-size:11.5px;}
+  .kpi-nonvalides{font-size:11.5px; color:var(--amber); margin-top:6px;}
+  .kpi-card.secondaire{background:none; border:none; border-top:1px dashed var(--hairline); border-radius:0; padding:8px 2px 2px;}
+  .kpi-card.secondaire .kpi-label{margin-bottom:2px;}
+  .kpi-card.secondaire .kpi-valeur{font-size:15px;}
+  .kpi-card.secondaire .kpi-sous{font-size:10px;}
+  .kpi-intitule{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .info-i{font:700 11px/1 var(--mono); width:22px; height:22px; border-radius:50%; border:1px solid var(--hairline); background:transparent; color:var(--cyan); cursor:pointer; padding:0; text-transform:none; letter-spacing:0;}
+  .info-i:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .info-bulle{display:none; font-family:var(--sans, inherit); font-size:12px; line-height:1.4; letter-spacing:0; text-transform:none; color:var(--text); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; margin:0 0 8px; font-weight:400;}
+  .info-bulle.ouverte{display:block;}
 
   .statut-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.03em; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap;}
   .statut-badge.a_verifier{background:var(--amber-dim); color:var(--amber);}
@@ -311,15 +327,18 @@
     <div class="section-label">Vue d'ensemble</div>
     <div class="card">
       <div class="kpi-grid" id="kpiGrid">
-        <div class="kpi-card large" id="kpiCardSolde">
-          <div class="kpi-label"><span>Solde opérationnel</span><span class="kpi-fleche">Détail →</span></div>
-          <div class="kpi-valeur" id="kpiSoldeNet">…</div>
-          <div class="kpi-sous">Somme signée — ne remplace jamais les lectures ci-dessous.</div>
-        </div>
-        <div class="kpi-card large montant-retenu" id="kpiCardRetenu">
-          <div class="kpi-label"><span>Manques validés</span><span class="kpi-fleche">Détail →</span></div>
+        <div class="kpi-card large montant-retenu principal" id="kpiCardRetenu">
+          <div class="kpi-label"><span class="kpi-intitule">Manques validés <button type="button" class="info-i" data-info="infoRetenu" aria-label="Explication : Manques validés" aria-expanded="false" aria-controls="infoRetenu">i</button></span><span class="kpi-fleche">Détail →</span></div>
+          <div class="info-bulle" id="infoRetenu" role="tooltip">Total des manques confirmés sur la période. Les excédents ne les compensent pas. Ce montant n'est pas une dette automatique du salarié.</div>
           <div class="kpi-valeur" id="kpiMontantRetenu">…</div>
           <div class="kpi-sous">Manques de caisse validés seulement. Ni dette du salarié, ni retenue sur salaire : aucune déduction n'est décidée ici.</div>
+          <div class="kpi-nonvalides" id="kpiNonValides">—</div>
+        </div>
+        <div class="kpi-card large secondaire" id="kpiCardSolde">
+          <div class="kpi-label"><span class="kpi-intitule">Solde opérationnel <button type="button" class="info-i" data-info="infoSolde" aria-label="Explication : Solde opérationnel" aria-expanded="false" aria-controls="infoSolde">i</button></span><span class="kpi-fleche">Détail →</span></div>
+          <div class="info-bulle" id="infoSolde" role="tooltip">Résultat signé de tous les écarts constatés, positifs et négatifs, validés ou non. Sert à l'analyse globale et ne représente pas le solde restant à régulariser.</div>
+          <div class="kpi-valeur" id="kpiSoldeNet">…</div>
+          <div class="kpi-sous">Somme signée — ne remplace jamais les lectures ci-dessous.</div>
         </div>
         <div class="kpi-card" id="kpiCardPositifs">
           <div class="kpi-label"><span>Excédents</span><span class="kpi-fleche">→</span></div>
@@ -607,6 +626,16 @@
     const retenuEl = document.getElementById('kpiMontantRetenu');
     retenuEl.textContent = fmtEuro(k.montantRetenu);
     retenuEl.className = 'kpi-valeur ' + (k.montantRetenu < 0 ? 'neg' : '');
+    // Manques constatés pas encore validés : somme directe des lignes concernées
+    // (statut « à vérifier », écart final négatif) — jamais une soustraction
+    // entre deux agrégats de natures différentes.
+    let cNonValides = 0, nbNonValides = 0;
+    lignes.forEach(l => {
+      if (l.statut === 'a_verifier' && l.ecartFinal != null && l.ecartFinal < 0) { cNonValides += Math.round(l.ecartFinal * 100); nbNonValides++; }
+    });
+    document.getElementById('kpiNonValides').textContent = nbNonValides
+      ? `Manques constatés non encore validés : ${fmtEuroAbs(Math.abs(cNonValides) / 100)} (${nbNonValides} écart${nbNonValides > 1 ? 's' : ''}), non inclus ci-dessus.`
+      : 'Aucun manque constaté en attente de validation.';
     document.getElementById('kpiPositifs').textContent = fmtEuroAbs(k.positifs.total);
     document.getElementById('kpiPositifsNb').textContent = `${k.positifs.nb} écart${k.positifs.nb > 1 ? 's' : ''}`;
     document.getElementById('kpiNegatifs').textContent = fmtEuroAbs(Math.abs(k.negatifs.total));
@@ -895,7 +924,31 @@
 
   // KPI cliquables (§1) — chaque carte applique son filtre naturel puis
   // affiche la composition (ou, pour le solde, une décomposition).
+  // Bulles (i) : survol, clic/toucher, clavier (Entrée/Espace via le bouton, Échap ferme).
+  function brancherBullesInfo() {
+    const btns = Array.from(document.querySelectorAll('.info-i'));
+    const regler = (b, ouvert) => {
+      document.getElementById(b.dataset.info).classList.toggle('ouverte', ouvert);
+      b.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+    };
+    btns.forEach(b => {
+      // Le clic « épingle » la bulle (utile au toucher et au clavier) ; le survol ne fait qu'un aperçu.
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        const epingle = b.dataset.epingle === '1';
+        btns.forEach(o => { o.dataset.epingle = ''; if (o !== b) regler(o, false); });
+        b.dataset.epingle = epingle ? '' : '1';
+        regler(b, !epingle);
+      });
+      b.addEventListener('mouseenter', () => regler(b, true));
+      b.addEventListener('mouseleave', () => { if (b.dataset.epingle !== '1') regler(b, false); });
+      b.addEventListener('keydown', e => { if (e.key === 'Escape') { b.dataset.epingle = ''; regler(b, false); } });
+    });
+    document.addEventListener('click', () => btns.forEach(b => { b.dataset.epingle = ''; regler(b, false); }));
+  }
+
   function brancherKpisCliquables() {
+    brancherBullesInfo();
     document.getElementById('kpiCardPositifs').addEventListener('click', () => {
       document.getElementById('fSigne').value = 'positif';
       const lignes = rafraichirEcran();
