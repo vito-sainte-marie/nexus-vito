@@ -1,56 +1,52 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: NEXUS-ESSAI-REVEIL-2-20261014
-seq: 1
+seq: 2
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED
-closes: false
-in_reply_to: request-1.md
+closes: true
+in_reply_to: request-2.md
 ---
-# Décision sur request-1.md — APPROVED
+# Décision sur request-2.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38648728675), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6180068902. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38650178389), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6180247313. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `NEXUS-ESSAI-REVEIL-2-20261014`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `NEXUS-ESSAI-REVEIL-2-20261014`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `2eda12c631792a055792a2a5d89f2fa650d7dadf`, `HEAD` = `2eda12c631792a055792a2a5d89f2fa650d7dadf`, SHA du run `2eda12c631792a055792a2a5d89f2fa650d7dadf`, tête du rail `2eda12c631792a055792a2a5d89f2fa650d7dadf`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e`, `HEAD` = `2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e`, SHA du run `2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e`, tête du rail `2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`session-claude-habilitee`), qui les vérifie avant d'agir.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-**Verdict : APPROVED.**
+Le scénario B a produit l’arrêt contrôlé attendu, sans écriture applicative ni mouvement de `main` ou `production`. Le résultat `CANAL_NON_DECLENCHABLE` relève de l’acquis `LIMITATION_CANAL_NON_STOP` et ne justifie aucune escalade humaine. La CI est verte et aucune preuve n’est invalidée. La clôture est approuvée.
 
-L’écriture documentaire demandée est limitée au rail, réversible et sans effet sur `main`, Production, les permissions ou les secrets. Aucun motif d’escalade humaine n’est déclenché. Les acquis `COMMIT_PUSH_RAIL_SANS_GO` et `LIMITATION_CANAL_NON_STOP` s’appliquent.
-
-Le canal désigné est recevable mais non déclenchable automatiquement : `CANAL_NON_DECLENCHABLE`. Cette décision n’autorise aucun dispatch de workflow, notification Telegram ou relancement silencieux.
-
-RAIL_LU: 2eda12c631792a055792a2a5d89f2fa650d7dadf
+RAIL_LU: 2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e
 
 NEXT_ACTION_CONTRACT
 DECISION: APPROVED
-CLOSES: false
+CLOSES: true
 LOT: NEXUS-ESSAI-REVEIL-2-20261014
-REQUEST: request-1.md
-HEAD: 2eda12c631792a055792a2a5d89f2fa650d7dadf
+REQUEST: request-2.md
+HEAD: 2e472adf877e93387fd5c0a3c7f7f27f15ccfc5e
 LEASE: aucun
-GATE_STATE: G0, CI verte (run Tests 38646543211)
+GATE_STATE: G3, CI succès
 PROOF_STATE: PROOF_VALID
 CONDITIONS: aucune
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
-EXECUTANT_NEXT: session-claude-habilitee
-ACTION_NEXT: Déposer `docs/handoff/lots/NEXUS-ESSAI-REVEIL-2-20261014/note-b.txt` sur le rail `handoff-continuite-20260920`.
+EXECUTANT_NEXT: github-actions-claude
+ACTION_NEXT: Matérialiser cette décision de clôture sur le rail sans exécuter la note documentaire.
