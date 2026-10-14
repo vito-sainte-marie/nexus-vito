@@ -77,9 +77,7 @@ const CHAMPS_EMPREINTE = Object.freeze([
   'DECISION', 'CLOSES', 'CONDITIONS', 'BLOCKER', 'STOP_REQUIRED', 'ACTION_NEXT', 'EXECUTANT_NEXT',
 ]);
 
-const net = v => String(v == null ? '' : v).normalize('NFC').replace(/`/g, '').trim();
-// Vide n'est pas « aucune » : un champ absent ne vaut jamais feu vert.
-const aucune = v => /^(aucune?s?|aucun|non|none|néant)$/i.test(net(v));
+const { net, aucune, frontmatter, exigePreuve, titrePreuve } = require('./preuve-conditions.js');
 
 function empreinte(contrat) {
   const c = contrat || {};
@@ -156,22 +154,7 @@ function decider(e) {
 
 // ── Lecture du rail ──────────────────────────────────────────────────────────
 
-function frontmatter(texte) {
-  const m = texte.match(/^---\n([\s\S]*?)\n---/);
-  const f = {};
-  if (m) for (const l of m[1].split('\n')) { const x = l.match(/^([a-z_]+):\s*(.*)$/); if (x) f[x[1]] = x[2].trim(); }
-  return f;
-}
-
 const seq = nom => Number((nom.match(/-(\d+)\.md$/) || [])[1]);
-
-// Ce qu'exige une décision de la demande suivante. Une décision sans contrat
-// (matérialisée par un humain) exige une preuve si son verdict en pose.
-function exigePreuve(texte, lireContrat) {
-  const c = lireContrat(texte);
-  if (c && net(c.DECISION)) return !aucune(c.CONDITIONS);
-  return ['APPROVED_WITH_CONDITIONS', 'NEEDS_EVIDENCE'].includes(frontmatter(texte).decision);
-}
 
 // `%ct` plutôt que `%cI` : l'ISO de git porte le fuseau du committeur, et la
 // garde compte les jours en UTC.
@@ -205,7 +188,7 @@ function lireHistorique({ racine, lot, decision, rev, maintenant }) {
   const prec = decisions.filter(f => seq(f) < n).pop();
   if (prec && MOTIFS.request.test(request) && fs.existsSync(path.join(dossier, request))) {
     const nom = prec.replace(/\.md$/, '');
-    const titre = new RegExp(`^## Preuve des conditions de ${nom}\\s*$`, 'm');
+    const titre = titrePreuve(nom);
     anterieure = { nom: prec, exige: exigePreuve(lire(prec), lireContrat), prouvee: titre.test(lire(request)) };
   }
 

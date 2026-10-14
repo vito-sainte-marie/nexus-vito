@@ -819,15 +819,18 @@ function preparerOrdresDeLaDemande(lot, seq, options) {
 function exigerPreuveConditions(lot, corpsTexte) {
   const dec = dernier(echanges(lot, 'decision'));
   if (!dec) return; // première demande du lot : rien à prouver
-  const r = lireEnveloppe(path.join(LOTS, lot, dec.fichier));
+  const chemin = path.join(LOTS, lot, dec.fichier);
+  const r = lireEnveloppe(chemin);
   if (!r || !r.env) return; // enveloppe illisible : affaire de `verifier`, pas de cette garde
-  const { decision } = normaliserDecision(r.env.decision);
-  if (decision !== 'APPROVED_WITH_CONDITIONS') return;
   if (String(r.env.closes) === 'true') return; // lot fermé : la suite n'est plus celle qui prouve ces conditions
+  // Même règle que le juge de la boucle (`relancer-claude-ci.js`) : module commun.
+  const { exigePreuve, titrePreuve } = require('./preuve-conditions.js');
+  const { lireContrat } = require('./relais-arbitre-openai.js');
+  if (!exigePreuve(fs.readFileSync(chemin, 'utf8'), lireContrat)) return;
   const attendu = `Preuve des conditions de decision-${dec.seq}`;
-  const titre = new RegExp(`^##\\s+${attendu.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
+  const titre = titrePreuve(`decision-${dec.seq}`);
   if (!titre.test(corpsTexte)) {
-    console.error(`REFUS — ${dec.fichier} est APPROVED_WITH_CONDITIONS et n'est pas fermé (closes: ${r.env.closes}) ; le corps déposé ne porte pas de section « ## ${attendu} ». Rien n'est écrit.`);
+    console.error(`REFUS — ${dec.fichier} exige la preuve de ses conditions et n'est pas fermé (closes: ${r.env.closes}) ; le corps déposé ne porte pas de section « ## ${attendu} ». Rien n'est écrit.`);
     console.error('Prouver les conditions avant tout appel à l’arbitre : ajouter cette section au corps plutôt que de déposer sans elle.');
     process.exit(1);
   }

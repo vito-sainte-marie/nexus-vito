@@ -111,7 +111,7 @@ t('la première demande d’un lot (aucune décision encore déposée) passe tou
   assert.strictEqual(r1.code, 0, `la première demande d'un lot ne doit jamais être bloquée : ${r1.erreur}`);
 });
 
-t('la section est reconnue même suivie d’autres titres, et insensible à une casse de titre voisine mal formée', () => {
+t('la section est reconnue même suivie d’autres titres', () => {
   const dir = bac();
   const lot = 'EPREUVE-GARDE-CONDITIONS-6';
   demande(dir, lot, corps(dir, 'c1.md', '# Demande initiale\n'));
@@ -120,6 +120,40 @@ t('la section est reconnue même suivie d’autres titres, et insensible à une 
   const r2 = demande(dir, lot, corps(dir, 'c2.md',
     '# Suite\n\n## Preuve des conditions de decision-1\nTexte.\n\n## 1. Objet\nLe reste de la demande.\n'));
   assert.strictEqual(r2.code, 0, `la section suivie d'autres titres doit être reconnue : ${r2.erreur}`);
+});
+
+t('un suffixe de titre ne vaut pas preuve : « (suite) » est refusé, comme le juge de la boucle le refuserait', () => {
+  const dir = bac();
+  const lot = 'EPREUVE-GARDE-CONDITIONS-7';
+  demande(dir, lot, corps(dir, 'c1.md', '# Demande initiale\n'));
+  decision(dir, lot, corps(dir, 'd1.md', '# Décision\nAPPROVED_WITH_CONDITIONS.\n'),
+    ['--decision', 'APPROVED_WITH_CONDITIONS', '--closes', 'false', '--auteur', 'ChatGPT']);
+  const r2 = demande(dir, lot, corps(dir, 'c2.md', '# Suite\n\n## Preuve des conditions de decision-1 (suite)\nTexte.\n'));
+  assert.strictEqual(r2.code, 1, 'un titre suffixé aurait dû être refusé');
+  assert.ok(!fs.existsSync(path.join(dir, 'lots', lot, 'request-2.md')), 'request-2.md ne doit pas exister');
+});
+
+t('NEEDS_EVIDENCE exige aussi la preuve (le juge la lit), et la section exacte la satisfait', () => {
+  const dir = bac();
+  const lot = 'EPREUVE-GARDE-CONDITIONS-8';
+  demande(dir, lot, corps(dir, 'c1.md', '# Demande initiale\n'));
+  const rd = decision(dir, lot, corps(dir, 'd1.md', '# Décision\nNEEDS_EVIDENCE.\n'),
+    ['--decision', 'NEEDS_EVIDENCE', '--closes', 'false', '--auteur', 'ChatGPT']);
+  assert.strictEqual(rd.code, 0, `décision refusée : ${rd.erreur}`);
+  const r2 = demande(dir, lot, corps(dir, 'c2.md', '# Suite sans preuve\n'));
+  assert.strictEqual(r2.code, 1, 'NEEDS_EVIDENCE sans section aurait dû être refusé');
+  const r3 = demande(dir, lot, corps(dir, 'c3.md', '# Suite\n\n## Preuve des conditions de decision-1\nFournie.\n'));
+  assert.strictEqual(r3.code, 0, `la section exacte aurait dû passer : ${r3.erreur}`);
+});
+
+t('la garde et le juge lisent la même règle (module commun)', () => {
+  const src = (f) => fs.readFileSync(path.join(RACINE, 'outils', f), 'utf8');
+  assert.ok(/preuve-conditions/.test(src('handoff.js')), 'handoff.js doit lire le module commun');
+  assert.ok(/preuve-conditions/.test(src('relancer-claude-ci.js')), 'relancer-claude-ci.js doit lire le module commun');
+  const { titrePreuve } = require('./outils/preuve-conditions.js');
+  assert.ok(titrePreuve('decision-2').test('## Preuve des conditions de decision-2'));
+  assert.ok(!titrePreuve('decision-2').test('## Preuve des conditions de decision-2 (suite)'));
+  assert.ok(!titrePreuve('decision-2').test('## Preuve des conditions de decision-20'));
 });
 
 console.log(`\n${passes}/${total} vérifications passées — ${total - passes} échec(s).`);
