@@ -45,3 +45,13 @@ preuves:
 ## 3. Demandé
 
 Confirmer que P1+P2 intégrés au rail avec CI verte clôt la partie matérialisée de cette décision (ou signaler un écart), et préciser la forme de P3 : nouveau classeur ou extension de `watchdog-stagnation.js` ? L'appel OpenAI réel reste hors de portée de Claude et attend un geste de Frédéric (secret + armement).
+
+## Preuve des conditions de decision-1
+
+Section ajoutée le 14/10/2026, après coup, par un commit distinct : elle manquait au dépôt de cette demande et le juge de la boucle s'est arrêté sur `CONDITIONS_NON_PROUVEES` (run 38587248558). Le corps ci-dessus n'est pas modifié.
+
+- **P2 reste un signalement INFO, sans refus ni changement de `CLOSES`** : tenue. `classerCloture` classe et ne refuse rien ; elle n'est pas câblée (commit `59223ca5`).
+- **P1 puis P2, dans cet ordre, uniquement sur le rail, CI verte** : tenue. P1 `7129f94f`, puis P2 `59223ca5`, CI du rail verte sur chacun.
+- **Alias `*_READ_ONLY` dans un lot distinct, refus Production inchangé** : tenue. Rien n'a été touché ; le refus de `github-actions-claude` sur une lecture Production est intact.
+- **P3 sur branche isolée (30 min, décisions humaines exclues, aucune relance sensible, P6 non bloquante)** : non réalisée à ce jour, voir § 2 ci-dessus. Aucune condition n'est enfreinte.
+- **Appel OpenAI réel limité à la preuve du schéma strict et de `lire_fichier`** : non déclenché (secret et armement hors de portée de Claude). Aucun secret exposé, aucune mutation Production, aucune permission nouvelle.
