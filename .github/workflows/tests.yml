@@ -625,6 +625,7 @@ jobs:
             node outils/etat-maillon.js HUMAN_DECISION_REQUIRED "$1" --maillon "$M" \
               --motif "$2" --condition "$3" --prochaine-action "$4" \
               --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
+            { echo "alerte_humaine=1"; echo "lot=$LOT"; } >> "$GITHUB_OUTPUT"
             exit 0
           }
           A_LA_MAIN="matérialiser à la main la réponse postée sur $COMMENTAIRE (handoff.js decision --auteur ChatGPT)"
@@ -759,7 +760,7 @@ jobs:
       # Canal de notification uniquement : aucune autorisation, aucun redémarrage.
       # Une seule alerte par run ; les secrets ne sont jamais affichés.
       - name: Alerte Telegram — arrêt Handoff
-        if: ${{ always() && (steps.materialisation.outcome == 'failure' || steps.boucle_autonome.outcome == 'failure' || steps.boucle_autonome.outputs.alerte_humaine == '1') }}
+        if: ${{ always() && (steps.relais_arbitre.outcome == 'failure' || steps.materialisation.outcome == 'failure' || steps.materialisation.outputs.alerte_humaine == '1' || steps.boucle_autonome.outcome == 'failure' || steps.boucle_autonome.outputs.alerte_humaine == '1') }}
         continue-on-error: true
         timeout-minutes: 1
         env:
@@ -767,6 +768,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           LOT: ${{ steps.materialisation.outputs.lot }}
           MOTIF: ${{ steps.boucle_autonome.outputs.motif }}
+          RELAIS: ${{ steps.relais_arbitre.outcome }}
+          PALIER: ${{ steps.materialisation.outputs.alerte_humaine }}
           MATERIALISATION: ${{ steps.materialisation.outcome }}
           BOUCLE: ${{ steps.boucle_autonome.outcome }}
         run: |
@@ -776,10 +779,14 @@ jobs:
             exit 0
           fi
           # Le contenu est volontairement borné : aucune donnée client, aucun secret.
-          if [ "$MATERIALISATION" = failure ]; then
+          if [ "$RELAIS" = failure ]; then
+            RAISON="Échec du relais vers l'arbitre — consulter les logs"
+          elif [ "$MATERIALISATION" = failure ]; then
             RAISON="Échec de matérialisation — consulter les logs"
           elif [ "$BOUCLE" = failure ]; then
             RAISON="Échec de la boucle autonome — consulter les logs"
+          elif [ "$PALIER" = 1 ]; then
+            RAISON="Décision réservée à un humain — l'arbitre ne franchit aucun palier"
           else
             RAISON="Décision humaine requise : ${MOTIF:-motif non renseigné}"
           fi
