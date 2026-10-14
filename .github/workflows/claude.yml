@@ -459,3 +459,35 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/issues/${ADRESSE}/comments" \
             -f body="$(cat "$RUNNER_TEMP/nexus-refus-corps.md")" --silent
           echo "Refus publié sur #${ADRESSE}."
+
+      # Le commentaire d'issue ne prévient personne qui ne regarde pas l'issue :
+      # un refus de rail doit aussi arriver sur Telegram, comme les arrêts de
+      # tests.yml. Tous les déclencheurs sont couverts, repository_dispatch
+      # compris. Cette étape ne fait jamais échouer le run : le refus est déjà
+      # enregistré par l'étape « rail ».
+      - name: Alerter Telegram du refus de rail
+        if: always() && steps.rail.outcome == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DECLENCHEUR: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Alerte Telegram non envoyée : secrets absents"
+            exit 0
+          fi
+          REFUS="$RUNNER_TEMP/nexus-refus.md"
+          # Contenu borné : première ligne du motif seulement, aucun secret.
+          if [ -s "$REFUS" ]; then motif="$(head -n 1 "$REFUS" | cut -c1-200)"
+          else motif="motif non consigné — voir le journal du run"; fi
+          MESSAGE=$(printf 'NEXUS — Déclencheur Claude refusé\nDéclencheur : %s\nMotif : %s\nRun : %s' "$DECLENCHEUR" "$motif" "$RUN_URL")
+          curl --silent --show-error --fail --max-time 15 \
+            --output /dev/null --request POST \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=$MESSAGE" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            || { echo "::warning::Notification Telegram échouée (sans impact sur le refus)"; exit 0; }
