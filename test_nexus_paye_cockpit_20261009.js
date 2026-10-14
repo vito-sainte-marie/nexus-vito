@@ -52,6 +52,9 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
+if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
@@ -140,7 +143,7 @@ verifier('… et chacun est un bouton, donc cliquable au clavier comme à la sou
 // salariés hors paie sont décomptés à part (17 = 9 + 8), et l'indicateur
 // d'écarts porte le SOLDE réel issu des régularisations, non un total d'écarts.
 ['Salariés dans la paie', 'Heures confirmées', 'Décisions de paie à traiter', 'Écarts de caisse à qualifier',
-  'Salariés prêts', 'Solde des écarts de caisse'].forEach(k => {
+  'Salariés prêts', 'Manques validés du mois'].forEach(k => {
   verifier(`l’indicateur « ${k} » est présent`, dans(ecran(), `<span>${k}</span>`));
 });
 verifier('les écarts de caisse sont tenus à l’écart des éléments de rémunération',

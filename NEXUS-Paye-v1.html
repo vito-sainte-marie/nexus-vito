@@ -178,9 +178,9 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 <footer>NEXUS prépare les variables · la comptable établit le bulletin</footer>
 </div>
 <script>
-let EMPLOYEE, SITE, RAPPORT, MOIS = NexusPayeMoteur.moisISO(new Date());
+let EMPLOYEE, SITE, RAPPORT, MOIS = NexusEcartsDonnees.bornesDuMois(NexusEcartsDonnees.jourDeLaStation(new Date())).dateDebut;
 const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Présence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
-const INFOS={heures:['Comment lire les heures','Mesurée : jour prouvé par Verify ou le pointage. Reconstituée : jour déduit du planning faute de preuve directe, signalé comme tel. Confirmée : jour retenu après ces contrôles. Hors planning : présence constatée un jour non planifié ; ses heures proposées par le barème restent en attente tant que vous n’avez pas tranché. Retenue : ce qui part à la comptable — uniquement les heures sans réserve et celles que vous avez confirmées.'],dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptable.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles reconstituées à partir du barème de la station quand la preuve manque. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
+const INFOS={indicateursEcarts:['Manques validés et solde opérationnel','Manques validés du mois : somme des manques de caisse du mois civil que le manager a validés (écarts « à vérifier » exclus). C’est l’indicateur principal. Solde opérationnel du mois : somme algébrique de tous les écarts du mois, manques et excédents, validés ou non ; il peut être moins négatif sans que les manques validés diminuent. Les régularisations encaissées ce mois comptent au jour de l’encaissement, même sur un écart d’un mois antérieur ; le reste à régulariser est un cumul depuis l’origine, arrêté à la fin du mois. Mêmes chiffres que la page Analyse des écarts. Aucune retenue sur salaire n’est créée.'],heures:['Comment lire les heures','Mesurée : jour prouvé par Verify ou le pointage. Reconstituée : jour déduit du planning faute de preuve directe, signalé comme tel. Confirmée : jour retenu après ces contrôles. Hors planning : présence constatée un jour non planifié ; ses heures proposées par le barème restent en attente tant que vous n’avez pas tranché. Retenue : ce qui part à la comptable — uniquement les heures sans réserve et celles que vous avez confirmées.'],dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptable reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une présence reconstituée reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptable.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles reconstituées à partir du barème de la station quand la preuve manque. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
 // Les seuls types encore saisissables JOURNÉE PAR JOURNÉE. Congés,
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
@@ -195,6 +195,7 @@ const STATUTS_SALARIE={pret:['Prêt','green'],a_verifier:['À vérifier','amber'
 const ECHAPPE=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const infoBtn=(cle,label)=>`<button type="button" class="info-btn" data-info="${cle}" aria-label="Information${label?` : ${ECHAPPE(label)}`:''}">i</button>`;
 const euros=c=>c==null?'—':`${c>0?'+':''}${(c/100).toFixed(2)} €`;
+const eurosDe=v=>euros(Math.round(v*100));
 // P2 (03/09/2026) : « vérifié » est un mot d'ingénieur. Ce que le
 // manager doit lire, c'est où en est le dossier vis-à-vis de la comptable.
 const LIBELLE_STATUT_DOSSIER={brouillon:'en préparation',verifie:'prêt pour comptabilité',transmis:'transmis'};
@@ -203,7 +204,7 @@ const pluriel=(n,mot)=>`${n} ${mot}${n>1?'s':''}`;
 const pillStatut=st=>{const [l,c]=STATUTS_SALARIE[st]||STATUTS_SALARIE.hors_paie;return `<span class="pill ${c}">${l}</span>`};
 function lienPlanningSecurise(){const brut=RAPPORT&&RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.url;try{const u=new URL(brut);return u.protocol==='https:'&&u.hostname==='docs.google.com'&&u.pathname.startsWith('/spreadsheets/d/')?u.href:''}catch(_){return''}}
 function moisLabel(){return new Date(`${MOIS}T12:00:00`).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
-function dernierJourMois(){const d=new Date(`${NexusPayeMoteur.finMoisISO(MOIS)}T12:00:00`);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)}
+function dernierJourMois(){return NexusEcartsDonnees.bornesDuMois(MOIS).dateFin}
 function etatPeriode(){return (RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.statut)||'brouillon';}
 function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:'';const m=i.montantCentimes!=null?`${(i.montantCentimes/100).toFixed(2)} €`:'';return [LIBELLES[i.typeItem]||i.typeItem,q,m,i.contestationOuverte?'Contestation ouverte — transmission bloquée':''].filter(Boolean).join(' · ')}
 // ─── Cockpit mensuel (09/10/2026, mandat Fast Track de Frédéric) ──────────
@@ -272,7 +273,7 @@ async function chargerRegularisationsPaye(){
   if(!f||!f.timezone)return {etat:f&&f.indetermine==='reseau'?'erreur':'sans_fuseau'};
   const [univers,ops]=await Promise.all([NexusEcartsDonnees.chargerEcartsConsolides(nexusClient,SITE,{}),NexusPayeRegularisations.chargerOperations(nexusClient,SITE)]);
   const opt={fuseau:f.timezone,dateDebut:MOIS,dateFin:dernierJourMois()};
-  return {etat:'ok',situations:NexusPayeRegularisations.situationsParEcart(univers,ops,opt),synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),opt),domaines:NexusPayeRegularisations.syntheseParDomaine(univers,ops,opt)};
+  return {etat:'ok',indic:NexusEcartsDonnees.indicateursPeriode(univers,{dateDebut:opt.dateDebut,dateFin:opt.dateFin}),situations:NexusPayeRegularisations.situationsParEcart(univers,ops,opt),synthese:NexusPayeRegularisations.syntheseRegularisationsPeriode(univers,NexusPayeRegularisations.operationsDeLUnivers(univers,ops),opt),domaines:NexusPayeRegularisations.syntheseParDomaine(univers,ops,opt)};
  }catch(e){console.error(e);return {etat:'erreur',message:(e&&e.message)||String(e)}}
 }
 function regulOk(){return !!(REGUL&&REGUL.etat==='ok'&&REGUL.synthese)}
@@ -361,7 +362,7 @@ function renderKpis(s,ec,a){
  <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Décisions de paie à traiter</span><b>${dec}</b><small>${dec-s.configurationRequise} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
  <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
  <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b><small>${s.salariesAVerifier} à vérifier · ${s.salariesDonneeManquante} donnée manquante</small></button>
- <button type="button" class="kpi money" data-kpi="ecarts"><span>Solde des écarts de caisse</span>${regulOk()?`<b>${euros(-REGUL.synthese.soldeFinPeriode.resteDuCentimes)}</b><small>encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
+ <button type="button" class="kpi money" data-kpi="ecarts"><span>Manques validés du mois</span>${regulOk()?`<b>${eurosDe(REGUL.indic.manquesValides)}</b><small>solde opérationnel ${eurosDe(REGUL.indic.soldeOperationnel)} · encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
  </div>`;
 }
 function renderPanneau(){
@@ -373,16 +374,24 @@ function renderPanneau(){
   <div id="accountantSection" role="tabpanel" ${ONGLET==='dossier'?'':'hidden'}>${renderDossier()}</div>
  </div>`;
 }
+function lienAnalyseEcarts(){
+ const p=new URLSearchParams({periode:'perso',date_debut:MOIS,date_fin:dernierJourMois()});
+ if(SELECTION)p.set('employe',SELECTION);
+ return `NEXUS-Analyse-Ecarts-v1.html?${p.toString()}`;
+}
 function renderLignesRegul(ec){
  const initial=`<div class="ligne">Écarts initiaux de la période (avant validation)<b>${euros(ec.initial)}</b></div>`;
  if(!regulOk())return initial+`<div class="regul-etat">${ECHAPPE(raisonRegul())}</div>`;
- const r=REGUL.synthese, c=r.constates, e=r.encaissements, sf=r.soldeFinPeriode;
+ const r=REGUL.synthese, c=r.constates, e=r.encaissements, sf=r.soldeFinPeriode, k=REGUL.indic, nv=k.nonValides;
  const ant=(e.detail||[]).filter(d=>d.ecartAnterieur).length;
  const att=c.enAttente&&c.enAttente.nb?` · ${pluriel(c.enAttente.nb,'écart')} en attente de validation`:'';
- return initial
-  +`<div class="ligne">Écarts validés de la période${att}<b>${euros(c.manquesCentimes)} (${pluriel(c.nbManques,'manque')}) · ${euros(c.excedentsCentimes)} (${pluriel(c.nbExcedents,'excédent')})</b></div>`
+ return `<div class="ligne" data-indicateur="manques-valides"><span>Manques validés du mois ${infoBtn('indicateursEcarts','manques validés et solde opérationnel')} <a class="source-link" id="lienAnalyseEcarts" href="${ECHAPPE(lienAnalyseEcarts())}">Voir le détail Verify / FDJ ↗</a></span><b>${eurosDe(k.manquesValides)}</b></div>`
+  +`<div class="ligne muet" data-indicateur="solde-operationnel">Solde opérationnel du mois (indicateur secondaire : manques et excédents, validés ou non)<b>${eurosDe(k.soldeOperationnel)}</b></div>`
+  +(nv.nb?`<div class="ligne muet" data-indicateur="non-valides">Manques constatés non encore validés (non inclus ci-dessus)<b>${eurosDe(nv.montant)} (${pluriel(nv.nb,'écart')})</b></div>`:'')
+  +initial
+  +`<div class="ligne">Excédents validés de la période${att}<b>${euros(c.excedentsCentimes)} (${pluriel(c.nbExcedents,'excédent')})</b></div>`
   +`<div class="ligne${e.netCentimes?'':' muet'}">Régularisations réellement encaissées ce mois${ant?` (dont ${ant} sur un écart antérieur)`:''}<b>${euros(e.netCentimes)}</b></div>`
-  +`<div class="ligne">Solde restant au ${jjmmaaaaFR(r.au)}<b>${euros(-sf.resteDuCentimes)}${sf.tropPercuCentimes?` · trop-perçu ${euros(sf.tropPercuCentimes)}`:''}</b></div>`
+  +`<div class="ligne">Reste à régulariser au ${jjmmaaaaFR(r.au)} (tous écarts validés depuis l’origine, net des régularisations)<b>${euros(-sf.resteDuCentimes)}${sf.tropPercuCentimes?` · trop-perçu ${euros(sf.tropPercuCentimes)}`:''}</b></div>`
   +ligneDomaine('Boutique / piste (Verify)',REGUL.domaines&&REGUL.domaines.verify)
   +ligneDomaine('FDJ',REGUL.domaines&&REGUL.domaines.fdj)
   +`<div class="regul-etat">Paye consolide en lecture seule : la saisie se fait dans Verify ou FDJ. Aucun montant n'est retenu sur la paie ; un surplus de versement n'est pas transmis.</div>`;
@@ -390,7 +399,7 @@ function renderLignesRegul(ec){
 function ligneDomaine(titre,d){
  if(!d)return '';
  const c=d.constates,e=d.encaissements,sf=d.soldeFinPeriode;
- return `<div class="ligne" data-domaine="${ECHAPPE(titre)}">${ECHAPPE(titre)} — manques ${euros(c.manquesCentimes)}, excédents ${euros(c.excedentsCentimes)}, versements ${euros(e.netCentimes)}<b>solde ${euros(-sf.resteDuCentimes)}</b></div>`;
+ return `<div class="ligne" data-domaine="${ECHAPPE(titre)}">${ECHAPPE(titre)} — manques ${euros(c.manquesCentimes)}, excédents ${euros(c.excedentsCentimes)}, versements ${euros(e.netCentimes)}<b>reste à régulariser ${euros(-sf.resteDuCentimes)}</b></div>`;
 }
 function renderDecisions(){
  const s=RAPPORT.synthese, ec=totauxEcarts();

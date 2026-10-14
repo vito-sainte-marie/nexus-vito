@@ -313,7 +313,42 @@
     return `jusqu\u2019au ${jourFr(per.dateFin)}`;
   }
 
+  // Bornes civiles d'un mois 'AAAA-MM-01' (ou 'AAAA-MM'), en chaînes pures :
+  // aucun Date local, donc indépendant du fuseau de l'appareil (15/10/2026).
+  function bornesDuMois(mois) {
+    const m = /^(\d{4})-(\d{2})/.exec(String(mois || ''));
+    if (!m) throw new TypeError('bornesDuMois : mois attendu au format AAAA-MM.');
+    const a = Number(m[1]), n = Number(m[2]);
+    return { dateDebut: `${m[1]}-${m[2]}-01`, dateFin: `${m[1]}-${m[2]}-${deuxChiffres(dernierJourDuMois(a, n))}` };
+  }
+
+  // Manques constatés mais pas encore validés (statut « à vérifier », écart
+  // final négatif) : somme directe en centimes, jamais une différence entre
+  // deux agrégats. Source unique pour Analyse des écarts et NEXUS Paye.
+  function manquesNonValides(lignes) {
+    let c = 0, nb = 0;
+    (lignes || []).forEach(l => {
+      if (l.statut === 'a_verifier' && l.ecartFinal != null && l.ecartFinal < 0) { c += Math.round(l.ecartFinal * 100); nb++; }
+    });
+    return { montant: c / 100, nb };
+  }
+
+  // Indicateurs d'une période : MÊME filtre (appliquerFiltresEcarts) et MÊMES
+  // agrégats (calculerKpisEcarts) que la page Analyse des écarts. Paye l'appelle
+  // avec les bornes du mois choisi ; aucune seconde définition comptable.
+  function indicateursPeriode(lignes, filtres) {
+    const M = global.NexusEcartsMoteur;
+    if (!M) throw new Error('NexusEcartsMoteur absent : les indicateurs de période ne peuvent pas être calculés.');
+    const retenues = appliquerFiltresEcarts(lignes, filtres);
+    const k = M.calculerKpisEcarts(retenues);
+    return { lignes: retenues, kpis: k, manquesValides: k.montantRetenu, soldeOperationnel: k.soldeOperationnel,
+      nonValides: manquesNonValides(retenues) };
+  }
+
   global.NexusEcartsDonnees = {
+    bornesDuMois,
+    manquesNonValides,
+    indicateursPeriode,
     jourDeLaStation,
     bornesDePeriode,
     resoudrePeriode,
