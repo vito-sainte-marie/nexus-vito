@@ -10,6 +10,9 @@
 //   E. Un ordre n'est pas une autorisation (autoriser sans GO refuse) ; `verifier` reste vert avec des order-*.json.
 //   F. Mutation « débrancher le câblage » : le CLI sans l'appel n'écrit aucun ordre → l'épreuve D rougit.
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 const fs = require('fs'), os = require('os'), path = require('path'), assert = require('assert');
 const { execFileSync } = require('child_process');
 const { preparer } = require('./outils/preparer-ordres');
@@ -96,7 +99,7 @@ process.on('exit', () => fs.rmSync(CLONE, { recursive: true, force: true }));
 const gitC = (...a) => execFileSync('git', ['-c', 'user.name=epreuve-e3', '-c', 'user.email=epreuve-e3@invalid', '-c', 'commit.gpgsign=false', '-C', CLONE, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 execFileSync('git', ['clone', '-q', '--shared', '--no-checkout', RACINE, CLONE], { stdio: 'ignore' });
 gitC('checkout', '-q', '--detach', execFileSync('git', ['rev-parse', 'HEAD'], { cwd: RACINE, encoding: 'utf8' }).trim());
-fs.cpSync(path.join(RACINE, 'outils'), path.join(CLONE, 'outils'), { recursive: true });
+fs.cpSync(path.join(RACINE, 'outils'), path.join(CLONE, 'outils'), { recursive: true, filter: horsMutants });
 // Le clone a RACINE pour origin : ses origin/* sont les branches LOCALES de RACINE, absentes en CI (seules les
 // refs distantes y existent). handoff.js lit origin/main et origin/production : on les recopie depuis RACINE.
 for (const b of ['main', 'production']) {

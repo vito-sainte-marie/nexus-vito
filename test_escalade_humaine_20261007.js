@@ -18,6 +18,9 @@
 //      même NEXT_ACTION_CONTRACT et les mêmes motifs Frédéric, et l'arbitre
 //      ne dépose plus lui-même decision-N.md.
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -44,7 +47,7 @@ const LOT_D4 = 'GOUVERNANCE-REFERENCE-CODE-20261005';
 // qui ne s'applique pas rendrait un vert sans rien mesurer.
 function variante(fichier, avant, apres) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'escalade-'));
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true });
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true, filter: horsMutants });
   fs.mkdirSync(path.join(tmp, 'docs', 'handoff'), { recursive: true });
   fs.copyFileSync(path.join(RACINE, esc.FICHIER_REGISTRE), path.join(tmp, esc.FICHIER_REGISTRE));
   const cible = path.join(tmp, fichier);

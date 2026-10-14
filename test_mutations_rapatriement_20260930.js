@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 // Épreuves de MUTATION — les gardes du rapatriement mordent-elles vraiment ?
 //
 // POURQUOI CE FICHIER EXISTE. Le 08/09/2026, quatre gardes de ce dépôt étaient
@@ -392,7 +395,7 @@ const COPIES = [WORKFLOW, ...EPREUVES];
 const MUTABLES = [QUALIF, ETAT, WATCH, DESIG, RAPAT, WORKFLOW];
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-mutation-'));
-fs.cpSync('outils', path.join(BAC, 'outils'), { recursive: true });
+fs.cpSync('outils', path.join(BAC, 'outils'), { recursive: true, filter: horsMutants });
 fs.mkdirSync(path.join(BAC, '.github/workflows'), { recursive: true });
 for (const c of COPIES) fs.copyFileSync(c, path.join(BAC, c));
 

@@ -11,6 +11,9 @@
 // on retire l'appel à `valider` dans la voie armée, puis l'appel au relais dans
 // l'étape CI. Chacune doit rougir son épreuve.
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -104,7 +107,7 @@ function relais(env, entree, mutation) {
   let racine = RACINE;
   if (mutation) {
     racine = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'relais-mut-')));
-    fs.cpSync(path.join(RACINE, 'outils'), path.join(racine, 'outils'), { recursive: true });
+    fs.cpSync(path.join(RACINE, 'outils'), path.join(racine, 'outils'), { recursive: true, filter: horsMutants });
     for (const f of ['docs/handoff/ARBITRAGES-ACQUIS.json', 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md']) {
       fs.mkdirSync(path.dirname(path.join(racine, f)), { recursive: true });
       fs.copyFileSync(path.join(RACINE, f), path.join(racine, f));

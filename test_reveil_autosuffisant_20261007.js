@@ -9,6 +9,9 @@
 // réel n'est jamais lu ni touché. La mutation débranche l'aide (on retire
 // l'appel à `blocDemande` dans `corpsReveil`) : l'épreuve principale doit rougir.
 'use strict';
+// Des épreuves de mutation écrivent brièvement .mut-*.js dans le vrai outils/ : une copie
+// concurrente les voit disparaître (ENOENT). Aucun fichier suivi ne commence par un point.
+const horsMutants = (src) => !require('path').basename(src).startsWith('.');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -43,7 +46,7 @@ const blob = s => crypto.createHash('sha1').update(`blob ${Buffer.byteLength(s)}
 function module_(mutation, remplacement) {
   if (!mutation) return require('./outils/reveil-orchestrateur.js');
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'reveil-mut-')));
-  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true });
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true, filter: horsMutants });
   fs.mkdirSync(path.join(tmp, 'docs', 'handoff'), { recursive: true });
   fs.copyFileSync(path.join(RACINE, 'docs', 'handoff', 'ARBITRAGES-ACQUIS.json'), path.join(tmp, 'docs', 'handoff', 'ARBITRAGES-ACQUIS.json'));
   const cible = path.join(tmp, 'outils', 'reveil-orchestrateur.js');
