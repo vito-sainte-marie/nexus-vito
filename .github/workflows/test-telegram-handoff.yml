@@ -1,0 +1,31 @@
+name: Test Telegram Handoff (manuel)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Envoyer une notification de test
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::error::Secrets Telegram absents"
+            exit 1
+          fi
+          MESSAGE=$(printf 'NEXUS — TEST TELEGRAM\nNotification de test du Handoff (aucune intervention nécessaire).\nRun : https://github.com/%s/actions/runs/%s' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          # Ne pas afficher la réponse HTTP ni l'URL qui contient le jeton.
+          curl --silent --show-error --fail --max-time 15 \
+            --output /dev/null --request POST \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "text=$MESSAGE" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          echo "Requête Telegram acceptée ; confirmer la réception sur le téléphone."

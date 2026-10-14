@@ -625,6 +625,7 @@ jobs:
             node outils/etat-maillon.js HUMAN_DECISION_REQUIRED "$1" --maillon "$M" \
               --motif "$2" --condition "$3" --prochaine-action "$4" \
               --sha "${GITHUB_SHA:-(sha non lisible)}" --branche "$B" --lot "$LOT"
+            { echo "alerte_humaine=1"; echo "lot=$LOT"; } >> "$GITHUB_OUTPUT"
             exit 0
           }
           A_LA_MAIN="matérialiser à la main la réponse postée sur $COMMENTAIRE (handoff.js decision --auteur ChatGPT)"
@@ -719,6 +720,7 @@ jobs:
       # HUMAN_DECISION_REQUIRED : la boucle s'arrête, elle ne prévient pas
       # encore Frédéric par un canal dont la réception est prouvée.
       - name: Boucle autonome — relancer Claude (repository_dispatch)
+        id: boucle_autonome
         if: always() && vars.NEXUS_BOUCLE_AUTONOME == 'arme' && steps.materialisation.outputs.depose == '1'
         timeout-minutes: 3
         env:
@@ -748,10 +750,54 @@ jobs:
               || { node outils/etat-maillon.js FAILED DISPATCH_REFUSE --maillon "$M" --motif "$verdict : $motif — envoi refusé" --condition "dispatch refusé" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "relancer Claude à la main"; exit 1; }
             node outils/etat-maillon.js EXECUTE CLAUDE_RELANCE --maillon "$M" --motif "$motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
           elif [ "$notifier" = true ]; then
+            echo "alerte_humaine=1" >> "$GITHUB_OUTPUT"
+            echo "motif=$verdict" >> "$GITHUB_OUTPUT"
             node outils/etat-maillon.js HUMAN_DECISION_REQUIRED BOUCLE_ARRETEE --maillon "$M" --motif "$verdict : $motif" --condition "$verdict" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT" --prochaine-action "Frédéric tranche ; la boucle reste arrêtée"
           else
             node outils/etat-maillon.js NO_WORK BOUCLE_AU_REPOS --maillon "$M" --motif "$verdict : $motif" --sha "$SHA_RAIL" --branche "$RAIL" --lot "$LOT"
           fi
+
+      # Canal de notification uniquement : aucune autorisation, aucun redémarrage.
+      # Une seule alerte par run ; les secrets ne sont jamais affichés.
+      - name: Alerte Telegram — arrêt Handoff
+        if: ${{ always() && (steps.relais_arbitre.outcome == 'failure' || steps.materialisation.outcome == 'failure' || steps.materialisation.outputs.alerte_humaine == '1' || steps.boucle_autonome.outcome == 'failure' || steps.boucle_autonome.outputs.alerte_humaine == '1') }}
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LOT: ${{ steps.materialisation.outputs.lot }}
+          MOTIF: ${{ steps.boucle_autonome.outputs.motif }}
+          RELAIS: ${{ steps.relais_arbitre.outcome }}
+          PALIER: ${{ steps.materialisation.outputs.alerte_humaine }}
+          MATERIALISATION: ${{ steps.materialisation.outcome }}
+          BOUCLE: ${{ steps.boucle_autonome.outcome }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Alerte Telegram non envoyée : secrets absents"
+            exit 0
+          fi
+          # Le contenu est volontairement borné : aucune donnée client, aucun secret.
+          if [ "$RELAIS" = failure ]; then
+            RAISON="Échec du relais vers l'arbitre — consulter les logs"
+          elif [ "$MATERIALISATION" = failure ]; then
+            RAISON="Échec de matérialisation — consulter les logs"
+          elif [ "$BOUCLE" = failure ]; then
+            RAISON="Échec de la boucle autonome — consulter les logs"
+          elif [ "$PALIER" = 1 ]; then
+            RAISON="Décision réservée à un humain — l'arbitre ne franchit aucun palier"
+          else
+            RAISON="Décision humaine requise : ${MOTIF:-motif non renseigné}"
+          fi
+          MESSAGE=$(printf 'NEXUS — Handoff interrompu\nLot : %s\nMotif : %s\nRun : https://github.com/%s/actions/runs/%s' "${LOT:-non renseigné}" "$RAISON" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          curl --silent --show-error --fail --max-time 15 \
+            --output /dev/null --request POST \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=$MESSAGE" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            || { echo "::warning::Notification Telegram échouée (sans impact sur le Handoff)"; exit 0; }
 
       # ADR-0001 — garde de portée site. NON BLOQUANTE pour l'instant :
       # l'arbitrage conditionne son activation à la revue de ses résultats par
