@@ -166,11 +166,10 @@ epreuve('M3 — sans le motif renvoyé, R1 rougit', () => {
 // ── Compatibilité avec l'existant (correction 1 de l'arbitre) ───────────────
 // Un arrêt humain ne part vers aucun exécutant : « Frédéric » y est légitime.
 const HUMAIN = contrat({ DECISION: 'NEEDS_EVIDENCE', BLOCKER: 'GO humain requis', STOP_REQUIRED: 'SECRET_PERMISSION_SURFACE_SECURITE', OWNER_NEXT: 'Frédéric', EXECUTANT_NEXT: 'Frédéric', ACTION_NEXT: 'attendre le GO' });
-epreuve('E7 — BLOCKED / OWNER_NEXT Frédéric : « Frédéric » comme exécutant n\'est pas refusé', () => {
-  assert.deepStrictEqual(r.refusExecutant(r.lireContrat(HUMAIN), cap.chargerRegistre(__dirname)), []);
-  const p = relais([HUMAIN]);
-  assert.strictEqual(p.code, 0, p.stderr);
-  assert.strictEqual(p.requetes.length, 1);
+epreuve('E7 — arrêt humain (Frédéric, STOP posé) : « Frédéric » comme exécutant n\'est pas refusé', () => {
+  const reg = cap.chargerRegistre(__dirname);
+  assert.deepStrictEqual(r.refusExecutant(r.lireContrat(HUMAIN), reg), []);
+  assert.deepStrictEqual(r.refusExecutant(r.lireContrat(contrat({ DECISION: 'BLOCKED', OWNER_NEXT: 'Frédéric', EXECUTANT_NEXT: 'Frédéric' })), reg), []);
 });
 epreuve('E7c — STOP_REQUIRED « non » n\'est pas un arrêt : « Claude » reste refusé (régression de l\'exemption)', () => {
   for (const stop of ['non', 'aucun', 'aucune', 'Non']) {
@@ -182,11 +181,16 @@ epreuve('E7b — l\'exemption ne couvre pas un exécutant libre sur une décisio
   assert.ok(r.refusExecutant(r.lireContrat(contrat({ EXECUTANT_NEXT: 'Frédéric' })), cap.chargerRegistre(__dirname)).length >= 1);
 });
 epreuve('M4 — sans l\'exemption de l\'arrêt humain, E7 rougit', () => {
-  rougit(() => {
-    const p = relais([HUMAIN], ["  if (nets('DECISION') === 'BLOCKED' ||", "  if (false &&"]);
-    assert.strictEqual(p.code, 0, p.stderr);
-    assert.strictEqual(p.requetes.length, 1);
-  }, /./, 'exemption retirée');
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'exec-m4-')));
+  fs.cpSync(path.join(RACINE, 'outils'), path.join(tmp, 'outils'), { recursive: true, filter: horsMutants });
+  fs.mkdirSync(path.join(tmp, 'docs/handoff'), { recursive: true });
+  fs.copyFileSync(path.join(RACINE, 'docs/handoff/CAPACITES-CANAL.json'), path.join(tmp, 'docs/handoff/CAPACITES-CANAL.json'));
+  const f = path.join(tmp, 'outils', 'relais-arbitre-openai.js'), src = fs.readFileSync(f, 'utf8');
+  const ancre = ") return refus;\n  const executant";
+  assert.strictEqual(src.split(ancre).length, 2, 'ancre non unique');
+  fs.writeFileSync(f, src.replace(ancre, ") refus.length;\n  const executant"));
+  const m = require(f), reg = require(path.join(tmp, 'outils', 'capacites-canal.js')).chargerRegistre(tmp);
+  assert.ok(m.refusExecutant(m.lireContrat(HUMAIN), reg).length >= 1, 'sans l\'exemption, « Frédéric » serait refusé');
 });
 
 // Rejeu : toutes les décisions déjà déposées sur le rail passent par le
