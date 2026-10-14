@@ -163,5 +163,61 @@ epreuve('M3 — sans le motif renvoyé, R1 rougit', () => {
   rougit(() => preuveUneSeuleRelance(['{ role: \'user\', content: "Le relais refuse ton NEXT_ACTION_CONTRACT :\\n" + refus.map(x => `- ${x}`).join(\'\\n\') +', '{ role: \'user\', content: "Corrige." +']), /motif structuré/, 'motif non renvoyé');
 });
 
+// ── Compatibilité avec l'existant (correction 1 de l'arbitre) ───────────────
+// Un arrêt humain ne part vers aucun exécutant : « Frédéric » y est légitime.
+const HUMAIN = contrat({ DECISION: 'BLOCKED', BLOCKER: 'GO humain requis', STOP_REQUIRED: 'SECRET_PERMISSION_SURFACE_SECURITE', OWNER_NEXT: 'Frédéric', EXECUTANT_NEXT: 'Frédéric', ACTION_NEXT: 'attendre le GO' });
+epreuve('E7 — BLOCKED / OWNER_NEXT Frédéric : « Frédéric » comme exécutant n\'est pas refusé', () => {
+  assert.deepStrictEqual(r.refusExecutant(r.lireContrat(HUMAIN), cap.chargerRegistre(__dirname)), []);
+  const p = relais([HUMAIN]);
+  assert.strictEqual(p.code, 0, p.stderr);
+  assert.strictEqual(p.requetes.length, 1);
+});
+epreuve('E7c — STOP_REQUIRED « non » n\'est pas un arrêt : « Claude » reste refusé (régression de l\'exemption)', () => {
+  for (const stop of ['non', 'aucun', 'aucune', 'Non']) {
+    const refus = r.refusExecutant(r.lireContrat(contrat({ STOP_REQUIRED: stop, EXECUTANT_NEXT: 'Claude' })), cap.chargerRegistre(__dirname));
+    assert.ok(refus.some(x => /^EXECUTANT_INCONNU/.test(x)), `STOP ${stop} : l'exécutant libre a échappé à la liste`);
+  }
+});
+epreuve('E7b — l\'exemption ne couvre pas un exécutant libre sur une décision qui part', () => {
+  assert.ok(r.refusExecutant(r.lireContrat(contrat({ EXECUTANT_NEXT: 'Frédéric' })), cap.chargerRegistre(__dirname)).length >= 1);
+});
+epreuve('M4 — sans l\'exemption de l\'arrêt humain, E7 rougit', () => {
+  rougit(() => {
+    const p = relais([HUMAIN], ["  if (nets('DECISION') === 'BLOCKED' ||", "  if (false &&"]);
+    assert.strictEqual(p.code, 0, p.stderr);
+    assert.strictEqual(p.requetes.length, 1);
+  }, /./, 'exemption retirée');
+});
+
+// Rejeu : toutes les décisions déjà déposées sur le rail passent par le
+// validateur. Ce que la liste fermée refuse ne peut être que du vocabulaire
+// libre (« Claude », « CI du rail »…), jamais un identifiant du registre ni un
+// arrêt humain ; et aucune décision n'est refusée pour son CLOSES.
+epreuve('H1 — rejeu du rail : seuls le vocabulaire libre est refusé ; arrêts humains et identifiants du registre passent', () => {
+  const reg = cap.chargerRegistre(__dirname), canaux = cap.canauxConnus(reg);
+  const base = path.join(RACINE, 'docs', 'handoff', 'lots');
+  let n = 0, libres = 0, humains = 0;
+  for (const lot of fs.readdirSync(base)) {
+    const d = path.join(base, lot);
+    if (!fs.statSync(d).isDirectory()) continue;
+    for (const f of fs.readdirSync(d).filter(x => /^decision-\d+\.md$/.test(x))) {
+      const c = r.lireContrat(fs.readFileSync(path.join(d, f), 'utf8'));
+      if (!c || !c.EXECUTANT_NEXT) continue;
+      n++;
+      const refus = r.refusExecutant(c, reg);
+      const ex = c.EXECUTANT_NEXT.replace(/`/g, '').trim();
+      const humain = c.DECISION === 'BLOCKED' || c.OWNER_NEXT === 'Frédéric';
+      if (humain) { humains++; assert.deepStrictEqual(refus, [], `${lot}/${f} : arrêt humain refusé`); }
+      if (canaux.includes(ex) && !humain) {
+        assert.ok(!refus.some(x => /^EXECUTANT_INCONNU/.test(x)), `${lot}/${f} : identifiant du registre refusé`);
+      }
+      if (refus.some(x => /^EXECUTANT_INCONNU/.test(x))) libres++;
+    }
+  }
+  console.log(`     (${n} décisions avec exécutant, ${humains} arrêts humains, ${libres} en vocabulaire libre)`);
+  assert.ok(n >= 15, `rejeu trop maigre : ${n}`);
+  assert.ok(libres >= 10, `le rejeu doit retrouver le vocabulaire libre de l'audit (10 « Claude » au moins) : ${libres}`);
+});
+
 console.log(`\n${total - echecs}/${total} épreuves passent`);
 process.exit(echecs ? 1 : 0);

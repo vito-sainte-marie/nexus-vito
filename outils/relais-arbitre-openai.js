@@ -60,6 +60,10 @@ const registre = () => cap.chargerRegistre(RACINE);
 function refusExecutant(c, reg) {
   const refus = [];
   const nets = k => String(c[k] || '').replace(/`/g, '').trim();
+  // Un arrêt humain (BLOCKED, OWNER_NEXT Frédéric, STOP_REQUIRED posé) ne part
+  // vers aucun exécutant : le désigner « Frédéric » est légitime (2 décisions du
+  // rail), et la liste fermée ne le jugerait que pour le refuser à tort.
+  if (nets('DECISION') === 'BLOCKED' || nets('OWNER_NEXT') === 'Frédéric' || !/^(aucune?|non|none|néant|n\/a|-)?$/i.test(nets('STOP_REQUIRED'))) return refus;
   const executant = nets('EXECUTANT_NEXT'), requise = nets('CAPACITE_REQUISE');
   const canaux = cap.canauxConnus(reg);
   const sansCapacite = !requise || AUCUN.test(requise);

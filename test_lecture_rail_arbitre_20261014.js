@@ -40,6 +40,7 @@ function depot(mutation) {
   const ecrire = (f, t) => { fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true }); fs.writeFileSync(path.join(d, f), t); };
   fs.mkdirSync(path.join(d, 'docs/skills/nexus-handoff-fast-track'), { recursive: true });
   ecrire('docs/handoff/ARBITRAGES-ACQUIS.json', '{"arbitrages":[]}\n');
+  ecrire('docs/handoff/CAPACITES-CANAL.json', fs.readFileSync(path.join(SRC, 'docs/handoff/CAPACITES-CANAL.json'), 'utf8'));
   ecrire('docs/handoff/STATE.json', '{"rail":"handoff-epreuve","marque":"STATE-COMMITE"}\n');
   ecrire(`docs/handoff/lots/${LOT}/${REQ}`, '# demande de l\'épreuve\n');
   ecrire('docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md', 'Tu es l\'arbitre indépendant.\n');
@@ -58,7 +59,7 @@ function depot(mutation) {
 const CONTRAT = (sha, champs) => {
   const c = { DECISION: 'APPROVED', CLOSES: 'false', LOT, REQUEST: REQ, HEAD: sha, LEASE: 'aucun', GATE_STATE: 'GREEN',
     PROOF_STATE: 'PROOF_VALID', CONDITIONS: 'aucune', BLOCKER: 'aucun', STOP_REQUIRED: 'aucun', CAPACITE_REQUISE: 'aucune',
-    OWNER_NEXT: 'Claude', EXECUTANT_NEXT: 'Claude', ACTION_NEXT: 'matérialiser', ...champs };
+    OWNER_NEXT: 'Claude', EXECUTANT_NEXT: 'github-actions-claude', ACTION_NEXT: 'matérialiser', ...champs };
   return `RAIL_LU: ${sha}\nNEXT_ACTION_CONTRACT\n` + Object.entries(c).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n';
 };
 
