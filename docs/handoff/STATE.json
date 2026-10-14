@@ -439,9 +439,13 @@
       "consomme_le": "2026-10-14T17:37:18.243Z"
     },
     "NEXUS-INCIDENTS-CI-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c9977ca1ccab59a58e5f4e173dde98244f4236f4",
+      "consomme_le": "2026-10-14T17:40:44.034Z"
     }
   },
   "artefacts_hors_registre": [
