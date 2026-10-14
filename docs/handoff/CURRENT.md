@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REPARATION-HANDOFF-1-20261014/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-REPARATION-HANDOFF-1-20261014/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-REPARATION-HANDOFF-1-20261014
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,33 +20,30 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: pr-p1
+  - id: p1-rail
     classe: VERIFIED
-    valeur: PR 123 CI verte (3 executions), 19/19 epreuves, rejeu 21/2/13
-  - id: pr-p2
+    valeur: commit-7129f94f-CI-verte
+  - id: p2-rail
     classe: VERIFIED
-    valeur: PR 124 non cablee, rejeu 16 decisions CLOSES true : 9/6/1, aucune refusee
-  - id: aucun-go-production
-    classe: DECLARED
-    valeur: ni fusion ni claude.yml ni Production
+    valeur: commit-59223ca5-CI-verte
+  - id: rejeu-local
+    classe: VERIFIED
+    valeur: run-tests-aucune-regression
 ---
-# Réparation de la boucle Handoff — contrat fermé, cohérence, classement (P1 à P3)
+# P1 et P2 intégrés au rail (CI verte) — P3 et l'appel OpenAI réel restent à écrire
 
-## 1. Objet
-Suite à ton arbitrage du 14/10 (GO pour détailler et tester P1, P2 et P3 sur branche isolée, sans fusion), je dépose le contrat exact proposé, les règles de compatibilité et les tests. Origine : l'audit du 14/10 sur 100 runs du rail montre 8 arrêts sur 10 en `CANAL_INCAPABLE`, parce que `EXECUTANT_NEXT` est écrit en texte libre (« Claude ») au lieu des identifiants du registre `docs/handoff/CAPACITES-CANAL.json`.
+## 1. Ce qui a été fait sur ta décision APPROVED_WITH_CONDITIONS (decision-1.md)
 
-## 2. Livré (branches isolées, non fusionnées, CI verte)
-- **P1 — PR #123** (`p1-executants-fermes`, base du rail) : le relais refuse un `EXECUTANT_NEXT` hors registre (`EXECUTANT_INCONNU`, `CAPACITE_INCONNUE`, `CANAL_INCAPABLE`), renvoie le motif à l'arbitre une seule fois (jamais trois), et ne renvoie jamais une faute de structure. Un arrêt humain (`BLOCKED`, `OWNER_NEXT` Frédéric ou `STOP_REQUIRED` posé) est exempté : « Frédéric » reste admis. Rejeu du rail : 21 décisions avec exécutant, 2 arrêts humains, 13 en vocabulaire libre ancien ; seul ce vocabulaire est refusé. Mutations M1 à M4.
-- **P2 — PR #124** (`p2-coherence-cloture`, empilée sur #123, non câblée) : `classerCloture` distingue `CLOTURE_MATERIALISATION`, `CLOTURE_AVEC_ACTION`, `ARRET_HUMAIN`, `CLOTURE_SANS_ACTION`. Elle ne refuse rien : la sémantique de `CLOSES:true` est inchangée (correction 1). Rejeu des 16 décisions `CLOSES:true` du rail : 9 / 6 / 1, aucune refusée. Mutation M5.
+- **Consommée** par `outils/handoff.js consommer` (commit `64b4104c`).
+- **P1 intégré au rail**, dans l'ordre prescrit, commit `7129f94f` : le relais refuse un `EXECUTANT_NEXT` hors du registre des capacités, renvoie le motif une seule fois à l'arbitre, exempte l'arrêt humain. CI du rail verte sur ce commit (`non-regression` + `Cloudflare Pages`, `Supabase Preview` skip attendu).
+- **P2 intégré ensuite**, commit `59223ca5` : `classerCloture` distingue `CLOTURE_MATERIALISATION` / `CLOTURE_AVEC_ACTION` / `ARRET_HUMAIN` / `CLOTURE_SANS_ACTION`, sans rien refuser — `CLOSES:true` garde sa sémantique. Non câblé, comme prescrit.
+- Les deux intégrations sont de simples copies des diffs déjà vérifiés par les PR #123 et #124 (aucun fichier en commun avec les commits déjà sur le rail) : pas de merge, un commit direct par branche, dans l'ordre. Rejeu local complet (`run-tests.js`, `GITHUB_SHA` aligné sur HEAD) : aucune régression hors des 9 échecs déjà connus et sans rapport (réception/inventaire DOM).
 
-## 3. Points à trancher
-1. La classification repose sur un motif de texte (matérialiser, consommer, clore). Acceptable comme signalement INFO, sans refus ?
-2. Alias `*_READ_ONLY` : le validateur l'accepte, mais `relancer-claude-ci` arrêtera toujours une lecture Production pour `github-actions-claude`. À traiter dans un lot distinct ?
-3. P3 (classement des arrêts et alertes) n'est pas encore écrit : orphelines à 30 min provisoires, hors décisions humaines, sans relance automatique d'une action sensible ; P6 en détection et traçabilité, sans blocage. Je l'écris sur ta confirmation de la forme.
-4. La compatibilité du modèle OpenAI avec le schéma strict et `lire_fichier` n'est pas démontrée : un appel réel est à autoriser.
+## 2. Ce qui n'a pas été fait
 
-## 4. Limites
-Aucun GO Production, aucune fusion, aucune modification de `claude.yml` sur main, aucun workflow planifié. Je ne m'arbitre pas moi-même.
+- **P3** (classement des arrêts et alertes, seuil d'orphelin provisoire de 30 min, décisions humaines exclues, aucune relance automatique d'action sensible, P6 en détection/traçabilité non bloquante) n'est pas écrit. `outils/watchdog-stagnation.js` couvre déjà une partie voisine du terrain (position de chaîne, empreinte de progression, arrêt humain exempté, aucune action) avec des seuils différents (30 à 60 min selon la position) et reste non câblé dans `tests.yml`. Avant d'écrire P3, je préfère confirmer s'il s'agit d'un nouveau classeur distinct de ce watchdog, ou d'une extension/câblage de celui-ci — les deux lisent la même notion d'« arrêt », et les dupliquer sans trancher produirait exactement la dérive de vocabulaire que le protocole v2 corrige.
+- **L'appel OpenAI réel** (preuve de compatibilité du schéma strict et de `lire_fichier`) n'a pas été déclenché : il requiert le secret `OPENAI_API_KEY` et la variable d'armement `NEXUS_RELAIS_OPENAI`, tous deux hors de portée d'une session Claude (gate humaine sur la lecture de secret).
 
-## 5. Verdict demandé
-Valider la forme de P1 et P2 (fusion dans le rail à ta charge ou celle de Frédéric), et dire si j'écris P3.
+## 3. Demandé
+
+Confirmer que P1+P2 intégrés au rail avec CI verte clôt la partie matérialisée de cette décision (ou signaler un écart), et préciser la forme de P3 : nouveau classeur ou extension de `watchdog-stagnation.js` ? L'appel OpenAI réel reste hors de portée de Claude et attend un geste de Frédéric (secret + armement).
