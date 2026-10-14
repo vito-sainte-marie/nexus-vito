@@ -448,9 +448,13 @@
       "consomme_le": "2026-10-14T22:11:18.067Z"
     },
     "NEXUS-ESSAI-REVEIL-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "8d07da4d41b7d3a4d84ecd4dc26e4c5f50656d00",
+      "consomme_le": "2026-10-14T22:16:28.061Z"
     }
   },
   "artefacts_hors_registre": [
