@@ -95,6 +95,19 @@ dir = registre('DECISION_CONSOMMEE', false, corps('SUPABASE_TEST_ECRITURE'));
 x = verifier(dir); assert.ok(!/aucun order-\*\.json/.test(x.sortie), 'E: lot clos, aucun reproche');
 ok('E — CAPACITE_SANS_ORDRE refusé sur lot actif, tu sur lot clos');
 
+// E2 : un précontrôle strictement en lecture seule n'exige pas d'ordre ; toute capacité mutante (même mêlée à une lecture) l'exige encore.
+for (const cap of ['SUPABASE_PRODUCTION_READ_ONLY', 'SUPABASE_TEST_READ_ONLY']) {
+  dir = registre('ATTENTE_DECISION', false, corps(cap));
+  x = verifier(dir); assert.ok(!/aucun order-\*\.json/.test(x.sortie), `E2: ${cap} sans ordre accepté\n${x.sortie}`);
+}
+for (const cap of ['SUPABASE_PRODUCTION_MUTATION', 'SUPABASE_PRODUCTION_READ_ONLY_ET_ECRITURE', 'SUPABASE_PRODUCTION_ECRITURE']) {
+  dir = registre('ATTENTE_DECISION', false, corps(cap));
+  x = verifier(dir); assert.match(x.sortie, /aucun order-\*\.json/, `E2: ${cap} sans ordre refusé\n${x.sortie}`);
+}
+dir = registre('ATTENTE_DECISION', false, `Demande mêlée.\nCAPACITE_REQUISE: SUPABASE_PRODUCTION_READ_ONLY\nCAPACITE_REQUISE: SUPABASE_PRODUCTION_MUTATION\n`);
+x = verifier(dir); assert.match(x.sortie, /SUPABASE_PRODUCTION_MUTATION/, `E2: lecture + mutation dans le même message refusée\n${x.sortie}`);
+ok('E2 — READ_ONLY seul exempté ; MUTATION, capacité inconnue et message mêlé restent refusés');
+
 // F : débrancher
 const src = fs.readFileSync(OUTIL, 'utf8');
 const ancre = '  validerExecutionsEtOrdres(etat);\n';

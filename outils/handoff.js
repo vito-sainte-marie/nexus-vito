@@ -758,7 +758,10 @@ function validerExecutionsEtOrdres(etat) {
     for (const e of [dernier(echanges(lot, 'request')), dernier(echanges(lot, 'decision'))]) {
       if (!e) continue;
       const corps = fs.readFileSync(path.join(LOTS, lot, e.fichier), 'utf8');
-      const m = corps.match(/^\W*CAPACITE_REQUISE\W*:\s*`?(SUPABASE_[A-Z_]+)/m);
+      // Seul un précontrôle démontrablement non mutant est exempté : TOUTES les déclarations SUPABASE_* du message
+      // doivent être *_READ_ONLY. Une seule capacité mutante (ou inconnue) dans le message rend l'ordre obligatoire.
+      const caps = [...corps.matchAll(/^\W*CAPACITE_REQUISE\W*:\s*`?(SUPABASE_[A-Z_]+)/gm)].map(x => x[1]);
+      const m = caps.find(c => !/^SUPABASE_(TEST|PRODUCTION)_READ_ONLY$/.test(c)) ? [null, caps.find(c => !/^SUPABASE_(TEST|PRODUCTION)_READ_ONLY$/.test(c))] : null;
       if (m) bloquant(`lots/${lot}/${e.fichier} : exige la capacité ${m[1]} et le lot ne porte aucun order-*.json — un blocage de capacité sans ordre n'a pas de prochaine action. Générez l'ordre : handoff.js demande ${lot} <corps.md> --depuis <ref> --cible-env <env> …`, 'CAPACITE_SANS_ORDRE', `lots/${lot}/${e.fichier}`);
     }
   }
