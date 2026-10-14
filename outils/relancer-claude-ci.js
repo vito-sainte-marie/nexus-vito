@@ -55,14 +55,14 @@ const MOTIFS = Object.freeze({
 
 // Codes de la garde commune, puis ceux que seul ce juge rend.
 const CODES_PROPRES = Object.freeze([
-  'BLOQUE', 'STOP_ARBITRE', 'CANAL_INCAPABLE', 'RIEN_A_FAIRE', 'CONDITIONS_NON_PROUVEES', 'IDENTIFIANT_INVALIDE',
+  'BLOQUE', 'STOP_ARBITRE', 'CANAL_INCAPABLE', 'CANAL_NON_DECLENCHABLE', 'RIEN_A_FAIRE', 'CONDITIONS_NON_PROUVEES', 'IDENTIFIANT_INVALIDE',
 ]);
 const VERDICTS = Object.freeze([...Object.values(G.CODES), ...CODES_PROPRES]);
 
 // Arrêts qui demandent Frédéric. Les autres refus laissent la boucle au repos.
 const A_NOTIFIER = Object.freeze([
   G.CODES.STOP_HUMAIN, G.CODES.VERDICT_REPETE, G.CODES.PLAFOND_LOT_ATTEINT, G.CODES.PLAFOND_JOUR_ATTEINT,
-  'BLOQUE', 'CONDITIONS_NON_PROUVEES',
+  'BLOQUE', 'CONDITIONS_NON_PROUVEES', 'CANAL_NON_DECLENCHABLE',
 ]);
 
 // Le journal git ne connaît que les décisions déposées, jamais les
@@ -93,6 +93,7 @@ function empreinte(contrat) {
 //   contrat,                              // NEXT_ACTION_CONTRACT de la décision déposée
 //   routage: { frederic: [], arbitre: [] },
 //   capable: (canal, cap) => bool,
+//   connu: (canal) => bool,               // le canal figure au registre des capacités
 //   journal: { version: 1, tours: [] },   // décisions CI antérieures (lireHistorique)
 //   commitDecision, maintenant,           // commit qui a déposé la décision ; ISO
 //   anterieure: { nom, exige, prouvee },  // décision à laquelle répond la demande, ou null
@@ -139,6 +140,12 @@ function decider(e) {
 
   const executant = net(c.EXECUTANT_NEXT);
   const cap = net(c.CAPACITE_REQUISE);
+  // Un exécutant légitime mais sans déclencheur (session-claude-habilitee) n'est
+  // pas un exécutant incapable : le contrat le reconnaît, aucune CI ne peut le
+  // réveiller. La boucle le dit et alerte, au lieu de se taire (14/10).
+  if (executant !== EXECUTANT_BOUCLE && e.connu && e.connu(executant) && (aucune(cap) || (e.capable && e.capable(executant, cap)))) {
+    return r('CANAL_NON_DECLENCHABLE', `EXECUTANT_NEXT « ${executant} » est reconnu au registre mais aucun déclencheur ne le réveille (seul ${EXECUTANT_BOUCLE} l'est) : réarbitrage ou geste humain requis`);
+  }
   if (executant !== EXECUTANT_BOUCLE) return r('CANAL_INCAPABLE', `EXECUTANT_NEXT « ${executant} » n'est pas ${EXECUTANT_BOUCLE}`);
   if (!aucune(cap) && !(e.capable && e.capable(EXECUTANT_BOUCLE, cap))) {
     return r('CANAL_INCAPABLE', `${EXECUTANT_BOUCLE} ne détient pas ${cap} au registre des capacités`);
@@ -246,6 +253,7 @@ function principal(argv) {
     contrat: h.contrat,
     routage,
     capable: (canal, cap) => reg.capable(caps, canal, cap),
+    connu: canal => reg.canauxConnus(caps).includes(canal),
     journal: h.journal,
     commitDecision: h.commitDecision,
     maintenant,

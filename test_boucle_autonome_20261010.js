@@ -58,6 +58,7 @@ function entree(extra) {
   return Object.assign({
     interrupteur: 'arme', ci: 'success', contrat: contrat(), routage: ROUTAGE,
     capable: (canal, cap) => CAPS.capable(REG_CAPS, canal, cap),
+    connu: canal => CAPS.canauxConnus(REG_CAPS).includes(canal),
     journal: journal([tour()]), commitDecision: COMMIT, maintenant: MAINTENANT, anterieure: null,
     ident: { lot: LOT, rail: 'handoff-continuite-20260920', decision: 'decision-2.md', request: 'request-2.md', sha: 'a'.repeat(40) },
   }, extra);
@@ -151,6 +152,14 @@ t('exécutant autre que github-actions-claude (y compris « CI du rail ») → C
   for (const x of ['CI du rail', 'Claude', 'github-actions-claude-bis', '']) {
     assert.strictEqual(verdict(entree({ contrat: contrat({ EXECUTANT_NEXT: x }) })), 'CANAL_INCAPABLE', x);
   }
+});
+
+t('exécutant reconnu mais sans déclencheur (session-claude-habilitee) → CANAL_NON_DECLENCHABLE, notifié', () => {
+  const v = B.decider(entree({ contrat: contrat({ EXECUTANT_NEXT: 'session-claude-habilitee' }) }));
+  assert.strictEqual(v.verdict, 'CANAL_NON_DECLENCHABLE');
+  assert.strictEqual(v.notifier, true);
+  assert.strictEqual(v.relancer, false);
+  assert.strictEqual(verdict(entree({ contrat: contrat({ EXECUTANT_NEXT: 'Claude' }) })), 'CANAL_INCAPABLE', 'un nom hors registre reste incapable');
 });
 
 t('capacité que github-actions-claude ne détient pas → CANAL_INCAPABLE ; « aucune » passe', () => {
@@ -261,7 +270,7 @@ t('chaque verdict déclaré est atteint par au moins une épreuve', () => {
     verdict(entree({ interrupteur: '' })), verdict(entree({ contrat: null })), verdict(entree({ ci: 'failure' })),
     verdict(entree({ journal: journal([tour({ commit_decision: COMMIT })]) })),
     verdict(entree({ contrat: contrat({ STOP_REQUIRED: STOP_FREDERIC }) })), verdict(entree({ contrat: contrat({ DECISION: 'BLOCKED' }) })),
-    verdict(entree({ contrat: contrat({ STOP_REQUIRED: STOP_ARBITRE }) })), verdict(entree({ contrat: contrat({ EXECUTANT_NEXT: 'x' }) })),
+    verdict(entree({ contrat: contrat({ STOP_REQUIRED: STOP_ARBITRE }) })), verdict(entree({ contrat: contrat({ EXECUTANT_NEXT: 'x' }) })), verdict(entree({ contrat: contrat({ EXECUTANT_NEXT: 'session-claude-habilitee' }) })),
     verdict(entree({ contrat: contrat({ CLOSES: 'true' }) })),
     verdict(entree({ journal: journal([tour(), tour(), tour()]) })),
     verdict(entree({ journal: journal(Array.from({ length: 10 }, () => tour({ lot: '(autre lot)' }))) })),
@@ -272,8 +281,8 @@ t('chaque verdict déclaré est atteint par au moins une épreuve', () => {
   assert.deepStrictEqual([...vus].sort(), [...B.VERDICTS].sort());
 });
 
-t('notifier : exactement STOP_HUMAIN, VERDICT_REPETE, les deux plafonds, BLOQUE, CONDITIONS_NON_PROUVEES', () => {
-  assert.deepStrictEqual([...B.A_NOTIFIER].sort(), ['BLOQUE', 'CONDITIONS_NON_PROUVEES', 'PLAFOND_JOUR_ATTEINT', 'PLAFOND_LOT_ATTEINT', 'STOP_HUMAIN', 'VERDICT_REPETE']);
+t('notifier : exactement STOP_HUMAIN, VERDICT_REPETE, les deux plafonds, BLOQUE, CONDITIONS_NON_PROUVEES, CANAL_NON_DECLENCHABLE', () => {
+  assert.deepStrictEqual([...B.A_NOTIFIER].sort(), ['BLOQUE', 'CANAL_NON_DECLENCHABLE', 'CONDITIONS_NON_PROUVEES', 'PLAFOND_JOUR_ATTEINT', 'PLAFOND_LOT_ATTEINT', 'STOP_HUMAIN', 'VERDICT_REPETE']);
   for (const c of B.A_NOTIFIER) assert.ok(B.VERDICTS.includes(c), c);
 });
 
