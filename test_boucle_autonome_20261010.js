@@ -165,6 +165,24 @@ t('décision qui clôt le lot → RIEN_A_FAIRE', () => {
   assert.strictEqual(verdict(entree({ contrat: contrat({ CLOSES: 'true' }) })), 'RIEN_A_FAIRE');
 });
 
+t('lot clos avec 3 tours consommés → RIEN_A_FAIRE silencieux, pas PLAFOND_LOT_ATTEINT', () => {
+  const v = B.decider(entree({ contrat: contrat({ CLOSES: 'true' }), journal: journal([tour(), tour(), tour()]) }));
+  assert.strictEqual(v.verdict, 'RIEN_A_FAIRE');
+  assert.strictEqual(v.notifier, false);
+});
+
+t('lot clos : BLOCKED et STOP humain gardent leur arrêt ; non clos + 3 tours → plafond notifié', () => {
+  const trois = journal([tour(), tour(), tour()]);
+  const bloque = B.decider(entree({ contrat: contrat({ CLOSES: 'true', DECISION: 'BLOCKED' }), journal: trois }));
+  assert.notStrictEqual(bloque.verdict, 'RIEN_A_FAIRE', 'BLOCKED ne se tait pas parce que CLOSES vaut true');
+  assert.strictEqual(bloque.notifier, true);
+  assert.strictEqual(verdict(entree({ contrat: contrat({ CLOSES: 'true', DECISION: 'BLOCKED' }) })), 'BLOQUE');
+  assert.strictEqual(verdict(entree({ contrat: contrat({ CLOSES: 'true', STOP_REQUIRED: STOP_FREDERIC }), journal: trois })), 'STOP_HUMAIN');
+  const v = B.decider(entree({ contrat: contrat({ CLOSES: 'false' }), journal: trois }));
+  assert.strictEqual(v.verdict, 'PLAFOND_LOT_ATTEINT');
+  assert.strictEqual(v.notifier, true);
+});
+
 // ── X4 ──────────────────────────────────────────────────────────────────────
 t('X4 : 3 tours déjà au lot → PLAFOND_LOT_ATTEINT ; 2 → passe', () => {
   assert.strictEqual(G.PLAFOND_TOURS_PAR_LOT, 3);

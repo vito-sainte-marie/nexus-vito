@@ -106,6 +106,13 @@ function decider(e) {
   const arbitre = (e.routage && e.routage.arbitre) || [];
   const stops = c && (net(c.OWNER_NEXT) === 'Frédéric' || frederic.includes(stop)) ? [stop || 'OWNER_NEXT Frédéric'] : [];
 
+  // Un lot clos n'a plus de tour à relancer : le plafond de tours ne s'applique
+  // pas à lui et ne doit pas réveiller Frédéric (« PLAFOND_LOT_ATTEINT » sur une
+  // clôture normale, 14/10). Les arrêts humains, BLOCKED et STOP passent avant.
+  if (c && net(c.CLOSES) === 'true' && stops.length === 0 && net(c.DECISION) !== 'BLOCKED' && aucune(stop)) {
+    return r('RIEN_A_FAIRE', 'la décision clôt le lot');
+  }
+
   const g = G.evaluerTour({
     env: { [G.INTERRUPTEUR_VAR]: e.interrupteur },
     lot: e.ident && e.ident.lot,
