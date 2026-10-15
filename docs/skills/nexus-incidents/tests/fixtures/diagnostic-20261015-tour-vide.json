@@ -1,0 +1,24 @@
+{
+  "incident": "INC-20261015-001",
+  "titre": "Décision FDJ consommée sans exécution, run vert",
+  "etat": "EN_COURS",
+  "faits": [
+    {"id": "F1", "enonce": "decision-1.md prescrit d'implémenter sur une branche dédiée issue de origin/handoff-continuite-20260920, avec CAPACITE_REQUISE DEPOT_ECRITURE_RAIL et EXECUTANT_NEXT github-actions-claude.", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/decision-1.md@c4f65f6"}, "horodatage": "2026-10-15T01:52:02Z"},
+    {"id": "F2", "enonce": "Les conditions de decision-1.md exigent une table dédiée, des contrôles RLS et une recette Test de cinq scénarios.", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/decision-1.md@c4f65f6"}, "horodatage": "2026-10-15T01:52:02Z"},
+    {"id": "F3", "enonce": "Le canal github-actions-claude n'a ni SUPABASE_TEST_LECTURE ni SUPABASE_TEST_ECRITURE.", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/handoff/CAPACITES-CANAL.json"}, "horodatage": "2026-10-15 (constaté à la lecture)"},
+    {"id": "F4", "enonce": "Le prompt de boucle impose de pousser sur le rail seulement et fait consommer la décision avant toute exécution.", "source": {"type": "fichier", "ref": "main:.github/workflows/claude.yml, étape Boucle autonome, session Claude"}, "horodatage": "2026-10-15 (constaté à la lecture)"},
+    {"id": "F5", "enonce": "Le run 38667953549 s'est terminé en success ; son seul commit sur le rail est la consommation ff3e772 ; aucune branche n'a été poussée entre 01:52Z et 01:59Z ; aucune demande de blocage n'a été déposée.", "source": {"type": "run", "ref": "38667953549"}, "horodatage": "2026-10-15T01:59:24Z"},
+    {"id": "F6", "enonce": "La garde « garantir la CI du rail » ne vérifie que le mouvement du rail, que le commit de consommation suffit à produire.", "source": {"type": "fichier", "ref": "main:.github/workflows/claude.yml, étape Boucle autonome, garantir la CI du rail"}, "horodatage": "2026-10-15 (constaté à la lecture)"}
+  ],
+  "hypotheses": [
+    {"id": "H1", "enonce": "Les refus de permission de la session portent sur l'accès à la base Test et sur le push d'une branche hors rail.", "verification": "Lire l'étape « lister les refus de permission » du run 38667953549 (exige CI_LECTURE_RUN)."}
+  ],
+  "cause_racine": {
+    "statut": "DEMONTREE",
+    "maillon": "contrat d'arbitrage et prompt de boucle",
+    "enonce": "La décision prescrit une branche dédiée et des opérations Test qu'aucune règle de la boucle n'autorise à github-actions-claude ; la consommation précède l'exécution et la garde de tour vide l'accepte.",
+    "faits": ["F1", "F2", "F3", "F4", "F5", "F6"]
+  },
+  "classification": {"code": "TOUR_VIDE", "famille": "INCONNU", "urgence": "U1", "priorite": "lot 1 de la correction de boucle", "note": "TOUR_VIDE n'existe pas dans FAMILLES : l'ajout du code relève du lot 1, pas de ce diagnostic."},
+  "action_suivante": {"executant": "session-claude-habilitee", "capacite": "DEPOT_ECRITURE_RAIL", "action": "Diagnostic en lecture seule du prompt de correction de boucle, puis lot 1 (consommation conditionnée à une preuve d'action).", "preuve_attendue": "Rejeu du scénario 0 : le même enchaînement produit un arrêt visible au lieu d'un success."}
+}

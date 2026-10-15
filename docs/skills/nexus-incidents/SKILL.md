@@ -58,7 +58,8 @@ pour `INC-1b3e3a7d6d30` (14/10/2026, lot NEXUS-REPARATION-HANDOFF-1) :
 
 1. **Diagnostiquer** la cause réelle de l'arrêt (pas seulement son `code`) —
    lire le journal du run nommé par l'incident, identifier le maillon et la
-   garde absente ou insuffisante.
+   garde absente ou insuffisante. Le diagnostic suit le format standard
+   ci-dessous et passe `scripts/valider-diagnostic.js` avant toute correction.
 2. **Corriger** : écrire la garde, le test, la mutation. Un rejeu manuel qui
    « règle » l'incident une fois ne clôt rien si rien n'empêche la récidive
    (GOV-002 : « a twice-solved problem should not require a third identical
@@ -74,6 +75,49 @@ pour `INC-1b3e3a7d6d30` (14/10/2026, lot NEXUS-REPARATION-HANDOFF-1) :
    s'applique identiquement ici — une leçon qui ne vit que dans ce fichier ou
    dans la prose d'une décision n'a rien fermé.
 
+## Diagnostic standard
+
+Le diagnostic répond à quatre questions : que s'est-il réellement passé,
+quelle est la nature du problème, quelle est sa gravité, qui doit agir
+ensuite. Il est en **lecture seule** et **non bloquant** : il peut être
+demandé seul, sans ouvrir de correction, et il n'arrête ni ne retarde aucun
+lot en cours. Il ne corrige rien ; il relève, documente et propose.
+
+Un diagnostic est un fichier JSON, `docs/learning/diagnostics/<incident>.json`,
+validé par `scripts/valider-diagnostic.js` (dans ce dossier). Le validateur
+refuse un rapport non conforme ; la recette `tests/recette-diagnostic.js`
+rejoue les deux incidents réels du 10/10 et du 15/10/2026.
+
+| Rubrique | Contenu | Refusé si |
+| --- | --- | --- |
+| `faits` | énoncé, source typée (`fichier`, `commit`, `run`, `journal`, `issue`, `pr`, `api`) avec sa référence, horodatage | source absente, énoncé au conditionnel (« probablement », « semble ») |
+| `hypotheses` | explication plausible non confirmée, et le moyen de la vérifier | moyen de vérification absent |
+| `cause_racine` | `DEMONTREE` (énoncé, maillon, faits cités) ou `INDETERMINEE` (ce qui manque pour conclure) | démontrée sans fait cité, ou indéterminée sans dire ce qui manque |
+| `classification` | `code`, `famille` telle que la rend `classerArret`, urgence `U0` à `U3`, priorité | famille différente de `classerArret` (pas de requalification), urgence hors échelle |
+| `action_suivante` | exécutant et capacité pris dans `CAPACITES-CANAL.json`, action, preuve attendue | exécutant ou capacité hors registre, preuve attendue absente |
+| `etat` | `NOUVEAU`, `EN_COURS`, `BLOQUE`, `A_VERIFIER`, `RESOLU` | voir ci-dessous |
+
+**Urgence et priorité sont deux choses.** L'urgence dit le risque : U0
+bloque une opération autorisée ou menace la sécurité ou les données, U1
+touche une fonction métier, U2 est planifiable, U3 est documentaire. La
+priorité dit l'ordre de développement. L'ancienneté seule ne donne jamais U0.
+
+**Un workflow vert n'est jamais une preuve de résolution.** `RESOLU` exige
+un fait marqué `preuve_attendue_verifiee`, c'est-à-dire la preuve annoncée dans
+`action_suivante`, plus le lien vers `EXPERIENCE.jsonl` et la règle promue
+dans `RULES.json` (GOV-002). L'`etat` du diagnostic n'est pas le `statut` de
+`INCIDENTS.jsonl`, qui reste en ajout seul et n'est réécrit par aucun outil.
+
+**Incident sans code.** Un tour vide terminé en `success` ne produit aucun
+verdict : `classerArret` ne le voit pas. Le diagnostic s'ouvre alors à la main
+avec un code descriptif (par exemple `TOUR_VIDE`), dont la famille reste celle
+que rend `classerArret`, `INCONNU`. L'ajout du code à `FAMILLES` relève d'une
+correction, jamais du diagnostic.
+
+**Limite de canal.** Les journaux de run exigent `CI_LECTURE_RUN`, que
+`github-actions-claude` n'a pas. Ce qui ne peut pas être lu reste une
+hypothèse, avec son moyen de vérification ; il n'est jamais déduit.
+
 ## Ce que ce skill ne fait pas
 
 - Il ne requalifie pas un arrêt : `classerArret` est l'unique classeur
@@ -82,6 +126,7 @@ pour `INC-1b3e3a7d6d30` (14/10/2026, lot NEXUS-REPARATION-HANDOFF-1) :
   incident réputé clos se vérifie par le lien `EXPERIENCE.jsonl`, pas par un
   champ qu'on espère voir un jour réécrit.
 - Il n'autorise aucune promotion sur Production ni aucun secret.
+- Il ne déclare jamais un incident résolu sur la foi d'un run vert.
 
 ## Récurrence — quand la regarder
 

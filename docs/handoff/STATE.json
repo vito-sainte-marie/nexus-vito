@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-FDJ-STOCK-Q1-ABSENT-20261015",
+  "lot_actif": "NEXUS-INCIDENTS-DIAGNOSTIC-1-20261015",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -509,6 +509,11 @@
       "source_decision": "registre",
       "commit_decision": "5777b626ea3b0ad0ed228f246540243ea57bc3b0",
       "consomme_le": "2026-10-15T11:17:47.893Z"
+    },
+    "NEXUS-INCIDENTS-DIAGNOSTIC-1-20261015": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [
