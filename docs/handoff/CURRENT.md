@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CARBURANTS-VISUEL-1-20261014/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-CARBURANTS-VISUEL-1-20261014
-seq: 3
+lot_id: NEXUS-LOT-RECONCILER-1-20261014
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,27 +13,37 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=dea3ae73 production=3f5589e4
+    valeur: main=dea3ae73 production=50c634a8
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
+  - id: archive-source
+    classe: VERIFIED
+    valeur: nexus-lot-reconciler.zip sha256 ab8ef6e679da911d
+  - id: recette-du-skill
+    classe: VERIFIED
+    valeur: tests/recette.js 15 sur 15 scenarios passent
+  - id: aucun-go-production
+    classe: DECLARED
+    valeur: ni fusion ni claude.yml ni Production ni OpenAI reel
 ---
-# NEXUS-CARBURANTS-VISUEL-1 — recette Test authentifiée (request-3)
+# Dépôt du skill nexus-lot-reconciler sous docs/skills/
 
-Exécution de la condition de decision-2 sur NEXUS Test (rail `handoff-continuite-20260920`, déploiement `handoff-continuite-20260920.nexus-test-ddf.pages.dev`), session connectée, données de Test présentes (relevé du jour déjà enregistré). Statut : **validé sur Test (recette visuelle)**, non déployé en Production, `main` intact.
+Frédéric fournit le dossier complet (archive `nexus-lot-reconciler.zip`, 6 fichiers, 64 Ko) et demande son dépôt sous `docs/skills/nexus-lot-reconciler/` sur le rail, comme pour `nexus-incidents`, avec passage par l'arbitrage. Il n'a rien poussé. Cette demande ne livre pas le skill : elle attend la décision.
 
-## Preuve des conditions de decision-2
-- **Recette authentifiée avec données** : page « Relevé du jour » rendue avec jaugeage SP95 3200 L, trois cartes, champs jaugeage / livraison / mouvement.
-- **Distinction SP95 / Gasoil / GNR** : bordures mesurées au navigateur `rgba(22,167,101,.45)` (SP95), `rgba(232,183,70,.45)` (GO), `rgba(228,91,96,.45)` (GNR) ; variable `--carb-rgb` propre à chaque carte.
-- **1280 px, 820 px, 390 px** : trois cartes, largeur 418 / 418 / 348 px, aucun débordement horizontal (`scrollWidth` ≤ `clientWidth` par carte, aucun débordement du document). La carte est plafonnée à 418 px sur bureau et tablette.
-- **Absence de régression** : libellés, champs (3 / 4 / 3 entrées), bandeaux « ventes » et lien Verify inchangés ; aucune erreur de rendu. Aucune saisie ni enregistrement effectué sur Test.
-- **Captures** : `captures/test-mobile-sp95.jpg`, `captures/test-bureau-sp95.jpg` (la vue étroite est celle du volet navigateur, 344 px). Les rendus 820 et 390 px sont attestés par les mesures ci-dessus, non capturés en image.
+## Contenu lu avant dépôt
+- `SKILL.md` (99 lignes), `references/{sources,statuts-et-preuves,autorisations}.md`, `scripts/reconcilier.js` (390 lignes), `tests/recette.js` (154 lignes).
+- Le script lit le dépôt par `git -C` (execFileSync) et n'écrit que dans le dossier `--sortie`. Aucun réseau, aucune écriture Supabase, aucun `git push`.
+- Le skill se déclare en lecture seule et non bloquant : aucun déclencheur Actions, aucun contrôle ajouté à la CI, phase 1 « observation ». `autorisations.md` réserve fusion, suppression, migration, workflow et déploiement à Frédéric.
 
-## Limites
-Recette visuelle seulement : pas de test d'enregistrement, car le périmètre interdit toute modification de logique. Capture « avant » sur données Test non refaite.
+## Points à arbitrer
+1. Déposer les 6 fichiers tels quels, sans modification, sous `docs/skills/nexus-lot-reconciler/`.
+2. Lier DT-001 (`docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md`, commit 790f769a) à ce skill comme suivi de la divergence `main` / `production`, sans créer de lot doublon.
+3. La phase 2 (audit périodique) et la phase 3 (nettoyage assisté) restent fermées jusqu'à décision de Frédéric.
+4. `tests/recette.js` ne doit pas être branché à la CI dans ce lot : tout câblage serait un lot distinct.
 
-## Demandé à l'arbitre
-Clore le lot (`CLOSES: true`). Aucun accès Production, fusion ou déploiement demandé.
+## Hors périmètre
+Aucune modification de `main`, de Production, des secrets, des permissions GitHub ou de `claude.yml`. Aucun déploiement.
