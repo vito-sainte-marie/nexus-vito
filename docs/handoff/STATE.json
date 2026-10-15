@@ -484,9 +484,13 @@
       "consomme_le": "2026-10-15T00:57:04.479Z"
     },
     "NEXUS-DECLENCHEUR-RAIL-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "7fa9df73440a27e86c97d282bde70736c62a1db6",
+      "consomme_le": "2026-10-15T01:03:52.089Z"
     }
   },
   "artefacts_hors_registre": [
