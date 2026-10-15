@@ -48,7 +48,7 @@ Chaque anomalie porte une **portée** : `a_traiter`, `historique` (fichier anté
 | H05_CAPACITE_HORS_REGISTRE | `CAPACITE_REQUISE` absente du registre | idem |
 | H06_CLOTURE_AVEC_ACTION | `CLOSES:true` avec une action réelle ; `H06_CLOTURE_MATERIALISATION` (info) si l'action ne fait que matérialiser | |
 | H07_REARBITRAGE | plusieurs décisions pour une même demande | |
-| H08_DOSSIER_SANS_REGISTRE | dossier de lot sans entrée `STATE.json` | |
+| H08_DOSSIER_SANS_REGISTRE | dossier de lot sans entrée `STATE.json`, hors `artefacts_hors_registre` (lu dans `STATE.json`) | |
 | H09_REGISTRE_SANS_DOSSIER | entrée `STATE.json` sans dossier (hors legacy v1) | |
 | H10_CONSOMMEE_MAIS_DEMANDE_EN_VOL | `DECISION_CONSOMMEE` alors qu'une demande attend une décision | |
 | H11_SUITE_SANS_ACTION | `CLOSES:false` sans `ACTION_NEXT` | |

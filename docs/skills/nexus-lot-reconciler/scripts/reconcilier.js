@@ -95,7 +95,7 @@ const estMaterialisation = a => {
   return /mat[ée]rialis/i.test(t) && !/\b(cr[ée]er|implémenter|impl[ée]menter|rédiger|r[ée]diger|corriger|ouvrir|déployer|d[ée]ployer|fusionner|exécuter|ex[ée]cuter|écrire|[ée]crire|tester|livrer)\b/i.test(t);
 };
 
-function analyserLot(lotId, fichiers, etat, registre, sources, datesFichiers) {
+function analyserLot(lotId, fichiers, etat, registre, sources, datesFichiers, horsRegistre) {
   const dates = datesFichiers || {};
   const noms = Object.keys(fichiers || {});
   const demandes = noms.filter(n => /^request-\d+\.md$/.test(n)).sort((a, b) => seqDe(a) - seqDe(b));
@@ -129,7 +129,11 @@ function analyserLot(lotId, fichiers, etat, registre, sources, datesFichiers) {
   else if (closes === 'false' || (closes === 'true' && !vide(action))) constate = 'EN_COURS';
   const clos = constate === 'CLOS_DECLARE';
 
-  if (!etat) a('H08_DOSSIER_SANS_REGISTRE', `dossier docs/handoff/lots/${lotId}/ sans entrée dans STATE.json`);
+  // Un dossier déclaré `artefacts_hors_registre` (STATE.json) a été créé avant la normalisation
+  // des lots Handoff v2 et NE DOIT PAS recevoir d'entrée STATE.json rétroactive — fabriquer un
+  // passé qu'il n'a jamais eu est exactement ce que le registre interdit (voir handoff.js). Sans
+  // cette lecture, ces dossiers déclenchaient H08 à tort : 3 faux positifs mesurés le 14/10/2026.
+  if (!etat && !horsRegistre) a('H08_DOSSIER_SANS_REGISTRE', `dossier docs/handoff/lots/${lotId}/ sans entrée dans STATE.json`);
   if (etat && !noms.length && !etat.legacy_before_v2) a('H09_REGISTRE_SANS_DOSSIER', 'entrée STATE.json sans dossier de lot');
   if (etat && derniereDecision && etat.derniere_decision && etat.derniere_decision !== derniereDecision) {
     a('H02_DECISION_NON_CONSOMMEE', `STATE.json pointe ${etat.derniere_decision}, le dossier contient ${derniereDecision}`);
@@ -312,6 +316,7 @@ function lireRail(depot, ref) {
     registre: { canaux: Object.keys(cap.canaux || {}), capacites: Object.keys(cap.capacites || {}) },
     branchesClassees: (classees.classees || []).map(c => c.branche),
     lotActif: state.lot_actif || null,
+    artefactsHorsRegistre: new Set((state.artefacts_hors_registre || []).map(a => a.lot_id)),
   };
 }
 
@@ -320,7 +325,7 @@ function auditer(rail, github) {
   const registre = ids.map(id => {
     const df = {};
     for (const [p, d] of Object.entries(rail.datesFichiers || {})) { const m = p.match(/^docs\/handoff\/lots\/([^/]+)\/(.+)$/); if (m && m[1] === id) df[m[2]] = d; }
-    const r = analyserLot(id, rail.lots[id] || {}, (rail.state.lots || {})[id] || null, rail.registre, `rail@${rail.sha.slice(0, 7)}:docs/handoff/lots/${id}/`, df);
+    const r = analyserLot(id, rail.lots[id] || {}, (rail.state.lots || {})[id] || null, rail.registre, `rail@${rail.sha.slice(0, 7)}:docs/handoff/lots/${id}/`, df, (rail.artefactsHorsRegistre || new Set()).has(id));
     r.premiere_activite = (rail.dates[id] || {}).premiere || null;
     r.derniere_activite = (rail.dates[id] || {}).derniere || null;
     r.lot_actif = id === rail.lotActif;

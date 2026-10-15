@@ -255,6 +255,685 @@
       "sort": "SUPERSEDEE",
       "motif": "Zéro différence de code avec la référence probatoire f5ba864 — vérifié par diff excluant docs/ : aucun fichier applicatif, aucune épreuve. Un SEUL fichier absent du candidat, request-11.md, que Frédéric Bragance a explicitement demandé de NE PAS rapatrier le 10/09/2026 : demande périmée, portant sur un défaut fermé autrement, dépassée par request-10.md. Le reste est de l'état Handoff (CURRENT.md, DECISION.md, STATE.json) remplacé depuis.",
       "le": "2026-09-11"
+    },
+    {
+      "branche": "claude-yml-alerte-refus-20261014",
+      "tete": "cc2148e8c25857533055063415d18c3291626ae9",
+      "sort": "INTEGREE",
+      "motif": "93 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff) ; les 93 sont retrouvés identiques (diff de contenu nul) dans le rail, main ou production actuels — contenu intégralement repris malgré l'absence d'ascendance git (squash-merge ou réapplication manuelle). Mesure : git diff --no-renames --name-status cc2148e <rail|main|production> -- <fichiers>, base 501c0c7.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/fast-track-routage-capacites-20261009",
+      "tete": "19668e1052c330182c08f4aca5d9634aa5c612c0",
+      "sort": "A_REPRENDRE",
+      "motif": "10 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 4 identique(s) retrouvé(s) au rail/main/production et 6 non retrouvés identiques — 6 présent(s) ailleurs mais avec un contenu différent : .github/workflows/tests.yml, docs/handoff/CAPACITES-CANAL.json, outils/empreinte-progression.js, test_empreinte_progression_20261009.js, test_relais_arbitre_openai_20261007.js, test_routage_capacites_canal_20261009.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 58a828b.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260914-0247",
+      "tete": "2f70039e99e9b0f892fc5db93385657b19bc394a",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 3 présent(s) ailleurs mais avec un contenu différent : NEXUS-App-v1.html, nexus-pointage-regles.js, test_pointage_accueil_journee_terminee_20260914.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 894e306.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260914-1045",
+      "tete": "b9127959713c29ec51c714647cab47a7f9454f71",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 3 présent(s) ailleurs mais avec un contenu différent : NEXUS-App-v1.html, nexus-pointage-regles.js, test_pointage_accueil_journee_terminee_20260914.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 894e306.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1051",
+      "tete": "bb5b9388e0a703005dc3f50637f42d0180a66a5c",
+      "sort": "A_REPRENDRE",
+      "motif": "4 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 3 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : NEXUS-App-v1.html. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base d9f1841.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1534",
+      "tete": "70dd1fca5146230f4f5f1af1eedefc7fde61087d",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 0bdff44 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 0bdff44 70dd1fc.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1749",
+      "tete": "0ab8789b0e57129f08a4e88aaf9d066424a62d51",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 7d4503a avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 7d4503a 0ab8789.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260921-1756",
+      "tete": "70598f7e66358839623de60e4da5c8881e758253",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base f87c379 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status f87c379 70598f7.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0023",
+      "tete": "e60e7a640c3f845b60f600058fc4c170af7144bd",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 3 présent(s) ailleurs mais avec un contenu différent : docs/handoff/MANIFESTE-MIGRATIONS-PRODUCTION-COURANT.md, docs/handoff/PROTOCOL.md, outils/handoff.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base ea57d4b.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260922-0605",
+      "tete": "dc9ed18323fd4db6154f9abbe19ae9b9f03f5715",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 présent(s) ailleurs mais avec un contenu différent : docs/handoff/PROTOCOL.md, outils/handoff.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base ea57d4b.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1238",
+      "tete": "1daf388ebfa199d9606992d2cfc4579e0a432f19",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 présent(s) ailleurs mais avec un contenu différent : outils/guardian-qa.js, test_guardian_qa_20260907.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 9f3e542.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1400",
+      "tete": "00f4be7a819941840c4141b27e61f195bf386b87",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : docs/nexus/BACKLOG.md. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base b9ffd78.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1530",
+      "tete": "00df2424cc478a994170054c81fab52118017c55",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base ea57d4b avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status ea57d4b 00df242.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1617",
+      "tete": "c46e3b2006f314b220177cb247d0d22eae79c94e",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base b9ffd78 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status b9ffd78 c46e3b2.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260922-1853",
+      "tete": "b16dcba521d617fec0f06cc412d802e830627614",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base a4e86c0 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status a4e86c0 b16dcba.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260922-2227",
+      "tete": "5a752e36a430b94a9868981e478787ae68eacb0d",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 absent(s) de rail/main/production : outils/porter-config-candidat-test.sh, test_porter_config_candidat_test_20260922.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base fe795a4.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260922-2255",
+      "tete": "6fa8412f7cf40f56b34f06b7c2c079879a4b70ad",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 2 absent(s) de rail/main/production : outils/planifier-portage-config-candidat.js, test_planifier_portage_config_candidat_20260922.js ; 1 présent(s) ailleurs mais avec un contenu différent : outils/handoff.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 9fb1478.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0122",
+      "tete": "4372db180282644db4f83fc8b9ff826f05828ed3",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 45a26f3 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 45a26f3 4372db1.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0141",
+      "tete": "ade6802aae4c541acaafb6094795dad8c2ff0c54",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 45a26f3 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 45a26f3 ade6802.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0156",
+      "tete": "16d8fad413109a39f8a520cf1aa40e4221de45e6",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 45a26f3 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 45a26f3 16d8fad.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0212",
+      "tete": "02cec5641317ad61f8a3c35944f94e54d0c9ad41",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 45a26f3 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 45a26f3 02cec56.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0216",
+      "tete": "f792fb67c687948479024a675fa839f998229e37",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 45a26f3 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 45a26f3 f792fb6.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0253",
+      "tete": "0327a2d0edd5f8f0895e899f90e5c219f246364c",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5ec005c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5ec005c 0327a2d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0316",
+      "tete": "6a81af72b0b17444b96e977c5a3cb6a6decef864",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5ec005c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5ec005c 6a81af7.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0351",
+      "tete": "c9cf81116cd04a5a044d843e7989f380c63ef1ae",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5ec005c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5ec005c c9cf811.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0810",
+      "tete": "cce2e7ebc6e2a46789f53cf4832272dc6a55f315",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f cce2e7e.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0821",
+      "tete": "54292246efc3961a33195f65b7bffd60123f19ae",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f 5429224.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0837",
+      "tete": "59d48da226abaf646e0b180d093a0d19fa5bdbec",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f 59d48da.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0910",
+      "tete": "a58fc3c3ad4ac2c0f7177bd8f3c8bbe9b45fb215",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f a58fc3c.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-0930",
+      "tete": "9a37612b887496ab55b9ea21bd3a3602a5857995",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f 9a37612.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1025",
+      "tete": "12a0695afd6098eaa89e3e50e83a80681aab7c15",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f 12a0695.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1103",
+      "tete": "c9ea70d2cd811553e614b2222d147a1fa3015c5e",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f c9ea70d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1114",
+      "tete": "ce8113d2c332e160619cab9135c9c6df8cea8a1e",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f ce8113d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1147",
+      "tete": "6a83b08a1ef63ac40edd75b50ebb2274e377cedf",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base e09616f avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status e09616f 6a83b08.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1248",
+      "tete": "37efd26c83c1f2829453b8caf324ef28a372e324",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 34f10b7 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 34f10b7 37efd26.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1506",
+      "tete": "d661c133fa983154ae8912a23aae28740c82fead",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 34f10b7 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 34f10b7 d661c13.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1609",
+      "tete": "c02b04e3896acef191c1f55bd79a9931be0cb2b0",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 4624694 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 4624694 c02b04e.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1617",
+      "tete": "cdd0544805eee8ddb6a7a94ad9db22e3ccad7216",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 4624694 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 4624694 cdd0544.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-1713",
+      "tete": "dbc8f5520ce1790b1d13f2f89b6cf042e557ba68",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 4624694 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 4624694 dbc8f55.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-2048",
+      "tete": "3ceb194cb112a8873f924df7f90f20025762ba8d",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 46a5e34 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 46a5e34 3ceb194.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-2208",
+      "tete": "62c52aa160318ae62f1135e1587b0e362c82e43d",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 3daf270 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 3daf270 62c52aa.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-2324",
+      "tete": "e464e6df9dc8ad2820bd1e75cdfb48aaac06354b",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 1b8521b avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 1b8521b e464e6d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260923-2329",
+      "tete": "69eb1f85265280bf943dd1f0cab369de0f0b251e",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base a730441 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status a730441 69eb1f8.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0046",
+      "tete": "ef4f5c7e32b3b40ddad95fb9114571349064b89b",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 19288fe avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 19288fe ef4f5c7.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0143",
+      "tete": "e477c8fb5a478493cf799abd909ac4c17029eee3",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base c9e0b76 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status c9e0b76 e477c8f.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0353",
+      "tete": "a36504d11dc759e2a7c00cb4d3cd86f455fb7276",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 57e6a2d avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 57e6a2d a36504d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0420",
+      "tete": "68bde4e2bb52ef39b1f835278c1594cd805d8f52",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 57e6a2d avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 57e6a2d 68bde4e.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0424",
+      "tete": "e4133928220ff06c783a5721d2b971caaed3df64",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 57e6a2d avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 57e6a2d e413392.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0621",
+      "tete": "0720f06edf577ce4be85243b3c17c4ab0f7bc4e9",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base f922813 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status f922813 0720f06.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0723",
+      "tete": "f406a90a684b7b41995ad8efde70d64ae2ca8ef9",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base f922813 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status f922813 f406a90.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0739",
+      "tete": "af5cfcb72727d2b5a7d0e44960e1fba3d631c986",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5b5b86c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5b5b86c af5cfcb.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0833",
+      "tete": "ed577360e58d597e517b4051da4b9770c72ed9f1",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5b5b86c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5b5b86c ed57736.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-0955",
+      "tete": "a6ed57170a625e745cc0ede8aa60251f8e48ed06",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5b5b86c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5b5b86c a6ed571.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-1057",
+      "tete": "0a6ad6c473aaf7d8e540b3f920835190c9691345",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5b5b86c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5b5b86c 0a6ad6c.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-1138",
+      "tete": "40f978e86308d561eb308d9f4d007c1db863c64c",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 5b5b86c avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 5b5b86c 40f978e.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-2119",
+      "tete": "ad8c16e770c5ab938005e7663c135b8edd6efded",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 178f265 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 178f265 ad8c16e.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260924-2147",
+      "tete": "b79d969b1ffe9b5d0517e2d2944707d16a2f4bfc",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 absent(s) de rail/main/production : outils/reconstruire-baseline-candidat.sh, test_reconstruire_baseline_candidat_20260924.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 178f265.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260924-2209",
+      "tete": "5236fdfc1c4dea91807c93548f56e277f2f2c9a2",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 1319b22 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 1319b22 5236fdf.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260925-1048",
+      "tete": "d19585b7945fe52dad3553a97365cb11b63f1d38",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 absent(s) de rail/main/production : outils/reconstruire-baseline-candidat.sh, test_reconstruire_baseline_candidat_20260924.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 1319b22.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260926-1219",
+      "tete": "19d4095738f444b9a4a798ddabaaf0e578e50625",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 948849d avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 948849d 19d4095.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260927-1215",
+      "tete": "928262285798e23e7d5409a491cb7ee4a1b45315",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 0b3c387 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 0b3c387 9282622.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260927-1252",
+      "tete": "5a424e2046358b58fe41004176084179321b1b67",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 0b3c387 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 0b3c387 5a424e2.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260928-0105",
+      "tete": "374d7244c5a912d9d4e34a1df6061378c8c285bd",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 absent(s) de rail/main/production : test_login_pre_auth_non_enumerable_65_20260928.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base c12d352.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260928-1434",
+      "tete": "27545c4a60c9e97f66ee1cca98f7bed3709d99c1",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 absent(s) de rail/main/production : test_login_pre_auth_non_enumerable_65_20260928.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base cb675ed.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20260930-1200",
+      "tete": "ad31f1dc093d42644a3ef8dd10391659ccf6a52f",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 634dec8 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 634dec8 ad31f1d.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20260930-1349",
+      "tete": "61562d88e7958e3014543c744bc614f8722873d1",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 3 présent(s) ailleurs mais avec un contenu différent : docs/learning/EXPERIENCE.jsonl, docs/learning/RULES.json, test_handoff_v2_20260905.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 634dec8.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261001-1445",
+      "tete": "b990050005a8dc342fcf7bd34a4376e4eaf52f93",
+      "sort": "A_REPRENDRE",
+      "motif": "4 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 4 non retrouvés identiques — 3 absent(s) de rail/main/production : docs/deploiement/preflight-20260904175747-production-login.md, outils/garde-rpc-orpheline.js, test_garde_rpc_orpheline_20261001.js ; 1 présent(s) ailleurs mais avec un contenu différent : docs/deploiement/README.md. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 36c52b5.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261004-0024",
+      "tete": "332742159bf2ca3ac8b5843c841c6d8e56008bed",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 absent(s) de rail/main/production : outils/appliquer-migrations-fdj-vague1-candidat-62-test-a-executer-par-frederic.sh. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base a714ef3.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261004-1439",
+      "tete": "aea5406670d8a76b71bb9d40a3b3095945332858",
+      "sort": "INTEGREE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff) ; les 2 sont retrouvés identiques (diff de contenu nul) dans le rail, main ou production actuels — contenu intégralement repris malgré l'absence d'ascendance git (squash-merge ou réapplication manuelle). Mesure : git diff --no-renames --name-status aea5406 <rail|main|production> -- <fichiers>, base 67512d2.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20261004-1525",
+      "tete": "153de058ab4b9c42b5ba73451eb0f53c47205883",
+      "sort": "A_REPRENDRE",
+      "motif": "6 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 4 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 présent(s) ailleurs mais avec un contenu différent : NEXUS-FDJ-Manager-v1.html, docs/gouvernance/LANGAGE-NEXUS-PLAFONDS.json. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base e64df4f.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261005-1817",
+      "tete": "a70e7de3918724147ca6912ccd0c216a81fb20de",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base 3761220 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status 3761220 a70e7de.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20261007-0035",
+      "tete": "49292c4275f69bfa4012674e8979ae73b41cc54e",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base d97efbd avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status d97efbd 49292c4.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20261007-1020",
+      "tete": "be54ebb95e5b87366ac9cfd8bd7e0698925d9811",
+      "sort": "HISTORIQUE_SANS_ACTION",
+      "motif": "Hors miroirs/registre Handoff (docs/handoff/CURRENT.md, DECISION.md, STATE.json, docs/handoff/lots/**), cette branche n'ajoute ni ne modifie aucun fichier par rapport à sa base (merge-base c646c02 avec le rail) : son seul contenu propre était de l'état Handoff, remplacé depuis par l'état postérieur du rail, ou une suppression de fichier déjà absent au rail. Aucun contenu applicatif à récupérer. Mesure : git diff --no-renames --name-status c646c02 be54ebb.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "claude/issue-28-20261012-2015",
+      "tete": "39279da800d9d8309634009d89d308ba6ae6a61b",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 présent(s) ailleurs mais avec un contenu différent : docs/gouvernance/NEXUS-EXECUTOR-SUPABASE-1-audit-et-architecture.md, docs/handoff/CAPACITES-CANAL.json. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 7978abb.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261012-2042",
+      "tete": "6dff279173bbb6b029a88db9032132e6e6accaaf",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : docs/handoff/CAPACITES-CANAL.json. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 7978abb.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261012-2131",
+      "tete": "4bdd507071101ea3b7f4c9f8aa5eed63c5a5b348",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : docs/handoff/CAPACITES-CANAL.json. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 7978abb.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261012-2214",
+      "tete": "6342d28d11ff28256c476811aac57f3a44578a40",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 absent(s) de rail/main/production : docs/gouvernance/NEXUS-FAST-TRACK-E1-E7-AUDIT-CONTINUITE-20261012.md. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 7978abb.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261012-2335",
+      "tete": "7a9617015025952d9921c571fbf275d1f350f1f3",
+      "sort": "A_REPRENDRE",
+      "motif": "7 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 7 non retrouvés identiques — 1 absent(s) de rail/main/production : test_cpsync_outils_insensible_mutants_20261012.js ; 6 présent(s) ailleurs mais avec un contenu différent : test_continuite_bout_en_bout_20260930.js, test_escalade_humaine_20261007.js, test_mutations_rapatriement_20260930.js, test_ordre_depuis_demande_20261012.js, test_relais_arbitre_openai_20261007.js, test_reveil_autosuffisant_20261007.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 7978abb.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/issue-28-20261015-0055",
+      "tete": "69428cc0ca191a8a14519c87e2212e9fc5166bda",
+      "sort": "A_REPRENDRE",
+      "motif": "7 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 6 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base b59f7c4.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "claude/paye-cockpit-20261009",
+      "tete": "ee370675e665e30e8b7a3d0215624c805067f09b",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 3 non retrouvés identiques — 3 présent(s) ailleurs mais avec un contenu différent : NEXUS-Paye-v1.html, test_nexus_paye_cockpit_20261009.js, test_nexus_paye_ecran_rendu.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 58a828b.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "cloture-des-services",
+      "tete": "908a7808139208963ed74193213ed8501bc30136",
+      "sort": "A_REPRENDRE",
+      "motif": "12 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 12 non retrouvés identiques — 5 absent(s) de rail/main/production : NEXUS-Services-v1.html, nexus-services-donnees.js, nexus-services-moteur.js, supabase/migrations/20260904020000_cloture_des_services.sql, test_services_cloture.js ; 7 présent(s) ailleurs mais avec un contenu différent : NEXUS-App-v1.html, NEXUS-Inventaire-v1.html, NEXUS-Missions-v1.html, NEXUS-Pointage-v1.html, NEXUS-Prise-De-Poste-v1.html, nexus-auth.js, nexus-raccourcis-catalogue.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 528b6ea.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "config-par-environnement",
+      "tete": "18ce05100baf2b9720a5755ac37f48fad0ee15d0",
+      "sort": "A_REPRENDRE",
+      "motif": "1 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 absent(s) de rail/main/production : docs/plans/2026-10-09-audit-heures-verify-paye.md. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base ea57d4b.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "ecarts-kpi-hierarchie-20261014",
+      "tete": "8d3947b998d87a5a12f4b28f5f2dd372ed0f4749",
+      "sort": "A_REPRENDRE",
+      "motif": "501 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 482 identique(s) retrouvé(s) au rail/main/production et 19 non retrouvés identiques — 19 présent(s) ailleurs mais avec un contenu différent : NEXUS-Analyse-Ecarts-v1.html, NEXUS-App-v1.html, NEXUS-Paye-Specification-v1.md, NEXUS-Paye-v1.html, nexus-desktop.js, nexus-ecarts-donnees.js, nexus-paye-dossier-pdf.js, nexus-paye-moteur.js, …. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "ecarts-periode-mois-courant-20261014",
+      "tete": "5d1726861d4e9b2e8f69519acf3f52512b02f170",
+      "sort": "A_REPRENDRE",
+      "motif": "500 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 482 identique(s) retrouvé(s) au rail/main/production et 18 non retrouvés identiques — 18 présent(s) ailleurs mais avec un contenu différent : NEXUS-Analyse-Ecarts-v1.html, NEXUS-App-v1.html, NEXUS-Paye-Specification-v1.md, NEXUS-Paye-v1.html, nexus-desktop.js, nexus-ecarts-donnees.js, nexus-paye-dossier-pdf.js, nexus-paye-moteur.js, …. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "epreuve-protection-main-20261010",
+      "tete": "1a3bdb3b858e565b63071ce0a71af5e68391de92",
+      "sort": "A_REPRENDRE",
+      "motif": "2 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 0 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 1 absent(s) de rail/main/production : docs/qa/epreuve-protection-main-20261010.md ; 1 présent(s) ailleurs mais avec un contenu différent : .github/workflows/claude.yml. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "feature/telegram-alertes-handoff-20261014",
+      "tete": "c9428b0625cb953af3167b792a7d501a291e31e5",
+      "sort": "A_REPRENDRE",
+      "motif": "3 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 2 identique(s) retrouvé(s) au rail/main/production et 1 non retrouvés identiques — 1 présent(s) ailleurs mais avec un contenu différent : .github/workflows/tests.yml. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base a604f4d.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "flake-outils-mutants-20261014",
+      "tete": "05ff2d0430e1e2d2975ec0e54472585995d3f522",
+      "sort": "A_REPRENDRE",
+      "motif": "7 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 5 identique(s) retrouvé(s) au rail/main/production et 2 non retrouvés identiques — 2 présent(s) ailleurs mais avec un contenu différent : test_lecture_rail_arbitre_20261014.js, test_relais_arbitre_openai_20261007.js. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base a604f4d.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "hotfix-roles-prise-de-poste-20260918",
+      "tete": "a3f1fba9b6cece240903907e0293ef9a239c397d",
+      "sort": "A_REPRENDRE",
+      "motif": "126 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 95 identique(s) retrouvé(s) au rail/main/production et 31 non retrouvés identiques — 31 présent(s) ailleurs mais avec un contenu différent : .github/deploiement/test_empreinte_artefact_20260915.js, .github/deploiement/test_garde_deployer_20260915.js, .github/deploiement/test_verifier_artefact_pages_20260915.js, .github/workflows/deploiement-production.yml, .github/workflows/tests.yml, NEXUS-App-v1.html, NEXUS-Debug-v1.html, NEXUS-FDJ-Manager-v1.html, …. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "p1-executants-fermes",
+      "tete": "d6d52515da55d817f48c29e70295f1e6e3d7727e",
+      "sort": "INTEGREE",
+      "motif": "4 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff) ; les 4 sont retrouvés identiques (diff de contenu nul) dans le rail, main ou production actuels — contenu intégralement repris malgré l'absence d'ascendance git (squash-merge ou réapplication manuelle). Mesure : git diff --no-renames --name-status d6d5251 <rail|main|production> -- <fichiers>, base 9b7f9f8.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "p2-coherence-cloture",
+      "tete": "eedfbd9db45402b0e7079119573d2ea71af9c918",
+      "sort": "INTEGREE",
+      "motif": "6 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff) ; les 6 sont retrouvés identiques (diff de contenu nul) dans le rail, main ou production actuels — contenu intégralement repris malgré l'absence d'ascendance git (squash-merge ou réapplication manuelle). Mesure : git diff --no-renames --name-status eedfbd9 <rail|main|production> -- <fichiers>, base 9b7f9f8.",
+      "le": "2026-10-15"
+    },
+    {
+      "branche": "paye-regles-smu-20261008",
+      "tete": "53291cab23b036a643ba055e2e09cbf81ea59416",
+      "sort": "A_REPRENDRE",
+      "motif": "300 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 273 identique(s) retrouvé(s) au rail/main/production et 27 non retrouvés identiques — 27 présent(s) ailleurs mais avec un contenu différent : .github/deploiement/test_empreinte_artefact_20260915.js, NEXUS-App-v1.html, NEXUS-FDJ-Manager-v1.html, NEXUS-FDJ-v1.html, NEXUS-Parametres-Station-v1.html, NEXUS-Paye-Specification-v1.md, NEXUS-Paye-v1.html, NEXUS-Progression-v1.html, …. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
+    },
+    {
+      "branche": "regularisation-differee-groupes-20261013",
+      "tete": "a40d421ecd8cd00ac94f183d1795bee78e2bb953",
+      "sort": "A_REPRENDRE",
+      "motif": "495 fichier(s) ajouté(s)/modifié(s) par rapport à sa base (hors miroirs Handoff), dont 476 identique(s) retrouvé(s) au rail/main/production et 19 non retrouvés identiques — 19 présent(s) ailleurs mais avec un contenu différent : NEXUS-Analyse-Ecarts-v1.html, NEXUS-App-v1.html, NEXUS-Paye-Specification-v1.md, NEXUS-Paye-v1.html, docs/deploiement/promotion-versements-groupes-production-20261013.md, nexus-desktop.js, nexus-paye-dossier-pdf.js, nexus-paye-moteur.js, …. Non assimilée à une branche « non intégrée » sans vérification de contenu (squash-merge écarté par mesure) ; classée A_REPRENDRE car du contenu reste potentiellement non repris, à revoir avant toute décision de suppression. Base 501c0c7.",
+      "le": "2026-10-15",
+      "renvoi": "BRANCHE-001"
     }
   ]
 }

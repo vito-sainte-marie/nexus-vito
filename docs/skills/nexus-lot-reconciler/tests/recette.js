@@ -148,6 +148,17 @@ scenario('12d', 'Contrôle complémentaire : décisions appariées par in_reply_
   assert.ok(!codes(r).includes('H06_CLOTURE_AVEC_ACTION'), 'une action de matérialisation n\'est pas une action restante');
 });
 
+// Contrôle complémentaire : un dossier déclaré artefacts_hors_registre dans STATE.json ne
+// déclenche pas H08, mais un dossier sans entrée STATE.json et sans cette déclaration le déclenche
+// toujours — 3 faux positifs mesurés le 14/10/2026 sur des lots de conception antérieurs à v2.
+scenario('12e', 'Dossier hors registre déclaré : aucun H08 ; non déclaré : H08 intact', () => {
+  const fichiers = { 'request-1.md': req('LOT-HORS-REGISTRE', 1) };
+  const horsRegistre = R.analyserLot('LOT-HORS-REGISTRE', fichiers, null, REGISTRE, null, {}, true);
+  assert.ok(!codes(horsRegistre).includes('H08_DOSSIER_SANS_REGISTRE'), 'déclaré hors registre : pas de H08');
+  const nonDeclare = R.analyserLot('LOT-HORS-REGISTRE', fichiers, null, REGISTRE, null, {}, false);
+  assert.ok(codes(nonDeclare).includes('H08_DOSSIER_SANS_REGISTRE'), 'non déclaré : H08 reste détecté');
+});
+
 const ko = resultats.filter(r => !r.ok);
 for (const r of resultats) console.log(`${r.ok ? 'OK ' : 'KO '} ${String(r.n).padStart(3)} · ${r.titre}${r.ok ? '' : ` · ${r.erreur}`}`);
 console.log(`\n${resultats.length - ko.length}/${resultats.length} scénarios passent.`);

@@ -493,9 +493,13 @@
       "consomme_le": "2026-10-15T01:03:52.089Z"
     },
     "NEXUS-PROPRETE-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "e4a13872ce74ba2370cfc0f526f918ab01c5fd56",
+      "consomme_le": "2026-10-15T01:20:33.204Z"
     }
   },
   "artefacts_hors_registre": [
