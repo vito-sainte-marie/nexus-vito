@@ -698,6 +698,32 @@ harnais mais un fait mesuré : elle a trouvé un dossier `FAST_FORWARD` qui ne
 nommait aucune ref source, que six bancs unitaires avaient laissé passer. Un
 câblage ne se prouve pas en prouvant ses pièces.
 
+## Parler à Claude : la ligne de rail
+
+`claude.yml` (sur `main`) refuse tout commentaire qui mentionne Claude sans
+désigner le rail, et ne devine jamais : un rail ne se devine pas. Le refus est
+voulu et alerte Telegram. Il s'est pourtant produit deux fois le 14/10/2026
+(runs 38621556443 et 38662570109) : à chaque fois un commentaire écrit à la
+main, qui nommait le rail en prose.
+
+La désignation tient en une ligne, au début du commentaire :
+
+```text
+@claude NEXUS_BASE_BRANCH=`handoff-continuite-20260920`
+<consigne>
+```
+
+| Acteur | Règle |
+| --- | --- |
+| Frédéric ou toute session qui poste à la main | Écrit la ligne, rail entre accents graves. Une phrase qui nomme la branche ne la remplace pas. |
+| ChatGPT (arbitre) | N'écrit ni la mention ni la ligne : sa réponse est un livrable, jamais un commentaire. |
+| Relais CI (`relais-arbitre-openai.js`) | Poste la décision sans la mention ; la CI matérialise, aucun commentaire n'est requis. |
+| Recopie manuelle d'une décision par Frédéric | Ajoute la ligne ; le bloc « Pour me répondre » du réveil la donne toute faite. |
+| Tout autre agent (Codex, connecteur) | Même règle que ChatGPT : ne poste pas. |
+
+Le rail à écrire est celui du lot au registre (`handoff.js rail <LOT_ID>`), pas
+celui qu'on croit se rappeler.
+
 ## Gate humaine
 
 Frédéric intervient pour les décisions produit majeures, les changements de

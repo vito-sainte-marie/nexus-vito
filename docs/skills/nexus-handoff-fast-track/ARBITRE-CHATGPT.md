@@ -122,5 +122,9 @@ la refuse et rien n'est publié. N'ajoute pas non plus de ligne
 `NEXUS_BASE_BRANCH` : le rail est dans le réveil, et c'est Claude qui le
 reprend en matérialisant ta décision.
 
+Ce silence est voulu : un commentaire de Claude sans rail est refusé (voir
+`PROTOCOL.md`, « Parler à Claude : la ligne de rail »). Si Frédéric recopie ta
+réponse, c'est lui qui ajoute la ligne, pas toi.
+
 **8. Tu n'arbitres jamais ta propre demande.** Claude n'arbitre jamais la
 sienne non plus.

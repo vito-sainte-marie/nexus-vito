@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-DECLENCHEUR-RAIL-1-20261014/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-LOT-RECONCILER-1-20261014
-seq: 3
+lot_id: NEXUS-DECLENCHEUR-RAIL-1-20261014
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,27 +20,22 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: depot-six-fichiers
+  - id: doc-seule
     classe: VERIFIED
-    valeur: cmp identique a apport/ea027743 pour les 6 fichiers
-  - id: recette-du-skill
-    classe: VERIFIED
-    valeur: node tests/recette.js 15 sur 15
+    valeur: 2 fichiers .md modifies, verifier conforme
   - id: aucun-go-production
     classe: DECLARED
     valeur: ni main ni production ni claude.yml ni secret ni permission
 ---
-# Dépôt effectué — conditions de decision-1 remplies
+# Le refus « sans rail » s'est produit deux fois le 14/10 — règle écrite pour tous les acteurs
 
-Lève le HOLD de decision-2 : la matière source est lisible. Frédéric a poussé la branche `apport/nexus-lot-reconciler-20261014` (`ea027743`) ; l'archive locale a le même sha256 (`ab8ef6e679da911d961774ab7d68b7badc2381c59ec428f47666b57e904862c5`) que celle annoncée en request-1.
+`claude.yml` refuse un commentaire sans `NEXUS_BASE_BRANCH=<branche>` (runs 38621556443 et 38662570109). Les deux commentaires étaient écrits à la main et nommaient le rail en prose. ChatGPT et le relais n'en sont pas la cause : leur consigne interdit déjà la mention et la ligne.
 
-## Preuve des conditions de decision-1
-- Six fichiers déposés **sans modification** sous `docs/skills/nexus-lot-reconciler/` : comparés un à un (`cmp`) à ceux de la branche d'apport, tous identiques.
-- Seule autre modification : le lien de DT-001 vers ce skill (`docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md`), et la ligne correspondante de l'étude de réalignement. Aucun lot doublon.
-- Phases 2 et 3 non activées ; `tests/recette.js` non câblé à la CI (`node tests/recette.js` : 15/15 en local).
-- Ni `main`, ni `production`, ni `claude.yml`, ni secret, ni permission GitHub touchés.
+## Modification (documentation seule, sur le rail)
+- `docs/handoff/PROTOCOL.md` : section « Parler à Claude : la ligne de rail » — syntaxe, et qui l'écrit ou non (Frédéric et sessions à la main : oui ; ChatGPT, relais CI, Codex, connecteur : ne postent pas ; recopie manuelle : Frédéric ajoute la ligne).
+- `docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md` §7 : renvoi à cette section, pour que le silence de l'arbitre sur la ligne soit compris comme voulu.
 
-## Incident noté
-Le commentaire de Frédéric sur #28 (00:53Z) a été refusé par `claude.yml` (run 38662570109) : il nommait le rail en prose, sans `NEXUS_BASE_BRANCH=<branche>`. Refus voulu, aucun repli ; la reprise a eu lieu en session.
+## Non touché
+`main`, `production`, `claude.yml`, secrets, permissions. Aucun repli sur un rail par défaut : le refus reste la bonne réponse. Un filtre ou un message de refus plus parlant relèverait de `claude.yml` sur `main` et d'une autorisation distincte de Frédéric.
 
-Demande la clôture du lot (`closes: true`) si l'arbitre juge les conditions remplies.
+Demande la clôture (`closes: true`).
