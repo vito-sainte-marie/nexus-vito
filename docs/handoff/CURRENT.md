@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-LOT-RECONCILER-1-20261014
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,66 +20,27 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: docs-skills-absent
+  - id: depot-six-fichiers
     classe: VERIFIED
-    valeur: ls docs/skills/ -> nexus-handoff-fast-track, nexus-incidents (pas de nexus-lot-reconciler)
-  - id: archive-non-trouvee
+    valeur: cmp identique a apport/ea027743 pour les 6 fichiers
+  - id: recette-du-skill
     classe: VERIFIED
-    valeur: aucune trace de l'archive ou de ses 6 fichiers dans l'arbre de travail ni dans git log --all
+    valeur: node tests/recette.js 15 sur 15
+  - id: aucun-go-production
+    classe: DECLARED
+    valeur: ni main ni production ni claude.yml ni secret ni permission
 ---
-# Dépôt bloqué — archive nexus-lot-reconciler.zip introuvable dans ce contexte d'exécution
+# Dépôt effectué — conditions de decision-1 remplies
+
+Lève le HOLD de decision-2 : la matière source est lisible. Frédéric a poussé la branche `apport/nexus-lot-reconciler-20261014` (`ea027743`) ; l'archive locale a le même sha256 (`ab8ef6e679da911d961774ab7d68b7badc2381c59ec428f47666b57e904862c5`) que celle annoncée en request-1.
 
 ## Preuve des conditions de decision-1
+- Six fichiers déposés **sans modification** sous `docs/skills/nexus-lot-reconciler/` : comparés un à un (`cmp`) à ceux de la branche d'apport, tous identiques.
+- Seule autre modification : le lien de DT-001 vers ce skill (`docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md`), et la ligne correspondante de l'étude de réalignement. Aucun lot doublon.
+- Phases 2 et 3 non activées ; `tests/recette.js` non câblé à la CI (`node tests/recette.js` : 15/15 en local).
+- Ni `main`, ni `production`, ni `claude.yml`, ni secret, ni permission GitHub touchés.
 
-Les conditions de `decision-1.md` ne sont pas remplies, et ce maillon ne peut
-pas les remplir : il n'a reçu ni l'archive `nexus-lot-reconciler.zip` ni les
-six fichiers qu'elle contient.
+## Incident noté
+Le commentaire de Frédéric sur #28 (00:53Z) a été refusé par `claude.yml` (run 38662570109) : il nommait le rail en prose, sans `NEXUS_BASE_BRANCH=<branche>`. Refus voulu, aucun repli ; la reprise a eu lieu en session.
 
-- `docs/skills/` ne contient que `nexus-handoff-fast-track/` et
-  `nexus-incidents/` : aucun répertoire `nexus-lot-reconciler/` n'a été créé.
-  Preuve : `ls docs/skills/` (VERIFIED).
-- `git log --all` et une recherche plein texte (`reconcilier`,
-  `nexus-lot-reconciler`) sur l'arbre de travail et l'historique complet ne
-  montrent aucune trace des six fichiers décrits par `request-1.md`
-  (`SKILL.md`, `references/sources.md`, `references/statuts-et-preuves.md`,
-  `references/autorisations.md`, `scripts/reconcilier.js`,
-  `tests/recette.js`). Preuve : recherche exhaustive sur ce dépôt (VERIFIED).
-- `request-1.md` le dit explicitement : « Frédéric fournit le dossier complet
-  (…). Il n'a rien poussé. » L'archive n'a jamais été commitée sur une
-  branche, ni jointe au déclencheur de ce réveil automatique. Aucun fichier
-  `.zip` dans l'arbre de travail autorisé ne porte le sha256
-  `ab8ef6e679da911d` annoncé par la preuve `archive-source` de
-  `request-1.md`. Preuve : recherche sur l'arbre de travail autorisé
-  (VERIFIED).
-- Condition 2 (lien documentaire DT-001 vers le skill) dépend de la
-  condition 1 : il n'y a pas encore de skill à lier. Non exécutée pour la
-  même raison.
-
-Conclusion de preuve : **conditions non exécutables en l'état, faute de
-matière reçue — pas faute de droit ni de méthode.**
-
-## Pourquoi ce n'est pas un contournement
-
-Fabriquer un `SKILL.md` ou un `scripts/reconcilier.js` à partir de la seule
-description de `request-1.md` violerait la condition même de la décision —
-« déposer sans modification les six fichiers annoncés ». Une reconstitution
-ne serait pas les fichiers de Frédéric ; ce serait une invention plausible,
-exactement ce que A18 interdit. Ce maillon s'arrête donc avant d'écrire quoi
-que ce soit sous `docs/skills/nexus-lot-reconciler/`.
-
-## Ce qui est demandé
-
-Que l'archive `nexus-lot-reconciler.zip` (ou son contenu extrait) soit rendue
-lisible par un prochain réveil de ce rail — par exemple poussée sur une
-branche accessible, ou jointe de façon à ce qu'une session reprenant ce lot
-puisse la lire — afin que le dépôt sous condition de `decision-1.md` puisse
-être exécuté tel qu'autorisé.
-
-Le lien documentaire DT-001 reste également en attente : il référence ce
-skill, qui n'existe pas encore sous `docs/skills/`.
-
-## Hors périmètre, inchangé
-
-Aucune modification de `main`, de Production, des secrets, des permissions
-GitHub ou de `claude.yml`. Aucune phase 2/3. Aucun câblage CI de
-`tests/recette.js`.
+Demande la clôture du lot (`closes: true`) si l'arbitre juge les conditions remplies.

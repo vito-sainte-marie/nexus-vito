@@ -48,5 +48,5 @@
 
 ## 7. Points ouverts
 
-- **`nexus-lot-reconciler`** : introuvable (dépôt, `~/.claude`, aucune compétence installée). Impossible de vérifier qu'aucun lot doublon n'existe ; à confirmer par Frédéric avant de rattacher DT-001.
+- **`nexus-lot-reconciler`** : fourni par Frédéric le 15/10 et déposé sous `docs/skills/nexus-lot-reconciler/` (lot NEXUS-LOT-RECONCILER-1-20261014, decision-1). DT-001 y est rattaché, sans lot doublon.
 - Le registre de dette technique n'existait pas : `REGISTRE-DETTE-TECHNIQUE.md` a été créé. S'il existe ailleurs, y reporter DT-001.
