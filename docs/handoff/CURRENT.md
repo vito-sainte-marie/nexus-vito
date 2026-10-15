@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-FDJ-STOCK-Q1-ABSENT-20261015
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,57 +20,55 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: constat-production
+  - id: constat-recette-test
     classe: VERIFIED
-    valeur: Q1 14/10 absent ; Q2 29/29 initiaux valides ; 24 diffs sur 29 vs final Q2 13/10
+    valeur: recette A-F sur Test udljdqxerrbbbajxubfn via connecteur, annulee, Test propre
 ---
-# FDJ — quart absent : reconstitution du stock de chaîne depuis le comptage initial du quart suivant
+# Request 2 — implémentation de la reconstitution du stock de chaîne et recette sur Test
 
-## Mandat de Frédéric (arbitrage métier, 15/10/2026, verbatim)
+Réponse aux conditions 1 à 8 de decision-1 (APPROVED_WITH_CONDITIONS, closes: false). Le lot reste ouvert.
 
-> Lorsqu'un quart n'a pas été effectué, mais que le quart suivant dispose d'un comptage initial réel et confirmé, NEXUS doit utiliser ce comptage pour reconstituer le stock de chaîne du quart manquant. Le comptage initial du quart suivant prévaut toujours sur le stock final du quart précédent pour établir la continuité.
+## Écart de base à déclarer
+La branche d'implémentation `fdj-quart-absent-reconstitution-20261015` part de `origin/production`, pas du rail : le rail ne porte pas les migrations de continuité FDJ déjà déployées en Production. Rien n'est poussé sur `production` ni `main`.
 
-Cas de référence : 14/10/2026, quart 1 absent, quart 2 effectué par Loane (29 comptages initiaux, 29 finaux). Résultat attendu :
+## Livré (non poussé, commit 18dbc606 sur la branche d'implémentation)
+Migration `20261015100000_fdj_stock_chaine_reconstitue_quart_absent.sql` :
+- table dédiée `fdj_stock_chaine_reconstitue` (provenance, quart source, valeur reconstituée, comptage réel conservé à côté, statut, horodatage, auteur) — condition 1 ;
+- colonne `site` (les tables FDJ de Production n'ont pas de `site_id`), RLS en lecture limitée au site, aucune policy d'écriture, aucun élargissement de droits — condition 2 ;
+- aucune ligne dans `fdj_shifts`, `fdj_shift_counts`, caisse, ventes, réceptions, présences, clôtures — condition 3 ;
+- jeux attendus lus en base (jeux actifs du site), aucun nombre en dur — condition 4 ;
+- garde : `ouverture_validee` et tous les stocks initiaux attendus non NULL — condition 5 ;
+- comptage réel conservé, valeur reconstituée conservée, statut `en_conflit` et écart signalé — condition 6 ;
+- fonction `fdj_reconstituer_quart_absent(uuid)` en security definer, audit dans `fdj_audit_log`.
 
-- afficher « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 » ;
-- reconstituer les 29 valeurs de stock de chaîne du quart 1 depuis les 29 valeurs initiales confirmées du quart 2 ;
-- conserver intégralement les saisies de Loane ;
-- distinguer les valeurs reconstituées des comptages physiques ;
-- ne créer aucune caisse, vente, recette, présence ou clôture fictive ;
-- conserver la traçabilité et signaler séparément l'absence opérationnelle du quart 1 ;
-- ne pas appliquer la règle si le comptage initial du quart suivant est incomplet ou non confirmé ;
-- ne pas écraser un comptage réel déjà enregistré : en cas de contradiction, conserver les deux valeurs et signaler l'écart.
+## Recette sur Test (condition 7)
+Appliquée sur Test via le connecteur (le host direct a expiré le 15/10 ; le pooler reste interdit), puis annulée : Test est propre.
+- A — quart absent, source complète et confirmée : 29 valeurs créées, 29 lignes d'audit.
+- B — quart suivant incomplet : refus `comptage_initial_incomplet`, rien d'écrit.
+- C — ouverture non confirmée : refus `ouverture_non_confirmee`, rien d'écrit.
+- D — comptage réel contradictoire : les deux valeurs conservées, statut `en_conflit`, écart renseigné.
+- E — isolation : shift d'un autre site refusé.
+- F — idempotence : second appel sans doublon.
 
-Mission : identifier pourquoi la règle n'a pas fonctionné, préparer le correctif, recette complète en environnement Test (quart absent, quart effectué, comptages contradictoires). Incident suivi par `nexus-incidents`, sans doublon. **Aucune modification de Production sans autorisation explicite.**
+## Limites déclarées
+- Isolation prouvée par le refus d'un shift d'un autre site ; un seul site a des managers sur Test, le select RLS sous une seconde session n'est pas testé.
+- Transport par le connecteur, pas par psql.
+- Le commentaire de fonction a été omis sur la copie Test (écart mineur).
+- Le contrôle de date de la vérification A était erroné dans mon essai (mauvaise date) ; à corriger dans la recette versionnée.
 
-## Constat Production (lecture seule, `begin read only`, 15/10/2026)
+## Restant, avant toute demande de promotion
+Écrans employé et manager (bandeau « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 », distinction visuelle reconstitué/physique, absence opérationnelle séparée), fonctions moteur et épreuves avec mutations, recette SQL versionnée, entrée nexus-incidents. Les épreuves de manifeste et d'empreinte rougiront à l'ajout de la migration : attendu.
 
-| Fait | Valeur |
-|---|---|
-| Quarts du 14/10 | **un seul** : Q2 `1f69bf2b…` (Loane, `valide`, `ouverture_validee=true` à 19:19:15Z). **Aucune ligne `fdj_shifts` pour le Q1** |
-| Q2 14/10 | 29 jeux ; 29 initiaux, 29 finaux ; `previous_shift_id` NULL ; `stock_initial_auto` vrai sur **5** jeux seulement |
-| Dernier quart avant lui | Q2 du 13/10 `7e09c927…` (valide, 29 jeux) |
-| Initial Q2 14/10 vs final Q2 13/10 | **24 différents, 5 égaux** |
-| Jours précédents (12 et 13/10) | chaîne intacte : 29/29 initiaux auto, `previous_shift_id` posé |
+## Demande
+Valider cette suite (écrans, moteur, recette versionnée). Aucune action sur Production, `main` ou `production` n'est demandée ; migration, fusion, déploiement et écriture du Q1 du 14/10 exigeront chacun un GO distinct de Frédéric.
 
-## Diagnostic (cause, avant correctif)
-
-La règle n'a jamais été implémentée pour ce cas ; elle ne « marche pas » parce que rien ne la porte :
-
-1. `chargerDernierStockFinal` (`NEXUS-FDJ-v1.html`) cherche le dernier quart `valide` antérieur, constate la rupture via `chaineContinuite` (`nexus-fdj-moteur.js`) et **n'en tire que `chaineRompue`** : pas de reconstitution, `previous_shift_id` reste NULL.
-2. La continuité de #98 (`fdj_manager_aligner_fin_quart_precedent`, migration `20261010170000`) **ne crée jamais de ligne dans le quart précédent** et ne touche que les jeux présents des deux côtés : avec un Q1 inexistant elle n'a rien à aligner.
-3. Conséquence : 24 valeurs du Q2 du 14/10 divergent du dernier final connu, sans valeur de chaîne pour le Q1, et rien ne les distingue d'une anomalie de saisie.
-
-## Plan proposé
-
-1. **Cadrage du modèle** : stocker les valeurs reconstituées hors de `fdj_shift_counts` (un comptage physique ne doit jamais être simulé) — table dédiée ou colonne d'origine `reconstitue_depuis_quart_suivant`, avec trace d'audit. Je recommande la table dédiée : aucune caisse, vente, présence ni clôture n'est créée, et un quart réel saisi plus tard reste prioritaire.
-2. **Garde de la règle** : applicable seulement si le Q2 est `ouverture_validee`, a **tous** les initiaux non nuls renseignés (29/29) ; sinon, aucune reconstitution. Contradiction avec un comptage réel existant du Q1 : les deux valeurs conservées, écart signalé.
-3. **Affichage** : bannière « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 » (employé et manager), absence opérationnelle signalée séparément.
-4. **Incident** : ouvrir un incident fonctionnel unique pour ce motif (pas de doublon : `docs/learning/INCIDENTS.jsonl` n'en contient aucun de ce type) et le clore par la leçon promue (`EXPERIENCE.jsonl`, `RULES.json`) une fois la garde et sa mutation écrites.
-5. **Recette Test** (Test uniquement) : quart absent, quart effectué, comptages contradictoires, Q2 incomplet ou non confirmé ; mutations de la garde.
-
-## Autorisations demandées et limites
-
-- **Demandé** : cadrage de l'approche (point 1) et feu vert pour construire, sur une branche dédiée depuis `origin`, la migration, le code et la recette **sur Test seulement**.
-- **Hors lot, sur GO distinct de Frédéric** : migration Production, fusion, déploiement, et la **reconstitution effective du Q1 du 14/10 en Production** (Frédéric a demandé de l'appliquer « si les tests sont ok et déployés » : cela reste une écriture Production, soumise à un GO explicite après recette et déploiement).
-- Je ne touche ni `main`, ni `production`, ni secrets, ni permissions, ni `claude.yml`. Lecture seule en Production.
+## Preuve des conditions de decision-1
+Condition par condition, avec la source de la preuve (migration 18dbc606, recette Test A–F ci-dessus) :
+1. Table dédiée et provenance auditée : `fdj_stock_chaine_reconstitue` + lignes `fdj_audit_log` (29 pour 29 valeurs en recette A).
+2. Isolation multisite : colonne `site`, policy select sur `current_employee_site_id()`, aucune policy d'écriture, `revoke all` puis `grant select` seul ; recette E (shift d'un autre site refusé). Limite : select RLS sous seconde session non testé.
+3. Aucun enregistrement fictif : la fonction n'écrit que dans la table dédiée et `fdj_audit_log` (lecture du code, recette A).
+4. Jeux attendus lus en base : comptage des `fdj_games` actifs du site, aucun 29 en dur.
+5. Garde d'ouverture et de complétude : recettes B (incomplet) et C (non confirmé), toutes deux refusées sans écriture.
+6. Comptage réel prioritaire sans effacer : recette D, deux valeurs conservées, `en_conflit`, écart renseigné.
+7. Recette minimale : A, B, C, D, E exécutées sur Test ; F (idempotence) en plus.
+8. Aucune mutation de Production, aucune fusion, aucune promotion : migration non poussée, Production lue seulement sous `begin read only`.
