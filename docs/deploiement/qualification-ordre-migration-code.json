@@ -658,6 +658,27 @@
       "prochaine_action": "Verdict Handoff nomme (SHA et empreinte du blob), puis GO distincts de Frederic : application de la migration, fusion de la PR #109 (portage depuis production requis), deploiement Pages. Preflight : relire la base avant d ecrire. Aucun GO Production au 13/10.",
       "procedure": "docs/deploiement/promotion-versements-groupes-production-20261013.md",
       "justification": "Table neuve, deux colonnes groupe_id nullables, un CHECK satisfait par toute ligne existante, fonctions neuves et remplacement de _regul_tiroir_detail ; aucune donnee supprimee. Les mots drop_column, drop_table et truncate releves par la garde viennent du commentaire de retour arriere en tete du fichier et du trigger vrg_immuable_truncate qui INTERDIT le truncate : faux positifs constates a la main. Ordre retenu : migration puis code (le nouvel ecran appelle des RPC absentes de Production). Fiche redigee par Claude, SOUMISE au verdict Handoff ; elle ne vaut aucun GO Production. Limitee au blob eccdbafc53e9e34d365a49aa5c6d3708cc731d03 : un blob different fait tomber cette qualification. La garde n est ni modifiee ni affaiblie."
+    },
+    "20261015100000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Cree la table neuve public.fdj_stock_chaine_reconstitue (RLS par site, SELECT seul pour authenticated), sa policy et la fonction public.fdj_reconstituer_quart_absent(uuid) (security definer, search_path vide, EXECUTE fermé à anon/PUBLIC) ; aucun DDL sur une table existante, aucune donnée touchée. Appliquée en Production sur GO distinct de Frédéric (« GO migration seulement », 15/10/2026) par le connecteur Supabase ; le connecteur a estampillé la version 20261015112001 (le fichier porte 20261015100000 : écart d'estampille hors-bande connu). Les trois objets ont été constatés un par un sur le catalogue après application, la table est vide (0 ligne). Fiche rédigée par Claude : elle ne vaut aucun GO de déploiement ni de reconstitution réelle du Q1 14/10.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-15T11:23:20Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "connecteur Supabase, select en lecture seule sur pg_proc / pg_class / pg_policies (lectures seules Production en AUTO, GO du 03/10)",
+        "identite_constatee": "postgres",
+        "lecture_seule": "on",
+        "moteur": "17.6",
+        "verdict": "APPLIQUEE — pg_proc public.fdj_reconstituer_quart_absent : 1, table public.fdj_stock_chaine_reconstitue : 1 (0 ligne), policy select_fdj_stock_chaine_reconstitue : 1 ; registre 313, version enregistrée 20261015112001.",
+        "blob_migration": "21a39954de88807e8df189916ae4478ab5d0861c"
+      },
+      "objets_constates": [
+        "fdj_reconstituer_quart_absent",
+        "fdj_stock_chaine_reconstitue",
+        "select_fdj_stock_chaine_reconstitue"
+      ]
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

@@ -2134,11 +2134,44 @@
     return `${e > 0 ? l.plus : l.moins} : ${Math.abs(e).toFixed(2).replace('.', ',')} €`;
   }
 
+
+  // ------------------------------------------------------------
+  // QUART NON EFFECTUÉ — STOCK DE CHAÎNE RECONSTITUÉ (15/10/2026, arbitrage
+  // de Frédéric ; lot NEXUS-FDJ-STOCK-Q1-ABSENT-20261015, decision-1/2).
+  // Règle : quand un quart n'a pas été effectué mais que le quart suivant a
+  // un comptage initial réel et confirmé, la base reconstitue le stock de
+  // chaîne du quart manquant (table fdj_stock_chaine_reconstitue). Cette
+  // fonction PURE ne lit ni n'écrit rien : elle qualifie, pour l'affichage,
+  // ce que la base a posé. Trois choses restent DISTINCTES : l'absence
+  // opérationnelle du quart (chaineContinuite, inchangée), la valeur
+  // physique (comptage réel, jamais touché) et la valeur reconstituée.
+  //   manquants : sortie de chaineContinuite(...).manquants
+  //   lignes    : lignes de fdj_stock_chaine_reconstitue du site pour ces dates
+  // Retourne { quarts: [{date, quart, nb, enConflit, reconstitue}],
+  //            toutReconstitue, enConflit, libelle }.
+  // toutReconstitue n'est vrai que si CHAQUE quart manquant porte au moins
+  // une ligne ; aucun manquant => false (rien à reconstituer, pas de bandeau).
+  function qualifierQuartsAbsentsReconstitues(manquants, lignes) {
+    const liste = Array.isArray(manquants) ? manquants : [];
+    const rows = Array.isArray(lignes) ? lignes : [];
+    const quarts = liste.map(m => {
+      const l = rows.filter(r => r.date_quart_absent === m.date && String(r.quart_absent) === String(m.quart));
+      const enConflit = l.filter(r => r.statut === 'en_conflit').length;
+      return { date: m.date, quart: m.quart, nb: l.length, enConflit, reconstitue: l.length > 0 };
+    });
+    const toutReconstitue = quarts.length > 0 && quarts.every(q => q.reconstitue);
+    const enConflit = quarts.reduce((n, q) => n + q.enConflit, 0);
+    const libelle = quarts.filter(q => q.reconstitue).map(q =>
+      `Quart ${q.quart} du ${q.date.split('-').reverse().join('/')} non effectué — stock de chaîne reconstitué à partir du quart suivant`
+    );
+    return { quarts, toutReconstitue, enConflit, libelle };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye, etapeCaisseFdj,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference, instantEffetMouvement,
     calculerCandidatsFdj,
-    quartPrecedentAttendu, quartSuivant, chaineContinuite,
+    quartPrecedentAttendu, quartSuivant, chaineContinuite, qualifierQuartsAbsentsReconstitues,
     chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
     verdictContinuiteStock, detailContinuiteStock, emplacementContinuiteStock,
     origineStockInitial, origineStockFinal, libelleVerdictContinuiteStock, EMPLACEMENTS_FDJ,
