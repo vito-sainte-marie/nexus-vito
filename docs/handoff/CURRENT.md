@@ -62,6 +62,9 @@ Appliquée sur Test via le connecteur (le host direct a expiré le 15/10 ; le po
 ## Demande
 Valider cette suite (écrans, moteur, recette versionnée). Aucune action sur Production, `main` ou `production` n'est demandée ; migration, fusion, déploiement et écriture du Q1 du 14/10 exigeront chacun un GO distinct de Frédéric.
 
+## Statut de decision-1 (vérité du registre)
+`decision-1` est déjà consommée (`ff3e7720`) mais elle l'a été sans exécution : le run de réveil 38667953549 l'a consommée sans rien exécuter (permissions refusées, aucune demande bloquante déposée). Les conditions 1 à 8 n'ont donc été exécutées qu'ici, par cette session Claude, et la preuve est ci-dessous. Cette demande ne rouvre pas decision-1 ; elle en apporte l'exécution.
+
 ## Preuve des conditions de decision-1
 Condition par condition, avec la source de la preuve (migration 18dbc606, recette Test A–F ci-dessus) :
 1. Table dédiée et provenance auditée : `fdj_stock_chaine_reconstitue` + lignes `fdj_audit_log` (29 pour 29 valeurs en recette A).
