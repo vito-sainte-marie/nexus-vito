@@ -475,13 +475,13 @@
       "consomme_le": "2026-10-15T00:12:40.314Z"
     },
     "NEXUS-LOT-RECONCILER-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "237f8be0ff1f3643365bd049d069ecaac74b1793",
-      "consomme_le": "2026-10-15T00:47:15.805Z"
+      "commit_decision": "a4aba96a4006024c805c6f6fbc2ca49c10c0f944",
+      "consomme_le": "2026-10-15T00:52:04.099Z"
     }
   },
   "artefacts_hors_registre": [
