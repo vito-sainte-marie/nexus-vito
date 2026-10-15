@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "NEXUS-PROPRETE-1-20261014",
+  "lot_actif": "NEXUS-FDJ-STOCK-Q1-ABSENT-20261015",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -493,13 +493,18 @@
       "consomme_le": "2026-10-15T01:03:52.089Z"
     },
     "NEXUS-PROPRETE-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "e4a13872ce74ba2370cfc0f526f918ab01c5fd56",
-      "consomme_le": "2026-10-15T01:20:33.204Z"
+      "commit_decision": "2e83f17cff54baa95ce07b5d56ede5a3dae7e4e2",
+      "consomme_le": "2026-10-15T01:49:46.160Z"
+    },
+    "NEXUS-FDJ-STOCK-Q1-ABSENT-20261015": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [

@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-PROPRETE-1-20261014/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-PROPRETE-1-20261014
-seq: 2
+lot_id: NEXUS-FDJ-STOCK-Q1-ABSENT-20261015
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,95 +20,57 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: classement-92-branches
+  - id: constat-production
     classe: VERIFIED
-    valeur: 128 entrees (36+92) ; nouvelles = 4 INTEGREE, 53 HISTORIQUE_SANS_ACTION, 35 A_REPRENDRE
-  - id: garde-branches-en-rade
-    classe: VERIFIED
-    valeur: 0 CLASSEMENT_INVALIDE, 0 REPRISE sur les 92 nouvelles entrees ; test_garde_branches_en_rade 30/30 ; 19 EN RADE preexistantes hors perimetre
-  - id: skill-h08-corrige
-    classe: VERIFIED
-    valeur: recette.js 16/16 ; audit reel du rail : 0 occurrence H08_DOSSIER_SANS_REGISTRE
-  - id: suite-tests
-    classe: DECLARED
-    valeur: run-tests.js : 2 echecs dus a GITHUB_SHA/GITHUB_REF_NAME du bac a sable (main au lieu du HEAD rail) ; 1 test flaky sous charge, stable isole ; aucun lie a ce diff
+    valeur: Q1 14/10 absent ; Q2 29/29 initiaux valides ; 24 diffs sur 29 vs final Q2 13/10
 ---
-# Classement des 92 branches + correction H08 du skill — exécutés
+# FDJ — quart absent : reconstitution du stock de chaîne depuis le comptage initial du quart suivant
 
-## Preuve des conditions de decision-1
+## Mandat de Frédéric (arbitrage métier, 15/10/2026, verbatim)
 
-Les trois conditions cumulatives de `decision-1.md` sont respectées :
+> Lorsqu'un quart n'a pas été effectué, mais que le quart suivant dispose d'un comptage initial réel et confirmé, NEXUS doit utiliser ce comptage pour reconstituer le stock de chaîne du quart manquant. Le comptage initial du quart suivant prévaut toujours sur le stock final du quart précédent pour établir la continuité.
 
-1. **« Classer exactement les 92 branches non classées avec une justification
-   vérifiable par branche, sans assimiler automatiquement un squash-merge à
-   une branche non intégrée »** — fait. Chaque tête est mesurée fichier par
-   fichier (`git diff --no-renames --name-status`) contre sa base (merge-base
-   avec le rail), puis chaque fichier pertinent est comparé au contenu ACTUEL
-   de rail/main/production avant de conclure : 4 `INTEGREE` (contenu
-   retrouvé identique malgré l'absence d'ascendance git), 53
-   `HISTORIQUE_SANS_ACTION` (aucun fichier hors miroirs Handoff), 35
-   `A_REPRENDRE` (au moins un fichier non retrouvé identique). Aucune branche
-   n'est classée sur la seule absence d'ascendance.
-2. **« Limiter la correction du skill à la lecture de
-   `artefacts_hors_registre` et à son épreuve »** — fait et rien de plus :
-   `analyserLot` lit le nouveau paramètre `horsRegistre` (vrai si le lot
-   figure dans `STATE.json.artefacts_hors_registre`) et n'émet plus
-   `H08_DOSSIER_SANS_REGISTRE` dans ce cas ; un scénario dédié (`12e`) couvre
-   le cas positif ET le cas négatif (toujours détecté si non déclaré).
-3. **« Ne supprimer ni déplacer aucune ref, ne fermer ni fusionner aucune PR,
-   et ne toucher ni main, ni production, ni claude.yml, ni secrets ou
-   permissions »** — respecté : seuls `docs/handoff/BRANCHES-CLASSEES.json`,
-   `docs/handoff/STATE.json` (consommation de la décision), `docs/nexus/BACKLOG.md`
-   et trois fichiers de `docs/skills/nexus-lot-reconciler/` sont modifiés.
-   Aucune commande git touchant une ref distante autre que le push sur le
-   rail lui-même.
+Cas de référence : 14/10/2026, quart 1 absent, quart 2 effectué par Loane (29 comptages initiaux, 29 finaux). Résultat attendu :
 
-## Détail du classement
+- afficher « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 » ;
+- reconstituer les 29 valeurs de stock de chaîne du quart 1 depuis les 29 valeurs initiales confirmées du quart 2 ;
+- conserver intégralement les saisies de Loane ;
+- distinguer les valeurs reconstituées des comptages physiques ;
+- ne créer aucune caisse, vente, recette, présence ou clôture fictive ;
+- conserver la traçabilité et signaler séparément l'absence opérationnelle du quart 1 ;
+- ne pas appliquer la règle si le comptage initial du quart suivant est incomplet ou non confirmé ;
+- ne pas écraser un comptage réel déjà enregistré : en cas de contradiction, conserver les deux valeurs et signaler l'écart.
 
-Pour chaque fichier ajouté/modifié par une branche par rapport à sa base avec
-le rail (hors miroirs Handoff `docs/handoff/CURRENT.md`, `DECISION.md`,
-`STATE.json`, `lots/**`), l'outil cherche une version identique dans
-rail/main/production :
+Mission : identifier pourquoi la règle n'a pas fonctionné, préparer le correctif, recette complète en environnement Test (quart absent, quart effectué, comptages contradictoires). Incident suivi par `nexus-incidents`, sans doublon. **Aucune modification de Production sans autorisation explicite.**
 
-- **4 `INTEGREE`** : tous les fichiers pertinents identiques au canonique.
-- **53 `HISTORIQUE_SANS_ACTION`** : zéro fichier pertinent — ces branches ne
-  portaient que de l'état Handoff (consommation/publication), remplacé
-  depuis par l'état postérieur du rail.
-- **35 `A_REPRENDRE`** : au moins un fichier non retrouvé identique (absent
-  ou différent du canonique actuel). `renvoi: BRANCHE-001`, nouvelle entrée
-  Backlog qui nomme les 35 branches et désigne `BRANCHES-CLASSEES.json` pour
-  le détail mesuré par branche (fichiers, commit de base) — condition de
-  `garde-branches-en-rade.js` (`validerEntree`), qui refuse un `A_REPRENDRE`
-  sans renvoi vérifiable.
+## Constat Production (lecture seule, `begin read only`, 15/10/2026)
 
-## Preuves
+| Fait | Valeur |
+|---|---|
+| Quarts du 14/10 | **un seul** : Q2 `1f69bf2b…` (Loane, `valide`, `ouverture_validee=true` à 19:19:15Z). **Aucune ligne `fdj_shifts` pour le Q1** |
+| Q2 14/10 | 29 jeux ; 29 initiaux, 29 finaux ; `previous_shift_id` NULL ; `stock_initial_auto` vrai sur **5** jeux seulement |
+| Dernier quart avant lui | Q2 du 13/10 `7e09c927…` (valide, 29 jeux) |
+| Initial Q2 14/10 vs final Q2 13/10 | **24 différents, 5 égaux** |
+| Jours précédents (12 et 13/10) | chaîne intacte : 29/29 initiaux auto, `previous_shift_id` posé |
 
-- **classement** (VERIFIED) — `docs/handoff/BRANCHES-CLASSEES.json` : 128
-  entrées (36 préexistantes + 92 nouvelles) ; 92 nouvelles = 4 INTEGREE + 53
-  HISTORIQUE_SANS_ACTION + 35 A_REPRENDRE.
-- **garde-branches-en-rade** (VERIFIED) — `node outils/garde-branches-en-rade.js`
-  après commit : 0 `CLASSEMENT_INVALIDE`, 0 `REPRISE` sur les 92 nouvelles
-  entrées ; `test_garde_branches_en_rade_20260908.js` 30/30. 19 branches
-  `claude/*` restent `EN RADE` : préexistant et hors périmètre de ce lot — ce
-  sont des ancêtres de `production` mais pas du rail, que `garde-branches-en-rade.js`
-  mesure contre le rail seul pour le préfixe `claude/` (`docs/handoff/AUTORITES-DE-BRANCHE.json`),
-  indépendamment de ce classement. Publié `BLOCKED` par `tests.yml`, non
-  bloquant pour la CI.
-- **skill-H08** (VERIFIED) — `node docs/skills/nexus-lot-reconciler/tests/recette.js` :
-  16/16. Audit réel du rail (`reconcilier.js registre --rail handoff-continuite-20260920`) :
-  0 occurrence de `H08_DOSSIER_SANS_REGISTRE` dans le résumé des anomalies.
-- **suite complète** (DECLARED) — `node run-tests.js` : 2 échecs constants
-  (`test_executants_fermes_20261014.js`, `test_relais_arbitre_openai_20261007.js`)
-  dus à `GITHUB_SHA`/`GITHUB_REF_NAME` du bac à sable pointant sur `main` au
-  lieu du HEAD réel du rail — confirmé par lecture directe de `process.env`
-  dans ce bac à sable, sans lien avec ce diff. Un troisième test varie à
-  chaque exécution complète selon la charge (`test_fixtures_hors_depot_20260910.js`
-  ou `test_cablage_incidents_ci_20261014.js`) et passe systématiquement seul
-  en isolation.
+## Diagnostic (cause, avant correctif)
 
-## Reste hors de ce lot
+La règle n'a jamais été implémentée pour ce cas ; elle ne « marche pas » parce que rien ne la porte :
 
-La revue individuelle des 35 branches `A_REPRENDRE` (rapatriement ou
-reclassement avec preuve, branche par branche) n'est pas faite ici — seul
-leur classement l'est, conformément à `ACTION_NEXT`. Suppressions de
-branches et fermetures de PR restent hors lot, sur gate humaine.
+1. `chargerDernierStockFinal` (`NEXUS-FDJ-v1.html`) cherche le dernier quart `valide` antérieur, constate la rupture via `chaineContinuite` (`nexus-fdj-moteur.js`) et **n'en tire que `chaineRompue`** : pas de reconstitution, `previous_shift_id` reste NULL.
+2. La continuité de #98 (`fdj_manager_aligner_fin_quart_precedent`, migration `20261010170000`) **ne crée jamais de ligne dans le quart précédent** et ne touche que les jeux présents des deux côtés : avec un Q1 inexistant elle n'a rien à aligner.
+3. Conséquence : 24 valeurs du Q2 du 14/10 divergent du dernier final connu, sans valeur de chaîne pour le Q1, et rien ne les distingue d'une anomalie de saisie.
+
+## Plan proposé
+
+1. **Cadrage du modèle** : stocker les valeurs reconstituées hors de `fdj_shift_counts` (un comptage physique ne doit jamais être simulé) — table dédiée ou colonne d'origine `reconstitue_depuis_quart_suivant`, avec trace d'audit. Je recommande la table dédiée : aucune caisse, vente, présence ni clôture n'est créée, et un quart réel saisi plus tard reste prioritaire.
+2. **Garde de la règle** : applicable seulement si le Q2 est `ouverture_validee`, a **tous** les initiaux non nuls renseignés (29/29) ; sinon, aucune reconstitution. Contradiction avec un comptage réel existant du Q1 : les deux valeurs conservées, écart signalé.
+3. **Affichage** : bannière « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 » (employé et manager), absence opérationnelle signalée séparément.
+4. **Incident** : ouvrir un incident fonctionnel unique pour ce motif (pas de doublon : `docs/learning/INCIDENTS.jsonl` n'en contient aucun de ce type) et le clore par la leçon promue (`EXPERIENCE.jsonl`, `RULES.json`) une fois la garde et sa mutation écrites.
+5. **Recette Test** (Test uniquement) : quart absent, quart effectué, comptages contradictoires, Q2 incomplet ou non confirmé ; mutations de la garde.
+
+## Autorisations demandées et limites
+
+- **Demandé** : cadrage de l'approche (point 1) et feu vert pour construire, sur une branche dédiée depuis `origin`, la migration, le code et la recette **sur Test seulement**.
+- **Hors lot, sur GO distinct de Frédéric** : migration Production, fusion, déploiement, et la **reconstitution effective du Q1 du 14/10 en Production** (Frédéric a demandé de l'appliquer « si les tests sont ok et déployés » : cela reste une écriture Production, soumise à un GO explicite après recette et déploiement).
+- Je ne touche ni `main`, ni `production`, ni secrets, ni permissions, ni `claude.yml`. Lecture seule en Production.
