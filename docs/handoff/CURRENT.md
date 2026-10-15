@@ -38,7 +38,7 @@ Le correctif est sur `incident/INC-20261015-001`, commit 03fb26ec (poussé). Rie
 3. **Interdire `DECISION_CONSOMMEE` sans preuve d'action ou arrêt matérialisé.** `consommer <lot>` nu est refusé (`CONSOMMATION_SANS_PREUVE`), sauf `closes: true` ou `--cloture`. `--preuve-action <commit>` exige un commit hors `docs/handoff/`, ancêtre de HEAD. Une demande déposée pendant la prise en charge consomme atomiquement et consigne l'arrêt.
 4. **Faire échouer et signaler tout tour vide.** `TOUR_VIDE` : aucun fichier hors `docs/handoff/` et aucune nouvelle demande. Le tour échoue, pas de consommation, pas de relance identique (clé stable = sha256 du lot, de la décision, du rail et des opérations triées). Côté workflow : étape d'alerte Telegram dans le patch `claude.yml`, **non appliquée**.
 5. **Épreuves avant/après consignées, sans déclarer clos les scénarios dépendant des lots 2 ou 3.** Voir ci-dessous. Les scénarios 6, 7, 11 et 16 (en partie) ne sont pas déclarés clos.
-6. **Contre-exemples PROPRETE et RECONCILER préservés.** Épreuves S-propreté et S-reconciler dans `test_boucle_tour_vide_20261015.js` ; recette du reconciler 16/16.
+6. **Contre-exemples PROPRETE et RECONCILER préservés.** PROPRETE : une épreuve de `test_boucle_tour_vide_20261015.js` rejoue le cas d'un commit de travail réel (2a2f792e) et le tour reste valide. RECONCILER : recette du reconciler 16/16, code non modifié.
 7. **Aucune branche dédiée affectée à `github-actions-claude`.** Aucune ; le patch n'introduit pas de branche `lot/<id>` (lot 3, non autorisé).
 
 ## Épreuves avant/après
