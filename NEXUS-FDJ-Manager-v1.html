@@ -345,6 +345,9 @@
   let managerCourant = null;
   let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let jeux = [];
+  // Stock de chaîne reconstitué des quarts non effectués (lot NEXUS-FDJ-STOCK-Q1-ABSENT-20261015).
+  // Valeurs reconstituées, jamais des comptages physiques : affichées à côté de l'absence opérationnelle.
+  let stocksReconstitues = [];
   let employesSite = [];
   let emplacements = [];
   let reappro = null; // état de saisie de l'écran "Réapprovisionner la caisse"
@@ -1363,6 +1366,13 @@
   // `resolue_le`, jamais sur `vue` — d'où le blocage permanent observé.
   // Chargeur dédié, indépendant de `vue`, pour que la reconciliation
   // automatique voie TOUJOURS toutes les ruptures encore ouvertes.
+  async function chargerStocksReconstitues() {
+    const { data, error } = await nexusClient.from('fdj_stock_chaine_reconstitue')
+      .select('date_quart_absent, quart_absent, statut').eq('site', siteId);
+    if (error) { console.error('Chargement stock reconstitué FDJ:', error); return []; }
+    return data || [];
+  }
+
   async function chargerAlertesChaineOuvertes() {
     const { data, error } = await nexusClient.from('fdj_alertes').select('id, type, shift_id')
       .eq('site', siteId).eq('type', 'chaine_interrompue').is('resolue_le', null);
@@ -2549,6 +2559,15 @@
           Quart actuel : <b style="color:var(--text);">${libelleQuart(a.quartActuel)}</b>${a.employee_id ? ` · ${nomEmploye(a.employee_id)}` : ''}<br>
           ${manquants.length} quart${manquants.length > 1 ? 's' : ''} manquant${manquants.length > 1 ? 's' : ''} entre les deux — les écarts de stock ne sont pas comparables tant qu'ils ne sont pas comptés.
         </div>
+        ${(() => {
+          const q = NexusFdjMoteur.qualifierQuartsAbsentsReconstitues(manquants, stocksReconstitues);
+          if (!q.libelle.length) return '';
+          return `<div class="histo-sub" id="bandeauReconstitueManager" style="margin-bottom:8px; color:var(--text-mid);">
+            ${q.libelle.map(l => `ℹ️ ${l}`).join('<br>')}<br>
+            Valeurs reconstituées, pas des comptages physiques — l'absence du quart reste signalée ci-dessus.
+            ${q.enConflit ? `<br><b style="color:var(--amber);">${q.enConflit} valeur${q.enConflit > 1 ? 's' : ''} en conflit avec un comptage réel : les deux sont conservées.</b>` : ''}
+          </div>`;
+        })()}
         ${manquants.length ? `
           <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
             ${manquants.map(m => `<button type="button" class="btn-modifier" data-completer="${m.date}|${m.quart}" style="margin-top:0; flex:0 0 auto;">Compléter ${new Date(m.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Q${m.quart}</button>`).join('')}
@@ -2674,6 +2693,7 @@
     // "chaîne interrompue" encore actives contre l'état réel. Si l'une
     // d'elles vient d'être résolue ou remplacée, on relit les alertes pour
     // ne jamais afficher une donnée qu'on vient de réécrire sous les yeux.
+    stocksReconstitues = await chargerStocksReconstitues();
     const alertesChaineOuvertes = await chargerAlertesChaineOuvertes();
     const mutationsChaine = await reconcilierAlertesChaine(alertesChaineOuvertes, historique);
     // 10/09/2026 : second passage, sur les alertes de CONTINUITÉ DE STOCK.

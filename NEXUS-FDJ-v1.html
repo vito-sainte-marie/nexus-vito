@@ -289,6 +289,7 @@
   let fenetreAccesQuartMin = 30; // FDJ Fiabilisation Étape 7 (18/08/2026) : était une constante 30 codée en dur dans accesQuart(), maintenant fdj_site_settings.fenetre_acces_quart_min (repli 30 = comportement historique inchangé) — chargé à l'initialisation, avant renderAccueil(), même schéma que horairesQuartsSite/verrouJour ci-dessus.
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
   let emplacements = [];        // catalogue fdj_locations du site (Bureau, Caisse…)
+  let quartsReconstitues = { toutReconstitue: false, libelle: [], enConflit: 0 }; // 15/10/2026 : quart(s) non effectué(s) dont la base a reconstitué le stock de chaîne — voir NexusFdjMoteur.qualifierQuartsAbsentsReconstitues
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
   let dernierShiftPrecedentId = null; // id du quart précédent (pour l'alerte si le stock initial hérité est modifié)
   let chaineRompue = { rompue: false, manquants: [] }; // 13/08/2026 : le quart précédent retrouvé n'est pas le quart immédiatement précédent (quarts manquants entre les deux) — voir NexusFdjMoteur.chaineContinuite
@@ -726,6 +727,17 @@
       { date: prevShift.date, quart: prevShift.quart },
       { date: shiftRow.date, quart: shiftRow.quart }
     );
+    // 15/10/2026 : quart(s) manquant(s) dont la base a reconstitué le stock de
+    // chaîne depuis un stock initial confirmé. Lecture seule ; l'absence
+    // opérationnelle (chaineRompue) et le comptage physique restent intacts.
+    quartsReconstitues = { toutReconstitue: false, libelle: [], enConflit: 0 };
+    if (chaineRompue.rompue) {
+      const { data: reco, error: eReco } = await nexusClient.from('fdj_stock_chaine_reconstitue')
+        .select('date_quart_absent, quart_absent, statut')
+        .eq('site', siteId).in('date_quart_absent', chaineRompue.manquants.map(m => m.date));
+      if (eReco) console.error('Stock de chaîne reconstitué FDJ:', eReco);
+      else quartsReconstitues = NexusFdjMoteur.qualifierQuartsAbsentsReconstitues(chaineRompue.manquants, reco);
+    }
     // Fiabilisation FDJ Étape 1 (13/08/2026, audit de cadrage) : persiste le
     // lien explicite previous_shift_id sur ce quart dès qu'il est résolu de
     // façon fiable — uniquement si la chaîne n'est PAS rompue (sinon on
@@ -1337,7 +1349,13 @@
     document.getElementById('titre').textContent = 'Stock de départ';
     document.getElementById('sousTitre').textContent = 'Vérifiez le stock hérité du quart précédent — corrigez si un chiffre est faux.';
     const groupes = grouperParPalier(jeux);
+    const bandeauReconstitue = quartsReconstitues.libelle.length ? `
+      <div class="card" id="bandeauQuartReconstitue" role="note" style="border-left:4px solid #b7791f;">
+        ${quartsReconstitues.libelle.map(l => `<div><strong>${l}</strong></div>`).join('')}
+        <div style="font-size:13px;margin-top:4px;">Valeurs reconstituées, pas des comptages physiques. Votre comptage reste celui qui fait foi.${quartsReconstitues.enConflit ? ` ${quartsReconstitues.enConflit} jeu(x) en écart avec un comptage réel : à vérifier par le manager.` : ''}</div>
+      </div>` : '';
     document.getElementById('content').innerHTML = `
+      ${bandeauReconstitue}
       ${groupes.map(g => `
         <div class="palier-block">
           <div class="palier-head">${fmtNum(g.prix)} €</div>
