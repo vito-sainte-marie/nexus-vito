@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-FDJ-STOCK-Q1-ABSENT-20261015/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-FDJ-STOCK-Q1-ABSENT-20261015
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,58 +20,32 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: constat-recette-test
+  - id: ci-verte
     classe: VERIFIED
-    valeur: recette A-F sur Test udljdqxerrbbbajxubfn via connecteur, annulee, Test propre
+    valeur: run 38725132515 success sur 933e9e74
+  - id: recette-test
+    classe: VERIFIED
+    valeur: 25 preuves ok, nettoyage 0 ligne, deux sites
 ---
-# Request 2 — implémentation de la reconstitution du stock de chaîne et recette sur Test
+# Request 3 — conditions de decision-2 exécutées, CI verte, demande de validation avant promotion
 
-Réponse aux conditions 1 à 8 de decision-1 (APPROVED_WITH_CONDITIONS, closes: false). Le lot reste ouvert.
+Réponse à decision-2 (APPROVED_WITH_CONDITIONS, consommée `b20d06bc`). Le lot reste ouvert. Le travail vit sur la branche `fdj-quart-absent-reconstitution-20261015` (base `origin/production`, écart accepté par decision-2 pour cette branche seule), tête `933e9e74`, poussée sur le dépôt. Rien n'est poussé sur `main` ni `production`.
 
-## Écart de base à déclarer
-La branche d'implémentation `fdj-quart-absent-reconstitution-20261015` part de `origin/production`, pas du rail : le rail ne porte pas les migrations de continuité FDJ déjà déployées en Production. Rien n'est poussé sur `production` ni `main`.
+## Livré
+- Migration `20261015100000_fdj_stock_chaine_reconstitue_quart_absent.sql` (`18dbc606`) : table dédiée, RLS lecture par site, fonction `fdj_reconstituer_quart_absent(uuid)`.
+- Écrans employé (`NEXUS-FDJ-v1.html`) et manager (`NEXUS-FDJ-Manager-v1.html`), moteur `qualifierQuartsAbsentsReconstitues`, épreuve `test_fdj_quart_absent_reconstitue.js` : 14 assertions, 10 mutations sur 10 tuées (`52c53db2`).
+- Recette SQL versionnée `supabase/recette-vague1/20261015_preuves_stock_chaine_reconstitue.sql` et sa sortie brute rejouée telle quelle (`9ce94717`) : 25 preuves, toutes `ok:true`.
+- Empreinte et nombre attendus des migrations régénérés : 308 (`933e9e74`).
+- Entrée nexus-incidents : ligne `EXPERIENCE.jsonl` `FDJ-STOCK-Q1-ABSENT-20261014` et règle `FDJ-001` dans `RULES.json`, validées par `verifier-apprentissage.js`.
 
-## Livré (non poussé, commit 18dbc606 sur la branche d'implémentation)
-Migration `20261015100000_fdj_stock_chaine_reconstitue_quart_absent.sql` :
-- table dédiée `fdj_stock_chaine_reconstitue` (provenance, quart source, valeur reconstituée, comptage réel conservé à côté, statut, horodatage, auteur) — condition 1 ;
-- colonne `site` (les tables FDJ de Production n'ont pas de `site_id`), RLS en lecture limitée au site, aucune policy d'écriture, aucun élargissement de droits — condition 2 ;
-- aucune ligne dans `fdj_shifts`, `fdj_shift_counts`, caisse, ventes, réceptions, présences, clôtures — condition 3 ;
-- jeux attendus lus en base (jeux actifs du site), aucun nombre en dur — condition 4 ;
-- garde : `ouverture_validee` et tous les stocks initiaux attendus non NULL — condition 5 ;
-- comptage réel conservé, valeur reconstituée conservée, statut `en_conflit` et écart signalé — condition 6 ;
-- fonction `fdj_reconstituer_quart_absent(uuid)` en security definer, audit dans `fdj_audit_log`.
-
-## Recette sur Test (condition 7)
-Appliquée sur Test via le connecteur (le host direct a expiré le 15/10 ; le pooler reste interdit), puis annulée : Test est propre.
-- A — quart absent, source complète et confirmée : 29 valeurs créées, 29 lignes d'audit.
-- B — quart suivant incomplet : refus `comptage_initial_incomplet`, rien d'écrit.
-- C — ouverture non confirmée : refus `ouverture_non_confirmee`, rien d'écrit.
-- D — comptage réel contradictoire : les deux valeurs conservées, statut `en_conflit`, écart renseigné.
-- E — isolation : shift d'un autre site refusé.
-- F — idempotence : second appel sans doublon.
-
-## Limites déclarées
-- Isolation prouvée par le refus d'un shift d'un autre site ; un seul site a des managers sur Test, le select RLS sous une seconde session n'est pas testé.
-- Transport par le connecteur, pas par psql.
-- Le commentaire de fonction a été omis sur la copie Test (écart mineur).
-- Le contrôle de date de la vérification A était erroné dans mon essai (mauvaise date) ; à corriger dans la recette versionnée.
-
-## Restant, avant toute demande de promotion
-Écrans employé et manager (bandeau « Quart 1 non effectué — stock de chaîne reconstitué à partir du quart 2 », distinction visuelle reconstitué/physique, absence opérationnelle séparée), fonctions moteur et épreuves avec mutations, recette SQL versionnée, entrée nexus-incidents. Les épreuves de manifeste et d'empreinte rougiront à l'ajout de la migration : attendu.
+## Preuve des conditions de decision-2
+1. Périmètre limité aux écrans employé et manager, au moteur, aux épreuves avec mutations, à la recette SQL versionnée et à l'entrée nexus-incidents : c'est le contenu de la liste ci-dessus ; aucun autre module touché.
+2. Absence opérationnelle, valeur physique et valeur reconstituée distinctes : table dédiée avec comptage réel conservé à côté (recette A « provenance distincte du physique », E « deux valeurs + écart »), statut `en_conflit`, et épreuve moteur/écrans.
+3. Assertion de date corrigée, artefact final exact (commentaire compris) testé sur Test avec A–F et nettoyage constaté : recette A à F et S5 « commentaires de fonction et de table présents » ; nettoyage constaté, 0 ligne `recette-reco-%` après la recette. Sortie brute dans le dépôt.
+4. RLS prouvée avec deux contextes de site distincts : R1 lecture autorisée (site A, 9 lignes), R2 et R7a lecture intersite = 0 ligne, R3 à R5 écriture directe refusée (42501), R6 et R7b appel intersite refusé, R7c le manager B écrit chez lui seulement. Limite : Test n'a de managers que sur un site, la recette crée donc un second site fictif, annulé en fin de script.
+5. `search_path` fixé, exécution fermée : S3 `search_path=""` et SECURITY DEFINER, S2 `anon` refusé, S4 EXECUTE accordé à `authenticated`, `postgres` et `service_role` seulement, ni PUBLIC ni anon ; S0 caissier refusé, S1 sans session refusé.
+6. Manifestes et empreintes régénérés, CI verte : run 38725132515, conclusion `success`, tête `933e9e74`. Le run précédent (38724858519) était rouge sur l'empreinte (307 attendu, 308 réel) ; corrigé. Sept échecs de la suite locale (inventaire, réception) sont antérieurs : ils échouent aussi sur `origin/production`.
+7. Aucune mutation de Production, aucune écriture sur `main` ou `production` : Test seulement, via le connecteur (le pooler reste interdit).
 
 ## Demande
-Valider cette suite (écrans, moteur, recette versionnée). Aucune action sur Production, `main` ou `production` n'est demandée ; migration, fusion, déploiement et écriture du Q1 du 14/10 exigeront chacun un GO distinct de Frédéric.
-
-## Statut de decision-1 (vérité du registre)
-`decision-1` est déjà consommée (`ff3e7720`) mais elle l'a été sans exécution : le run de réveil 38667953549 l'a consommée sans rien exécuter (permissions refusées, aucune demande bloquante déposée). Les conditions 1 à 8 n'ont donc été exécutées qu'ici, par cette session Claude, et la preuve est ci-dessous. Cette demande ne rouvre pas decision-1 ; elle en apporte l'exécution.
-
-## Preuve des conditions de decision-1
-Condition par condition, avec la source de la preuve (migration 18dbc606, recette Test A–F ci-dessus) :
-1. Table dédiée et provenance auditée : `fdj_stock_chaine_reconstitue` + lignes `fdj_audit_log` (29 pour 29 valeurs en recette A).
-2. Isolation multisite : colonne `site`, policy select sur `current_employee_site_id()`, aucune policy d'écriture, `revoke all` puis `grant select` seul ; recette E (shift d'un autre site refusé). Limite : select RLS sous seconde session non testé.
-3. Aucun enregistrement fictif : la fonction n'écrit que dans la table dédiée et `fdj_audit_log` (lecture du code, recette A).
-4. Jeux attendus lus en base : comptage des `fdj_games` actifs du site, aucun 29 en dur.
-5. Garde d'ouverture et de complétude : recettes B (incomplet) et C (non confirmé), toutes deux refusées sans écriture.
-6. Comptage réel prioritaire sans effacer : recette D, deux valeurs conservées, `en_conflit`, écart renseigné.
-7. Recette minimale : A, B, C, D, E exécutées sur Test ; F (idempotence) en plus.
-8. Aucune mutation de Production, aucune fusion, aucune promotion : migration non poussée, Production lue seulement sous `begin read only`.
+Valider que les conditions de decision-2 sont remplies. Cela ne demande aucune action sur Production. La migration en Production, la PR vers `production`, la fusion, le déploiement et l'écriture réelle du Q1 du 14/10 exigeront chacun un GO distinct de Frédéric, après une mesure fraîche en lecture seule.

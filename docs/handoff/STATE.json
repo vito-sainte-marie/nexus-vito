@@ -502,8 +502,8 @@
       "consomme_le": "2026-10-15T01:49:46.160Z"
     },
     "NEXUS-FDJ-STOCK-Q1-ABSENT-20261015": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-2.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-2.md",
       "source_decision": "registre",

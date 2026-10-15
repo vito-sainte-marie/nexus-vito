@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-10-14",
+  "updated_at": "2026-10-15",
   "rules": [
     {
       "id": "ENV-001",
@@ -323,6 +323,19 @@
       "severity": "blocking",
       "rule": "A request deposited after a decision APPROVED_WITH_CONDITIONS or NEEDS_EVIDENCE must carry a section '## Preuve des conditions de decision-N' (exact title, own line). The deposit tool refuses it before writing, and the autonomous loop's judge stops with CONDITIONS_NON_PROUVEES; both read the same rule in outils/preuve-conditions.js. A loop stop that a human can only repair by redepositing must be caught by the guard, not discovered by the judge.",
       "source": "2026-10-14: request-2 of NEXUS-REPARATION-HANDOFF-1-20261014 (run 38587248558) lacked the proof section for decision-1; the loop stopped at 15:14:09Z (INC-1b3e3a7d6d30) — guard in handoff.js aligned with the judge, 9 tests and 3 mutations"
+    },
+    {
+      "id": "FDJ-001",
+      "scope": [
+        "fdj",
+        "stocks",
+        "continuite"
+      ],
+      "trigger": "quart_fdj_non_effectue",
+      "module": "fdj",
+      "severity": "blocking",
+      "rule": "When an FDJ quarter was not performed but the next quarter has a confirmed (ouverture validee) and complete initial count, the chain stock of the missing quarter is reconstituted from that count into a dedicated table, never into fdj_shifts, fdj_shift_counts, cash, sales, receipts, presence or closings. A real count is never overwritten: on contradiction both values are kept with status en_conflit and the gap. Refuse with a named motif (ouverture_non_confirmee, comptage_initial_incomplet) otherwise. The operational absence, the physical value and the reconstituted value stay three distinct things on every screen.",
+      "source": "2026-10-14/15: Q1 of 14/10/2026 absent, Q2 done by Loane (29 initial and 29 final counts); NEXUS had no rule to chain the missing quarter. Migration 20261015100000, engine qualifierQuartsAbsentsReconstitues, 14 assertions with 10 mutations killed, SQL recette 25/25 on Test with two distinct sites. Not yet in Production."
     }
   ]
 }
