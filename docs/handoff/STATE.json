@@ -466,9 +466,13 @@
       "consomme_le": "2026-10-14T22:55:55.486Z"
     },
     "NEXUS-CARBURANTS-VISUEL-1-20261014": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "61d9a49016d231b2577e492b7bbdcb06a9c5e230",
+      "consomme_le": "2026-10-15T00:04:19.451Z"
     }
   },
   "artefacts_hors_registre": [
