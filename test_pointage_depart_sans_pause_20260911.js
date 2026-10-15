@@ -320,11 +320,11 @@ function rolesPour(role) {
     `${ROLES}\n${MAP}\n${FN}\nconst employeeCourant = { role };\nreturn rolesDisponibles().map(r => r.value);`)(role);
 }
 
-t('une caissière ne peut pas se déclarer pompiste', () => {
+t('une caissière se voit proposer les trois fonctions opérationnelles (règle du 15/10/2026, remplace celle du 18/09)', () => {
   const offerts = rolesPour('caissier');
-  assert.ok(!offerts.includes('pompiste'),
-    `rôles offerts à une caissière : ${offerts.join(', ')} — elle peut s'attribuer la piste`);
-  assert.ok(offerts.includes('caissiere'), 'son propre rôle ne lui est plus proposé');
+  assert.deepStrictEqual([...offerts].sort(), ['caissiere', 'pompiste', 'renfort'],
+    `rôles offerts à une caissière : ${offerts.join(', ')}`);
+  assert.ok(!rolesPour('caissier').includes('manager'), 'une caissière ne doit jamais se voir proposer manager');
 });
 
 t('MUTATION : l\'ancien filtre, lui, ne retirait rien', () => {

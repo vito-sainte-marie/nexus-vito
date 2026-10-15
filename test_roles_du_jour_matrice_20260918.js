@@ -8,12 +8,11 @@
 // rôles l'était. Il gardait « son » rôle plus le renfort ; pour un renfort,
 // les deux se confondent, et la liste se refermait sur un seul poste.
 //
-// LA RÈGLE ARBITRÉE — employees.role est le rôle HABITUEL, préférentiel,
-// jamais l'unique poste possible :
-//     fiche renfort            → renfort, pompiste, caissiere
-//     fiche pompiste           → pompiste, renfort
-//     fiche caissier/caissiere → caissiere, renfort
+// LA RÈGLE ARBITRÉE (15/10/2026, remplace celle du 18/09) — tous les employés
+// opérationnels sont polyvalents ; employees.role n'est qu'un rôle HABITUEL :
+//     fiche non manager        → pompiste, caissiere, renfort
 //     fiche manager/gerant     → tous les rôles existants
+//     fiche inconnue / absente → pompiste, caissiere, renfort + anomalie
 // et le poste de manager n'est JAMAIS proposé à qui n'est ni manager ni
 // gérant : c'est la seule ligne de la matrice qui touche aux permissions.
 //
@@ -75,74 +74,73 @@ const TOUS = new Function(TXT_ROLES + ';\nreturn ROLES.map(r => r.value);')();
 (function () {
   console.log(`\n— Matrice des rôles du jour (${ECRAN}) —\n`);
 
-  // ── 1. Le cas qui a bloqué la Production : la fiche « renfort » ────────
-  const renfort = rolesPour('renfort');
-  verifier(`une fiche « renfort » peut se déclarer renfort (${renfort.join(', ')})`,
-    renfort.includes('renfort'));
-  verifier('une fiche « renfort » peut se déclarer pompiste',
-    renfort.includes('pompiste'));
-  verifier('une fiche « renfort » peut se déclarer caissière',
-    renfort.includes('caissiere'));
-  verifier('une fiche « renfort » ne se voit jamais proposer manager',
-    !renfort.includes('manager'));
-  verifier('une fiche « renfort » voit exactement trois postes',
-    renfort.length === 3);
+  const OPS = ['pompiste', 'caissiere', 'renfort'];
+  const memesTrois = v => v.length === 3 && OPS.every(r => v.includes(r));
 
-  // MUTATION — la règle d'avant, rejouée telle quelle, doit échouer sur ce
-  // même cas. Sans cela, ce test ne prouverait pas qu'il mord.
-  const ancienFiltre = new Function('sien',
-    TXT_ROLES + ";\nreturn ROLES.filter(r => r.value === sien || r.value === 'renfort').map(r => r.value);");
-  verifier('MUTATION : l’ancien filtre, lui, enfermait le renfort sur un seul poste',
-    ancienFiltre('renfort').length === 1 && ancienFiltre('renfort')[0] === 'renfort');
-
-  // ── 2. La fiche « pompiste » ───────────────────────────────────────────
-  const pompiste = rolesPour('pompiste');
-  verifier(`une fiche « pompiste » voit pompiste et renfort (${pompiste.join(', ')})`,
-    pompiste.includes('pompiste') && pompiste.includes('renfort'));
-  verifier('une fiche « pompiste » ne se voit jamais proposer caissière',
-    !pompiste.includes('caissiere'));
-  verifier('une fiche « pompiste » ne se voit jamais proposer manager',
-    !pompiste.includes('manager'));
-  verifier('une fiche « pompiste » voit exactement deux postes',
-    pompiste.length === 2);
-
-  // ── 3. Les fiches « caissier » et « caissiere » ────────────────────────
-  // La base écrit le masculin, l'écran propose le féminin : les deux entrées
-  // doivent mener au même résultat. C'est la dette de vocabulaire assumée.
-  for (const fiche of ['caissier', 'caissiere']) {
+  // ── 1. Toute fiche non manager voit les trois fonctions opérationnelles ─
+  for (const fiche of ['renfort', 'pompiste', 'caissier', 'caissiere']) {
     const vus = rolesPour(fiche);
-    verifier(`une fiche « ${fiche} » voit caissière et renfort (${vus.join(', ')})`,
-      vus.includes('caissiere') && vus.includes('renfort'));
-    verifier(`une fiche « ${fiche} » ne se voit jamais proposer pompiste`,
-      !vus.includes('pompiste'));
+    verifier(`une fiche « ${fiche} » voit exactement pompiste, caissière et renfort (${vus.join(', ')})`,
+      memesTrois(vus));
     verifier(`une fiche « ${fiche} » ne se voit jamais proposer manager`,
       !vus.includes('manager'));
-    verifier(`une fiche « ${fiche} » voit exactement deux postes`,
-      vus.length === 2);
   }
 
-  // ── 4. Manager et gérant gardent tout ──────────────────────────────────
+  // MUTATIONS INVERSÉES — les règles d'avant, rejouées telles quelles, doivent
+  // échouer sur les mêmes cas. Sans cela, ce test ne prouverait pas qu'il mord.
+  const ancienFiltre = new Function('sien',
+    TXT_ROLES + ";\nreturn ROLES.filter(r => r.value === sien || r.value === 'renfort').map(r => r.value);");
+  verifier('MUTATION : l’ancien filtre enfermait le renfort sur un seul poste',
+    ancienFiltre('renfort').length === 1 && !memesTrois(ancienFiltre('renfort')));
+  verifier('MUTATION : l’ancien filtre fermait la caisse au pompiste',
+    !ancienFiltre('pompiste').includes('caissiere') && !memesTrois(ancienFiltre('pompiste')));
+  verifier('MUTATION : l’ancien filtre fermait la piste à la caissière',
+    !ancienFiltre('caissiere').includes('pompiste') && !memesTrois(ancienFiltre('caissiere')));
+
+  // ── 2. Manager et gérant gardent tout ──────────────────────────────────
   for (const fiche of ['manager', 'gerant']) {
     const vus = rolesPour(fiche);
     verifier(`une fiche « ${fiche} » conserve tous les rôles existants (${vus.join(', ')})`,
       TOUS.every(v => vus.includes(v)) && vus.length === TOUS.length);
   }
-  verifier('le poste de manager n’est proposé qu’au manager et au gérant',
-    ['renfort', 'pompiste', 'caissier', 'caissiere', 'zzz-inconnu']
-      .every(f => !rolesPour(f).includes('manager')));
 
-  // ── 5. Un rôle de fiche inconnu ne bloque toujours pas la prise de poste ─
-  // Fail-open assumé ET tracé : mieux vaut une liste large qu'une employée
-  // incapable de prendre son poste parce que sa fiche a été mal saisie.
+  // ── 3. Le poste de manager ne s'ouvre à personne d'autre ───────────────
+  // Fiches limites comprises : casse, vide, absente, valeurs voisines.
+  const silence = console.error;
+  console.error = () => {};
+  try {
+    for (const fiche of ['renfort', 'pompiste', 'caissier', 'caissiere', 'vacataire', 'polyvalent',
+      'Manager', 'MANAGER', 'Gerant', ' manager', 'manager ', 'managers', 'admin', '', null, undefined, 'zzz-inconnu']) {
+      verifier(`fiche ${JSON.stringify(fiche)} : jamais le poste manager`,
+        !rolesPour(fiche).includes('manager'));
+    }
+  } finally { console.error = silence; }
+
+  // MUTATION — une fonction qui rendrait ROLES en entier aux non-managers doit
+  // être détectée par le contrôle ci-dessus.
+  const ouvreTout = new Function(TXT_ROLES + ";\nreturn ROLES.map(r => r.value);")();
+  verifier('MUTATION : ouvrir tout le catalogue donnerait le poste manager',
+    ouvreTout.includes('manager'));
+
+  // ── 4. Un rôle de fiche inconnu : trois fonctions, sans manager, tracé ──
   const erreursConsole = [];
   const vraiErreur = console.error;
   console.error = (...a) => erreursConsole.push(a.join(' '));
-  let inconnu;
-  try { inconnu = rolesPour('zzz-inconnu'); } finally { console.error = vraiErreur; }
-  verifier('une fiche inconnue n’empêche pas de prendre son poste',
-    inconnu.length > 0);
+  let inconnu, absent;
+  try { inconnu = rolesPour('zzz-inconnu'); absent = rolesPour(null); } finally { console.error = vraiErreur; }
+  verifier('une fiche inconnue reçoit exactement les trois fonctions opérationnelles',
+    memesTrois(inconnu));
+  verifier('une fiche absente reçoit exactement les trois fonctions opérationnelles',
+    memesTrois(absent));
   verifier('une fiche inconnue est signalée, jamais ignorée en silence',
     erreursConsole.some(m => /rôle administratif/.test(m)));
+
+  // Les fiches connues ne polluent pas le journal.
+  const bruit = [];
+  console.error = (...a) => bruit.push(a.join(' '));
+  try { for (const f of ['renfort', 'pompiste', 'caissier', 'caissiere', 'manager', 'gerant']) rolesPour(f); }
+  finally { console.error = vraiErreur; }
+  verifier('une fiche connue n’émet aucune anomalie', bruit.length === 0);
 
   // ── 6. Le rôle habituel reste une suggestion VISUELLE ──────────────────
   verifier('le rôle choisi part de rien : aucune présélection',
