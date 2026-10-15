@@ -226,6 +226,38 @@ function enregistrerTour(fichier, entree) {
   return journal;
 }
 
+// ── Tour vide (INC-20261015-001) ───────────────────────────────────────────
+// Le 15/10, deux runs `success` n'ont produit qu'un commit de consommation :
+// le rail avait « bougé », la garde de mouvement était satisfaite, personne n'a
+// été alerté. Un tour est VIDE quand il ne laisse ni travail réel (un fichier
+// hors du registre docs/handoff/) ni sortie matérialisée (une nouvelle demande
+// déposée par `demande`). Un commit qui ne touche que le registre ne prouve
+// rien : c'est précisément la consommation prématurée. Pure : les commits et
+// les nouvelles demandes du tour lui sont donnés.
+const PREFIXE_REGISTRE = 'docs/handoff/';
+function evaluerTourVide(tour) {
+  const commits = (tour && tour.commits) || [];
+  const demandes = (tour && tour.nouvellesDemandes) || [];
+  const travail = commits.filter(c => (c.fichiers || []).some(f => !String(f).startsWith(PREFIXE_REGISTRE)));
+  const vide = travail.length === 0 && demandes.length === 0;
+  return {
+    vide,
+    code: vide ? 'TOUR_VIDE' : 'TOUR_UTILE',
+    consommer: !vide, // un tour vide ne consomme rien : il échoue et alerte
+    travail: travail.map(c => c.sha),
+    demandes: demandes.slice(),
+  };
+}
+
+// Identité stable d'une action (§6 de la mission) : même lot, même décision,
+// même état du rail, mêmes opérations => même clé, donc jamais rejouée.
+// `operations` est facultatif (lot 2) et trié pour que l'ordre n'y change rien.
+function cleActionStable(a) {
+  const ops = Array.isArray(a.operations) ? a.operations.slice().sort().join(',') : '';
+  return require('crypto').createHash('sha256')
+    .update([a.lot, a.decision, a.rail, ops].join('\n')).digest('hex').slice(0, 16);
+}
+
 module.exports = {
   INTERRUPTEUR_VAR,
   VALEUR_ARMEE,
@@ -239,6 +271,8 @@ module.exports = {
   dejaTraite,
   verdictRepete,
   evaluerTour,
+  evaluerTourVide,
+  cleActionStable,
   chargerJournal,
   enregistrerTour,
 };

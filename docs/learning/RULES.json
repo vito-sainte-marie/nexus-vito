@@ -336,6 +336,20 @@
       "severity": "blocking",
       "rule": "When an FDJ quarter was not performed but the next quarter has a confirmed (ouverture validee) and complete initial count, the chain stock of the missing quarter is reconstituted from that count into a dedicated table, never into fdj_shifts, fdj_shift_counts, cash, sales, receipts, presence or closings. A real count is never overwritten: on contradiction both values are kept with status en_conflit and the gap. Refuse with a named motif (ouverture_non_confirmee, comptage_initial_incomplet) otherwise. The operational absence, the physical value and the reconstituted value stay three distinct things on every screen.",
       "source": "2026-10-14/15: Q1 of 14/10/2026 absent, Q2 done by Loane (29 initial and 29 final counts); NEXUS had no rule to chain the missing quarter. Migration 20261015100000, engine qualifierQuartsAbsentsReconstitues, 14 assertions with 10 mutations killed, SQL recette 25/25 on Test with two distinct sites. Not yet in Production."
+    },
+    {
+      "id": "GOV-009",
+      "scope": [
+        "gouvernance",
+        "handoff",
+        "boucle_autonome",
+        "ci"
+      ],
+      "trigger": "decision_executee_par_la_boucle",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "A decision is consumed only after its action is executed and proven (a work commit outside docs/handoff/, an ancestor of HEAD) or after a stop is materialised (a request deposited during the take-over), or when it closes (closes:true). Take-over is ATTENTE_CONSOMMATION_DECISION (consommer --prise-en-charge); bare consommer on a closes:false decision is refused with CONSOMMATION_SANS_PREUVE. A loop turn that leaves no file outside docs/handoff/ and no new request is TOUR_VIDE: it fails, alerts on Telegram, consumes nothing and is not replayed identically (stable action key = lot, decision, rail, sorted operations). Read by outils/garde-boucle-autonome.js evaluerTourVide and cleActionStable.",
+      "source": "2026-10-15: runs 38667953549 (ff3e7720) and 38721886938 (b20d06bc) ended success having only consumed the decision; 2nd occurrence of TOUR_VIDE after 10/10 (run 38059658879) — INC-55a9e017edcd, INC-07f7e3baf5d6; lot NEXUS-BOUCLE-CONTRAT-1-20261015, test_boucle_tour_vide_20261015.js"
     }
   ]
 }

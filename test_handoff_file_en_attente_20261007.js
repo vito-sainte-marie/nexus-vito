@@ -112,7 +112,13 @@ epreuve('A1 — consommer une décision closes: true publie la file par `demande
 // ── B. Ce que la file ne doit pas faire, et ce que la garde doit voir ──────
 epreuve('B1 — closes: false rend la main au lot : la file attend, verifier reste vert', () => {
   const b = banc({ closes: false });
-  const r = b.outil('consommer', PRECEDENT);
+  // INC-20261015-001 : une décision qui prescrit une action ne se consomme plus
+  // nue — prise en charge, travail réel, puis preuve d'action.
+  assert.strictEqual(b.outil('consommer', PRECEDENT, '--prise-en-charge').code, 0);
+  fs.writeFileSync(path.join(b.clone, 'travail-reel.txt'), 'x\n');
+  git(b.clone, 'add', 'travail-reel.txt');
+  git(b.clone, '-c', 'user.name=epreuve', '-c', 'user.email=epreuve@invalid', 'commit', '-q', '-m', 'travail réel');
+  const r = b.outil('consommer', PRECEDENT, '--preuve-action', git(b.clone, 'rev-parse', 'HEAD'));
   assert.strictEqual(r.code, 0, r.sortie);
   assert.ok(!existe(b, 'lots', SUIVANT), 'la suite d\'un lot non fermé lui revient');
   assert.ok(/reste en attente/.test(r.sortie), r.sortie);

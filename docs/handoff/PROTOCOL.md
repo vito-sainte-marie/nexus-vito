@@ -190,6 +190,24 @@ la porte de sortie qu'il est précisément censé ne pas être.
 
 ## Consommation
 
+### Consommation en deux temps (INC-20261015-001, règle GOV-009)
+
+`DECISION_CONSOMMEE` dit « exécutée », pas « lue ». Pour une décision dont
+`closes` n'est pas `true` :
+
+1. `consommer <LOT_ID> --prise-en-charge` pose `ATTENTE_CONSOMMATION_DECISION`
+   (le réveil ne la relance plus ; le watchdog la surveille 60 min) ;
+2. l'action s'exécute et se pousse sur le rail ;
+3. `consommer <LOT_ID> --preuve-action <commit>` consomme, si le commit est hors
+   de `docs/handoff/` et ancêtre de HEAD ;
+4. ou, si l'action est impossible, une `demande` déposée pendant la prise en
+   charge matérialise l'arrêt et consomme la décision (`arret` consigné).
+
+`consommer` nu est refusé (`CONSOMMATION_SANS_PREUVE`) sauf `closes: true`.
+Un tour de boucle qui ne laisse aucun fichier hors de `docs/handoff/` et
+aucune nouvelle demande est un `TOUR_VIDE` : il échoue, alerte, ne consomme
+rien et ne se rejoue pas à l'identique.
+
 `consommer` **valide le registre avant d'écrire quoi que ce soit**. Enregistrer
 la consommation d'une décision que le protocole refuse serait exactement le
 silence que ce protocole existe pour supprimer.

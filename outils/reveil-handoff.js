@@ -83,7 +83,13 @@ function examiner(etat) {
       demande_active: active ? active.fichier : null,
       repond_a: vise,
       statut: v.statut || null,
-      motif: perimee ? 'DECISION_PERIMEE' : 'DECISION_NON_CONSOMMEE',
+      // Un lot déjà pris en charge sur cette décision n'est ni « à consommer »
+      // ni « périmé » : une session s'en occupe, ou elle est morte sans sortie
+      // (c'est alors le watchdog qui le dit — un réveil identique ne
+      // réparerait rien, c'est la boucle du 15/10).
+      motif: v.statut === 'ATTENTE_CONSOMMATION_DECISION' && v.derniere_decision === derniere.fichier
+        ? 'PRISE_EN_CHARGE' : perimee ? 'DECISION_PERIMEE' : 'DECISION_NON_CONSOMMEE',
+      pris_en_charge_le: v.pris_en_charge_le || null,
     });
   }
   return lots;
@@ -105,6 +111,14 @@ function analyser() {
     return { reveil: true, motif: 'DECISION_NON_CONSOMMEE', lot: premier.lot, lots,
       message: `Réveil : ${premier.lot}/${premier.decision} est déposée et non consommée.` +
         (aConsommer.length > 1 ? ` (${aConsommer.length} lots concernés ; le premier est traité.)` : '') };
+  }
+  const prises = lots.filter(l => l.motif === 'PRISE_EN_CHARGE');
+  if (prises.length) {
+    const p = prises[0];
+    return { reveil: false, motif: 'PRISE_EN_CHARGE', lot: p.lot, lots,
+      message: `Pas de réveil : ${p.lot}/${p.decision} est prise en charge` +
+        (p.pris_en_charge_le ? ` depuis ${p.pris_en_charge_le}` : '') + ' (ATTENTE_CONSOMMATION_DECISION). ' +
+        'Elle sort par une preuve d\'action ou une demande de blocage ; sinon le watchdog le signale.' };
   }
   if (perimees.length) {
     // Pas de réveil : `consommer` refuserait, et un run qui échoue à coup sûr
