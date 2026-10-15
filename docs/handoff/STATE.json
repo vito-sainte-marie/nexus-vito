@@ -476,8 +476,12 @@
     },
     "NEXUS-LOT-RECONCILER-1-20261014": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "derniere_demande": "request-2.md",
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "237f8be0ff1f3643365bd049d069ecaac74b1793",
+      "consomme_le": "2026-10-15T00:47:15.805Z"
     }
   },
   "artefacts_hors_registre": [
