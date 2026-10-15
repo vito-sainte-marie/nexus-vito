@@ -29,101 +29,101 @@ insert into public.sites (site_id, nom_entreprise, timezone) values
   ('recette-reco-site-a','Recette reco A','Europe/Paris'),
   ('recette-reco-site-b','Recette reco B','Europe/Paris');
 insert into public.employees (id, username, nom, role, actif, est_createur, site_id, compte_test) values
-  ('eeeeee01-0000-4000-8000-000000000001','recette-reco-mgr-a','Recette reco manager A','manager', true,false,'recette-reco-site-a',true),
-  ('eeeeee01-0000-4000-8000-000000000002','recette-reco-mgr-b','Recette reco manager B','manager', true,false,'recette-reco-site-b',true),
-  ('eeeeee01-0000-4000-8000-000000000003','recette-reco-caissier-a','Recette reco caissier A','caissier',true,false,'recette-reco-site-a',true);
+  ('eeeeeee1-0000-4000-8000-eeeeeeeeeee1','recette-reco-mgr-a','Recette reco manager A','manager', true,false,'recette-reco-site-a',true),
+  ('eeeeeee2-0000-4000-8000-eeeeeeeeeee2','recette-reco-mgr-b','Recette reco manager B','manager', true,false,'recette-reco-site-b',true),
+  ('eeeeeee3-0000-4000-8000-eeeeeeeeeee3','recette-reco-caissier-a','Recette reco caissier A','caissier',true,false,'recette-reco-site-a',true);
 
 -- Site A : trois jeux actifs + un jeu inactif (hors ensemble attendu). Site B : un jeu.
 insert into public.fdj_games (id, site, nom, prix, ordre_affichage, actif) values
-  ('aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a','JEU A1',2,1,true),
-  ('aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a','JEU A2',5,2,true),
-  ('aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a','JEU A3',10,3,true),
-  ('aaaaaa01-0000-4000-8000-000000000004','recette-reco-site-a','JEU A4 inactif',1,4,false),
-  ('aaaaaa01-0000-4000-8000-000000000011','recette-reco-site-b','JEU B1',2,1,true);
+  ('aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a','JEU A1',2,1,true),
+  ('aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a','JEU A2',5,2,true),
+  ('aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a','JEU A3',10,3,true),
+  ('aaaaaaa4-0000-4000-8000-aaaaaaaaaaa4','recette-reco-site-a','JEU A4 inactif',1,4,false),
+  ('aaaaaaa5-0000-4000-8000-aaaaaaaaaaa5','recette-reco-site-b','JEU B1',2,1,true);
 
 -- Quarts (statut par défaut). Q2 14/10 : cas de référence ; Q1 14/10 absent.
 insert into public.fdj_shifts (id, site, date, quart, ouverture_validee) values
-  ('bbbbbb01-0000-4000-8000-000000000001','recette-reco-site-a','2026-10-14','2',true),   -- A : complet, confirmé
-  ('bbbbbb01-0000-4000-8000-000000000002','recette-reco-site-a','2026-10-15','2',true),   -- C : un initial manquant
-  ('bbbbbb01-0000-4000-8000-000000000003','recette-reco-site-a','2026-10-16','2',false),  -- D : ouverture non confirmée
-  ('bbbbbb01-0000-4000-8000-000000000004','recette-reco-site-a','2026-10-12','2',true),   -- E : Q2 suivant
-  ('bbbbbb01-0000-4000-8000-000000000005','recette-reco-site-a','2026-10-12','1',true),   -- E : Q1 réel (7 vs 5)
-  ('bbbbbb01-0000-4000-8000-000000000006','recette-reco-site-a','2026-10-11','2',true),   -- F : Q2 suivant
-  ('bbbbbb01-0000-4000-8000-000000000007','recette-reco-site-a','2026-10-11','1',true),   -- F : Q1 réel concordant
-  ('bbbbbb01-0000-4000-8000-000000000021','recette-reco-site-b','2026-10-14','2',true);   -- site B
+  ('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1','recette-reco-site-a','2026-10-14','2',true),   -- A : complet, confirmé
+  ('bbbbbbb2-0000-4000-8000-bbbbbbbbbbb2','recette-reco-site-a','2026-10-15','2',true),   -- C : un initial manquant
+  ('bbbbbbb3-0000-4000-8000-bbbbbbbbbbb3','recette-reco-site-a','2026-10-16','2',false),  -- D : ouverture non confirmée
+  ('bbbbbbb4-0000-4000-8000-bbbbbbbbbbb4','recette-reco-site-a','2026-10-12','2',true),   -- E : Q2 suivant
+  ('bbbbbbb5-0000-4000-8000-bbbbbbbbbbb5','recette-reco-site-a','2026-10-12','1',true),   -- E : Q1 réel (7 vs 5)
+  ('bbbbbbb6-0000-4000-8000-bbbbbbbbbbb6','recette-reco-site-a','2026-10-11','2',true),   -- F : Q2 suivant
+  ('bbbbbbb7-0000-4000-8000-bbbbbbbbbbb7','recette-reco-site-a','2026-10-11','1',true),   -- F : Q1 réel concordant
+  ('bbbbbbb8-0000-4000-8000-bbbbbbbbbbb8','recette-reco-site-b','2026-10-14','2',true);   -- site B
 
 insert into public.fdj_shift_counts (shift_id, game_id, site, stock_initial, stock_final) values
   -- A : trois valeurs dont un ZÉRO (0 est une valeur, pas une absence)
-  ('bbbbbb01-0000-4000-8000-000000000001','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',40,38),
-  ('bbbbbb01-0000-4000-8000-000000000001','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',0,0),
-  ('bbbbbb01-0000-4000-8000-000000000001','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',12,10),
+  ('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',40,38),
+  ('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',0,0),
+  ('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',12,10),
   -- C : A3 sans stock initial
-  ('bbbbbb01-0000-4000-8000-000000000002','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',40,null),
-  ('bbbbbb01-0000-4000-8000-000000000002','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',3,null),
-  ('bbbbbb01-0000-4000-8000-000000000002','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',null,null),
+  ('bbbbbbb2-0000-4000-8000-bbbbbbbbbbb2','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',40,null),
+  ('bbbbbbb2-0000-4000-8000-bbbbbbbbbbb2','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',3,null),
+  ('bbbbbbb2-0000-4000-8000-bbbbbbbbbbb2','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',null,null),
   -- D : complet mais ouverture non confirmée
-  ('bbbbbb01-0000-4000-8000-000000000003','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',1,null),
-  ('bbbbbb01-0000-4000-8000-000000000003','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',1,null),
-  ('bbbbbb01-0000-4000-8000-000000000003','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',1,null),
+  ('bbbbbbb3-0000-4000-8000-bbbbbbbbbbb3','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',1,null),
+  ('bbbbbbb3-0000-4000-8000-bbbbbbbbbbb3','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',1,null),
+  ('bbbbbbb3-0000-4000-8000-bbbbbbbbbbb3','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',1,null),
   -- E : initial Q2 = 5, final réel Q1 = 7 (contradiction) sur A1 ; A2/A3 concordent
-  ('bbbbbb01-0000-4000-8000-000000000004','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',5,null),
-  ('bbbbbb01-0000-4000-8000-000000000004','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',6,null),
-  ('bbbbbb01-0000-4000-8000-000000000004','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',9,null),
-  ('bbbbbb01-0000-4000-8000-000000000005','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',20,7),
-  ('bbbbbb01-0000-4000-8000-000000000005','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',20,6),
-  ('bbbbbb01-0000-4000-8000-000000000005','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',20,9),
+  ('bbbbbbb4-0000-4000-8000-bbbbbbbbbbb4','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',5,null),
+  ('bbbbbbb4-0000-4000-8000-bbbbbbbbbbb4','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',6,null),
+  ('bbbbbbb4-0000-4000-8000-bbbbbbbbbbb4','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',9,null),
+  ('bbbbbbb5-0000-4000-8000-bbbbbbbbbbb5','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',20,7),
+  ('bbbbbbb5-0000-4000-8000-bbbbbbbbbbb5','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',20,6),
+  ('bbbbbbb5-0000-4000-8000-bbbbbbbbbbb5','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',20,9),
   -- F : tout concordant
-  ('bbbbbb01-0000-4000-8000-000000000006','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',4,null),
-  ('bbbbbb01-0000-4000-8000-000000000006','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',4,null),
-  ('bbbbbb01-0000-4000-8000-000000000006','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',4,null),
-  ('bbbbbb01-0000-4000-8000-000000000007','aaaaaa01-0000-4000-8000-000000000001','recette-reco-site-a',9,4),
-  ('bbbbbb01-0000-4000-8000-000000000007','aaaaaa01-0000-4000-8000-000000000002','recette-reco-site-a',9,4),
-  ('bbbbbb01-0000-4000-8000-000000000007','aaaaaa01-0000-4000-8000-000000000003','recette-reco-site-a',9,4),
+  ('bbbbbbb6-0000-4000-8000-bbbbbbbbbbb6','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',4,null),
+  ('bbbbbbb6-0000-4000-8000-bbbbbbbbbbb6','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',4,null),
+  ('bbbbbbb6-0000-4000-8000-bbbbbbbbbbb6','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',4,null),
+  ('bbbbbbb7-0000-4000-8000-bbbbbbbbbbb7','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1','recette-reco-site-a',9,4),
+  ('bbbbbbb7-0000-4000-8000-bbbbbbbbbbb7','aaaaaaa2-0000-4000-8000-aaaaaaaaaaa2','recette-reco-site-a',9,4),
+  ('bbbbbbb7-0000-4000-8000-bbbbbbbbbbb7','aaaaaaa3-0000-4000-8000-aaaaaaaaaaa3','recette-reco-site-a',9,4),
   -- B
-  ('bbbbbb01-0000-4000-8000-000000000021','aaaaaa01-0000-4000-8000-000000000011','recette-reco-site-b',8,8);
+  ('bbbbbbb8-0000-4000-8000-bbbbbbbbbbb8','aaaaaaa5-0000-4000-8000-aaaaaaaaaaa5','recette-reco-site-b',8,8);
 
 insert into snap select (select count(*) from public.fdj_shifts), (select count(*) from public.fdj_shift_counts),
   (select count(*) from public.fdj_cash_controls), (select count(*) from public.fdj_audit_log);
 
 -- ---------------------------------------------------------------- A..F
-select set_config('request.jwt.claims','{"sub":"eeeeee01-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claims','{"sub":"eeeeeee1-0000-4000-8000-eeeeeeeeeee1","role":"authenticated"}', true);
 set local role authenticated;
 
 do $$
 declare r jsonb; n int;
 begin
   -- A : cas de référence (Q2 complet et confirmé, Q1 absent)
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
   select count(*) into n from public.fdj_stock_chaine_reconstitue where date_quart_absent='2026-10-14' and quart_absent='1';
   insert into preuves(id, ok, detail) values ('A reconstitué', (r->>'reconstitue')::boolean and n = 3 and (r->>'crees')::int = 3, r::text);
   insert into preuves(id, ok, detail) select 'A valeurs = stocks initiaux (0 conservé)',
     (select array_agg(valeur_reconstituee order by g.ordre_affichage) = array[40,0,12]::numeric[]
        from public.fdj_stock_chaine_reconstitue x join public.fdj_games g on g.id = x.game_id
       where x.date_quart_absent='2026-10-14' and x.quart_absent='1'),
-    'jeu inactif exclu : ' || (select count(*) from public.fdj_stock_chaine_reconstitue where game_id='aaaaaa01-0000-4000-8000-000000000004')::text || ' ligne(s)';
+    'jeu inactif exclu : ' || (select count(*) from public.fdj_stock_chaine_reconstitue where game_id='aaaaaaa4-0000-4000-8000-aaaaaaaaaaa4')::text || ' ligne(s)';
   insert into preuves(id, ok, detail) select 'A provenance distincte du physique', bool_and(provenance = 'reconstitue_depuis_stock_initial_suivant' and statut = 'reconstitue' and comptage_reel_valeur is null), 'provenance + statut'
     from public.fdj_stock_chaine_reconstitue where date_quart_absent='2026-10-14';
   -- B : idempotence
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
   select count(*) into n from public.fdj_stock_chaine_reconstitue where date_quart_absent='2026-10-14';
   insert into preuves(id, ok, detail) values ('B rejeu idempotent', (r->>'crees')::int = 0 and (r->>'mis_a_jour')::int = 0 and n = 3, r::text);
   -- C : comptage initial incomplet
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000002');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb2-0000-4000-8000-bbbbbbbbbbb2');
   select count(*) into n from public.fdj_stock_chaine_reconstitue where date_quart_absent='2026-10-15';
   insert into preuves(id, ok, detail) values ('C initial incomplet refusé', r->>'motif' = 'comptage_initial_incomplet' and n = 0, r::text);
   -- D : ouverture non confirmée
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000003');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb3-0000-4000-8000-bbbbbbbbbbb3');
   select count(*) into n from public.fdj_stock_chaine_reconstitue where date_quart_absent='2026-10-16';
   insert into preuves(id, ok, detail) values ('D ouverture non confirmée refusée', r->>'motif' = 'ouverture_non_confirmee' and n = 0, r::text);
   -- E : contradiction avec un comptage réel -> les deux valeurs conservées
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000004');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb4-0000-4000-8000-bbbbbbbbbbb4');
   insert into preuves(id, ok, detail) select 'E contradiction : deux valeurs + écart',
     x.statut = 'en_conflit' and x.valeur_reconstituee = 5 and x.comptage_reel_valeur = 7 and x.ecart_comptage_reel = 2 and (r->>'en_conflit')::int = 1,
     r::text
     from public.fdj_stock_chaine_reconstitue x
-   where x.date_quart_absent='2026-10-12' and x.game_id='aaaaaa01-0000-4000-8000-000000000001';
+   where x.date_quart_absent='2026-10-12' and x.game_id='aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1';
   -- F : quart réel concordant -> reconstitué sans conflit
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000006');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb6-0000-4000-8000-bbbbbbbbbbb6');
   insert into preuves(id, ok, detail) values ('F réel concordant sans conflit', (r->>'reconstitue')::boolean and (r->>'en_conflit')::int = 0 and (r->>'quart_effectue')::boolean, r::text);
 end $$;
 
@@ -140,7 +140,7 @@ begin
   -- R3 écritures directes refusées
   begin
     insert into public.fdj_stock_chaine_reconstitue (site, date_quart_absent, quart_absent, shift_source_id, game_id, stock_initial_source, valeur_reconstituee)
-      values ('recette-reco-site-a','2026-10-01','1','bbbbbb01-0000-4000-8000-000000000001','aaaaaa01-0000-4000-8000-000000000001',1,1);
+      values ('recette-reco-site-a','2026-10-01','1','bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1','aaaaaaa1-0000-4000-8000-aaaaaaaaaaa1',1,1);
     insert into preuves(id, ok, detail) values ('R3 INSERT direct refusé', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('R3 INSERT direct refusé', true, sqlstate);
@@ -159,7 +159,7 @@ begin
   end;
   -- R6 appel intersite refusé : manager A vise un quart du site B
   begin
-    perform public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000021');
+    perform public.fdj_reconstituer_quart_absent('bbbbbbb8-0000-4000-8000-bbbbbbbbbbb8');
     insert into preuves(id, ok, detail) values ('R6 appel intersite refusé (A -> quart de B)', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('R6 appel intersite refusé (A -> quart de B)', true, sqlerrm);
@@ -168,7 +168,7 @@ end $$;
 
 -- Second contexte de site : manager B.
 reset role;
-select set_config('request.jwt.claims','{"sub":"eeeeee01-0000-4000-8000-000000000002","role":"authenticated"}', true);
+select set_config('request.jwt.claims','{"sub":"eeeeeee2-0000-4000-8000-eeeeeeeeeee2","role":"authenticated"}', true);
 set local role authenticated;
 do $$
 declare n int; r jsonb;
@@ -176,24 +176,24 @@ begin
   select count(*) into n from public.fdj_stock_chaine_reconstitue;
   insert into preuves(id, ok, detail) values ('R7a manager B ne voit aucune ligne du site A', n = 0, n::text);
   begin
-    perform public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+    perform public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
     insert into preuves(id, ok, detail) values ('R7b appel intersite refusé (B -> quart de A)', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('R7b appel intersite refusé (B -> quart de A)', true, sqlerrm);
   end;
-  r := public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000021');
+  r := public.fdj_reconstituer_quart_absent('bbbbbbb8-0000-4000-8000-bbbbbbbbbbb8');
   select count(*) into n from public.fdj_stock_chaine_reconstitue;
   insert into preuves(id, ok, detail) values ('R7c manager B écrit chez lui (1 ligne, site B seul)', (r->>'reconstitue')::boolean and n = 1, r::text);
 end $$;
 
 -- Caissier (rôle non manager) et session absente : refus.
 reset role;
-select set_config('request.jwt.claims','{"sub":"eeeeee01-0000-4000-8000-000000000003","role":"authenticated"}', true);
+select set_config('request.jwt.claims','{"sub":"eeeeeee3-0000-4000-8000-eeeeeeeeeee3","role":"authenticated"}', true);
 set local role authenticated;
 do $$
 begin
   begin
-    perform public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+    perform public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
     insert into preuves(id, ok, detail) values ('S0 caissier refusé', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('S0 caissier refusé', true, sqlerrm);
@@ -205,7 +205,7 @@ set local role authenticated;
 do $$
 begin
   begin
-    perform public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+    perform public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
     insert into preuves(id, ok, detail) values ('S1 sans session refusé', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('S1 sans session refusé', true, sqlerrm);
@@ -216,7 +216,7 @@ set local role anon;
 do $$
 begin
   begin
-    perform public.fdj_reconstituer_quart_absent('bbbbbb01-0000-4000-8000-000000000001');
+    perform public.fdj_reconstituer_quart_absent('bbbbbbb1-0000-4000-8000-bbbbbbbbbbb1');
     insert into preuves(id, ok, detail) values ('S2 anon : EXECUTE refusé', false, 'accepté');
   exception when insufficient_privilege then
     insert into preuves(id, ok, detail) values ('S2 anon : EXECUTE refusé', true, sqlerrm);
