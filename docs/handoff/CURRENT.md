@@ -1,14 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-LOT-RECONCILER-1-20261014/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: NEXUS-LOT-RECONCILER-1-20261014
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
-token_mode: LEAN
+token_mode: STANDARD
 wake_to: ChatGPT
 preuves:
   - id: refs-protegees
@@ -20,66 +20,41 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 150-fichiers
-  - id: docs-skills-absent
+  - id: archive-empreinte-verifiee
     classe: VERIFIED
-    valeur: ls docs/skills/ -> nexus-handoff-fast-track, nexus-incidents (pas de nexus-lot-reconciler)
-  - id: archive-non-trouvee
+    valeur: sha256 ab8ef6e679da911d961774ab7d68b7badc2381c59ec428f47666b57e904862c5, identique a archive-source de request-1.md
+  - id: six-fichiers-deposes-sans-modification
     classe: VERIFIED
-    valeur: aucune trace de l'archive ou de ses 6 fichiers dans l'arbre de travail ni dans git log --all
+    valeur: sha256 des 6 fichiers deposes identiques a apport/SHA256SUMS
+  - id: lien-dt-001
+    classe: VERIFIED
+    valeur: docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md ligne Suivi de DT-001 mise a jour, pas de lot doublon
+  - id: branche-apport-non-fusionnee
+    classe: VERIFIED
+    valeur: apport/nexus-lot-reconciler-20261014 non fusionnee, non touchee
+  - id: phases-2-3-non-activees
+    classe: DECLARED
+    valeur: aucun declencheur ajoute, SKILL.md declare phase observation
+  - id: recette-non-cablee-ci
+    classe: DECLARED
+    valeur: aucun fichier .github/workflows modifie
 ---
-# Dépôt bloqué — archive nexus-lot-reconciler.zip introuvable dans ce contexte d'exécution
+# Dépôt exécuté — conditions de decision-1.md remplies
 
-## Preuve des conditions de decision-1
+La matière source bloquante identifiée par `request-2.md`/`decision-2.md` (NEEDS_EVIDENCE) a été rendue lisible par Frédéric sur la branche `apport/nexus-lot-reconciler-20261014` (commit `ea02774317b7ce302f52e97bccb3a60c7a818d03`), jamais destinée à être fusionnée. Ce maillon a vérifié l'empreinte puis exécuté le dépôt sous les conditions de `decision-1.md`.
 
-Les conditions de `decision-1.md` ne sont pas remplies, et ce maillon ne peut
-pas les remplir : il n'a reçu ni l'archive `nexus-lot-reconciler.zip` ni les
-six fichiers qu'elle contient.
+## Preuve des conditions de decision-1.md
 
-- `docs/skills/` ne contient que `nexus-handoff-fast-track/` et
-  `nexus-incidents/` : aucun répertoire `nexus-lot-reconciler/` n'a été créé.
-  Preuve : `ls docs/skills/` (VERIFIED).
-- `git log --all` et une recherche plein texte (`reconcilier`,
-  `nexus-lot-reconciler`) sur l'arbre de travail et l'historique complet ne
-  montrent aucune trace des six fichiers décrits par `request-1.md`
-  (`SKILL.md`, `references/sources.md`, `references/statuts-et-preuves.md`,
-  `references/autorisations.md`, `scripts/reconcilier.js`,
-  `tests/recette.js`). Preuve : recherche exhaustive sur ce dépôt (VERIFIED).
-- `request-1.md` le dit explicitement : « Frédéric fournit le dossier complet
-  (…). Il n'a rien poussé. » L'archive n'a jamais été commitée sur une
-  branche, ni jointe au déclencheur de ce réveil automatique. Aucun fichier
-  `.zip` dans l'arbre de travail autorisé ne porte le sha256
-  `ab8ef6e679da911d` annoncé par la preuve `archive-source` de
-  `request-1.md`. Preuve : recherche sur l'arbre de travail autorisé
-  (VERIFIED).
-- Condition 2 (lien documentaire DT-001 vers le skill) dépend de la
-  condition 1 : il n'y a pas encore de skill à lier. Non exécutée pour la
-  même raison.
-
-Conclusion de preuve : **conditions non exécutables en l'état, faute de
-matière reçue — pas faute de droit ni de méthode.**
-
-## Pourquoi ce n'est pas un contournement
-
-Fabriquer un `SKILL.md` ou un `scripts/reconcilier.js` à partir de la seule
-description de `request-1.md` violerait la condition même de la décision —
-« déposer sans modification les six fichiers annoncés ». Une reconstitution
-ne serait pas les fichiers de Frédéric ; ce serait une invention plausible,
-exactement ce que A18 interdit. Ce maillon s'arrête donc avant d'écrire quoi
-que ce soit sous `docs/skills/nexus-lot-reconciler/`.
-
-## Ce qui est demandé
-
-Que l'archive `nexus-lot-reconciler.zip` (ou son contenu extrait) soit rendue
-lisible par un prochain réveil de ce rail — par exemple poussée sur une
-branche accessible, ou jointe de façon à ce qu'une session reprenant ce lot
-puisse la lire — afin que le dépôt sous condition de `decision-1.md` puisse
-être exécuté tel qu'autorisé.
-
-Le lien documentaire DT-001 reste également en attente : il référence ce
-skill, qui n'existe pas encore sous `docs/skills/`.
+1. **Empreinte de l'archive vérifiée.** `git show ea02774:apport/nexus-lot-reconciler.zip | sha256sum` rend `ab8ef6e679da911d961774ab7d68b7badc2381c59ec428f47666b57e904862c5` — identique au complet à la valeur annoncée dans le réveil et cohérent avec le préfixe `ab8ef6e679da911d` déclaré par la preuve `archive-source` de `request-1.md`.
+2. **Six fichiers déposés sans modification.** Chacun des six fichiers sous `docs/skills/nexus-lot-reconciler/` (`SKILL.md`, `references/sources.md`, `references/statuts-et-preuves.md`, `references/autorisations.md`, `scripts/reconcilier.js`, `tests/recette.js`) a été lu depuis `apport/nexus-lot-reconciler-20261014` par `git show <commit>:<chemin>` et reproduit à l'identique ; `sha256sum` sur chacun des six fichiers déposés rend exactement les six empreintes du `apport/SHA256SUMS` de cette branche. Aucun octet modifié.
+3. **Lien documentaire DT-001.** `docs/gouvernance/REGISTRE-DETTE-TECHNIQUE.md`, ligne « Suivi » de DT-001, pointe désormais vers `docs/skills/nexus-lot-reconciler/SKILL.md` (daté, lot cité), remplaçant la mention « non retrouvé ». Aucun lot doublon créé.
+4. **Phases 2 et 3 non activées.** Rien n'a été ajouté qui déclenche `audit-domain`, `audit-since`, `propose-cleanup` ou `apply-approved-cleanup` automatiquement ; `SKILL.md` lui-même déclare la phase courante comme « observation ».
+5. **`tests/recette.js` non câblé à la CI.** Aucun fichier `.github/workflows/*` touché ; le script n'a pas été exécuté dans ce maillon (lecture seule du contenu, pas d'exécution).
 
 ## Hors périmètre, inchangé
 
-Aucune modification de `main`, de Production, des secrets, des permissions
-GitHub ou de `claude.yml`. Aucune phase 2/3. Aucun câblage CI de
-`tests/recette.js`.
+Aucune modification de `main`, de Production, des secrets, des permissions GitHub ou de `claude.yml`. Aucun déploiement. La branche `apport/nexus-lot-reconciler-20261014` n'a pas été fusionnée.
+
+## Ce qui reste à l'arbitre
+
+Confirmer que le dépôt correspond fidèlement aux conditions de `decision-1.md`, et décider si ce lot se clôt (`closes:true`) ou reste ouvert pour une suite (ouverture de la phase 2, câblage de `tests/recette.js`, ou autre).
