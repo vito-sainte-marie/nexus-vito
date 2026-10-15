@@ -500,14 +500,69 @@ function verifier(ignorer) {
   for (const e of erreurs) { const d = derogations.find(x => x.fichier === e.fichier && x.regle === e.code); if (d && CODES_NON_DEROGEABLES.includes(e.code)) restantes.push({ ...e, message: `${e.message}\n         (une dérogation existe mais ${e.code} est un invariant de sécurité : elle ne s'applique pas)` }); else if (d) avertir(`DÉROGATION ${d.regle} sur ${d.fichier} — ${e.message}\n         motif : ${d.motif}\n         autorisée par ${d.autorise_par}, le ${d.le}`); else if (ignorer && ignorer.includes(e.code)) avertir(`${e.code} toléré le temps de l'opération en cours — ${e.message}`); else restantes.push(e); }
   for (const a of avertissements) console.log(`AVERTISSEMENT — ${a}`); if (restantes.length) { for (const e of restantes) console.error(`ÉCHEC — ${e.message}`); console.error(`\n${restantes.length} violation(s) du protocole Handoff v2.`); return 1; } console.log(`Handoff v2 : registre, enveloppes et STATE.json conformes (${lots().length} lot(s), ${avertissements.length} avertissement(s), ${derogations.length} dérogation(s)).`); return 0;
 }
-function consommer(lot) {
+// CONSOMMER N'EST PAS EXÉCUTER — INC-20261015-001, lot 1.
+//
+// 15/10/2026. decision-1 puis decision-2 de NEXUS-FDJ-STOCK-Q1-ABSENT ont été
+// marquées DECISION_CONSOMMEE par une session qui n'a rien exécuté : le prompt
+// consommait d'abord, le statut ne signifiait plus « exécutée », et le tour
+// vide rendait `success`. La consommation a désormais DEUX temps :
+//   1. `consommer <lot> --prise-en-charge` — ATTENTE_CONSOMMATION_DECISION : la
+//      décision est lue et reçue, rien n'est dit de son exécution. Idempotent.
+//   2. une sortie VÉRIFIÉE vers DECISION_CONSOMMEE, parmi trois et seulement :
+//        --preuve-action <commit>   un commit du rail qui touche autre chose que
+//                                   le registre (le commit de consommation du
+//                                   15/10, ff3e7720, n'aurait pas passé) ;
+//        (arrêt)                    une demande de blocage déposée par `demande`
+//                                   pendant la prise en charge : elle consomme la
+//                                   décision en cours, atomiquement ;
+//        --cloture                  décision `closes: true` : la matérialisation
+//                                   est son seul travail (consommer nu = cloture).
+// Une décision qui prescrit une action ne se consomme donc plus nue.
+const optionsConsommer = (args) => {
+  const o = {}, val = (f) => { const i = args.indexOf(f); if (i < 0) return undefined; const x = args[i + 1]; if (!x || x.startsWith('--')) { console.error(`REFUS — ${f} exige une valeur.`); process.exit(1); } return x; };
+  const inconnues = args.filter(a => a.startsWith('--') && !['--prise-en-charge', '--preuve-action', '--cloture'].includes(a)); if (inconnues.length) { console.error(`REFUS — option inconnue : ${inconnues.join(', ')}.`); process.exit(1); }
+  if (args.includes('--prise-en-charge')) o.priseEnCharge = true; if (args.includes('--cloture')) o.cloture = true;
+  o.preuveAction = val('--preuve-action'); return o;
+};
+function commitHorsRegistre(ref) {
+  let sha; try { sha = git('rev-parse', '--verify', `${ref}^{commit}`); } catch (e) { return { ok: false, motif: `commit introuvable : ${JSON.stringify(ref)}` }; }
+  try { git('merge-base', '--is-ancestor', sha, 'HEAD'); } catch (e) { return { ok: false, motif: `${sha.slice(0, 7)} n'est pas dans l'historique du rail courant` }; }
+  const fichiers = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean);
+  const registre = path.relative(RACINE, HANDOFF).split(path.sep).join('/') + '/', travail = fichiers.filter(f => !f.startsWith(registre));
+  if (!travail.length) return { ok: false, motif: `${sha.slice(0, 7)} ne touche que le registre (${fichiers.join(', ') || 'aucun fichier'}) : consommer n'est pas exécuter` };
+  return { ok: true, sha, fichiers: travail };
+}
+function consommer(lot, opts) {
+  opts = opts || {};
+  const modes = ['priseEnCharge', 'preuveAction', 'cloture'].filter(k => opts[k] !== undefined && opts[k] !== false);
+  if (modes.length > 1) { console.error(`REFUS — un seul mode de consommation à la fois (${modes.join(', ')}).`); process.exit(1); }
   if (verifier(['PLUSIEURS_LOTS_ACTIFS']) !== 0) { console.error('\nREFUS — le registre ne valide pas ; aucune décision ne peut être consommée dans cet état.'); process.exit(1); }
   const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')), v = etat.lots[lot]; if (!v) { console.error(`Lot ${lot} inconnu.`); process.exit(1); } const dec = dernier(echanges(lot, 'decision'));
   if (dec) { const demandes = echanges(lot, 'request'), vise = demandeVisee(lot, dec.fichier), active = dernier(demandes); if (active && vise !== active.fichier) { console.error(`REFUS — ${dec.fichier} répond à ${vise}, mais la demande active est ${active.fichier}.`); console.error('Une décision périmée ne se consomme pas : une décision sur la demande active doit être rendue.'); process.exit(1); } }
   const source = dec ? 'registre' : 'legacy', cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION); let commit; try { commit = git('log', '-1', '--format=%H', '--', cible); } catch (e) { commit = ''; } if (!commit) { console.error(`Aucun commit trouvé pour ${cible} — refus de marquer une consommation invérifiable.`); process.exit(1); }
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
-  v.statut = 'DECISION_CONSOMMEE'; v.derniere_decision = dec ? dec.fichier : null; v.source_decision = source; v.commit_decision = commit; v.consomme_le = new Date().toISOString(); fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}.`);
-  const publication = publierEnAttente(); if (publication) process.exit(publication);
+  const r = dec && lireEnveloppe(path.join(LOTS, lot, dec.fichier)), ferme = !!(r && r.env && String(r.env.closes) === 'true');
+  const priseEnCharge = v.statut === 'ATTENTE_CONSOMMATION_DECISION' && v.commit_decision === commit;
+  const consigner = (extra) => { Object.assign(v, { statut: 'DECISION_CONSOMMEE', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, consomme_le: new Date().toISOString() }, extra); delete v.pris_en_charge_le; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}${extra && extra.preuve_action ? ` — action prouvée par ${String(extra.preuve_action).slice(0, 7)}` : ''}.`);
+    const publication = publierEnAttente(); if (publication) process.exit(publication); };
+  if (opts.priseEnCharge) {
+    if (priseEnCharge) { console.log(`Décision ${commit.slice(0, 7)} déjà pris en charge pour ${lot} depuis ${v.pris_en_charge_le} — rien à refaire ; sortir par --preuve-action, une demande de blocage (commande demande) ou --cloture.`); return; }
+    Object.assign(v, { statut: 'ATTENTE_CONSOMMATION_DECISION', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, pris_en_charge_le: new Date().toISOString() }); delete v.consomme_le; etat.lot_actif = lot;
+    fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) prise en charge pour ${lot} — ATTENTE_CONSOMMATION_DECISION : ce n'est PAS une consommation.`); return;
+  }
+  if (opts.preuveAction !== undefined) {
+    if (!priseEnCharge) { console.error(`REFUS — ${lot} n'est pas pris en charge sur ${commit.slice(0, 7)} (statut ${v.statut}) : prenez-la en charge d'abord (consommer ${lot} --prise-en-charge).`); process.exit(1); }
+    const p = commitHorsRegistre(opts.preuveAction); if (!p.ok) { console.error(`REFUS PREUVE_ACTION — ${p.motif}.`); process.exit(1); }
+    return consigner({ preuve_action: p.sha });
+  }
+  if (opts.cloture || ferme) {
+    if (!ferme) { console.error(`REFUS — --cloture exige une décision closes: true ; ${dec ? dec.fichier : 'la décision'} prescrit une action.`); process.exit(1); }
+    return consigner({});
+  }
+  console.error(`REFUS CONSOMMATION_SANS_PREUVE — ${dec ? dec.fichier : 'la décision'} prescrit une action (closes ≠ true) : la consommer nue ferait de DECISION_CONSOMMEE un statut qui ne dit rien de l'exécution.`);
+  console.error(`  1. consommer ${lot} --prise-en-charge`);
+  console.error(`  2. exécuter, puis consommer ${lot} --preuve-action <commit du rail>, ou déposer la demande de blocage (commande demande)`);
+  process.exit(1);
 }
 // LA FILE D'ATTENTE A UN CONSOMMATEUR.
 //
@@ -889,7 +944,9 @@ function nouvelleDemande(lot, corpsFichier, options) {
   for (const o of ordresPrepares) preuvesAuto.push({ id: `ordre-${seq}-${o.index}`, classe: 'VERIFIED', valeur: o.ordre.operation_hash }, { id: `executant-${seq}-${o.index}`, classe: 'DECLARED', valeur: `${o.route.executant}-pour-${o.route.capacite}` });
   const preuves = preuvesAuto.concat(options.preuves || []); let env = '---\n'; env += `protocol: ${PROTOCOLE}\nkind: request\nlot_id: ${lot}\nseq: ${seq}\n`; env += `author: Claude\nbranch: ${rail}\nstatus: AWAITING_DECISION\ntoken_mode: ${mode}\n`; if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`; env += 'preuves:\n'; for (const p of preuves) env += `  - id: ${p.id}\n    classe: ${p.classe}\n    valeur: ${p.valeur}\n`; env += '---\n'; fs.writeFileSync(cible, env + corpsTexte);
   for (const o of ordresPrepares) { fs.writeFileSync(path.join(dir, o.fichier), JSON.stringify(o.ordre, null, 2) + '\n'); console.log(`${lot}/${o.fichier} : ${o.ordre.operation} ${o.ordre.cible.env} — hash ${o.ordre.operation_hash} — CAPACITE_REQUISE ${o.route.capacite}, EXECUTANT_NEXT ${o.route.executant}. Un ordre n'est pas une autorisation : GO lié à ce hash exigé.`); }
-  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
+  const etat = JSON.parse(fs.readFileSync(ETAT, 'utf8')); etat.lots[lot] = etat.lots[lot] || {}; // Une demande déposée pendant la prise en charge EST l'arrêt matérialisé : elle consomme la décision en cours (sortie 2 du protocole de consommation), atomiquement — la décision ne reste jamais « prise en charge » derrière une demande qui la dépasse.
+  const pris = etat.lots[lot].statut === 'ATTENTE_CONSOMMATION_DECISION'; if (pris) { etat.lots[lot].consomme_le = new Date().toISOString(); etat.lots[lot].arret = fichier; delete etat.lots[lot].pris_en_charge_le; }
+  Object.assign(etat.lots[lot], { statut: 'ATTENTE_DECISION', derniere_demande: fichier, rail }); etat.lot_actif = lot; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); regenererMiroirs(); console.log(`${lot}/${fichier} créé (token_mode ${mode}, ${preuves.length} preuve(s)), miroirs v1 régénérés.`);
 }
 // `wake_to` est une ADRESSE LIBRE (PROTOCOL.md) : aucun vocabulaire clos, une
 // URL d'issue aujourd'hui, autre chose demain. Rien à valider sur le fond,
@@ -1000,7 +1057,7 @@ const [, , commande, arg1, arg2] = process.argv;
 switch (commande) {
   case undefined: case 'verifier': process.exit(verifier()); break;
   case 'miroirs': regenererMiroirs(); console.log('Miroirs v1 régénérés.'); break;
-  case 'consommer': consommer(arg1); break;
+  case 'consommer': consommer(arg1, optionsConsommer(process.argv.slice(4))); break;
   case 'enregistrer-lot': { const args = process.argv.slice(4); let rail; for (let i = 0; i < args.length; i++) { if (args[i] === '--rail') rail = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } enregistrerLot(arg1, rail); break; }
   case 'declarer-rail': declarerRail(arg1, arg2); break;
   case 'rail': imprimerRail(arg1); break;

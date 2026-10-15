@@ -10,7 +10,8 @@ Le cycle passe **par l'outil**, jamais par une écriture à la main dans `lots/`
 
 ```
 node outils/handoff.js verifier                       # le registre est-il sain
-node outils/handoff.js consommer <LOT_ID>             # prendre acte d'une décision
+node outils/handoff.js consommer <LOT_ID> --prise-en-charge          # prendre une décision en charge (ATTENTE_CONSOMMATION_DECISION)
+node outils/handoff.js consommer <LOT_ID> --preuve-action <commit>   # la consommer APRÈS l'action (commit hors docs/handoff/)
 node outils/handoff.js demande <LOT_ID> <corps.md>    # publier une demande
 node outils/handoff.js decision <LOT_ID> <corps.md>   # déposer une décision
 ```

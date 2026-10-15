@@ -49,6 +49,10 @@ const TERMINAUX = Object.freeze({
 // stagnation. Ces délais bornent un maillon qui prend des secondes ; ils sont
 // larges à dessein — on cherche l'arrêt, pas la lenteur.
 const CONTINUATION = Object.freeze({
+  // INC-20261015-001 : une décision prise en charge (ATTENTE_CONSOMMATION_DECISION)
+  // doit sortir par une preuve d'action ou une demande de blocage. Au-delà, la
+  // session est morte sans sortie : un tour vide, à nommer — pas à relancer à l'identique.
+  PRISE_EN_CHARGE:  { minutes: 60, suite: 'une preuve d’action ou une demande de blocage doit sortir de la session' },
   DEMANDE_DEPOSEE:  { minutes: 45, suite: 'publier le réveil de l’Orchestrateur' },
   REVEIL_PUBLIE:    { minutes: 45, suite: 'un run Claude doit consommer le réveil' },
   RUN_EN_COURS:     { minutes: 60, suite: 'le run Claude doit conclure' },
@@ -206,6 +210,7 @@ const FAMILLES = Object.freeze({
   OUBLI_DE_FORMAT:  ['CONDITIONS_NON_PROUVEES', 'IDENTIFIANT_INVALIDE', 'EXECUTANT_INCONNU', 'CAPACITE_INCONNUE'],
   CAPACITE_MANQUANTE: ['CANAL_INCAPABLE'],
   CI_ROUGE:         ['CI_ROUGE'],
+  TOUR_VIDE:        ['TOUR_VIDE', 'PRISE_EN_CHARGE_STAGNANTE'],
 });
 const SENSIBLE = /PRODUCTION|SECRET|MIGRATION|DEPLOI|FUSION|MERGE|ARMEMENT|PERMISSION/i;
 
