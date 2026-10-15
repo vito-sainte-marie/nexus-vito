@@ -1,0 +1,16 @@
+{
+  "incident": "INC-20261010-001",
+  "titre": "Tour de boucle vert, 18 refus de permission, rien poussé",
+  "etat": "A_VERIFIER",
+  "faits": [
+    {"id": "F1", "enonce": "Le run 38059658879 a fini en success avec permission_denials_count à 18 et rien de poussé.", "source": {"type": "fichier", "ref": "main:.github/workflows/claude.yml, commentaire de l'étape « lister les refus de permission »"}, "horodatage": "2026-10-10 (jour du run ; heure non lue)"},
+    {"id": "F2", "enonce": "À cette date, l'action n'écrivait que le nombre de refus, pas les commandes refusées.", "source": {"type": "fichier", "ref": "main:.github/workflows/claude.yml, même commentaire"}, "horodatage": "2026-10-10 (jour du run ; heure non lue)"},
+    {"id": "F3", "enonce": "Aucune entrée de docs/learning/EXPERIENCE.jsonl ne consigne ce run.", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/learning/EXPERIENCE.jsonl"}, "horodatage": "2026-10-15 (constaté à la lecture)"}
+  ],
+  "hypotheses": [
+    {"id": "H1", "enonce": "Même mécanisme que l'incident du 15/10 : consommation sans exécution acceptée par la garde de tour vide.", "verification": "Comparer les commits du rail produits par le run 38059658879 avec ceux du run 38667953549."}
+  ],
+  "cause_racine": {"statut": "INDETERMINEE", "manque": "La liste des 18 commandes refusées n'a jamais été journalisée ; le journal du run n'est pas lisible depuis les canaux actuels."},
+  "classification": {"code": "TOUR_VIDE", "famille": "INCONNU", "urgence": "U2", "priorite": "rattaché à INC-20261015-001 (récidive, GOV-002)"},
+  "action_suivante": {"executant": "session-claude-habilitee", "capacite": "AUCUNE", "action": "Vérifier H1, puis rattacher ce diagnostic à INC-20261015-001.", "preuve_attendue": "Liste des commits du rail du run 38059658879 citée dans un fait."}
+}
