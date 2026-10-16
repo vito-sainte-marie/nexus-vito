@@ -145,8 +145,9 @@ const TOUS = new Function(TXT_ROLES + ';\nreturn ROLES.map(r => r.value);')();
   // ── 6. Le poste le plus fréquent reste une information VISUELLE ──────────────────
   verifier('le rôle choisi part de rien : aucune présélection',
     /let roleChoisi = null;/.test(SRC));
-  verifier('le badge vient du poste le plus fréquent (lot B), jamais de la fiche',
-    /const pf = posteFrequent && posteFrequent\.etat === 'dominant' \? posteFrequent : null;/.test(TXT_RENDER)
+  verifier('le badge vient du poste le plus fréquent (lots B et C), jamais de la fiche',
+    /const badge = libelleFrequence\(posteFrequent\);/.test(TXT_RENDER)
+    && /badge && r\.value === posteFrequent\.poste/.test(TXT_RENDER)
     && !/employeeCourant\.role/.test(TXT_RENDER)
     && !/Rôle habituel/.test(TXT_RENDER));
   verifier('le rôle du jour ne peut venir que d’un clic de l’employée',

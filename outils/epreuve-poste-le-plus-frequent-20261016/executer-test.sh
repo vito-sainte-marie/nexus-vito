@@ -6,7 +6,7 @@ ICI="$(cd "$(dirname "$0")" && pwd)"
 RACINE="$(cd "$ICI/../.." && pwd)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 sed -e '/^begin;$/d' -e '/^commit;$/d' \
-  "$RACINE/supabase/migrations/20261016120000_poste_le_plus_frequent.sql" > "$TMP/migration.sql"
+  "$RACINE/supabase/migrations/20261016150000_poste_dernier_sous_seuil.sql" > "$TMP/migration.sql"
 PGPASSWORD="$(security find-generic-password -s nexus-test-db -w)" \
   /opt/homebrew/opt/libpq/bin/psql \
   "postgresql://postgres@db.udljdqxerrbbbajxubfn.supabase.co:5432/postgres?sslmode=require&connect_timeout=12" \

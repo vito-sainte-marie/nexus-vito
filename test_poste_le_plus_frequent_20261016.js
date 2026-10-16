@@ -7,8 +7,12 @@
 //  - elle ne compte que les prises de poste confirmées (employe/manager),
 //    sur 90 jours, hors fantôme de test, avec la liste blanche des postes,
 //    seuil de 5, jamais de durée ni de proximité horaire ;
-//  - l'écran n'affiche le badge que pour un poste dominant, sans
-//    présélection, et un échec de lecture n'empêche rien ;
+//  - lot C (16/10/2026) : la migration 20261016150000 remplace la fonction ;
+//    de 1 à 4 prises, état `dernier_poste` (le dernier poste pris, mêmes
+//    filtres) ; 0 prise, `historique_insuffisant` ; 5 et plus inchangé ;
+//  - l'écran affiche un badge sous le seul rôle concerné (« Poste le plus
+//    fréquent, n sur N » ou « Dernier poste »), rien d'autre, sans
+//    présélection ni tiret cadratin, et un échec de lecture n'empêche rien ;
 //  - rolesDisponibles() ne dépend pas du poste le plus fréquent.
 'use strict';
 const fs = require('fs');
@@ -18,7 +22,7 @@ const assert = require('assert');
 const RACINE = __dirname;
 const page = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
 const sql = fs.readFileSync(path.join(RACINE, 'supabase', 'migrations',
-  '20261016120000_poste_le_plus_frequent.sql'), 'utf8');
+  '20261016150000_poste_dernier_sous_seuil.sql'), 'utf8');
 
 function corps(source, debut) {
   const i = source.indexOf(debut);
@@ -58,7 +62,16 @@ verifier('prises distinctes par (heure_debut, role), sans proximité horaire',
   /select distinct s\.heure_debut, s\.role/.test(FN) && !/interval '\d+ (minutes?|hours?)'/.test(FN));
 verifier('on compte des quarts, jamais des durées',
   !/heure_fin|duree|extract\s*\(\s*epoch/i.test(SANS_COMMENTAIRE));
-verifier('quatre états', ['dominant', 'aucune_dominante', 'historique_insuffisant', 'non_applicable'].every(e => FN.includes(`'${e}'`)));
+verifier('cinq états', ['dominant', 'aucune_dominante', 'dernier_poste', 'historique_insuffisant', 'non_applicable'].every(e => FN.includes(`'${e}'`)));
+verifier('aucune prise : historique insuffisant ; 1 à 4 : dernier poste',
+  /if v_total = 0 then\s*return query select null::text, 0, 0, 'historique_insuffisant'/.test(FN)
+  && /elsif v_total < 5 then[\s\S]*?'dernier_poste'/.test(FN));
+const DERNIER = FN.slice(FN.indexOf('elsif v_total < 5'), FN.indexOf("'dernier_poste'"));
+verifier('le dernier poste applique les mêmes filtres que le comptage',
+  ["interval '90 days'", 'site-fantome-test', "s.statut in ('en_cours', 'clos_sans_pointage', 'termine')",
+   "s.confirmed_by in ('employe', 'manager')", "s.role in ('pompiste', 'caissiere', 'renfort')"].every(f => DERNIER.includes(f))
+  && /order by s\.heure_debut desc/.test(DERNIER));
+verifier('contrôle de fin : la définition installée connaît dernier_poste', /v_def !~ 'dernier_poste'/.test(sql));
 verifier('droits : public et anon révoqués, authenticated accordé',
   /revoke all on function public\.poste_le_plus_frequent\(uuid\) from public;/.test(sql)
   && /revoke all on function public\.poste_le_plus_frequent\(uuid\) from anon;/.test(sql)
@@ -69,22 +82,33 @@ verifier('une migration additive : aucune table, colonne ni politique touchée',
 
 // ── Écran ─────────────────────────────────────────────────────────────────
 const T_CHARGER = corps(page, 'async function chargerPosteFrequent(');
-const T_NOTE = corps(page, 'function noteFrequence(');
+const T_LIB = corps(page, 'function libelleFrequence(');
 const T_RENDER = corps(page, 'function renderChoixRole(');
 const T_ROLES = corps(page, 'function rolesDisponibles(');
 
 verifier('l\'écran appelle la fonction en lecture', /nexusClient\.rpc\('poste_le_plus_frequent'\)/.test(T_CHARGER));
 verifier('un échec de lecture rend null : aucun badge, écran utilisable',
   /catch \(e\) \{\s*return null;/.test(T_CHARGER) && /if \(error \|\|/.test(T_CHARGER));
-verifier('badge « Poste le plus fréquent — n sur N » pour le seul poste dominant',
-  /pf && r\.value === pf\.poste/.test(T_RENDER) && /Poste le plus fréquent — \$\{pf\.retenus\} sur \$\{pf\.eligibles\}/.test(T_RENDER)
-  && /posteFrequent\.etat === 'dominant'/.test(T_RENDER));
-verifier('« Aucune dominante » et « Historique insuffisant » affichés',
-  /Aucune dominante/.test(T_NOTE) && /Historique insuffisant/.test(T_NOTE));
-verifier('managers (non_applicable) : rien d\'affiché', !/non_applicable/.test(T_NOTE) && /return '';\s*\}$/.test(T_NOTE));
+verifier('dominant : « Poste le plus fréquent, n sur N »',
+  /pf\.etat === 'dominant'\) return `Poste le plus fréquent, \$\{pf\.retenus\} sur \$\{pf\.eligibles\}`/.test(T_LIB));
+verifier('1 à 4 prises : « Dernier poste »', /pf\.etat === 'dernier_poste'\) return 'Dernier poste'/.test(T_LIB));
+verifier('égalité, aucun historique, manager, état inconnu : rien',
+  !/aucune_dominante|historique_insuffisant|non_applicable/.test(T_LIB) && /return '';\s*\}$/.test(T_LIB)
+  && !/Aucune dominante|Historique insuffisant/.test(page));
+verifier('le badge se pose sous le seul rôle concerné',
+  /const badge = libelleFrequence\(posteFrequent\)/.test(T_RENDER) && /badge && r\.value === posteFrequent\.poste/.test(T_RENDER));
+verifier('aucun tiret cadratin dans le badge', !/—/.test(T_LIB) && !/role-suggestion">[^<]*—/.test(page));
 verifier('aucune présélection : le rôle part de rien et vient du seul clic',
   /let roleChoisi = null;/.test(page) && (T_RENDER.match(/roleChoisi\s*=/g) || []).length === 1);
 verifier('rolesDisponibles() ne dépend pas du poste fréquent', !/posteFrequent|poste_le_plus_frequent/.test(T_ROLES));
 verifier('l\'ancien badge « Rôle habituel » a disparu', !/Rôle habituel/.test(page));
+// Lot C (arbitrage du 16/10/2026) : tous sont employés polyvalents, l'écran
+// propose un LIEU. Les valeurs techniques ne changent pas.
+verifier('les lieux s\'affichent : Piste, Boutique, Renfort ; valeurs inchangées',
+  /\{ value: 'pompiste',\s+label: 'Piste',/.test(page)
+  && /\{ value: 'caissiere', label: 'Boutique',/.test(page)
+  && /\{ value: 'renfort',\s+label: 'Renfort',/.test(page)
+  && !/label: '(Pompiste|Caissière|Caisse|Renfort opérationnel)'/.test(page));
+verifier('la question parle du lieu', /'Où travaillez-vous pour ce quart \?'/.test(page));
 
 console.log(`\n${passes} vérifications OK`);
