@@ -529,9 +529,13 @@
       "consomme_le": "2026-10-15T18:02:46.227Z"
     },
     "NEXUS-QUART-QUALIF-20261016": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "e5b12ae4f1d04dd5f96bae7556859187fd59ccc4",
+      "consomme_le": "2026-10-16T10:44:17.790Z"
     }
   },
   "artefacts_hors_registre": [
