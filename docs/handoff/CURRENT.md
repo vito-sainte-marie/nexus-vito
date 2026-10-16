@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-FUSION-LOTC-20261016/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-RECETTE-LOTC-20261016/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-CONSIGNATION-FUSION-LOTC-20261016
+lot_id: NEXUS-CONSIGNATION-RECETTE-LOTC-20261016
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -20,36 +20,28 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 154-fichiers
-  - id: merge-fusion-133
-    classe: VERIFIED
-    valeur: 3a014991eb19bd228af4d74cf5ea1a64a1bcda1b
-  - id: deploiement-pages
-    classe: VERIFIED
-    valeur: run 38963505885 success
+  - id: recette-declaree
+    classe: DECLARED
+    valeur: recette navigateur validee par Frederic le 16/10/2026
 ---
-# Consignation — fusion de #133 et déploiement Production du 16/10/2026 (lot C, « Dernier poste »)
+# Consignation — recette navigateur humaine du lot C (« Dernier poste »), 16/10/2026
 
-Auteur : Claude. Cette demande **consigne des faits déjà accomplis** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
+Auteur : Claude. Cette demande **consigne un fait déclaré par Frédéric** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
 
 ## Pourquoi un lot distinct
 
-Le lot `NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016` est clos (decision-1 APPROVED, `closes: true`, consommée) : on n'y ajoute rien. Il consignait la migration seule ; ce lot consigne la suite prévue par l'ordre du dossier de promotion (`docs/deploiement/promotion-dernier-poste-production-20261016.md` §3, étape 4).
+Le lot `NEXUS-CONSIGNATION-FUSION-LOTC-20261016` est clos (decision-1 APPROVED, `closes: true`, consommée) et listait la recette humaine parmi ce que le dépôt ne dit pas. On n'y ajoute rien : ce lot comble ce point.
 
 ## Faits
 
-- Autorisations de Frédéric en session, le 16/10/2026 : « si ok go fusion » (conditionnée à une CI verte du rail sur `346e80fd`), puis « si fusion go deploiement et active l'auto merge ».
-- Condition remplie avant la fusion : CI du rail verte sur `346e80fd` (run « Tests » 38963038283, `non-regression` réussi).
-- Fusion : PR #133 fusionnée dans `production` le 2026-10-16T20:36:48Z, commit de fusion `3a014991eb19bd228af4d74cf5ea1a64a1bcda1b`, méthode merge commit, avec `--match-head-commit faa0a9d9dee5a496c1b3e2c5a7b7fceab99defcc` (état `CLEAN`, tous les contrôles passés). `production` passe de `d4c271fe` à `3a014991`.
-- Auto-merge : **non activé**. Demandé par Frédéric, mais sans objet : la PR était déjà `CLEAN` avec tous les contrôles passés, donc fusionnée directement.
-- Déploiement : le push sur `production` a lancé « Déploiement Production (GitHub Pages) » (run 38963505885). Le job « Construire et éprouver l'artefact » est passé ; « Déployer sur GitHub Pages » attendait l'approbation de l'environnement `github-pages`. Cette approbation a été donnée par Claude, avec le GO de déploiement de Frédéric en commentaire. Run terminé en succès à 20:46:54Z. Le run « Tests » (38963506025) du même commit est réussi.
-- Contrôle du contenu servi (lecture seule) : `https://app.nexusconseil.net/NEXUS-Prise-De-Poste-v1.html` répond 200 et contient « Dernier poste » et `dernier_poste`. La page servie diffère du fichier du dépôt par la réécriture des balises `<script>` faite au déploiement ; elle n'a pas été comparée ligne à ligne au-delà de ce point.
-- Ordre respecté : migration (consignée dans le lot précédent) avant le code.
+- Le 16/10/2026, en session, Frédéric a écrit : « recette navigateur validée ». Cette déclaration est postérieure à la fusion de #133 (`3a014991`) et au déploiement Pages (run 38963505885, succès).
+- La recette a été faite par Frédéric lui-même sur le site réel ; Claude n'a saisi aucun identifiant et n'a pas conduit cette recette.
+- Cette consignation reprend la déclaration telle quelle : Claude ne l'a pas mesurée.
 
 ## Ce que ce dépôt ne dit pas
 
-- La recette navigateur humaine du site réel n'est pas faite : cas < 5 prises (« Dernier poste »), cas « dominant » du lot B, changement de quart.
-- La preuve de l'empreinte de l'artefact servi n'a pas été mesurée au-delà du contrôle ci-dessus.
-- Le registre de migrations de Production n'a pas été relu après le déploiement.
+- Le détail des cas passés n'a pas été fourni : le message ne dit pas lesquels de ces cas ont été joués (moins de 5 prises « Dernier poste » ; cas « dominant » du lot B ; changement de quart ; lot A). La validation est donc consignée comme globale, sans détail par cas.
+- Aucune capture, aucun relevé de base ni empreinte ne l'accompagne.
 - Aucune autre autorisation de fusion, déploiement ou mutation Production n'existe.
 
 ## Question posée
