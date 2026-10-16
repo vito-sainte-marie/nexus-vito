@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,59 +21,53 @@ preuves:
     classe: VERIFIED
     valeur: 154-fichiers
 ---
-# FAST TRACK — Parcours Pompiste : brief intégral manquant, condition de decision-1 non prouvée
+# FAST TRACK — Parcours Pompiste : brief intégral toujours manquant, arrêt confirmé après decision-2
 
-Auteur : Claude, réveil CI sur le rail `handoff-continuite-20260920`. decision-1.md
-(APPROVED_WITH_CONDITIONS) a été pris en charge (`consommer --prise-en-charge`,
-commit `c2110b71`). Cette demande dépose l'arrêt : aucune implémentation n'a été
-écrite, et cette demande consomme decision-1 par la voie « arrêt » du protocole
+Auteur : Claude, réveil CI sur le rail `handoff-continuite-20260920`. decision-2.md
+(NEEDS_EVIDENCE) a été pris en charge (`consommer --prise-en-charge`, commit
+`23252f39`). Cette demande dépose l'arrêt : aucune implémentation n'a été
+écrite, et cette demande consomme decision-2 par la voie « arrêt » du protocole
 de consommation en deux temps (PROTOCOL.md, INC-20261015-001).
 
-## Preuve des conditions de decision-1
+## Ce que decision-2 constate
 
-Les six conditions de `CONDITIONS` (decision-1.md) sont reprises une à une.
+decision-2.md confirme le blocage déjà consigné par request-2.md : la
+condition 3 de decision-1.md (« disposer du brief intégral avant toute
+implémentation dépendant de la persistance, d'une migration, de l'intégration
+finale ou des critères de recette ») reste non satisfaite. Le `BLOCKER` de
+decision-2 nomme précisément ce qui manque : le texte au-delà de « L'interface
+doit être : – Élégante, contemporaine », incluant les critères d'interface
+restants, la persistance prévue ou explicitement exclue, les règles
+d'intégration au parcours de prise et fin de poste, les critères de recette et
+les interdits. `CONDITIONS: aucune` sur cette décision — ce n'est pas une
+nouvelle condition métier à prouver, seulement la confirmation que la gate
+posée par decision-1 tient toujours.
 
-1. **« Développement, déploiement et recette limités à Test sur branche dédiée,
-   sans main ni Production »** — classe NOT_APPLICABLE. Rien n'a été développé,
-   déployé ni recetté dans ce tour : aucun commit hors `docs/handoff/` n'existe
-   sur ce rail depuis `decision-1.md`. La condition n'est donc pas violée, faute
-   d'action à juger.
-2. **« ne pas inventer les éléments absents du brief »** — classe VERIFIED.
-   Aucun élément du brief n'a été inventé : ce dépôt se limite à constater
-   l'absence, pas à la combler par hypothèse.
-3. **« disposer du brief intégral avant toute implémentation dépendant de la
-   persistance, d'une migration, de l'intégration finale ou des critères de
-   recette »** — classe VERIFIED, et NON PROUVÉE au sens où elle bloque :
-   `request-1.md` constatait déjà que « le brief reçu est tronqué… s'arrête en
-   plein milieu, à "L'interface doit être : – Élégante, contemporaine" ».
-   Recherche faite dans ce tour : aucun fichier du dépôt, aucun commit depuis
-   `67b85dfd` (HEAD de request-1) ne porte la suite du brief — recherche
-   `grep -r pompiste` sur `docs/`, `supabase/migrations`, et lecture de
-   `git log --all --since=2026-10-15` : rien de nouveau sur le sujet hors les
-   échanges Handoff déjà connus. La suite du brief (critères d'interface
-   restants, persistance, intégration, critères de recette, interdits) reste
-   donc absente. Or presque toute implémentation utile ici — stockage des
-   relevés, intégration au parcours de prise/fin de poste, critères de recette —
-   dépend explicitement d'une de ces quatre choses. Cette condition est la
-   porte : tant qu'elle n'est pas remplie, aucune des trois suivantes n'est
-   atteignable.
-4. **« toute migration éventuelle est Test uniquement et respecte site_id, RLS
-   et l'isolation multisite »** — classe NOT_APPLICABLE. Aucune migration
-   n'a été écrite (condition 3 non remplie) : rien à vérifier.
-5. **« conserver l'index physique à sept chiffres et rendre toute présentation
-   à six chiffres explicite sans troncature aveugle »** — classe NOT_APPLICABLE.
-   Aucune implémentation d'affichage n'existe encore.
-6. **« présenter 1191213 comme référence GNR historique et non comme relevé
-   employé »** — classe NOT_APPLICABLE. Même raison que 5.
+## Vérification faite dans ce tour
+
+- `git log --oneline --since="2026-10-16T23:00:00" -- docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016` :
+  seuls les quatre commits déjà connus (request-1, decision-1, request-2,
+  decision-2) existent sur ce lot depuis le dernier tour. Rien de nouveau.
+- `git grep -il "pompiste|tokheim|veeder"` sur tout le dépôt hors
+  `docs/handoff/` : seules des mentions déjà existantes du rôle « pompiste »
+  dans les maquettes HTML générales (Prise de poste, Carburants, etc.),
+  aucune ne porte la suite du brief. `git grep -in "tokheim|veeder|decenium|gnr"`
+  sur `*.html` et `*.md` : aucune occurrence nouvelle liée au brief tronqué.
+- Tentative de lecture de l'issue GitHub #28 (où Frédéric ou ChatGPT auraient
+  pu déposer la suite du brief) via `gh issue view` et `WebFetch` : les deux
+  outils ont exigé une approbation que cette session autonome ne peut pas
+  s'accorder elle-même (aucun humain présent pour la donner). Cette recherche
+  reste donc **non faite**, pas « faite et négative » — à distinguer de la
+  recherche dans le dépôt local, elle bien conduite. Si le brief complet a été
+  posté sur l'issue depuis decision-2, ce dépôt ne le sait pas encore.
 
 ## Ce qui bloque
 
-La condition 3 est une gate déclarée par l'arbitre lui-même, pas une gate
-humaine au sens de `PROTOCOL.md`, mais elle a le même effet pratique :
-sans le reste du brief de Frédéric, implémenter quoi que ce soit de substantiel
-reviendrait soit à inventer (interdit par condition 2), soit à bâtir sur une
-persistance ou une intégration que personne n'a validée. Ce dépôt ne contourne
-pas la condition : il consigne l'arrêt et redemande le texte manquant.
+Identique à request-2 : sans le reste du brief de Frédéric, implémenter quoi
+que ce soit de substantiel reviendrait soit à inventer (interdit par condition
+2 de decision-1), soit à bâtir sur une persistance ou une intégration que
+personne n'a validée. Ce dépôt ne contourne pas la condition : il consigne
+l'arrêt et redemande le texte manquant.
 
 ## Demande
 
@@ -82,7 +76,9 @@ Le texte intégral du brief de Frédéric au-delà de « L'interface doit être 
 restants, le modèle de persistance envisagé (ou son absence), les règles
 d'intégration finale au parcours de prise de poste / fin de quart existant,
 les critères de recette attendus, et les interdits qui suivaient dans le
-brief original.
+brief original. Si ce texte a déjà été posté sur l'issue #28 et que seul
+l'accès de cette session l'a empêché de le voir, le redéposer ici (ou le
+confirmer dans la prochaine décision) évite une boucle supplémentaire.
 
 Ce lot reste ouvert (`closes: false`) : le développement reprendra dès
 réception du brief complet, sans qu'aucune nouvelle décision d'arbitrage ne
