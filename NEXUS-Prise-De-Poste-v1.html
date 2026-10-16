@@ -219,13 +219,13 @@
    * donc sur un seul poste, et « Pompiste » comme « Caissière » lui étaient
    * retirés. Elle ne pouvait plus prendre son poste en piste.
    *
-   * LA RÈGLE, arbitrée le 18/09/2026 : employees.role est le rôle HABITUEL,
-   * préférentiel, jamais l'unique poste possible. La matrice des rôles du
-   * jour est donc :
-   *     fiche renfort            → renfort, pompiste, caissiere
-   *     fiche pompiste           → pompiste, renfort
-   *     fiche caissier/caissiere → caissiere, renfort
+   * LA RÈGLE, arbitrée le 15/10/2026 (remplace celle du 18/09) : tous les
+   * employés opérationnels sont polyvalents. employees.role n'est plus
+   * qu'un rôle HABITUEL (badge « Rôle habituel »), il ne restreint plus le
+   * choix du jour :
+   *     fiche non manager        → pompiste, caissiere, renfort
    *     fiche manager/gerant     → tous les rôles existants
+   *     fiche inconnue/absente   → pompiste, caissiere, renfort + anomalie
    * Le poste de manager n'est JAMAIS proposé à qui n'est ni manager ni
    * gérant : c'est la seule ligne de cette matrice qui touche aux
    * permissions, et elle ne bouge pas.
@@ -238,21 +238,12 @@
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
     if (estManager) return ROLES;
     const admin = (employeeCourant && employeeCourant.role) || '';
-    const sien = ROLE_ADMIN_VERS_JOUR[admin];
-    // Rôle administratif inconnu de la table : on ne devine pas, et on ne
-    // referme pas non plus la porte au point d'empêcher la prise de poste.
-    // On rend l'ancienne liste et on le dit, plutôt que de bloquer.
-    if (!sien) {
-      console.error('Prise de poste : rôle administratif « ' + admin + ' » inconnu, aucun filtrage appliqué.');
-      return ROLES.filter(r => r.value !== 'manager');
+    // Rôle administratif inconnu de la table : la porte reste ouverte aux
+    // trois fonctions opérationnelles, jamais au manager, et on le dit.
+    if (!ROLE_ADMIN_VERS_JOUR[admin]) {
+      console.error('Prise de poste : rôle administratif « ' + admin + ' » inconnu, trois fonctions opérationnelles proposées.');
     }
-    // La matrice vit ICI, dans la fonction : les épreuves extraient cette
-    // fonction seule et l'exécutent en bac à sable. Une constante posée au
-    // dehors serait introuvable à l'exécution du test.
-    const ouverts = sien === 'renfort'
-      ? ['renfort', 'pompiste', 'caissiere']
-      : [sien, 'renfort'];
-    return ROLES.filter(r => ouverts.indexOf(r.value) !== -1);
+    return ROLES.filter(r => r.value !== 'manager');
   }
 
   // A3 / C2-3 (05/09/2026) — le cas le plus lourd de conséquences des six :
