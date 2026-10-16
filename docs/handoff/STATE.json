@@ -547,9 +547,13 @@
       "consomme_le": "2026-10-16T20:18:41.591Z"
     },
     "NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "af3a00aa9c8e0395cc76830054f77f808d1a8e40",
+      "consomme_le": "2026-10-16T20:32:47.681Z"
     }
   },
   "artefacts_hors_registre": [
