@@ -1,14 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-RECETTE-LOTC-20261016/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-CONSIGNATION-RECETTE-LOTC-20261016
+lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
-token_mode: LEAN
+token_mode: STANDARD
 wake_to: ChatGPT
 preuves:
   - id: refs-protegees
@@ -20,30 +20,35 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 154-fichiers
-  - id: recette-declaree
-    classe: DECLARED
-    valeur: recette navigateur validee par Frederic le 16/10/2026
 ---
-# Consignation — recette navigateur humaine du lot C (« Dernier poste »), 16/10/2026
+# FAST TRACK — Parcours Pompiste : relevés piste, jaugeage Veeder-Root et recopie Decenium
 
-Auteur : Claude. Cette demande **consigne un fait déclaré par Frédéric** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
+Auteur : Claude. Cette demande porte un **GO Test donné par Frédéric le 16/10/2026** (« GO développement + déploiement Test + recette »). Elle n'ouvre aucun geste Production, aucune fusion dans `main`, aucun secret, aucune permission GitHub.
 
-## Pourquoi un lot distinct
+## Pourquoi cette demande attend en file
 
-Le lot `NEXUS-CONSIGNATION-FUSION-LOTC-20261016` est clos (decision-1 APPROVED, `closes: true`, consommée) et listait la recette humaine parmi ce que le dépôt ne dit pas. On n'y ajoute rien : ce lot comble ce point.
+Le lot `NEXUS-CONSIGNATION-RECETTE-LOTC-20261016` occupe le registre (request-1 poussée en `893c4684`, décision de l'arbitre attendue). Un seul lot actif à la fois : cette demande est donc rangée dans `docs/handoff/en-attente/` et sera publiée par `consommer` à la fermeture de ce lot.
 
-## Faits
+## Faits (brief de Frédéric, reçu tel quel)
 
-- Le 16/10/2026, en session, Frédéric a écrit : « recette navigateur validée ». Cette déclaration est postérieure à la fusion de #133 (`3a014991`) et au déploiement Pages (run 38963505885, succès).
-- La recette a été faite par Frédéric lui-même sur le site réel ; Claude n'a saisi aucun identifiant et n'a pas conduit cette recette.
-- Cette consignation reprend la déclaration telle quelle : Claude ne l'a pas mesurée.
+- Maquette de référence : Artifact Claude `Lf1EmVZXrTot2S6pm3u2TR` (écrans « Mon quart » et « Index et jauges pour Decenium ») — lue par Claude le 16/10, aucune modification.
+- Périmètre : NEXUS — ViTO Sainte-Marie Usine, environnement **Test** uniquement ; intégration au parcours existant de prise de poste et de fin de quart du pompiste, pas une application isolée.
+- Principe fondamental : NEXUS est un carnet numérique d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence ; NEXUS ne calcule pas les ventes, ne modifie pas Decenium et ne prétend pas vérifier ce qui y est enregistré.
+- Quatre pompes Tokheim, deux totalisateurs à sept rouleaux chacune. Disposition physique (gauche/droite) : P1 GO/SP, P2 SP/GO, P3 GO/SP, P4 SP/GO. Decenium attend, par pompe, SP puis GO, puis GNR, en six chiffres : conserver la valeur observée (sept chiffres), sécuriser la présentation à six chiffres sans supprimer aveuglément un chiffre significatif.
+- GNR hors service, dernier index de référence connu 1191213 : jamais présenté comme un relevé physique de l'employé.
+- Moments de relevé : fin de quart 1, début de quart 2, fin de quart 2. Fin Q1 et début Q2 identiques ou très proches. Le matin : jaugeage des cuves (Veeder-Root TLS4B, « Aperçu Citerne »), quatre réservoirs ; recopie attendue SP, GO (somme des deux cuves GO) et GNR. La somme GO est une préparation de recopie, pas un calcul de ventes ni une écriture comptable.
+- Décision validée : OCR sur photographie du Veeder-Root (PaddleOCR a lu 20 valeurs sur 20), saisie manuelle des index de pompes (2 sur 8 lus sur les Tokheim). Aucun OCR payant, abonnement ou API facturée à l'usage.
+- Le relevé se fait distribution interrompue ; respecter les procédures de sécurité de la piste et les règles d'usage des appareils.
+- Philosophie : accompagnement naturel, pas de succession de formulaires, missions, scores ou validations administratives ; interface élégante, contemporaine…
 
 ## Ce que ce dépôt ne dit pas
 
-- Le détail des cas passés n'a pas été fourni : le message ne dit pas lesquels de ces cas ont été joués (moins de 5 prises « Dernier poste » ; cas « dominant » du lot B ; changement de quart ; lot A). La validation est donc consignée comme globale, sans détail par cas.
-- Aucune capture, aucun relevé de base ni empreinte ne l'accompagne.
-- Aucune autre autorisation de fusion, déploiement ou mutation Production n'existe.
+- **Le brief reçu est tronqué** : il s'arrête en plein milieu, à « L'interface doit être : – Élégante, contemporaine ». Les critères d'interface, de persistance, d'intégration, de recette et les interdits qui suivaient ne sont pas connus de Claude. Claude les a redemandés à Frédéric ; il ne les invente pas.
+- Aucune table existante pour les index de pompes ni les jauges n'a été trouvée (recherche dans `supabase/migrations`) : l'enregistrement éventuel est une décision ouverte, qui impliquerait une migration **sur Test seulement**.
+- Aucune mesure de l'OCR par Claude ; les chiffres PaddleOCR sont ceux du brief.
 
 ## Question posée
 
-Prendre acte de cette consignation et clore le lot (`closes: true`). Aucun geste Production n'est demandé.
+1. Prendre acte du GO Test et qualifier le périmètre : développement sur branche dédiée + déploiement Test + recette, **sans** Production ni `main`.
+2. Confirmer que toute migration éventuelle reste limitée à Test et exige le brief complet avant d'être écrite.
+3. Ne pas fermer le lot (`closes: false`) : le développement suit, une fois le brief complet reçu.
