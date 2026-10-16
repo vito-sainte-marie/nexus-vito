@@ -1,77 +1,63 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-QUART-QUALIF-20261016/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-MIGRATIONS-20261016/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-QUART-QUALIF-20261016
+lot_id: NEXUS-CONSIGNATION-MIGRATIONS-20261016
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
-token_mode: STANDARD
+token_mode: LEAN
 wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=55285d8b production=c775e128
+    valeur: main=55285d8b production=d4c271fe
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 151-fichiers
-  - id: sha-candidat
-    classe: VERIFIED
-    valeur: a06c2c15ae27a13681ad5a2c1cb3ffed6b11540b sur lot-changement-de-quart-20261016 (PR 131)
-  - id: blob-migration
+    valeur: 153-fichiers
+  - id: blob-quart
     classe: VERIFIED
     valeur: d7ac18acd2cb8b82d606f52e6c35ac71346df4e2
-  - id: md5-declencheur-production
+  - id: blob-poste-frequent
     classe: VERIFIED
-    valeur: 1888968bc2138557fab6d10601a1715f
-  - id: ci-pr131
+    valeur: e256f0421daea4c132b302768a6a592907d68d68
+  - id: registre-production
     classe: VERIFIED
-    valeur: artefact vert, non-regression vert, Cloudflare vert sur a06c2c15
-  - id: epreuves
-    classe: VERIFIED
-    valeur: Node 25 OK mutation-testee; SQL 24/24 sous rollback sur Test
+    valeur: 314 apres 20261016090000, 315 apres 20261016120000
 ---
-# Demande de verdict — qualification de la migration `20261016090000` (changement de quart atomique)
+# Consignation — migrations Production du 16/10/2026 (changement de quart, poste le plus fréquent)
 
-Auteur : Claude. Arbitre attendu : ChatGPT ou Frédéric. Claude ne s'arbitre pas.
+Auteur : Claude. Cette demande **consigne des faits déjà accomplis** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
 
-**Qualification soumise au verdict Handoff. Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de déploiement en Production.**
+## Pourquoi un lot distinct
 
-## Objet
+Le lot `NEXUS-QUART-QUALIF-20261016` est clos (decision-1, `closes: true`) : on n'y ajoute rien. L'application de la migration en Production n'avait été consignée ni sur le rail ni sur #28 (relevé de Frédéric, 16/10). Ce lot comble ce trou.
 
-Soumettre au verdict la qualification `atomique_ou_procedure_speciale` de la migration `supabase/migrations/20261016090000_changement_de_quart_atomique.sql` dans `docs/deploiement/qualification-ordre-migration-code.json`, avec sa procédure de promotion `docs/deploiement/promotion-changement-de-quart-production-20261016.md`. La garde `outils/garde-ordre-migration-code.js` n'est ni modifiée ni affaiblie.
+## Faits
 
-## Où est le dossier
+### `20261016090000_changement_de_quart_atomique.sql` (PR #131)
+- Appliquée en Production `uzhjpqpctpvxytxpxoqz` sur « go migration Production » de Frédéric, **avant** la fusion de la PR #131 (ordre migration, contrôles, puis code, conforme à la procédure `docs/deploiement/promotion-changement-de-quart-production-20261016.md` §3).
+- Chemin : connecteur Supabase `execute_sql`, une transaction (`begin;` + migration + insert dans `supabase_migrations.schema_migrations` + `commit;`), jamais `apply_migration`.
+- Préflight en lecture seule conforme (fonction absente, md5 du déclencheur P-1 `1888968bc2138557fab6d10601a1715f`).
+- Contrôles après : `nexus_changer_de_quart` présente, SECURITY INVOKER, `anon` fermé, `authenticated` ouvert ; le déclencheur lit `nexus.changement_quart_employe` ; `shifts` = 309 lignes et `en_cours` = 6, inchangés ; registre à 314.
+- Blob de la migration qualifié : `d7ac18acd2cb8b82d606f52e6c35ac71346df4e2`.
+- Limite d'honnêteté : l'heure exacte d'inscription au registre n'est pas lisible ; l'ordre repose sur la séquence des gestes de la session, pas sur un horodatage mesuré.
 
-- PR #131 (base `production`), branche `lot-changement-de-quart-20261016`, commit **a06c2c15ae27a13681ad5a2c1cb3ffed6b11540b** (commits du lot : 98d9c74a, a552d550, a06c2c15). Rien n'est fusionné.
-- Blob de la migration : `d7ac18acd2cb8b82d606f52e6c35ac71346df4e2` (un blob différent fait tomber la qualification).
-- Mesure Production du 16/10/2026, lecture seule : `nexus_changer_de_quart` absente ; `nexus_shifts_avant_insertion` en définition P-1, md5 `1888968bc2138557fab6d10601a1715f` ; un seul trigger BEFORE INSERT sur `shifts` ; 313 migrations enregistrées.
+### `20261016120000_poste_le_plus_frequent.sql` (lot B, PR #132)
+- Appliquée en Production sur « go migration Production pour le lot B », avant la fusion de la PR #132 (merge `d4c271fe`, sur « go fusion de la PR #132 »), puis déploiement Pages sur « go déploiement de la PR #132 » (run 38894862888, réussi).
+- Même chemin `execute_sql`, une transaction ; registre 315 ; `pg_proc public.poste_le_plus_frequent` présente, SECURITY INVOKER, `anon` fermé, `authenticated` ouvert.
+- Blob : `e256f0421daea4c132b302768a6a592907d68d68`. Fiche de qualification `additive_compatible_avant_code` dans `qualification-ordre-migration-code.json`.
 
-## Pourquoi cet état
+## Ce que ce dépôt ne dit pas
 
-La garde additive a refusé la fiche (`CIBLE_DEJA_DEPENDANTE`) : la migration remplace `nexus_shifts_avant_insertion`, déjà nommée par le code de la cible. Faux positif : la fonction préexiste et l'ancien code (INSERT direct) traverse le déclencheur sans variable de transaction, donc avec le comportement P-1 (épreuve SQL cas 9). Le risque réel est un remplacement de fonction de déclencheur à ordre strict (migration, contrôles, puis code), d'où une procédure spéciale plutôt que « additive pure ».
-
-## Preuves
-
-- CI de la PR #131 sur a06c2c15 : « Construire et éprouver l'artefact » vert, non-regression vert, Cloudflare vert. PR toujours BLOCKED par la protection de `production`.
-- Épreuve Node `test_changement_de_quart_20261016.js` : 25 OK, mutation-testée.
-- Épreuve SQL sous rollback sur Test : 24/24. Migration appliquée sur Test seulement.
-- Recette navigateur humaine sur Test : à faire, aucun identifiant saisi par Claude.
-
-## Limites assumées
-
-Les quarts clos par `employe` après promotion ne sont pas rouverts par un retour arrière (procédure §5). La qualification périme si le blob change.
+- Il ne constate pas la recette navigateur humaine du changement de quart (conditions de decision-1) : elle reste à la charge de Frédéric.
+- Il n'autorise aucune migration, fusion ni déploiement supplémentaire.
 
 ## Question posée
 
-1. La qualification `atomique_ou_procedure_speciale` avec cette procédure est-elle acceptée comme état de la fiche, sans modifier la garde ?
-2. Conditions éventuelles avant qu'un GO de migration Production puisse être demandé à Frédéric (recette Test humaine, etc.).
-
-## Ce que ce verdict ne donne pas
-
-Aucune migration Production, aucune fusion de la PR #131, aucun déploiement. Ces trois gestes exigent un GO distinct de Frédéric.
+Prendre acte de cette consignation et clore le lot (`closes: true`). Aucune autre décision n'est attendue.
