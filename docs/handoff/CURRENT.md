@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-MIGRATIONS-20261016/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-CONSIGNATION-MIGRATIONS-20261016
+lot_id: NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -20,44 +20,36 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 153-fichiers
-  - id: blob-quart
+  - id: blob-lotc
     classe: VERIFIED
-    valeur: d7ac18acd2cb8b82d606f52e6c35ac71346df4e2
-  - id: blob-poste-frequent
-    classe: VERIFIED
-    valeur: e256f0421daea4c132b302768a6a592907d68d68
+    valeur: 46804ad69135ed3072002658fbe0cdf35fcbc61f
   - id: registre-production
     classe: VERIFIED
-    valeur: 314 apres 20261016090000, 315 apres 20261016120000
+    valeur: 316 apres 20261016150000
 ---
-# Consignation — migrations Production du 16/10/2026 (changement de quart, poste le plus fréquent)
+# Consignation — migration Production du 16/10/2026 (lot C, « Dernier poste »)
 
-Auteur : Claude. Cette demande **consigne des faits déjà accomplis** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
+Auteur : Claude. Cette demande **consigne un fait déjà accompli** ; elle ne demande aucune autorisation de geste Production et n'en donne aucune.
 
 ## Pourquoi un lot distinct
 
-Le lot `NEXUS-QUART-QUALIF-20261016` est clos (decision-1, `closes: true`) : on n'y ajoute rien. L'application de la migration en Production n'avait été consignée ni sur le rail ni sur #28 (relevé de Frédéric, 16/10). Ce lot comble ce trou.
+Le lot `NEXUS-CONSIGNATION-MIGRATIONS-20261016` est clos (decision-1 APPROVED, `closes: true`) : on n'y ajoute rien. Ce lot consigne l'application de la migration du lot C.
 
 ## Faits
 
-### `20261016090000_changement_de_quart_atomique.sql` (PR #131)
-- Appliquée en Production `uzhjpqpctpvxytxpxoqz` sur « go migration Production » de Frédéric, **avant** la fusion de la PR #131 (ordre migration, contrôles, puis code, conforme à la procédure `docs/deploiement/promotion-changement-de-quart-production-20261016.md` §3).
-- Chemin : connecteur Supabase `execute_sql`, une transaction (`begin;` + migration + insert dans `supabase_migrations.schema_migrations` + `commit;`), jamais `apply_migration`.
-- Préflight en lecture seule conforme (fonction absente, md5 du déclencheur P-1 `1888968bc2138557fab6d10601a1715f`).
-- Contrôles après : `nexus_changer_de_quart` présente, SECURITY INVOKER, `anon` fermé, `authenticated` ouvert ; le déclencheur lit `nexus.changement_quart_employe` ; `shifts` = 309 lignes et `en_cours` = 6, inchangés ; registre à 314.
-- Blob de la migration qualifié : `d7ac18acd2cb8b82d606f52e6c35ac71346df4e2`.
-- Limite d'honnêteté : l'heure exacte d'inscription au registre n'est pas lisible ; l'ordre repose sur la séquence des gestes de la session, pas sur un horodatage mesuré.
-
-### `20261016120000_poste_le_plus_frequent.sql` (lot B, PR #132)
-- Appliquée en Production sur « go migration Production pour le lot B », avant la fusion de la PR #132 (merge `d4c271fe`, sur « go fusion de la PR #132 »), puis déploiement Pages sur « go déploiement de la PR #132 » (run 38894862888, réussi).
-- Même chemin `execute_sql`, une transaction ; registre 315 ; `pg_proc public.poste_le_plus_frequent` présente, SECURITY INVOKER, `anon` fermé, `authenticated` ouvert.
-- Blob : `e256f0421daea4c132b302768a6a592907d68d68`. Fiche de qualification `additive_compatible_avant_code` dans `qualification-ordre-migration-code.json`.
+- Migration `20261016150000_poste_dernier_sous_seuil.sql` (PR #133, blob `46804ad69135ed3072002658fbe0cdf35fcbc61f`) appliquée en Production `uzhjpqpctpvxytxpxoqz` le 16/10/2026, après l'instruction explicite de Frédéric « go migration Production pour le lot C ».
+- Geste : connecteur Supabase `execute_sql`, une seule transaction (`begin` + DDL + insertion dans `supabase_migrations.schema_migrations` + `commit`). `apply_migration` non utilisé.
+- Préflight (lecture seule) conforme : registre 315, empreinte md5 de `poste_le_plus_frequent` = `d8d429a18a28c3c7913aa37a096be79d`, quarts 310, `en_cours` 6.
+- Post-contrôles (lecture seule) : registre 316 et ligne présente ; SECURITY INVOKER ; STABLE ; la définition contient `dernier_poste` ; `anon` sans EXECUTE ; `authenticated` avec EXECUTE ; quarts 310 et `en_cours` 6 inchangés.
+- Ordre respecté : migration **avant** tout code. La PR #133 n'est **pas fusionnée**, Pages n'est **pas déployé**, `production` reste à `d4c271fe`.
+- Qualification : `docs/deploiement/qualification-ordre-migration-code.json` (état `atomique_ou_procedure_speciale`) et dossier `docs/deploiement/promotion-dernier-poste-production-20261016.md` ; CI de #133 verte sur `faa0a9d9`.
 
 ## Ce que ce dépôt ne dit pas
 
-- Il ne constate pas la recette navigateur humaine du changement de quart (conditions de decision-1) : elle reste à la charge de Frédéric.
-- Il n'autorise aucune migration, fusion ni déploiement supplémentaire.
+- L'horodatage exact de l'enregistrement au registre n'a pas été relu.
+- La recette navigateur humaine n'est pas faite.
+- Aucune autorisation de fusion ni de déploiement n'existe. Tant que le code n'est pas déployé, l'ancien code Production n'affiche rien pour l'état `dernier_poste`.
 
 ## Question posée
 
-Prendre acte de cette consignation et clore le lot (`closes: true`). Aucune autre décision n'est attendue.
+Prendre acte de cette consignation et clore le lot (`closes: true`). Aucun geste Production n'est demandé.
