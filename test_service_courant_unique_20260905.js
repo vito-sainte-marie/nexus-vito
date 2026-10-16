@@ -61,10 +61,15 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
       if (/from\('shifts'\)/.test(ligne)) lectures.push(`${f}:${i + 1}`);
     });
   }
-  // Trois FICHIERS légitimes et trois seulement :
+  // Deux FICHIERS légitimes et deux seulement :
   //   nexus-auth.js                  → la primitive, et elle seule
-  //   NEXUS-Prise-De-Poste-v1.html   → l'unique insert
   //   NEXUS-Missions-v1.html         → l'historique comparable, jamais le service courant
+  //
+  // Changement de quart (16/10/2026) : NEXUS-Prise-De-Poste-v1.html ne touche
+  // plus `shifts` du tout. Sa prise de poste passe par la fonction SQL
+  // nexus_changer_de_quart(), qui clôture l'ancien quart et ouvre le nouveau
+  // dans une seule transaction. Le fichier a donc DISPARU de cette liste : un
+  // retour à un `from('shifts')` dans la page rougirait ici, comme ailleurs.
   //
   // L'assertion portait sur le NOMBRE DE LIGNES (3). Le 16/09/2026, la
   // primitive a gagné un second accès — l'UPDATE de clôture des services
@@ -76,7 +81,7 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
   // primitive le LIT.
   const fichiers = [...new Set(lectures.map(l => l.split(':')[0]))].sort();
   assert.deepStrictEqual(fichiers,
-    ['NEXUS-Missions-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'nexus-auth.js'],
+    ['NEXUS-Missions-v1.html', 'nexus-auth.js'],
     'Neuf lectures devaient converger vers une primitive :\n  ' + lectures.join('\n  '));
 
   // UNE SEULE LECTURE RÉPOND À LA QUESTION DU SERVICE COURANT — et c'est

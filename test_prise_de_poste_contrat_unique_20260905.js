@@ -110,18 +110,24 @@ verifier('aucun trigger de clôture ne survit en double', () => {
     'laisser la fonction sans trigger créerait un second chemin de clôture, mort mais réactivable');
 });
 
-// L'écran est l'autre moitié du contrat : c'est parce qu'il n'envoie que
-// `site` que la normalisation doit précéder. Si cela change un jour, ce test
-// le dira plutôt que de laisser la migration raisonner sur une hypothèse
-// périmée.
-verifier('l’écran de prise de poste envoie toujours site sans site_id', () => {
+// L'écrivain est l'autre moitié du contrat : c'est parce qu'il n'envoie que
+// `site` que la normalisation doit précéder. Depuis le changement de quart
+// (16/10/2026), l'écran n'insère plus : il appelle nexus_changer_de_quart(),
+// dont l'INSERT est l'écrivain. Si l'un ou l'autre envoie un jour `site_id`,
+// ce test le dira plutôt que de laisser la migration raisonner sur une
+// hypothèse périmée.
+verifier('l’écrivain de la prise de poste envoie toujours site sans site_id', () => {
   const ecran = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
-  const i = ecran.indexOf(".from('shifts').insert({");
-  assert.ok(i !== -1, 'insertion du service introuvable');
-  const bloc = ecran.slice(i, ecran.indexOf('});', i));
-  assert.ok(/site:\s*employeeCourant\.site_id/.test(bloc), 'l’écran envoie site');
-  assert.ok(!/\bsite_id:/.test(bloc),
-    'l’écran n’envoie pas site_id — c’est l’hypothèse dont dépend l’ordre de normalisation');
+  assert.ok(!/\.from\('shifts'\)\s*\.insert/.test(ecran),
+    'l’écran n’insère plus dans shifts : tout passe par nexus_changer_de_quart');
+  assert.ok(/\.rpc\('nexus_changer_de_quart'/.test(ecran), 'l’écran appelle nexus_changer_de_quart');
+  const mig = fs.readFileSync(path.join(RACINE, 'supabase/migrations/20261016090000_changement_de_quart_atomique.sql'), 'utf8');
+  const i = mig.indexOf('insert into public.shifts (');
+  assert.ok(i !== -1, 'insertion du service introuvable dans la fonction');
+  const bloc = mig.slice(i, mig.indexOf(';', i));
+  assert.ok(/\bsite\b[^_]/.test(bloc.split('values')[0]), 'la fonction envoie site');
+  assert.ok(!/\bsite_id\b/.test(bloc.split('values')[0]),
+    'la fonction n’envoie pas site_id — c’est l’hypothèse dont dépend l’ordre de normalisation');
 });
 
 console.log(`\n${passes} vérifications passées — la prise de poste ne dépend plus d’un ordre alphabétique.`);

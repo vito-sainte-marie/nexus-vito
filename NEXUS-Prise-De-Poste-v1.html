@@ -450,37 +450,91 @@
     }
   }
 
+  // CHANGEMENT DE QUART (16/10/2026) — la prise de poste passe par UNE
+  // fonction SQL transactionnelle, nexus_changer_de_quart(), qui clôture le
+  // quart ouvert ET enregistre le nouveau en une seule opération : si elle
+  // échoue, l'ancien quart reste ouvert. La page ne clôture jamais rien
+  // elle-même.
+  //
+  // Premier appel SANS confirmation : si un quart est déjà ouvert, la base
+  // n'écrit rien et répond « confirmation_requise ». L'écran prévient alors
+  // que la clôture est définitive ; seule une confirmation volontaire
+  // renvoie l'appel avec p_cloture_confirmee = true. Choisir une fonction,
+  // ou annuler, n'écrit jamais rien.
+  const MOTIF_RELEVE = 'Relève absente ou en retard';
+
+  async function appelerChangementDeQart(confirmee, motif) {
+    return nexusClient.rpc('nexus_changer_de_quart', {
+      p_role: roleChoisi,
+      p_quart: quartDuMoment(),
+      p_motif: motif || null,
+      p_cloture_confirmee: !!confirmee,
+    });
+  }
+
+  function renderConfirmationChangement(quartOuvert) {
+    const ancien = roleInfo(quartOuvert && quartOuvert.role);
+    const nouveau = roleInfo(roleChoisi);
+    document.getElementById('titre').textContent = 'Un quart est déjà ouvert';
+    document.getElementById('sousTitre').textContent = 'Confirmez avant de changer de quart.';
+    document.getElementById('content').innerHTML = `
+      <div class="warning-securite" id="avertissementChangement">⚠️ <b>Votre quart en cours (${ancien.label}) sera clôturé définitivement.</b> Vous ne pourrez pas le rouvrir depuis votre espace. Votre nouvelle prise de poste (${nouveau.label}) sera enregistrée dans la même opération ; si elle échoue, votre quart en cours reste ouvert. Vos missions et justificatifs du jour sont conservés.</div>
+      <label class="stat-label" for="motifChangement">Motif (facultatif)</label>
+      <select id="motifChangement" style="width:100%;margin:6px 0 10px;padding:10px;">
+        <option value="">Aucun motif</option>
+        <option value="releve">${MOTIF_RELEVE}</option>
+        <option value="autre">Autre motif justifié…</option>
+      </select>
+      <input type="text" id="motifAutre" maxlength="200" placeholder="Précisez le motif" style="display:none;width:100%;margin-bottom:10px;padding:10px;box-sizing:border-box;">
+      <button class="btn-primary" id="btnConfirmerChangement">Clôturer mon quart et prendre mon poste</button>
+      <button class="btn-text" id="btnAnnulerChangement">Annuler</button>
+    `;
+    const sel = document.getElementById('motifChangement');
+    const autre = document.getElementById('motifAutre');
+    sel.addEventListener('change', () => { autre.style.display = sel.value === 'autre' ? 'block' : 'none'; });
+    document.getElementById('btnAnnulerChangement').addEventListener('click', () => renderResume());
+    document.getElementById('btnConfirmerChangement').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmerChangement');
+      btn.disabled = true;
+      btn.textContent = 'Changement de quart…';
+      let motif = null;
+      if (sel.value === 'releve') motif = MOTIF_RELEVE;
+      else if (sel.value === 'autre') motif = (autre.value || '').trim() || null;
+      await terminerPriseDePoste(await appelerChangementDeQart(true, motif), () => {
+        btn.disabled = false;
+        btn.textContent = 'Clôturer mon quart et prendre mon poste';
+      });
+    });
+  }
+
+  async function terminerPriseDePoste(reponse, reactiver) {
+    const { data, error } = reponse;
+    if (error || !data || data.ok !== true) {
+      console.error('Confirmation prise de poste:', error || data);
+      alert('Un problème est survenu, réessayez. Votre quart en cours n\'a pas été modifié.');
+      reactiver();
+      return;
+    }
+    // L'identifiant de CET événement de prise de poste est ce qui relie le
+    // quart FDJ à sa cause (voir ouvrirQuartFdjDepuisPriseDePoste).
+    await ouvrirQuartFdjDepuisPriseDePoste(data.prise_de_poste_id);
+    renderFinal();
+  }
+
   async function confirmerPriseDePoste() {
     const btn = document.getElementById('btnConfirmer');
     btn.disabled = true;
     btn.textContent = 'Confirmation…';
 
-    const quart = quartDuMoment();
-    // `.select('id').single()` — l'identifiant de CET événement de prise de
-    // poste est ce qui relie le quart FDJ à sa cause. Sans lui, l'ouverture
-    // FDJ devrait redeviner qui prend son poste, où et pour quel quart : c'est
-    // exactement ce que la refonte supprime.
-    const { data: priseDePoste, error } = await nexusClient.from('shifts').insert({
-      employee_id: employeeCourant.id,
-      role: roleChoisi,
-      role_prevu: employeeCourant.role,
-      confirmed_by: 'employe',
-      quart,
-      site: employeeCourant.site_id,
-      statut: 'en_cours',
-    }).select('id').single();
-
-    if (error) {
-      console.error('Confirmation prise de poste:', error);
-      alert('Un problème est survenu, réessayez.');
-      btn.disabled = false;
-      btn.textContent = 'Confirmer ma prise de poste';
+    const reponse = await appelerChangementDeQart(false, null);
+    if (!reponse.error && reponse.data && reponse.data.code === 'confirmation_requise') {
+      renderConfirmationChangement(reponse.data.quart_ouvert);
       return;
     }
-
-    await ouvrirQuartFdjDepuisPriseDePoste(priseDePoste && priseDePoste.id);
-
-    renderFinal();
+    await terminerPriseDePoste(reponse, () => {
+      btn.disabled = false;
+      btn.textContent = 'Confirmer ma prise de poste';
+    });
   }
 
   function renderFinal() {
