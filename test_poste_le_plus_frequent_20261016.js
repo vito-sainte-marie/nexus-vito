@@ -102,5 +102,8 @@ verifier('aucune présélection : le rôle part de rien et vient du seul clic',
   /let roleChoisi = null;/.test(page) && (T_RENDER.match(/roleChoisi\s*=/g) || []).length === 1);
 verifier('rolesDisponibles() ne dépend pas du poste fréquent', !/posteFrequent|poste_le_plus_frequent/.test(T_ROLES));
 verifier('l\'ancien badge « Rôle habituel » a disparu', !/Rôle habituel/.test(page));
+// Lot C : libellé neutre, la valeur technique 'caissiere' ne change pas.
+verifier('le poste de caisse s\'affiche « Caisse », valeur caissiere inchangée',
+  /\{ value: 'caissiere', label: 'Caisse',/.test(page) && !/label: 'Caissière'/.test(page));
 
 console.log(`\n${passes} vérifications OK`);
