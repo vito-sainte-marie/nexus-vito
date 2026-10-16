@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-BOUCLE-CONTRAT-1-20261015/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-QUART-QUALIF-20261016/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: NEXUS-BOUCLE-CONTRAT-1-20261015
-seq: 2
+lot_id: NEXUS-QUART-QUALIF-20261016
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,48 +13,65 @@ wake_to: ChatGPT
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=dea3ae73 production=d6a97a47
+    valeur: main=55285d8b production=c775e128
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 151-fichiers
-  - id: commit-correctif
+  - id: sha-candidat
     classe: VERIFIED
-    valeur: 03fb26ec sur incident/INC-20261015-001
-  - id: epreuves-avant-apres
+    valeur: a06c2c15ae27a13681ad5a2c1cb3ffed6b11540b sur lot-changement-de-quart-20261016 (PR 131)
+  - id: blob-migration
     classe: VERIFIED
-    valeur: tour-vide 4/13 puis 14/14; suites de reference exit=0; reconciler 16/16
+    valeur: d7ac18acd2cb8b82d606f52e6c35ac71346df4e2
+  - id: md5-declencheur-production
+    classe: VERIFIED
+    valeur: 1888968bc2138557fab6d10601a1715f
+  - id: ci-pr131
+    classe: VERIFIED
+    valeur: artefact vert, non-regression vert, Cloudflare vert sur a06c2c15
+  - id: epreuves
+    classe: VERIFIED
+    valeur: Node 25 OK mutation-testee; SQL 24/24 sous rollback sur Test
 ---
-# Retour d'exécution — lot 1 (tour vide et consommation après action), INC-20261015-001
+# Demande de verdict — qualification de la migration `20261016090000` (changement de quart atomique)
 
-Le correctif est sur `incident/INC-20261015-001`, commit 03fb26ec (poussé). Rien n'est fusionné, ni sur le rail, ni sur `main`, ni sur `production`. `claude.yml` n'est pas modifié : le patch est préparé dans `docs/handoff/propositions/INC-20261015-001-claude-yml-lot1.patch` (88 lignes) et reste à appliquer par Frédéric.
+Auteur : Claude. Arbitre attendu : ChatGPT ou Frédéric. Claude ne s'arbitre pas.
 
-## Preuve des conditions de decision-1
+**Qualification soumise au verdict Handoff. Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de déploiement en Production.**
 
-1. **Uniquement sur `incident/INC-20261015-001`, sans fusion ni modification de `main`/`production`.** Respecté : un seul commit (03fb26ec) sur cette branche, aucun merge. Ce dépôt de retour est la seule écriture sur le rail.
-2. **Réutiliser `ATTENTE_CONSOMMATION_DECISION` comme prise en charge, lecteurs adaptés.** `outils/handoff.js` : `consommer <lot> --prise-en-charge` écrit ce statut. `outils/reveil-handoff.js` : motif `PRISE_EN_CHARGE`, sans réveil en boucle. `outils/watchdog-stagnation.js` : continuation `PRISE_EN_CHARGE` (60 min). `outils/garde-boucle-autonome.js` : `evaluerTourVide`. `etat-deploiement.js` le mappait déjà. `rapatrier-vers-rail.js`, `materialiser-decision-ci.js`, `relancer-claude-ci.js` et le reconciler n'ont pas été modifiés : leurs suites sont vertes.
-3. **Interdire `DECISION_CONSOMMEE` sans preuve d'action ou arrêt matérialisé.** `consommer <lot>` nu est refusé (`CONSOMMATION_SANS_PREUVE`), sauf `closes: true` ou `--cloture`. `--preuve-action <commit>` exige un commit hors `docs/handoff/`, ancêtre de HEAD. Une demande déposée pendant la prise en charge consomme atomiquement et consigne l'arrêt.
-4. **Faire échouer et signaler tout tour vide.** `TOUR_VIDE` : aucun fichier hors `docs/handoff/` et aucune nouvelle demande. Le tour échoue, pas de consommation, pas de relance identique (clé stable = sha256 du lot, de la décision, du rail et des opérations triées). Côté workflow : étape d'alerte Telegram dans le patch `claude.yml`, **non appliquée**.
-5. **Épreuves avant/après consignées, sans déclarer clos les scénarios dépendant des lots 2 ou 3.** Voir ci-dessous. Les scénarios 6, 7, 11 et 16 (en partie) ne sont pas déclarés clos.
-6. **Contre-exemples PROPRETE et RECONCILER préservés.** PROPRETE : une épreuve de `test_boucle_tour_vide_20261015.js` rejoue le cas d'un commit de travail réel (2a2f792e) et le tour reste valide. RECONCILER : recette du reconciler 16/16, code non modifié.
-7. **Aucune branche dédiée affectée à `github-actions-claude`.** Aucune ; le patch n'introduit pas de branche `lot/<id>` (lot 3, non autorisé).
+## Objet
 
-## Épreuves avant/après
+Soumettre au verdict la qualification `atomique_ou_procedure_speciale` de la migration `supabase/migrations/20261016090000_changement_de_quart_atomique.sql` dans `docs/deploiement/qualification-ordre-migration-code.json`, avec sa procédure de promotion `docs/deploiement/promotion-changement-de-quart-production-20261016.md`. La garde `outils/garde-ordre-migration-code.js` n'est ni modifiée ni affaiblie.
 
-- `test_boucle_tour_vide_20261015.js` : **4/13 avant le correctif, 14/14 après** (S15a renforcée).
-- Suites de référence, toutes à `exit=0` après correctif : handoff_v2, reveil_handoff, reveil_autosuffisant, boucle_autonome, garde_boucle_autonome, watchdog_stagnation, watchdog_orphelines, etat_deploiement, execution_recue, handoff_rail_actif, materialiser_decision_ci, rapatriement_lot_du_rail, continuite_bout_en_bout, enregistrer_incident, garde_preuve_conditions, handoff_file_en_attente, reconciler (16/16).
-- `test_relais_arbitre_openai_20261008*.js` : **aucun fichier trouvé** ; non exécuté.
-- `test_handoff_file_en_attente_20261007.js` B1 adapté : il consomme désormais par prise en charge, vrai commit et `--preuve-action` (8/8).
-- Mutations : les mutants sont rougis par les épreuves ; M2 n'était pas détecté, S15a a été renforcée et le mutant rougit.
+## Où est le dossier
 
-## Limites, risques et suite
+- PR #131 (base `production`), branche `lot-changement-de-quart-20261016`, commit **a06c2c15ae27a13681ad5a2c1cb3ffed6b11540b** (commits du lot : 98d9c74a, a552d550, a06c2c15). Rien n'est fusionné.
+- Blob de la migration : `d7ac18acd2cb8b82d606f52e6c35ac71346df4e2` (un blob différent fait tomber la qualification).
+- Mesure Production du 16/10/2026, lecture seule : `nexus_changer_de_quart` absente ; `nexus_shifts_avant_insertion` en définition P-1, md5 `1888968bc2138557fab6d10601a1715f` ; un seul trigger BEFORE INSERT sur `shifts` ; 313 migrations enregistrées.
 
-- Le correctif de `claude.yml` n'agit qu'une fois le patch appliqué sur `main` par Frédéric. Tant qu'il ne l'est pas, le prompt en vigueur consomme encore d'abord : le défaut n'est pas corrigé en production de la boucle.
-- Lots 2 (contrat opérations/capacités) et 3 (branches `lot/<id>`) : non autorisés, non commencés.
-- Défaut voisin, hors périmètre : `claude.yml` compte des lignes de refus (21) au lieu de refus (10).
-- Incident et règle : 2 lignes `TOUR_VIDE` dans `INCIDENTS.jsonl`, règle GOV-009 dans `RULES.json`, ligne `EXPERIENCE.jsonl`.
-- La consommation de decision-1 se fait ici par arrêt matérialisé : l'action est livrée sur la branche d'incident, mais son intégration attend l'arbitrage.
+## Pourquoi cet état
 
-Demande : valider le lot 1, et dire si le patch `claude.yml` peut être présenté à Frédéric pour application.
+La garde additive a refusé la fiche (`CIBLE_DEJA_DEPENDANTE`) : la migration remplace `nexus_shifts_avant_insertion`, déjà nommée par le code de la cible. Faux positif : la fonction préexiste et l'ancien code (INSERT direct) traverse le déclencheur sans variable de transaction, donc avec le comportement P-1 (épreuve SQL cas 9). Le risque réel est un remplacement de fonction de déclencheur à ordre strict (migration, contrôles, puis code), d'où une procédure spéciale plutôt que « additive pure ».
+
+## Preuves
+
+- CI de la PR #131 sur a06c2c15 : « Construire et éprouver l'artefact » vert, non-regression vert, Cloudflare vert. PR toujours BLOCKED par la protection de `production`.
+- Épreuve Node `test_changement_de_quart_20261016.js` : 25 OK, mutation-testée.
+- Épreuve SQL sous rollback sur Test : 24/24. Migration appliquée sur Test seulement.
+- Recette navigateur humaine sur Test : à faire, aucun identifiant saisi par Claude.
+
+## Limites assumées
+
+Les quarts clos par `employe` après promotion ne sont pas rouverts par un retour arrière (procédure §5). La qualification périme si le blob change.
+
+## Question posée
+
+1. La qualification `atomique_ou_procedure_speciale` avec cette procédure est-elle acceptée comme état de la fiche, sans modifier la garde ?
+2. Conditions éventuelles avant qu'un GO de migration Production puisse être demandé à Frédéric (recette Test humaine, etc.).
+
+## Ce que ce verdict ne donne pas
+
+Aucune migration Production, aucune fusion de la PR #131, aucun déploiement. Ces trois gestes exigent un GO distinct de Frédéric.
