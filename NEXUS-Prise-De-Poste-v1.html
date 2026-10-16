@@ -179,9 +179,9 @@
   // utilisé que si présent (voir renderResume) — seul le renfort en a un
   // pour l'instant.
   const ROLES = [
-    { value: 'pompiste',  label: 'Pompiste',  icon: 'icon-role-pompiste.png' },
-    { value: 'caissiere', label: 'Caisse',     icon: 'icon-role-caissiere.png' },
-    { value: 'renfort',   label: 'Renfort opérationnel', icon: 'icon-role-renfort.png', sousTitre: 'Le bon soutien, au bon endroit, au bon moment.' },
+    { value: 'pompiste',  label: 'Piste',     icon: 'icon-role-pompiste.png' },
+    { value: 'caissiere', label: 'Boutique',  icon: 'icon-role-caissiere.png' },
+    { value: 'renfort',   label: 'Renfort', icon: 'icon-role-renfort.png', sousTitre: 'Le bon soutien, au bon endroit, au bon moment.' },
     { value: 'manager',   label: 'Manager',    icon: 'icon-role-manager.png' },
   ];
 
@@ -352,7 +352,7 @@
 
   function renderChoixRole() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
-    document.getElementById('sousTitre').textContent = 'Quel est votre rôle pour ce quart ?';
+    document.getElementById('sousTitre').textContent = 'Où travaillez-vous pour ce quart ?';
 
     const badge = libelleFrequence(posteFrequent);
     const rolesAffiches = rolesDisponibles();

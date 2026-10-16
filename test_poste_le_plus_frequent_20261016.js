@@ -102,8 +102,13 @@ verifier('aucune présélection : le rôle part de rien et vient du seul clic',
   /let roleChoisi = null;/.test(page) && (T_RENDER.match(/roleChoisi\s*=/g) || []).length === 1);
 verifier('rolesDisponibles() ne dépend pas du poste fréquent', !/posteFrequent|poste_le_plus_frequent/.test(T_ROLES));
 verifier('l\'ancien badge « Rôle habituel » a disparu', !/Rôle habituel/.test(page));
-// Lot C : libellé neutre, la valeur technique 'caissiere' ne change pas.
-verifier('le poste de caisse s\'affiche « Caisse », valeur caissiere inchangée',
-  /\{ value: 'caissiere', label: 'Caisse',/.test(page) && !/label: 'Caissière'/.test(page));
+// Lot C (arbitrage du 16/10/2026) : tous sont employés polyvalents, l'écran
+// propose un LIEU. Les valeurs techniques ne changent pas.
+verifier('les lieux s\'affichent : Piste, Boutique, Renfort ; valeurs inchangées',
+  /\{ value: 'pompiste',\s+label: 'Piste',/.test(page)
+  && /\{ value: 'caissiere', label: 'Boutique',/.test(page)
+  && /\{ value: 'renfort',\s+label: 'Renfort',/.test(page)
+  && !/label: '(Pompiste|Caissière|Caisse|Renfort opérationnel)'/.test(page));
+verifier('la question parle du lieu', /'Où travaillez-vous pour ce quart \?'/.test(page));
 
 console.log(`\n${passes} vérifications OK`);
