@@ -187,6 +187,10 @@
 
   let employeeCourant = null;
   let roleChoisi = null;
+  // Lot B : poste le plus fréquent, lu en base (fonction poste_le_plus_frequent).
+  // null tant que non lu, ou si la lecture échoue : l'écran n'affiche alors
+  // aucun badge et reste pleinement utilisable.
+  let posteFrequent = null;
   let catalogue = [];
 
   function roleInfo(value) {
@@ -221,8 +225,7 @@
    *
    * LA RÈGLE, arbitrée le 15/10/2026 (remplace celle du 18/09) : tous les
    * employés opérationnels sont polyvalents. employees.role n'est plus
-   * qu'un rôle HABITUEL (badge « Rôle habituel »), il ne restreint plus le
-   * choix du jour :
+   * qu'une fiche (il ne restreint plus le choix du jour) :
    *     fiche non manager        → pompiste, caissiere, renfort
    *     fiche manager/gerant     → tous les rôles existants
    *     fiche inconnue/absente   → pompiste, caissiere, renfort + anomalie
@@ -230,9 +233,10 @@
    * gérant : c'est la seule ligne de cette matrice qui touche aux
    * permissions, et elle ne bouge pas.
    *
-   * Ce que cette fonction ne fait pas : elle ne choisit rien. Le rôle
-   * habituel reste une suggestion purement visuelle (le badge « Rôle
-   * habituel » de renderChoixRole), pas une présélection.
+   * Ce que cette fonction ne fait pas : elle ne choisit rien. Le poste le
+   * plus fréquent (lot B, badge de renderChoixRole, calculé par la fonction
+   * SQL poste_le_plus_frequent) reste une information purement visuelle, pas
+   * une présélection : il ne change ni cette liste ni les habilitations.
    */
   function rolesDisponibles() {
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
@@ -324,11 +328,34 @@
     return catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(role));
   }
 
+  // Lot B : lecture seule. Un échec n'empêche jamais la prise de poste.
+  async function chargerPosteFrequent() {
+    try {
+      const { data, error } = await nexusClient.rpc('poste_le_plus_frequent');
+      if (error || !Array.isArray(data) || !data[0]) return null;
+      return data[0];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Sans dominante nette, une ligne sobre sous la grille ; jamais de présélection.
+  function noteFrequence() {
+    if (!posteFrequent) return '';
+    if (posteFrequent.etat === 'aucune_dominante') {
+      return '<div class="role-suggestion" style="margin:10px 0;">Poste le plus fréquent — Aucune dominante</div>';
+    }
+    if (posteFrequent.etat === 'historique_insuffisant') {
+      return '<div class="role-suggestion" style="margin:10px 0;">Poste le plus fréquent — Historique insuffisant</div>';
+    }
+    return '';
+  }
+
   function renderChoixRole() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = 'Quel est votre rôle pour ce quart ?';
 
-    const suggestion = employeeCourant.role;
+    const pf = posteFrequent && posteFrequent.etat === 'dominant' ? posteFrequent : null;
     const rolesAffiches = rolesDisponibles();
     const html = `
       <div class="role-grid" id="roleGrid">
@@ -337,11 +364,12 @@
             <div class="role-icon"><img src="assets/icons/${r.icon}" alt=""></div>
             <div>
               <div class="role-name">${r.label}</div>
-              ${r.value === suggestion ? '<div class="role-suggestion">Rôle habituel</div>' : ''}
+              ${pf && r.value === pf.poste ? `<div class="role-suggestion">Poste le plus fréquent — ${pf.retenus} sur ${pf.eligibles}</div>` : ''}
             </div>
             <div class="role-check">✓</div>
           </div>`).join('')}
       </div>
+      ${noteFrequence()}
       <button class="btn-primary" id="btnVoirMissions" ${roleChoisi?'':'disabled'}>Voir mes missions</button>
     `;
     document.getElementById('content').innerHTML = html;
@@ -605,6 +633,7 @@
       return;
     }
     catalogue = await chargerCatalogue();
+    posteFrequent = await chargerPosteFrequent();
     renderChoixRole();
   });
 

@@ -142,12 +142,13 @@ const TOUS = new Function(TXT_ROLES + ';\nreturn ROLES.map(r => r.value);')();
   finally { console.error = vraiErreur; }
   verifier('une fiche connue n’émet aucune anomalie', bruit.length === 0);
 
-  // ── 6. Le rôle habituel reste une suggestion VISUELLE ──────────────────
+  // ── 6. Le poste le plus fréquent reste une information VISUELLE ──────────────────
   verifier('le rôle choisi part de rien : aucune présélection',
     /let roleChoisi = null;/.test(SRC));
-  verifier('la fiche n’alimente que le badge « Rôle habituel »',
-    /const suggestion = employeeCourant\.role;/.test(TXT_RENDER)
-    && /r\.value === suggestion \? '<div class="role-suggestion">Rôle habituel<\/div>' : ''/.test(TXT_RENDER));
+  verifier('le badge vient du poste le plus fréquent (lot B), jamais de la fiche',
+    /const pf = posteFrequent && posteFrequent\.etat === 'dominant' \? posteFrequent : null;/.test(TXT_RENDER)
+    && !/employeeCourant\.role/.test(TXT_RENDER)
+    && !/Rôle habituel/.test(TXT_RENDER));
   verifier('le rôle du jour ne peut venir que d’un clic de l’employée',
     (TXT_RENDER.match(/roleChoisi\s*=/g) || []).length === 1
     && /roleChoisi = el\.dataset\.role;/.test(TXT_RENDER));
