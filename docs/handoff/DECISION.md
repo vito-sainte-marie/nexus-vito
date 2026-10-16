@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/NEXUS-CONSIGNATION-FUSION-LOTC-20261016/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016
+lot_id: NEXUS-CONSIGNATION-FUSION-LOTC-20261016
 seq: 1
 author: ChatGPT
 branch: handoff-continuite-20260920
@@ -13,14 +13,14 @@ in_reply_to: request-1.md
 ---
 # Décision sur request-1.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38961993012), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6224058726. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38973892849), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6225661311. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `NEXUS-CONSIGNATION-FUSION-LOTC-20261016`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `575d26931124b90f458f87daa4ab361b12aee05e`, `HEAD` = `575d26931124b90f458f87daa4ab361b12aee05e`, SHA du run `575d26931124b90f458f87daa4ab361b12aee05e`, tête du rail `575d26931124b90f458f87daa4ab361b12aee05e`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `32367b95bb3f87613df067363c850ddbe54ccc45`, `HEAD` = `32367b95bb3f87613df067363c850ddbe54ccc45`, SHA du run `32367b95bb3f87613df067363c850ddbe54ccc45`, tête du rail `32367b95bb3f87613df067363c850ddbe54ccc45`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
@@ -30,18 +30,20 @@ _Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38961993012), post
 
 ## Texte de l'arbitre
 
-La consignation est approuvée et le lot peut être clos. Le geste Production est déjà accompli sous instruction explicite de Frédéric ; le présent arbitrage en prend acte sans autoriser de nouvelle mutation, fusion, promotion ou mise en Production. Application de l’acquis `DELEGATION_ARBITRE`.
+DECISION: APPROVED
 
-RAIL_LU: 575d26931124b90f458f87daa4ab361b12aee05e
+La consignation est cohérente avec les preuves déclarées et l’état du rail. Le mouvement de `production` est attribué à une fusion et un déploiement explicitement autorisés par Frédéric ; l’acquis `MOUVEMENT_REF_ATTRIBUE` s’applique. Les contrôles non réalisés sont correctement circonscrits et ne bloquent pas la clôture de ce lot de consignation. Cette décision n’autorise aucun nouveau geste en Production.
+
+RAIL_LU: 32367b95bb3f87613df067363c850ddbe54ccc45
 
 NEXT_ACTION_CONTRACT
 DECISION: APPROVED
 CLOSES: true
-LOT: NEXUS-CONSIGNATION-MIGRATION-LOTC-20261016
+LOT: NEXUS-CONSIGNATION-FUSION-LOTC-20261016
 REQUEST: request-1.md
-HEAD: 575d26931124b90f458f87daa4ab361b12aee05e
+HEAD: 32367b95bb3f87613df067363c850ddbe54ccc45
 LEASE: aucun
-GATE_STATE: G3, CI verte sur faa0a9d9
+GATE_STATE: G3, CI verte
 PROOF_STATE: PROOF_VALID
 CONDITIONS: aucune
 BLOCKER: aucun
@@ -49,4 +51,4 @@ STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision de clôture sur le rail avec outils/handoff.js decision --auteur ChatGPT.
+ACTION_NEXT: Matérialiser cette décision APPROVED avec clôture du lot sur le rail.
