@@ -165,8 +165,21 @@ const TOUS = new Function(TXT_ROLES + ';\nreturn ROLES.map(r => r.value);')();
     && (TXT_MAP.match(/:/g) || []).length === 4);
   verifier('le contrôle manager/gérant de la fiche est intact',
     /const estManager = employeeCourant\.role === 'manager' \|\| employeeCourant\.role === 'gerant';/.test(TXT_FN));
-  verifier('l’écriture du quart garde le rôle du jour et le rôle prévu séparés',
-    /role: roleChoisi,/.test(TXT_CONFIRM) && /role_prevu: employeeCourant\.role,/.test(TXT_CONFIRM));
+  // Changement de quart (16/10/2026) : l'écran envoie SEULEMENT le rôle du
+  // jour choisi (p_role). Le rôle prévu n'est plus écrit par le client : la
+  // fonction SQL le lit sur la fiche de l'employé (employees.role), de sorte
+  // qu'il ne peut ni être forgé ni se confondre avec le rôle du jour. La
+  // RLS (SECURITY INVOKER) continue de refuser Manager à qui n'y est pas
+  // habilité.
+  const MIGRATION_QUART = fs.readFileSync(path.join(RACINE,
+    'supabase/migrations/20261016090000_changement_de_quart_atomique.sql'), 'utf8');
+  const TXT_APPEL = extraire('async function appelerChangementDeQart(', '{', '}');
+  verifier('l’écran n’envoie que le rôle du jour, jamais le rôle prévu',
+    /p_role: roleChoisi,/.test(TXT_APPEL) && !/role_prevu/.test(TXT_APPEL)
+    && !/role_prevu/.test(TXT_CONFIRM));
+  verifier('la fonction écrit le rôle du jour et le rôle prévu (fiche) séparément',
+    /values \(v_uid, p_role, v_emp\.role,/.test(MIGRATION_QUART)
+    && /select e\.role, e\.site_id into v_emp from public\.employees e where e\.id = v_uid/.test(MIGRATION_QUART));
   verifier('rolesDisponibles reste le seul endroit qui filtre le catalogue',
     (SRC.match(/ROLES\.filter\(/g) || []).length === (TXT_FN.match(/ROLES\.filter\(/g) || []).length);
 

@@ -574,6 +574,19 @@ async function prendreLePoste(page, base) {
     await confirmer.waitFor({ timeout: 30000 });
     await confirmer.click();
 
+    // Quart déjà ouvert : l'écran avertit avant toute écriture (changement de
+    // quart du 16/10). La recette confirme explicitement, comme le ferait
+    // l'employé ; sans quart ouvert, ce bouton n'apparaît jamais.
+    const confirmerChangement = page.locator('#btnConfirmerChangement');
+    const titreFinal = page.locator('#titre').filter({ hasText: /Prise de poste confirmée/i });
+    await Promise.race([
+      confirmerChangement.waitFor({ timeout: 30000 }).catch(() => {}),
+      titreFinal.waitFor({ timeout: 30000 }).catch(() => {}),
+    ]);
+    if (await confirmerChangement.isVisible().catch(() => false)) {
+      await confirmerChangement.click();
+    }
+
     // On attend l'ÉVÉNEMENT voulu — le titre de l'écran final — et non un
     // délai. Un `waitForTimeout` transformerait une lenteur en échec, et c'est
     // exactement l'erreur déjà commise sur `connecter` le 07/09.

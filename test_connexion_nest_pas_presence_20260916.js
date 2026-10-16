@@ -284,7 +284,14 @@ function ecrituresDePresence(f) {
   const re = /from\('(shifts|pointages)'\)\s*\.\s*(insert|upsert)/g;
   let m;
   while ((m = re.exec(src))) positions.push({ position: m.index, table: m[1], verbe: m[2] });
-  return positions;
+  // Changement de quart (16/10/2026) : la prise de poste n'insère plus dans
+  // `shifts` depuis la page, elle appelle la fonction SQL transactionnelle
+  // qui clôture le quart ouvert ET ouvre le suivant. C'est la MÊME écriture
+  // de présence, portée par un autre appel : elle reste recensée, et donc
+  // soumise aux mêmes épreuves (jamais au chargement, toujours sur un geste).
+  const rpc = /\.rpc\(\s*'nexus_changer_de_quart'/g;
+  while ((m = rpc.exec(src))) positions.push({ position: m.index, table: 'shifts', verbe: 'rpc' });
+  return positions.sort((a, b) => a.position - b.position);
 }
 
 t('seuls deux écrans du dépôt écrivent une présence', () => {
@@ -457,8 +464,16 @@ t('cas 5 — seul le bouton de prise de poste ouvre un service', () => {
   const { fonctions, vues, parent } = atteignablesAuChargement(code);
   const e = ecrituresDePresence('NEXUS-Prise-De-Poste-v1.html')[0];
   const porteuse = fonctionContenant(fonctions, code.indexOf(src.slice(e.position, e.position + 60)));
-  assert.strictEqual(porteuse, 'confirmerPriseDePoste',
+  // La porteuse de l'appel est `appelerChangementDeQart`, que seuls deux
+  // gestes atteignent : le bouton de prise de poste (confirmerPriseDePoste)
+  // et le bouton de confirmation du changement de quart. Aucun des deux
+  // n'est appelé au chargement (vérifié ci-dessous et par l'épreuve des gestes).
+  assert.strictEqual(porteuse, 'appelerChangementDeQart',
     'l\'unique création de service a changé de porteuse : réexaminer son déclenchement');
+  assert.ok(!vues.has('confirmerPriseDePoste'),
+    'confirmerPriseDePoste est appelée au chargement. Chemin : ' + chemin(parent, 'confirmerPriseDePoste'));
+  assert.ok(!vues.has('renderConfirmationChangement'),
+    'renderConfirmationChangement est appelée au chargement');
   assert.ok(!vues.has(porteuse),
     'confirmerPriseDePoste est appelée au chargement. Chemin : ' + chemin(parent, porteuse));
   const cite = rappelsDe(code).some(r => r.type === 'click' && /confirmerPriseDePoste/.test(r.corps));
