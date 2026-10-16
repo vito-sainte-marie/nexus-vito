@@ -339,15 +339,14 @@
     }
   }
 
-  // Sans dominante nette, une ligne sobre sous la grille ; jamais de présélection.
-  function noteFrequence() {
-    if (!posteFrequent) return '';
-    if (posteFrequent.etat === 'aucune_dominante') {
-      return '<div class="role-suggestion" style="margin:10px 0;">Poste le plus fréquent — Aucune dominante</div>';
-    }
-    if (posteFrequent.etat === 'historique_insuffisant') {
-      return '<div class="role-suggestion" style="margin:10px 0;">Poste le plus fréquent — Historique insuffisant</div>';
-    }
+  // Lot C (16/10/2026) : un badge sous le seul rôle concerné, jamais de
+  // présélection. À partir de 5 prises de poste, le poste le plus fréquent ;
+  // de 1 à 4, le dernier poste pris. Égalité, aucun historique, manager ou
+  // état inconnu : rien.
+  function libelleFrequence(pf) {
+    if (!pf || !pf.poste) return '';
+    if (pf.etat === 'dominant') return `Poste le plus fréquent, ${pf.retenus} sur ${pf.eligibles}`;
+    if (pf.etat === 'dernier_poste') return 'Dernier poste';
     return '';
   }
 
@@ -355,7 +354,7 @@
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = 'Quel est votre rôle pour ce quart ?';
 
-    const pf = posteFrequent && posteFrequent.etat === 'dominant' ? posteFrequent : null;
+    const badge = libelleFrequence(posteFrequent);
     const rolesAffiches = rolesDisponibles();
     const html = `
       <div class="role-grid" id="roleGrid">
@@ -364,12 +363,11 @@
             <div class="role-icon"><img src="assets/icons/${r.icon}" alt=""></div>
             <div>
               <div class="role-name">${r.label}</div>
-              ${pf && r.value === pf.poste ? `<div class="role-suggestion">Poste le plus fréquent — ${pf.retenus} sur ${pf.eligibles}</div>` : ''}
+              ${badge && r.value === posteFrequent.poste ? `<div class="role-suggestion">${badge}</div>` : ''}
             </div>
             <div class="role-check">✓</div>
           </div>`).join('')}
       </div>
-      ${noteFrequence()}
       <button class="btn-primary" id="btnVoirMissions" ${roleChoisi?'':'disabled'}>Voir mes missions</button>
     `;
     document.getElementById('content').innerHTML = html;

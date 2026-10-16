@@ -1,4 +1,5 @@
--- Épreuve de public.poste_le_plus_frequent sur nexus-test (migration 20261016120000).
+-- Épreuve de public.poste_le_plus_frequent sur nexus-test (migration 20261016150000,
+-- qui remplace 20261016120000 : « dernier poste » de 1 à 4 prises).
 -- UNE transaction terminée par ROLLBACK : rien n'est persisté.
 -- Identités réelles de Test : A (caissier), B (pompiste), manager-test, angelique (vacataire).
 \set ON_ERROR_STOP 1
@@ -56,7 +57,7 @@ $$;
 -- A : 4 prises de poste -> insuffisant (4 < 5).
 select pg_temp.q(:'a'::uuid, d, 'caissiere') from generate_series(1, 4) d;
 select pg_temp.comme('authenticated', :'a'::uuid);
-select pg_temp.note('1 quatre prises : historique insuffisant', '-|0|4|historique_insuffisant', pg_temp.lire(null));
+select pg_temp.note('1 quatre prises : dernier poste', 'caissiere|0|4|dernier_poste', pg_temp.lire(null));
 reset role;
 -- 5e prise : dominant.
 select pg_temp.q(:'a'::uuid, 5, 'caissiere');
@@ -132,6 +133,18 @@ reset role;
 -- Aucune écriture : lecture seule (volatilité STABLE, pas de SECURITY DEFINER).
 select pg_temp.note('14 stable et invoker', 's|false',
   (select provolatile::text || '|' || prosecdef::text from pg_proc where oid = 'public.poste_le_plus_frequent(uuid)'::regprocedure));
+
+-- Lot C : moins de 5 prises, le DERNIER poste (pas le plus fréquent), mêmes filtres.
+select pg_temp.q(:'v'::uuid, d, 'caissiere') from generate_series(10, 11) d;
+select pg_temp.q(:'v'::uuid, 2, 'pompiste');
+select pg_temp.comme('authenticated', :'v'::uuid);
+select pg_temp.note('15 trois prises : le dernier, pas le plus fréquent', 'pompiste|0|3|dernier_poste', pg_temp.lire(null));
+reset role;
+select pg_temp.q(:'v'::uuid, 1, 'renfort', 'clos_sans_pointage', 'auto');
+select pg_temp.q(:'v'::uuid, 0, 'renfort', 'clos_sans_pointage', 'employe', 'site-fantome-test');
+select pg_temp.q(:'v'::uuid, 1, 'polyvalent');
+select pg_temp.comme('authenticated', :'v'::uuid);
+select pg_temp.note('16 exclusions sans effet sur le dernier poste', 'pompiste|0|3|dernier_poste', pg_temp.lire(null));
 
 reset role;
 \o
