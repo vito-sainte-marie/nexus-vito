@@ -154,10 +154,34 @@ epreuve('S15b — un tour vide (seul le registre a bougé) est reconnu, jamais u
 epreuve('S15c — un tour vide identique ne se relance pas', () => {
   const G = require(path.join(RACINE, 'outils', 'garde-boucle-autonome.js'));
   assert.strictEqual(typeof G.cleActionStable, 'function', 'cleActionStable absente');
-  const k = (o) => G.cleActionStable({ lot: LOT, decision: 'decision-1.md', rail: 'abc', ...o });
-  assert.strictEqual(k({}), k({}));
-  assert.notStrictEqual(k({}), k({ rail: 'def' }));
-  assert.notStrictEqual(k({}), k({ decision: 'decision-2.md' }));
+  const base = { lot: LOT, decision: 'decision-1.md', rail: 'abc' };
+  // Valeur figée : comparer k({}) à k({}) ne pouvait pas échouer (Guardian QA,
+  // attendu_calcule_par_le_meme_appel). Le littéral vient d'une exécution
+  // vérifiée à la main ; le changer exige de le décider.
+  const FIGEE = '6b3fbecbbe8587fa';
+  // Le même contrôle rejoue la vraie fonction et des mutants : il doit passer
+  // sur la première et échouer sur chacun des autres.
+  const controle = (f) => {
+    const k = (o) => f({ ...base, ...o });
+    assert.strictEqual(k({}), FIGEE, 'la clé n\'est plus la valeur figée');
+    assert.notStrictEqual(k({}), k({ rail: 'def' }));
+    assert.notStrictEqual(k({}), k({ decision: 'decision-2.md' }));
+    assert.strictEqual(k({ operations: ['b', 'a'] }), k({ operations: ['a', 'b'] }), 'l\'ordre des opérations compte');
+    assert.notStrictEqual(k({ operations: ['a'] }), k({ operations: ['b'] }));
+  };
+  controle(G.cleActionStable);
+  const mutants = {
+    'ignore le rail': (a) => G.cleActionStable({ ...a, rail: 'abc' }),
+    'ignore la décision': (a) => G.cleActionStable({ ...a, decision: 'decision-1.md' }),
+    'ignore les opérations': (a) => G.cleActionStable({ ...a, operations: [] }),
+    'sensible à l\'ordre des opérations': (a) => require('crypto').createHash('sha256')
+      .update([a.lot, a.decision, a.rail, (a.operations || []).join(',')].join('\n')).digest('hex').slice(0, 16),
+    'non déterministe': (a) => G.cleActionStable(a) + String(Math.random()),
+    'constante': () => FIGEE,
+  };
+  for (const [nom, f] of Object.entries(mutants)) {
+    assert.throws(() => controle(f), `le mutant « ${nom} » n'est pas détecté`);
+  }
 });
 epreuve('S15d — le watchdog connaît la prise en charge et nomme le tour vide (sans le relancer)', () => {
   const W = require(path.join(RACINE, 'outils', 'watchdog-stagnation.js'));
