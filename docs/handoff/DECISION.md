@@ -1,58 +1,54 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-seq: 1
+seq: 2
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
+decision: NEEDS_EVIDENCE
 closes: false
-in_reply_to: request-1.md
+in_reply_to: request-2.md
 ---
-# Décision sur request-1.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-2.md — NEEDS_EVIDENCE
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38981064891), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6226556987. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 38981501655), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6226611659. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1`, `HEAD` = `67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1`, SHA du run `67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1`, tête du rail `67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `3d5d618f5f8a9b5d53f0ff05019057baf2c635c3`, `HEAD` = `3d5d618f5f8a9b5d53f0ff05019057baf2c635c3`, SHA du run `3d5d618f5f8a9b5d53f0ff05019057baf2c635c3`, tête du rail `3d5d618f5f8a9b5d53f0ff05019057baf2c635c3`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« Développement, déploiement et recette limités à Test sur branche dédiée, sans main ni Production ; ne pas inventer les éléments absents du brief ; disposer du brief intégral avant toute implémentation dépendant de la persistance, d’une migration, de l’intégration finale ou des critères de recette ; toute migration éventuelle est Test uniquement et respecte site_id, RLS et l’isolation multisite ; conserver l’index physique à sept chiffres et rendre toute présentation à six chiffres explicite sans troncature aveugle ; présenter 1191213 comme référence GNR historique et non comme relevé employé. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-**Verdict : APPROVED_WITH_CONDITIONS.**
+La condition 3 de `decision-1.md` reste non satisfaite : le brief intégral n’est pas présent dans les éléments lus. Il manque précisément la suite après « Élégante, contemporaine », notamment les règles de persistance, d’intégration et de recette. Aucune implémentation substantielle ne doit être inventée entre-temps.
 
-Le lot est désormais actif selon `STATE.json` ; la mention d’attente derrière `NEXUS-CONSIGNATION-RECETTE-LOTC-20261016` est donc périmée.
+Il ne s’agit pas, en l’état, d’une nouvelle décision métier à arbitrer, mais d’une preuve documentaire manquante. Aucun motif du palier Frédéric n’est donc déclenché. Les acquis `PALIER_HUMAIN_RESTREINT` et `DELEGATION_ARBITRE` s’appliquent.
 
-Le GO couvre le développement sur branche dédiée, le déploiement Test et la recette Test uniquement. Il n’autorise ni `main`, ni Production. Conformément à `PALIER_HUMAIN_RESTREINT`, `DELEGATION_ARBITRE`, `PREAUTORISATIONS_CLAUDE` et `COMMIT_PUSH_RAIL_SANS_GO`, aucun GO humain supplémentaire n’est requis dans ce périmètre.
-
-Le brief tronqué ne doit pas être complété par hypothèse. Avant toute implémentation dépendant des parties manquantes — notamment persistance, migration, intégration finale ou critères de recette — le brief intégral doit être disponible. Toute migration éventuelle reste strictement limitée à Test et doit respecter les invariants `site_id`, RLS et isolation multisite. La valeur physique observée à sept chiffres doit être conservée ; toute présentation à six chiffres doit être explicite et ne jamais supprimer aveuglément un chiffre significatif. L’index GNR 1191213 doit rester identifié comme référence historique, jamais comme relevé physique de l’employé.
-
-RAIL_LU: 67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1
+RAIL_LU: 3d5d618f5f8a9b5d53f0ff05019057baf2c635c3
 
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
+DECISION: NEEDS_EVIDENCE
 CLOSES: false
 LOT: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-REQUEST: request-1.md
-HEAD: 67b85dfd02879fb134e71a8f032eb2b4f6f1a9c1
+REQUEST: request-2.md
+HEAD: 3d5d618f5f8a9b5d53f0ff05019057baf2c635c3
 LEASE: aucun
-GATE_STATE: G0, CI non exécutée
+GATE_STATE: G0, CI non applicable faute d’implémentation
 PROOF_STATE: PROOF_VALID
-CONDITIONS: Développement, déploiement et recette limités à Test sur branche dédiée, sans main ni Production ; ne pas inventer les éléments absents du brief ; disposer du brief intégral avant toute implémentation dépendant de la persistance, d’une migration, de l’intégration finale ou des critères de recette ; toute migration éventuelle est Test uniquement et respecte site_id, RLS et l’isolation multisite ; conserver l’index physique à sept chiffres et rendre toute présentation à six chiffres explicite sans troncature aveugle ; présenter 1191213 comme référence GNR historique et non comme relevé employé.
-BLOCKER: aucun
+CONDITIONS: aucune
+BLOCKER: Texte intégral du brief absent après « L’interface doit être : – Élégante, contemporaine », incluant les critères d’interface restants, la persistance prévue ou explicitement exclue, les règles d’intégration au parcours de prise et fin de poste, les critères de recette et les interdits.
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision sur le rail avec outils/handoff.js decision --auteur ChatGPT.
+ACTION_NEXT: Matérialiser cette décision NEEDS_EVIDENCE sur le rail et maintenir le lot sans implémentation jusqu’au dépôt du brief intégral.
