@@ -266,6 +266,7 @@
   function vueRecopie() {
     const lignes = R.ordreRecopieDecenium();
     const tous = lignes.filter(l => l.produit !== 'GNR').every(l => serveur.valeurs[`${l.pompe}-${l.produit}`] && serveur.valeurs[`${l.pompe}-${l.produit}`].recopiee);
+    const toutesCochees = tous;
     const corps = lignes.map(l => {
       if (l.produit === 'GNR') return `<div class="ligne gnr"><span class="n">GNR</span><span class="v">${R.GNR_INDEX_REFERENCE}</span><span class="pastille">hors service · référence</span></div>`;
       const k = `${l.pompe}-${l.produit}`, v = serveur.valeurs[k];
@@ -274,6 +275,7 @@
       return `<div class="ligne"><span class="n">P${l.pompe} ${l.produit}</span><span class="v">${c.valeurDecenium}<div class="conv">relevé : ${v.valeur_sept_chiffres}</div></span><input type="checkbox" aria-label="Recopiée dans Decenium" data-act="tick" data-id="${v.id}" ${v.recopiee ? 'checked' : ''}></div>`;
     }).join('');
     return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
+      ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
       <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
       <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>`;
   }
@@ -301,6 +303,15 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act;
     if (a === 'tick') return; // géré au change
+    if (a === 'toutcocher') {
+      b.disabled = true;
+      const aCocher = Object.values(serveur.valeurs).filter(v => !v.recopiee);
+      for (const v of aCocher) {
+        const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: v.id, p_recopiee: true });
+        if (error) { console.error(error); reseau.ok = false; break; } reseau.ok = true;
+      }
+      await chargerValeursServeur(); rendre(); return;
+    }
     if (a === 'jauge') { ecran = 'jauge'; rendre(); return; }
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); } rendre(); return; }
