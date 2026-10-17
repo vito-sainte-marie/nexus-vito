@@ -249,6 +249,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-releves-piste.js?v=20261017-1500"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -554,6 +555,33 @@
           <button class="btn btn-primary" id="sauvegarderRaccourcis" style="margin-top:14px;">Enregistrer mes raccourcis</button>
           <button class="btn btn-secondary" id="reinitialiserRaccourcis">Revenir à la sélection par défaut</button>
           <div class="saved-note" id="savedNoteRaccourcis">✓ Raccourcis enregistrés</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secPompesIndex">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">🔢</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Pompes et index</span>
+          <span class="psec-obj">Disposition des compteurs, tolérance et délai du relevé manquant (Journal Piste).</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+        <div class="card" id="cardPompesIndex">
+          <div class="section-label">Compteurs par pompe</div>
+          <div id="piPompes"></div>
+          <div class="section-label" style="margin-top:14px;">Seuils</div>
+          <div id="piSeuils"></div>
+          <div class="note" id="piVersion" style="margin-top:10px;"></div>
+          <div class="note" id="piErreurs" style="color:var(--red);"></div>
+          <label class="note" style="display:block;margin-top:10px;">Motif de la modification
+            <input type="text" id="piMotif" maxlength="200" style="width:100%;margin-top:4px;" placeholder="Ex. pompe 3 remplacée">
+          </label>
+          <button class="btn btn-primary" id="sauvegarderPompesIndex" style="margin-top:12px;">Enregistrer la configuration</button>
+          <div class="saved-note" id="savedNotePompesIndex">✓ Configuration enregistrée</div>
+          <div class="note">Chaque relevé garde la photographie de la configuration en vigueur. Une modification ne s'applique qu'aux relevés suivants.</div>
         </div>
       </div>
     </section>
@@ -3095,6 +3123,51 @@
     }
   });
 
+});
+</script>
+<script>
+// Pompes et index — lit la dernière version de carburant_index_config (repli : valeurs initiales),
+// valide comme le serveur, enregistre via enregistrer_config_piste (réservé manager/gérant du site).
+nexusRequireAuth().then(async employee => {
+  if (!employee || !window.NexusRelevesPiste) return;
+  const R = window.NexusRelevesPiste;
+  const $ = (id) => document.getElementById(id);
+  let cfg = JSON.parse(JSON.stringify(R.CONFIG_PISTE_DEFAUT)), version = null, enregistre = false;
+  const r = await nexusClient.from('carburant_index_config').select('config,version').eq('site', employee.site_id).order('version', { ascending: false }).limit(1);
+  if (!r.error && r.data && r.data[0]) { cfg = r.data[0].config; version = r.data[0].version; enregistre = true; }
+  $('piVersion').textContent = r.error ? 'Lecture impossible : valeurs initiales affichées, non enregistrées.' : enregistre ? 'Version ' + version + ' en vigueur.' : 'Aucune configuration enregistrée : valeurs initiales affichées.';
+  const num = (id, v, min, step) => '<input type="number" id="' + id + '" value="' + v + '" min="' + min + '" step="' + (step || 1) + '" style="width:80px;">';
+  const prods = (sel) => ['GO', 'SP'].map(x => '<option' + (x === sel ? ' selected' : '') + '>' + x + '</option>').join('');
+  function dessiner() {
+    $('piPompes').innerHTML = Object.keys(cfg.pompes).sort().map(p => { const c = cfg.pompes[p]; return '<div class="toggle-row"><div class="tr-text"><div class="tr-title">Pompe ' + p + '</div>' +
+      '<div class="tr-desc">Gauche <select data-p="' + p + '" data-k="gauche">' + prods(c.gauche) + '</select> · Droite <select data-p="' + p + '" data-k="droite">' + prods(c.droite) + '</select></div></div>' +
+      '<label class="toggle-switch"><input type="checkbox" data-p="' + p + '" data-k="enService"' + (c.enService ? ' checked' : '') + '><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div>'; }).join('');
+    $('piSeuils').innerHTML = '<div class="note">Litres par unité d\'index ' + num('piLitres', cfg.litresParUnite, 0, 'any') + '</div>' +
+      '<div class="note">Écart toléré jusqu\'à (L) ' + num('piTol', cfg.toleranceL, 0) + '</div>' +
+      '<div class="note">Intervention à partir de (L) ' + num('piSeuil', cfg.seuilL, 1) + '</div>' +
+      '<div class="note">Relevé manquant après (min) ' + num('piDelai', cfg.delaiReleveManquantMin, 1) + '</div>' +
+      '<div class="note">Chiffres compteur mécanique ' + num('piMeca', cfg.chiffres.mecanique, 1) + ' · Decenium ' + num('piDece', cfg.chiffres.decenium, 1) + '</div>';
+  }
+  function lire() {
+    const c = JSON.parse(JSON.stringify(cfg));
+    document.querySelectorAll('#piPompes [data-p]').forEach(el => { c.pompes[el.dataset.p][el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value; });
+    c.litresParUnite = Number($('piLitres').value); c.toleranceL = Number($('piTol').value); c.seuilL = Number($('piSeuil').value);
+    c.delaiReleveManquantMin = Number($('piDelai').value);
+    c.chiffres = { mecanique: Number($('piMeca').value), decenium: Number($('piDece').value) };
+    return c;
+  }
+  dessiner();
+  $('sauvegarderPompesIndex').addEventListener('click', async () => {
+    const c = lire(), pb = R.validerConfigPiste(c);
+    $('piErreurs').textContent = pb.join(' ');
+    if (pb.length) return;
+    const btn = $('sauvegarderPompesIndex'); btn.disabled = true;
+    const { data, error } = await nexusClient.rpc('enregistrer_config_piste', { p_config: c, p_motif: $('piMotif').value.trim() || null });
+    btn.disabled = false;
+    if (error) { $('piErreurs').textContent = 'Enregistrement refusé : ' + (error.message || 'erreur'); return; }
+    cfg = c; $('piVersion').textContent = 'Version ' + data + ' en vigueur.';
+    const n = $('savedNotePompesIndex'); n.style.display = 'block'; setTimeout(() => n.style.display = 'none', 3000);
+  });
 });
 </script>
 </body>

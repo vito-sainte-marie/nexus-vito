@@ -278,6 +278,39 @@
     return res(etat, null, lignes);
   }
 
+  // ---- Journal Piste : libellés et validation de la configuration (pur) ----
+  const LIBELLES_ETAT = {
+    conforme: 'Contrôlé conforme', tolere: 'Écart toléré', anomalie: 'Anomalie détectée',
+    non_controle: 'Non contrôlé — donnée manquante', impossible: 'Comparaison impossible',
+  };
+  // Un état inconnu n'est jamais présenté comme conforme.
+  const libelleEtat = (e) => LIBELLES_ETAT[e] || LIBELLES_ETAT.non_controle;
+  const LIBELLES_CHOIX = {
+    erreur_lecture: 'Erreur de lecture',
+    mouvement_confirme: 'Mouvement confirmé (déclaré par le manager)',
+    cause_inconnue: 'Cause inconnue',
+  };
+  // Même contrat que enregistrer_config_piste (le serveur reste l'autorité).
+  // Retourne la liste des problèmes ; vide = acceptable.
+  function validerConfigPiste(c) {
+    const pb = [];
+    if (!c || typeof c !== 'object') return ['Configuration absente.'];
+    if (!(Number(c.litresParUnite) > 0)) pb.push('Litres par unité d\'index : valeur positive requise.');
+    if (!(Number(c.toleranceL) >= 0)) pb.push('Tolérance : 0 ou plus.');
+    if (!(Number(c.seuilL) > Number(c.toleranceL))) pb.push('Le seuil d\'intervention doit dépasser la tolérance.');
+    const d = Number(c.delaiReleveManquantMin);
+    if (!(Number.isInteger(d) && d >= 1 && d <= 240)) pb.push('Délai du relevé manquant : 1 à 240 minutes.');
+    const pompes = c.pompes && typeof c.pompes === 'object' ? c.pompes : null;
+    if (!pompes || !Object.keys(pompes).length) pb.push('Aucune pompe configurée.');
+    else Object.keys(pompes).forEach(k => {
+      const p = pompes[k] || {};
+      if (!p.gauche || !p.droite || p.gauche === p.droite) pb.push('Pompe ' + k + ' : deux produits distincts requis.');
+    });
+    const ch = c.chiffres || {};
+    if (!(Number.isInteger(ch.mecanique) && ch.mecanique > 0) || !(Number.isInteger(ch.decenium) && ch.decenium > 0)) pb.push('Nombre de chiffres : entiers positifs requis.');
+    return pb;
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
@@ -286,6 +319,7 @@
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
     appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste, synthetiserJournee,
     CONFIG_PISTE_DEFAUT, comparerPassation,
+    LIBELLES_ETAT, libelleEtat, LIBELLES_CHOIX, validerConfigPiste,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;
