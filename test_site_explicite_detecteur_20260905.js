@@ -147,13 +147,20 @@ verifier('le dépôt réel donne le chiffre annoncé', () => {
     // la reconstitution manager, inchangée dans ce lot, écrit toujours un
     // littéral avec `site:` explicite et n'a donc jamais été comptée).
   //
-  // 17/10/2026, relevés piste (Test) : 47 → 48 et 36 → 37. NEXUS-Releves-Piste-v1.html
-  // insère les lignes de `carburant_index_valeurs` par une variable (`lignes`),
-  // ce que ce détecteur ne peut pas lire au travers (même faux positif
-  // structurel que les écritures FDJ ci-dessus). La table n'a pas de colonne
-  // `site` : le site est porté par le relevé parent `carburant_index_releves`,
-  // posé depuis l'employé connecté, et la RLS de la valeur le vérifie par
-  // jointure sur ce parent (épreuves SQL 10/10). Aucune portée n'est élargie.
+  // 17/10/2026, lot FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016 (Test) :
+  // 47 → 48 et 36 → 37, arbitrage humain « Option A sous conditions ».
+  // NEXUS-Releves-Piste-v1.html insère les lignes de `carburant_index_valeurs`
+  // par une variable (`lignes`), ce que ce détecteur ne peut pas lire au
+  // travers (même faux positif structurel que les écritures FDJ ci-dessus).
+  // La table PORTE bien une colonne `site`, mais le client ne la fournit pas :
+  // le trigger BEFORE INSERT `carburant_index_valeurs_heriter_site` la recopie
+  // depuis le relevé parent `carburant_index_releves.site`, lui-même posé
+  // depuis l'employé connecté et contraint par la RLS. Preuves d'isolation
+  // rejouées sur Test le 17/10/2026 (`preuve-isolation-multisite-test.sql`) :
+  // un employé d'un autre site ne voit pas le parent et ne peut pas écrire
+  // dessous ; il ne peut pas créer un relevé pour un autre site ; un `site`
+  // forgé par le pompiste est écrasé par celui du parent. Détecteur, algorithme
+  // et garde inchangés ; aucune exception générale.
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
   assert.strictEqual(t.length, 48, `48 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
