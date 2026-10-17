@@ -7,8 +7,8 @@ Preuves automatisées : `test_releves_piste_logique_20261016.js` 14/14 ; `test_c
 
 | # | Scénario | Résultat | Preuve |
 |---|---|---|---|
-| 1 | Jaugeage Veeder-Root photo + OCR | NON TESTÉ | Non construit (incrément suivant) ; caméra indisponible dans le pane |
-| 2 | Échec OCR, saisie manuelle | NON TESTÉ | idem |
+| 1 | Jaugeage Veeder-Root photo + OCR | PARTIEL (simulé) | Lecture OCR réelle de la photo TLS4B par Apple Vision (local, gratuit) : SP 20085, GO cuve 1 11875, GO cuve 2 7577, GNR 4365, GO total 19452 ; lecteur couvert par `test_veeder_root_lecture_20261016.js` 9/9. **Non exécuté de bout en bout** : caméra bloquée dans le browser pane, et l'envoi de la photo est refusé à un pompiste (voir constat d) ; worker PaddleOCR de l'iMac non exécuté |
+| 2 | Échec OCR, saisie manuelle | RÉUSSI (navigateur Test) | Photo refusée (RLS storage) → « Photo non envoyée », saisie manuelle des 4 volumes, GO total 19452 affiché, relevé du jour existant signalé (non écrasé), case de confirmation, enregistrement. Base : `carburant_releves` v2 (SP 20085 / GO 11875 / 7577 / GNR 4365), v1 conservée, version append-only `origine=terrain_pompiste`, `provenance.source=saisie_manuelle`, `mesure_le` renseigné, aucun doublon |
 | 3 | Pompe 1 : GO à gauche, SP à droite | RÉUSSI (navigateur) | Écran pompe 1 : GO puis SP |
 | 4 | Pompe 2 : SP puis GO | RÉUSSI (navigateur) | Écran pompe 2 : SP puis GO |
 | 5 | Pompe 3 : GO puis SP | RÉUSSI (navigateur, ordre lu dans la revue) | Revue : P3 GO, P3 SP |
@@ -33,3 +33,10 @@ Parcours réel exécuté : fin Q1 (8 index, revue « Aucune anomalie », validat
 Constats : (a) la RPC `carburant_index_corriger_valeur` accepte une valeur identique à celle insérée et la trace (doute levé) ; (b) `.html` redirige en 308 vers l'URL sans extension sur Test ; (c) les erreurs console « pointage arrivée » viennent de `nexus-auth.js`, hors périmètre.
 
 Reste à construire : photo Veeder-Root + file OCR avec repli manuel, écran d'historique manager, régularisation Q1/Q2, point d'entrée contextuel depuis l'App, tests de page. Arbitrages encore provisoires : seuil 4 000 L, qui régularise Q1/Q2, conservation photos/brouillons, hébergement OCR, remise en service GNR, quart sans Q2.
+
+## Constats du test jaugeage (16–17/10/2026, Test)
+
+d. **Blocage à arbitrer (surface de sécurité, NON modifié)** : la politique `documents_a_traiter_ecriture_site` du bucket `documents-a-traiter` n'autorise l'INSERT qu'à `manager`/`gerant` (`nexus_clients_ecriture_ok`). Un pompiste ne peut donc pas téléverser la photo du Veeder-Root (« new row violates row-level security policy »), alors que la table `documents_ocr_file` l'accepte (`depose_par = auth.uid()`). Le parcours photo→OCR reste donc inutilisable par le pompiste tant qu'une décision n'est pas prise. Proposition à soumettre par le Handoff : INSERT pour le pompiste du jour, limité au dossier `<site>/jaugeage_veeder_root/`, sur son propre site. Aucune politique n'a été modifiée ; rien n'est déployé hors Test.
+e. **Défaut corrigé (ccace99e)** : la case de confirmation et le bouton d'enregistrement n'apparaissaient qu'au rendu suivant la saisie ; rendu déclenché à la sortie du champ. Rejoué en navigateur : OK.
+f. `type_version = correction_manager` est inscrit pour une version `terrain_pompiste` : libellé hérité de l'existant, non modifié.
+g. Relevé du jour préexistant en Test (v1) : la saisie ajoute une version de correction avec motif, sans écrasement.
