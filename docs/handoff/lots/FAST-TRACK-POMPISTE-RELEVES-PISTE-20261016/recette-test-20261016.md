@@ -123,3 +123,11 @@ Service matin créé le 2026-10-17 06:00 (Martinique) ; date de l'appareil déca
 - Écran : références = dernier `fin_q2` validé (P1 GO 1234700, etc.), saisie des 2 derniers chiffres, confirmation partielle affichée. Pompe 2 GO saisie en 7 chiffres (4568050 contre 4568000) : « Écart de nuit +50 : alerte prioritaire au manager », non bloquant. Revue : « Pompe 2 · GO : alerte prioritaire au manager (50 L) ». RÉUSSI côté écran.
 - Validation : REFUSÉE par le serveur (403, RLS 42501 sur `carburant_index_releves`), alors qu'il était encore le 16/10 à 22:55 en Martinique. `est_pompiste_du_jour` exige un service `en_cours` daté du jour serveur : un service futur n'ouvre aucun droit d'écriture. Comportement attendu ; la page garde la saisie sur l'appareil et affiche « relevé non validé ».
 - Aucun relevé du 17/10 en base. Reprise sans simulation après minuit (04:00Z).
+
+## Fin de Q2 → début de Q1 du lendemain : RÉUSSI (Test, 17/10 11:12Z, date réelle, mobile 375×812)
+
+Sans aucune simulation de date. Pour ouvrir la page il a fallu pointer l'arrivée du 17/10 (« Enregistrer sans photo », caméra bloquée du navigateur intégré) : la porte `nexusPointageArriveeManquant` l'exige, comme prévu.
+
+- L'accueil du matin propose le jaugeage, Début de Q1, Fin de Q1 ; le brouillon du début de Q1 est repris.
+- Références = `fin_q2` validé du 16/10. Validation côté serveur acceptée (le refus RLS d'avant minuit ne se reproduit plus).
+- Base : `debut_q1` du 17/10 `final`, 8 valeurs. 7 compteurs `confirmee_deux_chiffres`, `ecart_nuit` 0 ; P2 GO saisi en 7 chiffres (4568050 contre 4568000) : `ref_statut = saisie_complete`, `ecart_nuit = 50`. Alerte prioritaire non bloquante affichée à la saisie et à la revue.
