@@ -243,6 +243,41 @@
     };
   }
 
+  // Journal Piste — contrôle d'une passation (fin Q1 -> début Q2) ou d'une nuit
+  // (fin Q2 -> début Q1). Compteur par compteur, sans compensation. Fail-closed :
+  // configuration différente, unité non confirmée ou valeur absente => jamais « conforme ».
+  // Échelle confirmée par Frédéric le 17/10/2026 : +1 d'index = 1 L.
+  const CONFIG_PISTE_DEFAUT = {
+    litresParUnite: 1, toleranceL: 9, seuilL: 10, delaiReleveManquantMin: 30,
+    pompes: { 1: { gauche: 'GO', droite: 'SP', enService: true }, 2: { gauche: 'SP', droite: 'GO', enService: true },
+              3: { gauche: 'GO', droite: 'SP', enService: true }, 4: { gauche: 'SP', droite: 'GO', enService: true } },
+    chiffres: { mecanique: 7, decenium: 6 },
+  };
+  const empreinteConfig = (c) => JSON.stringify([c && c.pompes, c && c.chiffres, c && c.litresParUnite]);
+  function comparerPassation(cfgA, cfgB, valsA, valsB, type) {
+    const nuit = type === 'nuit', niveau = nuit ? 'rouge' : 'orange';
+    const res = (etat, raison, lignes) => ({ etat, raison: raison || null, niveau: etat === 'anomalie' ? niveau : null, lignes: lignes || [], certitude: etat === 'anomalie' || etat === 'tolere' || etat === 'conforme' ? 'fait_calcule' : 'aucune' });
+    if (!cfgA || !cfgB || !valsA || !valsB) return res('non_controle', 'Donnée manquante : un des deux relevés n\'est pas enregistré dans NEXUS.');
+    if (empreinteConfig(cfgA) !== empreinteConfig(cfgB)) return res('impossible', 'Comparaison impossible : la configuration des compteurs a changé entre les deux relevés.');
+    const echelle = Number(cfgB.litresParUnite);
+    if (!(echelle > 0)) return res('impossible', 'Comparaison impossible : unité de mesure non confirmée.');
+    const tol = Number(cfgB.toleranceL), seuil = Number(cfgB.seuilL);
+    const lignes = [];
+    let manque = false;
+    Object.keys(cfgB.pompes || {}).forEach(p => {
+      const c = cfgB.pompes[p]; if (!c.enService) return;
+      [c.gauche, c.droite].forEach(prod => {
+        const clef = p + '-' + prod, a = valsA[clef], b = valsB[clef];
+        if (a == null || b == null || !/^\d+$/.test(String(a)) || !/^\d+$/.test(String(b))) { manque = true; lignes.push({ clef, etat: 'non_controle' }); return; }
+        const ecartL = (Number(b) - Number(a)) * echelle, abs = Math.abs(ecartL);
+        lignes.push({ clef, ecartL, etat: abs === 0 ? 'conforme' : abs <= tol ? 'tolere' : abs >= seuil ? 'anomalie' : 'tolere' });
+      });
+    });
+    if (manque) return res('non_controle', 'Donnée manquante : au moins un compteur n\'a pas de valeur dans l\'un des relevés.', lignes);
+    const etat = lignes.some(l => l.etat === 'anomalie') ? 'anomalie' : lignes.some(l => l.etat === 'tolere') ? 'tolere' : 'conforme';
+    return res(etat, null, lignes);
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
@@ -250,6 +285,7 @@
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
     appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste, synthetiserJournee,
+    CONFIG_PISTE_DEFAUT, comparerPassation,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;

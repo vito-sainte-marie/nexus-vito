@@ -180,4 +180,25 @@ t('historique manager : regroupe par moment, garde les auteurs, compare Q1/Q2 sa
   assert.deepStrictEqual(nuit.parMoment.debut_q1[0].anomalies[0], { clef: '2-SP', code: 'a_justifier', ecart: 4 });
   assert.strictEqual(R.synthetiserJournee(null).q1q2.complete, false);
 });
+t('journal piste : passation compteur par compteur, sans compensation, fail-closed', () => {
+  const C = R.CONFIG_PISTE_DEFAUT, A = {}, B = {};
+  [1, 2, 3, 4].forEach(p => ['SP', 'GO'].forEach(pr => { A[p + '-' + pr] = '0001000'; B[p + '-' + pr] = '0001000'; }));
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'conforme');
+  B['1-GO'] = '0001009';                                           // 9 L : toléré, sans alerte
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'tolere');
+  B['2-SP'] = '0000991';                                           // -9 L : pas de compensation avec +9
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'tolere');
+  B['3-GO'] = '0001010';                                           // 10 L : intervention
+  const p = R.comparerPassation(C, C, A, B, 'passation'), n = R.comparerPassation(C, C, A, B, 'nuit');
+  assert.strictEqual(p.etat, 'anomalie'); assert.strictEqual(p.niveau, 'orange'); assert.strictEqual(n.niveau, 'rouge');
+  assert.strictEqual(p.lignes.filter(l => l.etat === 'anomalie').length, 1);
+  const autre = JSON.parse(JSON.stringify(C)); autre.pompes[4].enService = false;
+  assert.strictEqual(R.comparerPassation(C, autre, A, B, 'nuit').etat, 'impossible');
+  assert.ok(/configuration des compteurs a changé/.test(R.comparerPassation(C, autre, A, B, 'nuit').raison));
+  const sansEchelle = Object.assign({}, C, { litresParUnite: null });
+  assert.strictEqual(R.comparerPassation(sansEchelle, sansEchelle, A, B, 'nuit').etat, 'impossible');
+  const trou = Object.assign({}, B); delete trou['4-GO'];
+  assert.strictEqual(R.comparerPassation(C, C, A, trou, 'nuit').etat, 'non_controle');
+  assert.strictEqual(R.comparerPassation(C, C, A, null, 'nuit').etat, 'non_controle');
+});
 console.log(n + '/' + n + ' réussies');

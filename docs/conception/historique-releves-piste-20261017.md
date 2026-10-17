@@ -30,6 +30,7 @@ Ces trois tables, leurs RLS et les fonctions d'écriture sont des **surfaces de 
 Le brief demande de convertir les index « en litres selon l'échelle physique ». Le code actuel dit lui-même « unité d'index à confirmer ». Les données Test (ex. pompe 1 SP `0167528`, Decenium `167528` = les 6 derniers chiffres) ne permettent pas de trancher : 1 unité peut valoir 1 L, 0,1 L ou 0,01 L.
 - Conséquence assumée : tant que `litres_par_unite` n'est pas **confirmé par un humain** dans les paramètres, tout contrôle exprimé en litres répond « Comparaison impossible : unité de mesure non confirmée ». Il ne devine pas.
 - **Question à Frédéric** : à la lecture du Tokheim, 1 de plus sur le dernier chiffre = combien de litres ?
+- **Réponse (HUMAN, Frédéric, 17/10/2026, en chat)** : « +1 correspond à un litre ». `litres_par_unite = 1`. Fait déclaré par le responsable ; à consigner dans la première version de `carburant_index_config` avec son auteur et sa date. La logique pure `comparerPassation` (tolérance 9 L, seuil 10 L, compteur par compteur, fail-closed) est écrite et testée localement, sans toucher la base.
 
 ### Contrôles réalisables avec les données disponibles
 
