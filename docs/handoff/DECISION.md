@@ -1,31 +1,26 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-seq: 4
+seq: 5
 author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-6.md
+in_reply_to: request-7.md
 ---
-# Décision sur request-6.md — arbitrage humain de Frédéric (GO Test exclusivement)
+# Décision sur request-7.md — arbitrage humain de Frédéric (GO Test exclusivement)
 
-Cette décision matérialise l'arbitrage humain rendu par Frédéric Bragance le 16/10/2026 en réponse à l'arrêt `SECRET_PERMISSION_SURFACE_SECURITE` de l'arbitre sur request-6.md. Elle remplace la réponse BLOCKED non matérialisée.
+Cette décision matérialise l'arbitrage humain rendu par Frédéric Bragance dans la conversation du 17/10/2026, en réponse à l'arrêt de l'arbitre sur request-7.md (« Décision réservée à un humain — l'arbitre ne franchit aucun palier »). Principe favorable donné d'abord, puis GO explicite : « Je te donne mon GO pour appliquer la politique sur Test. »
 
-1. **Section 6 : RATIFIÉE.** Retrait des privilèges de `anon` et de `TRUNCATE` pour `authenticated` sur les quatre nouvelles tables du lot, sous réserve de vérifier les privilèges effectifs et de préserver les accès légitimes et les politiques RLS.
-2. **EXECUTE PUBLIC : MAINTENU** sur les deux fonctions trigger (`carburant_index_valeurs_heriter_site`, `carburant_index_corrections_heriter_site`) : `RETURNS trigger`, sans `SECURITY DEFINER`. Aucune migration de révocation supplémentaire.
-3. GO pour reprendre le lot sur Test, poursuivre l'implémentation et exécuter la recette avec preuves.
-4. Aucune fusion ni intervention en Production. Toute différence entre objets déployés et objets visés par cet arbitrage est à signaler immédiatement.
+1. **Politique `documents_a_traiter_jaugeage_pompiste` : RATIFIÉE sur Test exclusivement.** INSERT pour `authenticated`, site propre, dossier unique `jaugeage_veeder_root`, pompiste du jour (`est_pompiste_du_jour`), nom préfixé de `auth.uid()`, extensions image seulement.
+2. Aucune autre politique modifiée, aucun élargissement de permission, aucune fusion, aucune intervention en Production. La reprise en Production exigerait un arbitrage de sécurité et un GO distincts.
+3. GO pour reprendre la recette complète sur Test (upload, OCR, correction manuelle, validation, enregistrement, consultation), puis Safari iOS sur appareil réel.
 
-## Vérification des privilèges effectifs sur Test (Claude, 16/10/2026)
+## Vérification de l'objet déployé (Claude, 17/10/2026)
 
-Mesure directe sur Supabase Test après application de la migration 20261016230000 :
+Mesure directe sur Supabase Test : les quatre politiques `documents_a_traiter_*` sont présentes, seule `documents_a_traiter_jaugeage_pompiste` est nouvelle (INSERT, `authenticated`). Migration `20261017120000`, classée « EXCLUE — Test/CI » dans l'addendum du manifeste.
 
-- `anon` : aucun droit select/insert/update/delete/truncate sur les quatre tables ;
-- `authenticated` : `TRUNCATE` refusé, `SELECT` conservé ; RLS activée sur les quatre tables ;
-- les deux fonctions trigger : `RETURNS trigger`, `prosecdef = false`, `EXECUTE` accordé à `PUBLIC`, conformément à l'arbitrage.
-
-Aucune différence constatée entre les objets déployés et ceux visés par l'arbitrage.
+Aucune différence constatée entre l'objet déployé et celui visé par l'arbitrage.
