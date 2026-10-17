@@ -81,3 +81,11 @@ Composants retirés après revue : filtre par pompiste, bouton « Vue », classe
 ## Question finale
 
 « Le dirigeant prendrait-il de moins bonnes décisions si cette fonctionnalité disparaissait ? » Réponse provisoire, à confirmer par les mesures de la recette : sans elle, un écart de passation ou de nuit n'est vu que si quelqu'un compare à la main deux relevés, et rien ne distingue « non contrôlé » de « conforme ». La valeur se mesurera au nombre d'écarts détectés avant la recopie Decenium déclarée, au nombre de manques régularisés et au délai d'apparition → qualification, jamais à un nombre « d'erreurs évitées ».
+
+## Précision de Frédéric (17/10/2026) : la référence des litres est Verify / pupitre
+
+« La somme des litrages calculée par la différence des compteurs fin − début correspond approximativement au litrage mis dans Verify, dans les cases SP provenant du pupitre / master ; ce dernier est plus précis. »
+
+- **Fait (HUMAN)** : le litrage de Verify (pupitre) est la référence ; la différence d'index n'est qu'un recoupement **approximatif**.
+- Conséquence dans ce lot : les litres issus des index servent uniquement à comparer deux relevés entre eux (passation, nuit). Aucun total de litres ni de ventes n'est calculé ; aucune comparaison automatique avec Verify n'est ajoutée ici.
+- Tolérance (0 / 1–9 / ≥ 10 L) inchangée ; une éventuelle comparaison index ↔ Verify serait un lot distinct, avec sa propre tolérance.
