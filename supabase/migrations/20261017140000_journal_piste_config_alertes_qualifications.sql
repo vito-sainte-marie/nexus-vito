@@ -6,7 +6,7 @@
 --   • le site n'est JAMAIS un paramètre qui fait autorité : les deux fonctions
 --     appelables par un utilisateur (`enregistrer_config_piste`,
 --     `qualifier_alerte_piste`) et `evaluer_controles_piste()` le déduisent de
---     l'identité de l'appelant (current_employee_site_id()). Les seules
+--     l'identité de l'appelant (piste_site_appelant()). Les seules
 --     fonctions qui reçoivent un site en paramètre (`piste_evaluer_site`,
 --     `evaluer_tous_sites_piste`) ne sont exécutables par NI anon NI
 --     authenticated : seul le propriétaire (tâche planifiée) les appelle.
@@ -25,15 +25,39 @@ set local lock_timeout = '2s';
 -- ---------------------------------------------------------------------
 -- 1. Habilitation unique (réutilise les helpers existants, fail-closed)
 -- ---------------------------------------------------------------------
+-- Identité de l'appelant : helpers PROPRES au lot. Les helpers partagés
+-- current_employee_role()/current_employee_site_id() lisent `employees` non
+-- qualifié avec search_path = public : pg_temp est alors cherché en premier et
+-- une table temporaire `employees` créée par l'appelant usurpe son rôle (mesuré
+-- sur la base jetable, voir request-3). Ici : tout est qualifié, pg_temp en dernier.
+create or replace function public.piste_site_appelant()
+ returns text
+ language sql
+ stable security definer
+ set search_path to pg_catalog, public, pg_temp
+as $$
+  select e.site_id from public.employees e where e.id = auth.uid();
+$$;
+create or replace function public.piste_role_appelant()
+ returns text
+ language sql
+ stable security definer
+ set search_path to pg_catalog, public, pg_temp
+as $$
+  select e.role from public.employees e where e.id = auth.uid();
+$$;
+revoke all on function public.piste_site_appelant() from public, anon, authenticated;
+revoke all on function public.piste_role_appelant() from public, anon, authenticated;
+
 create or replace function public.piste_manager_du_site(p_site text)
  returns boolean
  language sql
  stable security definer
- set search_path to 'public'
+ set search_path to pg_catalog, public, pg_temp
 as $$
   select p_site is not null
-     and p_site = public.current_employee_site_id()
-     and public.current_employee_role() = any (array['manager', 'gerant']);
+     and p_site = public.piste_site_appelant()
+     and public.piste_role_appelant() = any (array['manager', 'gerant']);
 $$;
 comment on function public.piste_manager_du_site(text) is
   'Vrai seulement si l''appelant est manager ou gérant ET que p_site est SON site. Sert à la RLS de lecture ; ne confère aucune autorité sur un autre site.';
@@ -98,7 +122,7 @@ comment on table public.carburant_index_qualifications is
 
 -- Le site d'une qualification est hérité de l'alerte, jamais fourni.
 create or replace function public.piste_qualification_heriter_site()
- returns trigger language plpgsql security definer set search_path to 'public'
+ returns trigger language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   select a.site into new.site from public.carburant_index_alertes a where a.id = new.alerte_id;
@@ -114,7 +138,7 @@ create trigger carburant_index_qualifications_site before insert on public.carbu
 -- change ni son identité ni son constat d'origine (statut/clôture/niveau/constat
 -- à jour seulement, par les fonctions).
 create or replace function public.piste_interdire_modification()
- returns trigger language plpgsql set search_path to 'public'
+ returns trigger language plpgsql set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   raise exception 'APPEND_ONLY % %', tg_table_name, tg_op using errcode = 'P0001';
@@ -127,7 +151,7 @@ create trigger carburant_index_qualifications_immuable before update or delete o
   for each row execute function public.piste_interdire_modification();
 
 create or replace function public.piste_alerte_garde_identite()
- returns trigger language plpgsql set search_path to 'public'
+ returns trigger language plpgsql set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   if tg_op = 'DELETE' then raise exception 'APPEND_ONLY carburant_index_alertes DELETE' using errcode = 'P0001'; end if;
@@ -172,7 +196,7 @@ comment on column public.carburant_index_releves.config_snapshot is
   'Photographie immuable de la configuration piste courante {version, config} au moment de l''insertion du relevé. Posée par le serveur (un client ne peut pas la fournir) ; NULL = relevé antérieur à la configuration versionnée (jamais comparé).';
 
 create or replace function public.piste_releve_photographier()
- returns trigger language plpgsql security definer set search_path to 'public'
+ returns trigger language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   new.config_snapshot := (
@@ -187,7 +211,7 @@ create trigger carburant_index_releves_photographie before insert on public.carb
   for each row execute function public.piste_releve_photographier();
 
 create or replace function public.piste_releve_snapshot_immuable()
- returns trigger language plpgsql set search_path to 'public'
+ returns trigger language plpgsql set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   if new.config_snapshot is distinct from old.config_snapshot then
@@ -207,10 +231,10 @@ create or replace function public.enregistrer_config_piste(p_config jsonb, p_mot
  returns integer
  language plpgsql
  security definer
- set search_path to 'public'
+ set search_path to pg_catalog, public, pg_temp
 as $$
 declare
-  v_site text := public.current_employee_site_id();
+  v_site text := public.piste_site_appelant();
   v_avant jsonb;
   v_version integer;
 begin
@@ -250,7 +274,7 @@ create or replace function public.qualifier_alerte_piste(
  returns uuid
  language plpgsql
  security definer
- set search_path to 'public'
+ set search_path to pg_catalog, public, pg_temp
 as $$
 declare
   v_alerte public.carburant_index_alertes%rowtype;
@@ -291,7 +315,7 @@ grant execute on function public.qualifier_alerte_piste(uuid, text, text, uuid) 
 -- Relevé final d'un moment : {etat: aucun|conflit|ok, snapshot, vals}.
 create or replace function public.piste_releve_final(p_site text, p_date date, p_moment text)
  returns jsonb
- language plpgsql stable set search_path to 'public'
+ language plpgsql stable set search_path to pg_catalog, public, pg_temp
 as $$
 declare
   v_n int; v_distincts int; v_snap jsonb; v_vals jsonb;
@@ -316,7 +340,7 @@ revoke all on function public.piste_releve_final(text, date, text) from public, 
 -- Retourne {etat, raison, lignes[]} avec etat in conforme|tolere|anomalie|non_controle|impossible.
 create or replace function public.piste_comparer(p_a jsonb, p_b jsonb)
  returns jsonb
- language plpgsql immutable set search_path to 'public'
+ language plpgsql immutable set search_path to pg_catalog, public, pg_temp
 as $$
 declare
   v_cfg jsonb; v_echelle numeric; v_tol numeric; v_seuil numeric;
@@ -376,7 +400,7 @@ revoke all on function public.piste_comparer(jsonb, jsonb) from public, anon, au
 create or replace function public.piste_poser_alerte(
   p_site text, p_type text, p_evenement text, p_niveau text, p_present boolean, p_constat jsonb, p_raison text)
  returns void
- language plpgsql security definer set search_path to 'public'
+ language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 begin
   if p_present then
@@ -401,7 +425,7 @@ revoke all on function public.piste_poser_alerte(text, text, text, text, boolean
 -- evaluer_controles_piste() qui impose le site de l'appelant.
 create or replace function public.piste_evaluer_site(p_site text, p_date date)
  returns void
- language plpgsql security definer set search_path to 'public'
+ language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 declare
   v_tz text; v_cfg jsonb; v_delai int; v_res jsonb; v_present boolean;
@@ -417,14 +441,20 @@ begin
   v_a := public.piste_releve_final(p_site, p_date, 'fin_q1');
   v_b := public.piste_releve_final(p_site, p_date, 'debut_q2');
   v_res := public.piste_comparer(v_a, v_b);
-  v_present := v_res ->> 'etat' = 'anomalie';
-  perform public.piste_poser_alerte(p_site, 'passation', p_date::text, 'orange', v_present, v_res, 'Recalcul sur relevés finaux : plus d''écart.');
+  -- Seul un verdict CONCLUANT ouvre ou résout : « non contrôlé » / « impossible »
+  -- (donnée manquante, relevés contradictoires, configuration changée) laisse l'alerte en l'état.
+  if v_res ->> 'etat' in ('conforme', 'tolere', 'anomalie') then
+    perform public.piste_poser_alerte(p_site, 'passation', p_date::text, 'orange', v_res ->> 'etat' = 'anomalie', v_res, 'Recalcul sur relevés finaux : plus d''écart.');
+  end if;
 
   v_a := public.piste_releve_final(p_site, p_date - 1, 'fin_q2');
   v_b := public.piste_releve_final(p_site, p_date, 'debut_q1');
   v_res := public.piste_comparer(v_a, v_b);
-  v_present := v_res ->> 'etat' = 'anomalie';
-  perform public.piste_poser_alerte(p_site, 'nuit', p_date::text, 'rouge', v_present, v_res, 'Recalcul sur relevés finaux : plus d''écart.');
+  -- Seul un verdict CONCLUANT ouvre ou résout : « non contrôlé » / « impossible »
+  -- (donnée manquante, relevés contradictoires, configuration changée) laisse l'alerte en l'état.
+  if v_res ->> 'etat' in ('conforme', 'tolere', 'anomalie') then
+    perform public.piste_poser_alerte(p_site, 'nuit', p_date::text, 'rouge', v_res ->> 'etat' = 'anomalie', v_res, 'Recalcul sur relevés finaux : plus d''écart.');
+  end if;
 
   -- Relevé de fin manquant : fin de quart (calculer_horaires_quart, moteur unique)
   -- + délai de la configuration courante, au fuseau du site.
@@ -460,10 +490,10 @@ revoke all on function public.piste_evaluer_site(text, date) from public, anon, 
 -- Appel manager : site déduit de l'appelant, deux jours (aujourd'hui et hier, fuseau du site).
 create or replace function public.evaluer_controles_piste()
  returns void
- language plpgsql security definer set search_path to 'public'
+ language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 declare
-  v_site text := public.current_employee_site_id();
+  v_site text := public.piste_site_appelant();
   v_tz text; v_jour date;
 begin
   if auth.uid() is null or not public.piste_manager_du_site(v_site) then
@@ -484,7 +514,7 @@ grant execute on function public.evaluer_controles_piste() to authenticated;
 -- Tâche planifiée : tous les sites, indépendante de l'ouverture du Journal.
 create or replace function public.evaluer_tous_sites_piste()
  returns void
- language plpgsql security definer set search_path to 'public'
+ language plpgsql security definer set search_path to pg_catalog, public, pg_temp
 as $$
 declare
   r record; v_jour date;
