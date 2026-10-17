@@ -361,6 +361,7 @@
   });
   document.addEventListener('change', async (e) => {
     const t = e.target;
+    if (t.dataset && t.dataset.j) { rendre(); return; }
     if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
     if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
     if (t.dataset && t.dataset.act === 'tick') {
