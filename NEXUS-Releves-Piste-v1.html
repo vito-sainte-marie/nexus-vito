@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — Relevés piste</title>
+<title>NEXUS : Relevés piste</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -48,7 +48,7 @@
 </head>
 <body>
 <div class="phone" id="app"><div class="card">Chargement…</div></div>
-<div class="etat" id="etat">—</div>
+<div class="etat" id="etat">…</div>
 <script>
 (function () {
   const R = window.NexusRelevesPiste;
@@ -76,7 +76,7 @@
     const local = sauverLocalTest();
     const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
       : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
-        : '<b class="ko">hors connexion — non envoyé au serveur</b>');
+        : '<b class="ko">hors connexion, non envoyé au serveur</b>');
     $('etat').innerHTML = `${local ? 'Enregistré sur l\'appareil' : '<b class="ko">Stockage de l\'appareil indisponible</b>'} · ${srv}`;
   }
   function sauverLocalTest() { return moment ? sauverLocal() : true; }
@@ -163,10 +163,10 @@
     let bloc = '';
     if (R.estSeptChiffres(v)) {
       const c = R.convertirSeptVersSix(v);
-      bloc += `<div class="conv">Decenium (6 chiffres) : <b>${c.valeurDecenium}</b> — ${c.troncatureSansPerte ? 'chiffre retiré : 0, sans perte' : `chiffre retiré : ${c.chiffreRetire}, <b>valeur tronquée</b>`}</div>`;
+      bloc += `<div class="conv">Decenium (6 chiffres) : <b>${c.valeurDecenium}</b>, ${c.troncatureSansPerte ? 'chiffre retiré : 0, sans perte' : `chiffre retiré : ${c.chiffreRetire}, <b>valeur tronquée</b>`}</div>`;
       const ctl = R.controlerIndex(v, precedents[k]);
       if (ctl.niveau === 'fort') bloc += `<div class="alerte fort">⚠ Cet index est <b>inférieur</b> au dernier relevé (${ctl.ecart} L). Vérifiez le compteur ; sinon justifiez ci-dessous.<textarea data-motif="${k}" placeholder="Justification (obligatoire pour continuer)">${esc(motifs[k] || '')}</textarea></div>`;
-      else if (ctl.niveau === 'indicatif') bloc += `<div class="alerte indic">Écart de ${ctl.ecart} L depuis le dernier relevé — indicatif, vous pouvez continuer.</div>`;
+      else if (ctl.niveau === 'indicatif') bloc += `<div class="alerte indic">Écart de ${ctl.ecart} L depuis le dernier relevé : indicatif, vous pouvez continuer.</div>`;
     }
     return `<div class="card champ"><label for="i${k}"><span>${pr === 'GO' ? 'Gazole (GO)' : 'Sans plomb (SP)'}</span><span class="ref">${ref}</span></label>
       <input class="idx" id="i${k}" data-k="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="7" value="${esc(v)}" placeholder="7 chiffres">${bloc}</div>`;
@@ -184,15 +184,15 @@
     const rev = R.revueAnomalies(saisies, precedents, motifs);
     const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe ${p} · ${pr}`; };
     const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)' };
-    const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} — ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
-    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P${p} ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || '—')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
+    const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} : ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
+    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P${p} ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || 'non saisi')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
     let cmp = '';
     if (moment === 'debut_q2') {
       if (!finQ1) cmp = '<div class="alerte indic">Pas de fin de Q1 validée aujourd\'hui : comparaison impossible (non bloquant).</div>';
       else {
         const div = R.comparerQ1Q2(finQ1, saisies).filter(c => c.etat === 'divergent');
         cmp = div.length
-          ? div.map(c => `<div class="alerte indic">${noms(c.clef)} — fin de Q1 ${esc(c.finQ1)} ≠ début de Q2 ${esc(c.debutQ2)} (${c.ecart > 0 ? '+' : ''}${c.ecart} L). Les deux valeurs sont conservées.</div>`).join('')
+          ? div.map(c => `<div class="alerte indic">${noms(c.clef)} : fin de Q1 ${esc(c.finQ1)} ≠ début de Q2 ${esc(c.debutQ2)} (${c.ecart > 0 ? '+' : ''}${c.ecart} L). Les deux valeurs sont conservées.</div>`).join('')
           : '<div class="alerte ok">Début de Q2 concordant avec la fin de Q1, compteur par compteur.</div>';
       }
       cmp = `<div class="card"><h2>Fin de Q1 ↔ début de Q2</h2>${cmp}</div>`;
