@@ -250,6 +250,61 @@ jobs:
             echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (fonctions) $k/$morceaux, $total au total::$(paste -sd '|' "$f")"
           done
 
+      # --- Arbitrage du 17/10/2026, décision 4 : helpers d'identité partagés ---
+      - name: Analyser les helpers d'identité partagés
+        shell: bash
+        run: |
+          set -uo pipefail
+          A=outils/essai-base-jetable
+          psql -X -tA -f $A/helpers/dependants-helpers.sql > "$RUNNER_TEMP/dependants.json"
+          jq -c 'del(.autres_definer_meme_forme, .sql_dynamique_appelable_client, .par_module)' "$RUNNER_TEMP/dependants.json" > "$RUNNER_TEMP/dep-resume.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : dépendants" "$RUNNER_TEMP/dep-resume.txt" 2
+          jq -r '.par_module | to_entries[] | "\(.key)=\(.value)"' "$RUNNER_TEMP/dependants.json" > "$RUNNER_TEMP/dep-modules.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : tables dépendantes par module" "$RUNNER_TEMP/dep-modules.txt" 2
+          jq -r '(.autres_definer_meme_forme // [])[]' "$RUNNER_TEMP/dependants.json" > "$RUNNER_TEMP/dep-autres.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : autres DEFINER de même forme (repérage)" "$RUNNER_TEMP/dep-autres.txt" 2
+          jq -r '(.sql_dynamique_appelable_client // [])[] | "\(.fonction) definer=\(.definer)"' "$RUNNER_TEMP/dependants.json" > "$RUNNER_TEMP/dep-dyn.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : SQL dynamique appelable par un client" "$RUNNER_TEMP/dep-dyn.txt" 2
+          if psql -X -f $A/helpers/usurpation-helpers.sql > "$RUNNER_TEMP/usurpation.txt" 2>&1; then statut=ok; else statut=echec; fi
+          grep -E '^ *[0-9]+ \||HELPERS :|ERROR' "$RUNNER_TEMP/usurpation.txt" | sed 's/  */ /g' > "$RUNNER_TEMP/usurp-lignes.txt" || true
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : usurpation par table temporaire ($statut)" "$RUNNER_TEMP/usurp-lignes.txt" 2
+
+      # --- Arbitrage du 17/10/2026, décision 1 : Journal Piste request-3 ---
+      # Les mutants passent AVANT l'application réelle : chacun est joué dans
+      # une transaction annulée, sur la base telle que l'historique l'a laissée.
+      - name: Journal Piste : mutants de la migration candidate
+        shell: bash
+        run: |
+          set -uo pipefail
+          J=outils/essai-base-jetable/journal-piste
+          python3 $J/mutants.py $J/migration-request-3.sql "$RUNNER_TEMP/mutants" $J/migration-request-2.sql
+          bash $J/jouer-mutants.sh "$RUNNER_TEMP/mutants" $J/preuve-request-3.sql "$RUNNER_TEMP/mutants.jsonl" > /dev/null
+          jq -r '"\(.nom) => \(.verdict) [\(.cas)]"' "$RUNNER_TEMP/mutants.jsonl" > "$RUNNER_TEMP/mutants.txt"
+          bilan=$(jq -sc 'group_by(.verdict) | map({(.[0].verdict): length}) | add' "$RUNNER_TEMP/mutants.jsonl")
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants::$bilan"
+          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants" "$RUNNER_TEMP/mutants.txt" 6
+
+      - name: Journal Piste : migration candidate et preuve (avant, application, après)
+        shell: bash
+        run: |
+          set -uo pipefail
+          J=outils/essai-base-jetable/journal-piste
+          S="$RUNNER_TEMP/candidat"
+          bilan=$(bash $J/rejouer-candidat.sh $J/migration-request-3.sql $J/preuve-request-3.sql "$S")
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan request-3::$bilan"
+          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : cas KO" "$S/cas-ko.txt" 2
+          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : droits ajoutés" "$S/droits-ajoutes.txt" 5
+          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : droits retirés" "$S/droits-retires.txt" 1
+          # Postconditions de planification, mesurées et non supposées.
+          cron=$(psql -X -tA -c "select json_build_object(
+            'jobs_journal_piste', (select count(*) from cron.job where jobname = 'nexus-journal-piste'),
+            'utilisateur', (select username from cron.job where jobname = 'nexus-journal-piste'),
+            'actif', (select active from cron.job where jobname = 'nexus-journal-piste'),
+            'authenticated_usage_cron', has_schema_privilege('authenticated', 'cron', 'usage'),
+            'anon_usage_cron', has_schema_privilege('anon', 'cron', 'usage'))" 2>&1)
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : planification::$cron"
+          grep -q '"migration":"appliquee"' <<<"$bilan" || echo "::warning title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste::migration non appliquée, voir le bilan"
+
       - name: Jeter la base
         if: always()
         run: docker rm -f base-jetable storage-jetable >/dev/null 2>&1 || true
