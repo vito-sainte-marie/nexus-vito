@@ -157,4 +157,27 @@ t('pré-contrôle pompiste : seul un false franc bloque l\'envoi', () => {
   assert.strictEqual(R.precontrolePompiste({ data: false, error: { message: 'x' } }).ok, true);
   assert.strictEqual(R.precontrolePompiste(null).ok, true);
 });
+t('historique manager : regroupe par moment, garde les auteurs, compare Q1/Q2 sans trancher', () => {
+  const vals = (base, decal) => [1, 2, 3, 4].flatMap(p => ['SP', 'GO'].map(pr => ({ pompe: p, produit: pr, valeur_sept_chiffres: String(base + p * 10 + (pr === 'GO' ? 1 : 0) + (p === 3 && pr === 'GO' ? decal : 0)).padStart(7, '0'), recopiee: pr === 'SP' })));
+  const rel = (id, moment, auteur, statut, v, extra) => Object.assign({ id, moment, auteur, auteur_nom: 'n' + auteur, statut, cree_le: '2026-10-17T0' + id + ':00:00Z', carburant_index_valeurs: v }, extra);
+  const s = R.synthetiserJournee([
+    rel('1', 'fin_q1', 'A', 'final', vals(1000, 0)),
+    rel('2', 'debut_q2', 'B', 'final', vals(1000, 5)),
+    rel('3', 'debut_q2', 'C', 'brouillon', vals(1000, 0).slice(0, 3)),
+  ]);
+  assert.strictEqual(s.parMoment.debut_q2.length, 2);
+  assert.strictEqual(s.parMoment.fin_q1[0].auteurNom, 'nA');
+  assert.strictEqual(s.parMoment.fin_q1[0].recopiees, 4);
+  assert.strictEqual(s.q1q2.complete, true);
+  assert.strictEqual(s.q1q2.divergents, 1);                       // le brouillon incomplet ne compte pas
+  assert.strictEqual(s.q1q2.memeAuteur, false);
+  assert.strictEqual(s.q1q2.lignes.find(l => l.etat === 'divergent').ecart, 5);
+  const m = R.synthetiserJournee([rel('1', 'fin_q1', 'A', 'final', vals(1000, 0)), rel('2', 'debut_q2', 'A', 'final', vals(1000, 0))]);
+  assert.strictEqual(m.q1q2.divergents, 0);
+  assert.strictEqual(m.q1q2.memeAuteur, true);                    // pas deux déclarations indépendantes
+  const nuit = R.synthetiserJournee([rel('1', 'debut_q1', 'A', 'final', vals(1000, 0).map((v, i) => i === 2 ? Object.assign({}, v, { anomalie_nuit: 'a_justifier', ecart_nuit: 4 }) : Object.assign({}, v, { anomalie_nuit: 'conforme', ecart_nuit: 0 })))]);
+  assert.strictEqual(nuit.anomaliesTotal, 1);
+  assert.deepStrictEqual(nuit.parMoment.debut_q1[0].anomalies[0], { clef: '2-SP', code: 'a_justifier', ecart: 4 });
+  assert.strictEqual(R.synthetiserJournee(null).q1q2.complete, false);
+});
 console.log(n + '/' + n + ' réussies');

@@ -206,13 +206,50 @@
     return { ok: true };
   }
 
+  // Historique manager (lecture seule) : une journée de relevés regroupée par moment.
+  // releves : lignes `carburant_index_releves` avec `carburant_index_valeurs(...)` imbriquées.
+  // Rien n'est tranché ici : chaque déclaration garde son auteur, ses valeurs et ses anomalies
+  // enregistrées (écart de nuit) ; la comparaison fin Q1 / début Q2 compare la dernière
+  // déclaration finale de chaque moment et signale quand les deux ont le même auteur
+  // (alors ce ne sont pas deux déclarations indépendantes).
+  function synthetiserJournee(releves) {
+    const liste = [].concat(releves || []);
+    const declarations = liste.map(r => {
+      const valeurs = {}, anomalies = [];
+      let recopiees = 0;
+      [].concat(r.carburant_index_valeurs || []).forEach(v => {
+        const k = `${v.pompe}-${v.produit}`;
+        valeurs[k] = v.valeur_sept_chiffres;
+        if (v.recopiee) recopiees++;
+        if (v.anomalie_nuit && v.anomalie_nuit !== 'conforme') anomalies.push({ clef: k, code: v.anomalie_nuit, ecart: v.ecart_nuit == null ? null : Number(v.ecart_nuit) });
+      });
+      return { releveId: r.id, moment: r.moment, statut: r.statut, auteur: r.auteur, auteurNom: r.auteur_nom || null, creeLe: r.cree_le, finaliseLe: r.finalise_le || null, valeurs, nbValeurs: Object.keys(valeurs).length, recopiees, anomalies };
+    });
+    const parMoment = {};
+    MOMENTS.forEach(m => { parMoment[m] = declarations.filter(d => d.moment === m).sort((a, b) => String(a.creeLe).localeCompare(String(b.creeLe))); });
+    const derniereFinale = m => parMoment[m].filter(d => d.statut === 'final' && d.nbValeurs === 8).slice(-1)[0] || null;
+    const f = derniereFinale('fin_q1'), d = derniereFinale('debut_q2');
+    const lignes = comparerQ1Q2(f && f.valeurs, d && d.valeurs);
+    const complete = !!(f && d);
+    return {
+      parMoment,
+      anomaliesTotal: declarations.reduce((s, x) => s + x.anomalies.length, 0),
+      q1q2: {
+        complete, lignes,
+        divergents: complete ? lignes.filter(l => l.etat === 'divergent').length : null,
+        memeAuteur: complete ? f.auteur === d.auteur : null,
+        auteurFinQ1: f ? f.auteur : null, auteurDebutQ2: d ? d.auteur : null,
+      },
+    };
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
-    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
+    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste, synthetiserJournee,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;
