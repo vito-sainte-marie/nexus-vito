@@ -56,7 +56,7 @@
   let emp = null, date = null, moment = null;
   let ecran = 'choix';
   let pompe = 1;
-  let saisies = {}, motifs = {}, precedents = {};
+  let saisies = {}, motifs = {}, precedents = {}, finQ1 = null;
   let serveur = { releveId: null, valeurs: {}, final: false };
   let reseau = { ok: true, derniereErreur: null };
 
@@ -121,6 +121,18 @@
     majEtat();
   }
 
+  // Fin de Q1 du même jour (toute main confondue) : sert uniquement à la comparaison au début de Q2.
+  async function chargerFinQ1() {
+    finQ1 = null;
+    if (moment !== 'debut_q2') return;
+    try {
+      const { data } = await nexusClient.from('carburant_index_releves')
+        .select('auteur, carburant_index_valeurs(pompe, produit, valeur_sept_chiffres)')
+        .eq('site', emp.site_id).eq('date', date).eq('moment', 'fin_q1').eq('statut', 'final').order('cree_le', { ascending: false }).limit(1);
+      if (data && data[0]) { finQ1 = {}; data[0].carburant_index_valeurs.forEach(v => { finQ1[`${v.pompe}-${v.produit}`] = v.valeur_sept_chiffres; }); }
+    } catch (x) { finQ1 = null; }
+  }
+
   async function chargerPrecedents() {
     precedents = {};
     const { data } = await nexusClient.from('carburant_index_releves')
@@ -174,7 +186,18 @@
     const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)' };
     const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} — ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
     const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P${p} ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || '—')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
-    return `<h1>Revue avant validation</h1><div class="sub">${esc(MOMENTS_LIBELLE[moment])}</div><div class="card">${liste}</div><div class="card">${recap}</div>
+    let cmp = '';
+    if (moment === 'debut_q2') {
+      if (!finQ1) cmp = '<div class="alerte indic">Pas de fin de Q1 validée aujourd\'hui : comparaison impossible (non bloquant).</div>';
+      else {
+        const div = R.comparerQ1Q2(finQ1, saisies).filter(c => c.etat === 'divergent');
+        cmp = div.length
+          ? div.map(c => `<div class="alerte indic">${noms(c.clef)} — fin de Q1 ${esc(c.finQ1)} ≠ début de Q2 ${esc(c.debutQ2)} (${c.ecart > 0 ? '+' : ''}${c.ecart} L). Les deux valeurs sont conservées.</div>`).join('')
+          : '<div class="alerte ok">Début de Q2 concordant avec la fin de Q1, compteur par compteur.</div>';
+      }
+      cmp = `<div class="card"><h2>Fin de Q1 ↔ début de Q2</h2>${cmp}</div>`;
+    }
+    return `<h1>Revue avant validation</h1><div class="sub">${esc(MOMENTS_LIBELLE[moment])}</div><div class="card">${liste}</div>${cmp}<div class="card">${recap}</div>
       <div class="row"><button class="btn2" data-act="prec">Retour</button><button class="btn" data-act="valider" ${rev.peutValider ? '' : 'disabled'}>Valider le relevé</button></div>`;
   }
   function vueRecopie() {
@@ -253,7 +276,7 @@
 
   async function ouvrirMoment() {
     saisies = {}; motifs = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
-    await chargerPrecedents();
+    await chargerPrecedents(); await chargerFinQ1();
     const loc = lireLocal();
     if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; pompe = loc.pompe || 1; }
     try {
