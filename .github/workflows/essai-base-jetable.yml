@@ -286,8 +286,8 @@ jobs:
             bash $J/jouer-mutants.sh "$RUNNER_TEMP/mutants" "$P" "$RUNNER_TEMP/mutants-$variante.jsonl" > /dev/null
             jq -r '"\(.nom) => \(.verdict) [\(.cas)]"' "$RUNNER_TEMP/mutants-$variante.jsonl" > "$RUNNER_TEMP/mutants-$variante.txt"
             bilan=$(jq -sc 'group_by(.verdict) | map({(.[0].verdict): length}) | add' "$RUNNER_TEMP/mutants-$variante.jsonl")
-            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants, preuve $variante::$bilan"
-            bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants, preuve $variante" "$RUNNER_TEMP/mutants-$variante.txt" 4
+            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants (preuve $variante)::$bilan"
+            bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants (preuve $variante)" "$RUNNER_TEMP/mutants-$variante.txt" 4
           done
 
       - name: "Journal Piste, migration candidate et preuve (avant, application, après)"
@@ -310,11 +310,17 @@ jobs:
             'anon_usage_cron', has_schema_privilege('anon', 'cron', 'usage'))" 2>&1)
           echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : planification::$cron"
           grep -q '"migration":"appliquee"' <<<"$bilan" || echo "::warning title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste::migration non appliquée, voir le bilan"
-          # Même base, preuve corrigée (LIKE échappé).
+          # Même base, preuve corrigée (LIKE échappé). Le shell d'Actions tourne
+          # avec -e : une preuve KO (code non nul) ne doit pas couper l'étape
+          # avant que son résultat soit publié.
+          set +e
           bash $J/corriger-preuve.sh $J/preuve-request-3.sql "$RUNNER_TEMP/preuve-corrigee.sql" > /dev/null
           psql -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/preuve-corrigee.sql" > "$S/preuve-corrigee.txt" 2>&1; code=$?
           ok=$(grep -cE '\| OK$' "$S/preuve-corrigee.txt"); ko=$(grep -E '\| KO$' "$S/preuve-corrigee.txt" | sed 's/  */ /g' | paste -sd ';' -)
           echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : preuve corrigée après application::code=$code cas_ok=$ok cas_ko=[$ko]"
+          grep -E 'ERROR' "$S/preuve-corrigee.txt" | head -n 3 > "$S/preuve-corrigee-erreurs.txt"
+          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : erreurs de la preuve corrigée" "$S/preuve-corrigee-erreurs.txt" 1
+          exit 0
 
       - name: Jeter la base
         if: always()
