@@ -196,11 +196,59 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          inv=$(psql -X -tA -f outils/essai-base-jetable/inventaire-schema.sql)
-          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (comptes)::$(jq -c 'del(.liste_tables, .liste_politiques, .liste_fonctions)' <<<"$inv")"
-          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (tables)::$(jq -c '.liste_tables' <<<"$inv")"
-          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (politiques)::$(jq -c '.liste_politiques' <<<"$inv")"
-          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (fonctions)::$(jq -c '.liste_fonctions' <<<"$inv")"
+          psql -X -tA -f outils/essai-base-jetable/inventaire-schema.sql > "$RUNNER_TEMP/inventaire.json"
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (comptes)::$(jq -c 'del(.liste_tables, .liste_politiques, .liste_fonctions)' "$RUNNER_TEMP/inventaire.json")"
+
+      # Une annotation est tronquée à 4 096 caractères : la liste part en
+      # morceaux numérotés (au plus 10 par étape), chacun sous 3 800 caractères.
+      - name: Publier la liste des tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '.liste_tables[]' "$RUNNER_TEMP/inventaire.json" > "$RUNNER_TEMP/tables.txt"
+          total=$(wc -l < "$RUNNER_TEMP/tables.txt")
+          awk -v max=3800 '{ if (len + length($0) + 1 > max) { n++; len = 0 } print > (ENVIRON["RUNNER_TEMP"] "/tables." sprintf("%02d", n)); len += length($0) + 1 }' n=1 "$RUNNER_TEMP/tables.txt"
+          morceaux=$(ls "$RUNNER_TEMP"/tables.[0-9][0-9] | wc -l)
+          [ "$morceaux" -le 10 ] || { echo "::error::tables : $morceaux morceaux, plus que 10 annotations"; exit 1; }
+          k=0
+          for f in "$RUNNER_TEMP"/tables.[0-9][0-9]; do
+            k=$((k + 1))
+            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (tables) $k/$morceaux, $total au total::$(paste -sd '|' "$f")"
+          done
+
+      # Une annotation est tronquée à 4 096 caractères : la liste part en
+      # morceaux numérotés (au plus 10 par étape), chacun sous 3 800 caractères.
+      - name: Publier la liste des politiques
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '.liste_politiques[]' "$RUNNER_TEMP/inventaire.json" > "$RUNNER_TEMP/politiques.txt"
+          total=$(wc -l < "$RUNNER_TEMP/politiques.txt")
+          awk -v max=3800 '{ if (len + length($0) + 1 > max) { n++; len = 0 } print > (ENVIRON["RUNNER_TEMP"] "/politiques." sprintf("%02d", n)); len += length($0) + 1 }' n=1 "$RUNNER_TEMP/politiques.txt"
+          morceaux=$(ls "$RUNNER_TEMP"/politiques.[0-9][0-9] | wc -l)
+          [ "$morceaux" -le 10 ] || { echo "::error::politiques : $morceaux morceaux, plus que 10 annotations"; exit 1; }
+          k=0
+          for f in "$RUNNER_TEMP"/politiques.[0-9][0-9]; do
+            k=$((k + 1))
+            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (politiques) $k/$morceaux, $total au total::$(paste -sd '|' "$f")"
+          done
+
+      # Une annotation est tronquée à 4 096 caractères : la liste part en
+      # morceaux numérotés (au plus 10 par étape), chacun sous 3 800 caractères.
+      - name: Publier la liste des fonctions
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '.liste_fonctions[]' "$RUNNER_TEMP/inventaire.json" > "$RUNNER_TEMP/fonctions.txt"
+          total=$(wc -l < "$RUNNER_TEMP/fonctions.txt")
+          awk -v max=3800 '{ if (len + length($0) + 1 > max) { n++; len = 0 } print > (ENVIRON["RUNNER_TEMP"] "/fonctions." sprintf("%02d", n)); len += length($0) + 1 }' n=1 "$RUNNER_TEMP/fonctions.txt"
+          morceaux=$(ls "$RUNNER_TEMP"/fonctions.[0-9][0-9] | wc -l)
+          [ "$morceaux" -le 10 ] || { echo "::error::fonctions : $morceaux morceaux, plus que 10 annotations"; exit 1; }
+          k=0
+          for f in "$RUNNER_TEMP"/fonctions.[0-9][0-9]; do
+            k=$((k + 1))
+            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Inventaire (fonctions) $k/$morceaux, $total au total::$(paste -sd '|' "$f")"
+          done
 
       - name: Jeter la base
         if: always()
