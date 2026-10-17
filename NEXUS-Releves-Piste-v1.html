@@ -225,6 +225,8 @@
     try {
       const fmt = R.extensionPhoto(fichier);
       if (!fmt) { jauge.statut = 'hors_ligne'; jauge.message = 'Photo refusée : format non accepté (JPEG, PNG, WebP ou HEIC). Reprenez la photo ou saisissez à la main.'; rendre(); return; }
+      const pre = R.precontrolePompiste(await nexusClient.rpc('est_pompiste_du_jour', { p_site: emp.site_id }).catch(() => null));
+      if (!pre.ok) { jauge.statut = 'hors_ligne'; jauge.message = pre.message; rendre(); return; }
       const ext = fmt.ext;
       const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${ext}`;
       const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fmt.contentType });
