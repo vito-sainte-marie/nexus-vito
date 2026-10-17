@@ -272,7 +272,7 @@ jobs:
       # --- Arbitrage du 17/10/2026, décision 1 : Journal Piste request-3 ---
       # Les mutants passent AVANT l'application réelle : chacun est joué dans
       # une transaction annulée, sur la base telle que l'historique l'a laissée.
-      - name: Journal Piste : mutants de la migration candidate
+      - name: "Journal Piste, mutants de la migration candidate"
         shell: bash
         run: |
           set -uo pipefail
@@ -284,7 +284,7 @@ jobs:
           echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants::$bilan"
           bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants" "$RUNNER_TEMP/mutants.txt" 6
 
-      - name: Journal Piste : migration candidate et preuve (avant, application, après)
+      - name: "Journal Piste, migration candidate et preuve (avant, application, après)"
         shell: bash
         run: |
           set -uo pipefail
