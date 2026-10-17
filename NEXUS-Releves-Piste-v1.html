@@ -338,10 +338,10 @@
   }
   function vueRevue() {
     const rev = R.revueAnomalies(saisies, precedents, motifs, moment);
-    const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe ${p} · ${pr}`; };
+    const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe <span class="npompe">${p}</span> · ${pr}`; };
     const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)', NUIT_TOLEREE: 'écart de nuit +1 : toléré et tracé', NUIT_A_JUSTIFIER: 'écart de nuit à justifier', NUIT_ALERTE_PRIORITAIRE: 'alerte prioritaire au manager', NUIT_DIMINUTION: 'index en diminution : anomalie' };
     const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} : ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
-    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P${p} ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || 'non saisi')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
+    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P<span class="npompe">${p}</span> ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || 'non saisi')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
     let cmp = '';
     if (moment === 'debut_q1') cmp = `<div class="card"><h2>Dernière fin de Q2 ↔ début de Q1</h2>${referenceDispo ? '<div class="sub">Contrôle séparé sur chacun des huit compteurs. Les anomalies ne bloquent pas : elles sont enregistrées et visibles du manager.</div>' : '<div class="alerte indic">Aucune fin de Q2 validée : comparaison impossible (non bloquant).</div>'}</div>`;
     if (moment === 'debut_q2') {
@@ -364,9 +364,9 @@
     const corps = lignes.map(l => {
       if (l.produit === 'GNR') return `<div class="ligne gnr"><span class="n">GNR</span><span class="v">${R.GNR_INDEX_REFERENCE}</span><span class="pastille">hors service · référence</span></div>`;
       const k = `${l.pompe}-${l.produit}`, v = serveur.valeurs[k];
-      if (!v) return `<div class="ligne"><span class="n">P${l.pompe} ${l.produit}</span><span class="v">…</span><span class="pastille">non envoyé</span></div>`;
+      if (!v) return `<div class="ligne"><span class="n">P<span class="npompe">${l.pompe}</span> ${l.produit}</span><span class="v">…</span><span class="pastille">non envoyé</span></div>`;
       const c = R.convertirSeptVersSix(v.valeur_sept_chiffres);
-      return `<div class="ligne"><span class="n">P${l.pompe} ${l.produit}</span><span class="v">${c.valeurDecenium}<div class="conv">relevé : ${v.valeur_sept_chiffres}</div></span><input type="checkbox" aria-label="Recopiée dans Decenium" data-act="tick" data-id="${v.id}" ${v.recopiee ? 'checked' : ''}></div>`;
+      return `<div class="ligne"><span class="n">P<span class="npompe">${l.pompe}</span> ${l.produit}</span><span class="v">${c.valeurDecenium}<div class="conv">relevé : ${v.valeur_sept_chiffres}</div></span><input type="checkbox" aria-label="Recopiée dans Decenium" data-act="tick" data-id="${v.id}" ${v.recopiee ? 'checked' : ''}></div>`;
     }).join('');
     return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
       ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
