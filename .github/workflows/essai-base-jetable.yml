@@ -269,6 +269,21 @@ jobs:
           grep -E '^ *[0-9]+ \||HELPERS :|ERROR' "$RUNNER_TEMP/usurpation.txt" | sed 's/  */ /g' > "$RUNNER_TEMP/usurp-lignes.txt" || true
           bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers : usurpation par table temporaire ($statut)" "$RUNNER_TEMP/usurp-lignes.txt" 2
 
+      - name: Éprouver le correctif minimal des helpers (transaction annulée)
+        shell: bash
+        run: |
+          set +e
+          A=outils/essai-base-jetable
+          cat $A/helpers/correctif-minimal-helpers.sql $A/helpers/usurpation-helpers.sql | psql -X -v ON_ERROR_STOP=1 > "$RUNNER_TEMP/correctif-usurp.txt" 2>&1
+          grep -E '^ *[0-9]+ \||HELPERS :|ERROR' "$RUNNER_TEMP/correctif-usurp.txt" | sed 's/  */ /g' > "$RUNNER_TEMP/correctif-usurp-l.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers corrigés : usurpation" "$RUNNER_TEMP/correctif-usurp-l.txt" 2
+          cat $A/helpers/correctif-minimal-helpers.sql $A/preuve-rls.sql | psql -X -v ON_ERROR_STOP=1 > "$RUNNER_TEMP/correctif-rls.txt" 2>&1
+          grep -E 'PREUVE RLS|ERROR|ÉCHEC' "$RUNNER_TEMP/correctif-rls.txt" | sed 's/  */ /g' > "$RUNNER_TEMP/correctif-rls-l.txt"
+          bash $A/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Helpers corrigés : non-régression RLS" "$RUNNER_TEMP/correctif-rls-l.txt" 1
+          propre=$(psql -X -tA -c "select array_to_string(proconfig, ',') from pg_proc where proname = 'current_employee_site_id'")
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Helpers corrigés : état après annulation::current_employee_site_id $propre"
+          exit 0
+
       # --- Arbitrage du 17/10/2026, décision 1 : Journal Piste request-3 ---
       # Les mutants passent AVANT l'application réelle : chacun est joué dans
       # une transaction annulée, sur la base telle que l'historique l'a laissée.
