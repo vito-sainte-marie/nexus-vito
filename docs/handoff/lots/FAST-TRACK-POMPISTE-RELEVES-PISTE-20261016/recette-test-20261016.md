@@ -115,3 +115,11 @@ Reste NON TESTÉ : cas 8, 10, 18 (historique manager non construit), Fin Q2 → 
 
 - Service de recette passé en `matin` : l'accueil affiche, dans l'ordre, Jaugeage Veeder-Root, Début de Q1, Fin de Q1, puis « Recopier les index dans Decenium » (Fin de Q1 : tout recopié). RÉUSSI. Service remis à `soir` ensuite.
 - Fin de Q2 → début de Q1 du lendemain : NON TESTÉ. Une simulation de date (+1 jour injectée dans la page) renvoie vers la Prise de poste, qui exige un service du jour ; le test réel demande un service matin daté du lendemain ou la suppression du `debut_q1` de recette du jour (non faite, non autorisée).
+
+## Fin de Q2 → début de Q1 du lendemain : tentative avant minuit (Test, 17/10 02:55Z)
+
+Service matin créé le 2026-10-17 06:00 (Martinique) ; date de l'appareil décalée de +1 jour dans la page.
+
+- Écran : références = dernier `fin_q2` validé (P1 GO 1234700, etc.), saisie des 2 derniers chiffres, confirmation partielle affichée. Pompe 2 GO saisie en 7 chiffres (4568050 contre 4568000) : « Écart de nuit +50 : alerte prioritaire au manager », non bloquant. Revue : « Pompe 2 · GO : alerte prioritaire au manager (50 L) ». RÉUSSI côté écran.
+- Validation : REFUSÉE par le serveur (403, RLS 42501 sur `carburant_index_releves`), alors qu'il était encore le 16/10 à 22:55 en Martinique. `est_pompiste_du_jour` exige un service `en_cours` daté du jour serveur : un service futur n'ouvre aucun droit d'écriture. Comportement attendu ; la page garde la saisie sur l'appareil et affiche « relevé non validé ».
+- Aucun relevé du 17/10 en base. Reprise sans simulation après minuit (04:00Z).
