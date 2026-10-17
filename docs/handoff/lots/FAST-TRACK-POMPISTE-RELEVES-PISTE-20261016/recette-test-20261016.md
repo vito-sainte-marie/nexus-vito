@@ -50,7 +50,7 @@ Livré (commit `d3577cc9`, migration Test-only `20261017130000`, aucun grant ni 
 | Scénario | Preuve | État |
 |---|---|---|
 | Quatre moments dont `debut_q1` ; début/fin distingués | logique 22/22 | AUTOMATISÉ |
-| Habilitation : un pompiste ne voit que les moments de son quart réel (`shifts`) | logique ; navigateur à rejouer | PARTIEL |
+| Habilitation : un pompiste ne voit que les moments de son quart réel (primitive `nexusServiceCourant`, service en cours) | logique ; navigateur à rejouer | PARTIEL |
 | Début rapide : référence affichée, 2 derniers chiffres, bascule en 7 chiffres si différent ou douteux, référence indisponible → 7 chiffres | logique ; navigateur à rejouer | PARTIEL |
 | Tolérance de nuit 0 / +1 / +2..+9 / ≥+10 / diminution, par compteur, non bloquante | logique | AUTOMATISÉ |
 | Index identiques fin/début, retour à zéro du compteur | logique | AUTOMATISÉ |

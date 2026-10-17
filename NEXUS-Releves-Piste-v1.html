@@ -168,8 +168,10 @@
     habilites = []; quartsReels = [];
     if (emp.role === 'manager' || emp.role === 'gerant') { habilites = R.MOMENTS.slice(); return; }
     try {
-      const { data } = await nexusClient.from('shifts').select('quart, statut, heure_debut').eq('employee_id', emp.id).gte('heure_debut', date).in('statut', ['en_cours', 'clos_sans_pointage', 'termine']);
-      quartsReels = (data || []).map(x => R.normaliserQuart(x.quart)).filter(Boolean);
+      // Service courant : primitive partagée de nexus-auth.js (garde « service courant unique »).
+      const r = await nexusServiceCourant(emp);
+      if (r.erreur) throw new Error('service courant illisible');
+      quartsReels = r.service ? [R.normaliserQuart(r.service.quart)].filter(Boolean) : [];
       habilites = R.momentsHabilites(quartsReels);
     } catch (x) { habilites = []; reseau.ok = false; }
   }
