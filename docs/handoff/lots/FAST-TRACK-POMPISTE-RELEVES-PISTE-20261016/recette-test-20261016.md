@@ -74,3 +74,20 @@ Résultats observés (déploiement `ef1b5493`, puis correctif `5a8d70d0`) :
 Défaut trouvé et corrigé (`5a8d70d0`) : un brouillon local commencé avant l'existence de la référence conservait `ref_statut='indisponible'` alors que `ref_valeur_sept` était renseignée au moment de l'envoi. Le statut devient `saisie_complete` dans ce cas. Constat de conception : en mode rapide, taper 7 chiffres dans le champ à 2 chiffres ne bascule pas ; il faut le bouton « Valeur différente ou douteuse ».
 
 Relevé de recette Test supprimé et rejoué (aucune donnée réelle). Restent NON TESTÉS : fin avec recopie confirmée, début Q2 ↔ fin Q1 en navigateur, Safari iOS, caméra.
+
+## Recette navigateur Test — fin de Q1, recopie, début de Q2 (17/10/2026, viewport mobile émulé)
+
+| Scénario | Résultat |
+|---|---|
+| Fin de Q1 : 8 valeurs en 7 chiffres sans préremplissage, revue « Aucune anomalie », validation | RÉUSSI : `fin_q1` final, 8 valeurs |
+| Recopie Decenium : 8 coches, puis case « Je confirme avoir recopié les valeurs dans Decenium. » | RÉUSSI : case de confirmation active seulement après les 8 coches, « Terminer » actif seulement après la confirmation ; base : `recopiee` vrai sur 8 lignes sur 8 (0 sur le début de Q1) |
+| Habilitation, service `soir` | RÉUSSI : seuls Début de Q2 et Fin de Q2 sont proposés |
+| Début de Q2 : référence = dernière fin de Q1 validée, 2 derniers chiffres identiques sur 6 compteurs, 7 chiffres identiques sur 1 | RÉUSSI : `confirmee_deux_chiffres` ×6, `saisie_complete` ×1 |
+| Fin de Q1 ≠ début de Q2 (P4 SP 7890200 → 7890205) | RÉUSSI : « fin de Q1 ≠ début de Q2 (+5 L). Les deux valeurs sont conservées. » dans la revue, non bloquant ; les deux valeurs sont en base |
+| Aucune recopie au début de Q2 | RÉUSSI : « rien à recopier » |
+
+Constat sur un essai antérieur : cases de recopie qui paraissaient ne pas se cocher. Reproduit seulement avec des clics JS enchaînés sans attente (re-rendus entre deux clics) ; avec des clics espacés de 1,5 s, le comportement est correct. Aucun défaut de page établi. À confirmer sur appareil réel.
+
+En début rapide, la case de vérification visuelle est exigée à chaque pompe, même quand tous les chiffres sont confirmés (voulu par le code, `visuelOk`).
+
+Reste NON TESTÉ : Fin de Q2 → début de Q1 suivant, Safari iOS, caméra, perte de connexion. Le service de recette est restauré à `quart='soir'`.
