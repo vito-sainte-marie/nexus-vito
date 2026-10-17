@@ -149,4 +149,12 @@ t('photo Android : extension d\'après le type, nom sans extension toléré, for
   assert.strictEqual(e('a.avif', 'image/avif'), null);
   assert.strictEqual(R.extensionPhoto(null).ext, 'jpg');
 });
+t('pré-contrôle pompiste : seul un false franc bloque l\'envoi', () => {
+  assert.strictEqual(R.precontrolePompiste({ data: false, error: null }).ok, false);
+  assert.ok(/quart en cours/.test(R.precontrolePompiste({ data: false, error: null }).message));
+  assert.strictEqual(R.precontrolePompiste({ data: true, error: null }).ok, true);
+  assert.strictEqual(R.precontrolePompiste({ data: null, error: { message: 'x' } }).ok, true);
+  assert.strictEqual(R.precontrolePompiste({ data: false, error: { message: 'x' } }).ok, true);
+  assert.strictEqual(R.precontrolePompiste(null).ok, true);
+});
 console.log(n + '/' + n + ' réussies');

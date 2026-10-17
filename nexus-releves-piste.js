@@ -196,13 +196,23 @@
     return { ext, contentType: MIME_PHOTO[ext] };
   }
 
+  // Pré-contrôle avant l'envoi : l'appel `est_pompiste_du_jour(site)` dit si l'utilisateur a un
+  // quart en cours aujourd'hui avec le rôle pompiste. Seul un `false` franc bloque ; une erreur
+  // d'appel ne bloque rien (la politique Storage reste l'autorité, ce contrôle ne fait que nommer la cause).
+  function precontrolePompiste(reponse) {
+    if (reponse && !reponse.error && reponse.data === false) {
+      return { ok: false, message: 'Photo non envoyée : aucun quart en cours aujourd\'hui sur ce site avec le rôle pompiste pour votre compte. Ouvrez votre quart, ou prévenez votre manager. Vous pouvez saisir les volumes à la main.' };
+    }
+    return { ok: true };
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
-    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto,
+    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;
