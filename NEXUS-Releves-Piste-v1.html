@@ -166,7 +166,7 @@
   // Quarts réellement affectés au pompiste aujourd'hui (managers/gérants : tous les moments).
   async function chargerHabilitations() {
     habilites = []; quartsReels = [];
-    if (emp.role === 'manager' || emp.role === 'gerant') { habilites = R.MOMENTS.slice(); return; }
+    if (R.momentsHabilites([], emp.role).length) { habilites = R.momentsHabilites([], emp.role); return; }
     try {
       // Service courant : primitive partagée de nexus-auth.js (garde « service courant unique »).
       const r = await nexusServiceCourant(emp);

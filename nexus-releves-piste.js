@@ -24,7 +24,9 @@
     return null;
   }
   // quartsReels : liste (ou valeur) des quarts affectés ce jour ; vide = aucun accès.
-  function momentsHabilites(quartsReels) {
+  // role : manager/gérant voient tous les moments (affichage ; la RLS reste l'autorité).
+  function momentsHabilites(quartsReels, role) {
+    if (role === 'manager' || role === 'gerant') return MOMENTS.slice();
     const qs = [].concat(quartsReels == null ? [] : quartsReels).map(normaliserQuart).filter(Boolean);
     return MOMENTS.filter(m => qs.indexOf(QUART_DU_MOMENT[m]) >= 0);
   }

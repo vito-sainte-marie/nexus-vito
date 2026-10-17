@@ -79,6 +79,9 @@ t('habilitation : le pompiste ne voit que les moments de son quart réel', () =>
   assert.deepStrictEqual(R.momentsHabilites([]), []);
   assert.deepStrictEqual(R.momentsHabilites(null), []);
   assert.deepStrictEqual(R.momentsHabilites(['inconnu']), []);
+  assert.deepStrictEqual(R.momentsHabilites([], 'manager'), R.MOMENTS);
+  assert.deepStrictEqual(R.momentsHabilites([], 'gerant'), R.MOMENTS);
+  assert.deepStrictEqual(R.momentsHabilites([], 'pompiste'), []);
 });
 t('tolérance de nuit : 0, +1, +2..+9, >=+10, diminution', () => {
   assert.strictEqual(R.classerEcartNuit(0).code, 'conforme');
