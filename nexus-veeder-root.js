@@ -27,13 +27,20 @@
     }
     return marques.map((c, i) => {
       const corps = t.slice(c.fin, i + 1 < marques.length ? marques[i + 1].idx : t.length);
+      // Le volume est affiché deux fois (jauge + ligne « Volume Produit »). Un OCR réel
+      // mélange l'ordre des lignes : on retient l'entier présent deux fois dans le bloc,
+      // sinon la lecture est marquée incertaine (jamais présentée comme sûre).
+      const entiers = (corps.match(/(?<![\d.,])\d{3,6}(?![\d.,]\d)(?!\d)/g) || []).map(Number);
+      const doubles = [...new Set(entiers.filter(n => entiers.filter(x => x === n).length >= 2))];
       const vol = /Volume\s*Produit\D{0,12}?(\d{1,3}(?: \d{3})+|\d+)/i.exec(corps);
-      const eau = /Hauteur\s*eau\D{0,12}?(\d[\d.,]*)/i.exec(corps);
-      const volume = vol ? entier(vol[1]) : null;
+      const eau = null;
+      let volume = null, incertaine = false;
+      if (doubles.length === 1) volume = doubles[0];
+      else if (vol) { volume = entier(vol[1]); incertaine = true; }
       return {
         reservoir: c.reservoir, code: c.code, capacite_m3: c.capacite_m3, produit: c.produit,
-        volume_l: volume, eau_mm: eau ? Number(eau[1].replace(',', '.')) : null,
-        alerte: controlerLecture(c, volume),
+        volume_l: volume, eau_mm: null,
+        alerte: controlerLecture(c, volume) || (incertaine ? 'lecture_incertaine' : null),
       };
     });
   }

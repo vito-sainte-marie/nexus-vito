@@ -821,7 +821,7 @@
   // du précédent ou 0) : le pompiste ne déclare qu'un jaugeage physique,
   // pas une livraison ou un mouvement exceptionnel — ces gestes restent la
   // responsabilité du manager sur son écran habituel.
-  async function enregistrerJaugeageOuverturePompiste(client, siteId, { date, employeeId, valeurs }) {
+  async function enregistrerJaugeageOuverturePompiste(client, siteId, { date, employeeId, valeurs, mesureLe: mesureLeFourni, motifCorrection, provenance }) {
     const M = global.NexusCarburantMoteur;
     if (!M) { console.error('NexusCarburantMoteur non chargé — jaugeage pompiste impossible.'); return { ok: false, error: new Error('moteur carburant absent') }; }
 
@@ -845,7 +845,10 @@
     // sur "Situation aujourd'hui" (qui ne dépend pas de `mesure_le`). Même
     // convention que l'écran manager et le pont Réception (Article 11,
     // jamais une deuxième convention de capture d'instant).
-    const mesureLe = new Date().toISOString();
+    // Option (relevés piste, 16/10/2026) : l'instant réel de la mesure quand il
+    // est connu (photo d'écran Veeder-Root) — une photo du matin n'est jamais
+    // présentée comme un jaugeage pris plus tard. Sans option : maintenant.
+    const mesureLe = mesureLeFourni || new Date().toISOString();
 
     const nouveauSnapshot = {
       stock_reel_go_cuve1: valeurs.go_cuve1 != null ? Number(valeurs.go_cuve1) : (precedent ? precedent.stock_reel_go_cuve1 : null),
@@ -874,8 +877,11 @@
       // jamais une troisième inventée ici, Article 11) ; le motif reste
       // honnête sur ce qui s'est réellement passé plutôt que de bloquer le
       // pompiste avec un champ de motif qu'il ne devrait jamais voir.
-      motif_correction: typeVersion === 'correction_manager' ? 'Jaugeage terrain (pont Inventaire, pompiste Quart 1)' : null,
-      diff_vs_precedent: diff, auteur: employeeId, origine: 'terrain_pompiste', mesure_le: mesureLe,
+      motif_correction: typeVersion === 'correction_manager' ? (motifCorrection || 'Jaugeage terrain (pont Inventaire, pompiste Quart 1)') : null,
+      // `provenance` (optionnelle) : trace de la lecture OCR (document, valeurs
+      // proposées vs confirmées) ajoutée au différentiel, sans nouvelle colonne.
+      diff_vs_precedent: provenance ? { ...(diff || {}), provenance } : diff,
+      auteur: employeeId, origine: 'terrain_pompiste', mesure_le: mesureLe,
     });
     if (eVersion && eVersion.code !== '23505') {
       console.error('Preuve jaugeage pompiste (carburant_releve_versions):', eVersion);

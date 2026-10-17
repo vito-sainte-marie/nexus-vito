@@ -6,16 +6,20 @@ function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 
 const ECRAN = `RESERVOIR 1: R3 30M3 SP
 Volume Produit 20085
+20085
 Hauteur Produi 1564.4
 Hauteur eau 0.0
 RESERVOIR 2: R4 10M3 GO
 Volume Produit 7577
+7577
 Hauteur eau 0.0
 RESERVOIR 3: R1 20M3 GO
 Volume Produit 11875
+11875
 Hauteur eau 0.0
 RESERVOIR 4: R2 30M3 GNR
 Volume Produit 4365
+4365
 Hauteur eau 0.0`;
 
 t('quatre cuves lues, rattachées par produit et capacité', () => {
@@ -52,5 +56,67 @@ t('correction humaine tracée', () => {
   assert.deepStrictEqual(V.ecartCorrection(7577, 7577), { corrige: false, delta: 0 });
   assert.deepStrictEqual(V.ecartCorrection(7577, 7557), { corrige: true, delta: -20 });
   assert.strictEqual(V.ecartCorrection(null, 100).corrige, true);
+});
+// Sortie réelle de l'OCR (Apple Vision, local) sur la photo TLS4B du 06/05/2026 fournie pour la recette,
+// reconstituée sans les visages ni le reste de la photo : l'ordre des lignes est mélangé entre les blocs.
+const OCR_REEL = `RESERVOIR 1: R3 30M3 SP
+Volume Produit
+20085
+100 % Espace v
+Hauteur Produi
+1564.4
+20085
+RESERVOIR 2: R4 10M3 GO
+Volume Produit
+7577
+Hauteur Produi
+7577
+Température
+0.0
+Température
+100 % Espace v
+1761.4
+Hauteur eau
+30.4
+1957
+Hauteur eau
+30.6
+RESERVOIR 3: R1 20M3 GO
+0.0
+Volume Produit
+11875
+100 % Espace v
+Hauteur Produi
+11875
+RESERVOIR 4: R2 30M3 GNR
+1423.5
+Volume Produit
+7144
+30.5
+4365
+100% Espace v
+Hauteur Produi
+365.9
+4365
+Hauteur eau
+Température
+0.0
+Hauteur eau
+Température
+26106
+0.0`;
+t('OCR réel mélangé : le volume affiché deux fois l\'emporte (GNR 4365, pas 7144)', () => {
+  const c = V.lireEcranVeederRoot(OCR_REEL);
+  assert.deepStrictEqual(c.map(x => [x.produit, x.capacite_m3, x.volume_l, x.alerte]),
+    [['SP', 30, 20085, null], ['GO', 10, 7577, null], ['GO', 20, 11875, null], ['GNR', 30, 4365, null]]);
+  assert.deepStrictEqual(V.completude(c), { complet: true, manque: [] });
+  const go = c.filter(x => x.produit === 'GO').reduce((a, x) => a + x.volume_l, 0);
+  assert.strictEqual(go, 19452);
+});
+t('une valeur vue une seule fois est signalée incertaine, jamais sûre', () => {
+  const c = V.lireEcranVeederRoot('RESERVOIR 1: R3 30M3 SP\nVolume Produit 20085\nHauteur eau 0.0');
+  assert.strictEqual(c[0].volume_l, 20085);
+  assert.strictEqual(c[0].alerte, 'lecture_incertaine');
+  assert.strictEqual(V.completude(c).complet, false);
 });
 console.log(n + '/' + n);

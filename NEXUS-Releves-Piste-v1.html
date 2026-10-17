@@ -12,6 +12,8 @@
 <script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-releves-piste.js?v=20261016"></script>
+<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
 <script src="nexus-veeder-root.js?v=20261016"></script>
 <style>
   :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
@@ -147,12 +149,12 @@
   // ---- Jaugeage Veeder-Root : photo -> file OCR (différée) -> proposition à vérifier ----
   const V = window.NexusVeederRoot;
   const CUVES = [
-    { k: 'SP-30', produit: 'SP', cap: 30, lib: 'SP 30 m3' },
-    { k: 'GO-20', produit: 'GO', cap: 20, lib: 'GO 20 m3' },
-    { k: 'GO-10', produit: 'GO', cap: 10, lib: 'GO 10 m3' },
-    { k: 'GNR-30', produit: 'GNR', cap: 30, lib: 'GNR 30 m3' },
+    { k: 'SP-30', produit: 'SP', cap: 30, lib: 'SP 30 m3', champ: 'sp95' },
+    { k: 'GO-20', produit: 'GO', cap: 20, lib: 'GO cuve 1 (20 m3)', champ: 'go_cuve1' },
+    { k: 'GO-10', produit: 'GO', cap: 10, lib: 'GO cuve 2 (10 m3)', champ: 'go_cuve2' },
+    { k: 'GNR-30', produit: 'GNR', cap: 30, lib: 'GNR 30 m3', champ: 'gnr' },
   ];
-  let jauge = { statut: 'aucune', docId: null, propositions: {}, saisies: {}, corrections: {}, message: '' };
+  let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
   const LIB_STATUT = {
     aucune: 'Aucune photo envoyée.', envoi: 'Envoi de la photo…', en_attente: 'Photo envoyée. La lecture automatique est différée : elle peut tarder.',
     en_cours: 'Lecture en cours…', traite: 'Lecture disponible, à vérifier à l\'œil.', erreur: 'La lecture automatique a échoué. Saisissez les volumes à la main.',
@@ -165,12 +167,19 @@
       return `<div class="card champ"><label for="j${c.k}">${esc(c.lib)}<span class="ref">litres</span></label><input class="idx" id="j${c.k}" data-j="${c.k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="6" value="${esc(jauge.saisies[c.k] ?? '')}" placeholder="volume">${aide}</div>`;
     }).join('');
     const pret = CUVES.every(c => jauge.saisies[c.k]);
-    const recap = pret ? `<div class="card"><h2>À reporter dans l'Inventaire</h2>${CUVES.map(c => `<div class="ligne"><span class="n">${esc(c.lib)}</span><span class="v">${esc(jauge.saisies[c.k])} L</span></div>`).join('')}<div class="sub">Cette page ne modifie ni le stock ni le moteur carburant.</div></div>` : '';
+    const n = k => Number(jauge.saisies[k] || 0);
+    const goTotal = (jauge.saisies['GO-20'] && jauge.saisies['GO-10']) ? n('GO-20') + n('GO-10') : null;
+    const total = `<div class="card"><div class="ligne"><span class="n">GO total (cuve 1 + cuve 2)</span><span class="v">${goTotal != null ? goTotal + ' L' : '…'}</span></div><div class="sub">Somme d'affichage pour la recopie Decenium : jamais un mouvement de stock ni une vente.</div></div>`;
+    const ex = jauge.existant;
+    const avert = ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
+    const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
+    const conf = pret ? `${total}${avert}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
+      <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
       <div class="card"><label class="btn2" style="display:block;text-align:center;padding:14px"><input type="file" accept="image/*" capture="environment" id="jPhoto" style="display:none">Prendre la photo de l'écran</label>
       <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
       ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
-      ${lignes}${recap}<button class="btn2" data-act="choix">Retour</button>`;
+      ${photo}${lignes}${conf}<button class="btn2" data-act="choix">Retour</button>`;
   }
   async function envoyerPhoto(fichier) {
     jauge.statut = 'envoi'; jauge.message = ''; rendre();
@@ -185,12 +194,34 @@
     } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
     rendre();
   }
+  async function enregistrerJaugeage() {
+    const D = window.NexusCarburantDonnees;
+    if (!jauge.confirme || !CUVES.every(c => jauge.saisies[c.k])) return;
+    const valeurs = {}, propose = {}, confirme = {}, corriges = [];
+    CUVES.forEach(c => {
+      const v = Number(jauge.saisies[c.k]); valeurs[c.champ] = v; confirme[c.k] = v;
+      const p = jauge.propositions[c.k];
+      if (p && p.volume_l != null) { propose[c.k] = p.volume_l; if (p.volume_l !== v) corriges.push(c.k); }
+      else corriges.push(c.k);
+    });
+    const provenance = { source: jauge.docId ? 'ocr_veeder_root' : 'saisie_manuelle', document_id: jauge.docId || null, photo_le: jauge.photoLe || null, propose, confirme, corriges_a_la_main: corriges, confirme_par: emp.id, confirme_le: new Date().toISOString() };
+    try {
+      const r = await D.enregistrerJaugeageOuverturePompiste(nexusClient, emp.site_id, {
+        date, employeeId: emp.id, valeurs, mesureLe: jauge.photoLe || undefined,
+        motifCorrection: 'Jaugeage Veeder-Root confirmé par le pompiste (relevés piste)', provenance,
+      });
+      if (!r || !r.ok) throw (r && r.error) || new Error('écriture refusée');
+      jauge.enregistre = true; jauge.message = r.dejaAJour ? 'Ces volumes étaient déjà enregistrés : rien n\'a été modifié.' : 'Jaugeage enregistré dans Carburants.'; reseau.ok = true;
+      jauge.existant = await D.chargerReleveDuJour(nexusClient, emp.site_id, date);
+    } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Enregistrement impossible : vos valeurs restent à l\'écran, réessayez.'; }
+    rendre();
+  }
   async function actualiserLecture() {
     if (!jauge.docId) return;
     try {
-      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message').eq('id', jauge.docId).single();
+      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message, deposited_at').eq('id', jauge.docId).single();
       if (error) throw error;
-      jauge.statut = data.status; reseau.ok = true;
+      jauge.statut = data.status; jauge.photoLe = data.deposited_at || null; reseau.ok = true;
       if (data.status === 'traite') {
         jauge.propositions = {};
         V.lireEcranVeederRoot(data.resultat_texte).forEach(c => {
@@ -312,9 +343,10 @@
       }
       await chargerValeursServeur(); rendre(); return;
     }
-    if (a === 'jauge') { ecran = 'jauge'; rendre(); return; }
+    if (a === 'jauge') { ecran = 'jauge'; try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
-    if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); } rendre(); return; }
+    if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
     if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
     if (a === 'choix') { moment = null; ecran = 'choix'; rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
@@ -325,10 +357,11 @@
   });
   document.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); }
+    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); jauge.confirme = false; jauge.enregistre = false; }
   });
   document.addEventListener('change', async (e) => {
     const t = e.target;
+    if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
     if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
     if (t.dataset && t.dataset.act === 'tick') {
       const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
