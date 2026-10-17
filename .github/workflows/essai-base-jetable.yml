@@ -278,11 +278,17 @@ jobs:
           set -uo pipefail
           J=outils/essai-base-jetable/journal-piste
           python3 $J/mutants.py $J/migration-request-3.sql "$RUNNER_TEMP/mutants" $J/migration-request-2.sql
-          bash $J/jouer-mutants.sh "$RUNNER_TEMP/mutants" $J/preuve-request-3.sql "$RUNNER_TEMP/mutants.jsonl" > /dev/null
-          jq -r '"\(.nom) => \(.verdict) [\(.cas)]"' "$RUNNER_TEMP/mutants.jsonl" > "$RUNNER_TEMP/mutants.txt"
-          bilan=$(jq -sc 'group_by(.verdict) | map({(.[0].verdict): length}) | add' "$RUNNER_TEMP/mutants.jsonl")
-          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants::$bilan"
-          bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants" "$RUNNER_TEMP/mutants.txt" 6
+          bash $J/corriger-preuve.sh $J/preuve-request-3.sql "$RUNNER_TEMP/preuve-corrigee.sql"
+          # Deux preuves : l'originale de request-3, puis sa variante corrigée
+          # (LIKE échappé). Chacune est jugée contre son propre témoin.
+          for variante in originale corrigee; do
+            if [ $variante = originale ]; then P=$J/preuve-request-3.sql; else P="$RUNNER_TEMP/preuve-corrigee.sql"; fi
+            bash $J/jouer-mutants.sh "$RUNNER_TEMP/mutants" "$P" "$RUNNER_TEMP/mutants-$variante.jsonl" > /dev/null
+            jq -r '"\(.nom) => \(.verdict) [\(.cas)]"' "$RUNNER_TEMP/mutants-$variante.jsonl" > "$RUNNER_TEMP/mutants-$variante.txt"
+            bilan=$(jq -sc 'group_by(.verdict) | map({(.[0].verdict): length}) | add' "$RUNNER_TEMP/mutants-$variante.jsonl")
+            echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : bilan des mutants, preuve $variante::$bilan"
+            bash outils/essai-base-jetable/annoter.sh "[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : mutants, preuve $variante" "$RUNNER_TEMP/mutants-$variante.txt" 4
+          done
 
       - name: "Journal Piste, migration candidate et preuve (avant, application, après)"
         shell: bash
@@ -304,6 +310,11 @@ jobs:
             'anon_usage_cron', has_schema_privilege('anon', 'cron', 'usage'))" 2>&1)
           echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : planification::$cron"
           grep -q '"migration":"appliquee"' <<<"$bilan" || echo "::warning title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste::migration non appliquée, voir le bilan"
+          # Même base, preuve corrigée (LIKE échappé).
+          bash $J/corriger-preuve.sh $J/preuve-request-3.sql "$RUNNER_TEMP/preuve-corrigee.sql" > /dev/null
+          psql -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/preuve-corrigee.sql" > "$S/preuve-corrigee.txt" 2>&1; code=$?
+          ok=$(grep -cE '\| OK$' "$S/preuve-corrigee.txt"); ko=$(grep -E '\| KO$' "$S/preuve-corrigee.txt" | sed 's/  */ /g' | paste -sd ';' -)
+          echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Journal Piste : preuve corrigée après application::code=$code cas_ok=$ok cas_ko=[$ko]"
 
       - name: Jeter la base
         if: always()
