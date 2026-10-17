@@ -91,3 +91,11 @@ Constat sur un essai antérieur : cases de recopie qui paraissaient ne pas se co
 En début rapide, la case de vérification visuelle est exigée à chaque pompe, même quand tous les chiffres sont confirmés (voulu par le code, `visuelOk`).
 
 Reste NON TESTÉ : Fin de Q2 → début de Q1 suivant, Safari iOS, caméra, perte de connexion. Le service de recette est restauré à `quart='soir'`.
+
+## Recette navigateur Test — suite (16/10/2026, session)
+
+- Début de Q2 concordant avec la fin de Q1 : message « concordant, compteur par compteur », `00` partout. OK (Test).
+- Fin de Q2 : 8 valeurs saisies, revue « Aucune anomalie », relevé validé, recopie 8/8 cochée, confirmation distincte, « Terminé ». Base Test : `fin_q2` final, `recopiee` 8/8 (fin_q1 aussi 8/8 ; débuts 0/8, sans recopie, conforme à l'arbitrage). OK (Test).
+- Correctifs d'affichage vérifiés en viewport mobile 375×812 : placeholder « 2 derniers chiffres » contenu dans le cadre ; espacement libellé produit / référence ; libellés « GO » et « SP » seuls (ed00835e, à revérifier visuellement après déploiement).
+- Fin de Q2 → début de Q1 du lendemain : NON TESTÉ (exige service matin et date suivante).
+- Caméra, Safari iOS réel : NON TESTÉ. Aucune modification de Production.
