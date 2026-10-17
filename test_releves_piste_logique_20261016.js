@@ -127,4 +127,12 @@ t('index identiques fin puis début : aucune anomalie (deux attestations distinc
   R.POMPES.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(x => { s[p + '-' + x] = '0004242'; pr[p + '-' + x] = 4242; }));
   assert.strictEqual(R.revueAnomalies(s, pr, {}, 'debut_q1').lignes.length, 0);
 });
+t('cause de l\'échec photo : refus du serveur distinct du réseau', () => {
+  assert.strictEqual(R.causePhoto({ statusCode: '403', message: 'new row violates row-level security policy' }, true).type, 'refus');
+  assert.ok(/quart en cours/.test(R.causePhoto({ statusCode: '403', message: 'x' }, true).message));
+  assert.strictEqual(R.causePhoto({ statusCode: '413', message: 'Payload too large' }, true).type, 'refus');
+  assert.strictEqual(R.causePhoto({ message: 'Failed to fetch' }, true).type, 'reseau');
+  assert.strictEqual(R.causePhoto({ statusCode: '403', message: 'x' }, false).type, 'reseau');
+  assert.strictEqual(R.causePhoto(null, true).type, 'reseau');
+});
 console.log(n + '/' + n + ' réussies');

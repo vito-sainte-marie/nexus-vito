@@ -230,7 +230,12 @@
       const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
       if (ins.error) throw ins.error;
       jauge.docId = ins.data.id; jauge.statut = 'en_attente'; reseau.ok = true;
-    } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
+    } catch (x) {
+      console.error(x);
+      const cause = R.causePhoto(x, typeof navigator === 'undefined' ? true : navigator.onLine);
+      jauge.statut = 'hors_ligne'; jauge.message = cause.message;
+      if (cause.type === 'reseau') reseau.ok = false;
+    }
     rendre();
   }
   // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.
