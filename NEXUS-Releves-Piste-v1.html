@@ -301,7 +301,7 @@
     return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
       `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>` +
       (habilites.length ? R.MOMENTS.filter(m => habilites.indexOf(m) >= 0).map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><div class="sub">${R.estDebut(m) ? 'Vérification de la référence validée ; aucune recopie Decenium (Decenium renseigne le début).' : 'Saisie complète des 7 chiffres, puis recopie dans Decenium.'}</div><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('')
-        : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>' +
+        : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>') +
       arecopier.map(a => `<div class="card"><h2>Recopier les index dans Decenium</h2><div class="sub">${esc(MOMENTS_LIBELLE[a.m])} validée : ${a.fait === a.n ? 'tout est recopié.' : a.fait + ' sur ' + a.n + ' recopiés.'}</div><button class="btn" data-act="moment" data-m="${a.m}">${a.fait === a.n ? 'Revoir la recopie' : 'Recopier maintenant'}</button></div>`).join('');
   }
 
