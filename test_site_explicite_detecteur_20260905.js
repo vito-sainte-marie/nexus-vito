@@ -146,10 +146,18 @@ verifier('le dépôt réel donne le chiffre annoncé', () => {
     // en conséquence (ces trois lignes étaient ses seules occurrences ici ;
     // la reconstitution manager, inchangée dans ce lot, écrit toujours un
     // littéral avec `site:` explicite et n'a donc jamais été comptée).
+  //
+  // 17/10/2026, relevés piste (Test) : 47 → 48 et 36 → 37. NEXUS-Releves-Piste-v1.html
+  // insère les lignes de `carburant_index_valeurs` par une variable (`lignes`),
+  // ce que ce détecteur ne peut pas lire au travers (même faux positif
+  // structurel que les écritures FDJ ci-dessus). La table n'a pas de colonne
+  // `site` : le site est porté par le relevé parent `carburant_index_releves`,
+  // posé depuis l'employé connecté, et la RLS de la valeur le vérifie par
+  // jointure sur ce parent (épreuves SQL 10/10). Aucune portée n'est élargie.
   const t = analyserDepot(__dirname);
   const tables = new Set(t.map(x => x.table));
-  assert.strictEqual(t.length, 47, `47 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
-  assert.strictEqual(tables.size, 36, `36 tables attendues, ${tables.size} trouvées`);
+  assert.strictEqual(t.length, 48, `48 écritures attendues, ${t.length} trouvées — la cartographie doit être remise à jour`);
+  assert.strictEqual(tables.size, 37, `37 tables attendues, ${tables.size} trouvées`);
 });
 
 console.log(`\n${passes} vérifications passées — le détecteur est éprouvé, pas cru sur parole.`);
