@@ -232,6 +232,20 @@
     } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
     rendre();
   }
+  // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.
+  let arecopier = [];
+  async function chargerARecopier() {
+    arecopier = [];
+    try {
+      for (const m of R.MOMENTS.filter(x => R.estFin(x) && habilites.indexOf(x) >= 0)) {
+        const { data: rel } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', m).eq('auteur', emp.id).maybeSingle();
+        if (!rel || rel.statut !== 'final') continue;
+        const { data: vals } = await nexusClient.from('carburant_index_valeurs').select('recopiee').eq('releve_id', rel.id);
+        const n = (vals || []).length;
+        if (n) arecopier.push({ m, n, fait: vals.filter(v => v.recopiee).length });
+      }
+    } catch (x) { console.error(x); }
+  }
   async function enregistrerJaugeage() {
     const D = window.NexusCarburantDonnees;
     if (!jauge.confirme || !CUVES.every(c => jauge.saisies[c.k])) return;
@@ -285,6 +299,7 @@
 
   function vueChoix() {
     return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
+      arecopier.map(a => `<div class="card"><h2>Recopier les index dans Decenium</h2><div class="sub">${esc(MOMENTS_LIBELLE[a.m])} validée : ${a.fait === a.n ? 'tout est recopié.' : a.fait + ' sur ' + a.n + ' recopiés.'}</div><button class="btn" data-act="moment" data-m="${a.m}">${a.fait === a.n ? 'Revoir la recopie' : 'Recopier maintenant'}</button></div>`).join('') +
       `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>` +
       (habilites.length ? R.MOMENTS.filter(m => habilites.indexOf(m) >= 0).map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><div class="sub">${R.estDebut(m) ? 'Vérification de la référence validée ; aucune recopie Decenium (Decenium renseigne le début).' : 'Saisie complète des 7 chiffres, puis recopie dans Decenium.'}</div><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('')
         : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>');
@@ -430,7 +445,7 @@
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
     if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
-    if (a === 'choix') { moment = null; ecran = 'choix'; rendre(); return; }
+    if (a === 'choix') { moment = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
     if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
     if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
@@ -492,6 +507,7 @@
     if (!employee) return;
     emp = employee; date = nexusDateLocaleISO(new Date());
     await chargerHabilitations();
+    await chargerARecopier();
     rendre();
   });
 })();
