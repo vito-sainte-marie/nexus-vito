@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Relevés piste</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-station.js"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-releves-piste.js?v=20261016"></script>
+<style>
+  :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-text-size-adjust:100%}
+  .phone{max-width:460px;margin:0 auto;padding:16px 16px 96px}
+  h1{font-size:20px;margin:4px 0 2px} h2{font-size:17px;margin:0 0 8px}
+  .sub{color:var(--mid);font-size:13px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px;margin-bottom:12px}
+  .champ label{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;margin-bottom:6px}
+  .champ .ref{font-weight:400;color:var(--dim);font-size:12px;font-family:'IBM Plex Mono',monospace}
+  input.idx{width:100%;font:600 28px 'IBM Plex Mono',monospace;letter-spacing:3px;text-align:center;background:var(--bg);color:var(--text);border:2px solid var(--hair);border-radius:12px;padding:12px}
+  input.idx:focus{outline:none;border-color:var(--cyan)}
+  .conv{font:13px 'IBM Plex Mono',monospace;color:var(--mid);margin-top:6px}
+  .alerte{border-radius:10px;padding:10px 12px;font-size:13px;margin-top:8px}
+  .fort{background:#3A1D1F;border:1px solid var(--red);color:#FFD3D4}
+  .indic{background:#3A2E14;border:1px solid var(--amber);color:#FFE2A8}
+  .ok{background:#153629;border:1px solid var(--green);color:#CFF5E3}
+  textarea,input.txt{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--hair);border-radius:10px;padding:10px;font:14px 'IBM Plex Sans',sans-serif;margin-top:6px}
+  button{font:600 16px 'IBM Plex Sans',sans-serif;border-radius:12px;border:0;padding:14px 16px;min-height:48px;cursor:pointer}
+  .btn{background:var(--green);color:#06281B;width:100%} .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn2{background:var(--raised);color:var(--text);border:1px solid var(--hair);width:100%}
+  .row{display:flex;gap:10px} .row>*{flex:1}
+  .etat{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--hair);padding:8px 16px calc(8px + env(safe-area-inset-bottom));font-size:12px;color:var(--mid);text-align:center}
+  .etat b.ko{color:var(--amber)} .etat b.bon{color:var(--green)}
+  .ligne{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair)}
+  .ligne:last-child{border-bottom:0}
+  .ligne .v{font:600 20px 'IBM Plex Mono',monospace;flex:1}
+  .ligne .n{color:var(--mid);font-size:13px;min-width:70px}
+  .ligne input[type=checkbox]{width:28px;height:28px;accent-color:var(--green)}
+  .gnr{opacity:.75}
+  .pastille{display:inline-block;font-size:11px;border:1px solid var(--hair);border-radius:99px;padding:2px 8px;color:var(--mid)}
+  .progres{color:var(--mid);font-size:13px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="phone" id="app"><div class="card">Chargement…</div></div>
+<div class="etat" id="etat">—</div>
+<script>
+(function () {
+  const R = window.NexusRelevesPiste;
+  const MOMENTS_LIBELLE = { fin_q1: 'Fin de Q1 (fin de quart du matin)', debut_q2: 'Début de Q2 (ouverture du soir)', fin_q2: 'Fin de Q2 (fermeture)' };
+  let emp = null, date = null, moment = null;
+  let ecran = 'choix';
+  let pompe = 1;
+  let saisies = {}, motifs = {}, precedents = {};
+  let serveur = { releveId: null, valeurs: {}, final: false };
+  let reseau = { ok: true, derniereErreur: null };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cleBrouillon = () => `nexus_releves_piste_${emp.id}_${date}_${moment}`;
+
+  // Brouillon local — try/catch obligatoire (navigation privée, stockage bloqué).
+  function sauverLocal() {
+    try { localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, pompe, ecran, t: Date.now() })); return true; }
+    catch (e) { return false; }
+  }
+  function lireLocal() {
+    try { const s = localStorage.getItem(cleBrouillon()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  function majEtat() {
+    const local = sauverLocalTest();
+    const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
+      : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
+        : '<b class="ko">hors connexion — non envoyé au serveur</b>');
+    $('etat').innerHTML = `${local ? 'Enregistré sur l\'appareil' : '<b class="ko">Stockage de l\'appareil indisponible</b>'} · ${srv}`;
+  }
+  function sauverLocalTest() { return moment ? sauverLocal() : true; }
+
+  window.addEventListener('online', () => { reseau.ok = true; synchroniser(); });
+  window.addEventListener('offline', () => { reseau.ok = false; majEtat(); });
+
+  // ---- Serveur : insert-only pour les valeurs (voir migration) ----
+  async function assurerReleve() {
+    if (serveur.releveId) return serveur.releveId;
+    const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut')
+      .eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
+    if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; return ex.id; }
+    const { data, error } = await nexusClient.from('carburant_index_releves')
+      .insert({ site: emp.site_id, date, moment, auteur: emp.id }).select('id').single();
+    if (error) throw error;
+    serveur.releveId = data.id; return data.id;
+  }
+  async function chargerValeursServeur() {
+    if (!serveur.releveId) return;
+    const { data } = await nexusClient.from('carburant_index_valeurs').select('id, pompe, produit, valeur_sept_chiffres, recopiee').eq('releve_id', serveur.releveId);
+    serveur.valeurs = {};
+    (data || []).forEach(v => { serveur.valeurs[`${v.pompe}-${v.produit}`] = v; });
+  }
+  // Envoie au serveur les valeurs d'une pompe complète (jamais une valeur partielle).
+  async function synchroniser() {
+    try {
+      const pompesCompletes = R.POMPES.filter(p => R.ORDRE_PHYSIQUE[p].every(pr => R.estSeptChiffres(saisies[`${p}-${pr}`])));
+      if (!pompesCompletes.length) { majEtat(); return; }
+      const id = await assurerReleve();
+      await chargerValeursServeur();
+      const lignes = [];
+      pompesCompletes.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(pr => {
+        const k = `${p}-${pr}`;
+        if (serveur.valeurs[k]) return;
+        const c = R.convertirSeptVersSix(saisies[k]);
+        lignes.push({ releve_id: id, pompe: p, produit: pr, valeur_sept_chiffres: saisies[k], valeur_decenium: c.valeurDecenium, troncature_sans_perte: c.troncatureSansPerte });
+      }));
+      if (lignes.length) { const { error } = await nexusClient.from('carburant_index_valeurs').insert(lignes); if (error) throw error; await chargerValeursServeur(); }
+      reseau.ok = true; reseau.derniereErreur = null;
+    } catch (e) { reseau.ok = false; reseau.derniereErreur = e; console.error('Synchro relevé:', e); }
+    majEtat();
+  }
+
+  async function chargerPrecedents() {
+    precedents = {};
+    const { data } = await nexusClient.from('carburant_index_releves')
+      .select('id, date, cree_le, carburant_index_valeurs(pompe, produit, valeur_sept_chiffres)')
+      .eq('site', emp.site_id).eq('statut', 'final').order('date', { ascending: false }).order('cree_le', { ascending: false }).limit(1);
+    if (data && data[0]) data[0].carburant_index_valeurs.forEach(v => { precedents[`${v.pompe}-${v.produit}`] = Number(v.valeur_sept_chiffres); });
+  }
+
+  // ---- Écrans ----
+  function rendre() {
+    const app = $('app');
+    if (ecran === 'choix') app.innerHTML = vueChoix();
+    else if (ecran === 'pompe') app.innerHTML = vuePompe();
+    else if (ecran === 'revue') app.innerHTML = vueRevue();
+    else if (ecran === 'recopie') app.innerHTML = vueRecopie();
+    else app.innerHTML = '<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.</div></div>';
+    majEtat();
+  }
+
+  function vueChoix() {
+    return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
+      R.MOMENTS.map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('');
+  }
+
+  function champ(p, pr) {
+    const k = `${p}-${pr}`, v = saisies[k] || '';
+    const ref = precedents[k] != null ? `dernier : ${String(precedents[k]).padStart(7, '0')}` : 'aucune référence';
+    let bloc = '';
+    if (R.estSeptChiffres(v)) {
+      const c = R.convertirSeptVersSix(v);
+      bloc += `<div class="conv">Decenium (6 chiffres) : <b>${c.valeurDecenium}</b> — ${c.troncatureSansPerte ? 'chiffre retiré : 0, sans perte' : `chiffre retiré : ${c.chiffreRetire}, <b>valeur tronquée</b>`}</div>`;
+      const ctl = R.controlerIndex(v, precedents[k]);
+      if (ctl.niveau === 'fort') bloc += `<div class="alerte fort">⚠ Cet index est <b>inférieur</b> au dernier relevé (${ctl.ecart} L). Vérifiez le compteur ; sinon justifiez ci-dessous.<textarea data-motif="${k}" placeholder="Justification (obligatoire pour continuer)">${esc(motifs[k] || '')}</textarea></div>`;
+      else if (ctl.niveau === 'indicatif') bloc += `<div class="alerte indic">Écart de ${ctl.ecart} L depuis le dernier relevé — indicatif, vous pouvez continuer.</div>`;
+    }
+    return `<div class="card champ"><label for="i${k}"><span>${pr === 'GO' ? 'Gazole (GO)' : 'Sans plomb (SP)'}</span><span class="ref">${ref}</span></label>
+      <input class="idx" id="i${k}" data-k="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="7" value="${esc(v)}" placeholder="7 chiffres">${bloc}</div>`;
+  }
+  function vuePompe() {
+    const pompeOk = R.ORDRE_PHYSIQUE[pompe].every(pr => R.estSeptChiffres(saisies[`${pompe}-${pr}`]));
+    const reculsSansMotif = R.ORDRE_PHYSIQUE[pompe].some(pr => { const k = `${pompe}-${pr}`; return R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' && !R.confirmationExceptionnelleValide(motifs[k]); });
+    return `<div class="progres">${esc(MOMENTS_LIBELLE[moment])} · Pompe ${pompe} sur 4 · de gauche à droite</div><h1>Pompe ${pompe}</h1>
+      <div class="sub">Lisez les 7 chiffres du totalisateur mécanique. Rien n'est prérempli.</div>
+      ${R.ORDRE_PHYSIQUE[pompe].map(pr => champ(pompe, pr)).join('')}
+      <div class="row">${pompe > 1 ? '<button class="btn2" data-act="prec">Précédente</button>' : '<button class="btn2" data-act="choix">Retour</button>'}
+      <button class="btn" data-act="suiv" ${pompeOk && !reculsSansMotif ? '' : 'disabled'}>${pompe < 4 ? 'Pompe suivante' : 'Revue avant validation'}</button></div>`;
+  }
+  function vueRevue() {
+    const rev = R.revueAnomalies(saisies, precedents, motifs);
+    const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe ${p} · ${pr}`; };
+    const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)' };
+    const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} — ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
+    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P${p} ${pr}</span><span class="v">${esc(saisies[`${p}-${pr}`] || '—')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
+    return `<h1>Revue avant validation</h1><div class="sub">${esc(MOMENTS_LIBELLE[moment])}</div><div class="card">${liste}</div><div class="card">${recap}</div>
+      <div class="row"><button class="btn2" data-act="prec">Retour</button><button class="btn" data-act="valider" ${rev.peutValider ? '' : 'disabled'}>Valider le relevé</button></div>`;
+  }
+  function vueRecopie() {
+    const lignes = R.ordreRecopieDecenium();
+    const tous = lignes.filter(l => l.produit !== 'GNR').every(l => serveur.valeurs[`${l.pompe}-${l.produit}`] && serveur.valeurs[`${l.pompe}-${l.produit}`].recopiee);
+    const corps = lignes.map(l => {
+      if (l.produit === 'GNR') return `<div class="ligne gnr"><span class="n">GNR</span><span class="v">${R.GNR_INDEX_REFERENCE}</span><span class="pastille">hors service · référence</span></div>`;
+      const k = `${l.pompe}-${l.produit}`, v = serveur.valeurs[k];
+      if (!v) return `<div class="ligne"><span class="n">P${l.pompe} ${l.produit}</span><span class="v">…</span><span class="pastille">non envoyé</span></div>`;
+      const c = R.convertirSeptVersSix(v.valeur_sept_chiffres);
+      return `<div class="ligne"><span class="n">P${l.pompe} ${l.produit}</span><span class="v">${c.valeurDecenium}<div class="conv">relevé : ${v.valeur_sept_chiffres}</div></span><input type="checkbox" aria-label="Recopiée dans Decenium" data-act="tick" data-id="${v.id}" ${v.recopiee ? 'checked' : ''}></div>`;
+    }).join('');
+    return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
+      <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
+      <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>`;
+  }
+
+  // ---- Événements ----
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.k) {
+      const k = t.dataset.k, brut = R.nettoyerSaisie(t.value);
+      saisies[k] = brut; t.value = brut; sauverLocal();
+      if (brut.length === 7 || brut.length === 6) rendre(), focus(k);
+      return;
+    }
+    if (t.dataset && t.dataset.motif) { motifs[t.dataset.motif] = t.value; sauverLocal(); majBoutonSuiv(); }
+    if (t.id === 'confRecopie') $('btnFin').disabled = !t.checked;
+  });
+  function majBoutonSuiv() {
+    const b = document.querySelector('[data-act="suiv"]'); if (!b) return;
+    const ok = R.ORDRE_PHYSIQUE[pompe].every(pr => { const k = `${pompe}-${pr}`; if (!R.estSeptChiffres(saisies[k])) return false; return R.controlerIndex(saisies[k], precedents[k]).niveau !== 'fort' || R.confirmationExceptionnelleValide(motifs[k]); });
+    b.disabled = !ok;
+  }
+  function focus(k) { const el = document.querySelector(`[data-k="${k}"]`); if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (x) {} } }
+
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = b.dataset.act;
+    if (a === 'tick') return; // géré au change
+    if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
+    if (a === 'choix') { moment = null; ecran = 'choix'; rendre(); return; }
+    if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
+    if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
+    if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
+    if (a === 'valider') { await valider(); return; }
+    if (a === 'fin') { ecran = 'fini'; rendre(); return; }
+  });
+  document.addEventListener('change', async (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.act === 'tick') {
+      const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
+      if (error) { console.error(error); t.checked = !t.checked; reseau.ok = false; } else reseau.ok = true;
+      await chargerValeursServeur(); rendre();
+    }
+  });
+
+  async function valider() {
+    await synchroniser();
+    const complet = R.POMPES.every(p => R.ORDRE_PHYSIQUE[p].every(pr => serveur.valeurs[`${p}-${pr}`]));
+    if (!complet) { alert('Le serveur ne répond pas : relevé non validé. Votre saisie est gardée sur l\'appareil, réessayez.'); return; }
+    // Corrections de recul justifiées : passent par la RPC tracée (motif obligatoire).
+    for (const k of Object.keys(motifs)) {
+      const v = serveur.valeurs[k];
+      if (v && R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' && motifs[k] && R.confirmationExceptionnelleValide(motifs[k]) && !v.confirme) {
+        const c = R.convertirSeptVersSix(saisies[k]);
+        const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motifs[k], p_confirmation_exceptionnelle: true });
+        if (error) { console.error(error); }
+      }
+    }
+    const { error } = await nexusClient.from('carburant_index_releves').update({ statut: 'final', finalise_le: new Date().toISOString() }).eq('id', serveur.releveId);
+    if (error) { console.error(error); reseau.ok = false; majEtat(); return; }
+    serveur.final = true; await chargerValeursServeur(); ecran = 'recopie'; try { localStorage.removeItem(cleBrouillon()); } catch (x) {}
+    rendre();
+  }
+
+  async function ouvrirMoment() {
+    saisies = {}; motifs = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
+    await chargerPrecedents();
+    const loc = lireLocal();
+    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; pompe = loc.pompe || 1; }
+    try {
+      const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
+      if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; await chargerValeursServeur(); }
+    } catch (x) { reseau.ok = false; }
+    if (serveur.final) { ecran = 'recopie'; }
+    else { ecran = 'pompe'; Object.keys(serveur.valeurs).forEach(k => { if (!saisies[k]) saisies[k] = serveur.valeurs[k].valeur_sept_chiffres; }); }
+    rendre();
+  }
+
+  nexusRequireAuth().then(async (employee) => {
+    if (!employee) return;
+    emp = employee; date = nexusDateLocaleISO(new Date());
+    rendre();
+  });
+})();
+</script>
+</body>
+</html>
