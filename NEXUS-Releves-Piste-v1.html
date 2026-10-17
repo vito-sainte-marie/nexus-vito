@@ -12,6 +12,7 @@
 <script src="nexus-station.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-releves-piste.js?v=20261016"></script>
+<script src="nexus-veeder-root.js?v=20261016"></script>
 <style>
   :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
   *{box-sizing:border-box}
@@ -142,18 +143,80 @@
   }
 
   // ---- Écrans ----
+
+  // ---- Jaugeage Veeder-Root : photo -> file OCR (différée) -> proposition à vérifier ----
+  const V = window.NexusVeederRoot;
+  const CUVES = [
+    { k: 'SP-30', produit: 'SP', cap: 30, lib: 'SP 30 m3' },
+    { k: 'GO-20', produit: 'GO', cap: 20, lib: 'GO 20 m3' },
+    { k: 'GO-10', produit: 'GO', cap: 10, lib: 'GO 10 m3' },
+    { k: 'GNR-30', produit: 'GNR', cap: 30, lib: 'GNR 30 m3' },
+  ];
+  let jauge = { statut: 'aucune', docId: null, propositions: {}, saisies: {}, corrections: {}, message: '' };
+  const LIB_STATUT = {
+    aucune: 'Aucune photo envoyée.', envoi: 'Envoi de la photo…', en_attente: 'Photo envoyée. La lecture automatique est différée : elle peut tarder.',
+    en_cours: 'Lecture en cours…', traite: 'Lecture disponible, à vérifier à l\'œil.', erreur: 'La lecture automatique a échoué. Saisissez les volumes à la main.',
+    hors_ligne: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.',
+  };
+  function vueJauge() {
+    const lignes = CUVES.map(c => {
+      const prop = jauge.propositions[c.k];
+      const aide = prop ? `<div class="conv">Lecture proposée : ${prop.volume_l ?? 'illisible'} L${prop.alerte ? ' (' + esc(prop.alerte) + ')' : ''} <button class="btn2" style="width:auto;min-height:36px;padding:6px 10px;font-size:13px" data-act="jprendre" data-k="${c.k}">Utiliser</button></div>` : '';
+      return `<div class="card champ"><label for="j${c.k}">${esc(c.lib)}<span class="ref">litres</span></label><input class="idx" id="j${c.k}" data-j="${c.k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="6" value="${esc(jauge.saisies[c.k] ?? '')}" placeholder="volume">${aide}</div>`;
+    }).join('');
+    const pret = CUVES.every(c => jauge.saisies[c.k]);
+    const recap = pret ? `<div class="card"><h2>À reporter dans l'Inventaire</h2>${CUVES.map(c => `<div class="ligne"><span class="n">${esc(c.lib)}</span><span class="v">${esc(jauge.saisies[c.k])} L</span></div>`).join('')}<div class="sub">Cette page ne modifie ni le stock ni le moteur carburant.</div></div>` : '';
+    return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
+      <div class="card"><label class="btn2" style="display:block;text-align:center;padding:14px"><input type="file" accept="image/*" capture="environment" id="jPhoto" style="display:none">Prendre la photo de l'écran</label>
+      <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
+      ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
+      ${lignes}${recap}<button class="btn2" data-act="choix">Retour</button>`;
+  }
+  async function envoyerPhoto(fichier) {
+    jauge.statut = 'envoi'; jauge.message = ''; rendre();
+    try {
+      const ext = (fichier.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${ext}`;
+      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg' });
+      if (up.error) throw up.error;
+      const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
+      if (ins.error) throw ins.error;
+      jauge.docId = ins.data.id; jauge.statut = 'en_attente'; reseau.ok = true;
+    } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
+    rendre();
+  }
+  async function actualiserLecture() {
+    if (!jauge.docId) return;
+    try {
+      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message').eq('id', jauge.docId).single();
+      if (error) throw error;
+      jauge.statut = data.status; reseau.ok = true;
+      if (data.status === 'traite') {
+        jauge.propositions = {};
+        V.lireEcranVeederRoot(data.resultat_texte).forEach(c => {
+          const cuve = CUVES.find(x => x.produit === c.produit && x.cap === c.capacite_m3);
+          if (cuve) jauge.propositions[cuve.k] = c;
+        });
+        if (!Object.keys(jauge.propositions).length) { jauge.statut = 'erreur'; }
+      }
+    } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Le serveur ne répond pas. Réessayez ou saisissez à la main.'; }
+    rendre();
+  }
+
   function rendre() {
     const app = $('app');
     if (ecran === 'choix') app.innerHTML = vueChoix();
     else if (ecran === 'pompe') app.innerHTML = vuePompe();
     else if (ecran === 'revue') app.innerHTML = vueRevue();
     else if (ecran === 'recopie') app.innerHTML = vueRecopie();
+    else if (ecran === 'jauge') app.innerHTML = vueJauge();
     else app.innerHTML = '<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.</div></div>';
     majEtat();
   }
 
   function vueChoix() {
     return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
+      `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>` +
       R.MOMENTS.map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('');
   }
 
@@ -238,6 +301,9 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act;
     if (a === 'tick') return; // géré au change
+    if (a === 'jauge') { ecran = 'jauge'; rendre(); return; }
+    if (a === 'jrafraichir') { await actualiserLecture(); return; }
+    if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); } rendre(); return; }
     if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
     if (a === 'choix') { moment = null; ecran = 'choix'; rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
@@ -246,8 +312,13 @@
     if (a === 'valider') { await valider(); return; }
     if (a === 'fin') { ecran = 'fini'; rendre(); return; }
   });
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); }
+  });
   document.addEventListener('change', async (e) => {
     const t = e.target;
+    if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
     if (t.dataset && t.dataset.act === 'tick') {
       const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
       if (error) { console.error(error); t.checked = !t.checked; reseau.ok = false; } else reseau.ok = true;
