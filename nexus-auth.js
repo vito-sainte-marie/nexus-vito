@@ -100,6 +100,86 @@ async function nexusRequireAuth() {
 
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE=['NEXUS-Pointage-v1.html','NEXUS-Prise-De-Poste-v1.html'];
 async function nexusPointageArriveeManquant(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=employee.role==='manager'||employee.role==='gerant';const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const {data:arrivee,error}=await nexusClient.from('pointages').select('id').eq('employee_id',employee.id).eq('date',today).eq('type','arrivee').maybeSingle();if(error){console.error('Vérification pointage arrivée:',error);return false;}return !arrivee;}
+// ────────────────────────────────────────────────────────────────────
+// S-4 (05/09/2026) — LE service courant. Une seule définition.
+//
+// NEXUS en avait QUATRE, réparties sur neuf lectures de `shifts` : une
+// fenêtre de 24 h, une borne à minuit local de l'appareil, une borne de
+// journée en UTC, et un seul lecteur — Pointage — qui regardait `statut`.
+//
+// Tant que rien ne clôturait un service, `statut` valait toujours
+// 'en_cours' : les neuf convergeaient PAR ACCIDENT. Depuis S-2 (clôture au
+// pointage de départ) et S-3 (clôture à la prise de poste suivante), les
+// services se ferment réellement — et les huit lecteurs qui ignoraient
+// `statut` renverraient un service TERMINÉ comme s'il était actif.
+//
+// Contrat, arbitré le 05/09/2026 :
+//     employee_id = employé courant
+//     site_id     = site courant
+//     statut      = 'en_cours'
+//     order by heure_debut desc limit 1
+//
+// AUCUN repli : ni fenêtre de 24 h, ni date du jour, ni dernier service
+// historique, ni rôle habituel. Sans service actif, l'appelant reçoit
+// `aucun: true` et applique son propre comportement métier — le refus est
+// une réponse, pas un trou à combler.
+//
+// Le tri sur le plus récent subsiste bien que S-1 rende le cas impossible :
+// défense de lecture contre un historique imparfait ou un import.
+//
+// Retour : { service } | { aucun: true } | { erreur: true }
+function nexusDateLocaleISO(d){
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+async function nexusServiceCourant(employee){
+  if(!employee||!employee.id||!employee.site_id){
+    console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
+    return { erreur: true };
+  }
+  const { data, error } = await nexusClient
+    .from('shifts')
+    .select('id, role, quart, heure_debut, site_id, statut')
+    .eq('employee_id', employee.id)
+    .eq('site_id', employee.site_id)
+    .eq('statut', 'en_cours')
+    .order('heure_debut', { ascending: false })
+    .limit(5);
+  if(error){ console.error('Service courant : lecture impossible \u2014', error); return { erreur: true }; }
+  // JAMAIS le service de la veille (11/09/2026, arbitrage C.1/C.2 apres le
+  // parcours Caissiere). La requete ne filtre que sur l'employe, le site et
+  // le statut : un quart laisse ouvert hier revenait donc comme service du
+  // jour. C'est ce qui a produit un retard de 1028 minutes ECRIT en base sur
+  // une arrivee de 10 h 33.
+  //
+  // Le filtre se fait ici, sur la date locale de l'appareil, et non par une
+  // borne SQL : `sites.timezone` n'existe pas encore en Production (la
+  // migration de la release l'apporte), et la station est sur site avec ses
+  // employes. C'est la meme regle que l'ecran de pointage applique deja.
+  // Aucun quart ne franchit minuit a cette station : le quart 2 finit au
+  // plus tard a 22 h 10.
+  const jourLocal = nexusDateLocaleISO(new Date());
+  const tous = data || [];
+  const services = tous.filter(sv => sv.heure_debut && nexusDateLocaleISO(new Date(sv.heure_debut)) === jourLocal);
+  // Signale la PRESENCE d'un service ouvert d'un autre jour, pas l'absence
+  // d'un service du jour : une absence n'est pas une anomalie, et un journal
+  // d'erreur declenche par du vide apprend a ignorer les journaux.
+  const ouvertsHorsDuJour = tous.length - services.length;
+  if(ouvertsHorsDuJour > 0){
+    console.error('Service courant : ' + ouvertsHorsDuJour + ' service(s) ouvert(s) commence(s) un autre jour, ignore(s) \u2014 le service de la veille n\'est jamais reutilise.');
+  }
+  if(!services.length) return { aucun: true };
+  // S-1 pose un index unique partiel : plus d\u2019un service ouvert est
+  // devenu impossible. Si cela se produit malgré tout, c\u2019est une anomalie
+  // technique — on la signale, on ne la masque pas, et on retient le plus
+  // récent pour ne pas bloquer l\u2019employé.
+  if(services.length > 1){
+    console.error('Service courant : ' + services.length + ' services ouverts pour cet employé alors que l\u2019unicité est garantie en base. Anomalie technique — le plus récent est retenu.');
+  }
+  return { service: services[0] };
+}
+
 async function nexusPriseDePosteManquante(employee){const page=window.location.pathname.split('/').pop();if(NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(page)||employee.consultation_externe)return false;const manager=employee.role==='manager'||employee.role==='gerant';if(manager)return false;const d=new Date();const debut=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00`;const {data:shiftDuJour,error}=await nexusClient.from('shifts').select('id').eq('employee_id',employee.id).gte('heure_debut',debut).limit(1).maybeSingle();if(error){console.error('Vérification prise de poste:',error);return false;}return !shiftDuJour;}
 async function nexusLogout(){await nexusClient.auth.signOut();window.location.href="index.html";}
 function nexusQuitterConsultation(){localStorage.removeItem('nexus_site_consulte_createur');window.location.href="NEXUS-App-v1.html";}
