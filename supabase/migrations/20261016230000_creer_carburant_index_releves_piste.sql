@@ -399,3 +399,13 @@ create policy ecriture_manager_meme_site on carburant_gnr_statuts
 
 create index if not exists idx_carburant_gnr_statuts_site_date
   on carburant_gnr_statuts (site, cree_le desc);
+
+-- ============================================================
+-- 6. Fermeture d'anon et du TRUNCATE (default privileges de Supabase)
+-- ============================================================
+-- Les default privileges donnent à anon tous les droits sur toute table
+-- neuve ; la RLS arrête le DML mais pas TRUNCATE. Fermeture explicite.
+revoke all on carburant_index_releves, carburant_index_valeurs,
+  carburant_index_corrections, carburant_gnr_statuts from anon;
+revoke truncate on carburant_index_releves, carburant_index_valeurs,
+  carburant_index_corrections, carburant_gnr_statuts from authenticated;
