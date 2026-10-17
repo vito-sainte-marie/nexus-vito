@@ -783,3 +783,44 @@ Cet addendum remplace la section « EXCLUE de cette release » qui avait été
 ajoutée à l'historique clos : l'historique n'est pas modifié. Il ne vaut ni
 fusion, ni déploiement, ni écriture en Production. Q4 (case vide au planning)
 et B (heures exceptionnelles) restent des décisions ouvertes.
+
+## Addendum du 16/10/2026 — Parcours Pompiste, persistance des index Tokheim
+
+### Proposée incluse dans une future release Production (1 migration)
+
+1. `20261016230000_creer_carburant_index_releves_piste.sql`
+
+Lot Handoff `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`, `decision-3.md`
+(brief intégral de Frédéric, GO développement + déploiement Test). Premier
+incrément de persistance posé comme condition par `decision-1.md` du même
+lot avant toute implémentation d'écran. Trois tables (`carburant_index_releves`,
+`carburant_index_valeurs`, `carburant_index_corrections`, append-only pour les
+deux dernières), une table de statut GNR append-only
+(`carburant_gnr_statuts`) et deux RPC `SECURITY DEFINER`
+(`carburant_index_corriger_valeur`, `carburant_index_marquer_recopiee`). Aucune
+colonne ne touche `carburant_releves`, le moteur carburant, Verify, Paye ou
+FDJ ; `shifts` n'est référencé qu'en lecture.
+
+Les deux RPC révoquent explicitement `public` et `anon` et portent chacune un
+marqueur `nexus-acl-intention` pour `authenticated`, posé dès leur création —
+même discipline que le lot anon5 (addendum du 04/10), sans attendre une
+correction après coup.
+
+Elle ne se déclare pas Test/CI et ne touche pas le rôle `nexus_ci_recette` :
+même critère déterministe que les entrées « Proposée incluse » précédentes de
+cet addendum, rejoué, pas réinventé — c'est une table métier destinée, après
+validation terrain sur Test, à une éventuelle promotion, pas un artefact
+structurellement inapplicable hors Test.
+
+### Ce que cet addendum ne fait pas
+
+Il ne promeut rien, n'exécute aucun SQL sur Production ni sur `nexus-test`, ne
+modifie ni le manifeste historique ni `main`/`production`. **La migration est
+écrite et non appliquée** : ce canal (session Claude sans accès réseau à
+Supabase) n'a pas pu l'appliquer sur `nexus-test`, même sous la
+pré-autorisation 1 de `CLAUDE.md` — cette pré-autorisation couvre le geste,
+pas la capacité d'y accéder depuis ici. L'application réelle et la relecture
+du schéma sur `nexus-test` restent à prendre par un canal qui dispose d'un
+accès direct à la base, comme pour plusieurs entrées antérieures de ce même
+fichier (02/10, 03/10 17h-19h). Aucune donnée n'est semée (l'index GNR de
+référence 1191213 n'est écrit par aucune ligne de cette migration).
