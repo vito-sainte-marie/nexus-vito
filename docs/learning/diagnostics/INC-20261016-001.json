@@ -1,0 +1,23 @@
+{
+  "incident": "INC-20261016-001",
+  "titre": "Matérialisation refusée : décision exigeant SUPABASE_TEST_ECRITURE sans ordre dans le lot",
+  "etat": "A_VERIFIER",
+  "faits": [
+    {"id": "F1", "enonce": "request-5.md du lot FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016 est déposée par claude[bot] sans aucun fichier order-*.json dans le lot.", "source": {"type": "commit", "ref": "handoff-continuite-20260920@a237a90e"}, "horodatage": "2026-10-17T00:02:46Z"},
+    {"id": "F2", "enonce": "La réponse de l'arbitre sur request-5.md porte DECISION APPROVED_WITH_CONDITIONS, CAPACITE_REQUISE SUPABASE_TEST_ECRITURE, EXECUTANT_NEXT session-claude-habilitee.", "source": {"type": "issue", "ref": "#28, commentaire du 2026-10-17T00:05:09Z (run 38984512344)"}, "horodatage": "2026-10-17T00:05:09Z"},
+    {"id": "F3", "enonce": "Le run 38984512344 échoue à l'étape « matérialisation de la décision » avec REGISTRE_INVALIDE ; l'étape « Boucle autonome » est sautée ; l'alerte Telegram part avec « Lot : non renseigné ».", "source": {"type": "run", "ref": "38984512344"}, "horodatage": "2026-10-17T00:05:20Z"},
+    {"id": "F4", "enonce": "Rejoué hors CI sur a237a90e avec la même réponse, le dépôt de decision-4.md est refusé par handoff.js verifier : « exige la capacité SUPABASE_TEST_ECRITURE et le lot ne porte aucun order-*.json » (code CAPACITE_SANS_ORDRE).", "source": {"type": "fichier", "ref": "outils/handoff.js:820"}, "horodatage": "2026-10-17T00:40:00Z (rejeu local)"},
+    {"id": "F5", "enonce": "L'ordre n'est généré que par handoff.js demande avec --cible-env ; request-6.md a ensuite déposé order-6-1.json pour réparer.", "source": {"type": "commit", "ref": "handoff-continuite-20260920@0f1a7390"}, "horodatage": "2026-10-17T00:10:52Z"}
+  ],
+  "hypotheses": [
+    {"id": "H1", "enonce": "Le prompt de github-actions-claude ne lui fait jamais passer --cible-env quand sa demande sollicite une action Test qu'il ne peut pas faire.", "verification": "Lire le prompt de claude.yml (main) et la commande demande utilisée pour request-5.md dans le journal du run e190bbe1/a237a90e."}
+  ],
+  "cause_racine": {
+    "statut": "DEMONTREE",
+    "maillon": "publication de la demande (handoff.js demande sans --cible-env)",
+    "enonce": "La demande sollicitait une écriture Test sans générer l'ordre ; le défaut n'est détecté qu'au dépôt de la décision, après l'appel à l'arbitre, au lieu d'être refusé à la publication de la demande.",
+    "faits": ["F1", "F2", "F3", "F4", "F5"]
+  },
+  "classification": {"code": "REGISTRE_INVALIDE", "famille": "INCONNU", "urgence": "U2", "priorite": "avec le lot de réparation de la boucle", "note": "Le code exact du vérificateur est CAPACITE_SANS_ORDRE ; ni l'un ni l'autre n'est dans FAMILLES. Défaut annexe : l'alerte de ce chemin d'échec ne porte pas le lot."},
+  "action_suivante": {"executant": "session-claude-habilitee", "capacite": "DEPOT_ECRITURE_RAIL", "action": "Garde au dépôt de la demande : une demande qui sollicite une capacité absente du canal déposant génère son ordre ou est refusée par handoff.js demande ; l'alerte d'échec de matérialisation porte le lot du jugement.", "preuve_attendue": "Épreuve : publier une demande sollicitant SUPABASE_TEST_ECRITURE sans --cible-env échoue à la publication, mutation vérifiée."}
+}

@@ -1,0 +1,22 @@
+{
+  "incident": "INC-20261016-002",
+  "titre": "Décision humaine sans NEXT_ACTION_CONTRACT : la boucle ne peut pas repartir",
+  "etat": "NOUVEAU",
+  "faits": [
+    {"id": "F1", "enonce": "decision-4.md du lot FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016 a pour auteur Frédéric Bragance et ne contient aucun bloc NEXT_ACTION_CONTRACT (ni EXECUTANT_NEXT, ni CAPACITE_REQUISE, ni ACTION_NEXT).", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/decision-4.md@c64857e1"}, "horodatage": "2026-10-17T00:19:18Z"},
+    {"id": "F2", "enonce": "L'étape « Boucle autonome — relancer Claude » ne s'exécute que si steps.materialisation.outputs.depose vaut 1, c'est-à-dire après une décision déposée par la CI dans le même run.", "source": {"type": "fichier", "ref": ".github/workflows/tests.yml:731-733"}, "horodatage": "2026-10-17 (constaté à la lecture)"},
+    {"id": "F3", "enonce": "Après la prise en charge de decision-4.md, les runs 38985827578 et 38985874611 rendent RIEN_A_REVEILLER, « aucune demande en vol : le rail est au repos ».", "source": {"type": "run", "ref": "38985874611"}, "horodatage": "2026-10-17T00:20:01Z"},
+    {"id": "F4", "enonce": "Le registre indique le lot en ATTENTE_CONSOMMATION_DECISION sur decision-4.md, pris en charge le 2026-10-17T00:19:30Z.", "source": {"type": "fichier", "ref": "handoff-continuite-20260920:docs/handoff/STATE.json@5a944e3e"}, "horodatage": "2026-10-17T00:19:57Z"}
+  ],
+  "hypotheses": [
+    {"id": "H1", "enonce": "Toute décision déposée à la main par un humain sans bloc de contrat produit le même arrêt silencieux.", "verification": "Rejouer le juge outils/relancer-claude-ci.js sur une décision humaine sans contrat et lire son verdict."}
+  ],
+  "cause_racine": {
+    "statut": "DEMONTREE",
+    "maillon": "dépôt de décision humaine (handoff.js decision)",
+    "enonce": "Une décision humaine déposée à la main ne passe pas par l'étape de relance, et sans bloc de contrat aucun exécutant suivant n'est nommé : le lot attend une session que rien ne désigne.",
+    "faits": ["F1", "F2", "F3", "F4"]
+  },
+  "classification": {"code": "DECISION_SANS_CONTRAT", "famille": "INCONNU", "urgence": "U2", "priorite": "après INC-20261016-001", "note": "Arrêt sans panne : la décision humaine est légitime, seule la suite n'est pas nommée. DECISION_SANS_CONTRAT n'est pas dans FAMILLES."},
+  "action_suivante": {"executant": "session-claude-habilitee", "capacite": "DEPOT_ECRITURE_RAIL", "action": "handoff.js decision exige un bloc NEXT_ACTION_CONTRACT quand l'auteur est un humain (ou un drapeau explicite --sans-suite qui nomme l'arrêt), et le vérificateur signale une décision non consommée sans exécutant nommé.", "preuve_attendue": "Épreuve : déposer une décision humaine sans contrat échoue au dépôt, mutation vérifiée ; avec contrat, le juge rend un exécutant."}
+}
