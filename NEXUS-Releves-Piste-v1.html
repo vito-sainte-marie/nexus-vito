@@ -391,7 +391,8 @@
     return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
       ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
       <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
-      <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>`;
+      <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>
+      <button class="btn2" data-act="choix">Plus tard : retour à l'accueil</button>`;
   }
 
   // ---- Événements ----
