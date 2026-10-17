@@ -131,7 +131,7 @@
         const ligne = { releve_id: id, pompe: p, produit: pr, valeur_sept_chiffres: saisies[k], valeur_decenium: c.valeurDecenium, troncature_sans_perte: c.troncatureSansPerte };
         if (R.estDebut(moment)) { // référence affichée + manière dont elle a été confirmée ; écart de nuit au début de Q1
           const ref = precedents[k] != null ? String(precedents[k]).padStart(7, '0') : null;
-          ligne.ref_valeur_sept = ref; ligne.ref_statut = ref ? (refStatut[k] || 'saisie_complete') : 'indisponible';
+          ligne.ref_valeur_sept = ref; ligne.ref_statut = ref ? ((refStatut[k] && refStatut[k] !== 'indisponible') ? refStatut[k] : 'saisie_complete') : 'indisponible';
           if (moment === 'debut_q1' && ref) { const n = R.classerEcartNuit(Number(saisies[k]) - Number(ref)); ligne.ecart_nuit = n.ecart; ligne.anomalie_nuit = n.code; }
         }
         lignes.push(ligne);
