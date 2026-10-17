@@ -824,3 +824,11 @@ du schéma sur `nexus-test` restent à prendre par un canal qui dispose d'un
 accès direct à la base, comme pour plusieurs entrées antérieures de ce même
 fichier (02/10, 03/10 17h-19h). Aucune donnée n'est semée (l'index GNR de
 référence 1191213 n'est écrit par aucune ligne de cette migration).
+
+## Addendum du 17/10/2026 — Envoi de la photo Veeder-Root par le pompiste (Test seulement)
+
+### EXCLUE — Test/CI uniquement (1 migration)
+
+1. `20261017120000_politique_upload_jaugeage_pompiste` — **EXCLUE — Test/CI**
+
+Politique INSERT additive sur `storage.objects`, appliquée sur `nexus-test` sous GO humain explicite du 17/10/2026, après `request-7.md` du lot `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`. Elle n'est pas proposée à une promotion Production : toute reprise en Production exigerait un arbitrage de sécurité et un GO distincts. Aucune écriture Production, aucune fusion.
