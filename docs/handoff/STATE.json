@@ -574,14 +574,14 @@
       "consomme_le": "2026-10-16T23:22:03.768Z"
     },
     "FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-4.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-5.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-3.md",
       "source_decision": "registre",
       "commit_decision": "c5c9d13de940da4f1ae975c59ce3be679ccd4b46",
-      "arret": "request-3.md",
-      "pris_en_charge_le": "2026-10-16T23:49:40.979Z"
+      "arret": "request-5.md",
+      "consomme_le": "2026-10-17T00:02:35.779Z"
     }
   },
   "artefacts_hors_registre": [
