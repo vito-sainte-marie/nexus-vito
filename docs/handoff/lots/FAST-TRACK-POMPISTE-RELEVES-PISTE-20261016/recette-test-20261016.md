@@ -17,13 +17,13 @@ Preuves automatisées : `test_releves_piste_logique_20261016.js` 14/14 ; `test_c
 | 8 | Passage d'un palier | NON TESTÉ en navigateur | |
 | 9 | Index inférieur au précédent | RÉUSSI (navigateur) | Alerte forte (-456 L), justification obligatoire, motif listé dans la revue, ligne dans `carburant_index_corrections` (confirmation exceptionnelle = vrai) |
 | 10 | Écart > 4 000 L | NON TESTÉ en navigateur (logique seule) | |
-| 11 | Fin Q1 = début Q2 | NON TESTÉ en navigateur | Comparaison branchée dans la revue (8d79be5b), non rejouée |
-| 12 | Fin Q1 ≠ début Q2 | NON TESTÉ en navigateur | idem ; logique `comparerQ1Q2` couverte par les tests purs |
+| 11 | Fin Q1 = début Q2 | RÉUSSI (navigateur, 17/10) | Début de Q2 concordant avec la fin de Q1 : « concordant, compteur par compteur » (voir section Q1 → Q2) |
+| 12 | Fin Q1 ≠ début Q2 | RÉUSSI (navigateur, 17/10) | P4 SP 7890200 → 7890205 : « fin de Q1 ≠ début de Q2 (+5 L) », deux valeurs conservées, non bloquant |
 | 13 | GNR hors service à 1191213 | RÉUSSI (affichage) | Ligne GNR « hors service · référence », jamais saisie ; non semé dans `carburant_gnr_statuts` (constante de page) |
 | 14 | Interruption puis reprise | PARTIEL | Rechargement de page pendant la saisie : reprise du moment proposée ; brouillon serveur confirmé (« brouillon enregistré sur le serveur », 8 lignes en base) |
-| 15 | Perte de connexion | NON TESTÉ | |
+| 15 | Perte de connexion | RÉUSSI (simulation, pas une coupure réelle) | Brouillon local conservé, « hors connexion, non envoyé au serveur », puis « brouillon enregistré sur le serveur » après retour en ligne |
 | 16 | Correction d'une valeur recopiée | PARTIEL | Décocher une ligne annule la confirmation finale et désactive « Terminer » (navigateur) ; l'annulation de coche lors d'une correction de valeur est couverte par la logique, pas par le navigateur |
-| 17 | Validation d'un relevé incomplet | NON TESTÉ en navigateur | Bouton « Valider » désactivé tant que la revue est bloquante (logique) |
+| 17 | Validation d'un relevé incomplet | RÉUSSI (navigateur) | Valeur manquante : revue bloquante, « Valider le relevé » désactivé ; valeur remise : bouton actif |
 | 18 | Historique manager | NON TESTÉ | Écran non construit |
 | 19 | Droits et isolation | PARTIEL | Épreuves SQL de la migration (10/10) ; pas de compte tiers testé dans le navigateur |
 | 20 | Aucune vente / caisse / écriture Decenium | PARTIEL | La page n'écrit que dans `carburant_index_*` ; aucune requête vers d'autres tables dans le code de page ; mesure réseau non rejouée |
