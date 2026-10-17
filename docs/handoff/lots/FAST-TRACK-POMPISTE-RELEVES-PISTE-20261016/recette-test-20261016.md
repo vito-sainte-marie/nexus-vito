@@ -138,3 +138,10 @@ Sans aucune simulation de date. Pour ouvrir la page il a fallu pointer l'arrivé
 - Jaugeage Veeder-Root du 17/10 05:39 saisi à la main (caméra bloquée dans le browser pane) : SP 20 787, GO cuve 1 9 655, GO cuve 2 7 518, GNR 4 372. Enregistré en version 2 de `carburant_releves` (`terrain_pompiste`, `en_attente`) ; la version de recette précédente est conservée dans `carburant_releve_versions` (2 lignes).
 - À confirmer par le métier : le GNR est jaugé (4 372 L) alors que la pompe GNR est hors service.
 - Reste NON TESTÉ : cas 18, Safari iOS, caméra et upload réel, régularisation Q1/Q2, entrée contextuelle, rapports D et E. Aucune modification de Production.
+
+## Constats du 17/10 (suite)
+
+- GNR jaugé à 4 372 L : confirmé voulu par le métier, malgré la pompe GNR hors service.
+- Flake ENOENT de la continuité : 18 exécutions de la suite (3 séries de 6 en parallèle), 18 sorties 0, aucun ENOENT. C'est une non-reproduction, pas une preuve que la cause est écartée.
+- Auteur des relevés (Employé Test B, 755a2dc5…) différent de l'employé du service en cours (Employé Test A, 868d0b92…) : la session navigateur de recette est ouverte sous Test B, le service est semé pour Test A. La politique d'écriture se fonde sur `est_pompiste_du_jour(site)` (site, pas employé). Artefact de recette, à ne pas confondre avec un défaut ; une règle « l'auteur est l'employé du service » reste une décision métier.
+- Non construits, donc non testables : historique manager (cas 18), régularisation Q1/Q2, entrée contextuelle App/Prise de poste, rapports D et E. Safari iOS et caméra exigent un appareil réel.
