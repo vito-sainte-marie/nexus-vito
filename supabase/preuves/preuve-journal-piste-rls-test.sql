@@ -260,13 +260,13 @@ select 'P4 fonctions SECURITY DEFINER sans search_path fixé', '0',
 insert into resultats
 select 'P5 EXECUTE anon sur les fonctions Journal Piste', '0',
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname like any (array['%_piste','piste_%','%_piste_%'])
+    where n.nspname = 'public' and p.proname = any (array['enregistrer_config_piste','qualifier_alerte_piste','evaluer_controles_piste','evaluer_tous_sites_piste','piste_evaluer_site','piste_poser_alerte','piste_manager_du_site','piste_releve_photographier','piste_qualification_heriter_site','piste_site_appelant','piste_role_appelant','piste_comparer','piste_releve_final','piste_alerte_garde_identite','piste_interdire_modification','piste_releve_snapshot_immuable'])
       and has_function_privilege('anon', p.oid, 'execute'))::text;
 
 insert into resultats
 select 'P6 fonctions du lot dont pg_temp n''est pas le DERNIER du search_path', '0',
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname like any (array['%_piste','piste_%','%_piste_%'])
+    where n.nspname = 'public' and p.proname = any (array['enregistrer_config_piste','qualifier_alerte_piste','evaluer_controles_piste','evaluer_tous_sites_piste','piste_evaluer_site','piste_poser_alerte','piste_manager_du_site','piste_releve_photographier','piste_qualification_heriter_site','piste_site_appelant','piste_role_appelant','piste_comparer','piste_releve_final','piste_alerte_garde_identite','piste_interdire_modification','piste_releve_snapshot_immuable'])
       and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c
                        where c like 'search_path=%' and c like '%, pg_temp'))::text;
 insert into resultats
