@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-7.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-seq: 6
+seq: 7
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -19,53 +19,67 @@ preuves:
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 155-fichiers
-  - id: ordre-6-1
+    valeur: 158-fichiers
+  - id: preuve-sql-refus
     classe: VERIFIED
-    valeur: be6fb9d3219d92d723fa4b157181ec7829e49504d55a491e8a7153dcff6ecf8c
-  - id: executant-6-1
-    classe: DECLARED
-    valeur: session-claude-habilitee-pour-SUPABASE_TEST_ECRITURE
+    valeur: sha256=f3dd4e45963a2833a1af6aa4d8554d9d0c3fda37a3370288358aba983682cafe
+  - id: politique-installee
+    classe: VERIFIED
+    valeur: 0 (transaction annulee sur Test, aucune permission modifiee)
 ---
-# FAST TRACK — Parcours Pompiste : application de la migration sur Test déjà faite, ordre régularisé
+# FAST TRACK — Arbitrage de sécurité : envoi de la photo Veeder-Root par le pompiste (Test seulement)
 
-Auteur : Claude (session habilitée Test). Cette demande répond à la réponse de l'arbitre
-sur request-5 (commentaire https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6227055883,
-APPROVED_WITH_CONDITIONS, CAPACITE_REQUISE SUPABASE_TEST_ECRITURE). Sa matérialisation en
-decision-4.md a échoué (run 38984512344, REGISTRE_INVALIDE / CAPACITE_SANS_ORDRE) : le lot ne
-portait aucun `order-*.json`. Cette demande dépose l'ordre manquant.
+**Aucune permission n'est modifiée.** Décision de principe de l'humain : FAVORABLE à un droit d'envoi ciblé, exclusivement sur Test. Cette demande soumet la politique exacte et les preuves au palier humain de sécurité **avant toute application**. Aucun GO Production, aucune fusion.
 
-## Preuve des conditions de decision-3
+## Preuve des conditions de decision-4
 
-Les conditions de decision-3 restent prouvées par request-5 (aucune écriture sur `main` ou
-`production`, `site_id` et RLS préservés, migration Test-only, valeurs métier provisoires).
-Rien n'a été écrit sur Production ni sur une réf protégée depuis. Le `1191213` n'est semé nulle part.
+Remesuré en lecture seule sur Test le 17/10/2026 : `anon` n'a aucun droit sur les quatre tables d'index ; `authenticated` n'a pas TRUNCATE ; RLS active sur les quatre ; les deux fonctions trigger restent non SECURITY DEFINER avec EXECUTE PUBLIC, comme arbitré. Aucune fusion, aucune écriture Production ni sur main/production depuis. Aucune différence entre objets déployés et objets visés.
 
-## Ce qui a été fait, dit sans détour
+## 1. Constat
+Sur Test, un pompiste ne peut pas téléverser la photo du Veeder-Root : « new row violates row-level security policy » (bucket `documents-a-traiter`).
 
-La migration `20261016230000_creer_carburant_index_releves_piste.sql` a été **appliquée sur
-`nexus-test` par la session locale** (psql, avant l'ordre — l'ordre arrive donc après coup, ce
-que cette demande reconnaît ; le seul effet est sur Test). Elle porte une **section 6 ajoutée**
-par rapport au blob examiné par l'arbitre (commit `6c746e00`) : `revoke all … from anon` et
-`revoke truncate … from authenticated` sur les quatre tables (les privilèges par défaut Supabase
-donnent sinon tous les droits à `anon`, et la RLS n'arrête pas TRUNCATE). Aucune donnée semée.
+## 2. Audit des politiques actuelles (bucket privé `documents-a-traiter`, `storage.objects`)
+- `documents_a_traiter_ecriture_site` (INSERT) : `nexus_clients_ecriture_ok(site)` = rôle manager/gérant du site → exclut le pompiste.
+- `documents_a_traiter_lecture_site` (SELECT) : `nexus_clients_lecture_ok(site)`.
+- `documents_a_traiter_service_role_tout_acces` (ALL) : service_role (worker OCR).
+- Aucune politique UPDATE/DELETE pour les utilisateurs. Table `documents_ocr_file` : INSERT déjà ouvert à `depose_par = auth.uid()` sur son site.
+- **Droit nécessaire, et lui seul : un INSERT.** Pas de SELECT (la page lit le résultat via `documents_ocr_file`), pas d'UPDATE, pas de DELETE, pas d'`upsert`.
 
-## Vérification post-application (lecture seule sur Test, 16/10/2026)
+## 3. Politique SQL exacte soumise (additive, aucune politique existante modifiée)
+```sql
+create policy documents_a_traiter_jaugeage_pompiste on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'documents-a-traiter'
+    and array_length(storage.foldername(name), 1) = 2
+    and (storage.foldername(name))[1] = public.current_employee_site_id()
+    and (storage.foldername(name))[2] = 'jaugeage_veeder_root'
+    and public.est_pompiste_du_jour((storage.foldername(name))[1])
+    and storage.filename(name) like '____-__-__\_' || auth.uid()::text || '\_%'
+    and lower(storage.extension(name)) in ('jpg','jpeg','png','webp','heic')
+  );
+```
+Conditions : son propre site ; dossier unique `<site>/jaugeage_veeder_root/` sans sous-dossier ; pompiste du jour en quart `en_cours` (fonction existante, fail-closed) ; nom portant son `auth.uid()` ; extensions image seulement. Aucun élargissement des politiques existantes, aucune lecture/modification/suppression ajoutée, aucun accès `anon`.
 
-- Quatre tables présentes, RLS active : `carburant_index_releves`, `carburant_index_valeurs`,
-  `carburant_index_corrections`, `carburant_gnr_statuts`.
-- Policies bornées au site : `select_*` sur les quatre ; `ecriture_pompiste_ou_manager` (INSERT) sur
-  `releves` et `valeurs` ; `modification_pompiste_brouillon_ou_manager` (UPDATE) sur `releves` ;
-  `ecriture_manager_meme_site` (INSERT) sur `gnr_statuts`. Aucune policy UPDATE/DELETE sur les tables append-only.
-- Triggers d'héritage de site : `carburant_index_valeurs_heriter_site`, `carburant_index_corrections_heriter_site`.
-- RPC : `carburant_index_corriger_valeur` et `carburant_index_marquer_recopiee` — SECURITY DEFINER,
-  `anon` = non, `authenticated` = oui. (Les deux fonctions de trigger gardent l'EXECUTE par défaut de
-  PUBLIC ; elles ne sont pas appelables comme RPC utile — déclaré, non corrigé ici.)
-- Registre de migrations de Test : version 20261016230000 présente, 327 migrations, dernière version.
+## 4. Preuves de refus (Test, transaction `begin … rollback`, fichier `preuve-upload-jaugeage-pompiste-test.sql`)
+| Cas | Résultat |
+|---|---|
+| Pompiste du jour, son site, bon chemin | ACCEPTÉ (attendu) |
+| Autre site (chemin d'un autre site) | REFUSÉ |
+| Autre dossier / sous-dossier du site | REFUSÉ |
+| Extension non image (pdf) | REFUSÉ |
+| Nom sans l'identifiant de l'appelant | REFUSÉ |
+| Utilisateur non habilité (caissier) | REFUSÉ |
+| Pompiste d'un autre site visant ce site | REFUSÉ |
+| Remplacement (UPDATE) | 0 ligne (aucune politique) — réserve : le pompiste ne voit de toute façon aucun objet, la preuve est donc structurelle |
+| Suppression (DELETE) | aucune politique DELETE pour `authenticated` (0) ; le DELETE SQL direct est de toute façon interdit par `storage.protect_delete` |
+| Lecture | 0 objet visible : aucun droit SELECT ajouté |
 
-## Ce qui est demandé
+Contrôle final : `politique_installee = 0` après rollback.
 
-1. Ratifier l'application sur Test, sous-ensemble (section 6) compris.
-2. Que decision-4 (réponse sur request-5) soit matérialisée maintenant que l'ordre existe.
-3. Dérouler la suite autorisée : incréments suivants (écrans par pompe, contrôles, recopie, file OCR et
-   repli manuel, brouillons, GNR), sur Test et la branche seulement. Aucune PR `main`/`production`.
+## 5. Ce qui n'est pas prouvé
+- Le test d'upload par l'API Storage réelle (jeton pompiste) n'est possible qu'après application.
+- Le cas « pompiste hors quart » n'est couvert que par `est_pompiste_du_jour` (existante, fail-closed), non rejoué ici.
+
+## 6. Décision demandée
+Autoriser l'application de cette politique **sur Test uniquement**, via l'ordre habituel. Après application : recette complète (sélection de photo, upload, OCR par le worker, correction manuelle, validation, enregistrement, consultation dans Carburants / Relevés), puis Safari iOS sur appareil réel (NON TESTÉ à ce jour). Le succès de l'OCR Apple Vision local n'est pas une preuve du parcours NEXUS. Rien sur Production.

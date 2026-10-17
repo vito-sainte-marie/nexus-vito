@@ -574,8 +574,8 @@
       "consomme_le": "2026-10-16T23:22:03.768Z"
     },
     "FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016": {
-      "statut": "DECISION_CONSOMMEE",
-      "derniere_demande": "request-6.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-7.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-4.md",
       "source_decision": "registre",
