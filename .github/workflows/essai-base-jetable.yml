@@ -1,0 +1,159 @@
+# Essai de faisabilité ISOLÉ : base PostgreSQL/Supabase locale et jetable
+# (GO de Frédéric du 17/10/2026, voie 2).
+#
+# Ce que ce workflow fait : démarrer l'image Supabase Postgres DANS le runner,
+# y rejouer les migrations du dépôt dans l'ordre officiel, y prouver des
+# autorisations et des refus RLS sous des identités distinctes, inventorier le
+# schéma reconstruit, puis tout jeter avec le runner.
+#
+# Ce qu'il ne fait pas, par construction :
+#   - aucun secret : la seule connexion est celle du conteneur local ;
+#   - aucune base distante : le script de rejeu refuse tout PGHOST non local ;
+#   - aucune écriture sur le dépôt : jeton en lecture seule ;
+#   - aucun lien avec tests.yml, le rail Handoff ou la boucle : il ne tourne que
+#     sur les branches essai/base-jetable-*, jamais sur le rail.
+name: Essai base jetable (isolé)
+
+on:
+  push:
+    branches: ['essai/base-jetable-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: essai-base-jetable-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  essai:
+    # Deux historiques, deux jeux de preuves : la branche (le rail, d'où elle
+    # part) et production. Le rail n'a pas les 21 migrations livrées en
+    # production depuis le 05/10 ; Test a reçu les deux. Rejouer l'un sans
+    # l'autre donnerait une fausse image de Test.
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [branche, production]
+    name: essai (${{ matrix.source }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PGHOST: localhost
+      PGPORT: '54322'
+      PGUSER: postgres
+      # Mot de passe d'un conteneur jetable, local au runner : ce n'est pas un
+      # secret, il ne protège rien qui survive au job.
+      PGPASSWORD: postgres-essai-jetable
+      PGDATABASE: postgres
+      IMAGE_CIBLE: supabase/postgres:17.6.1.166
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Récupérer les migrations de production (lecture seule)
+        if: matrix.source == 'production'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: production
+          path: source-production
+          persist-credentials: false
+          sparse-checkout: supabase/migrations
+
+      - name: Désigner le dossier de migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.source }}" = production ]; then d=source-production/supabase/migrations; else d=supabase/migrations; fi
+          echo "MIGRATIONS=$d" >> "$GITHUB_ENV"
+          echo "::notice title=[${{ matrix.source }}] Source::$d — $(ls "$d"/*.sql | wc -l) fichiers, commit $(git -C "$(dirname "$(dirname "$d")")" rev-parse --short HEAD)"
+
+      - name: Choisir l'image (version de Test d'abord)
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Test tourne sur 17.6.1.166 (list_projects, 17/10/2026). Si cette
+          # étiquette n'est pas publiée, on prend la plus haute 17.6.1.x et on
+          # le DIT : c'est une limite de fidélité, pas un détail.
+          if docker pull -q "$IMAGE_CIBLE" >/dev/null 2>&1; then
+            image="$IMAGE_CIBLE"; fidelite="identique à Test"
+          else
+            tag=$(curl -fsS 'https://hub.docker.com/v2/repositories/supabase/postgres/tags?page_size=100&name=17.6.1' \
+                  | jq -r '.results[].name' | grep -E '^17\.6\.1\.[0-9]+$' | sort -t. -k4,4n | tail -n 1)
+            [ -n "$tag" ] || { echo "::error::Aucune image supabase/postgres 17.6.1.x publiée"; exit 1; }
+            image="supabase/postgres:$tag"; fidelite="DIFFÉRENTE de Test (17.6.1.166 non publiée)"
+            docker pull -q "$image" >/dev/null
+          fi
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "::notice title=[${{ matrix.source }}] Image::$image ($fidelite) — $digest"
+
+      - name: Démarrer la base jetable
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name base-jetable -e POSTGRES_PASSWORD="$PGPASSWORD" \
+            -p 127.0.0.1:${PGPORT}:5432 "${{ steps.image.outputs.image }}" >/dev/null
+          debut=$(date +%s)
+          # Prête = connexion acceptée ET rôles Supabase présents (l'image
+          # redémarre une fois après ses scripts d'initialisation).
+          for i in $(seq 1 90); do
+            if n=$(psql -X -tA -c "select count(*) from pg_roles where rolname in ('anon','authenticated','service_role')" 2>/dev/null) && [ "$n" = 3 ]; then
+              break
+            fi
+            sleep 2
+          done
+          [ "${n:-0}" = 3 ] || { docker logs base-jetable | tail -n 40; echo "::error::Base jetable non prête"; exit 1; }
+          etat=$(psql -X -tA -c "select json_build_object(
+            'serveur', current_setting('server_version'),
+            'superutilisateur_postgres', (select rolsuper from pg_roles where rolname = current_user),
+            'schemas', (select json_agg(nspname order by nspname) from pg_namespace where nspname in ('auth','storage','extensions','cron','net','vault','supabase_migrations')),
+            'auth_uid', to_regprocedure('auth.uid()') is not null,
+            'extensions_disponibles', (select json_agg(name order by name) from pg_available_extensions where name in ('pg_cron','pg_net','pgcrypto','uuid-ossp','pg_stat_statements')),
+            'demarrage_s', $(( $(date +%s) - debut )))")
+          echo "::notice title=[${{ matrix.source }}] Base jetable prête::$etat"
+
+      - name: Rejouer les migrations dans l'ordre officiel
+        shell: bash
+        run: |
+          set -euo pipefail
+          debut=$(date +%s)
+          bash outils/essai-base-jetable/rejouer-migrations.sh "$MIGRATIONS" "$RUNNER_TEMP/migrations.jsonl" \
+            | tail -n 40
+          duree=$(( $(date +%s) - debut ))
+          J="$RUNNER_TEMP/migrations.jsonl"
+          bilan=$(jq -sc --argjson duree "$duree" '{total: length, ok: ([.[]|select(.statut=="ok")]|length),
+                   echecs: ([.[]|select(.statut=="echec")]|length), duree_s: $duree,
+                   premier_echec: ([.[]|select(.statut=="echec")][0] // null)}' "$J")
+          echo "::notice title=[${{ matrix.source }}] Bilan des migrations::$bilan"
+          liste=$(jq -sc '[.[]|select(.statut=="echec")|{rang, fichier, cascade, erreur: (.erreur|split("\n")[0])}]' "$J")
+          echo "::notice title=[${{ matrix.source }}] Échecs (tous)::$liste"
+          lentes=$(jq -sc 'sort_by(-.duree_ms)[:5]|map({fichier, duree_ms})' "$J")
+          echo "::notice title=[${{ matrix.source }}] Migrations les plus lentes::$lentes"
+
+      # La table éprouvée (carburant_index_releves) n'existe que sur le rail.
+      - name: Prouver autorisations et refus RLS sous identités distinctes
+        if: matrix.source == 'branche'
+        shell: bash
+        run: |
+          set -uo pipefail
+          if sortie=$(psql -X -v ON_ERROR_STOP=1 -f outils/essai-base-jetable/preuve-rls.sql 2>&1); then statut=ok; else statut=echec; fi
+          printf '%s\n' "$sortie"
+          lignes=$(printf '%s\n' "$sortie" | grep -E '^ *[0-9]+ \||PREUVE RLS|ERROR' | head -n 20 | tr '\n' ';')
+          echo "::notice title=[${{ matrix.source }}] Preuve RLS ($statut)::$lignes"
+
+      - name: Inventorier le schéma reconstruit
+        shell: bash
+        run: |
+          set -euo pipefail
+          inv=$(psql -X -tA -f outils/essai-base-jetable/inventaire-schema.sql)
+          echo "::notice title=[${{ matrix.source }}] Inventaire (comptes)::$(jq -c 'del(.liste_tables, .liste_politiques, .liste_fonctions)' <<<"$inv")"
+          echo "::notice title=[${{ matrix.source }}] Inventaire (tables)::$(jq -c '.liste_tables' <<<"$inv")"
+          echo "::notice title=[${{ matrix.source }}] Inventaire (politiques)::$(jq -c '.liste_politiques' <<<"$inv")"
+          echo "::notice title=[${{ matrix.source }}] Inventaire (fonctions)::$(jq -c '.liste_fonctions' <<<"$inv")"
+
+      - name: Jeter la base
+        if: always()
+        run: docker rm -f base-jetable >/dev/null 2>&1 || true
