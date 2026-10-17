@@ -40,3 +40,21 @@ d. **Blocage à arbitrer (surface de sécurité, NON modifié)** : la politique 
 e. **Défaut corrigé (ccace99e)** : la case de confirmation et le bouton d'enregistrement n'apparaissaient qu'au rendu suivant la saisie ; rendu déclenché à la sortie du champ. Rejoué en navigateur : OK.
 f. `type_version = correction_manager` est inscrit pour une version `terrain_pompiste` : libellé hérité de l'existant, non modifié.
 g. Relevé du jour préexistant en Test (v1) : la saisie ajoute une version de correction avec motif, sans écrasement.
+
+## Incrément 3 (17/10/2026, Test) — début de Q1, début rapide, habilitation, écart de nuit
+
+Constat d (mise à jour) : la politique d'envoi de photo est appliquée sur Test depuis le GO du 17/10 (migration `20261017120000`). La recette d'upload réel par un pompiste reste à rejouer ; Safari iOS : NON TESTÉ.
+
+Livré (commit `d3577cc9`, migration Test-only `20261017130000`, aucun grant ni politique modifié) :
+
+| Scénario | Preuve | État |
+|---|---|---|
+| Quatre moments dont `debut_q1` ; début/fin distingués | logique 22/22 | AUTOMATISÉ |
+| Habilitation : un pompiste ne voit que les moments de son quart réel (`shifts`) | logique ; navigateur à rejouer | PARTIEL |
+| Début rapide : référence affichée, 2 derniers chiffres, bascule en 7 chiffres si différent ou douteux, référence indisponible → 7 chiffres | logique ; navigateur à rejouer | PARTIEL |
+| Tolérance de nuit 0 / +1 / +2..+9 / ≥+10 / diminution, par compteur, non bloquante | logique | AUTOMATISÉ |
+| Index identiques fin/début, retour à zéro du compteur | logique | AUTOMATISÉ |
+| Aucune recopie Decenium aux débuts ; recopie aux fins seulement | code de page, navigateur à rejouer | NON TESTÉ en navigateur |
+| Contraintes SQL (moment, référence, anomalie) | lues sur Test | OBSERVÉ |
+
+Unité de l'écart de nuit (+1) à confirmer par le métier. La vérification à deux chiffres n'est pas une preuve d'identité des sept chiffres. Safari iOS : NON TESTÉ.
