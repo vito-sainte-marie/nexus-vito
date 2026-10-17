@@ -832,3 +832,11 @@ référence 1191213 n'est écrit par aucune ligne de cette migration).
 1. `20261017120000_politique_upload_jaugeage_pompiste` — **EXCLUE — Test/CI**
 
 Politique INSERT additive sur `storage.objects`, appliquée sur `nexus-test` sous GO humain explicite du 17/10/2026, après `request-7.md` du lot `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`. Elle n'est pas proposée à une promotion Production : toute reprise en Production exigerait un arbitrage de sécurité et un GO distincts. Aucune écriture Production, aucune fusion.
+
+## Addendum du 17/10/2026 — Début de Q1 et écart de nuit des relevés piste (Test seulement)
+
+### EXCLUE — Test/CI uniquement (1 migration)
+
+1. `20261017130000_releves_piste_debut_q1_et_ecart_nuit` — **EXCLUE — Test/CI**
+
+Ajoute le moment `debut_q1` à la contrainte de `carburant_index_releves` et quatre colonnes nullables à `carburant_index_valeurs` (référence affichée, mode de confirmation, écart de nuit, anomalie de nuit). Aucun grant, aucune politique et aucune fonction ne sont modifiés : aucune surface de sécurité nouvelle. Appliquée sur `nexus-test` seulement, selon les arbitrages « Moments des relevés piste » et « Tolérance de nuit » du lot `FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016`. Non proposée à une promotion Production : aucune écriture Production, aucune fusion.

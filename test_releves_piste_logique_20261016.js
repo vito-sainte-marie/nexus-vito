@@ -65,4 +65,63 @@ t('texte de confirmation exact et GNR de référence', () => {
   assert.strictEqual(R.TEXTE_CONFIRMATION_RECOPIE, 'Je confirme avoir recopié les valeurs dans Decenium.');
   assert.strictEqual(R.GNR_INDEX_REFERENCE, 1191213);
 });
+
+// ---- Arbitrages du 17/10 : début de quart, habilitation, tolérance de nuit ----
+t('quatre moments ; début/fin distingués', () => {
+  assert.deepStrictEqual(R.MOMENTS, ['debut_q1', 'fin_q1', 'debut_q2', 'fin_q2']);
+  assert.ok(R.estDebut('debut_q1') && R.estDebut('debut_q2') && R.estFin('fin_q1') && R.estFin('fin_q2'));
+  assert.ok(!R.estFin('debut_q1') && !R.estDebut('fin_q2'));
+});
+t('habilitation : le pompiste ne voit que les moments de son quart réel', () => {
+  assert.deepStrictEqual(R.momentsHabilites(['matin']), ['debut_q1', 'fin_q1']);
+  assert.deepStrictEqual(R.momentsHabilites(['soir']), ['debut_q2', 'fin_q2']);
+  assert.deepStrictEqual(R.momentsHabilites(['Q1', 'Q2']), R.MOMENTS);
+  assert.deepStrictEqual(R.momentsHabilites([]), []);
+  assert.deepStrictEqual(R.momentsHabilites(null), []);
+  assert.deepStrictEqual(R.momentsHabilites(['inconnu']), []);
+});
+t('tolérance de nuit : 0, +1, +2..+9, >=+10, diminution', () => {
+  assert.strictEqual(R.classerEcartNuit(0).code, 'conforme');
+  assert.strictEqual(R.classerEcartNuit(1).code, 'toleree');
+  [2, 5, 9].forEach(e => assert.strictEqual(R.classerEcartNuit(e).code, 'a_justifier'));
+  [10, 11, 500].forEach(e => assert.strictEqual(R.classerEcartNuit(e).code, 'alerte_prioritaire'));
+  [-1, -9999].forEach(e => assert.strictEqual(R.classerEcartNuit(e).code, 'diminution'));
+  assert.strictEqual(R.classerEcartNuit(null).code, null);
+});
+t('début : 2 derniers chiffres concordants → confirmée ; différents → refusés', () => {
+  const ok = R.evaluerDebut('0123456', '56');
+  assert.deepStrictEqual([ok.ok, ok.statut, ok.valeurSept], [true, 'confirmee_deux_chiffres', '0123456']);
+  const ko = R.evaluerDebut('0123456', '57');
+  assert.deepStrictEqual([ko.ok, ko.raison], [false, 'DEUX_CHIFFRES_DIFFERENTS']);
+  assert.strictEqual(R.evaluerDebut('0123456', '0123460').statut, 'saisie_complete');
+});
+t('début : référence indisponible → sept chiffres requis', () => {
+  assert.strictEqual(R.evaluerDebut(null, '56').ok, false);
+  assert.strictEqual(R.evaluerDebut(null, '56').raison, 'SEPT_CHIFFRES_REQUIS');
+  const c = R.evaluerDebut(null, '0123456');
+  assert.deepStrictEqual([c.ok, c.statut, c.valeurSept], [true, 'indisponible', '0123456']);
+});
+t('retour à zéro du compteur : diminution signalée, jamais bloquante au début de Q1', () => {
+  const s = {}, pr = {};
+  R.POMPES.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(x => { s[p + '-' + x] = '0000005'; pr[p + '-' + x] = 9999990; }));
+  const r = R.revueAnomalies(s, pr, {}, 'debut_q1');
+  assert.ok(r.lignes.some(l => l.code === 'NUIT_DIMINUTION'));
+  assert.strictEqual(r.peutValider, true);
+});
+t('début de Q1 : contrôle par compteur, les huit indépendants', () => {
+  const s = {}, pr = {};
+  R.POMPES.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(x => { s[p + '-' + x] = '0001000'; pr[p + '-' + x] = 1000; }));
+  s['2-GO'] = '0001001'; s['3-SP'] = '0001012';
+  const r = R.revueAnomalies(s, pr, {}, 'debut_q1');
+  const par = Object.fromEntries(r.lignes.map(l => [l.clef, l.code]));
+  assert.strictEqual(par['2-GO'], 'NUIT_TOLEREE');
+  assert.strictEqual(par['3-SP'], 'NUIT_ALERTE_PRIORITAIRE');
+  assert.strictEqual(Object.keys(par).length, 2);
+  assert.strictEqual(r.peutValider, true);
+});
+t('index identiques fin puis début : aucune anomalie (deux attestations distinctes)', () => {
+  const s = {}, pr = {};
+  R.POMPES.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(x => { s[p + '-' + x] = '0004242'; pr[p + '-' + x] = 4242; }));
+  assert.strictEqual(R.revueAnomalies(s, pr, {}, 'debut_q1').lignes.length, 0);
+});
 console.log(n + '/' + n + ' réussies');
