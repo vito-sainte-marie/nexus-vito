@@ -610,8 +610,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 311; // 310 + 20261016150000 (dernier poste sous le seuil)
-const MIGRATIONS_REELLES_EMPREINTE = 'c2a7308a0079f9a085e79c39685c6bc7892a120b205d990d9380f30942849733';
+const MIGRATIONS_REELLES_NOMBRE = 313; // 311 + 20261016230000 et 20261017130000 (releves de piste)
+const MIGRATIONS_REELLES_EMPREINTE = '3a7e42b5d88909603eaaac9d05e29f9ab453a3ef7d59c2102cb17cc5fbfc4ad9';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);

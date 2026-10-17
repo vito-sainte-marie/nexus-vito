@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS : Relevés piste</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-station.js?v=20261013-2212"></script>
+<script src="nexus-auth.js?v=20261013-2212"></script>
+<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
+<script src="nexus-releves-piste.js?v=20261013-2212"></script>
+<script src="nexus-carburant-moteur.js?v=20261013-2212"></script>
+<script src="nexus-carburant-donnees.js?v=20261013-2212"></script>
+<script src="nexus-veeder-root.js?v=20261013-2212"></script>
+<style>
+  :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-text-size-adjust:100%}
+  .phone{max-width:460px;margin:0 auto;padding:16px 16px 96px}
+  .npompe{color:var(--red)}
+  .p-go{color:var(--amber)}
+  .p-sp{color:var(--green)}
+  .p-gnr{color:#B5452F}
+  h1{font-size:20px;margin:4px 0 2px} h2{font-size:17px;margin:0 0 8px}
+  .sub{color:var(--mid);font-size:13px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px;margin-bottom:12px}
+  .champ label{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-weight:600;margin-bottom:6px}
+  .champ .ref{text-align:right}
+  .champ .ref{font-weight:400;color:var(--dim);font-size:12px;font-family:'IBM Plex Mono',monospace}
+  input.idx{width:100%;font:600 28px 'IBM Plex Mono',monospace;letter-spacing:3px;text-align:center;background:var(--bg);color:var(--text);border:2px solid var(--hair);border-radius:12px;padding:12px}
+  input.idx:focus{outline:none;border-color:var(--cyan)}
+  input.idx::placeholder{font:400 14px 'IBM Plex Sans',sans-serif;letter-spacing:0;color:var(--dim)}
+  .conv{font:13px 'IBM Plex Mono',monospace;color:var(--mid);margin-top:6px}
+  .alerte{border-radius:10px;padding:10px 12px;font-size:13px;margin-top:8px}
+  .fort{background:#3A1D1F;border:1px solid var(--red);color:#FFD3D4}
+  .indic{background:#3A2E14;border:1px solid var(--amber);color:#FFE2A8}
+  .ok{background:#153629;border:1px solid var(--green);color:#CFF5E3}
+  textarea,input.txt{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--hair);border-radius:10px;padding:10px;font:14px 'IBM Plex Sans',sans-serif;margin-top:6px}
+  button{font:600 16px 'IBM Plex Sans',sans-serif;border-radius:12px;border:0;padding:14px 16px;min-height:48px;cursor:pointer}
+  .btn{background:var(--green);color:#06281B;width:100%} .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .cadre-vr{position:relative;aspect-ratio:4/3;max-width:320px;margin:4px auto 0;padding:14px;display:flex}
+  .cadre-vr .cadre-ecran{flex:1;border:1px dashed var(--hair);border-radius:6px;display:flex;flex-direction:column;justify-content:space-around;padding:8px 10px;font-size:11px;letter-spacing:.04em;color:var(--muted,#8b93a1)}
+  .cadre-vr .cc{position:absolute;width:26px;height:26px;border:3px solid #34D399}
+  .cadre-vr .cc1{top:0;left:0;border-right:0;border-bottom:0;border-top-left-radius:8px}
+  .cadre-vr .cc2{top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:8px}
+  .cadre-vr .cc3{bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:8px}
+  .cadre-vr .cc4{bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:8px}
+  .btn2{background:var(--raised);color:var(--text);border:1px solid var(--hair);width:100%}
+  .row{display:flex;gap:10px} .row>*{flex:1}
+  .etat{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--hair);padding:8px 16px calc(8px + env(safe-area-inset-bottom));font-size:12px;color:var(--mid);text-align:center}
+  .etat b.ko{color:var(--amber)} .etat b.bon{color:var(--green)}
+  .ligne{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair)}
+  .ligne:last-child{border-bottom:0}
+  .ligne .v{font:600 20px 'IBM Plex Mono',monospace;flex:1}
+  .ligne .n{color:var(--mid);font-size:13px;min-width:70px}
+  .ligne input[type=checkbox]{width:28px;height:28px;accent-color:var(--green)}
+  .gnr{opacity:.75}
+  .pastille{display:inline-block;font-size:11px;border:1px solid var(--hair);border-radius:99px;padding:2px 8px;color:var(--mid)}
+  .progres{color:var(--mid);font-size:13px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="phone" id="app"><div class="card">Chargement…</div></div>
+<div class="etat" id="etat">…</div>
+<script>
+(function () {
+  const R = window.NexusRelevesPiste;
+  const MOMENTS_LIBELLE = { debut_q1: 'Début de Q1 (ouverture de la station)', fin_q1: 'Fin de Q1 (fin de quart du matin)', debut_q2: 'Début de Q2 (ouverture du soir)', fin_q2: 'Fin de Q2 (fermeture)' };
+  let emp = null, date = null, moment = null;
+  let ecran = 'choix';
+  let pompe = 1;
+  let saisies = {}, motifs = {}, precedents = {}, finQ1 = null;
+  let modeComplet = {}, refStatut = {}, visuel = {}, habilites = [], quartsReels = [], referenceDispo = false;
+  let serveur = { releveId: null, valeurs: {}, final: false };
+  let reseau = { ok: true, derniereErreur: null };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cleBrouillon = () => `nexus_releves_piste_${emp.id}_${date}_${moment}`;
+
+  // Brouillon local — try/catch obligatoire (navigation privée, stockage bloqué).
+  function sauverLocal() {
+    try { localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, modeComplet, refStatut, visuel, pompe, ecran, t: Date.now() })); return true; }
+    catch (e) { return false; }
+  }
+  function lireLocal() {
+    try { const s = localStorage.getItem(cleBrouillon()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  function majEtat() {
+    const local = sauverLocalTest();
+    const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
+      : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
+        : '<b class="ko">hors connexion, non envoyé au serveur</b>');
+    $('etat').innerHTML = `${local ? 'Enregistré sur l\'appareil' : '<b class="ko">Stockage de l\'appareil indisponible</b>'} · ${srv}`;
+  }
+  function sauverLocalTest() { return moment ? sauverLocal() : true; }
+
+  window.addEventListener('online', () => { reseau.ok = true; synchroniser(); });
+  window.addEventListener('offline', () => { reseau.ok = false; majEtat(); });
+
+  // ---- Serveur : insert-only pour les valeurs (voir migration) ----
+  async function assurerReleve() {
+    if (serveur.releveId) return serveur.releveId;
+    const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut')
+      .eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
+    if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; return ex.id; }
+    const { data, error } = await nexusClient.from('carburant_index_releves')
+      .insert({ site: emp.site_id, date, moment, auteur: emp.id }).select('id').single();
+    if (error) throw error;
+    serveur.releveId = data.id; return data.id;
+  }
+  async function chargerValeursServeur() {
+    if (!serveur.releveId) return;
+    const { data } = await nexusClient.from('carburant_index_valeurs').select('id, pompe, produit, valeur_sept_chiffres, recopiee').eq('releve_id', serveur.releveId);
+    serveur.valeurs = {};
+    (data || []).forEach(v => { serveur.valeurs[`${v.pompe}-${v.produit}`] = v; });
+  }
+  // Envoie au serveur les valeurs d'une pompe complète (jamais une valeur partielle).
+  async function synchroniser() {
+    try {
+      const pompesCompletes = R.POMPES.filter(p => R.ORDRE_PHYSIQUE[p].every(pr => R.estSeptChiffres(saisies[`${p}-${pr}`])));
+      if (!pompesCompletes.length) { majEtat(); return; }
+      const id = await assurerReleve();
+      await chargerValeursServeur();
+      const lignes = [];
+      pompesCompletes.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(pr => {
+        const k = `${p}-${pr}`;
+        if (serveur.valeurs[k]) return;
+        const c = R.convertirSeptVersSix(saisies[k]);
+        const ligne = { releve_id: id, pompe: p, produit: pr, valeur_sept_chiffres: saisies[k], valeur_decenium: c.valeurDecenium, troncature_sans_perte: c.troncatureSansPerte };
+        if (R.estDebut(moment)) { // référence affichée + manière dont elle a été confirmée ; écart de nuit au début de Q1
+          const ref = precedents[k] != null ? String(precedents[k]).padStart(7, '0') : null;
+          ligne.ref_valeur_sept = ref; ligne.ref_statut = ref ? ((refStatut[k] && refStatut[k] !== 'indisponible') ? refStatut[k] : 'saisie_complete') : 'indisponible';
+          if (moment === 'debut_q1' && ref) { const n = R.classerEcartNuit(Number(saisies[k]) - Number(ref)); ligne.ecart_nuit = n.ecart; ligne.anomalie_nuit = n.code; }
+        }
+        lignes.push(ligne);
+      }));
+      if (lignes.length) { const { error } = await nexusClient.from('carburant_index_valeurs').insert(lignes); if (error) throw error; await chargerValeursServeur(); }
+      reseau.ok = true; reseau.derniereErreur = null;
+    } catch (e) { reseau.ok = false; reseau.derniereErreur = e; console.error('Synchro relevé:', e); }
+    majEtat();
+  }
+
+  // Fin de Q1 du même jour (toute main confondue) : sert uniquement à la comparaison au début de Q2.
+  async function chargerFinQ1() {
+    finQ1 = null;
+    if (moment !== 'debut_q2') return;
+    try {
+      const { data } = await nexusClient.from('carburant_index_releves')
+        .select('auteur, carburant_index_valeurs(pompe, produit, valeur_sept_chiffres)')
+        .eq('site', emp.site_id).eq('date', date).eq('moment', 'fin_q1').eq('statut', 'final').order('cree_le', { ascending: false }).limit(1);
+      if (data && data[0]) { finQ1 = {}; data[0].carburant_index_valeurs.forEach(v => { finQ1[`${v.pompe}-${v.produit}`] = v.valeur_sept_chiffres; }); }
+    } catch (x) { finQ1 = null; }
+  }
+
+  async function chargerPrecedents() {
+    precedents = {};
+    // Référence : début Q1 = dernière fin Q2 validée ; début Q2 = fin Q1 validée du jour ;
+    // sinon (et pour les fins) = dernier relevé validé, tous moments confondus.
+    let q = nexusClient.from('carburant_index_releves')
+      .select('id, date, cree_le, carburant_index_valeurs(pompe, produit, valeur_sept_chiffres)')
+      .eq('site', emp.site_id).eq('statut', 'final');
+    if (moment === 'debut_q1') q = q.eq('moment', 'fin_q2').lte('date', date);
+    else if (moment === 'debut_q2') q = q.eq('moment', 'fin_q1').eq('date', date);
+    const { data } = await q.order('date', { ascending: false }).order('cree_le', { ascending: false }).limit(1);
+    if (data && data[0]) data[0].carburant_index_valeurs.forEach(v => { precedents[`${v.pompe}-${v.produit}`] = Number(v.valeur_sept_chiffres); });
+    referenceDispo = Object.keys(precedents).length === 8;
+  }
+  // Quarts réellement affectés au pompiste aujourd'hui (managers/gérants : tous les moments).
+  async function chargerHabilitations() {
+    habilites = []; quartsReels = [];
+    if (R.momentsHabilites([], emp.role).length) { habilites = R.momentsHabilites([], emp.role); return; }
+    try {
+      // Service courant : primitive partagée de nexus-auth.js (garde « service courant unique »).
+      const r = await nexusServiceCourant(emp);
+      if (r.erreur) throw new Error('service courant illisible');
+      quartsReels = r.service ? [R.normaliserQuart(r.service.quart)].filter(Boolean) : [];
+      habilites = R.momentsHabilites(quartsReels);
+    } catch (x) { habilites = []; reseau.ok = false; }
+  }
+
+  // ---- Écrans ----
+
+  // ---- Jaugeage Veeder-Root : photo -> file OCR (différée) -> proposition à vérifier ----
+  const V = window.NexusVeederRoot;
+  const CUVES = [
+    { k: 'SP-30', produit: 'SP', cap: 30, lib: 'SP 30 m3', champ: 'sp95' },
+    { k: 'GO-20', produit: 'GO', cap: 20, lib: 'GO cuve 1 (20 m3)', champ: 'go_cuve1' },
+    { k: 'GO-10', produit: 'GO', cap: 10, lib: 'GO cuve 2 (10 m3)', champ: 'go_cuve2' },
+    { k: 'GNR-30', produit: 'GNR', cap: 30, lib: 'GNR 30 m3', champ: 'gnr' },
+  ];
+  let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
+  const LIB_STATUT = {
+    aucune: 'Aucune photo envoyée.', envoi: 'Envoi de la photo…', en_attente: 'Photo envoyée. La lecture automatique est différée : elle peut tarder.',
+    en_cours: 'Lecture en cours…', traite: 'Lecture disponible, à vérifier à l\'œil.', erreur: 'La lecture automatique a échoué. Saisissez les volumes à la main.',
+    hors_ligne: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.',
+  };
+  function vueJauge() {
+    const lignes = CUVES.map(c => {
+      const prop = jauge.propositions[c.k];
+      const aide = prop ? `<div class="conv">Lecture proposée : ${prop.volume_l ?? 'illisible'} L${prop.alerte ? ' (' + esc(prop.alerte) + ')' : ''} <button class="btn2" style="width:auto;min-height:36px;padding:6px 10px;font-size:13px" data-act="jprendre" data-k="${c.k}">Utiliser</button></div>` : '';
+      return `<div class="card champ"><label for="j${c.k}">${esc(c.lib)}<span class="ref">litres</span></label><input class="idx" id="j${c.k}" data-j="${c.k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="6" value="${esc(jauge.saisies[c.k] ?? '')}" placeholder="volume">${aide}</div>`;
+    }).join('');
+    const pret = CUVES.every(c => jauge.saisies[c.k]);
+    const n = k => Number(jauge.saisies[k] || 0);
+    const goTotal = (jauge.saisies['GO-20'] && jauge.saisies['GO-10']) ? n('GO-20') + n('GO-10') : null;
+    const total = `<div class="card"><div class="ligne"><span class="n">GO total (cuve 1 + cuve 2)</span><span class="v">${goTotal != null ? goTotal + ' L' : '…'}</span></div><div class="sub">Somme d'affichage pour la recopie Decenium : jamais un mouvement de stock ni une vente.</div></div>`;
+    const ex = jauge.existant;
+    const avert = ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
+    const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
+    const conf = pret ? `${total}${avert}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
+      <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
+    return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
+      <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><label class="btn2" style="display:block;text-align:center;padding:14px"><input type="file" accept="image/*" capture="environment" id="jPhoto" style="display:none">Prendre la photo de l'écran</label>
+      <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
+      ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
+      ${photo}${lignes}${conf}<button class="btn2" data-act="choix">Retour</button>`;
+  }
+  async function envoyerPhoto(fichier) {
+    jauge.statut = 'envoi'; jauge.message = ''; rendre();
+    try {
+      const ext = (fichier.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${ext}`;
+      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg' });
+      if (up.error) throw up.error;
+      const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
+      if (ins.error) throw ins.error;
+      jauge.docId = ins.data.id; jauge.statut = 'en_attente'; reseau.ok = true;
+    } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
+    rendre();
+  }
+  // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.
+  let arecopier = [];
+  async function chargerARecopier() {
+    arecopier = [];
+    try {
+      for (const m of R.MOMENTS.filter(x => R.estFin(x) && habilites.indexOf(x) >= 0)) {
+        const { data: rel } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', m).eq('auteur', emp.id).maybeSingle();
+        if (!rel || rel.statut !== 'final') continue;
+        const { data: vals } = await nexusClient.from('carburant_index_valeurs').select('recopiee').eq('releve_id', rel.id);
+        const n = (vals || []).length;
+        if (n) arecopier.push({ m, n, fait: vals.filter(v => v.recopiee).length });
+      }
+    } catch (x) { console.error(x); }
+  }
+  async function enregistrerJaugeage() {
+    const D = window.NexusCarburantDonnees;
+    if (!jauge.confirme || !CUVES.every(c => jauge.saisies[c.k])) return;
+    const valeurs = {}, propose = {}, confirme = {}, corriges = [];
+    CUVES.forEach(c => {
+      const v = Number(jauge.saisies[c.k]); valeurs[c.champ] = v; confirme[c.k] = v;
+      const p = jauge.propositions[c.k];
+      if (p && p.volume_l != null) { propose[c.k] = p.volume_l; if (p.volume_l !== v) corriges.push(c.k); }
+      else corriges.push(c.k);
+    });
+    const provenance = { source: jauge.docId ? 'ocr_veeder_root' : 'saisie_manuelle', document_id: jauge.docId || null, photo_le: jauge.photoLe || null, propose, confirme, corriges_a_la_main: corriges, confirme_par: emp.id, confirme_le: new Date().toISOString() };
+    try {
+      const r = await D.enregistrerJaugeageOuverturePompiste(nexusClient, emp.site_id, {
+        date, employeeId: emp.id, valeurs, mesureLe: jauge.photoLe || undefined,
+        motifCorrection: 'Jaugeage Veeder-Root confirmé par le pompiste (relevés piste)', provenance,
+      });
+      if (!r || !r.ok) throw (r && r.error) || new Error('écriture refusée');
+      jauge.enregistre = true; jauge.message = r.dejaAJour ? 'Ces volumes étaient déjà enregistrés : rien n\'a été modifié.' : 'Jaugeage enregistré dans Carburants.'; reseau.ok = true;
+      jauge.existant = await D.chargerReleveDuJour(nexusClient, emp.site_id, date);
+    } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Enregistrement impossible : vos valeurs restent à l\'écran, réessayez.'; }
+    rendre();
+  }
+  async function actualiserLecture() {
+    if (!jauge.docId) return;
+    try {
+      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message, deposited_at').eq('id', jauge.docId).single();
+      if (error) throw error;
+      jauge.statut = data.status; jauge.photoLe = data.deposited_at || null; reseau.ok = true;
+      if (data.status === 'traite') {
+        jauge.propositions = {};
+        V.lireEcranVeederRoot(data.resultat_texte).forEach(c => {
+          const cuve = CUVES.find(x => x.produit === c.produit && x.cap === c.capacite_m3);
+          if (cuve) jauge.propositions[cuve.k] = c;
+        });
+        if (!Object.keys(jauge.propositions).length) { jauge.statut = 'erreur'; }
+      }
+    } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Le serveur ne répond pas. Réessayez ou saisissez à la main.'; }
+    rendre();
+  }
+
+  function rendre() {
+    const app = $('app');
+    if (ecran === 'choix') app.innerHTML = vueChoix();
+    else if (ecran === 'pompe') app.innerHTML = vuePompe();
+    else if (ecran === 'revue') app.innerHTML = vueRevue();
+    else if (ecran === 'recopie') app.innerHTML = vueRecopie();
+    else if (ecran === 'jauge') app.innerHTML = vueJauge();
+    else app.innerHTML = `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>`;
+    majEtat();
+  }
+
+  function vueChoix() {
+    return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
+      (habilites.length && !habilites.some(m => /_q1$/.test(m)) ? '' : `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>`) +
+      (habilites.length ? R.MOMENTS.filter(m => habilites.indexOf(m) >= 0).map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><div class="sub">${R.estDebut(m) ? 'Vérification de la référence validée ; aucune recopie Decenium (Decenium renseigne le début).' : 'Saisie complète des 7 chiffres, puis recopie dans Decenium.'}</div><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('')
+        : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>') +
+      arecopier.map(a => `<div class="card"><h2>Recopier les index dans Decenium</h2><div class="sub">${esc(MOMENTS_LIBELLE[a.m])} validée : ${a.fait === a.n ? 'tout est recopié.' : a.fait + ' sur ' + a.n + ' recopiés.'}</div><button class="btn" data-act="moment" data-m="${a.m}">${a.fait === a.n ? 'Revoir la recopie' : 'Recopier maintenant'}</button></div>`).join('');
+  }
+
+  const TXT_NUIT = { toleree: 'toléré (+1), tracé', a_justifier: 'anomalie à justifier', alerte_prioritaire: 'alerte prioritaire au manager', diminution: 'index en diminution : anomalie' };
+  const recul = (k) => R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort';
+  // Un recul bloque la suite (motif exigé) sauf à l'ouverture de Q1 : l'écart de nuit y est une anomalie enregistrée, jamais un blocage.
+  const reculBloquant = (k) => moment !== 'debut_q1' && recul(k) && !R.confirmationExceptionnelleValide(motifs[k]);
+  function champDebut(p, pr) {
+    const k = `${p}-${pr}`, ref = precedents[k] != null ? String(precedents[k]).padStart(7, '0') : null, v = saisies[k] || '';
+    const rapide = ref && !modeComplet[k];
+    const titre = `<span class="${pr === 'GO' ? 'p-go' : 'p-sp'}">${pr}</span><span class="ref">${ref ? 'référence validée (pas une nouvelle mesure)' : 'aucune référence'}</span>`;
+    if (rapide) {
+      const ok = v === ref;
+      return `<div class="card champ"><label for="i${k}">${titre}</label><div class="idx" style="font-size:28px;letter-spacing:2px">${ref}</div>
+        <div class="sub">Vérifiez à l'œil les 7 chiffres du compteur, puis tapez les <b>2 derniers</b>.</div>
+        <input class="idx" id="i${k}" data-d2="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" value="${ok ? ref.slice(-2) : ''}" placeholder="2 derniers chiffres">
+        ${ok ? '<div class="alerte ok">Confirmé (2 derniers chiffres identiques ; contrôle partiel, non une preuve des 7 chiffres).</div>' : ''}
+        <button class="btn2" style="margin-top:8px" data-act="complet" data-k="${k}">Valeur différente ou douteuse : saisir les 7 chiffres</button></div>`;
+    }
+    let bloc = '';
+    if (R.estSeptChiffres(v) && moment === 'debut_q1' && ref) {
+      const n = R.classerEcartNuit(Number(v) - Number(ref));
+      if (n.code && n.code !== 'conforme') bloc += `<div class="alerte ${n.code === 'toleree' ? 'indic' : 'fort'}">Écart de nuit ${n.ecart > 0 ? '+' : ''}${n.ecart} : ${TXT_NUIT[n.code]}. Cela ne bloque pas la saisie ; le manager le verra.${n.code !== 'toleree' ? `<textarea data-motif="${k}" placeholder="Explication (facultative)">${esc(motifs[k] || '')}</textarea>` : ''}</div>`;
+    }
+    return `<div class="card champ"><label for="i${k}">${titre}</label>${ref ? `<div class="sub">${ref ? 'Référence : ' + ref : ''}${moment === 'debut_q1' ? ' · saisissez les 7 chiffres lus' : ''}</div>` : '<div class="sub">Référence indisponible : saisissez les 7 chiffres.</div>'}
+      <input class="idx" id="i${k}" data-k="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="7" value="${esc(v)}" placeholder="7 chiffres">${bloc}</div>`;
+  }
+  function champ(p, pr) {
+    if (R.estDebut(moment)) return champDebut(p, pr);
+    const k = `${p}-${pr}`, v = saisies[k] || '';
+    const ref = precedents[k] != null ? `dernier : ${String(precedents[k]).padStart(7, '0')}` : 'aucune référence';
+    let bloc = '';
+    if (R.estSeptChiffres(v)) {
+      const c = R.convertirSeptVersSix(v);
+      bloc += `<div class="conv">Decenium (6 chiffres) : <b>${c.valeurDecenium}</b>, ${c.troncatureSansPerte ? 'chiffre retiré : 0, sans perte' : `chiffre retiré : ${c.chiffreRetire}, <b>valeur tronquée</b>`}</div>`;
+      const ctl = R.controlerIndex(v, precedents[k]);
+      if (ctl.niveau === 'fort') bloc += `<div class="alerte fort">⚠ Cet index est <b>inférieur</b> au dernier relevé (${ctl.ecart} L). Vérifiez le compteur ; sinon justifiez ci-dessous.<textarea data-motif="${k}" placeholder="Justification (obligatoire pour continuer)">${esc(motifs[k] || '')}</textarea></div>`;
+      else if (ctl.niveau === 'indicatif') bloc += `<div class="alerte indic">Écart de ${ctl.ecart} L depuis le dernier relevé : indicatif, vous pouvez continuer.</div>`;
+    }
+    return `<div class="card champ"><label for="i${k}"><span class="${pr === 'GO' ? 'p-go' : 'p-sp'}">${pr}</span><span class="ref">${ref}</span></label>
+      <input class="idx" id="i${k}" data-k="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="7" value="${esc(v)}" placeholder="7 chiffres">${bloc}</div>`;
+  }
+  function vuePompe() {
+    const pompeOk = R.ORDRE_PHYSIQUE[pompe].every(pr => R.estSeptChiffres(saisies[`${pompe}-${pr}`]));
+    const reculsSansMotif = R.ORDRE_PHYSIQUE[pompe].some(pr => reculBloquant(`${pompe}-${pr}`));
+    const rapides = R.estDebut(moment) && R.ORDRE_PHYSIQUE[pompe].some(pr => refStatut[`${pompe}-${pr}`] === 'confirmee_deux_chiffres');
+    const visuelOk = !rapides || visuel[pompe];
+    const visuelBloc = rapides ? `<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="visuel" style="width:26px;height:26px;accent-color:#34D399" ${visuel[pompe] ? 'checked' : ''}><span>J'ai vérifié visuellement les 7 chiffres de chaque compteur de cette pompe.</span></label></div>` : '';
+    return `<div class="progres">${esc(MOMENTS_LIBELLE[moment])} · Pompe ${pompe} sur 4 · de gauche à droite</div><h1>Pompe <span class="npompe">${pompe}</span></h1>
+      <div class="sub">${R.estDebut(moment) ? 'Début de quart : la référence est celle du dernier relevé validé, pas une nouvelle mesure. Aucune recopie dans Decenium.' : 'Lisez les 7 chiffres du totalisateur mécanique. Rien n\'est prérempli.'}</div>
+      ${R.ORDRE_PHYSIQUE[pompe].map(pr => champ(pompe, pr)).join('')}${visuelBloc}
+      <div class="row">${pompe > 1 ? '<button class="btn2" data-act="prec">Précédente</button>' : '<button class="btn2" data-act="choix">Retour</button>'}
+      <button class="btn" data-act="suiv" ${pompeOk && !reculsSansMotif && visuelOk ? '' : 'disabled'}>${pompe < 4 ? 'Pompe suivante' : 'Revue avant validation'}</button></div>`;
+  }
+  function vueRevue() {
+    const rev = R.revueAnomalies(saisies, precedents, motifs, moment);
+    const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe <span class="npompe">${p}</span> · <span class="p-${pr.toLowerCase()}">${pr}</span>`; };
+    const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)', NUIT_TOLEREE: 'écart de nuit +1 : toléré et tracé', NUIT_A_JUSTIFIER: 'écart de nuit à justifier', NUIT_ALERTE_PRIORITAIRE: 'alerte prioritaire au manager', NUIT_DIMINUTION: 'index en diminution : anomalie' };
+    const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} : ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
+    const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P<span class="npompe">${p}</span> <span class="p-${pr.toLowerCase()}">${pr}</span></span><span class="v">${esc(saisies[`${p}-${pr}`] || 'non saisi')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
+    let cmp = '';
+    if (moment === 'debut_q1') cmp = `<div class="card"><h2>Dernière fin de Q2 ↔ début de Q1</h2>${referenceDispo ? '<div class="sub">Contrôle séparé sur chacun des huit compteurs. Les anomalies ne bloquent pas : elles sont enregistrées et visibles du manager.</div>' : '<div class="alerte indic">Aucune fin de Q2 validée : comparaison impossible (non bloquant).</div>'}</div>`;
+    if (moment === 'debut_q2') {
+      if (!finQ1) cmp = '<div class="alerte indic">Pas de fin de Q1 validée aujourd\'hui : comparaison impossible (non bloquant).</div>';
+      else {
+        const div = R.comparerQ1Q2(finQ1, saisies).filter(c => c.etat === 'divergent');
+        cmp = div.length
+          ? div.map(c => `<div class="alerte indic">${noms(c.clef)} : fin de Q1 ${esc(c.finQ1)} ≠ début de Q2 ${esc(c.debutQ2)} (${c.ecart > 0 ? '+' : ''}${c.ecart} L). Les deux valeurs sont conservées.</div>`).join('')
+          : '<div class="alerte ok">Début de Q2 concordant avec la fin de Q1, compteur par compteur.</div>';
+      }
+      cmp = `<div class="card"><h2>Fin de Q1 ↔ début de Q2</h2>${cmp}</div>`;
+    }
+    return `<h1>Revue avant validation</h1><div class="sub">${esc(MOMENTS_LIBELLE[moment])}</div><div class="card">${liste}</div>${cmp}<div class="card">${recap}</div>
+      <div class="row"><button class="btn2" data-act="prec">Retour</button><button class="btn" data-act="valider" ${rev.peutValider ? '' : 'disabled'}>Valider le relevé</button></div>`;
+  }
+  function vueRecopie() {
+    const lignes = R.ordreRecopieDecenium();
+    const tous = lignes.filter(l => l.produit !== 'GNR').every(l => serveur.valeurs[`${l.pompe}-${l.produit}`] && serveur.valeurs[`${l.pompe}-${l.produit}`].recopiee);
+    const toutesCochees = tous;
+    const corps = lignes.map(l => {
+      if (l.produit === 'GNR') return `<div class="ligne gnr"><span class="n p-gnr">GNR</span><span class="v">${R.GNR_INDEX_REFERENCE}</span><span class="pastille">hors service · référence</span></div>`;
+      const k = `${l.pompe}-${l.produit}`, v = serveur.valeurs[k];
+      if (!v) return `<div class="ligne"><span class="n">P<span class="npompe">${l.pompe}</span> <span class="p-${l.produit.toLowerCase()}">${l.produit}</span></span><span class="v">…</span><span class="pastille">non envoyé</span></div>`;
+      const c = R.convertirSeptVersSix(v.valeur_sept_chiffres);
+      return `<div class="ligne"><span class="n">P<span class="npompe">${l.pompe}</span> <span class="p-${l.produit.toLowerCase()}">${l.produit}</span></span><span class="v">${c.valeurDecenium}<div class="conv">relevé : ${v.valeur_sept_chiffres}</div></span><input type="checkbox" aria-label="Recopiée dans Decenium" data-act="tick" data-id="${v.id}" ${v.recopiee ? 'checked' : ''}></div>`;
+    }).join('');
+    return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
+      ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
+      <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
+      <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>
+      <button class="btn2" data-act="choix">Plus tard : retour à l'accueil</button>`;
+  }
+
+  // ---- Événements ----
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.d2) { // début rapide : deux derniers chiffres
+      const k = t.dataset.d2, brut = R.nettoyerSaisie(t.value).slice(0, 2); t.value = brut;
+      const ref = precedents[k] != null ? String(precedents[k]).padStart(7, '0') : null;
+      if (brut.length === 2 && ref) {
+        const ev = R.evaluerDebut(ref, brut);
+        if (ev.ok) { saisies[k] = ev.valeurSept; refStatut[k] = ev.statut; }
+        else { modeComplet[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; }
+        sauverLocal(); rendre();
+      }
+      return;
+    }
+    if (t.dataset && t.dataset.k) {
+      const k = t.dataset.k, brut = R.nettoyerSaisie(t.value);
+      saisies[k] = brut; t.value = brut;
+      if (R.estDebut(moment)) refStatut[k] = precedents[k] != null ? 'saisie_complete' : 'indisponible';
+      sauverLocal();
+      if (brut.length === 7 || brut.length === 6) rendre(), focus(k);
+      return;
+    }
+    if (t.dataset && t.dataset.motif) { motifs[t.dataset.motif] = t.value; sauverLocal(); majBoutonSuiv(); }
+    if (t.id === 'confRecopie') $('btnFin').disabled = !t.checked;
+  });
+  function majBoutonSuiv() {
+    const b = document.querySelector('[data-act="suiv"]'); if (!b) return;
+    const ok = R.ORDRE_PHYSIQUE[pompe].every(pr => { const k = `${pompe}-${pr}`; if (!R.estSeptChiffres(saisies[k])) return false; return !reculBloquant(k); });
+    b.disabled = !ok || !(!R.estDebut(moment) || R.ORDRE_PHYSIQUE[pompe].every(pr => refStatut[`${pompe}-${pr}`] !== 'confirmee_deux_chiffres') || visuel[pompe]);
+  }
+  function focus(k) { const el = document.querySelector(`[data-k="${k}"]`); if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (x) {} } }
+
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = b.dataset.act;
+    if (a === 'tick') return; // géré au change
+    if (a === 'complet') { const k = b.dataset.k; modeComplet[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; visuel[pompe] = false; sauverLocal(); rendre(); focus(k); return; }
+    if (a === 'toutcocher') {
+      b.disabled = true;
+      const aCocher = Object.values(serveur.valeurs).filter(v => !v.recopiee);
+      for (const v of aCocher) {
+        const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: v.id, p_recopiee: true });
+        if (error) { console.error(error); reseau.ok = false; break; } reseau.ok = true;
+      }
+      await chargerValeursServeur(); rendre(); return;
+    }
+    if (a === 'jauge') { ecran = 'jauge'; try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
+    if (a === 'jrafraichir') { await actualiserLecture(); return; }
+    if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
+    if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
+    if (a === 'choix') { moment = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
+    if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
+    if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
+    if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
+    if (a === 'valider') { await valider(); return; }
+    if (a === 'fin') { ecran = 'fini'; rendre(); return; }
+  });
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); jauge.confirme = false; jauge.enregistre = false; }
+  });
+  document.addEventListener('change', async (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.j) { rendre(); return; }
+    if (t.id === 'visuel') { visuel[pompe] = t.checked; sauverLocal(); rendre(); return; }
+    if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
+    if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
+    if (t.dataset && t.dataset.act === 'tick') {
+      const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
+      if (error) { console.error(error); t.checked = !t.checked; reseau.ok = false; } else reseau.ok = true;
+      await chargerValeursServeur(); rendre();
+    }
+  });
+
+  async function valider() {
+    await synchroniser();
+    const complet = R.POMPES.every(p => R.ORDRE_PHYSIQUE[p].every(pr => serveur.valeurs[`${p}-${pr}`]));
+    if (!complet) { alert('Le serveur ne répond pas : relevé non validé. Votre saisie est gardée sur l\'appareil, réessayez.'); return; }
+    // Corrections de recul justifiées : passent par la RPC tracée (motif obligatoire).
+    for (const k of Object.keys(motifs)) {
+      const v = serveur.valeurs[k];
+      const nuit = moment === 'debut_q1' && precedents[k] != null && ['a_justifier', 'alerte_prioritaire', 'diminution'].indexOf(R.classerEcartNuit(Number(saisies[k]) - Number(precedents[k])).code) >= 0;
+      if (v && (R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' || nuit) && motifs[k] && (R.confirmationExceptionnelleValide(motifs[k]) || nuit) && !v.confirme) {
+        const c = R.convertirSeptVersSix(saisies[k]);
+        const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motifs[k], p_confirmation_exceptionnelle: R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' });
+        if (error) { console.error(error); }
+      }
+    }
+    const { error } = await nexusClient.from('carburant_index_releves').update({ statut: 'final', finalise_le: new Date().toISOString() }).eq('id', serveur.releveId);
+    if (error) { console.error(error); reseau.ok = false; majEtat(); return; }
+    serveur.final = true; await chargerValeursServeur(); ecran = R.estFin(moment) ? 'recopie' : 'fini'; try { localStorage.removeItem(cleBrouillon()); } catch (x) {}
+    rendre();
+  }
+
+  async function ouvrirMoment() {
+    saisies = {}; motifs = {}; modeComplet = {}; refStatut = {}; visuel = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
+    await chargerPrecedents(); await chargerFinQ1();
+    const loc = lireLocal();
+    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; modeComplet = loc.modeComplet || {}; refStatut = loc.refStatut || {}; visuel = loc.visuel || {}; pompe = loc.pompe || 1; }
+    try {
+      const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
+      if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; await chargerValeursServeur(); }
+    } catch (x) { reseau.ok = false; }
+    if (serveur.final) { ecran = R.estFin(moment) ? 'recopie' : 'fini'; }
+    else { ecran = 'pompe'; Object.keys(serveur.valeurs).forEach(k => { if (!saisies[k]) saisies[k] = serveur.valeurs[k].valeur_sept_chiffres; }); }
+    rendre();
+  }
+
+  nexusRequireAuth().then(async (employee) => {
+    if (!employee) return;
+    emp = employee; date = nexusDateLocaleISO(new Date());
+    await chargerHabilitations();
+    await chargerARecopier();
+    rendre();
+  });
+})();
+</script>
+</body>
+</html>
