@@ -181,7 +181,7 @@ jobs:
           lentes=$(jq -sc 'sort_by(-.duree_ms)[:5]|map({fichier, duree_ms})' "$J")
           echo "::notice title=[${{ matrix.source }}/${{ matrix.socle }}] Migrations les plus lentes::$lentes"
 
-      # La table éprouvée (carburant_index_releves) n'existe que sur le rail.
+      # Une seule variante suffit à la preuve RLS ; la branche porte le script.
       - name: Prouver autorisations et refus RLS sous identités distinctes
         if: matrix.source == 'branche'
         shell: bash
