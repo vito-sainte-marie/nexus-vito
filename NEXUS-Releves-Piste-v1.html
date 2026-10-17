@@ -212,7 +212,7 @@
     const avert = ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
     const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
     const conf = pret ? `${total}${avert}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
-      <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
+      <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>${jauge.enregistre ? '<button class="btn" data-act="jrecopie">Recopier dans Decenium</button><button class="btn2" data-act="choix">Plus tard</button><div class="sub">Vous retrouverez la recopie sur l\'écran d\'accueil des relevés piste.</div>' : ''}` : '';
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
       <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><label class="btn2" style="display:block;text-align:center;padding:14px"><input type="file" accept="image/*" capture="environment" id="jPhoto" style="display:none">Prendre la photo de l'écran</label>
       <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
@@ -232,6 +232,31 @@
     } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
     rendre();
   }
+  // Recopie différée du jaugeage : le pompiste n'a pas à recopier tout de suite après la saisie ; la coche reste sur l'appareil.
+  let jaugeDuJour = null;
+  const cleJRec = () => `nexus_jauge_recopie_${emp.id}_${date}`;
+  const lireJRec = () => { try { return JSON.parse(localStorage.getItem(cleJRec()) || '{}'); } catch (x) { return {}; } };
+  const ecrireJRec = (o) => { try { localStorage.setItem(cleJRec(), JSON.stringify(o)); } catch (x) {} };
+  async function chargerJaugeDuJour() {
+    try { jaugeDuJour = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); }
+  }
+  function lignesJauge() {
+    const j = jaugeDuJour; if (!j) return [];
+    const go1 = j.stock_reel_go_cuve1, go2 = j.stock_reel_go_cuve2;
+    return [
+      { k: 'SP', n: 'SP', cls: 'p-sp', v: j.stock_reel_sp95 },
+      { k: 'GO1', n: 'GO cuve 1', cls: 'p-go', v: go1 },
+      { k: 'GO2', n: 'GO cuve 2', cls: 'p-go', v: go2 },
+      { k: 'GNR', n: 'GNR', cls: 'p-gnr', v: j.stock_reel_gnr },
+    ].filter(l => l.v != null);
+  }
+  function vueJaugeRecopie() {
+    const lignes = lignesJauge(), c = lireJRec();
+    if (!lignes.length) return `<h1>Recopier le jaugeage</h1><div class="card"><div class="sub">Aucun jaugeage enregistré aujourd'hui.</div></div><button class="btn2" data-act="choix">Retour</button>`;
+    const corps = lignes.map(l => `<div class="ligne"><span class="n"><span class="${l.cls}">${esc(l.n)}</span></span><span class="v">${esc(l.v)} L</span><input type="checkbox" aria-label="Recopié dans Decenium" data-act="jtick" data-k="${l.k}" ${c[l.k] ? 'checked' : ''}></div>`).join('');
+    const fait = lignes.every(l => c[l.k]);
+    return `<h1>Recopier le jaugeage</h1><div class="sub">Volumes enregistrés dans NEXUS ce matin. Recopiez-les dans Decenium quand vous voulez ; la coche est une aide de progression.</div><div class="card">${corps}</div>${fait ? '<div class="sub">Tout est recopié.</div>' : ''}<button class="btn2" data-act="choix">Retour</button>`;
+  }
   async function enregistrerJaugeage() {
     const D = window.NexusCarburantDonnees;
     if (!jauge.confirme || !CUVES.every(c => jauge.saisies[c.k])) return;
@@ -250,7 +275,7 @@
       });
       if (!r || !r.ok) throw (r && r.error) || new Error('écriture refusée');
       jauge.enregistre = true; jauge.message = r.dejaAJour ? 'Ces volumes étaient déjà enregistrés : rien n\'a été modifié.' : 'Jaugeage enregistré dans Carburants.'; reseau.ok = true;
-      jauge.existant = await D.chargerReleveDuJour(nexusClient, emp.site_id, date);
+      jauge.existant = await D.chargerReleveDuJour(nexusClient, emp.site_id, date); jaugeDuJour = jauge.existant;
     } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Enregistrement impossible : vos valeurs restent à l\'écran, réessayez.'; }
     rendre();
   }
@@ -279,6 +304,7 @@
     else if (ecran === 'revue') app.innerHTML = vueRevue();
     else if (ecran === 'recopie') app.innerHTML = vueRecopie();
     else if (ecran === 'jauge') app.innerHTML = vueJauge();
+    else if (ecran === 'jrecopie') app.innerHTML = vueJaugeRecopie();
     else app.innerHTML = `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>`;
     majEtat();
   }
@@ -286,6 +312,7 @@
   function vueChoix() {
     return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
       `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>` +
+      (lignesJauge().length ? `<div class="card"><h2>Recopier le jaugeage dans Decenium</h2><div class="sub">${(() => { const c = lireJRec(), l = lignesJauge(); const n = l.filter(x => c[x.k]).length; return n === l.length ? 'Tout est recopié.' : n + ' sur ' + l.length + ' recopiés.'; })()}</div><button class="btn" data-act="jrecopie">Recopier maintenant</button></div>` : '') +
       (habilites.length ? R.MOMENTS.filter(m => habilites.indexOf(m) >= 0).map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><div class="sub">${R.estDebut(m) ? 'Vérification de la référence validée ; aucune recopie Decenium (Decenium renseigne le début).' : 'Saisie complète des 7 chiffres, puis recopie dans Decenium.'}</div><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('')
         : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>');
   }
@@ -426,6 +453,7 @@
       await chargerValeursServeur(); rendre(); return;
     }
     if (a === 'jauge') { ecran = 'jauge'; try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'jrecopie') { await chargerJaugeDuJour(); ecran = 'jrecopie'; rendre(); return; }
     if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
@@ -447,6 +475,7 @@
     if (t.id === 'visuel') { visuel[pompe] = t.checked; sauverLocal(); rendre(); return; }
     if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
     if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
+    if (t.dataset && t.dataset.act === 'jtick') { const c = lireJRec(); c[t.dataset.k] = t.checked; ecrireJRec(c); rendre(); return; }
     if (t.dataset && t.dataset.act === 'tick') {
       const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
       if (error) { console.error(error); t.checked = !t.checked; reseau.ok = false; } else reseau.ok = true;
@@ -491,7 +520,7 @@
   nexusRequireAuth().then(async (employee) => {
     if (!employee) return;
     emp = employee; date = nexusDateLocaleISO(new Date());
-    await chargerHabilitations();
+    await chargerHabilitations(); await chargerJaugeDuJour();
     rendre();
   });
 })();
