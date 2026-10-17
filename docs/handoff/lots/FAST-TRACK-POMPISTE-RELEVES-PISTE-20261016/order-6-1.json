@@ -1,0 +1,26 @@
+{
+  "schema": "nexus-ordre-execution/1",
+  "usage_unique": true,
+  "operation": "MIGRATION_APPLY",
+  "lot": "FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016",
+  "request": "request-6",
+  "cible": {
+    "env": "test",
+    "project_ref": "udljdqxerrbbbajxubfn"
+  },
+  "artefact": {
+    "chemin": "supabase/migrations/20261016230000_creer_carburant_index_releves_piste.sql",
+    "blob": "53a5686574546dc0cc2e2bff05a13c7033a7c7de",
+    "commit": "6c746e00897bf46a76940a3042a42946224518ea"
+  },
+  "preconditions": {
+    "registre_derniere_version": 20261016120000
+  },
+  "postconditions": {
+    "registre_derniere_version": 20261016230000
+  },
+  "retour_arriere": "aucun, justifié : migration créant des tables vides sur Test ; retrait par DROP TABLE par un exécutant habilité si l'arbitre le demande",
+  "cree_le": "2026-10-17T00:10:43.343Z",
+  "expire_le": "2026-10-18T00:10:43.343Z",
+  "operation_hash": "be6fb9d3219d92d723fa4b157181ec7829e49504d55a491e8a7153dcff6ecf8c"
+}
