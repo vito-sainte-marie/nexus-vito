@@ -99,3 +99,4 @@ Reste NON TESTÉ : Fin de Q2 → début de Q1 suivant, Safari iOS, caméra, pert
 - Correctifs d'affichage vérifiés en viewport mobile 375×812 : placeholder « 2 derniers chiffres » contenu dans le cadre ; espacement libellé produit / référence ; libellés « GO » et « SP » seuls (ed00835e, à revérifier visuellement après déploiement).
 - Fin de Q2 → début de Q1 du lendemain : NON TESTÉ (exige service matin et date suivante).
 - Caméra, Safari iOS réel : NON TESTÉ. Aucune modification de Production.
+- Recopie différée des index (demande utilisateur ; une première version portait par erreur sur le jaugeage, annulée) : carte d'accueil « Recopier les index dans Decenium » (progression « n sur 8 », visible dès qu'une fin de quart est validée), ouverture directe de l'écran de recopie, bouton « Plus tard : retour à l'accueil » (a5f66be9). Vérifié sur Test en mobile : 7 sur 8 conservé au retour, puis rétabli à 8 sur 8. NON TESTÉ : appareil réel.
