@@ -60,13 +60,15 @@ Colonnes : `id`, `alerte_id`, `site`, `choix` (erreur_lecture | mouvement_confir
 4. Aucune fusion, aucun déploiement, aucune Production. Une reprise en Production exigerait un arbitrage et un GO distincts.
 5. Toute évolution ultérieure de ces permissions repasse par le Handoff.
 
-## 7. Questions à trancher
+## 7. Arbitrages déjà rendus par Frédéric (17/10/2026, ouverture du lot)
 
-1. **Autorisez-vous cette surface sur Test** selon les conditions du §6 ?
-2. **Horloge du relevé manquant** : à l'ouverture du Journal (recommandé, aucune notification) ou tâche planifiée (alerte même si personne n'ouvre l'écran) ?
-3. **Échelle des compteurs** : à confirmer par Frédéric (+1 sur le dernier chiffre du Tokheim = combien de litres ?). Réponse attendue de l'humain, non devinée.
-4. **Rôles habilités** : manager et gérant du site seulement, sans employé délégué ?
+1. **Surface Test** : accord de principe pour les trois tables et `config_snapshot`. L'exécution des migrations, la création des fonctions privilégiées et toute permission restent soumises à l'examen du **SQL exact** et aux preuves de sécurité. Ce n'est pas un GO d'exécution SQL.
+2. **Relevé manquant** : tâche planifiée côté serveur, indépendante de l'ouverture du Journal Piste ; délai initial 30 min après la fin de quart (Paramètres Station) ; contrôle toutes les cinq minutes, à confirmer selon l'infrastructure existante ; idempotente, résolution automatique à la régularisation. Le mécanisme de planification (extension, fonction planifiée) sera décrit avec le SQL exact et fera l'objet de sa propre demande s'il touche une permission.
+3. **Échelle des compteurs** : validation physique obligatoire (Frédéric ou responsable désigné). Tant qu'elle n'est pas confirmée, aucune alerte à seuil en litres n'est présentée comme fiable.
+4. **Habilitations** : Journal Piste et Paramètres Station → Pompes et index réservés aux managers et gérants habilités du site. Les pompistes gardent leurs seuls droits de saisie.
+
+Exigences : Constitution NEXUS et Guardian Philosophie ; fait / hypothèse / décision humaine distingués ; relevés historiques et configuration d'origine préservés ; aucun calcul parallèle des ventes ; maquettes avant implémentation ; preuves RLS de refus et d'autorisation documentées ; aucune modification de Production.
 
 ## 8. Décision demandée
 
-Autoriser, refuser ou conditionner la création des trois tables, de leurs RLS et grants et des trois fonctions, sur Test uniquement. Sans décision favorable, rien n'est créé et le Journal Piste ne dépasse pas la logique pure et les maquettes.
+Instruction du lot : confirmer que le SQL exact (migration, politiques, grants, trois fonctions, planification) sera présenté pour examen **avant** toute exécution, avec la preuve de refus écrite et rejouable. Aucun GO migration, permissions ou Production n'est demandé ici. Prochaine décision attendue après cette instruction : l'examen du SQL exact et des preuves.
