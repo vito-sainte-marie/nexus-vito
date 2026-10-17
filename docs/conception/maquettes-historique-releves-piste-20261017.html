@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquettes — Relevés piste</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--dim:#5b6570;--line:#dde1e6;--ok:#1f7a3d;--tol:#6b7a1d;--ora:#c26a00;--rou:#b3261e;--gris:#6b7280;--bleu:#1d4ed8}
+@media(prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1d2126;--tx:#e8eaed;--dim:#9aa4af;--line:#2d333a;--ok:#5fcf86;--tol:#b9c95a;--ora:#f0a04b;--rou:#ff8a80;--gris:#9ca3af;--bleu:#8ab4ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,sans-serif;padding:16px}
+main{max-width:760px;margin:0 auto}h1{font-size:20px}h2{font-size:17px;margin:32px 0 4px}
+.why{font-size:13px;color:var(--dim);border-left:3px solid var(--line);padding:4px 10px;margin:6px 0 12px}
+.ecran{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.resume{font-size:14px;padding:10px;border-radius:8px;background:var(--bg);margin-bottom:10px}
+.al{border:1px solid var(--line);border-left:5px solid var(--ora);border-radius:8px;padding:10px;margin:10px 0}
+.al.rouge{border-left-color:var(--rou)}.al.grise{border-left-color:var(--gris)}.al.verte{border-left-color:var(--ok)}
+.al h3{margin:0 0 4px;font-size:15px}.tag{font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim);margin-left:4px;white-space:nowrap}
+.fait{color:var(--tx)}.hyp{color:var(--dim);font-style:italic}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--tx);border-radius:8px;padding:8px 12px;margin:4px 4px 0 0;min-height:40px}
+button.p{border-color:var(--bleu);color:var(--bleu)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+.etat{font-weight:600}.c{color:var(--ok)}.t{color:var(--tol)}.o{color:var(--ora)}.r{color:var(--rou)}.g{color:var(--gris)}
+label{display:block;font-size:13px;color:var(--dim);margin-top:8px}input,select{font:inherit;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--tx)}
+details{margin:8px 0}summary{cursor:pointer;padding:6px 0}
+.note{font-size:12px;color:var(--dim)}
+</style></head><body><main>
+<h1>Relevés piste — maquettes (Test, non codées)</h1>
+<p class="note">Données d'exemple pour illustrer la forme ; aucun chiffre ici n'est une mesure. Dans le produit, chaque nombre vient des données réelles.</p>
+
+<h2>1. Décisions du jour</h2>
+<div class="why">Question Guardian : pourquoi un humain intervient-il ? Seulement pour qualifier la passation Q1 → Q2, dont la cause n'est pas dans les données. Le reste est tranché par NEXUS et listé en une phrase.</div>
+<div class="ecran">
+ <div class="resume"><b>Samedi 17 octobre.</b> 3 relevés validés, 24 valeurs de compteurs vérifiées. 1 décision attendue, 1 contrôle impossible, 1 alerte résolue automatiquement.</div>
+
+ <div class="al">
+  <h3>Passation Q1 → Q2 : un écart à examiner <span class="tag">priorité orange</span></h3>
+  <div class="fait"><b>Constat :</b> Pompe 2 — GO : le début de Q2 dépasse de 85 L la fin de Q1. <span class="tag">Fait confirmé par les données NEXUS</span></div>
+  <div class="fait"><b>Signification :</b> la variation atteint le seuil de 10 L configuré pour une passation.</div>
+  <div class="hyp"><b>Explications possibles :</b> erreur de lecture, correction d'index ou mouvement de carburant. <span class="tag">Hypothèses à vérifier</span></div>
+  <div><b>Vérification recommandée :</b> comparer les deux relevés, puis vérifier les opérations dans Decenium. <span class="tag">Donnée Decenium non disponible dans NEXUS</span></div>
+  <div class="note">Un seul constat de passation ; 1 compteur concerné sur 8. <a href="#">Voir le détail des compteurs</a></div>
+  <button class="p">Erreur de lecture</button><button class="p">Mouvement confirmé (déclaré par moi)</button><button class="p">Cause inconnue</button>
+  <div class="note">Un appui enregistre votre choix, votre nom et l'heure. Commentaire facultatif. Aucun index n'est modifié.</div>
+ </div>
+
+ <div class="al grise">
+  <h3>Nuit 16 → 17 : comparaison impossible <span class="tag">non contrôlé</span></h3>
+  <div class="fait">La configuration des compteurs a changé entre les deux relevés (compteur GNR passé hors service). Aucune continuité n'est supposée.</div>
+ </div>
+
+ <div class="al verte">
+  <h3>Fin Q1 manquante : résolue automatiquement</h3>
+  <div class="fait">Alerte ouverte à 13 h 30 (30 min après la fin de quart configurée à 13 h 00). Relevé validé à 14 h 05 : la condition a disparu, l'alerte est close. Historique conservé.</div>
+ </div>
+ <p class="note">Nuit précédente : 8 compteurs comparés, 0 écart. Écarts de 1 à 9 L : 2 (conservés dans l'historique, sans alerte).</p>
+ <button>Historique détaillé</button>
+</div>
+
+<h2>2. Fiche d'une alerte (détail)</h2>
+<div class="why">Les quatre parties du brief, plus la trace. Les compteurs concernés sont dans l'alerte, jamais une alerte par compteur. L'auteur d'un relevé n'apparaît qu'ici, pour la traçabilité.</div>
+<div class="ecran">
+ <table><tr><th>Compteur</th><th>Fin Q1</th><th>Début Q2</th><th>Écart</th><th>État</th></tr>
+  <tr><td>P2 GO</td><td>0582444</td><td>0582529</td><td>+85 L</td><td class="etat o">Anomalie</td></tr>
+  <tr><td>P1 GO</td><td>0177502</td><td>0177506</td><td>+4 L</td><td class="etat t">Toléré</td></tr>
+  <tr><td>Autres (6)</td><td colspan="2"></td><td>0 L</td><td class="etat c">Conforme</td></tr>
+ </table>
+ <p class="note">Recopie Decenium déclarée par un employé à 13 h 12 (déclaration humaine, sans comparaison indépendante).</p>
+ <details open><summary><b>Historique de l'alerte</b></summary>
+  <div class="note">13 h 40 — alerte ouverte (calcul NEXUS). · 14 h 10 — qualifiée « Erreur de lecture » par le manager (commentaire : « 5 lu pour 0 »). · 14 h 12 — correction demandée en brouillon : alerte inchangée. · Une correction validée qui annule l'écart clôturera l'alerte d'elle-même.</div></details>
+ <button>Corriger ma qualification</button>
+</div>
+
+<h2>3. Historique détaillé (à la demande)</h2>
+<div class="why">Deux filtres seulement : période, état. Pas de filtre ni de classement par personne, pas de score. L'auteur se lit dans le détail d'un relevé.</div>
+<div class="ecran">
+ <label>Période <select><option>7 derniers jours</option></select></label>
+ <label>État <select><option>Tous</option><option>Contrôlé — conforme</option><option>Contrôlé — écart toléré</option><option>Contrôlé — anomalie</option><option>Non contrôlé</option><option>Comparaison impossible</option></select></label>
+ <table style="margin-top:10px"><tr><th>Date</th><th>Contrôle</th><th>État</th><th>Décision</th></tr>
+  <tr><td>17/10</td><td>Passation Q1 → Q2</td><td class="etat o">Anomalie</td><td>Erreur de lecture</td></tr>
+  <tr><td>17/10</td><td>Nuit 16 → 17</td><td class="etat g">Impossible</td><td>—</td></tr>
+  <tr><td>16/10</td><td>Nuit 15 → 16</td><td class="etat c">Conforme</td><td>—</td></tr>
+  <tr><td>16/10</td><td>Passation Q1 → Q2</td><td class="etat g">Non contrôlé</td><td>Fin Q1 non enregistrée dans NEXUS</td></tr>
+ </table>
+ <p class="note">« Cause inconnue » reste visible comme non expliquée, même sortie de la file des décisions.</p>
+</div>
+
+<h2>4. Paramètres Station — Pompes et relevés</h2>
+<div class="why">Une section de la page existante. Les horaires de quart ne sont pas répétés ici : lien vers la section Horaires. Chaque modification enregistre auteur, date, avant/après, motif facultatif ; elle vaut pour les nouveaux relevés, les anciens gardent leur photographie.</div>
+<div class="ecran">
+ <b>Disposition</b>
+ <table><tr><th>Pompe</th><th>Gauche</th><th>Droite</th><th>Service</th></tr>
+  <tr><td>1</td><td>GO</td><td>SP</td><td>En service</td></tr><tr><td>2</td><td>SP</td><td>GO</td><td>En service</td></tr>
+  <tr><td>3</td><td>GO</td><td>SP</td><td>En service</td></tr><tr><td>4</td><td>SP</td><td>GO</td><td>En service</td></tr>
+  <tr><td>GNR</td><td colspan="2">Index figé 1191213</td><td class="g">Hors service</td></tr></table>
+ <b style="display:block;margin-top:10px">Recopie</b>
+ <div class="note">Ordre : SP puis GO pour chaque pompe. Compteur mécanique : 7 chiffres. Decenium : 6 chiffres. Règle : Decenium = les 6 derniers chiffres de l'index mécanique.</div>
+ <label>Valeur d'une unité d'index, en litres <input value="" placeholder="À confirmer" size="10"></label>
+ <div class="note r">Tant que cette valeur n'est pas confirmée, les contrôles en litres répondent « Comparaison impossible : unité non confirmée ».</div>
+ <b style="display:block;margin-top:10px">Contrôle</b>
+ <label>Écart toléré sans alerte jusqu'à <input value="9" size="3"> L</label>
+ <label>Alerte à partir de <input value="10" size="3"> L</label>
+ <label>Relevé de fin attendu au plus tard <input value="30" size="3"> min après la fin du quart</label>
+ <label>Motif (facultatif) <input size="30"></label>
+ <button class="p">Enregistrer</button>
+ <p class="note">Modifier une disposition pendant un quart ne touche pas au relevé commencé ; si la comparaison avec le relevé suivant devient non fiable, elle est déclarée impossible.</p>
+</div>
+</main></body></html>
