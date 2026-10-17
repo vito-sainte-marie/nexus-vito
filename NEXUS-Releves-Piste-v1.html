@@ -223,14 +223,21 @@
   async function envoyerPhoto(fichier) {
     jauge.statut = 'envoi'; jauge.message = ''; rendre();
     try {
-      const ext = (fichier.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const fmt = R.extensionPhoto(fichier);
+      if (!fmt) { jauge.statut = 'hors_ligne'; jauge.message = 'Photo refusée : format non accepté (JPEG, PNG, WebP ou HEIC). Reprenez la photo ou saisissez à la main.'; rendre(); return; }
+      const ext = fmt.ext;
       const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${ext}`;
-      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg' });
+      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fmt.contentType });
       if (up.error) throw up.error;
       const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
       if (ins.error) throw ins.error;
       jauge.docId = ins.data.id; jauge.statut = 'en_attente'; reseau.ok = true;
-    } catch (x) { console.error(x); jauge.statut = 'hors_ligne'; reseau.ok = false; }
+    } catch (x) {
+      console.error(x);
+      const cause = R.causePhoto(x, typeof navigator === 'undefined' ? true : navigator.onLine);
+      jauge.statut = 'hors_ligne'; jauge.message = cause.message;
+      if (cause.type === 'reseau') reseau.ok = false;
+    }
     rendre();
   }
   // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.

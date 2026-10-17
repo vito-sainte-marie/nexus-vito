@@ -127,4 +127,26 @@ t('index identiques fin puis début : aucune anomalie (deux attestations distinc
   R.POMPES.forEach(p => R.ORDRE_PHYSIQUE[p].forEach(x => { s[p + '-' + x] = '0004242'; pr[p + '-' + x] = 4242; }));
   assert.strictEqual(R.revueAnomalies(s, pr, {}, 'debut_q1').lignes.length, 0);
 });
+t('cause de l\'échec photo : refus du serveur distinct du réseau', () => {
+  assert.strictEqual(R.causePhoto({ statusCode: '403', message: 'new row violates row-level security policy' }, true).type, 'refus');
+  assert.ok(/quart en cours/.test(R.causePhoto({ statusCode: '403', message: 'x' }, true).message));
+  assert.strictEqual(R.causePhoto({ statusCode: '413', message: 'Payload too large' }, true).type, 'refus');
+  assert.strictEqual(R.causePhoto({ message: 'Failed to fetch' }, true).type, 'reseau');
+  assert.strictEqual(R.causePhoto({ statusCode: '403', message: 'x' }, false).type, 'reseau');
+  assert.strictEqual(R.causePhoto(null, true).type, 'reseau');
+});
+t('photo Android : extension d\'après le type, nom sans extension toléré, format inconnu refusé', () => {
+  const e = (name, type) => R.extensionPhoto({ name, type });
+  assert.deepStrictEqual(e('IMG_2026.jpg', 'image/jpeg'), { ext: 'jpg', contentType: 'image/jpeg' });
+  assert.strictEqual(e('image', 'image/jpeg').ext, 'jpg');          // Android : nom sans extension
+  assert.strictEqual(e('1699999999', 'image/jpeg').ext, 'jpg');
+  assert.strictEqual(e('1699.tmp', 'image/png').ext, 'png');         // le type prime sur un nom trompeur
+  assert.strictEqual(e('photo', '').ext, 'jpg');                    // type absent : JPEG d'appareil
+  assert.strictEqual(e('photo.JPEG', '').ext, 'jpg');
+  assert.strictEqual(e('a.heif', 'image/heif').ext, 'heic');
+  assert.strictEqual(e('a.webp', 'image/webp').contentType, 'image/webp');
+  assert.strictEqual(e('a.gif', 'image/gif'), null);                // hors politique : refus clair
+  assert.strictEqual(e('a.avif', 'image/avif'), null);
+  assert.strictEqual(R.extensionPhoto(null).ext, 'jpg');
+});
 console.log(n + '/' + n + ' réussies');

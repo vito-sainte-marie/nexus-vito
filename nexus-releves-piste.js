@@ -155,13 +155,54 @@
 
   const TEXTE_CONFIRMATION_RECOPIE = 'Je confirme avoir recopié les valeurs dans Decenium.';
 
+  // Cause d'un échec d'envoi de la photo du jaugeage. Même principe que le pointage
+  // (erreurDefinitive) : on ne devine pas, on regarde si le serveur a répondu.
+  // Pas de réponse (hors ligne, coupure) = 'reseau' ; réponse de refus = 'refus'.
+  // Storage ne pose pas de SQLSTATE : il renvoie statusCode (400/401/403) et un message.
+  function causePhoto(erreur, enLigne) {
+    if (enLigne === false) return { type: 'reseau', message: 'Photo non envoyée : pas de réseau. Réessayez, ou saisissez à la main.' };
+    if (!erreur) return { type: 'reseau', message: 'Photo non envoyée. Réessayez, ou saisissez à la main.' };
+    const code = String(erreur.statusCode || erreur.status || (erreur.originalError && erreur.originalError.status) || '');
+    const texte = String(erreur.message || '').toLowerCase();
+    if (/row-level security|violates|not allowed|unauthorized|forbidden/.test(texte) || code === '401' || code === '403') {
+      return { type: 'refus', message: 'Photo refusée par NEXUS (ce n\'est pas un problème de réseau). Vous devez avoir un quart en cours aujourd\'hui sur ce site, avec le rôle pompiste. Si c\'est le cas, prévenez votre manager. Vous pouvez saisir les volumes à la main.' };
+    }
+    if (code === '413' || /too large|payload|exceeded/.test(texte)) {
+      return { type: 'refus', message: 'Photo refusée : fichier trop lourd. Reprenez la photo de plus près ou saisissez à la main.' };
+    }
+    if (code === '415' || /mime|invalid.*type|unsupported/.test(texte)) {
+      return { type: 'refus', message: 'Photo refusée : format non accepté (JPEG, PNG, WebP ou HEIC). Reprenez la photo ou saisissez à la main.' };
+    }
+    if (/^[45]\d\d$/.test(code)) {
+      return { type: 'refus', message: 'Photo refusée par le serveur (code ' + code + '). Saisissez à la main et prévenez votre manager.' };
+    }
+    return { type: 'reseau', message: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.' };
+  }
+
+  // Extension et type MIME d'une photo, d'après le type déclaré par l'appareil d'abord
+  // (Android donne parfois un nom sans extension ou « image » / « 1699999.tmp »),
+  // puis l'extension du nom. Seules les extensions admises par la politique Storage
+  // (jpg, jpeg, png, webp, heic) sont rendues ; un format inconnu rend null.
+  const TYPES_PHOTO = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/pjpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heic' };
+  const MIME_PHOTO = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
+  function extensionPhoto(fichier) {
+    const type = String((fichier && fichier.type) || '').toLowerCase().split(';')[0].trim();
+    const nom = String((fichier && fichier.name) || '');
+    const pointe = nom.lastIndexOf('.') >= 0 ? nom.slice(nom.lastIndexOf('.') + 1).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    let ext = TYPES_PHOTO[type] || null;
+    if (!ext && MIME_PHOTO[pointe]) ext = pointe === 'jpeg' ? 'jpg' : pointe;
+    if (!ext && (type === '' || type === 'application/octet-stream' || type === 'image/*')) ext = 'jpg'; // photo d'appareil sans type : JPEG
+    if (!ext) return null;
+    return { ext, contentType: MIME_PHOTO[ext] };
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
-    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE,
+    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;
