@@ -14,7 +14,7 @@ Preuves automatisées : `test_releves_piste_logique_20261016.js` 14/14 ; `test_c
 | 5 | Pompe 3 : GO puis SP | RÉUSSI (navigateur, ordre lu dans la revue) | Revue : P3 GO, P3 SP |
 | 6 | Pompe 4 : SP puis GO | RÉUSSI (navigateur, ordre lu dans la revue) | Revue : P4 SP, P4 GO |
 | 7 | Conversion 7→6 chiffres | RÉUSSI | `0123456` → `123456`, chiffre retiré 0, « sans perte » affiché ; base : `valeur_decenium` = 6 derniers chiffres |
-| 8 | Passage d'un palier | NON TESTÉ en navigateur | |
+| 8 | Passage d'un palier | RÉUSSI en navigateur (17/10, début Q1 rejoué avec les 8 index réels, 7 chiffres) | Voir section « Rejeu 17/10 » |
 | 9 | Index inférieur au précédent | RÉUSSI (navigateur) | Alerte forte (-456 L), justification obligatoire, motif listé dans la revue, ligne dans `carburant_index_corrections` (confirmation exceptionnelle = vrai) |
 | 10 | Écart > 4 000 L | NON TESTÉ en navigateur (logique seule) | |
 | 11 | Fin Q1 = début Q2 | RÉUSSI (navigateur, 17/10) | Début de Q2 concordant avec la fin de Q1 : « concordant, compteur par compteur » (voir section Q1 → Q2) |
@@ -131,3 +131,10 @@ Sans aucune simulation de date. Pour ouvrir la page il a fallu pointer l'arrivé
 - L'accueil du matin propose le jaugeage, Début de Q1, Fin de Q1 ; le brouillon du début de Q1 est repris.
 - Références = `fin_q2` validé du 16/10. Validation côté serveur acceptée (le refus RLS d'avant minuit ne se reproduit plus).
 - Base : `debut_q1` du 17/10 `final`, 8 valeurs. 7 compteurs `confirmee_deux_chiffres`, `ecart_nuit` 0 ; P2 GO saisi en 7 chiffres (4568050 contre 4568000) : `ref_statut = saisie_complete`, `ecart_nuit = 50`. Alerte prioritaire non bloquante affichée à la saisie et à la revue.
+
+## Rejeu du 17/10 avec les valeurs réelles (Test)
+
+- Relevé de recette « début Q1 » du 17/10 supprimé sur Test (autorisation explicite), puis rejoué avec les 8 index réels (compteurs à 7 chiffres avec zéro de tête). Résultat en base : relevé `final`, 8 valeurs, aucune recopie Decenium, 8 anomalies `diminution` non bloquantes (références de recette fictives sur Test, pas un défaut du parcours).
+- Jaugeage Veeder-Root du 17/10 05:39 saisi à la main (caméra bloquée dans le browser pane) : SP 20 787, GO cuve 1 9 655, GO cuve 2 7 518, GNR 4 372. Enregistré en version 2 de `carburant_releves` (`terrain_pompiste`, `en_attente`) ; la version de recette précédente est conservée dans `carburant_releve_versions` (2 lignes).
+- À confirmer par le métier : le GNR est jaugé (4 372 L) alors que la pompe GNR est hors service.
+- Reste NON TESTÉ : cas 18, Safari iOS, caméra et upload réel, régularisation Q1/Q2, entrée contextuelle, rapports D et E. Aucune modification de Production.
