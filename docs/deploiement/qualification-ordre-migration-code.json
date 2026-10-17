@@ -734,7 +734,7 @@
       "justification": "Lot releves de piste (PR #135). Cree quatre tables NEUVES (carburant_index_releves, carburant_index_valeurs, carburant_index_corrections, carburant_gnr_statuts) et deux fonctions SECURITY DEFINER neuves ; aucune table, colonne ni donnee existante touchee. Le code servi (origin/production) ne les nomme pas : l'ancien code reste compatible. Le nouveau code sans la migration echouerait sur la page neuve seulement (NEXUS-Releves-Piste-v1.html), sans toucher aucun ecran existant. Ordre retenu : migration puis code. RLS active, anon sans acces, EXECUTE des fonctions ferme a anon. Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production. Limitee au blob 53a5686574546dc0cc2e2bff05a13c7033a7c7de : un blob different fait tomber cette qualification.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-10-17T18:00:00Z",
+        "le": "2026-10-17T12:03:43Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "claude",
         "outil": "connecteur Supabase, begin read only ... rollback (lectures seules Production en AUTO, GO du 03/10)",
@@ -751,7 +751,7 @@
       "justification": "Lot releves de piste (PR #135). Etend le CHECK de moment (ajout de debut_q1) et ajoute 4 colonnes nullables sur carburant_index_releves, table creee par 20261016230000 et vide en Production : aucune donnee existante touchee, aucun ecran existant concerne. Le code servi ne nomme ni la table ni les colonnes. A appliquer apres 20261016230000, avant le code. Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production. Limitee au blob 72286852bebafbcdcaac06500d4b2cd14a924faf : un blob different fait tomber cette qualification.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-10-17T18:00:00Z",
+        "le": "2026-10-17T12:03:43Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "claude",
         "outil": "connecteur Supabase, begin read only ... rollback (lectures seules Production en AUTO, GO du 03/10)",
