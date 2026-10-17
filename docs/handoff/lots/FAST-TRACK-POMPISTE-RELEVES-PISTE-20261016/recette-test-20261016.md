@@ -58,3 +58,19 @@ Livré (commit `d3577cc9`, migration Test-only `20261017130000`, aucun grant ni 
 | Contraintes SQL (moment, référence, anomalie) | lues sur Test | OBSERVÉ |
 
 Unité de l'écart de nuit (+1) à confirmer par le métier. La vérification à deux chiffres n'est pas une preuve d'identité des sept chiffres. Safari iOS : NON TESTÉ.
+
+## Recette navigateur Test — début de Q1 avec référence (17/10/2026, viewport mobile émulé)
+
+Résultats observés (déploiement `ef1b5493`, puis correctif `5a8d70d0`) :
+
+| Scénario | Résultat |
+|---|---|
+| Référence validée affichée aux débuts ; saisie des 2 derniers chiffres identiques | RÉUSSI : « Confirmé… contrôle partiel, non une preuve des 7 chiffres » ; base `ref_statut=confirmee_deux_chiffres` |
+| 2 chiffres différents → bascule en 7 chiffres + case de vérification visuelle ; « Pompe suivante » désactivée tant qu'elle n'est pas cochée | RÉUSSI |
+| Écart de nuit 0 / +1 / +2 / −10 / +10 saisis et validés | RÉUSSI : `conforme` / `toleree` / `a_justifier` / `diminution` / `alerte_prioritaire`, `ecart_nuit` 0/1/2/−10/10, messages en direct non bloquants, regroupés dans la revue |
+| Aucune recopie Decenium aux débuts | RÉUSSI : « rien à recopier » |
+| Couleurs : numéro de pompe rouge, GO jaune, SP vert, GNR rouge brique | RÉUSSI (écran de saisie et revue) |
+
+Défaut trouvé et corrigé (`5a8d70d0`) : un brouillon local commencé avant l'existence de la référence conservait `ref_statut='indisponible'` alors que `ref_valeur_sept` était renseignée au moment de l'envoi. Le statut devient `saisie_complete` dans ce cas. Constat de conception : en mode rapide, taper 7 chiffres dans le champ à 2 chiffres ne bascule pas ; il faut le bouton « Valeur différente ou douteuse ».
+
+Relevé de recette Test supprimé et rejoué (aucune donnée réelle). Restent NON TESTÉS : fin avec recopie confirmée, début Q2 ↔ fin Q1 en navigateur, Safari iOS, caméra.
