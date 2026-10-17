@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016/request-8.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JOURNAL-PISTE-20261017/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: FAST-TRACK-POMPISTE-RELEVES-PISTE-20261016
-seq: 8
+lot_id: JOURNAL-PISTE-20261017
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,92 +13,94 @@ wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=ff19b8a0 production=838630c9
+    valeur: main=ff19b8a0 production=8e8b7ba2
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 156-fichiers
-  - id: registre-production
-    classe: VERIFIED
-    valeur: 318 (20261017130000), 311 quarts, bucket documents-a-traiter 3 politiques, 0 objet jaugeage_veeder_root
-  - id: politique-sql
-    classe: VERIFIED
-    valeur: sha256=9f82f38a0cbc0ea6479574b0e877dde37e02be81f8837d11f46dade40e592bcc
-  - id: preuve-sql-refus-test
-    classe: VERIFIED
-    valeur: sha256=f3dd4e45963a2833a1af6aa4d8554d9d0c3fda37a3370288358aba983682cafe
-  - id: preuve-production
-    classe: NOT_APPLICABLE
-    valeur: rejouer la preuve de refus sur Production est un geste decriture soumis a cette decision
-  - id: geste-humain
+    valeur: 157-fichiers
+  - id: arbitrages-frederic
     classe: HUMAN
-    valeur: GO distinct de Frederic pour appliquer la politique en Production, puis upload reel sur un vrai quart et Safari iOS
+    valeur: GO ouverture du lot Journal Piste du 17/10/2026 ; pas de GO migration, permissions ni Production
+  - id: conception
+    classe: VERIFIED
+    valeur: docs/conception/historique-releves-piste-20261017.md et maquettes (commit e236bfa2 local)
+  - id: preuve-rls
+    classe: NOT_APPLICABLE
+    valeur: non encore ecrite ; le SQL exact et la preuve de refus suivront avant toute execution
 ---
-# FAST TRACK — Arbitrage de sécurité : envoi de la photo Veeder-Root par le pompiste, reprise en PRODUCTION
+# JOURNAL PISTE — Arbitrage de sécurité : trois tables, RLS et fonctions d'écriture (TEST exclusivement)
 
-**Aucune permission n'est modifiée par cette demande.** decision-5.md a ratifié la politique `documents_a_traiter_jaugeage_pompiste` sur Test exclusivement et précisé : « La reprise en Production exigerait un arbitrage de sécurité et un GO distincts. » Cette demande est cet arbitrage. Elle soumet le geste, ses préconditions et la preuve attendue au palier humain. Aucune application, aucune fusion, aucun déploiement avant décision.
+**Cette demande ne contient aucun SQL appliqué.** Elle soumet au palier humain, avant exécution, une nouvelle surface de sécurité : trois tables, leurs politiques RLS, leurs grants et les fonctions d'écriture réservées aux managers. Aucune application, aucune fusion, aucun déploiement, rien en Production avant décision. Périmètre : Supabase **Test** (`udljdqxerrbbbajxubfn`).
 
-## Preuve des conditions de decision-5
-
-Remesuré en lecture seule le 17/10/2026 :
-
-1. **Politique ratifiée sur Test exclusivement** — Test porte quatre politiques sur ce bucket : les trois d'origine inchangées et `documents_a_traiter_jaugeage_pompiste` (INSERT, `authenticated`), seule nouvelle. Conforme à l'objet ratifié.
-2. **Aucune autre politique modifiée, aucun élargissement, aucune fusion, aucune intervention Production sur ce sujet.** Production porte toujours exactement les trois politiques d'origine : la politique n'y a pas été appliquée. Précision de fait, pour qu'elle ne soit pas découverte ailleurs : après decision-5, Frédéric a donné un GO distinct (« go deploiement sur le perimetre deja testé ») qui a porté en Production le périmètre relevés piste — migrations 20261016230000 et 20261017130000 (aucun grant ni politique d'upload), PR #135 fusionnée dans `production` (838630c9) et déploiement Pages. La migration 20261017120000 en a été **exclue** précisément pour être soumise ici.
-3. **Recette complète sur Test** — jouée et consignée (`recette-test-20261016.md`) ; Safari iOS sur appareil réel : NON TESTÉ.
+Vocabulaire retenu : la page s'appelle **Journal Piste** (sous-titre « Relevés, contrôles et décisions »). **Relevés Piste** reste l'écran de saisie des pompistes. La configuration vit dans Paramètres Station → **Pompes et index**.
 
 ## 1. Pourquoi maintenant
 
-Le périmètre « relevés piste » est en Production depuis le 17/10/2026 (PR #135, fusionnée en 838630c9, déployée ; migrations 20261016230000 et 20261017130000, registre 318). La politique d'envoi photo en a été exclue volontairement (migration 20261017120000, « EXCLUE — Test/CI »). Conséquence mesurée : en Production, un pompiste ne peut pas téléverser la photo du Veeder-Root (aucune politique INSERT pour son rôle sur le bucket) ; le jaugeage retombe en `hors_ligne` (valeur saisie à la main, sans photo de preuve).
+Les relevés piste sont en Production (PR #135 à #137). Rien ne compare encore deux relevés entre eux ni ne distingue « non contrôlé » de « conforme ». Le Journal Piste doit contrôler automatiquement les passations (fin Q1 → début Q2) et les nuits (fin Q2 → début Q1), signaler un relevé non enregistré, et ne demander un humain que pour qualifier un écart dont la cause n'est pas dans les données.
 
-## 2. État de Production mesuré en lecture seule (17/10/2026)
+Aucune table existante ne porte ces faits (diagnostic : `docs/conception/historique-releves-piste-20261017.md`). `nexus_ecarts_qualifications` est inadaptée : `source_module` fermé à `verify`/`fdj`, motif fermé à cinq valeurs, UPDATE autorisé donc aucune trace de correction.
 
-- Bucket `documents-a-traiter` : privé, sans limite de taille ni liste de types MIME déclarée.
-- Politiques `storage.objects` visant ce bucket : exactement trois — `documents_a_traiter_ecriture_site` (INSERT, via `nexus_clients_ecriture_ok(site)` : manager/gérant du site, donc exclut le pompiste), `documents_a_traiter_lecture_site` (SELECT), `documents_a_traiter_service_role_tout_acces` (ALL, service_role, worker OCR). Aucune politique UPDATE/DELETE pour les utilisateurs.
-- `documents_ocr_file` : INSERT, SELECT, DELETE (manager du site) existent ; l'INSERT est déjà ouvert à `depose_par = auth.uid()`.
-- Fonctions requises présentes : `est_pompiste_du_jour(text)` (SECURITY DEFINER, STABLE, fail-closed : fuseau du site valide, shift `en_cours` du jour, rôle `pompiste`), `current_employee_site_id()`, `nexus_clients_ecriture_ok`.
-- Objets déjà présents sous `*/jaugeage_veeder_root/*` : 0.
+## 2. Ce qui existe et ne change pas
 
-## 3. Le geste demandé
+- `carburant_index_releves`, `_valeurs`, `_corrections` : inchangées, hormis **une colonne** `config_snapshot jsonb` sur `carburant_index_releves` (photographie immuable de la configuration, écrite avec le relevé).
+- Horaires : `calculer_horaires_quart` reste le **seul** moteur. Aucun horaire n'est recopié dans les nouvelles tables.
+- Aucun total de ventes, aucun second moteur, aucun accès à Decenium.
 
-Appliquer sur Production, **à l'identique de Test**, la migration `20261017120000_politique_upload_jaugeage_pompiste.sql` (sha256 du texte : `9f82f38a0cbc0ea6479574b0e877dde37e02be81f8837d11f46dade40e592bcc`) :
+## 3. Le geste demandé (à appliquer sur Test seulement, après décision)
 
-```sql
-create policy documents_a_traiter_jaugeage_pompiste on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'documents-a-traiter'
-    and array_length(storage.foldername(name), 1) = 2
-    and (storage.foldername(name))[1] = public.current_employee_site_id()
-    and (storage.foldername(name))[2] = 'jaugeage_veeder_root'
-    and public.est_pompiste_du_jour((storage.foldername(name))[1])
-    and storage.filename(name) like '____-__-__\_' || auth.uid()::text || '\_%'
-    and lower(storage.extension(name)) in ('jpg','jpeg','png','webp','heic')
-  );
-```
+Une migration, trois tables, toutes avec `site` et RLS activée.
 
-Droit ajouté, et lui seul : **un INSERT** pour `authenticated`, sur son propre site, dans l'unique dossier `<site>/jaugeage_veeder_root/` (pas de sous-dossier), pendant son quart `en_cours` du jour, avec un nom préfixé de la date et de son `auth.uid()`, extensions image seulement. Aucun SELECT, UPDATE, DELETE ni `upsert` ajouté ; aucun accès `anon` ; aucune politique existante modifiée.
+**`carburant_index_config`** — append-only, une ligne par version.
+Colonnes : `id`, `site`, `version` (entier croissant par site), `config jsonb` (disposition des pompes, ordre de recopie, chiffres mécanique/Decenium, état en service, litres par unité, tolérance, seuil, délai), `avant jsonb`, `motif text` (facultatif), `modifie_par uuid`, `modifie_le timestamptz`. Unique `(site, version)`. Pas de date d'effet future.
 
-## 4. Preuves existantes et leur limite
+**`carburant_index_alertes`** — une ligne par événement et par cause, jamais par compteur.
+Colonnes : `id`, `site`, `type` (passation | nuit | releve_manquant), `evenement` (clé de l'événement, ex. date + quart), `niveau` (orange | rouge), `statut` (ouverte | resolue_auto | qualifiee), `constat jsonb` (compteurs concernés, écarts), `raison_cloture`, `ouverte_le`, `cloturee_le`. Clé unique `(site, type, evenement)` : l'évaluation est **idempotente**.
 
-Preuve de refus rejouée sur Test (`preuve-upload-jaugeage-pompiste-test.sql`, transaction annulée, sha256 `f3dd4e45963a2833a1af6aa4d8554d9d0c3fda37a3370288358aba983682cafe`) : accepté pour le pompiste du jour sur son site et le bon chemin ; refusé pour un autre site, un autre dossier ou sous-dossier, une extension non image, un nom sans l'identifiant de l'appelant, un utilisateur non habilité, un pompiste d'un autre site ; aucun UPDATE ni DELETE possible ; aucune lecture ajoutée. Recette Test jouée ensuite sur le parcours réel.
+**`carburant_index_qualifications`** — append-only, correction par nouvelle ligne.
+Colonnes : `id`, `alerte_id`, `site`, `choix` (erreur_lecture | mouvement_confirme | cause_inconnue), `commentaire`, `qualifie_par uuid`, `qualifie_le`, `remplace_id` (nullable, ligne remplacée). Aucun UPDATE, aucun DELETE.
 
-**Ce qui n'est PAS prouvé pour la Production :**
-- Cette preuve a été jouée sur Test, pas sur Production : la rejouer sur Production serait elle-même un geste d'écriture (même annulé), donc soumis à cette décision. Elle est proposée comme **précondition d'application** (voir §5), dans la même transaction, avec annulation sur tout écart.
-- Test de l'API Storage réelle avec un jeton de pompiste réel : à faire après application, sur un vrai quart, par Frédéric ou un pompiste.
-- Safari iOS sur appareil réel et caméra : NON TESTÉS à ce jour.
-- Pompiste hors quart : couvert uniquement par `est_pompiste_du_jour` (existante, fail-closed), non rejoué.
+**Fonctions SECURITY DEFINER** (`search_path` fixé, fail-closed, site déduit de l'appelant, jamais d'un paramètre) :
+- `enregistrer_config_piste(site, config, motif)` : insère une version ; manager/gérant du site.
+- `qualifier_alerte_piste(alerte_id, choix, commentaire, remplace_id)` : insère une qualification ; manager/gérant du site de l'alerte.
+- `evaluer_controles_piste(site, date)` : upsert d'alertes sur la clé unique ; résout automatiquement si le recalcul sur données **finales** ne retrouve plus l'écart (un brouillon ne résout rien). Ne modifie jamais un index.
 
-## 5. Conditions proposées pour le GO
+## 4. Droits proposés
 
-1. Protocole Production habituel : `execute_sql` jamais `apply_migration`, une transaction `begin; set local lock_timeout='2s'; …; insert into supabase_migrations.schema_migrations (version, name); commit;`, contrôle C3 du texte transmis par md5 contre le fichier, lecture seule préalable.
-2. Précondition : les trois politiques ci-dessus sont toujours les seules sur ce bucket et `documents_a_traiter_jaugeage_pompiste` est absente ; sinon arrêt.
-3. Postcondition mesurée : exactement quatre politiques sur ce bucket, la nouvelle étant INSERT / `authenticated`, texte égal à celui ci-dessus ; les trois autres inchangées ; registre 319 ; aucune ligne d'écriture ou d'objet créée.
-4. Retour arrière documenté : `drop policy documents_a_traiter_jaugeage_pompiste on storage.objects;` (une seule instruction, aucun effet sur les données ; les photos déjà déposées resteraient lisibles par les rôles existants).
-5. Après application : un pompiste réel (ou Frédéric) téléverse une photo sur un vrai quart ; contrôle que l'objet apparaît sous `<site>/jaugeage_veeder_root/`, que `documents_ocr_file` reçoit sa ligne et que le worker traite ; Safari iOS réel à faire à ce moment, avec constat écrit.
-6. Aucune autre permission, aucun secret, aucune fusion, aucun déploiement applicatif n'est requis : le code appelant est déjà en Production (PR #135).
+| Table | SELECT | INSERT | UPDATE | DELETE | TRUNCATE |
+|---|---|---|---|---|---|
+| `carburant_index_config` | manager/gérant du site | via fonction seulement | aucun | aucun | aucun |
+| `carburant_index_alertes` | manager/gérant du site | via fonction seulement | via fonction (statut, clôture) | aucun | aucun |
+| `carburant_index_qualifications` | manager/gérant du site | via fonction seulement | aucun | aucun | aucun |
 
-## 6. Décision demandée
+- Aucun accès `anon`. `revoke all … from public, anon, authenticated` explicite sur chaque table et chaque fonction, puis `grant execute` aux seuls rôles nécessaires. `TRUNCATE` révoqué (voir la dette connue sur ce droit).
+- Le **pompiste n'a aucun accès** à ces tables ni à ces fonctions. L'auteur d'un relevé reste lisible dans le détail d'un relevé existant, pas dans le Journal.
+- Lecture par un `SELECT` direct protégé par RLS ; la RLS ne masque pas les colonnes, donc aucune colonne sensible n'est ajoutée à ces tables.
 
-Autoriser, ou refuser, l'application de cette politique unique sur **Production**, selon les conditions du §5. Sans décision favorable, Production reste en l'état : le jaugeage fonctionne en mode `hors_ligne` (saisie manuelle sans photo).
+## 5. Ce qui n'est PAS prouvé
+
+- Aucune preuve de refus n'a encore été jouée : elle sera écrite avant la migration (patron `preuve-upload-jaugeage-pompiste-test.sql`) et rejouée en transaction annulée : refus pour `anon`, pour un pompiste, pour un manager d'un autre site, pour tout UPDATE/DELETE/TRUNCATE.
+- L'**échelle des compteurs** (litres par unité d'index) n'est pas confirmée. Tant qu'elle ne l'est pas, tout contrôle en litres répond « Comparaison impossible : unité non confirmée ». Ce n'est pas un blocage de la surface de sécurité, seulement des contrôles.
+- Rien n'est testé sur Safari iOS.
+
+## 6. Conditions proposées pour le GO
+
+1. Test exclusivement ; `execute_sql`, une transaction, `lock_timeout='2s'`, tampon `schema_migrations`.
+2. Preuve de refus écrite et rejouée avant et après ; postcondition mesurée : 3 tables, RLS active, aucun grant à `anon`, aucun `TRUNCATE`, aucune fonction exécutable par `anon`.
+3. Retour arrière : `drop function` des trois fonctions, `drop table` des trois tables, `alter table carburant_index_releves drop column config_snapshot`. Tables neuves donc sans donnée à préserver sur Test.
+4. Aucune fusion, aucun déploiement, aucune Production. Une reprise en Production exigerait un arbitrage et un GO distincts.
+5. Toute évolution ultérieure de ces permissions repasse par le Handoff.
+
+## 7. Arbitrages déjà rendus par Frédéric (17/10/2026, ouverture du lot)
+
+1. **Surface Test** : accord de principe pour les trois tables et `config_snapshot`. L'exécution des migrations, la création des fonctions privilégiées et toute permission restent soumises à l'examen du **SQL exact** et aux preuves de sécurité. Ce n'est pas un GO d'exécution SQL.
+2. **Relevé manquant** : tâche planifiée côté serveur, indépendante de l'ouverture du Journal Piste ; délai initial 30 min après la fin de quart (Paramètres Station) ; contrôle toutes les cinq minutes, à confirmer selon l'infrastructure existante ; idempotente, résolution automatique à la régularisation. Le mécanisme de planification (extension, fonction planifiée) sera décrit avec le SQL exact et fera l'objet de sa propre demande s'il touche une permission.
+3. **Échelle des compteurs** : validation physique obligatoire (Frédéric ou responsable désigné). Tant qu'elle n'est pas confirmée, aucune alerte à seuil en litres n'est présentée comme fiable.
+4. **Habilitations** : Journal Piste et Paramètres Station → Pompes et index réservés aux managers et gérants habilités du site. Les pompistes gardent leurs seuls droits de saisie.
+
+Exigences : Constitution NEXUS et Guardian Philosophie ; fait / hypothèse / décision humaine distingués ; relevés historiques et configuration d'origine préservés ; aucun calcul parallèle des ventes ; maquettes avant implémentation ; preuves RLS de refus et d'autorisation documentées ; aucune modification de Production.
+
+## 8. Décision demandée
+
+Instruction du lot : confirmer que le SQL exact (migration, politiques, grants, trois fonctions, planification) sera présenté pour examen **avant** toute exécution, avec la preuve de refus écrite et rejouable. Aucun GO migration, permissions ou Production n'est demandé ici. Prochaine décision attendue après cette instruction : l'examen du SQL exact et des preuves.
