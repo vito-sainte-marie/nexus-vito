@@ -110,3 +110,8 @@ Préparation : le relevé `fin_q2` de recette du 2026-10-16 (1 relevé + 8 valeu
 - Fin de Q2 revalidée ensuite (écran de recopie affiché). Recopie 8/8 non refaite : le relevé est final, valeurs non recopiées.
 
 Reste NON TESTÉ : cas 8, 10, 18 (historique manager non construit), Fin Q2 → début Q1 suivant, Safari iOS, caméra, coupure réseau réelle.
+
+## Accueil du matin et tentative « lendemain » (Test, mobile 375×812)
+
+- Service de recette passé en `matin` : l'accueil affiche, dans l'ordre, Jaugeage Veeder-Root, Début de Q1, Fin de Q1, puis « Recopier les index dans Decenium » (Fin de Q1 : tout recopié). RÉUSSI. Service remis à `soir` ensuite.
+- Fin de Q2 → début de Q1 du lendemain : NON TESTÉ. Une simulation de date (+1 jour injectée dans la page) renvoie vers la Prise de poste, qui exige un service du jour ; le test réel demande un service matin daté du lendemain ou la suppression du `debut_q1` de recette du jour (non faite, non autorisée).
