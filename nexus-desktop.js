@@ -101,7 +101,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Journal Piste (17/10/2026, demande de Frédéric) : relevés, contrôles et
       // décisions de la piste. Un point rouge clignotant signale une alerte
       // ouverte (voir nexusVerifierAlertesPiste()).
-      { label: 'Journal Piste', href: 'NEXUS-Journal-Piste-v1.html', icon: null, emoji: '📒', desc: 'Relevés, contrôles et décisions de la piste.' },
+      { label: 'Relevés, contrôles des index et décisions', href: 'NEXUS-Journal-Piste-v1.html', icon: null, emoji: '📒', desc: 'Relevés, contrôles et décisions de la piste.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
       // remplace l'ancienne icon-inventaire.png — même icône réutilisée sur
       // Contrôle inventaire juste en dessous (même domaine, cf. Article 11).

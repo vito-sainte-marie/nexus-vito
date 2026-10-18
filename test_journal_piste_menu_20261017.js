@@ -1,7 +1,7 @@
 // Journal Piste dans le menu bureau + point rouge clignotant sur alerte ouverte.
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const src = fs.readFileSync(__dirname + '/nexus-desktop.js', 'utf8');
-assert(/label: 'Journal Piste', href: 'NEXUS-Journal-Piste-v1\.html'/.test(src), 'entrée de menu absente');
+assert(/label: 'Relevés, contrôles des index et décisions', href: 'NEXUS-Journal-Piste-v1\.html'/.test(src), 'entrée de menu absente');
 const m = src.match(/async function nexusVerifierAlertesPiste\(\) \{[\s\S]*?\n\}\n/);
 assert(m, 'fonction absente');
 async function essai(count, error) {
