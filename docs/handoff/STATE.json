@@ -596,8 +596,13 @@
     },
     "SECURITE-DEFINER-ETAPE1-20261018": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "derniere_demande": "request-2.md",
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "c8227985ededfec0f14b788ab9cdf38fdf525c1c",
+      "consomme_le": "2026-10-18T13:36:33.146Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [
