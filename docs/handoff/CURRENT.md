@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE1-20261018/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE3-20261018/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: SECURITE-DEFINER-ETAPE1-20261018
-seq: 3
+lot_id: SECURITE-DEFINER-ETAPE3-20261018
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,34 +20,73 @@ preuves:
     classe: VERIFIED
     valeur: 157-fichiers
 ---
-# SÉCURITÉ SECURITY DEFINER — Étape 2 exécutée sur Test : consignation des postconditions et clôture de l'étape
+# SÉCURITÉ SECURITY DEFINER — Étape 3 : fermer l'exécution directe des 8 fonctions de trigger (TEST exclusivement)
 
-Cette demande ne porte sur **aucune nouvelle opération**. Elle consigne l'exécution de l'étape 2 autorisée par decision-2.md (`78f255cc`, APPROVED_WITH_CONDITIONS, `closes: false`) et demande à l'arbitre de constater les postconditions et de fermer l'étape. Aucun SQL d'écriture n'est demandé ici. Ni Production, ni migration de dépôt, ni fusion, ni GRANT/REVOKE, ni modification des privilèges de `nexus_ci_recette`, ni `claude.yml`.
+Suite du lot `SECURITE-DEFINER-ETAPE1-20261018`, clos par decision-3 (`4c4a9fe0`, APPROVED, `closes: true`) après l'étape 1 (2 `REVOKE` anon) et l'étape 2 (17 `search_path = public, pg_temp`), toutes deux exécutées et vérifiées sur Test. Cette demande ne porte que sur l'**étape 3**. Les étapes 4 (`nexus_identifiant_de_connexion`) et 5 (report en Production), ainsi que les 24 autres fonctions `search_path=public`, auront chacune leur demande. **Aucun SQL d'écriture n'a été exécuté pour cette demande** ; seules des lectures de catalogue (SELECT) ont servi, sur Test et sur Production (lecture seule). Ni Production, ni migration de dépôt, ni fusion, ni `claude.yml`, ni modification des privilèges de `nexus_ci_recette`.
 
-## Preuve des conditions de decision-2
+## Constat mesuré
 
-Exécution le 18/10/2026 vers 13:40 UTC sur Supabase **Test** (`udljdqxerrbbbajxubfn`) exclusivement, sur GO explicite de Frédéric Bragance dans la session, après relecture du rail (decision-2 la plus récente, aucun STOP).
+Huit fonctions SECURITY DEFINER de `public` renvoient `trigger` (propriétaire `postgres`, `search_path = public, pg_temp` sur Test depuis l'étape 2). Leur ACL est identique sur Test et sur Production : `{=X/postgres, postgres=X/postgres, anon=X/postgres, authenticated=X/postgres, service_role=X/postgres}` — donc EXECUTE accordé à `PUBLIC`, `anon`, `authenticated` et `service_role`.
 
-- Immédiatement avant : les 17 signatures existent, sont SECURITY DEFINER, propriétaire `postgres`, `proconfig` exactement `{search_path=public}` ; `anon` et `authenticated` en EXECUTE sur les 17 ; 9 triggers liés, tous `tgenabled = O`. Empreinte (md5) de `proconfig` des 141 SECURITY DEFINER de `public` : `089f3d83a810d8fcbd08fe59901d6960`.
-- Exécution : les 17 `ALTER FUNCTION … SET search_path = public, pg_temp` dans **un seul bloc transactionnel** (DO), précédés d'une garde qui abandonnait tout si les 17 `proconfig` ne valaient pas exactement `search_path=public`. Aucune autre instruction.
-- Interdits respectés : aucun GRANT, REVOKE, changement `nexus_ci_recette`, migration de dépôt, fusion ni mutation Production.
+| Fonction | Trigger(s) lié(s) (tous `tgenabled = O` sur Test) |
+|---|---|
+| `carburant_resoudre_prix_achat_snapshot()` | `carburant_reception_visite_lignes.trg_carburant_resoudre_prix_achat_snapshot` |
+| `fdj_sync_releve_apres_cash_control()` | `fdj_cash_controls.trg_fdj_sync_releve_apres_cash_control` |
+| `fdj_tracer_correction_stock_initial()` | `fdj_shift_counts.trg_fdj_trace_correction_stock_initial` |
+| `flag_modification_apres_validation()` | `inventaire_comptages.trg_flag_modification_apres_validation` |
+| `flag_mouvement_non_justifie()` | `inventaire_mouvements.trg_flag_mouvement_non_justifie` |
+| `nexus_forcer_site_unique()` | `mission_catalog.mission_catalog_site_unique`, `shifts.shifts_site_unique` |
+| `nexus_inventaire_detecter_conditionnement()` | `inventaire_zone_produit.trg_inventaire_detecter_conditionnement` |
+| `nexus_site_supprimable()` | `sites.nexus_site_supprimable` |
 
-## Postconditions mesurées (les sept de request-2.md)
+Une fonction de trigger ne peut pas être appelée comme une fonction ordinaire (PostgreSQL refuse : « trigger functions can only be called as triggers »), et le droit EXECUTE n'est contrôlé qu'à la création du trigger, pas à son déclenchement. Ces droits n'ont donc aucune utilité fonctionnelle ; ils élargissent seulement la surface exposée par PostgREST/les audits. Précédent sur Test : sur 22 fonctions de trigger SECURITY DEFINER de `public`, **13 sont déjà fermées** à `anon` et `authenticated`, 1 (`nexus_garde_regularisation_reception`, étape 1) est fermée à `anon` mais garde `authenticated` (hors périmètre ici), et ces 8 sont les seules encore ouvertes à `anon`. Aucune des 8 n'est référencée par une politique RLS (0 dépendance `pg_policy`) et aucune n'est appelée par le code du dépôt (`main`, recherche `rpc(` et appels directs : 0 occurrence).
 
-1. Les 17 portent `search_path=public, pg_temp` ; 0 conserve `search_path=public`.
-2. Droits `anon` (17/17) et `authenticated` (17/17) identiques au relevé préalable ; SECURITY DEFINER et propriétaire `postgres` inchangés.
-3. Les 9 triggers concernés sont tous `tgenabled = O`, aucun désactivé.
-4. Job `nexus-inventaire-reviews` : passage `succeeded` ("1 row") à 13:45:00 UTC, postérieur à l'opération (précédent : 13:30:00, `succeeded`).
-5. Sous `authenticated`, bloc annulé : `current_employee_role()` répond `NULL` et `nexus_site_de_reference('S1','S1')` répond `S1`, sans erreur ; avec un uid sans rôle manager, l'insertion « regularisation » sur `carburant_reception_visites` est refusée par la garde (SQLSTATE 42501).
-6. Sous `anon`, bloc annulé : une table temporaire `employees` homonyme n'altère plus `current_employee_role()` (résultat `NULL`). Témoin dans le même bloc : avec l'ancien `search_path=public`, la même attaque renvoyait `gerant` — l'épreuve discrimine. Le témoin a été annulé avec le bloc.
-7. Empreinte des 141 SECURITY DEFINER, recalculée en remettant l'ancienne valeur sur les 17 : `089f3d83a810d8fcbd08fe59901d6960`, identique à l'empreinte préalable ; seules les 17 ont changé. État final revérifié après le bloc de test : 17 fonctions à `public, pg_temp`, aucune table temporaire résiduelle.
+## SQL proposé (NON exécuté)
 
-## Écarts et limites
+```sql
+revoke execute on function public.carburant_resoudre_prix_achat_snapshot() from public, anon, authenticated;
+revoke execute on function public.fdj_sync_releve_apres_cash_control() from public, anon, authenticated;
+revoke execute on function public.fdj_tracer_correction_stock_initial() from public, anon, authenticated;
+revoke execute on function public.flag_modification_apres_validation() from public, anon, authenticated;
+revoke execute on function public.flag_mouvement_non_justifie() from public, anon, authenticated;
+revoke execute on function public.nexus_forcer_site_unique() from public, anon, authenticated;
+revoke execute on function public.nexus_inventaire_detecter_conditionnement() from public, anon, authenticated;
+revoke execute on function public.nexus_site_supprimable() from public, anon, authenticated;
+```
 
-- Aucun écart de comportement constaté. Pas de retour arrière nécessaire.
-- Changement appliqué sur Test **sans fichier de migration** (écart de dépôt assumé jusqu'à une demande de report en Production). Test et Production restent différents sur ces 17 fonctions.
-- Hors de cette demande : les 24 autres fonctions `search_path=public`, les étapes 3 à 5, le report en Production.
+Huit instructions, une seule transaction. `PUBLIC` est révoqué avec `anon`/`authenticated` parce qu'un `REVOKE` sur le seul `PUBLIC` ne retire pas les droits explicites d'`anon` (et inversement). `postgres` (propriétaire) et `service_role` sont **laissés tels quels** pour ne pas élargir le périmètre. Pas de `GRANT`, pas de `CREATE OR REPLACE`, pas de DDL de table. Cible : Supabase **Test** `udljdqxerrbbbajxubfn` exclusivement.
+
+## Préconditions (à relire le jour de l'exécution)
+
+1. Rail relu : une décision matérialisée couvre cette opération ; aucun STOP.
+2. Les 8 signatures existent, sont SECURITY DEFINER, renvoient `trigger`, et ont l'ACL ci-dessus.
+3. Relevé préalable enregistré : `has_function_privilege` anon/authenticated/public/service_role de chacune, `tgenabled` des 9 triggers, état du job `nexus-inventaire-reviews`.
+
+## Postconditions (épreuves)
+
+1. Les 8 n'ont plus EXECUTE pour `public`, `anon` ni `authenticated` ; `service_role` et `postgres` inchangés ; SECURITY DEFINER, propriétaire et `proconfig` inchangés.
+2. Les 9 triggers restent `tgenabled = O`.
+3. Épreuve fonctionnelle, dans un bloc annulé, sous `authenticated` : une écriture déclenchant chacun des triggers touchés reste évaluée (la garde ou l'écriture se comporte comme avant, sans erreur `permission denied for function`) — au minimum `nexus_forcer_site_unique` (insertion `shifts`) et `flag_mouvement_non_justifie` (mouvement d'inventaire), plus la garde de régularisation de l'étape 1 qui refuse toujours (42501).
+4. Appel direct sous `anon` et `authenticated` : refusé (`permission denied` ou « can only be called as triggers »).
+5. Le job `nexus-inventaire-reviews` a un passage `succeeded` après l'opération.
+6. Comparaison avant/après : l'ACL des autres fonctions SECURITY DEFINER de `public` (141) est inchangée ; seules ces 8 diffèrent. Fonctions de trigger SECURITY DEFINER de `public` ouvertes à `anon` : 8 → 0 ; fermées aux deux rôles : 13 → 21 (la 22e, `nexus_garde_regularisation_reception`, inchangée).
+
+## Risques
+
+Très faible : aucun chemin d'exécution légitime n'invoque ces fonctions directement, et le déclenchement d'un trigger ne vérifie pas EXECUTE. Risque résiduel : une migration future qui ferait `DROP FUNCTION` puis `CREATE FUNCTION` rouvrirait l'ACL par défaut de `public` (default privileges) ; à garder en tête pour le report en Production, où la migration de dépôt devra porter les `REVOKE`.
+
+## Retour arrière
+
+```sql
+grant execute on function public.<nom>() to public, anon, authenticated;
+```
+
+pour chacune des 8, ce qui rétablit l'ACL d'origine (le `service_role` n'a pas été touché).
+
+## Ce qui reste hors de cette demande
+
+Report en Production (sa propre demande, son GO et une migration de dépôt) ; `nexus_identifiant_de_connexion` (étape 4) ; les 24 autres fonctions `search_path=public` ; tout changement de `service_role`. Ce changement serait appliqué sur Test sans fichier de migration : écart de dépôt assumé jusqu'au report en Production, comme pour les étapes 1 et 2.
 
 ## Question d'arbitrage
 
-Constatez-vous les sept postconditions comme satisfaites et fermez-vous l'étape 2 (`closes: true` pour ce volet) ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED / NEEDS_EVIDENCE, avec `closes`. Rien d'autre n'est demandé ni exécuté.
+Autorisez-vous ces 8 `REVOKE EXECUTE … FROM public, anon, authenticated` sur **Supabase Test seulement**, sous les préconditions et postconditions ci-dessus ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED, avec `closes` pour cette étape. Rien n'est appliqué avant une décision matérialisée.
