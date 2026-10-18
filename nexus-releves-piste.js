@@ -206,13 +206,120 @@
     return { ok: true };
   }
 
+  // Historique manager (lecture seule) : une journée de relevés regroupée par moment.
+  // releves : lignes `carburant_index_releves` avec `carburant_index_valeurs(...)` imbriquées.
+  // Rien n'est tranché ici : chaque déclaration garde son auteur, ses valeurs et ses anomalies
+  // enregistrées (écart de nuit) ; la comparaison fin Q1 / début Q2 compare la dernière
+  // déclaration finale de chaque moment et signale quand les deux ont le même auteur
+  // (alors ce ne sont pas deux déclarations indépendantes).
+  function synthetiserJournee(releves) {
+    const liste = [].concat(releves || []);
+    const declarations = liste.map(r => {
+      const valeurs = {}, anomalies = [];
+      let recopiees = 0;
+      [].concat(r.carburant_index_valeurs || []).forEach(v => {
+        const k = `${v.pompe}-${v.produit}`;
+        valeurs[k] = v.valeur_sept_chiffres;
+        if (v.recopiee) recopiees++;
+        if (v.anomalie_nuit && v.anomalie_nuit !== 'conforme') anomalies.push({ clef: k, code: v.anomalie_nuit, ecart: v.ecart_nuit == null ? null : Number(v.ecart_nuit) });
+      });
+      return { releveId: r.id, moment: r.moment, statut: r.statut, auteur: r.auteur, auteurNom: r.auteur_nom || null, creeLe: r.cree_le, finaliseLe: r.finalise_le || null, valeurs, nbValeurs: Object.keys(valeurs).length, recopiees, anomalies };
+    });
+    const parMoment = {};
+    MOMENTS.forEach(m => { parMoment[m] = declarations.filter(d => d.moment === m).sort((a, b) => String(a.creeLe).localeCompare(String(b.creeLe))); });
+    const derniereFinale = m => parMoment[m].filter(d => d.statut === 'final' && d.nbValeurs === 8).slice(-1)[0] || null;
+    const f = derniereFinale('fin_q1'), d = derniereFinale('debut_q2');
+    const lignes = comparerQ1Q2(f && f.valeurs, d && d.valeurs);
+    const complete = !!(f && d);
+    return {
+      parMoment,
+      anomaliesTotal: declarations.reduce((s, x) => s + x.anomalies.length, 0),
+      q1q2: {
+        complete, lignes,
+        divergents: complete ? lignes.filter(l => l.etat === 'divergent').length : null,
+        memeAuteur: complete ? f.auteur === d.auteur : null,
+        auteurFinQ1: f ? f.auteur : null, auteurDebutQ2: d ? d.auteur : null,
+      },
+    };
+  }
+
+  // Journal Piste — contrôle d'une passation (fin Q1 -> début Q2) ou d'une nuit
+  // (fin Q2 -> début Q1). Compteur par compteur, sans compensation. Fail-closed :
+  // configuration différente, unité non confirmée ou valeur absente => jamais « conforme ».
+  // Échelle confirmée par Frédéric le 17/10/2026 : +1 d'index = 1 L.
+  const CONFIG_PISTE_DEFAUT = {
+    litresParUnite: 1, toleranceL: 9, seuilL: 10, delaiReleveManquantMin: 30,
+    pompes: { 1: { gauche: 'GO', droite: 'SP', enService: true }, 2: { gauche: 'SP', droite: 'GO', enService: true },
+              3: { gauche: 'GO', droite: 'SP', enService: true }, 4: { gauche: 'SP', droite: 'GO', enService: true } },
+    chiffres: { mecanique: 7, decenium: 6 },
+  };
+  const empreinteConfig = (c) => JSON.stringify([c && c.pompes, c && c.chiffres, c && c.litresParUnite]);
+  function comparerPassation(cfgA, cfgB, valsA, valsB, type) {
+    const nuit = type === 'nuit', niveau = nuit ? 'rouge' : 'orange';
+    const res = (etat, raison, lignes) => ({ etat, raison: raison || null, niveau: etat === 'anomalie' ? niveau : null, lignes: lignes || [], certitude: etat === 'anomalie' || etat === 'tolere' || etat === 'conforme' ? 'fait_calcule' : 'aucune' });
+    if (!cfgA || !cfgB || !valsA || !valsB) return res('non_controle', 'Donnée manquante : un des deux relevés n\'est pas enregistré dans NEXUS.');
+    if (empreinteConfig(cfgA) !== empreinteConfig(cfgB)) return res('impossible', 'Comparaison impossible : la configuration des compteurs a changé entre les deux relevés.');
+    const echelle = Number(cfgB.litresParUnite);
+    if (!(echelle > 0)) return res('impossible', 'Comparaison impossible : unité de mesure non confirmée.');
+    const tol = Number(cfgB.toleranceL), seuil = Number(cfgB.seuilL);
+    const lignes = [];
+    let manque = false;
+    Object.keys(cfgB.pompes || {}).forEach(p => {
+      const c = cfgB.pompes[p]; if (!c.enService) return;
+      [c.gauche, c.droite].forEach(prod => {
+        const clef = p + '-' + prod, a = valsA[clef], b = valsB[clef];
+        if (a == null || b == null || !/^\d+$/.test(String(a)) || !/^\d+$/.test(String(b))) { manque = true; lignes.push({ clef, etat: 'non_controle' }); return; }
+        const ecartL = (Number(b) - Number(a)) * echelle, abs = Math.abs(ecartL);
+        lignes.push({ clef, ecartL, etat: abs === 0 ? 'conforme' : abs <= tol ? 'tolere' : abs >= seuil ? 'anomalie' : 'tolere' });
+      });
+    });
+    if (manque) return res('non_controle', 'Donnée manquante : au moins un compteur n\'a pas de valeur dans l\'un des relevés.', lignes);
+    const etat = lignes.some(l => l.etat === 'anomalie') ? 'anomalie' : lignes.some(l => l.etat === 'tolere') ? 'tolere' : 'conforme';
+    return res(etat, null, lignes);
+  }
+
+  // ---- Journal Piste : libellés et validation de la configuration (pur) ----
+  const LIBELLES_ETAT = {
+    conforme: 'Contrôlé conforme', tolere: 'Écart toléré', anomalie: 'Anomalie détectée',
+    non_controle: 'Non contrôlé — donnée manquante', impossible: 'Comparaison impossible',
+  };
+  // Un état inconnu n'est jamais présenté comme conforme.
+  const libelleEtat = (e) => LIBELLES_ETAT[e] || LIBELLES_ETAT.non_controle;
+  const LIBELLES_CHOIX = {
+    erreur_lecture: 'Erreur de lecture',
+    mouvement_confirme: 'Mouvement confirmé (déclaré par le manager)',
+    cause_inconnue: 'Cause inconnue',
+  };
+  // Même contrat que enregistrer_config_piste (le serveur reste l'autorité).
+  // Retourne la liste des problèmes ; vide = acceptable.
+  function validerConfigPiste(c) {
+    const pb = [];
+    if (!c || typeof c !== 'object') return ['Configuration absente.'];
+    if (!(Number(c.litresParUnite) > 0)) pb.push('Litres par unité d\'index : valeur positive requise.');
+    if (!(Number(c.toleranceL) >= 0)) pb.push('Tolérance : 0 ou plus.');
+    if (!(Number(c.seuilL) > Number(c.toleranceL))) pb.push('Le seuil d\'intervention doit dépasser la tolérance.');
+    const d = Number(c.delaiReleveManquantMin);
+    if (!(Number.isInteger(d) && d >= 1 && d <= 240)) pb.push('Délai du relevé manquant : 1 à 240 minutes.');
+    const pompes = c.pompes && typeof c.pompes === 'object' ? c.pompes : null;
+    if (!pompes || !Object.keys(pompes).length) pb.push('Aucune pompe configurée.');
+    else Object.keys(pompes).forEach(k => {
+      const p = pompes[k] || {};
+      if (!p.gauche || !p.droite || p.gauche === p.droite) pb.push('Pompe ' + k + ' : deux produits distincts requis.');
+    });
+    const ch = c.chiffres || {};
+    if (!(Number.isInteger(ch.mecanique) && ch.mecanique > 0) || !(Number.isInteger(ch.decenium) && ch.decenium > 0)) pb.push('Nombre de chiffres : entiers positifs requis.');
+    return pb;
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
-    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
+    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste, synthetiserJournee,
+    CONFIG_PISTE_DEFAUT, comparerPassation,
+    LIBELLES_ETAT, libelleEtat, LIBELLES_CHOIX, validerConfigPiste,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;

@@ -303,12 +303,60 @@
     else if (ecran === 'revue') app.innerHTML = vueRevue();
     else if (ecran === 'recopie') app.innerHTML = vueRecopie();
     else if (ecran === 'jauge') app.innerHTML = vueJauge();
+    else if (ecran === 'histo') app.innerHTML = vueHistorique();
     else app.innerHTML = `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>`;
     majEtat();
   }
 
+  // ---- Historique manager : lecture seule, aucune écriture, la RLS de lecture (site) reste l'autorité ----
+  const estManager = () => !!emp && (emp.role === 'manager' || emp.role === 'gerant');
+  let histo = { date: null, synth: null, noms: {}, erreur: null, charge: false };
+  const LIB_ANOM = { toleree: 'toléré (+1)', a_justifier: 'à justifier', alerte_prioritaire: 'alerte prioritaire', diminution: 'index en diminution' };
+  async function chargerHistorique(d) {
+    histo = { date: d, synth: null, noms: histo.noms, erreur: null, charge: false };
+    try {
+      const { data, error } = await nexusClient.from('carburant_index_releves')
+        .select('id, moment, statut, auteur, cree_le, finalise_le, carburant_index_valeurs(pompe, produit, valeur_sept_chiffres, recopiee, ecart_nuit, anomalie_nuit)')
+        .eq('site', emp.site_id).eq('date', d).order('cree_le', { ascending: true });
+      if (error) throw error;
+      if (!Object.keys(histo.noms).length) {
+        const e = await nexusClient.from('employees').select('id, nom').eq('site_id', emp.site_id);
+        (e.data || []).forEach(x => { histo.noms[x.id] = x.nom; });
+      }
+      histo.synth = R.synthetiserJournee((data || []).map(r => Object.assign({}, r, { auteur_nom: histo.noms[r.auteur] || null })));
+      histo.charge = true;
+    } catch (x) { console.error(x); histo.erreur = 'Lecture impossible pour le moment (réseau ou droits). Rien n\'a été modifié.'; }
+  }
+  const heure = iso => iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '–';
+  const libCompteur = k => { const [p, pr] = k.split('-'); return `P${p} ${pr}`; };
+  function vueHistorique() {
+    const sel = `<div class="card"><label for="hDate">Journée</label><input type="date" id="hDate" value="${esc(histo.date)}" max="${esc(date)}"></div>`;
+    const retour = '<button class="btn2" data-act="choix">Retour</button>';
+    if (histo.erreur) return `<h1>Historique des relevés</h1>${sel}<div class="alerte fort">${esc(histo.erreur)}</div>${retour}`;
+    if (!histo.charge) return `<h1>Historique des relevés</h1>${sel}<div class="card">Chargement…</div>${retour}`;
+    const S = histo.synth, nom = d => esc(d.auteurNom || 'auteur inconnu');
+    const blocs = R.MOMENTS.map(m => {
+      const ds = S.parMoment[m];
+      const corps = ds.length ? ds.map(d => `<div class="ligne"><span class="n">${nom(d)} · ${d.statut === 'final' ? 'validé ' + heure(d.finaliseLe) : 'brouillon ' + heure(d.creeLe)}</span><span class="v">${d.nbValeurs}/8${R.estFin(m) ? ' · recopiés ' + d.recopiees + '/8' : ''}</span></div>`
+        + (d.anomalies.length ? `<div class="alerte ${d.anomalies.some(a => a.code === 'toleree') && d.anomalies.length === 1 ? 'indic' : 'fort'}">${d.anomalies.map(a => `${libCompteur(a.clef)} : ${a.ecart > 0 ? '+' : ''}${a.ecart} ${LIB_ANOM[a.code] || esc(a.code)}`).join(' · ')}</div>` : '')
+        + `<div class="sub">${R.ordreRecopieDecenium().map(o => { const k = o.pompe + '-' + o.produit; return d.valeurs[k] ? libCompteur(k) + ' ' + esc(d.valeurs[k]) : ''; }).filter(Boolean).join(' · ')}</div>`).join('') : '<div class="sub">Aucune déclaration.</div>';
+      return `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2>${corps}</div>`;
+    }).join('');
+    const Q = S.q1q2;
+    let cmp;
+    if (!Q.complete) cmp = '<div class="sub">Comparaison impossible : il faut une fin de Q1 et un début de Q2 validés, avec les huit valeurs.</div>';
+    else {
+      const div = Q.lignes.filter(l => l.etat === 'divergent');
+      cmp = (Q.memeAuteur ? '<div class="alerte indic">Les deux déclarations ont le même auteur : ce ne sont pas deux déclarations indépendantes.</div>' : '')
+        + (div.length ? `<div class="alerte fort">${div.length} compteur(s) divergent(s). Un écart non nul n'est pas forcément une erreur (distributions entre deux relevés) : à examiner, pas à corriger ici.</div>` + div.map(l => `<div class="ligne"><span class="n">${libCompteur(l.clef)}</span><span class="v">${esc(l.finQ1)} → ${esc(l.debutQ2)} (${l.ecart > 0 ? '+' : ''}${l.ecart})</span></div>`).join('')
+          : '<div class="sub">Les huit compteurs concordent.</div>');
+    }
+    return `<h1>Historique des relevés</h1><div class="sub">Lecture seule. ${S.anomaliesTotal ? S.anomaliesTotal + ' anomalie(s) enregistrée(s) ce jour.' : 'Aucune anomalie enregistrée ce jour.'}</div>${sel}${blocs}<div class="card"><h2>Fin Q1 ↔ début Q2</h2>${cmp}</div>${retour}`;
+  }
+
   function vueChoix() {
     return `<h1>Relevés piste</h1><div class="sub">Carnet d'aide au relevé et à la recopie. Decenium reste le logiciel de caisse de référence.</div>` +
+      (estManager() ? `<div class="card"><h2>Historique des relevés (manager)</h2><div class="sub">Consultation en lecture seule : valeurs, auteurs, anomalies et comparaison fin Q1 / début Q2.</div><button class="btn2" data-act="histo">Ouvrir l'historique</button></div>` : '') +
       (habilites.length && !habilites.some(m => /_q1$/.test(m)) ? '' : `<div class="card"><h2>Jaugeage Veeder-Root (matin)</h2><div class="sub">Photo de l'écran, lecture proposée, saisie manuelle toujours possible.</div><button class="btn2" data-act="jauge">Ouvrir le jaugeage</button></div>`) +
       (habilites.length ? R.MOMENTS.filter(m => habilites.indexOf(m) >= 0).map(m => `<div class="card"><h2>${esc(MOMENTS_LIBELLE[m])}</h2><div class="sub">${R.estDebut(m) ? 'Vérification de la référence validée ; aucune recopie Decenium (Decenium renseigne le début).' : 'Saisie complète des 7 chiffres, puis recopie dans Decenium.'}</div><button class="btn" data-act="moment" data-m="${m}">Commencer / reprendre</button></div>`).join('')
         : '<div class="card"><h2>Aucun relevé à faire pour vous</h2><div class="sub">Les relevés de début et de fin de quart ne sont ouverts qu\'au pompiste affecté à ce quart aujourd\'hui.</div></div>') +
@@ -452,6 +500,7 @@
       await chargerValeursServeur(); rendre(); return;
     }
     if (a === 'jauge') { ecran = 'jauge'; try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'histo') { if (!estManager()) return; ecran = 'histo'; histo.date = histo.date || date; histo.charge = false; rendre(); await chargerHistorique(histo.date); rendre(); return; }
     if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
@@ -470,6 +519,7 @@
   document.addEventListener('change', async (e) => {
     const t = e.target;
     if (t.dataset && t.dataset.j) { rendre(); return; }
+    if (t.id === 'hDate' && estManager() && t.value) { await chargerHistorique(t.value); rendre(); return; }
     if (t.id === 'visuel') { visuel[pompe] = t.checked; sauverLocal(); rendre(); return; }
     if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
     if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }

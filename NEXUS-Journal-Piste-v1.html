@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS : Relevés, Contrôles des Index et Décisions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-station.js?v=20261013-2212"></script>
+<script src="nexus-auth.js?v=20261013-2212"></script>
+<script src="nexus-releves-piste.js?v=20261017-1500"></script>
+<style>
+  :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-text-size-adjust:100%}
+  .page{max-width:560px;margin:0 auto;padding:16px 16px 80px}
+  h1{font-size:20px;margin:4px 0 2px}
+  .sub{color:var(--mid);font-size:13px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card.rouge{border-color:var(--red)} .card.orange{border-color:var(--amber)}
+  .badge{display:inline-block;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;border:1px solid var(--hair);color:var(--mid)}
+  .badge.rouge{color:var(--red);border-color:var(--red)} .badge.orange{color:var(--amber);border-color:var(--amber)}
+  .badge.vert{color:var(--green);border-color:var(--green)}
+  .titre{font-weight:700;margin:6px 0 4px}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--mid)}
+  .lignes{margin:8px 0 0;padding:0;list-style:none}
+  .lignes li{display:flex;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:3px 0;border-top:1px solid var(--hair)}
+  .actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .actions button,.btn{font:600 14px 'IBM Plex Sans',sans-serif;color:var(--text);background:var(--raised);border:1px solid var(--hair);border-radius:12px;padding:13px 12px;min-height:46px;cursor:pointer;text-align:left}
+  .actions button:active{background:var(--panel)}
+  .note{color:var(--mid);font-size:12.5px;margin-top:8px;line-height:1.45}
+  .vide{color:var(--mid);text-align:center;padding:24px 8px}
+  .bandeau{border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;background:#3A2E14;border:1px solid var(--amber);color:#FFE2A8}
+  .retour{color:var(--cyan);font-size:13px;text-decoration:none;display:inline-block;margin-bottom:6px}
+  h2{font-size:15px;margin:18px 0 8px;color:var(--mid);font-weight:600;letter-spacing:.02em}
+</style>
+</head>
+<body>
+<div class="page" id="app"><div class="card">Chargement…</div></div>
+<script>
+(function () {
+  const R = window.NexusRelevesPiste;
+  const $app = document.getElementById('app');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let emp = null;
+
+  const TYPES = { passation: 'Passation Q1 → Q2', nuit: 'Nuit Q2 → Q1', releve_manquant: 'Relevé de fin' };
+  const fmtHeure = (iso, tz) => {
+    try { return new Date(iso).toLocaleString('fr-FR', { timeZone: tz || undefined, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return String(iso || ''); }
+  };
+
+  function carteAlerte(a, quals, tz) {
+    const q = quals.filter(x => x.alerte_id === a.id).sort((x, y) => String(y.qualifie_le).localeCompare(String(x.qualifie_le)))[0];
+    const ouverte = a.statut === 'ouverte';
+    const c = a.constat || {};
+    const lignes = Array.isArray(c.lignes) ? c.lignes.filter(l => l.etat === 'anomalie' || l.etat === 'tolere') : [];
+    const corps = a.type === 'releve_manquant'
+      ? '<div class="titre">Relevé de fin non enregistré dans NEXUS</div><div class="mono">Échéance : ' + esc(fmtHeure(c.echeance, tz)) + '</div>'
+      : '<div class="titre">' + esc(R.libelleEtat('anomalie')) + '</div>' +
+        '<ul class="lignes">' + lignes.map(l => '<li><span>Compteur ' + esc(l.clef) + '</span><span>' + (l.ecartL > 0 ? '+' : '') + esc(l.ecartL) + ' L</span></li>').join('') + '</ul>' +
+        '<div class="note">Calcul à partir des index (recoupement approximatif). Le litrage du pupitre reste la référence.</div>';
+    let pied;
+    if (ouverte) {
+      pied = '<div class="actions">' + ['erreur_lecture', 'mouvement_confirme', 'cause_inconnue'].map(k =>
+        '<button type="button" data-q="' + k + '" data-id="' + esc(a.id) + '">' + esc(R.LIBELLES_CHOIX[k]) + '</button>').join('') + '</div>';
+    } else if (a.statut === 'qualifiee' && q) {
+      pied = '<div class="note">Qualifiée : <b>' + esc(R.LIBELLES_CHOIX[q.choix] || q.choix) + '</b> · ' + esc(fmtHeure(q.qualifie_le, tz)) + '. Les index ne sont pas modifiés.</div>' +
+        '<div class="actions"><button type="button" data-q="rectifier" data-id="' + esc(a.id) + '" data-rem="' + esc(q.id) + '">Corriger la qualification</button></div>';
+    } else {
+      pied = '<div class="note">Clôturée automatiquement : ' + esc(a.raison_cloture || 'situation régularisée') + '</div>';
+    }
+    return '<div class="card ' + (ouverte ? esc(a.niveau) : '') + '">' +
+      '<span class="badge ' + esc(a.niveau) + '">' + (a.niveau === 'rouge' ? 'Rouge' : 'Orange') + '</span> ' +
+      '<span class="mono">' + esc(TYPES[a.type] || a.type) + ' · ' + esc(String(a.evenement).replace(':', ' ')) + '</span>' + corps + pied + '</div>';
+  }
+
+  async function charger() {
+    // Réévaluation idempotente (site déduit de l'appelant côté serveur) ; échec non bloquant.
+    let evalOk = true;
+    try { const r = await nexusClient.rpc('evaluer_controles_piste'); if (r.error) evalOk = false; } catch (e) { evalOk = false; }
+    const [alertes, quals, site, recop] = await Promise.all([
+      nexusClient.from('carburant_index_alertes').select('*').eq('site', emp.site_id).order('ouverte_le', { ascending: false }).limit(60),
+      nexusClient.from('carburant_index_qualifications').select('*').eq('site', emp.site_id).limit(300),
+      nexusClient.from('station_config').select('fuseau_horaire').eq('site', emp.site_id).maybeSingle(),
+      nexusClient.from('carburant_index_valeurs').select('releve_id,recopiee_le,recopiee_par').eq('site', emp.site_id).eq('recopiee', true).order('recopiee_le', { ascending: false }).limit(200),
+    ]);
+    const parReleve = new Map();
+    (recop.data || []).forEach(v => { if (!parReleve.has(v.releve_id)) parReleve.set(v.releve_id, { le: v.recopiee_le, par: v.recopiee_par, n: 0 }); parReleve.get(v.releve_id).n++; });
+    const ids = [...new Set([...parReleve.values()].map(x => x.par).filter(Boolean))];
+    const noms = {};
+    if (ids.length) { const e = await nexusClient.from('employees').select('id,nom').in('id', ids); (e.data || []).forEach(x => { noms[x.id] = x.nom; }); }
+    const recopies = [...parReleve.entries()].slice(0, 10).map(([id, x]) => Object.assign({ id: id }, x));
+    // Total de compteurs de chaque relevé (recopiés ou non) : sans lui, 3 sur 8 se lit comme une recopie complète.
+    const totaux = {};
+    let totauxOk = true;
+    if (recopies.length) {
+      const t = await nexusClient.from('carburant_index_valeurs').select('releve_id').eq('site', emp.site_id).in('releve_id', recopies.map(x => x.id));
+      if (t.error) totauxOk = false; else (t.data || []).forEach(v => { totaux[v.releve_id] = (totaux[v.releve_id] || 0) + 1; });
+    }
+    const erreur = alertes.error || quals.error || recop.error;
+    const tz = site.data && site.data.fuseau_horaire;
+    const liste = alertes.data || [], q = quals.data || [];
+    const ouvertes = liste.filter(a => a.statut === 'ouverte'), closes = liste.filter(a => a.statut !== 'ouverte');
+    $app.innerHTML =
+      '<a class="retour" href="NEXUS-Carburants-Pilotage-v1.html">← Retour</a>' +
+      '<h1>Relevés, Contrôles des Index et Décisions</h1>' +
+      (erreur ? '<div class="bandeau">Lecture impossible : l\'état des contrôles n\'est pas connu. Rien n\'est présenté comme conforme.</div>' : '') +
+      (!erreur && !evalOk ? '<div class="bandeau">Les contrôles n\'ont pas pu être recalculés à l\'instant ; ce qui suit peut dater de la dernière évaluation.</div>' : '') +
+      '<h2>À traiter (' + ouvertes.length + ')</h2>' +
+      (ouvertes.length ? ouvertes.map(a => carteAlerte(a, q, tz)).join('') : '<div class="card vide">' + (erreur ? 'État inconnu.' : 'Aucune alerte ouverte.') + '</div>') +
+      (closes.length ? '<h2>Historique</h2>' + closes.map(a => carteAlerte(a, q, tz)).join('') : '') +
+      '<h2>Recopies Decenium déclarées</h2><div class="card">' + (recopies.length ? recopies.map(x => {
+        const tot = totaux[x.id];
+        const incomplete = totauxOk && tot && x.n < tot;
+        const detail = !totauxOk || !tot ? x.n + ' compteur' + (x.n > 1 ? 's' : '') + ', total non vérifié' : x.n + '/' + tot + ' compteurs' + (incomplete ? ' : recopie incomplète' : '');
+        return '<div class="note" style="margin:0 0 6px;' + (incomplete ? 'color:var(--amber);' : '') + '">Recopie Decenium déclarée par ' + esc(noms[x.par] || 'un employé') + ' à ' + esc(fmtHeure(x.le, tz)) + ' (' + esc(detail) + ')</div>';
+      }).join('') + '<div class="note">Déclaration humaine : NEXUS ne compare pas avec Decenium.</div>'
+        : '<div class="note" style="margin:0">' + (erreur ? 'État inconnu : lecture impossible.' : 'Aucune recopie Decenium déclarée.') + '</div>') + '</div>' +
+      '<div class="note">Ce journal compare des relevés entre eux. Il n\'affiche aucun total de ventes et n\'évalue aucune personne.</div>';
+  }
+
+  $app.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button[data-q]');
+    if (!b) return;
+    const choix = b.dataset.q;
+    if (choix === 'rectifier') return rouvrir(b.dataset.id, b.dataset.rem);
+    b.disabled = true;
+    const { error } = await nexusClient.rpc('qualifier_alerte_piste', { p_alerte_id: b.dataset.id, p_choix: choix, p_commentaire: null, p_remplace_id: b.dataset.rem || null });
+    if (error) { b.disabled = false; alert('Qualification non enregistrée : ' + (error.message || 'erreur')); return; }
+    charger();
+  });
+
+  function rouvrir(id, rem) {
+    const carte = document.querySelector('button[data-q="rectifier"][data-id="' + id + '"]').closest('.card');
+    carte.querySelector('.actions').innerHTML = ['erreur_lecture', 'mouvement_confirme', 'cause_inconnue'].map(k =>
+      '<button type="button" data-q="' + k + '" data-id="' + esc(id) + '" data-rem="' + esc(rem) + '">' + esc(R.LIBELLES_CHOIX[k]) + '</button>').join('');
+  }
+
+  nexusRequireAuth().then(async (employee) => {
+    if (!employee) return;
+    emp = employee;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      $app.innerHTML = '<div class="card vide">Cet écran est réservé aux managers et gérants habilités du site.</div>';
+      return;
+    }
+    charger();
+  });
+})();
+</script>
+</body>
+</html>

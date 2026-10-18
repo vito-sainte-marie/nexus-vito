@@ -157,4 +157,48 @@ t('pré-contrôle pompiste : seul un false franc bloque l\'envoi', () => {
   assert.strictEqual(R.precontrolePompiste({ data: false, error: { message: 'x' } }).ok, true);
   assert.strictEqual(R.precontrolePompiste(null).ok, true);
 });
+t('historique manager : regroupe par moment, garde les auteurs, compare Q1/Q2 sans trancher', () => {
+  const vals = (base, decal) => [1, 2, 3, 4].flatMap(p => ['SP', 'GO'].map(pr => ({ pompe: p, produit: pr, valeur_sept_chiffres: String(base + p * 10 + (pr === 'GO' ? 1 : 0) + (p === 3 && pr === 'GO' ? decal : 0)).padStart(7, '0'), recopiee: pr === 'SP' })));
+  const rel = (id, moment, auteur, statut, v, extra) => Object.assign({ id, moment, auteur, auteur_nom: 'n' + auteur, statut, cree_le: '2026-10-17T0' + id + ':00:00Z', carburant_index_valeurs: v }, extra);
+  const s = R.synthetiserJournee([
+    rel('1', 'fin_q1', 'A', 'final', vals(1000, 0)),
+    rel('2', 'debut_q2', 'B', 'final', vals(1000, 5)),
+    rel('3', 'debut_q2', 'C', 'brouillon', vals(1000, 0).slice(0, 3)),
+  ]);
+  assert.strictEqual(s.parMoment.debut_q2.length, 2);
+  assert.strictEqual(s.parMoment.fin_q1[0].auteurNom, 'nA');
+  assert.strictEqual(s.parMoment.fin_q1[0].recopiees, 4);
+  assert.strictEqual(s.q1q2.complete, true);
+  assert.strictEqual(s.q1q2.divergents, 1);                       // le brouillon incomplet ne compte pas
+  assert.strictEqual(s.q1q2.memeAuteur, false);
+  assert.strictEqual(s.q1q2.lignes.find(l => l.etat === 'divergent').ecart, 5);
+  const m = R.synthetiserJournee([rel('1', 'fin_q1', 'A', 'final', vals(1000, 0)), rel('2', 'debut_q2', 'A', 'final', vals(1000, 0))]);
+  assert.strictEqual(m.q1q2.divergents, 0);
+  assert.strictEqual(m.q1q2.memeAuteur, true);                    // pas deux déclarations indépendantes
+  const nuit = R.synthetiserJournee([rel('1', 'debut_q1', 'A', 'final', vals(1000, 0).map((v, i) => i === 2 ? Object.assign({}, v, { anomalie_nuit: 'a_justifier', ecart_nuit: 4 }) : Object.assign({}, v, { anomalie_nuit: 'conforme', ecart_nuit: 0 })))]);
+  assert.strictEqual(nuit.anomaliesTotal, 1);
+  assert.deepStrictEqual(nuit.parMoment.debut_q1[0].anomalies[0], { clef: '2-SP', code: 'a_justifier', ecart: 4 });
+  assert.strictEqual(R.synthetiserJournee(null).q1q2.complete, false);
+});
+t('journal piste : passation compteur par compteur, sans compensation, fail-closed', () => {
+  const C = R.CONFIG_PISTE_DEFAUT, A = {}, B = {};
+  [1, 2, 3, 4].forEach(p => ['SP', 'GO'].forEach(pr => { A[p + '-' + pr] = '0001000'; B[p + '-' + pr] = '0001000'; }));
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'conforme');
+  B['1-GO'] = '0001009';                                           // 9 L : toléré, sans alerte
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'tolere');
+  B['2-SP'] = '0000991';                                           // -9 L : pas de compensation avec +9
+  assert.strictEqual(R.comparerPassation(C, C, A, B, 'passation').etat, 'tolere');
+  B['3-GO'] = '0001010';                                           // 10 L : intervention
+  const p = R.comparerPassation(C, C, A, B, 'passation'), n = R.comparerPassation(C, C, A, B, 'nuit');
+  assert.strictEqual(p.etat, 'anomalie'); assert.strictEqual(p.niveau, 'orange'); assert.strictEqual(n.niveau, 'rouge');
+  assert.strictEqual(p.lignes.filter(l => l.etat === 'anomalie').length, 1);
+  const autre = JSON.parse(JSON.stringify(C)); autre.pompes[4].enService = false;
+  assert.strictEqual(R.comparerPassation(C, autre, A, B, 'nuit').etat, 'impossible');
+  assert.ok(/configuration des compteurs a changé/.test(R.comparerPassation(C, autre, A, B, 'nuit').raison));
+  const sansEchelle = Object.assign({}, C, { litresParUnite: null });
+  assert.strictEqual(R.comparerPassation(sansEchelle, sansEchelle, A, B, 'nuit').etat, 'impossible');
+  const trou = Object.assign({}, B); delete trou['4-GO'];
+  assert.strictEqual(R.comparerPassation(C, C, A, trou, 'nuit').etat, 'non_controle');
+  assert.strictEqual(R.comparerPassation(C, C, A, null, 'nuit').etat, 'non_controle');
+});
 console.log(n + '/' + n + ' réussies');

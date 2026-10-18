@@ -258,6 +258,7 @@ const NEXUS_PAGES_CONSULTATION = [
   'NEXUS-Rapport-v1.html',
   'NEXUS-Journal-v1.html',
   'NEXUS-Tracabilite-v1.html',
+  'NEXUS-Journal-Piste-v1.html',
   // Tâches administratives.
   'NEXUS-Planning-v1.html',
   'NEXUS-Assignations-v1.html',
