@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS : Relevés, contrôles des index et décisions</title>
+<title>NEXUS : Relevés, Contrôles des Index et Décisions</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -107,7 +107,7 @@
     const ouvertes = liste.filter(a => a.statut === 'ouverte'), closes = liste.filter(a => a.statut !== 'ouverte');
     $app.innerHTML =
       '<a class="retour" href="NEXUS-Carburants-Pilotage-v1.html">← Retour</a>' +
-      '<h1>Relevés, contrôles des index et décisions</h1>' +
+      '<h1>Relevés, Contrôles des Index et Décisions</h1>' +
       (erreur ? '<div class="bandeau">Lecture impossible : l\'état des contrôles n\'est pas connu. Rien n\'est présenté comme conforme.</div>' : '') +
       (!erreur && !evalOk ? '<div class="bandeau">Les contrôles n\'ont pas pu être recalculés à l\'instant ; ce qui suit peut dater de la dernière évaluation.</div>' : '') +
       '<h2>À traiter (' + ouvertes.length + ')</h2>' +
