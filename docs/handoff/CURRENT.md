@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE3-20261018/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE3-20261018/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: SECURITE-DEFINER-ETAPE3-20261018
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,6 +22,8 @@ preuves:
     valeur: 157-fichiers
 ---
 # SÉCURITÉ SECURITY DEFINER — Étape 3 : fermer l'exécution directe des 8 fonctions de trigger (TEST exclusivement)
+
+> **Cette request-2 remplace la request-1 du lot.** La request-1 (`715d50c0`) ne déclarait pas `wake_to` : le run « Tests » 39133597271 a donc sauté le relais vers l'arbitre (« aucun de ses échanges ne déclare `wake_to` »). Le contenu ci-dessous est identique à la request-1 ; seule change la déclaration `wake_to` (issue #28, comme dans le lot de l'étape 1). L'arbitre est prié de répondre à cette request-2 ; la request-1 n'a reçu aucune décision.
 
 Suite du lot `SECURITE-DEFINER-ETAPE1-20261018`, clos par decision-3 (`4c4a9fe0`, APPROVED, `closes: true`) après l'étape 1 (2 `REVOKE` anon) et l'étape 2 (17 `search_path = public, pg_temp`), toutes deux exécutées et vérifiées sur Test. Cette demande ne porte que sur l'**étape 3**. Les étapes 4 (`nexus_identifiant_de_connexion`) et 5 (report en Production), ainsi que les 24 autres fonctions `search_path=public`, auront chacune leur demande. **Aucun SQL d'écriture n'a été exécuté pour cette demande** ; seules des lectures de catalogue (SELECT) ont servi, sur Test et sur Production (lecture seule). Ni Production, ni migration de dépôt, ni fusion, ni `claude.yml`, ni modification des privilèges de `nexus_ci_recette`.
 
