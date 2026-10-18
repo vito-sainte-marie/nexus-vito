@@ -762,6 +762,23 @@
       },
       "prochaine_action": "GO distincts de Frederic ; apres 20261016230000.",
       "procedure": "docs/deploiement/promotion-releves-piste-production-20261017.md"
+    },
+    "20261018200000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Report en Production des etapes 2 et 3 du chantier SECURITY DEFINER : 17 ALTER FUNCTION ... SET search_path = public, pg_temp et 8 REVOKE EXECUTE sur des fonctions de trigger. Aucun objet cree, modifie ni supprime ; aucun code du candidat n'appelle ces fonctions de trigger. Une fonction de trigger ne consulte pas EXECUTE au declenchement. Les deux exceptions de permission sont preservees (nexus_identifiant_de_connexion garde EXECUTE pour anon, appelee avant l'authentification ; nexus_garde_regularisation_reception non touchee). L'etat additive_compatible_avant_code passerait a vide faute de matiere ; l'etat retenu exige donc une procedure. Deja applique et eprouve sur Test le 18/10/2026. Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production. Limitee au blob a33ad47844d0a01cafbbd492da670164b700b09b : un blob different fait tomber cette qualification.",
+      "procedure": "docs/deploiement/procedure-securite-definer-etape5-production-20261018.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-18T18:00:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "connecteur Supabase, begin read only ... rollback (lectures seules Production en AUTO, GO du 03/10)",
+        "identite_constatee": "postgres",
+        "lecture_seule": "on",
+        "verdict": "NON APPLIQUEE — registre 319, estampille absente ; les 17 fonctions portent search_path=public ; les 8 fonctions de trigger sont ouvertes a anon et authenticated ; nexus_identifiant_de_connexion garde EXECUTE pour anon ; nexus_garde_regularisation_reception fermee a anon.",
+        "blob_migration": "a33ad47844d0a01cafbbd492da670164b700b09b"
+      },
+      "prochaine_action": "GO distincts de Frederic : fusion, promotion, deploiement, puis application en Production par la procedure (apres constat humain de l'integration Supabase du tableau de bord)."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
