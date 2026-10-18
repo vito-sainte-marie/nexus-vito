@@ -585,13 +585,14 @@
       "consomme_le": "2026-10-17T13:13:47.074Z"
     },
     "JOURNAL-PISTE-20261017": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-2.md",
       "source_decision": "registre",
       "commit_decision": "8addcb2c477034b28fe4621f0ff22bd286362294",
-      "pris_en_charge_le": "2026-10-18T04:22:26.172Z"
+      "consomme_le": "2026-10-18T04:22:33.194Z",
+      "preuve_action": "9fd261f8d221f43d68c23f5e9795621972c698c7"
     }
   },
   "artefacts_hors_registre": [
