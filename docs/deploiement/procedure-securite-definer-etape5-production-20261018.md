@@ -60,3 +60,6 @@ alter function public.<nom>(<arguments>) set search_path = public;              
 grant execute on function public.<nom>() to public, anon, authenticated;                  -- x8
 delete from supabase_migrations.schema_migrations where version = '20261018200000';
 ```
+
+## Dérogation de cible de la PR #139 (arbitrage de Frédéric, 18/10/2026)
+La séquence de référence est « branche de travail → main → production → application SQL Production sous GO distinct ». `main` et `production` ont divergé (34 commits propres à `main`, 344 à la branche ; base `501c0c74`) : un diff vers `main` toucherait 609 fichiers avec environ 29 conflits, et `main` n'a ni la garde #70, ni l'épreuve d'empreinte, ni la fiche de qualification qui valident cette migration. Frédéric retient donc, pour ce seul lot (`SECURITE-DEFINER-ETAPE5-20261018`), que la PR #139 garde la cible `production`. Cette dérogation est exceptionnelle, limitée à cette migration, et n'autorise aucune fusion directe vers `production` en général ; la réconciliation `main`/`production` fera l'objet d'un chantier distinct. Elle n'autorise ni fusion, ni déploiement, ni application SQL Production, qui restent des GO distincts. La désactivation de « Deploy to production » (Supabase) doit être reconfirmée avant toute fusion.
