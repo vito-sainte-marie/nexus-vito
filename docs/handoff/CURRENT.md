@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE5-20261018/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE5-20261018/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: SECURITE-DEFINER-ETAPE5-20261018
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -19,63 +19,48 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 158-fichiers
-  - id: pr139-fusion
+  - id: exec-chatgpt
     classe: VERIFIED
-    valeur: a9ccf920808f9328e790e817dc10b433b61677e3
-  - id: arbitre-blocked
+    valeur: GO-cite-hors-session-heure-inconnue
+  - id: recette-prod
     classe: VERIFIED
-    valeur: issue28-run39149304247-STOP_REQUIRED-SUPABASE_PRODUCTION_MUTATION
-  - id: prod-lecture-seule
-    classe: VERIFIED
-    valeur: registre319-estampille-absente-2026-10-18
+    valeur: registre320-17-search_path-8-revoke-18x42501-login-ok-fonctionnel-annule-ok
 ---
-# DEMANDE DE DÉCISION HUMAINE — Mutation Supabase PRODUCTION (SECURITE-DEFINER-ETAPE5-20261018)
+# SÉCURITÉ SECURITY DEFINER — Étape 5 : preuves d'exécution en Production (SECURITE-DEFINER-ETAPE5-20261018)
 
-À : Frédéric (palier `SUPABASE_PRODUCTION_MUTATION`). Rédigée le 18/10/2026 par Claude. **Aucune écriture Production n'a eu lieu.** Cette demande ne vaut pas GO d'exécution.
+Suite de `decision-1.md` (humaine, Frédéric Bragance, APPROVED_WITH_CONDITIONS, closes:false). Cette demande **consigne** l'exécution et la recette ; elle n'ouvre aucune nouvelle opération. Aucun déploiement, aucune gate Pages approuvée.
 
-## Liens et nature de ce dépôt
-- Fait suite à `request-1.md` du même lot (rail `c4c1ad14`), que l'arbitre a classée `BLOCKED`, motif `SUPABASE_PRODUCTION_MUTATION` (issue #28, run 39149304247). Cette décision de l'arbitre est conservée telle quelle.
-- PR #139 fusionnée au commit `a9ccf920808f9328e790e817dc10b433b61677e3` (branche `production`).
-- **Le dépôt de cette demande n'est pas une décision.** Il ne vaut ni `APPROVED_WITH_CONDITIONS`, ni approbation de principe, ni GO d'exécution. La décision doit provenir explicitement de Frédéric, attribuée à l'autorité humaine (jamais à l'arbitre ChatGPT).
-- Deux gestes distincts : (1) approbation humaine de principe, matérialisée par une decision sur le rail ; (2) GO d'exécution SQL, donné séparément. Ni l'un ni l'autre n'est donné ici ; aucun déploiement ni approbation de la gate Pages.
+## Provenance de l'exécution (à lire d'abord)
+La transaction SQL Production a été exécutée par **ChatGPT, à la demande de Frédéric**, hors de la session de Claude. Claude ne l'a pas exécutée et n'a pas reçu de GO d'exécution. Le GO cité par ChatGPT : « Caisses sécurisées, GO SQL Production étape 5. » Heure exacte de la transaction : **inconnue** (à chercher dans les journaux Supabase si nécessaire). Compte rendu de ChatGPT : transaction unique, `lock_timeout` 5 s, `statement_timeout` 45 s, verrou advisory `hashtext('securite_definer_etape5')`, gardes DO, corps de la migration `20261018200000` (blob `a33ad478…`), INSERT au registre, COMMIT.
 
-## Pourquoi vous
-L'arbitre a rendu `BLOCKED` / `STOP_REQUIRED: SUPABASE_PRODUCTION_MUTATION` (issue #28, run 39149304247, request-1 rail `c4c1ad14`). Il ne peut pas franchir ce palier : la décision doit être humaine, matérialisée sur le rail.
+## Preuve des conditions de decision-1
+1. GO d'exécution distinct daté : cité par ChatGPT (voir ci-dessus), non reçu ni vérifié par Claude ; date/heure non établies.
+2. « Deploy to production » éteint : constaté par la capture d'écran de Frédéric (Supabase Integrations, Production).
+3. Relevé préalable : fourni par ChatGPT avant exécution (gardes DO dans la transaction) ; écart de décompte 25 vs 19 signalé ci-dessous.
+4. Fenêtre hors clôture de caisse : non vérifiée par Claude (heure inconnue).
+5. Aucune gate Pages ni déploiement : aucune approbation donnée ; run Pages en `waiting`.
+6. Compte rendu des épreuves : ci-dessous ; connexion réelle à constater par Frédéric.
 
-## Ce qu'il s'agit d'autoriser (et rien d'autre)
-Dans une seule transaction sur Production `uzhjpqpctpvxytxpxoqz` :
-- 17 × `ALTER FUNCTION … SET search_path = public, pg_temp`
-- 8 × `REVOKE EXECUTE … FROM public, anon, authenticated` (fonctions de trigger uniquement)
-- 1 × `INSERT` dans `supabase_migrations.schema_migrations` : `20261018200000` / `securite_definer_search_path_et_triggers_fermes`
+## Recette post-exécution (Claude, GO de Frédéric « GO pour la recette post-exécution »)
+Lectures seules et blocs annulés (`raise exception`), aucune écriture durable.
+1. Registre : 320 lignes, `20261018200000` présente une fois.
+2. Les 17 fonctions de la migration sont à `search_path=public, pg_temp` (liste identique à la migration) ; 0 SECURITY DEFINER sans `search_path`.
+3. Les 8 fonctions de trigger : ACL `{postgres=X/postgres,service_role=X/postgres}` ; 0 fonction de trigger SECURITY DEFINER ouverte à `anon`.
+4. 9 triggers liés, tous `tgenabled=O`.
+5. Appel direct sous `anon` et `authenticated` des 8 fonctions + `nexus_garde_regularisation_reception` : 18 combinaisons, 18 × `42501`.
+6. Connexion sous `anon` : `nexus_identifiant_de_connexion(prénom)` d'un compte actif unique renvoie le `username` attendu (booléen seulement ; aucun PIN ni identifiant consigné). ACL inchangée `{postgres,anon,authenticated,service_role}`.
+7. Fonctionnel sous `authenticated` (pompiste d'un site réel, bloc annulé) : insertion `shifts` OK (trigger `nexus_forcer_site_unique`) ; insertion `inventaire_mouvements` OK (trigger `flag_mouvement_non_justifie`). Rien conservé.
+8. Exceptions préservées : `nexus_garde_regularisation_reception()` fermée à `anon` (ACL `{postgres,service_role}`) ; `run_scheduled_inventory_reviews()` ACL `{postgres}`.
+9. Job `nexus-inventaire-reviews` : 12 passages `succeeded` sur 3 h, dernier 21:00:00 UTC ; **postériorité à la transaction non établie** (heure inconnue).
 
-Exclusions : `nexus_identifiant_de_connexion(text)` reste exécutable par `anon` (decision humaine `799e0401`) ; `nexus_garde_regularisation_reception()` et `run_scheduled_inventory_reviews()` non touchées ; aucun GRANT, DROP, CREATE OR REPLACE, ni DDL de table.
+## Écarts et points à connaître
+- La condition 3 parlait de 25 fonctions ; le périmètre réel relevé est de 17 modifiées + 2 exclues = 19. Écart de décompte, pas de dérive constatée.
+- Sur Test, l'appel direct de `nexus_garde_regularisation_reception` sous `authenticated` donnait `0A000` ; sur Production l'ACL ne comprend pas `authenticated`, donc `42501`. Comportement plus fermé, ACL non modifiée par l'étape 5.
+- 21 autres fonctions SECURITY DEFINER restent à `search_path=public` (hors périmètre).
+- Non constaté par Claude : la **connexion réelle** d'un employé, à constater par Frédéric (condition 6).
 
-## État constaté (lecture seule, après fusion)
-- #139 fusionnée (`a9ccf920`, 18:52Z) ; fichier de migration présent sur `production`, blob `a33ad478…`, 4 fichiers au diff ; fiche de qualification et procédure en place.
-- CI sur `a9ccf920` : Tests, Construire et éprouver l'artefact, non-regression = success ; Supabase Preview = skipped.
-- Run Pages 39156144136 : `waiting` (gate humaine non approuvée) ; rien de publié.
-- Production : registre 319, estampille `20261018200000` absente, 17 fonctions à `search_path=public`, fonctions de trigger ouvertes à `anon`.
-- Désactivation de « Deploy to production » (Supabase) : constatée par vous, reconfirmation demandée avant exécution.
+## Hors de cette demande
+Gate Pages / déploiement (GO séparé), réconciliation main/production, suppression de l'oracle de connexion, 21 autres fonctions.
 
-## Garanties de la procédure
-`docs/deploiement/procedure-securite-definer-etape5-production-20261018.md` : verrou advisory, gardes (version absente, 17 à `{search_path=public}`, 8 ouvertes, exception login et garde de régularisation vérifiées), corps du fichier octet pour octet, inscription au registre dans la même transaction ; 10 épreuves après ; retour arrière écrit. Prouvé sur Test aux étapes 2 et 3 (6 épreuves, 16 refus `42501`, 9 triggers actifs, job `nexus-inventaire-reviews` succeeded).
-
-## Risques résiduels
-1. Un appel direct d'une des 8 fonctions hors dépôt (aucun indice : zéro occurrence dans `rpc(`) échouerait en `42501`.
-2. Estampille au registre erronée : parade = version relue sur le fichier avant insertion.
-3. Oracle prénom → identifiant : conservé, accepté.
-4. Mécanisme automatique hors dépôt non exclu formellement.
-5. Écart assumé : `main` n'a pas la migration (chantier de réconciliation distinct).
-
-## Conditions proposées si vous approuvez
-1. Votre GO d'exécution distinct, daté, après relecture du rail.
-2. Reconfirmation visuelle que « Deploy to production » est éteint.
-3. Relevé préalable complet (ACL et `proconfig` des 25 fonctions, 9 triggers, job, registre = 319) ; tout écart → arrêt et retour vers vous.
-4. Fenêtre hors clôture de caisse.
-5. Aucune approbation de la gate Pages, aucun déploiement, dans ce périmètre.
-6. Compte rendu des 10 épreuves ; la connexion réelle est constatée par vous (je ne saisis ni PIN ni identifiants).
-
-## Formulation de décision proposée (suggestion non engageante, à reprendre ou modifier par Frédéric)
-> DECISION: APPROVED_WITH_CONDITIONS — le report en Production décrit ci-dessus est autorisé sous les conditions 1 à 6. Cette décision n'est pas un GO d'exécution ; celui-ci sera donné séparément. CLOSES: false. OWNER: Frédéric.
-
-Variantes : `REJECTED` (rien n'est appliqué, Production reste à l'état actuel) ; `APPROVED_WITH_CONDITIONS` avec conditions modifiées.
+## Question
+Constatez-vous que les conditions de decision-1 sont remplies, sous réserve de la connexion réelle par Frédéric ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED, avec `closes`.
