@@ -623,9 +623,13 @@
       "consomme_le": "2026-10-18T17:22:28.782Z"
     },
     "SECURITE-DEFINER-ETAPE5-20261018": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "e6566b4eecb7d66a360d4e274b5a0087df990872",
+      "pris_en_charge_le": "2026-10-18T19:11:56.830Z"
     }
   },
   "artefacts_hors_registre": [
