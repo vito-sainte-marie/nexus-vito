@@ -93,8 +93,15 @@
     const ids = [...new Set([...parReleve.values()].map(x => x.par).filter(Boolean))];
     const noms = {};
     if (ids.length) { const e = await nexusClient.from('employees').select('id,nom').in('id', ids); (e.data || []).forEach(x => { noms[x.id] = x.nom; }); }
-    const recopies = [...parReleve.values()].slice(0, 10);
-    const erreur = alertes.error || quals.error;
+    const recopies = [...parReleve.entries()].slice(0, 10).map(([id, x]) => Object.assign({ id: id }, x));
+    // Total de compteurs de chaque relevé (recopiés ou non) : sans lui, 3 sur 8 se lit comme une recopie complète.
+    const totaux = {};
+    let totauxOk = true;
+    if (recopies.length) {
+      const t = await nexusClient.from('carburant_index_valeurs').select('releve_id').eq('site', emp.site_id).in('releve_id', recopies.map(x => x.id));
+      if (t.error) totauxOk = false; else (t.data || []).forEach(v => { totaux[v.releve_id] = (totaux[v.releve_id] || 0) + 1; });
+    }
+    const erreur = alertes.error || quals.error || recop.error;
     const tz = site.data && site.data.fuseau_horaire;
     const liste = alertes.data || [], q = quals.data || [];
     const ouvertes = liste.filter(a => a.statut === 'ouverte'), closes = liste.filter(a => a.statut !== 'ouverte');
@@ -106,9 +113,13 @@
       '<h2>À traiter (' + ouvertes.length + ')</h2>' +
       (ouvertes.length ? ouvertes.map(a => carteAlerte(a, q, tz)).join('') : '<div class="card vide">' + (erreur ? 'État inconnu.' : 'Aucune alerte ouverte.') + '</div>') +
       (closes.length ? '<h2>Historique</h2>' + closes.map(a => carteAlerte(a, q, tz)).join('') : '') +
-      (recopies.length ? '<h2>Recopies Decenium déclarées</h2><div class="card">' + recopies.map(x =>
-        '<div class="note" style="margin:0 0 6px;">Recopie Decenium déclarée par ' + esc(noms[x.par] || 'un employé') + ' à ' + esc(fmtHeure(x.le, tz)) + ' (' + x.n + ' compteur' + (x.n > 1 ? 's' : '') + ')</div>').join('') +
-        '<div class="note">Déclaration humaine : NEXUS ne compare pas avec Decenium.</div></div>' : '') +
+      '<h2>Recopies Decenium déclarées</h2><div class="card">' + (recopies.length ? recopies.map(x => {
+        const tot = totaux[x.id];
+        const incomplete = totauxOk && tot && x.n < tot;
+        const detail = !totauxOk || !tot ? x.n + ' compteur' + (x.n > 1 ? 's' : '') + ', total non vérifié' : x.n + '/' + tot + ' compteurs' + (incomplete ? ' : recopie incomplète' : '');
+        return '<div class="note" style="margin:0 0 6px;' + (incomplete ? 'color:var(--amber);' : '') + '">Recopie Decenium déclarée par ' + esc(noms[x.par] || 'un employé') + ' à ' + esc(fmtHeure(x.le, tz)) + ' (' + esc(detail) + ')</div>';
+      }).join('') + '<div class="note">Déclaration humaine : NEXUS ne compare pas avec Decenium.</div>'
+        : '<div class="note" style="margin:0">' + (erreur ? 'État inconnu : lecture impossible.' : 'Aucune recopie Decenium déclarée.') + '</div>') + '</div>' +
       '<div class="note">Ce journal compare des relevés entre eux. Il n\'affiche aucun total de ventes et n\'évalue aucune personne.</div>';
   }
 
