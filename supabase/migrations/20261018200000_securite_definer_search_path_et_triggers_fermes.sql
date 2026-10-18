@@ -1,0 +1,26 @@
+-- Étape 5 : report en Production des étapes 2 et 3 (DDL pur, idempotent)
+alter function public.carburant_resoudre_prix_achat_snapshot() set search_path = public, pg_temp;
+alter function public.current_employee_role() set search_path = public, pg_temp;
+alter function public.current_employee_site_id() set search_path = public, pg_temp;
+alter function public.est_pompiste_du_jour(text) set search_path = public, pg_temp;
+alter function public.est_receptionniste_livraison_du_jour(text, date) set search_path = public, pg_temp;
+alter function public.fdj_sync_releve_apres_cash_control() set search_path = public, pg_temp;
+alter function public.fdj_tracer_correction_stock_initial() set search_path = public, pg_temp;
+alter function public.flag_modification_apres_validation() set search_path = public, pg_temp;
+alter function public.flag_mouvement_non_justifie() set search_path = public, pg_temp;
+alter function public.je_suis_createur() set search_path = public, pg_temp;
+alter function public.nexus_clients_ecriture_ok(text) set search_path = public, pg_temp;
+alter function public.nexus_clients_lecture_ok(text) set search_path = public, pg_temp;
+alter function public.nexus_forcer_site_unique() set search_path = public, pg_temp;
+alter function public.nexus_identifiant_de_connexion(text) set search_path = public, pg_temp;
+alter function public.nexus_inventaire_detecter_conditionnement() set search_path = public, pg_temp;
+alter function public.nexus_site_de_reference(text, text) set search_path = public, pg_temp;
+alter function public.nexus_site_supprimable() set search_path = public, pg_temp;
+revoke execute on function public.carburant_resoudre_prix_achat_snapshot() from public, anon, authenticated;
+revoke execute on function public.fdj_sync_releve_apres_cash_control() from public, anon, authenticated;
+revoke execute on function public.fdj_tracer_correction_stock_initial() from public, anon, authenticated;
+revoke execute on function public.flag_modification_apres_validation() from public, anon, authenticated;
+revoke execute on function public.flag_mouvement_non_justifie() from public, anon, authenticated;
+revoke execute on function public.nexus_forcer_site_unique() from public, anon, authenticated;
+revoke execute on function public.nexus_inventaire_detecter_conditionnement() from public, anon, authenticated;
+revoke execute on function public.nexus_site_supprimable() from public, anon, authenticated;
