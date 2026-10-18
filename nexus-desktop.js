@@ -98,6 +98,10 @@ const NEXUS_SIDEBAR_GROUPES = [
       // dirigeant, juste après le Relevé du jour — même position relative
       // que FDJ Performance après FDJ Opérations.
       { label: 'Carburants Performance', href: 'NEXUS-Carburants-Pilotage-v1.html', icon: null, emoji: '📈', desc: 'Analyse volumes, autonomie, écarts et tendances carburant.' },
+      // Journal Piste (17/10/2026, demande de Frédéric) : relevés, contrôles et
+      // décisions de la piste. Un point rouge clignotant signale une alerte
+      // ouverte (voir nexusVerifierAlertesPiste()).
+      { label: 'Journal Piste', href: 'NEXUS-Journal-Piste-v1.html', icon: null, emoji: '📒', desc: 'Relevés, contrôles et décisions de la piste.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
       // remplace l'ancienne icon-inventaire.png — même icône réutilisée sur
       // Contrôle inventaire juste en dessous (même domaine, cf. Article 11).
@@ -380,6 +384,31 @@ async function nexusVerifierAlertesFdj() {
   } catch (e) { console.error('Vérification alertes FDJ (sidebar):', e); }
 }
 
+// Alerte Journal Piste (17/10/2026, demande de Frédéric) : même point rouge
+// clignotant que la FDJ dès qu'une alerte est « ouverte ». La RLS ne montre
+// ces alertes qu'aux managers/gérants de leur site : pour tout autre rôle le
+// décompte est 0 et rien ne s'affiche. Une erreur (table absente, réseau)
+// laisse le point éteint : jamais bloquant, et jamais un faux « tout va bien »
+// affiché — l'absence de point ne dit rien de plus que l'absence de lecture.
+async function nexusVerifierAlertesPiste() {
+  try {
+    if (typeof nexusClient === 'undefined') return;
+    const { data: { session } } = await nexusClient.auth.getSession();
+    if (!session) return;
+    const { data: employee, error: eEmp } = await nexusClient.from('employees').select('site_id').eq('id', session.user.id).maybeSingle();
+    if (eEmp || !employee) return;
+    const { count, error } = await nexusClient.from('carburant_index_alertes')
+      .select('id', { count: 'exact', head: true }).eq('site', employee.site_id).eq('statut', 'ouverte');
+    if (error || !count) return;
+    const lien = document.querySelector('.nexus-sidebar-link[href="NEXUS-Journal-Piste-v1.html"]');
+    if (!lien || lien.querySelector('.nexus-sidebar-dot')) return;
+    const dot = document.createElement('span');
+    dot.className = 'nexus-sidebar-dot';
+    dot.title = `${count} alerte${count > 1 ? 's' : ''} piste à examiner`;
+    lien.appendChild(dot);
+  } catch (e) { console.error('Vérification alertes Journal Piste (sidebar):', e); }
+}
+
 // Curseur de défilement custom du menu (13/08/2026, v2 — voir commentaire
 // CSS .nexus-sidebar-curseur-track ci-dessus pour le pourquoi). Piste
 // positionnée en JS pour rester calée exactement sur .nexus-sidebar-scroll
@@ -545,6 +574,7 @@ function nexusInitVueBureau() {
     nexusInstallerTooltipsSidebar();
     nexusInstallerReplisIconesSidebar();
     nexusVerifierAlertesFdj();
+    nexusVerifierAlertesPiste();
   } else {
     const bouton = document.createElement('button');
     bouton.type = 'button';
