@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE3-20261018/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE4-20261018/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: SECURITE-DEFINER-ETAPE3-20261018
-seq: 3
+lot_id: SECURITE-DEFINER-ETAPE4-20261018
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,31 +21,51 @@ preuves:
     classe: VERIFIED
     valeur: 157-fichiers
 ---
-# SÉCURITÉ SECURITY DEFINER — Étape 3 : preuves d'exécution des 8 REVOKE (TEST exclusivement)
+# SÉCURITÉ SECURITY DEFINER — Étape 4 : `nexus_identifiant_de_connexion(text)` doit rester exécutable par `anon` (aucun SQL, TEST et PRODUCTION lus seulement)
 
-Suite de decision-1 (`a4fa9ba4`, humaine, APPROVED_WITH_CONDITIONS) et du GO d'exécution distinct donné par Frédéric le 18/10/2026. Cette demande **consigne** l'exécution et ses preuves ; elle n'ouvre aucune nouvelle opération. Ni Production, ni GRANT, ni autre modification de schéma, ni étapes 4 et 5.
+Suite des étapes 1 à 3 (closes). Cette demande ne propose **aucune écriture** : elle demande de constater qu'un `REVOKE … FROM anon` sur cette fonction est **impossible** sans casser la connexion, et de clore l'étape 4 comme **exception documentée**. Seules des lectures de catalogue (SELECT) sur Test et Production et une lecture du code du dépôt ont servi aux mesures. Ni Production, ni GRANT/REVOKE, ni migration, ni fusion, ni `claude.yml`.
 
-## Preuve des conditions de decision-1
-- Rail relu : tête `a4fa9ba4`, decision-1 présente, aucune décision contraire.
-- ACL et signatures relues sur Test avant exécution : les 8 fonctions SECURITY DEFINER, propriétaire postgres, `search_path=public, pg_temp`, ACL `{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}`. Garde SQL de précondition dans la transaction (8 fonctions conformes, sinon abandon).
-- SQL exécuté = les 8 instructions de request-2, `revoke execute on function public.<nom>() from public, anon, authenticated;`, en une seule transaction.
+## Constat mesuré
 
-## Exécution (18/10/2026, ~15:34 UTC, Supabase Test `udljdqxerrbbbajxubfn`)
-Les 8 : carburant_resoudre_prix_achat_snapshot, fdj_sync_releve_apres_cash_control, fdj_tracer_correction_stock_initial, flag_modification_apres_validation, flag_mouvement_non_justifie, nexus_forcer_site_unique, nexus_inventaire_detecter_conditionnement, nexus_site_supprimable.
+**Fonction (Test)** : `public.nexus_identifiant_de_connexion(p_prenom text) returns text`, SQL, STABLE, SECURITY DEFINER, propriétaire `postgres`, `search_path=public, pg_temp` (étape 2). ACL `{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}` : `PUBLIC` n'y figure pas, `anon` si. Corps :
 
-## Les six épreuves
-1. Droits : les 8 ont ACL `{postgres=X/postgres,service_role=X/postgres}` ; EXECUTE public/anon/authenticated faux, service_role vrai ; SECURITY DEFINER, propriétaire postgres et `search_path=public, pg_temp` inchangés.
-2. Triggers : 9 triggers liés, tous `tgenabled=O`.
-3. Fonctionnel sous `authenticated` (pompiste de nexus-station-test, blocs annulés) : insertion `shifts` OK (trigger nexus_forcer_site_unique) ; insertion `inventaire_mouvements` OK (trigger flag_mouvement_non_justifie). Rien conservé.
-4. Appel direct des 8 sous anon et sous authenticated : 16 refus `42501`.
-5. Job `nexus-inventaire-reviews` : passage `succeeded` à 15:45:00 UTC, postérieur à l'opération (15:30 avant, 15:45 après).
-6. Comptes : triggers SECDEF ouverts à anon 8→0 ; fermés aux deux rôles 13→21. `nexus_garde_regularisation_reception` inchangée : fermée à anon, ouverte à authenticated (appel direct sous authenticated : `0A000`, « appelable seulement comme trigger », comportement attendu et préexistant ; le `42501` cité en postcondition vaut pour anon).
+```sql
+select case when count(*) = 1 then min(e.username) end
+from public.employees e
+where (e.actif = true or e.compte_test = true)
+  and lower(btrim(e.nom)) = lower(btrim(coalesce(p_prenom, '')));
+```
 
-## Anomalie
-Aucune. Pas de retour arrière appliqué (retour arrière prévu : `grant execute on function public.<nom>() to public, anon, authenticated;`).
+Elle renvoie le `username` d'un compte quand le prénom saisi désigne **exactement un** compte actif (ou de test), sinon `NULL`. Aucune autre colonne, aucune liste.
 
-## Hors de cette demande
-Étape 4 (`nexus_identifiant_de_connexion`), étape 5 (report en Production avec migration de dépôt), les 24 autres fonctions `search_path=public`. Écart Test–Production assumé jusqu'à l'étape 5.
+**Production (lecture seule)** : même signature, SECURITY DEFINER, `postgres`, `search_path=public` (pas encore `pg_temp`), même ACL (`anon`, `authenticated`, `service_role`). La fonction existe : l'absence relevée dans `procedure-migration-login-production.md` est donc résorbée.
+
+**Appelants (dépôt)** : un seul appel applicatif, `NEXUS-Login-v1.html` ligne 146 (`origin/production` et rail), `client.rpc("nexus_identifiant_de_connexion", { p_prenom: prenom })`, exécuté **avant** `signInWithPassword`, donc **sous le rôle `anon`**. Aucune politique RLS ni autre fonction ne la cite (catalogue Test). Le commentaire du fichier explique le choix : elle a **remplacé** une vue lisible en anonyme qui rendait l'annuaire complet (migration `20260904175747_login_non_enumerable`).
+
+## Conséquence
+
+Retirer `EXECUTE` à `anon` ferait échouer l'appel (`42501`), le front tomberait dans `lookupError` et afficherait « Connexion au serveur impossible » : **plus personne ne pourrait se connecter**. La fermeture que visaient les étapes 1 et 3 n'est pas applicable ici.
+
+## Risque résiduel (accepté, non corrigé par cette étape)
+
+Un visiteur muni de la clé publiable peut tester des prénoms et obtenir le `username` correspondant quand il est unique. C'est un oracle d'existence prénom → identifiant, strictement moins grave que la vue d'annuaire remplacée (pas de liste, pas de rôle ni de site), mais réel. Le `username` seul ne donne pas accès : le PIN reste exigé par Supabase Auth. Pas de limitation de débit propre à la fonction.
+
+## SQL proposé
+
+**Aucun.** `search_path=public, pg_temp` est déjà posé sur Test (étape 2) ; son report en Production relève de l'étape 5.
+
+## Préconditions / postconditions
+
+Rien à exécuter, donc rien à vérifier après. Pour l'étape 5, garder cette fonction **hors de tout REVOKE** et l'inclure seulement dans l'`ALTER FUNCTION … SET search_path = public, pg_temp` ; épreuve à prévoir alors : appel sous `anon` d'un prénom connu, unique, renvoie son `username`.
+
+## Retour arrière
+
+Sans objet.
+
+## Ce qui reste hors de cette demande
+
+Suppression de l'oracle (déplacer la résolution prénom → identifiant dans une Edge Function avec limitation de débit, ou connexion par identifiant explicite) : changement de front et de back, demande séparée si souhaitée. Étape 5 (report en Production), les 24 autres fonctions `search_path=public`.
 
 ## Question d'arbitrage
-Constatez-vous que les conditions de decision-1 sont remplies et clôturez-vous l'étape 3 ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED, avec `closes`.
+
+Constatez-vous que `nexus_identifiant_de_connexion(text)` doit rester exécutable par `anon` (exception documentée : appelée avant authentification par l'écran de connexion), et clôturez-vous l'étape 4 sans modification de droits ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED, avec `closes`.
