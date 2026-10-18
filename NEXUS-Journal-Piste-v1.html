@@ -82,11 +82,18 @@
     // Réévaluation idempotente (site déduit de l'appelant côté serveur) ; échec non bloquant.
     let evalOk = true;
     try { const r = await nexusClient.rpc('evaluer_controles_piste'); if (r.error) evalOk = false; } catch (e) { evalOk = false; }
-    const [alertes, quals, site] = await Promise.all([
+    const [alertes, quals, site, recop] = await Promise.all([
       nexusClient.from('carburant_index_alertes').select('*').eq('site', emp.site_id).order('ouverte_le', { ascending: false }).limit(60),
       nexusClient.from('carburant_index_qualifications').select('*').eq('site', emp.site_id).limit(300),
       nexusClient.from('station_config').select('fuseau_horaire').eq('site', emp.site_id).maybeSingle(),
+      nexusClient.from('carburant_index_valeurs').select('releve_id,recopiee_le,recopiee_par').eq('site', emp.site_id).eq('recopiee', true).order('recopiee_le', { ascending: false }).limit(200),
     ]);
+    const parReleve = new Map();
+    (recop.data || []).forEach(v => { if (!parReleve.has(v.releve_id)) parReleve.set(v.releve_id, { le: v.recopiee_le, par: v.recopiee_par, n: 0 }); parReleve.get(v.releve_id).n++; });
+    const ids = [...new Set([...parReleve.values()].map(x => x.par).filter(Boolean))];
+    const noms = {};
+    if (ids.length) { const e = await nexusClient.from('employees').select('id,nom').in('id', ids); (e.data || []).forEach(x => { noms[x.id] = x.nom; }); }
+    const recopies = [...parReleve.values()].slice(0, 10);
     const erreur = alertes.error || quals.error;
     const tz = site.data && site.data.fuseau_horaire;
     const liste = alertes.data || [], q = quals.data || [];
@@ -99,6 +106,9 @@
       '<h2>À traiter (' + ouvertes.length + ')</h2>' +
       (ouvertes.length ? ouvertes.map(a => carteAlerte(a, q, tz)).join('') : '<div class="card vide">' + (erreur ? 'État inconnu.' : 'Aucune alerte ouverte.') + '</div>') +
       (closes.length ? '<h2>Historique</h2>' + closes.map(a => carteAlerte(a, q, tz)).join('') : '') +
+      (recopies.length ? '<h2>Recopies Decenium déclarées</h2><div class="card">' + recopies.map(x =>
+        '<div class="note" style="margin:0 0 6px;">Recopie Decenium déclarée par ' + esc(noms[x.par] || 'un employé') + ' à ' + esc(fmtHeure(x.le, tz)) + ' (' + x.n + ' compteur' + (x.n > 1 ? 's' : '') + ')</div>').join('') +
+        '<div class="note">Déclaration humaine : NEXUS ne compare pas avec Decenium.</div></div>' : '') +
       '<div class="note">Ce journal compare des relevés entre eux. Il n\'affiche aucun total de ventes et n\'évalue aucune personne.</div>';
   }
 

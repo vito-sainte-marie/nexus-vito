@@ -23,3 +23,7 @@ ok('page sans total de ventes ni classement par personne', () => {
   const h = fs.readFileSync(__dirname + '/NEXUS-Journal-Piste-v1.html', 'utf8');
   assert.ok(!/total des ventes|classement|score|pompiste_id|filtre/i.test(h));
 });
+ok('attestation Decenium au bon libellé', () => {
+  const h = fs.readFileSync(__dirname + '/NEXUS-Journal-Piste-v1.html', 'utf8');
+  assert.ok(h.includes('Recopie Decenium déclarée par') && h.includes("'recopiee_le"));
+});
