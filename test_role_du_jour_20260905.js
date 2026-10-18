@@ -176,9 +176,11 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
     }
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
+  // 60 + 2 le 17/10/2026 : garde de rôle manager/gérant de NEXUS-Journal-Piste-v1.html et de la
+  // vue manager de NEXUS-Releves-Piste-v1.html (lot JOURNAL-PISTE-20261017). Les deux lisent la fiche employé.
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 60 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 60);
+    `${permissions === 62 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 62);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));
