@@ -342,13 +342,14 @@ function creerClientMock(reponses) {
       'let jaugeageCarburantActif = false;',
       'let statutJaugeageJour = null;',
       'let quartActuel = null;',
+      'let quartDuShift = null;',
       'let zoneActive = null;',
       "let employeeCourant = { site_id: 'vito-sainte-marie' };",
       "function dateISO() { return '2026-08-19'; }",
       extraireFonction2('chargerJaugeageCarburantActif'),
       extraireFonction2('resoudreJaugeageCarburant'),
       `globalThis.__test = {
-        setEnv: (env) => { quartActuel = env.quartActuel; zoneActive = env.zoneActive; },
+        setEnv: (env) => { quartActuel = env.quartActuel; quartDuShift = env.quartDuShift || null; zoneActive = env.zoneActive; },
         resoudreJaugeageCarburant,
         lire: () => ({ jaugeageCarburantActif, statutJaugeageJour }),
       };`,
@@ -394,6 +395,29 @@ function creerClientMock(reponses) {
     await T.resoudreJaugeageCarburant();
     const etat = T.lire();
     assert.strictEqual(etat.jaugeageCarburantActif, true, 'La condition est désormais la zone, pas le rôle : un manager en zone piste voit le bloc');
+  });
+
+  await testAsync('resoudreJaugeageCarburant : horloge soir MAIS service du matin + piste + flag actif -> visible (anomalie du 18/10 : lien accueil sans carte)', async () => {
+    const { T, appelsStatutJour } = creerContexteResolution({ jaugeageActifSite: true, statutJour: null });
+    T.setEnv({ quartActuel: 'soir', quartDuShift: 'matin', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    assert.strictEqual(T.lire().jaugeageCarburantActif, true);
+    assert.strictEqual(appelsStatutJour.length, 1);
+  });
+
+  await testAsync('resoudreJaugeageCarburant : horloge soir ET service du soir -> invisible (aucun élargissement)', async () => {
+    const { T, appelsStationConfig } = creerContexteResolution({ jaugeageActifSite: true, statutJour: null });
+    T.setEnv({ quartActuel: 'soir', quartDuShift: 'soir', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    assert.strictEqual(T.lire().jaugeageCarburantActif, false);
+    assert.strictEqual(appelsStationConfig.length, 0);
+  });
+
+  await testAsync('resoudreJaugeageCarburant : service du matin mais zone boutique -> invisible', async () => {
+    const { T } = creerContexteResolution({ jaugeageActifSite: true, statutJour: null });
+    T.setEnv({ quartActuel: 'soir', quartDuShift: 'matin', zoneActive: 'boutique' });
+    await T.resoudreJaugeageCarburant();
+    assert.strictEqual(T.lire().jaugeageCarburantActif, false);
   });
 
   await testAsync('resoudreJaugeageCarburant : quart matin + zone boutique -> invisible, aucune lecture Supabase (ni station_config ni statut jour)', async () => {
