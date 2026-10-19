@@ -623,14 +623,14 @@
       "consomme_le": "2026-10-18T17:22:28.782Z"
     },
     "SECURITE-DEFINER-ETAPE5-20261018": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "e6566b4eecb7d66a360d4e274b5a0087df990872",
-      "consomme_le": "2026-10-18T21:24:43.050Z",
-      "arret": "request-3.md"
+      "commit_decision": "851f31bdf340e7e030f788abb516941edde7a53a",
+      "arret": "request-3.md",
+      "pris_en_charge_le": "2026-10-19T21:27:10.529Z"
     }
   },
   "artefacts_hors_registre": [
