@@ -342,6 +342,9 @@
   .outil-quart-titre{font-size:13px; font-weight:600;}
   .outil-quart-desc{font-size:10px; color:var(--text-mid); margin-top:3px; line-height:1.35;}
   body.nexus-desktop .outils-quart-grid{grid-template-columns:repeat(4,1fr);}
+  /* Une tuile seule sur la dernière ligne (5 tuiles avec le relevé d’index) occupe toute la largeur. */
+  .outils-quart-grid > .outil-quart-card:last-child:nth-child(odd){grid-column:1 / -1;}
+  body.nexus-desktop .outils-quart-grid > .outil-quart-card:last-child:nth-child(odd){grid-column:auto;}
 
   /* Ma progression — teaser léger uniquement (points du jour, lecture
      seule) : le calcul réel des séries/paliers, qui écrit des badges,
@@ -1346,6 +1349,7 @@
 <script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
+<script src="nexus-releves-piste.js?v=20261013-2212"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <!-- nexus-verify-moteur.js (20/09/2026, P0-3, lot NEXUS-CONTINUITE-TERRAIN-1) :
      chargerControlesVerifyRestants (nexus-conseiller-donnees.js) délègue
@@ -2052,11 +2056,12 @@
   // fantôme. Jaugeage ajouté le 20/08/2026 (cadrage rôle) : un pompiste au
   // Q1 avec le pont activé voit son jaugeage compté ici, au même titre
   // qu'Inventaire/FDJ le sont pour les autres rôles.
-  function calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait) {
+  function calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait) {
     const items = [];
     if (inventaireApplicable) items.push(!!inventaireFait);
     if (fdjApplicable) items.push(!!fdjFait);
     if (jaugeageApplicable) items.push(!!jaugeageFait);
+    if (indexApplicable) items.push(!!indexFait);
     if (items.length === 0) return { applicable: false, total: 0, faits: 0 };
     return { applicable: true, total: items.length, faits: items.filter(Boolean).length };
   }
@@ -2178,6 +2183,12 @@
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) {
       return { couleur: 'inventaire', titre: 'Le jaugeage d’ouverture de la piste n’a pas encore été fait.', lienTexte: 'Faire le jaugeage →', lien: 'NEXUS-Inventaire-v1.html' };
     }
+    // Relevé d'index de début de quart : juste après le jaugeage (ordre du
+    // parcours pompiste). Une seule action prioritaire ; les autres tâches
+    // restent accessibles par « Mes outils du quart ».
+    if (ctx.indexApplicable && !ctx.indexFait) {
+      return { couleur: 'inventaire', titre: 'Le relevé d’index de début de quart n’a pas encore été fait.', lienTexte: 'Faire le relevé d’index →', lien: ctx.indexLien || 'NEXUS-Releves-Piste-v1.html' };
+    }
     if (ctx.pointageActif && ctx.prochainPointage) {
       return {
         couleur: POINTAGE_MINI_COULEURS[ctx.prochainPointage],
@@ -2232,6 +2243,7 @@
     }
     const items = [];
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) items.push('le jaugeage d’ouverture');
+    if (ctx.indexApplicable && !ctx.indexFait) items.push('le relevé d’index');
     if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
     if (ctx.fdjApplicable && !ctx.fdjFait) items.push('le contrôle FDJ');
     if (ctx.missionsInfo && ctx.missionsInfo.total > ctx.missionsInfo.faites) items.push('vos missions');
@@ -2246,6 +2258,7 @@
   const TUILES_OUTILS_CATALOGUE = {
     missions: { titre: 'Missions', desc: 'Voir mes tâches du quart', href: 'NEXUS-Missions-v1.html', icone: 'assets/icons/icon-missions-48.png' },
     inventaire: { titre: 'Inventaire', desc: 'Compter les produits de votre quart', href: 'NEXUS-Inventaire-v1.html', icone: 'assets/icons/icon-inventaire-48.png' },
+    releves: { titre: 'Relevés d’index', desc: 'Index des pompes de votre quart', href: 'NEXUS-Releves-Piste-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
     fdj: { titre: 'FDJ', desc: 'Contrôler votre activité FDJ', href: 'NEXUS-FDJ-v1.html', icone: 'assets/icons/icon-fdj-48.png' },
     reception: { titre: 'Réception', desc: 'Livraison carburant du jour', href: 'NEXUS-Carburant-Reception-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
     progression: { titre: 'Progression', desc: 'Mes séries et récompenses', href: 'NEXUS-Progression-v1.html', icone: 'assets/icons/icon-progression-48.png' },
@@ -2293,8 +2306,11 @@
     if (ctx.inventaireApplicable) candidats.push('inventaire');
     if (ctx.fdjApplicable) candidats.push('fdj');
     if (ctx.receptionApplicable) candidats.push('reception');
-    candidats.push('progression');
-    return candidats.slice(0, 4);
+    // Aucune TÂCHE accessible n'est masquée : le plafond de 4 ne rogne que le
+    // remplissage « Progression », jamais une tâche applicable (relevés d'index).
+    if (ctx.indexApplicable) candidats.splice(1, 0, 'releves');
+    if (candidats.length < 4) candidats.push('progression');
+    return candidats;
   }
 
   // ---- Rendu (DOM uniquement, aucun calcul métier ici) ----
@@ -2448,6 +2464,13 @@
     // ce proxy plus simple ; documenté comme simplification assumée.
     const jaugeagePertinentRole = roleDuJour === 'pompiste' && quartDuJour === 'matin';
 
+    // Relevé d'index de DÉBUT de quart (Q1 et Q2), pour le poste réellement
+    // occupé dans le service du jour (polyvalence : `roleDuJour`, pas le poste
+    // préférentiel). Indépendant du réglage d'activation du jaugeage. Le quart
+    // vient du service ouvert, jamais de l'horloge (même principe que #140).
+    const momentIndexDebut = (enService && roleDuJour === 'pompiste')
+      ? NexusRelevesPiste.momentDebutDuQuart(quartDuJour) : null;
+
     const [
       { data: pointagesJour, error: eP },
       { data: catalogueRows, error: eC },
@@ -2459,6 +2482,7 @@
       { data: snap, error: eSnap },
       jaugeageActifSite,
       statutJaugeageJour,
+      { data: relevesIndexRows, error: eIdx },
     ] = await Promise.all([
       pointageActifSite
         // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
@@ -2481,7 +2505,12 @@
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
       jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
       jaugeagePertinentRole ? NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
+      // Lecture seule : relevés du site, du jour et du moment de début de quart.
+      momentIndexDebut
+        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).eq('moment', momentIndexDebut)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+    if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
     if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
     if (eM) console.error('Chargement mission_completions (accueil employé):', eM);
@@ -2513,8 +2542,15 @@
     const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
     const jaugeageFait = !!(statutJaugeageJour && (statutJaugeageJour.statut === 'fait' || statutJaugeageJour.statut === 'impossible'));
 
+    // « Fait » = relevé FINAL du bon site, du bon jour et du bon début de quart.
+    // Une lecture en erreur n'invente pas un « fait » : la tâche reste à faire.
+    const indexApplicable = enService && !!momentIndexDebut;
+    const indexFait = indexApplicable && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
+      { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
+    const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
+
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
-    const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait);
+    const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
     // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
     // en tête de cette fonction (voir « En service », notion unique).
     // « Fait » se compte dans CE service, jamais dans la journée : c'est la
@@ -2584,6 +2620,7 @@
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
+      indexApplicable, indexFait, indexLien,
     };
 
     renderProgressionService(calculerEtapesProgressionService(ctx));

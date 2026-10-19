@@ -30,6 +30,21 @@
     const qs = [].concat(quartsReels == null ? [] : quartsReels).map(normaliserQuart).filter(Boolean);
     return MOMENTS.filter(m => qs.indexOf(QUART_DU_MOMENT[m]) >= 0);
   }
+  // Relevé d'index de DÉBUT du quart réellement occupé (accueil pompiste).
+  // quart : 'matin'/'Q1' → debut_q1, 'soir'/'Q2' → debut_q2, sinon null.
+  function momentDebutDuQuart(quart) {
+    const q = normaliserQuart(quart);
+    return q === 'Q1' ? 'debut_q1' : q === 'Q2' ? 'debut_q2' : null;
+  }
+  // L'index de début est FAIT uniquement si une ligne du bon site, du bon jour
+  // et du bon moment est au statut `final`. Un brouillon, ou un relevé d'un
+  // autre site/jour/moment, ne compte pas. L'auteur n'est pas exigé : le relevé
+  // final d'un collègue du même quart suffit (pas de double saisie).
+  function indexDebutFait(releves, cible) {
+    if (!cible || !cible.site || !cible.date || !cible.moment) return false;
+    return (releves || []).some(r => r && r.site === cible.site && r.date === cible.date
+      && r.moment === cible.moment && r.statut === 'final');
+  }
   // Moment du quart auquel on est : début tant que rien n'est final, sinon fin.
   // Tolérance de nuit (0 conforme, +1 toléré, +2..+9 à justifier, >=+10
   // alerte prioritaire, <0 diminution) : unité d'index à confirmer (compteur).
@@ -208,6 +223,7 @@
 
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
+    momentDebutDuQuart, indexDebutFait,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
