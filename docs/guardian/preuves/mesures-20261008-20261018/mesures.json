@@ -1,0 +1,16 @@
+{
+ "fenetre": [
+  "2026-10-08T00:00:00Z",
+  "2026-10-18T12:50:00Z"
+ ],
+ "tours_dispatches": 17,
+ "classes": {
+  "ECHEC": 2,
+  "SAUTE": 1,
+  "AUCUN_COMMIT": 1,
+  "COMPLET": 9,
+  "REGISTRE_SEUL": 4
+ },
+ "reponses_arbitre": 80,
+ "arrets_humains": 21
+}

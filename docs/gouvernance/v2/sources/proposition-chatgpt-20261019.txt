@@ -1,0 +1,50 @@
+Cette analyse de Guardian apporte un élément qui manquait à notre projet : une mesure des performances de la boucle actuelle avant sa refonte.
+Je retiens sa conclusion centrale : la V2 doit corriger les défaillances par des mécanismes techniques, pas par de nouvelles consignes données aux agents.
+Les chiffres communiqués couvrent le 8 au 18 octobre 2026. Je les considère comme des mesures rapportées par Guardian, à rattacher à leurs preuves GitHub avant d'en faire notre référence officielle.
+Ce que ces résultats changent
+Claude relancé — tours complets
+9 / 17
+
+53 %
+
+
+
+Arrêts silencieux signalés
+≥ 9
+
+
+Arrêts humains signalés
+18
+
+
+
+Référence initiale rapportée par Guardian, non encore vérifiée indépendamment. Les neuf arrêts silencieux semblent désigner des types d'arrêt, et non nécessairement neuf incidents distincts.
+La priorité ne doit donc pas être simplement de réveiller Guardian. Il faut rendre la boucle observable, attribuable, résistante aux erreurs et capable de reprendre sans intervention humaine injustifiée.
+Mes arbitrages complémentaires
+Sujet	Décision de conception
+Transmission	GitHub Actions reste responsable du transport déterministe
+Arbitrage	ChatGPT API reste l'arbitre, avec des valeurs contrôlées par registre
+Exécution	Claude Code ou Claude relancé, selon l'ordre et leurs capacités réelles
+Contrôle	Guardian vérifie le sens, les preuves et l'identité de l'exécutant
+Clôture	Automatisation possible uniquement après vérification du contrat et des preuves
+Surveillance	Vigie indépendante avec détection de son propre silence
+Autorité humaine	Réservée aux décisions sensibles, sans délégation implicite
+Je pose néanmoins trois conditions supplémentaires.
+Premièrement, une erreur de vocabulaire de l'arbitre ne doit jamais être corrigée silencieusement par la CI. Elle doit provoquer un refus, puis éventuellement un nouvel arbitrage explicite. Après un nouvel échec, la boucle s'arrête avec une anomalie traçable.
+Deuxièmement, l'automatisation de la clôture ne doit pas permettre à la CI de décider qu'une exécution est métierement correcte. Elle peut vérifier les conditions formelles, les empreintes et les preuves attendues. Les cas nécessitant un jugement restent soumis à l'arbitre ou au contrôleur habilité.
+Troisièmement, le nombre de motifs nécessitant ton intervention ne doit pas être réduit artificiellement. Nous devons les classer selon leur risque et leur autorité légitime, puis démontrer que les cas délégués sont effectivement sécurisés.
+Ce que j'ajouterais au plan V2
+Un tableau de performance de la boucle, alimenté automatiquement, avec des définitions stables :
+- Délai médian et maximal de décision.
+- Délai médian et maximal entre décision et exécution.
+- Taux de tours complets, partiels, vides et en échec.
+- Nombre d'arrêts silencieux détectés et durée de détection.
+- Nombre d'interventions humaines, par motif.
+- Nombre de décisions rejetées pour défaut de contrat ou d'identité.
+- Nombre de lots clôturés avec preuves complètes.
+Je veux également un objectif incontournable : aucune écriture Test sans décision canonique préalable, aucune opération Production sans autorisation humaine vérifiable.
+Ma conclusion
+Je valide cette analyse comme base de conception et de mesure de la V2, sous réserve de vérification de ses chiffres.
+Elle doit maintenant être intégrée au dossier R0 avec la charte des rôles, les constats Guardian et le plan révisé.
+Nous avons déjà ton accord de principe pour le dépôt documentaire R0. Il reste à faire préparer le dossier exact, à vérifier son périmètre et à le faire publier selon la procédure actuelle, sans activer les nouveaux mécanismes.
+La réussite de NEXUS Handoff V2 ne sera pas de faire travailler davantage les agents. Elle sera de leur permettre de travailler ensemble sans que tu aies à surveiller ou réparer constamment leurs échanges.
