@@ -519,6 +519,12 @@
     emp = employee; date = nexusDateLocaleISO(new Date());
     await chargerHabilitations();
     await chargerARecopier();
+    // Lien profond depuis l'accueil (?moment=debut_q1) : n'ouvre le moment que
+    // s'il fait partie des habilitations de l'utilisateur (la RLS reste l'autorité).
+    try {
+      const voulu = new URLSearchParams(location.search).get('moment');
+      if (voulu && R.MOMENTS.indexOf(voulu) >= 0 && habilites.indexOf(voulu) >= 0) { moment = voulu; await ouvrirMoment(); }
+    } catch (x) { /* lien invalide : on reste sur le choix */ }
     rendre();
   });
 })();

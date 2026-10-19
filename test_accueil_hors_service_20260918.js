@@ -71,6 +71,7 @@ const tranchePure = lignes
   .slice(ligneDe('const POINTAGE_MINI_LIBELLES'), ligneDe('// ---- Rendu (DOM uniquement'))
   .join('\n');
 
+const purs_lib = require('./nexus-releves-piste.js');
 const EXPORTS_PURS = [
   'POINTAGE_MINI_LIBELLES', 'POINTAGE_MINI_TEXTES', 'POINTAGE_MINI_COULEURS',
   'CAPACITES_ROLE_DEFAUT', 'LIBELLE_ROLE_JOUR', 'TUILES_OUTILS_CATALOGUE',
@@ -208,7 +209,7 @@ async function executerAccueil({
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
     'NexusForfait', 'NexusPointageRegles',
-    'NexusCarburantDonnees', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
+    'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable',
     ...EXPORTS_PURS,
@@ -219,6 +220,7 @@ async function executerAccueil({
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
     { chargerStatutJaugeageJour: async () => statutJaugeage },
+    require('./nexus-releves-piste.js'),
     async () => receptionRole,
     async () => jaugeageActif,
     etapes => { rendus.etapes = etapes; rendus.pct = purs.calculerPourcentageProgressionService(etapes); },
@@ -672,6 +674,112 @@ async function cas(nom, entree, controles) {
     verifierQue('D2 · rappel sans service', 'affichage seul, aucune écriture',
       !/insert/i.test(executerDeuxChemins(employe(), null, false)), 'écriture trouvée');
   }
+
+  // =========================================================================
+  // F. RELEVÉ D'INDEX DE DÉBUT DE QUART — expérience pompiste (lot du 18/10/2026)
+  // =========================================================================
+  const AUJ = fuseaux(faireClient({})).nexusJourDansFuseau(new Date(), FUSEAU_STATION_PAR_DEFAUT);
+  const HIER = fuseaux(faireClient({})).nexusJourDansFuseau(new Date(Date.now() - 86400000), FUSEAU_STATION_PAR_DEFAUT);
+  const releve = (moment, statut, extra = {}) => ({ site: 'site-1', date: AUJ, moment, statut, ...extra });
+  const entreeIndex = (quart, rows, extra = {}) => ({
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false,
+    quartDuJour: quart, serviceCourant: service('pompiste', quart),
+    reponses: {
+      mission_catalog: { data: catalogue('pompiste'), error: null },
+      carburant_index_releves: { data: rows, error: null },
+    },
+    ...extra,
+  });
+
+  await cas('F1 · Q1, aucun relevé, jaugeage désactivé sur le site', entreeIndex('matin', []),
+    ({ rendus, journal, verifier, verifierQue }) => {
+      verifier('index applicable', rendus.ctx.indexApplicable, true);
+      verifier('index à faire', rendus.ctx.indexFait, false);
+      verifier('jaugeage non applicable (réglage éteint)', rendus.ctx.jaugeageApplicable, false);
+      verifier('prochaine action = index', rendus.action.lienTexte, 'Faire le relevé d’index →');
+      verifier('lien profond vers le début de Q1', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?moment=debut_q1');
+      verifier('Contrôles : inventaire + index', [rendus.ctx.controlesInfo.total, rendus.ctx.controlesInfo.faits], [2, 0]);
+      verifierQue('tuile Relevés d’index présente', rendus.tuiles.includes('releves'), JSON.stringify(rendus.tuiles));
+      verifierQue('Missions et Inventaire non masqués', rendus.tuiles.includes('missions') && rendus.tuiles.includes('inventaire'), JSON.stringify(rendus.tuiles));
+      verifierQue('Coach nomme l’index', /relevé d’index/.test(journal.textes.conseillerEmployeTexte), journal.textes.conseillerEmployeTexte);
+    });
+
+  await cas('F2 · Q2 (soir) : début de Q2, même sans jaugeage', entreeIndex('soir', [], { jaugeageActif: true }),
+    ({ rendus, verifier }) => {
+      verifier('jaugeage réservé au matin', rendus.ctx.jaugeageApplicable, false);
+      verifier('index applicable', rendus.ctx.indexApplicable, true);
+      verifier('lien profond vers le début de Q2', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?moment=debut_q2');
+    });
+
+  await cas('F3 · relevé brouillon : l’index reste à faire', entreeIndex('matin', [releve('debut_q1', 'brouillon')]),
+    ({ rendus, verifier }) => {
+      verifier('index à faire', rendus.ctx.indexFait, false);
+      verifier('prochaine action = index', rendus.action.lienTexte, 'Faire le relevé d’index →');
+    });
+
+  await cas('F4 · relevé final du bon site/jour/début : fait, la chaîne avance', entreeIndex('matin', [releve('debut_q1', 'final')]),
+    ({ rendus, verifier }) => {
+      verifier('index fait', rendus.ctx.indexFait, true);
+      verifier('Contrôles : 1/2', [rendus.ctx.controlesInfo.total, rendus.ctx.controlesInfo.faits], [2, 1]);
+      verifier('prochaine action suivante = inventaire', rendus.action.lienTexte, 'Faire l’inventaire →');
+    });
+
+  await cas('F5 · finaux hors cible (fin_q1, début Q2, autre site, veille) : rien n’est fait',
+    entreeIndex('matin', [
+      releve('fin_q1', 'final'), releve('debut_q2', 'final'),
+      releve('debut_q1', 'final', { site: 'site-2' }), releve('debut_q1', 'final', { date: HIER }),
+    ]),
+    ({ rendus, verifier }) => verifier('index à faire', rendus.ctx.indexFait, false));
+
+  await cas('F6 · Q2 : le final du début de Q1 ne vaut pas début de Q2', entreeIndex('soir', [releve('debut_q1', 'final')]),
+    ({ rendus, verifier }) => verifier('index à faire', rendus.ctx.indexFait, false));
+
+  await cas('F7 · hors service : aucun index', entreeIndex('matin', [], { serviceCourant: null }),
+    ({ rendus, verifier }) => {
+      verifier('index non applicable', rendus.ctx.indexApplicable, false);
+      verifier('aucun contrôle compté', rendus.ctx.controlesInfo.total, 0);
+      verifierQue('aucune tuile Relevés', !rendus.tuiles.includes('releves'), JSON.stringify(rendus.tuiles));
+    });
+
+  await cas('F8 · polyvalence : poste préférentiel pompiste mais poste occupé caissière', entreeIndex('matin', [], {
+    employee: employe({ poste: 'pompiste', role: 'pompiste' }), roleDuJour: 'caissiere', serviceCourant: service('caissiere', 'matin'),
+  }), ({ rendus, verifier }) => {
+    verifier('index non applicable au poste occupé', rendus.ctx.indexApplicable, false);
+    verifierQue('aucune tuile Relevés', !rendus.tuiles.includes('releves'), JSON.stringify(rendus.tuiles));
+  });
+
+  await cas('F9 · polyvalence inverse : préférentiel caissière, poste occupé pompiste', entreeIndex('matin', [], {
+    employee: employe({ poste: 'caissiere', role: 'caissiere' }),
+  }), ({ rendus, verifier }) => verifier('index applicable au poste occupé', rendus.ctx.indexApplicable, true));
+
+  await cas('F10 · renfort ou manager du jour : aucun index', entreeIndex('matin', [], {
+    roleDuJour: 'renfort', serviceCourant: service('renfort', 'matin'),
+  }), ({ rendus, verifier }) => verifier('index non applicable', rendus.ctx.indexApplicable, false));
+
+  await cas('F11 · Q1 jaugeage actif : jaugeage d’abord, puis index (une seule action)',
+    entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: null }),
+    ({ rendus, verifier }) => {
+      verifier('jaugeage en premier', rendus.action.lienTexte, 'Faire le jaugeage →');
+      verifier('index toujours comptés', rendus.ctx.controlesInfo.total, 3);
+    });
+  await cas('F12 · Q1 jaugeage fait : l’index prend le relais',
+    entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: { statut: 'fait' } }),
+    ({ rendus, verifier }) => verifier('index ensuite', rendus.action.lienTexte, 'Faire le relevé d’index →'));
+
+  await cas('F13 · arrivée non pointée : le pointage reste prioritaire',
+    entreeIndex('matin', [], { pointageActifSite: true, reponses: { pointages: { data: [], error: null }, carburant_index_releves: { data: [], error: null } } }),
+    ({ rendus, verifier }) => verifier('pointage d’abord', rendus.action.lien, 'NEXUS-Pointage-v1.html'));
+
+  await cas('F14 · lecture des relevés en erreur : jamais un « fait » inventé',
+    entreeIndex('matin', null, { reponses: { carburant_index_releves: { data: null, error: { message: 'x' } } } }),
+    ({ rendus, verifier }) => verifier('index à faire', rendus.ctx.indexFait, false));
+
+  // Pureté et lecture seule
+  verifierQue('F15 · doctrine', 'la lecture de l’index est une lecture seule',
+    /from\('carburant_index_releves'\)\.select/.test(SRC_INIT), 'lecture introuvable');
+  verifier('F16 · lib', 'moment de début selon quart',
+    [purs_lib.momentDebutDuQuart('matin'), purs_lib.momentDebutDuQuart('Q2'), purs_lib.momentDebutDuQuart('nuit')],
+    ['debut_q1', 'debut_q2', null]);
 
   // =========================================================================
   // E. GARDES DE DOCTRINE
