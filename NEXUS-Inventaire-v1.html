@@ -374,6 +374,7 @@
   let zonesAutorisees = [];      // ['piste'] | ['boutique'] | ['piste','boutique']
   let zoneActive = null;         // zone choisie pour la session en cours
   let quartActuel = null;        // 'matin' | 'soir'
+  let quartDuShift = null;       // quart du service réellement ouvert (shifts.quart) — null en mode test
   let quartRow = null;           // ligne inventaire_quarts
   let quartEmployeRow = null;    // ligne inventaire_quart_employes de CET employé
   let produitsZone = [];         // catalogue inventaire_zone_produit filtré
@@ -1001,7 +1002,7 @@
     if (r.aucun || !r.service.role) return { indetermine: 'absent' };
     // S-5 : l'identifiant du service voyage avec le rôle. Aucune requête
     // supplémentaire — nexusServiceCourant() a déjà lu la ligne entière.
-    return { role: r.service.role, serviceId: r.service.id };
+    return { role: r.service.role, serviceId: r.service.id, quart: r.service.quart };
   }
 
 
@@ -1250,7 +1251,12 @@
   // lectures), cohérent avec les autres chargeurs déjà rappelés à chaque
   // rendu de cet écran.
   async function resoudreJaugeageCarburant() {
-    const doitVoir = quartActuel === 'matin' && zoneActive === 'piste';
+    // Le lien « Faire le jaugeage » de l'accueil suit le quart du SERVICE
+    // (shifts.quart) ; ce quart-ci suit l'horloge. Un pompiste en service
+    // du matin qui arrive après la bascule de 12:40 atterrissait sur un
+    // écran sans carte. Le quart de l'horloge, lui, ne change pas (plans,
+    // comptages) : seul l'affichage de la carte jaugeage est élargi.
+    const doitVoir = (quartActuel === 'matin' || quartDuShift === 'matin') && zoneActive === 'piste';
     if (!doitVoir) { jaugeageCarburantActif = false; statutJaugeageJour = null; return; }
     jaugeageCarburantActif = await chargerJaugeageCarburantActif();
     if (jaugeageCarburantActif && typeof NexusCarburantDonnees !== 'undefined') {
@@ -4163,6 +4169,7 @@
       if (resolution.indetermine) { bloquerFauteDeRoleDuJour(resolution.indetermine); return; }
       roleDuJour = resolution.role;
       serviceCourantId = resolution.serviceId;
+      quartDuShift = resolution.quart || null;
     }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
