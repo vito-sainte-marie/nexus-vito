@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R0-DOSSIER-V2-20261019/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R0-DOSSIER-V2-20261019/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: GOV-R0-DOSSIER-V2-20261019
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,6 +22,8 @@ preuves:
     valeur: 158-fichiers
 ---
 # GOV-R0-DOSSIER-V2-20261019 : dépôt documentaire du dossier de gouvernance V2
+
+> **Cette request-2 remplace la request-1 du lot.** La request-1 (`840102e7`) ne déclarait pas `wake_to` : le run « Tests » 39328910982 a arrêté le réveil (`RAIL_SANS_ADRESSE`) et sauté le relais vers l'arbitre. Le contenu ci-dessous est identique à celui de la request-1 ; seule change la déclaration `wake_to` (issue #28). L'arbitre est prié de répondre à cette request-2 ; la request-1 n'a reçu aucune décision.
 
 **Domaine :** gouvernance.
 **Préparé par :** Claude Guardian. **Publié par :** Claude Code, selon la procédure actuelle.
