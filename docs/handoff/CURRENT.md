@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/SECURITE-DEFINER-ETAPE5-20261018/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R0-DOSSIER-V2-20261019/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: SECURITE-DEFINER-ETAPE5-20261018
-seq: 3
+lot_id: GOV-R0-DOSSIER-V2-20261019
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -12,55 +12,67 @@ token_mode: STANDARD
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=ff19b8a0 production=a9ccf920
+    valeur: main=ff19b8a0 production=d3244d86
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 158-fichiers
-  - id: exec-chatgpt
-    classe: VERIFIED
-    valeur: GO-cite-hors-session-heure-inconnue
-  - id: recette-prod
-    classe: VERIFIED
-    valeur: registre320-17-search_path-8-revoke-18x42501-login-ok-fonctionnel-annule-ok
 ---
-# SÉCURITÉ SECURITY DEFINER — Étape 5 : preuves d'exécution en Production (SECURITE-DEFINER-ETAPE5-20261018)
+# GOV-R0-DOSSIER-V2-20261019 : dépôt documentaire du dossier de gouvernance V2
 
-Suite de `decision-1.md` (humaine, Frédéric Bragance, APPROVED_WITH_CONDITIONS, closes:false). Cette demande **consigne** l'exécution et la recette ; elle n'ouvre aucune nouvelle opération. Aucun déploiement, aucune gate Pages approuvée.
+**Domaine :** gouvernance.
+**Préparé par :** Claude Guardian. **Publié par :** Claude Code, selon la procédure actuelle.
+**Nature :** documentation seulement. Aucune règle active n'est modifiée.
 
-## Provenance de l'exécution (à lire d'abord)
-La transaction SQL Production a été exécutée par **ChatGPT, à la demande de Frédéric**, hors de la session de Claude. Claude ne l'a pas exécutée et n'a pas reçu de GO d'exécution. Le GO cité par ChatGPT : « Caisses sécurisées, GO SQL Production étape 5. » Heure exacte de la transaction : **inconnue** (à chercher dans les journaux Supabase si nécessaire). Compte rendu de ChatGPT : transaction unique, `lock_timeout` 5 s, `statement_timeout` 45 s, verrou advisory `hashtext('securite_definer_etape5')`, gardes DO, corps de la migration `20261018200000` (blob `a33ad478…`), INSERT au registre, COMMIT.
+## Objet
 
-## Preuve des conditions de decision-1
-1. GO d'exécution distinct daté : cité par ChatGPT (voir ci-dessus), non reçu ni vérifié par Claude ; date/heure non établies.
-2. « Deploy to production » éteint : constaté par la capture d'écran de Frédéric (Supabase Integrations, Production).
-3. Relevé préalable : fourni par ChatGPT avant exécution (gardes DO dans la transaction) ; écart de décompte 25 vs 19 signalé ci-dessous.
-4. Fenêtre hors clôture de caisse : non vérifiée par Claude (heure inconnue).
-5. Aucune gate Pages ni déploiement : aucune approbation donnée ; run Pages en `waiting`.
-6. Compte rendu des épreuves : ci-dessous ; connexion réelle à constater par Frédéric.
+Déposer sur le rail le dossier de gouvernance V2 (`docs/gouvernance/v2/` et `docs/guardian/`). C'est l'étape R0 du plan révisé. Frédéric a donné en conversation un accord de principe sur ce dépôt documentaire (niveau b), puis, le 19/10/2026, un GO opérationnel sur la séquence « corriger le dossier, consommer `decision-3`, déposer R0 ». Ni l'un ni l'autre n'est la décision de doctrine que ce lot demande.
 
-## Recette post-exécution (Claude, GO de Frédéric « GO pour la recette post-exécution »)
-Lectures seules et blocs annulés (`raise exception`), aucune écriture durable.
-1. Registre : 320 lignes, `20261018200000` présente une fois.
-2. Les 17 fonctions de la migration sont à `search_path=public, pg_temp` (liste identique à la migration) ; 0 SECURITY DEFINER sans `search_path`.
-3. Les 8 fonctions de trigger : ACL `{postgres=X/postgres,service_role=X/postgres}` ; 0 fonction de trigger SECURITY DEFINER ouverte à `anon`.
-4. 9 triggers liés, tous `tgenabled=O`.
-5. Appel direct sous `anon` et `authenticated` des 8 fonctions + `nexus_garde_regularisation_reception` : 18 combinaisons, 18 × `42501`.
-6. Connexion sous `anon` : `nexus_identifiant_de_connexion(prénom)` d'un compte actif unique renvoie le `username` attendu (booléen seulement ; aucun PIN ni identifiant consigné). ACL inchangée `{postgres,anon,authenticated,service_role}`.
-7. Fonctionnel sous `authenticated` (pompiste d'un site réel, bloc annulé) : insertion `shifts` OK (trigger `nexus_forcer_site_unique`) ; insertion `inventaire_mouvements` OK (trigger `flag_mouvement_non_justifie`). Rien conservé.
-8. Exceptions préservées : `nexus_garde_regularisation_reception()` fermée à `anon` (ACL `{postgres,service_role}`) ; `run_scheduled_inventory_reviews()` ACL `{postgres}`.
-9. Job `nexus-inventaire-reviews` : 12 passages `succeeded` sur 3 h, dernier 21:00:00 UTC ; **postériorité à la transaction non établie** (heure inconnue).
+Ces textes n'existent aujourd'hui que dans des conversations. Or seul le rail fait foi.
 
-## Écarts et points à connaître
-- La condition 3 parlait de 25 fonctions ; le périmètre réel relevé est de 17 modifiées + 2 exclues = 19. Écart de décompte, pas de dérive constatée.
-- Sur Test, l'appel direct de `nexus_garde_regularisation_reception` sous `authenticated` donnait `0A000` ; sur Production l'ACL ne comprend pas `authenticated`, donc `42501`. Comportement plus fermé, ACL non modifiée par l'étape 5.
-- 21 autres fonctions SECURITY DEFINER restent à `search_path=public` (hors périmètre).
-- Non constaté par Claude : la **connexion réelle** d'un employé, à constater par Frédéric (condition 6).
+## Fichiers ajoutés (13)
 
-## Hors de cette demande
-Gate Pages / déploiement (GO séparé), réconciliation main/production, suppression de l'oracle de connexion, 21 autres fonctions.
+Référentiel de gouvernance, sous `docs/gouvernance/v2/` :
+- `README.md`
+- `CHARTE-ROLES-V2.md`
+- `PROPOSITIONS-CONCEPTION-20261019.md`
+- `sources/proposition-chatgpt-20261019.txt`
+- `PLAN-RACCORDEMENT-GUARDIAN.md`
+- `MATRICE-VARIANTES-BOUCLE-V2.md`
 
-## Question
-Constatez-vous que les conditions de decision-1 sont remplies, sous réserve de la connexion réelle par Frédéric ? Réponse attendue : APPROVED / APPROVED_WITH_CONDITIONS / REJECTED, avec `closes`.
+Espace Guardian, sous `docs/guardian/` (organisation proposée par le contre-audit de ChatGPT du 19/10/2026) :
+- `README.md`
+- `constats/CONSTATS-20261019.md`
+- `preuves/MESURES-REFERENCE-20261008-20261018.md`
+- `preuves/mesures-20261008-20261018/` : `mesurer-boucle.py`, `tours.csv`, `arrets-humains.csv`, `mesures.json`
+
+Guardian n'a aucun droit d'écriture sur le contenu du dépôt : il prépare dans son espace de travail, et l'intégration relève de Claude Code dans un lot autorisé. Sa seule écriture prévue est un commentaire sur l'issue dédiée, après R1.
+
+## Ce que ce lot ne fait pas
+
+- Il ne modifie ni `CLAUDE.md`, ni `PROTOCOL.md`, ni `ARBITRAGES-ACQUIS.json`, ni `ARBITRE-CHATGPT.md`, ni aucun workflow, garde ou outil.
+- Il ne réduit aucun motif de réveil.
+- Il ne change aucune permission, aucun secret, aucune identité.
+- Il n'arme rien. Il ne touche ni à `main`, ni à `production`, ni à Supabase.
+- Le script `mesurer-boucle.py` n'est appelé par aucun workflow. Il lit l'API GitHub et écrit dans le dossier passé en 3e argument (par défaut, le dossier courant).
+
+## Preuves
+
+1. Le diff applicatif ne contient que des fichiers ajoutés sous `docs/gouvernance/v2/` et `docs/guardian/` (en plus des fichiers du lot produits par l'outil).
+2. `node outils/handoff.js verifier` reste vert.
+3. La suite de non-régression ne change pas. Mesure de Guardian sur le rail à `851f31bd` : 341/350 avec et sans le dossier, mêmes échecs (tests liés au fuseau horaire de son environnement). Claude Code remesure sur son poste au moment de publier.
+4. Le texte source du 19/10 est une **proposition de ChatGPT**, pas un message de Frédéric. Son empreinte sha256 `33df10f3f6373b932530a78c2ddd20761843f396f20e38991d436917ad2156ed` ne garantit que l'intégrité du texte.
+5. Les chiffres de référence sont **reproduits par le même script, non vérifiés indépendamment** : `python3 docs/guardian/preuves/mesures-20261008-20261018/mesurer-boucle.py 2026-10-08T00:00:00Z 2026-10-18T12:50:00Z <dossier-hors-depot>`. Le script a été modifié pour ajouter ce paramètre (sha256 `6584f5582ae15b140753f436ff4250284404de979b0872621bc7039ee29471f3`) ; la version modifiée a été rejouée le 19/10/2026 et redonne les mêmes fichiers.
+
+## Dépendances et points ouverts
+
+- **Lot actif.** Au 19/10/2026, le lot actif est `SECURITE-DEFINER-ETAPE5-20261018`. Une dérogation n'est pas possible : `handoff.js` (l. 920) refuse toute nouvelle demande tant qu'un lot actif porte une décision. Condition minimale, vérifiée sur une copie jetable du rail : la `decision-3` (confirmée par Frédéric, provenance de niveau 2, voir `docs/deploiement/provenance-decision-3-etape5-20261019.md`) est prise en charge puis consommée avec une preuve d'action ; ETAPE5 passe en `DECISION_CONSOMMEE`, **sans clôture**. La demande R0 doit désigner `--rail handoff-continuite-20260920`.
+- **Incident SQL de l'étape 5.** Exécutant, heure, cible et GO inconnus. Il reste ouvert ; ce lot ne le clôt pas.
+
+## Décision demandée
+
+Dépôt de doctrine cible : motif `CHANGEMENT_DOCTRINE`, palier de Frédéric. L'accord de principe de Frédéric a été exprimé en conversation (niveau b), pas inscrit sur le rail ; ce lot lui demande le GO formel sur le contenu exact ci-dessus, y compris la confirmation point par point du tableau de `PROPOSITIONS-CONCEPTION-20261019.md`.
+
+**Question :** Frédéric autorise-t-il l'inscription de ce dossier comme cible non appliquée ?
