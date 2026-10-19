@@ -634,9 +634,13 @@
       "preuve_action": "ca45c8f7976801f8a56108f097591ae32e3a01c1"
     },
     "GOV-R0-DOSSIER-V2-20261019": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "fe531d63184d4f30c73611745175adb46ae25449",
+      "consomme_le": "2026-10-19T22:01:55.089Z"
     }
   },
   "artefacts_hors_registre": [
