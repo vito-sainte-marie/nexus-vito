@@ -794,6 +794,12 @@ async function cas(nom, entree, controles) {
   verifierQue('E4 · doctrine', 'aucun cinquième calcul de quart dans l’accueil (Article 11)',
     !/heure_debut.*getHours|function .*calculerQuart/.test(SRC_INIT), 'calcul de quart trouvé');
 
+  const SRC_RELEVES = fs.readFileSync(path.join(RACINE, 'NEXUS-Releves-Piste-v1.html'), 'utf8');
+  verifierQue('G1 · relevés', 'la page Relevés n’appelle plus la fonction supprimée nexusDateLocaleISO',
+    !/nexusDateLocaleISO\s*\(/.test(SRC_RELEVES), 'appel d’une fonction qui n’existe plus (page bloquée sur « Chargement… »)');
+  verifierQue('G2 · relevés', 'le jour de la page Relevés vient du fuseau du site',
+    /nexusJourDansFuseau\(new Date\(\), await nexusFuseauSite\(/.test(SRC_RELEVES), 'jour non calculé dans le fuseau du site');
+
   console.log(`${ok} contrôles verts, ${echecs.length} rouges`);
   if (echecs.length) {
     echecs.forEach(e => console.log('  ÉCHEC — ' + e));
