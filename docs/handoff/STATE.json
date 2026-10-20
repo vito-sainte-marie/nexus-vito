@@ -653,14 +653,14 @@
       "consomme_le": "2026-10-20T16:15:46.012Z"
     },
     "GOV-R2-EMPREINTE-DECISION-20261020": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "1d8ab67fff273d372111e681dde45dfed6da4076",
-      "consomme_le": "2026-10-20T16:40:06.888Z",
-      "arret": "request-2.md"
+      "commit_decision": "ac4d1553b8d6143469537d67340462544d0123ed",
+      "arret": "request-2.md",
+      "pris_en_charge_le": "2026-10-20T17:04:20.093Z"
     }
   },
   "artefacts_hors_registre": [
