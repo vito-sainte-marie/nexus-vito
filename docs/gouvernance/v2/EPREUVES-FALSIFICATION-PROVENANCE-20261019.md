@@ -1,6 +1,6 @@
 # Épreuves de falsification : provenance des décisions humaines (lot R1)
 
-**Statut :** brouillon de Claude Code, 19/10/2026, lot `GOV-R1-IDENTITES-PROVENANCE-20261019`. Spécification d'épreuves, pas du code : aucune n'est exécutable aujourd'hui, aucun outil n'est modifié. Elle ne vaut ni décision ni GO. Elle suit la condition 2 de `decision-1.md` de R1 : ces épreuves sont écrites et validées avant tout code d'outil.
+**Statut :** validée telle quelle par Frédéric dans `decision-2.md` du lot (`32d128ba`, 19/10/2026), qui valide aussi les trois codes d'arrêt et retient la voie A puis B. Rédigée par Claude Code, lot `GOV-R1-IDENTITES-PROVENANCE-20261019`. Spécification d'épreuves, pas du code : aucune n'est exécutable aujourd'hui, aucun outil n'est modifié. La validation n'autorise aucun code : la voie A fait l'objet d'une décision ultérieure (condition 1 de `decision-2.md`). Elle ne vaut pas GO. Elle suit la condition 2 de `decision-1.md` de R1 : ces épreuves sont écrites et validées avant tout code d'outil.
 
 **Confirmation de Frédéric (consignée par Claude Code).** Le 19/10/2026 à 21:00 (UTC-4, soit 2026-10-20T01:00Z, heure relevée par Claude Code au moment de la consignation), Frédéric a écrit dans la conversation avec Claude Code : « J'ai relu les conditions 1 à 5 de la decision-1 de R1 et je les accepte. » Il a aussi demandé l'ajout de E5 et donné le GO pour la séquence prise en charge, commit de preuve, consommation, `verifier`, push. Niveau de provenance : décision exprimée, rapportée par Claude Code, non vérifiée indépendamment (niveau 1/2 selon le cahier) ; elle n'atteint pas le niveau 3. Les conditions acceptées sont celles rédigées par Claude Code dans `decision-1.md` ; cette confirmation ne les modifie pas et ne vaut pas validation des épreuves au-delà de leur dépôt.
 
@@ -45,6 +45,8 @@
 - **Outil actuel : ROUGE, déduit.** `--auteur` est libre : `--auteur ChatGPT` donne une enveloppe conforme sans que rien ne distingue l'agent de la CI (constat C3).
 - **Ce qui la ferait passer à tort.** Une garde qui n'examine que la valeur de `author`. Elle doit examiner l'origine du dépôt (matérialisation CI), dont la forme reste à décider.
 - **Contre-épreuve.** La même décision matérialisée par la CI (voir cas de contrôle) passe.
+- **Mode de vérification précisé par Frédéric (19/10/2026, 21:26 UTC-4, soit 2026-10-20T01:26Z, heure relevée par Claude Code à la consignation ; rapporté par Claude Code, niveau 2).** E5 se code dans l'outil, par lecture de l'API GitHub : le commentaire désigné doit être posté par `github-actions[bot]`, citer un run de `tests.yml` dont l'étape de relais a réussi, et son contrat doit correspondre à la décision. Si l'API ne répond pas : arrêt explicite, jamais de repli silencieux. `tests.yml` reste hors périmètre : aucun marquage n'est ajouté au workflow.
+- **Limite consignée (risque résiduel).** Un job `claude.yml` utilise le même jeton que le relais : il peut poster sous `github-actions[bot]`. Cette vérification ne distingue donc pas la CI de relais d'un job d'agent. Ce risque est renvoyé à R2 et à la voie B ; il n'est pas résolu par la voie A.
 
 ## Épreuves communes de la couche de contrôle
 
