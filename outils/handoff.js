@@ -974,6 +974,17 @@ function exigerPreuveConditions(lot, corpsTexte) {
 }
 function nouvelleDemande(lot, corpsFichier, options) {
   if (!LOT_ID_VALIDE.test(lot)) { console.error(`LOT_ID malformé : ${lot}`); process.exit(1); } if (!fs.existsSync(corpsFichier)) { console.error(`Corps introuvable : ${corpsFichier}`); process.exit(1); } const mode = options.tokenMode || 'STANDARD'; if (!TOKEN_MODES.includes(mode)) { console.error(`token_mode inconnu : ${mode} (${TOKEN_MODES.join('|')})`); process.exit(1); }
+  // GOV-WAKE-TO-OBLIGATOIRE-20261020. PROTOCOL.md dit « Claude la pose en
+  // ouvrant le lot » ; rien ne le forçait, et deux lots consécutifs (2026-09
+  // puis GOV-R3 request-1) sont restés muets faute d'adresse. Le refus précède
+  // toute écriture (même garde-fou que la double preuve ci-dessous) : si le
+  // lot n'a encore déclaré `wake_to` sur aucun échange, --wake-to est requis.
+  // Une adresse déjà posée sur un échange antérieur est héritée sans qu'il
+  // faille la répéter — et sans qu'aucune valeur implicite ne soit écrite.
+  if (options.wakeTo === undefined && !adresseDeReveil(lot).adresse) {
+    console.error(`REFUS — ${lot} n'a encore déclaré \`wake_to\` sur aucun échange ; le réveil de l'Orchestrateur ne pourrait nommer aucun destinataire. Posez l'adresse : handoff.js demande ${lot} ${corpsFichier} --wake-to <adresse>. Rien n'est écrit.`);
+    process.exit(1);
+  }
   const corpsTexte = options.corps !== undefined ? options.corps : fs.readFileSync(corpsFichier, 'utf8');
   exigerPreuveConditions(lot, corpsTexte);
   // ARCH-003. `lireEnveloppe` ne retient que la PREMIÈRE occurrence d'une clé :

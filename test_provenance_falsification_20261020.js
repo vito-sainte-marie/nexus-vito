@@ -39,7 +39,7 @@ function lancer(dir, args, envPlus) {
     return { code: e.status === undefined ? -1 : e.status, sortie: String(e.stdout || ''), erreur: String(e.stderr || '') };
   }
 }
-const demande = (dir, lot, f) => lancer(dir, ['demande', lot, f]);
+const demande = (dir, lot, f) => lancer(dir, ['demande', lot, f, '--wake-to', 'ChatGPT']);
 const decision = (dir, lot, f, args, envPlus) => lancer(dir, ['decision', lot, f].concat(args || []), envPlus);
 
 console.log('\nP5 — épreuves de falsification de la provenance (E1-E5 + cas de contrôle)\n');

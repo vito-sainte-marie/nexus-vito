@@ -196,7 +196,7 @@ verifier('ouvrir un lot est refusé si un autre lot attend la consommation de sa
   fs.writeFileSync(corps, '\n# Corps\n');
   let code = 0, sortie = '';
   try {
-    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN'],
+    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN', '--wake-to', 'ChatGPT'],
       { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');
@@ -489,7 +489,7 @@ verifier('ouvrir un lot est refusé si une décision attend d’être consommée
   fs.writeFileSync(corps, '\n# Corps\n');
   let code = 0, sortie = '';
   try {
-    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN'],
+    execFileSync('node', [OUTIL, 'demande', 'AUTRE-LOT-20260905', corps, '--token-mode', 'LEAN', '--wake-to', 'ChatGPT'],
       { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } });
   } catch (e) { code = e.status; sortie = (e.stdout || '') + (e.stderr || ''); }
   assert.notStrictEqual(code, 0, 'ouvrir un second lot doit être refusé');

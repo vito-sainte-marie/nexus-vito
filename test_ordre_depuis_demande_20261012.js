@@ -120,7 +120,7 @@ function registre() {
 }
 function cli(outil, dir, args) {
   const corps = path.join(dir, '.corps.md'); fs.writeFileSync(corps, 'Demande d\'épreuve E3.\n');
-  try { return { code: 0, sortie: execFileSync('node', [outil, 'demande', LOT, corps, '--rail', 'handoff-continuite-20260920', ...args], { cwd: path.resolve(path.dirname(outil), '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir, NEXUS_CANAL: 'github-actions-claude' } }) }; }
+  try { return { code: 0, sortie: execFileSync('node', [outil, 'demande', LOT, corps, '--rail', 'handoff-continuite-20260920', '--wake-to', 'ChatGPT', ...args], { cwd: path.resolve(path.dirname(outil), '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir, NEXUS_CANAL: 'github-actions-claude' } }) }; }
   catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }
 }
 const ARGS = ['--depuis', REF, '--cible-env', 'test', '--precondition', 'registre_taille=310', '--postcondition', 'registre_taille=311', '--postcondition', 'registre_derniere_version=20261012000000', '--retour-arriere', 'aucun, justifié : additive'];

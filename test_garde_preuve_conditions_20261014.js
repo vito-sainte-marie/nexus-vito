@@ -47,7 +47,7 @@ function lancer(dir, args) {
     return { code: e.status === undefined ? -1 : e.status, sortie: String(e.stdout || ''), erreur: String(e.stderr || '') };
   }
 }
-const demande = (dir, lot, fichierCorps, args) => lancer(dir, ['demande', lot, fichierCorps].concat(args || []));
+const demande = (dir, lot, fichierCorps, args) => lancer(dir, ['demande', lot, fichierCorps, '--wake-to', 'ChatGPT'].concat(args || []));
 const decision = (dir, lot, fichierCorps, args) => lancer(dir, ['decision', lot, fichierCorps].concat(args || []));
 const etat = (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8'));
 

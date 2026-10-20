@@ -48,7 +48,7 @@ function corpsJetable(dir) {
 
 function deposer(dir, args) {
   try {
-    return { code: 0, sortie: execFileSync('node', [OUTIL, 'demande', LOT, corpsJetable(dir), '--token-mode', 'LEAN'].concat(args || []),
+    return { code: 0, sortie: execFileSync('node', [OUTIL, 'demande', LOT, corpsJetable(dir), '--token-mode', 'LEAN', '--wake-to', 'ChatGPT'].concat(args || []),
       { cwd: RACINE, encoding: 'utf8', env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }) };
   } catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }
 }

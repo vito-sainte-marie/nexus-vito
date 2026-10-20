@@ -43,7 +43,7 @@ function bac() {
 /** Lance `handoff.js demande` dans le bac, et rend code de sortie + sorties. */
 function demande(dir, args) {
   try {
-    const sortie = execFileSync('node', [OUTIL, 'demande', LOT, path.join(dir, 'corps.md')].concat(args),
+    const sortie = execFileSync('node', [OUTIL, 'demande', LOT, path.join(dir, 'corps.md'), '--wake-to', 'ChatGPT'].concat(args),
       { cwd: RACINE, encoding: 'utf8', env: Object.assign({}, process.env, { NEXUS_HANDOFF_DIR: dir }) });
     return { code: 0, sortie, erreur: '' };
   } catch (e) {

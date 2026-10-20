@@ -103,7 +103,7 @@ verifier('demande sans --rail sur un lot neuf refuse avant d\'écrire la moindre
   fs.writeFileSync(corps, 'Corps.\n');
   const e = etat(dir); e.lots[ACTIF].statut = 'DECISION_CONSOMMEE';
   fs.writeFileSync(path.join(dir, 'STATE.json'), JSON.stringify(e, null, 2) + '\n');
-  const r = executer(['demande', 'LOT-NEUF-20261010', corps], dir);
+  const r = executer(['demande', 'LOT-NEUF-20261010', corps, '--wake-to', 'ChatGPT'], dir);
   assert.notStrictEqual(r.code, 0, r.sortie);
   assert.ok(/sans que personne l'ait désigné/.test(r.sortie), r.sortie);
   assert.ok(!fs.existsSync(path.join(dir, 'lots', 'LOT-NEUF-20261010', 'request-1.md')), 'aucune enveloppe ne doit être déposée');
