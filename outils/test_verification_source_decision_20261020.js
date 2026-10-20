@@ -148,4 +148,16 @@ t('F8 (contrôle vert) : décision CI intacte, pointeur et commentaire concordan
   assert.ok(/identité|immutab/i.test(r.detail), 'la limite (ni identité ni immutabilité) reste dite');
 });
 
+t('F9 (forme réelle du relais) : en-tête et marqueur du relais autour du verdict -> acceptée', () => {
+  const enrobe = "Réponse de l'arbitre (ChatGPT, via l'API, run 39459485862). Contrat validé par le relais ; matérialisation par la CI si NEXUS_MATERIALISATION_CI=arme, sinon par Claude.\n\n" +
+    VERDICT + '\n\n<!-- nexus-arbitrage: eb1f67f6c85f8f7f -->\n';
+  const r = verifier(decisionTexte(), API(commentaire({ corps: enrobe })));
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+});
+
+t('F9b : un texte ajouté dans le commentaire hors en-tête/marqueur reste une altération', () => {
+  const r = verifier(decisionTexte(), API(commentaire({ corps: VERDICT + '\n\nligne ajoutée\n\n<!-- nexus-arbitrage: eb1f67f6c85f8f7f -->' })));
+  assert.strictEqual(r.code, 'DECISION_ALTEREE');
+});
+
 console.log(`\n${passes}/${total} épreuves vertes`);

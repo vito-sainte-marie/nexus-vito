@@ -18,6 +18,16 @@ const LIMITE = "La concordance ne prouve ni l'identité de l'émetteur ni l'immu
 const sha256 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 const canon = (s) => String(s).replace(/\r\n/g, '\n').trim();
 
+// Le commentaire du relais enveloppe le verdict : un en-tête « Réponse de l'arbitre (...) » et un
+// marqueur final <!-- nexus-arbitrage: ... -->. Seuls ces deux éléments, de forme exacte, sont retirés ;
+// tout autre écart reste une altération.
+function verdictDuCommentaire(corps) {
+  let c = canon(corps);
+  c = c.replace(/^Réponse de l'arbitre \([^\n]*\)[^\n]*\n\n/, '');
+  c = c.replace(/\n\n<!-- nexus-arbitrage: [0-9a-f]+ -->$/, '');
+  return c.trim();
+}
+
 function enveloppe(texte) {
   const m = /^---\n([\s\S]*?)\n---\n/.exec(texte.replace(/\r\n/g, '\n'));
   const champs = {};
@@ -64,12 +74,13 @@ function verifierSource({ decisionPath, fetchComment }) {
   if (source.auteur !== AUTEUR_ADMIS) {
     return refus('SOURCE_INADMISSIBLE', `auteur du commentaire « ${source.auteur} » ≠ ${AUTEUR_ADMIS}.`);
   }
-  const cs = contrat(canon(source.corps));
+  const verdict = verdictDuCommentaire(source.corps);
+  const cs = contrat(verdict);
   if (cs.LOT !== env.lot_id || cs.REQUEST !== env.in_reply_to) {
     return refus('SOURCE_HORS_LOT', `le commentaire vise ${cs.LOT || '?'} / ${cs.REQUEST || '?'}, la décision ${env.lot_id} / ${env.in_reply_to}.`);
   }
   const corps = corpsDeLaDecision(texte);
-  if (corps === null || sha256(corps) !== sha256(canon(source.corps))) {
+  if (corps === null || sha256(corps) !== sha256(verdict)) {
     return refus('DECISION_ALTEREE', 'le corps de la décision ne correspond pas au commentaire source (empreinte recalculée).');
   }
   if (cs.DECISION !== env.decision || cs.CLOSES !== env.closes) {
