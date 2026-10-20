@@ -702,13 +702,13 @@
       "consomme_le": "2026-10-20T23:04:03.684Z"
     },
     "GOV-R4-VIGIE-20261020": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "5c882b641aacc4a927cdd25cb44f05fff42cd7da",
-      "consomme_le": "2026-10-20T23:37:50.035Z",
+      "commit_decision": "32de0bb50e740089b0efd723629f08c63f9b33f1",
+      "consomme_le": "2026-10-20T23:46:26.316Z",
       "preuve_action": "f396f2a74304885604bb78f2afd3b416dc0811a0"
     }
   },
