@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: GOV-R4-VIGIE-20261020
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -22,41 +22,28 @@ preuves:
     valeur: 158-fichiers
   - id: rail-tete
     classe: VERIFIED
-    valeur: e79e071c
-  - id: workflows-presents
+    valeur: f396f2a7
+  - id: code-vigie
     classe: VERIFIED
-    valeur: tests.yml+test-telegram-handoff.yml-sans-schedule
+    valeur: f396f2a7
 ---
-# GOV-R4-VIGIE-20261020 : request-1, cadrage d'une vigie planifiée qui appelle O3
+# GOV-R4-VIGIE-20261020 : request-2, V1 livrée (résultats)
 
-**Domaine :** gouvernance. **Origine :** GO de Frédéric du 20/10/2026 (« ouvre la vigie R4 »), suite de R3 (O3 livré, non câblé).
-**Nature de cette request-1 :** cadrage seulement. Aucun workflow, permission, secret, identité, connecteur ni armement n'est créé ni modifié par elle. Rien n'est écrit en dehors du registre.
+**Réponse à :** decision-1 de Frédéric (APPROVED_WITH_CONDITIONS, closes false, 5c882b64), consommée avec preuve d'action f396f2a7.
 
-## Constat
+## Livré (V1 seule)
+- `.github/workflows/vigie-cloture.yml` : `schedule` unique `17 * * * *` (horaire), `permissions: contents: read` seul, aucun secret, checkout sur le rail en `persist-credentials: false`, lecture anonyme de l'API GitHub (dépôt public). Aucun autre déclencheur.
+- `outils/vigie-cloture-ci.js` : lance O3 en rapport (jamais `--appliquer`). Silence (code 0) si `RIEN_A_CONSOMMER` ; sinon `::error` nommant le lot et code 1 (clôture conforme en attente, ou refus/ambiguïté/panne d'O3 : échec fermé).
+- `test_vigie_cloture_ci_20261020.js` : V1–V6, écrites et constatées rouges avant le code (0/6 puis 5/6 rouges avec V4 vide ; V4 renforcée pour exiger l'alerte), vertes ensuite : silence ; clôture conforme -> alerte ; non nue / altérée / commit humain / API muette / deux candidats -> alerte de refus ; aucune écriture ni push ; workflow statique (horaire, contents: read, sans secret, sans Telegram ni commentaire #28) ; script sans écriture.
 
-- O3 (`outils/consommer-clotures-ci.js`) consomme une clôture CI conforme, mais ne s'exécute que si une session l'appelle. Une clôture déposée la nuit attend la prochaine ouverture (mémoire : deux clôtures R1/R2 sont restées sans consommateur le 20/10).
-- Les workflows présents sont `tests.yml` et `test-telegram-handoff.yml`. Aucun n'est planifié (aucun `schedule`/`cron`).
-- O3 ne pousse jamais, par construction (R3 G10). Une vigie qui consomme « pour de bon » devrait donc pousser sur le rail : c'est une écriture de la CI sur une branche, et un commit poussé avec le jeton du workflow ne relance pas la CI.
+## Preuve des conditions de decision-1
+1. contents: read seul, O3 sans --appliquer : tenue (V5, V6). 2. Canal = échec du run + annotation nommant le lot, ni Telegram ni #28 : tenue. 3. Horaire, pas de nouvelle alerte sans changement d'état, hors rappel du run suivant en échec : tenue (V2, deux passages identiques). 4. Épreuves rouges avant le code : tenue. 5. Arrêt par désactivation du workflow ; V2 et V3 hors périmètre : rien n'y touche.
 
-## Objet : trois niveaux, du plus sûr au plus fort
+## Constats
+Guardian QA : un finding sur ma propre épreuve V4 (attendu calculé par l'expression observée), corrigé ; ensuite 354 épreuves, 0 finding. `handoff.js verifier` vert. Suite `run-tests.js` : seuls les 9 échecs connus. `tests.yml` non modifié.
 
-1. **V1 — vigie en lecture seule.** Workflow planifié qui lance O3 en mode rapport (sans `--appliquer`) et signale, par le canal d'alerte existant, « clôture en attente de consommation : <lot> ». Permissions `contents: read`. Ne modifie rien.
-2. **V2 — consommation par la vigie.** Même workflow avec `--appliquer` puis push du commit de registre. Exige `contents: write` sur le rail, et le push ne relance pas la CI : la preuve de vert du commit de consommation reste à produire autrement.
-3. **V3 — réveil de Claude après consommation.** Hors cadrage ici (touche l'armement de la boucle).
+## Limite à connaître
+Un workflow `schedule` ne s'exécute que depuis la branche par défaut (`main`). Il est ici sur le rail : tant qu'il n'est pas sur `main`, il ne tourne pas. Le porter sur `main` est une fusion/promotion (palier distinct) que cette demande ne prend pas. Première exécution réelle donc non observée ; seul le banc local la prouve.
 
-**Recommandation de Claude :** n'admettre que V1 comme périmètre d'une première étape. V2 et V3 changent ce que la CI peut écrire ou déclencher au nom de Frédéric : à nommer comme paliers réservés, pas à trancher ici.
-
-## Questions à arbitrer
-
-1. V1 relève-t-il d'un palier réservé (ajout d'un workflow planifié) ou d'un arbitrage ordinaire ? Dans le doute, dire lequel : Claude s'arrête et rapporte.
-2. Le canal d'alerte : réutiliser Telegram (secret déjà présent, alerte `RAIL_SANS_ADRESSE` exclue du lot précédent) ou un commentaire sur #28 ? Chacun a son périmètre de permission.
-3. Fréquence et idempotence : une alerte par clôture et par lot, pas de répétition tant que l'état ne change pas.
-4. Épreuves de falsification à écrire rouges avant tout code : V1 sans clôture → silence ; avec clôture conforme → une alerte, aucune écriture ; clôture non conforme (empreinte divergente, API muette) → alerte de refus, pas de succès ; jamais d'écriture sur le dépôt ; même état deux fois → une seule alerte.
-
-## Hors périmètre
-
-Voie B ; `tests.yml` ; permission, secret, identité, connecteur ; V2, V3 et O1/O2 ; Production ; règle des niveaux ; incident SQL et clôture d'ETAPE5 ; toute écriture Supabase, fusion ou déploiement.
-
-## Décision demandée
-
-Admettre V1 comme seul périmètre d'une étape suivante (ou l'amender), nommer le palier réservé s'il y en a un, et dire si un GO distinct de Frédéric est requis avant d'écrire le workflow. Rien n'est appliqué par cette demande.
+## Demande
+Valider V1 comme livrée (closes true) en nommant la limite ci-dessus, ou dire ce qui manque.

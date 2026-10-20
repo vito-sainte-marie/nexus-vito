@@ -1,58 +1,36 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-DIAG-ENFANTS-20261020/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: GOV-TEST-DIAG-ENFANTS-20261020
+lot_id: GOV-R4-VIGIE-20261020
 seq: 1
-author: ChatGPT
+author: Frédéric Bragance
 branch: handoff-continuite-20260920
-decision: APPROVED
-closes: true
+decision: APPROVED_WITH_CONDITIONS
+closes: false
 in_reply_to: request-1.md
 provenance:
-  niveau: 2
-  mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303667771
+  niveau: 1
+  mode: declared
+  reference: conversation Claude Code du 2026-10-20, texte colle par Frederic
 ---
-# Décision sur request-1.md — APPROVED, lot clos
+# Décision sur GOV-R4-VIGIE-20261020, request-1
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39511660408), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303667771. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+**APPROVED_WITH_CONDITIONS, closes: false.** Palier : `ARMEMENT_BOUCLE_AU_NOM_DE_FREDERIC`, réservé à Frédéric. Elle répond au `BLOCKED` de l'arbitre sur request-1 (RAIL_LU `2e8d6f9ed32c14983b0a1bd84f5be6246270c38a`, commentaire #28 `issuecomment-6303878089`).
 
-## Ce que la CI a contrôlé
+## Décision
 
-- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `GOV-TEST-DIAG-ENFANTS-20261020`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
-- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `3be5ed956285fbeb08a167b1078b348c52a6bd71`, `HEAD` = `3be5ed956285fbeb08a167b1078b348c52a6bd71`, SHA du run `3be5ed956285fbeb08a167b1078b348c52a6bd71`, tête du rail `3be5ed956285fbeb08a167b1078b348c52a6bd71`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
-- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
+J'autorise l'armement de V1 aux conditions suivantes :
 
-## Ce que la CI n'a PAS contrôlé
+## Conditions
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
-- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
+1. Permissions `contents: read` seulement : aucun secret, aucune écriture sur les issues ni sur le dépôt, O3 sans `--appliquer`.
+2. Canal d'alerte : le run planifié se termine en échec avec une annotation nommant le lot quand une clôture attend sa consommation. Pas de Telegram, pas de commentaire sur #28. Un autre canal demandera une décision distincte.
+3. Fréquence horaire. Pas de nouvelle alerte tant que l'état ne change pas, sauf le rappel naturel du run suivant en échec.
+4. Épreuves rouges avant le code : silence sans clôture ; alerte avec une clôture conforme ; alerte de refus si la clôture n'est pas conforme ; aucune écriture.
+5. Arrêt : je peux désactiver le workflow à tout moment depuis l'onglet Actions ; V2 et V3 restent hors périmètre.
 
-## Texte de l'arbitre
+## Provenance (niveau 1, décision exprimée)
 
-**Verdict : APPROVED.**
-
-Le changement est limité au diagnostic d’un test, sans effet métier, Production, secret, permission, workflow ou donnée. L’arbitrage a posteriori est couvert par `OUTILLAGE_A_POSTERIORI`. Le rouge de banc reste du ressort de l’arbitre selon `REGRESSION_PRODUIT_VS_BANC`. Les preuves rouge/vert et Guardian QA sont suffisantes ; l’absence de banc spécifique ENOENT est une limite documentée, non bloquante. Aucun motif STOP n’est caractérisé.
-
-RAIL_LU: 3be5ed956285fbeb08a167b1078b348c52a6bd71
-
-NEXT_ACTION_CONTRACT
-DECISION: APPROVED
-CLOSES: true
-LOT: GOV-TEST-DIAG-ENFANTS-20261020
-REQUEST: request-1.md
-HEAD: 3be5ed956285fbeb08a167b1078b348c52a6bd71
-LEASE: aucun
-GATE_STATE: G0, preuves ciblées vertes et Guardian QA sans finding
-PROOF_STATE: PROOF_VALID
-CONDITIONS: aucune
-BLOCKER: aucun
-STOP_REQUIRED: non
-CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
-OWNER_NEXT: Claude
-EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision APPROVED et close via `outils/handoff.js decision --auteur ChatGPT`.
+Texte de la décision écrit par Frédéric et collé tel quel dans la conversation avec Claude Code, le 20/10/2026. Claude Code n'a ajouté que cet en-tête et cette note. Dépôt sous le compte GitHub `vito-sainte-marie`, partagé avec des agents : il ne prouve pas l'identité de l'auteur ; le niveau 3 n'est pas atteignable avec l'outil actuel.
