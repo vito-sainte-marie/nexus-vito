@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-MUTATION-ROBUSTE-20261020/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-DIAG-ENFANTS-20261020/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: GOV-TEST-MUTATION-ROBUSTE-20261020
+lot_id: GOV-TEST-DIAG-ENFANTS-20261020
 seq: 1
 author: ChatGPT
 branch: handoff-continuite-20260920
@@ -13,18 +13,18 @@ in_reply_to: request-1.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303426676
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303667771
 ---
 # Décision sur request-1.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39509883325), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303426676. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39511660408), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6303667771. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `GOV-TEST-MUTATION-ROBUSTE-20261020`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `GOV-TEST-DIAG-ENFANTS-20261020`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `e190156f4bbcbb9e6c5db523330bd83f520b5179`, `HEAD` = `e190156f4bbcbb9e6c5db523330bd83f520b5179`, SHA du run `e190156f4bbcbb9e6c5db523330bd83f520b5179`, tête du rail `e190156f4bbcbb9e6c5db523330bd83f520b5179`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `3be5ed956285fbeb08a167b1078b348c52a6bd71`, `HEAD` = `3be5ed956285fbeb08a167b1078b348c52a6bd71`, SHA du run `3be5ed956285fbeb08a167b1078b348c52a6bd71`, tête du rail `3be5ed956285fbeb08a167b1078b348c52a6bd71`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
@@ -34,18 +34,20 @@ _Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39509883325), post
 
 ## Texte de l'arbitre
 
-Le correctif est approuvé et le lot peut être clos. Il relève de l’arbitrage a posteriori prévu par `OUTILLAGE_A_POSTERIORI`. Le rouge est diagnostiqué comme un aléa du banc, sans régression produit, conformément à `REGRESSION_PRODUIT_VS_BANC`. Les preuves rouge/vert et Guardian QA sont valides, et aucun motif d’escalade humaine n’est constitué.
+**Verdict : APPROVED.**
 
-RAIL_LU: e190156f4bbcbb9e6c5db523330bd83f520b5179
+Le changement est limité au diagnostic d’un test, sans effet métier, Production, secret, permission, workflow ou donnée. L’arbitrage a posteriori est couvert par `OUTILLAGE_A_POSTERIORI`. Le rouge de banc reste du ressort de l’arbitre selon `REGRESSION_PRODUIT_VS_BANC`. Les preuves rouge/vert et Guardian QA sont suffisantes ; l’absence de banc spécifique ENOENT est une limite documentée, non bloquante. Aucun motif STOP n’est caractérisé.
+
+RAIL_LU: 3be5ed956285fbeb08a167b1078b348c52a6bd71
 
 NEXT_ACTION_CONTRACT
 DECISION: APPROVED
 CLOSES: true
-LOT: GOV-TEST-MUTATION-ROBUSTE-20261020
+LOT: GOV-TEST-DIAG-ENFANTS-20261020
 REQUEST: request-1.md
-HEAD: e190156f4bbcbb9e6c5db523330bd83f520b5179
+HEAD: 3be5ed956285fbeb08a167b1078b348c52a6bd71
 LEASE: aucun
-GATE_STATE: G3, CI verte sur les preuves rouge/vert et Guardian QA fournies
+GATE_STATE: G0, preuves ciblées vertes et Guardian QA sans finding
 PROOF_STATE: PROOF_VALID
 CONDITIONS: aucune
 BLOCKER: aucun
@@ -53,4 +55,4 @@ STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision APPROVED sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
+ACTION_NEXT: Matérialiser cette décision APPROVED et close via `outils/handoff.js decision --auteur ChatGPT`.
