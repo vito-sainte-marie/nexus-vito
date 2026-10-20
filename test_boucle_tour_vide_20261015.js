@@ -38,7 +38,8 @@ function banc({ closes = false } = {}) {
   git(clone, 'checkout', '-q', git(RACINE, 'rev-parse', 'HEAD'));
   for (const [r, s] of refs) git(clone, 'update-ref', `refs/remotes/origin/${r}`, s);
   for (const f of ['outils', 'docs/skills']) { /* l'arbre de travail prime sur le commit */
-    execFileSync('cp', ['-R', path.join(RACINE, f) + '/.', path.join(clone, f)]);
+    /* hors fichiers cachés : les épreuves de mutation écrivent brièvement `.mut-*.js` dans outils/ ; un `cp -R` concurrent échouait en ENOENT (run 39474481132) */
+    fs.cpSync(path.join(RACINE, f), path.join(clone, f), { recursive: true, filter: (src) => !path.basename(src).startsWith('.') });
   }
   const dir = path.join(clone, 'registre-epreuve');
   fs.mkdirSync(path.join(dir, 'lots', LOT), { recursive: true });
