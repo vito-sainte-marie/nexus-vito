@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R3-CONSOMMATION-CLOTURE-20261020/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R3-CONSOMMATION-CLOTURE-20261020/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: GOV-R3-CONSOMMATION-CLOTURE-20261020
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -23,7 +24,8 @@ preuves:
 # GOV-R3-CONSOMMATION-CLOTURE-20261020 : consommation automatique d'une clôture déposée par la CI, par O3 (hors workflow)
 
 **Domaine :** gouvernance. **Origine :** note de Frédéric du 20/10/2026 (« la CI ne déclenche personne pour consommer une clôture qu'elle dépose. Il faut que ce soit automatique »), renvoyée de R2 à R3, et GO du 20/10/2026 : « ouvre la R3 : consommation automatique par O3 ».
-**Nature de cette request-1 :** cadrage et épreuves de falsification seulement. Aucun code, workflow, permission, secret, identité ni connecteur n'est modifié par elle.
+**Redépôt :** la request-1 (`3fa64c9d`) ne déclarait pas `wake_to` ; le réveil de l'arbitre n'a donc pas été composé (run 39474481132). Cette request-2 a le même contenu, avec `wake_to` vers l'issue #28. La request-1 n'a reçu aucune décision.
+**Nature de cette request-2 :** cadrage et épreuves de falsification seulement. Aucun code, workflow, permission, secret, identité ni connecteur n'est modifié par elle.
 **Écart de numérotation, dit d'emblée :** dans `PLAN-RACCORDEMENT-GUARDIAN.md` §2, « R3 » désigne le journal des transitions et de provenance. Ce lot reprend le nom R3 pour la consommation des clôtures, sur demande de Frédéric ; le journal des transitions reste à cadrer (lot distinct, ou second objet de celui-ci si l'arbitre le préfère).
 
 ## Constat établi (R2, `mesure-consommations-20261020.md`)
