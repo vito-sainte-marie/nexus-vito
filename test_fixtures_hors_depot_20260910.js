@@ -208,8 +208,12 @@ async function preuveMutation() {
 // zéro fichier orphelin, arbre Git rendu exactement propre après coup.
 function lancer(fichier) {
   return new Promise((resolve) => {
-    execFile('node', [fichier], { cwd: RACINE, timeout: 60000 }, (err, stdout, stderr) => {
-      resolve({ fichier, code: err ? (err.code || 1) : 0, stdout, stderr });
+    // Banc seulement : NEXUS_FIXTURE_ENFANT_ECHEC force l'échec d'un enfant pour
+    // prouver que le détail s'affiche AVANT l'assertion.
+    const forcer = process.env.NEXUS_FIXTURE_ENFANT_ECHEC && fichier === 'test_build_tracabilite_20260905.js';
+    const args = forcer ? ['-e', 'console.error("échec forcé (banc)");process.exit(3)'] : [fichier];
+    execFile('node', args, { cwd: RACINE, timeout: 60000 }, (err, stdout, stderr) => {
+      resolve({ fichier, code: err ? (err.code || 1) : 0, signal: err ? (err.signal || null) : null, delaiDepasse: !!(err && err.killed), stdout, stderr });
     });
   });
 }
@@ -243,13 +247,20 @@ async function executionsParalleles() {
 
   const resultats = await executionsParalleles();
 
+  // Le détail AVANT l'assertion : `verifier` lève, donc ce qui suit ne
+  // s'afficherait jamais (run 39510843132 : rouge sans cause lisible).
+  const fin = (t) => String(t || '').trim().split('\n').slice(-15).join('\n      ');
   const echecs = resultats.filter(r => r.code !== 0);
-  verifier(`${resultats.length} exécutions parallèles complètes, toutes en succès (0 échec)`, echecs.length === 0);
-  if (echecs.length) {
-    for (const e of echecs) console.log(`  ÉCHEC — ${e.fichier} : code ${e.code}\n${e.stderr}`);
+  for (const e of echecs) {
+    console.log(`  ÉCHEC enfant — ${e.fichier} : code ${e.code}, signal ${e.signal || 'aucun'}, délai de 60 s ${e.delaiDepasse ? 'DÉPASSÉ' : 'non dépassé'}\n    stdout (fin) :\n      ${fin(e.stdout)}\n    stderr (fin) :\n      ${fin(e.stderr)}`);
   }
+  verifier(`${resultats.length} exécutions parallèles complètes, toutes en succès (0 échec)`, echecs.length === 0);
 
   const avecEnoent = resultats.filter(r => /ENOENT/.test(r.stdout) || /ENOENT/.test(r.stderr));
+  for (const e of avecEnoent) {
+    const lignes = (String(e.stdout) + '\n' + String(e.stderr)).split('\n').filter(l => /ENOENT/.test(l)).slice(0, 5).join('\n      ');
+    console.log(`  ENOENT — ${e.fichier} (code ${e.code}) :\n      ${lignes}`);
+  }
   verifier('zéro ENOENT sur l\'ensemble des exécutions parallèles', avecEnoent.length === 0);
 
   const orphelins = fs.readdirSync(RACINE).filter(f => f.startsWith('__fixture_'));
