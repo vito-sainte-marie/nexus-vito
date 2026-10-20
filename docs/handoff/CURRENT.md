@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R1-IDENTITES-PROVENANCE-20261019/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R1-IDENTITES-PROVENANCE-20261019/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: GOV-R1-IDENTITES-PROVENANCE-20261019
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,48 +21,57 @@ preuves:
     classe: VERIFIED
     valeur: 158-fichiers
 ---
-# GOV-R1-IDENTITES-PROVENANCE-20261019 : validation des épreuves et état des pistes
+# GOV-R1-IDENTITES-PROVENANCE-20261019 : mise en œuvre de la voie A (contrôle de provenance P5)
 
-**Domaine :** gouvernance. **Préparé par :** Claude Code. **Nature :** documentation et décision. Aucun outil, workflow, permission, secret ni identité n'est modifié par cette demande.
+**Domaine :** gouvernance. **Préparé par :** Claude Code. **Nature :** demande d'arbitrage d'une mise en œuvre déléguée. Cette demande ne modifie rien par elle-même.
 
 ## Objet
 
-La decision-1 (`091437cc`, consommée avec la preuve `f426dbad`) a retenu P5 d'abord et exigé que les épreuves de falsification soient écrites et validées avant tout code d'outil. Elles sont écrites : `docs/gouvernance/v2/EPREUVES-FALSIFICATION-PROVENANCE-20261019.md` (E1 à E5). Cette demande en sollicite la validation et expose ce que l'instruction des pistes a établi, en lecture seule, le 20/10/2026.
+La decision-2 (`32d128ba`, consommée avec la preuve `7a0acd14`) valide les épreuves E1 à E5 et les codes `PROVENANCE_NON_ETABLIE`, `PROVENANCE_INVALIDE`, `PROVENANCE_INSUFFISANTE`, retient la voie A puis B et exige une décision ultérieure sur le code de la voie A. Frédéric a ensuite délégué cette mise en œuvre à l'arbitre. La présente demande l'invite à arbitrer et à cadrer la voie A (code P5 minimal) dans ce périmètre.
 
-## Constats d'instruction (lecture seule, API GitHub, 20/10/2026 ~01:15Z)
+## Délégation de Frédéric (citée mot pour mot)
 
-| Point | Constat | Conséquence |
-|---|---|---|
-| Collaborateurs du dépôt | un seul : `vito-sainte-marie` (propriétaire, admin) ; c'est aussi le compte des agents | aucun second compte ne peut aujourd'hui distinguer Frédéric d'un agent |
-| Environnement `github-pages` | relecteurs requis : `vito-sainte-marie` seul ; `prevent_self_review: false` | P2 en l'état n'établit rien : le compte approbateur est le compte déposant |
-| Commits récents du rail | tous `unsigned`, auteur et committer `vito-sainte-marie` | P1 n'existe pas aujourd'hui : aucune clé de signature vérifiée par la plateforme |
-| Rail `handoff-continuite-20260920` | `protected: false` ; les deux rulesets actifs visent `production` et `main` | le rail, où se déposent les décisions, n'a aucune protection (objet de R7) |
-| Ruleset Production | sans acteur de contournement ; règles : suppression, non-fast-forward, PR, contrôles requis | la protection existe côté `production`, pas côté rail |
+Reçue dans la conversation avec Claude Code le 19/10/2026 à 21:25 (UTC-4, soit 2026-10-20T01:25Z, horodatage de la transcription de la session) :
 
-Non établi, donc non affirmé : ce que ChatGPT peut attester côté API (P4) ; si la session Claude Code peut être condensée par une empreinte externe (P3). Ces deux points demandent une vérification que je n'ai pas faite.
+> Délégation : la mise en œuvre de la voie A est déléguée à l’arbitre (code du contrôle de provenance, épreuves vues rouges puis vertes, corrections, clôture du lot), à condition de ne toucher ni permission, secret, identité, connecteur, workflow d’armement, Production, ni la règle des niveaux fixée au point 3. Tout écart à ce périmètre me revient.
+
+Précisions de Frédéric à 21:26 (UTC-4, soit 01:26Z), en réponse à une question de Claude Code :
+
+> tests.yml reste hors périmètre. E5 se code dans l’outil, par lecture de l’API : le commentaire désigné est posté par github-actions[bot], il cite un run de tests.yml dont l’étape de relais a réussi, et son contrat correspond à la décision. Si l’API ne répond pas, arrêt explicite. Consigne la limite : un job claude.yml utilise le même jeton ; ce risque résiduel est renvoyé à R2 et à la voie B.
+>
+> Si l’arbitre bloque encore pour CHANGEMENT_DOCTRINE sur une étape de ce périmètre, arrête-toi et rapporte : on inscrira alors la délégation au registre des acquis.
+
+Provenance : décision exprimée dans la conversation, rapportée par Claude Code, non vérifiée indépendamment (niveau 2). Cette délégation n'est pas inscrite au registre des acquis (`ARBITRAGES-ACQUIS.json`) ; l'arbitre n'a donc pas, aujourd'hui, d'acquis `DELEGATION_ARBITRE` qui la couvre.
 
 ## Ce qui est demandé
 
-1. **Valider, amender ou refuser les épreuves E1 à E5.** Détail des points à trancher : les trois codes d'arrêt proposés (`PROVENANCE_NON_ETABLIE`, `PROVENANCE_INVALIDE`, `PROVENANCE_INSUFFISANTE`) ; E5 (un `author: ChatGPT` déposé par un agent est refusé, seule la matérialisation par la CI est admise).
-2. **Choisir la suite**, en connaissant les constats ci-dessus :
-   - **Voie A, code P5 minimal** : un champ de provenance dans l'enveloppe et l'arrêt explicite pour les paliers réservés à Frédéric, écrit contre les épreuves validées. Le niveau 3 reste inatteignable.
-   - **Voie B, réglages d'abord (à Frédéric)** : création d'une identité distincte et/ou clé de signature (P1), protection du rail (R7), relecteur distinct (P2). Aucun n'est faisable par un agent ; chacun change une permission ou une identité.
-   - Les voies ne s'excluent pas : A rend l'arrêt explicite maintenant, B conditionne tout accès au niveau 3.
+1. Arbitrer la mise en œuvre de la voie A dans le périmètre délégué : champ de provenance dans l'enveloppe, arrêt explicite pour les paliers réservés à Frédéric, contre les épreuves E1 à E5.
+2. Si le périmètre est admis, rendre le verdict qui ouvre la phase d'exécution. Claude Code exécutera : d'abord les épreuves E1 à E5 rouges sur l'outil actuel (E1 observée, E2 à E5 déduites), ensuite le code, ensuite les épreuves vertes, avec le cas de contrôle vert (matérialisation par la CI).
+3. Rendre la clôture du lot (`closes: true`) seulement après épreuves vertes et preuves déposées.
 
-## Hors périmètre
+## Périmètre, tel que borné par Frédéric
 
-Incident SQL de l'étape 5 (ouvert) ; clôture d'ETAPE5 ; Supabase ; fusion ; déploiement ; toute modification de permission, secret, identité, connecteur ou workflow ; tout code d'outil avant décision sur les épreuves.
+**Inclus :** code du contrôle de provenance dans `outils/` ; champ de provenance dans l'enveloppe ; E5 par lecture de l'API GitHub (commentaire de `github-actions[bot]` citant un run de `tests.yml` dont l'étape de relais a réussi, contrat conforme à la décision ; arrêt explicite si l'API ne répond pas) ; épreuves rouges puis vertes ; corrections ; clôture du lot.
+
+**Exclus, retour à Frédéric en cas d'écart :** toute permission, secret, identité, connecteur ; tout workflow d'armement et `tests.yml` ; Production ; la règle des niveaux (condition 3 de la decision-2 : le niveau 2 explicitement marqué suffit pour la doctrine, la documentation et les actions réversibles sur Test ; le niveau 3 est exigé pour la Production et l'irréversible, à défaut geste direct de Frédéric) ; les réglages de la voie B ; l'incident SQL d'ETAPE5 et la clôture d'ETAPE5.
+
+## Limites connues
+
+- **Risque résiduel de E5.** Un job `claude.yml` utilise le même jeton que le relais et peut poster sous `github-actions[bot]`. La vérification ne distingue donc pas la CI de relais d'un job d'agent. Renvoyé à R2 et à la voie B ; non résolu par la voie A.
+- Le niveau 3 reste inatteignable sous l'outil actuel : la voie A rend l'arrêt explicite, elle n'établit aucune identité.
+- E2 à E5 n'ont pas été vues rouges ; seule E1 l'a été.
+- La forme du champ de provenance reste à décider dans le cadre de l'arbitrage.
 
 ## Décision demandée
 
-`CHANGEMENT_DOCTRINE`, palier de Frédéric : épreuves E1 à E5 validées ou amendées, et voie retenue (A, B, ou A puis B).
+Dans le périmètre ci-dessus, `APPROVED` ou `APPROVED_WITH_CONDITIONS`. Si l'arbitre estime qu'une étape sort du périmètre ou exige un palier réservé (`CHANGEMENT_DOCTRINE`), il le dit : Claude Code s'arrête et rapporte, la délégation sera alors inscrite au registre des acquis par Frédéric.
 
-## Preuve des conditions de decision-1
+## Preuve des conditions de decision-2
 
-Les cinq conditions de `decision-1.md` (`091437cc`) ont été acceptées par Frédéric dans la conversation avec Claude Code le 19/10/2026 à 21:00 (UTC-4), consignées dans le commit de preuve `f426dbad` ; décision exprimée, rapportée par Claude Code, non vérifiée indépendamment. Respect des conditions :
+Les cinq conditions de `decision-2.md` (`32d128ba`) :
 
-1. **P5 est une orientation, rien n'est appliqué.** Respectée : P5 n'est implémentée nulle part ; cette demande propose seulement une voie A dont la mise en œuvre exige une décision.
-2. **Épreuves écrites et validées avant tout code d'outil.** Écrites : E1 à E5, dans `docs/gouvernance/v2/EPREUVES-FALSIFICATION-PROVENANCE-20261019.md` (`f426dbad`). Validation : non acquise, c'est l'objet de la question 1 ci-dessus. Aucun code d'outil n'a été écrit ; `git diff 091437cc..HEAD` ne contient que ce document et `STATE.json`.
-3. **Aucune modification d'outil, workflow, permission, secret, identité ou connecteur ; R1 et R7 restent à Frédéric.** Respectée : les constats d'instruction sont des lectures seules de l'API GitHub ; aucun réglage n'a été exécuté.
-4. **Le niveau 2 ne vaut jamais le niveau 3 ; le compte partagé seul ne prouve pas l'identité.** Respectée : la confirmation du 19/10 est qualifiée niveau 1/2 et E4 en fait une épreuve ; le constat « un seul collaborateur, relecteur unique, auto-relecture permise » est reporté tel quel.
-5. **L'incident SQL de l'étape 5 reste ouvert.** Respectée : non traité, listé hors périmètre.
+1. **Rien n'est appliqué avant une décision sur le code de la voie A.** Respectée : aucun code d'outil n'a été écrit ; `git diff d49d2224..4ab10060` ne contient que le document des épreuves, `STATE.json` et la decision-2. Cette demande sollicite l'arbitrage de la mise en œuvre, elle ne l'exécute pas.
+2. **Épreuve vue rouge avant le code, verte après.** Respectée à ce stade : aucune garde n'est livrée. Seule E1 est observée rouge ; l'exécution des autres rouges précède le code dans la séquence proposée.
+3. **Niveau 2 marqué comme tel.** Respectée : la délégation et ses précisions sont consignées en niveau 2, rapportées, avec leur heure ; la règle des niveaux n'est pas touchée.
+4. **Le compte partagé seul ne prouve pas l'identité.** Respectée : le dépôt se fait sous `vito-sainte-marie`, ce qui est dit ici ; la limite de E5 sur `claude.yml` est consignée.
+5. **Incident SQL d'ETAPE5 ouvert.** Respectée : non traité, listé hors périmètre.
