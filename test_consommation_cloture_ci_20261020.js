@@ -44,6 +44,7 @@ const dir = process.argv[2];
 http.createServer((req, res) => {
   const id = (req.url.match(/\\/issues\\/comments\\/(\\d+)/) || [])[1];
   if (fs.existsSync(path.join(dir, 'MODE_500'))) { res.statusCode = 500; return res.end('{}'); }
+  if (/\\/actions\\/runs\\/\\d+\\/jobs/.test(req.url)) { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ jobs: [{ steps: [{ name: "Relais vers l'arbitre", conclusion: 'success' }] }] })); }
   const f = id && path.join(dir, id + '.json');
   if (!f || !fs.existsSync(f)) { res.statusCode = 404; return res.end('{}'); }
   res.setHeader('content-type', 'application/json'); res.end(fs.readFileSync(f));
@@ -55,13 +56,22 @@ process.on('exit', () => { try { serveur.kill(); } catch (_) { /* déjà arrêt�
 for (let i = 0; i < 100 && !fs.existsSync(path.join(tmpApi, 'PORT')); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
 const PORT = fs.readFileSync(path.join(tmpApi, 'PORT'), 'utf8');
 const API = `http://127.0.0.1:${PORT}`;
+// `gh` factice : le garde de handoff.js (provenance.js) interroge l'API par `gh api` ; on l'aiguille
+// vers le même faux serveur, sans toucher au réseau ni à handoff.js.
+fs.mkdirSync(path.join(tmpApi, 'bin'));
+fs.writeFileSync(path.join(tmpApi, 'bin', 'gh'), `#!/usr/bin/env node
+const http = require('http');
+const url = process.env.NEXUS_GITHUB_API + '/' + process.argv[3];
+http.get(url, (r) => { let d = ''; r.on('data', c => d += c); r.on('end', () => { if (r.statusCode !== 200) { console.error('HTTP ' + r.statusCode); process.exit(1); } process.stdout.write(d); }); }).on('error', (e) => { console.error(e.message); process.exit(1); });
+`, { mode: 0o755 });
 const API_MORTE = 'http://127.0.0.1:1'; // rien n'écoute : connexion refusée
 
 let seqCommentaire = 6300000000;
 const nouveauCommentaire = (verdict, auteur = 'github-actions[bot]') => {
+  const type = auteur === 'github-actions[bot]' ? 'Bot' : 'User';
   const id = ++seqCommentaire;
   const body = `Réponse de l'arbitre (épreuve)\n\n${verdict}\n\n<!-- nexus-arbitrage: abc123 -->`;
-  fs.writeFileSync(path.join(tmpApi, `${id}.json`), JSON.stringify({ body, user: { login: auteur } }));
+  fs.writeFileSync(path.join(tmpApi, `${id}.json`), JSON.stringify({ body, user: { login: auteur, type } }));
   return id;
 };
 
@@ -73,7 +83,7 @@ const demande = (lot, seq) => ['---', 'protocol: nexus-handoff/2', 'kind: reques
   '---', '', `Demande ${seq}.`, ''].join('\n');
 
 const verdictDe = (lot, request, { closes = 'true', conditions = 'aucune', stop = 'non', decision = 'APPROVED' } = {}) => [
-  '## Décision', '', `**${decision}.** Clôture du lot.`, '', 'RAIL_LU: ' + 'a'.repeat(40), '',
+  '## Décision', '', `**${decision}.** Clôture du lot.`, '', 'Relais : run 39475936778.', '', 'RAIL_LU: ' + 'a'.repeat(40), '',
   'NEXT_ACTION_CONTRACT', `DECISION: ${decision}`, `CLOSES: ${closes}`, `LOT: ${lot}`, `REQUEST: ${request}`,
   `HEAD: ${'a'.repeat(40)}`, 'LEASE: aucun', 'GATE_STATE: G1', 'PROOF_STATE: PROOF_VALID', `CONDITIONS: ${conditions}`,
   'BLOCKER: aucun', `STOP_REQUIRED: ${stop}`, 'CAPACITE_REQUISE: aucune', 'OWNER_NEXT: Claude',
@@ -122,7 +132,7 @@ function banc() {
   fs.writeFileSync(path.join(dir, 'STATE.json'), JSON.stringify({ protocol: 'nexus-handoff/2', lot_actif: null, lots: {} }, null, 2) + '\n');
   const valider = (m, identite = BOT) => { git(clone, 'add', '-A', '.'); git(clone, '-c', identite[0], '-c', identite[1], 'commit', '-q', '--allow-empty', '-m', m); return git(clone, 'rev-parse', 'HEAD'); };
   const lancer = (script, args, envPlus = {}) => {
-    try { return { code: 0, sortie: execFileSync('node', [path.join(clone, script), ...args], { cwd: clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir, NEXUS_GITHUB_API: API, ...envPlus } }) }; }
+    try { return { code: 0, sortie: execFileSync('node', [path.join(clone, script), ...args], { cwd: clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PATH: path.join(tmpApi, 'bin') + path.delimiter + process.env.PATH, NEXUS_HANDOFF_DIR: dir, NEXUS_GITHUB_API: API, ...envPlus } }) }; }
     catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }
   };
   const b = { clone, dir, tmp, distant, valider,
