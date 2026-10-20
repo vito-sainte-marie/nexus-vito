@@ -674,13 +674,14 @@
       "arret": "request-3.md"
     },
     "GOV-WAKE-TO-OBLIGATOIRE-20261020": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "014c0d40940bfbfe6aeaf27f340ce03e2c70454a",
-      "pris_en_charge_le": "2026-10-20T20:47:27.901Z"
+      "consomme_le": "2026-10-20T20:57:38.326Z",
+      "preuve_action": "dc0c2cbce78bf1d624e125223af62617dfb329ce"
     }
   },
   "artefacts_hors_registre": [
