@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R1-IDENTITES-PROVENANCE-20261019/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R1-IDENTITES-PROVENANCE-20261019/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: GOV-R1-IDENTITES-PROVENANCE-20261019
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,30 +21,48 @@ preuves:
     classe: VERIFIED
     valeur: 158-fichiers
 ---
-# GOV-R1-IDENTITES-PROVENANCE-20261019 : identités et provenance des décisions humaines
+# GOV-R1-IDENTITES-PROVENANCE-20261019 : validation des épreuves et état des pistes
 
-**Domaine :** gouvernance. **Étape :** R1 du plan de raccordement (avec R7, même lot de réglages), ouverte par la condition 3 de `GOV-R0-DOSSIER-V2-20261019/decision-1.md`.
-**Nature de cette request-1 :** cadrage et épreuves de falsification seulement. Aucun code, aucun outil, workflow, permission, secret, identité ni connecteur n'est modifié par elle.
+**Domaine :** gouvernance. **Préparé par :** Claude Code. **Nature :** documentation et décision. Aucun outil, workflow, permission, secret ni identité n'est modifié par cette demande.
 
 ## Objet
 
-Qu'une décision « humaine » ne soit valable que si elle vient de l'identité de Frédéric, et que le Handoff s'arrête explicitement quand il ne peut pas le vérifier. Aujourd'hui `author` est un texte libre (constat C1 à C8 de `CONSTAT-PROVENANCE-HUMAINE-HANDOFF-20261019.md`) ; sous l'outil actuel, seul le niveau 2 (« rapporté ») est atteignable pour une décision déposée sous le compte `vito-sainte-marie`, partagé avec des agents.
+La decision-1 (`091437cc`, consommée avec la preuve `f426dbad`) a retenu P5 d'abord et exigé que les épreuves de falsification soient écrites et validées avant tout code d'outil. Elles sont écrites : `docs/gouvernance/v2/EPREUVES-FALSIFICATION-PROVENANCE-20261019.md` (E1 à E5). Cette demande en sollicite la validation et expose ce que l'instruction des pistes a établi, en lecture seule, le 20/10/2026.
 
-## Périmètre proposé
+## Constats d'instruction (lecture seule, API GitHub, 20/10/2026 ~01:15Z)
 
-1. **Cahier de provenance** : exigences X1 (sollicitation proactive), X2 (réponse simple), X3 (reprise traçable ou arrêt explicite) ; niveaux de preuve 1/2/3. Base : `CAHIER-DES-CHARGES-LOT-PROVENANCE-HUMAINE-20261019.md`, à déposer dans ce lot.
-2. **Épreuves de falsification écrites avant tout code** (chacune doit pouvoir rougir) :
-   - une décision `--auteur "Frédéric Bragance"` sans preuve est qualifiée niveau 2 ou refusée, jamais niveau 3 ;
-   - une preuve altérée ou d'un autre compte est rejetée ;
-   - une décision sans preuve vérifiable déclenche l'arrêt explicite, pas le silence ;
-   - le compte partagé seul ne suffit pas à atteindre le niveau 3.
-3. **Instruction des pistes P1 à P5** du cahier (commit signé, approbation d'environnement, empreinte d'échange, second canal, arrêt explicite), avec leurs capacités réelles à vérifier : aucune n'est supposée exister.
-4. **Réglages de Frédéric (R1 + R7)** : identités Guardian et agents distinctes, approbation sur `main`/`production`, ruleset du rail, CODEOWNERS, connecteurs cloisonnés. Ils sont **listés, pas exécutés** : ils relèvent de Frédéric et d'une décision de ce lot.
+| Point | Constat | Conséquence |
+|---|---|---|
+| Collaborateurs du dépôt | un seul : `vito-sainte-marie` (propriétaire, admin) ; c'est aussi le compte des agents | aucun second compte ne peut aujourd'hui distinguer Frédéric d'un agent |
+| Environnement `github-pages` | relecteurs requis : `vito-sainte-marie` seul ; `prevent_self_review: false` | P2 en l'état n'établit rien : le compte approbateur est le compte déposant |
+| Commits récents du rail | tous `unsigned`, auteur et committer `vito-sainte-marie` | P1 n'existe pas aujourd'hui : aucune clé de signature vérifiée par la plateforme |
+| Rail `handoff-continuite-20260920` | `protected: false` ; les deux rulesets actifs visent `production` et `main` | le rail, où se déposent les décisions, n'a aucune protection (objet de R7) |
+| Ruleset Production | sans acteur de contournement ; règles : suppression, non-fast-forward, PR, contrôles requis | la protection existe côté `production`, pas côté rail |
+
+Non établi, donc non affirmé : ce que ChatGPT peut attester côté API (P4) ; si la session Claude Code peut être condensée par une empreinte externe (P3). Ces deux points demandent une vérification que je n'ai pas faite.
+
+## Ce qui est demandé
+
+1. **Valider, amender ou refuser les épreuves E1 à E5.** Détail des points à trancher : les trois codes d'arrêt proposés (`PROVENANCE_NON_ETABLIE`, `PROVENANCE_INVALIDE`, `PROVENANCE_INSUFFISANTE`) ; E5 (un `author: ChatGPT` déposé par un agent est refusé, seule la matérialisation par la CI est admise).
+2. **Choisir la suite**, en connaissant les constats ci-dessus :
+   - **Voie A, code P5 minimal** : un champ de provenance dans l'enveloppe et l'arrêt explicite pour les paliers réservés à Frédéric, écrit contre les épreuves validées. Le niveau 3 reste inatteignable.
+   - **Voie B, réglages d'abord (à Frédéric)** : création d'une identité distincte et/ou clé de signature (P1), protection du rail (R7), relecteur distinct (P2). Aucun n'est faisable par un agent ; chacun change une permission ou une identité.
+   - Les voies ne s'excluent pas : A rend l'arrêt explicite maintenant, B conditionne tout accès au niveau 3.
 
 ## Hors périmètre
 
-Régularisation de l'incident SQL d'ETAPE5 (reste ouvert), clôture d'ETAPE5, toute écriture Supabase, fusion ou déploiement, tout changement d'outil avant que les épreuves du point 2 soient écrites et validées. R2 à R6 : chacun son lot.
+Incident SQL de l'étape 5 (ouvert) ; clôture d'ETAPE5 ; Supabase ; fusion ; déploiement ; toute modification de permission, secret, identité, connecteur ou workflow ; tout code d'outil avant décision sur les épreuves.
 
 ## Décision demandée
 
-Motif `CHANGEMENT_DOCTRINE` (palier de Frédéric) : le cadrage ci-dessus, et le choix des pistes à instruire. Rien n'est appliqué tant que Frédéric n'a pas décidé sur le rail.
+`CHANGEMENT_DOCTRINE`, palier de Frédéric : épreuves E1 à E5 validées ou amendées, et voie retenue (A, B, ou A puis B).
+
+## Preuve des conditions de decision-1
+
+Les cinq conditions de `decision-1.md` (`091437cc`) ont été acceptées par Frédéric dans la conversation avec Claude Code le 19/10/2026 à 21:00 (UTC-4), consignées dans le commit de preuve `f426dbad` ; décision exprimée, rapportée par Claude Code, non vérifiée indépendamment. Respect des conditions :
+
+1. **P5 est une orientation, rien n'est appliqué.** Respectée : P5 n'est implémentée nulle part ; cette demande propose seulement une voie A dont la mise en œuvre exige une décision.
+2. **Épreuves écrites et validées avant tout code d'outil.** Écrites : E1 à E5, dans `docs/gouvernance/v2/EPREUVES-FALSIFICATION-PROVENANCE-20261019.md` (`f426dbad`). Validation : non acquise, c'est l'objet de la question 1 ci-dessus. Aucun code d'outil n'a été écrit ; `git diff 091437cc..HEAD` ne contient que ce document et `STATE.json`.
+3. **Aucune modification d'outil, workflow, permission, secret, identité ou connecteur ; R1 et R7 restent à Frédéric.** Respectée : les constats d'instruction sont des lectures seules de l'API GitHub ; aucun réglage n'a été exécuté.
+4. **Le niveau 2 ne vaut jamais le niveau 3 ; le compte partagé seul ne prouve pas l'identité.** Respectée : la confirmation du 19/10 est qualifiée niveau 1/2 et E4 en fait une épreuve ; le constat « un seul collaborateur, relecteur unique, auto-relecture permise » est reporté tel quel.
+5. **L'incident SQL de l'étape 5 reste ouvert.** Respectée : non traité, listé hors périmètre.
