@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R2-EMPREINTE-DECISION-20261020/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R3-CONSOMMATION-CLOTURE-20261020/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: GOV-R2-EMPREINTE-DECISION-20261020
-seq: 3
+lot_id: GOV-R3-CONSOMMATION-CLOTURE-20261020
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,34 +20,58 @@ preuves:
     classe: VERIFIED
     valeur: 158-fichiers
 ---
-# GOV-R2-EMPREINTE-DECISION-20261020 : preuves rouge→vert du vérificateur de source (decision-2)
+# GOV-R3-CONSOMMATION-CLOTURE-20261020 : consommation automatique d'une clôture déposée par la CI, par O3 (hors workflow)
 
-**Domaine :** gouvernance. **Préparé par :** Claude Code. **Nature :** dépôt de preuves ; demande de clôture du lot si l'arbitre les juge suffisantes.
+**Domaine :** gouvernance. **Origine :** note de Frédéric du 20/10/2026 (« la CI ne déclenche personne pour consommer une clôture qu'elle dépose. Il faut que ce soit automatique »), renvoyée de R2 à R3, et GO du 20/10/2026 : « ouvre la R3 : consommation automatique par O3 ».
+**Nature de cette request-1 :** cadrage et épreuves de falsification seulement. Aucun code, workflow, permission, secret, identité ni connecteur n'est modifié par elle.
+**Écart de numérotation, dit d'emblée :** dans `PLAN-RACCORDEMENT-GUARDIAN.md` §2, « R3 » désigne le journal des transitions et de provenance. Ce lot reprend le nom R3 pour la consommation des clôtures, sur demande de Frédéric ; le journal des transitions reste à cadrer (lot distinct, ou second objet de celui-ci si l'arbitre le préfère).
 
-## Ce qui a été fait (tout dans `outils/`, rien câblé)
+## Constat établi (R2, `mesure-consommations-20261020.md`)
 
-- `a387354c` : `outils/test_verification_source_decision_20261020.js`, épreuves F1 à F8 (11 cas avec F4b, F5b, F7b), vues **ROUGES** avant tout code : 0/11, exit 1, cause `MODULE_NOT_FOUND` (vérificateur absent).
-- `9e07cc72` : `outils/verifier-source-decision.js`, épreuves **VERTES** 11/11.
-- Écart découvert à la lecture du vrai commentaire (`issuecomment-6296095776`, auteur `github-actions[bot]`) : il enveloppe le verdict d'un en-tête « Réponse de l'arbitre (…) » et d'un marqueur final `<!-- nexus-arbitrage: … -->`. La version `9e07cc72` rendait donc `DECISION_ALTEREE` à tort sur la decision-2 réelle (faux positif, constaté, pas une garde trouée).
-- Correctif (dernier commit du rail) : seuls cet en-tête et ce marqueur, de forme exacte, sont retirés avant comparaison ; épreuves F9 (forme réelle acceptée) et F9b (tout autre ajout reste une altération) ajoutées : 13/13 vertes. Ces deux épreuves ont été écrites après le vert initial, rouge constaté sur le commentaire réel et non sur un jeu écrit d'avance : dit ici pour ne pas le présenter autrement.
-- Contrôle réel : `verifierSource` sur `decision-2.md` avec le vrai commentaire lu par l'API → `ok`, sha256 du corps `80987d53…4a65`.
+- `relancer-claude-ci.js` rend `RIEN_A_FAIRE` pour toute décision `closes: true` : voulu par la garde, pas accidentel. La CI ne consomme pas (`tests.yml`, ARMEMENT-ARBITRAGE-AUTONOME-1 decision-1:54).
+- Deux clôtures déposées par la CI le 20/10/2026 (R1 decision-4, R2 decision-3) sont restées en `ATTENTE_DECISION` jusqu'à une consommation manuelle.
+- `handoff.js consommer` sait déjà consommer « nu » une décision `closes: true` (`--cloture`), après la garde de provenance P5 (`verifierProvenanceDecision`). Ce qui manque n'est pas le geste, c'est **qui l'exécute, sans humain, et dans quel garde-fou**.
 
-## Preuve des conditions de decision-2
+## Objet : O3
 
-1. **F1 à F8 avant le vérificateur, rouge puis vert conservés.** Respectée (`a387354c` rouge, `9e07cc72` vert, correctif F9 ensuite).
-2. **Modifications limitées à `outils/`.** Respectée : seuls deux fichiers d'`outils/` (plus, sur le rail, le dossier du lot).
-3. **Vérification liée au commentaire et au run désignés.** Respectée par le pointeur `provenance.reference` (commentaire 6296095776) ; le run 39459485862 est cité dans le commentaire. Le vérificateur ne vérifie pas encore le run lui-même : limite.
-4. **Corps canonique et champs DECISION, CLOSES, LOT, REQUEST comparés.** Respectée (F1, F4, F5).
-5. **Échec explicite sans consommation si source absente, inadmissible, hors lot ou injoignable.** Respectée (F2, F3, F4, F6) : l'outil ne consomme rien.
-6. **Concordance ≠ identité ni immutabilité.** Dit dans chaque résultat de l'outil.
-7. **Aucun workflow, secret, permission, identité, connecteur, armement ; O1/O2 non câblées.** Respectée.
+Un outil de `outils/` qui, appelé à l'ouverture d'une session ou à la demande (futur appelant : la vigie R4), repère et consomme les clôtures en attente, sans toucher à aucun workflow. Conception proposée :
 
-## Limites
+1. **Détection (lecture seule).** Un lot est candidat si : statut `ATTENTE_DECISION`, dernière décision `closes: true`, elle répond à la demande active (`demandeVisee`), et son commit n'est pas déjà consommé.
+2. **Contrôles avant tout geste, tous bloquants :**
+   - garde P5 existante (`verifierProvenanceDecision`) ;
+   - vérificateur de source de R2 (`verifier-source-decision.js`), avec l'API réelle ; API injoignable = arrêt explicite, jamais un succès ;
+   - décision issue de la CI seulement (`author: ChatGPT`, provenance `ci`, commit `github-actions[bot]`) ; une décision humaine n'est jamais consommée automatiquement ;
+   - `verifier` vert avant et après ; aucun palier Frédéric dans le contrat (`STOP_REQUIRED: non`) ; aucune condition ni `ACTION_NEXT` autre que la matérialisation ;
+   - un seul lot à la fois ; clé d'idempotence (lot + commit de décision).
+3. **Geste.** `consommer <lot> --prise-en-charge` puis consommation `--cloture` (les deux temps existants), un commit de registre. **Jamais de jugement métier : l'outil vérifie la forme et la source, il ne rouvre pas le fond (E10).**
+4. **Mode par défaut = rapport.** `--appliquer` écrit dans l'arbre de travail et commite localement ; le push reste le geste de la session, selon les règles de la session. Aucune écriture sur une branche distante par l'outil.
+5. **Traçabilité.** Le commit nomme la décision, l'empreinte vérifiée et le commentaire source.
 
-- Un job `claude.yml` partage `github-actions[bot]` : risque résiduel non résolu, renvoyé à la voie B.
-- Le commentaire GitHub reste modifiable après coup ; le vérificateur lit l'état courant.
-- Rien n'est câblé : la consommation automatique des clôtures (note de Frédéric) n'est pas réalisée ; options O1/O2 exigeraient un arbitrage Frédéric, O3 est la seule hors workflow.
+## Ce que O3 ne résout pas (dit, pas masqué)
+
+- **Elle n'est pas automatique au sens fort** : rien ne s'exécute tant qu'aucune session ne s'ouvre. Une clôture déposée la nuit attend la prochaine ouverture. Le déclencheur sans session est la vigie R4 (workflow planifié, GO Frédéric) ou O1/O2 (workflow/permission), tous hors de ce lot.
+- Le risque résiduel hérité de R1 et R2 demeure : `claude.yml` et le relais partagent `github-actions[bot]`. La concordance d'empreinte lie le dépôt au commentaire, pas à l'émetteur.
+- **Appel à l'ouverture de session :** l'appelant naturel serait un hook de session ou une consigne de prise de poste. Un hook est une configuration persistante : **non posé par ce lot**, listé pour arbitrage séparé. Tant qu'il n'existe pas, l'outil s'appelle à la main ou par la consigne de session.
+
+## Épreuves de falsification proposées (à écrire rouges avant tout code)
+
+- G1 clôture CI conforme, source concordante : consommée, `DECISION_CONSOMMEE`, `verifier` vert.
+- G2 décision altérée après dépôt (empreinte divergente) : refus, aucun changement de STATE.
+- G3 API injoignable : arrêt explicite, aucun changement.
+- G4 décision `author` humain ou provenance non CI : jamais consommée.
+- G5 `closes: false`, ou condition, ou palier Frédéric dans le contrat : jamais consommée.
+- G6 décision ne répondant pas à la demande active : refus.
+- G7 deuxième appel : sans effet (idempotence).
+- G8 deux lots candidats : un seul consommé par appel, ou arrêt.
+- G9 rapport par défaut : aucune écriture.
+- G10 l'outil ne pousse jamais et ne touche à aucun fichier hors `docs/handoff/STATE.json` (et la publication d'en-attente déjà prévue par `consommer`).
+
+## Hors périmètre
+
+Voie B ; `tests.yml` et tout workflow ; permission, secret, identité, connecteur ; hook de session ou toute configuration persistante ; O1/O2 ; vigie R4 ; Production ; règle des niveaux ; incident SQL d'ETAPE5 et clôture d'ETAPE5 ; toute écriture Supabase, fusion ou déploiement.
 
 ## Décision demandée
 
-Dire si ces preuves suffisent à clore R2 (`closes: true`) ou quelle suite en R3 (appel du vérificateur par un outil, sans workflow).
+1. Admettre O3 et les épreuves G1–G10 comme périmètre, ou les amender.
+2. Dire si l'outil peut être écrit dans `outils/` sans câblage (comme en R2), et si le journal des transitions du plan R3 est rattaché à ce lot ou laissé à un lot distinct.
+3. Nommer tout palier réservé que l'arbitre verrait dans ce cadrage ; Claude Code s'arrête alors et rapporte. Rien n'est appliqué par cette demande.
