@@ -302,7 +302,7 @@ epreuve('G10 — jamais de push ; seuls des fichiers de docs/handoff/ (dont STAT
   const b = banc();
   const { lot } = ajouterLot(b, 'LOT-O3-G10');
   const avant = b.head();
-  const distantAvant = b.refsDistant();
+  const distantAvant = execFileSync('git', ['ls-remote', b.distant], { encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.replace('\t', ' ')).sort().join('|');
   const r = b.outil(['--appliquer']);
   assert.strictEqual(r.code, 0, r.sortie);
   assert.strictEqual(b.etat().lots[lot].statut, 'DECISION_CONSOMMEE', 'sans consommation, la garde de périmètre ne prouve rien');
@@ -310,7 +310,7 @@ epreuve('G10 — jamais de push ; seuls des fichiers de docs/handoff/ (dont STAT
   assert.ok(touches.length > 0, 'aucun fichier touché');
   for (const f of touches) assert.ok(f.startsWith('registre-epreuve/') || f.startsWith('docs/handoff/'), `fichier hors registre touché : ${f}`);
   assert.ok(touches.some(f => f.endsWith('STATE.json')), `STATE.json attendu parmi : ${touches}`);
-  assert.strictEqual(b.refsDistant(), distantAvant, 'le dépôt distant a reçu un push');
+  assert.strictEqual(execFileSync('git', ['--git-dir', b.distant, 'for-each-ref', '--format=%(objectname) %(refname)'], { encoding: 'utf8' }).split('\n').filter(Boolean).sort().join('|'), distantAvant, 'le dépôt distant a reçu un push');
   assert.strictEqual(b.propre(), '', 'l\'outil laisse des fichiers non commités');
 });
 
