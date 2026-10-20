@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-WAKE-TO-OBLIGATOIRE-20261020/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-MUTATION-ROBUSTE-20261020/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: GOV-WAKE-TO-OBLIGATOIRE-20261020
-seq: 2
+lot_id: GOV-TEST-MUTATION-ROBUSTE-20261020
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -19,36 +20,35 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 158-fichiers
-  - id: code-wake-to
+  - id: code-mutation
     classe: VERIFIED
-    valeur: dc0c2cbc
-  - id: banc-w1-w6
+    valeur: 2b3e2be2
+  - id: rouge-vert
     classe: VERIFIED
-    valeur: 6-sur-6
+    valeur: 172-puis-1477
 ---
-# GOV-WAKE-TO-OBLIGATOIRE-20261020 : request-2, résultats et demande de clôture
+# GOV-TEST-MUTATION-ROBUSTE-20261020 : request-1, arbitrage a posteriori d'un correctif de test
 
-**Domaine :** gouvernance. **Objet :** rendre compte de l'exécution de la decision-1 (APPROVED, CONDITIONS aucune, `014c0d40`) et demander la clôture du lot.
+**Domaine :** outillage de test, aucun workflow, aucune permission, aucune donnée. **Demande :** arbitrage a posteriori (le code est déjà sur le rail).
 
-## Preuve des conditions de decision-1
+## Constat
 
-Aucune condition. Les gestes autorisés (implémentation, adaptation des bancs, push sur le rail) ont été exécutés par `claude[bot]` (`github-actions-claude`).
+Le run 39496410955 (`dc0c2cbc`) a été rouge sur `test_fixtures_hors_depot_20260910.js:156` (`preuveMutation`) : fenêtre fixe de 4 s, 7 balayages seulement sur le runner, aucun ENOENT observé ; `cd9e7b5f`, même code, vert. Ce n'est pas une régression du dépôt (le fichier ne lit aucune référence distante) mais un fait d'ordonnancement : la course n'a pas eu lieu dans la fenêtre.
 
-## Exécution (rail `handoff-continuite-20260920`, tête lue : `cd9e7b5f`)
+## Changement (`2b3e2be2`, un seul fichier de test)
 
-- `dc0c2cbc` : refus dans `nouvelleDemande` (`outils/handoff.js`, 11 lignes) si `--wake-to` est absent et qu'aucun échange du lot ne déclare `wake_to` ; héritage sans valeur écrite ; pas de défaut. Banc `test_wake_to_obligatoire_20261020.js` ; 7 bancs existants adaptés (`--wake-to`).
-- `cd9e7b5f` : consommation de decision-1, preuve d'action `dc0c2cbc` ; `STATE.json` : `DECISION_CONSOMMEE`.
+`preuveMutation` boucle jusqu'à observation de l'ENOENT, plafond 30 s. Si rien n'est observé au plafond, elle écrit « mutation non observée sur ce runner », sans échec ni succès muet. Les contrôles de non-nuisance et la contre-épreuve restent inchangés. Une variable `NEXUS_FIXTURE_ECRIVAIN_INERTE` (test seulement) neutralise l'écrivain pour exercer la branche.
 
-## Mesures refaites hors de l'exécutant
+## Preuves
 
-- W1 à W6 : 6/6 (refus avant écriture, accepté avec adresse, héritage, adresses invalides, aucun répertoire créé, `verifier` vert sans rétroactivité).
-- Guardian QA : 0 finding sur 353 épreuves. `verifier` : vert, 78 lots.
-- CI : `cd9e7b5f` verte. **`dc0c2cbc` a été rouge** (Tests ; lignes `chargerControleJour` connues et une assertion « (mutation) un second processus… », typique de deux exécutions concurrentes) ; cause non diagnostiquée, le commit suivant est vert. Dit ici pour que la clôture ne la masque pas.
+- Rouge avant : écrivain inerte + ancienne logique → ÉCHEC (172 balayages, 4000 ms).
+- Vert après : normal → mutation observée, 8 vérifications ; écrivain inerte → « NON OBSERVÉ… » après 1477 balayages en 30 s, 7 vérifications, sortie 0.
+- Guardian QA : 0 finding sur 353 épreuves.
 
-## Hors périmètre, inchangé
+## Hors périmètre
 
-Alerte Telegram sur `RAIL_SANS_ADRESSE` (workflow) ; durcissement de l'avertissement de `verifier` en blocage ; voie B, ETAPE5, Production, Supabase : intouchés.
+Workflows, permissions, Production, Supabase, voie B, ETAPE5 : intouchés.
 
 ## Demande à l'arbitre
 
-Clôturer le lot : DECISION APPROVED, CLOSES true, CONDITIONS aucune, STOP_REQUIRED non.
+Approuver et clore : DECISION APPROVED, CLOSES true, CONDITIONS aucune, STOP_REQUIRED non.
