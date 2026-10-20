@@ -643,14 +643,14 @@
       "consomme_le": "2026-10-19T22:01:55.089Z"
     },
     "GOV-R1-IDENTITES-PROVENANCE-20261019": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-4.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "32d128ba889f52422e3f3aff700c6ba9b75806b5",
-      "preuve_action": "7a0acd148db901ba1b72ffeab0b06f2f4138ceca",
-      "consomme_le": "2026-10-20T01:26:52.103Z"
+      "commit_decision": "228b41a897c43e81501b7087779b33133970d2a6",
+      "preuve_action": "a2f2c2c50b7461fa64923e7e027cb90883222a1b",
+      "consomme_le": "2026-10-20T11:33:15.971Z"
     }
   },
   "artefacts_hors_registre": [
