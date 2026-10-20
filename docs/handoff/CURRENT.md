@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-MUTATION-ROBUSTE-20261020/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-TEST-DIAG-ENFANTS-20261020/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: GOV-TEST-MUTATION-ROBUSTE-20261020
+lot_id: GOV-TEST-DIAG-ENFANTS-20261020
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -20,34 +20,35 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 158-fichiers
-  - id: code-mutation
+  - id: code-diag
     classe: VERIFIED
-    valeur: 2b3e2be2
+    valeur: 887ae0d9
   - id: rouge-vert
     classe: VERIFIED
-    valeur: 172-puis-1477
+    valeur: detail-avant-erreur
 ---
-# GOV-TEST-MUTATION-ROBUSTE-20261020 : request-1, arbitrage a posteriori d'un correctif de test
+# GOV-TEST-DIAG-ENFANTS-20261020 : request-1, arbitrage a posteriori d'un diagnostic de test
 
 **Domaine :** outillage de test, aucun workflow, aucune permission, aucune donnée. **Demande :** arbitrage a posteriori (le code est déjà sur le rail).
 
 ## Constat
 
-Le run 39496410955 (`dc0c2cbc`) a été rouge sur `test_fixtures_hors_depot_20260910.js:156` (`preuveMutation`) : fenêtre fixe de 4 s, 7 balayages seulement sur le runner, aucun ENOENT observé ; `cd9e7b5f`, même code, vert. Ce n'est pas une régression du dépôt (le fichier ne lit aucune référence distante) mais un fait d'ordonnancement : la course n'a pas eu lieu dans la fenêtre.
+Le run 39510843132 (`ba4359b2`, commit de registre seul) a été rouge sur `test_fixtures_hors_depot_20260910.js` : « 20 exécutions parallèles complètes, toutes en succès (0 échec) ». Le log ne dit pas quel enfant a échoué : `verifier` lève avant l'impression du détail. Cause non établie (hypothèse non vérifiée : les `.mut-*.js` d'autres épreuves dans `outils/`).
 
-## Changement (`2b3e2be2`, un seul fichier de test)
+## Changement (`887ae0d9`, un seul fichier de test)
 
-`preuveMutation` boucle jusqu'à observation de l'ENOENT, plafond 30 s. Si rien n'est observé au plafond, elle écrit « mutation non observée sur ce runner », sans échec ni succès muet. Les contrôles de non-nuisance et la contre-épreuve restent inchangés. Une variable `NEXUS_FIXTURE_ECRIVAIN_INERTE` (test seulement) neutralise l'écrivain pour exercer la branche.
+Avant chaque assertion de la partie « exécutions parallèles », le test affiche pour chaque enfant en échec : fichier, code, signal, dépassement du délai de 60 s, fin de stdout et de stderr ; et pour chaque ENOENT : fichier, code, lignes concernées. Une variable `NEXUS_FIXTURE_ENFANT_ECHEC` (banc seulement) force l'échec d'un enfant.
 
 ## Preuves
 
-- Rouge avant : écrivain inerte + ancienne logique → ÉCHEC (172 balayages, 4000 ms).
-- Vert après : normal → mutation observée, 8 vérifications ; écrivain inerte → « NON OBSERVÉ… » après 1477 balayages en 30 s, 7 vérifications, sortie 0.
+- Rouge avant : ancienne sortie avec enfant forcé → ÉCHEC et AssertionError, aucun détail d'enfant.
+- Vert après : le détail (code 3, signal aucun, délai non dépassé, stderr « échec forcé (banc) ») apparaît avant l'erreur. Run normal : 8 vérifications.
+- Limite : le chemin d'affichage des ENOENT est écrit sur le même modèle mais n'a pas été exercé par un banc.
 - Guardian QA : 0 finding sur 353 épreuves.
 
 ## Hors périmètre
 
-Workflows, permissions, Production, Supabase, voie B, ETAPE5 : intouchés.
+Workflows, permissions, Production, Supabase : intouchés. Aucun correctif de cause : le diagnostic précède la correction.
 
 ## Demande à l'arbitre
 
