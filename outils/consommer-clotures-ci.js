@@ -125,7 +125,10 @@ function main() {
   const empreinte = sha256(corpsDeLaDecision(fs.readFileSync(c.chemin, 'utf8')));
   const reference = c.env.provenance.reference;
   git('add', '-A', '--', prefixe);
-  git('commit', '-q', '-m', `Consommer la clôture ${c.lot}/${c.dec} (O3)\n\nClôture CI consommée par outils/consommer-clotures-ci.js après vérification de la source.\nsha256 ${empreinte}\nsource ${reference}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`);
+  // Sans identité git configurée (CI, clone neuf), le commit local échouerait : on en pose une, pour ce seul commit.
+  const identite = [];
+  for (const k of ['user.name', 'user.email']) { let v = ''; try { v = git('config', k); } catch (e) { /* absent */ } if (!v) identite.push('-c', k === 'user.name' ? 'user.name=nexus-o3' : 'user.email=nexus-o3@users.noreply.github.com'); }
+  git(...identite, 'commit', '-q', '-m', `Consommer la clôture ${c.lot}/${c.dec} (O3)\n\nClôture CI consommée par outils/consommer-clotures-ci.js après vérification de la source.\nsha256 ${empreinte}\nsource ${reference}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`);
   sortie(`CONSOMME ${c.lot} ${c.dec} commit ${git('rev-parse', '--short', 'HEAD')} (local, non poussé)`);
   return 0;
 }
