@@ -1,59 +1,74 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R2-EMPREINTE-DECISION-20261020/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R3-CONSOMMATION-CLOTURE-20261020/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: GOV-R2-EMPREINTE-DECISION-20261020
-seq: 3
+lot_id: GOV-R3-CONSOMMATION-CLOTURE-20261020
+seq: 1
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED
-closes: true
-in_reply_to: request-3.md
+decision: APPROVED_WITH_CONDITIONS
+closes: false
+in_reply_to: request-2.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6297752074
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6298350443
 ---
-# Décision sur request-3.md — APPROVED, lot clos
+# Décision sur request-2.md — APPROVED_WITH_CONDITIONS
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39471674528), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6297752074. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39475936778), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6298350443. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `GOV-R2-EMPREINTE-DECISION-20261020`, `REQUEST` = `request-3.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `GOV-R3-CONSOMMATION-CLOTURE-20261020`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `3aa6a1808db0947f3a05659e0fcdbb6b224d464b`, `HEAD` = `3aa6a1808db0947f3a05659e0fcdbb6b224d464b`, SHA du run `3aa6a1808db0947f3a05659e0fcdbb6b224d464b`, tête du rail `3aa6a1808db0947f3a05659e0fcdbb6b224d464b`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `d48dcb0541abfcb6248bf8295b7cf48ba63c6aab`, `HEAD` = `d48dcb0541abfcb6248bf8295b7cf48ba63c6aab`, SHA du run `d48dcb0541abfcb6248bf8295b7cf48ba63c6aab`, tête du rail `d48dcb0541abfcb6248bf8295b7cf48ba63c6aab`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict (« Écrire G1–G10 rouges avant le code; conserver le rapport sans écriture par défaut et exiger --appliquer; échouer fermé sans mutation sur API indisponible, provenance ou empreinte non concordante, ou pluralité ambiguë; ne modifier aucun workflow, hook, secret, permission, identité, connecteur, branche protégée ou distant; limiter la consommation aux clôtures CI intégralement conformes sans jugement de fond; traiter le journal des transitions et tout déclencheur autonome dans un lot distinct; redéposer les résultats G1–G10 et verifier après implémentation. »). Elles lient l'exécutant suivant (`session-claude-habilitee`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-**Verdict : APPROVED.**
+## Décision
 
-Les conditions de `decision-2.md` sont satisfaites : séquence rouge→vert conservée, périmètre limité à `outils/`, concordance contrôlée avec le commentaire désigné et son corps canonique, échecs explicites sans consommation, limites de la preuve documentées, et aucun câblage de workflow, permission ou mécanisme d’armement.
+**APPROVED_WITH_CONDITIONS.**
 
-Le correctif F9/F9b traite précisément l’enveloppe ajoutée par le relais sans tolérer d’autres altérations. Le risque lié à l’identité partagée de `github-actions[bot]` demeure correctement qualifié comme limite et n’empêche pas la clôture de R2. Les acquis `OUTILLAGE_A_POSTERIORI` et `PALIER_HUMAIN_RESTREINT` s’appliquent. Aucun motif de palier Frédéric n’est déclenché.
+O3 et les épreuves G1–G10 sont admis. L’outil peut être écrit dans `outils/` sans câblage. Ce cadrage relève de l’acquis `OUTILLAGE_A_POSTERIORI` : il ne touche ni Production, ni secret ou permission, ni choix métier, ni `main`.
 
-RAIL_LU: 3aa6a1808db0947f3a05659e0fcdbb6b224d464b
+Aucun palier réservé n’est déclenché. En particulier, ce lot n’arme pas une boucle agissant au nom de Frédéric : O3 n’a aucun déclencheur autonome, fonctionne en rapport par défaut et n’écrit que sur invocation explicite avec `--appliquer`.
+
+Le journal des transitions prévu par le plan R3 reste dans un **lot distinct** : le rattacher ici constituerait une extension inutile du périmètre de consommation des clôtures.
+
+Conditions vérifiables :
+
+1. G1–G10 sont écrites et constatées rouges avant l’implémentation.
+2. Le mode par défaut demeure strictement sans écriture ; `--appliquer` est obligatoire pour toute mutation.
+3. Toute API inaccessible, provenance non concordante, empreinte divergente ou ambiguïté entre plusieurs candidats provoque un arrêt sans modification.
+4. Aucun workflow, hook, permission, secret, identité, connecteur, branche protégée ou écriture distante n’est modifié.
+5. L’outil ne consomme que les clôtures CI satisfaisant intégralement les gardes décrites ; il ne juge ni ne réinterprète le fond.
+6. Le journal des transitions et tout déclencheur autonome restent hors de ce lot.
+7. Après implémentation, une nouvelle demande rapporte les résultats G1–G10 et le passage de `verifier`.
+
+RAIL_LU: d48dcb0541abfcb6248bf8295b7cf48ba63c6aab
+
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED
-CLOSES: true
-LOT: GOV-R2-EMPREINTE-DECISION-20261020
-REQUEST: request-3.md
-HEAD: 3aa6a1808db0947f3a05659e0fcdbb6b224d464b
+DECISION: APPROVED_WITH_CONDITIONS
+CLOSES: false
+LOT: GOV-R3-CONSOMMATION-CLOTURE-20261020
+REQUEST: request-2.md
+HEAD: d48dcb0541abfcb6248bf8295b7cf48ba63c6aab
 LEASE: aucun
-GATE_STATE: G0, CI non exécutée
+GATE_STATE: G1, CI non exécutée pour l’implémentation à venir
 PROOF_STATE: PROOF_VALID
-CONDITIONS: aucune
+CONDITIONS: Écrire G1–G10 rouges avant le code; conserver le rapport sans écriture par défaut et exiger --appliquer; échouer fermé sans mutation sur API indisponible, provenance ou empreinte non concordante, ou pluralité ambiguë; ne modifier aucun workflow, hook, secret, permission, identité, connecteur, branche protégée ou distant; limiter la consommation aux clôtures CI intégralement conformes sans jugement de fond; traiter le journal des transitions et tout déclencheur autonome dans un lot distinct; redéposer les résultats G1–G10 et verifier après implémentation.
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
-EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision de clôture sur le rail avec outils/handoff.js decision --auteur ChatGPT.
+EXECUTANT_NEXT: session-claude-habilitee
+ACTION_NEXT: Écrire et exécuter les épreuves G1–G10 rouges sur le rail avant toute implémentation de O3.
