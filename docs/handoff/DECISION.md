@@ -1,36 +1,60 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: GOV-R4-VIGIE-20261020
-seq: 1
-author: Frédéric Bragance
+seq: 2
+author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-1.md
+decision: APPROVED
+closes: true
+in_reply_to: request-2.md
 provenance:
-  niveau: 1
-  mode: declared
-  reference: conversation Claude Code du 2026-10-20, texte colle par Frederic
+  niveau: 2
+  mode: github_actions_relay
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6304285412
 ---
-# Décision sur GOV-R4-VIGIE-20261020, request-1
+# Décision sur request-2.md — APPROVED, lot clos
 
-**APPROVED_WITH_CONDITIONS, closes: false.** Palier : `ARMEMENT_BOUCLE_AU_NOM_DE_FREDERIC`, réservé à Frédéric. Elle répond au `BLOCKED` de l'arbitre sur request-1 (RAIL_LU `2e8d6f9ed32c14983b0a1bd84f5be6246270c38a`, commentaire #28 `issuecomment-6303878089`).
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39516341520), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6304285412. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
-## Décision
+## Ce que la CI a contrôlé
 
-J'autorise l'armement de V1 aux conditions suivantes :
+- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
+- `LOT` = `GOV-R4-VIGIE-20261020`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
+- Lecture du rail : `RAIL_LU` = `fd8c0a77857c82875b12af61b0909c3fcab1577a`, `HEAD` = `fd8c0a77857c82875b12af61b0909c3fcab1577a`, SHA du run `fd8c0a77857c82875b12af61b0909c3fcab1577a`, tête du rail `fd8c0a77857c82875b12af61b0909c3fcab1577a`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
-## Conditions
+## Ce que la CI n'a PAS contrôlé
 
-1. Permissions `contents: read` seulement : aucun secret, aucune écriture sur les issues ni sur le dépôt, O3 sans `--appliquer`.
-2. Canal d'alerte : le run planifié se termine en échec avec une annotation nommant le lot quand une clôture attend sa consommation. Pas de Telegram, pas de commentaire sur #28. Un autre canal demandera une décision distincte.
-3. Fréquence horaire. Pas de nouvelle alerte tant que l'état ne change pas, sauf le rappel naturel du run suivant en échec.
-4. Épreuves rouges avant le code : silence sans clôture ; alerte avec une clôture conforme ; alerte de refus si la clôture n'est pas conforme ; aucune écriture.
-5. Arrêt : je peux désactiver le workflow à tout moment depuis l'onglet Actions ; V2 et V3 restent hors périmètre.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
-## Provenance (niveau 1, décision exprimée)
+## Texte de l'arbitre
 
-Texte de la décision écrit par Frédéric et collé tel quel dans la conversation avec Claude Code, le 20/10/2026. Claude Code n'a ajouté que cet en-tête et cette note. Dépôt sous le compte GitHub `vito-sainte-marie`, partagé avec des agents : il ne prouve pas l'identité de l'auteur ; le niveau 3 n'est pas atteignable avec l'outil actuel.
+**Décision : APPROVED — clôture du lot.**
+
+La V1 respecte le périmètre autorisé d’outillage en lecture seule et les conditions de `decision-1`. Les 9 échecs connus sont diagnostiqués et ne constituent pas une régression produit inexpliquée, conformément à `REGRESSION_PRODUIT_VS_BANC`. L’arbitrage a posteriori est couvert par `OUTILLAGE_A_POSTERIORI`.
+
+Limite actée : le workflow planifié reste inerte tant qu’il demeure uniquement sur le rail. Son éventuel portage sur `main`, ainsi que sa première exécution réelle, relèvent d’un palier distinct et ne sont pas autorisés par cette décision.
+
+RAIL_LU: fd8c0a77857c82875b12af61b0909c3fcab1577a
+
+NEXT_ACTION_CONTRACT
+DECISION: APPROVED
+CLOSES: true
+LOT: GOV-R4-VIGIE-20261020
+REQUEST: request-2.md
+HEAD: fd8c0a77857c82875b12af61b0909c3fcab1577a
+LEASE: aucun
+GATE_STATE: G0, banc local vert et CI planifiée non observée car absente de la branche par défaut
+PROOF_STATE: PROOF_VALID
+CONDITIONS: aucune
+BLOCKER: aucun
+STOP_REQUIRED: non
+CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
+OWNER_NEXT: Claude
+EXECUTANT_NEXT: github-actions-claude
+ACTION_NEXT: Matérialiser cette décision APPROVED avec clôture du lot sur le rail.
