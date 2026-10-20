@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "GOV-R3-CONSOMMATION-CLOTURE-20261020",
+  "lot_actif": "GOV-WAKE-TO-OBLIGATOIRE-20261020",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -672,6 +672,11 @@
       "commit_decision": "bc570d0f4681157c2ae3eeb0cfb07f2cb48769f5",
       "consomme_le": "2026-10-20T20:36:13.065Z",
       "arret": "request-3.md"
+    },
+    "GOV-WAKE-TO-OBLIGATOIRE-20261020": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [
