@@ -664,9 +664,13 @@
       "preuve_action": "bdd4190c00092b3a85320aea5a1d881ae74cef25"
     },
     "GOV-R3-CONSOMMATION-CLOTURE-20261020": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "1c020c21d1ac4ea2a22abf4c6f75b9f0d216eb95",
+      "pris_en_charge_le": "2026-10-20T19:11:48.971Z"
     }
   },
   "artefacts_hors_registre": [
