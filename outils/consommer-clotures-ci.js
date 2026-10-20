@@ -124,7 +124,7 @@ function main() {
   sortie('VERIFIER_APRES OK');
   const empreinte = sha256(corpsDeLaDecision(fs.readFileSync(c.chemin, 'utf8')));
   const reference = c.env.provenance.reference;
-  git('add', '-A', '--', prefixe);
+  git('add', '-A', '--', HANDOFF);
   // Sans identité git configurée (CI, clone neuf), le commit local échouerait : on en pose une, pour ce seul commit.
   const identite = [];
   for (const k of ['user.name', 'user.email']) { let v = ''; try { v = git('config', k); } catch (e) { /* absent */ } if (!v) identite.push('-c', k === 'user.name' ? 'user.name=nexus-o3' : 'user.email=nexus-o3@users.noreply.github.com'); }
