@@ -48,8 +48,14 @@ function banc({ closes = false } = {}) {
     protocol: 'nexus-handoff/2', lot_actif: LOT,
     lots: { [LOT]: { statut: 'ATTENTE_DECISION', derniere_demande: 'request-1.md', rail: RAIL } },
   }, null, 2) + '\n');
-  const valider = (m) => { git(clone, 'add', '-A', '.'); git(clone, '-c', 'user.name=epreuve', '-c', 'user.email=epreuve@invalid', 'commit', '-q', '--allow-empty', '-m', m); return git(clone, 'rev-parse', 'HEAD'); };
-  valider('registre d\'épreuve');
+  const valider = (m, identite) => { git(clone, 'add', '-A', '.'); const id = identite || ['user.name=epreuve', 'user.email=epreuve@invalid']; git(clone, '-c', id[0], '-c', id[1], 'commit', '-q', '--allow-empty', '-m', m); return git(clone, 'rev-parse', 'HEAD'); };
+  // P5 (GOV-R1-IDENTITES-PROVENANCE-20261019) : `consommer` vérifie désormais
+  // qu'une décision `author: ChatGPT` est committée par github-actions[bot]
+  // (à défaut d'une provenance API) — exactement l'identité que la CI pose
+  // réellement à la matérialisation (tests.yml:678-679). Le dépôt initial
+  // porte cette identité pour que ces épreuves, qui ne portent pas sur la
+  // provenance, continuent de mesurer ce qu'elles mesurent déjà.
+  valider('registre d\'épreuve', ['user.name=github-actions[bot]', 'user.email=41898282+github-actions[bot]@users.noreply.github.com']);
   const outil = (...a) => {
     try { return { code: 0, sortie: execFileSync('node', [path.join(clone, 'outils', 'handoff.js'), ...a], { cwd: clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }) }; }
     catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }

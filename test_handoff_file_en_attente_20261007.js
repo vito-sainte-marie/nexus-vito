@@ -68,7 +68,13 @@ function banc({ closes = true, consomme = false, marque = true, nomFile = `${SUI
     lots: { [PRECEDENT]: { statut: 'ATTENTE_DECISION', derniere_demande: 'request-1.md', rail: RAIL } },
   }, null, 2) + '\n');
   git(clone, 'add', '-A', 'registre-epreuve');
-  git(clone, '-c', 'user.name=epreuve', '-c', 'user.email=epreuve@invalid', 'commit', '-q', '-m', 'registre d\'épreuve');
+  // P5 (GOV-R1-IDENTITES-PROVENANCE-20261019) : `consommer` vérifie désormais
+  // qu'une décision `author: ChatGPT` est committée par github-actions[bot]
+  // (à défaut d'une provenance API) — l'identité que la CI pose réellement à
+  // la matérialisation (tests.yml:678-679). Cette épreuve ne porte pas sur la
+  // provenance : son dépôt initial porte cette identité pour continuer de
+  // mesurer ce qu'elle mesure déjà.
+  git(clone, '-c', 'user.name=github-actions[bot]', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit', '-q', '-m', 'registre d\'épreuve');
   const b = { clone, dir, tmp, outil: (...a) => executer(clone, dir, a) };
   if (consomme) { const r = b.outil('consommer', PRECEDENT); b.consommation = r; }
   return b;

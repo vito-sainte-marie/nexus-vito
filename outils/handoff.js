@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const provenance = require('./provenance.js');
 const RACINE = path.resolve(__dirname, '..');
 const HANDOFF = process.env.NEXUS_HANDOFF_DIR ? path.resolve(process.env.NEXUS_HANDOFF_DIR) : path.join(RACINE, 'docs', 'handoff');
 const LOTS = path.join(HANDOFF, 'lots');
@@ -203,16 +204,31 @@ function calculerReferenceProduction() {
     return { disponible: false };
   }
 }
+// Une clé de tête à valeur vide ouvre soit une LISTE d'objets plats
+// (`  - id: x`), soit un OBJET imbriqué unique (`  mode: x`, sans tiret) —
+// introduit pour `provenance:` (P5, GOV-R1-IDENTITES-PROVENANCE-20261019).
+// La forme se décide à la PREMIÈRE ligne qui suit : un tiret ouvre une liste,
+// son absence ouvre un objet. Une ligne non reconnue reste une erreur, jamais
+// un silence (PROTOCOL.md « Enveloppe »).
 function lireEnveloppe(fichier) {
   const brut = fs.readFileSync(fichier, 'utf8'); const lignes = brut.split('\n');
   if (lignes[0].trim() !== '---') return { absente: true, corps: brut };
   const fin = lignes.indexOf('---', 1); if (fin === -1) return { erreur: 'enveloppe non refermée' };
-  const env = {}; let listeCourante = null; let objetCourant = null;
+  const env = {}; let listeCourante = null; let objetCourant = null; let objetSimple = null; let attenteCle = null;
   for (let i = 1; i < fin; i++) {
     const ligne = lignes[i]; if (!ligne.trim() || /^\s*#/.test(ligne)) continue;
     let m = ligne.match(/^([a-z_]+):\s*(.*)$/);
-    if (m) { listeCourante = null; objetCourant = null; if (m[2] === '') { listeCourante = m[1]; env[m[1]] = []; } else env[m[1]] = m[2].trim(); continue; }
-    m = ligne.match(/^ {2}- ([a-z_]+):\s*(.+)$/); if (m && listeCourante) { objetCourant = { [m[1]]: m[2].trim() }; env[listeCourante].push(objetCourant); continue; }
+    if (m) {
+      listeCourante = null; objetCourant = null; objetSimple = null; attenteCle = null;
+      if (m[2] === '') attenteCle = m[1]; else env[m[1]] = m[2].trim();
+      continue;
+    }
+    m = ligne.match(/^ {2}- ([a-z_]+):\s*(.+)$/);
+    if (m && attenteCle) { listeCourante = attenteCle; attenteCle = null; env[listeCourante] = []; objetCourant = { [m[1]]: m[2].trim() }; env[listeCourante].push(objetCourant); continue; }
+    if (m && listeCourante) { objetCourant = { [m[1]]: m[2].trim() }; env[listeCourante].push(objetCourant); continue; }
+    m = ligne.match(/^ {2}([a-z_]+):\s*(.+)$/);
+    if (m && attenteCle) { objetSimple = {}; env[attenteCle] = objetSimple; objetSimple[m[1]] = m[2].trim(); attenteCle = null; continue; }
+    if (m && objetSimple) { objetSimple[m[1]] = m[2].trim(); continue; }
     m = ligne.match(/^ {4}([a-z_]+):\s*(.+)$/); if (m && objetCourant) { objetCourant[m[1]] = m[2].trim(); continue; }
     return { erreur: `ligne d'enveloppe non reconnue (${i + 1}) : ${JSON.stringify(ligne)}` };
   }
@@ -376,7 +392,15 @@ function validerEnveloppesLot(lot, rail) {
     const reponses = [];
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`, 'ENVELOPPE_ILLISIBLE', ou); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`, 'ENVELOPPE_ABSENTE', ou); continue; }
-      const env = r.env; validerCommuns(lot, e, env, 'decision', rail); if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`, 'DECISION_LEGACY', ou); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', ou); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`, 'CLOSES_INVALIDE', ou);
+      const env = r.env; validerCommuns(lot, e, env, 'decision', rail);
+      // P5 — forme seulement, jamais rétroactif : une décision qui porte un
+      // champ provenance doit le porter bien formé (niveau, mode, reference) ;
+      // une décision qui n'en porte aucun n'est pas rescannée ici, l'exigence
+      // de PRÉSENCE vit au dépôt (nouvelleDecision) et à la consommation
+      // (verifierProvenanceDecision) — jamais dans ce balayage de tout
+      // l'historique, qui casserait les décisions déposées avant ce champ.
+      if (env.provenance !== undefined) { const errProv = provenance.formeValide(env.provenance); if (errProv) bloquant(`${ou} : provenance invalide — ${errProv}`, 'PROVENANCE_INVALIDE', ou); }
+      if (DECISIONS_LEGACY.includes(env.decision)) bloquant(`${ou} : ${env.decision} est une valeur legacy, lisible dans l'historique v1 mais interdite dans le registre v2 — employer decision + closes.`, 'DECISION_LEGACY', ou); else if (!DECISIONS_CANONIQUES.includes(env.decision)) bloquant(`${ou} : decision ${JSON.stringify(env.decision)} hors vocabulaire (${DECISIONS_CANONIQUES.join('|')})`, 'DECISION_HORS_VOCABULAIRE', ou); if (!['true', 'false'].includes(String(env.closes))) bloquant(`${ou} : closes doit valoir true ou false`, 'CLOSES_INVALIDE', ou);
       // La validité d'une décision dépend de la demande qu'elle référence (elle
       // doit exister dans CE lot) et de sa relation éventuelle de supersession
       // avec une décision précédente — jamais d'une comparaison numérique entre
@@ -542,6 +566,20 @@ function consommer(lot, opts) {
   const source = dec ? 'registre' : 'legacy', cible = path.relative(RACINE, dec ? path.join(LOTS, lot, dec.fichier) : MIROIR_DECISION); let commit; try { commit = git('log', '-1', '--format=%H', '--', cible); } catch (e) { commit = ''; } if (!commit) { console.error(`Aucun commit trouvé pour ${cible} — refus de marquer une consommation invérifiable.`); process.exit(1); }
   if (v.consomme_le && v.commit_decision === commit) { console.error(`REFUS — la décision ${commit.slice(0, 7)} du lot ${lot} est déjà marquée consommée le ${v.consomme_le}.`); console.error('Une nouvelle décision doit être rendue avant de poursuivre.'); process.exit(1); }
   const r = dec && lireEnveloppe(path.join(LOTS, lot, dec.fichier)), ferme = !!(r && r.env && String(r.env.closes) === 'true');
+  // P5 (E1, E3, E4, E5) — une décision à palier humain ne se consomme pas sur
+  // la seule foi d'un nom d'auteur. Avant toute écriture de
+  // DECISION_CONSOMMEE : ChatGPT exige soit une provenance CI vérifiée par
+  // l'API, soit (à défaut) un commit réellement committé par
+  // github-actions[bot] ; un auteur humain exige un niveau explicitement
+  // déclaré (jamais 3). Une API indisponible est un ARRÊT, jamais un repli
+  // silencieux vers un succès.
+  if (dec && r && r.env) {
+    const gateProv = verifierProvenanceDecision(lot, dec, r.env, commit);
+    if (!gateProv.ok) {
+      console.error(`REFUS ${gateProv.code}${gateProv.arret ? ' (arrêt explicite)' : ''} — ${lot}/${dec.fichier} : ${gateProv.motif}`);
+      process.exit(1);
+    }
+  }
   const priseEnCharge = v.statut === 'ATTENTE_CONSOMMATION_DECISION' && v.commit_decision === commit;
   const consigner = (extra) => { Object.assign(v, { statut: 'DECISION_CONSOMMEE', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, consomme_le: new Date().toISOString() }, extra); delete v.pris_en_charge_le; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}${extra && extra.preuve_action ? ` — action prouvée par ${String(extra.preuve_action).slice(0, 7)}` : ''}.`);
     const publication = publierEnAttente(); if (publication) process.exit(publication); };
@@ -633,6 +671,36 @@ function publierEnAttente() {
   console.log(`en-attente/${suivante.fichier} retiré de la file.`);
   return 0;
 }
+// P5 — construit le champ `provenance:` à écrire, ou `null` si rien n'est à
+// écrire (identités exemptées, ou ChatGPT sans référence disponible : le
+// dépôt reste permissif, voir `verifierProvenanceDecision`). Pour ChatGPT, la
+// référence vient de `--provenance-reference` ou, à défaut, de la variable
+// `COMMENTAIRE` — déjà exportée par l'étape de matérialisation de tests.yml
+// pour tout son `run:`, donc disponible sans toucher au workflow.
+function construireProvenance(auteur, options) {
+  if (auteur === 'ChatGPT') {
+    const reference = options.provenanceReference || process.env.COMMENTAIRE;
+    if (!reference) return null;
+    return { niveau: '2', mode: options.provenanceMode || provenance.MODE_RELAIS_CI, reference };
+  }
+  if (provenance.IDENTITES_EXEMPTEES.includes(auteur)) return null;
+  if (options.provenanceNiveau === undefined && options.provenanceReference === undefined) return null;
+  return { niveau: options.provenanceNiveau, mode: options.provenanceMode || 'declared', reference: options.provenanceReference };
+}
+// P5, E3/E5 — garde à la CONSOMMATION, seul moment où une décision prend
+// effet. `env` est l'enveloppe déjà lue (author, provenance éventuelle) ;
+// `commit` est le commit (déjà vérifié ancêtre de HEAD par l'appelant) qui a
+// déposé `dec.fichier`. `opts.committer`/`opts.appelApi` sont injectables
+// pour l'épreuve ; par défaut, l'identité git réelle du commit et `gh api`.
+// Pure (ne lit/n'écrit rien d'autre) : exportée pour être éprouvée sans
+// réseau ni dépôt jetable.
+function verifierProvenanceDecision(lot, dec, env, commit, opts) {
+  opts = opts || {};
+  const attendu = { LOT: lot, REQUEST: opts.request !== undefined ? opts.request : demandeVisee(lot, dec.fichier), DECISION: env.decision, CLOSES: env.closes };
+  const committer = opts.committer !== undefined ? opts.committer
+    : () => { try { return git('log', '-1', '--format=%cn', commit); } catch (e) { return null; } };
+  return provenance.verifierALaConsommation(env, attendu, { appelApi: opts.appelApi, committer });
+}
 // Dépose une DÉCISION avec une enveloppe conforme par construction.
 //
 // POURQUOI CETTE COMMANDE EXISTE. Quatre dépôts consécutifs ont présenté un
@@ -671,12 +739,26 @@ function nouvelleDecision(lot, corpsFichier, options) {
   const fichier = `decision-${seq}.md`, cible = path.join(LOTS, lot, fichier);
   if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
   const auteur = options.auteur || 'NEXUS Orchestrator';
+  // P5 (GOV-R1-IDENTITES-PROVENANCE-20261019, decision-3) — E1/E4 : une
+  // décision humaine (ni ChatGPT, ni une identité exemptée) doit déclarer
+  // explicitement son niveau de preuve dès le dépôt ; un nom d'auteur seul ne
+  // l'établit jamais. Pour ChatGPT, le dépôt reste permissif (la garde forte
+  // vit à la consommation, E5) : la seule chose faite ici est de capter la
+  // référence déjà disponible — `--provenance-reference`, ou `COMMENTAIRE`,
+  // que l'étape de matérialisation de tests.yml exporte déjà pour tout son
+  // `run:` — sans qu'aucune ligne de tests.yml n'ait besoin de changer.
+  const prov = construireProvenance(auteur, options);
+  if (auteur !== 'ChatGPT') {
+    const gateProv = provenance.exigenceDeclaree(auteur, prov);
+    if (!gateProv.ok) { console.error(`REFUS ${gateProv.code} — ${gateProv.motif}`); process.exit(1); }
+  }
   const etatDecision = fs.existsSync(ETAT) ? JSON.parse(fs.readFileSync(ETAT, 'utf8')) : { lots: {} };
   const rail = exigerRailSecurise(etatDecision, lot);
   let env = '---\n';
   env += `protocol: ${PROTOCOLE}\nkind: decision\nlot_id: ${lot}\nseq: ${seq}\n`;
   env += `author: ${auteur}\nbranch: ${rail}\ndecision: ${verdict}\ncloses: ${options.closes}\n`;
   env += `in_reply_to: ${vise}\n`;
+  if (prov) env += `provenance:\n  niveau: ${prov.niveau}\n  mode: ${prov.mode}\n  reference: ${prov.reference}\n`;
   if (options.wakeTo !== undefined) env += `wake_to: ${adresseDeReveilValide(options.wakeTo)}\n`;
   env += '---\n';
   fs.writeFileSync(cible, env + fs.readFileSync(corpsFichier, 'utf8'));
@@ -1049,7 +1131,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 
@@ -1064,7 +1146,7 @@ switch (commande) {
   case 'rattraper-demande': rattraperDemande(arg1); break;
   case 'publier-en-attente': process.exit(publierEnAttente()); break;
   case 'demande': { const args = process.argv.slice(5), preuves = [], ord = {}; let tokenMode = null, rail, wakeTo; for (let i = 0; i < args.length; i++) { if (args[i] === '--preuve') { const m = args[++i].match(/^([a-z0-9-]+):([A-Z_]+):([\s\S]+)$/); if (!m) { console.error(`--preuve mal formée : ${args[i]}`); process.exit(1); } preuves.push({ id: m[1], classe: m[2], valeur: m[3] }); } else if (args[i] === '--token-mode') tokenMode = args[++i]; else if (args[i] === '--rail') rail = args[++i]; else if (args[i] === '--wake-to') wakeTo = args[++i]; else if (args[i] === '--depuis') ord.depuis = args[++i]; else if (args[i] === '--cible-env') ord.cibleEnv = args[++i]; else if (args[i] === '--canal') ord.canal = args[++i]; else if (args[i] === '--precondition') (ord.preconditions = ord.preconditions || []).push(args[++i]); else if (args[i] === '--postcondition') (ord.postconditions = ord.postconditions || []).push(args[++i]); else if (args[i] === '--retour-arriere') ord.retourArriere = args[++i]; else if (args[i] === '--expire-heures') ord.expireHeures = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDemande(arg1, arg2, { preuves, tokenMode, rail, wakeTo, ...ord }); break; }
-  case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
+  case 'decision': { const args = process.argv.slice(5); const o = { closes: undefined }; for (let i = 0; i < args.length; i++) { if (args[i] === '--decision') o.decision = args[++i]; else if (args[i] === '--closes') o.closes = args[++i]; else if (args[i] === '--en-reponse-a') o.enReponseA = path.basename(String(args[++i]).trim()); else if (args[i] === '--auteur') o.auteur = args[++i]; else if (args[i] === '--wake-to') o.wakeTo = args[++i]; else if (args[i] === '--provenance-niveau') o.provenanceNiveau = args[++i]; else if (args[i] === '--provenance-reference') o.provenanceReference = args[++i]; else if (args[i] === '--provenance-mode') o.provenanceMode = args[++i]; else { console.error(`Option inconnue : ${args[i]}`); process.exit(1); } } nouvelleDecision(arg1, arg2, o); break; }
   case 'execution': deposerRetourExecution(arg1, arg2); break;
   case 'veiller': process.exit(veiller(arg1, Number(arg2) || 60)); break;
   default: console.error('Usage : handoff.js [verifier|miroirs|consommer <LOT_ID>|enregistrer-lot <LOT_ID> [--rail R]|declarer-rail <LOT_ID> <rail>|rail [LOT_ID]|rattraper-demande <LOT_ID>|publier-en-attente|demande <LOT_ID> <corps.md> [--token-mode M] [--rail R] [--preuve id:CLASSE:valeur]… [--wake-to ADRESSE] [--depuis REF --cible-env test|production --precondition k=v… --postcondition k=v… --retour-arriere TXT [--expire-heures N] [--canal C]]|decision <LOT_ID> <corps.md> --decision V --closes true|false [--en-reponse-a request-N.md] [--auteur X] [--wake-to ADRESSE]|veiller <LOT_ID>]'); process.exit(1);
