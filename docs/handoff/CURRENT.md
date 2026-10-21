@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-MAIN-20261020/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FIX-CARBURANT-CHRONO-JAUGEAGE-20261020/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: GOV-R4-VIGIE-MAIN-20261020
-seq: 4
+lot_id: FIX-CARBURANT-CHRONO-JAUGEAGE-20261020
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,7 +13,7 @@ wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=ff19b8a0 production=d3244d86
+    valeur: main=73c88a47 production=d3244d86
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
@@ -21,30 +21,32 @@ preuves:
     classe: VERIFIED
     valeur: 158-fichiers
 ---
-# GOV-R4-VIGIE-MAIN-20261020 : PR brouillon #142 ouverte par Claude Code en session
+# FIX-CARBURANT-CHRONO-JAUGEAGE-20261020 : régularisation carburant, le jaugeage avant précède la livraison
 
-**Réponse à :** decision-3.md (APPROVED_WITH_CONDITIONS, closes false, sur request-3.md) : l'arbitre a routé le geste vers `session-claude-habilitee`.
+## Défaut (Production)
+Réception carburant, mode régularisation, étape 2. `chronoJaugeageRegularisation` (`NEXUS-Carburant-Reception-v1.html`, introduite par `fbf113b4`) exigeait livraison ≤ jaugeage avant. Sur le terrain le jaugeage avant précède le déchargement. Cas réel bloqué : jaugeage avant le 19/10 à 12:22, livraison du BL à 13:56. Ordre attendu : jaugeage avant ≤ livraison ≤ jaugeage après ≤ maintenant.
 
-## Réponse à la request-3 et à decision-3
-La PR a été ouverte par Claude Code **en session** (le canal `session-claude-habilitee` désigné par decision-3), sur instruction explicite de Frédéric, depuis la branche `gov-r4-vigie-main-20261020`, avec `gh` local. Les deux questions de request-3 reçoivent donc la même réponse : le canal exécutant de ce geste est la session Claude Code approuvée par Frédéric, pas le réveil autonome `github-actions-claude`. La limite de capacité du Claude relancé (il ne peut pas ouvrir de PR) est reconnue et renvoyée à un lot distinct, hors de celui-ci.
+## Correctif (hors rail : la fonctionnalité n'existe que sur `production`)
+- Branche : `fix-chrono-jaugeage-regularisation-20261020`, poussée seule, **sans PR**, basée sur `origin/production` (`d3244d86`).
+- Commit : `5e42da30` (front seul : `NEXUS-Carburant-Reception-v1.html`, `test_reception_regularisation_20260919.js`, `test_reception_chrono_jaugeage_regularisation_20261020.js`). Aucune migration : la garde en base `trg_garde_regularisation_reception` n'impose que `regularisation_le >= heure_fin`.
+- Une épreuve existante encodait le défaut (jaugeage avant postérieur ou égal à la livraison exigé) ; elle est corrigée et a été vue rouge avant le correctif.
 
-## Fait
-- PR brouillon n°142 : https://github.com/vito-sainte-marie/nexus-vito/pull/142 , base `main`, tête `gov-r4-vigie-main-20261020` (commit `4a7b1ecb`).
-- Diff : un seul fichier, `.github/workflows/vigie-cloture.yml`. Son blob (`4ab9e506`) est identique à celui de `f396f2a7`.
-- Aucun auto-merge (`autoMergeRequest` nul), aucune fusion. La fusion sera faite par Frédéric.
+## Tests
+- Nouvelle épreuve `test_reception_chrono_jaugeage_regularisation_20261020.js` : cas réel 12:22/13:56, chaîne complète, égalités, violations, futur, heure vide ou illisible.
+- Suite complète : 286/293 sur la branche, 285/292 sur `origin/production` propre. Mêmes 7 échecs des deux côtés, préexistants : 4 `test_inventaire_*`, `test_pilotage_qualite_receptions.js`, `test_reception_moteur.js`, `test_reception_v1_dom.js` (`demarrerReception is not defined`).
 
-## Résultat de la CI de la PR
-- `non-regression` : succès (deux runs, 39520379104 et 39521461733).
-- `Supabase Preview` : ignoré.
-- `Cloudflare Pages` : échec. Le contrôle déployait déjà en échec sans rien publier avant cette PR (constat consigné au registre) ; il n'est pas lié au fichier ajouté. À arbitrer s'il compte parmi les contrôles requis pour fusionner sur `main`.
-- État GitHub : `MERGEABLE`, `mergeStateStatus` = `UNSTABLE` (à cause du seul échec Cloudflare).
+## Recette sur l'aperçu Cloudflare Test
+- Aperçu : https://fix-chrono-jaugeage-regulari.nexus-test-ddf.pages.dev (check Cloudflare Pages en succès sur `5e42da30`).
+- `nexus-build.js` : commit `5e42da30e4a45fa1024fade2ec32caba22516844`, environnement `test`, génération `9de04f0d4d80`. Bandeau « MODE TEST » vu avant toute saisie.
+- Session : compte manager Test ouvert par Frédéric dans le browser pane ; Claude n'a saisi aucun identifiant.
+- Régularisation démarrée, SP95, livraison 19/10/2026 13:56, motif « Recette Test chronologie jaugeage 20/10 », BL `RECETTE-CHRONO-20261020`. Le contrôle de doublon a répondu « Aucune réception n'est encore enregistrée à cette date ».
+- Étape 2, jaugeage avant 12:22 : **accepté**, aucun message, bouton Continuer actif, passage à l'étape 3 (camion).
+- Étape 2, jaugeage avant 14:10 (après la livraison) : **refusé**, message « Le jaugeage initial serait postérieur à la livraison : il se relève avant le début du déchargement. », bouton Continuer désactivé.
+- **Lignes écrites sur Test : aucune.** La saisie s'est arrêtée à l'étape 3 et la visite a été quittée sans enregistrement (l'écriture n'a lieu qu'à l'étape finale). Rien à repérer ni à nettoyer.
+- Non couvert par la recette navigateur : l'étape 2 du jaugeage après et l'enregistrement final ; ils restent couverts par les épreuves automatiques.
 
-## Preuve des conditions de decision-3
-1. *Ouvrir uniquement une PR brouillon de `gov-r4-vigie-main-20261020` vers `main`* : tenue (PR #142, brouillon).
-2. *Diff limité à `vigie-cloture.yml`, identique au blob `f396f2a7`* : tenue (1 fichier, blob identique).
-3. *Ne pas activer l'auto-merge et ne pas fusionner* : tenue.
-4. *Rapporter toute CI rouge avant toute demande de fusion* : rapportée ci-dessus (Cloudflare Pages).
-5. *Ne modifier aucun secret ni aucune permission de workflow dans ce lot* : tenue (le fichier ajouté garde `contents: read` seul ; rien d'autre n'est touché).
+## Hors lot
+- Constat de Frédéric : sur iPhone, compte de Dylan, la caméra ne s'est pas ouverte et le jaugeage a dû être saisi à la main. Non investigué, distinct de ce défaut ; à ouvrir en lot séparé.
 
 ## Demande
-Prendre acte de l'ouverture de #142 par la session habilitée. Dire si l'échec `Cloudflare Pages` bloque la fusion ou s'il est un défaut connu sans effet. La fusion reste à Frédéric.
+Prendre acte de la recette et dire si le correctif peut être proposé à la promotion. **Aucune PR vers `production` n'est ouverte** : elle ne viendra qu'après le GO de Frédéric (`PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`).
