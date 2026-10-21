@@ -1,0 +1,30 @@
+# NEXUS — vigie R4 (V1). GOV-R4-VIGIE-20261020, decision-1 (APPROVED_WITH_CONDITIONS, Frédéric Bragance).
+#
+# Une fois par heure, regarde si une clôture déposée par la CI attend sa consommation. Si oui — ou si elle
+# est refusée —, le run ÉCHOUE avec une annotation qui nomme le lot : c'est la seule alerte (pas de Telegram,
+# pas de commentaire sur #28). Sinon, silence. Rien n'est jamais écrit : O3 tourne en rapport, sans --appliquer.
+# Arrêt : désactiver ce workflow depuis l'onglet Actions. V2 et V3 restent hors périmètre.
+name: Vigie clôture
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  vigie:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: handoff-continuite-20260920
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Chercher une clôture en attente
+        env:
+          # Dépôt public : lecture anonyme du commentaire source, aucun jeton.
+          NEXUS_GITHUB_API: https://api.github.com
+        run: node outils/vigie-cloture-ci.js
