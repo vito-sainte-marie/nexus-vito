@@ -243,7 +243,10 @@
     try {
       const fmt = R.extensionPhoto(fichier);
       if (!fmt) { jauge.statut = 'hors_ligne'; jauge.message = 'Photo refusée : format non accepté (JPEG, PNG, WebP ou HEIC). Reprenez la photo ou saisissez à la main.'; rendre(); return; }
-      const pre = R.precontrolePompiste(await nexusClient.rpc('est_pompiste_du_jour', { p_site: emp.site_id }).catch(() => null));
+      // Le builder rpc() de supabase-js n'a pas de .catch (seulement then) : try/await.
+      let repPre = null;
+      try { repPre = await nexusClient.rpc('est_pompiste_du_jour', { p_site: emp.site_id }); } catch (e) { repPre = null; }
+      const pre = R.precontrolePompiste(repPre);
       if (!pre.ok) { jauge.statut = 'hors_ligne'; jauge.message = pre.message; rendre(); return; }
       // Réduit à 2 000 px / JPEG 85 % (repli sur l'original si impossible, HEIC compris).
       const envoi = await window.NexusCameraPage.redimensionnerPhoto(fichier);

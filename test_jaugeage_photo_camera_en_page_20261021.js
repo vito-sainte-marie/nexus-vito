@@ -65,4 +65,7 @@ t('Relevés piste : lien profond ?ecran=jauge soumis aux habilitations _q1', () 
   assert.ok(/get\('ecran'\)/.test(rel));
   assert.ok(/ecran'\)\s*===\s*'jauge'|voulEcran\s*===\s*'jauge'/.test(rel));
 });
+t('Relevés piste : aucun .catch() chaîné sur rpc() (le builder supabase-js n\'en a pas)', () => {
+  assert.ok(!/\.rpc\([^;]*\)\s*\.catch\(/.test(rel));
+});
 console.log(`\n${n} épreuves.`);
