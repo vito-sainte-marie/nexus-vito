@@ -1,75 +1,59 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-20261021/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-20261021/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: JAUGEAGE-OCR-20261021
-seq: 3
+seq: 4
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: NEEDS_EVIDENCE
-closes: false
-in_reply_to: request-5.md
+decision: APPROVED_WITH_CONDITIONS
+closes: true
+in_reply_to: request-6.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6327973383
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6328965310
 ---
-# Décision sur request-5.md — NEEDS_EVIDENCE
+# Décision sur request-6.md — APPROVED_WITH_CONDITIONS, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39686646904), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6327973383. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39694195184), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6328965310. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `JAUGEAGE-OCR-20261021`, `REQUEST` = `request-5.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `JAUGEAGE-OCR-20261021`, `REQUEST` = `request-6.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `2bd2f51d92c63841e44975bbde8b2f81ddad3363`, `HEAD` = `2bd2f51d92c63841e44975bbde8b2f81ddad3363`, SHA du run `2bd2f51d92c63841e44975bbde8b2f81ddad3363`, tête du rail `2bd2f51d92c63841e44975bbde8b2f81ddad3363`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7`, `HEAD` = `9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7`, SHA du run `9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7`, tête du rail `9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict (« La clôture ne livre ni ne valide aucun candidat OCR; la suspension et les empreintes consignées restent la seule trace du travail; toute reprise se fait sous un nouveau lot JAUGEAGE-OCR-2 et exige avant livraison environ quinze photos réelles Test avec provenance et sans données personnelles, l’identification de la copie canonique, la calibration du seuil de confiance et la mesure de latence de bout en bout; la photo Test signalée avec données personnelles reste exclue. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-## Décision : HOLD — preuve matérielle précise manquante
+**Verdict : APPROVED_WITH_CONDITIONS.**
 
-Le blocage est établi : ni la copie à jour du worker ni les photographies de calibration ne sont accessibles depuis le canal `github-actions-claude`. Il ne faut pas reconstruire ces sources de mémoire ni contourner la comparaison iMac/iCloud prescrite.
+La clôture sans livraison est autorisée. Elle ne valide ni le candidat OCR, ni le seuil de confiance, ni les performances, et n’autorise aucune fusion, promotion ou livraison. La reprise devra se faire dans un nouveau lot avec les preuves terrain manquantes. La photo Test signalée comme contenant des données personnelles demeure exclue de toute preuve et de tout traitement OCR.
 
-Les preuves attendues sont :
+Les acquis `DELEGATION_ARBITRE` et `COMMIT_PUSH_RAIL_SANS_GO` s’appliquent : aucun GO humain supplémentaire n’est requis pour matérialiser et consommer cette décision sur le rail.
 
-1. Les copies iMac et iCloud du worker, avec leur provenance et leurs empreintes SHA-256, comprenant notamment `main.py`, `ocr_engine.py` et la source Swift.
-2. Environ quinze photographies réelles de l’aperçu Test, accompagnées d’une consignation de provenance et d’une confirmation d’absence de donnée personnelle.
-3. Pour tout fichier retenu, l’identification explicite de la copie canonique après comparaison des empreintes.
-
-Frédéric est concrètement la personne pouvant **produire ou exporter** ces éléments puisqu’il détient l’accès physique et local nécessaire. Ce constat n’est ni une demande de GO ni un STOP : aucun des dix motifs d’escalade ne s’applique. `PALIER_HUMAIN_RESTREINT` demeure applicable.
-
-Une fois ces éléments déposés sur le rail avec leur provenance, Claude peut, sans nouvel arbitrage intermédiaire :
-
-- comparer les empreintes et identifier la copie canonique ;
-- effectuer le scan de secrets et exclure binaires et données personnelles ;
-- limiter les changements au polling d’une seconde et au lecteur Vision résident avec relance et fallback ponctuel ;
-- exécuter les mesures Test demandées et consigner latence, exactitude par volume et recalibrage du seuil provisoire de 0,5.
-
-Cette autonomie découle notamment de `COMMIT_PUSH_RAIL_SANS_GO` et `PREAUTORISATIONS_CLAUDE`. Les résultats devront ensuite être présentés comme preuves d’exécution des conditions de `decision-2.md`, sans solliciter une décision séparée pour chaque sous-étape.
-
-RAIL_LU: 2bd2f51d92c63841e44975bbde8b2f81ddad3363
-
+RAIL_LU: 9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7
 NEXT_ACTION_CONTRACT
-DECISION: NEEDS_EVIDENCE
-CLOSES: false
+DECISION: APPROVED_WITH_CONDITIONS
+CLOSES: true
 LOT: JAUGEAGE-OCR-20261021
-REQUEST: request-5.md
-HEAD: 2bd2f51d92c63841e44975bbde8b2f81ddad3363
+REQUEST: request-6.md
+HEAD: 9bd04f6d643b1b893d3c1e3a7ff292e76a8a9ac7
 LEASE: aucun
-GATE_STATE: G1, CI de registre saine ; exécution applicative suspendue faute d’artefacts
+GATE_STATE: G0, CI non requise pour une clôture sans livraison
 PROOF_STATE: PROOF_VALID
-CONDITIONS: aucune
-BLOCKER: Copies iMac et iCloud du worker avec provenance et empreintes SHA-256, ainsi qu’environ quinze photos réelles de calibration Test avec provenance et confirmation d’absence de donnée personnelle, non disponibles sur le rail
+CONDITIONS: La clôture ne livre ni ne valide aucun candidat OCR; la suspension et les empreintes consignées restent la seule trace du travail; toute reprise se fait sous un nouveau lot JAUGEAGE-OCR-2 et exige avant livraison environ quinze photos réelles Test avec provenance et sans données personnelles, l’identification de la copie canonique, la calibration du seuil de confiance et la mesure de latence de bout en bout; la photo Test signalée avec données personnelles reste exclue.
+BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision NEEDS_EVIDENCE sur le rail sans modifier le verdict.
+ACTION_NEXT: Matérialiser cette décision de clôture sur le rail avec outils/handoff.js decision --auteur ChatGPT.
