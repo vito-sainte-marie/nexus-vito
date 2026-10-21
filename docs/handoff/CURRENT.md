@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-20261021/request-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-LOT1-RELEVES-PISTE-20261021/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: JAUGEAGE-OCR-20261021
-seq: 6
+lot_id: PARCOURS-POMPISTE-LOT1-RELEVES-PISTE-20261021
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -20,33 +21,33 @@ preuves:
     classe: VERIFIED
     valeur: 159-fichiers
 ---
-# LOT : JAUGEAGE-OCR-20261021 — suspension : clore en l'état, rouvrir sous JAUGEAGE-OCR-2
+# LOT : PARCOURS-POMPISTE-LOT1-RELEVES-PISTE-20261021 — correctifs urgents des Relevés piste
 
-Suite de decision-3.md (NEEDS_EVIDENCE sur request-5.md) et de la décision de Frédéric du 21/10/2026 (« voie 3 »).
+## Origine
+Demande de Frédéric (21/10/2026), tirée du document « Parcours pompiste : lots pour Claude Code » (parcours du 21/10 à 18:30 sur l'aperçu Test, compte « Employé Test B », pompiste du soir, format téléphone). L'aperçu Test sert `33fb3e1`, identique fichier pour fichier à la Production `84adc5de`. Lot 1 sur 3 ; les lots 2 et 3 ne sont pas demandés ici.
 
-## Demande
-Clore le lot **en l'état** (`closes: true`), **sans rien livrer**, et autoriser sa réouverture ultérieure sous un nouveau lot **JAUGEAGE-OCR-2**.
-
-## Pourquoi
-decision-3 attend environ quinze photos réelles de l'aperçu Test, avec provenance. Les photos de calibration (écran Veeder-Root) ne peuvent être prises qu'à la station, sur plusieurs jours : elles n'existent pas et aucun geste de Claude ne peut les produire. Laisser le lot ouvert bloque tout autre lot (règle D3 : un seul lot actif) pour une preuve qui ne viendra pas avant plusieurs jours. Frédéric a fait ce choix.
-
-## Preuve des conditions de decision-3
-- *Copies iMac/iCloud du worker avec SHA-256* — déjà consignées dans request-3.md ; inchangées.
-- *Environ quinze photos réelles Test, provenance, absence de données personnelles* — NOT_APPLICABLE à la clôture : aucune photo de calibration n'existe ; leur attente est consignée comme condition de réouverture. Une photo déjà présente en Test contient des données personnelles (ligne `16b44d11-47f4-4693-b598-b0f30002d37d`) : elle est exclue et sa suppression reste à décider par Frédéric.
-- *Identification de la copie canonique* — NOT_APPLICABLE : rien n'est livré.
-
-## Ce qui est consigné (commit hors docs/handoff/)
-Un fichier de suspension sur le rail, hors `docs/handoff/` : le travail fait (parseur Veeder-Root, moteur Apple Vision en Swift, lecteur résident, polling 1 s, 11 tests verts), les empreintes SHA-256 des fichiers du candidat, les photos attendues et la condition de réouverture. Ce commit sert de preuve de consommation. Le candidat lui-même n'est pas versionné (ni PR du worker, ni écran de jaugeage, ni binaire).
+## Constats (écran `NEXUS-Releves-Piste-v1.html`, état `origin/production` 84adc5de)
+1. **Impasse** : aucun lien vers l'Accueil ni « Menu » ni « Précédent » ; « Retour » (`data-act="choix"`, lignes 246, 396, 418) ramène au menu interne (`vueChoix`) qui n'a lui-même aucune sortie.
+2. **Message d'état trompeur** : `majEtat()` (ligne ~110-120) écrit « Enregistré sur l'appareil · pas encore envoyé au serveur » dès le rendu, car `sauverLocalTest()` renvoie `true` quand `moment` est vide (`moment ? sauverLocal() : true`) : le texte s'affiche avant toute saisie et sans sauvegarde réelle.
 
 ## Périmètre modifié
-Aucun code applicatif. Registre Handoff et un seul fichier de suspension.
+- `NEXUS-Releves-Piste-v1.html` (et `nexus-releves-piste.js` si la logique d'état y migre), uniquement.
+- (1) Une sortie « Quitter et revenir à l'Accueil » sur tous les écrans (choix/menu interne, pompe, revue, recopie, jauge, fini), toujours au même endroit, sans perte : les brouillons déjà écrits (`sauverLocal`, `sauverJauge`) sont conservés et rouverts au retour.
+- (2) Le texte « Enregistré sur l'appareil · … » ne s'affiche qu'après une sauvegarde locale réelle (écriture réussie d'au moins une saisie) ; avant, aucun bandeau d'état ou un libellé neutre, jamais l'affirmation d'une sauvegarde.
+- Épreuves rouges d'abord (écran sans sortie ; bandeau affiché à vide), puis vertes ; mutation de contrôle de chacune.
 
 ## Hors périmètre
-SQL, migration, RLS, fusion vers `main`/`production`, déploiement, binaire ou secret versionné, PR du worker, modification de l'écran de jaugeage.
+Lot 2 (fil « Mon début de quart »), lot 3 (Missions vide, Inventaire lent), pointage (reste désactivé), SQL, migration, RLS, Supabase Production, toute modification de l'écran de jaugeage au-delà de la sortie, lot JAUGEAGE-OCR-20261021 (non touché), déploiement.
+
+## Conduite
+- Branche de travail depuis `origin/production` (jamais la branche locale), worktree. Un seul push pour le code et la consommation.
+- Recette sur l'aperçu Test (format téléphone, compte pompiste) avant toute demande de GO.
+- PR vers `production` ouverte en brouillon ; **aucune fusion ni déploiement sans le GO de Frédéric** (palier PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION).
 
 ## À arbitrer
-Approuver la clôture en l'état avec réouverture sous JAUGEAGE-OCR-2, sans livraison. Le lot suivant (PARCOURS-POMPISTE-LOT1-RELEVES-PISTE-20261021, Relevés piste) est déposé aussitôt après consommation.
+Approuver ce périmètre et cette conduite pour que Claude exécute le lot 1 sur un rail de travail, sans autre geste humain avant la PR.
 
 ## Contraintes dites sans fard
-- Le travail du candidat n'est pas livré : il reste sur le poste de Claude et dans les empreintes consignées ; si ce poste est perdu, le code est à réécrire.
-- Le seuil de confiance 0,5 reste provisoire et non calibré ; la latence de bout en bout n'a jamais été mesurée sur de vraies photos.
+- Le dépôt est public : aucune donnée personnelle ni secret dans ce lot.
+- Divergence à lever avant de s'appuyer dessus : mes notes antérieures donnaient #145 fusionnée mais non déployée ; le document de Frédéric dit `84adc5de` = fusion de #145 déployée le 21/10 à 14:55. `origin/production` est bien à `84adc5de` à l'instant de ce dépôt.
+- Le lot JAUGEAGE-OCR-20261021 reste actif en ATTENTE_DECISION (decision-3 NEEDS_EVIDENCE) ; ce lot-ci est indépendant de lui et ne le consomme pas.
