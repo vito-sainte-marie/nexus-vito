@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-20261020/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/GOV-R4-VIGIE-MAIN-20261020/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: GOV-R4-VIGIE-20261020
-seq: 2
+lot_id: GOV-R4-VIGIE-MAIN-20261020
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,30 +20,34 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 158-fichiers
-  - id: rail-tete
-    classe: VERIFIED
-    valeur: f396f2a7
-  - id: code-vigie
-    classe: VERIFIED
-    valeur: f396f2a7
 ---
-# GOV-R4-VIGIE-20261020 : request-2, V1 livrée (résultats)
+# GOV-R4-VIGIE-MAIN-20261020 : porter la vigie sur main
 
-**Réponse à :** decision-1 de Frédéric (APPROVED_WITH_CONDITIONS, closes false, 5c882b64), consommée avec preuve d'action f396f2a7.
+**Suite de :** GOV-R4-VIGIE-20261020 (clos, decision-2 APPROVED closes:true). Cette demande ouvre le palier que cette décision a nommé et exclu : faire exister `vigie-cloture.yml` sur `main`, seule branche d'où un `schedule` s'exécute.
 
-## Livré (V1 seule)
-- `.github/workflows/vigie-cloture.yml` : `schedule` unique `17 * * * *` (horaire), `permissions: contents: read` seul, aucun secret, checkout sur le rail en `persist-credentials: false`, lecture anonyme de l'API GitHub (dépôt public). Aucun autre déclencheur.
-- `outils/vigie-cloture-ci.js` : lance O3 en rapport (jamais `--appliquer`). Silence (code 0) si `RIEN_A_CONSOMMER` ; sinon `::error` nommant le lot et code 1 (clôture conforme en attente, ou refus/ambiguïté/panne d'O3 : échec fermé).
-- `test_vigie_cloture_ci_20261020.js` : V1–V6, écrites et constatées rouges avant le code (0/6 puis 5/6 rouges avec V4 vide ; V4 renforcée pour exiger l'alerte), vertes ensuite : silence ; clôture conforme -> alerte ; non nue / altérée / commit humain / API muette / deux candidats -> alerte de refus ; aucune écriture ni push ; workflow statique (horaire, contents: read, sans secret, sans Telegram ni commentaire #28) ; script sans écriture.
+## Constat
+La vigie V1 (rail `d5e2d591`) est inerte : GitHub ne déclenche un `schedule` que depuis la branche par défaut. `origin/main` = `ff19b8a0` ne contient que `claude.yml`, `test-telegram-handoff.yml`, `tests.yml`. Tant que le fichier n'y est pas, la clôture déposée par la CI reste sans lecteur (cf. clôtures R1 decision-4 et R2 decision-3).
 
-## Preuve des conditions de decision-1
-1. contents: read seul, O3 sans --appliquer : tenue (V5, V6). 2. Canal = échec du run + annotation nommant le lot, ni Telegram ni #28 : tenue. 3. Horaire, pas de nouvelle alerte sans changement d'état, hors rappel du run suivant en échec : tenue (V2, deux passages identiques). 4. Épreuves rouges avant le code : tenue. 5. Arrêt par désactivation du workflow ; V2 et V3 hors périmètre : rien n'y touche.
+## Périmètre proposé (minimal)
+- Une PR vers `main` qui ajoute **un seul fichier** : `.github/workflows/vigie-cloture.yml`, identique octet pour octet à celui du rail (`f396f2a7`). Aucun autre fichier, `tests.yml` et `claude.yml` intouchés.
+- Le workflow fait un checkout `ref: handoff-continuite-20260920` : le script, O3 et le registre restent lus sur le rail. `main` ne porte que le déclencheur.
+- Permissions `contents: read` seul, aucun secret, lecture anonyme de l'API, O3 sans `--appliquer`, alerte = échec du run avec annotation nommant le lot (les 5 conditions de GOV-R4-VIGIE decision-1 restent le cadre).
 
-## Constats
-Guardian QA : un finding sur ma propre épreuve V4 (attendu calculé par l'expression observée), corrigé ; ensuite 354 épreuves, 0 finding. `handoff.js verifier` vert. Suite `run-tests.js` : seuls les 9 échecs connus. `tests.yml` non modifié.
+## Mesures (non composées)
+- main `ff19b8a0` ; production `d3244d86` ; rail `d5e2d591`. Les preuves `refs-protegees` et `merge-base-production` sont celles injectées par l'outil.
+- `main` est protégée ; rulesets actifs « Production — gate humaine NEXUS » et « main — intégrité de l'historique » (règles : pull_request, required_status_checks, non_fast_forward, deletion). La fusion exige donc une PR et des contrôles verts : ce n'est pas un push.
 
-## Limite à connaître
-Un workflow `schedule` ne s'exécute que depuis la branche par défaut (`main`). Il est ici sur le rail : tant qu'il n'est pas sur `main`, il ne tourne pas. Le porter sur `main` est une fusion/promotion (palier distinct) que cette demande ne prend pas. Première exécution réelle donc non observée ; seul le banc local la prouve.
+## Risques nommés
+1. **Épreuves du rail lisant `main`** : cinq épreuves lisent `origin/main:.github/workflows/claude.yml` (ex. `test_designation_rail_20260930.js`). La PR ne touche pas `claude.yml` : leur lecture est inchangée. À reconfirmer par la CI de la PR.
+2. **Contrôles requis sur `main`** : le workflow ajouté n'a pas son épreuve (`test_vigie_cloture_ci_20261020.js` reste sur le rail). À vérifier sur la PR qu'aucun contrôle requis ne rougit pour cause d'absence ; sinon la PR s'arrête et je le dis.
+3. **Effet de bord de la première exécution** : dès la fusion, un run horaire réel. S'il existe une clôture conforme en attente, le run échoue avec annotation (comportement voulu). Il n'écrit rien et ne pousse rien.
+4. **Arrêt** : désactiver « Vigie clôture » dans l'onglet Actions, ou retirer le fichier de `main`.
+5. **Fusion** : geste humain sur branche protégée. Je ne fusionne pas, je n'active pas l'auto-merge.
+
+## Séquence si GO
+1. Je crée une branche courte depuis `origin/main`, y place le seul fichier, ouvre la PR (brouillon) et rapporte la CI.
+2. Frédéric fusionne (ou refuse) ; je ne le fais pas.
+3. Je constate la première exécution réelle (run `schedule`) et la rapporte à #28 comme preuve, sans nouvelle écriture.
 
 ## Demande
-Valider V1 comme livrée (closes true) en nommant la limite ci-dessus, ou dire ce qui manque.
+Autoriser l'ouverture de la PR décrite (un fichier, vers `main`) et dire si la fusion relève d'un motif humain nommé. Si l'arbitre voit un motif (`SECRET_PERMISSION_SURFACE_SECURITE`, `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`), le nommer ; sinon, dire que la fusion reste à Frédéric par la protection de branche seule.
