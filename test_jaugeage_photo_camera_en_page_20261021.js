@@ -77,4 +77,11 @@ t('Relevés piste : après enregistrement, « Jaugeage enregistré : » remplace
   assert.ok(/jauge\.enregistre\) \? `<div class="card"><h2>Jaugeage enregistré<\/h2>/.test(rel));
   assert.ok(rel.indexOf('Jaugeage enregistré : SP') < rel.indexOf('Un jaugeage existe déjà'));
 });
+const cam = lire('nexus-camera-page.js');
+t('Caméra en page : demande une résolution idéale (1920×1080), jamais exacte, pour ne pas rester à 480×640', () => {
+  const m = /getUserMedia\(\{ video: \{([^}]*\{[^}]*\}[^}]*)\}[^)]*\)/.exec(cam);
+  assert.ok(m, 'getUserMedia introuvable');
+  assert.ok(/width: \{ ideal: 1920 \}/.test(m[0]) && /height: \{ ideal: 1080 \}/.test(m[0]));
+  assert.ok(!/exact/.test(m[0]));
+});
 console.log(`\n${n} épreuves.`);

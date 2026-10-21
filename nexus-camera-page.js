@@ -83,7 +83,7 @@
       async function demarrer() {
         if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') { repli("La capture caméra intégrée n'est pas disponible sur ce navigateur."); return; }
         etat('Ouverture de la caméra…');
-        try { flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); }
+        try { flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
         catch (err) {
           console.error('getUserMedia (caméra en page):', err);
           const refuse = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
