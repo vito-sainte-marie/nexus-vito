@@ -16,6 +16,7 @@
 <script src="nexus-carburant-moteur.js?v=20261013-2212"></script>
 <script src="nexus-carburant-donnees.js?v=20261013-2212"></script>
 <script src="nexus-veeder-root.js?v=20261013-2212"></script>
+<script src="nexus-camera-page.js?v=20261021-0001"></script>
 <style>
   :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
   *{box-sizing:border-box}
@@ -90,7 +91,29 @@
   function lireLocal() {
     try { const s = localStorage.getItem(cleBrouillon()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
   }
+  // État du jaugeage mémorisé sur l'appareil (le natif peut décharger la page) — clé dédiée, il n'a pas de moment.
+  const cleJauge = () => `nexus_releves_piste_jauge_${emp.id}_${date}`;
+  function sauverJauge() {
+    try { localStorage.setItem(cleJauge(), JSON.stringify({ statut: jauge.statut, docId: jauge.docId, photoLe: jauge.photoLe, propositions: jauge.propositions, saisies: jauge.saisies, confirme: jauge.confirme, enregistre: jauge.enregistre, t: Date.now() })); return true; }
+    catch (e) { return false; }
+  }
+  function lireJauge() {
+    try { const s = localStorage.getItem(cleJauge()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  function restaurerJauge() {
+    const l = lireJauge();
+    if (!l) return;
+    jauge.docId = l.docId || null; jauge.photoLe = l.photoLe || null; jauge.propositions = l.propositions || {};
+    jauge.saisies = l.saisies || {}; jauge.confirme = !!l.confirme; jauge.enregistre = !!l.enregistre;
+    jauge.statut = l.statut === 'envoi' ? (l.docId ? 'en_attente' : 'aucune') : (l.statut || 'aucune');
+  }
   function majEtat() {
+    // Sur l'écran jaugeage, le bandeau des index ne dit rien du jaugeage : on affiche l'état réel de celui-ci.
+    if (ecran === 'jauge') {
+      $('etat').innerHTML = jauge.enregistre ? '<b class="bon">Jaugeage enregistré dans Carburants</b>'
+        : (reseau.ok ? 'Jaugeage non enregistré : saisie en cours' : '<b class="ko">Hors connexion : jaugeage non enregistré</b>');
+      return;
+    }
     const local = sauverLocalTest();
     const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
       : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
@@ -200,6 +223,7 @@
     hors_ligne: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.',
   };
   function vueJauge() {
+    sauverJauge();
     const lignes = CUVES.map(c => {
       const prop = jauge.propositions[c.k];
       const aide = prop ? `<div class="conv">Lecture proposée : ${prop.volume_l ?? 'illisible'} L${prop.alerte ? ' (' + esc(prop.alerte) + ')' : ''} <button class="btn2" style="width:auto;min-height:36px;padding:6px 10px;font-size:13px" data-act="jprendre" data-k="${c.k}">Utiliser</button></div>` : '';
@@ -210,12 +234,13 @@
     const goTotal = (jauge.saisies['GO-20'] && jauge.saisies['GO-10']) ? n('GO-20') + n('GO-10') : null;
     const total = `<div class="card"><div class="ligne"><span class="n">GO total (cuve 1 + cuve 2)</span><span class="v">${goTotal != null ? goTotal + ' L' : '…'}</span></div><div class="sub">Somme d'affichage pour la recopie Decenium : jamais un mouvement de stock ni une vente.</div></div>`;
     const ex = jauge.existant;
-    const avert = ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
+    const avert = (ex && jauge.enregistre) ? `<div class="card"><h2>Jaugeage enregistré</h2><div class="sub">Jaugeage enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}.</div></div>`
+      : ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
     const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
     const conf = pret ? `${total}${avert}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
       <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
-      <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><label class="btn2" style="display:block;text-align:center;padding:14px"><input type="file" accept="image/*" capture="environment" id="jPhoto" style="display:none">Prendre la photo de l'écran</label>
+      <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><button class="btn2" data-act="jcamera">Prendre la photo de l'écran</button><input type="file" accept="image/*" capture="environment" id="jPhoto" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;clip:rect(0,0,0,0)">
       <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
       ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
       ${photo}${lignes}${conf}<button class="btn2" data-act="choix">Retour</button>`;
@@ -225,11 +250,16 @@
     try {
       const fmt = R.extensionPhoto(fichier);
       if (!fmt) { jauge.statut = 'hors_ligne'; jauge.message = 'Photo refusée : format non accepté (JPEG, PNG, WebP ou HEIC). Reprenez la photo ou saisissez à la main.'; rendre(); return; }
-      const pre = R.precontrolePompiste(await nexusClient.rpc('est_pompiste_du_jour', { p_site: emp.site_id }).catch(() => null));
+      // Le builder rpc() de supabase-js n'a pas de .catch (seulement then) : try/await.
+      let repPre = null;
+      try { repPre = await nexusClient.rpc('est_pompiste_du_jour', { p_site: emp.site_id }); } catch (e) { repPre = null; }
+      const pre = R.precontrolePompiste(repPre);
       if (!pre.ok) { jauge.statut = 'hors_ligne'; jauge.message = pre.message; rendre(); return; }
-      const ext = fmt.ext;
-      const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${ext}`;
-      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, fichier, { contentType: fmt.contentType });
+      // Réduit à 2 000 px / JPEG 85 % (repli sur l'original si impossible, HEIC compris).
+      const envoi = await window.NexusCameraPage.redimensionnerPhoto(fichier);
+      const fmtEnvoi = R.extensionPhoto(envoi) || fmt;
+      const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${fmtEnvoi.ext}`;
+      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, envoi, { contentType: fmtEnvoi.contentType });
       if (up.error) throw up.error;
       const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
       if (ins.error) throw ins.error;
@@ -451,7 +481,12 @@
       }
       await chargerValeursServeur(); rendre(); return;
     }
-    if (a === 'jauge') { ecran = 'jauge'; try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'jcamera') {
+      const r = await window.NexusCameraPage.ouvrirCamera({ consigne: "Cadrez uniquement l'écran du Veeder-Root : les quatre volumes lisibles, sans reflet.", inputId: 'jPhoto' });
+      if (r && r !== 'repli') await envoyerPhoto(r);
+      return;
+    }
+    if (a === 'jauge') { ecran = 'jauge'; restaurerJauge(); try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
     if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
@@ -465,13 +500,13 @@
   });
   document.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); jauge.confirme = false; jauge.enregistre = false; }
+    if (t.dataset && t.dataset.j) { jauge.saisies[t.dataset.j] = t.value.replace(/\D/g, '').slice(0, 6); jauge.confirme = false; jauge.enregistre = false; sauverJauge(); }
   });
   document.addEventListener('change', async (e) => {
     const t = e.target;
-    if (t.dataset && t.dataset.j) { rendre(); return; }
+    if (t.dataset && t.dataset.j) { sauverJauge(); rendre(); return; }
     if (t.id === 'visuel') { visuel[pompe] = t.checked; sauverLocal(); rendre(); return; }
-    if (t.id === 'jConf') { jauge.confirme = t.checked; rendre(); return; }
+    if (t.id === 'jConf') { jauge.confirme = t.checked; sauverJauge(); rendre(); return; }
     if (t.id === 'jPhoto' && t.files && t.files[0]) { await envoyerPhoto(t.files[0]); return; }
     if (t.dataset && t.dataset.act === 'tick') {
       const { error } = await nexusClient.rpc('carburant_index_marquer_recopiee', { p_valeur_id: t.dataset.id, p_recopiee: t.checked });
@@ -526,7 +561,13 @@
     // s'il fait partie des habilitations de l'utilisateur (la RLS reste l'autorité).
     try {
       const voulu = new URLSearchParams(location.search).get('moment');
+      const voulEcran = new URLSearchParams(location.search).get('ecran');
       if (voulu && R.MOMENTS.indexOf(voulu) >= 0 && habilites.indexOf(voulu) >= 0) { moment = voulu; await ouvrirMoment(); }
+      // Lien profond depuis la carte Inventaire (?ecran=jauge) : seulement si le bloc jaugeage serait visible.
+      else if (voulEcran === 'jauge' && !(habilites.length && !habilites.some(m => /_q1$/.test(m)))) {
+        ecran = 'jauge'; restaurerJauge();
+        try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); }
+      }
     } catch (x) { /* lien invalide : on reste sur le choix */ }
     rendre();
   });

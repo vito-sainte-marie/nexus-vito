@@ -1700,7 +1700,11 @@
     const carteReceptionRapide = document.getElementById('carteReceptionRapide');
     if (carteReceptionRapide) carteReceptionRapide.addEventListener('click', demarrerReceptionRapide);
     const carteJaugeage = document.getElementById('carteJaugeageCarburant');
-    if (carteJaugeage) carteJaugeage.addEventListener('click', demarrerJaugeageOuverture);
+    // Option A (Frédéric, 21/10/2026) : la carte mène au jaugeage Veeder-Root des Relevés piste (photo, lecture,
+    // vérification) ; la saisie manuelle y reste en repli. Même primitive d'écriture des deux côtés.
+    if (carteJaugeage) carteJaugeage.addEventListener('click', () => { window.location.href = 'NEXUS-Releves-Piste-v1.html?ecran=jauge'; });
+    const lienImpossible = document.getElementById('lienJaugeageImpossible');
+    if (lienImpossible) lienImpossible.addEventListener('click', (e) => { e.stopPropagation(); renderJaugeageImpossible(); });
     const lienVoirReleveJaugeage = document.getElementById('lienVoirReleveJaugeage');
     if (lienVoirReleveJaugeage) lienVoirReleveJaugeage.addEventListener('click', toggleDetailReleveJaugeage);
   }
@@ -1765,6 +1769,7 @@
             <div class="choix-titre">Jaugeage carburants — ouverture</div>
             <div class="choix-sub">À effectuer avant le début des ventes — SP95 · GO · GNR</div>
             <div class="choix-statut attente">À faire</div>
+            <div class="choix-sub" style="margin-top:6px;"><a href="#" id="lienJaugeageImpossible" style="color:inherit;text-decoration:underline;">Je ne peux pas faire le jaugeage</a></div>
           </div>
         </div>
       </div>`;
