@@ -743,14 +743,15 @@
       "arret": "request-2.md"
     },
     "JAUGEAGE-OCR-20261021": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-6.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-4.md",
       "source_decision": "registre",
       "commit_decision": "c86de01f4ec0822d20a575b784983969e2704fbc",
       "arret": "request-5.md",
-      "pris_en_charge_le": "2026-10-21T23:37:00.963Z"
+      "consomme_le": "2026-10-21T23:37:05.264Z",
+      "preuve_action": "d26e4f71c0b14e540b9f494fe498cc10528b25c9"
     }
   },
   "artefacts_hors_registre": [
