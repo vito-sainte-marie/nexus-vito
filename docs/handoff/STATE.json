@@ -723,13 +723,13 @@
       "preuve_action": "9ad8f35ca9827b7a137ad41f61d076f5673edd4e"
     },
     "FIX-CARBURANT-CHRONO-JAUGEAGE-20261020": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "47547e6f100284d84786b6122a9447a24e2238ee",
-      "consomme_le": "2026-10-21T04:12:30.409Z",
+      "commit_decision": "91f3d172358f1ef48ac88275eb2e3edcdbba89e8",
+      "consomme_le": "2026-10-21T10:42:33.640Z",
       "preuve_action": "292d075a6bc3508d96b2d4a2549e88370eee6e58"
     }
   },
