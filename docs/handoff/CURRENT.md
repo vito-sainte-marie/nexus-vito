@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-20261021/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-20261021/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: JAUGEAGE-OCR-20261021
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -19,38 +19,56 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 159-fichiers
+  - id: copies-identiques
+    classe: VERIFIED
+    valeur: iMac=iCloud sur 6 fichiers (shasum -a 256)
+  - id: vision-photo-propre
+    classe: VERIFIED
+    valeur: 4 volumes, 4 hauteurs, 4 temperatures exacts, ~1 s
 ---
-# JAUGEAGE-OCR-20261021 : condition 1 de decision-1 hors de portée de ce réveil — arrêt consigné
+# JAUGEAGE-OCR-20261021 : extension de périmètre (moteur Vision, Broadcast, lecture proposée) et preuves des conditions 1 et 2 de decision-1
 
-**Suite de :** decision-1.md (APPROVED_WITH_CONDITIONS, closes: false, in_reply_to: request-1.md).
-
-## Ce qui a été fait dans ce réveil
-
-1. `git fetch origin` : rail `handoff-continuite-20260920` lu à jour (`6ef76065`), rien à rapatrier.
-2. Décision prise en charge : `node outils/handoff.js consommer JAUGEAGE-OCR-20261021 --prise-en-charge` (registre sain, 85 lots, mêmes avertissements permanents qu'avant — aucun nouveau).
-3. Lecture de decision-1.md et de son `CONDITIONS` : cinq conditions cumulatives, à vérifier avant tout commit contenant le worker.
-4. Mesure de l'état du dépôt pour le périmètre annoncé (`nexus-ocr-worker/`) : seul `dossier_watcher.py` y existe (explicitement qualifié de copie périmée par request-1 lui-même) ; ni `main.py`, ni `ocr_engine.py`, ni `requirements.txt`, ni `.env.example` n'existent dans ce dépôt, à aucun commit.
-5. Recherche d'un accès quelconque, depuis ce réveil, à une copie du worker : aucun montage, aucun chemin, aucune variable d'environnement ne référence un système de fichiers iMac ou iCloud. Ce réveil s'exécute dans un checkout GitHub Actions isolé, sans réseau vers ces deux systèmes.
-6. Aucune action supplémentaire : aucun fichier hors de `docs/handoff/` n'a été créé ni modifié, aucun commit de travail n'existe sur le rail pour ce lot dans ce réveil.
-
-## Ce qui bloque
-
-La condition 1 de decision-1 dit : « Avant tout commit contenant le worker, comparer par empreintes la copie iMac et la copie iCloud et consigner la provenance retenue. » C'est une précondition **à l'acte de commit lui-même**, pas une vérification de forme : elle suppose de lire deux copies du worker qui n'existent ni l'une ni l'autre dans ce dépôt, sur deux systèmes (l'iMac de Frédéric, son compte iCloud) auxquels ce réveil n'a et ne peut avoir aucun accès réseau ou disque. `request-1.md` l'avait d'ailleurs déjà noté dans ses « Contraintes dites sans fard » : « La copie du worker de l'iMac n'a pas été comparée à celle d'iCloud (pas d'accès à l'iMac) ».
-
-Les conditions 2 à 5 (scan de secrets, périmètre de fichiers, tests sur textes synthétiques, aucune Production) portent toutes sur un arbre candidat qui n'existe pas encore ici : sans la comparaison d'empreintes de la condition 1, il n'y a ni source à scanner, ni fichier à limiter, ni test à exécuter, ni commit à faire. Ce n'est donc pas un refus de ma part ni une relecture différente de decision-1 : c'est une capacité absente — produire ou faire produire les deux copies à comparer — que ce réveil ne détient pas et qu'aucun outil du dépôt ne peut lui donner.
-
-Je ne contourne rien (aucune tentative d'écrire un `main.py`/`ocr_engine.py` de mémoire sans les deux copies à comparer, ce qui court-circuiterait la condition au lieu de la remplir) et je ne m'arbitre pas moi-même sur le périmètre, déjà approuvé par decision-1.
+**Suite de :** decision-1.md (APPROVED_WITH_CONDITIONS, closes: false) et request-2.md (arrêt consigné par la CI, qui n'avait pas accès à l'iMac ni à iCloud). Cette demande remplace request-2 : la condition qui bloquait est remplie ici, côté session de Frédéric, qui a accès aux deux copies.
 
 ## Preuve des conditions de decision-1
 
-- *Comparer par empreintes la copie iMac et la copie iCloud et consigner la provenance retenue* — NOT_APPLICABLE : aucune des deux copies n'est accessible depuis ce réveil (pas d'accès iMac, pas d'accès iCloud) ; aucune comparaison n'a donc pu être tentée, ni a fortiori faussée.
-- *Scanner l'arbre candidat contre les secrets ; `.gitignore` exclut `.env` ; aucun `.env` ni valeur réelle de `SUPABASE_SERVICE_KEY` versionné ; `.env.example` ne contient que des valeurs factices* — NOT_APPLICABLE : aucun arbre candidat n'existe (aucun fichier worker nouveau dans ce dépôt à ce commit).
-- *Limiter les fichiers au périmètre annoncé* — NOT_APPLICABLE : rien n'a été ajouté à `nexus-ocr-worker/` dans ce réveil.
-- *Tester uniquement avec des textes synthétiques ou une photo sans personne ni document* — NOT_APPLICABLE : aucun test n'a été exécuté, faute de parseur à tester.
-- *Aucun préremplissage, SQL, migration, fusion vers une branche protégée ni déploiement* — VERIFIED : aucune de ces actions n'a été tentée ; seul `docs/handoff/` a été touché par ce réveil.
+### Condition 1 : comparaison des copies et provenance
 
-## Demande
+Le 21/10/2026, copie du worker de l'iMac comparée à celle d'iCloud par `shasum -a 256`, fichier par fichier : **identiques** (sortie collée par Frédéric). Provenance retenue : la copie iCloud (identique à celle de l'iMac).
 
-1. Dire qui, concrètement, peut produire la comparaison par empreintes exigée par la condition 1 : si c'est un geste de Frédéric (lecture directe des deux copies sur son iMac et son compte iCloud, puis dépôt du résultat — empreinte retenue et provenance — dans une décision ou un commentaire), le nommer explicitement plutôt que `github-actions-claude`, qui n'a et ne peut avoir cet accès.
-2. Si l'intention est que Frédéric dépose directement les fichiers retenus (`main.py`, `ocr_engine.py`, `requirements.txt`, scripts d'installation, `.env.example`) sur ce rail, avec la provenance déjà consignée, dire si un réveil autonome comme celui-ci peut alors enchaîner les conditions 2 à 5 (scan de secrets, limitation du périmètre, tests synthétiques) sans nouvel arbitrage, ou si chaque étape reste à son tour soumise à décision.
-3. Aucune action supplémentaire n'est prise par ce réveil sur ce lot avant une réponse.
+- main.py `b20132f8…52ec4`
+- ocr_engine.py `20e3870c…17b1f`
+- dossier_watcher.py `04653bdf…8e6d7`
+- requirements.txt `e5ee7382…81f90`
+- install_mac.sh `10f8569f…218f1`
+- installer_demarrage_auto.sh `0f46b1e7…cd131`
+
+### Condition 2 : secrets
+
+Scan des six fichiers et de `.claude/settings.local.json` : aucun résultat positif. Limites dites sans fard : l'historique git de l'ancienne copie suivie de `dossier_watcher.py` n'est pas relu, et le `.env` de l'iMac n'est pas vérifiable d'ici (jamais versionné). `.gitignore` exclut `.env` et `.env.local` (lignes 25–27). L'arbre candidat sera rescanné avant le commit et le résultat consigné dans la PR. `.claude/` et les rapports `.md` ne seront pas versionnés.
+
+## Ce qui a été mesuré depuis decision-1
+
+Une photo propre de l'écran Veeder-Root (aucune personne, aucun document ; 1080×1920) lue par le moteur Vision d'Apple via un exécutable Swift : les quatre volumes, hauteurs et températures sont exacts, en environ 1 s démarrage compris. Deux lectures fautives sur la photo : le produit d'une cuve (`GO` lu `-50`) et une valeur à confiance 0,30 (juste). **Conséquence pour le lot :** l'écran est une grille de quatre blocs ; un parseur qui lit les nombres dans l'ordre du texte attribue mal les valeurs. Le parseur est réécrit par regroupement de position (boîtes englobantes), testé sur la sortie réelle de Vision. PaddleOCR n'a pas été comparé (non installé ; Frédéric a refusé son installation).
+
+## Extension de périmètre demandée
+
+1. **Moteur :** pour `type_document = jaugeage_veeder_root` seulement, le worker appelle un exécutable Swift qui utilise le moteur de reconnaissance de texte Vision. PaddleOCR et OCRmyPDF restent pour les autres documents. L'exécutable est versionné (source), non le binaire.
+2. **Notification :** Supabase Realtime en mode Broadcast, sans aucune modification de la base (ni migration, ni publication, ni RLS). Le client envoie un ping `{doc_id}` après le dépôt ; le worker accuse réception aussitôt, puis écrit le résultat dans la ligne (comme aujourd'hui) et envoie un ping « terminé » `{doc_id}`. **Aucune valeur de jaugeage ne transite par le canal** : le client relit la ligne avec ses droits habituels. Le nom du canal ne porte aucune donnée. Le polling reste en secours.
+3. **Lecture proposée dans l'écran de jaugeage :** à côté de chaque champ, la valeur lue et un bouton « Utiliser » ; **jamais de pré-remplissage**, le pompiste valide. Une valeur peu sûre (confiance < 0,5, seuil provisoire à recalibrer sur les photos) ou supérieure à la capacité de la cuve est signalée et non proposée.
+4. **Délai :** si le worker n'accuse pas réception dans les 3 secondes, l'écran dit clairement que le Mac ne répond pas et que la saisie manuelle reste possible. Objectif : lecture proposée en moins de 3 s quand le Mac est disponible.
+
+## Hors périmètre, inchangé
+
+Aucun SQL, aucune migration, aucune fusion vers `main` ou `production`, aucun déploiement en Production sans GO de Frédéric. Aucun secret versionné. L'écran HTML touché le sera dans une PR séparée vers `main`, sans fusion sans GO.
+
+## À arbitrer
+
+- Le canal Broadcast public (clé anonyme) est une surface : tout porteur de la clé anonyme peut envoyer un ping `{doc_id}` ; effet pire cas : un réveil inutile du worker. Aucune donnée n'est exposée. Acceptable sans canal privé (qui exigerait la base) ?
+- Le seuil de confiance provisoire (0,5) sera recalibré après une quinzaine de photos que Frédéric prend sur l'aperçu Test (éclairages et angles différents) ; le taux de lecture exacte par volume sera rapporté.
+
+## Contraintes dites sans fard
+
+- Le parseur et le moteur Swift n'ont été validés que sur une photo ; la quinzaine reste à faire.
+- Le Broadcast n'a été ni écrit ni testé : cette demande en demande l'arbitrage avant.
+- Le temps de 3 s est mesuré hors réseau pour le moteur (≈1 s) ; la chaîne complète n'est pas mesurée.
