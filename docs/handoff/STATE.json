@@ -712,9 +712,13 @@
       "preuve_action": "f396f2a74304885604bb78f2afd3b416dc0811a0"
     },
     "GOV-R4-VIGIE-MAIN-20261020": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "11b56ed7c226ee8b794aac31b1779d5835e45db3",
+      "pris_en_charge_le": "2026-10-21T00:14:03.006Z"
     }
   },
   "artefacts_hors_registre": [
