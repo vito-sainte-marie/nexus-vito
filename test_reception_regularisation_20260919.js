@@ -321,23 +321,27 @@ function assignerCompartiment(app, H, numero, carburant, quantiteLitres, cuveId)
     'Le jaugeage régularisé doit demander sa propre date terrain');
 
   // Garde chronologique (test obligatoire implicite : ne rien inventer).
+  // Sur le terrain le jaugeage initial PRÉCÈDE la livraison : le relevé se
+  // fait avant le début du dépotage. Ordre voulu : jaugeage avant ≤
+  // livraison ≤ jaugeage après ≤ maintenant (défaut du 19/10/2026 : la
+  // règle inverse bloquait un jaugeage à 12:22 pour une livraison à 13:56).
   const champJaugeAvant = doc.getElementById('fJaugeageLe');
-  champJaugeAvant.value = '2026-09-17T08:00'; champJaugeAvant._listeners.input();
+  champJaugeAvant.value = '2026-09-18T09:40'; champJaugeAvant._listeners.input();
   // Jaugeages d'avant-dépotage, recopiés du relevé manuscrit.
   doc.querySelectorAll('[data-cuve]').forEach(el => { el.value = '3000'; el._listeners.input(); });
   assert.strictEqual(doc.getElementById('btnContinuerJaugeage').disabled, true,
-    'Un jaugeage antérieur à la livraison doit bloquer, pas être corrigé en silence');
-  assert.ok(/antérieur à la livraison/.test(doc.getElementById('noteChronoJaugeage').textContent),
+    'Un jaugeage initial postérieur à la livraison doit bloquer, pas être corrigé en silence');
+  assert.ok(/postérieur à la livraison/.test(doc.getElementById('noteChronoJaugeage').textContent),
     'NEXUS doit dire pourquoi il refuse');
 
-  champJaugeAvant.value = '2026-09-18T09:25'; champJaugeAvant._listeners.input();
+  champJaugeAvant.value = '2026-09-18T09:31'; champJaugeAvant._listeners.input();
   assert.strictEqual(doc.getElementById('btnContinuerJaugeage').disabled, true,
-    'Un jaugeage avant la livraison de quelques minutes reste antérieur : blocage attendu');
-  champJaugeAvant.value = '2026-09-18T09:35'; champJaugeAvant._listeners.input();
+    'Un jaugeage initial une minute après le début de la livraison reste postérieur : blocage attendu');
+  champJaugeAvant.value = '2026-09-18T09:25'; champJaugeAvant._listeners.input();
   assert.strictEqual(doc.getElementById('btnContinuerJaugeage').disabled, false,
-    'Chronologie cohérente : la saisie peut continuer');
+    'Chronologie cohérente (jaugeage avant la livraison) : la saisie peut continuer');
   doc.getElementById('btnContinuerJaugeage')._listeners.click();
-  console.log('✓ 3. Garde chronologique — un jaugeage antérieur à la livraison est refusé, jamais rattrapé');
+  console.log('✓ 3. Garde chronologique — un jaugeage initial postérieur à la livraison est refusé, jamais rattrapé');
 
   // --- Compartiments : la répartition du camion, identique au temps réel ---
   assert.strictEqual(H.etape, 'compartiments');
@@ -407,7 +411,7 @@ function assignerCompartiment(app, H, numero, carburant, quantiteLitres, cuveId)
   mesures.forEach(m => {
     assert.strictEqual(m.source, 'releve_manuscrit',
       'Chaque jaugeage régularisé doit se déclarer comme venant du relevé manuscrit');
-    assert.strictEqual(m.jaugeage_avant_le, new Date('2026-09-18T09:35').toISOString());
+    assert.strictEqual(m.jaugeage_avant_le, new Date('2026-09-18T09:25').toISOString());
     assert.strictEqual(m.jaugeage_apres_le, new Date('2026-09-18T11:15').toISOString());
   });
 

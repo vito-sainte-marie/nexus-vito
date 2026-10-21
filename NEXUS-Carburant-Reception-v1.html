@@ -890,10 +890,14 @@
     const btn = document.getElementById('btnContinuerJaugeage');
     if (btn) btn.disabled = !complet || !chrono.ok;
   }
-  // Chronologie d'une régularisation : livraison ≤ jaugeage avant ≤ jaugeage
-  // après ≤ maintenant. NEXUS ne corrige ni ne devine ces heures — il refuse
-  // simplement une suite impossible, plutôt que d'enregistrer une réception
-  // dont l'ordre des faits serait faux.
+  // Chronologie d'une régularisation : jaugeage avant ≤ livraison ≤ jaugeage
+  // après ≤ maintenant. Sur le terrain le jaugeage initial se fait AVANT le
+  // début du dépotage (livraison = heure_debut) et le final une fois le
+  // déchargement terminé. NEXUS ne corrige ni ne devine ces heures — il
+  // refuse simplement une suite impossible, plutôt que d'enregistrer une
+  // réception dont l'ordre des faits serait faux. (Une première version
+  // imposait livraison ≤ jaugeage avant : elle bloquait le cas réel du
+  // 19/10/2026, jaugeage 12:22 pour une livraison à 13:56.)
   function chronoJaugeageRegularisation(phase) {
     if (!estRegularisation()) return { ok: true, message: '' };
     const saisi = jaugeageLe[phase];
@@ -902,10 +906,18 @@
     if (isNaN(t)) return { ok: false, message: "Cette date n'est pas lisible." };
     if (t > Date.now()) return { ok: false, message: 'Ce jaugeage serait daté dans le futur.' };
     const tLivraison = visite.heure_debut ? new Date(visite.heure_debut).getTime() : null;
-    if (tLivraison != null && t < tLivraison) return { ok: false, message: 'Ce jaugeage serait antérieur à la livraison elle-même.' };
-    if (phase === 'apres' && jaugeageLe.avant) {
-      const tAvant = new Date(jaugeageLe.avant).getTime();
-      if (!isNaN(tAvant) && t < tAvant) return { ok: false, message: 'Le jaugeage final serait antérieur au jaugeage initial.' };
+    if (phase === 'avant') {
+      if (tLivraison != null && t > tLivraison) return { ok: false, message: 'Le jaugeage initial serait postérieur à la livraison : il se relève avant le début du déchargement.' };
+      if (jaugeageLe.apres) {
+        const tApres = new Date(jaugeageLe.apres).getTime();
+        if (!isNaN(tApres) && t > tApres) return { ok: false, message: 'Le jaugeage initial serait postérieur au jaugeage final.' };
+      }
+    } else {
+      if (tLivraison != null && t < tLivraison) return { ok: false, message: 'Le jaugeage final serait antérieur à la livraison elle-même.' };
+      if (jaugeageLe.avant) {
+        const tAvant = new Date(jaugeageLe.avant).getTime();
+        if (!isNaN(tAvant) && t < tAvant) return { ok: false, message: 'Le jaugeage final serait antérieur au jaugeage initial.' };
+      }
     }
     return { ok: true, message: '' };
   }
