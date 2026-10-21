@@ -191,7 +191,11 @@
     if (/^[45]\d\d$/.test(code)) {
       return { type: 'refus', message: 'Photo refusée par le serveur (code ' + code + '). Saisissez à la main et prévenez votre manager.' };
     }
-    return { type: 'reseau', message: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.' };
+    if (/failed to fetch|load failed|network|timeout|timed out|abort/.test(texte)) {
+      return { type: 'reseau', message: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.' };
+    }
+    const detail = String((erreur.name ? erreur.name + ' : ' : '') + (erreur.message || erreur.code || '')).slice(0, 140);
+    return { type: 'inconnue', message: 'Photo non envoyée : erreur inattendue (' + detail + '). Ce n\'est pas forcément le réseau. Saisissez à la main et prévenez votre manager.' };
   }
 
   // Extension et type MIME d'une photo, d'après le type déclaré par l'appareil d'abord

@@ -134,6 +134,10 @@ t('cause de l\'échec photo : refus du serveur distinct du réseau', () => {
   assert.strictEqual(R.causePhoto({ message: 'Failed to fetch' }, true).type, 'reseau');
   assert.strictEqual(R.causePhoto({ statusCode: '403', message: 'x' }, false).type, 'reseau');
   assert.strictEqual(R.causePhoto(null, true).type, 'reseau');
+  assert.strictEqual(R.causePhoto({ message: 'Load failed' }, true).type, 'reseau');
+  const inc = R.causePhoto({ name: 'ReferenceError', message: 'date is not defined' }, true);
+  assert.strictEqual(inc.type, 'inconnue');
+  assert.ok(/date is not defined/.test(inc.message) && !/pas de réseau/.test(inc.message));
 });
 t('photo Android : extension d\'après le type, nom sans extension toléré, format inconnu refusé', () => {
   const e = (name, type) => R.extensionPhoto({ name, type });
