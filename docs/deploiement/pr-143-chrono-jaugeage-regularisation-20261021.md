@@ -8,3 +8,10 @@ Consignation du 2026-10-21, hors `docs/handoff/`.
 - Non fusionnée ; aucun auto-merge. **La fusion, le déploiement et la promotion sont réservés à Frédéric.**
 - Contrôles : suite 286/293 contre 285/292 sur `origin/production`, mêmes 7 échecs préexistants ; recette sur l'aperçu Test (compte manager) : cas réel accepté, ordre inverse refusé, aucune écriture. CI de la PR au moment de la consignation : `Cloudflare Pages` vert, `non-regression` en cours.
 - Hors lot : constat caméra iPhone (compte de Dylan).
+
+## Fusion et déploiement (2026-10-21)
+
+- PR #143 **fusionnée par Frédéric** à 10:35Z, commit de fusion `09c9be47` sur `production` (tête `5e42da30`).
+- `Tests` vert sur `09c9be47` ; `Déploiement Production (GitHub Pages)` terminé en succès sur `09c9be47`.
+- Contenu servi mesuré sur https://app.nexusconseil.net : `nexus-build.js` porte `commit: 09c9be4771cde70a17840a41221c3854fe8368a9` et la page Réception carburant contient le nouveau message « Le jaugeage initial serait postérieur à la livraison… ». L'empreinte du fichier servi diffère de celle du dépôt (balises de version des scripts réécrites par le build) : l'identité est établie par le commit et le message, pas par l'empreinte.
+- Non vérifié : la saisie réelle du cas 12:22 / 13:56 en Production (elle exige un compte manager réel ; geste de Frédéric).
