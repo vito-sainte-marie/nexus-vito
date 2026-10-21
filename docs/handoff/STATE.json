@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "FIX-CARBURANT-CHRONO-JAUGEAGE-20261020",
+  "lot_actif": "JAUGEAGE-PHOTO-20261021",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -731,6 +731,11 @@
       "commit_decision": "91f3d172358f1ef48ac88275eb2e3edcdbba89e8",
       "consomme_le": "2026-10-21T10:42:33.640Z",
       "preuve_action": "292d075a6bc3508d96b2d4a2549e88370eee6e58"
+    },
+    "JAUGEAGE-PHOTO-20261021": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [
