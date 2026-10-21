@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-PHOTO-20261021/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-PHOTO-20261021/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: JAUGEAGE-PHOTO-20261021
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,38 +13,30 @@ wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=73c88a47 production=09c9be47
+    valeur: main=73c88a47 production=cdfee414
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 158-fichiers
-  - id: branche-lot
+    valeur: 159-fichiers
+  - id: fusion-pr144
     classe: VERIFIED
-    valeur: lot-jaugeage-photo-20261021 @ 168674c03ccdec2a3187a4c2dd8d61ad4fd46edc, base production 09c9be47, 5 fichiers (+267 -9)
-  - id: epreuves-lot
+    valeur: cdfee414bf76165f7054020c8549bcd4853e0761
+  - id: deploiement-manuel
     classe: VERIFIED
-    valeur: test_jaugeage_photo_camera_en_page_20261021.js 11 OK ; test_pont_jaugeage_carburant_inventaire.js vert ; 7 echecs de la suite complete identiques sur origin/production (preexistants)
-  - id: artefact-pages-inclut-module
-    classe: VERIFIED
-    valeur: composer-artefact-public.js (liste d'exclusion) rejoue sur la branche : 544 fichiers composes, nexus-camera-page.js present et reference par Releves-Piste
-  - id: decision-humaine
-    classe: HUMAN
-    valeur: Frederic 21/10/2026 option A, accord push + request + apercu Test, pas de PR production avant son GO
+    valeur: run 39622404453 success, build servi cdfee414
 ---
-# JAUGEAGE PHOTO — caméra en page, repli natif, état mémorisé (aucune migration, aucun SQL, rien en Production)
+# Demande de clôture — JAUGEAGE-PHOTO-20261021
 
-Décision de Frédéric (option A, 21/10/2026) : la carte « Jaugeage carburants — ouverture » de l'Inventaire mène au jaugeage Veeder-Root des Relevés piste (photo, OCR, vérification) ; la saisie manuelle reste en repli. Le worker OCR (HEIC, orientation) est un lot séparé, hors périmètre ici.
+## Preuve des conditions de decision-1
 
-## Ce que le lot change (branche `lot-jaugeage-photo-20261021`, commit 168674c0, base production 09c9be47)
-- `nexus-camera-page.js` (nouveau) : caméra dans la page comme le Pointage (`getUserMedia`, overlay, canvas), repli natif par `<label for>` sur un champ masqué hors écran (pas `display:none`), redimensionnement 2 000 px / JPEG 85 %.
-- `NEXUS-Releves-Piste-v1.html` : bouton caméra, `envoyerPhoto` redimensionne avant l'upload, état du jaugeage mémorisé sur l'appareil et restauré, lien profond `?ecran=jauge`.
-- `NEXUS-Inventaire-v1.html` : la carte mène aux Relevés piste ; la saisie manuelle devient un lien de repli.
-- `test_jaugeage_photo_camera_en_page_20261021.js` : 11 épreuves.
+Les conditions de la decision-1 sont tenues.
 
-## Ce qui n'est PAS fait
-Aucune recette sur iPhone, aucune PR vers `production`, aucune écriture Supabase, aucune migration. Aucun lecteur OCR Veeder-Root n'existe dans le dépôt : la photo est déposée en `documents_ocr_file` (`en_attente`) comme avant.
-
-## Demande
-Cadrer la suite : recette navigateur de Frédéric sur l'aperçu Test avec un iPhone, puis PR vers `production` sur son GO explicite (motif `PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`, qui reste le sien).
+- Publication d'abord sur l'aperçu Test seulement ; recette iPhone faite par Frédéric sur Test (carte Inventaire visible, caméra en page, enregistrement SP 23436 / GO1 13897 / GO2 8371 / GNR 4372 relus, carte Inventaire passée à « fait »). Deux corrections demandées à la recette sont livrées (bandeau d'état, carte « Jaugeage enregistré »).
+- PR #144 ouverte après le GO explicite de Frédéric (`PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`), `Tests` vert, **fusionnée par Frédéric** : `cdfee414bf76165f7054020c8549bcd4853e0761` (21/10/2026, 14:45Z).
+- Aucun déploiement automatique n'a suivi la fusion (cause non élucidée) ; déploiement manuel `workflow_dispatch deployer=oui`, exécution 39622404453, approuvé par Frédéric.
+- Contenu servi mesuré : `nexus-build.js` = `cdfee414`, empreinte de `nexus-camera-page.js` identique au dépôt, « Jaugeage enregistré : SP » présent, `rpc().catch` absent.
+- Non vérifié : essai iPhone en Production (la carte n'y apparaît que si `jaugeage_carburant_actif` est activé) ; taille en pixels de la photo déposée (estimée ~2000×1500).
+- Hors lot : worker OCR (HEIC / orientation) ; cause du push `production` sans déclenchement du workflow.
+- Registre : les commits du lot sont sur `main` (fusion `cdfee414`), pas dans l'historique du rail ; `--preuve-action` ne peut donc pas les désigner. La prise en charge de decision-1 est posée (`ATTENTE_CONSOMMATION_DECISION`) ; on demande la clôture sur ces preuves.
