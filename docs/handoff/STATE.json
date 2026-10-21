@@ -744,13 +744,13 @@
     },
     "JAUGEAGE-OCR-20261021": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-4.md",
+      "derniere_demande": "request-5.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "6ef76065dffd7aef992301edab58965e8548e300",
-      "consomme_le": "2026-10-21T19:08:26.664Z",
-      "arret": "request-2.md"
+      "commit_decision": "4bb14a2dadd1e1d087a38f4cba51de4dc4914420",
+      "arret": "request-5.md",
+      "consomme_le": "2026-10-21T22:25:53.501Z"
     }
   },
   "artefacts_hors_registre": [
