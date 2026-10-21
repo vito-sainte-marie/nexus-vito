@@ -68,4 +68,13 @@ t('Relevés piste : lien profond ?ecran=jauge soumis aux habilitations _q1', () 
 t('Relevés piste : aucun .catch() chaîné sur rpc() (le builder supabase-js n\'en a pas)', () => {
   assert.ok(!/\.rpc\([^;]*\)\s*\.catch\(/.test(rel));
 });
+t('Relevés piste : sur l\'écran jaugeage le bandeau dit l\'état du jaugeage, pas celui des index', () => {
+  const i = rel.indexOf('function majEtat');
+  const corps = rel.slice(i, i + 700);
+  assert.ok(/ecran === 'jauge'/.test(corps) && corps.indexOf("ecran === 'jauge'") < corps.indexOf('sauverLocalTest()'));
+});
+t('Relevés piste : après enregistrement, « Jaugeage enregistré : » remplace le bloc de correction', () => {
+  assert.ok(/jauge\.enregistre\) \? `<div class="card"><h2>Jaugeage enregistré<\/h2>/.test(rel));
+  assert.ok(rel.indexOf('Jaugeage enregistré : SP') < rel.indexOf('Un jaugeage existe déjà'));
+});
 console.log(`\n${n} épreuves.`);

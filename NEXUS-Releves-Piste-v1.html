@@ -108,6 +108,12 @@
     jauge.statut = l.statut === 'envoi' ? (l.docId ? 'en_attente' : 'aucune') : (l.statut || 'aucune');
   }
   function majEtat() {
+    // Sur l'écran jaugeage, le bandeau des index ne dit rien du jaugeage : on affiche l'état réel de celui-ci.
+    if (ecran === 'jauge') {
+      $('etat').innerHTML = jauge.enregistre ? '<b class="bon">Jaugeage enregistré dans Carburants</b>'
+        : (reseau.ok ? 'Jaugeage non enregistré : saisie en cours' : '<b class="ko">Hors connexion : jaugeage non enregistré</b>');
+      return;
+    }
     const local = sauverLocalTest();
     const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
       : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
@@ -228,7 +234,8 @@
     const goTotal = (jauge.saisies['GO-20'] && jauge.saisies['GO-10']) ? n('GO-20') + n('GO-10') : null;
     const total = `<div class="card"><div class="ligne"><span class="n">GO total (cuve 1 + cuve 2)</span><span class="v">${goTotal != null ? goTotal + ' L' : '…'}</span></div><div class="sub">Somme d'affichage pour la recopie Decenium : jamais un mouvement de stock ni une vente.</div></div>`;
     const ex = jauge.existant;
-    const avert = ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
+    const avert = (ex && jauge.enregistre) ? `<div class="card"><h2>Jaugeage enregistré</h2><div class="sub">Jaugeage enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}.</div></div>`
+      : ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
     const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
     const conf = pret ? `${total}${avert}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
       <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
