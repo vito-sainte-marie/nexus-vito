@@ -1,28 +1,71 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/decision-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-PRISE-EN-CHARGE-20261022/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: JAUGEAGE-OCR-2-20261022
-seq: 5
-author: Frédéric Bragance
+lot_id: OUTILLAGE-PRISE-EN-CHARGE-20261022
+seq: 1
+author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED
-closes: true
-in_reply_to: request-5.md
+decision: APPROVED_WITH_CONDITIONS
+closes: false
+in_reply_to: request-1.md
 provenance:
-  niveau: 1
-  mode: declared
-  reference: Message de Frédéric Bragance dans la session Claude Code du 22/10/2026 (décision sur request-5 amendée)
+  niveau: 2
+  mode: github_actions_relay
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6352411625
 ---
-# DÉCISION HUMAINE SUR REQUEST-5 (amendée, 426c20dc) — JAUGEAGE-OCR-2-20261022
+# Décision sur request-1.md — APPROVED_WITH_CONDITIONS
 
-Auteur : Frédéric Bragance. APPROVED, closes:true. Texte reproduit tel que donné dans la session Claude Code du 22/10/2026. Cette décision remplace le verdict `STOP_REQUIRED` de l'arbitre (commentaire de #28 du 22/10/2026 19:33Z, `SECRET_PERMISSION_SURFACE_SECURITE`), qui portait sur la version `a64f4bca` (avec migration de politique) et non sur la version amendée.
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39862613939), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6352411625. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
-* Nom des photos de jaugeage : `AAAA-MM-JJ_<uid>_nexus-jaug_<site>_<HHhMM>[-N].jpg`, à l'heure de la station, avec le suffixe `_qforcee-…` conservé quand la photo est envoyée malgré le contrôle qualité.
-* Aucune migration. La politique de stockage reste inchangée.
-* Épreuves rouges puis vertes, dont une mutation qui déplace l'identifiant hors de sa place exigée par la politique. Suite rejouée après build, CI verte, PR en brouillon. Aucune fusion ni déploiement sans mon GO.
-* Le lot se clôt après cette action. Les étapes restantes passent à un nouveau lot JAUGEAGE-OCR-3, que j'ouvrirai quand je serai à l'iMac : étape B (compilation et essais du lecteur Vision, délai de 4 min 30), validation de la capture sur iPhone réel, quinze photos sans donnée personnelle, calibration des seuils, branchement Python du worker.
-* Ensuite, déposer la request du lot d'outillage (refus d'une prise en charge déjà prise par un autre exécutant, et les deux leçons à inscrire dans `RULES.json`).
+## Ce que la CI a contrôlé
 
-Fait consigné à la demande de Frédéric : il a approuvé les déploiements de #149 (run 39840942691) et de #150 (run 39858045546). #150 est fusionnée (2c7435bd) ; validation iPhone du cadre et du bouton « Envoyer quand même » faite par Frédéric le 22/10/2026.
+- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
+- `LOT` = `OUTILLAGE-PRISE-EN-CHARGE-20261022`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
+- Lecture du rail : `RAIL_LU` = `26d5d7d604e8da71594e769c267d9e24246c6065`, `HEAD` = `26d5d7d604e8da71594e769c267d9e24246c6065`, SHA du run `26d5d7d604e8da71594e769c267d9e24246c6065`, tête du rail `26d5d7d604e8da71594e769c267d9e24246c6065`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
+
+## Ce que la CI n'a PAS contrôlé
+
+- Les conditions du verdict (« Identité de prise en charge explicite et durable; refus nommé d’un exécutant différent avec identité, date et commit; cas voisins conservés; épreuve rouge/verte et mutation obligatoires; suite rejouée après build; faits historiques consignés sans supposition; règle provisoire sans GO humain obligatoire; périmètre strictement limité à l’outillage, aux épreuves et à docs/learning. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
+
+## Texte de l'arbitre
+
+**Verdict : APPROVED_WITH_CONDITIONS.**
+
+Le refus outillé est approuvé. Il relève de l’outillage et des gardes, sans Production, secret, choix métier ni modification du protocole. Les acquis `OUTILLAGE_A_POSTERIORI`, `PALIER_HUMAIN_RESTREINT` et `COMMIT_PUSH_RAIL_SANS_GO` s’appliquent.
+
+Exécutant désigné pour l’implémentation : `github-actions-claude`.
+
+La règle provisoire ne doit toutefois pas créer un nouveau GO obligatoire de Frédéric. Elle doit imposer le respect de `EXECUTANT_NEXT` : après actualisation du rail, un exécutant différent s’arrête; une réattribution passe par une nouvelle décision de l’arbitre compétent, sauf apparition d’un des dix motifs réservés à Frédéric.
+
+Conditions :
+1. Enregistrer une identité de prise en charge explicite et durable, avec date et référence de commit exploitable; ne pas prendre l’auteur Git ou `Co-Authored-By` comme identité canonique.
+2. Refuser avec un code nommé toute seconde prise en charge par un exécutant différent et afficher l’exécutant initial, la date et le commit disponibles.
+3. Conserver les cas voisins demandés : reprise par le même exécutant, `closes:true` et absence d’exécutant désigné.
+4. Fournir l’épreuve rouge puis verte et une mutation neutralisant la comparaison d’exécutant.
+5. Rejouer la suite après `bash outils/build.sh`.
+6. Consigner dans `EXPERIENCE.jsonl` uniquement les commits effectivement retrouvés dans l’historique, sans compléter les faits par supposition.
+7. Limiter les changements à `outils/handoff.js`, ses épreuves et `docs/learning/`, sans modification de `nexus-handoff/2`, de `main`, de Production ou d’une surface de sécurité.
+
+RAIL_LU: 26d5d7d604e8da71594e769c267d9e24246c6065
+
+NEXT_ACTION_CONTRACT
+DECISION: APPROVED_WITH_CONDITIONS
+CLOSES: false
+LOT: OUTILLAGE-PRISE-EN-CHARGE-20261022
+REQUEST: request-1.md
+HEAD: 26d5d7d604e8da71594e769c267d9e24246c6065
+LEASE: aucun
+GATE_STATE: G0, CI non exécutée
+PROOF_STATE: PROOF_VALID
+CONDITIONS: Identité de prise en charge explicite et durable; refus nommé d’un exécutant différent avec identité, date et commit; cas voisins conservés; épreuve rouge/verte et mutation obligatoires; suite rejouée après build; faits historiques consignés sans supposition; règle provisoire sans GO humain obligatoire; périmètre strictement limité à l’outillage, aux épreuves et à docs/learning.
+BLOCKER: aucun
+STOP_REQUIRED: non
+CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
+OWNER_NEXT: Claude
+EXECUTANT_NEXT: github-actions-claude
+ACTION_NEXT: Matérialiser cette décision sur le rail avec outils/handoff.js decision --auteur ChatGPT.
