@@ -754,13 +754,14 @@
       "preuve_action": "d26e4f71c0b14e540b9f494fe498cc10528b25c9"
     },
     "PARCOURS-POMPISTE-LOT1-RELEVES-PISTE-20261021": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "8f36a6399d5abbf5a2467a4982804635459c4606",
-      "pris_en_charge_le": "2026-10-22T00:05:02.400Z"
+      "consomme_le": "2026-10-22T00:16:44.180Z",
+      "preuve_action": "d09a02340a395573f8d6a9db4cbb5874049889ad"
     }
   },
   "artefacts_hors_registre": [
