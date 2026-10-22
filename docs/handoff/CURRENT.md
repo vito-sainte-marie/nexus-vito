@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/request-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: JAUGEAGE-OCR-2-20261022
-seq: 4
+seq: 5
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -12,7 +12,7 @@ token_mode: STANDARD
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=73c88a47 production=ccedfa83
+    valeur: main=73c88a47 production=78840bc4
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
@@ -20,45 +20,56 @@ preuves:
     classe: VERIFIED
     valeur: 160-fichiers
 ---
-# JAUGEAGE-OCR-2-20261022 : une étape « capture » guidée avant les quinze photos réelles
+# JAUGEAGE-OCR-2-20261022 : nommer l'envoi de la photo de jaugeage sans nom d'employé
 
-**Suite de :** decision-3.md (extension du lecteur Vision), exécutée et consommée avec la preuve d'action `1ff5f281` (tests synthétiques : grille 2 × 2, colonnes éloignées, ligne à faible confiance ; 19 vérifications vertes ; deux mutations rouges). Frédéric demande cette request le 22/10 à 12:55. **Aucun code n'est écrit avant la décision.**
+**Suite de :** decision-4.md (capture guidée, PR brouillon #149). Complément demandé par Frédéric le 22/10/2026. Texte préparé, **non déposé** : à déposer comme request-5 quand le registre est libre. **Aucun code n'est écrit avant la décision.**
 
-## Preuve des conditions de decision-3
+## Constat (code lu sur `origin/production`, 22/10/2026)
 
-- **Trois fichiers seulement** : commit `1ff5f281` ne touche que `nexus-ocr-worker/vision_ocr.swift`, `vision_ocr_core.swift` et `test_vision_ocr.swift`. La livraison hors rail (`ocr-worker/`) n'a pas été poussée.
-- **Texte, confiance propre et boîte x/y/w/h par ligne, fragments conservés** : fait ; sortie `{text, confidence, lignes:[{t,c,x,y,w,h,fragments:[…]}]}`. Confiance d'une ligne = la plus basse de ses fragments ; moyenne conservée en complément.
-- **Langues `["fr-FR","en-US"]`, `usesLanguageCorrection=false`** : fait.
-- **Contrat documenté dans la source** (sortie, repère, codes de sortie 0/1/2, mode résident) : fait.
-- **Tests synthétiques** : grille 2 × 2, non-fusion des colonnes éloignées, ligne à faible confiance : verts (19 vérifications, compilés et exécutés sur un Mac arm64, hors iMac). Mutations : seuil horizontal neutralisé → échec ; minimum remplacé par maximum → échec.
-- **Écart à signaler** : la commande de compilation à deux fichiers du rail ne passait pas (code de haut niveau hors `main.swift`, `Result<_, String>`). Corrigé dans les trois fichiers par `@main` et une structure d'erreur. Le lecteur complet compile ici (`swiftc -O vision_ocr_core.swift vision_ocr.swift`) ; **il n'a pas été exécuté sur une photo réelle**.
-- **Limites de decision-2 conservées** : ni plist, service, PATH, environnement, mise en service, Paddle, venv 2.x ni branchement Python.
+`NEXUS-Releves-Piste-v1.html`, `envoyerPhoto` :
 
-## Pourquoi une étape avant les quinze photos
+```
+const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}.${fmtEnvoi.ext}`;
+```
 
-La calibration du seuil (0,5 provisoire) repose sur quinze photos réelles. Si elles sont cadrées au petit bonheur, floues ou reflétées, la calibration mesure la photo et non le lecteur. La photo du 21/10 montre déjà que l'écran Veeder-Root TLS-4B n'occupe qu'une partie de l'image et que des fragments parasites (confiance 0,3) en sortent. Guider la prise de vue est donc un préalable, pas un confort.
+- Le nom contient `emp.id`, l'identifiant de l'employé : les deux photos du 22/10 téléchargées par Frédéric s'appellent `2026-10-22_0d44032a-…_<ms>.jpg`. Le nom identifie donc la personne, et il est illisible pour un humain.
+- L'heure n'y figure pas ; seul `Date.now()` (millisecondes, UTC) la porte, sans lisibilité.
+- La ligne `documents_ocr_file` garde déjà `depose_par = emp.id` : la traçabilité n'a pas besoin du nom de fichier.
+
+## Preuve des conditions de decision-4
+
+Détail et correction datée : `docs/executions-lot-JAUGEAGE-OCR-2-capture-guidee-20261022.md` (commit `6f086c74`).
+- Branche applicative distincte du rail, PR brouillon uniquement : `jaug-capture-guidee`, PR #149, HEAD `9cb23678`, CI verte (`non-regression`, « Construire et éprouver l'artefact »), état `CLEAN`.
+- Changement limité à la capture guidée du jaugeage ; lecteur Vision et iMac non touchés ; Pointage et Relevés Piste conservés à l'identique (épreuve de non-régression dédiée).
+- Recadrage avec en-tête date/heure et repère 2 × 2 (marge de 6 %) ; proportions 5:3 et seuils (netteté 500, reflet 3 %) documentés dans la source, **provisoires** : proportion confirmée par une seule photo réelle, seuils établis sur images synthétiques.
+- 52 vérifications vertes, 14 mutants sur 14 tués. Écart avoué : module écrit avant l'épreuve. Délai 20 à 27 ms sur navigateur de test, **pas une preuve iPhone**.
+- **Condition « aucune fusion » : levée par le GO explicite de Frédéric dans le chat (22/10/2026) pour #149**, avant validation iPhone ; à consigner comme écart. Les seuils restent provisoires jusqu'à la recette iPhone et la calibration sur quinze photos. Aucune écriture Production, aucune mise en service par Claude.
 
 ## Ce qui est demandé
 
-1. **Cadre en direct sur la visée**, aux proportions de l'écran Veeder-Root TLS-4B, avec un repère 2 × 2 des réservoirs et la consigne « Faites entrer l'écran dans le cadre ».
-2. **Recadrage sur ce cadre avant l'envoi**, sans perdre l'en-tête où s'affichent la date et l'heure du Veeder-Root (la zone recadrée doit inclure cette bande, la date servant de preuve).
-3. **Contrôle de netteté et de reflet sur le téléphone**, en moins de 2 secondes, avec le message « Photo floue, reprenez-la » avant l'envoi. Seuils à fixer par l'exécutant et consignés dans la source ; mesure de la durée dans les épreuves.
-4. **Options du module `nexus-camera-page.js`, réservées au jaugeage.** Constat sur la branche `jaug-saisie-directe` (`c3eda0c2`) : `ouvrirCamera({ consigne, inputId })` n'a aujourd'hui que ces deux options ; le module est appelé par `NEXUS-Pointage-v1.html` et `NEXUS-Releves-Piste-v1.html`. Le Pointage reste inchangé, et **une épreuve doit le prouver** (même appel, même comportement observable, sans cadre ni contrôle).
-5. **Méthode** : épreuves rouges puis vertes avec mutations, recette Test au format téléphone, PR en brouillon. **Pas de fusion sans le GO de Frédéric.**
+1. **Nouveau nom** : `nexus-jaug_<site>_<AAAA-MM-JJ>_<HHhMM>.<ext>`, par exemple `nexus-jaug_vito-sainte-marie_2026-10-22_15h22.jpg`.
+   - `<site>` : le `site_id` déjà utilisé.
+   - Date et heure : **l'heure de la station** (`nexusFuseauSite` + `nexusJourDansFuseau`, comme le reste de l'écran), jamais l'heure de l'appareil. Sans fuseau connu, aucun envoi n'est nommé au hasard : même refus que l'écran actuel.
+   - **Aucun nom, identifiant ni UUID d'employé** dans le nom.
+2. **Dossier inchangé** : `<site_id>/jaugeage_veeder_root/` dans le bucket `documents-a-traiter`. `depose_par`, `type_document` et le reste de l'insertion ne changent pas.
+3. **Extension** : `.jpg` quand l'image envoyée est le JPEG redimensionné (cas normal). Le repli existant sur l'original (PNG, WebP, HEIC) garde son extension réelle ; on ne renomme pas un format en `.jpg`.
+4. **Unicité** : l'envoi se fait sans écrasement (`upsert: false`). Si le nom existe déjà (deux photos dans la même minute), on ajoute `-2`, `-3`, … avant l'extension, jusqu'à une limite documentée, puis on échoue avec le message d'erreur d'envoi existant. Le nom retenu est celui inséré dans `fichier_path`. *Arbitrage proposé :* suffixe numérique par réessai plutôt que secondes ou aléa, pour garder un nom lisible dans le cas courant.
+5. **Épreuve sur le format** : une fonction pure (module testable) construit le nom ; l'épreuve vérifie le motif `^nexus-jaug_[a-z0-9-]+_\d{4}-\d{2}-\d{2}_\d{2}h\d{2}(-\d+)?\.(jpg|png|webp|heic)$`, l'heure de station (un instant à 23 h 30 UTC donne le jour et l'heure du fuseau, pas ceux de l'UTC), l'absence de tout identifiant d'employé, le suffixe de collision, le refus sans fuseau, et que le dossier reste `<site>/jaugeage_veeder_root/`. Rouge d'abord sur le code actuel, puis vert ; mutations : heure UTC au lieu de la station, `emp.id` réintroduit, suffixe supprimé, extension forcée en `.jpg`.
+6. **Hors périmètre** : les objets déjà déposés ne sont pas renommés ; le Pointage et le module `nexus-camera-page.js` ne changent pas ; aucun changement de lecteur Vision, de worker ni d'iMac.
+
+## Constats de vérification (22/10/2026)
+
+- **Le worker ne lit pas le nom pour en tirer la date ou l'employé.** `main.py` passe `doc["fichier_path"]` à `moteur.extraire(...)`, qui ne s'en sert que pour reconnaître un PDF (`_est_pdf`, extension). Aucune vue ni fonction SQL du dépôt ne lit `fichier_path` d'un jaugeage ; les lectures existantes concernent les factures et bons (Boîte de réception, `nexus-envoyer-facture`). Le changement de nom ne casse donc aucun lecteur.
+- **BLOQUANT TROUVÉ : la politique de stockage impose l'identifiant de l'employé dans le nom.** `supabase/migrations/20261017120000_politique_upload_jaugeage_pompiste.sql` exige `storage.filename(name) like '____-__-__\_' || auth.uid()::text || '\_%'`. Un nom `nexus-jaug_…` serait **refusé** par la base. Le changement de nom exige donc une migration qui remplace cette politique : même dossier (`<site>/jaugeage_veeder_root/`, profondeur 2), même pompiste du jour, mêmes extensions, mais le nom doit suivre le motif `nexus-jaug_<site>_<AAAA-MM-JJ>_<HHhMM>(-N)?.<ext>` au lieu de contenir `auth.uid()`. Conséquence : la garde « le fichier porte l'identité de son déposant » disparaît du nom ; elle subsiste dans `documents_ocr_file.depose_par` et dans la règle « pompiste du jour du site ». À arbitrer explicitement.
+- Cette migration est **Test seulement** dans cette request. L'état de la politique en Production est à mesurer (lecture seule) avant toute promotion : le lot « relevés piste promus » avait exclu la politique d'upload.
+- **Ordre avec #149** : #149 est fusionnée sur GO de Frédéric avant ce changement ; celui-ci se bâtit sur la Production à jour.
+
+## Ce que la request ajoute à l'étendue (conséquence du bloquant)
+
+7. **Migration de remplacement de la politique** `documents_a_traiter_jaugeage_pompiste` (drop + create dans une transaction), avec épreuve de refus sur Test : ancien nom avec `auth.uid()` accepté ou non selon l'arbitrage (proposé : refusé), nom `nexus-jaug_…` d'un autre site refusé, extension hors liste refusée, pompiste non du jour refusé, dossier autre refusé. Fichier de preuve SQL comme pour la request-7 du 17/10.
+8. Hors Test : aucune promotion en Production sans GO ; la migration exige le code d'abord ou l'inverse selon la mesure de l'état Production (à documenter).
 
 ## Limites
 
-- Aucune écriture en Production, aucun déploiement, aucune fusion.
-- Rien sur l'iMac, ni plist, service, PATH, environnement, Paddle, venv 2.x.
-- Le recadrage et le contrôle de qualité tournent sur le téléphone ; le lecteur Vision, lui, n'est pas modifié par cette request.
-- La recette iPhone réel reste un geste humain ; les quinze photos aussi.
-
-## À arbitrer : l'ordre
-
-Frédéric demande de soumettre l'ordre suivant : **capture, puis lecteur étendu (fait : `1ff5f281`), puis étape B à l'iMac, puis les quinze photos et la calibration.** Ce que je constate : le lecteur étendu est déjà exécuté, donc l'ordre effectif devient capture, étape B, photos. L'étape B (compilation et mesures sur l'iMac, diagnostic des 4 min 30) ne dépend pas de la capture ; elle peut être faite avant ou en parallèle si l'arbitre le préfère. Demande : approuver cette étape dans ce lot, avec exécutant `github-actions-claude`, sur une branche d'application distincte du rail (PR brouillon), et fixer l'ordre.
-
-## Contraintes dites sans fard
-
-- Les seuils de netteté et de reflet ne sont pas encore connus ; ils seront fixés sur des images synthétiques, puis vérifiés à la recette sur téléphone, pas calibrés sur des photos réelles.
-- Le « moins de 2 secondes » est mesuré sur le navigateur de test, pas sur l'iPhone de Frédéric tant que la recette réelle n'a pas eu lieu.
-- Les proportions exactes de l'écran TLS-4B sont tirées d'une seule photo ; l'exécutant doit les confirmer avant de les figer.
+- Aucune écriture en Production, aucun déploiement, aucune fusion sans le GO de Frédéric.
+- Recette sur Test seulement ; les photos de jaugeage réelles ne sont jamais versionnées.
