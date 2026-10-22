@@ -1336,6 +1336,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-indice.js?v=20260904-0104"></script>
 <script src="nexus-marge.js?v=20260904-0104"></script>
@@ -2139,6 +2140,8 @@
   // constat neutre honnête ("tout est à jour"), jamais un texte générique
   // sans lien réel derrière. Coach et Prochaine action partagent cette
   // même priorité (voir determinerPhraseCoach) — une seule vérité.
+  // Lot 2 : tant que le début de quart n'est pas terminé, le pompiste reprend le fil à l'étape où il s'est arrêté.
+  const FIL_LIEN_TEXTE = 'Reprendre mon début de quart →';
   function determinerProchaineActionEmploye(ctx) {
     // Journée terminée : le dire, sans proposer de pointage (14/09/2026,
     // voir NexusPointageRegles.journeeTermineeSansService). Vérifié en
@@ -2181,13 +2184,13 @@
       };
     }
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) {
-      return { couleur: 'inventaire', titre: 'Le jaugeage d’ouverture de la piste n’a pas encore été fait.', lienTexte: 'Faire le jaugeage →', lien: 'NEXUS-Inventaire-v1.html' };
+      return { couleur: 'inventaire', titre: 'Le jaugeage d’ouverture de la piste n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : 'Faire le jaugeage →', lien: ctx.filLien || 'NEXUS-Inventaire-v1.html' };
     }
     // Relevé d'index de début de quart : juste après le jaugeage (ordre du
     // parcours pompiste). Une seule action prioritaire ; les autres tâches
     // restent accessibles par « Mes outils du quart ».
     if (ctx.indexApplicable && !ctx.indexFait) {
-      return { couleur: 'inventaire', titre: 'Le relevé d’index de début de quart n’a pas encore été fait.', lienTexte: 'Faire le relevé d’index →', lien: ctx.indexLien || 'NEXUS-Releves-Piste-v1.html' };
+      return { couleur: 'inventaire', titre: 'Le relevé d’index de début de quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : 'Faire le relevé d’index →', lien: ctx.filLien || ctx.indexLien || 'NEXUS-Releves-Piste-v1.html' };
     }
     if (ctx.pointageActif && ctx.prochainPointage) {
       return {
@@ -2198,7 +2201,7 @@
       };
     }
     if (ctx.inventaireApplicable && !ctx.inventaireFait) {
-      return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: 'Faire l’inventaire →', lien: 'NEXUS-Inventaire-v1.html' };
+      return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || 'NEXUS-Inventaire-v1.html' };
     }
     if (ctx.fdjApplicable && !ctx.fdjFait) {
       return { couleur: 'fdj', titre: 'Le contrôle FDJ de votre quart n’a pas encore été fait.', lienTexte: 'Compter le FDJ →', lien: 'NEXUS-FDJ-v1.html' };
@@ -2548,6 +2551,8 @@
     const indexFait = indexApplicable && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
       { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
     const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
+    const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait);
+    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste') ? NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait }) : null;
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
@@ -2612,6 +2617,8 @@
       estManager: false,
     });
 
+    // Entrée dans le fil depuis la prise de poste : l'Accueil, qui a les faits du jour, ouvre la première étape restante — sauf si l'arrivée reste à pointer : le pointage d'abord, comme determinerProchaineActionEmploye.
+    if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }
     const ctx = {
       enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
@@ -2620,7 +2627,7 @@
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
-      indexApplicable, indexFait, indexLien,
+      indexApplicable, indexFait, indexLien, filLien,
     };
 
     renderProgressionService(calculerEtapesProgressionService(ctx));

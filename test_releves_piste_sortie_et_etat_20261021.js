@@ -45,6 +45,7 @@ function bac(source, { stockage = 'ok' } = {}) {
     let saisies = {}, motifs = {}, modeComplet = {}, refStatut = {}, visuel = {};
     let serveur = { releveId: null, valeurs: {}, final: false }, reseau = { ok: true, derniereErreur: null };
     let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
+    const FIL = null, filEtape = null, enFil = () => false; // hors fil : ces tests mesurent la sortie et l'état, pas le fil (voir test_fil_debut_quart_20261021.js)
     ${aLocalEcrit ? 'let localEcrit = null;' : ''}
     const $ = () => etat;
     const cleBrouillon = () => \`nexus_releves_piste_\${emp.id}_\${date}_\${moment}\`;

@@ -297,6 +297,8 @@
   .calc-actions .btn-ghost, .calc-actions .btn-primary{margin-top:0;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+/* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
+.fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }
 </style>
 </head>
 <body>
@@ -345,6 +347,7 @@
 
 <!-- La garde démarre avant le cœur de l'écran ; celui-ci attend ensuite son
      drapeau READY avant toute initialisation opérationnelle. -->
+<script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-inventaire-mode-test.js?v=20260904-0104"></script>
 <script>
   // ------------------------------------------------------------
@@ -1295,8 +1298,53 @@
   // produitsZone directement, jamais ce filtre-ci (Article 11 : une seule
   // vérité pour "quel catalogue", mais deux usages légitimement différents).
   function produitsZoneOuverturePourQuart() {
-    if (quartActuel !== 'soir') return produitsZone;
-    return produitsZone.filter(p => profilParProduit[p.id] !== 'production_journaliere');
+    // Lot 2 (fil « Mon début de quart », étape 3) : seuls le gaz, les glaçons et les écailles sont comptés.
+    const base = enFil() ? produitsZone.filter(p => FIL.categorieDuFil(p.inventaire_categories ? p.inventaire_categories.nom : '')) : produitsZone;
+    if (quartActuel !== 'soir') return base;
+    return base.filter(p => profilParProduit[p.id] !== 'production_journaliere');
+  }
+
+  // ------------------------------------------------------------
+  // FIL « MON DÉBUT DE QUART » — étape 3 sur 3 (lot PARCOURS-POMPISTE-LOT2, 21/10/2026)
+  // Le quart est celui choisi à la prise de poste (pas de Matin / Soir), le catalogue et l'Accueil de l'Inventaire
+  // ne sont pas montrés, la sortie est la même que sur les autres étapes, les brouillons de comptage sont conservés.
+  // ------------------------------------------------------------
+  const FIL = window.NexusFilDebutQuart;
+  const filEtape = FIL.etapeDe(location.search);
+  const enFil = () => filEtape != null;
+  const filPlan = FIL.planDe(location.search);
+  let filFuseau = null;
+  function filDate() { try { return NexusStation.dateLocaleStation(filFuseau); } catch (e) { return null; } }
+  function filSauverAvantSortie() {
+    try { if (quartRow) sauvegarderDraft('ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ }
+    const d = filDate();
+    if (d && employeeCourant) FIL.atteindre(localStorage, employeeCourant.id, d, filEtape);
+  }
+  function filInstallerBarre() {
+    document.body.classList.add('fil-actif');
+    const menu = document.querySelector('.header .menu-btn');
+    if (menu) menu.style.display = 'none';
+    const barre = document.createElement('div');
+    barre.id = 'filBarre';
+    barre.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;font-size:13px;';
+    barre.innerHTML = `<span id="filProgres" class="progres" style="font-weight:600;">${FIL.libelleProgression(filEtape, filPlan)}</span>`
+      + `<a id="filSortie" href="${FIL.ACCUEIL}" style="color:var(--cyan);text-decoration:none;">← ${FIL.LIBELLE_SORTIE}</a>`;
+    const phone = document.querySelector('.phone');
+    phone.insertBefore(barre, phone.firstChild);
+    document.getElementById('filSortie').addEventListener('click', filSauverAvantSortie);
+  }
+  function filTerminer() {
+    const d = filDate();
+    if (d && employeeCourant) FIL.terminer(localStorage, employeeCourant.id, d);
+    window.location.href = FIL.ACCUEIL;
+  }
+  function renderFilDejaValide() {
+    document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="resume-card"><div class="checkmark">✓</div><div class="final-greet">Merci ${employeeCourant.nom}</div></div>
+      <button class="btn-primary" id="btnFilTerminer">${FIL.libelleContinuer(filEtape, filPlan)}</button>`;
+    document.getElementById('btnFilTerminer').addEventListener('click', filTerminer);
   }
 
   // Réglages du plan tournant configurables par le manager (19/08/2026,
@@ -2529,6 +2577,13 @@
   // ------------------------------------------------------------
   function renderCategoriesOuverture() {
     categorieActive = null;
+    if (enFil()) {
+      const { groupesRequis } = groupesParcoursOuverture();
+      const prochain = groupesRequis.find(g => !categorieEstTerminee(g.items));
+      if (prochain) { ouvrirCategorie(prochain); return; }
+      renderFilValidation();
+      return;
+    }
 
     // Parcours dépôt → boutique → reste (15/08/2026, demande de Frédéric —
     // "une fois que le comptage dépôt est terminé, passe par le comptage
@@ -2629,6 +2684,24 @@
       }
     });
     document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
+  }
+
+  // Fil : toutes les catégories du fil sont comptées, il ne reste qu'à valider (sans catalogue ni Matin / Soir).
+  function renderFilValidation() {
+    document.getElementById('titre').textContent = "Inventaire d'ouverture";
+    document.getElementById('sousTitre').textContent = 'Gaz, glaçons et écailles comptés.';
+    document.getElementById('content').innerHTML = `
+      ${renderBarreProgression()}
+      <button class="btn-primary" id="btnTerminerOuverture">Valider mon inventaire d'ouverture</button>`;
+    document.getElementById('btnTerminerOuverture').addEventListener('click', () => {
+      try {
+        if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('ouverture'); return; }
+        validerOuverture();
+      } catch (err) {
+        console.error('Erreur validation ouverture:', err);
+        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err));
+      }
+    });
   }
 
   function ouvrirCategorie(groupe) {
@@ -3486,9 +3559,9 @@
         ${nbLivraisonsDeclarees ? `<div class="stat-row"><span class="stat-label">Livraisons déclarées</span><span class="stat-value">${nbLivraisonsDeclarees}</span></div>` : ''}
       </div>
       ${enAttente ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${enAttente} comptage${enAttente > 1 ? 's' : ''} en attente de connexion — sauvegardé${enAttente > 1 ? 's' : ''} sur cet appareil, envoyé${enAttente > 1 ? 's' : ''} dès que le réseau revient. Rien n'est perdu.</div>` : ''}
-      <button class="btn-primary" id="btnRetourAccueil">Retour</button>
+      <button class="btn-primary" id="btnRetourAccueil">${enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
+    document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -4165,8 +4238,14 @@
     employeeCourant = employee;
     demarrerHorloge();
     const fuseauInventaire = await NexusStation.fuseauDeLaStation(employee.site_id);
+    filFuseau = fuseauInventaire.timezone;
     quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone);
     if (!quartActuel) { bloquerFauteDHorairesDeQuart(); return; }
+    if (enFil()) {
+      filInstallerBarre();
+      const d = filDate();
+      if (d) FIL.atteindre(localStorage, employee.id, d, filEtape);
+    }
     if (employee.mode_test_inventaire) {
       roleDuJour = employee.role_test_inventaire;
     } else {
@@ -4216,7 +4295,13 @@
       if (codeConnu) zoneActive = codeConnu;
     }
 
-    if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
+    if (enFil()) {
+      // Quart déjà choisi à la prise de poste : celui du shift, sinon celui du moment ; zone piste, sans choix ni Accueil.
+      if (quartDuShift) quartActuel = quartDuShift;
+      if (zonesAutorisees.includes('piste')) zoneActive = 'piste';
+      if (quartEmployeRow && quartEmployeRow.a_valide_ouverture) renderFilDejaValide();
+      else demarrerOuvertureComptage();
+    } else if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
       renderChoixZone();
     } else {
       renderAccueil();

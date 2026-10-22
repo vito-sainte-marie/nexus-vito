@@ -13,6 +13,7 @@
 <script src="nexus-auth.js?v=20261013-2212"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-releves-piste.js?v=20261013-2212"></script>
+<script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-carburant-moteur.js?v=20261013-2212"></script>
 <script src="nexus-carburant-donnees.js?v=20261013-2212"></script>
 <script src="nexus-veeder-root.js?v=20261013-2212"></script>
@@ -73,6 +74,12 @@
 <script>
 (function () {
   const R = window.NexusRelevesPiste;
+  // Fil « Mon début de quart » (lot 2) : ?fil=debut-quart&etape=1|2. Hors fil, l'écran se comporte comme avant.
+  const FIL = window.NexusFilDebutQuart;
+  const filEtape = FIL.etapeDe(location.search);
+  const enFil = () => filEtape != null;
+  const filDebut = FIL.momentDebutDe(location.search);
+  const filPlan = FIL.planDe(location.search);
   const MOMENTS_LIBELLE = { debut_q1: 'Début de Q1 (ouverture de la station)', fin_q1: 'Fin de Q1 (fin de quart du matin)', debut_q2: 'Début de Q2 (ouverture du soir)', fin_q2: 'Fin de Q2 (fermeture)' };
   let emp = null, date = null, moment = null;
   let ecran = 'choix';
@@ -101,6 +108,17 @@
   function sauverAvantSortie() {
     if (moment) sauverLocal();
     if (emp && date) sauverJauge();
+    if (enFil() && emp && date) FIL.atteindre(localStorage, emp.id, date, filEtape);
+  }
+  // Fil : bandeau de progression et bouton unique qui ouvre l'étape suivante (les brouillons sont rangés avant de partir).
+  function filBandeau() { return enFil() ? `<div class="progres" id="filProgres">${esc(FIL.libelleProgression(filEtape, filPlan))}</div>` : ''; }
+  function filContinuer() {
+    return enFil() ? `<button class="btn" data-act="filcontinuer">${esc(FIL.libelleContinuer(filEtape, filPlan))}</button>` : '';
+  }
+  // Étape non ouverte à ce pompiste (jaugeage du matin au quart du soir, ou aucun relevé de début habilité) : on le dit et on passe.
+  function vueFilHorsPerimetre() {
+    const quoi = filEtape === 1 ? 'Le jaugeage d\'ouverture n\'est demandé qu\'au quart du matin.' : 'Aucun relevé d\'index de début n\'est ouvert pour vous aujourd\'hui.';
+    return `<div class="card"><h2>Rien à faire à cette étape</h2><div class="sub">${quoi}</div></div>${filContinuer()}`;
   }
   function lireLocal() {
     try { const s = localStorage.getItem(cleBrouillon()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
@@ -258,7 +276,7 @@
       <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><button class="btn2" data-act="jcamera">Prendre la photo de l'écran</button><input type="file" accept="image/*" capture="environment" id="jPhoto" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;clip:rect(0,0,0,0)">
       <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
       ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
-      ${photo}${lignes}${conf}<button class="btn2" data-act="choix">Retour</button>`;
+      ${photo}${lignes}${conf}${enFil() ? (jauge.enregistre || jauge.existant ? filContinuer() : '') : '<button class="btn2" data-act="choix">Retour</button>'}`;
   }
   async function envoyerPhoto(fichier) {
     jauge.statut = 'envoi'; jauge.message = ''; rendre();
@@ -341,14 +359,22 @@
     rendre();
   }
 
+  function vueFini() {
+    return `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>${filContinuer()}`;
+  }
   function rendre() {
     const app = $('app');
-    if (ecran === 'choix') app.innerHTML = vueChoix();
-    else if (ecran === 'pompe') app.innerHTML = vuePompe();
-    else if (ecran === 'revue') app.innerHTML = vueRevue();
-    else if (ecran === 'recopie') app.innerHTML = vueRecopie();
-    else if (ecran === 'jauge') app.innerHTML = vueJauge();
-    else app.innerHTML = `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>`;
+    // Fil : jamais le menu des Relevés piste ; une étape sans objet se dit et se passe.
+    if (enFil() && ecran === 'choix') ecran = 'filhors';
+    let vue;
+    if (ecran === 'filhors') vue = vueFilHorsPerimetre();
+    else if (ecran === 'choix') vue = vueChoix();
+    else if (ecran === 'pompe') vue = vuePompe();
+    else if (ecran === 'revue') vue = vueRevue();
+    else if (ecran === 'recopie') vue = vueRecopie();
+    else if (ecran === 'jauge') vue = vueJauge();
+    else vue = vueFini();
+    app.innerHTML = filBandeau() + vue;
     majEtat();
   }
 
@@ -408,7 +434,7 @@
     return `<div class="progres">${esc(MOMENTS_LIBELLE[moment])} · Pompe ${pompe} sur 4 · de gauche à droite</div><h1>Pompe <span class="npompe">${pompe}</span></h1>
       <div class="sub">${R.estDebut(moment) ? 'Début de quart : la référence est celle du dernier relevé validé, pas une nouvelle mesure. Aucune recopie dans Decenium.' : 'Lisez les 7 chiffres du totalisateur mécanique. Rien n\'est prérempli.'}</div>
       ${R.ORDRE_PHYSIQUE[pompe].map(pr => champ(pompe, pr)).join('')}${visuelBloc}
-      <div class="row">${pompe > 1 ? '<button class="btn2" data-act="prec">Précédente</button>' : '<button class="btn2" data-act="choix">Retour</button>'}
+      <div class="row">${pompe > 1 ? '<button class="btn2" data-act="prec">Précédente</button>' : (enFil() ? '<span></span>' : '<button class="btn2" data-act="choix">Retour</button>')}
       <button class="btn" data-act="suiv" ${pompeOk && !reculsSansMotif && visuelOk ? '' : 'disabled'}>${pompe < 4 ? 'Pompe suivante' : 'Revue avant validation'}</button></div>`;
   }
   function vueRevue() {
@@ -447,7 +473,7 @@
       ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
       <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
       <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>
-      <button class="btn2" data-act="choix">Plus tard : retour à l'accueil</button>`;
+      ${enFil() ? '' : '<button class="btn2" data-act="choix">Plus tard : retour à l\'accueil</button>'}`;
   }
 
   // ---- Événements ----
@@ -487,6 +513,12 @@
     const a = b.dataset.act;
     if (a === 'tick') return; // géré au change
     if (a === 'sortie') { sauverAvantSortie(); return; }
+    if (a === 'filcontinuer') {
+      if (!enFil()) return; sauverAvantSortie();
+      const vers = FIL.urlApres(filEtape, filDebut, filPlan);
+      if (vers === FIL.ACCUEIL) FIL.terminer(localStorage, emp.id, date); else FIL.atteindre(localStorage, emp.id, date, FIL.etapeDe(vers.slice(vers.indexOf('?'))));
+      location.href = vers; return;
+    }
     if (a === 'complet') { const k = b.dataset.k; modeComplet[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; visuel[pompe] = false; sauverLocal(); rendre(); focus(k); return; }
     if (a === 'toutcocher') {
       b.disabled = true;
@@ -507,7 +539,7 @@
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
     if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
-    if (a === 'choix') { moment = null; localEcrit = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
+    if (a === 'choix') { if (enFil()) return; moment = null; localEcrit = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
     if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
     if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
@@ -572,6 +604,7 @@
     // Le jour métier suit le fuseau du site (nexus-auth.js) ; sans fuseau, pas de jour et pas d'écran qui affirme.
     date = nexusJourDansFuseau(new Date(), await nexusFuseauSite(employee.site_id));
     if (!date) { document.getElementById('app').innerHTML = '<div class="card">Le fuseau de la station est introuvable : le jour ne peut pas être déterminé. Réessayez ou prévenez le manager.</div>'; return; }
+    if (enFil()) FIL.atteindre(localStorage, emp.id, date, filEtape); // reprise : le fil rouvre cette étape
     await chargerHabilitations();
     await chargerARecopier();
     // Lien profond depuis l'accueil (?moment=debut_q1) : n'ouvre le moment que
