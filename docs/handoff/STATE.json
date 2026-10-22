@@ -784,14 +784,14 @@
       "consomme_le": "2026-10-22T15:57:10.894Z"
     },
     "JAUGEAGE-OCR-2-20261022": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "24814b1a6863dab32eb9daf8c815bb8aa0d4e13b",
-      "consomme_le": "2026-10-22T16:06:04.609Z",
-      "preuve_action": "26fd7bd241296788f41bb3fd5edc736ec599de0d"
+      "commit_decision": "12b4438f214bb08ce507271ceecafa0da6006662",
+      "preuve_action": "1de147d40aa3583e84e1f89ca237f59a373284b6",
+      "consomme_le": "2026-10-22T16:12:55.847Z"
     }
   },
   "artefacts_hors_registre": [
