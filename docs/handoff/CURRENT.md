@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-SAISIE-DIRECTE-20261022/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-SAISIE-DIRECTE-20261022/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: JAUGEAGE-SAISIE-DIRECTE-20261022
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,33 +20,77 @@ preuves:
     classe: VERIFIED
     valeur: 160-fichiers
 ---
-# LOT : JAUGEAGE-SAISIE-DIRECTE-20261022 — jaugeage : la saisie des quatre volumes passe devant la lecture automatique
+# LOT : JAUGEAGE-SAISIE-DIRECTE-20261022 — exécution faite, PR brouillon non ouverte (capacité absente de cette session)
 
-## Origine
-Demande de Frédéric (22/10/2026), tirée du parcours pompiste du 21/10 sur l'aperçu Test. Le lot est indépendant de JAUGEAGE-OCR-20261021 (clos en l'état, request-6) et de la future JAUGEAGE-OCR-2, qui sera déposée séparément. Le document « Parcours pompiste : lots pour Claude Code » n'est pas sur le poste de Claude : le périmètre se fonde sur le détail du message de Frédéric.
+## Exécution de decision-1 (APPROVED, closes:false)
 
-## Constat (`origin/production` ccedfa83, `NEXUS-Releves-Piste-v1.html`, écran jaugeage)
-Après la photo, le message d'état annonce « La lecture automatique est différée : elle peut tarder » (ligne ~254) et le pompiste attend une lecture qui peut ne jamais venir. Les quatre champs existent déjà mais rien ne l'invite à les remplir ; « Actualiser la lecture » est un bouton plein qui laisse croire que la saisie est secondaire.
+Les cinq points du périmètre sont implémentés sur une branche créée depuis
+`origin/production` (jamais depuis la branche locale du rail, qui était en
+retard de plusieurs lots sur ce fichier) :
 
-## Périmètre modifié
-`NEXUS-Releves-Piste-v1.html` (et `nexus-releves-piste.js` si la logique y migre), écran jaugeage uniquement :
-1. Après l'envoi de la photo, le message devient « Photo enregistrée. Saisissez les quatre volumes affichés sur l'écran du Veeder-Root. » et le curseur se place dans le premier champ vide.
-2. Plus de « elle peut tarder » ; le mot « échec » n'est jamais écrit sur cet écran.
-3. « Actualiser la lecture » devient un lien discret.
-4. Une lecture qui arrive plus tard ne remplit que les champs vides et n'écrase jamais une saisie ; elle décoche la confirmation pour que le pompiste revérifie.
-5. Épreuves du rouge au vert, chacune avec une mutation de contrôle qui mord.
+- `LIB_STATUT.en_attente` devient « Photo enregistrée. Saisissez les quatre
+  volumes affichés sur l'écran du Veeder-Root. » ; le focus va au premier
+  champ vide après un envoi réussi (`focusPremierVolumeVide()`).
+- « elle peut tarder » supprimé ; le mot « échec » n'apparaît plus nulle part
+  sur cet écran.
+- « Actualiser la lecture » : nouvelle classe `.lien` (discrète), plus `.btn2`
+  (bouton plein).
+- Une lecture tardive ne remplit que les champs encore vides et ne touche
+  jamais une saisie déjà présente (`fusionnerLectureTardive`, fonction pure
+  nouvelle de `nexus-releves-piste.js`) ; dès qu'une lecture exploitable
+  arrive, la confirmation se décoche.
 
-## Hors périmètre
-Tout OCR (worker, moteur Vision, parseur), SQL, migration, RLS, Supabase Production, autres écrans, lot 3, JAUGEAGE-OCR-2, déploiement.
+Code : commit `6c20b192`, branche `lot-jaugeage-saisie-directe-20261022`,
+poussée sur `origin`.
 
-## Conduite
-- Worktree depuis `origin/production` (ccedfa83, mesuré à l'instant de ce dépôt), jamais la branche locale. Un seul push pour le code et la consommation.
-- Recette sur l'aperçu Test au format téléphone : de la photo à l'enregistrement en moins d'une minute, chronométrée.
-- PR en brouillon vers `production` ; aucune fusion ni déploiement sans le GO de Frédéric (palier PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION). La recette par un pompiste sans aide reste un geste humain.
+## Preuves
+
+- `test_jaugeage_saisie_directe_20261022.js` : 14/14 verts sur le code final.
+- Rouge avant chaque correction, vérifié un à un par mutation locale de
+  l'état courant (jamais une réécriture après coup), puis restauration :
+  texte `en_attente`, classe du bouton `jrafraichir`, ligne de focus après
+  envoi, et `fusionnerLectureTardive` mutée pour toujours écraser une saisie
+  — les quatre mordent.
+- Suite complète : 290/297, mêmes 7 échecs pré-existants que
+  `origin/production` (inventaire deux lieux, réception moteur/DOM) — aucune
+  régression introduite par ce lot.
+- Compte rendu détaillé :
+  `docs/executions-lot-JAUGEAGE-SAISIE-DIRECTE-20261022.md` (commit déposé
+  avec cette demande, hors de `docs/handoff/`).
+
+## Ce qui arrête ce réveil : capacité absente, pas une gate NEXUS
+
+La conduite approuvée par decision-1 prévoyait une PR brouillon vers
+`production`. Trois appels (`gh pr create`, puis une variante simplifiée,
+puis `gh pr list` en lecture seule) ont chacun été refusés par la passerelle
+d'autorisation de l'outil Bash de cette session (« This command requires
+approval »), sans qu'aucun humain ne soit présent pour l'accorder dans ce
+réveil autonome. Aucune règle de `PROTOCOL.md` ni de `CLAUDE.md` n'interdit
+la PR brouillon — à l'inverse, c'est la conduite explicitement approuvée ;
+c'est l'outillage `gh` qui n'a pas pu s'exécuter dans CETTE session. Rien
+n'a été contourné : pas de réessai au-delà de trois appels, pas de création
+de la PR par une autre voie (API brute, jeton), pas d'auto-arbitrage.
+
+`git push` a imprimé le lien de création directe :
+https://github.com/vito-sainte-marie/nexus-vito/pull/new/lot-jaugeage-saisie-directe-20261022
+
+Le code n'a pas besoin d'être rejoué : il est déjà sur la branche, prouvé par
+l'épreuve ci-dessus. Un geste humain (un clic sur ce lien) ou une session
+future disposant de l'autorisation `gh` peut ouvrir la PR.
+
+## Restant humain, dans l'ordre
+
+1. Ouvrir la PR brouillon (lien ci-dessus).
+2. Recette sur iPhone (aperçu Test, format téléphone) par un pompiste sans
+   aide, chronométrée de la photo à l'enregistrement — non exécutée dans
+   cette session : pas de Playwright installé localement, worker OCR en
+   panne au 22/10 (diagnostic déjà connu), aperçu Cloudflare Pages pas
+   encore construit faute de PR ouverte.
+3. Aucune fusion ni déploiement sans le GO de Frédéric (palier
+   PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION).
 
 ## À arbitrer
-Approuver ce périmètre et cette conduite pour que Claude exécute le lot sur un rail de travail, sans autre geste humain avant la PR.
 
-## Contraintes dites sans fard
-- Le lot ne rend pas la lecture automatique plus fiable : il la rend facultative à l'écran. Tant que le worker est en panne (diagnostic du 22/10), la saisie manuelle est le seul chemin.
-- Le registre porte encore `lot_actif` = PARCOURS-POMPISTE-LOT2 bien que sa décision soit consommée ; si la règle D3 refuse ce dépôt, je m'arrête et je rapporte.
+Consigner cet arrêt (capacité `gh` absente de cette session, pas une gate) et
+dire si une session future doit seulement ouvrir la PR et exécuter la
+recette, ou si autre chose est attendu avant.

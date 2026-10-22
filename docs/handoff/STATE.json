@@ -774,13 +774,14 @@
       "preuve_action": "3efefc63edbc71f278dd613b34b3d4b7cac4a4de"
     },
     "JAUGEAGE-SAISIE-DIRECTE-20261022": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "deb6467d3dd26a83546b29dbbc5157914cf2a438",
-      "pris_en_charge_le": "2026-10-22T14:51:50.061Z"
+      "consomme_le": "2026-10-22T15:05:54.964Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [
