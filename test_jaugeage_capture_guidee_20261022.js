@@ -107,7 +107,7 @@ ok(G.GUIDE_JAUGEAGE.consigne === G.CONSIGNE, 'guide jaugeage porte la consigne')
   const rp = lire('NEXUS-Releves-Piste-v1.html');
   const appels = rp.match(/ouvrirCamera\(\{[^}]*\}\)/g) || [];
   ok(appels.length === 1 && /guide: window\.NexusCaptureGuidee/.test(appels[0]) && /inputId: 'jPhoto'/.test(appels[0]), 'Relevés Piste : un seul appel, celui du jaugeage, avec le guide');
-  ok(/<script src="nexus-capture-guidee\.js\?v=[0-9-]+"><\/script>\s*<script src="nexus-camera-page\.js\?v=/.test(rp), 'le guide est chargé avant le module caméra');
+  ok(/<script src="nexus-capture-guidee\.js\?v=[0-9a-f-]+"><\/script>\s*<script src="nexus-camera-page\.js\?v=/.test(rp), 'le guide est chargé avant le module caméra (jeton daté en source, empreinte après build)');
   ok(/redimensionnerPhoto\([^)]*\)[\s\S]{0,400}\.upload\(/.test(rp) || /redimensionnerPhoto/.test(rp), 'Relevés Piste redimensionne toujours avant l\'envoi');
 }
 
