@@ -1,67 +1,28 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: JAUGEAGE-OCR-2-20261022
-seq: 4
-author: ChatGPT
+seq: 5
+author: Frédéric Bragance
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-4.md
+decision: APPROVED
+closes: true
+in_reply_to: request-5.md
 provenance:
-  niveau: 2
-  mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6346476913
+  niveau: 1
+  mode: declared
+  reference: Message de Frédéric Bragance dans la session Claude Code du 22/10/2026 (décision sur request-5 amendée)
 ---
-# Décision sur request-4.md — APPROVED_WITH_CONDITIONS
+# DÉCISION HUMAINE SUR REQUEST-5 (amendée, 426c20dc) — JAUGEAGE-OCR-2-20261022
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39818781032), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6346476913. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+Auteur : Frédéric Bragance. APPROVED, closes:true. Texte reproduit tel que donné dans la session Claude Code du 22/10/2026. Cette décision remplace le verdict `STOP_REQUIRED` de l'arbitre (commentaire de #28 du 22/10/2026 19:33Z, `SECRET_PERMISSION_SURFACE_SECURITE`), qui portait sur la version `a64f4bca` (avec migration de politique) et non sur la version amendée.
 
-## Ce que la CI a contrôlé
+* Nom des photos de jaugeage : `AAAA-MM-JJ_<uid>_nexus-jaug_<site>_<HHhMM>[-N].jpg`, à l'heure de la station, avec le suffixe `_qforcee-…` conservé quand la photo est envoyée malgré le contrôle qualité.
+* Aucune migration. La politique de stockage reste inchangée.
+* Épreuves rouges puis vertes, dont une mutation qui déplace l'identifiant hors de sa place exigée par la politique. Suite rejouée après build, CI verte, PR en brouillon. Aucune fusion ni déploiement sans mon GO.
+* Le lot se clôt après cette action. Les étapes restantes passent à un nouveau lot JAUGEAGE-OCR-3, que j'ouvrirai quand je serai à l'iMac : étape B (compilation et essais du lecteur Vision, délai de 4 min 30), validation de la capture sur iPhone réel, quinze photos sans donnée personnelle, calibration des seuils, branchement Python du worker.
+* Ensuite, déposer la request du lot d'outillage (refus d'une prise en charge déjà prise par un autre exécutant, et les deux leçons à inscrire dans `RULES.json`).
 
-- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `JAUGEAGE-OCR-2-20261022`, `REQUEST` = `request-4.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
-- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `47b54cd5780e91097c9d831ee2557d1a57bb62f7`, `HEAD` = `47b54cd5780e91097c9d831ee2557d1a57bb62f7`, SHA du run `47b54cd5780e91097c9d831ee2557d1a57bb62f7`, tête du rail `47b54cd5780e91097c9d831ee2557d1a57bb62f7`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
-- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
-
-## Ce que la CI n'a PAS contrôlé
-
-- Les conditions du verdict (« Implémenter sur une branche applicative distincte du rail et ouvrir uniquement une PR brouillon ; limiter le changement à la capture guidée réservée au jaugeage, sans modifier le lecteur Vision ni l’environnement iMac ; conserver à l’identique le comportement observable des appels Pointage et Relevés Piste, avec une épreuve dédiée ; inclure dans le recadrage l’en-tête date/heure et le repère 2 × 2 ; documenter dans la source les proportions et leur preuve de confirmation ainsi que les seuils de netteté/reflet ; établir des épreuves rouges puis vertes et des mutations couvrant cadrage, recadrage, rejet qualité et non-régression ; mesurer le délai inférieur à 2 secondes sur le navigateur de test sans le présenter comme une preuve iPhone ; ne déclarer les seuils définitifs qu’après recette iPhone et calibration sur les quinze photos ; l’étape B peut avancer en parallèle, mais les quinze photos et leur calibration suivent la validation de la capture ; aucune fusion, écriture Production ou mise en service. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
-- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
-
-## Texte de l'arbitre
-
-**Verdict : APPROVED_WITH_CONDITIONS.**
-
-L’étape de capture guidée est approuvée hors Production. Elle ne relève d’aucun motif d’escalade humaine. Conformément à `PALIER_HUMAIN_RESTREINT`, l’arbitrage présent tient lieu de GO ; conformément à `COMMIT_PUSH_RAIL_SANS_GO`, la branche de travail, les commits, les tests et la PR brouillon ne demandent aucun GO supplémentaire.
-
-Ordre fixé :
-
-1. réaliser la capture guidée et sa recette navigateur au format téléphone ;
-2. mener l’étape B sur l’iMac après ou en parallèle, puisqu’elle est indépendante ;
-3. valider la capture sur iPhone réel ;
-4. prendre les quinze photos ;
-5. calibrer les seuils OCR sur ces photos.
-
-Aucune fusion, promotion ou mise en Production n’est autorisée par cette décision.
-
-RAIL_LU: 47b54cd5780e91097c9d831ee2557d1a57bb62f7
-NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
-CLOSES: false
-LOT: JAUGEAGE-OCR-2-20261022
-REQUEST: request-4.md
-HEAD: 47b54cd5780e91097c9d831ee2557d1a57bb62f7
-LEASE: aucun
-GATE_STATE: G1, CI non exécutée car code de cette étape encore absent
-PROOF_STATE: PROOF_VALID
-CONDITIONS: Implémenter sur une branche applicative distincte du rail et ouvrir uniquement une PR brouillon ; limiter le changement à la capture guidée réservée au jaugeage, sans modifier le lecteur Vision ni l’environnement iMac ; conserver à l’identique le comportement observable des appels Pointage et Relevés Piste, avec une épreuve dédiée ; inclure dans le recadrage l’en-tête date/heure et le repère 2 × 2 ; documenter dans la source les proportions et leur preuve de confirmation ainsi que les seuils de netteté/reflet ; établir des épreuves rouges puis vertes et des mutations couvrant cadrage, recadrage, rejet qualité et non-régression ; mesurer le délai inférieur à 2 secondes sur le navigateur de test sans le présenter comme une preuve iPhone ; ne déclarer les seuils définitifs qu’après recette iPhone et calibration sur les quinze photos ; l’étape B peut avancer en parallèle, mais les quinze photos et leur calibration suivent la validation de la capture ; aucune fusion, écriture Production ou mise en service.
-BLOCKER: aucun
-STOP_REQUIRED: non
-CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
-OWNER_NEXT: Claude
-EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision sur le rail avec outils/handoff.js decision --auteur ChatGPT.
+Fait consigné à la demande de Frédéric : il a approuvé les déploiements de #149 (run 39840942691) et de #150 (run 39858045546). #150 est fusionnée (2c7435bd) ; validation iPhone du cadre et du bouton « Envoyer quand même » faite par Frédéric le 22/10/2026.
