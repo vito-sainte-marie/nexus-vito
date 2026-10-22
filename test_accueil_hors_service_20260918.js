@@ -208,7 +208,7 @@ async function executerAccueil({
   const auth = fuseaux(faireClient(reponsesSite));
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
-    'NexusForfait', 'NexusPointageRegles',
+    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable',
@@ -219,6 +219,9 @@ async function executerAccueil({
     auth.nexusFuseauSite, auth.nexusJourDansFuseau,
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
+    require('./nexus-fil-debut-quart.js'),
+    { getItem: () => null, setItem() {}, removeItem() {} },
+    { search: '' },
     { chargerStatutJaugeageJour: async () => statutJaugeage },
     require('./nexus-releves-piste.js'),
     async () => receptionRole,
@@ -696,8 +699,8 @@ async function cas(nom, entree, controles) {
       verifier('index applicable', rendus.ctx.indexApplicable, true);
       verifier('index à faire', rendus.ctx.indexFait, false);
       verifier('jaugeage non applicable (réglage éteint)', rendus.ctx.jaugeageApplicable, false);
-      verifier('prochaine action = index', rendus.action.lienTexte, 'Faire le relevé d’index →');
-      verifier('lien profond vers le début de Q1', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?moment=debut_q1');
+      verifier('prochaine action = index', rendus.action.lienTexte, 'Reprendre mon début de quart →');
+      verifier('lien profond vers le début de Q1', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=2&debut=debut_q1&plan=2.3&moment=debut_q1');
       verifier('Contrôles : inventaire + index', [rendus.ctx.controlesInfo.total, rendus.ctx.controlesInfo.faits], [2, 0]);
       verifierQue('tuile Relevés d’index présente', rendus.tuiles.includes('releves'), JSON.stringify(rendus.tuiles));
       verifierQue('Missions et Inventaire non masqués', rendus.tuiles.includes('missions') && rendus.tuiles.includes('inventaire'), JSON.stringify(rendus.tuiles));
@@ -708,20 +711,21 @@ async function cas(nom, entree, controles) {
     ({ rendus, verifier }) => {
       verifier('jaugeage réservé au matin', rendus.ctx.jaugeageApplicable, false);
       verifier('index applicable', rendus.ctx.indexApplicable, true);
-      verifier('lien profond vers le début de Q2', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?moment=debut_q2');
+      verifier('lien profond vers le début de Q2', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=2&debut=debut_q2&plan=2.3&moment=debut_q2');
     });
 
   await cas('F3 · relevé brouillon : l’index reste à faire', entreeIndex('matin', [releve('debut_q1', 'brouillon')]),
     ({ rendus, verifier }) => {
       verifier('index à faire', rendus.ctx.indexFait, false);
-      verifier('prochaine action = index', rendus.action.lienTexte, 'Faire le relevé d’index →');
+      verifier('prochaine action = index', rendus.action.lienTexte, 'Reprendre mon début de quart →');
     });
 
   await cas('F4 · relevé final du bon site/jour/début : fait, la chaîne avance', entreeIndex('matin', [releve('debut_q1', 'final')]),
     ({ rendus, verifier }) => {
       verifier('index fait', rendus.ctx.indexFait, true);
       verifier('Contrôles : 1/2', [rendus.ctx.controlesInfo.total, rendus.ctx.controlesInfo.faits], [2, 1]);
-      verifier('prochaine action suivante = inventaire', rendus.action.lienTexte, 'Faire l’inventaire →');
+      verifier('prochaine action suivante = inventaire', rendus.action.lienTexte, 'Reprendre mon début de quart →');
+      verifier('le fil reprend à l’étape 3 (inventaire)', rendus.action.lien, 'NEXUS-Inventaire-v1.html?fil=debut-quart&etape=3&debut=debut_q1&plan=3');
     });
 
   await cas('F5 · finaux hors cible (fin_q1, début Q2, autre site, veille) : rien n’est fait',
@@ -759,12 +763,16 @@ async function cas(nom, entree, controles) {
   await cas('F11 · Q1 jaugeage actif : jaugeage d’abord, puis index (une seule action)',
     entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: null }),
     ({ rendus, verifier }) => {
-      verifier('jaugeage en premier', rendus.action.lienTexte, 'Faire le jaugeage →');
+      verifier('jaugeage en premier', rendus.action.lienTexte, 'Reprendre mon début de quart →');
+      verifier('le fil reprend à l’étape 1 (jaugeage)', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=1&debut=debut_q1&plan=1.2.3&ecran=jauge');
       verifier('index toujours comptés', rendus.ctx.controlesInfo.total, 3);
     });
   await cas('F12 · Q1 jaugeage fait : l’index prend le relais',
     entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: { statut: 'fait' } }),
-    ({ rendus, verifier }) => verifier('index ensuite', rendus.action.lienTexte, 'Faire le relevé d’index →'));
+    ({ rendus, verifier }) => {
+      verifier('index ensuite', rendus.action.lienTexte, 'Reprendre mon début de quart →');
+      verifier('le fil reprend à l’étape 2 (index)', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=2&debut=debut_q1&plan=2.3&moment=debut_q1');
+    });
 
   await cas('F13 · arrivée non pointée : le pointage reste prioritaire',
     entreeIndex('matin', [], { pointageActifSite: true, reponses: { pointages: { data: [], error: null }, carburant_index_releves: { data: [], error: null } } }),
@@ -787,8 +795,11 @@ async function cas(nom, entree, controles) {
   verifierQue('E1 · doctrine', 'l’accueil n’écrit jamais sur shifts',
     !/\.insert\(/.test(SRC_INIT) && !/\.upsert\(/.test(SRC_INIT) && !/\.update\(/.test(SRC_INIT),
     'écriture trouvée dans initAccueilEmploye');
-  verifierQue('E2 · doctrine', 'aucune redirection d’office depuis l’accueil',
-    !/location\.(href|replace)/.test(SRC_INIT), 'redirection trouvée dans initAccueilEmploye');
+  // Lot 2 (21/10/2026) : une seule exception, nommée, jamais d'office — l'entrée explicite `?fil=demarrer` posée par la prise de poste
+  // ouvre le fil « Mon début de quart » (l'Accueil connaît les faits du jour, la prise de poste non). Toute autre redirection reste interdite.
+  const EXCEPTION_FIL = "if (filLien && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }";
+  verifierQue('E2 · doctrine', 'aucune redirection d’office depuis l’accueil (hors entrée explicite du fil)',
+    SRC_INIT.split(EXCEPTION_FIL).length - 1 === 1 && !/location\.(href|replace)/.test(SRC_INIT.split(EXCEPTION_FIL).join('')), 'redirection trouvée dans initAccueilEmploye');
   verifierQue('E3 · doctrine', 'roleADroitModule laisse passer un rôle inconnu (Article 5)',
     purs.roleADroitModule('fdj', 'archiviste') === true, 'refus par rôle inconnu');
   verifierQue('E4 · doctrine', 'aucun cinquième calcul de quart dans l’accueil (Article 11)',

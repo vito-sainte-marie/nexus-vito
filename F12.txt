@@ -1,0 +1,60 @@
+  eprouve('F1 trois étapes, chacune ouvre la suivante (plan complet)', () => {
+    const f = requis();
+    assert.strictEqual(f.NOMBRE_ETAPES, 3);
+    const P = [1, 2, 3];
+    assert.ok(/^NEXUS-Releves-Piste-v1\.html\?fil=debut-quart&etape=1&debut=debut_q1&plan=1\.2\.3&ecran=jauge$/.test(f.urlEtape(1, 'debut_q1', P)), f.urlEtape(1, 'debut_q1', P));
+    assert.ok(/^NEXUS-Releves-Piste-v1\.html\?fil=debut-quart&etape=2&debut=debut_q1&plan=1\.2\.3&moment=debut_q1$/.test(f.urlEtape(2, 'debut_q1', P)), f.urlEtape(2, 'debut_q1', P));
+    assert.ok(/^NEXUS-Inventaire-v1\.html\?fil=debut-quart&etape=3&debut=debut_q1&plan=1\.2\.3$/.test(f.urlEtape(3, 'debut_q1', P)), f.urlEtape(3, 'debut_q1', P));
+    assert.strictEqual(f.urlApres(1, 'debut_q1', P), f.urlEtape(2, 'debut_q1', P));
+    assert.strictEqual(f.urlApres(2, 'debut_q2', P), f.urlEtape(3, 'debut_q2', P));
+    assert.strictEqual(f.urlApres(3, 'debut_q1', P), 'NEXUS-App-v1.html', 'la dernière étape rend à l\'Accueil');
+  });
+  eprouve('F2 progression sur le plan complet et libellés des boutons', () => {
+    const f = requis();
+    assert.deepStrictEqual([1, 2, 3].map(n => f.libelleProgression(n, [1, 2, 3])), ['Étape 1 sur 3', 'Étape 2 sur 3', 'Étape 3 sur 3']);
+    assert.strictEqual(f.libelleContinuer(1, [1, 2, 3]), 'Continuer vers le relevé des index');
+    assert.strictEqual(f.libelleContinuer(2, [1, 2, 3]), 'Continuer vers l\'inventaire');
+    assert.strictEqual(f.libelleContinuer(3, [1, 2, 3]), 'Terminer mon début de quart');
+    assert.strictEqual(f.LIBELLE_SORTIE, 'Quitter et revenir à l\'Accueil');
+  });
+  eprouve('F2b jaugeage déjà fait (matin) : le fil commence aux index, « Étape 1 sur 2 », jamais « sur 3 »', () => {
+    const f = requis();
+    const plan = f.planSelonFaits({ resteJaugeage: false, resteIndex: true, resteInventaire: true });
+    assert.deepStrictEqual(plan, [2, 3]);
+    assert.strictEqual(f.libelleProgression(2, plan), 'Étape 1 sur 2');
+    assert.strictEqual(f.libelleProgression(3, plan), 'Étape 2 sur 2');
+    assert.strictEqual(f.libelleProgression(1, plan), '', 'une étape hors plan n\'a pas de rang');
+    assert.strictEqual(f.libelleContinuer(2, plan), 'Continuer vers l\'inventaire');
+    assert.strictEqual(f.libelleContinuer(3, plan), 'Terminer mon début de quart');
+    assert.strictEqual(f.urlApres(2, 'debut_q2', plan), f.urlEtape(3, 'debut_q2', plan));
+    const u = f.urlEtape(2, 'debut_q2', plan);
+    assert.ok(/plan=2\.3/.test(u));
+    assert.deepStrictEqual(f.planDe(u.slice(u.indexOf('?'))), [2, 3], 'le plan survit à l\'adresse');
+  });
+  eprouve('F2c une seule étape restante : « Étape 1 sur 1 », et elle termine le fil', () => {
+    const f = requis();
+    const plan = f.planSelonFaits({ resteJaugeage: false, resteIndex: false, resteInventaire: true });
+    assert.deepStrictEqual(plan, [3]);
+    assert.strictEqual(f.libelleProgression(3, plan), 'Étape 1 sur 1');
+    assert.strictEqual(f.libelleContinuer(3, plan), 'Terminer mon début de quart');
+    assert.strictEqual(f.urlApres(3, 'debut_q1', plan), 'NEXUS-App-v1.html');
+    const sansIndex = f.planSelonFaits({ resteJaugeage: true, resteIndex: false, resteInventaire: true });
+    assert.deepStrictEqual(sansIndex, [1, 3], 'un index fait ou sans objet saute à l\'inventaire');
+    assert.strictEqual(f.urlApres(1, 'debut_q1', sansIndex), f.urlEtape(3, 'debut_q1', sansIndex));
+    assert.strictEqual(f.libelleContinuer(1, sansIndex), 'Continuer vers l\'inventaire');
+    assert.deepStrictEqual(f.planSelonFaits({ resteJaugeage: false, resteIndex: false, resteInventaire: false }), []);
+  });
+  eprouve('F2d plan absent ou illisible : le plan complet, jamais un plan vide ou désordonné', () => {
+    const f = requis();
+    for (const q of ['?fil=debut-quart&etape=2', '?fil=debut-quart&etape=2&plan=', '?fil=debut-quart&plan=3.2', '?fil=debut-quart&plan=9', '?fil=debut-quart&plan=a.b', '?fil=debut-quart&plan=2.2']) assert.deepStrictEqual(f.planDe(q), [1, 2, 3], q);
+    assert.deepStrictEqual(f.planDe('?fil=debut-quart&plan=1.3'), [1, 3]);
+    assert.strictEqual(f.libelleProgression(2, []), 'Étape 2 sur 3', 'plan vide traité comme complet');
+  });
+  eprouve('F2e pas de FDJ dans le fil : le FDJ relève de la boutique', () => {
+    const f = requis();
+    assert.ok(!/fdj|loto/i.test(S.module.replace(/\/\/.*$/gm, '')), 'le module nomme le FDJ');
+    const plan = f.planSelonFaits({ resteJaugeage: true, resteIndex: true, resteInventaire: true, resteFdj: true });
+    assert.deepStrictEqual(plan, [1, 2, 3], 'aucune étape FDJ, quoi qu\'on passe');
+    for (let n = 1; n <= 3; n++) assert.ok(!/fdj/i.test(f.urlEtape(n, 'debut_q1', plan)), 'adresse FDJ');
+    assert.ok(!/resteFdj|fdjFait/.test(S.app.slice(S.app.indexOf('const filLien'), S.app.indexOf('const filLien') + 500)), 'le lien du fil dépend du FDJ');
+  });

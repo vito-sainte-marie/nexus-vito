@@ -21,6 +21,7 @@
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -585,7 +586,7 @@
         <div class="final-line"><span>Priorités</span><b>${prioritaires} avant votre pause</b></div>
         <div class="final-line"><span>Temps estimé</span><b>${tempsTotal} minutes</b></div>
         ${messageOuvertureFdj ? `<div class="note-fdj ${messageOuvertureFdj.ton}">${messageOuvertureFdj.texte}</div>` : ''}
-        <button class="btn-primary" id="btnDashboard">${estNiveauManagerCourant() ? 'Ouvrir mon poste de pilotage' : 'Ouvrir mon tableau de bord'}</button>
+        <button class="btn-primary" id="btnDashboard">${estNiveauManagerCourant() ? 'Ouvrir mon poste de pilotage' : 'Commencer mon début de quart'}</button>
       </div>
     `;
 
@@ -602,7 +603,10 @@
       // la nouvelle page d'accueil décisionnelle), pas sur l'écran de missions
       // pensé pour un employé. "gerant" a les memes droits d'affichage que
       // "manager" partout ailleurs dans NEXUS (RLS, menu...) — meme regle ici.
-      window.location.href = estNiveauManagerCourant() ? 'NEXUS-App-v1.html' : 'NEXUS-Missions-v1.html';
+      if (estNiveauManagerCourant()) { window.location.href = 'NEXUS-App-v1.html'; return; }
+      // Lot 2 : le pompiste entre dans le fil « Mon début de quart » (jaugeage, index, inventaire), à l'étape où il s'était arrêté (l'Accueil, qui connaît les faits du jour, calcule les étapes restantes et l'ouvre) ;
+      // l'écran Missions n'est plus la destination automatique (il reste accessible depuis l'Accueil).
+      window.location.href = NexusFilDebutQuart.ACCUEIL_DEMARRAGE;
     });
   }
 

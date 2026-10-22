@@ -228,6 +228,7 @@ const sandbox = {
   nexusClient: nexusClientMock, setInterval: () => 0, Date,
   alert: (msg) => { throw new Error(`alert() appelé de façon inattendue : ${msg}`); },
   confirm: () => true,
+  location: { search: '' }, URLSearchParams,
   localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
 };
 // Les modules se rattachent à `window` comme dans la page ; ici `window`, le
@@ -242,7 +243,7 @@ vm.createContext(sandbox);
 // l'inline : le premier appel mourait sur « … is not defined » et le test
 // mesurait une globale absente au lieu du parcours. On les charge dans l'ordre
 // des balises <script> de NEXUS-Inventaire-v1.html.
-for (const module of ['nexus-station.js', 'nexus-inventaire-moteur.js']) {
+for (const module of ['nexus-station.js', 'nexus-inventaire-moteur.js', 'nexus-fil-debut-quart.js']) {
   vm.runInContext(fs.readFileSync(path.join(DIR, module), 'utf8'), sandbox, { filename: module });
 }
 

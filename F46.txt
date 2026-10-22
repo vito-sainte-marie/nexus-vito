@@ -1,0 +1,33 @@
+  eprouve('F4 reprise : l\'étape atteinte est mémorisée, ne recule jamais, et la fin rend la main', () => {
+    const f = requis(); const s = stockage();
+    const tout = { resteJaugeage: true, resteIndex: true, resteInventaire: true };
+    const r = (emp, jour) => f.urlRepriseSelonFaits(s, emp, jour, 'debut_q1', tout);
+    assert.strictEqual(r('e1', '2026-10-21'), f.urlEtape(1, 'debut_q1', [1, 2, 3]));
+    f.atteindre(s, 'e1', '2026-10-21', 2);
+    assert.strictEqual(r('e1', '2026-10-21'), f.urlEtape(2, 'debut_q1', [1, 2, 3]));
+    f.atteindre(s, 'e1', '2026-10-21', 1);
+    assert.strictEqual(f.lire(s, 'e1', '2026-10-21').etape, 2, 'recul interdit');
+    assert.strictEqual(r('e2', '2026-10-21'), f.urlEtape(1, 'debut_q1', [1, 2, 3]), 'un autre employé repart de 1');
+    assert.strictEqual(r('e1', '2026-10-22'), f.urlEtape(1, 'debut_q1', [1, 2, 3]), 'un autre jour repart de 1');
+    f.terminer(s, 'e1', '2026-10-21');
+    assert.strictEqual(r('e1', '2026-10-21'), null);
+    f.atteindre(s, 'e1', '2026-10-21', 3);
+    assert.strictEqual(f.lire(s, 'e1', '2026-10-21').fini, true, 'un fil fini ne se rouvre pas');
+  });
+  eprouve('F5 reprise sur un autre appareil : les faits du serveur comptent autant que la mémoire locale', () => {
+    const f = requis(); const s = stockage();
+    const r = (j, i, v) => f.urlRepriseSelonFaits(s, 'e1', '2026-10-21', 'debut_q1', { resteJaugeage: j, resteIndex: i, resteInventaire: v });
+    assert.strictEqual(r(true, true, true), f.urlEtape(1, 'debut_q1', [1, 2, 3]));
+    assert.strictEqual(r(false, true, true), f.urlEtape(2, 'debut_q1', [2, 3]), 'jaugeage fait : on ouvre aux index, plan 2.3');
+    assert.strictEqual(r(false, false, true), f.urlEtape(3, 'debut_q1', [3]));
+    assert.strictEqual(r(false, false, false), null, 'plus rien à faire : pas de fil');
+    f.atteindre(s, 'e1', '2026-10-21', 3);
+    assert.strictEqual(r(true, true, true), f.urlEtape(3, 'debut_q1', [1, 2, 3]), 'jamais en dessous de la mémoire');
+    assert.strictEqual(r(true, true, false), f.urlEtape(1, 'debut_q1', [1, 2]), 'mémoire au-delà du plan : première étape restante');
+  });
+  eprouve('F6 stockage indisponible : le fil ne casse pas', () => {
+    const f = requis();
+    const casse = { getItem() { throw new Error('refusé'); }, setItem() { throw new Error('plein'); } };
+    assert.strictEqual(f.urlRepriseSelonFaits(casse, 'e1', 'd', 'debut_q1', { resteJaugeage: true, resteIndex: true, resteInventaire: true }), f.urlEtape(1, 'debut_q1', [1, 2, 3]));
+    assert.strictEqual(f.atteindre(casse, 'e1', 'd', 2).etape, 2);
+  });
