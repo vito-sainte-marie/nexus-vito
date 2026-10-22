@@ -63,8 +63,8 @@ const bon = { ok: true, motif: null, nettete: 800, reflet: 0, message: '' };
 // ---------- 4. Câblage dans l'envoi (Relevés Piste) ----------
 {
   const rp = lire(SRC_PAGE);
-  ok(/fichier\.qualiteForcee/.test(rp) && /suffixeNomForcee\(fichier\.qualiteForcee\)/.test(rp), 'envoyerPhoto lit la marque de la photo d\'origine (avant redimensionnement)');
-  ok(/\$\{date\}_\$\{emp\.id\}_\$\{Date\.now\(\)\}\$\{suffixeForcee\}\.\$\{fmtEnvoi\.ext\}/.test(rp), 'le chemin garde date_uid_ puis ajoute le suffixe avant l\'extension');
+  ok(/forcee: fichier\.qualiteForcee/.test(rp) && /nomPhotoJaugeage\(/.test(rp), 'envoyerPhoto lit la marque de la photo d\'origine (avant redimensionnement)');
+  ok(/uid: emp\.id/.test(rp) && /ext: fmtEnvoi\.ext/.test(rp), 'le nom (date_uid_…, suffixe avant l\'extension) est construit par la fonction pure ; épreuve du format : test_jaugeage_nom_fichier_20261022.js');
   ok(/\.insert\(\{ site: emp\.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp\.id \}\)/.test(rp), 'insertion inchangée : aucune colonne ajoutée');
   ok((rp.match(/ouvrirCamera\(\{[^}]*\}\)/g) || []).length === 1, 'toujours un seul appel de caméra');
 }
