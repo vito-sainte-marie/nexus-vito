@@ -53,6 +53,7 @@
   .cadre-vr .cc3{bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:8px}
   .cadre-vr .cc4{bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:8px}
   .btn2{background:var(--raised);color:var(--text);border:1px solid var(--hair);width:100%}
+  .lien-discret{display:inline-block;min-height:44px;background:none;border:0;padding:0 4px;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer}
   .row{display:flex;gap:10px} .row>*{flex:1}
   .etat{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--hair);padding:8px 16px calc(8px + env(safe-area-inset-bottom));font-size:12px;color:var(--mid);text-align:center}
   .etat b.ko{color:var(--amber)} .etat b.bon{color:var(--green)}
@@ -252,8 +253,8 @@
   ];
   let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
   const LIB_STATUT = {
-    aucune: 'Aucune photo envoyée.', envoi: 'Envoi de la photo…', en_attente: 'Photo envoyée. La lecture automatique est différée : elle peut tarder.',
-    en_cours: 'Lecture en cours…', traite: 'Lecture disponible, à vérifier à l\'œil.', erreur: 'La lecture automatique a échoué. Saisissez les volumes à la main.',
+    aucune: 'Aucune photo envoyée.', envoi: 'Envoi de la photo…', en_attente: 'Photo enregistrée. Saisissez les quatre volumes affichés sur l\'écran du Veeder-Root.',
+    en_cours: 'Lecture en cours…', traite: 'Lecture disponible, à vérifier à l\'œil.', erreur: 'Lecture automatique indisponible. Saisissez les quatre volumes affichés sur l\'écran du Veeder-Root.',
     hors_ligne: 'Photo non envoyée (pas de réseau). Saisissez à la main ou réessayez.',
   };
   function vueJauge() {
@@ -276,8 +277,24 @@
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
       <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><button class="btn2" data-act="jcamera">Prendre la photo de l'écran</button><input type="file" accept="image/*" capture="environment" id="jPhoto" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;clip:rect(0,0,0,0)">
       <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
-      ${jauge.docId ? '<button class="btn2" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
+      ${jauge.docId ? '<button class="lien-discret" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
       ${photo}${lignes}${conf}${enFil() ? (jauge.enregistre || jauge.existant ? filContinuer() : '') : '<button class="btn2" data-act="choix">Retour</button>'}`;
+  }
+  // Saisie directe : la photo ne sert qu'à lire ; le pompiste tape les volumes. Le curseur l'attend dans le premier champ vide.
+  function premierChampVide() { const c = CUVES.find(c => !jauge.saisies[c.k]); return c ? c.k : null; }
+  function focaliserPremierVide() { const k = premierChampVide(); if (!k) return; const el = document.getElementById('j' + k); if (el) el.focus(); }
+  // Une lecture qui arrive plus tard ne remplit que les champs vides ; une saisie n'est jamais écrasée.
+  function fusionnerLecture() {
+    const remplis = [];
+    CUVES.forEach(c => { const p = jauge.propositions[c.k]; if (!jauge.saisies[c.k] && p && p.volume_l != null) { jauge.saisies[c.k] = String(p.volume_l); remplis.push(c.k); } });
+    if (remplis.length) { jauge.confirme = false; sauverJauge(); }
+    return remplis;
+  }
+  // Le rendu réécrit les champs : on rend le curseur au champ que le pompiste était en train de remplir.
+  function rendreEnGardantLeFocus() {
+    const id = document.activeElement && document.activeElement.id;
+    rendre();
+    if (id && /^j(SP|GO|GNR)-/.test(id)) { const el = document.getElementById(id); if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (x) {} } }
   }
   async function envoyerPhoto(fichier) {
     jauge.statut = 'envoi'; jauge.message = ''; rendre();
@@ -304,7 +321,7 @@
       jauge.statut = 'hors_ligne'; jauge.message = cause.message;
       if (cause.type === 'reseau') reseau.ok = false;
     }
-    rendre();
+    rendre(); if (jauge.statut === 'en_attente') focaliserPremierVide();
   }
   // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.
   let arecopier = [];
@@ -355,9 +372,10 @@
           if (cuve) jauge.propositions[cuve.k] = c;
         });
         if (!Object.keys(jauge.propositions).length) { jauge.statut = 'erreur'; }
+        fusionnerLecture();
       }
     } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Le serveur ne répond pas. Réessayez ou saisissez à la main.'; }
-    rendre();
+    rendreEnGardantLeFocus();
   }
 
   function vueFini() {
