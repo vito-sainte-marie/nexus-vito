@@ -57,6 +57,7 @@
 .camera-etat-actions{margin-top:18px;display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px}
 .camera-etat-actions button,.camera-etat-actions label{display:block;padding:13px;border-radius:10px;font:600 13.5px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;border:none;text-align:center}
 .camera-etat-actions .primaire{background:#4FC3D9;color:#04141a}
+.camera-btn-forcer{display:block;margin:10px auto 0;padding:10px 16px;border-radius:8px;border:1px solid #fff;background:transparent;color:#fff;font:600 14px 'IBM Plex Sans',system-ui,sans-serif}
 .camera-etat-actions .secondaire{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}`;
 
   function poserCss() {
@@ -69,7 +70,7 @@
     poserCss();
     if (guide && guide.CONSIGNE) consigne = guide.CONSIGNE;
     return new Promise(resolve => {
-      let flux = null, url = null, resolu = false;
+      let flux = null, url = null, resolu = false, refus = 0;
       const overlay = document.createElement('div');
       overlay.className = 'camera-overlay';
       document.body.appendChild(overlay);
@@ -139,19 +140,27 @@
         const q = guide.evaluerQualite(ctx.getImageData(0, 0, r.w, r.h).data, r.w, r.h);
         const delai = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
         global.__nexusCaptureGuideeDernierDelaiMs = delai;
-        if (!q.ok) { montrerRejet(wrap, q.message); return true; }
-        canvas.toBlob(blob => {
+        refus = guide.refusSuivant(refus, q);
+        const ancien = wrap.querySelector('.camera-rejet'); if (ancien) ancien.remove();
+        const versApercu = forcee => canvas.toBlob(blob => {
           if (!blob) { repli("La photo n'a pas pu être capturée. Utilisez l'appareil photo de votre téléphone à la place."); return; }
           url = URL.createObjectURL(blob);
-          apercu(blob);
+          apercu(blob, forcee);
         }, 'image/jpeg', 0.92);
+        if (!q.ok) { montrerRejet(wrap, q.message, guide.forcagePropose(refus) ? () => versApercu(q) : null); return true; }
+        versApercu(null);
         return true;
       }
-      function montrerRejet(wrap, message) {
-        const ancien = wrap.querySelector('.camera-rejet'); if (ancien) ancien.remove();
-        const m = document.createElement('div'); m.className = 'camera-rejet'; m.setAttribute('role', 'alert'); m.textContent = message;
+      // Sans bouton, le message disparaît seul ; avec « Envoyer quand même » (2e refus consécutif), il reste jusqu'au choix.
+      function montrerRejet(wrap, message, forcer) {
+        const m = document.createElement('div'); m.className = 'camera-rejet'; m.setAttribute('role', 'alert');
+        const t = document.createElement('div'); t.textContent = message; m.appendChild(t);
+        if (forcer) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'camera-btn-forcer'; b.setAttribute('data-forcer', ''); b.textContent = 'Envoyer quand même';
+          b.addEventListener('click', () => { m.remove(); forcer(); });
+          m.appendChild(b);
+        } else setTimeout(() => m.remove(), 4000);
         wrap.appendChild(m);
-        setTimeout(() => m.remove(), 4000);
       }
       function capturer(video) {
         if (guide && capturerGuide(video)) return;
@@ -164,12 +173,16 @@
           apercu(blob);
         }, 'image/jpeg', 0.92);
       }
-      function apercu(blob) {
+      function apercu(blob, forcee) {
         overlay.innerHTML = `<div class="camera-video-wrap"><div class="camera-consigne">${consigne}</div><div class="camera-close" data-fermer>✕</div><img src="${url}" alt="Photo prise"></div>
           <div class="camera-controls-preview"><button type="button" class="camera-btn-texte reprendre" data-reprendre>Reprendre</button><button type="button" class="camera-btn-texte valider" data-valider>Valider cette photo</button></div>`;
         overlay.querySelector('[data-fermer]').addEventListener('click', () => fermer(null));
         overlay.querySelector('[data-reprendre]').addEventListener('click', () => { libererUrl(); vue(); });
-        overlay.querySelector('[data-valider]').addEventListener('click', () => fermer(new File([blob], 'photo.jpg', { type: 'image/jpeg' })));
+        overlay.querySelector('[data-valider]').addEventListener('click', () => {
+          const f = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+          if (forcee) f.qualiteForcee = guide.descriptifForcee(forcee);
+          fermer(f);
+        });
       }
       demarrer();
     });

@@ -115,9 +115,22 @@
     return { ok: motif === null, motif, nettete, reflet, message: motif === 'reflet' ? MESSAGE_REFLET : motif === 'flou' ? MESSAGE_FLOU : '' };
   }
 
+  // « Envoyer quand même » : après SEUIL_REFUS_FORCER refus consécutifs, la photo peut partir malgré le verdict.
+  // Elle est alors marquée (qualite_forcee) avec la netteté et le reflet mesurés, pour calibrer les seuils plus tard.
+  const SEUIL_REFUS_FORCER = 2;
+  const refusSuivant = (compteur, q) => (q && q.ok) ? 0 : compteur + 1;
+  const forcagePropose = compteur => compteur >= SEUIL_REFUS_FORCER;
+  const descriptifForcee = q => ({ qualite_forcee: true, nettete: q.nettete, reflet: q.reflet, motif: q.motif });
+  // Marque portée par le nom de l'objet (aucune colonne dédiée dans documents_ocr_file) : _qforcee-n<netteté>-r<reflet en ‰>.
+  // Placée après date_uid_<ms> : la politique de stockage (date, uid, extension) la laisse passer.
+  function suffixeNomForcee(d) {
+    if (!d || d.qualite_forcee !== true) return '';
+    return '_qforcee-n' + Math.round(d.nettete) + '-r' + Math.round(d.reflet * 1000);
+  }
+
   const GUIDE_JAUGEAGE = Object.freeze({ consigne: CONSIGNE });
 
   return { PROPORTION_ECRAN, LARGEUR_CADRE, HAUTEUR_CADRE_MAX, MARGE_RECADRAGE, LARGEUR_ANALYSE, NIVEAU_BLANC, SEUIL_REFLET, SEUIL_NETTETE,
-    CONSIGNE, MESSAGE_FLOU, MESSAGE_REFLET, GUIDE_JAUGEAGE,
+    CONSIGNE, MESSAGE_FLOU, MESSAGE_REFLET, GUIDE_JAUGEAGE, SEUIL_REFUS_FORCER, refusSuivant, forcagePropose, descriptifForcee, suffixeNomForcee,
     calculerCadre, cadreEnVideo, calculerRecadrage, reduireEnGris, mesurerNettete, mesurerReflet, evaluerQualite };
 });
