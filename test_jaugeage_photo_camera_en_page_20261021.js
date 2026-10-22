@@ -70,8 +70,8 @@ t('Relevés piste : aucun .catch() chaîné sur rpc() (le builder supabase-js n\
 });
 t('Relevés piste : sur l\'écran jaugeage le bandeau dit l\'état du jaugeage, pas celui des index', () => {
   const i = rel.indexOf('function majEtat');
-  const corps = rel.slice(i, i + 700);
-  assert.ok(/ecran === 'jauge'/.test(corps) && corps.indexOf("ecran === 'jauge'") < corps.indexOf('sauverLocalTest()'));
+  const corps = rel.slice(i, i + 1300);
+  assert.ok(/ecran === 'jauge'/.test(corps) && corps.indexOf("ecran === 'jauge'") < corps.indexOf('localEcrit'));
 });
 t('Relevés piste : après enregistrement, « Jaugeage enregistré : » remplace le bloc de correction', () => {
   assert.ok(/jauge\.enregistre\) \? `<div class="card"><h2>Jaugeage enregistré<\/h2>/.test(rel));

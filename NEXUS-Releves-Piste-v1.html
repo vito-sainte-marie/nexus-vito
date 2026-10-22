@@ -62,9 +62,12 @@
   .gnr{opacity:.75}
   .pastille{display:inline-block;font-size:11px;border:1px solid var(--hair);border-radius:99px;padding:2px 8px;color:var(--mid)}
   .progres{color:var(--mid);font-size:13px;margin-bottom:8px}
+  .sortie-barre{max-width:460px;margin:0 auto;padding:12px 16px 0}
+  .sortie{display:inline-flex;align-items:center;min-height:44px;color:var(--cyan);font-size:14px;font-weight:600;text-decoration:none}
 </style>
 </head>
 <body>
+<nav class="sortie-barre"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l'Accueil</a></nav>
 <div class="phone" id="app"><div class="card">Chargement…</div></div>
 <div class="etat" id="etat">…</div>
 <script>
@@ -84,9 +87,20 @@
   const cleBrouillon = () => `nexus_releves_piste_${emp.id}_${date}_${moment}`;
 
   // Brouillon local — try/catch obligatoire (navigation privée, stockage bloqué).
+  // localEcrit : null = aucune saisie écrite sur l'appareil, true = au moins une saisie réellement écrite, false = écriture refusée.
+  let localEcrit = null;
   function sauverLocal() {
-    try { localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, modeComplet, refStatut, visuel, pompe, ecran, t: Date.now() })); return true; }
-    catch (e) { return false; }
+    try {
+      localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, modeComplet, refStatut, visuel, pompe, ecran, t: Date.now() }));
+      if (Object.keys(saisies).some(k => saisies[k])) localEcrit = true;
+      return true;
+    }
+    catch (e) { localEcrit = false; return false; }
+  }
+  // Sortie vers l'Accueil : on range les brouillons (index et jaugeage) sans en supprimer aucun.
+  function sauverAvantSortie() {
+    if (moment) sauverLocal();
+    if (emp && date) sauverJauge();
   }
   function lireLocal() {
     try { const s = localStorage.getItem(cleBrouillon()); return s ? JSON.parse(s) : null; } catch (e) { return null; }
@@ -114,13 +128,14 @@
         : (reseau.ok ? 'Jaugeage non enregistré : saisie en cours' : '<b class="ko">Hors connexion : jaugeage non enregistré</b>');
       return;
     }
-    const local = sauverLocalTest();
     const srv = serveur.final ? '<b class="bon">validé sur le serveur</b>'
       : (reseau.ok ? (serveur.releveId ? '<b class="bon">brouillon enregistré sur le serveur</b>' : 'pas encore envoyé au serveur')
         : '<b class="ko">hors connexion, non envoyé au serveur</b>');
-    $('etat').innerHTML = `${local ? 'Enregistré sur l\'appareil' : '<b class="ko">Stockage de l\'appareil indisponible</b>'} · ${srv}`;
+    // Le bandeau rend compte, il n'écrit pas : « Enregistré » seulement si une saisie a réellement été écrite sur l'appareil.
+    const local = localEcrit === true ? 'Enregistré sur l\'appareil'
+      : (localEcrit === false ? '<b class="ko">Stockage de l\'appareil indisponible</b>' : 'Aucune saisie pour l\'instant');
+    $('etat').innerHTML = `${local} · ${srv}`;
   }
-  function sauverLocalTest() { return moment ? sauverLocal() : true; }
 
   window.addEventListener('online', () => { reseau.ok = true; synchroniser(); });
   window.addEventListener('offline', () => { reseau.ok = false; majEtat(); });
@@ -471,6 +486,7 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act;
     if (a === 'tick') return; // géré au change
+    if (a === 'sortie') { sauverAvantSortie(); return; }
     if (a === 'complet') { const k = b.dataset.k; modeComplet[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; visuel[pompe] = false; sauverLocal(); rendre(); focus(k); return; }
     if (a === 'toutcocher') {
       b.disabled = true;
@@ -491,7 +507,7 @@
     if (a === 'jrafraichir') { await actualiserLecture(); return; }
     if (a === 'jprendre') { const p = jauge.propositions[b.dataset.k]; if (p && p.volume_l != null) { jauge.saisies[b.dataset.k] = String(p.volume_l); jauge.confirme = false; } rendre(); return; }
     if (a === 'moment') { moment = b.dataset.m; await ouvrirMoment(); return; }
-    if (a === 'choix') { moment = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
+    if (a === 'choix') { moment = null; localEcrit = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
     if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
     if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
@@ -538,8 +554,9 @@
   async function ouvrirMoment() {
     saisies = {}; motifs = {}; modeComplet = {}; refStatut = {}; visuel = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
     await chargerPrecedents(); await chargerFinQ1();
+    localEcrit = null;
     const loc = lireLocal();
-    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; modeComplet = loc.modeComplet || {}; refStatut = loc.refStatut || {}; visuel = loc.visuel || {}; pompe = loc.pompe || 1; }
+    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; modeComplet = loc.modeComplet || {}; refStatut = loc.refStatut || {}; visuel = loc.visuel || {}; pompe = loc.pompe || 1; if (Object.keys(saisies).some(k => saisies[k])) localEcrit = true; }
     try {
       const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
       if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; await chargerValeursServeur(); }
