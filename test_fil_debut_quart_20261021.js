@@ -18,6 +18,7 @@ const SRC = {
   pdp: lire('NEXUS-Prise-De-Poste-v1.html'),
   inv: lire('NEXUS-Inventaire-v1.html'),
   app: lire('NEXUS-App-v1.html'),
+  jeu: lire('supabase/recette-jeux/20261021_jeu_recette_fil_debut_quart.sql'),
 };
 
 function charger(src) {
@@ -230,6 +231,16 @@ function epreuves(S) {
     assert.ok(/produitsRequis\(produitsZoneOuverturePourQuart\(\)\)/.test(code), 'les produits requis ne sont plus ceux du fil');
   });
 
+  eprouve('J1 Jeu de recette Test : écailles présentes, rejouable sans doublon, jamais Production', () => {
+    const sql = S.jeu;
+    assert.ok(/'Écailles'/.test(sql), 'la catégorie Écailles est au jeu de recette');
+    assert.ok(/'Huiles'/.test(sql) && /Lave-glace/.test(sql), 'huiles et lave-glace y figurent pour prouver leur exclusion');
+    const inserts = (sql.match(/^insert into/gim) || []).length;
+    assert.ok(inserts >= 3 && (sql.match(/on conflict \([^)]*\) do nothing/gi) || []).length === inserts, 'chaque insertion est idempotente (ON CONFLICT DO NOTHING)');
+    assert.ok(/nexus-station-test/.test(sql) && /raise exception/i.test(sql), 'garde : site de Test seul, arrêt sans écriture sinon');
+    assert.ok(!/schema_migrations/.test(sql.replace(/--.*$/gm, '')), 'ce n\'est pas une migration');
+  });
+
   // --- Accueil ---
   const A = S.app;
   eprouve('A3 Accueil : arrivée à pointer, l\'entrée ?fil=demarrer ne redirige pas (le pointage d\'abord, comme determinerProchaineActionEmploye)', () => {
@@ -257,7 +268,7 @@ const ok = (l) => { n++; console.log('OK —', l); };
 
 const echecs = epreuves(SRC);
 if (echecs.length) { echecs.forEach(e => console.error('ROUGE —', e)); console.error(`${echecs.length} épreuve(s) rouge(s) sur la source réelle.`); process.exit(1); }
-ok('la source réelle passe toutes les épreuves (F1–F8 dont F2b–F2e, R1–R5, P1–P2, I1–I5, A1–A3)');
+ok('la source réelle passe toutes les épreuves (F1–F8 dont F2b–F2e, R1–R5, P1–P2, I1–I5, J1, A1–A3)');
 
 function muter(nom, cle, de, vers, attendu) {
   assert.ok(SRC[cle].includes(de), `mutation « ${nom} » : ancre introuvable`);
@@ -318,4 +329,6 @@ muter('l\'entrée explicite du fil disparaît', 'app', "if (filLien && !(pointag
 muter('boucle de validation ne saute plus les non-comptés', 'inv', "if (!saisie || saisie.compte === undefined) continue;\n      nbComptes++;", "if (!saisie) continue;\n      nbComptes++;", 'I5');
 muter('parcours sur toute la zone', 'inv', "grouperParCategorie(produitsZoneOuverturePourQuart())", "grouperParCategorie(produitsZone)", 'I5');
 muter('saisie par défaut pour toute la zone', 'inv', "    let nbComptes = 0, nbEcarts = 0;\n", "    produitsZone.forEach(p => { if (!comptagesSaisie[p.id]) comptagesSaisie[p.id] = { compte: 0, ecartNonNul: false, justification: '' }; });\n    let nbComptes = 0, nbEcarts = 0;\n", 'I5');
+muter('jeu de recette sans ON CONFLICT sur les catégories', 'jeu', "on conflict (site, nom) do nothing", "", 'J1');
+muter('jeu de recette sans garde de site', 'jeu', "raise exception", "raise notice", 'J1');
 console.log(`\n${n} contrôles OK`);
