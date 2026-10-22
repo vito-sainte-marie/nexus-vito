@@ -2555,8 +2555,6 @@
     const filLien = (enService && resteDuFil && roleDuJour === 'pompiste') ? NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait }) : null;
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
-    // Entrée dans le fil depuis la prise de poste : l'Accueil, qui a les faits du jour, ouvre la première étape restante.
-    if (filLien && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
     // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
     // en tête de cette fonction (voir « En service », notion unique).
@@ -2619,6 +2617,8 @@
       estManager: false,
     });
 
+    // Entrée dans le fil depuis la prise de poste : l'Accueil, qui a les faits du jour, ouvre la première étape restante — sauf si l'arrivée reste à pointer : le pointage d'abord, comme determinerProchaineActionEmploye.
+    if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }
     const ctx = {
       enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,

@@ -179,8 +179,14 @@ function epreuves(S) {
   eprouve('P1 Prise de poste : le pompiste entre dans le fil, plus dans Missions', () => {
     assert.ok(/<script src="nexus-fil-debut-quart\.js[^"]*"><\/script>/.test(P), 'script non chargé');
     assert.ok(/window\.location\.href = NexusFilDebutQuart\.ACCUEIL_DEMARRAGE;/.test(P), 'redirection vers le fil absente');
-    assert.ok(!/NEXUS-Missions-v1\.html/.test(/btnDashboard'\)\.addEventListener\('click'[\s\S]*?\n    \}\);/.exec(P)[0].replace(/\/\/.*$/gm, '')), 'Missions reste la destination');
+    assert.ok(!/NEXUS-Missions-v1\.html/.test(/ACCUEIL_DEMARRAGE;/.exec(P) ? P.slice(P.indexOf('ACCUEIL_DEMARRAGE;'), P.indexOf('ACCUEIL_DEMARRAGE;') + 60) : 'Missions'), 'Missions reste la destination du pompiste');
     assert.ok(/ACCUEIL_DEMARRAGE = 'NEXUS-App-v1\.html\?fil=demarrer'/.test(S.module), 'entrée par l\'Accueil absente');
+  });
+  eprouve('P3 Prise de poste : seul le pompiste entre dans le fil ; caissière, renfort, polyvalent gardent Missions et « Ouvrir mon tableau de bord »', () => {
+    const clic = /btnDashboard'\)\.addEventListener\('click'[\s\S]*?\n    \}\);/.exec(P)[0].replace(/\/\/.*$/gm, '');
+    assert.ok(/if \(roleChoisi !== 'pompiste'\) \{ window\.location\.href = 'NEXUS-Missions-v1\.html'; return; \}/.test(clic), 'les autres rôles ne gardent pas Missions');
+    assert.ok(clic.indexOf("roleChoisi !== 'pompiste'") < clic.indexOf('ACCUEIL_DEMARRAGE'), 'le fil s\'ouvre avant le contrôle du rôle');
+    assert.ok(/estNiveauManagerCourant\(\) \? 'Ouvrir mon poste de pilotage' : \(roleChoisi === 'pompiste' \? 'Commencer mon début de quart' : 'Ouvrir mon tableau de bord'\)/.test(P), 'libellé d\'avant perdu pour les autres rôles');
   });
   eprouve('P2 le moment de début suit le quart du jour (calculé à l\'Accueil, qui connaît les faits)', () => {
     assert.ok(/NexusRelevesPiste\.momentDebutDuQuart\(quartDuJour\)/.test(S.app), 'moment non déduit du quart');
@@ -213,10 +219,17 @@ function epreuves(S) {
 
   // --- Accueil ---
   const A = S.app;
+  eprouve('A3 Accueil : arrivée à pointer, l\'entrée ?fil=demarrer ne redirige pas (le pointage d\'abord, comme determinerProchaineActionEmploye)', () => {
+    const i = S.app.indexOf('NexusFilDebutQuart.demarrageDemande(location.search)');
+    assert.ok(i > 0, 'entrée du fil absente');
+    const ligne = S.app.slice(S.app.lastIndexOf('\n', i), S.app.indexOf('\n', i));
+    assert.ok(/!\(pointageActifSite && prochainPointageEffectif === 'arrivee'\)/.test(ligne), 'l\'arrivée non pointée ne bloque pas l\'entrée');
+    assert.ok(i > S.app.indexOf('const prochainPointageEffectif ='), 'la redirection précède le calcul du pointage');
+  });
   eprouve('A1 Accueil : un lien de reprise du fil, calculé d\'après les faits, sans retirer Missions', () => {
     assert.ok(/Reprendre mon début de quart →/.test(A), 'libellé absent');
     assert.ok(/NexusFilDebutQuart\.urlRepriseSelonFaits\(localStorage, employee\.id, todayISO, momentIndexDebut, \{ resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait \}\)/.test(A), 'reprise non calculée sur les faits');
-    assert.ok(/if \(filLien && NexusFilDebutQuart\.demarrageDemande\(location\.search\)\) \{ window\.location\.replace\(filLien\); return; \}/.test(A), 'l\'entrée explicite du fil est absente');
+    assert.ok(/if \(filLien && !\(pointageActifSite && prochainPointageEffectif === 'arrivee'\) && NexusFilDebutQuart\.demarrageDemande\(location\.search\)\) \{ window\.location\.replace\(filLien\); return; \}/.test(A), 'l\'entrée explicite du fil est absente');
     assert.ok(/enService && resteDuFil && roleDuJour === 'pompiste'/.test(A), 'le lien est montré hors service ou à un autre rôle');
     assert.ok(/NEXUS-Missions-v1\.html/.test(A), 'l\'accès à Missions a disparu de l\'Accueil');
   });
@@ -282,8 +295,11 @@ muter('catalogue complet à l\'étape 3', 'inv', "FIL.categorieDuFil(p.inventair
 muter('progression absente de l\'inventaire', 'inv', 'id="filProgres"', 'id="x"', 'I4');
 muter('la fin ne rend pas à l\'Accueil', 'inv', "window.location.href = FIL.ACCUEIL;", "", 'I4');
 muter('bouton final de l\'inventaire', 'inv', "addEventListener('click', enFil() ? filTerminer : renderAccueil)", "addEventListener('click', renderAccueil)", 'I4');
+muter('pointage ignoré à l\'entrée', 'app', "if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart", "if (filLien && NexusFilDebutQuart", 'A3');
+muter('tous les rôles dans le fil', 'pdp', "if (roleChoisi !== 'pompiste') { window.location.href = 'NEXUS-Missions-v1.html'; return; }", "", 'P3');
+muter('libellé unique', 'pdp', "(roleChoisi === 'pompiste' ? 'Commencer mon début de quart' : 'Ouvrir mon tableau de bord')", "'Commencer mon début de quart'", 'P3');
 muter('lien de reprise montré à tous', 'app', "enService && resteDuFil && roleDuJour === 'pompiste'", "resteDuFil", 'A1');
 muter('reprise ignore les faits', 'app', "resteJaugeage: jaugeageApplicable && !jaugeageFait, ", "resteJaugeage: true, ", 'A1');
 muter('l\'inventaire fait reste dans le fil', 'app', "resteInventaire: inventaireApplicable && !inventaireFait", "resteInventaire: true", 'A1');
-muter('l\'entrée explicite du fil disparaît', 'app', "if (filLien && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }", "", 'A1');
+muter('l\'entrée explicite du fil disparaît', 'app', "if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }", "", 'A1');
 console.log(`\n${n} contrôles OK`);
