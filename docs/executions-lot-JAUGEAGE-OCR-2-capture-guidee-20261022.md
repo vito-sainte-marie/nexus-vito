@@ -15,3 +15,6 @@ Code : branche applicative `jaug-capture-guidee`, commit `7d98a1a7`, **PR #149 e
 
 ## Reste (gestes humains, dans l'ordre de decision-4)
 Validation de la capture sur iPhone réel ; quinze photos sans donnée personnelle ; calibration des seuils ; étape B iMac en parallèle, avec Frédéric. Les seuils ne sont pas définitifs avant.
+
+## Correction du 22/10/2026 (ajout, texte d'origine inchangé)
+La CI `non-regression` était **rouge** sur `7d98a1a7` (runs 39829305389 et 39829333313) : `test_jaugeage_capture_guidee_20261022.js` cherchait le jeton `?v=` en chiffres seulement, or `outils/build.sh`, lancé par la CI avant la suite, le remplace par l'empreinte hexadécimale. Ce compte rendu ne le disait pas. Correctif : `20f9286c` (épreuve seule, module inchangé) ; CI verte sur ce commit ; 52 vérifications avant et après build, mutations 14 sur 14.
