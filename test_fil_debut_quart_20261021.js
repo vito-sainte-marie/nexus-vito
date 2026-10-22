@@ -217,6 +217,19 @@ function epreuves(S) {
     assert.ok(/sauvegarderDraft\('ouverture'\)/.test(/function filSauverAvantSortie[\s\S]*?\n  \}/.exec(I)[0]), 'brouillon non rangé');
   });
 
+  eprouve('I5 Inventaire : les catégories non comptées par le fil (huiles, lave-glace) ne deviennent ni un stock à zéro ni un écart à la validation', () => {
+    const v = /async function validerOuverture\(\) \{[\s\S]*?\n  \}\n/.exec(I);
+    assert.ok(v, 'validerOuverture introuvable');
+    // La boucle de validation saute tout produit sans saisie : un produit non compté n'est ni écrit à 0 ni comparé au stock transmis.
+    assert.ok(/for \(const p of produitsZone\) \{\s*const saisie = comptagesSaisie\[p\.id\];\s*if \(!saisie \|\| saisie\.compte === undefined\) continue;/.test(v[0]), 'la boucle ne saute plus les produits sans saisie');
+    // Aucune saisie n'est créée d'office pour l'ensemble de la zone (ce qui compterait huiles et lave-glace à zéro).
+    const code = I.replace(/\/\/.*$/gm, '');
+    assert.ok(!/produitsZone\.(forEach|map)\([^)]*comptagesSaisie/.test(code) && !/for \(const \w+ of produitsZone\) \{[^}]*comptagesSaisie\[\w+\.id\] =/.test(code), 'une saisie par défaut est créée pour toute la zone');
+    // Les écrans de saisie et la validation en bloc d'une catégorie ne partent que des groupes du parcours, déjà filtrés.
+    assert.ok(/grouperParCategorie\(produitsZoneOuverturePourQuart\(\)\)/.test(code), 'le parcours ne part plus des produits filtrés du fil');
+    assert.ok(/produitsRequis\(produitsZoneOuverturePourQuart\(\)\)/.test(code), 'les produits requis ne sont plus ceux du fil');
+  });
+
   // --- Accueil ---
   const A = S.app;
   eprouve('A3 Accueil : arrivée à pointer, l\'entrée ?fil=demarrer ne redirige pas (le pointage d\'abord, comme determinerProchaineActionEmploye)', () => {
@@ -244,7 +257,7 @@ const ok = (l) => { n++; console.log('OK —', l); };
 
 const echecs = epreuves(SRC);
 if (echecs.length) { echecs.forEach(e => console.error('ROUGE —', e)); console.error(`${echecs.length} épreuve(s) rouge(s) sur la source réelle.`); process.exit(1); }
-ok('la source réelle passe toutes les épreuves (F1–F8 dont F2b–F2e, R1–R5, P1–P2, I1–I4, A1–A2)');
+ok('la source réelle passe toutes les épreuves (F1–F8 dont F2b–F2e, R1–R5, P1–P2, I1–I5, A1–A3)');
 
 function muter(nom, cle, de, vers, attendu) {
   assert.ok(SRC[cle].includes(de), `mutation « ${nom} » : ancre introuvable`);
@@ -302,4 +315,7 @@ muter('lien de reprise montré à tous', 'app', "enService && resteDuFil && role
 muter('reprise ignore les faits', 'app', "resteJaugeage: jaugeageApplicable && !jaugeageFait, ", "resteJaugeage: true, ", 'A1');
 muter('l\'inventaire fait reste dans le fil', 'app', "resteInventaire: inventaireApplicable && !inventaireFait", "resteInventaire: true", 'A1');
 muter('l\'entrée explicite du fil disparaît', 'app', "if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }", "", 'A1');
+muter('boucle de validation ne saute plus les non-comptés', 'inv', "if (!saisie || saisie.compte === undefined) continue;\n      nbComptes++;", "if (!saisie) continue;\n      nbComptes++;", 'I5');
+muter('parcours sur toute la zone', 'inv', "grouperParCategorie(produitsZoneOuverturePourQuart())", "grouperParCategorie(produitsZone)", 'I5');
+muter('saisie par défaut pour toute la zone', 'inv', "    let nbComptes = 0, nbEcarts = 0;\n", "    produitsZone.forEach(p => { if (!comptagesSaisie[p.id]) comptagesSaisie[p.id] = { compte: 0, ecartNonNul: false, justification: '' }; });\n    let nbComptes = 0, nbEcarts = 0;\n", 'I5');
 console.log(`\n${n} contrôles OK`);
