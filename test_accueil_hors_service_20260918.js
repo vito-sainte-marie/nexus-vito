@@ -797,7 +797,7 @@ async function cas(nom, entree, controles) {
     'écriture trouvée dans initAccueilEmploye');
   // Lot 2 (21/10/2026) : une seule exception, nommée, jamais d'office — l'entrée explicite `?fil=demarrer` posée par la prise de poste
   // ouvre le fil « Mon début de quart » (l'Accueil connaît les faits du jour, la prise de poste non). Toute autre redirection reste interdite.
-  const EXCEPTION_FIL = "if (filLien && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }";
+  const EXCEPTION_FIL = "if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart.demarrageDemande(location.search)) { window.location.replace(filLien); return; }";
   verifierQue('E2 · doctrine', 'aucune redirection d’office depuis l’accueil (hors entrée explicite du fil)',
     SRC_INIT.split(EXCEPTION_FIL).length - 1 === 1 && !/location\.(href|replace)/.test(SRC_INIT.split(EXCEPTION_FIL).join('')), 'redirection trouvée dans initAccueilEmploye');
   verifierQue('E3 · doctrine', 'roleADroitModule laisse passer un rôle inconnu (Article 5)',
