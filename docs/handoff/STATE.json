@@ -1,6 +1,6 @@
 {
   "protocol": "nexus-handoff/2",
-  "lot_actif": "JAUGEAGE-OCR-2-20261022",
+  "lot_actif": "OUTILLAGE-PRISE-EN-CHARGE-20261022",
   "legacy_before_v2": {
     "note": "Les lots S-4 et S-5 se sont déroulés sous le protocole v1, avant l'existence du registre. Ils ne sont PAS reconstruits ici : leurs échanges restent lisibles à leurs commits Git. Fabriquer après coup des request-n.md et decision-n.md qui n'ont jamais existé serait inventer un passé plausible — la règle posée en A18 et reprise en S-5/Q7.",
     "lots": [
@@ -792,6 +792,11 @@
       "commit_decision": "09df8632d16450479a62400b9200614027bef1c7",
       "preuve_action": "7ffdb7e88cb6ed33ec1c1400b1976224ec86b2ff",
       "consomme_le": "2026-10-22T21:54:50.031Z"
+    },
+    "OUTILLAGE-PRISE-EN-CHARGE-20261022": {
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-1.md",
+      "rail": "handoff-continuite-20260920"
     }
   },
   "artefacts_hors_registre": [
