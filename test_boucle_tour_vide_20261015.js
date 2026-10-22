@@ -58,7 +58,8 @@ function banc({ closes = false } = {}) {
   // provenance, continuent de mesurer ce qu'elles mesurent déjà.
   valider('registre d\'épreuve', ['user.name=github-actions[bot]', 'user.email=41898282+github-actions[bot]@users.noreply.github.com']);
   const outil = (...a) => {
-    try { return { code: 0, sortie: execFileSync('node', [path.join(clone, 'outils', 'handoff.js'), ...a], { cwd: clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir } }) }; }
+    const envPlus = (a.length && typeof a[a.length - 1] === 'object' && a[a.length - 1] !== null) ? a.pop() : {};
+    try { return { code: 0, sortie: execFileSync('node', [path.join(clone, 'outils', 'handoff.js'), ...a], { cwd: clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXUS_HANDOFF_DIR: dir, ...envPlus } }) }; }
     catch (e) { return { code: e.status, sortie: (e.stdout || '') + (e.stderr || '') }; }
   };
   return { clone, dir, tmp, outil, valider, etat: () => JSON.parse(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8')) };
@@ -222,6 +223,75 @@ epreuve('S16 — un registre invalide refuse toute prise en charge', () => {
   const e = b.etat(); e.lots[LOT].statut = 'N_IMPORTE_QUOI';
   fs.writeFileSync(path.join(b.dir, 'STATE.json'), JSON.stringify(e, null, 2) + '\n'); b.valider('registre cassé');
   KO(b.outil('consommer', LOT, '--prise-en-charge'));
+});
+
+// ── OUTILLAGE-PRISE-EN-CHARGE-20261022 : identité de prise en charge ──────
+// Le 22/10, decision-1 de JAUGEAGE-SAISIE-DIRECTE a été exécutée deux fois
+// (c3eda0c2, session interactive ; 6c20b192, réveil autonome) : rien ne
+// comparait qui avait déjà pris la décision en charge. `--prise-en-charge`
+// compare désormais l'identité de CANAL (jamais l'auteur Git).
+const CANAL = (nexusCanal, githubActions) => ({ NEXUS_CANAL: nexusCanal || '', GITHUB_ACTIONS: githubActions || '' });
+const SESSION_LOCALE = CANAL('', '');
+const RUNNER = CANAL('', 'true');
+
+epreuve('S17 — RED : un exécutant différent se voit refuser la prise en charge, avec identité, date et commit', () => {
+  const b = banc();
+  OK(b.outil('consommer', LOT, '--prise-en-charge', SESSION_LOCALE));
+  const avant = b.etat().lots[LOT];
+  assert.strictEqual(avant.pris_en_charge_par, 'session-locale');
+  const r = b.outil('consommer', LOT, '--prise-en-charge', RUNNER);
+  KO(r, /DECISION_DEJA_PRISE_EN_CHARGE/);
+  assert.ok(r.sortie.includes('session-locale'), `identité initiale attendue :\n${r.sortie}`);
+  assert.ok(r.sortie.includes(avant.pris_en_charge_le), `date attendue :\n${r.sortie}`);
+  assert.ok(r.sortie.includes(avant.commit_decision.slice(0, 7)), `commit attendu :\n${r.sortie}`);
+  assert.ok(r.sortie.includes('github-actions-claude'), `exécutant courant attendu :\n${r.sortie}`);
+  // Rien ne bouge : le refus est bien un refus, pas une consommation déguisée.
+  assert.deepStrictEqual(b.etat().lots[LOT], avant);
+});
+epreuve('S18 — cas voisin vert : le même exécutant qui reprend reste idempotent', () => {
+  const b = banc();
+  OK(b.outil('consommer', LOT, '--prise-en-charge', RUNNER));
+  const r = b.outil('consommer', LOT, '--prise-en-charge', RUNNER);
+  OK(r); assert.ok(/déjà pris en charge/i.test(r.sortie), r.sortie);
+  assert.strictEqual(b.etat().lots[LOT].pris_en_charge_par, 'github-actions-claude');
+});
+epreuve('S19 — cas voisin vert : lot sans exécutant désigné (pris en charge avant ce correctif) reste permissif', () => {
+  const b = banc();
+  OK(b.outil('consommer', LOT, '--prise-en-charge', SESSION_LOCALE));
+  const e = b.etat(); delete e.lots[LOT].pris_en_charge_par; // simule une prise en charge antérieure au champ
+  fs.writeFileSync(path.join(b.dir, 'STATE.json'), JSON.stringify(e, null, 2) + '\n'); b.valider('registre sans exécutant désigné');
+  const r = b.outil('consommer', LOT, '--prise-en-charge', RUNNER);
+  OK(r); assert.ok(/déjà pris en charge/i.test(r.sortie), r.sortie);
+});
+epreuve('S20 — cas voisin vert : une décision closes:true n\'est jamais soumise à la comparaison d\'exécutant', () => {
+  const b = banc({ closes: true });
+  OK(b.outil('consommer', LOT, SESSION_LOCALE));
+  assert.strictEqual(b.etat().lots[LOT].statut, 'DECISION_CONSOMMEE');
+  OK(b.outil('verifier'));
+});
+epreuve('S21 — mutation : neutraliser la comparaison d\'exécutant doit faire rougir l\'épreuve', () => {
+  const { executantConflit } = require(path.join(RACINE, 'outils', 'handoff.js'));
+  // La fonction réelle : un désaccord d'identité est un conflit, une absence
+  // d'identité précédente ou une identité identique ne l'est jamais.
+  assert.strictEqual(executantConflit('session-locale', 'github-actions-claude'), true);
+  assert.strictEqual(executantConflit('github-actions-claude', 'github-actions-claude'), false);
+  assert.strictEqual(executantConflit(undefined, 'github-actions-claude'), false);
+  assert.strictEqual(executantConflit('', 'github-actions-claude'), false);
+  const controle = (f) => {
+    assert.strictEqual(f('session-locale', 'github-actions-claude'), true, 'un vrai désaccord doit mordre');
+    assert.strictEqual(f('github-actions-claude', 'github-actions-claude'), false, 'la reprise par le même exécutant ne mord pas');
+    assert.strictEqual(f(undefined, 'github-actions-claude'), false, 'l\'absence d\'exécutant désigné ne mord pas');
+  };
+  controle(executantConflit);
+  const mutants = {
+    'toujours vrai': () => true,
+    'toujours faux (neutralise le refus)': () => false,
+    'ignore le précédent': (_p, c) => executantConflit(c, c),
+    'compare par égalité au lieu de différence': (p, c) => p === c,
+  };
+  for (const [nom, f] of Object.entries(mutants)) {
+    assert.throws(() => controle(f), `le mutant « ${nom} » n'est pas détecté`);
+  }
 });
 
 console.log(`\n${total - echecs}/${total} scénarios`);

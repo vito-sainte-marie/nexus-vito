@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-10-15",
+  "updated_at": "2026-10-22",
   "rules": [
     {
       "id": "ENV-001",
@@ -350,6 +350,20 @@
       "severity": "blocking",
       "rule": "A decision is consumed only after its action is executed and proven (a work commit outside docs/handoff/, an ancestor of HEAD) or after a stop is materialised (a request deposited during the take-over), or when it closes (closes:true). Take-over is ATTENTE_CONSOMMATION_DECISION (consommer --prise-en-charge); bare consommer on a closes:false decision is refused with CONSOMMATION_SANS_PREUVE. A loop turn that leaves no file outside docs/handoff/ and no new request is TOUR_VIDE: it fails, alerts on Telegram, consumes nothing and is not replayed identically (stable action key = lot, decision, rail, sorted operations). Read by outils/garde-boucle-autonome.js evaluerTourVide and cleActionStable.",
       "source": "2026-10-15: runs 38667953549 (ff3e7720) and 38721886938 (b20d06bc) ended success having only consumed the decision; 2nd occurrence of TOUR_VIDE after 10/10 (run 38059658879) — INC-55a9e017edcd, INC-07f7e3baf5d6; lot NEXUS-BOUCLE-CONTRAT-1-20261015, test_boucle_tour_vide_20261015.js"
+    },
+    {
+      "id": "GOV-010",
+      "scope": [
+        "gouvernance",
+        "handoff",
+        "boucle_autonome",
+        "ci"
+      ],
+      "trigger": "seconde_prise_en_charge_par_un_executant_different",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "`consommer <lot> --prise-en-charge` compares a canal identity, never the git author or Co-Authored-By (a single session writes commits under different names): NEXUS_CANAL if declared, else github-actions-claude under GITHUB_ACTIONS=true, else session-locale. The identity is written once, at the first take-over (pris_en_charge_par). A second take-over of the same decision by a different identity is refused (REFUS DECISION_DEJA_PRISE_EN_CHARGE), naming the initial executant, its date and the decision commit; the same executant resuming, a closes:true decision, and a lot with no recorded executant (taken over before this field existed) all stay permissive. When a decision declares EXECUTANT_NEXT, a different executant that finds the rail already moved stops; re-assignment goes through a new decision from the competent arbiter, never a self-arbitrated override, except for one of the ten motifs reserved to Frederic (outils/classification-canal.js MOTIFS_STOP_FERMES). Promoted per GOV-002: a twice-solved problem does not get a third identical human analysis.",
+      "source": "2026-10-22: decision-1 of JAUGEAGE-SAISIE-DIRECTE-20261022 executed twice in parallel without either knowing the other (c3eda0c2, interactive session; 6c20b192, autonomous wake, ~3 minutes apart) — PR #148 designated canonical by request-3 of the same lot; near-miss of the same class reported for JAUGEAGE-OCR-2-20261022 decision-4 take-over (c87c5ca2) without a confirmed second commit found. Fixed by decision-1 of OUTILLAGE-PRISE-EN-CHARGE-20261022 (APPROVED_WITH_CONDITIONS): identiteExecutant/executantConflit in outils/handoff.js, test_boucle_tour_vide_20261015.js S17-S21 (red before the fix, green after, one mutation killed)."
     }
   ]
 }

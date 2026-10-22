@@ -524,6 +524,28 @@ function verifier(ignorer) {
   for (const e of erreurs) { const d = derogations.find(x => x.fichier === e.fichier && x.regle === e.code); if (d && CODES_NON_DEROGEABLES.includes(e.code)) restantes.push({ ...e, message: `${e.message}\n         (une dérogation existe mais ${e.code} est un invariant de sécurité : elle ne s'applique pas)` }); else if (d) avertir(`DÉROGATION ${d.regle} sur ${d.fichier} — ${e.message}\n         motif : ${d.motif}\n         autorisée par ${d.autorise_par}, le ${d.le}`); else if (ignorer && ignorer.includes(e.code)) avertir(`${e.code} toléré le temps de l'opération en cours — ${e.message}`); else restantes.push(e); }
   for (const a of avertissements) console.log(`AVERTISSEMENT — ${a}`); if (restantes.length) { for (const e of restantes) console.error(`ÉCHEC — ${e.message}`); console.error(`\n${restantes.length} violation(s) du protocole Handoff v2.`); return 1; } console.log(`Handoff v2 : registre, enveloppes et STATE.json conformes (${lots().length} lot(s), ${avertissements.length} avertissement(s), ${derogations.length} dérogation(s)).`); return 0;
 }
+// IDENTITÉ DE PRISE EN CHARGE — OUTILLAGE-PRISE-EN-CHARGE-20261022.
+//
+// Le 22/10, decision-1 de JAUGEAGE-SAISIE-DIRECTE a été exécutée deux fois en
+// parallèle (c3eda0c2, session interactive ; 6c20b192, réveil autonome) sans
+// que l'une sache l'autre : rien ne comparait qui avait pris la décision en
+// charge. L'auteur Git ou `Co-Authored-By` ne peut pas servir d'identité
+// canonique (une même session y écrit sous des noms différents selon le
+// commit) : l'identité vient du CANAL, déterminé par l'environnement
+// d'exécution — jamais par ce qu'un commit raconte de lui-même après coup.
+function identiteExecutant(env) {
+  const e = env || process.env;
+  if (typeof e.NEXUS_CANAL === 'string' && e.NEXUS_CANAL.trim()) return e.NEXUS_CANAL.trim();
+  if (String(e.GITHUB_ACTIONS || '') === 'true') return 'github-actions-claude';
+  return 'session-locale';
+}
+// Vraie sur un désaccord d'identité, jamais sur une absence d'identité
+// précédente : un lot pris en charge avant que ce champ existe (ou pour
+// toute autre raison sans exécutant consigné) n'a rien à comparer, et le
+// silence ne doit pas se lire comme un refus.
+function executantConflit(precedent, courant) {
+  return typeof precedent === 'string' && precedent.trim() !== '' && precedent !== courant;
+}
 // CONSOMMER N'EST PAS EXÉCUTER — INC-20261015-001, lot 1.
 //
 // 15/10/2026. decision-1 puis decision-2 de NEXUS-FDJ-STOCK-Q1-ABSENT ont été
@@ -584,9 +606,16 @@ function consommer(lot, opts) {
   const consigner = (extra) => { Object.assign(v, { statut: 'DECISION_CONSOMMEE', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, consomme_le: new Date().toISOString() }, extra); delete v.pris_en_charge_le; fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) marquée consommée pour ${lot}${extra && extra.preuve_action ? ` — action prouvée par ${String(extra.preuve_action).slice(0, 7)}` : ''}.`);
     const publication = publierEnAttente(); if (publication) process.exit(publication); };
   if (opts.priseEnCharge) {
-    if (priseEnCharge) { console.log(`Décision ${commit.slice(0, 7)} déjà pris en charge pour ${lot} depuis ${v.pris_en_charge_le} — rien à refaire ; sortir par --preuve-action, une demande de blocage (commande demande) ou --cloture.`); return; }
-    Object.assign(v, { statut: 'ATTENTE_CONSOMMATION_DECISION', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, pris_en_charge_le: new Date().toISOString() }); delete v.consomme_le; etat.lot_actif = lot;
-    fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) prise en charge pour ${lot} — ATTENTE_CONSOMMATION_DECISION : ce n'est PAS une consommation.`); return;
+    const identite = identiteExecutant();
+    if (priseEnCharge) {
+      if (executantConflit(v.pris_en_charge_par, identite)) {
+        console.error(`REFUS DECISION_DEJA_PRISE_EN_CHARGE — ${lot} : décision ${commit.slice(0, 7)} déjà prise en charge par ${v.pris_en_charge_par} le ${v.pris_en_charge_le || 'date inconnue'} ; exécutant courant ${identite}.`);
+        process.exit(1);
+      }
+      console.log(`Décision ${commit.slice(0, 7)} déjà pris en charge pour ${lot} depuis ${v.pris_en_charge_le} — rien à refaire ; sortir par --preuve-action, une demande de blocage (commande demande) ou --cloture.`); return;
+    }
+    Object.assign(v, { statut: 'ATTENTE_CONSOMMATION_DECISION', derniere_decision: dec ? dec.fichier : null, source_decision: source, commit_decision: commit, pris_en_charge_le: new Date().toISOString(), pris_en_charge_par: identite }); delete v.consomme_le; etat.lot_actif = lot;
+    fs.writeFileSync(ETAT, JSON.stringify(etat, null, 2) + '\n'); console.log(`Décision ${commit.slice(0, 7)} (${source}) prise en charge pour ${lot} par ${identite} — ATTENTE_CONSOMMATION_DECISION : ce n'est PAS une consommation.`); return;
   }
   if (opts.preuveAction !== undefined) {
     if (!priseEnCharge) { console.error(`REFUS — ${lot} n'est pas pris en charge sur ${commit.slice(0, 7)} (statut ${v.statut}) : prenez-la en charge d'abord (consommer ${lot} --prise-en-charge).`); process.exit(1); }
@@ -1142,7 +1171,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 
