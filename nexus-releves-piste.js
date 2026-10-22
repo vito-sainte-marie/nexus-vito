@@ -225,6 +225,20 @@
     return { ok: true };
   }
 
+  // Jaugeage : une lecture tardive (bouton « Actualiser la lecture ») ne remplit que les
+  // champs encore vides — jamais l'écrasement d'une saisie du pompiste. Dès qu'une lecture
+  // exploitable arrive (au moins une proposition), la confirmation se décoche pour que le
+  // pompiste revérifie les quatre volumes affichés avant d'enregistrer.
+  function fusionnerLectureTardive(saisies, propositions) {
+    const cles = Object.keys(propositions || {});
+    const nouvellesSaisies = Object.assign({}, saisies);
+    cles.forEach(k => {
+      const p = propositions[k];
+      if (p && p.volume_l != null && !nouvellesSaisies[k]) nouvellesSaisies[k] = String(p.volume_l);
+    });
+    return { saisies: nouvellesSaisies, decocherConfirmation: cles.length > 0 };
+  }
+
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     momentDebutDuQuart, indexDebutFait,
@@ -233,6 +247,7 @@
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
     appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
+    fusionnerLectureTardive,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;
