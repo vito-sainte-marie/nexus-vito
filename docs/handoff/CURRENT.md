@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/JAUGEAGE-OCR-2-20261022/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: JAUGEAGE-OCR-2-20261022
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -19,65 +20,66 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 160-fichiers
-  - id: sha256-vision-ocr-core
+  - id: rail-tete
     classe: VERIFIED
-    valeur: c3eeb761e10b2ebbc9643214f5924a94115f56a9aa5ee4b09b2a6edaf219466d
-  - id: sha256-vision-ocr
+    valeur: fcce2663282d7ae6a3aa9955de45b8e7b6aba1ee
+  - id: sha256-vision-ocr-rail
     classe: VERIFIED
     valeur: 6284975b170970cbf8c1411e164f33b926e62741ae229219fd3673c68a225fcb
-  - id: sha256-test-vision-ocr
-    classe: VERIFIED
-    valeur: 451c59d200e8c54109f672191ec1d7df6e3dbebf646c1756a348774ad2e54c3a
-  - id: etape-a-commit
-    classe: VERIFIED
-    valeur: 26fd7bd241296788f41bb3fd5edc736ec599de0d
 ---
-# JAUGEAGE-OCR-2-20261022 : étape A livrée (source Swift + tests synthétiques) ; étape B exige Frédéric à l'iMac
+# JAUGEAGE-OCR-2-20261022 : étendre la sortie du lecteur Vision du rail avant toute compilation à l'iMac
 
-**Suite de :** decision-1.md (APPROVED_WITH_CONDITIONS, closes: false), `ACTION_NEXT` : « Versionner la source Swift du lecteur Vision avec son SHA-256 et ses premiers tests synthétiques, sans intervenir sur l'iMac. »
+**Suite de :** decision-2.md (APPROVED_WITH_CONDITIONS, `closes: false`), consommée avec la preuve d'action `1de147d4` (protocole de l'étape B). Frédéric demande cette request avant l'étape B : la source du rail (`26fd7bd2`) n'a pas la forme de sortie dont le parseur a besoin, et la compiler puis mesurer sur l'iMac en l'état prouverait un lecteur à corriger ensuite.
 
-## Preuve des conditions de decision-1
+## Preuve des conditions de decision-2
 
-Decision-1 pose sept conditions. Celles concernées par l'étape A sont traitées ci-dessous ; les autres ne sont pas encore atteignables depuis cette session (pas d'iMac, pas de macOS, pas de framework Vision ici) et restent donc ouvertes, listées en fin de section.
+- **Étape B conservée dans ce lot** : oui, aucun nouveau lot.
+- **Protocole reproductible versionné** : fait par `1de147d4` (`nexus-ocr-worker/PROTOCOLE-ETAPE-B-JAUGEAGE-OCR-2-20261022.md`).
+- **Compilation et tests synthétiques sur l'iMac, avec sorties, versions et latences** : **non faits**. Cette request les suspend à l'extension demandée ci-dessous, parce qu'ils porteraient sur une sortie à remplacer.
+- **Diagnostic des 4 min 30 avant tout correctif** : non fait ; il exige le journal de l'iMac (étape B). Hypothèse de code seulement : boucle séquentielle à un thread, aucun délai autour de `moteur.extraire`, un document précédent peut occuper le tour. Aucun correctif proposé.
+- **Ni plist, ni service, ni PATH, ni environnement ; aucune mise en service** : respecté, rien n'a été touché sur l'iMac.
+- **PDF sur `ocrmypdf`, Vision pour toutes les images** : respecté.
+- **Ni Paddle ni venv 2.x** : respecté.
+- **Calibration du seuil réservée aux quinze photos réelles sans donnée personnelle** : non faite ; ces photos n'existent pas encore (geste humain).
 
-- **« Vision couvre toutes les images, y compris les bons scannés, et les PDF restent sur ocrmypdf »** — `vision_ocr.swift` est écrit pour les deux usages (écran Veeder-Root et bon scanné) sans distinction de type ; aucun fichier PDF n'est touché par ce lecteur. Preuve : lecture du fichier, commit 26fd7bd2.
-- **« aucun ajout de Paddle ou de venv 2.x sans preuve comparative et nouvelle demande »** — rien n'a été ajouté ni modifié côté Paddle/venv dans ce commit ; `requirements.txt` n'existe toujours pas dans ce dépôt (hors périmètre de cette étape).
-- **« l'étape A reste sans action sur l'iMac et comporte des tests synthétiques représentatifs des deux usages »** — aucune commande n'a été exécutée sur l'iMac dans cette session (elle n'y a pas accès). `test_vision_ocr.swift` couvre les deux usages (observations synthétiques représentant un écran Veeder-Root à quatre blocs et un bon scanné à trois lignes), plus le cas limite (aucune observation) et le contrat JSON de sortie. **Dit sans fard : ces tests ne sont PAS exécutés ici** — aucun toolchain Swift ni framework Vision n'est disponible dans cette session Linux. Ils sont écrits pour être compilés et exécutés sur l'iMac en étape B (`swiftc vision_ocr_core.swift test_vision_ocr.swift -o test_vision_ocr && ./test_vision_ocr`), sans dépendre de Vision (le fichier n'importe que Foundation).
+## Ce que la source du rail ne fait pas (constat, comparaison avec un lecteur construit hors rail)
 
-### SHA-256 des trois fichiers versionnés (commit 26fd7bd2)
+Un lecteur alternatif a été construit et essayé hors rail sur un Mac arm64 (il a lu deux images synthétiques, bon scanné et écran Veeder-Root). **Il n'est pas poussé** : c'est l'exécutant désigné par la décision qui modifie la source du rail. Sa comparaison avec `vision_ocr.swift` (`6284975b…`) donne trois écarts qui comptent.
 
-```
-c3eeb761e10b2ebbc9643214f5924a94115f56a9aa5ee4b09b2a6edaf219466d  vision_ocr_core.swift
-6284975b170970cbf8c1411e164f33b926e62741ae229219fd3673c68a225fcb  vision_ocr.swift
-451c59d200e8c54109f672191ec1d7df6e3dbebf646c1756a348774ad2e54c3a  test_vision_ocr.swift
-```
+1. **Confiance moyenne au lieu d'une confiance par ligne.** `assemblerResultat` renvoie `{text, confidence}` où `confidence` est la moyenne. Le parseur Veeder-Root marque une valeur `peu_sur` d'après la confiance de **sa** ligne ; une moyenne la masque. La calibration du seuil (0,5 provisoire, étape C) ne peut pas se faire sans elle. Apple Vision rend par ailleurs souvent exactement 0,5 pour des lignes bien lues, ce qui rend le seuil `c < 0,5` sans effet sur elles : l'information par ligne est indispensable pour en juger.
+2. **Boîte perdue.** Seul `y` (bas de la boîte) est conservé. Sans `x`, `w`, `h`, on ne peut pas rattacher une valeur à son réservoir.
+3. **Ordre de lecture par `y` seul, sans regroupement.** Les fragments d'une même ligne, légèrement décalés en hauteur, sortent dans le désordre ; deux colonnes se mélangent.
 
-### Conditions non encore prouvées (hors portée de l'étape A, inchangées depuis decision-1)
+## Pourquoi c'est bloquant : la photo de l'écran à quatre réservoirs
 
-- latence de 4 min 30 : diagnostic non fait, exige la lecture du journal réel sur l'iMac (étape B) ;
-- quinze photos réelles avec provenance, sans donnée personnelle : geste humain, n'existent pas encore ;
-- calibration du seuil de confiance (0,5 provisoire) : exige les quinze photos ;
-- `PermissionError` et absence d'`ocrmypdf` dans le PATH launchd : déjà consignés au constat de request-1.md de ce lot (relevé iMac du 22/10) ; non corrigés ici, conformément à la décision. Note : `request-1.md` cite un fichier `DIAGNOSTIC-WORKER-OCR-20261022.md` « détaillé » qui n'a jamais été versionné dans ce dépôt (vérifié : absent de l'arbre et de tout l'historique git) — même sort que le candidat Swift de JAUGEAGE-OCR-20261021, resté dans un répertoire de travail de session. Le constat de request-1.md reste la seule trace écrite ;
-- bascule du plist et mise en service D : explicitement exclues par decision-1, non entreprises.
+L'écran photographié (horodatage affiché : 21/10/2026 15:25 ; Frédéric la date du 22/10) affiche **quatre réservoirs sur deux colonnes** (grille 2 × 2). Les boîtes lues par Vision (coordonnées normalisées, origine en bas à gauche) montrent le mélange :
 
-## Ce qui a été fait (commit 26fd7bd2, poussé sur ce rail)
+| y | colonne gauche (x ≈ 0,2–0,5) | colonne droite (x ≈ 0,56–0,84) |
+|---|---|---|
+| 0,52 | `RESERVOIR 1: R3 30M3 SP` | `RESERVOIR 2: R4 10M3 GO` |
+| 0,51 | `Volume Produit` / `22710` | `Volume Produit` / `8081` |
+| 0,45 | `RESERVOIR 3: R1 20M3-50` | `RESERVOIR 4: R2 30M3 GNR` |
+| 0,44 | `Volume Produit` / `13711` | `Volume Produit` / `4373` |
 
-1. `nexus-ocr-worker/vision_ocr_core.swift` : structures `OCRResult`/`OCRError` et `assemblerResultat()` — logique pure (tri des observations du haut vers le bas de l'image, confiance moyenne), sans import Vision, pour rester testable sans l'iMac.
-2. `nexus-ocr-worker/vision_ocr.swift` : CLI Apple Vision — option C de decision-1 (Vision pour les images, PDF inchangés sur ocrmypdf). Deux modes : appel unique (`vision_ocr <chemin>`) et résident (`vision_ocr --resident`, un chemin par ligne sur stdin, un JSON par ligne sur stdout) pour amortir le coût de lancement de Vision — piste à vérifier en étape B face à la latence de 4 min 30 non expliquée. Compilation (`swiftc -O`) réservée à l'iMac ; le binaire n'est pas versionné.
-3. `nexus-ocr-worker/test_vision_ocr.swift` : tests synthétiques décrits ci-dessus.
+Un tri par `y` seul alterne un fragment de chaque colonne : « RESERVOIR 1 », « RESERVOIR 2 », « Volume Produit », « Volume Produit », 22710, 8081… Le texte libre perd l'appartenance des valeurs aux réservoirs. Le parseur lit par colonne (en-tête, lignes dessous, même colonne) et exige donc `x`, `w`, `h`. Des fragments parasites (« 22710 » isolé à x = 0,23 sous la ligne, chiffres de 0,3 de confiance) montrent aussi que la confiance par ligne est nécessaire pour les écarter.
 
-Rien d'autre n'a été touché : pas d'appel en sous-processus depuis un `_ocr_image` (celui-ci n'existe pas dans ce dépôt — seul `dossier_watcher.py` y est versionné, cf. suspension de JAUGEAGE-OCR-20261021), pas de rotation de journal, pas de modification de `.env` ni de PATH, pas de `requirements.txt`. Ces points restent au contenu du lot, pour l'étape B ou une demande séparée.
+## Ce qui est demandé
 
-## Ce qui reste (étape B, decision-1 : « avec Frédéric à l'iMac, commandes de lecture/compilation à lui fournir une à une »)
+Étendre `vision_ocr.swift` / `vision_ocr_core.swift` et `test_vision_ocr.swift` **avant toute compilation à l'iMac** :
 
-Cette session n'a pas d'accès à l'iMac ; la compilation, l'essai et la mesure de latence exigent la présence de Frédéric à la machine. C'est une gate humaine au sens de decision-1 elle-même (ordre A → B → C → D, B explicitement « avec Frédéric à l'iMac »), pas une incapacité d'outillage à corriger ici.
+1. **Sortie par ligne** : pour chaque ligne reconnue, texte, confiance **propre à la ligne**, et boîte normalisée `x`, `y`, `w`, `h` (origine en bas à gauche). La moyenne peut rester en complément, jamais en remplacement.
+2. **Regroupement des fragments d'une même ligne** : fragments dont les centres verticaux sont proches (écart inférieur à la moitié de la plus grande hauteur) regroupés en une ligne, triés par `x` dans la ligne ; lignes ordonnées du haut vers le bas. Le regroupement ne fusionne pas deux colonnes éloignées : l'ordre reste exploitable, et la boîte de chaque fragment est conservée.
+3. **Langues fixées** : `recognitionLanguages = ["fr-FR", "en-US"]` ; sans cela le résultat dépend de la langue système de l'iMac, non mesurée. `usesLanguageCorrection = false` est conservé.
+4. **Contrat de sortie documenté** dans la source (champs, repère, codes de sortie, mode résident) et **tests synthétiques mis à jour** : la grille 2 × 2 ci-dessus (observations fabriquées à la main, sans image réelle) doit sortir avec chaque valeur rattachée à son réservoir ; une ligne à confiance basse doit rester identifiable.
+
+Hors de cette demande, inchangés : l'étape B (compilation, essais, mesures, journal, diagnostic des 4 min 30) reprend après cette extension, avec Frédéric à l'iMac. L'orientation des photos d'iPhone (EXIF) est à vérifier à l'étape B, pas ici. Le branchement Python (`_ocr_image`), la rotation du journal et les versions épinglées restent hors rail, en réserve, pour l'étape qui les autorisera.
 
 ## À arbitrer
 
-Comment organiser l'étape B : soit une session dédiée où Frédéric exécute les commandes de compilation/essai fournies une à une (pas de nouvel arbitrage requis pour cela, cf. `COMMIT_PUSH_RAIL_SANS_GO`), soit un nouveau lot si le calendrier de Frédéric ne le permet pas avant un autre travail prioritaire. Aucune suite n'est entreprise ici sans ce geste humain.
+Approuver cette extension comme préalable à l'étape B, avec exécutant `github-actions-claude`, dans les limites de decision-2 (ni plist, ni service, ni PATH, ni mise en service ; PDF sur `ocrmypdf` ; ni Paddle ni venv 2.x).
 
 ## Contraintes dites sans fard
 
-- Les tests synthétiques ne sont pas exécutés dans cette session (pas de toolchain Swift/Vision) ; leur vert reste à constater sur l'iMac.
-- Le lecteur Vision n'a jamais été ni compilé ni essayé par cette session ; tout reste à faire en étape B.
-- Le mode `--resident` est une hypothèse de conception (amortir le lancement de Vision) non mesurée : la latence de 4 min 30 pourrait avoir une autre cause, à diagnostiquer avant tout correctif (condition de decision-1).
+- La comparaison s'appuie sur un lecteur construit hors rail et non versionné ; seule son existence et ses lectures sur images synthétiques sont affirmées, rien sur photos réelles.
+- Le tableau ci-dessus est tiré des boîtes d'une seule photo ; ce n'est pas une calibration.
+- Aucune compilation ni essai n'a eu lieu sur l'iMac.
