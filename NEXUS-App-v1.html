@@ -2507,7 +2507,7 @@
       // que l'ancienne mini-carte) : pas la peine d'interroger la table.
       roleDuJour === 'renfort'
         ? Promise.resolve({ data: [], error: null })
-        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, inventaire_quarts(date, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
+        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, a_valide_ouverture, inventaire_quarts(date, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
       nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
       jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
@@ -2537,10 +2537,11 @@
 
     // Ouverture faite (recette du 22/10) : l'inventaire d'ouverture validé
     // laisse le quart en statut « ouvert » jusqu'à la clôture de fin de quart.
+    // On lit la validation de l'employé (a_valide_ouverture), pas le responsable du comptage : un pompiste qui n'est pas responsable valide aussi l'ouverture.
     // Sans cette distinction, l'accueil redisait « pas encore fait » juste
     // après l'ouverture, alors que seule la clôture reste à faire.
     const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait && (quartEmployeRows || []).some(r =>
-      r.responsable_comptage && r.inventaire_quarts &&
+      r.a_valide_ouverture && r.inventaire_quarts &&
       r.inventaire_quarts.date === todayISO &&
       r.inventaire_quarts.is_simulation !== true &&
       !r.inventaire_quarts.cloture_le &&

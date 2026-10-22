@@ -76,6 +76,8 @@ function epreuves(S) {
     assert.ok(/inventaire_quarts\(date, cloture_le, is_simulation, statut\)/.test(S.app), 'la requête doit lire le statut du quart');
     assert.ok(/const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait &&/.test(S.app), 'inventaireOuvertureFaite absent');
     assert.ok(/r\.inventaire_quarts\.statut === 'ouvert'/.test(S.app), 'l\'ouverture faite doit se déduire du statut « ouvert »');
+    assert.ok(/select\('responsable_comptage, a_valide_ouverture, inventaire_quarts\(/.test(S.app), 'la requête doit lire a_valide_ouverture de l\'employé');
+    assert.ok(/const inventaireOuvertureFaite = [\s\S]*?r\.a_valide_ouverture && r\.inventaire_quarts/.test(S.app), 'l\'ouverture se lit sur la validation de l\'employé, pas sur le responsable du comptage (recette 22/10 : un pompiste non responsable restait relancé)');
     assert.ok(/!ctx\.inventaireOuvertureFaite/.test(S.app), 'la relance d\'inventaire doit s\'arrêter une fois l\'ouverture faite');
     assert.ok(/if \(ctx\.inventaireOuvertureFaite\) \{\s*return \{[^}]*Il restera la clôture, en fin de quart/.test(S.app), 'message « ouverture faite, clôture en fin de quart » absent');
     assert.ok(/inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite/.test(S.app), 'le fil ne doit plus renvoyer vers l\'inventaire');
@@ -108,5 +110,6 @@ muter('relevé ignoré', 'donnees', "return statutClos || !!releveJour;", "retur
 muter('impossible ignoré', 'donnees', "statutJour.statut === 'fait' || statutJour.statut === 'impossible'", "statutJour.statut === 'fait'", 'C5');
 muter('Accueil sans règle commune', 'app', "const jaugeageFait = NexusCarburantDonnees.jaugeageDuJourFait(statutJaugeageJour, releveJaugeageJour);", "const jaugeageFait = !!(statutJaugeageJour && statutJaugeageJour.statut === 'fait');", 'C5');
 muter('statut du quart non lu', 'app', "inventaire_quarts(date, cloture_le, is_simulation, statut)", "inventaire_quarts(date, cloture_le, is_simulation)", 'C3');
+muter('ouverture réservée au responsable du comptage', 'app', "r.a_valide_ouverture && r.inventaire_quarts", "r.responsable_comptage && r.inventaire_quarts", 'C3');
 muter('ouverture non reconnue', 'app', "r.inventaire_quarts.statut === 'ouvert'", "r.inventaire_quarts.statut === 'jamais'", 'C3');
 console.log('Toutes les épreuves du lot sont vertes.');
