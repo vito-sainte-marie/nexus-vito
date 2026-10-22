@@ -794,14 +794,15 @@
       "consomme_le": "2026-10-22T21:54:50.031Z"
     },
     "OUTILLAGE-PRISE-EN-CHARGE-20261022": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "f7a1405f01c3e884eafefb63ea9d58f85d469ed1",
-      "pris_en_charge_le": "2026-10-22T22:26:03.338Z",
-      "pris_en_charge_par": "github-actions-claude"
+      "pris_en_charge_par": "github-actions-claude",
+      "consomme_le": "2026-10-22T22:26:52.761Z",
+      "preuve_action": "3a85137cd125fb598e52dd218c138202e6819883"
     }
   },
   "artefacts_hors_registre": [
