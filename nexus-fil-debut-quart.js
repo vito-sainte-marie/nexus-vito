@@ -20,7 +20,8 @@
   const LIBELLES_VERS = { 2: 'Continuer vers le relevé des index', 3: 'Continuer vers l\'inventaire' };
   const PLAN_COMPLET = [1, 2, 3];
   const PAGES = { 1: 'NEXUS-Releves-Piste-v1.html', 2: 'NEXUS-Releves-Piste-v1.html', 3: 'NEXUS-Inventaire-v1.html' };
-  const CATEGORIES_FIL = /gaz|gla[cç]on|glace|[ée]caille/i;
+  // Mot entier : « Lave-glace » n'est pas « Glaçons ». Seules Gaz, Glaçons et Écailles entrent dans le fil.
+  const CATEGORIES_FIL = /(?<![\p{L}\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\p{L}\p{N}])/iu;
 
   const parametres = (search) => new URLSearchParams(search || '');
   const etapeValide = (n) => Number.isInteger(n) && n >= 1 && n <= NOMBRE_ETAPES;

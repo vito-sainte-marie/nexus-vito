@@ -252,7 +252,7 @@ function epreuves(S) {
   });
   eprouve('A1 Accueil : un lien de reprise du fil, calculé d\'après les faits, sans retirer Missions', () => {
     assert.ok(/Reprendre mon début de quart →/.test(A), 'libellé absent');
-    assert.ok(/NexusFilDebutQuart\.urlRepriseSelonFaits\(localStorage, employee\.id, todayISO, momentIndexDebut, \{ resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait \}\)/.test(A), 'reprise non calculée sur les faits');
+    assert.ok(/NexusFilDebutQuart\.urlRepriseSelonFaits\(localStorage, employee\.id, todayISO, momentIndexDebut, \{ resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite \}\)/.test(A), 'reprise non calculée sur les faits');
     assert.ok(/if \(filLien && !\(pointageActifSite && prochainPointageEffectif === 'arrivee'\) && NexusFilDebutQuart\.demarrageDemande\(location\.search\)\) \{ window\.location\.replace\(filLien\); return; \}/.test(A), 'l\'entrée explicite du fil est absente');
     assert.ok(/enService && resteDuFil && roleDuJour === 'pompiste'/.test(A), 'le lien est montré hors service ou à un autre rôle');
     assert.ok(/NEXUS-Missions-v1\.html/.test(A), 'l\'accès à Missions a disparu de l\'Accueil');
@@ -299,7 +299,7 @@ muter('faits du serveur ignorés', 'module', "const plan = planSelonFaits(faits)
 muter('sous la mémoire', 'module', "plan.find(x => x >= e.etape) || plan[0]", "plan[0]", 'F5');
 muter('rien à faire ouvre quand même un fil', 'module', "if (!plan.length) return null;", "", 'F5');
 muter('stockage refusé fait planter', 'module', "} catch (e) { /* illisible : on repart de l'étape 1 */ }", "} finally { }", 'F6');
-muter('catalogue complet', 'module', "/gaz|gla[cç]on|glace|[ée]caille/i", "/./", 'F7');
+muter('catalogue complet', 'module', "/(?<![\\p{L}\\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\\p{L}\\p{N}])/iu", "/./", 'F7');
 muter('le module touche la base', 'module', "const NOMBRE_ETAPES = 3;", "const NOMBRE_ETAPES = 3; const x = nexusClient.from('t');", 'F8');
 muter('Relevés : plan non lu', 'releves', "const filPlan = FIL.planDe(location.search);", "const filPlan = [1, 2, 3];", 'R3');
 muter('Relevés : progression figée', 'releves', "FIL.libelleProgression(filEtape, filPlan)", "FIL.libelleProgression(filEtape)", 'R3');

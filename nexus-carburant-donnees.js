@@ -786,6 +786,14 @@
     return data;
   }
 
+  // Le jaugeage du jour est « fait » pour l'Accueil dès qu'il existe une trace :
+  // un statut fait/impossible, OU une ligne carburant_releves du site et du jour,
+  // quelle que soit son origine (pompiste ou manager). Fonction pure, sans lecture.
+  function jaugeageDuJourFait(statutJour, releveJour) {
+    const statutClos = !!(statutJour && (statutJour.statut === 'fait' || statutJour.statut === 'impossible'));
+    return statutClos || !!releveJour;
+  }
+
   // Écrit le jaugeage d'ouverture du pompiste. `valeurs` : { go_cuve1,
   // go_cuve2, sp95, gnr } (sous-ensemble éventuel — un champ omis/null
   // reprend la valeur déjà en base si une ligne existe déjà pour ce jour,
@@ -1386,7 +1394,7 @@
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
-    chargerReleveDuJour, chargerStatutJaugeageJour,
+    chargerReleveDuJour, chargerStatutJaugeageJour, jaugeageDuJourFait,
     enregistrerJaugeageOuverturePompiste, enregistrerJaugeageImpossible,
     enregistrerReleveDepuisReceptionLivraison,
     chargerDerniersControles, chargerVersionsControleCarburant,

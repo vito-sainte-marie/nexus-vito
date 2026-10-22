@@ -2200,7 +2200,7 @@
         lien: 'NEXUS-Pointage-v1.html',
       };
     }
-    if (ctx.inventaireApplicable && !ctx.inventaireFait) {
+    if (ctx.inventaireApplicable && !ctx.inventaireFait && !ctx.inventaireOuvertureFaite) {
       return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || 'NEXUS-Inventaire-v1.html' };
     }
     if (ctx.fdjApplicable && !ctx.fdjFait) {
@@ -2214,6 +2214,9 @@
         lienTexte: 'Voir mes missions →',
         lien: 'NEXUS-Missions-v1.html',
       };
+    }
+    if (ctx.inventaireOuvertureFaite) {
+      return { couleur: null, titre: 'L’inventaire d’ouverture est fait. Il restera la clôture, en fin de quart.', lienTexte: null, lien: null };
     }
     return { couleur: null, titre: 'Tout est à jour pour l’instant — bon service.', lienTexte: null, lien: null };
   }
@@ -2247,7 +2250,7 @@
     const items = [];
     if (ctx.jaugeageApplicable && !ctx.jaugeageFait) items.push('le jaugeage d’ouverture');
     if (ctx.indexApplicable && !ctx.indexFait) items.push('le relevé d’index');
-    if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
+    if (ctx.inventaireApplicable && !ctx.inventaireFait && !ctx.inventaireOuvertureFaite) items.push('l’inventaire');
     if (ctx.fdjApplicable && !ctx.fdjFait) items.push('le contrôle FDJ');
     if (ctx.missionsInfo && ctx.missionsInfo.total > ctx.missionsInfo.faites) items.push('vos missions');
     if (items.length === 0) return 'Tout est en ordre pour l’instant — continuez comme ça.';
@@ -2485,6 +2488,7 @@
       { data: snap, error: eSnap },
       jaugeageActifSite,
       statutJaugeageJour,
+      releveJaugeageJour,
       { data: relevesIndexRows, error: eIdx },
     ] = await Promise.all([
       pointageActifSite
@@ -2503,11 +2507,13 @@
       // que l'ancienne mini-carte) : pas la peine d'interroger la table.
       roleDuJour === 'renfort'
         ? Promise.resolve({ data: [], error: null })
-        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, inventaire_quarts(date, cloture_le, is_simulation)').eq('employee_id', employee.id),
+        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, inventaire_quarts(date, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
       nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
       jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
       jaugeagePertinentRole ? NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
+      // Lecture seule : un relevé du site et du jour compte comme jaugeage fait, quelle que soit son origine.
+      jaugeagePertinentRole ? NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
       // Lecture seule : relevés du site, du jour et du moment de début de quart.
       momentIndexDebut
         ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).eq('moment', momentIndexDebut)
@@ -2529,6 +2535,18 @@
       !!r.inventaire_quarts.cloture_le
     );
 
+    // Ouverture faite (recette du 22/10) : l'inventaire d'ouverture validé
+    // laisse le quart en statut « ouvert » jusqu'à la clôture de fin de quart.
+    // Sans cette distinction, l'accueil redisait « pas encore fait » juste
+    // après l'ouverture, alors que seule la clôture reste à faire.
+    const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait && (quartEmployeRows || []).some(r =>
+      r.responsable_comptage && r.inventaire_quarts &&
+      r.inventaire_quarts.date === todayISO &&
+      r.inventaire_quarts.is_simulation !== true &&
+      !r.inventaire_quarts.cloture_le &&
+      r.inventaire_quarts.statut === 'ouvert'
+    );
+
     // FDJ applicable seulement si (a) le rôle du jour y a droit — un
     // pompiste ou un renfort n'y touchent jamais par défaut (matrice de
     // rôle, correctif 20/08/2026) — ET (b) le forfait Professional
@@ -2543,7 +2561,7 @@
     const receptionApplicable = enService && roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
 
     const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
-    const jaugeageFait = !!(statutJaugeageJour && (statutJaugeageJour.statut === 'fait' || statutJaugeageJour.statut === 'impossible'));
+    const jaugeageFait = NexusCarburantDonnees.jaugeageDuJourFait(statutJaugeageJour, releveJaugeageJour);
 
     // « Fait » = relevé FINAL du bon site, du bon jour et du bon début de quart.
     // Une lecture en erreur n'invente pas un « fait » : la tâche reste à faire.
@@ -2551,8 +2569,8 @@
     const indexFait = indexApplicable && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
       { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
     const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
-    const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait);
-    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste') ? NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait }) : null;
+    const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite);
+    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste') ? NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite }) : null;
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
@@ -2625,7 +2643,7 @@
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
       journeeTerminee,
       missionsInfo, controlesInfo,
-      inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
       indexApplicable, indexFait, indexLien, filLien,
     };
