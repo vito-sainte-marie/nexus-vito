@@ -764,9 +764,14 @@
       "preuve_action": "d09a02340a395573f8d6a9db4cbb5874049889ad"
     },
     "PARCOURS-POMPISTE-LOT2-FIL-DEBUT-DE-QUART-20261021": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "25acfed7f63df57cfc22398cff73d48a79bde720",
+      "consomme_le": "2026-10-22T01:01:53.546Z",
+      "preuve_action": "3efefc63edbc71f278dd613b34b3d4b7cac4a4de"
     }
   },
   "artefacts_hors_registre": [
