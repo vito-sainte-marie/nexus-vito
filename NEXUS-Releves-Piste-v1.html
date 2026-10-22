@@ -317,8 +317,9 @@
       let chemin = null;
       for (let rang = 1; rang <= G.LIMITE_RANG; rang++) {
         const nomPhoto = G.nomPhotoJaugeage({ instant, fuseau, uid: emp.id, site: emp.site_id, ext: fmtEnvoi.ext, forcee: fichier.qualiteForcee, rang });
-        if (!nomPhoto) throw new Error('nom de photo impossible : fuseau de la station introuvable');
-        const essai = `${emp.site_id}/jaugeage_veeder_root/${nomPhoto}`;
+        // Fuseau (ou autre élément) introuvable : ancien nom <date>_<uid>_<ms>, l'envoi n'est jamais bloqué (politique de stockage respectée).
+        const nomFinal = nomPhoto || `${date}_${emp.id}_${Date.now()}${fichier.qualiteForcee ? G.suffixeNomForcee(fichier.qualiteForcee) : ''}.${fmtEnvoi.ext}`;
+        const essai = `${emp.site_id}/jaugeage_veeder_root/${nomFinal}`;
         const up = await nexusClient.storage.from('documents-a-traiter').upload(essai, envoi, { contentType: fmtEnvoi.contentType, upsert: false });
         if (!up.error) { chemin = essai; break; }
         const deja = up.error.statusCode == 409 || /already exists|Duplicate/i.test(String(up.error.message || ''));

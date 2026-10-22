@@ -22,10 +22,13 @@ const MUTANTS = [
   ['marque', 'suffixe _qforcee avant l\'heure', 'G', "'h' + p.minute + rang + suffixeNomForcee(o.forcee)", "'h' + p.minute + suffixeNomForcee(o.forcee) + rang"],
   ['site', 'site non contrôlé (séparateur de chemin admis)', 'G', "!/^[a-z0-9-]+$/.test(o.site) || ", ""],
   ['câblage', 'Date.now() réintroduit dans le nom', 'P', "const instant = new Date();", "const instant = new Date(); const nomPhotoMs = Date.now();\n      void nomPhotoMs; /* Date.now() */"],
+  ['repli', 'fuseau introuvable : envoi bloqué (ancien comportement)', 'P', "const nomFinal = nomPhoto || `", "if (!nomPhoto) throw new Error('nom de photo impossible : fuseau de la station introuvable'); const nomFinal = nomPhoto || `"],
+  ['repli', 'repli sans l\'identifiant en 2e position', 'P', "`${date}_${emp.id}_${Date.now()}${fichier", "`${date}_${Date.now()}${fichier"],
+  ['repli', 'repli sans la date en tête', 'P', "`${date}_${emp.id}_${Date.now()}${fichier", "`${emp.id}_${Date.now()}${fichier"],
   ['câblage', 'envoi avec écrasement', 'P', "upsert: false", "upsert: true"],
   ['câblage', 'heure de l\'appareil (fuseau non lu)', 'P', "const fuseau = await nexusFuseauSite(emp.site_id);", "const fuseau = Intl.DateTimeFormat().resolvedOptions().timeZone;"],
   ['câblage', 'réessai sans borne', 'P', "rang <= G.LIMITE_RANG", "rang <= 1e9"],
-  ['câblage', 'dossier modifié', 'P', "${emp.site_id}/jaugeage_veeder_root/${nomPhoto}", "${emp.site_id}/${nomPhoto}"],
+  ['câblage', 'dossier modifié', 'P', "${emp.site_id}/jaugeage_veeder_root/${nomFinal}", "${emp.site_id}/${nomFinal}"],
 ];
 let survivants = 0, applicables = 0;
 MUTANTS.forEach(([axe, nom, cible, a, b], i) => {

@@ -60,7 +60,11 @@ const rp = lire(SRC_PAGE);
 const corps = (rp.match(/async function envoyerPhoto\([\s\S]*?\n  \}\n/) || [''])[0];
 ok(/window\.NexusCaptureGuidee/.test(corps) && /G\.nomPhotoJaugeage\(/.test(corps), 'envoyerPhoto construit le nom par la fonction pure');
 ok(/nexusFuseauSite\(emp\.site_id\)/.test(corps), 'l\'heure vient du fuseau de la station');
-ok(!/Date\.now\(\)/.test(corps), 'plus de Date.now() dans le nom');
+// Ajout 3 (decision-1 PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022) : fuseau introuvable => ancien nom <date>_<uid>_<ms>, l'envoi n'est jamais bloqué.
+ok(!/nom de photo impossible/.test(corps), 'fuseau introuvable : plus de blocage de l\'envoi');
+ok(/nomPhoto \|\| `[^\n]*Date\.now\(\)/.test(corps), 'fuseau introuvable : repli sur l\'ancien nom <date>_<uid>_<ms>');
+ok((corps.match(/Date\.now\(\)/g) || []).length === 1, 'Date.now() seulement dans le repli (jamais dans le nom normal)');
+ok(/\$\{date\}_\$\{emp\.id\}_\$\{Date\.now\(\)\}/.test(corps), 'le repli respecte la politique de stockage : AAAA-MM-JJ_<uid>_ en tête');
 ok(/upsert: false/.test(corps), 'envoi sans écrasement');
 ok(/\$\{emp\.site_id\}\/jaugeage_veeder_root\/\$\{/.test(corps), 'dossier <site>/jaugeage_veeder_root/ inchangé');
 ok(/rang <= G\.LIMITE_RANG/.test(corps) && G.LIMITE_RANG >= 2 && G.LIMITE_RANG <= 20, 'réessai -N borné par une limite documentée (≤ 20)');
