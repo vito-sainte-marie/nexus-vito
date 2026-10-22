@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-PRISE-EN-CHARGE-20261022/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: OUTILLAGE-PRISE-EN-CHARGE-20261022
+lot_id: PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -21,36 +21,29 @@ preuves:
     classe: VERIFIED
     valeur: 161-fichiers
 ---
-# OUTILLAGE-PRISE-EN-CHARGE-20261022 : refuser la prise en charge d'une décision déjà prise par un autre exécutant
+# PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022 : six correctifs issus de la recette navigateur du 22/10
 
-*Déposé sur instruction de Frédéric (22/10/2026), JAUGEAGE-OCR-2-20261022 étant à l'état DECISION_CONSOMMEE (aucun lot en statut actif, règle D3 respectée). Aucun code n'est écrit avant la décision.*
+*Déposé sur instruction de Frédéric (22/10/2026). `lot_actif` vérifié avant dépôt : OUTILLAGE-PRISE-EN-CHARGE-20261022 est à l'état DECISION_CONSOMMEE (action prouvée par 3a85137c), aucun lot en statut actif, règle D3 respectée. Aucun code n'est écrit avant la décision.*
 
-## Constat : deux doubles exécutions le 22/10
+## Source des constats
 
-1. **JAUGEAGE-SAISIE-DIRECTE** : la décision désignait `EXECUTANT_NEXT: github-actions-claude`. Une exécution a été prise en charge en session locale pendant que le runner pouvait aussi l'exécuter ; deux auteurs ont écrit sur le rail pour la même décision.
-2. **JAUGEAGE-OCR-2** : même schéma sur la décision suivante, la prise en charge ayant eu lieu sans `git fetch` préalable du rail.
+Recette navigateur du 22/10 à 18:20 sur `production.nexus-test-ddf.pages.dev` (`2c7435b`, tête de `production` au dépôt) avec Employé Test B, et lecture seule en Production avec le compte de Dylan (constat déclaré par Frédéric ; je n'ai pas rejoué cette recette). Seules les lignes de code citées ci-dessous ont été relues par moi sur `origin/production`.
 
-Cause commune : `handoff.js consommer <lot> --prise-en-charge` n'examine pas si un autre exécutant a déjà écrit après la décision. Rien dans l'outil ne s'oppose à une seconde prise en charge ; seule la vigilance de l'humain ou de Claude l'évite.
+## Les six correctifs demandés
 
-## Ce qui est demandé
-
-1. **Refus outillé.** `consommer --prise-en-charge` refuse (code non nul, motif nommé, par exemple `DECISION_DEJA_PRISE_EN_CHARGE`) quand le rail contient, après la décision visée, un commit ou une entrée d'état d'un exécutant différent de celui qui demande. Message : qui, quand, quel commit.
-2. **Épreuve rouge puis verte, avec mutation.** Rouge : deux prises en charge successives par deux exécutants, la seconde doit être refusée. Verte après le correctif. Mutation : neutraliser la comparaison d'exécutant doit faire rougir l'épreuve. Cas voisins à garder verts : même exécutant qui reprend après interruption, décision `closes:true`, lot sans exécutant désigné.
-3. **Règle provisoire dans la gouvernance (GOV-002).** Inscrire dans `docs/learning/RULES.json` et `docs/learning/EXPERIENCE.jsonl` : quand `EXECUTANT_NEXT: github-actions-claude`, ne pas prendre en charge sans demande explicite de Frédéric ; avant toute prise en charge, refaire un `git fetch` du rail et s'arrêter si un autre exécutant y a écrit après la décision. La règle devient caduque quand le refus outillé est livré.
-4. **Seconde leçon pour `RULES.json` (PR #149, 22/10).** Avant de déclarer des épreuves vertes, rejouer la suite après `bash outils/build.sh`, comme la CI (le build remplace les jetons `?v=` par l'empreinte de génération ; une épreuve qui lit un HTML source peut rougir seulement après). Constat : `test_jaugeage_capture_guidee_20261022.js` rouge en CI sur `7d98a1a7`, verte en local ; corrigé par `20f9286c`. Inscrire aussi l'événement dans `EXPERIENCE.jsonl`.
-5. **Constat consigné.** Les deux doubles exécutions du 22/10 inscrites dans `EXPERIENCE.jsonl` (lot, décision, commits concernés, cause).
+1. **Filtre des catégories du fil.** `nexus-fil-debut-quart.js` ligne 23 : `CATEGORIES_FIL = /gaz|gla[cç]on|glace|[ée]caille/i`. Le motif `glace` attrape « Lave-glace » (lu dans le code). Ne retenir que Gaz, Glaçons et Écailles, sur le mot entier. Épreuve avec « Lave-glace & Liquide de refroidissement » et « Huiles », qui doivent être exclues, et mutation qui la fait rougir si le motif redevient une sous-chaîne.
+2. **Fenêtres `confirm()` de l'inventaire.** Dans le fil, les remplacer par une confirmation dans la page, ou les supprimer quand le bouton dit déjà « conforme ». Corriger l'accord de « les 1 produit ». (Une alerte native est invisible au DOM : l'épreuve doit viser la confirmation dans la page.)
+3. **Accueil après l'inventaire d'ouverture.** Distinguer « ouverture faite » et « clôture à faire en fin de quart ». Ne pas réafficher « n'a pas encore été fait » juste après l'ouverture.
+4. **Un seul compteur d'étapes** à l'écran pendant le fil.
+5. **Jaugeage reconnu par l'Accueil.** Constat de code : `statutJaugeageJour` vient de `chargerStatutJaugeageJour` (`nexus-carburant-donnees.js:782`), qui lit la vue/table `carburant_jaugeage_statuts_jour`, alors que l'écran de jaugeage lit `carburant_releves` (déclaré, à confirmer à l'implémentation). L'Accueil et l'écran doivent lire la même source. Un relevé du jour saisi par le manager compte comme fait.
+6. **Écran de jaugeage.** Afficher « Un jaugeage existe déjà pour aujourd'hui » dès l'ouverture, pas seulement quand les 4 champs sont remplis.
 
 ## Limites
 
-Aucune écriture en Production, aucun déploiement, aucune fusion sans GO. Le périmètre est `outils/handoff.js`, son épreuve et `docs/learning/` ; pas de changement du protocole `nexus-handoff/2`.
+Aucune écriture en Production, aucun déploiement, aucune fusion sans GO de Frédéric. Aucune migration prévue ; si le correctif 5 en exige une (vue de statut), elle fera l'objet d'une request séparée. Périmètre : fil pompiste, Accueil, écran de jaugeage, avec leurs épreuves.
 
 ## À arbitrer
 
-Approuver le refus outillé et l'inscription de la règle, exécutant à désigner (la règle provisoire interdit à Claude de prendre en charge sans demande explicite).
-
-## Lecture de `consommer` (outils/handoff.js, vers la ligne 559, faite le 22/10)
-
-- `--prise-en-charge` ne compare que `v.statut === 'ATTENTE_CONSOMMATION_DECISION'` et `v.commit_decision === commit` : une seconde prise en charge sur la même décision est traitée comme idempotente (« rien à refaire »), quel que soit l'exécutant.
-- `STATE.json` ne porte **aucun champ exécutant** : ni `pris_en_charge_par`, ni auteur du commit de décision. Le critère « autre exécutant » ne peut donc pas s'appuyer sur l'état seul ; il doit s'appuyer sur le rail : commits postérieurs au `commit_decision` (auteur, `Co-Authored-By`, committeur `github-actions[bot]`) et sur `EXECUTANT_NEXT` lu dans la décision.
-- À établir par l'exécutant désigné : la règle exacte (auteur du commit, ou champ `pris_en_charge_par` écrit à la prise en charge). Je recommande le second, plus fiable, avec repli sur les auteurs de commits pour les prises en charge déjà faites.
-- Limite avouée : je n'ai pas encore écrit ni éprouvé ce critère.
+1. Approuver les six correctifs.
+2. Pour le 5 : la source commune est-elle `carburant_releves` (l'Accueil relit les relevés) ou la vue de statut (l'écran de jaugeage la relit) ? Je recommande `carburant_releves`, qui est la donnée saisie, la vue étant dérivée.
+3. Exécutant à désigner (la règle provisoire interdit à Claude de prendre en charge un exécutant `github-actions-claude` sans demande explicite de Frédéric).
