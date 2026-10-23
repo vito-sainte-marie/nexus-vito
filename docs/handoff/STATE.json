@@ -816,9 +816,14 @@
       "preuve_action": "53ba5b0eeff447b85068dbfc979d963f1161dc3b"
     },
     "PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "82c95debbda0b52164cfc5ce2bc76cff7b956229",
+      "pris_en_charge_le": "2026-10-23T13:26:14.289Z",
+      "pris_en_charge_par": "session-locale"
     }
   },
   "artefacts_hors_registre": [
