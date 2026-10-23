@@ -17,7 +17,7 @@
 <script src="nexus-carburant-moteur.js?v=20261013-2212"></script>
 <script src="nexus-carburant-donnees.js?v=20261013-2212"></script>
 <script src="nexus-veeder-root.js?v=20261013-2212"></script>
-<script src="nexus-capture-guidee.js?v=20261022-0002"></script>
+<script src="nexus-capture-guidee.js?v=20261022-0003"></script>
 <script src="nexus-camera-page.js?v=20261022-0002"></script>
 <style>
   :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
@@ -309,11 +309,23 @@
       // Réduit à 2 000 px / JPEG 85 % (repli sur l'original si impossible, HEIC compris).
       const envoi = await window.NexusCameraPage.redimensionnerPhoto(fichier);
       const fmtEnvoi = R.extensionPhoto(envoi) || fmt;
-      // Photo envoyée malgré le refus qualité : la marque (netteté, reflet) voyage dans le nom, après date_uid_<ms>.
-      const suffixeForcee = fichier.qualiteForcee ? window.NexusCaptureGuidee.suffixeNomForcee(fichier.qualiteForcee) : '';
-      const chemin = `${emp.site_id}/jaugeage_veeder_root/${date}_${emp.id}_${Date.now()}${suffixeForcee}.${fmtEnvoi.ext}`;
-      const up = await nexusClient.storage.from('documents-a-traiter').upload(chemin, envoi, { contentType: fmtEnvoi.contentType });
-      if (up.error) throw up.error;
+      // Nom lisible, à l'heure de la station (jamais celle de l'appareil) ; l'uid reste en 2e position (politique de stockage).
+      // La marque qualite_forcee voyage dans le nom ; elle est lue sur le fichier ORIGINAL (avant redimensionnement).
+      const G = window.NexusCaptureGuidee;
+      const fuseau = await nexusFuseauSite(emp.site_id);
+      const instant = new Date();
+      let chemin = null;
+      for (let rang = 1; rang <= G.LIMITE_RANG; rang++) {
+        const nomPhoto = G.nomPhotoJaugeage({ instant, fuseau, uid: emp.id, site: emp.site_id, ext: fmtEnvoi.ext, forcee: fichier.qualiteForcee, rang });
+        // Fuseau (ou autre élément) introuvable : ancien nom <date>_<uid>_<ms>, l'envoi n'est jamais bloqué (politique de stockage respectée).
+        const nomFinal = nomPhoto || `${date}_${emp.id}_${Date.now()}${fichier.qualiteForcee ? G.suffixeNomForcee(fichier.qualiteForcee) : ''}.${fmtEnvoi.ext}`;
+        const essai = `${emp.site_id}/jaugeage_veeder_root/${nomFinal}`;
+        const up = await nexusClient.storage.from('documents-a-traiter').upload(essai, envoi, { contentType: fmtEnvoi.contentType, upsert: false });
+        if (!up.error) { chemin = essai; break; }
+        const deja = up.error.statusCode == 409 || /already exists|Duplicate/i.test(String(up.error.message || ''));
+        if (!deja) throw up.error;
+      }
+      if (!chemin) throw new Error('envoi impossible : nom de photo déjà pris');
       const ins = await nexusClient.from('documents_ocr_file').insert({ site: emp.site_id, fichier_path: chemin, type_document: 'jaugeage_veeder_root', status: 'en_attente', depose_par: emp.id }).select('id').single();
       if (ins.error) throw ins.error;
       jauge.docId = ins.data.id; jauge.statut = 'en_attente'; reseau.ok = true;

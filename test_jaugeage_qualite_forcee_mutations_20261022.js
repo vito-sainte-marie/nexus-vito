@@ -23,9 +23,7 @@ const MUTANTS = [
   ['câblage', 'bouton non conditionné au compteur', 'C', 'guide.forcagePropose(refus) ?', 'true ?'],
   ['câblage', 'photo validée sans marque', 'C', 'if (forcee) f.qualiteForcee = guide.descriptifForcee(forcee);', ''],
   ['câblage', 'libellé du bouton modifié', 'C', "b.textContent = 'Envoyer quand même'", "b.textContent = 'Envoyer'"],
-  ['envoi', 'suffixe oublié dans le chemin', 'P', '${Date.now()}${suffixeForcee}.', '${Date.now()}.'],
-  ['envoi', 'marque lue sur le fichier redimensionné', 'P', 'fichier.qualiteForcee ? window.NexusCaptureGuidee.suffixeNomForcee(fichier.qualiteForcee)', 'envoi.qualiteForcee ? window.NexusCaptureGuidee.suffixeNomForcee(envoi.qualiteForcee)'],
-  ['envoi', 'uid retiré du chemin', 'P', '${date}_${emp.id}_${Date.now()}${suffixeForcee}', '${date}_${Date.now()}${suffixeForcee}'],
+  ['envoi', 'marque lue sur le fichier redimensionné', 'P', 'forcee: fichier.qualiteForcee', 'forcee: envoi.qualiteForcee'],
 ];
 let survivants = 0, applicables = 0;
 MUTANTS.forEach(([axe, nom, cible, a, b], i) => {
