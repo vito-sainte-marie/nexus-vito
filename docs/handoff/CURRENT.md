@@ -1,9 +1,9 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022
+lot_id: PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023
 seq: 1
 author: Claude
 branch: handoff-continuite-20260920
@@ -13,7 +13,7 @@ wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=73c88a47 production=2c7435bd
+    valeur: main=73c88a47 production=7cbbb479
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
@@ -21,29 +21,31 @@ preuves:
     classe: VERIFIED
     valeur: 161-fichiers
 ---
-# PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022 : six correctifs issus de la recette navigateur du 22/10
+# PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023 : Inventaire plus rapide, Missions du pompiste, nettoyage des services de recette Test
 
-*Déposé sur instruction de Frédéric (22/10/2026). `lot_actif` vérifié avant dépôt : OUTILLAGE-PRISE-EN-CHARGE-20261022 est à l'état DECISION_CONSOMMEE (action prouvée par 3a85137c), aucun lot en statut actif, règle D3 respectée. Aucun code n'est écrit avant la décision.*
+*Déposé sur instruction de Frédéric (23/10/2026, « dépose la demande du Lot 3 » après validation du déploiement de #152). `lot_actif` vérifié avant dépôt : PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022 est à l'état DECISION_CONSOMMEE (action prouvée par 53ba5b0e), aucun lot en statut actif. #152 est fusionnée (7cbbb479) et son déploiement validé par Frédéric. Aucun code n'est écrit avant la décision.*
 
 ## Source des constats
 
-Recette navigateur du 22/10 à 18:20 sur `production.nexus-test-ddf.pages.dev` (`2c7435b`, tête de `production` au dépôt) avec Employé Test B, et lecture seule en Production avec le compte de Dylan (constat déclaré par Frédéric ; je n'ai pas rejoué cette recette). Seules les lignes de code citées ci-dessous ont été relues par moi sur `origin/production`.
+Diagnostic en lecture seule sur Test du 23/10 (rien modifié, rien écrit), accès `postgres` via MCP qui contourne la RLS : les temps SQL sont des temps serveur, pas ce que voit un employé. Le code a été LU, pas exécuté dans un navigateur connecté.
 
-## Les six correctifs demandés
+## Les trois volets demandés par Frédéric
 
-1. **Filtre des catégories du fil.** `nexus-fil-debut-quart.js` ligne 23 : `CATEGORIES_FIL = /gaz|gla[cç]on|glace|[ée]caille/i`. Le motif `glace` attrape « Lave-glace » (lu dans le code). Ne retenir que Gaz, Glaçons et Écailles, sur le mot entier. Épreuve avec « Lave-glace & Liquide de refroidissement » et « Huiles », qui doivent être exclues, et mutation qui la fait rougir si le motif redevient une sous-chaîne.
-2. **Fenêtres `confirm()` de l'inventaire.** Dans le fil, les remplacer par une confirmation dans la page, ou les supprimer quand le bouton dit déjà « conforme ». Corriger l'accord de « les 1 produit ». (Une alerte native est invisible au DOM : l'épreuve doit viser la confirmation dans la page.)
-3. **Accueil après l'inventaire d'ouverture.** Distinguer « ouverture faite » et « clôture à faire en fin de quart ». Ne pas réafficher « n'a pas encore été fait » juste après l'ouverture.
-4. **Un seul compteur d'étapes** à l'écran pendant le fil.
-5. **Jaugeage reconnu par l'Accueil.** Constat de code : `statutJaugeageJour` vient de `chargerStatutJaugeageJour` (`nexus-carburant-donnees.js:782`), qui lit la vue/table `carburant_jaugeage_statuts_jour`, alors que l'écran de jaugeage lit `carburant_releves` (déclaré, à confirmer à l'implémentation). L'Accueil et l'écran doivent lire la même source. Un relevé du jour saisi par le manager compte comme fait.
-6. **Écran de jaugeage.** Afficher « Un jaugeage existe déjà pour aujourd'hui » dès l'ouverture, pas seulement quand les 4 champs sont remplis.
+1. **Inventaire : charger le plan une seule fois, paralléliser les chargements indépendants.**
+   - Constaté dans le code : `NEXUS-Inventaire-v1.html` (init l.4236) et `nexus-inventaire-*-donnees.js` enchaînent environ 30 à 45 allers-retours réseau, tous en séquence. `chargerEtAppliquerPlanQuart` est appelée deux fois (à l'init puis dans `demarrerOuvertureComptage`). C'est un décompte de lecture, pas une mesure.
+   - Mesuré côté serveur : la requête produits de la zone piste (6 lignes) prend 3,3 ms. Le serveur n'est pas en cause.
+   - À faire : retirer le second appel de `chargerEtAppliquerPlanQuart` ; `Promise.all` sur ce qui est indépendant (zones, rôle du jour, quart employé, modes aveugle, mode de jaugeage, derniers stocks). Pas de RPC dans ce lot.
+   - **Mesure : Claude Guardian chronomètre au navigateur, avant et après**, sur le même compte et le même quart. Je ne chiffre aucun gain avant cette mesure ; « 5-7 s » est le constat de Frédéric, et « 150 ms par aller-retour » une hypothèse non mesurée.
+   - Épreuve : le plan n'est chargé qu'une fois à l'ouverture du comptage, et un résultat identique est obtenu (mêmes produits, mêmes quantités attendues) avant et après.
+2. **Missions : déplier « disponibles » quand aucune mission obligatoire n'existe.** Aujourd'hui seul « obligatoires » est ouvert, d'où une page quasi vide pour un rôle sans obligatoire. Épreuves : sans obligatoire, « disponibles » est ouvert ; avec obligatoires, le comportement actuel est conservé.
+3. **Données Test : nettoyer seulement les services de recette que j'ai créés, par un script borné** (modèle : `outils/remise-a-zero-recette-pompiste-20261022.sh`). Refus de Production et de tout projet autre que Test, simulation par défaut, `--executer` pour valider, bornes par identifiants. Les services d'Employé Test A/B créés par d'autres auteurs ne sont pas touchés ; la liste exacte des lignes est affichée avant tout retrait.
 
 ## Limites
 
-Aucune écriture en Production, aucun déploiement, aucune fusion sans GO de Frédéric. Aucune migration prévue ; si le correctif 5 en exige une (vue de statut), elle fera l'objet d'une request séparée. Périmètre : fil pompiste, Accueil, écran de jaugeage, avec leurs épreuves.
+Aucune écriture en Production, aucun déploiement, aucune fusion sans GO de Frédéric. Aucune migration prévue. Hors lot : décision sur ce que le pompiste doit voir après la prise de poste au-delà du déplié de « disponibles » ; RPC de contexte du quart ; cron `nexus-inventaire-reviews`.
 
 ## À arbitrer
 
-1. Approuver les six correctifs.
-2. Pour le 5 : la source commune est-elle `carburant_releves` (l'Accueil relit les relevés) ou la vue de statut (l'écran de jaugeage la relit) ? Je recommande `carburant_releves`, qui est la donnée saisie, la vue étant dérivée.
-3. Exécutant à désigner (la règle provisoire interdit à Claude de prendre en charge un exécutant `github-actions-claude` sans demande explicite de Frédéric).
+1. Approuver les trois volets.
+2. Exécutant à désigner (la règle provisoire interdit à Claude de prendre en charge un exécutant `github-actions-claude` sans demande explicite de Frédéric).
+3. Confirmer que la mesure de Claude Guardian (avant/après) est une condition de clôture du volet 1.
