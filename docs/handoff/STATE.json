@@ -805,14 +805,15 @@
       "preuve_action": "3a85137cd125fb598e52dd218c138202e6819883"
     },
     "PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "0bd12c7fa53304a1461e1f5fee234c179a1c1f2f",
-      "pris_en_charge_le": "2026-10-22T23:25:53.617Z",
-      "pris_en_charge_par": "session-locale"
+      "pris_en_charge_par": "session-locale",
+      "consomme_le": "2026-10-23T12:41:33.818Z",
+      "preuve_action": "53ba5b0eeff447b85068dbfc979d963f1161dc3b"
     }
   },
   "artefacts_hors_registre": [
