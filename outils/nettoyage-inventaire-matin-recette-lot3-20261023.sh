@@ -3,9 +3,9 @@
 # (Employé Test B), pour mesurer la PREMIÈRE ouverture du jour (Lot 3).
 #
 # Retire UNIQUEMENT, par identifiant :
-#   quart  7e424915-3f97-48f6-8213-a7bc89def2e4   (inventaire_quarts, matin, 2026-10-23)
-#   rattachement employé 9d47eaae-038b-45b2-98fb-451fa17d4167 (inventaire_quart_employes)
-#   plan   13ca6aea-bbcf-409c-b526-3e702faec894   (inventaire_plans_comptage) et ses lignes
+#   quart  7568f3b4-0a9f-47ad-a266-d72605e17cbf   (inventaire_quarts, matin, 2026-10-23)
+#   rattachement employé 71edc336-6d4e-4c93-83cc-b1bacbaab552 (inventaire_quart_employes)
+#   plan   22960f98-8245-4d3b-93f8-f3637f66847f   (inventaire_plans_comptage) et ses lignes
 # GARDE le service (shifts) ed1cc859-0a4f-4214-aa99-11f1b71dfe63 : jamais touché.
 # Bornes cumulées : site nexus-station-test, date 2026-10-23, identifiants ci-dessus, et le
 # rattachement doit viser le quart ET l'employé 755a2dc5-… Un quart qui a des dépendants
@@ -38,10 +38,10 @@ begin;
 create temp table _b on commit drop as
 select q.id as quart, p.id as plan, e.id as qe
   from public.inventaire_quarts q
-  join public.inventaire_plans_comptage p on p.id='13ca6aea-bbcf-409c-b526-3e702faec894' and p.site=q.site and p.date=q.date
-  join public.inventaire_quart_employes e on e.id='9d47eaae-038b-45b2-98fb-451fa17d4167' and e.quart_id=q.id
+  join public.inventaire_plans_comptage p on p.id='22960f98-8245-4d3b-93f8-f3637f66847f' and p.site=q.site and p.date=q.date
+  join public.inventaire_quart_employes e on e.id='71edc336-6d4e-4c93-83cc-b1bacbaab552' and e.quart_id=q.id
                                           and e.employee_id='755a2dc5-3390-4a29-a865-847cbebc1133'
- where q.id='7e424915-3f97-48f6-8213-a7bc89def2e4' and q.site='nexus-station-test' and q.date=date '2026-10-23';
+ where q.id='7568f3b4-0a9f-47ad-a266-d72605e17cbf' and q.site='nexus-station-test' and q.date=date '2026-10-23';
 
 \echo '=== Lignes exactes visées (1 ligne attendue = les trois racines liées) ==='
 select * from _b;
