@@ -1381,6 +1381,21 @@
     return { socleCible, surprisesCible, quantityAlertThreshold, valueAlertThreshold };
   }
 
+  // Mémo de l'initialisation (Lot 3, 23/10/2026) : posé par l'init, retiré
+  // dès que l'écran a fini de démarrer.
+  let memoPlanInit = null;
+
+  // Réglages, seuils d'écart et plan du quart. Les réglages et les seuils
+  // sont indépendants : lus ensemble ; le plan a besoin des réglages.
+  async function lirePlanEtReglagesDuQuart(P, site, quart) {
+    const [options, seuils] = await Promise.all([
+      chargerReglagesPlanComptage(),
+      (async () => { try { return await P.chargerSeuilsEcart(nexusClient, site); } catch (e) { console.error('Chargement seuils écart:', e); return null; } })(),
+    ]);
+    const plan = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quart, options);
+    return { options, seuils, plan };
+  }
+
   // Plan de comptage tournant (17/08/2026, Sprint 2 — cahier Inventaire 2.0
   // §5.2) : NEXUS décide quoi compter aujourd'hui pour ce (site, date,
   // quart), généré une seule fois puis persisté (INV2-04 — un rechargement
@@ -1402,25 +1417,26 @@
       return;
     }
     const site = employeeCourant.site_id;
-    // Options lues à chaque appel plutôt que mises en cache (19/08/2026) :
-    // n'a d'effet réel que si aucun plan n'existe encore pour (site, date,
-    // quart) — chargerOuGenererPlan relit toujours le plan déjà persisté en
-    // premier (INV2-04) — mais reste sans risque de coût inutile, un seul
-    // SELECT léger sur station_config.
-    const options = await chargerReglagesPlanComptage();
-    seuilsSiteDefaut = { quantite_alerte: options.quantityAlertThreshold, valeur_alerte: options.valueAlertThreshold };
-    // 30/08/2026 (branchement du seuil d'écart) : chargé ici (même fonction
-    // bootstrap, même module déjà utilisé pour le plan) plutôt qu'à un
-    // nouvel endroit séparé — si ce chargement échoue, seuilsEcart reste à
-    // son défaut {parCategorie:{}, parProduit:{}} (déclaré plus haut) et
-    // ecartQuantiteSignificatif retombe alors sur le seul défaut du site
-    // (options.quantityAlertThreshold), jamais un blocage de la saisie.
-    try {
-      seuilsEcart = await P.chargerSeuilsEcart(nexusClient, site);
-    } catch (e) {
-      console.error('Chargement seuils écart:', e);
+    // Lot 3 (23/10/2026) : pendant l'initialisation seulement, le même
+    // (site, date, quart) n'est lu qu'une fois — l'ouverture directe du fil
+    // rappelait cette fonction juste après l'init et relisait tout. Hors
+    // init (`memoPlanInit` nul), chaque appel relit, comme avant : un plan
+    // ne doit jamais être servi périmé après un comptage.
+    const memo = memoPlanInit;
+    const cle = `${site}|${dateISO()}|${quartActuel}`;
+    let chargement = memo && memo.get(cle);
+    if (!chargement) {
+      chargement = lirePlanEtReglagesDuQuart(P, site, quartActuel);
+      if (memo) memo.set(cle, chargement);
     }
-    planQuartActif = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quartActuel, options);
+    const { options, seuils, plan } = await chargement;
+    seuilsSiteDefaut = { quantite_alerte: options.quantityAlertThreshold, valeur_alerte: options.valueAlertThreshold };
+    // Si le chargement des seuils a échoué, seuilsEcart reste à son défaut
+    // {parCategorie:{}, parProduit:{}} (déclaré plus haut) et
+    // ecartQuantiteSignificatif retombe sur le seul défaut du site, jamais
+    // un blocage de la saisie.
+    if (seuils) seuilsEcart = seuils;
+    planQuartActif = plan;
     const items = (planQuartActif && planQuartActif.items) || [];
     produitsPlanIds = new Set(items.map(it => it.produit_id));
     planItemIdParProduit = {};
@@ -2254,8 +2270,15 @@
   }
   async function demarrerOuvertureComptage() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
-    await chargerEtAppliquerPlanQuart();
-    produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
+    // Lot 3 (23/10/2026) : plan, produits de la zone, modes à l'aveugle et
+    // mode jaugeage ne dépendent pas les uns des autres : lus ensemble.
+    const [, produitsBruts, modesLus, jaugeageLu] = await Promise.all([
+      chargerEtAppliquerPlanQuart(),
+      chargerProduitsZone(zoneActive),
+      chargerModesAveugle(),
+      chargerModeJaugeageActif(),
+    ]);
+    produitsZone = restreindreAuPlanQuart(produitsBruts);
     const ids = produitsZone.map(p => p.id);
     dernierStock = await chargerDerniersStocks(ids);
     // Masquage réel, pas seulement visuel (17/08/2026, Sprint 1 — point de
@@ -2269,8 +2292,8 @@
     Object.keys(dernierStock).forEach(produitId => {
       if (produitsPlanIds.has(produitId)) delete dernierStock[produitId];
     });
-    modesAveugle = await chargerModesAveugle();
-    modeJaugeageActif = await chargerModeJaugeageActif();
+    modesAveugle = modesLus;
+    modeJaugeageActif = jaugeageLu;
     // Une projection terrain ne génère pas de recommandation officielle :
     // ce chargeur peut persister une recommandation absente. Le contrôle
     // ciblé simulé n'en a pas besoin.
@@ -4277,6 +4300,11 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
     demarrerHorloge();
+    // Lot 3 (23/10/2026) : le rôle du jour (service courant) ne dépend ni du
+    // fuseau ni du quart du moment : lu en même temps. Les écrans d'arrêt
+    // gardent leur ordre (horaires de quart d'abord, puis rôle).
+    const roleEnCours = employee.mode_test_inventaire ? null : chargerRoleDuJour();
+    if (roleEnCours) roleEnCours.catch(() => {});
     const fuseauInventaire = await NexusStation.fuseauDeLaStation(employee.site_id);
     filFuseau = fuseauInventaire.timezone;
     quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone);
@@ -4289,7 +4317,7 @@
     if (employee.mode_test_inventaire) {
       roleDuJour = employee.role_test_inventaire;
     } else {
-      const resolution = await chargerRoleDuJour();
+      const resolution = await roleEnCours;
       if (resolution.indetermine) { bloquerFauteDeRoleDuJour(resolution.indetermine); return; }
       roleDuJour = resolution.role;
       serviceCourantId = resolution.serviceId;
@@ -4304,18 +4332,23 @@
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
 
-    const { data: zonas } = await nexusClient.from('inventaire_zones').select('id, code');
+    // Lot 3 (23/10/2026) : zones, quart (puis quart-employé, puis missions) et
+    // plan ne dépendent pas les uns des autres : lus ensemble. Le plan est
+    // mémoïsé pour que l'ouverture directe ne le relise pas.
+    memoPlanInit = new Map();
+    const lectureZones = nexusClient.from('inventaire_zones').select('id, code');
+    const lectureQuart = (async () => {
+      quartRow = await obtenirOuCreerQuart();
+      if (!quartRow) return;
+      quartEmployeRow = await obtenirOuCreerQuartEmploye();
+      // Inventaire V2 Sprint 3 (29/08/2026) — les missions sont scopées par
+      // quart : un changement de quart (matin↔soir) doit les recharger.
+      await chargerMissionsDuJour();
+    })();
+    const [reponseZones] = await Promise.all([lectureZones, lectureQuart, chargerEtAppliquerPlanQuart()]);
+    const zonas = reponseZones && reponseZones.data;
     if (zonas) zonesMap = Object.fromEntries(zonas.map(z => [z.code, z.id]));
-
-    quartRow = await obtenirOuCreerQuart();
-    if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
-    quartEmployeRow = await obtenirOuCreerQuartEmploye();
-
-    // Inventaire V2 Sprint 3 (29/08/2026) — le plan et les missions sont
-    // scopés par quart : un changement de quart (matin↔soir) doit les
-    // recharger, sinon "Mes missions" resterait figé sur l'ancien quart.
-    await chargerEtAppliquerPlanQuart();
-    await chargerMissionsDuJour();
+    if (!quartRow) { memoPlanInit = null; document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
 
     // En test Renfort, la zone suit la mission configurée et non le rôle
     // générique. Cela évite de proposer une Piste vide lorsque la règle du
@@ -4346,6 +4379,7 @@
     } else {
       renderAccueil();
     }
+    memoPlanInit = null; // lu de façon synchrone au début du démarrage : ne sert qu'à l'init
     if (modeTestInventaireActif() && window.NexusInventaireModeTest) {
       window.NexusInventaireModeTest.rafraichir();
     }

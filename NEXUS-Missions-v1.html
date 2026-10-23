@@ -507,6 +507,11 @@
   // l'ouverture de la page. Pendant une recherche active, un bloc s'ouvre
   // automatiquement pour ne jamais masquer un résultat (voir blocListe()).
   let blocsListeOuverts = { obligatoires: true, disponibles: false, conditionnelles: false, priorites: false, creux: false };
+  // Lot 3 (23/10/2026) : sans mission obligatoire, « Disponibles » est le seul
+  // bloc qui compte : il s'ouvre une fois, d'office (le pompiste ne voyait
+  // qu'une page vide). Avec au moins une obligatoire, rien ne change. Une
+  // fois ouvert d'office, l'employé garde la main (replier reste possible).
+  let disponiblesDeplieSeul = false;
 
   // Signalement d'affluence (03/08/2026, demande de Frédéric — "pendant une
   // affluence, la boutique est prioritaire") : un état AUTO-DÉCLARÉ par le
@@ -2197,6 +2202,11 @@
       const obligatoires = lib.filter(m => m.disponibilite === 'obligatoire');
       const disponiblesListe = lib.filter(m => m.disponibilite !== 'obligatoire' && m.disponibilite !== 'conditionnelle');
       const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
+
+      if (obligatoires.length === 0 && disponiblesListe.length > 0 && !disponiblesDeplieSeul) {
+        disponiblesDeplieSeul = true;
+        blocsListeOuverts.disponibles = true;
+      }
 
       const cibleOblig = { html: htmlObligatoires };
       blocListe('obligatoires', 'Obligatoires avant le départ', obligatoires, cibleOblig);
