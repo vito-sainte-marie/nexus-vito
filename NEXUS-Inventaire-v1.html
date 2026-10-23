@@ -1384,6 +1384,7 @@
   // Mémo de l'initialisation (Lot 3, 23/10/2026) : posé par l'init, retiré
   // dès que l'écran a fini de démarrer.
   let memoPlanInit = null;
+  function fermerMemoPlanInit() { if (window.NexusInventairePlanDonnees && NexusInventairePlanDonnees.fermerMemoPlan) NexusInventairePlanDonnees.fermerMemoPlan(); }
 
   // Réglages, seuils d'écart et plan du quart. Les réglages et les seuils
   // sont indépendants : lus ensemble ; le plan a besoin des réglages.
@@ -4336,6 +4337,7 @@
     // plan ne dépendent pas les uns des autres : lus ensemble. Le plan est
     // mémoïsé pour que l'ouverture directe ne le relise pas.
     memoPlanInit = new Map();
+    if (window.NexusInventairePlanDonnees && NexusInventairePlanDonnees.ouvrirMemoPlan) NexusInventairePlanDonnees.ouvrirMemoPlan(); // partagé avec la voie missions
     const lectureZones = nexusClient.from('inventaire_zones').select('id, code');
     const lectureQuart = (async () => {
       quartRow = await obtenirOuCreerQuart();
@@ -4348,7 +4350,7 @@
     const [reponseZones] = await Promise.all([lectureZones, lectureQuart, chargerEtAppliquerPlanQuart()]);
     const zonas = reponseZones && reponseZones.data;
     if (zonas) zonesMap = Object.fromEntries(zonas.map(z => [z.code, z.id]));
-    if (!quartRow) { memoPlanInit = null; document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
+    if (!quartRow) { memoPlanInit = null; fermerMemoPlanInit(); document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
 
     // En test Renfort, la zone suit la mission configurée et non le rôle
     // générique. Cela évite de proposer une Piste vide lorsque la règle du
@@ -4379,7 +4381,7 @@
     } else {
       renderAccueil();
     }
-    memoPlanInit = null; // lu de façon synchrone au début du démarrage : ne sert qu'à l'init
+    memoPlanInit = null; fermerMemoPlanInit(); // lu de façon synchrone au début du démarrage : ne sert qu'à l'init
     if (modeTestInventaireActif() && window.NexusInventaireModeTest) {
       window.NexusInventaireModeTest.rafraichir();
     }

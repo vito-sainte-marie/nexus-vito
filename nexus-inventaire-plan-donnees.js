@@ -151,7 +151,33 @@
   // si un autre employé a généré le plan entre-temps, l'insert échoue et on
   // relit simplement le plan existant plutôt que d'échouer (comportement
   // déjà établi ailleurs dans NEXUS pour obtenirOuCreerQuart).
-  async function chargerOuGenererPlan(client, site, dateISO, quart, options) {
+  //
+  // Lot 3 (23/10/2026) : pendant l'initialisation de l'écran Employé, le plan
+  // est demandé par deux chemins en parallèle (le plan de la page, puis les
+  // missions via chargerContexteGeneration). Quand le plan n'existe pas encore,
+  // chacun cherchait, générait puis relisait : le plan était chargé deux fois.
+  // Tant qu'une fenêtre est ouverte (ouvrirMemoPlan), le résultat — dès que la
+  // demande est lancée, plan généré compris — est partagé par tous les
+  // appelants du même (site, date, quart). Hors fenêtre : aucun cache, un plan
+  // dont les items avancent ne doit jamais être servi périmé.
+  let memoPlans = null;
+  function ouvrirMemoPlan() { memoPlans = new Map(); }
+  function fermerMemoPlan() { memoPlans = null; }
+
+  function chargerOuGenererPlan(client, site, dateISO, quart, options) {
+    if (!memoPlans) return chargerOuGenererPlanSansMemo(client, site, dateISO, quart, options);
+    const memo = memoPlans;
+    const cle = `${site}|${dateISO}|${quart}`;
+    let demande = memo.get(cle);
+    if (!demande) {
+      demande = chargerOuGenererPlanSansMemo(client, site, dateISO, quart, options)
+        .then(r => { if (!r) memo.delete(cle); return r; }, e => { memo.delete(cle); throw e; });
+      memo.set(cle, demande);
+    }
+    return demande;
+  }
+
+  async function chargerOuGenererPlanSansMemo(client, site, dateISO, quart, options) {
     const existant = await chargerPlanExistant(client, site, dateISO, quart);
     if (existant && existant.plan) return existant;
 
@@ -289,7 +315,7 @@
 
   global.NexusInventairePlanDonnees = {
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
-    chargerPlanExistant, chargerOuGenererPlan, marquerItemPlanCompte,
+    chargerPlanExistant, chargerOuGenererPlan, ouvrirMemoPlan, fermerMemoPlan, marquerItemPlanCompte,
     chargerCouverturePhysique, chargerDernierPointReference,
     // Exportées le 21/08/2026 pour l'aperçu "Prochain inventaire estimé" de
     // l'écran Paramètres (Accueil) — mêmes requêtes que la génération réelle
