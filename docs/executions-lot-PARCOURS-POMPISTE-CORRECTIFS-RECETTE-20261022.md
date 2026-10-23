@@ -1,7 +1,7 @@
 # Exécution de decision-1 — correctifs de la recette pompiste (PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022)
 
 Décision : `decision-1.md` (arbitre ChatGPT, APPROVED_WITH_CONDITIONS, closes:false) sur la request-1. Prise en charge : `d3d9eccf`.
-Code : branche `correctifs-recette-pompiste-20261022`, commit `e32c4475`, **PR #152 en brouillon**, CI verte. Ni fusion, ni déploiement Production, ni écriture Production : **GO de Frédéric requis**.
+Code : branche `correctifs-recette-pompiste-20261022`, commit `e32c4475`, **PR #152 fusionnée dans `production` le 23/10 sur GO de Frédéric (`7cbbb479`)**, CI verte. Le déploiement attend la validation de Frédéric ; aucune écriture Production.
 Cible de la recette : alias Cloudflare `correctifs-recette-pompiste.nexus-test-ddf.pages.dev`, build `e32c447`, génération `29e4f45ff180`, construit le 2026-10-23T00:12:56Z, sur Supabase **Test** `udljdqxerrbbbajxubfn` (Production `uzhjpqpctpvxytxpxoqz` jamais touchée).
 
 ## A. Vu au navigateur (375 × 812, Employé Test B, pompiste)
@@ -25,10 +25,12 @@ Cible de la recette : alias Cloudflare `correctifs-recette-pompiste.nexus-test-d
 - **Lignes créées le 23/10 matin** (par l'interface, valeurs fictives) : prise de poste pompiste matin `ed1cc859-0a4f-4214-aa99-11f1b71dfe63` (12:35 UTC), jaugeage `7c521942-8c82-41a9-8eec-a5dcad308327` (SP 12000, GO1 8000, GO2 4000, GNR 9000, sans photo).
 - **Correction du jeu de recette** (précision de Frédéric, 23/10) : les écailles sont un produit de Glaçons, pas une catégorie. Script `outils/correction-jeu-recette-ecailles-20261023.sh` : produit `b5cd05a3-…` rangé dans Glaçons et renommé « Écailles » (il s'appelait « Écailles recette »), catégorie « Écailles » `9ca1027e-…` supprimée (aucun autre dépendant : zones, seuils, modes, réassort à 0). Exécutée sur Test le 23/10, relue : 0 catégorie Écailles, produit sous Glaçons. Aucune catégorie « Écailles » ne sera créée en Production.
 
+- **Rejeu du script (23/10, après le GO de Frédéric)** : `correction-jeu-recette-ecailles-20261023.sh udljdqxerrbbbajxubfn --executer` ne trouve plus rien (UPDATE 0, DELETE 0) ; produit « Écailles » toujours sous Glaçons, 0 catégorie Écailles.
+
 ## D. Limites
 - Rien vu sur iPhone réel. Aucun envoi de photo.
 - Le fil compte encore par la liste `CATEGORIES_FIL` du code : lot suivant, après le GO de #152.
 - La lenteur de l'Inventaire et le Missions vide du pompiste ne sont pas dans ce lot (diagnostic du Lot 3 rendu séparément).
 
 ## E. Prochaine action unique
-GO de Frédéric sur #152 (fusion et déploiement).
+Validation du déploiement de #152 par Frédéric.
