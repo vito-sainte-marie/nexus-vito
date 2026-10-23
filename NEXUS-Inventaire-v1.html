@@ -284,6 +284,8 @@
   .calc-apercu{font-family:var(--mono); font-size:11.5px; color:var(--cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
   .calc-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .confirm-page-actions{display:flex; gap:10px; margin-top:14px;}
+  .confirm-page-actions button{flex:1;}
   .calc-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:18px 16px calc(18px + env(safe-area-inset-bottom));}
   .calc-display{font-family:var(--mono); font-size:30px; font-weight:700; text-align:right; padding:10px 8px; margin-bottom:14px; background:var(--panel-raised); border-radius:10px; border:1px solid var(--hairline); overflow-x:auto; white-space:nowrap;}
   .calc-keys{display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;}
@@ -2745,7 +2747,8 @@
   function libelleEtapeParcours(groupe) {
     const { groupesRequis } = groupesParcoursOuverture();
     const idx = groupesRequis.findIndex(g => g.nom === groupe.nom);
-    const prefixeEtape = idx === -1 ? '' : `Étape ${idx + 1}/${groupesRequis.length} — `;
+    // Dans le fil « Mon début de quart », la barre du haut porte déjà « Étape n sur N » : un seul compteur à l'écran.
+    const prefixeEtape = (idx === -1 || enFil()) ? '' : `Étape ${idx + 1}/${groupesRequis.length} — `;
     const cible = produitsRequis(groupe.items);
     const restants = cible.filter(p => !produitEstCompte(p)).length;
     return {
@@ -2862,7 +2865,7 @@
         sauvegarderDraft('ouverture');
       });
     });
-    document.getElementById('btnCategorieConforme').addEventListener('click', () => {
+    document.getElementById('btnCategorieConforme').addEventListener('click', async () => {
       // Comptage en deux lieux (05/08/2026) : ces produits doivent toujours
       // être physiquement comptés au dépôt ET en boutique — jamais présumés
       // "identiques" en un clic comme les autres, même via ce raccourci.
@@ -2875,10 +2878,16 @@
       const simples = groupe.items.filter(p => !estComptageDeuxLieuxEmploye(p) && !production.includes(p));
       const doubles = groupe.items.filter(estComptageDeuxLieuxEmploye);
       if (!simples.length) { alert('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
-      const message = (doubles.length || production.length)
-        ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length + production.length} produit${(doubles.length + production.length) > 1 ? 's' : ''} à saisir individuellement ci-dessus)`
-        : `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} de cette catégorie ?`;
-      if (!confirm(message)) return;
+      // Dans le fil, le bouton dit déjà « Valider cette catégorie conforme » : pas de seconde question.
+      if (!enFil()) {
+        const nb = simples.length;
+        const autres = doubles.length + production.length;
+        const compte = nb > 1 ? `les ${nb} produits restants` : 'le produit restant';
+        const message = autres
+          ? `Vous confirmez avoir compté ${compte} de cette catégorie ? (${autres} produit${autres > 1 ? 's' : ''} à saisir individuellement ci-dessus)`
+          : `Vous confirmez avoir compté ${nb > 1 ? `les ${nb} produits` : 'le produit'} de cette catégorie ?`;
+        if (!(await confirmerEnPage(message, 'Oui, compté'))) return;
+      }
       simples.forEach(p => {
         const transmis = dernierStock[p.id];
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
@@ -3082,7 +3091,7 @@
       if (carrouselInput.value !== '') majCarrousel(valeurTransmise, p.id);
     }
     const btnValiderProduit = document.getElementById('btnValiderProduit');
-    if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
+    if (btnValiderProduit) btnValiderProduit.addEventListener('click', async () => {
       // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
       // reste au dépôt jusqu'à avoir fini) : on n'enregistre ici que la
       // phase "Dépôt" ; la boutique est rattrapée à la toute fin de
@@ -3092,7 +3101,7 @@
         const input = document.getElementById('carrouselInput');
         let vDepot = input.value === '' ? null : evaluerAdditionChainee(input.value);
         if (vDepot === null || isNaN(vDepot)) {
-          if (!confirm(`Aucun chiffre saisi pour le dépôt sur ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+          if (!(await confirmerEnPage(`Aucun chiffre saisi pour le dépôt sur ${p.designation} — on enregistre 0.`, 'Enregistrer 0'))) return;
           vDepot = 0;
         }
         comptagesSaisie[p.id] = { compteDepot: vDepot };
@@ -3109,7 +3118,7 @@
       // l'enregistrer à 0 — annuler la confirmation laisse la case ouverte
       // pour corriger une saisie oubliée par erreur.
       if (val === null || isNaN(val)) {
-        if (!confirm(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+        if (!(await confirmerEnPage(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0.`, 'Enregistrer 0'))) return;
         val = 0;
       }
       const ecart = val - valeurTransmise;
@@ -3190,11 +3199,11 @@
     }
 
     const btnValiderProduit = document.getElementById('btnValiderProduit');
-    if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
+    if (btnValiderProduit) btnValiderProduit.addEventListener('click', async () => {
       const input = document.getElementById('carrouselInput');
       let val = input.value === '' ? null : evaluerAdditionChainee(input.value);
       if (val === null || isNaN(val)) {
-        if (!confirm(`Aucune quantité saisie pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+        if (!(await confirmerEnPage(`Aucune quantité saisie pour ${p.designation} — on enregistre 0.`, 'Enregistrer 0'))) return;
         val = 0;
       }
       // .compte réutilisé volontairement (même clé que le comptage
@@ -3359,6 +3368,37 @@
     `;
   }
 
+  // Confirmation dans la page (recette du 22/10) : le navigateur natif
+  // affiche l'adresse du site et casse le fil sur téléphone. Rend true/false.
+  function confirmerEnPage(message, libelleOui) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'calc-overlay';
+      overlay.id = 'confirmPageOverlay';
+      const modal = document.createElement('div');
+      modal.className = 'calc-modal';
+      modal.setAttribute('role', 'dialog');
+      const texte = document.createElement('div');
+      texte.style.whiteSpace = 'pre-line';
+      texte.textContent = message;
+      const actions = document.createElement('div');
+      actions.className = 'confirm-page-actions';
+      const non = document.createElement('button');
+      non.className = 'btn-ghost';
+      non.textContent = 'Revenir';
+      const oui = document.createElement('button');
+      oui.className = 'btn-primary';
+      oui.textContent = libelleOui || 'Confirmer';
+      const fin = v => { overlay.remove(); resolve(v); };
+      non.addEventListener('click', () => fin(false));
+      oui.addEventListener('click', () => fin(true));
+      actions.append(non, oui);
+      modal.append(texte, actions);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    });
+  }
+
   async function validerOuverture() {
     if (modeTestInventaireActif()) {
       const moment = typeof window !== 'undefined' && window.NexusInventaireModeTest
@@ -3369,7 +3409,7 @@
     // Confirmation systématique avant validation (02/08/2026, demande de
     // Frédéric) — quel que soit le compte connecté, l'action est
     // irréversible une fois enregistrée en base.
-    if (!confirm('Êtes-vous sûr de valider cet inventaire d\'ouverture ? Cette action est irréversible.')) return;
+    if (!(await confirmerEnPage('Valider cet inventaire d\'ouverture ? Cette action est irréversible.', 'Valider'))) return;
 
     // capture les justifications avant de désactiver le bouton
     document.querySelectorAll('.justif-input').forEach(el => {

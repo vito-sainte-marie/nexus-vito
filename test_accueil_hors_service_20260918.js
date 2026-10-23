@@ -193,7 +193,7 @@ const FUSEAU_STATION_PAR_DEFAUT = 'America/Martinique';
 async function executerAccueil({
   employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant,
   reponses = {}, forfait = 'professional', receptionRole = 'aucun',
-  jaugeageActif = false, statutJaugeage = null,
+  jaugeageActif = false, statutJaugeage = null, releveJaugeage = null,
   fuseauSite = FUSEAU_STATION_PAR_DEFAUT,
 }) {
   const { document, journal } = faireDom();
@@ -206,6 +206,11 @@ async function executerAccueil({
   // Le fuseau est relu pour CHAQUE cas : le cache de `nexus-auth.js` est
   // volontairement reconstruit ici, sinon un cas contaminerait le suivant.
   const auth = fuseaux(faireClient(reponsesSite));
+  const REGLE_JAUGEAGE_DU_JOUR = (() => {
+    const g = {};
+    new Function('globalThis', 'window', require('fs').readFileSync(require('path').join(__dirname, 'nexus-carburant-donnees.js'), 'utf8').replace(/\(typeof window !== 'undefined' \? window : globalThis\);\s*$/, '(globalThis);'))(g, undefined);
+    return g.NexusCarburantDonnees.jaugeageDuJourFait;
+  })();
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
     'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'localStorage', 'location',
@@ -222,7 +227,7 @@ async function executerAccueil({
     require('./nexus-fil-debut-quart.js'),
     { getItem: () => null, setItem() {}, removeItem() {} },
     { search: '' },
-    { chargerStatutJaugeageJour: async () => statutJaugeage },
+    { chargerStatutJaugeageJour: async () => statutJaugeage, chargerReleveDuJour: async () => releveJaugeage, jaugeageDuJourFait: REGLE_JAUGEAGE_DU_JOUR },
     require('./nexus-releves-piste.js'),
     async () => receptionRole,
     async () => jaugeageActif,
@@ -766,6 +771,16 @@ async function cas(nom, entree, controles) {
       verifier('jaugeage en premier', rendus.action.lienTexte, 'Reprendre mon début de quart →');
       verifier('le fil reprend à l’étape 1 (jaugeage)', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=1&debut=debut_q1&plan=1.2.3&ecran=jauge');
       verifier('index toujours comptés', rendus.ctx.controlesInfo.total, 3);
+    });
+  await cas('F12b · Q1 relevé du manager sans statut : le jaugeage est fait, l’index prend le relais',
+    entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: null, releveJaugeage: { id: 'releve-manager' } }),
+    ({ rendus, verifier }) => {
+      verifier('le fil reprend à l’étape 2 (index)', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=2&debut=debut_q1&plan=2.3&moment=debut_q1');
+    });
+  await cas('F12c · Q1 « impossible » sans relevé : le jaugeage est fait',
+    entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: { statut: 'impossible' }, releveJaugeage: null }),
+    ({ rendus, verifier }) => {
+      verifier('le fil reprend à l’étape 2 (index)', rendus.action.lien, 'NEXUS-Releves-Piste-v1.html?fil=debut-quart&etape=2&debut=debut_q1&plan=2.3&moment=debut_q1');
     });
   await cas('F12 · Q1 jaugeage fait : l’index prend le relais',
     entreeIndex('matin', [], { jaugeageActif: true, statutJaugeage: { statut: 'fait' } }),
