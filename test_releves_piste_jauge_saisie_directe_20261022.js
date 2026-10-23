@@ -59,14 +59,15 @@ function bac(source, { lecture = null, actif = null } = {}) {
     },
   };
   const code = `
-    let emp = { id: 'emp1', site_id: 'site1' }, date = '2026-10-22', reseau = { ok: true };
+    let emp = { id: '0d44032a-1b2c-4d3e-8f90-123456789abc', site_id: 'site1' }, date = '2026-10-22', reseau = { ok: true };
     let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
     ${ligneEsc(source)}
     ${extraireBloc(source, 'const CUVES = [', '\n  ];')}
     ${extraireBloc(source, 'const LIB_STATUT = {', '\n  };')}
     const V = { lireEcranVeederRoot: (t) => JSON.parse(t) };
     const R = { extensionPhoto: () => ({ ext: 'jpg', contentType: 'image/jpeg' }), precontrolePompiste: () => ({ ok: true }), causePhoto: () => ({ message: 'x', type: 'autre' }) };
-    const window = { NexusCameraPage: { redimensionnerPhoto: async (f) => f } };
+    const window = { NexusCameraPage: { redimensionnerPhoto: async (f) => f }, NexusCaptureGuidee: GUIDEE };
+    const nexusFuseauSite = async () => 'UTC';
     const enFil = () => false, filContinuer = () => '';
     let sauvegardes = 0;
     const sauverJauge = () => { sauvegardes++; return true; };
@@ -74,7 +75,7 @@ function bac(source, { lecture = null, actif = null } = {}) {
     ${Object.values(fns).filter(Boolean).join('\n')}
     ({ ${noms.map(n => (fns[n] ? n : `${n}: undefined`)).join(', ')}, jauge, LIB_STATUT, get sauvegardes() { return sauvegardes; }, set: (c) => eval(c) });
   `;
-  const ctx = vm.createContext({ document, nexusClient, journal, Date, JSON, Object, Number, String, Array, navigator: { onLine: true }, console });
+  const ctx = vm.createContext({ GUIDEE: require('./nexus-capture-guidee.js'), document, nexusClient, journal, Date, JSON, Object, Number, String, Array, navigator: { onLine: true }, console });
   return { api: vm.runInContext(code, ctx), journal };
 }
 

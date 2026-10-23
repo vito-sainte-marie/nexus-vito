@@ -128,9 +128,28 @@
     return '_qforcee-n' + Math.round(d.nettete) + '-r' + Math.round(d.reflet * 1000);
   }
 
+  // Nom de l'objet envoyé : AAAA-MM-JJ_<uid>_nexus-jaug_<site>_<HHhMM>[-N][_qforcee-…].<ext>, à l'heure de la STATION.
+  // La date puis `_<uid>_` en tête sont exigées par la politique de stockage (like '____-__-__\_<auth.uid()>\_%') : ne pas les déplacer.
+  // Sans fuseau, uid, site ou extension valides : null (aucun nom deviné). rang >= 2 ajoute -N (collision dans la même minute).
+  const LIMITE_RANG = 9;
+  function nomPhotoJaugeage(o) {
+    o = o || {};
+    if (!o.fuseau || !o.uid || !o.site || !o.ext) return null;
+    if (!/^[a-z0-9-]+$/.test(o.site) || !/^[0-9a-f-]{36}$/.test(o.uid) || !/^(jpg|jpeg|png|webp|heic)$/.test(o.ext)) return null;
+    const d = o.instant instanceof Date ? o.instant : new Date(o.instant);
+    if (isNaN(d.getTime())) return null;
+    let p;
+    try {
+      p = new Intl.DateTimeFormat('en-CA', { timeZone: o.fuseau, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+    } catch (e) { return null; }
+    const rang = o.rang > 1 ? '-' + Math.floor(o.rang) : '';
+    return p.year + '-' + p.month + '-' + p.day + '_' + o.uid + '_nexus-jaug_' + o.site + '_' + p.hour + 'h' + p.minute + rang + suffixeNomForcee(o.forcee) + '.' + o.ext;
+  }
+
   const GUIDE_JAUGEAGE = Object.freeze({ consigne: CONSIGNE });
 
   return { PROPORTION_ECRAN, LARGEUR_CADRE, HAUTEUR_CADRE_MAX, MARGE_RECADRAGE, LARGEUR_ANALYSE, NIVEAU_BLANC, SEUIL_REFLET, SEUIL_NETTETE,
-    CONSIGNE, MESSAGE_FLOU, MESSAGE_REFLET, GUIDE_JAUGEAGE, SEUIL_REFUS_FORCER, refusSuivant, forcagePropose, descriptifForcee, suffixeNomForcee,
+    CONSIGNE, MESSAGE_FLOU, MESSAGE_REFLET, GUIDE_JAUGEAGE, SEUIL_REFUS_FORCER, refusSuivant, forcagePropose, descriptifForcee, suffixeNomForcee, nomPhotoJaugeage, LIMITE_RANG,
     calculerCadre, cadreEnVideo, calculerRecadrage, reduireEnGris, mesurerNettete, mesurerReflet, evaluerQualite };
 });
