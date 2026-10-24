@@ -1,81 +1,47 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/VIGIE-CI-RAIL-20261024/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023
-seq: 2
+lot_id: VIGIE-CI-RAIL-20261024
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=73c88a47 production=7cbbb479
+    valeur: main=73c88a47 production=d76e9c07
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 161-fichiers
+    valeur: 162-fichiers
 ---
-# PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023 : preuve unique d'exécution de decision-1
+# VIGIE-CI-RAIL-20261024 : alerte quand la CI du rail reste rouge plus d'une heure
 
-*Déposé sur instruction de Frédéric (« dépose la preuve unique du Lot 3, ouvre la PR en brouillon et préviens-moi pour le GO »). Branche `lot3-inventaire-missions-20261023`, dernier commit `ed53a6ba`. PR en brouillon : aucune fusion sans le GO de Frédéric. Aucune migration, aucune écriture Production. Demande : constater l'exécution des conditions de decision-1 ; le lot de suite (relectures restantes, « Disponibles » après validation) sera déposé après la clôture.*
+*Déposé sur instruction de Frédéric (24/10/2026, « Vigie de la CI du rail en premier »). Il accorde pour ce lot la permission `actions: read` au workflow de la vigie, en lecture seule, et la modification de `main` par PR, fusionnée sur son GO.*
 
+## Constat
+Une CI rouge sur le rail peut rester inaperçue : aucune vigie ne la regarde. La vigie existante (`vigie-cloture.yml`, cron `17 * * * *`) ne lit que les clôtures.
 
-Décision : `decision-1` (APPROVED_WITH_CONDITIONS, closes:false, `82c95deb`). Prise en charge : `07cbb9da`.
-Branche `lot3-inventaire-missions-20261023`. Aperçu mesuré : `e87ca738` (code `e444e46`). Supabase **Test** seulement ; aucune écriture Production, aucune migration, aucune fusion.
+## Ce qui est fait
+- `outils/vigie-ci-rail.js` : lit les derniers runs du workflow `Tests` sur le rail (`gh run list`, `gh run view --log-failed`, lecture seule). Dernier run terminé rouge depuis **plus de 60 min** : `::error` qui nomme le commit, le run et la première ligne rouge, sortie 1. Un run vert plus récent, un run en cours ou annulé ne lèvent ni n'ouvrent d'alerte. `gh` en panne : alerte « aveugle » (une vigie qui ne voit pas le dit).
+- `.github/workflows/vigie-cloture.yml` : `actions: read` en plus de `contents: read`, et l'étape `Surveiller la CI du rail` (`if: always()`, `github.token` seul, aucun `secrets.`).
+- Rail : commit `6a882c8f`, CI verte. Le workflow planifié tourne depuis `main` : même fichier porté par la **PR #154 (brouillon)**, à fusionner sur le GO de Frédéric.
 
-## A. Mesures navigateur (Claude Guardian, Employé Test B, même compte)
-| Mesure | Avant | Après (`e444e46`) |
-|---|---|---|
-| Première ouverture, écran prêt | ~9 s | 5,0 s |
-| Requêtes | 46 | 44 |
-| Vagues | 27 | 12 |
-| Quart déjà ouvert (2,8 / 3,0 / 6,4 s) | | 2,1 / 2,8 / 3,2 s (33 requêtes) |
+## Preuves
+- `test_vigie_ci_rail_20261024.js` avec un faux `gh` : **rouge à 61 min : alerte ; à 59 min et à 60 min : muet** ; vert après rouge : muet ; en cours : ne lève pas ; annulé : ignoré ; aucun run : muet ; `gh` en panne : alerte ; appels `gh` en lecture seule uniquement (`run list|view`), rail seul visé ; permissions du workflow exactement `contents: read` + `actions: read`, aucun droit d'écriture.
+- Épreuve de morsure : 5 mutants du script, tous détectés.
+- `test_vigie_cloture_ci_20261020.js` (V5) adapté volontairement à la permission accordée : elle n'accepte que ces deux lectures et `github.token`.
+- Guardian QA : 355 épreuves, 0 finding. Tests CI du rail : succès sur `6a882c8f`.
 
-**L'objectif de 3 s n'est pas atteint** à la première ouverture (5,0 s). Le gain est réel mais partiel.
+## Limites
+Pas de preuve en conditions réelles avant la fusion de #154 : le premier cron après fusion est la seule épreuve réelle. Aucune écriture Production, aucune fusion sans GO.
 
-## B. Plan chargé une fois
-Prouvé au navigateur : une seule insertion du plan et de ses lignes, puis une seule relecture du plan avec ses produits (~3,2 s et ~3,3 s).
-**Reste en double** : la préparation de la sélection (`inventaire_points_reference`, plans récents, produits du quota), lue vers 1,9 s puis 2,7 s (`chargerIngredientsSelection` par la voie des missions) ; `station_config` ×3, `sites` ×2, `shifts` ×2. Non traités dans ce lot.
-
-## C. Identité des produits (plan généré le 23/10 à 18:13 UTC, quart du soir)
-Six lignes, ordre 0 à 5 : Écailles, Gaz 12,5KG, Gaz 3KG, Glaçons recette, Huile moteur recette, Lave-glace recette. Même ensemble de six produits que le plan du matin comparé au tableau de référence. Les lignes du plan ne portent pas de quantité attendue : l'identité des quantités n'est pas comparable à ce niveau.
-**Décision de Frédéric (23/10)** : pas de filtre de zone à la génération. Le plan couvre le quart entier, chaque écran filtre selon la zone de l'employé ; l'huile et le lave-glace dans le plan sont normaux (la boutique les compte). Critère retenu : « l'écran du pompiste ne contient que les produits actifs de la zone piste » ; il est porté par le lot CATEGORIES_FIL.
-
-## D. Missions
-- Code : « disponibles » n'est déplié que si aucune mission obligatoire n'existe et qu'il y a des disponibles ; sinon comportement inchangé. Épreuve `test_parcours_pompiste_lot3_20261023.js` (M1).
-- **Vu au navigateur, avec missions obligatoires** (aperçu `e87ca738`, code `e444e46`, Employé Test B, pompiste, 375 px) : « Obligatoires avant le départ (2) » affiché ; « Disponibles pendant le service (1) » **replié**. Comportement existant conservé. Revu après restauration du catalogue : même constat.
-- **Vu au navigateur, sans mission obligatoire** (24/10) : après avoir désactivé TST-001 et TST-002 sur Test (accord de Frédéric), même compte, rôle « pompiste » : « Aucune mission obligatoire pour l'instant » et « Disponibles pendant le service (1) » **dépliée d'elle-même**, avec « Vider les poubelles exterieures ». Catalogue ensuite restauré (TST-001 à TST-005 `actif=true`, relu).
-- **Erreur de départ corrigée** : solder les deux missions obligatoires ne déplie pas « Disponibles ». Le dépliage dépend du catalogue (`disponibilite = obligatoire` pour le rôle), pas de l'achèvement : les missions validées restent listées. Ce n'est pas un défaut du Lot 3 ; c'est l'objet du lot de suite (point 4 de la section F).
-- **Renfort** : l'écran Missions du renfort suit une branche de mise en page distincte (4 blocs), que le Lot 3 ne touche pas. Vu comme simple témoin que cette branche est inchangée ; il ne prouve pas le correctif.
-
-## E. Écritures sur Test (jamais Production)
-- Nettoyage du quart du matin 10:00 (quart `7568f3b4`, rattachement `71edc336`, plan `22960f98`, 6 lignes), par un bloc SQL borné, pas par le script versionné ; service `ed1cc859` conservé.
-- Services de recette encore présents : pompiste matin `ed1cc859`, `d4f52c83`, renfort soir `8497d450` (clos sans pointage au changement de rôle), pompiste soir `a97e191d` (en cours, créé par ce changement de rôle).
-- Validations de missions : `2e8d8961`, `3c8f7316`.
-- Catalogue : TST-001 et TST-002 désactivés puis restaurés (état final identique à l'initial).
-- Script de retrait `outils/nettoyage-services-recette-pompiste-20261023.sh` : refuse Production (code 3) et tout autre projet, simulation par défaut (rollback), `--executer` pour valider, bornes par identifiants, aucun service d'un autre auteur. **Non exécuté** : à lancer après la fin des mesures. Ses gardes n'ont pas été exercées par moi (ma lecture et mes écritures sur Test sont passées par l'outil SQL du connecteur, pas par `psql` ni par le script).
-
-## F. Limites et suite
-1. L'objectif de 3 s n'est **pas atteint** (5,0 s). Volet Inventaire clos par Frédéric avec ces chiffres.
-2. Suite des suites `run-tests.js` : 7 échecs sur la branche (298/305) et **les mêmes 7** sur `origin/production` `7cbbb479` (297/304). Les « 9 » étaient la base du 3 oct. Les 7, hors périmètre du lot : `test_inventaire_categorie_mixte_deux_lieux`, `test_inventaire_production_journaliere_q1`, `test_inventaire_sprint4_ux_flash`, `test_inventaire_sprint4bis_ecriture_immediate`, `test_pilotage_qualite_receptions`, `test_reception_moteur`, `test_reception_v1_dom`. Le lot n'en ajoute aucun.
-3. Rien vu sur iPhone réel.
-4. **Lot de suite** (préparé, non déposé avant la clôture) : relectures restantes (`chargerIngredientsSelection` lue deux fois par la voie des missions, `station_config` ×3, `sites` ×2, `shifts` ×2) avec la même mesure Guardian avant/après ; et « déplier Disponibles aussi quand toutes les missions obligatoires du jour sont validées ».
-
-## G. Prochaine action unique
-Ton GO pour fusionner la PR en brouillon (aucune fusion sans lui).
-
-## Preuve des conditions de decision-1
-
-1. **Inventaire limité au retrait du second chargement du plan et à la parallélisation, sans RPC** : respecté. Seuls `nexus-inventaire-plan-donnees.js` et `NEXUS-Inventaire-v1.html` changent côté Inventaire ; aucune RPC, aucune migration. Épreuves L1 à L6.
-2. **Chronométrage avant/après au navigateur, même compte, même quart** (Claude Guardian, Employé Test B) : première ouverture ~9 s → 5,0 s ; vagues 27 → 12 ; requêtes 46 → 44 ; quart déjà ouvert 2,8 / 3,0 / 6,4 s → 2,1 / 2,8 / 3,2 s. **Objectif de 3 s non atteint**, écrit tel quel (section A).
-3. **Chargement unique du plan** : une insertion et une relecture du plan, vues au navigateur (section B).
-4. **Identité des produits et quantités attendues** : six produits identiques au plan du matin ; les lignes du plan ne portent pas de quantité attendue, donc non comparable (section C).
-5. **Missions : « disponibles » déplié seulement sans mission obligatoire** : vu au navigateur dans les deux cas, même compte (section D) : avec obligatoires, replié ; avec TST-001 et TST-002 désactivés, déplié seul ; catalogue restauré. Épreuve M1.
-6. **Nettoyage Test** : script `outils/nettoyage-services-recette-pompiste-20261023.sh` : refus de Production (code 3) et de tout autre projet, simulation par défaut, `--executer` explicite, bornes par identifiants, affichage préalable des lignes, aucun service d'un autre auteur retiré. **Non exécuté** ; gardes non exercées par moi (section E).
-7. **Aucune migration, fusion, promotion ni écriture Production** : respecté. Écritures Test listées en section E. PR en brouillon, fusion en attente du GO de Frédéric.
-8. **Suite `run-tests.js`** : 7 échecs, les mêmes que sur `origin/production` `7cbbb479` (section F, point 2).
+## À arbitrer
+1. Approuver le lot.
+2. Exécutant à désigner pour la suite (fusion de #154 sur GO de Frédéric).
