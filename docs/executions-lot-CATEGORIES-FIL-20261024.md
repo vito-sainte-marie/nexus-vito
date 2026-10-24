@@ -28,9 +28,14 @@ Ma première lecture de Production (SELECT seul) a été faite **sans GO de Fré
 Lecture de référence : Claude Guardian, avec le GO de Frédéric, lecture seule, filtrée sur `vito-sainte-marie`. En zone piste, seuls **Gaz (3 produits) et Glaçons (3, dont « Glace Ecaille 8kg Crystal »)** sont actifs ; **Huiles (16) et Lave-glace (9) sont en boutique**. Les 25 produits « en piste » que j'avais lus venaient d'un autre site.
 Conséquence : **rien à déplacer en Production** ; le fil de Production comptera Gaz et Glaçons, comme sur Test. Aucune écriture Production.
 
-## E. Limites
+## E. Réponses de l'arbitre sur la request-2 (24/10)
+- **Version de 10:05** (constat Production faux) : l'arbitre a répondu **BLOCKED / OWNER_NEXT Frédéric / STOP_REQUIRED SUPABASE_PRODUCTION_MUTATION**. Texte sur l'issue #28 ; la CI ne l'a pas déposé sur le rail. Non consommé.
+- **Version corrigée** (constat retiré, lecture de Guardian filtrée sur `vito-sainte-marie`) : `decision-2.md`, **APPROVED, closes:true**, matérialisée par la CI (`b6f83fee`, run 40102224926). Lue sur RAIL_LU `3e0c5e88` ; `request-2.md` a ensuite été restaurée à l'identique de `15a4ebba` par `3e2dcc4b` (nouveau commit, sans réécriture).
+- Frédéric garde `decision-2.md` (option 1) et en demande la consommation par `--cloture`. Aucune écriture Production n'a été nécessaire ni faite.
+
+## F. Limites
 - Aucune recette navigateur de ce lot. Écran vu seulement par l'épreuve sur faux client.
 - Le comptage Production n'est pas mesuré par site (voir D).
 
-## F. Prochaine action unique
-Arbitrage de la preuve (request-2).
+## G. Prochaine action unique
+PR brouillon vers `production` (commit `395400b5`) ; la fusion attend le GO de Frédéric.
