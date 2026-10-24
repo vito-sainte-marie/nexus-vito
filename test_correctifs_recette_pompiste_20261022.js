@@ -1,5 +1,5 @@
 // Épreuve — 22/10/2026, lot PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022 (decision-1).
-// C1 : le filtre des catégories du fil ne retient que Gaz, Glaçons, Écailles, sur le mot entier.
+// C1 : le fil ne porte plus de liste de catégories en dur (lot CATEGORIES_FIL, 24/10) ; la zone piste du site décide.
 // Le module est exécuté tel quel ; chaque épreuve est contrôlée par une mutation.
 
 const fs = require('fs');
@@ -26,13 +26,9 @@ function epreuves(S) {
   const eprouve = (nom, f) => { try { f(); } catch (e) { echecs.push(`${nom} — ${e.message}`); } };
   const F = charger(S.module);
 
-  eprouve('C1 retenues', () => {
-    ['Gaz', 'Gaz butane 13 kg', 'Bouteille de gaz', 'Glaçons', 'Glaçons 5 kg', 'Glacons', 'Écailles', 'Ecailles', 'Écailles de glace']
-      .forEach(n => assert.strictEqual(F.categorieDuFil(n), true, `« ${n} » doit être retenu`));
-  });
-  eprouve('C1 exclues', () => {
-    ['Lave-glace & Liquide de refroidissement', 'Lave-glace', 'Huiles', 'Huile moteur', 'Liquide de refroidissement', '', null, undefined, 'Gazole', 'Glacée', 'Pagaz']
-      .forEach(n => assert.strictEqual(F.categorieDuFil(n), false, `« ${n} » doit être exclu`));
+  eprouve('C1 le fil ne porte plus de liste de catégories en dur', () => {
+    assert.strictEqual(F.categorieDuFil, undefined, 'categorieDuFil ne doit plus être exporté : le paramétrage de la station décide');
+    assert.ok(!/gaz|gla[cç]ons|[ée]cailles/i.test(S.module.replace(/\/\/.*$/gm, '')), 'une liste de produits ou de catégories est revenue dans le module du fil');
   });
 
   eprouve('C4 un seul compteur', () => {
@@ -97,9 +93,7 @@ function muter(nom, cle, de, vers, attendu) {
   assert.ok(e.some(x => x.startsWith(attendu)), `mutation « ${nom} » : ${attendu} est restée verte (rouges : ${e.join(' | ') || 'aucun'})`);
   ok(`mutation « ${nom} » → ${attendu} rougit`);
 }
-muter('glace en sous-chaîne', 'module', "(?<![\\p{L}\\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\\p{L}\\p{N}])/iu", "gaz|gla[cç]on|glace|[ée]caille/i", 'C1 exclues');
-muter('mot entier perdu', 'module', "(?<![\\p{L}\\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\\p{L}\\p{N}])/iu", "gaz|gla[cç]ons?|[ée]cailles?/i", 'C1 exclues');
-muter('glaçons oubliés', 'module', "gla[cç]ons?|", "", 'C1 retenues');
+muter('liste de noms revenue dans le fil', 'module', "return { NOMBRE_ETAPES,", "const CATEGORIES_FIL = /gaz|gla[cç]ons/i; return { NOMBRE_ETAPES,", 'C1');
 muter('compteur doublé', 'inv', "(idx === -1 || enFil()) ? ''", "(idx === -1) ? ''", 'C4');
 muter('confirm natif rétabli', 'inv', "if (!(await confirmerEnPage(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0.`, 'Enregistrer 0'))) return;", "if (!confirm(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;", 'C2 plus de confirm');
 muter('question conforme dans le fil', 'inv', "if (!enFil()) {\n        const nb", "if (true) {\n        const nb", 'C2 plus de confirm');

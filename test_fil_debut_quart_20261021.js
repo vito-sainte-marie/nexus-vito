@@ -140,10 +140,9 @@ function epreuves(S) {
     assert.strictEqual(f.urlRepriseSelonFaits(casse, 'e1', 'd', 'debut_q1', { resteJaugeage: true, resteIndex: true, resteInventaire: true }), f.urlEtape(1, 'debut_q1', [1, 2, 3]));
     assert.strictEqual(f.atteindre(casse, 'e1', 'd', 2).etape, 2);
   });
-  eprouve('F7 l\'inventaire du fil ne compte que gaz, glaçons, écailles', () => {
+  eprouve('F7 le fil ne porte aucune liste de catégories (le paramétrage de la station décide)', () => {
     const f = requis();
-    for (const n of ['Gaz', 'Glaçons', 'Glacons', 'Écailles', 'Ecailles']) assert.ok(f.categorieDuFil(n), n);
-    for (const n of ['Boissons', 'Lubrifiants', '', null]) assert.ok(!f.categorieDuFil(n), String(n));
+    assert.strictEqual(f.categorieDuFil, undefined, 'categorieDuFil est revenu');
   });
   eprouve('F8 module pur : aucune écriture en base, aucun pointage', () => {
     assert.ok(!/nexusClient|supabase|\.from\(|fetch\(|pointage/i.test(S.module.replace(/\/\/.*$/gm, '')), 'le module touche la base ou le pointage');
@@ -206,8 +205,11 @@ function epreuves(S) {
     assert.ok(/\.fil-actif #btnRetourCategories/.test(I), '« Retour aux catégories » non masqué');
     assert.ok(/if \(quartDuShift\) quartActuel = quartDuShift;/.test(I), 'le quart choisi à la prise de poste n\'est pas repris');
   });
-  eprouve('I3 Inventaire : seules les catégories du fil sont comptées', () => {
-    assert.ok(/FIL\.categorieDuFil\(p\.inventaire_categories \? p\.inventaire_categories\.nom : ''\)/.test(I), 'filtre absent');
+  eprouve('I3 Inventaire : le fil compte les produits de la zone piste du site, sans liste de noms', () => {
+    const d = I.indexOf('function produitsZoneOuverturePourQuart()');
+    const corps = I.slice(d, I.indexOf('\n  }', d)).replace(/\/\/.*$/gm, '');
+    assert.ok(/const base = produitsZone;/.test(corps), 'le fil doit partir de produitsZone (zone piste, actifs, site courant)');
+    assert.ok(!/categorieDuFil|gaz|gla[cç]|[ée]caille/i.test(corps), 'une liste de noms est revenue dans le filtre du fil');
   });
   eprouve('I4 Inventaire : progression, sortie commune, fin vers l\'Accueil', () => {
     assert.ok(/id="filProgres"/.test(I) && /FIL\.libelleProgression\(filEtape, filPlan\)/.test(I), 'progression absente');
@@ -299,7 +301,7 @@ muter('faits du serveur ignorés', 'module', "const plan = planSelonFaits(faits)
 muter('sous la mémoire', 'module', "plan.find(x => x >= e.etape) || plan[0]", "plan[0]", 'F5');
 muter('rien à faire ouvre quand même un fil', 'module', "if (!plan.length) return null;", "", 'F5');
 muter('stockage refusé fait planter', 'module', "} catch (e) { /* illisible : on repart de l'étape 1 */ }", "} finally { }", 'F6');
-muter('catalogue complet', 'module', "/(?<![\\p{L}\\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\\p{L}\\p{N}])/iu", "/./", 'F7');
+muter('liste de catégories revenue dans le module', 'module', "urlApres, lire", "urlApres, categorieDuFil: () => true, lire", 'F7');
 muter('le module touche la base', 'module', "const NOMBRE_ETAPES = 3;", "const NOMBRE_ETAPES = 3; const x = nexusClient.from('t');", 'F8');
 muter('Relevés : plan non lu', 'releves', "const filPlan = FIL.planDe(location.search);", "const filPlan = [1, 2, 3];", 'R3');
 muter('Relevés : progression figée', 'releves', "FIL.libelleProgression(filEtape, filPlan)", "FIL.libelleProgression(filEtape)", 'R3');
@@ -315,7 +317,7 @@ muter('catalogue affiché en fil', 'inv', "      if (prochain) { ouvrirCategorie
 muter('choix de zone atteint en fil', 'inv', "      else demarrerOuvertureComptage();\n    } else if (zonesAutorisees.length > 1", "      else renderChoixZone();\n    } else if (zonesAutorisees.length > 1", 'I2');
 muter('retour aux catégories visible', 'inv', ".fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }", "", 'I2');
 muter('quart du soir ignoré', 'inv', "if (quartDuShift) quartActuel = quartDuShift;", "", 'I2');
-muter('catalogue complet à l\'étape 3', 'inv', "FIL.categorieDuFil(p.inventaire_categories ? p.inventaire_categories.nom : '')", "true", 'I3');
+muter('liste de noms réintroduite à l\'étape 3', 'inv', "const base = produitsZone;", "const base = produitsZone.filter(p => /gaz|gla[cç]ons|[ée]cailles/i.test(p.designation));", 'I3');
 muter('progression absente de l\'inventaire', 'inv', 'id="filProgres"', 'id="x"', 'I4');
 muter('la fin ne rend pas à l\'Accueil', 'inv', "window.location.href = FIL.ACCUEIL;", "", 'I4');
 muter('bouton final de l\'inventaire', 'inv', "addEventListener('click', enFil() ? filTerminer : renderAccueil)", "addEventListener('click', renderAccueil)", 'I4');

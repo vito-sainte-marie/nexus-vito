@@ -1,6 +1,6 @@
 'use strict';
 // Fil « Mon début de quart » — lot PARCOURS-POMPISTE-LOT2-FIL-DEBUT-DE-QUART-20261021.
-// Jusqu'à trois étapes qui s'ouvrent l'une l'autre : 1 jaugeage d'ouverture, 2 relevé des index, 3 inventaire gaz / glaçons / écailles.
+// Jusqu'à trois étapes qui s'ouvrent l'une l'autre : 1 jaugeage d'ouverture, 2 relevé des index, 3 inventaire des produits de la zone piste du site.
 // Même règle que determinerProchaineActionEmploye : une étape déjà faite ou non applicable ne figure pas dans le fil (le jaugeage,
 // fait une fois par jour, est absent si le matin l'a fait). Le plan (`plan=1.3`) est fixé à l'entrée dans le fil d'après les faits ;
 // la progression compte les étapes réellement restantes (« Étape 1 sur 2 »), jamais un « sur 3 » figé. Pas de FDJ : boutique seule.
@@ -20,8 +20,6 @@
   const LIBELLES_VERS = { 2: 'Continuer vers le relevé des index', 3: 'Continuer vers l\'inventaire' };
   const PLAN_COMPLET = [1, 2, 3];
   const PAGES = { 1: 'NEXUS-Releves-Piste-v1.html', 2: 'NEXUS-Releves-Piste-v1.html', 3: 'NEXUS-Inventaire-v1.html' };
-  // Mot entier : « Lave-glace » n'est pas « Glaçons ». Seules Gaz, Glaçons et Écailles entrent dans le fil.
-  const CATEGORIES_FIL = /(?<![\p{L}\p{N}])(?:gaz|gla[cç]ons?|[ée]cailles?)(?![\p{L}\p{N}])/iu;
 
   const parametres = (search) => new URLSearchParams(search || '');
   const etapeValide = (n) => Number.isInteger(n) && n >= 1 && n <= NOMBRE_ETAPES;
@@ -68,9 +66,6 @@
   // Après l'étape n : l'étape suivante, ou l'Accueil à la fin.
   function urlApres(n, momentDebut, plan) { const s = suivante(n, plan); return s ? urlEtape(s, momentDebut, planOuComplet(plan)) : ACCUEIL; }
 
-  // Seules les catégories du fil (gaz, glaçons, écailles) sont comptées à l'étape 3.
-  function categorieDuFil(nom) { return CATEGORIES_FIL.test(String(nom || '')); }
-
   // Mémoire de l'étape : { etape: 1..3, fini: bool }. Stockage injecté (try/catch : navigation privée, accès refusé).
   const cle = (empId, date) => `nexus_fil_debut_quart_${empId}_${date}`;
   function lire(stockage, empId, date) {
@@ -106,5 +101,5 @@
     return urlEtape(etape, momentDebut, plan);
   }
 
-  return { NOMBRE_ETAPES, ACCUEIL, ACCUEIL_DEMARRAGE, demarrageDemande, LIBELLE_SORTIE, estActif, etapeDe, planDe, planSelonFaits, momentDebutDe, libelleProgression, libelleContinuer, urlEtape, urlApres, categorieDuFil, lire, ecrire, atteindre, terminer, urlRepriseSelonFaits };
+  return { NOMBRE_ETAPES, ACCUEIL, ACCUEIL_DEMARRAGE, demarrageDemande, LIBELLE_SORTIE, estActif, etapeDe, planDe, planSelonFaits, momentDebutDe, libelleProgression, libelleContinuer, urlEtape, urlApres, lire, ecrire, atteindre, terminer, urlRepriseSelonFaits };
 });
