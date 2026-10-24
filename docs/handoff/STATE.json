@@ -838,14 +838,15 @@
       "arret": "request-3.md"
     },
     "VIGIE-DECLENCHEURS-20261024": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-1.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "8cad92a39c0594d913cf4b181743731b32d574c6",
-      "pris_en_charge_le": "2026-10-24T11:49:25.869Z",
-      "pris_en_charge_par": "session-locale"
+      "pris_en_charge_par": "session-locale",
+      "consomme_le": "2026-10-24T11:54:19.869Z",
+      "preuve_action": "f90738b230cfd202d1befad3f8316fd39505e287"
     }
   },
   "artefacts_hors_registre": [
