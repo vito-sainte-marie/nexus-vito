@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   vigie:
@@ -28,3 +29,11 @@ jobs:
           # Dépôt public : lecture anonyme du commentaire source, aucun jeton.
           NEXUS_GITHUB_API: https://api.github.com
         run: node outils/vigie-cloture-ci.js
+      # VIGIE-CI-RAIL-20261024 : alerte si la CI du rail est rouge depuis plus d'une heure. Lecture seule
+      # (`actions: read`) ; tourne même si l'étape précédente a échoué, pour que deux alertes ne se masquent pas.
+      - name: Surveiller la CI du rail
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: node outils/vigie-ci-rail.js
