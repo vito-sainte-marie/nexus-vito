@@ -11,6 +11,12 @@
 # navigateur le 23/10 (public.mission_completions, sans lien de clé avec le service) :
 #   2e8d8961-69d6-40ca-9220-5f8cce3d248a  Nettoyer les pompes (TST-001-station-test)
 #   3c8f7316-90dd-48c3-a3ac-6c08c0a28cf8  Relevé d'index de prise de poste (TST-002-station-test)
+# Retire aussi, car ils retiennent le service par clé étrangère, le quart d'inventaire rattaché
+# à ces services (inventaire_quart_employes.shift_id, sans cascade), seulement si l'employé
+# visé y est seul, ses comptages (cascade), et les deux plans de comptage générés avec eux :
+#   e1871793-2a33-4ecd-8320-d54ad4d7a11c  (22/10 23:54 UTC, quart du soir)
+#   a6e9554d-1cb7-42a8-aba9-c35dec3e56f7  (23/10 18:13 UTC, quart du soir)
+# NE retire PAS le relevé d'index fictif d30f2e6f-… (debut_q2 du 22/10) : il ne retient aucun service.
 # Garde-fous :
 #   - REFUSE Production et tout projet autre que nexus-test ;
 #   - SIMULATION par défaut (rollback) ; --executer pour valider ;
@@ -20,8 +26,6 @@
 #   - ne touche aucun service d'un autre auteur (autres employés, caissières, CI).
 # Rejouable : une seconde exécution ne trouve rien.
 #
-# ATTENTION : ed1cc859 est le service de la mesure de performance de l'Inventaire (même
-# compte, même quart) : ne pas l'exécuter avant la mesure « après ».
 #
 # Usage :
 #   outils/nettoyage-services-recette-pompiste-20261023.sh <project-ref>             # simulation
@@ -63,6 +67,35 @@ select c.id from public.mission_completions c, _borne b
  where c.id in ('2e8d8961-69d6-40ca-9220-5f8cce3d248a','3c8f7316-90dd-48c3-a3ac-6c08c0a28cf8')
    and c.employee_id = b.emp and c.site_id = b.site and c.date = date '2026-10-23';
 
+create temp table _quart_employes on commit drop as
+select e.id, e.quart_id from public.inventaire_quart_employes e
+ where e.shift_id in (select id from _shifts) and e.employee_id = (select emp from _borne);
+
+-- un quart n'est retiré que si aucun autre employé n'y est rattaché
+create temp table _quarts on commit drop as
+select q.id from public.inventaire_quarts q, _borne b
+ where q.site = b.site and q.id in (select quart_id from _quart_employes)
+   and not exists (select 1 from public.inventaire_quart_employes x
+                    where x.quart_id = q.id and x.id not in (select id from _quart_employes));
+
+create temp table _plans on commit drop as
+select p.id from public.inventaire_plans_comptage p, _borne b
+ where p.site = b.site
+   and p.id in ('e1871793-2a33-4ecd-8320-d54ad4d7a11c','a6e9554d-1cb7-42a8-aba9-c35dec3e56f7');
+
+\echo '=== Inventaire rattaché (quarts, comptages, plans) ==='
+select 'quart' t, q.id::text, q.quart||' '||q.date||' '||q.statut d from public.inventaire_quarts q where q.id in (select id from _quarts)
+union all select 'quart_employes', e.id::text, 'shift '||e.shift_id from public.inventaire_quart_employes e where e.id in (select id from _quart_employes)
+union all select 'comptages', q.id::text, count(*)::text from public.inventaire_comptages c join _quarts q on q.id=c.quart_id group by q.id
+union all select 'plan', p.id::text, p.date||' '||p.genere_le||' '||(select count(*) from public.inventaire_plan_items i where i.plan_id=p.id)||' lignes' from public.inventaire_plans_comptage p where p.id in (select id from _plans);
+
+\echo '=== Dépendants INATTENDUS des quarts (à 0, sinon le script le dit et ne retire pas le quart) ==='
+select q.id,
+  (select count(*) from public.inventaire_audit_log where quart_id=q.id) audit_log,
+  (select count(*) from public.inventaire_corrections where quart_id=q.id) corrections,
+  (select count(*) from public.inventaire_decenium_snapshots where quart_id_source=q.id) snapshots
+from _quarts q;
+
 \echo '=== Validations de missions visées (2 attendues au plus) ==='
 select c.id, c.mission_id, c.titre, c.date, c.created_at
   from public.mission_completions c where c.id in (select id from _completions) order by c.created_at;
@@ -84,15 +117,25 @@ from _shifts s;
 \echo
 \echo '=== Retrait ($MODE) ==='
 delete from public.mission_completions where id in (select id from _completions);
+delete from public.inventaire_plans_comptage where id in (select id from _plans);
+delete from public.inventaire_quart_employes where id in (select id from _quart_employes)
+   and quart_id in (select id from _quarts);
+delete from public.inventaire_quarts q where q.id in (select id from _quarts)
+   and not exists (select 1 from public.inventaire_audit_log where quart_id=q.id)
+   and not exists (select 1 from public.inventaire_corrections where quart_id=q.id)
+   and not exists (select 1 from public.inventaire_decenium_snapshots where quart_id_source=q.id);
 delete from public.shifts s
  where s.id in (select id from _shifts)
    and not exists (select 1 from public.role_changes   where shift_id = s.id)
    and not exists (select 1 from public.pointages      where service_id = s.id)
    and not exists (select 1 from public.mission_progress where shift_id = s.id)
-   and not exists (select 1 from public.fdj_shifts     where prise_de_poste_id = s.id);
+   and not exists (select 1 from public.fdj_shifts     where prise_de_poste_id = s.id)
+   and not exists (select 1 from public.inventaire_quart_employes where shift_id = s.id);
 
 \echo '=== Restant (désignés) ==='
-select count(*) as restants from public.shifts where id = any((select ids from _borne));
+select (select count(*) from public.inventaire_quarts where id in (select id from _quarts)) as quarts_restants,
+       (select count(*) from public.inventaire_plans_comptage where id in (select id from _plans)) as plans_restants,
+       count(*) as services_restants from public.shifts where id in (select unnest(ids) from _borne);
 $FIN
 SQL
 
