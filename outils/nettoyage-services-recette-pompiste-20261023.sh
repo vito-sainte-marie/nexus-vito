@@ -5,6 +5,10 @@
 # recette du parcours pompiste, désignés par identifiant :
 #   d4f52c83-d241-49c2-ae7b-f5a044f5cf06  pompiste soir  (22/10, clos_sans_pointage)
 #   ed1cc859-0a4f-4214-aa99-11f1b71dfe63  pompiste matin (23/10, en_cours)
+# Retire aussi, par identifiant, les deux validations de missions obligatoires faites au
+# navigateur le 23/10 (public.mission_completions, sans lien de clé avec le service) :
+#   2e8d8961-69d6-40ca-9220-5f8cce3d248a  Nettoyer les pompes (TST-001-station-test)
+#   3c8f7316-90dd-48c3-a3ac-6c08c0a28cf8  Relevé d'index de prise de poste (TST-002-station-test)
 # Garde-fous :
 #   - REFUSE Production et tout projet autre que nexus-test ;
 #   - SIMULATION par défaut (rollback) ; --executer pour valider ;
@@ -52,6 +56,16 @@ create temp table _shifts on commit drop as
 select s.id from public.shifts s, _borne b
  where s.id = any(b.ids) and s.site_id = b.site and s.employee_id = b.emp;
 
+create temp table _completions on commit drop as
+select c.id from public.mission_completions c, _borne b
+ where c.id in ('2e8d8961-69d6-40ca-9220-5f8cce3d248a','3c8f7316-90dd-48c3-a3ac-6c08c0a28cf8')
+   and c.employee_id = b.emp and c.site_id = b.site and c.date = date '2026-10-23';
+
+\echo '=== Validations de missions visées (2 attendues au plus) ==='
+select c.id, c.mission_id, c.titre, c.date, c.created_at
+  from public.mission_completions c where c.id in (select id from _completions) order by c.created_at;
+
+\echo
 \echo '=== Lignes exactes visées (2 attendues au plus) ==='
 select s.id, s.employee_id, s.site_id, s.role, s.quart, s.statut, s.created_at
   from public.shifts s where s.id in (select id from _shifts) order by s.created_at;
@@ -67,6 +81,7 @@ from _shifts s;
 
 \echo
 \echo '=== Retrait ($MODE) ==='
+delete from public.mission_completions where id in (select id from _completions);
 delete from public.shifts s
  where s.id in (select id from _shifts)
    and not exists (select 1 from public.role_changes   where shift_id = s.id)
