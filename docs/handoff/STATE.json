@@ -828,8 +828,14 @@
     },
     "VIGIE-CI-RAIL-20261024": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "derniere_demande": "request-3.md",
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "bbbd01d536cb167bcdbc4548c954c91b36105c7b",
+      "pris_en_charge_par": "github-actions-claude",
+      "consomme_le": "2026-10-24T10:48:12.291Z",
+      "arret": "request-3.md"
     }
   },
   "artefacts_hors_registre": [
