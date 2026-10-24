@@ -238,7 +238,7 @@ epreuve('V4 — aucune écriture : ni registre, ni commit, ni push, même option
 });
 
 const WORKFLOW = path.join(RACINE, '.github', 'workflows', 'vigie-cloture.yml');
-epreuve('V5 — workflow : horaire, contents: read seul, sans secret, sans écriture, sans Telegram ni commentaire #28', () => {
+epreuve('V5 — workflow : horaire, contents: read + actions: read (VIGIE-CI-RAIL-20261024), sans secret, sans écriture, sans Telegram ni commentaire #28', () => {
   assert.ok(fs.existsSync(WORKFLOW), 'workflow .github/workflows/vigie-cloture.yml absent');
   const y = fs.readFileSync(WORKFLOW, 'utf8');
   const code = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
@@ -248,9 +248,11 @@ epreuve('V5 — workflow : horaire, contents: read seul, sans secret, sans écri
   assert.ok(/^\d{1,2} \* \* \* \*$/.test(crons[0]), `fréquence horaire attendue (« M * * * * ») : ${crons[0]}`);
   const perm = code.match(/^permissions:\s*\n((?:[ \t]+\S.*\n?)+)/m);
   assert.ok(perm, 'bloc permissions: de premier niveau attendu');
-  assert.deepStrictEqual(perm[1].split('\n').map(s => s.trim()).filter(Boolean), ['contents: read']);
+  assert.deepStrictEqual(perm[1].split('\n').map(s => s.trim()).filter(Boolean).sort(), ['actions: read', 'contents: read']);
   assert.ok(!/^\s{2,}permissions:/m.test(code), 'aucune permission par job');
-  assert.ok(!/secrets\./i.test(code) && !/GITHUB_TOKEN|GH_TOKEN/.test(code.replace(/GITHUB_[A-Z_]+/g, m => (m === 'GITHUB_TOKEN' ? m : ''))), 'aucun secret ni jeton explicite');
+  // Seul jeton admis : le jeton du run (`github.token`), borné par les permissions ci-dessus, pour `gh run list/view`.
+  assert.ok(!/secrets\./i.test(code) && !/GITHUB_TOKEN/.test(code), 'aucun secret ni GITHUB_TOKEN explicite');
+  assert.deepStrictEqual([...code.matchAll(/\$\{\{\s*([^}]+?)\s*\}\}/g)].map(m => m[1]).filter(e => /token/i.test(e)), ['github.token'], 'seul github.token est admis');
   assert.ok(!/--appliquer/.test(code), 'O3 sans --appliquer');
   assert.ok(!/telegram|issues\/28|gh (issue|pr) |git (push|commit)|workflow_dispatch|pull_request|\bpush:/i.test(code), 'ni Telegram, ni commentaire, ni écriture, ni autre déclencheur');
   assert.ok(/vigie-cloture-ci\.js/.test(code), 'le workflow lance la vigie');
