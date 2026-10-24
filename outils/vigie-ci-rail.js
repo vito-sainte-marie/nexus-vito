@@ -1,8 +1,8 @@
 'use strict';
 // Vigie de la CI du rail — VIGIE-CI-RAIL-20261024.
-// Alerte (run en échec + annotation ::error) quand le dernier run TERMINÉ du workflow « Tests » sur la
-// branche du rail est rouge depuis plus de 60 minutes. Un run vert plus récent éteint l'alerte ; un run
-// en cours ne la lève pas (le dernier verdict connu reste rouge). Lecture seule : `gh run list` et
+// Alerte (run en échec + annotation ::error) quand la série de runs TERMINÉS rouges du workflow « Tests » sur
+// la branche du rail dure depuis plus de 60 minutes, mesurée depuis la création du premier rouge qui suit le
+// dernier vert (jamais depuis le dernier run). Un vert plus récent éteint l'alerte ; un run en cours ne la lève pas. Lecture seule : `gh run list` et
 // `gh run view --log-failed`, rien d'autre (permission `actions: read`, jamais `write`).
 // Réglages (épreuves) : NEXUS_GH (binaire), NEXUS_RAIL, NEXUS_SEUIL_MINUTES, NEXUS_MAINTENANT (ISO).
 const { execFileSync } = require('child_process');
@@ -26,15 +26,26 @@ function premierRouge(id) {
   return rouge ? `${rouge.etape ? `étape « ${rouge.etape} » : ` : ''}${rouge.texte.slice(0, 240)}` : 'aucune ligne de journal';
 }
 
+const LIMITE = 20;
 let runs;
-try { runs = JSON.parse(gh('run', 'list', '--workflow', 'Tests', '--branch', RAIL, '--limit', '20', '--json', 'databaseId,conclusion,status,headSha,updatedAt')); }
+try { runs = JSON.parse(gh('run', 'list', '--workflow', 'Tests', '--branch', RAIL, '--limit', String(LIMITE), '--json', 'databaseId,conclusion,status,headSha,createdAt,updatedAt')); }
 catch (e) { alerte('Vigie CI du rail aveugle', `lecture des runs de ${RAIL} impossible : ${une((e.stderr || e.message || '').toString().trim().slice(0, 200))}`); process.exit(1); }
 
-const dernier = runs.filter(r => r.status === 'completed' && r.conclusion !== 'cancelled' && r.conclusion !== 'skipped')[0];
-if (!dernier) { console.log(`Vigie CI du rail : aucun run terminé sur ${RAIL}.`); process.exit(0); }
-if (dernier.conclusion === 'success') { console.log(`Vigie CI du rail : dernier run vert (${dernier.headSha.slice(0, 8)}).`); process.exit(0); }
+// Verdicts = runs terminés, ni annulés ni sautés, du plus récent au plus ancien. On remonte jusqu'au dernier
+// vert : la série rouge commence au premier rouge qui le suit. Mesurer depuis le dernier run rouge remettrait
+// le compteur à zéro à chaque push : une journée de pushes rouges ne déclencherait jamais l'alerte.
+const verdicts = runs.filter(r => r.status === 'completed' && r.conclusion !== 'cancelled' && r.conclusion !== 'skipped');
+const serie = [];
+let vert = null;
+for (const r of verdicts) { if (r.conclusion === 'success') { vert = r; break; } serie.push(r); }
+if (!serie.length) { console.log(vert ? `Vigie CI du rail : dernier run vert (${vert.headSha.slice(0, 8)}).` : `Vigie CI du rail : aucun run terminé sur ${RAIL}.`); process.exit(0); }
 
-const minutes = (MAINTENANT - new Date(dernier.updatedAt)) / 60000;
+const dernier = serie[0];
+const premier = serie[serie.length - 1];
+// Pas de vert dans les runs lus et la liste est pleine : la série est peut-être plus longue que ce qu'on voit.
+const tronquee = !vert && runs.length >= LIMITE;
+const minutes = (MAINTENANT - new Date(premier.createdAt)) / 60000;
 if (!(minutes > SEUIL_MIN)) { console.log(`Vigie CI du rail : rouge depuis ${Math.floor(minutes)} min (seuil ${SEUIL_MIN}) — silence.`); process.exit(0); }
-alerte('CI du rail rouge', `${RAIL} : rouge depuis ${Math.floor(minutes)} min sur ${dernier.headSha.slice(0, 8)} (run ${dernier.databaseId}) — première ligne rouge : ${premierRouge(dernier.databaseId)}`);
+const duree = tronquee ? `au moins ${Math.floor(minutes)} min (série plus longue que les ${LIMITE} runs lus : mesurée depuis le plus ancien lu)` : `${Math.floor(minutes)} min`;
+alerte('CI du rail rouge', `${RAIL} : rouge depuis ${duree}, ${serie.length} run(s) rouge(s) d'affilée, premier rouge sur ${premier.headSha.slice(0, 8)} (run ${premier.databaseId}), dernier sur ${dernier.headSha.slice(0, 8)} (run ${dernier.databaseId}) — première ligne rouge du dernier : ${premierRouge(dernier.databaseId)}`);
 process.exit(1);
