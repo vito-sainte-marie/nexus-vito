@@ -4,7 +4,8 @@
 # Retire UNIQUEMENT les services (public.shifts) créés pour Employé Test B pendant la
 # recette du parcours pompiste, désignés par identifiant :
 #   d4f52c83-d241-49c2-ae7b-f5a044f5cf06  pompiste soir  (22/10, clos_sans_pointage)
-#   ed1cc859-0a4f-4214-aa99-11f1b71dfe63  pompiste matin (23/10, en_cours)
+#   ed1cc859-0a4f-4214-aa99-11f1b71dfe63  pompiste matin (23/10, clos_sans_pointage par le changement de rôle)
+#   8497d450-5637-4899-957a-fa9e97559b0c  renfort soir   (24/10 02:41 UTC, en_cours ; pris pour constater l'écran Missions en Renfort)
 # Retire aussi, par identifiant, les deux validations de missions obligatoires faites au
 # navigateur le 23/10 (public.mission_completions, sans lien de clé avec le service) :
 #   2e8d8961-69d6-40ca-9220-5f8cce3d248a  Nettoyer les pompes (TST-001-station-test)
@@ -50,7 +51,7 @@ begin;
 create temp table _borne on commit drop as
 select 'nexus-station-test'::text as site,
        '755a2dc5-3390-4a29-a865-847cbebc1133'::uuid as emp,
-       array['d4f52c83-d241-49c2-ae7b-f5a044f5cf06','ed1cc859-0a4f-4214-aa99-11f1b71dfe63']::uuid[] as ids;
+       array['d4f52c83-d241-49c2-ae7b-f5a044f5cf06','ed1cc859-0a4f-4214-aa99-11f1b71dfe63','8497d450-5637-4899-957a-fa9e97559b0c']::uuid[] as ids;
 
 create temp table _shifts on commit drop as
 select s.id from public.shifts s, _borne b
