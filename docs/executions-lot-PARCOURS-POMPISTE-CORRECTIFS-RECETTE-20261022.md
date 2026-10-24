@@ -29,7 +29,7 @@ Cible de la recette : alias Cloudflare `correctifs-recette-pompiste.nexus-test-d
 
 ## D. Limites
 - Rien vu sur iPhone réel. Aucun envoi de photo.
-- Le fil compte encore par la liste `CATEGORIES_FIL` du code : lot suivant, après le GO de #152.
+- ~~Le fil compte encore par la liste `CATEGORIES_FIL` du code~~ : traité par le lot CATEGORIES-FIL-20261024 (voir `docs/executions-lot-CATEGORIES-FIL-20261024.md`).
 - La lenteur de l'Inventaire et le Missions vide du pompiste ne sont pas dans ce lot (diagnostic du Lot 3 rendu séparément).
 
 ## E. Prochaine action unique
