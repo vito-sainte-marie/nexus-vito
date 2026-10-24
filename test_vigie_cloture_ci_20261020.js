@@ -254,7 +254,7 @@ epreuve('V5 — workflow : horaire, contents: read + actions: read (VIGIE-CI-RAI
   assert.ok(!/secrets\./i.test(code) && !/GITHUB_TOKEN/.test(code), 'aucun secret ni GITHUB_TOKEN explicite');
   assert.deepStrictEqual([...code.matchAll(/\$\{\{\s*([^}]+?)\s*\}\}/g)].map(m => m[1]).filter(e => /token/i.test(e)), ['github.token'], 'seul github.token est admis');
   assert.ok(!/--appliquer/.test(code), 'O3 sans --appliquer');
-  assert.ok(!/telegram|issues\/28|gh (issue|pr) |git (push|commit)|workflow_dispatch|pull_request|\bpush:/i.test(code), 'ni Telegram, ni commentaire, ni écriture, ni autre déclencheur');
+  assert.ok(!/telegram|issues\/28|gh (issue|pr) |git (push|commit)|pull_request|\bpush:/i.test(code), 'ni Telegram, ni commentaire, ni écriture, ni déclencheur push/pull_request (les trois déclencheurs admis sont fixés par test_vigie_declencheurs_20261024.js)');
   assert.ok(/vigie-cloture-ci\.js/.test(code), 'le workflow lance la vigie');
   assert.ok(/actions\/checkout@/.test(code), 'checkout attendu');
   assert.ok(/persist-credentials:\s*false/.test(code), 'le jeton ne doit pas rester dans git');
