@@ -1,62 +1,58 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/VIGIE-CI-RAIL-20261024/decision-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
-lot_id: PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023
+lot_id: VIGIE-CI-RAIL-20261024
 seq: 1
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
-closes: false
+decision: APPROVED
+closes: true
 in_reply_to: request-1.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6365821592
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6383155680
 ---
-# Décision sur request-1.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-1.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 39959922904), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6365821592. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 40086236728), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6383155680. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `VIGIE-CI-RAIL-20261024`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `487156b1c1dc330d264d6300c8a6ad10350ed67b`, `HEAD` = `487156b1c1dc330d264d6300c8a6ad10350ed67b`, SHA du run `487156b1c1dc330d264d6300c8a6ad10350ed67b`, tête du rail `487156b1c1dc330d264d6300c8a6ad10350ed67b`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `e91cc1afd98ed752ba132c7daed8728e0d61aa59`, `HEAD` = `e91cc1afd98ed752ba132c7daed8728e0d61aa59`, SHA du run `e91cc1afd98ed752ba132c7daed8728e0d61aa59`, tête du rail `e91cc1afd98ed752ba132c7daed8728e0d61aa59`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« Limiter l’Inventaire au retrait du second chargement du plan et à la parallélisation des chargements réellement indépendants, sans RPC ; prouver au navigateur, sur le même compte et le même quart, le chronométrage avant/après, le chargement unique du plan et l’identité des produits et quantités attendues ; prouver pour Missions que « disponibles » est déplié seulement en l’absence de mission obligatoire et que le comportement existant est conservé lorsqu’il y en a ; pour le nettoyage Test, imposer refus de Production et de tout autre projet, simulation par défaut, exécution explicite, bornes par identifiants, affichage préalable exact des lignes et absence de retrait des services créés par d’autres auteurs ; aucune migration, fusion, promotion ou écriture Production. »). Elles lient l'exécutant suivant (`session-claude-habilitee`), qui les vérifie avant d'agir.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-**Verdict : APPROVED_WITH_CONDITIONS.**
+Le lot d’outillage est approuvé sur la base des tests, des cinq mutants détectés, du Guardian QA sans finding et de la CI verte. L’absence d’épreuve réelle avant activation du cron n’invalide pas ces preuves.
 
-Les trois volets sont approuvés. Aucun motif du palier Frédéric n’est déclenché : le nettoyage est limité à Test, borné aux données de recette créées dans ce chantier, et exclut explicitement Production.
+Les acquis `OUTILLAGE_A_POSTERIORI` et `PREAUTORISATIONS_CLAUDE` s’appliquent. L’autorisation `actions: read` a déjà été explicitement accordée et n’ouvre aucune écriture. Cette décision approuve le lot sur le rail ; elle ne fusionne pas la PR #154 et ne modifie pas `main`.
 
-L’exécution est confiée à `session-claude-habilitee`, qui détient les capacités nécessaires pour le rail, la recette navigateur et les écritures Test. L’acquis `PREAUTORISATIONS_CLAUDE` autorise ces opérations sans nouveau GO humain ; `PALIER_HUMAIN_RESTREINT` et `COMMIT_PUSH_RAIL_SANS_GO` s’appliquent également.
-
-La mesure navigateur avant/après demandée est bien une condition de clôture du volet Inventaire. Elle doit être réalisée sur le même compte et le même quart, sans annoncer de gain non mesuré.
-
-RAIL_LU: 487156b1c1dc330d264d6300c8a6ad10350ed67b
+RAIL_LU: e91cc1afd98ed752ba132c7daed8728e0d61aa59
 
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
-CLOSES: false
-LOT: PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023
+DECISION: APPROVED
+CLOSES: true
+LOT: VIGIE-CI-RAIL-20261024
 REQUEST: request-1.md
-HEAD: 487156b1c1dc330d264d6300c8a6ad10350ed67b
+HEAD: e91cc1afd98ed752ba132c7daed8728e0d61aa59
 LEASE: aucun
-GATE_STATE: G0, CI non déclenchée — aucun code écrit
+GATE_STATE: G2, CI verte
 PROOF_STATE: PROOF_VALID
-CONDITIONS: Limiter l’Inventaire au retrait du second chargement du plan et à la parallélisation des chargements réellement indépendants, sans RPC ; prouver au navigateur, sur le même compte et le même quart, le chronométrage avant/après, le chargement unique du plan et l’identité des produits et quantités attendues ; prouver pour Missions que « disponibles » est déplié seulement en l’absence de mission obligatoire et que le comportement existant est conservé lorsqu’il y en a ; pour le nettoyage Test, imposer refus de Production et de tout autre projet, simulation par défaut, exécution explicite, bornes par identifiants, affichage préalable exact des lignes et absence de retrait des services créés par d’autres auteurs ; aucune migration, fusion, promotion ou écriture Production.
+CONDITIONS: aucune
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
-EXECUTANT_NEXT: session-claude-habilitee
-ACTION_NEXT: Matérialiser cette décision avec `outils/handoff.js decision --auteur ChatGPT` sur le rail lu.
+EXECUTANT_NEXT: github-actions-claude
+ACTION_NEXT: Matérialiser cette décision APPROVED sur le rail avec outils/handoff.js decision --auteur ChatGPT.
