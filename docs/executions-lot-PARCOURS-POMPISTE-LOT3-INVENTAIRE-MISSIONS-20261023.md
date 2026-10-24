@@ -23,10 +23,11 @@ Constat à noter : le plan contient l'huile et le lave-glace alors que ces produ
 
 ## D. Missions
 - Code : « disponibles » n'est déplié que si aucune mission obligatoire n'existe et qu'il y a des disponibles ; sinon comportement inchangé. Prouvé par l'épreuve `test_parcours_pompiste_lot3_20261023.js` (M1) seulement.
-- **Non vu au navigateur** : l'aperçu `e87ca738` demande une connexion que je n'ai pas faite (code PIN non saisi). Les deux cas (avec et sans mission obligatoire) restent à voir.
+- **Vu au navigateur, avec missions obligatoires** (23/10, aperçu `e87ca738`, code `e444e46`, Employé Test B, pompiste, 375 px) : « Obligatoires avant le départ (2) » est affiché avec ses deux missions (Nettoyer les pompes, Relevé d'index de prise de poste) ; « Disponibles pendant le service (1) » reste **replié** (flèche fermée, aucune carte visible). Comportement existant conservé.
+- **Non vu au navigateur, sans mission obligatoire** : il faut solder les deux missions (écritures sur Test, services de recette) ; en attente de ton accord. Prouvé par l'épreuve M1 seulement.
 
 ## E. Écritures sur Test
 Nettoyage du quart du matin 10:00 (quart `7568f3b4`, rattachement `71edc336`, plan `22960f98`, 6 lignes), service `ed1cc859` conservé. Exécuté par un bloc SQL borné, pas par le script versionné. Services de recette `d4f52c83` et `ed1cc859` encore présents.
 
 ## F. Prochaine action
-Voir Missions au navigateur (deux cas), puis décision de Frédéric : clore le volet Inventaire avec ces chiffres, ou continuer dans ce lot. Aucun gain non mesuré n'est annoncé.
+Voir le cas Missions sans mission obligatoire, puis décision de Frédéric : clore le volet Inventaire avec ces chiffres, ou continuer dans ce lot. Aucun gain non mesuré n'est annoncé.
