@@ -7,7 +7,7 @@ author: Frédéric Bragance
 branch: handoff-continuite-20260920
 decision: APPROVED
 closes: true
-in_reply_to: request-3.md
+in_reply_to: request-4.md
 provenance:
   niveau: 1
   mode: declared
