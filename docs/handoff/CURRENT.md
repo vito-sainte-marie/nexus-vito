@@ -1,14 +1,15 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/VIGIE-DECLENCHEURS-20261024/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/CATEGORIES-FIL-20261024/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: VIGIE-DECLENCHEURS-20261024
-seq: 2
+lot_id: CATEGORIES-FIL-20261024
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -20,17 +21,29 @@ preuves:
     classe: VERIFIED
     valeur: 162-fichiers
 ---
-# VIGIE-DECLENCHEURS-20261024 : preuves réelles, demande de clôture
+# CATEGORIES-FIL-20261024 : le fil du pompiste compte par le paramétrage de la station, pas par une liste du code
 
-## Preuve des conditions de decision-1
-- Changement limité à `.github/workflows/vigie-cloture.yml` : PR #155, fusionnée dans `main` sur le GO de Frédéric (`f56edb0d`).
-- Exactement trois déclencheurs (`schedule`, `workflow_dispatch`, `workflow_run` sur « Tests » terminé, branche `handoff-continuite-20260920`) ; permissions inchangées (`contents: read`, `actions: read`) ; épreuve `test_vigie_declencheurs_20261024.js` 11/11, dont 10 mutations refusées (`f90738b2`).
-- Preuves de fonctionnement, détaillées dans `docs/executions-lot-VIGIE-DECLENCHEURS-20261024.md` :
-  - run **#18**, `workflow_dispatch`, vert, les deux étapes en succès, silencieux sur rail vert (`27371ee8`) ;
-  - run **#19**, `workflow_run`, vert, démarré à la fin de « Tests » sur le dépôt `40d12018`, sans cron ni lancement manuel.
+## Contexte
+Le fil de début de quart (`nexus-fil-debut-quart.js`) décide quels produits compter avec une liste figée dans le code (`CATEGORIES_FIL`, l. 24, lue par `categorieDuFil`, l. 72) : gaz, glaçons, écailles. Cette liste doit sortir du code. La liste a été signalée comme « lot suivant » dans `docs/executions-lot-PARCOURS-POMPISTE-CORRECTIFS-RECETTE-20261022.md`, section D. #152 est fusionnée dans `production` (GO de Frédéric).
 
-## Ce qui est prouvé, et ce qui ne l'est pas
-Prouvé : les deux nouveaux déclencheurs partent, et la vigie passe en silence sur un rail vert. Non prouvé : l'alerte sur un rail rouge. Les épreuves de `outils/vigie-ci-rail.js` la couvrent avec un faux `gh` (15/15), mais aucun rail rouge réel n'a été observé. La limite de decision-1 demeure : un rail rouge et immobile n'est couvert que par le cron.
+Précision de Frédéric (23/10) : les écailles sont un produit de la catégorie Glaçons, pas une catégorie. Aucune catégorie « Écailles » ne sera créée en Production.
+
+## Ce que le lot fera (après décision de l'arbitre : le code n'est pas écrit)
+1. Retirer `CATEGORIES_FIL` et `categorieDuFil` de `nexus-fil-debut-quart.js` ; le fil lit les catégories comptées par le pompiste dans le paramétrage de la station.
+2. Deux règles dans `RULES.json` : « Écailles = produit de Glaçons » ; « les catégories comptées par le pompiste viennent du paramétrage de la station ».
+3. Épreuves : produit désactivé absent ; produit actif de la zone piste présent ; autre site sans écailles.
+4. Critère d'acceptation : l'écran du pompiste ne contient que les produits actifs de la zone piste.
+
+## Déjà posé sur la branche `categories-fil-parametrage-20261023`
+- Commit `e39b7949`, **sans aucun changement de code applicatif** : un script Test seulement `outils/alignement-zones-recette-huile-laveglace-20261023.sh` (refuse Production, borné à deux identifiants de produit, `rollback` par défaut, `--executer` pour valider) et l'épreuve `test_pompiste_zone_piste_exclut_boutique_20261023.js`. L'épreuve exécute `chargerProduitsZone('piste')` extraite de `NEXUS-Inventaire-v1.html` avec un faux client ; elle attend `['Gaz 12,5KG','Écailles']` et rougit si l'on retire le filtre de zone (mutation vérifiée).
+- La branche a été **refaite sur `origin/production`** (`d76e9c07`) : le commit d'origine `63aba13c` reposait sur la tête du rail et aurait apporté plus de 1200 fichiers de différence dans une PR vers `production`. Sauvegarde locale de l'original : `sauvegarde-categories-fil-63aba13c`.
+- Suite complète (`node run-tests.js`) : **7 échecs sur la branche, les mêmes 7 sur `origin/production` nue**, donc aucun nouveau :
+  `test_inventaire_categorie_mixte_deux_lieux`, `test_inventaire_production_journaliere_q1`, `test_inventaire_sprint4_ux_flash`, `test_inventaire_sprint4bis_ecriture_immediate`, `test_pilotage_qualite_receptions`, `test_reception_moteur`, `test_reception_v1_dom`.
+- Rien écrit en Production. Le script Test n'a pas été exécuté.
 
 ## À arbitrer
-Clore VIGIE-DECLENCHEURS-20261024, et avec lui la preuve du premier passage réel reportée de VIGIE-CI-RAIL-20261024.
+1. Le périmètre ci-dessus convient-il, la lecture du paramétrage de la station étant le seul changement de code ?
+2. Le script Test d'alignement des zones peut-il être exécuté sur Test pour la recette (huile et lave-glace en zone boutique, comme en Production) ?
+3. Ordre confirmé après ce lot : suivi de l'Inventaire (lectures en double, 5,0 s contre 3 s visées), puis audit du langage.
+
+Aucune fusion, aucun déploiement, aucune écriture Production sans le GO de Frédéric.
