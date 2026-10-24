@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-RELECTURES-20261024/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-RELECTURES-20261024/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-RELECTURES-20261024
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,27 +20,30 @@ preuves:
     classe: VERIFIED
     valeur: 162-fichiers
 ---
-# INVENTAIRE-RELECTURES-20261024 : moins de lectures en double à l'ouverture de l'Inventaire, et « Disponibles » ouvert quand le obligatoire est fait
+# INVENTAIRE-RELECTURES-20261024 : code livré en PR brouillon, mesure « après » à faire par Guardian
 
-## Contexte
-Le Lot 3 du parcours pompiste (`PARCOURS-POMPISTE-LOT3-INVENTAIRE-MISSIONS-20261023`) a ramené la première ouverture de l'Inventaire à **5,0 s contre 3 s visées**. La cible n'est pas atteinte. Sa section F.4 nommait ce lot de suite : les lectures qui restent en double, mesurées par Claude Guardian avant et après, puis le dépliage de « Disponibles ». Le fil (`CATEGORIES-FIL-20261024`) est clos et #156 est fusionnée dans `production` (`ee426fe4`) ; ce lot part de cette tête.
+## Preuve des conditions de decision-1
+Code : branche `inventaire-relectures-20261024`, commit `4454a943`, **PR #157 en brouillon vers `production`**, non fusionnée (GO de Frédéric requis). Aucune écriture ni lecture de la Production.
 
-## Ce que montre la lecture du code (aucune ligne écrite)
-1. **Sélection lue deux fois sur la voie des missions.** `chargerContexteGeneration` (`nexus-inventaire-missions-donnees.js`, l. 39) lit `chargerIngredientsSelection` ; `reevaluerMissionsNonAffectees` (l. 84-87) rappelle `chargerContexteGeneration` et relit tout. Le plan, lui, passe par `chargerOuGenererPlan`, déjà mémoïsé (`memoPlans`), mais appelle aussi `chargerIngredientsSelection` (`nexus-inventaire-plan-donnees.js`, l. 191) sans mémo : trois appels possibles pour une même clé (site, date). C'est la lecture de 1,9 s puis 2,7 s relevée au Lot 3.
-2. **`sites` ×2.** Deux lecteurs du fuseau, chacun avec son propre cache : `nexusFuseauSite` (`nexus-auth.js`, l. 830) et `NexusStation.fuseauDeLaStation` (`nexus-station.js`, l. 99).
-3. **`shifts` ×2, `station_config` ×3.** Les lectures de `nexus-auth.js` (service courant, l. 853 ; pointage, l. 405), de `NEXUS-App-v1.html` (l. 1901 et 1916, deux colonnes de la même ligne) et de l'écran (`NEXUS-Inventaire-v1.html`, l. 1243 et 1375, deux colonnes de la même ligne) sont les candidates. **Je ne sais pas encore lesquelles se cumulent à l'ouverture** : c'est la mesure de Guardian qui le dira, et je ne regrouperai que ce qu'elle montre.
-4. **« Disponibles » ne se déplie que s'il n'existe aucune mission obligatoire** pour le rôle (`NEXUS-Missions-v1.html`, l. 2206 : `obligatoires.length === 0`). Quand les deux obligatoires du jour sont soldées, le bloc reste replié et la page paraît vide (Lot 3, section D, point 31). La condition dépend du catalogue, pas de l'avancement.
+1. **Mémoïsation cloisonnée par site et date, sans donnée périmée.** Fenêtre mémo (`ouvrirMemoPlan` / `fermerMemoPlan`), clés `ingredients|site|date`, aucune conservation hors fenêtre. `test_inventaire_relectures_20261024.js` : une seule lecture des ingrédients pour une génération suivie d'une réévaluation (le test compteur de l'ACTION_NEXT), un autre site ou une autre date relit, rien n'est gardé une fois la fenêtre fermée. 9 mutations, toutes rouges.
+2. **`shifts` et `sites` regroupés : le cumul est démontré par Guardian.** Mesure « avant » (Test, `ee426fe`, Employé Test B, première ouverture du quart du soir à 15:45) : écran prêt à 3,7 s, 42 requêtes, 10 vagues, 188 ms en moyenne. `shifts` ×2 (requête identique, 533 puis 975 ms) ; `sites` ×2 (fuseau, 649 puis 975 ms) ; préparation de la sélection ×2 (`inventaire_points_reference` et plans récents, 1,76 puis 2,34 s).
+   - `shifts` : mémo de 3 s par (employé, site) ; une erreur et « aucun service » ne sont jamais gardés ; la clôture d'un service l'invalide.
+   - `sites` : la requête en vol est partagée entre `nexus-auth.js` et `nexus-station.js` ; les raisons `reseau` et `configuration` restent distinguées.
+   - `test_inventaire_relectures_shifts_sites_20261024.js` (S1 à S11) : verts, 8 mutations rouges.
+3. **`station_config` NON regroupé.** Les deux lectures (pointage, puis `parametres_inventaire`) ne sont pas un cumul ; aucune n'est ajoutée ni retirée (S10).
+4. **Dépliage de « Disponibles ».** Testé : obligatoires soldées, déplié ; obligatoire restante, non déplié ; le repli manuel est conservé (`test_parcours_pompiste_lot3_20261023.js`, vert).
+5. **Suite complète.** `node run-tests.js` : 7 échecs, les mêmes que sur `origin/production` (`test_inventaire_categorie_mixte_deux_lieux`, `test_inventaire_production_journaliere_q1`, `test_inventaire_sprint4_ux_flash`, `test_inventaire_sprint4bis_ecriture_immediate`, `test_pilotage_qualite_receptions`, `test_reception_moteur`, `test_reception_v1_dom`). Aucun de plus.
 
-## Ce que le lot fera (après décision de l'arbitre : le code n'est pas écrit)
-1. Mémoïser par (site, date) la lecture des ingrédients de la sélection, pour que missions, réévaluation et plan partagent une seule lecture, sans changer ce qui est calculé.
-2. Faire partager au fuseau du site une seule lecture ; regrouper les lectures de `station_config` et `shifts` **seulement si la mesure les montre cumulées**.
-3. Déplier « Disponibles » une fois quand toutes les missions obligatoires du jour sont validées (ou qu'il n'y en a pas), comme aujourd'hui pour « aucune obligatoire » ; l'employé garde la main pour replier.
-4. Épreuves : un seul appel de lecture pour une génération suivie d'une réévaluation (faux client qui compte) ; dépliage vu avec obligatoires soldées, non déplié avec une obligatoire restante ; mutation vérifiée pour chacune.
-5. Mesure : Claude Guardian, même compte, même quart, avant et après, sur Test. Je dirai si 3 s sont atteintes ; sinon je donnerai le chiffre et la lecture restante.
+## Ce qui manque encore
+- **La mesure « après » n'existe pas.** Elle exige une build déployée sur Test et un quart du soir ; Claude Guardian la fera. Je ne donne donc aucun chiffre « après » et je ne dis pas si 3 s sont atteintes.
+- La préparation de la sélection (×2, 1,76 puis 2,34 s) reste le poste le plus lourd de la mesure « avant » ; les mémos retirent la seconde lecture des ingrédients, pas le calcul. Si 3 s ne sont pas atteintes, ce calcul est le lot séparé que decision-1 prévoit.
+- `invaliderMemoIngredients` est exportée et testée mais sans appelant : la fenêtre est courte et en lecture seule, donc rien n'en dépend.
+
+## Nettoyage Test
+Le service du soir ouvert par Claude Guardian sur Test (Employé Test B, pompiste, `50175943-…`, `heure_debut` 19:40:42 UTC) a une ligne dépendante dans `inventaire_quart_employes` (clé étrangère sans cascade). Script `outils/nettoyage-service-soir-guardian-20261024.sh` : borné à ce site, cet employé, ce service, Test seulement ; simulé avec rollback, **non exécuté**. L'heure (15:40 locale) diffère de 15:42 annoncé : à confirmer avant exécution.
 
 ## À arbitrer
-1. Le périmètre convient-il, avec les regroupements `station_config` et `shifts` conditionnés à la mesure ?
-2. Si 3 s ne sont pas atteintes après ces lectures, le lot se clôt-il sur le chiffre mesuré, ou faut-il un lot suivant sur le calcul de la sélection elle-même ?
-3. Ordre confirmé après ce lot : audit du langage (propositions seulement), sous réserve de `PRIORITES_PORTEFEUILLE`.
+1. Ce lot se clôt-il après la mesure « après » de Guardian, quel qu'en soit le chiffre, comme le prévoit decision-1 ?
+2. Prochain lot, séparé, à déposer après celui-ci : « Jaugeage Carburant » (étape 3 du fil).
 
 Aucune fusion, aucun déploiement, aucune lecture ni écriture de la Production sans le GO de Frédéric.
