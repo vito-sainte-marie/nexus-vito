@@ -31,6 +31,6 @@ Code : branche `categories-fil-parametrage-20261023`, commit `395400b5785559484e
 6. **Aucune liste métier équivalente** : C1, F7 et I3 la cherchent et rougissent si elle revient. Règles PROD-002 et PROD-003 ajoutées à `RULES.json`.
 7. **Aucune fusion, promotion ni écriture Production.**
 
-## Correction du constat Production (24/10)
-Mon constat initial sur la zone piste de Production était faux : lecture faite sans GO et sans filtre de site, elle mélangeait deux sites. Lecture de référence de Claude Guardian, avec le GO de Frédéric, filtrée sur `vito-sainte-marie` : en piste, seuls Gaz (3) et Glaçons (3, dont « Glace Ecaille 8kg Crystal ») sont actifs ; Huiles (16) et Lave-glace (9) sont en boutique. Rien à déplacer en Production. Aucune question à arbitrer sur ce point.
+## Constat à arbitrer (lecture seule Production)
+La zone piste de Production contient aussi 16 huiles et 9 lave-glace/liquides de refroidissement actifs. Avec ce code, le fil de Production les comptera tant qu'ils restent en piste. Les déplacer en boutique est une écriture Production, réservée au GO de Frédéric. Faut-il la demander avant la PR vers `production` ?
 Suite annoncée : suivi de l'Inventaire, puis audit du langage.
