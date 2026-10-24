@@ -65,7 +65,37 @@
     return data;
   }
 
-  async function chargerIngredientsSelection(client, site, dateISO) {
+  // INVENTAIRE-RELECTURES-20261024 : chargerIngredientsSelection est lue
+  // jusqu'à trois fois pour la même clé (site, date) — une fois à
+  // l'intérieur de chargerOuGenererPlan (si le plan n'existe pas encore),
+  // une fois par chargerContexteGeneration (génération), une fois de plus
+  // si reevaluerMissionsNonAffectees rappelle chargerContexteGeneration
+  // (réévaluation, dans le même appel après une course d'insertion, ou
+  // dans un appel ultérieur pendant la même page). Même principe que
+  // ouvrirMemoPlan/fermerMemoPlan : une fenêtre explicitement ouverte par
+  // l'appelant partage la PROMESSE en cours entre tous les demandeurs de la
+  // même clé ; hors fenêtre, aucun cache, comportement inchangé. Cloisonné
+  // par (site, date) SANS le quart : le catalogue, les règles et les
+  // anomalies récentes ne dépendent pas du quart, donc un changement de
+  // quart à date égale réutilise légitimement la même lecture.
+  let memoIngredients = null;
+  function ouvrirMemoIngredients() { memoIngredients = new Map(); }
+  function fermerMemoIngredients() { memoIngredients = null; }
+
+  function chargerIngredientsSelection(client, site, dateISO) {
+    if (!memoIngredients) return chargerIngredientsSelectionSansMemo(client, site, dateISO);
+    const memo = memoIngredients;
+    const cle = `${site}|${dateISO}`;
+    let demande = memo.get(cle);
+    if (!demande) {
+      demande = chargerIngredientsSelectionSansMemo(client, site, dateISO)
+        .catch(e => { memo.delete(cle); throw e; });
+      memo.set(cle, demande);
+    }
+    return demande;
+  }
+
+  async function chargerIngredientsSelectionSansMemo(client, site, dateISO) {
     const cutover = await chargerDernierPointReference(client, site, 'PRODUCTION_START');
     // Anomalies récentes (21/08/2026, cutover) : deux garde-fous indépendants
     // contre la remontée d'anciennes données de test — (1) seules les
@@ -296,7 +326,8 @@
     // d'un plan (Article 11 : jamais une deuxième version de cette
     // sélection), simplement appelées en LECTURE SEULE pour prévisualiser
     // sans jamais persister de plan ni consommer une surprise.
-    chargerIngredientsSelection, chargerSurprisesRecentes,
+    chargerIngredientsSelection, ouvrirMemoIngredients, fermerMemoIngredients,
+    chargerSurprisesRecentes,
     chargerSeuilsEcart,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
