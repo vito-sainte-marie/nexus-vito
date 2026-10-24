@@ -6,9 +6,17 @@
 # Arrêt : désactiver ce workflow depuis l'onglet Actions. V2 et V3 restent hors périmètre.
 name: Vigie clôture
 
+# VIGIE-DECLENCHEURS-20261024 : le cron seul passe toutes les 3 à 6 h (GitHub ne le tient pas à l'heure). Trois
+# déclencheurs, pas un de plus : le cron reste le filet ; `workflow_dispatch` permet un lancement manuel ;
+# `workflow_run` relance la vigie à la fin de « Tests » sur le rail (il ne s'exécute que depuis `main`).
 on:
   schedule:
     - cron: '17 * * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Tests']
+    types: [completed]
+    branches: [handoff-continuite-20260920]
 
 permissions:
   contents: read
