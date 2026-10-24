@@ -93,7 +93,11 @@ testSync('NEXUS-Inventaire-v1.html — chargerEtAppliquerPlanQuart charge seuils
   const debut = srcEmploye.indexOf('async function chargerEtAppliquerPlanQuart');
   const fin = srcEmploye.indexOf('async function chargerMissionsPourRole', debut);
   const bloc = srcEmploye.slice(debut, fin === -1 ? debut + 3000 : fin);
-  assert.ok(bloc.includes('seuilsEcart = await P.chargerSeuilsEcart(nexusClient, site);'), 'appel au loader partagé introuvable dans chargerEtAppliquerPlanQuart');
+  // Lot 3 (23/10/2026) : la lecture (réglages, seuils, plan) vit dans lirePlanEtReglagesDuQuart,
+  // mémoïsée à l'init ; chargerEtAppliquerPlanQuart applique le résultat.
+  const lecture = srcEmploye.slice(srcEmploye.indexOf('async function lirePlanEtReglagesDuQuart'), debut);
+  assert.ok(lecture.includes('P.chargerSeuilsEcart(nexusClient, site)'), 'appel au loader partagé introuvable dans lirePlanEtReglagesDuQuart');
+  assert.ok(bloc.includes('if (seuils) seuilsEcart = seuils;'), 'seuilsEcart non appliqué dans chargerEtAppliquerPlanQuart');
   assert.ok(bloc.includes('seuilsSiteDefaut = { quantite_alerte: options.quantityAlertThreshold, valeur_alerte: options.valueAlertThreshold };'), 'seuilsSiteDefaut non alimenté depuis options');
 });
 
