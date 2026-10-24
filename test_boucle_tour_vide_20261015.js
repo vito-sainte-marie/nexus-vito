@@ -234,8 +234,8 @@ const CANAL = (nexusCanal, githubActions) => ({ NEXUS_CANAL: nexusCanal || '', G
 const SESSION_LOCALE = CANAL('', '');
 const RUNNER = CANAL('', 'true');
 
-epreuve('S17 — RED : un exécutant différent se voit refuser la prise en charge, avec identité, date et commit', () => {
-  const b = banc();
+// Corps de S17, rejouable sur un banc dont l'outil a été muté (S22).
+function corpsS17(b) {
   OK(b.outil('consommer', LOT, '--prise-en-charge', SESSION_LOCALE));
   const avant = b.etat().lots[LOT];
   assert.strictEqual(avant.pris_en_charge_par, 'session-locale');
@@ -249,7 +249,8 @@ epreuve('S17 — RED : un exécutant différent se voit refuser la prise en char
   // Rien ne bouge : le refus est bien un refus, pas une consommation déguisée.
   assert.strictEqual(fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8'), fichierAvant, 'STATE.json modifié par un refus');
   assert.strictEqual(b.etat().lots[LOT].pris_en_charge_par, 'session-locale', 'l\'exécutant initial a été écrasé');
-});
+}
+epreuve('S17 — RED : un exécutant différent se voit refuser la prise en charge, avec identité, date et commit', () => corpsS17(banc()));
 epreuve('S18 — cas voisin vert : le même exécutant qui reprend reste idempotent', () => {
   const b = banc();
   OK(b.outil('consommer', LOT, '--prise-en-charge', RUNNER));
@@ -293,6 +294,25 @@ epreuve('S21 — mutation : neutraliser la comparaison d\'exécutant doit faire 
   };
   for (const [nom, f] of Object.entries(mutants)) {
     assert.throws(() => controle(f), `le mutant « ${nom} » n'est pas détecté`);
+  }
+});
+
+epreuve('S22 — mutation de l\'outil : une prise en charge cassée doit faire rougir S17', () => {
+  // S21 mute la fonction pure ; ici on casse le refus lui-même dans l'outil
+  // du banc et on exige que le corps de S17 le voie.
+  const mutants = {
+    'le refus ne se déclenche jamais': ['if (executantConflit(v.pris_en_charge_par, identite)) {', 'if (false) {'],
+    'le refus compare l\'exécutant à lui-même': ['if (executantConflit(v.pris_en_charge_par, identite)) {', 'if (executantConflit(identite, identite)) {'],
+    'le refus n\'énonce plus ni identité, ni date, ni commit': ["REFUS DECISION_DEJA_PRISE_EN_CHARGE — ${lot} : décision ${commit.slice(0, 7)} déjà prise en charge par ${v.pris_en_charge_par} le ${v.pris_en_charge_le || 'date inconnue'}", "REFUS DECISION_DEJA_PRISE_EN_CHARGE — ${lot} : décision déjà prise en charge"],
+  };
+  corpsS17(banc()); // l'outil intact passe : sans cela, un mutant « rouge » ne prouverait rien
+  for (const [nom, [de, vers]] of Object.entries(mutants)) {
+    const b = banc();
+    const f = path.join(b.clone, 'outils', 'handoff.js');
+    const src = fs.readFileSync(f, 'utf8');
+    assert.strictEqual(src.split(de).length - 1, 1, `ancre du mutant « ${nom} » absente ou non unique`);
+    fs.writeFileSync(f, src.replace(de, () => vers));
+    assert.throws(() => corpsS17(b), `le mutant « ${nom} » n'est pas détecté par S17`);
   }
 });
 
