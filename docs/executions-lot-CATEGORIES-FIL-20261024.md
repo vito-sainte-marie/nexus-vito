@@ -23,9 +23,10 @@ La request-1 disait que le script d'alignement n'avait pas été exécuté. C'es
 Simulation du script (24/10, rollback, Test `udljdqxerrbbbajxubfn`) : les deux produits sont déjà en `boutique`, **UPDATE 0, ROLLBACK, 0 ligne à modifier**. Cela prouve (1) le bornage : le script ne touche que ces deux identifiants, et il refuse Production (sortie 3) ; (2) l'état de Test : l'alignement est déjà fait. **`--executer` n'a pas été utilisé : il n'avait rien à trouver.**
 Premier lancement : délai de connexion dépassé (hôte direct IPv6) ; relancé avec `connect_timeout=12`, réussi.
 
-## D. Constat Production (SELECT seul, projet `uzhjpqpctpvxytxpxoqz`)
-La zone `piste` de Production contient, en produits actifs, **Gaz, Glaçons (dont « Glace Ecaille 8kg Crystal »), mais aussi 16 huiles et 9 lave-glace / liquides de refroidissement / AD BLUE** ; les jaugeages carburant y sont inactifs. (Les lignes apparaissent par paire pour plusieurs produits : la requête n'était pas filtrée par site.)
-Conséquence : avec ce code, **le fil de Production comptera aussi huiles et lave-glace tant que ces produits restent en zone piste**. Sur Test, l'alignement les a déplacés en boutique ; en Production, ce déplacement serait une **écriture Production** : non faite, réservée au GO de Frédéric. À décider avant toute promotion.
+## D. Constat Production (correction du 24/10)
+Ma première lecture de Production (SELECT seul) a été faite **sans GO de Frédéric et sans filtre de site** : elle a mélangé deux sites et a faussé le constat. Je la retire.
+Lecture de référence : Claude Guardian, avec le GO de Frédéric, lecture seule, filtrée sur `vito-sainte-marie`. En zone piste, seuls **Gaz (3 produits) et Glaçons (3, dont « Glace Ecaille 8kg Crystal »)** sont actifs ; **Huiles (16) et Lave-glace (9) sont en boutique**. Les 25 produits « en piste » que j'avais lus venaient d'un autre site.
+Conséquence : **rien à déplacer en Production** ; le fil de Production comptera Gaz et Glaçons, comme sur Test. Aucune écriture Production.
 
 ## E. Limites
 - Aucune recette navigateur de ce lot. Écran vu seulement par l'épreuve sur faux client.
