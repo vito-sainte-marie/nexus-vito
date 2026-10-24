@@ -43,3 +43,9 @@ Six lignes, ordre 0 à 5 : Écailles, Gaz 12,5KG, Gaz 3KG, Glaçons recette, Hui
 
 ## G. Prochaine action unique
 Ton GO pour fusionner la PR en brouillon (aucune fusion sans lui).
+
+## H. Retrait des services de recette sur Test (24/10, GO de Frédéric)
+- Script `outils/nettoyage-services-recette-pompiste-20261023.sh` (branche `nettoyage-services-recette-dependants-20261023`, non fusionnée) : simulation d'abord (rollback), puis `--executer` sur Test `udljdqxerrbbbajxubfn` seulement (Production refusée, exit 3).
+- Retiré, par identifiant : 4 quarts de service (shifts), 2 validations de mission, les quarts d'inventaire et affectations rattachés, 2 plans de comptage, le relevé d'index `d30f2e6f` avec ses valeurs. Le plan `17044d40` est conservé.
+- Relu par SQL après exécution : shifts 0, quarts 0, plans visés 0, relevé 0, valeurs 0, validations 0. Second passage : DELETE 0 partout.
+- Aucune écriture Production.
