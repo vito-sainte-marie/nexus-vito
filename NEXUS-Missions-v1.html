@@ -2203,7 +2203,14 @@
       const disponiblesListe = lib.filter(m => m.disponibilite !== 'obligatoire' && m.disponibilite !== 'conditionnelle');
       const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
 
-      if (obligatoires.length === 0 && disponiblesListe.length > 0 && !disponiblesDeplieSeul) {
+      // 24/10/2026 : « Disponibles » se déplie aussi quand toutes les
+      // obligatoires du jour sont validées (le pompiste voyait « Missions »
+      // vide alors qu'il lui restait des disponibles). Une seule fois : un
+      // repli manuel ensuite n'est jamais annulé.
+      const potentielDuJour = calculerPotentielJour();
+      const obligatoiresSoldees = potentielDuJour.missionsObligatoiresTotal > 0
+        && potentielDuJour.missionsObligatoiresFaites >= potentielDuJour.missionsObligatoiresTotal;
+      if ((obligatoires.length === 0 || obligatoiresSoldees) && disponiblesListe.length > 0 && !disponiblesDeplieSeul) {
         disponiblesDeplieSeul = true;
         blocsListeOuverts.disponibles = true;
       }

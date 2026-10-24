@@ -113,7 +113,17 @@
     return modifie ? chargerMissionsExistantes(client, site, dateISO, quart) : (existantes || []);
   }
 
+  // Une génération suivie d'une réévaluation lisait deux fois les ingrédients
+  // de la sélection (24/10/2026) : la fenêtre de mémo du plan est ouverte pour
+  // la durée de l'appel si la page n'en a pas déjà ouvert une.
   async function genererOuChargerMissions(client, site, dateISO, quart) {
+    const PD = global.NexusInventairePlanDonnees;
+    const ouverte = !!(PD && typeof PD.ouvrirMemoPlanSiAbsent === 'function' && PD.ouvrirMemoPlanSiAbsent());
+    try { return await genererOuChargerMissionsSansFenetre(client, site, dateISO, quart); }
+    finally { if (ouverte) PD.fermerMemoPlan(); }
+  }
+
+  async function genererOuChargerMissionsSansFenetre(client, site, dateISO, quart) {
     const existantes = await chargerMissionsExistantes(client, site, dateISO, quart);
     if (existantes.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes);
     const ctx = await chargerContexteGeneration(client, site, dateISO, quart);

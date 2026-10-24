@@ -13,9 +13,12 @@
       PD.chargerIngredientsSelection = async function (client, site, dateISO) {
         const ingredients = await chargerOriginal(client, site, dateISO);
         if (!ingredients) return ingredients;
-        const { data: cats, error } = await client.from('inventaire_categories')
+        // Même fenêtre de mémo que les ingrédients : la lecture des catégories
+        // n'est pas refaite pour le même (site, date).
+        const partager = typeof PD.partagerDansFenetre === 'function' ? PD.partagerDansFenetre : (c, f) => f();
+        const { data: cats, error } = await partager(`rotation|${site}|${dateISO}`, () => client.from('inventaire_categories')
           .select('id, mode_comptage, nombre_references_rotation, controle_aleatoire')
-          .eq('site', site).eq('actif', true);
+          .eq('site', site).eq('actif', true));
         if (error) { console.error('Rotation intelligente — catégories:', error); return ingredients; }
         const parCat = Object.fromEntries((cats || []).map(c => [c.id, c]));
         (ingredients.produits || []).forEach(p => {

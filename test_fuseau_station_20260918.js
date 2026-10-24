@@ -242,11 +242,18 @@ function monterAuth(client, cloturer) {
     'Date', 'console', 'nexusClient', 'NexusPointageRegles', 'nexusCloturerServicesObsoletes',
     [
       'const nexusFuseauxSite = new Map();',
+      'const nexusFuseauxEnCours = new Map();',
       extraireFonction('function nexusFuseauValide(', SRC_AUTH),
       extraireFonction('function nexusRetenirFuseau(', SRC_AUTH),
       extraireFonction('function nexusJourDansFuseau(', SRC_AUTH),
       extraireFonction('async function nexusFuseauSite(', SRC_AUTH),
-      extraireFonction('async function nexusServiceCourant(', SRC_AUTH),
+      extraireFonction('async function nexusLireFuseauSite(', SRC_AUTH),
+      // 24/10/2026 : `nexusServiceCourant` est devenu un mémo de 3 s autour du
+      // corps ; l'horloge figée de ce test le rendrait éternel. On monte donc
+      // le corps livré, sans le mémo (le mémo a son épreuve dans
+      // test_inventaire_relectures_20261024.js).
+      extraireFonction('async function nexusServiceCourantSansMemo(', SRC_AUTH),
+      'const nexusServiceCourant = nexusServiceCourantSansMemo;',
       'return { nexusJourDansFuseau, nexusFuseauSite, nexusServiceCourant };',
     ].join('\n'),
   )(horlogeFigee(INSTANT), { error() {}, info() {} }, client, NexusPointageRegles, cloturer);
@@ -385,7 +392,8 @@ verifierQue('Changer le fuseau du site change la décision (S1 en Martinique / S
 verifierQue('Aucune constante de repli ne subsiste dans `nexus-auth.js`',
   !/NEXUS_FUSEAU_DEFAUT/.test(SRC_AUTH),
   'un repli codé en dur est une troisième source de vérité, et une source muette');
-const SRC_FUSEAU_SITE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH);
+// 24/10/2026 : la lecture vit dans `nexusLireFuseauSite`, appelée par `nexusFuseauSite`.
+const SRC_FUSEAU_SITE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH) + '\n' + extraireFonction('async function nexusLireFuseauSite(', SRC_AUTH);
 verifierQue('Le fuseau est lu dans l’autorité canonique `sites.timezone`',
   /\.from\('sites'\)/.test(SRC_FUSEAU_SITE) && /select\('timezone'\)/.test(SRC_FUSEAU_SITE),
   'la migration 20260905131500 déclare `sites.timezone` source de vérité depuis le 05/09/2026');
