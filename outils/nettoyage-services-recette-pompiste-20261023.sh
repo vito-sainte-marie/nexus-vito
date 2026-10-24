@@ -16,7 +16,8 @@
 # visé y est seul, ses comptages (cascade), et les deux plans de comptage générés avec eux :
 #   e1871793-2a33-4ecd-8320-d54ad4d7a11c  (22/10 23:54 UTC, quart du soir)
 #   a6e9554d-1cb7-42a8-aba9-c35dec3e56f7  (23/10 18:13 UTC, quart du soir)
-# NE retire PAS le relevé d'index fictif d30f2e6f-… (debut_q2 du 22/10) : il ne retient aucun service.
+# Retire aussi, sur GO de Frédéric (24/10), le relevé d'index fictif d30f2e6f-… (debut_q2 du 22/10,
+# même auteur) avec ses valeurs carburant_index_valeurs.
 # Garde-fous :
 #   - REFUSE Production et tout projet autre que nexus-test ;
 #   - SIMULATION par défaut (rollback) ; --executer pour valider ;
@@ -83,6 +84,14 @@ select p.id from public.inventaire_plans_comptage p, _borne b
  where p.site = b.site
    and p.id in ('e1871793-2a33-4ecd-8320-d54ad4d7a11c','a6e9554d-1cb7-42a8-aba9-c35dec3e56f7');
 
+create temp table _releves on commit drop as
+select r.id from public.carburant_index_releves r, _borne b
+ where r.id = 'd30f2e6f-c344-4f95-8bdf-00534fe5c474' and r.site = b.site and r.auteur = b.emp;
+
+\echo '=== Relevé d index visé ==='
+select r.id, r.moment, r.statut, r.date, r.cree_le, (select count(*) from public.carburant_index_valeurs v where v.releve_id=r.id) valeurs
+  from public.carburant_index_releves r where r.id in (select id from _releves);
+
 \echo '=== Inventaire rattaché (quarts, comptages, plans) ==='
 select 'quart' t, q.id::text, q.quart||' '||q.date||' '||q.statut d from public.inventaire_quarts q where q.id in (select id from _quarts)
 union all select 'quart_employes', e.id::text, 'shift '||e.shift_id from public.inventaire_quart_employes e where e.id in (select id from _quart_employes)
@@ -117,6 +126,8 @@ from _shifts s;
 \echo
 \echo '=== Retrait ($MODE) ==='
 delete from public.mission_completions where id in (select id from _completions);
+delete from public.carburant_index_valeurs where releve_id in (select id from _releves);
+delete from public.carburant_index_releves where id in (select id from _releves);
 delete from public.inventaire_plans_comptage where id in (select id from _plans);
 delete from public.inventaire_quart_employes where id in (select id from _quart_employes)
    and quart_id in (select id from _quarts);
@@ -135,6 +146,7 @@ delete from public.shifts s
 \echo '=== Restant (désignés) ==='
 select (select count(*) from public.inventaire_quarts where id in (select id from _quarts)) as quarts_restants,
        (select count(*) from public.inventaire_plans_comptage where id in (select id from _plans)) as plans_restants,
+       (select count(*) from public.carburant_index_releves where id in (select id from _releves)) as releves_restants,
        count(*) as services_restants from public.shifts where id in (select unnest(ids) from _borne);
 $FIN
 SQL
