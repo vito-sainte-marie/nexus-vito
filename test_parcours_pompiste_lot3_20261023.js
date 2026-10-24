@@ -42,7 +42,7 @@ function epreuves(I, M) {
     assert.ok(!/\.rpc\(/.test(f), 'RPC interdit par la décision');
   });
   eprouve('M1 Missions : « Disponibles » se déplie seul seulement sans obligatoire, une seule fois', () => {
-    assert.ok(/if \(obligatoires\.length === 0 && disponiblesListe\.length > 0 && !disponiblesDeplieSeul\) \{\s*disponiblesDeplieSeul = true;\s*blocsListeOuverts\.disponibles = true;/.test(M), 'dépliage conditionnel absent');
+    assert.ok(/if \(\(obligatoires\.length === 0 \|\| obligatoiresSoldees\) && disponiblesListe\.length > 0 && !disponiblesDeplieSeul\) \{\s*disponiblesDeplieSeul = true;\s*blocsListeOuverts\.disponibles = true;/.test(M), 'dépliage conditionnel absent');
     assert.ok(/let blocsListeOuverts = \{ obligatoires: true, disponibles: false,/.test(M), 'état initial replié modifié : comportement existant à conserver avec des obligatoires');
     assert.strictEqual((M.match(/blocsListeOuverts\.disponibles = true/g) || []).length, 1, 'un seul endroit déplie d\'office');
   });
@@ -128,7 +128,7 @@ function mutant(nom, src, re, rempl, cible) {
 mutant('plan relu sans mémo', I, /if \(memo\) memo\.set\(cle, chargement\);/, '', 'I');
 mutant('init séquentielle', I, /Promise\.all\(\[lectureZones, lectureQuart, chargerEtAppliquerPlanQuart\(\)\]\)/, 'Promise.all([lectureZones, lectureQuart])', 'I');
 mutant('RPC ajouté', I, /async function lirePlanEtReglagesDuQuart\(P, site, quart\) \{/, 'async function lirePlanEtReglagesDuQuart(P, site, quart) { nexusClient.rpc("x");', 'I');
-mutant('Disponibles déplié même avec obligatoires', M, /obligatoires\.length === 0 && /, '', 'M');
+mutant('Disponibles déplié même avec obligatoires', M, /\(obligatoires\.length === 0 \|\| obligatoiresSoldees\) && /, '', 'M');
 
 (async () => {
   try { await epreuvePlanAbsentGenere(PD); console.log('OK — P1 plan absent → généré → un seul chargement, partagé page + missions'); }

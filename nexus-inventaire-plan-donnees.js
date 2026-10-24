@@ -65,7 +65,7 @@
     return data;
   }
 
-  async function chargerIngredientsSelection(client, site, dateISO) {
+  async function chargerIngredientsSelectionSansMemo(client, site, dateISO) {
     const cutover = await chargerDernierPointReference(client, site, 'PRODUCTION_START');
     // Anomalies récentes (21/08/2026, cutover) : deux garde-fous indépendants
     // contre la remontée d'anciennes données de test — (1) seules les
@@ -134,7 +134,7 @@
   // Produits déjà tirés en surprise récemment (cahier §5.2 étape 6 : éviter
   // qu'une même surprise revienne trop souvent) — lu via les plans déjà
   // persistés des derniers jours, jamais un compteur séparé à maintenir.
-  async function chargerSurprisesRecentes(client, site, dateISO) {
+  async function chargerSurprisesRecentesSansMemo(client, site, dateISO) {
     const { data: plansRecents, error: e1 } = await client.from('inventaire_plans_comptage')
       .select('id').eq('site', site).gte('date', isoMoinsJours(dateISO, FENETRE_SURPRISE_RECENTE_JOURS)).lt('date', dateISO);
     if (e1) { console.error('Chargement plans récents (surprises):', e1); return []; }
@@ -144,6 +144,34 @@
       .select('produit_id').in('plan_id', planIds).eq('raison_selection', 'surprise');
     if (e2) { console.error('Chargement items surprise récents:', e2); return []; }
     return Array.from(new Set((items || []).map(i => i.produit_id)));
+  }
+
+  // Lecture des ingrédients (24/10/2026, INVENTAIRE-RELECTURES) : la sélection
+  // du plan et la génération des missions demandaient chacune les mêmes
+  // ingrédients et les mêmes surprises récentes pour le même (site, date),
+  // soit deux fois la préparation de la sélection à l'ouverture. Tant qu'une
+  // fenêtre est ouverte (ouvrirMemoPlan), la demande est partagée par tous les
+  // appelants du même (site, date) ; la clé porte toujours le site et la date,
+  // donc aucun partage entre deux sites ni deux jours. Hors fenêtre : aucun
+  // cache, la lecture reste fraîche. invaliderMemoIngredients() vide la
+  // fenêtre après une mutation qui change les ingrédients.
+  let memoIngredients = null;
+  function partagerDansFenetre(cle, fabrique) {
+    if (!memoIngredients) return fabrique();
+    const memo = memoIngredients;
+    let demande = memo.get(cle);
+    if (!demande) {
+      demande = Promise.resolve().then(fabrique).then(r => r, e => { memo.delete(cle); throw e; });
+      memo.set(cle, demande);
+    }
+    return demande;
+  }
+  function invaliderMemoIngredients() { if (memoIngredients) memoIngredients.clear(); }
+  function chargerIngredientsSelection(client, site, dateISO) {
+    return partagerDansFenetre(`ingredients|${site}|${dateISO}`, () => chargerIngredientsSelectionSansMemo(client, site, dateISO));
+  }
+  function chargerSurprisesRecentes(client, site, dateISO) {
+    return partagerDansFenetre(`surprises|${site}|${dateISO}`, () => chargerSurprisesRecentesSansMemo(client, site, dateISO));
   }
 
   // Génère (si absent) puis retourne le plan du (site, date, quart). Un seul
@@ -161,8 +189,11 @@
   // appelants du même (site, date, quart). Hors fenêtre : aucun cache, un plan
   // dont les items avancent ne doit jamais être servi périmé.
   let memoPlans = null;
-  function ouvrirMemoPlan() { memoPlans = new Map(); }
-  function fermerMemoPlan() { memoPlans = null; }
+  function ouvrirMemoPlan() { memoPlans = new Map(); memoIngredients = new Map(); }
+  function fermerMemoPlan() { memoPlans = null; memoIngredients = null; }
+  // Ouvre une fenêtre seulement s'il n'y en a pas : retourne true si c'est
+  // l'appelant qui l'a ouverte (et qui doit donc la fermer).
+  function ouvrirMemoPlanSiAbsent() { if (memoPlans) return false; ouvrirMemoPlan(); return true; }
 
   function chargerOuGenererPlan(client, site, dateISO, quart, options) {
     if (!memoPlans) return chargerOuGenererPlanSansMemo(client, site, dateISO, quart, options);
@@ -315,7 +346,7 @@
 
   global.NexusInventairePlanDonnees = {
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
-    chargerPlanExistant, chargerOuGenererPlan, ouvrirMemoPlan, fermerMemoPlan, marquerItemPlanCompte,
+    chargerPlanExistant, chargerOuGenererPlan, ouvrirMemoPlan, ouvrirMemoPlanSiAbsent, fermerMemoPlan, partagerDansFenetre, invaliderMemoIngredients, marquerItemPlanCompte,
     chargerCouverturePhysique, chargerDernierPointReference,
     // Exportées le 21/08/2026 pour l'aperçu "Prochain inventaire estimé" de
     // l'écran Paramètres (Accueil) — mêmes requêtes que la génération réelle

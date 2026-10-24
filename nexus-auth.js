@@ -568,6 +568,7 @@ async function nexusAppliquerCloturePilote(services, decision){
     }
     closes++;
   }
+  if(closes>0 && typeof nexusInvaliderServiceCourant==='function') nexusInvaliderServiceCourant();
   return { closes, tentees: services.length, refuses };
 }
 
@@ -774,6 +775,7 @@ async function nexusRegulariserServicesObsoletes(manager, obsoletes){
 // SEULS LES SUCCES sont memorises — une coupure passagere ne doit pas figer un
 // « indetermine » jusqu'au rechargement de la page.
 const nexusFuseauxSite = new Map();
+const nexusFuseauxEnCours = new Map();
 
 // Un fuseau que CET appareil ne sait pas resoudre ferait lever `Intl` a chaque
 // calcul de date. On le refuse une fois, a la lecture, plutot que de laisser
@@ -825,6 +827,13 @@ function nexusJourDansFuseau(instant, fuseau){
 async function nexusFuseauSite(siteId){
   if(!siteId) return null;
   if(nexusFuseauxSite.has(siteId)) return nexusFuseauxSite.get(siteId);
+  // Deux lecteurs concurrents (porte d'accès, écran) partagent la même requête.
+  if(nexusFuseauxEnCours.has(siteId)) return nexusFuseauxEnCours.get(siteId);
+  const enCours = nexusLireFuseauSite(siteId).finally(() => { nexusFuseauxEnCours.delete(siteId); });
+  nexusFuseauxEnCours.set(siteId, enCours);
+  return enCours;
+}
+async function nexusLireFuseauSite(siteId){
   try{
     const { data, error } = await nexusClient
       .from('sites').select('timezone').eq('site_id', siteId).maybeSingle();
@@ -844,7 +853,27 @@ async function nexusFuseauSite(siteId){
 }
 
 /* NEXUS-FUSEAU-METIER:FIN */
-async function nexusServiceCourant(employee){
+// Relectures du 24/10/2026 : la porte d'accès (prise de poste manquante) puis
+// le rôle du jour relisaient la MÊME requête `shifts` à quelques centaines de
+// millisecondes d'intervalle (mesure Claude Guardian, 533 puis 975 ms). Le
+// résultat d'une lecture qui TROUVE un service est partagé 3 secondes, par
+// employé et par site ; une erreur ou « aucun service » n'est jamais gardé, et toute clôture écrite ici l'invalide.
+const NEXUS_SERVICE_COURANT_TTL_MS = 3000;
+const nexusServiceCourantMemo = new Map();
+function nexusInvaliderServiceCourant(){ nexusServiceCourantMemo.clear(); }
+function nexusServiceCourant(employee){
+  if(!employee||!employee.id||!employee.site_id) return nexusServiceCourantSansMemo(employee);
+  const cle = employee.id + '|' + employee.site_id;
+  const memo = nexusServiceCourantMemo.get(cle);
+  if(memo && (Date.now() - memo.t) < NEXUS_SERVICE_COURANT_TTL_MS) return memo.promesse;
+  const promesse = nexusServiceCourantSansMemo(employee).then(r => {
+    if(!(r && r.service) && nexusServiceCourantMemo.get(cle) && nexusServiceCourantMemo.get(cle).promesse === promesse) nexusServiceCourantMemo.delete(cle);
+    return r;
+  }, e => { nexusServiceCourantMemo.delete(cle); throw e; });
+  nexusServiceCourantMemo.set(cle, { t: Date.now(), promesse });
+  return promesse;
+}
+async function nexusServiceCourantSansMemo(employee){
   if(!employee||!employee.id||!employee.site_id){
     console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
     return { erreur: true };

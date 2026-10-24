@@ -106,11 +106,13 @@ const SRC_CHEMINS = extraireFonction('function renderDeuxChemins(');
 const SRC_AUTH = fs.readFileSync(path.join(RACINE, 'nexus-auth.js'), 'utf8');
 const fuseaux = new Function('nexusClient', [
   'const nexusFuseauxSite = new Map();',
+  'const nexusFuseauxEnCours = new Map();',
   'const console = { error() {} };',
   extraireFonction('function nexusFuseauValide(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('function nexusRetenirFuseau(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('function nexusJourDansFuseau(', SRC_AUTH, 'nexus-auth.js'),
   extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js'),
+  extraireFonction('async function nexusLireFuseauSite(', SRC_AUTH, 'nexus-auth.js'),
   'return { nexusJourDansFuseau, nexusFuseauSite, nexusFuseauxSite };',
 ].join('\n'));
 
@@ -124,7 +126,12 @@ const fuseaux = new Function('nexusClient', [
 // Ce qu'il faut garder désormais est l'inverse exact : plus aucune constante
 // de repli, et une seule autorité de fuseau — `sites.timezone`, déclarée
 // source de vérité par la migration 20260905131500 du 05/09/2026.
-const SRC_FUSEAU_SITE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js');
+// 24/10/2026 : la lecture est dans `nexusLireFuseauSite`, que `nexusFuseauSite`
+// appelle pour partager une requête en vol. La garde porte sur les deux.
+const SRC_FUSEAU_ENTREE = extraireFonction('async function nexusFuseauSite(', SRC_AUTH, 'nexus-auth.js');
+const SRC_FUSEAU_LECTURE = extraireFonction('async function nexusLireFuseauSite(', SRC_AUTH, 'nexus-auth.js');
+assert.ok(/nexusLireFuseauSite\(/.test(SRC_FUSEAU_ENTREE), 'nexusFuseauSite doit passer par la lecture unique');
+const SRC_FUSEAU_SITE = SRC_FUSEAU_ENTREE + '\n' + SRC_FUSEAU_LECTURE;
 assert.ok(!/NEXUS_FUSEAU_DEFAUT/.test(SRC_AUTH),
   'une constante de repli est une troisième source de vérité, et une source muette');
 assert.ok(/\.from\('sites'\)/.test(SRC_FUSEAU_SITE) && !/station_config/.test(SRC_FUSEAU_SITE),
