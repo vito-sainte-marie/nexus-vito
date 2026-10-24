@@ -239,6 +239,7 @@ epreuve('S17 — RED : un exécutant différent se voit refuser la prise en char
   OK(b.outil('consommer', LOT, '--prise-en-charge', SESSION_LOCALE));
   const avant = b.etat().lots[LOT];
   assert.strictEqual(avant.pris_en_charge_par, 'session-locale');
+  const fichierAvant = fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8');
   const r = b.outil('consommer', LOT, '--prise-en-charge', RUNNER);
   KO(r, /DECISION_DEJA_PRISE_EN_CHARGE/);
   assert.ok(r.sortie.includes('session-locale'), `identité initiale attendue :\n${r.sortie}`);
@@ -246,7 +247,8 @@ epreuve('S17 — RED : un exécutant différent se voit refuser la prise en char
   assert.ok(r.sortie.includes(avant.commit_decision.slice(0, 7)), `commit attendu :\n${r.sortie}`);
   assert.ok(r.sortie.includes('github-actions-claude'), `exécutant courant attendu :\n${r.sortie}`);
   // Rien ne bouge : le refus est bien un refus, pas une consommation déguisée.
-  assert.deepStrictEqual(b.etat().lots[LOT], avant);
+  assert.strictEqual(fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8'), fichierAvant, 'STATE.json modifié par un refus');
+  assert.strictEqual(b.etat().lots[LOT].pris_en_charge_par, 'session-locale', 'l\'exécutant initial a été écrasé');
 });
 epreuve('S18 — cas voisin vert : le même exécutant qui reprend reste idempotent', () => {
   const b = banc();
