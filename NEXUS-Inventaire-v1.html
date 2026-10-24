@@ -1300,8 +1300,9 @@
   // produitsZone directement, jamais ce filtre-ci (Article 11 : une seule
   // vérité pour "quel catalogue", mais deux usages légitimement différents).
   function produitsZoneOuverturePourQuart() {
-    // Lot 2 (fil « Mon début de quart », étape 3) : seuls le gaz, les glaçons et les écailles sont comptés.
-    const base = enFil() ? produitsZone.filter(p => FIL.categorieDuFil(p.inventaire_categories ? p.inventaire_categories.nom : '')) : produitsZone;
+    // Fil « Mon début de quart » (étape 3) : le fil ouvre la zone « piste » (zoneActive), et produitsZone ne contient que
+    // les produits actifs de cette zone pour le site. Le paramétrage de la station décide, aucune liste de noms ici.
+    const base = produitsZone;
     if (quartActuel !== 'soir') return base;
     return base.filter(p => profilParProduit[p.id] !== 'production_journaliere');
   }

@@ -15,9 +15,10 @@ const fin = html.indexOf('// Dernier stock connu', debut);
 assert(debut > 0 && fin > debut, 'chargerProduitsZone introuvable dans NEXUS-Inventaire-v1.html');
 const src = html.slice(debut, fin);
 
-const PRODUITS = [
-  { id: 'gaz', designation: 'Gaz 12,5KG', actif: true, zone: 'piste' },
-  { id: 'ecailles', designation: 'Écailles', actif: true, zone: 'piste' },
+// Écailles = un produit de la catégorie Glaçons, pas une catégorie (précision de Frédéric, 23/10).
+let PRODUITS = [
+  { id: 'gaz', designation: 'Gaz 12,5KG', actif: true, zone: 'piste', categorie: 'Gaz' },
+  { id: 'ecailles', designation: 'Écailles', actif: true, zone: 'piste', categorie: 'Glaçons' },
   { id: 'huile', designation: 'Huile moteur recette', actif: true, zone: 'boutique' },
   { id: 'laveglace', designation: 'Lave-glace recette', actif: true, zone: 'boutique' },
   { id: 'inactif', designation: 'Gaz retiré', actif: false, zone: 'piste' },
@@ -34,7 +35,7 @@ function fauxClient() {
         order() { return b; },
         then(ok) {
           let rows = table === 'inventaire_zone_produit'
-            ? PRODUITS.map(p => ({ id: p.id, designation: p.designation, actif: p.actif, inventaire_categories: null, inventaire_zones: { code: p.zone } }))
+            ? PRODUITS.map(p => ({ id: p.id, designation: p.designation, actif: p.actif, inventaire_categories: p.categorie ? { nom: p.categorie } : null, inventaire_zones: { code: p.zone } }))
             : [];
           for (const [col, val] of filtres) {
             if (col === 'inventaire_zones.code') rows = rows.filter(r => r.inventaire_zones.code === val);
@@ -47,6 +48,13 @@ function fauxClient() {
     },
   };
 }
+
+// Les produits viennent du paramétrage du site : un autre site a son propre jeu (sans écailles).
+const SITE_VITO = PRODUITS;
+const SITE_SANS_ECAILLES = [
+  { id: 's2gaz', designation: 'Gaz 6KG', actif: true, zone: 'piste', categorie: 'Gaz' },
+  { id: 's2huile', designation: 'Huile 5W30', actif: true, zone: 'boutique', categorie: 'Huiles' },
+];
 
 async function produitsVisibles() {
   const ctx = { nexusClient: fauxClient(), produitsPlanIds: new Set(), quartActuel: null, console, Date };
@@ -62,6 +70,21 @@ async function produitsVisibles() {
     'le pompiste ne doit compter que les produits actifs de la zone piste, vu : ' + vus.join(', '));
   assert(!vus.includes('Huile moteur recette') && !vus.includes('Lave-glace recette'),
     'un produit rangé en zone boutique ne doit jamais apparaître à l\'écran du pompiste');
+
+  // Épreuve 1 : un produit désactivé n'apparaît pas (même sous la catégorie du fil).
+  assert(!vus.includes('Gaz retiré'), 'un produit inactif ne doit pas être compté');
+  // Épreuve 2 : un produit actif de la zone piste est compté, sous sa catégorie (Écailles sous Glaçons).
+  PRODUITS = SITE_VITO;
+  assert(vus.includes('Écailles'), 'Écailles, produit actif de la zone piste, doit être compté');
+  const ctxE = { nexusClient: fauxClient(), produitsPlanIds: new Set(), quartActuel: null, console, Date };
+  vm.createContext(ctxE); vm.runInContext(src, ctxE);
+  const piste = await vm.runInContext('chargerProduitsZone', ctxE)('piste');
+  assert.strictEqual(piste.find(p => p.designation === 'Écailles').inventaire_categories.nom, 'Glaçons', 'Écailles doit rester un produit de Glaçons');
+  // Épreuve 3 : un autre site, sans écailles, ne se voit imposer aucun produit : seulement les siens.
+  PRODUITS = SITE_SANS_ECAILLES;
+  const autre = await produitsVisibles();
+  PRODUITS = SITE_VITO;
+  assert.deepStrictEqual(autre, ['Gaz 6KG'], 'un site sans écailles ne doit compter que ses produits de la zone piste, vu : ' + autre.join(', '));
 
   // Mutation : sans le filtre de zone, les produits de la boutique reviennent.
   const mute = src.replace(".eq('inventaire_zones.code', zone)", '');
