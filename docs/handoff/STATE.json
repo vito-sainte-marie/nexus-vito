@@ -861,14 +861,15 @@
     },
     "INVENTAIRE-RELECTURES-20261024": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-2.md",
+      "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "f553f22d7667d30bc5c02b640e020adf532018ed",
+      "commit_decision": "fa22c8dfd053aa0d6e8bd5f00a458ab00c2d5502",
       "pris_en_charge_par": "session-locale",
-      "consomme_le": "2026-10-24T19:59:02.958Z",
-      "arret": "request-2.md"
+      "arret": "request-2.md",
+      "consomme_le": "2026-10-24T23:15:59.131Z",
+      "preuve_action": "d056aaaeb0b9775aa82cabd6a568c6ce4a170461"
     }
   },
   "artefacts_hors_registre": [

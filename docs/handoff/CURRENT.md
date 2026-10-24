@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-RELECTURES-20261024/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-RELECTURES-20261024/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-RELECTURES-20261024
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,30 +20,34 @@ preuves:
     classe: VERIFIED
     valeur: 162-fichiers
 ---
-# INVENTAIRE-RELECTURES-20261024 : code livré en PR brouillon, mesure « après » à faire par Guardian
+# INVENTAIRE-RELECTURES-20261024 : mesure « après » consignée, demande de clôture
 
-## Preuve des conditions de decision-1
-Code : branche `inventaire-relectures-20261024`, commit `4454a943`, **PR #157 en brouillon vers `production`**, non fusionnée (GO de Frédéric requis). Aucune écriture ni lecture de la Production.
+## Preuve des conditions de decision-2
+Code : PR #157 en brouillon vers `production`, commit `4454a943`, **non fusionnée** (GO de Frédéric requis). Aucune lecture ni écriture de la Production.
 
-1. **Mémoïsation cloisonnée par site et date, sans donnée périmée.** Fenêtre mémo (`ouvrirMemoPlan` / `fermerMemoPlan`), clés `ingredients|site|date`, aucune conservation hors fenêtre. `test_inventaire_relectures_20261024.js` : une seule lecture des ingrédients pour une génération suivie d'une réévaluation (le test compteur de l'ACTION_NEXT), un autre site ou une autre date relit, rien n'est gardé une fois la fenêtre fermée. 9 mutations, toutes rouges.
-2. **`shifts` et `sites` regroupés : le cumul est démontré par Guardian.** Mesure « avant » (Test, `ee426fe`, Employé Test B, première ouverture du quart du soir à 15:45) : écran prêt à 3,7 s, 42 requêtes, 10 vagues, 188 ms en moyenne. `shifts` ×2 (requête identique, 533 puis 975 ms) ; `sites` ×2 (fuseau, 649 puis 975 ms) ; préparation de la sélection ×2 (`inventaire_points_reference` et plans récents, 1,76 puis 2,34 s).
-   - `shifts` : mémo de 3 s par (employé, site) ; une erreur et « aucun service » ne sont jamais gardés ; la clôture d'un service l'invalide.
-   - `sites` : la requête en vol est partagée entre `nexus-auth.js` et `nexus-station.js` ; les raisons `reseau` et `configuration` restent distinguées.
-   - `test_inventaire_relectures_shifts_sites_20261024.js` (S1 à S11) : verts, 8 mutations rouges.
-3. **`station_config` NON regroupé.** Les deux lectures (pointage, puis `parametres_inventaire`) ne sont pas un cumul ; aucune n'est ajoutée ni retirée (S10).
-4. **Dépliage de « Disponibles ».** Testé : obligatoires soldées, déplié ; obligatoire restante, non déplié ; le repli manuel est conservé (`test_parcours_pompiste_lot3_20261023.js`, vert).
-5. **Suite complète.** `node run-tests.js` : 7 échecs, les mêmes que sur `origin/production` (`test_inventaire_categorie_mixte_deux_lieux`, `test_inventaire_production_journaliere_q1`, `test_inventaire_sprint4_ux_flash`, `test_inventaire_sprint4bis_ecriture_immediate`, `test_pilotage_qualite_receptions`, `test_reception_moteur`, `test_reception_v1_dom`). Aucun de plus.
+1. **Mesure « après » comparable, faite par Claude Guardian sur Test** (Employé Test B, première ouverture du quart du soir, build `4454a94` servie sur `9e33b64c.nexus-test-ddf.pages.dev`), contre la mesure « avant » (`ee426fe`, même parcours) :
 
-## Ce qui manque encore
-- **La mesure « après » n'existe pas.** Elle exige une build déployée sur Test et un quart du soir ; Claude Guardian la fera. Je ne donne donc aucun chiffre « après » et je ne dis pas si 3 s sont atteintes.
-- La préparation de la sélection (×2, 1,76 puis 2,34 s) reste le poste le plus lourd de la mesure « avant » ; les mémos retirent la seconde lecture des ingrédients, pas le calcul. Si 3 s ne sont pas atteintes, ce calcul est le lot séparé que decision-1 prévoit.
-- `invaliderMemoIngredients` est exportée et testée mais sans appelant : la fenêtre est courte et en lecture seule, donc rien n'en dépend.
+   | | Avant | Après |
+   |---|---|---|
+   | Écran prêt, première ouverture du soir | 3,7 s | 3,8 s |
+   | Requêtes | 42 | 32 |
+   | Vagues | 10 | 10 |
+   | `shifts` | lu 2 fois (533 puis 975 ms) | lu 1 fois |
+   | `sites` | lu 2 fois (649 puis 975 ms) | lu 1 fois |
+   | Préparation de la sélection | 2 fois (1,76 puis 2,34 s) | 1 fois |
+   | Quart déjà ouvert, écran prêt | 2,7 s et 1,9 s | 2,0 s et 1,8 s |
+   | Quart déjà ouvert, requêtes | 29 | 27 |
 
-## Nettoyage Test
-Le service du soir ouvert par Claude Guardian sur Test (Employé Test B, pompiste, `50175943-…`, `heure_debut` 19:40:42 UTC) a une ligne dépendante dans `inventaire_quart_employes` (clé étrangère sans cascade). Script `outils/nettoyage-service-soir-guardian-20261024.sh` : borné à ce site, cet employé, ce service, Test seulement ; simulé avec rollback, **non exécuté**. L'heure (15:40 locale) diffère de 15:42 annoncé : à confirmer avant exécution.
+2. **Objectif de 3 s : non atteint à la première ouverture (3,8 s), tenu quart ouvert (moins de 2 s).** Les doublons supprimés étaient en parallèle, donc hors du chemin critique : dix requêtes de moins, mais pas de temps gagné à la première ouverture. Je ne présente pas ce lot comme un gain de temps pour cette ouverture.
+3. **Poste dominant restant, à traiter dans un lot séparé** (comme le prévoit decision-2) : la chaîne d'initialisation du quart. `inventaire_quarts`, `inventaire_quart_employes` et `inventaire_plans_comptage` sont lus 4 fois chacun, en séquence. Ce lot viendra après « Jaugeage Carburant ». La préparation de la sélection, citée en decision-1, n'est plus lue qu'une fois.
+4. **Nettoyage Test, identifiants exacts et dépendances vérifiés, Production jamais touchée** (simulation avec rollback, puis exécution, puis relecture) :
+   - mesure « avant » : quart `ecc4c248-…`, plan `bc2a1c50-…` et ses 6 lignes, lien `inventaire_quart_employes` (cascade) ; script `outils/nettoyage-quart-soir-mesure-avant-20261024.sh` (`ec074b7b`) ;
+   - mesure « après » : quart `80e30149-…` (créé 22:50:12 UTC), plan `738c27db-…` et ses 6 lignes, lien ; script `outils/nettoyage-quart-soir-mesure-apres-20261024.sh` (`d056aaae`) ;
+   - service de Guardian `50175943-…` : script `outils/nettoyage-service-soir-guardian-20261024.sh` (`97f71a62`), exécuté après la mesure.
+   Relecture : 0 quart, 0 plan, 0 service sur `nexus-station-test` pour le 24/10.
 
 ## À arbitrer
-1. Ce lot se clôt-il après la mesure « après » de Guardian, quel qu'en soit le chiffre, comme le prévoit decision-1 ?
-2. Prochain lot, séparé, à déposer après celui-ci : « Jaugeage Carburant » (étape 3 du fil).
+1. Ce lot se clôt-il maintenant sur la mesure consignée, objectif de 3 s non atteint à la première ouverture, comme decision-2 le permet ?
+2. Ensuite, dans cet ordre : « Jaugeage Carburant » (lot séparé), puis la chaîne d'initialisation du quart (lot séparé).
 
-Aucune fusion, aucun déploiement, aucune lecture ni écriture de la Production sans le GO de Frédéric.
+Aucune fusion, aucun déploiement, aucune lecture ni écriture de la Production sans le GO de Frédéric. Le GO de la PR #157 reste à sa main.
