@@ -849,14 +849,15 @@
       "preuve_action": "f90738b230cfd202d1befad3f8316fd39505e287"
     },
     "CATEGORIES-FIL-20261024": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "b1e8b11c8c4ab2d6fffd517e8d8d6ca0b115c4ec",
-      "pris_en_charge_le": "2026-10-24T13:58:55.205Z",
-      "pris_en_charge_par": "session-locale"
+      "pris_en_charge_par": "session-locale",
+      "consomme_le": "2026-10-24T14:05:39.781Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [
