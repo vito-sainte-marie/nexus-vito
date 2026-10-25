@@ -95,6 +95,15 @@
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
+  // Chaque exemple affiché doit renvoyer au moins un résultat : sans pointage
+  // (page Ma Progression, ou site sans pointage), on ne propose pas d'arriver.
+  function exempleRecherche(estNiveauManager, pointageActif) {
+    if (estNiveauManager) return 'contrôler une caisse, comprendre ma marge, voir mon stock…';
+    return pointageActif
+      ? 'pointer mon arrivée, voir mes missions, ma progression…'
+      : 'voir mes missions, faire un inventaire…';
+  }
+
   function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif, afficherToastForfait) {
     const input = document.getElementById('rechercheNexusInput');
     const resultats = document.getElementById('rechercheNexusResultats');
@@ -108,9 +117,7 @@
     // remplace "Rechercher une page NEXUS (...)" par des exemples de ce
     // que l'utilisateur veut FAIRE, pas des noms de pages — cohérent avec
     // le nouveau label "Que cherchez-vous à faire ?" au-dessus du champ.
-    input.placeholder = estNiveauManager
-      ? 'contrôler une caisse, comprendre ma marge, voir mes stocks…'
-      : 'pointer mon arrivée, voir mes missions, ma progression…';
+    input.placeholder = exempleRecherche(estNiveauManager, pointageActif);
 
     const visibles = PAGES_INDEX.filter(p => {
       // Pointage désactivé pour tout le site (16/08/2026, demande de
@@ -186,5 +193,5 @@
     input.addEventListener('input', () => rendre(input.value));
   }
 
-  root.NexusRecherche = { PAGES_INDEX, normaliserRecherche, initRechercheNexus };
+  root.NexusRecherche = { PAGES_INDEX, normaliserRecherche, initRechercheNexus, exempleRecherche };
 })(typeof window !== 'undefined' ? window : globalThis);

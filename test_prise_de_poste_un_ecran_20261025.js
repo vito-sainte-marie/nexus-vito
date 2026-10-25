@@ -211,4 +211,40 @@ for (const [k, src] of Object.entries(mutProg)) {
   console.log('OK  — module partagé câblé comme sur la page Progression'); ok++;
 }
 
+// 9. Chaque exemple du champ renvoie au moins un résultat sur SA page : on tape
+//    l'objet de l'exemple (son dernier mot) et la liste ne doit pas être vide.
+{
+  const vm = require('vm');
+  const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(lire('nexus-recherche.js'), ctx);
+  const N = ctx.NexusRecherche;
+  const rendu = (pointageActif, q, manager) => {
+    const champ = { value: q, placeholder: '', ecouteurs: {}, addEventListener(t, f) { this.ecouteurs[t] = f; } };
+    const liste = { innerHTML: '', classList: { add() {}, remove() {} }, querySelectorAll: () => [] };
+    ctx.document = { getElementById: id => (id === 'rechercheNexusInput' ? champ : liste) };
+    N.initRechercheNexus({ est_createur: false }, !!manager, true, true, true, 'pompiste', pointageActif, () => {});
+    return { champ, liste };
+  };
+  const pages = [['Progression (Pointage exclu)', false, false], ['Accueil employé', true, false], ['Accueil manager', true, true]];
+  for (const [nom, pointage, manager] of pages) {
+    const { champ } = rendu(pointage, '', manager);
+    const exemples = champ.placeholder.replace('…', '').split(',').map(x => x.trim()).filter(Boolean);
+    assert.ok(exemples.length >= 2, `${nom} : exemples`);
+    for (const ex of exemples) {
+      const objet = ex.split(/\s+/).pop();
+      const { champ: c, liste } = rendu(pointage, objet, manager);
+      c.ecouteurs.input();
+      assert.ok(/class="recherche-item"/.test(liste.innerHTML), `${nom} : l'exemple « ${ex} » ne renvoie rien (« ${objet} »)`);
+    }
+    console.log('OK  — exemples du champ tous productifs :', nom); ok++;
+  }
+  assert.ok(!/pointer/.test(rendu(false, '', false).champ.placeholder), 'Progression ne propose pas de pointer');
+  // Mutation : l'ancien exemple sur Progression fait rougir la garde.
+  const ancien = 'pointer mon arrivée, voir mes missions, ma progression…';
+  const { champ: cm, liste: lm } = rendu(false, 'pointer', false); cm.ecouteurs.input();
+  assert.ok(!/class="recherche-item"/.test(lm.innerHTML), 'sans Pointage, « pointer » ne renvoie rien : l’ancien exemple était faux');
+  assert.ok(ancien.includes('pointer'), 'mutation');
+  console.log('OK  — l’ancien exemple « pointer » sur Progression aurait rougi'); ok++;
+}
+
 console.log(`\n${ok} vérifications passées.`);
