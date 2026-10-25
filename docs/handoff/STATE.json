@@ -860,15 +860,15 @@
       "arret": "request-2.md"
     },
     "INVENTAIRE-RELECTURES-20261024": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-3.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "fa22c8dfd053aa0d6e8bd5f00a458ab00c2d5502",
+      "commit_decision": "9392a4566502e4ba61fab9e49fff2f39dcbe997a",
       "pris_en_charge_par": "session-locale",
       "arret": "request-2.md",
-      "consomme_le": "2026-10-24T23:15:59.131Z",
+      "consomme_le": "2026-10-25T03:10:43.358Z",
       "preuve_action": "d056aaaeb0b9775aa82cabd6a568c6ce4a170461"
     }
   },
