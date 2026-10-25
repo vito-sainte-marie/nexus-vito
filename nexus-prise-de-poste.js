@@ -198,9 +198,41 @@
       + 'Un manager doit les renseigner dans <b>Paramètres Station</b>.</div>';
   }
 
+  // Rappel de sécurité (décision de Frédéric, 25/10/2026) : une seule fois par
+  // jour et par employé, à la première ouverture de NEXUS du jour. Mémorisé sur
+  // l'appareil (localStorage), clé = employé + jour de la station ; jamais en
+  // base (consulter NEXUS ne crée rien, POSTE-005). Stockage absent, illisible
+  // ou jour inconnu : on affiche, en cas de doute on n'efface pas un rappel de
+  // sécurité. Le texte, lui, ne change pas.
+  const TEXTE_RAPPEL_SECURITE = '<div class="pdp-securite" id="rappelSecurite">⚠️ <b>Rappel sécurité</b> — N\'utilisez jamais NEXUS ni votre téléphone à la vue d\'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>';
+  // Jour de la page courante déjà annoncé : un nouveau rendu dans la même page
+  // (retour sur le choix) ne doit pas faire disparaître ce que l'employé lit.
+  let rappelAffichePourCle = null;
+
+  function cleRappelSecurite() {
+    try {
+      if (!employeeCourant || !employeeCourant.id || !FUSEAU_STATION_PDP) return null;
+      return 'nexus_rappel_securite_' + employeeCourant.id + '_' + NexusStation.dateLocaleStation(FUSEAU_STATION_PDP);
+    } catch (e) { return null; }
+  }
+
+  function rappelSecuriteAAfficher() {
+    const cle = cleRappelSecurite();
+    if (!cle) return true;
+    if (rappelAffichePourCle === cle) return true;
+    try {
+      if (global.localStorage.getItem(cle)) return false;
+    } catch (e) { return true; }
+    try { global.localStorage.setItem(cle, '1'); } catch (e) { /* tant pis : il se réaffichera */ }
+    rappelAffichePourCle = cle;
+    return true;
+  }
+
   // Trois cartes pour un employé, quatre pour un manager. Le rappel de sécurité
-  // est affiché sans appui, texte inchangé. Aucune carte n'est présélectionnée.
+  // est affiché sans appui (une fois par jour), texte inchangé. Aucune carte
+  // n'est présélectionnée.
   function renderChoixPoste() {
+    const rappelSecurite = rappelSecuriteAAfficher() ? TEXTE_RAPPEL_SECURITE : '';
     const badge = libelleFrequence(posteFrequent);
     const cartes = rolesDisponibles().map(r => `
         <button type="button" class="pdp-carte" data-role="${r.value}">
@@ -215,7 +247,7 @@
       <div class="pdp" id="pdpChoix">
         <h2 class="pdp-titre">Bonjour ${echapper(employeeCourant.nom)}</h2>
         <p class="pdp-sous">Où travaillez-vous pour ce quart ?</p>
-        <div class="pdp-securite" id="rappelSecurite">⚠️ <b>Rappel sécurité</b> — N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>
+        ${rappelSecurite}
         <div class="pdp-cartes" id="pdpCartes">${cartes}</div>
       </div>`;
     hoteCourant.querySelectorAll('.pdp-carte').forEach(el => {

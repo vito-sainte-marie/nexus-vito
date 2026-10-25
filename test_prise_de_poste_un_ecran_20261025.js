@@ -61,7 +61,7 @@ garde('une seule écriture : nexus_changer_de_quart',
 // 3. Rappel de sécurité sans appui, texte inchangé.
 garde('le rappel de sécurité est dans le rendu initial des cartes',
   m => { const f = corps(m, 'function renderChoixPoste()');
-    return /id="rappelSecurite"/.test(f) && /Strictement interdit/.test(f) && /N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client/.test(f); },
+    return /\$\{rappelSecurite\}/.test(f) && /id="rappelSecurite"/.test(m) && /Strictement interdit/.test(m) && /N\\'utilisez jamais NEXUS ni votre téléphone à la vue d\\'un client/.test(m); },
   m => m.replace('Strictement interdit', 'Interdit'));
 
 // 3 bis. Recette Guardian du 25/10 : forme de la maquette, pas d'écran intermédiaire pour Piste.
