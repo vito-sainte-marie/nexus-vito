@@ -31,7 +31,7 @@
     { value: 'pompiste',  label: 'Piste',   icon: 'icon-role-pompiste.png',  image: 'assets/postes/poste-pompiste.webp?v=e40da5c9', sousTitre: 'Service carburant et contrôles' },
     { value: 'caissiere', label: 'Caisse',  icon: 'icon-role-caissiere.png', image: 'assets/postes/poste-caissiere.webp?v=78f52dcb', sousTitre: 'Encaissement et accueil client' },
     { value: 'renfort',   label: 'Renfort', icon: 'icon-role-renfort.png',   image: 'assets/postes/poste-renfort.webp?v=3ee33e46', sousTitre: 'Appui à l\'équipe' },
-    { value: 'manager',   label: 'Manager', icon: 'icon-role-manager.png' },
+    { value: 'manager',   label: 'Manager', icon: 'icon-role-manager.png', image: 'assets/postes/poste-manager.webp?v=b5f80d09', sousTitre: 'Pilotage du quart' },
   ];
 
   let employeeCourant = null;

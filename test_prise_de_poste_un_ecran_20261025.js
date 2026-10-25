@@ -38,6 +38,13 @@ function garde(nom, test, mutation) { GARDES.push({ nom, test, mutation }); }
 garde('trois cartes Piste, Caisse, Renfort',
   m => /label: 'Piste'/.test(m) && /label: 'Caisse'/.test(m) && /label: 'Renfort'/.test(m),
   m => m.replace("label: 'Caisse'", "label: 'Boutique'"));
+garde('la carte Manager porte son image, au poids et à l\'empreinte annoncés',
+  m => { const r = /value: 'manager'[^\n]*image: '(assets\/postes\/poste-manager\.webp)\?v=([0-9a-f]{8})'/.exec(m);
+    if (!r) return false;
+    const f = fs.readFileSync(path.join(R, r[1]));
+    return f.length < 50 * 1024 && require('crypto').createHash('md5').update(f).digest('hex').slice(0, 8) === r[2]
+      && /poste-manager\.webp/.test(lire('assets/postes/ORIGINE.md')); },
+  m => m.replace('poste-manager.webp?v=b5f80d09', 'poste-manager.webp?v=00000000'));
 garde('aucune carte présélectionnée',
   m => { const f = corps(m, 'function renderChoixPoste()'); return !/selected|checked|aria-pressed="true"/.test(f); },
   m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte selected" data-role'));
@@ -98,7 +105,7 @@ function gardesApp(app) {
     monte: /NexusPriseDePoste\.monter\(hote, employee\)/.test(f),
     manager: /if \(estNiveauManager\)[\s\S]*?cheminService/.test(f),
     sansEcriture: !/\.(insert|upsert|update|delete)\(|\.rpc\(/.test(f),
-    libelleProgression: /<b>Ma progression<\/b>/.test(app),
+    libelleProgression: /<b>Ma progression<\/b> · Points/.test(app),
     progressionVisible: /id="maProgressionMini"/.test(app) && /sans-service > :not\(#maProgressionMini\)/.test(app),
     enTeteUneLigne: /body:has\(#pdpChoix\) \.header-brandrow\{display:flex;/.test(app) && /body:has\(#pdpChoix\) \.header-sitewrap\{border:1px solid/.test(app),
     sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
@@ -112,6 +119,11 @@ function gardesApp(app) {
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
       && /if \(journeeFinie && !serviceCourant\)/.test(app)
       && /const phraseService = journeeFinie/.test(app),
+    progressionManager: /async function afficherMaProgressionManager\(employee\)/.test(app)
+      && /id="maProgressionManager"/.test(app)
+      && /if \(estNiveauManager && !serviceCourant\) afficherMaProgressionManager\(employee\)/.test(app)
+      && !/Votre service est terminé[^;]*maProgressionManager|maProgressionManager[^;]*Votre service est terminé/.test(app)
+      && /nexusDernierServiceTermine\(employee\)/.test(corps(app, 'async function afficherMaProgressionManager(')),
     pasDeRedirection: !/location\.(href|replace)\s*=[^;]*Prise-De-Poste/.test(app),
   };
 }
@@ -134,9 +146,10 @@ const mutApp = {
   monte: APP.replace('NexusPriseDePoste.monter(hote, employee)', 'void 0'),
   sansEcriture: APP.replace("NexusPriseDePoste.monter(hote, employee).catch(() => {});", "nexusClient.from('shifts').insert({});"),
   progressionVisible: APP.replace('sans-service > :not(#maProgressionMini)', 'sans-service > :not(#autre)'),
-  libelleProgression: APP.replace('<b>Ma progression</b>', 'Points'),
+  libelleProgression: APP.replace('<b>Ma progression</b> · Points', 'Points'),
   termine: APP.replace("hotePdp.style.display = 'none'", 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
+  progressionManager: APP.replace('if (estNiveauManager && !serviceCourant) afficherMaProgressionManager(employee);', ''),
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   rechercheApresPremierChoix: APP.replace("zoneRecherche.style.display = 'none';", 'void 0;'),
   sansEcouteurMiniProgression: APP.replace("zoneRecherche.style.display = 'none';", "const miniProgression = 1; zoneRecherche.style.display = 'none';"),

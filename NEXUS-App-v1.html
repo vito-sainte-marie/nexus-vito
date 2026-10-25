@@ -2931,6 +2931,29 @@
   // Le rôle vient de la fiche employé (auth), jamais d'un paramètre d'URL ou
   // d'un stockage local : aucune donnée contrôlée par l'utilisateur ne décide
   // de ce qui s'affiche.
+  // Fin de service d'un manager ou d'un gérant (25/10/2026, décision de
+  // Frédéric) : « Commencer mon service opérationnel » reste, et seule
+  // « Ma progression » s'ajoute dessous — sans « Votre service est terminé »,
+  // qui parle à l'employé. Aucun point lu ici : le calcul reste sur
+  // NEXUS-Progression-v1.html. Une lecture en échec n'affiche rien.
+  async function afficherMaProgressionManager(employee) {
+    try {
+      const hote = document.getElementById('prisePosteHote');
+      if (!hote || employee.consultation_externe) return;
+      const fuseau = await nexusFuseauSite(employee.site_id);
+      const jour = nexusJourDansFuseau(new Date(), fuseau);
+      if (!fuseau || !jour) return;
+      const r = await nexusDernierServiceTermine(employee);
+      const termine = r && r.service && NexusPointageRegles.serviceDuJourSeulement(
+        r.service, jour, d => nexusJourDansFuseau(d, fuseau));
+      if (!termine || document.getElementById('maProgressionManager')) return;
+      hote.insertAdjacentHTML('beforeend',
+        '<a class="ma-progression-mini" href="NEXUS-Progression-v1.html" id="maProgressionManager">'
+        + '<div class="ma-progression-mini-texte"><b>Ma progression</b></div>'
+        + '<span class="ma-progression-mini-lien">Voir mes séries →</span></a>');
+    } catch (e) { console.warn('Ma progression (manager) : lecture impossible, rien affiché.', e); }
+  }
+
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
     const hote = document.getElementById('prisePosteHote');
     if (!hote) return;
@@ -3155,6 +3178,7 @@
     // le bouton de NEXUS-Prise-De-Poste-v1.html, seule écriture de `shifts`
     // du dépôt.
     renderPrisePoste(employee, serviceCourant, estNiveauManager);
+    if (estNiveauManager && !serviceCourant) afficherMaProgressionManager(employee);
 
     document.getElementById('sessionInfo').innerHTML =
       `<span class="session-bonjour">Bonjour ${employee.nom} · </span><a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
