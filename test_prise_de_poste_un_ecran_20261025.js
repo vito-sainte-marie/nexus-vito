@@ -104,8 +104,9 @@ function gardesApp(app) {
     sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
     deconnexionDiscrete: /<a href="#" id="logout"/.test(app) && /body:has\(#pdpChoix\) #sessionInfo a\{color:var\(--text-dim\)/.test(app),
     termine: /Votre service est terminé/.test(app) && /hotePdp\.style\.display = 'none'/.test(app),
-    rechercheApresPremierChoix: /id="zoneRecherche"/.test(app) && /zoneRecherche\.style\.display = 'none'/.test(app) && /closest\('\.pdp-carte'\)\) montrerRecherche\(\)/.test(app) && /maProgressionMini'\);\s*if \(miniProgression\) miniProgression\.addEventListener\('click', montrerRecherche\)/.test(app),
-    rechercheMiniProgression: /miniProgression\.addEventListener\('click', montrerRecherche\)/.test(app),
+    rechercheApresPremierChoix: /id="zoneRecherche"/.test(app) && /zoneRecherche\.style\.display = 'none'/.test(app) && /closest\('\.pdp-carte'\)\) montrerRecherche\(\)/.test(app),
+    sansEcouteurMiniProgression: !/miniProgression/.test(app),
+    scriptRecherche: /<script src="nexus-recherche\.js"><\/script>/.test(app),
     termineSansPointage: /const journeeFinie = journeeTerminee \|\| !!serviceTermineDuJour;/.test(app)
       && /nexusDernierServiceTermine\(employee\)/.test(app)
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
@@ -138,7 +139,8 @@ const mutApp = {
   manager: APP.replace('cheminService', 'autreId'),
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   rechercheApresPremierChoix: APP.replace("zoneRecherche.style.display = 'none';", 'void 0;'),
-  rechercheMiniProgression: APP.replace("miniProgression.addEventListener('click', montrerRecherche)", 'void 0'),
+  sansEcouteurMiniProgression: APP.replace("zoneRecherche.style.display = 'none';", "const miniProgression = 1; zoneRecherche.style.display = 'none';"),
+  scriptRecherche: APP.replace('<script src="nexus-recherche.js"></script>', ''),
   enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),
   sansCoachNiDoublon: APP.replace('body:has(#pdpChoix) #taglineRole,', 'body:has(#pdpChoix) #taglineRoleX,'),
   deconnexionDiscrete: APP.replace('<a href="#" id="logout"', '<a href="#" id="deco"'),
@@ -158,4 +160,55 @@ assert.ok(!fautifs.includes('NEXUS-Progression-v1.html') && !fautifs.includes('N
 ok++;
 assert.ok(ECRIT.test("x.from('shifts').insert({})"), 'mutation de la garde d’écriture');
 assert.ok(PAGE.includes('nexus-prise-de-poste.js'), 'la page charge le module');
+
+// 7. Ma progression change de page : la zone de recherche doit y être, en haut,
+//    pour l'employé, et câblée sur le MÊME module que l'Accueil.
+const PROG = lire('NEXUS-Progression-v1.html');
+function gardesProgression(h) {
+  const iZone = h.indexOf('id="zoneRecherche"');
+  const iApp = h.indexOf('id="app"');
+  return {
+    scriptRecherche: /<script src="nexus-recherche\.js"><\/script>/.test(h),
+    zoneEnHaut: iZone !== -1 && iApp !== -1 && iZone < iApp,
+    champ: /id="rechercheNexusInput"/.test(h) && /id="rechercheNexusResultats"/.test(h),
+    libelle: /Que cherchez-vous à faire \?/.test(h),
+    employeSeulement: /if \(zoneRecherche && !estNiveauManager\)\s*\{\s*zoneRecherche\.style\.display = '';/.test(h),
+    memeModule: /NexusRecherche\.initRechercheNexus\(employee, false,/.test(h),
+  };
+}
+const mutProg = {
+  scriptRecherche: PROG.replace('<script src="nexus-recherche.js"></script>', ''),
+  zoneEnHaut: PROG.replace('id="zoneRecherche"', 'id="zoneX"').replace('id="app">', 'id="app"></div><div id="zoneRecherche">'),
+  champ: PROG.replace('id="rechercheNexusInput"', 'id="autre"'),
+  libelle: PROG.split('Que cherchez-vous à faire ?').join('Rechercher'),
+  employeSeulement: PROG.replace('if (zoneRecherche && !estNiveauManager)', 'if (zoneRecherche)'),
+  memeModule: PROG.replace('NexusRecherche.initRechercheNexus(employee, false,', 'void (employee, false,'),
+};
+for (const [k, v] of Object.entries(gardesProgression(PROG))) { assert.ok(v, `Progression : ${k}`); console.log('OK  — Progression :', k); ok++; }
+for (const [k, src] of Object.entries(mutProg)) {
+  assert.notStrictEqual(src, PROG, `mutation Progression sans effet : ${k}`);
+  assert.ok(!gardesProgression(src)[k], `mutation Progression ne fait pas rougir : ${k}`);
+  console.log('OK  — mutation Progression rougit :', k); ok++;
+}
+
+// 8. Le vrai changement de page : le module partagé, chargé comme sur la page
+//    Progression (document neuf), câble le champ et trouve les pages de l'employé.
+{
+  const vm = require('vm');
+  const champ = { placeholder: '', ecouteurs: {}, value: '', addEventListener(t, f) { this.ecouteurs[t] = f; } };
+  const liste = { innerHTML: '', classList: { add() {}, remove() {} }, querySelectorAll() { return []; } };
+  const doc = { getElementById: id => (id === 'rechercheNexusInput' ? champ : id === 'rechercheNexusResultats' ? liste : null) };
+  const ctx = { document: doc }; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(lire('nexus-recherche.js'), ctx);
+  ctx.NexusRecherche.initRechercheNexus({ est_createur: false }, false, true, true, false, 'pompiste', false, () => {});
+  assert.ok(champ.ecouteurs.input, 'le champ est câblé');
+  champ.value = 'progression'; champ.ecouteurs.input();
+  assert.ok(/NEXUS-Progression-v1\.html/.test(liste.innerHTML), 'la recherche trouve Ma progression');
+  champ.value = 'cockpit'; champ.ecouteurs.input();
+  assert.ok(!/NEXUS-Cockpit-v2\.html/.test(liste.innerHTML), 'un employé ne voit pas les pages manager');
+  champ.value = 'pointage'; champ.ecouteurs.input();
+  assert.ok(!/NEXUS-Pointage-v1\.html/.test(liste.innerHTML), 'Pointage exclu sans lecture de l’interrupteur');
+  console.log('OK  — module partagé câblé comme sur la page Progression'); ok++;
+}
+
 console.log(`\n${ok} vérifications passées.`);

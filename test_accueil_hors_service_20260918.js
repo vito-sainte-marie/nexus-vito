@@ -560,19 +560,18 @@ async function cas(nom, entree, controles) {
       verifierQue('présente après un appui sur une carte de poste', !zoneMasquee(journal), journal.styles['zoneRecherche.display']);
     });
 
-  await cas('C2d · recherche absente au premier écran, présente après « Ma progression »', sansService,
+  await cas('C2d · « Ma progression » change de page : l’accueil ne montre pas la zone, elle est sur la page Progression', sansService,
     ({ journal, verifierQue }) => {
       verifierQue('absente au premier écran', zoneMasquee(journal), '');
-      appui(journal, 'maProgressionMini.click', null);
-      verifierQue('présente après un appui sur « Ma progression »', !zoneMasquee(journal), journal.styles['zoneRecherche.display']);
+      verifierQue('aucun écouteur sur « Ma progression » dans l’accueil', !Object.keys(journal.ecouteurs).some(e => /maProgressionMini/.test(e)), JSON.stringify(journal.ecouteurs));
+      verifierQue('toujours absente (le lien change de page)', zoneMasquee(journal), '');
     });
 
   await cas('C2e · recherche absente à « Votre service est terminé »', Object.assign({}, sansService, {
     serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
   }), ({ journal, verifierQue }) => {
     verifierQue('absente à l’écran de fin de service', zoneMasquee(journal), '');
-    appui(journal, 'maProgressionMini.click', null);
-    verifierQue('présente après « Ma progression »', !zoneMasquee(journal), '');
+    verifierQue('toujours absente : la zone de « Ma progression » est sur sa page', zoneMasquee(journal), '');
   });
 
   await cas('C2f · recherche visible avec un service ouvert', {
