@@ -95,6 +95,14 @@
     if (typeof siteId !== 'string' || !siteId.trim()) {
       throw new TypeError('NexusStation.fuseauDeLaStation : siteId manquant ou invalide. Résolvez le site avant d’appeler (NexusStation.exigerSite).');
     }
+    // Le fuseau est déjà lu (ou en cours de lecture) par nexus-auth.js : même
+    // table, même site. On le réutilise au lieu de relire `sites` (24/10/2026).
+    // Quand il n'a pas pu être obtenu, on relit ci-dessous pour distinguer
+    // « réseau » de « configuration » ; aucun fuseau n'est jamais deviné.
+    if (typeof nexusFuseauSite === 'function') {
+      const partage = await nexusFuseauSite(siteId.trim());
+      if (partage) return { timezone: partage };
+    }
     const { data, error } = await nexusClient
       .from('sites').select('timezone').eq('site_id', siteId.trim()).maybeSingle();
     if (error) {
