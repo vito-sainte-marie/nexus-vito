@@ -119,11 +119,11 @@ function gardesApp(app) {
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
       && /if \(journeeFinie && !serviceCourant\)/.test(app)
       && /const phraseService = journeeFinie/.test(app),
-    progressionManager: /async function afficherMaProgressionManager\(employee\)/.test(app)
+    progressionManager: /function afficherMaProgressionManager\(employee\)/.test(app)
       && /id="maProgressionManager"/.test(app)
-      && /if \(estNiveauManager && !serviceCourant\) afficherMaProgressionManager\(employee\)/.test(app)
-      && !/Votre service est terminé[^;]*maProgressionManager|maProgressionManager[^;]*Votre service est terminé/.test(app)
-      && /nexusDernierServiceTermine\(employee\)/.test(corps(app, 'async function afficherMaProgressionManager(')),
+      && /if \(estNiveauManager\) afficherMaProgressionManager\(employee\);/.test(app)
+      && !/nexusDernierServiceTermine|nexusServiceCourant|\.from\(/.test(corps(app, 'function afficherMaProgressionManager('))
+      && !/Votre service est terminé/.test(corps(app, 'function afficherMaProgressionManager(')),
     pasDeRedirection: !/location\.(href|replace)\s*=[^;]*Prise-De-Poste/.test(app),
   };
 }
@@ -149,7 +149,7 @@ const mutApp = {
   libelleProgression: APP.replace('<b>Ma progression</b> · Points', 'Points'),
   termine: APP.replace("hotePdp.style.display = 'none'", 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
-  progressionManager: APP.replace('if (estNiveauManager && !serviceCourant) afficherMaProgressionManager(employee);', ''),
+  progressionManager: APP.replace('if (estNiveauManager) afficherMaProgressionManager(employee);', ''),
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   rechercheApresPremierChoix: APP.replace("zoneRecherche.style.display = 'none';", 'void 0;'),
   sansEcouteurMiniProgression: APP.replace("zoneRecherche.style.display = 'none';", "const miniProgression = 1; zoneRecherche.style.display = 'none';"),
