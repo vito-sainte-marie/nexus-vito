@@ -90,8 +90,8 @@ const T_ROLES = corps(page, 'function rolesDisponibles(');
 verifier('l\'écran appelle la fonction en lecture', /nexusClient\.rpc\('poste_le_plus_frequent'\)/.test(T_CHARGER));
 verifier('un échec de lecture rend null : aucun badge, écran utilisable',
   /catch \(e\) \{\s*return null;/.test(T_CHARGER) && /if \(error \|\|/.test(T_CHARGER));
-verifier('dominant : « Poste le plus fréquent, n sur N »',
-  /pf\.etat === 'dominant'\) return `Poste le plus fréquent, \$\{pf\.retenus\} sur \$\{pf\.eligibles\}`/.test(T_LIB));
+verifier('dominant : plus aucun libellé « Poste le plus fréquent » (recette du 25/10)',
+  !/dominant|Poste le plus fréquent/.test(T_LIB));
 verifier('1 à 4 prises : « Dernier poste »', /pf\.etat === 'dernier_poste'\) return 'Dernier poste'/.test(T_LIB));
 verifier('égalité, aucun historique, manager, état inconnu : rien',
   !/aucune_dominante|historique_insuffisant|non_applicable/.test(T_LIB) && /return '';\s*\}$/.test(T_LIB)

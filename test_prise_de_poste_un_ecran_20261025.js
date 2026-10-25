@@ -64,6 +64,20 @@ garde('le rappel de sécurité est dans le rendu initial des cartes',
     return /id="rappelSecurite"/.test(f) && /Strictement interdit/.test(f) && /N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client/.test(f); },
   m => m.replace('Strictement interdit', 'Interdit'));
 
+// 3 bis. Recette Guardian du 25/10 : forme de la maquette, pas d'écran intermédiaire pour Piste.
+garde('sous-titres de la maquette',
+  m => /Service carburant et contrôles/.test(m) && /Encaissement et accueil client/.test(m) && /Appui à l\\?'équipe/.test(m),
+  m => m.replace('Encaissement et accueil client', 'Caisse'));
+garde('plus de « Poste le plus fréquent »',
+  m => !/['`"]Poste le plus fréquent/.test(m),
+  m => m.replace("return 'Dernier poste'", "return 'Poste le plus fréquent, 13 sur 15'"));
+garde('cartes basses : texte à gauche, photo à droite',
+  m => /\.pdp-carte\{display:flex/.test(m) && /\.pdp-image\{[^}]*order:2/.test(m) && !/\.pdp-carte\{[^}]*min-height:(1[5-9]|[2-9])\d\dpx/.test(m),
+  m => m.replace('.pdp-image{display:block;order:2;', '.pdp-image{display:block;'));
+garde('le pompiste ne reçoit aucun message FDJ en cadre rouge',
+  m => /if \(roleChoisi === 'pompiste'\) return;\s*if \(data\.conflit\)/.test(m),
+  m => m.replace("if (roleChoisi === 'pompiste') return;", ''));
+
 // 4. Manager inchangé.
 garde('le manager garde son arrivée (Manager-App, pas de choix forcé)',
   m => /if \(estNiveauManagerCourant\(\)\) return 'NEXUS-App-v1\.html'/.test(corps(m, 'function destinationApresPriseDePoste()')),
@@ -76,6 +90,7 @@ function gardesApp(app) {
     monte: /NexusPriseDePoste\.monter\(hote, employee\)/.test(f),
     manager: /if \(estNiveauManager\)[\s\S]*?cheminService/.test(f),
     sansEcriture: !/\.(insert|upsert|update|delete)\(|\.rpc\(/.test(f),
+    libelleProgression: /<b>Ma progression<\/b>/.test(app),
     progressionVisible: /id="maProgressionMini"/.test(app) && /sans-service > :not\(#maProgressionMini\)/.test(app),
     termine: /Votre service est terminé/.test(app) && /wrapEl\.after\(hotePdp\)/.test(app),
     pasDeRedirection: !/location\.(href|replace)\s*=[^;]*Prise-De-Poste/.test(app),
@@ -100,6 +115,7 @@ const mutApp = {
   monte: APP.replace('NexusPriseDePoste.monter(hote, employee)', 'void 0'),
   sansEcriture: APP.replace("NexusPriseDePoste.monter(hote, employee).catch(() => {});", "nexusClient.from('shifts').insert({});"),
   progressionVisible: APP.replace('sans-service > :not(#maProgressionMini)', 'sans-service > :not(#autre)'),
+  libelleProgression: APP.replace('<b>Ma progression</b>', 'Points'),
   termine: APP.replace('wrapEl.after(hotePdp)', 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
 };

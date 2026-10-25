@@ -28,9 +28,9 @@
   // `image` : WebP ~400 px, épinglé à la main (outils/build.sh n'épingle que
   // les .js et .css). Voir assets/postes/ORIGINE.md.
   const ROLES = [
-    { value: 'pompiste',  label: 'Piste',   icon: 'icon-role-pompiste.png',  image: 'assets/postes/poste-pompiste.webp?v=e40da5c9' },
-    { value: 'caissiere', label: 'Caisse',  icon: 'icon-role-caissiere.png', image: 'assets/postes/poste-caissiere.webp?v=78f52dcb' },
-    { value: 'renfort',   label: 'Renfort', icon: 'icon-role-renfort.png',   image: 'assets/postes/poste-renfort.webp?v=3ee33e46', sousTitre: 'Le bon soutien, au bon endroit, au bon moment.' },
+    { value: 'pompiste',  label: 'Piste',   icon: 'icon-role-pompiste.png',  image: 'assets/postes/poste-pompiste.webp?v=e40da5c9', sousTitre: 'Service carburant et contrôles' },
+    { value: 'caissiere', label: 'Caisse',  icon: 'icon-role-caissiere.png', image: 'assets/postes/poste-caissiere.webp?v=78f52dcb', sousTitre: 'Encaissement et accueil client' },
+    { value: 'renfort',   label: 'Renfort', icon: 'icon-role-renfort.png',   image: 'assets/postes/poste-renfort.webp?v=3ee33e46', sousTitre: 'Appui à l\'équipe' },
     { value: 'manager',   label: 'Manager', icon: 'icon-role-manager.png' },
   ];
 
@@ -134,11 +134,11 @@
     }
   }
 
-  // Un badge sous le seul rôle concerné, jamais de présélection. À partir de 5
-  // prises de poste, le poste le plus fréquent ; de 1 à 4, le dernier poste.
+  // Un badge sous le seul rôle concerné, jamais de présélection. Le « poste le
+  // plus fréquent » n'est plus affiché (recette du 25/10) ; seul le dernier
+  // poste d'un employé encore peu observé reste signalé.
   function libelleFrequence(pf) {
     if (!pf || !pf.poste) return '';
-    if (pf.etat === 'dominant') return `Poste le plus fréquent, ${pf.retenus} sur ${pf.eligibles}`;
     if (pf.etat === 'dernier_poste') return 'Dernier poste';
     return '';
   }
@@ -156,17 +156,17 @@
 .pdp-titre{font-size:22px;font-weight:600;margin:0;}
 .pdp-sous{font-size:14px;color:#8A96A5;margin:6px 0 14px;line-height:1.5;}
 .pdp-cartes{display:flex;flex-direction:column;gap:12px;}
-.pdp-carte{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:#141B22;border:1px solid #242E38;border-radius:16px;padding:0;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pdp-carte{display:flex;align-items:stretch;width:100%;min-height:112px;text-align:left;font:inherit;color:inherit;background:#141B22;border:1px solid #242E38;border-radius:16px;padding:0;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .pdp-carte:active{border-color:#4FC3D9;}
 .pdp-carte:focus-visible{outline:2px solid #4FC3D9;outline-offset:2px;}
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
 .pdp-carte.pdp-avant{border:2px solid #4FC3D9;}
-.pdp-image{display:block;width:100%;height:auto;aspect-ratio:400/280;object-fit:cover;background:#0B0F14;}
-.pdp-corps{padding:12px 16px 14px;}
-.pdp-nom{font-size:26px;font-weight:700;letter-spacing:.01em;}
+.pdp-image{display:block;order:2;flex:0 0 38%;width:38%;height:auto;object-fit:cover;background:#0B0F14;}
+.pdp-corps{flex:1;align-self:center;padding:14px 16px;}
+.pdp-nom{font-size:24px;font-weight:700;letter-spacing:.01em;}
 .pdp-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4FC3D9;margin-top:4px;}
 .pdp-tag{font-size:12.5px;color:#8A96A5;margin-top:4px;line-height:1.45;}
-.pdp-securite{background:#3A1D1F;border:1px solid rgba(240,87,90,.4);color:#EDF1F5;border-radius:12px;padding:12px 14px;font-size:12.5px;line-height:1.55;margin:0 0 14px;}
+.pdp-securite{background:#3A1D1F;border:1px solid rgba(240,87,90,.4);color:#EDF1F5;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.45;margin:0 0 12px;}
 .pdp-erreur{padding:12px 0;line-height:1.55;font-size:14px;}
 .pdp-resume{background:#141B22;border:1px solid #242E38;border-radius:14px;padding:14px 16px;}
 .pdp-resume-role{font-size:17px;font-weight:600;}
@@ -238,6 +238,10 @@
     });
     if (error) { console.error('Ouverture du quart FDJ depuis la prise de poste:', error); return; }
     if (!data) return;
+    // Le pompiste n'est jamais retenu par un message FDJ (recette du 25/10) :
+    // l'appui sur « Piste » ouvre directement le fil. Seul un conflit de
+    // responsable retient la navigation, et seulement hors piste.
+    if (roleChoisi === 'pompiste') return;
     if (data.conflit) { messageOuvertureFdj = { ton: 'conflit', texte: data.message }; return; }
     if (data.ouvert === false && data.message) { messageOuvertureFdj = { ton: 'info', texte: data.message }; return; }
   }
