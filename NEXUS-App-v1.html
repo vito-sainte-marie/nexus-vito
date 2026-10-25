@@ -97,6 +97,23 @@
     70%{box-shadow:0 0 0 6px rgba(52,211,153,0);}
     100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}
   }
+  /* Écran du choix de poste (25/10) : une seule ligne d'en-tête, logo NEXUS à
+     gauche, pastille du site à droite. Rien d'autre au-dessus du « Bonjour »
+     du module : ni statut, ni phrase du Coach, ni « Bonjour » en double. Les
+     autres écrans de l'Accueil ne sont pas touchés (le sélecteur exige
+     #pdpChoix). « Se déconnecter » reste, discret, en bas de l'en-tête. */
+  body:has(#pdpChoix) .header{padding:14px 20px 4px;}
+  body:has(#pdpChoix) .header-brandrow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  body:has(#pdpChoix) .header-divider,
+  body:has(#pdpChoix) .header-statut-row,
+  body:has(#pdpChoix) #taglineRole,
+  body:has(#pdpChoix) .session-bonjour{display:none;}
+  body:has(#pdpChoix) .header-mark{order:0; width:30px; height:30px;}
+  body:has(#pdpChoix) .header-brand-left{order:1; justify-content:flex-start; flex:1 1 auto;}
+  body:has(#pdpChoix) .header-brand-right{order:2; flex:0 1 auto;}
+  body:has(#pdpChoix) .header-sitewrap{border:1px solid var(--hairline); background:var(--panel); border-radius:100px; padding:5px 12px 5px 8px; max-width:190px;}
+  body:has(#pdpChoix) #sessionInfo{margin:2px 0 0; max-width:none; text-align:right; font-size:11px; line-height:1.2;}
+  body:has(#pdpChoix) #sessionInfo a{color:var(--text-dim) !important;}
   .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:10px; line-height:1.5; max-width:360px; margin-left:auto; margin-right:auto;}
   .dots-anim{display:inline-flex; gap:2px; margin-left:2px; vertical-align:baseline;}
   .dots-anim i{width:3px; height:3px; border-radius:50%; background:var(--text-mid); display:inline-block; font-style:normal; animation:dotsBounce 1.2s infinite ease-in-out;}
@@ -3277,7 +3294,7 @@
     renderPrisePoste(employee, serviceCourant, estNiveauManager);
 
     document.getElementById('sessionInfo').innerHTML =
-      `Bonjour ${employee.nom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
+      `<span class="session-bonjour">Bonjour ${employee.nom} · </span><a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
     document.getElementById('logout').addEventListener('click', (e) => {
       e.preventDefault();
       nexusLogout();

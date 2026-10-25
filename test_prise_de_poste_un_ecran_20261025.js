@@ -68,12 +68,20 @@ garde('le rappel de sécurité est dans le rendu initial des cartes',
 garde('sous-titres de la maquette',
   m => /Service carburant et contrôles/.test(m) && /Encaissement et accueil client/.test(m) && /Appui à l\\?'équipe/.test(m),
   m => m.replace('Encaissement et accueil client', 'Caisse'));
-garde('plus de « Poste le plus fréquent »',
-  m => !/['`"]Poste le plus fréquent/.test(m),
-  m => m.replace("return 'Dernier poste'", "return 'Poste le plus fréquent, 13 sur 15'"));
+garde('« Poste le plus fréquent » / « Dernier poste » rétablis, sous la seule carte concernée',
+  m => /return `Poste le plus fréquent, \$\{pf\.retenus\} sur \$\{pf\.eligibles\}`/.test(m) && /return 'Dernier poste'/.test(m)
+    && /r\.value === posteFrequent\.poste \? `<span class="pdp-badge"/.test(corps(m, 'function renderChoixPoste()')),
+  m => m.replace('return `Poste le plus fréquent, ${pf.retenus} sur ${pf.eligibles}`', "return ''"));
+garde('le badge n\'est jamais une présélection',
+  m => !/pdp-avant/.test(corps(m, 'function renderChoixPoste()')),
+  m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte pdp-avant" data-role'));
+garde('dégradé CSS du fond de carte sur la photo, sans image retouchée',
+  m => /\.pdp-visuel::after\{[^}]*linear-gradient\(to right,#141B22 0%,rgba\(20,27,34,0\) (4\d|50)%\)/.test(m)
+    && /<span class="pdp-visuel"><img class="pdp-image"/.test(m) && /\.pdp-carte\.pdp-avant\{border:2px solid #4FC3D9/.test(m),
+  m => m.replace('rgba(20,27,34,0) 50%', 'rgba(20,27,34,0) 80%'));
 garde('cartes basses : texte à gauche, photo à droite',
-  m => /\.pdp-carte\{display:flex/.test(m) && /\.pdp-image\{[^}]*order:2/.test(m) && !/\.pdp-carte\{[^}]*min-height:(1[5-9]|[2-9])\d\dpx/.test(m),
-  m => m.replace('.pdp-image{display:block;order:2;', '.pdp-image{display:block;'));
+  m => /\.pdp-carte\{display:flex/.test(m) && /\.pdp-visuel\{[^}]*order:2/.test(m) && !/\.pdp-carte\{[^}]*min-height:(1[5-9]|[2-9])\d\dpx/.test(m),
+  m => m.replace('.pdp-visuel{position:relative;display:block;order:2;', '.pdp-visuel{position:relative;display:block;'));
 garde('le pompiste ne reçoit aucun message FDJ en cadre rouge',
   m => /if \(roleChoisi === 'pompiste'\) return;\s*if \(data\.conflit\)/.test(m),
   m => m.replace("if (roleChoisi === 'pompiste') return;", ''));
@@ -92,6 +100,9 @@ function gardesApp(app) {
     sansEcriture: !/\.(insert|upsert|update|delete)\(|\.rpc\(/.test(f),
     libelleProgression: /<b>Ma progression<\/b>/.test(app),
     progressionVisible: /id="maProgressionMini"/.test(app) && /sans-service > :not\(#maProgressionMini\)/.test(app),
+    enTeteUneLigne: /body:has\(#pdpChoix\) \.header-brandrow\{display:flex;/.test(app) && /body:has\(#pdpChoix\) \.header-sitewrap\{border:1px solid/.test(app),
+    sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
+    deconnexionDiscrete: /<a href="#" id="logout"/.test(app) && /body:has\(#pdpChoix\) #sessionInfo a\{color:var\(--text-dim\)/.test(app),
     termine: /Votre service est terminé/.test(app) && /wrapEl\.after\(hotePdp\)/.test(app),
     pasDeRedirection: !/location\.(href|replace)\s*=[^;]*Prise-De-Poste/.test(app),
   };
@@ -118,6 +129,9 @@ const mutApp = {
   libelleProgression: APP.replace('<b>Ma progression</b>', 'Points'),
   termine: APP.replace('wrapEl.after(hotePdp)', 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
+  enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),
+  sansCoachNiDoublon: APP.replace('body:has(#pdpChoix) #taglineRole,', 'body:has(#pdpChoix) #taglineRoleX,'),
+  deconnexionDiscrete: APP.replace('<a href="#" id="logout"', '<a href="#" id="deco"'),
 };
 for (const [k, src] of Object.entries(mutApp)) {
   assert.notStrictEqual(src, APP, `mutation Accueil sans effet : ${k}`);

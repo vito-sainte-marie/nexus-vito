@@ -134,11 +134,12 @@
     }
   }
 
-  // Un badge sous le seul rôle concerné, jamais de présélection. Le « poste le
-  // plus fréquent » n'est plus affiché (recette du 25/10) ; seul le dernier
-  // poste d'un employé encore peu observé reste signalé.
+  // Un badge sous le seul rôle concerné, jamais de présélection. À partir de 5
+  // prises de poste, le poste le plus fréquent ; de 1 à 4, le dernier poste
+  // (rétabli sur décision de Frédéric, 25/10).
   function libelleFrequence(pf) {
     if (!pf || !pf.poste) return '';
+    if (pf.etat === 'dominant') return `Poste le plus fréquent, ${pf.retenus} sur ${pf.eligibles}`;
     if (pf.etat === 'dernier_poste') return 'Dernier poste';
     return '';
   }
@@ -161,7 +162,9 @@
 .pdp-carte:focus-visible{outline:2px solid #4FC3D9;outline-offset:2px;}
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
 .pdp-carte.pdp-avant{border:2px solid #4FC3D9;}
-.pdp-image{display:block;order:2;flex:0 0 38%;width:38%;height:auto;object-fit:cover;background:#0B0F14;}
+.pdp-visuel{position:relative;display:block;order:2;flex:0 0 44%;background:#141B22;}
+.pdp-visuel::after{content:'';position:absolute;inset:0;background:linear-gradient(to right,#141B22 0%,rgba(20,27,34,0) 50%);pointer-events:none;}
+.pdp-image{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
 .pdp-corps{flex:1;align-self:center;padding:14px 16px;}
 .pdp-nom{font-size:24px;font-weight:700;letter-spacing:.01em;}
 .pdp-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4FC3D9;margin-top:4px;}
@@ -201,7 +204,7 @@
     const badge = libelleFrequence(posteFrequent);
     const cartes = rolesDisponibles().map(r => `
         <button type="button" class="pdp-carte" data-role="${r.value}">
-          ${r.image ? `<img class="pdp-image" src="${r.image}" width="400" height="280" alt="" decoding="async">` : ''}
+          ${r.image ? `<span class="pdp-visuel"><img class="pdp-image" src="${r.image}" width="400" height="280" alt="" decoding="async"></span>` : ''}
           <span class="pdp-corps">
             <span class="pdp-nom" style="display:block;">${r.label}</span>
             ${badge && posteFrequent && r.value === posteFrequent.poste ? `<span class="pdp-badge" style="display:block;">${echapper(badge)}</span>` : ''}
