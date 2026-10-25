@@ -20,7 +20,8 @@ const path = require('path');
 const assert = require('assert');
 
 const RACINE = __dirname;
-const page = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
+const page = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8')
+  + '\n' + fs.readFileSync(path.join(RACINE, 'nexus-prise-de-poste.js'), 'utf8');
 const sql = fs.readFileSync(path.join(RACINE, 'supabase', 'migrations',
   '20261016150000_poste_dernier_sous_seuil.sql'), 'utf8');
 
@@ -83,7 +84,7 @@ verifier('une migration additive : aucune table, colonne ni politique touchée',
 // ── Écran ─────────────────────────────────────────────────────────────────
 const T_CHARGER = corps(page, 'async function chargerPosteFrequent(');
 const T_LIB = corps(page, 'function libelleFrequence(');
-const T_RENDER = corps(page, 'function renderChoixRole(');
+const T_RENDER = corps(page, 'function renderChoixPoste(');
 const T_ROLES = corps(page, 'function rolesDisponibles(');
 
 verifier('l\'écran appelle la fonction en lecture', /nexusClient\.rpc\('poste_le_plus_frequent'\)/.test(T_CHARGER));
@@ -96,19 +97,23 @@ verifier('égalité, aucun historique, manager, état inconnu : rien',
   !/aucune_dominante|historique_insuffisant|non_applicable/.test(T_LIB) && /return '';\s*\}$/.test(T_LIB)
   && !/Aucune dominante|Historique insuffisant/.test(page));
 verifier('le badge se pose sous le seul rôle concerné',
-  /const badge = libelleFrequence\(posteFrequent\)/.test(T_RENDER) && /badge && r\.value === posteFrequent\.poste/.test(T_RENDER));
+  /const badge = libelleFrequence\(posteFrequent\)/.test(T_RENDER) && /badge && posteFrequent && r\.value === posteFrequent\.poste/.test(T_RENDER));
 verifier('aucun tiret cadratin dans le badge', !/—/.test(T_LIB) && !/role-suggestion">[^<]*—/.test(page));
-verifier('aucune présélection : le rôle part de rien et vient du seul clic',
-  /let roleChoisi = null;/.test(page) && (T_RENDER.match(/roleChoisi\s*=/g) || []).length === 1);
+verifier('aucune présélection : le rôle part de rien et vient du seul appui sur une carte',
+  /let roleChoisi = null;/.test(page) && !/roleChoisi\s*=/.test(T_RENDER)
+  && !/\bselected\b|checked|aria-pressed/.test(T_RENDER));
 verifier('rolesDisponibles() ne dépend pas du poste fréquent', !/posteFrequent|poste_le_plus_frequent/.test(T_ROLES));
 verifier('l\'ancien badge « Rôle habituel » a disparu', !/Rôle habituel/.test(page));
 // Lot C (arbitrage du 16/10/2026) : tous sont employés polyvalents, l'écran
 // propose un LIEU. Les valeurs techniques ne changent pas.
-verifier('les lieux s\'affichent : Piste, Boutique, Renfort ; valeurs inchangées',
-  /\{ value: 'pompiste',\s+label: 'Piste',/.test(page)
-  && /\{ value: 'caissiere', label: 'Boutique',/.test(page)
-  && /\{ value: 'renfort',\s+label: 'Renfort',/.test(page)
-  && !/label: '(Pompiste|Caissière|Caisse|Renfort opérationnel)'/.test(page));
-verifier('la question parle du lieu', /'Où travaillez-vous pour ce quart \?'/.test(page));
+// Brief PRISE-DE-POSTE-UN-ECRAN (25/10/2026) : trois cartes Piste, Caisse,
+// Renfort. « Caisse » remplace « Boutique » sur la carte ; la valeur technique
+// ne change pas.
+verifier('les cartes s\'affichent : Piste, Caisse, Renfort ; valeurs inchangées',
+  /value: 'pompiste',\s+label: 'Piste',/.test(page)
+  && /value: 'caissiere',\s+label: 'Caisse',/.test(page)
+  && /value: 'renfort',\s+label: 'Renfort',/.test(page)
+  && !/label: '(Pompiste|Caissière|Boutique|Renfort opérationnel)'/.test(page));
+verifier('la question parle du lieu', /Où travaillez-vous pour ce quart \?/.test(page));
 
 console.log(`\n${passes} vérifications OK`);

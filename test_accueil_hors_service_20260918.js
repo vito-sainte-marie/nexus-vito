@@ -96,7 +96,7 @@ function extraireFonction(entete, source, ou) {
   throw new Error(`« ${entete} » n'est pas refermée`);
 }
 const SRC_INIT = extraireFonction('async function initAccueilEmploye(');
-const SRC_CHEMINS = extraireFonction('function renderDeuxChemins(');
+const SRC_CHEMINS = extraireFonction('function renderPrisePoste(');
 
 // LE FUSEAU DE LA STATION (18/09/2026) — l'accueil n'en définit rien : il
 // dépend des primitives de `nexus-auth.js`, chargé par tous les écrans. On
@@ -162,7 +162,7 @@ function faireDom() {
           get textContent() { return journal.textes[id]; },
           innerHTML: '', href: '', className: '',
           classList: { add() {}, remove() {}, toggle() {} },
-          addEventListener() {},
+          addEventListener() {}, after() {},
         });
       }
       return elements.get(id);
@@ -259,11 +259,19 @@ async function executerAccueil({
   return { rendus, journal };
 }
 
+// Le module partagé (nexus-prise-de-poste.js) est doublé ici : l'épreuve
+// regarde ce que l'Accueil lui demande de monter, pas ce que le module dessine.
+let appelsPdp = [];
 function executerDeuxChemins(employee, serviceCourant, estNiveauManager) {
   const { document } = faireDom();
-  new Function('document', 'LIBELLE_ROLE_JOUR', `return ${SRC_CHEMINS};`)(document, purs.LIBELLE_ROLE_JOUR)(
-    employee, serviceCourant, estNiveauManager);
-  return document.getElementById('deuxChemins').innerHTML;
+  appelsPdp = [];
+  const NexusPriseDePoste = {
+    monter: async (hote, emp) => { appelsPdp.push('monter'); },
+    recapitulatif: async (hote, emp, role) => { appelsPdp.push('recapitulatif:' + role); },
+  };
+  new Function('document', 'LIBELLE_ROLE_JOUR', 'NexusPriseDePoste', `return ${SRC_CHEMINS};`)(
+    document, purs.LIBELLE_ROLE_JOUR, NexusPriseDePoste)(employee, serviceCourant, estNiveauManager);
+  return document.getElementById('prisePosteHote').innerHTML;
 }
 
 // ---------------------------------------------------------------------------
@@ -688,6 +696,15 @@ async function cas(nom, entree, controles) {
       /NEXUS-Prise-De-Poste-v1\.html/.test(html) && /Changer de rôle/.test(html), html);
     verifierQue('D2 · rappel sans service', 'affichage seul, aucune écriture',
       !/insert/i.test(executerDeuxChemins(employe(), null, false)), 'écriture trouvée');
+    verifier('D3 · sans service', 'le choix du poste est monté, sans lien intermédiaire',
+      (executerDeuxChemins(employe(), null, false), appelsPdp), ['monter']);
+    verifierQue('D3 · sans service', 'aucun « Prendre mon poste » intermédiaire',
+      !/Prendre mon poste|Consulter mon espace/.test(executerDeuxChemins(employe(), null, false)));
+    executerDeuxChemins(employe(), service('caissiere', 'soir'), false);
+    verifier('D4 · en service', 'le récapitulatif passe sur l\u2019Accueil', appelsPdp, ['recapitulatif:caissiere']);
+    const htmlMgr = executerDeuxChemins(employe(), null, true);
+    verifier('D5 · manager', 'aucun choix de poste monté', appelsPdp, []);
+    verifierQue('D5 · manager', 'garde son bouton', /cheminService/.test(htmlMgr), htmlMgr);
   }
 
   // =========================================================================

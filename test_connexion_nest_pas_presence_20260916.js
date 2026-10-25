@@ -239,7 +239,9 @@ function t(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
 // ── 1. Le recensement lui-même est gardé ─────────────────────────────────
 
 const ECRITURES_ATTENDUES = {
-  'NEXUS-Prise-De-Poste-v1.html': { table: 'shifts', nombre: 1 },
+  // Un seul écran (25/10/2026) : le choix du poste vit dans un module que la
+  // page de prise de poste ET l'Accueil montent ; l'écriture a suivi le code.
+  'nexus-prise-de-poste.js': { table: 'shifts', nombre: 1 },
   'NEXUS-Pointage-v1.html': { table: 'pointages', nombre: 3 },
 };
 
@@ -348,7 +350,7 @@ t('le rejeu hors ligne reste la seule écriture admise au chargement, et le rest
 
 t('aucune autre écriture de présence n\'est atteignable depuis le chargement d\'un écran', () => {
   for (const f of Object.keys(ECRITURES_ATTENDUES)) {
-    const code = scriptsDe(lire(f));
+    const code = /\.js$/.test(f) ? lire(f) : scriptsDe(lire(f));
     const { fonctions, vues, parent } = atteignablesAuChargement(code);
     for (const e of ecrituresDePresence(f)) {
       // La position est relative au fichier ; on la retrouve dans le script.
@@ -370,7 +372,7 @@ t('aucune autre écriture de présence n\'est atteignable depuis le chargement d
 t('chaque écriture de présence descend d\'un geste explicite de l\'utilisateur', () => {
   for (const f of Object.keys(ECRITURES_ATTENDUES)) {
     const src = lire(f);
-    const code = scriptsDe(src);
+    const code = /\.js$/.test(f) ? src : scriptsDe(src);
     const { fonctions } = atteignablesAuChargement(code);
     for (const e of ecrituresDePresence(f)) {
       const porteuse = fonctionContenant(fonctions, code.indexOf(src.slice(e.position, e.position + 60)));
@@ -459,10 +461,10 @@ t('cas 3 et 4 — ni l\'actualisation ni la reconnexion ne pointent', () => {
 });
 
 t('cas 5 — seul le bouton de prise de poste ouvre un service', () => {
-  const src = lire('NEXUS-Prise-De-Poste-v1.html');
-  const code = scriptsDe(src);
+  const src = lire('nexus-prise-de-poste.js');
+  const code = src;
   const { fonctions, vues, parent } = atteignablesAuChargement(code);
-  const e = ecrituresDePresence('NEXUS-Prise-De-Poste-v1.html')[0];
+  const e = ecrituresDePresence('nexus-prise-de-poste.js')[0];
   const porteuse = fonctionContenant(fonctions, code.indexOf(src.slice(e.position, e.position + 60)));
   // La porteuse de l'appel est `appelerChangementDeQart`, que seuls deux
   // gestes atteignent : le bouton de prise de poste (confirmerPriseDePoste)
@@ -480,49 +482,46 @@ t('cas 5 — seul le bouton de prise de poste ouvre un service', () => {
   assert.ok(cite, 'plus aucun clic n\'appelle confirmerPriseDePoste');
 });
 
-t('cas 6 — l\'accueil propose deux chemins, et le chemin de consultation n\'écrit rien', () => {
+t('cas 6 — l\'accueil monte la prise de poste, et la consulter n\'écrit rien', () => {
   const src = lire('NEXUS-App-v1.html');
   const code = scriptsDe(src);
   const { fonctions } = atteignablesAuChargement(code);
 
-  // Le conteneur existe dans le HTML, pas seulement dans une chaîne de
-  // caractères : un panneau qu'aucun élément n'accueille ne s'affiche jamais.
-  assert.ok(/<div id="deuxChemins"><\/div>/.test(src),
-    'le conteneur des deux chemins a disparu de l\'accueil');
+  // Un seul écran (25/10/2026) : les « deux chemins » ont disparu. L'employé
+  // sans service voit les trois cartes de poste directement sur l'Accueil ;
+  // le manager garde son bouton. Le conteneur existe dans le HTML, pas
+  // seulement dans une chaîne : un panneau qu'aucun élément n'accueille ne
+  // s'affiche jamais.
+  assert.ok(/<div id="prisePosteHote"><\/div>/.test(src),
+    'le conteneur de la prise de poste a disparu de l\'accueil');
+  assert.ok(!/id="deuxChemins"|renderDeuxChemins|Consulter mon espace/.test(src),
+    'les deux chemins sont revenus : l\'employé n\'a plus à choisir entre consulter et travailler');
 
-  const f = fonctions.get('renderDeuxChemins');
-  assert.ok(f, 'renderDeuxChemins introuvable : les deux chemins ne sont plus rendus');
+  const f = fonctions.get('renderPrisePoste');
+  assert.ok(f, 'renderPrisePoste introuvable : la prise de poste n\'est plus montée sur l\'accueil');
 
-  // LES LIBELLÉS SONT LE CONTRAT. La mission les fixe mot pour mot, et ce
-  // n'est pas de la cosmétique : c'est ce que l'utilisateur lit avant de
-  // décider s'il travaille ou s'il regarde. « Commencer mon service
-  // opérationnel » en particulier est la phrase que la règle exige pour le
-  // manager — la seule action qui doit l'enregistrer en service.
-  for (const libelle of ['Consulter mon espace', 'Consulter NEXUS',
-                         'Commencer mon service', 'Commencer mon service opérationnel']) {
-    assert.ok(f.corps.includes(libelle),
-      'libellé manquant dans les deux chemins : « ' + libelle + ' »');
-  }
-
-  // Le chemin opérationnel est un LIEN vers l'écran de prise de poste, pas
-  // une action. Il ne fait qu'y conduire ; c'est le bouton de cet écran-là
-  // qui écrit, sous le regard de l'utilisateur.
+  // Le manager et le gérant gardent leur phrase : « Commencer mon service
+  // opérationnel » est la seule action qui doit l'enregistrer en service, et
+  // elle n'est qu'un LIEN vers l'écran de prise de poste.
+  assert.ok(f.corps.includes('Commencer mon service opérationnel'),
+    'libellé manquant pour le manager : « Commencer mon service opérationnel »');
   assert.ok(/href="NEXUS-Prise-De-Poste-v1\.html"/.test(f.corps),
-    'le chemin opérationnel ne mène plus à l\'écran de prise de poste');
+    'le chemin du manager ne mène plus à l\'écran de prise de poste');
+  assert.ok(/NexusPriseDePoste\.monter\(/.test(f.corps),
+    'l\'employé sans service ne voit plus le choix du poste sur l\'accueil');
 
-  // Et surtout : rien ne s'écrit ici. C'est exactement la mutation N2,
-  // éprouvée rouge — un insert glissé dans l'accueil pour « gagner du
-  // temps » fabriquerait une présence au chargement de chaque session.
-  assert.ok(!/\.(insert|upsert|update|delete)\s*\(/.test(f.corps),
-    'renderDeuxChemins écrit : proposer un chemin n\'est pas le prendre');
+  // Et surtout : rien ne s'écrit ici. Montrer le choix n'est pas le faire —
+  // l'unique écriture de `shifts` est l'appui sur une carte, dans le module.
+  assert.ok(!/\.(insert|upsert|update|delete|rpc)\s*\(/.test(f.corps),
+    'renderPrisePoste écrit : proposer un poste n\'est pas le prendre');
   assert.ok(!/from\s*\(/.test(f.corps),
-    'renderDeuxChemins interroge la base : il doit se contenter de l\'état déjà lu');
+    'renderPrisePoste interroge la base : il doit se contenter de l\'état déjà lu');
+  assert.deepStrictEqual(ecrituresDePresence('NEXUS-App-v1.html'), [],
+    'l\'accueil porte lui-même une écriture de présence : « Ma progression » ne doit jamais en créer');
 
-  // Le panneau ne décide de rien à partir de ce que l'utilisateur contrôle :
-  // le rôle vient de la fiche d'authentification, jamais d'une URL ni d'un
-  // stockage local que n'importe qui peut réécrire dans sa console.
+  // Le panneau ne décide de rien à partir de ce que l'utilisateur contrôle.
   assert.ok(!/localStorage|sessionStorage|location\.search|URLSearchParams/.test(f.corps),
-    'les deux chemins se règlent sur une donnée contrôlée par l\'utilisateur');
+    'la prise de poste se règle sur une donnée contrôlée par l\'utilisateur');
 });
 
 // ── Cas 14 de la recette : sur un téléphone, les deux chemins restent
@@ -567,8 +566,8 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
 
   // Et surtout : aucune garde JavaScript ne consulte la taille de l'écran
   // pour décider ce qui est proposé. Les deux chemins sont les mêmes partout.
-  const f = fonctionsDe(scriptsDe(src)).get('renderDeuxChemins');
-  assert.ok(f, 'renderDeuxChemins introuvable');
+  const f = fonctionsDe(scriptsDe(src)).get('renderPrisePoste');
+  assert.ok(f, 'renderPrisePoste introuvable');
   assert.ok(!/innerWidth|matchMedia|screen\.|ontouchstart|userAgent/.test(f.corps),
     'les chemins proposés dépendent du terminal : ils doivent être identiques partout');
 });

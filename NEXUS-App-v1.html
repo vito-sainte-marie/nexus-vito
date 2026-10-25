@@ -376,10 +376,9 @@
      il propose, il n'impose pas, et il ne barre jamais la route au reste de
      l'écran, qui est déjà de la consultation. */
   .chemins{margin:16px 20px 0; padding:18px; border-radius:18px; background:var(--panel); border:1px solid var(--hairline);}
-  .chemins-titre{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim);}
-  .chemins-sous{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
   .chemins-actions{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
   .chemins-btn{flex:1 1 150px; display:block; text-align:center; padding:13px 16px; border-radius:var(--r-md); font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em; font-weight:600; text-decoration:none; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); cursor:pointer;}
+  #conseillerEmployeWrap.sans-service > :not(#maProgressionMini){display:none !important;}
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(52,211,153,0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(52,211,153,0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
@@ -598,10 +597,10 @@
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
-  <!-- Les deux chemins — rempli par renderDeuxChemins(). Vide tant que la
+  <!-- Prise de poste — rempli par renderPrisePoste(). Vide tant que la
        session n'est pas chargée : jamais un écran bloquant, jamais une
        redirection. -->
-  <div id="deuxChemins"></div>
+  <div id="prisePosteHote"></div>
   <div id="banniereForfait"></div>
   <div id="banniereCarburants"></div>
 
@@ -825,6 +824,7 @@
          NEXUS-Progression-v1.html (Article 11), jamais reconstruit ici. -->
     <a class="ma-progression-mini" href="NEXUS-Progression-v1.html" id="maProgressionMini">
       <div>
+        <div class="ma-progression-mini-texte" id="maProgressionTermine" style="display:none;"><b>Votre service est terminé</b></div>
         <div class="ma-progression-mini-texte">Points aujourd'hui</div>
         <div class="ma-progression-mini-points" id="maProgressionPoints">—</div>
       </div>
@@ -1337,6 +1337,7 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-prise-de-poste.js"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-indice.js?v=20260904-0104"></script>
 <script src="nexus-marge.js?v=20260904-0104"></script>
@@ -2165,7 +2166,7 @@
       if (ctx.consultationExterne) {
         // Consultation externe : le créateur regarde un autre site que le
         // sien, lui proposer d'y prendre un poste n'aurait aucun sens
-        // (même raison qu'au premier écran de renderDeuxChemins).
+        // (même raison qu'au premier écran de renderPrisePoste).
         return { couleur: null, titre: 'Vous consultez ce site sans y être en service.', lienTexte: null, lien: null };
       }
       return {
@@ -2403,6 +2404,10 @@
   // aussi rapide qu'avant malgré le calcul plus riche.
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
+    // Sans service ouvert, l'Accueil n'est que le choix du poste, puis « Ma
+    // progression » : tout le reste du bloc employé attend la prise de poste.
+    document.getElementById('conseillerEmployeWrap').classList
+      .toggle('sans-service', !serviceCourant && !employee.consultation_externe);
 
     // LE JOUR MÉTIER — celui de la STATION, pas celui de l'appareil
     // (18/09/2026). Ces deux lignes lisaient `getFullYear/getMonth/getDate`,
@@ -2688,6 +2693,14 @@
 
     const pointsEl = document.getElementById('maProgressionPoints');
     if (pointsEl) pointsEl.textContent = `+${missionsInfo.pointsAujourdhui}`;
+    // Journée terminée : « Ma progression » passe avant le choix du poste.
+    if (journeeTerminee && !serviceCourant) {
+      const termine = document.getElementById('maProgressionTermine');
+      if (termine) termine.style.display = '';
+      const wrapEl = document.getElementById('conseillerEmployeWrap');
+      const hotePdp = document.getElementById('prisePosteHote');
+      if (wrapEl && hotePdp) wrapEl.after(hotePdp);
+    }
     const dot = document.getElementById('dotNouveauteProgression');
     if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';
   }
@@ -3038,59 +3051,53 @@
   // Le rôle vient de la fiche employé (auth), jamais d'un paramètre d'URL ou
   // d'un stockage local : aucune donnée contrôlée par l'utilisateur ne décide
   // de ce qui s'affiche.
-  function renderDeuxChemins(employee, serviceCourant, estNiveauManager) {
-    const hote = document.getElementById('deuxChemins');
+  function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
+    const hote = document.getElementById('prisePosteHote');
     if (!hote) return;
     // Le créateur en consultation externe regarde les données d'un autre
     // site : lui proposer d'y prendre un poste n'aurait aucun sens.
     if (employee.consultation_externe) return;
 
-    if (serviceCourant) {
-      // Déjà en service : plus de choix à présenter, seulement un rappel —
-      // et la porte pour le corriger. « Reprendre son poste » et « changer
-      // de rôle » passent par le même écran que la prise de poste initiale ;
-      // la formulation est celle de NEXUS-Missions-v1.html, mot pour mot,
-      // pour que le même geste porte le même nom partout (18/09/2026).
-      //
-      // Ce lien AFFICHE une porte, il n'écrit rien : la seule écriture de
-      // `shifts` du dépôt reste le bouton « Confirmer » de la prise de
-      // poste. Le rappel passe par le libellé lisible du rôle plutôt que
-      // par la valeur brute de la base.
-      const libelleRoleService = serviceCourant.role
-        ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role)
-        : null;
-      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
-        + (libelleRoleService ? ' — ' + libelleRoleService : '')
-        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
-        + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-        + 'Changer de rôle / refaire ma prise de poste</a>'
-        + '</div>';
+    // Manager et gérant gardent leur arrivée : un seul bouton vers la prise de
+    // poste opérationnelle (ou le rappel du service en cours), aucun choix de
+    // poste présenté ici.
+    if (estNiveauManager) {
+      if (serviceCourant) {
+        const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
+        hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+          + (lib ? ' — ' + lib : '')
+          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
+          + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+          + 'Changer de rôle / refaire ma prise de poste</a></div>';
+      } else {
+        hote.innerHTML = '<div class="chemins"><div class="chemins-actions">'
+          + '<a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">Commencer mon service opérationnel</a>'
+          + '</div></div>';
+      }
       return;
     }
 
-    const libelleConsulter = estNiveauManager ? 'Consulter NEXUS' : 'Consulter mon espace';
-    const libelleService = estNiveauManager ? 'Commencer mon service opérationnel' : 'Commencer mon service';
-    const sous = estNiveauManager
-      ? 'Vous êtes connecté, pas en service. Consulter le Cockpit, contrôler Verify, regarder les carburants ou analyser les résultats ne vous enregistre pas comme présent.'
-      : 'Vous êtes connecté, pas en service. Consulter vos écarts, votre évolution, votre historique ou vos régularisations ne crée ni service, ni pointage, ni retard.';
+    if (typeof NexusPriseDePoste === 'undefined') return;
 
-    hote.innerHTML = `
-      <div class="chemins">
-        <div class="chemins-titre">Deux chemins</div>
-        <div class="chemins-sous">${sous}</div>
-        <div class="chemins-actions">
-          <button type="button" class="chemins-btn" id="cheminConsulter">${libelleConsulter}</button>
-          <a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">${libelleService}</a>
-        </div>
-      </div>`;
+    // Employé déjà en service : le récapitulatif des missions du jour vit ici,
+    // plus sur l'écran de prise de poste. Ce bloc AFFICHE, il n'écrit rien.
+    if (serviceCourant) {
+      const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
+      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+        + (lib ? ' — ' + lib : '')
+        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
+        + '<div id="prisePosteRecap"></div>'
+        + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+        + 'Changer de rôle / refaire ma prise de poste</a></div>';
+      NexusPriseDePoste.recapitulatif(document.getElementById('prisePosteRecap'), employee, serviceCourant.role)
+        .catch(() => {});
+      return;
+    }
 
-    // « Consulter » ne navigue nulle part : on y est déjà. Le bouton ne fait
-    // que replier le panneau, pour l'affichage en cours et lui seul — rien
-    // n'est mémorisé, donc rien de ce que l'utilisateur contrôle ne peut
-    // revenir décider quoi que ce soit au chargement suivant.
-    document.getElementById('cheminConsulter').addEventListener('click', () => {
-      hote.innerHTML = '';
-    });
+    // Pas de service : NEXUS s'ouvre sur le choix du poste. La seule écriture
+    // de `shifts` du dépôt est, dans nexus-prise-de-poste.js, l'appui sur une
+    // carte ; consulter cette page ne crée ni service, ni pointage, ni retard.
+    NexusPriseDePoste.monter(hote, employee).catch(() => {});
   }
 
   // L'INVITATION À L'INVENTAIRE (09/09/2026)
@@ -3267,7 +3274,7 @@
     // chemin opérationnel est un lien, et le service ne naît que du clic sur
     // le bouton de NEXUS-Prise-De-Poste-v1.html, seule écriture de `shifts`
     // du dépôt.
-    renderDeuxChemins(employee, serviceCourant, estNiveauManager);
+    renderPrisePoste(employee, serviceCourant, estNiveauManager);
 
     document.getElementById('sessionInfo').innerHTML =
       `Bonjour ${employee.nom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
