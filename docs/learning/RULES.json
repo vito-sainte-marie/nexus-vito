@@ -390,6 +390,71 @@
       "severity": "blocking",
       "rule": "What the pompiste counts comes from the station's parameters: the active products of the piste zone of the current site. No business list of names or categories (gaz, glaçons, écailles…) lives in the code; to change what is counted, change the station's zones, not the code.",
       "source": "2026-10-24: CATEGORIES_FIL / categorieDuFil removed from nexus-fil-debut-quart.js (decision-1 of CATEGORIES-FIL-20261024, code commit 395400b5); test_pompiste_zone_piste_exclut_boutique_20261023.js, test_correctifs_recette_pompiste_20261022.js C1, test_fil_debut_quart_20261021.js F7/I3"
+    },
+    {
+      "id": "POSTE-001",
+      "scope": [
+        "pompiste",
+        "jaugeage",
+        "carburant"
+      ],
+      "trigger": "jaugeage_ouverture",
+      "module": "jaugeage",
+      "severity": "blocking",
+      "rule": "The opening gauging is done by the pompiste of the day on arrival, always before the first sales.",
+      "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
+    },
+    {
+      "id": "POSTE-002",
+      "scope": [
+        "caissiere",
+        "jaugeage",
+        "carburant"
+      ],
+      "trigger": "jaugeage_ouverture_caissiere",
+      "module": "jaugeage",
+      "severity": "blocking",
+      "rule": "The cashier never enters the gauging in NEXUS; she photographs the Veeder-Root with her phone.",
+      "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
+    },
+    {
+      "id": "POSTE-003",
+      "scope": [
+        "jaugeage",
+        "roles",
+        "ecrans"
+      ],
+      "trigger": "ecran_ouvre_saisie_jaugeage_ouverture",
+      "module": "jaugeage",
+      "severity": "blocking",
+      "rule": "No screen opens the opening-gauging entry to a role other than pompiste, or polyvalent in a piste post.",
+      "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
+    },
+    {
+      "id": "POSTE-004",
+      "scope": [
+        "prise-de-poste",
+        "polyvalence",
+        "planning"
+      ],
+      "trigger": "ecran_prise_de_poste",
+      "module": "prise-de-poste",
+      "severity": "blocking",
+      "rule": "Employees are polyvalent: without the planning option, no post is preselected at the prise de poste. The post is chosen in one tap among Piste, Caisse, Renfort.",
+      "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
+    },
+    {
+      "id": "POSTE-005",
+      "scope": [
+        "ma-progression",
+        "pointage",
+        "service"
+      ],
+      "trigger": "consultation_nexus",
+      "module": "prise-de-poste",
+      "severity": "blocking",
+      "rule": "Consulting NEXUS ('Ma progression') never creates a service, a clock-in or a lateness.",
+      "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
     }
   ]
 }
