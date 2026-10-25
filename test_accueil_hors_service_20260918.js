@@ -151,7 +151,7 @@ const nexusEcranOperationnelAtteignable = new Function([
 // ---------------------------------------------------------------------------
 function faireDom() {
   const elements = new Map();
-  const journal = { textes: {}, styles: {} };
+  const journal = { textes: {}, styles: {}, ecouteurs: {} };
   const document = {
     getElementById(id) {
       if (!elements.has(id)) {
@@ -162,7 +162,7 @@ function faireDom() {
           get textContent() { return journal.textes[id]; },
           innerHTML: '', href: '', className: '',
           classList: { add() {}, remove() {}, toggle() {} },
-          addEventListener() {}, after() {},
+          addEventListener(type, fn) { (journal.ecouteurs[`${id}.${type}`] = journal.ecouteurs[`${id}.${type}`] || []).push(fn); }, after() {},
         });
       }
       return elements.get(id);
@@ -538,6 +538,48 @@ async function cas(nom, entree, controles) {
       journal.styles['prisePosteHote.display'], 'none');
     verifierQue('aucune prise de poste proposée',
       !/Prendre mon poste/.test(rendus.action.lienTexte || ''), JSON.stringify(rendus.action));
+  });
+
+  // C2c — 25/10/2026 (décision de Frédéric) : « Que cherchez-vous à faire ? »
+  // (#zoneRecherche) est absente au premier écran et à « Votre service est
+  // terminé », présente après un appui sur une carte de poste ou sur « Ma
+  // progression », et présente quand un service est ouvert.
+  const zoneMasquee = j => j.styles['zoneRecherche.display'] === 'none';
+  const appui = (j, cle, cible) => (j.ecouteurs[cle] || []).forEach(f => f({ target: cible }));
+  const carte = { closest: s => (s === '.pdp-carte' ? {} : null) };
+  const horsCarte = { closest: () => null };
+  const sansService = { employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin', serviceCourant: null,
+    reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } } };
+
+  await cas('C2c · recherche absente au premier écran, présente après une carte', sansService,
+    ({ journal, verifierQue }) => {
+      verifierQue('absente au premier écran', zoneMasquee(journal), JSON.stringify(journal.styles));
+      appui(journal, 'prisePosteHote.click', horsCarte);
+      verifierQue('toujours absente après un appui hors carte', zoneMasquee(journal), '');
+      appui(journal, 'prisePosteHote.click', carte);
+      verifierQue('présente après un appui sur une carte de poste', !zoneMasquee(journal), journal.styles['zoneRecherche.display']);
+    });
+
+  await cas('C2d · recherche absente au premier écran, présente après « Ma progression »', sansService,
+    ({ journal, verifierQue }) => {
+      verifierQue('absente au premier écran', zoneMasquee(journal), '');
+      appui(journal, 'maProgressionMini.click', null);
+      verifierQue('présente après un appui sur « Ma progression »', !zoneMasquee(journal), journal.styles['zoneRecherche.display']);
+    });
+
+  await cas('C2e · recherche absente à « Votre service est terminé »', Object.assign({}, sansService, {
+    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+  }), ({ journal, verifierQue }) => {
+    verifierQue('absente à l’écran de fin de service', zoneMasquee(journal), '');
+    appui(journal, 'maProgressionMini.click', null);
+    verifierQue('présente après « Ma progression »', !zoneMasquee(journal), '');
+  });
+
+  await cas('C2f · recherche visible avec un service ouvert', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
+    serviceCourant: service('pompiste'),
+  }, ({ journal, verifierQue }) => {
+    verifierQue('jamais masquée en service', !zoneMasquee(journal), '');
   });
 
   await cas('C2 · journée terminée (départ pointé, service refermé)', {

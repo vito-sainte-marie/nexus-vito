@@ -104,6 +104,8 @@ function gardesApp(app) {
     sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
     deconnexionDiscrete: /<a href="#" id="logout"/.test(app) && /body:has\(#pdpChoix\) #sessionInfo a\{color:var\(--text-dim\)/.test(app),
     termine: /Votre service est terminé/.test(app) && /hotePdp\.style\.display = 'none'/.test(app),
+    rechercheApresPremierChoix: /id="zoneRecherche"/.test(app) && /zoneRecherche\.style\.display = 'none'/.test(app) && /closest\('\.pdp-carte'\)\) montrerRecherche\(\)/.test(app) && /maProgressionMini'\);\s*if \(miniProgression\) miniProgression\.addEventListener\('click', montrerRecherche\)/.test(app),
+    rechercheMiniProgression: /miniProgression\.addEventListener\('click', montrerRecherche\)/.test(app),
     termineSansPointage: /const journeeFinie = journeeTerminee \|\| !!serviceTermineDuJour;/.test(app)
       && /nexusDernierServiceTermine\(employee\)/.test(app)
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
@@ -135,6 +137,8 @@ const mutApp = {
   termine: APP.replace("hotePdp.style.display = 'none'", 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
+  rechercheApresPremierChoix: APP.replace("zoneRecherche.style.display = 'none';", 'void 0;'),
+  rechercheMiniProgression: APP.replace("miniProgression.addEventListener('click', montrerRecherche)", 'void 0'),
   enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),
   sansCoachNiDoublon: APP.replace('body:has(#pdpChoix) #taglineRole,', 'body:has(#pdpChoix) #taglineRoleX,'),
   deconnexionDiscrete: APP.replace('<a href="#" id="logout"', '<a href="#" id="deco"'),

@@ -870,6 +870,10 @@
        (PAGES_INDEX) sont déjà rédigées en langage d'utilité, seul le
        cadrage visible autour change. Le placeholder par rôle est mis à
        jour dans initRechercheNexus() plus bas. -->
+  <!-- 25/10/2026 (décision de Frédéric) : sur l'Accueil employé, la zone n'est
+       montrée qu'après le premier choix (appui sur une carte de poste ou sur
+       « Ma progression ») ; voir initAccueilEmploye(). Manager et gérant : inchangés. -->
+  <div id="zoneRecherche">
   <div class="section-label">Que cherchez-vous à faire ?</div>
   <div class="recherche-nexus">
     <div class="recherche-nexus-champ">
@@ -878,6 +882,7 @@
       <input type="text" id="rechercheNexusInput" placeholder="contrôler une caisse, comprendre ma marge, voir mes stocks…" autocomplete="off">
     </div>
     <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
+  </div>
   </div>
 
   <div data-role="manager" style="display:none;">
@@ -2425,6 +2430,22 @@
     // progression » : tout le reste du bloc employé attend la prise de poste.
     document.getElementById('conseillerEmployeWrap').classList
       .toggle('sans-service', !serviceCourant && !employee.consultation_externe);
+
+    // « Que cherchez-vous à faire ? » n'apparaît qu'après le premier choix de
+    // l'employé : au premier écran (sans service) et à « Votre service est
+    // terminé », elle est absente ; un appui sur une carte de poste ou sur
+    // « Ma progression » la montre. Avec un service ouvert, elle reste visible.
+    const zoneRecherche = document.getElementById('zoneRecherche');
+    if (zoneRecherche && !serviceCourant && !employee.consultation_externe) {
+      zoneRecherche.style.display = 'none';
+      const montrerRecherche = () => { zoneRecherche.style.display = ''; };
+      const hoteChoix = document.getElementById('prisePosteHote');
+      if (hoteChoix) hoteChoix.addEventListener('click', e => {
+        if (e.target && e.target.closest && e.target.closest('.pdp-carte')) montrerRecherche();
+      });
+      const miniProgression = document.getElementById('maProgressionMini');
+      if (miniProgression) miniProgression.addEventListener('click', montrerRecherche);
+    }
 
     // LE JOUR MÉTIER — celui de la STATION, pas celui de l'appareil
     // (18/09/2026). Ces deux lignes lisaient `getFullYear/getMonth/getDate`,
