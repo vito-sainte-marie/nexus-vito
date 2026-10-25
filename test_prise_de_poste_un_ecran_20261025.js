@@ -104,6 +104,11 @@ function gardesApp(app) {
     sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
     deconnexionDiscrete: /<a href="#" id="logout"/.test(app) && /body:has\(#pdpChoix\) #sessionInfo a\{color:var\(--text-dim\)/.test(app),
     termine: /Votre service est terminé/.test(app) && /wrapEl\.after\(hotePdp\)/.test(app),
+    termineSansPointage: /const journeeFinie = journeeTerminee \|\| !!serviceTermineDuJour;/.test(app)
+      && /nexusDernierServiceTermine\(employee\)/.test(app)
+      && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
+      && /if \(journeeFinie && !serviceCourant\)/.test(app)
+      && /const phraseService = journeeFinie/.test(app),
     pasDeRedirection: !/location\.(href|replace)\s*=[^;]*Prise-De-Poste/.test(app),
   };
 }
@@ -129,6 +134,7 @@ const mutApp = {
   libelleProgression: APP.replace('<b>Ma progression</b>', 'Points'),
   termine: APP.replace('wrapEl.after(hotePdp)', 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
+  termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),
   sansCoachNiDoublon: APP.replace('body:has(#pdpChoix) #taglineRole,', 'body:has(#pdpChoix) #taglineRoleX,'),
   deconnexionDiscrete: APP.replace('<a href="#" id="logout"', '<a href="#" id="deco"'),

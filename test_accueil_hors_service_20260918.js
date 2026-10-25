@@ -201,7 +201,7 @@ async function executerAccueil({
   employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant,
   reponses = {}, forfait = 'professional', receptionRole = 'aucun',
   jaugeageActif = false, statutJaugeage = null, releveJaugeage = null,
-  fuseauSite = FUSEAU_STATION_PAR_DEFAUT,
+  fuseauSite = FUSEAU_STATION_PAR_DEFAUT, serviceTermine = null,
 }) {
   const { document, journal } = faireDom();
   const rendus = {};
@@ -223,7 +223,7 @@ async function executerAccueil({
     'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
-    'nexusEcranOperationnelAtteignable',
+    'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
     ...EXPORTS_PURS,
   ];
   const valeurs = [
@@ -242,6 +242,7 @@ async function executerAccueil({
     action => { rendus.action = action; },
     (codes, libelleRole, titreSection) => { Object.assign(rendus, { tuiles: codes, libelleRole, titreSection }); },
     nexusEcranOperationnelAtteignable,
+    async () => ({ service: serviceTermine }),
     ...EXPORTS_PURS.map(n => purs[n]),
   ];
   // Le `ctx` réellement construit par l'orchestrateur est capté au passage.
@@ -518,6 +519,23 @@ async function cas(nom, entree, controles) {
     verifierQue('la prochaine action n’est plus l’arrivée',
       !/arriv/i.test(rendus.action.lienTexte || ''), JSON.stringify(rendus.action));
     verifierQue('barre de progression affichée', rendus.pct !== null, `pct = ${rendus.pct}`);
+  });
+
+  // C2b — 25/10/2026, recette Guardian sur 89b6618 : site SANS pointage, service
+  // clos (statut termine, heure_fin aujourd'hui). Aucun pointage n'existe, donc
+  // l'ancienne règle ne voyait pas la journée finie et l'Accueil rouvrait le
+  // choix du poste. Le service terminé du jour suffit désormais.
+  await cas('C2b · journée terminée sans pointage (service termine du jour)', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
+    serviceCourant: null,
+    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+    reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } },
+  }, ({ rendus, journal, verifierQue }) => {
+    verifierQue('statut « journée terminée »',
+      journal.textes.conseillerEmployeStatut.includes('Votre journée est terminée'),
+      journal.textes.conseillerEmployeStatut);
+    verifierQue('aucune prise de poste proposée',
+      !/Prendre mon poste/.test(rendus.action.lienTexte || ''), JSON.stringify(rendus.action));
   });
 
   await cas('C2 · journée terminée (départ pointé, service refermé)', {

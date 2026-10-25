@@ -2512,6 +2512,7 @@
       statutJaugeageJour,
       releveJaugeageJour,
       { data: relevesIndexRows, error: eIdx },
+      { data: serviceTermineRows, error: eST },
     ] = await Promise.all([
       pointageActifSite
         // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
@@ -2540,7 +2541,16 @@
       momentIndexDebut
         ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).eq('moment', momentIndexDebut)
         : Promise.resolve({ data: [], error: null }),
+      // Dernier service TERMINÉ de l'employé, seulement quand il n'est pas en
+      // service (25/10/2026). La fin de journée ne se déduisait que des
+      // pointages : sur un site où le pointage est désactivé, un service
+      // clôturé n'avait aucun pointage et l'Accueil retombait sur le choix du
+      // poste. Lecture de ses propres services, dans le site et le jour.
+      enService
+        ? Promise.resolve({ data: [], error: null })
+        : nexusDernierServiceTermine(employee).then(r => ({ data: r.service ? [r.service] : [], error: r.erreur ? true : null })),
     ]);
+    if (eST) console.error('Chargement services terminés (accueil employé):', eST);
     if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
     if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
@@ -2620,6 +2630,13 @@
     // cours » / « Pointer l'arrivée ».
     const journeeTerminee = pointageActifSite
       && NexusPointageRegles.journeeTermineeSansService(serviceCourantJour, pointagesJour);
+    // Fin de journée PROUVÉE PAR LE SERVICE (25/10/2026) : un service du jour
+    // au statut `termine`, sans service ouvert. Indépendante du pointage ; ne
+    // sert qu'à la phrase de statut et à « Ma progression », pas aux étapes
+    // de pointage qui gardent `journeeTerminee`.
+    const serviceTermineDuJour = !enService && NexusPointageRegles.serviceDuJourSeulement(
+      (serviceTermineRows && serviceTermineRows[0]) || null, todayISO, d => nexusJourDansFuseau(d, fuseauStation));
+    const journeeFinie = journeeTerminee || !!serviceTermineDuJour;
     // Sans service du jour, `dejaFaitDuService` rend un état vide et
     // `calculerProchainPointage` retombe donc sur « arrivée ». C'est exact
     // arithmétiquement — rien n'est pointé pour un service qui n'existe
@@ -2664,7 +2681,7 @@
       enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
-      journeeTerminee,
+      journeeTerminee: journeeFinie,
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
@@ -2698,7 +2715,7 @@
       // Hors service : ni « en cours », ni « à jour ». Les deux laissaient
       // croire à un service ouvert ; c'est ce qu'annonçait cet écran à un
       // employé qui n'avait pas encore pris son poste (18/09/2026).
-      const phraseService = journeeTerminee
+      const phraseService = journeeFinie
         ? 'Votre journée est terminée'
         : !enService
           ? (consultationExterne ? 'Consultation externe' : 'Aucun poste en cours')
@@ -2711,7 +2728,7 @@
     const pointsEl = document.getElementById('maProgressionPoints');
     if (pointsEl) pointsEl.textContent = `+${missionsInfo.pointsAujourdhui}`;
     // Journée terminée : « Ma progression » passe avant le choix du poste.
-    if (journeeTerminee && !serviceCourant) {
+    if (journeeFinie && !serviceCourant) {
       const termine = document.getElementById('maProgressionTermine');
       if (termine) termine.style.display = '';
       const wrapEl = document.getElementById('conseillerEmployeWrap');
