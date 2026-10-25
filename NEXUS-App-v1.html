@@ -2731,9 +2731,10 @@
     if (journeeFinie && !serviceCourant) {
       const termine = document.getElementById('maProgressionTermine');
       if (termine) termine.style.display = '';
-      const wrapEl = document.getElementById('conseillerEmployeWrap');
+      // Revérification du 25/10/2026 : même signal que « Votre service est
+      // terminé » — le choix du poste est masqué, il ne doit plus s'afficher.
       const hotePdp = document.getElementById('prisePosteHote');
-      if (wrapEl && hotePdp) wrapEl.after(hotePdp);
+      if (hotePdp) hotePdp.style.display = 'none';
     }
     const dot = document.getElementById('dotNouveauteProgression');
     if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';

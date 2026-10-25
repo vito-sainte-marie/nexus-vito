@@ -103,7 +103,7 @@ function gardesApp(app) {
     enTeteUneLigne: /body:has\(#pdpChoix\) \.header-brandrow\{display:flex;/.test(app) && /body:has\(#pdpChoix\) \.header-sitewrap\{border:1px solid/.test(app),
     sansCoachNiDoublon: /#pdpChoix\) #taglineRole,/.test(app) && /#pdpChoix\) \.session-bonjour\{display:none;\}/.test(app),
     deconnexionDiscrete: /<a href="#" id="logout"/.test(app) && /body:has\(#pdpChoix\) #sessionInfo a\{color:var\(--text-dim\)/.test(app),
-    termine: /Votre service est terminé/.test(app) && /wrapEl\.after\(hotePdp\)/.test(app),
+    termine: /Votre service est terminé/.test(app) && /hotePdp\.style\.display = 'none'/.test(app),
     termineSansPointage: /const journeeFinie = journeeTerminee \|\| !!serviceTermineDuJour;/.test(app)
       && /nexusDernierServiceTermine\(employee\)/.test(app)
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
@@ -132,7 +132,7 @@ const mutApp = {
   sansEcriture: APP.replace("NexusPriseDePoste.monter(hote, employee).catch(() => {});", "nexusClient.from('shifts').insert({});"),
   progressionVisible: APP.replace('sans-service > :not(#maProgressionMini)', 'sans-service > :not(#autre)'),
   libelleProgression: APP.replace('<b>Ma progression</b>', 'Points'),
-  termine: APP.replace('wrapEl.after(hotePdp)', 'void 0'),
+  termine: APP.replace("hotePdp.style.display = 'none'", 'void 0'),
   manager: APP.replace('cheminService', 'autreId'),
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),

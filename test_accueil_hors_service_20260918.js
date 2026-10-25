@@ -530,10 +530,12 @@ async function cas(nom, entree, controles) {
     serviceCourant: null,
     serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
     reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } },
-  }, ({ rendus, journal, verifierQue }) => {
+  }, ({ rendus, journal, verifier, verifierQue }) => {
     verifierQue('statut « journée terminée »',
       journal.textes.conseillerEmployeStatut.includes('Votre journée est terminée'),
       journal.textes.conseillerEmployeStatut);
+    verifier('le choix du poste (#prisePosteHote, donc #pdpChoix) est masqué',
+      journal.styles['prisePosteHote.display'], 'none');
     verifierQue('aucune prise de poste proposée',
       !/Prendre mon poste/.test(rendus.action.lienTexte || ''), JSON.stringify(rendus.action));
   });
