@@ -393,6 +393,7 @@ function validerEnveloppesLot(lot, rail) {
     for (const e of decisions) {
       const ou = `${lot}/${e.fichier}`, r = lireEnveloppe(path.join(LOTS, lot, e.fichier)); if (r.erreur) { bloquant(`${ou} : ${r.erreur}`, 'ENVELOPPE_ILLISIBLE', ou); continue; } if (r.absente) { bloquant(`${ou} : enveloppe absente`, 'ENVELOPPE_ABSENTE', ou); continue; }
       const env = r.env; validerCommuns(lot, e, env, 'decision', rail);
+      if (env.author === 'ChatGPT' && lot.slice(-8) >= REGLE_RENVOI_HUMAIN_DEPUIS) { const g = controlerRenvoiHumainChatGPT(env.decision, fs.readFileSync(path.join(LOTS, lot, e.fichier), 'utf8')); if (!g.ok) bloquant(`${ou} : ${g.motif}`, g.code, ou); }
       // P5 — forme seulement, jamais rétroactif : une décision qui porte un
       // champ provenance doit le porter bien formé (niveau, mode, reference) ;
       // une décision qui n'en porte aucun n'est pas rescannée ici, l'exigence
@@ -785,6 +786,27 @@ function verifierProvenanceDecision(lot, dec, env, commit, opts) {
     : () => { try { return git('log', '-1', '--format=%cn', commit); } catch (e) { return null; } };
   return provenance.verifierALaConsommation(env, attendu, { appelApi: opts.appelApi, committer });
 }
+// RENVOI HUMAIN D'UNE DÉCISION CHATGPT — OUTILLAGE-REGULARISATION-20261026.
+//
+// Le 26/10/2026, une décision BLOCKED / OWNER_NEXT: Frédéric de l'arbitre a été
+// déposée À LA MAIN (89c29900, decision-4) : l'outil l'a acceptée. Deux règles
+// étaient enfreintes — une décision qui renvoie vers Frédéric reste sur l'issue
+// #28 sans dépôt, et une décision ChatGPT n'est matérialisée que par la CI —
+// et c'était le troisième écart d'enveloppe en deux jours. Ces règles ne
+// vivaient que dans la mémoire de l'exécutant. Elles vivent maintenant dans
+// l'outil : `decision --auteur ChatGPT` refuse AVANT écriture. La CI ne passe
+// pas par cette voie pour un renvoi humain (elle ne matérialise pas ces
+// verdicts), donc la garde ne bloque aucun flux légitime.
+const REGLE_RENVOI_HUMAIN_DEPUIS = '20261026';
+function controlerRenvoiHumainChatGPT(verdict, corps) {
+  const motifs = [];
+  if (verdict === 'BLOCKED') motifs.push('decision BLOCKED');
+  const contrat = String(corps || '');
+  if (/^\s*DECISION:\s*BLOCKED\s*$/m.test(contrat)) motifs.push('contrat DECISION: BLOCKED');
+  if (/^\s*OWNER_NEXT:\s*Fr[ée]d[ée]ric\b/mi.test(contrat)) motifs.push('contrat OWNER_NEXT: Frédéric');
+  if (!motifs.length) return { ok: true };
+  return { ok: false, code: 'DECISION_CHATGPT_RENVOI_HUMAIN', motif: `${[...new Set(motifs)].join(' ; ')} — une décision qui renvoie vers Frédéric reste sur l'issue #28, sans dépôt dans le registre ; une décision ChatGPT n'est matérialisée que par la CI.` };
+}
 // Dépose une DÉCISION avec une enveloppe conforme par construction.
 //
 // POURQUOI CETTE COMMANDE EXISTE. Quatre dépôts consécutifs ont présenté un
@@ -823,6 +845,7 @@ function nouvelleDecision(lot, corpsFichier, options) {
   const fichier = `decision-${seq}.md`, cible = path.join(LOTS, lot, fichier);
   if (fs.existsSync(cible)) { console.error(`${fichier} existe déjà — le registre est append-only.`); process.exit(1); }
   const auteur = options.auteur || 'NEXUS Orchestrator';
+  if (auteur === 'ChatGPT') { const g = controlerRenvoiHumainChatGPT(verdict, fs.readFileSync(corpsFichier, 'utf8')); if (!g.ok) { console.error(`REFUS ${g.code} — ${g.motif}`); process.exit(1); } }
   // P5 (GOV-R1-IDENTITES-PROVENANCE-20261019, decision-3) — E1/E4 : une
   // décision humaine (ni ChatGPT, ni une identité exemptée) doit déclarer
   // explicitement son niveau de preuve dès le dépôt ; un nom d'auteur seul ne
@@ -1236,7 +1259,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, brancheDuLotDeclaree, commitHorsRegistre, controlerMarqueurBranche, ANCRE_MARQUEUR_FACULTATIF, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, brancheDuLotDeclaree, commitHorsRegistre, controlerMarqueurBranche, controlerRenvoiHumainChatGPT, ANCRE_MARQUEUR_FACULTATIF, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 

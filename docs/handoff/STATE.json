@@ -1012,6 +1012,13 @@
       "valeur_retenue": {
         "in_reply_to": "request-4.md"
       }
+    },
+    {
+      "fichier": "OUTILLAGE-REGULARISATION-20261026/decision-4.md",
+      "regle": "DECISION_CHATGPT_RENVOI_HUMAIN",
+      "motif": "Decision ChatGPT BLOCKED / OWNER_NEXT: Frédéric déposée À LA MAIN par l'exécutant Claude (commit 89c29900, 26/10/2026), en recopiant le verdict de l'arbitre posté sur l'issue #28, au lieu de le laisser sur l'issue sans dépôt. Deux règles enfreintes : une décision qui renvoie vers Frédéric reste sur #28 ; une décision ChatGPT n'est matérialisée que par la CI. Troisième écart d'enveloppe en deux jours. Cause réelle : `handoff.js decision --auteur ChatGPT` acceptait ce contrat, la règle ne vivait que dans la mémoire de l'exécutant. Le fichier n'est ni supprimé ni réécrit ; l'outil refuse désormais ce dépôt avant écriture, et le validateur ne tolère le fichier que par la présente dérogation. Fiche INCIDENTS ouverte (code DECISION_CHATGPT_RENVOI_HUMAIN).",
+      "autorise_par": "Frédéric Bragance (instruction en session du 2026-10-26 : traiter l'écart sans rien supprimer ni réécrire)",
+      "le": "2026-10-26"
     }
   ]
 }
