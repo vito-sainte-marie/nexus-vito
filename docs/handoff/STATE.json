@@ -883,15 +883,15 @@
       "consomme_le": "2026-10-26T02:07:28.635Z"
     },
     "OUTILLAGE-REGULARISATION-20261026": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "3b9cfe4fd53dd213ab8618c7ca21ba1cb7b4ea44",
-      "pris_en_charge_par": "github-actions-claude",
-      "consomme_le": "2026-10-26T02:47:16.357Z",
-      "preuve_action": "b9e34f9792986b0b13c3f0e8c20fae7faa29849b"
+      "commit_decision": "286edb06b0a436d9934300cdd878afdc734cce7a",
+      "pris_en_charge_par": "session-locale",
+      "preuve_action": "b9e34f9792986b0b13c3f0e8c20fae7faa29849b",
+      "pris_en_charge_le": "2026-10-26T03:13:48.925Z"
     }
   },
   "artefacts_hors_registre": [
