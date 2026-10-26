@@ -434,6 +434,19 @@ jobs:
             echo "::error::Boucle : TOUR_VIDE. Le rail a bougé ($NEXUS_BOUCLE_SHA -> $tete) mais seul le registre a changé : ni travail, ni demande de blocage. $NEXUS_BOUCLE_DECISION n'a pas été exécutée."
             echo "TOUR_VIDE — seul le registre a changé ($NEXUS_BOUCLE_SHA -> $tete)" > "$RUNNER_TEMP/nexus-tour-vide.md"; exit 1
           fi
+          # OUTILLAGE-REGULARISATION-20261026, condition 4 : du travail poussé
+          # sans consommer la décision n'est pas un succès (run 40258106584,
+          # vert avec le lot resté en ATTENTE_CONSOMMATION_DECISION). Le juge
+          # lit le STATE.json de la tête du tour ; absent de ce rail, il est
+          # signalé sans bloquer.
+          if [[ -f outils/juger-tour-claude.js ]]; then
+            git fetch -q origin "+refs/heads/$NEXUS_CLAUDE_BASE_BRANCH:refs/remotes/origin/$NEXUS_CLAUDE_BASE_BRANCH"
+            git show "$tete:docs/handoff/STATE.json" > "$RUNNER_TEMP/state.json"
+            node outils/juger-tour-claude.js "$NEXUS_BOUCLE_LOT" "$RUNNER_TEMP/state.json" || {
+              echo "TOUR_INCOMPLET — $NEXUS_BOUCLE_LOT non consommé ($tete)" > "$RUNNER_TEMP/nexus-tour-vide.md"; exit 1; }
+          else
+            echo "::warning::outils/juger-tour-claude.js absent de $NEXUS_CLAUDE_BASE_BRANCH : tour incomplet non jugé."
+          fi
           n="$(gh run list -R "$GITHUB_REPOSITORY" --workflow tests.yml --commit "$tete" --json databaseId -q length)"
           if [[ "$n" == "0" ]]; then
             gh workflow run tests.yml -R "$GITHUB_REPOSITORY" --ref "$NEXUS_CLAUDE_BASE_BRANCH"
