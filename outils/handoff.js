@@ -1030,6 +1030,16 @@ function nouvelleDemande(lot, corpsFichier, options) {
     }
     idsPreuvesVus.add(p.id);
   }
+  // Une classe hors vocabulaire n'était vue que par `verifier`, APRÈS le push :
+  // request-3 de PRISE-DE-POSTE-UN-ECRAN-20261025 est partie avec MEASURED et a
+  // dû être réécrite une fois publiée (INCIDENTS, 26/10/2026). Le refus précède
+  // toute écriture, comme celui des doublons.
+  for (const p of (options.preuves || [])) {
+    if (!CLASSES_PREUVE.includes(p.classe)) {
+      console.error(`REFUS PREUVE_CLASSE_HORS_VOCABULAIRE — preuve ${p.id} : classe ${JSON.stringify(p.classe)} hors vocabulaire (${CLASSES_PREUVE.join('|')}). Rien n'est ecrit.`);
+      process.exit(1);
+    }
+  }
   // GOUVERNANCE-REFERENCE-CODE-20261005, decision-5 condition 3 (D3). Ce test
   // ne regarde QUE l'existence d'une décision dans l'historique d'un autre
   // lot encore actif (v.statut ∈ STATUTS_LOT_ACTIFS) — pas si cette décision
