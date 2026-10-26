@@ -18,7 +18,7 @@ preuves:
     classe: VERIFIED
     valeur: 164-fichiers
   - id: suite
-    classe: MEASURED
+    classe: VERIFIED
     valeur: 303/310
   - id: ci-pr158
     classe: VERIFIED
