@@ -31,6 +31,8 @@ const FICHIERS = {
 };
 const SOURCES = {};
 for (const [cle, f] of Object.entries(FICHIERS)) SOURCES[cle] = fs.readFileSync(path.join(__dirname, f), 'utf8');
+// Le choix du poste vit dans le module partagé, monté par la page.
+SOURCES.prise += '\n' + fs.readFileSync(path.join(__dirname, 'nexus-prise-de-poste.js'), 'utf8');
 
 const RPC = 'fdj_ouvrir_quart_depuis_prise_de_poste';
 

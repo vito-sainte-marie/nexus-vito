@@ -105,7 +105,7 @@ verifier('le ctx transmis aux rendus porte `journeeTerminee` et le pointage neut
 verifier('`nbActions` compte sur le pointage neutralisé, pas sur le brut',
   /const nbActions = \(prochainPointageEffectif \? 1 : 0\)/.test(APP));
 verifier('la phrase de statut ne dit jamais « en cours » sur une journée terminée',
-  /const phraseService = journeeTerminee\s*\n\s*\? 'Votre journée est terminée'/.test(APP));
+  /const phraseService = journeeFinie\s*\n\s*\? 'Votre journée est terminée'/.test(APP));
 
 if (blocProchain) {
   const calculerProchainPointage = new Function('NexusPointageRegles',

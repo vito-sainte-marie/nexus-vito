@@ -108,8 +108,16 @@ verifier('une seule lecture de `shifts` subsiste hors insertion et historique', 
 
   const lectures2 = acces.filter(a => !/\.update\(/.test(a));
   const parEmploye = lectures2.filter(a => /\.eq\('employee_id'/.test(a));
-  assert.strictEqual(parEmploye.length, 1,
-    'La définition du service courant doit rester LA seule lecture de shifts filtrée par employé.');
+  // 25/10/2026 : `nexusDernierServiceTermine` lit le dernier service CLOS de
+  // l'employé (l'Accueil en tire « votre service est terminé »). Elle n'est pas
+  // une seconde définition du service courant : elle ne regarde que le statut
+  // `termine`, jamais un service ouvert. Toute autre lecture par employé reste
+  // interdite, et celle-ci perd son exemption si elle cesse de filtrer `termine`.
+  const historique = parEmploye.filter(a => /\.eq\('statut',\s*'termine'\)/.test(a));
+  assert.ok(historique.length <= 1, 'Une seule lecture de l\u2019historique clos par employé.');
+  const definitionCourant = parEmploye.filter(a => !historique.includes(a));
+  assert.strictEqual(definitionCourant.length, 1,
+    'La définition du service courant doit rester LA seule lecture de shifts filtrée par employé (hors historique des services terminés).');
 
   // Toute AUTRE lecture est une lecture d'équipe : elle est bornée au site,
   // sans quoi elle rendrait les services d'un commerce voisin. La RLS le

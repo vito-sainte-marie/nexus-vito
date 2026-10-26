@@ -96,7 +96,7 @@ function extraireFonction(entete, source, ou) {
   throw new Error(`« ${entete} » n'est pas refermée`);
 }
 const SRC_INIT = extraireFonction('async function initAccueilEmploye(');
-const SRC_CHEMINS = extraireFonction('function renderDeuxChemins(');
+const SRC_CHEMINS = extraireFonction('function renderPrisePoste(');
 
 // LE FUSEAU DE LA STATION (18/09/2026) — l'accueil n'en définit rien : il
 // dépend des primitives de `nexus-auth.js`, chargé par tous les écrans. On
@@ -151,7 +151,7 @@ const nexusEcranOperationnelAtteignable = new Function([
 // ---------------------------------------------------------------------------
 function faireDom() {
   const elements = new Map();
-  const journal = { textes: {}, styles: {} };
+  const journal = { textes: {}, styles: {}, ecouteurs: {} };
   const document = {
     getElementById(id) {
       if (!elements.has(id)) {
@@ -162,7 +162,7 @@ function faireDom() {
           get textContent() { return journal.textes[id]; },
           innerHTML: '', href: '', className: '',
           classList: { add() {}, remove() {}, toggle() {} },
-          addEventListener() {},
+          addEventListener(type, fn) { (journal.ecouteurs[`${id}.${type}`] = journal.ecouteurs[`${id}.${type}`] || []).push(fn); }, after() {},
         });
       }
       return elements.get(id);
@@ -201,7 +201,7 @@ async function executerAccueil({
   employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant,
   reponses = {}, forfait = 'professional', receptionRole = 'aucun',
   jaugeageActif = false, statutJaugeage = null, releveJaugeage = null,
-  fuseauSite = FUSEAU_STATION_PAR_DEFAUT,
+  fuseauSite = FUSEAU_STATION_PAR_DEFAUT, serviceTermine = null,
 }) {
   const { document, journal } = faireDom();
   const rendus = {};
@@ -223,7 +223,7 @@ async function executerAccueil({
     'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
-    'nexusEcranOperationnelAtteignable',
+    'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
     ...EXPORTS_PURS,
   ];
   const valeurs = [
@@ -242,6 +242,7 @@ async function executerAccueil({
     action => { rendus.action = action; },
     (codes, libelleRole, titreSection) => { Object.assign(rendus, { tuiles: codes, libelleRole, titreSection }); },
     nexusEcranOperationnelAtteignable,
+    async () => ({ service: serviceTermine }),
     ...EXPORTS_PURS.map(n => purs[n]),
   ];
   // Le `ctx` réellement construit par l'orchestrateur est capté au passage.
@@ -259,11 +260,19 @@ async function executerAccueil({
   return { rendus, journal };
 }
 
+// Le module partagé (nexus-prise-de-poste.js) est doublé ici : l'épreuve
+// regarde ce que l'Accueil lui demande de monter, pas ce que le module dessine.
+let appelsPdp = [];
 function executerDeuxChemins(employee, serviceCourant, estNiveauManager) {
   const { document } = faireDom();
-  new Function('document', 'LIBELLE_ROLE_JOUR', `return ${SRC_CHEMINS};`)(document, purs.LIBELLE_ROLE_JOUR)(
-    employee, serviceCourant, estNiveauManager);
-  return document.getElementById('deuxChemins').innerHTML;
+  appelsPdp = [];
+  const NexusPriseDePoste = {
+    monter: async (hote, emp) => { appelsPdp.push('monter'); },
+    recapitulatif: async (hote, emp, role) => { appelsPdp.push('recapitulatif:' + role); },
+  };
+  new Function('document', 'LIBELLE_ROLE_JOUR', 'NexusPriseDePoste', `return ${SRC_CHEMINS};`)(
+    document, purs.LIBELLE_ROLE_JOUR, NexusPriseDePoste)(employee, serviceCourant, estNiveauManager);
+  return document.getElementById('prisePosteHote').innerHTML;
 }
 
 // ---------------------------------------------------------------------------
@@ -512,6 +521,66 @@ async function cas(nom, entree, controles) {
     verifierQue('barre de progression affichée', rendus.pct !== null, `pct = ${rendus.pct}`);
   });
 
+  // C2b — 25/10/2026, recette Guardian sur 89b6618 : site SANS pointage, service
+  // clos (statut termine, heure_fin aujourd'hui). Aucun pointage n'existe, donc
+  // l'ancienne règle ne voyait pas la journée finie et l'Accueil rouvrait le
+  // choix du poste. Le service terminé du jour suffit désormais.
+  await cas('C2b · journée terminée sans pointage (service termine du jour)', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
+    serviceCourant: null,
+    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+    reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } },
+  }, ({ rendus, journal, verifier, verifierQue }) => {
+    verifierQue('statut « journée terminée »',
+      journal.textes.conseillerEmployeStatut.includes('Votre journée est terminée'),
+      journal.textes.conseillerEmployeStatut);
+    verifier('le choix du poste (#prisePosteHote, donc #pdpChoix) est masqué',
+      journal.styles['prisePosteHote.display'], 'none');
+    verifierQue('aucune prise de poste proposée',
+      !/Prendre mon poste/.test(rendus.action.lienTexte || ''), JSON.stringify(rendus.action));
+  });
+
+  // C2c — 25/10/2026 (décision de Frédéric) : « Que cherchez-vous à faire ? »
+  // (#zoneRecherche) est absente au premier écran et à « Votre service est
+  // terminé », présente après un appui sur une carte de poste ou sur « Ma
+  // progression », et présente quand un service est ouvert.
+  const zoneMasquee = j => j.styles['zoneRecherche.display'] === 'none';
+  const appui = (j, cle, cible) => (j.ecouteurs[cle] || []).forEach(f => f({ target: cible }));
+  const carte = { closest: s => (s === '.pdp-carte' ? {} : null) };
+  const horsCarte = { closest: () => null };
+  const sansService = { employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin', serviceCourant: null,
+    reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } } };
+
+  await cas('C2c · recherche absente au premier écran, présente après une carte', sansService,
+    ({ journal, verifierQue }) => {
+      verifierQue('absente au premier écran', zoneMasquee(journal), JSON.stringify(journal.styles));
+      appui(journal, 'prisePosteHote.click', horsCarte);
+      verifierQue('toujours absente après un appui hors carte', zoneMasquee(journal), '');
+      appui(journal, 'prisePosteHote.click', carte);
+      verifierQue('présente après un appui sur une carte de poste', !zoneMasquee(journal), journal.styles['zoneRecherche.display']);
+    });
+
+  await cas('C2d · « Ma progression » change de page : l’accueil ne montre pas la zone, elle est sur la page Progression', sansService,
+    ({ journal, verifierQue }) => {
+      verifierQue('absente au premier écran', zoneMasquee(journal), '');
+      verifierQue('aucun écouteur sur « Ma progression » dans l’accueil', !Object.keys(journal.ecouteurs).some(e => /maProgressionMini/.test(e)), JSON.stringify(journal.ecouteurs));
+      verifierQue('toujours absente (le lien change de page)', zoneMasquee(journal), '');
+    });
+
+  await cas('C2e · recherche absente à « Votre service est terminé »', Object.assign({}, sansService, {
+    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+  }), ({ journal, verifierQue }) => {
+    verifierQue('absente à l’écran de fin de service', zoneMasquee(journal), '');
+    verifierQue('toujours absente : la zone de « Ma progression » est sur sa page', zoneMasquee(journal), '');
+  });
+
+  await cas('C2f · recherche visible avec un service ouvert', {
+    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
+    serviceCourant: service('pompiste'),
+  }, ({ journal, verifierQue }) => {
+    verifierQue('jamais masquée en service', !zoneMasquee(journal), '');
+  });
+
   await cas('C2 · journée terminée (départ pointé, service refermé)', {
     employee: employe(), roleDuJour: 'pompiste', pointageActifSite: true, quartDuJour: 'matin',
     serviceCourant: null,
@@ -688,6 +757,15 @@ async function cas(nom, entree, controles) {
       /NEXUS-Prise-De-Poste-v1\.html/.test(html) && /Changer de rôle/.test(html), html);
     verifierQue('D2 · rappel sans service', 'affichage seul, aucune écriture',
       !/insert/i.test(executerDeuxChemins(employe(), null, false)), 'écriture trouvée');
+    verifier('D3 · sans service', 'le choix du poste est monté, sans lien intermédiaire',
+      (executerDeuxChemins(employe(), null, false), appelsPdp), ['monter']);
+    verifierQue('D3 · sans service', 'aucun « Prendre mon poste » intermédiaire',
+      !/Prendre mon poste|Consulter mon espace/.test(executerDeuxChemins(employe(), null, false)));
+    executerDeuxChemins(employe(), service('caissiere', 'soir'), false);
+    verifier('D4 · en service', 'le récapitulatif passe sur l\u2019Accueil', appelsPdp, ['recapitulatif:caissiere']);
+    const htmlMgr = executerDeuxChemins(employe(), null, true);
+    verifier('D5 · manager', 'aucun choix de poste monté', appelsPdp, []);
+    verifierQue('D5 · manager', 'garde son bouton', /cheminService/.test(htmlMgr), htmlMgr);
   }
 
   // =========================================================================

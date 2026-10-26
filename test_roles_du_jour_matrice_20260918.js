@@ -26,7 +26,9 @@ const path = require('path');
 
 const RACINE = __dirname;
 const ECRAN = 'NEXUS-Prise-De-Poste-v1.html';
-const SRC = fs.readFileSync(path.join(RACINE, ECRAN), 'utf8');
+// L'écran est mince : le choix du poste vit dans le module partagé.
+const SRC = fs.readFileSync(path.join(RACINE, ECRAN), 'utf8')
+  + '\n' + fs.readFileSync(path.join(RACINE, 'nexus-prise-de-poste.js'), 'utf8');
 
 let ok = 0;
 function verifier(libelle, condition) {
@@ -54,8 +56,8 @@ function extraire(entete, ouvrant, fermant) {
 const TXT_ROLES = extraire('const ROLES = [', '[', ']');
 const TXT_MAP = extraire('const ROLE_ADMIN_VERS_JOUR = {', '{', '}');
 const TXT_FN = extraire('function rolesDisponibles()', '{', '}');
-const TXT_RENDER = extraire('function renderChoixRole()', '{', '}');
-const TXT_CONFIRM = extraire('async function confirmerPriseDePoste()', '{', '}');
+const TXT_RENDER = extraire('function renderChoixPoste()', '{', '}');
+const TXT_CONFIRM = extraire('async function confirmerPriseDePoste(role, carte)', '{', '}');
 
 // Exécute la vraie fonction de l'écran pour une fiche donnée.
 function rolesPour(fiche) {
@@ -147,15 +149,15 @@ const TOUS = new Function(TXT_ROLES + ';\nreturn ROLES.map(r => r.value);')();
     /let roleChoisi = null;/.test(SRC));
   verifier('le badge vient du poste le plus fréquent (lots B et C), jamais de la fiche',
     /const badge = libelleFrequence\(posteFrequent\);/.test(TXT_RENDER)
-    && /badge && r\.value === posteFrequent\.poste/.test(TXT_RENDER)
+    && /badge && posteFrequent && r\.value === posteFrequent\.poste/.test(TXT_RENDER)
     && !/employeeCourant\.role/.test(TXT_RENDER)
     && !/Rôle habituel/.test(TXT_RENDER));
   verifier('le rôle du jour ne peut venir que d’un clic de l’employée',
-    (TXT_RENDER.match(/roleChoisi\s*=/g) || []).length === 1
-    && /roleChoisi = el\.dataset\.role;/.test(TXT_RENDER));
-  verifier('sans choix explicite, on ne peut pas continuer',
-    /\$\{roleChoisi\?'':'disabled'\}/.test(TXT_RENDER)
-    && /if \(roleChoisi\) renderResume\(\);/.test(TXT_RENDER));
+    (TXT_RENDER.match(/roleChoisi\s*=/g) || []).length === 0
+    && (TXT_CONFIRM.match(/roleChoisi\s*=/g) || []).length >= 1
+    && /confirmerPriseDePoste\(el\.dataset\.role, el\)/.test(TXT_RENDER));
+  verifier('aucune carte n’est présélectionnée : pas de classe selected, pas de choix par défaut',
+    !/selected|checked/.test(TXT_RENDER) && !/roleChoisi\s*=\s*['"a-z]/.test(SRC.replace(/roleChoisi = (role|null);/g, '')));
 
   // ── 7. Aucune autre logique de prise de poste n’a bougé ────────────────
   verifier('le catalogue des rôles reste celui des quatre postes connus',

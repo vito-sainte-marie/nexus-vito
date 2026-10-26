@@ -117,7 +117,8 @@ verifier('aucun trigger de clôture ne survit en double', () => {
 // ce test le dira plutôt que de laisser la migration raisonner sur une
 // hypothèse périmée.
 verifier('l’écrivain de la prise de poste envoie toujours site sans site_id', () => {
-  const ecran = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
+  const ecran = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(RACINE, 'nexus-prise-de-poste.js'), 'utf8');
   assert.ok(!/\.from\('shifts'\)\s*\.insert/.test(ecran),
     'l’écran n’insère plus dans shifts : tout passe par nexus_changer_de_quart');
   assert.ok(/\.rpc\('nexus_changer_de_quart'/.test(ecran), 'l’écran appelle nexus_changer_de_quart');

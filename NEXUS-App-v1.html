@@ -97,6 +97,23 @@
     70%{box-shadow:0 0 0 6px rgba(52,211,153,0);}
     100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}
   }
+  /* Écran du choix de poste (25/10) : une seule ligne d'en-tête, logo NEXUS à
+     gauche, pastille du site à droite. Rien d'autre au-dessus du « Bonjour »
+     du module : ni statut, ni phrase du Coach, ni « Bonjour » en double. Les
+     autres écrans de l'Accueil ne sont pas touchés (le sélecteur exige
+     #pdpChoix). « Se déconnecter » reste, discret, en bas de l'en-tête. */
+  body:has(#pdpChoix) .header{padding:14px 20px 4px;}
+  body:has(#pdpChoix) .header-brandrow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  body:has(#pdpChoix) .header-divider,
+  body:has(#pdpChoix) .header-statut-row,
+  body:has(#pdpChoix) #taglineRole,
+  body:has(#pdpChoix) .session-bonjour{display:none;}
+  body:has(#pdpChoix) .header-mark{order:0; width:30px; height:30px;}
+  body:has(#pdpChoix) .header-brand-left{order:1; justify-content:flex-start; flex:1 1 auto;}
+  body:has(#pdpChoix) .header-brand-right{order:2; flex:0 1 auto;}
+  body:has(#pdpChoix) .header-sitewrap{border:1px solid var(--hairline); background:var(--panel); border-radius:100px; padding:5px 12px 5px 8px; max-width:190px;}
+  body:has(#pdpChoix) #sessionInfo{margin:2px 0 0; max-width:none; text-align:right; font-size:11px; line-height:1.2;}
+  body:has(#pdpChoix) #sessionInfo a{color:var(--text-dim) !important;}
   .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:10px; line-height:1.5; max-width:360px; margin-left:auto; margin-right:auto;}
   .dots-anim{display:inline-flex; gap:2px; margin-left:2px; vertical-align:baseline;}
   .dots-anim i{width:3px; height:3px; border-radius:50%; background:var(--text-mid); display:inline-block; font-style:normal; animation:dotsBounce 1.2s infinite ease-in-out;}
@@ -376,10 +393,9 @@
      il propose, il n'impose pas, et il ne barre jamais la route au reste de
      l'écran, qui est déjà de la consultation. */
   .chemins{margin:16px 20px 0; padding:18px; border-radius:18px; background:var(--panel); border:1px solid var(--hairline);}
-  .chemins-titre{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim);}
-  .chemins-sous{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
   .chemins-actions{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
   .chemins-btn{flex:1 1 150px; display:block; text-align:center; padding:13px 16px; border-radius:var(--r-md); font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em; font-weight:600; text-decoration:none; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); cursor:pointer;}
+  #conseillerEmployeWrap.sans-service > :not(#maProgressionMini){display:none !important;}
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(52,211,153,0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(52,211,153,0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
@@ -598,10 +614,10 @@
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
-  <!-- Les deux chemins — rempli par renderDeuxChemins(). Vide tant que la
+  <!-- Prise de poste — rempli par renderPrisePoste(). Vide tant que la
        session n'est pas chargée : jamais un écran bloquant, jamais une
        redirection. -->
-  <div id="deuxChemins"></div>
+  <div id="prisePosteHote"></div>
   <div id="banniereForfait"></div>
   <div id="banniereCarburants"></div>
 
@@ -825,7 +841,8 @@
          NEXUS-Progression-v1.html (Article 11), jamais reconstruit ici. -->
     <a class="ma-progression-mini" href="NEXUS-Progression-v1.html" id="maProgressionMini">
       <div>
-        <div class="ma-progression-mini-texte">Points aujourd'hui</div>
+        <div class="ma-progression-mini-texte" id="maProgressionTermine" style="display:none;"><b>Votre service est terminé</b></div>
+        <div class="ma-progression-mini-texte"><b>Ma progression</b> · Points aujourd'hui</div>
         <div class="ma-progression-mini-points" id="maProgressionPoints">—</div>
       </div>
       <span class="ma-progression-mini-lien">Voir mes séries →<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></span>
@@ -853,6 +870,10 @@
        (PAGES_INDEX) sont déjà rédigées en langage d'utilité, seul le
        cadrage visible autour change. Le placeholder par rôle est mis à
        jour dans initRechercheNexus() plus bas. -->
+  <!-- 25/10/2026 (décision de Frédéric) : sur l'Accueil employé, la zone n'est
+       montrée qu'après le premier choix (appui sur une carte de poste ; « Ma progression »
+       a la sienne en haut de sa page) ; voir initAccueilEmploye(). Manager et gérant : inchangés. -->
+  <div id="zoneRecherche">
   <div class="section-label">Que cherchez-vous à faire ?</div>
   <div class="recherche-nexus">
     <div class="recherche-nexus-champ">
@@ -861,6 +882,7 @@
       <input type="text" id="rechercheNexusInput" placeholder="contrôler une caisse, comprendre ma marge, voir mes stocks…" autocomplete="off">
     </div>
     <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
+  </div>
   </div>
 
   <div data-role="manager" style="display:none;">
@@ -1337,6 +1359,8 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-prise-de-poste.js"></script>
+<script src="nexus-recherche.js"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-indice.js?v=20260904-0104"></script>
 <script src="nexus-marge.js?v=20260904-0104"></script>
@@ -2165,7 +2189,7 @@
       if (ctx.consultationExterne) {
         // Consultation externe : le créateur regarde un autre site que le
         // sien, lui proposer d'y prendre un poste n'aurait aucun sens
-        // (même raison qu'au premier écran de renderDeuxChemins).
+        // (même raison qu'au premier écran de renderPrisePoste).
         return { couleur: null, titre: 'Vous consultez ce site sans y être en service.', lienTexte: null, lien: null };
       }
       return {
@@ -2403,6 +2427,25 @@
   // aussi rapide qu'avant malgré le calcul plus riche.
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
+    // Sans service ouvert, l'Accueil n'est que le choix du poste, puis « Ma
+    // progression » : tout le reste du bloc employé attend la prise de poste.
+    document.getElementById('conseillerEmployeWrap').classList
+      .toggle('sans-service', !serviceCourant && !employee.consultation_externe);
+
+    // « Que cherchez-vous à faire ? » n'apparaît qu'après le premier choix de
+    // l'employé : au premier écran (sans service) et à « Votre service est
+    // terminé », elle est absente ; un appui sur une carte de poste la montre.
+    // « Ma progression » change de page : la zone s'y trouve, en haut
+    // (NEXUS-Progression-v1.html). Avec un service ouvert, elle reste visible.
+    const zoneRecherche = document.getElementById('zoneRecherche');
+    if (zoneRecherche && !serviceCourant && !employee.consultation_externe) {
+      zoneRecherche.style.display = 'none';
+      const montrerRecherche = () => { zoneRecherche.style.display = ''; };
+      const hoteChoix = document.getElementById('prisePosteHote');
+      if (hoteChoix) hoteChoix.addEventListener('click', e => {
+        if (e.target && e.target.closest && e.target.closest('.pdp-carte')) montrerRecherche();
+      });
+    }
 
     // LE JOUR MÉTIER — celui de la STATION, pas celui de l'appareil
     // (18/09/2026). Ces deux lignes lisaient `getFullYear/getMonth/getDate`,
@@ -2490,6 +2533,7 @@
       statutJaugeageJour,
       releveJaugeageJour,
       { data: relevesIndexRows, error: eIdx },
+      { data: serviceTermineRows, error: eST },
     ] = await Promise.all([
       pointageActifSite
         // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
@@ -2518,7 +2562,16 @@
       momentIndexDebut
         ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).eq('moment', momentIndexDebut)
         : Promise.resolve({ data: [], error: null }),
+      // Dernier service TERMINÉ de l'employé, seulement quand il n'est pas en
+      // service (25/10/2026). La fin de journée ne se déduisait que des
+      // pointages : sur un site où le pointage est désactivé, un service
+      // clôturé n'avait aucun pointage et l'Accueil retombait sur le choix du
+      // poste. Lecture de ses propres services, dans le site et le jour.
+      enService
+        ? Promise.resolve({ data: [], error: null })
+        : nexusDernierServiceTermine(employee).then(r => ({ data: r.service ? [r.service] : [], error: r.erreur ? true : null })),
     ]);
+    if (eST) console.error('Chargement services terminés (accueil employé):', eST);
     if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
     if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
@@ -2598,6 +2651,13 @@
     // cours » / « Pointer l'arrivée ».
     const journeeTerminee = pointageActifSite
       && NexusPointageRegles.journeeTermineeSansService(serviceCourantJour, pointagesJour);
+    // Fin de journée PROUVÉE PAR LE SERVICE (25/10/2026) : un service du jour
+    // au statut `termine`, sans service ouvert. Indépendante du pointage ; ne
+    // sert qu'à la phrase de statut et à « Ma progression », pas aux étapes
+    // de pointage qui gardent `journeeTerminee`.
+    const serviceTermineDuJour = !enService && NexusPointageRegles.serviceDuJourSeulement(
+      (serviceTermineRows && serviceTermineRows[0]) || null, todayISO, d => nexusJourDansFuseau(d, fuseauStation));
+    const journeeFinie = journeeTerminee || !!serviceTermineDuJour;
     // Sans service du jour, `dejaFaitDuService` rend un état vide et
     // `calculerProchainPointage` retombe donc sur « arrivée ». C'est exact
     // arithmétiquement — rien n'est pointé pour un service qui n'existe
@@ -2642,7 +2702,7 @@
       enService, consultationExterne, operationnelAtteignable,
       pointageActif: pointageActifSite, prochainPointage: prochainPointageEffectif,
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
-      journeeTerminee,
+      journeeTerminee: journeeFinie,
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
@@ -2676,7 +2736,7 @@
       // Hors service : ni « en cours », ni « à jour ». Les deux laissaient
       // croire à un service ouvert ; c'est ce qu'annonçait cet écran à un
       // employé qui n'avait pas encore pris son poste (18/09/2026).
-      const phraseService = journeeTerminee
+      const phraseService = journeeFinie
         ? 'Votre journée est terminée'
         : !enService
           ? (consultationExterne ? 'Consultation externe' : 'Aucun poste en cours')
@@ -2688,6 +2748,15 @@
 
     const pointsEl = document.getElementById('maProgressionPoints');
     if (pointsEl) pointsEl.textContent = `+${missionsInfo.pointsAujourdhui}`;
+    // Journée terminée : « Ma progression » passe avant le choix du poste.
+    if (journeeFinie && !serviceCourant) {
+      const termine = document.getElementById('maProgressionTermine');
+      if (termine) termine.style.display = '';
+      // Revérification du 25/10/2026 : même signal que « Votre service est
+      // terminé » — le choix du poste est masqué, il ne doit plus s'afficher.
+      const hotePdp = document.getElementById('prisePosteHote');
+      if (hotePdp) hotePdp.style.display = 'none';
+    }
     const dot = document.getElementById('dotNouveauteProgression');
     if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';
   }
@@ -2789,187 +2858,11 @@
   // différente (coach personnel, voir nexus-progression.js) — présente
   // ci-dessous sous son nouveau nom.
   // ------------------------------------------------------------
-  const PAGES_INDEX = [
-    // Brief NEXUS (02/08/2026, demande de Frédéric) : synthèse à
-    // l'attention du dirigeant, agrège les moteurs NEXUS réellement actifs
-    // et contributeurs pour ce site (registre central, voir
-    // nexus-moteurs-registre.js, 13/08/2026 — plus de liste ni de compte
-    // fixe codés en dur ici) en une Boussole NEXUS à 6 secteurs + 3
-    // décisions priorisées — en tête de liste, avant le Cockpit (brief
-    // opérationnel du manager).
-    { label: 'Brief NEXUS', desc: 'La synthèse du dirigeant : 5 axes, 3 décisions, un chiffre', href: 'NEXUS-Brief-v1.html', role: 'manager' },
-    { label: 'Rapport NEXUS', desc: 'CA, marge et décisions sur une période choisie, comparés à une référence', href: 'NEXUS-Rapport-v1.html', role: 'manager' },
-    { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },
-    { label: 'Centre d\'Intelligence', desc: 'Que détecte NEXUS dans mon commerce ?', href: 'NEXUS-Centre-Intelligence-v1.html', role: 'manager' },
-    { label: 'Journal', desc: 'Qu\'est-ce qui a été fait aujourd\'hui ?', href: 'NEXUS-Journal-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Capital NEXUS', desc: 'La valeur créée par vos décisions', href: 'NEXUS-Capital-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Contrôle inventaire', desc: 'Écarts, comptages manquants et décisions du jour', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    // NEXUS FDJ (09/08/2026, demande de Frédéric) : role 'all' — même
-    // convention que Inventaire (l'écran de comptage employé doit rester
-    // trouvable par recherche pour l'employé qui compte lui-même son quart
-    // FDJ, pas seulement pour le manager qui le consulte).
-    { label: 'FDJ', desc: 'Grattage, tirages et caisse FDJ — écart toujours calculé', href: 'NEXUS-FDJ-v1.html', role: 'all', forfait: 'professional' },
-    { label: 'FDJ Opérations', desc: "Historique, écarts et correction de n'importe quel quart", href: 'NEXUS-FDJ-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'FDJ Performance', desc: "Tendances, jeux, équipe, stock et écarts — ce qui mérite l'attention", href: 'NEXUS-FDJ-Analyse-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Coach FDJ', desc: 'Votre conseil du jour, en une phrase', href: 'NEXUS-Coach-FDJ-v1.html', role: 'all', forfait: 'professional' },
-    // Traçabilité (04/08/2026, demande de Frédéric) : volontairement absente
-    // du tiroir de menu principal — page consultée seulement pour les
-    // produits suivis par lot (SDD, presse), signalée via le Conseiller
-    // NEXUS et un lien direct depuis Paramètres → Inventaire → Gestion des
-    // profils. Présente ici uniquement pour rester trouvable par recherche.
-    { label: 'Traçabilité', desc: 'Lots, retours fournisseurs et échéances (SDD, presse)', href: 'NEXUS-Tracabilite-v1.html', role: 'manager', forfait: 'professional' },
-    // Paramètres Inventaire (05/08/2026, rejoint le tiroir "Explorer NEXUS"
-    // — groupe Administrer — le 07/08/2026) : reste aussi ici pour rester
-    // trouvable par recherche.
-    { label: 'Paramètres Inventaire', desc: 'Produits comptés, parcours, règles, alertes et traçabilité', href: 'NEXUS-Parametres-Inventaire-v1.html', role: 'manager', forfait: 'professional' },
-    // Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-site",
-    // étape 3) : rejoint aussi le tiroir "Explorer NEXUS" — groupe
-    // Administrer — le même jour.
-    { label: 'Paramètres FDJ', desc: 'Organisation, catalogue des jeux et emplacements', href: 'NEXUS-FDJ-Parametres-v1.html', role: 'manager', forfait: 'professional' },
-    // Comptes Clients (07/08/2026, cahier des charges de Frédéric) : centre
-    // de pilotage des clients en compte — facturation, justificatifs et
-    // relation client. Paramètres Comptes Clients reste joignable par
-    // recherche (accès direct aussi depuis l'onglet Comptes Clients).
-    { label: 'Comptes Clients', desc: 'Facturation, justificatifs et relation clients sous contrôle', href: 'NEXUS-Comptes-Clients-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Paramètres Comptes Clients', desc: "Identité, signature, modèle d'e-mail, tolérances de rapprochement", href: 'NEXUS-Parametres-Comptes-Clients-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
-    { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
-    { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
-    { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
-    { label: 'Carburants', desc: 'Jaugeage à l\'ouverture, théorique et écart calculés', href: 'NEXUS-Carburants-v1.html', role: 'manager' },
-    { label: 'Carburants Performance', desc: 'Volumes, mix et moteurs de performance sur une période choisie', href: 'NEXUS-Carburants-Pilotage-v1.html', role: 'manager' },
-    // Réception carburant (14/08/2026, audit "Réceptions, deltas et effet
-    // économique du stock", P1) : role 'all' — comme Inventaire, c'est un
-    // outil du quotidien pour l'employé qui réceptionne une livraison, pas
-    // seulement pour le manager.
-    { label: 'Réception carburant', desc: 'Livraison, jaugeage avant/après et calcul NEXUS', href: 'NEXUS-Carburant-Reception-v1.html', role: 'all' },
-    { label: 'Missions', desc: '55 procédures · checklist interactive', href: 'NEXUS-Missions-v1.html', role: 'all' },
-    // Inventaire (02/08/2026, demande de Frédéric) : role 'all' — visible
-    // par recherche pour l'employé, en plus de la mini carte accueil.
-    { label: 'Inventaire', desc: "Comptages d'ouverture et de clôture de quart", href: 'NEXUS-Inventaire-v1.html', role: 'all' },
-    { label: 'Assignations', desc: 'Assigner, suivre, valider une mission', href: 'NEXUS-Assignations-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Planning', desc: 'Le bon collaborateur, au bon endroit, au bon moment', href: 'NEXUS-Planning-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Paye', desc: 'Variables mensuelles fiabilisées pour la comptabilité', href: 'NEXUS-Paye-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Évaluations', desc: 'Contrôle tenue + grille de prime', href: 'NEXUS-Evaluation-Employe-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Résultats', desc: 'Progression réelle par employé', href: 'NEXUS-Resultats-Equipe-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Imports', desc: 'Ventes, catalogue ou stock instantané', href: 'NEXUS-Import-v1.html', role: 'manager' },
-    { label: 'Paramètres', desc: 'Horaires de service, prix carburants', href: 'NEXUS-Parametres-Station-v1.html', role: 'manager' },
-    { label: 'Rappels', desc: 'Commandes fournisseurs, carburant', href: 'NEXUS-Parametres-Rappels-v1.html', role: 'manager' },
-    { label: 'Administration multi-site', desc: 'Nom, logo et création de nouveaux sites', href: 'NEXUS-Admin-Sites-v1.html', role: 'createur' },
-    { label: 'Debug créateur', desc: 'Outils techniques multi-site — agit directement sur Supabase', href: 'NEXUS-Debug-Createur-v1.html', role: 'createur', danger: true },
-    { label: 'Pointage', desc: 'Arrivée, pause, départ', href: 'NEXUS-Pointage-v1.html', role: 'all' },
-    { label: 'Mon Planning', desc: 'Vos jours de travail, votre rôle, vos repos', href: 'NEXUS-Mon-Planning-v1.html', role: 'all' },
-    // Ma Progression (27/07/2026, demande de Frédéric) : role 'all' — sans
-    // ?employe dans l'URL, la page affiche toujours les données de la
-    // personne connectée (employé comme manager), jamais celles d'un tiers.
-    { label: 'Ma Progression', desc: 'Votre coach personnel NEXUS', href: 'NEXUS-Progression-v1.html', role: 'all' },
-    { label: 'Ce que NEXUS a appris sur moi', desc: 'Qualités, habitudes et progrès observés par le Coach', href: 'NEXUS-Apprentissage-v1.html', role: 'all' },
-    // Comprendre NEXUS (07/08/2026, demande de Frédéric — renommé le même
-    // jour) : point d'entrée par intention ("Que voulez-vous faire ?"),
-    // avec sa propre recherche par mots-clés. role 'all' car une partie
-    // du contenu (Pointage, Missions, Mon Planning, Ma Progression)
-    // concerne directement les employés, pas seulement les managers —
-    // contrairement au reste du tiroir Explorer NEXUS.
-    { label: 'Comprendre NEXUS', desc: 'Quel moteur utiliser selon ce que vous voulez faire', href: 'NEXUS-Documentation-v1.html', role: 'all' },
-  ];
-
-  function normaliserRecherche(s) {
-    return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  }
-
+  // Index et logique de la recherche : nexus-recherche.js (partagé avec Ma Progression).
+  const PAGES_INDEX = NexusRecherche.PAGES_INDEX;
+  const normaliserRecherche = NexusRecherche.normaliserRecherche;
   function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif) {
-    const input = document.getElementById('rechercheNexusInput');
-    const resultats = document.getElementById('rechercheNexusResultats');
-    if (!input || !resultats) return;
-
-    // Exemples adaptés au discours de la personne (27/07/2026, demande de
-    // Frédéric) : "marge" et "planning" (génération d'équipe) ne
-    // signifient rien pour un employé — il cherche plutôt son pointage,
-    // ses missions ou sa progression.
-    // Reformulation en intention (10/08/2026, refonte "Porte NEXUS") :
-    // remplace "Rechercher une page NEXUS (...)" par des exemples de ce
-    // que l'utilisateur veut FAIRE, pas des noms de pages — cohérent avec
-    // le nouveau label "Que cherchez-vous à faire ?" au-dessus du champ.
-    input.placeholder = estNiveauManager
-      ? 'contrôler une caisse, comprendre ma marge, voir mes stocks…'
-      : 'pointer mon arrivée, voir mes missions, ma progression…';
-
-    const visibles = PAGES_INDEX.filter(p => {
-      // Pointage désactivé pour tout le site (16/08/2026, demande de
-      // Frédéric) : disparaît entièrement de la recherche, pour tous les
-      // rôles — contrairement au cas "non requis pour le manager" plus bas
-      // (pointageDesactive), qui laisse l'entrée visible mais grisée.
-      if (p.href === 'NEXUS-Pointage-v1.html' && !pointageActif) return false;
-      // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
-      // même logique que la mini-carte d'accueil — un renfort n'a pas de
-      // comptage d'ouverture/clôture à faire, il ne doit donc pas non plus
-      // le retrouver via la recherche.
-      if (p.href === 'NEXUS-Inventaire-v1.html' && roleDuJour === 'renfort') return false;
-      if (p.role === 'all') return true;
-      if (p.role === 'manager') return estNiveauManager;
-      if (p.role === 'createur') return !!employee.est_createur;
-      return false;
-    });
-
-    function rendre(requete) {
-      const q = normaliserRecherche(requete);
-      if (!q) { resultats.innerHTML = ''; resultats.classList.remove('open'); return; }
-      const matches = visibles.filter(p => normaliserRecherche(`${p.label} ${p.desc}`).includes(q)).slice(0, 8);
-      if (!matches.length) {
-        resultats.innerHTML = `<div class="recherche-vide">Aucune page ne correspond à « ${requete} ».</div>`;
-        resultats.classList.add('open');
-        return;
-      }
-      resultats.innerHTML = matches.map(p => {
-        // Pointage garde son cas particulier même trouvé par la
-        // recherche : non requis pour le poste manager par défaut.
-        const pointageDesactive = p.href === 'NEXUS-Pointage-v1.html' && estNiveauManager && !pointageRequisManager;
-        const forfaitVerrouille = p.forfait === 'professional' && !forfaitProfessional;
-        const briefVerrouille = briefNexusEstVerrouille(p.href, briefNexusInclus);
-        const desc = pointageDesactive ? 'Non requis pour votre poste — activable dans Paramètres Station' : p.desc;
-        const badges = `${forfaitVerrouille ? ' <span class="nav-badge badge-premium">Professional</span>' : ''}${briefVerrouille ? ' <span class="nav-badge badge-soon">Non inclus</span>' : ''}${p.danger ? ' <span class="nav-badge badge-danger">⚠ Irréversible</span>' : ''}`;
-        if (pointageDesactive) {
-          return `<div class="recherche-item disabled"><div class="recherche-item-body"><div class="recherche-item-titre">${p.label}</div><div class="recherche-item-desc">${desc}</div></div></div>`;
-        }
-        return `<a class="recherche-item" href="${p.href}" data-forfait-verrouille="${forfaitVerrouille}" data-brief-verrouille="${briefVerrouille}" data-forfait-page="${p.href}">
-          <div class="recherche-item-body">
-            <div class="recherche-item-titre">${p.label}${badges}</div>
-            <div class="recherche-item-desc">${desc}</div>
-          </div>
-          <div class="recherche-item-arrow">›</div>
-        </a>`;
-      }).join('');
-      resultats.classList.add('open');
-
-      resultats.querySelectorAll('a.recherche-item[data-forfait-verrouille="true"]').forEach(el => {
-        el.addEventListener('click', (e) => {
-          e.preventDefault();
-          afficherToastForfait(el.getAttribute('data-forfait-page'));
-        });
-      });
-      resultats.querySelectorAll('a.recherche-item[data-brief-verrouille="true"]').forEach(el => {
-        el.addEventListener('click', (e) => {
-          e.preventDefault();
-          let toast = document.getElementById('forfaitToast');
-          if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'forfaitToast';
-            toast.className = 'forfait-toast';
-            document.body.appendChild(toast);
-          }
-          toast.textContent = "💎 Brief NEXUS n'est pas inclus pour votre site — contactez votre créateur NEXUS pour l'activer.";
-          toast.classList.add('visible');
-          clearTimeout(toast._timeout);
-          toast._timeout = setTimeout(() => toast.classList.remove('visible'), 4000);
-        });
-      });
-    }
-
-    input.addEventListener('input', () => rendre(input.value));
+    NexusRecherche.initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif, afficherToastForfait);
   }
 
   // Bandeau explicatif si un manager a été renvoyé ici depuis une page
@@ -3038,59 +2931,68 @@
   // Le rôle vient de la fiche employé (auth), jamais d'un paramètre d'URL ou
   // d'un stockage local : aucune donnée contrôlée par l'utilisateur ne décide
   // de ce qui s'affiche.
-  function renderDeuxChemins(employee, serviceCourant, estNiveauManager) {
-    const hote = document.getElementById('deuxChemins');
+  // « Ma progression » chez le manager et le gérant (25/10/2026, décision de
+  // Frédéric) : toujours visible sous « Commencer mon service opérationnel »,
+  // service en cours, terminé ou pas encore ouvert. Le bloc employé qui la
+  // porte est masqué pour eux, et leur fin de service ne passe pas par
+  // `termine` sans pointage : on n'attend donc aucun état de service. Ce lien
+  // ne lit rien, n'écrit rien et ne dit pas « Votre service est terminé ».
+  function afficherMaProgressionManager(employee) {
+    const hote = document.getElementById('prisePosteHote');
+    if (!hote || employee.consultation_externe || document.getElementById('maProgressionManager')) return;
+    hote.insertAdjacentHTML('beforeend',
+      '<a class="ma-progression-mini" href="NEXUS-Progression-v1.html" id="maProgressionManager">'
+      + '<div class="ma-progression-mini-texte"><b>Ma progression</b></div>'
+      + '<span class="ma-progression-mini-lien">Voir mes séries →</span></a>');
+  }
+
+  function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
+    const hote = document.getElementById('prisePosteHote');
     if (!hote) return;
     // Le créateur en consultation externe regarde les données d'un autre
     // site : lui proposer d'y prendre un poste n'aurait aucun sens.
     if (employee.consultation_externe) return;
 
-    if (serviceCourant) {
-      // Déjà en service : plus de choix à présenter, seulement un rappel —
-      // et la porte pour le corriger. « Reprendre son poste » et « changer
-      // de rôle » passent par le même écran que la prise de poste initiale ;
-      // la formulation est celle de NEXUS-Missions-v1.html, mot pour mot,
-      // pour que le même geste porte le même nom partout (18/09/2026).
-      //
-      // Ce lien AFFICHE une porte, il n'écrit rien : la seule écriture de
-      // `shifts` du dépôt reste le bouton « Confirmer » de la prise de
-      // poste. Le rappel passe par le libellé lisible du rôle plutôt que
-      // par la valeur brute de la base.
-      const libelleRoleService = serviceCourant.role
-        ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role)
-        : null;
-      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
-        + (libelleRoleService ? ' — ' + libelleRoleService : '')
-        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
-        + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-        + 'Changer de rôle / refaire ma prise de poste</a>'
-        + '</div>';
+    // Manager et gérant gardent leur arrivée : un seul bouton vers la prise de
+    // poste opérationnelle (ou le rappel du service en cours), aucun choix de
+    // poste présenté ici.
+    if (estNiveauManager) {
+      if (serviceCourant) {
+        const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
+        hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+          + (lib ? ' — ' + lib : '')
+          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
+          + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+          + 'Changer de rôle / refaire ma prise de poste</a></div>';
+      } else {
+        hote.innerHTML = '<div class="chemins"><div class="chemins-actions">'
+          + '<a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">Commencer mon service opérationnel</a>'
+          + '</div></div>';
+      }
       return;
     }
 
-    const libelleConsulter = estNiveauManager ? 'Consulter NEXUS' : 'Consulter mon espace';
-    const libelleService = estNiveauManager ? 'Commencer mon service opérationnel' : 'Commencer mon service';
-    const sous = estNiveauManager
-      ? 'Vous êtes connecté, pas en service. Consulter le Cockpit, contrôler Verify, regarder les carburants ou analyser les résultats ne vous enregistre pas comme présent.'
-      : 'Vous êtes connecté, pas en service. Consulter vos écarts, votre évolution, votre historique ou vos régularisations ne crée ni service, ni pointage, ni retard.';
+    if (typeof NexusPriseDePoste === 'undefined') return;
 
-    hote.innerHTML = `
-      <div class="chemins">
-        <div class="chemins-titre">Deux chemins</div>
-        <div class="chemins-sous">${sous}</div>
-        <div class="chemins-actions">
-          <button type="button" class="chemins-btn" id="cheminConsulter">${libelleConsulter}</button>
-          <a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">${libelleService}</a>
-        </div>
-      </div>`;
+    // Employé déjà en service : le récapitulatif des missions du jour vit ici,
+    // plus sur l'écran de prise de poste. Ce bloc AFFICHE, il n'écrit rien.
+    if (serviceCourant) {
+      const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
+      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+        + (lib ? ' — ' + lib : '')
+        + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
+        + '<div id="prisePosteRecap"></div>'
+        + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+        + 'Changer de rôle / refaire ma prise de poste</a></div>';
+      NexusPriseDePoste.recapitulatif(document.getElementById('prisePosteRecap'), employee, serviceCourant.role)
+        .catch(() => {});
+      return;
+    }
 
-    // « Consulter » ne navigue nulle part : on y est déjà. Le bouton ne fait
-    // que replier le panneau, pour l'affichage en cours et lui seul — rien
-    // n'est mémorisé, donc rien de ce que l'utilisateur contrôle ne peut
-    // revenir décider quoi que ce soit au chargement suivant.
-    document.getElementById('cheminConsulter').addEventListener('click', () => {
-      hote.innerHTML = '';
-    });
+    // Pas de service : NEXUS s'ouvre sur le choix du poste. La seule écriture
+    // de `shifts` du dépôt est, dans nexus-prise-de-poste.js, l'appui sur une
+    // carte ; consulter cette page ne crée ni service, ni pointage, ni retard.
+    NexusPriseDePoste.monter(hote, employee).catch(() => {});
   }
 
   // L'INVITATION À L'INVENTAIRE (09/09/2026)
@@ -3267,10 +3169,11 @@
     // chemin opérationnel est un lien, et le service ne naît que du clic sur
     // le bouton de NEXUS-Prise-De-Poste-v1.html, seule écriture de `shifts`
     // du dépôt.
-    renderDeuxChemins(employee, serviceCourant, estNiveauManager);
+    renderPrisePoste(employee, serviceCourant, estNiveauManager);
+    if (estNiveauManager) afficherMaProgressionManager(employee);
 
     document.getElementById('sessionInfo').innerHTML =
-      `Bonjour ${employee.nom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
+      `<span class="session-bonjour">Bonjour ${employee.nom} · </span><a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
     document.getElementById('logout').addEventListener('click', (e) => {
       e.preventDefault();
       nexusLogout();

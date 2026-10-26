@@ -57,7 +57,7 @@ const PARAM = codeSeul('NEXUS-Parametres-Station-v1.html');
 const AUTH = codeSeul('nexus-auth.js');
 const STATION = codeSeul('nexus-station.js');
 const POINTAGE = codeSeul('NEXUS-Pointage-v1.html');
-const PDP = codeSeul('NEXUS-Prise-De-Poste-v1.html');
+const PDP = codeSeul('NEXUS-Prise-De-Poste-v1.html') + '\n' + codeSeul('nexus-prise-de-poste.js');
 
 console.log('Fuseau — Paramètres Station affiche l’autorité, il ne la fabrique pas\n');
 

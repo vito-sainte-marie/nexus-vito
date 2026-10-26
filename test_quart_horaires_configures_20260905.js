@@ -98,7 +98,7 @@ verifier('aucune horloge d’appareil ne décide plus d’un quart', () => {
     'NEXUS-Inventaire-Manager-v1.html': ['quartDuMoment', 'libelleEtatQuart'],
     'nexus-inventaire-manager-donnees.js': ['quartDuMoment'],
     'NEXUS-FDJ-v1.html': ['quartDuMoment', 'accesQuart'],
-    'NEXUS-Prise-De-Poste-v1.html': ['quartDuMoment'],
+    'nexus-prise-de-poste.js': ['quartDuMoment'],
     'nexus-horizon-operationnel.js': ['horizonDepuisJours'],
   };
   const coupables = [];
@@ -125,7 +125,7 @@ verifier('tous les chemins passent par l’heure de la station', () => {
   const ADMIS = /minutesLocalesStation\(|quartConfigureDuMoment\(/;
   for (const f of ['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html',
                    'nexus-inventaire-manager-donnees.js', 'NEXUS-FDJ-v1.html',
-                   'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-Verify-v1.html']) {
+                   'nexus-prise-de-poste.js', 'NEXUS-Verify-v1.html']) {
     const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
     assert.ok(ADMIS.test(src), f + ' ne passe ni par l’heure de la station ni par la règle commune');
   }
@@ -187,7 +187,7 @@ verifier('chaque écran conserve SON vocabulaire de quart', () => {
     // La prise de poste peut donc porter le renfort, devenu un quart de plein
     // droit le 09/09 sur arbitrage de Frédéric Bragance.
     const CONTRAINTS_MATIN_SOIR = ['NEXUS-Inventaire-v1.html', 'nexus-inventaire-manager-donnees.js'];
-    const TRADUISENT = CONTRAINTS_MATIN_SOIR.concat(['NEXUS-Prise-De-Poste-v1.html']);
+    const TRADUISENT = CONTRAINTS_MATIN_SOIR.concat(['nexus-prise-de-poste.js']);
   const LAISSENT_PASSER = ['NEXUS-FDJ-v1.html'];
   const corpsDe = (fichier) => {
     const src = fs.readFileSync(path.join(RACINE, fichier), 'utf8');

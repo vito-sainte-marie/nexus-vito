@@ -17,7 +17,8 @@ const path = require('path');
 const assert = require('assert');
 
 const RACINE = __dirname;
-const page = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
+const page = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8')
+  + '\n' + fs.readFileSync(path.join(RACINE, 'nexus-prise-de-poste.js'), 'utf8');
 const sql = fs.readFileSync(path.join(RACINE, 'supabase', 'migrations',
   '20261016090000_changement_de_quart_atomique.sql'), 'utf8');
 
@@ -41,7 +42,7 @@ function fonctionSql(nom) {
 const T_APPEL = corps(page, 'async function appelerChangementDeQart(');
 const T_CONFIRMATION = corps(page, 'function renderConfirmationChangement(');
 const T_TERMINER = corps(page, 'async function terminerPriseDePoste(');
-const T_CONFIRMER = corps(page, 'async function confirmerPriseDePoste()');
+const T_CONFIRMER = corps(page, 'async function confirmerPriseDePoste(');
 const T_AVANT = fonctionSql('nexus_shifts_avant_insertion');
 const T_CHANGER = fonctionSql('nexus_changer_de_quart');
 
@@ -76,16 +77,16 @@ verifier('seul le bouton de confirmation renvoie p_cloture_confirmee = true', ()
   assert.ok(/btnConfirmerChangement'\)\.addEventListener\('click'/.test(T_CONFIRMATION));
   assert.ok(/appelerChangementDeQart\(true,\s*motif\)/.test(T_CONFIRMATION));
 });
-verifier('annuler n\'écrit rien et revient au résumé', () => {
-  const m = T_CONFIRMATION.match(/btnAnnulerChangement'\)\.addEventListener\('click',\s*\(\)\s*=>\s*([^)]*\)?)\)/);
+verifier('annuler n\'écrit rien et revient aux cartes', () => {
+  const m = T_CONFIRMATION.match(/btnAnnulerChangement'\)\.addEventListener\('click',\s*\(\)\s*=>\s*\{([^}]*)\}\)/);
   assert.ok(m, 'gestionnaire Annuler introuvable');
-  assert.ok(/renderResume\(\)/.test(m[1]));
+  assert.ok(/renderChoixPoste\(\)/.test(m[1]));
   assert.ok(!/rpc\(|appelerChangementDeQart/.test(m[1]));
 });
-verifier('choisir une fonction n\'appelle pas la base', () => {
+verifier('afficher les cartes n\'appelle pas la base', () => {
   const choix = page.indexOf('roleChoisi =');
   assert.ok(choix !== -1);
-  assert.ok(!/appelerChangementDeQart|\.rpc\(/.test(corps(page, 'function renderResume(')));
+  assert.ok(!/appelerChangementDeQart|\.rpc\(/.test(corps(page, 'function renderChoixPoste(')));
 });
 
 console.log('— Écran : motif facultatif, jamais imposé —');

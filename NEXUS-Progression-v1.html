@@ -20,6 +20,8 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
+<script src="nexus-recherche.js"></script>
+<script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <!-- v2.286 : nexus-progression.js délègue désormais à
      NexusEcartsMoteur.deriverStatutEcart (statutCaisseJour/statutActivite)
@@ -220,6 +222,20 @@
   .statut-badge-mission.valide{color:var(--text-dim);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+  .recherche-nexus{padding:0 20px 8px;}
+  .recherche-nexus-champ{display:flex; align-items:center; gap:9px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 13px;}
+  .recherche-nexus-loupe{font-size:13px; opacity:0.55;}
+  .recherche-nexus-champ input{flex:1; min-width:0; background:none; border:none; outline:none; color:var(--text); font-size:16px; font-family:inherit;}
+  .recherche-nexus-champ input::placeholder{color:var(--text-dim);}
+  .recherche-nexus-resultats{display:none; margin-top:8px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;}
+  .recherche-nexus-resultats.open{display:block;}
+  .recherche-item{display:flex; align-items:center; gap:10px; padding:10px 13px; border-top:1px solid var(--hairline); text-decoration:none; color:inherit;}
+  .recherche-item:first-child{border-top:none;}
+  .recherche-item-body{flex:1; min-width:0;}
+  .recherche-item-titre{font-size:12.5px; color:var(--text);}
+  .recherche-item-desc{font-size:11px; color:var(--text-dim); margin-top:2px;}
+  .recherche-item-arrow{color:var(--text-dim);}
+  .recherche-vide{padding:13px; font-size:12px; color:var(--text-dim); text-align:center;}
 </style>
 </head>
 <body>
@@ -231,6 +247,20 @@
     <div id="vueManagerNote"></div>
   </div>
   <div class="divider"></div>
+  <!-- 25/10/2026 (décision de Frédéric) : la zone « Que cherchez-vous à faire ? »
+       se trouve ici, en haut de Ma Progression, pour l'employé. Elle est
+       masquée tant que le script ne l'a pas montrée (manager et gérant ont
+       la leur sur l'Accueil). Même index que l'Accueil : nexus-recherche.js. -->
+  <div id="zoneRecherche" style="display:none; padding-top:14px;">
+    <div style="padding:0 20px 8px; font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim);">Que cherchez-vous à faire ?</div>
+    <div class="recherche-nexus">
+      <div class="recherche-nexus-champ">
+        <span class="recherche-nexus-loupe"><img src="assets/icons/icon-recherche-24.png" alt="" style="width:15px; height:15px; vertical-align:-2px; display:inline-block;"></span>
+        <input type="text" id="rechercheNexusInput" placeholder="Que cherchez-vous à faire ?" autocomplete="off">
+      </div>
+      <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
+    </div>
+  </div>
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
   <div class="section desktop-grid" id="app">
@@ -341,6 +371,20 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
     const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+    // Recherche NEXUS en haut de page (25/10/2026) : pour l'employé seulement,
+    // sans nouvelle lecture — le rôle du jour vient du service déjà lu par la
+    // porte d'accès (mémo), jamais d'une requête de cette page. Pointage n'y
+    // figure pas : son interrupteur de site n'est pas lu ici (aucune lecture de plus).
+    const zoneRecherche = document.getElementById('zoneRecherche');
+    if (zoneRecherche && !estNiveauManager) {
+      zoneRecherche.style.display = '';
+      let roleDuJour = null;
+      try {
+        const r = await nexusServiceCourant(employee);
+        if (r && r.service) roleDuJour = r.service.role;
+      } catch (e) { /* sans rôle du jour, rien n'est masqué à tort */ }
+      NexusRecherche.initRechercheNexus(employee, false, true, true, false, roleDuJour, false, () => {});
+    }
     const params = new URLSearchParams(window.location.search);
     const employeParamId = params.get('employe');
     const siteId = employee.site_id;

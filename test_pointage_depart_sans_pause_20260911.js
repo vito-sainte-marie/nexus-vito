@@ -39,7 +39,8 @@ function t(nom, fn) {
 
 const RACINE = __dirname;
 const POINTAGE = fs.readFileSync(path.join(RACINE, 'NEXUS-Pointage-v1.html'), 'utf8');
-const PRISE = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8');
+const PRISE = fs.readFileSync(path.join(RACINE, 'NEXUS-Prise-De-Poste-v1.html'), 'utf8')
+  + '\n' + fs.readFileSync(path.join(RACINE, 'nexus-prise-de-poste.js'), 'utf8');
 
 /** Extrait une fonction du source de la page et la rend appelable. */
 function fonctionDeLaPage(source, nom, prelude = '') {

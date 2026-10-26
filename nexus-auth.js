@@ -873,6 +873,23 @@ function nexusServiceCourant(employee){
   nexusServiceCourantMemo.set(cle, { t: Date.now(), promesse });
   return promesse;
 }
+// Dernier service TERMINÉ de l'employé (25/10/2026), pour savoir qu'une journée
+// est finie quand aucun pointage ne le dit (pointage désactivé sur le site).
+// Lecture seule, un seul service, jamais mémorisée ; ne remplace pas
+// `nexusServiceCourant`, qui reste la seule source du service OUVERT.
+async function nexusDernierServiceTermine(employee){
+  if(!employee||!employee.id||!employee.site_id) return { erreur: true };
+  const { data, error } = await nexusClient
+    .from('shifts')
+    .select('id, heure_debut, heure_fin')
+    .eq('employee_id', employee.id)
+    .eq('site_id', employee.site_id)
+    .eq('statut', 'termine')
+    .order('heure_fin', { ascending: false })
+    .limit(1);
+  if(error){ console.error('Dernier service terminé : lecture impossible \u2014', error); return { erreur: true }; }
+  return { service: (data && data[0]) || null };
+}
 async function nexusServiceCourantSansMemo(employee){
   if(!employee||!employee.id||!employee.site_id){
     console.error('Service courant : employé ou site non résolu — aucune lecture n\u2019est faite.');
