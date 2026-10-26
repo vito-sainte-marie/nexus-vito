@@ -556,8 +556,7 @@ jobs:
           # Une seule consultation de l'arbitre par corps de réveil : le coût
           # est borné par le nombre de réveils distincts, pas par les runs.
           MARQUE="<!-- nexus-arbitrage: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
-          DEJA=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" \
-                   --jq '.[].body' | grep -cF "$MARQUE" || true)
+          DEJA=$(printf '%s' "$COMMENTAIRES" | jq -r '.[]' | grep -cF "$MARQUE" || true)
           [ "$DEJA" = "0" ] || rien ARBITRAGE_DEJA_RELAYE "ce réveil a déjà été soumis à l'arbitre (issue #$NUM)."
           # Le script lit un texte venu de l'extérieur : il ne tient pas le
           # jeton GitHub. Seule l'étape, après validation, écrit sur l'issue.
