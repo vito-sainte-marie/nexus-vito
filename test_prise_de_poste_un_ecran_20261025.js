@@ -49,6 +49,11 @@ garde('aucune carte présélectionnée',
   m => { const f = corps(m, 'function renderChoixPoste()'); return !/selected|checked|aria-pressed="true"/.test(f); },
   m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte selected" data-role'));
 
+garde('« Continuer » (#pdpSuite) a sa classe de bouton, pas celle des cartes photo',
+  m => /class="pdp-bouton" id="pdpSuite"/.test(m) && !/class="pdp-carte"[^>]*id="pdpSuite"/.test(m)
+    && /\.pdp-bouton\{[^}]*min-height:44px[^}]*background:#4FC3D9/.test(m),
+  m => m.replace('class="pdp-bouton" id="pdpSuite"', 'class="pdp-carte" id="pdpSuite"'));
+
 // 2. Un seul appui.
 garde('le clic d’une carte appelle directement la prise de poste',
   m => /addEventListener\('click', \(\) => confirmerPriseDePoste\(el\.dataset\.role, el\)\)/.test(m),

@@ -161,6 +161,8 @@
 .pdp-carte:active{border-color:#4FC3D9;}
 .pdp-carte:focus-visible{outline:2px solid #4FC3D9;outline-offset:2px;}
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
+.pdp-bouton{display:block;width:100%;min-height:44px;padding:14px;margin-top:18px;border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;text-align:center;background:#4FC3D9;color:#04141a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pdp-bouton:focus-visible{outline:2px solid #EDF1F5;outline-offset:2px;}
 .pdp-carte.pdp-avant{border:2px solid #4FC3D9;}
 .pdp-visuel{position:relative;display:block;order:2;flex:0 0 44%;background:#141B22;}
 .pdp-visuel::after{content:'';position:absolute;inset:0;background:linear-gradient(to right,#141B22 0%,rgba(20,27,34,0) 50%);pointer-events:none;}
@@ -375,7 +377,7 @@
         <div class="pdp">
           <h2 class="pdp-titre">Votre poste est pris</h2>
           <div class="pdp-securite" id="noteFdj">${messageOuvertureFdj.texte}</div>
-          <button type="button" class="pdp-carte" id="pdpSuite">Continuer</button>
+          <button type="button" class="pdp-bouton" id="pdpSuite">Continuer</button>
         </div>`;
       document.getElementById('pdpSuite').addEventListener('click', aller);
       return;
