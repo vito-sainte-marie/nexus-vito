@@ -1,57 +1,43 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/decision-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/decision-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: OUTILLAGE-REGULARISATION-20261026
-seq: 3
+seq: 4
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
+decision: BLOCKED
 closes: false
-in_reply_to: request-4.md
-provenance:
-  niveau: 2
-  mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6417833960
+in_reply_to: request-5.md
 ---
-# Décision sur request-4.md — APPROVED_WITH_CONDITIONS
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 40336284334), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6418030105. Matérialisé par Claude (reprise autorisée par Frédéric pour ce lot), texte reproduit tel quel._
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 40335016295), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6417833960. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+Réponse de l'arbitre (ChatGPT, via l'API, run 40336284334). Contrat validé par le relais ; matérialisation par la CI si NEXUS_MATERIALISATION_CI=arme, sinon par Claude.
 
-## Ce que la CI a contrôlé
+La lecture de `decision-3.md` est correcte : elle maintient les six conditions de fond et laisse le lot ouvert. La valeur NOM à câbler est celle déjà établie par le semis, `Employé Test Auto` ; aucune confirmation humaine supplémentaire n’est nécessaire sur ce point.
 
-- `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `OUTILLAGE-REGULARISATION-20261026`, `REQUEST` = `request-4.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
-- Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `e34db3ac7981e14c568a0136783769ea6f6830c4`, `HEAD` = `e34db3ac7981e14c568a0136783769ea6f6830c4`, SHA du run `e34db3ac7981e14c568a0136783769ea6f6830c4`, tête du rail `e34db3ac7981e14c568a0136783769ea6f6830c4`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
-- Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
+La création du secret dédié relève toutefois du palier humain `SECRET_PERMISSION_SURFACE_SECURITE`. Après sa création, Claude pourra reprendre le câblage et les épreuves sous les conditions existantes, sans nouvelle décision préalable. Le lot reste ouvert.
 
-## Ce que la CI n'a PAS contrôlé
-
-- Les conditions du verdict (« Environnement Test uniquement ; conserver Test A ; obtenir trois runs verts consécutifs ; exécuter l’épreuve d’isolation et sa mutation avant tout retrait de Test A ; ne créer aucun compte Auth ; n’écrire ni sur main ni en Production. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
-- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
-
-## Texte de l'arbitre
-
-La correction de capacité est fondée : l’action suivante écrit uniquement la décision sur le rail. Les acquis `PREAUTORISATIONS_CLAUDE`, `COMMIT_PUSH_RAIL_SANS_GO` et `CHATGPT_DECIDE_CLAUDE_MATERIALISE` s’appliquent. Aucun motif de STOP n’est constitué.
-
-RAIL_LU: e34db3ac7981e14c568a0136783769ea6f6830c4
+RAIL_LU: 09bbf87544ddb751538338e7933f7bb094bd2a0c
 
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
+DECISION: BLOCKED
 CLOSES: false
 LOT: OUTILLAGE-REGULARISATION-20261026
-REQUEST: request-4.md
+REQUEST: request-5.md
 BRANCHE_DU_LOT: handoff-continuite-20260920
-HEAD: e34db3ac7981e14c568a0136783769ea6f6830c4
+HEAD: 09bbf87544ddb751538338e7933f7bb094bd2a0c
 LEASE: aucun
-GATE_STATE: G1, CI de matérialisation à exécuter
+GATE_STATE: G1, CI bloquée par le secret dédié absent
 PROOF_STATE: PROOF_VALID
-CONDITIONS: Environnement Test uniquement ; conserver Test A ; obtenir trois runs verts consécutifs ; exécuter l’épreuve d’isolation et sa mutation avant tout retrait de Test A ; ne créer aucun compte Auth ; n’écrire ni sur main ni en Production.
-BLOCKER: aucun
-STOP_REQUIRED: non
-CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
-OWNER_NEXT: Claude
-EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
+CONDITIONS: Après création du secret, reprendre uniquement en environnement Test sous les six conditions de decision-3.md ; câbler le NOM exact `Employé Test Auto` ; ne jamais réutiliser le secret de l’Employé Test A.
+BLOCKER: Le secret GitHub Actions dédié `NEXUS_TEST_EMPLOYEE_AUTO_PIN` n’existe pas.
+STOP_REQUIRED: SECRET_PERMISSION_SURFACE_SECURITE
+CAPACITE_REQUISE: aucune
+OWNER_NEXT: Frédéric
+EXECUTANT_NEXT: frederic
+ACTION_NEXT: Créer le secret GitHub Actions `NEXUS_TEST_EMPLOYEE_AUTO_PIN`, dédié au compte « Employé Test Auto » et distinct de `NEXUS_TEST_EMPLOYEE_A_PIN`.
+
+<!-- nexus-arbitrage: 87726a40a6aa6d86 -->
+
