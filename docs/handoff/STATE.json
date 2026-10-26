@@ -872,15 +872,15 @@
       "preuve_action": "d056aaaeb0b9775aa82cabd6a568c6ce4a170461"
     },
     "PRISE-DE-POSTE-UN-ECRAN-20261025": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-4.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-2.md",
+      "derniere_decision": "decision-3.md",
       "source_decision": "registre",
-      "commit_decision": "ab9572564cfaa06a65d22a400df3300ad68c6cbf",
+      "commit_decision": "f3691cc7385c98c334bf91242fd769e18946f790",
       "pris_en_charge_par": "session-locale",
       "preuve_action": "72216ec1b129d2e407f9e41d1b32e675fc7954a5",
-      "consomme_le": "2026-10-26T00:36:53.824Z"
+      "consomme_le": "2026-10-26T02:07:28.635Z"
     }
   },
   "artefacts_hors_registre": [
