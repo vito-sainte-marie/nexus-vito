@@ -165,12 +165,19 @@ function juger(texte, etat, opts = {}) {
   }
   const sansPreuve = lectureDuRail(texte, c, opts);
   if (sansPreuve.length) return { code: 2, refus: sansPreuve };
-  // Un marqueur BRANCHE_DU_LOT que l'arbitre aurait rendu doit être unique et
-  // valide ; absent, c'est `corps` qui le dépose (la branche du lot = le rail).
+  // La branche de travail est DÉCLARÉE PAR LA REQUEST du lot (`BRANCHE_DU_LOT:`
+  // dans son corps), jamais devinée : « branche du lot = rail » lèverait la
+  // contrainte d'ascendance d'un lot qui travaille sur une branche de PR. Introuvable
+  // ou invalide : refus avant toute écriture. Le rail n'est admis que s'il est
+  // lui-même la branche déclarée. Un marqueur de l'arbitre doit concorder.
+  const declaree = typeof opts.brancheDeLaRequest === 'function' ? opts.brancheDeLaRequest(lot, request) : null;
+  if (!declaree) return { code: 2, refus: [`${request} ne déclare pas de BRANCHE_DU_LOT : la CI ne prend jamais le rail par défaut — la request doit nommer la branche de travail`] };
+  if (!marqueur.brancheValide(declaree)) return { code: 2, refus: [`BRANCHE_DU_LOT ${JSON.stringify(declaree)} déclaré par ${request} n'est pas un nom de branche de travail admis (ni main ni production)`] };
   const mq = marqueur.analyser(texte);
   if (mq.n > 1) return { code: 2, refus: [`${mq.n} marqueurs BRANCHE_DU_LOT dans la réponse : un seul est admis`] };
   if (mq.n === 1 && !marqueur.brancheValide(mq.branche)) return { code: 2, refus: [`BRANCHE_DU_LOT ${JSON.stringify(mq.branche)} n'est pas un nom de branche de travail admis (ni main ni production)`] };
-  return { code: 0, lot, request, decision: c.DECISION, closes: c.CLOSES, rail, contrat: c };
+  if (mq.n === 1 && mq.branche !== declaree) return { code: 2, refus: [`BRANCHE_DU_LOT ${JSON.stringify(mq.branche)} de l'arbitre diffère de celui que ${request} déclare (${JSON.stringify(declaree)})`] };
+  return { code: 0, lot, request, decision: c.DECISION, closes: c.CLOSES, rail, brancheDuLot: declaree, contrat: c };
 }
 
 function corps(texte, j, prov = {}) {
@@ -202,9 +209,9 @@ function corps(texte, j, prov = {}) {
     ...(marqueur.analyser(texte).n === 0 ? [
       '## Branche du lot (déposée par la CI)',
       '',
-      "L'arbitre n'a pas nommé de branche de travail : le travail de ce lot vit sur le rail. Marqueur unique lu par `handoff.js consommer --preuve-action` (decision-2 d'OUTILLAGE-REGULARISATION-20261026, condition 1) :",
+      `L'arbitre n'a pas nommé de branche de travail : la CI reprend celle que \`${j.request}\` déclare, sans jamais prendre le rail par défaut. Marqueur unique lu par \`handoff.js consommer --preuve-action\` (decision-2 d'OUTILLAGE-REGULARISATION-20261026, condition 1) :`,
       '',
-      `BRANCHE_DU_LOT: ${j.rail}`,
+      `BRANCHE_DU_LOT: ${j.brancheDuLot}`,
       '',
     ] : []),
     '## Texte de l\'arbitre',
@@ -225,6 +232,14 @@ function reponduesDansLeLot(lot) {
   }).filter(Boolean);
 }
 
+// La branche de travail que la request du lot déclare (marqueur dans son corps).
+function brancheDeLaRequest(lot, request) {
+  const f = path.join(RACINE, 'docs', 'handoff', 'lots', lot, request);
+  if (!fs.existsSync(f)) return null;
+  const a = marqueur.analyser(fs.readFileSync(f, 'utf8'));
+  return a.n === 1 ? a.branche : null;
+}
+
 function principal(argv) {
   const opt = n => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : undefined; };
   const reponse = opt('--reponse'), sortie = opt('--sortie');
@@ -232,7 +247,7 @@ function principal(argv) {
   const texte = fs.readFileSync(reponse, 'utf8');
   const etat = JSON.parse(fs.readFileSync(path.join(RACINE, 'docs', 'handoff', 'STATE.json'), 'utf8'));
   const j = juger(texte, etat, { railDuRun: opt('--rail-du-run'), shaDuRun: opt('--sha-du-run'),
-    shaDuRail: opt('--sha-du-rail'), repondues: reponduesDansLeLot });
+    shaDuRail: opt('--sha-du-rail'), repondues: reponduesDansLeLot, brancheDeLaRequest });
   if (j.code !== 0) {
     // Un refus de forme ne connaît pas son lot ; un palier humain, si. On ne
     // publie que ce qui est su : un `lot` vide serait pire qu'absent.
@@ -247,5 +262,5 @@ function principal(argv) {
   return 0;
 }
 
-module.exports = { juger, corps, reponduesDansLeLot, lectureDuRail, lireRailLu, relaieUnHumain, memeSha };
+module.exports = { juger, corps, brancheDeLaRequest, reponduesDansLeLot, lectureDuRail, lireRailLu, relaieUnHumain, memeSha };
 if (require.main === module) process.exitCode = principal(process.argv.slice(2));

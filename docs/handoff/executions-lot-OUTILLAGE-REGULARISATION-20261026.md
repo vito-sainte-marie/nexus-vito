@@ -7,9 +7,9 @@ après un nouvel arrêt du runner sans consommation. Rien sur `main`, rien en Pr
 1. **BRANCHE_DU_LOT obligatoire.** Garde dans `handoff.js` (`controlerMarqueurBranche`),
    module `outils/marqueur-branche-du-lot.js`. Arrivée du marqueur dans les décisions
    futures : (a) `materialiser-decision-ci.js` refuse un marqueur multiple ou invalide dans
-   la réponse de l'arbitre et injecte `BRANCHE_DU_LOT: <rail>` si absent ; (b) consigne 6 bis
+   la réponse de l'arbitre et, si l'arbitre n'en nomme pas, dépose la branche DÉCLARÉE PAR LA REQUEST du lot (marqueur `BRANCHE_DU_LOT:` dans son corps). Jamais le rail par défaut : request sans déclaration = refus (2) avant écriture ; marqueur de l'arbitre différent de celui de la request = refus ; le rail n'est admis que s'il est lui-même déclaré. Correction du 26/10 après vérification Guardian (un lot sur branche de PR retombait dans le cas 72216ec1) ; (b) consigne 6 bis
    de `ARBITRE-CHATGPT.md`. Épreuves : `test_marqueur_branche_du_lot_obligatoire_20261026.js`
-   (livraison L1–L5, mutations MU1–MU4), `test_preuve_action_branche_du_lot_20261026.js`.
+   (livraison L1–L10 dont L6 lot sur branche de PR, mutations MU1–MU5 dont MU5 qui remet le défaut « rail »), `test_preuve_action_branche_du_lot_20261026.js`.
    Decision-1 reste un cas régularisé (ancre `286edb06`).
 2. **Proposition A, étape 1.** `outils/semer-employe-automate-test.sql` : « Employé Test
    Auto », Test seul, idempotent, sans secret, sans compte Auth.

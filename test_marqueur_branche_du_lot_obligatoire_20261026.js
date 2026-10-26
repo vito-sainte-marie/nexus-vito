@@ -6,8 +6,8 @@
 //  - la GARDE (`handoff.js controlerMarqueurBranche`) : absent, multiple ou invalide =
 //    refus ; valide = accepté ; les décisions antérieures à l'ancre (decision-1 et
 //    decision-2, SHA réels du registre) restent régularisées ;
-//  - la LIVRAISON (`materialiser-decision-ci.js`) : la CI dépose `BRANCHE_DU_LOT: <rail>`
-//    quand l'arbitre n'en nomme pas, respecte un marqueur valide et unique, refuse un
+//  - la LIVRAISON (`materialiser-decision-ci.js`) : la CI dépose la branche DÉCLARÉE PAR LA REQUEST
+//    quand l'arbitre n'en nomme pas (jamais le rail par défaut ; introuvable = refus), respecte un marqueur valide et unique, refuse un
 //    marqueur multiple ou invalide. De bout en bout : un corps matérialisé passe la garde.
 // Mutations vérifiées sur des copies de l'outil : garde neutralisée, injection supprimée.
 'use strict';
@@ -71,22 +71,23 @@ epreuve('G6 — une décision postérieure à l\'ancre ne profite pas de la disp
 });
 
 // --- livraison ---
-const O = { shaDuRun: SHA, shaDuRail: SHA, railDuRun: RAIL };
+const BRANCHE_PR = 'claude/outillage-pr-158';
+const O = { shaDuRun: SHA, shaDuRail: SHA, railDuRun: RAIL, brancheDeLaRequest: () => BRANCHE_PR };
 function contrat(extra = '') {
   return `Analyse.\n\n${extra}RAIL_LU: ${SHA}\n\nNEXT_ACTION_CONTRACT\nDECISION: APPROVED\nCLOSES: true\nLOT: ${LOT}\nREQUEST: request-3.md\nHEAD: ${SHA.slice(0, 7)}\nLEASE: aucun\nGATE_STATE: GREEN\nPROOF_STATE: PROOF_VALID\nCONDITIONS: aucune\nBLOCKER: aucun\nSTOP_REQUIRED: aucun\nCAPACITE_REQUISE: aucune\nOWNER_NEXT: Claude\nEXECUTANT_NEXT: github-actions-claude\nACTION_NEXT: matérialiser la décision\n`;
 }
 const etat = { lots: { [LOT]: { statut: 'ATTENTE_DECISION', derniere_demande: 'request-3.md', rail: RAIL } } };
 const materialise = (mod, texte) => { const j = mod.juger(texte, etat, O); assert.strictEqual(j.code, 0, JSON.stringify(j.refus)); return mod.corps(texte, j, {}); };
 
-epreuve('L1 — l\'arbitre n\'a pas nommé de branche : la CI dépose BRANCHE_DU_LOT: <rail>, une seule fois', () => {
+epreuve('L1 — l\'arbitre n\'a pas nommé de branche : la CI dépose la branche de la request, une seule fois', () => {
   const c = materialise(m, contrat());
   assert.strictEqual(require(path.join(OUTILS, 'marqueur-branche-du-lot.js')).analyser(c).n, 1);
-  assert.ok(new RegExp(`^BRANCHE_DU_LOT: ${RAIL}$`, 'm').test(c));
+  assert.ok(new RegExp(`^BRANCHE_DU_LOT: ${BRANCHE_PR}$`, 'm').test(c));
 });
 epreuve('L2 — un marqueur valide de l\'arbitre est respecté, la CI n\'en ajoute pas un second', () => {
-  const c = materialise(m, contrat('BRANCHE_DU_LOT: ma-branche-de-travail\n'));
+  const c = materialise(m, contrat(`BRANCHE_DU_LOT: ${BRANCHE_PR}\n`));
   const a = require(path.join(OUTILS, 'marqueur-branche-du-lot.js')).analyser(c);
-  assert.deepStrictEqual([a.n, a.branche], [1, 'ma-branche-de-travail']);
+  assert.deepStrictEqual([a.n, a.branche], [1, BRANCHE_PR]);
 });
 epreuve('L3 — un marqueur multiple ou invalide dans la réponse de l\'arbitre : refus (2)', () => {
   assert.strictEqual(m.juger(contrat('BRANCHE_DU_LOT: a\nBRANCHE_DU_LOT: b\n'), etat, O).code, 2);
@@ -94,11 +95,47 @@ epreuve('L3 — un marqueur multiple ou invalide dans la réponse de l\'arbitre 
 });
 epreuve('L4 — de bout en bout : un corps matérialisé sans marqueur de l\'arbitre passe la garde', () => {
   const r = h.controlerMarqueurBranche(materialise(m, contrat()), POSTERIEUR);
-  assert.deepStrictEqual([r.ok, r.branche], [true, RAIL]);
+  assert.deepStrictEqual([r.ok, r.branche], [true, BRANCHE_PR]);
 });
 epreuve('L5 — la consigne de l\'arbitre décrit le marqueur (sinon personne ne sait le rendre)', () => {
   const t = fs.readFileSync(path.join(RACINE, 'docs/skills/nexus-handoff-fast-track/ARBITRE-CHATGPT.md'), 'utf8');
   assert.ok(/BRANCHE_DU_LOT: <branche>/.test(t) && /jamais `?main`? ni `?production/.test(t));
+});
+
+epreuve('L6 — lot sur branche de PR : le marqueur porte la branche de la PR, JAMAIS le rail (cas 72216ec1)', () => {
+  const c = materialise(m, contrat());
+  assert.ok(!new RegExp(`^BRANCHE_DU_LOT: ${RAIL}$`, 'm').test(c), 'le rail ne doit pas être déposé par défaut');
+  assert.notStrictEqual(BRANCHE_PR, RAIL);
+});
+epreuve('L7 — la request ne déclare aucune branche : refus (2) avant écriture, pas de repli sur le rail', () => {
+  for (const decl of [undefined, () => null, () => '']) {
+    const j = m.juger(contrat(), etat, { ...O, brancheDeLaRequest: decl });
+    assert.strictEqual(j.code, 2, JSON.stringify(j.refus));
+    assert.ok(/ne déclare pas de BRANCHE_DU_LOT/.test(j.refus[0]));
+  }
+});
+epreuve('L8 — le rail n\'est admis que s\'il est déclaré comme branche de travail par la request', () => {
+  const j = m.juger(contrat(), etat, { ...O, brancheDeLaRequest: () => RAIL });
+  assert.strictEqual(j.code, 0);
+  assert.ok(new RegExp(`^BRANCHE_DU_LOT: ${RAIL}$`, 'm').test(m.corps(contrat(), j, {})));
+});
+epreuve('L9 — une branche de l\'arbitre différente de celle de la request : refus (2) ; déclarée invalide : refus (2)', () => {
+  assert.strictEqual(m.juger(contrat('BRANCHE_DU_LOT: autre-branche\n'), etat, O).code, 2);
+  assert.strictEqual(m.juger(contrat(), etat, { ...O, brancheDeLaRequest: () => 'main' }).code, 2);
+});
+epreuve('L10 — lecture réelle : brancheDeLaRequest lit le marqueur unique du corps de la request', () => {
+  const dossier = path.join(RACINE, 'docs', 'handoff', 'lots', `ZZ-${process.pid}`);
+  fs.mkdirSync(dossier, { recursive: true });
+  try {
+    fs.writeFileSync(path.join(dossier, 'request-1.md'), `---\nbranch: ${RAIL}\n---\nBRANCHE_DU_LOT: ${BRANCHE_PR}\n`);
+    fs.writeFileSync(path.join(dossier, 'request-2.md'), '---\nbranch: x\n---\nrien\n');
+    fs.writeFileSync(path.join(dossier, 'request-3.md'), 'BRANCHE_DU_LOT: a\nBRANCHE_DU_LOT: b\n');
+    const l = `ZZ-${process.pid}`;
+    assert.strictEqual(m.brancheDeLaRequest(l, 'request-1.md'), BRANCHE_PR);
+    assert.strictEqual(m.brancheDeLaRequest(l, 'request-2.md'), null);
+    assert.strictEqual(m.brancheDeLaRequest(l, 'request-3.md'), null);
+    assert.strictEqual(m.brancheDeLaRequest(l, 'request-9.md'), null);
+  } finally { fs.rmSync(dossier, { recursive: true, force: true }); }
 });
 
 // --- mutations ---
@@ -117,6 +154,16 @@ epreuve('MU3 — injection CI supprimée : L1/L4 doivent rougir', () => {
 epreuve('MU4 — refus du multiple retiré côté CI : L3 doit rougir', () => {
   const mut = muter('materialiser-decision-ci.js', 'if (mq.n > 1)', 'if (false)');
   assert.notStrictEqual(mut.juger(contrat('BRANCHE_DU_LOT: a\nBRANCHE_DU_LOT: b\n'), etat, O).code, 2, 'la mutation n\'a pas pris');
+});
+
+epreuve('MU5 — défaut « rail » remis (la request n\'est plus lue) : L6/L7 doivent rougir', () => {
+  const mut = muter('materialiser-decision-ci.js',
+    "const declaree = typeof opts.brancheDeLaRequest === 'function' ? opts.brancheDeLaRequest(lot, request) : null;",
+    'const declaree = rail;');
+  const j = mut.juger(contrat(), etat, O);
+  assert.strictEqual(j.code, 0, 'la mutation n\'a pas pris');
+  assert.ok(new RegExp(`^BRANCHE_DU_LOT: ${RAIL}$`, 'm').test(mut.corps(contrat(), j, {})), 'le défaut rail doit réapparaître');
+  assert.strictEqual(mut.juger(contrat(), etat, { ...O, brancheDeLaRequest: undefined }).code, 0, 'plus de refus sans déclaration');
 });
 
 console.log(`\n${total - echecs}/${total}`);

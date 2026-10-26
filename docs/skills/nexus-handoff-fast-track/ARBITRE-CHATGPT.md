@@ -108,12 +108,12 @@ question. Une preuve encore valide ne se redemande pas (`PROOF_STATE:
 PROOF_VALID`) : une modification de `docs/handoff/**` n'invalide pas une
 preuve Paye ou FDJ.
 
-**6 bis. `BRANCHE_DU_LOT`.** Si l'action que tu prescris vivra sur une
-branche de travail autre que le rail, écris UNE ligne, seule, en début de
-ligne : `BRANCHE_DU_LOT: <branche>` (jamais `main` ni `production`). Sinon
-n'écris rien : la CI dépose `BRANCHE_DU_LOT: <rail>` en matérialisant ta
-décision. Une seule occurrence, jamais deux ; `handoff.js consommer
---preuve-action` refuse toute décision sans marqueur unique et valide.
+**6 bis. `BRANCHE_DU_LOT`.** La branche de travail du lot est déclarée par
+la request (une ligne `BRANCHE_DU_LOT: <branche>`, jamais `main` ni `production`) ; la CI la recopie dans ta décision, et refuse de matérialiser
+si la request n'en déclare pas. N'écris rien, sauf pour répéter la même
+branche : une branche différente de celle de la request est refusée. Une
+seule occurrence, jamais deux ; `handoff.js consommer --preuve-action`
+refuse toute décision sans marqueur unique et valide.
 
 **7. Ta réponse est le livrable : tu ne postes rien.** Tu lis le dépôt, tu
 n'y écris jamais : ni commit, ni branche, ni PR, ni commentaire sur l'issue

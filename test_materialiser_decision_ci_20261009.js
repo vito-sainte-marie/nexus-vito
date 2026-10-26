@@ -39,7 +39,8 @@ const APPEL_VALIDER = '  const v = valider(texte, { lot, request });\n';
 const SHA = 'c41867f1d2b3a49e8f05c6d7e8a9b0c1d2e3f405';
 const SHA_COURT = SHA.slice(0, 7);
 const AUTRE_SHA = '7506f635d35fc19d825bdac1a8b55019a7a270c9';
-const O = (o = {}) => ({ shaDuRun: SHA, shaDuRail: SHA, ...o });
+const BRANCHE_REQ = () => 'branche-de-pr-test';
+const O = (o = {}) => ({ shaDuRun: SHA, shaDuRail: SHA, brancheDeLaRequest: BRANCHE_REQ, ...o });
 
 // Les épreuves antérieures au 10/10/2026 n'avaient pas à connaître les SHA :
 // le wrapper les fournit comme la CI, et chacune peut encore les défaire.
@@ -74,25 +75,25 @@ function charger(fichier) {
 let m = charger(OUTIL);
 
 epreuve('M1 — la demande attendue, sur le rail du run : matérialisable', () => {
-  const j = jg(contrat({}), etat({}), { railDuRun: RAIL });
+  const j = jg(contrat({}), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(j.code, 0, JSON.stringify(j.refus));
   assert.deepStrictEqual([j.lot, j.request, j.decision, j.closes, j.rail], [LOT, REQ, 'APPROVED', 'true', RAIL]);
 });
 
 epreuve('M2 — un contrat non conforme est refusé (2) avant tout regard au registre', () => {
-  const j = jg(contrat({ DECISION: 'GO' }), etat({}), { railDuRun: RAIL });
+  const j = jg(contrat({ DECISION: 'GO' }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(j.code, 2);
   assert.ok(j.refus.some(x => /hors vocabulaire/.test(x)), j.refus.join(' / '));
   assert.strictEqual(jg('pas de contrat', etat({}), {}).code, 2);
 });
 
 epreuve('M3 — la mention qui relance Claude est refusée', () => {
-  const j = jg(contrat({ ACTION_NEXT: '@claude matérialise' }), etat({}), { railDuRun: RAIL });
+  const j = jg(contrat({ ACTION_NEXT: '@claude matérialise' }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(j.code, 2, JSON.stringify(j));
 });
 
 epreuve('M4 — une autre demande que celle du registre : refus (2) si attendue, rien à faire (3) sinon', () => {
-  const j = jg(contrat({ REQUEST: 'request-1.md' }), etat({}), { railDuRun: RAIL });
+  const j = jg(contrat({ REQUEST: 'request-1.md' }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(j.code, 2, JSON.stringify(j));
   assert.ok(j.refus.some(x => /attend une décision sur request-2\.md/.test(x)), j.refus.join(' / '));
   const k = jg(contrat({ REQUEST: 'request-1.md' }), etat({ statut: 'DECISION_CONSOMMEE' }), { railDuRun: RAIL });
@@ -124,7 +125,7 @@ epreuve('M8 — le run doit porter le rail du lot', () => {
 
 epreuve('M9 — le corps reproduit le verdict tel quel et dit ce qui n\'a PAS été contrôlé', () => {
   const texte = contrat({ CONDITIONS: 'recette Test verte avant tout déploiement' });
-  const j = jg(texte, etat({}), { railDuRun: RAIL });
+  const j = jg(texte, etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   const c = m.corps(texte, j, { run: '123', commentaire: 'https://example.invalid/c/1' });
   assert.ok(c.startsWith(`# Décision sur ${REQ} — APPROVED, lot clos\n`), c.split('\n')[0]);
   assert.ok(c.includes(texte.trimEnd()), 'le texte de l\'arbitre doit être reproduit intégralement');
@@ -155,26 +156,26 @@ epreuve('M11 — en CLI, sur le registre réel, un lot clos ne se rematérialise
 // ── La lecture du rail doit être prouvée ────────────────────────────────
 
 epreuve('M12 — sans `RAIL_LU`, rien ne se matérialise : la lecture du rail n\'est pas prouvée', () => {
-  const j = jg(contrat({}, null), etat({}), { railDuRun: RAIL });
+  const j = jg(contrat({}, null), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(j.code, 2, JSON.stringify(j.refus));
   assert.ok(/RAIL_LU absent/.test(j.refus.join(' ')), JSON.stringify(j.refus));
 });
 
 epreuve('M13 — un `RAIL_LU` ou un `HEAD` qui n\'est pas le SHA du run : refus (2)', () => {
-  const a = jg(contrat({}, AUTRE_SHA), etat({}), { railDuRun: RAIL });
+  const a = jg(contrat({}, AUTRE_SHA), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(a.code, 2, JSON.stringify(a.refus));
   assert.ok(/RAIL_LU/.test(a.refus.join(' ')) && /n'a pas lu le corps arbitré/.test(a.refus.join(' ')), JSON.stringify(a.refus));
-  const b = jg(contrat({ HEAD: AUTRE_SHA }), etat({}), { railDuRun: RAIL });
+  const b = jg(contrat({ HEAD: AUTRE_SHA }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(b.code, 2, JSON.stringify(b.refus));
   assert.ok(/^HEAD /.test(b.refus.join(' ')), JSON.stringify(b.refus));
-  const c = jg(contrat({ HEAD: 'pas-un-sha' }), etat({}), { railDuRun: RAIL });
+  const c = jg(contrat({ HEAD: 'pas-un-sha' }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
   assert.strictEqual(c.code, 2, JSON.stringify(c.refus));
   assert.ok(/ni un SHA ni INACCESSIBLE/.test(c.refus.join(' ')), JSON.stringify(c.refus));
 });
 
 epreuve('M14 — `INACCESSIBLE` n\'est admis que si le run EST la tête du rail', () => {
   const t = contrat({ HEAD: 'INACCESSIBLE' }, 'INACCESSIBLE');
-  assert.strictEqual(jg(t, etat({}), { railDuRun: RAIL }).code, 0,
+  assert.strictEqual(jg(t, etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ }).code, 0,
     'relais intégral, rail immobile : le substitut de decision-2.md tient');
   const bouge = jg(t, etat({}), { railDuRun: RAIL, shaDuRail: AUTRE_SHA });
   assert.strictEqual(bouge.code, 2, JSON.stringify(bouge.refus));
@@ -183,7 +184,7 @@ epreuve('M14 — `INACCESSIBLE` n\'est admis que si le run EST la tête du rail'
 
 epreuve('M15 — sans SHA fournis, la garde se ferme : une garde qui s\'efface ne garde rien', () => {
   for (const t of [contrat({}), contrat({ HEAD: 'INACCESSIBLE' }, 'INACCESSIBLE')]) {
-    const j = m.juger(t, etat({}), { railDuRun: RAIL });
+    const j = m.juger(t, etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
     assert.strictEqual(j.code, 2, JSON.stringify(j.refus));
   }
   const partiel = m.juger(contrat({ HEAD: 'INACCESSIBLE' }, 'INACCESSIBLE'), etat({}),
@@ -192,8 +193,8 @@ epreuve('M15 — sans SHA fournis, la garde se ferme : une garde qui s\'efface n
 });
 
 epreuve('M16 — un SHA abrégé qui préfixe celui du run est admis', () => {
-  assert.strictEqual(jg(contrat({ HEAD: SHA_COURT }, SHA), etat({}), { railDuRun: RAIL }).code, 0);
-  assert.strictEqual(jg(contrat({ HEAD: SHA }, SHA_COURT), etat({}), { railDuRun: RAIL }).code, 0);
+  assert.strictEqual(jg(contrat({ HEAD: SHA_COURT }, SHA), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ }).code, 0);
+  assert.strictEqual(jg(contrat({ HEAD: SHA }, SHA_COURT), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ }).code, 0);
   assert.ok(!m.memeSha('', ''), 'deux vides ne sont pas le même commit');
   assert.ok(!m.memeSha(SHA_COURT, AUTRE_SHA.slice(0, 7)));
 });
@@ -223,7 +224,7 @@ epreuve('M18 — BLOCKED, `OWNER_NEXT: Frédéric` ou un `STOP_REQUIRED` : code 
     ['STOP_REQUIRED renseigné', contrat({ STOP_REQUIRED: 'PREUVE_OBLIGATOIRE_IMPOSSIBLE' })],
   ];
   for (const [nom, t] of cas) {
-    const j = jg(t, etat({}), { railDuRun: RAIL });
+    const j = jg(t, etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ });
     assert.strictEqual(j.code, 4, `${nom} : ${JSON.stringify(j.refus)}`);
     assert.ok(/reste à un humain/.test(j.refus.join(' ')), `${nom} : ${JSON.stringify(j.refus)}`);
     assert.strictEqual(j.contrat, undefined, `${nom} : aucun corps ne doit être composable`);
@@ -232,7 +233,7 @@ epreuve('M18 — BLOCKED, `OWNER_NEXT: Frédéric` ou un `STOP_REQUIRED` : code 
     assert.strictEqual(j.lot, LOT, `${nom} : le palier humain doit nommer son lot`);
     assert.strictEqual(j.request, REQ, `${nom} : et la demande arbitrée`);
   }
-  assert.strictEqual(jg(contrat({ STOP_REQUIRED: 'non' }), etat({}), { railDuRun: RAIL }).code, 0,
+  assert.strictEqual(jg(contrat({ STOP_REQUIRED: 'non' }), etat({}), { railDuRun: RAIL, brancheDeLaRequest: BRANCHE_REQ }).code, 0,
     '« non » et « aucun » ne sont pas des motifs d\'arrêt');
 });
 
