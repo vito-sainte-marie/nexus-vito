@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PRISE-DE-POSTE-UN-ECRAN-20261025/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/PRISE-DE-POSTE-UN-ECRAN-20261025/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: PRISE-DE-POSTE-UN-ECRAN-20261025
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -19,33 +19,35 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 164-fichiers
+  - id: suite
+    classe: MEASURED
+    valeur: 303/310
+  - id: ci-pr158
+    classe: VERIFIED
+    valeur: 246b5765-checks-verts
 ---
-# PRISE-DE-POSTE-UN-ECRAN-20261025 : correctif de Frédéric (25/10, 08:10), pas de présélection
+# PRISE-DE-POSTE-UN-ECRAN-20261025 : preuve des conditions de decision-2
 
-## Preuve des conditions de decision-1
-decision-1 approuvait la présélection d'après le planning. Le correctif de Frédéric ci-dessous la retire de ce lot ; les conditions qui n'avaient d'objet que pour elle ne s'appliquent plus. Ce qui a été fait, et ce qui reste vrai :
+## Preuve des conditions de decision-2
+PR #158 (brouillon, vers `production`), branche `prise-de-poste-un-ecran-20261025`, tête `246b5765`. Rien n'est fusionné, promu ni déployé en Production.
 
-- **Lecture Production** : faite en lecture seule, filtrée `vito-sainte-marie`, agrégats par statut et tache, sans identifiant ni nom d'employé, aucune mutation. Détail et résultat dans `docs/executions-lot-PRISE-DE-POSTE-UN-ECRAN-20261025.md` (commit `a7710c5`). Résultat : 335 lignes de l'été (27/07 → 31/08), **toutes non publiées**, aucune sur les 14 derniers jours.
-- **Écart de condition, écrit tel quel** : la lecture avait le GO de Frédéric, mais ma seconde requête a **dépassé la condition de decision-1** : toutes les dates au lieu des 14 derniers jours, lignes non publiées incluses, au lieu des seules lignes publiées. Aucune donnée personnelle n'a été restituée, rien n'a été écrit.
-- **Aucune nouvelle lecture Production** ne sera faite dans ce lot.
-- `shifts.role_prevu` n'est la source d'aucune proposition de poste (maintenu).
-- **Mutations** : aucune en Production. L'épreuve avec mutation de « Ma progression » (ni service, ni pointage, ni retard) est maintenue pour la construction.
-- PR en brouillon vers `production`, recette Guardian sur l'aperçu, sans fusion, promotion ni déploiement (maintenu).
-- Les données de planning fictives sur Test, prévues pour la présélection, ne sont plus nécessaires dans ce lot.
+1. **Trois cartes, sans présélection, un appui.** Piste, Caisse, Renfort s'affichent sans présélection ni lecture du planning ; le poste se choisit en touchant sa carte. Recette Guardian sur l'alias d'aperçu, en employé puis en manager : conforme.
+2. **« Ma progression » toujours visible**, première avec « Votre service est terminé » une fois la journée finie. Zone de recherche en haut de Ma Progression. Recette Guardian conforme.
+3. **Aucun planning fictif, aucune nouvelle lecture ou écriture Production, aucune migration.** Les recettes ont eu lieu sur Test uniquement. Le service de recette du manager (`d136d364-5c55-46e5-b211-33b7130c8d32`) a été ouvert puis supprimé sur Test, avec le GO de Frédéric ; Guardian a constaté son absence. `cbd02130` est conservé jusqu'à la fin de la recette de #158 ; `afdfac9a` n'a pas été touché.
+4. **PR en brouillon vers `production`**, recette Guardian sur l'aperçu, aucune fusion.
+5. **`OPTION-PLANNING-PRISE-DE-POSTE` reste hors périmètre** : fiche seulement, aucun dépôt, aucune migration.
 
-## Correctif de Frédéric (25/10/2026, 08:10)
-1. **Pas de présélection d'après le planning dans ce lot.** Les trois cartes (Piste, Caisse, Renfort) s'affichent sans présélection. Les employés sont polyvalents.
-2. Le point 2 de « Avant de commencer » (lecture du planning sur Test et en Production) est **annulé** pour ce lot.
-3. **« Ma progression » reste toujours visible** en bas de l'écran. Journée terminée : « Ma progression » passe en premier avec « Votre service est terminé ». L'inversion pour les jours de repos attend le lot suivant.
-4. **Règle n°4 de la partie F, remplacée par** : « Les employés sont polyvalents : sans l'option planning, aucun poste n'est présélectionné à la prise de poste. »
+## Ce qui s'est ajouté pendant la recette
+- **Bouton « Continuer »** : il réutilisait la classe des cartes photo. Il a désormais sa classe `.pdp-bouton` (charte cyan, 14 px, 47 px de haut), avec une garde et sa mutation. Guardian : conforme.
+- **Incident `cbd02130`** : service clos par `pointage_depart` sans aucun pointage lié, à 13:42:02Z. Cause inconnue. Fiche `INC-74839140d278` ouverte dans `INCIDENTS.jsonl` (rail, 72216ec1), statut OUVERT. Guardian vérifie le rappel de sécurité demain matin avec Employé Test B.
+- **CI rouge, puis corrigée.** La garde « Accueil : scriptRecherche » comparait une référence sans empreinte, alors que la construction épingle `nexus-recherche.js?v=…`. Elle est devenue tolérante à l'empreinte, et sa mutation rougit toujours (246b5765).
 
-Tout le reste de la request-1 est inchangé : un appui sur la carte, retrait de « Deux chemins », rappel de sécurité, graphisme NEXUS, images WebP, règles 1, 2, 3 et 5, preuves. **Objectif d'appuis : 1 appui, sans présélection, en touchant sa carte.** Le périmètre A, B (sans présélection), C (sans l'inversion repos), D, E et F est celui de la request-1 ; le hors-périmètre aussi.
-
-## Lot suivant, en fiche seulement : OPTION-PLANNING-PRISE-DE-POSTE (non déposé)
-Interrupteur « Rattacher la prise de poste au planning » dans Paramètres Station, désactivé par défaut ; nouvelle colonne booléenne de `station_config`, défaut `false`, migration testée sur Test puis appliquée en Production sur GO de Frédéric. Activé : poste du jour mis en avant, jour de repos inverse l'écran. Désactivé ou planning absent : comportement de ce lot. Lecture tolérante : colonne absente ou nulle vaut désactivé. Il n'aura de sens qu'une fois le planning réellement publié dans NEXUS.
+## Preuves chiffrées
+- Suite lancée après `outils/build.sh` avec l'environnement de la CI : **303/310**, avec exactement les 7 échecs connus. La garde du lot compte 63 vérifications.
+- Check GitHub sur 246b5765 : non-regression ×2 pass, « Construire et éprouver l'artefact » pass, Cloudflare Pages pass. GitHub Pages et Supabase Preview ne s'exécutent pas.
 
 ## À arbitrer
-1. Ce recadrage (pas de présélection, pas de lecture Production, « Ma progression » toujours visible) convient-il ?
-2. Le lot est construit sans jeu de planning fictif, PR en brouillon vers `production`, recette Claude Guardian sur l'aperçu.
+1. Les cinq conditions de decision-2 sont-elles tenues ?
+2. Le lot peut-il passer à la fusion, sous réserve du GO de Frédéric (aucune fusion, promotion ni déploiement sans lui) ?
 
-Aucune fusion, aucun déploiement, aucune lecture ni écriture de la Production sans le GO de Frédéric.
+Aucune lecture ni écriture de la Production sans le GO de Frédéric.
