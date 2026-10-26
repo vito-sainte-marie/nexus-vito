@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: OUTILLAGE-REGULARISATION-20261026
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,71 +20,67 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 166-fichiers
-  - id: epreuves-6510a2e3
+  - id: ci-b9e34f97
     classe: VERIFIED
-    valeur: test_arbitrage_deja_traite_20261026.js 9/9 vert, mutations M1 et M2 rougissent C1
-  - id: epreuves-631f5d00
+    valeur: run-Tests-40259971081-success
+  - id: consommation-decision-1
     classe: VERIFIED
-    valeur: test_demande_classe_preuve_20261026.js 3/3 vert, mutation de la garde rougit A
-  - id: ci-rail-e251592c
+    valeur: 3259eec7-preuve-action-b9e34f97
+  - id: epreuves-bornage
     classe: VERIFIED
-    valeur: run Tests 40253407612 success sur e251592c; run 40253522931 success sur 48fea8fd
-  - id: tip-rail
+    valeur: test_preuve_action_branche_du_lot_20261026.js-8/8-M1-mord
+  - id: recette-test-a
     classe: VERIFIED
-    valeur: 4828609f
-  - id: paires-employe-test-a
+    valeur: test_recette_navigateur_test_20260907.js-89/89
+  - id: run-runner-40258106584
     classe: VERIFIED
-    valeur: 10 services depuis le 25/10 sur Supabase Test, 5 paires espacees de 1,1 s, une par run Tests du rail; source tests.yml etape Recette navigateur NEXUS Test
-  - id: production
-    classe: NOT_APPLICABLE
-    valeur: aucune ecriture ni lecture Production
+    valeur: success-sans-consommation
 ---
-# OUTILLAGE-REGULARISATION-20261026 : régulariser trois correctifs d'outillage faits sans lot, borner `--preuve-action`, expliquer les paires de services d'Employé Test A
+# OUTILLAGE-REGULARISATION-20261026 : request-2 — preuve des conditions de decision-1, un écart à ratifier, deux propositions
 
-*Déposé sur instruction de Frédéric (26/10/2026), PRISE-DE-POSTE-UN-ECRAN-20261025 étant DECISION_CONSOMMEE (decision-3, closes: true) ; aucun lot actif, règle D3 respectée. Cette request sert aussi de test du relais (crédit OpenAI rechargé). Le point 2 n'est pas codé : il attend la décision.*
+## Preuve des conditions de decision-1
 
-## 1. Trois commits d'outillage poussés sur le rail hors lot, à régulariser
+Reprise autorisée par Frédéric après un tour incomplet du runner : `github-actions-claude` (run « Claude » 40258106584) a poussé le travail (`b9e34f97`) mais n'a pas consommé la décision. Je l'ai consommée avec `--preuve-action b9e34f97` (commit `3259eec7`, statut `DECISION_CONSOMMEE`). Ce qui suit est lu sur le rail et rejoué, pas déclaré.
 
-Ils ont été faits pendant PRISE-DE-POSTE pour lever des incidents, sans demande préalable. Chacun est rejoué ici sur la tête du rail (4828609f).
+1. **Ratification des trois commits** (`6510a2e3`, `631f5d00`, `e251592c`) : acquise par decision-1. Épreuves rejouées sur le rail : `test_arbitrage_deja_traite_20261026.js` 9/9, `test_demande_classe_preuve_20261026.js` 3/3.
+2. **Bornage de `--preuve-action`** : implémenté dans `commitHorsRegistre(ref, brancheDuLot)`. Refus avant écriture : `PREUVE_ACTION_HORS_BRANCHE_DU_LOT`, `BRANCHE_DU_LOT_INTROUVABLE`. `test_preuve_action_branche_du_lot_20261026.js` : 8/8 (rail seul refusé, SHA de la branche accepté, SHA inconnu refusé, branche introuvable refusée, trois cas voisins verts : sans marqueur, `--cloture`, `--prise-en-charge` idempotente). **Mutation de l'ascendance rejouée par moi** : l'épreuve M1 remplace la ligne `merge-base --is-ancestor` par un bloc vide dans une copie de `handoff.js`, et vérifie que le SHA rail-seul est alors accepté à tort. L'épreuve M1 passe, donc la mutation a mordu et la garde est bien celle qui refuse.
+3. **Scénario Employé Test A** : les deux prises de poste successives sont conservées ; le second service est fermé par l'écran (pointage de départ, jamais SQL), l'échec de cette fermeture reste informatif. `test_recette_navigateur_test_20260907.js` : 89/89 (5 épreuves ajoutées par `b9e34f97`). Aucun service historique nettoyé.
+4. **Ni Production ni `main`** : `b9e34f97` touche `docs/learning`, `outils/handoff.js`, `outils/recette-navigateur-test.js` et deux fichiers de test. **CI verte avant consommation** : run « Tests » 40259971081, success sur `b9e34f97`.
 
-| Commit | Objet | Épreuve | Mutation |
-|---|---|---|---|
-| 6510a2e3 | Relais : une demande déjà arbitrée ne repart pas vers l'API (`NO_WORK`, clé = lot + demande, `outils/arbitrage-deja-traite.js`). Cause : le relais hachait le corps intégral du réveil, qui change avec la tête du rail ; réarbitrage, 429, CI rouge (run 40250278774 sur 033ad017). | `test_arbitrage_deja_traite_20261026.js` : 9/9 | M1 (sans l'appel à l'outil) et M2 (sans le NO_WORK) font rougir C1 |
-| 631f5d00 | `handoff.js demande` refuse une classe de preuve hors vocabulaire avant toute écriture (`REFUS PREUVE_CLASSE_HORS_VOCABULAIRE`). Cause : request-3 de PRISE-DE-POSTE est partie avec `MEASURED` et a été réécrite après publication (INC-17adb4e168a9). | `test_demande_classe_preuve_20261026.js` : 3/3 | M : sans la garde, MEASURED écrit une demande, A rougit |
-| e251592c | Relais : une seule lecture des commentaires dans l'étape (un seul `gh api`, réutilisé pour la marque `nexus-arbitrage`). Correction de 6510a2e3, dont la CI était rouge. | Régression : la CI du rail passe (run 40253407612 sur e251592c, puis 40253522931 sur 48fea8fd, success) | Pas de mutation propre : le correctif ne change pas de comportement, l'inventaire des épreuves est intact |
+## Écart à déclarer : où se lit la branche du lot
 
-Limite avouée : la garde de e251592c n'a pas de mutation dédiée. Elle est couverte par la mutation M1/M2 de 6510a2e3 sur le même bloc, pas par une épreuve à elle.
+Decision-1, condition 2, dit : « la branche provient exclusivement de l'enveloppe de décision ». Le runner a lu `BRANCHE_DU_LOT: <branche>` dans le **corps** de la décision (regex `^BRANCHE_DU_LOT:`), et non dans l'enveloppe, qui reste fixée au rail par `brancheRailValide` ; ajouter un champ à l'enveloppe changerait `nexus-handoff/2`. C'est une interprétation de la condition 2, pas son texte. Conséquence : une décision sans marqueur garde le comportement ancien (aucune restriction au-delà du rail), y compris decision-1 elle-même, qui ne porte pas le marqueur. **Nous demandons à l'arbitre de ratifier ou non cette lecture.** Si non, il faut soit un champ d'enveloppe versionné, soit un argument explicite, à trancher.
 
-## 2. Proposition : `--preuve-action` n'accepte qu'un commit de la branche du lot
+## Corrections au message de `b9e34f97`
 
-Constat : `consommer --preuve-action` appelle `commitHorsRegistre` (handoff.js ~622), qui vérifie seulement que le commit touche autre chose que le registre. Le 26/10 il a accepté `72216ec1`, fiche d'incident INC-74839140d278, comme preuve de l'action de decision-2, alors que l'action était `246b5765` sur `prise-de-poste-un-ecran-20261025`.
+Le message de commit annonce un câblage de `tests.yml` à faire et « consigné en demande Handoff ». C'est inexact :
+- `run-tests.js` lance tout fichier `test_*.js` du répertoire (`readdirSync` + `startsWith('test_')`). Les épreuves de `6510a2e3`, de `631f5d00` et de `b9e34f97` sont donc déjà dans la CI via `node run-tests.js`. **Aucun câblage de `tests.yml` n'est à faire.**
+- La « demande Handoff » annoncée n'existe pas : aucun fichier de demande n'a été déposé pour ce motif.
 
-Demandé :
-1. `--preuve-action <sha>` refuse (`REFUS PREUVE_ACTION_HORS_BRANCHE_DU_LOT`, avant toute écriture) sauf si le SHA est un ancêtre de `origin/<branche du lot>` (`git merge-base --is-ancestor`) et n'est pas porté par le seul rail. La branche vient de l'enveloppe de la décision, jamais d'un argument.
-2. Épreuve rouge puis verte : SHA du rail seul refusé, SHA de la branche du lot accepté, SHA inconnu refusé. Mutation : neutraliser le test d'ascendance fait rougir l'épreuve.
-3. Cas voisins à garder verts : lot dont l'action est sur le rail lui-même (branche du lot = rail), consommation `--cloture`, `--prise-en-charge`.
-4. Si `origin/<branche>` est introuvable, le refus est explicite (`BRANCHE_DU_LOT_INTROUVABLE`), jamais un passage silencieux.
+## Tour incomplet du runner
 
-À arbitrer : le cas « branche du lot = rail » (pas de restriction supplémentaire) vous convient-il ?
+Le run 40258106584 s'est terminé en succès avec le travail poussé et la décision non consommée (statut resté `ATTENTE_CONSOMMATION_DECISION`). Je n'ai pas relevé de journal expliquant l'arrêt. À traiter comme un défaut de la boucle : un tour qui pousse du travail sans consommer ne doit pas se terminer en succès silencieux.
 
-## 3. Les paires de services d'Employé Test A : l'outil, et pourquoi deux services
+## Proposition A : un employé de recette réservé à l'automate
 
-**Outil** : la recette navigateur `outils/recette-navigateur-test.js`, étape « Recette navigateur NEXUS Test » de `.github/workflows/tests.yml` (ligne 1548, condition `NEXUS_REF_EST_LE_RAIL == '1'`), exécutée à chaque run `Tests` poussé sur le rail. Elle se connecte en « Employé Test A » (secrets `NEXUS_TEST_EMPLOYEE_A_*`) sur NEXUS Test.
+Constat : `recette-navigateur-test.js` joue ses scénarios avec Employé Test A, que les recettes manuelles utilisent aussi. Les deux prises de poste automatiques ferment, par `prise_de_poste_suivante`, les services ouverts à la main.
 
-**Pourquoi deux** : le scénario employé prend le poste deux fois de suite, volontairement. Le commentaire du workflow l'écrit : « prise de poste, puis prise de poste AVEC un quart déjà ouvert, le cas ordinaire de l'équipe que l'index d'unicité pourrait refuser ». La première ouvre un service ; la seconde ouvre le suivant, et le déclencheur `nexus_shifts_avant_insertion` clôt le précédent (`cloture_source = prise_de_poste_suivante`). Le rôle est `caissiere` parce que le scénario clique la première carte de rôle.
+1. Créer un employé de recette réservé à l'automate sur Test, par un jeu **versionné et idempotent** (fichier SQL ou JSON sous `docs/` avec garde de réexécution : `insert … on conflict do nothing`, rejouable sans effet), sur le site de recette, avec les rôles que les scénarios exigent. Aucune écriture Production.
+2. Le scénario passe à cet employé. **Decision-1 garde Employé Test A pour l'instant** : la transition se fait donc en deux temps. D'abord ajouter le nouvel employé et un second scénario qui l'utilise, tout en conservant le scénario d'Employé Test A et sa fermeture par l'écran ; ensuite, une fois le nouveau scénario vert sur plusieurs runs, retirer Employé Test A de l'automate.
+3. Épreuve : le jeu est rejouable deux fois sans changer l'état ; une prise de poste automatique ne ferme jamais le service d'un autre employé que celui de recette ; mutation : sans le filtre sur l'employé de recette, l'épreuve rougit.
 
-**Mesure** (lecture seule, Supabase Test) : dix services d'Employé Test A depuis le 25/10, cinq paires espacées de 1,1 s : 03:13:44/45, 12:23:23/24, 12:51:39/40, 00:19:52/54, 01:20:43/44. Chaque paire coïncide avec la fin d'un run `Tests` du rail (03:14:36, 12:24:15, 12:52:31, 00:20:46, 01:21:34). Le second service de chaque paire reste ouvert jusqu'au run suivant, qui le clôt par `prise_de_poste_suivante` : c'est le cas de `afdfac9a` (ouvert 12:51:40, clos 00:19:52 le 26/10). Le seul service encore `en_cours` est `702ebdfd` (01:20:44). La recette `recette-candidat-65.yml` n'y est pour rien : elle n'a pas tourné depuis le 30/09.
+À arbitrer : le compte a-t-il besoin d'un compte Auth, ou la recette peut-elle l'ouvrir autrement ? (`employe-test-pro` n'en a pas.)
 
-**Conséquence** : le nombre de paires suit le nombre de runs du rail dont la recette arrive jusqu'au scénario employé, soit une paire par run. Ce n'est pas un défaut de la recette, c'est son comportement voulu ; ce qui manque est le nettoyage.
+## Proposition B : une recette sautée ne doit plus passer pour un succès muet
 
-**Proposition, à arbitrer** : en fin de scénario employé, clore par l'écran (pas par SQL) le service laissé ouvert, ou le rattacher à un identifiant de recette repérable. Aucun nettoyage des services existants n'est demandé ; rien n'est supprimé sans votre accord explicite.
+Constat : le run `fd028e38` (12:02 du 25/10, run 40191407452) a attendu environ 4 minutes que NEXUS Test serve le commit du run, puis écrit « Recette navigateur Test non exécutée — NEXUS Test sert encore d964edb8, pas fd028e3 » et terminé en succès. Le job est vert, aucune paire de services n'a été créée, rien ne signale le trou.
 
-## Ce qui ne change pas
-
-Aucune écriture en Production, aucun déploiement, aucune fusion. Le périmètre est `outils/handoff.js`, son épreuve, `.github/workflows/tests.yml` et `docs/learning/`. Pas de changement du protocole `nexus-handoff/2`.
+1. **Minimum** : émettre `::warning::` visible sur le run, avec le commit servi et le commit attendu, en plus du message actuel. Le job reste vert.
+2. **Idéal** : réessai borné jusqu'au déploiement du bon commit (par exemple trois tentatives espacées, plafond fixé à l'avance, puis `::warning::`). Un déploiement qui n'arrive jamais ne doit pas faire échouer le run (ENV-003, dégradation explicite) ; il doit rester visible.
+3. Épreuve : un cas « Test sert un autre commit » produit la ligne `::warning::` et le plafond de tentatives ; mutation : sans l'émission, l'épreuve rougit.
 
 ## À arbitrer
 
-1. Ratifier a posteriori 6510a2e3, 631f5d00 et e251592c.
-2. Approuver le point 2 (`--preuve-action` borné) et désigner l'exécutant.
-3. Choisir pour le point 3 : fin de scénario qui clôt son service, ou statu quo documenté.
+1. Ratifier ou non la lecture de la condition 2 (marqueur dans le corps).
+2. Proposition A : accord sur la transition en deux temps et sur la création d'un jeu versionné ; question du compte Auth.
+3. Proposition B : minimum seul (`::warning::`), ou minimum plus réessai borné ; valeur du plafond.
