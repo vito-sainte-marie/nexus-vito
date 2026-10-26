@@ -118,7 +118,7 @@ function gardesApp(app) {
     termine: /Votre service est terminé/.test(app) && /hotePdp\.style\.display = 'none'/.test(app),
     rechercheApresPremierChoix: /id="zoneRecherche"/.test(app) && /zoneRecherche\.style\.display = 'none'/.test(app) && /closest\('\.pdp-carte'\)\) montrerRecherche\(\)/.test(app),
     sansEcouteurMiniProgression: !/miniProgression/.test(app),
-    scriptRecherche: /<script src="nexus-recherche\.js"><\/script>/.test(app),
+    scriptRecherche: /<script src="nexus-recherche\.js(\?v=[^"]*)?"><\/script>/.test(app),
     termineSansPointage: /const journeeFinie = journeeTerminee \|\| !!serviceTermineDuJour;/.test(app)
       && /nexusDernierServiceTermine\(employee\)/.test(app)
       && /serviceDuJourSeulement\(\s*\(serviceTermineRows/.test(app)
@@ -158,7 +158,7 @@ const mutApp = {
   termineSansPointage: APP.replace('if (journeeFinie && !serviceCourant)', 'if (journeeTerminee && !serviceCourant)'),
   rechercheApresPremierChoix: APP.replace("zoneRecherche.style.display = 'none';", 'void 0;'),
   sansEcouteurMiniProgression: APP.replace("zoneRecherche.style.display = 'none';", "const miniProgression = 1; zoneRecherche.style.display = 'none';"),
-  scriptRecherche: APP.replace('<script src="nexus-recherche.js"></script>', ''),
+  scriptRecherche: APP.replace(/<script src="nexus-recherche\.js(\?v=[^"]*)?"><\/script>/, ''),
   enTeteUneLigne: APP.replace('body:has(#pdpChoix) .header-brandrow{display:flex;', 'body:has(#pdpChoix) .header-brandrow{display:grid;'),
   sansCoachNiDoublon: APP.replace('body:has(#pdpChoix) #taglineRole,', 'body:has(#pdpChoix) #taglineRoleX,'),
   deconnexionDiscrete: APP.replace('<a href="#" id="logout"', '<a href="#" id="deco"'),
@@ -186,7 +186,7 @@ function gardesProgression(h) {
   const iZone = h.indexOf('id="zoneRecherche"');
   const iApp = h.indexOf('id="app"');
   return {
-    scriptRecherche: /<script src="nexus-recherche\.js"><\/script>/.test(h),
+    scriptRecherche: /<script src="nexus-recherche\.js(\?v=[^"]*)?"><\/script>/.test(h),
     zoneEnHaut: iZone !== -1 && iApp !== -1 && iZone < iApp,
     champ: /id="rechercheNexusInput"/.test(h) && /id="rechercheNexusResultats"/.test(h),
     libelle: /Que cherchez-vous à faire \?/.test(h),
@@ -195,7 +195,7 @@ function gardesProgression(h) {
   };
 }
 const mutProg = {
-  scriptRecherche: PROG.replace('<script src="nexus-recherche.js"></script>', ''),
+  scriptRecherche: PROG.replace(/<script src="nexus-recherche\.js(\?v=[^"]*)?"><\/script>/, ''),
   zoneEnHaut: PROG.replace('id="zoneRecherche"', 'id="zoneX"').replace('id="app">', 'id="app"></div><div id="zoneRecherche">'),
   champ: PROG.replace('id="rechercheNexusInput"', 'id="autre"'),
   libelle: PROG.split('Que cherchez-vous à faire ?').join('Rechercher'),
