@@ -543,7 +543,16 @@ jobs:
           # Le corps INTÉGRAL (08/10/2026) : la publication ne poste qu'un
           # pointeur vers le rail, que l'API ne peut pas suivre — elle ne lit
           # pas le dépôt. Déterministe : une marque par corps intégral.
+          DEMANDE=$(node outils/reveil-orchestrateur.js --json | jq -r '.lots[0].demande // .demande // empty')
           CORPS=$(node outils/reveil-orchestrateur.js --message --sans-mention --integral)
+          # Une demande déjà arbitrée ne se ré-arbitre pas : le corps intégral
+          # change avec la tête du rail, la demande publiée, elle, non
+          # (outils/arbitrage-deja-traite.js). Sans cette clé, un réveil traité
+          # repartait vers l'API et rougissait la CI sur un 429.
+          COMMENTAIRES=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUM/comments" --jq '.[].body|tojson' | jq -s -c .)
+          if printf '%s' "$COMMENTAIRES" | node outils/arbitrage-deja-traite.js --lot "$LOT" --demande "$DEMANDE" >/dev/null; then
+            rien ARBITRAGE_DEMANDE_DEJA_TRAITEE "la demande $DEMANDE du lot $LOT a déjà reçu la réponse de l'arbitre (issue #$NUM)."
+          fi
           # Une seule consultation de l'arbitre par corps de réveil : le coût
           # est borné par le nombre de réveils distincts, pas par les runs.
           MARQUE="<!-- nexus-arbitrage: $(printf '%s' "$CORPS" | sha256sum | cut -c1-16) -->"
