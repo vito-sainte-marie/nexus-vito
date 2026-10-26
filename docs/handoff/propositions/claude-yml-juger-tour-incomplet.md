@@ -8,7 +8,7 @@ Dans l'étape « Boucle autonome — garantir la CI du rail », après la détec
 TOUR_VIDE, ajouter :
 
 ```bash
-git show "origin/${RAIL}:nexus-handoff/STATE.json" > "$RUNNER_TEMP/state.json"
+git show "origin/${RAIL}:docs/handoff/STATE.json" > "$RUNNER_TEMP/state.json"
 node outils/juger-tour-claude.js "$LOT_ACTIF" "$RUNNER_TEMP/state.json" || exit 1
 ```
 
@@ -16,3 +16,5 @@ node outils/juger-tour-claude.js "$LOT_ACTIF" "$RUNNER_TEMP/state.json" || exit 
 `::error::` et sort en 1 si le lot est resté en `ATTENTE_CONSOMMATION_DECISION` : un tour
 qui a poussé du travail sans consommer sa décision n'est plus un succès.
 Épreuve : `test_juger_tour_claude_20261026.js` (mutation incluse).
+
+**Mise en œuvre** : PR vito-sainte-marie/nexus-vito#159 (chemin réel `docs/handoff/STATE.json`, repli en avertissement si l'outil manque).
