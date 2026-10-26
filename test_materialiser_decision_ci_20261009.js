@@ -321,6 +321,7 @@ epreuve('M20 — le chemin du code 4 s\'exécute : l\'outil, `jq`, puis un palie
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'materialiser-cablage-'));
   fs.mkdirSync(path.join(dir, 'outils'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'docs', 'handoff'), { recursive: true });
+  fs.copyFileSync(path.join(RACINE, 'outils', 'marqueur-branche-du-lot.js'), path.join(dir, 'outils', 'marqueur-branche-du-lot.js'));
   fs.writeFileSync(path.join(dir, 'outils', 'materialiser-decision-ci.js'),
     fs.readFileSync(OUTIL, 'utf8').replace("require('./relais-arbitre-openai')",
       `require(${JSON.stringify(path.join(RACINE, 'outils', 'relais-arbitre-openai.js'))})`));
@@ -358,6 +359,7 @@ function mutantDeLOutil(nom, ancre, remplacement) {
   assert.strictEqual(src.split(ancre).length, 2, `ancre de mutation non unique ou absente : ${nom}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `materialiser-mutant-${nom}-`));
   const cible = path.join(dir, 'materialiser-decision-ci.js');
+  fs.copyFileSync(path.join(RACINE, 'outils', 'marqueur-branche-du-lot.js'), path.join(dir, 'marqueur-branche-du-lot.js'));
   fs.writeFileSync(cible, src.replace(ancre, remplacement)
     .replace("require('./relais-arbitre-openai')",
       `require(${JSON.stringify(path.join(RACINE, 'outils', 'relais-arbitre-openai.js'))})`));

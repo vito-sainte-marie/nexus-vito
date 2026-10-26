@@ -27,6 +27,7 @@
 const fs = require('fs');
 const path = require('path');
 const { lireContrat, valider } = require('./relais-arbitre-openai');
+const marqueur = require('./marqueur-branche-du-lot');
 
 const RACINE = path.resolve(__dirname, '..');
 const RAIL_ADMIS = /^handoff-[a-z0-9][a-z0-9-]*$/;
@@ -164,6 +165,11 @@ function juger(texte, etat, opts = {}) {
   }
   const sansPreuve = lectureDuRail(texte, c, opts);
   if (sansPreuve.length) return { code: 2, refus: sansPreuve };
+  // Un marqueur BRANCHE_DU_LOT que l'arbitre aurait rendu doit être unique et
+  // valide ; absent, c'est `corps` qui le dépose (la branche du lot = le rail).
+  const mq = marqueur.analyser(texte);
+  if (mq.n > 1) return { code: 2, refus: [`${mq.n} marqueurs BRANCHE_DU_LOT dans la réponse : un seul est admis`] };
+  if (mq.n === 1 && !marqueur.brancheValide(mq.branche)) return { code: 2, refus: [`BRANCHE_DU_LOT ${JSON.stringify(mq.branche)} n'est pas un nom de branche de travail admis (ni main ni production)`] };
   return { code: 0, lot, request, decision: c.DECISION, closes: c.CLOSES, rail, contrat: c };
 }
 
@@ -193,6 +199,14 @@ function corps(texte, j, prov = {}) {
     `- Les conditions du verdict${conditions && !/^aucune?s?$/i.test(conditions) ? ` (« ${conditions} »)` : ''}. Elles lient l'exécutant suivant (\`${sansBacktick(c.EXECUTANT_NEXT) || 'non désigné'}\`), qui les vérifie avant d'agir.`,
     '- Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.',
     '',
+    ...(marqueur.analyser(texte).n === 0 ? [
+      '## Branche du lot (déposée par la CI)',
+      '',
+      "L'arbitre n'a pas nommé de branche de travail : le travail de ce lot vit sur le rail. Marqueur unique lu par `handoff.js consommer --preuve-action` (decision-2 d'OUTILLAGE-REGULARISATION-20261026, condition 1) :",
+      '',
+      `BRANCHE_DU_LOT: ${j.rail}`,
+      '',
+    ] : []),
     '## Texte de l\'arbitre',
     '',
     texte.trimEnd(),

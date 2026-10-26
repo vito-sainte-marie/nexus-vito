@@ -17,7 +17,7 @@ const assert = require('assert');
 
 const OUTIL = path.join(__dirname, 'outils', 'recette-navigateur-test.js');
 const { verifier, verifierLive, jugerCarburants, jugerObservation, etatPreuveCarburants, semisEffectue, secretsManquants, extraireCommitServi, SECRETS_REQUIS,
-        aliasCloudflare, urlTestDuRail, attendreVersionServie, HOTE_PAGES_TEST } = require(OUTIL);
+        aliasCloudflare, urlTestDuRail, attendreVersionServie, HOTE_PAGES_TEST, observerVersionBornee, avertissementNonExecutee } = require(OUTIL);
 const os = require('os');
 
 let passes = 0;
@@ -1243,6 +1243,43 @@ epreuve('MUTATION : le rapport revenu au littéral doit être DÉMASQUÉ', () =>
   assert.throws(() => exigerRapportDeduit(mute), /ligne littérale/,
     'le rapport revenu au littéral passe encore : le contrôle ne mesure rien');
   exigerRapportDeduit(src);
+});
+
+// decision-2 d'OUTILLAGE-REGULARISATION-20261026, condition 3 : observation
+// bornée (3 × 120 s) et alerte `::warning::` jamais muette.
+epreuveAttendue('observation bornée : 3 observations espacées de 120 s, puis l’alerte nomme attendu, servi et essais', async () => {
+  const pauses = []; let appels = 0;
+  const v = await observerVersionBornee('https://x/', 'abcdef1234567', {
+    observer: async () => { appels++; return { servie: false, commit: '1111111', joint: true, panne: null }; },
+    dormir: async (ms) => { pauses.push(ms); } });
+  assert.strictEqual(appels, 3, 'exactement 3 observations');
+  assert.deepStrictEqual(pauses, [120000, 120000], 'espacées de 120 s, sans pause après la dernière');
+  assert.strictEqual(v.tentatives, 3);
+  const w = avertissementNonExecutee('abcdef1234567', v);
+  assert.ok(w.startsWith('::warning::'), w);
+  assert.ok(w.includes('abcdef1') && w.includes('1111111') && /3 observation/.test(w), w);
+});
+epreuveAttendue('observation bornée : elle s’arrête dès que la version attendue est servie', async () => {
+  let appels = 0;
+  const v = await observerVersionBornee('https://x/', 'abcdef1234567', {
+    observer: async () => { appels++; return appels === 2 ? { servie: true, commit: 'abcdef1', joint: true } : { servie: false, commit: null, joint: true }; },
+    dormir: async () => {} });
+  assert.strictEqual(appels, 2); assert.strictEqual(v.servie, true); assert.strictEqual(v.tentatives, 2);
+});
+epreuve('la recette non exécutée imprime l’alerte ; MUTATION : sans impression ou sans borne, l’épreuve rougit', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const exiger = (t) => {
+    assert.ok(/observerVersionBornee\(base, env\.NEXUS_COMMIT_ATTENDU\)/.test(t), 'executer() n’appelle pas l’observation bornée');
+    assert.ok(/if \(r\.avertissement\) console\.log\(r\.avertissement\)/.test(t), 'l’alerte n’est pas imprimée');
+    assert.ok(/avertissement: avertissementNonExecutee\(/.test(t), 'la recette non exécutée ne porte pas d’alerte');
+  };
+  exiger(src);
+  for (const [de, vers] of [['if (r.avertissement) console.log(r.avertissement); ', ''],
+                            ['observerVersionBornee(base, env.NEXUS_COMMIT_ATTENDU)', 'attendreVersionServie(base, env.NEXUS_COMMIT_ATTENDU)'],
+                            ['avertissement: avertissementNonExecutee(env.NEXUS_COMMIT_ATTENDU, v),', '']]) {
+    assert.strictEqual(src.split(de).length, 2, 'ancre de mutation : ' + de);
+    assert.throws(() => exiger(src.replace(de, vers)), /AssertionError|n’|ne porte/, 'mutation non détectée : ' + de);
+  }
 });
 
 (async () => {

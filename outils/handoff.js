@@ -592,10 +592,29 @@ const optionsConsommer = (args) => {
 // Absente, comme sur TOUTE décision déposée avant ce correctif : la branche
 // du lot EST le rail, et rien ne change — cas voisin gardé vert. Présente :
 // le SHA doit être ancêtre de `origin/<branche>`, jamais seulement du rail.
-const MARQUEUR_BRANCHE_DU_LOT = /^BRANCHE_DU_LOT:\s*(\S+)\s*$/m;
+const marqueur = require('./marqueur-branche-du-lot');
+const MARQUEUR_BRANCHE_DU_LOT = marqueur.MARQUEUR;
 function brancheDuLotDeclaree(corps) {
   const m = typeof corps === 'string' ? corps.match(MARQUEUR_BRANCHE_DU_LOT) : null;
   return m ? m[1] : null;
+}
+// OUTILLAGE-REGULARISATION-20261026, decision-2 condition 1 : le marqueur est
+// OBLIGATOIRE et UNIQUE pour toute consommation avec --preuve-action. Absent,
+// multiple ou invalide : refus avant la moindre écriture. Seules sont dispensées
+// les décisions dont le commit est ancêtre-ou-égal de l'ancre ci-dessous (la
+// decision-2 elle-même et tout ce qui la précède, déposés sans marqueur). Un
+// fichier ne peut pas nommer son propre SHA : l'ancre est un SHA du registre,
+// épinglé ici, jamais une date.
+const ANCRE_MARQUEUR_FACULTATIF = '286edb06b0a436d9934300cdd878afdc734cce7a';
+function controlerMarqueurBranche(corps, commitDecision) {
+  const { n, branche } = marqueur.analyser(corps);
+  if (n > 1) return { ok: false, code: 'BRANCHE_DU_LOT_MULTIPLE', motif: `${n} marqueurs BRANCHE_DU_LOT dans la décision : un seul est admis` };
+  if (n === 1) {
+    if (!marqueur.brancheValide(branche)) return { ok: false, code: 'BRANCHE_DU_LOT_INVALIDE', motif: `BRANCHE_DU_LOT ${JSON.stringify(branche)} n'est pas un nom de branche de travail admis (ni main ni production)` };
+    return { ok: true, branche };
+  }
+  try { git('merge-base', '--is-ancestor', commitDecision, ANCRE_MARQUEUR_FACULTATIF); return { ok: true, branche: null, regularise: true }; } catch (e) { /* postérieure à l'ancre */ }
+  return { ok: false, code: 'BRANCHE_DU_LOT_ABSENT', motif: "la décision ne porte aucun marqueur BRANCHE_DU_LOT, obligatoire depuis decision-2 d'OUTILLAGE-REGULARISATION-20261026 : la CI le dépose en matérialisant la décision, sinon l'arbitre doit le rendre" };
 }
 function commitHorsRegistre(ref, brancheDuLot) {
   let sha; try { sha = git('rev-parse', '--verify', `${ref}^{commit}`); } catch (e) { return { ok: false, motif: `commit introuvable : ${JSON.stringify(ref)}` }; }
@@ -653,7 +672,8 @@ function consommer(lot, opts) {
   }
   if (opts.preuveAction !== undefined) {
     if (!priseEnCharge) { console.error(`REFUS — ${lot} n'est pas pris en charge sur ${commit.slice(0, 7)} (statut ${v.statut}) : prenez-la en charge d'abord (consommer ${lot} --prise-en-charge).`); process.exit(1); }
-    const brancheDuLot = brancheDuLotDeclaree(r && r.corps);
+    const marq = controlerMarqueurBranche(r && r.corps, commit); if (!marq.ok) { console.error(`REFUS ${marq.code} — ${marq.motif}.`); process.exit(1); }
+    const brancheDuLot = marq.branche;
     const p = commitHorsRegistre(opts.preuveAction, brancheDuLot); if (!p.ok) { console.error(`REFUS ${p.code || 'PREUVE_ACTION'} — ${p.motif}.`); process.exit(1); }
     return consigner({ preuve_action: p.sha });
   }
@@ -1216,7 +1236,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, brancheDuLotDeclaree, commitHorsRegistre, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, brancheDuLotDeclaree, commitHorsRegistre, controlerMarqueurBranche, ANCRE_MARQUEUR_FACULTATIF, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 

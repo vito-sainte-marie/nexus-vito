@@ -29,7 +29,7 @@ const demande = (seq) => ['---', 'protocol: nexus-handoff/2', 'kind: request', `
   '---', '', `Demande ${seq}.`, ''].join('\n');
 const decision = (seq, closes) => ['---', 'protocol: nexus-handoff/2', 'kind: decision', `lot_id: ${LOT}`, `seq: ${seq}`,
   'author: ChatGPT', `branch: ${RAIL}`, 'decision: APPROVED_WITH_CONDITIONS', `closes: ${closes}`,
-  `in_reply_to: request-${seq}.md`, 'wake_to: Claude', '---', '', 'Décision.', ''].join('\n');
+  `in_reply_to: request-${seq}.md`, 'wake_to: Claude', '---', '', 'Décision.', '', `BRANCHE_DU_LOT: ${RAIL}`, ''].join('\n');
 
 function banc({ closes = false } = {}) {
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tourvide-')));
@@ -37,6 +37,7 @@ function banc({ closes = false } = {}) {
   execFileSync('git', ['clone', '-q', '--shared', '--no-checkout', RACINE, clone]);
   git(clone, 'checkout', '-q', git(RACINE, 'rev-parse', 'HEAD'));
   for (const [r, s] of refs) git(clone, 'update-ref', `refs/remotes/origin/${r}`, s);
+  git(clone, 'update-ref', `refs/remotes/origin/${RAIL}`, git(RACINE, 'rev-parse', 'HEAD')); /* la branche du lot que nomme BRANCHE_DU_LOT */
   for (const f of ['outils', 'docs/skills']) { /* l'arbre de travail prime sur le commit */
     /* hors fichiers cachés : les épreuves de mutation écrivent brièvement `.mut-*.js` dans outils/ ; un `cp -R` concurrent échouait en ENOENT (run 39474481132) */
     fs.cpSync(path.join(RACINE, f), path.join(clone, f), { recursive: true, filter: (src) => !path.basename(src).startsWith('.') });
@@ -65,7 +66,7 @@ function banc({ closes = false } = {}) {
   return { clone, dir, tmp, outil, valider, etat: () => JSON.parse(fs.readFileSync(path.join(dir, 'STATE.json'), 'utf8')) };
 }
 // Un commit de travail réel (hors registre), comme PROPRETE decision-1 (2a2f792e).
-const travail = (b) => { fs.writeFileSync(path.join(b.clone, 'travail-reel.txt'), 'x\n'); return b.valider('travail réel'); };
+const travail = (b) => { fs.writeFileSync(path.join(b.clone, 'travail-reel.txt'), 'x\n'); const sha = b.valider('travail réel'); git(b.clone, 'update-ref', `refs/remotes/origin/${RAIL}`, git(b.clone, 'rev-parse', 'HEAD')); return sha; };
 // Un commit qui ne touche que le registre : celui de la consommation du 15/10 (ff3e7720).
 const registreSeul = (b) => { const e = b.etat(); e.vu = Date.now(); fs.writeFileSync(path.join(b.dir, 'STATE.json'), JSON.stringify(e, null, 2) + '\n'); return b.valider('registre seul'); };
 

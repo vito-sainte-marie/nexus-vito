@@ -40,7 +40,7 @@ function demande(lot, seq) {
 function decision(lot, seq, closes) {
   return ['---', 'protocol: nexus-handoff/2', 'kind: decision', `lot_id: ${lot}`, `seq: ${seq}`,
     'author: ChatGPT', `branch: ${RAIL}`, 'decision: APPROVED', `closes: ${closes}`,
-    `in_reply_to: request-${seq}.md`, 'wake_to: Claude', '---', '', 'Décision.', ''].join('\n');
+    `in_reply_to: request-${seq}.md`, 'wake_to: Claude', '---', '', 'Décision.', '', `BRANCHE_DU_LOT: ${RAIL}`, ''].join('\n');
 }
 
 // Un clone jetable portant un registre où PRECEDENT attend la consommation de
@@ -53,10 +53,12 @@ function banc({ closes = true, consomme = false, marque = true, nomFile = `${SUI
   execFileSync('git', ['clone', '-q', '--shared', '--no-checkout', RACINE, clone]);
   git(clone, 'checkout', '-q', git(RACINE, 'rev-parse', 'HEAD'));
   for (const [r, s] of refs) git(clone, 'update-ref', `refs/remotes/origin/${r}`, s);
+  git(clone, 'update-ref', `refs/remotes/origin/${RAIL}`, git(RACINE, 'rev-parse', 'HEAD')); /* la branche du lot que nomme BRANCHE_DU_LOT */
   // L'outil sous épreuve est celui de l'arbre de travail, pas celui du commit.
   let source = fs.readFileSync(path.join(RACINE, 'outils', 'handoff.js'), 'utf8');
   if (mutation) { assert.strictEqual(source.split(mutation).length, 2, `ancre de mutation non unique : ${JSON.stringify(mutation)}`); source = source.replace(mutation, ''); }
   fs.writeFileSync(path.join(clone, 'outils', 'handoff.js'), source);
+  fs.copyFileSync(path.join(RACINE, 'outils', 'marqueur-branche-du-lot.js'), path.join(clone, 'outils', 'marqueur-branche-du-lot.js'));
   const dir = path.join(clone, 'registre-epreuve');
   fs.mkdirSync(path.join(dir, 'lots', PRECEDENT), { recursive: true });
   fs.mkdirSync(path.join(dir, 'en-attente'));
@@ -124,6 +126,7 @@ epreuve('B1 — closes: false rend la main au lot : la file attend, verifier res
   fs.writeFileSync(path.join(b.clone, 'travail-reel.txt'), 'x\n');
   git(b.clone, 'add', 'travail-reel.txt');
   git(b.clone, '-c', 'user.name=epreuve', '-c', 'user.email=epreuve@invalid', 'commit', '-q', '-m', 'travail réel');
+  git(b.clone, 'update-ref', `refs/remotes/origin/${RAIL}`, git(b.clone, 'rev-parse', 'HEAD'));
   const r = b.outil('consommer', PRECEDENT, '--preuve-action', git(b.clone, 'rev-parse', 'HEAD'));
   assert.strictEqual(r.code, 0, r.sortie);
   assert.ok(!existe(b, 'lots', SUIVANT), 'la suite d\'un lot non fermé lui revient');

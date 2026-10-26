@@ -266,6 +266,29 @@ async function attendreVersionServie(base, commitAttendu, timeoutMs = 240000, pa
   return { servie: false, commit: vu, joint, panne };
 }
 
+// Observation bornée (decision-2 d'OUTILLAGE-REGULARISATION-20261026, condition
+// 3) : au plus `tentatives` observations espacées de `espaceMs`, chacune une
+// mesure unique (délai 0 : la première requête part toujours). Rien n'est
+// retenté au-delà ; le nombre d'essais est rendu pour figurer dans l'alerte.
+async function observerVersionBornee(base, commitAttendu, { tentatives = 3, espaceMs = 120000, observer = attendreVersionServie, dormir = (ms) => new Promise(r => setTimeout(r, ms)) } = {}) {
+  let v = null, n = 0;
+  while (n < tentatives) {
+    v = await observer(base, commitAttendu, 0, 0);
+    n++;
+    if (v.servie) break;
+    if (n < tentatives) await dormir(espaceMs);
+  }
+  return { ...v, tentatives: n };
+}
+
+// Une recette non exécutée ne passe plus en succès muet : l'annotation
+// `::warning::` nomme le commit attendu, le commit servi et le nombre d'essais.
+// Le job reste non bloquant (ENV-003), mais jamais silencieux.
+function avertissementNonExecutee(commitAttendu, v) {
+  return `::warning::Recette navigateur Test NON EXÉCUTÉE — commit attendu ${String(commitAttendu).slice(0, 7)}, `
+    + `commit servi ${v.commit || 'aucun'}, ${v.tentatives} observation(s).`;
+}
+
 async function connecter(page, base, identifiant, pin) {
   await page.goto(new URL('NEXUS-Login-v1.html', base).href, { waitUntil: 'domcontentloaded' });
   // Sélection par type et par ordre plutôt que par un id qui n'existe pas :
@@ -1426,7 +1449,7 @@ async function executer(env = process.env) {
   console.log(`Adresse NEXUS Test dérivée du rail ${cible.rail}${cible.impose ? ' puis imposée par NEXUS_TEST_URL' : ''} : ${base}`);
 
   if (env.NEXUS_COMMIT_ATTENDU) {
-    const v = await attendreVersionServie(base, env.NEXUS_COMMIT_ATTENDU);
+    const v = await observerVersionBornee(base, env.NEXUS_COMMIT_ATTENDU);
     if (!v.servie) {
       const attendu = env.NEXUS_COMMIT_ATTENDU.slice(0, 7);
       const cause = !v.joint
@@ -1436,7 +1459,7 @@ async function executer(env = process.env) {
         : v.commit
           ? `NEXUS Test sert encore ${v.commit} à ${base}, pas ${attendu}`
           : `NEXUS Test répond à ${base} sans y exposer d’identité de génération lisible (attendu ${attendu})`;
-      return { executee: false, bloquant: false,
+      return { executee: false, bloquant: false, avertissement: avertissementNonExecutee(env.NEXUS_COMMIT_ATTENDU, v),
         message: `Recette navigateur Test non exécutée — ${cause}. Prouver sur une version qui n'est pas celle testée ne prouverait rien ` +
           '(decision-2.md du lot CARB-004). Non bloquant : le déploiement Cloudflare est asynchrone.' };
     }
@@ -1548,11 +1571,11 @@ async function executer(env = process.env) {
   }
 }
 
-module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, indisponibiliteCompteManager, etatAccesLiveManager, jugerCarburants, jugerObservation, etatPreuveCarburants, observerEnregistrementPrix, verifierPrix, indisponibilitePrix, resumePrix, messageAlerte, ECRAN_PARAMETRES_STATION, PRIX_DE_RECETTE, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
+module.exports = { HOTE_PAGES_TEST, aliasCloudflare, urlTestDuRail, urlTestDeBranche, attendreVersionServie, observerVersionBornee, avertissementNonExecutee, refusIdentitePartagee, memeIdentite, IDENTITE_HUMAINE_RESERVEE, SECRETS_REQUIS, SECRETS_EMPLOYE, secretsManquants, verifierEmploye, verifierInvitation, indisponibiliteInvitation, resumeInvitation, verifier, verifierLive, indisponibiliteCompteManager, etatAccesLiveManager, jugerCarburants, jugerObservation, etatPreuveCarburants, observerEnregistrementPrix, verifierPrix, indisponibilitePrix, resumePrix, messageAlerte, ECRAN_PARAMETRES_STATION, PRIX_DE_RECETTE, semisEffectue, extraireCommitServi, pointageDesactive, ATTENDU, executer };
 
 if (require.main === module) {
   executer().then(r => {
-    if (!r.executee) { console.log(r.message); process.exit(0); }
+    if (!r.executee) { if (r.avertissement) console.log(r.avertissement); console.log(r.message); process.exit(0); }
     console.log(`Recette navigateur NEXUS Test — site ${r.vu.site}, version servie ${r.vu.commit || 'inconnue'}`);
     console.log(`  ${r.vu.texteCommande || '(ligne de commande recommandée introuvable dans le texte)'}`);
     console.log(`  optimiseur brut : ${JSON.stringify(r.vu.optimiseurBrut)}`);

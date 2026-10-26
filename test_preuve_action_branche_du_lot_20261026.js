@@ -120,12 +120,13 @@ epreuve('B1 — une branche du lot déclarée mais absente d\'origin refuse expl
   assert.strictEqual(fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8'), avant, 'refus = aucune écriture');
   assert.strictEqual(b.etat().lots[LOT].statut, 'ATTENTE_CONSOMMATION_DECISION');
 });
-epreuve('N1 — cas voisin vert : sans BRANCHE_DU_LOT, un commit du rail est accepté comme avant (branche du lot = rail)', () => {
+epreuve('N1 — decision-2 : sans BRANCHE_DU_LOT, une décision postérieure à l\'ancre est REFUSÉE avant écriture (plus de repli sur le rail)', () => {
   const b = banc();
   OK(b.outil('consommer', LOT, '--prise-en-charge'));
   const sha = travail(b);
-  OK(b.outil('consommer', LOT, '--preuve-action', sha));
-  assert.strictEqual(b.etat().lots[LOT].statut, 'DECISION_CONSOMMEE');
+  const avant = fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8');
+  KO(b.outil('consommer', LOT, '--preuve-action', sha), /BRANCHE_DU_LOT_ABSENT/);
+  assert.strictEqual(fs.readFileSync(path.join(b.dir, 'STATE.json'), 'utf8'), avant, 'refus = aucune écriture');
 });
 epreuve('N2 — cas voisin vert : --cloture reste inchangé', () => {
   const b = banc({ closes: true });
@@ -147,7 +148,7 @@ epreuve('M1 — mutation : neutraliser la vérification d\'ascendance fait mordr
   const rAction = commitHorsRegistre(ACTION_REELLE, BRANCHE_REELLE);
   assert.strictEqual(rAction.ok, true, `l'action réelle doit être ancêtre de origin/${BRANCHE_REELLE} :\n${JSON.stringify(rAction)}`);
   const rSansMarqueur = commitHorsRegistre(RAIL_SEUL, null);
-  assert.strictEqual(rSansMarqueur.ok, true, 'sans BRANCHE_DU_LOT, un commit du rail reste accepté (cas voisin)');
+  assert.strictEqual(rSansMarqueur.ok, true, 'commitHorsRegistre seul garde le repli rail : c\'est consommer qui exige le marqueur');
 
   const SRC = fs.readFileSync(path.join(RACINE, 'outils', 'handoff.js'), 'utf8');
   const ancre = "try { git('merge-base', '--is-ancestor', sha, cible); } catch (e) { return { ok: false, code, motif: `${sha.slice(0, 7)} n'est pas dans l'historique de ${cible}` }; }";
