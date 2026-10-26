@@ -803,6 +803,60 @@ epreuve('le franchissement emprunte le repli PRÉVU par l’écran, pas une port
     'le repli par champ fichier doit exister dans l’écran — sinon la recette prouve un chemin mort');
 });
 
+// ── Fermeture du second service par l'écran — OUTILLAGE-REGULARISATION-
+// 20261026, decision-1 condition 3 ───────────────────────────────────────
+const blocDepart = () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  return src.slice(src.indexOf('async function franchirPointageDepart'),
+                    src.indexOf('async function observerEmploye'));
+};
+
+epreuve('la fermeture se mesure sur le texte du banner de départ, pas sur le libellé du bouton', () => {
+  const bloc = blocDepart();
+  assert.ok(/Départ enregistré/i.test(bloc),
+    'le critère de succès doit être le texte RÉEL affiché par confirmBanner après un départ, pas « Départ » (libellé du bouton, présent avant tout pointage)');
+  assert.ok(/#confirmBanner/.test(bloc),
+    'le critère doit lire le banner de confirmation, le seul marqueur que l’écran affiche réellement');
+});
+
+epreuve('la fermeture du second service n’ouvre aucune porte dérobée', () => {
+  const bloc = blocDepart();
+  assert.ok(/setInputFiles/.test(bloc), 'le départ doit passer par le même champ fichier de repli que l’arrivée');
+  assert.ok(!/getUserMedia|mediaDevices|from\('shifts'\)|from\('pointages'\)|\.update\(|\.insert\(/.test(bloc),
+    'ni caméra simulée, ni écriture directe en base : fermer le service passe par l’écran, jamais par SQL');
+});
+
+epreuve('la fermeture du second service est ISOLÉE : un échec ne doit effacer aucune preuve qui précède', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const bloc = src.slice(src.indexOf('async function observerEmploye'), src.indexOf('// L\'INVITATION À L\'INVENTAIRE'));
+  const iInvitation = bloc.indexOf('observerInvitationInventaire');
+  const iFermeture = bloc.indexOf('franchirPointageDepart');
+  assert.ok(iInvitation !== -1 && iFermeture !== -1, 'les deux observations doivent être présentes dans observerEmploye');
+  assert.ok(iFermeture > iInvitation, 'la fermeture doit venir APRÈS l’invitation — « en fin de scénario »');
+  const iTryFermeture = bloc.lastIndexOf('try {', iFermeture);
+  const iCatchFermeture = bloc.indexOf('catch (e)', iFermeture);
+  assert.ok(iTryFermeture !== -1 && iCatchFermeture !== -1 && iCatchFermeture > iFermeture,
+    'l’appel doit être encadré par son propre try/catch, comme l’invitation');
+});
+
+epreuve('le rapport distingue fermeture ferme, désactivée et échec, comme pour le pointage', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  assert.ok(/e\.fermeture\.desactive \?/.test(src), 'le résumé doit distinguer la dispense (pointage désactivé)');
+  assert.ok(/e\.fermeture\.dejaFait \?/.test(src), 'le résumé doit distinguer un départ déjà pointé');
+  assert.ok(/e\.fermeture\.ferme \?/.test(src), 'le résumé doit distinguer la preuve réelle de fermeture');
+  assert.ok(/fermeture\.motif \|\| 'motif non rendu'/.test(src), 'un échec doit rendre son motif, jamais un silence');
+});
+
+epreuve('MUTATION : neutraliser l’appel à la fermeture doit disparaître du rapport (M démasque)', () => {
+  const src = fs.readFileSync(OUTIL, 'utf8');
+  const ancre = "    let fermeture = null;\n    try {\n      fermeture = await franchirPointageDepart(page, base);\n    } catch (e) {\n      fermeture = { ferme: false, motif: 'observation impossible : ' + String(e && e.message).split('\\n')[0] };\n    }\n    return { premiere, seconde, invitation, pointage, fermeture };";
+  assert.strictEqual(src.split(ancre).length, 2, 'ancre de mutation unique');
+  const mute = src.replace(ancre, "    return { premiere, seconde, invitation, pointage, fermeture: null };");
+  assert.notStrictEqual(mute, src, 'la mutation n’a rien changé : elle ne prouve rien');
+  assert.ok(!/franchirPointageDepart\(page, base\)/.test(mute.split('async function observerEmploye')[1].split('async function')[0]),
+    'sans l’appel, le scénario employé ne ferme plus rien : la mutation doit être détectable par absence d’appel');
+});
+
 epreuve('le RÉSUMÉ ne contredit jamais l’indisponibilité', () => {
   // Le 09/09, le rapport disait « NON JUGÉE : le pointage est exigé » puis,
   // deux lignes plus bas, « NON SATISFAITE — carte absente ». Deux expressions

@@ -570,9 +570,43 @@ const optionsConsommer = (args) => {
   if (args.includes('--prise-en-charge')) o.priseEnCharge = true; if (args.includes('--cloture')) o.cloture = true;
   o.preuveAction = val('--preuve-action'); return o;
 };
-function commitHorsRegistre(ref) {
+// BORNAGE DE --preuve-action : OUTILLAGE-REGULARISATION-20261026, decision-1
+// condition 2.
+//
+// Le 26/10, `--preuve-action 72216ec1` a été acceptée pour l'action de
+// decision-2 de PRISE-DE-POSTE-UN-ECRAN-20261025, alors que `72216ec1` est la
+// fiche d'incident INC-74839140d278 — pas l'action. L'action réelle,
+// `246b5765`, vivait sur la branche de travail du lot
+// (`prise-de-poste-un-ecran-20261025`), pas sur le rail. L'ancienne garde
+// n'exigeait qu'une ascendance au rail courant (`HEAD`) : n'importe quel
+// commit du rail touchant un fichier hors registre passait, sans lien avec
+// l'action prescrite.
+//
+// Une décision peut nommer sa branche de travail dans son CORPS (jamais dans
+// l'enveloppe YAML, qui reste fixée à `branch: <rail>` par
+// `brancheRailValide` — ce n'est pas un champ du protocole, donc aucun
+// changement de `nexus-handoff/2`) :
+//
+//   BRANCHE_DU_LOT: prise-de-poste-un-ecran-20261025
+//
+// Absente, comme sur TOUTE décision déposée avant ce correctif : la branche
+// du lot EST le rail, et rien ne change — cas voisin gardé vert. Présente :
+// le SHA doit être ancêtre de `origin/<branche>`, jamais seulement du rail.
+const MARQUEUR_BRANCHE_DU_LOT = /^BRANCHE_DU_LOT:\s*(\S+)\s*$/m;
+function brancheDuLotDeclaree(corps) {
+  const m = typeof corps === 'string' ? corps.match(MARQUEUR_BRANCHE_DU_LOT) : null;
+  return m ? m[1] : null;
+}
+function commitHorsRegistre(ref, brancheDuLot) {
   let sha; try { sha = git('rev-parse', '--verify', `${ref}^{commit}`); } catch (e) { return { ok: false, motif: `commit introuvable : ${JSON.stringify(ref)}` }; }
-  try { git('merge-base', '--is-ancestor', sha, 'HEAD'); } catch (e) { return { ok: false, motif: `${sha.slice(0, 7)} n'est pas dans l'historique du rail courant` }; }
+  let cible = 'HEAD', code;
+  if (brancheDuLot) {
+    cible = `origin/${brancheDuLot}`;
+    try { git('rev-parse', '--verify', `${cible}^{commit}`); }
+    catch (e) { return { ok: false, code: 'BRANCHE_DU_LOT_INTROUVABLE', motif: `${cible} introuvable — la branche du lot déclarée par la décision (BRANCHE_DU_LOT) n'existe pas sur origin` }; }
+    code = 'PREUVE_ACTION_HORS_BRANCHE_DU_LOT';
+  }
+  try { git('merge-base', '--is-ancestor', sha, cible); } catch (e) { return { ok: false, code, motif: `${sha.slice(0, 7)} n'est pas dans l'historique de ${cible}` }; }
   const fichiers = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean);
   const registre = path.relative(RACINE, HANDOFF).split(path.sep).join('/') + '/', travail = fichiers.filter(f => !f.startsWith(registre));
   if (!travail.length) return { ok: false, motif: `${sha.slice(0, 7)} ne touche que le registre (${fichiers.join(', ') || 'aucun fichier'}) : consommer n'est pas exécuter` };
@@ -619,7 +653,8 @@ function consommer(lot, opts) {
   }
   if (opts.preuveAction !== undefined) {
     if (!priseEnCharge) { console.error(`REFUS — ${lot} n'est pas pris en charge sur ${commit.slice(0, 7)} (statut ${v.statut}) : prenez-la en charge d'abord (consommer ${lot} --prise-en-charge).`); process.exit(1); }
-    const p = commitHorsRegistre(opts.preuveAction); if (!p.ok) { console.error(`REFUS PREUVE_ACTION — ${p.motif}.`); process.exit(1); }
+    const brancheDuLot = brancheDuLotDeclaree(r && r.corps);
+    const p = commitHorsRegistre(opts.preuveAction, brancheDuLot); if (!p.ok) { console.error(`REFUS ${p.code || 'PREUVE_ACTION'} — ${p.motif}.`); process.exit(1); }
     return consigner({ preuve_action: p.sha });
   }
   if (opts.cloture || ferme) {
@@ -1181,7 +1216,7 @@ function veiller(lot, intervalle) { const etat = JSON.parse(fs.readFileSync(ETAT
 // un propriétaire logique). `outils/reveil-handoff.js` en a besoin pour savoir
 // s'il reste une décision à consommer ; réimplémenter la lecture ailleurs
 // ferait diverger deux idées de ce qu'est « une décision en attente ».
-module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, CHEMINS: { HANDOFF, LOTS, ETAT } };
+module.exports = { lots, echanges, dernier, lireEnveloppe, demandeVisee, adresseDeReveil, calculerReferenceProduction, estFichierApplicatif, DECISIONS_CANONIQUES, verifierProvenanceDecision, identiteExecutant, executantConflit, brancheDuLotDeclaree, commitHorsRegistre, CHEMINS: { HANDOFF, LOTS, ETAT } };
 
 if (require.main !== module) return;
 

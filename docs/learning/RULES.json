@@ -1,6 +1,6 @@
 {
   "schema": "nexus-rules/1",
-  "updated_at": "2026-10-24",
+  "updated_at": "2026-10-26",
   "rules": [
     {
       "id": "ENV-001",
@@ -455,6 +455,20 @@
       "severity": "blocking",
       "rule": "Consulting NEXUS ('Ma progression') never creates a service, a clock-in or a lateness.",
       "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
+    },
+    {
+      "id": "GOV-011",
+      "scope": [
+        "gouvernance",
+        "handoff",
+        "boucle_autonome",
+        "ci"
+      ],
+      "trigger": "consommer_preuve_action",
+      "module": "handoff",
+      "severity": "blocking",
+      "rule": "consommer --preuve-action no longer accepts any commit merely reachable from the rail: on 2026-10-26, 72216ec1 (an incident note committed directly on the rail) was accepted as proof of decision-2's action for PRISE-DE-POSTE-UN-ECRAN-20261025, while the real action (246b5765) lived on the lot's own working branch, not yet merged. When a decision's body declares BRANCHE_DU_LOT: <branche> (never a protocol envelope field — branch: stays fixed to the rail by brancheRailValide), the SHA must be an ancestor of origin/<branche> (git merge-base --is-ancestor), refused before any write as PREUVE_ACTION_HORS_BRANCHE_DU_LOT otherwise; a declared branch absent from origin refuses explicitly as BRANCHE_DU_LOT_INTROUVABLE, never a silent pass. Absent the marker — every decision deposited before this fix, and most lots whose action happens directly on the rail — nothing changes: the branch of the lot IS the rail. Read by outils/handoff.js commitHorsRegistre and brancheDuLotDeclaree.",
+      "source": "2026-10-26: OUTILLAGE-REGULARISATION-20261026 (decision-1 condition 2, INC-17adb4e168a9-note.md); outils/handoff.js, test_preuve_action_branche_du_lot_20261026.js"
     }
   ]
 }

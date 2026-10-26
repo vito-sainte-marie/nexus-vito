@@ -725,6 +725,61 @@ function verifierEmploye(premiere, seconde) {
   return echecs;
 }
 
+// FERMER LE SECOND SERVICE PAR L'ÉCRAN, EN FIN DE SCÉNARIO —
+// OUTILLAGE-REGULARISATION-20261026, decision-1 condition 3.
+//
+// Le scénario garde ses deux prises de poste successives (c'est elles qui
+// éprouvent le quart déjà ouvert) : chaque run laissait donc un service
+// ouvert derrière lui, clos seulement par le run suivant
+// (`cloture_source = prise_de_poste_suivante`). Dix services depuis le
+// 25/10, cinq paires espacées de 1,1 s, mesurés le 26/10 — pas un défaut de
+// la recette, un nettoyage absent.
+//
+// Le choix retenu n'est PAS un SQL de nettoyage : c'est le pointage de
+// départ, déjà prévu par l'écran (`NEXUS-Pointage-v1.html`), qui ferme son
+// propre service (`20260911180500_depart_ferme_son_propre_service.sql`).
+// Isolée comme l'invitation : un échec ici ne doit effacer aucune des
+// preuves qui précèdent, et ne bloque jamais la recette (voir son usage
+// dans `observerEmploye`).
+async function franchirPointageDepart(page, base) {
+  const alertes = [];
+  const surDialogue = async (d) => { alertes.push(d.message()); await d.dismiss().catch(() => {}); };
+  page.on('dialog', surDialogue);
+  try {
+    const url = page.url();
+    if (!/Pointage/i.test(url)) {
+      await page.goto(new URL('NEXUS-Pointage-v1.html', base).href, { waitUntil: 'domcontentloaded' })
+        .catch(() => {});
+    }
+    const texteVerrou = await page.locator('body').innerText().catch(() => '');
+    if (pointageDesactive(texteVerrou)) {
+      return { ferme: true, motif: null, desactive: true, alertes };
+    }
+    if (/Départ enregistré/i.test(texteVerrou)) {
+      return { ferme: true, motif: null, dejaFait: true, alertes };
+    }
+    const champ = page.locator('#photoInput-depart');
+    try {
+      await champ.waitFor({ state: 'attached', timeout: 20000 });
+    } catch (e) {
+      return { ferme: false, motif: 'champ photo de départ absent — pointage de départ non disponible', alertes };
+    }
+    try {
+      await champ.setInputFiles(PHOTO_RECETTE);
+    } catch (e) {
+      return { ferme: false, motif: 'dépôt de la photo de départ refusé : ' + String(e && e.message).split('\n')[0], alertes };
+    }
+    try {
+      await page.locator('#confirmBanner.show').filter({ hasText: /Départ enregistré/i }).waitFor({ timeout: 90000 });
+      return { ferme: true, motif: null, alertes };
+    } catch (e) {
+      return { ferme: false, motif: 'départ non confirmé après dépôt de la photo', alertes };
+    }
+  } finally {
+    page.off('dialog', surDialogue);
+  }
+}
+
 async function observerEmploye(navigateur, base, nom, pin) {
   const page = await navigateur.newPage({ viewport: { width: 420, height: 900 } });
   try {
@@ -748,7 +803,16 @@ async function observerEmploye(navigateur, base, nom, pin) {
       invitation = { presente: false, etat: null, visible: false, texte: '',
         motif: 'observation impossible : ' + String(e && e.message).split('\n')[0] };
     }
-    return { premiere, seconde, invitation, pointage };
+    // EN FIN DE SCÉNARIO : fermer par l'écran le second service, celui que la
+    // seconde prise de poste vient d'ouvrir. Isolée comme l'invitation —
+    // aucune des preuves qui précèdent ne doit disparaître si ce geste rate.
+    let fermeture = null;
+    try {
+      fermeture = await franchirPointageDepart(page, base);
+    } catch (e) {
+      fermeture = { ferme: false, motif: 'observation impossible : ' + String(e && e.message).split('\n')[0] };
+    }
+    return { premiere, seconde, invitation, pointage, fermeture };
   } finally {
     await page.close();
   }
@@ -1458,6 +1522,13 @@ async function executer(env = process.env) {
           employeIndisponible = (employeIndisponible ? employeIndisponible + ' ' : '')
             + `Pointage d’arrivée NON FRANCHI par la recette : ${employe.pointage.motif || 'motif non rendu'}.`;
         }
+        // Informatif, jamais bloquant : un service laissé ouvert par ce run
+        // se ferme seul au run suivant (prise_de_poste_suivante) — ce geste
+        // est un nettoyage, pas une condition de la preuve employé.
+        if (employe.fermeture && !employe.fermeture.ferme) {
+          employeIndisponible = (employeIndisponible ? employeIndisponible + ' ' : '')
+            + `Fermeture du second service par l’écran NON FRANCHIE : ${employe.fermeture.motif || 'motif non rendu'}.`;
+        }
       } catch (e) {
         // Un compte inconnectable et un écran qui refuse sont deux choses
         // opposées — même distinction que pour le Créateur le 07/09. On ne
@@ -1539,6 +1610,12 @@ if (require.main === module) {
           : `NON — ${e.pointage.motif || 'motif non rendu'}`));
       console.log('  · Invitation à l’inventaire sur l’accueil : '
         + resumeInvitation(e && e.invitation));
+      console.log('  · Fermeture du second service par l’écran (pointage de départ) : '
+        + (!e || !e.fermeture ? 'NON EXÉCUTÉE'
+          : e.fermeture.desactive ? 'non requis — pointage désactivé sur ce site (pointage_actif=false)'
+          : e.fermeture.dejaFait ? 'sans objet — départ déjà pointé aujourd’hui'
+          : e.fermeture.ferme ? 'oui — second service fermé par la recette'
+          : `NON — ${e.fermeture.motif || 'motif non rendu'}`));
       console.log('  · Prise de poste avec un quart DÉJÀ OUVERT : '
         + (!e ? 'NON EXÉCUTÉE — le cas ordinaire de l’équipe reste non éprouvé à l’écran'
           : e.seconde.atteint === 'confirme' ? 'satisfaite — le quart précédent s’est fermé seul'
