@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/OUTILLAGE-REGULARISATION-20261026/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: OUTILLAGE-REGULARISATION-20261026
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -20,67 +19,62 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 166-fichiers
-  - id: ci-b9e34f97
+  - id: ci-ec015c75
     classe: VERIFIED
-    valeur: run-Tests-40259971081-success
-  - id: consommation-decision-1
+    valeur: ec015c75
+  - id: pr-claude-yml
     classe: VERIFIED
-    valeur: 3259eec7-preuve-action-b9e34f97
-  - id: epreuves-bornage
+    valeur: 159
+  - id: echecs-connus-9
     classe: VERIFIED
-    valeur: test_preuve_action_branche_du_lot_20261026.js-8/8-M1-mord
-  - id: recette-test-a
+    valeur: ECHECS-CONNUS.json
+  - id: semis-idempotent
     classe: VERIFIED
-    valeur: test_recette_navigateur_test_20260907.js-89/89
-  - id: run-runner-40258106584
-    classe: VERIFIED
-    valeur: success-sans-consommation
+    valeur: a098b991
 ---
-# OUTILLAGE-REGULARISATION-20261026 : request-2 — preuve des conditions de decision-1, un écart à ratifier, deux propositions
+# OUTILLAGE-REGULARISATION-20261026 : request-3 — preuve des conditions de decision-2
 
-## Preuve des conditions de decision-1
+BRANCHE_DU_LOT: handoff-continuite-20260920
 
-Reprise autorisée par Frédéric après un tour incomplet du runner : `github-actions-claude` (run « Claude » 40258106584) a poussé le travail (`b9e34f97`) mais n'a pas consommé la décision. Je l'ai consommée avec `--preuve-action b9e34f97` (commit `3259eec7`, statut `DECISION_CONSOMMEE`). Ce qui suit est lu sur le rail et rejoué, pas déclaré.
+Reprise sous l'autorisation de Frédéric pour ce lot. Decision-2 (`286edb06`) a été consommée par `--preuve-action 6b72289f` (commit `84d17dcc`). Ce qui suit a été relu sur le rail et rejoué.
 
-1. **Ratification des trois commits** (`6510a2e3`, `631f5d00`, `e251592c`) : acquise par decision-1. Épreuves rejouées sur le rail : `test_arbitrage_deja_traite_20261026.js` 9/9, `test_demande_classe_preuve_20261026.js` 3/3.
-2. **Bornage de `--preuve-action`** : implémenté dans `commitHorsRegistre(ref, brancheDuLot)`. Refus avant écriture : `PREUVE_ACTION_HORS_BRANCHE_DU_LOT`, `BRANCHE_DU_LOT_INTROUVABLE`. `test_preuve_action_branche_du_lot_20261026.js` : 8/8 (rail seul refusé, SHA de la branche accepté, SHA inconnu refusé, branche introuvable refusée, trois cas voisins verts : sans marqueur, `--cloture`, `--prise-en-charge` idempotente). **Mutation de l'ascendance rejouée par moi** : l'épreuve M1 remplace la ligne `merge-base --is-ancestor` par un bloc vide dans une copie de `handoff.js`, et vérifie que le SHA rail-seul est alors accepté à tort. L'épreuve M1 passe, donc la mutation a mordu et la garde est bien celle qui refuse.
-3. **Scénario Employé Test A** : les deux prises de poste successives sont conservées ; le second service est fermé par l'écran (pointage de départ, jamais SQL), l'échec de cette fermeture reste informatif. `test_recette_navigateur_test_20260907.js` : 89/89 (5 épreuves ajoutées par `b9e34f97`). Aucun service historique nettoyé.
-4. **Ni Production ni `main`** : `b9e34f97` touche `docs/learning`, `outils/handoff.js`, `outils/recette-navigateur-test.js` et deux fichiers de test. **CI verte avant consommation** : run « Tests » 40259971081, success sur `b9e34f97`.
+## Preuve des conditions de decision-2
 
-## Écart à déclarer : où se lit la branche du lot
+Les sections 1 à 5 ci-dessous constituent cette preuve, condition par condition.
 
-Decision-1, condition 2, dit : « la branche provient exclusivement de l'enveloppe de décision ». Le runner a lu `BRANCHE_DU_LOT: <branche>` dans le **corps** de la décision (regex `^BRANCHE_DU_LOT:`), et non dans l'enveloppe, qui reste fixée au rail par `brancheRailValide` ; ajouter un champ à l'enveloppe changerait `nexus-handoff/2`. C'est une interprétation de la condition 2, pas son texte. Conséquence : une décision sans marqueur garde le comportement ancien (aucune restriction au-delà du rail), y compris decision-1 elle-même, qui ne porte pas le marqueur. **Nous demandons à l'arbitre de ratifier ou non cette lecture.** Si non, il faut soit un champ d'enveloppe versionné, soit un argument explicite, à trancher.
+## 1. BRANCHE_DU_LOT obligatoire, et comment le marqueur arrive
 
-## Corrections au message de `b9e34f97`
+- **Obligation** : le validateur refuse, après l'ancre `286edb06`, toute décision consommée avec `--preuve-action` sans exactement un marqueur valide (`BRANCHE_DU_LOT_ABSENT`, `_MULTIPLE`, `_INVALIDE`, `_INTROUVABLE`). Épreuve `test_marqueur_branche_du_lot_obligatoire_20261026.js`.
+- **Arrivée dans les décisions futures** : deux voies, l'arbitre d'abord, la CI ensuite. Le relais instruit l'arbitre (`ARBITRE-CHATGPT.md`, § 6 bis) de reprendre la ligne `BRANCHE_DU_LOT:` de la request. Si l'arbitre n'en met pas, `materialiser-decision-ci.js` l'injecte.
+- **Correction demandée par la vérification de `6b72289f`/`84d17dcc` (commit `ec015c75`)** : la CI ne prend plus le rail par défaut. Elle lit la branche de travail **déclarée par la request du lot** (`brancheDeLaRequest`). Request sans marqueur ou marqueur invalide : refus avant écriture. Marqueur de l'arbitre différent de celui de la request : refus. Le rail n'est retenu que s'il est déclaré comme branche de travail, ce que fait cette request.
+- **Épreuves** : `test_materialiser_decision_ci_20261009.js` 23/23 ; `test_marqueur_branche_du_lot_obligatoire_20261026.js` 21/21, dont L1–L10 (L6 : lot sur branche de PR, la décision reçoit la branche de PR et non le rail) et **MU5**, qui remet le défaut « rail » dans une copie et fait rougir L6 (la mutation mord).
+- **Conséquence à connaître** : request-2 ne porte pas de marqueur ; seules les requests déposées à partir de celle-ci en portent un. Cette request-3 en porte un (ligne ci-dessus).
 
-Le message de commit annonce un câblage de `tests.yml` à faire et « consigné en demande Handoff ». C'est inexact :
-- `run-tests.js` lance tout fichier `test_*.js` du répertoire (`readdirSync` + `startsWith('test_')`). Les épreuves de `6510a2e3`, de `631f5d00` et de `b9e34f97` sont donc déjà dans la CI via `node run-tests.js`. **Aucun câblage de `tests.yml` n'est à faire.**
-- La « demande Handoff » annoncée n'existe pas : aucun fichier de demande n'a été déposé pour ce motif.
+## 2. Les « 9 échecs connus » contre la référence de 7
 
-## Tour incomplet du runner
+La liste `docs/qa/ECHECS-CONNUS.json` compte **9** entrées, depuis QA-007 (09/09/2026). Le run CI « Tests » 40264925011 (`84d17dcc`) en affiche **9** aussi, identiques à ma suite locale (diff vide des deux listes). Le « 7 » des comptes rendus de lots précédents omettait deux fichiers :
+- `test_chaine_temporelle_carburant_20260821.js` : `chargerControleJour` exige un fuseau, le test l'appelle sans (contrat durci après l'écriture du test) ;
+- `test_inventaire_parcours_depot_boutique_reste.js` : `NexusStation is not defined` (test par découpe, cassé par une refactorisation).
 
-Le run 40258106584 s'est terminé en succès avec le travail poussé et la décision non consommée (statut resté `ATTENTE_CONSOMMATION_DECISION`). Je n'ai pas relevé de journal expliquant l'arrêt. À traiter comme un défaut de la boucle : un tour qui pousse du travail sans consommer ne doit pas se terminer en succès silencieux.
+Aucun n'est propre à mon environnement : même liste en CI et en local. C'est le compte rendu qui était incomplet, pas la liste. Aucune modification de la liste.
 
-## Proposition A : un employé de recette réservé à l'automate
+## 3. Semis de l'employé automate sur Test
 
-Constat : `recette-navigateur-test.js` joue ses scénarios avec Employé Test A, que les recettes manuelles utilisent aussi. Les deux prises de poste automatiques ferment, par `prise_de_poste_suivante`, les services ouverts à la main.
+`outils/semer-employe-automate-test.sql` exécuté sur Test (`udljdqxerrbbbajxubfn`) deux fois. Première exécution : `employees` 7 → 8. Seconde : toujours 8, une seule ligne pour l'identifiant, empreinte de ligne identique (`a098b991…`). Sans secret, sans compte Auth, sans suppression. Production non touchée. Le compte Auth ne sera créé que si un test prouve qu'il est indispensable.
 
-1. Créer un employé de recette réservé à l'automate sur Test, par un jeu **versionné et idempotent** (fichier SQL ou JSON sous `docs/` avec garde de réexécution : `insert … on conflict do nothing`, rejouable sans effet), sur le site de recette, avec les rôles que les scénarios exigent. Aucune écriture Production.
-2. Le scénario passe à cet employé. **Decision-1 garde Employé Test A pour l'instant** : la transition se fait donc en deux temps. D'abord ajouter le nouvel employé et un second scénario qui l'utilise, tout en conservant le scénario d'Employé Test A et sa fermeture par l'écran ; ensuite, une fois le nouveau scénario vert sur plusieurs runs, retirer Employé Test A de l'automate.
-3. Épreuve : le jeu est rejouable deux fois sans changer l'état ; une prise de poste automatique ne ferme jamais le service d'un autre employé que celui de recette ; mutation : sans le filtre sur l'employé de recette, l'épreuve rougit.
+## 4. claude.yml
 
-À arbitrer : le compte a-t-il besoin d'un compte Auth, ou la recette peut-elle l'ouvrir autrement ? (`employe-test-pro` n'en a pas.)
+PR vers `main` : https://github.com/vito-sainte-marie/nexus-vito/pull/159 (câblage de `juger-tour-claude.js` après la détection de TOUR_VIDE ; repli en avertissement si le rail n'a pas l'outil). À relire et fusionner par Frédéric ; rien poussé sur `main`. La proposition du rail citait `nexus-handoff/STATE.json` ; le chemin réel est `docs/handoff/STATE.json`, corrigé dans la PR et dans la proposition.
 
-## Proposition B : une recette sautée ne doit plus passer pour un succès muet
+## 5. Autres conditions
 
-Constat : le run `fd028e38` (12:02 du 25/10, run 40191407452) a attendu environ 4 minutes que NEXUS Test serve le commit du run, puis écrit « Recette navigateur Test non exécutée — NEXUS Test sert encore d964edb8, pas fd028e3 » et terminé en succès. Le job est vert, aucune paire de services n'a été créée, rien ne signale le trou.
-
-1. **Minimum** : émettre `::warning::` visible sur le run, avec le commit servi et le commit attendu, en plus du message actuel. Le job reste vert.
-2. **Idéal** : réessai borné jusqu'au déploiement du bon commit (par exemple trois tentatives espacées, plafond fixé à l'avance, puis `::warning::`). Un déploiement qui n'arrive jamais ne doit pas faire échouer le run (ENV-003, dégradation explicite) ; il doit rester visible.
-3. Épreuve : un cas « Test sert un autre commit » produit la ligne `::warning::` et le plafond de tentatives ; mutation : sans l'émission, l'épreuve rougit.
+- **Proposition A, étape 1** : fait (semis versionné et idempotent, § 3). Employé Test A est conservé. Reste l'étape 2 : scénario sur le nouvel employé, trois runs verts consécutifs, puis épreuve d'isolation et sa mutation avant tout retrait de Test A. Rien n'est retiré.
+- **Proposition B** : `recette-navigateur-test.js` réessaie au plus 3 fois à 120 s d'intervalle, puis émet `::warning::` (commit antérieur au `84d17dcc`, épreuves rejouées en CI).
+- **Tour incomplet** : `juger-tour-claude.js` et son épreuve avec mutation sont sur le rail ; le câblage attend la PR #159.
+- **Corrections au message de `b9e34f97`** : consignées dans request-2 (aucun câblage de `tests.yml`, la demande annoncée n'existait pas).
+- **Ni `main` ni Production** : aucun accès, aucune lecture.
 
 ## À arbitrer
 
-1. Ratifier ou non la lecture de la condition 2 (marqueur dans le corps).
-2. Proposition A : accord sur la transition en deux temps et sur la création d'un jeu versionné ; question du compte Auth.
-3. Proposition B : minimum seul (`::warning::`), ou minimum plus réessai borné ; valeur du plafond.
+1. Les points 1 à 4 couvrent-ils les conditions 1, 4, 5 et 6 de decision-2 ?
+2. Autoriser la suite de la proposition A (étape 2, trois runs verts) ?
