@@ -14,6 +14,19 @@
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Inventaire</title>
+<!-- MESURE-TEMPORAIRE debut (lot INVENTAIRE-CHAINE-INITIALISATION-20261027, branche du lot uniquement, a retirer avant la PR) -->
+<script>
+window.__nxMesure = { longtasks: [], titre: [], loading: [] };
+try { new PerformanceObserver(function (l) { l.getEntries().forEach(function (e) { window.__nxMesure.longtasks.push({ debut: Math.round(e.startTime), duree: Math.round(e.duration) }); }); }).observe({ type: 'longtask', buffered: true }); } catch (e) { window.__nxMesure.longtaskErreur = String(e); }
+performance.mark('nx:debut-script');
+document.addEventListener('DOMContentLoaded', function () {
+  var t = document.getElementById('titre'), c = document.getElementById('content');
+  function noter(tab, v) { tab.push({ t: Math.round(performance.now()), v: v }); }
+  if (t) { noter(window.__nxMesure.titre, t.textContent.trim().slice(0, 40)); new MutationObserver(function () { noter(window.__nxMesure.titre, t.textContent.trim().slice(0, 40)); }).observe(t, { childList: true, characterData: true, subtree: true }); }
+  if (c) { var f = function () { noter(window.__nxMesure.loading, !!c.querySelector('.loading')); }; f(); new MutationObserver(f).observe(c, { childList: true, subtree: true }); }
+});
+</script>
+<!-- MESURE-TEMPORAIRE fin -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -4298,6 +4311,29 @@
   // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
+  // MESURE-TEMPORAIRE debut (a retirer avant la PR) : marques performance, aucune ecriture.
+  (function () {
+    function mesurer(nom, fn) {
+      return function () {
+        const i = (window.__nxMesure.n = (window.__nxMesure.n || 0) + 1);
+        performance.mark('nx:' + nom + ':debut:' + i);
+        const fin = () => { performance.mark('nx:' + nom + ':fin:' + i); try { performance.measure('nx:' + nom + ':' + i, 'nx:' + nom + ':debut:' + i, 'nx:' + nom + ':fin:' + i); } catch (e) {} };
+        let r;
+        try { r = fn.apply(this, arguments); } catch (e) { fin(); throw e; }
+        if (r && typeof r.then === 'function') return r.then(v => { fin(); return v; }, e => { fin(); throw e; });
+        fin(); return r;
+      };
+    }
+    const M = window.NexusInventaireMoteur, P = window.NexusInventairePlanDonnees, D = window.NexusInventaireMissionsDonnees;
+    if (M) ['construirePlanComptage', 'genererMissionsPourContexte', 'repartirPerimetreParEmploye'].forEach(k => { if (typeof M[k] === 'function') M[k] = mesurer('moteur.' + k, M[k]); });
+    if (P && typeof P.chargerOuGenererPlan === 'function') P.chargerOuGenererPlan = mesurer('chargerOuGenererPlan', P.chargerOuGenererPlan);
+    if (D && typeof D.chargerMissionsPourRole === 'function') D.chargerMissionsPourRole = mesurer('genererOuChargerMissions(chargerMissionsPourRole)', D.chargerMissionsPourRole);
+    obtenirOuCreerQuartEmploye = mesurer('obtenirOuCreerQuartEmploye', obtenirOuCreerQuartEmploye);
+    resoudreJaugeageCarburant = mesurer('resoudreJaugeageCarburant', resoudreJaugeageCarburant);
+    renderAccueil = mesurer('renderAccueil', renderAccueil);
+    performance.mark('nx:init:debut');
+  })();
+  // MESURE-TEMPORAIRE fin
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
