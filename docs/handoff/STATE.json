@@ -896,7 +896,7 @@
     },
     "INVENTAIRE-CHAINE-INITIALISATION-20261027": {
       "statut": "ATTENTE_DECISION",
-      "derniere_demande": "request-1.md",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920"
     }
   },

@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CHAINE-INITIALISATION-20261027/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CHAINE-INITIALISATION-20261027/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CHAINE-INITIALISATION-20261027
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: LEAN
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -28,15 +27,21 @@ preuves:
 
 Le lot OUTILLAGE-REGULARISATION-20261026 est clos et consommé (decision-6, `9e999c7e`, registre vérifié par `verifier`, aucun lot actif). Ce lot est ouvert par l'exécutant local sous l'autorisation de reprise de Frédéric, sur son instruction.
 
+BRANCHE_DU_LOT: inventaire-chaine-initialisation-20261027
+
+Cette request-2 reprend la request-1 sur le fond ; elle ajoute le marqueur `BRANCHE_DU_LOT` que la request-1 omettait (la CI a refusé de matérialiser la réponse de l'arbitre, run 40489589183). La branche, créée depuis `origin/production`, portera le code d'Inventaire par une PR vers `production` ; ce n'est pas le rail. La request-1 n'est pas réécrite.
+
 ## Périmètre proposé (aucune ligne écrite)
 1. Lire la chaîne d'initialisation du quart de bout en bout et établir, par mesure et non par lecture du code seule, quelles lectures des trois tables sont réellement en série sur le chemin critique.
 2. Proposer la réduction (une lecture par table et par quart, ou parallélisation) sans changer ce qui est calculé.
 3. Mesure Claude Guardian sur Test, même compte et même quart, avant et après. Production non touchée.
 
-## Deux défauts de la boucle à traiter dans un lot d'outillage suivant
+## Trois défauts de la boucle à traiter dans un lot d'outillage suivant
 Notés ici, non diagnostiqués, aucune permission élargie.
 1. **`closes: true` donne NO_WORK alors que la consommation de clôture reste à faire.** Sur OUTILLAGE-REGULARISATION-20261026, la boucle a conclu « RIEN_A_FAIRE : la décision clôt le lot » (run 40423055350) alors que le registre restait en ATTENTE_DECISION sur request-7. Il a fallu `consommer --cloture` à la main.
 2. **15 refus de permission du runner en deux tours sur ce même lot.** Il faut établir lesquels avant d'élargir quoi que ce soit : toute nouvelle permission relève d'une gate humaine. Je n'en ai pas demandé et n'en demande pas ici.
+
+3. **`handoff.js demande` accepte une request sans `BRANCHE_DU_LOT` valide.** La request-1 de ce lot est partie ainsi et la CI a refusé la décision de l'arbitre. L'outil doit refuser avant écriture, comme il le fait déjà pour les classes de preuve.
 
 Rappel du constat déjà consigné en request-7 : aucun tour complet du runner seul depuis le 25/10 ; la PR #159 rend le premier cas visible ; le non-déclenchement est à diagnostiquer dans ce lot d'outillage.
 
