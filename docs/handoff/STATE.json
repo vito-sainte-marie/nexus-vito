@@ -895,9 +895,14 @@
       "consomme_le": "2026-10-27T10:31:51.357Z"
     },
     "INVENTAIRE-CHAINE-INITIALISATION-20261027": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "23b5394cae9234f9eefba06b3847a46f258ee451",
+      "pris_en_charge_le": "2026-10-28T16:17:47.785Z",
+      "pris_en_charge_par": "session-locale"
     }
   },
   "artefacts_hors_registre": [
