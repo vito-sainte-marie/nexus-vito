@@ -215,6 +215,11 @@
     const M = global.NexusInventaireMoteur;
     if (!M) { console.error('NexusInventaireMoteur non chargé — impossible de générer le plan.'); return null; }
 
+    // `options` peut arriver sous forme de promesse : l'appelant lit les
+    // réglages PENDANT que le plan existant est cherché, et ne les attend
+    // qu'ici, au seul endroit où ils servent (génération). Un objet simple
+    // passe tel quel.
+    options = await options;
     const socleCible = (options && options.socleCible) || SOCLE_PAR_DEFAUT;
     const surprisesCible = (options && options.surprisesCible) != null ? options.surprisesCible : SURPRISES_PAR_DEFAUT;
 

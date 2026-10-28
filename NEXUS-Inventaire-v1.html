@@ -1388,14 +1388,15 @@
   let memoPlanInit = null;
   function fermerMemoPlanInit() { if (window.NexusInventairePlanDonnees && NexusInventairePlanDonnees.fermerMemoPlan) NexusInventairePlanDonnees.fermerMemoPlan(); }
 
-  // Réglages, seuils d'écart et plan du quart. Les réglages et les seuils
-  // sont indépendants : lus ensemble ; le plan a besoin des réglages.
+  // Réglages, seuils d'écart et plan du quart : trois lectures lancées
+  // ensemble. Le plan n'a besoin des réglages qu'à la GÉNÉRATION ; la lecture
+  // du plan existant, elle, n'en dépend pas — les réglages lui sont donc
+  // passés sous forme de promesse, attendue seulement au moment de générer.
   async function lirePlanEtReglagesDuQuart(P, site, quart) {
-    const [options, seuils] = await Promise.all([
-      chargerReglagesPlanComptage(),
-      (async () => { try { return await P.chargerSeuilsEcart(nexusClient, site); } catch (e) { console.error('Chargement seuils écart:', e); return null; } })(),
-    ]);
-    const plan = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quart, options);
+    const reglages = chargerReglagesPlanComptage();
+    const seuilsLus = (async () => { try { return await P.chargerSeuilsEcart(nexusClient, site); } catch (e) { console.error('Chargement seuils écart:', e); return null; } })();
+    const planLu = P.chargerOuGenererPlan(nexusClient, site, dateISO(), quart, reglages);
+    const [options, seuils, plan] = await Promise.all([reglages, seuilsLus, planLu]);
     return { options, seuils, plan };
   }
 
