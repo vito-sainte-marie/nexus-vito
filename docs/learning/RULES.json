@@ -457,6 +457,19 @@
       "source": "2026-10-25: PRISE-DE-POSTE-UN-ECRAN-20261025 (decision-2 ab957256, PR #158); nexus-prise-de-poste.js, test_prise_de_poste_un_ecran_20261025.js"
     },
     {
+      "id": "POSTE-006",
+      "scope": [
+        "jaugeage",
+        "carburant",
+        "vacataire"
+      ],
+      "trigger": "jaugeage_ouverture_sans_pompiste_nexus",
+      "module": "carburants",
+      "severity": "blocking",
+      "rule": "The cashier photographs the Veeder-Root every morning. When the morning pompiste is a vacataire without NEXUS, the manager enters the opening jaugeage in NEXUS during the day from that photo, with origin 'manager'. No other role enters it.",
+      "source": "2026-10-27: Frederic confirmation, JAUGEAGE-CARBURANT-FIL-UNIQUE-20261029 (decision-1 d9c8f065, PR #162); NEXUS-Carburants-v1.html, test_jaugeage_fil_unique_20261029.js"
+    },
+    {
       "id": "GOV-011",
       "scope": [
         "gouvernance",
