@@ -14,7 +14,6 @@
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Inventaire</title>
-<!-- MESURE-TEMPORAIRE debut (a retirer avant la PR) --><script src="nexus-mesure-temporaire.js"></script><!-- MESURE-TEMPORAIRE fin -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -4300,29 +4299,6 @@
   // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
-  // MESURE-TEMPORAIRE debut (a retirer avant la PR) : marques performance, aucune ecriture.
-  if (typeof performance !== 'undefined' && window.__nxMesure) (function () {
-    function mesurer(nom, fn) {
-      return function () {
-        const i = (window.__nxMesure.n = (window.__nxMesure.n || 0) + 1);
-        performance.mark('nx:' + nom + ':debut:' + i);
-        const fin = () => { performance.mark('nx:' + nom + ':fin:' + i); try { performance.measure('nx:' + nom + ':' + i, 'nx:' + nom + ':debut:' + i, 'nx:' + nom + ':fin:' + i); } catch (e) {} };
-        let r;
-        try { r = fn.apply(this, arguments); } catch (e) { fin(); throw e; }
-        if (r && typeof r.then === 'function') return r.then(v => { fin(); return v; }, e => { fin(); throw e; });
-        fin(); return r;
-      };
-    }
-    const M = window.NexusInventaireMoteur, P = window.NexusInventairePlanDonnees, D = window.NexusInventaireMissionsDonnees;
-    if (M) ['construirePlanComptage', 'genererMissionsPourContexte', 'repartirPerimetreParEmploye'].forEach(k => { if (typeof M[k] === 'function') M[k] = mesurer('moteur.' + k, M[k]); });
-    if (P && typeof P.chargerOuGenererPlan === 'function') P.chargerOuGenererPlan = mesurer('chargerOuGenererPlan', P.chargerOuGenererPlan);
-    if (D && typeof D.chargerMissionsPourRole === 'function') D.chargerMissionsPourRole = mesurer('genererOuChargerMissions(chargerMissionsPourRole)', D.chargerMissionsPourRole);
-    obtenirOuCreerQuartEmploye = mesurer('obtenirOuCreerQuartEmploye', obtenirOuCreerQuartEmploye);
-    resoudreJaugeageCarburant = mesurer('resoudreJaugeageCarburant', resoudreJaugeageCarburant);
-    renderAccueil = mesurer('renderAccueil', renderAccueil);
-    performance.mark('nx:init:debut');
-  })();
-  // MESURE-TEMPORAIRE fin
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
@@ -4340,9 +4316,7 @@
     lectureZones.catch(() => {});
     const fuseauInventaire = await NexusStation.fuseauDeLaStation(employee.site_id);
     filFuseau = fuseauInventaire.timezone;
-    if (window.__nxMesure) performance.mark('nx:marque:fuseau-lu'); // MESURE-TEMPORAIRE
     quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone);
-    if (window.__nxMesure) performance.mark('nx:marque:quart-calcule'); // MESURE-TEMPORAIRE
     if (!quartActuel) { bloquerFauteDHorairesDeQuart(); return; }
     if (enFil()) {
       filInstallerBarre();
@@ -4364,7 +4338,6 @@
     // n'est donc plus résolue ici mais dans resoudreJaugeageCarburant(),
     // appelée à chaque renderAccueil() une fois zoneActive connu.
 
-    if (window.__nxMesure) performance.mark('nx:marque:role-lu'); // MESURE-TEMPORAIRE
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
 
@@ -4382,7 +4355,6 @@
       await chargerMissionsDuJour();
     })();
     const [reponseZones] = await Promise.all([lectureZones, lectureQuart, chargerEtAppliquerPlanQuart()]);
-    if (window.__nxMesure) performance.mark('nx:marque:lectures-finies'); // MESURE-TEMPORAIRE
     const zonas = reponseZones && reponseZones.data;
     if (zonas) zonesMap = Object.fromEntries(zonas.map(z => [z.code, z.id]));
     if (!quartRow) { memoPlanInit = null; fermerMemoPlanInit(); document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
