@@ -1,14 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CHAINE-INITIALISATION-20261027/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CHAINE-INITIALISATION-20261027/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CHAINE-INITIALISATION-20261027
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
-token_mode: LEAN
+token_mode: STANDARD
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -19,34 +19,49 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 166-fichiers
+  - id: pr-brouillon
+    classe: VERIFIED
+    valeur: 161
+  - id: commit-lot
+    classe: VERIFIED
+    valeur: d341ee4133982006e1b0689c4e533527170aee37
 ---
-# INVENTAIRE-CHAINE-INITIALISATION-20261027 : la chaîne d'initialisation du quart d'Inventaire
+# INVENTAIRE-CHAINE-INITIALISATION-20261027 : demande de clôture
 
-## Contexte
-`INVENTAIRE-RELECTURES-20261024` (clos, decision-3 APPROVED) a ramené 42 à 32 requêtes mais n'a pas gagné de temps à la première ouverture du soir : 3,7 s avant, 3,8 s après, contre 3 s visées. Sa request-3 (point 3) nomme le poste dominant restant : la chaîne d'initialisation du quart. `inventaire_quarts`, `inventaire_quart_employes` et `inventaire_plans_comptage` y sont lus 4 fois chacun, en séquence, donc sur le chemin critique. La decision-3 a fixé l'ordre : « Jaugeage Carburant » d'abord, puis ce lot.
+## Ce qui est fait
+Deux corrections de lecture seule, une épreuve, aucune écriture ni calcul modifié, sur la branche du lot `inventaire-chaine-initialisation-20261027` (d341ee41, CI verte, mêmes quatre échecs inventaire connus avant et après).
+1. Les réglages, les seuils et le plan existant du quart sont lus ensemble ; les réglages ne sont attendus qu'à la génération du plan.
+2. La lecture `inventaire_zones` part avant l'attente du fuseau.
+3. Épreuve `test_inventaire_chaine_init_20261028.js` : empreinte figée du calcul du quart (`quartDuMoment`, `quartConfigureDuMoment`, `seuilDeBascule`, `quartDepuisMinutes`), ordre de l'initialisation, trois mutations qui font rougir l'épreuve.
 
-Le lot OUTILLAGE-REGULARISATION-20261026 est clos et consommé (decision-6, `9e999c7e`, registre vérifié par `verifier`, aucun lot actif). Ce lot est ouvert par l'exécutant local sous l'autorisation de reprise de Frédéric, sur son instruction.
+PR en brouillon vers `production` : #161. Consigne de Frédéric : **fusion après la recette de la semaine prochaine, pas avant**. Aucune fusion, aucun déploiement.
 
-BRANCHE_DU_LOT: inventaire-chaine-initialisation-20261027
+## Mesures (Supabase Test, Employé Test B, aperçus de branche)
+| Mesure | Résultat |
+|---|---|
+| « Avant » (b66b3d65, 28/10 ~8 h 20) | première du jour 2 647 ms, suivante 2 115 ms |
+| « Après » correction n°1 (014a0fe7, 29/10 ~13 h 20) | première du jour 3 189 ms, suivantes 2 733 ms puis 2 366 ms : écart non conclusif, matin contre après-midi |
+| A/B alternées (A B A B A B, 29/10 ~16 h), passages 2 et 3 | départ 2 383 ms, lot 2 400 ms |
 
-Cette request-2 reprend la request-1 sur le fond ; elle ajoute le marqueur `BRANCHE_DU_LOT` que la request-1 omettait (la CI a refusé de matérialiser la réponse de l'arbitre, run 40489589183). La branche, créée depuis `origin/production`, portera le code d'Inventaire par une PR vers `production` ; ce n'est pas le rail. La request-1 n'est pas réécrite.
+**Conclusion : aucun gain mesurable.** Le plan démarre environ 100 ms plus tôt, mais la variation du chemin des missions (600 à 1 200 ms) l'absorbe ; la latence médiane d'une requête est de 152 à 215 ms des deux côtés. Les corrections sont justes et sans effet négatif.
 
-## Périmètre proposé (aucune ligne écrite)
-1. Lire la chaîne d'initialisation du quart de bout en bout et établir, par mesure et non par lecture du code seule, quelles lectures des trois tables sont réellement en série sur le chemin critique.
-2. Proposer la réduction (une lecture par table et par quart, ou parallélisation) sans changer ce qui est calculé.
-3. Mesure Claude Guardian sur Test, même compte et même quart, avant et après. Production non touchée.
+## Trois postes coûteux, pour un lot de performance après la recette
+1. `genererOuChargerMissions` : 600 à 1 200 ms, en séquence après `obtenirOuCreerQuartEmploye`.
+2. Pré-chaîne : environ 1 s avant le premier appel inventaire (session, service, site, réglages, fuseau, quart).
+3. Environ 250 ms entre la fin des missions et `renderAccueil`, non ventilés.
 
-## Trois défauts de la boucle à traiter dans un lot d'outillage suivant
-Notés ici, non diagnostiqués, aucune permission élargie.
-1. **`closes: true` donne NO_WORK alors que la consommation de clôture reste à faire.** Sur OUTILLAGE-REGULARISATION-20261026, la boucle a conclu « RIEN_A_FAIRE : la décision clôt le lot » (run 40423055350) alors que le registre restait en ATTENTE_DECISION sur request-7. Il a fallu `consommer --cloture` à la main.
-2. **15 refus de permission du runner en deux tours sur ce même lot.** Il faut établir lesquels avant d'élargir quoi que ce soit : toute nouvelle permission relève d'une gate humaine. Je n'en ai pas demandé et n'en demande pas ici.
+## Preuve des conditions de decision-1
+1. **Mesurer avant et après** : fait, avec une alternance A/B pour neutraliser la variation du réseau (tableau ci-dessus). Résultat : aucun gain mesurable.
+2. **Préserver strictement les calculs métier** : l'empreinte figée de `quartDuMoment`, `quartConfigureDuMoment`, `seuilDeBascule` et `quartDepuisMinutes` est inchangée ; trois mutations (quart2 en quart1, lecture des zones retirée, écriture du quart avant le calcul) font rougir l'épreuve. Le diff contre `f00eda7a` ne contient que les deux corrections, l'épreuve, et aucune instrumentation.
+3. **Aucune lecture ni écriture de la Production, aucune fusion, aucun déploiement sans GO** : mesures sur Test seulement ; la PR #161 est en brouillon ; rien n'est fusionné ni déployé.
+4. **Défauts de la boucle traités dans un lot d'outillage ultérieur, sans élargir de permission** : consignés dans la request-2, aucune permission demandée ni modifiée.
 
-3. **`handoff.js demande` accepte une request sans `BRANCHE_DU_LOT` valide.** La request-1 de ce lot est partie ainsi et la CI a refusé la décision de l'arbitre. L'outil doit refuser avant écriture, comme il le fait déjà pour les classes de preuve.
-
-Rappel du constat déjà consigné en request-7 : aucun tour complet du runner seul depuis le 25/10 ; la PR #159 rend le premier cas visible ; le non-déclenchement est à diagnostiquer dans ce lot d'outillage.
+## Hors lot, notés
+Ouvrir `NEXUS-Prise-De-Poste-v1` directement avec le service de la veille encore ouvert affiche « Un quart est déjà ouvert… ». Les trois défauts de la boucle de la request-2 restent pour le lot d'outillage.
 
 ## À arbitrer
-1. Ce lot s'ouvre-t-il maintenant, ou après « Jaugeage Carburant » comme l'ordonnait la decision-3 ? Si l'arbitre l'ouvre ici, quel est l'état de « Jaugeage Carburant » ?
-2. Le lot d'outillage sur les deux défauts de la boucle doit-il être ouvert avant ou après celui-ci ?
+Clôturer ce lot avec ce qui est fait, sans gain de temps revendiqué. Ensuite, par ordre de Frédéric : ouverture du lot « Jaugeage Carburant », livraison à fusionner avant le lundi 2 novembre sur son GO.
+
+BRANCHE_DU_LOT: inventaire-chaine-initialisation-20261027
 
 Aucune fusion, aucun déploiement, aucune lecture ni écriture de la Production sans le GO de Frédéric.
