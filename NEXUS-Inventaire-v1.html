@@ -1767,12 +1767,6 @@
     if (carteMouvementRapide) carteMouvementRapide.addEventListener('click', demarrerAjoutMouvementRapide);
     const carteReceptionRapide = document.getElementById('carteReceptionRapide');
     if (carteReceptionRapide) carteReceptionRapide.addEventListener('click', demarrerReceptionRapide);
-    const carteJaugeage = document.getElementById('carteJaugeageCarburant');
-    // Option A (Frédéric, 21/10/2026) : la carte mène au jaugeage Veeder-Root des Relevés piste (photo, lecture,
-    // vérification) ; la saisie manuelle y reste en repli. Même primitive d'écriture des deux côtés.
-    if (carteJaugeage) carteJaugeage.addEventListener('click', () => { window.location.href = 'NEXUS-Releves-Piste-v1.html?ecran=jauge'; });
-    const lienImpossible = document.getElementById('lienJaugeageImpossible');
-    if (lienImpossible) lienImpossible.addEventListener('click', (e) => { e.stopPropagation(); renderJaugeageImpossible(); });
     const lienVoirReleveJaugeage = document.getElementById('lienVoirReleveJaugeage');
     if (lienVoirReleveJaugeage) lienVoirReleveJaugeage.addEventListener('click', toggleDetailReleveJaugeage);
   }
@@ -1829,18 +1823,9 @@
           </div>
         </div>`;
     }
-    return `
-      <div class="choix-grid" style="margin-bottom:10px;">
-        <div class="choix-card" id="carteJaugeageCarburant">
-          <div class="choix-icone" style="background:#5a3d0b;">⛽</div>
-          <div style="flex:1;">
-            <div class="choix-titre">Jaugeage carburants — ouverture</div>
-            <div class="choix-sub">À effectuer avant le début des ventes — SP95 · GO · GNR</div>
-            <div class="choix-statut attente">À faire</div>
-            <div class="choix-sub" style="margin-top:6px;"><a href="#" id="lienJaugeageImpossible" style="color:inherit;text-decoration:underline;">Je ne peux pas faire le jaugeage</a></div>
-          </div>
-        </div>
-      </div>`;
+    // Fil unique (choix A, 27/10/2026) : le jaugeage d'ouverture se fait à l'étape 1 du parcours pompiste (Relevés piste),
+    // plus ici. Cette carte ne montre que l'état du jour (fait / impossible), jamais une porte d'entrée.
+    return '';
   }
 
   async function toggleDetailReleveJaugeage(e) {
@@ -1859,103 +1844,6 @@
       releve.stock_reel_gnr != null ? `GNR : ${fmtNum(releve.stock_reel_gnr)} L` : null,
     ].filter(Boolean);
     zone.textContent = lignes.join(' · ');
-  }
-
-  async function demarrerJaugeageOuverture() {
-    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
-    const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employeeCourant.site_id);
-    renderJaugeageOuverture(config);
-  }
-
-  function renderJaugeageOuverture(cuvesConfig) {
-    document.getElementById('titre').textContent = 'Jaugeage carburants — ouverture';
-    document.getElementById('sousTitre').textContent = 'Valeurs physiques lues sur la jauge, avant le début des ventes.';
-
-    const goCuves = (cuvesConfig.go && cuvesConfig.go.actif !== false) ? (cuvesConfig.go.cuves || []) : [];
-    const sp95Actif = cuvesConfig.sp95 && cuvesConfig.sp95.actif !== false;
-    const gnrActif = cuvesConfig.gnr && cuvesConfig.gnr.actif !== false;
-
-    const champGo = goCuves.map((c, i) => `
-      <div class="champ-label">${cuvesConfig.go.label || 'Gasoil (GO)'} — ${c.label || `Cuve ${i + 1}`}</div>
-      <input type="number" inputmode="decimal" class="produit-input" id="jg_go_cuve${i + 1}" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">
-    `).join('');
-
-    document.getElementById('content').innerHTML = `
-      <div class="mouv-card">
-        ${sp95Actif ? `
-        <div class="champ-label">${cuvesConfig.sp95.label || 'Sans plomb (SP95)'}</div>
-        <input type="number" inputmode="decimal" class="produit-input" id="jg_sp95" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">` : ''}
-        ${champGo}
-        ${gnrActif ? `
-        <div class="champ-label">${cuvesConfig.gnr.label || 'Gasoil non routier (GNR)'}</div>
-        <input type="number" inputmode="decimal" class="produit-input" id="jg_gnr" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">` : ''}
-        <button class="btn-primary" id="btnJgValider">Valider le jaugeage d'ouverture</button>
-        <button class="btn-text" id="btnJgImpossible" style="margin-top:6px;">Je ne peux pas faire le jaugeage</button>
-        <div class="mouv-liste" id="jgConfirmation"></div>
-      </div>
-      <button class="btn-text" id="btnJgRetour">← Retour</button>
-    `;
-
-    document.getElementById('btnJgRetour').addEventListener('click', renderAccueil);
-
-    document.getElementById('btnJgValider').addEventListener('click', async () => {
-      const lire = id => { const el = document.getElementById(id); if (!el || el.value === '') return null; return parseFloat(el.value); };
-      const valeurs = {
-        sp95: sp95Actif ? lire('jg_sp95') : null,
-        go_cuve1: goCuves[0] ? lire('jg_go_cuve1') : null,
-        go_cuve2: goCuves[1] ? lire('jg_go_cuve2') : null,
-        gnr: gnrActif ? lire('jg_gnr') : null,
-      };
-      const auMoinsUne = Object.values(valeurs).some(v => v != null && !isNaN(v));
-      if (!auMoinsUne) { alert('Saisissez au moins une valeur de jaugeage.'); return; }
-
-      const btn = document.getElementById('btnJgValider');
-      btn.disabled = true;
-      btn.textContent = 'Enregistrement…';
-      const resultat = await NexusCarburantDonnees.enregistrerJaugeageOuverturePompiste(nexusClient, employeeCourant.site_id, {
-        date: dateISO(), employeeId: employeeCourant.id, valeurs,
-      });
-      if (!resultat.ok) {
-        btn.disabled = false;
-        btn.textContent = "Valider le jaugeage d'ouverture";
-        alert("Erreur d'enregistrement — réessayez. Si le problème persiste, utilisez \"Je ne peux pas faire le jaugeage\".");
-        return;
-      }
-      statutJaugeageJour = { statut: 'fait', cree_le: new Date().toISOString(), motif_impossible: null };
-      renderAccueil();
-    });
-
-    document.getElementById('btnJgImpossible').addEventListener('click', renderJaugeageImpossible);
-  }
-
-  function renderJaugeageImpossible() {
-    document.getElementById('titre').textContent = 'Jaugeage impossible';
-    document.getElementById('sousTitre').textContent = "Le contrôle carburant du jour restera provisoire jusqu'au prochain relevé.";
-    document.getElementById('content').innerHTML = `
-      <div class="mouv-card">
-        <select class="mouv-select" id="jgMotif" style="width:100%; margin-bottom:8px;">
-          <option value="equipement_indisponible">Équipement indisponible</option>
-          <option value="acces_impossible">Accès impossible</option>
-          <option value="autre">Autre</option>
-        </select>
-        <textarea class="mouv-justif" id="jgCommentaire" rows="2" placeholder="Précision (facultatif)" style="width:100%;"></textarea>
-        <button class="btn-primary" id="btnJgConfirmerImpossible" style="margin-top:8px;">Confirmer</button>
-      </div>
-      <button class="btn-text" id="btnJgRetourImpossible">← Retour</button>
-    `;
-    document.getElementById('btnJgRetourImpossible').addEventListener('click', () => demarrerJaugeageOuverture());
-    document.getElementById('btnJgConfirmerImpossible').addEventListener('click', async () => {
-      const motif = document.getElementById('jgMotif').value;
-      const commentaire = document.getElementById('jgCommentaire').value.trim();
-      const btn = document.getElementById('btnJgConfirmerImpossible');
-      btn.disabled = true;
-      const resultat = await NexusCarburantDonnees.enregistrerJaugeageImpossible(nexusClient, employeeCourant.site_id, {
-        date: dateISO(), employeeId: employeeCourant.id, motif, commentaire,
-      });
-      if (!resultat.ok) { btn.disabled = false; alert('Erreur — réessayez.'); return; }
-      statutJaugeageJour = { statut: 'impossible', motif_impossible: motif, cree_le: new Date().toISOString() };
-      renderAccueil();
-    });
   }
 
   function renderChoixZone() {

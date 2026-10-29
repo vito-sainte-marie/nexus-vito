@@ -15,12 +15,15 @@ const rel = lire('NEXUS-Releves-Piste-v1.html');
 t('Inventaire : la carte jaugeage ne démarre plus la saisie manuelle seule', () => {
   assert.ok(!/carteJaugeage\.addEventListener\('click',\s*demarrerJaugeageOuverture\)/.test(inv));
 });
-t('Inventaire : la carte mène aux Relevés piste, écran jaugeage', () => {
-  assert.ok(/NEXUS-Releves-Piste-v1\.html\?ecran=jauge/.test(inv));
+t('Inventaire : plus aucune carte d\'entrée vers le jaugeage (fil unique, choix A du 27/10/2026)', () => {
+  assert.ok(!inv.includes('carteJaugeageCarburant'));
+  assert.ok(!/NEXUS-Releves-Piste-v1\.html\?ecran=jauge/.test(inv));
 });
-t('Inventaire : « impossible » reste accessible depuis la carte', () => {
-  assert.ok(inv.includes('lienJaugeageImpossible'));
-  assert.ok(/lienJaugeageImpossible[\s\S]{0,400}renderJaugeageImpossible/.test(inv));
+t('Relevés piste : « impossible » est accessible depuis l\'étape 1 et écrit le statut du jour', () => {
+  assert.ok(rel.includes('data-act="jimpossible"'));
+  assert.ok(/a === 'jimpossible'[\s\S]{0,200}jaugeimpossible/.test(rel));
+  assert.ok(/declarerJaugeageImpossible[\s\S]{0,500}enregistrerJaugeageImpossible/.test(rel));
+  assert.ok(!/enregistrerJaugeageImpossible[\s\S]{0,200}carburant_releves/.test(rel), 'le statut impossible n\'écrit jamais un relevé');
 });
 
 t('module caméra : dimensions plafonnées à 2000 px, jamais agrandies', () => {

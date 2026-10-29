@@ -281,13 +281,9 @@ function creerClientMock(reponses) {
     assert.strictEqual(T.renderBlocJaugeageCarburant(), '', 'Flag inactif -> chaîne vide, aucune trace du bloc dans le DOM');
   });
 
-  testSync('renderBlocJaugeageCarburant : flag actif, aucun statut -> carte "À faire"', () => {
+  testSync('renderBlocJaugeageCarburant : flag actif, aucun statut -> aucune carte (fil unique : le jaugeage se fait à l\'étape 1 des Relevés piste)', () => {
     T.setEnv({ jaugeageCarburantActif: true, statutJaugeageJour: null });
-    const html = T.renderBlocJaugeageCarburant();
-    assert.ok(html.includes('Jaugeage carburants — ouverture'), 'Doit afficher le titre exact du cahier des charges');
-    assert.ok(html.includes('SP95') && html.includes('GO') && html.includes('GNR'), 'Doit citer les 3 carburants concernés');
-    assert.ok(html.includes('À faire'), 'Statut "À faire" tant que rien n\'est saisi');
-    assert.ok(html.includes('carteJaugeageCarburant'), 'La carte doit exposer son id pour le câblage du clic (démarrerJaugeageOuverture)');
+    assert.strictEqual(T.renderBlocJaugeageCarburant(), '', 'Plus de carte « À faire » ni de lien « impossible » dans l\'Inventaire');
   });
 
   testSync('renderBlocJaugeageCarburant : statut "fait" -> carte cliquée = "Effectué à HH:MM", jamais re-proposée', () => {
