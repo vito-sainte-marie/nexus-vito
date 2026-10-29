@@ -4332,9 +4332,17 @@
     // gardent leur ordre (horaires de quart d'abord, puis rôle).
     const roleEnCours = employee.mode_test_inventaire ? null : chargerRoleDuJour();
     if (roleEnCours) roleEnCours.catch(() => {});
+    // Lecture seule, indépendante du fuseau et du quart : lancée avant eux.
+    // Promise.resolve déclenche la requête tout de suite (le constructeur de
+    // requête ne part qu'à son premier then). Une erreur reste portée par la
+    // réponse, relue plus bas comme avant.
+    const lectureZones = Promise.resolve(nexusClient.from('inventaire_zones').select('id, code'));
+    lectureZones.catch(() => {});
     const fuseauInventaire = await NexusStation.fuseauDeLaStation(employee.site_id);
     filFuseau = fuseauInventaire.timezone;
+    if (window.__nxMesure) performance.mark('nx:marque:fuseau-lu'); // MESURE-TEMPORAIRE
     quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone);
+    if (window.__nxMesure) performance.mark('nx:marque:quart-calcule'); // MESURE-TEMPORAIRE
     if (!quartActuel) { bloquerFauteDHorairesDeQuart(); return; }
     if (enFil()) {
       filInstallerBarre();
@@ -4356,6 +4364,7 @@
     // n'est donc plus résolue ici mais dans resoudreJaugeageCarburant(),
     // appelée à chaque renderAccueil() une fois zoneActive connu.
 
+    if (window.__nxMesure) performance.mark('nx:marque:role-lu'); // MESURE-TEMPORAIRE
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
 
@@ -4364,7 +4373,6 @@
     // mémoïsé pour que l'ouverture directe ne le relise pas.
     memoPlanInit = new Map();
     if (window.NexusInventairePlanDonnees && NexusInventairePlanDonnees.ouvrirMemoPlan) NexusInventairePlanDonnees.ouvrirMemoPlan(); // partagé avec la voie missions
-    const lectureZones = nexusClient.from('inventaire_zones').select('id, code');
     const lectureQuart = (async () => {
       quartRow = await obtenirOuCreerQuart();
       if (!quartRow) return;
@@ -4374,6 +4382,7 @@
       await chargerMissionsDuJour();
     })();
     const [reponseZones] = await Promise.all([lectureZones, lectureQuart, chargerEtAppliquerPlanQuart()]);
+    if (window.__nxMesure) performance.mark('nx:marque:lectures-finies'); // MESURE-TEMPORAIRE
     const zonas = reponseZones && reponseZones.data;
     if (zonas) zonesMap = Object.fromEntries(zonas.map(z => [z.code, z.id]));
     if (!quartRow) { memoPlanInit = null; fermerMemoPlanInit(); document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }

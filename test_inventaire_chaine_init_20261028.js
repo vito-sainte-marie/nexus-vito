@@ -37,6 +37,31 @@ function charger(src, planExistant) {
   return { client, inserts, PD: sandbox.NexusInventairePlanDonnees };
 }
 
+// Le calcul du quart est figé : sa règle (fuseau -> horaires -> bascule) ne
+// change pas avec la parallélisation de la pré-chaîne.
+const STATION = fs.readFileSync(path.join(__dirname, 'nexus-station.js'), 'utf8');
+const sha = x => require('crypto').createHash('sha256').update(x).digest('hex').slice(0, 16);
+function corps(t, debut) { const i = t.indexOf(debut); if (i < 0) return ''; const j = t.indexOf('\n  }\n', i); return t.slice(i, j); }
+function calculQuartFige(html, station) {
+  return [corps(html, 'async function quartDuMoment'), corps(station, 'async function quartConfigureDuMoment'),
+    corps(station, 'async function seuilDeBascule'), corps(station, 'function quartDepuisMinutes')].map(sha).join(',');
+}
+const EMPREINTE_QUART = 'd9ac7c429e10aa5c,80e938e9be475b64,5e073ada93a474a0,d268877969562575';
+function ordreInit(html) {
+  const e = [];
+  const iZ = html.indexOf("lectureZones = Promise.resolve(nexusClient.from('inventaire_zones')");
+  const iF = html.indexOf('await NexusStation.fuseauDeLaStation(employee.site_id)');
+  const iQ = html.indexOf('quartActuel = await quartDuMoment(employee.site_id, fuseauInventaire.timezone)');
+  const iN = html.indexOf('if (!quartActuel) { bloquerFauteDHorairesDeQuart(); return; }');
+  const iR = html.indexOf('const resolution = await roleEnCours');
+  const iW = html.indexOf('obtenirOuCreerQuart()', iF);
+  if (!(iZ > 0 && iZ < iF)) e.push('les zones doivent partir avant le fuseau');
+  if (!(iF < iQ && iQ < iN)) e.push('fuseau puis quart, dans cet ordre');
+  if (!(iN < iR)) e.push('écran des horaires avant celui du rôle');
+  if (!(iN < iW && iR < iW)) e.push("aucune écriture (quart) avant le quart connu et le rôle");
+  return e;
+}
+
 async function epreuves(src) {
   const echecs = [];
   const essai = async (nom, f) => { try { await f(); } catch (e) { echecs.push(nom + ' : ' + e.message); } };
@@ -82,5 +107,13 @@ async function epreuves(src) {
   const mute = SRC.replace('options = await options;', '');
   const rouge = await epreuves(mute);
   assert.ok(rouge.length > 0, 'la mutation (réglages non attendus) doit rougir une épreuve');
+  // Calcul du quart figé + ordre de l'init ; mutations : chacune doit rougir.
+  assert.strictEqual(calculQuartFige(HTML, STATION), EMPREINTE_QUART, 'le calcul du quart a changé');
+  assert.notStrictEqual(calculQuartFige(HTML, STATION.replace("p_quart: 'quart2'", "p_quart: 'quart1'")), EMPREINTE_QUART, 'mutation du calcul non détectée');
+  assert.deepStrictEqual(ordreInit(HTML), [], 'ordre de l\'init');
+  const zonesApres = HTML.replace("const lectureZones = Promise.resolve(nexusClient.from('inventaire_zones').select('id, code'));", '').replace('    const reponseZones', '    const reponseZones');
+  assert.ok(ordreInit(zonesApres).length > 0, 'mutation (zones plus tard) non détectée');
+  const ecritureTot = HTML.replace('quartActuel = await quartDuMoment(', 'const _t = quartRow = await obtenirOuCreerQuart(); quartActuel = await quartDuMoment(');
+  assert.ok(ordreInit(ecritureTot).length > 0, 'mutation (écriture avant le quart) non détectée');
   console.log('OK test_inventaire_chaine_init_20261028');
 })().catch(e => { console.error('ÉCHEC', e.message); process.exit(1); });
