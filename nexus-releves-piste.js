@@ -36,6 +36,11 @@
     const q = normaliserQuart(quart);
     return q === 'Q1' ? 'debut_q1' : q === 'Q2' ? 'debut_q2' : null;
   }
+  // Relevé d'index de FIN du quart réellement occupé : 'matin'/'Q1' → fin_q1, 'soir'/'Q2' → fin_q2, sinon null.
+  function momentFinDuQuart(quart) {
+    const q = normaliserQuart(quart);
+    return q === 'Q1' ? 'fin_q1' : q === 'Q2' ? 'fin_q2' : null;
+  }
   // L'index de début est FAIT uniquement si une ligne du bon site, du bon jour
   // et du bon moment est au statut `final`. Un brouillon, ou un relevé d'un
   // autre site/jour/moment, ne compte pas. L'auteur n'est pas exigé : le relevé
@@ -227,7 +232,7 @@
 
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
-    momentDebutDuQuart, indexDebutFait,
+    momentDebutDuQuart, momentFinDuQuart, indexDebutFait,
     TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,

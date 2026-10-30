@@ -626,6 +626,7 @@
   .ap-marque{display:inline-block;width:22px;}
   .ap-sans-objet{font-size:12px;color:#8FA0B0;}
   .ap-bouton{display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;background:#4FC3D9;color:#04141a;font-size:16px;font-weight:600;text-decoration:none;margin-top:12px;}
+  .ap-bouton.ap-secondaire{background:transparent;border:1.5px solid #4FC3D9;color:#4FC3D9;}
   .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid #5A4520;background:#1E1A12;border-radius:16px;color:#F2B84B;text-decoration:none;margin-bottom:12px;font-size:15px;}
   .ap-reception.ap-attendue{border:1.5px solid #F2B84B;background:#2A2213;}
   .ap-reception-sous{font-size:13px;color:#C9A55C;}
@@ -2593,6 +2594,9 @@
     // vient du service ouvert, jamais de l'horloge (même principe que #140).
     const momentIndexDebut = (enService && roleDuJour === 'pompiste')
       ? NexusRelevesPiste.momentDebutDuQuart(quartDuJour) : null;
+    // Relevé de FIN du même quart (fin_q1 le matin, fin_q2 le soir) : lien de l'Accueil une fois le fil terminé.
+    const momentIndexFin = (enService && roleDuJour === 'pompiste')
+      ? NexusRelevesPiste.momentFinDuQuart(quartDuJour) : null;
 
     const [
       { data: pointagesJour, error: eP },
@@ -2626,7 +2630,7 @@
       // que l'ancienne mini-carte) : pas la peine d'interroger la table.
       roleDuJour === 'renfort'
         ? Promise.resolve({ data: [], error: null })
-        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, a_valide_ouverture, inventaire_quarts(date, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
+        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, a_valide_ouverture, inventaire_quarts(date, quart, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
       nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
       jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
@@ -2635,7 +2639,7 @@
       jaugeagePertinentRole ? NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
       // Lecture seule : relevés du site, du jour et du moment de début de quart.
       momentIndexDebut
-        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).eq('moment', momentIndexDebut)
+        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))
         : Promise.resolve({ data: [], error: null }),
       // Dernier service TERMINÉ de l'employé, seulement quand il n'est pas en
       // service (25/10/2026). La fin de journée ne se déduisait que des
@@ -2661,9 +2665,13 @@
     if (eSnap) console.error('Lecture apprentissage_snapshots (App-v1):', eSnap);
 
     const inventaireApplicable = enService && roleDuJour !== 'renfort';
+    // Jugé sur le quart du SERVICE de l'employé (30/10/2026) : l'inventaire de clôture du matin ouvre un quart du
+    // soir ; lu sur « le quart courant de la station », il faisait repasser l'étape à faire pour le pompiste du matin.
+    const surQuartDeService = (r) => !quartDuJour || !r.inventaire_quarts.quart || r.inventaire_quarts.quart === quartDuJour;
     const inventaireFait = (quartEmployeRows || []).some(r =>
-      r.responsable_comptage && r.inventaire_quarts &&
+      (r.responsable_comptage || r.a_valide_ouverture) && r.inventaire_quarts &&
       r.inventaire_quarts.date === todayISO &&
+      surQuartDeService(r) &&
       r.inventaire_quarts.is_simulation !== true &&
       !!r.inventaire_quarts.cloture_le
     );
@@ -2676,6 +2684,7 @@
     const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait && (quartEmployeRows || []).some(r =>
       r.a_valide_ouverture && r.inventaire_quarts &&
       r.inventaire_quarts.date === todayISO &&
+      surQuartDeService(r) &&
       r.inventaire_quarts.is_simulation !== true &&
       !r.inventaire_quarts.cloture_le &&
       r.inventaire_quarts.statut === 'ouvert'
@@ -2704,7 +2713,15 @@
       { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
     const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
     const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite);
-    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste') ? NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite }) : null;
+    const faitsFil = { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite };
+    // Jamais d'étape à faire sans bouton : si le fil est marqué fini localement alors qu'une étape reste, on rouvre l'étape restante.
+    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste')
+      ? (NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, faitsFil)
+        || NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0], momentIndexDebut, NexusFilDebutQuart.planSelonFaits(faitsFil)))
+      : null;
+    const finQuartFait = !!momentIndexFin && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
+      { site: employee.site_id, date: todayISO, moment: momentIndexFin });
+    const finQuartLien = momentIndexFin ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexFin}` : null;
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
@@ -2805,7 +2822,7 @@
       jaugeageApplicable, jaugeageFait, indexApplicable, indexFait,
       inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
-      missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien,
+      missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
     });
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);

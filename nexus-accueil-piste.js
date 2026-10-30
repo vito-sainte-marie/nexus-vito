@@ -90,6 +90,10 @@
       // Le bouton ne pointe que vers le fil de l'Accueil, jamais vers une étape recalculée ici.
       bouton: (!filTermine && f.filLien) ? { libelle: 'Continuer : ' + prochaine.libelle, href: f.filLien } : null,
       reception: f.receptionApplicable ? { href: URL_RECEPTION, livraison: livraison && livraison.length ? livraison : null } : null,
+      // Fin de quart : une fois le fil terminé, tant que le relevé de fin n'est pas final. Cible donnée par l'Accueil.
+      finQuart: (filTermine && f.finQuartLien && !f.finQuartFait) ? { libelle: 'Fin de quart : relevé des index', href: f.finQuartLien } : null,
+      // Une étape à faire sans bouton est une impasse : l'Accueil doit toujours fournir filLien.
+      incoherent: !filTermine && !f.filLien,
       missions: filTermine ? { restantes: Math.max(0, m.total - m.faites), total: m.total } : null,
       points: Number(f.points) || 0,
     };
@@ -126,6 +130,10 @@
           ? '<div class="ap-missions-sous">' + r + ' mission' + (r > 1 ? 's' : '') + ' à faire</div><a class="ap-bouton" id="apBoutonMissions" href="' + URL_MISSIONS + '">Commencer les missions</a>'
           : '<div class="ap-missions-sous">' + (v.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui') + '</div>')
         + '</section>';
+    }
+    // Bouton secondaire (encadré) sous les missions : « Commencer les missions » reste le seul bouton principal.
+    if (v.finQuart) {
+      out += '<a class="ap-bouton ap-secondaire" id="apFinQuart" href="' + esc(v.finQuart.href) + '">' + esc(v.finQuart.libelle) + '</a>';
     }
     out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
     out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';

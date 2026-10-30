@@ -69,7 +69,7 @@ function epreuves(S) {
     assert.ok(/chargerReleveDuJour\(nexusClient, employee\.site_id, todayISO\)/.test(S.app), 'l\'Accueil doit lire le relevé du jour');
   });
   eprouve('C3 ouverture faite, clôture à faire', () => {
-    assert.ok(/inventaire_quarts\(date, cloture_le, is_simulation, statut\)/.test(S.app), 'la requête doit lire le statut du quart');
+    assert.ok(/inventaire_quarts\(date, quart, cloture_le, is_simulation, statut\)/.test(S.app), 'la requête doit lire le statut du quart');
     assert.ok(/const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait &&/.test(S.app), 'inventaireOuvertureFaite absent');
     assert.ok(/r\.inventaire_quarts\.statut === 'ouvert'/.test(S.app), 'l\'ouverture faite doit se déduire du statut « ouvert »');
     assert.ok(/select\('responsable_comptage, a_valide_ouverture, inventaire_quarts\(/.test(S.app), 'la requête doit lire a_valide_ouverture de l\'employé');
@@ -103,7 +103,7 @@ muter('avertissement retiré du rendu', 'rel', "${photo}${lignes}${avert}${conf}
 muter('relevé ignoré', 'donnees', "return statutClos || !!releveJour;", "return statutClos;", 'C5');
 muter('impossible ignoré', 'donnees', "statutJour.statut === 'fait' || statutJour.statut === 'impossible'", "statutJour.statut === 'fait'", 'C5');
 muter('Accueil sans règle commune', 'app', "const jaugeageFait = NexusCarburantDonnees.jaugeageDuJourFait(statutJaugeageJour, releveJaugeageJour);", "const jaugeageFait = !!(statutJaugeageJour && statutJaugeageJour.statut === 'fait');", 'C5');
-muter('statut du quart non lu', 'app', "inventaire_quarts(date, cloture_le, is_simulation, statut)", "inventaire_quarts(date, cloture_le, is_simulation)", 'C3');
+muter('statut du quart non lu', 'app', "inventaire_quarts(date, quart, cloture_le, is_simulation, statut)", "inventaire_quarts(date, quart, cloture_le, is_simulation)", 'C3');
 muter('ouverture réservée au responsable du comptage', 'app', "r.a_valide_ouverture && r.inventaire_quarts", "r.responsable_comptage && r.inventaire_quarts", 'C3');
 muter('ouverture non reconnue', 'app', "r.inventaire_quarts.statut === 'ouvert'", "r.inventaire_quarts.statut === 'jamais'", 'C3');
 console.log('Toutes les épreuves du lot sont vertes.');
