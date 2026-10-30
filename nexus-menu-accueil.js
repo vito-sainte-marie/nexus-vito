@@ -51,10 +51,10 @@
       ? { code: 'inventaire', libelle: 'Inventaire', desactive: true, mention: MENTION_DESACTIVE }
       : { code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire };
     g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [inventaire] });
-    g.push({ code: 'travail', titre: 'Mon travail', entrees: [
-      { code: 'missions', libelle: 'Missions', href: URL.missions },
-      { code: 'pointage', libelle: 'Pointage', href: URL.pointage },
-    ] });
+    // Pointage : seulement si la station l'a activé (station_config.pointage_actif, lu par l'Accueil).
+    const travail = [{ code: 'missions', libelle: 'Missions', href: URL.missions }];
+    if (f.pointageActif === true) travail.push({ code: 'pointage', libelle: 'Pointage', href: URL.pointage });
+    g.push({ code: 'travail', titre: 'Mon travail', entrees: travail });
     const caisse = [];
     if (f.fdjApplicable) caisse.push({ code: 'fdj', libelle: 'FDJ', href: URL.fdj });
     if (manager || role === 'caissiere') caisse.push({ code: 'coach_fdj', libelle: 'Coach FDJ', href: URL.coachFdj });

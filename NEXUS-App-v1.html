@@ -595,9 +595,9 @@
   body.accueil-piste #zoneRecherche{display:none !important;}
   /* Avant que le poste soit connu : seul l'en-tête, jamais la page générique. Levé par accueilPret(). */
   /* Menu ☰ de l'Accueil (lot MENU-ACCUEIL-EMPLOYE-20261030) : à gauche du logo, absent tant qu'il n'a pas d'entrées. */
-  .menu-accueil-bouton{display:none;background:none;border:1px solid var(--hairline);color:var(--cyan);width:36px;height:36px;border-radius:10px;font-size:20px;line-height:1;cursor:pointer;flex-shrink:0;}
+  .menu-accueil-bouton{display:none;background:none;border:1px solid var(--hairline);color:#E8EDF2;width:36px;height:36px;border-radius:10px;font-size:20px;line-height:1;cursor:pointer;flex-shrink:0;position:absolute;left:12px;top:20px;z-index:2;}
   .menu-accueil-bouton.mm-pret{display:inline-flex;align-items:center;justify-content:center;}
-  .menu-accueil-panneau{display:none;position:absolute;left:12px;top:56px;z-index:50;min-width:230px;max-width:calc(100vw - 24px);background:#141B22;border:1px solid #242E38;border-radius:14px;padding:8px 6px;box-shadow:0 12px 32px rgba(0,0,0,.45);}
+  .menu-accueil-panneau{display:none;position:absolute;left:12px;top:64px;z-index:50;min-width:230px;max-width:calc(100vw - 24px);background:#141B22;border:1px solid #242E38;border-radius:14px;padding:8px 6px;box-shadow:0 12px 32px rgba(0,0,0,.45);}
   .menu-accueil-panneau.mm-ouvert{display:block;}
   .header{position:relative;}
   .mm-titre{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7C8A99;padding:8px 12px 4px;}
@@ -2807,7 +2807,7 @@
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien,
     });
-    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable };
+    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);
     if (!NexusMenuAccueil.rechercheVisible(faitsMenu) && enService) {
       const zone = document.getElementById('zoneRecherche');
@@ -3344,7 +3344,8 @@
       await initPosteManager(employee);
       forfaitProfessional = await verrouillerNavForfait(employee.site_id);
       briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id);
-      monterMenuAccueil({ estNiveauManager: true, enService: false, roleDuJour: employee.role, receptionApplicable: true, fdjApplicable: forfaitProfessional === true });
+      const pointageActifManager = await chargerPointageActif(employee.site_id);
+      monterMenuAccueil({ estNiveauManager: true, enService: false, roleDuJour: employee.role, receptionApplicable: true, fdjApplicable: forfaitProfessional === true, pointageActif: pointageActifManager === true });
     } else {
       // Refonte "Apple-like" (20/08/2026) — un seul orchestrateur
       // regroupe désormais tout ce qui était dispersé ici (pointage,

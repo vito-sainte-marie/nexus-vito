@@ -8,7 +8,7 @@ const SRC = lire('nexus-menu-accueil.js');
 const APP = lire('NEXUS-App-v1.html');
 
 const codes = (M, f) => [].concat(...M.groupes(f).map((g) => g.entrees.map((e) => e.code)));
-const emp = (role, o) => Object.assign({ estNiveauManager: false, enService: true, roleDuJour: role, receptionApplicable: false, fdjApplicable: false }, o);
+const emp = (role, o) => Object.assign({ estNiveauManager: false, enService: true, roleDuJour: role, receptionApplicable: false, fdjApplicable: false, pointageActif: true }, o);
 
 const EPREUVES = {
   'pompiste : Réception seulement si applicable, Inventaire, Missions, Pointage, Moi': (M) => {
@@ -47,7 +47,7 @@ const EPREUVES = {
     assert(!m.desactive && m.href);
   },
   'manager et gérant : toutes les entrées, Jaugeage et Index compris': (M) => {
-    const c = codes(M, { estNiveauManager: true, enService: false, roleDuJour: 'gerant', fdjApplicable: true });
+    const c = codes(M, { estNiveauManager: true, enService: false, roleDuJour: 'gerant', fdjApplicable: true, pointageActif: true });
     ['reception', 'jaugeage', 'index', 'inventaire', 'missions', 'pointage', 'coach_fdj', 'fdj', 'progression', 'changer_poste', 'deconnexion'].forEach((x) => assert(c.includes(x), x));
   },
   'employé hors service : pas de menu': (M) => { assert.deepStrictEqual(M.groupes(emp('pompiste', { enService: false })), []); },
@@ -59,6 +59,21 @@ const EPREUVES = {
   'le HTML échappe et nomme les entrées de déconnexion et de changement de poste': (M) => {
     const h = M.html(M.groupes(emp('pompiste')));
     assert(h.includes('id="menuLogout"') && h.includes('id="menuChangerPoste"') && h.includes('NEXUS-Prise-De-Poste-v1.html'));
+  },
+  'pointage absent du menu quand la station l\'a désactivé, présent quand actif (employé et manager)': (M) => {
+    ['pompiste', 'caissiere', 'renfort', 'polyvalent'].forEach((r) => {
+      assert(!codes(M, emp(r, { pointageActif: false })).includes('pointage'), r + ' sans pointage actif');
+      assert(!codes(M, emp(r, { pointageActif: undefined })).includes('pointage'), r + ' fait absent');
+      assert(codes(M, emp(r)).includes('pointage'), r + ' avec pointage actif');
+    });
+    assert(!codes(M, emp('manager', { estNiveauManager: true, pointageActif: false })).includes('pointage'));
+    assert(codes(M, emp('manager', { estNiveauManager: true })).includes('pointage'));
+  },
+  'bouton ☰ blanc, à l\'extrême gauche de l\'en-tête, Pointage branché sur pointage_actif': () => {
+    const css = (APP.match(/\.menu-accueil-bouton\{[^}]*\}/) || [''])[0];
+    assert(/color:#E8EDF2/.test(css) && !/color:var\(--cyan\)/.test(css), 'bouton blanc');
+    assert(/position:absolute/.test(css) && /left:12px/.test(css), 'bouton à gauche');
+    assert(/pointageActif: pointageActifSite === true/.test(APP) && /pointageActif: pointageActifManager === true/.test(APP));
   },
   'l\'App branche le menu, garde l\'exclusion du renfort et ne touche ni colonne ni migration': () => {
     assert(APP.includes('nexus-menu-accueil.js') && APP.includes('id="menuAccueilBouton"') && APP.includes('monterMenuAccueil('));
@@ -77,6 +92,7 @@ const MUTANTS = [
   ['recherche renfort', (s) => s.replace("['pompiste', 'caissiere', 'renfort']", "['pompiste']")],
   ['inventaire renfort actif', (s) => s.replace("role === 'renfort' && !manager", 'false')],
   ['mention retirée', (s) => s.replace("'Désactivé par le manager'", "''")],
+  ['pointage toujours affiché', (s) => s.replace("f.pointageActif === true", 'true')],
   ['hors service', (s) => s.replace('!f.enService', 'false')],
 ];
 MUTANTS.forEach(([nom, mut]) => {
