@@ -1,62 +1,49 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-6.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 5
+seq: 6
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=659af077 production=d799fa58
+    valeur: main=659af077 production=2885c3e9
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
-    valeur: 167-fichiers
+    valeur: 168-fichiers
 ---
-# MENU-ACCUEIL-EMPLOYE-20261030 : request-5 — arrêt sur gate humaine (fusion de la PR #164 vers `main`)
+# MENU-ACCUEIL-EMPLOYE-20261030 : request-6 — fusion effective de la PR #164, demande de clôture
 
 BRANCHE_DU_LOT: menu-accueil-employe-20261030
 
 ## Contexte
 
-decision-3 (5c301f0e, APPROVED, closes:false) arbitre request-4 : elle approuve
-la consignation des trois corrections postérieures à la clôture (bouton ☰
-blanc, bouton ☰ à l'extrême gauche, entrée Pointage conditionnée à
-`station_config.pointage_actif`), déjà livrées sur la branche du lot (commit
-`eb77b3ae`, PR #164, toujours en brouillon). Son texte le dit explicitement :
-« l'approbation porte uniquement sur la consignation des corrections ; elle
-n'autorise aucune fusion vers une branche protégée. »
+decision-4 (e56fc242, APPROVED, closes:true) a clos le lot sur le plan documentaire et précisait qu'elle n'autorisait aucune fusion. La fusion a eu lieu depuis, par Frédéric.
 
-## Preuve des conditions de decision-3
+## Preuve des conditions de decision-4
 
-decision-3 ne pose aucune condition (`CONDITIONS: aucune` dans son contrat) :
-il n'y a rien à prouver au-delà de ce que request-4 avait déjà prouvé (épreuves
-`test_menu_accueil_20261030.js` et `test_accueil_hors_service_20260918.js`
-vertes, suite complète aux sept mêmes échecs que la base, aucun de plus,
-aucune colonne, aucune migration, aucune action Production). Ce dépôt ne porte
-donc aucune nouvelle preuve de condition : il consigne l'arrêt qui suit.
+decision-4 ne pose aucune condition (`CONDITIONS: aucune`). Il n'y a donc rien à prouver au titre de ses conditions ; le présent dépôt consigne l'état réellement livré.
 
-## Pourquoi cette session s'arrête ici
+## État réellement livré (Guardian, #160, commentaire 6528040977, 30/10)
 
-La seule suite concrète pour ce lot est la fusion de la PR #164
-(`menu-accueil-employe-20261030` → `main`), explicitement exclue par decision-3
-et conditionnée par request-4 au « GO de Frédéric requis ». Toute modification
-de `main` est une gate humaine jamais pré-autorisée (`CLAUDE.md`, section
-« Gates humaines — jamais pré-autorisées »). Cette session n'a reçu aucun GO de
-Frédéric pour fusionner : elle n'a donc rien d'autre à exécuter que la prise en
-charge de decision-3, déjà faite, et le présent constat. Elle ne s'arbitre pas
-elle-même et ne contourne pas la gate.
+- PR #164 fusionnée par Frédéric dans `production` (2885c3e9, 12 h 32), après changement de base `main` → `production` puis fermeture/réouverture pour relancer « Construire et éprouver l'artefact ». Tests et Déploiement Production verts (12 h 37).
+- Contenu servi sur app.nexusconseil.net, vérifié par Guardian sans connexion ni écriture : `NEXUS-App-v1.html` contient `menuAccueilBouton` en #E8EDF2 et charge `nexus-menu-accueil.js` ; le module servi contient « Désactivé par le manager » et conditionne Pointage à `pointage_actif`.
+- Fonctionnalité livrée : menu ☰ à l'extrême gauche de l'en-tête de l'Accueil employé, bouton blanc ; entrées selon le poste (`roleADroitModule`) ; option B pour le renfort (Inventaire présent, grisé, non cliquable, « Désactivé par le manager ») ; Pointage affiché seulement si `station_config.pointage_actif` est vrai ; recherche conservée pour le manager et le gérant.
+- Écart de description : le corps de la PR #164 est resté sur l'option A et « Pointage pour tous ». Il est périmé ; les décisions 2 à 4 du rail et le présent dépôt font foi.
+
+## Périmètre
+
+Interface seule : aucune colonne, aucune migration. Aucune action Production de ma part ; le déploiement est celui de la CI, déclenché par la fusion de Frédéric.
 
 ## À arbitrer
 
-Le lot reste ouvert (decision-3, closes:false) dans l'attente du GO de
-Frédéric pour fusionner la PR #164. Dès ce GO donné hors de ce dépôt, la
-fusion elle-même reste un geste humain ; une demande de clôture suivra après
-la fusion effective, comme l'annonçait déjà request-4.
+La fusion effective et l'état livré ci-dessus sont-ils consignés, le lot demeurant clos (decision-4) ? Restent hors lot : libellés du relevé des index, écran manager pour `anomalie_nuit`, réglage « Inventaire renfort ».
