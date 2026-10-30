@@ -17,11 +17,16 @@ const EPREUVES = {
     assert(!c.includes('coach_fdj') && !c.includes('fdj'));
     assert(!codes(M, emp('pompiste')).includes('reception'));
   },
-  'aucun employé n\'a Jaugeage ni Index': (M) => {
+  'aucun employé n\'a le Jaugeage ; tout employé en service a « Relevés d\'index » (écran de choix, sans moment)': (M) => {
     ['pompiste', 'caissiere', 'renfort', 'polyvalent'].forEach((r) => {
+      const gs = M.groupes(emp(r, { receptionApplicable: true, fdjApplicable: true }));
       const c = codes(M, emp(r, { receptionApplicable: true, fdjApplicable: true }));
-      assert(!c.includes('jaugeage') && !c.includes('index'), r);
+      assert(!c.includes('jaugeage'), r);
+      const e = [].concat(...gs.map((g) => g.entrees)).find((x) => x.code === 'index');
+      assert(e && e.href === 'NEXUS-Releves-Piste-v1.html' && e.libelle === 'Relevés d\'index', r);
+      assert(gs.find((g) => g.code === 'carburant').entrees.includes(e), r);
     });
+    assert(!codes(M, emp('pompiste', { enService: false })).includes('index'));
   },
   'caissière : Coach FDJ, FDJ si applicable, pas de Réception': (M) => {
     const c = codes(M, emp('caissiere', { fdjApplicable: true }));
@@ -87,7 +92,9 @@ Object.keys(EPREUVES).forEach((nom) => {
 });
 // Mutations : chaque exigence doit rougir si le module est abîmé.
 const MUTANTS = [
-  ['carburant manager', (s) => s.replace("if (manager) {\n      carburant.push({ code: 'jaugeage'", "if (true) {\n      carburant.push({ code: 'jaugeage'")],
+  ['jaugeage employé', (s) => s.replace("if (manager) carburant.push({ code: 'jaugeage'", "if (true) carburant.push({ code: 'jaugeage'")],
+  ['index absent pour l\'employé', (s) => s.replace("if (manager || f.enService) carburant.push({ code: 'index'", "if (manager) carburant.push({ code: 'index'")],
+  ['index vers un moment', (s) => s.replace("index: 'NEXUS-Releves-Piste-v1.html',", "index: 'NEXUS-Releves-Piste-v1.html?moment=debut_q1',")],
   ['coach caisse', (s) => s.replace("role === 'caissiere')", "role === 'renfort')")],
   ['recherche renfort', (s) => s.replace("['pompiste', 'caissiere', 'renfort']", "['pompiste']")],
   ['inventaire renfort actif', (s) => s.replace("role === 'renfort' && !manager", 'false')],

@@ -256,7 +256,7 @@ function epreuves(S) {
   });
   eprouve('A1 Accueil : un lien de reprise du fil, calculé d\'après les faits, sans retirer Missions', () => {
     assert.ok(/Reprendre mon début de quart →/.test(A), 'libellé absent');
-    assert.ok(/NexusFilDebutQuart\.urlRepriseSelonFaits\(localStorage, employee\.id, todayISO, momentIndexDebut, \{ resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite \}\)/.test(A), 'reprise non calculée sur les faits');
+    assert.ok(/const faitsFil = \{ resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite \};[\s\S]*?NexusFilDebutQuart\.urlRepriseSelonFaits\(localStorage, employee\.id, todayISO, momentIndexDebut, faitsFil\)/.test(A), 'reprise non calculée sur les faits');
     assert.ok(/if \(filLien && !\(pointageActifSite && prochainPointageEffectif === 'arrivee'\) && NexusFilDebutQuart\.demarrageDemande\(location\.search\)\) \{ window\.location\.replace\(filLien\); return; \}/.test(A), 'l\'entrée explicite du fil est absente');
     assert.ok(/enService && resteDuFil && roleDuJour === 'pompiste'/.test(A), 'le lien est montré hors service ou à un autre rôle');
     assert.ok(/NEXUS-Missions-v1\.html/.test(A), 'l\'accès à Missions a disparu de l\'Accueil');

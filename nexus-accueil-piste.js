@@ -90,6 +90,10 @@
       // Le bouton ne pointe que vers le fil de l'Accueil, jamais vers une étape recalculée ici.
       bouton: (!filTermine && f.filLien) ? { libelle: 'Continuer : ' + prochaine.libelle, href: f.filLien } : null,
       reception: f.receptionApplicable ? { href: URL_RECEPTION, livraison: livraison && livraison.length ? livraison : null } : null,
+      // Fin de quart : une fois le fil terminé, tant que le relevé de fin n'est pas final. Cible donnée par l'Accueil.
+      finQuart: (filTermine && f.finQuartLien && !f.finQuartFait) ? { libelle: 'Fin de quart : relevé des index', href: f.finQuartLien } : null,
+      // Une étape à faire sans bouton est une impasse : l'Accueil doit toujours fournir filLien.
+      incoherent: !filTermine && !f.filLien,
       missions: filTermine ? { restantes: Math.max(0, m.total - m.faites), total: m.total } : null,
       points: Number(f.points) || 0,
     };
@@ -118,6 +122,9 @@
       const l = v.reception.livraison;
       out += '<a class="ap-reception' + (l ? ' ap-attendue' : '') + '" id="apReception" href="' + esc(v.reception.href) + '"><span class="ap-camion" aria-hidden="true">🚚</span><span><b>Réception carburant</b><br><span class="ap-reception-sous">'
         + (l ? 'Livraison prévue aujourd’hui · ' + esc(listeCarburants(l)) : 'Un camion arrive ? Commencez ici') + '</span></span></a>';
+    }
+    if (v.finQuart) {
+      out += '<a class="ap-bouton" id="apFinQuart" href="' + esc(v.finQuart.href) + '">' + esc(v.finQuart.libelle) + '</a>';
     }
     if (v.missions) {
       const r = v.missions.restantes;

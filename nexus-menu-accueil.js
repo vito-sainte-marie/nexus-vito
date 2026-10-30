@@ -40,10 +40,10 @@
     const g = [];
     const carburant = [];
     if (manager || f.receptionApplicable) carburant.push({ code: 'reception', libelle: 'Réception carburant', href: URL.reception });
-    if (manager) {
-      carburant.push({ code: 'jaugeage', libelle: 'Jaugeage', href: URL.jaugeage });
-      carburant.push({ code: 'index', libelle: 'Relevé des index', href: URL.index });
-    }
+    if (manager) carburant.push({ code: 'jaugeage', libelle: 'Jaugeage', href: URL.jaugeage });
+    // Le fil de l'Accueil ne couvre que le DÉBUT de quart : l'écran de choix des relevés (sans `moment`)
+    // est la porte des index de fin de quart. Le Jaugeage reste hors menu employé.
+    if (manager || f.enService) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
     // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
     // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
