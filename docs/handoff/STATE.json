@@ -926,9 +926,14 @@
       "consomme_le": "2026-10-30T11:58:11.861Z"
     },
     "MENU-ACCUEIL-EMPLOYE-20261030": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "e94d6276a5e6ac4fe7821e1b25385bddb61dafbc",
+      "pris_en_charge_le": "2026-10-30T12:25:33.270Z",
+      "pris_en_charge_par": "session-locale"
     }
   },
   "artefacts_hors_registre": [
