@@ -14,6 +14,8 @@ const base = { enService: true, consultationExterne: false, roleDuJour: 'pompist
 function epreuvesAcc(M) {
   const h = M.html(M.modele(base));
   assert(h.includes('id="apFinQuart"') && h.includes('Fin de quart : relevé des index') && h.includes('href="NEXUS-Releves-Piste-v1.html?moment=fin_q1"'), 'ligne de fin présente après le fil');
+  assert(h.includes('class="ap-bouton ap-secondaire" id="apFinQuart"'), 'bouton secondaire');
+  assert(h.indexOf('apBoutonMissions') > -1 && h.indexOf('apBoutonMissions') < h.indexOf('apFinQuart'), 'sous « Commencer les missions »');
   assert(!M.html(M.modele(Object.assign({}, base, { finQuartFait: true }))).includes('apFinQuart'), 'absente si le relevé de fin est final');
   assert(!M.html(M.modele(Object.assign({}, base, { inventaireFait: false, filLien: 'NEXUS-Inventaire-v1.html' }))).includes('apFinQuart'), 'absente pendant le fil');
   assert(M.html(M.modele(Object.assign({}, base, { finQuartLien: 'NEXUS-Releves-Piste-v1.html?moment=fin_q2' }))).includes('moment=fin_q2'), 'cible = lien donné');
@@ -43,6 +45,8 @@ const tue = (nom, src, orig, ep, mk) => { assert.notStrictEqual(src, orig, 'muta
   ['ligne même si final', (s) => s.replace(' && !f.finQuartFait)', ')')],
   ['ligne pendant le fil', (s) => s.replace('(filTermine && f.finQuartLien', '(f.finQuartLien')],
   ['cible figée', (s) => s.replace('href: f.finQuartLien', "href: 'NEXUS-Releves-Piste-v1.html?moment=fin_q1'")],
+  ['bouton plein', (s) => s.replace('ap-bouton ap-secondaire', 'ap-bouton')],
+  ['avant les missions', (s) => { const m = s.match(/    \/\/ Bouton secondaire[\s\S]*?\n    \}\n/)[0]; return s.replace(m, '').replace("    if (v.missions) {", m + "    if (v.missions) {"); }],
   ['impasse non signalée', (s) => s.replace('incoherent: !filTermine && !f.filLien', 'incoherent: false')],
 ].forEach(([n, m]) => tue(n, m(ACC), ACC, epreuvesAcc, charger));
 [

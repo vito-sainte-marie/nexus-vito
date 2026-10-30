@@ -123,9 +123,6 @@
       out += '<a class="ap-reception' + (l ? ' ap-attendue' : '') + '" id="apReception" href="' + esc(v.reception.href) + '"><span class="ap-camion" aria-hidden="true">🚚</span><span><b>Réception carburant</b><br><span class="ap-reception-sous">'
         + (l ? 'Livraison prévue aujourd’hui · ' + esc(listeCarburants(l)) : 'Un camion arrive ? Commencez ici') + '</span></span></a>';
     }
-    if (v.finQuart) {
-      out += '<a class="ap-bouton" id="apFinQuart" href="' + esc(v.finQuart.href) + '">' + esc(v.finQuart.libelle) + '</a>';
-    }
     if (v.missions) {
       const r = v.missions.restantes;
       out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div>'
@@ -133,6 +130,10 @@
           ? '<div class="ap-missions-sous">' + r + ' mission' + (r > 1 ? 's' : '') + ' à faire</div><a class="ap-bouton" id="apBoutonMissions" href="' + URL_MISSIONS + '">Commencer les missions</a>'
           : '<div class="ap-missions-sous">' + (v.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui') + '</div>')
         + '</section>';
+    }
+    // Bouton secondaire (encadré) sous les missions : « Commencer les missions » reste le seul bouton principal.
+    if (v.finQuart) {
+      out += '<a class="ap-bouton ap-secondaire" id="apFinQuart" href="' + esc(v.finQuart.href) + '">' + esc(v.finQuart.libelle) + '</a>';
     }
     out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
     out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
