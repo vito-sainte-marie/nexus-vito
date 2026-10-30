@@ -917,9 +917,13 @@
       "consomme_le": "2026-10-30T10:37:36.991Z"
     },
     "ACCUEIL-EN-SERVICE-20261030": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-2.md",
+      "source_decision": "registre",
+      "commit_decision": "6297bff9dd05416a65db8a2a7ed6d2647b687006",
+      "consomme_le": "2026-10-30T11:58:11.861Z"
     }
   },
   "artefacts_hors_registre": [
