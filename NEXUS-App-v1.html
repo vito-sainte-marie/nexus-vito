@@ -594,6 +594,15 @@
   /* Recherche libre : absente de l'Accueil du pompiste en service (le pied de page est le dernier élément). */
   body.accueil-piste #zoneRecherche{display:none !important;}
   /* Avant que le poste soit connu : seul l'en-tête, jamais la page générique. Levé par accueilPret(). */
+  /* Menu ☰ de l'Accueil (lot MENU-ACCUEIL-EMPLOYE-20261030) : à gauche du logo, absent tant qu'il n'a pas d'entrées. */
+  .menu-accueil-bouton{display:none;background:none;border:1px solid var(--hairline);color:var(--cyan);width:36px;height:36px;border-radius:10px;font-size:20px;line-height:1;cursor:pointer;flex-shrink:0;}
+  .menu-accueil-bouton.mm-pret{display:inline-flex;align-items:center;justify-content:center;}
+  .menu-accueil-panneau{display:none;position:absolute;left:12px;top:56px;z-index:50;min-width:230px;max-width:calc(100vw - 24px);background:#141B22;border:1px solid #242E38;border-radius:14px;padding:8px 6px;box-shadow:0 12px 32px rgba(0,0,0,.45);}
+  .menu-accueil-panneau.mm-ouvert{display:block;}
+  .header{position:relative;}
+  .mm-titre{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7C8A99;padding:8px 12px 4px;}
+  .mm-entree{display:block;padding:10px 12px;border-radius:8px;color:#E8EDF2;text-decoration:none;font-size:15px;}
+  .mm-entree:hover{background:#1B242D;}
   body.accueil-attente .app > *:not(.header){visibility:hidden !important;}
   body.accueil-attente .header-statut-row, body.accueil-attente #taglineRole, body.accueil-attente #sessionInfo{visibility:hidden !important;}
   .ap-h1{font-size:24px;font-weight:700;margin:8px 0 14px;color:#E8EDF2;}
@@ -629,6 +638,7 @@
   <div class="header">
     <div class="header-brandrow">
       <div class="header-brand-side header-brand-left">
+        <button type="button" class="menu-accueil-bouton" id="menuAccueilBouton" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰</button>
         <span class="header-wordmark">NEXUS</span>
         <span class="header-divider"></span>
       </div>
@@ -652,6 +662,7 @@
     <div class="subtitle" id="taglineRole"><span id="taglineTexte">Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités</span><span class="dots-anim"><i></i><i></i><i></i></span></div>
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
+  <nav class="menu-accueil-panneau" id="menuAccueilPanneau" aria-label="Menu de l'Accueil"></nav>
   <div id="banniereConsultation"></div>
   <!-- Prise de poste — rempli par renderPrisePoste(). Vide tant que la
        session n'est pas chargée : jamais un écran bloquant, jamais une
@@ -1400,6 +1411,7 @@
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-accueil-piste.js?v=20261030-0001"></script>
+<script src="nexus-menu-accueil.js?v=20261030-0001"></script>
 <script src="nexus-prise-de-poste.js"></script>
 <script src="nexus-recherche.js"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
@@ -2466,6 +2478,25 @@
   // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
   // lectures Supabase partent en parallèle (Promise.all) : la page reste
   // aussi rapide qu'avant malgré le calcul plus riche.
+  // Menu ☰ : rend les entrées de NexusMenuAccueil, ne décide d'aucun droit (faits fournis par l'Accueil).
+  function monterMenuAccueil(faits) {
+    const bouton = document.getElementById('menuAccueilBouton');
+    const panneau = document.getElementById('menuAccueilPanneau');
+    if (!bouton || !panneau) return;
+    const gs = NexusMenuAccueil.groupes(faits);
+    if (!gs.length) return;
+    panneau.innerHTML = NexusMenuAccueil.html(gs);
+    bouton.classList.add('mm-pret');
+    const basculer = (ouvert) => {
+      panneau.classList.toggle('mm-ouvert', ouvert);
+      bouton.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+    };
+    bouton.addEventListener('click', (e) => { e.stopPropagation(); basculer(!panneau.classList.contains('mm-ouvert')); });
+    document.addEventListener('click', (e) => { if (!panneau.contains(e.target)) basculer(false); });
+    const sortie = document.getElementById('menuLogout');
+    if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
+  }
+
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
     // Sans service ouvert, l'Accueil n'est que le choix du poste, puis « Ma
@@ -2774,6 +2805,12 @@
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien,
     });
+    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable };
+    monterMenuAccueil(faitsMenu);
+    if (!NexusMenuAccueil.rechercheVisible(faitsMenu) && enService) {
+      const zone = document.getElementById('zoneRecherche');
+      if (zone) zone.style.display = 'none';
+    }
     const hotePiste = document.getElementById('accueilPisteHote');
     if (vuePiste && hotePiste) {
       hotePiste.innerHTML = NexusAccueilPiste.html(vuePiste);
@@ -3305,6 +3342,7 @@
       await initPosteManager(employee);
       forfaitProfessional = await verrouillerNavForfait(employee.site_id);
       briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id);
+      monterMenuAccueil({ estNiveauManager: true, enService: false, roleDuJour: employee.role, receptionApplicable: true, fdjApplicable: forfaitProfessional === true });
     } else {
       // Refonte "Apple-like" (20/08/2026) — un seul orchestrateur
       // regroupe désormais tout ce qui était dispersé ici (pointage,

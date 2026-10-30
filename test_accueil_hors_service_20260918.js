@@ -221,7 +221,7 @@ async function executerAccueil({
   })();
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
-    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusAccueilPiste', 'localStorage', 'location',
+    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusAccueilPiste', 'NexusMenuAccueil', 'monterMenuAccueil', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
@@ -234,6 +234,8 @@ async function executerAccueil({
     NexusPointageRegles,
     require('./nexus-fil-debut-quart.js'),
     require('./nexus-accueil-piste.js'),
+    require('./nexus-menu-accueil.js'),
+    faits => { rendus.menu = faits; },
     { getItem: () => null, setItem() {}, removeItem() {} },
     { search: '' },
     { chargerStatutJaugeageJour: async () => statutJaugeage, chargerReleveDuJour: async () => releveJaugeage, jaugeageDuJourFait: REGLE_JAUGEAGE_DU_JOUR },
@@ -576,11 +578,21 @@ async function cas(nom, entree, controles) {
     verifierQue('toujours absente : la zone de « Ma progression » est sur sa page', zoneMasquee(journal), '');
   });
 
-  await cas('C2f · recherche visible avec un service ouvert', {
-    employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
-    serviceCourant: service('pompiste'),
+  // Lot MENU-ACCUEIL-EMPLOYE-20261030 (decision-1) : pompiste, caisse et renfort en service n'ont plus la recherche ;
+  // le manager et le gérant la gardent (autre branche, initAccueilEmploye ne les concerne pas).
+  for (const role of ['pompiste', 'caissiere', 'renfort']) {
+    await cas('C2f · recherche retirée en service pour ' + role, {
+      employee: employe(), roleDuJour: role, pointageActifSite: false, quartDuJour: 'matin',
+      serviceCourant: service(role),
+    }, ({ journal, verifierQue }) => {
+      verifierQue('masquée en service', zoneMasquee(journal), '');
+    });
+  }
+  await cas('C2f · recherche gardée en service pour un rôle hors pompiste, caisse et renfort', {
+    employee: employe(), roleDuJour: 'polyvalent', pointageActifSite: false, quartDuJour: 'matin',
+    serviceCourant: service('polyvalent'),
   }, ({ journal, verifierQue }) => {
-    verifierQue('jamais masquée en service', !zoneMasquee(journal), '');
+    verifierQue('visible', !zoneMasquee(journal), '');
   });
 
   await cas('C2 · journée terminée (départ pointé, service refermé)', {
