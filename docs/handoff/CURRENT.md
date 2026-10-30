@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 4
+seq: 5
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,30 +20,43 @@ preuves:
     classe: VERIFIED
     valeur: 167-fichiers
 ---
-# MENU-ACCUEIL-EMPLOYE-20261030 : request-4 — trois corrections postérieures à la clôture, décidées par Frédéric
+# MENU-ACCUEIL-EMPLOYE-20261030 : request-5 — arrêt sur gate humaine (fusion de la PR #164 vers `main`)
 
 BRANCHE_DU_LOT: menu-accueil-employe-20261030
 
 ## Contexte
 
-decision-2 (APPROVED, closes:true) a clos le lot avant la recette et la fusion. La recette Test de Guardian sur #164 (commentaire 6524268244, 30/10) est conforme sur les entrées et les droits, et relaie trois corrections décidées par Frédéric (30/10, 9 h 42), à faire avant fusion. Elles sont consignées ici, comme l'option B.
+decision-3 (5c301f0e, APPROVED, closes:false) arbitre request-4 : elle approuve
+la consignation des trois corrections postérieures à la clôture (bouton ☰
+blanc, bouton ☰ à l'extrême gauche, entrée Pointage conditionnée à
+`station_config.pointage_actif`), déjà livrées sur la branche du lot (commit
+`eb77b3ae`, PR #164, toujours en brouillon). Son texte le dit explicitement :
+« l'approbation porte uniquement sur la consignation des corrections ; elle
+n'autorise aucune fusion vers une branche protégée. »
 
-## Corrections livrées (commit eb77b3ae, PR #164, toujours en brouillon)
+## Preuve des conditions de decision-3
 
-1. Bouton ☰ en blanc (#E8EDF2) au lieu du cyan NEXUS.
-2. Bouton ☰ à l'extrême gauche de l'en-tête (position absolue dans l'en-tête, panneau recalé dessous).
-3. Entrée Pointage affichée seulement si `station_config.pointage_actif` est vrai (fait `pointageActif`, lu par l'Accueil via `pointageActifSite` ; pour le manager, via `chargerPointageActif`). Fait absent = entrée masquée.
+decision-3 ne pose aucune condition (`CONDITIONS: aucune` dans son contrat) :
+il n'y a rien à prouver au-delà de ce que request-4 avait déjà prouvé (épreuves
+`test_menu_accueil_20261030.js` et `test_accueil_hors_service_20260918.js`
+vertes, suite complète aux sept mêmes échecs que la base, aucun de plus,
+aucune colonne, aucune migration, aucune action Production). Ce dépôt ne porte
+donc aucune nouvelle preuve de condition : il consigne l'arrêt qui suit.
 
-## Preuves
+## Pourquoi cette session s'arrête ici
 
-- `test_menu_accueil_20261030.js` : épreuve Pointage (actif, inactif, fait absent, employés et manager) et épreuve CSS/câblage du bouton ; mutant « pointage toujours affiché » tué avec les six autres.
-- `test_accueil_hors_service_20260918.js` : 172 verts.
-- Suite complète : les mêmes 7 échecs que la base, aucun nouveau.
-
-## Périmètre
-
-Interface seule : aucune colonne, aucune migration, aucune action Production. `roleDuJour !== 'renfort'` et les contrôles Inventaire de l'Accueil sont intacts. Fusion : GO de Frédéric requis.
+La seule suite concrète pour ce lot est la fusion de la PR #164
+(`menu-accueil-employe-20261030` → `main`), explicitement exclue par decision-3
+et conditionnée par request-4 au « GO de Frédéric requis ». Toute modification
+de `main` est une gate humaine jamais pré-autorisée (`CLAUDE.md`, section
+« Gates humaines — jamais pré-autorisées »). Cette session n'a reçu aucun GO de
+Frédéric pour fusionner : elle n'a donc rien d'autre à exécuter que la prise en
+charge de decision-3, déjà faite, et le présent constat. Elle ne s'arbitre pas
+elle-même et ne contourne pas la gate.
 
 ## À arbitrer
 
-Les corrections ci-dessus, postérieures à la clôture, sont-elles consignées conformément ? La demande de clôture viendra après la fusion.
+Le lot reste ouvert (decision-3, closes:false) dans l'attente du GO de
+Frédéric pour fusionner la PR #164. Dès ce GO donné hors de ce dépôt, la
+fusion elle-même reste un geste humain ; une demande de clôture suivra après
+la fusion effective, comme l'annonçait déjà request-4.
