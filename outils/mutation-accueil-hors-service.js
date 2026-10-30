@@ -66,7 +66,7 @@ const MUTATIONS = [
    'const prochainPointageEffectif = (journeeTerminee || !enService) ? null : prochainPointage;',
    'const prochainPointageEffectif = journeeTerminee ? null : prochainPointage;'],
   ['M9 · rappel de service sans moyen de reprendre son poste',
-   '\'<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">\'\n        + \'Changer de rôle / refaire ma prise de poste</a>\'',
+   '\'<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">\'\n        + \'Changer de rôle / refaire ma prise de poste</a></div>\'',
    "''"],
   ['M10 · rôle du jour qui disparaît quand il est inconnu',
    'const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || roleDuJour || null;',

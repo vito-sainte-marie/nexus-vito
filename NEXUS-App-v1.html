@@ -16,6 +16,7 @@
 <title>NEXUS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -583,9 +584,47 @@
      (.entreprise-card) remplace les deux colonnes, plus besoin de grille
      dédiée ici en vue bureau. */
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
+  /* Accueil du pompiste en service (lot ACCUEIL-EN-SERVICE-20261030) : une seule police, une seule colonne. */
+  #accueilPisteHote{display:none;}
+  body.accueil-piste{font-family:'Inter',-apple-system,sans-serif;font-variant-numeric:tabular-nums;}
+  body.accueil-piste #accueilPisteHote{display:block;padding:0 20px 24px;}
+  body.accueil-piste .header-statut-row, body.accueil-piste #taglineRole, body.accueil-piste #sessionInfo, body.accueil-piste #prisePosteHote{display:none !important;}
+  body.accueil-piste #conseillerEmployeWrap > *:not(#accueilPisteHote){display:none !important;}
+  #accueilPisteHote, #accueilPisteHote *{font-family:'Inter',-apple-system,sans-serif;}
+  /* Recherche libre : absente de l'Accueil du pompiste en service (le pied de page est le dernier élément). */
+  body.accueil-piste #zoneRecherche{display:none !important;}
+  /* Avant que le poste soit connu : seul l'en-tête, jamais la page générique. Levé par accueilPret(). */
+  body.accueil-attente .app > *:not(.header){visibility:hidden !important;}
+  body.accueil-attente .header-statut-row, body.accueil-attente #taglineRole, body.accueil-attente #sessionInfo{visibility:hidden !important;}
+  .ap-h1{font-size:24px;font-weight:700;margin:8px 0 14px;color:#E8EDF2;}
+  .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid #242E38;background:#141B22;border-radius:16px;overflow:hidden;margin-bottom:12px;}
+  .ap-poste-texte{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .ap-poste-nom{font-size:18px;font-weight:700;color:#E8EDF2;}
+  .ap-poste-sous{font-size:13px;color:#8FA0B0;}
+  .ap-poste-image{position:absolute;top:0;right:0;bottom:0;width:62%;background-size:cover;background-position:center;}
+  .ap-poste::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#141B22 38%,rgba(20,27,34,.85) 55%,rgba(20,27,34,0) 100%);}
+  .ap-fil, .ap-missions{background:#141B22;border:1px solid #242E38;border-radius:16px;padding:16px;margin-bottom:12px;}
+  .ap-fil-titre{font-size:16px;font-weight:600;color:#E8EDF2;}
+  .ap-fil-compte, .ap-missions-sous{font-size:13px;color:#8FA0B0;margin-top:2px;}
+  .ap-segments{display:flex;gap:6px;margin:12px 0;}
+  .ap-segments i{flex:1;height:6px;border-radius:3px;background:#242E38;}
+  .ap-segments i.ap-plein{background:#5CD69A;}
+  .ap-etapes{list-style:none;margin:0 0 14px;padding:0;}
+  .ap-etape{font-size:14px;color:#E8EDF2;padding:6px 0;}
+  .ap-etape.ap-fait, .ap-etape.ap-sans_objet{color:#5CD69A;}
+  .ap-marque{display:inline-block;width:22px;}
+  .ap-sans-objet{font-size:12px;color:#8FA0B0;}
+  .ap-bouton{display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;background:#4FC3D9;color:#04141a;font-size:16px;font-weight:600;text-decoration:none;margin-top:12px;}
+  .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid #5A4520;background:#1E1A12;border-radius:16px;color:#F2B84B;text-decoration:none;margin-bottom:12px;font-size:15px;}
+  .ap-reception.ap-attendue{border:1.5px solid #F2B84B;background:#2A2213;}
+  .ap-reception-sous{font-size:13px;color:#C9A55C;}
+  .ap-camion{font-size:22px;}
+  .ap-progression{display:flex;justify-content:space-between;align-items:center;min-height:44px;font-size:14px;color:#E8EDF2;text-decoration:none;}
+  .ap-pied{display:flex;justify-content:space-between;margin-top:8px;}
+  .ap-pied a{display:flex;align-items:center;min-height:44px;font-size:13px;color:#8FA0B0;text-decoration:none;}
 </style>
 </head>
-<body>
+<body class="accueil-attente">
 <div class="app">
   <div class="header">
     <div class="header-brandrow">
@@ -749,6 +788,7 @@
        chiffrée), donc fixe côté HTML — seul le prénom est réellement
        dynamique (voir #conseillerEmployeTexte plus bas). -->
   <div data-role="employe" style="display:none;" id="conseillerEmployeWrap">
+    <div id="accueilPisteHote"></div>
     <!-- Refonte "Apple-like" (20/08/2026, demande de Frédéric) : carte
          d'accueil concise (photo Coach + statut réel du service + une
          seule phrase de recommandation, jamais 3 priorités génériques
@@ -1359,6 +1399,7 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-accueil-piste.js?v=20261030-0001"></script>
 <script src="nexus-prise-de-poste.js"></script>
 <script src="nexus-recherche.js"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
@@ -2534,6 +2575,7 @@
       releveJaugeageJour,
       { data: relevesIndexRows, error: eIdx },
       { data: serviceTermineRows, error: eST },
+      { data: commandesRows, error: eCmd },
     ] = await Promise.all([
       pointageActifSite
         // `service_id` est chargé avec le type (13/09/2026) : sans lui, cet
@@ -2570,7 +2612,12 @@
       enService
         ? Promise.resolve({ data: [], error: null })
         : nexusDernierServiceTermine(employee).then(r => ({ data: r.service ? [r.service] : [], error: r.erreur ? true : null })),
+      // Lecture seule : commandes de carburant attendues aujourd'hui (jour de la station) pour la tuile Réception de l'Accueil du pompiste.
+      (enService && roleDuJour === 'pompiste')
+        ? nexusClient.from('carburant_commandes').select('id, carburants, livraison_prevue_le, statut').eq('site', employee.site_id).eq('livraison_prevue_le', todayISO).in('statut', NexusAccueilPiste.STATUTS_COMMANDE_ATTENDUE)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+    if (eCmd) console.error('Chargement carburant_commandes (accueil employé):', eCmd);
     if (eST) console.error('Chargement services terminés (accueil employé):', eST);
     if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
@@ -2717,6 +2764,23 @@
       operationnelAtteignable ? 'Mes outils du quart' : 'Mes écrans');
 
     document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
+    // Accueil du pompiste en service : même fil, même lien (filLien), présentation seule.
+    const vuePiste = NexusAccueilPiste.modele({
+      enService, consultationExterne, roleDuJour,
+      prenom: employee.prenom || employee.nom, libelleRole, quart: serviceCourantJour && serviceCourantJour.quart,
+      heureDebut: serviceCourantJour && serviceCourantJour.heure_debut, fuseau: fuseauStation,
+      jaugeageApplicable, jaugeageFait, indexApplicable, indexFait,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
+      missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien,
+    });
+    const hotePiste = document.getElementById('accueilPisteHote');
+    if (vuePiste && hotePiste) {
+      hotePiste.innerHTML = NexusAccueilPiste.html(vuePiste);
+      document.body.classList.add('accueil-piste');
+      const sortie = document.getElementById('apLogout');
+      if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
+    }
     const nbActions = (prochainPointageEffectif ? 1 : 0)
       + Math.max(0, missionsInfo.total - missionsInfo.faites)
       + Math.max(0, controlesInfo.total - controlesInfo.faits);
@@ -3062,6 +3126,11 @@
     }
   }
 
+  // Lève l'état d'attente (voir body.accueil-attente) : appelée dès que l'Accueil est rendu,
+  // quoi qu'il arrive ensuite (erreur, manager, filet de sécurité), pour que la page ne reste jamais vide.
+  function accueilPret() { document.body.classList.remove('accueil-attente'); }
+  setTimeout(accueilPret, 8000);
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
@@ -3243,6 +3312,7 @@
       // voir initAccueilEmploye() et son détail plus haut dans le script.
       await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour, serviceCourant);
     }
+    accueilPret();
 
     if (employee.est_createur) {
       document.querySelectorAll('[data-role="createur"]').forEach(el => el.style.display = '');
@@ -3396,7 +3466,7 @@
 
     initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif);
     initGroupes();
-  });
+  }).finally(accueilPret);
 
   // Chaque groupe ne montre que son element le plus parlant au depart, pour voir
   // toute la page sans defiler. S'il y a un item urgent (Rappels), il prend

@@ -153,6 +153,7 @@ function faireDom() {
   const elements = new Map();
   const journal = { textes: {}, styles: {}, ecouteurs: {} };
   const document = {
+    body: { classList: { add() {}, remove() {}, toggle() {} } },
     getElementById(id) {
       if (!elements.has(id)) {
         elements.set(id, {
@@ -179,7 +180,7 @@ function faireClient(reponses) {
     from(table) {
       const rep = () => Promise.resolve(reponses[table] || { data: [], error: null });
       const chaine = {
-        select: () => chaine, eq: () => chaine, order: () => chaine, limit: () => chaine,
+        select: () => chaine, eq: () => chaine, in: () => chaine, order: () => chaine, limit: () => chaine,
         maybeSingle: () => Promise.resolve(reponses[table] || { data: null, error: null }),
         then: (res, rej) => rep().then(res, rej),
       };
@@ -220,7 +221,7 @@ async function executerAccueil({
   })();
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
-    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'localStorage', 'location',
+    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusAccueilPiste', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
@@ -232,6 +233,7 @@ async function executerAccueil({
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
     require('./nexus-fil-debut-quart.js'),
+    require('./nexus-accueil-piste.js'),
     { getItem: () => null, setItem() {}, removeItem() {} },
     { search: '' },
     { chargerStatutJaugeageJour: async () => statutJaugeage, chargerReleveDuJour: async () => releveJaugeage, jaugeageDuJourFait: REGLE_JAUGEAGE_DU_JOUR },
