@@ -45,7 +45,7 @@ const EPREUVES = {
   },
   'tuile Réception mise en avant avec commande du jour': (M) => {
     const h = M.html(M.modele(Object.assign({}, base, { commandes: [cmd()] })));
-    assert(h.includes('ap-attendue') && h.includes('Livraison prévue ce matin · SP95 et GO'));
+    assert(h.includes('ap-attendue') && h.includes('Livraison prévue aujourd’hui · SP95 et GO'));
   },
   'commande d\'un autre jour ou statut non attendu : pas de mise en avant': (M) => {
     const h = M.html(M.modele(Object.assign({}, base, { commandes: [cmd({ livraison_prevue_le: '2026-10-31' }), cmd({ statut: 'annulee' }), cmd({ statut: 'livree' })] })));
@@ -80,6 +80,32 @@ assert(!/from\('shifts'\)\s*\.insert/.test(APP));
 assert(/\.in\('statut', NexusAccueilPiste\.STATUTS_COMMANDE_ATTENDUE\)/.test(APP) && /eq\('livraison_prevue_le', todayISO\)/.test(APP));
 assert(APP.includes('nexus-accueil-piste.js'));
 
+// Corrections de la recette du 30/10 : pas de flash de la page générique, pas de recherche libre.
+function epreuvesApp(A) {
+  assert(/<body class="accueil-attente">/.test(A), 'la page naît en attente');
+  assert(/body\.accueil-attente \.app > \*:not\(\.header\)\{visibility:hidden !important;\}/.test(A), 'attente : tout sauf l\'en-tête est masqué');
+  assert(/function accueilPret\(\) \{ document\.body\.classList\.remove\('accueil-attente'\); \}/.test(A), 'accueilPret lève l\'attente');
+  assert(/await initAccueilEmploye\([^)]*\);\s*\}\s*accueilPret\(\);/.test(A), 'attente levée après le rendu, manager compris');
+  assert(/\}\)\.finally\(accueilPret\);/.test(A), 'attente levée même en cas d\'erreur ou de retour anticipé');
+  assert(/setTimeout\(accueilPret, \d+\)/.test(A), 'filet de sécurité : la page ne reste jamais vide');
+  assert(/body\.accueil-piste #zoneRecherche\{display:none !important;\}/.test(A), 'recherche absente pour le pompiste en service');
+  assert(!/accueil-attente'\)/.test(A.replace(/function accueilPret[^\n]*\n/, '')), 'seule accueilPret touche à l\'attente');
+}
+epreuvesApp(APP);
+const MUTATIONS_APP = [
+  ['page non mise en attente', (s) => s.replace('<body class="accueil-attente">', '<body>')],
+  ['attente sans masque', (s) => s.replace('body.accueil-attente .app > *:not(.header){visibility:hidden !important;}', '')],
+  ['attente jamais levée', (s) => s.replace("document.body.classList.remove('accueil-attente');", '')],
+  ['pas de levée après le rendu', (s) => s.replace('    }\n    accueilPret();\n', '    }\n')],
+  ['pas de levée en cas d\'erreur', (s) => s.replace('}).finally(accueilPret);', '});')],
+  ['pas de filet de sécurité', (s) => s.replace('setTimeout(accueilPret, 8000);', '')],
+  ['recherche visible en service', (s) => s.replace('body.accueil-piste #zoneRecherche{display:none !important;}', '')],
+];
+for (const [nom, mut] of MUTATIONS_APP) {
+  const src = mut(APP); assert.notStrictEqual(src, APP, 'mutation sans effet : ' + nom);
+  assert.throws(() => epreuvesApp(src), 'mutation survivante : ' + nom);
+}
+
 // Mutations : chacune doit rougir au moins une épreuve.
 const MUTATIONS = [
   ['deux boutons', (s) => s.replace("(v.bouton ? '<a class=\"ap-bouton\"", "(true ? '<a class=\"ap-bouton\"").replace("' + esc(v.bouton.libelle) + '</a>' : '')", "' + esc(v.bouton ? v.bouton.libelle : '') + '</a>' : '') + '<a class=\"ap-bouton\" href=\"#\">x</a>'")],
@@ -101,4 +127,4 @@ for (const [nom, mut] of MUTATIONS) {
   try { const M = charger(src); for (const e of Object.keys(EPREUVES)) { try { jouer(M, e); } catch (_) { rouge = true; break; } } } catch (_) { rouge = true; }
   assert(rouge, 'mutation survivante : ' + nom);
 }
-console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + MUTATIONS.length + ' mutations tuées');
+console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + (MUTATIONS.length + MUTATIONS_APP.length) + ' mutations tuées');
