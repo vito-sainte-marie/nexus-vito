@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,38 +21,33 @@ preuves:
     classe: VERIFIED
     valeur: 167-fichiers
 ---
-# MENU-ACCUEIL-EMPLOYE-20261030 : request-2 — demande rectificative (réduction du périmètre)
+# MENU-ACCUEIL-EMPLOYE-20261030 : request-3 — demande rectificative (option B pour l'Inventaire du renfort)
 
 BRANCHE_DU_LOT: menu-accueil-employe-20261030
 
-Cette demande **rectifie** request-1 (e9b6f7cf) sans la réécrire. Elle applique la décision de Frédéric du 30/10, 8 h 19 (relayée par Guardian, #160, 6522699424). Aucun code avant la décision de l'arbitre. Aucune opération en Production.
+Cette demande **consigne un écart** à la condition de decision-1 (e94d6276, APPROVED_WITH_CONDITIONS, option A) sans réécrire request-1 ni request-2. Il vient de Frédéric, propriétaire de la décision produit, relayé par Guardian sur #160 (6523148647, 6523163725, 6523197391).
 
-## Périmètre réduit
+## Ce qui change
 
-Le lot se limite à :
-- le **menu ☰** à gauche du logo de l'Accueil employé, avec les fonctions par poste de request-1 (Jaugeage et Index absents du menu des employés, Réception, Inventaire, Missions, Pointage, Coach FDJ caisse, FDJ, Moi) ;
-- la **recherche « Que cherchez-vous à faire ? »** retirée pour pompiste, caisse et renfort, conservée pour manager et gérant ;
-- un **lien « Inventaire » dans le menu du renfort**, créé tel quel.
+- **Avant (option A)** : le lien « Inventaire » du menu du renfort reste actif, tel quel.
+- **Après (option B, décision finale de Frédéric, 30/10, 8 h 47)** : pour le renfort, l'entrée Inventaire est **présente, grisée, non cliquable** (`aria-disabled`, sans `href`), avec la mention **« Désactivé par le manager »**. Les libellés « bientôt disponible » des deux premiers commentaires sont remplacés par celui-ci.
+- **Inchangé** : les autres postes ; le manager et le gérant gardent le lien actif ; l'exclusion `roleDuJour !== 'renfort'` et les contrôles Inventaire de l'Accueil ne sont pas modifiés ; interface seule, ni colonne ni migration ; rien en Production.
 
-**Sortent du lot** (lot dédié « Inventaire renfort », à ouvrir plus tard) : le réglage « Inventaire du renfort » dans Paramètres Station, donc **ni colonne ni migration** ici ; la levée de l'exclusion `roleDuJour !== 'renfort'` dans l'Accueil.
+## Preuve des conditions de decision-1
 
-Corrections à request-1 qui en découlent : l'entrée Inventaire du renfort n'est plus conditionnée par un réglage (le lien est toujours présent pour le renfort) ; l'étape 1 « migration du réglage sur Test » tombe ; le lot est de l'interface seule.
+Conditions de decision-1 (e94d6276), une par une, sur la branche du lot (e0d43d1d) :
 
-## Où mène le lien Inventaire pour un renfort aujourd'hui (lecture seule du code, `origin/production` d799fa58, NEXUS-Inventaire-v1.html)
+1. **Implémenter l'option A** : **non tenue, par décision de Frédéric** — c'est l'objet de cette demande (option B pour le seul lien du renfort). Écart tracé ici, non silencieux.
+2. **Interface seule, sans colonne ni migration** : tenue. `git diff --stat` de la branche : `NEXUS-App-v1.html`, `nexus-menu-accueil.js`, `test_menu_accueil_20261030.js`, `test_accueil_hors_service_20260918.js` ; aucun fichier de migration ni de schéma.
+3. **Ne pas modifier `roleDuJour !== 'renfort'` ni les contrôles Inventaire de l'Accueil** : tenue. L'épreuve « l'App branche le menu, garde l'exclusion du renfort » vérifie `const inventaireApplicable = enService && roleDuJour !== 'renfort';`.
+4. **Vérifier par tests** les entrées selon le poste, l'absence de Jaugeage et Index pour les employés, la recherche réservée aux manager et gérant : tenue. Épreuves « pompiste », « caissière », « renfort », « aucun employé n'a Jaugeage ni Index », « manager et gérant », « recherche », avec mutants tués.
 
-Établi en lisant le code ; **non rejoué dans un navigateur**.
+## Preuves
 
-- **Renfort en service** : la page **s'ouvre, sans refus ni page vide**. Le rôle du jour est résolu (`chargerRoleDuJour`), `zonesPourRole('renfort')` rend `['piste','boutique']` : il choisit la zone, comme un manager. Il peut faire l'inventaire du quart.
-- **Ce qu'il ne voit pas** : l'Accueil ne le compte pas dans ses contrôles (`inventaireApplicable = enService && roleDuJour !== 'renfort'`). L'Inventaire n'est donc ni une étape de son ouverture ni dans son compte de contrôles. Ce qu'il fait dans la page reste enregistré, mais n'apparaît pas comme « à faire » sur l'Accueil. C'est le comportement actuel, non modifié.
-- **Renfort hors service** (pas de service du jour résolu) : la page affiche l'écran d'arrêt `bloquerFauteDeRoleDuJour`, un refus avec explication, pas une page vide. Même chose si les horaires de quart de la station manquent (`bloquerFauteDHorairesDeQuart`).
-- **Mode test Inventaire** : le renfort y suit la mission configurée ; hors sujet en usage normal.
-
-## À valider par Frédéric
-
-Le lien fonctionne donc pour un renfort en service. Deux options pour le lot :
-- **A (recommandée)** : garder le lien tel quel. Simple, conforme à votre décision, honnête : le renfort peut faire l'inventaire, l'Accueil ne le lui réclame pas encore (lot « Inventaire renfort »).
-- **B** : l'afficher grisé « bientôt disponible » jusqu'au lot dédié. Évite qu'un renfort fasse un inventaire que l'Accueil ne compte pas.
+- Poussé sur la branche du lot (PR brouillon #164) : e0d43d1d.
+- `test_menu_accueil_20261030.js` : épreuve du renfort (entrée présente, sans `href`, `aria-disabled`, mention), épreuve des autres postes (lien actif, sans mention), deux mutants tués (renfort actif, mention retirée). `test_accueil_hors_service_20260918.js` : 172 verts.
+- Suite complète : mêmes 7 échecs que la base, aucun de plus.
 
 ## À arbitrer
 
-L'arbitre valide-t-il ce périmètre réduit (interface seule, sans migration) comme base du lot de développement ? Le choix A ou B du lien Inventaire est à la main de Frédéric ; sans réponse, A.
+L'arbitre prend-il acte de l'écart de l'option A à l'option B, décidé par Frédéric, comme périmètre du lot ? Les conditions de decision-1 pour le reste sont respectées.
