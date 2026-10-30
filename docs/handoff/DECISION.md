@@ -1,30 +1,30 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 2
+seq: 3
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED
-closes: true
-in_reply_to: request-3.md
+closes: false
+in_reply_to: request-4.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6523282911
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6524484111
 ---
-# Décision sur request-3.md — APPROVED, lot clos
+# Décision sur request-4.md — APPROVED
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41058267598), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6523282911. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41066693082), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6524484111. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `MENU-ACCUEIL-EMPLOYE-20261030`, `REQUEST` = `request-3.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `MENU-ACCUEIL-EMPLOYE-20261030`, `REQUEST` = `request-4.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `2f19684a71ff384a778a119afa2f23a51dfeaac6`, `HEAD` = `2f19684a71ff384a778a119afa2f23a51dfeaac6`, SHA du run `2f19684a71ff384a778a119afa2f23a51dfeaac6`, tête du rail `2f19684a71ff384a778a119afa2f23a51dfeaac6`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0`, `HEAD` = `45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0`, SHA du run `45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0`, tête du rail `45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
@@ -34,21 +34,20 @@ _Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41058267598), post
 
 ## Texte de l'arbitre
 
-DECISION: APPROVED.
+Les trois corrections sont correctement consignées : elles sont attribuées à une décision métier déjà rendue par Frédéric, couvertes par des tests ciblés et n’introduisent ni migration ni action Production. Les sept échecs de base sont diagnostiqués et sans régression nouvelle, conformément à l’acquis `REGRESSION_PRODUIT_VS_BANC`.
 
-L’option B, décision métier attribuée à Frédéric, remplace la condition 1 de `decision-1.md` pour le seul lien Inventaire du renfort. Les autres conditions restent satisfaites. Les sept échecs identiques à la base ne constituent pas une régression nouvelle selon l’acquis `REGRESSION_PRODUIT_VS_BANC`. Aucune action Production, migration ou extension de sécurité n’est autorisée par cette décision.
+`STATE.json` prévaut sur la prose historique : il indique `ATTENTE_DECISION` et `decision-1.md` comme dernière décision enregistrée. Cet écart n’empêche pas l’arbitrage de `request-4.md`. L’approbation porte uniquement sur la consignation des corrections ; elle n’autorise aucune fusion vers une branche protégée.
 
-RAIL_LU: 2f19684a71ff384a778a119afa2f23a51dfeaac6
-
+RAIL_LU: 45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0
 NEXT_ACTION_CONTRACT
 DECISION: APPROVED
-CLOSES: true
+CLOSES: false
 LOT: MENU-ACCUEIL-EMPLOYE-20261030
-REQUEST: request-3.md
+REQUEST: request-4.md
 BRANCHE_DU_LOT: menu-accueil-employe-20261030
-HEAD: 2f19684a71ff384a778a119afa2f23a51dfeaac6
+HEAD: 45412ae4ff8fa45b8ed9f36fd2cf43f5bc24d7e0
 LEASE: aucun
-GATE_STATE: G2, tests ciblés verts et suite complète sans nouvel échec par rapport à la base
+GATE_STATE: G2, tests ciblés verts et suite complète sans nouvel échec
 PROOF_STATE: PROOF_VALID
 CONDITIONS: aucune
 BLOCKER: aucun
@@ -56,4 +55,4 @@ STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision APPROVED sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
+ACTION_NEXT: Matérialiser cette décision sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
