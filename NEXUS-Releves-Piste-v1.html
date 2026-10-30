@@ -52,6 +52,10 @@
   .cadre-vr .cc2{top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:8px}
   .cadre-vr .cc3{bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:8px}
   .cadre-vr .cc4{bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:8px}
+  .bloc-champ label{display:block;font-weight:600;margin:0 0 6px}
+  .bloc-champ label:not(:first-child){margin-top:14px}
+  .bloc-champ select{display:block;width:100%;min-height:48px;background:var(--bg);color:var(--text);border:1px solid var(--hair);border-radius:10px;padding:10px;font:16px 'IBM Plex Sans',sans-serif}
+  .bloc-champ textarea{display:block;margin-top:0}
   .btn2{background:var(--raised);color:var(--text);border:1px solid var(--hair);width:100%}
   .lien-discret{display:inline-block;min-height:44px;background:none;border:0;padding:0 4px;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer}
   .row{display:flex;gap:10px} .row>*{flex:1}
@@ -143,6 +147,11 @@
   }
   function majEtat() {
     // Sur l'écran jaugeage, le bandeau des index ne dit rien du jaugeage : on affiche l'état réel de celui-ci.
+    if (ecran === 'jaugeimpossible') {
+      $('etat').innerHTML = jauge.impossible ? '<b class="bon">Jaugeage signalé impossible</b>'
+        : (reseau.ok ? 'Signalement non envoyé : choisissez le motif' : '<b class="ko">Hors connexion : signalement non envoyé</b>');
+      return;
+    }
     if (ecran === 'jauge') {
       $('etat').innerHTML = jauge.enregistre ? '<b class="bon">Jaugeage enregistré dans Carburants</b>'
         : (reseau.ok ? 'Jaugeage non enregistré : saisie en cours' : '<b class="ko">Hors connexion : jaugeage non enregistré</b>');
@@ -284,19 +293,39 @@
   function vueJaugeImpossible() {
     if (jauge.impossible) return `<h1>Jaugeage impossible</h1><div class="card"><h2>Signalé</h2><div class="sub">${esc(jauge.message)}</div></div>${enFil() ? filContinuer() : '<button class="btn2" data-act="choix">Retour</button>'}`;
     return `<h1>Jaugeage impossible</h1><div class="sub">Le contrôle carburant du jour restera provisoire jusqu'au prochain relevé.</div>
-      <div class="card"><label for="jgMotif">Motif</label><select id="jgMotif"><option value="equipement_indisponible">Équipement indisponible</option><option value="acces_impossible">Accès impossible</option><option value="autre">Autre</option></select>
+      <div class="card bloc-champ"><label for="jgMotif">Motif</label><select id="jgMotif"><option value="equipement_indisponible">Équipement indisponible</option><option value="acces_impossible">Accès impossible</option><option value="autre">Autre</option></select>
       <label for="jgCommentaire">Précision (facultatif)</label><textarea id="jgCommentaire" rows="2"></textarea>
       <div class="progres">${esc(jauge.message || '')}</div></div>
       <button class="btn" data-act="jimpossibleconfirmer">Confirmer</button><button class="btn2" data-act="jimpossibleretour">Retour au jaugeage</button>`;
   }
+  // Écriture jaugeage : le détail de l'erreur est journalisé, puis un seul nouvel essai après rafraîchissement de la session
+  // (téléphone resté en veille, jeton du soir expiré). Les deux écritures sont idempotentes sur (site, date).
+  function detailErreur(e) { return e ? { code: e.code || null, message: e.message || String(e), details: e.details || null, hint: e.hint || null } : null; }
+  async function ecrireAvecReessai(nom, ecrire) {
+    let r = null;
+    try { r = await ecrire(); } catch (x) { r = { ok: false, error: x }; }
+    if (r && r.ok) return r;
+    console.error(nom + ' : premier essai refusé', JSON.stringify(detailErreur(r && r.error)));
+    try { await nexusClient.auth.refreshSession(); } catch (x) { console.error(nom + ' : rafraîchissement de session', JSON.stringify(detailErreur(x))); }
+    try { r = await ecrire(); } catch (x) { r = { ok: false, error: x }; }
+    if (!(r && r.ok)) console.error(nom + ' : second essai refusé', JSON.stringify(detailErreur(r && r.error)));
+    return r;
+  }
   async function declarerJaugeageImpossible() {
     const motif = $('jgMotif').value, commentaire = $('jgCommentaire').value.trim();
     try {
-      const r = await window.NexusCarburantDonnees.enregistrerJaugeageImpossible(nexusClient, emp.site_id, { date, employeeId: emp.id, motif, commentaire });
+      const r = await ecrireAvecReessai('Jaugeage impossible', () => window.NexusCarburantDonnees.enregistrerJaugeageImpossible(nexusClient, emp.site_id, { date, employeeId: emp.id, motif, commentaire }));
       if (!r || !r.ok) throw (r && r.error) || new Error('écriture refusée');
       jauge.impossible = true; jauge.message = 'Jaugeage signalé impossible : le contrôle carburant du jour reste provisoire.'; reseau.ok = true;
     } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Signalement impossible : réessayez.'; }
     rendre();
+  }
+  // Le statut « impossible » du jour vient de la base, pas de la mémoire de la page.
+  async function chargerStatutImpossible() {
+    try {
+      const st = await window.NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, emp.site_id, date);
+      if (st && st.statut === 'impossible') { jauge.impossible = true; jauge.message = jauge.message || 'Jaugeage signalé impossible : le contrôle carburant du jour reste provisoire.'; }
+    } catch (x) { console.error(x); }
   }
   // Saisie directe : la photo ne sert qu'à lire ; le pompiste tape les volumes. Le curseur l'attend dans le premier champ vide.
   function premierChampVide() { const c = CUVES.find(c => !jauge.saisies[c.k]); return c ? c.k : null; }
@@ -381,10 +410,10 @@
     });
     const provenance = { source: jauge.docId ? 'ocr_veeder_root' : 'saisie_manuelle', document_id: jauge.docId || null, photo_le: jauge.photoLe || null, propose, confirme, corriges_a_la_main: corriges, confirme_par: emp.id, confirme_le: new Date().toISOString() };
     try {
-      const r = await D.enregistrerJaugeageOuverturePompiste(nexusClient, emp.site_id, {
+      const r = await ecrireAvecReessai('Jaugeage ouverture', () => D.enregistrerJaugeageOuverturePompiste(nexusClient, emp.site_id, {
         date, employeeId: emp.id, valeurs, mesureLe: jauge.photoLe || undefined,
         motifCorrection: 'Jaugeage Veeder-Root confirmé par le pompiste (relevés piste)', provenance,
-      });
+      }));
       if (!r || !r.ok) throw (r && r.error) || new Error('écriture refusée');
       jauge.enregistre = true; jauge.message = r.dejaAJour ? 'Ces volumes étaient déjà enregistrés : rien n\'a été modifié.' : 'Jaugeage enregistré dans Carburants.'; reseau.ok = true;
       jauge.existant = await D.chargerReleveDuJour(nexusClient, emp.site_id, date);
@@ -586,7 +615,7 @@
       if (r && r !== 'repli') await envoyerPhoto(r);
       return;
     }
-    if (a === 'jauge') { ecran = 'jauge'; restaurerJauge(); try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } rendre(); return; }
+    if (a === 'jauge') { ecran = 'jauge'; restaurerJauge(); try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); } await chargerStatutImpossible(); rendre(); return; }
     if (a === 'jenregistrer') { await enregistrerJaugeage(); return; }
     if (a === 'jimpossible') { jauge.message = ''; ecran = 'jaugeimpossible'; rendre(); return; }
     if (a === 'jimpossibleretour') { jauge.message = ''; ecran = 'jauge'; rendre(); return; }
@@ -672,6 +701,7 @@
       else if (voulEcran === 'jauge' && !(habilites.length && !habilites.some(m => /_q1$/.test(m)))) {
         ecran = 'jauge'; restaurerJauge();
         try { jauge.existant = await window.NexusCarburantDonnees.chargerReleveDuJour(nexusClient, emp.site_id, date); } catch (x) { console.error(x); }
+        await chargerStatutImpossible();
       }
     } catch (x) { /* lien invalide : on reste sur le choix */ }
     rendre();

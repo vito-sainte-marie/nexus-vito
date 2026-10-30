@@ -21,6 +21,10 @@ const EPREUVES = {
   J4: (s) => { assert.ok(/\(ex \|\| jauge\.enregistre \|\| jauge\.impossible\) \? '' : '<div class="sub"><button class="lien-discret" data-act="jimpossible"/.test(s.rel), 'le lien « impossible » reste offert après un relevé ou un signalement'); },
   J5: (s) => { assert.ok(/resteJaugeage && 1/.test(s.mod), 'l\'étape 1 n\'est plus sautée quand le jaugeage du jour existe'); },
   J6: (s) => { const o = s.carb.match(/origine: '(\w+)'/g) || []; assert.ok(o.length >= 3 && o.every(x => x === "origine: 'manager'"), 'écriture du gérant sans origine « manager » : ' + o.join(',')); },
+  J8: (s) => { assert.ok(/ecrireAvecReessai\('Jaugeage impossible'/.test(s.rel) && /ecrireAvecReessai\('Jaugeage ouverture'/.test(s.rel) && /refreshSession\(\)/.test(s.rel) && /JSON\.stringify\(detailErreur/.test(s.rel), 'écriture du jaugeage sans nouvel essai après rafraîchissement de session, ou erreur sans détail'); },
+  J9: (s) => { assert.ok(/bloc-champ label\{display:block/.test(s.rel) && /bloc-champ select\{display:block;width:100%/.test(s.rel) && s.rel.includes('<div class="card bloc-champ"><label for="jgMotif">'), 'écran « Jaugeage impossible » sans libellés en bloc ni menu pleine largeur'); },
+  J10: (s) => { assert.ok(/chargerStatutImpossible[\s\S]{0,300}chargerStatutJaugeageJour/.test(s.rel) && (s.rel.match(/await chargerStatutImpossible\(\)/g) || []).length >= 2, 'le statut « impossible » du jour n\'est pas lu en base à l\'ouverture de l\'écran'); },
+  J11: (s) => { assert.ok(/ecran === 'jaugeimpossible'[\s\S]{0,300}Signalement non envoy/.test(s.rel), 'barre du bas de l\'écran « impossible » parlant des index'); },
   J7: (s) => { assert.ok(!/\.delete\(|\.from\('carburant_releve(s|_versions)'\)[^;]{0,80}delete/.test(s.rel + s.inv), 'suppression de données de jaugeage'); },
 };
 function rouges(src) {
@@ -29,7 +33,7 @@ function rouges(src) {
   return r;
 }
 assert.deepStrictEqual(rouges(SRC), [], 'état réel : épreuves rouges ' + rouges(SRC).join(','));
-console.log('OK état réel : J1..J7 vertes');
+console.log('OK état réel : J1..J11 vertes');
 function muter(nom, cle, avant, apres, attendu) {
   assert.ok(SRC[cle].includes(avant), `mutation « ${nom} » : ancre introuvable`);
   const m = { ...SRC, [cle]: SRC[cle].replace(avant, apres) };
@@ -43,4 +47,8 @@ muter('lien impossible offert après relevé', 'rel', '(ex || jauge.enregistre |
 muter('jaugeage fait resté dans le plan', 'mod', 'resteJaugeage && 1', '1', 'J5');
 muter('gérant sans origine manager', 'carb', "origine: 'manager',", "origine: 'terrain_pompiste',", 'J6');
 muter('suppression de données', 'rel', 'function vueJaugeImpossible', 'function z(c){c.from(\'carburant_releves\').delete()}\n  function vueJaugeImpossible', 'J7');
-console.log('OK 7 épreuves, 7 mutations');
+muter('pas de nouvel essai', 'rel', 'await nexusClient.auth.refreshSession();', 'await 0;', 'J8');
+muter('menu non pleine largeur', 'rel', '.bloc-champ select{display:block;width:100%', '.bloc-champ select{display:inline-block', 'J9');
+muter('statut impossible non relu', 'rel', 'await chargerStatutImpossible(); rendre(); return; }', 'rendre(); return; }', 'J10');
+muter('barre des index sur l\'écran impossible', 'rel', "ecran === 'jaugeimpossible'", "ecran === 'zz'", 'J11');
+console.log('OK 11 épreuves, 11 mutations');
