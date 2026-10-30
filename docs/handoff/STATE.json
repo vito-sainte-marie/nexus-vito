@@ -926,15 +926,15 @@
       "consomme_le": "2026-10-30T11:58:11.861Z"
     },
     "MENU-ACCUEIL-EMPLOYE-20261030": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-6.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-3.md",
+      "derniere_decision": "decision-5.md",
       "source_decision": "registre",
-      "commit_decision": "5c301f0e2c14081f5e14e6c7bc478fbd957d5c0d",
+      "commit_decision": "10effcc9ccf82cf95b63b27f1867c7c923dae1f8",
       "pris_en_charge_par": "github-actions-claude",
       "arret": "request-5.md",
-      "consomme_le": "2026-10-30T13:57:22.262Z"
+      "consomme_le": "2026-10-30T20:58:26.381Z"
     }
   },
   "artefacts_hors_registre": [
