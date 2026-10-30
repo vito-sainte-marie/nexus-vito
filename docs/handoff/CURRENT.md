@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/RELEVES-FIN-QUART-20261030/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 6
+lot_id: RELEVES-FIN-QUART-20261030
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -13,7 +13,7 @@ wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=659af077 production=2885c3e9
+    valeur: main=659af077 production=e4e4c75c
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
@@ -21,29 +21,38 @@ preuves:
     classe: VERIFIED
     valeur: 168-fichiers
 ---
-# MENU-ACCUEIL-EMPLOYE-20261030 : request-6 — fusion effective de la PR #164, demande de clôture
+# RELEVES-FIN-QUART-20261030 : request-1 — correctif d'affichage fusionné (PR #165), demande de clôture
 
-BRANCHE_DU_LOT: menu-accueil-employe-20261030
+BRANCHE_DU_LOT: releves-fin-quart-20261030
 
 ## Contexte
 
-decision-4 (e56fc242, APPROVED, closes:true) a clos le lot sur le plan documentaire et précisait qu'elle n'autorisait aucune fusion. La fusion a eu lieu depuis, par Frédéric.
+Correctif rapide demandé par Frédéric le 30/10 après la recette de l'Accueil pompiste : le relevé des index de fin de quart n'était atteignable ni depuis le menu ni depuis l'Accueil, et les étapes de l'Accueil étaient jugées sur un quart qui n'était pas celui du service. Affichage seulement : aucune donnée, aucune règle, aucune migration.
 
-## Preuve des conditions de decision-4
+## Preuve des conditions
 
-decision-4 ne pose aucune condition (`CONDITIONS: aucune`). Il n'y a donc rien à prouver au titre de ses conditions ; le présent dépôt consigne l'état réellement livré.
+Lot nouveau : aucune décision antérieure, donc aucune condition à prouver.
 
-## État réellement livré (Guardian, #160, commentaire 6528040977, 30/10)
+## Arbitrage a posteriori : à dire, pas à taire
 
-- PR #164 fusionnée par Frédéric dans `production` (2885c3e9, 12 h 32), après changement de base `main` → `production` puis fermeture/réouverture pour relancer « Construire et éprouver l'artefact ». Tests et Déploiement Production verts (12 h 37).
-- Contenu servi sur app.nexusconseil.net, vérifié par Guardian sans connexion ni écriture : `NEXUS-App-v1.html` contient `menuAccueilBouton` en #E8EDF2 et charge `nexus-menu-accueil.js` ; le module servi contient « Désactivé par le manager » et conditionne Pointage à `pointage_actif`.
-- Fonctionnalité livrée : menu ☰ à l'extrême gauche de l'en-tête de l'Accueil employé, bouton blanc ; entrées selon le poste (`roleADroitModule`) ; option B pour le renfort (Inventaire présent, grisé, non cliquable, « Désactivé par le manager ») ; Pointage affiché seulement si `station_config.pointage_actif` est vrai ; recherche conservée pour le manager et le gérant.
-- Écart de description : le corps de la PR #164 est resté sur l'option A et « Pointage pour tous ». Il est périmé ; les décisions 2 à 4 du rail et le présent dépôt font foi.
+Cette demande arrive APRÈS le code et la fusion. C'était un correctif urgent d'une régression en Production, codé et fusionné (e4e4c75c) sur GO de Frédéric avant toute request. Il contient des choix produit de Frédéric : bouton secondaire pour « Fin de quart », visibilité de la ligne dès la fin du fil, entrée de menu pour tout employé en service. La condition 1 de l'arbitrage a posteriori (aucun choix métier) n'est donc PAS remplie. Je ne la présente pas comme remplie ; l'arbitre juge en connaissance de cause.
 
-## Périmètre
+## État livré
 
-Interface seule : aucune colonne, aucune migration. Aucune action Production de ma part ; le déploiement est celui de la CI, déclenché par la fusion de Frédéric.
+- PR #165 fusionnée par Frédéric dans `production` : e4e4c75c (30/10, 20 h 42 UTC), base `production` vérifiée. Dernier commit de la branche : 1bb9b673.
+- Menu : entrée « Relevés d'index » pour tout employé en service (le Jaugeage reste réservé au manager).
+- Accueil : ligne « Fin de quart : relevé des index » dès que le fil d'ouverture est terminé, vers fin_q1 (matin) ou fin_q2 (soir), masquée quand ce relevé est final. Après la retouche demandée par Frédéric (Guardian 6532952810), c'est un bouton secondaire encadré sous « Commencer les missions », qui reste le seul bouton principal.
+- Étapes de l'Accueil jugées sur le quart du service (`quartDuJour`, jamais l'horloge) ; jamais d'étape « à faire » sans bouton.
+- `momentFinDuQuart` ajouté à `nexus-releves-piste.js`.
+- Épreuves : `test_releves_fin_quart_20261030.js` (nouveau, avec mutants dont « bouton plein » et « avant les missions »), `test_menu_accueil_20261030.js` étendu ; deux anciennes gardes de source réalignées. `run-tests.js` : 7 échecs, identiques à la base.
+- Contrôle Guardian de 1bb9b67 sur l'aperçu : conforme (#160, 6533052284). Rien de ma part en Production.
+
+## Limites déclarées
+
+1. Aucune donnée ne dit « fin de journée » : la ligne de fin de quart apparaît dès que le fil d'ouverture est terminé, pas 45 min avant la fin. Frédéric a accepté ce comportement pour ce correctif ; le lot suivant (FERMETURE-PISTE) le reprendra.
+2. Jugement de ma part : `inventaireFait` accepte aussi `a_valide_ouverture`. À confirmer ou à retirer.
+3. La logique « quart du service » a été relue dans le diff et couverte par les épreuves, pas rejouée en navigateur de bout en bout.
 
 ## À arbitrer
 
-La fusion effective et l'état livré ci-dessus sont-ils consignés, le lot demeurant clos (decision-4) ? Restent hors lot : libellés du relevé des index, écran manager pour `anomalie_nuit`, réglage « Inventaire renfort ».
+Le lot est-il consigné comme livré et clos, avec les limites 1 à 3 acceptées ? Hors lot : libellés du relevé des index, écran manager `anomalie_nuit`, réglage « Inventaire renfort », puis FERMETURE-PISTE (qui commencera par établir quelle règle existante choisit fin_normal ou fin_etendu).
