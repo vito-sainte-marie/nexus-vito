@@ -906,15 +906,15 @@
       "arret": "request-3.md"
     },
     "JAUGEAGE-CARBURANT-FIL-UNIQUE-20261029": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
-      "derniere_decision": "decision-1.md",
+      "derniere_decision": "decision-2.md",
       "source_decision": "registre",
-      "commit_decision": "d9c8f06540709ceb25fa57bc7c92f0a47bc40d4b",
+      "commit_decision": "885a5ad5bc8426bcaf2de76da76738f507339740",
       "pris_en_charge_par": "session-locale",
-      "consomme_le": "2026-10-29T20:41:33.364Z",
-      "preuve_action": "d1cd06ff71c24ebcba72860bb45e4baed15abe45"
+      "preuve_action": "d1cd06ff71c24ebcba72860bb45e4baed15abe45",
+      "consomme_le": "2026-10-30T10:37:36.991Z"
     }
   },
   "artefacts_hors_registre": [
