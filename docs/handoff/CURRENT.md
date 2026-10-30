@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: MENU-ACCUEIL-EMPLOYE-20261030
-seq: 3
+seq: 4
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,33 +21,30 @@ preuves:
     classe: VERIFIED
     valeur: 167-fichiers
 ---
-# MENU-ACCUEIL-EMPLOYE-20261030 : request-3 — demande rectificative (option B pour l'Inventaire du renfort)
+# MENU-ACCUEIL-EMPLOYE-20261030 : request-4 — trois corrections postérieures à la clôture, décidées par Frédéric
 
 BRANCHE_DU_LOT: menu-accueil-employe-20261030
 
-Cette demande **consigne un écart** à la condition de decision-1 (e94d6276, APPROVED_WITH_CONDITIONS, option A) sans réécrire request-1 ni request-2. Il vient de Frédéric, propriétaire de la décision produit, relayé par Guardian sur #160 (6523148647, 6523163725, 6523197391).
+## Contexte
 
-## Ce qui change
+decision-2 (APPROVED, closes:true) a clos le lot avant la recette et la fusion. La recette Test de Guardian sur #164 (commentaire 6524268244, 30/10) est conforme sur les entrées et les droits, et relaie trois corrections décidées par Frédéric (30/10, 9 h 42), à faire avant fusion. Elles sont consignées ici, comme l'option B.
 
-- **Avant (option A)** : le lien « Inventaire » du menu du renfort reste actif, tel quel.
-- **Après (option B, décision finale de Frédéric, 30/10, 8 h 47)** : pour le renfort, l'entrée Inventaire est **présente, grisée, non cliquable** (`aria-disabled`, sans `href`), avec la mention **« Désactivé par le manager »**. Les libellés « bientôt disponible » des deux premiers commentaires sont remplacés par celui-ci.
-- **Inchangé** : les autres postes ; le manager et le gérant gardent le lien actif ; l'exclusion `roleDuJour !== 'renfort'` et les contrôles Inventaire de l'Accueil ne sont pas modifiés ; interface seule, ni colonne ni migration ; rien en Production.
+## Corrections livrées (commit eb77b3ae, PR #164, toujours en brouillon)
 
-## Preuve des conditions de decision-1
-
-Conditions de decision-1 (e94d6276), une par une, sur la branche du lot (e0d43d1d) :
-
-1. **Implémenter l'option A** : **non tenue, par décision de Frédéric** — c'est l'objet de cette demande (option B pour le seul lien du renfort). Écart tracé ici, non silencieux.
-2. **Interface seule, sans colonne ni migration** : tenue. `git diff --stat` de la branche : `NEXUS-App-v1.html`, `nexus-menu-accueil.js`, `test_menu_accueil_20261030.js`, `test_accueil_hors_service_20260918.js` ; aucun fichier de migration ni de schéma.
-3. **Ne pas modifier `roleDuJour !== 'renfort'` ni les contrôles Inventaire de l'Accueil** : tenue. L'épreuve « l'App branche le menu, garde l'exclusion du renfort » vérifie `const inventaireApplicable = enService && roleDuJour !== 'renfort';`.
-4. **Vérifier par tests** les entrées selon le poste, l'absence de Jaugeage et Index pour les employés, la recherche réservée aux manager et gérant : tenue. Épreuves « pompiste », « caissière », « renfort », « aucun employé n'a Jaugeage ni Index », « manager et gérant », « recherche », avec mutants tués.
+1. Bouton ☰ en blanc (#E8EDF2) au lieu du cyan NEXUS.
+2. Bouton ☰ à l'extrême gauche de l'en-tête (position absolue dans l'en-tête, panneau recalé dessous).
+3. Entrée Pointage affichée seulement si `station_config.pointage_actif` est vrai (fait `pointageActif`, lu par l'Accueil via `pointageActifSite` ; pour le manager, via `chargerPointageActif`). Fait absent = entrée masquée.
 
 ## Preuves
 
-- Poussé sur la branche du lot (PR brouillon #164) : e0d43d1d.
-- `test_menu_accueil_20261030.js` : épreuve du renfort (entrée présente, sans `href`, `aria-disabled`, mention), épreuve des autres postes (lien actif, sans mention), deux mutants tués (renfort actif, mention retirée). `test_accueil_hors_service_20260918.js` : 172 verts.
-- Suite complète : mêmes 7 échecs que la base, aucun de plus.
+- `test_menu_accueil_20261030.js` : épreuve Pointage (actif, inactif, fait absent, employés et manager) et épreuve CSS/câblage du bouton ; mutant « pointage toujours affiché » tué avec les six autres.
+- `test_accueil_hors_service_20260918.js` : 172 verts.
+- Suite complète : les mêmes 7 échecs que la base, aucun nouveau.
+
+## Périmètre
+
+Interface seule : aucune colonne, aucune migration, aucune action Production. `roleDuJour !== 'renfort'` et les contrôles Inventaire de l'Accueil sont intacts. Fusion : GO de Frédéric requis.
 
 ## À arbitrer
 
-L'arbitre prend-il acte de l'écart de l'option A à l'option B, décidé par Frédéric, comme périmètre du lot ? Les conditions de decision-1 pour le reste sont respectées.
+Les corrections ci-dessus, postérieures à la clôture, sont-elles consignées conformément ? La demande de clôture viendra après la fusion.
