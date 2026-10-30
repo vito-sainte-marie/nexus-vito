@@ -22,6 +22,7 @@
     progression: 'NEXUS-Progression-v1.html',
     prisePoste: 'NEXUS-Prise-De-Poste-v1.html',
   };
+  const MENTION_DESACTIVE = 'Désactivé par le manager';
   const POSTES_SANS_RECHERCHE = ['pompiste', 'caissiere', 'renfort'];
 
   function esc(s) {
@@ -44,8 +45,12 @@
       carburant.push({ code: 'index', libelle: 'Relevé des index', href: URL.index });
     }
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
-    // Le renfort garde le lien Inventaire : la page s'ouvre pour lui, ou explique l'arrêt (option A).
-    g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [{ code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire }] });
+    // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
+    // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
+    const inventaire = role === 'renfort' && !manager
+      ? { code: 'inventaire', libelle: 'Inventaire', desactive: true, mention: MENTION_DESACTIVE }
+      : { code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire };
+    g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [inventaire] });
     g.push({ code: 'travail', titre: 'Mon travail', entrees: [
       { code: 'missions', libelle: 'Missions', href: URL.missions },
       { code: 'pointage', libelle: 'Pointage', href: URL.pointage },
@@ -71,11 +76,13 @@
 
   function html(gs) {
     return (gs || []).map((gr) => '<div class="mm-groupe" data-groupe="' + esc(gr.code) + '"><div class="mm-titre">' + esc(gr.titre) + '</div>'
-      + gr.entrees.map((e) => '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">' + esc(e.libelle) + '</a>').join('')
+      + gr.entrees.map((e) => e.desactive
+        ? '<span class="mm-entree mm-desactive" data-entree="' + esc(e.code) + '" aria-disabled="true">' + esc(e.libelle) + '<span class="mm-mention">' + esc(e.mention) + '</span></span>'
+        : '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">' + esc(e.libelle) + '</a>').join('')
       + '</div>').join('');
   }
 
-  const api = { groupes, rechercheVisible, html, URL };
+  const api = { groupes, rechercheVisible, html, URL, MENTION_DESACTIVE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NexusMenuAccueil = api;
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));
