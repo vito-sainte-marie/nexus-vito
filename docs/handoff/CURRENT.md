@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/ACCUEIL-EN-SERVICE-20261030/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MENU-ACCUEIL-EMPLOYE-20261030/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: ACCUEIL-EN-SERVICE-20261030
-seq: 2
+lot_id: MENU-ACCUEIL-EMPLOYE-20261030
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,34 +21,65 @@ preuves:
     classe: VERIFIED
     valeur: 167-fichiers
 ---
-# ACCUEIL-EN-SERVICE-20261030 : request-2 — demande de clôture
+# MENU-ACCUEIL-EMPLOYE-20261030 : request-1 — inventaire des fonctions par poste, avant tout code
 
-BRANCHE_DU_LOT: accueil-en-service-20261030
+BRANCHE_DU_LOT: menu-accueil-employe-20261030
 
-La decision-1 (APPROVED_WITH_CONDITIONS) a été exécutée. Le lot est implémenté, recetté sur Test, fusionné et déployé.
+## Demande de Frédéric
 
-## Preuve des conditions de decision-1
+Un menu ☰ à gauche du logo de l'Accueil employé, qui donne accès aux fonctions autorisées pour le poste du jour (via `roleADroitModule`), regroupées :
+- Carburant : jaugeage, index, réception ;
+- Inventaire ;
+- Missions ;
+- Moi : progression, séries, changer de poste, se déconnecter.
 
-1. **Bouton principal (condition 1).** Le bouton du fil réutilise exactement `filLien`, issu de `urlRepriseSelonFaits`, sans recalcul ; l'accès à l'étape 1 du jaugeage est conservé. Module pur `nexus-accueil-piste.js`.
-2. **Mutations (condition 2).** `test_accueil_piste_20261030.js` : 13 épreuves, 19 mutations, toutes tuées (unicité du bouton, égalité de sa cible avec `urlRepriseSelonFaits`, tuile Réception pour le poste Piste). Épreuves hors service : 169 vertes, 28 mutants tués. `run-tests.js` : 7 échecs, identiques à `origin/production` (aucune régression).
-3. **Réception (condition 3).** La tuile respecte `station_config.reception_carburant_role` et mène à `NEXUS-Carburant-Reception-v1`.
-4. **Livraison attendue (condition 4).** Lecture seule, filtrée par `site`, date locale de la station et statuts `validee`, `modifiee`, `confirmee_fournisseur`, `hors_nexus`.
-5. **Caisse et Renfort (condition 5).** Aucune donnée ni aucun calcul modifié ; Caisse et Renfort maintenus à l'identique.
-6. **Recette Test (condition 6).** Deux recettes sur Test par Guardian, consignées sur #160 (6521546785 et 6521716028), dont l'échantillonnage de la classe du body toutes les 50 ms : état d'attente de 0 à 1,4 s, puis directement l'accueil du pompiste.
-7. **Fusion et déploiement.** PR #163 fusionnée par Frédéric dans `production` : d799fa58 (pointe du lot 45ca85b7), déployée le 30/10. Guardian a vérifié le contenu servi sur app.nexusconseil.net (6521780135) : body né en `accueil-attente`, chargement de `nexus-accueil-piste.js`, `#zoneRecherche` masquée pour le pompiste, libellé « Livraison prévue aujourd’hui » présent.
-8. **Production.** Aucune opération en Production sous la decision-1 ; le déploiement est le geste de Frédéric.
+## Ce que cette demande fait et ne fait pas
 
-## Limites et suites (hors décision)
+Cette demande ne porte **aucun code**. Elle dresse la liste des fonctions par poste (piste, caisse, renfort) pour validation de Frédéric. Aucun développement n'est engagé avant sa réponse. Le lot précédent (ACCUEIL-EN-SERVICE-20261030) est clos (decision-2 APPROVED, 6297bff9).
 
-- Pour la priorité de mission, ni le nom ni la durée n'ont de source de données : repli sur « n missions à faire ».
-- L'en-tête n'est pas aligné sur la prise de poste (logo à gauche, pastille du site à droite).
-- Les étapes restent listées sur le fil terminé.
-- `carburant_commandes` est vide en Production depuis le 31/08 : la mise en avant de la Réception n'y est pas testable.
-- Le libellé « Étape 1 sur 2 » face à « 1 sur 3 » relève d'un autre lot.
-- L'état d'attente s'applique à tous les rôles (remarque de Guardian) ; garde-fou de 8 s ; à surveiller sur les écrans manager et caisse.
-- La recette en Production avec photo est planifiée le mardi 3/11 (lot Jaugeage, hors de cette décision).
-- Lot suivant, à ne pas ouvrir avant la clôture : menu ☰ à gauche du logo, fonctions par poste via `roleADroitModule`. Sa demande listera d'abord les fonctions par poste (piste, caisse, renfort) pour validation de Frédéric, sans code.
+## Ce que le code dit aujourd'hui (lecture seule, `origin/production` d799fa58)
+
+- `roleADroitModule(module, roleDuJour)` ne régit que **deux** modules : `fdj` (caissière, manager, polyvalent : oui ; pompiste, renfort : non) et `reception` (pompiste, manager : oui ; caissière, renfort, polyvalent : non). Tout autre module renvoie `true` : la matrice n'exprime donc ni jaugeage, ni index, ni inventaire, ni missions.
+- Réception reste en plus conditionnée par `station_config.reception_carburant_role` (`employe` ou `les_deux`).
+- Inventaire : non applicable au renfort (`roleDuJour !== 'renfort'`).
+- Jaugeage et index passent par `NEXUS-Releves-Piste-v1.html` (`?ecran=jauge`, `?moment=debut_q1`…), limités aux relevés dont l'employé est habilité ; le jaugeage d'ouverture n'est demandé qu'au quart du matin.
+- Pages employé existantes : `NEXUS-Carburant-Reception-v1`, `NEXUS-Inventaire-v1`, `NEXUS-Missions-v1`, `NEXUS-Progression-v1`, `NEXUS-Prise-De-Poste-v1`, `NEXUS-FDJ-v1`, `NEXUS-Pointage-v1`, `NEXUS-Coach-FDJ-v1`.
+
+## Proposition à valider : fonctions par poste
+
+| Fonction | Piste (pompiste) | Caisse (caissière) | Renfort | Manager / gérant |
+|---|---|---|---|---|
+| Carburant · Réception | oui, si réglage `employe`/`les_deux` | non | non | oui |
+| Carburant · Jaugeage, Index | non (fil de l'Accueil) | non | non | oui (pas de fil : le menu est leur porte) |
+| Inventaire | oui | oui | oui seulement si Paramètres Station l'attribue (défaut non : absent du menu) | oui |
+| Missions | oui | oui | oui | oui |
+| Pointage | oui | oui | oui | oui |
+| Coach FDJ | non | oui | non | oui |
+| FDJ (caisse) | non | oui, forfait Professional | non | oui, forfait Professional |
+| Moi · Progression, séries | oui | oui | oui | oui |
+| Moi · Changer de poste | oui | oui | oui | oui |
+| Moi · Se déconnecter | oui | oui | oui | oui |
+
+Les cases « oui » reprennent ce que le code fait déjà ; elles ne créent aucun droit nouveau. Le groupe FDJ n'était pas dans la liste de Frédéric : je le propose pour la caissière, à confirmer ou retirer.
+
+## Réponses de Frédéric (30/10)
+
+- Pointage : dans le menu (tous les postes de la table). Coach FDJ : caisse uniquement.
+- Jaugeage et index : **retirés du menu** (doublons du fil de l'Accueil), sous réserve d'un bouton retour. Constat : `NEXUS-Releves-Piste-v1` a bien « ← Quitter et revenir à l'Accueil » en tête et un « Retour » dans les écrans hors fil ; le fil reste leur seule porte. Le groupe Carburant du menu ne garde que la Réception.
+- La tuile Réception et le bouton « Continuer » restent sur l'Accueil.
+- La recherche « Que cherchez-vous à faire ? » est **retirée aussi pour la caisse et le renfort** ; seuls le manager et le gérant la gardent.
+
+## Précision de Frédéric (30/10, 8 h 05, via Guardian)
+
+- Le manager et le gérant reçoivent aussi le menu ☰ et **gardent la recherche « Que cherchez-vous à faire ? »**, utile en vue mobile. Le menu ne la remplace pas.
+- Le retrait de la recherche reste limité au pompiste en service (déjà en Production). Pour la caisse et le renfort : recherche retirée (réponse de Frédéric, ci-dessus).
+- **Réponse de Frédéric : pour le manager, toutes les fonctionnalités existent dans le menu.** La colonne Manager / gérant est donc « oui » partout. Je range sous « toutes » les entrées du tableau, y compris Jaugeage, Index et Coach FDJ ; les écrans de pilotage restent dans Explorer NEXUS, non dupliqués. Si « toutes » doit aussi les inclure, Frédéric le dira.
+
+## Questions pour Frédéric
+
+1. Le tableau ci-dessus est-il juste ? (Colonne manager/gérant : « oui » partout, Jaugeage, Index et Coach FDJ compris.)
+2. Renfort et Inventaire : **confirmé par Frédéric**. Le réglage vit dans les paramètres de la station (précédent : `station_config.reception_carburant_role`, NEXUS-Parametres-Station-v1). Défaut **non** : l'entrée Inventaire n'apparaît pas dans le menu du renfort ; réglage sur **oui** : elle apparaît, et le renfort est compté dans les contrôles (exclusion `roleDuJour !== 'renfort'` levée dans ce cas seulement). Il faut une colonne de configuration (migration, Test d'abord) que la demande chiffrera avant tout code.
 
 ## À arbitrer
 
-Clore le lot ACCUEIL-EN-SERVICE-20261030 (closes: true).
+Toutes les réponses de Frédéric sont intégrées. Pour la suite : l'arbitre valide-t-il ce périmètre (table ci-dessus, recherche retirée pour pompiste, caisse et renfort, réglage Inventaire du renfort avec défaut non) comme base d'un lot de développement, étape 1 = migration du réglage sur Test ? Aucun code avant sa décision. Aucune opération en Production.
