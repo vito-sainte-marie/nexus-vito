@@ -779,6 +779,25 @@
         "blob_migration": "a33ad47844d0a01cafbbd492da670164b700b09b"
       },
       "prochaine_action": "GO distincts de Frederic : fusion, promotion, deploiement, puis application en Production par la procedure (apres constat humain de l'integration Supabase du tableau de bord). DEROGATION DU 18/10/2026 : la PR #139 garde la cible production pour ce seul lot (main et production divergent, voir la procedure) ; elle ne vaut pas autorisation generale."
+    },
+    "20261031190000": {
+      "etat": "additive_compatible_avant_code",
+      "justification": "Ajoute la colonne repere_cage jsonb NULLABLE a inventaire_zone_produit (lot INVENTAIRE-GAZ-CAGE-20261031, PR #168). Aucune donnee, aucun droit, aucune fonction, aucun DDL destructif ; add column if not exists. Le code servi (Production) ne nomme pas la colonne : la migration s applique AVANT la fusion, sans dependance ; le code du candidat ne l affiche que si elle est renseignee (repereCageHtml renvoie vide sinon). Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production : chacun reste un GO distinct de Frederic. Limitee au blob f448425858d2b16880878599742c3bf05a443953 : un blob different fait tomber cette qualification.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-10-31T23:20:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "outil SQL Supabase de Guardian, lecture seule sous le GO de lecture Production de Frederic (commentaire #160 6550504273) ; aucune donnee de ligne lue",
+        "identite_constatee": "non rapportee par Guardian",
+        "lecture_seule": "declaree par Guardian",
+        "verdict": "NON APPLIQUEE — colonne_repere_cage = 0, estampille 20261031190000 = 0, derniere_migration = 20261018200000.",
+        "blob_migration": "f448425858d2b16880878599742c3bf05a443953"
+      },
+      "prochaine_action": "GO distinct de Frederic : application en Production (migration avant le code), puis fusion. Aucune operation Production par Claude.",
+      "objets_constates": [
+        "inventaire_zone_produit.repere_cage"
+      ]
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
