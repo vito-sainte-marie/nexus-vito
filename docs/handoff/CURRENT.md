@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/RELEVES-FIN-QUART-20261030/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/RELEVES-FIN-QUART-20261030/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: RELEVES-FIN-QUART-20261030
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,38 +21,30 @@ preuves:
     classe: VERIFIED
     valeur: 168-fichiers
 ---
-# RELEVES-FIN-QUART-20261030 : request-1 — correctif d'affichage fusionné (PR #165), demande de clôture
+# RELEVES-FIN-QUART-20261030 : request-2 — décision métier de Frédéric sur la limite 2
 
 BRANCHE_DU_LOT: releves-fin-quart-20261030
 
 ## Contexte
 
-Correctif rapide demandé par Frédéric le 30/10 après la recette de l'Accueil pompiste : le relevé des index de fin de quart n'était atteignable ni depuis le menu ni depuis l'Accueil, et les étapes de l'Accueil étaient jugées sur un quart qui n'était pas celui du service. Affichage seulement : aucune donnée, aucune règle, aucune migration.
+L'arbitre a bloqué la clôture de request-1 (#28, 6533375780, `DECISION_METIER_NON_ARBITREE`, `EXECUTANT_NEXT: frederic`) : faire accepter `a_valide_ouverture` par `inventaireFait` est un choix métier non arbitré (limite 2). Les limites 1 et 3 ne créaient pas de STOP.
 
 ## Preuve des conditions
 
-Lot nouveau : aucune décision antérieure, donc aucune condition à prouver.
+Décision de Frédéric, relayée par Guardian sur #160 (6537021583, « Décision métier de Frédéric (30/10, 21 h 14) ») : **garder** l'équivalence. `inventaireFait` accepte `a_valide_ouverture` comme preuve de l'inventaire d'ouverture de l'employé, au même titre que `responsable_comptage`. Frédéric a aussi redit à Claude, dans la session, avoir donné cette décision de garder l'équivalence pour la responsabilité du comptage.
 
-## Arbitrage a posteriori : à dire, pas à taire
+Motif terrain (Production, lecture seule, 30/10, rapporté par Guardian) : la pompiste du matin a compté 11 produits à 6 h 41 avec `responsable_comptage = false`, `a_valide_ouverture = true`, `a_valide_cloture = true`. Sans l'équivalence, l'Accueil l'aurait tenue pour non faite. Je n'ai pas relu cette ligne moi-même : le constat est celui de Guardian.
 
-Cette demande arrive APRÈS le code et la fusion. C'était un correctif urgent d'une régression en Production, codé et fusionné (e4e4c75c) sur GO de Frédéric avant toute request. Il contient des choix produit de Frédéric : bouton secondaire pour « Fin de quart », visibilité de la ligne dès la fin du fil, entrée de menu pour tout employé en service. La condition 1 de l'arbitrage a posteriori (aucun choix métier) n'est donc PAS remplie. Je ne la présente pas comme remplie ; l'arbitre juge en connaissance de cause.
+## Ce qui change
 
-## État livré
+Rien dans le code livré (e4e4c75c). Cette request consigne seulement la décision pour que l'arbitre puisse ratifier la clôture.
 
-- PR #165 fusionnée par Frédéric dans `production` : e4e4c75c (30/10, 20 h 42 UTC), base `production` vérifiée. Dernier commit de la branche : 1bb9b673.
-- Menu : entrée « Relevés d'index » pour tout employé en service (le Jaugeage reste réservé au manager).
-- Accueil : ligne « Fin de quart : relevé des index » dès que le fil d'ouverture est terminé, vers fin_q1 (matin) ou fin_q2 (soir), masquée quand ce relevé est final. Après la retouche demandée par Frédéric (Guardian 6532952810), c'est un bouton secondaire encadré sous « Commencer les missions », qui reste le seul bouton principal.
-- Étapes de l'Accueil jugées sur le quart du service (`quartDuJour`, jamais l'horloge) ; jamais d'étape « à faire » sans bouton.
-- `momentFinDuQuart` ajouté à `nexus-releves-piste.js`.
-- Épreuves : `test_releves_fin_quart_20261030.js` (nouveau, avec mutants dont « bouton plein » et « avant les missions »), `test_menu_accueil_20261030.js` étendu ; deux anciennes gardes de source réalignées. `run-tests.js` : 7 échecs, identiques à la base.
-- Contrôle Guardian de 1bb9b67 sur l'aperçu : conforme (#160, 6533052284). Rien de ma part en Production.
+## Limites restantes
 
-## Limites déclarées
-
-1. Aucune donnée ne dit « fin de journée » : la ligne de fin de quart apparaît dès que le fil d'ouverture est terminé, pas 45 min avant la fin. Frédéric a accepté ce comportement pour ce correctif ; le lot suivant (FERMETURE-PISTE) le reprendra.
-2. Jugement de ma part : `inventaireFait` accepte aussi `a_valide_ouverture`. À confirmer ou à retirer.
-3. La logique « quart du service » a été relue dans le diff et couverte par les épreuves, pas rejouée en navigateur de bout en bout.
+1. Aucune donnée « fin de journée » : acceptée par Frédéric, reprise par FERMETURE-PISTE.
+2. Levée par la décision ci-dessus.
+3. Logique « quart du service » non rejouée en navigateur de bout en bout : limite de preuve déclarée, inchangée.
 
 ## À arbitrer
 
-Le lot est-il consigné comme livré et clos, avec les limites 1 à 3 acceptées ? Hors lot : libellés du relevé des index, écran manager `anomalie_nuit`, réglage « Inventaire renfort », puis FERMETURE-PISTE (qui commencera par établir quelle règle existante choisit fin_normal ou fin_etendu).
+Avec la limite 2 tranchée par Frédéric, le lot est-il consigné comme livré et clos ? FERMETURE-PISTE (spécification Guardian 6536472203) ne s'ouvre qu'ensuite.
