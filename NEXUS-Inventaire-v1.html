@@ -3736,7 +3736,17 @@
     const avecReglage = (produits || []).filter(p => p.repere_cage);
     if (!avecReglage.length) return;
     const ids = avecReglage.map(p => p.id);
-    const dernier = await chargerDerniersStocks(ids);
+    // Dernier comptage manuel validé, ouverture ou clôture : à la fermeture, c'est
+    // l'ouverture du même quart. Les lignes `transmis` automatiques sont exclues.
+    const { data: lignes, error: errC } = await nexusClient
+      .from('inventaire_comptages').select('id, produit_id, quantite, compte_le')
+      .in('produit_id', ids).in('type_comptage', ['ouverture', 'cloture']).eq('statut', 'valide').eq('source', 'manuel')
+      .order('compte_le', { ascending: false });
+    if (errC) { console.error('Repères de cage:', errC); return; }
+    const dernier = {};
+    for (const row of (lignes || [])) {
+      if (!(row.produit_id in dernier)) dernier[row.produit_id] = { quantite: row.quantite, comptage_id: row.id, compte_le: row.compte_le };
+    }
     const maintenant = Date.now();
     for (const p of avecReglage) {
       const d = dernier[p.id];

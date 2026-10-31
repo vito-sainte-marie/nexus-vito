@@ -74,8 +74,46 @@ cas('le repère n\'est branché qu\'à la clôture et lit seulement des comptage
     if (SRC.includes(`function ${n}(`)) assert.ok(!extraire(n, SRC).includes('repereCageHtml'), n);
   }
   assert.ok(extraire('demarrerCloture', SRC).includes('chargerReperesCage(produitsZone)'));
-  assert.ok(extraire('chargerDerniersStocks', SRC).includes(".eq('statut', 'valide')"));
+  assert.ok(extraire('chargerReperesCage', SRC).includes(".eq('statut', 'valide')"));
 });
+
+// chargerReperesCage rejoué contre une base simulée qui applique réellement les filtres demandés.
+async function reperesDepuis(source, lignes) {
+  const filtres = { in: {}, eq: {} };
+  const table = (nom) => {
+    const q = { _f: [] };
+    q.select = () => q;
+    q.in = (c, v) => { q._f.push((r) => v.includes(r[c])); return q; };
+    q.eq = (c, v) => { q._f.push((r) => r[c] === v); return q; };
+    q.gt = () => q;
+    q.order = () => Promise.resolve({ data: nom === 'inventaire_comptages' ? lignes.filter((r) => q._f.every((g) => g(r))).sort((a, b) => b.compte_le.localeCompare(a.compte_le)) : [], error: null });
+    q.then = (res) => res({ count: 0, error: null });
+    return q;
+  };
+  const ctx = { reperesCage: {}, nexusClient: { from: table }, console, Date: class extends Date { static now() { return T0; } } };
+  vm.createContext(ctx);
+  vm.runInContext(['const REPERE_CAGE_VALIDITE_MS = 24 * 3600 * 1000;', extraire('calculerRepereCage', source), 'async ' + extraire('chargerReperesCage', source), 'this.go = chargerReperesCage;'].join('\n'), ctx);
+  await ctx.go([{ id: 'gaz', repere_cage: CFG }]);
+  return ctx.reperesCage.gaz || null;
+}
+const ligne = (type, q, dt, extra) => Object.assign({ id: type + q, produit_id: 'gaz', type_comptage: type, quantite: q, statut: 'valide', source: 'manuel', compte_le: new Date(T0 - dt).toISOString() }, extra);
+(async () => {
+  let r = await reperesDepuis(SRC, [ligne('cloture', 27, 12 * 3600e3), ligne('ouverture', 127, 1 * 3600e3)]);
+  assert.strictEqual(r && r.cage, 1, 'ouverture 127 après clôture 27 : cage 1'); ok++; console.log('  ✓ ouverture du quart plus récente que la clôture de la veille');
+  r = await reperesDepuis(SRC, [ligne('cloture', 27, 3 * 3600e3), ligne('ouverture', 127, 1 * 3600e3, { source: 'transmis' })]);
+  assert.strictEqual(r && r.cage, 5, 'ligne transmise auto plus récente ignorée'); ok++; console.log('  ✓ ligne transmise automatique ignorée');
+  r = await reperesDepuis(SRC, [ligne('cloture', 27, 3 * 3600e3), ligne('ouverture', 127, 1 * 3600e3, { statut: 'annule' })]);
+  assert.strictEqual(r && r.cage, 5, 'ligne non validée ignorée'); ok++; console.log('  ✓ ligne non validée ignorée');
+  // mutation : ancienne source (clôtures seules) détectée par la première épreuve
+  const ancien = SRC.replace(".in('type_comptage', ['ouverture', 'cloture'])", ".eq('type_comptage', 'cloture')");
+  assert.notStrictEqual(ancien, SRC);
+  const rm = await reperesDepuis(ancien, [ligne('cloture', 27, 12 * 3600e3), ligne('ouverture', 127, 1 * 3600e3)]);
+  assert.notStrictEqual(rm && rm.cage, 1, 'mutation « clôtures seules » non détectée'); ok++; console.log('  ✓ mutation détectée : clôtures seules');
+  const sansSource = SRC.replace(".eq('source', 'manuel')", '');
+  const rs = await reperesDepuis(sansSource, [ligne('cloture', 27, 3 * 3600e3), ligne('ouverture', 127, 1 * 3600e3, { source: 'transmis' })]);
+  assert.notStrictEqual(rs && rs.cage, 5, 'mutation « source non filtrée » non détectée'); ok++; console.log('  ✓ mutation détectée : source non filtrée');
+  console.log(`\n${ok} vérifications passées (suite asynchrone)`);
+})().catch((e) => { console.error(e); process.exit(1); });
 
 // HTML rendu pour un employé : carrousel d'ouverture avec un stock transmis connu.
 function rendreCarrousel(source, role, transmis) {
