@@ -133,6 +133,7 @@
      boutique étant rattrapée automatiquement en fin d'inventaire (voir
      renderFinalisationDoubleLieu). Ce badge signale juste qu'une deuxième
      saisie suivra plus tard. */
+  .repere-cage{font-size:12px; color:var(--cyan); margin:4px 0 6px;}
   .badge-double-lieu{display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:8px; padding:3px 7px; margin-left:6px; white-space:nowrap;}
   .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
   .ecart-ok{color:var(--green);}
@@ -3699,6 +3700,18 @@
     document.getElementById('btnAnnulerCloture').addEventListener('click', enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
   }
 
+  // Repère de cage (INVENTAIRE-GAZ-CAGE-20261031) : dit par où commencer à compter,
+  // jamais combien. Affiché à la clôture seulement, au passé, daté, sans aucun chiffre
+  // dans le texte (un texte contenant un chiffre est ignoré : il pourrait cacher une quantité).
+  function repereCageHtml(p) {
+    const r = p && p.repere_cage;
+    if (!r || typeof r.texte !== 'string' || !r.texte.trim() || /\d/.test(r.texte)) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.date || '');
+    if (!m) return '';
+    const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return `<div class="repere-cage">📍 Repère de cage noté le ${m[3]}/${m[2]}/${m[1]} : ${esc(r.texte.trim())}</div>`;
+  }
+
   function renderLigneCloture(p, desactive) {
     const saisie = comptagesSaisie[p.id];
     const valeurAffichee = estComptageDeuxLieuxEmploye(p) && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
@@ -3709,6 +3722,7 @@
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
           ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
+        ${repereCageHtml(p)}
         <div class="produit-controls">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
