@@ -946,14 +946,15 @@
       "consomme_le": "2026-10-31T12:10:22.023Z"
     },
     "FERMETURE-PISTE-20261031": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "6df007b284bbe1fcafa778cdab1ac5c3e559d63e",
-      "pris_en_charge_le": "2026-10-31T12:16:02.761Z",
-      "pris_en_charge_par": "github-actions-claude"
+      "pris_en_charge_par": "github-actions-claude",
+      "consomme_le": "2026-10-31T12:33:04.831Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [
