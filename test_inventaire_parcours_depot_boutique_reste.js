@@ -243,7 +243,7 @@ vm.createContext(sandbox);
 // l'inline : le premier appel mourait sur « … is not defined » et le test
 // mesurait une globale absente au lieu du parcours. On les charge dans l'ordre
 // des balises <script> de NEXUS-Inventaire-v1.html.
-for (const module of ['nexus-station.js', 'nexus-inventaire-moteur.js', 'nexus-fil-debut-quart.js']) {
+for (const module of ['nexus-station.js', 'nexus-inventaire-moteur.js', 'nexus-fil-debut-quart.js', 'nexus-fil-fin-quart.js']) {
   vm.runInContext(fs.readFileSync(path.join(DIR, module), 'utf8'), sandbox, { filename: module });
 }
 

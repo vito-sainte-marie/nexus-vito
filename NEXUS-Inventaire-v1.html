@@ -350,6 +350,7 @@
 <!-- La garde démarre avant le cœur de l'écran ; celui-ci attend ensuite son
      drapeau READY avant toute initialisation opérationnelle. -->
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-inventaire-mode-test.js?v=20260904-0104"></script>
 <script>
   // ------------------------------------------------------------
@@ -1312,14 +1313,16 @@
   // Le quart est celui choisi à la prise de poste (pas de Matin / Soir), le catalogue et l'Accueil de l'Inventaire
   // ne sont pas montrés, la sortie est la même que sur les autres étapes, les brouillons de comptage sont conservés.
   // ------------------------------------------------------------
-  const FIL = window.NexusFilDebutQuart;
+  // Deux fils partagent ces écrans : fil=fin-quart (fermeture de la piste) sinon le début de quart. Mêmes méthodes.
+  const FIL = window.NexusFilFinQuart.estActif(location.search) ? window.NexusFilFinQuart : window.NexusFilDebutQuart;
   const filEtape = FIL.etapeDe(location.search);
   const enFil = () => filEtape != null;
   const filPlan = FIL.planDe(location.search);
+  const filFermeture = window.NexusFilFinQuart.estActif(location.search);
   let filFuseau = null;
   function filDate() { try { return NexusStation.dateLocaleStation(filFuseau); } catch (e) { return null; } }
   function filSauverAvantSortie() {
-    try { if (quartRow) sauvegarderDraft('ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ }
+    try { if (quartRow) sauvegarderDraft(filFermeture ? 'cloture' : 'ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ }
     const d = filDate();
     if (d && employeeCourant) FIL.atteindre(localStorage, employeeCourant.id, d, filEtape);
   }
@@ -1342,7 +1345,7 @@
     window.location.href = FIL.ACCUEIL;
   }
   function renderFilDejaValide() {
-    document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
+    document.getElementById('titre').textContent = filFermeture ? 'Inventaire de clôture validé' : 'Inventaire d\'ouverture validé';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
       <div class="resume-card"><div class="checkmark">✓</div><div class="final-greet">Merci ${employeeCourant.nom}</div></div>
@@ -3668,7 +3671,7 @@
         alert('Une erreur est survenue et la clôture a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
-    document.getElementById('btnAnnulerCloture').addEventListener('click', renderAccueil);
+    document.getElementById('btnAnnulerCloture').addEventListener('click', enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
   }
 
   function renderLigneCloture(p, desactive) {
@@ -3939,9 +3942,9 @@
         <div class="stat-row"><span class="stat-label">Mouvements déclarés</span><span class="stat-value">${mouvementsSaisie.length}</span></div>
         <div class="ecoulement-note">Votre stock final devient le stock transmis du prochain quart. Le manager pourra rapprocher ces chiffres avec les ventes de caisse dès que l'export sera importé — ce n'est pas encore fait automatiquement.</div>
       </div>
-      <button class="btn-primary" id="btnRetourAccueil">Retour</button>
+      <button class="btn-primary" id="btnRetourAccueil">${enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
+    document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -4263,7 +4266,10 @@
       // Quart déjà choisi à la prise de poste : celui du shift, sinon celui du moment ; zone piste, sans choix ni Accueil.
       if (quartDuShift) quartActuel = quartDuShift;
       if (zonesAutorisees.includes('piste')) zoneActive = 'piste';
-      if (quartEmployeRow && quartEmployeRow.a_valide_ouverture) renderFilDejaValide();
+      if (filFermeture) {
+        if (quartEmployeRow && quartEmployeRow.a_valide_cloture) renderFilDejaValide();
+        else demarrerCloture();
+      } else if (quartEmployeRow && quartEmployeRow.a_valide_ouverture) renderFilDejaValide();
       else demarrerOuvertureComptage();
     } else if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
       renderChoixZone();

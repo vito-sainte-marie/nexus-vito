@@ -14,6 +14,7 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-releves-piste.js?v=20261013-2212"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-carburant-moteur.js?v=20261013-2212"></script>
 <script src="nexus-carburant-donnees.js?v=20261013-2212"></script>
 <script src="nexus-veeder-root.js?v=20261013-2212"></script>
@@ -81,7 +82,8 @@
 (function () {
   const R = window.NexusRelevesPiste;
   // Fil « Mon début de quart » (lot 2) : ?fil=debut-quart&etape=1|2. Hors fil, l'écran se comporte comme avant.
-  const FIL = window.NexusFilDebutQuart;
+  // Deux fils partagent ces écrans : fil=fin-quart (fermeture de la piste) sinon le début de quart. Mêmes méthodes.
+  const FIL = window.NexusFilFinQuart.estActif(location.search) ? window.NexusFilFinQuart : window.NexusFilDebutQuart;
   const filEtape = FIL.etapeDe(location.search);
   const enFil = () => filEtape != null;
   const filDebut = FIL.momentDebutDe(location.search);
