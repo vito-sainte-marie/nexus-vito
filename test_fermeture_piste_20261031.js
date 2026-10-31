@@ -125,6 +125,10 @@ const EPREUVES = {
     const v = M.html(M.modele(terminee({ missions: { total: 3, faites: 3 }, points: 2 })));
     assert(/✓<\/span>Missions · 3 sur 3/.test(v) && !/Ouverture ·|Fermeture ·/.test(v), 'valeur absente : ligne omise');
   },
+  'récapitulatif : la plage de fermeture va de la plus petite à la plus grande heure': (M) => {
+    const h = M.html(M.modele(terminee({ recap: { fermetureDe: '2026-10-28T08:40:00Z', fermetureA: '2026-10-28T05:23:00Z' } })));
+    assert(/Fermeture · 09 h 23 → 12 h 40/.test(h) || /Fermeture · 09 h 23.{1,6}12 h 40/.test(h), h.match(/Fermeture · [^<]*/));
+  },
   'la carte de poste figure sur l\'écran terminé et la fin du quart avant l\'heure': (M) => {
     const t = M.html(M.modele(terminee()));
     assert(t.includes('id="apPoste"') && t.includes('Quart du matin · fin à 13 h 15'));
@@ -244,6 +248,7 @@ const MUTATIONS = [
   ['fin du quart omise de la carte', SRC, (s) => s.replace("p.fin ? 'fin à ' + p.fin : ''", "''"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['étapes de fermeture non listées', SRC, (s) => s.replace('id="apEtapesFermeture"', 'id="apX"'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['barre remplie par position et non par nombre', SRC, (s) => s.replace('i < fermetureFaites', 'e.fait'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['plage de fermeture dans l\'ordre des sources', SRC, (s) => s.replace('.concat([null, null]).slice(0, 2)', '.concat([null, null]).slice(0, 2).reverse().reverse()').replace('ok.sort((x, y) => new Date(x) - new Date(y))', 'ok'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['fil : clé de stockage du début de quart', SRC_FIL, (s) => s.replace('nexus_fil_fin_quart_', 'nexus_fil_debut_quart_'), (s) => { const F = charger(s); const mem = {}; F.atteindre({ getItem: (k) => mem[k] || null, setItem: (k, v) => { mem[k] = v; } }, 'e', 'd', 2); assert(Object.keys(mem)[0].startsWith('nexus_fil_fin_quart_')); }],
   ['fil : trois étapes', SRC_FIL, (s) => s.replace('NOMBRE_ETAPES = 2', 'NOMBRE_ETAPES = 3'), (s) => { assert.strictEqual(charger(s).NOMBRE_ETAPES, 2); }],
   ['fil : inventaire avant les index', SRC_FIL, (s) => s.replace(/PAGES = \{ 1: '[^']+', 2: '[^']+' \}/, "PAGES = { 1: 'NEXUS-Inventaire-v1.html', 2: 'NEXUS-Releves-Piste-v1.html' }"), (s) => { const F = charger(s); assert(F.urlEtape(1, 'fin_q1', [1, 2]).startsWith('NEXUS-Releves-Piste-v1.html')); }],
