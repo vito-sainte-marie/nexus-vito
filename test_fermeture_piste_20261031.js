@@ -26,7 +26,7 @@ const base = { enService: true, consultationExterne: false, roleDuJour: 'pompist
   finMinutes: 795, maintenantMinutes: 600, finIndexApplicable: true, finIndexFait: false, clotureInventaireFait: false, fermetureLien: LIEN };
 const avant = (o) => Object.assign({}, base, o);
 const apres = (o) => Object.assign({}, base, { maintenantMinutes: 760 }, o);          // 12 h 40 : dans la fenêtre
-const terminee = (o) => Object.assign({}, base, { maintenantMinutes: 780, finIndexFait: true, clotureInventaireFait: true }, o);
+const terminee = (o) => Object.assign({}, base, { maintenantMinutes: 780, finIndexFait: true, clotureInventaireFait: true, pointageActif: true }, o);
 const pleins = (h) => (h.match(/class="ap-bouton"/g) || []).length;
 
 const EPREUVES = {
@@ -106,6 +106,46 @@ const EPREUVES = {
     assert(/<a class="ap-bouton" id="apBoutonDepart" href="NEXUS-Pointage-v1\.html">Pointer mon départ<\/a>/.test(h));
     assert(h.includes('Je reste encore : voir les missions') && h.includes('NEXUS-Missions-v1.html'));
     assert(!h.includes('apFermeture"'));
+  },
+  // 8 bis : corrections du Guardian (rapport 6545741605)
+  'sans pointage actif : pas de « Pointer mon départ », un bouton plein « Se déconnecter »': (M) => {
+    const h = M.html(M.modele(terminee({ pointageActif: false })));
+    assert(!h.includes('Pointer mon départ') && !h.includes('apBoutonDepart'));
+    assert(/<a class="ap-bouton" id="apLogout" href="#">Se déconnecter<\/a>/.test(h) && (h.match(/id="apLogout"/g) || []).length === 1);
+    assert.strictEqual(pleins(h), 1);
+    assert(M.html(M.modele(terminee())).includes('Pointer mon départ'));
+  },
+  'récapitulatif : coche seulement sur ce qui est fait, heures issues des relevés': (M) => {
+    const h = M.html(M.modele(terminee({ missions: { total: 3, faites: 0 }, points: 0,
+      recap: { ouvertureA: '2026-10-28T02:10:00Z', fermetureDe: '2026-10-28T08:40:00Z', fermetureA: '2026-10-28T09:05:00Z' } })));
+    assert(/ap-a_faire"><span class="ap-marque" aria-hidden="true">○<\/span>Missions · 0 sur 3/.test(h));
+    assert(/ap-a_faire"><span class="ap-marque" aria-hidden="true">○<\/span>\+0 point/.test(h));
+    assert(/ap-fait"><span class="ap-marque" aria-hidden="true">✓<\/span>Fermeture · 12 h 40/.test(h) && h.includes('13 h 05'));
+    assert(/Ouverture · /.test(h) && h.includes('06 h 10'));
+    const v = M.html(M.modele(terminee({ missions: { total: 3, faites: 3 }, points: 2 })));
+    assert(/✓<\/span>Missions · 3 sur 3/.test(v) && !/Ouverture ·|Fermeture ·/.test(v), 'valeur absente : ligne omise');
+  },
+  'la carte de poste figure sur l\'écran terminé et la fin du quart avant l\'heure': (M) => {
+    const t = M.html(M.modele(terminee()));
+    assert(t.includes('id="apPoste"') && t.includes('Quart du matin · fin à 13 h 15'));
+    assert(M.html(M.modele(avant())).includes('Quart du matin · fin à 13 h 15'));
+    assert(!M.html(M.modele(avant({ finMinutes: null }))).includes('fin à'));
+  },
+  'bloc de fermeture : étapes nommées, barre remplie de gauche à droite': (M) => {
+    const h = M.html(M.modele(apres({ finIndexFait: false, clotureInventaireFait: true })));
+    assert(h.includes('id="apEtapesFermeture"') && h.includes('Index de fin de quart') && h.includes('Inventaire de clôture zone piste'));
+    assert(/ap-a_faire"><span class="ap-marque" aria-hidden="true">○<\/span>Index de fin/.test(h));
+    assert(/ap-fait"><span class="ap-marque" aria-hidden="true">✓<\/span>Inventaire de clôture/.test(h));
+    assert(h.includes('<div class="ap-segments"><i class="ap-plein"></i><i class=""></i></div>'), 'une étape faite : premier segment plein');
+    assert(M.html(M.modele(apres())).includes('<div class="ap-segments"><i class=""></i><i class=""></i></div>'));
+  },
+  'le lien « Voir » est discret, souligné et gris': () => {
+    const css = fs.readFileSync('NEXUS-App-v1.html', 'utf8');
+    assert(/\.ap-fil-resume a\s*\{[^}]*text-decoration:\s*underline/.test(css) && /\.ap-etape\.ap-a_faire\s*\{[^}]*color/.test(css));
+  },
+  'l\'App passe le pointage du site, le récapitulatif et l\'heure de finalisation': () => {
+    const app = fs.readFileSync('NEXUS-App-v1.html', 'utf8');
+    assert(/pointageActif:\s*pointageActifSite === true/.test(app) && /recap:\s*recapQuart/.test(app) && /finalise_le/.test(app) && /cloture_le/.test(app));
   },
   'le manager et un autre rôle n\'entrent pas dans le mode': (M) => {
     assert.strictEqual(M.modele(apres({ roleDuJour: 'caissiere' })), null);
@@ -197,6 +237,13 @@ const MUTATIONS = [
   ['menu : lien différent', SRC_MENU, (s) => s.replace('href: f.fermetureLien', "href: URL.index"), (s) => { jouer(M0, charger(s), ST0); }],
   ['menu : le pompiste garde les index', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (true) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
   ['menu : le manager perd son écran de choix', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (!manager && f.enService) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
+  ['pointer son départ sans pointage actif', SRC, (s) => s.replace('t.pointageActif\n          ?', 'true\n          ?').replace("(t.pointageActif\n", "(true\n"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['coche posée sur ce qui n\'est pas fait', SRC, (s) => s.replace("['Missions', t.missions, t.missionsToutes]", "['Missions', t.missions, true]"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['point sans coche conditionnelle', SRC, (s) => s.replace("v.points > 0) + '</ul>'", "true) + '</ul>'"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['carte de poste absente du récapitulatif', SRC, (s) => s.replace("+ '</div>' + carte;\n      out += '<section class=\"ap-fil\" id=\"apRecap\">", "+ '</div>';\n      out += '<section class=\"ap-fil\" id=\"apRecap\">"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['fin du quart omise de la carte', SRC, (s) => s.replace("p.fin ? 'fin à ' + p.fin : ''", "''"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['étapes de fermeture non listées', SRC, (s) => s.replace('id="apEtapesFermeture"', 'id="apX"'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['barre remplie par position et non par nombre', SRC, (s) => s.replace('i < fermetureFaites', 'e.fait'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['fil : clé de stockage du début de quart', SRC_FIL, (s) => s.replace('nexus_fil_fin_quart_', 'nexus_fil_debut_quart_'), (s) => { const F = charger(s); const mem = {}; F.atteindre({ getItem: (k) => mem[k] || null, setItem: (k, v) => { mem[k] = v; } }, 'e', 'd', 2); assert(Object.keys(mem)[0].startsWith('nexus_fil_fin_quart_')); }],
   ['fil : trois étapes', SRC_FIL, (s) => s.replace('NOMBRE_ETAPES = 2', 'NOMBRE_ETAPES = 3'), (s) => { assert.strictEqual(charger(s).NOMBRE_ETAPES, 2); }],
   ['fil : inventaire avant les index', SRC_FIL, (s) => s.replace(/PAGES = \{ 1: '[^']+', 2: '[^']+' \}/, "PAGES = { 1: 'NEXUS-Inventaire-v1.html', 2: 'NEXUS-Releves-Piste-v1.html' }"), (s) => { const F = charger(s); assert(F.urlEtape(1, 'fin_q1', [1, 2]).startsWith('NEXUS-Releves-Piste-v1.html')); }],

@@ -102,8 +102,8 @@
     const debut = Number(f.finMinutes) - DELAI_FERMETURE_MIN;
     const fermetureOuverte = f.finMinutes != null && maintenant >= debut;
     const stepsFermeture = [
-      { fait: !f.finIndexApplicable || !!f.finIndexFait },
-      { fait: !!f.clotureInventaireFait },
+      { libelle: 'Index de fin de quart', fait: !f.finIndexApplicable || !!f.finIndexFait },
+      { libelle: 'Inventaire de clôture zone piste', fait: !!f.clotureInventaireFait },
     ];
     const fermetureFaites = stepsFermeture.filter((e) => e.fait).length;
     const fermetureFaite = fermetureFaites === stepsFermeture.length;
@@ -119,7 +119,9 @@
         avant: heureDeMinutes(Number(f.finMinutes)),
         proposeeA: heureDeMinutes(debut),
         faites: fermetureFaites, total: stepsFermeture.length,
-        segments: stepsFermeture.map((e) => e.fait),
+        etapes: stepsFermeture,
+        // La barre se remplit de gauche à droite selon le nombre d'étapes faites, quel que soit l'ordre où elles le sont.
+        segments: stepsFermeture.map((e, i) => i < fermetureFaites),
         href: f.fermetureLien || null,
         commence: fermetureFaites > 0,
       } : null,
@@ -128,10 +130,13 @@
         ouverture: plage(heureLocale(rc.ouvertureDe, f.fuseau), heureOuvertureFin),
         fermeture: plage(heureLocale(rc.fermetureDe, f.fuseau), heureLocale(rc.fermetureA, f.fuseau)),
         missions: m.total > 0 ? m.faites + ' sur ' + m.total : null,
+        missionsToutes: m.total > 0 && m.faites >= m.total,
+        // Le pointage de départ n'existe que si la station l'active ; sinon la sortie est la déconnexion.
+        pointageActif: f.pointageActif === true,
       } : null,
       ouvertureFaiteA: heureOuvertureFin,
       prenom: f.prenom || '',
-      poste: { libelle: f.libelleRole || 'Pompiste', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), image: IMAGES_POSTE.pompiste },
+      poste: { libelle: f.libelleRole || 'Pompiste', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: avecFermeture ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.pompiste },
       etapes, faites, total: etapes.length, filTermine,
       // Le bouton ne pointe que vers le fil de l'Accueil, jamais vers une étape recalculée ici.
       bouton: (!filTermine && f.filLien) ? { libelle: 'Continuer : ' + prochaine.libelle, href: f.filLien } : null,
@@ -148,7 +153,10 @@
   function html(v) {
     if (!v) return '';
     const p = v.poste;
-    const sousLigne = [p.quart, p.depuis ? 'En service depuis ' + p.depuis : ''].filter(Boolean);
+    const sousLigne = [[p.quart, p.fin ? 'fin à ' + p.fin : ''].filter(Boolean).join(' · '), p.depuis ? 'En service depuis ' + p.depuis : ''].filter(Boolean);
+    const carte = '<div class="ap-poste" id="apPoste"><div class="ap-poste-texte"><div class="ap-poste-nom">' + esc(p.libelle) + '</div>'
+      + sousLigne.map((l) => '<div class="ap-poste-sous">' + esc(l) + '</div>').join('')
+      + '</div><div class="ap-poste-image" style="background-image:url(\'' + esc(p.image) + '\')"></div></div>';
     const lignes = v.etapes.map((e) => {
       const marque = e.etat === 'a_faire' ? '○' : '✓';
       const note = e.etat === 'sans_objet' ? ' <span class="ap-sans-objet">sans objet</span>' : '';
@@ -158,27 +166,31 @@
     let out = '';
     if (v.mode === 'termine') {
       const t = v.termine;
-      const rec = [['Ouverture', t.ouverture], ['Fermeture', t.fermeture], ['Missions', t.missions]].filter((x) => x[1]);
+      // Une coche n'est posée que sur ce qui est fait : « 0 sur N » et zéro point restent sans coche.
+      const rec = [['Ouverture', t.ouverture, true], ['Fermeture', t.fermeture, true], ['Missions', t.missions, t.missionsToutes]].filter((x) => x[1]);
+      const ligne = (texte, fait) => '<li class="ap-etape ' + (fait ? 'ap-fait' : 'ap-a_faire') + '"><span class="ap-marque" aria-hidden="true">' + (fait ? '✓' : '○') + '</span>' + texte + '</li>';
       out += '<div class="ap-salut"><h1 class="ap-h1" id="apTermine">Quart terminé. Merci ' + esc(v.prenom) + '</h1>'
-        + (t.apresMidi ? '<div class="ap-poste-sous">La piste est prête pour le quart du soir</div>' : '') + '</div>';
+        + (t.apresMidi ? '<div class="ap-poste-sous">La piste est prête pour le quart du soir</div>' : '') + '</div>' + carte;
       out += '<section class="ap-fil" id="apRecap"><ul class="ap-etapes">'
-        + rec.map((x) => '<li class="ap-etape ap-fait"><span class="ap-marque" aria-hidden="true">✓</span>' + esc(x[0]) + ' · ' + esc(x[1]) + '</li>').join('')
-        + '<li class="ap-etape ap-fait"><span class="ap-marque" aria-hidden="true">✓</span>+' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</li></ul>'
-        + '<a class="ap-bouton" id="apBoutonDepart" href="' + URL_POINTAGE + '">Pointer mon départ</a></section>';
+        + rec.map((x) => ligne(esc(x[0]) + ' · ' + esc(x[1]), x[2])).join('')
+        + ligne('+' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui', v.points > 0) + '</ul>'
+        + (t.pointageActif
+          ? '<a class="ap-bouton" id="apBoutonDepart" href="' + URL_POINTAGE + '">Pointer mon départ</a>'
+          : '<a class="ap-bouton" id="apLogout" href="#">Se déconnecter</a>')
+        + '</section>';
       out += '<a class="ap-lien-discret" id="apResterEncore" href="' + URL_MISSIONS + '">Je reste encore : voir les missions</a>';
       out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
-      out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
+      out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a>' + (t.pointageActif ? '<a href="#" id="apLogout">Se déconnecter</a>' : '') + '</div>';
       return out;
     }
     out += '<div class="ap-salut"><h1 class="ap-h1">Bonjour ' + esc(v.prenom) + '</h1></div>';
-    out += '<div class="ap-poste" id="apPoste"><div class="ap-poste-texte"><div class="ap-poste-nom">' + esc(p.libelle) + '</div>'
-      + sousLigne.map((l) => '<div class="ap-poste-sous">' + esc(l) + '</div>').join('')
-      + '</div><div class="ap-poste-image" style="background-image:url(\'' + esc(p.image) + '\')"></div></div>';
+    out += carte;
     if (v.mode === 'fermeture') {
       const fe = v.fermeture;
       out += '<section class="ap-fil" id="apFermeture"><div class="ap-fil-titre">Fermeture de la piste · avant ' + esc(fe.avant) + '</div>'
         + '<div class="ap-fil-compte">' + fe.faites + ' sur ' + fe.total + '</div><div class="ap-segments">'
         + fe.segments.map((x) => '<i class="' + (x ? 'ap-plein' : '') + '"></i>').join('') + '</div>'
+        + '<ul class="ap-etapes" id="apEtapesFermeture">' + fe.etapes.map((e) => '<li class="ap-etape ' + (e.fait ? 'ap-fait' : 'ap-a_faire') + '"><span class="ap-marque" aria-hidden="true">' + (e.fait ? '✓' : '○') + '</span>' + esc(e.libelle) + '</li>').join('') + '</ul>'
         + (fe.href ? '<a class="ap-bouton" id="apBoutonFermeture" href="' + esc(fe.href) + '">' + (fe.commence ? 'Continuer la fermeture' : 'Commencer la fermeture') + '</a>' : '')
         + '<div class="ap-fil-resume">' + (v.ouvertureFaiteA ? '✓ Ouverture faite à ' + esc(v.ouvertureFaiteA) : '✓ Ouverture faite') + '</div>'
         + (v.missions && v.missions.restantes > 0 ? '<div class="ap-fil-resume">' + v.missions.restantes + ' mission' + (v.missions.restantes > 1 ? 's' : '') + ' restante' + (v.missions.restantes > 1 ? 's' : '') + ' · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a></div>' : '')

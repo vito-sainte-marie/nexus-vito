@@ -628,6 +628,8 @@
   .ap-bouton{display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;background:#4FC3D9;color:#04141a;font-size:16px;font-weight:600;text-decoration:none;margin-top:12px;}
   .ap-lien-discret{display:block;text-align:center;color:#8A96A3;text-decoration:underline;font-size:14px;padding:14px 8px;}
   .ap-fil-resume{color:#8A96A3;font-size:14px;margin-top:10px;}
+  .ap-fil-resume a{color:#8A96A3;text-decoration:underline;}
+  .ap-etape.ap-a_faire{color:#8A96A3;}
   .ap-bouton.ap-secondaire{background:transparent;border:1.5px solid #4FC3D9;color:#4FC3D9;}
   .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid #5A4520;background:#1E1A12;border-radius:16px;color:#F2B84B;text-decoration:none;margin-bottom:12px;font-size:15px;}
   .ap-reception.ap-attendue{border:1.5px solid #F2B84B;background:#2A2213;}
@@ -2650,7 +2652,7 @@
       jaugeagePertinentRole ? NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
       // Lecture seule : relevés du site, du jour et du moment de début de quart.
       momentIndexDebut
-        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut').eq('site', employee.site_id).eq('date', todayISO).in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))
+        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut, finalise_le').eq('site', employee.site_id).eq('date', todayISO).in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))
         : Promise.resolve({ data: [], error: null }),
       // Dernier service TERMINÉ de l'employé, seulement quand il n'est pas en
       // service (25/10/2026). La fin de journée ne se déduisait que des
@@ -2740,6 +2742,11 @@
     const finIndexApplicable = !!momentIndexFin;
     const finIndexFait = !finIndexApplicable || finQuartFait;
     const clotureInventaireFait = !inventaireApplicable || !!inventaireFait;
+    // Heures réelles du récapitulatif de fin de quart, lues sur les faits déjà chargés : fin des relevés d'index (finalise_le) et
+    // clôture de l'inventaire du quart de service. Une heure absente reste null et la ligne correspondante est omise.
+    const heureReleve = (moment) => { const r = (relevesIndexRows || []).find(x => x.moment === moment && x.statut === 'final'); return r ? r.finalise_le : null; };
+    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && r.inventaire_quarts.cloture_le).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le).sort().pop()) || null;
+    const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire };
     if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
       const horairesStation = await chargerHorairesStation(employee.site_id);
       finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
@@ -2851,6 +2858,7 @@
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
       finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait, fermetureLien,
+      pointageActif: pointageActifSite === true, recap: recapQuart,
     });
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);
