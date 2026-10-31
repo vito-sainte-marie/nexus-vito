@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FERMETURE-PISTE-20261031/request-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: FERMETURE-PISTE-20261031
-seq: 6
+lot_id: INVENTAIRE-GAZ-CAGE-20261031
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,52 +20,84 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 169-fichiers
-  - id: merge-pr166
-    classe: VERIFIED
-    valeur: 840bb0c6
-  - id: merge-pr167
-    classe: VERIFIED
-    valeur: facd36eb
-  - id: recettes-guardian
-    classe: VERIFIED
-    valeur: 160-6545741605-6545912158-6547988142
-  - id: condition-4-decision-1
-    classe: VERIFIED
-    valeur: 160-6543935953
-  - id: incident-terrain
-    classe: HUMAN
-    valeur: 160-6547470929-donnees-prod-laissees-par-Frederic
-  - id: aucune-action-production
-    classe: VERIFIED
-    valeur: aucune
+  - id: code-origin-production
+    classe: DECLARED
+    valeur: lecture-seule
 ---
-# FERMETURE-PISTE-20261031 : request-6 — demande de clôture, correctif du quart fusionné, recette Guardian concluante
+# INVENTAIRE-GAZ-CAGE-20261031 : request-1 — repère « cage à gaz », avant tout code
 
-BRANCHE_DU_LOT: fermeture-piste-correctif-quart-20261031
+BRANCHE_DU_LOT: inventaire-gaz-cage-20261031
 
-## Contexte
+## Demande de Frédéric (31/10, 15 h 27)
 
-Les conditions de decision-3 et decision-4 sont levées. La recette Guardian sur Test a confirmé qu'un pompiste du matin qui clôture après 13 h reste sur le quart du matin. Frédéric a fusionné la PR #167 vers `production` (merge `facd36eb`, 31/10 15 h 19) ; le correctif est déployé et la ligne corrigée est vérifiée dans le fichier servi en Production.
+Orienter le pompiste sur la cage à compter. Le repère dit **où commencer à compter**, jamais **la quantité** : il ne remplace pas le comptage à l'aveugle. Ce lot passe avant INVENTAIRE-CAISSE-RENFORT-20261031.
 
-## Preuve des conditions de decision-4
+## Ce que cette demande fait et ne fait pas
 
-1. **Recette Guardian sur Test concluante** — TENUE. Canal #160 : 6547988142 (recette conforme du correctif), après 6545741605 et 6545912158 (recettes du code initial). Condition 4 de decision-1 (clôture anticipée éprouvée sur Test) : 6543935953.
-2. **Aucune réparation des données Production du 31/10** — TENUE. Incident terrain : #160 6547470929. Les données Production du soir-quart sont laissées en l'état, sur décision de Frédéric ; je n'y ai fait aucune opération.
-3. **Aucune fusion, promotion ou clôture avant la recette** — TENUE : fusions `840bb0c6` (PR #166) et `facd36eb` (PR #167) toutes deux postérieures à la recette ou faites par Frédéric.
-4. **Fusion de #167 réservée à Frédéric** — TENUE : faite par Frédéric (`facd36eb`).
+Aucun code, aucune opération en Production. Elle répond aux trois points exigés par Guardian (comments 6545939347, 6545968413, 6547988142) avant tout développement.
 
-## Ce que le lot a changé
+## 1. Origine de la ligne « 0 » en double pour Gaz 12,5 kg (Production)
 
-- PR #166 (`840bb0c6`) : fil de fermeture en deux étapes, bloc de fermeture, carte de poste avec heure de fin, bouton de départ conditionné au pointage actif.
-- PR #167 (`facd36eb`) : le fil ouvre et clôture le quart du SERVICE de l'employé (`if (enFil() && quartDuShift) quartActuel = quartDuShift;` avant toute création), jamais un quart déduit de l'heure. Épreuves : `test_fermeture_piste_20261031.js`, 21 épreuves, 32 mutations tuées ; `test_fil_debut_quart_20261021.js` mis à jour (regex I2 et ancre de mutation). CI verte sur `7bf6887d`.
+Constats observés par Guardian : 30/10 6 h 41, lignes 132 et 0 ; 31/10 5 h 52, lignes 118 et 0.
 
-## Limites restantes, reportées
+**Prouvé par le code (origin/production, lecture seule)**
 
-1. Le bloc de fermeture reste libellé « avant 13 h 00 » après cette heure ; « fin du quart à 13 h 00 » serait plus exact (remarque du Guardian).
-2. Hors du fil (accès direct à Inventaire), le choix Matin/Soir reste guidé par l'heure.
-3. Les limites 1 à 4 de request-3 (plage « Fermeture » : tri des bornes non fusionné ; heure de début d'ouverture inconnue ; règle normal/étendu locale distincte de la RPC ; « Pointer mon départ » non exercé en navigateur) restent portées au lot suivant.
-4. Données Production du soir-quart du 31/10 : laissées telles quelles par décision de Frédéric.
+- `chargerDerniersStocks` (`NEXUS-Inventaire-v1.html` ~1208) ne lit que les `cloture` valides, triées par `compte_le` décroissant, et garde la première par produit. Elle **ne peut pas** produire une ligne d'ouverture : ce n'est pas la source du doublon.
+- Les lignes d'ouverture viennent de `ecrireOuvertureImmediat` (~750) via `ecrireComptageImmediat` (~639). La clé d'idempotence est `quartId|produitId|type|valeur` : **la valeur fait partie de la clé** (voulu : une vraie correction crée une nouvelle ligne, « le plus récent gagne »). Conséquence : deux écritures avec des valeurs différentes pour le même produit et le même quart donnent **deux lignes**, par construction.
+- `ecrireOuvertureImmediat` s'exécute à chaque geste de validation du produit. Une ligne à 0 apparaît donc si, à un geste de validation, `saisie.compte` valait 0 (champ non encore saisi traité comme 0, ou geste sur la ligne avant la saisie) avant ou après le vrai chiffre.
+
+**Non prouvé (hypothèses)**
+
+- H1 : une première validation avec `compte = 0`, puis la saisie réelle (132 / 118), ou l'inverse. Les deux lignes coexistent, et la lecture « la plus récente » prend 0 si le 0 est écrit en dernier.
+- H2 : deux lignes produit « Gaz 12,5KG » dans `inventaire_zone_produit` (doublon de catalogue). Le seed n'en crée qu'une.
+
+**Ce qu'il faut pour trancher** : une lecture de Production, **filtrée par site**, de `inventaire_comptages` (Gaz 12,5 kg, quarts des 30 et 31/10 : `compte_le`, `type_comptage`, `statut`, `source`, `employee_id`, `quantite`, `produit_id`) et du nombre de lignes « Gaz 12,5KG » dans `inventaire_zone_produit`. **GO de Frédéric demandé** pour cette lecture seule, sinon je reproduis sur Test (site `nexus-station-test`) en validant Gaz à 0 puis à N, et l'inverse.
+
+**Règle proposée pour choisir le dernier comptage valide** (à confirmer après la lecture)
+
+- ne considérer que `statut = valide` ;
+- écarter les lignes `source = auto` (`transmis`) ;
+- trier par `compte_le` décroissant ;
+- à égalité d'instant, préférer la ligne portant un `employee_id` et une quantité saisie ; un 0 reste admis seulement s'il est la seule ligne saisie, ou la plus récente par un instant distinct ;
+- si la lecture montre que le 0 est un artefact d'écriture (H1), corriger à la source : ne pas écrire de `ouverture` tant que le produit n'est pas réellement compté (`produitEstCompte`), plutôt que filtrer à la lecture.
+
+## 2. Où le repère s'affiche
+
+- **Fin de quart (clôture)** : sur la consigne d'inventaire de clôture (`renderCloture` ~3594, `renderLigneCloture` ~3677), sous le nom du produit Gaz, avant le champ « Stock final ». C'est la demande de Frédéric.
+- **Proposition à Frédéric** : l'afficher aussi **à l'ouverture** (`renderLigneOuverture` ~3236), car le pompiste compte aussi le gaz à l'ouverture. Même module, même texte. À accepter ou refuser.
+- Contraintes : le repère indique le point de départ (par exemple « Commencez par la cage de gauche »), jamais un chiffre. Le tableau, les conditions d'affichage et les tests d'acceptation sont ceux de Guardian (stocks 127, 27, 150, 0 et une livraison enregistrée), repris tels quels.
+
+## 3. Fichiers touchés
+
+- `NEXUS-Inventaire-v1.html` : affichage du repère (clôture, et ouverture si accepté) ; correction du doublon « 0 » selon la cause établie.
+- nouveau module pur `nexus-inventaire-repere-cage.js` et son test `test_inventaire_repere_cage.js` ;
+- `NEXUS-Parametres-Inventaire-v1.html` : saisie du réglage par site.
+
+### Écart avec « pas de migration »
+
+`inventaire_regles_produit.champs_specifiques` est un `text[]` géré par le déclencheur `nexus_inventaire_detecter_champs_specifiques` (migration 20260830211432) : il liste des **noms** de champs surchargés, il ne peut pas porter un texte libre. Le réglage Sainte-Marie ne peut donc pas y vivre. Options :
+
+- A (recommandée) : colonne `jsonb` sur `inventaire_zone_produit` ou table de réglage par site, **migration sur Test d'abord** ;
+- B : un réglage jsonb de station déjà existant, si Guardian en désigne un ;
+- C : constante dans le code (écartée par Guardian).
+
+Arbitrage demandé : A ou B. Si B, aucune migration.
+
+## 4. Données et processus
+
+- Écriture du réglage Sainte-Marie en **Production = GO de Frédéric**. Sur **Test** : pré-autorisation 1.
+- PR de base `production` ; recette Test par Guardian (stocks 127, 27, 150, 0 et une livraison enregistrée) ; fusion par Frédéric.
+- Je lance chaque fichier de test touché isolément et compare `node run-tests.js` aux 7 échecs connus avant d'ouvrir la PR.
+
+## Preuve des conditions
+
+- Lecture du code : `origin/production`, fichiers cités ci-dessus.
+- Aucune lecture ni écriture Production effectuée.
+- Hypothèses H1/H2 : non prouvées, dépendent d'un GO.
 
 ## À arbitrer
 
-Le lot FERMETURE-PISTE-20261031 peut-il être clos (CLOSES: true), les limites ci-dessus étant reportées aux lots suivants (INVENTAIRE-GAZ-CAGE-20261031 puis INVENTAIRE-CAISSE-RENFORT-20261031) ? Aucune opération en Production de ma part.
+1. GO de Frédéric pour la lecture seule de Production, filtrée par site, décrite en 1.
+2. Option A ou B pour le stockage du réglage (3).
+3. Affichage aussi à l'ouverture : oui ou non (2).
+4. Validation de ce périmètre comme base du lot, étape 1 = correction du doublon « 0 » + migration du réglage sur Test. Aucun code avant la décision.
