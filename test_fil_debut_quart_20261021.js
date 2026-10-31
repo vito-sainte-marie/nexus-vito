@@ -318,7 +318,7 @@ muter('moment de début faux', 'app', "NexusRelevesPiste.momentDebutDuQuart(quar
 muter('catalogue affiché en fil', 'inv', "      if (prochain) { ouvrirCategorie(prochain); return; }\n      renderFilValidation();\n      return;\n    }", "    }", 'I2');
 muter('choix de zone atteint en fil', 'inv', "      else demarrerOuvertureComptage();\n    } else if (zonesAutorisees.length > 1", "      else renderChoixZone();\n    } else if (zonesAutorisees.length > 1", 'I2');
 muter('retour aux catégories visible', 'inv', ".fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }", "", 'I2');
-muter('quart du soir ignoré', 'inv', "if (quartDuShift) quartActuel = quartDuShift;", "", 'I2');
+muter('quart du soir ignoré', 'inv', "if (enFil() && quartDuShift) quartActuel = quartDuShift;", "", 'I2');
 muter('liste de noms réintroduite à l\'étape 3', 'inv', "const base = produitsZone;", "const base = produitsZone.filter(p => /gaz|gla[cç]ons|[ée]cailles/i.test(p.designation));", 'I3');
 muter('progression absente de l\'inventaire', 'inv', 'id="filProgres"', 'id="x"', 'I4');
 muter('la fin ne rend pas à l\'Accueil', 'inv', "window.location.href = FIL.ACCUEIL;", "", 'I4');
