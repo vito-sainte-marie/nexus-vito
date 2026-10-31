@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FERMETURE-PISTE-20261031/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FERMETURE-PISTE-20261031/request-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: FERMETURE-PISTE-20261031
-seq: 3
+seq: 4
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,38 +20,31 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 169-fichiers
-  - id: merge-pr166
-    classe: VERIFIED
-    valeur: 840bb0c6d51628fb5188f99fbc8c2b19a1674495
+  - id: pr167
+    classe: DECLARED
+    valeur: ouverte
 ---
-# FERMETURE-PISTE-20261031 : request-3 — demande de clôture, code fusionné et déployé
+# FERMETURE-PISTE-20261031 : request-4 — demande rectificative (quart de service dans le fil)
 
-BRANCHE_DU_LOT: fermeture-piste-20261031
+BRANCHE_DU_LOT: fermeture-piste-correctif-quart-20261031
 
-## Contexte
+Cette demande ne réécrit pas request-3 : elle consigne un correctif ordonné par Frédéric (relais Guardian, #160, 6547510392) à intégrer au lot avant sa clôture.
 
-Le code du lot a été fusionné par Frédéric (PR #166, merge `840bb0c6` sur `production`, tête de branche `1170035f`) et déployé ; les checks Tests et Déploiement Production sont verts. Le Guardian a rendu ses recettes sur le canal #160 et m'a invité à déposer cette clôture par l'outil.
+## Régression constatée en Production (31/10, Guardian #160 6547470929)
+Samedi (horaires étendus), après l'index de fin de quart, l'étape 2 du fil a créé un quart du soir ; les 5 comptages de clôture du pompiste du matin y sont tombés ; il a refait la clôture sur le quart du matin via le menu. Cause : `NEXUS-Inventaire-v1.html` choisissait le quart d'après l'horloge de la station, et n'imposait le quart du service qu'après avoir créé quart, quart-employé, missions et plan.
 
-## Preuve des conditions de decision-1
+## Décisions de Frédéric
+1. Aucune réparation des données Production du quart du soir du 31/10.
+2. Correctif dans le lot : le fil ouvre et clôt le quart du service, jamais celui de l'heure.
+3. Guardian fait la recette sur Test ; Frédéric fusionne et clôt le lot.
 
-1. **« Pointer mon départ » sans écriture dans `shifts` ni migration** — TENUE. Le bouton n'apparaît que si `station_config.pointage_actif` est vrai ; sinon « Se déconnecter ». Aucune migration, aucune écriture `shifts`. Recettes Guardian : #160 6545741605 et 6545912158.
-2. **Horaires lus dans `station_config.horaires`, régime normal/étendu, fuseau de la station** — TENUE (carte de poste « fin à HH h MM »), recettes Guardian ci-dessus.
-3. **Formule du matin conservée, sous-ligne du soir omise** — TENUE.
-4. **Clôture anticipée éprouvée sur Test avant adaptation** — TENUE par le Guardian : #160 6543935953.
-5. **Épreuves de mutation, écran de choix du manager préservé** — TENUE : `test_fermeture_piste_20261031.js`, 21 épreuves, 28 mutations tuées ; CI verte. Contenu servi vérifié par le Guardian sur app.nexusconseil.net.
+## Correctif
+PR #167 (base `production`) : https://github.com/vito-sainte-marie/nexus-vito/pull/167 — quart du service imposé dès la résolution du rôle, avant toute création ; inclut dd89e844 (tri de la plage « Fermeture »). Hors fil : inchangé.
 
-## Ce qui change
-
-Fil de fermeture en deux étapes (index de fin, inventaire de clôture), bloc de fermeture avec étapes et barre, récapitulatif réel (coche seulement si fait), carte de poste avec heure de fin, bouton de départ conditionné au pointage actif.
-
-## Limites restantes
-
-1. **Correctif d'ordre de la plage « Fermeture » NON fusionné** : le commit `dd89e844` (tri des deux bornes horaires) est resté sur `fermeture-piste-20261031`, la fusion ayant eu lieu à `1170035f`. Il n'est pas en Production. À refaire par une nouvelle PR dans le lot suivant.
-2. Heure de début d'ouverture inconnue (borne unique) dans le récapitulatif.
-3. Règle normal/étendu locale distincte de la RPC `calculer_horaires_quart` : vigilance non bloquante.
-4. « Pointer mon départ » non exercé en navigateur sur Test (`pointage_actif` faux sur Test et Sainte-Marie).
-5. decision-2 de l'arbitre précédemment non matérialisée (job CI de non-régression en échec à l'époque).
+## Preuve des conditions
+- Épreuves avec mutations : pompiste du matin samedi 14 h 15 → matin ; lundi 13 h → matin ; pompiste du soir 14 h 15 → soir ; ordre avant toute création (4 mutations tuées, 32 au total).
+- `node run-tests.js` : seules les 7 défaillances préexistantes.
+- Recette Test à faire par Guardian : Employé Test B, pompiste du matin, clôture après 13 h (Test n'a que les horaires normaux).
 
 ## À arbitrer
-
-Le lot FERMETURE-PISTE-20261031 peut-il être clos (CLOSES: true), les limites 1 à 5 étant reportées au lot suivant ? Aucune opération en Production de ma part.
+Le périmètre de request-3 est-il complété par ce correctif, la clôture (CLOSES) restant conditionnée à la recette Guardian et à la fusion de #167 par Frédéric ? Aucune opération en Production.
