@@ -4215,6 +4215,10 @@
       roleDuJour = resolution.role;
       serviceCourantId = resolution.serviceId;
       quartDuShift = resolution.quart || null;
+      // Fil de fermeture/ouverture : le quart est celui du SERVICE de l'employé, fixé avant toute lecture ou création
+      // (quart, quart-employé, missions, plan). L'heure de la station ne choisit jamais le quart d'un employé en service :
+      // le samedi (horaires étendus) un pompiste du matin qui clôt à 14 h 15 se retrouvait sur un quart du soir créé à vide.
+      if (enFil() && quartDuShift) quartActuel = quartDuShift;
     }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
@@ -4263,8 +4267,7 @@
     }
 
     if (enFil()) {
-      // Quart déjà choisi à la prise de poste : celui du shift, sinon celui du moment ; zone piste, sans choix ni Accueil.
-      if (quartDuShift) quartActuel = quartDuShift;
+      // Quart déjà choisi à la prise de poste (fixé plus haut, avant toute création) ; zone piste, sans choix ni Accueil.
       if (zonesAutorisees.includes('piste')) zoneActive = 'piste';
       if (filFermeture) {
         if (quartEmployeRow && quartEmployeRow.a_valide_cloture) renderFilDejaValide();

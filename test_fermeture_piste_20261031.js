@@ -184,6 +184,31 @@ const EPREUVES_FIL = {
   },
 };
 
+// Épreuve — correctif du 31/10/2026 (régression constatée en Production) : dans le fil de fermeture, l'Inventaire ouvre et clôt le quart
+// du SERVICE de l'employé, jamais celui que l'heure de la station suggérerait (samedi, horaires étendus : fin Q1 13 h 45, début Q2 13 h 40).
+const SRC_INV = lire('NEXUS-Inventaire-v1.html');
+function epreuveQuartDeService(src) {
+  const debut = src.indexOf('quartDuShift = resolution.quart || null;');
+  assert(debut > 0, 'Inventaire : quart du service lu dans la résolution du rôle');
+  const ligne = (src.slice(debut).match(/if \(enFil\(\) && quartDuShift\) quartActuel = quartDuShift;/) || [])[0];
+  assert(ligne, 'Inventaire : le quart du service est imposé dans le fil');
+  const posLigne = src.indexOf(ligne, debut);
+  // Imposé AVANT toute lecture ou création dépendant du quart.
+  for (const appel of ['obtenirOuCreerQuart()', 'obtenirOuCreerQuartEmploye()', 'chargerMissionsDuJour()', 'chargerEtAppliquerPlanQuart()']) {
+    const iAppel = src.indexOf(appel, debut);
+    assert(iAppel > posLigne, 'Inventaire : ' + appel + ' lit le quart du service, pas celui de l\'heure');
+  }
+  // Scénarios : (service, quart que donnerait l'horloge) -> quart utilisé par le fil.
+  const choisir = (enFil, service, horloge) => new Function('enFil', 'quartDuShift', 'quartActuel', ligne + ' return quartActuel;')(() => enFil, service, horloge);
+  assert.strictEqual(choisir(true, 'matin', 'soir'), 'matin', 'pompiste du matin, samedi 14 h 15 (Q2 commencé à 13 h 40) -> quart du matin');
+  assert.strictEqual(choisir(true, 'matin', 'matin'), 'matin', 'pompiste du matin, lundi 13 h 00 -> quart du matin');
+  assert.strictEqual(choisir(true, 'soir', 'soir'), 'soir', 'pompiste du soir, 14 h 15 -> quart du soir');
+  assert.strictEqual(choisir(true, 'soir', 'matin'), 'soir', 'le service du soir prime sur l\'horloge');
+  assert.strictEqual(choisir(true, null, 'soir'), 'soir', 'sans service connu (mode test), l\'horloge reste');
+  assert.strictEqual(choisir(false, 'matin', 'soir'), 'soir', 'hors fil, comportement inchangé');
+}
+epreuveQuartDeService(SRC_INV);
+
 function jouer(M, MENU, ST) { for (const nom of Object.keys(EPREUVES)) EPREUVES[nom](M, MENU, ST); }
 const M0 = charger(SRC); const MENU0 = charger(SRC_MENU); const ST0 = chargerStation(SRC_STATION);
 jouer(M0, MENU0, ST0);
@@ -249,6 +274,10 @@ const MUTATIONS = [
   ['étapes de fermeture non listées', SRC, (s) => s.replace('id="apEtapesFermeture"', 'id="apX"'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['barre remplie par position et non par nombre', SRC, (s) => s.replace('i < fermetureFaites', 'e.fait'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['plage de fermeture dans l\'ordre des sources', SRC, (s) => s.replace('.concat([null, null]).slice(0, 2)', '.concat([null, null]).slice(0, 2).reverse().reverse()').replace('ok.sort((x, y) => new Date(x) - new Date(y))', 'ok'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['quart du service imposé après les lectures', SRC_INV, (s) => s.replace('      if (enFil() && quartDuShift) quartActuel = quartDuShift;\n', '').replace("    if (!quartRow) { memoPlanInit = null;", "    if (enFil() && quartDuShift) quartActuel = quartDuShift;\n    if (!quartRow) { memoPlanInit = null;"), (s) => { epreuveQuartDeService(s); }],
+  ['quart du service remplacé par l\'horloge', SRC_INV, (s) => s.replace('if (enFil() && quartDuShift) quartActuel = quartDuShift;', 'if (enFil() && quartDuShift) quartActuel = quartActuel;'), (s) => { epreuveQuartDeService(s); }],
+  ['quart du service imposé hors du fil seulement', SRC_INV, (s) => s.replace('if (enFil() && quartDuShift) quartActuel', 'if (!enFil() && quartDuShift) quartActuel'), (s) => { epreuveQuartDeService(s); }],
+  ['quart du service ignoré quand il existe', SRC_INV, (s) => s.replace('if (enFil() && quartDuShift) quartActuel = quartDuShift;', 'if (enFil() && quartDuShift && !quartActuel) quartActuel = quartDuShift;'), (s) => { epreuveQuartDeService(s); }],
   ['fil : clé de stockage du début de quart', SRC_FIL, (s) => s.replace('nexus_fil_fin_quart_', 'nexus_fil_debut_quart_'), (s) => { const F = charger(s); const mem = {}; F.atteindre({ getItem: (k) => mem[k] || null, setItem: (k, v) => { mem[k] = v; } }, 'e', 'd', 2); assert(Object.keys(mem)[0].startsWith('nexus_fil_fin_quart_')); }],
   ['fil : trois étapes', SRC_FIL, (s) => s.replace('NOMBRE_ETAPES = 2', 'NOMBRE_ETAPES = 3'), (s) => { assert.strictEqual(charger(s).NOMBRE_ETAPES, 2); }],
   ['fil : inventaire avant les index', SRC_FIL, (s) => s.replace(/PAGES = \{ 1: '[^']+', 2: '[^']+' \}/, "PAGES = { 1: 'NEXUS-Inventaire-v1.html', 2: 'NEXUS-Releves-Piste-v1.html' }"), (s) => { const F = charger(s); assert(F.urlEtape(1, 'fin_q1', [1, 2]).startsWith('NEXUS-Releves-Piste-v1.html')); }],
