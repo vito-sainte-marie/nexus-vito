@@ -72,6 +72,12 @@
     return h && m ? h + ' h ' + m : null;
   }
 
+  // Index de fin et inventaire de clôture peuvent se faire dans l'un ou l'autre ordre : la plage va de la plus petite à la plus grande heure.
+  function bornes(a, b) {
+    const ok = [a, b].filter((x) => x && !isNaN(new Date(x).getTime()));
+    return ok.sort((x, y) => new Date(x) - new Date(y)).concat([null, null]).slice(0, 2);
+  }
+
   function libelleQuart(q) {
     return q === 'matin' ? 'Quart du matin' : q === 'soir' ? 'Quart du soir' : '';
   }
@@ -128,7 +134,7 @@
       termine: ecranTermine ? {
         apresMidi: f.quart === 'matin',
         ouverture: plage(heureLocale(rc.ouvertureDe, f.fuseau), heureOuvertureFin),
-        fermeture: plage(heureLocale(rc.fermetureDe, f.fuseau), heureLocale(rc.fermetureA, f.fuseau)),
+        fermeture: plage(heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[0], f.fuseau), heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[1], f.fuseau)),
         missions: m.total > 0 ? m.faites + ' sur ' + m.total : null,
         missionsToutes: m.total > 0 && m.faites >= m.total,
         // Le pointage de départ n'existe que si la station l'active ; sinon la sortie est la déconnexion.

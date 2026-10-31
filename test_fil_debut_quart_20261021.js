@@ -205,7 +205,7 @@ function epreuves(S) {
     assert.ok(c && /if \(enFil\(\)\) \{[\s\S]*?ouvrirCategorie\(prochain\)[\s\S]*?renderFilValidation\(\);[\s\S]*?return;/.test(c[0]), 'le catalogue reste affiché en fil');
     assert.ok(/if \(enFil\(\)\) \{[\s\S]*?else demarrerOuvertureComptage\(\);\s*\} else if \(zonesAutorisees\.length > 1/.test(I), 'l\'init passe encore par le choix de zone / l\'Accueil');
     assert.ok(/\.fil-actif #btnRetourCategories/.test(I), '« Retour aux catégories » non masqué');
-    assert.ok(/if \(quartDuShift\) quartActuel = quartDuShift;/.test(I), 'le quart choisi à la prise de poste n\'est pas repris');
+    assert.ok(/if \(enFil\(\) && quartDuShift\) quartActuel = quartDuShift;/.test(I), 'le quart choisi à la prise de poste n\'est pas repris');
   });
   eprouve('I3 Inventaire : le fil compte les produits de la zone piste du site, sans liste de noms', () => {
     const d = I.indexOf('function produitsZoneOuverturePourQuart()');
@@ -318,7 +318,7 @@ muter('moment de début faux', 'app', "NexusRelevesPiste.momentDebutDuQuart(quar
 muter('catalogue affiché en fil', 'inv', "      if (prochain) { ouvrirCategorie(prochain); return; }\n      renderFilValidation();\n      return;\n    }", "    }", 'I2');
 muter('choix de zone atteint en fil', 'inv', "      else demarrerOuvertureComptage();\n    } else if (zonesAutorisees.length > 1", "      else renderChoixZone();\n    } else if (zonesAutorisees.length > 1", 'I2');
 muter('retour aux catégories visible', 'inv', ".fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }", "", 'I2');
-muter('quart du soir ignoré', 'inv', "if (quartDuShift) quartActuel = quartDuShift;", "", 'I2');
+muter('quart du soir ignoré', 'inv', "if (enFil() && quartDuShift) quartActuel = quartDuShift;", "", 'I2');
 muter('liste de noms réintroduite à l\'étape 3', 'inv', "const base = produitsZone;", "const base = produitsZone.filter(p => /gaz|gla[cç]ons|[ée]cailles/i.test(p.designation));", 'I3');
 muter('progression absente de l\'inventaire', 'inv', 'id="filProgres"', 'id="x"', 'I4');
 muter('la fin ne rend pas à l\'Accueil', 'inv', "window.location.href = FIL.ACCUEIL;", "", 'I4');
