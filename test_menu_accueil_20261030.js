@@ -93,7 +93,7 @@ Object.keys(EPREUVES).forEach((nom) => {
 // Mutations : chaque exigence doit rougir si le module est abîmé.
 const MUTANTS = [
   ['jaugeage employé', (s) => s.replace("if (manager) carburant.push({ code: 'jaugeage'", "if (true) carburant.push({ code: 'jaugeage'")],
-  ['index absent pour l\'employé', (s) => s.replace("if (manager || f.enService) carburant.push({ code: 'index'", "if (manager) carburant.push({ code: 'index'")],
+  ['index absent pour l\'employé', (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (manager) carburant.push({ code: 'index'")],
   ['index vers un moment', (s) => s.replace("index: 'NEXUS-Releves-Piste-v1.html',", "index: 'NEXUS-Releves-Piste-v1.html?moment=debut_q1',")],
   ['coach caisse', (s) => s.replace("role === 'caissiere')", "role === 'renfort')")],
   ['recherche renfort', (s) => s.replace("['pompiste', 'caissiere', 'renfort']", "['pompiste']")],

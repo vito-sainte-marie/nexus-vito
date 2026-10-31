@@ -221,7 +221,7 @@ async function executerAccueil({
   })();
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
-    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusAccueilPiste', 'NexusMenuAccueil', 'monterMenuAccueil', 'localStorage', 'location',
+    'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusFilFinQuart', 'NexusStation', 'chargerHorairesStation', 'NexusAccueilPiste', 'NexusMenuAccueil', 'monterMenuAccueil', 'localStorage', 'location',
     'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
@@ -233,6 +233,9 @@ async function executerAccueil({
     { chargerForfait: async () => forfait, estProfessional: f => f === 'professional' },
     NexusPointageRegles,
     require('./nexus-fil-debut-quart.js'),
+    require('./nexus-fil-fin-quart.js'),
+    (() => { const fen = { NexusStation: null, addEventListener() {}, location: {} }; new Function('window', require('fs').readFileSync(require('path').join(__dirname, 'nexus-station.js'), 'utf8').replace(/\}\)\(window\);\s*$/, '})(window);'))(fen); return fen.NexusStation; })(),
+    async () => null,
     require('./nexus-accueil-piste.js'),
     require('./nexus-menu-accueil.js'),
     faits => { rendus.menu = faits; },

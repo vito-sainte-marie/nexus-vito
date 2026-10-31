@@ -626,6 +626,8 @@
   .ap-marque{display:inline-block;width:22px;}
   .ap-sans-objet{font-size:12px;color:#8FA0B0;}
   .ap-bouton{display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;background:#4FC3D9;color:#04141a;font-size:16px;font-weight:600;text-decoration:none;margin-top:12px;}
+  .ap-lien-discret{display:block;text-align:center;color:#8A96A3;text-decoration:underline;font-size:14px;padding:14px 8px;}
+  .ap-fil-resume{color:#8A96A3;font-size:14px;margin-top:10px;}
   .ap-bouton.ap-secondaire{background:transparent;border:1.5px solid #4FC3D9;color:#4FC3D9;}
   .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid #5A4520;background:#1E1A12;border-radius:16px;color:#F2B84B;text-decoration:none;margin-bottom:12px;font-size:15px;}
   .ap-reception.ap-attendue{border:1.5px solid #F2B84B;background:#2A2213;}
@@ -1413,6 +1415,7 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
+<script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-accueil-piste.js?v=20261030-0001"></script>
 <script src="nexus-menu-accueil.js?v=20261030-0001"></script>
 <script src="nexus-prise-de-poste.js"></script>
@@ -2007,6 +2010,14 @@
     const { data, error } = await nexusClient.from('station_config').select('reception_carburant_role').eq('site', siteId).maybeSingle();
     if (error) { console.error('Chargement reception_carburant_role:', error); return 'employe'; }
     return (data && data.reception_carburant_role) || 'employe';
+  }
+
+  // Horaires de la station (station_config.horaires) : seule source de la fin de quart pour la fermeture de la piste.
+  // Lecture en erreur ou absente = null : aucune fermeture proposée, jamais d'heure inventée.
+  async function chargerHorairesStation(siteId) {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement horaires:', error); return null; }
+    return (data && data.horaires) || null;
   }
 
   // station_config.jaugeage_carburant_actif (pont Inventaire → Carburants,
@@ -2723,6 +2734,22 @@
       { site: employee.site_id, date: todayISO, moment: momentIndexFin });
     const finQuartLien = momentIndexFin ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexFin}` : null;
 
+    // Fermeture de la piste (lot FERMETURE-PISTE-20261031) : fin du quart lue dans station_config.horaires (régime normal/étendu
+    // du jour, fuseau de la station), jamais en constante. Même fil pour l'heure, le lien et le menu : fermetureLien.
+    let finMinutes = null; let maintenantMinutes = null; let fermetureLien = null;
+    const finIndexApplicable = !!momentIndexFin;
+    const finIndexFait = !finIndexApplicable || finQuartFait;
+    const clotureInventaireFait = !inventaireApplicable || !!inventaireFait;
+    if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
+      const horairesStation = await chargerHorairesStation(employee.site_id);
+      finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
+      const hm = new Intl.DateTimeFormat('en-GB', { timeZone: fuseauStation, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+      maintenantMinutes = Number(hm.find(x => x.type === 'hour').value) * 60 + Number(hm.find(x => x.type === 'minute').value);
+      const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait };
+      fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture)
+        || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
+    }
+
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
     // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
@@ -2823,8 +2850,9 @@
       inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
+      finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait, fermetureLien,
     });
-    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, pointageActif: pointageActifSite === true };
+    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);
     if (!NexusMenuAccueil.rechercheVisible(faitsMenu) && enService) {
       const zone = document.getElementById('zoneRecherche');

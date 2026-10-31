@@ -217,9 +217,9 @@ function epreuves(S) {
     assert.ok(/id="filProgres"/.test(I) && /FIL\.libelleProgression\(filEtape, filPlan\)/.test(I), 'progression absente');
     assert.ok(/id="filSortie" href="\$\{FIL\.ACCUEIL\}"[^`]*\$\{FIL\.LIBELLE_SORTIE\}/.test(I), 'sortie absente');
     assert.ok(/document\.getElementById\('filSortie'\)\.addEventListener\('click', filSauverAvantSortie\)/.test(I), 'la sortie ne range pas le brouillon');
-    assert.ok(/FIL\.terminer\(localStorage[\s\S]*?window\.location\.href = FIL\.ACCUEIL/.test(I), 'la fin ne rend pas à l\'Accueil');
+    assert.ok(/FIL\.terminer\(localStorage[^}]*?window\.location\.href = FIL\.ACCUEIL/.test(I), 'la fin ne rend pas à l\'Accueil');
     assert.ok(/addEventListener\('click', enFil\(\) \? filTerminer : renderAccueil\)/.test(I), 'bouton final non branché sur la fin du fil');
-    assert.ok(/sauvegarderDraft\('ouverture'\)/.test(/function filSauverAvantSortie[\s\S]*?\n  \}/.exec(I)[0]), 'brouillon non rangé');
+    assert.ok(/sauvegarderDraft\(filFermeture \? 'cloture' : 'ouverture'\)/.test(/function filSauverAvantSortie[\s\S]*?\n  \}/.exec(I)[0]), 'brouillon non rangé');
   });
 
   eprouve('I5 Inventaire : les catégories non comptées par le fil (huiles, lave-glace) ne deviennent ni un stock à zéro ni un écart à la validation', () => {
@@ -276,7 +276,7 @@ ok('la source réelle passe toutes les épreuves (F1–F8 dont F2b–F2e, R1–R
 
 function muter(nom, cle, de, vers, attendu) {
   assert.ok(SRC[cle].includes(de), `mutation « ${nom} » : ancre introuvable`);
-  const mutant = Object.assign({}, SRC, { [cle]: SRC[cle].replace(de, vers) });
+  const mutant = Object.assign({}, SRC, { [cle]: SRC[cle].split(de).join(vers) });
   const e = epreuves(mutant);
   assert.ok(e.some(x => x.startsWith(attendu)), `mutation « ${nom} » : ${attendu} est restée verte (rouges : ${e.join(' | ') || 'aucun'})`);
   ok(`mutation « ${nom} » → ${attendu} rougit`);

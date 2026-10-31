@@ -411,8 +411,17 @@
     return { minutes, debut, jour };
   }
 
+  // Fin du quart (minutes depuis minuit, heure de la station) lue dans station_config.horaires : fin_etendu les jeudi,
+  // vendredi et samedi, fin_normal sinon (repli sur normal si l'étendu manque). null : horaire non déclaré, jamais deviné.
+  function finDuQuartMinutes(horaires, quartCle, timezone, instant) {
+    const q = horaires && horaires[quartCle];
+    if (!q) return null;
+    const regime = cleHoraireDuJour(timezone, instant);
+    return minutesDepuisMinuit((regime === 'etendu' ? q['fin_etendu'] : q['fin_normal']) || q['fin_normal']);
+  }
+
   global.NexusStation = {
-    siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
+    finDuQuartMinutes, siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
     cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS, heureSqlEnHHMM,
     quartDuJour, quartPlanifie, dateLocaleStation,

@@ -40,10 +40,13 @@
     const g = [];
     const carburant = [];
     if (manager || f.receptionApplicable) carburant.push({ code: 'reception', libelle: 'Réception carburant', href: URL.reception });
+    // Fermeture de la piste (lot FERMETURE-PISTE-20261031) : pour le pompiste en service, elle remplace « Relevés d'index » ;
+    // le lien du fil est donné par l'Accueil. Le manager garde l'écran de choix des relevés.
+    if (!manager && f.enService && f.fermetureLien) carburant.push({ code: 'fermeture', libelle: 'Fermeture de la piste', sousTitre: 'Index de fin, puis inventaire de clôture', href: f.fermetureLien });
     if (manager) carburant.push({ code: 'jaugeage', libelle: 'Jaugeage', href: URL.jaugeage });
-    // Le fil de l'Accueil ne couvre que le DÉBUT de quart : l'écran de choix des relevés (sans `moment`)
-    // est la porte des index de fin de quart. Le Jaugeage reste hors menu employé.
-    if (manager || f.enService) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
+    // Sans fil de fermeture connu, l'écran de choix des relevés (sans `moment`) reste la porte des index de fin de quart.
+    // Le Jaugeage reste hors menu employé.
+    if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
     // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
     // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
@@ -78,7 +81,7 @@
     return (gs || []).map((gr) => '<div class="mm-groupe" data-groupe="' + esc(gr.code) + '"><div class="mm-titre">' + esc(gr.titre) + '</div>'
       + gr.entrees.map((e) => e.desactive
         ? '<span class="mm-entree mm-desactive" data-entree="' + esc(e.code) + '" aria-disabled="true">' + esc(e.libelle) + '<span class="mm-mention">' + esc(e.mention) + '</span></span>'
-        : '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">' + esc(e.libelle) + '</a>').join('')
+        : '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">' + esc(e.libelle) + (e.sousTitre ? '<span class="mm-mention">' + esc(e.sousTitre) + '</span>' : '') + '</a>').join('')
       + '</div>').join('');
   }
 
