@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FERMETURE-PISTE-20261031/request-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/FERMETURE-PISTE-20261031/request-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: FERMETURE-PISTE-20261031
-seq: 4
+seq: 5
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,31 +20,95 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 169-fichiers
-  - id: pr167
+  - id: capacite-recette-navigateur-test
+    classe: VERIFIED
+    valeur: playwright-absent-NEXUS_TEST_URL-absent-recette-navigateur-test.js-degrade
+  - id: recette-guardian-assignation
     classe: DECLARED
-    valeur: ouverte
+    valeur: assignee-a-Guardian-pas-a-Claude
+  - id: aucune-action-production
+    classe: VERIFIED
+    valeur: aucun-commit-migration-ecriture-production-par-ce-reveil
 ---
-# FERMETURE-PISTE-20261031 : request-4 — demande rectificative (quart de service dans le fil)
+# FERMETURE-PISTE-20261031 : request-5 — arrêt sur capacité absente (conditions de decision-3)
 
 BRANCHE_DU_LOT: fermeture-piste-correctif-quart-20261031
 
-Cette demande ne réécrit pas request-3 : elle consigne un correctif ordonné par Frédéric (relais Guardian, #160, 6547510392) à intégrer au lot avant sa clôture.
+## Prise en charge
 
-## Régression constatée en Production (31/10, Guardian #160 6547470929)
-Samedi (horaires étendus), après l'index de fin de quart, l'étape 2 du fil a créé un quart du soir ; les 5 comptages de clôture du pompiste du matin y sont tombés ; il a refait la clôture sur le quart du matin via le menu. Cause : `NEXUS-Inventaire-v1.html` choisissait le quart d'après l'horloge de la station, et n'imposait le quart du service qu'après avoir créé quart, quart-employé, missions et plan.
+decision-3.md (APPROVED_WITH_CONDITIONS, closes: false, en réponse à request-4.md) a été
+prise en charge par ce réveil (`consommer FERMETURE-PISTE-20261031 --prise-en-charge`,
+commit 725acbb9 déjà présent sur le rail). Son `ACTION_NEXT` — matérialiser la décision sur
+le rail avec `outils/handoff.js decision --auteur ChatGPT` — était déjà rempli par la CI
+avant ce réveil (relais stade (a), run 41230479538) : aucun geste supplémentaire n'était dû
+sur ce point.
 
-## Décisions de Frédéric
-1. Aucune réparation des données Production du quart du soir du 31/10.
-2. Correctif dans le lot : le fil ouvre et clôt le quart du service, jamais celui de l'heure.
-3. Guardian fait la recette sur Test ; Frédéric fusionne et clôt le lot.
+## Conditions de decision-3 — aucune n'est à la portée de ce réveil
 
-## Correctif
-PR #167 (base `production`) : https://github.com/vito-sainte-marie/nexus-vito/pull/167 — quart du service imposé dès la résolution du rôle, avant toute création ; inclut dd89e844 (tri de la plage « Fermeture »). Hors fil : inchangé.
+decision-3.md pose quatre conditions cumulatives avant toute fusion, promotion ou clôture :
 
-## Preuve des conditions
-- Épreuves avec mutations : pompiste du matin samedi 14 h 15 → matin ; lundi 13 h → matin ; pompiste du soir 14 h 15 → soir ; ordre avant toute création (4 mutations tuées, 32 au total).
-- `node run-tests.js` : seules les 7 défaillances préexistantes.
-- Recette Test à faire par Guardian : Employé Test B, pompiste du matin, clôture après 13 h (Test n'a que les horaires normaux).
+1. **La recette Guardian sur Test** doit confirmer qu'un pompiste du matin clôturant après
+   13 h reste sur le quart du matin.
+2. Aucune réparation des données Production du 31/10.
+3. Aucune fusion, promotion ou clôture du lot avant cette recette.
+4. La fusion de la PR #167 vers Production reste réservée à Frédéric
+   (`PRODUCTION_FUSION_DEPLOIEMENT_PROMOTION`).
+
+Les conditions 2 à 4 sont des interdictions, déjà tenues par construction : aucune réparation
+Production, aucune fusion, aucune promotion n'a été faite par ce réveil. Seule la condition 1
+appelle un geste, et il n'est pas à la portée de Claude ici, pour deux raisons distinctes et
+chacune suffisante :
+
+### a. La recette est nommément assignée à Guardian, pas à Claude
+
+request-4.md (§ Décisions de Frédéric, point 3) et decision-3.md disent tous deux « Guardian
+fait la recette sur Test ; Frédéric fusionne et clôt le lot » / « La recette Guardian ».
+`docs/guardian/README.md` et `docs/gouvernance/v2/PLAN-RACCORDEMENT-GUARDIAN.md` décrivent
+Guardian comme un rôle distinct de Claude Code, aujourd'hui à l'état de cible (non appliqué),
+sans droit d'écriture sur le dépôt, et dont « un constat n'est jamais une décision ». La
+pré-autorisation 4 de `CLAUDE.md` (« Exécuter la recette navigateur Test et lire la base Test »)
+est une capacité générale de Claude ; elle ne fait pas de Claude un substitut de Guardian sur
+une condition où Frédéric a nommément désigné Guardian comme exécutant.
+
+### b. Même en écartant (a), la capacité technique est structurellement absente sur ce runner
+
+```
+$ node outils/recette-navigateur-test.js
+Recette navigateur Test non exécutée — playwright absent de cet environnement. Non
+bloquant. En CI : npm install --no-save playwright && npx playwright install --with-deps
+chromium.
+```
+
+`NEXUS_TEST_URL` est également absent du runner (vérifié). C'est la même capacité absente
+que celle déjà consignée par request-2.md de ce même lot (ENV-003) : l'outillage que la
+pré-autorisation 4 suppose n'est pas câblé sur ce runner. Installer `playwright` à la volée
+ne lèverait pas l'absence de `NEXUS_TEST_URL`, et contourner cette seconde absence en
+élargissant la lecture d'environnement serait précisément le contournement que GOV-002/la
+condition 4 de decision-1 interdit déjà.
+
+## Preuve des conditions de decision-3
+
+- refs-protegees (VERIFIED) : main=659af077 production=840bb0c6 — inchangées depuis
+  request-4.md, aucun mouvement de ref par ce réveil.
+- capacite-recette-navigateur-test (VERIFIED) : playwright-absent-NEXUS_TEST_URL-absent
+  sur ce runner — recette-navigateur-test.js dégradé, non exécutée.
+- recette-guardian-assignation (DECLARED) : decision-3.md et request-4.md assignent la
+  recette à Guardian, pas à Claude ; `docs/guardian/README.md` confirme Guardian comme
+  rôle distinct, à l'état cible, sans droit d'écriture.
+- aucune-action-production (VERIFIED) : aucun commit, migration ni écriture Production
+  produit par ce réveil ; PR #167 non fusionnée par ce réveil (geste réservé à Frédéric).
+
+## Ce qui n'a pas été fait, et pourquoi c'est correct de s'arrêter ici
+
+Rien n'a été poussé hors de ce dépôt de registre. Aucune tentative de recette Test,
+aucune fusion, aucune promotion, aucune clôture. Le lot reste ouvert, dans l'état où
+decision-3.md l'a laissé, en attente de la recette Guardian puis du geste de Frédéric.
 
 ## À arbitrer
-Le périmètre de request-3 est-il complété par ce correctif, la clôture (CLOSES) restant conditionnée à la recette Guardian et à la fusion de #167 par Frédéric ? Aucune opération en Production.
+
+1. Qui exécute la recette Guardian — un geste humain (Frédéric) ou Guardian lorsqu'il sera
+   câblé — puisque ni ce réveil ni la pré-autorisation 4 de `CLAUDE.md` ne couvrent un
+   substitut par Claude sur cette condition nommément assignée ?
+2. Ce lot reste-t-il en l'état (ATTENTE de la recette Guardian) jusqu'au prochain geste
+   humain, sans nouveau réveil autonome tant que la condition 1 de decision-3 n'est pas
+   levée ?
