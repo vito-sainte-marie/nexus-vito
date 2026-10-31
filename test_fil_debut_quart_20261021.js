@@ -205,7 +205,7 @@ function epreuves(S) {
     assert.ok(c && /if \(enFil\(\)\) \{[\s\S]*?ouvrirCategorie\(prochain\)[\s\S]*?renderFilValidation\(\);[\s\S]*?return;/.test(c[0]), 'le catalogue reste affiché en fil');
     assert.ok(/if \(enFil\(\)\) \{[\s\S]*?else demarrerOuvertureComptage\(\);\s*\} else if \(zonesAutorisees\.length > 1/.test(I), 'l\'init passe encore par le choix de zone / l\'Accueil');
     assert.ok(/\.fil-actif #btnRetourCategories/.test(I), '« Retour aux catégories » non masqué');
-    assert.ok(/if \(quartDuShift\) quartActuel = quartDuShift;/.test(I), 'le quart choisi à la prise de poste n\'est pas repris');
+    assert.ok(/if \(enFil\(\) && quartDuShift\) quartActuel = quartDuShift;/.test(I), 'le quart choisi à la prise de poste n\'est pas repris');
   });
   eprouve('I3 Inventaire : le fil compte les produits de la zone piste du site, sans liste de noms', () => {
     const d = I.indexOf('function produitsZoneOuverturePourQuart()');
