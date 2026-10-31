@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-GAZ-CAGE-20261031
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,84 +20,32 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 169-fichiers
-  - id: code-origin-production
-    classe: DECLARED
-    valeur: lecture-seule
 ---
-# INVENTAIRE-GAZ-CAGE-20261031 : request-1 — repère « cage à gaz », avant tout code
+# INVENTAIRE-GAZ-CAGE-20261031 : request-2 — demande rectificative sur H1
 
-BRANCHE_DU_LOT: inventaire-gaz-cage-20261031
+## Ce qui est rectifié
 
-## Demande de Frédéric (31/10, 15 h 27)
+L'hypothèse H1 (une seconde `ouverture` à 0 écrite par « Identique » ou « Revenir à Identique » à partir d'un stock transmis faux) **n'est pas prouvée par reproduction**. Aucune reproduction n'a été faite : décision de Frédéric du 31/10 à 18 h 42, relayée par Guardian (commentaire 6550119194 sur #160), qui demande de passer directement à la correction.
 
-Orienter le pompiste sur la cage à compter. Le repère dit **où commencer à compter**, jamais **la quantité** : il ne remplace pas le comptage à l'aveugle. Ce lot passe avant INVENTAIRE-CAISSE-RENFORT-20261031.
+## Ce que la correction fait
 
-## Ce que cette demande fait et ne fait pas
+La correction à la source passe par la **suppression, pour l'employé, des chemins qui écrivent `ouverture = valeurTransmise`** : `btnConforme`, `btnAnnulerCorrection`, le bouton Identique de la liste et le raccourci de catégorie. Ces boutons ne sont plus rendus pour l'employé et leurs gestionnaires sont gardés (`comptageAveugleImpose()`), le comptage est à l'aveugle (aucune valeur transmise dans le DOM, ni préremplie).
 
-Aucun code, aucune opération en Production. Elle répond aux trois points exigés par Guardian (comments 6545939347, 6545968413, 6547988142) avant tout développement.
+**Aucun filtrage des zéros à la lecture** : la condition de la decision-1 est tenue.
 
-## 1. Origine de la ligne « 0 » en double pour Gaz 12,5 kg (Production)
+## Épreuve
 
-Constats observés par Guardian : 30/10 6 h 41, lignes 132 et 0 ; 31/10 5 h 52, lignes 118 et 0.
+`test_inventaire_comptage_aveugle_employe_20261031.js` (32 vérifications, 7 mutations détectées) : pour un employé, aucun geste de l'écran n'écrit une `ouverture` qui ne vient pas d'une saisie explicite, en particulier aucune écriture de `valeurTransmise`. Commit 760331da (branche `inventaire-gaz-cage-20261031`, non poussée).
 
-**Prouvé par le code (origin/production, lecture seule)**
+## Suite
 
-- `chargerDerniersStocks` (`NEXUS-Inventaire-v1.html` ~1208) ne lit que les `cloture` valides, triées par `compte_le` décroissant, et garde la première par produit. Elle **ne peut pas** produire une ligne d'ouverture : ce n'est pas la source du doublon.
-- Les lignes d'ouverture viennent de `ecrireOuvertureImmediat` (~750) via `ecrireComptageImmediat` (~639). La clé d'idempotence est `quartId|produitId|type|valeur` : **la valeur fait partie de la clé** (voulu : une vraie correction crée une nouvelle ligne, « le plus récent gagne »). Conséquence : deux écritures avec des valeurs différentes pour le même produit et le même quart donnent **deux lignes**, par construction.
-- `ecrireOuvertureImmediat` s'exécute à chaque geste de validation du produit. Une ligne à 0 apparaît donc si, à un geste de validation, `saisie.compte` valait 0 (champ non encore saisi traité comme 0, ou geste sur la ligne avant la saisie) avant ou après le vrai chiffre.
+Migration du réglage sur Test, repère de cage à la clôture, comptage à l'aveugle : une seule PR, base `production`. Aucune opération en Production. Guardian vérifiera sur Test qu'aucune ligne `ouverture` à 0 non saisie n'apparaît en rejouant « Identique » / « Revenir à Identique » s'ils existent encore.
 
-**Non prouvé (hypothèses)**
+## Preuve des conditions de decision-1
 
-- H1 : une première validation avec `compte = 0`, puis la saisie réelle (132 / 118), ou l'inverse. Les deux lignes coexistent, et la lecture « la plus récente » prend 0 si le 0 est écrit en dernier.
-- H2 : deux lignes produit « Gaz 12,5KG » dans `inventaire_zone_produit` (doublon de catalogue). Le seed n'en crée qu'une.
-
-**Ce qu'il faut pour trancher** : une lecture de Production, **filtrée par site**, de `inventaire_comptages` (Gaz 12,5 kg, quarts des 30 et 31/10 : `compte_le`, `type_comptage`, `statut`, `source`, `employee_id`, `quantite`, `produit_id`) et du nombre de lignes « Gaz 12,5KG » dans `inventaire_zone_produit`. **GO de Frédéric demandé** pour cette lecture seule, sinon je reproduis sur Test (site `nexus-station-test`) en validant Gaz à 0 puis à N, et l'inverse.
-
-**Règle proposée pour choisir le dernier comptage valide** (à confirmer après la lecture)
-
-- ne considérer que `statut = valide` ;
-- écarter les lignes `source = auto` (`transmis`) ;
-- trier par `compte_le` décroissant ;
-- à égalité d'instant, préférer la ligne portant un `employee_id` et une quantité saisie ; un 0 reste admis seulement s'il est la seule ligne saisie, ou la plus récente par un instant distinct ;
-- si la lecture montre que le 0 est un artefact d'écriture (H1), corriger à la source : ne pas écrire de `ouverture` tant que le produit n'est pas réellement compté (`produitEstCompte`), plutôt que filtrer à la lecture.
-
-## 2. Où le repère s'affiche
-
-- **Fin de quart (clôture)** : sur la consigne d'inventaire de clôture (`renderCloture` ~3594, `renderLigneCloture` ~3677), sous le nom du produit Gaz, avant le champ « Stock final ». C'est la demande de Frédéric.
-- **Proposition à Frédéric** : l'afficher aussi **à l'ouverture** (`renderLigneOuverture` ~3236), car le pompiste compte aussi le gaz à l'ouverture. Même module, même texte. À accepter ou refuser.
-- Contraintes : le repère indique le point de départ (par exemple « Commencez par la cage de gauche »), jamais un chiffre. Le tableau, les conditions d'affichage et les tests d'acceptation sont ceux de Guardian (stocks 127, 27, 150, 0 et une livraison enregistrée), repris tels quels.
-
-## 3. Fichiers touchés
-
-- `NEXUS-Inventaire-v1.html` : affichage du repère (clôture, et ouverture si accepté) ; correction du doublon « 0 » selon la cause établie.
-- nouveau module pur `nexus-inventaire-repere-cage.js` et son test `test_inventaire_repere_cage.js` ;
-- `NEXUS-Parametres-Inventaire-v1.html` : saisie du réglage par site.
-
-### Écart avec « pas de migration »
-
-`inventaire_regles_produit.champs_specifiques` est un `text[]` géré par le déclencheur `nexus_inventaire_detecter_champs_specifiques` (migration 20260830211432) : il liste des **noms** de champs surchargés, il ne peut pas porter un texte libre. Le réglage Sainte-Marie ne peut donc pas y vivre. Options :
-
-- A (recommandée) : colonne `jsonb` sur `inventaire_zone_produit` ou table de réglage par site, **migration sur Test d'abord** ;
-- B : un réglage jsonb de station déjà existant, si Guardian en désigne un ;
-- C : constante dans le code (écartée par Guardian).
-
-Arbitrage demandé : A ou B. Si B, aucune migration.
-
-## 4. Données et processus
-
-- Écriture du réglage Sainte-Marie en **Production = GO de Frédéric**. Sur **Test** : pré-autorisation 1.
-- PR de base `production` ; recette Test par Guardian (stocks 127, 27, 150, 0 et une livraison enregistrée) ; fusion par Frédéric.
-- Je lance chaque fichier de test touché isolément et compare `node run-tests.js` aux 7 échecs connus avant d'ouvrir la PR.
-
-## Preuve des conditions
-
-- Lecture du code : `origin/production`, fichiers cités ci-dessus.
-- Aucune lecture ni écriture Production effectuée.
-- Hypothèses H1/H2 : non prouvées, dépendent d'un GO.
-
-## À arbitrer
-
-1. GO de Frédéric pour la lecture seule de Production, filtrée par site, décrite en 1.
-2. Option A ou B pour le stockage du réglage (3).
-3. Affichage aussi à l'ouverture : oui ou non (2).
-4. Validation de ce périmètre comme base du lot, étape 1 = correction du doublon « 0 » + migration du réglage sur Test. Aucun code avant la décision.
+1. **Lecture Production en SELECT, filtrée par site, résultats consignés** : aucune lecture Production n'a été faite par cette session. Frédéric a retiré l'autorisation de toute lecture Production sans son GO (31/10, 17 h 55), puis décidé (18 h 42) de ne pas reproduire H1 avant la correction. H1 et H2 ne sont donc pas départagés par des résultats ; c'est l'objet de la rectification ci-dessus.
+2. **Corriger à la source seulement si H1 est confirmée** : H1 n'est pas confirmée par reproduction. La correction est faite sur décision de Frédéric (18 h 42), et elle supprime pour l'employé les chemins qui écrivent `valeurTransmise` (commit 760331da) ; elle ne dépend d'aucune lecture de données.
+3. **Aucune heuristique de filtrage des zéros** : tenue. Aucune lecture n'écarte de ligne à 0 ; le code ne contient aucun filtre de ce genre.
+4. **Option A, migration et données sur Test uniquement, site_id et RLS préservés** : pas encore faite. La migration du réglage (colonne `jsonb` nullable sur `inventaire_zone_produit`) est l'étape suivante, sur Test seulement, dans la PR unique.
+5. **Repère affiché à la clôture uniquement** : pas encore fait. Étape suivante, même PR ; ni quantité, ni affichage à l'ouverture.
+6. **Aucune mutation, migration, fusion ou promotion Production** : tenue. Aucune opération Production n'a été faite ; la fusion reste à Frédéric.

@@ -957,14 +957,15 @@
       "consomme_le": "2026-10-31T19:33:17.503Z"
     },
     "INVENTAIRE-GAZ-CAGE-20261031": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "8b40f6dcc8f5a93fd0202fe1ef327fe76111e7e9",
-      "pris_en_charge_le": "2026-10-31T20:39:18.022Z",
-      "pris_en_charge_par": "session-locale"
+      "pris_en_charge_par": "session-locale",
+      "consomme_le": "2026-10-31T22:46:38.242Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [
