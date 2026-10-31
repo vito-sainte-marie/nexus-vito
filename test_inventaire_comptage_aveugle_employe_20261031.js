@@ -80,6 +80,26 @@ cas('motif et justification : pilotés par !comptageAveugleImpose()', () => {
   assert.ok((SRC.match(/ecartNonNul && !comptageAveugleImpose\(\)/g) || []).length >= 2);
 });
 
+
+// Aucun geste de l'employé n'écrit le stock transmis comme ouverture (condition de la décision de Frédéric, 31/10 18 h 42).
+function ecritures(source) {
+  const motif = /compte: (valeurTransmise|transmis \? transmis\.quantite : 0)|input\.value = transmis \? transmis\.quantite : 0/g;
+  const res = []; let m;
+  while ((m = motif.exec(source))) res.push(m.index);
+  return res;
+}
+function gardees(source) {
+  // la garde doit se trouver dans le même gestionnaire, c'est-à-dire après le dernier addEventListener('click' qui précède l'écriture
+  return ecritures(source).every((i) => {
+    const debut = source.lastIndexOf("addEventListener('click'", i);
+    return debut >= 0 && /comptageAveugleImpose\(\)/.test(source.slice(debut, i));
+  });
+}
+cas('chaque écriture du transmis est précédée de la garde employé (Identique liste, btnConforme, Revenir à Identique, catégorie)', () => {
+  assert.ok(ecritures(SRC).length >= 4, 'les 4 chemins sont repérés');
+  assert.ok(gardees(SRC));
+});
+
 // Mutations : retirer chaque levier doit faire échouer les assertions correspondantes.
 function mute(nom, de, vers, verif) {
   assert.ok(SRC.includes(de), `ancre de mutation « ${nom} » introuvable`);
@@ -95,5 +115,9 @@ mute('levier réduit au pompiste', "return roleDuJour !== 'manager' && roleDuJou
   (s) => assert.strictEqual(charger(s, 'caissiere').rendreContenuEcart('gaz', 8), ''));
 mute('levier aveugle aussi pour le manager', "return roleDuJour !== 'manager' && roleDuJour !== 'gerant';", 'return true;',
   (s) => assert.ok(charger(s, 'manager').rendreContenuEcart('gaz', 8).includes('Réassort potentiel')));
+
+mute('garde retirée du bouton Identique de la liste', "el.addEventListener('click', () => {\n        if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis\n", "el.addEventListener('click', () => {\n", (x) => assert.ok(gardees(x)));
+mute('garde retirée de btnConforme', "if (btnConforme) btnConforme.addEventListener('click', () => {\n      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis\n", "if (btnConforme) btnConforme.addEventListener('click', () => {\n", (x) => assert.ok(gardees(x)));
+mute('garde retirée de Revenir à Identique', "if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {\n      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis\n", "if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {\n", (x) => assert.ok(gardees(x)));
 
 console.log(`\n${ok} vérifications passées`);

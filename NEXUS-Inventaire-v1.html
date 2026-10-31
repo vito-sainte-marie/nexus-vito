@@ -2779,6 +2779,7 @@
     });
     document.querySelectorAll('.btn-identique').forEach(el => {
       el.addEventListener('click', () => {
+        if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
         const input = document.querySelector(`.produit-input[data-produit="${el.dataset.produit}"]`);
         const transmis = dernierStock[el.dataset.produit];
         input.value = transmis ? transmis.quantite : 0;
@@ -2991,6 +2992,7 @@
 
     const btnConforme = document.getElementById('btnConforme');
     if (btnConforme) btnConforme.addEventListener('click', () => {
+      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
       sauvegarderDraft('ouverture');
       ecrireOuvertureImmediat(p);
@@ -3069,6 +3071,7 @@
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
     if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {
+      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
       // Remet aussi la valeur enregistrée à l'identique du transmis (pas
       // seulement l'affichage) — sinon, en revenant sur un produit déjà
       // corrigé, ce bouton n'aurait visuellement aucun effet.
