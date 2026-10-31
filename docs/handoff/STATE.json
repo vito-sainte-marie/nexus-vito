@@ -937,9 +937,13 @@
       "consomme_le": "2026-10-30T20:58:26.381Z"
     },
     "RELEVES-FIN-QUART-20261030": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "DECISION_CONSOMMEE",
       "derniere_demande": "request-2.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "2cd3f676af4a6b1fd1d014da01fb70e3bef435d0",
+      "consomme_le": "2026-10-31T12:10:22.023Z"
     }
   },
   "artefacts_hors_registre": [
