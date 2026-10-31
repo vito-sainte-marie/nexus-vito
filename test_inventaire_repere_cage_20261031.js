@@ -20,37 +20,61 @@ function extraire(nom, source) {
 let ok = 0;
 function cas(nom, f) { f(); ok++; console.log('  ✓ ' + nom); }
 
-function chargerRepere(source) {
-  const ctx = {};
+function charger(source, reperes) {
+  const ctx = { reperesCage: reperes || {} };
   vm.createContext(ctx);
-  vm.runInContext(extraire('repereCageHtml', source), ctx);
-  return ctx.repereCageHtml;
+  vm.runInContext(['const REPERE_CAGE_VALIDITE_MS = 24 * 3600 * 1000;', extraire('calculerRepereCage', source), extraire('repereCageHtml', source)].join('\n') + '\nthis.calc = calculerRepereCage; this.html = repereCageHtml;', ctx);
+  return ctx;
 }
-const gaz = (r) => ({ id: 'gaz', designation: 'Gaz 12,5 kg', repere_cage: r });
-const repere = chargerRepere(SRC);
+const CFG = { nb_cages: 5, capacite: 30 };
+const T0 = Date.parse('2026-10-31T20:00:00Z');
+const dernier = (q, dt = 3600e3) => ({ quantite: q, compte_le: new Date(T0 - dt).toISOString() });
+const calc = (src, q, o = {}) => charger(src).calc(o.cfg === undefined ? CFG : o.cfg, o.d === undefined ? dernier(q, o.dt) : o.d, o.depuis, T0);
+const gaz = { id: 'gaz', designation: 'Gaz 12,5 kg', repere_cage: CFG };
+const rendu = (src, q, extra) => { const r = calc(src, q, extra); return charger(src, r ? { gaz: r } : {}).html(gaz); };
 
-cas('repère valide : passé, daté, texte échappé', () => {
-  const h = repere(gaz({ texte: 'on a commencé par la rangée du fond', date: '2026-10-30' }));
-  assert.ok(h.includes('noté le 30/10/2026'));
-  assert.ok(h.includes('on a commencé par la rangée du fond'));
-  assert.ok(!repere(gaz({ texte: '<b>x</b>', date: '2026-10-30' })).includes('<b>'));
+cas('cage déduite du dernier comptage, bornes comprises', () => {
+  const att = { 150: 1, 151: null, 121: 1, 120: 2, 91: 2, 90: 3, 61: 3, 60: 4, 31: 4, 30: 5, 1: 5, 127: 1, 27: 5 };
+  for (const [q, cage] of Object.entries(att)) {
+    const r = calc(SRC, Number(q));
+    if (cage === null) assert.strictEqual(r, null, `q=${q}`); else assert.strictEqual(r.cage, cage, `q=${q}`);
+  }
+  assert.strictEqual(calc(SRC, 150).plein, true);
+  assert.strictEqual(calc(SRC, 149).plein, false);
+  assert.strictEqual(calc(SRC, 0).etat, 'epuise');
+  assert.strictEqual(calc(SRC, -1), null);
 });
-cas('aucun repère sans réglage, sans date valide, ou avec un chiffre', () => {
-  assert.strictEqual(repere(gaz(null)), '');
-  assert.strictEqual(repere({ id: 'x' }), '');
-  assert.strictEqual(repere(gaz({ texte: 'fond', date: 'hier' })), '');
-  assert.strictEqual(repere(gaz({ texte: 'fond', date: '' })), '');
-  assert.strictEqual(repere(gaz({ texte: 'il restait 27 bouteilles', date: '2026-10-30' })), '');
-  assert.strictEqual(repere(gaz({ texte: '  ', date: '2026-10-30' })), '');
+cas('textes rendus, sans aucune quantité', () => {
+  const h = rendu(SRC, 127);
+  assert.ok(/dernier comptage \(.+\), votre collègue était à la cage 1\./.test(h), h);
+  assert.ok(!h.includes('127'));
+  assert.ok(rendu(SRC, 27).includes('cage 5'));
+  assert.ok(!rendu(SRC, 27).includes('27'));
+  assert.ok(rendu(SRC, 150).includes('la vente commence à la cage 1'));
+  assert.ok(rendu(SRC, 0).includes('Stock épuisé au dernier comptage'));
 });
-cas('le repère n\'est branché qu\'à la clôture', () => {
-  const appels = SRC.split('repereCageHtml(').length - 1;
-  assert.strictEqual(appels, 2, 'définition + un seul appel');
-  const ligne = extraire('renderLigneCloture', SRC);
-  assert.ok(ligne.includes('repereCageHtml(p)'));
+cas('abstention : comptage ancien, livraison, correction, brouillon, réglage absent', () => {
+  const MSG = 'Aucun repère de cage disponible. Effectuez le comptage complet.';
+  assert.ok(rendu(SRC, 127, { dt: 25 * 3600e3 }).includes(MSG));
+  assert.ok(rendu(SRC, 127, { dt: 23 * 3600e3 }).includes('cage 1'));
+  assert.ok(rendu(SRC, 127, { depuis: { mouvements: 1, corrections: 0 } }).includes(MSG));
+  assert.ok(rendu(SRC, 127, { depuis: { mouvements: 0, corrections: 1 } }).includes(MSG));
+  assert.ok(rendu(SRC, 127, { depuis: { mouvements: 0, corrections: 0 } }).includes('cage 1'));
+  assert.ok(rendu(SRC, 127, { d: null }).includes(MSG));
+  assert.ok(rendu(SRC, 127, { cfg: null }).includes(MSG));
+  assert.strictEqual(calc(SRC, 127, { cfg: { nb_cages: 0, capacite: 30 } }), null);
+  assert.strictEqual(calc(SRC, 127, { cfg: { texte: 'x', date: '2026-10-31' } }), null);
+  assert.strictEqual(charger(SRC).html({ id: 'x', repere_cage: null }), '');
+  assert.strictEqual(charger(SRC).html({ id: 'x' }), '');
+});
+cas('le repère n\'est branché qu\'à la clôture et lit seulement des comptages validés', () => {
+  assert.strictEqual(SRC.split('repereCageHtml(').length - 1, 2, 'définition + un seul appel');
+  assert.ok(extraire('renderLigneCloture', SRC).includes('repereCageHtml(p)'));
   for (const n of ['renderCarrousel', 'renderCarrouselProduction', 'renderLigneOuverture']) {
     if (SRC.includes(`function ${n}(`)) assert.ok(!extraire(n, SRC).includes('repereCageHtml'), n);
   }
+  assert.ok(extraire('demarrerCloture', SRC).includes('chargerReperesCage(produitsZone)'));
+  assert.ok(extraire('chargerDerniersStocks', SRC).includes(".eq('statut', 'valide')"));
 });
 
 // HTML rendu pour un employé : carrousel d'ouverture avec un stock transmis connu.
@@ -96,9 +120,12 @@ function mute(nom, de, vers, verif) {
   ok++; console.log('  ✓ mutation détectée : ' + nom);
 }
 mute('employé démasqué', 'if (comptageAveugleImpose()) return true;', '', (s) => assert.ok(!rendreCarrousel(s, 'pompiste', TRANSMIS).includes(String(TRANSMIS))));
-mute('repère avec chiffres admis', '|| /\\d/.test(r.texte)', '', (s) => assert.strictEqual(chargerRepere(s)(gaz({ texte: 'il restait 27', date: '2026-10-30' })), ''));
-mute('repère sans date exigée', "if (!m) return '';", '', (s) => assert.strictEqual(chargerRepere(s)(gaz({ texte: 'fond', date: 'hier' })), ''));
-mute('repère non échappé', "${esc(r.texte.trim())}", '${r.texte.trim()}', (s) => assert.ok(!chargerRepere(s)(gaz({ texte: '<b>x</b>', date: '2026-10-30' })).includes('<b>')));
+mute('cage inversée', 'config.nb_cages - Math.ceil(q / config.capacite) + 1', 'Math.ceil(q / config.capacite)', (s) => assert.strictEqual(charger(s).calc(CFG, dernier(127), undefined, T0).cage, 1));
+mute('arrondi bas', 'Math.ceil(q / config.capacite)', 'Math.floor(q / config.capacite)', (s) => assert.strictEqual(charger(s).calc(CFG, dernier(31), undefined, T0).cage, 4));
+mute('au-delà de la capacité admis', 'q > config.nb_cages * config.capacite) return null', 'false) return null', (s) => assert.strictEqual(charger(s).calc(CFG, dernier(151), undefined, T0), null));
+mute('comptage ancien admis', ' || maintenant - t > REPERE_CAGE_VALIDITE_MS', '', (s) => assert.strictEqual(charger(s).calc(CFG, dernier(127, 25 * 3600e3), undefined, T0), null));
+mute('livraison depuis ignorée', 'depuisComptage.mouvements || depuisComptage.corrections', 'false', (s) => assert.strictEqual(charger(s).calc(CFG, dernier(127), { mouvements: 1 }, T0), null));
+mute('quantité dans le texte', "`Lors du dernier comptage (${quand}), votre collègue était à la cage ${cage}.`", "`Lors du dernier comptage (${quand}), ${r.quantite} à la cage ${cage}.`", (s) => assert.ok(!/127/.test(charger(s, { gaz: Object.assign(charger(s).calc(CFG, dernier(127), undefined, T0), { quantite: 127 }) }).html(gaz))));
 mute('repère branché au carrousel', "const transmis = dernierStock[p.id];\n    const masque", "const transmis = dernierStock[p.id]; repereCageHtml(p);\n    const masque", (s) => assert.strictEqual(s.split('repereCageHtml(').length - 1, 2));
 
 console.log(`\n${ok} vérifications passées`);

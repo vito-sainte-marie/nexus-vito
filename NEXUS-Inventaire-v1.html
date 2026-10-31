@@ -1215,7 +1215,7 @@
     if (error) { console.error('Derniers stocks:', error); return {}; }
     const map = {};
     for (const row of (data || [])) {
-      if (!(row.produit_id in map)) map[row.produit_id] = { quantite: row.quantite, comptage_id: row.id };
+      if (!(row.produit_id in map)) map[row.produit_id] = { quantite: row.quantite, comptage_id: row.id, compte_le: row.compte_le };
     }
     return map;
   }
@@ -3608,6 +3608,7 @@
     if (!planQuartActif) await chargerEtAppliquerPlanQuart();
     if (!produitsZone.length) produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
     modeJaugeageActif = await chargerModeJaugeageActif();
+    await chargerReperesCage(produitsZone);
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
     // demande de Frédéric) — reprend mouvements + comptages déjà saisis plutôt
     // que de repartir de zéro après un retour arrière accidentel.
@@ -3700,16 +3701,54 @@
     document.getElementById('btnAnnulerCloture').addEventListener('click', enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
   }
 
-  // Repère de cage (INVENTAIRE-GAZ-CAGE-20261031) : dit par où commencer à compter,
-  // jamais combien. Affiché à la clôture seulement, au passé, daté, sans aucun chiffre
-  // dans le texte (un texte contenant un chiffre est ignoré : il pourrait cacher une quantité).
+  // Repère de cage (INVENTAIRE-GAZ-CAGE-20261031) : dit par où commencer à compter, jamais combien.
+  // Calculé à la clôture depuis le dernier comptage validé et le réglage du produit
+  // repere_cage = { nb_cages, capacite } (cages numérotées de 1 = la première vendue). La quantité ne
+  // sort jamais de cette fonction : seul un numéro de cage ou un état est rendu. Au moindre doute
+  // (comptage ancien, livraison ou correction depuis, réglage absent ou invalide), aucun repère.
+  const REPERE_CAGE_VALIDITE_MS = 24 * 3600 * 1000;
+  function calculerRepereCage(config, dernier, depuisComptage, maintenant) {
+    if (!config || !Number.isInteger(config.nb_cages) || !Number.isInteger(config.capacite) || config.nb_cages < 1 || config.capacite < 1) return null;
+    if (!dernier || typeof dernier.quantite !== 'number' || !isFinite(dernier.quantite) || !dernier.compte_le) return null;
+    const t = Date.parse(dernier.compte_le);
+    if (!isFinite(t) || maintenant - t < 0 || maintenant - t > REPERE_CAGE_VALIDITE_MS) return null;
+    if (depuisComptage && (depuisComptage.mouvements || depuisComptage.corrections)) return null;
+    const q = dernier.quantite;
+    if (q < 0 || q > config.nb_cages * config.capacite) return null;
+    const base = { compte_le: dernier.compte_le };
+    if (q === 0) return Object.assign(base, { etat: 'epuise' });
+    return Object.assign(base, { etat: 'cage', cage: config.nb_cages - Math.ceil(q / config.capacite) + 1, plein: q === config.nb_cages * config.capacite });
+  }
   function repereCageHtml(p) {
-    const r = p && p.repere_cage;
-    if (!r || typeof r.texte !== 'string' || !r.texte.trim() || /\d/.test(r.texte)) return '';
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.date || '');
-    if (!m) return '';
-    const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    return `<div class="repere-cage">📍 Repère de cage noté le ${m[3]}/${m[2]}/${m[1]} : ${esc(r.texte.trim())}</div>`;
+    if (!p || !p.repere_cage) return '';
+    const r = reperesCage[p.id];
+    const wrap = (t) => `<div class="repere-cage">📍 ${t}</div>`;
+    if (!r) return wrap('Aucun repère de cage disponible. Effectuez le comptage complet.');
+    const d = new Date(r.compte_le);
+    const quand = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ', ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ');
+    if (r.etat === 'epuise') return wrap(`Stock épuisé au dernier comptage (${quand}).`);
+    const cage = Number(r.cage);
+    return wrap(`Lors du dernier comptage (${quand}), votre collègue était à la cage ${cage}.` + (r.plein ? ' Toutes les cages étaient pleines : la vente commence à la cage 1.' : ''));
+  }
+  let reperesCage = {};
+  async function chargerReperesCage(produits) {
+    reperesCage = {};
+    const avecReglage = (produits || []).filter(p => p.repere_cage);
+    if (!avecReglage.length) return;
+    const ids = avecReglage.map(p => p.id);
+    const dernier = await chargerDerniersStocks(ids);
+    const maintenant = Date.now();
+    for (const p of avecReglage) {
+      const d = dernier[p.id];
+      if (!d) continue;
+      const [mv, co] = await Promise.all([
+        nexusClient.from('inventaire_mouvements').select('id', { count: 'exact', head: true }).eq('produit_id', p.id).gt('cree_le', d.compte_le),
+        nexusClient.from('inventaire_corrections').select('id', { count: 'exact', head: true }).eq('produit_id', p.id).gt('created_at', d.compte_le),
+      ]);
+      if (mv.error || co.error) continue; // lecture en échec : pas de repère
+      const r = calculerRepereCage(p.repere_cage, d, { mouvements: mv.count, corrections: co.count }, maintenant);
+      if (r) reperesCage[p.id] = r;
+    }
   }
 
   function renderLigneCloture(p, desactive) {
