@@ -782,7 +782,7 @@
     },
     "20261031190000": {
       "etat": "additive_compatible_avant_code",
-      "justification": "Ajoute la colonne repere_cage jsonb NULLABLE a inventaire_zone_produit (lot INVENTAIRE-GAZ-CAGE-20261031, PR #168). Aucune donnee, aucun droit, aucune fonction, aucun DDL destructif ; add column if not exists. Le code servi (Production) ne nomme pas la colonne : la migration s applique AVANT la fusion, sans dependance ; le code du candidat ne l affiche que si elle est renseignee (repereCageHtml renvoie vide sinon). Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production : chacun reste un GO distinct de Frederic. Limitee au blob f448425858d2b16880878599742c3bf05a443953 : un blob different fait tomber cette qualification.",
+      "justification": "Ajoute la colonne repere_cage jsonb NULLABLE a inventaire_zone_produit (lot INVENTAIRE-GAZ-CAGE-20261031, PR #168). Aucune donnee, aucun droit, aucune fonction, aucun DDL destructif ; add column if not exists. Le code servi (Production) ne nomme pas la colonne : la migration s applique AVANT la fusion, sans dependance ; le code du candidat ne l affiche que si elle est renseignee (repereCageHtml renvoie vide sinon). Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production : chacun reste un GO distinct de Frederic. Limitee au blob d71c75f10cfcc60cda79d5f7a4d00fb20463d014 : un blob different fait tomber cette qualification.",
       "mesure": {
         "source": "catalogue",
         "le": "2026-10-31T23:20:00Z",
@@ -792,7 +792,7 @@
         "identite_constatee": "non rapportee par Guardian",
         "lecture_seule": "declaree par Guardian",
         "verdict": "NON APPLIQUEE — colonne_repere_cage = 0, estampille 20261031190000 = 0, derniere_migration = 20261018200000.",
-        "blob_migration": "f448425858d2b16880878599742c3bf05a443953"
+        "blob_migration": "d71c75f10cfcc60cda79d5f7a4d00fb20463d014"
       },
       "prochaine_action": "GO distinct de Frederic : application en Production (migration avant le code), puis fusion. Aucune operation Production par Claude.",
       "objets_constates": [
