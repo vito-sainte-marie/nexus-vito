@@ -133,6 +133,7 @@
      boutique étant rattrapée automatiquement en fin d'inventaire (voir
      renderFinalisationDoubleLieu). Ce badge signale juste qu'une deuxième
      saisie suivra plus tard. */
+  .repere-cage{font-size:12px; color:var(--cyan); margin:4px 0 6px;}
   .badge-double-lieu{display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:8px; padding:3px 7px; margin-left:6px; white-space:nowrap;}
   .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
   .ecart-ok{color:var(--green);}
@@ -1214,7 +1215,7 @@
     if (error) { console.error('Derniers stocks:', error); return {}; }
     const map = {};
     for (const row of (data || [])) {
-      if (!(row.produit_id in map)) map[row.produit_id] = { quantite: row.quantite, comptage_id: row.id };
+      if (!(row.produit_id in map)) map[row.produit_id] = { quantite: row.quantite, comptage_id: row.id, compte_le: row.compte_le };
     }
     return map;
   }
@@ -1599,7 +1600,18 @@
     return liste.filter(p => !p.inventaire_categories || p.inventaire_categories.nom !== JAUGEAGE_NOM);
   }
 
+  // Comptage toujours à l'aveugle pour un employé (31/10/2026, lot
+  // INVENTAIRE-GAZ-CAGE-20261031, décision de Frédéric) : le pompiste ne voit
+  // jamais le stock transmis par le quart précédent — ni valeur, ni bouton
+  // « Identique », ni champ prérempli, ni écart, ni motif. Seuls le manager et
+  // le gérant comptent à découvert. L'écart reste calculé en mémoire, sur la
+  // vraie valeur transmise, pour le rapprochement côté manager.
+  function comptageAveugleImpose() {
+    return roleDuJour !== 'manager' && roleDuJour !== 'gerant';
+  }
+
   function estMasquePourProduit(produit) {
+    if (comptageAveugleImpose()) return true;
     // Comptage aveugle par défaut (17/08/2026, Sprint 1 — cahier Inventaire
     // 2.0, INV2-01) : tout produit sélectionné par NEXUS pour le plan du
     // quart est masqué par construction, sans qu'un manager ait besoin de
@@ -2246,6 +2258,7 @@
   // couleur (conforme / à surveiller / à vérifier) restent inchangés, seul
   // le libellé change — un écart important reste visuellement signalé.
   function classeEcartOuverture(ecart) {
+    if (comptageAveugleImpose()) return 'ecart-tag';
     return 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
   }
   // Qualification simple de l'écart (04/08/2026, audit fonctionnel §5) : dès
@@ -2313,6 +2326,7 @@
   // pertinent (ecart > 0 uniquement : une vente potentielle ne se
   // "déclare" pas, elle est déjà tracée côté caisse/Decenium).
   function rendreContenuEcart(produitId, ecart) {
+    if (comptageAveugleImpose()) return '';
     if (ecart === 0) return 'Conforme';
     if (ecart < 0) return texteEcartOuverture(ecart);
     if (livraisonRapideDeclaree(produitId, ecart)) {
@@ -2742,7 +2756,7 @@
       <div class="card">
         ${groupe.items.map(p => renderLigneOuverture(p)).join('')}
       </div>
-      <button class="btn-primary" id="btnCategorieConforme">Valider cette catégorie conforme</button>
+      <button class="btn-primary" id="btnCategorieConforme">${comptageAveugleImpose() ? 'Catégorie comptée' : 'Valider cette catégorie conforme'}</button>
       <button class="btn-text" id="btnRetourCategories">← Retour aux catégories</button>
     `;
 
@@ -2766,6 +2780,7 @@
     });
     document.querySelectorAll('.btn-identique').forEach(el => {
       el.addEventListener('click', () => {
+        if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
         const input = document.querySelector(`.produit-input[data-produit="${el.dataset.produit}"]`);
         const transmis = dernierStock[el.dataset.produit];
         input.value = transmis ? transmis.quantite : 0;
@@ -2782,6 +2797,13 @@
       });
     });
     document.getElementById('btnCategorieConforme').addEventListener('click', async () => {
+      // Comptage à l'aveugle : aucun produit n'est jamais présumé conforme au
+      // stock transmis. Le bouton ne fait qu'avancer, une fois chaque produit compté.
+      if (comptageAveugleImpose()) {
+        if (groupe.items.some(p => !produitEstCompte(p))) { alert('Comptez chaque produit de la catégorie avant de continuer.'); return; }
+        ouvrirProchaineCategorie();
+        return;
+      }
       // Comptage en deux lieux (05/08/2026) : ces produits doivent toujours
       // être physiquement comptés au dépôt ET en boutique — jamais présumés
       // "identiques" en un clic comme les autres, même via ce raccourci.
@@ -2871,8 +2893,9 @@
     const ecartNonNul = Math.abs(ecart) > 0.001;
     ecartDiv.className = classeEcartOuverture(ecart);
     ecartDiv.innerHTML = rendreContenuEcart(produitId, ecart);
-    if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
-    if (motifSelect) motifSelect.style.display = ecartNonNul ? '' : 'none';
+    const montrerMotif = ecartNonNul && !comptageAveugleImpose();
+    if (justifInput) justifInput.style.display = montrerMotif ? '' : 'none';
+    if (motifSelect) motifSelect.style.display = montrerMotif ? '' : 'none';
     comptagesSaisie[produitId] = {
       compte: val, ecartNonNul,
       justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : ''),
@@ -2957,8 +2980,8 @@
             ${calcBarreHtml()}
           </div>
           <div class="ecart-tag" id="ecartCarrousel"></div>
-          ${renderSelectMotif('Carrousel', dejaSaisi && dejaSaisi.motifEcart ? dejaSaisi.motifEcart : '', dejaSaisi && dejaSaisi.ecartNonNul).replace('data-produit-motif="Carrousel"', 'id="motifCarrousel"')}
-          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Commentaire (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul ? '' : 'display:none;'}">
+          ${renderSelectMotif('Carrousel', dejaSaisi && dejaSaisi.motifEcart ? dejaSaisi.motifEcart : '', dejaSaisi && dejaSaisi.ecartNonNul && !masque).replace('data-produit-motif="Carrousel"', 'id="motifCarrousel"')}
+          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Commentaire (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul && !masque ? '' : 'display:none;'}">
           <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
           ${!masque && !pasDHistorique ? `<button class="btn-text" id="btnAnnulerCorrection">← Revenir à « Identique »</button>` : ''}
         `}
@@ -2970,6 +2993,7 @@
 
     const btnConforme = document.getElementById('btnConforme');
     if (btnConforme) btnConforme.addEventListener('click', () => {
+      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
       sauvegarderDraft('ouverture');
       ecrireOuvertureImmediat(p);
@@ -3048,6 +3072,7 @@
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
     if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {
+      if (comptageAveugleImpose()) return; // l'employé n'écrit jamais le stock transmis
       // Remet aussi la valeur enregistrée à l'identique du transmis (pas
       // seulement l'affichage) — sinon, en revenant sur un produit déjà
       // corrigé, ce bouton n'aurait visuellement aucun effet.
@@ -3153,8 +3178,9 @@
     const ecartNonNul = Math.abs(ecart) > 0.001;
     ecartDiv.className = classeEcartOuverture(ecart);
     ecartDiv.innerHTML = rendreContenuEcart(produitId, ecart);
-    if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
-    if (motifSelect) motifSelect.style.display = ecartNonNul ? '' : 'none';
+    const montrerMotif = ecartNonNul && !comptageAveugleImpose();
+    if (justifInput) justifInput.style.display = montrerMotif ? '' : 'none';
+    if (motifSelect) motifSelect.style.display = montrerMotif ? '' : 'none';
   }
 
   // Équivalent de majCarrousel pour un produit compté en deux lieux
@@ -3274,12 +3300,12 @@
                    placeholder="${estComptageDeuxLieuxEmploye(p) ? 'Comptage dépôt' : (estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Votre comptage')}" value="${valeurAffichee}" onfocus="this.select()">
             ${calcBarreHtml()}
           </div>
-          ${estComptageDeuxLieuxEmploye(p) ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
+          ${(estComptageDeuxLieuxEmploye(p) || masque) ? '' : `<button class="btn-identique" data-produit="${p.id}">Identique</button>`}
         </div>
         ${estComptageDeuxLieuxEmploye(p) ? '' : `
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
-        ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul)}
-        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">`}
+        ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul && !masque)}
+        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul && !masque ? '' : 'display:none;'}">`}
       </div>
     `;
   }
@@ -3582,6 +3608,7 @@
     if (!planQuartActif) await chargerEtAppliquerPlanQuart();
     if (!produitsZone.length) produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
     modeJaugeageActif = await chargerModeJaugeageActif();
+    await chargerReperesCage(produitsZone);
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
     // demande de Frédéric) — reprend mouvements + comptages déjà saisis plutôt
     // que de repartir de zéro après un retour arrière accidentel.
@@ -3674,6 +3701,66 @@
     document.getElementById('btnAnnulerCloture').addEventListener('click', enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
   }
 
+  // Repère de cage (INVENTAIRE-GAZ-CAGE-20261031) : dit par où commencer à compter, jamais combien.
+  // Calculé à la clôture depuis le dernier comptage validé et le réglage du produit
+  // repere_cage = { nb_cages, capacite } (cages numérotées de 1 = la première vendue). La quantité ne
+  // sort jamais de cette fonction : seul un numéro de cage ou un état est rendu. Au moindre doute
+  // (comptage ancien, livraison ou correction depuis, réglage absent ou invalide), aucun repère.
+  const REPERE_CAGE_VALIDITE_MS = 24 * 3600 * 1000;
+  function calculerRepereCage(config, dernier, depuisComptage, maintenant) {
+    if (!config || !Number.isInteger(config.nb_cages) || !Number.isInteger(config.capacite) || config.nb_cages < 1 || config.capacite < 1) return null;
+    if (!dernier || typeof dernier.quantite !== 'number' || !isFinite(dernier.quantite) || !dernier.compte_le) return null;
+    const t = Date.parse(dernier.compte_le);
+    if (!isFinite(t) || maintenant - t < 0 || maintenant - t > REPERE_CAGE_VALIDITE_MS) return null;
+    if (depuisComptage && (depuisComptage.mouvements || depuisComptage.corrections)) return null;
+    const q = dernier.quantite;
+    if (q < 0 || q > config.nb_cages * config.capacite) return null;
+    const base = { compte_le: dernier.compte_le };
+    if (q === 0) return Object.assign(base, { etat: 'epuise' });
+    return Object.assign(base, { etat: 'cage', cage: config.nb_cages - Math.ceil(q / config.capacite) + 1, plein: q === config.nb_cages * config.capacite });
+  }
+  function repereCageHtml(p) {
+    if (!p || !p.repere_cage) return '';
+    const r = reperesCage[p.id];
+    const wrap = (t) => `<div class="repere-cage">📍 ${t}</div>`;
+    if (!r) return wrap('Aucun repère de cage disponible. Effectuez le comptage complet.');
+    const d = new Date(r.compte_le);
+    const quand = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ', ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ');
+    if (r.etat === 'epuise') return wrap(`Stock épuisé au dernier comptage (${quand}).`);
+    const cage = Number(r.cage);
+    return wrap(`Lors du dernier comptage (${quand}), votre collègue était à la cage ${cage}.` + (r.plein ? ' Toutes les cages étaient pleines : la vente commence à la cage 1.' : ''));
+  }
+  let reperesCage = {};
+  async function chargerReperesCage(produits) {
+    reperesCage = {};
+    const avecReglage = (produits || []).filter(p => p.repere_cage);
+    if (!avecReglage.length) return;
+    const ids = avecReglage.map(p => p.id);
+    // Dernier comptage manuel validé, ouverture ou clôture : à la fermeture, c'est
+    // l'ouverture du même quart. Les lignes `transmis` automatiques sont exclues.
+    const { data: lignes, error: errC } = await nexusClient
+      .from('inventaire_comptages').select('id, produit_id, quantite, compte_le')
+      .in('produit_id', ids).in('type_comptage', ['ouverture', 'cloture']).eq('statut', 'valide').eq('source', 'manuel')
+      .order('compte_le', { ascending: false });
+    if (errC) { console.error('Repères de cage:', errC); return; }
+    const dernier = {};
+    for (const row of (lignes || [])) {
+      if (!(row.produit_id in dernier)) dernier[row.produit_id] = { quantite: row.quantite, comptage_id: row.id, compte_le: row.compte_le };
+    }
+    const maintenant = Date.now();
+    for (const p of avecReglage) {
+      const d = dernier[p.id];
+      if (!d) continue;
+      const [mv, co] = await Promise.all([
+        nexusClient.from('inventaire_mouvements').select('id', { count: 'exact', head: true }).eq('produit_id', p.id).gt('cree_le', d.compte_le),
+        nexusClient.from('inventaire_corrections').select('id', { count: 'exact', head: true }).eq('produit_id', p.id).gt('created_at', d.compte_le),
+      ]);
+      if (mv.error || co.error) continue; // lecture en échec : pas de repère
+      const r = calculerRepereCage(p.repere_cage, d, { mouvements: mv.count, corrections: co.count }, maintenant);
+      if (r) reperesCage[p.id] = r;
+    }
+  }
+
   function renderLigneCloture(p, desactive) {
     const saisie = comptagesSaisie[p.id];
     const valeurAffichee = estComptageDeuxLieuxEmploye(p) && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
@@ -3684,6 +3771,7 @@
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
           ${estComptageDeuxLieuxEmploye(p) ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : (estCigaretteCaisseEmploye(p) ? '<span class="badge-double-lieu">📍 Caisse uniquement — bureau géré par le manager</span>' : '')}
         </div>
+        ${repereCageHtml(p)}
         <div class="produit-controls">
           <div class="champ-comptage">
             <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
