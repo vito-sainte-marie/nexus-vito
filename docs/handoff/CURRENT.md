@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 2
+seq: 3
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,7 +20,7 @@ preuves:
     classe: VERIFIED
     valeur: 172-fichiers
 ---
-# INVENTAIRE-CAISSE-RENFORT-20261102 : request-2 — décisions de Frédéric du 02/11 (plus de feuille, démarrage en pilote) et cadrage de L1
+# INVENTAIRE-CAISSE-RENFORT-20261102 : request-3 — conception de l'activation par employée (L1 étape 2) et deux pilotes
 
 ## Branche du lot
 
@@ -28,43 +28,37 @@ BRANCHE_DU_LOT: handoff-continuite-20260920
 
 ## Objet
 
-La decision-1 (APPROVED_WITH_CONDITIONS, `closes: false`, 3c4fbcbe) est prise en charge (33db955d). Deux décisions de Frédéric, relayées par Guardian sur #160, la modifient ; elles sont portées ici pour arbitrage avant d'ouvrir L1.
+La decision-2 (APPROVED_WITH_CONDITIONS, `closes: false`, f8bae7e8) est prise en charge (9ae10401). L'étape 1 de L1 (inventaire des mécanismes existants) est faite et rapportée sur #160 (6581519666). Guardian a répondu (6582250527) avec la mesure de la RLS de `station_config` et une précision de Frédéric (6581386802). Cette request porte la conception de l'étape 2 pour arbitrage, avant tout code.
 
-## Décisions de Frédéric rendues (citées)
+## Preuve des conditions de decision-2
 
-1. **Plus de feuille** (#160, 6581332505, chat 02/11 11:41) : elle **remplace** la décision 1 du cadrage 6580639504. Papier : arrêt dès la bascule de chaque famille dans NEXUS, pas de 7 jours en parallèle. La porte (b) « NEXUS d'abord, papier ensuite » de decision-1 §4 devient sans objet. La consigne « à partir de la date de bascule d'une famille, on ne la compte plus que dans NEXUS » est décidée par Frédéric ; sa communication se fait à la mise en Production de chaque lot, la date de bascule étant fixée avec lui à ce moment-là.
-2. **Démarrage en pilote** (#160, 6581363357, chat 02/11 11:43) : la tâche est confiée à **une seule employée** en caisse et en renfort, pas à tout le personnel. Guardian demande à Frédéric si c'est une personne pour les deux rôles ou une par rôle ; la réponse sera postée sur #160.
+- Pilote unique, activation refusée par défaut, côté serveur, limitée par site et employée : conçue ci-dessous, pas codée.
+- Aucun renfort conclu, aucun élargissement, aucune communication terrain.
+- Aucune table, colonne, policy, migration ni grant touchés ; aucune lecture ni écriture Production par l'exécutant (la mesure de RLS a été faite par Guardian sous GO de lecture de Frédéric).
+- Étapes 3 et 4 (code sur Test, épreuves pilote / non-pilote / isolation intersite) : non commencées.
 
-Le reste de decision-1 est inchangé (matrice, N = 7 jours puis 3, fenêtres, 8 et 6 références, tolérance nulle, recomptage à l'aveugle, ordre des lots, portes SECURITE_RLS_SITE_ID et PRODUCTION_*).
+## Faits nouveaux
 
-## Preuve des conditions de decision-1
+1. **RLS de `station_config`** (mesurée par Guardian, Production et Test, mêmes policies) : SELECT limité à `site = current_employee_site_id()`, donc toute employée authentifiée du site lit la ligne ; INSERT et UPDATE réservés à `manager` et `gerant` du site. L'option « clé additive » ne touche ni table, ni colonne, ni policy, ni grant : pas de porte.
+2. **Deux pilotes** (Frédéric, 6581386802) : une en caisse, une en renfort. decision-2 n'autorise L1 que pour la pilote caisse ; le renfort suit en L3.
 
-Aucune condition n'est encore mise à l'épreuve : le lot n'a produit que de la conception, aucun code.
+## Conception proposée
 
-- Matrice, N = 7 puis 3, fenêtres 9 h 30–11 h 30 et 14 h 30–16 h 30, 8 références renfort et 6 en repli : reprises sans changement ci-dessus (« Le reste de decision-1 est inchangé »).
-- Import Decenium éprouvé sur Test avant L2b : non commencé ; L2a précède L2b dans l'ordre retenu, rien n'est livré en L2b.
-- Alertes héritées classées avant la vue manager : non commencé ; L4b n'est pas ouvert.
-- Ordre « NEXUS d'abord » et nouvelles consignes terrain : l'ordre est abandonné par Frédéric (6581332505) ; la consigne « on ne compte plus que dans NEXUS après la bascule » est une décision de Frédéric, non communiquée aux employés par l'exécutant.
-- Défaut A sous SECURITE_RLS_SITE_ID : aucune policy touchée ; L4a non ouvert.
-- Aucune opération Production : aucune lecture ni écriture Production par l'exécutant depuis decision-1 (commits du rail 33db955d seulement, CI verte).
-
-## Conséquences à faire arbitrer (L1)
-
-1. **Activation par employée**, pas pour tout le site : les missions caisse / renfort et le fil caisse ne s'ouvrent que pour l'employée pilote ; les autres ne voient rien de nouveau. Proposition de l'exécutant : un réglage par employée dans Paramètres, posé par le manager, lu côté serveur ; l'employée non pilote garde exactement l'écran actuel. Si ce réglage exige une table, une colonne, une policy ou un grant, la partie base de données passe par SECURITE_RLS_SITE_ID avant toute migration.
-2. **Papier** : l'arrêt dès la bascule vaut pour l'employée pilote ; les autres continuent la feuille jusqu'à leur bascule.
-3. **Contrôle pendant le pilote** : les frontières de quart ne sont pas toutes comptées dans NEXUS. Le contrôle par cycle ne vaut que pour les cycles bornés par deux comptages NEXUS ; les autres restent « non calculable » (règle 3 de decision-1), jamais une anomalie imputée à la pilote.
-4. **Mesure de réussite du pilote**, à proposer par l'arbitre : par exemple taux de missions faites, temps de comptage, écarts confirmés contre erreurs de saisie, sur 7 à 14 jours, avant d'élargir.
+1. **Réglage** : une clé additive dans `station_config.parametres_inventaire`, avec deux listes d'`employee_id` : `pilotesCaisse` et `pilotesRenfort`, vides par défaut (= refusé pour tous). Aucun nom, aucun libellé : la liste est lisible par toutes les employées du site, elle ne contient que des identifiants.
+2. **Écriture** : par le chemin manager existant de NEXUS-Parametres-Inventaire-v1.html (UPDATE de `station_config`, déjà réservé aux managers et gérants du site). Aucun nouveau chemin d'écriture.
+3. **Lecture** : par le fil caisse de la pilote, qui compare son identifiant à `pilotesCaisse`. Absence de clé, liste vide, JSON illisible, identifiant absent : le fil actuel, inchangé. `pilotesRenfort` est prévue dans le réglage dès L1 mais n'est lue par aucun écran avant L3.
+4. **Frontière de sécurité, à confirmer** : la décision « pilote ou non » est prise dans la page, la RLS ne borne que la lecture par site. Une non-pilote qui forcerait l'écran ne pourrait au pire que compter, sans aucune écriture nouvelle ni élargissement de ce qu'elle peut déjà écrire. Guardian juge cela suffisant pour un pilote ; je demande que l'arbitre le confirme explicitement, ou exige une application côté base (qui serait alors une porte SECURITE_RLS_SITE_ID, non franchie).
+5. **Isolation intersite** : le réglage est lu avec le `site` de l'employée ; un identifiant listé sur un site n'active rien sur un autre.
 
 ## Demande
 
 Arbitrage APPROVED ou APPROVED_WITH_CONDITIONS, `closes: false`, qui :
 
-1. acte que decision-1 §4 (papier 7 jours, porte (b)) est remplacée par la décision 1 ci-dessus ;
-2. fixe la forme de l'activation par employée, l'ordre de ses sous-étapes et laquelle franchit une porte ;
-3. confirme la règle « cycle non borné par deux comptages NEXUS = non calculable » ;
-4. fixe la mesure de réussite et la durée du pilote ;
-5. autorise L1 (fil caisse, pour l'employée pilote seulement) à démarrer en conception puis code sur Test.
+1. valide la conception ci-dessus (clé additive, deux listes, écriture manager existante) ;
+2. confirme que la décision « pilote ou non » côté page suffit pour un pilote sans enjeu de sécurité, ou l'exclut ;
+3. confirme que `pilotesRenfort` est prévue dès L1 sans être lue avant L3 ;
+4. autorise les étapes 3 et 4 de L1 (code sur Test avec l'existant, puis épreuves pilote / non-pilote / isolation intersite).
 
 ## Limites
 
-Aucun code, aucune migration, aucune policy, aucun grant dans cette request. Aucune lecture ni écriture Production par l'exécutant. La communication de la consigne aux équipes et toute mise en Production restent à Frédéric.
+Aucun code, aucune migration, aucune policy, aucun grant. Aucune lecture ni écriture Production par l'exécutant ; fusion et déploiement par Frédéric.
