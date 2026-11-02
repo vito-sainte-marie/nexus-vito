@@ -54,6 +54,7 @@ for (const [nom, pal] of [['Sombre', T.SOMBRE], ['Jour', T.JOUR]]) {
 const C = Object.assign({}, T.JOUR, T.JOUR_COMPLEMENT);
 for (const [t, f] of [['--red-text', '--red-dim'], ['--amber-text', '--amber-dim'], ['--green-text', '--green-dim'],
   ['--on-green', '--green'], ['--on-red', '--red'], ['--rec-texte', '--rec-fond'], ['--rec-texte', '--rec-attendue'],
+  ...['--text-faint', '--muted-ecran', '--muted', '--mm-titre'].flatMap((t) => ['--bg', '--panel', '--panel-raised', '--mm-hover'].map((f) => [t, f])),
   ['--cyan', '--cyan-tint'], ['--retour-fg', '--bg'], ['--retour-fg', '--panel']]) {
   const r = ratio(C[t], C[f]);
   lignes.push(`Jour   ${t.padEnd(12)} ${C[t]} / ${f.padEnd(14)} ${C[f]}  ${r.toFixed(2)}:1`);
