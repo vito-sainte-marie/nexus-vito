@@ -55,7 +55,7 @@
   .menu-btn{
     position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); border:1px solid rgba(var(--cyan-rgb),0.3);
+    color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.3);
     border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
   }
   .menu-btn:active{background:rgba(var(--cyan-rgb),0.2);}
@@ -96,7 +96,7 @@
 
   .zone-choix{display:flex; gap:10px; margin-bottom:16px;}
   .zone-pill{flex:1; text-align:center; padding:14px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13.5px; font-weight:600; cursor:pointer;}
-  .zone-pill.active{border-color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); color:var(--cyan);}
+  .zone-pill.active{border-color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); color:var(--cyan);}
 
   /* Quart matin/soir bien visible (02/08/2026, demande de Frédéric —
      "mets de façon visible matin et soir et en surbrillance le quart
@@ -105,12 +105,12 @@
   .quart-visuel{display:flex; gap:10px; margin-bottom:16px;}
   .quart-visuel-item{flex:1; text-align:center; padding:11px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:600; color:var(--text-dim); cursor:pointer;}
   .quart-visuel-item:active{background:var(--panel-raised);}
-  .quart-visuel-item.actif{border-color:var(--cyan); background:rgba(var(--cyan-rgb),0.14); color:var(--cyan); box-shadow:0 0 0 1px rgba(var(--cyan-rgb),0.25);}
+  .quart-visuel-item.actif{border-color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.14)); color:var(--cyan); box-shadow:0 0 0 1px rgba(var(--cyan-rgb),0.25);}
 
   .cat-block{margin-bottom:16px;}
   .cat-head{display:flex; align-items:center; justify-content:space-between; padding:0 2px 8px;}
   .cat-nom{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
-  .cat-conforme{font-family:var(--mono); font-size:9.5px; color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); border:1px solid rgba(var(--cyan-rgb),0.3); border-radius:14px; padding:4px 9px; cursor:pointer;}
+  .cat-conforme{font-family:var(--mono); font-size:9.5px; color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.3); border-radius:14px; padding:4px 9px; cursor:pointer;}
   .cat-conforme:active{background:rgba(var(--cyan-rgb),0.2);}
   .cat-block.desactive{opacity:0.45;}
   .cat-desactive-tag{font-family:var(--mono); font-size:9px; color:var(--text-dim); background:var(--panel-raised); border-radius:14px; padding:3px 8px; white-space:nowrap;}
@@ -139,12 +139,12 @@
      renderFinalisationDoubleLieu). Ce badge signale juste qu'une deuxième
      saisie suivra plus tard. */
   .repere-cage{font-size:12px; color:var(--cyan); margin:4px 0 6px;}
-  .badge-double-lieu{display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); border:1px solid rgba(var(--cyan-rgb),0.3); border-radius:8px; padding:3px 7px; margin-left:6px; white-space:nowrap;}
+  .badge-double-lieu{display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.3); border-radius:8px; padding:3px 7px; margin-left:6px; white-space:nowrap;}
   .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
   .ecart-ok{color:var(--green);}
   .ecart-warn{color:var(--amber);}
   .ecart-bad{color:var(--red);}
-  .btn-declarer-livraison{font-family:var(--sans); font-size:10.5px; font-weight:600; color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); border:1px solid rgba(var(--cyan-rgb),0.35); border-radius:14px; padding:4px 10px; cursor:pointer; white-space:nowrap;}
+  .btn-declarer-livraison{font-family:var(--sans); font-size:10.5px; font-weight:600; color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.35); border-radius:14px; padding:4px 10px; cursor:pointer; white-space:nowrap;}
   .btn-declarer-livraison:active{background:rgba(var(--cyan-rgb),0.22);}
   .livraison-declaree{font-family:var(--sans); font-size:10.5px; color:var(--green); white-space:nowrap;}
   .justif-input{
@@ -180,7 +180,7 @@
   .categorie-count{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
   .categorie-etat{font-family:var(--mono); font-size:10px; font-weight:700; padding:4px 9px; border-radius:12px; white-space:nowrap; text-transform:uppercase;}
   .categorie-etat.a-faire{background:var(--panel-raised); color:var(--text-dim);}
-  .categorie-etat.en-cours{background:rgba(var(--cyan-rgb),0.12); color:var(--cyan);}
+  .categorie-etat.en-cours{background:var(--cyan-tint,rgba(var(--cyan-rgb),0.12)); color:var(--cyan);}
   .categorie-etat.termine{background:var(--green-dim); color:var(--green);}
   .categorie-etat.prioritaire{background:var(--red-dim); color:var(--red);}
   .categorie-etat.desactivee{background:var(--panel-raised); color:var(--text-dim);}

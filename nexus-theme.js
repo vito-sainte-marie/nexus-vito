@@ -56,7 +56,7 @@
     '--sheet-end': 'rgba(255,255,255,0.98)', '--cyan-hover': '#095C6C',
     '--text-soft': '#334155', '--text-faint': '#64748B', '--text-link': '#475569',
     '--chip-vert': '#047857', '--sp95': '#047857', '--go': '#B45309', '--gnr': '#B91C1C', '--muted-ecran': '#64748B',
-    '--muted': '#64748B', '--cyan-fonce': '#CFE8EE', '--surface-vert': '#D1FAE5', '--surface-ambre': '#FEF3C7',
+    '--muted': '#64748B', '--cyan-fonce': '#CFE8EE', '--cyan-tint': '#EAF4F6', '--retour-fg': '#475569', '--retour-rgb': '71,85,105', '--surface-vert': '#D1FAE5', '--surface-ambre': '#FEF3C7',
     '--mm-hover': '#EEF2F5', '--mm-titre': '#64748B', '--seg-vide': '#D5DCE3', '--seg-plein': '#047857',
     '--rec-bord': '#E5C07A', '--rec-fond': '#FFF7E6', '--rec-attendue': '#FFEFC7', '--rec-texte': '#92400E', '--rec-sous': '#92400E',
     '--poste-fondu': '255,255,255',

@@ -8,7 +8,7 @@ const fs = require('fs'); const path = require('path'); const assert = require('
 const { execSync } = require('child_process');
 const T = require('./nexus-theme.js');
 const PAGES = ['NEXUS-Login-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-App-v1.html', 'NEXUS-Inventaire-v1.html', 'NEXUS-Releves-Piste-v1.html', 'NEXUS-Carburant-Reception-v1.html'];
-const JS = ['nexus-prise-de-poste.js'];
+const JS = ['nexus-prise-de-poste.js', 'nexus-header-nav.js'];
 const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--serif', '--font', '--r', '--radius']);
 const estCouleur = (v) => /#[0-9a-f]{3,8}\b|rgba?\(|^\d+,\s*\d+,\s*\d+$/i.test(v);
 const JOURS = Object.assign({}, T.JOUR, T.JOUR_COMPLEMENT);
@@ -45,5 +45,19 @@ for (const f of PAGES) {
 for (const f of JS) cas(f + ' : aucune couleur en dur', () => {
   const src = fs.readFileSync(path.join(__dirname, f), 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n').replace(/var\(\s*--[a-z0-9-]+\s*,\s*[^)]*\)/gi, 'var(--x)');
   assert.ok(!lit.test(src), 'littéral couleur : ' + (src.match(lit) || [])[0]);
+});
+cas('nexus-header-nav.js : bouton Précédent sur jetons, repli = ancien littéral Sombre', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'nexus-header-nav.js'), 'utf8');
+  assert.ok(src.includes('color:var(--retour-fg,#8A96A5)'), 'couleur du texte');
+  assert.ok(src.includes('rgba(var(--retour-rgb,138,150,165),0.10)') && src.includes('rgba(var(--retour-rgb,138,150,165),0.28)') && src.includes('rgba(var(--retour-rgb,138,150,165),0.22)'), 'fonds et bordure');
+  assert.ok(JOURS['--retour-fg'] && JOURS['--retour-rgb'] && JOURS['--cyan-tint'], 'jetons Jour manquants');
+});
+cas('--cyan-tint et --retour-* : Jour seulement (aucune page ne les définit en Sombre)', () => {
+  for (const f of PAGES) { const R = racine(fs.readFileSync(path.join(__dirname, f), 'utf8')); for (const k of ['--cyan-tint', '--retour-fg', '--retour-rgb']) assert.ok(!(k in R), f + ' définit ' + k); }
+});
+cas('boutons Sombre / Jour / Auto : 44 px minimum', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+  const m = src.match(/\.mm-theme-btn\{[^}]*min-height:(\d+)px/);
+  assert.ok(m && Number(m[1]) >= 44, 'hauteur : ' + (m && m[1]));
 });
 console.log(`\n${ok} contrôles OK`);

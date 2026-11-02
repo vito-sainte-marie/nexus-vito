@@ -69,10 +69,10 @@
     style.id = 'nexus-retour-css';
     style.textContent =
       '.nexus-retour-btn{display:inline-flex; align-items:center; gap:6px; font-family:\'IBM Plex Mono\',monospace; ' +
-      'font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:#8A96A5; ' +
-      'background:rgba(138,150,165,0.10); border:1px solid rgba(138,150,165,0.28); border-radius:20px; ' +
+      'font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--retour-fg,#8A96A5); ' +
+      'background:rgba(var(--retour-rgb,138,150,165),0.10); border:1px solid rgba(var(--retour-rgb,138,150,165),0.28); border-radius:20px; ' +
       'padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;}' +
-      '.nexus-retour-btn:active{background:rgba(138,150,165,0.22);}' +
+      '.nexus-retour-btn:active{background:rgba(var(--retour-rgb,138,150,165),0.22);}' +
       '.nexus-retour-btn--absolu{display:inline-flex; margin:0 0 10px;}' +
       '.nexus-retour-btn--absolu-bas{position:absolute; top:58px; left:18px;}' +
       '.nexus-retour-btn--flex{flex-shrink:0;}' +

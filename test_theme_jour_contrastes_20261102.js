@@ -53,10 +53,22 @@ for (const [nom, pal] of [['Sombre', T.SOMBRE], ['Jour', T.JOUR]]) {
 // Textes sur jetons complémentaires (Jour) : zones « texte rouge / ambre / vert sur teinte pâle ».
 const C = Object.assign({}, T.JOUR, T.JOUR_COMPLEMENT);
 for (const [t, f] of [['--red-text', '--red-dim'], ['--amber-text', '--amber-dim'], ['--green-text', '--green-dim'],
-  ['--on-green', '--green'], ['--on-red', '--red'], ['--rec-texte', '--rec-fond'], ['--rec-texte', '--rec-attendue']]) {
+  ['--on-green', '--green'], ['--on-red', '--red'], ['--rec-texte', '--rec-fond'], ['--rec-texte', '--rec-attendue'],
+  ['--cyan', '--cyan-tint'], ['--retour-fg', '--bg'], ['--retour-fg', '--panel']]) {
   const r = ratio(C[t], C[f]);
   lignes.push(`Jour   ${t.padEnd(12)} ${C[t]} / ${f.padEnd(14)} ${C[f]}  ${r.toFixed(2)}:1`);
   assert.ok(r >= 4.5, `Jour : ${t} ${C[t]} sur ${f} ${C[f]} = ${r.toFixed(2)}:1 < 4,5:1`);
+  ok++;
+}
+// « ‹ Précédent » : texte --retour-fg sur le fond --retour-rgb à 10 % posé sur l'en-tête (--bg ou --panel).
+for (const fond of ['--bg', '--panel']) {
+  const [rr, gg, bb] = C['--retour-rgb'].split(',').map(Number); const base = C[fond];
+  const n = parseInt(base.slice(1), 16);
+  const m = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v, i) => Math.round(0.1 * [rr, gg, bb][i] + 0.9 * v));
+  const hex = '#' + m.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  const r = ratio(C['--retour-fg'], hex);
+  lignes.push(`Jour   Précédent ${C['--retour-fg']} / ${hex} (sur ${fond})  ${r.toFixed(2)}:1`);
+  assert.ok(r >= 4.5, `Jour : Précédent sur ${fond} = ${r.toFixed(2)}:1 < 4,5:1`);
   ok++;
 }
 if (process.env.VERBOSE) console.log(lignes.join('\n'));
